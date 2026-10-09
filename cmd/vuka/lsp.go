@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"sync"
@@ -193,10 +194,77 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 type vfile struct {
 	source  string // the .vuka or .templ path
 	from    []byte // the source text it was generated from
+	cur     []byte // the editor's text, when it differs from from
+	hunks   []hunk // where cur and from differ
 	gen     []byte
 	m       *transpile.SourceMap   // a .vuka file's map
 	templ   *templparser.SourceMap // a .templ file's map (templ's own)
 	version int
+	probed  int // the version holding the last probe (see probe)
+}
+
+// text is the source as the editor has it.
+func (f *vfile) text() []byte {
+	if f.cur != nil {
+		return f.cur
+	}
+	return f.from
+}
+
+// hunk is a stretch where the editor's text and the text the Go was generated
+// from differ: a placeholder put in mid-edit, or an edit made since the last
+// version that transpiled.
+type hunk struct{ cur, curEnd, from, fromEnd int }
+
+// withText sets the editor's text cur, and the hunks between it and from:
+// the given ones, or else one around everything that differs.
+func (f *vfile) withText(cur []byte, hunks []hunk) {
+	f.cur, f.hunks = nil, nil
+	if cur == nil || bytes.Equal(cur, f.from) {
+		return
+	}
+	f.cur, f.hunks = cur, hunks
+	if hunks == nil {
+		pre := 0
+		for pre < len(cur) && pre < len(f.from) && cur[pre] == f.from[pre] {
+			pre++
+		}
+		suf := 0
+		for suf < len(cur)-pre && suf < len(f.from)-pre && cur[len(cur)-1-suf] == f.from[len(f.from)-1-suf] {
+			suf++
+		}
+		f.hunks = []hunk{{pre, len(cur) - suf, pre, len(f.from) - suf}}
+	}
+}
+
+// fromOff maps an offset in the editor's text to the text the Go came from.
+func (f *vfile) fromOff(off int) int {
+	d := 0
+	for _, h := range f.hunks {
+		if off <= h.cur {
+			break
+		}
+		if off < h.curEnd {
+			return h.from
+		}
+		d = h.fromEnd - h.curEnd
+	}
+	return off + d
+}
+
+// curOff maps an offset in the text the Go came from to the editor's text.
+func (f *vfile) curOff(off int) int {
+	d := 0
+	for _, h := range f.hunks {
+		if off <= h.from {
+			break
+		}
+		if off < h.fromEnd {
+			return h.cur
+		}
+		d = h.curEnd - h.fromEnd
+	}
+	return off + d
 }
 
 // isTempl reports whether f is a .templ file's Go.
@@ -213,7 +281,7 @@ func (f *vfile) toGen(pos lspPosition) lspPosition {
 		}
 		return pos
 	}
-	g, _ := f.m.ToGenerated(offsetOf(f.from, pos))
+	g, _ := f.m.ToGenerated(f.fromOff(offsetOf(f.text(), pos)))
 	return positionOf(f.gen, g)
 }
 
@@ -231,7 +299,7 @@ func (f *vfile) toSource(r lspRange) (lspRange, bool) {
 	if e < s {
 		e = s
 	}
-	return lspRange{positionOf(f.from, s), positionOf(f.from, e)}, true
+	return lspRange{positionOf(f.text(), f.curOff(s)), positionOf(f.text(), f.curOff(e))}, true
 }
 
 // templSource maps a range through templ's source map, which counts columns
@@ -276,10 +344,11 @@ type vukaRequest struct {
 	editorID  json.RawMessage
 	method    string
 	file      *vfile
-	attr      bool     // completion after @, on an attribute or decorator
-	typed     lspRange // there: what was typed after the last dot
-	full      lspRange // and after the @
-	qualifier string   // the package typed before the dot, if any
+	attr      bool      // completion after @, on an attribute or decorator
+	typed     lspRange  // there: what was typed after the last dot
+	full      lspRange  // and after the @
+	qualifier string    // the package typed before the dot, if any
+	closeTag  *lspRange // asked on a closing tag's name, sent to its opening tag's
 }
 
 type proxy struct {
@@ -296,6 +365,7 @@ type proxy struct {
 	nextID           int
 	goReqs           map[string]bool         // editor requests on Go files
 	vukaReqs         map[string]*vukaRequest // proxy request id → request on a .vuka file
+	asks             map[string]chan rpcMsg  // proxy request id → the proxy's own question to gopls
 	bufs             map[string][]byte       // .vuka path → editor buffer
 	virtual          map[string]*vfile       // generated path → buffer in gopls
 	bySource         map[string]string       // .vuka path → generated path
@@ -313,7 +383,7 @@ type proxy struct {
 func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 	return &proxy{
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
-		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{},
+		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{},
 		bufs: map[string][]byte{}, virtual: map[string]*vfile{}, bySource: map[string]string{},
 		vukaDiags: map[string][]any{}, goDiags: map[string][]any{}, shown: map[string]string{},
 	}
@@ -493,6 +563,10 @@ func (p *proxy) fromEditor() {
 			}
 			continue
 		}
+		if m.Method == "textDocument/completion" && jsxTriggered(m.Params) {
+			_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{"isIncomplete": false, "items": []any{}}})
+			continue
+		}
 		if m.isRequest() {
 			p.mu.Lock()
 			p.goReqs[string(m.ID)] = true
@@ -524,6 +598,12 @@ func (p *proxy) fromGopls() {
 		case m.isResponse():
 			id := string(m.ID)
 			p.mu.Lock()
+			if ch := p.asks[id]; ch != nil {
+				delete(p.asks, id)
+				p.mu.Unlock()
+				ch <- m
+				continue
+			}
 			vr := p.vukaReqs[id]
 			delete(p.vukaReqs, id)
 			goReq := p.goReqs[id]
@@ -649,7 +729,9 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 	}
 	out := walk(v, false)
 	if isInit {
-		addTrigger(out, "@")
+		for _, ch := range []string{"@", "<", "/", " "} {
+			addTrigger(out, ch)
+		}
 	}
 	if b, err := json.Marshal(out); err == nil {
 		*field = b
@@ -811,9 +893,12 @@ func (p *proxy) regenerate() {
 	if r, err := filepath.EvalSymlinks(modRoot); err == nil {
 		modRoot = r // the paths the editor's buffers are kept by
 	}
+	hunks := map[string][]hunk{}
 	read := func(path string) ([]byte, error) {
 		if b, ok := bufs[path]; ok {
-			return completable(b), nil
+			src, hs := completable(b)
+			hunks[path] = hs
+			return src, nil
 		}
 		return os.ReadFile(path)
 	}
@@ -852,7 +937,11 @@ func (p *proxy) regenerate() {
 
 	want := map[string]*vfile{}
 	for _, g := range gens {
-		want[g.Target] = &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: g.TemplMap}
+		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: g.TemplMap}
+		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
+			vf.withText(b, hunks[g.Source])
+		}
+		want[g.Target] = vf
 	}
 	failing := map[string]bool{} // directories of packages with errors
 	for path := range diags {
@@ -867,7 +956,17 @@ func (p *proxy) regenerate() {
 	p.mu.Lock()
 	for path, old := range p.virtual {
 		if _, ok := want[path]; !ok && sources[old.source] != nil && failing[filepath.Dir(old.source)] {
-			want[path] = old // keep the last good version while the package has errors
+			// Keep the last good version while the package has errors, mapped
+			// onto the text as it is now.
+			kept := *old
+			now := bufs[old.source]
+			if now == nil {
+				now = sources[old.source]
+			}
+			if !kept.isTempl() {
+				kept.withText(now, nil)
+			}
+			want[path] = &kept
 		}
 	}
 	for path, vf := range want {
@@ -935,6 +1034,7 @@ func (p *proxy) publish(path string) {
 func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 	var dp struct {
 		URI         string `json:"uri"`
+		Version     int    `json:"version"`
 		Diagnostics []any  `json:"diagnostics"`
 	}
 	if err := json.Unmarshal(params, &dp); err != nil {
@@ -947,11 +1047,13 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": params})
 		return
 	}
-	if vf.isTempl() {
-		// templ's own language server reports on .templ files.
+	if vf.isTempl() || dp.Version != 0 && dp.Version == vf.probed {
+		// templ's own language server reports on .templ files; a probe's
+		// diagnostics are of code that was never there.
 		p.mu.Unlock()
 		return
 	}
+	lines := uint32(bytes.Count(vf.gen, []byte("\n")))
 	var mapped []any
 	for _, d := range dp.Diagnostics {
 		obj, ok := d.(map[string]any)
@@ -959,7 +1061,7 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 			continue
 		}
 		r, ok := toRange(obj["range"])
-		if !ok {
+		if !ok || r.Start.Line > lines {
 			continue
 		}
 		if r, ok = vf.toSource(r); !ok {
@@ -1006,10 +1108,24 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	}
 	var params map[string]any
 	_ = json.Unmarshal(m.Params, &params)
-	params["textDocument"] = map[string]any{"uri": pathToURI(p.bySource[path])}
-	srcPos, _ := toPosition(params["position"])
-	if pos, ok := toPosition(params["position"]); ok {
-		params["position"] = vf.toGen(pos)
+	genPath := p.bySource[path]
+	params["textDocument"] = map[string]any{"uri": pathToURI(genPath)}
+	srcPos, hasPos := toPosition(params["position"])
+	var closeTag *lspRange
+	if hasPos {
+		src := vf.text()
+		off := offsetOf(src, srcPos)
+		if h := p.jsxRequest(m.Method, params, vf, genPath, off); h != nil {
+			p.mu.Unlock()
+			go func() { reply(h()) }()
+			return
+		}
+		if to, r, ok := closeRedirect(src, off); ok {
+			closeTag = &r
+			params["position"] = vf.toGen(positionOf(src, to))
+		} else {
+			params["position"] = vf.toGen(srcPos)
+		}
 	}
 	if r, ok := toRange(params["range"]); ok {
 		start, end := vf.toGen(r.Start), vf.toGen(r.End)
@@ -1023,21 +1139,22 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	}
 	p.nextID++
 	id := strconv.Quote("vuka-lsp:" + strconv.Itoa(p.nextID))
-	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf,
-		attr: m.Method == "textDocument/completion" && afterAt(vf.from, srcPos)}
+	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf, closeTag: closeTag,
+		attr: m.Method == "textDocument/completion" && afterAt(vf.text(), srcPos)}
 	if vr.attr {
-		off := offsetOf(vf.from, srcPos)
+		src := vf.text()
+		off := offsetOf(src, srcPos)
 		start := off
-		for start > 0 && isIdentByte(vf.from[start-1]) {
+		for start > 0 && isIdentByte(src[start-1]) {
 			start--
 		}
 		full := start
-		for full > 0 && (isIdentByte(vf.from[full-1]) || vf.from[full-1] == '.') {
+		for full > 0 && (isIdentByte(src[full-1]) || src[full-1] == '.') {
 			full--
 		}
-		vr.typed = lspRange{positionOf(vf.from, start), srcPos}
-		vr.full = lspRange{positionOf(vf.from, full), srcPos}
-		if q := string(vf.from[full:start]); q != "" {
+		vr.typed = lspRange{positionOf(src, start), srcPos}
+		vr.full = lspRange{positionOf(src, full), srcPos}
+		if q := string(src[full:start]); q != "" {
 			vr.qualifier = strings.TrimSuffix(q, ".")
 		}
 		// Typing @ triggers completion; gopls only knows its own triggers.
@@ -1078,11 +1195,60 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		}
 	case "textDocument/hover":
 		v = staticHover(demangleStrings(v))
+		if h, ok := v.(map[string]any); ok && vr.closeTag != nil {
+			h["range"] = *vr.closeTag
+		}
+	case "textDocument/prepareRename":
+		if vr.closeTag != nil {
+			if r, ok := v.(map[string]any); ok && r["range"] != nil {
+				r["range"] = *vr.closeTag
+			} else if _, ok := toRange(v); ok {
+				v = *vr.closeTag
+			}
+		}
+	case "textDocument/rename", "textDocument/references", "textDocument/documentHighlight":
+		v = p.withCloseTwins(vr.method, v, vr.file)
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v)
 	}
 	reply["result"] = v
 	_ = p.editor.send(reply)
+}
+
+// ask sends gopls a request of the proxy's own and waits for the answer.
+func (p *proxy) ask(method string, params any) (json.RawMessage, bool) {
+	p.mu.Lock()
+	p.nextID++
+	id := strconv.Quote("vuka-ask:" + strconv.Itoa(p.nextID))
+	ch := make(chan rpcMsg, 1)
+	p.asks[id] = ch
+	p.mu.Unlock()
+	_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": method, "params": params})
+	select {
+	case m := <-ch:
+		if len(m.Error) > 0 {
+			p.logf("%s: %s", method, m.Error)
+			return nil, false
+		}
+		return m.Result, true
+	case <-time.After(10 * time.Second):
+		p.mu.Lock()
+		delete(p.asks, id)
+		p.mu.Unlock()
+		return nil, false
+	}
+}
+
+// jsxTriggered reports whether a completion was triggered by a character vuka
+// added for markup.
+func jsxTriggered(raw json.RawMessage) bool {
+	var params struct {
+		Context struct {
+			TriggerCharacter string `json:"triggerCharacter"`
+		} `json:"context"`
+	}
+	_ = json.Unmarshal(raw, &params)
+	return jsxTriggers[params.Context.TriggerCharacter]
 }
 
 func (p *proxy) rewriteJSON(raw json.RawMessage, ctx *vfile) json.RawMessage {
@@ -1309,11 +1475,34 @@ var unfinishedAttr = regexp.MustCompile(`(?m)^(\s*@(?:[A-Za-z_][A-Za-z0-9_]*\.)?
 // while it is typed; it is never shown or written.
 const placeholder = "__vuka_complete"
 
-// completable puts the placeholder after an unfinished @, so the rest of the
-// file keeps its completion, hover and diagnostics mid-edit. It only appends
-// to those lines, so every position the editor sends stays valid.
-func completable(src []byte) []byte {
-	return unfinishedAttr.ReplaceAll(src, []byte("${1}"+placeholder+"()"))
+// completable makes a buffer being typed transpile, so the rest of the file
+// keeps its completion, hover and diagnostics mid-edit: the placeholder goes
+// after an unfinished @ and after a selector's dot with nothing after it yet,
+// and a tag with no > yet is blanked out. The hunks say where placeholders went.
+func completable(src []byte) ([]byte, []hunk) {
+	type insert struct {
+		at   int
+		text string
+	}
+	var ins []insert
+	for _, m := range unfinishedAttr.FindAllSubmatchIndex(src, -1) {
+		ins = append(ins, insert{m[3], placeholder + "()"})
+	}
+	for _, at := range danglingDots(src) {
+		ins = append(ins, insert{at, placeholder})
+	}
+	sort.Slice(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
+	blank := blankUnfinishedTags(src)
+	hunks := []hunk{}
+	var out []byte
+	last, d := 0, 0
+	for _, in := range ins {
+		out = append(append(out, blank[last:in.at]...), in.text...)
+		hunks = append(hunks, hunk{in.at, in.at, in.at + d, in.at + d + len(in.text)})
+		d += len(in.text)
+		last = in.at
+	}
+	return append(out, blank[last:]...), hunks
 }
 
 // afterAt reports whether pos is in an attribute's name: the line so far is
@@ -1429,6 +1618,9 @@ func withItems(v any, items []any) any {
 }
 
 func toRange(v any) (lspRange, bool) {
+	if r, ok := v.(lspRange); ok {
+		return r, true
+	}
 	m, ok := v.(map[string]any)
 	if !ok {
 		return lspRange{}, false
