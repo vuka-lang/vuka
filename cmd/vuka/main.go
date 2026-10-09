@@ -15,7 +15,7 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-const version = "v0.3.2-dev"
+const version = "v0.4.0-dev"
 
 const usage = `vuka is Go with overloading and attributes.
 
@@ -32,12 +32,26 @@ Usage:
 	        show each Vuka construct in file beside the Go it becomes
 	vuka fix [-n] [fixer…]
 	        apply the fixers (all by default); -n only says what would change
-	vuka lsp [-gopls path] [-log file]
-	        language server for .vuka files (gopls behind a proxy), over stdio
+	vuka lsp [-gopls path] [-log file] [-shared=false]
+	        language server for .vuka files (gopls behind a proxy), over stdio;
+	        run as gopls (a link named gopls) it is a drop-in gopls for .go files too
 	vuka version
 `
 
 func main() {
+	// Invoked as gopls (a link named gopls, for VS Code's go.alternateTools):
+	// a drop-in gopls that also knows .vuka files.
+	if strings.HasPrefix(filepath.Base(os.Args[0]), "gopls") {
+		if err := asGopls(os.Args[1:]); err != nil {
+			var exit *exec.ExitError
+			if errors.As(err, &exit) {
+				os.Exit(exit.ExitCode())
+			}
+			fmt.Fprintln(os.Stderr, err)
+			os.Exit(1)
+		}
+		return
+	}
 	if len(os.Args) < 2 {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)

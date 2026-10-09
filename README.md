@@ -58,7 +58,12 @@ hints all work; Vuka's own errors and Go's type errors show on the `.vuka`
 lines. Overloads show under the name you wrote (`area`, not `area__Circle`).
 
 - **VS Code:** the extension in [`editors/vscode`](editors/vscode)
-  (`npm install && npx vsce package`, then install the `.vsix`).
+  (`npm install && npx vsce package`, then install the `.vsix`). It offers to
+  serve your Go files too: run as `gopls` (a link the extension makes, set as
+  the Go extension's `go.alternateTools.gopls`), vuka is a drop-in gopls, so
+  `.go` files in a package with `.vuka` files see their code instead of
+  "undefined" errors. Both servers use one shared gopls daemon
+  (`gopls -remote=auto`), so the work is done once.
 - **Any other editor:** run `vuka lsp` over stdio for the `vuka` file type
   (needs gopls: `go install golang.org/x/tools/gopls@latest`).
 

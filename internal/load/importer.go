@@ -26,12 +26,44 @@ type Importer struct {
 	exports map[string]string
 	errs    map[string]string
 	gc      types.ImporterFrom
+	cache   *exportCache // packages outside the main module, across runs; nil for none
 }
 
 func NewImporter(dir, overlay string) *Importer {
 	im := &Importer{Dir: dir, Overlay: overlay, exports: map[string]string{}, errs: map[string]string{}}
 	im.gc = importer.ForCompiler(token.NewFileSet(), "gc", im.lookup).(types.ImporterFrom)
 	return im
+}
+
+// newCachedImporter is an importer for the module at root that remembers the
+// export data of the standard library and dependencies across runs.
+func newCachedImporter(root, overlay string) *Importer {
+	im := NewImporter(root, overlay)
+	im.cache = cacheFor(root)
+	return im
+}
+
+// Prefetch looks up the export data of paths, and everything they depend
+// on, with one go command: the imports of all the module's Vuka packages,
+// asked once rather than package by package.
+func (im *Importer) Prefetch(paths []string) error {
+	var missing []string
+	for _, p := range paths {
+		if _, ok := im.exports[p]; ok || p == "unsafe" || p == "C" {
+			continue
+		}
+		if im.cache != nil {
+			if file, ok := im.cache.get(p); ok {
+				im.exports[p] = file
+				continue
+			}
+		}
+		missing = append(missing, p)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return im.list(missing...)
 }
 
 func (im *Importer) Import(path string) (*types.Package, error) {
@@ -46,6 +78,11 @@ func (im *Importer) ImportFrom(path, dir string, mode types.ImportMode) (*types.
 }
 
 func (im *Importer) lookup(path string) (io.ReadCloser, error) {
+	if _, ok := im.exports[path]; !ok && im.cache != nil {
+		if file, ok := im.cache.get(path); ok {
+			im.exports[path] = file
+		}
+	}
 	if _, ok := im.exports[path]; !ok {
 		if err := im.list(path); err != nil {
 			return nil, err
@@ -61,24 +98,26 @@ func (im *Importer) lookup(path string) (io.ReadCloser, error) {
 	return os.Open(file)
 }
 
-// list records export data for path and everything it depends on.
-func (im *Importer) list(path string) error {
-	args := []string{"list", "-e", "-export", "-deps", "-json=ImportPath,Export,Error"}
+// list records export data for paths and everything they depend on.
+func (im *Importer) list(paths ...string) error {
+	args := []string{"list", "-e", "-export", "-deps", "-json=ImportPath,Export,Error,Standard,Module"}
 	if im.Overlay != "" {
 		args = append(args, "-overlay="+im.Overlay)
 	}
-	cmd := exec.Command("go", append(args, path)...)
+	cmd := exec.Command("go", append(args, paths...)...)
 	cmd.Dir = im.Dir
 	var stderr bytes.Buffer
 	cmd.Stderr = &stderr
 	out, err := cmd.Output()
 	if err != nil {
-		return fmt.Errorf("go list %s: %v\n%s", path, err, strings.TrimSpace(stderr.String()))
+		return fmt.Errorf("go list %s: %v\n%s", strings.Join(paths, " "), err, strings.TrimSpace(stderr.String()))
 	}
 	dec := json.NewDecoder(bytes.NewReader(out))
 	for dec.More() {
 		var p struct {
 			ImportPath, Export string
+			Standard           bool
+			Module             *struct{ Main bool }
 			Error              *struct{ Err string }
 		}
 		if err := dec.Decode(&p); err != nil {
@@ -87,10 +126,14 @@ func (im *Importer) list(path string) error {
 		im.exports[p.ImportPath] = p.Export
 		if p.Error != nil {
 			im.errs[p.ImportPath] = p.Error.Err
+		} else if im.cache != nil && p.Export != "" && (p.Standard || p.Module != nil && !p.Module.Main) {
+			im.cache.put(p.ImportPath, p.Export)
 		}
 	}
-	if _, ok := im.exports[path]; !ok {
-		im.exports[path] = ""
+	for _, path := range paths {
+		if _, ok := im.exports[path]; !ok {
+			im.exports[path] = ""
+		}
 	}
 	return nil
 }

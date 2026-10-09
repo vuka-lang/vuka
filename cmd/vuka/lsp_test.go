@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -134,6 +135,10 @@ func startLSP(t *testing.T) (*lspClient, string, any) {
 }
 
 func startLSPWith(t *testing.T, files map[string]string) (*lspClient, string, any) {
+	return startLSPOpts(t, files, lspOptions{renameCommands: true})
+}
+
+func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspClient, string, any) {
 	gopls, err := findGopls("")
 	if err != nil {
 		t.Skip(err)
@@ -153,7 +158,7 @@ func startLSPWith(t *testing.T, files map[string]string) (*lspClient, string, an
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		_ = runLSP(ctx, toProxyR, fromProxyW, io.Discard, gopls)
+		_ = runLSP(ctx, toProxyR, fromProxyW, io.Discard, gopls, opts)
 		close(done)
 	}()
 	t.Cleanup(func() {
@@ -503,4 +508,67 @@ func completionText(c *lspClient, uri, src, needle, label string) string {
 		}
 	}
 	return ""
+}
+
+// TestDropIn is vuka serving as the Go extension's gopls: a .go file in a
+// package with .vuka files sees their code, and gopls's commands keep their
+// names (the Go extension registers them itself).
+func TestDropIn(t *testing.T) {
+	c, dir, init := startLSPOpts(t, map[string]string{
+		"main.vuka": "package main\n\nfunc helper() Result[int] { return Ok(1) }\n\nfunc main() { _ = useIt() }\n",
+		"util.go":   "package main\n\nfunc useIt() int { return helper().Unwrap() }\n",
+	}, lspOptions{})
+	caps := init.(map[string]any)["capabilities"].(map[string]any)
+	for _, cmd := range caps["executeCommandProvider"].(map[string]any)["commands"].([]any) {
+		if !strings.HasPrefix(cmd.(string), "gopls.") {
+			t.Fatalf("drop-in renamed %v; the Go extension expects gopls's names", cmd)
+		}
+	}
+	util := filepath.Join(dir, "util.go")
+	src, _ := os.ReadFile(util)
+	uri := pathToURI(util)
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "go", "version": 1, "text": string(src)}})
+	var hover string
+	for i := 0; i < 30 && !strings.Contains(hover, "func helper()"); i++ {
+		time.Sleep(200 * time.Millisecond)
+		v := c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"position": positionOf(src, strings.Index(string(src), "helper")+1)})
+		b, _ := json.Marshal(v)
+		hover = string(b)
+	}
+	if !strings.Contains(hover, "func helper() vuka.Result[int]") {
+		t.Fatalf("hover on helper from a .go file: %s", hover)
+	}
+	// Loaded now; the diagnostics that follow are the real ones.
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
+		"contentChanges": []any{map[string]any{"text": string(src) + "\n"}}})
+	ds := c.waitDiags(uri, func([]any) bool { return true })
+	if len(ds) != 0 {
+		b, _ := json.Marshal(ds)
+		t.Fatalf("util.go should see helper from main.vuka: %s", b)
+	}
+}
+
+// TestGoplsPassthrough runs vuka through a link named gopls: subcommands
+// other than serve reach the real gopls.
+func TestGoplsPassthrough(t *testing.T) {
+	if _, err := findGopls(""); err != nil {
+		t.Skip(err)
+	}
+	dir := t.TempDir()
+	bin := filepath.Join(dir, "vuka")
+	build := exec.Command("go", "build", "-o", bin, ".")
+	build.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	link := filepath.Join(dir, "gopls")
+	if err := os.Symlink(bin, link); err != nil {
+		t.Fatal(err)
+	}
+	out, err := exec.Command(link, "version").CombinedOutput()
+	if err != nil || !strings.Contains(string(out), "golang.org/x/tools/gopls") {
+		t.Fatalf("gopls version through vuka: %v\n%s", err, out)
+	}
 }

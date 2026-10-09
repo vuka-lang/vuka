@@ -18,6 +18,16 @@ type rpcConn struct {
 	r   *bufio.Reader
 	wmu sync.Mutex
 	w   io.Writer
+
+	mu              sync.Mutex
+	onRead, onWrite func([]byte) []byte // rewrite message bodies, when set
+}
+
+// rewriting installs body rewrites for messages read and written.
+func (c *rpcConn) rewriting(onRead, onWrite func([]byte) []byte) {
+	c.mu.Lock()
+	c.onRead, c.onWrite = onRead, onWrite
+	c.mu.Unlock()
 }
 
 func newRPCConn(r io.Reader, w io.Writer) *rpcConn {
@@ -48,10 +58,22 @@ func (c *rpcConn) read() ([]byte, error) {
 	}
 	body := make([]byte, n)
 	_, err := io.ReadFull(c.r, body)
+	c.mu.Lock()
+	f := c.onRead
+	c.mu.Unlock()
+	if f != nil && err == nil {
+		body = f(body)
+	}
 	return body, err
 }
 
 func (c *rpcConn) write(body []byte) error {
+	c.mu.Lock()
+	f := c.onWrite
+	c.mu.Unlock()
+	if f != nil {
+		body = f(body)
+	}
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
 	if _, err := fmt.Fprintf(c.w, "Content-Length: %d\r\n\r\n", len(body)); err != nil {

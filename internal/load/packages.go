@@ -266,10 +266,36 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 	if err := writeOverlay(overlay, replace); err != nil {
 		return nil, "", err
 	}
+	// One importer for the whole run: every package's imports looked up with
+	// one go command, the standard library and dependencies cached across runs.
+	vukaPkgs := map[string]bool{}
+	for _, p := range pkgs {
+		vukaPkgs[p.ImportPath] = true
+	}
+	var imports []string
+	seen := map[string]bool{}
+	for _, p := range pkgs {
+		for _, path := range p.Imports {
+			if !vukaPkgs[path] && !seen[path] {
+				seen[path] = true
+				imports = append(imports, path)
+			}
+		}
+	}
+	var imp *Importer
+	if len(pkgs) > 0 {
+		root, _, err := ModuleRoot(pkgs[0].Dir)
+		if err != nil {
+			root = pkgs[0].Dir
+		}
+		imp = newCachedImporter(root, overlay)
+		defer imp.cache.save()
+		_ = imp.Prefetch(imports) // a failure shows up where the import is used
+	}
 	var errs transpile.ErrorList
 	for i, p := range pkgs {
 		res, err := transpile.Package(p.Files, transpile.Options{
-			Importer: NewImporter(p.Dir, overlay),
+			Importer: imp,
 			Path:     func(name string) string { return filepath.Join(p.Dir, name) },
 			Bare:     opts.Bare,
 		})

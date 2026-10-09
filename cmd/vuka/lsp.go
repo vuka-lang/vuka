@@ -32,6 +32,7 @@ func lsp(args []string) error {
 	fs := flag.NewFlagSet("lsp", flag.ContinueOnError)
 	goplsFlag := fs.String("gopls", "", "gopls binary (default: gopls on PATH, then $GOBIN, then $GOPATH/bin)")
 	logFile := fs.String("log", "", "append a log to this file")
+	shared := fs.Bool("shared", true, "use gopls's shared daemon (-remote=auto), so every editor session shares one gopls")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -39,9 +40,56 @@ func lsp(args []string) error {
 	if err != nil {
 		return err
 	}
+	var goplsArgs []string
+	if *shared {
+		goplsArgs = append(goplsArgs, "-remote=auto")
+	}
+	return serveLSP(gopls, *logFile, lspOptions{goplsArgs: goplsArgs, renameCommands: true})
+}
+
+// asGopls runs vuka as a drop-in gopls, when invoked under that name (the
+// VS Code Go extension's go.alternateTools.gopls points at a link to vuka):
+// gopls's subcommands other than serve go straight to the real gopls; serving
+// runs the proxy, so .go files see the Go generated from .vuka files too. The
+// commands keep gopls's names, which the Go extension registers itself.
+func asGopls(args []string) error {
+	gopls, err := findGopls(os.Getenv("VUKA_GOPLS"))
+	if err != nil {
+		return err
+	}
+	sub := ""
+	for _, a := range args {
+		if !strings.HasPrefix(a, "-") {
+			sub = a
+			break
+		}
+	}
+	if sub != "" && sub != "serve" {
+		c := exec.Command(gopls, args...)
+		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
+		return c.Run()
+	}
+	goplsArgs := args
+	if os.Getenv("VUKA_GOPLS_SHARED") != "0" && !hasFlag(args, "remote") {
+		goplsArgs = append([]string{"-remote=auto"}, args...)
+	}
+	return serveLSP(gopls, os.Getenv("VUKA_LSP_LOG"), lspOptions{goplsArgs: goplsArgs})
+}
+
+func hasFlag(args []string, name string) bool {
+	for _, a := range args {
+		a = strings.TrimLeft(a, "-")
+		if a == name || strings.HasPrefix(a, name+"=") {
+			return true
+		}
+	}
+	return false
+}
+
+func serveLSP(gopls, logFile string, opts lspOptions) error {
 	logw := io.Discard
-	if *logFile != "" {
-		f, err := os.OpenFile(*logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+	if logFile != "" {
+		f, err := os.OpenFile(logFile, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
 		if err != nil {
 			return err
 		}
@@ -50,21 +98,33 @@ func lsp(args []string) error {
 	}
 	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
 	defer stop()
-	return runLSP(ctx, os.Stdin, os.Stdout, logw, gopls)
+	return runLSP(ctx, os.Stdin, os.Stdout, logw, gopls, opts)
+}
+
+// lspOptions are how vuka lsp runs gopls and talks to the editor.
+type lspOptions struct {
+	goplsArgs      []string // before serve, e.g. -remote=auto
+	renameCommands bool     // namespace gopls's commands (vuka.gopls.*) for a second client
 }
 
 func findGopls(flagPath string) (string, error) {
 	if flagPath != "" {
 		return flagPath, nil
 	}
-	if p, err := exec.LookPath("gopls"); err == nil {
+	self, _ := os.Executable()
+	self, _ = filepath.EvalSymlinks(self)
+	isSelf := func(p string) bool {
+		r, err := filepath.EvalSymlinks(p)
+		return err == nil && r == self
+	}
+	if p, err := exec.LookPath("gopls"); err == nil && !isSelf(p) {
 		return p, nil
 	}
-	for _, dir := range []string{os.Getenv("GOBIN"), filepath.Join(goEnv("GOPATH"), "bin")} {
+	for _, dir := range append(filepath.SplitList(os.Getenv("PATH")), os.Getenv("GOBIN"), filepath.Join(goEnv("GOPATH"), "bin")) {
 		if dir == "" {
 			continue
 		}
-		if p := filepath.Join(dir, "gopls"); fileExists(p) {
+		if p := filepath.Join(dir, "gopls"); fileExists(p) && !isSelf(p) {
 			return p, nil
 		}
 	}
@@ -84,8 +144,8 @@ func fileExists(p string) bool {
 	return err == nil
 }
 
-func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, gopls string) error {
-	child := exec.Command(gopls, "serve")
+func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, gopls string, opts lspOptions) error {
+	child := exec.Command(gopls, append(append([]string{}, opts.goplsArgs...), "serve")...)
 	child.Stderr = logw
 	cin, err := child.StdinPipe()
 	if err != nil {
@@ -105,6 +165,7 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 	defer os.RemoveAll(tmp)
 
 	p := newProxy(newRPCConn(in, out), newRPCConn(cout, cin), logw, tmp)
+	p.renameCommands = opts.renameCommands
 	goplsDone, editorDone := make(chan struct{}), make(chan struct{})
 	go func() { p.fromGopls(); close(goplsDone) }()
 	go func() { p.fromEditor(); close(editorDone) }()
@@ -171,23 +232,24 @@ type proxy struct {
 
 	genMu sync.Mutex
 
-	mu        sync.Mutex
-	initID    string // the editor's initialize request
-	root      string
-	nextID    int
-	goReqs    map[string]bool         // editor requests on Go files
-	vukaReqs  map[string]*vukaRequest // proxy request id → request on a .vuka file
-	bufs      map[string][]byte       // .vuka path → editor buffer
-	virtual   map[string]*vfile       // generated path → buffer in gopls
-	bySource  map[string]string       // .vuka path → generated path
-	vukaDiags map[string][]any        // .vuka path → transpiler errors
-	goDiags   map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
-	shown     map[string]string       // real path → the path the editor uses for it
-	decos     []projectDecorator      // the module's decorators, as of the last regenerate
-	started   bool
-	dirty     bool
-	timer     *time.Timer
-	stopped   bool
+	mu             sync.Mutex
+	initID         string // the editor's initialize request
+	renameCommands bool
+	root           string
+	nextID         int
+	goReqs         map[string]bool         // editor requests on Go files
+	vukaReqs       map[string]*vukaRequest // proxy request id → request on a .vuka file
+	bufs           map[string][]byte       // .vuka path → editor buffer
+	virtual        map[string]*vfile       // generated path → buffer in gopls
+	bySource       map[string]string       // .vuka path → generated path
+	vukaDiags      map[string][]any        // .vuka path → transpiler errors
+	goDiags        map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
+	shown          map[string]string       // real path → the path the editor uses for it
+	decos          []projectDecorator      // the module's decorators, as of the last regenerate
+	started        bool
+	dirty          bool
+	timer          *time.Timer
+	stopped        bool
 }
 
 func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
@@ -288,6 +350,9 @@ func (p *proxy) fromEditor() {
 			_ = p.gopls.send(&m)
 			continue
 		case "workspace/executeCommand":
+			if !p.renameCommands {
+				break
+			}
 			// Commands reach the editor under vuka.; gopls knows them without.
 			var params map[string]any
 			if json.Unmarshal(m.Params, &params) == nil {
@@ -366,8 +431,11 @@ func (p *proxy) fromGopls() {
 			p.logf("bad message from gopls: %v", err)
 			continue
 		}
-		if bytes.Contains(body, []byte(`"gopls.`)) {
-			m = p.renameCommands(m)
+		if p.renameCommands && bytes.Contains(body, []byte(`"gopls.`)) {
+			m = p.namespaceCommands(m)
+			body, _ = json.Marshal(&m)
+		} else if m.isResponse() && p.isInit(m) {
+			m = p.namespaceCommands(m) // still adds the @ trigger
 			body, _ = json.Marshal(&m)
 		}
 		switch {
@@ -450,10 +518,15 @@ const commandPrefix = "vuka."
 // renameCommands puts gopls's commands under commandPrefix in a message for
 // the editor: the commands advertised at initialize or registered later, and
 // every command a code action, code lens or similar refers to.
-func (p *proxy) renameCommands(m rpcMsg) rpcMsg {
+func (p *proxy) isInit(m rpcMsg) bool {
 	p.mu.Lock()
-	isInit := m.isResponse() && string(m.ID) == p.initID
-	p.mu.Unlock()
+	defer p.mu.Unlock()
+	return string(m.ID) == p.initID
+}
+
+func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
+	isInit := m.isResponse() && p.isInit(m)
+	rename := p.renameCommands
 	field := &m.Params
 	if m.isResponse() {
 		field = &m.Result
@@ -473,9 +546,9 @@ func (p *proxy) renameCommands(m rpcMsg) rpcMsg {
 			for k, val := range x {
 				switch {
 				case k == "arguments":
-				case k == "commands" && (isInit || m.Method == "client/registerCapability"):
+				case k == "commands" && rename && (isInit || m.Method == "client/registerCapability"):
 					x[k] = walk(val, true)
-				case k == "command":
+				case k == "command" && rename:
 					if s, ok := val.(string); ok && strings.HasPrefix(s, "gopls.") {
 						x[k] = commandPrefix + s
 					} else {
@@ -537,6 +610,19 @@ func (p *proxy) initialize(params json.RawMessage) {
 	p.root = root
 	p.mu.Unlock()
 	p.logf("root %s", root)
+
+	// A workspace reached through a symlink (macOS's /tmp and /var are
+	// /private/…): gopls, the go command and the generated files all use real
+	// paths, so every message is translated, editor paths to real on the way
+	// in, real to editor paths on the way out.
+	if real, err := filepath.EvalSymlinks(root); err == nil && real != root {
+		// URIs only: a real path contains the editor's as a substring
+		// (/private/var/x holds /var/x), file:// URIs don't.
+		from, to := []byte(strings.TrimSuffix(pathToURI(root), "/")+"/"), []byte(strings.TrimSuffix(pathToURI(real), "/")+"/")
+		p.editor.rewriting(
+			func(b []byte) []byte { return bytes.ReplaceAll(b, from, to) },
+			func(b []byte) []byte { return bytes.ReplaceAll(b, to, from) })
+	}
 }
 
 func (p *proxy) isVirtual(path string) bool {

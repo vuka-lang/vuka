@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Vuka language support: Go with Result, Option, ?, match, overloading and attributes. Completion, navigation, rename and diagnostics through gopls.",
-  "version": "0.1.4",
+  "version": "0.2.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -13,16 +13,30 @@
   "engines": {
     "vscode": "^1.85.0"
   },
-  "categories": ["Programming Languages"],
-  "keywords": ["vuka", "go", "golang", "transpiler"],
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "vuka",
+    "go",
+    "golang",
+    "transpiler"
+  ],
   "main": "./extension.js",
-  "activationEvents": ["onLanguage:vuka"],
+  "activationEvents": [
+    "onLanguage:vuka"
+  ],
   "contributes": {
     "languages": [
       {
         "id": "vuka",
-        "aliases": ["Vuka", "vuka"],
-        "extensions": [".vuka"],
+        "aliases": [
+          "Vuka",
+          "vuka"
+        ],
+        "extensions": [
+          ".vuka"
+        ],
         "configuration": "./language-configuration.json",
         "icon": {
           "light": "./images/file-icon.svg",
@@ -55,9 +69,23 @@
         },
         "vuka.trace.server": {
           "type": "string",
-          "enum": ["off", "messages", "verbose"],
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
           "default": "off",
           "description": "Trace the messages between VS Code and vuka lsp."
+        },
+        "vuka.sharedGopls": {
+          "type": "boolean",
+          "default": true,
+          "description": "Share one gopls daemon (gopls -remote=auto) between the Vuka server, the Go extension and other windows."
+        },
+        "vuka.offerGoDropIn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer to serve Go files through Vuka too (go.alternateTools.gopls), so .go files see code from .vuka files."
         }
       }
     },
@@ -65,6 +93,14 @@
       {
         "command": "vuka.restartServer",
         "title": "Vuka: Restart Language Server"
+      },
+      {
+        "command": "vuka.serveGoFiles",
+        "title": "Vuka: Serve Go Files Too"
+      },
+      {
+        "command": "vuka.stopServingGoFiles",
+        "title": "Vuka: Stop Serving Go Files"
       }
     ]
   },
