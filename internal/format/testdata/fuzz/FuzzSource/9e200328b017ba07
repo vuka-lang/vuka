@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("package A@A{\"\",//\n} type A[]A")
