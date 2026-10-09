@@ -1,0 +1,4 @@
+err_jsx.vuka:4:21: expected </p> to close <p> at line 4, found </div>
+err_jsx.vuka:8:9: unclosed <ul>: found } at line 10 (write {"}"} for the text)
+err_jsx.vuka:13:17: event handlers need a stateful component; coming in stage 2
+err_jsx.vuka:17:35: expected } to close the block opened at line 17

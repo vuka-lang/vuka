@@ -1,0 +1,95 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"io"
+)
+
+type User struct {
+	ID     int
+	Name   string
+	Active bool
+	Year   int
+}
+
+func UserCard(user User, admin bool, children vuka.Node) vuka.Node {
+	return <div className="card" data-id={user.ID}>
+		<h3>{user.Name}</h3>
+		{children}
+		{if admin { <button disabled={!user.Active}>Edit</button> }}
+	</div>
+}
+
+// Badge takes its attributes out of the order of its parameters.
+func Badge(label string, count int) vuka.Node {
+	return <span>{label}: {count}</span>
+}
+
+type ButtonProps struct {
+	Variant  string
+	Size     int
+	Disabled bool
+	Children vuka.Node
+}
+
+func Button(props ButtonProps) vuka.Node { return <button>{props.Variant}</button> }
+
+type IconProps struct {
+	Name  string
+	Class string
+}
+
+type html string
+
+func (h html) Render(ctx context.Context, w io.Writer) error {
+	_, err := io.WriteString(w, string(h))
+	return err
+}
+
+// Icon is templUI-style: variadic props, a result that isn't vuka.Node.
+func Icon(props ...IconProps) html { return "<i></i>" }
+
+func Avatar(url string) (vuka.Node, error) {
+	if url == "" {
+		return nil, errors.New("no url")
+	}
+	return <img src={url} />, nil
+}
+
+// Layout takes no children parameter: its children go through templ's.
+func Layout(title string) vuka.Node { return <title>{title}</title> }
+
+type Theme struct{ dark bool }
+
+func (t Theme) Card(heading string, children vuka.Node) vuka.Node {
+	return <section className={map[bool]string{true: "dark"}[t.dark]}><h2>{heading}</h2>{children}</section>
+}
+
+func List(users []User) vuka.Node {
+	return <>
+		<ul>
+			{for _, u := range users {
+				<li key={u.ID}><UserCard user={u} admin={false}>since {u.Year}</UserCard></li>
+			}}
+		</ul>
+		<Badge count={len(users)} label="users" />
+		<Badge
+			count={2}
+			Label={"x"} />
+		<Button variant="primary" disabled>Save</Button>
+		<Icon name="star" />
+		<Icon />
+		<Avatar url={"a.png"} />
+		<UserCard />
+		<Layout title="Users"><p>body</p></Layout>
+	</>
+}
+
+func Themed(theme Theme) vuka.Node {
+	return <theme.Card heading="Hi">text</theme.Card>
+}
+
+func main() {
+	_ = List(nil)
+}

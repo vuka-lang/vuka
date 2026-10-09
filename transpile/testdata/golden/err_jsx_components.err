@@ -1,0 +1,6 @@
+err_jsx_components.vuka:30:13: <UserCard> has no attribute usr; did you mean user?
+err_jsx_components.vuka:31:22: <UserCard> has no attribute colour; its parameters are user, admin
+err_jsx_components.vuka:32:10: <Panel> has no attribute titel; did you mean Title?
+err_jsx_components.vuka:33:3: <Counter> is a type: stateful components come in stage 2
+err_jsx_components.vuka:34:3: <Raw> takes no children
+err_jsx_components.vuka:35:3: <Plain> returns int, which isn't a vuka.Node: it has no Render(context.Context, io.Writer) error method

@@ -35,6 +35,23 @@ func scanTokens(src []byte) []tok {
 	}
 }
 
+// scanFrom scans src from off. After an operand (JSX), a newline ends the
+// statement, as it would after the ) the scanner is shown in its place.
+func scanFrom(src []byte, off int, afterOperand bool) []tok {
+	base, buf := off, src[off:]
+	if afterOperand {
+		base, buf = off-1, append([]byte{')'}, src[off:]...)
+	}
+	ts := scanTokens(buf)
+	if afterOperand && len(ts) > 0 {
+		ts = ts[1:]
+	}
+	for i := range ts {
+		ts[i].off += base
+	}
+	return ts
+}
+
 func isAt(t tok) bool       { return t.tok == token.ILLEGAL && t.lit == "@" }
 func isQuestion(t tok) bool { return t.tok == token.ILLEGAL && t.lit == "?" }
 
@@ -154,6 +171,25 @@ func (f *fileState) scan(errs *ErrorList) {
 			} else if msg != "" {
 				errs.add(f.at(t.off), "%s", msg)
 			}
+			continue
+		case t.tok == token.LSS && depth > 0 && jsxStarts(p.tok) && jsxTagAt(f.src, t.off):
+			f.scannedRuntime(toks)
+			end, ok := f.parseJSX(t.off, errs)
+			if !ok {
+				// Resume at the next top-level func: what follows the bad
+				// JSX isn't Go.
+				next := strings.Index(string(f.src[t.off:]), "\nfunc ")
+				if next < 0 {
+					toks = toks[:i:i]
+					continue
+				}
+				toks = append(toks[:i:i], scanFrom(f.src, t.off+next+1, false)...)
+				depth, frames, prev, prevIdx = 0, nil, tok{tok: token.SEMICOLON}, -1
+				i--
+				continue
+			}
+			toks = append(toks[:i:i], append([]tok{{t.off, token.IDENT, string(f.src[t.off:end])}}, scanFrom(f.src, end, true)...)...)
+			prev = toks[i]
 			continue
 		case !isAt(t):
 			continue
