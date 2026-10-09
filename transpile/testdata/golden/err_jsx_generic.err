@@ -1,0 +1,14 @@
+err_jsx_generic.vuka:22:3: <Table> takes a generic props struct, whose type arguments can't be inferred: write <Table[…]>
+err_jsx_generic.vuka:23:3: <Empty> is generic, and its attributes don't give its type arguments: write <Empty[…]>
+err_jsx_generic.vuka:24:3: <Box> is generic, and its attributes don't give its type arguments: write <Box[…]>
+err_jsx_generic.vuka:25:3: no overload of Price takes these attributes
+	(amount int) vuka.Node at err_jsx_generic.vuka:11:6
+	(amount float64) vuka.Node at err_jsx_generic.vuka:12:6
+	(amount int, children vuka.Node) vuka.Node at err_jsx_generic.vuka:13:6
+err_jsx_generic.vuka:26:3: no overload of Price takes these attributes
+	(amount int) vuka.Node at err_jsx_generic.vuka:11:6
+	(amount float64) vuka.Node at err_jsx_generic.vuka:12:6
+	(amount int, children vuka.Node) vuka.Node at err_jsx_generic.vuka:13:6
+err_jsx_generic.vuka:27:3: <Num> is ambiguous: its attributes fit
+	(n int64) vuka.Node at err_jsx_generic.vuka:17:6
+	(n int32) vuka.Node at err_jsx_generic.vuka:18:6

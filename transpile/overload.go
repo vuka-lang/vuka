@@ -400,7 +400,12 @@ func (e *engine) argList(args []arg) string {
 }
 
 func (e *engine) candidates(list []*overload) string {
-	q := types.RelativeTo(e.pkg)
+	q := func(p *types.Package) string {
+		if p == e.pkg {
+			return ""
+		}
+		return p.Name()
+	}
 	var b strings.Builder
 	for _, o := range list {
 		if o.sig != nil {
