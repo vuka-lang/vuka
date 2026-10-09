@@ -168,8 +168,8 @@ headings, lists, aligned tables, wrapped paragraphs and optional color.
 term.Render(ctx, os.Stdout, Pets(pets, false), term.Options{Width: 80, Color: true})
 ```
 
-templ components are opaque to other renderers: `term` shows their HTML as
-plain text.
+`term` reads the HTML of templ components too, so a page inside a templ
+layout keeps its headings, tables and lists.
 
 ## What it becomes
 

@@ -69,7 +69,7 @@ func TestString(t_ *testing.T) {
 		{"skipped", el("div", el("script", t("var x")), el("style", t("p{}")), t("shown")), 0, lines("shown")},
 		{"wrap", el("p", t("the quick brown fox jumps over the lazy dog")), 15, lines("the quick brown", "fox jumps over", "the lazy dog")},
 		{"long word", el("p", t("a extraordinarily b")), 5, lines("a", "extraordinarily", "b")},
-		{"safe html", v.Safe("<p>one&amp;<b>two</b></p><p>three</p>"), 0, lines("one&two three")},
+		{"safe html", v.Safe("<p>one&amp;<b>two</b></p><p>three</p>"), 0, lines("one&two", "", "three")},
 		{"try", v.Try(el("p", t("ok")), nil), 0, lines("ok")},
 		{"boundary", v.ErrorBoundary(func(err error) v.Node { return el("p", t("failed: "), v.Child(err)) },
 			el("p", t("partial")), v.Try(nil, errors.New("boom"))), 0, lines("failed: boom")},
@@ -153,21 +153,112 @@ func TestPage(t_ *testing.T) {
 	}
 }
 
-func TestOpaque(t_ *testing.T) {
-	card := templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
-		_, err := io.WriteString(w, `<div class="card"><h3>Ada &amp; Co</h3><p>Hello<br>there</p><script>x()</script></div>`)
+// html is a templ component writing s, as a compiled .templ file would.
+func html(s string) templ.Component {
+	return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+		_, err := io.WriteString(w, s)
 		return err
 	})
-	got, err := term.String(context.Background(), el("main", el("p", t("before")), card), term.Options{})
+}
+
+func render(t_ *testing.T, n v.Node, o term.Options) string {
+	t_.Helper()
+	got, err := term.String(context.Background(), n, o)
 	if err != nil {
 		t_.Fatal(err)
 	}
-	if want := lines("before", "", "Ada & Co Hello there"); got != want {
-		t_.Errorf("got %q want %q", got, want)
+	return got
+}
+
+func TestOpaque(t_ *testing.T) {
+	jsx := el("main",
+		el("h2", t("Pets")),
+		v.El("table", []v.Attr{a("className", "grid")},
+			el("thead", el("tr", el("th", t("Name")), el("th", t("Kind")))),
+			el("tbody", el("tr", el("td", t("Rex")), el("td", t("dog"))), el("tr", el("td", t("Tom & Jerry")), el("td", t("cat"))))),
+		el("ul", el("li", t("one")), el("li", el("b", t("two")))),
+		v.El("input", []v.Attr{a("type", "checkbox"), a("checked", true)}))
+	tmpl := html(`<main>
+  <h2>Pets</h2>
+  <table class="grid"><thead><tr><th>Name</th><th>Kind</th></tr></thead>
+    <tbody><tr><td>Rex</td><td>dog</td></tr><tr><td>Tom &amp; Jerry</td><td>cat</td></tr></tbody></table>
+  <ul><li>one</li><li><b>two</b></li></ul>
+  <input type="checkbox" checked>
+</main>`)
+	for _, o := range []term.Options{{}, {Width: 30, Color: true}} {
+		if got, want := render(t_, tmpl, o), render(t_, jsx, o); got != want {
+			t_.Errorf("templ:\n%s\njsx:\n%s", got, want)
+		}
 	}
 	fail := templ.ComponentFunc(func(context.Context, io.Writer) error { return errors.New("boom") })
 	if _, err := term.String(context.Background(), el("p", fail), term.Options{}); err == nil {
 		t_.Error("opaque error lost")
+	}
+}
+
+// JSX children inside a templ layout come back as part of its HTML.
+func TestOpaqueNested(t_ *testing.T) {
+	shell := func(title string, kids ...v.Node) templ.Component {
+		return templ.ComponentFunc(func(ctx context.Context, w io.Writer) error {
+			io.WriteString(w, `<div class="shell"><h1>`+title+`</h1><section>`)
+			for _, k := range kids {
+				if err := k.Render(ctx, w); err != nil {
+					return err
+				}
+			}
+			_, err := io.WriteString(w, `</section></div>`)
+			return err
+		})
+	}
+	table := el("table", el("tr", el("th", t("A")), el("th", t("B"))), el("tr", el("td", t("1")), el("td", t("22"))))
+	got := render(t_, el("body", shell("Pets", table, el("ul", el("li", t("x")))), el("p", t("after"))), term.Options{})
+	want := render(t_, el("body", el("div", el("h1", t("Pets")), el("section", table, el("ul", el("li", t("x"))))), el("p", t("after"))), term.Options{})
+	if got != want {
+		t_.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+	if want != lines("Pets", "════", "", "A  B", "─  ──", "1  22", "", "• x", "", "after") {
+		t_.Errorf("unexpected layout %q", want)
+	}
+}
+
+func TestOpaqueHTML(t_ *testing.T) {
+	tests := []struct{ name, in, want string }{
+		{"entities", `<p>a &lt;b&gt; &amp; &quot;c&quot; &#39;d&#39; &copy; &#x263A;</p>`, lines("a <b> & \"c\" 'd' © ☺")},
+		{"attr entities", `<a href="/x?a=1&amp;b=2">go</a>`, lines("go (/x?a=1&b=2)")},
+		{"script style skipped", `<p>a</p><script>if (a < b) { x("</p>") }</script><style>p > b {}</style><p>b</p>`, lines("a", "", "b")},
+		{"script uppercase end", `<SCRIPT>x<y</Script><p>z</p>`, lines("z")},
+		{"comment doctype", `<!DOCTYPE html><!-- <h1>no</h1> --><?xml x?><p>yes</p>`, lines("yes")},
+		{"unclosed", `<ul><li>a<li>b`, lines("• a", "• b")},
+		{"implied ends", `<p>a<table><tr><td>1<td>2<tr><td>3<td>4</table><dl><dt>t<dd>d</dl>`, lines("a", "", "1  2", "3  4", "", "t", "", "d")},
+		{"stray end", `</div></p><p>a</b></p>`, lines("a")},
+		{"lone lt", `<p>1 < 2 <3 a<</p>`, lines("1 < 2 <3 a<")},
+		{"unterminated tag", `<p class="x`, ""},
+		{"unterminated comment", `<p>a</p><!-- open`, lines("a")},
+		{"self closing", `<p>a<br/>b<span/>c</p>`, lines("a", "bc")},
+		{"unquoted attrs", `<ol start=3 class=x><li>c</li></ol>`, lines("3. c")},
+		{"single quotes", `<input value='a "b"'>`, lines("[a \"b\"_______]")},
+		{"textarea title", `<title>T &amp;</title><p>x</p>`, lines("x")},
+		{"empty", ``, ""},
+		{"garbage", `<<>></ ><a <b =>`, lines("<<>></ >")},
+	}
+	for _, tt := range tests {
+		t_.Run(tt.name, func(t_ *testing.T) {
+			if got := render(t_, html(tt.in), term.Options{}); got != tt.want {
+				t_.Errorf("got %q want %q", got, tt.want)
+			}
+		})
+	}
+	// Every prefix of well-formed markup is malformed somewhere; none panics.
+	doc := `<!DOCTYPE html><html><body class='a' data-x="1 > 2"><!-- c --><h1>T &amp; u</h1><ul><li>a<br/></li></ul>` +
+		`<table><tr><td>1</td></tr></table><script>a<b</script><input value=x checked></body></html>`
+	for i := range len(doc) {
+		render(t_, html(doc[:i]), term.Options{Width: 8})
+		render(t_, html(doc[i:]), term.Options{Width: 8})
+	}
+	// An element left open in one chunk doesn't swallow what follows it.
+	got := render(t_, el("div", v.Safe("<ul><li>a"), el("p", t("b"))), term.Options{})
+	if want := lines("• a", "", "b"); got != want {
+		t_.Errorf("got %q want %q", got, want)
 	}
 }
 

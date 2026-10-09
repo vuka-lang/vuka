@@ -4,8 +4,8 @@
 //
 // It walks the tree (vuka.Walk), so it sees elements and text. A component
 // that only renders HTML — a templ component, a NodeFunc — and Safe content
-// arrive as HTML; they are converted to plain text (tags stripped, entities
-// decoded, whitespace collapsed), losing their structure.
+// arrive as HTML, which is parsed into the same tree, so their headings,
+// tables and lists lay out as if written in JSX.
 //
 // The package is pure: whether to use color (NO_COLOR, a tty) is the
 // caller's decision.
@@ -96,13 +96,17 @@ type builder struct {
 func (b *builder) top() *node { return b.stack[len(b.stack)-1] }
 
 func (b *builder) Open(e *vuka.Element) error {
-	n := &node{tag: strings.ToLower(e.Tag), attrs: e.Attrs}
+	b.open(strings.ToLower(e.Tag), e.Attrs, false)
+	return nil
+}
+
+func (b *builder) open(tag string, attrs []vuka.Attr, empty bool) {
+	n := &node{tag: tag, attrs: attrs}
 	t := b.top()
 	t.kids = append(t.kids, n)
-	if !vuka.Void(e.Tag) {
+	if !empty && !vuka.Void(tag) {
 		b.stack = append(b.stack, n)
 	}
-	return nil
 }
 
 func (b *builder) Close(*vuka.Element) error {
@@ -116,72 +120,12 @@ func (b *builder) Text(s string) error {
 	return nil
 }
 
-func (b *builder) Raw(h string) error { return b.Text(htmlText(h)) }
-
 func (b *builder) Opaque(ctx context.Context, n vuka.Node) error {
 	var sb strings.Builder
 	if err := n.Render(ctx, &sb); err != nil {
 		return err
 	}
 	return b.Raw(sb.String())
-}
-
-// htmlText is HTML as plain text: tags dropped (block-level ones leave a
-// space, so words don't run together), script and style contents dropped,
-// entities decoded. Whitespace is collapsed later, like any text.
-func htmlText(h string) string {
-	var sb strings.Builder
-	for len(h) > 0 {
-		i := strings.IndexByte(h, '<')
-		if i < 0 {
-			sb.WriteString(h)
-			break
-		}
-		sb.WriteString(h[:i])
-		h = h[i:]
-		end := tagEnd(h)
-		tag := tagName(h[1:end])
-		h = h[end:]
-		switch tag {
-		case "script", "style":
-			if j := strings.Index(strings.ToLower(h), "</"+tag); j >= 0 {
-				h = h[j:]
-			} else {
-				h = ""
-			}
-		}
-		if isBlock(tag) || tag == "br" || tag == "td" || tag == "th" || tag == "li" {
-			sb.WriteByte(' ')
-		}
-	}
-	return html.UnescapeString(sb.String())
-}
-
-// tagEnd is the index just past the tag starting h, quotes respected.
-func tagEnd(h string) int {
-	var quote byte
-	for i := 1; i < len(h); i++ {
-		switch c := h[i]; {
-		case quote != 0:
-			if c == quote {
-				quote = 0
-			}
-		case c == '"' || c == '\'':
-			quote = c
-		case c == '>':
-			return i + 1
-		}
-	}
-	return len(h)
-}
-
-func tagName(s string) string {
-	s = strings.TrimPrefix(s, "/")
-	end := strings.IndexAny(s, " \t\n\r/>")
-	if end >= 0 {
-		s = s[:end]
-	}
-	return strings.ToLower(s)
 }
 
 func isBlock(tag string) bool {
