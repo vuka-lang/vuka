@@ -275,6 +275,8 @@ func Module() nexus.Option  { return nexus.Provide(providers...) }
 
 ```
 vuka new <dir> [module path]
+vuka explain [-full] file.vuka
+vuka fix [-n] [fixer…]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
@@ -283,6 +285,17 @@ vuka lsp
 
 `build`, `run` and the rest transpile the module into a temporary overlay
 (`go build -overlay`), so no generated file lands among your sources.
+
+`vuka explain file.vuka` shows each line Vuka rewrites beside the Go it becomes,
+then the code it adds after the source (decorator wrappers, statics), each
+labelled with the line it comes from; `-full` prints the whole generated file.
+
+`vuka fix` repairs what tooling can: `runtime` upgrades the module's Vuka
+runtime when generated code needs a newer one, `static-names` rewrites statics
+spelt by their Go names (`User_Table`) to `User.Table` in `.vuka` files, and
+`orphans` removes files `vuka gen -inplace` wrote for `.vuka` files that are
+gone. `-n` reports without changing anything; name fixers to run only those.
+It is also where future syntax changes will get their codemods.
 
 ### The build module
 

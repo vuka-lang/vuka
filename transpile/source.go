@@ -243,3 +243,19 @@ func (w *genWriter) append(o *genWriter) {
 	}
 	w.b.WriteString(o.b.String())
 }
+
+// Piece is a stretch of generated text and the source it came from.
+type Piece struct {
+	Gen, GenLen int // in the generated file
+	Src, SrcLen int // in the .vuka file
+	Copied      bool
+}
+
+// Pieces lists the map's stretches in generated order.
+func (m *SourceMap) Pieces() []Piece {
+	out := make([]Piece, len(m.segs))
+	for i, s := range m.segs {
+		out[i] = Piece{Gen: s.gen, GenLen: s.genLen, Src: s.src, SrcLen: s.srcLen, Copied: s.copy}
+	}
+	return out
+}

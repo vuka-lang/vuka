@@ -15,7 +15,7 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-const version = "v0.3.1"
+const version = "v0.3.2-dev"
 
 const usage = `vuka is Go with overloading and attributes.
 
@@ -28,6 +28,10 @@ Usage:
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
 	        write the generated Go beside each .vuka file instead
+	vuka explain [-full] file.vuka
+	        show each Vuka construct in file beside the Go it becomes
+	vuka fix [-n] [fixer…]
+	        apply the fixers (all by default); -n only says what would change
 	vuka lsp [-gopls path] [-log file]
 	        language server for .vuka files (gopls behind a proxy), over stdio
 	vuka version
@@ -49,6 +53,10 @@ func main() {
 		err = gen(os.Args[2:], os.Stdout)
 	case "lsp":
 		err = lsp(os.Args[2:])
+	case "explain":
+		err = explain(os.Args[2:], os.Stdout)
+	case "fix":
+		err = fix(os.Args[2:], os.Stdout)
 	case "version":
 		fmt.Println("vuka", version)
 	case "help", "-h", "-help", "--help":
@@ -99,6 +107,13 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	}
 	c := exec.Command("go", append(goArgs, args...)...)
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, stdout, stderr
+	// The overlay names real paths; run go from the real directory, or in a
+	// symlinked one (macOS's /tmp is /private/tmp) it finds no files.
+	if wd, err := os.Getwd(); err == nil {
+		if real, err := filepath.EvalSymlinks(wd); err == nil {
+			c.Dir, c.Env = real, append(os.Environ(), "PWD="+real)
+		}
+	}
 	return c.Run()
 }
 

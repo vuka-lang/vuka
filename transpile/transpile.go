@@ -54,6 +54,10 @@ type Output struct {
 	GoName string // the generated file, GoName(Name)
 	Src    []byte
 	Map    *SourceMap
+	// Body is where the source's own lines end in Src. Before it, line n of
+	// Src is line n of the .vuka file (plus the header when not bare); after
+	// it comes code Vuka adds: attribute checks, statics, wrappers.
+	Body int
 }
 
 // Result is a transpiled package.
@@ -273,7 +277,7 @@ func genName(d *ast.GenDecl) string {
 	return ""
 }
 
-func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, *SourceMap) {
+func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, *SourceMap, int) {
 	all := f.fixed.sorted()
 	var after func(int) string
 	if !bare {
@@ -288,11 +292,12 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 	body, segs := all.applyMap(f.src, after)
 	m.add(b.Len(), segs)
 	b.Write(body)
+	bodyEnd := b.Len()
 	m.add(b.Len(), f.tsegs)
 	b.WriteString(f.trailer)
 	m.add(b.Len(), extraSegs)
 	b.WriteString(extra)
-	return b.Bytes(), m
+	return b.Bytes(), m, bodyEnd
 }
 
 // Package transpiles one package: its .vuka files, plus any .go files that share
@@ -334,8 +339,8 @@ func Package(files []File, opts Options) (*Result, error) {
 	res := &Result{}
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
-		src, m := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m})
+		src, m, body := f.emit(opts.Bare, extra, segs)
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}
