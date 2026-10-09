@@ -216,7 +216,12 @@ var __sum_dec_info = vuka.Func{Name: "main.sum", ErrIndex: -1, CtxIndex: -1, Zer
 	})(nums...)
 }
 
+/*line call_decorators.vuka:119:6*/
+func User_New(ID int) *User {
+	return &User{ID: ID}
+}
+
 func init() {
-	__User_type := vuka.TypeOf[User]("main.User", Route{Path: "/users"})
+	__User_type := vuka.TypeWith[User]("main.User", User_New, Route{Path: "/users"})
 	/*line call_decorators.vuka:118:2*/model(__User_type)
 }
