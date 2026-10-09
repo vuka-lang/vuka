@@ -28,6 +28,9 @@ Usage:
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
 	        write the generated Go beside each .vuka file instead
+	vuka mod tidy|why|vendor|graph|… [args]
+	        go mod, seeing the imports of .vuka files too (plain go mod tidy
+	        drops requirements only Vuka code uses)
 	vuka explain [-full] file.vuka
 	        show each Vuka construct in file beside the Go it becomes
 	vuka fix [-n] [fixer…]
@@ -67,6 +70,8 @@ func main() {
 		err = gen(os.Args[2:], os.Stdout)
 	case "lsp":
 		err = lsp(os.Args[2:])
+	case "mod":
+		err = mod(os.Args[2:])
 	case "explain":
 		err = explain(os.Args[2:], os.Stdout)
 	case "fix":

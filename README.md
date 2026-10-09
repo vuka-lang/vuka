@@ -282,6 +282,7 @@ func Module() nexus.Option  { return nexus.Provide(providers...) }
 
 ```
 vuka new <dir> [module path]
+vuka mod tidy|why|vendor|… [args]
 vuka explain [-full] file.vuka
 vuka fix [-n] [fixer…]
 vuka build|run|test|vet|install [go flags] [packages]

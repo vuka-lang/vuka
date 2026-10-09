@@ -144,18 +144,12 @@ func newID() string { return uuid.NewString() }
 `go.mod` and `go.sum` are the usual ones; Vuka has no package manager of its
 own.
 
-::: warning go mod tidy
-Plain `go mod tidy` reads only `.go` files, so it drops a requirement that only
-`.vuka` files use. Either don't run it, or keep such imports in a `.go` file as
-well — for example a `deps.go` with blank imports:
-
-```go
-package main
-
-import _ "github.com/google/uuid"
-```
-
-`vuka fix runtime` puts the Vuka runtime back if it was dropped.
+::: tip vuka mod tidy
+Plain `go mod tidy` reads only `.go` files, so it drops requirements that only
+`.vuka` files use. Use **`vuka mod tidy`** instead: it shows the go command the
+imports of your `.vuka` files (and the Vuka runtime, when your code uses it),
+then runs `go mod tidy`. Every `go mod` subcommand works the same way —
+`vuka mod why`, `vuka mod vendor`, …
 :::
 
 ## Converting between Result and (T, error)

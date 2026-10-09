@@ -3,6 +3,7 @@
 ```text
 vuka new <dir> [module path]
 vuka build|run|test|vet|install [go flags] [packages]
+vuka mod tidy|why|vendor|graph|… [args]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka explain [-full] file.vuka
@@ -22,6 +23,15 @@ The go command's, with every `.vuka` file in the module transpiled into an
 overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are.
+
+## mod
+
+`go mod`, seeing the imports of `.vuka` files too. Plain `go mod tidy` reads
+only `.go` files and would drop requirements only Vuka code uses; for the
+command's duration, each package gets a small file of blank imports standing
+for its `.vuka` files' imports (and the runtime, when the code uses it), removed
+when it ends. It reads imports without transpiling, so it works while a
+dependency is still missing.
 
 ## gen
 

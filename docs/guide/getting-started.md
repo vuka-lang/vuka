@@ -59,6 +59,7 @@ func main() {
 | `vuka run .` | run, like `go run` |
 | `vuka build` | build, like `go build`, and refresh [`build/`](/guide/how-it-works#the-build-module) |
 | `vuka test ./...` | test, like `go test` |
+| `vuka mod tidy` | `go mod tidy`, seeing `.vuka` imports too |
 | `vuka explain main.vuka` | show what each line becomes in Go |
 | `vuka fix` | repair what tooling can, such as an outdated runtime |
 
