@@ -1,0 +1,86 @@
+package main
+
+import "fmt"
+
+@Route{Method: "GET",
+	Path: "/x"}
+@logged
+func handler() string { return "x" }
+
+type User struct {
+	ID               int // id
+	Name             string
+	static Table     = "users" // the table
+	static count     int
+	static const Max = 100
+	static Defaults  = map[string]int{
+		"a": 1,
+	}
+}
+
+func User.New(name string) *User { User.count++; return &User{Name: name} }
+func Model[K, V].Count() int     { return 0 }
+
+decorator traced(c) {
+	c.Next()
+}
+
+func load(s string) Result[int] {
+	n := parse(s)? // parse it
+	m := parse(s)? // again
+	return Ok(n + m)
+}
+
+func describe(r Result[int]) string {
+	match r {
+	case Ok(n) if n > 10:
+		return "big"
+	case Ok(n):
+		return fmt.Sprint(n)
+	case Err(e):
+		return e.Error()
+	}
+}
+
+func view(items []string, r Result[int]) vuka.Node {
+	nodes := []vuka.Node{<b>one</b>, <i>two</i>}
+	_ = nodes
+	f := func() vuka.Node { return <p>inner</p> }
+	_ = f
+	return <div
+		title={fmt.Sprintf("%d items",
+			len(items))}
+	>
+		{func() string {
+			return "computed"
+		}()}
+		{wrap(<em>nested   text</em>, <strong>x</strong>)}
+		<pre
+			data-x="line one
+   line two"
+		>  keep  </pre>
+		{match r {
+		case Ok(n) if n > 3:
+			<p>{n}</p>
+		case Ok(n):
+			small {n}
+		case Err(e):
+			<p className="error">{e}</p>
+		}}
+		Tom &amp; Jerry
+		<a
+			href={`raw
+string`}
+		>
+			link
+		</a>
+	</div>
+}
+
+type Route struct{ Method, Path string }
+
+func logged(f func() string) func() string { return f }
+func parse(s string) (int, error)          { return len(s), nil }
+func wrap(a, b vuka.Node) vuka.Node        { return a }
+
+type Model[K comparable, V any] struct{ m map[K]V }

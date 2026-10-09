@@ -286,6 +286,7 @@ vuka new <dir> [module path]
 vuka mod tidy|why|vendor|… [args]
 vuka explain [-full] file.vuka
 vuka fix [-n] [fixer…]
+vuka fmt [-l] [-w] [-d] [paths…]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
@@ -298,6 +299,11 @@ vuka lsp
 `vuka explain file.vuka` shows each line Vuka rewrites beside the Go it becomes,
 then the code it adds after the source (decorator wrappers, statics), each
 labelled with the line it comes from; `-full` prints the whole generated file.
+
+`vuka fmt` formats `.vuka` files the way gofmt formats Go (`-w` writes them
+back, `-l` lists those that differ, `-d` shows the diff): the Go exactly as
+gofmt prints it, Vuka's syntax spaced to match, and JSX laid out
+Prettier-style, without changing what a page renders.
 
 `vuka fix` repairs what tooling can: `runtime` upgrades the module's Vuka
 runtime when generated code needs a newer one, `static-names` rewrites statics
@@ -353,7 +359,7 @@ removed), compile errors in `build/` point at the `.vuka` lines, and a
    [Dingo](https://github.com/MadAppGang/dingo)'s set)
 2. Multi-clause functions with patterns and guards; arity overloading for default
    arguments; Elixir-style module attributes (`@max 3`, read as `@max`)
-3. `@derive` and generator attributes; `vuka fmt`;
+3. `@derive` and generator attributes;
    lowering to native Go when a Go release adds an equivalent feature
 
 ## Libraries
