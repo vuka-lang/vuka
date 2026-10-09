@@ -827,13 +827,19 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 				if f != nil {
 					uri = pathToURI(f.source)
 				}
-				out[uri] = p.rewrite(edits, f, origin)
+				out[uri] = p.rewriteEdits(edits, f, origin)
 			}
 			x["changes"] = out
 		}
+		for _, key := range []string{"edits", "additionalTextEdits"} {
+			if list, ok := x[key].([]any); ok && ctx != nil {
+				x[key] = p.rewriteEdits(list, ctx, origin)
+			}
+		}
 		for key, val := range x {
 			switch {
-			case key == "changes" || key == "textDocument" || key == "arguments":
+			case key == "changes" || key == "textDocument" || key == "arguments" ||
+				(key == "edits" || key == "additionalTextEdits") && ctx != nil:
 			case key == "originSelectionRange":
 				if origin != nil {
 					if r, ok := mapRange(origin, val); ok {
@@ -866,6 +872,18 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 		return x
 	}
 	return v
+}
+
+// rewriteEdits maps a list of text edits on f's generated Go to its source;
+// edits to the imports are redone on the source's own imports.
+func (p *proxy) rewriteEdits(v any, f, origin *vfile) any {
+	list, ok := v.([]any)
+	if !ok || f == nil {
+		return p.rewrite(v, f, origin)
+	}
+	rest, src := splitImportEdits(f, list)
+	mapped, _ := p.rewrite(rest, f, origin).([]any)
+	return append(mapped, src...)
 }
 
 func mapRange(f *vfile, v any) (lspRange, bool) {

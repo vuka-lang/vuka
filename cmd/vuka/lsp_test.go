@@ -14,7 +14,9 @@ import (
 
 const lspSource = `package main
 
-import "fmt"
+import (
+	"fmt"
+)
 
 type Circle struct{ R float64 }
 type Rect struct{ W, H float64 }
@@ -247,6 +249,34 @@ func TestLSP(t *testing.T) {
 		}
 	})
 
+	t.Run("completion adds an import to the source's imports", func(t *testing.T) {
+		// The source uses Result, so its generated Go imports the runtime on
+		// the package line; gopls rewrites that when it adds an import.
+		src := strings.Replace(lspSource, "\tfmt.Println(twice(4))", "\tfmt.Println(twice(4))\n\tstrconv.Ito", 1)
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 5},
+			"contentChanges": []any{map[string]any{"text": src}}})
+		off := strings.Index(src, "strconv.Ito") + len("strconv.Ito")
+		v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"position": positionOf([]byte(src), off)})
+		items := v
+		if list, ok := v.(map[string]any); ok {
+			items = list["items"]
+		}
+		for _, it := range items.([]any) {
+			item := it.(map[string]any)
+			if item["label"] != "Itoa" {
+				continue
+			}
+			edits, _ := item["additionalTextEdits"].([]any)
+			got := applyEdits(src, edits)
+			if !strings.Contains(got, "import (\n\t\"fmt\"\n\t\"strconv\"\n)") || strings.Count(got, "import") != 1 {
+				t.Fatalf("after the import edits:\n%s", got[:strings.Index(got, "type Circle")])
+			}
+			return
+		}
+		t.Fatal("no Itoa completion")
+	})
+
 	t.Run("type error lands on the .vuka line", func(t *testing.T) {
 		src := strings.Replace(lspSource, "return n * 2, nil", `return n * "x", nil`, 1)
 		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 3},
@@ -277,4 +307,29 @@ func TestLSP(t *testing.T) {
 func itoaTest(n uint32) string {
 	b, _ := json.Marshal(n)
 	return string(b)
+}
+
+// applyEdits applies LSP text edits to src.
+func applyEdits(src string, edits []any) string {
+	type ed struct {
+		s, e int
+		text string
+	}
+	var list []ed
+	for _, e := range edits {
+		m := e.(map[string]any)
+		r, _ := toRange(m["range"])
+		list = append(list, ed{offsetOf([]byte(src), r.Start), offsetOf([]byte(src), r.End), m["newText"].(string)})
+	}
+	for i := len(list) - 1; i >= 0; i-- {
+		for j := 0; j < i; j++ {
+			if list[j].s < list[j+1].s {
+				list[j], list[j+1] = list[j+1], list[j]
+			}
+		}
+	}
+	for _, e := range list {
+		src = src[:e.s] + e.text + src[e.e:]
+	}
+	return src
 }
