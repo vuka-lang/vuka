@@ -70,8 +70,8 @@ const stubName = "zz_vuka_mod.go"
 var runtimeUse = regexp.MustCompile(`\b(Result|Option)\s*\[|\b(Ok|Err|Some)\s*\(|\bNone\b|^\s*decorator\s|\)\?|\bvuka\.`)
 
 // importStubs is, per package, a Go file of blank imports for what its .vuka
-// files import: one for the package, one for its in-package tests, one for an
-// external test package.
+// and .templ files import (templ's runtime, for a .templ file): one for the
+// package, one for its in-package tests, one for an external test package.
 func importStubs(root string, pkgs []*load.Package) map[string][]byte {
 	mod, _ := os.ReadFile(filepath.Join(root, "go.mod"))
 	keepRuntime := bytes.Contains(mod, []byte(transpile.RuntimePath+" "))
@@ -97,6 +97,19 @@ func importStubs(root string, pkgs []*load.Package) map[string][]byte {
 				imports[inTest][transpile.RuntimePath] = true
 			}
 		}
+		for _, t := range p.Templ {
+			imports[test][load.TemplPath] = true
+			if t.Go == nil {
+				continue
+			}
+			if file, _ := parser.ParseFile(token.NewFileSet(), t.GoName, t.Go, parser.ImportsOnly); file != nil {
+				for _, imp := range file.Imports {
+					if path, err := strconv.Unquote(imp.Path.Value); err == nil && path != "C" {
+						imports[test][path] = true
+					}
+				}
+			}
+		}
 		for inTest, set := range imports {
 			if len(set) == 0 {
 				continue
@@ -114,7 +127,7 @@ func importStubs(root string, pkgs []*load.Package) map[string][]byte {
 			}
 			sort.Strings(paths)
 			var b strings.Builder
-			b.WriteString("// Imports of this package's .vuka files, for vuka mod. Removed when it ends.\n\npackage " + p.Name + "\n\nimport (\n")
+			b.WriteString("// Imports of this package's .vuka and .templ files, for vuka mod. Removed when it ends.\n\npackage " + p.Name + "\n\nimport (\n")
 			for _, path := range paths {
 				b.WriteString("\t_ " + strconv.Quote(path) + "\n")
 			}

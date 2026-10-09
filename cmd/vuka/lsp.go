@@ -21,6 +21,8 @@ import (
 
 	"unicode/utf8"
 
+	templparser "github.com/a-h/templ/parser/v2"
+
 	"github.com/vuka-lang/vuka/internal/load"
 	"github.com/vuka-lang/vuka/transpile"
 )
@@ -187,23 +189,40 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 	return nil
 }
 
-// vfile is the generated Go of one .vuka file, open in gopls.
+// vfile is the generated Go of one .vuka or .templ file, open in gopls.
 type vfile struct {
-	source  string // the .vuka path
-	from    []byte // the .vuka text it was generated from
+	source  string // the .vuka or .templ path
+	from    []byte // the source text it was generated from
 	gen     []byte
-	m       *transpile.SourceMap
+	m       *transpile.SourceMap   // a .vuka file's map
+	templ   *templparser.SourceMap // a .templ file's map (templ's own)
 	version int
 }
 
-// toGen maps an editor position in the .vuka file to the generated Go.
+// isTempl reports whether f is a .templ file's Go.
+func (f *vfile) isTempl() bool { return f.m == nil }
+
+// toGen maps an editor position in the source file to the generated Go.
 func (f *vfile) toGen(pos lspPosition) lspPosition {
+	if f.m == nil {
+		if f.templ != nil {
+			line, col := byteCol(f.from, pos)
+			if g, ok := f.templ.TargetPositionFromSource(line, col); ok {
+				return atByteCol(f.gen, g.Line, g.Col)
+			}
+		}
+		return pos
+	}
 	g, _ := f.m.ToGenerated(offsetOf(f.from, pos))
 	return positionOf(f.gen, g)
 }
 
-// toSource maps a range in the generated Go to the .vuka file.
+// toSource maps a range in the generated Go to the source file. In a .templ
+// file's Go only templ's mapped expressions and symbols map.
 func (f *vfile) toSource(r lspRange) (lspRange, bool) {
+	if f.m == nil {
+		return f.templSource(r)
+	}
 	s, _, ok1 := f.m.ToSource(offsetOf(f.gen, r.Start))
 	e, _, ok2 := f.m.ToSource(offsetOf(f.gen, r.End))
 	if !ok1 || !ok2 {
@@ -214,6 +233,44 @@ func (f *vfile) toSource(r lspRange) (lspRange, bool) {
 	}
 	return lspRange{positionOf(f.from, s), positionOf(f.from, e)}, true
 }
+
+// templSource maps a range through templ's source map, which counts columns
+// in bytes where LSP counts UTF-16 units.
+func (f *vfile) templSource(r lspRange) (lspRange, bool) {
+	if f.templ == nil {
+		return r, false
+	}
+	line, col := byteCol(f.gen, r.Start)
+	start, ok := f.templ.SourcePositionFromTarget(line, col)
+	if !ok {
+		sym, ok := f.templ.SymbolSourceRangeFromTarget(line, col)
+		if !ok {
+			return r, false
+		}
+		return lspRange{atByteCol(f.from, sym.From.Line, sym.From.Col), atByteCol(f.from, sym.To.Line, sym.To.Col)}, true
+	}
+	// Expressions are copied verbatim, so a one-line range keeps its width.
+	from := lineStart(f.from, start.Line) + int(start.Col)
+	to := from
+	if r.End.Line == r.Start.Line {
+		if endLine, endCol := byteCol(f.gen, r.End); endLine == line && endCol > col {
+			to += int(endCol - col)
+		}
+	}
+	return lspRange{positionOf(f.from, from), positionOf(f.from, to)}, true
+}
+
+// byteCol is an LSP position's line and byte column.
+func byteCol(buf []byte, pos lspPosition) (line, col uint32) {
+	return pos.Line, uint32(offsetOf(buf, pos) - lineStart(buf, pos.Line))
+}
+
+// atByteCol is the LSP position of a line and byte column.
+func atByteCol(buf []byte, line, col uint32) lspPosition {
+	return positionOf(buf, lineStart(buf, line)+int(col))
+}
+
+func lineStart(buf []byte, line uint32) int { return offsetOf(buf, lspPosition{Line: line}) }
 
 type vukaRequest struct {
 	editorID  json.RawMessage
@@ -423,7 +480,7 @@ func (p *proxy) fromEditor() {
 			}
 			_ = json.Unmarshal(m.Params, &params)
 			for _, c := range params.Changes {
-				if path := uriToPath(c.URI); (strings.HasSuffix(path, ".go") || isVuka(path)) && !p.isVirtual(path) {
+				if path := uriToPath(c.URI); (strings.HasSuffix(path, ".go") || isVuka(path) || strings.HasSuffix(path, ".templ")) && !p.isVirtual(path) {
 					p.schedule()
 					break
 				}
@@ -778,6 +835,9 @@ func (p *proxy) regenerate() {
 				sources[filepath.Join(pkg.Dir, f.Name)] = f.Src
 			}
 		}
+		for _, t := range pkg.Templ {
+			sources[filepath.Join(pkg.Dir, t.Name)] = t.Src
+		}
 	}
 	diags := map[string][]any{}
 	for _, e := range list {
@@ -792,7 +852,11 @@ func (p *proxy) regenerate() {
 
 	want := map[string]*vfile{}
 	for _, g := range gens {
-		want[g.Target] = &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map}
+		want[g.Target] = &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: g.TemplMap}
+	}
+	failing := map[string]bool{} // directories of packages with errors
+	for path := range diags {
+		failing[filepath.Dir(path)] = true
 	}
 
 	type op struct {
@@ -802,8 +866,8 @@ func (p *proxy) regenerate() {
 	var ops []op
 	p.mu.Lock()
 	for path, old := range p.virtual {
-		if _, ok := want[path]; !ok && sources[old.source] != nil && len(diags[old.source]) > 0 {
-			want[path] = old // keep the last good version while the source has errors
+		if _, ok := want[path]; !ok && sources[old.source] != nil && failing[filepath.Dir(old.source)] {
+			want[path] = old // keep the last good version while the package has errors
 		}
 	}
 	for path, vf := range want {
@@ -881,6 +945,11 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 	if vf == nil {
 		p.mu.Unlock()
 		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": params})
+		return
+	}
+	if vf.isTempl() {
+		// templ's own language server reports on .templ files.
+		p.mu.Unlock()
 		return
 	}
 	var mapped []any
@@ -1130,7 +1199,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 // edits to the imports are redone on the source's own imports.
 func (p *proxy) rewriteEdits(v any, f, origin *vfile) any {
 	list, ok := v.([]any)
-	if !ok || f == nil {
+	if !ok || f == nil || f.isTempl() {
 		return p.rewrite(v, f, origin)
 	}
 	rest, src := splitImportEdits(f, list)
