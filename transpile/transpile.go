@@ -78,11 +78,12 @@ type fileState struct {
 	tries   []*try
 	matches []*matchStmt
 
-	fixed   edits // decided rewrites, in src offsets
-	cur     edits // this round's: fixed plus placeholders
-	body    int   // length of text before the trailer
-	trailer string
-	snips   []snippet
+	fixed   edits     // decided rewrites, in src offsets
+	cur     edits     // this round's: fixed plus placeholders
+	body    int       // length of text before the trailer
+	trailer string    // generated after the source: typed attribute checks, decorator wrappers
+	tsegs   []segment // where each piece of the trailer comes from
+	deco    genWriter // the decorator wrappers, made in the first round
 	text    []byte
 
 	ast     *ast.File
@@ -93,13 +94,8 @@ type fileState struct {
 	rt      string       // the name the runtime is imported as; "" until needed
 	pkgEnd  int          // offset just after the package clause's name
 	dotImps bool
-}
 
-// snippet is a typed attribute's check in the trailer, relative to its start.
-type snippet struct {
-	start, end int
-	expr       int // where the attribute's copied text begins
-	attr       *Attr
+	decorated map[int]string // declaration offset → the decorated function's name
 }
 
 // at is the position of a src offset.
@@ -108,9 +104,13 @@ func (f *fileState) at(off int) token.Position { return f.lines.pos(f.path, off)
 // pos is the position, in the file as written, of an offset in this round's text.
 func (f *fileState) pos(off int) token.Position {
 	if off >= f.body {
-		for _, s := range f.snips {
-			if off-f.body < s.end {
-				return s.attr.Pos
+		rel := off - f.body
+		for _, s := range f.tsegs {
+			if rel >= s.gen && rel < s.gen+s.genLen {
+				if s.copy {
+					return f.at(s.src + rel - s.gen)
+				}
+				return f.at(s.src)
 			}
 		}
 	}
@@ -136,30 +136,39 @@ func (f *fileState) insert(off int, text string, prio int) {
 	f.fixed = append(f.fixed, edit{start: off, end: off, text: text, prio: prio})
 }
 
-// buildTrailer appends the typed attributes' checks after the source.
-func (f *fileState) buildTrailer(bare bool) {
-	var t strings.Builder
+// attrEdits turns every attribute into comments in place.
+func (f *fileState) attrEdits() {
 	for _, a := range f.attrs {
 		f.fixed = append(f.fixed, edit{start: a.start, end: a.end, text: a.replacement(f.src)})
+	}
+}
+
+// makeTrailer writes what follows the source: a check that makes Go type-check
+// each typed attribute, then the decorator wrappers.
+func (f *fileState) makeTrailer(bare bool) {
+	var w genWriter
+	for _, a := range f.attrs {
 		if a.kind != attrTyped {
 			continue
 		}
-		if t.Len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
-			t.WriteByte('\n')
+		if w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+			w.gen("\n", a.start)
 		}
-		start := t.Len()
 		prefix, expr := a.check(f.src)
-		t.WriteString("\n" + prefix)
+		w.gen("\n"+prefix, a.start)
 		if !bare {
 			p := a.Pos
 			p.Column++
-			t.WriteString(lineDirective(p))
+			w.gen(lineDirective(p), a.start)
 		}
-		exprAt := t.Len()
-		t.WriteString(expr + "\n")
-		f.snips = append(f.snips, snippet{start, t.Len(), exprAt, a})
+		w.copy(expr, a.nameStart)
+		w.gen("\n", a.end)
 	}
-	f.trailer = t.String()
+	if f.deco.len() > 0 && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+		w.gen("\n", len(f.src))
+	}
+	w.append(&f.deco)
+	f.trailer, f.tsegs = w.String(), w.segs
 }
 
 // build produces this round's text: the decided rewrites, plus a placeholder for
@@ -265,15 +274,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 	body, segs := all.applyMap(f.src, after)
 	m.add(b.Len(), segs)
 	b.Write(body)
-	base := b.Len()
-	for _, s := range f.snips {
-		n := len(f.src[s.attr.nameStart:s.attr.end])
-		m.add(base, []segment{
-			{gen: s.start, src: s.attr.start, genLen: s.expr - s.start},
-			{gen: s.expr, src: s.attr.nameStart, genLen: n, srcLen: n, copy: true},
-			{gen: s.expr + n, src: s.attr.end, genLen: s.end - s.expr - n},
-		})
-	}
+	m.add(b.Len(), f.tsegs)
 	b.WriteString(f.trailer)
 	m.add(b.Len(), extraSegs)
 	b.WriteString(extra)
@@ -284,7 +285,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare}
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
 			lines: newLineIndex(file.Src), done: map[int]bool{}}
@@ -293,7 +294,8 @@ func Package(files []File, opts Options) (*Result, error) {
 		}
 		if f.vuka {
 			f.scan(&errs)
-			f.buildTrailer(opts.Bare)
+			f.attrEdits()
+			f.makeTrailer(opts.Bare)
 			e.vuka = append(e.vuka, f)
 		}
 		e.files = append(e.files, f)

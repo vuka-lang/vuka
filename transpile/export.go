@@ -41,7 +41,11 @@ func (f *fileState) exports(bare bool, errs *ErrorList) (string, []segment) {
 			fmt.Fprintf(&b, "(r %s) ", f.nodeText(fd.Recv.List[0].Type))
 			call = "r."
 		}
-		call += fd.Name.Name
+		if name, ok := f.decorated[a.declOff]; ok {
+			call += name
+		} else {
+			call += fd.Name.Name
+		}
 		b.WriteString(a.value)
 		if tp := fd.Type.TypeParams; tp != nil {
 			b.WriteString(f.nodeText(tp))

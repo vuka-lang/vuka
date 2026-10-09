@@ -1,0 +1,118 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// logged prints each call; it fits any func(int) int.
+func logged(name string) func(func(int) int) func(int) int {
+	return func(f func(int) int) func(int) int {
+		return func(n int) int {
+			r := f(n)
+			fmt.Printf("%s(%d) = %d\n", name, n, r)
+			return r
+		}
+	}
+}
+
+// memo caches results, so it must be built once.
+func memo(f func(int) int) func(int) int {
+	cache := map[int]int{}
+	return func(n int) int {
+		if v, ok := cache[n]; ok {
+			return v
+		}
+		v := f(n)
+		cache[n] = v
+		return v
+	}
+}
+
+// fib calls itself through the decorated function.
+@memo
+func fib(n int) int {
+	if n < 2 {
+		return n
+	}
+	return fib(n-1) + fib(n-2)
+}
+
+@logged("square")
+@memo
+func square(n int) int { return n * n }
+
+type Greeter struct{ greeting string }
+
+func shout(f func(*Greeter, string) string) func(*Greeter, string) string {
+	return func(g *Greeter, name string) string { return strings.ToUpper(f(g, name)) }
+}
+
+@shout
+func (g *Greeter) Greet(name string) string { return g.greeting + ", " + name }
+
+var registry []string
+
+func register[T any](label string) {
+	registry = append(registry, fmt.Sprintf("%s:%T", label, *new(T)))
+}
+
+type Tag struct{ Name string }
+
+@register("model")
+type User struct{ ID int }
+
+@Tag{Name: "meta"}
+func plain() int { return 1 }
+
+func main() {
+	fmt.Println(fib(50))
+	square(4)
+	square(4)
+	fmt.Println((&Greeter{greeting: "hi"}).Greet("ada"))
+	fmt.Println(registry, plain())
+	extras()
+}
+
+func traced(f func()) func() {
+	return func() { fmt.Println("init start"); f() }
+}
+
+@traced
+func init() { fmt.Println("init body") }
+
+func double[T any](f func(T) []T) func(T) []T {
+	return func(v T) []T { return append(f(v), f(v)...) }
+}
+
+@double
+func one[T any](v T) []T { return []T{v} }
+
+func twice(f func(int) int) func(int) int { return func(n int) int { return 2 * f(n) } }
+
+@twice
+func area(n int) int { return n * n }
+func area(s string) int { return len(s) }
+
+@register("group")
+type (
+	Order   struct{}
+	Invoice struct{}
+)
+
+type Stack[T any] struct{ items []T }
+
+func counted[T any](f func(*Stack[T], T)) func(*Stack[T], T) {
+	n := 0
+	return func(s *Stack[T], v T) { n++; f(s, v); fmt.Println("pushes:", n) }
+}
+
+@counted
+func (s *Stack[T]) Push(v T) { s.items = append(s.items, v) }
+
+func extras() {
+	fmt.Println(one(7), one("a"), area(3), area("abcd"))
+	var s Stack[int]
+	s.Push(1)
+	s.Push(2)
+}

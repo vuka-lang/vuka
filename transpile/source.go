@@ -217,3 +217,39 @@ func (m *SourceMap) ToGenerated(src int) (gen int, exact bool) {
 	}
 	return 0, false
 }
+
+// genWriter builds generated text along with the source each piece maps to.
+type genWriter struct {
+	b    strings.Builder
+	segs []segment
+}
+
+func (w *genWriter) len() int       { return w.b.Len() }
+func (w *genWriter) String() string { return w.b.String() }
+
+// gen writes text Vuka made up, attributed to src.
+func (w *genWriter) gen(text string, src int) {
+	if text == "" {
+		return
+	}
+	w.segs = append(w.segs, segment{gen: w.b.Len(), src: src, genLen: len(text)})
+	w.b.WriteString(text)
+}
+
+// copy writes text taken verbatim from the source at src.
+func (w *genWriter) copy(text string, src int) {
+	if text == "" {
+		return
+	}
+	w.segs = append(w.segs, segment{gen: w.b.Len(), src: src, genLen: len(text), srcLen: len(text), copy: true})
+	w.b.WriteString(text)
+}
+
+func (w *genWriter) append(o *genWriter) {
+	base := w.b.Len()
+	for _, s := range o.segs {
+		s.gen += base
+		w.segs = append(w.segs, s)
+	}
+	w.b.WriteString(o.b.String())
+}

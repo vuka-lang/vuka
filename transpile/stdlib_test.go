@@ -1,8 +1,8 @@
 package transpile_test
 
 import (
-	"go/build"
 	"bytes"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"io/fs"

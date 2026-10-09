@@ -21,13 +21,15 @@ type engine struct {
 	files, vuka []*fileState
 	imp         types.Importer
 	errs        *ErrorList
+	bare        bool
 
-	declared map[string]bool // package-level names
-	sets     map[string]*overloadSet
-	funcs    map[string]*overloadSet
-	methods  map[string]*overloadSet
-	mnames   map[string]bool
-	pending  map[*fileState]map[int]string // runtime calls whose type can't be inferred yet
+	declared  map[string]bool // package-level names
+	typeNames map[string]bool // package-level type names
+	sets      map[string]*overloadSet
+	funcs     map[string]*overloadSet
+	methods   map[string]*overloadSet
+	mnames    map[string]bool
+	pending   map[*fileState]map[int]string // runtime calls whose type can't be inferred yet
 
 	fset     *token.FileSet
 	pkg      *types.Package
@@ -38,6 +40,9 @@ type engine struct {
 
 func (e *engine) run() {
 	e.pending = map[*fileState]map[int]string{}
+	if e.imp == nil {
+		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
+	}
 	for round := 0; round < 100; round++ {
 		e.progress = false
 		if !e.parseAll(round == 0) {
@@ -109,7 +114,7 @@ func (e *engine) parseAll(first bool) bool {
 
 // prepare collects the package-level names and the overloaded functions.
 func (e *engine) prepare() {
-	e.declared = map[string]bool{}
+	e.declared, e.typeNames = map[string]bool{}, map[string]bool{}
 	for _, f := range e.files {
 		for _, d := range f.ast.Decls {
 			switch d := d.(type) {
@@ -122,6 +127,7 @@ func (e *engine) prepare() {
 					switch s := s.(type) {
 					case *ast.TypeSpec:
 						e.declared[s.Name.Name] = true
+						e.typeNames[s.Name.Name] = true
 					case *ast.ValueSpec:
 						for _, n := range s.Names {
 							e.declared[n.Name] = true
@@ -153,7 +159,7 @@ func (e *engine) prepare() {
 			}
 		}
 	}
-	if len(e.sets) > 0 {
+	if e.decorate() || len(e.sets) > 0 {
 		e.progress = true
 	}
 }
@@ -212,9 +218,6 @@ func (e *engine) needsTypes() bool {
 }
 
 func (e *engine) check() {
-	if e.imp == nil {
-		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
-	}
 	e.typeErrs = nil
 	conf := types.Config{
 		Importer:    e.imp,

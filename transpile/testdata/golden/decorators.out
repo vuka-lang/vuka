@@ -1,0 +1,10 @@
+init start
+init body
+12586269025
+square(4) = 16
+square(4) = 16
+HI, ADA
+[model:main.User group:main.Order group:main.Invoice] 1
+[7 7] [a a] 18 4
+pushes: 1
+pushes: 2

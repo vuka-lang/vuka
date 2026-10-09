@@ -16,6 +16,7 @@ const (
 	attrDeprecated
 	attrExport
 	attrDerive
+	attrDecorator
 )
 
 var builtins = map[string]attrKind{
@@ -35,12 +36,16 @@ type Attr struct {
 	Args string         // what follows the name: `("text")`, `{TTL: x}`, or ""
 	Pos  token.Position // where the attribute is written
 	Decl string         // the declaration it annotates: "area", "Shape.Scale", "Config"
+	// Decorator is set for a decorator (a function wrapping the declaration)
+	// rather than a typed attribute (metadata).
+	Decorator bool
 
 	kind       attrKind
 	start, end int    // the attribute in src
 	nameStart  int    // offset of the name, after the @
 	declOff    int    // offset of the annotated declaration's keyword in src
 	value      string // the string argument of a built-in
+	bare       bool   // written @name or @name[T]: a type or a decorator, decided by what it names
 	decl       ast.Decl
 }
 
@@ -96,8 +101,11 @@ func (f *fileState) parseAttr(toks []tok, i int) (*Attr, int, string) {
 		a.value = v
 		return a, j, ""
 	}
-	if strings.HasPrefix(strings.TrimSpace(a.Args), "(") {
-		return nil, j, "an attribute is a type, written @" + name + " or @" + name + "{...}"
+	switch args := strings.TrimSpace(a.Args); {
+	case strings.HasSuffix(args, ")"):
+		a.kind, a.Decorator = attrDecorator, true
+	case !strings.HasSuffix(args, "}"):
+		a.bare = true
 	}
 	return a, j, ""
 }

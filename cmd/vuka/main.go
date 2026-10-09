@@ -20,6 +20,8 @@ const version = "v0.1.0-dev"
 const usage = `vuka is Go with overloading and attributes.
 
 Usage:
+	vuka new <dir> [module path]
+	        start a project: go.mod and a main.vuka, ready for vuka run
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command
 	vuka gen [-check] [dir | dir/...]
@@ -35,9 +37,12 @@ func main() {
 		os.Exit(2)
 	}
 	var err error
-	switch cmd := os.Args[1]; cmd {
+	cmd := os.Args[1]
+	switch cmd {
 	case "build", "run", "test", "vet", "install":
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
+	case "new":
+		err = newProject(os.Args[2:], os.Stdout)
 	case "gen":
 		err = gen(os.Args[2:], os.Stdout)
 	case "lsp":

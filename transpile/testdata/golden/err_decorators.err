@@ -1,0 +1,2 @@
+err_decorators.vuka:5:1: decorators apply to functions, methods and types
+err_decorators.vuka:10:1: Box is generic; a type decorator needs a type it can name, so instantiate it in a decorated alias: type IntBox = Box[int]

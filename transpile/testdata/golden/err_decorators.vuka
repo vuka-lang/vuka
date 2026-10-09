@@ -1,0 +1,11 @@
+package main
+
+func wrap(f func() int) func() int { return f }
+
+@wrap
+var x = 1
+
+func reg[T any]() {}
+
+@reg
+type Box[T any] struct{ v T }

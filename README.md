@@ -40,9 +40,13 @@ case Err(e):
 ```
 
 ```
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
-vuka run ./examples/users
+go install github.com/vuka-lang/vuka/cmd/vuka@main
+vuka new hello && cd hello && vuka run .
 ```
+
+A Vuka project is a Go module: `.vuka` and `.go` files sit side by side in the
+same packages and call each other, the way Kotlin and Java share a project.
+Dependencies are Go's: `go get` a module and import it from any `.vuka` file.
 
 ## Editors
 
@@ -124,11 +128,38 @@ types come from other overloaded calls resolve too.
 | `@export("Name")` | generates `Name`, a wrapper with the declaration's signature: how Go code reaches one overload |
 | `@T` / `@pkg.T{…}` | any Go type, bare or as a composite literal; the generated code type-checks it |
 
+**Decorators** are functions that wrap a declaration, applied bottom-up:
+
+```go
+@logged("charge")
+@retry(3)
+func charge(ctx context.Context, id int) (Receipt, error) { … }
+
+@memo
+func fib(n int) int { … fib(n-1) + fib(n-2) … }   // recursion goes through the decorators
+
+@counted
+func (s *Stack[T]) Push(v T) { … }                 // methods: receiver first
+
+@orm.Table("users")
+type User struct{ … }                              // types: orm.Table[User]("users") at init
+```
+
+A function keeps its name for a wrapper that builds the decorated function once,
+on first call (once per instantiation for generic code), so caches and limits
+keep their state; the body moves to `__charge`. A decorator whose type doesn't
+fit is a compile error on its `@` line. `init` can be decorated, overloads can
+be, and a decorator on a `type ( … )` group applies to each type. `@x(…)` is
+always a decorator and `@T{…}` always a typed attribute; a bare `@x` is
+whichever its name is, a function or a type.
+
 **CLI**
 
 ```
+vuka new <dir> [module path]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka gen [-check] [dir | dir/...]
+vuka lsp
 ```
 
 `build`, `run` and the rest transpile the module into a temporary overlay
@@ -138,12 +169,11 @@ vuka gen [-check] [dir | dir/...]
 
 ## Roadmap
 
-1. Custom decorators: `@pkg.Func(args)` wrapping the declaration it annotates
-2. Enums (sum types) with exhaustive `match`; lambdas, `?.`, `??`, tuples, functional helpers (the rest of
+1. Enums (sum types) with exhaustive `match`; lambdas, `?.`, `??`, tuples, functional helpers (the rest of
    [Dingo](https://github.com/MadAppGang/dingo)'s set)
-3. Multi-clause functions with patterns and guards; arity overloading for default
+2. Multi-clause functions with patterns and guards; arity overloading for default
    arguments; Elixir-style module attributes (`@max 3`, read as `@max`)
-4. `@derive` and generator attributes; `vuka fmt`;
+3. `@derive` and generator attributes; `vuka fmt`;
    lowering to native Go when a Go release adds an equivalent feature
 
 ## Libraries
