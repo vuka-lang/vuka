@@ -1,0 +1,44 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"log/slog"
+
+	"example.com/nexusdi/di"
+	"github.com/paulmanoni/nexus/v2"
+	"github.com/paulmanoni/nexus/v2/config"
+)
+
+type Store struct{ names map[int]string }
+
+func NewStore() *Store { return &Store{names: map[int]string{1: "ada", 2: "linus"}} }
+
+@di.Component
+type UserService struct {
+	store *Store
+	log   *slog.Logger // nexus provides the app's logger
+}
+
+func (s *UserService) Name(id int) string { return s.store.names[id] }
+
+@di.Component
+type Greeter struct {
+	users *UserService
+	greeting string `inject:"-"`
+}
+
+func (g *Greeter) Hello(id int) string { return "hello, " + g.users.Name(id) }
+
+func main() {
+	_, stop, err := nexus.InProcess(config.Runtime{},
+		nexus.Provide(NewStore),
+		di.Module(),
+		nexus.Invoke(func(g *Greeter) { fmt.Println(g.Hello(1)) }),
+		nexus.Invoke(func(u *UserService) { fmt.Println("user 2 is", u.Name(2)) }),
+	)
+	if err != nil {
+		panic(err)
+	}
+	_ = stop(context.Background())
+}

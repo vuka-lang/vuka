@@ -151,10 +151,26 @@ func fillAttr(attrs []any, ptr any) bool {
 // Type describes a decorated type, for a type decorator:
 //
 //	func Model(t *vuka.Type) { registry[t.Name] = t.Reflect }
+//
+// For a struct, New is a constructor taking each dependency field as a
+// parameter (or the type's own static New, when it declares one), which is the
+// shape dependency-injection containers take:
+//
+//	func Component(t *vuka.Type) { providers = append(providers, t.New) }
 type Type struct {
 	Name    string // "main.User"
 	Reflect reflect.Type
-	Attrs   []any // the declaration's typed attributes
+	Attrs   []any   // the declaration's typed attributes
+	New     any     // the constructor, for a struct; nil otherwise
+	Fields  []Field // the struct's fields
+}
+
+// Field is a field of a decorated struct.
+type Field struct {
+	Name     string
+	Type     reflect.Type
+	Tag      reflect.StructTag
+	Injected bool // a parameter of New: not blank, not tagged inject:"-"
 }
 
 // Attr fills ptr with the type's typed attribute of ptr's element type.
@@ -163,4 +179,18 @@ func (t *Type) Attr(ptr any) bool { return fillAttr(t.Attrs, ptr) }
 // TypeOf describes T for its decorators. Generated code calls it.
 func TypeOf[T any](name string, attrs ...any) *Type {
 	return &Type{Name: name, Reflect: reflect.TypeOf((*T)(nil)).Elem(), Attrs: attrs}
+}
+
+// TypeWith describes a struct T with its constructor. Generated code calls it.
+func TypeWith[T any](name string, ctor any, attrs ...any) *Type {
+	t := TypeOf[T](name, attrs...)
+	t.New = ctor
+	if t.Reflect.Kind() == reflect.Struct {
+		for i := 0; i < t.Reflect.NumField(); i++ {
+			sf := t.Reflect.Field(i)
+			t.Fields = append(t.Fields, Field{Name: sf.Name, Type: sf.Type, Tag: sf.Tag,
+				Injected: sf.Name != "_" && sf.Tag.Get("inject") != "-"})
+		}
+	}
+	return t
 }

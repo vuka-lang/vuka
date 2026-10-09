@@ -238,6 +238,39 @@ didn't write. A type embedding `User` reaches `User`'s statics, as Go promotes
 fields; `self` there is the embedded `User`. Calls that pass `self` must not
 have side effects in the receiver expression (Vuka uses it twice).
 
+**Dependency injection** comes from a type decorator, with no annotations on
+fields: a struct's fields are its dependencies.
+
+```go
+@di.Component
+type OrderService struct {
+	db    *DB
+	users *UserService
+	mu    sync.Mutex `inject:"-"`   // not a dependency
+}
+```
+
+A type decorator `func(t *vuka.Type)` on a struct gets `t.New`, a constructor
+taking each injected field as a parameter, `func(db *DB, users *UserService)
+*OrderService`: the shape `nexus.Provide`, `fx.Provide` and `dig.Provide` take,
+so a container wires it from parameter types, with no reflection on fields
+(and unexported fields work). Every field is injected except `_`, those tagged
+`inject:"-"`, and embedded values (embedded pointers and interfaces are). A
+struct that declares its own static `New` is built with that instead;
+otherwise the generated constructor is its static `New`, handy in tests:
+`OrderService.New(fakeDB, fakeUsers)`. `t.Fields` lists the fields with their
+tags and whether they're injected.
+
+The whole nexus integration is a few lines
+([`examples/nexus-di`](examples/nexus-di)):
+
+```go
+var providers []any
+
+func Component(t *vuka.Type) { providers = append(providers, t.New) }
+func Module() nexus.Option  { return nexus.Provide(providers...) }
+```
+
 **CLI**
 
 ```

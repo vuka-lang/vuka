@@ -53,6 +53,77 @@ type typeDeco struct {
 	name     string
 	qualName string
 	attrs    []*Attr
+
+	// For a struct: its constructor, the static New. It is the type's own
+	// when it declares one; otherwise Vuka writes one taking each injected
+	// field as a parameter.
+	isStruct   bool
+	hasNew     bool
+	ctorParams []string // "db *DB"
+	ctorInits  []string // "db: db"
+}
+
+// injected reports whether a struct field is a dependency its constructor
+// takes: every named field but _ and those tagged inject:"-"; an embedded
+// field only when it is a pointer or interface (embedding a value is
+// composition, not a dependency).
+func injected(field *ast.Field, name string, embedded bool) bool {
+	if name == "_" {
+		return false
+	}
+	if field.Tag != nil {
+		if tag, err := strconv.Unquote(field.Tag.Value); err == nil && reflectTag(tag, "inject") == "-" {
+			return false
+		}
+	}
+	if embedded {
+		switch field.Type.(type) {
+		case *ast.StarExpr, *ast.InterfaceType:
+			return true
+		}
+		return false
+	}
+	return true
+}
+
+// reflectTag is reflect.StructTag.Get, without importing reflect here.
+func reflectTag(tag, key string) string {
+	for tag != "" {
+		i := 0
+		for i < len(tag) && tag[i] == ' ' {
+			i++
+		}
+		tag = tag[i:]
+		i = 0
+		for i < len(tag) && tag[i] > ' ' && tag[i] != ':' && tag[i] != '"' {
+			i++
+		}
+		if i == 0 || i+1 >= len(tag) || tag[i] != ':' || tag[i+1] != '"' {
+			return ""
+		}
+		name := tag[:i]
+		tag = tag[i+1:]
+		i = 1
+		for i < len(tag) && tag[i] != '"' {
+			if tag[i] == '\\' {
+				i++
+			}
+			i++
+		}
+		if i >= len(tag) {
+			return ""
+		}
+		value := tag[:i+1]
+		tag = tag[i+1:]
+		if name == key {
+			v, err := strconv.Unquote(value)
+			if err != nil {
+				return ""
+			}
+			return v
+		}
+	}
+	return ""
 }
 
 // decorate lowers every decorator, in the first round, and reports whether
@@ -307,8 +378,26 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 			e.errs.add(attrs[0].Pos, "%s is generic; a type decorator needs a type it can name, so instantiate it in a decorated alias: type IntBox = Box[int]", ts.Name.Name)
 			continue
 		}
-		f.decos = append(f.decos, &typeDeco{uses: uses(attrs), nameOff: f.orig(ts.Name.Pos()),
-			name: ts.Name.Name, qualName: e.pkgName() + "." + ts.Name.Name, attrs: typedAttrs(f, gd)})
+		d := &typeDeco{uses: uses(attrs), nameOff: f.orig(ts.Name.Pos()),
+			name: ts.Name.Name, qualName: e.pkgName() + "." + ts.Name.Name, attrs: typedAttrs(f, gd),
+			hasNew: e.declared[staticGoName(ts.Name.Name, "New")]}
+		if st, ok := ts.Type.(*ast.StructType); ok {
+			d.isStruct = true
+			for _, field := range st.Fields.List {
+				t := e.qualText(f, field.Type)
+				names := field.Names
+				if len(names) == 0 {
+					names = []*ast.Ident{ast.NewIdent(embeddedName(field.Type))}
+				}
+				for _, n := range names {
+					if injected(field, n.Name, len(field.Names) == 0) {
+						d.ctorParams = append(d.ctorParams, n.Name+" "+t)
+						d.ctorInits = append(d.ctorInits, n.Name+": "+n.Name)
+					}
+				}
+			}
+		}
+		f.decos = append(f.decos, d)
 	}
 }
 
@@ -466,6 +555,20 @@ func (e *engine) adapter(f *fileState, d *funcDeco, info string) string {
 
 func (e *engine) renderType(f *fileState, d *typeDeco) {
 	w, rt := &f.deco, f.runtime()
+	ctor := "nil"
+	for _, u := range d.uses {
+		if u.kind == decoType && d.isStruct {
+			ctor = staticGoName(d.name, "New")
+		}
+	}
+	if ctor != "nil" && !d.hasNew {
+		// The constructor a container calls, also the type's static New.
+		if !e.bare {
+			w.gen("\n"+lineDirective(f.at(d.nameOff)), d.nameOff)
+		}
+		w.gen("\nfunc "+ctor+"("+strings.Join(d.ctorParams, ", ")+") *"+d.name+" {\n\treturn &"+d.name+
+			"{"+strings.Join(d.ctorInits, ", ")+"}\n}\n", d.nameOff)
+	}
 	w.gen("\nfunc init() {\n", d.nameOff)
 	desc := ""
 	for _, u := range d.uses {
@@ -473,7 +576,11 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 		if u.kind == decoType {
 			if desc == "" {
 				desc = "__" + d.name + "_type"
-				w.gen(desc+" := "+rt+".TypeOf["+d.name+"]("+strconv.Quote(d.qualName), u.a.start)
+				if ctor != "nil" {
+					w.gen(desc+" := "+rt+".TypeWith["+d.name+"]("+strconv.Quote(d.qualName)+", "+ctor, u.a.start)
+				} else {
+					w.gen(desc+" := "+rt+".TypeOf["+d.name+"]("+strconv.Quote(d.qualName), u.a.start)
+				}
 				for _, a := range d.attrs {
 					w.gen(", ", a.start)
 					e.writeAttrValues(f, []*Attr{a})
@@ -642,6 +749,26 @@ func trimDoc(doc string) string {
 		lines = lines[:len(lines)-1]
 	}
 	return strings.Join(lines, "\n")
+}
+
+// embeddedName is an embedded field's name: its type's name.
+func embeddedName(t ast.Expr) string {
+	for {
+		switch x := t.(type) {
+		case *ast.StarExpr:
+			t = x.X
+		case *ast.SelectorExpr:
+			return x.Sel.Name
+		case *ast.IndexExpr:
+			t = x.X
+		case *ast.IndexListExpr:
+			t = x.X
+		case *ast.Ident:
+			return x.Name
+		default:
+			return "_"
+		}
+	}
 }
 
 func genericRecv(fd *ast.FuncDecl) bool {
