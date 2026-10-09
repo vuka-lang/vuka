@@ -1,0 +1,21 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 256 256" width="256" height="256">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#E8662C"/>
+      <stop offset="1" stop-color="#9E2F16"/>
+    </linearGradient>
+    <linearGradient id="hl" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FFFFFF" stop-opacity=".35"/>
+      <stop offset=".5" stop-color="#FFFFFF" stop-opacity="0"/>
+    </linearGradient>
+  </defs>
+  <!-- tile -->
+  <rect width="256" height="256" rx="56" fill="url(#bg)"/>
+  <rect x="1.5" y="1.5" width="253" height="253" rx="54.5" fill="none" stroke="url(#hl)" stroke-width="3"/>
+  <g transform="translate(-6 -2)">
+    <!-- V: parallel arms, flat cut ends -->
+    <path d="M54 70 H96 L128 138.6 L160 70 H202 L146 190 H110 Z" fill="#FFF4E2"/>
+    <!-- accent dot, sits on the baseline -->
+    <circle cx="196" cy="172" r="18" fill="#F5C02E"/>
+  </g>
+</svg>

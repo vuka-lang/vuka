@@ -55,12 +55,19 @@ func ModuleRoot(dir string) (root, modPath string, err error) {
 	}
 }
 
+// ReadFunc reads a source file; the language server passes one that prefers
+// the editor's unsaved buffers.
+type ReadFunc func(path string) ([]byte, error)
+
 // Discover returns the packages with Vuka source under dir (recursively when
-// recursive), in a module rooted at root.
-func Discover(root, modPath, dir string, recursive bool) ([]*Package, error) {
+// recursive), in a module rooted at root. A nil read reads the disk.
+func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Package, error) {
+	if read == nil {
+		read = os.ReadFile
+	}
 	var pkgs []*Package
 	visit := func(d string) error {
-		found, err := readDir(root, modPath, d)
+		found, err := readDir(root, modPath, d, read)
 		pkgs = append(pkgs, found...)
 		return err
 	}
@@ -85,7 +92,7 @@ func Discover(root, modPath, dir string, recursive bool) ([]*Package, error) {
 	return pkgs, err
 }
 
-func readDir(root, modPath, dir string) ([]*Package, error) {
+func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -116,7 +123,7 @@ func readDir(root, modPath, dir string) ([]*Package, error) {
 		if e.IsDir() || generated[name] || !(strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".go")) {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(dir, name))
+		src, err := read(filepath.Join(dir, name))
 		if err != nil {
 			return nil, err
 		}
@@ -125,7 +132,13 @@ func readDir(root, modPath, dir string) ([]*Package, error) {
 		}
 		f, err := parser.ParseFile(token.NewFileSet(), name, src, parser.ImportsOnly)
 		if err != nil {
-			return nil, err
+			if strings.HasSuffix(name, ".vuka") {
+				// Mid-edit: let the transpiler report it with the rest.
+				f, err = parser.ParseFile(token.NewFileSet(), name, src, parser.PackageClauseOnly)
+			}
+			if err != nil {
+				continue
+			}
 		}
 		pkgName := f.Name.Name
 		p := byName[pkgName]
@@ -224,13 +237,22 @@ func Order(pkgs []*Package) ([]*Package, error) {
 // Generated is one transpiled file: where it belongs and what it holds.
 type Generated struct {
 	Target string // the .go path beside the .vuka file
+	Source string // the .vuka file
 	Src    []byte
+	From   []byte // the .vuka text it was generated from
+	Map    *transpile.SourceMap
+}
+
+// Options configure Transpile.
+type Options struct {
+	Bare bool // no header or line directives (the language server maps positions itself)
 }
 
 // Transpile transpiles pkgs in import order. Each package's output is added to
 // an overlay in tmp before the next is transpiled, so imports of Vuka packages
-// type-check. It returns the generated files and the overlay file.
-func Transpile(pkgs []*Package, tmp string) ([]Generated, string, error) {
+// type-check. It returns the generated files and the overlay file; when some
+// packages fail, the others' files come back with the error.
+func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, error) {
 	pkgs, err := Order(pkgs)
 	if err != nil {
 		return nil, "", err
@@ -246,6 +268,7 @@ func Transpile(pkgs []*Package, tmp string) ([]Generated, string, error) {
 		res, err := transpile.Package(p.Files, transpile.Options{
 			Importer: NewImporter(p.Dir, overlay),
 			Path:     func(name string) string { return filepath.Join(p.Dir, name) },
+			Bare:     opts.Bare,
 		})
 		if err != nil {
 			var list transpile.ErrorList
@@ -262,14 +285,20 @@ func Transpile(pkgs []*Package, tmp string) ([]Generated, string, error) {
 				return nil, "", err
 			}
 			replace[target] = file
-			out = append(out, Generated{Target: target, Src: f.Src})
+			var from []byte
+			for _, in := range p.Files {
+				if in.Name == f.Name {
+					from = in.Src
+				}
+			}
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map})
 		}
 		if err := writeOverlay(overlay, replace); err != nil {
 			return nil, "", err
 		}
 	}
 	if len(errs) > 0 {
-		return nil, "", errs
+		return out, overlay, errs
 	}
 	return out, overlay, nil
 }

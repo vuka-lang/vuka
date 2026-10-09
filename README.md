@@ -1,3 +1,5 @@
+<p align="center"><img src="assets/vuka-mascot.png" width="128" alt="Vuka"></p>
+
 # Vuka
 
 Vuka is Go with Result and Option, `?` error propagation, pattern matching,
@@ -41,6 +43,20 @@ case Err(e):
 go install github.com/vuka-lang/vuka/cmd/vuka@latest
 vuka run ./examples/users
 ```
+
+## Editors
+
+`vuka lsp` is a language server for `.vuka` files: gopls behind a proxy that
+keeps the generated Go open in gopls as unsaved buffers (nothing is written to
+your tree) and maps every position both ways. Completion, hover, signature
+help, go to definition, references, rename, outline, code actions and inlay
+hints all work; Vuka's own errors and Go's type errors show on the `.vuka`
+lines. Overloads show under the name you wrote (`area`, not `area__Circle`).
+
+- **VS Code:** the extension in [`editors/vscode`](editors/vscode)
+  (`npm install && npx vsce package`, then install the `.vsix`).
+- **Any other editor:** run `vuka lsp` over stdio for the `vuka` file type
+  (needs gopls: `go install golang.org/x/tools/gopls@latest`).
 
 ## Built to track Go
 
@@ -122,8 +138,7 @@ vuka gen [-check] [dir | dir/...]
 
 ## Roadmap
 
-1. `vuka lsp`: a gopls proxy for completion, navigation, refactoring and
-   diagnostics in `.vuka` files
+1. Custom decorators: `@pkg.Func(args)` wrapping the declaration it annotates
 2. Enums (sum types) with exhaustive `match`; lambdas, `?.`, `??`, tuples, functional helpers (the rest of
    [Dingo](https://github.com/MadAppGang/dingo)'s set)
 3. Multi-clause functions with patterns and guards; arity overloading for default

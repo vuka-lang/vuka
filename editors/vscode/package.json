@@ -1,0 +1,80 @@
+{
+  "name": "vuka",
+  "displayName": "Vuka",
+  "description": "Vuka language support: Go with Result, Option, ?, match, overloading and attributes. Completion, navigation, rename and diagnostics through gopls.",
+  "version": "0.1.0",
+  "publisher": "vuka-lang",
+  "license": "MIT",
+  "icon": "images/icon.png",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vuka-lang/vuka"
+  },
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Programming Languages"],
+  "keywords": ["vuka", "go", "golang", "transpiler"],
+  "main": "./extension.js",
+  "activationEvents": ["onLanguage:vuka"],
+  "contributes": {
+    "languages": [
+      {
+        "id": "vuka",
+        "aliases": ["Vuka", "vuka"],
+        "extensions": [".vuka"],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/file-icon.svg",
+          "dark": "./images/file-icon.svg"
+        }
+      }
+    ],
+    "grammars": [
+      {
+        "language": "vuka",
+        "scopeName": "source.vuka",
+        "path": "./syntaxes/vuka.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.go": "go"
+        }
+      }
+    ],
+    "configuration": {
+      "title": "Vuka",
+      "properties": {
+        "vuka.path": {
+          "type": "string",
+          "default": "vuka",
+          "description": "The vuka binary (install: go install github.com/vuka-lang/vuka/cmd/vuka@latest)."
+        },
+        "vuka.goplsPath": {
+          "type": "string",
+          "default": "",
+          "description": "The gopls binary vuka lsp runs. Empty: gopls on PATH, then $GOBIN, then $GOPATH/bin."
+        },
+        "vuka.trace.server": {
+          "type": "string",
+          "enum": ["off", "messages", "verbose"],
+          "default": "off",
+          "description": "Trace the messages between VS Code and vuka lsp."
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "vuka.restartServer",
+        "title": "Vuka: Restart Language Server"
+      }
+    ]
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  },
+  "devDependencies": {
+    "@vscode/vsce": "^3.2.1"
+  },
+  "scripts": {
+    "package": "vsce package"
+  }
+}

@@ -1,2 +1,4 @@
 /vuka
 *.test
+node_modules/
+*.vsix

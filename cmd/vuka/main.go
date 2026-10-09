@@ -24,6 +24,8 @@ Usage:
 	        transpile the module's .vuka files into an overlay and run the go command
 	vuka gen [-check] [dir | dir/...]
 	        write the generated Go beside each .vuka file (default ./...)
+	vuka lsp [-gopls path] [-log file]
+	        language server for .vuka files (gopls behind a proxy), over stdio
 	vuka version
 `
 
@@ -38,6 +40,8 @@ func main() {
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
 	case "gen":
 		err = gen(os.Args[2:], os.Stdout)
+	case "lsp":
+		err = lsp(os.Args[2:])
 	case "version":
 		fmt.Println("vuka", version)
 	case "help", "-h", "-help", "--help":
@@ -63,7 +67,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	pkgs, err := load.Discover(root, modPath, root, true)
+	pkgs, err := load.Discover(root, modPath, root, true, nil)
 	if err != nil {
 		return err
 	}
@@ -74,7 +78,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		defer os.RemoveAll(tmp)
-		_, overlay, err := load.Transpile(pkgs, tmp)
+		_, overlay, err := load.Transpile(pkgs, tmp, load.Options{})
 		if err != nil {
 			return err
 		}
@@ -111,7 +115,7 @@ func gen(args []string, stdout io.Writer) error {
 		if err != nil {
 			return err
 		}
-		found, err := load.Discover(root, modPath, dir, recursive)
+		found, err := load.Discover(root, modPath, dir, recursive, nil)
 		if err != nil {
 			return err
 		}
@@ -122,7 +126,7 @@ func gen(args []string, stdout io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	files, _, err := load.Transpile(pkgs, tmp)
+	files, _, err := load.Transpile(pkgs, tmp, load.Options{})
 	if err != nil {
 		return err
 	}

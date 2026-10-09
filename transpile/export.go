@@ -9,8 +9,9 @@ import (
 // exports generates a wrapper for every @export: a function (or method) with the
 // exported name and the annotated declaration's signature, calling it. It is how
 // Go code reaches one overload by a stable name.
-func (f *fileState) exports(bare bool, errs *ErrorList) string {
+func (f *fileState) exports(bare bool, errs *ErrorList) (string, []segment) {
 	var b strings.Builder
+	var segs []segment
 	for _, a := range f.attrs {
 		if a.kind != attrExport {
 			continue
@@ -24,6 +25,7 @@ func (f *fileState) exports(bare bool, errs *ErrorList) string {
 			errs.add(a.Pos, "@export(%q) names the function itself", a.value)
 			continue
 		}
+		start := b.Len()
 		b.WriteString("\n")
 		for _, d := range f.attrs {
 			if d.decl == a.decl && (d.kind == attrDoc || d.kind == attrDeprecated) {
@@ -69,8 +71,9 @@ func (f *fileState) exports(bare bool, errs *ErrorList) string {
 			ret = "return "
 		}
 		fmt.Fprintf(&b, " { %s%s(%s) }\n", ret, call, strings.Join(args, ", "))
+		segs = append(segs, segment{gen: start, src: a.start, genLen: b.Len() - start})
 	}
-	return b.String()
+	return b.String(), segs
 }
 
 // replacementLines is a doc attribute as // comment lines.

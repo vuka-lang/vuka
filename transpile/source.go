@@ -35,18 +35,34 @@ func (es edits) sorted() edits {
 // length of a line that has more code after it, after(end) is written behind the
 // replacement so the compiler's columns stay in step with the source.
 func (es edits) apply(src []byte, after func(off int) string) []byte {
+	out, _ := es.applyMap(src, after)
+	return out
+}
+
+// applyMap is apply that also records where each piece of the output came from.
+func (es edits) applyMap(src []byte, after func(off int) string) ([]byte, []segment) {
 	var b bytes.Buffer
+	var segs []segment
 	last := 0
+	copySrc := func(from, to int) {
+		if to > from {
+			segs = append(segs, segment{gen: b.Len(), src: from, genLen: to - from, srcLen: to - from, copy: true})
+			b.Write(src[from:to])
+		}
+	}
 	for _, e := range es {
-		b.Write(src[last:e.start])
+		copySrc(last, e.start)
+		segs = append(segs, segment{gen: b.Len(), src: e.start, genLen: len(e.text), srcLen: e.end - e.start})
 		b.WriteString(e.text)
 		last = e.end
 		if after != nil && len(e.text) != e.end-e.start && restOfLineHasCode(src, e.end) {
-			b.WriteString(after(e.end))
+			d := after(e.end)
+			segs = append(segs, segment{gen: b.Len(), src: e.end, genLen: len(d)})
+			b.WriteString(d)
 		}
 	}
-	b.Write(src[last:])
-	return b.Bytes()
+	copySrc(last, len(src))
+	return b.Bytes(), segs
 }
 
 // toOrig maps an offset in the applied text back to src. An offset inside a
@@ -139,4 +155,65 @@ func commentLines(lines []string) string {
 		}
 	}
 	return strings.Join(out, "\n")
+}
+
+// segment is a piece of generated text and the source it came from: copied
+// verbatim, or written in place of src[src:src+srcLen].
+type segment struct {
+	gen, src       int
+	genLen, srcLen int
+	copy           bool
+}
+
+// SourceMap relates offsets in a generated Go file to offsets in its .vuka
+// source. Text Vuka copied maps exactly; text it wrote maps to the start of what
+// it replaced.
+type SourceMap struct {
+	segs []segment // ordered by gen
+}
+
+func (m *SourceMap) add(base int, segs []segment) {
+	for _, s := range segs {
+		s.gen += base
+		m.segs = append(m.segs, s)
+	}
+}
+
+// ToSource maps a generated offset to the source. exact is false where Vuka
+// wrote the text; ok is false where the text has no source at all.
+func (m *SourceMap) ToSource(gen int) (src int, exact, ok bool) {
+	i := sort.Search(len(m.segs), func(i int) bool { return m.segs[i].gen+m.segs[i].genLen > gen })
+	if i == len(m.segs) {
+		if n := len(m.segs); n > 0 && gen == m.segs[n-1].gen+m.segs[n-1].genLen && m.segs[n-1].copy {
+			s := m.segs[n-1]
+			return s.src + s.srcLen, true, true
+		}
+		return 0, false, false
+	}
+	s := m.segs[i]
+	if gen < s.gen {
+		return 0, false, false
+	}
+	if s.copy {
+		return s.src + gen - s.gen, true, true
+	}
+	return s.src, false, s.srcLen > 0 || s.genLen > 0
+}
+
+// ToGenerated maps a source offset to the generated file. exact is false when
+// the offset is inside text Vuka rewrote.
+func (m *SourceMap) ToGenerated(src int) (gen int, exact bool) {
+	best := -1
+	for i, s := range m.segs {
+		if s.copy && src >= s.src && src <= s.src+s.srcLen {
+			return s.gen + src - s.src, true
+		}
+		if !s.copy && s.srcLen > 0 && src >= s.src && src < s.src+s.srcLen && best < 0 {
+			best = i
+		}
+	}
+	if best >= 0 {
+		return m.segs[best].gen, false
+	}
+	return 0, false
 }
