@@ -40,7 +40,7 @@ case Err(e):
 ```
 
 ```
-go install github.com/vuka-lang/vuka/cmd/vuka@main
+go install github.com/vuka-lang/vuka/cmd/vuka@latest
 vuka new hello && cd hello && vuka run .
 ```
 
