@@ -34,6 +34,8 @@ func list(users []User, admin bool, s string) vuka.Node {
 			guest
 		}}
 		{match lookup(s) { case Ok(n): <p>{n}</p> case Err(e): <p className="error">{e.Error()}</p> }}
+		<nav>{for _, link := range []string{"/", "/users"} { <a href={link}>{link}</a> }}</nav>
+		{if ok := map[string]bool{"a": true}["a"]; ok { <i>map in an if</i> }}
 		{match len(users) {
 		case 0:
 			<i>none</i>

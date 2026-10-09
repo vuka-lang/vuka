@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"fmt"
+	"go/parser"
 	"go/scanner"
 	"go/token"
 	"html"
@@ -479,11 +480,35 @@ func (p *jsxParser) hole(i int) (jsxNode, int) {
 	return &jsxHole{sp}, end
 }
 
-// header reads a for or if header from kw to its body's {, returning the
-// offset just after the {.
-func (p *jsxParser) header(g *goScan, kw token.Token, open int) int {
+// header reads a for or if header starting at head to its body's {, returning
+// the offset just after the {. A { that leaves the header unparsable opens a
+// composite literal (range []string{"a"} {), so it is skipped like Go would.
+func (p *jsxParser) header(g *goScan, kw token.Token, head, open int) int {
 	_, _, lb := p.goUntil(g, g.next(), kw, open, func(t tok) bool { return t.tok == token.LBRACE })
+	first := lb.off
+	for lb.tok == token.LBRACE && !headerParses(p.src[head:lb.off]) {
+		for depth := 1; depth > 0; {
+			switch t := g.next(); t.tok {
+			case token.LBRACE:
+				depth++
+			case token.RBRACE:
+				depth--
+			case token.EOF:
+				return first + 1
+			}
+		}
+		_, _, lb = p.goUntil(g, g.next(), kw, open, func(t tok) bool { return t.tok == token.LBRACE })
+	}
+	if lb.tok != token.LBRACE {
+		return first + 1
+	}
 	return lb.off + 1
+}
+
+func headerParses(h []byte) bool {
+	text := strings.TrimPrefix(strings.TrimSpace(string(h)), "else")
+	_, err := parser.ParseFile(token.NewFileSet(), "", "package p\nfunc _() {\n"+text+" {}\n}\n", 0)
+	return err == nil
 }
 
 func (p *jsxParser) block(g *goScan, kw tok, open int) (jsxNode, int) {
@@ -494,7 +519,7 @@ func (p *jsxParser) block(g *goScan, kw tok, open int) (jsxNode, int) {
 		if prev == token.ELSE {
 			h = g.significant().off + 1
 		} else {
-			h = p.header(g, prev, open)
+			h = p.header(g, prev, head, open)
 		}
 		b.heads = append(b.heads, span{head, h})
 		kids, rb := p.children(h, nil, open, false)

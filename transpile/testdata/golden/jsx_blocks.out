@@ -1,2 +1,2 @@
-<ul></ul><p>nobody</p> <hr><p>1</p><i>none</i> <nil>
-<ul><li>Ann since 2020</li><li>Bo since 2021</li></ul><button>Edit</button><p class="error">strconv.Atoi: parsing &#34;x&#34;: invalid syntax</p>a few: 2 <nil>
+<ul></ul><p>nobody</p> <hr><p>1</p><nav><a href="/">/</a><a href="/users">/users</a></nav><i>map in an if</i><i>none</i> <nil>
+<ul><li>Ann since 2020</li><li>Bo since 2021</li></ul><button>Edit</button><p class="error">strconv.Atoi: parsing &#34;x&#34;: invalid syntax</p><nav><a href="/">/</a><a href="/users">/users</a></nav><i>map in an if</i>a few: 2 <nil>
