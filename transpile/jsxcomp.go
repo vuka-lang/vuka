@@ -255,7 +255,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	}
 
 	params := sig.Params()
-	if st, typ := propsStruct(sig); st != nil {
+	if st, typ := propsStruct(sig, attrs); st != nil {
 		c.props = e.typeTextAuto(f, typ)
 		var names []string
 		for i := 0; i < st.NumFields(); i++ {
@@ -376,17 +376,31 @@ func (e *engine) closeOver(f *fileState, c *jsxComp) {
 
 // propsStruct is the struct a component takes as its only parameter, or as a
 // variadic of one struct type (templUI's func Button(props ...ButtonProps)).
-func propsStruct(sig *types.Signature) (*types.Struct, types.Type) {
+// An attribute naming the parameter itself (<Row user={u}/> for func
+// Row(user User)) passes the struct whole instead, unless a field has that name.
+func propsStruct(sig *types.Signature, attrs []*jsxAttr) (*types.Struct, types.Type) {
 	if sig.Params().Len() != 1 || sig.Params().At(0).Name() == "children" {
 		return nil, nil
 	}
-	t := sig.Params().At(0).Type()
+	param := sig.Params().At(0)
+	t := param.Type()
 	if sig.Variadic() {
 		t = t.(*types.Slice).Elem()
 	}
 	st, _ := t.Underlying().(*types.Struct)
 	if st == nil {
 		return nil, nil
+	}
+	if !sig.Variadic() {
+		var fields []string
+		for i := 0; i < st.NumFields(); i++ {
+			fields = append(fields, st.Field(i).Name())
+		}
+		for _, a := range attrs {
+			if bindName([]string{param.Name()}, a.name) >= 0 && bindName(fields, a.name) < 0 {
+				return nil, nil
+			}
+		}
 	}
 	return st, t
 }

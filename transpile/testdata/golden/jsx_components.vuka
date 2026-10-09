@@ -22,6 +22,9 @@ func UserCard(user User, admin bool, children vuka.Node) vuka.Node {
 	</div>
 }
 
+// Row takes its struct whole: the attribute names the parameter.
+func Row(user User) vuka.Node { return <tr><td>{user.Name}</td></tr> }
+
 // Badge takes its attributes out of the order of its parameters.
 func Badge(label string, count int) vuka.Node {
 	return <span>{label}: {count}</span>
@@ -83,6 +86,7 @@ func List(users []User) vuka.Node {
 		<Icon />
 		<Avatar url={"a.png"} />
 		<UserCard />
+		<table><Row user={users[0]} /></table>
 		<Layout title="Users"><p>body</p></Layout>
 	</>
 }
