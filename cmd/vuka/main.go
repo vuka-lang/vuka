@@ -15,7 +15,7 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-const version = "v0.2.1-dev"
+const version = "v0.2.1"
 
 const usage = `vuka is Go with overloading and attributes.
 
