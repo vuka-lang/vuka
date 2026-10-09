@@ -72,6 +72,9 @@ func newProject(args []string, stdout io.Writer) error {
 	if err := os.WriteFile(filepath.Join(dir, "main.vuka"), []byte(helloVuka), 0o644); err != nil {
 		return err
 	}
+	if err := os.WriteFile(filepath.Join(dir, ".gitignore"), []byte("/build/\n"), 0o644); err != nil {
+		return err
+	}
 	if err := run("get", transpile.RuntimePath+"@latest"); err != nil {
 		fmt.Fprintf(stdout, "warning: couldn't add the runtime yet (%v); run vuka mod tidy when online\n", err)
 	}

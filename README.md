@@ -158,14 +158,32 @@ whichever its name is, a function or a type.
 ```
 vuka new <dir> [module path]
 vuka build|run|test|vet|install [go flags] [packages]
-vuka gen [-check] [dir | dir/...]
+vuka gen [-check] [-o build]
+vuka gen -inplace [-check] [dir | dir/...]
 vuka lsp
 ```
 
 `build`, `run` and the rest transpile the module into a temporary overlay
-(`go build -overlay`), so no generated file lands in your tree. `gen` writes
-`name_vuka.go` beside each `.vuka` file for tools that run without Vuka;
-`-check` is a CI drift gate.
+(`go build -overlay`), so no generated file lands among your sources.
+
+### The build module
+
+Like Kotlin's `build/`, `vuka build` and `vuka gen` keep a `build/` directory:
+a complete Go module with the same module path, where every `.vuka` file is
+replaced by its generated Go and everything else is copied (`.go` files,
+embedded assets, `testdata`; relative `replace` paths in `go.mod` adjusted).
+Inside it, plain Go tools need no Vuka at all:
+
+```
+vuka gen
+cd build && go build ./... && go test ./... && go vet ./...
+```
+
+The sync is incremental (only changed files are written, deleted sources are
+removed), compile errors in `build/` point at the `.vuka` lines, and a
+`.vuka-build` marker means vuka never syncs over a directory it didn't make.
+`vuka new` adds `/build/` to `.gitignore`. `vuka gen -check` fails when
+`build/` is out of date, for CI.
 
 ## Roadmap
 
@@ -178,9 +196,9 @@ vuka lsp
 
 ## Libraries
 
-A Vuka library is plain Go once generated. To publish one for Go users, commit
-the generated files (`vuka gen`, and `vuka gen -check` in CI) so `go get`
-works without Vuka.
+Other modules `go get` your repository root, not `build/`. To publish a Vuka
+library for Go users, write the generated files beside the sources and commit
+them (`vuka gen -inplace`, and `vuka gen -inplace -check` in CI).
 
 ## Known limits
 
