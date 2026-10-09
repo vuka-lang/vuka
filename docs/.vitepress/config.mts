@@ -6,7 +6,7 @@ const vuka = JSON.parse(readFileSync(new URL('../../editors/vscode/syntaxes/vuka
 
 export default defineConfig({
   title: 'Vuka',
-  description: 'Go, with Result, Option, ?, match, overloading, decorators and statics. Transpiles to plain Go.',
+  description: 'Go, with Result, Option, ?, match, overloading, decorators, statics and JSX components. Transpiles to plain Go.',
   base: '/vuka/',
   lastUpdated: true,
   cleanUrls: true,
@@ -44,6 +44,7 @@ export default defineConfig({
           { text: 'Decorators', link: '/features/decorators' },
           { text: 'Statics and Self', link: '/features/statics' },
           { text: 'Dependency injection', link: '/features/dependency-injection' },
+          { text: 'Components and JSX', link: '/features/components' },
         ],
       },
       {

@@ -1,6 +1,6 @@
 # Getting started
 
-Vuka needs [Go](https://go.dev/dl/) 1.22 or newer.
+Vuka needs [Go](https://go.dev/dl/) 1.25 or newer.
 
 ## Install
 

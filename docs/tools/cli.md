@@ -55,6 +55,7 @@ Repairs what tooling can. `-n` only reports; name fixers to run only those.
 | `runtime` | upgrade the module's Vuka runtime when generated code needs a newer one |
 | `static-names` | write statics as `User.Table` in `.vuka` files, not by their Go names |
 | `orphans` | remove files `vuka gen -inplace` wrote for `.vuka` files that are gone |
+| `attr-of` | rename `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)`, in `.vuka` and `.go` files (v0.5.0) |
 
 ## lsp
 

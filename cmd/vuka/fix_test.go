@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // module writes a module using the local runtime and returns its directory.
@@ -13,7 +15,9 @@ func module(t *testing.T, files map[string]string) string {
 	t.Helper()
 	repo, _ := filepath.Abs("../..")
 	dir := t.TempDir()
-	files["go.mod"] = "module m\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.3.0\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
+	files["go.mod"] = "module m\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/a-h/templ v0.3.1020 // indirect\n\tgithub.com/vuka-lang/vuka " + transpile.RuntimeVersion + "\n)\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
+	sum, _ := os.ReadFile(filepath.Join(repo, "go.sum"))
+	files["go.sum"] = string(sum)
 	for name, src := range files {
 		path := filepath.Join(dir, name)
 		os.MkdirAll(filepath.Dir(path), 0o755)
@@ -128,5 +132,54 @@ func TestExplain(t *testing.T) {
 	out.Reset()
 	if err := explain([]string{filepath.Join(dir, "plain.vuka")}, &out); err != nil || !strings.Contains(out.String(), "plain Go") {
 		t.Fatalf("plain file: %v %s", err, out.String())
+	}
+}
+
+func TestFixAttrOf(t *testing.T) {
+	const deco = `package deco
+
+import v "github.com/vuka-lang/vuka"
+
+type Route struct{ Path string }
+
+func Logged(c *v.Call) {
+	r, _ := v.Attr[Route](c) // v.Attr[Route] in a comment stays
+	_ = "v.Attr[Route]"
+	_ = r
+	c.Next()
+}
+`
+	const main = `package main
+
+func Timed(c *vuka.Call) {
+	if r, ok := vuka.Attr[int](c); ok {
+		_ = r
+	}
+	_ = []vuka.Attr{{Name: "id", Value: 1}}
+	c.Next()
+}
+
+func main() {}
+`
+	dir := module(t, map[string]string{"deco/deco.go": deco, "main.vuka": main})
+	chdir(t, dir)
+	var out bytes.Buffer
+	if err := fix([]string{"attr-of"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	got, _ := os.ReadFile("deco/deco.go")
+	if want := strings.Replace(deco, "r, _ := v.Attr[Route](c)", "r, _ := v.AttrOf[Route](c)", 1); string(got) != want {
+		t.Errorf("deco.go:\n%s", got)
+	}
+	got, _ = os.ReadFile("main.vuka")
+	if want := strings.Replace(main, "vuka.Attr[int]", "vuka.AttrOf[int]", 1); string(got) != want {
+		t.Errorf("main.vuka:\n%s", got)
+	}
+	if !strings.Contains(out.String(), "in deco/deco.go, v.Attr → v.AttrOf on line 8") {
+		t.Errorf("output: %s", out.String())
+	}
+	out.Reset()
+	if err := fix([]string{"attr-of"}, &out); err != nil || strings.TrimSpace(out.String()) != "nothing to fix" {
+		t.Fatalf("second run: %v %s", err, out.String())
 	}
 }

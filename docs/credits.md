@@ -22,7 +22,14 @@ or the Go project. "Go" is a trademark of Google LLC.
   a project and its tools with another.
 - [Django](https://www.djangoproject.com) — `Model.objects`.
 - [Zig](https://ziglang.org) — compile-time evaluation, for what comes next.
-- [templ](https://templ.guide) — a transpiler whose language server proxies gopls.
+- [React](https://react.dev) — JSX and components as functions.
+
+## Built with
+
+- [templ](https://templ.guide) by Adrian Hesketh and contributors (MIT) — Vuka's
+  components render through templ's runtime, and `.templ` files are compiled
+  with templ's own parser and generator. templ's language server, which proxies
+  gopls, was also the model for Vuka's.
 
 ## License
 

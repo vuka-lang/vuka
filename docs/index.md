@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Vuka
   text: Go, with a few things more
-  tagline: Result and Option, the ? operator, pattern matching, overloading, decorators and statics. Vuka transpiles to plain Go and builds with the go command you already have.
+  tagline: Result and Option, the ? operator, pattern matching, overloading, decorators, statics and JSX components. Vuka transpiles to plain Go and builds with the go command you already have.
   image:
     src: /logo.svg
     alt: Vuka
@@ -30,6 +30,10 @@ features:
     details: "decorator logged(c) { … } decorates any function, method or type. Retries, caches, auth guards and dependency injection, in a few lines."
   - title: Statics and Self
     details: User.Objects.All(ctx) and u.Save(ctx) — a Django-style model API, compiled to ordinary Go.
+  - title: Components with JSX
+    details: "Markup is an expression and a component is a function. Rendered by templ, so .templ files and templ libraries work side by side with no generate step."
+    link: /features/components
+    linkText: Components and JSX
   - title: Plain Go comes out
     details: No runtime magic, no reflection where a type will do. vuka explain shows exactly what each line becomes, and build/ holds a plain Go module any Go tool can build.
   - title: Full editor support

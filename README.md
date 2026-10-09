@@ -5,7 +5,8 @@
 **Docs: [vuka-lang.github.io/vuka](https://vuka-lang.github.io/vuka/)**
 
 Vuka is Go with Result and Option, `?` error propagation, pattern matching,
-function and method overloading, and typed attributes, with Elixir-style
+function and method overloading, typed attributes, decorators, and JSX
+components rendered by [templ](https://templ.guide), with Elixir-style
 multi-clause functions on the way. It transpiles to plain Go and builds with the
 go command you already have.
 
@@ -302,8 +303,30 @@ labelled with the line it comes from; `-full` prints the whole generated file.
 runtime when generated code needs a newer one, `static-names` rewrites statics
 spelt by their Go names (`User_Table`) to `User.Table` in `.vuka` files, and
 `orphans` removes files `vuka gen -inplace` wrote for `.vuka` files that are
-gone. `-n` reports without changing anything; name fixers to run only those.
+gone, and `attr-of` renames `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)` (v0.5.0). `-n` reports without changing anything; name fixers to run only those.
 It is also where future syntax changes will get their codemods.
+
+**Components and JSX.** Markup is an expression, and a component is a function
+returning a `vuka.Node`, which is `templ.Component`:
+
+```go
+func PetRow(pet Pet) vuka.Node {
+	return <tr><td>{pet.Name}</td><td>{pet.Age}</td></tr>
+}
+
+func Page(pets []Pet) vuka.Node {
+	return <Shell title="Pets">                      // a templ component
+		<table>{for _, p := range pets { <PetRow pet={p} /> }}</table>
+	</Shell>
+}
+```
+
+Attributes bind to parameters by name (or to a props struct's fields), children
+to a `children` parameter; `{for}`, `{if}` and `{match}` blocks hold markup.
+`.templ` files compile with the package, no `templ generate`, and call Vuka
+components back. `vuka.Handler`/`Write`/`String` render HTML; `vuka/term`
+renders the same tree as terminal text. See
+[Components and JSX](https://vuka-lang.github.io/vuka/features/components).
 
 ### The build module
 

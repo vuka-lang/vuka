@@ -10,6 +10,25 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.5.0 — 2026-10-10
+
+- **Components and JSX.** Markup is an expression in `.vuka` files; components
+  are functions, with attributes bound to parameters by name or to a props
+  struct, `{for}`, `{if}` and `{match}` blocks, and errors at the tag.
+  [Components and JSX](/features/components).
+- **Rendered by templ.** `vuka.Node` is `templ.Component`: Vuka components and
+  templ components call each other, and `.templ` files compile with the rest of
+  the package (no `templ generate`), with editor support mapped into them.
+- `vuka.Handler`, `vuka.Write`, `vuka.String`; a walkable node tree
+  (`vuka.Walk`, `vuka.Renderer`) and a terminal renderer, `vuka/term`.
+- VS Code extension 0.3.0: JSX highlighting.
+
+**Breaking:** the decorator helper `vuka.Attr[T](c)` is now `vuka.AttrOf[T](c)`
+(`vuka.Attr` is JSX's attribute). `vuka fix attr-of` rewrites it. Go 1.25 or
+newer is required (templ needs it).
+
+Runtime: v0.5.0.
+
 ## v0.4.1 — 2026-10-10
 
 - **`vuka mod`**: `go mod` that sees the imports of `.vuka` files. `vuka mod tidy`
