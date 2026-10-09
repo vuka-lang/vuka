@@ -5,6 +5,8 @@ import (
 	"context"
 	"errors"
 	"io"
+
+	"github.com/a-h/templ"
 )
 
 type User struct {
@@ -61,8 +63,9 @@ func Avatar(url string) (vuka.Node, error) {
 	return <img src={url} />, nil
 }
 
-// Layout takes no children parameter: its children go through templ's.
-func Layout(title string) vuka.Node { return <title>{title}</title> }
+func Layout(title string, children vuka.Node) vuka.Node {
+	return <main><title>{title}</title>{children}</main>
+}
 
 type Theme struct{ dark bool }
 
@@ -88,6 +91,7 @@ func List(users []User) vuka.Node {
 		<UserCard />
 		<table><Row user={users[0]} /></table>
 		<Layout title="Users"><p>body</p></Layout>
+		<templ.Raw html="<b>raw</b>">children through templ's context</templ.Raw>
 	</>
 }
 

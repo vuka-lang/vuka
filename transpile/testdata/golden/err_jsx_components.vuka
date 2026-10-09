@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"io"
+	"strconv"
 )
 
 type User struct{ Name string }
@@ -25,6 +26,10 @@ func (h html) Render(ctx context.Context, w io.Writer) error { return nil }
 
 func Raw(s string) html { return html(s) }
 
+func Layout(title string) vuka.Node { return <title>{title}</title> }
+
+func Card(props Props) vuka.Node { return <div>{props.Title}</div> }
+
 func page(u User) vuka.Node {
 	return <>
 		<UserCard usr={u} />
@@ -33,7 +38,13 @@ func page(u User) vuka.Node {
 		<Counter />
 		<Raw s="<b>">kids</Raw>
 		<Plain n={1} />
+		<Layout title="x"><p>body</p></Layout>
+		<Card title="x">body</Card>
 	</>
+}
+
+func count(s string) (vuka.Node, error) {
+	return <p>{strconv.Atoi(s)?}</p>, nil
 }
 
 func main() {}

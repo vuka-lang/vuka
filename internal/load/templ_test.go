@@ -192,3 +192,44 @@ func TestTemplError(t *testing.T) {
 	}
 	t.Log(e)
 }
+
+// TestTemplChildren: JSX children reach a .templ component's { children... }
+// through templ's context.
+func TestTemplChildren(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := templModule(t, map[string]string{
+		"card.templ": `package main
+
+templ Card(title string) {
+	<div class="card"><h2>{ title }</h2>{ children... }</div>
+}
+`,
+		"main.vuka": `package main
+
+import (
+	"context"
+	"os"
+)
+
+func Note(text string, children vuka.Node) vuka.Node { return <p>{text}: {children}</p> }
+
+func main() {
+	page := <Card title="Hi"><Note text="note">body</Note></Card>
+	page.Render(context.Background(), os.Stdout)
+}
+`,
+	})
+	pkgs, err := Discover(root, "example.com/site", root, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, overlay, err := Transpile(pkgs, t.TempDir(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := goRun(t, root, overlay, "."), `<div class="card"><h2>Hi</h2><p>note: body</p></div>`; got != want {
+		t.Fatalf("got %q, want %q", got, want)
+	}
+}

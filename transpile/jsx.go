@@ -104,6 +104,7 @@ type jsxParser struct {
 	trees   []*jsxTree
 	matches []*matchStmt
 	cur     *jsxTree
+	goToks  [][]tok // each Go expression's tokens, its JSX read as one
 }
 
 func (p *jsxParser) fail(off int, format string, args ...any) {
@@ -111,8 +112,9 @@ func (p *jsxParser) fail(off int, format string, args ...any) {
 }
 
 // parseJSX reads the JSX expression at off and every one nested in it, and
-// returns where it ends. A malformed one is reported and nothing is kept.
-func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, ok bool) {
+// returns where it ends and the tokens of the Go expressions it holds. A
+// malformed one is reported and nothing is kept.
+func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok, ok bool) {
 	p := &jsxParser{f: f, src: f.src, errs: errs}
 	defer func() {
 		if r := recover(); r != nil {
@@ -121,7 +123,7 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, ok bool) {
 				panic(r)
 			}
 			errs.add(f.at(je.off), "%s", je.msg)
-			end, ok = 0, false
+			end, goToks, ok = 0, nil, false
 		}
 	}()
 	end = p.tree(off)
@@ -136,7 +138,7 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, ok bool) {
 			t.done = true
 		}
 	}
-	return end, true
+	return end, p.goToks, true
 }
 
 func (p *jsxParser) tree(off int) int {
@@ -195,11 +197,23 @@ func (p *jsxParser) element(off int) *jsxElem {
 		return el
 	}
 	el.tag, i = p.name(i)
-	el.tagEnd = i
 	if c := el.tag[len(el.tag)-1]; c == '.' || c == '-' || c == ':' {
 		p.fail(off+1, "bad tag name %s", el.tag)
 	}
 	comp := isComponent(el.tag)
+	if comp && p.at(i) == '[' { // type arguments: <List[User] …>
+		for d := 0; i == el.start+1+len(el.tag) || d > 0; i++ {
+			switch p.at(i) {
+			case 0:
+				p.fail(off, "unclosed [ in <%s>", el.tag)
+			case '[':
+				d++
+			case ']':
+				d--
+			}
+		}
+	}
+	el.tagEnd = i
 	if comp {
 		el.comp = &jsxComp{el: el}
 		p.cur.comps = append(p.cur.comps, el.comp)
@@ -368,6 +382,16 @@ func (g *goScan) reset(off int) {
 	g.s.Init(g.f, g.src[off:], func(token.Position, string) {}, scanner.ScanComments)
 }
 
+// resume scans on from off, just after an operand (JSX), where a newline ends
+// a statement as it would after the ) the scanner is shown in its place.
+func (g *goScan) resume(off int) {
+	buf := append([]byte{')'}, g.src[off:]...)
+	g.base = off - 1
+	g.f = token.NewFileSet().AddFile("", -1, len(buf))
+	g.s.Init(g.f, buf, func(token.Position, string) {}, scanner.ScanComments)
+	g.s.Scan()
+}
+
 func (g *goScan) next() tok {
 	pos, t, lit := g.s.Scan()
 	return tok{g.base + g.f.Offset(pos), t, lit}
@@ -385,17 +409,23 @@ func (g *goScan) significant() tok {
 
 // goUntil reads Go tokens from g, after first, until stop matches one at depth
 // zero, and returns the first and last tokens before it and the stopping one.
-// JSX in operand position is read as a tree of its own.
+// JSX in operand position is read as a tree of its own. The tokens read are
+// kept for the scan for ? and match.
 func (p *jsxParser) goUntil(g *goScan, first tok, prev token.Token, open int, stop func(tok) bool) (start, last, at tok) {
 	start.off = -1
 	d := 0
+	var toks []tok
 	for t := first; ; t = g.next() {
 		switch {
 		case t.tok == token.EOF:
 			p.fail(open, "unclosed {")
+		case t.tok == token.COMMENT:
+			continue
 		case trivia(t):
+			toks = append(toks, t)
 			continue
 		case d == 0 && stop(t):
+			p.goToks = append(p.goToks, toks)
 			return start, last, t
 		case isOpen(t.tok):
 			d++
@@ -404,8 +434,9 @@ func (p *jsxParser) goUntil(g *goScan, first tok, prev token.Token, open int, st
 		case t.tok == token.LSS && jsxStarts(prev) && jsxTagAt(p.src, t.off):
 			end := p.tree(t.off)
 			t = tok{t.off, token.IDENT, string(p.src[t.off:end])}
-			g.reset(end)
+			g.resume(end)
 		}
+		toks = append(toks, t)
 		if start.off < 0 {
 			start = t
 		}

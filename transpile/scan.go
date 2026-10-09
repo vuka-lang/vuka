@@ -149,12 +149,7 @@ func (f *fileState) scan(errs *ErrorList) {
 				f.staticFuncs = append(f.staticFuncs, sf)
 			}
 			continue
-		case isQuestion(t):
-			if p.end() != t.off || p.tok == token.SEMICOLON {
-				errs.add(f.at(t.off), "unexpected ?: it goes right after the expression it unwraps, as in f()?")
-				continue
-			}
-			f.tries = append(f.tries, &try{off: t.off, n: len(f.tries) + 1})
+		case f.bodyConstruct(toks, i, p, depth, errs):
 			continue
 		case t.tok == token.IDENT && t.lit == "decorator" && depth == 0 && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
 			if next, msg := f.decoratorAt(toks, i); msg != "" {
@@ -164,17 +159,9 @@ func (f *fileState) scan(errs *ErrorList) {
 				prev = toks[i]
 			}
 			continue
-		case t.tok == token.IDENT && t.lit == "match" && depth > 0 && (p.tok == token.SEMICOLON || p.tok == token.LBRACE || p.tok == token.COLON):
-			if m, msg := f.matchAt(toks, i); m != nil {
-				m.n = len(f.matches) + 1
-				f.matches = append(f.matches, m)
-			} else if msg != "" {
-				errs.add(f.at(t.off), "%s", msg)
-			}
-			continue
 		case t.tok == token.LSS && depth > 0 && jsxStarts(p.tok) && jsxTagAt(f.src, t.off):
 			f.scannedRuntime(toks)
-			end, ok := f.parseJSX(t.off, errs)
+			end, goToks, ok := f.parseJSX(t.off, errs)
 			if !ok {
 				// Resume at the next top-level func: what follows the bad
 				// JSX isn't Go.
@@ -187,6 +174,9 @@ func (f *fileState) scan(errs *ErrorList) {
 				depth, frames, prev, prevIdx = 0, nil, tok{tok: token.SEMICOLON}, -1
 				i--
 				continue
+			}
+			for _, g := range goToks {
+				f.scanJSXGo(g, errs)
 			}
 			toks = append(toks[:i:i], append([]tok{{t.off, token.IDENT, string(f.src[t.off:end])}}, scanFrom(f.src, end, true)...)...)
 			prev = toks[i]
@@ -232,6 +222,48 @@ func (f *fileState) scan(errs *ErrorList) {
 		}
 		i = k - 1
 		prev = toks[i]
+	}
+}
+
+// bodyConstruct reads the ? or match at toks[i], after p, if it is one.
+func (f *fileState) bodyConstruct(toks []tok, i int, p tok, depth int, errs *ErrorList) bool {
+	switch t := toks[i]; {
+	case isQuestion(t):
+		if p.end() != t.off || p.tok == token.SEMICOLON {
+			errs.add(f.at(t.off), "unexpected ?: it goes right after the expression it unwraps, as in f()?")
+			return true
+		}
+		f.tries = append(f.tries, &try{off: t.off, n: len(f.tries) + 1})
+		return true
+	case t.tok == token.IDENT && t.lit == "match" && depth > 0 && (p.tok == token.SEMICOLON || p.tok == token.LBRACE || p.tok == token.COLON):
+		if m, msg := f.matchAt(toks, i); m != nil {
+			m.n = len(f.matches) + 1
+			f.matches = append(f.matches, m)
+		} else if msg != "" {
+			errs.add(f.at(t.off), "%s", msg)
+		}
+		return true
+	}
+	return false
+}
+
+// scanJSXGo finds the ? and match in one Go expression of a JSX tree, such as
+// a function literal in {…}: its tokens, with the JSX it holds read as one.
+func (f *fileState) scanJSXGo(toks []tok, errs *ErrorList) {
+	depth, prev := 1, tok{tok: token.LPAREN}
+	for i, t := range toks {
+		p := prev
+		prev = t
+		switch {
+		case isOpen(t.tok):
+			depth++
+		case isClose(t.tok):
+			depth--
+		case isAt(t):
+			errs.add(f.at(t.off), "attributes are only allowed before top-level declarations")
+		default:
+			f.bodyConstruct(toks, i, p, depth, errs)
+		}
 	}
 }
 

@@ -1,0 +1,4 @@
+<ul><li title="small">1</li><li title="big">42</li></ul> <nil>
+<p>error: strconv.Atoi: parsing &#34;x&#34;: invalid syntax</p> <nil>
+<button><b>7</b></button> <nil>
+<button><i>strconv.Atoi: parsing &#34;x&#34;: invalid syntax</i></button> <nil>

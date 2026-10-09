@@ -2,6 +2,8 @@ package transpile
 
 import (
 	"go/ast"
+	"go/constant"
+	"go/token"
 	"go/types"
 	"sort"
 	"strconv"
@@ -22,9 +24,11 @@ type jsxComp struct {
 	dead       bool
 	fail       string
 	props      string     // the props struct literal's type; "" when attributes are parameters
+	propsTyp   types.Type // the props struct's, until written
 	args       []*compArg // in the call's order
 	try        bool       // the function returns (Node, error)
 	withKids   bool       // children go through templx.WithChildren
+	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
 }
@@ -34,7 +38,8 @@ type compArg struct {
 	key  string   // "Field: " for a props struct
 	attr *jsxAttr // the value of an attribute
 	kids bool     // the children, as a Fragment
-	text string   // a generated value: a zero value
+	zero bool     // the parameter is left out
+	text string   // its zero value
 	name string   // the function literal's parameter, in the closure form
 	typ  types.Type
 }
@@ -173,6 +178,8 @@ func isTemplComponent(t, node types.Type) bool {
 // Attributes bind to parameters by name (or, for a function taking one props
 // struct, to its fields); missing ones get zero values, children go to a
 // children parameter, else to a templ component through templx.WithChildren.
+// A generic function's type arguments are inferred as a call's are; an
+// overloaded function's overload is the one its attributes fit best.
 func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	el := c.el
 	at, end := f.cur.fromOrig(el.start+1), f.cur.fromOrig(el.tagEnd)
@@ -180,7 +187,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {
 			switch x.(type) {
-			case *ast.Ident, *ast.SelectorExpr:
+			case *ast.Ident, *ast.SelectorExpr, *ast.IndexExpr, *ast.IndexListExpr:
 				expr = x
 			}
 		}
@@ -194,48 +201,9 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		c.dead = true
 		e.errs.add(f.at(off), format, args...)
 	}
-	var obj types.Object
-	switch x := expr.(type) {
-	case *ast.Ident:
-		obj = e.info.Uses[x]
-	case *ast.SelectorExpr:
-		obj = e.info.Uses[x.Sel]
-	}
-	if _, ok := obj.(*types.TypeName); ok {
-		fail(el.start, "<%s> is a type: stateful components come in stage 2", el.tag)
-		return
-	}
-	if fn, ok := obj.(*types.Func); ok && fn.Type().(*types.Signature).TypeParams().Len() > 0 {
-		fail(el.start, "<%s> is generic; generic components aren't supported yet", el.tag)
-		return
-	}
-	tv, ok := e.info.Types[expr]
-	if !ok || isInvalid(tv.Type) {
-		c.fail = "its type is unknown"
-		return
-	}
-	sig, ok := tv.Type.Underlying().(*types.Signature)
-	if !ok {
-		fail(el.start, "<%s> isn't a component: a component is a function returning a vuka.Node", el.tag)
-		return
-	}
 	node := e.nodeType()
 	if node == nil {
 		c.fail = "the runtime has no Node"
-		return
-	}
-	var res types.Type
-	switch r := sig.Results(); {
-	case r.Len() == 1:
-		res = r.At(0).Type()
-	case r.Len() == 2 && types.Identical(r.At(1).Type(), errorType):
-		res, c.try = r.At(0).Type(), true
-	default:
-		fail(el.start, "<%s> must return a vuka.Node, or a Node and an error", el.tag)
-		return
-	}
-	if !types.AssignableTo(res, node) {
-		fail(el.start, "<%s> returns %s, which isn't a vuka.Node: it has no Render(context.Context, io.Writer) error method", el.tag, e.display(res))
 		return
 	}
 	var attrs []*jsxAttr
@@ -244,19 +212,104 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 			attrs = append(attrs, a)
 		}
 	}
-	hasKids := len(el.kids) > 0
-	noKids := func() bool {
-		if isTemplComponent(res, node) {
-			c.withKids = true
-			return true
+	if set, id := e.target(expr); set != nil {
+		e.resolveOverload(f, c, set, id, attrs, node, fail)
+		return
+	}
+	obj := e.info.Uses[compIdent(expr)]
+	if _, ok := obj.(*types.TypeName); ok {
+		fail(el.start, "<%s> is a type: stateful components come in stage 2", el.tag)
+		return
+	}
+	var sig *types.Signature
+	if tv, ok := e.info.Types[expr]; ok && !isInvalid(tv.Type) {
+		if sig, ok = tv.Type.Underlying().(*types.Signature); !ok {
+			fail(el.start, "<%s> isn't a component: a component is a function returning a vuka.Node", el.tag)
+			return
 		}
-		fail(el.start, "<%s> takes no children", el.tag)
-		return false
+	}
+	if fn, ok := obj.(*types.Func); ok && fn.Signature().TypeParams().Len() > 0 && (sig == nil || sig.TypeParams().Len() > 0) {
+		var off int
+		var msg string
+		if sig, off, msg = e.instantiate(f, c, expr, fn.Signature(), attrs, node); msg != "" {
+			fail(off, "%s", msg)
+			return
+		}
+		if sig == nil {
+			c.fail = "an attribute's type is unknown"
+			return
+		}
+	}
+	if sig == nil {
+		c.fail = "its type is unknown"
+		return
+	}
+	if off, msg := e.bindComp(c, sig, attrs, node, e.templChildren(obj)); msg != "" {
+		fail(off, "%s", msg)
+		return
+	}
+	e.finishComp(f, c)
+}
+
+// compIdent is the name a component's tag ends in: Card in <theme.Card> and <Card[T]>.
+func compIdent(x ast.Expr) *ast.Ident {
+	switch x := x.(type) {
+	case *ast.Ident:
+		return x
+	case *ast.SelectorExpr:
+		return x.Sel
+	case *ast.IndexExpr:
+		return compIdent(x.X)
+	case *ast.IndexListExpr:
+		return compIdent(x.X)
+	}
+	return nil
+}
+
+// templChildren reports whether a component may read its children from templ's
+// context: a function declared in a .templ file, one of another package (a
+// templ library, perhaps), or a function value. A function of this package's
+// .vuka and .go files never does.
+func (e *engine) templChildren(obj types.Object) bool {
+	fn, ok := obj.(*types.Func)
+	if !ok || fn.Pkg() != e.pkg {
+		return true
+	}
+	file := e.fileOf(fn.Pos())
+	return file != nil && strings.HasSuffix(file.name, "_templ.go")
+}
+
+// bindComp binds a component's attributes and children to the parameters (or
+// props fields) of sig, or says why they don't fit and where.
+func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, node types.Type, templKids bool) (int, string) {
+	el := c.el
+	var res types.Type
+	switch r := sig.Results(); {
+	case r.Len() == 1:
+		res = r.At(0).Type()
+	case r.Len() == 2 && types.Identical(r.At(1).Type(), errorType):
+		res, c.try = r.At(0).Type(), true
+	default:
+		return el.start, "<" + el.tag + "> must return a vuka.Node, or a Node and an error"
+	}
+	if !types.AssignableTo(res, node) {
+		return el.start, "<" + el.tag + "> returns " + e.display(res) + ", which isn't a vuka.Node: it has no Render(context.Context, io.Writer) error method"
+	}
+	hasKids := len(el.kids) > 0
+	noKids := func(add string) string {
+		switch {
+		case !isTemplComponent(res, node):
+			return "<" + el.tag + "> takes no children"
+		case templKids:
+			c.withKids = true
+			return ""
+		}
+		return "<" + el.tag + "> takes no children: add a " + add
 	}
 
 	params := sig.Params()
 	if st, typ := propsStruct(sig, attrs); st != nil {
-		c.props = e.typeTextAuto(f, typ)
+		c.propsTyp, c.inOrder = typ, true
 		var names []string
 		for i := 0; i < st.NumFields(); i++ {
 			names = append(names, st.Field(i).Name())
@@ -265,29 +318,25 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		for _, a := range attrs {
 			i := bindName(names, a.name)
 			if i < 0 {
-				fail(a.off, "%s", unknownAttr(el.tag, a.name, "fields", names))
-				return
+				return a.off, unknownAttr(el.tag, a.name, "fields", names)
 			}
 			if used[i] {
-				fail(a.off, "<%s> sets %s twice", el.tag, names[i])
-				return
+				return a.off, "<" + el.tag + "> sets " + names[i] + " twice"
 			}
 			used[i] = true
-			c.args = append(c.args, &compArg{key: names[i] + ": ", attr: a})
+			c.args = append(c.args, &compArg{key: names[i] + ": ", attr: a, typ: st.Field(i).Type()})
 		}
 		if hasKids {
 			if i := bindName(names, "Children"); i >= 0 && !used[i] && types.AssignableTo(node, st.Field(i).Type()) {
-				c.args = append(c.args, &compArg{key: names[i] + ": ", kids: true})
-			} else if !noKids() {
-				return
+				c.args = append(c.args, &compArg{key: names[i] + ": ", kids: true, typ: st.Field(i).Type()})
+			} else if msg := noKids("Children vuka.Node field to " + e.display(typ)); msg != "" {
+				return el.start, msg
 			}
 		}
 		if sig.Variadic() && len(c.args) == 0 {
-			c.props = ""
+			c.propsTyp = nil
 		}
-		c.resolved = true
-		e.progress = true
-		return
+		return 0, ""
 	}
 
 	var names []string
@@ -298,12 +347,10 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	for _, a := range attrs {
 		i := bindName(names, a.name)
 		if i < 0 {
-			fail(a.off, "%s", unknownAttr(el.tag, a.name, "parameters", names))
-			return
+			return a.off, unknownAttr(el.tag, a.name, "parameters", names)
 		}
 		if args[i] != nil {
-			fail(a.off, "<%s> sets %s twice", el.tag, names[i])
-			return
+			return a.off, "<" + el.tag + "> sets " + names[i] + " twice"
 		}
 		args[i] = &compArg{attr: a}
 	}
@@ -312,27 +359,25 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		switch {
 		case i >= 0 && args[i] == nil && types.AssignableTo(node, params.At(i).Type()):
 			args[i] = &compArg{kids: true}
-		case !noKids():
-			return
+		default:
+			if msg := noKids("children vuka.Node parameter"); msg != "" {
+				return el.start, msg
+			}
 		}
 	}
 	last := -1
-	inOrder := true
+	c.inOrder = true
 	for i, a := range args {
 		switch {
 		case a == nil && sig.Variadic() && i == len(args)-1:
 			continue
 		case a == nil:
-			z, msg := e.zero(f, params.At(i).Type())
-			if msg != "" {
-				z = "*new(" + e.typeTextAuto(f, params.At(i).Type()) + ")"
-			}
-			a = &compArg{text: z}
+			a = &compArg{zero: true}
 		case a.kids:
-			inOrder = inOrder && last < el.end
+			c.inOrder = c.inOrder && last < el.end
 			last = el.end
 		case a.attr.kind == 'e':
-			inOrder = inOrder && last < a.attr.expr.start
+			c.inOrder = c.inOrder && last < a.attr.expr.start
 			last = a.attr.expr.start
 		}
 		a.typ = params.At(i).Type()
@@ -341,11 +386,164 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		}
 		c.args = append(c.args, a)
 	}
-	if !inOrder {
+	return 0, ""
+}
+
+// finishComp writes what a bound component's call needs: its props type, its
+// zero values, and the closure that keeps its expressions in source order.
+func (e *engine) finishComp(f *fileState, c *jsxComp) {
+	if c.propsTyp != nil {
+		c.props = e.typeTextAuto(f, c.propsTyp)
+	}
+	for _, a := range c.args {
+		if a.zero {
+			z, msg := e.zero(f, a.typ)
+			if msg != "" {
+				z = "*new(" + e.typeTextAuto(f, a.typ) + ")"
+			}
+			a.text = z
+		}
+	}
+	if !c.inOrder {
 		e.closeOver(f, c)
 	}
 	c.resolved = true
 	e.progress = true
+}
+
+// attrExpr is an attribute's expression in this round's syntax tree.
+func (e *engine) attrExpr(f *fileState, a *jsxAttr) ast.Expr {
+	at, end := f.cur.fromOrig(a.expr.start), f.cur.fromOrig(a.expr.end)
+	var expr ast.Expr
+	ast.Inspect(f.ast, func(n ast.Node) bool {
+		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {
+			expr = x
+		}
+		return expr == nil && (n == nil || f.off(n.Pos()) <= at)
+	})
+	return expr
+}
+
+// instantiate infers a generic component's type arguments as Go infers a
+// call's, from the call its tag makes, where a parameter it leaves out takes
+// nil and so infers nothing. It returns nil while an attribute's type is unknown.
+func (e *engine) instantiate(f *fileState, c *jsxComp, fun ast.Expr, sig *types.Signature, attrs []*jsxAttr, node types.Type) (*types.Signature, int, string) {
+	el := c.el
+	if st, _ := propsStruct(sig, attrs); st != nil {
+		return nil, el.start, "<" + el.tag + "> takes a generic props struct, whose type arguments can't be inferred: write <" + el.tag + "[…]>"
+	}
+	trial := &jsxComp{el: el}
+	if off, msg := e.bindComp(trial, sig, attrs, node, true); msg != "" {
+		return nil, off, msg
+	}
+	pos := fun.Pos()
+	call := &ast.CallExpr{Fun: fun, Lparen: fun.End(), Rparen: fun.End()}
+	for _, a := range trial.args {
+		var x ast.Expr = &ast.Ident{NamePos: pos, Name: "nil"}
+		switch {
+		case a.attr == nil:
+		case a.attr.kind == 's':
+			x = &ast.BasicLit{ValuePos: pos, Kind: token.STRING, Value: strconv.Quote(a.attr.val)}
+		case a.attr.kind == 'b':
+			x = &ast.Ident{NamePos: pos, Name: "true"}
+		default:
+			x = e.attrExpr(f, a.attr)
+			if tv, ok := e.info.Types[x]; x == nil || !ok || isInvalid(tv.Type) {
+				return nil, 0, ""
+			}
+		}
+		call.Args = append(call.Args, x)
+	}
+	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}, Instances: map[*ast.Ident]types.Instance{}}
+	_ = types.CheckExpr(e.fset, e.pkg, pos, call, info) // a mismatch is reported where the call is made
+	if inst, ok := info.Instances[compIdent(fun)]; ok {
+		if s, ok := inst.Type.(*types.Signature); ok && s.TypeParams().Len() == 0 {
+			return s, 0, ""
+		}
+	}
+	return nil, el.start, "<" + el.tag + "> is generic, and its attributes don't give its type arguments: write <" + el.tag + "[…]>"
+}
+
+// resolveOverload chooses the overload of a component whose parameters fit
+// its attributes best, scored as a call's arguments are.
+func (e *engine) resolveOverload(f *fileState, c *jsxComp, set *overloadSet, id *ast.Ident, attrs []*jsxAttr, node types.Type, fail func(int, string, ...any)) {
+	best := -1
+	var winners []*overload
+	var bound []*jsxComp
+	for _, o := range set.list {
+		if o.sig == nil {
+			continue
+		}
+		b := &jsxComp{el: c.el}
+		if _, msg := e.bindComp(b, o.sig, attrs, node, false); msg != "" {
+			continue
+		}
+		score, ok, known := e.compScore(f, b, node)
+		switch {
+		case !known:
+			c.fail = "an attribute's type is unknown"
+			return
+		case !ok:
+		case best < 0 || score < best:
+			best, winners, bound = score, []*overload{o}, []*jsxComp{b}
+		case score == best:
+			winners, bound = append(winners, o), append(bound, b)
+		}
+	}
+	switch len(winners) {
+	case 0:
+		fail(c.el.start, "no overload of %s takes these attributes%s", set.display(), e.candidates(set.list))
+		return
+	case 1:
+	default:
+		fail(c.el.start, "<%s> is ambiguous: its attributes fit%s", c.el.tag, e.candidates(winners))
+		return
+	}
+	*c = *bound[0]
+	off := f.orig(id.Pos())
+	f.add(off, off+len(id.Name), winners[0].mangled)
+	f.done[off] = true
+	e.finishComp(f, c)
+}
+
+// compScore scores a component's binding as pick scores a call's arguments.
+// It reports whether every attribute fits, and whether their types are known.
+func (e *engine) compScore(f *fileState, c *jsxComp, node types.Type) (score int, ok, known bool) {
+	for _, a := range c.args {
+		var x arg
+		switch {
+		case a.kids:
+			x = arg{t: node}
+		case a.attr == nil:
+			continue
+		case a.attr.kind == 's':
+			x = arg{types.Typ[types.UntypedString], constant.MakeString(a.attr.val)}
+		case a.attr.kind == 'b':
+			x = arg{types.Typ[types.UntypedBool], constant.MakeBool(true)}
+		default:
+			ex := e.attrExpr(f, a.attr)
+			tv, found := e.info.Types[ex]
+			if ex == nil || !found || isInvalid(tv.Type) {
+				return 0, false, false
+			}
+			x = arg{tv.Type, tv.Value}
+			if lit, ok := ast.Unparen(ex).(*ast.BasicLit); ok {
+				x.t = untypedLit[lit.Kind] // its default type when it went into the placeholder
+			}
+		}
+		s, fits := argScore(x, a.typ)
+		if !fits {
+			return 0, false, true
+		}
+		score += s
+	}
+	return score, true, true
+}
+
+var untypedLit = map[token.Token]types.Type{
+	token.INT: types.Typ[types.UntypedInt], token.FLOAT: types.Typ[types.UntypedFloat],
+	token.IMAG: types.Typ[types.UntypedComplex], token.CHAR: types.Typ[types.UntypedRune],
+	token.STRING: types.Typ[types.UntypedString],
 }
 
 // closeOver binds a component's expressions out of order by passing them, in

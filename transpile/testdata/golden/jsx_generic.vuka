@@ -1,0 +1,66 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+)
+
+type User struct {
+	ID   int
+	Name string
+}
+
+func List[T any](items []T, render func(T) vuka.Node) vuka.Node {
+	return <ul>{for _, x := range items { {render(x)} }}</ul>
+}
+
+// Select's selected is left out: its zero value is the inferred type's.
+func Select[T comparable](label string, options []T, selected T) vuka.Node {
+	return <label>{label}
+		<select>
+			{for _, o := range options {
+				<option selected={o == selected}>{fmt.Sprint(o)}</option>
+			}}
+		</select>
+	</label>
+}
+
+type TableProps[T any] struct {
+	Rows []T
+	Cell func(T) string
+}
+
+func Table[T any](props TableProps[T]) vuka.Node {
+	return <table>{for _, r := range props.Rows { <tr><td>{props.Cell(r)}</td></tr> }}</table>
+}
+
+func Pair[K comparable, V any](name K, value V, children vuka.Node) vuka.Node {
+	return <p>{fmt.Sprint(name)}={fmt.Sprint(value)} {children}</p>
+}
+
+// Overloaded components: the attributes' types choose.
+func Price(amount int) vuka.Node     { return <b>{amount} cents</b> }
+func Price(amount float64) vuka.Node { return <b>{strconv.FormatFloat(amount, 'f', 2, 64)}</b> }
+func Price(amount string, currency string) vuka.Node {
+	return <b>{amount} {currency}</b>
+}
+
+func page(users []User) vuka.Node {
+	return <>
+		<List items={users} render={func(u User) vuka.Node { return <li>{u.Name}</li> }} />
+		<List render={func(n int) vuka.Node { return <li>{n}</li> }} items={[]int{1, 2}} />
+		<List[string] items={nil} render={nil} />
+		<Select label="pick" options={[]string{"a", "b"}} />
+		<Select label="pick" options={[]int{1, 2}} selected={2} />
+		<Table[User] rows={users} cell={func(u User) string { return strconv.Itoa(u.ID) }} />
+		<Pair name="a" value={1.5}>and more</Pair>
+		<Price amount={150} />
+		<Price amount={1.5} />
+		<Price amount="7" currency="EUR" />
+	</>
+}
+
+func main() {
+	fmt.Println(vuka.String(context.Background(), page([]User{{1, "Ann"}, {2, "Bo"}})))
+}

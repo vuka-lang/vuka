@@ -1,0 +1,58 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+)
+
+func lookup(s string) Result[int] {
+	n := strconv.Atoi(s)?
+	return Ok(n)
+}
+
+// ? and match inside function literals within {…}, at any depth.
+func sum(s []string) vuka.Node {
+	return <ul>
+		{for _, x := range s {
+			{vuka.Try(func() (vuka.Node, error) {
+				n := strconv.Atoi(x)?
+				return <li title={func() string {
+					match lookup(x) {
+					case Ok(v) if v > 9:
+						return "big"
+					case _:
+						return "small"
+					}
+				}()}>{n}</li>, nil
+			}())}
+		}}
+	</ul>
+}
+
+func status(s string) vuka.Node {
+	return <button>
+		{func() vuka.Node {
+			match lookup(s) {
+			case Ok(v):
+				return <b>{v}</b>
+			case Err(e):
+				return <i>{e}</i>
+			}
+		}()}
+	</button>
+}
+
+func boundary(s []string) vuka.Node {
+	return vuka.ErrorBoundary(func(err error) vuka.Node { return <p>error: {err}</p> }, sum(s))
+}
+
+func main() {
+	ctx := context.Background()
+	for _, in := range [][]string{{"1", "42"}, {"1", "x"}} {
+		fmt.Println(vuka.String(ctx, boundary(in)))
+	}
+	for _, s := range []string{"7", "x"} {
+		fmt.Println(vuka.String(ctx, status(s)))
+	}
+}

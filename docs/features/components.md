@@ -87,6 +87,16 @@ case Err(e):
 `match` is the [same match](/features/match), exhaustive. `key` is accepted
 and ignored for now; it starts to matter with stateful components.
 
+The Go inside braces is Vuka too: a function literal there takes `?` and
+`match` like any other function, at any depth.
+
+```vuka
+{vuka.Try(func() (vuka.Node, error) {
+	n := strconv.Atoi(s)?
+	return <b>{n}</b>, nil
+}())}
+```
+
 ## Components
 
 A tag that starts with a capital letter, or has a dot (`<theme.Card>`), is a
@@ -100,7 +110,9 @@ func UserCard(user User, admin bool, children vuka.Node) vuka.Node { … }
 
 - Attributes bind to **parameters by name**, in any order; `user` and `User`
   both find a parameter `user`. A parameter left out gets its zero value.
-- Children go to a parameter named `children`.
+- Children go to a parameter named `children`. A component of your own with
+  none takes no children: `<Layout title="x"><p>…</p></Layout>` for `func
+  Layout(title string) vuka.Node` is an error, not children silently dropped.
 - A function taking **one struct**, or a variadic of one (`func Button(props
   ...ButtonProps)`, templUI's shape), takes the attributes as its fields, and
   the children as a `Children` field. An attribute naming the parameter itself
@@ -108,6 +120,17 @@ func UserCard(user User, admin bool, children vuka.Node) vuka.Node { … }
 - A component returning `(vuka.Node, error)` renders its error: the page fails
   to render with that error, unless a `vuka.ErrorBoundary` above it shows a
   fallback instead.
+- A **generic** component's type arguments are inferred from its attributes,
+  as a call's are from its arguments, or given on the tag: `<List[User] …>`. A
+  generic props struct needs them given.
+- An **overloaded** component's overload is the one its attributes' types fit
+  best, as for a call.
+
+```vuka
+func List[T any](items []T, render func(T) vuka.Node) vuka.Node { … }
+
+<List items={users} render={func(u User) vuka.Node { return <li>{u.Name}</li> }} />
+```
 
 Mistakes are compile errors at the tag:
 
@@ -147,8 +170,9 @@ func Page(pets []Pet) vuka.Node {
 ```
 
 A templ component has no `children` parameter: JSX children reach its
-`{ children... }` (through `templx.WithChildren`). Component libraries written
-for templ, such as templUI, work as they are.
+`{ children... }` (through `templx.WithChildren`). So do the children of a
+component from another package, which may be a templ library: templUI works as
+it is.
 
 ## Rendering
 
@@ -193,6 +217,5 @@ handlers (`onClick={…}`), state that re-renders only what changed, live over a
 WebSocket. Until then `on…` attributes with expressions are an error, and a tag
 naming a type says so.
 
-Known limits today: JSX goes inside function bodies; `?`, `match` and decorators
-inside a function literal within `{…}` aren't rewritten; components can't be
-generic or overloaded; a props struct binds its own fields, not embedded ones.
+Known limits today: JSX goes inside function bodies; a props struct binds its
+own fields, not embedded ones.
