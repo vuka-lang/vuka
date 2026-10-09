@@ -13,6 +13,12 @@
       "include": "#strings"
     },
     {
+      "include": "#staticFunc"
+    },
+    {
+      "include": "#static"
+    },
+    {
       "include": "#decorator"
     },
     {
@@ -112,6 +118,34 @@
         },
         "2": {
           "name": "entity.name.function.decorator.vuka"
+        }
+      }
+    },
+    "static": {
+      "match": "^\\s*(static)\\b(?:\\s+(const)\\b)?\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": {
+          "name": "storage.modifier.static.vuka"
+        },
+        "2": {
+          "name": "storage.modifier.const.vuka"
+        },
+        "3": {
+          "name": "variable.other.property.static.vuka"
+        }
+      }
+    },
+    "staticFunc": {
+      "match": "^(func)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\[[^\\]]*\\])?(\\.)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*\\()",
+      "captures": {
+        "1": {
+          "name": "keyword.function.vuka storage.type.function.vuka"
+        },
+        "2": {
+          "name": "entity.name.type.vuka"
+        },
+        "4": {
+          "name": "entity.name.function.static.vuka"
         }
       }
     }

@@ -1,0 +1,76 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"sort"
+)
+
+// Manager is a tiny in-memory "objects" manager, one per model type.
+type Manager[T any] struct {
+	rows []*T
+}
+
+func (m *Manager[T]) All(ctx context.Context) []*T { return m.rows }
+func (m *Manager[T]) Count() int                   { return len(m.rows) }
+
+// Model is the base every model embeds; Self is filled in by Vuka.
+type Model[Self any] struct {
+	static Objects = Manager[Self]{}
+}
+
+func (m *Model[Self]) Save(self *Self, ctx context.Context) error {
+	objs := &Model[Self].Objects
+	objs.rows = append(objs.rows, self)
+	return nil
+}
+
+func Model[Self].Count() int { return Model[Self].Objects.Count() }
+
+type User struct {
+	Model
+	Name string
+
+	static Table   = "users"
+	static created int
+	static const Max = 3
+}
+
+func User.New(name string) *User {
+	User.created++
+	return &User{Name: name}
+}
+
+type Order struct {
+	Model
+	Total int
+}
+
+type Admin struct {
+	User
+	Level int
+}
+
+func main() {
+	ctx := context.Background()
+	for _, n := range []string{"ada", "linus"} {
+		u := User.New(n)
+		if err := u.Save(ctx); err != nil {
+			panic(err)
+		}
+	}
+	o := &Order{Total: 9}
+	o.Save(ctx)
+
+	var names []string
+	for _, u := range User.Objects.All(ctx) {
+		names = append(names, u.Name)
+	}
+	sort.Strings(names)
+	fmt.Println(User.Table, User.Max, User.created, names)
+	fmt.Println(Order.Objects.Count(), Model[User].Count(), Model[Order].Count())
+
+	a := &Admin{User: User{Name: "root"}}
+	a.Save(ctx)
+	fmt.Println(Admin.Objects.Count(), User.Objects.Count())
+}

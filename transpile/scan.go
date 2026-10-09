@@ -78,20 +78,59 @@ func (f *fileState) scan(errs *ErrorList) {
 	toks := scanTokens(f.src)
 	depth, lastEnd := 0, -1
 	var pending []*Attr
-	prev := tok{tok: token.SEMICOLON}
+	type frame struct {
+		typeGroup bool
+		structOf  string // the named type whose struct body this is
+		tparams   string
+		names     []string
+	}
+	var frames []frame
+	top := func() frame {
+		if len(frames) == 0 {
+			return frame{}
+		}
+		return frames[len(frames)-1]
+	}
+	prev, prevIdx := tok{tok: token.SEMICOLON}, -1
+	defer func() { f.lowerStatics(toks, f.bare) }()
 	for i := 0; i < len(toks); i++ {
 		t := toks[i]
 		if t.tok == token.COMMENT {
 			continue
 		}
-		p := prev
-		prev = t
+		p, pIdx := prev, prevIdx
+		prev, prevIdx = t, i
 		switch {
 		case isOpen(t.tok):
+			fr := frame{typeGroup: t.tok == token.LPAREN && p.tok == token.TYPE}
+			if t.tok == token.LBRACE && p.tok == token.STRUCT {
+				if name, tp, names, ok := namedStruct(f.src, toks, pIdx, top().typeGroup); ok {
+					fr.structOf, fr.tparams, fr.names = name, tp, names
+				}
+			}
+			frames = append(frames, fr)
 			depth++
 			continue
 		case isClose(t.tok):
+			if len(frames) > 0 {
+				frames = frames[:len(frames)-1]
+			}
 			depth--
+			continue
+		case t.tok == token.IDENT && t.lit == "static" && top().structOf != "" && (p.tok == token.SEMICOLON || p.tok == token.LBRACE):
+			fr := top()
+			sd, last, msg := f.staticAt(toks, i, fr.structOf, fr.tparams, fr.names)
+			if msg != "" {
+				errs.add(f.at(t.off), "%s", msg)
+				continue
+			}
+			f.statics = append(f.statics, sd)
+			i, prev, prevIdx = last, toks[last], last
+			continue
+		case t.tok == token.FUNC && depth == 0:
+			if sf, ok := f.staticFuncAt(toks, i); ok {
+				f.staticFuncs = append(f.staticFuncs, sf)
+			}
 			continue
 		case isQuestion(t):
 			if p.end() != t.off || p.tok == token.SEMICOLON {

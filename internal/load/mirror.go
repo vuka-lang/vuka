@@ -34,6 +34,12 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 	var res MirrorResult
 	root, _ = filepath.Abs(root)
 	out, _ = filepath.Abs(out)
+	root = realPath(root)
+	if _, err := os.Stat(out); err == nil {
+		out = realPath(out)
+	} else {
+		out = filepath.Join(realPath(filepath.Dir(out)), filepath.Base(out))
+	}
 	if entries, err := os.ReadDir(out); err == nil && len(entries) > 0 {
 		if _, err := os.Stat(filepath.Join(out, Marker)); err != nil {
 			return res, fmt.Errorf("%s exists and wasn't made by vuka; choose another output directory", out)

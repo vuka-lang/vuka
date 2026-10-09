@@ -23,13 +23,16 @@ type engine struct {
 	errs        *ErrorList
 	bare        bool
 
-	declared  map[string]bool // package-level names
-	typeNames map[string]bool // package-level type names
-	sets      map[string]*overloadSet
-	funcs     map[string]*overloadSet
-	methods   map[string]*overloadSet
-	mnames    map[string]bool
-	pending   map[*fileState]map[int]string // runtime calls whose type can't be inferred yet
+	declared      map[string]bool // package-level names
+	typeNames     map[string]bool // package-level type names
+	genericEmbeds map[string]bool // types embedding a generic or another package's type
+	members       map[string]bool // Type.field and Type.method names
+	typed         bool            // the package is type-checked every round
+	sets          map[string]*overloadSet
+	funcs         map[string]*overloadSet
+	methods       map[string]*overloadSet
+	mnames        map[string]bool
+	pending       map[*fileState]map[int]string // runtime calls whose type can't be inferred yet
 
 	fset     *token.FileSet
 	pkg      *types.Package
@@ -64,6 +67,8 @@ func (e *engine) run() {
 		e.check()
 		for _, f := range e.vuka {
 			e.classify(f)
+			e.resolveStatics(f)
+			e.selfCalls(f)
 			e.resolveCalls(f)
 			e.infer(f)
 			for _, t := range f.tries {
@@ -160,8 +165,18 @@ func (e *engine) prepare() {
 			}
 		}
 	}
+	for _, f := range e.vuka {
+		*e.errs = append(*e.errs, f.staticErrs...)
+	}
+	e.fixStaticFuncs()
+	e.inferSelf()
 	if e.decorate() || len(e.sets) > 0 {
 		e.progress = true
+	}
+	for _, f := range e.vuka {
+		if len(f.statics) > 0 || len(f.staticFuncs) > 0 {
+			e.progress = true
+		}
 	}
 }
 
@@ -207,11 +222,19 @@ func (f *fileState) runtime() string {
 }
 
 func (e *engine) needsTypes() bool {
-	if len(e.sets) > 0 {
+	if e.typed || len(e.sets) > 0 {
 		return true
 	}
+	e.typed = e.needsTypesNow()
+	return e.typed
+}
+
+// needsTypesNow is whether anything in the package, as it is this round, needs
+// type information. Once it has, the package stays type-checked: a rewrite can
+// remove the construct that needed it while what follows still needs types.
+func (e *engine) needsTypesNow() bool {
 	for _, f := range e.vuka {
-		if f.rt != "" || len(f.tries) > 0 || len(f.matches) > 0 {
+		if f.rt != "" || len(f.tries) > 0 || len(f.matches) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) {
 			return true
 		}
 	}

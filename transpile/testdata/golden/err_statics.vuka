@@ -1,0 +1,15 @@
+package main
+
+type User struct {
+	Name string
+
+	static Name = "x"
+}
+
+func (u User) Save() {}
+
+func User.Save() {}
+
+type Box[T any] struct {
+	static cache = make(map[string]T)
+}

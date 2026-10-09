@@ -98,6 +98,13 @@ type fileState struct {
 	dotImps bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
+
+	bare        bool
+	statics     []*staticDecl
+	staticFuncs []*staticFunc
+	static      genWriter // the statics' declarations
+	staticErrs  []*Error
+	autoImports map[string]bool // packages imported for statics reached through other types
 }
 
 // at is the position of a src offset.
@@ -166,9 +173,10 @@ func (f *fileState) makeTrailer(bare bool) {
 		w.copy(expr, a.nameStart)
 		w.gen("\n", a.end)
 	}
-	if f.deco.len() > 0 && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+	if (f.deco.len() > 0 || f.static.len() > 0) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
+	w.append(&f.static)
 	f.decoBase = w.len()
 	w.append(&f.deco)
 	f.trailer, f.tsegs = w.String(), w.segs
@@ -291,7 +299,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare}
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
-			lines: newLineIndex(file.Src), done: map[int]bool{}}
+			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare}
 		if opts.Path != nil {
 			f.path = opts.Path(file.Name)
 		}

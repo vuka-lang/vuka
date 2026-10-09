@@ -187,7 +187,7 @@ func TestLSP(t *testing.T) {
 			}
 		}
 		v := c.call("workspace/executeCommand", map[string]any{"command": "vuka.gopls.list_known_packages",
-			"arguments": []any{map[string]any{"URI": pathToURI(filepath.Join(dir, "main_vuka.go"))}}})
+			"arguments": []any{map[string]any{"URI": pathToURI(filepath.Join(realDir(dir), "main_vuka.go"))}}})
 		if b, _ := json.Marshal(v); !strings.Contains(string(b), "Packages") {
 			t.Fatalf("executeCommand: %s", b)
 		}
@@ -332,4 +332,11 @@ func applyEdits(src string, edits []any) string {
 		src = src[:e.s] + e.text + src[e.e:]
 	}
 	return src
+}
+
+func realDir(dir string) string {
+	if r, err := filepath.EvalSymlinks(dir); err == nil {
+		return r
+	}
+	return dir
 }

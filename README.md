@@ -185,6 +185,59 @@ neither is a compile error on its `@` line. Functions keep their name for a
 wrapper that builds the decorated function once; recursion goes through it;
 `init`, overloads, generic functions and `type ( … )` groups can be decorated.
 
+**Static fields and methods** belong to a type, as in Kotlin or Java:
+
+```go
+type User struct {
+	Name string
+
+	static Table   = "users"
+	static created int            // private: lowercase, as in Go
+	static const Max = 100
+}
+
+func User.New(name string) *User {
+	User.created++
+	return &User{Name: name}
+}
+
+u := User.New("ada")
+fmt.Println(User.Table, User.Max)
+```
+
+They lower to plain package-level Go: `User_Table`, `_User_created`,
+`func User_New`, which is also how Go code reaches them. A static can't share a
+name with a field or method (in Go, `User.Save` already means a method).
+
+A static on a **generic** type has one value per instantiation, and statics are
+reached **through embedding**. With a base type whose type parameter is named
+`Self`, Vuka fills in the embedding type, and methods taking `self *Self` get
+the whole outer value. That's enough for a Django-style model API:
+
+```go
+// package orm
+type Model[Self any] struct {
+	static Objects = Manager[Self]{}
+}
+
+func (m *Model[Self]) Save(self *Self, ctx context.Context) error { … }
+
+// your models
+type User struct {
+	orm.Model               // = orm.Model[User]
+	Name string
+}
+
+users := User.Objects.All(ctx)   // the User manager, from orm.Model
+err := u.Save(ctx)               // Save gets u itself as self
+```
+
+`orm.Model[User]` written out works the same. `Self` is filled in only for a
+type parameter of that name, so other generics never get a type argument you
+didn't write. A type embedding `User` reaches `User`'s statics, as Go promotes
+fields; `self` there is the embedded `User`. Calls that pass `self` must not
+have side effects in the receiver expression (Vuka uses it twice).
+
 **CLI**
 
 ```

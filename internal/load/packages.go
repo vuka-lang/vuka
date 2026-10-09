@@ -65,6 +65,9 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	if read == nil {
 		read = os.ReadFile
 	}
+	// The go command matches overlay paths against real paths, so a module
+	// reached through a symlink (macOS's /var is /private/var) is resolved.
+	root, dir = realPath(root), realPath(dir)
 	var pkgs []*Package
 	visit := func(d string) error {
 		found, err := readDir(root, modPath, d, read)
@@ -309,4 +312,11 @@ func writeOverlay(path string, replace map[string]string) error {
 		return err
 	}
 	return os.WriteFile(path, data, 0o644)
+}
+
+func realPath(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
 }

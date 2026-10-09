@@ -178,6 +178,7 @@ type proxy struct {
 	bySource  map[string]string       // .vuka path → generated path
 	vukaDiags map[string][]any        // .vuka path → transpiler errors
 	goDiags   map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
+	shown     map[string]string       // real path → the path the editor uses for it
 	started   bool
 	dirty     bool
 	timer     *time.Timer
@@ -189,7 +190,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{},
 		bufs: map[string][]byte{}, virtual: map[string]*vfile{}, bySource: map[string]string{},
-		vukaDiags: map[string][]any{}, goDiags: map[string][]any{},
+		vukaDiags: map[string][]any{}, goDiags: map[string][]any{}, shown: map[string]string{},
 	}
 }
 
@@ -226,6 +227,29 @@ var vukaMethods = map[string]bool{
 
 func isVuka(path string) bool { return strings.HasSuffix(path, ".vuka") }
 
+// real resolves an editor path through symlinks, as package discovery does
+// (macOS's /var is /private/var), remembering the editor's spelling.
+func (p *proxy) real(path string) string {
+	r := path
+	if e, err := filepath.EvalSymlinks(filepath.Dir(path)); err == nil {
+		r = filepath.Join(e, filepath.Base(path))
+	}
+	p.mu.Lock()
+	p.shown[r] = path
+	p.mu.Unlock()
+	return r
+}
+
+// display is the path the editor knows a real path by.
+func (p *proxy) display(real string) string {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	if s, ok := p.shown[real]; ok {
+		return s
+	}
+	return real
+}
+
 func (p *proxy) fromEditor() {
 	for {
 		body, err := p.editor.read()
@@ -253,6 +277,11 @@ func (p *proxy) fromEditor() {
 			p.mu.Lock()
 			p.initID = string(m.ID)
 			p.mu.Unlock()
+			// gopls sees the generated files at their real paths; give it the
+			// workspace by the same paths, or it thinks they're outside it.
+			m.Params = realRoots(m.Params)
+			_ = p.gopls.send(&m)
+			continue
 		case "workspace/executeCommand":
 			// Commands reach the editor under vuka.; gopls knows them without.
 			var params map[string]any
@@ -279,7 +308,7 @@ func (p *proxy) fromEditor() {
 			return
 		case "textDocument/didOpen", "textDocument/didChange", "textDocument/didClose", "textDocument/didSave":
 			if isVuka(path) {
-				p.document(m.Method, m.Params, path)
+				p.document(m.Method, m.Params, p.real(path))
 				continue
 			}
 			if p.isVirtual(path) {
@@ -308,7 +337,7 @@ func (p *proxy) fromEditor() {
 		}
 		if isVuka(path) {
 			if m.isRequest() {
-				p.vukaRequest(&m, path)
+				p.vukaRequest(&m, p.real(path))
 			}
 			continue
 		}
@@ -368,6 +397,44 @@ func (p *proxy) fromGopls() {
 			_ = p.editor.write(body)
 		}
 	}
+}
+
+// realRoots resolves symlinks in the workspace folders of initialize params.
+func realRoots(raw json.RawMessage) json.RawMessage {
+	var params map[string]any
+	if json.Unmarshal(raw, &params) != nil {
+		return raw
+	}
+	fix := func(uri string) string {
+		if path := uriToPath(uri); path != "" {
+			if r, err := filepath.EvalSymlinks(path); err == nil {
+				return pathToURI(r)
+			}
+		}
+		return uri
+	}
+	if u, ok := params["rootUri"].(string); ok {
+		params["rootUri"] = fix(u)
+	}
+	if rp, ok := params["rootPath"].(string); ok {
+		if r, err := filepath.EvalSymlinks(rp); err == nil {
+			params["rootPath"] = r
+		}
+	}
+	if folders, ok := params["workspaceFolders"].([]any); ok {
+		for _, f := range folders {
+			if m, ok := f.(map[string]any); ok {
+				if u, ok := m["uri"].(string); ok {
+					m["uri"] = fix(u)
+				}
+			}
+		}
+	}
+	out, err := json.Marshal(params)
+	if err != nil {
+		return raw
+	}
+	return out
 }
 
 // commandPrefix namespaces gopls's commands. The editor's Go extension has
@@ -658,7 +725,7 @@ func (p *proxy) publish(path string) {
 	}
 	p.mu.Unlock()
 	_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
-		"params": map[string]any{"uri": pathToURI(path), "diagnostics": ds}})
+		"params": map[string]any{"uri": pathToURI(p.display(path)), "diagnostics": ds}})
 }
 
 // goplsDiagnostics routes gopls's diagnostics: a generated file's onto its
@@ -757,7 +824,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	switch vr.method {
 	case "textDocument/completion":
 		v = cleanCompletion(v)
-	case "textDocument/hover", "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
+	case "textDocument/hover":
+		v = staticHover(demangleStrings(v))
+	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v)
 	}
 	reply["result"] = v
@@ -804,7 +873,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 				ctx = p.virtual[uriToPath(uri)]
 				p.mu.Unlock()
 				if ctx != nil {
-					x[key] = pathToURI(ctx.source)
+					x[key] = pathToURI(p.display(ctx.source))
 				}
 			}
 		}
@@ -814,7 +883,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 				ctx = p.virtual[uriToPath(uri)]
 				p.mu.Unlock()
 				if ctx != nil {
-					td["uri"], td["version"] = pathToURI(ctx.source), nil
+					td["uri"], td["version"] = pathToURI(p.display(ctx.source)), nil
 				}
 			}
 		}
@@ -825,7 +894,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 				f := p.virtual[uriToPath(uri)]
 				p.mu.Unlock()
 				if f != nil {
-					uri = pathToURI(f.source)
+					uri = pathToURI(p.display(f.source))
 				}
 				out[uri] = p.rewriteEdits(edits, f, origin)
 			}
@@ -899,6 +968,40 @@ func mapRange(f *vfile, v any) (lspRange, bool) {
 var mangled = regexp.MustCompile(`\b([A-Za-z][A-Za-z0-9_]*?)__[A-Za-z0-9_]+\b`)
 
 func demangle(s string) string { return mangled.ReplaceAllString(s, "$1") }
+
+var (
+	// A generic static's accessor: func Model_Objects() *vuka.Static[Manager[User]] …
+	staticAccessor = regexp.MustCompile(`(?m)func _?([A-Z][A-Za-z0-9]*)_([A-Za-z]\w*)\(\) \*\w+\.Static\[(.*?)\](?: //.*)?$`)
+	// A static field, constant or method: var User_Table string, func User_New(…
+	staticDecl = regexp.MustCompile(`\b(var|const|func) _?([A-Z][A-Za-z0-9]*)_([A-Za-z]\w*)`)
+)
+
+// staticHover shows statics the way the source writes them: static
+// User.Table string, func User.New(…).
+func staticHover(v any) any {
+	h, ok := v.(map[string]any)
+	if !ok {
+		return v
+	}
+	c, ok := h["contents"].(map[string]any)
+	if !ok {
+		return v
+	}
+	text, ok := c["value"].(string)
+	if !ok {
+		return v
+	}
+	text = staticAccessor.ReplaceAllString(text, "static $2 $3 // declared by $1")
+	text = staticDecl.ReplaceAllStringFunc(text, func(m string) string {
+		g := staticDecl.FindStringSubmatch(m)
+		if g[1] == "func" {
+			return "func " + g[2] + "." + g[3]
+		}
+		return "static " + g[2] + "." + g[3]
+	})
+	c["value"] = text
+	return v
+}
 
 func demangleStrings(v any) any {
 	switch x := v.(type) {
