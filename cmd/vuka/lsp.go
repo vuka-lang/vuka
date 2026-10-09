@@ -640,6 +640,9 @@ func (p *proxy) regenerate() {
 		p.logf("%v", err)
 		return
 	}
+	if r, err := filepath.EvalSymlinks(modRoot); err == nil {
+		modRoot = r // the paths the editor's buffers are kept by
+	}
 	read := func(path string) ([]byte, error) {
 		if b, ok := bufs[path]; ok {
 			return completable(b), nil
@@ -883,7 +886,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			p.mu.Lock()
 			decos := p.decos
 			p.mu.Unlock()
-			v = withItems(v, decoratorItems(vr.file, decos, vr.full, vr.qualifier))
+			v = completeList(withItems(v, decoratorItems(vr.file, decos, vr.full, vr.qualifier)))
 		}
 	case "textDocument/hover":
 		v = staticHover(demangleStrings(v))
@@ -1190,6 +1193,37 @@ func attrCompletion(v any, typed lspRange) any {
 		return list
 	}
 	return kept
+}
+
+// completeList drops duplicate labels (the project scan and gopls can both
+// offer a decorator) and marks the list complete, so the editor narrows it as
+// more is typed rather than asking again: mid-name, @lo reads as a type to
+// gopls, which would leave the decorators out.
+func completeList(v any) any {
+	list, ok := v.(map[string]any)
+	if !ok {
+		arr, _ := v.([]any)
+		list = map[string]any{"items": arr}
+	}
+	items, _ := list["items"].([]any)
+	seen := map[string]bool{}
+	var kept []any
+	// The project scan's items come last and win: they insert the decorator
+	// as written.
+	for i := len(items) - 1; i >= 0; i-- {
+		item, _ := items[i].(map[string]any)
+		label, _ := item["label"].(string)
+		if seen[label] {
+			continue
+		}
+		seen[label] = true
+		kept = append(kept, item)
+	}
+	for i, j := 0, len(kept)-1; i < j; i, j = i+1, j-1 {
+		kept[i], kept[j] = kept[j], kept[i]
+	}
+	list["items"], list["isIncomplete"] = kept, false
+	return list
 }
 
 // withItems adds items to a completion result.

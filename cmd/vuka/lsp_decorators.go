@@ -94,20 +94,23 @@ func decoratorItems(f *vfile, decos []projectDecorator, typed lspRange, qualifie
 	here := filepath.Dir(f.source)
 	var items []any
 	for _, d := range decos {
-		if d.dir == here || !isExported(d.name) {
-			continue // the package's own are gopls's to offer
+		samePkg := d.dir == here
+		if !samePkg && !isExported(d.name) {
+			continue
 		}
 		local, ok := imported[d.importPath]
 		if !ok {
 			local = d.pkgName
 		}
-		if ok && qualifier != "" {
-			continue // after pkg. of an imported package, gopls lists its names
-		}
-		if qualifier != "" && qualifier != local {
+		label := local + "." + d.name
+		switch {
+		case samePkg && qualifier != "":
+			continue
+		case samePkg:
+			label, ok = d.name, true // the package's own: no qualifier, no import
+		case qualifier != "" && qualifier != local:
 			continue
 		}
-		label := local + "." + d.name
 		detail := "func(c *vuka.Call)"
 		if d.kind == "decorator factory" {
 			detail = "vuka.Decorator"

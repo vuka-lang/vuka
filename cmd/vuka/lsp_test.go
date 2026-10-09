@@ -317,6 +317,22 @@ func twice(`, 1)
 		if text := completionText(c, uri, src, "\n@", "logged"); text != "logged" {
 			t.Fatalf("picking logged inserts %q; a decorator is named, not called", text)
 		}
+		// Typing on: @lo still offers the decorator, and the list says it is
+		// complete, so the editor filters it rather than asking again.
+		typing := strings.Replace(src, "\n@\n", "\n@lo\n", 1)
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 61},
+			"contentChanges": []any{map[string]any{"text": typing}}})
+		if text := completionText(c, uri, typing, "\n@lo", "logged"); text != "logged" {
+			t.Fatalf("at @lo, picking logged inserts %q", text)
+		}
+		off := strings.Index(typing, "\n@lo") + 4
+		v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"position": positionOf([]byte(typing), off)})
+		if list, ok := v.(map[string]any); !ok || list["isIncomplete"] != false {
+			t.Fatalf("the @ list should be complete, so the editor filters it: %v", v)
+		}
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 62},
+			"contentChanges": []any{map[string]any{"text": src}}})
 		got := complete("\n@")
 		if len(got) == 0 || !strings.HasSuffix(got[0], " logged") {
 			t.Fatalf("@: decorators should come first: %v", got)
