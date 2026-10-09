@@ -33,7 +33,9 @@ function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('vuka.restartServer', async () => {
       if (client) {
-        await client.stop();
+        // A client whose server failed to start can't be stopped cleanly.
+        await client.stop().catch(() => {});
+        client = undefined;
       }
       await start();
     }),
