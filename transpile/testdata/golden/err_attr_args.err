@@ -1,0 +1,4 @@
+err_attr_args.vuka:3:1: @doc takes one string: @doc("...")
+err_attr_args.vuka:6:1: @export needs an identifier, got "not an ident"
+err_attr_args.vuka:9:1: an attribute is a type, written @Route or @Route{...}
+err_attr_args.vuka:12:1: @derive is not implemented yet

@@ -1,0 +1,11 @@
+package main
+
+import "fmt"
+
+// A file with no Vuka constructs passes through untouched.
+func main() {
+	for i := range 3 {
+		fmt.Print(i)
+	}
+	fmt.Println()
+}

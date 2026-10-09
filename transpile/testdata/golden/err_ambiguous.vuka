@@ -1,0 +1,8 @@
+package main
+
+func g(x int32) {}
+func g(x int64) {}
+
+func main() {
+	g(1)
+}

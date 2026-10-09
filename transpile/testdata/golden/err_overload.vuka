@@ -1,0 +1,14 @@
+package main
+
+func f(x int)     {}
+func f(x float64) {}
+func f(x int)     {}
+
+func g(x int32) {}
+func g(x int64) {}
+
+func main() {
+	g(1)
+	h := f
+	_ = h
+}

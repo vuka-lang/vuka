@@ -1,0 +1,38 @@
+package main
+
+import "fmt"
+
+type Cache struct{ TTL int }
+type Inline struct{}
+
+// Box holds a value.
+@doc(`Box is generic.
+It keeps one value.`)
+type Box[T any] struct{ v T }
+
+@export("Value")
+func (b *Box[T]) get() T { return b.v }
+
+@Inline
+@Cache{
+	TTL: 60,
+}
+func lookup(id int) string { return fmt.Sprint("user ", id) }
+
+@doc("Answer is fixed.") const Answer = 42
+
+@export("Join")
+func join(sep string, parts ...string) (out string) {
+	for i, p := range parts {
+		if i > 0 {
+			out += sep
+		}
+		out += p
+	}
+	return out
+}
+
+func main() {
+	b := &Box[int]{v: 7}
+	fmt.Println(b.Value(), lookup(Answer), Join("-", "a", "b"))
+}

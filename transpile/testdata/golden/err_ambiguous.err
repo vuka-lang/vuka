@@ -1,0 +1,3 @@
+err_ambiguous.vuka:7:2: call of g with (untyped int) is ambiguous
+	(x int32) at err_ambiguous.vuka:3:6
+	(x int64) at err_ambiguous.vuka:4:6

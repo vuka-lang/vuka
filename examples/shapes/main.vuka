@@ -1,0 +1,45 @@
+package main
+
+import (
+	"fmt"
+	"math"
+)
+
+type Circle struct{ R float64 }
+type Rect struct{ W, H float64 }
+
+// Route is a typed attribute: any Go type works, and its fields are type-checked.
+type Route struct{ Method, Path string }
+
+@doc("area of a circle")
+func area(c Circle) float64 { return math.Pi * c.R * c.R }
+
+@doc("area of a rectangle")
+@export("RectArea")
+func area(r Rect) float64 { return r.W * r.H }
+
+func scale(x int) string     { return fmt.Sprint("int ", x*2) }
+func scale(x float64) string { return fmt.Sprint("float ", x*2) }
+
+type Counter struct{ n int }
+
+func (c *Counter) Add(by int)          { c.n += by }
+func (c *Counter) Add(by string)       { c.n += len(by) }
+func (c *Counter) Add(a, b int)        { c.n += a + b }
+
+@Route{Method: "GET", Path: "/shapes"}
+@deprecated("use the shapes service")
+func handler() string { return "shapes" }
+
+func main() {
+	a := area(Circle{R: 1})
+	b := area(Rect{W: 2, H: 3})
+	fmt.Printf("%.2f %.0f %.0f\n", a, b, RectArea(Rect{W: 4, H: 5}))
+	fmt.Println(scale(2), "|", scale(2.5), "|", scale(b))
+
+	var c Counter
+	c.Add(1)
+	c.Add("abc")
+	c.Add(2, 3)
+	fmt.Println(c.n, handler())
+}

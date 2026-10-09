@@ -1,0 +1,9 @@
+package main
+
+func main() {
+	@doc("no")
+	x := 1
+	_ = x
+}
+
+@doc("dangling")

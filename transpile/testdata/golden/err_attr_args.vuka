@@ -1,0 +1,13 @@
+package main
+
+@doc(42)
+func a() {}
+
+@export("not an ident")
+func b() {}
+
+@Route("/x")
+func c() {}
+
+@derive(Eq)
+type T struct{}
