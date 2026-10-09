@@ -21,7 +21,9 @@ hero:
 
 features:
   - title: It is Go
-    details: A .vuka file is Go plus a handful of additions. Everything else is read by Go's own parser and type checker, so a new Go release's syntax works in Vuka the day it ships.
+    details: A .vuka file is Go plus a handful of additions. Every Go function, type and library works as it is — from the standard library, from go get, or from your own .go files.
+    link: /guide/using-go
+    linkText: Using Go code
   - title: Errors as values, with less ceremony
     details: Result and Option, ? to pass an error on, and exhaustive match. Go's (T, error) works with all of it.
   - title: Decorators, the Python way

@@ -27,6 +27,7 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Getting started', link: '/guide/getting-started' },
+          { text: 'Using Go code', link: '/guide/using-go' },
           { text: 'How it works', link: '/guide/how-it-works' },
           { text: 'Working with Go', link: '/guide/go-interop' },
         ],

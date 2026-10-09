@@ -64,7 +64,7 @@ func main() {
 
 `.vuka` and `.go` files live side by side in the same packages and call each
 other. Dependencies are Go's: `go get` a module and import it from any `.vuka`
-file.
+file. See [Using Go code](/guide/using-go).
 
 ## Editor
 
