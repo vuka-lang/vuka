@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/paulmanoni/nexus/v2 v2.33.7
-	github.com/vuka-lang/vuka v0.2.1
+	github.com/vuka-lang/vuka v0.3.0
 )
 
 require (
