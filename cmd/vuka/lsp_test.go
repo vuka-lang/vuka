@@ -572,3 +572,15 @@ func TestGoplsPassthrough(t *testing.T) {
 		t.Fatalf("gopls version through vuka: %v\n%s", err, out)
 	}
 }
+
+func TestImportHint(t *testing.T) {
+	root := t.TempDir()
+	os.MkdirAll(filepath.Join(root, "data"), 0o755)
+	msg := `could not import data (no required module provides package "data")`
+	if got := importHint(msg, root, "hello"); !strings.HasSuffix(got, `it's in this module: import "hello/data"`) {
+		t.Fatalf("got %q", got)
+	}
+	if got := importHint(`could not import nope (no required module provides package "nope")`, root, "hello"); strings.Contains(got, "in this module") {
+		t.Fatalf("hinted a directory that doesn't exist: %q", got)
+	}
+}

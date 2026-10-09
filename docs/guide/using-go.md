@@ -33,7 +33,10 @@ func main() {
 
 ### In another package of your project
 
-A package written in plain Go is imported by its path, as in Go:
+A package written in plain Go is imported by its path, as in Go: the
+**module path** from `go.mod` followed by the **directory**. In a module named
+`hello`, the package in `hello/data/` is imported as `"hello/data"` — not
+`"data"`, which Go would look for among your dependencies.
 
 ```go
 // textutil/textutil.go — plain Go

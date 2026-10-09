@@ -232,24 +232,25 @@ type proxy struct {
 
 	genMu sync.Mutex
 
-	mu             sync.Mutex
-	initID         string // the editor's initialize request
-	renameCommands bool
-	root           string
-	nextID         int
-	goReqs         map[string]bool         // editor requests on Go files
-	vukaReqs       map[string]*vukaRequest // proxy request id → request on a .vuka file
-	bufs           map[string][]byte       // .vuka path → editor buffer
-	virtual        map[string]*vfile       // generated path → buffer in gopls
-	bySource       map[string]string       // .vuka path → generated path
-	vukaDiags      map[string][]any        // .vuka path → transpiler errors
-	goDiags        map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
-	shown          map[string]string       // real path → the path the editor uses for it
-	decos          []projectDecorator      // the module's decorators, as of the last regenerate
-	started        bool
-	dirty          bool
-	timer          *time.Timer
-	stopped        bool
+	mu               sync.Mutex
+	initID           string // the editor's initialize request
+	renameCommands   bool
+	root             string
+	nextID           int
+	goReqs           map[string]bool         // editor requests on Go files
+	vukaReqs         map[string]*vukaRequest // proxy request id → request on a .vuka file
+	bufs             map[string][]byte       // .vuka path → editor buffer
+	virtual          map[string]*vfile       // generated path → buffer in gopls
+	bySource         map[string]string       // .vuka path → generated path
+	vukaDiags        map[string][]any        // .vuka path → transpiler errors
+	goDiags          map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
+	shown            map[string]string       // real path → the path the editor uses for it
+	decos            []projectDecorator      // the module's decorators, as of the last regenerate
+	modRoot, modPath string                  // the module, as of the last regenerate
+	started          bool
+	dirty            bool
+	timer            *time.Timer
+	stopped          bool
 }
 
 func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
@@ -293,6 +294,30 @@ var vukaMethods = map[string]bool{
 }
 
 func isVuka(path string) bool { return strings.HasSuffix(path, ".vuka") }
+
+// quietMethods are requests whose failure is no answer, not an error to show.
+var quietMethods = map[string]bool{
+	"textDocument/hover": true, "textDocument/definition": true, "textDocument/declaration": true,
+	"textDocument/typeDefinition": true, "textDocument/implementation": true, "textDocument/references": true,
+	"textDocument/documentHighlight": true, "textDocument/signatureHelp": true, "textDocument/completion": true,
+	"textDocument/inlayHint": true, "textDocument/codeAction": true, "textDocument/documentSymbol": true,
+}
+
+var unresolvedImport = regexp.MustCompile(`no required module provides package "([^"]+)"`)
+
+// importHint adds, to Go's message for an import nothing provides, the path
+// that would work when the module has a directory of that name: a package of
+// your own project is imported by the module path and the directory.
+func importHint(msg, modRoot, modPath string) string {
+	g := unresolvedImport.FindStringSubmatch(msg)
+	if g == nil || modRoot == "" || strings.Contains(strings.SplitN(g[1], "/", 2)[0], ".") {
+		return msg
+	}
+	if fi, err := os.Stat(filepath.Join(modRoot, filepath.FromSlash(g[1]))); err == nil && fi.IsDir() {
+		return msg + `; it's in this module: import "` + modPath + "/" + g[1] + `"`
+	}
+	return msg
+}
 
 // real resolves an editor path through symlinks, as package discovery does
 // (macOS's /var is /private/var), remembering the editor's spelling.
@@ -805,6 +830,7 @@ func (p *proxy) regenerate() {
 	}
 	p.virtual = want
 	p.decos = decos
+	p.modRoot, p.modPath = modRoot, modPath
 	p.bySource = map[string]string{}
 	for path, vf := range want {
 		p.bySource[vf.source] = path
@@ -875,7 +901,7 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 			if strings.Contains(msg, placeholder) {
 				continue
 			}
-			obj["message"] = demangle(msg)
+			obj["message"] = importHint(demangle(msg), p.modRoot, p.modPath)
 		}
 		delete(obj, "relatedInformation")
 		delete(obj, "data")
@@ -957,7 +983,14 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	reply := map[string]any{"jsonrpc": "2.0", "id": vr.editorID}
 	if len(m.Error) > 0 {
-		reply["error"] = m.Error
+		// gopls can't answer mid-edit or with a broken import; like gopls
+		// under the Go extension, that's no answer rather than an error.
+		if quietMethods[vr.method] {
+			p.logf("%s: %s", vr.method, m.Error)
+			reply["result"] = nil
+		} else {
+			reply["error"] = m.Error
+		}
 		_ = p.editor.send(reply)
 		return
 	}

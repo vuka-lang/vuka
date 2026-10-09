@@ -3,7 +3,7 @@ const fs = require('fs');
 const os = require('os');
 const path = require('path');
 const { execFileSync } = require('child_process');
-const { LanguageClient } = require('vscode-languageclient/node');
+const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 
 let client;
 
@@ -46,6 +46,8 @@ function start() {
     { command, args },
     {
       documentSelector: [{ scheme: 'file', language: 'vuka' }],
+      // Like the Go extension: the log is there when wanted, never in the way.
+      revealOutputChannelOn: RevealOutputChannelOn.Never,
       synchronize: {
         fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{vuka,go,mod}'),
       },
