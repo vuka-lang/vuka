@@ -1,0 +1,8 @@
+Ok({42 u42})
+Err(strconv.Atoi: parsing "x": invalid syntax)
+Err(not found)
+u6 <nil>
+Some(5) None
+4 <nil>
+true
+Err(not found) 7

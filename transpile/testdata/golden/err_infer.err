@@ -1,0 +1,1 @@
+err_infer.vuka:6:7: can't infer the type of Err here; write Err[T](…)

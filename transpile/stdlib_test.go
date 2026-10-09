@@ -1,6 +1,7 @@
 package transpile_test
 
 import (
+	"go/build"
 	"bytes"
 	"go/parser"
 	"go/token"
@@ -26,40 +27,56 @@ func TestStdlibPassesThrough(t *testing.T) {
 	root := filepath.Join(strings.TrimSpace(string(out)), "src")
 	limit := -1
 	if testing.Short() {
-		limit = 500
+		limit = 60
 	}
-	n := 0
-	filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
-		if err != nil || limit >= 0 && n >= limit {
+	pkgs, files := 0, 0
+	filepath.WalkDir(root, func(dir string, d fs.DirEntry, err error) error {
+		if err != nil || limit >= 0 && pkgs >= limit {
 			return filepath.SkipAll
 		}
-		if d.IsDir() {
-			if d.Name() == "testdata" {
-				return filepath.SkipDir
+		if !d.IsDir() {
+			return nil
+		}
+		if d.Name() == "testdata" {
+			return filepath.SkipDir
+		}
+		// A package as the build sees it: the files matching this platform,
+		// grouped by package clause.
+		entries, _ := os.ReadDir(dir)
+		byPkg := map[string][]transpile.File{}
+		for _, e := range entries {
+			name := e.Name()
+			if e.IsDir() || !strings.HasSuffix(name, ".go") {
+				continue
 			}
-			return nil
+			if ok, _ := build.Default.MatchFile(dir, name); !ok {
+				continue
+			}
+			src, err := os.ReadFile(filepath.Join(dir, name))
+			if err != nil {
+				t.Fatal(err)
+			}
+			f, err := parser.ParseFile(token.NewFileSet(), name, src, parser.PackageClauseOnly)
+			if err != nil {
+				continue
+			}
+			byPkg[f.Name.Name] = append(byPkg[f.Name.Name], transpile.File{Name: strings.TrimSuffix(name, ".go") + ".vuka", Src: src})
 		}
-		if !strings.HasSuffix(path, ".go") {
-			return nil
-		}
-		src, err := os.ReadFile(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if _, err := parser.ParseFile(token.NewFileSet(), path, src, parser.SkipObjectResolution); err != nil {
-			return nil // not valid Go to begin with
-		}
-		n++
-		name := strings.TrimSuffix(filepath.Base(path), ".go") + ".vuka"
-		res, err := transpile.Package([]transpile.File{{Name: name, Src: src}}, transpile.Options{Bare: true})
-		if err != nil {
-			t.Errorf("%s: %v", path, err)
-			return nil
-		}
-		if got := res.Files[0].Src; !bytes.Equal(got, src) {
-			t.Errorf("%s: output differs from input", path)
+		for _, list := range byPkg {
+			pkgs++
+			files += len(list)
+			res, err := transpile.Package(list, transpile.Options{Bare: true})
+			if err != nil {
+				t.Errorf("%s: %v", dir, err)
+				continue
+			}
+			for i, f := range res.Files {
+				if !bytes.Equal(f.Src, list[i].Src) {
+					t.Errorf("%s: output differs from input", filepath.Join(dir, f.Name))
+				}
+			}
 		}
 		return nil
 	})
-	t.Logf("%d files", n)
+	t.Logf("%d packages, %d files", pkgs, files)
 }

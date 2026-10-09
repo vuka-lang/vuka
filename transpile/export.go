@@ -36,13 +36,13 @@ func (f *fileState) exports(bare bool, errs *ErrorList) string {
 		}
 		call := ""
 		if fd.Recv != nil {
-			fmt.Fprintf(&b, "(r %s) ", f.text(fd.Recv.List[0].Type))
+			fmt.Fprintf(&b, "(r %s) ", f.nodeText(fd.Recv.List[0].Type))
 			call = "r."
 		}
 		call += fd.Name.Name
 		b.WriteString(a.value)
 		if tp := fd.Type.TypeParams; tp != nil {
-			b.WriteString(f.text(tp))
+			b.WriteString(f.nodeText(tp))
 			var names []string
 			for _, field := range tp.List {
 				for _, n := range field.Names {
@@ -55,7 +55,7 @@ func (f *fileState) exports(bare bool, errs *ErrorList) string {
 		for _, field := range fd.Type.Params.List {
 			for range max(1, len(field.Names)) {
 				name := "a" + itoa(len(params))
-				params = append(params, name+" "+f.text(field.Type))
+				params = append(params, name+" "+f.nodeText(field.Type))
 				if _, ok := field.Type.(*ast.Ellipsis); ok {
 					name += "..."
 				}
@@ -65,7 +65,7 @@ func (f *fileState) exports(bare bool, errs *ErrorList) string {
 		fmt.Fprintf(&b, "(%s)", strings.Join(params, ", "))
 		ret := ""
 		if res := fd.Type.Results; res != nil {
-			fmt.Fprintf(&b, " %s", f.text(res))
+			fmt.Fprintf(&b, " %s", f.nodeText(res))
 			ret = "return "
 		}
 		fmt.Fprintf(&b, " { %s%s(%s) }\n", ret, call, strings.Join(args, ", "))

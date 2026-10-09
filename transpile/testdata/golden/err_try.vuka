@@ -1,0 +1,29 @@
+package main
+
+import "strconv"
+
+func a() int {
+	n := strconv.Atoi("1")?
+	return n
+}
+
+func b() error {
+	x := len(strconv.Itoa(1)?)
+	_ = x
+	return nil
+}
+
+func c() (int, error) {
+	if n := strconv.Atoi("1")?; n > 0 {
+		return n, nil
+	}
+	return 0, nil
+}
+
+func d() Option[int] { return None }
+
+func e() error {
+	x := d()?
+	_ = x
+	return nil
+}

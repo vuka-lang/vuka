@@ -1,0 +1,59 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+type User struct {
+	ID   int
+	Name string
+}
+
+type NotFound struct{ ID int }
+
+func (e *NotFound) Error() string { return fmt.Sprint("no user ", e.ID) }
+
+var users = map[int]User{1: {1, "ada"}, 2: {2, "linus"}}
+
+func find(id int) Result[User] {
+	u, ok := users[id]
+	if !ok {
+		return Err(&NotFound{ID: id})
+	}
+	return Ok(u)
+}
+
+func lookup(arg string) Result[User] {
+	id := strconv.Atoi(arg)?
+	u := find(id)?
+	return Ok(u)
+}
+
+func nickname(u User) Option[string] {
+	if u.Name == "linus" {
+		return Some("torvalds")
+	}
+	return None
+}
+
+func main() {
+	for _, arg := range []string{"1", "2", "3", "x"} {
+		match lookup(arg) {
+		case Ok(u):
+			match nickname(u) {
+			case Some(n):
+				fmt.Printf("%s aka %s\n", u.Name, n)
+			case None:
+				fmt.Println(u.Name)
+			}
+		case Err(&NotFound{ID: id}):
+			fmt.Println("missing user", id)
+		case Err(e) if errors.Is(e, strconv.ErrSyntax):
+			fmt.Println("not a number:", arg)
+		case Err(e):
+			fmt.Println("error:", e)
+		}
+	}
+}

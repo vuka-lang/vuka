@@ -1,0 +1,73 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+type User struct {
+	ID   int
+	Name string
+}
+
+var ErrNotFound = errors.New("not found")
+
+func find(id int) (User, error) {
+	if id == 0 {
+		return User{}, ErrNotFound
+	}
+	return User{ID: id, Name: "u" + strconv.Itoa(id)}, nil
+}
+
+func parse(s string) (int, error) {
+	n := strconv.Atoi(s)?
+	return n * 2, nil
+}
+
+func load(s string) Result[User] {
+	id := parse(s)?
+	u := find(id)?
+	return Ok(u)
+}
+
+func name(s string) (string, error) {
+	u := load(s)?
+	return u.Name, nil
+}
+
+func first(xs []int) Option[int] {
+	if len(xs) == 0 {
+		return None
+	}
+	return Some(xs[0])
+}
+
+func firstPlusOne(xs []int) Option[int] {
+	x := first(xs)?
+	return Some(x + 1)
+}
+
+func both(a, b string) (int, error) {
+	var x int
+	x = parse(a)?
+	_ = x
+	return parse(b)?
+}
+
+func check(s string) error {
+	parse(s)?
+	return nil
+}
+
+func main() {
+	fmt.Println(load("21"))
+	fmt.Println(load("x"))
+	fmt.Println(load("0"))
+	fmt.Println(name("3"))
+	fmt.Println(firstPlusOne([]int{4}), firstPlusOne(nil))
+	fmt.Println(both("1", "2"))
+	fmt.Println(check("z") != nil)
+	var r Result[int] = Err(ErrNotFound)
+	fmt.Println(r, r.UnwrapOr(7))
+}

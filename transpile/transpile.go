@@ -10,7 +10,6 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
-	"go/importer"
 	"go/parser"
 	"go/scanner"
 	"go/token"
@@ -18,6 +17,9 @@ import (
 	"path/filepath"
 	"strings"
 )
+
+// RuntimePath is the import path of the package holding Result and Option.
+const RuntimePath = "github.com/vuka-lang/vuka"
 
 // File is one source file of a package: a .vuka file to transpile, or a .go file
 // in the same package.
@@ -31,8 +33,9 @@ func (f File) IsVuka() bool { return strings.HasSuffix(f.Name, ".vuka") }
 
 // Options configure Package.
 type Options struct {
-	// Importer resolves imports when a package overloads functions and has to be
-	// type-checked. Nil uses go/importer's source importer.
+	// Importer resolves imports when a package has to be type-checked
+	// (overloads, ?, match, Result and Option). Nil uses go/importer's source
+	// importer.
 	Importer types.Importer
 	// Path maps a file name to the path written into //line directives and
 	// errors. Nil uses the name.
@@ -71,18 +74,27 @@ type fileState struct {
 	lines      lineIndex
 
 	attrs   []*Attr
-	edits   edits // attribute rewrites, in src offsets
-	inter   []byte
-	body    int // length of inter before the trailer
+	tries   []*try
+	matches []*matchStmt
+
+	fixed   edits // decided rewrites, in src offsets
+	cur     edits // this round's: fixed plus placeholders
+	body    int   // length of text before the trailer
 	trailer string
 	snips   []snippet
+	text    []byte
 
 	ast     *ast.File
 	tf      *token.File
-	renames edits // overload renames, in src offsets
+	parents map[ast.Node]ast.Node
+
+	done    map[int]bool // src offsets of identifiers already rewritten or reported
+	rt      string       // the name the runtime is imported as; "" until needed
+	pkgEnd  int          // offset just after the package clause's name
+	dotImps bool
 }
 
-// snippet is a typed attribute's check in the trailer.
+// snippet is a typed attribute's check in the trailer, relative to its start.
 type snippet struct {
 	start, end int
 	attr       *Attr
@@ -91,41 +103,49 @@ type snippet struct {
 // at is the position of a src offset.
 func (f *fileState) at(off int) token.Position { return f.lines.pos(f.path, off) }
 
-// pos is the position, in the file as written, of an offset in the intermediate text.
+// pos is the position, in the file as written, of an offset in this round's text.
 func (f *fileState) pos(off int) token.Position {
 	if off >= f.body {
 		for _, s := range f.snips {
-			if off < s.end {
+			if off-f.body < s.end {
 				return s.attr.Pos
 			}
 		}
 	}
-	return f.at(f.edits.toOrig(min(off, f.body)))
+	return f.at(f.cur.toOrig(min(off, f.body)))
 }
 
-func (f *fileState) nodePos(p token.Pos) token.Position { return f.pos(f.tf.Offset(p)) }
+func (f *fileState) off(p token.Pos) int { return f.tf.Offset(p) }
 
-func (f *fileState) text(n ast.Node) string {
-	return string(f.inter[f.tf.Offset(n.Pos()):f.tf.Offset(n.End())])
+// orig is the src offset of a position in this round's AST.
+func (f *fileState) orig(p token.Pos) int { return f.cur.toOrig(f.off(p)) }
+
+func (f *fileState) nodePos(p token.Pos) token.Position { return f.pos(f.off(p)) }
+
+func (f *fileState) nodeText(n ast.Node) string {
+	return string(f.text[f.off(n.Pos()):f.off(n.End())])
 }
 
-// build applies the attribute rewrites and appends the typed attributes' checks.
-func (f *fileState) build(bare bool) {
-	for _, a := range f.attrs {
-		f.edits = append(f.edits, edit{a.start, a.end, a.replacement(f.src)})
-	}
-	f.edits = f.edits.sorted()
-	body := f.edits.apply(f.src, nil)
-	f.body = len(body)
+func (f *fileState) add(start, end int, text string) {
+	f.fixed = append(f.fixed, edit{start: start, end: end, text: text})
+}
+
+func (f *fileState) insert(off int, text string, prio int) {
+	f.fixed = append(f.fixed, edit{start: off, end: off, text: text, prio: prio})
+}
+
+// buildTrailer appends the typed attributes' checks after the source.
+func (f *fileState) buildTrailer(bare bool) {
 	var t strings.Builder
 	for _, a := range f.attrs {
+		f.fixed = append(f.fixed, edit{start: a.start, end: a.end, text: a.replacement(f.src)})
 		if a.kind != attrTyped {
 			continue
 		}
-		if t.Len() == 0 && len(body) > 0 && body[len(body)-1] != '\n' {
+		if t.Len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 			t.WriteByte('\n')
 		}
-		start := f.body + t.Len()
+		start := t.Len()
 		prefix, expr := a.check(f.src)
 		t.WriteString("\n" + prefix)
 		if !bare {
@@ -134,14 +154,40 @@ func (f *fileState) build(bare bool) {
 			t.WriteString(lineDirective(p))
 		}
 		t.WriteString(expr + "\n")
-		f.snips = append(f.snips, snippet{start, f.body + t.Len(), a})
+		f.snips = append(f.snips, snippet{start, t.Len(), a})
 	}
 	f.trailer = t.String()
-	f.inter = append(body, f.trailer...)
+}
+
+// build produces this round's text: the decided rewrites, plus a placeholder for
+// every construct not lowered yet that still lets the package type-check.
+func (f *fileState) build() {
+	cur := append(edits(nil), f.fixed...)
+	for _, t := range f.tries {
+		if !t.done {
+			cur = append(cur, edit{start: t.off, end: t.off + 1})
+		}
+	}
+	for _, m := range f.matches {
+		if m.done {
+			continue
+		}
+		v := "__m" + itoa(m.n)
+		cur = append(cur,
+			edit{start: m.start, end: m.subj.start, text: "if " + v + " := "},
+			edit{start: m.subj.end, end: m.lbrace + 1, text: "; false { _ = " + v + ";"})
+		for _, c := range m.cases {
+			cur = append(cur, edit{start: c.start, end: c.colon + 1, text: "} else if false {"})
+		}
+	}
+	f.cur = cur.sorted()
+	body := f.cur.apply(f.src, nil)
+	f.body = len(body)
+	f.text = append(body, f.trailer...)
 }
 
 func (f *fileState) parse(fset *token.FileSet, errs *ErrorList) bool {
-	file, err := parser.ParseFile(fset, f.path, f.inter, parser.ParseComments|parser.SkipObjectResolution)
+	file, err := parser.ParseFile(fset, f.path, f.text, parser.ParseComments)
 	if err != nil {
 		if list, ok := err.(scanner.ErrorList); ok {
 			for _, e := range list {
@@ -153,21 +199,34 @@ func (f *fileState) parse(fset *token.FileSet, errs *ErrorList) bool {
 		return false
 	}
 	f.ast, f.tf = file, fset.File(file.Pos())
+	f.parents = map[ast.Node]ast.Node{}
+	var stack []ast.Node
+	ast.Inspect(file, func(n ast.Node) bool {
+		if n == nil {
+			stack = stack[:len(stack)-1]
+			return true
+		}
+		if len(stack) > 0 {
+			f.parents[n] = stack[len(stack)-1]
+		}
+		stack = append(stack, n)
+		return true
+	})
 	return true
 }
 
 // attach finds the declaration each attribute annotates.
 func (f *fileState) attach() {
 	for _, a := range f.attrs {
-		off := f.edits.fromOrig(a.declOff)
+		off := f.cur.fromOrig(a.declOff)
 		for _, d := range f.ast.Decls {
 			switch d := d.(type) {
 			case *ast.FuncDecl:
-				if f.tf.Offset(d.Type.Func) == off {
+				if f.off(d.Type.Func) == off {
 					a.decl, a.Decl = d, declKey(d)
 				}
 			case *ast.GenDecl:
-				if f.tf.Offset(d.TokPos) == off {
+				if f.off(d.TokPos) == off {
 					a.decl, a.Decl = d, genName(d)
 				}
 			}
@@ -188,20 +247,8 @@ func genName(d *ast.GenDecl) string {
 	return ""
 }
 
-// rename records that ident, written as old, becomes name.
-func (f *fileState) rename(id *ast.Ident, old, name string, errs *ErrorList) {
-	off := f.tf.Offset(id.Pos())
-	if off >= f.body {
-		errs.add(f.pos(off), "an overloaded call can't appear inside an attribute")
-		return
-	}
-	start := f.edits.toOrig(off)
-	f.renames = append(f.renames, edit{start, start + len(old), name})
-	id.Name = name
-}
-
 func (f *fileState) emit(bare bool, extra string) []byte {
-	all := append(append(edits(nil), f.edits...), f.renames...).sorted()
+	all := f.fixed.sorted()
 	var after func(int) string
 	if !bare {
 		after = func(off int) string { return lineDirective(f.at(off)) }
@@ -220,55 +267,39 @@ func (f *fileState) emit(bare bool, extra string) []byte {
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	var all, vuka []*fileState
+	e := &engine{imp: opts.Importer, errs: &errs}
 	for _, file := range files {
-		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(), lines: newLineIndex(file.Src)}
+		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
+			lines: newLineIndex(file.Src), done: map[int]bool{}}
 		if opts.Path != nil {
 			f.path = opts.Path(file.Name)
 		}
 		if f.vuka {
-			f.scanAttrs(&errs)
-			vuka = append(vuka, f)
-		} else {
-			f.inter, f.body = f.src, len(f.src)
+			f.scan(&errs)
+			f.buildTrailer(opts.Bare)
+			e.vuka = append(e.vuka, f)
 		}
-		all = append(all, f)
+		e.files = append(e.files, f)
 	}
 	if err := errs.err(); err != nil {
 		return nil, err
 	}
-
-	fset := token.NewFileSet()
-	for _, f := range vuka {
-		f.build(opts.Bare)
-		if f.parse(fset, &errs) {
-			f.attach()
-		}
+	if len(e.vuka) == 0 {
+		return &Result{}, nil
 	}
+	e.run()
 	if err := errs.err(); err != nil {
 		return nil, err
 	}
-
-	if sets := findOverloads(vuka, &errs); len(sets) > 0 && len(errs) == 0 {
-		for _, f := range all {
-			if !f.vuka {
-				f.parse(fset, &errs)
-			}
-		}
-		if len(errs) == 0 {
-			imp := opts.Importer
-			if imp == nil {
-				imp = importer.ForCompiler(fset, "source", nil)
-			}
-			resolve(fset, all, sets, imp, &errs)
-		}
+	if !e.parseAll(false) {
+		return nil, errs.err()
 	}
-	if err := errs.err(); err != nil {
-		return nil, err
+	for _, f := range e.vuka {
+		f.attach()
 	}
 
 	res := &Result{}
-	for _, f := range vuka {
+	for _, f := range e.vuka {
 		extra := f.exports(opts.Bare, &errs)
 		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: f.emit(opts.Bare, extra)})
 		for _, a := range f.attrs {

@@ -1,0 +1,98 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+type Shape interface{ Area() float64 }
+
+type Circle struct{ R float64 }
+type Rect struct{ W, H float64 }
+
+func (c Circle) Area() float64 { return 3 * c.R * c.R }
+func (r *Rect) Area() float64  { return r.W * r.H }
+
+type NotFound struct{ Code int }
+
+func (e *NotFound) Error() string { return fmt.Sprint("not found ", e.Code) }
+
+const Max = 10
+
+func describe(r Result[int]) string {
+	match r {
+	case Ok(0):
+		return "zero"
+	case Ok(n) if n > Max:
+		return fmt.Sprint("big ", n)
+	case Ok(n):
+		return fmt.Sprint("ok ", n)
+	case Err(&NotFound{Code: c}):
+		return fmt.Sprint("missing ", c)
+	case Err(e):
+		return "error: " + e.Error()
+	}
+}
+
+func shape(s Shape) string {
+	match s {
+	case Circle{R: 0}:
+		return "dot"
+	case Circle{R: r}:
+		return fmt.Sprint("circle ", r)
+	case &Rect{W: w, H: h} if w == h:
+		return fmt.Sprint("square ", w)
+	case _:
+		return "other"
+	}
+}
+
+func opt(o Option[string], want string) string {
+	match o {
+	case Some(^want):
+		return "wanted"
+	case Some(s):
+		return "got " + s
+	case None:
+		return "none"
+	}
+}
+
+func grade(n int) string {
+	match n {
+	case 1, 2, 3:
+		return "low"
+	case Max:
+		return "max"
+	case x if x < 0:
+		return "negative"
+	default:
+		return "other"
+	}
+}
+
+func flag(b bool) string {
+	match b {
+	case true: return "yes"
+	case false: return "no"
+	}
+}
+
+func main() {
+	fmt.Println(describe(Ok(0)), "|", describe(Ok(50)), "|", describe(Ok(5)))
+	fmt.Println(describe(Err(&NotFound{Code: 4})), "|", describe(Err(errors.New("boom"))))
+	fmt.Println(shape(Circle{}), "|", shape(Circle{R: 2}), "|", shape(&Rect{W: 3, H: 3}), "|", shape(&Rect{W: 1, H: 2}))
+	fmt.Println(opt(Some("a"), "a"), "|", opt(Some("b"), "a"), "|", opt(None, "a"))
+	fmt.Println(grade(2), grade(10), grade(-1), grade(7), flag(true), flag(false))
+
+	r := Ok(3)
+	match r {
+	case Ok(n):
+		match n {
+		case 3:
+			fmt.Println("nested three")
+		case _:
+		}
+	case Err(_):
+	}
+}

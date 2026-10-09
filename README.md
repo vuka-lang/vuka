@@ -1,8 +1,9 @@
 # Vuka
 
-Vuka is Go with function and method overloading and typed attributes, with
-Elixir-style multi-clause functions, guards and pattern matching on the way. It
-transpiles to plain Go and builds with the go command you already have.
+Vuka is Go with Result and Option, `?` error propagation, pattern matching,
+function and method overloading, and typed attributes, with Elixir-style
+multi-clause functions on the way. It transpiles to plain Go and builds with the
+go command you already have.
 
 ```go
 func area(c Circle) float64 { return math.Pi * c.R * c.R }
@@ -17,9 +18,28 @@ func (c *Counter) Add(by string) { c.n += len(by) }
 func lookup(id int) User { … }
 ```
 
+```go
+func lookup(arg string) Result[User] {
+	id := strconv.Atoi(arg)?          // Go's (T, error) works directly
+	u := find(id)?
+	return Ok(u)
+}
+
+match lookup(arg) {
+case Ok(u):
+	fmt.Println(u.Name)
+case Err(&NotFound{ID: id}):
+	fmt.Println("missing user", id)
+case Err(e) if errors.Is(e, strconv.ErrSyntax):
+	fmt.Println("not a number:", arg)
+case Err(e):
+	fmt.Println("error:", e)
+}
+```
+
 ```
 go install github.com/vuka-lang/vuka/cmd/vuka@latest
-vuka run ./examples/shapes
+vuka run ./examples/users
 ```
 
 ## Built to track Go
@@ -35,10 +55,42 @@ syntax, Vuka already accepts it.
 - `TestStdlibPassesThrough` feeds every file of `$GOROOT/src` through Vuka and
   requires byte-identical output. Run it on a new Go release to find out what, if
   anything, has to change.
-- The generated code is plain Go with no runtime library. `//line` directives
+- The generated code is plain Go; its only runtime is the small Result/Option
+  package. `//line` directives
   point compile errors and panics at the `.vuka` source, down to the column.
 
-## What works (v0.1)
+## What works
+
+**Result and Option** live in the runtime package `github.com/vuka-lang/vuka`
+(its root; nothing else in it). Vuka code writes `Result[User]`, `Ok(u)`,
+`Err(e)`, `Some(x)` and `None` unqualified, and the transpiler adds the import
+wherever the package doesn't declare those names itself. `Err` and `None` take
+their type from where the value goes (`return Err(e)` in a function returning
+`Result[User]`). Result's error is Go's `error`, so it meets Go code halfway:
+`vuka.Of(os.ReadFile(p))` wraps a Go call, `r.Get()` hands back `(T, error)`.
+Your module needs the dependency: `go get github.com/vuka-lang/vuka`.
+
+**`?`** ends a statement: `x := f()?`, `x = f()?`, `var x = f()?`,
+`return f()?` or `f()?`. The operand is Go's `(T…, error)`, an `error`, a
+Result, or an Option (in a function returning an Option). On failure the
+function returns: zero values plus the error, `Err(e)`, or `None`, whichever
+its results call for. The operand stays where it is, so nothing is reordered.
+
+**`match`** is a statement of cases, tried in order:
+
+| pattern | matches |
+|---|---|
+| `_`, `default` | anything |
+| `x` | anything, binding it to `x` (a constant's name compares instead) |
+| `0`, `"a"`, `Max`, `pkg.Const`, `true` | an equal value |
+| `^x` | the value of the variable `x` (Elixir's pin) |
+| `Ok(p)`, `Err(p)`, `Some(p)`, `None` | a Result or Option, then `p` inside |
+| `T{F: p, …}`, `&T{…}` | a struct's fields; against an interface, a type test too |
+| `1, 2, 3` | any of them |
+
+`case p if cond:` adds a guard. A match must be exhaustive (Ok and Err, Some
+and None, true and false, or a case that takes anything), and a case after one
+that matches everything is an error; both are reported before Go sees the code.
 
 **Overloading.** Functions and methods may share a name when their parameter
 types differ. Each declaration is renamed (`area__Circle`, `Add__int_int`), and each
@@ -70,13 +122,20 @@ vuka gen [-check] [dir | dir/...]
 
 ## Roadmap
 
-1. Result/Option, `?`, enums (sum types), `match` with exhaustiveness
-2. Lambdas, `?.`, `??`, tuples, functional helpers (the rest of
+1. `vuka lsp`: a gopls proxy for completion, navigation, refactoring and
+   diagnostics in `.vuka` files
+2. Enums (sum types) with exhaustive `match`; lambdas, `?.`, `??`, tuples, functional helpers (the rest of
    [Dingo](https://github.com/MadAppGang/dingo)'s set)
 3. Multi-clause functions with patterns and guards; arity overloading for default
    arguments; Elixir-style module attributes (`@max 3`, read as `@max`)
-4. `@derive` and generator attributes; `vuka lsp` (a gopls proxy); `vuka fmt`;
+4. `@derive` and generator attributes; `vuka fmt`;
    lowering to native Go when a Go release adds an equivalent feature
+
+## Libraries
+
+A Vuka library is plain Go once generated. To publish one for Go users, commit
+the generated files (`vuka gen`, and `vuka gen -check` in CI) so `go get`
+works without Vuka.
 
 ## Known limits
 
@@ -85,3 +144,6 @@ vuka gen [-check] [dir | dir/...]
 - Generic functions can't be overloaded yet.
 - Go's own error messages show mangled names (`area__int`).
 - An overloaded method can't satisfy an interface method of the plain name.
+- `?` ends a statement; it can't sit inside a larger expression, or in an
+  `if`, `for` or `switch` header.
+- Struct patterns of generic types aren't supported yet.

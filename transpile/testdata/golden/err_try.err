@@ -1,0 +1,4 @@
+err_try.vuka:6:24: ? passes the error on, so the function must return an error last, or a Result
+err_try.vuka:11:26: ? must end a statement: x := f()?, return f()?, or f()?
+err_try.vuka:17:27: ? can't be used in an if, for or switch header; give it its own statement
+err_try.vuka:26:10: ? on an Option needs the function to return an Option

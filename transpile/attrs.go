@@ -3,7 +3,6 @@ package transpile
 import (
 	"go/ast"
 	"go/parser"
-	"go/scanner"
 	"go/token"
 	"strconv"
 	"strings"
@@ -43,97 +42,6 @@ type Attr struct {
 	declOff    int    // offset of the annotated declaration's keyword in src
 	value      string // the string argument of a built-in
 	decl       ast.Decl
-}
-
-type tok struct {
-	off int
-	tok token.Token
-	lit string
-}
-
-func scanTokens(src []byte) []tok {
-	fset := token.NewFileSet()
-	f := fset.AddFile("", -1, len(src))
-	var s scanner.Scanner
-	s.Init(f, src, func(token.Position, string) {}, scanner.ScanComments)
-	var out []tok
-	for {
-		pos, t, lit := s.Scan()
-		if t == token.EOF {
-			return out
-		}
-		out = append(out, tok{f.Offset(pos), t, lit})
-	}
-}
-
-func isAt(t tok) bool { return t.tok == token.ILLEGAL && t.lit == "@" }
-
-func isOpen(t token.Token) bool  { return t == token.LPAREN || t == token.LBRACK || t == token.LBRACE }
-func isClose(t token.Token) bool { return t == token.RPAREN || t == token.RBRACK || t == token.RBRACE }
-
-// scanAttrs finds the file's attributes. Only tokens are read, so everything that
-// isn't an attribute is left exactly as the installed Go toolchain sees it.
-func (f *fileState) scanAttrs(errs *ErrorList) {
-	toks := scanTokens(f.src)
-	depth, lastEnd := 0, -1
-	var pending []*Attr
-	for i := 0; i < len(toks); i++ {
-		t := toks[i]
-		switch {
-		case isOpen(t.tok):
-			depth++
-			continue
-		case isClose(t.tok):
-			depth--
-			continue
-		case !isAt(t):
-			continue
-		}
-		a, next, msg := f.parseAttr(toks, i)
-		if msg != "" {
-			errs.add(f.at(t.off), "%s", msg)
-			i = next - 1
-			continue
-		}
-		switch {
-		case depth > 0:
-			errs.add(a.Pos, "attributes are only allowed before top-level declarations")
-			i = next - 1
-			continue
-		case !startsLine(f.src, a.start, lastEnd):
-			errs.add(a.Pos, "an attribute must start its own line")
-		}
-		lastEnd = a.end
-		pending = append(pending, a)
-
-		k := next
-		for k < len(toks) && (toks[k].tok == token.SEMICOLON && toks[k].lit == "\n" || toks[k].tok == token.COMMENT) {
-			k++
-		}
-		switch {
-		case k < len(toks) && isAt(toks[k]):
-		case k < len(toks) && (toks[k].tok == token.FUNC || toks[k].tok == token.TYPE || toks[k].tok == token.VAR || toks[k].tok == token.CONST):
-			for _, p := range pending {
-				p.declOff = toks[k].off
-				f.attrs = append(f.attrs, p)
-			}
-			pending = nil
-		default:
-			for _, p := range pending {
-				errs.add(p.Pos, "@%s must be followed by a declaration (func, type, var or const)", p.Name)
-			}
-			pending = nil
-		}
-		i = k - 1
-	}
-}
-
-func startsLine(src []byte, off, lastAttrEnd int) bool {
-	ls := lineStart(src, off)
-	if strings.TrimSpace(string(src[ls:off])) == "" {
-		return true
-	}
-	return lastAttrEnd >= ls && strings.TrimSpace(string(src[lastAttrEnd:off])) == ""
 }
 
 // parseAttr reads the attribute whose @ is toks[i]. It returns the index of the

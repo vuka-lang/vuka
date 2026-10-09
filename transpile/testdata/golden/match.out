@@ -1,0 +1,6 @@
+zero | big 50 | ok 5
+missing 4 | error: boom
+dot | circle 2 | square 3 | other
+wanted | got b | none
+low max negative other yes no
+nested three

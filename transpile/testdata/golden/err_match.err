@@ -1,0 +1,4 @@
+err_match.vuka:4:2: match on Result[int] isn't exhaustive: missing Err(_); add the missing cases or case _:
+err_match.vuka:12:2: match on int isn't exhaustive: only a case that matches anything covers every value; add the missing cases or case _:
+err_match.vuka:22:2: unreachable case: an earlier case matches everything
+err_match.vuka:29:7: Ok(…) matches a Result, not Option[int]

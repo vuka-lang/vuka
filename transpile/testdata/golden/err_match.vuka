@@ -1,0 +1,33 @@
+package main
+
+func f(r Result[int]) int {
+	match r {
+	case Ok(n):
+		return n
+	}
+	return 0
+}
+
+func g(n int) int {
+	match n {
+	case 1:
+		return 1
+	}
+	return 0
+}
+
+func h(o Option[int]) {
+	match o {
+	case _:
+	case Some(x):
+		_ = x
+	}
+}
+
+func k(o Option[int]) {
+	match o {
+	case Ok(x):
+		_ = x
+	case _:
+	}
+}

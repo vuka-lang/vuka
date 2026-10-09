@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
-	"go/token"
 	"go/types"
 	"strings"
 )
@@ -14,9 +13,10 @@ import (
 // parameters fit the arguments' static types best.
 type overload struct {
 	file    *fileState
-	decl    *ast.FuncDecl
+	decl    *ast.FuncDecl // from the first round
+	nameOff int           // src offset of the declared name
 	mangled string
-	sig     *types.Signature
+	sig     *types.Signature // from the latest round
 }
 
 type overloadSet struct {
@@ -80,7 +80,7 @@ func findOverloads(files []*fileState, errs *ErrorList) map[string]*overloadSet 
 				sets[key] = s
 				order = append(order, key)
 			}
-			s.list = append(s.list, &overload{file: f, decl: fd})
+			s.list = append(s.list, &overload{file: f, decl: fd, nameOff: f.orig(fd.Name.Pos())})
 		}
 	}
 	for _, key := range order {
@@ -111,7 +111,7 @@ func findOverloads(files []*fileState, errs *ErrorList) map[string]*overloadSet 
 	if len(*errs) == 0 {
 		for _, s := range sets {
 			for _, o := range s.list {
-				o.file.rename(o.decl.Name, o.decl.Name.Name, o.mangled, errs)
+				o.file.add(o.nameOff, o.nameOff+len(s.name), o.mangled)
 			}
 		}
 	}
@@ -196,119 +196,59 @@ func sanitize(s string) string {
 	return b.String()
 }
 
-type resolver struct {
-	files       []*fileState
-	byFile      map[*ast.File]*fileState
-	funcs       map[string]*overloadSet
-	methods     map[string]*overloadSet
-	methodNames map[string]bool
-	pkg         *types.Package
-	info        *types.Info
-	failed      map[*ast.Ident]bool
-	errs        *ErrorList
-}
-
-// resolve type-checks the package and points every call of an overloaded name at
-// one overload. It repeats until no call is left whose argument types became
-// known in the last round: x := area(c); scale(x) resolves in two rounds.
-func resolve(fset *token.FileSet, files []*fileState, sets map[string]*overloadSet, imp types.Importer, errs *ErrorList) {
-	r := &resolver{
-		files:       files,
-		byFile:      map[*ast.File]*fileState{},
-		funcs:       map[string]*overloadSet{},
-		methods:     map[string]*overloadSet{},
-		methodNames: map[string]bool{},
-		failed:      map[*ast.Ident]bool{},
-		errs:        errs,
-	}
-	var astFiles []*ast.File
-	for _, f := range files {
-		r.byFile[f.ast] = f
-		astFiles = append(astFiles, f.ast)
-	}
-	for key, s := range sets {
-		if s.recv == "" {
-			r.funcs[s.name] = s
-		} else {
-			r.methods[key] = s
-			r.methodNames[s.name] = true
-		}
-	}
-	for _, f := range files {
-		if f.vuka {
-			continue
-		}
-		for _, d := range f.ast.Decls {
-			if fd, ok := d.(*ast.FuncDecl); ok {
-				if s := sets[declKey(fd)]; s != nil {
-					errs.add(fset.Position(fd.Name.Pos()), "%s is overloaded in Vuka source; a .go file can't declare it too", s.display())
-				}
-			}
-		}
-	}
-	if len(*errs) > 0 {
+// resolveCalls points each call of an overloaded name whose argument types are
+// now known at the overload that fits them best.
+func (e *engine) resolveCalls(f *fileState) {
+	if len(e.sets) == 0 {
 		return
 	}
-
-	var typeErrs []types.Error
-	conf := types.Config{
-		Importer:    imp,
-		FakeImportC: true,
-		Error:       func(err error) { typeErrs = append(typeErrs, err.(types.Error)) },
-	}
-	for {
-		typeErrs = nil
-		r.info = &types.Info{
-			Types:      map[ast.Expr]types.TypeAndValue{},
-			Defs:       map[*ast.Ident]types.Object{},
-			Uses:       map[*ast.Ident]types.Object{},
-			Selections: map[*ast.SelectorExpr]*types.Selection{},
+	ast.Inspect(f.ast, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return true
 		}
-		r.pkg, _ = conf.Check(astFiles[0].Name.Name, fset, astFiles, r.info)
-		for _, s := range sets {
-			for _, o := range s.list {
-				if fn, ok := r.info.Defs[o.decl.Name].(*types.Func); ok {
-					o.sig = fn.Type().(*types.Signature)
-				}
-			}
+		set, id := e.target(call.Fun)
+		if set == nil {
+			return true
 		}
-		progress := false
-		for _, f := range files {
-			if !f.vuka {
-				continue
-			}
-			ast.Inspect(f.ast, func(n ast.Node) bool {
-				if call, ok := n.(*ast.CallExpr); ok && r.call(f, call) {
-					progress = true
-				}
-				return true
-			})
+		off := f.orig(id.Pos())
+		if f.done[off] || f.off(id.Pos()) >= f.body {
+			return true
 		}
-		if !progress {
-			break
+		args, ok := e.args(call)
+		if !ok {
+			return true
 		}
-	}
-	r.unresolved(typeErrs)
+		f.done[off] = true
+		o, msg := e.pick(set, args, call.Ellipsis.IsValid())
+		if msg != "" {
+			e.errs.add(f.nodePos(call.Pos()), "%s", msg)
+			return true
+		}
+		f.add(off, off+len(id.Name), o.mangled)
+		e.progress = true
+		return true
+	})
 }
 
 // target finds the overload set a call's function expression names, if it is an
-// overloaded name not yet resolved.
-func (r *resolver) target(fun ast.Expr) (*overloadSet, *ast.Ident) {
+// overloaded name not resolved yet.
+func (e *engine) target(fun ast.Expr) (*overloadSet, *ast.Ident) {
 	switch fun := ast.Unparen(fun).(type) {
 	case *ast.Ident:
-		if s := r.funcs[fun.Name]; s != nil && r.info.Uses[fun] == nil && r.info.Defs[fun] == nil {
+		if s := e.funcs[fun.Name]; s != nil && e.info.Uses[fun] == nil && e.info.Defs[fun] == nil {
 			return s, fun
 		}
 	case *ast.SelectorExpr:
-		if !r.methodNames[fun.Sel.Name] || r.info.Selections[fun] != nil {
+		if !e.mnames[fun.Sel.Name] || e.info.Selections[fun] != nil {
 			return nil, nil
 		}
-		tv, ok := r.info.Types[fun.X]
+		tv, ok := e.info.Types[fun.X]
 		if !ok || tv.Type == nil {
 			return nil, nil
 		}
-		if named := namedOf(tv.Type); named != nil && named.Obj().Pkg() == r.pkg {
-			if s := r.methods[named.Obj().Name()+"."+fun.Sel.Name]; s != nil {
+		if named := namedOf(tv.Type); named != nil && named.Obj().Pkg() == e.pkg {
+			if s := e.methods[named.Obj().Name()+"."+fun.Sel.Name]; s != nil {
 				return s, fun.Sel
 			}
 		}
@@ -330,30 +270,11 @@ type arg struct {
 	v constant.Value
 }
 
-func (r *resolver) call(f *fileState, call *ast.CallExpr) bool {
-	set, id := r.target(call.Fun)
-	if set == nil || r.failed[id] {
-		return false
-	}
-	args, ok := r.args(call)
-	if !ok {
-		return false
-	}
-	o, err := r.pick(set, args, call.Ellipsis.IsValid())
-	if err != "" {
-		r.failed[id] = true
-		r.errs.add(f.nodePos(call.Pos()), "%s", err)
-		return false
-	}
-	f.rename(id, id.Name, o.mangled, r.errs)
-	return true
-}
-
-func (r *resolver) args(call *ast.CallExpr) ([]arg, bool) {
+func (e *engine) args(call *ast.CallExpr) ([]arg, bool) {
 	var out []arg
 	for _, a := range call.Args {
-		tv, ok := r.info.Types[a]
-		if !ok || tv.Type == nil || isInvalid(tv.Type) {
+		tv, ok := e.info.Types[a]
+		if !ok || isInvalid(tv.Type) {
 			return nil, false
 		}
 		if tup, ok := tv.Type.(*types.Tuple); ok {
@@ -370,16 +291,11 @@ func (r *resolver) args(call *ast.CallExpr) ([]arg, bool) {
 	return out, true
 }
 
-func isInvalid(t types.Type) bool {
-	b, ok := t.(*types.Basic)
-	return ok && b.Kind() == types.Invalid
-}
-
 // pick chooses the overload that fits best: each argument scores 0 for an
 // identical type, 1 for an untyped constant whose default type is the
 // parameter's, 2 for any other assignable value. Lowest total wins; a tie is
 // ambiguous.
-func (r *resolver) pick(set *overloadSet, args []arg, spread bool) (*overload, string) {
+func (e *engine) pick(set *overloadSet, args []arg, spread bool) (*overload, string) {
 	best := -1
 	var winners []*overload
 	for _, o := range set.list {
@@ -399,9 +315,9 @@ func (r *resolver) pick(set *overloadSet, args []arg, spread bool) (*overload, s
 	case 1:
 		return winners[0], ""
 	case 0:
-		return nil, fmt.Sprintf("no overload of %s accepts (%s)%s", set.display(), r.argList(args), r.candidates(set.list))
+		return nil, fmt.Sprintf("no overload of %s accepts (%s)%s", set.display(), e.argList(args), e.candidates(set.list))
 	}
-	return nil, fmt.Sprintf("call of %s with (%s) is ambiguous%s", set.display(), r.argList(args), r.candidates(winners))
+	return nil, fmt.Sprintf("call of %s with (%s) is ambiguous%s", set.display(), e.argList(args), e.candidates(winners))
 }
 
 func matchSig(sig *types.Signature, args []arg, spread bool) (int, bool) {
@@ -474,8 +390,8 @@ func representable(v constant.Value, t types.Type) bool {
 	return true
 }
 
-func (r *resolver) argList(args []arg) string {
-	q := types.RelativeTo(r.pkg)
+func (e *engine) argList(args []arg) string {
+	q := types.RelativeTo(e.pkg)
 	s := make([]string, len(args))
 	for i, a := range args {
 		s[i] = types.TypeString(a.t, q)
@@ -483,96 +399,81 @@ func (r *resolver) argList(args []arg) string {
 	return strings.Join(s, ", ")
 }
 
-func (r *resolver) candidates(list []*overload) string {
-	q := types.RelativeTo(r.pkg)
+func (e *engine) candidates(list []*overload) string {
+	q := types.RelativeTo(e.pkg)
 	var b strings.Builder
 	for _, o := range list {
 		if o.sig != nil {
-			fmt.Fprintf(&b, "\n\t%s at %s", strings.TrimPrefix(types.TypeString(o.sig, q), "func"), o.file.nodePos(o.decl.Name.Pos()))
+			fmt.Fprintf(&b, "\n\t%s at %s", strings.TrimPrefix(types.TypeString(o.sig, q), "func"), o.file.at(o.nameOff))
 		}
 	}
 	return b.String()
 }
 
-// unresolved reports every overloaded name still not pointing at an overload.
-func (r *resolver) unresolved(typeErrs []types.Error) {
+// unresolvedOverloads reports every overloaded name still not pointing at an
+// overload, and whether any was a call stuck on unknown argument types.
+func (e *engine) unresolvedOverloads() bool {
+	if len(e.sets) == 0 {
+		return false
+	}
 	stuck := false
-	for _, f := range r.files {
-		if !f.vuka {
-			continue
-		}
+	for _, f := range e.vuka {
 		calls := map[*ast.Ident]bool{}
 		ast.Inspect(f.ast, func(n ast.Node) bool {
-			switch n := n.(type) {
-			case *ast.CallExpr:
-				if _, id := r.target(n.Fun); id != nil {
+			if call, ok := n.(*ast.CallExpr); ok {
+				if _, id := e.target(call.Fun); id != nil {
 					calls[id] = true
 				}
-			case *ast.SelectorExpr:
-				if set, id := r.target(n); set != nil && !r.failed[id] && !calls[id] {
-					r.errs.add(f.nodePos(id.Pos()), "%s is overloaded and can't be used as a value; call it, or name one overload with @export", set.display())
-				}
-				ast.Inspect(n.X, func(m ast.Node) bool { return r.checkIdent(f, m, calls, &stuck) })
-				return false
 			}
-			return r.checkIdent(f, n, calls, &stuck)
+			return true
+		})
+		report := func(set *overloadSet, id *ast.Ident) {
+			if f.done[f.orig(id.Pos())] {
+				return
+			}
+			if calls[id] {
+				stuck = true
+				e.errs.add(f.nodePos(id.Pos()), "can't choose an overload of %s: an argument's type is unknown", set.display())
+			} else {
+				e.errs.add(f.nodePos(id.Pos()), "%s is overloaded and can't be used as a value; call it, or name one overload with @export", set.display())
+			}
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			switch n := n.(type) {
+			case *ast.SelectorExpr:
+				if set, id := e.target(n); set != nil {
+					report(set, id)
+				}
+				ast.Inspect(n.X, func(m ast.Node) bool {
+					if id, ok := m.(*ast.Ident); ok {
+						if set, id := e.target(id); set != nil {
+							report(set, id)
+						}
+					}
+					return true
+				})
+				return false
+			case *ast.Ident:
+				if set, id := e.target(n); set != nil {
+					report(set, id)
+				}
+			}
+			return true
 		})
 	}
-	if !stuck {
-		return
-	}
-	shown := 0
-	for _, e := range typeErrs {
-		if shown == 5 || r.mentionsOverload(e.Msg) {
-			continue
-		}
-		pos := e.Fset.Position(e.Pos)
-		if f := r.fileAt(e.Fset, e.Pos); f != nil {
-			pos = f.pos(f.tf.Offset(e.Pos))
-		}
-		r.errs.add(pos, "%s", e.Msg)
-		shown++
-	}
+	return stuck
 }
 
-func (r *resolver) checkIdent(f *fileState, n ast.Node, calls map[*ast.Ident]bool, stuck *bool) bool {
-	id, ok := n.(*ast.Ident)
-	if !ok {
-		return true
-	}
-	set := r.funcs[id.Name]
-	if set == nil || r.failed[id] || r.info.Uses[id] != nil || r.info.Defs[id] != nil {
-		return true
-	}
-	if calls[id] {
-		*stuck = true
-		r.errs.add(f.nodePos(id.Pos()), "can't choose an overload of %s: an argument's type is unknown", set.display())
-	} else {
-		r.errs.add(f.nodePos(id.Pos()), "%s is overloaded and can't be used as a value; call it, or name one overload with @export", set.display())
-	}
-	return true
-}
-
-func (r *resolver) mentionsOverload(msg string) bool {
-	for name := range r.funcs {
+func (e *engine) mentionsOverload(msg string) bool {
+	for name := range e.funcs {
 		if strings.Contains(msg, "undefined: "+name) {
 			return true
 		}
 	}
-	for name := range r.methodNames {
+	for name := range e.mnames {
 		if strings.Contains(msg, "no field or method "+name) {
 			return true
 		}
 	}
 	return false
-}
-
-func (r *resolver) fileAt(fset *token.FileSet, p token.Pos) *fileState {
-	tf := fset.File(p)
-	for _, f := range r.files {
-		if f.tf == tf && f.vuka {
-			return f
-		}
-	}
-	return nil
 }

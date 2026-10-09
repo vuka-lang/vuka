@@ -11,13 +11,23 @@ import (
 type edit struct {
 	start, end int
 	text       string
+	prio       int // orders insertions at the same offset: lower first
 }
 
 type edits []edit
 
 func (es edits) sorted() edits {
 	out := append(edits(nil), es...)
-	sort.SliceStable(out, func(i, j int) bool { return out[i].start < out[j].start })
+	sort.SliceStable(out, func(i, j int) bool {
+		a, b := out[i], out[j]
+		if a.start != b.start {
+			return a.start < b.start
+		}
+		if (a.start == a.end) != (b.start == b.end) {
+			return a.start == a.end
+		}
+		return a.prio < b.prio
+	})
 	return out
 }
 

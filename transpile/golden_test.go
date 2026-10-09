@@ -74,7 +74,9 @@ func run(t *testing.T, src []byte) string {
 		t.Skip("compiles and runs the program")
 	}
 	dir := t.TempDir()
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module golden\n\ngo 1.22\n"), 0o644)
+	root, _ := filepath.Abs("..")
+	mod := "module golden\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => " + root + "\n"
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644)
 	os.WriteFile(filepath.Join(dir, "main.go"), src, 0o644)
 	cmd := exec.Command("go", "run", ".")
 	cmd.Dir = dir
