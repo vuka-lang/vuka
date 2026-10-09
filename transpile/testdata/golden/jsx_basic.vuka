@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"context"
+	"fmt"
+)
 
 type User struct {
 	ID     int
@@ -37,5 +40,6 @@ func main() {
 	ch := make(chan int, 1)
 	ch <- 1
 	_ = <-ch
-	_ = page(User{Name: "Ann"})
+	s, err := vuka.String(context.Background(), page(User{ID: 7, Name: "Ann", Active: true}))
+	fmt.Println(s, err)
 }

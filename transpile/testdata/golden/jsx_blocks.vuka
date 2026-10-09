@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+	"fmt"
 	"errors"
 	"strconv"
 )
@@ -44,6 +46,12 @@ func list(users []User, admin bool, s string) vuka.Node {
 }
 
 func main() {
-	_ = list(nil, false, "1")
+	for _, n := range []vuka.Node{
+		list(nil, false, "1"),
+		list([]User{{1, "Ann", 2020}, {2, "Bo", 2021}}, true, "x"),
+	} {
+		s, err := vuka.String(context.Background(), n)
+		fmt.Println(s, err)
+	}
 	_ = errors.New
 }

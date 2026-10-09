@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"context"
 	"errors"
 	"io"
@@ -91,5 +92,8 @@ func Themed(theme Theme) vuka.Node {
 }
 
 func main() {
-	_ = List(nil)
+	for _, n := range []vuka.Node{List([]User{{1, "Ann", true, 2020}}), Themed(Theme{true})} {
+		s, err := vuka.String(context.Background(), n)
+		fmt.Println(s, err)
+	}
 }
