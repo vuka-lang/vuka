@@ -21,6 +21,7 @@ export default defineConfig({
       { text: 'Features', link: '/features/result-option' },
       { text: 'Tools', link: '/tools/cli' },
       { text: 'Examples', link: '/examples' },
+      { text: 'Releases', link: '/releases' },
     ],
     sidebar: [
       {
@@ -53,6 +54,7 @@ export default defineConfig({
         ],
       },
       { text: 'Examples', link: '/examples' },
+      { text: 'Releases', link: '/releases' },
       { text: 'Credits', link: '/credits' },
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/vuka-lang/vuka' }],

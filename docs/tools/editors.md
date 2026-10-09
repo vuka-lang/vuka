@@ -7,7 +7,8 @@ ways.
 
 Completion, hover, signature help, go to definition, references, rename,
 outline, code actions and inlay hints work in `.vuka` files. Vuka's own errors
-and Go's type errors appear on the `.vuka` lines. Overloads and statics show as
+and Go's type errors appear on the `.vuka` lines; an import of a folder of your
+module written without the module path gets a hint with the right one. Overloads and statics show as
 you wrote them (`area`, `User.New`), and typing `@` lists the project's
 decorators.
 
