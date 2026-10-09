@@ -1,0 +1,49 @@
+package main
+
+import (
+	"errors"
+	"strconv"
+)
+
+type User struct {
+	ID   int
+	Name string
+	Year int
+}
+
+func lookup(s string) Result[int] {
+	n := strconv.Atoi(s)?
+	return Ok(n)
+}
+
+func list(users []User, admin bool, s string) vuka.Node {
+	return <>
+		<ul>
+			{for _, u := range users {
+				<li key={u.ID}>{u.Name} since {u.Year}</li>
+			}}
+		</ul>
+		{if admin {
+			<button>Edit</button>
+		} else if len(users) == 0 {
+			<p>nobody</p> <hr/>
+		}
+		else {
+			guest
+		}}
+		{match lookup(s) { case Ok(n): <p>{n}</p> case Err(e): <p className="error">{e.Error()}</p> }}
+		{match len(users) {
+		case 0:
+			<i>none</i>
+		case 1, 2:
+			a few: {len(users)}
+		default:
+			{for i := range 3 { <b>{i}</b> }}
+		}}
+	</>
+}
+
+func main() {
+	_ = list(nil, false, "1")
+	_ = errors.New
+}

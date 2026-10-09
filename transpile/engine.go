@@ -74,6 +74,7 @@ func (e *engine) run() {
 			e.selfCalls(f)
 			e.resolveCalls(f)
 			e.infer(f)
+			e.lowerJSX(f)
 			for _, t := range f.tries {
 				if !t.done && !t.dead {
 					e.lowerTry(f, t)
@@ -237,7 +238,7 @@ func (e *engine) needsTypes() bool {
 // remove the construct that needed it while what follows still needs types.
 func (e *engine) needsTypesNow() bool {
 	for _, f := range e.vuka {
-		if f.rt != "" || len(f.tries) > 0 || len(f.matches) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) {
+		if f.rt != "" || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) {
 			return true
 		}
 	}
@@ -312,6 +313,14 @@ func (e *engine) report() {
 			if !m.done && !m.dead {
 				stuck = true
 				e.errs.add(f.at(m.start), "can't lower match: %s", or(m.fail, "the subject's type is unknown"))
+			}
+		}
+		for _, t := range f.jsx {
+			for _, c := range t.comps {
+				if !t.done && !c.resolved && !c.dead {
+					stuck = true
+					e.errs.add(f.at(c.el.start), "can't lower <%s>: %s", c.el.tag, or(c.fail, "its type is unknown"))
+				}
 			}
 		}
 		for off, name := range e.pending[f] {

@@ -865,15 +865,5 @@ func importPath(f *fileState, name string) string {
 // autoImport imports p into f under a name of its own, for a static reached
 // through another package's type, and returns that name.
 func (f *fileState) autoImport(p *types.Package) string {
-	name := "__" + p.Name()
-	if f.autoImports == nil {
-		f.autoImports = map[string]bool{}
-	}
-	if !f.autoImports[p.Path()] {
-		f.autoImports[p.Path()] = true
-		f.insert(f.pkgEnd, "; import "+name+" "+strconvQuote(p.Path()), 0)
-	}
-	return name
+	return f.importAs(p.Path(), "__"+p.Name())
 }
-
-func strconvQuote(s string) string { return `"` + s + `"` }

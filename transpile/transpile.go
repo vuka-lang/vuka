@@ -84,6 +84,7 @@ type fileState struct {
 	attrs   []*Attr
 	tries   []*try
 	matches []*matchStmt
+	jsx     []*jsxTree
 
 	fixed    edits     // decided rewrites, in src offsets
 	cur      edits     // this round's: fixed plus placeholders
@@ -208,6 +209,11 @@ func (f *fileState) build() {
 			edit{start: m.subj.end, end: m.lbrace + 1, text: "; false { _ = " + v + ";"})
 		for _, c := range m.cases {
 			cur = append(cur, edit{start: c.start, end: c.colon + 1, text: "} else if false {"})
+		}
+	}
+	for _, t := range f.jsx {
+		if !t.done {
+			cur = append(cur, f.jsxEdits(t)...)
 		}
 	}
 	f.cur = cur.sorted()

@@ -1,0 +1,41 @@
+package main
+
+import "fmt"
+
+type User struct {
+	ID     int
+	Name   string
+	Active bool
+}
+
+func card(user User, admin bool, children vuka.Node) vuka.Node {
+	return <div className="card" data-id={user.ID}>
+		<h3>{user.Name}</h3>
+		{children}
+		{/* a comment */}
+		<p title='it&apos;s "quoted"' hidden>
+			Tom &amp; Jerry
+			don't   panic,   it's    fine &lt;3
+		</p>
+		<input type="checkbox" checked={user.Active} />
+		<span>{fmt.Sprint(user.ID)} items</span> <b>!</b>
+	</div>
+}
+
+func page(u User) vuka.Node {
+	x := 1
+	y := x < 2
+	_ = y
+	return <>
+		<h1>Hello, {u.Name}!</h1>
+		{card(u, true, <em>child</em>)}
+		<hr/>
+	</>
+}
+
+func main() {
+	ch := make(chan int, 1)
+	ch <- 1
+	_ = <-ch
+	_ = page(User{Name: "Ann"})
+}

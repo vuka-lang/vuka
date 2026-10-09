@@ -1,0 +1,39 @@
+package main
+
+import (
+	"context"
+	"io"
+)
+
+type User struct{ Name string }
+
+func UserCard(user User, admin bool) vuka.Node {
+	return <p>{user.Name}</p>
+}
+
+type Counter struct{ n int }
+
+type Props struct{ Title string }
+
+func Panel(props Props) vuka.Node { return <div>{props.Title}</div> }
+
+func Plain(n int) int { return n }
+
+type html string
+
+func (h html) Render(ctx context.Context, w io.Writer) error { return nil }
+
+func Raw(s string) html { return html(s) }
+
+func page(u User) vuka.Node {
+	return <>
+		<UserCard usr={u} />
+		<UserCard user={u} colour="red" />
+		<Panel titel="x" />
+		<Counter />
+		<Raw s="<b>">kids</Raw>
+		<Plain n={1} />
+	</>
+}
+
+func main() {}

@@ -1,0 +1,20 @@
+package main
+
+func mismatched() vuka.Node {
+	return <div><p>text</div>
+}
+
+func unclosed() vuka.Node {
+	return <ul>
+		<li>one</li>
+}
+
+func events(save func()) vuka.Node {
+	return <button onClick={save} onmouseover="alert(1)">Save</button>
+}
+
+func block(ok bool) vuka.Node {
+	return <div>{if ok { <b>yes</b> }</div>
+}
+
+func main() {}
