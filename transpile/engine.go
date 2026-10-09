@@ -65,6 +65,9 @@ func (e *engine) run() {
 			return
 		}
 		e.check()
+		if e.oldRuntime() {
+			return
+		}
 		for _, f := range e.vuka {
 			e.classify(f)
 			e.resolveStatics(f)
@@ -331,6 +334,25 @@ func (e *engine) report() {
 		e.errs.add(e.typeErrPos(te), "%s", te.Msg)
 		shown++
 	}
+}
+
+// oldRuntime reports, as one clear error, generated code using runtime names
+// the module's required runtime version lacks.
+func (e *engine) oldRuntime() bool {
+	for _, te := range e.typeErrs {
+		f := e.fileOf(te.Pos)
+		if f == nil || !f.vuka || f.rt == "" {
+			continue
+		}
+		name, ok := strings.CutPrefix(te.Msg, "undefined: "+f.rt+".")
+		if !ok {
+			continue
+		}
+		e.errs.add(e.typeErrPos(te), "this module requires a Vuka runtime without %s.%s; update it: go get %s@%s",
+			f.rt, name, RuntimePath, RuntimeVersion)
+		return true
+	}
+	return false
 }
 
 // display writes t the way Vuka source spells it, for messages.

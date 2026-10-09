@@ -21,6 +21,9 @@ import (
 // RuntimePath is the import path of the package holding Result and Option.
 const RuntimePath = "github.com/vuka-lang/vuka"
 
+// RuntimeVersion is the runtime version the code Vuka generates needs.
+const RuntimeVersion = "v0.2.0"
+
 // File is one source file of a package: a .vuka file to transpile, or a .go file
 // in the same package.
 type File struct {

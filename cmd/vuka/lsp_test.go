@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"testing"
@@ -275,6 +276,46 @@ func TestLSP(t *testing.T) {
 			return
 		}
 		t.Fatal("no Itoa completion")
+	})
+
+	t.Run("completion while typing a decorator", func(t *testing.T) {
+		src := strings.Replace(lspSource, "func twice(", `decorator logged(c) {
+	c.Ne
+}
+
+@
+func twice(`, 1)
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 6},
+			"contentChanges": []any{map[string]any{"text": src}}})
+		complete := func(after string) []string {
+			off := strings.Index(src, after) + len(after)
+			v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+				"position": positionOf([]byte(src), off)})
+			items := v
+			if list, ok := v.(map[string]any); ok {
+				items = list["items"]
+			}
+			var labels []string
+			for _, it := range items.([]any) {
+				item := it.(map[string]any)
+				labels = append(labels, item["sortText"].(string)+" "+item["label"].(string))
+			}
+			sort.Strings(labels)
+			return labels
+		}
+		// The unfinished @ below must not stop the rest of the file working.
+		if got := strings.Join(complete("c.Ne"), ","); !strings.Contains(got, "Next") {
+			t.Fatalf("c.Ne: %s", got)
+		}
+		got := complete("\n@")
+		if len(got) == 0 || !strings.HasSuffix(got[0], " logged") {
+			t.Fatalf("@: decorators should come first: %v", got)
+		}
+		for _, l := range got {
+			if strings.HasSuffix(l, " id") || strings.HasSuffix(l, " nil") {
+				t.Fatalf("@ offers %q, which no attribute can name", l)
+			}
+		}
 	})
 
 	t.Run("type error lands on the .vuka line", func(t *testing.T) {

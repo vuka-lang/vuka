@@ -158,6 +158,8 @@ type vukaRequest struct {
 	editorID json.RawMessage
 	method   string
 	file     *vfile
+	attr     bool     // completion after @, on an attribute or decorator
+	typed    lspRange // there: what was typed after @ (and the last dot)
 }
 
 type proxy struct {
@@ -621,7 +623,7 @@ func (p *proxy) regenerate() {
 	}
 	read := func(path string) ([]byte, error) {
 		if b, ok := bufs[path]; ok {
-			return b, nil
+			return completable(b), nil
 		}
 		return os.ReadFile(path)
 	}
@@ -760,6 +762,9 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		}
 		obj["range"] = r
 		if msg, ok := obj["message"].(string); ok {
+			if strings.Contains(msg, placeholder) {
+				continue
+			}
 			obj["message"] = demangle(msg)
 		}
 		delete(obj, "relatedInformation")
@@ -797,6 +802,7 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	var params map[string]any
 	_ = json.Unmarshal(m.Params, &params)
 	params["textDocument"] = map[string]any{"uri": pathToURI(p.bySource[path])}
+	srcPos, _ := toPosition(params["position"])
 	if pos, ok := toPosition(params["position"]); ok {
 		params["position"] = vf.toGen(pos)
 	}
@@ -805,7 +811,17 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	}
 	p.nextID++
 	id := strconv.Quote("vuka-lsp:" + strconv.Itoa(p.nextID))
-	p.vukaReqs[id] = &vukaRequest{editorID: m.ID, method: m.Method, file: vf}
+	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf,
+		attr: m.Method == "textDocument/completion" && afterAt(vf.from, srcPos)}
+	if vr.attr {
+		off := offsetOf(vf.from, srcPos)
+		start := off
+		for start > 0 && (isIdentByte(vf.from[start-1])) {
+			start--
+		}
+		vr.typed = lspRange{positionOf(vf.from, start), srcPos}
+	}
+	p.vukaReqs[id] = vr
 	p.mu.Unlock()
 	_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": m.Method, "params": params})
 }
@@ -824,6 +840,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	switch vr.method {
 	case "textDocument/completion":
 		v = cleanCompletion(v)
+		if vr.attr {
+			v = attrCompletion(v, vr.typed)
+		}
 	case "textDocument/hover":
 		v = staticHover(demangleStrings(v))
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
@@ -1048,6 +1067,84 @@ func cleanCompletion(v any) any {
 	return kept
 }
 
+var attrPrefix = regexp.MustCompile(`^\s*@[A-Za-z0-9_.]*$`)
+
+// unfinishedAttr is an @ line being typed: `@` or `@pkg.` with nothing after.
+var unfinishedAttr = regexp.MustCompile(`(?m)^(\s*@(?:[A-Za-z_][A-Za-z0-9_]*\.)?)[ \t]*$`)
+
+// placeholder completes an unfinished attribute so the file still transpiles
+// while it is typed; it is never shown or written.
+const placeholder = "__vuka_complete"
+
+// completable puts the placeholder after an unfinished @, so the rest of the
+// file keeps its completion, hover and diagnostics mid-edit. It only appends
+// to those lines, so every position the editor sends stays valid.
+func completable(src []byte) []byte {
+	return unfinishedAttr.ReplaceAll(src, []byte("${1}"+placeholder+"()"))
+}
+
+// afterAt reports whether pos is in an attribute's name: the line so far is
+// @ and a (possibly qualified) name.
+func afterAt(src []byte, pos lspPosition) bool {
+	off := offsetOf(src, pos)
+	start := bytes.LastIndexByte(src[:off], '\n') + 1
+	return attrPrefix.Match(src[start:off])
+}
+
+// attrCompletion orders completion after @: decorators (func(*vuka.Call)
+// and factories returning one) first, then the rest; suggestions that would
+// import an unrelated package are dropped.
+func attrCompletion(v any, typed lspRange) any {
+	items := v
+	if list, ok := v.(map[string]any); ok {
+		items = list["items"]
+	}
+	arr, ok := items.([]any)
+	if !ok {
+		return v
+	}
+	kept := arr[:0]
+	for _, it := range arr {
+		item, ok := it.(map[string]any)
+		if !ok {
+			continue
+		}
+		if edits, _ := item["additionalTextEdits"].([]any); len(edits) > 0 {
+			continue
+		}
+		label, _ := item["label"].(string)
+		detail, _ := item["detail"].(string)
+		decorator := strings.Contains(detail, "vuka.Call") || strings.Contains(detail, "vuka.Decorator") || strings.Contains(detail, "vuka.Type")
+		// Only what an attribute can name: a function, a type, a package, or a
+		// variable holding a decorator.
+		switch kind, _ := item["kind"].(float64); kind {
+		case 3, 7, 8, 9, 22: // function, class, interface, module, struct
+		default:
+			if !decorator {
+				continue
+			}
+		}
+		rank := "1"
+		if decorator {
+			rank = "0"
+		}
+		item["sortText"] = rank + label
+		// Replace just what was typed: the generated text holds a placeholder
+		// the editor doesn't have.
+		if te, ok := item["textEdit"].(map[string]any); ok {
+			delete(te, "insert")
+			delete(te, "replace")
+			te["range"] = typed
+		}
+		kept = append(kept, item)
+	}
+	if list, ok := v.(map[string]any); ok {
+		list["items"] = kept
+		return list
+	}
+	return kept
+}
+
 func toRange(v any) (lspRange, bool) {
 	m, ok := v.(map[string]any)
 	if !ok {
@@ -1107,4 +1204,8 @@ func runeLen16(r rune) int {
 		return 2
 	}
 	return 1
+}
+
+func isIdentByte(b byte) bool {
+	return b == '_' || '0' <= b && b <= '9' || 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
 }
