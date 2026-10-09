@@ -41,6 +41,17 @@ for their highlighting and language server; Vuka only adds the icon, under the
 same `templ` language, so the two work side by side. The icon is templ's logo,
 by Adrian Hesketh, used under templ's MIT license (`images/TEMPL-LICENSE.txt`).
 
+When the workspace has both `.vuka` and `.templ` files, the extension offers,
+once, to let templ's language server use Vuka as its gopls, so `.templ` files
+see code from `.vuka` files (a component from a `.vuka` file called as
+`@Nav(current)` is no longer "undefined"; hover and go to definition reach it).
+It writes a `templ` script (`templ.cmd` on Windows) beside the `gopls` link that
+puts the link first on `PATH` and runs your templ, and sets
+`templ.executablePath` to it; templ remains the only server for `.templ` files.
+**Vuka: Let templ Use Vuka as Its gopls** and **Vuka: Stop templ Using Vuka**
+switch it on and off, followed by a restart of templ's language server. A
+`templ.executablePath` you set yourself is left alone.
+
 ## Settings
 
 | Setting | Default | |
@@ -50,5 +61,6 @@ by Adrian Hesketh, used under templ's MIT license (`images/TEMPL-LICENSE.txt`).
 | `vuka.trace.server` | `off` | log the LSP traffic |
 | `vuka.sharedGopls` | `true` | one gopls daemon shared by every session (`-remote=auto`) |
 | `vuka.offerGoDropIn` | `true` | offer to serve Go files through Vuka |
+| `vuka.offerTemplDropIn` | `true` | offer to let templ's language server use Vuka as its gopls |
 
 Run **Vuka: Restart Language Server** after reinstalling vuka.

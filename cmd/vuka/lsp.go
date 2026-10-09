@@ -60,14 +60,7 @@ func asGopls(args []string) error {
 	if err != nil {
 		return err
 	}
-	sub := ""
-	for _, a := range args {
-		if !strings.HasPrefix(a, "-") {
-			sub = a
-			break
-		}
-	}
-	if sub != "" && sub != "serve" {
+	if sub := goplsSubcommand(args); sub != "" && sub != "serve" {
 		c := exec.Command(gopls, args...)
 		c.Stdin, c.Stdout, c.Stderr = os.Stdin, os.Stdout, os.Stderr
 		return c.Run()
@@ -76,7 +69,29 @@ func asGopls(args []string) error {
 	if os.Getenv("VUKA_GOPLS_SHARED") != "0" && !hasFlag(args, "remote") {
 		goplsArgs = append([]string{"-remote=auto"}, args...)
 	}
-	return serveLSP(gopls, os.Getenv("VUKA_LSP_LOG"), lspOptions{goplsArgs: goplsArgs})
+	return serveLSP(gopls, os.Getenv("VUKA_LSP_LOG"), lspOptions{goplsArgs: goplsArgs, dropIn: true})
+}
+
+// goplsBoolFlags are gopls's flags that take no value; any other flag given
+// without = takes the next argument (templ's language server runs gopls with
+// -logfile <file> -rpc.trace -remote <addr>).
+var goplsBoolFlags = map[string]bool{"rpc.trace": true, "v": true, "verbose": true, "vv": true, "veryverbose": true, "h": true, "help": true}
+
+// goplsSubcommand is the subcommand in gopls's arguments, "" for none (serve).
+func goplsSubcommand(args []string) string {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		if !strings.HasPrefix(a, "-") {
+			return a
+		}
+		if a == "--" {
+			break
+		}
+		if name := strings.TrimLeft(a, "-"); !strings.Contains(name, "=") && !goplsBoolFlags[name] {
+			i++
+		}
+	}
+	return ""
 }
 
 func hasFlag(args []string, name string) bool {
@@ -108,6 +123,7 @@ func serveLSP(gopls, logFile string, opts lspOptions) error {
 type lspOptions struct {
 	goplsArgs      []string // before serve, e.g. -remote=auto
 	renameCommands bool     // namespace gopls's commands (vuka.gopls.*) for a second client
+	dropIn         bool     // serving as gopls: .templ files are templ's language server's
 }
 
 func findGopls(flagPath string) (string, error) {
@@ -168,7 +184,7 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 	defer os.RemoveAll(tmp)
 
 	p := newProxy(newRPCConn(in, out), newRPCConn(cout, cin), logw, tmp)
-	p.renameCommands = opts.renameCommands
+	p.renameCommands, p.dropIn = opts.renameCommands, opts.dropIn
 	goplsDone, editorDone := make(chan struct{}), make(chan struct{})
 	go func() { p.fromGopls(); close(goplsDone) }()
 	go func() { p.fromEditor(); close(editorDone) }()
@@ -361,6 +377,7 @@ type proxy struct {
 	mu               sync.Mutex
 	initID           string // the editor's initialize request
 	renameCommands   bool
+	dropIn           bool
 	root             string
 	nextID           int
 	goReqs           map[string]bool         // editor requests on Go files
@@ -368,6 +385,7 @@ type proxy struct {
 	asks             map[string]chan rpcMsg  // proxy request id → the proxy's own question to gopls
 	bufs             map[string][]byte       // .vuka path → editor buffer
 	virtual          map[string]*vfile       // generated path → buffer in gopls
+	owned            map[string]bool         // Go paths the editor has open itself; its text wins
 	bySource         map[string]string       // .vuka path → generated path
 	vukaDiags        map[string][]any        // .vuka path → transpiler errors
 	goDiags          map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
@@ -384,7 +402,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 	return &proxy{
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{},
-		bufs: map[string][]byte{}, virtual: map[string]*vfile{}, bySource: map[string]string{},
+		bufs: map[string][]byte{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string][]any{}, goDiags: map[string][]any{}, shown: map[string]string{},
 	}
 }
@@ -531,6 +549,10 @@ func (p *proxy) fromEditor() {
 		case "textDocument/didOpen", "textDocument/didChange", "textDocument/didClose", "textDocument/didSave":
 			if isVuka(path) {
 				p.document(m.Method, m.Params, p.real(path))
+				continue
+			}
+			if strings.HasSuffix(path, ".go") && (m.Method == "textDocument/didOpen" || m.Method == "textDocument/didClose") {
+				p.own(path, m.Method == "textDocument/didOpen", body)
 				continue
 			}
 			if p.isVirtual(path) {
@@ -728,7 +750,7 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 		return v
 	}
 	out := walk(v, false)
-	if isInit {
+	if isInit && !p.dropIn {
 		for _, ch := range []string{"@", "<", "/", " "} {
 			addTrigger(out, ch)
 		}
@@ -792,15 +814,54 @@ func (p *proxy) initialize(params json.RawMessage) {
 func (p *proxy) isVirtual(path string) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	_, ok := p.virtual[path]
-	return ok
+	return p.vfileOf(path) != nil
+}
+
+// vfileOf is the proxy's generated file at path, nil when there is none or the
+// editor has that path open itself. p.mu must be held.
+func (p *proxy) vfileOf(path string) *vfile {
+	if p.owned[path] {
+		return nil
+	}
+	return p.virtual[path]
+}
+
+// own hands a Go path to the editor while the editor has it open. templ's
+// language server, using vuka as its gopls, opens a .templ file's Go (x_templ.go)
+// itself and maps positions by its own text: gopls gets the editor's buffer in
+// place of the proxy's, and the proxy's again once the editor closes it.
+func (p *proxy) own(path string, open bool, body []byte) {
+	p.genMu.Lock()
+	defer p.genMu.Unlock()
+	p.mu.Lock()
+	vf, was := p.virtual[path], p.owned[path]
+	if open {
+		p.owned[path] = true
+	} else {
+		delete(p.owned, path)
+	}
+	var gen string
+	if vf != nil && !open {
+		vf.version, gen = 1, string(vf.gen)
+	}
+	p.mu.Unlock()
+	uri := pathToURI(path)
+	if open && vf != nil && !was {
+		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didClose",
+			"params": map[string]any{"textDocument": map[string]any{"uri": uri}}})
+	}
+	_ = p.gopls.write(body)
+	if !open && vf != nil {
+		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": map[string]any{
+			"textDocument": map[string]any{"uri": uri, "languageId": "go", "version": 1, "text": gen}}})
+	}
 }
 
 func (p *proxy) mentionsVirtual(raw json.RawMessage) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
 	for path := range p.virtual {
-		if bytes.Contains(raw, []byte(pathToURI(path))) {
+		if !p.owned[path] && bytes.Contains(raw, []byte(pathToURI(path))) {
 			return true
 		}
 	}
@@ -973,6 +1034,10 @@ func (p *proxy) regenerate() {
 		old := p.virtual[path]
 		uri := pathToURI(path)
 		switch {
+		case p.owned[path]:
+			if old != nil {
+				vf.version = old.version
+			}
 		case old == nil:
 			vf.version = 1
 			ops = append(ops, op{"textDocument/didOpen", map[string]any{"textDocument": map[string]any{
@@ -987,7 +1052,7 @@ func (p *proxy) regenerate() {
 		}
 	}
 	for path := range p.virtual {
-		if _, ok := want[path]; !ok {
+		if _, ok := want[path]; !ok && !p.owned[path] {
 			ops = append(ops, op{"textDocument/didClose", map[string]any{"textDocument": map[string]any{"uri": pathToURI(path)}}})
 		}
 	}
@@ -1019,6 +1084,9 @@ func (p *proxy) regenerate() {
 // publish sends a .vuka file's diagnostics: the transpiler's, or when it has
 // none, gopls's on the generated Go.
 func (p *proxy) publish(path string) {
+	if p.dropIn && strings.HasSuffix(path, ".templ") {
+		return // templ's language server reports on its files
+	}
 	p.mu.Lock()
 	ds := append([]any{}, p.vukaDiags[path]...)
 	if len(ds) == 0 {
@@ -1041,7 +1109,7 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		return
 	}
 	p.mu.Lock()
-	vf := p.virtual[uriToPath(dp.URI)]
+	vf := p.vfileOf(uriToPath(dp.URI))
 	if vf == nil {
 		p.mu.Unlock()
 		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": params})
@@ -1288,7 +1356,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 		for _, key := range []string{"uri", "targetUri"} {
 			if uri, ok := x[key].(string); ok {
 				p.mu.Lock()
-				ctx = p.virtual[uriToPath(uri)]
+				ctx = p.vfileOf(uriToPath(uri))
 				p.mu.Unlock()
 				if ctx != nil {
 					x[key] = pathToURI(p.display(ctx.source))
@@ -1298,7 +1366,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 		if td, ok := x["textDocument"].(map[string]any); ok {
 			if uri, ok := td["uri"].(string); ok {
 				p.mu.Lock()
-				ctx = p.virtual[uriToPath(uri)]
+				ctx = p.vfileOf(uriToPath(uri))
 				p.mu.Unlock()
 				if ctx != nil {
 					td["uri"], td["version"] = pathToURI(p.display(ctx.source)), nil
@@ -1309,7 +1377,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 			out := map[string]any{}
 			for uri, edits := range changes {
 				p.mu.Lock()
-				f := p.virtual[uriToPath(uri)]
+				f := p.vfileOf(uriToPath(uri))
 				p.mu.Unlock()
 				if f != nil {
 					uri = pathToURI(p.display(f.source))

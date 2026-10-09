@@ -576,6 +576,21 @@ func TestGoplsPassthrough(t *testing.T) {
 	}
 }
 
+func TestGoplsSubcommand(t *testing.T) {
+	for args, want := range map[string]string{
+		"":                     "",
+		"serve":                "serve",
+		"-remote=auto version": "version",
+		"-logfile /tmp/l -rpc.trace -remote auto":  "",
+		"-v -remote auto check x.go":               "check",
+		"-rpc.trace -logfile=/tmp/l serve -listen": "serve",
+	} {
+		if got := goplsSubcommand(strings.Fields(args)); got != want {
+			t.Errorf("%q: got %q, want %q", args, got, want)
+		}
+	}
+}
+
 func TestImportHint(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "data"), 0o755)

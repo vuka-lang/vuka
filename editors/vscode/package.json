@@ -99,6 +99,11 @@
           "type": "boolean",
           "default": true,
           "description": "Offer to serve Go files through Vuka too (go.alternateTools.gopls), so .go files see code from .vuka files."
+        },
+        "vuka.offerTemplDropIn": {
+          "type": "boolean",
+          "default": true,
+          "description": "Offer to let templ's language server use Vuka as its gopls (templ.executablePath), so .templ files see code from .vuka files."
         }
       }
     },
@@ -114,6 +119,14 @@
       {
         "command": "vuka.stopServingGoFiles",
         "title": "Vuka: Stop Serving Go Files"
+      },
+      {
+        "command": "vuka.serveTemplFiles",
+        "title": "Vuka: Let templ Use Vuka as Its gopls"
+      },
+      {
+        "command": "vuka.stopServingTemplFiles",
+        "title": "Vuka: Stop templ Using Vuka"
       }
     ]
   },
