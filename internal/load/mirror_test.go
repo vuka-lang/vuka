@@ -29,8 +29,13 @@ func TestMirror(t *testing.T) {
 	t.Setenv("GOFLAGS", "-mod=mod")
 	repo, _ := filepath.Abs("../..")
 	root := filepath.Join(t.TempDir(), "app")
-	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\n"+
+	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/a-h/templ v0.3.1020 // indirect\n\tgithub.com/vuka-lang/vuka v0.0.0\n)\n\n"+
 		"replace github.com/vuka-lang/vuka => "+repo+"\n\nreplace example.com/lib => ../lib\n")
+	sum, err := os.ReadFile(filepath.Join(repo, "go.sum"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(root, "go.sum"), string(sum))
 	write(t, filepath.Join(root, "main.vuka"), `package main
 
 import (

@@ -145,7 +145,7 @@ func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspC
 	}
 	repo, _ := filepath.Abs("../..")
 	dir := t.TempDir()
-	mod := "module lsptest\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
+	mod := "module lsptest\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/a-h/templ v0.3.1020 // indirect\n\tgithub.com/vuka-lang/vuka v0.0.0\n)\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644)
 	// The runtime's own requirements (templ), as checksums go can trust offline.
 	sum, _ := os.ReadFile(filepath.Join(repo, "go.sum"))
