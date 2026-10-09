@@ -50,15 +50,15 @@ func splitImportEdits(f *vfile, edits []any) (rest, src []any) {
 	before := importSet([]byte(f.gen))
 	var added []importSpec
 	for _, s := range importList([]byte(gen)) {
-		if !before[s] && !importSet(f.from)[s] {
+		if !before[s] && !importSet(f.text())[s] {
 			added = append(added, s)
 		}
 	}
 	if len(added) == 0 {
 		return rest, nil
 	}
-	at, text := addImports(f.from, added)
-	pos := positionOf(f.from, at)
+	at, text := addImports(f.text(), added)
+	pos := positionOf(f.text(), at)
 	return rest, []any{map[string]any{"range": lspRange{pos, pos}, "newText": text}}
 }
 

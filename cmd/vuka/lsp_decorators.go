@@ -84,7 +84,7 @@ func findDecorators(root, modPath string, read func(string) ([]byte, error)) []p
 // packages, qualified by package and importing it when f doesn't.
 func decoratorItems(f *vfile, decos []projectDecorator, typed lspRange, qualifier string) []any {
 	imported := map[string]string{} // import path → name used in f
-	for _, s := range importList(f.from) {
+	for _, s := range importList(f.text()) {
 		name := s.name
 		if name == "" {
 			name = s.path[strings.LastIndex(s.path, "/")+1:]
@@ -126,8 +126,8 @@ func decoratorItems(f *vfile, decos []projectDecorator, typed lspRange, qualifie
 			"insertTextFormat": format,
 		}
 		if !ok {
-			at, text := addImports(f.from, []importSpec{{path: d.importPath}})
-			pos := positionOf(f.from, at)
+			at, text := addImports(f.text(), []importSpec{{path: d.importPath}})
+			pos := positionOf(f.text(), at)
 			item["additionalTextEdits"] = []any{map[string]any{"range": lspRange{pos, pos}, "newText": text}}
 		}
 		items = append(items, item)
