@@ -175,7 +175,7 @@ decorated function, so state it keeps (a cache, a counter) isn't shared.
 | `c.Err()`, `c.SetErr(err)` | the trailing error result |
 | `c.Context()` | the `context.Context` argument |
 | `vuka.Arg[T](c, i)` | argument `i` as a `T` |
-| `c.Attr(&x)`, `vuka.Attr[T](c)` | a typed attribute on the same declaration |
+| `c.Attr(&x)`, `vuka.AttrOf[T](c)` | a typed attribute on the same declaration |
 
 ```go
 @Perm("orders.write")

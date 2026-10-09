@@ -111,8 +111,8 @@ func (c *Call) Attr(ptr any) bool { return fillAttr(c.fn.Attrs, ptr) }
 // Arg is argument i as a T.
 func Arg[T any](c *Call, i int) T { return As[T](c.Args[i]) }
 
-// Attr is the declaration's typed attribute of type T.
-func Attr[T any](c *Call) (T, bool) {
+// AttrOf is the declaration's typed attribute of type T.
+func AttrOf[T any](c *Call) (T, bool) {
 	var v T
 	ok := c.Attr(&v)
 	return v, ok
