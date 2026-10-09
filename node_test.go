@@ -82,7 +82,7 @@ func TestRender(t *testing.T) {
 		{"void", el("br"), "<br>"},
 		{"doctype", vuka.El("html", nil, vuka.El("body", nil)), "<!DOCTYPE html><html><body></body></html>"},
 		{"script text", vuka.El("script", nil, vuka.Text("</script><b>")), `<script>"\u003c/script\u003e\u003cb\u003e"</script>`},
-		{"script value", vuka.El("script", nil, vuka.Safe("const u = "), vuka.Child(map[string]int{"id": 1})), `<script>const u = {"id":1}</script>`},
+		{"script value", vuka.El("script", nil, vuka.Safe("const u = "), vuka.Child("a\"b")), `<script>const u = "a\"b"</script>`},
 		{"style text", vuka.El("style", nil, vuka.Text("a > b {} </style><b>")), `<style>a > b {} <\/style><b></style>`},
 		{"text after script", vuka.Fragment(vuka.El("script", nil), vuka.Text("<")), `<script></script>&lt;`},
 		{"safe", vuka.Safe("<b>raw</b>"), "<b>raw</b>"},
