@@ -63,6 +63,7 @@ func (e *engine) run() {
 		}
 		e.check()
 		for _, f := range e.vuka {
+			e.classify(f)
 			e.resolveCalls(f)
 			e.infer(f)
 			for _, t := range f.tries {

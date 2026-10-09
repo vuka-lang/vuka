@@ -78,13 +78,15 @@ type fileState struct {
 	tries   []*try
 	matches []*matchStmt
 
-	fixed   edits     // decided rewrites, in src offsets
-	cur     edits     // this round's: fixed plus placeholders
-	body    int       // length of text before the trailer
-	trailer string    // generated after the source: typed attribute checks, decorator wrappers
-	tsegs   []segment // where each piece of the trailer comes from
-	deco    genWriter // the decorator wrappers, made in the first round
-	text    []byte
+	fixed    edits     // decided rewrites, in src offsets
+	cur      edits     // this round's: fixed plus placeholders
+	body     int       // length of text before the trailer
+	trailer  string    // generated after the source: typed attribute checks, decorator wrappers
+	tsegs    []segment // where each piece of the trailer comes from
+	deco     genWriter // the decorator wrappers
+	decoBase int       // where they start in the trailer
+	decos    []any     // *funcDeco and *typeDeco, in source order
+	text     []byte
 
 	ast     *ast.File
 	tf      *token.File
@@ -167,6 +169,7 @@ func (f *fileState) makeTrailer(bare bool) {
 	if f.deco.len() > 0 && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
+	f.decoBase = w.len()
 	w.append(&f.deco)
 	f.trailer, f.tsegs = w.String(), w.segs
 }

@@ -1,0 +1,16 @@
+-> main.add [2 3]
+<- main.add [5]
+5
+attempt 1 failed: try 1
+attempt 2 failed: try 2
+ok <nil>
+computing 4
+32 32
+forbidden: needs orders.write
+<nil>
+-> Greeter.Greet [ADA]
+<- Greeter.Greet [hi ADA]
+hi ADA
+map[main.User:struct at /users]
+summed 3 numbers
+6

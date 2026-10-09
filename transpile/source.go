@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"go/token"
 	"sort"
+	"strconv"
 	"strings"
 )
 
@@ -132,18 +133,7 @@ func lineDirective(p token.Position) string {
 	return "/*line " + p.Filename + ":" + itoa(p.Line) + ":" + itoa(p.Column) + "*/"
 }
 
-func itoa(n int) string {
-	var b [20]byte
-	i := len(b)
-	for {
-		i--
-		b[i] = byte('0' + n%10)
-		n /= 10
-		if n == 0 {
-			return string(b[i:])
-		}
-	}
-}
+func itoa(n int) string { return strconv.Itoa(n) }
 
 func commentLines(lines []string) string {
 	out := make([]string, len(lines))

@@ -7,7 +7,7 @@ Option, `?`, `match`, overloading and attributes.
   outline, code actions and inlay hints, through gopls
 - Diagnostics from Vuka (non-exhaustive matches, ambiguous overloads, misplaced
   `?`) and from Go's type checker, on the `.vuka` lines
-- Syntax highlighting for Vuka's additions on top of Go's grammar
+- Syntax highlighting for Vuka's additions (`@attributes`, `decorator`, `match`, `?`, Result/Option) on top of Go's grammar
 
 ## Requirements
 

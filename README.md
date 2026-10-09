@@ -128,30 +128,62 @@ types come from other overloaded calls resolve too.
 | `@export("Name")` | generates `Name`, a wrapper with the declaration's signature: how Go code reaches one overload |
 | `@T` / `@pkg.T{…}` | any Go type, bare or as a composite literal; the generated code type-checks it |
 
-**Decorators** are functions that wrap a declaration, applied bottom-up:
+**Decorators** wrap a declaration, Python-style. The simplest kind works on
+any function, whatever its signature:
 
 ```go
-@logged("charge")
+decorator logged(c) {
+	fmt.Println("calling", c.Name, c.Args)
+	c.Next()                                   // run the function (or the next decorator)
+	fmt.Println("returned", c.Results)
+}
+
+decorator retry(times int)(c) {             // with parameters
+	for i := 0; i < times; i++ {
+		if c.Next(); c.Err() == nil {
+			return
+		}
+	}
+}
+
 @retry(3)
+@logged
 func charge(ctx context.Context, id int) (Receipt, error) { … }
 
-@memo
-func fib(n int) int { … fib(n-1) + fib(n-2) … }   // recursion goes through the decorators
-
-@counted
-func (s *Stack[T]) Push(v T) { … }                 // methods: receiver first
-
-@orm.Table("users")
-type User struct{ … }                              // types: orm.Table[User]("users") at init
+@logged
+func (s *Store) Save(u User) error { … }   // methods too
 ```
 
-A function keeps its name for a wrapper that builds the decorated function once,
-on first call (once per instantiation for generic code), so caches and limits
-keep their state; the body moves to `__charge`. A decorator whose type doesn't
-fit is a compile error on its `@` line. `init` can be decorated, overloads can
-be, and a decorator on a `type ( … )` group applies to each type. `@x(…)` is
-always a decorator and `@T{…}` always a typed attribute; a bare `@x` is
-whichever its name is, a function or a type.
+`decorator name(c) { … }` is shorthand for `func name(c *vuka.Call)`, a
+`vuka.Decorator`; plain Go functions of that type work the same, in `.vuka` or
+`.go` files. A decorator with parameters (`retry(3)`) is built once per
+decorated function, so state it keeps (a cache, a counter) isn't shared.
+
+| `*vuka.Call` | |
+|---|---|
+| `c.Name`, `c.Receiver` | `"main.charge"`; the receiver of a method |
+| `c.Args`, `c.Results` | arguments (change them before `Next`) and results |
+| `c.Next()` | run the rest; call it again to retry, or not at all |
+| `c.Return(v…)` | answer without running the function (caches, mocks) |
+| `c.Err()`, `c.SetErr(err)` | the trailing error result |
+| `c.Context()` | the `context.Context` argument |
+| `vuka.Arg[T](c, i)` | argument `i` as a `T` |
+| `c.Attr(&x)`, `vuka.Attr[T](c)` | a typed attribute on the same declaration |
+
+```go
+@Perm("orders.write")
+@guard                                      // reads it: var p Perm; c.Attr(&p)
+func save(ctx context.Context, o Order) error { … }
+```
+
+A type decorator receives the type: `func Model(t *vuka.Type)` gets `t.Name`,
+`t.Reflect` and `t.Attr`, at init. Packing a call into a `*vuka.Call` costs a
+small allocation; for hot paths, a **typed** decorator `func(F) F` (or for a
+type, a generic `func[T]`) has none and checks every type. Vuka picks the form
+from the decorator's type, so both mix freely, and a decorator that fits
+neither is a compile error on its `@` line. Functions keep their name for a
+wrapper that builds the decorated function once; recursion goes through it;
+`init`, overloads, generic functions and `type ( … )` groups can be decorated.
 
 **CLI**
 

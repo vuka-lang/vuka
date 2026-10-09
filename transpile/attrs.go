@@ -172,7 +172,7 @@ func (a *Attr) replacement(src []byte) string {
 // attribute, split around the point where its source text begins.
 func (a *Attr) check(src []byte) (prefix, expr string) {
 	expr = string(src[a.nameStart:a.end])
-	if strings.HasSuffix(expr, "}") {
+	if strings.HasSuffix(expr, "}") || strings.HasSuffix(expr, ")") {
 		return "var _ = ", expr
 	}
 	return "var _ ", expr

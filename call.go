@@ -1,0 +1,166 @@
+package vuka
+
+import (
+	"context"
+	"fmt"
+	"reflect"
+)
+
+// Decorator wraps a call of any function: it runs code around c.Next(), may
+// change c.Args before it, read or replace c.Results after it, call it again
+// (retries) or not at all (caches). Written once, it decorates any function or
+// method:
+//
+//	func logged(c *vuka.Call) {
+//		fmt.Println("calling", c.Name, c.Args)
+//		c.Next()
+//	}
+//
+// A decorator with parameters is a function returning one; it runs once per
+// decorated function, so state it keeps isn't shared between functions.
+type Decorator func(c *Call)
+
+// Func describes a decorated function. Vuka generates one per function.
+type Func struct {
+	Name     string // "main.charge", "Store.Save"
+	Attrs    []any  // the declaration's typed attributes
+	ErrIndex int    // the trailing error result's index, or -1
+	CtxIndex int    // the context.Context argument's index, or -1
+	Zero     func() []any
+}
+
+// Call is one call of a decorated function, passed down its decorators.
+type Call struct {
+	Name     string
+	Receiver any   // the receiver, for a method
+	Args     []any // the arguments; a variadic parameter is one slice
+	Results  []any // the results, once Next has run (or Return was called)
+
+	fn     *Func
+	chain  []Decorator
+	pos    int
+	invoke func(c *Call) []any
+}
+
+// NewCall starts a call through chain, ending in invoke. Generated code calls it.
+func NewCall(fn *Func, chain []Decorator, recv any, args []any, invoke func(c *Call) []any) *Call {
+	return &Call{Name: fn.Name, Receiver: recv, Args: args, fn: fn, chain: chain, invoke: invoke}
+}
+
+// Run runs the chain and checks what it left in Results. Generated code calls it.
+func (c *Call) Run() {
+	c.Next()
+	if want := len(c.fn.Zero()); len(c.Results) != want {
+		panic(fmt.Sprintf("vuka: a decorator of %s left %d results; it returns %d", c.Name, len(c.Results), want))
+	}
+}
+
+// Next runs the rest of the chain: the next decorator, or the function itself.
+// It can be called more than once.
+func (c *Call) Next() {
+	i := c.pos
+	if i == len(c.chain) {
+		c.Results = c.invoke(c)
+		return
+	}
+	c.pos = i + 1
+	c.chain[i](c)
+	c.pos = i
+}
+
+// Return sets the results without running the function; the rest of the chain
+// is skipped unless Next is called.
+func (c *Call) Return(results ...any) { c.Results = results }
+
+// Err is the function's error result, or nil.
+func (c *Call) Err() error {
+	if i := c.fn.ErrIndex; i >= 0 && i < len(c.Results) {
+		err, _ := c.Results[i].(error)
+		return err
+	}
+	return nil
+}
+
+// SetErr replaces the error result. Before Next, it makes the call fail with
+// zero values and err.
+func (c *Call) SetErr(err error) {
+	i := c.fn.ErrIndex
+	if i < 0 {
+		panic(fmt.Sprintf("vuka: %s returns no error", c.Name))
+	}
+	if len(c.Results) == 0 {
+		c.Results = c.fn.Zero()
+	}
+	c.Results[i] = err
+}
+
+// Context is the call's context.Context argument, or context.Background().
+func (c *Call) Context() context.Context {
+	if i := c.fn.CtxIndex; i >= 0 {
+		if ctx, ok := c.Args[i].(context.Context); ok {
+			return ctx
+		}
+	}
+	return context.Background()
+}
+
+// Attr fills ptr with the declaration's typed attribute of ptr's element type,
+// reporting whether there is one: var r Route; c.Attr(&r).
+func (c *Call) Attr(ptr any) bool { return fillAttr(c.fn.Attrs, ptr) }
+
+// Arg is argument i as a T.
+func Arg[T any](c *Call, i int) T { return As[T](c.Args[i]) }
+
+// Attr is the declaration's typed attribute of type T.
+func Attr[T any](c *Call) (T, bool) {
+	var v T
+	ok := c.Attr(&v)
+	return v, ok
+}
+
+// As converts a value held in an any back to T; nil is T's zero value. It
+// panics, naming both types, when a decorator put something else there.
+func As[T any](v any) T {
+	if v == nil {
+		var zero T
+		return zero
+	}
+	t, ok := v.(T)
+	if !ok {
+		var zero T
+		panic(fmt.Sprintf("vuka: a decorator replaced a %T with a %T", zero, v))
+	}
+	return t
+}
+
+func fillAttr(attrs []any, ptr any) bool {
+	dst := reflect.ValueOf(ptr)
+	if dst.Kind() != reflect.Pointer || dst.IsNil() {
+		panic("vuka: Attr needs a non-nil pointer")
+	}
+	want := dst.Elem().Type()
+	for _, a := range attrs {
+		if v := reflect.ValueOf(a); v.IsValid() && v.Type() == want {
+			dst.Elem().Set(v)
+			return true
+		}
+	}
+	return false
+}
+
+// Type describes a decorated type, for a type decorator:
+//
+//	func Model(t *vuka.Type) { registry[t.Name] = t.Reflect }
+type Type struct {
+	Name    string // "main.User"
+	Reflect reflect.Type
+	Attrs   []any // the declaration's typed attributes
+}
+
+// Attr fills ptr with the type's typed attribute of ptr's element type.
+func (t *Type) Attr(ptr any) bool { return fillAttr(t.Attrs, ptr) }
+
+// TypeOf describes T for its decorators. Generated code calls it.
+func TypeOf[T any](name string, attrs ...any) *Type {
+	return &Type{Name: name, Reflect: reflect.TypeOf((*T)(nil)).Elem(), Attrs: attrs}
+}

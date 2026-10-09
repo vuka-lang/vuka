@@ -34,8 +34,14 @@ func TestGolden(t *testing.T) {
 			res, err := transpile.Package([]transpile.File{{Name: name + ".vuka", Src: src}},
 				transpile.Options{Importer: load.NewImporter(dir, "")})
 			if err != nil {
+				if !strings.HasPrefix(name, "err_") {
+					t.Fatalf("only err_ cases may fail:\n%v", err)
+				}
 				compare(t, filepath.Join(dir, name+".err"), []byte(err.Error()+"\n"))
 				return
+			}
+			if strings.HasPrefix(name, "err_") {
+				t.Fatal("an err_ case transpiled without errors")
 			}
 			out := res.Files[0].Src
 			compare(t, filepath.Join(dir, name+".golden"), out)

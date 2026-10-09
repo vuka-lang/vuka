@@ -1,0 +1,130 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"strings"
+)
+
+type Route struct{ Path string }
+type Perm string
+
+// A decorator written the Python way: works on any function.
+decorator logged(c) {
+	fmt.Println("->", c.Name, c.Args)
+	c.Next()
+	fmt.Println("<-", c.Name, c.Results)
+}
+
+// One with parameters; its body runs per call.
+decorator retry(times int)(c) {
+	for i := 1; i <= times; i++ {
+		if c.Next(); c.Err() == nil {
+			return
+		}
+		fmt.Println("attempt", i, "failed:", c.Err())
+	}
+}
+
+// Plain Go works too, with state built once per decorated function.
+func memo() vuka.Decorator {
+	cache := map[string][]any{}
+	return func(c *vuka.Call) {
+		key := fmt.Sprint(c.Args...)
+		if r, ok := cache[key]; ok {
+			c.Return(r...)
+			return
+		}
+		c.Next()
+		cache[key] = c.Results
+	}
+}
+
+// Reads the declaration's typed attributes and the call's context.
+decorator guard(c) {
+	var p Perm
+	c.Attr(&p)
+	if c.Context().Value("perm") != string(p) {
+		c.SetErr(errors.New("forbidden: needs " + string(p)))
+		return
+	}
+	c.Next()
+}
+
+// Changes an argument before the call.
+decorator upper(c) {
+	c.Args[0] = strings.ToUpper(vuka.Arg[string](c, 0))
+	c.Next()
+}
+
+func double(f func(int) int) func(int) int { return func(n int) int { return 2 * f(n) } }
+
+@logged
+func add(a, b int) int { return a + b }
+
+var calls = 0
+
+@retry(3)
+func flaky() (string, error) {
+	calls++
+	if calls < 3 {
+		return "", fmt.Errorf("try %d", calls)
+	}
+	return "ok", nil
+}
+
+@memo()
+@double
+func slow(n int) int {
+	fmt.Println("computing", n)
+	return n * n
+}
+
+@Perm("orders.write")
+@Route{Path: "/orders"}
+@guard
+func save(ctx context.Context, id int) error { return nil }
+
+type Greeter struct{ greeting string }
+
+@upper
+@logged
+func (g *Greeter) Greet(name string) string { return g.greeting + " " + name }
+
+decorator count(c) {
+	c.Next()
+	fmt.Println("summed", len(vuka.Arg[[]int](c, 0)), "numbers")
+}
+
+@count
+func sum(nums ...int) int {
+	total := 0
+	for _, n := range nums {
+		total += n
+	}
+	return total
+}
+
+var registry = map[string]string{}
+
+func model(t *vuka.Type) {
+	var r Route
+	t.Attr(&r)
+	registry[t.Name] = t.Reflect.Kind().String() + " at " + r.Path
+}
+
+@Route{Path: "/users"}
+@model
+type User struct{ ID int }
+
+func main() {
+	fmt.Println(add(2, 3))
+	fmt.Println(flaky())
+	fmt.Println(slow(4), slow(4))
+	fmt.Println(save(context.Background(), 1))
+	fmt.Println(save(context.WithValue(context.Background(), "perm", "orders.write"), 1))
+	fmt.Println((&Greeter{greeting: "hi"}).Greet("ada"))
+	fmt.Println(registry)
+	fmt.Println(sum(1, 2, 3))
+}

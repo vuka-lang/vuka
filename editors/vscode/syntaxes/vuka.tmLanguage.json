@@ -2,44 +2,87 @@
   "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
   "name": "Vuka",
   "scopeName": "source.vuka",
-  "fileTypes": ["vuka"],
+  "fileTypes": [
+    "vuka"
+  ],
   "patterns": [
-    { "include": "#comments" },
-    { "include": "#strings" },
-    { "include": "#attribute" },
-    { "include": "#match" },
-    { "include": "#try" },
-    { "include": "#runtime" },
-    { "include": "source.go" }
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#strings"
+    },
+    {
+      "include": "#decorator"
+    },
+    {
+      "include": "#attribute"
+    },
+    {
+      "include": "#match"
+    },
+    {
+      "include": "#try"
+    },
+    {
+      "include": "#runtime"
+    },
+    {
+      "include": "source.go"
+    }
   ],
   "repository": {
     "comments": {
       "patterns": [
-        { "name": "comment.block.vuka", "begin": "/\\*", "end": "\\*/" },
-        { "name": "comment.line.double-slash.vuka", "match": "//.*$" }
+        {
+          "name": "comment.block.vuka",
+          "begin": "/\\*",
+          "end": "\\*/"
+        },
+        {
+          "name": "comment.line.double-slash.vuka",
+          "match": "//.*$"
+        }
       ]
     },
     "strings": {
       "patterns": [
-        { "name": "string.quoted.raw.vuka", "begin": "`", "end": "`" },
+        {
+          "name": "string.quoted.raw.vuka",
+          "begin": "`",
+          "end": "`"
+        },
         {
           "name": "string.quoted.double.vuka",
           "begin": "\"",
           "end": "\"",
-          "patterns": [{ "name": "constant.character.escape.vuka", "match": "\\\\." }]
+          "patterns": [
+            {
+              "name": "constant.character.escape.vuka",
+              "match": "\\\\."
+            }
+          ]
         }
       ]
     },
     "attribute": {
       "match": "(@)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?)",
       "captures": {
-        "1": { "name": "punctuation.definition.decorator.vuka" },
-        "2": { "name": "entity.name.function.decorator.vuka" }
+        "1": {
+          "name": "punctuation.definition.decorator.vuka"
+        },
+        "2": {
+          "name": "entity.name.function.decorator.vuka"
+        }
       }
     },
     "match": {
-      "match": "^\\s*(match)\\b(?=\\s+[^=:.,;]+\\{)",
-      "captures": { "1": { "name": "keyword.control.match.vuka" } }
+      "match": "(?<![\\w.])(match)(?=\\s+[^\\s=:.,;)\\]}][^;]*\\{\\s*(?://.*)?$)",
+      "captures": {
+        "1": {
+          "name": "keyword.control.match.vuka"
+        }
+      }
     },
     "try": {
       "match": "(?<=[\\w)\\]])\\?",
@@ -47,10 +90,30 @@
     },
     "runtime": {
       "patterns": [
-        { "name": "support.type.vuka", "match": "\\b(Result|Option)\\b(?=\\s*\\[)" },
-        { "name": "support.function.vuka", "match": "\\b(Ok|Err|Some)\\b(?=\\s*[(\\[])" },
-        { "name": "support.constant.vuka", "match": "\\bNone\\b" }
+        {
+          "name": "support.type.vuka",
+          "match": "\\b(Result|Option)\\b(?=\\s*\\[)"
+        },
+        {
+          "name": "support.function.vuka",
+          "match": "\\b(Ok|Err|Some)\\b(?=\\s*[(\\[])"
+        },
+        {
+          "name": "support.constant.vuka",
+          "match": "\\bNone\\b"
+        }
       ]
+    },
+    "decorator": {
+      "match": "^\\s*(decorator)\\s+([A-Za-z_][A-Za-z0-9_]*)",
+      "captures": {
+        "1": {
+          "name": "keyword.other.decorator.vuka storage.type.function.vuka"
+        },
+        "2": {
+          "name": "entity.name.function.decorator.vuka"
+        }
+      }
     }
   }
 }

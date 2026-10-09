@@ -3,6 +3,7 @@ package transpile
 import (
 	"go/scanner"
 	"go/token"
+	"strconv"
 	"strings"
 )
 
@@ -99,6 +100,14 @@ func (f *fileState) scan(errs *ErrorList) {
 			}
 			f.tries = append(f.tries, &try{off: t.off, n: len(f.tries) + 1})
 			continue
+		case t.tok == token.IDENT && t.lit == "decorator" && depth == 0 && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
+			if next, msg := f.decoratorAt(toks, i); msg != "" {
+				errs.add(f.at(t.off), "%s", msg)
+			} else {
+				i = next - 1
+				prev = toks[i]
+			}
+			continue
 		case t.tok == token.IDENT && t.lit == "match" && depth > 0 && (p.tok == token.SEMICOLON || p.tok == token.LBRACE || p.tok == token.COLON):
 			if m, msg := f.matchAt(toks, i); m != nil {
 				m.n = len(f.matches) + 1
@@ -149,6 +158,81 @@ func (f *fileState) scan(errs *ErrorList) {
 		i = k - 1
 		prev = toks[i]
 	}
+}
+
+// decoratorAt lowers the decorator declaration whose keyword is toks[i]:
+//
+//	decorator logged(c) { … }          →  func logged(c *vuka.Call) { … }
+//	decorator retry(n int)(c) { … }    →  func retry(n int) vuka.Decorator { return func(c *vuka.Call) { … } }
+//
+// It returns the index of the token after the body.
+func (f *fileState) decoratorAt(toks []tok, i int) (int, string) {
+	j := i + 2
+	if j >= len(toks) || toks[j].tok != token.LPAREN {
+		return i + 1, "expected decorator name(c) { … }"
+	}
+	first, firstEnd, ok := matchClose(toks, j)
+	if !ok {
+		return i + 1, "unclosed parameter list"
+	}
+	var callParam []tok // the (c) group
+	var callOpen, callClose int
+	switch {
+	case first < len(toks) && toks[first].tok == token.LPAREN:
+		second, secondEnd, ok := matchClose(toks, first)
+		if !ok {
+			return i + 1, "unclosed parameter list"
+		}
+		callParam, callOpen, callClose = toks[first+1:second-1], toks[first].off, secondEnd
+		first = second
+	default:
+		callParam, callOpen, callClose = toks[j+1:first-1], toks[j].off, firstEnd
+	}
+	if len(callParam) != 1 || callParam[0].tok != token.IDENT {
+		return i + 1, "a decorator takes the call as one name: decorator logged(c) { … }"
+	}
+	if first >= len(toks) || toks[first].tok != token.LBRACE {
+		return i + 1, "expected the decorator's body"
+	}
+	bodyEnd, _, ok := matchClose(toks, first)
+	if !ok {
+		return i + 1, "unclosed decorator body"
+	}
+	rt := f.scannedRuntime(toks)
+	c := callParam[0].lit
+	f.add(toks[i].off, toks[i].off+len("decorator"), "func")
+	if callOpen == toks[j].off {
+		f.add(callOpen, callClose, "("+c+" *"+rt+".Call)")
+	} else {
+		f.add(callOpen, toks[first].off+1, " "+rt+".Decorator { return func("+c+" *"+rt+".Call) {")
+		rb := toks[bodyEnd-1].off
+		f.add(rb, rb+1, "}}")
+	}
+	return bodyEnd, ""
+}
+
+// scannedRuntime is the runtime's name in f, read from the tokens before the
+// file can be parsed; the import is added when f lacks it.
+func (f *fileState) scannedRuntime(toks []tok) string {
+	if f.rt != "" {
+		return f.rt
+	}
+	pkgEnd := -1
+	for k, t := range toks {
+		switch {
+		case t.tok == token.PACKAGE && k+1 < len(toks):
+			pkgEnd = toks[k+1].end()
+		case t.tok == token.STRING && t.lit == strconv.Quote(RuntimePath):
+			f.rt = "vuka"
+			if k > 0 && toks[k-1].tok == token.IDENT {
+				f.rt = toks[k-1].lit
+			}
+			return f.rt
+		}
+	}
+	f.rt = "vuka"
+	f.insert(pkgEnd, `; import vuka "`+RuntimePath+`"`, 0)
+	return f.rt
 }
 
 func startsLine(src []byte, off, lastAttrEnd int) bool {
