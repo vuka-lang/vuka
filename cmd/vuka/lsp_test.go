@@ -126,7 +126,7 @@ func (c *lspClient) waitDiags(uri string, ok func([]any) bool) []any {
 	}
 }
 
-func startLSP(t *testing.T) (*lspClient, string) {
+func startLSP(t *testing.T) (*lspClient, string, any) {
 	gopls, err := findGopls("")
 	if err != nil {
 		t.Skip(err)
@@ -154,13 +154,13 @@ func startLSP(t *testing.T) (*lspClient, string) {
 	})
 	c := &lspClient{t: t, conn: newRPCConn(fromProxyR, toProxyW), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100)}
 	go c.loop()
-	c.call("initialize", map[string]any{"rootUri": pathToURI(dir), "capabilities": map[string]any{}})
+	init := c.call("initialize", map[string]any{"rootUri": pathToURI(dir), "capabilities": map[string]any{}})
 	c.notify("initialized", map[string]any{})
-	return c, dir
+	return c, dir, init
 }
 
 func TestLSP(t *testing.T) {
-	c, dir := startLSP(t)
+	c, dir, init := startLSP(t)
 	path := filepath.Join(dir, "main.vuka")
 	uri := pathToURI(path)
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
@@ -172,6 +172,24 @@ func TestLSP(t *testing.T) {
 		pos := positionOf([]byte(lspSource), off)
 		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}
 	}
+
+	t.Run("gopls commands are namespaced", func(t *testing.T) {
+		caps := init.(map[string]any)["capabilities"].(map[string]any)
+		cmds := caps["executeCommandProvider"].(map[string]any)["commands"].([]any)
+		if len(cmds) == 0 {
+			t.Fatal("no commands advertised")
+		}
+		for _, c := range cmds {
+			if !strings.HasPrefix(c.(string), "vuka.gopls.") {
+				t.Fatalf("command %v isn't namespaced; VS Code's Go extension registers gopls.* already", c)
+			}
+		}
+		v := c.call("workspace/executeCommand", map[string]any{"command": "vuka.gopls.list_known_packages",
+			"arguments": []any{map[string]any{"URI": pathToURI(filepath.Join(dir, "main_vuka.go"))}}})
+		if b, _ := json.Marshal(v); !strings.Contains(string(b), "Packages") {
+			t.Fatalf("executeCommand: %s", b)
+		}
+	})
 
 	t.Run("hover on an overloaded call", func(t *testing.T) {
 		v := c.call("textDocument/hover", at("area(Rect", 1))

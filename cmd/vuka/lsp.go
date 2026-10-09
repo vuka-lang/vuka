@@ -168,6 +168,7 @@ type proxy struct {
 	genMu sync.Mutex
 
 	mu        sync.Mutex
+	initID    string // the editor's initialize request
 	root      string
 	nextID    int
 	goReqs    map[string]bool         // editor requests on Go files
@@ -249,6 +250,23 @@ func (p *proxy) fromEditor() {
 		switch m.Method {
 		case "initialize":
 			p.initialize(m.Params)
+			p.mu.Lock()
+			p.initID = string(m.ID)
+			p.mu.Unlock()
+		case "workspace/executeCommand":
+			// Commands reach the editor under vuka.; gopls knows them without.
+			var params map[string]any
+			if json.Unmarshal(m.Params, &params) == nil {
+				if cmd, ok := params["command"].(string); ok {
+					params["command"] = strings.TrimPrefix(cmd, commandPrefix)
+					m.Params, _ = json.Marshal(params)
+				}
+			}
+			p.mu.Lock()
+			p.goReqs[string(m.ID)] = true
+			p.mu.Unlock()
+			_ = p.gopls.send(&m)
+			continue
 		case "initialized":
 			_ = p.gopls.write(body)
 			p.mu.Lock()
@@ -314,6 +332,10 @@ func (p *proxy) fromGopls() {
 			p.logf("bad message from gopls: %v", err)
 			continue
 		}
+		if bytes.Contains(body, []byte(`"gopls.`)) {
+			m = p.renameCommands(m)
+			body, _ = json.Marshal(&m)
+		}
 		switch {
 		case m.isResponse():
 			id := string(m.ID)
@@ -346,6 +368,62 @@ func (p *proxy) fromGopls() {
 			_ = p.editor.write(body)
 		}
 	}
+}
+
+// commandPrefix namespaces gopls's commands. The editor's Go extension has
+// registered gopls.* already; a second registration of the same names makes
+// VS Code refuse this server.
+const commandPrefix = "vuka."
+
+// renameCommands puts gopls's commands under commandPrefix in a message for
+// the editor: the commands advertised at initialize or registered later, and
+// every command a code action, code lens or similar refers to.
+func (p *proxy) renameCommands(m rpcMsg) rpcMsg {
+	p.mu.Lock()
+	isInit := m.isResponse() && string(m.ID) == p.initID
+	p.mu.Unlock()
+	field := &m.Params
+	if m.isResponse() {
+		field = &m.Result
+	}
+	var v any
+	if json.Unmarshal(*field, &v) != nil {
+		return m
+	}
+	var walk func(v any, inCommands bool) any
+	walk = func(v any, inCommands bool) any {
+		switch x := v.(type) {
+		case []any:
+			for i := range x {
+				x[i] = walk(x[i], inCommands)
+			}
+		case map[string]any:
+			for k, val := range x {
+				switch {
+				case k == "arguments":
+				case k == "commands" && (isInit || m.Method == "client/registerCapability"):
+					x[k] = walk(val, true)
+				case k == "command":
+					if s, ok := val.(string); ok && strings.HasPrefix(s, "gopls.") {
+						x[k] = commandPrefix + s
+					} else {
+						x[k] = walk(val, false)
+					}
+				default:
+					x[k] = walk(val, inCommands)
+				}
+			}
+		case string:
+			if inCommands && strings.HasPrefix(x, "gopls.") {
+				return commandPrefix + x
+			}
+		}
+		return v
+	}
+	if b, err := json.Marshal(walk(v, false)); err == nil {
+		*field = b
+	}
+	return m
 }
 
 func (p *proxy) initialize(params json.RawMessage) {
@@ -755,7 +833,7 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 		}
 		for key, val := range x {
 			switch {
-			case key == "changes" || key == "textDocument":
+			case key == "changes" || key == "textDocument" || key == "arguments":
 			case key == "originSelectionRange":
 				if origin != nil {
 					if r, ok := mapRange(origin, val); ok {
