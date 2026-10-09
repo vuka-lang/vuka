@@ -16,6 +16,8 @@ import (
 	"strconv"
 	"strings"
 
+	templparser "github.com/a-h/templ/parser/v2"
+
 	"github.com/vuka-lang/vuka/transpile"
 )
 
@@ -25,7 +27,8 @@ type Package struct {
 	Dir        string
 	ImportPath string
 	Name       string
-	Files      []transpile.File // .vuka and .go files matching the build context
+	Files      []transpile.File // .vuka and .go files matching the build context, and the Go of each Templ
+	Templ      []*Templ         // .templ files, compiled with templ's generator
 	Imports    []string
 }
 
@@ -101,14 +104,19 @@ func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 		return nil, err
 	}
 	generated := map[string]bool{}
-	hasVuka := false
+	hasSource := false
 	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".vuka") {
-			hasVuka = true
-			generated[transpile.GoName(e.Name())] = true
+		switch name := e.Name(); {
+		case e.IsDir():
+		case strings.HasSuffix(name, ".vuka"):
+			hasSource = true
+			generated[transpile.GoName(name)] = true
+		case isTempl(name):
+			hasSource = true
+			generated[TemplGoName(name)] = true // a `templ generate` output; the fresh one replaces it
 		}
 	}
-	if !hasVuka {
+	if !hasSource {
 		return nil, nil
 	}
 	rel, err := filepath.Rel(root, dir)
@@ -121,14 +129,36 @@ func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 	}
 	byName := map[string]*Package{}
 	var order []string
+	pkg := func(name string) *Package {
+		p := byName[name]
+		if p == nil {
+			p = &Package{Dir: dir, ImportPath: importPath, Name: name}
+			if strings.HasSuffix(name, "_test") {
+				p.ImportPath += "_test"
+			}
+			byName[name] = p
+			order = append(order, name)
+		}
+		return p
+	}
+	var broken []*Templ // .templ files templ can't compile
 	for _, e := range entries {
 		name := e.Name()
-		if e.IsDir() || generated[name] || !(strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".go")) {
+		if e.IsDir() || generated[name] || !(strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".go") || isTempl(name)) {
 			continue
 		}
 		src, err := read(filepath.Join(dir, name))
 		if err != nil {
 			return nil, err
+		}
+		var t *Templ
+		if isTempl(name) {
+			// Judged, parsed and type-checked as the Go file it becomes.
+			if t = compileTempl(filepath.Join(dir, name), name, src); t.Err != nil {
+				broken = append(broken, t)
+				continue
+			}
+			name, src = t.GoName, t.Go
 		}
 		if ok, err := matches(dir, name, src); err != nil || !ok {
 			continue
@@ -143,26 +173,31 @@ func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 				continue
 			}
 		}
-		pkgName := f.Name.Name
-		p := byName[pkgName]
-		if p == nil {
-			p = &Package{Dir: dir, ImportPath: importPath, Name: pkgName}
-			if strings.HasSuffix(pkgName, "_test") {
-				p.ImportPath += "_test"
-			}
-			byName[pkgName] = p
-			order = append(order, pkgName)
-		}
+		p := pkg(f.Name.Name)
 		p.Files = append(p.Files, transpile.File{Name: name, Src: src})
+		if t != nil {
+			p.Templ = append(p.Templ, t)
+		}
 		for _, imp := range f.Imports {
 			if path, err := strconv.Unquote(imp.Path.Value); err == nil {
 				p.Imports = append(p.Imports, path)
 			}
 		}
 	}
+	for _, t := range broken {
+		name := templPackageName(t.Src)
+		if name == "" && len(order) > 0 {
+			name = order[0]
+		}
+		if name == "" {
+			name = filepath.Base(dir)
+		}
+		p := pkg(name)
+		p.Templ = append(p.Templ, t)
+	}
 	var pkgs []*Package
 	for _, n := range order {
-		if p := byName[n]; p.hasVuka() {
+		if p := byName[n]; p.hasVuka() || len(p.Templ) > 0 {
 			pkgs = append(pkgs, p)
 		}
 	}
@@ -179,19 +214,20 @@ func (p *Package) hasVuka() bool {
 }
 
 // matches applies the build context (GOOS/GOARCH file suffixes, //go:build lines)
-// to a file; a .vuka file is judged as the .go file it becomes.
+// to a file; a .vuka file is judged as the .go file it becomes. A .templ
+// file's Go, which isn't on disk, is judged by src.
 func matches(dir, name string, src []byte) (bool, error) {
 	ctx := build.Default
-	if strings.HasSuffix(name, ".vuka") {
-		fake := strings.TrimSuffix(name, ".vuka") + ".go"
-		full := filepath.Join(dir, fake)
+	if strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, "_templ.go") {
+		name = strings.TrimSuffix(name, ".vuka")
+		name = strings.TrimSuffix(name, ".go") + ".go"
+		full := filepath.Join(dir, name)
 		ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 			if path == full {
 				return io.NopCloser(bytes.NewReader(src)), nil
 			}
 			return os.Open(path)
 		}
-		name = fake
 	}
 	return ctx.MatchFile(dir, name)
 }
@@ -237,13 +273,17 @@ func Order(pkgs []*Package) ([]*Package, error) {
 	return out, nil
 }
 
-// Generated is one transpiled file: where it belongs and what it holds.
+// Generated is one transpiled file: where it belongs and what it holds. It is
+// the Go of a .vuka file, or of a .templ file (Map nil, TemplMap set when bare).
 type Generated struct {
-	Target string // the .go path beside the .vuka file
-	Source string // the .vuka file
+	Target string // the .go path beside the source file
+	Source string // the .vuka or .templ file
 	Src    []byte
-	From   []byte // the .vuka text it was generated from
+	From   []byte // the source text it was generated from
 	Map    *transpile.SourceMap
+	// TemplMap is templ's source map for a .templ file's Go, when Src is
+	// templ's raw output (Options.Bare); nil otherwise.
+	TemplMap *templparser.SourceMap
 }
 
 // Options configure Transpile.
@@ -294,6 +334,41 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 	}
 	var errs transpile.ErrorList
 	for i, p := range pkgs {
+		add := func(goName string, src []byte) error {
+			target := filepath.Join(p.Dir, goName)
+			file := filepath.Join(tmp, strconv.Itoa(i)+"_"+goName)
+			if err := os.WriteFile(file, src, 0o644); err != nil {
+				return err
+			}
+			replace[target] = file
+			return nil
+		}
+		templOK := true
+		for _, t := range p.Templ {
+			if t.Err != nil {
+				errs = append(errs, t.Err)
+				templOK = false
+				continue
+			}
+			g := Generated{Target: filepath.Join(p.Dir, t.GoName), Source: filepath.Join(p.Dir, t.Name), From: t.Src}
+			if opts.Bare {
+				g.Src, g.TemplMap = t.Go, t.Map
+			} else {
+				g.Src = t.formatted()
+			}
+			if err := add(t.GoName, g.Src); err != nil {
+				return nil, "", err
+			}
+			out = append(out, g)
+		}
+		if !templOK {
+			// The package's Go is incomplete without it; type-checking its
+			// .vuka files would only report what the .templ error explains.
+			if err := writeOverlay(overlay, replace); err != nil {
+				return nil, "", err
+			}
+			continue
+		}
 		res, err := transpile.Package(p.Files, transpile.Options{
 			Importer: imp,
 			Path:     func(name string) string { return filepath.Join(p.Dir, name) },
@@ -309,11 +384,9 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 		}
 		for _, f := range res.Files {
 			target := filepath.Join(p.Dir, f.GoName)
-			file := filepath.Join(tmp, strconv.Itoa(i)+"_"+f.GoName)
-			if err := os.WriteFile(file, f.Src, 0o644); err != nil {
+			if err := add(f.GoName, f.Src); err != nil {
 				return nil, "", err
 			}
-			replace[target] = file
 			var from []byte
 			for _, in := range p.Files {
 				if in.Name == f.Name {

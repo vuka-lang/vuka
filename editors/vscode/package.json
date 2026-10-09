@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Vuka language support: Go with Result, Option, ?, match, overloading and attributes. Completion, navigation, rename and diagnostics through gopls.",
-  "version": "0.2.1",
+  "version": "0.3.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",

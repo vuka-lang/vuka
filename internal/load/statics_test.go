@@ -14,6 +14,8 @@ func TestStaticsAcrossPackages(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
+	// The module is written by hand; let go fill in what the runtime requires.
+	t.Setenv("GOFLAGS", "-mod=mod")
 	repo, _ := filepath.Abs("../..")
 	root := filepath.Join(t.TempDir(), "shop")
 	write(t, filepath.Join(root, "go.mod"), "module example.com/shop\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => "+repo+"\n")

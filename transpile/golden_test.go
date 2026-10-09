@@ -86,7 +86,7 @@ func run(t *testing.T, src []byte) string {
 	os.WriteFile(filepath.Join(dir, "main.go"), src, 0o644)
 	cmd := exec.Command("go", "run", ".")
 	cmd.Dir = dir
-	cmd.Env = append(os.Environ(), "GOWORK=off")
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("go run: %v\n%s", err, out)

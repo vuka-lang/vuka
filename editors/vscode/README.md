@@ -7,7 +7,12 @@ Option, `?`, `match`, overloading and attributes.
   outline, code actions and inlay hints, through gopls
 - Diagnostics from Vuka (non-exhaustive matches, ambiguous overloads, misplaced
   `?`) and from Go's type checker, on the `.vuka` lines
-- Syntax highlighting for Vuka's additions (`@attributes`, `decorator`, `match`, `?`, Result/Option) on top of Go's grammar
+- Syntax highlighting for Vuka's additions (`@attributes`, `decorator`, `match`, `?`, Result/Option) on top of Go's grammar,
+  inside function bodies too
+- JSX highlighting: tags and components (`<div>`, `<Card />`, `<card.Card>`), fragments, attributes
+  (`data-id={x}`, `hx-get="/x"`), text, and the Go inside `{ … }` (expressions, `{for …}`, `{if …}` blocks)
+- `.templ` files beside `.vuka` files are compiled by vuka itself (no `templ generate`); go to definition
+  from Vuka code lands in the `.templ` file. Use templ's own extension for editing `.templ` files.
 
 ## Requirements
 

@@ -13,6 +13,12 @@
       "include": "#strings"
     },
     {
+      "include": "#jsx"
+    },
+    {
+      "include": "#brackets"
+    },
+    {
       "include": "#staticFunc"
     },
     {
@@ -56,7 +62,17 @@
         {
           "name": "string.quoted.raw.vuka",
           "begin": "`",
-          "end": "`"
+          "end": "`",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.vuka"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.vuka"
+            }
+          }
         },
         {
           "name": "string.quoted.double.vuka",
@@ -67,7 +83,17 @@
               "name": "constant.character.escape.vuka",
               "match": "\\\\."
             }
-          ]
+          ],
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.vuka"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.vuka"
+            }
+          }
         }
       ]
     },
@@ -148,6 +174,237 @@
           "name": "entity.name.function.static.vuka"
         }
       }
+    },
+    "brackets": {
+      "comment": "Go's brackets, kept here so what's inside them is Vuka (Go's own include only Go).",
+      "patterns": [
+        {
+          "begin": "\\{",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.begin.bracket.curly.go"
+            }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.end.bracket.curly.go"
+            }
+          },
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "begin": "\\(",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.begin.bracket.round.go"
+            }
+          },
+          "end": "\\)",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.end.bracket.round.go"
+            }
+          },
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "begin": "\\[",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.begin.bracket.square.go"
+            }
+          },
+          "end": "\\]",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.end.bracket.square.go"
+            }
+          },
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
+        }
+      ]
+    },
+    "jsx": {
+      "comment": "An element where an expression starts: after return, = ( , { : [ or at the start of a line, < then a letter or >. a < b, x<y and <-ch stay Go.",
+      "begin": "(?:(?<=\\breturn)|(?<=[=(,{\\[:])|^)\\s*(?=<(?:[A-Za-z_]|>))",
+      "end": "(?<=>)",
+      "patterns": [
+        {
+          "include": "#jsx-element"
+        }
+      ]
+    },
+    "jsx-element": {
+      "name": "meta.tag.jsx.vuka",
+      "begin": "(<)([A-Za-z_][\\w.:-]*|(?=>))",
+      "beginCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.begin.jsx.vuka"
+        },
+        "2": {
+          "patterns": [
+            {
+              "match": "(?<=<|</)[a-z][\\w:-]*(?![\\w.:-])",
+              "name": "entity.name.tag.vuka"
+            },
+            {
+              "match": "[\\w.:-]+",
+              "name": "support.class.component.vuka"
+            }
+          ]
+        }
+      },
+      "end": "(/>)|(?:(</)([A-Za-z_][\\w.:-]*)?\\s*(>))",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.jsx.vuka"
+        },
+        "2": {
+          "name": "punctuation.definition.tag.begin.jsx.vuka"
+        },
+        "3": {
+          "patterns": [
+            {
+              "match": "(?<=<|</)[a-z][\\w:-]*(?![\\w.:-])",
+              "name": "entity.name.tag.vuka"
+            },
+            {
+              "match": "[\\w.:-]+",
+              "name": "support.class.component.vuka"
+            }
+          ]
+        },
+        "4": {
+          "name": "punctuation.definition.tag.end.jsx.vuka"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#jsx-attributes"
+        },
+        {
+          "include": "#jsx-children"
+        }
+      ]
+    },
+    "jsx-attributes": {
+      "begin": "\\G",
+      "end": "(?=/>)|(>)",
+      "endCaptures": {
+        "1": {
+          "name": "punctuation.definition.tag.end.jsx.vuka"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "match": "[A-Za-z_@:][\\w.:-]*",
+          "name": "entity.other.attribute-name.jsx.vuka"
+        },
+        {
+          "match": "=",
+          "name": "punctuation.separator.key-value.jsx.vuka"
+        },
+        {
+          "name": "string.quoted.double.jsx.vuka",
+          "begin": "\"",
+          "end": "\"",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.jsx.vuka"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.jsx.vuka"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#jsx-entity"
+            }
+          ]
+        },
+        {
+          "name": "string.quoted.single.jsx.vuka",
+          "begin": "'",
+          "end": "'",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.begin.jsx.vuka"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.string.end.jsx.vuka"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#jsx-entity"
+            }
+          ]
+        },
+        {
+          "include": "#jsx-expression"
+        }
+      ]
+    },
+    "jsx-children": {
+      "patterns": [
+        {
+          "include": "#jsx-element"
+        },
+        {
+          "include": "#jsx-expression"
+        },
+        {
+          "include": "#jsx-entity"
+        },
+        {
+          "match": "[^<{&]+",
+          "name": "string.unquoted.jsx.text.vuka"
+        }
+      ]
+    },
+    "jsx-entity": {
+      "match": "&(?:[A-Za-z][A-Za-z0-9]*|#[0-9]+|#x[0-9A-Fa-f]+);",
+      "name": "constant.character.entity.jsx.vuka"
+    },
+    "jsx-expression": {
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.begin.jsx.vuka"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.section.embedded.end.jsx.vuka"
+        }
+      },
+      "contentName": "meta.embedded.expression.vuka",
+      "patterns": [
+        {
+          "include": "$self"
+        }
+      ]
     }
   }
 }

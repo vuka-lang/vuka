@@ -25,6 +25,8 @@ func TestMirror(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
+	// The module is written by hand; let go fill in what the runtime requires.
+	t.Setenv("GOFLAGS", "-mod=mod")
 	repo, _ := filepath.Abs("../..")
 	root := filepath.Join(t.TempDir(), "app")
 	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\n"+
