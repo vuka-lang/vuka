@@ -155,11 +155,13 @@ func (f *vfile) toSource(r lspRange) (lspRange, bool) {
 }
 
 type vukaRequest struct {
-	editorID json.RawMessage
-	method   string
-	file     *vfile
-	attr     bool     // completion after @, on an attribute or decorator
-	typed    lspRange // there: what was typed after @ (and the last dot)
+	editorID  json.RawMessage
+	method    string
+	file      *vfile
+	attr      bool     // completion after @, on an attribute or decorator
+	typed     lspRange // there: what was typed after the last dot
+	full      lspRange // and after the @
+	qualifier string   // the package typed before the dot, if any
 }
 
 type proxy struct {
@@ -181,6 +183,7 @@ type proxy struct {
 	vukaDiags map[string][]any        // .vuka path → transpiler errors
 	goDiags   map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
 	shown     map[string]string       // real path → the path the editor uses for it
+	decos     []projectDecorator      // the module's decorators, as of the last regenerate
 	started   bool
 	dirty     bool
 	timer     *time.Timer
@@ -489,10 +492,26 @@ func (p *proxy) renameCommands(m rpcMsg) rpcMsg {
 		}
 		return v
 	}
-	if b, err := json.Marshal(walk(v, false)); err == nil {
+	out := walk(v, false)
+	if isInit {
+		addTrigger(out, "@")
+	}
+	if b, err := json.Marshal(out); err == nil {
 		*field = b
 	}
 	return m
+}
+
+// addTrigger makes ch a completion trigger character in initialize's result.
+func addTrigger(result any, ch string) {
+	r, _ := result.(map[string]any)
+	caps, _ := r["capabilities"].(map[string]any)
+	cp, _ := caps["completionProvider"].(map[string]any)
+	if cp == nil {
+		return
+	}
+	triggers, _ := cp["triggerCharacters"].([]any)
+	cp["triggerCharacters"] = append(triggers, ch)
 }
 
 func (p *proxy) initialize(params json.RawMessage) {
@@ -633,6 +652,7 @@ func (p *proxy) regenerate() {
 		return
 	}
 	gens, _, terr := load.Transpile(pkgs, p.tmp, load.Options{Bare: true})
+	decos := findDecorators(modRoot, modPath, read)
 	var list transpile.ErrorList
 	if terr != nil && !errors.As(terr, &list) {
 		p.logf("transpile: %v", terr)
@@ -695,6 +715,7 @@ func (p *proxy) regenerate() {
 		}
 	}
 	p.virtual = want
+	p.decos = decos
 	p.bySource = map[string]string{}
 	for path, vf := range want {
 		p.bySource[vf.source] = path
@@ -807,7 +828,14 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		params["position"] = vf.toGen(pos)
 	}
 	if r, ok := toRange(params["range"]); ok {
-		params["range"] = lspRange{vf.toGen(r.Start), vf.toGen(r.End)}
+		start, end := vf.toGen(r.Start), vf.toGen(r.End)
+		// An attribute is in the generated Go twice (a comment in place, a copy
+		// after the code), so a range's ends can map apart; never send gopls
+		// one that ends before it starts.
+		if offsetOf(vf.gen, end) < offsetOf(vf.gen, start) {
+			start = end
+		}
+		params["range"] = lspRange{start, end}
 	}
 	p.nextID++
 	id := strconv.Quote("vuka-lsp:" + strconv.Itoa(p.nextID))
@@ -816,10 +844,20 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	if vr.attr {
 		off := offsetOf(vf.from, srcPos)
 		start := off
-		for start > 0 && (isIdentByte(vf.from[start-1])) {
+		for start > 0 && isIdentByte(vf.from[start-1]) {
 			start--
 		}
+		full := start
+		for full > 0 && (isIdentByte(vf.from[full-1]) || vf.from[full-1] == '.') {
+			full--
+		}
 		vr.typed = lspRange{positionOf(vf.from, start), srcPos}
+		vr.full = lspRange{positionOf(vf.from, full), srcPos}
+		if q := string(vf.from[full:start]); q != "" {
+			vr.qualifier = strings.TrimSuffix(q, ".")
+		}
+		// Typing @ triggers completion; gopls only knows its own triggers.
+		params["context"] = map[string]any{"triggerKind": 1}
 	}
 	p.vukaReqs[id] = vr
 	p.mu.Unlock()
@@ -842,6 +880,10 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		v = cleanCompletion(v)
 		if vr.attr {
 			v = attrCompletion(v, vr.typed)
+			p.mu.Lock()
+			decos := p.decos
+			p.mu.Unlock()
+			v = withItems(v, decoratorItems(vr.file, decos, vr.full, vr.qualifier))
 		}
 	case "textDocument/hover":
 		v = staticHover(demangleStrings(v))
@@ -1143,6 +1185,20 @@ func attrCompletion(v any, typed lspRange) any {
 		return list
 	}
 	return kept
+}
+
+// withItems adds items to a completion result.
+func withItems(v any, items []any) any {
+	if len(items) == 0 {
+		return v
+	}
+	if list, ok := v.(map[string]any); ok {
+		existing, _ := list["items"].([]any)
+		list["items"] = append(existing, items...)
+		return list
+	}
+	existing, _ := v.([]any)
+	return append(existing, items...)
 }
 
 func toRange(v any) (lspRange, bool) {

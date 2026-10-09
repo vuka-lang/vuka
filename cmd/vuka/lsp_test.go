@@ -130,6 +130,10 @@ func (c *lspClient) waitDiags(uri string, ok func([]any) bool) []any {
 }
 
 func startLSP(t *testing.T) (*lspClient, string, any) {
+	return startLSPWith(t, map[string]string{"main.vuka": lspSource})
+}
+
+func startLSPWith(t *testing.T, files map[string]string) (*lspClient, string, any) {
 	gopls, err := findGopls("")
 	if err != nil {
 		t.Skip(err)
@@ -138,7 +142,10 @@ func startLSP(t *testing.T) (*lspClient, string, any) {
 	dir := t.TempDir()
 	mod := "module lsptest\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644)
-	os.WriteFile(filepath.Join(dir, "main.vuka"), []byte(lspSource), 0o644)
+	for name, src := range files {
+		os.MkdirAll(filepath.Dir(filepath.Join(dir, name)), 0o755)
+		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
+	}
 	t.Setenv("GOWORK", "off")
 
 	toProxyR, toProxyW := io.Pipe()
@@ -318,6 +325,18 @@ func twice(`, 1)
 		}
 	})
 
+	t.Run("code actions over an attribute", func(t *testing.T) {
+		src := strings.Replace(lspSource, "func twice(", "@Tag{}\nfunc twice(", 1)
+		src = strings.Replace(src, "type Circle struct", "type Tag struct{}\n\ntype Circle struct", 1)
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 7},
+			"contentChanges": []any{map[string]any{"text": src}}})
+		at := strings.Index(src, "@Tag{}")
+		// From inside the attribute to the line after it: the ends map apart.
+		c.call("textDocument/codeAction", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"range":   lspRange{positionOf([]byte(src), at+2), positionOf([]byte(src), at+12)},
+			"context": map[string]any{"diagnostics": []any{}}})
+	})
+
 	t.Run("type error lands on the .vuka line", func(t *testing.T) {
 		src := strings.Replace(lspSource, "return n * 2, nil", `return n * "x", nil`, 1)
 		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 3},
@@ -380,4 +399,64 @@ func realDir(dir string) string {
 		return r
 	}
 	return dir
+}
+
+func TestLSPProjectDecorators(t *testing.T) {
+	main := `package main
+
+import "fmt"
+
+@
+func add(a, b int) int { return a + b }
+
+func main() { fmt.Println(add(1, 2)) }
+`
+	c, dir, init := startLSPWith(t, map[string]string{
+		"main.vuka":               main,
+		"decorators/logging.vuka": "package decorators\n\ndecorator Logged(c) { c.Next() }\n",
+		"decorators/timing.go": `package decorators
+
+import "github.com/vuka-lang/vuka"
+
+func Timed(c *vuka.Call) { c.Next() }
+
+func Retry(times int) vuka.Decorator { return func(c *vuka.Call) { c.Next() } }
+
+func helper() {}
+`,
+	})
+	caps := init.(map[string]any)["capabilities"].(map[string]any)
+	if b, _ := json.Marshal(caps["completionProvider"]); !strings.Contains(string(b), `"@"`) {
+		t.Fatalf("@ isn't a completion trigger: %s", b)
+	}
+	uri := pathToURI(filepath.Join(dir, "main.vuka"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka", "version": 1, "text": main}})
+	time.Sleep(time.Second)
+
+	off := strings.Index(main, "\n@") + 2
+	v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+		"position": positionOf([]byte(main), off), "context": map[string]any{"triggerKind": 2, "triggerCharacter": "@"}})
+	items := v
+	if list, ok := v.(map[string]any); ok {
+		items = list["items"]
+	}
+	found := map[string]map[string]any{}
+	for _, it := range items.([]any) {
+		item := it.(map[string]any)
+		found[item["label"].(string)] = item
+	}
+	for _, want := range []string{"decorators.Logged", "decorators.Timed", "decorators.Retry"} {
+		item := found[want]
+		if item == nil {
+			t.Fatalf("no %s among %d items", want, len(found))
+		}
+		got := applyEdits(main, append([]any{item["textEdit"]}, item["additionalTextEdits"].([]any)...))
+		if !strings.Contains(got, "\n@"+want+"\n") || !strings.Contains(got, `"lsptest/decorators"`) {
+			t.Fatalf("after picking %s:\n%s", want, got)
+		}
+	}
+	if found["decorators.helper"] != nil {
+		t.Fatal("offered an unexported function from another package")
+	}
 }
