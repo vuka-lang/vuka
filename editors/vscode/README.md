@@ -33,6 +33,14 @@ see the code those define. **Vuka: Serve Go Files Too** and **Vuka: Stop Serving
 Go Files** switch it on and off; a `go.alternateTools.gopls` you set yourself is
 left alone.
 
+## templ files
+
+`.templ` files get templ's icon. Install the
+[templ extension](https://marketplace.visualstudio.com/items?itemName=a-h.templ)
+for their highlighting and language server; Vuka only adds the icon, under the
+same `templ` language, so the two work side by side. The icon is templ's logo,
+by Adrian Hesketh, used under templ's MIT license (`images/TEMPL-LICENSE.txt`).
+
 ## Settings
 
 | Setting | Default | |

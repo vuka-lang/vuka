@@ -42,6 +42,19 @@
           "light": "./images/file-icon.svg",
           "dark": "./images/file-icon.svg"
         }
+      },
+      {
+        "id": "templ",
+        "aliases": [
+          "templ"
+        ],
+        "extensions": [
+          ".templ"
+        ],
+        "icon": {
+          "light": "./images/templ-file-icon.png",
+          "dark": "./images/templ-file-icon.png"
+        }
       }
     ],
     "grammars": [
