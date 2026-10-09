@@ -314,6 +314,9 @@ func twice(`, 1)
 		if got := strings.Join(complete("c.Ne"), ","); !strings.Contains(got, "Next") {
 			t.Fatalf("c.Ne: %s", got)
 		}
+		if text := completionText(c, uri, src, "\n@", "logged"); text != "logged" {
+			t.Fatalf("picking logged inserts %q; a decorator is named, not called", text)
+		}
 		got := complete("\n@")
 		if len(got) == 0 || !strings.HasSuffix(got[0], " logged") {
 			t.Fatalf("@: decorators should come first: %v", got)
@@ -452,11 +455,36 @@ func helper() {}
 			t.Fatalf("no %s among %d items", want, len(found))
 		}
 		got := applyEdits(main, append([]any{item["textEdit"]}, item["additionalTextEdits"].([]any)...))
-		if !strings.Contains(got, "\n@"+want+"\n") || !strings.Contains(got, `"lsptest/decorators"`) {
+		wantText := want
+		if want == "decorators.Retry" {
+			wantText = want + "($1)" // a factory is called
+		}
+		if !strings.Contains(got, "\n@"+wantText+"\n") || !strings.Contains(got, `"lsptest/decorators"`) {
 			t.Fatalf("after picking %s:\n%s", want, got)
 		}
 	}
 	if found["decorators.helper"] != nil {
 		t.Fatal("offered an unexported function from another package")
 	}
+}
+
+// completionText is what picking label from the completion after needle inserts.
+func completionText(c *lspClient, uri, src, needle, label string) string {
+	off := strings.Index(src, needle) + len(needle)
+	v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+		"position": positionOf([]byte(src), off)})
+	items := v
+	if list, ok := v.(map[string]any); ok {
+		items = list["items"]
+	}
+	for _, it := range items.([]any) {
+		item := it.(map[string]any)
+		if item["label"] == label {
+			if te, ok := item["textEdit"].(map[string]any); ok {
+				return te["newText"].(string)
+			}
+			return item["label"].(string)
+		}
+	}
+	return ""
 }

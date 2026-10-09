@@ -108,14 +108,19 @@ func decoratorItems(f *vfile, decos []projectDecorator, typed lspRange, qualifie
 			continue
 		}
 		label := local + "." + d.name
+		detail := "func(c *vuka.Call)"
+		if d.kind == "decorator factory" {
+			detail = "vuka.Decorator"
+		}
+		insert, format := attrInsert(label, detail)
 		item := map[string]any{
 			"label":            label,
 			"kind":             3,
 			"detail":           d.kind + " · " + d.importPath,
 			"sortText":         "0" + label,
 			"filterText":       label,
-			"textEdit":         map[string]any{"range": typed, "newText": label},
-			"insertTextFormat": 1,
+			"textEdit":         map[string]any{"range": typed, "newText": insert},
+			"insertTextFormat": format,
 		}
 		if !ok {
 			at, text := addImports(f.from, []importSpec{{path: d.importPath}})

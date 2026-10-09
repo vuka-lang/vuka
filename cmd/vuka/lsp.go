@@ -1177,6 +1177,11 @@ func attrCompletion(v any, typed lspRange) any {
 			delete(te, "insert")
 			delete(te, "replace")
 			te["range"] = typed
+			// @logged names the decorator; only a factory is called: @retry(3).
+			if decorator {
+				te["newText"], item["insertTextFormat"] = attrInsert(label, detail)
+				delete(item, "command")
+			}
 		}
 		kept = append(kept, item)
 	}
@@ -1260,6 +1265,16 @@ func runeLen16(r rune) int {
 		return 2
 	}
 	return 1
+}
+
+// attrInsert is what picking a decorator inserts after @: its name, or for a
+// factory (returning vuka.Decorator) a call with the cursor in it. The second
+// result is the LSP insertTextFormat: 1 plain, 2 snippet.
+func attrInsert(name, detail string) (string, int) {
+	if strings.Contains(detail, "vuka.Decorator") {
+		return name + "($1)", 2
+	}
+	return name, 1
 }
 
 func isIdentByte(b byte) bool {
