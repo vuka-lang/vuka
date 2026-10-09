@@ -1,0 +1,21 @@
+package main
+
+func register(d *vuka.Decl) {}
+
+func Get(path string) func(*vuka.Decl) { return register }
+
+@register
+func first[T any](xs []T) T { return xs[0] }
+
+type Stack[T any] struct{ items []T }
+
+@Get("/push")
+func (s *Stack[T]) Push(v T) { s.items = append(s.items, v) }
+
+@register
+type User struct{}
+
+@register
+func init() {}
+
+func main() {}

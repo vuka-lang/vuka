@@ -1,0 +1,6 @@
+err_files.vuka:7:11: no file "assets/nope.html" in the package's directory
+err_files.vuka:10:13: the vuka.File "../golden.go" is outside the package's directory; a file is embedded from the directory or below it
+err_files.vuka:13:11: the vuka.File "/etc/passwd" is absolute; name it relative to the package's directory
+err_files.vuka:16:11: "assets" is a directory; a vuka.File is a file
+err_files.vuka:19:11: no file "page.templ" in the package's directory
+err_files.vuka:22:11: a vuka.File needs a file name

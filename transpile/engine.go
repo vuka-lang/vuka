@@ -22,6 +22,9 @@ type engine struct {
 	imp         types.Importer
 	errs        *ErrorList
 	bare        bool
+	dir         string
+	importPath  string
+	nfiles      int // embedded files so far, naming their variables
 
 	declared      map[string]bool // package-level names
 	typeNames     map[string]bool // package-level type names
@@ -69,7 +72,12 @@ func (e *engine) run() {
 			return
 		}
 		for _, f := range e.vuka {
+			embedded := e.embedFiles(f)
 			e.classify(f)
+			if embedded {
+				e.render(f)
+				e.progress = true
+			}
 			e.resolveStatics(f)
 			e.selfCalls(f)
 			e.resolveCalls(f)
@@ -238,7 +246,7 @@ func (e *engine) needsTypes() bool {
 // remove the construct that needed it while what follows still needs types.
 func (e *engine) needsTypesNow() bool {
 	for _, f := range e.vuka {
-		if f.rt != "" || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) {
+		if f.rt != "" || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) {
 			return true
 		}
 	}

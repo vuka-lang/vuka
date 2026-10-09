@@ -1,0 +1,42 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// Template binds a view to a handler; the literal naming it is checked at
+// compile time and embedded.
+func Template(view vuka.File) func(*vuka.Decl) {
+	return func(d *vuka.Decl) {
+		b, err := view.Bytes()
+		fmt.Printf("%s: %s (%s in %s) %q %v\n", d.Name, view, view.Path(), view.Pkg(), b, err)
+	}
+}
+
+type Page struct {
+	Title string
+	Body  vuka.File
+}
+
+decorator page(c) {
+	var p Page
+	c.Attr(&p)
+	b, _ := p.Body.Bytes()
+	c.Next()
+	c.Results[0] = p.Title + ": " + strings.TrimSpace(string(b)) + " / " + vuka.As[string](c.Results[0])
+}
+
+@Template("assets/views/pet.html")
+func showPet(id int) string { return fmt.Sprint("pet ", id) }
+
+@Page{Title: "Home", Body: "assets/hello.txt"}
+@page
+@Template(`assets/./hello.txt`)
+func home() string { return "home" }
+
+func main() {
+	fmt.Println(home())
+	b, err := vuka.File("assets/missing.txt").Bytes()
+	fmt.Println(len(b), err != nil)
+}

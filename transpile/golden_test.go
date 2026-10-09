@@ -32,7 +32,7 @@ func TestGolden(t *testing.T) {
 			}
 			dir := filepath.Dir(path)
 			res, err := transpile.Package([]transpile.File{{Name: name + ".vuka", Src: src}},
-				transpile.Options{Importer: load.NewImporter(dir, "")})
+				transpile.Options{Importer: load.NewImporter(dir, ""), Dir: dir})
 			if err != nil {
 				if !strings.HasPrefix(name, "err_") {
 					t.Fatalf("only err_ cases may fail:\n%v", err)
@@ -86,6 +86,8 @@ func run(t *testing.T, src []byte) string {
 	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
 	os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644)
 	os.WriteFile(filepath.Join(dir, "main.go"), src, 0o644)
+	// Files a case embeds (vuka.File) are in testdata/golden/assets.
+	os.CopyFS(filepath.Join(dir, "assets"), os.DirFS("testdata/golden/assets"))
 	cmd := exec.Command("go", "run", ".")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")

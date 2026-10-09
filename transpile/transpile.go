@@ -46,6 +46,12 @@ type Options struct {
 	// Bare emits no header and no line directives, so a .vuka file without Vuka
 	// constructs comes out byte-identical.
 	Bare bool
+	// Dir is the package's directory, where vuka.File literals are looked up.
+	// Empty skips the check that they exist.
+	Dir string
+	// ImportPath is the package's import path, for vuka.Decl and vuka.File.
+	// Empty uses the package name.
+	ImportPath string
 }
 
 // Output is the Go generated for one .vuka file.
@@ -106,6 +112,7 @@ type fileState struct {
 	dotImps bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
+	files     []*fileLit     // embedded vuka.File literals, by offset
 
 	bare        bool
 	statics     []*staticDecl
@@ -178,7 +185,7 @@ func (f *fileState) makeTrailer(bare bool) {
 			p.Column++
 			w.gen(lineDirective(p), a.start)
 		}
-		w.copy(expr, a.nameStart)
+		f.copySrc(&w, expr, a.nameStart)
 		w.gen("\n", a.end)
 	}
 	if (f.deco.len() > 0 || f.static.len() > 0) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
@@ -310,7 +317,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath}
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
 			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare}

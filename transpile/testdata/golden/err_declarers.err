@@ -1,0 +1,4 @@
+err_declarers.vuka:7:1: @register is a declarer, which needs a concrete function; main.first is generic
+err_declarers.vuka:12:1: @Get is a declarer, which needs a concrete function; Stack.Push is generic
+err_declarers.vuka:15:1: @register is a declarer, which takes a function; a type's decorator takes a *vuka.Type
+err_declarers.vuka:18:1: @register is a declarer, which needs a function it can refer to; init can't be

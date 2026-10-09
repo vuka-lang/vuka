@@ -370,9 +370,11 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			continue
 		}
 		res, err := transpile.Package(p.Files, transpile.Options{
-			Importer: imp,
-			Path:     func(name string) string { return filepath.Join(p.Dir, name) },
-			Bare:     opts.Bare,
+			Importer:   imp,
+			Path:       func(name string) string { return filepath.Join(p.Dir, name) },
+			Bare:       opts.Bare,
+			Dir:        p.Dir,
+			ImportPath: p.ImportPath,
 		})
 		if err != nil {
 			var list transpile.ErrorList

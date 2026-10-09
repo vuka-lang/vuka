@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"strconv"
 	"strings"
 )
@@ -15,6 +16,7 @@ const (
 	decoTyped decoKind = iota // func(F) F, or for a type a generic func[T]
 	decoCall                  // vuka.Decorator: func(*vuka.Call), for any function
 	decoType                  // func(*vuka.Type), for a type
+	decoDecl                  // func(*vuka.Decl), a declarer: runs once at init, for a function
 )
 
 // decoUse is one decorator on one declaration.
@@ -33,8 +35,10 @@ type funcDeco struct {
 	name, impl, state  string
 	doc                string
 	recv, ref          string // the wrapper's receiver clause; the body's reference
+	rname, rtype       string // a method's receiver
 	tparams            string
 	params, args       []string // the wrapper's parameters; the arguments it passes (receiver first)
+	pnames             []string // the parameters' names as written, "" when unnamed
 	ftypes             []string // F's parameter types, receiver first
 	results            string   // the results clause, with its leading space
 	rtypes             []string // each result's type
@@ -44,6 +48,8 @@ type funcDeco struct {
 	qualName           string
 	errIndex, ctxIndex int
 	attrs              []*Attr // the declaration's typed attributes
+	file               string  // the source file's base name
+	line               int     // the name's line
 }
 
 // typeDeco is a decorated type.
@@ -260,6 +266,7 @@ func (e *engine) namesType(f *fileState, name string) bool {
 func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
 	d := &funcDeco{uses: uses(attrs), name: fd.Name.Name, nameOff: f.orig(fd.Name.Pos()),
 		method: fd.Recv != nil, errIndex: -1, ctxIndex: -1, attrs: typedAttrs(f, fd)}
+	d.file, d.line = filepath.Base(f.name), f.at(d.nameOff).Line
 	if f.decorated == nil {
 		f.decorated = map[int]string{}
 	}
@@ -310,6 +317,11 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
 			if named {
 				p = field.Names[k].Name
 			}
+			pname := ""
+			if len(field.Names) > 0 {
+				pname = field.Names[k].Name
+			}
+			d.pnames = append(d.pnames, pname)
 			if t == "context.Context" && d.ctxIndex < 0 {
 				d.ctxIndex = len(d.params)
 			}
@@ -357,6 +369,7 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
 		if len(field.Names) > 0 && field.Names[0].Name != "_" {
 			rn = field.Names[0].Name
 		}
+		d.rname, d.rtype = rn, rt
 		d.recv = "(" + rn + " " + rt + ") "
 		d.ftypes = append([]string{rt}, d.ftypes...)
 		d.args = append([]string{rn}, d.args...)
@@ -413,6 +426,7 @@ func (e *engine) pkgName() string {
 // render writes f's wrappers for the decorators' current forms.
 func (e *engine) render(f *fileState) {
 	f.deco = genWriter{}
+	e.renderFiles(f)
 	for _, d := range f.decos {
 		switch d := d.(type) {
 		case *funcDeco:
@@ -443,9 +457,34 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		return
 	}
 
+	var wraps, decls []*decoUse
+	for _, u := range d.uses {
+		if u.kind == decoDecl {
+			decls = append(decls, u)
+		} else {
+			wraps = append(wraps, u)
+		}
+	}
 	w.gen("\n", d.nameOff)
 	if d.doc != "" {
 		w.gen(d.doc+"\n", d.nameOff)
+	}
+	if len(wraps) == 0 {
+		// Declarers alone: the function stays as it is, reached through its name.
+		if !e.bare {
+			w.gen(lineDirective(f.at(d.nameOff)), d.nameOff)
+		}
+		w.gen("func "+d.recv+d.name+d.tparams+"("+strings.Join(d.params, ", ")+")"+d.results+" {\n\t", d.nameOff)
+		if d.results != "" {
+			w.gen("return ", d.nameOff)
+		}
+		call, args := d.impl, d.args
+		if d.method {
+			call, args = d.rname+"."+d.impl, args[1:]
+		}
+		w.gen(call+"("+strings.Join(args, ", ")+")\n}\n", d.nameOff)
+		e.renderDecls(f, d, decls)
+		return
 	}
 	if d.generic {
 		w.gen("var "+d.state+" "+rt+".Instances\n\n", d.nameOff)
@@ -454,7 +493,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 	}
 	info := d.state + "_info"
 	hasCall := false
-	for _, u := range d.uses {
+	for _, u := range wraps {
 		hasCall = hasCall || u.kind == decoCall
 	}
 	if hasCall {
@@ -483,8 +522,8 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 	// The chain, outermost first: a typed decorator applies to the function
 	// value; each run of vuka.Decorators becomes one adapter.
 	closers := ""
-	for i := 0; i < len(d.uses); {
-		u := d.uses[i]
+	for i := 0; i < len(wraps); {
+		u := wraps[i]
 		if u.kind != decoCall {
 			e.writeDecorator(f, u, "")
 			w.gen("(", u.a.end)
@@ -493,21 +532,51 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 			continue
 		}
 		j := i
-		for j < len(d.uses) && d.uses[j].kind == decoCall {
+		for j < len(wraps) && wraps[j].kind == decoCall {
 			j++
 		}
 		w.gen("func(next "+d.fn+") "+d.fn+" {\n\t\t\tchain := []"+rt+".Decorator{", u.a.start)
 		for k := i; k < j; k++ {
 			if k > i {
-				w.gen(", ", d.uses[k].a.start)
+				w.gen(", ", wraps[k].a.start)
 			}
-			e.writeDecorator(f, d.uses[k], "")
+			e.writeDecorator(f, wraps[k], "")
 		}
 		w.gen("}\n\t\t\treturn "+e.adapter(f, d, info)+"\n\t\t}(", u.a.start)
 		closers += ")"
 		i = j
 	}
 	w.gen(d.ref+closers+"\n\t})("+strings.Join(d.args, ", ")+")\n}\n", d.nameOff)
+	e.renderDecls(f, d, decls)
+}
+
+// renderDecls runs a function's declarers at init, top to bottom, with a
+// description of the decorated function.
+func (e *engine) renderDecls(f *fileState, d *funcDeco, decls []*decoUse) {
+	if len(decls) == 0 || d.generic {
+		return
+	}
+	w, rt := &f.deco, f.runtime()
+	ctor, fn := "FuncDecl", d.name
+	if d.method {
+		ctor, fn = "MethodDecl", "("+d.rtype+")."+d.name
+	}
+	desc := d.state + "l"
+	w.gen("\nfunc init() {\n\t"+desc+" := "+rt+"."+ctor+"("+rt+".Decl{Name: "+strconv.Quote(d.qualName)+
+		", Pkg: "+strconv.Quote(e.pkgPath())+", File: "+strconv.Quote(d.file)+", Line: "+itoa(d.line)+
+		", Func: "+fn+", Attrs: []any{", d.nameOff)
+	e.writeAttrValues(f, d.attrs)
+	w.gen("}}", d.nameOff)
+	for _, n := range d.pnames {
+		w.gen(", "+strconv.Quote(n), d.nameOff)
+	}
+	w.gen(")\n", d.nameOff)
+	for _, u := range decls {
+		w.gen("\t", u.a.start)
+		e.writeDecorator(f, u, "")
+		w.gen("("+desc+")\n", u.a.end)
+	}
+	w.gen("}\n", d.nameOff)
 }
 
 // adapter is the function that packs a call of next into a *vuka.Call, runs
@@ -610,7 +679,7 @@ func (e *engine) writeAttrValues(f *fileState, attrs []*Attr) {
 		}
 		text := string(f.src[a.nameStart:a.end])
 		if strings.HasSuffix(text, "}") || strings.HasSuffix(text, ")") {
-			w.copy(text, a.nameStart)
+			f.copySrc(w, text, a.nameStart)
 		} else {
 			w.gen("*new(", a.start)
 			w.copy(text, a.nameStart)
@@ -635,13 +704,13 @@ func (e *engine) writeDecorator(f *fileState, u *decoUse, typeArg string) {
 	args := string(f.src[nameEnd:a.end])
 	switch {
 	case typeArg == "":
-		w.copy(args, nameEnd)
+		f.copySrc(w, args, nameEnd)
 	case strings.HasPrefix(args, "["):
 		w.gen("["+typeArg+", ", nameEnd)
-		w.copy(args[1:], nameEnd+1)
+		f.copySrc(w, args[1:], nameEnd+1)
 	default:
 		w.gen("["+typeArg+"]", nameEnd)
-		w.copy(args, nameEnd)
+		f.copySrc(w, args, nameEnd)
 	}
 	if typeArg != "" && !strings.HasSuffix(strings.TrimSpace(args), ")") {
 		w.gen("()", a.end)
@@ -658,9 +727,10 @@ func (e *engine) classify(f *fileState) {
 	for _, d := range f.decos {
 		var us []*decoUse
 		isType := false
+		var fd *funcDeco
 		switch d := d.(type) {
 		case *funcDeco:
-			us = d.uses
+			us, fd = d.uses, d
 		case *typeDeco:
 			us, isType = d.uses, true
 		}
@@ -679,6 +749,16 @@ func (e *engine) classify(f *fileState) {
 				kind = decoCall
 			case isType && isRuntimeFunc(t, "Type"):
 				kind = decoType
+			case isRuntimeFunc(t, "Decl"):
+				kind = decoDecl
+				switch {
+				case isType:
+					e.errs.add(u.a.Pos, "@%s is a declarer, which takes a function; a type's decorator takes a *vuka.Type", u.a.Name)
+				case fd.init:
+					e.errs.add(u.a.Pos, "@%s is a declarer, which needs a function it can refer to; init can't be", u.a.Name)
+				case fd.generic:
+					e.errs.add(u.a.Pos, "@%s is a declarer, which needs a concrete function; %s is generic", u.a.Name, fd.qualName)
+				}
 			}
 			if kind != u.kind {
 				u.kind, changed = kind, true

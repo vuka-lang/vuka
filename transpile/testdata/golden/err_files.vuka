@@ -1,0 +1,25 @@
+package main
+
+type View struct{ File vuka.File }
+
+func Template(f vuka.File) func(*vuka.Decl) { return func(*vuka.Decl) {} }
+
+@Template("assets/nope.html")
+func a() {}
+
+@View{File: "../golden.go"}
+func b() {}
+
+@Template("/etc/passwd")
+func c() {}
+
+@Template("assets")
+func d() {}
+
+@Template("page.templ")
+func e() {}
+
+@Template("")
+func f() {}
+
+func main() {}

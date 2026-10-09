@@ -193,6 +193,15 @@ neither is a compile error on its `@` line. Functions keep their name for a
 wrapper that builds the decorated function once; recursion goes through it;
 `init`, overloads, generic functions and `type ( … )` groups can be decorated.
 
+A **declarer**, `func(d *vuka.Decl)` (or a call returning one, such as
+`@web.Get("/pets/{id}")`), doesn't wrap calls: it runs once at init, top to
+bottom, with the function's name, attributes, parameter names and types, and
+the decorated function itself — the way to register routes, commands or jobs.
+A string literal passed where a decorator or attribute takes a `vuka.File`
+(`@web.Template("views/pet.html")`) is checked at compile time and embedded in
+the binary; `f.Bytes()` reads it, and `vuka.TemplComponents(f)` gives a
+`.templ` file's components.
+
 **Static fields and methods** belong to a type, as in Kotlin or Java:
 
 ```go

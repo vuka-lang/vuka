@@ -1,0 +1,4 @@
+main.showPet: main:assets/views/pet.html (assets/views/pet.html in main) "<h1>{{.Name}}</h1>\n" <nil>
+main.home: main:assets/hello.txt (assets/hello.txt in main) "Hello from a file.\n" <nil>
+Home: Hello from a file. / home
+0 true
