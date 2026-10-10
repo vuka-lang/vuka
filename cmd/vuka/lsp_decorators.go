@@ -11,12 +11,16 @@ import (
 // projectDecorator is a decorator declared somewhere in the module.
 type projectDecorator struct {
 	name, pkgName, importPath, dir string
-	kind                           string // "decorator", "decorator factory", "type decorator"
+	params                         bool   // a composed decorator's: written with arguments
+	kind                           string // "decorator", "decorator factory", "type decorator", "composed decorator"
 }
 
 var (
 	pkgClause    = regexp.MustCompile(`(?m)^package\s+(\w+)`)
-	decoKeyword  = regexp.MustCompile(`(?m)^decorator\s+([A-Za-z_]\w*)\s*\(`)
+	decoKeyword  = regexp.MustCompile(`(?m)^decorator\s+([A-Za-z_]\w*)\s*\(\s*\w+\s*\)\s*\{`)
+	decoFactory  = regexp.MustCompile(`(?m)^decorator\s+([A-Za-z_]\w*)\s*\([^()]*\)\s*\(\s*\w+\s*\)\s*\{`)
+	composedDeco = regexp.MustCompile(`(?m)^decorator\s+([A-Za-z_]\w*)\s*(\(\s*\w[^)]*\))?\s*=`)
+	bundleFunc   = regexp.MustCompile(`(?m)^func\s+([A-Za-z_]\w*)\s*\(([^)]*)\)\s*\w+\.Bundle\s*\{`)
 	callFunc     = regexp.MustCompile(`(?m)^func\s+([A-Za-z_]\w*)\s*\(\s*\w+\s+\*\w+\.Call\s*\)\s*\{`)
 	factoryFunc  = regexp.MustCompile(`(?m)^func\s+([A-Za-z_]\w*)\s*\([^)]*\)\s*\w+\.Decorator\s*\{`)
 	typeDecoFunc = regexp.MustCompile(`(?m)^func\s+([A-Za-z_]\w*)\s*\(\s*\w+\s+\*\w+\.Type\s*\)\s*\{`)
@@ -65,6 +69,15 @@ func findDecorators(root, modPath string, read func(string) ([]byte, error)) []p
 		}
 		if strings.HasSuffix(name, ".vuka") {
 			add(decoKeyword, "decorator")
+			add(decoFactory, "decorator factory")
+			for _, g := range composedDeco.FindAllSubmatch(src, -1) {
+				out = append(out, projectDecorator{name: string(g[1]), pkgName: string(m[1]), importPath: imp, dir: dir,
+					kind: "composed decorator", params: len(g[2]) > 0})
+			}
+		}
+		for _, g := range bundleFunc.FindAllSubmatch(src, -1) {
+			out = append(out, projectDecorator{name: string(g[1]), pkgName: string(m[1]), importPath: imp, dir: dir,
+				kind: "composed decorator", params: len(strings.TrimSpace(string(g[2]))) > 0})
 		}
 		add(callFunc, "decorator")
 		add(factoryFunc, "decorator factory")
@@ -112,8 +125,13 @@ func decoratorItems(f *vfile, decos []projectDecorator, typed lspRange, qualifie
 			continue
 		}
 		detail := "func(c *vuka.Call)"
-		if d.kind == "decorator factory" {
+		switch {
+		case d.kind == "decorator factory":
 			detail = "vuka.Decorator"
+		case d.kind == "composed decorator" && d.params:
+			detail = "func(…) vuka.Bundle"
+		case d.kind == "composed decorator":
+			detail = "func() vuka.Bundle"
 		}
 		insert, format := attrInsert(label, detail)
 		item := map[string]any{

@@ -1296,6 +1296,12 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		if to, r, ok := closeRedirect(src, off); ok {
 			closeTag = &r
 			params["position"] = vf.toGen(positionOf(src, to))
+		} else if m.Method == "textDocument/completion" && off > 0 && isIdentByte(src[off-1]) && afterAt(src, srcPos) {
+			// At the end of an attribute's name: the last letter maps into
+			// the attribute's copy after the code; its end would map in place.
+			gp := vf.toGen(positionOf(src, off-1))
+			gp.Character++
+			params["position"] = gp
 		} else {
 			params["position"] = vf.toGen(srcPos)
 		}
@@ -1668,8 +1674,20 @@ func cleanCompletion(v any) any {
 
 var attrPrefix = regexp.MustCompile(`^\s*@[A-Za-z0-9_.]*$`)
 
+// attrSpot is an attribute's name being typed after the start of a line:
+// before a parameter (after its ( or ,), after = in a composed decorator, or
+// after another attribute.
+var attrSpot = regexp.MustCompile(`(?:[(,=]\s*|@[A-Za-z0-9_.]+(?:\([^()]*\)|\{[^{}]*\})?\s+)@[A-Za-z0-9_.]*$`)
+
 // unfinishedAttr is an @ line being typed: `@` or `@pkg.` with nothing after.
 var unfinishedAttr = regexp.MustCompile(`(?m)^(\s*@(?:[A-Za-z_][A-Za-z0-9_]*\.)?)[ \t]*$`)
+
+// unfinishedParamAttr is an @ being typed before a parameter, and
+// unfinishedElem one ending a composed decorator's line.
+var (
+	unfinishedParamAttr = regexp.MustCompile(`([(,][ \t]*@(?:[A-Za-z_][A-Za-z0-9_]*\.)?)[ \t]+[A-Za-z_*\[.]`)
+	unfinishedElem      = regexp.MustCompile(`(?m)^(decorator[ \t].*=[ \t]*(?:@\S+[ \t]+)*@(?:[A-Za-z_][A-Za-z0-9_]*\.)?)[ \t]*$`)
+)
 
 // placeholder completes an unfinished attribute so the file still transpiles
 // while it is typed; it is never shown or written.
@@ -1685,8 +1703,10 @@ func completable(src []byte) ([]byte, []hunk) {
 		text string
 	}
 	var ins []insert
-	for _, m := range unfinishedAttr.FindAllSubmatchIndex(src, -1) {
-		ins = append(ins, insert{m[3], placeholder + "()"})
+	for _, re := range []*regexp.Regexp{unfinishedAttr, unfinishedParamAttr, unfinishedElem} {
+		for _, m := range re.FindAllSubmatchIndex(src, -1) {
+			ins = append(ins, insert{m[3], placeholder + "()"})
+		}
 	}
 	for _, at := range danglingDots(src) {
 		ins = append(ins, insert{at, placeholder})
@@ -1710,7 +1730,7 @@ func completable(src []byte) ([]byte, []hunk) {
 func afterAt(src []byte, pos lspPosition) bool {
 	off := offsetOf(src, pos)
 	start := bytes.LastIndexByte(src[:off], '\n') + 1
-	return attrPrefix.Match(src[start:off])
+	return attrPrefix.Match(src[start:off]) || attrSpot.Match(src[start:off])
 }
 
 // attrCompletion orders completion after @: decorators (func(*vuka.Call)
@@ -1736,7 +1756,8 @@ func attrCompletion(v any, typed lspRange) any {
 		}
 		label, _ := item["label"].(string)
 		detail, _ := item["detail"].(string)
-		decorator := strings.Contains(detail, "vuka.Call") || strings.Contains(detail, "vuka.Decorator") || strings.Contains(detail, "vuka.Type")
+		decorator := strings.Contains(detail, "vuka.Call") || strings.Contains(detail, "vuka.Decorator") || strings.Contains(detail, "vuka.Type") ||
+			strings.Contains(detail, "vuka.Decl") || strings.Contains(detail, "vuka.Bundle")
 		// Only what an attribute can name: a function, a type, a package, or a
 		// variable holding a decorator.
 		switch kind, _ := item["kind"].(float64); kind {
@@ -1885,10 +1906,22 @@ func runeLen16(r rune) int {
 // factory (returning vuka.Decorator) a call with the cursor in it. The second
 // result is the LSP insertTextFormat: 1 plain, 2 snippet.
 func attrInsert(name, detail string) (string, int) {
-	if strings.Contains(detail, "vuka.Decorator") {
+	if (strings.Contains(detail, "vuka.Decorator") || strings.Contains(detail, "vuka.Bundle")) && !optionalArgs(detail) {
 		return name + "($1)", 2
 	}
 	return name, 1
+}
+
+// optionalArgs reports whether a function's detail, func(…) …, takes no
+// arguments or only a variadic one: written bare, the decorator is called
+// with none.
+func optionalArgs(detail string) bool {
+	rest, ok := strings.CutPrefix(detail, "func(")
+	if !ok {
+		return false
+	}
+	params, _, ok := strings.Cut(rest, ")")
+	return ok && (params == "" || !strings.Contains(params, ",") && strings.Contains(params, "..."))
 }
 
 func isIdentByte(b byte) bool {
