@@ -79,8 +79,8 @@ func (t Theme) Card(heading string, children vuka.Node) vuka.Node {
 func List(users []User) vuka.Node {
 	return vuka.Fragment(vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
 
-/*line jsx_components.vuka:79:5*/for _, u := range users { __add(vuka.El("li", nil, 
-/*line jsx_components.vuka:80:21*/UserCard(/*line jsx_components.vuka:80:36*/u, /*line jsx_components.vuka:80:46*/false, vuka.Fragment(vuka.Text("since "), vuka.Child(/*line jsx_components.vuka:80:60*/u.Year), ), ), )); } }), ), 
+/*line jsx_components.vuka:79:5*/for _, u := range users { __add(vuka.El("li", []vuka.Attr{{Name: "key", Value: 
+/*line jsx_components.vuka:80:14*/u.ID}, }, /*line jsx_components.vuka:80:21*/UserCard(/*line jsx_components.vuka:80:36*/u, /*line jsx_components.vuka:80:46*/false, vuka.Fragment(vuka.Text("since "), vuka.Child(/*line jsx_components.vuka:80:60*/u.Year), ), ), )); } }), ), 
 
 
 /*line jsx_components.vuka:83:4*/Badge("users", /*line jsx_components.vuka:83:17*/len(users), ), func(__a1 int, __a2 string) vuka.Node { 

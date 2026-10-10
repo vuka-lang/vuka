@@ -161,7 +161,7 @@ func (f *fileState) scan(errs *ErrorList) {
 				prev = toks[i]
 			}
 			continue
-		case t.tok == token.LSS && depth > 0 && jsxStarts(p.tok) && jsxTagAt(f.src, t.off):
+		case t.tok == token.LSS && (depth > 0 || p.tok == token.ASSIGN) && jsxStarts(p.tok) && jsxTagAt(f.src, t.off):
 			f.scannedRuntime(toks)
 			end, goToks, ok := f.parseJSX(t.off, errs)
 			if !ok {

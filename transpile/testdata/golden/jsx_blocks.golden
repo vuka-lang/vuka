@@ -24,8 +24,8 @@ func lookup(s string) vuka./*line jsx_blocks.vuka:16:23*/Result[int] {
 func list(users []User, admin bool, s string) vuka.Node {
 	return vuka.Fragment(vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
 
-/*line jsx_blocks.vuka:24:5*/for _, u := range users { __add(vuka.El("li", nil, vuka.Child(
-/*line jsx_blocks.vuka:25:21*/u.Name), vuka.Text(" since "), vuka.Child(/*line jsx_blocks.vuka:25:36*/u.Year), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line jsx_blocks.vuka:24:5*/for _, u := range users { __add(vuka.El("li", []vuka.Attr{{Name: "key", Value: 
+/*line jsx_blocks.vuka:25:14*/u.ID}, }, vuka.Child(/*line jsx_blocks.vuka:25:21*/u.Name), vuka.Text(" since "), vuka.Child(/*line jsx_blocks.vuka:25:36*/u.Year), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
 
 
 /*line jsx_blocks.vuka:28:4*/if admin { __add(vuka.El("button", nil, vuka.Text("Edit"), )); 

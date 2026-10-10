@@ -50,7 +50,7 @@ func markup(src []byte, prev token.Token, depth int) []markupSig {
 			depth++
 		case isClose(t.tok):
 			depth--
-		case t.tok == token.LSS && depth > 0 && jsxStarts(pt.tok) && jsxTagAt(src, t.off):
+		case t.tok == token.LSS && (depth > 0 || pt.tok == token.ASSIGN) && jsxStarts(pt.tok) && jsxTagAt(src, t.off):
 			el, err := parseJSX(src, t.off)
 			if err != nil {
 				return append(out, markupSig{t.off, "error"})

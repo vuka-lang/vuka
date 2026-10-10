@@ -323,7 +323,7 @@ func scan(src []byte) ([]*construct, error) {
 			prev, prevIdx = toks[i], i
 		case t.tok == token.IDENT && t.lit == "match" && depth > 0 && (p.tok == token.SEMICOLON || p.tok == token.LBRACE || p.tok == token.COLON):
 			cs = append(cs, matchAt(toks, i)...)
-		case t.tok == token.LSS && depth > 0 && jsxStarts(p.tok) && jsxTagAt(src, t.off):
+		case t.tok == token.LSS && (depth > 0 || p.tok == token.ASSIGN) && jsxStarts(p.tok) && jsxTagAt(src, t.off):
 			el, jerr := parseJSX(src, t.off)
 			if jerr != nil {
 				return nil, errorAt(src, jerr.off, jerr.msg)

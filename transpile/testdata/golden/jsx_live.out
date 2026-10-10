@@ -1,0 +1,19 @@
+static: <main><section><h2>Groceries</h2><p>weekly</p><form><input name="name"></form><ul></ul></section><span>solo: 10 <button>+</button></span></main> <nil>
+live: <main><section data-vk-id="c1"><h2>Groceries</h2><p>weekly</p><form data-vk-on-submit="c1:0"><input name="name" data-vk-on-input="c1:1"></form><ul></ul></section><span data-vk-id="c2">solo: 10 <button data-vk-on-click="c2:0">+</button></span></main> <nil>
+  submit c1:0
+  input c1:1
+  click c2:0
+submit milk:
+  c1: <section data-vk-id="c1"><h2>Groceries</h2><p>weekly</p><form data-vk-on-submit="c1:0"><input name="name" data-vk-on-input="c1:1"></form><ul><li><span data-vk-id="c3">milk: 0 <button data-vk-on-click="c3:0">+</button></span><button data-vk-on-click="c1:2">x</button></li></ul></section>
+submit nothing:
+  error: a name, please <nil>
+submit eggs:
+  c1: <section data-vk-id="c1"><h2>Groceries</h2><p>weekly</p><form data-vk-on-submit="c1:0"><input name="name" data-vk-on-input="c1:1"></form><ul><li><span data-vk-id="c3">milk: 0 <button data-vk-on-click="c3:0">+</button></span><button data-vk-on-click="c1:2">x</button></li><li><span data-vk-id="c4">eggs: 0 <button data-vk-on-click="c4:0">+</button></span><button data-vk-on-click="c1:3">x</button></li></ul></section>
+click milk's counter:
+  c3: <span data-vk-id="c3">milk: 1 <button data-vk-on-click="c3:0">+</button></span>
+type:
+  c1: <section data-vk-id="c1"><h2>Groceries</h2><p>weekly</p><form data-vk-on-submit="c1:0"><input name="name" data-vk-on-input="c1:1"></form><ul><li><span data-vk-id="c3">milk: 1 <button data-vk-on-click="c3:0">+</button></span><button data-vk-on-click="c1:2">x</button></li><li><span data-vk-id="c4">eggs: 0 <button data-vk-on-click="c4:0">+</button></span><button data-vk-on-click="c1:3">x</button></li></ul><p>typing br</p></section>
+remove milk:
+  c1: <section data-vk-id="c1"><h2>Groceries</h2><p>weekly</p><form data-vk-on-submit="c1:0"><input name="name" data-vk-on-input="c1:1"></form><ul><li><span data-vk-id="c4">eggs: 0 <button data-vk-on-click="c4:0">+</button></span><button data-vk-on-click="c1:2">x</button></li></ul><p>typing br</p></section>
+click solo:
+  c2: <span data-vk-id="c2">solo: 11 <button data-vk-on-click="c2:0">+</button></span>

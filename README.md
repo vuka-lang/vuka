@@ -367,7 +367,11 @@ Attributes bind to parameters by name (or to a props struct's fields), children
 to a `children` parameter; `{for}`, `{if}` and `{match}` blocks hold markup.
 `.templ` files compile with the package, no `templ generate`, and call Vuka
 components back. `vuka.Handler`/`Write`/`String` render HTML; `vuka/term`
-renders the same tree as terminal text. See
+renders the same tree as terminal text. A struct embedding `vuka.Live` is a
+stateful component — exported fields are props, unexported ones state, and
+`onClick={c.Inc}` an event handler — which `vuka/live` keeps alive for a
+connected page, answering each event with the components whose HTML changed.
+See
 [Components and JSX](https://vuka-lang.github.io/vuka/features/components).
 
 ### The build module

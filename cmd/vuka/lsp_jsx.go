@@ -451,6 +451,9 @@ var htmlTags = strings.Fields(`a abbr article aside audio b blockquote body br b
 var htmlAttrs = strings.Fields(`className id style key href src alt title type name value placeholder disabled checked
 	htmlFor target rel role width height action method`)
 
+// htmlEvents are the event handlers offered on an element, after its attributes.
+var htmlEvents = strings.Fields(`onClick onInput onChange onSubmit onKeyDown`)
+
 // completeJSX answers a completion in markup.
 func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) any {
 	src := vf.text()
@@ -474,6 +477,7 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			item(name, 14, "", text, 1, "0")
 		}
 	case "tag":
+		structs := 0
 		for _, it := range p.probe(genPath, spot.qual+string(src[spot.from:off]), "") {
 			label, _ := it["label"].(string)
 			detail, _ := it["detail"].(string)
@@ -484,6 +488,11 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			switch {
 			case (kind == 2 || kind == 3) && isExported(label) && returnsNode(detail):
 				item(label, 3, detail, label, 1, "0"+label)
+			case kind == 22 && isExported(label) && structs < 20:
+				structs++
+				if p.statefulAttrs(genPath, spot.qual+label) != nil {
+					item(label, 7, "stateful component", label, 1, "0"+label)
+				}
 			case kind == 9 && spot.qual == "":
 				item(label, 9, detail, label, 1, "2"+label)
 			}
@@ -504,6 +513,11 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			for i, a := range htmlAttrs {
 				if !used[a] {
 					item(a, 5, "", a+`="$1"`, 2, fmt.Sprintf("%02d", i))
+				}
+			}
+			for i, a := range htmlEvents {
+				if !used[a] {
+					item(a, 23, "event handler", a+`={$1}`, 2, fmt.Sprintf("%02d", len(htmlAttrs)+i))
 				}
 			}
 			break
@@ -567,6 +581,9 @@ func (p *proxy) componentAttrs(genPath, tag string) []compAttr {
 	var ft *ast.FuncType
 	for _, it := range p.probe(genPath, tag, "") {
 		if it["label"] == last {
+			if kind, _ := it["kind"].(float64); kind == 22 {
+				return p.statefulAttrs(genPath, tag)
+			}
 			detail, _ := it["detail"].(string)
 			ft = funcDetail(detail)
 			break
@@ -607,6 +624,33 @@ func (p *proxy) componentAttrs(genPath, tag string) []compAttr {
 		if a.name != "children" && a.name != "_" {
 			out = append(out, a)
 		}
+	}
+	return out
+}
+
+// statefulAttrs are the props of a stateful component, its exported fields
+// (promoted ones too) as declared; nil when the struct isn't one: its pointer
+// has no Render method, or no Subscribe promoted from vuka.Live.
+func (p *proxy) statefulAttrs(genPath, tag string) []compAttr {
+	var out []compAttr
+	render, live := false, false
+	for _, it := range p.probe(genPath, "(&"+tag+"{}).", "") {
+		label, _ := it["label"].(string)
+		detail, _ := it["detail"].(string)
+		switch kind, _ := it["kind"].(float64); {
+		case kind == 2 && label == "Render":
+			render = true
+		case kind == 2 && label == "Subscribe":
+			live = true
+		case kind == 5 && isExported(label) && label != "Live" && label != "Children":
+			out = append(out, compAttr{label, detail})
+		}
+	}
+	if !render || !live {
+		return nil
+	}
+	if out == nil {
+		out = []compAttr{}
 	}
 	return out
 }
@@ -711,6 +755,10 @@ func (p *proxy) attrTarget(vf *vfile, genPath string, tag jsxTag, attr string) (
 		}
 	}
 	if fn == nil {
+		if field := typeField(file, fset, off, attr); field != nil { // a stateful component's prop
+			o := fset.Position(field.Pos()).Offset
+			return uri, lspRange{positionOf(src, o), positionOf(src, o+len(field.Name))}, true
+		}
 		return "", r, false
 	}
 	var names []*ast.Ident
@@ -744,29 +792,7 @@ func (p *proxy) attrTarget(vf *vfile, genPath string, tag jsxTag, attr string) (
 				tsrc := p.goFile(tu)
 				tset := token.NewFileSet()
 				if tf, _ := parser.ParseFile(tset, "", tsrc, parser.SkipObjectResolution); tf != nil {
-					toff := offsetOf(tsrc, tr.Start)
-					var field *ast.Ident
-					ast.Inspect(tf, func(n ast.Node) bool {
-						ts, ok := n.(*ast.TypeSpec)
-						if !ok || tset.Position(ts.Name.Pos()).Offset != toff {
-							return field == nil
-						}
-						if st, ok := ts.Type.(*ast.StructType); ok {
-							var fields []*ast.Ident
-							var fnames []string
-							for _, f := range st.Fields.List {
-								for _, n := range f.Names {
-									fields = append(fields, n)
-									fnames = append(fnames, n.Name)
-								}
-							}
-							if i := bindName(fnames, attr); i >= 0 {
-								field = fields[i]
-							}
-						}
-						return false
-					})
-					if field != nil {
+					if field := typeField(tf, tset, offsetOf(tsrc, tr.Start), attr); field != nil {
 						return tu, identRange(tsrc, field, tset), true
 					}
 				}
@@ -777,6 +803,32 @@ func (p *proxy) attrTarget(vf *vfile, genPath string, tag jsxTag, attr string) (
 		return "", r, false
 	}
 	return uri, identRange(src, names[param], fset), true
+}
+
+// typeField is the field attr names in the struct type declared at off.
+func typeField(file *ast.File, fset *token.FileSet, off int, attr string) *ast.Ident {
+	var field *ast.Ident
+	ast.Inspect(file, func(n ast.Node) bool {
+		ts, ok := n.(*ast.TypeSpec)
+		if !ok || fset.Position(ts.Name.Pos()).Offset != off {
+			return field == nil
+		}
+		if st, ok := ts.Type.(*ast.StructType); ok {
+			var fields []*ast.Ident
+			var fnames []string
+			for _, f := range st.Fields.List {
+				for _, n := range f.Names {
+					fields = append(fields, n)
+					fnames = append(fnames, n.Name)
+				}
+			}
+			if i := bindName(fnames, attr); i >= 0 {
+				field = fields[i]
+			}
+		}
+		return false
+	})
+	return field
 }
 
 // attrAt is the component tag and attribute whose name holds off.

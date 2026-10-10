@@ -132,7 +132,18 @@ func (w writerOf) Write(p []byte) (int, error) { return w.WriteString(string(p))
 func (h *HTMLRenderer) attrs(e *Element) error {
 	for _, a := range e.Attrs {
 		name := a.Name
+		if eh, ok := a.Value.(EventHandler); ok {
+			if _, script := eh.Fn.(templ.ComponentScript); !script {
+				if err := h.handlerAttr(name, eh); err != nil {
+					return err
+				}
+				continue
+			}
+			a.Value = eh.Fn
+		}
 		switch name {
+		case "key":
+			continue
 		case "className":
 			name = "class"
 		case "htmlFor":

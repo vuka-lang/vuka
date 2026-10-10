@@ -51,7 +51,16 @@ type jsxTree struct {
 	start, end int
 	root       *jsxElem
 	comps      []*jsxComp
+	events     []*jsxEvent
 	done       bool // its edits are in fixed
+}
+
+// jsxEvent is an on… attribute with an expression on an element, whose type is
+// checked once known.
+type jsxEvent struct {
+	attr    *jsxAttr
+	tag     string
+	checked bool
 }
 
 type jsxNode interface{}
@@ -69,11 +78,12 @@ type jsxElem struct {
 func (el *jsxElem) open() string { return "<" + el.tag + ">" }
 
 type jsxAttr struct {
-	name string
-	off  int
-	kind byte   // 's' a string, 'e' an expression, 'b' bare (true)
-	val  string // the decoded string
-	expr span
+	name  string
+	off   int
+	kind  byte   // 's' a string, 'e' an expression, 'b' bare (true)
+	val   string // the decoded string
+	expr  span
+	event bool // an element's event handler: onClick={…}
 }
 
 type jsxText struct {
@@ -269,7 +279,8 @@ func (p *jsxParser) element(off int) *jsxElem {
 				}
 			}
 			if a.kind == 'e' && !comp && isEvent(a.name) {
-				p.errs.add(p.f.at(a.off), "event handlers need a stateful component; coming in stage 2")
+				a.event = true
+				p.cur.events = append(p.cur.events, &jsxEvent{attr: a, tag: el.tag})
 			}
 			el.attrs = append(el.attrs, a)
 		default:
@@ -786,6 +797,12 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 	case 'b':
 		w.gen("true")
 	default:
+		if a.event {
+			w.gen(w.rt + ".On(")
+			w.keep(a.expr)
+			w.gen(")")
+			return
+		}
 		w.keep(a.expr)
 	}
 }
@@ -800,12 +817,7 @@ func (w *jsxWriter) elem(el *jsxElem) {
 		w.comp(el.comp)
 	default:
 		w.gen(w.rt + ".El(" + strconv.Quote(el.tag) + ", ")
-		var attrs []*jsxAttr
-		for _, a := range el.attrs {
-			if a.name != "key" {
-				attrs = append(attrs, a)
-			}
-		}
+		attrs := el.attrs
 		if len(attrs) == 0 {
 			w.gen("nil")
 		} else {
