@@ -215,6 +215,7 @@ func run(t *testing.T, src []byte) string {
 	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
 	os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644)
 	os.WriteFile(filepath.Join(dir, "main.go"), src, 0o644)
+	os.CopyFS(filepath.Join(dir, "assets"), os.DirFS("../../transpile/testdata/golden/assets"))
 	cmd := exec.Command("go", "run", ".")
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
