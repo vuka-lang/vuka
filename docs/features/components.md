@@ -724,8 +724,8 @@ A v2 render builds a tree instead of a string, so a component that renders
 again costs about 1.5× the CPU of v1; Assign skipping (18× here) is what
 makes large pages cheap, and v2 makes the replies small. Load
 (`BenchmarkLoad`): 5,000 joined sessions of a page with two boards and a
-counter (about 25 instances' trees) hold **29.6 KB per session**; events from
-10 goroutines answer at p50 55 µs, p99 1.5 ms. (nexus's live views report
+counter (about 25 instances' trees) hold **29 KB per session**; events from
+10 goroutines answer at p50 50–55 µs, p99 0.4–1.5 ms (it varies run to run). (nexus's live views report
 ~60 KB per page and p99 7 ms for 20,000 users at an event per 5 s each.)
 
 ### Next
