@@ -75,6 +75,13 @@ PORT=8094 vuka run -watch ./cmd/app -v   # flags after the package are the progr
 - **Open [live pages](/web/live) reconnect** to the new build. A development
   app (`web.Dev()` or `VUKA_ENV=development`) rejoins them as the new build
   renders them; otherwise each page reloads.
+- **The [development toolbar](/web/toolbar) follows the build.** On every
+  page of a web app, its handle says `building… 1.2s` while the next build
+  compiles and `build failed` when it didn't, with the compiler's output in
+  its drawer: you see that the page in front of you is the last good build
+  without looking at the terminal. vuka passes the app its session
+  directory in `VUKA_DEV_DIR` (under plain `vuka run` too, which turns the
+  toolbar on); the build's state is `build.json` there.
 - Ctrl-C or SIGTERM stops the app, the watcher and Tailwind, waiting for the
   app to finish; a second one kills an app that doesn't.
 

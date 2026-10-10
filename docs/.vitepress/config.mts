@@ -89,6 +89,7 @@ export default defineConfig({
           { text: 'Configuration and .env', link: '/web/configuration' },
           { text: 'Routers and deployment', link: '/web/deployment' },
           { text: 'Testing', link: '/web/testing' },
+          { text: 'Development toolbar', link: '/web/toolbar' },
         ],
       },
       {
