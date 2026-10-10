@@ -1,0 +1,108 @@
+package main
+
+import (
+	"fmt"
+	"time"
+
+	"github.com/vuka-lang/vuka"
+)
+
+// Attributes are plain Go types and functions.
+type Char struct{ Max int }
+type PK struct{}
+type Rel struct{ OnDelete string }
+type DefaultValue struct{ V any }
+
+func Default(v any) DefaultValue { return DefaultValue{v} }
+
+// FK refers to a T stored elsewhere; references continue through it.
+type FK[T any] struct {
+	ID  int64
+	obj *T
+}
+
+func (k FK[T]) Related() *T { return k.obj }
+
+type Timestamps struct {
+	Created time.Time
+}
+
+type Address struct{ City string }
+
+func describe(t *vuka.Type) {
+	for _, f := range t.Fields {
+		fmt.Println("type", t.Name, f.Name, f.Attrs)
+	}
+}
+
+@describe
+type User struct {
+	ID   int64          @PK
+	Name string         `json:"name"` @Char{Max: 50}
+	Nick Option[string]
+}
+
+type Post struct {
+	Timestamps
+	ID     int64    @PK
+	Title  string   @Char{Max: 200} // shown in lists
+	Author FK[User] @Rel{OnDelete: "cascade"}
+	Views  int      @Default(0)
+	Home   *Address
+	Draft  bool
+	note   string
+}
+
+type Box[T any] struct{ V T }
+
+func first[T any](xs []Box[T]) T { return Box[T].V.Get(xs[0]) }
+
+func day(d int) time.Time { return time.Date(2026, 1, d, 0, 0, 0, 0, time.UTC) }
+
+func main() {
+	for _, f := range vuka.FieldsOf[Post]() {
+		fmt.Println(f.Name, f.Attrs)
+	}
+	var c Char
+	fmt.Println(Post.Title.Attr(&c), c.Max, Post.Author.Name.Attrs())
+
+	ada, linus := &User{ID: 1, Name: "ada"}, &User{ID: 2, Name: "linus", Nick: Some("torvalds")}
+	posts := []Post{
+		{ID: 1, Title: "go generics", Author: FK[User]{1, ada}, Views: 120, Timestamps: Timestamps{day(3)}},
+		{ID: 2, Title: "rust", Views: 300, Home: &Address{City: "Arusha"}, Timestamps: Timestamps{day(9)}},
+		{ID: 3, Title: "go modules", Author: FK[User]{2, linus}, Views: 50, Draft: true, note: "wip"},
+	}
+	popular := vuka.And(Post.Title.Contains("go"), Post.Views.Gt(100))
+	preds := []vuka.Pred[Post]{
+		popular,
+		Post.Author.Name.Eq("ada"),
+		Post.Author.Nick.IsNil(),
+		Post.Home.IsNil(),
+		vuka.Or(popular, Post.Home.City.StartsWith("Ar")),
+		vuka.Not(Post.ID.In(1, 3)),
+		Post.Created.Lt(day(5)),
+		Post.Draft.Eq(true),
+		Post.note.Ne(""),
+	}
+	for _, p := range preds {
+		var ids []int64
+		for _, x := range posts {
+			if p.Match(x) {
+				ids = append(ids, x.ID)
+			}
+		}
+		fmt.Println(p, ids)
+	}
+
+	name := Post.Author.Name
+	fmt.Println(name.Name(), name.Path(), name.Get(posts[0]), name.Get(posts[1]) == "")
+	fmt.Println(Post.Created.Name(), Post.Created.FieldPath().Index(), Post.Home.City.Path())
+
+	vuka.SortBy(posts, Post.Draft.Asc(), Post.Views.Desc())
+	for _, p := range posts {
+		fmt.Print(p.ID, " ")
+	}
+	fmt.Println(Post.Draft.Asc(), Post.Views.Desc())
+
+	fmt.Println(Box[int].V.Get(Box[int]{V: 7}), first([]Box[string]{{"x"}}))
+}

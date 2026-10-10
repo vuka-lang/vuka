@@ -1,0 +1,4 @@
+err_field_refs.vuka:18:11: Post has no field Titel; did you mean Title?
+err_field_refs.vuka:19:17: Post.Title is a string; it has no field Size
+err_field_refs.vuka:20:11: Both.Name is ambiguous: more than one embedded struct has a field Name
+err_field_refs.vuka:21:16: time.Time.wall is unexported; another package's code can't refer to it

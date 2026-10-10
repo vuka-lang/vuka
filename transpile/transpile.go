@@ -272,6 +272,10 @@ func (f *fileState) parse(fset *token.FileSet, errs *ErrorList) bool {
 // attach finds the declaration each attribute annotates.
 func (f *fileState) attach() {
 	for _, a := range f.attrs {
+		if a.Field {
+			f.attachField(a)
+			continue
+		}
 		off := f.cur.fromOrig(a.declOff)
 		for _, d := range f.ast.Decls {
 			switch d := d.(type) {

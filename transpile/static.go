@@ -465,6 +465,12 @@ func (e *engine) resolveStatics(f *fileState) {
 		if !ok {
 			return true
 		}
+		if obj, _, _ := types.LookupFieldOrMethod(named, false, e.pkg, sel.Sel.Name); obj != nil {
+			f.done[start] = true
+			e.errs.add(f.nodePos(sel.Sel.Pos()), "%s.%s is ambiguous: a field of %s and a static of %s",
+				named.Obj().Name(), sel.Sel.Name, named.Obj().Name(), ref.owner.Origin().Obj().Name())
+			return true
+		}
 		missing := ""
 		q := e.qualifier(f, &missing)
 		text := ""

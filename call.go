@@ -165,12 +165,13 @@ type Type struct {
 	Fields  []Field // the struct's fields
 }
 
-// Field is a field of a decorated struct.
+// Field is a field of a struct.
 type Field struct {
 	Name     string
 	Type     reflect.Type
 	Tag      reflect.StructTag
-	Injected bool // a parameter of New: not blank, not tagged inject:"-"
+	Attrs    []any // the field's typed attributes
+	Injected bool  // a parameter of New: not blank, not tagged inject:"-"
 }
 
 // Attr fills ptr with the type's typed attribute of ptr's element type.
@@ -185,12 +186,6 @@ func TypeOf[T any](name string, attrs ...any) *Type {
 func TypeWith[T any](name string, ctor any, attrs ...any) *Type {
 	t := TypeOf[T](name, attrs...)
 	t.New = ctor
-	if t.Reflect.Kind() == reflect.Struct {
-		for i := 0; i < t.Reflect.NumField(); i++ {
-			sf := t.Reflect.Field(i)
-			t.Fields = append(t.Fields, Field{Name: sf.Name, Type: sf.Type, Tag: sf.Tag,
-				Injected: sf.Name != "_" && sf.Tag.Get("inject") != "-"})
-		}
-	}
+	t.Fields = fieldsOf(t.Reflect)
 	return t
 }

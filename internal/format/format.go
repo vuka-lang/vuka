@@ -53,7 +53,7 @@ type exprResult struct {
 
 // construct is a Vuka construct found in the source and its Go stand-in.
 type construct struct {
-	kind       byte // 'J' JSX, 'S' static field, 'F' static method, 'D' decorator, 'A' attribute, 'G' guard, 'T' ?, 'M' match, 'C' a decorator's call parameter
+	kind       byte // 'J' JSX, 'S' static field, 'F' static method, 'D' decorator, 'A' attribute, 'B' field attribute, 'G' guard, 'T' ?, 'M' match, 'C' a decorator's call parameter
 	start, end int
 	el         *jElem
 	text       string // what is put back: the attribute, decorator head, static method head, static's name
@@ -88,6 +88,13 @@ func (fm *formatter) standIn(c *construct) string {
 			return "/*" + fm.marker("A", 0) + "*/\n"
 		}
 		return "/*" + fm.marker("A", 0) + "*/"
+	case 'B':
+		// A trailing comment as wide as the attributes, so gofmt aligns them
+		// as it aligns comments; a line comment takes in a comment after them.
+		if c.sameLine {
+			return "/*" + fm.marker("B", textWidth(c.text)-4) + "*/"
+		}
+		return "//" + fm.marker("B", textWidth(c.text)-2)
 	case 'G':
 		return ", " + fm.marker("G", 0) + ","
 	case 'T':
@@ -255,8 +262,9 @@ func scan(src []byte) ([]*construct, error) {
 	toks := scanTokens(src, 0)
 	var cs []*construct
 	type frame struct {
-		typeGroup bool
-		structOf  bool
+		typeGroup  bool
+		structOf   bool
+		structBody bool
 	}
 	var frames []frame
 	top := func() frame {
@@ -277,7 +285,8 @@ func scan(src []byte) ([]*construct, error) {
 		switch {
 		case isOpen(t.tok):
 			fr := frame{typeGroup: t.tok == token.LPAREN && p.tok == token.TYPE}
-			fr.structOf = t.tok == token.LBRACE && p.tok == token.STRUCT && namedStruct(toks, pIdx, top().typeGroup)
+			fr.structBody = t.tok == token.LBRACE && p.tok == token.STRUCT
+			fr.structOf = fr.structBody && namedStruct(toks, pIdx, top().typeGroup)
 			frames = append(frames, fr)
 		case isClose(t.tok):
 			if len(frames) > 0 {
@@ -326,6 +335,19 @@ func scan(src []byte) ([]*construct, error) {
 			cs = append(cs, c)
 			toks = append(toks[:i:i], append([]tok{{t.off, token.IDENT, string(src[t.off:el.end])}}, scanAfterOperand(src, el.end)...)...)
 			prev = toks[i]
+		case isAt(t) && top().structBody:
+			c, next, err := attrAt(src, toks, i)
+			if err != nil {
+				return nil, err
+			}
+			c.kind = 'B'
+			if n := len(cs); n > 0 && cs[n-1].kind == 'B' && strings.Trim(string(src[cs[n-1].end:c.start]), " \t") == "" {
+				cs[n-1].end, cs[n-1].text = c.end, cs[n-1].text+"\x00"+c.text
+			} else {
+				cs = append(cs, c)
+			}
+			i = next - 1
+			prev, prevIdx = toks[i], i
 		case isAt(t) && depth == 0:
 			c, next, err := attrAt(src, toks, i)
 			if err != nil {
@@ -348,7 +370,7 @@ func scan(src []byte) ([]*construct, error) {
 	sort.SliceStable(cs, func(i, j int) bool { return cs[i].start < cs[j].start })
 	ok := true
 	for _, c := range cs {
-		if c.kind == 'A' {
+		if c.kind == 'A' || c.kind == 'B' {
 			rest := src[c.end:]
 			if i := bytes.IndexByte(rest, '\n'); i >= 0 {
 				rest = rest[:i]
@@ -370,7 +392,7 @@ func scan(src []byte) ([]*construct, error) {
 			if c.rest, ok = goSnippet(kw+name+" ", c.rest); !ok {
 				return nil, errorAt(src, c.start, "bad "+c.text)
 			}
-		case 'A':
+		case 'A', 'B':
 			attrs := strings.Split(c.text, "\x00")
 			for i, a := range attrs {
 				if attrs[i], ok = goSnippet("var _ = ", a[1:]); !ok {
@@ -643,6 +665,14 @@ func (fm *formatter) restore(src, orig []byte, cs []*construct, switches []bool)
 			si++
 		case t.tok == token.COMMENT && t.lit == "/*"+m+"A*/":
 			put(t.off, t.end(), next('A').text)
+		case t.tok == token.COMMENT && len(t.lit) > 2 && strings.HasPrefix(t.lit[2:], m+"B"):
+			rest := strings.TrimLeft(t.lit[2+len(m)+1:], "_")
+			if strings.HasPrefix(t.lit, "/*") {
+				rest = strings.TrimPrefix(rest, "*/")
+			}
+			b.Write(src[last:t.off])
+			b.WriteString(reindent(next('B').text, lineIndent(b.Bytes())) + rest)
+			last = t.end()
 		case t.tok != token.IDENT || !strings.HasPrefix(t.lit, m):
 		case t.lit == m+"T" && k > 0 && toks[k-1].tok == token.PERIOD:
 			next('T')

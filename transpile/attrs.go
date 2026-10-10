@@ -17,6 +17,7 @@ const (
 	attrExport
 	attrDerive
 	attrDecorator
+	attrField // after a struct field: a value recorded for the field
 )
 
 var builtins = map[string]attrKind{
@@ -35,7 +36,9 @@ type Attr struct {
 	Name string         // "doc", "Route", "cache.Memo"
 	Args string         // what follows the name: `("text")`, `{TTL: x}`, or ""
 	Pos  token.Position // where the attribute is written
-	Decl string         // the declaration it annotates: "area", "Shape.Scale", "Config"
+	Decl string         // the declaration it annotates: "area", "Shape.Scale", "Config"; a field's "Post.Title"
+	// Field is set for an attribute written after a struct field.
+	Field bool
 	// Decorator is set for a decorator (a function wrapping the declaration)
 	// rather than a typed attribute (metadata).
 	Decorator bool
@@ -47,6 +50,8 @@ type Attr struct {
 	value      string // the string argument of a built-in
 	bare       bool   // written @name or @name[T]: a type or a decorator, decided by what it names
 	decl       ast.Decl
+	structOf   string   // a field attribute's struct type
+	fieldNames []string // the field's names (an embedded field's type name)
 }
 
 // parseAttr reads the attribute whose @ is toks[i]. It returns the index of the

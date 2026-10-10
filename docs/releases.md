@@ -10,6 +10,25 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## Unreleased
+
+Runtime: new `vuka.Ref` (with `OrderedRef`, `StringRef`, `CompareRef`,
+`NullableRef`), `vuka.Pred`, `vuka.Order`, `vuka.FieldPath`, `vuka.Related`,
+`vuka.FieldAttrs`, `vuka.FieldsOf`; `vuka.Field` has `Attrs`.
+
+- **Field attributes.** Typed attributes after a struct field, after its tag:
+  `Title string `json:"title"` @Char{Max: 200}`. Type-checked, stripped
+  from the struct, and recorded at init: `vuka.FieldAttrs[T]()`,
+  `vuka.FieldsOf[T]()`, and `Attrs` on a type decorator's fields.
+  [Field attributes](/features/fields#field-attributes).
+- **Field references.** `Post.Title` is a typed reference to the field;
+  `Post.Author.Name` goes on through struct, pointer and `vuka.Related` fields
+  (a foreign key), and embedded fields are promoted. References build typed
+  predicates (`Post.Views.Gt(100)`, `vuka.Or(…)`), kept as data for a query
+  builder and testable in memory with `Match`, and orderings for
+  `vuka.SortBy`. Hover and go to definition on a reference land on the field.
+  [Field references](/features/fields#field-references).
+
 ## v0.6.0 — 2026-10-10
 
 Runtime: `github.com/vuka-lang/vuka v0.6.0` (new: `vuka.Decl`, `vuka.File`,

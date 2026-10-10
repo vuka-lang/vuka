@@ -640,3 +640,55 @@ func TestLSPFormatting(t *testing.T) {
 		t.Errorf("gopls formatted util.go as %q", got)
 	}
 }
+
+const fieldSource = `package main
+
+import "fmt"
+
+type Char struct{ Max int }
+
+type FK[T any] struct{ obj *T }
+
+func (k FK[T]) Related() *T { return k.obj }
+
+type User struct {
+	Name string @Char{Max: 50}
+}
+
+type Post struct {
+	Title  string @Char{Max: 200}
+	Author FK[User]
+}
+
+func main() {
+	fmt.Println(Post.Title.Eq("x"), Post.Author.Name.Asc())
+}
+`
+
+func TestLSPFieldRefs(t *testing.T) {
+	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": fieldSource})
+	uri := pathToURI(filepath.Join(dir, "main.vuka"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka", "version": 1, "text": fieldSource}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	at := func(needle string, delta int) map[string]any {
+		pos := positionOf([]byte(fieldSource), strings.Index(fieldSource, needle)+delta)
+		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}
+	}
+	line := func(needle string) string {
+		return `"line":` + itoaTest(positionOf([]byte(fieldSource), strings.Index(fieldSource, needle)).Line)
+	}
+
+	v := c.call("textDocument/hover", at("Title.Eq", 1))
+	if b, _ := json.Marshal(v); !strings.Contains(string(b), "field Title string") {
+		t.Fatalf("hover on a field reference: %s", b)
+	}
+	v = c.call("textDocument/definition", at("Name.Asc", 1))
+	if b, _ := json.Marshal(v); !strings.Contains(string(b), uri) || !strings.Contains(string(b), line("Name string")) {
+		t.Fatalf("definition through a relation: %s, want %s", b, line("Name string"))
+	}
+	v = c.call("textDocument/hover", at("Char{Max: 200}", 1))
+	if b, _ := json.Marshal(v); !strings.Contains(string(b), "type Char struct") {
+		t.Fatalf("hover on a field attribute: %s", b)
+	}
+}

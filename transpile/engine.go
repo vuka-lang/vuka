@@ -5,6 +5,7 @@ import (
 	"go/importer"
 	"go/token"
 	"go/types"
+	"maps"
 	"strconv"
 	"strings"
 )
@@ -32,12 +33,14 @@ type engine struct {
 	typeNames     map[string]bool // package-level type names
 	genericEmbeds map[string]bool // types embedding a generic or another package's type
 	members       map[string]bool // Type.field and Type.method names
+	methodNames   map[string]bool // Type.method names
 	typed         bool            // the package is type-checked every round
 	sets          map[string]*overloadSet
 	funcs         map[string]*overloadSet
 	methods       map[string]*overloadSet
 	mnames        map[string]bool
 	pending       map[*fileState]map[int]string // runtime calls whose type can't be inferred yet
+	refErrs       map[*fileState]*refErrs       // field references naming no field, so far
 
 	fset     *token.FileSet
 	pkg      *types.Package
@@ -48,6 +51,7 @@ type engine struct {
 
 func (e *engine) run() {
 	e.pending = map[*fileState]map[int]string{}
+	e.refErrs = map[*fileState]*refErrs{}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}
@@ -81,6 +85,7 @@ func (e *engine) run() {
 				e.progress = true
 			}
 			e.resolveStatics(f)
+			e.resolveFieldRefs(f)
 			e.selfCalls(f)
 			e.resolveCalls(f)
 			e.infer(f)
@@ -248,7 +253,7 @@ func (e *engine) needsTypes() bool {
 // remove the construct that needed it while what follows still needs types.
 func (e *engine) needsTypesNow() bool {
 	for _, f := range e.vuka {
-		if f.rt != "" || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) {
+		if f.rt != "" || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) || e.mayUseFieldRefs(f) {
 			return true
 		}
 	}
@@ -333,6 +338,10 @@ func (e *engine) report() {
 				}
 			}
 		}
+		if re := e.refErrs[f]; re != nil {
+			stuck = true
+			*e.errs = append(*e.errs, re.errs...)
+		}
 		for off, name := range e.pending[f] {
 			stuck = true
 			e.errs.add(f.at(off), "can't infer the type of %s here; write %s[T]%s", name, name, map[bool]string{true: "()", false: "(…)"}[name == "None"])
@@ -344,9 +353,16 @@ func (e *engine) report() {
 	if !stuck {
 		return
 	}
+	reported := map[token.Position]bool{}
+	for _, err := range *e.errs {
+		reported[err.Pos] = true
+	}
+	for _, re := range e.refErrs {
+		maps.Copy(reported, re.hide)
+	}
 	shown := 0
 	for _, te := range e.typeErrs {
-		if shown == 5 || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") ||
+		if shown == 5 || reported[e.typeErrPos(te)] || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") ||
 			strings.Contains(te.Msg, "cannot infer T") {
 			continue
 		}
