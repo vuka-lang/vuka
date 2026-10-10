@@ -48,6 +48,41 @@ children of a component from another package, which may be a templ
 library: templUI works as it is. `templx.WithChildren` is the same function,
 for Go code.
 
+## On live pages
+
+A templ layout or view on a live page changes as little as JSX does: an
+event that changes one value inside a templ component sends that value, and
+moving between pages that share a templ layout sends the title, the nav
+link that changed and the new content — not the document again. On a page
+with a templ layout and a templ panel, a click changing the panel's badge
+sends 93 bytes where the panel's whole markup took 507; moving to another
+page of the layout takes 708 bytes where the document took 1,736 (most of
+it the new page's markup, sent once), and going back to a page seen before,
+289.
+
+In a module requiring ui (v0.5.0 or later), the vuka command compiles each
+`.templ` file to record a [render tree](/ui/live#what-a-reply-holds) under a
+live render, the way JSX's frames do:
+
+| templ | in the tree |
+|---|---|
+| the markup the source fixes | statics, sent once per connection |
+| `{ expr }`, an attribute's value, `{ attrs... }`, classes | a dynamic |
+| `for` | a block: a frame per iteration |
+| `if` / `else`, `switch` | a frame for the branch taken |
+| `@component`, `{ children... }` | a frame of its own: a templ component's, a JSX node's, or a stateful component's instance |
+
+A templ component's frames are identified by their statics, so the same
+layout keeps its frames from one page to the next, and the page's change is
+a change inside them. Templ inside JSX, and JSX inside templ, nest as
+frames both ways.
+
+Nothing else changes. On an HTTP page, a v1 session, or when a component
+renders into a string of its own, the compiled code writes exactly what
+templ's would, byte for byte, at about the same cost. A templ component
+compiled elsewhere — a component library, `templ generate` output — renders
+as before: its markup is one dynamic.
+
 ## A .templ file's components
 
 A string literal passed where a decorator or attribute takes a `vuka.File`

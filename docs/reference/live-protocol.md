@@ -103,11 +103,22 @@ expressions rendered — `len(s) == len(d) + 1`, and the frame's HTML is
 
 | JSON | |
 |---|---|
-| `"…"` | markup: text, an attribute (with its leading space and name, `" class=\"on\""`, or `""` when omitted), or anything rendered opaquely (a hand-written `ui.El` tree, a templ component) |
+| `"…"` | markup: text, an attribute (with its leading space and name, `" class=\"on\""`, or `""` when omitted), or anything rendered opaquely (a hand-written `ui.El` tree, a templ component not compiled by the vuka command) |
 | `{"t":id,"s":[…],"d":[…]}` | a nested frame: a JSX value in an `{expr}`, a component tag's children. `t` is its statics' id; `s` the statics themselves, present the first time the connection meets that id and omitted after |
 | `{"c":[frame,…]}` | a block, `{for}`, `{if}` or `{match}`: one item frame per loop iteration; an `{if}`/`{match}` has zero items or one, whose statics id says which branch |
 | `{"r":id,"v":"…"}` | markup of 64 bytes or more, which the connection keeps under `id` (a space of its own, not the statics'); later the same markup is `{"r":id}` |
 | `{"id":"c3"}` | a stateful component instance: its HTML is that instance's tree's HTML |
+
+**templ.** The vuka command compiles a module's `.templ` files to produce
+the same frames: a templ component's fixed markup is its statics; its
+`{ expr }` text and attribute values (an attribute value alone, between the
+statics `…class="` and `"…`) are dynamics; a `for` is a block, an `if` or
+`switch` a frame for the branch taken, and an `@component` call or
+`{ children... }` a nested frame (or an instance's `{"id"}`). Two frames
+with the same statics share a statics id, whichever component made them, so
+pages sharing a templ layout share its frames. A frame whose statics are
+all empty and that holds one frame is sent as that frame. The wire format
+is unchanged: a client needs nothing new for templ.
 
 Statics ids and string ids are numbers the server allocates per connection
 (0, 1, 2, … in order of first use); a `render` starts both afresh. The
