@@ -45,6 +45,13 @@ in `<style>` is written as is with `</` escaped. `<html>` gets the doctype.
 A void element (`<br>`, `<img>`, `<input>`, …) with children is a render
 error.
 
+## Links
+
+`<ui.Link href="/books/7">Dune</ui.Link>` is an `<a href>` a live page
+follows over its connection instead of reloading; `patch` makes it a move
+to the same page with other parameters. It is a plain link everywhere else.
+See [navigation](/web/navigation).
+
 ## Children and errors
 
 Children go to a `children ui.Node` parameter or a `Children ui.Node`

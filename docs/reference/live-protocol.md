@@ -18,6 +18,8 @@ func (s *Session) HTML() string                      // the page as last rendere
 func (s *Session) Event(ev ui.Event) (Patch, error)  // run a handler, render, diff
 func (s *Session) Info(topic string, msg any) (Patch, error) // deliver a message to subscribed instances' Update
 func (s *Session) Topics() []string                  // the topics instances subscribed to
+func (s *Session) Navigate(rt Route, patch bool) (Patch, error) // another URL's page (below)
+func (s *Session) SetRouter(r Router)                // what the navigate message renders
 func (s *Session) Close()                            // unmount everything
 
 func (s *Session) Handle(m ClientMessage) ServerMessage // the protocol, as values
@@ -40,6 +42,7 @@ and run one at a time. A transport keeps one session per connection, calls
 | `data-vk-id="c2"` | an instance's root element (the page is `c0`, the container); a render that isn't one element is wrapped in `<vk-c data-vk-id="…" style="display:contents">` |
 | `data-vk-key="…"` | an element's or instance's `key`, for pairing siblings in a morph |
 | `data-vk-on-<event>="c2:0"` | a handler for the DOM event `<event>` (`click`, `keydown`, `submit`, …): the instance's id and the handler's index in its render |
+| `data-vk-link`, `data-vk-link="patch"` | on an `<a href>`: a link the runtime follows over the connection ([navigation](#navigation)) |
 
 A runtime listens, delegated, for each event type a `data-vk-on-<event>`
 names, sends the nearest such element's handler id, and `preventDefault`s a
@@ -69,7 +72,8 @@ side.
 | `render` | `html` replaces the page container's content |
 | `patch` | for each update, the element whose `data-vk-id` is `id` is morphed into `html`; `id` `"c0"` is the page itself: its `html` replaces the container's content. The morph matches `data-vk-key` among siblings, so keyed rows move instead of being rewritten. `error`, when set, is a handler's message, for the page to show |
 | `error` | the message failed (an unknown handler, a render error); the session goes on |
-| `redirect` | reserved: navigate to `url` |
+| `navigate` | move the page to `url`, a patch when `patch` is true; the reply is a `patch` or a `redirect` ([navigation](#navigation)) |
+| `redirect` | load `url` as an ordinary page load |
 
 `ref` is any number the client picks; the reply to a message carries it, and
 a broadcast has none. The runtime listens, delegated, for each event type a
@@ -318,6 +322,7 @@ carrying the attribute.
 | `set_value` | `to`, `value` | set the element's value (a checkbox's `checked` from `"true"`), then fire `input` and `change` on it |
 | `set_text` | `to`, `text` | set the element's `textContent` to `text` |
 | `call` | `fn`, `to`?, `args`? | call a JavaScript function ([below](#calling-javascript)) |
+| `patch`, `navigate` | `href` | move the page to `href` over the connection, as a click on a `data-vk-link` (`="patch"`) link would ([navigation](#navigation)); a page without a connection loads `href` |
 
 Branches nest: an `if` inside a branch opens a level of its own, and
 `else_if`, `else` and `end` belong to the innermost `if` not yet ended. A
@@ -483,3 +488,71 @@ or a rejected promise stops the list and fires a `vk:error` event on *this*
 (`detail`: `{"error": message, "fn": name}`); when the `call` is among a
 push's predictions, that push fails without being sent — its predictions so
 far are reverted (unless `keep`) and its `on_error` runs.
+
+## Navigation
+
+A connected page moves to another URL over its connection: a paged list,
+a filter or tab kept in the URL, a list and its rows' pages. Two kinds:
+
+- a **patch** stays on the page: the instances the new URL renders where
+  the old one did stay mounted with their state, their props set again;
+- a **navigate** goes to another page: every instance but the page itself
+  (`c0`) unmounts, and the new page's mount.
+
+```text
+→ {"type":"navigate","ref":5,"url":"/books?page=2","patch":true}
+← {"type":"patch","ref":5,"url":"/books?page=2","trees":[{"id":"c3","tree":{"u":{…}}}]}
+→ {"type":"navigate","ref":6,"url":"/books/7"}
+← {"type":"patch","ref":6,"url":"/books/7","trees":[{"id":"c0","tree":{"u":{"3":{"id":"c4"}}}},{"id":"c4","full":true,"tree":…}]}
+→ {"type":"navigate","ref":7,"url":"/books.json"}
+← {"type":"redirect","ref":7,"url":"/books.json"}
+```
+
+| `navigate` field | |
+|---|---|
+| `url` | the URL to move to, a path with its query (never a `#hash`, never another origin) |
+| `patch` | `true` for a patch |
+
+The server resolves `url` to a page (a `live.Router`; [the session](/ui/live#navigation)).
+When it is one, the page becomes the session's, rendered and diffed as after
+an event: the reply is a `patch` (v1 `updates`, v2 `trees` — the page `c0`
+is the same instance, so a v2 client gets only what changed of its tree,
+against statics it already holds), carrying `url`, and `js` when the new
+page's `Mount` pushed commands. A patch's `error` is a failed `Update`'s
+message; the page has moved all the same. When `url` isn't a page (a
+redirect, an error, a non-HTML answer), the reply is `redirect`, whose `url`
+the client loads as an ordinary page. An `error` reply means the
+navigation failed. Either version supports navigation.
+
+A transport may add fields to a navigation's `patch`; the web framework's
+`token` is the new page's join token, which the client uses when it
+reconnects.
+
+**The client.** A runtime takes clicks on `<a data-vk-link>` (bubbling, so
+an element's own commands and handlers run first), unless the event's
+default is already prevented, the click is not the main button or has a
+modifier key (`ctrl`, `meta`, `shift`, `alt`), the link has a `target`
+other than `_self` or a `download` attribute, `href` is of another origin,
+or `href` is the page's own URL with a `#hash`; those stay the browser's.
+It also moves on `patch` and `navigate` commands, and on `popstate`. While a
+navigation is in flight it sets `data-vk-navigating` on `<html>` and sends
+no events. Then:
+
+| | |
+|---|---|
+| the `patch` reply | applied as any patch; then the address changes (`pushState`, or the entry's state updated for back and forward), scroll and focus follow, and `vk:navigate` fires on `window` with `detail: {url, patch}` |
+| `redirect`, `error`, no reply in 10s, the connection lost | an ordinary page load of the URL (`location.replace` for back and forward) |
+| not connected | an ordinary page load, nothing sent |
+
+History entries carry a page id in their state: a patch keeps the page's, a
+navigate makes a new one. Back or forward to an entry of the page shown
+sends a patch; to another page's, a navigate; to the same URL with only a
+different `#hash`, nothing. Scroll: a navigate goes to the top, or to the
+element whose id the `#hash` names; a patch stays; back and forward go to
+the position kept in the entry's state. Focus, after a navigate: the
+`[autofocus]` element, else `<main>`, else the first element with
+`data-vk-id`, given `tabindex="-1"` when it isn't focusable. A whole-document
+`c0` sets `document.title` and adds the `<head>` children the document lacks
+(compared by their markup; a script is recreated so that it runs). A
+navigate drops the optimistic pushes still waiting, without their hooks.
+

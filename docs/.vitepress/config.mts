@@ -84,6 +84,7 @@ export default defineConfig({
           { text: 'Dependency injection', link: '/web/dependency-injection' },
           { text: 'Middleware', link: '/web/middleware' },
           { text: 'Live components', link: '/web/live' },
+          { text: 'Navigation', link: '/web/navigation' },
           { text: 'Configuration and .env', link: '/web/configuration' },
           { text: 'Routers and deployment', link: '/web/deployment' },
           { text: 'Testing', link: '/web/testing' },

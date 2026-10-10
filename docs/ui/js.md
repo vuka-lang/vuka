@@ -58,6 +58,7 @@ their own.
 | `SetText(t, text)` | set the element's text, replacing its content |
 | `Call(name, args...)` | call a JavaScript function of the page ([below](#calling-javascript)) |
 | `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s outcome ([below](#optimistic-updates)) |
+| `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)) |
 
 ## Targets and refs
 
@@ -241,7 +242,9 @@ func (c *Form) Save(ctx context.Context, f Fields) error {
 They run once the reply's changes are on the page, with `ui.This` the
 component's root element and refs its own. Pushed chains may be
 optimistic too: their pushes settle as a click's do. Rendered without a
-session `PushJS` does nothing.
+session `PushJS` does nothing. `c.PushPatch(href)` and
+`c.PushNavigate(href)` push a chain of one `Patch` or `Navigate`: the page
+moves once the reply is applied ([navigation](/web/navigation)).
 
 ## Server patches
 

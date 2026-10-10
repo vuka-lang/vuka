@@ -13,6 +13,7 @@ html, err := s.Render()                         // the page container's HTML
 p, err := s.Event(ui.Event{Target: "c2:0", Type: "click"})
 p, err := s.Info("room:go", NewMessage{"hi"})    // "" reaches every instance
 topics := s.Topics()                            // what to route to Info
+p, err := s.Navigate(route, patch)              // another URL's page, on the same connection
 s.Close()                                       // unmounts everything
 ```
 
@@ -42,6 +43,39 @@ Either version's reply also carries the [JS commands](/ui/js#from-the-server)
 components pushed with `PushJS` while it was made (`Patch.JS`, and
 `s.JS()` for those a `Mount` pushed during the join's render), run by the
 browser once the reply is applied.
+
+## Navigation
+
+A connected page can move to another URL without a new session: the
+transport resolves the URL to a `live.Route` and the session makes its page
+its own ([navigation](/web/navigation) is what users see of it).
+
+```go
+s.SetRouter(func(url string) live.Route {
+	page, ok := pages.Match(url)
+	if !ok {
+		return live.Route{}                        // not a page: the browser loads url
+	}
+	return live.Route{Ctx: ctx, Render: page.Render, Updates: page.Params}
+})
+```
+
+| `live.Route` | |
+|---|---|
+| `Render` | the new page's render function; nil when the URL isn't a page |
+| `Ctx` | the context of what runs from then on (the session's when nil) |
+| `Redirect` | with `Render` nil, the URL the browser loads (the URL itself when empty) |
+| `Updates` | for a patch: an instance kept for a tag whose props are a key takes the value in its `Update` method before it renders |
+
+`s.Navigate(route, patch)` returns what changed, as an event does. As a
+**patch**, the instances the new page renders where the old one did stay
+mounted, their props set from its tags, and `Updates` reach their `Update`
+methods (an error is the patch's `Error`). Otherwise every instance
+unmounts and the new page's mount. The page itself (`c0`) is the same
+instance either way, so the client gets only what changed of its markup —
+in v2, against statics it already holds. `Handle` answers the protocol's
+`navigate` message through the router; without one, every navigation is a
+`redirect`, a full page load.
 
 ## Change tracking
 
