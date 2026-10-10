@@ -113,6 +113,9 @@ func serve(r route, params map[string]string) []reflect.Value {
 func showPet(id string) Pet { … }
 ```
 
+This is how the [web framework](/web/routes)'s routes, services and
+controllers are declared.
+
 | `*vuka.Decl` | |
 |---|---|
 | `d.Name`, `d.Pkg` | `"main.showPet"` or `"PetAdmin.Index"`; the import path |
@@ -165,7 +168,8 @@ still embedded only from the package's directory or below: a path such as
 `../shared/x.templ` is an error, since `go:embed` can't reach up.
 
 The parameter or field must be `vuka.File` itself; literals elsewhere aren't
-embedded.
+embedded. The web framework's `@web.Template` takes one: see
+[Views](/web/views).
 
 ## Details
 

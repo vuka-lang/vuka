@@ -448,6 +448,12 @@ vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(func() { t.Remove
 
 The site string is the file and the tag's ordinal among its component tags.
 
+### Serving live pages
+
+The [web framework](/web/live) is such a transport: `@web.Live(path)` serves a
+stateful component as a page, any page rendering one is live, and broadcasts
+reach every connected page. See [Live components](/web/live).
+
 ### Next
 
 Patches today are a component's whole HTML, for the client to morph. The
