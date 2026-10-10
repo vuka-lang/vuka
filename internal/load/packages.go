@@ -76,13 +76,14 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	var pkgs []*Package
 	seen := map[string]bool{}
 	templ := TemplActive(root)
+	live := TemplTrees(root)
 	var visit func(d string) error
 	visit = func(d string) error {
 		if seen[d] {
 			return nil
 		}
 		seen[d] = true
-		found, err := readDir(root, modPath, d, read, templ)
+		found, err := readDir(root, modPath, d, read, templ, live)
 		pkgs = append(pkgs, found...)
 		if err != nil || recursive {
 			return err
@@ -119,7 +120,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	return pkgs, err
 }
 
-func readDir(root, modPath, dir string, read ReadFunc, templ bool) ([]*Package, error) {
+func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Package, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -175,7 +176,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ bool) ([]*Package, 
 		var t *Templ
 		if isTempl(name) {
 			// Judged, parsed and type-checked as the Go file it becomes.
-			if t = compileTempl(filepath.Join(dir, name), name, src); t.Err != nil {
+			if t = compileTempl(filepath.Join(dir, name), name, src, live); t.Err != nil {
 				broken = append(broken, t)
 				continue
 			}
@@ -204,6 +205,9 @@ func readDir(root, modPath, dir string, read ReadFunc, templ bool) ([]*Package, 
 		}
 		if t != nil {
 			p.Templ = append(p.Templ, t)
+			if t.Live != nil {
+				p.Imports = append(p.Imports, UIPath+"/templx") // the recorder, in what builds compile
+			}
 		}
 		for _, imp := range f.Imports {
 			if path, err := strconv.Unquote(imp.Path.Value); err == nil {
@@ -426,7 +430,7 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			if opts.Bare {
 				g.Src, g.TemplMap = t.Go, t.Map
 			} else {
-				g.Src = t.formatted()
+				g.Src = t.Build()
 			}
 			if err := add(t.GoName, g.Src); err != nil {
 				return nil, "", err

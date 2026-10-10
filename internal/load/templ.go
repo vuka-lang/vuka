@@ -1,10 +1,13 @@
 package load
 
 import (
+	"bytes"
 	"go/format"
+	"go/token"
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/transpile"
@@ -24,6 +27,10 @@ type Templ struct {
 	// 0-based): a *parser.SourceMap of templ's, from TemplCompiler.
 	Map any
 	Err *transpile.Error // a parse or generate error, positioned in Src
+	// Live is Go instrumented to record live render trees (TemplInstrument),
+	// gofmt'ed: what builds use in place of Go, when the module's ui has
+	// the recorder (TemplTrees). The language server keeps to Go and Map.
+	Live []byte
 }
 
 // TemplGoName is the name of the Go file templ generates for a .templ file.
@@ -41,14 +48,36 @@ var TemplCompiler func(path, name string, src []byte) (goSrc []byte, sourceMap a
 // components for a vuka.File naming it.
 const UIPath = "github.com/vuka-lang/ui"
 
-// compileTempl compiles one .templ file with TemplCompiler.
-func compileTempl(path, name string, src []byte) *Templ {
+// TemplInstrument rewrites a .templ file's Go to record live render trees
+// (ui.Rec). The vuka command's templ plugin sets it.
+var TemplInstrument func(goSrc []byte) ([]byte, error)
+
+// compileTempl compiles one .templ file with TemplCompiler, and instruments
+// it when live.
+func compileTempl(path, name string, src []byte, live bool) *Templ {
 	t := &Templ{Name: name, Src: src, GoName: TemplGoName(name)}
 	t.Go, t.Map, t.Err = TemplCompiler(path, name, src)
+	if t.Err == nil && live && TemplInstrument != nil {
+		out, err := TemplInstrument(t.Go)
+		if err != nil {
+			t.Err = &transpile.Error{Pos: token.Position{Filename: path, Line: 1, Column: 1}, Msg: "instrumenting the generated Go: " + err.Error()}
+			return t
+		}
+		t.Live = out
+	}
 	return t
 }
 
-var requireLine = regexp.MustCompile(`(?m)^\s*(?:require\s+)?(\S+)\s+v\S+`)
+// Build is t's Go as builds use it: instrumented when it is, else as `templ
+// generate` writes it.
+func (t *Templ) Build() []byte {
+	if t.Live != nil {
+		return t.Live
+	}
+	return t.formatted()
+}
+
+var requireLine = regexp.MustCompile(`(?m)^\s*(?:require\s+)?(\S+)\s+(v\S+)`)
 
 // requires reports whether the go.mod in root requires each of paths.
 func requires(root string, paths ...string) bool {
@@ -81,6 +110,62 @@ func TemplRegistry(root string) string {
 		return UIPath + "/templx"
 	}
 	return ""
+}
+
+// TemplTrees reports whether the .templ files of the module at root are
+// instrumented to record live render trees: they are compiled, the module
+// requires ui (or is ui), and that ui has the recorder (templx.Record) — v0.5.0
+// or later, or a local replacement that has it.
+func TemplTrees(root string) bool {
+	if !TemplActive(root) || TemplInstrument == nil {
+		return false
+	}
+	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		return false
+	}
+	if m := modulePath.FindSubmatch(data); m != nil && string(m[1]) == UIPath {
+		return true
+	}
+	version := ""
+	for _, m := range requireLine.FindAllSubmatch(data, -1) {
+		if string(m[1]) == UIPath {
+			version = string(m[2])
+		}
+	}
+	if version == "" {
+		return false
+	}
+	if m := uiReplace.FindSubmatch(data); m != nil {
+		to := string(m[1])
+		if strings.HasPrefix(to, ".") || filepath.IsAbs(to) {
+			if !filepath.IsAbs(to) {
+				to = filepath.Join(root, to)
+			}
+			rec, err := os.ReadFile(filepath.Join(to, "templx", "record.go"))
+			return err == nil && bytes.Contains(rec, []byte("func Record("))
+		}
+		if v := strings.Fields(to); len(v) == 2 && v[0] == UIPath {
+			version = v[1]
+		}
+	}
+	return atLeast(version, 0, 5)
+}
+
+var (
+	modulePath = regexp.MustCompile(`(?m)^\s*module\s+(\S+)`)
+	uiReplace  = regexp.MustCompile(`(?m)^\s*(?:replace\s+)?` + regexp.QuoteMeta(UIPath) + `(?:\s+v\S+)?\s+=>\s+(.+?)\s*$`)
+)
+
+// atLeast reports whether version vMAJOR.MINOR… is major.minor or later.
+func atLeast(version string, major, minor int) bool {
+	f := strings.SplitN(strings.TrimPrefix(version, "v"), ".", 3)
+	if len(f) < 2 {
+		return false
+	}
+	ma, err1 := strconv.Atoi(f[0])
+	mi, err2 := strconv.Atoi(f[1])
+	return err1 == nil && err2 == nil && (ma > major || ma == major && mi >= minor)
 }
 
 // formatted is t's Go as `templ generate` writes it: gofmt'ed.
