@@ -1,0 +1,10 @@
+GET /pets/1 -> REX <nil>
+POST /pets -> created 2 <nil>
+POST /pets ->  main.addPet: argument 0: a pet needs a name
+GET /owners/7/pets/2 -> 7 owns tom <nil>
+GET /pets/{pet_id} main.showPet id int [pet_id]; format string [format]; store *main.Store []
+POST /pets main.addPet in main.NewPet [{} {}]; store *main.Store []
+GET /owners/{owner}/pets/{pet_id} main.ownedPet owner int [owner]; id int [pet_id]; store *main.Store []
+GET /admin/count Admin.Count  string [unit]
+ main.addPet: argument 0: a pet needs a name
+2 <nil>

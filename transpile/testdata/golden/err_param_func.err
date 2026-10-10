@@ -1,0 +1,1 @@
+err_param_func.vuka:5:11: @logged is a function, not a value; a parameter attribute is a value, such as @Body or @Path("id")

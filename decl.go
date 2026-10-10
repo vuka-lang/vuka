@@ -27,18 +27,26 @@ type Decl struct {
 }
 
 // Param is a parameter of a declared function: its name as written ("" when
-// unnamed) and type.
+// unnamed), type, and the typed attributes written before it:
+//
+//	func Show(@Path("pet_id") id int)
 type Param struct {
-	Name string
-	Type reflect.Type
+	Name  string
+	Type  reflect.Type
+	Attrs []any
 }
+
+// Attr fills ptr with the parameter's typed attribute of ptr's element type,
+// reporting whether there is one: var p Path; param.Attr(&p).
+func (p Param) Attr(ptr any) bool { return fillAttr(p.Attrs, ptr) }
 
 // Attr fills ptr with the declaration's typed attribute of ptr's element type,
 // reporting whether there is one: var r Route; d.Attr(&r).
 func (d *Decl) Attr(ptr any) bool { return fillAttr(d.Attrs, ptr) }
 
 // FuncDecl describes a function for its declarers, given its parameters'
-// names. Generated code calls it.
+// names, or with d.Params holding each parameter's name and attributes.
+// Generated code calls it.
 func FuncDecl(d Decl, params ...string) *Decl { return d.describe(0, params) }
 
 // MethodDecl describes a method, d.Func being its method expression.
@@ -50,8 +58,14 @@ func (d Decl) describe(skip int, names []string) *Decl {
 	if skip == 1 {
 		d.Recv = t.In(0)
 	}
+	given := d.Params
+	d.Params = nil
 	for i := skip; i < t.NumIn(); i++ {
-		p := Param{Type: t.In(i)}
+		var p Param
+		if i-skip < len(given) {
+			p = given[i-skip]
+		}
+		p.Type = t.In(i)
 		if i-skip < len(names) {
 			p.Name = names[i-skip]
 		}

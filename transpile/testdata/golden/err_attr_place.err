@@ -1,2 +1,2 @@
-err_attr_place.vuka:4:2: attributes are only allowed before top-level declarations
+err_attr_place.vuka:4:2: attributes are only allowed before top-level declarations, their parameters, and after struct fields
 err_attr_place.vuka:9:1: @doc must be followed by a declaration (func, type, var or const)

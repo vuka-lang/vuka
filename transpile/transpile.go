@@ -245,7 +245,7 @@ func (f *fileState) attrEdits() {
 func (f *fileState) makeTrailer(bare bool) {
 	var w genWriter
 	for _, a := range f.attrs {
-		if a.kind != attrTyped {
+		if a.kind != attrTyped && a.kind != attrParam {
 			continue
 		}
 		if w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
@@ -342,6 +342,10 @@ func (f *fileState) attach() {
 			f.attachField(a)
 			continue
 		}
+		if a.Param {
+			f.attachParam(a)
+			continue
+		}
 		off := f.cur.fromOrig(a.declOff)
 		for _, d := range f.ast.Decls {
 			switch d := d.(type) {
@@ -353,6 +357,32 @@ func (f *fileState) attach() {
 				if f.off(d.TokPos) == off {
 					a.decl, a.Decl = d, genName(d)
 				}
+			}
+		}
+	}
+}
+
+// attachParam finds the function and parameter a precedes.
+func (f *fileState) attachParam(a *Attr) {
+	off := f.cur.fromOrig(a.paramOff)
+	for _, d := range f.ast.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || f.off(fd.Type.Params.Opening) > off || f.off(fd.Type.Params.Closing) < off {
+			continue
+		}
+		i := 0
+		for _, field := range fd.Type.Params.List {
+			if len(field.Names) == 0 {
+				if f.off(field.Type.Pos()) == off {
+					a.decl, a.Decl, a.ParamIndex = fd, declKey(fd), i
+				}
+				i++
+			}
+			for _, n := range field.Names {
+				if f.off(n.Pos()) == off {
+					a.decl, a.Decl, a.ParamIndex = fd, declKey(fd), i
+				}
+				i++
 			}
 		}
 	}

@@ -97,10 +97,12 @@ type matchStmt struct {
 func (f *fileState) scan(errs *ErrorList) {
 	toks := scanTokens(f.src)
 	depth, lastEnd := 0, -1
-	var pending []*Attr
+	var pending, pendingParams []*Attr
+	fstage, paramAttrEnd := 0, -1 // fstage: 1 inside a top-level func declaration's head, before its parameters
 	type frame struct {
 		typeGroup  bool
 		structBody bool
+		params     bool // a top-level func declaration's parameter list
 		structOf   string // the named type whose struct body this is
 		tparams    string
 		names      []string
@@ -124,6 +126,14 @@ func (f *fileState) scan(errs *ErrorList) {
 		switch {
 		case isOpen(t.tok):
 			fr := frame{typeGroup: t.tok == token.LPAREN && p.tok == token.TYPE}
+			if depth == 0 && fstage == 1 {
+				switch {
+				case t.tok == token.LPAREN && (p.tok == token.IDENT || p.tok == token.RBRACK):
+					fr.params, fstage = true, 0
+				case t.tok == token.LBRACE:
+					fstage = 0
+				}
+			}
 			if t.tok == token.LBRACE && p.tok == token.STRUCT {
 				fr.structBody = true
 				if name, tp, names, ok := namedStruct(f.src, toks, pIdx, top().typeGroup); ok {
@@ -150,6 +160,9 @@ func (f *fileState) scan(errs *ErrorList) {
 			i, prev, prevIdx = last, toks[last], last
 			continue
 		case t.tok == token.FUNC && depth == 0:
+			if p.tok != token.ASSIGN && p.tok != token.COMMA && p.tok != token.DEFINE {
+				fstage = 1
+			}
 			if sf, ok := f.staticFuncAt(toks, i); ok {
 				f.staticFuncs = append(f.staticFuncs, sf)
 			}
@@ -186,6 +199,9 @@ func (f *fileState) scan(errs *ErrorList) {
 			toks = append(toks[:i:i], append([]tok{{t.off, token.IDENT, string(f.src[t.off:end])}}, scanFrom(f.src, end, true)...)...)
 			prev = toks[i]
 			continue
+		case t.tok == token.SEMICOLON && depth == 0:
+			fstage = 0
+			continue
 		case !isAt(t):
 			continue
 		}
@@ -205,8 +221,35 @@ func (f *fileState) scan(errs *ErrorList) {
 			i = next - 1
 			prev = toks[i]
 			continue
+		case depth == 1 && fr.params:
+			if msg := f.paramAttr(a, p, paramAttrEnd); msg != "" {
+				errs.add(a.Pos, "%s", msg)
+			}
+			paramAttrEnd = a.end
+			pendingParams = append(pendingParams, a)
+			f.attrs = append(f.attrs, a)
+			k := next
+			for k < len(toks) && trivia(toks[k]) {
+				k++
+			}
+			switch {
+			case k < len(toks) && isAt(toks[k]):
+			case k < len(toks) && toks[k].tok != token.COMMA && toks[k].tok != token.RPAREN:
+				for _, pa := range pendingParams {
+					pa.paramOff = toks[k].off
+				}
+				pendingParams = nil
+			default:
+				for _, pa := range pendingParams {
+					errs.add(pa.Pos, "@%s must be followed by a parameter: func f(@%s id int)", pa.Name, pa.Name)
+				}
+				pendingParams = nil
+			}
+			i = next - 1
+			prev = toks[i]
+			continue
 		case depth > 0:
-			errs.add(a.Pos, "attributes are only allowed before top-level declarations")
+			errs.add(a.Pos, "attributes are only allowed before top-level declarations, their parameters, and after struct fields")
 			i = next - 1
 			continue
 		case !startsLine(f.src, a.start, lastEnd):

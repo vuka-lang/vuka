@@ -1,0 +1,5 @@
+package main
+
+decorator logged(c) { c.Next() }
+
+func list(@logged n int) {}

@@ -1,0 +1,15 @@
+package main
+
+type Path string
+
+func a(@doc("the id") id int) {}
+
+func b(id @Path("id") int) {}
+
+func c(x int, @Path("id")) {}
+
+func d() (@Path("r") r int) { return 0 }
+
+func (@Path("s") s *S) e() {}
+
+var f = func(@Path("id") id int) {}

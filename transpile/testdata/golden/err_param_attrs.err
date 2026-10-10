@@ -1,0 +1,6 @@
+err_param_attrs.vuka:5:8: @doc is for declarations; a parameter attribute is a value, such as @Path("id")
+err_param_attrs.vuka:7:11: a parameter attribute goes before its parameter: func f(@Path id int)
+err_param_attrs.vuka:9:15: @Path must be followed by a parameter: func f(@Path id int)
+err_param_attrs.vuka:11:11: attributes are only allowed before top-level declarations, their parameters, and after struct fields
+err_param_attrs.vuka:13:7: attributes are only allowed before top-level declarations, their parameters, and after struct fields
+err_param_attrs.vuka:15:14: attributes are only allowed before top-level declarations, their parameters, and after struct fields

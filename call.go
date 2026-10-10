@@ -24,7 +24,11 @@ type Decorator func(c *Call)
 type Func struct {
 	Name     string // "main.charge", "Store.Save"
 	Attrs    []any  // the declaration's typed attributes
-	ErrIndex int    // the trailing error result's index, or -1
+	// ParamAttrs are each parameter's typed attributes, receiver excluded:
+	// func Show(@Path("id") id int) has [][]any{{Path("id")}}. Nil when no
+	// parameter has any.
+	ParamAttrs [][]any
+	ErrIndex   int // the trailing error result's index, or -1
 	CtxIndex int    // the context.Context argument's index, or -1
 	Zero     func() []any
 }
@@ -107,6 +111,23 @@ func (c *Call) Context() context.Context {
 // Attr fills ptr with the declaration's typed attribute of ptr's element type,
 // reporting whether there is one: var r Route; c.Attr(&r).
 func (c *Call) Attr(ptr any) bool { return fillAttr(c.fn.Attrs, ptr) }
+
+// ParamAttr fills ptr with parameter i's typed attribute of ptr's element
+// type, reporting whether there is one. i indexes c.Args:
+//
+//	func Create(@Valid in NewPet) error
+//
+//	for i := range c.Args {
+//		var v Valid
+//		if c.ParamAttr(i, &v) { … }
+//	}
+func (c *Call) ParamAttr(i int, ptr any) bool {
+	if i < 0 || i >= len(c.fn.ParamAttrs) {
+		fillAttr(nil, ptr)
+		return false
+	}
+	return fillAttr(c.fn.ParamAttrs[i], ptr)
+}
 
 // Arg is argument i as a T.
 func Arg[T any](c *Call, i int) T { return As[T](c.Args[i]) }

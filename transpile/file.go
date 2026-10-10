@@ -54,7 +54,7 @@ func (f *fileState) copySrc(w *genWriter, text string, off int) {
 // string literal, which might be a vuka.File.
 func (f *fileState) mayEmbed() bool {
 	for _, a := range f.attrs {
-		if (a.kind == attrTyped || a.kind == attrDecorator || a.kind == attrField) && strings.ContainsAny(a.Args, "\"`") {
+		if (a.kind == attrTyped || a.kind == attrDecorator || a.kind == attrField || a.kind == attrParam) && strings.ContainsAny(a.Args, "\"`") {
 			return true
 		}
 	}

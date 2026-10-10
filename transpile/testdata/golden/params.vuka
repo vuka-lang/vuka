@@ -1,0 +1,180 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+	"reflect"
+	"strconv"
+	"strings"
+)
+
+// Where a handler's arguments come from, as Spring's @PathVariable,
+// @RequestParam and @RequestBody say it: typed attributes on parameters.
+type Path string
+type Query string
+type Body struct{}
+
+// Valid asks the valid decorator to check an argument.
+type Valid struct{}
+
+type Request struct {
+	Path, Query map[string]string
+	Body        string
+}
+
+type route struct {
+	method, pattern string
+	decl            *vuka.Decl
+}
+
+var routes []route
+
+func Get(pattern string) func(*vuka.Decl) {
+	return func(d *vuka.Decl) { routes = append(routes, route{"GET", pattern, d}) }
+}
+
+func Post(pattern string) func(*vuka.Decl) {
+	return func(d *vuka.Decl) { routes = append(routes, route{"POST", pattern, d}) }
+}
+
+// services are what parameters without an attribute get, by type.
+var services = map[reflect.Type]reflect.Value{}
+
+// serve finds the route and binds each parameter from its attribute.
+func serve(method, path string, req Request) {
+	for _, r := range routes {
+		params, ok := match(r.pattern, path)
+		if r.method != method || !ok {
+			continue
+		}
+		req.Path = params
+		var args []reflect.Value
+		for _, p := range r.decl.Params {
+			args = append(args, bind(p, req))
+		}
+		out := reflect.ValueOf(r.decl.Func).Call(args)
+		fmt.Println(method, path, "->", out[0].Interface(), out[1].Interface())
+		return
+	}
+	fmt.Println(method, path, "-> 404")
+}
+
+func bind(p vuka.Param, req Request) reflect.Value {
+	var path Path
+	var query Query
+	var body Body
+	switch {
+	case p.Attr(&path):
+		return convert(req.Path[string(path)], p.Type)
+	case p.Attr(&query):
+		return convert(req.Query[string(query)], p.Type)
+	case p.Attr(&body):
+		v := reflect.New(p.Type)
+		json.Unmarshal([]byte(req.Body), v.Interface())
+		return v.Elem()
+	}
+	return services[p.Type]
+}
+
+func convert(s string, t reflect.Type) reflect.Value {
+	if t.Kind() == reflect.Int {
+		n, _ := strconv.Atoi(s)
+		return reflect.ValueOf(n)
+	}
+	return reflect.ValueOf(s)
+}
+
+func match(pattern, path string) (map[string]string, bool) {
+	ps, xs := strings.Split(pattern, "/"), strings.Split(path, "/")
+	if len(ps) != len(xs) {
+		return nil, false
+	}
+	params := map[string]string{}
+	for i, p := range ps {
+		if name, ok := strings.CutPrefix(p, "{"); ok {
+			params[strings.TrimSuffix(name, "}")] = xs[i]
+		} else if p != xs[i] {
+			return nil, false
+		}
+	}
+	return params, true
+}
+
+type Validator interface{ Validate() error }
+
+// valid checks every argument whose parameter carries @Valid.
+decorator valid(c) {
+	for i, arg := range c.Args {
+		var v Valid
+		if !c.ParamAttr(i, &v) {
+			continue
+		}
+		if x, ok := arg.(Validator); ok {
+			if err := x.Validate(); err != nil {
+				c.SetErr(fmt.Errorf("%s: argument %d: %w", c.Name, i, err))
+				return
+			}
+		}
+	}
+	c.Next()
+}
+
+type Store struct{ pets map[int]string }
+
+type NewPet struct{ Name string }
+
+func (p NewPet) Validate() error {
+	if p.Name == "" {
+		return errors.New("a pet needs a name")
+	}
+	return nil
+}
+
+@Get("/pets/{pet_id}")
+func showPet(@Path("pet_id") id int, @Query("format") format string, store *Store) (string, error) {
+	if format == "upper" {
+		return strings.ToUpper(store.pets[id]), nil
+	}
+	return store.pets[id], nil
+}
+
+@Post("/pets")
+@valid
+func addPet(@Body @Valid in NewPet, store *Store) (string, error) {
+	id := len(store.pets) + 1
+	store.pets[id] = in.Name
+	return "created " + strconv.Itoa(id), nil
+}
+
+@Get("/owners/{owner}/pets/{pet_id}")
+func ownedPet(@Path("owner") owner, @Path("pet_id") id int, store *Store) (string, error) {
+	return fmt.Sprint(owner, " owns ", store.pets[id]), nil
+}
+
+type Admin struct{ store *Store }
+
+// A method's parameters take attributes too; so do unnamed ones.
+@Get("/admin/count")
+func (a *Admin) Count(@Query("unit") string) (string, error) {
+	return strconv.Itoa(len(a.store.pets)), nil
+}
+
+func main() {
+	store := &Store{pets: map[int]string{1: "rex"}}
+	services[reflect.TypeOf(store)] = reflect.ValueOf(store)
+	serve("GET", "/pets/1", Request{Query: map[string]string{"format": "upper"}})
+	serve("POST", "/pets", Request{Body: `{"Name": "tom"}`})
+	serve("POST", "/pets", Request{Body: `{}`})
+	serve("GET", "/owners/7/pets/2", Request{})
+	for _, r := range routes {
+		d := r.decl
+		var names []string
+		for _, p := range d.Params {
+			names = append(names, fmt.Sprintf("%s %v %v", p.Name, p.Type, p.Attrs))
+		}
+		fmt.Println(r.method, r.pattern, d.Name, strings.Join(names, "; "))
+	}
+	fmt.Println(addPet(NewPet{}, store))
+	fmt.Println((&Admin{store}).Count(""))
+}

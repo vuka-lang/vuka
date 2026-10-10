@@ -18,6 +18,7 @@ const (
 	attrDerive
 	attrDecorator
 	attrField // after a struct field: a value recorded for the field
+	attrParam // before a parameter: a value recorded for the parameter
 )
 
 var builtins = map[string]attrKind{
@@ -39,6 +40,10 @@ type Attr struct {
 	Decl string         // the declaration it annotates: "area", "Shape.Scale", "Config"; a field's "Post.Title"
 	// Field is set for an attribute written after a struct field.
 	Field bool
+	// Param is set for an attribute written before a parameter; Decl is then
+	// the function's, and ParamIndex the parameter's index, receiver excluded.
+	Param      bool
+	ParamIndex int
 	// Decorator is set for a decorator (a function wrapping the declaration)
 	// rather than a typed attribute (metadata).
 	Decorator bool
@@ -50,6 +55,7 @@ type Attr struct {
 	value      string // the string argument of a built-in
 	bare       bool   // written @name or @name[T]: a type or a decorator, decided by what it names
 	decl       ast.Decl
+	paramOff   int      // a parameter attribute's parameter: the offset of its name, or type when unnamed
 	structOf   string   // a field attribute's struct type
 	fieldNames []string // the field's names (an embedded field's type name)
 }
@@ -147,6 +153,20 @@ func stringArg(args string) (string, bool) {
 	return v, err == nil
 }
 
+// paramAttr checks a, an attribute the scanner read in a top-level function's
+// parameter list after p, and marks it a parameter attribute; prevEnd is where
+// the parameter attribute before it ended.
+func (f *fileState) paramAttr(a *Attr, p tok, prevEnd int) string {
+	switch {
+	case a.kind != attrTyped && a.kind != attrDecorator:
+		return "@" + a.Name + " is for declarations; a parameter attribute is a value, such as @Path(\"id\")"
+	case p.tok != token.LPAREN && p.tok != token.COMMA && p.end() != prevEnd:
+		return "a parameter attribute goes before its parameter: func f(@" + a.Name + " id int)"
+	}
+	a.kind, a.Decorator, a.Param = attrParam, false, true
+	return ""
+}
+
 // replacement is what the attribute becomes in place: comments spanning exactly
 // the lines it spanned, so every line after it keeps its number.
 func (a *Attr) replacement(src []byte) string {
@@ -180,5 +200,6 @@ func (a *Attr) check(src []byte) (prefix, expr string) {
 	if strings.HasSuffix(expr, "}") || strings.HasSuffix(expr, ")") {
 		return "var _ = ", expr
 	}
+
 	return "var _ ", expr
 }

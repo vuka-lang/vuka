@@ -24,7 +24,8 @@ type decoUse struct {
 	a       *Attr
 	kind    decoKind
 	decided bool
-	at      int // where the copy of its name starts in f.deco, this render
+	called  bool // written bare, but a function of optional arguments only: called with none
+	at      int  // where the copy of its name starts in f.deco, this render
 }
 
 // funcDeco is a decorated function or method: the pieces of its wrapper,
@@ -47,8 +48,9 @@ type funcDeco struct {
 	init               bool
 	qualName           string
 	errIndex, ctxIndex int
-	attrs              []*Attr // the declaration's typed attributes
-	file               string  // the source file's base name
+	attrs              []*Attr   // the declaration's typed attributes
+	pattrs             [][]*Attr // each parameter's attributes, receiver excluded; nil when none has any
+	file               string    // the source file's base name
 	line               int     // the name's line
 }
 
@@ -151,6 +153,14 @@ func (e *engine) decorate() bool {
 		groups := map[ast.Decl][]*Attr{}
 		var order []ast.Decl
 		for _, a := range f.attrs {
+			if a.Param {
+				if a.decl == nil {
+					e.errs.add(a.Pos, "@%s must be followed by a parameter of a top-level function", a.Name)
+				} else if a.bare && !e.namesType(f, a.Name) {
+					e.errs.add(a.Pos, "@%s is a function, not a value; a parameter attribute is a value, such as @Body or @Path(\"id\")", a.Name)
+				}
+				continue
+			}
 			switch {
 			case a.bare && !e.namesType(f, a.Name):
 				a.kind, a.Decorator, a.bare = attrDecorator, true, false
@@ -333,6 +343,14 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
 			d.args = append(d.args, p)
 		}
 	}
+	for _, a := range f.attrs {
+		if a.Param && a.decl == fd {
+			if d.pattrs == nil {
+				d.pattrs = make([][]*Attr, len(d.pnames))
+			}
+			d.pattrs[a.ParamIndex] = append(d.pattrs[a.ParamIndex], a)
+		}
+	}
 	if res := fd.Type.Results; res != nil {
 		d.results = " " + e.qualText(f, res)
 		for _, field := range res.List {
@@ -505,7 +523,18 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		w.gen("var "+info+" = "+rt+".Func{Name: "+strconv.Quote(d.qualName)+", ErrIndex: "+itoa(d.errIndex)+
 			", CtxIndex: "+itoa(d.ctxIndex)+", Zero: func() []any { return []any{"+strings.Join(zeros, ", ")+"} }, Attrs: []any{", d.nameOff)
 		e.writeAttrValues(f, d.attrs)
-		w.gen("}}\n\n", d.nameOff)
+		w.gen("}", d.nameOff)
+		if d.pattrs != nil {
+			w.gen(", ParamAttrs: [][]any{", d.nameOff)
+			for i, as := range d.pattrs {
+				if i > 0 {
+					w.gen(", ", d.nameOff)
+				}
+				e.writeParamAttrs(f, as, "nil", d.nameOff)
+			}
+			w.gen("}", d.nameOff)
+		}
+		w.gen("}\n\n", d.nameOff)
 	}
 	if !e.bare {
 		w.gen(lineDirective(f.at(d.nameOff)), d.nameOff)
@@ -567,11 +596,28 @@ func (e *engine) renderDecls(f *fileState, d *funcDeco, decls []*decoUse) {
 		", Pkg: "+strconv.Quote(e.pkgPath())+", File: "+strconv.Quote(d.file)+", Line: "+itoa(d.line)+
 		", Func: "+fn+", Attrs: []any{", d.nameOff)
 	e.writeAttrValues(f, d.attrs)
-	w.gen("}}", d.nameOff)
-	for _, n := range d.pnames {
-		w.gen(", "+strconv.Quote(n), d.nameOff)
+	w.gen("}", d.nameOff)
+	if d.pattrs != nil {
+		w.gen(", Params: []"+rt+".Param{", d.nameOff)
+		for i, n := range d.pnames {
+			if i > 0 {
+				w.gen(", ", d.nameOff)
+			}
+			w.gen("{Name: "+strconv.Quote(n), d.nameOff)
+			if len(d.pattrs[i]) > 0 {
+				w.gen(", Attrs: ", d.nameOff)
+				e.writeParamAttrs(f, d.pattrs[i], "", d.nameOff)
+			}
+			w.gen("}", d.nameOff)
+		}
+		w.gen("}})\n", d.nameOff)
+	} else {
+		w.gen("}", d.nameOff)
+		for _, n := range d.pnames {
+			w.gen(", "+strconv.Quote(n), d.nameOff)
+		}
+		w.gen(")\n", d.nameOff)
 	}
-	w.gen(")\n", d.nameOff)
 	for _, u := range decls {
 		w.gen("\t", u.a.start)
 		e.writeDecorator(f, u, "")
@@ -689,6 +735,24 @@ func (e *engine) writeAttrValues(f *fileState, attrs []*Attr) {
 	}
 }
 
+// writeParamAttrs writes one parameter's attributes as a []any literal, or
+// none when it has none.
+func (e *engine) writeParamAttrs(f *fileState, attrs []*Attr, none string, off int) {
+	w := &f.deco
+	if len(attrs) == 0 {
+		w.gen(none, off)
+		return
+	}
+	w.gen("[]any{", attrs[0].start)
+	for i, a := range attrs {
+		if i > 0 {
+			w.gen(", ", a.start)
+		}
+		e.writeFieldAttr(f, a)
+	}
+	w.gen("}", attrs[len(attrs)-1].end)
+}
+
 // writeDecorator copies a decorator's text into f's wrappers, recording where
 // its name lands. With typeArg set (a generic type decorator) the type goes in
 // as the first type argument, and a bare decorator is called with no arguments.
@@ -706,6 +770,9 @@ func (e *engine) writeDecorator(f *fileState, u *decoUse, typeArg string) {
 	switch {
 	case typeArg == "":
 		f.copySrc(w, args, nameEnd)
+		if u.called {
+			w.gen("()", a.end)
+		}
 	case strings.HasPrefix(args, "["):
 		w.gen("["+typeArg+", ", nameEnd)
 		f.copySrc(w, args[1:], nameEnd+1)
@@ -744,6 +811,10 @@ func (e *engine) classify(f *fileState) {
 				continue
 			}
 			u.decided = true
+			if r := factoryResult(t); r != nil && u.a.Args == "" {
+				// @tx for tx(opts ...Opt): called with no arguments.
+				u.called, t, changed = true, r, true
+			}
 			kind := decoTyped
 			switch {
 			case !isType && isRuntimeFunc(t, "Call"):
@@ -804,6 +875,20 @@ func (e *engine) decoratorType(f *fileState, u *decoUse) types.Type {
 		return sig.Results().At(0).Type()
 	}
 	return t
+}
+
+// factoryResult is what calling t with no arguments returns, when t is a
+// function whose parameters are all optional (none, or one ...T) and which
+// returns one value: a decorator written bare, @tx, is then tx().
+func factoryResult(t types.Type) types.Type {
+	sig, ok := t.Underlying().(*types.Signature)
+	if !ok || sig.TypeParams().Len() > 0 || sig.Results().Len() != 1 {
+		return nil
+	}
+	if n := sig.Params().Len(); n > 1 || n == 1 && !sig.Variadic() {
+		return nil
+	}
+	return sig.Results().At(0).Type()
 }
 
 // isRuntimeFunc reports whether t is func(*vuka.<name>) with no results.
