@@ -7,6 +7,7 @@ import (
 	"io"
 
 	"github.com/a-h/templ"
+	"github.com/vuka-lang/ui"
 )
 
 type User struct {
@@ -16,7 +17,7 @@ type User struct {
 	Year   int
 }
 
-func UserCard(user User, admin bool, children vuka.Node) vuka.Node {
+func UserCard(user User, admin bool, children ui.Node) ui.Node {
 	return <div className="card" data-id={user.ID}>
 		<h3>{user.Name}</h3>
 		{children}
@@ -25,10 +26,10 @@ func UserCard(user User, admin bool, children vuka.Node) vuka.Node {
 }
 
 // Row takes its struct whole: the attribute names the parameter.
-func Row(user User) vuka.Node { return <tr><td>{user.Name}</td></tr> }
+func Row(user User) ui.Node { return <tr><td>{user.Name}</td></tr> }
 
 // Badge takes its attributes out of the order of its parameters.
-func Badge(label string, count int) vuka.Node {
+func Badge(label string, count int) ui.Node {
 	return <span>{label}: {count}</span>
 }
 
@@ -36,10 +37,10 @@ type ButtonProps struct {
 	Variant  string
 	Size     int
 	Disabled bool
-	Children vuka.Node
+	Children ui.Node
 }
 
-func Button(props ButtonProps) vuka.Node { return <button>{props.Variant}</button> }
+func Button(props ButtonProps) ui.Node { return <button>{props.Variant}</button> }
 
 type IconProps struct {
 	Name  string
@@ -53,27 +54,27 @@ func (h html) Render(ctx context.Context, w io.Writer) error {
 	return err
 }
 
-// Icon is templUI-style: variadic props, a result that isn't vuka.Node.
+// Icon is templUI-style: variadic props, a result that isn't ui.Node.
 func Icon(props ...IconProps) html { return "<i></i>" }
 
-func Avatar(url string) (vuka.Node, error) {
+func Avatar(url string) (ui.Node, error) {
 	if url == "" {
 		return nil, errors.New("no url")
 	}
 	return <img src={url} />, nil
 }
 
-func Layout(title string, children vuka.Node) vuka.Node {
+func Layout(title string, children ui.Node) ui.Node {
 	return <main><title>{title}</title>{children}</main>
 }
 
 type Theme struct{ dark bool }
 
-func (t Theme) Card(heading string, children vuka.Node) vuka.Node {
+func (t Theme) Card(heading string, children ui.Node) ui.Node {
 	return <section className={map[bool]string{true: "dark"}[t.dark]}><h2>{heading}</h2>{children}</section>
 }
 
-func List(users []User) vuka.Node {
+func List(users []User) ui.Node {
 	return <>
 		<ul>
 			{for _, u := range users {
@@ -95,13 +96,13 @@ func List(users []User) vuka.Node {
 	</>
 }
 
-func Themed(theme Theme) vuka.Node {
+func Themed(theme Theme) ui.Node {
 	return <theme.Card heading="Hi">text</theme.Card>
 }
 
 func main() {
-	for _, n := range []vuka.Node{List([]User{{1, "Ann", true, 2020}}), Themed(Theme{true})} {
-		s, err := vuka.String(context.Background(), n)
+	for _, n := range []ui.Node{List([]User{{1, "Ann", true, 2020}}), Themed(Theme{true})} {
+		s, err := ui.String(context.Background(), n)
 		fmt.Println(s, err)
 	}
 }

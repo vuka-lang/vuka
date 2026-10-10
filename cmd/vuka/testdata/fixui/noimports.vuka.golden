@@ -1,0 +1,7 @@
+// import github.com/vuka-lang/ui
+
+package main
+
+import "github.com/vuka-lang/ui"
+
+func Hello() any { return <p>hi</p> }

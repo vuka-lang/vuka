@@ -1,0 +1,7 @@
+package main
+
+import "fmt"
+
+func Hello(name string) any {
+	return <p>{fmt.Sprint("hello ", name)}</p>
+}

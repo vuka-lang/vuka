@@ -1,27 +1,29 @@
 package main
 
-func mismatched() vuka.Node {
+import "github.com/vuka-lang/ui"
+
+func mismatched() ui.Node {
 	return <div><p>text</div>
 }
 
-func unclosed() vuka.Node {
+func unclosed() ui.Node {
 	return <ul>
 		<li>one</li>
 }
 
-func events(save func()) vuka.Node {
+func events(save func()) ui.Node {
 	return <button onClick={save} onmouseover="alert(1)">Save</button>
 }
 
-func block(ok bool) vuka.Node {
+func block(ok bool) ui.Node {
 	return <div>{if ok { <b>yes</b> }</div>
 }
 
-func nested(xs []int) vuka.Node {
+func nested(xs []int) ui.Node {
 	return <ul>{for range xs { if you like }}</ul>
 }
 
-func header(ok bool) vuka.Node {
+func header(ok bool) ui.Node {
 	return <div>{if ok }</div>
 }
 

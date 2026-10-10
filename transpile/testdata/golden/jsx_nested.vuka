@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"github.com/vuka-lang/ui"
 )
 
 func lookup(s string) Result[int] {
@@ -12,10 +13,10 @@ func lookup(s string) Result[int] {
 }
 
 // ? and match inside function literals within {…}, at any depth.
-func sum(s []string) vuka.Node {
+func sum(s []string) ui.Node {
 	return <ul>
 		{for _, x := range s {
-			{vuka.Try(func() (vuka.Node, error) {
+			{ui.Try(func() (ui.Node, error) {
 				n := strconv.Atoi(x)?
 				return <li title={func() string {
 					match lookup(x) {
@@ -30,9 +31,9 @@ func sum(s []string) vuka.Node {
 	</ul>
 }
 
-func status(s string) vuka.Node {
+func status(s string) ui.Node {
 	return <button>
-		{func() vuka.Node {
+		{func() ui.Node {
 			match lookup(s) {
 			case Ok(v):
 				return <b>{v}</b>
@@ -43,16 +44,16 @@ func status(s string) vuka.Node {
 	</button>
 }
 
-func boundary(s []string) vuka.Node {
-	return vuka.ErrorBoundary(func(err error) vuka.Node { return <p>error: {err}</p> }, sum(s))
+func boundary(s []string) ui.Node {
+	return ui.ErrorBoundary(func(err error) ui.Node { return <p>error: {err}</p> }, sum(s))
 }
 
 func main() {
 	ctx := context.Background()
 	for _, in := range [][]string{{"1", "42"}, {"1", "x"}} {
-		fmt.Println(vuka.String(ctx, boundary(in)))
+		fmt.Println(ui.String(ctx, boundary(in)))
 	}
 	for _, s := range []string{"7", "x"} {
-		fmt.Println(vuka.String(ctx, status(s)))
+		fmt.Println(ui.String(ctx, status(s)))
 	}
 }

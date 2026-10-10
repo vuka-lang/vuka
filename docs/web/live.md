@@ -1,16 +1,17 @@
 # Live components
 
-A [stateful component](/features/components#stateful-components) — a struct
-embedding `vuka.Live` — keeps its state on the server and answers its
+A [stateful component](/ui/stateful) — a struct
+embedding `ui.Live` — keeps its state on the server and answers its
 elements' events over a WebSocket; the page changes in place, with no
-JavaScript to write. Vuka gives the component model and the
-[session](/features/components#the-session); web gives the transport, the
-browser runtime and the routes.
+JavaScript to write. [ui](/ui/) gives the component model, the
+[session](/ui/live) and the [protocol](/reference/live-protocol); web gives
+the transport, the browser runtime and the routes. Props, state, events,
+messages and `ui.Assign` are on [Stateful components](/ui/stateful).
 
 ```vuka
 @web.Live("/counter")
 type Counter struct {
-	vuka.Live
+	ui.Live
 	Start int // ?start=3
 	n     int
 }
@@ -18,7 +19,7 @@ type Counter struct {
 func (c *Counter) Mount() { c.n = c.Start }
 func (c *Counter) Inc()   { c.n++ }
 
-func (c *Counter) Render() vuka.Node {
+func (c *Counter) Render() ui.Node {
 	return <div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>
 }
 ```
@@ -31,7 +32,7 @@ Two ways, one mechanism:
   page. Its exported fields of provided types are injected; the others that
   hold text bind from the path segment or query parameter of their name
   (`form` tag, else the field name, ignoring case). The page is the component
-  inside a layout — `func(page vuka.Node) vuka.Node`:
+  inside a layout — `func(page ui.Node) ui.Node`:
 
   | | |
   |---|---|
@@ -43,12 +44,12 @@ Two ways, one mechanism:
   From Go: `app.Live("/counter", &Counter{Start: 1})`, the value's fields
   being the defaults.
 
-- **Any GET route** whose page — a `vuka.Node` result or a templ view —
+- **Any GET route** whose page — a `ui.Node` result or a templ view —
   renders a stateful component or an event handler is live by itself:
 
   ```vuka
   @web.Get("/")
-  func Home() vuka.Node { return <Shell title="Home"><Counter Start={10} /></Shell> }
+  func Home() ui.Node { return <Shell title="Home"><Counter Start={10} /></Shell> }
   ```
 
   A Vuka component rendered from a templ view is live too (templ passes the
@@ -75,8 +76,8 @@ components.
 the document for each event type a page names, and sends the nearest
 handler's id, the element's value (a checkbox's `"true"`/`"false"`), the key
 of a keyboard event, and a submitted form's fields. What a handler receives
-follows its type — nothing, the value, `vuka.Event`, `url.Values`, a struct
-bound from the form; see [Events](/features/components#events).
+follows its type — nothing, the value, `ui.Event`, `url.Values`, a struct
+bound from the form; see [Events](/ui/stateful#events).
 
 ```vuka
 type NewItem struct {
@@ -95,7 +96,7 @@ func (t *Todo) Add(f NewItem) error {
 
 func (t *Todo) Filter(q string) { t.filter = q }
 
-func (t *Todo) Render() vuka.Node {
+func (t *Todo) Render() ui.Node {
 	return <section>
 		<form onSubmit={t.Add}>
 			<input name="text" autocomplete="off" />
@@ -142,7 +143,7 @@ html[data-vk-state=disconnected] body::before { content: "reconnecting…"; posi
 `web.Broadcast(ctx, topic, msg)` — from an event handler, an `Update`, or any
 request — delivers `msg` to every component subscribed to `topic`
 (`c.Subscribe(topic)` in `Mount`), in every connected page. Each takes it in
-the [`Update`](/features/components#messages) overload of its type, and its
+the [`Update`](/ui/stateful#messages) overload of its type, and its
 page gets the patch:
 
 ```vuka
@@ -151,7 +152,7 @@ type Joined struct{ Who string }
 
 @web.Live("/chat/{room}")
 type Chat struct {
-	vuka.Live
+	ui.Live
 	Room  string   // the path segment
 	Log   *ChatLog // injected
 	lines []string
@@ -213,7 +214,7 @@ reloads the page (at most once in 10 seconds) for a fresh one.
 
 ## The wire
 
-Vuka's [wire protocol](/features/components#the-wire-protocol) as is, plus:
+Vuka's [wire protocol](/reference/live-protocol) as is, plus:
 
 | | |
 |---|---|

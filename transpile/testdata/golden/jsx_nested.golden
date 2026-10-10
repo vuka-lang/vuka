@@ -7,55 +7,56 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"github.com/vuka-lang/ui"
 )
 
-func lookup(s string) vuka./*line jsx_nested.vuka:9:23*/Result[int] {
-	n, __e1/*line jsx_nested.vuka:10:3*/ := strconv.Atoi(s); if __e1 != nil { return vuka.Err[int](__e1) }
-	return vuka./*line jsx_nested.vuka:11:9*/Ok[int]/*line jsx_nested.vuka:11:11*/(n)
+func lookup(s string) vuka./*line jsx_nested.vuka:10:23*/Result[int] {
+	n, __e1/*line jsx_nested.vuka:11:3*/ := strconv.Atoi(s); if __e1 != nil { return vuka.Err[int](__e1) }
+	return vuka./*line jsx_nested.vuka:12:9*/Ok[int]/*line jsx_nested.vuka:12:11*/(n)
 }
 
 // ? and match inside function literals within {…}, at any depth.
-func sum(s []string) vuka.Node {
-	return vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_nested.vuka:17:4*/for _, x := range s { __add(vuka.Child(
-/*line jsx_nested.vuka:18:5*/vuka.Try(func() (vuka.Node, error) {
-				n, __e2/*line jsx_nested.vuka:19:6*/ := strconv.Atoi(x); if __e2 != nil { return nil, __e2 }
-				return vuka.El("li", []vuka.Attr{{Name: "title", Value: /*line jsx_nested.vuka:20:23*/func() string {
-					if __m1 := /*line jsx_nested.vuka:21:12*/lookup(x); false { panic(__m1)
-					} else if v := __m1.Value(); __m1.IsOk() && (/*line jsx_nested.vuka:22:20*/v > 9) { _ = v;
+func sum(s []string) ui.Node {
+	return ui.F(0xa072abff0879908e, "E(b)", ui.El("ul", nil, ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_nested.vuka:18:4*/for _, x := range s { __add(ui.F(0xaf63e54c8601fbd7, "h", ui.Child(
+/*line jsx_nested.vuka:19:5*/ui.Try(func() (ui.Node, error) {
+				n, __e2/*line jsx_nested.vuka:20:6*/ := strconv.Atoi(x); if __e2 != nil { return nil, __e2 }
+				return ui.F(0xd979a5de999077c7, "Ed(h)", ui.El("li", []ui.Attr{{Name: "title", Value: /*line jsx_nested.vuka:21:23*/func() string {
+					if __m1 := /*line jsx_nested.vuka:22:12*/lookup(x); false { panic(__m1)
+					} else if v := __m1.Value(); __m1.IsOk() && (/*line jsx_nested.vuka:23:20*/v > 9) { _ = v;
 						return "big"
 					} else if true {
 						return "small"
 					} else { panic("vuka: no case matched") }
-				}()}, }, vuka.Child(/*line jsx_nested.vuka:27:11*/n), )/*line jsx_nested.vuka:27:18*/, nil
-			}()))); } }), 
+				}()}, }, ui.Child(/*line jsx_nested.vuka:28:11*/n), ), )/*line jsx_nested.vuka:28:18*/, nil
+			}())), )); } }), ), 
 
 )
 }
 
-func status(s string) vuka.Node {
-	return vuka.El("button", nil, vuka.Child(
-/*line jsx_nested.vuka:35:4*/func() vuka.Node {
-			if __m2 := /*line jsx_nested.vuka:36:10*/lookup(s); false { panic(__m2)
+func status(s string) ui.Node {
+	return ui.F(0xd97d0e3b298ad747, "E(h)", ui.El("button", nil, ui.Child(
+/*line jsx_nested.vuka:36:4*/func() ui.Node {
+			if __m2 := /*line jsx_nested.vuka:37:10*/lookup(s); false { panic(__m2)
 			} else if v := __m2.Value(); __m2.IsOk() { _ = v;
-				return vuka.El("b", nil, vuka.Child(/*line jsx_nested.vuka:38:16*/v), )
+				return ui.F(0x3fea34bf0369609d, "E(h)", ui.El("b", nil, ui.Child(/*line jsx_nested.vuka:39:16*/v), ), )
 			} else if e := __m2.Err(); __m2.IsErr() { _ = e;
-				return vuka.El("i", nil, vuka.Child(/*line jsx_nested.vuka:40:16*/e), )
+				return ui.F(0x3eb236fa49a80e3e, "E(h)", ui.El("i", nil, ui.Child(/*line jsx_nested.vuka:41:16*/e), ), )
 			} else { panic("vuka: no case matched") }
-		}()), 
+		}()), ), 
 )
 }
 
-func boundary(s []string) vuka.Node {
-	return vuka.ErrorBoundary(func(err error) vuka.Node { return vuka.El("p", nil, vuka.Text("error: "), vuka.Child(/*line jsx_nested.vuka:47:74*/err), )/*line jsx_nested.vuka:47:82*/ }, sum(s))
+func boundary(s []string) ui.Node {
+	return ui.ErrorBoundary(func(err error) ui.Node { return ui.F(0x64d61d4a8fa945f7, "E(th)", ui.El("p", nil, ui.Text("error: "), ui.Child(/*line jsx_nested.vuka:48:70*/err), ), )/*line jsx_nested.vuka:48:78*/ }, sum(s))
 }
 
 func main() {
 	ctx := context.Background()
 	for _, in := range [][]string{{"1", "42"}, {"1", "x"}} {
-		fmt.Println(vuka.String(ctx, boundary(in)))
+		fmt.Println(ui.String(ctx, boundary(in)))
 	}
 	for _, s := range []string{"7", "x"} {
-		fmt.Println(vuka.String(ctx, status(s)))
+		fmt.Println(ui.String(ctx, status(s)))
 	}
 }

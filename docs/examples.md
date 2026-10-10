@@ -143,7 +143,7 @@ WebSocket, with no JavaScript written.
 ```vuka
 @web.Live("/chat/{room}")
 type Chat struct {
-	vuka.Live
+	ui.Live
 	Room  string
 	Log   *ChatLog
 	lines []string

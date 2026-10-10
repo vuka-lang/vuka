@@ -57,6 +57,7 @@ Repairs what tooling can. `-n` only reports; name fixers to run only those.
 | `static-names` | write statics as `User.Table` in `.vuka` files, not by their Go names |
 | `orphans` | remove files `vuka gen -inplace` wrote for `.vuka` files that are gone |
 | `attr-of` | rename `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)`, in `.vuka` and `.go` files (v0.5.0) |
+| `ui` | move UI code to [`github.com/vuka-lang/ui`](/ui/) (v0.10.0): `vuka.Node` → `ui.Node` and the other UI names, `vuka/live`, `vuka/term`, `vuka/templx` → `ui/…`, `vuka.TemplComponents` → `templx.Components`; import ui in `.vuka` files with JSX; `go get` ui |
 
 ## fmt
 

@@ -6,10 +6,10 @@ import (
 	"strconv"
 )
 
-// resolveStateful decides a stateful component's tag: a struct type embedding
-// vuka.Live, whose pointer renders.
+// resolveStateful decides a stateful component's tag: a struct type whose
+// pointer implements the target's Stateful (ui: embeds ui.Live and renders).
 //
-//	<Counter Start={5} key={id}>hi</Counter>   →   vuka.Component("x.vuka#3", id, &Counter{Start: 5, Children: vuka.Fragment(vuka.Text("hi"), ), })
+//	<Counter Start={5} key={id}>hi</Counter>   →   ui.Component("x.vuka#3", id, &Counter{Start: 5, Children: ui.Fragment(ui.Text("hi"), ), })
 //
 // The site, the file and the tag's ordinal among its component tags, tells
 // the session which tag an instance comes from. Attributes bind to exported fields (promoted ones too), children to a
@@ -25,7 +25,7 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		fail(el.start, "<%s> is generic: write its type arguments, <%s[…]>", el.tag, el.tag)
 		return
 	}
-	if msg := e.statefulProblem(el.tag, t, node); msg != "" {
+	if msg := e.statefulProblem(c.target, el.tag, t); msg != "" {
 		fail(el.start, "%s", msg)
 		return
 	}
@@ -36,7 +36,7 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		return
 	}
 	if len(el.kids) > 0 && !kids {
-		fail(el.start, "<%s> takes no children: add a Children vuka.Node field to %s", el.tag, e.display(t))
+		fail(el.start, "<%s> takes no children: add a Children %sNode field to %s", el.tag, c.target.q, e.display(t))
 		return
 	}
 	for _, a := range el.attrs {
@@ -70,56 +70,37 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 	e.finishComp(f, c)
 }
 
-// runtimeObj is a name of the runtime package, if the package imports it.
-func (e *engine) runtimeObj(name string) types.Object {
-	for _, p := range e.pkg.Imports() {
-		if p.Path() == RuntimePath {
-			return p.Scope().Lookup(name)
-		}
+// statefulProblem says why a type isn't a stateful component of the target,
+// if it isn't: a struct whose pointer implements the target's Stateful.
+func (e *engine) statefulProblem(tg *jsxTarget, tag string, t types.Type) string {
+	what := "<" + tag + "> is a type, not a component: a component is a function returning " + tg.q + "Node"
+	iface, _ := e.targetObj(tg, "Stateful").(*types.TypeName)
+	if iface == nil || !tg.has("Component") {
+		return what + "; " + tg.path + " has no stateful components"
 	}
-	return nil
-}
-
-// statefulProblem says why a type isn't a stateful component, if it isn't.
-func (e *engine) statefulProblem(tag string, t, node types.Type) string {
-	what := "<" + tag + "> is a type, not a component: a component is a function returning a vuka.Node, or a struct embedding vuka.Live with a Render() vuka.Node method"
 	if _, ok := t.Underlying().(*types.Struct); !ok {
-		return what
+		return what + ", or a struct whose pointer implements " + tg.q + "Stateful"
 	}
-	iface := e.runtimeObj("Stateful")
-	if iface == nil {
-		return "the Vuka runtime this module requires has no stateful components; update it: go get " + RuntimePath + "@latest"
+	it, ok := iface.Type().Underlying().(*types.Interface)
+	if !ok {
+		return tg.q + "Stateful isn't an interface"
 	}
 	ptr := types.NewPointer(t)
-	live, _, _ := types.LookupFieldOrMethod(ptr, true, iface.Pkg(), "vukaLive")
-	if live == nil {
-		return "<" + tag + "> is a struct that doesn't embed vuka.Live: a stateful component embeds vuka.Live and has a Render() vuka.Node method"
+	m, wrong := types.MissingMethod(ptr, it, true)
+	if m == nil {
+		return ""
 	}
-	if lf, _, _ := types.LookupFieldOrMethod(ptr, true, iface.Pkg(), "Live"); lf != nil {
-		if _, isPtr := lf.Type().(*types.Pointer); isPtr {
-			return "<" + tag + "> embeds *vuka.Live; embed vuka.Live by value"
+	why := "missing method " + m.Name()
+	switch {
+	case wrong:
+		have, _, _ := types.LookupFieldOrMethod(ptr, true, m.Pkg(), m.Name())
+		why = "wrong type for method " + m.Name() + ": has " + e.display(have.Type()) + ", wants " + e.display(m.Type())
+	case !m.Exported():
+		if h := provider(tg, m); h != "" {
+			why += "; embed " + h
 		}
 	}
-	render, _, _ := types.LookupFieldOrMethod(ptr, true, e.pkg, "Render")
-	fn, ok := render.(*types.Func)
-	if !ok {
-		return "<" + tag + "> embeds vuka.Live but has no Render() vuka.Node method"
-	}
-	if sig := fn.Signature(); sig.Params().Len() != 0 || sig.Results().Len() != 1 || !types.Identical(sig.Results().At(0).Type(), node) {
-		return "<" + tag + ">'s Render is " + e.display(sig) + "; a stateful component's is func() vuka.Node"
-	}
-	if m, _, _ := types.LookupFieldOrMethod(ptr, true, e.pkg, "Mount"); m != nil {
-		sig, _ := m.Type().(*types.Signature)
-		ok := sig != nil && sig.Results().Len() <= 1 && (sig.Results().Len() == 0 || types.Identical(sig.Results().At(0).Type(), errorType)) &&
-			(sig.Params().Len() == 0 || sig.Params().Len() == 1 && isContext(sig.Params().At(0).Type()))
-		if !ok {
-			return "<" + tag + ">'s Mount is " + e.display(m.Type()) + "; it takes nothing or a context.Context, and returns nothing or an error"
-		}
-	}
-	if !types.Implements(ptr, iface.Type().Underlying().(*types.Interface)) {
-		return what
-	}
-	return ""
+	return "<" + tag + "> isn't a stateful component: *" + e.display(t) + " doesn't implement " + tg.q + "Stateful (" + why + ")"
 }
 
 func isContext(t types.Type) bool { return isNamed(t, "context", "Context") }
@@ -138,7 +119,7 @@ type propField struct {
 // is shallower, and ambiguous when two are equally deep. Exported only, for a
 // stateful component (whose unexported fields are state); fields of another
 // package's struct are reached only through exported embedded fields.
-func (e *engine) propFields(st *types.Struct, exported bool) []propField {
+func (e *engine) propFields(tg *jsxTarget, st *types.Struct, exported bool) []propField {
 	type level struct {
 		st   *types.Struct
 		nest []nestStep
@@ -154,7 +135,7 @@ func (e *engine) propFields(st *types.Struct, exported bool) []propField {
 			for i := 0; i < lv.st.NumFields(); i++ {
 				fld := lv.st.Field(i)
 				visible := fld.Exported() || !exported && fld.Pkg() == e.pkg
-				if isRuntimeNamed(fld.Type(), "Live") || !visible {
+				if fld.Embedded() && declaredBy(tg, fld.Type()) || !visible {
 					continue
 				}
 				name := fld.Name()
@@ -203,7 +184,7 @@ func nestName(n []nestStep) string {
 // the children are bound.
 func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node types.Type, stateful bool) (bool, int, string) {
 	el := c.el
-	fields := e.propFields(st, stateful)
+	fields := e.propFields(c.target, st, stateful)
 	var names []string
 	for _, fl := range fields {
 		names = append(names, fl.name)
@@ -271,8 +252,9 @@ func groupArgs(args []*compArg, d int) []*compArg {
 }
 
 // checkEvents checks, once their types are known, the expressions of the
-// elements' on… attributes: a function the live runtime can call, or a
-// templ.ComponentScript.
+// elements' on… attributes: a function, nil, or a value of a type with
+// methods (a target may take such a value, e.g. templ.ComponentScript). What
+// a handler may take is the target's business, checked when it renders.
 func (e *engine) checkEvents(f *fileState) {
 	for _, t := range f.jsx {
 		for _, ev := range t.events {
@@ -293,50 +275,14 @@ func (e *engine) checkEvents(f *fileState) {
 }
 
 func (e *engine) handlerProblem(t types.Type) string {
-	if isNamed(t, templPath, "ComponentScript") {
-		return ""
-	}
 	if b, ok := t.(*types.Basic); ok && b.Kind() == types.UntypedNil {
 		return ""
 	}
-	want := "takes a func(), a func taking the event's value (a string, number or bool), a form (a struct, or url.Values) or a vuka.Event, optionally after a context.Context, returning nothing or an error"
-	sig, ok := t.Underlying().(*types.Signature)
-	if !ok {
-		return want + "; this is " + e.display(t)
+	if _, ok := t.Underlying().(*types.Signature); ok {
+		return ""
 	}
-	ps := sig.Params()
-	i := 0
-	if ps.Len() > 0 && isContext(ps.At(0).Type()) {
-		i = 1
+	if types.NewMethodSet(t).Len() > 0 || types.NewMethodSet(types.NewPointer(t)).Len() > 0 {
+		return ""
 	}
-	rs := sig.Results()
-	if sig.Variadic() || ps.Len()-i > 1 || rs.Len() > 1 || rs.Len() == 1 && !types.Identical(rs.At(0).Type(), errorType) ||
-		ps.Len()-i == 1 && !payloadOK(ps.At(i).Type()) {
-		return want + "; this is " + e.display(t)
-	}
-	return ""
-}
-
-func payloadOK(t types.Type) bool {
-	if isRuntimeNamed(t, "Event") {
-		return true
-	}
-	switch u := t.Underlying().(type) {
-	case *types.Basic:
-		return u.Info()&(types.IsString|types.IsBoolean|types.IsInteger|types.IsFloat) != 0
-	case *types.Struct:
-		return true
-	case *types.Pointer:
-		_, ok := u.Elem().Underlying().(*types.Struct)
-		return ok
-	case *types.Map:
-		k, kok := u.Key().Underlying().(*types.Basic)
-		s, sok := u.Elem().Underlying().(*types.Slice)
-		if !kok || !sok || k.Kind() != types.String {
-			return false
-		}
-		v, ok := s.Elem().Underlying().(*types.Basic)
-		return ok && v.Kind() == types.String
-	}
-	return false
+	return "takes a function; this is " + e.display(t)
 }

@@ -76,12 +76,13 @@ func generate(path string) (transpile.Output, []byte, error) {
 				continue
 			}
 			res, err := transpile.Package(p.Files, transpile.Options{
-				Bare:       true,
-				Templ:      load.TemplFinder(pkgs),
-				Importer:   load.NewImporter(p.Dir, filepath.Join(tmp, "overlay.json")),
-				Path:       func(name string) string { return filepath.Join(p.Dir, name) },
-				Dir:        p.Dir,
-				ImportPath: p.ImportPath,
+				Bare:          true,
+				Templ:         load.TemplFinder(pkgs),
+				TemplRegistry: templRegistry(p.Dir),
+				Importer:      load.NewImporter(p.Dir, filepath.Join(tmp, "overlay.json")),
+				Path:          func(name string) string { return filepath.Join(p.Dir, name) },
+				Dir:           p.Dir,
+				ImportPath:    p.ImportPath,
 			})
 			if err != nil {
 				return transpile.Output{}, nil, err

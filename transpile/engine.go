@@ -2,7 +2,6 @@ package transpile
 
 import (
 	"go/ast"
-	"go/importer"
 	"go/token"
 	"go/types"
 	"maps"
@@ -19,15 +18,18 @@ var runtimeNames = map[string]bool{"Result": true, "Option": true, "Ok": true, "
 // decidable once the types it depends on are known: in `x := f()?; match x {…}`
 // the match waits for the round in which x has a type.
 type engine struct {
-	files, vuka []*fileState
-	imp         types.Importer
-	errs        *ErrorList
-	bare        bool
-	dir         string
-	importPath  string
-	templ       func(string) (TemplFile, error)
-	tplImports  map[string]string // packages of .templ files in subdirectories → their names in generated code
-	nfiles      int               // embedded files so far, naming their variables
+	files, vuka   []*fileState
+	imp           types.Importer
+	errs          *ErrorList
+	bare          bool
+	dir           string
+	importPath    string
+	templ         func(string) (TemplFile, error)
+	templRegistry string
+	tplImports    map[string]string         // packages of .templ files in subdirectories → their names in generated code
+	nfiles        int                       // embedded files so far, naming their variables
+	targets       map[string]*types.Package // import paths → the JSX target there, or nil
+	targetErrs    map[string]error          // imports that didn't load, looking for one
 
 	declared      map[string]bool // package-level names
 	typeNames     map[string]bool // package-level type names
@@ -52,9 +54,6 @@ type engine struct {
 func (e *engine) run() {
 	e.pending = map[*fileState]map[int]string{}
 	e.refErrs = map[*fileState]*refErrs{}
-	if e.imp == nil {
-		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
-	}
 	for round := 0; round < 100; round++ {
 		e.progress = false
 		if !e.parseAll(round == 0) {

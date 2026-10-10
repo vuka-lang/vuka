@@ -1,0 +1,3 @@
+package main
+
+func Hello() any { return <p>hi</p> }

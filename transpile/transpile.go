@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/scanner"
 	"go/token"
@@ -22,7 +23,7 @@ import (
 const RuntimePath = "github.com/vuka-lang/vuka"
 
 // RuntimeVersion is the runtime version the code Vuka generates needs.
-const RuntimeVersion = "v0.7.0"
+const RuntimeVersion = "v0.10.0"
 
 // File is one source file of a package: a .vuka file to transpile, or a .go file
 // in the same package.
@@ -56,6 +57,13 @@ type Options struct {
 	// module, for a vuka.File naming one in a subdirectory. Nil makes such a
 	// File an error.
 	Templ func(path string) (TemplFile, error)
+	// TemplRegistry is the package that records the components of a .templ
+	// file a vuka.File names: the generated code calls its
+	// Register(key string, components ...Component), Component being
+	// struct{Name string; Func any; Params []string}. Empty embeds .templ
+	// files as plain files. The vuka command's templ plugin sets
+	// github.com/vuka-lang/ui/templx.
+	TemplRegistry string
 }
 
 // TemplFile is a .templ file of another package: its import path and the Go
@@ -136,7 +144,9 @@ type fileState struct {
 
 	done    map[int]bool // src offsets of identifiers already rewritten or reported
 	rt      string       // the name the runtime is imported as; "" until needed
-	pkgEnd  int          // offset just after the package clause's name
+	target  *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	eng     *engine
+	pkgEnd  int // offset just after the package clause's name
 	dotImps bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
@@ -430,10 +440,13 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry}
+	if e.imp == nil {
+		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
+	}
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
-			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare}
+			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
 		if opts.Path != nil {
 			f.path = opts.Path(file.Name)
 		}

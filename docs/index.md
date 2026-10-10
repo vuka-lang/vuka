@@ -33,9 +33,9 @@ features:
     link: /features/statics
     linkText: Statics and Self
   - title: Components with JSX
-    details: "Markup is an expression and a component is a function. Rendered by templ, so .templ files and templ libraries work side by side with no generate step."
-    link: /features/components
-    linkText: Components and JSX
+    details: "Markup is an expression and a component is a function. The UI library renders it with templ, so .templ files and templ libraries work side by side — and keeps stateful components live over a connection."
+    link: /ui/
+    linkText: UI
   - title: Plain Go comes out
     details: No runtime magic, no reflection where a type will do. vuka explain shows exactly what each line becomes, and build/ holds a plain Go module any Go tool can build.
   - title: Full editor support

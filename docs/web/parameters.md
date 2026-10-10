@@ -60,7 +60,7 @@ A handler returns nothing, `error`, `T`, `(T, error)` or `Result[T]`:
 | Result | Response |
 |---|---|
 | nothing, a nil error | 204 — unless the handler wrote the response itself through its `http.ResponseWriter` |
-| `vuka.Node` (JSX, a templ component) | HTML |
+| `ui.Node` (JSX, a templ component) | HTML |
 | `T` with `@web.Template` | the [view](/web/views), HTML |
 | `T` without | JSON, 200 |
 | `web.Redirect(url)`, as a value or an error | 302 for GET and HEAD, else 303 |
@@ -99,7 +99,7 @@ func (s *PetStore) Remove(id int) error {
 
 `errors.Is(err, web.NotFound)` matches any `*web.Error` with that status.
 
-An error is an HTML page on an HTML route — one with a view, a `vuka.Node`
+An error is an HTML page on an HTML route — one with a view, a `ui.Node`
 result or a redirect result — and `{"error": …, "status": …}` elsewhere.
 `web.OnError(func(w, r, e *web.Error, html bool))` replaces both. An error
 that isn't a `*web.Error` shows "Internal Server Error" unless the app runs
@@ -107,7 +107,7 @@ in dev (`web.Dev()` or `VUKA_ENV=development`), where its message is shown.
 
 ## Redirects
 
-`web.Redirect` is a string type that is an `error` and a `vuka.Node`, so it
+`web.Redirect` is a string type that is an `error` and a `ui.Node`, so it
 works as any of a handler's results:
 
 ```vuka
@@ -118,7 +118,7 @@ func AddPet(in NewPet, store *PetStore) (web.Redirect, error) {
 }
 
 @web.Get("/old")
-func Old() vuka.Node { return web.Redirect("/new") }
+func Old() ui.Node { return web.Redirect("/new") }
 ```
 
 A POST answered with a redirect is a 303, so the browser follows it with a

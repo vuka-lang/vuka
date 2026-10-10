@@ -1,38 +1,41 @@
 package main
 
-import "context"
+import (
+	"context"
+	"github.com/vuka-lang/ui"
+)
 
-type NoRender struct{ vuka.Live }
+type NoRender struct{ ui.Live }
 
-type BadRender struct{ vuka.Live }
+type BadRender struct{ ui.Live }
 
-func (b *BadRender) Render(ctx context.Context) vuka.Node { return nil }
+func (b *BadRender) Render(ctx context.Context) ui.Node { return nil }
 
-type Ptr struct{ *vuka.Live }
+type Ptr struct{ *ui.Live }
 
-func (p *Ptr) Render() vuka.Node { return nil }
+func (p *Ptr) Render() ui.Node { return nil }
 
 type Named int
 
 type Counter struct {
-	vuka.Live
+	ui.Live
 	Start int
 	n     int
 }
 
-func (c *Counter) Render() vuka.Node { return <b>{c.n}</b> }
+func (c *Counter) Render() ui.Node { return <b>{c.n}</b> }
 
-type BadMount struct{ vuka.Live }
+type BadMount struct{ ui.Live }
 
 func (b *BadMount) Mount(n int)       {}
-func (b *BadMount) Render() vuka.Node { return nil }
+func (b *BadMount) Render() ui.Node { return nil }
 
 type Box[T any] struct {
-	vuka.Live
+	ui.Live
 	Value T
 }
 
-func (b *Box[T]) Render() vuka.Node { return nil }
+func (b *Box[T]) Render() ui.Node { return nil }
 
 type A struct{ Title string }
 type B struct{ Title string }
@@ -42,9 +45,9 @@ type Props struct {
 	B
 }
 
-func Both(p Props) vuka.Node { return nil }
+func Both(p Props) ui.Node { return nil }
 
-func page() vuka.Node {
+func page() ui.Node {
 	return <>
 		<NoRender />
 		<BadRender />
@@ -60,7 +63,14 @@ func page() vuka.Node {
 		<button onClick={func(a, b int) {}}>b</button>
 		<input onInput={func(x []int) {}} />
 		<input onInput={func(s string) int { return 0 }} />
+		<NotLive />
+		<button onClick={"go()"}>c</button>
+		<button onClick={nil}>d</button>
 	</>
 }
 
 func main() {}
+
+type NotLive struct{ Start int }
+
+func (n *NotLive) Render() ui.Node { return nil }

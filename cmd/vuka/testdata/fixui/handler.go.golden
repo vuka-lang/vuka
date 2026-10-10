@@ -1,0 +1,16 @@
+// vuka.Handler → ui.Handler
+// vuka.Node → ui.Node
+// drop the unused import of github.com/vuka-lang/vuka
+// import github.com/vuka-lang/ui
+
+package web
+
+import (
+	"net/http"
+
+	"github.com/vuka-lang/ui"
+)
+
+func Serve(n ui.Node) http.Handler {
+	return ui.Handler(func(*http.Request) (ui.Node, error) { return n, nil })
+}

@@ -169,10 +169,35 @@ func TestTranspileGolden(t *testing.T) {
 	}
 }
 
+// goldenDir is the transpile golden cases' module, which requires the JSX
+// target the cases import.
+const goldenDir = "../../transpile/testdata/golden"
+
+// writeGoldenModule writes goldenDir's go.mod, its replaced paths made
+// absolute, and go.sum into dir.
+func writeGoldenModule(t *testing.T, dir string) {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(goldenDir, "go.mod"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	var b strings.Builder
+	for _, line := range strings.SplitAfter(string(data), "\n") {
+		if f := strings.Fields(line); len(f) == 4 && f[0] == "replace" && f[2] == "=>" {
+			p, _ := filepath.Abs(filepath.Join(goldenDir, f[3]))
+			line = "replace " + f[1] + " => " + p + "\n"
+		}
+		b.WriteString(line)
+	}
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte(b.String()), 0o644)
+	sum, _ := os.ReadFile(filepath.Join(goldenDir, "go.sum"))
+	os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644)
+}
+
 func lower(t *testing.T, dir, name string, src []byte) []byte {
 	t.Helper()
 	res, err := transpile.Package([]transpile.File{{Name: name + ".vuka", Src: src}},
-		transpile.Options{Importer: load.NewImporter(dir, "")})
+		transpile.Options{Importer: load.NewImporter(goldenDir, "")})
 	if err != nil {
 		t.Fatalf("transpile: %v\n%s", err, src)
 	}
@@ -240,11 +265,7 @@ func run(t *testing.T, src []byte) string {
 		t.Skip("compiles and runs the program")
 	}
 	dir := t.TempDir()
-	root, _ := filepath.Abs("../..")
-	mod := "module golden\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/a-h/templ v0.3.1020 // indirect\n\tgithub.com/vuka-lang/vuka v0.0.0\n)\n\nreplace github.com/vuka-lang/vuka => " + root + "\n"
-	os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644)
-	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
-	os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644)
+	writeGoldenModule(t, dir)
 	os.WriteFile(filepath.Join(dir, "main.go"), src, 0o644)
 	os.CopyFS(filepath.Join(dir, "assets"), os.DirFS("../../transpile/testdata/golden/assets"))
 	cmd := exec.Command("go", "run", ".")

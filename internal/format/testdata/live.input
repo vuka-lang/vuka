@@ -1,6 +1,9 @@
 package main
 
-import "context"
+import (
+	"context"
+	"github.com/vuka-lang/ui"
+)
 
 var   header=<h1   className="top">Pets</h1>
 
@@ -9,7 +12,7 @@ var (
 )
 
 type Counter struct {
-	vuka.Live
+	ui.Live
 	Start   int
 	n int
 }
@@ -18,21 +21,21 @@ func (c *Counter) Mount(ctx context.Context) error { c.n = c.Start; return nil }
 
 func (c *Counter) Inc() { c.n++ }
 
-func (c *Counter) Render() vuka.Node {
+func (c *Counter) Render() ui.Node {
 	return <div><span>{c.n}</span><button   onClick={c.Inc}  >+</button><input onInput={func(v string) {   c.n = len(v) }}/></div>
 }
 
 type Todo struct {
-	vuka.Live
+	ui.Live
 	items []string
 }
 
 func (t *Todo) Remove(s string) {}
 
-func (t *Todo) Render() vuka.Node {
+func (t *Todo) Render() ui.Node {
 	return <ul>{for _, it := range t.items {
 		<li key={it}><Counter   Start={len(it)} key={it}/><button onClick={func() { t.Remove(it) }}>x</button></li>
 	}}</ul>
 }
 
-func page() vuka.Node { return <main>{header}<Todo/><Counter Start={1}/>{footer}</main> }
+func page() ui.Node { return <main>{header}<Todo/><Counter Start={1}/>{footer}</main> }

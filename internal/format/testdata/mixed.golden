@@ -1,6 +1,9 @@
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"github.com/vuka-lang/ui"
+)
 
 @Route{Method: "GET",
 	Path: "/x"}
@@ -42,10 +45,10 @@ func describe(r Result[int]) string {
 	}
 }
 
-func view(items []string, r Result[int]) vuka.Node {
-	nodes := []vuka.Node{<b>one</b>, <i>two</i>}
+func view(items []string, r Result[int]) ui.Node {
+	nodes := []ui.Node{<b>one</b>, <i>two</i>}
 	_ = nodes
-	f := func() vuka.Node { return <p>inner</p> }
+	f := func() ui.Node { return <p>inner</p> }
 	_ = f
 	return <div
 		title={fmt.Sprintf("%d items",
@@ -81,6 +84,6 @@ type Route struct{ Method, Path string }
 
 func logged(f func() string) func() string { return f }
 func parse(s string) (int, error)          { return len(s), nil }
-func wrap(a, b vuka.Node) vuka.Node        { return a }
+func wrap(a, b ui.Node) ui.Node            { return a }
 
 type Model[K comparable, V any] struct{ m map[K]V }

@@ -1,0 +1,39 @@
+// vuka.Live → ui.Live
+// vuka.Node → ui.Node
+// vuka.String → ui.String
+// github.com/vuka-lang/vuka/live → github.com/vuka-lang/ui/live
+// import github.com/vuka-lang/ui
+
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/live"
+	"github.com/vuka-lang/ui"
+)
+
+type Counter struct {
+	ui.Live
+	Start int
+	n     int
+}
+
+func (c *Counter) Inc() { c.n++ }
+
+func (c *Counter) Render() ui.Node {
+	return <button onClick={c.Inc}>{c.n}</button>
+}
+
+func page(ctx context.Context) (string, error) {
+	s := live.NewSession(ctx, func(context.Context) ui.Node { return <Counter Start={1} /> })
+	_ = s
+	return ui.String(ctx, <p>hi</p>)
+}
+
+func divide(a, b int) Result[int] {
+	if b == 0 {
+		return Err[int](errors.New("zero"))
+	}
+	return Ok(a / b)
+}

@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/vuka-lang/ui"
 )
 
 type User struct {
@@ -11,7 +12,7 @@ type User struct {
 	Active bool
 }
 
-func card(user User, admin bool, children vuka.Node) vuka.Node {
+func card(user User, admin bool, children ui.Node) ui.Node {
 	return <div className="card" data-id={user.ID}>
 		<h3>{user.Name}</h3>
 		{children}
@@ -25,7 +26,7 @@ func card(user User, admin bool, children vuka.Node) vuka.Node {
 	</div>
 }
 
-func page(u User) vuka.Node {
+func page(u User) ui.Node {
 	x := 1
 	y := x < 2
 	_ = y
@@ -40,6 +41,6 @@ func main() {
 	ch := make(chan int, 1)
 	ch <- 1
 	_ = <-ch
-	s, err := vuka.String(context.Background(), page(User{ID: 7, Name: "Ann", Active: true}))
+	s, err := ui.String(context.Background(), page(User{ID: 7, Name: "Ann", Active: true}))
 	fmt.Println(s, err)
 }

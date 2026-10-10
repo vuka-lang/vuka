@@ -3,15 +3,16 @@ package main
 import (
 	"strings"
 	"fmt"
+	"github.com/vuka-lang/ui"
 )
 
 type Pet struct { Name string; Age int }
 
-func PetRow(pet Pet) vuka.Node {
+func PetRow(pet Pet) ui.Node {
   return <tr ><td>{ pet.Name }</td><td>{pet.Age}</td></tr>
 }
 
-func Pets(pets []Pet, admin bool, filter string) vuka.Node {
+func Pets(pets []Pet, admin bool, filter string) ui.Node {
 	x:=1
 	return <section className="pets" id="main-section" data-count={len(pets)} title="All the pets we have">
 	<h1>Pets ({len(pets)})</h1>
@@ -29,7 +30,7 @@ func Pets(pets []Pet, admin bool, filter string) vuka.Node {
 	</section>
 }
 
-func Nested(pets []Pet) vuka.Node {
+func Nested(pets []Pet) ui.Node {
 	return <ul>{for _,p:=range pets {
 	if p.Age>3 {<li>{p.Name}</li>}else if(p.Age==0){<li>new</li>} else { <li>young</li> }
 	     for i:=range p.Age {<b>{i}</b>}

@@ -12,14 +12,14 @@ import (
 
 // JSX is an expression in a function body: `<div className="card">{u.Name}</div>`.
 // It is read here, from the source bytes (its text isn't Go tokens), and lowered
-// to calls of the runtime: El, Text, Child, Fragment and Nodes, plus the
-// components' own functions once their types are known.
+// to calls of the file's JSX target (target.go): El, Text, Child, Fragment and
+// Nodes, plus the components' own functions once their types are known.
 //
 // The lowering keeps every Go expression the JSX holds where it is, and writes
 // only the gaps between them, each with as many newlines as the source it
 // replaces, so lines, columns, errors, hover and completion map exactly:
 //
-//	<div id={u.ID}>{u.Name}</div>   →   vuka.El("div", []vuka.Attr{{Name: "id", Value: u.ID}, }, vuka.Child(u.Name), )
+//	<div id={u.ID}>{u.Name}</div>   →   ui.El("div", []ui.Attr{{Name: "id", Value: u.ID}, }, ui.Child(u.Name), )
 
 // jsxStarts reports whether an operand may start after a token of kind prev,
 // so that a `<` there opens JSX rather than comparing.
@@ -226,7 +226,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 	}
 	el.tagEnd = i
 	if comp {
-		el.comp = &jsxComp{el: el}
+		el.comp = &jsxComp{el: el, target: p.f.target}
 		p.cur.comps = append(p.cur.comps, el.comp)
 	}
 	for {
@@ -278,7 +278,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 					p.fail(i, "attribute %s needs a value: %s=\"…\" or %s={…}", a.name, a.name, a.name)
 				}
 			}
-			if a.kind == 'e' && !comp && isEvent(a.name) {
+			if a.kind == 'e' && !comp && isEvent(a.name) && p.f.target.has("On") {
 				a.event = true
 				p.cur.events = append(p.cur.events, &jsxEvent{attr: a, tag: el.tag})
 			}
@@ -752,7 +752,7 @@ type jsxPiece struct {
 }
 
 type jsxWriter struct {
-	rt     string
+	q      string // the target's qualifier
 	f      *fileState
 	pieces []jsxPiece
 }
@@ -762,8 +762,12 @@ func (w *jsxWriter) keep(s span)  { w.pieces = append(w.pieces, jsxPiece{keep: s
 
 // jsxEdits lowers a tree, as it stands, to edits of the gaps between what it keeps.
 func (f *fileState) jsxEdits(t *jsxTree) edits {
-	w := &jsxWriter{rt: f.rt, f: f}
-	w.elem(t.root)
+	w := &jsxWriter{q: f.target.q, f: f}
+	if f.target.has("F") {
+		w.frame([]jsxNode{t.root})
+	} else {
+		w.elem(t.root)
+	}
 	var out edits
 	var buf strings.Builder
 	cur := t.start
@@ -812,17 +816,10 @@ func padNewlines(text string, n int) string {
 	return text[:at] + strings.Repeat("\n", n) + text[at:]
 }
 
-func (w *jsxWriter) kids(ns []jsxNode, block bool) {
+func (w *jsxWriter) kids(ns []jsxNode) {
 	for _, n := range ns {
-		if block {
-			w.gen("__add(")
-		}
 		w.node(n)
-		if block {
-			w.gen("); ")
-		} else {
-			w.gen(", ")
-		}
+		w.gen(", ")
 	}
 }
 
@@ -831,19 +828,19 @@ func (w *jsxWriter) node(n jsxNode) {
 	case *jsxElem:
 		w.elem(n)
 	case *jsxText:
-		w.gen(w.rt + ".Text(" + strconv.Quote(n.val) + ")")
+		w.gen(w.q + "Text(" + strconv.Quote(n.val) + ")")
 	case *jsxHole:
-		w.gen(w.rt + ".Child(")
+		w.gen(w.q + "Child(")
 		w.keep(n.expr)
 		w.gen(")")
 	case *jsxBlock:
-		w.gen(w.rt + ".Nodes(func(__add func(" + w.rt + ".Node)) { ")
+		w.gen(w.q + "Nodes(func(__add func(" + w.q + "Node)) { ")
 		if m := n.m; m != nil {
 			w.keep(span{m.start, m.lbrace + 1})
 			for i, c := range m.cases {
 				w.keep(span{c.start, c.colon + 1})
 				w.gen(" ")
-				w.kids(n.cases[i], true)
+				w.body(n.cases[i])
 			}
 			w.keep(span{m.rbrace, m.rbrace + 1})
 		} else {
@@ -853,7 +850,7 @@ func (w *jsxWriter) node(n jsxNode) {
 				}
 				w.keep(h)
 				w.gen(" ")
-				w.kids(n.bodies[i], true)
+				w.body(n.bodies[i])
 			}
 			w.gen("}")
 		}
@@ -869,7 +866,7 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 		w.gen("true")
 	default:
 		if a.event {
-			w.gen(w.rt + ".On(")
+			w.gen(w.q + "On(")
 			w.keep(a.expr)
 			w.gen(")")
 			return
@@ -881,18 +878,18 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 func (w *jsxWriter) elem(el *jsxElem) {
 	switch {
 	case el.frag:
-		w.gen(w.rt + ".Fragment(")
-		w.kids(el.kids, false)
+		w.gen(w.q + "Fragment(")
+		w.kids(el.kids)
 		w.gen(")")
 	case el.comp != nil:
 		w.comp(el.comp)
 	default:
-		w.gen(w.rt + ".El(" + strconv.Quote(el.tag) + ", ")
+		w.gen(w.q + "El(" + strconv.Quote(el.tag) + ", ")
 		attrs := el.attrs
 		if len(attrs) == 0 {
 			w.gen("nil")
 		} else {
-			w.gen("[]" + w.rt + ".Attr{")
+			w.gen("[]" + w.q + "Attr{")
 			for _, a := range attrs {
 				w.gen("{Name: " + strconv.Quote(a.name) + ", Value: ")
 				w.attrValue(a)
@@ -901,7 +898,7 @@ func (w *jsxWriter) elem(el *jsxElem) {
 			w.gen("}")
 		}
 		w.gen(", ")
-		w.kids(el.kids, false)
+		w.kids(el.kids)
 		w.gen(")")
 	}
 }

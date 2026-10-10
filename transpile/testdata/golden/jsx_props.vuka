@@ -4,7 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/vuka/live"
+	"github.com/vuka-lang/ui/live"
+	"github.com/vuka-lang/ui"
 )
 
 // JSX outside function bodies.
@@ -12,10 +13,10 @@ var header = <h1>Pets</h1>
 
 var (
 	footer = <footer>{year()}</footer>
-	links  = map[string]vuka.Node{"home": <a href="/">home</a>}
+	links  = map[string]ui.Node{"home": <a href="/">home</a>}
 )
 
-type Shell struct{ Body vuka.Node }
+type Shell struct{ Body ui.Node }
 
 var shell = Shell{Body: <p>body</p>}
 
@@ -33,15 +34,15 @@ type CardProps struct {
 	Base
 	*Sized
 	Title    string
-	Children vuka.Node
+	Children ui.Node
 }
 
-func Card(p CardProps) vuka.Node {
+func Card(p CardProps) ui.Node {
 	return <div id={p.ID} className={p.Class}>{p.Title} {p.Width}x{p.Height}{p.Children}</div>
 }
 
 type Chat struct {
-	vuka.Live
+	ui.Live
 	Base
 	Room string
 	log  []string
@@ -56,18 +57,18 @@ func (c *Chat) Mount() { c.Subscribe("room:" + c.Room) }
 func (c *Chat) Update(m NewMessage)                   { c.log = append(c.log, "says "+m.Text) }
 func (c *Chat) Update(ctx context.Context, t Typing) { c.log = append(c.log, t.Who+" is typing") }
 
-func (c *Chat) Render() vuka.Node {
+func (c *Chat) Render() ui.Node {
 	return <ul className={c.Class}>{for _, l := range c.log { <li>{l}</li> }}</ul>
 }
 
 type Box[T any] struct {
-	vuka.Live
+	ui.Live
 	Value T
 }
 
-func (b *Box[T]) Render() vuka.Node { return <b>{b.Value}</b> }
+func (b *Box[T]) Render() ui.Node { return <b>{b.Value}</b> }
 
-func page(ctx context.Context) vuka.Node {
+func page(ctx context.Context) ui.Node {
 	w := 3
 	return <>
 		{header}
@@ -82,7 +83,7 @@ func page(ctx context.Context) vuka.Node {
 
 func main() {
 	ctx := context.Background()
-	s, err := vuka.String(ctx, page(ctx))
+	s, err := ui.String(ctx, page(ctx))
 	fmt.Println(s, err)
 	sess := live.NewSession(ctx, page)
 	sess.Render()

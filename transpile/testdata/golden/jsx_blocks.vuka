@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"errors"
 	"strconv"
+	"github.com/vuka-lang/ui"
 )
 
 type User struct {
@@ -18,7 +19,7 @@ func lookup(s string) Result[int] {
 	return Ok(n)
 }
 
-func list(users []User, admin bool, s string) vuka.Node {
+func list(users []User, admin bool, s string) ui.Node {
 	return <>
 		<ul>
 			{for _, u := range users {
@@ -48,11 +49,11 @@ func list(users []User, admin bool, s string) vuka.Node {
 }
 
 func main() {
-	for _, n := range []vuka.Node{
+	for _, n := range []ui.Node{
 		list(nil, false, "1"),
 		list([]User{{1, "Ann", 2020}, {2, "Bo", 2021}}, true, "x"),
 	} {
-		s, err := vuka.String(context.Background(), n)
+		s, err := ui.String(context.Background(), n)
 		fmt.Println(s, err)
 	}
 	_ = errors.New
