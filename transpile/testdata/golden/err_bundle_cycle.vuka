@@ -1,0 +1,9 @@
+package main
+
+decorator logged(c) { c.Next() }
+
+decorator A = @logged @B
+
+decorator B(n int) = @C
+
+decorator C = @A

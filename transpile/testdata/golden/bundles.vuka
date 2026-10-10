@@ -1,0 +1,92 @@
+package main
+
+import (
+	"fmt"
+	"sort"
+	"strings"
+)
+
+// A route registry, with middleware per route.
+var (
+	routes     = map[string]*vuka.Decl{}
+	middleware = map[string][]string{}
+	services   []string
+)
+
+func Get(path string) func(*vuka.Decl) {
+	return func(d *vuka.Decl) { routes["GET "+path] = d }
+}
+
+func Use(names ...string) func(*vuka.Decl) {
+	return func(d *vuka.Decl) { middleware[d.Name] = append(middleware[d.Name], names...) }
+}
+
+decorator timed(c) {
+	c.Next()
+	fmt.Println("timed", c.Name)
+}
+
+decorator logged(c) {
+	fmt.Println("->", c.Name, c.Args)
+	c.Next()
+}
+
+type Doc string
+
+type Secured struct{ Role string }
+
+// guard reads the Secured attribute a composed decorator brought along.
+decorator guard(c) {
+	var s Secured
+	c.Attr(&s)
+	fmt.Println("guard: needs", s.Role)
+	c.Next()
+}
+
+func register(t *vuka.Type) { services = append(services, t.Name) }
+
+// ApiRoute is Spring's @GetMapping with its usual company: one name for a
+// route, its middleware and its timing.
+decorator ApiRoute(path string) = @Get(path) @Use("auth", "json") @timed
+
+// Composed decorators nest and carry attributes.
+decorator AdminRoute(path string) = @ApiRoute("/admin" + path) @Secured{Role: "admin"} @guard
+
+// Without parameters, one is used bare.
+decorator Audited = @logged @Doc("audited")
+
+// On several lines, in parentheses; on a type, its call decorators advise
+// the type's methods.
+decorator Service = (
+	@register
+	@Audited
+)
+
+@ApiRoute("/pets")
+func listPets() []string { return []string{"rex", "tom"} }
+
+@AdminRoute("/users")
+@Audited
+func listUsers(limit int) []string { return []string{"ada", "bob"}[:limit] }
+
+@Service
+type PetStore struct{ pets []string }
+
+func (s *PetStore) Count() int { return len(s.pets) }
+
+func main() {
+	var keys []string
+	for k := range routes {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	for _, k := range keys {
+		d := routes[k]
+		fmt.Println(k, d.Name, middleware[d.Name], d.Attrs)
+	}
+	fmt.Println(listPets())
+	fmt.Println(listUsers(1))
+	fmt.Println(services, (&PetStore{pets: []string{"rex"}}).Count())
+	fmt.Println(strings.Repeat("-", 3))
+	fmt.Println(len(ApiRoute("/x").Calls()), len(Audited().Attrs()))
+}

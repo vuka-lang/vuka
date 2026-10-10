@@ -1,0 +1,10 @@
+package main
+
+decorator A = @doc("x")
+
+decorator B =
+
+decorator C = logged
+
+decorator D = (
+	@logged

@@ -1,0 +1,1 @@
+err_bundle_typed.vuka:7:26: @double is a typed decorator, of the decorated function's own type; it can't be composed into decorator Fast, so write it beside it

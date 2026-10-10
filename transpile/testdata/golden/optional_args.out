@@ -1,0 +1,8 @@
+begin default readOnly=false
+saving ada
+commit main.save
+begin analytics readOnly=true
+commit main.report
+42
+3 main.greet main.bye
+[main.User[] main.Order[orders]] 4

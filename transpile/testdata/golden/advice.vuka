@@ -1,0 +1,65 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+// Type-level advice, as Spring's @Transactional on a class: a call
+// decorator on a type wraps every exported method declared for it.
+decorator logged(c) {
+	fmt.Println("->", c.Name, c.Args)
+	c.Next()
+	fmt.Println("<-", c.Name, c.Results)
+}
+
+decorator retry(times int)(c) {
+	for i := 1; i <= times; i++ {
+		if c.Next(); c.Err() == nil {
+			return
+		}
+		fmt.Println("retrying", c.Name, "after", c.Err())
+	}
+}
+
+decorator timed(c) {
+	c.Next()
+	fmt.Println("timed", c.Name)
+}
+
+type Account struct{ ID int }
+
+@logged
+@retry(2)
+type Store struct {
+	accounts map[int]Account
+	fails    int
+}
+
+// Each method gets its own decorators, outside its own: logged, then retry,
+// then timed.
+@timed
+func (s *Store) Save(a Account) error {
+	if s.fails > 0 {
+		s.fails--
+		return errors.New("busy")
+	}
+	s.accounts[a.ID] = a
+	return nil
+}
+
+func (s Store) Count() int { return len(s.accounts) }
+
+// Unexported methods aren't advised; neither is one marked NoAdvice.
+func (s *Store) reset() { s.accounts = map[int]Account{} }
+
+@vuka.NoAdvice
+func (s *Store) Dump() string { return fmt.Sprint(s.accounts) }
+
+func main() {
+	s := &Store{fails: 1}
+	s.reset()
+	fmt.Println(s.Save(Account{ID: 7}))
+	fmt.Println(s.Count())
+	fmt.Println(s.Dump())
+}

@@ -1,0 +1,10 @@
+-> Store.Save [{7}]
+timed Store.Save
+retrying Store.Save after busy
+timed Store.Save
+<- Store.Save [<nil>]
+<nil>
+-> Store.Count []
+<- Store.Count [1]
+1
+map[7:{7}]

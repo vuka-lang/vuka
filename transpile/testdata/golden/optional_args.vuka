@@ -1,0 +1,84 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// A decorator whose arguments are all optional is written bare or with
+// them, as Java's @Transactional and @Transactional(readOnly = true).
+type TxOption func(*txConfig)
+
+type txConfig struct {
+	db       string
+	readOnly bool
+}
+
+func On(db string) TxOption { return func(c *txConfig) { c.db = db } }
+
+var ReadOnly TxOption = func(c *txConfig) { c.readOnly = true }
+
+func Transactional(opts ...TxOption) func(*vuka.Call) {
+	cfg := txConfig{db: "default"}
+	for _, o := range opts {
+		o(&cfg)
+	}
+	return func(c *vuka.Call) {
+		fmt.Printf("begin %s readOnly=%v\n", cfg.db, cfg.readOnly)
+		c.Next()
+		fmt.Println("commit", c.Name)
+	}
+}
+
+@Transactional
+func save(name string) { fmt.Println("saving", name) }
+
+@Transactional(On("analytics"), ReadOnly)
+func report() int { return 42 }
+
+// Declarers and type decorators too.
+var commands = map[string]*vuka.Decl{}
+
+func Command(names ...string) func(*vuka.Decl) {
+	return func(d *vuka.Decl) {
+		if len(names) == 0 {
+			names = []string{strings.TrimPrefix(d.Name, "main.")}
+		}
+		for _, n := range names {
+			commands[n] = d
+		}
+	}
+}
+
+@Command
+func greet() string { return "hello" }
+
+@Command("bye", "quit")
+func bye() string { return "bye" }
+
+var entities []string
+
+func Entity(table ...string) func(*vuka.Type) {
+	return func(t *vuka.Type) { entities = append(entities, t.Name+fmt.Sprint(table)) }
+}
+
+@Entity
+type User struct{ ID int }
+
+@Entity("orders")
+type Order struct{ ID int }
+
+// A function of no arguments returning a typed decorator.
+func twice() func(func(int) int) func(int) int {
+	return func(f func(int) int) func(int) int { return func(n int) int { return 2 * f(n) } }
+}
+
+@twice
+func inc(n int) int { return n + 1 }
+
+func main() {
+	save("ada")
+	fmt.Println(report())
+	fmt.Println(len(commands), commands["greet"].Name, commands["quit"].Name)
+	fmt.Println(entities, inc(1))
+}

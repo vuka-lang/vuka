@@ -1,0 +1,1 @@
+err_bundle_cycle.vuka:9:15: decorator A composes itself: A → B → C → A

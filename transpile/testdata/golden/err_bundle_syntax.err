@@ -1,0 +1,4 @@
+err_bundle_syntax.vuka:3:1: @doc is for declarations; it can't be composed into a decorator
+err_bundle_syntax.vuka:5:1: a composed decorator is attributes and decorators, each starting with @: decorator B = @logged @timed
+err_bundle_syntax.vuka:7:1: a composed decorator is attributes and decorators, each starting with @: decorator C = @logged @timed
+err_bundle_syntax.vuka:9:1: unclosed ( in decorator D

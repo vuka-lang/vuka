@@ -41,3 +41,13 @@ func Instance[F any](s *Instances, build func() F) F {
 	s.m.Store(key, f)
 	return f
 }
+
+// NoAdvice, on a method, leaves it out of its type's advice: the call
+// decorators written on the type, which wrap its other exported methods.
+//
+//	@logged
+//	type Store struct{ … }
+//
+//	@vuka.NoAdvice
+//	func (s *Store) Dump() string { … }
+type NoAdvice struct{}

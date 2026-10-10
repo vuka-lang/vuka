@@ -90,6 +90,7 @@ func (e *engine) run() {
 		for _, f := range e.vuka {
 			embedded := e.embedFiles(f)
 			e.classify(f)
+			e.resolveBundles(f)
 			if embedded {
 				e.render(f)
 				e.progress = true

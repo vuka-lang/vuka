@@ -17,6 +17,7 @@ const (
 	decoCall                  // vuka.Decorator: func(*vuka.Call), for any function
 	decoType                  // func(*vuka.Type), for a type
 	decoDecl                  // func(*vuka.Decl), a declarer: runs once at init, for a function
+	decoBundle                // vuka.Bundle: decorators and attributes composed into one
 )
 
 // decoUse is one decorator on one declaration.
@@ -24,8 +25,10 @@ type decoUse struct {
 	a       *Attr
 	kind    decoKind
 	decided bool
-	called  bool // written bare, but a function of optional arguments only: called with none
-	at      int  // where the copy of its name starts in f.deco, this render
+	called  bool   // written bare, but a function of optional arguments only: called with none
+	at      int    // where the copy of its name starts in f.deco, this render
+	bvar    string // a bundle's value, this render
+	advice  string // set instead of a: the function giving a type's advice, for one of its methods
 }
 
 // funcDeco is a decorated function or method: the pieces of its wrapper,
@@ -50,6 +53,7 @@ type funcDeco struct {
 	errIndex, ctxIndex int
 	attrs              []*Attr   // the declaration's typed attributes
 	pattrs             [][]*Attr // each parameter's attributes, receiver excluded; nil when none has any
+	advice             []string  // the functions giving its type's advice, for a method
 	file               string    // the source file's base name
 	line               int     // the name's line
 }
@@ -61,6 +65,7 @@ type typeDeco struct {
 	name     string
 	qualName string
 	attrs    []*Attr
+	advised  bool // its call decorators were given to its methods
 
 	// For a struct: its constructor, the static New. It is the type's own
 	// when it declares one; otherwise Vuka writes one taking each injected
@@ -149,7 +154,9 @@ func reflectTag(tag, key string) string {
 // the types are known.
 func (e *engine) decorate() bool {
 	any := false
+	e.prepareBundles()
 	for _, f := range e.vuka {
+		any = any || len(f.bundles) > 0
 		groups := map[ast.Decl][]*Attr{}
 		var order []ast.Decl
 		for _, a := range f.attrs {
@@ -206,11 +213,23 @@ func uses(attrs []*Attr) []*decoUse {
 	return out
 }
 
-// typedAttrs are the typed attributes written on the same declaration as a.
+// typedAttrs are the typed attributes written on decl.
 func typedAttrs(f *fileState, decl ast.Decl) []*Attr {
 	var out []*Attr
 	for _, a := range f.attrs {
 		if a.decl == decl && a.kind == attrTyped {
+			out = append(out, a)
+		}
+	}
+	return out
+}
+
+// typedAttrsAt are the typed attributes written on the declaration whose
+// keyword is at src offset off.
+func typedAttrsAt(f *fileState, off int) []*Attr {
+	var out []*Attr
+	for _, a := range f.attrs {
+		if a.declOff == off && a.kind == attrTyped && !a.Field && !a.Param {
 			out = append(out, a)
 		}
 	}
@@ -273,16 +292,22 @@ func (e *engine) namesType(f *fileState, name string) bool {
 	return true
 }
 
-func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
-	d := &funcDeco{uses: uses(attrs), name: fd.Name.Name, nameOff: f.orig(fd.Name.Pos()),
-		method: fd.Recv != nil, errIndex: -1, ctxIndex: -1, attrs: typedAttrs(f, fd)}
+func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) *funcDeco {
+	nameOff, declOff := f.orig(fd.Name.Pos()), f.orig(fd.Type.Func)
+	name := srcIdent(f.src, nameOff) // as written: a later round's tree has an overload's mangled name
+	d := &funcDeco{uses: uses(attrs), name: name, nameOff: nameOff,
+		method: fd.Recv != nil, errIndex: -1, ctxIndex: -1, attrs: typedAttrsAt(f, declOff)}
 	d.file, d.line = filepath.Base(f.name), f.at(d.nameOff).Line
 	if f.decorated == nil {
 		f.decorated = map[int]string{}
 	}
+	key := name
+	if d.method {
+		key = recvBase(fd) + "." + name
+	}
 
 	// An overload keeps its mangled name for the wrapper; its body moves on.
-	if set := e.sets[declKey(fd)]; set != nil {
+	if set := e.sets[key]; set != nil {
 		for _, o := range set.list {
 			if o.nameOff == d.nameOff {
 				d.name = o.mangled
@@ -296,16 +321,16 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
 		}
 	}
 	d.impl = "__" + d.name
-	f.add(d.nameOff, d.nameOff+len(fd.Name.Name), d.impl)
-	f.decorated[attrs[0].declOff] = d.name
-	d.qualName = e.pkgName() + "." + fd.Name.Name
+	f.add(d.nameOff, d.nameOff+len(name), d.impl)
+	f.decorated[declOff] = d.name
+	d.qualName = e.pkgName() + "." + name
 	if d.method {
-		d.qualName = recvBase(fd) + "." + fd.Name.Name
+		d.qualName = key
 	}
 	f.decos = append(f.decos, d)
 	if !d.method && d.name == "init" {
 		d.init = true
-		return
+		return d
 	}
 
 	named := true
@@ -344,7 +369,7 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
 		}
 	}
 	for _, a := range f.attrs {
-		if a.Param && a.decl == fd {
+		if a.Param && a.declOff == declOff {
 			if d.pattrs == nil {
 				d.pattrs = make([][]*Attr, len(d.pnames))
 			}
@@ -398,6 +423,16 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) {
 	if fd.Doc != nil {
 		d.doc = trimDoc(f.nodeText(fd.Doc))
 	}
+	return d
+}
+
+// srcIdent is the identifier at off in src.
+func srcIdent(src []byte, off int) string {
+	end := off
+	for end < len(src) && (src[end] == '_' || src[end] >= '0' && src[end] <= '9' || src[end] >= 'a' && src[end] <= 'z' || src[end] >= 'A' && src[end] <= 'Z' || src[end] >= 0x80) {
+		end++
+	}
+	return string(src[off:end])
 }
 
 // decorateType runs a type's decorators at init. On a group, they apply to
@@ -466,7 +501,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		}
 		w.gen("func init() {\n\t", d.nameOff)
 		for _, u := range d.uses {
-			if u.kind == decoCall {
+			if u.kind == decoCall || u.kind == decoBundle {
 				e.errs.add(u.a.Pos, "init takes no arguments and returns nothing; decorate it with a func(func()) func()")
 			}
 			e.writeDecorator(f, u, "")
@@ -476,11 +511,19 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		return
 	}
 
+	// The type's advice runs outside the function's own decorators.
 	var wraps, decls []*decoUse
+	for _, a := range d.advice {
+		wraps = append(wraps, &decoUse{kind: decoCall, advice: a})
+	}
 	for _, u := range d.uses {
-		if u.kind == decoDecl {
+		switch u.kind {
+		case decoDecl:
 			decls = append(decls, u)
-		} else {
+		case decoBundle:
+			decls = append(decls, u)
+			wraps = append(wraps, u)
+		default:
 			wraps = append(wraps, u)
 		}
 	}
@@ -505,6 +548,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		e.renderDecls(f, d, decls)
 		return
 	}
+	e.writeBundleVars(f, d.uses, d.state)
 	if d.generic {
 		w.gen("var "+d.state+" "+rt+".Instances\n\n", d.nameOff)
 	} else {
@@ -513,7 +557,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 	info := d.state + "_info"
 	hasCall := false
 	for _, u := range wraps {
-		hasCall = hasCall || u.kind == decoCall
+		hasCall = hasCall || isCallLike(u.kind)
 	}
 	if hasCall {
 		zeros := make([]string, len(d.rtypes))
@@ -521,9 +565,8 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 			zeros[i] = "*new(" + t + ")"
 		}
 		w.gen("var "+info+" = "+rt+".Func{Name: "+strconv.Quote(d.qualName)+", ErrIndex: "+itoa(d.errIndex)+
-			", CtxIndex: "+itoa(d.ctxIndex)+", Zero: func() []any { return []any{"+strings.Join(zeros, ", ")+"} }, Attrs: []any{", d.nameOff)
-		e.writeAttrValues(f, d.attrs)
-		w.gen("}", d.nameOff)
+			", CtxIndex: "+itoa(d.ctxIndex)+", Zero: func() []any { return []any{"+strings.Join(zeros, ", ")+"} }, Attrs: ", d.nameOff)
+		e.writeAttrsWith(f, d.attrs, d.uses, d.nameOff)
 		if d.pattrs != nil {
 			w.gen(", ParamAttrs: [][]any{", d.nameOff)
 			for i, as := range d.pattrs {
@@ -554,7 +597,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 	closers := ""
 	for i := 0; i < len(wraps); {
 		u := wraps[i]
-		if u.kind != decoCall {
+		if !isCallLike(u.kind) {
 			e.writeDecorator(f, u, "")
 			w.gen("(", u.a.end)
 			closers += ")"
@@ -562,22 +605,97 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 			continue
 		}
 		j := i
-		for j < len(wraps) && wraps[j].kind == decoCall {
+		for j < len(wraps) && isCallLike(wraps[j].kind) {
 			j++
 		}
-		w.gen("func(next "+d.fn+") "+d.fn+" {\n\t\t\tchain := []"+rt+".Decorator{", u.a.start)
-		for k := i; k < j; k++ {
-			if k > i {
-				w.gen(", ", wraps[k].a.start)
-			}
-			e.writeDecorator(f, wraps[k], "")
+		w.gen("func(next "+d.fn+") "+d.fn+" {\n\t\t\tchain := ", d.nameOff)
+		dynamic := e.writeChain(f, wraps[i:j], d.nameOff, func(u *decoUse) { w.gen(u.bvar, u.a.start) })
+		w.gen("\n\t\t\t", d.nameOff)
+		if dynamic {
+			// A bundle may hold no call decorator: then nothing wraps next.
+			w.gen("if len(chain) == 0 {\n\t\t\t\treturn next\n\t\t\t}\n\t\t\t", d.nameOff)
 		}
-		w.gen("}\n\t\t\treturn "+e.adapter(f, d, info)+"\n\t\t}(", u.a.start)
+		w.gen("return "+e.adapter(f, d, info)+"\n\t\t}(", d.nameOff)
 		closers += ")"
 		i = j
 	}
 	w.gen(d.ref+closers+"\n\t})("+strings.Join(d.args, ", ")+")\n}\n", d.nameOff)
 	e.renderDecls(f, d, decls)
+}
+
+func isCallLike(k decoKind) bool { return k == decoCall || k == decoBundle }
+
+// writeChain writes a run of call decorators as a []vuka.Decorator: the
+// type's advice and bundles spliced in, bundle writing a bundle's value. It
+// reports whether the run's length is only known at run time.
+func (e *engine) writeChain(f *fileState, run []*decoUse, off int, bundle func(u *decoUse)) bool {
+	w, rt := &f.deco, f.runtime()
+	lead := 0
+	for lead < len(run) && run[lead].kind == decoCall && run[lead].advice == "" {
+		lead++
+	}
+	rest := run[lead:]
+	if lead == 0 && len(rest) > 0 && rest[0].advice != "" {
+		w.gen(strings.Repeat("append(", len(rest)-1)+rest[0].advice+"()", off)
+		rest = rest[1:]
+	} else {
+		w.gen(strings.Repeat("append(", len(rest))+"[]"+rt+".Decorator{", off)
+		for k, u := range run[:lead] {
+			if k > 0 {
+				w.gen(", ", u.a.start)
+			}
+			e.writeDecorator(f, u, "")
+		}
+		w.gen("}", off)
+	}
+	for _, u := range rest {
+		w.gen(", ", off)
+		switch {
+		case u.advice != "":
+			w.gen(u.advice+"()...", off)
+		case u.kind == decoBundle:
+			bundle(u)
+			w.gen(".Calls()...", off)
+		default:
+			e.writeDecorator(f, u, "")
+		}
+		w.gen(")", off)
+	}
+	return len(run) > lead
+}
+
+// writeBundleVars declares the value of each bundle among uses, once per
+// decorated declaration.
+func (e *engine) writeBundleVars(f *fileState, uses []*decoUse, state string) {
+	w, n := &f.deco, 0
+	for _, u := range uses {
+		if u.kind != decoBundle {
+			continue
+		}
+		u.bvar = state + "_b" + itoa(n)
+		n++
+		w.gen("var "+u.bvar+" = ", u.a.start)
+		e.writeDecorator(f, u, "")
+		w.gen("\n\n", u.a.end)
+	}
+}
+
+// writeAttrsWith writes a declaration's typed attributes as a []any, with
+// those of its bundles after them.
+func (e *engine) writeAttrsWith(f *fileState, attrs []*Attr, uses []*decoUse, off int) {
+	w := &f.deco
+	var bvars []string
+	for _, u := range uses {
+		if u.kind == decoBundle {
+			bvars = append(bvars, u.bvar)
+		}
+	}
+	w.gen(strings.Repeat("append(", len(bvars))+"[]any{", off)
+	e.writeAttrValues(f, attrs)
+	w.gen("}", off)
+	for _, b := range bvars {
+		w.gen(", "+b+".Attrs()...)", off)
+	}
 }
 
 // renderDecls runs a function's declarers at init, top to bottom, with a
@@ -594,9 +712,8 @@ func (e *engine) renderDecls(f *fileState, d *funcDeco, decls []*decoUse) {
 	desc := d.state + "l"
 	w.gen("\nfunc init() {\n\t"+desc+" := "+rt+"."+ctor+"("+rt+".Decl{Name: "+strconv.Quote(d.qualName)+
 		", Pkg: "+strconv.Quote(e.pkgPath())+", File: "+strconv.Quote(d.file)+", Line: "+itoa(d.line)+
-		", Func: "+fn+", Attrs: []any{", d.nameOff)
-	e.writeAttrValues(f, d.attrs)
-	w.gen("}", d.nameOff)
+		", Func: "+fn+", Attrs: ", d.nameOff)
+	e.writeAttrsWith(f, d.attrs, d.uses, d.nameOff)
 	if d.pattrs != nil {
 		w.gen(", Params: []"+rt+".Param{", d.nameOff)
 		for i, n := range d.pnames {
@@ -620,6 +737,10 @@ func (e *engine) renderDecls(f *fileState, d *funcDeco, decls []*decoUse) {
 	}
 	for _, u := range decls {
 		w.gen("\t", u.a.start)
+		if u.kind == decoBundle {
+			w.gen(rt+".DeclareWith("+u.bvar+", "+desc+")\n", u.a.start)
+			continue
+		}
 		e.writeDecorator(f, u, "")
 		w.gen("("+desc+")\n", u.a.end)
 	}
@@ -671,11 +792,25 @@ func (e *engine) adapter(f *fileState, d *funcDeco, info string) string {
 
 func (e *engine) renderType(f *fileState, d *typeDeco) {
 	w, rt := &f.deco, f.runtime()
-	ctor := "nil"
+	var advice, inits []*decoUse
+	described, bundled := false, false
 	for _, u := range d.uses {
-		if u.kind == decoType && d.isStruct {
-			ctor = staticGoName(d.name, "New")
+		switch u.kind {
+		case decoCall:
+			advice = append(advice, u)
+			continue
+		case decoBundle:
+			advice = append(advice, u)
+			bundled = true
+			fallthrough
+		case decoType:
+			described = true
 		}
+		inits = append(inits, u)
+	}
+	ctor := "nil"
+	if described && d.isStruct {
+		ctor = staticGoName(d.name, "New")
 	}
 	if ctor != "nil" && !d.hasNew {
 		// The constructor a container calls, also the type's static New.
@@ -685,33 +820,56 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 		w.gen("\nfunc "+ctor+"("+strings.Join(d.ctorParams, ", ")+") *"+d.name+" {\n\treturn &"+d.name+
 			"{"+strings.Join(d.ctorInits, ", ")+"}\n}\n", d.nameOff)
 	}
+	if len(advice) > 0 {
+		// The advice: each method calls it for decorators of its own.
+		w.gen("\nfunc __"+d.name+"_advice() []"+rt+".Decorator {\n\treturn ", d.nameOff)
+		e.writeChain(f, advice, d.nameOff, func(u *decoUse) { e.writeDecorator(f, u, "") })
+		w.gen("\n}\n", d.nameOff)
+	}
+	if len(inits) == 0 {
+		return
+	}
+	if bundled {
+		w.gen("\n", d.nameOff)
+		e.writeBundleVars(f, d.uses, "__"+d.name)
+	}
 	w.gen("\nfunc init() {\n", d.nameOff)
 	desc := ""
-	for _, u := range d.uses {
+	for _, u := range inits {
 		w.gen("\t", u.a.start)
-		if u.kind == decoType {
-			if desc == "" {
-				desc = "__" + d.name + "_type"
-				if ctor != "nil" {
-					w.gen(desc+" := "+rt+".TypeWith["+d.name+"]("+strconv.Quote(d.qualName)+", "+ctor, u.a.start)
-				} else {
-					w.gen(desc+" := "+rt+".TypeOf["+d.name+"]("+strconv.Quote(d.qualName), u.a.start)
-				}
+		if u.kind != decoType && u.kind != decoBundle {
+			e.writeDecorator(f, u, d.name)
+			w.gen("\n", u.a.end)
+			continue
+		}
+		if desc == "" {
+			desc = "__" + d.name + "_type"
+			if ctor != "nil" {
+				w.gen(desc+" := "+rt+".TypeWith["+d.name+"]("+strconv.Quote(d.qualName)+", "+ctor, u.a.start)
+			} else {
+				w.gen(desc+" := "+rt+".TypeOf["+d.name+"]("+strconv.Quote(d.qualName), u.a.start)
+			}
+			if bundled {
+				w.gen(", ", u.a.start)
+				e.writeAttrsWith(f, d.attrs, d.uses, u.a.start)
+				w.gen("...", u.a.start)
+			} else {
 				for _, a := range d.attrs {
 					w.gen(", ", a.start)
 					e.writeAttrValues(f, []*Attr{a})
 				}
-				w.gen(")\n\t", u.a.start)
 			}
-			e.writeDecorator(f, u, "")
-			if !strings.HasSuffix(strings.TrimSpace(u.a.Args), ")") && u.a.Args != "" {
-				w.gen("()", u.a.end)
-			}
-			w.gen("("+desc+")\n", u.a.end)
+			w.gen(")\n\t", u.a.start)
+		}
+		if u.kind == decoBundle {
+			w.gen(rt+".DecorateType("+u.bvar+", "+desc+")\n", u.a.start)
 			continue
 		}
-		e.writeDecorator(f, u, d.name)
-		w.gen("\n", u.a.end)
+		e.writeDecorator(f, u, "")
+		if !strings.HasSuffix(strings.TrimSpace(u.a.Args), ")") && u.a.Args != "" {
+			w.gen("()", u.a.end)
+		}
+		w.gen("("+desc+")\n", u.a.end)
 	}
 	w.gen("}\n", d.nameOff)
 }
@@ -817,8 +975,10 @@ func (e *engine) classify(f *fileState) {
 			}
 			kind := decoTyped
 			switch {
-			case !isType && isRuntimeFunc(t, "Call"):
-				kind = decoCall
+			case isRuntimeNamed(t, "Bundle"):
+				kind = decoBundle
+			case isRuntimeFunc(t, "Call"):
+				kind = decoCall // on a type: advice for its methods
 			case isType && isRuntimeFunc(t, "Type"):
 				kind = decoType
 			case isRuntimeFunc(t, "Decl"):
@@ -841,6 +1001,76 @@ func (e *engine) classify(f *fileState) {
 		e.render(f)
 		e.progress = true
 	}
+	for _, d := range f.decos {
+		if td, ok := d.(*typeDeco); ok && !td.advised {
+			for _, u := range td.uses {
+				if u.decided && isCallLike(u.kind) && !td.advised {
+					e.advise(td)
+				}
+			}
+		}
+	}
+}
+
+// advise gives a type's call decorators — its advice — to each exported
+// method the package's Vuka files declare for it, outside the method's own
+// decorators. A method marked @vuka.NoAdvice is left out.
+func (e *engine) advise(td *typeDeco) {
+	td.advised = true
+	fn := "__" + td.name + "_advice"
+	for _, g := range e.vuka {
+		touched := false
+		for _, decl := range g.ast.Decls {
+			fd, ok := decl.(*ast.FuncDecl)
+			if !ok || fd.Recv == nil || g.off(fd.Pos()) >= g.body || recvBase(fd) != td.name {
+				continue
+			}
+			nameOff := g.orig(fd.Name.Pos())
+			if !token.IsExported(srcIdent(g.src, nameOff)) || e.noAdvice(g, g.orig(fd.Type.Func)) {
+				continue
+			}
+			var d *funcDeco
+			for _, x := range g.decos {
+				if x, ok := x.(*funcDeco); ok && x.nameOff == nameOff {
+					d = x
+				}
+			}
+			if d == nil {
+				d = e.decorateFunc(g, fd, nil)
+			}
+			d.advice = append(d.advice, fn)
+			touched = true
+		}
+		if touched {
+			e.render(g)
+		}
+	}
+	e.progress = true
+}
+
+// noAdvice reports whether the declaration whose keyword is at off carries
+// @vuka.NoAdvice.
+func (e *engine) noAdvice(f *fileState, off int) bool {
+	for _, a := range f.attrs {
+		if a.declOff == off && a.kind == attrTyped && e.isRuntimeName(f, a.Name, "NoAdvice") {
+			return true
+		}
+	}
+	return false
+}
+
+// isRuntimeName reports whether name, as f writes it, is the runtime's sel.
+func (e *engine) isRuntimeName(f *fileState, name, sel string) bool {
+	pkg, s, ok := strings.Cut(name, ".")
+	if !ok || s != sel {
+		return false
+	}
+	for _, imp := range f.ast.Imports {
+		if path, _ := strconv.Unquote(imp.Path.Value); path == RuntimePath {
+			return imp.Name == nil && pkg == "vuka" || imp.Name != nil && imp.Name.Name == pkg
+		}
+	}
+	return false
 }
 
 // decoratorType is the type of the value a decorator denotes: its name's type,

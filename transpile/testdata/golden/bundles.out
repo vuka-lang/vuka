@@ -1,0 +1,12 @@
+GET /admin/users main.listUsers [auth json] [{admin} audited]
+GET /pets main.listPets [auth json] []
+timed main.listPets
+[rex tom]
+guard: needs admin
+-> main.listUsers [1]
+timed main.listUsers
+[ada]
+-> PetStore.Count []
+[main.PetStore] 1
+---
+1 1

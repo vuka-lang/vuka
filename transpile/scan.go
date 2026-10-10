@@ -170,10 +170,12 @@ func (f *fileState) scan(errs *ErrorList) {
 		case f.bodyConstruct(toks, i, p, depth, errs):
 			continue
 		case t.tok == token.IDENT && t.lit == "decorator" && depth == 0 && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
-			if next, msg := f.decoratorAt(toks, i); msg != "" {
+			next, msg := f.decoratorAt(toks, i)
+			if msg != "" {
 				errs.add(f.at(t.off), "%s", msg)
-			} else {
-				i = next - 1
+			}
+			if next > i+1 {
+				i = min(next, len(toks)) - 1
 				prev = toks[i]
 			}
 			continue
@@ -327,16 +329,23 @@ func (f *fileState) scanJSXGo(toks []tok, errs *ErrorList) {
 //
 //	decorator logged(c) { … }          →  func logged(c *vuka.Call) { … }
 //	decorator retry(n int)(c) { … }    →  func retry(n int) vuka.Decorator { return func(c *vuka.Call) { … } }
+//	decorator api(p string) = @a(p) @b →  func api(p string) vuka.Bundle { return vuka.Compose(a(p), b) }
 //
 // It returns the index of the token after the body.
 func (f *fileState) decoratorAt(toks []tok, i int) (int, string) {
 	j := i + 2
+	if j < len(toks) && toks[j].tok == token.ASSIGN {
+		return f.bundleAt(toks, i, j, false)
+	}
 	if j >= len(toks) || toks[j].tok != token.LPAREN {
 		return i + 1, "expected decorator name(c) { … }"
 	}
 	first, firstEnd, ok := matchClose(toks, j)
 	if !ok {
 		return i + 1, "unclosed parameter list"
+	}
+	if first < len(toks) && toks[first].tok == token.ASSIGN {
+		return f.bundleAt(toks, i, first, true)
 	}
 	var callParam []tok // the (c) group
 	var callOpen, callClose int

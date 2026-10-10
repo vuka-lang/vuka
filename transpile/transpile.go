@@ -115,6 +115,7 @@ type fileState struct {
 	lines      lineIndex
 
 	attrs   []*Attr
+	bundles []*bundleDecl
 	tries   []*try
 	matches []*matchStmt
 	jsx     []*jsxTree
@@ -374,13 +375,13 @@ func (f *fileState) attachParam(a *Attr) {
 		for _, field := range fd.Type.Params.List {
 			if len(field.Names) == 0 {
 				if f.off(field.Type.Pos()) == off {
-					a.decl, a.Decl, a.ParamIndex = fd, declKey(fd), i
+					a.decl, a.Decl, a.ParamIndex, a.declOff = fd, declKey(fd), i, f.orig(fd.Type.Func)
 				}
 				i++
 			}
 			for _, n := range field.Names {
 				if f.off(n.Pos()) == off {
-					a.decl, a.Decl, a.ParamIndex = fd, declKey(fd), i
+					a.decl, a.Decl, a.ParamIndex, a.declOff = fd, declKey(fd), i, f.orig(fd.Type.Func)
 				}
 				i++
 			}

@@ -1,0 +1,10 @@
+package main
+
+func double(f func(int) int) func(int) int { return f }
+
+decorator logged(c) { c.Next() }
+
+decorator Fast = @logged @double
+
+@Fast
+func one() int { return 1 }
