@@ -1,0 +1,7 @@
+package main
+
+type Box[T any] struct {
+	static bad = undefinedThing()
+}
+
+func main() { _ = Box[int].bad.Len() }

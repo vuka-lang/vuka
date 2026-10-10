@@ -82,6 +82,11 @@ func (e *engine) run() {
 				t.fresh = false
 			}
 		}
+		if e.inferStatics() {
+			// Uses of those statics type-check against their real types first.
+			e.progress = true
+			continue
+		}
 		for _, f := range e.vuka {
 			embedded := e.embedFiles(f)
 			e.classify(f)
@@ -345,6 +350,12 @@ func (e *engine) report() {
 					stuck = true
 					e.errs.add(f.at(c.el.start), "can't lower <%s>: %s", c.el.tag, or(c.fail, "its type is unknown"))
 				}
+			}
+		}
+		for _, s := range f.statics {
+			if s.infer {
+				stuck = true
+				e.errs.add(f.at(s.nameOff), "can't infer the type of static %s.%s; write it: static %s T = …", s.typeName, s.name, s.name)
 			}
 		}
 		if re := e.refErrs[f]; re != nil {

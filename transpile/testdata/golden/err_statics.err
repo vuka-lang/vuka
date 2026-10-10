@@ -1,3 +1,2 @@
 err_statics.vuka:6:9: User has a field or method Name already; a static can't share its name
 err_statics.vuka:11:6: User has a field or method Save already; a static method can't share its name
-err_statics.vuka:14:9: a static of a generic type needs its type: static cache T = …

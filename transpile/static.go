@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"strings"
@@ -21,6 +22,7 @@ type staticDecl struct {
 	start, end int  // the whole field, in src
 	nameOff    int
 	vt, rt     string // a generic type's static: its value's type, the runtime's name
+	infer      bool   // vt is a placeholder until the initializer is type-checked
 }
 
 // staticFunc is a static method: func User.Create(…) or func Model[Self].Find(…).
@@ -205,12 +207,11 @@ func (f *fileState) lowerStatics(toks []tok, bare bool) {
 		switch {
 		case s.typ.start >= 0:
 			s.vt = string(f.src[s.typ.start:s.typ.end])
-		case s.init.start >= 0:
-			s.vt = compositeType(string(f.src[s.init.start:s.init.end]))
+		default:
+			s.vt = literalType(string(f.src[s.init.start:s.init.end]))
 		}
 		if s.vt == "" {
-			f.staticErrs = append(f.staticErrs, &Error{Pos: f.at(s.nameOff),
-				Msg: "a static of a generic type needs its type: static " + s.name + " T = …"})
+			s.vt, s.infer = "any", true
 		}
 		s.rt = f.scannedRuntime(toks)
 	}
@@ -246,9 +247,6 @@ func (f *fileState) renderStatics() {
 				f.copyEdited(w, s.init)
 			}
 			w.gen("\n", s.end)
-			continue
-		}
-		if s.vt == "" {
 			continue
 		}
 		// A generic type's static: one value per instantiation.
@@ -295,23 +293,90 @@ func (f *fileState) copyEdited(w *genWriter, sp span) {
 	w.copy(string(f.src[last:sp.end]), last)
 }
 
-// compositeType is the type of a composite literal, "Manager[Self]" for
-// "Manager[Self]{…}", or "" when text isn't one.
-func compositeType(text string) string {
-	d := 0
-	for i, r := range text {
-		switch r {
-		case '[', '(':
-			d++
-		case ']', ')':
-			d--
-		case '{':
-			if d == 0 && i > 0 {
-				return strings.TrimSpace(text[:i])
-			}
+// literalType is the type an initializer spells out, "*Store[Self]" for
+// "&Store[Self]{}" or "new(Store[Self])", or "" when it spells none.
+func literalType(text string) string {
+	x, err := parser.ParseExpr(text)
+	if err != nil {
+		return ""
+	}
+	of := func(n ast.Node) string { return text[n.Pos()-1 : n.End()-1] }
+	switch x := x.(type) {
+	case *ast.CompositeLit:
+		return of(x.Type)
+	case *ast.UnaryExpr:
+		if c, ok := x.X.(*ast.CompositeLit); ok && x.Op == token.AND {
+			return "*" + of(c.Type)
+		}
+	case *ast.CallExpr:
+		if id, ok := x.Fun.(*ast.Ident); ok && id.Name == "new" && len(x.Args) == 1 {
+			return "*" + of(x.Args[0])
 		}
 	}
 	return ""
+}
+
+// inferStatics gives each generic static without a spelled-out type the type
+// of its initializer, read from the accessor's placeholder `func() any {
+// return init }`, with the type's own parameters (Self) left as they are.
+func (e *engine) inferStatics() bool {
+	changed := false
+	for _, f := range e.vuka {
+		for _, s := range f.statics {
+			if !s.infer {
+				continue
+			}
+			x := e.staticInit(f, staticGoName(s.typeName, s.name))
+			if x == nil {
+				continue
+			}
+			t := e.info.Types[x].Type
+			if isInvalid(t) {
+				continue // waits for what the initializer uses
+			}
+			s.infer = false
+			if b, ok := t.(*types.Basic); ok && b.Kind() == types.UntypedNil {
+				e.errs.add(f.at(s.nameOff), "can't infer the type of static %s.%s from nil; write it: static %s T = nil", s.typeName, s.name, s.name)
+				continue
+			}
+			s.vt = types.TypeString(types.Default(t), func(p *types.Package) string {
+				missing := ""
+				if name := e.qualifier(f, &missing)(p); missing == "" {
+					return name
+				}
+				return f.autoImport(p)
+			})
+			changed = true
+		}
+	}
+	return changed
+}
+
+// staticInit is the initializer inside a generic static's accessor:
+// func name[…]() … { return rt.StaticOf[…](&store, func() V { return init }) }.
+func (e *engine) staticInit(f *fileState, name string) ast.Expr {
+	for _, d := range f.ast.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Recv != nil || fd.Name.Name != name || fd.Body == nil || len(fd.Body.List) != 1 {
+			continue
+		}
+		ret, ok := fd.Body.List[0].(*ast.ReturnStmt)
+		if !ok || len(ret.Results) != 1 {
+			return nil
+		}
+		call, ok := ret.Results[0].(*ast.CallExpr)
+		if !ok || len(call.Args) != 2 {
+			return nil
+		}
+		lit, ok := call.Args[1].(*ast.FuncLit)
+		if !ok || len(lit.Body.List) != 1 {
+			return nil
+		}
+		if r, ok := lit.Body.List[0].(*ast.ReturnStmt); ok && len(r.Results) == 1 {
+			return r.Results[0]
+		}
+	}
+	return nil
 }
 
 // commentOut is a replacement for src[start:end] that spans the same lines.

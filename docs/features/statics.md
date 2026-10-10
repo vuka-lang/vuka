@@ -91,5 +91,24 @@ Plain Go underneath: `User.Objects` becomes `Model_Objects[User]().V`, and
 `Self` is filled in only for a type parameter of that name. The
 [ORM](/orm/models)'s `orm.Base` is built this way.
 
+A generic type's static takes its type from its initializer, like any other:
+`&Store[Self]{}`, `new(Store[Self])`, `[]Self{}`, `map[string]*Self{}`,
+`NewStore[Self]()` or `len(Model[Self].Objects.All())` all work, with `Self`
+standing for each instantiation. An initializer with no type of its own needs
+one written out:
+
+```vuka
+type Model[Self any] struct {
+	static Objects = NewStore[Self]()       // a *Store[Self]
+	static Cache   map[string]*Self = nil   // nil alone has no type
+}
+```
+
+Written as `static Cache = nil`, it is an error:
+
+```text
+main.vuka:3:9: can't infer the type of static Model.Cache from nil; write it: static Cache T = nil
+```
+
 A static can't share a name with a field or method (in Go, `User.Save` already
 means a method).

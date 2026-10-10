@@ -9,7 +9,3 @@ type User struct {
 func (u User) Save() {}
 
 func User.Save() {}
-
-type Box[T any] struct {
-	static cache = make(map[string]T)
-}
