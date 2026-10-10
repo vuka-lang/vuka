@@ -16,7 +16,7 @@ type Renderer interface {
 	Opaque(ctx context.Context, n Node) error // a component that only renders HTML (templ, NodeFunc)
 }
 
-// Walk sends n's tree to r. Groups, Builders and Child conversions are
+// Walk sends n's tree to r. Frames, Groups, Builders and Child conversions are
 // flattened (r never sees them); a TryNode with an error stops the walk with
 // it; a Boundary walks its children into a recording first, and replays it
 // into r — or, when they fail, walks Fallback(err) instead, so r never sees
@@ -65,6 +65,16 @@ func Walk(ctx context.Context, n Node, r Renderer) error {
 		return r.Text(string(n))
 	case RawHTML:
 		return r.Raw(string(n))
+	case *Frame:
+		if n == nil {
+			return nil
+		}
+		for _, c := range n.Kids {
+			if err := Walk(ctx, c, r); err != nil {
+				return err
+			}
+		}
+		return nil
 	case Group:
 		for _, c := range n {
 			if err := Walk(ctx, c, r); err != nil {

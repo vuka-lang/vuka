@@ -61,6 +61,17 @@ func (h *HTMLRenderer) write(s string) {
 }
 
 func (h *HTMLRenderer) Open(e *Element) error {
+	if err := h.openTag(e); err != nil {
+		return err
+	}
+	if err := h.attrs(e); err != nil {
+		return err
+	}
+	return h.endTag(e)
+}
+
+// openTag writes an element's start up to its attributes: <tag.
+func (h *HTMLRenderer) openTag(e *Element) error {
 	if !validName(e.Tag) {
 		return fmt.Errorf("vuka: invalid tag name %q", e.Tag)
 	}
@@ -69,9 +80,11 @@ func (h *HTMLRenderer) Open(e *Element) error {
 	}
 	h.write("<")
 	h.write(e.Tag)
-	if err := h.attrs(e); err != nil {
-		return err
-	}
+	return h.err
+}
+
+// endTag ends an element's start tag, entering script or style content.
+func (h *HTMLRenderer) endTag(e *Element) error {
 	h.write(">")
 	switch e.Tag {
 	case "script":
@@ -131,49 +144,54 @@ func (w writerOf) Write(p []byte) (int, error) { return w.WriteString(string(p))
 // escaped by templ.EscapeString.
 func (h *HTMLRenderer) attrs(e *Element) error {
 	for _, a := range e.Attrs {
-		name := a.Name
-		if eh, ok := a.Value.(EventHandler); ok {
-			if _, script := eh.Fn.(templ.ComponentScript); !script {
-				if err := h.handlerAttr(name, eh); err != nil {
-					return err
-				}
-				continue
-			}
-			a.Value = eh.Fn
-		}
-		switch name {
-		case "key":
-			if liveHost(h.ctx) != nil && a.Value != nil && !hasAttr(e, "data-vk-key") {
-				h.write(` data-vk-key="` + templ.EscapeString(fmt.Sprint(a.Value)) + `"`)
-			}
-			continue
-		case "className":
-			name = "class"
-		case "htmlFor":
-			name = "for"
-		}
-		if !validName(name) {
-			return fmt.Errorf("vuka: invalid attribute name %q", a.Name)
-		}
-		v, kind, err := attrValue(h.ctx, e.Tag, name, a.Value)
-		if err != nil {
+		if err := h.attr(e, a); err != nil {
 			return err
 		}
-		switch kind {
-		case attrOmit:
-		case attrBare:
-			h.write(" ")
-			h.write(name)
-		default:
-			if kind == attrEscaped {
-				v = templ.EscapeString(v)
-			}
-			h.write(" ")
-			h.write(name)
-			h.write(`="`)
-			h.write(v)
-			h.write(`"`)
+	}
+	return nil
+}
+
+// attr writes one of e's attributes, with its leading space.
+func (h *HTMLRenderer) attr(e *Element, a Attr) error {
+	name := a.Name
+	if eh, ok := a.Value.(EventHandler); ok {
+		if _, script := eh.Fn.(templ.ComponentScript); !script {
+			return h.handlerAttr(name, eh)
 		}
+		a.Value = eh.Fn
+	}
+	switch name {
+	case "key":
+		if liveHost(h.ctx) != nil && a.Value != nil && !hasAttr(e, "data-vk-key") {
+			h.write(` data-vk-key="` + templ.EscapeString(fmt.Sprint(a.Value)) + `"`)
+		}
+		return nil
+	case "className":
+		name = "class"
+	case "htmlFor":
+		name = "for"
+	}
+	if !validName(name) {
+		return fmt.Errorf("vuka: invalid attribute name %q", a.Name)
+	}
+	v, kind, err := attrValue(h.ctx, e.Tag, name, a.Value)
+	if err != nil {
+		return err
+	}
+	switch kind {
+	case attrOmit:
+	case attrBare:
+		h.write(" ")
+		h.write(name)
+	default:
+		if kind == attrEscaped {
+			v = templ.EscapeString(v)
+		}
+		h.write(" ")
+		h.write(name)
+		h.write(`="`)
+		h.write(v)
+		h.write(`"`)
 	}
 	return nil
 }

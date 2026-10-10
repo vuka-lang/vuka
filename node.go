@@ -15,7 +15,7 @@ import (
 // components are Vuka children, with nothing in between.
 //
 // The Nodes built here (*Element, TextNode, RawHTML, Group, Builder, TryNode,
-// Boundary) are also a tree any Renderer can Walk; any other Node — a templ
+// Boundary, *Frame) are also a tree any Renderer can Walk; any other Node — a templ
 // component, a NodeFunc — is opaque: it can only render HTML. Nodes are
 // immutable values; rendering one concurrently is safe.
 type Node = templ.Component
