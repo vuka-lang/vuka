@@ -3,6 +3,7 @@
 ```text
 vuka new <dir> [module path]
 vuka build|run|test|vet|install [go flags] [packages]
+vuka run -watch [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
@@ -39,6 +40,46 @@ In a module on [web](/web/) with views, the app's
   they fail, saying how to install it.
 
 `VUKA_TAILWIND=off` skips all of it, as `web.NoTailwind()` in the source does.
+
+### run -watch
+
+`vuka run -watch` (or `--watch`) keeps the program current while you edit:
+save a file and, a moment later, the new version is the one answering. You
+stay on one command for the whole session instead of stopping and restarting
+it after each change.
+
+```sh
+vuka run -watch .
+PORT=8094 vuka run -watch ./cmd/app -v   # flags after the package are the program's
+```
+
+- **The app keeps serving while the next build compiles.** vuka builds the new
+  version to a binary first; only once it compiles does the running one get
+  SIGTERM (SIGKILL after 2s) and the new one start, with the same arguments
+  and environment. `● rebuilt in 1.2s` counts from the save being seen to the
+  new process starting; the app is down only for the swap itself.
+- **A build that fails changes nothing.** The errors print as `vuka build`
+  prints them, with the `.vuka` file and line, and the last good build keeps
+  running until the code compiles again.
+- **A change that leaves the program as it was restarts nothing**
+  (`● unchanged`): a comment, a blank line at the end, a file the program
+  doesn't build from. The app keeps its in-memory state.
+- **What starts a build:** a change to a `.vuka`, `.templ` or `.go` file (not
+  `_test` files), `go.mod`, `go.sum`, or a file the app embeds, such as an
+  `.html` view. Hidden files and directories, `build/`, `.vuka/`,
+  `node_modules`, `testdata`, `vendor` and nested modules are left alone.
+  Saves that come together, like a formatter rewriting several files, make one
+  build.
+- **Tailwind keeps running** across the restarts, and restyles open pages as it
+  does under `vuka run`.
+- **Open [live pages](/web/live) reconnect** to the new build. A development
+  app (`web.Dev()` or `VUKA_ENV=development`) rejoins them as the new build
+  renders them; otherwise each page reloads.
+- Ctrl-C or SIGTERM stops the app, the watcher and Tailwind, waiting for the
+  app to finish; a second one kills an app that doesn't.
+
+Without `-watch`, `vuka run` starts the program once, as `go run` does.
+`vuka run -help` sums this up.
 
 ## mod
 
