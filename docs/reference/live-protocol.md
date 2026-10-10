@@ -317,10 +317,10 @@ carrying the attribute.
 | `scroll_to` | `to` | scroll the element into view |
 | `set_value` | `to`, `value` | set the element's value (a checkbox's `checked` from `"true"`), then fire `input` and `change` on it |
 
-Branches nest: an `if` met inside a branch opens a level of its own, closed
-by its `end` (or by an `else_if`/`else`/`end` of the enclosing level, which
-ends it too). A step a branch skips doesn't run — a skipped `debounce`
-doesn't defer anything.
+Branches nest: an `if` inside a branch opens a level of its own, and
+`else_if`, `else` and `end` belong to the innermost `if` not yet ended. A
+step a branch skips doesn't run — a skipped `debounce` defers nothing, a
+skipped `if` takes no branch.
 
 **Targets.** `to` is the elements an operation acts on; omitted, *this*:
 
