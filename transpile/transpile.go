@@ -23,7 +23,7 @@ import (
 const RuntimePath = "github.com/vuka-lang/vuka"
 
 // RuntimeVersion is the runtime version the code Vuka generates needs.
-const RuntimeVersion = "v0.7.0"
+const RuntimeVersion = "v0.9.0"
 
 // File is one source file of a package: a .vuka file to transpile, or a .go file
 // in the same package.

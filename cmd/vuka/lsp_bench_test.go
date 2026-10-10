@@ -68,7 +68,7 @@ func typist(prefix, target string, step func(buf, typed string)) {
 }
 
 func TestLSPBenchmark(t *testing.T) {
-	start := benchHead + "func PetTable(pets []data.Pet) vuka.Node {\n\treturn \n}\n" + benchTail
+	start := benchHead + "func PetTable(pets []data.Pet) ui.Node {\n\treturn \n}\n" + benchTail
 	c, dir, init := startLSPWith(t, templFiles(t, map[string]string{"main.vuka": start, "data/data.go": benchData}))
 	caps, _ := json.Marshal(init.(map[string]any)["capabilities"])
 	for _, want := range []string{`"linkedEditingRangeProvider":true`, `"foldingRangeProvider":true`, `"\""`} {
@@ -123,8 +123,8 @@ func TestLSPBenchmark(t *testing.T) {
 	}
 	settle()
 
-	prefix := benchHead + "func PetTable(pets []data.Pet) vuka.Node {\n\treturn "
-	body := strings.TrimSuffix(strings.TrimPrefix(benchBody, "func PetTable(pets []data.Pet) vuka.Node {\n\treturn "), "\n}\n")
+	prefix := benchHead + "func PetTable(pets []data.Pet) ui.Node {\n\treturn "
+	body := strings.TrimSuffix(strings.TrimPrefix(benchBody, "func PetTable(pets []data.Pet) ui.Node {\n\treturn "), "\n}\n")
 	var final string
 	checks := map[string]func(src string, off int){
 		// 1. completion while typing, the file around mid-edit

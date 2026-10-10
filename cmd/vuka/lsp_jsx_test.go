@@ -10,6 +10,8 @@ import (
 
 const jsxSource = `package main
 
+import "github.com/vuka-lang/ui"
+
 type User struct {
 	Name string
 	Year int
@@ -18,12 +20,12 @@ type User struct {
 type ButtonProps struct {
 	Variant  string
 	Disabled bool
-	Children vuka.Node
+	Children ui.Node
 }
 
-func Button(props ButtonProps) vuka.Node { return <button>{props.Variant}</button> }
+func Button(props ButtonProps) ui.Node { return <button>{props.Variant}</button> }
 
-func UserCard(user User, admin bool, children vuka.Node) vuka.Node {
+func UserCard(user User, admin bool, children ui.Node) ui.Node {
 	return <div className="card">
 		<h3>{user.Name}</h3>
 		{children}
@@ -31,7 +33,7 @@ func UserCard(user User, admin bool, children vuka.Node) vuka.Node {
 }
 
 type Counter struct {
-	vuka.Live
+	ui.Live
 	Start int
 	Label string
 	n     int
@@ -39,9 +41,9 @@ type Counter struct {
 
 func (c *Counter) Inc() { c.n++ }
 
-func (c *Counter) Render() vuka.Node { return <b onClick={c.Inc}>{c.n}</b> }
+func (c *Counter) Render() ui.Node { return <b onClick={c.Inc}>{c.n}</b> }
 
-func Page(users []User) vuka.Node {
+func Page(users []User) ui.Node {
 	return <section>
 		{for _, u := range users {
 			<UserCard user={u} admin>since {u.Year}</UserCard>
@@ -126,7 +128,7 @@ func TestLSPJSX(t *testing.T) {
 		funcDecl := posOf(jsxSource, "UserCard(user User", 0)
 		for _, needle := range []string{"<UserCard user", "</UserCard>"} {
 			delta := strings.Index(needle, "U") + 2
-			if h := ask("textDocument/hover", at(jsxSource, needle, delta)); !strings.Contains(h, "func UserCard(user User, admin bool, children vuka.Node) vuka.Node") {
+			if h := ask("textDocument/hover", at(jsxSource, needle, delta)); !strings.Contains(h, "func UserCard(user User, admin bool, children ui.Node) ui.Node") {
 				t.Fatalf("hover on %s: %s", needle, h)
 			}
 			if d := ask("textDocument/definition", at(jsxSource, needle, delta)); !strings.Contains(d, `"start":`+funcDecl) {
@@ -283,10 +285,10 @@ func TestLSPJSX(t *testing.T) {
 		edit(src)
 		ds := c.waitDiags(uri, func(ds []any) bool {
 			b, _ := json.Marshal(ds)
-			return strings.Contains(string(b), "at line 18")
+			return strings.Contains(string(b), "at line 20")
 		})
 		b, _ := json.Marshal(ds)
-		if !strings.Contains(string(b), "h3") || !strings.Contains(string(b), "at line 18") || !strings.Contains(string(b), `"start":`+posOf(src, "</div>", 0)) {
+		if !strings.Contains(string(b), "h3") || !strings.Contains(string(b), "at line 20") || !strings.Contains(string(b), `"start":`+posOf(src, "</div>", 0)) {
 			t.Fatalf("diagnostics: %s", b)
 		}
 		// The rest of the file, lines below the edit included, still works.

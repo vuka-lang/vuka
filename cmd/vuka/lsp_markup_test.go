@@ -8,8 +8,8 @@ import (
 
 // benchSource is the page every editor feature is checked against: typing it
 // must feel like TSX.
-const benchHead = "package main\n\nimport (\n\t\"fmt\"\n\n\t\"lsptest/data\"\n)\n\n"
-const benchBody = `func PetTable(pets []data.Pet) vuka.Node {
+const benchHead = "package main\n\nimport (\n\t\"fmt\"\n\n\t\"github.com/vuka-lang/ui\"\n\t\"lsptest/data\"\n)\n\n"
+const benchBody = `func PetTable(pets []data.Pet) ui.Node {
 	return <>
 		<h1>Pets ({len(pets)})</h1>
 		<table>
@@ -88,7 +88,7 @@ func TestLinkedEditing(t *testing.T) {
 		t.Error("no linked ranges mid-edit")
 	}
 	// Components and generic components pair too.
-	comp := "func F() vuka.Node {\n\treturn <List[User] items={x}>\n\t\t<Card>a</Card>\n\t</List>\n}\n"
+	comp := "func F() ui.Node {\n\treturn <List[User] items={x}>\n\t\t<Card>a</Card>\n\t</List>\n}\n"
 	if v, _ := json.Marshal(linkedEditing([]byte(comp), nth(t, comp, "</List>", 1, 3))); !strings.Contains(string(v), `"character":7`) {
 		t.Errorf("generic component: %s", v)
 	}

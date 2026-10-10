@@ -70,11 +70,7 @@ it is used):
 | `Stateful` + `Component` | an interface; `func(site string, key any, props S) Node` | a tag naming a struct type is a stateful component: `T.Component("file.vuka#n", key, &Counter{…})`. `*Counter` must implement `Stateful`. |
 | `WithChildren` | `func(n Node, children Node) Node` | children for a component that takes none but may read them from its context (a function of another package, a `.templ` file, a function value) and returns exactly `Node`. |
 
-Reserved for the live-diff work (render trees): an optional
-`F(fingerprint uint64, shape string, children ...Node) Node`. When the target
-declares it, every JSX tree and block body is wrapped in a frame carrying a
-compile-time fingerprint and shape. Targets without `F` get the plain
-lowering.
+| `F` | `func(fingerprint uint64, shape string, children ...Node) Node` | render trees: every JSX tree, block body and component's children is wrapped in a frame carrying a compile-time fingerprint and shape (`transpile/jsxframe.go`). Without `F`: the plain lowering. |
 
 ### Choosing the target
 
@@ -138,18 +134,22 @@ Result and Option, decorators and declarers (`Call`, `Func`, `Type`, `Decl`,
 `AttrOf`, `TypeOf`, …), `File` (embedding is language: `File`, `FileOf`,
 `Pkg`, `Path`, `Bytes`), statics, field references, predicates and fields.
 No requirements at all: `go mod why github.com/a-h/templ` → not needed. The
-`go` line drops to what the code needs (see go.mod).
+`go` line is 1.23: `types.Func.Signature` (and `os.CopyFS` in tests) need it,
+and it makes go/types materialize aliases (`ui.Node` stays `ui.Node` in
+messages). The runtime version generated code requires is v0.9.0.
 
 ## .templ files: a toolchain plugin
 
 templ is a tool concern. The CLI is its own module,
 `github.com/vuka-lang/vuka/cmd/vuka`, which links templ's parser and
-generator; the language module doesn't. `internal/load` exposes a small
-plugin seam (`load.Compiler`: a foreign source kind compiled to Go before
-transpiling, with its own source map), and the CLI registers the templ
-plugin. It is active for a module whose go.mod requires
-`github.com/a-h/templ`; elsewhere `.templ` files are ignored as before Vuka
-knew them.
+generator; the language module doesn't. `internal/load` keeps the `.templ`
+file conventions (`x.templ` → `x_templ.go`, packages of `.templ` files, the
+source map passed through as `any`) and exposes one hook,
+`load.TemplCompiler`, which the CLI's `templplugin.go` sets. It is active
+for a module whose go.mod requires `github.com/a-h/templ`
+(`load.TemplActive`); elsewhere `.templ` files are ignored. A module with
+`.templ` files that doesn't require templ yet runs `go get
+github.com/a-h/templ` first.
 
 A `vuka.File` naming a `.templ` file is still embedded by the compiler; when
 the module requires `github.com/vuka-lang/ui` the generated code also
@@ -196,16 +196,17 @@ For porting work done against the old layout (e.g. the live-diff branch):
 | `transpile/jsxcomp.go` `nodeType`, `templx.WithChildren` | same file; `e.targetObj(f, "Node")`, the target's `WithChildren` |
 | `transpile/jsxlive.go` `statefulProblem`, `handlerProblem`, `payloadOK` | generic checks in `transpile/jsxlive.go`; payload rules → ui `live.go` `checkHandler`; Mount → ui `MountLive` |
 | — | `transpile/target.go`: target resolution and the contract |
-| `internal/load/templ.go`, `templ_test.go` | `cmd/vuka/templplugin.go`, `cmd/vuka/templplugin_test.go` |
+| `internal/load/templ.go` compile step | `cmd/vuka/templplugin.go` (hook `load.TemplCompiler`) |
+| `internal/load/templ_test.go`, `files_test.go` | `cmd/vuka/templplugin_test.go` |
+| `frame.go`, `tree.go`, `assign.go`, `tree_test.go` (live-diff) | ui, same names |
+| `live/internal/demo` drift test (`go run ./cmd/vuka`) | ui; runs `vuka` from PATH or `$VUKA` |
+| `transpile/jsxframe.go` | same file; frames only when the target declares `F` |
 | `transpile/testdata/golden/*.vuka` (JSX) | same, importing ui; the golden directory is a module (`go.mod`) requiring ui |
 
-Porting `vuka.F` frames: add `F` to ui `node.go`/`tree.go`, and in
-`transpile/jsx.go` emit `w.q + "F("` only when the target declares `F`
-(`f.target.has("F")`), else the current lowering.
 
 ## Testing a target-dependent compiler
 
 The golden directory `transpile/testdata/golden` is a module requiring ui
 (today through `replace => ../../../../vuka-ui`, a sibling checkout; after
-ui is tagged, a version). Tests that build temporary modules with JSX
-locate ui the same way (`VUKA_UI` overrides the path).
+ui is tagged, a version). The CLI's tests build temporary modules requiring
+the sibling ui (`$VUKA_UI` overrides the path; `cmd/vuka/testmod_test.go`).

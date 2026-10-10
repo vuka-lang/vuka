@@ -7,17 +7,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
 )
 
 // module writes a module using the local runtime and returns its directory.
 func module(t *testing.T, files map[string]string) string {
 	t.Helper()
-	repo, _ := filepath.Abs("../..")
 	dir := t.TempDir()
-	files["go.mod"] = "module m\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/a-h/templ v0.3.1020 // indirect\n\tgithub.com/vuka-lang/vuka " + transpile.RuntimeVersion + "\n)\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
-	sum, _ := os.ReadFile(filepath.Join(repo, "go.sum"))
-	files["go.sum"] = string(sum)
+	files["go.mod"], files["go.sum"] = testModule(t, "m")
 	for name, src := range files {
 		path := filepath.Join(dir, name)
 		os.MkdirAll(filepath.Dir(path), 0o755)

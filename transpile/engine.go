@@ -29,6 +29,7 @@ type engine struct {
 	tplImports    map[string]string         // packages of .templ files in subdirectories → their names in generated code
 	nfiles        int                       // embedded files so far, naming their variables
 	targets       map[string]*types.Package // import paths → the JSX target there, or nil
+	targetErrs    map[string]error          // imports that didn't load, looking for one
 
 	declared      map[string]bool // package-level names
 	typeNames     map[string]bool // package-level type names

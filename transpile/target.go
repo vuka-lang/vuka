@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"fmt"
 	"go/build"
 	"go/constant"
 	"go/token"
@@ -105,7 +106,14 @@ func (e *engine) importTarget(path string) *types.Package {
 	}
 	var pkg *types.Package
 	if !stdPackage(path) {
-		if p, err := e.imp.Import(path); err == nil && p != nil {
+		p, err := e.imp.Import(path)
+		switch {
+		case err != nil:
+			if e.targetErrs == nil {
+				e.targetErrs = map[string]error{}
+			}
+			e.targetErrs[path] = err
+		case p != nil:
 			if _, ok := p.Scope().Lookup("VukaJSX").(*types.Const); ok {
 				pkg = p
 			}
@@ -147,7 +155,14 @@ func (f *fileState) jsxTarget(toks []tok, off int, errs *ErrorList) *jsxTarget {
 	}
 	switch len(found) {
 	case 0:
-		errs.add(f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)", DefaultJSXTarget)
+		why := ""
+		for _, imp := range tokImports(toks) {
+			if err := f.eng.targetErrs[imp.path]; err != nil {
+				why = fmt.Sprintf(" (%s doesn't load: %s)", imp.path, oneLine(err.Error()))
+				break
+			}
+		}
+		errs.add(f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)%s", DefaultJSXTarget, why)
 		f.target = &jsxTarget{q: "__jsx."}
 	case 1:
 		f.target = found[0]
@@ -207,3 +222,6 @@ func provider(tg *jsxTarget, m *types.Func) string {
 	}
 	return ""
 }
+
+// oneLine is a multi-line error (the go command's) on one line.
+func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
