@@ -255,3 +255,181 @@
 39:
   "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
 40:
+41:
+  "decorator" meta.decorator.composed.vuka keyword.other.decorator.vuka storage.type.function.vuka
+  "ApiRoute" meta.decorator.composed.vuka entity.name.function.decorator.vuka
+  "(" meta.decorator.composed.vuka punctuation.definition.begin.bracket.round.go
+  "path" meta.decorator.composed.vuka variable.other.go
+  "string" meta.decorator.composed.vuka storage.type.string.go
+  ")" meta.decorator.composed.vuka punctuation.definition.end.bracket.round.go
+  "=" meta.decorator.composed.vuka keyword.operator.composition.vuka
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "web.Get" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "path" meta.attribute.vuka variable.other.go
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "web.Use" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "auth" meta.attribute.vuka variable.other.go
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "timed" meta.attribute.vuka entity.name.function.decorator.vuka
+42:
+  "decorator" meta.decorator.composed.vuka keyword.other.decorator.vuka storage.type.function.vuka
+  "Audited" meta.decorator.composed.vuka entity.name.function.decorator.vuka
+  "=" meta.decorator.composed.vuka keyword.operator.composition.vuka
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "logged" meta.attribute.vuka entity.name.function.decorator.vuka
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Doc" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "audited" meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+43:
+  "decorator" meta.decorator.composed.vuka keyword.other.decorator.vuka storage.type.function.vuka
+  "Service" meta.decorator.composed.vuka entity.name.function.decorator.vuka
+  "=" meta.decorator.composed.vuka keyword.operator.composition.vuka
+  "(" punctuation.definition.begin.bracket.round.go
+44:
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "register" meta.attribute.vuka entity.name.function.decorator.vuka
+45:
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Audited" meta.attribute.vuka entity.name.function.decorator.vuka
+46:
+  ")" punctuation.definition.end.bracket.round.go
+47:
+48:
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "ApiRoute" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "/pets/{id}" meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+49:
+  "func" keyword.function.go
+  "ShowPet" entity.name.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Path" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "id" meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+  "id" variable.parameter.go
+  "int" storage.type.numeric.go
+  "," punctuation.other.comma.go
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Query" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "q" meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+  "q" variable.parameter.go
+  "string" storage.type.string.go
+  "," punctuation.other.comma.go
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Body" meta.attribute.vuka entity.name.function.decorator.vuka
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Valid" meta.attribute.vuka entity.name.function.decorator.vuka
+  "in" variable.parameter.go
+  "NewPet" entity.name.type.go
+  "," punctuation.other.comma.go
+  "store" variable.parameter.go
+  "*" keyword.operator.address.go
+  "PetStore" entity.name.type.go
+  ")" punctuation.definition.end.bracket.round.go
+  "Result" entity.name.type.go
+  "[" punctuation.definition.begin.bracket.square.go
+  "Pet" entity.name.type.go
+  "]" punctuation.definition.end.bracket.square.go
+  "{" punctuation.definition.begin.bracket.curly.go
+50:
+  "return" keyword.control.go
+  "store" variable.other.go
+  "." punctuation.other.period.go
+  "Find" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "id" variable.other.go
+  ")" punctuation.definition.end.bracket.round.go
+51:
+  "}" punctuation.definition.end.bracket.curly.go
+52:
+53:
+  "func" keyword.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "s " variable.parameter.go
+  "*" keyword.operator.address.go
+  "Store" entity.name.type.go
+  ")" punctuation.definition.end.bracket.round.go
+  "Save" entity.name.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Valid" meta.attribute.vuka entity.name.function.decorator.vuka
+  "u" variable.parameter.go
+  "User" entity.name.type.go
+  ")" punctuation.definition.end.bracket.round.go
+  "error" storage.type.error.go
+  "{" punctuation.definition.begin.bracket.curly.go
+  "return" keyword.control.go
+  "nil" constant.language.null.go
+  "}" punctuation.definition.end.bracket.curly.go
+54:
+55:
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "vuka.Targets" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "vuka" meta.attribute.vuka variable.other.go
+  "." meta.attribute.vuka punctuation.other.period.go
+  "OnField" meta.attribute.vuka variable.other.go
+  "|" meta.attribute.vuka keyword.operator.arithmetic.bitwise.go
+  "vuka" meta.attribute.vuka variable.other.go
+  "." meta.attribute.vuka punctuation.other.period.go
+  "OnParam" meta.attribute.vuka variable.other.go
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+56:
+  "type" meta.struct.vuka keyword.type.go
+  "Char" meta.struct.vuka entity.name.type.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+  "Max" meta.struct.vuka variable.other.field.vuka
+  "int" meta.struct.vuka storage.type.vuka
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+57:
+58:
+  "func" keyword.function.go
+  "Move" entity.name.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+59:
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Path" meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "id" meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" meta.attribute.vuka punctuation.definition.end.bracket.round.go
+  "id" variable.parameter.go
+  "int" storage.type.numeric.go
+  "," punctuation.other.comma.go
+60:
+  "@" meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Body" meta.attribute.vuka entity.name.function.decorator.vuka
+  "to" variable.parameter.go
+  "Place" entity.name.type.go
+  "," punctuation.other.comma.go
+61:
+  ")" punctuation.definition.end.bracket.round.go
+  "error" storage.type.error.go
+  "{" punctuation.definition.begin.bracket.curly.go
+62:
+  "return" keyword.control.go
+  "nil" constant.language.null.go
+63:
+  "}" punctuation.definition.end.bracket.curly.go
+64:

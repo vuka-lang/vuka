@@ -31,6 +31,9 @@
       "include": "#static"
     },
     {
+      "include": "#composedDecorator"
+    },
+    {
       "include": "#decorator"
     },
     {
@@ -49,6 +52,15 @@
       "include": "source.go"
     }
   ],
+  "injections": {
+    "L:source.vuka - string - comment": {
+      "patterns": [
+        {
+          "include": "#parameterAttribute"
+        }
+      ]
+    }
+  },
   "repository": {
     "comments": {
       "patterns": [
@@ -888,6 +900,99 @@
         {
           "match": "[^<{}&]+",
           "name": "string.unquoted.jsx.text.vuka"
+        }
+      ]
+    },
+    "parameterAttribute": {
+      "comment": "An attribute before a parameter, func f(@Path(\"id\") id int), or after another one; injected, since Go's grammar reads parameter lists itself.",
+      "patterns": [
+        {
+          "name": "meta.attribute.vuka",
+          "begin": "(?:(?<=\\(|,)\\s*|(?<=[\\w)}])\\s+|^\\s+)(@)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?)\\s*(\\{)",
+          "end": "\\}",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.decorator.vuka"
+            },
+            "2": {
+              "name": "entity.name.function.decorator.vuka"
+            },
+            "3": {
+              "name": "punctuation.definition.begin.bracket.curly.go"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.end.bracket.curly.go"
+            }
+          },
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "name": "meta.attribute.vuka",
+          "begin": "(?:(?<=\\(|,)\\s*|(?<=[\\w)}])\\s+|^\\s+)(@)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?)\\s*(\\()",
+          "end": "\\)",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.decorator.vuka"
+            },
+            "2": {
+              "name": "entity.name.function.decorator.vuka"
+            },
+            "3": {
+              "name": "punctuation.definition.begin.bracket.round.go"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.end.bracket.round.go"
+            }
+          },
+          "patterns": [
+            {
+              "include": "$self"
+            }
+          ]
+        },
+        {
+          "name": "meta.attribute.vuka",
+          "match": "(?:(?<=\\(|,)\\s*|(?<=[\\w)}])\\s+|^\\s+)(@)([A-Za-z_][A-Za-z0-9_]*(?:\\.[A-Za-z_][A-Za-z0-9_]*)?)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.decorator.vuka"
+            },
+            "2": {
+              "name": "entity.name.function.decorator.vuka"
+            }
+          }
+        }
+      ]
+    },
+    "composedDecorator": {
+      "comment": "A composed decorator: decorator ApiRoute(path string) = @web.Get(path) @timed; its elements are attributes.",
+      "begin": "^\\s*(decorator)\\s+([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?:\\([^()]*\\))?\\s*=)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.other.decorator.vuka storage.type.function.vuka"
+        },
+        "2": {
+          "name": "entity.name.function.decorator.vuka"
+        }
+      },
+      "end": "=",
+      "endCaptures": {
+        "0": {
+          "name": "keyword.operator.composition.vuka"
+        }
+      },
+      "name": "meta.decorator.composed.vuka",
+      "patterns": [
+        {
+          "include": "source.go"
         }
       ]
     }

@@ -37,3 +37,27 @@ type Counter struct {
 	Start int
 	n     int
 }
+
+decorator ApiRoute(path string) = @web.Get(path) @web.Use(auth) @timed
+decorator Audited = @logged @Doc("audited")
+decorator Service = (
+	@register
+	@Audited
+)
+
+@ApiRoute("/pets/{id}")
+func ShowPet(@Path("id") id int, @Query("q") q string, @Body @Valid in NewPet, store *PetStore) Result[Pet] {
+	return store.Find(id)
+}
+
+func (s *Store) Save(@Valid u User) error { return nil }
+
+@vuka.Targets(vuka.OnField | vuka.OnParam)
+type Char struct{ Max int }
+
+func Move(
+	@Path("id") id int,
+	@Body to Place,
+) error {
+	return nil
+}
