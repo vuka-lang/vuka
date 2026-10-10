@@ -10,9 +10,9 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
-## Unreleased
+## v0.9.0 — 2026-10-10
 
-Runtime: new `vuka.Frame`/`vuka.F` (JSX's compile-time shape), `vuka.Tree`,
+Runtime: `github.com/vuka-lang/vuka v0.9.0` (`vuka fix runtime` upgrades). New `vuka.Frame`/`vuka.F` (JSX's compile-time shape), `vuka.Tree`,
 `vuka.TreeList`, `vuka.TreeRef`, `vuka.BuildTree`, `vuka.Assign`,
 `vuka.RootAttrs`; `live.Session.RenderTrees`, `HTML`, `live.TreeUpdate`,
 `live.Verify`, `live.Marshal`, package `live/livetest`. Generated code needs
@@ -33,6 +33,10 @@ it: JSX now lowers through `vuka.F`.
   crashed the compiler.
 - Server messages are written without HTML escaping (`<` rather than
   `\u003c`); the JSON is the same once parsed.
+- `vuka gen -inplace` writes line directives relative to the generated
+  file, so committed generated code no longer carries the checkout's path.
+- [vuka-lang/web](https://github.com/vuka-lang/web) v0.3.0 speaks protocol v2
+  in the browser.
 
 ## v0.8.0 — 2026-10-10
 
