@@ -10,24 +10,46 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
-## Unreleased
+## v0.7.0 — 2026-10-10
 
-Runtime: new `vuka.Ref` (with `OrderedRef`, `StringRef`, `CompareRef`,
-`NullableRef`), `vuka.Pred`, `vuka.Order`, `vuka.FieldPath`, `vuka.Related`,
-`vuka.FieldAttrs`, `vuka.FieldsOf`; `vuka.Field` has `Attrs`.
+Runtime: `github.com/vuka-lang/vuka v0.7.0` (new: `vuka.Live`, `vuka.Component`,
+`vuka.On`, `vuka.Event`, the `live` package; field references `vuka.Ref` with
+`OrderedRef`, `StringRef`, `CompareRef`, `NullableRef`, `vuka.Pred`,
+`vuka.Order`, `vuka.FieldPath`, `vuka.Related`, `vuka.FieldAttrs`,
+`vuka.FieldsOf`; `vuka.Field` has `Attrs`).
 
+- **Stateful components.** A struct embedding `vuka.Live`, with `Mount`,
+  `Render` and event handlers: `<Counter Start={5}/>` keeps its state on the
+  server, `onClick={c.Inc}` (methods or closures, values, form structs) runs
+  there, and only the components that changed are sent back. Components nest,
+  `key` keeps list items attached, `Update(msg)` overloads receive broadcasts.
+  Rendered without a session they are plain HTML. The `live` package is the
+  transport-independent session; [vuka-lang/web](https://github.com/vuka-lang/web)
+  serves it over WebSocket. [Stateful components](/features/components#stateful-components).
 - **Field attributes.** Typed attributes after a struct field, after its tag:
-  `Title string `json:"title"` @Char{Max: 200}`. Type-checked, stripped
-  from the struct, and recorded at init: `vuka.FieldAttrs[T]()`,
-  `vuka.FieldsOf[T]()`, and `Attrs` on a type decorator's fields.
+  `` Title string `json:"title"` @Char{Max: 200} ``, recorded at init.
   [Field attributes](/features/fields#field-attributes).
 - **Field references.** `Post.Title` is a typed reference to the field;
-  `Post.Author.Name` goes on through struct, pointer and `vuka.Related` fields
-  (a foreign key), and embedded fields are promoted. References build typed
-  predicates (`Post.Views.Gt(100)`, `vuka.Or(…)`), kept as data for a query
-  builder and testable in memory with `Match`, and orderings for
-  `vuka.SortBy`. Hover and go to definition on a reference land on the field.
+  `Post.Author.Name` follows struct, pointer and `vuka.Related` fields. They
+  build typed predicates (`Post.Views.Gt(100)`) and orderings, the
+  foundation of [vuka-lang/orm](https://github.com/vuka-lang/orm)'s queries.
   [Field references](/features/fields#field-references).
+- **JSX:** brace-less `if`/`for`/`match` inside block bodies; JSX in
+  package-level variables; props from embedded struct fields; a block header
+  may hold composite literals.
+- **Statics** may use other statics, field references and `Self` in their
+  initializers; initialization cycles are reported with their chain.
+- **match:** exhaustiveness checks nested patterns (`Ok(Some(p))`, `Ok(None)`,
+  `Err(e)`), and a `match` on a value from `x := f()?` sees its unwrapped type.
+- Errors quote field references and statics as the source spells them.
+- **Editor:** `vuka.File` paths are links (click to open, hover lists a
+  `.templ` file's components); positions stay right while a file with
+  several edits doesn't compile; completion offers stateful components, their
+  props and event handlers.
+- **VS Code extension 0.4.0:** highlighting for field attributes, match
+  patterns, JSX blocks, events and component tags; 16 snippets (components,
+  routes, live pages, ORM models, transactions); auto-closing tags; the vuka
+  version in the status bar.
 
 ## v0.6.0 — 2026-10-10
 
