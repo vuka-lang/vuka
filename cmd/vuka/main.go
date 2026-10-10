@@ -30,6 +30,9 @@ Usage:
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        an app on github.com/vuka-lang/web gets its Tailwind CSS (run keeps it
 	        rebuilt, build embeds it; VUKA_TAILWIND=off for none)
+	vuka run -watch [go flags] [package] [args]
+	        run the app and rebuild it when a source changes: the new build
+	        replaces it once it compiles, while the old one keeps serving
 	vuka gen [-check] [-o build]
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
@@ -110,6 +113,15 @@ func main() {
 // `go <cmd> -overlay=…` so the generated files exist only for the compiler.
 // vuka build also brings the build/ module up to date.
 func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
+	if cmd == "run" {
+		if len(args) > 0 && slices.Contains([]string{"-h", "-help", "--help"}, args[0]) {
+			fmt.Fprint(stdout, runUsage)
+			return nil
+		}
+		if args, watch := cutWatch(args); watch {
+			return runWatch(args, stdout, stderr)
+		}
+	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return err
