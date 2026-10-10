@@ -214,6 +214,21 @@ func (e *engine) subTempl(l *fileLit, p, dir, base string) (*fileLit, string) {
 	return l, ""
 }
 
+// fileRefs are f's vuka.File literals, for tools.
+func (e *engine) fileRefs(f *fileState) []FileRef {
+	var refs []FileRef
+	for _, l := range f.files {
+		r := FileRef{Off: l.off, End: l.end, Path: filepath.Join(e.dir, filepath.FromSlash(l.rel))}
+		if l.tpl != nil {
+			for _, c := range l.tpl.comps {
+				r.Components = append(r.Components, TemplComponent{Name: c.name, Params: c.params})
+			}
+		}
+		refs = append(refs, r)
+	}
+	return refs
+}
+
 // tplImport names the package of a .templ file in a subdirectory in the
 // generated code.
 func (e *engine) tplImport(pkg string) string {

@@ -13,6 +13,9 @@ and Go's type errors appear on the `.vuka` lines; an import of a folder of your
 module written without the module path gets a hint with the right one. Overloads and statics show as
 you wrote them (`area`, `User.New`), and typing `@` lists the project's
 decorators.
+A `vuka.File` path such as `@web.Template("views/pets.templ")` is a link:
+go to definition opens the file (a `.templ` file with one component, at that
+component), and hover shows the path and the `.templ` file's components.
 
 Install gopls:
 

@@ -2,6 +2,7 @@ package load
 
 import (
 	"errors"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -107,6 +108,27 @@ func TestFiles(t *testing.T) {
 	gens, overlay, err := Transpile(pkgs, t.TempDir(), Options{})
 	if err != nil {
 		t.Fatal(err)
+	}
+	var refs []transpile.FileRef
+	for _, g := range gens {
+		if filepath.Base(g.Source) == "main.vuka" {
+			refs = g.Files
+		}
+	}
+	type want struct{ lit, path, comps string }
+	wants := []want{
+		{`"views/pet.html"`, "views/pet.html", "[]"},
+		{`"pet.templ"`, "pet.templ", "[{Show [name]} {list []}]"},
+		{`"views/cards/card.templ"`, "views/cards/card.templ", "[{Card [title n]}]"},
+	}
+	if len(refs) != len(wants) {
+		t.Fatalf("Files: %+v", refs)
+	}
+	for i, w := range wants {
+		r, off := refs[i], strings.Index(filesVuka, w.lit)
+		if r.Off != off || r.End != off+len(w.lit) || r.Path != filepath.Join(root, filepath.FromSlash(w.path)) || fmt.Sprint(r.Components) != w.comps {
+			t.Errorf("Files[%d] = %+v, want %s at %d, %s", i, r, w.lit, off, w.comps)
+		}
 	}
 	if got := goRun(t, root, overlay, "."); got != filesWant {
 		t.Fatalf("go run with the overlay:\n%s\nwant:\n%s", got, filesWant)

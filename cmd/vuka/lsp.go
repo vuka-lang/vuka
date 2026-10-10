@@ -216,6 +216,7 @@ type vfile struct {
 	gen     []byte
 	m       *transpile.SourceMap   // a .vuka file's map
 	templ   *templparser.SourceMap // a .templ file's map (templ's own)
+	files   []transpile.FileRef    // a .vuka file's vuka.File literals, in from
 	version int
 	probed  int // the version holding the last probe (see probe)
 }
@@ -437,6 +438,7 @@ var vukaMethods = map[string]bool{
 	"textDocument/prepareRename":     true,
 	"textDocument/codeAction":        true,
 	"textDocument/inlayHint":         true,
+	"textDocument/documentLink":      true,
 }
 
 func isVuka(path string) bool { return strings.HasSuffix(path, ".vuka") }
@@ -447,6 +449,7 @@ var quietMethods = map[string]bool{
 	"textDocument/typeDefinition": true, "textDocument/implementation": true, "textDocument/references": true,
 	"textDocument/documentHighlight": true, "textDocument/signatureHelp": true, "textDocument/completion": true,
 	"textDocument/inlayHint": true, "textDocument/codeAction": true, "textDocument/documentSymbol": true,
+	"textDocument/documentLink": true,
 }
 
 var unresolvedImport = regexp.MustCompile(`no required module provides package "([^"]+)"`)
@@ -761,6 +764,9 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 		if r, ok := out.(map[string]any); ok {
 			if caps, ok := r["capabilities"].(map[string]any); ok {
 				caps["documentFormattingProvider"] = true // .vuka files by vuka fmt, .go files by gopls
+				if caps["documentLinkProvider"] == nil {
+					caps["documentLinkProvider"] = map[string]any{} // vuka.File literals
+				}
 			}
 		}
 	}
@@ -1028,7 +1034,7 @@ func (p *proxy) regenerate() {
 
 	want := map[string]*vfile{}
 	for _, g := range gens {
-		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: g.TemplMap}
+		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: g.TemplMap, files: g.Files}
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])
 		}
@@ -1213,6 +1219,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	if hasPos {
 		src := vf.text()
 		off := offsetOf(src, srcPos)
+		if h := p.fileRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if h := p.jsxRequest(m.Method, params, vf, genPath, off); h != nil {
 			p.mu.Unlock()
 			go func() { reply(h()) }()
@@ -1269,10 +1280,13 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	if len(m.Error) > 0 {
 		// gopls can't answer mid-edit or with a broken import; like gopls
 		// under the Go extension, that's no answer rather than an error.
-		if quietMethods[vr.method] {
+		switch {
+		case vr.method == "textDocument/documentLink":
+			reply["result"] = p.documentLinks(vr.file)
+		case quietMethods[vr.method]:
 			p.logf("%s: %s", vr.method, m.Error)
 			reply["result"] = nil
-		} else {
+		default:
 			reply["error"] = m.Error
 		}
 		_ = p.editor.send(reply)
@@ -1308,6 +1322,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		v = p.withCloseTwins(vr.method, v, vr.file)
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v)
+	case "textDocument/documentLink":
+		v = p.withFileLinks(v, vr.file)
 	}
 	reply["result"] = v
 	_ = p.editor.send(reply)

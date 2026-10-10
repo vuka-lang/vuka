@@ -75,6 +75,22 @@ type Output struct {
 	// Src is line n of the .vuka file (plus the header when not bare); after
 	// it comes code Vuka adds: attribute checks, statics, wrappers.
 	Body int
+	// Files are the vuka.File literals in the source.
+	Files []FileRef
+}
+
+// FileRef is a vuka.File literal: where it is in the .vuka source (quotes
+// included), the file it names, and for a .templ file its components.
+type FileRef struct {
+	Off, End   int
+	Path       string // absolute when the package has a directory
+	Components []TemplComponent
+}
+
+// TemplComponent is a component of a .templ file and its parameters' names.
+type TemplComponent struct {
+	Name   string
+	Params []string
 }
 
 // Result is a transpiled package.
@@ -364,7 +380,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f)})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

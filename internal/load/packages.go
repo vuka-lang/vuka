@@ -345,6 +345,7 @@ type Generated struct {
 	// TemplMap is templ's source map for a .templ file's Go, when Src is
 	// templ's raw output (Options.Bare); nil otherwise.
 	TemplMap *templparser.SourceMap
+	Files    []transpile.FileRef // a .vuka file's vuka.File literals, in From
 }
 
 // Options configure Transpile.
@@ -458,7 +459,7 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Files: f.Files})
 		}
 		if err := writeOverlay(overlay, replace); err != nil {
 			return nil, "", err

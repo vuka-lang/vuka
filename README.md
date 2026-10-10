@@ -58,7 +58,7 @@ keeps the generated Go open in gopls as unsaved buffers (nothing is written to
 your tree) and maps every position both ways. Completion, hover, signature
 help, go to definition, references, rename, outline, code actions, inlay
 hints and formatting (`vuka fmt`) all work; Vuka's own errors and Go's type errors show on the `.vuka`
-lines. Overloads show under the name you wrote (`area`, not `area__Circle`).
+lines. Overloads show under the name you wrote (`area`, not `area__Circle`). `vuka.File` paths (`@web.Template("views/pets.templ")`) are clickable.
 
 - **VS Code:** the extension in [`editors/vscode`](editors/vscode)
   (`npm install && npx vsce package`, then install the `.vsix`). It offers to
