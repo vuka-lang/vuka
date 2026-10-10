@@ -22,7 +22,7 @@ import (
 const RuntimePath = "github.com/vuka-lang/vuka"
 
 // RuntimeVersion is the runtime version the code Vuka generates needs.
-const RuntimeVersion = "v0.5.0"
+const RuntimeVersion = "v0.6.0"
 
 // File is one source file of a package: a .vuka file to transpile, or a .go file
 // in the same package.
@@ -52,6 +52,17 @@ type Options struct {
 	// ImportPath is the package's import path, for vuka.Decl and vuka.File.
 	// Empty uses the package name.
 	ImportPath string
+	// Templ finds a .templ file (an absolute path) of another package of the
+	// module, for a vuka.File naming one in a subdirectory. Nil makes such a
+	// File an error.
+	Templ func(path string) (TemplFile, error)
+}
+
+// TemplFile is a .templ file of another package: its import path and the Go
+// templ generates for it.
+type TemplFile struct {
+	ImportPath string
+	Go         []byte
 }
 
 // Output is the Go generated for one .vuka file.
@@ -317,7 +328,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ}
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
 			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare}

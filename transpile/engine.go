@@ -24,7 +24,9 @@ type engine struct {
 	bare        bool
 	dir         string
 	importPath  string
-	nfiles      int // embedded files so far, naming their variables
+	templ       func(string) (TemplFile, error)
+	tplImports  map[string]string // packages of .templ files in subdirectories → their names in generated code
+	nfiles      int               // embedded files so far, naming their variables
 
 	declared      map[string]bool // package-level names
 	typeNames     map[string]bool // package-level type names

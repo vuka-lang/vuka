@@ -17,12 +17,23 @@ import (
 //	@Template("views/pet.html")
 //	func showPet(id int) Pet { … }
 //
-// For a .templ file of the package, TemplComponents also gives its components.
+// For a .templ file, TemplComponents also gives its components. The file may
+// be in a subdirectory that is a package of its own (views/pets.templ with
+// `package views`): its File is then that package's ("module/views:pets.templ")
+// and the generated code imports it.
 type File string
+
+// TemplComponent is a component of a .templ file: its name, the generated
+// function (func(params…) templ.Component) and its parameters' names.
+type TemplComponent struct {
+	Name   string
+	Func   any
+	Params []string
+}
 
 var (
 	embedded sync.Map // File → string
-	templs   sync.Map // File → map[string]any
+	templs   sync.Map // File → []TemplComponent
 )
 
 // FileOf is an embedded file's File. Generated code calls it.
@@ -33,7 +44,7 @@ func FileOf(key, data string) File {
 
 // RegisterTempl records the components compiled from a .templ file. Generated
 // code calls it.
-func RegisterTempl(key string, components map[string]any) { templs.Store(File(key), components) }
+func RegisterTempl(key string, components ...TemplComponent) { templs.Store(File(key), components) }
 
 // Pkg is the import path of the package the file belongs to; "" for a File
 // Vuka didn't embed.
@@ -62,12 +73,13 @@ func (f File) Bytes() ([]byte, error) {
 	return os.ReadFile(f.Path())
 }
 
-// TemplComponents are the components of an embedded .templ file, by name: each
-// value is the generated function, func(params…) templ.Component.
-func TemplComponents(f File) (map[string]any, bool) {
-	m, ok := templs.Load(f)
+// TemplComponents are the components of an embedded .templ file, in source
+// order: all of them for a file of the referencing package, the exported ones
+// for a file of a subdirectory's package.
+func TemplComponents(f File) ([]TemplComponent, bool) {
+	c, ok := templs.Load(f)
 	if !ok {
 		return nil, false
 	}
-	return m.(map[string]any), true
+	return c.([]TemplComponent), true
 }

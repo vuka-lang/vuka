@@ -8,9 +8,11 @@ import (
 	"fmt"
 	"go/build"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"io"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -30,6 +32,7 @@ type Package struct {
 	Files      []transpile.File // .vuka and .go files matching the build context, and the Go of each Templ
 	Templ      []*Templ         // .templ files, compiled with templ's generator
 	Imports    []string
+	Embeds     []string // directories below Dir of .templ files its .vuka files may name (vuka.File)
 }
 
 // ModuleRoot finds the module enclosing dir.
@@ -72,10 +75,28 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	// reached through a symlink (macOS's /var is /private/var) is resolved.
 	root, dir = realPath(root), realPath(dir)
 	var pkgs []*Package
-	visit := func(d string) error {
+	seen := map[string]bool{}
+	var visit func(d string) error
+	visit = func(d string) error {
+		if seen[d] {
+			return nil
+		}
+		seen[d] = true
 		found, err := readDir(root, modPath, d, read)
 		pkgs = append(pkgs, found...)
-		return err
+		if err != nil || recursive {
+			return err
+		}
+		for _, p := range found {
+			for _, e := range p.Embeds {
+				if _, err := os.Stat(filepath.Join(e, "go.mod")); err != nil {
+					if err := visit(e); err != nil {
+						return err
+					}
+				}
+			}
+		}
+		return nil
 	}
 	if !recursive {
 		return pkgs, visit(dir)
@@ -175,6 +196,9 @@ func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 		}
 		p := pkg(f.Name.Name)
 		p.Files = append(p.Files, transpile.File{Name: name, Src: src})
+		if strings.HasSuffix(name, ".vuka") {
+			p.Embeds = append(p.Embeds, templDirs(dir, src)...)
+		}
 		if t != nil {
 			p.Templ = append(p.Templ, t)
 		}
@@ -232,11 +256,39 @@ func matches(dir, name string, src []byte) (bool, error) {
 	return ctx.MatchFile(dir, name)
 }
 
+// templDirs are the subdirectories of dir named by string literals in src
+// that are paths of .templ files: packages a vuka.File may refer to.
+func templDirs(dir string, src []byte) []string {
+	var s scanner.Scanner
+	fset := token.NewFileSet()
+	s.Init(fset.AddFile("", -1, len(src)), src, func(token.Position, string) {}, 0)
+	var dirs []string
+	for {
+		_, tok, lit := s.Scan()
+		if tok == token.EOF {
+			return dirs
+		}
+		if tok != token.STRING || !strings.HasSuffix(lit, `.templ"`) && !strings.HasSuffix(lit, ".templ`") {
+			continue
+		}
+		p, err := strconv.Unquote(lit)
+		if err != nil {
+			continue
+		}
+		if d := path.Dir(path.Clean(filepath.ToSlash(p))); d != "." && d != ".." && !strings.HasPrefix(d, "../") && !path.IsAbs(d) {
+			dirs = append(dirs, filepath.Join(dir, filepath.FromSlash(d)))
+		}
+	}
+}
+
 // Order sorts packages so each comes after the Vuka packages it imports.
 func Order(pkgs []*Package) ([]*Package, error) {
-	byPath := map[string]*Package{}
+	byPath, byDir := map[string]*Package{}, map[string]*Package{}
 	for _, p := range pkgs {
 		byPath[p.ImportPath] = p
+		if !strings.HasSuffix(p.Name, "_test") {
+			byDir[p.Dir] = p
+		}
 	}
 	var out []*Package
 	state := map[*Package]int{} // 1 visiting, 2 done
@@ -256,6 +308,15 @@ func Order(pkgs []*Package) ([]*Package, error) {
 		sort.Strings(deps)
 		for _, d := range deps {
 			if q := byPath[d]; q != nil && q != p {
+				if err := visit(q, append(stack, p.ImportPath)); err != nil {
+					return err
+				}
+			}
+		}
+		// A .templ file's package the source may name comes first too, unless
+		// that is a cycle: the literal may not be a vuka.File at all.
+		for _, d := range p.Embeds {
+			if q := byDir[d]; q != nil && q != p && state[q] == 0 {
 				if err := visit(q, append(stack, p.ImportPath)); err != nil {
 					return err
 				}
@@ -332,6 +393,7 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 		defer imp.cache.save()
 		_ = imp.Prefetch(imports) // a failure shows up where the import is used
 	}
+	templ := TemplFinder(pkgs)
 	var errs transpile.ErrorList
 	for i, p := range pkgs {
 		add := func(goName string, src []byte) error {
@@ -370,6 +432,7 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			continue
 		}
 		res, err := transpile.Package(p.Files, transpile.Options{
+			Templ:      templ,
 			Importer:   imp,
 			Path:       func(name string) string { return filepath.Join(p.Dir, name) },
 			Bare:       opts.Bare,
@@ -405,6 +468,57 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 		return out, overlay, errs
 	}
 	return out, overlay, nil
+}
+
+// TemplFinder finds .templ files of pkgs for vuka.File literals naming one
+// in another package's directory.
+func TemplFinder(pkgs []*Package) func(string) (transpile.TemplFile, error) {
+	type found struct {
+		p *Package
+		t *Templ
+	}
+	byPath := map[string]found{}
+	for _, p := range pkgs {
+		for _, t := range p.Templ {
+			byPath[filepath.Join(p.Dir, t.Name)] = found{p, t}
+		}
+	}
+	return func(file string) (transpile.TemplFile, error) {
+		file = realPath(file)
+		dir := filepath.Dir(file)
+		f, ok := byPath[file]
+		switch {
+		case !ok:
+			if root, _, err := ModuleRoot(dir); err == nil && len(pkgs) > 0 && !strings.HasPrefix(pkgs[0].Dir+string(filepath.Separator), root+string(filepath.Separator)) {
+				return transpile.TemplFile{}, fmt.Errorf("%s is in another module (%s)", dir, filepath.Join(root, "go.mod"))
+			}
+			return transpile.TemplFile{}, fmt.Errorf("%s is not a package of this module", dir)
+		case f.t.Err != nil:
+			return transpile.TemplFile{}, f.t.Err
+		}
+		if other := goPackage(dir, f.p.Name); other != "" {
+			return transpile.TemplFile{}, fmt.Errorf("it is package %s; the directory's Go files are package %s", f.p.Name, other)
+		}
+		return transpile.TemplFile{ImportPath: f.p.ImportPath, Go: f.t.Go}, nil
+	}
+}
+
+// goPackage is the package of a Go file in dir other than name, or "".
+func goPackage(dir, name string) string {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		n := e.Name()
+		if e.IsDir() || !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") || strings.HasSuffix(n, "_templ.go") {
+			continue
+		}
+		if ok, err := matches(dir, n, nil); err != nil || !ok {
+			continue
+		}
+		if f, err := parser.ParseFile(token.NewFileSet(), filepath.Join(dir, n), nil, parser.PackageClauseOnly); err == nil && f.Name.Name != name {
+			return f.Name.Name
+		}
+	}
+	return ""
 }
 
 func writeOverlay(path string, replace map[string]string) error {

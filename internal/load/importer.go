@@ -117,8 +117,11 @@ func (im *Importer) list(paths ...string) error {
 		var p struct {
 			ImportPath, Export string
 			Standard           bool
-			Module             *struct{ Main bool }
-			Error              *struct{ Err string }
+			Module             *struct {
+				Main    bool
+				Replace *struct{ Version string } // no version: a directory, which may change
+			}
+			Error *struct{ Err string }
 		}
 		if err := dec.Decode(&p); err != nil {
 			return err
@@ -126,7 +129,7 @@ func (im *Importer) list(paths ...string) error {
 		im.exports[p.ImportPath] = p.Export
 		if p.Error != nil {
 			im.errs[p.ImportPath] = p.Error.Err
-		} else if im.cache != nil && p.Export != "" && (p.Standard || p.Module != nil && !p.Module.Main) {
+		} else if im.cache != nil && p.Export != "" && (p.Standard || p.Module != nil && !p.Module.Main && (p.Module.Replace == nil || p.Module.Replace.Version != "")) {
 			im.cache.put(p.ImportPath, p.Export)
 		}
 	}

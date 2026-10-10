@@ -200,7 +200,8 @@ the decorated function itself — the way to register routes, commands or jobs.
 A string literal passed where a decorator or attribute takes a `vuka.File`
 (`@web.Template("views/pet.html")`) is checked at compile time and embedded in
 the binary; `f.Bytes()` reads it, and `vuka.TemplComponents(f)` gives a
-`.templ` file's components.
+`.templ` file's components with their parameter names — also for a `.templ`
+file in a subdirectory, which is a package of its own (`package views`).
 
 **Static fields and methods** belong to a type, as in Kotlin or Java:
 

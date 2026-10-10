@@ -10,6 +10,30 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.6.0 — 2026-10-10
+
+Runtime: `github.com/vuka-lang/vuka v0.6.0` (new: `vuka.Decl`, `vuka.File`,
+`vuka.TemplComponent`).
+
+- **Declaration decorators.** A decorator of type `func(*vuka.Decl)` — or a
+  call returning one, such as `@web.Get("/pets/{id}")` — runs once at init with
+  the function's name, attributes, parameter names and types, and the function
+  itself: the way to register routes, commands or jobs without wrapping calls.
+  [Decorators](/features/decorators#declaration-decorators).
+- **`vuka.File`.** A string literal where a decorator or attribute takes a
+  `vuka.File` is checked when the program compiles (it must exist, in the
+  package's directory or below) and embedded in the binary. For a `.templ` file
+  `vuka.TemplComponents(f)` gives its components with their parameter names; a
+  `.templ` file may sit in a subdirectory that is its own package
+  (`views/pets.templ`, `package views`), which Vuka compiles and imports.
+  [Files](/features/decorators#files).
+- The export-data cache no longer keeps modules replaced by a directory
+  (`replace … => ../vuka`), which could serve a stale runtime.
+- [**vuka-lang/web**](https://github.com/vuka-lang/web), a web framework built on
+  declarers: routes from `@web.Get`, handler parameters bound from the path,
+  query and body, dependencies injected, results rendered as JSON or through
+  `@web.Template` views (`.html`, `.templ` or JSX).
+
 ## v0.5.0 — 2026-10-10
 
 - **Components and JSX.** Markup is an expression in `.vuka` files; components

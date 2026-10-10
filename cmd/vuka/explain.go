@@ -77,6 +77,7 @@ func generate(path string) (transpile.Output, []byte, error) {
 			}
 			res, err := transpile.Package(p.Files, transpile.Options{
 				Bare:       true,
+				Templ:      load.TemplFinder(pkgs),
 				Importer:   load.NewImporter(p.Dir, filepath.Join(tmp, "overlay.json")),
 				Path:       func(name string) string { return filepath.Join(p.Dir, name) },
 				Dir:        p.Dir,

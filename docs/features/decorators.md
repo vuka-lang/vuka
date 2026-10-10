@@ -151,7 +151,18 @@ error on the literal. It is embedded in the binary, and the literal becomes a
 |---|---|
 | `f.Bytes()` | the content (a `File` Vuka didn't embed, such as `vuka.File("x")`, is read from disk) |
 | `f.Path()`, `f.Pkg()` | `"views/pet.html"`; the package's import path |
-| `vuka.TemplComponents(f)` | for a `.templ` file of the same package, its components by name: `map[string]any{"Show": Show}`, each a `func(…) templ.Component` |
+| `vuka.TemplComponents(f)` | for a `.templ` file, its components in source order: `[]vuka.TemplComponent{{Name: "Show", Func: Show, Params: []string{"name"}}}`, `Func` a `func(…) templ.Component` |
+
+A `.templ` file beside the package's files is part of the package (same
+`package` clause) and gives all its components. One in a subdirectory is the
+subdirectory's own package, as Go has it: `views/pets.templ` starts with
+`package views`, and the subdirectory must be a package of the same module
+whose Go files, if any, share that clause. Vuka compiles it with the rest of the
+module, imports it into the referencing file and registers its exported
+components; the `File` is then that package's —
+`"example.com/app/views:pets.templ"` — whichever package names it. Files are
+still embedded only from the package's directory or below: a path such as
+`../shared/x.templ` is an error, since `go:embed` can't reach up.
 
 The parameter or field must be `vuka.File` itself; literals elsewhere aren't
 embedded.

@@ -13,10 +13,10 @@ import (
 
 // exportCache remembers where the go command put the export data of packages
 // that can't change while you work: the standard library and modules from the
-// module cache. The main module's own packages are never cached. It lives in
-// memory (for the language server's many rebuilds) and on disk (for separate
-// vuka commands), keyed by the go binary, the build environment, and the
-// module's go.mod, go.sum and go.work.
+// module cache. The main module's own packages, and modules replaced by a
+// directory, are never cached. It lives in memory (for the language server's
+// many rebuilds) and on disk (for separate vuka commands), keyed by the go
+// binary, the build environment, and the module's go.mod, go.sum and go.work.
 type exportCache struct {
 	mu    sync.Mutex
 	file  string
@@ -44,6 +44,7 @@ func cacheFor(root string) *exportCache {
 
 func cacheKey(root string) string {
 	h := sha256.New()
+	h.Write([]byte("2\n")) // the cache's format: 2 drops directory replacements
 	if goBin, err := exec.LookPath("go"); err == nil {
 		if fi, err := os.Stat(goBin); err == nil {
 			fmt.Fprintf(h, "go %s %d %d\n", goBin, fi.Size(), fi.ModTime().UnixNano())

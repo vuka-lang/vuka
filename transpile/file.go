@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"os"
@@ -17,9 +18,22 @@ import (
 type fileLit struct {
 	off, end int    // the literal in src
 	rel      string // its path, slash-separated, relative to the package directory
+	key      string // the File: "importpath:path" of the package the file belongs to
 	v        string // the variable holding the embedded content
 	repl     string
-	comps    []string // for a .templ file, its components
+	tpl      *templRef // for a .templ file, its components
+}
+
+// templRef is a .templ file's components, in the package itself (pkg "") or
+// in the package of a subdirectory.
+type templRef struct {
+	pkg   string
+	comps []templComp
+}
+
+type templComp struct {
+	name   string
+	params []string
 }
 
 // copySrc copies text, taken from src at off, into w, writing each embedded
@@ -63,14 +77,14 @@ func (e *engine) embedFiles(f *fileState) bool {
 		}
 		f.done[src] = true
 		p, _ := strconv.Unquote(lit.Value)
-		rel, comps, msg := e.resolveFile(p)
+		l, msg := e.resolveFile(p)
 		if msg != "" {
 			e.errs.add(f.at(src), "%s", msg)
 			return true
 		}
-		l := &fileLit{off: src, end: src + len(lit.Value), rel: rel, comps: comps}
+		l.off, l.end = src, src+len(lit.Value)
 		for _, o := range f.files {
-			if o.rel == rel {
+			if o.rel == l.rel {
 				l.v = o.v
 			}
 		}
@@ -81,7 +95,10 @@ func (e *engine) embedFiles(f *fileState) bool {
 		if len(f.files) == 0 {
 			f.insert(f.pkgEnd, `; import _ "embed"`, 1)
 		}
-		l.repl = f.runtime() + ".FileOf(" + strconv.Quote(e.pkgPath()+":"+rel) + ", " + l.v + ")"
+		if l.tpl != nil && l.tpl.pkg != "" {
+			f.importAs(l.tpl.pkg, e.tplImport(l.tpl.pkg))
+		}
+		l.repl = f.runtime() + ".FileOf(" + strconv.Quote(l.key) + ", " + l.v + ")"
 		f.files = append(f.files, l)
 		sort.Slice(f.files, func(i, j int) bool { return f.files[i].off < f.files[j].off })
 		changed = true
@@ -106,48 +123,107 @@ func (f *fileState) trailerSrc(off, n int) (int, bool) {
 }
 
 // resolveFile checks a vuka.File path: relative, inside the package
-// directory (all go:embed reaches), existing; a .templ file in this package.
-func (e *engine) resolveFile(p string) (rel string, comps []string, msg string) {
+// directory (all go:embed reaches), existing. A .templ file is one of this
+// package, or of the package of the subdirectory it is in; its File is then
+// keyed by that package, which the generated code imports.
+func (e *engine) resolveFile(p string) (l *fileLit, msg string) {
 	slash := filepath.ToSlash(p)
-	switch rel = path.Clean(slash); {
+	rel := path.Clean(slash)
+	switch {
 	case p == "":
-		return "", nil, "a vuka.File needs a file name"
+		return nil, "a vuka.File needs a file name"
 	case filepath.IsAbs(p) || strings.HasPrefix(slash, "/"):
-		return "", nil, "the vuka.File " + strconv.Quote(p) + " is absolute; name it relative to the package's directory"
+		return nil, "the vuka.File " + strconv.Quote(p) + " is absolute; name it relative to the package's directory"
 	case rel == ".." || strings.HasPrefix(rel, "../"):
-		return "", nil, "the vuka.File " + strconv.Quote(p) + " is outside the package's directory; a file is embedded from the directory or below it"
+		return nil, "the vuka.File " + strconv.Quote(p) + " is outside the package's directory; a file is embedded from the directory or below it"
 	}
 	if e.dir != "" {
 		info, err := os.Stat(filepath.Join(e.dir, filepath.FromSlash(rel)))
 		switch {
 		case err != nil:
-			return "", nil, "no file " + strconv.Quote(p) + " in the package's directory"
+			return nil, "no file " + strconv.Quote(p) + " in the package's directory"
 		case info.IsDir():
-			return "", nil, strconv.Quote(p) + " is a directory; a vuka.File is a file"
+			return nil, strconv.Quote(p) + " is a directory; a vuka.File is a file"
 		}
 	}
+	l = &fileLit{rel: rel, key: e.pkgPath() + ":" + rel}
 	if !strings.HasSuffix(rel, ".templ") {
-		return rel, nil, ""
+		return l, ""
 	}
-	goName := strings.TrimSuffix(rel, ".templ") + "_templ.go"
+	if dir, base := path.Split(rel); dir != "" {
+		return e.subTempl(l, p, strings.TrimSuffix(dir, "/"), base)
+	}
+	l.tpl = &templRef{}
 	for _, f := range e.files {
-		if f.vuka || f.name != goName {
+		if f.vuka || f.name != strings.TrimSuffix(rel, ".templ")+"_templ.go" {
 			continue
 		}
 		for _, d := range f.ast.Decls {
-			fd, ok := d.(*ast.FuncDecl)
-			if !ok || fd.Recv != nil || fd.Type.TypeParams != nil {
-				continue
-			}
-			if fn, ok := e.info.Defs[fd.Name].(*types.Func); ok {
-				if r := fn.Type().(*types.Signature).Results(); r.Len() == 1 && isNamed(r.At(0).Type(), templPath, "Component") {
-					comps = append(comps, fd.Name.Name)
+			if fd, ok := d.(*ast.FuncDecl); ok {
+				if fn, ok := e.info.Defs[fd.Name].(*types.Func); ok && fd.Recv == nil && fd.Type.TypeParams == nil {
+					if sig := fn.Type().(*types.Signature); sig.Results().Len() == 1 && isNamed(sig.Results().At(0).Type(), templPath, "Component") {
+						c := templComp{name: fd.Name.Name}
+						for i := range sig.Params().Len() {
+							c.params = append(c.params, sig.Params().At(i).Name())
+						}
+						l.tpl.comps = append(l.tpl.comps, c)
+					}
 				}
 			}
 		}
-		return rel, comps, ""
+		return l, ""
 	}
-	return "", nil, "the .templ file " + strconv.Quote(p) + " must be in this package"
+	return nil, "the .templ file " + strconv.Quote(p) + " is not in this package: its package clause differs from the package's"
+}
+
+// subTempl resolves a .templ file in a subdirectory, a package of its own:
+// its exported components, read from the Go templ makes of it.
+func (e *engine) subTempl(l *fileLit, p, dir, base string) (*fileLit, string) {
+	if e.templ == nil || e.dir == "" {
+		return nil, "the .templ file " + strconv.Quote(p) + " is in a subdirectory, which only a module build can compile"
+	}
+	tf, err := e.templ(filepath.Join(e.dir, filepath.FromSlash(l.rel)))
+	if err != nil {
+		return nil, "the .templ file " + strconv.Quote(p) + ": " + err.Error()
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), base, tf.Go, parser.SkipObjectResolution)
+	if err != nil {
+		return nil, "the .templ file " + strconv.Quote(p) + ": " + err.Error()
+	}
+	l.key = tf.ImportPath + ":" + base
+	l.tpl = &templRef{pkg: tf.ImportPath}
+	for _, d := range file.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Recv != nil || fd.Type.TypeParams != nil || !fd.Name.IsExported() || fd.Type.Results == nil || len(fd.Type.Results.List) != 1 {
+			continue
+		}
+		if sel, ok := fd.Type.Results.List[0].Type.(*ast.SelectorExpr); !ok || sel.Sel.Name != "Component" {
+			continue
+		}
+		c := templComp{name: fd.Name.Name}
+		for _, field := range fd.Type.Params.List {
+			if len(field.Names) == 0 {
+				c.params = append(c.params, "")
+			}
+			for _, n := range field.Names {
+				c.params = append(c.params, n.Name)
+			}
+		}
+		l.tpl.comps = append(l.tpl.comps, c)
+	}
+	return l, ""
+}
+
+// tplImport names the package of a .templ file in a subdirectory in the
+// generated code.
+func (e *engine) tplImport(pkg string) string {
+	if e.tplImports == nil {
+		e.tplImports = map[string]string{}
+	}
+	if _, ok := e.tplImports[pkg]; !ok {
+		e.tplImports[pkg] = "__vuka_templ" + itoa(len(e.tplImports))
+	}
+	return e.tplImports[pkg]
 }
 
 func (e *engine) pkgPath() string {
@@ -167,13 +243,23 @@ func (e *engine) renderFiles(f *fileState) {
 		}
 		seen[l.v] = true
 		w.gen("\n//go:embed "+strconv.Quote(l.rel)+"\nvar "+l.v+" string\n", l.off)
-		if strings.HasSuffix(l.rel, ".templ") {
-			comps := make([]string, len(l.comps))
-			for i, c := range l.comps {
-				comps[i] = strconv.Quote(c) + ": " + c
+		if l.tpl != nil {
+			rt, qual := f.runtime(), ""
+			if l.tpl.pkg != "" {
+				qual = e.tplImport(l.tpl.pkg) + "."
 			}
-			w.gen("\nfunc init() {\n\t"+f.runtime()+".RegisterTempl("+strconv.Quote(e.pkgPath()+":"+l.rel)+
-				", map[string]any{"+strings.Join(comps, ", ")+"})\n}\n", l.off)
+			var b strings.Builder
+			b.WriteString("\nfunc init() {\n\t" + rt + ".RegisterTempl(" + strconv.Quote(l.key))
+			for _, c := range l.tpl.comps {
+				params := make([]string, len(c.params))
+				for i, p := range c.params {
+					params[i] = strconv.Quote(p)
+				}
+				b.WriteString(", " + rt + ".TemplComponent{Name: " + strconv.Quote(c.name) + ", Func: " + qual + c.name +
+					", Params: []string{" + strings.Join(params, ", ") + "}}")
+			}
+			b.WriteString(")\n}\n")
+			w.gen(b.String(), l.off)
 		}
 	}
 }
