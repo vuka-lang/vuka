@@ -1,0 +1,218 @@
+// Package demo is stateful components compiled by the Vuka compiler, for
+// the live package's property tests and benchmarks. demo_vuka.go is
+// generated: go run ./cmd/vuka gen -inplace ./live/internal/demo
+package demo
+
+import (
+	"context"
+	"strconv"
+)
+
+// Row is a table row whose state is an Assign: a session renders it again
+// only when its quantity or its props change.
+type Row struct {
+	vuka.Live
+	ID   int
+	Name string
+	qty  vuka.Assign[int]
+}
+
+func (r *Row) Inc() { r.qty.Update(func(n int) int { return n + 1 }) }
+
+func (r *Row) Render() vuka.Node {
+	return <tr key={r.ID}><td>{r.Name}</td><td>{r.qty.Get()}</td><td><button onClick={r.Inc}>+</button></td></tr>
+}
+
+// PlainRow is Row with plain state: rendered again with its table.
+type PlainRow struct {
+	vuka.Live
+	ID   int
+	Name string
+	qty  int
+}
+
+func (r *PlainRow) Inc() { r.qty++ }
+
+func (r *PlainRow) Render() vuka.Node {
+	return <tr key={r.ID}><td>{r.Name}</td><td>{r.qty}</td><td><button onClick={r.Inc}>+</button></td></tr>
+}
+
+// Table is a table of n rows, each a component.
+type Table struct {
+	vuka.Live
+	N     int
+	Plain bool
+	title vuka.Assign[string]
+}
+
+func (t *Table) Render() vuka.Node {
+	return <table>
+		<caption>{t.title.Get()}</caption>
+		{for i := range t.N {
+			{if t.Plain { <PlainRow key={i} ID={i} Name={"row " + strconv.Itoa(i)} /> } else { <Row key={i} ID={i} Name={"row " + strconv.Itoa(i)} /> }}
+		}}
+	</table>
+}
+
+// CellTable is a 1000-row table rendered by one component, one cell
+// changing per event.
+type CellTable struct {
+	vuka.Live
+	N     int
+	cells []int
+}
+
+func (t *CellTable) Mount() { t.cells = make([]int, t.N) }
+
+func (t *CellTable) Bump(i int) { t.cells[i]++ }
+
+func (t *CellTable) Render() vuka.Node {
+	return <table>
+		{for i, v := range t.cells {
+			<tr key={i}><td>row {i}</td><td className="n">{v}</td><td><button onClick={func() { t.Bump(i) }}>+</button></td></tr>
+		}}
+	</table>
+}
+
+// Counter is a counter.
+type Counter struct {
+	vuka.Live
+	Label string
+	n     vuka.Assign[int]
+}
+
+func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
+
+func (c *Counter) Render() vuka.Node {
+	return <span>{c.Label}: {c.n.Get()} <button onClick={c.Inc}>+</button></span>
+}
+
+// Counters is a page of n counters.
+func Counters(n int) func(context.Context) vuka.Node {
+	return func(context.Context) vuka.Node {
+		return <main>{for i := range n { <Counter key={i} Label={"c" + strconv.Itoa(i)} /> }}</main>
+	}
+}
+
+type item struct {
+	ID   int
+	Name string
+}
+
+// Board exercises everything a tree holds: keyed and unkeyed loops changed
+// by insertions, removals and moves, if and match branches, nested
+// components, an opaque node, a script, children.
+type Board struct {
+	vuka.Live
+	Title    string
+	Children vuka.Node
+	items    []item
+	next     int
+	mode     string
+	note     string
+	open     bool
+}
+
+func (b *Board) Mount() {
+	for _, n := range []string{"milk", "eggs", "tea"} {
+		b.add(n)
+	}
+}
+
+func (b *Board) add(name string) {
+	b.next++
+	b.items = append(b.items, item{b.next, name})
+}
+
+// Do edits the list as its word says.
+func (b *Board) Do(w string) {
+	n := len(b.items)
+	switch {
+	case w == "add":
+		b.add("new" + strconv.Itoa(b.next))
+	case w == "front":
+		b.next++
+		b.items = append([]item{{b.next, "front"}}, b.items...)
+	case w == "drop" && n > 0:
+		b.items = b.items[1:]
+	case w == "pop" && n > 0:
+		b.items = b.items[:n-1]
+	case w == "rotate" && n > 1:
+		b.items = append(b.items[1:], b.items[0])
+	case w == "reverse":
+		for i, j := 0, n-1; i < j; i, j = i+1, j-1 {
+			b.items[i], b.items[j] = b.items[j], b.items[i]
+		}
+	case w == "swap" && n > 2:
+		b.items[0], b.items[n-1] = b.items[n-1], b.items[0]
+	case w == "rename" && n > 0:
+		b.items[n/2].Name += "!"
+	case w == "mid" && n > 1:
+		it := b.items[0]
+		rest := append([]item{}, b.items[1:]...)
+		b.items = append(append(rest[:len(rest)/2:len(rest)/2], it), rest[len(rest)/2:]...)
+	case w == "clear":
+		b.items = nil
+	default:
+		b.mode = w
+	}
+}
+
+func (b *Board) Toggle() { b.open = !b.open }
+
+func (b *Board) Note(s string) { b.note = s }
+
+func (b *Board) Remove(id int) {
+	for i, it := range b.items {
+		if it.ID == id {
+			b.items = append(b.items[:i:i], b.items[i+1:]...)
+			return
+		}
+	}
+}
+
+func (b *Board) Render() vuka.Node {
+	return <section className={"board " + b.mode}>
+		<h2 title={b.note}>{b.Title} ({len(b.items)})</h2>
+		{b.Children}
+		<input onInput={b.Do} value={b.mode} />
+		<button onClick={b.Toggle}>toggle</button>
+		<ul>
+			{for _, it := range b.items {
+				<li key={it.ID}>{it.Name} <Counter Label={it.Name} /><button onClick={func() { b.Remove(it.ID) }}>x</button></li>
+			}}
+		</ul>
+		<ol>{for i, it := range b.items { <li>{i}: {it.Name}</li> }}</ol>
+		{if b.open {
+			<p onClick={b.Toggle}>open {b.note}</p>
+		} else if len(b.items) == 0 {
+			<p>empty</p>
+		} else {
+			<p>closed</p>
+		}}
+		{match b.mode {
+		case "big":
+			<b>BIG</b>
+		case "note":
+			<input onInput={b.Note} value={b.note} />
+		default:
+			{vuka.El("i", nil, vuka.Text("opaque " + b.mode), vuka.Component("demo#opaque", nil, &Counter{Label: "inner"}))}
+		}}
+		<script>{"var mode = '" + b.mode + "' </script>"}</script>
+		{for _, it := range b.items {
+			<Counter key={it.ID} Label={"k" + it.Name} />
+		}}
+	</section>
+}
+
+// Page is a page with two boards and a counter.
+func Page(context.Context) vuka.Node {
+	return <main>
+		<Board Title="one"><em>first</em></Board>
+		<Board Title="two" />
+		<Counter Label="solo" />
+	</main>
+}
+
+// Words are the values RandomEvent sends: Board.Do's commands and more.
+var Words = []string{"add", "front", "drop", "pop", "rotate", "reverse", "swap", "rename", "mid", "clear", "big", "note", "x", "<b>&\"", "add", "rotate", "a much longer note, long enough to be kept by reference on the connection......"}

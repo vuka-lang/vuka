@@ -449,6 +449,9 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 				a.nest[i].text = e.typeTextAuto(f, a.nest[i].typ)
 			}
 		}
+		if c.stateful && c.key != nil && c.key.attr.kind == 'e' {
+			c.inOrder = false // vuka.Component(site, key, &T{…}) writes the key before the tag
+		}
 	}
 	for _, a := range c.args {
 		if a.zero {
