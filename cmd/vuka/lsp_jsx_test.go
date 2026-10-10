@@ -215,6 +215,10 @@ func TestLSPJSX(t *testing.T) {
 		if got := complete(src, `"primary" >`, 10); strings.Join(got, " ") != "disabled=disabled props=props={$1}" {
 			t.Fatalf("<Button: %v", got)
 		}
+		src = strings.Replace(jsxSource, `<h3>{user.Name}</h3>`, `<h3 >{user.Name}</h3>`, 1)
+		if got := complete(src, `<h3 >`, 4); !has(got, "onClick=onClick={$1}") || !has(got, `id=id="$1"`) {
+			t.Fatalf("<h3 : %v", got)
+		}
 		src = strings.Replace(jsxSource, `<Counter Start={1} />`, `<Counter Start={1}  />`, 1)
 		if got := complete(src, `<Counter Start={1}  />`, 19); strings.Join(got, " ") != `Label=Label="$1"` {
 			t.Fatalf("<Counter: %v", got)

@@ -451,6 +451,9 @@ var htmlTags = strings.Fields(`a abbr article aside audio b blockquote body br b
 var htmlAttrs = strings.Fields(`className id style key href src alt title type name value placeholder disabled checked
 	htmlFor target rel role width height action method`)
 
+// htmlEvents are the event handlers offered on an element, after its attributes.
+var htmlEvents = strings.Fields(`onClick onInput onChange onSubmit onKeyDown`)
+
 // completeJSX answers a completion in markup.
 func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) any {
 	src := vf.text()
@@ -510,6 +513,11 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			for i, a := range htmlAttrs {
 				if !used[a] {
 					item(a, 5, "", a+`="$1"`, 2, fmt.Sprintf("%02d", i))
+				}
+			}
+			for i, a := range htmlEvents {
+				if !used[a] {
+					item(a, 23, "event handler", a+`={$1}`, 2, fmt.Sprintf("%02d", len(htmlAttrs)+i))
 				}
 			}
 			break
