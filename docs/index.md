@@ -34,6 +34,14 @@ features:
     details: "Markup is an expression and a component is a function. Rendered by templ, so .templ files and templ libraries work side by side with no generate step."
     link: /features/components
     linkText: Components and JSX
+  - title: A web framework
+    details: "@web.Get(\"/pets/{id}\") on a function: parameters bind by name, services are injected, results become JSON or a templ / JSX page — and live components update the page over a WebSocket."
+    link: /web/
+    linkText: Web
+  - title: A Django-style ORM
+    details: Models declared with field attributes, queries written with field references the compiler checks — Post.Objects.Filter(Post.Title.Contains("Go")) — Result and Option from every terminal, and Go migrations.
+    link: /orm/
+    linkText: ORM
   - title: Plain Go comes out
     details: No runtime magic, no reflection where a type will do. vuka explain shows exactly what each line becomes, and build/ holds a plain Go module any Go tool can build.
   - title: Full editor support

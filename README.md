@@ -404,6 +404,15 @@ removed), compile errors in `build/` point at the `.vuka` lines, and a
 
 ## Libraries
 
+- [**web**](https://github.com/vuka-lang/web) — a web framework: routes,
+  services and controllers declared with decorators, parameters bound by name,
+  templ / html / JSX views, dependency injection, `.env` configuration and live
+  components over a WebSocket. Docs: [vuka-lang.github.io/vuka/web](https://vuka-lang.github.io/vuka/web/).
+- [**orm**](https://github.com/vuka-lang/orm) — a Django-style ORM: models
+  declared with field attributes, queries written with field references,
+  `Result`/`Option` terminals, `@orm.Transaction`, search, several databases
+  and Go migrations. Docs: [vuka-lang.github.io/vuka/orm](https://vuka-lang.github.io/vuka/orm/).
+
 Other modules `go get` your repository root, not `build/`. To publish a Vuka
 library for Go users, write the generated files beside the sources and commit
 them (`vuka gen -inplace`, and `vuka gen -inplace -check` in CI).
