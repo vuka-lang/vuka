@@ -64,6 +64,91 @@ func save(ctx context.Context, o Order) error { … }
 A decorator with parameters is built once per decorated function, so state it
 keeps — a cache, a counter — isn't shared.
 
+| | |
+|---|---|
+| `c.ParamAttr(i, &x)` | the [attribute](/features/attributes#parameter-attributes) written before parameter `i` |
+
+## Optional arguments
+
+A decorator whose arguments are all optional — a function of no parameters, or
+of one `...T` — is written bare or with them, as Java's `@Transactional` and
+`@Transactional(readOnly = true)`:
+
+```vuka
+func Transactional(opts ...TxOption) func(*vuka.Call) { … }
+
+@Transactional                          // Transactional()
+func save(ctx context.Context, u User) error { … }
+
+@Transactional(On("analytics"), ReadOnly)
+func report(ctx context.Context) (Report, error) { … }
+```
+
+Written bare, it is called with no arguments. That holds for every kind:
+call decorators, typed decorators, declarers and type decorators, and for a
+[composed decorator](#composed-decorators) without parameters.
+
+## Composed decorators
+
+A decorator can stand for several, as Spring's `@RestController` stands for
+`@Controller` and `@ResponseBody`:
+
+```vuka
+decorator ApiRoute(path string) = @web.Get(path) @web.Use(auth) @timed
+
+decorator Audited = @logged @Doc("audited")
+
+decorator Service = (
+	@web.Service
+	@Audited
+)
+
+@ApiRoute("/pets/{id}")
+func showPet(id int, store *PetStore) Result[Pet] { … }
+```
+
+`@ApiRoute("/pets/{id}")` applies `@web.Get("/pets/{id}")`, `@web.Use(auth)` and
+`@timed` in that order, as if they were written there: its parameters are the
+arguments of what it composes. A composed decorator holds call decorators,
+declarers, type decorators, typed attributes and other composed decorators; its
+elements go on its line, or one a line in parentheses. One without parameters
+is used bare: `@Audited`.
+
+It is a function returning a `vuka.Bundle`, so another package uses an
+exported one like any decorator — `@api.ApiRoute("/x")` — and what it composes
+may be unexported. Its elements are type-checked where it is declared. A
+[typed decorator](#typed-decorators) can't be composed, since it needs the
+decorated function's type; nor can a decorator compose itself
+(`decorator A = @B`, `decorator B = @A` is an error). Plain Go builds one with
+`vuka.Compose(web.Get(path), timed, Doc("x"))`.
+
+## Type-level advice
+
+A call decorator on a type is *advice*, as Spring's `@Transactional` on a
+class: it wraps every exported method the package's Vuka files declare for the
+type, on `T` or `*T`.
+
+```vuka
+@logged
+@retry(3)
+type Store struct{ db *DB }
+
+func (s *Store) Save(u User) error { … }      // logged, then retried
+
+@timed
+func (s *Store) Load(id int) (User, error) { … }   // logged, retried, then timed
+
+@vuka.NoAdvice
+func (s *Store) Close() error { … }           // left alone
+```
+
+The type's advice runs outside the method's own decorators, in the order it is
+written; each method gets decorators of its own, as a decorated function does.
+Unexported methods aren't advised, nor methods marked `@vuka.NoAdvice`, nor
+methods declared in `.go` files. A composed decorator on a type advises its
+methods with the call decorators it holds, and runs its type decorators on the
+type.
+
 ## Typed decorators
 
 For hot paths, a decorator can be `func(F) F` for the function's type: no
@@ -115,7 +200,7 @@ The [web framework](/web/routes) declares its routes this way.
 | `d.File`, `d.Line` | where it is declared, for messages |
 | `d.Func` | the function, wrapped by its other decorators (`@logged` runs when it is called); for a method, the method expression `func(recv, args…)` |
 | `d.Recv` | the receiver's type, for a method |
-| `d.Params` | names (as written; `""` when unnamed) and types, receiver excluded |
+| `d.Params` | names (as written; `""` when unnamed), types and [attributes](/features/attributes#parameter-attributes) (`p.Attr(&x)`), receiver excluded |
 | `d.Results`, `d.Variadic` | result types; whether the last parameter is `...T` |
 | `d.Attr(&x)` | a typed attribute on the declaration |
 
@@ -166,6 +251,20 @@ still embedded only from the package's directory or below: a path such as
 
 The parameter or field must be `vuka.File` itself; literals elsewhere aren't
 embedded. The web framework's views are files of this kind: see [Views](/web/views).
+
+## Coming from Spring or Java
+
+| Java / Spring | Vuka |
+|---|---|
+| `@interface Route { String path(); }` | `type Route struct{ Path string }`: any Go type is an [attribute](/features/attributes) |
+| `@Target(ElementType.FIELD)` | [`@vuka.Targets(vuka.OnField)`](/features/attributes#targets) on the type |
+| `@Transactional` / `@Transactional(readOnly = true)` | a decorator of [optional arguments](#optional-arguments) |
+| an `@Around` aspect | a call decorator: `decorator name(c) { … c.Next() … }` |
+| `@Transactional` on a class | [type-level advice](#type-level-advice) |
+| `@RestController`, `@GetMapping` (meta-annotations) | a [composed decorator](#composed-decorators): `decorator Api(p string) = @web.Get(p) @web.Use(auth)` |
+| `@PathVariable("id")`, `@RequestBody`, `@Valid` | [parameter attributes](/features/attributes#parameter-attributes), read by a declarer (`d.Params[i].Attr`) or a call decorator (`c.ParamAttr`) |
+| `@Component`, `@Autowired` constructors | a type decorator with [`t.New`](/features/dependency-injection) |
+| reflection on annotations at run time | `c.Attr`, `d.Attr`, `t.Attr`, `vuka.FieldAttrs[T]()`: checked at compile time, no proxies |
 
 ## Details
 
