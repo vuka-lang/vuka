@@ -25,10 +25,10 @@ type Client struct {
 	S     *live.Session
 	Bytes int // the JSON bytes of every server message received
 
-	html    string            // the page
-	statics map[int][]string  // v2: statics by id
-	strs    map[int]string    // v2: kept markup by id
-	trees   map[string]any    // v2: each instance's *frame, or its HTML (a string)
+	html    string           // the page
+	statics map[int][]string // v2: statics by id
+	strs    map[int]string   // v2: kept markup by id
+	trees   map[string]any   // v2: each instance's *frame, or its HTML (a string)
 	ref     int
 }
 
