@@ -10,6 +10,18 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.10.1 — 2026-10-10
+
+Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.10.1`.
+
+- **A dependency that doesn't compile is reported as such**, once, at the
+  import that needs it, with its own error and file — not as "no export data"
+  on every package above it. A dependency built for an older Vuka gets a hint
+  (`web v0.3.0 was built for an older Vuka; upgrade it (go get …@latest)`);
+  code of your own written for one, `run vuka fix ui`. Healthy packages are no
+  longer blamed, and errors that only follow from a failed import ("its type is
+  unknown") are left out. The editor shows the same.
+
 ## v0.10.0 — 2026-10-10
 
 Runtime: `github.com/vuka-lang/vuka v0.10.0` — the UI layer is gone from it.
