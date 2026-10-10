@@ -1,0 +1,10 @@
+{"type":"render","v":2,"trees":[{"id":"c0","full":true,"tree":{"t":0,"s":["<main>","","</main>"],"d":[{"id":"c1"},{"c":[{"t":1,"s":["",""],"d":[{"id":"c2"}]},{"t":1,"d":[{"id":"c3"}]}]}]}},{"id":"c1","full":true,"tree":{"t":2,"s":["<table","><caption><input","></caption>","","</table>"],"d":[" data-vk-id=\"c1\""," data-vk-on-input=\"c1:0\"",{"c":[{"t":3,"s":["<tr","><td>","</td><td>","</td></tr>"],"d":[" data-vk-key=\"1\"","apples","3"]},{"t":3,"d":[" data-vk-key=\"2\"","pears","5"]}]},{"c":[{"t":4,"s":["<p>none</p>"],"d":[]}]}]}},{"id":"c2","full":true,"tree":{"t":5,"s":["<span",">",": "," <button",">+</button></span>"],"d":[" data-vk-id=\"c2\" data-vk-key=\"0\"","a","0"," data-vk-on-click=\"c2:0\""]}},{"id":"c3","full":true,"tree":{"t":5,"d":[" data-vk-id=\"c3\" data-vk-key=\"1\"","b","0"," data-vk-on-click=\"c3:0\""]}}]}
+{"type":"patch","ref":2,"trees":[{"id":"c1","tree":{"u":{"2":{"k":[1,{"u":{"2":"6"}}]}}}}]} <nil> <nil> 1
+  same page: true
+{"type":"patch","ref":3,"trees":[{"id":"c1","tree":{"u":{"2":{"k":[{"m":1},{"t":3,"d":[" data-vk-key=\"3\"","plums","1"]},1]}}}}]} <nil> <nil> 1
+  same page: true
+{"type":"patch","ref":4,"trees":[{"id":"c1","tree":{"u":{"3":{"c":[{"t":6,"s":["<p>row ","</p>"],"d":["2"]}]}}}}]} <nil> <nil> 1
+  same page: true
+{"type":"patch","ref":5,"trees":[{"id":"c3","tree":{"u":{"2":"1"}}}]} <nil> <nil> 1
+  same page: true
+<main><table data-vk-id="c1"><caption><input data-vk-on-input="c1:0"></caption><tr data-vk-key="2"><td>pears</td><td>6</td></tr><tr data-vk-key="3"><td>plums</td><td>1</td></tr><tr data-vk-key="1"><td>apples</td><td>3</td></tr><p>row 2</p></table><span data-vk-id="c2" data-vk-key="0">a: 0 <button data-vk-on-click="c2:0">+</button></span><span data-vk-id="c3" data-vk-key="1">b: 1 <button data-vk-on-click="c3:0">+</button></span></main>

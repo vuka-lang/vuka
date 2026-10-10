@@ -1,0 +1,81 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/vuka/live"
+	"github.com/vuka-lang/vuka/live/livetest"
+)
+
+type Row struct {
+	ID   int
+	Name string
+	Qty  int
+}
+
+type Table struct {
+	vuka.Live
+	rows []Row
+	sel  int
+}
+
+func (t *Table) Mount() { t.rows = []Row{{1, "apples", 3}, {2, "pears", 5}} }
+
+func (t *Table) Do(w string) {
+	switch w {
+	case "qty":
+		t.rows[1].Qty++
+	case "shuffle":
+		t.rows = []Row{t.rows[1], {3, "plums", 1}, t.rows[0]}
+	case "sel":
+		t.sel = 2
+	}
+}
+
+func (t *Table) Render() vuka.Node {
+	return <table>
+		<caption><input onInput={t.Do} /></caption>
+		{for _, r := range t.rows {
+			<tr key={r.ID}><td>{r.Name}</td><td>{r.Qty}</td></tr>
+		}}
+		{if t.sel > 0 { <p>row {t.sel}</p> } else { <p>none</p> }}
+	</table>
+}
+
+type Counter struct {
+	vuka.Live
+	Label string
+	n     vuka.Assign[int]
+}
+
+func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
+
+func (c *Counter) Render() vuka.Node {
+	return <span>{c.Label}: {c.n.Get()} <button onClick={c.Inc}>+</button></span>
+}
+
+func page(ctx context.Context) vuka.Node {
+	return <main><Table />{for i, l := range []string{"a", "b"} { <Counter key={i} Label={l} /> }}</main>
+}
+
+func main() {
+	ctx := context.Background()
+	v1, _ := livetest.Join(live.NewSession(ctx, page), 1)
+	s := live.NewSession(ctx, page)
+	v2, _ := livetest.Join(s, 2)
+	fmt.Println(string(live.Marshal(s.Handle(live.ClientMessage{Type: live.Join, V: 2}))))
+	v2, _ = livetest.Join(s, 2)
+	for _, ev := range []vuka.Event{
+		{Target: "c1:0", Type: "input", Value: "qty"},
+		{Target: "c1:0", Type: "input", Value: "shuffle"},
+		{Target: "c1:0", Type: "input", Value: "sel"},
+		{Target: "c3:0", Type: "click"},
+	} {
+		m1, err1 := v1.Event(ev)
+		m2, err2 := v2.Event(ev)
+		fmt.Println(string(live.Marshal(m2)), err1, err2, len(m1.Updates))
+		fmt.Println("  same page:", v1.HTML() == v2.HTML() && v2.HTML() == s.HTML())
+	}
+	fmt.Println(v2.HTML())
+}
