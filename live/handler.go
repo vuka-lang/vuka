@@ -194,7 +194,12 @@ func lookup(form url.Values, name string) []string {
 // context.Context and one message, returning nothing or an error. A method
 // taking msg's type exactly wins over one it is only assignable to; of those,
 // one taking a non-empty interface wins over one taking any.
-func callUpdate(ctx context.Context, c vuka.Stateful, msg any) (bool, error) {
+func callUpdate(ctx context.Context, c vuka.Stateful, msg any) (called bool, err error) {
+	defer func() {
+		if r := recover(); r != nil {
+			called, err = true, fmt.Errorf("live: %T's Update panicked: %v", c, r)
+		}
+	}()
 	v := reflect.ValueOf(c)
 	mt := reflect.TypeOf(msg)
 	var exact, assignable, catchAll []reflect.Value
