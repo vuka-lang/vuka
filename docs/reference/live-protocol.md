@@ -266,3 +266,115 @@ component's handlers in render order, so inserting a row with handlers
 changes the ids of the handlers after it, which then travel as changed
 dynamics.
 
+
+## JS commands
+
+[JS commands](/ui/js) are DOM changes the browser makes on an event without
+asking the server: show a menu, toggle a class, move focus. A runtime
+implements them from two places: the `data-vk-js-<event>` attributes of the
+HTML, and the `js` field of server messages. Neither needs a session — a
+statically rendered page carries its commands too.
+
+**On an element.** `data-vk-js-<event>` holds the commands to run when the
+DOM event `<event>` fires (`click`, `input`, `keydown`, `submit`, … — the
+lowercased name after `on` in the JSX attribute), as JSON (HTML-escaped, in
+double quotes like every attribute):
+
+```html
+<button data-vk-js-click="[[&#34;remove_class&#34;,{&#34;to&#34;:{&#34;ref&#34;:&#34;menu&#34;},&#34;names&#34;:[&#34;hidden&#34;]}],[&#34;push&#34;,{&#34;h&#34;:&#34;c3:1&#34;}]]">Open</button>
+```
+
+that is `[["remove_class",{"to":{"ref":"menu"},"names":["hidden"]}],["push",{"h":"c3:1"}]]`:
+a list of operations `[name, args]`, run in order. The runtime listens,
+delegated, for each event type a `data-vk-js-<event>` names (as it does for
+`data-vk-on-<event>`), runs the commands of the nearest element carrying
+either attribute for that event, and `preventDefault`s a submit. An element
+has one or the other for an event, never both. *this* is the element
+carrying the attribute.
+
+| Operation | Args | |
+|---|---|---|
+| `add_class`, `remove_class`, `toggle_class` | `to`, `names` | each class name in turn |
+| `set_attr` | `to`, `name`, `value` | |
+| `remove_attr` | `to`, `name` | |
+| `toggle_attr` | `to`, `name`, `values` | `[a, b]`: sets `a` unless the attribute is `a`, then `b` |
+| `show`, `hide`, `toggle` | `to`, `display`?, `transition`?, `time`? | the `display` declaration of the `style` attribute: `show` sets `display` (else removes the declaration, and sets `block` when the element is still hidden) and removes a `hidden` attribute; `hide` sets `display: none`; `toggle` shows a hidden element, else hides it. `transition` is `[during, from, to]`, three class lists (space-separated): `during` and `from` are added, then `from` swapped for `to` on the next frame, all removed after `time` ms (default 200) |
+| `transition` | `to`, `transition`, `time`? | the transition alone, nothing shown or hidden |
+| `focus`, `focus_first` | `to` | focus the element; its first focusable descendant |
+| `push_focus` | `to` | remember the element (default: the focused one) on a stack |
+| `pop_focus` | | focus the element on the top of the stack, and drop it |
+| `dispatch` | `to`, `event`, `detail`?, `bubbles` | a `CustomEvent` named `event` with `detail` |
+| `exec` | `to`, `attr` | run the commands JSON held in the element's attribute `attr`, *this* being that element |
+| `push` | `h`, `value`? | send an `event` message whose `target` is `h` (below) |
+| `debounce`, `throttle` | `ms` | the steps after it run debounced or throttled, per element and event type; a throttled `input` runs its last call at the end of the window |
+| `key` | `keys` | stop unless the event is a keyboard event whose `key` is one of `keys` |
+| `confirm` | `msg` | `window.confirm(msg)`; stop on cancel |
+| `if`, `else_if` | `cond` | a branch: the steps after it run while the condition holds, up to its `else_if`, `else` or `end` |
+| `else` | | the branch taken when no `if`/`else_if` before it at its level did |
+| `end` | | ends the `if` at its level; without one, the branch runs to the end of the list (or of the enclosing branch) |
+| `copy` | `to` | the clipboard gets the element's value (an `input`, `textarea`, `select`) or else its text |
+| `copy_text` | `text` | the clipboard gets `text` |
+| `scroll_to` | `to` | scroll the element into view |
+| `set_value` | `to`, `value` | set the element's value (a checkbox's `checked` from `"true"`), then fire `input` and `change` on it |
+
+Branches nest: an `if` met inside a branch opens a level of its own, closed
+by its `end` (or by an `else_if`/`else`/`end` of the enclosing level, which
+ends it too). A step a branch skips doesn't run — a skipped `debounce`
+doesn't defer anything.
+
+**Targets.** `to` is the elements an operation acts on; omitted, *this*:
+
+| `to` | |
+|---|---|
+| omitted | *this* |
+| `{"ref":"menu"}` | the elements with `data-vk-ref="menu"` in *this*'s instance: the scope is the nearest ancestor-or-self of *this* carrying `data-vk-id`, and an element is in it when its own nearest ancestor-or-self carrying `data-vk-id` is the scope (so refs of nested instances are theirs, not their parent's). Without a `data-vk-id` ancestor (a static page), the scope is the document and every element with that ref is in it |
+| `{"sel":"#x"}` | `document.querySelectorAll` |
+| `{"closest":".card"}` | `this.closest(…)` |
+| `{"inner":".x"}` | `this.querySelectorAll(…)` |
+
+An operation on no element does nothing. `data-vk-ref` comes from the JSX
+attribute `ref="menu"`.
+
+**Conditions.** `cond` reads a target (the first element it names) when the
+`if` is reached:
+
+| `cond` | holds when |
+|---|---|
+| `{"to":T,"checked":true}` | the element is a checked checkbox or radio |
+| `{"to":T,"value":true}` | its value is not empty |
+| `{"to":T,"value_eq":"a"}` | its value is `"a"` |
+| `{"to":T,"attr":"name"}` | it has the attribute |
+| `{"to":T,"is":".open"}` | it matches the selector (`element.matches`) |
+| `{"to":T,"exists":true}` | there is such an element |
+
+Only `exists` holds without an element.
+
+**Push.** `["push",{"h":"c3:1"}]` sends `{"type":"event","target":"c3:1",…}`
+like a `data-vk-on` handler: `event` the DOM event's type, `key` a keyboard
+event's key, `form` a submit's fields, and `value` — the push's `value` when
+it has one (a JSON string as is, anything else as its JSON text: `3`,
+`true`, `{"a":1}`), else *this*'s value. `h` is a handler id of the same
+render, counted with the `data-vk-on-…` ids of its instance. A push without
+`h` (rendered without a session) does nothing.
+
+**Pushed by the server.** `render` (v1 and v2) and `patch` messages may carry
+
+```text
+"js":[{"id":"c3","ops":[…]}, …]
+```
+
+each entry run in order after the message's markup is applied, with *this*
+the element whose `data-vk-id` is `id` (`c0`: the container), refs resolving
+in that instance. An entry whose instance isn't on the page is skipped. An
+`error` message carries none.
+
+**Reconciliation.** What commands change on an element — a class, an
+attribute, the `style` display — stays as the browser set it across the
+server's patches as long as the server keeps rendering that attribute as it
+did when the command ran: a runtime records, per element and attribute it
+changed, the server's value at that time, and after a morph sets the
+attribute back to the browser's value while the server's value is
+unchanged. When the server renders a different value, the server's wins and
+the record is dropped. Classes count as the `class` attribute, `show`/`hide`
+as `style` (and `hidden`); `set_value` changes the value property, not an
+attribute, and a field's value follows the runtime's usual rules.
