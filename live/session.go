@@ -251,7 +251,7 @@ func (sc *scope) Keyed(ctx context.Context, key any) context.Context {
 	return vuka.WithLiveHost(ctx, &scope{sc.in, sc.keys + keyText(key) + "/"})
 }
 
-func keyText(k any) string { return fmt.Sprintf("%T=%v", k, k) }
+func keyText(k any) string { return vuka.KeyText(k) }
 
 // Component renders a stateful component's tag: the instance at its place, or
 // a new one, mounted, with the tag's props; its HTML is a marker the

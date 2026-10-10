@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 )
@@ -120,7 +121,12 @@ func opaqueKey(n int) uint64 { return mix(0x6f70617175650000 ^ uint64(n)) }
 type treeBuilder struct {
 	h      HTMLRenderer
 	verify bool
+	buf    byteBuf // a dynamic being written
 }
+
+type byteBuf []byte
+
+func (b *byteBuf) WriteString(s string) (int, error) { *b = append(*b, s...); return len(s), nil }
 
 // frameBuild is a frame being built.
 type frameBuild struct {
@@ -159,7 +165,7 @@ func (b *treeBuilder) frame(ctx context.Context, f *Frame) (*Tree, error) {
 		s, err := b.html(ctx, f)
 		return OpaqueTree(s), err
 	}
-	fb := &frameBuild{collect: !ok || b.verify}
+	fb := &frameBuild{collect: !ok || b.verify, dyn: make([]any, 0, dynamics(f.Shape)+min(f.extra, 1))}
 	sh.i = 0
 	saved := b.h.w
 	defer func() { b.h.w = saved }()
@@ -234,21 +240,21 @@ func (b *treeBuilder) elem(ctx context.Context, fb *frameBuild, sh *shape, el *E
 			}
 			continue
 		}
-		if err := b.dynString(fb, func() error { return b.h.attr(el, a) }); err != nil {
+		b.startDyn(fb)
+		err := b.h.attr(el, a)
+		b.endDyn(fb)
+		if err != nil {
 			return err
 		}
 	}
 	if extra > 0 {
-		if err := b.dynString(fb, func() error {
-			for _, a := range el.Attrs[len(flags):] {
-				if err := b.h.attr(el, a); err != nil {
-					return err
-				}
+		b.startDyn(fb)
+		for _, a := range el.Attrs[len(flags):] {
+			if err := b.h.attr(el, a); err != nil {
+				return err
 			}
-			return nil
-		}); err != nil {
-			return err
 		}
+		b.endDyn(fb)
 	}
 	b.toStatic(fb)
 	if err := b.h.endTag(el); err != nil {
@@ -266,14 +272,31 @@ func (b *treeBuilder) elem(ctx context.Context, fb *frameBuild, sh *shape, el *E
 	return b.h.Close(el)
 }
 
-// dynString adds a dynamic of what write writes.
-func (b *treeBuilder) dynString(fb *frameBuild, write func() error) error {
+// startDyn starts a dynamic string; endDyn adds it to the frame.
+func (b *treeBuilder) startDyn(fb *frameBuild) {
 	fb.endStatic()
-	var s strings.Builder
-	b.h.w = &s
-	err := write()
-	fb.dyn = append(fb.dyn, s.String())
-	return err
+	b.buf = b.buf[:0]
+	b.h.w = &b.buf
+}
+
+func (b *treeBuilder) endDyn(fb *frameBuild) {
+	s := ""
+	if len(b.buf) > 0 {
+		s = string(b.buf)
+	}
+	fb.dyn = append(fb.dyn, s)
+}
+
+// dynamics counts the dynamics a shape has.
+func dynamics(shape string) int {
+	n := 0
+	for i := 0; i < len(shape); i++ {
+		switch shape[i] {
+		case 'h', 'b', 'c', 'd':
+			n++
+		}
+	}
+	return n
 }
 
 func (b *treeBuilder) dyn(ctx context.Context, fb *frameBuild, n Node) error {
@@ -366,24 +389,40 @@ func frameKey(f *Frame) (string, bool) {
 	switch n := f.Kids[0].(type) {
 	case *Element:
 		if k, ok := elementKey(n); ok && k != nil {
-			return fmt.Sprintf("%T=%v", k, k), true
+			return KeyText(k), true
 		}
 	case *ComponentNode:
 		if n != nil && n.Key != nil {
-			return fmt.Sprintf("%T=%v", n.Key, n.Key), true
+			return KeyText(n.Key), true
 		}
 	}
 	return "", false
 }
 
+// KeyText is a key as text, its type and value: int=7.
+func KeyText(k any) string {
+	switch k := k.(type) {
+	case int:
+		return "int=" + strconv.Itoa(k)
+	case string:
+		return "string=" + k
+	case int64:
+		return "int64=" + strconv.FormatInt(k, 10)
+	}
+	return fmt.Sprintf("%T=%v", k, k)
+}
+
 // html renders n as HTML, in the current context.
 func (b *treeBuilder) html(ctx context.Context, n Node) (string, error) {
-	var s strings.Builder
 	saved := b.h.w
-	b.h.w = &s
+	b.buf = b.buf[:0]
+	b.h.w = &b.buf
 	err := Walk(ctx, n, &b.h)
 	b.h.w = saved
-	return s.String(), err
+	if len(b.buf) == 0 {
+		return "", err
+	}
+	return string(b.buf), err
 }
 
 // shape reads a Frame's Shape.
