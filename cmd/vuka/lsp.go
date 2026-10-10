@@ -213,6 +213,7 @@ type vfile struct {
 	from    []byte // the source text it was generated from
 	cur     []byte // the editor's text, when it differs from from
 	hunks   []hunk // where cur and from differ
+	stale   bool   // cur was edited since from: the hunks are a diff
 	gen     []byte
 	m       *transpile.SourceMap   // a .vuka file's map
 	templ   *templparser.SourceMap // a .templ file's map (templ's own)
@@ -235,24 +236,44 @@ func (f *vfile) text() []byte {
 type hunk struct{ cur, curEnd, from, fromEnd int }
 
 // withText sets the editor's text cur, and the hunks between it and from:
-// the given ones, or else one around everything that differs.
+// the given ones, or else a diff of the two, which leaves f stale.
 func (f *vfile) withText(cur []byte, hunks []hunk) {
-	f.cur, f.hunks = nil, nil
+	f.cur, f.hunks, f.stale = nil, nil, false
 	if cur == nil || bytes.Equal(cur, f.from) {
 		return
 	}
 	f.cur, f.hunks = cur, hunks
 	if hunks == nil {
-		pre := 0
-		for pre < len(cur) && pre < len(f.from) && cur[pre] == f.from[pre] {
-			pre++
-		}
-		suf := 0
-		for suf < len(cur)-pre && suf < len(f.from)-pre && cur[len(cur)-1-suf] == f.from[len(f.from)-1-suf] {
-			suf++
-		}
-		f.hunks = []hunk{{pre, len(cur) - suf, pre, len(f.from) - suf}}
+		f.hunks, f.stale = diffHunks(f.from, cur), true
 	}
+}
+
+// changedAt reports whether off in the editor's text is in a stretch edited
+// since the Go was generated, where nothing in the Go matches it.
+func (f *vfile) changedAt(off int) bool {
+	if !f.stale {
+		return false
+	}
+	for _, h := range f.hunks {
+		if off >= h.cur && off < h.curEnd {
+			return true
+		}
+	}
+	return false
+}
+
+// goneAt reports whether off in the text the Go came from is inside a stretch
+// edited since, so it has no place in the editor's text.
+func (f *vfile) goneAt(off int) bool {
+	if !f.stale {
+		return false
+	}
+	for _, h := range f.hunks {
+		if off > h.from && off < h.fromEnd {
+			return true
+		}
+	}
+	return false
 }
 
 // fromOff maps an offset in the editor's text to the text the Go came from.
@@ -304,20 +325,48 @@ func (f *vfile) toGen(pos lspPosition) lspPosition {
 }
 
 // toSource maps a range in the generated Go to the source file. In a .templ
-// file's Go only templ's mapped expressions and symbols map.
-func (f *vfile) toSource(r lspRange) (lspRange, bool) {
+// file's Go only templ's mapped expressions and symbols map. While f is
+// stale, an exact range with an end in text since edited doesn't map; an
+// inexact one (a diagnostic's) moves to the edit's start.
+func (f *vfile) toSource(r lspRange, exact bool) (lspRange, bool) {
 	if f.m == nil {
 		return f.templSource(r)
 	}
-	s, _, ok1 := f.m.ToSource(offsetOf(f.gen, r.Start))
-	e, _, ok2 := f.m.ToSource(offsetOf(f.gen, r.End))
-	if !ok1 || !ok2 {
+	s, e, ok := f.fromRange(r)
+	if !ok || exact && (f.goneAt(s) || f.goneAt(e)) {
 		return r, false
 	}
-	if e < s {
-		e = s
-	}
 	return lspRange{positionOf(f.text(), f.curOff(s)), positionOf(f.text(), f.curOff(e))}, true
+}
+
+// fromRange is a range in the generated Go as offsets in the text it came from.
+func (f *vfile) fromRange(r lspRange) (s, e int, ok bool) {
+	s, _, ok1 := f.m.ToSource(offsetOf(f.gen, r.Start))
+	e, _, ok2 := f.m.ToSource(offsetOf(f.gen, r.End))
+	return s, max(s, e), ok1 && ok2
+}
+
+// staleEdit reports whether an edit to f's generated Go touches text edited
+// since the Go was generated: made against text that is gone, it must be dropped.
+func (f *vfile) staleEdit(v any) bool {
+	if !f.stale || f.m == nil {
+		return false
+	}
+	obj, _ := v.(map[string]any)
+	r, ok := toRange(obj["range"])
+	if !ok {
+		return false
+	}
+	s, e, ok := f.fromRange(r)
+	if !ok {
+		return false
+	}
+	for _, h := range f.hunks {
+		if s < h.fromEnd && e > h.from {
+			return true
+		}
+	}
+	return false
 }
 
 // templSource maps a range through templ's source map, which counts columns
@@ -1168,7 +1217,7 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		if !ok || r.Start.Line > lines {
 			continue
 		}
-		if r, ok = vf.toSource(r); !ok {
+		if r, ok = vf.toSource(r, false); !ok {
 			continue
 		}
 		obj["range"] = r
@@ -1222,6 +1271,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		if h := p.fileRequest(m.Method, vf, off); h != nil {
 			p.mu.Unlock()
 			reply(h())
+			return
+		}
+		if m.Method != "textDocument/completion" && vf.changedAt(off) {
+			p.mu.Unlock()
+			reply(nil)
 			return
 		}
 		if h := p.jsxRequest(m.Method, params, vf, genPath, off); h != nil {
@@ -1482,7 +1536,13 @@ func (p *proxy) rewriteEdits(v any, f, origin *vfile) any {
 	if !ok || f == nil || f.isTempl() {
 		return p.rewrite(v, f, origin)
 	}
-	rest, src := splitImportEdits(f, list)
+	fresh := list[:0:0]
+	for _, e := range list {
+		if !f.staleEdit(e) {
+			fresh = append(fresh, e)
+		}
+	}
+	rest, src := splitImportEdits(f, fresh)
 	mapped, _ := p.rewrite(rest, f, origin).([]any)
 	return append(mapped, src...)
 }
@@ -1492,7 +1552,7 @@ func mapRange(f *vfile, v any) (lspRange, bool) {
 	if !ok {
 		return r, false
 	}
-	return f.toSource(r)
+	return f.toSource(r, true)
 }
 
 // mangled matches an overload's generated name (area__Circle) and Vuka's
