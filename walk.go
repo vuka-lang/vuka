@@ -35,6 +35,11 @@ func Walk(ctx context.Context, n Node, r Renderer) error {
 		if void && len(n.Children) > 0 {
 			return fmt.Errorf("vuka: <%s> is a void element and can't have children", n.Tag)
 		}
+		if h := liveHost(ctx); h != nil {
+			if k, ok := elementKey(n); ok {
+				ctx = h.Keyed(ctx, k)
+			}
+		}
 		if err := r.Open(n); err != nil || void {
 			return err
 		}
@@ -44,6 +49,18 @@ func Walk(ctx context.Context, n Node, r Renderer) error {
 			}
 		}
 		return r.Close(n)
+	case *ComponentNode:
+		if n == nil {
+			return nil
+		}
+		if liveHost(ctx) != nil {
+			break
+		}
+		c, err := n.static(ctx)
+		if err != nil || c == nil {
+			return err
+		}
+		return Walk(ctx, c.Render(), r)
 	case TextNode:
 		return r.Text(string(n))
 	case RawHTML:
