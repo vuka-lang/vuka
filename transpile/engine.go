@@ -85,6 +85,7 @@ func (e *engine) run() {
 			e.resolveCalls(f)
 			e.infer(f)
 			e.lowerJSX(f)
+			e.checkEvents(f)
 			for _, t := range f.tries {
 				if !t.done && !t.dead {
 					e.lowerTry(f, t)

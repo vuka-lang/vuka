@@ -31,6 +31,17 @@ type jsxComp struct {
 	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
+	stateful   bool     // a struct embedding vuka.Live: vuka.Component(site, key, &T{…})
+	site       string   // the tag's place, for a stateful component
+	key        *compArg // its key attribute
+}
+
+// nestStep is an embedded struct field a promoted field is reached through.
+type nestStep struct {
+	name string
+	typ  types.Type // the embedded field's type, a pointer's element
+	ptr  bool
+	text string
 }
 
 // compArg is one argument of a component call.
@@ -42,6 +53,7 @@ type compArg struct {
 	text string   // its zero value
 	name string   // the function literal's parameter, in the closure form
 	typ  types.Type
+	nest []nestStep // the embedded fields a promoted props field is in
 }
 
 func (w *jsxWriter) comp(c *jsxComp) {
@@ -96,20 +108,56 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	if c.try {
 		w.gen(rt + ".Try(")
 	}
-	w.keep(tag)
-	w.gen("(")
-	if c.props != "" {
-		w.gen(c.props + "{")
+	if c.stateful {
+		w.gen(rt + ".Component(" + strconv.Quote(c.site) + ", ")
+		if c.key != nil {
+			value(c.key, true)
+		} else {
+			w.gen("nil")
+		}
+		w.gen(", &")
+		w.keep(tag)
+		w.gen("{")
+	} else {
+		w.keep(tag)
+		w.gen("(")
+		if c.props != "" {
+			w.gen(c.props + "{")
+		}
+	}
+	var open []nestStep
+	closeTo := func(k int) {
+		for ; len(open) > k; open = open[:len(open)-1] {
+			w.gen("}, ")
+		}
 	}
 	for _, a := range c.args {
+		k := 0
+		for k < len(open) && k < len(a.nest) && open[k].name == a.nest[k].name {
+			k++
+		}
+		closeTo(k)
+		for _, st := range a.nest[k:] {
+			w.gen(st.name + ": ")
+			if st.ptr {
+				w.gen("&")
+			}
+			w.gen(st.text + "{")
+			open = append(open, st)
+		}
 		w.gen(a.key)
 		value(a, true)
 		w.gen(", ")
 	}
-	if c.props != "" {
-		w.gen("}")
+	closeTo(0)
+	switch {
+	case c.stateful:
+		w.gen("})")
+	case c.props != "":
+		w.gen("})")
+	default:
+		w.gen(")")
 	}
-	w.gen(")")
 	if c.try {
 		w.gen(")")
 	}
@@ -217,8 +265,8 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		return
 	}
 	obj := e.info.Uses[compIdent(expr)]
-	if _, ok := obj.(*types.TypeName); ok {
-		fail(el.start, "<%s> is a type: stateful components come in stage 2", el.tag)
+	if tn, ok := obj.(*types.TypeName); ok {
+		e.resolveStateful(f, c, expr, tn, attrs, node, fail)
 		return
 	}
 	var sig *types.Signature
@@ -310,26 +358,12 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 	params := sig.Params()
 	if st, typ := propsStruct(sig, attrs); st != nil {
 		c.propsTyp, c.inOrder = typ, true
-		var names []string
-		for i := 0; i < st.NumFields(); i++ {
-			names = append(names, st.Field(i).Name())
+		kids, off, msg := e.bindFields(c, st, attrs, node, false)
+		if msg != "" {
+			return off, msg
 		}
-		used := map[int]bool{}
-		for _, a := range attrs {
-			i := bindName(names, a.name)
-			if i < 0 {
-				return a.off, unknownAttr(el.tag, a.name, "fields", names)
-			}
-			if used[i] {
-				return a.off, "<" + el.tag + "> sets " + names[i] + " twice"
-			}
-			used[i] = true
-			c.args = append(c.args, &compArg{key: names[i] + ": ", attr: a, typ: st.Field(i).Type()})
-		}
-		if hasKids {
-			if i := bindName(names, "Children"); i >= 0 && !used[i] && types.AssignableTo(node, st.Field(i).Type()) {
-				c.args = append(c.args, &compArg{key: names[i] + ": ", kids: true, typ: st.Field(i).Type()})
-			} else if msg := noKids("Children vuka.Node field to " + e.display(typ)); msg != "" {
+		if hasKids && !kids {
+			if msg := noKids("Children vuka.Node field to " + e.display(typ)); msg != "" {
 				return el.start, msg
 			}
 		}
@@ -392,8 +426,31 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 // finishComp writes what a bound component's call needs: its props type, its
 // zero values, and the closure that keeps its expressions in source order.
 func (e *engine) finishComp(f *fileState, c *jsxComp) {
-	if c.propsTyp != nil {
+	if c.propsTyp != nil && !c.stateful {
 		c.props = e.typeTextAuto(f, c.propsTyp)
+	}
+	if c.propsTyp != nil {
+		c.args = groupArgs(c.args, 0)
+		last := -1
+		in := func(a *compArg) {
+			switch {
+			case a == nil:
+			case a.kids:
+				c.inOrder = c.inOrder && last < c.el.end
+				last = c.el.end
+			case a.attr != nil && a.attr.kind == 'e':
+				c.inOrder = c.inOrder && last < a.attr.expr.start
+				last = a.attr.expr.start
+			}
+		}
+		c.inOrder = true
+		in(c.key)
+		for _, a := range c.args {
+			in(a)
+			for i := range a.nest {
+				a.nest[i].text = e.typeTextAuto(f, a.nest[i].typ)
+			}
+		}
 	}
 	for _, a := range c.args {
 		if a.zero {
@@ -556,6 +613,9 @@ func (e *engine) closeOver(f *fileState, c *jsxComp) {
 		typ string
 	}
 	var items []item
+	if k := c.key; k != nil && k.attr.kind == 'e' {
+		items = append(items, item{k, k.attr.expr.start, e.typeTextAuto(f, k.typ)})
+	}
 	for _, a := range c.args {
 		switch {
 		case a.kids:

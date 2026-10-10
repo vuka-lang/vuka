@@ -1,0 +1,49 @@
+package main
+
+import "context"
+
+var header = <h1 className="top">Pets</h1>
+
+var (
+	footer = <footer>{2026}</footer>
+)
+
+type Counter struct {
+	vuka.Live
+	Start int
+	n     int
+}
+
+func (c *Counter) Mount(ctx context.Context) error { c.n = c.Start; return nil }
+
+func (c *Counter) Inc() { c.n++ }
+
+func (c *Counter) Render() vuka.Node {
+	return <div>
+		<span>{c.n}</span>
+		<button onClick={c.Inc}>+</button>
+		<input onInput={func(v string) { c.n = len(v) }} />
+	</div>
+}
+
+type Todo struct {
+	vuka.Live
+	items []string
+}
+
+func (t *Todo) Remove(s string) {}
+
+func (t *Todo) Render() vuka.Node {
+	return <ul>
+		{for _, it := range t.items {
+			<li key={it}>
+				<Counter Start={len(it)} key={it} />
+				<button onClick={func() { t.Remove(it) }}>x</button>
+			</li>
+		}}
+	</ul>
+}
+
+func page() vuka.Node {
+	return <main>{header}<Todo /><Counter Start={1} />{footer}</main>
+}
