@@ -413,8 +413,8 @@ they make — an attribute, a class (as `class`), the `style` display, a
 `hidden` attribute, the text (`set_text`), a field's value or checked state
 (`set_value`) — with, for each, the value before the change, the value it
 set, and the server's value at that moment (what the server's last markup
-renders there). An `exec`'d list's changes count in the segment it runs in,
-and its own pushes take the changes made before them. A segment closed by a
+renders there). An `exec`'d list runs within the segment it is called
+in: its changes join that segment, and a push in it closes it. A segment closed by a
 push that doesn't run (a skipped branch, a push without `h`) or not closed
 at all (operations after the last push, a chain stopped by `key`,
 `confirm` or a `call`) is not a prediction: its changes stay as ordinary

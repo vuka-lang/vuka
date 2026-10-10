@@ -47,7 +47,7 @@ their own.
 | `PushFocus(t?)`, `PopFocus()` | remember an element (default: the focused one); focus it again later |
 | `Dispatch(t, event, opts...)` | a `CustomEvent`; `ui.Detail(v)`, `ui.NoBubble()` |
 | `Exec(t, attr)` | run the commands held in the element's attribute `attr` |
-| `Push(handler, opts...)` | call a handler on the server; `ui.Value(v)` passes `v` instead of the element's value |
+| `Push(handler, opts...)` | call a handler on the server; `ui.Value(v)` passes `v` instead of the element's value; `ui.Timeout(d)`, `ui.KeepOnError()` |
 | `Debounce(d)`, `Throttle(d)` | the steps after it run debounced or throttled |
 | `Key(keys...)` | stop unless a key press is one of `keys` (`"Enter"`, `"Escape"`) |
 | `Confirm(msg)` | stop unless the user confirms |
@@ -55,6 +55,9 @@ their own.
 | `Copy(t)`, `CopyText(s)` | the clipboard: an element's value or text, or a string |
 | `ScrollTo(t)` | scroll the element into view |
 | `SetValue(t, v)` | set a field's value (a checkbox's `"true"`), firing `input` and `change` |
+| `SetText(t, text)` | set the element's text, replacing its content |
+| `Call(name, args...)` | call a JavaScript function of the page ([below](#calling-javascript)) |
+| `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s outcome ([below](#optimistic-updates)) |
 
 ## Targets and refs
 
@@ -109,6 +112,116 @@ value, parsed by the handler's parameter: `Push(c.Pick, ui.Value(7))` calls
 `func (c *List) Pick(id int)` with 7. The steps before a push run first; the
 server's reply is applied when it comes.
 
+## Optimistic updates
+
+A click that the server will almost always accept — a like, a checked
+todo, a deleted row — can show its result at once, before the round trip,
+and take it back in the rare case the server refuses. The steps before a
+`Push` are its **predictions**:
+
+```vuka
+<button onClick={ui.JS.
+	AddClass(ui.This, "liked").
+	SetText(ui.Ref("likes"), strconv.Itoa(c.likes.Get()+1)).
+	Push(c.Like).
+	OnError(ui.JS.Show(ui.Ref("like-error"))).
+	OnSuccess(ui.JS.Dispatch(ui.This, "liked"))}>
+	♥ <span ref="likes">{c.likes.Get()}</span>
+</button>
+<p ref="like-error" style="display: none">Couldn't like</p>
+```
+
+The button turns `liked` and the count goes up the moment it is clicked.
+Then the push settles:
+
+- **Success** — the reply carries no error. Nothing is taken back; the
+  server's render follows as usual, and where it renders something other
+  than the prediction (another visitor's like counted too), the server's
+  value wins. Then `OnSuccess`'s chain runs.
+- **Failure** — the handler returns an error, the server refuses the event,
+  or no reply comes within the push's timeout. Every change the predictions
+  made is reverted to what it was before them — except where the server
+  has rendered a new value since, which stays. Then `OnError`'s chain runs.
+
+A chain's predictions for a push are the steps since the chain's start, or
+since the push before it. So one chain can make two optimistic calls, each
+taking back only its own:
+
+```vuka
+ui.JS.
+	SetText(ui.Ref("status"), "Saved").Push(c.Save).OnError(ui.JS.SetText(ui.Ref("status"), "Not saved")).
+	AddClass(ui.Ref("badge"), "synced").Push(c.Sync)
+```
+
+`OnError`, `OnSuccess` and `Timeout` belong to the last `Push` before
+them; with none, building the chain panics. The steps after the last push
+are no prediction: they stay whatever happens.
+
+Deleting a row, put back if the delete fails:
+
+```vuka
+<li key={it.ID}>
+	{it.Name}
+	<button onClick={ui.JS.
+		Hide(ui.Closest("li")).
+		Push(func() error { return l.Delete(it.ID) }).
+		OnError(ui.JS.Show(ui.Ref("delete-error")))}>Delete</button>
+</li>
+```
+
+When the server removes the row, it is gone for good; when `Delete` returns
+an error, the row reappears and the error shows.
+
+**Keeping a prediction.** `Push(c.Save, ui.KeepOnError())` reverts nothing
+when the push fails — for a change the user should see even then (a typed
+draft, a "not sent" mark) — and still runs `OnError`.
+
+**Timeouts.** A push waits 10 seconds for its reply before it counts as
+failed; `Push(c.Like, ui.Timeout(3*time.Second))` or `.Timeout(3*time.Second)`
+after it sets another. A reply that comes after its push timed out is
+applied as usual — the server's render is still the truth — but its push's
+`OnError` already ran, and `OnSuccess` doesn't.
+
+What the server owns is what to predict: the count it will render, the row
+it will delete. A prediction the server's render doesn't confirm is replaced
+by it; one it never renders differently stays until the next render
+changes it.
+
+## Calling JavaScript
+
+`Call` runs a function of the page — a chart's refresh, a date picker, a
+confetti burst — as a step of a chain:
+
+```vuka
+<button onClick={ui.JS.Call("confetti", 120)}>Celebrate</button>
+<input ref="q" onInput={ui.JS.Debounce(200*time.Millisecond).Call("Search.preview", ui.Ref("q").Value())} />
+```
+
+The name is a function registered with the page's runtime, else a dotted
+path on `window`:
+
+```js
+vuka.register("confetti", (ctx, count) => burst(ctx.el, count))
+```
+
+The function gets a context — `ctx.el`, the element the call is on (or
+`JS.On(t).Call(…)`'s target), `ctx.event`, `ctx.root`, the component's root
+element, and `ctx.target(spec)` — then the arguments: JSON values, or reads
+of an element made when the step is reached, `t.Value()`, `t.Checked()`,
+`t.Attr(name)` (the attribute's value, or `null`). A name that isn't an
+identifier or a dotted path of them panics as the chain is built; nothing
+is ever evaluated as code.
+
+The chain waits for a promise the function returns. Returning `false` stops
+the chain, like a declined `Confirm`. A throw, a rejected promise or an
+unknown function stops it and fires a `vk:error` event on the element; when
+the call is among a push's predictions, that push fails without reaching
+the server — its predictions are taken back and its `OnError` runs:
+
+```vuka
+ui.JS.AddClass(ui.This, "busy").Call("Upload.prepare").Push(c.Upload).OnError(ui.JS.Show(ui.Ref("upload-error")))
+```
+
 ## From the server
 
 A stateful component pushes commands to its own page from a handler, an
@@ -126,8 +239,9 @@ func (c *Form) Save(ctx context.Context, f Fields) error {
 ```
 
 They run once the reply's changes are on the page, with `ui.This` the
-component's root element and refs its own. Rendered without a session
-`PushJS` does nothing.
+component's root element and refs its own. Pushed chains may be
+optimistic too: their pushes settle as a click's do. Rendered without a
+session `PushJS` does nothing.
 
 ## Server patches
 
@@ -205,5 +319,23 @@ The reference client runs commands on its model of the page
 ([testing](/ui/testing#js-commands)): `Click` and `Fire` run an element's
 commands and send its pushes, and `HasClass`, `Attr`, `Visible` read the
 result.
+
+For optimistic pushes, `c.Hold()` keeps the events a test's clicks send
+until `c.Deliver()`, so the predicted page can be checked before the
+server answers; `c.Pending()` counts the pushes not yet settled,
+`c.Advance(d)` moves the client's clock (a push whose timeout passes
+fails), and `c.Info(topic, msg)` delivers a broadcast in between. A handler
+that returns an error makes the failure path. `c.RegisterFunc(name, fn)`
+stands in for a JavaScript function `Call` names: it gets the context and
+the arguments, element reads resolved, and returns a result (`false` stops
+the chain) or an error, as a throw.
+
+```go
+c.Hold()
+c.Click("button")
+if c.Text("span") != "8" { t.Fatal("not predicted") }
+c.Deliver()
+if c.Text("span") != "7" || !c.Visible(`[data-vk-ref="like-error"]`) { t.Fatal("not reverted") }
+```
 
 The wire format is in the [live protocol](/reference/live-protocol#js-commands).
