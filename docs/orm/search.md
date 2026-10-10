@@ -117,15 +117,13 @@ top := Article.Objects.Nearest(Article.Embedding, v, orm.Cosine).Limit(10).All(c
 ```
 
 On Postgres the `ORDER BY` is pgvector's operator, so an HNSW or IVFFlat
-index of that metric serves it. The engine's options — `orm.K(n)`,
+index of that metric serves it. Options: a metric, `orm.K(n)`,
 `orm.MaxDistance(d)`, `orm.DistanceAs(name)`, `orm.EfSearch(n)`
-(`hnsw.ef_search`), `orm.Probes(n)` (`ivfflat.probes`), set with `SET LOCAL`
-in a transaction of the query's own — are reached through `With`:
+(`hnsw.ef_search`) and `orm.Probes(n)` (`ivfflat.probes`), the last two set
+with `SET LOCAL` in a transaction of the query's own:
 
 ```vuka
-top = Article.Objects.With(func(qs orm.QuerySet[Article]) orm.QuerySet[Article] {
-	return qs.Nearest("embedding", v, orm.K(10), orm.MaxDistance(0.4), orm.EfSearch(100))
-}).All(ctx)?
+top = Article.Objects.Nearest(Article.Embedding, v, orm.K(10), orm.MaxDistance(0.4), orm.EfSearch(100)).All(ctx)?
 ```
 
 MySQL stores vectors but doesn't search them: a `VECTOR(n)` column where the
@@ -142,10 +140,8 @@ ranks by reciprocal rank (a row scores `w/(k + rank)` per ranking), annotated
 
 ```vuka
 doc := orm.Search(Article.Title, Article.Body)
-best := Article.Objects.With(func(qs orm.QuerySet[Article]) orm.QuerySet[Article] {
-	return qs.Hybrid(doc.Document(), orm.SearchQuery("web server"), "embedding", v,
-		orm.K(10), orm.Candidates(100), orm.HybridWeights(1, 0.5), orm.RRF(60))
-}).All(ctx)?
+best := Article.Objects.Hybrid(doc, "web server", Article.Embedding, v,
+	orm.K(10), orm.Candidates(100), orm.HybridWeights(1, 0.5), orm.RRF(60)).All(ctx)?
 ```
 
 `Candidates(n)` narrows the vector side to the `n` nearest (found by the
