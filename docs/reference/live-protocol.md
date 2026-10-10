@@ -305,7 +305,7 @@ carrying the attribute.
 | `pop_focus` | | focus the element on the top of the stack, and drop it |
 | `dispatch` | `to`, `event`, `detail`?, `bubbles` | a `CustomEvent` named `event` with `detail` |
 | `exec` | `to`, `attr` | run the commands JSON held in the element's attribute `attr`, *this* being that element |
-| `push` | `h`, `value`? | send an `event` message whose `target` is `h` (below) |
+| `push` | `h`, `value`?, `on_ok`?, `on_error`?, `timeout`?, `keep`? | send an `event` message whose `target` is `h` (below); the other fields make it [optimistic](#optimistic-pushes) |
 | `debounce`, `throttle` | `ms` | the steps after it run debounced or throttled, per element and event type; a throttled `input` runs its last call at the end of the window |
 | `key` | `keys` | stop unless the event is a keyboard event whose `key` is one of `keys` |
 | `confirm` | `msg` | `window.confirm(msg)`; stop on cancel |
@@ -316,6 +316,8 @@ carrying the attribute.
 | `copy_text` | `text` | the clipboard gets `text` |
 | `scroll_to` | `to` | scroll the element into view |
 | `set_value` | `to`, `value` | set the element's value (a checkbox's `checked` from `"true"`), then fire `input` and `change` on it |
+| `set_text` | `to`, `text` | set the element's `textContent` to `text` |
+| `call` | `fn`, `to`?, `args`? | call a JavaScript function ([below](#calling-javascript)) |
 
 Branches nest: an `if` inside a branch opens a level of its own, and
 `else_if`, `else` and `end` belong to the innermost `if` not yet ended. A
@@ -380,3 +382,104 @@ unchanged. When the server renders a different value, the server's wins and
 the record is dropped. Classes count as the `class` attribute, `show`/`hide`
 as `style` (and `hidden`); `set_value` changes the value property, not an
 attribute, and a field's value follows the runtime's usual rules.
+`set_text` is recorded as the element's text: the override stays while the
+server keeps rendering the same text in the element, and is dropped when
+the server's text changes.
+
+### Optimistic pushes
+
+A push can show its outcome before the server answers — a like counted, a
+row gone — and take it back if the server refuses. The operations before a
+`push` in a list are its **predictions**; the push's reply settles them.
+
+```text
+[["add_class",{"names":["liked"]}],
+ ["set_text",{"to":{"ref":"likes"},"text":"8"}],
+ ["push",{"h":"c3:1","on_error":[["show",{"to":{"ref":"like-error"}}]],"on_ok":[["dispatch",{"event":"liked","bubbles":true}]]}]]
+```
+
+| `push` field | |
+|---|---|
+| `h`, `value` | as before |
+| `on_ok` | operations run when the push succeeds, *this* as for the list |
+| `on_error` | operations run when it fails |
+| `timeout` | ms to wait for the reply before the push fails; default `10000` |
+| `keep` | `true`: a failure reverts nothing (`on_error` still runs) |
+
+**Predictions.** A list is cut into segments at its `push` operations: the
+operations from the list's start, or from the previous `push`, up to a
+`push` are that push's predictions. The runtime records every DOM change
+they make — an attribute, a class (as `class`), the `style` display, a
+`hidden` attribute, the text (`set_text`), a field's value or checked state
+(`set_value`) — with, for each, the value before the change, the value it
+set, and the server's value at that moment (what the server's last markup
+renders there). An `exec`'d list's changes count in the segment it runs in,
+and its own pushes take the changes made before them. A segment closed by a
+push that doesn't run (a skipped branch, a push without `h`) or not closed
+at all (operations after the last push, a chain stopped by `key`,
+`confirm` or a `call`) is not a prediction: its changes stay as ordinary
+command changes.
+
+**Settling.** Every event message the runtime sends has a `ref`, and the
+server answers each with exactly one message carrying that `ref` — a
+`patch` (with `error` when the handler failed; with no `updates`/`trees`
+when nothing changed, `{"type":"patch","ref":4}`) or an `error` message
+(an unknown handler, a failed render). The push is settled by the first of:
+
+- the reply, without `error`: **success**. Nothing is reverted;
+  reconciliation goes on as for any command change, so wherever the
+  server's markup differs from what was predicted, the server's wins.
+- the reply with `error`, or an `error` message: **failure**.
+- `timeout` ms passing with no reply: **failure**.
+
+On failure, unless `keep`, each recorded change is reverted, latest first,
+to its value before the change — where the server's value is still the one
+recorded and the element still shows the value the prediction set. Where
+the server has rendered a different value since, or a later command changed
+it, the current value stays. Reverting to the server's own value drops the
+command record; to an earlier command's value, keeps that record.
+
+A reply is applied in this order: its markup (and reconciliation), the
+push's reverts on failure, the message's `js` entries, then `on_ok` or
+`on_error`. A reply arriving after its push timed out is applied as usual,
+minus the settling: the push was already reverted and its `on_error` run.
+Pushes settle independently: a list with two pushes has two segments, each
+reverted only by its own push's failure.
+
+Server-pushed lists (`"js"` entries) may carry optimistic pushes too, with
+the same semantics, *this* being the entry's instance root.
+
+### Calling JavaScript
+
+`["call",{"fn":"confetti","to":T,"args":[…]}]` calls a page function.
+`fn` is a name registered with `vuka.register(name, fn)`, else a dotted
+path looked up on `window` (`"Picker.refresh"`); it is never evaluated as
+code. The function is called as `fn(ctx, ...args)`:
+
+| `ctx` | |
+|---|---|
+| `el` | the first element `to` names (*this* without `to`) |
+| `event` | the DOM event the list runs for (`null` for a server-pushed list) |
+| `root` | *this*'s instance root, the nearest ancestor-or-self with `data-vk-id` |
+| `target(spec)` | the elements a target spec (`{"ref":"x"}`, …) names, from *this* |
+
+`args` are JSON values, each passed as is, except **element reads**,
+objects of one key `$read` whose value is a condition's JSON
+([Conditions](#js-commands)), read when the `call` is reached:
+
+| `{"$read":…}` | passes |
+|---|---|
+| `{"to":T,"value":true}` | the element's value, a string |
+| `{"to":T,"checked":true}` | a checkbox's or radio's checked state |
+| `{"to":T,"attr":"name"}` | the attribute's value, or `null` without it |
+| `{"to":T,"value_eq":"a"}`, `{"to":T,"is":".x"}`, `{"to":T,"exists":true}` | whether the condition holds |
+
+A read of no element passes `null` (`exists`: `false`). A `$read` nested in
+another value is not a read.
+
+The list waits while a returned promise is pending. A result of `false`
+stops the list, as a declined `confirm` does. An unknown function, a throw
+or a rejected promise stops the list and fires a `vk:error` event on *this*
+(`detail`: `{"error": message, "fn": name}`); when the `call` is among a
+push's predictions, that push fails without being sent — its predictions so
+far are reverted (unless `keep`) and its `on_error` runs.
