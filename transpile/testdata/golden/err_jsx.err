@@ -1,3 +1,5 @@
 err_jsx.vuka:4:21: expected </p> to close <p> at line 4, found </div>
 err_jsx.vuka:8:9: unclosed <ul>: found } at line 10 (write {"}"} for the text)
 err_jsx.vuka:17:35: expected } to close the block opened at line 17
+err_jsx.vuka:21:29: if in a block's body starts a nested block, and needs a { after its header (write {"if"} for the text)
+err_jsx.vuka:25:15: expected { after the if header

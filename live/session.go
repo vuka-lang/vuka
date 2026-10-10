@@ -163,6 +163,7 @@ type instance struct {
 	own      string // its HTML, each child as a marker
 	changed  bool
 	fresh    bool
+	key      any // its tag's key, written on its root as data-vk-key
 }
 
 func (in *instance) ID() string { return in.id }
@@ -224,6 +225,7 @@ func (sc *scope) Component(ctx context.Context, n *vuka.ComponentNode, w io.Writ
 	default:
 		copyProps(in.comp, n.Props)
 	}
+	in.key = n.Key
 	parent.kids = append(parent.kids, in)
 	if err := s.renderInst(in); err != nil {
 		return err
@@ -278,7 +280,7 @@ func (s *Session) renderInst(in *instance) error {
 	if in.comp == nil {
 		node = s.render(ctx)
 	} else {
-		node = rooted(in.comp.Render(), in.id)
+		node = rooted(in.comp.Render(), in.id, in.key)
 	}
 	var b strings.Builder
 	if node != nil {
@@ -292,16 +294,19 @@ func (s *Session) renderInst(in *instance) error {
 	return nil
 }
 
-// rooted is a component's output with its id on the root element, or in a
-// <vk-c> around it when it isn't one element.
-func rooted(n vuka.Node, id string) vuka.Node {
-	attr := vuka.Attr{Name: "data-vk-id", Value: id}
+// rooted is a component's output with its id, and its tag's key, on the root
+// element, or on a <vk-c> around it when it isn't one element.
+func rooted(n vuka.Node, id string, key any) vuka.Node {
+	attrs := []vuka.Attr{{Name: "data-vk-id", Value: id}}
+	if key != nil {
+		attrs = append(attrs, vuka.Attr{Name: "data-vk-key", Value: fmt.Sprint(key)})
+	}
 	if el, ok := n.(*vuka.Element); ok && el != nil {
 		cp := *el
-		cp.Attrs = append(slices.Clip(el.Attrs), attr)
+		cp.Attrs = append(slices.Clip(el.Attrs), attrs...)
 		return &cp
 	}
-	return vuka.El("vk-c", []vuka.Attr{attr, {Name: "style", Value: "display:contents"}}, n)
+	return vuka.El("vk-c", append(attrs, vuka.Attr{Name: "style", Value: "display:contents"}), n)
 }
 
 // html is an instance's HTML with its children's in place of their markers.

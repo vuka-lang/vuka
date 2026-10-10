@@ -1,0 +1,57 @@
+package main
+
+import (
+	"context"
+	"fmt"
+)
+
+type Item struct {
+	Name string
+	Ok   bool
+	Tags []string
+	N    int
+}
+
+func list(items []Item) vuka.Node {
+	return <ul>
+		{for _, it := range items {
+			if it.Ok {
+				<li>{it.Name}</li>
+			} else if it.N > 1 {
+				<li className="many">{it.Name} x{it.N}</li>
+			} else {
+				<li className="off">{it.Name}</li>
+			}
+			for _, t := range it.Tags { <i>{t}</i> }
+			match it.N {
+			case 0:
+				<b>none</b>
+			case 1:
+				for i := range 2 { if i == 1 { <s>{i}</s> } }
+			default:
+				many
+			}
+			if(it.N == 3) { <u>three</u> }
+			for _, t := range []string{"x"} { <em>{t}</em> }
+		}}
+	</ul>
+}
+
+func texts(items []Item) vuka.Node {
+	return <div>
+		<p>if you like</p>
+		<p>for now, match me</p>
+		{for range items { iffy text }}
+		{for range items { if-then }}
+		{for range items { formal matches }}
+		{if len(items) > 0 { a match? }}
+	</div>
+}
+
+func main() {
+	items := []Item{{"a", true, nil, 0}, {"b", false, []string{"t1", "t2"}, 2}, {"c", false, nil, 1}, {"d", false, nil, 3}}
+	for _, n := range []vuka.Node{list(items), list(nil), texts(items[:1])} {
+		s, err := vuka.String(context.Background(), n)
+		fmt.Println(s, err)
+	}
+}

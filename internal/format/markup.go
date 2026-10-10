@@ -1,8 +1,10 @@
 package format
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"go/format"
 	"go/token"
 	"html"
 	"strings"
@@ -178,11 +180,26 @@ func sigBlock(src []byte, b *jBlock) string {
 	}
 	for i, h := range b.heads {
 		if h.start >= 0 {
-			s.WriteString(" " + sigGo(src, h))
+			s.WriteString(" " + sigHead(src, b.kw, h))
 		}
 		s.WriteString(" {" + sigKids(src, b.bodies[i], true) + "}")
 	}
 	return s.String() + "}"
+}
+
+// sigHead describes a for or if header as gofmt prints it, which drops the
+// parentheses around a condition: if (ok) { is if ok {.
+func sigHead(src []byte, kw string, h span) string {
+	const pre = "package p\n\nfunc _() {\n\t"
+	out, err := format.Source([]byte(pre + kw + " " + string(src[h.start:h.end]) + " {\n\t}\n}\n"))
+	if err != nil || !bytes.HasPrefix(out, []byte(pre+kw+" ")) {
+		return sigGo(src, h)
+	}
+	text := out[len(pre)+len(kw)+1:]
+	if i := bytes.LastIndex(text, []byte(" {")); i >= 0 {
+		text = text[:i]
+	}
+	return sigGo(text, span{0, len(text)})
 }
 
 // textValue applies React's whitespace rules to text between tags, as

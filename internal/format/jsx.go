@@ -50,6 +50,7 @@ type jBlock struct {
 	bodies     [][]jNode
 	subj       span
 	cases      []*jCase
+	bare       bool // in a block's body, written without braces: if x { … }
 }
 
 type jCase struct {
@@ -254,6 +255,15 @@ func (p *jsxParser) children(i int, el *jElem, open int, inMatch bool) ([]jNode,
 			p.fail(i, "unexpected } in an element")
 		case inMatch && p.caseAt(i):
 			return kids, i
+		case el == nil && p.nestedAt(p.space(i)):
+			j := p.space(i)
+			if j > i {
+				kids = append(kids, &jText{i, j})
+			}
+			b, end := p.nested(j)
+			b.start, b.end, b.bare = j, end, true
+			kids = append(kids, b)
+			i = end
 		default:
 			j := i
 			for j < len(p.src) && strings.IndexByte("<{}", p.src[j]) < 0 && !(inMatch && j > i && p.caseAt(j)) {
@@ -263,6 +273,34 @@ func (p *jsxParser) children(i int, el *jElem, open int, inMatch bool) ([]jNode,
 			i = j
 		}
 	}
+}
+
+// nestedAt reports whether a block's body holds a nested block at i, written
+// without braces, as transpile decides: if or for and a space or (, or match
+// and an expression.
+func (p *jsxParser) nestedAt(i int) bool {
+	if i > 0 && isIdentByte(p.src[i-1]) {
+		return false
+	}
+	for _, kw := range []string{"if", "for"} {
+		if strings.HasPrefix(string(p.src[i:min(i+len(kw), len(p.src))]), kw) {
+			c := p.at(i + len(kw))
+			return c == ' ' || c == '\t' || c == '('
+		}
+	}
+	if !strings.HasPrefix(string(p.src[i:min(i+5, len(p.src))]), "match") || isIdentByte(p.at(i+5)) {
+		return false
+	}
+	return exprStart(newGoScan(p.src, i+5).significant().tok)
+}
+
+func (p *jsxParser) nested(i int) (*jBlock, int) {
+	g := newGoScan(p.src, i)
+	t := g.significant()
+	if t.tok == token.IDENT {
+		return p.matchBlock(g, t, g.significant(), i, true)
+	}
+	return p.block(g, t, i, true)
 }
 
 func (p *jsxParser) caseAt(i int) bool {
@@ -376,13 +414,13 @@ func (p *jsxParser) hole(i int) (jNode, int) {
 	t := g.significant()
 	switch {
 	case t.tok == token.FOR || t.tok == token.IF:
-		n, end := p.block(g, t, i)
+		n, end := p.block(g, t, i, false)
 		n.start, n.end = i, end
 		return n, end
 	case t.tok == token.IDENT && t.lit == "match":
 		save := g.s
 		if n := g.significant(); exprStart(n.tok) {
-			b, end := p.matchBlock(g, t, n, i)
+			b, end := p.matchBlock(g, t, n, i, false)
 			b.start, b.end = i, end
 			return b, end
 		}
@@ -401,7 +439,7 @@ func exprStart(t token.Token) bool {
 	return false
 }
 
-func (p *jsxParser) block(g *goScan, kw tok, open int) (*jBlock, int) {
+func (p *jsxParser) block(g *goScan, kw tok, open int, bare bool) (*jBlock, int) {
 	b := &jBlock{kw: kw.tok.String()}
 	prev, headStart, kwStart := kw.tok, kw.end(), kw.off
 	for {
@@ -431,6 +469,9 @@ func (p *jsxParser) block(g *goScan, kw tok, open int) (*jBlock, int) {
 			}
 			continue
 		}
+		if bare {
+			return b, rb + 1
+		}
 		if next.tok != token.RBRACE {
 			p.fail(next.off, "expected } to close the block")
 		}
@@ -442,7 +483,8 @@ func (p *jsxParser) block(g *goScan, kw tok, open int) (*jBlock, int) {
 // returning the {'s offset. A { that leaves the header unparsable opens a
 // composite literal (range []string{"a"} {) and is skipped, as transpile does.
 func (p *jsxParser) header(g *goScan, kw token.Token, head, open int) int {
-	_, _, lb, _ := p.goUntil(g, g.next(), kw, open, func(t tok) bool { return t.tok == token.LBRACE })
+	_, _, lb, _ := p.goUntil(g, g.next(), kw, open, braceAt)
+	p.bodyOpens(lb, head)
 	first := lb.off
 	for lb.tok == token.LBRACE && !headerParses(p.src[head:lb.off]) {
 		for depth := 1; depth > 0; {
@@ -455,7 +497,8 @@ func (p *jsxParser) header(g *goScan, kw token.Token, head, open int) int {
 				return first
 			}
 		}
-		_, _, lb, _ = p.goUntil(g, g.next(), kw, open, func(t tok) bool { return t.tok == token.LBRACE })
+		_, _, lb, _ = p.goUntil(g, g.next(), kw, open, braceAt)
+		p.bodyOpens(lb, head)
 	}
 	if lb.tok != token.LBRACE {
 		return first
@@ -463,13 +506,22 @@ func (p *jsxParser) header(g *goScan, kw token.Token, head, open int) int {
 	return lb.off
 }
 
+func braceAt(t tok) bool { return t.tok == token.LBRACE || t.tok == token.RBRACE }
+
+func (p *jsxParser) bodyOpens(stop tok, head int) {
+	if stop.tok != token.LBRACE {
+		p.fail(head, "expected { after the header")
+	}
+}
+
 func headerParses(h []byte) bool {
 	_, err := parser.ParseFile(token.NewFileSet(), "", "package p\nfunc _() {\n"+strings.TrimSpace(string(h))+" {}\n}\n", 0)
 	return err == nil
 }
 
-func (p *jsxParser) matchBlock(g *goScan, kw, first tok, open int) (*jBlock, int) {
-	subj, last, lb, _ := p.goUntil(g, first, kw.tok, open, func(t tok) bool { return t.tok == token.LBRACE })
+func (p *jsxParser) matchBlock(g *goScan, kw, first tok, open int, bare bool) (*jBlock, int) {
+	subj, last, lb, _ := p.goUntil(g, first, kw.tok, open, braceAt)
+	p.bodyOpens(lb, kw.off)
 	b := &jBlock{kw: "match", subj: span{subj.off, last.end()}}
 	i := lb.off + 1
 	for {
@@ -479,6 +531,9 @@ func (p *jsxParser) matchBlock(g *goScan, kw, first tok, open int) (*jBlock, int
 		case token.RBRACE:
 			if len(b.cases) == 0 {
 				p.fail(kw.off, "a match needs at least one case")
+			}
+			if bare {
+				return b, t.off + 1
 			}
 			g.reset(t.off + 1)
 			end := g.significant()

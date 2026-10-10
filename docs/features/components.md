@@ -84,10 +84,43 @@ case Err(e):
 }}
 ```
 
-`match` is the [same match](/features/match), exhaustive. `key` names an
-element among its siblings for [stateful components](#stateful-components):
-the instances inside a keyed element follow its key when the list is
-reordered. It is never written to the HTML.
+`match` is the [same match](/features/match), exhaustive.
+
+Inside a block's body, a block nests without its braces: a body is already
+in braces, so `if`, `for` and `match` starting a child there open a nested
+block, with the same headers and `else if`/`else` chains:
+
+```vuka
+{for _, it := range items {
+	if it.Done {
+		<li className="done">{it.Name}</li>
+	} else {
+		<li>{it.Name}</li>
+	}
+	for _, t := range it.Tags { <i>{t}</i> }
+	match it.Owner {
+	case Some(o):
+		<b>{o}</b>
+	case None:
+		<i>unassigned</i>
+	}
+}}
+```
+
+A word starts a nested block when it is `if` or `for` followed by a space or
+`(`, or `match` followed by an expression, at the start of a child: after the
+body's `{`, or after another child. Anywhere else it is text: in an element
+(`<p>if you like</p>`), in the middle of text, or not followed that way
+(`iffy`, `if-then`). Write `{"if"}` for the word itself at the start of a
+child in a body. Only `if`, `for` and `match` nest; other Go statements
+still go in a function literal.
+
+`key` names an element among its siblings, for [stateful
+components](#stateful-components) — the instances inside a keyed element
+follow its key when the list is reordered — and for the live runtime's
+morph, which pairs keyed rows by it. Under a live session it is written as
+`data-vk-key="…"` (its value as `fmt.Sprint` prints it); rendered statically
+it is never written to the HTML.
 
 The Go inside braces is Vuka too: a function literal there takes `?` and
 `match` like any other function, at any depth.
@@ -262,7 +295,7 @@ optional `Unmount()` runs.
 
 | Method | |
 |---|---|
-| `Render() vuka.Node` | required; its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element |
+| `Render() vuka.Node` | required; its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
 | `Mount()` | optional, once per instance, before its first render: `Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`; an error fails the render |
 | `Unmount()` | optional, when the instance is dropped |
 | `Update(msg T)` | optional, overloadable: the messages the session delivers (below) |
@@ -391,7 +424,7 @@ side.
 | `join` | the first message: the server renders the page; the reply is `render` |
 | `event` | `target` is the handler's id from its `data-vk-on-…`; `event` the DOM event; `value` the element's value (a checkbox's `checked` as `"true"`/`"false"`); `key` a keyboard event's key; `form` a submit's fields (`FormData`, each name to its values) |
 | `render` | `html` replaces the page container's content |
-| `patch` | for each update, the element whose `data-vk-id` is `id` is morphed into `html`; `id` `"c0"` is the page itself: its `html` replaces the container's content. `error`, when set, is a handler's message, for the page to show |
+| `patch` | for each update, the element whose `data-vk-id` is `id` is morphed into `html`; `id` `"c0"` is the page itself: its `html` replaces the container's content. The morph matches `data-vk-key` among siblings, so keyed rows move instead of being rewritten. `error`, when set, is a handler's message, for the page to show |
 | `error` | the message failed (an unknown handler, a render error); the session goes on |
 | `redirect` | reserved: navigate to `url` |
 

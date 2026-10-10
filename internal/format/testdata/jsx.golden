@@ -47,3 +47,26 @@ func Pets(pets []Pet, admin bool, filter string) vuka.Node {
 		<footer>  spaced  </footer> <hr />
 	</section>
 }
+
+func Nested(pets []Pet) vuka.Node {
+	return <ul>
+		{for _, p := range pets {
+			if p.Age > 3 {
+				<li>{p.Name}</li>
+			} else if p.Age == 0 {
+				<li>new</li>
+			} else {
+				<li>young</li>
+			}
+			for i := range p.Age { <b>{i}</b> }
+			match p.Age {
+			case 1:
+				<i>one</i>
+			case _:
+				{if true { x }}   for range 2 { if p.Age > 1 { <s /> } }
+			}
+		}}
+		{for range pets { iffy text }}
+		{for range pets { if-then }}
+	</ul>
+}

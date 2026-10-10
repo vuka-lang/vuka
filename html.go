@@ -143,6 +143,9 @@ func (h *HTMLRenderer) attrs(e *Element) error {
 		}
 		switch name {
 		case "key":
+			if liveHost(h.ctx) != nil && a.Value != nil && !hasAttr(e, "data-vk-key") {
+				h.write(` data-vk-key="` + templ.EscapeString(fmt.Sprint(a.Value)) + `"`)
+			}
 			continue
 		case "className":
 			name = "class"
@@ -173,6 +176,15 @@ func (h *HTMLRenderer) attrs(e *Element) error {
 		}
 	}
 	return nil
+}
+
+func hasAttr(e *Element, name string) bool {
+	for _, a := range e.Attrs {
+		if a.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 // What attrValue resolved an attribute to.

@@ -374,3 +374,21 @@ func TestMountOnceAndProps(t *testing.T) {
 		t.Fatalf("removed: %+v %v", p, gone)
 	}
 }
+
+func TestKeysRendered(t *testing.T) {
+	c := join(t, func(context.Context) vuka.Node {
+		return vuka.El("ul", nil,
+			vuka.El("li", []vuka.Attr{a("key", 7)}, vuka.Text("x")),
+			vuka.El("li", []vuka.Attr{a("key", "q\"")}, vuka.Text("y")),
+			vuka.Component("t:1", "row-1", &Counter{Label: "a"}),
+			vuka.El("li", []vuka.Attr{a("key", nil)}))
+	})
+	for _, want := range []string{`<li data-vk-key="7">x</li>`, `<li data-vk-key="q&#34;">y</li>`, `data-vk-key="row-1"`, `<li></li>`} {
+		if !strings.Contains(c.html, want) {
+			t.Fatalf("no %s in %s", want, c.html)
+		}
+	}
+	if !regexp.MustCompile(`data-vk-id="c\d+" data-vk-key="row-1"`).MatchString(c.html) {
+		t.Fatalf("component root lacks its key: %s", c.html)
+	}
+}

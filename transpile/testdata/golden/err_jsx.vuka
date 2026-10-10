@@ -17,4 +17,12 @@ func block(ok bool) vuka.Node {
 	return <div>{if ok { <b>yes</b> }</div>
 }
 
+func nested(xs []int) vuka.Node {
+	return <ul>{for range xs { if you like }}</ul>
+}
+
+func header(ok bool) vuka.Node {
+	return <div>{if ok }</div>
+}
+
 func main() {}

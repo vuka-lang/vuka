@@ -303,7 +303,10 @@ func (p *printer) flatBlock(b *jBlock, indent string, col int) (string, bool) {
 	if b.kw == "match" {
 		return "\n", false
 	}
-	s := "{"
+	s := ""
+	if !b.bare {
+		s = "{"
+	}
 	for i, kids := range b.bodies {
 		if i > 0 {
 			s += "}"
@@ -318,7 +321,10 @@ func (p *printer) flatBlock(b *jBlock, indent string, col int) (string, bool) {
 			s += " " + inner + " "
 		}
 	}
-	return s + "}}", !strings.Contains(s, "\n")
+	if s += "}"; !b.bare {
+		s += "}"
+	}
+	return s, !strings.Contains(s, "\n")
 }
 
 func (p *printer) block(b *jBlock, indent string, col int) string {
@@ -330,7 +336,11 @@ func (p *printer) block(b *jBlock, indent string, col int) string {
 		return s
 	}
 	var w strings.Builder
-	w.WriteString("{")
+	close := "}"
+	if !b.bare {
+		w.WriteString("{")
+		close = "}}"
+	}
 	if b.kw == "match" {
 		w.WriteString("match " + p.goExpr(b.subj, indent, col+7) + " {")
 		for _, c := range b.cases {
@@ -352,7 +362,7 @@ func (p *printer) block(b *jBlock, indent string, col int) string {
 				p.lines(&w, atoms, gaps, indent, endCol(w.String(), col), false)
 			}
 		}
-		w.WriteString("\n" + indent + "}}")
+		w.WriteString("\n" + indent + close)
 		return w.String()
 	}
 	for i, kids := range b.bodies {
@@ -364,7 +374,7 @@ func (p *printer) block(b *jBlock, indent string, col int) string {
 			p.lines(&w, atoms, gaps, indent, endCol(w.String(), col), true)
 		}
 	}
-	w.WriteString("}}")
+	w.WriteString(close)
 	return w.String()
 }
 

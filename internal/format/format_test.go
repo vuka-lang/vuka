@@ -3,6 +3,7 @@ package format
 import (
 	"bytes"
 	"flag"
+	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
@@ -180,8 +181,32 @@ func lower(t *testing.T, dir, name string, src []byte) []byte {
 
 // goTokens is the generated Go as tokens, without comments, line directives
 // or layout, imports sorted.
+// goTokens lists Go's tokens, imports sorted, without the parentheses around
+// an if's or a for's condition, which gofmt (and so the formatter) drops.
 func goTokens(t *testing.T, src []byte) []string {
 	t.Helper()
+	drop := map[int]bool{}
+	if full, err := parser.ParseFile(token.NewFileSet(), "", src, parser.SkipObjectResolution); err == nil {
+		base := int(full.FileStart)
+		ast.Inspect(full, func(n ast.Node) bool {
+			var cond ast.Expr
+			switch n := n.(type) {
+			case *ast.IfStmt:
+				cond = n.Cond
+			case *ast.ForStmt:
+				cond = n.Cond
+			}
+			for {
+				p, ok := cond.(*ast.ParenExpr)
+				if !ok {
+					break
+				}
+				drop[int(p.Lparen)-base], drop[int(p.Rparen)-base] = true, true
+				cond = p.X
+			}
+			return true
+		})
+	}
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", src, parser.ImportsOnly)
 	if err != nil {
@@ -201,7 +226,7 @@ func goTokens(t *testing.T, src []byte) []string {
 		rest = fset.Position(f.Decls[n-1].End()).Offset
 	}
 	for _, tk := range scanTokens(src, rest) {
-		if tk.tok == token.COMMENT || tk.tok == token.SEMICOLON {
+		if tk.tok == token.COMMENT || tk.tok == token.SEMICOLON || drop[tk.off] {
 			continue
 		}
 		out = append(out, tk.tok.String()+" "+tk.lit)

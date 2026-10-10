@@ -269,6 +269,22 @@ func TestLSPJSX(t *testing.T) {
 			t.Fatalf("hover below the unclosed tag: %s", h)
 		}
 	})
+
+	t.Run("nested blocks", func(t *testing.T) {
+		src := strings.Replace(jsxSource, "</UserCard>\n", "</UserCard> if u.Year > 2000 { <i>{u.Name}</i> }\n", 1)
+		edit(src)
+		c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+		if h := ask("textDocument/hover", at(src, "u.Year > 2000", 0)); !strings.Contains(h, "var u User") || !strings.Contains(h, posOf(src, "u.Year > 2000", 0)) {
+			t.Fatalf("hover in a nested header: %s", h)
+		}
+		if h := ask("textDocument/hover", at(src, "u.Year > 2000", 3)); !strings.Contains(h, "Year int") {
+			t.Fatalf("hover on a field in a nested header: %s", h)
+		}
+		src = strings.Replace(src, "if u.Year > 2000", "if u.Ye > 2000", 1)
+		if got := complete(src, "u.Ye > 2000", 4); !has(got, "Year=Year") {
+			t.Fatalf("completing in a nested header: %v", got)
+		}
+	})
 }
 
 func TestCompletable(t *testing.T) {
