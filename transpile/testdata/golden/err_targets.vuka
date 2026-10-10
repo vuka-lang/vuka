@@ -1,0 +1,28 @@
+package main
+
+@vuka.Targets(vuka.OnField)
+type Char struct{ Max int }
+
+@vuka.Targets(vuka.OnParam | vuka.OnField)
+type Path string
+
+@vuka.Targets(vuka.OnFunc)
+type Route string
+
+func Size(n int) Char { return Char{Max: n} }
+
+@Char{Max: 1}
+func a() {}
+
+@Route("/x")
+type T struct {
+	F string @Route("/y")
+}
+
+func b(@Route("/z") id string, @Size(3) s string) {}
+
+@Path("v")
+var v = 1
+
+@vuka.Targets(vuka.OnType)
+func c() {}

@@ -1,0 +1,31 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+)
+
+// Attribute types say where they may be written, as Java's @Target does.
+@vuka.Targets(vuka.OnField)
+type Char struct{ Max int }
+
+@vuka.Targets(vuka.OnParam)
+type Path string
+
+@vuka.Targets(vuka.OnFunc | vuka.OnMethod)
+type Route struct{ Method, Path string }
+
+// Unrestricted: anywhere.
+type Doc string
+
+type Pet struct {
+	Name string @Char{Max: 20} @Doc("the pet's name")
+}
+
+@Route{"GET", "/pets/{id}"}
+@Doc("shows a pet")
+func show(@Path("id") id string) string { return strings.ToUpper(id) }
+
+func main() {
+	fmt.Println(vuka.FieldAttrs[Pet](), show("rex"))
+}

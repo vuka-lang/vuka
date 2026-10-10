@@ -185,6 +185,9 @@ func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 			continue
 		}
 		f, err := parser.ParseFile(token.NewFileSet(), name, src, parser.ImportsOnly)
+		if err != nil && strings.HasSuffix(name, ".vuka") && f != nil && f.Name != nil && f.Name.Name != "_" {
+			err = nil // the imports are read; what follows them is Vuka (@attributes), which Go can't scan
+		}
 		if err != nil {
 			if strings.HasSuffix(name, ".vuka") {
 				// Mid-edit: let the transpiler report it with the rest.

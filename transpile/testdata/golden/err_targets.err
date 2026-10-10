@@ -1,0 +1,7 @@
+err_targets.vuka:14:1: @Char can't go on a function; Char is for fields
+err_targets.vuka:17:1: @Route can't go on a type; Route is for functions
+err_targets.vuka:19:11: @Route can't go on a field; Route is for functions
+err_targets.vuka:22:8: @Route can't go on a parameter; Route is for functions
+err_targets.vuka:22:32: @Size can't go on a parameter; Char is for fields
+err_targets.vuka:24:1: @Path can't go on a var or const; Path is for fields and parameters
+err_targets.vuka:27:1: @vuka.Targets goes on an attribute type: @vuka.Targets(vuka.OnField) type Char struct{ … }

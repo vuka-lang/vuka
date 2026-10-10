@@ -160,6 +160,10 @@ func (e *engine) decorate() bool {
 		groups := map[ast.Decl][]*Attr{}
 		var order []ast.Decl
 		for _, a := range f.attrs {
+			if f.rt == "" && strings.HasPrefix(a.Name, "vuka.") && e.isRuntimeName(f, a.Name, a.Name[len("vuka."):]) {
+				f.runtime() // @vuka.Targets(…), @vuka.NoAdvice: imported when the file doesn't
+				any = true
+			}
 			if a.Param {
 				if a.decl == nil {
 					e.errs.add(a.Pos, "@%s must be followed by a parameter of a top-level function", a.Name)
@@ -247,6 +251,13 @@ func (e *engine) isType(f *fileState, name string) bool {
 // resolves reports whether a qualified name exists in the package it names.
 func (e *engine) resolves(f *fileState, name string) bool {
 	pkgName, sel, _ := strings.Cut(name, ".")
+	pkg := e.importedAs(f, pkgName)
+	return pkg != nil && pkg.Scope().Lookup(sel) != nil
+}
+
+// importedAs is the package f imports as name; the runtime is vuka even
+// before Vuka adds its import.
+func (e *engine) importedAs(f *fileState, name string) *types.Package {
 	for _, imp := range f.ast.Imports {
 		path, _ := strconv.Unquote(imp.Path.Value)
 		pkg, err := e.imp.Import(path)
@@ -257,11 +268,16 @@ func (e *engine) resolves(f *fileState, name string) bool {
 		if imp.Name != nil {
 			local = imp.Name.Name
 		}
-		if local == pkgName {
-			return pkg.Scope().Lookup(sel) != nil
+		if local == name {
+			return pkg
 		}
 	}
-	return false
+	if name == "vuka" {
+		if pkg, err := e.imp.Import(RuntimePath); err == nil {
+			return pkg
+		}
+	}
+	return nil
 }
 
 // namesType reports whether a bare attribute names a type (so it is metadata)
@@ -272,24 +288,13 @@ func (e *engine) namesType(f *fileState, name string) bool {
 	if !qualified {
 		return e.typeNames[name] || !e.declared[name]
 	}
-	for _, imp := range f.ast.Imports {
-		path, _ := strconv.Unquote(imp.Path.Value)
-		pkg, err := e.imp.Import(path)
-		if err != nil {
-			continue
-		}
-		local := pkg.Name()
-		if imp.Name != nil {
-			local = imp.Name.Name
-		}
-		if local != pkgName {
-			continue
-		}
-		obj := pkg.Scope().Lookup(sel)
-		_, isType := obj.(*types.TypeName)
-		return isType || obj == nil
+	pkg := e.importedAs(f, pkgName)
+	if pkg == nil {
+		return true
 	}
-	return true
+	obj := pkg.Scope().Lookup(sel)
+	_, isType := obj.(*types.TypeName)
+	return isType || obj == nil
 }
 
 func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) *funcDeco {
@@ -481,6 +486,7 @@ func (e *engine) render(f *fileState) {
 	f.deco = genWriter{}
 	e.renderFiles(f)
 	e.renderFields(f)
+	e.renderTargets(f)
 	for _, d := range f.decos {
 		switch d := d.(type) {
 		case *funcDeco:
@@ -1065,12 +1071,8 @@ func (e *engine) isRuntimeName(f *fileState, name, sel string) bool {
 	if !ok || s != sel {
 		return false
 	}
-	for _, imp := range f.ast.Imports {
-		if path, _ := strconv.Unquote(imp.Path.Value); path == RuntimePath {
-			return imp.Name == nil && pkg == "vuka" || imp.Name != nil && imp.Name.Name == pkg
-		}
-	}
-	return false
+	p := e.importedAs(f, pkg)
+	return p != nil && p.Path() == RuntimePath
 }
 
 // decoratorType is the type of the value a decorator denotes: its name's type,

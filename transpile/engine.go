@@ -121,6 +121,9 @@ func (e *engine) run() {
 		e.staticCycles()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
+		e.checkTargets()
+	}
+	if len(*e.errs) == 0 && e.info != nil {
 		e.report()
 	}
 }
@@ -268,7 +271,7 @@ func (e *engine) needsTypes() bool {
 // remove the construct that needed it while what follows still needs types.
 func (e *engine) needsTypesNow() bool {
 	for _, f := range e.vuka {
-		if f.rt != "" || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) || e.mayUseFieldRefs(f) {
+		if f.rt != "" || len(f.attrs) > 0 || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || e.mayUseStatics(f) || e.mayUseFieldRefs(f) {
 			return true
 		}
 	}
