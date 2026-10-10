@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Vuka language support: Go with Result, Option, ?, match, overloading, decorators, statics, typed field attributes and JSX components (stateless, stateful and live). Highlighting, snippets, format on save, and completion, navigation, rename and diagnostics through gopls.",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",

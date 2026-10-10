@@ -50,6 +50,7 @@ New library: [`github.com/vuka-lang/ui`](/ui/) v0.1.0. Run `vuka fix ui`.
   - **Attribute targets:** `@vuka.Targets(vuka.OnField)` on an attribute type
     makes using it elsewhere a compile error.
   [Decorators](/features/decorators), [Attributes](/features/attributes).
+- VS Code extension 0.4.2: highlighting for parameter attributes and composed decorators.
 - Docs: [UI](/ui/) is its own section; the language's [JSX](/features/jsx)
   page is library-neutral; [Live protocol](/reference/live-protocol) is the
   reference for transport authors.
