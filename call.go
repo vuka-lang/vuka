@@ -22,15 +22,15 @@ type Decorator func(c *Call)
 
 // Func describes a decorated function. Vuka generates one per function.
 type Func struct {
-	Name     string // "main.charge", "Store.Save"
-	Attrs    []any  // the declaration's typed attributes
+	Name  string // "main.charge", "Store.Save"
+	Attrs []any  // the declaration's typed attributes
 	// ParamAttrs are each parameter's typed attributes, receiver excluded:
 	// func Show(@Path("id") id int) has [][]any{{Path("id")}}. Nil when no
 	// parameter has any.
 	ParamAttrs [][]any
 	ErrIndex   int // the trailing error result's index, or -1
-	CtxIndex int    // the context.Context argument's index, or -1
-	Zero     func() []any
+	CtxIndex   int // the context.Context argument's index, or -1
+	Zero       func() []any
 }
 
 // Call is one call of a decorated function, passed down its decorators.

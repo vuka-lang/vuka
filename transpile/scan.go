@@ -102,7 +102,7 @@ func (f *fileState) scan(errs *ErrorList) {
 	type frame struct {
 		typeGroup  bool
 		structBody bool
-		params     bool // a top-level func declaration's parameter list
+		params     bool   // a top-level func declaration's parameter list
 		structOf   string // the named type whose struct body this is
 		tparams    string
 		names      []string

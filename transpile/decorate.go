@@ -13,11 +13,11 @@ import (
 type decoKind int
 
 const (
-	decoTyped decoKind = iota // func(F) F, or for a type a generic func[T]
-	decoCall                  // vuka.Decorator: func(*vuka.Call), for any function
-	decoType                  // func(*vuka.Type), for a type
-	decoDecl                  // func(*vuka.Decl), a declarer: runs once at init, for a function
-	decoBundle                // vuka.Bundle: decorators and attributes composed into one
+	decoTyped  decoKind = iota // func(F) F, or for a type a generic func[T]
+	decoCall                   // vuka.Decorator: func(*vuka.Call), for any function
+	decoType                   // func(*vuka.Type), for a type
+	decoDecl                   // func(*vuka.Decl), a declarer: runs once at init, for a function
+	decoBundle                 // vuka.Bundle: decorators and attributes composed into one
 )
 
 // decoUse is one decorator on one declaration.
@@ -55,7 +55,7 @@ type funcDeco struct {
 	pattrs             [][]*Attr // each parameter's attributes, receiver excluded; nil when none has any
 	advice             []string  // the functions giving its type's advice, for a method
 	file               string    // the source file's base name
-	line               int     // the name's line
+	line               int       // the name's line
 }
 
 // typeDeco is a decorated type.
