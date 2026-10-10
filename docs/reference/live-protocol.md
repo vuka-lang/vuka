@@ -333,7 +333,9 @@ skipped `if` takes no branch.
 | `{"inner":".x"}` | `this.querySelectorAll(…)` |
 
 An operation on no element does nothing. `data-vk-ref` comes from the JSX
-attribute `ref="menu"`.
+attribute `ref="menu"`. In protocol v2 a `data-vk-js-…` attribute is a dynamic
+like any attribute written with an expression: it is sent again only when
+its JSON changes (a push's handler id moving, a value).
 
 **Conditions.** `cond` reads a target (the first element it names) when the
 `if` is reached:
