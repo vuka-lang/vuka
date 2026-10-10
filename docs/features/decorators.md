@@ -151,7 +151,7 @@ error on the literal. It is embedded in the binary, and the literal becomes a
 |---|---|
 | `f.Bytes()` | the content (a `File` Vuka didn't embed, such as `vuka.File("x")`, is read from disk) |
 | `f.Path()`, `f.Pkg()` | `"views/pet.html"`; the package's import path |
-| `vuka.TemplComponents(f)` | for a `.templ` file, its components in source order: `[]vuka.TemplComponent{{Name: "Show", Func: Show, Params: []string{"name"}}}`, `Func` a `func(…) templ.Component` |
+| `vuka.TemplComponents(f)` | for a `.templ` file, its components in source order: <span v-pre>`[]vuka.TemplComponent{{Name: "Show", Func: Show, Params: []string{"name"}}}`</span>, `Func` a `func(…) templ.Component` |
 
 A `.templ` file beside the package's files is part of the package (same
 `package` clause) and gives all its components. One in a subdirectory is the
