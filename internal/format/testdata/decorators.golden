@@ -1,0 +1,48 @@
+package main
+
+import "fmt"
+
+type Path string
+type Query string
+type Body struct{}
+type Valid struct{}
+type Doc string
+
+@vuka.Targets(vuka.OnParam | vuka.OnField)
+type Name string
+
+func Get(path string) func(*vuka.Decl) { return func(d *vuka.Decl) {} }
+
+decorator logged(c) { c.Next() }
+decorator timed(c) {
+	c.Next()
+}
+
+func Transactional(opts ...string) func(*vuka.Call) { return func(c *vuka.Call) { c.Next() } }
+
+decorator ApiRoute(path string) = @Get(path) @timed
+decorator Audited = @logged @Doc("audited")
+decorator Service = (
+	@logged
+	@Transactional
+)
+
+@ApiRoute("/pets/{id}")
+func show(@Path("id") id int, @Query("q") q string) string { return fmt.Sprint(id, q) }
+func create(@Body @Valid in Body, n int)                   {}
+func unnamed(@Path("x") *int, @Query("y") []string)        {}
+func long(
+	@Path("a") a,
+	@Path("b") b int,
+) {
+	fmt.Println(a, b)
+}
+
+@Audited
+@Service
+type Store struct{ n int }
+
+@vuka.NoAdvice
+func (s *Store) Dump(@Name("x") x string) string { return x }
+
+func main() {}

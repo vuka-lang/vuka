@@ -6,8 +6,8 @@ POST /pets -> added rex
 GET /admin -> admin:bob
 call main.showPet [1 no]
 pet 1 no
-GET /admin PetAdmin.Index declarers.vuka:85 recv=*main.PetAdmin params=[{user string}] results=[string]
-GET /hello main.hello declarers.vuka:74 recv=<nil> params=[{name string}] results=[string]
-GET /pets/{id} main.showPet declarers.vuka:70 recv=<nil> params=[{id string} {verbose string}] results=[string]
-POST /pets main.addPet declarers.vuka:79 recv=<nil> params=[{name string} {_ string}] results=[string]
-main true [{id int} {tags []string}] [string error]
+GET /admin PetAdmin.Index declarers.vuka:85 recv=*main.PetAdmin params=[{user string []}] results=[string]
+GET /hello main.hello declarers.vuka:74 recv=<nil> params=[{name string []}] results=[string]
+GET /pets/{id} main.showPet declarers.vuka:70 recv=<nil> params=[{id string []} {verbose string []}] results=[string]
+POST /pets main.addPet declarers.vuka:79 recv=<nil> params=[{name string []} {_ string []}] results=[string]
+main true [{id int []} {tags []string []}] [string error]

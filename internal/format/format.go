@@ -53,7 +53,7 @@ type exprResult struct {
 
 // construct is a Vuka construct found in the source and its Go stand-in.
 type construct struct {
-	kind       byte // 'J' JSX, 'S' static field, 'F' static method, 'D' decorator, 'A' attribute, 'B' field attribute, 'G' guard, 'T' ?, 'M' match, 'C' a decorator's call parameter
+	kind       byte // 'J' JSX, 'S' static field, 'F' static method, 'D' decorator, 'A' attribute, 'B' field attribute, 'P' parameter attribute, 'E' a composed decorator's elements, 'G' guard, 'T' ?, 'M' match, 'C' a decorator's call parameter
 	start, end int
 	el         *jElem
 	text       string // what is put back: the attribute, decorator head, static method head, static's name
@@ -61,6 +61,9 @@ type construct struct {
 	width      int    // the JSX marker's width
 	grown      bool   // the JSX went onto several lines in a pass
 	sameLine   bool   // the attribute is followed by its declaration on the same line
+	paren      bool   // a composed decorator's elements are in parentheses, one a line
+	noParams   bool   // a composed decorator without a parameter list
+	name       string // the identifier a parameter attribute's stand-in is glued to
 }
 
 func (fm *formatter) marker(prefix string, width int) string {
@@ -95,6 +98,17 @@ func (fm *formatter) standIn(c *construct) string {
 			return "/*" + fm.marker("B", textWidth(c.text)-4) + "*/"
 		}
 		return "//" + fm.marker("B", textWidth(c.text)-2)
+	case 'P':
+		// Glued to the parameter's first identifier: gofmt moves a comment
+		// in a parameter list onto the parameter before it.
+		// As wide as the attributes, so gofmt aligns what follows as it will be.
+		return c.rest + fm.marker("P", textWidth(c.text)+1) + c.name
+	case 'E':
+		// A function without a body: the elements stand as a comment after it.
+		if c.noParams {
+			return "() /*" + fm.marker("E", 0) + "*/"
+		}
+		return "/*" + fm.marker("E", 0) + "*/"
 	case 'G':
 		return ", " + fm.marker("G", 0) + ","
 	case 'T':
@@ -265,8 +279,10 @@ func scan(src []byte) ([]*construct, error) {
 		typeGroup  bool
 		structOf   bool
 		structBody bool
+		params     bool // a top-level func declaration's parameter list
 	}
 	var frames []frame
+	fstage := 0 // 1 in a top-level func declaration's head, before its parameters
 	top := func() frame {
 		if len(frames) == 0 {
 			return frame{}
@@ -285,6 +301,14 @@ func scan(src []byte) ([]*construct, error) {
 		switch {
 		case isOpen(t.tok):
 			fr := frame{typeGroup: t.tok == token.LPAREN && p.tok == token.TYPE}
+			if depth == 0 && fstage == 1 {
+				switch {
+				case t.tok == token.LPAREN && (p.tok == token.IDENT || p.tok == token.RBRACK):
+					fr.params, fstage = true, 0
+				case t.tok == token.LBRACE:
+					fstage = 0
+				}
+			}
 			fr.structBody = t.tok == token.LBRACE && p.tok == token.STRUCT
 			fr.structOf = fr.structBody && namedStruct(toks, pIdx, top().typeGroup)
 			frames = append(frames, fr)
@@ -300,9 +324,14 @@ func scan(src []byte) ([]*construct, error) {
 			cs = append(cs, c)
 			i, prev, prevIdx = last, toks[last], last
 		case t.tok == token.FUNC && depth == 0:
+			if p.tok != token.ASSIGN && p.tok != token.COMMA && p.tok != token.DEFINE {
+				fstage = 1
+			}
 			if c := staticFunc(toks, i); c != nil {
 				cs = append(cs, c)
 			}
+		case t.tok == token.SEMICOLON && depth == 0:
+			fstage = 0
 		case isQuestion(t):
 			if p.end() != t.off || p.tok == token.SEMICOLON {
 				return nil, errorAt(src, t.off, "unexpected ?: it goes right after the expression it unwraps, as in f()?")
@@ -310,6 +339,20 @@ func scan(src []byte) ([]*construct, error) {
 			cs = append(cs, &construct{kind: 'T', start: t.off, end: t.off + 1})
 		case t.tok == token.IDENT && t.lit == "decorator" && depth == 0 && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
 			cs = append(cs, &construct{kind: 'D', start: t.off, end: toks[i+1].end(), text: "decorator " + toks[i+1].lit})
+			eq := i + 2
+			if eq < len(toks) && toks[eq].tok == token.LPAREN {
+				eq, _, _ = matchClose(toks, eq)
+			}
+			if eq < len(toks) && toks[eq].tok == token.ASSIGN {
+				c, last, err := composed(src, toks, eq)
+				if err != nil {
+					return nil, err
+				}
+				c.noParams = eq == i+2
+				cs = append(cs, c)
+				i, prev, prevIdx = last, toks[last], last
+				continue
+			}
 			// decorator retry(n int)(c): (c) stands as a named result, or
 			// gofmt would drop its parentheses.
 			if i+2 < len(toks) && toks[i+2].tok == token.LPAREN {
@@ -335,6 +378,45 @@ func scan(src []byte) ([]*construct, error) {
 			cs = append(cs, c)
 			toks = append(toks[:i:i], append([]tok{{t.off, token.IDENT, string(src[t.off:el.end])}}, scanAfterOperand(src, el.end)...)...)
 			prev = toks[i]
+		case isAt(t) && depth == 1 && top().params:
+			c, next, err := attrAt(src, toks, i)
+			if err != nil {
+				return nil, err
+			}
+			c.kind = 'P'
+			j := next
+			for j < len(toks) && toks[j].tok == token.COMMENT {
+				j++
+			}
+			if j < len(toks) && isAt(toks[j]) {
+				// Another attribute of the same parameter: read with it.
+				if n := len(cs); n > 0 && cs[n-1].kind == 'P' && cs[n-1].end == 0 {
+					cs[n-1].text += "\x00" + c.text
+				} else {
+					c.end = 0
+					cs = append(cs, c)
+				}
+				i = next - 1
+				prev, prevIdx = toks[i], i
+				continue
+			}
+			id := j
+			for id < len(toks) && toks[id].tok != token.IDENT && toks[id].tok != token.COMMA && toks[id].tok != token.RPAREN {
+				id++
+			}
+			if j >= len(toks) || id >= len(toks) || toks[id].tok != token.IDENT {
+				return nil, errorAt(src, c.start, "a parameter attribute goes before a parameter")
+			}
+			if n := len(cs); n > 0 && cs[n-1].kind == 'P' && cs[n-1].end == 0 {
+				cs[n-1].text += "\x00" + c.text
+				c = cs[n-1]
+			} else {
+				cs = append(cs, c)
+			}
+			c.end, c.name = toks[id].end(), toks[id].lit
+			c.rest = strings.Join(strings.Fields(string(src[toks[j].off:toks[id].off])), " ")
+			i = next - 1
+			prev, prevIdx = toks[i], i
 		case isAt(t) && top().structBody:
 			c, next, err := attrAt(src, toks, i)
 			if err != nil {
@@ -392,7 +474,7 @@ func scan(src []byte) ([]*construct, error) {
 			if c.rest, ok = goSnippet(kw+name+" ", c.rest); !ok {
 				return nil, errorAt(src, c.start, "bad "+c.text)
 			}
-		case 'A', 'B':
+		case 'A', 'B', 'P', 'E':
 			attrs := strings.Split(c.text, "\x00")
 			for i, a := range attrs {
 				if attrs[i], ok = goSnippet("var _ = ", a[1:]); !ok {
@@ -401,9 +483,53 @@ func scan(src []byte) ([]*construct, error) {
 				attrs[i] = "@" + attrs[i]
 			}
 			c.text = strings.Join(attrs, " ")
+			if c.kind == 'E' && c.paren {
+				c.text = "(\n\t" + strings.Join(attrs, "\n\t") + "\n)"
+			}
 		}
 	}
 	return cs, nil
+}
+
+// composed reads a composed decorator's elements after its = at toks[eq]:
+// attributes on its line, or one a line in parentheses. It returns the index
+// of its last token.
+func composed(src []byte, toks []tok, eq int) (*construct, int, error) {
+	c := &construct{kind: 'E', start: toks[eq].off}
+	k := eq + 1
+	if k < len(toks) && toks[k].tok == token.LPAREN {
+		c.paren = true
+		k++
+	}
+	var elems []string
+	last := eq
+	for ; k < len(toks); k++ {
+		t := toks[k]
+		switch {
+		case c.paren && trivia(t):
+			continue
+		case c.paren && t.tok == token.RPAREN:
+			c.end, c.text = t.end(), strings.Join(elems, "\x00")
+			return c, k, nil
+		case !isAt(t):
+			if c.paren || len(elems) == 0 {
+				return nil, 0, errorAt(src, t.off, "a composed decorator is attributes and decorators, each starting with @")
+			}
+			c.end, c.text = toks[last].end(), strings.Join(elems, "\x00")
+			return c, last, nil
+		}
+		a, next, err := attrAt(src, toks, k)
+		if err != nil {
+			return nil, 0, err
+		}
+		elems = append(elems, a.text)
+		last, k = next-1, next-1
+	}
+	if c.paren || len(elems) == 0 {
+		return nil, 0, errorAt(src, c.start, "unclosed composed decorator")
+	}
+	c.end, c.text = toks[last].end(), strings.Join(elems, "\x00")
+	return c, last, nil
 }
 
 // matchAt reads the match whose keyword is toks[i]: its keyword and guards
@@ -665,6 +791,16 @@ func (fm *formatter) restore(src, orig []byte, cs []*construct, switches []bool)
 			si++
 		case t.tok == token.COMMENT && t.lit == "/*"+m+"A*/":
 			put(t.off, t.end(), next('A').text)
+		case t.tok == token.COMMENT && t.lit == "/*"+m+"E*/":
+			c := next('E')
+			start := t.off
+			if c.noParams && k > 1 && toks[k-1].tok == token.RPAREN && toks[k-2].tok == token.LPAREN {
+				start = toks[k-2].off // the () standing in for no parameters
+			}
+			b.Write(src[last:start])
+			b.Truncate(len(bytes.TrimRight(b.Bytes(), " ")))
+			b.WriteString(" = " + c.text)
+			last = t.end()
 		case t.tok == token.COMMENT && len(t.lit) > 2 && strings.HasPrefix(t.lit[2:], m+"B"):
 			rest := strings.TrimLeft(t.lit[2+len(m)+1:], "_")
 			if strings.HasPrefix(t.lit, "/*") {
@@ -689,6 +825,12 @@ func (fm *formatter) restore(src, orig []byte, cs []*construct, switches []bool)
 				put(toks[k-3].end(), toks[k-2].off, "")
 			}
 			put(toks[k-1].end(), t.end(), "")
+		case strings.HasPrefix(t.lit, m+"P"):
+			c := next('P')
+			b.Write(src[last:t.off])
+			b.Truncate(b.Len() - len(c.rest)) // the type's start, before its identifier
+			b.WriteString(c.text + " " + c.rest + c.name)
+			last = t.end()
 		case strings.HasPrefix(t.lit, m+"F"):
 			put(t.off, t.end(), next('F').text)
 		case strings.HasPrefix(t.lit, m+"S") && k+1 < len(toks) && toks[k+1].tok == token.IDENT:
