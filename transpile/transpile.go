@@ -147,6 +147,12 @@ type fileState struct {
 	static      genWriter // the statics' declarations
 	staticErrs  []*Error
 	autoImports map[string]bool // packages imported for statics reached through other types
+	spellings   []spelling      // rewritten expressions, for messages
+}
+
+// spell records that gen, as messages quote it, is src at src offset off.
+func (f *fileState) spell(gen, src string, off int) {
+	f.spellings = append(f.spellings, spelling{gen: gen, src: src, line: f.at(off).Line})
 }
 
 // at is the position of a src offset.
@@ -385,6 +391,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 	b.WriteString(f.trailer)
 	m.add(b.Len(), extraSegs)
 	b.WriteString(extra)
+	m.spellings = f.spellings
 	return b.Bytes(), m, bodyEnd
 }
 

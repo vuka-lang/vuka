@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/vuka-lang/vuka/internal/load"
@@ -113,13 +114,15 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	goArgs := []string{cmd}
+	var gens []load.Generated
 	if len(pkgs) > 0 {
 		tmp, err := os.MkdirTemp("", "vuka-")
 		if err != nil {
 			return err
 		}
 		defer os.RemoveAll(tmp)
-		gens, overlay, err := load.Transpile(pkgs, tmp, load.Options{})
+		var overlay string
+		gens, overlay, err = load.Transpile(pkgs, tmp, load.Options{})
 		if err != nil {
 			return err
 		}
@@ -131,15 +134,80 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		goArgs = append(goArgs, "-overlay="+overlay)
 	}
 	c := exec.Command("go", append(goArgs, args...)...)
-	c.Stdin, c.Stdout, c.Stderr = os.Stdin, stdout, stderr
 	// The overlay names real paths; run go from the real directory, or in a
 	// symlinked one (macOS's /tmp is /private/tmp) it finds no files.
 	if wd, err := os.Getwd(); err == nil {
+		c.Dir = wd
 		if real, err := filepath.EvalSymlinks(wd); err == nil {
 			c.Dir, c.Env = real, append(os.Environ(), "PWD="+real)
 		}
 	}
-	return c.Run()
+	r := &respeller{w: stderr, dir: c.Dir, gens: gens}
+	c.Stdin, c.Stdout, c.Stderr = os.Stdin, stdout, r
+	err = c.Run()
+	r.flush()
+	return err
+}
+
+// respeller passes the go command's errors on, with the code they quote in a
+// .vuka file spelt as the source spells it (transpile.SourceMap.Message).
+type respeller struct {
+	w    io.Writer
+	dir  string
+	gens []load.Generated
+	buf  []byte
+}
+
+func (r *respeller) Write(p []byte) (int, error) {
+	r.buf = append(r.buf, p...)
+	for {
+		i := bytes.IndexByte(r.buf, '\n')
+		if i < 0 {
+			return len(p), nil
+		}
+		line := string(r.buf[:i+1])
+		r.buf = r.buf[i+1:]
+		if _, err := io.WriteString(r.w, r.respell(line)); err != nil {
+			return len(p), err
+		}
+	}
+}
+
+func (r *respeller) flush() {
+	if len(r.buf) > 0 {
+		io.WriteString(r.w, r.respell(string(r.buf)))
+		r.buf = nil
+	}
+}
+
+// respell rewrites one line of the form path.vuka:line:col: message.
+func (r *respeller) respell(line string) string {
+	m := vukaErr.FindStringSubmatchIndex(line)
+	if m == nil {
+		return line
+	}
+	path, n := line[m[2]:m[3]], 0
+	fmt.Sscan(line[m[4]:m[5]], &n)
+	if !filepath.IsAbs(path) {
+		path = filepath.Join(r.dir, path)
+	}
+	for _, g := range r.gens {
+		if g.Map != nil && sameFile(g.Source, path) {
+			return line[:m[6]] + g.Map.Message(n, line[m[6]:m[7]]) + line[m[7]:]
+		}
+	}
+	return line
+}
+
+var vukaErr = regexp.MustCompile(`^\s*(\S+\.vuka):(\d+):(?:\d+:)? (.*?)\r?\n?$`)
+
+func sameFile(a, b string) bool {
+	if filepath.Clean(a) == filepath.Clean(b) {
+		return true
+	}
+	ra, err1 := filepath.EvalSymlinks(a)
+	rb, err2 := filepath.EvalSymlinks(b)
+	return err1 == nil && err2 == nil && ra == rb
 }
 
 // gen writes the build/ module: the module with each .vuka file replaced by

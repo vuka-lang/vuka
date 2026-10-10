@@ -375,7 +375,12 @@ func (e *engine) report() {
 			strings.Contains(te.Msg, "cannot infer T") {
 			continue
 		}
-		e.errs.add(e.typeErrPos(te), "%s", te.Msg)
+		pos, msg := e.typeErrPos(te), te.Msg
+		if f := e.fileOf(te.Pos); f != nil && f.vuka {
+			m := SourceMap{spellings: f.spellings}
+			msg = m.Message(pos.Line, msg)
+		}
+		e.errs.add(pos, "%s", msg)
 		shown++
 	}
 }

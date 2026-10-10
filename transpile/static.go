@@ -536,6 +536,7 @@ func (e *engine) resolveStatics(f *fileState) {
 		}
 		f.done[start] = true
 		f.add(start, f.orig(sel.End()), text)
+		f.spell(text, types.ExprString(sel), start)
 		e.progress = true
 		return false
 	})

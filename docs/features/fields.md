@@ -126,6 +126,11 @@ with a suggestion (`Post has no field Titel; did you mean Title?`), as is an
 unexported field of another package's type, or a name more than one embedded
 struct supplies.
 
+Compile errors — from `vuka build`, the editor or Vuka itself — quote a
+reference as the source writes it: `cannot use Post.Views (value of struct type
+vuka.OrderedRef[Post, int]) as int value`, as they quote statics as
+`Post.Limit`.
+
 References to the fields of standard-library types (`http.Cookie.Name`) are
 found only when the package is type-checked for another reason; references
 inside an attribute's arguments aren't lowered.

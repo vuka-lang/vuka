@@ -1176,7 +1176,7 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 			if strings.Contains(msg, placeholder) {
 				continue
 			}
-			obj["message"] = importHint(demangle(msg), p.modRoot, p.modPath)
+			obj["message"] = importHint(demangle(vf.m.Message(int(r.Start.Line)+1, msg)), p.modRoot, p.modPath)
 		}
 		delete(obj, "relatedInformation")
 		delete(obj, "data")

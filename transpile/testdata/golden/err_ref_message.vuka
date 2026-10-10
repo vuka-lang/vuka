@@ -1,0 +1,16 @@
+package main
+
+type User struct {
+	Name string
+	Age  int
+
+	static Limit = 10
+}
+
+func main() {
+	var q int = User.Age
+	_ = User.Name + 1
+	_ = User.Limit + ""
+	x := None
+	_, _ = q, x
+}

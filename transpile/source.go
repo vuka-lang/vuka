@@ -159,7 +159,86 @@ type segment struct {
 // source. Text Vuka copied maps exactly; text it wrote maps to the start of what
 // it replaced.
 type SourceMap struct {
-	segs []segment // ordered by gen
+	segs      []segment // ordered by gen
+	spellings []spelling
+}
+
+// spelling is how compiler messages quote code Vuka rewrote (gen, as
+// types.ExprString writes it) and how the source spells it, on line.
+type spelling struct {
+	gen, src string
+	line     int
+}
+
+// Message rewrites a compiler message about line of the source so that the
+// code it quotes reads as the source wrote it: a field reference as
+// User.Name, not vuka.StringRefOf[User, string]([][]int{…}, …), a static as
+// User.Table, not User_Table. Where one quoted form stands for differently
+// spelled code, the spelling on line wins; failing that, it stays as is.
+func (m *SourceMap) Message(line int, msg string) string {
+	if m == nil || len(m.spellings) == 0 {
+		return msg
+	}
+	byGen := map[string][]spelling{}
+	var gens []string
+	for _, s := range m.spellings {
+		if byGen[s.gen] == nil {
+			gens = append(gens, s.gen)
+		}
+		byGen[s.gen] = append(byGen[s.gen], s)
+	}
+	sort.SliceStable(gens, func(i, j int) bool { return len(gens[i]) > len(gens[j]) })
+	for _, g := range gens {
+		if !strings.Contains(msg, g) {
+			continue
+		}
+		src := oneSpelling(byGen[g], -1)
+		if src == "" {
+			src = oneSpelling(byGen[g], line)
+		}
+		if src != "" {
+			msg = replaceWord(msg, g, src)
+		}
+	}
+	return msg
+}
+
+// oneSpelling is the source spelling all of ss (those on line, unless it is
+// -1) share, or "".
+func oneSpelling(ss []spelling, line int) string {
+	src := ""
+	for _, s := range ss {
+		switch {
+		case line >= 0 && s.line != line:
+		case src == "":
+			src = s.src
+		case src != s.src:
+			return ""
+		}
+	}
+	return src
+}
+
+// replaceWord replaces old in s where it isn't part of a longer name.
+func replaceWord(s, old, repl string) string {
+	isWord := func(b byte) bool {
+		return b == '_' || '0' <= b && b <= '9' || 'a' <= b && b <= 'z' || 'A' <= b && b <= 'Z'
+	}
+	var b strings.Builder
+	for {
+		i := strings.Index(s, old)
+		if i < 0 {
+			break
+		}
+		end := i + len(old)
+		if i > 0 && isWord(s[i-1]) && isWord(old[0]) || end < len(s) && isWord(s[end]) && isWord(old[len(old)-1]) {
+			b.WriteString(s[:end])
+		} else {
+			b.WriteString(s[:i] + repl)
+		}
+		s = s[end:]
+	}
+	return b.String() + s
 }
 
 func (m *SourceMap) add(base int, segs []segment) {
