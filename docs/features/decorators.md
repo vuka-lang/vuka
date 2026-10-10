@@ -81,44 +81,37 @@ A type decorator runs at start-up with the type: `func Model(t *vuka.Type)` gets
 A decorator of type `func(d *vuka.Decl)` — or a call returning one — is a
 **declarer**: it doesn't wrap calls, it runs once at program start with a
 description of the declaration. That is how a library registers routes,
-commands or jobs from the functions it decorates:
+commands or jobs from the functions it decorates. A small command registry:
 
 ```vuka
-package web
+var commands = map[string]*vuka.Decl{}
 
-type route struct {
-	method, path string
-	decl         *vuka.Decl
+func Command(name string) func(*vuka.Decl) {
+	return func(d *vuka.Decl) { commands[name] = d }
 }
 
-var routes []route
-
-func Get(path string) func(*vuka.Decl) {
-	return func(d *vuka.Decl) { routes = append(routes, route{"GET", path, d}) }
-}
-
-// serve calls a handler with its parameters bound by name.
-func serve(r route, params map[string]string) []reflect.Value {
-	var args []reflect.Value
-	for _, p := range r.decl.Params {
-		args = append(args, reflect.ValueOf(params[p.Name]).Convert(p.Type))
+// run calls a command with its arguments bound to parameters by name.
+func run(name string, args map[string]string) []reflect.Value {
+	d := commands[name]
+	var in []reflect.Value
+	for _, p := range d.Params {
+		in = append(in, reflect.ValueOf(args[p.Name]).Convert(p.Type))
 	}
-	return reflect.ValueOf(r.decl.Func).Call(args)
+	return reflect.ValueOf(d.Func).Call(in)
 }
-```
 
-```vuka
-@web.Get("/pets/{id}")
+@Command("greet")
 @logged
-func showPet(id string) Pet { … }
+func greet(name string) string { return "hello " + name }
+
+run("greet", map[string]string{"name": "ada"})   // -> main.greet [ada] …
 ```
 
-This is how the [web framework](/web/routes)'s routes, services and
-controllers are declared.
+The [web framework](/web/routes) declares its routes this way.
 
 | `*vuka.Decl` | |
 |---|---|
-| `d.Name`, `d.Pkg` | `"main.showPet"` or `"PetAdmin.Index"`; the import path |
+| `d.Name`, `d.Pkg` | `"main.greet"`, or `"Shell.Run"` for a method; the import path |
 | `d.File`, `d.Line` | where it is declared, for messages |
 | `d.Func` | the function, wrapped by its other decorators (`@logged` runs when it is called); for a method, the method expression `func(recv, args…)` |
 | `d.Recv` | the receiver's type, for a method |
@@ -139,9 +132,13 @@ A string literal passed where a decorator or a typed attribute takes a
 directory:
 
 ```vuka
-func Template(view vuka.File) func(*vuka.Decl) { … }
+var pages = map[string]vuka.File{}
 
-@web.Template("views/pet.html")
+func Page(view vuka.File) func(*vuka.Decl) {
+	return func(d *vuka.Decl) { pages[d.Name] = view }
+}
+
+@Page("views/pet.html")
 func showPet(id string) Pet { … }
 ```
 
@@ -168,8 +165,7 @@ still embedded only from the package's directory or below: a path such as
 `../shared/x.templ` is an error, since `go:embed` can't reach up.
 
 The parameter or field must be `vuka.File` itself; literals elsewhere aren't
-embedded. The web framework's `@web.Template` takes one: see
-[Views](/web/views).
+embedded. The web framework's views are files of this kind: see [Views](/web/views).
 
 ## Details
 

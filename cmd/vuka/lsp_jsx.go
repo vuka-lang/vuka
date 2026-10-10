@@ -57,6 +57,11 @@ func readTag(src []byte, i int) (jsxTag, bool) {
 		j++
 	}
 	t.nameEnd, t.name = j, string(src[t.nameStart:j])
+	if j < len(src) && src[j] == '[' && t.name != "" && !t.close { // a generic component: <List[User]>
+		if e := strings.IndexAny(string(src[j:]), "]\n<>"); e > 0 && src[j+e] == ']' {
+			j += e + 1
+		}
+	}
 	if t.name != "" && !isLetter(t.name[0]) || t.name == "" && j < len(src) && !isSpace(src[j]) && src[j] != '>' {
 		return t, false
 	}
@@ -275,11 +280,16 @@ func tagAround(src []byte, off int) (jsxTag, bool) {
 			continue
 		}
 		t, ok := readTag(src, i)
-		if ok && off > t.nameEnd && (t.done && off < t.end || !t.done && off <= t.stop) {
+		if ok && off > t.nameEnd && (t.done && off < t.end || !t.done && (off <= t.stop || openQuote(src, t.stop, off))) {
 			return t, true
 		}
 	}
 	return jsxTag{}, false
+}
+
+// openQuote reports whether a quote at q opens a value still being typed at off.
+func openQuote(src []byte, q, off int) bool {
+	return q < len(src) && (src[q] == '"' || src[q] == '\'') && off <= len(src) && !strings.ContainsAny(string(src[q+1:off]), "\n\"'")
 }
 
 // closeTagAt is the closing tag whose name holds off.
@@ -338,27 +348,6 @@ func matchClose(src []byte, o jsxTag) (jsxTag, bool) {
 	return jsxTag{}, false
 }
 
-// unclosedBefore is the innermost element still open at i.
-func unclosedBefore(src []byte, i int) string {
-	pending := map[string]int{}
-	for i--; i >= 0; i-- {
-		if src[i] != '<' || !tagAt(src, i) {
-			continue
-		}
-		t, ok := readTag(src, i)
-		switch {
-		case !ok || !t.done || t.self:
-		case t.close:
-			pending[t.name]++
-		case pending[t.name] > 0:
-			pending[t.name]--
-		default:
-			return t.name
-		}
-	}
-	return ""
-}
-
 // closeTwin is, for a range on an opening tag's name, the same range on its
 // closing tag: what a rename or a reference of the component also covers.
 func closeTwin(src []byte, r lspRange) (lspRange, bool) {
@@ -399,8 +388,9 @@ func bindName(names []string, attr string) int {
 
 // jsxSpot is where in markup a completion was asked.
 type jsxSpot struct {
-	kind string // "tag", "close" or "attr"
-	tag  jsxTag // for attr: the tag
+	kind string // "tag", "close", "attr" or "value"
+	tag  jsxTag // for attr and value: the tag
+	attr string // for value: the attribute
 	lt   int    // for tag and close: the <
 	from int    // the start of what's typed
 	qual string // for tag: a package typed before the name (pkg.)
@@ -426,10 +416,26 @@ func completionSpot(src []byte, off int) (jsxSpot, bool) {
 	if !ok || t.close {
 		return jsxSpot{}, false
 	}
+	valueSpot := func(attr string) (jsxSpot, bool) {
+		if isComponentTag(t.name) {
+			return jsxSpot{}, false
+		}
+		w := off
+		for w > 0 && !isSpace(src[w-1]) && src[w-1] != '"' && src[w-1] != '\'' {
+			w--
+		}
+		return jsxSpot{kind: "value", tag: t, attr: attr, from: w}, true
+	}
 	for _, a := range t.attrs {
 		if a.valStart > 0 && off > a.valStart && off < a.valEnd {
-			return jsxSpot{}, false // in a value: Go
+			if a.expr {
+				return jsxSpot{}, false // in a value: Go
+			}
+			return valueSpot(a.name)
 		}
+	}
+	if n := len(t.attrs); !t.done && n > 0 && t.attrs[n-1].valStart == 0 && t.stop < len(src) && (src[t.stop] == '"' || src[t.stop] == '\'') && off > t.stop {
+		return valueSpot(t.attrs[n-1].name) // in a value not closed yet
 	}
 	w := off
 	for w > 0 && isNameByte(src[w-1]) {
@@ -441,40 +447,41 @@ func completionSpot(src []byte, off int) (jsxSpot, bool) {
 	return jsxSpot{kind: "attr", tag: t, from: w}, true
 }
 
-// htmlTags are offered after < beside the components in scope.
-var htmlTags = strings.Fields(`a abbr article aside audio b blockquote body br button canvas code dd details dialog div dl dt
-	em fieldset figure footer form h1 h2 h3 h4 h5 h6 head header hr html i iframe img input label legend li link main
-	meta nav ol optgroup option p pre progress section select small span strong style summary sup table tbody td
-	template textarea tfoot th thead time title tr u ul video`)
-
-// htmlAttrs are offered in an HTML element's tag.
-var htmlAttrs = strings.Fields(`className id style key href src alt title type name value placeholder disabled checked
-	htmlFor target rel role width height action method`)
-
-// htmlEvents are the event handlers offered on an element, after its attributes.
-var htmlEvents = strings.Fields(`onClick onInput onChange onSubmit onKeyDown`)
-
 // completeJSX answers a completion in markup.
 func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) any {
 	src := vf.text()
 	typed := lspRange{positionOf(src, spot.from), positionOf(src, off)}
 	var items []any
+	var last map[string]any
 	item := func(label string, kind int, detail, text string, format int, sort string) {
-		it := map[string]any{"label": label, "kind": kind, "sortText": sort, "filterText": label,
+		last = map[string]any{"label": label, "kind": kind, "sortText": sort, "filterText": label,
 			"textEdit": map[string]any{"range": typed, "newText": text}, "insertTextFormat": format}
 		if detail != "" {
-			it["detail"] = detail
+			last["detail"] = detail
 		}
-		items = append(items, it)
+		items = append(items, last)
+	}
+	doc := func(md string) {
+		if md != "" {
+			last["documentation"] = map[string]any{"kind": "markdown", "value": md}
+		}
 	}
 	switch spot.kind {
 	case "close":
-		if name := unclosedBefore(src, spot.lt); name != "" {
+		if e, ok := scanMarkup(src).unclosedAt(spot.lt); ok {
+			name := e.open.name
 			text := name
 			if off >= len(src) || src[off] != '>' {
 				text += ">"
 			}
-			item(name, 14, "", text, 1, "0")
+			label := name
+			if name == "" {
+				label = "</>"
+			}
+			item(label, 14, "", text, 1, "0")
+			if h := htmlElements[name]; h != nil {
+				doc(elementDoc(h))
+			}
 		}
 	case "tag":
 		structs := 0
@@ -498,8 +505,14 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			}
 		}
 		if spot.qual == "" {
-			for _, t := range htmlTags {
-				item(t, 14, "", t, 1, "1"+t)
+			for i, t := range htmlElemNames {
+				e := htmlElements[t]
+				detail := "HTML element"
+				if e.svg {
+					detail = "SVG element"
+				}
+				item(t, 14, detail, t, 1, fmt.Sprintf("1%03d", i))
+				doc(elementDoc(e))
 			}
 		}
 	case "attr":
@@ -510,15 +523,43 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			}
 		}
 		if !isComponentTag(spot.tag.name) {
-			for i, a := range htmlAttrs {
-				if !used[a] {
-					item(a, 5, "", a+`="$1"`, 2, fmt.Sprintf("%02d", i))
+			tag := spot.tag.name
+			own, global := elementAttrs(tag)
+			attr := func(group string, i int, a string) {
+				if used[a] {
+					return
+				}
+				text, format := a+`="$1"`, 2
+				switch {
+				case htmlBooleans[a]:
+					text, format = a, 1
+				case a == "style" || a == "key":
+					text = a + "={$1}"
+				}
+				item(a, 5, "", text, format, fmt.Sprintf("%s%03d", group, i))
+				doc(attrDoc(tag, a))
+				if len(attrValues(tag, a)) > 0 {
+					last["command"] = map[string]any{"title": "values", "command": "editor.action.triggerSuggest"}
 				}
 			}
-			for i, a := range htmlEvents {
-				if !used[a] {
-					item(a, 23, "event handler", a+`={$1}`, 2, fmt.Sprintf("%02d", len(htmlAttrs)+i))
+			for i, a := range own {
+				attr("0", i, a)
+			}
+			for i, a := range global {
+				attr("1", i, a)
+			}
+			if e := htmlElements[tag]; e == nil || !e.svg {
+				for i, a := range htmlEventNames {
+					if !used[a] {
+						item(a, 23, "event handler", a+"={$1}", 2, fmt.Sprintf("2%03d", i))
+						doc(attrDoc(tag, a))
+					}
 				}
+				for i, a := range htmlAriaNames {
+					attr("3", i, a)
+				}
+				item("data-", 5, "custom data attribute", `data-${1:name}="$2"`, 2, "4")
+				doc(attrDoc(tag, "data-x"))
 			}
 			break
 		}
@@ -534,6 +575,10 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				text = a.name + `="$1"`
 			}
 			item(a.name, 5, a.typ, text, 2, fmt.Sprintf("%02d", i))
+		}
+	case "value":
+		for i, v := range attrValues(spot.tag.name, spot.attr) {
+			item(v, 12, spot.attr, v, 1, fmt.Sprintf("%03d", i))
 		}
 	}
 	return map[string]any{"isIncomplete": spot.kind == "tag", "items": items}

@@ -58,7 +58,7 @@ keeps the generated Go open in gopls as unsaved buffers (nothing is written to
 your tree) and maps every position both ways. Completion, hover, signature
 help, go to definition, references, rename, outline, code actions, inlay
 hints and formatting (`vuka fmt`) all work; Vuka's own errors and Go's type errors show on the `.vuka`
-lines. Overloads show under the name you wrote (`area`, not `area__Circle`). `vuka.File` paths (`@web.Template("views/pets.templ")`) are clickable.
+lines. Overloads show under the name you wrote (`area`, not `area__Circle`). `vuka.File` paths (`@Page("views/pets.templ")`) are clickable.
 
 - **VS Code:** the extension in [`editors/vscode`](editors/vscode)
   (`npm install && npx vsce package`, then install the `.vsix`). It offers to
@@ -194,11 +194,11 @@ wrapper that builds the decorated function once; recursion goes through it;
 `init`, overloads, generic functions and `type ( … )` groups can be decorated.
 
 A **declarer**, `func(d *vuka.Decl)` (or a call returning one, such as
-`@web.Get("/pets/{id}")`), doesn't wrap calls: it runs once at init, top to
+`@Command("greet")`), doesn't wrap calls: it runs once at init, top to
 bottom, with the function's name, attributes, parameter names and types, and
 the decorated function itself — the way to register routes, commands or jobs.
 A string literal passed where a decorator or attribute takes a `vuka.File`
-(`@web.Template("views/pet.html")`) is checked at compile time and embedded in
+(`@Page("views/pet.html")`) is checked at compile time and embedded in
 the binary; `f.Bytes()` reads it, and `vuka.TemplComponents(f)` gives a
 `.templ` file's components with their parameter names — also for a `.templ`
 file in a subdirectory, which is a package of its own (`package views`).
@@ -230,31 +230,30 @@ name with a field or method (in Go, `User.Save` already means a method).
 A static on a **generic** type has one value per instantiation, and statics are
 reached **through embedding**. With a base type whose type parameter is named
 `Self`, Vuka fills in the embedding type, and methods taking `self *Self` get
-the whole outer value. That's enough for a Django-style model API:
+the whole outer value:
 
 ```go
-// package orm
 type Model[Self any] struct {
-	static Objects = Manager[Self]{}
+	static Objects = Store[Self]{}           // one Store per embedding type
 }
 
-func (m *Model[Self]) Save(self *Self, ctx context.Context) error { … }
+func (m *Model[Self]) Save(self *Self) { Model[Self].Objects.Add(self) }
 
-// your models
 type User struct {
-	orm.Model               // = orm.Model[User]
+	Model               // = Model[User]
 	Name string
 }
 
-users := User.Objects.All(ctx)   // the User manager, from orm.Model
-err := u.Save(ctx)               // Save gets u itself as self
+u.Save()                    // Save gets u itself as self
+users := User.Objects.All() // User's own store, from Model
 ```
 
-`orm.Model[User]` written out works the same. `Self` is filled in only for a
+`Model[User]` written out works the same. `Self` is filled in only for a
 type parameter of that name, so other generics never get a type argument you
 didn't write. A type embedding `User` reaches `User`'s statics, as Go promotes
 fields; `self` there is the embedded `User`. Calls that pass `self` must not
-have side effects in the receiver expression (Vuka uses it twice).
+have side effects in the receiver expression (Vuka uses it twice). The
+[orm](https://github.com/vuka-lang/orm) library's models are built this way.
 
 **Field attributes and references.** A struct field takes typed attributes
 after it (after its tag, if any), and `Type.Field` — meaningless in Go — is a

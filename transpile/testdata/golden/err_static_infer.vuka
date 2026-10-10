@@ -1,0 +1,8 @@
+package main
+
+type Box[T any] struct {
+	static cache = nil
+	static ok    = make(map[string]T)
+}
+
+func main() { _ = Box[int].ok }

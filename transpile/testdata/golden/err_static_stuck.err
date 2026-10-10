@@ -1,0 +1,3 @@
+err_static_stuck.vuka:4:9: can't infer the type of static Box.bad; write it: static bad T = …
+err_static_stuck.vuka:4:15: undefined: undefinedThing
+err_static_stuck.vuka:7:32: Box[int].bad.Len undefined (type any has no field or method Len)

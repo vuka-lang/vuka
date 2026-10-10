@@ -10,6 +10,26 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.8.0 — 2026-10-10
+
+Runtime: unchanged, v0.7.0.
+
+- **Seamless JSX editing.** Completion for every HTML element (and SVG
+  basics) with descriptions, each element's own attributes before global
+  ones, event handlers, `aria-*`/`data-*`, enumerated attribute values,
+  closing tags, and `{for}`/`{if}`/`{match}` blocks with placeholders; hover
+  on elements and attributes with MDN links; linked editing renames a tag's
+  closing tag as you type; JSX elements and blocks fold; at most one
+  diagnostic while a tag is half-typed.
+- **Statics:** a generic type's static takes any initializer —
+  `&Store[Self]{}`, `NewStore[Self]()`, `new(Store[Self])`, literals — with
+  its type inferred, `Self` per instantiation.
+- **VS Code extension 0.4.1:** closing tags after other tags on a line and
+  inside attribute braces, `{` pairs inside elements, Enter indents between
+  tags, `editor.linkedEditing` on for `.vuka` files.
+- Docs: the language pages are library-free; the web framework and the ORM
+  have their own sections.
+
 ## v0.7.0 — 2026-10-10
 
 Runtime: `github.com/vuka-lang/vuka v0.7.0` (new: `vuka.Live`, `vuka.Component`,

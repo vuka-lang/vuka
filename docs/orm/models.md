@@ -41,7 +41,10 @@ the attribute.
 ## orm.Base
 
 `orm.Base` is a Vuka model's base; Vuka fills in the type, so `orm.Base` in
-`Post` is `orm.Base[Post]`. It gives the rows their methods:
+`Post` is `orm.Base[Post]` — its type parameter is named
+[`Self`](/features/statics#through-embedding-with-self), and its static
+`Objects` has one value per model (`Post.Objects` is
+`orm.Base_Objects[Post]().V` in Go). It gives the rows their methods:
 
 | | |
 |---|---|

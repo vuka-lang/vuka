@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Vuka language support: Go with Result, Option, ?, match, overloading, decorators, statics, typed field attributes and JSX components (stateless, stateful and live). Highlighting, snippets, format on save, and completion, navigation, rename and diagnostics through gopls.",
-  "version": "0.4.0",
+  "version": "0.4.1",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -90,7 +90,8 @@
     ],
     "configurationDefaults": {
       "[vuka]": {
-        "editor.formatOnSave": true
+        "editor.formatOnSave": true,
+        "editor.linkedEditing": true
       }
     },
     "configuration": {
@@ -134,7 +135,7 @@
         "vuka.autoCloseTags": {
           "type": "boolean",
           "default": true,
-          "description": "Add the closing tag when a JSX opening tag is finished by typing its >."
+          "description": "Add the closing tag when a JSX opening tag is finished by typing its >, and the open element's name after </."
         }
       }
     },
@@ -170,6 +171,6 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs"
   }
 }

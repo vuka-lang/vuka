@@ -416,6 +416,7 @@ type vukaRequest struct {
 	full      lspRange  // and after the @
 	qualifier string    // the package typed before the dot, if any
 	closeTag  *lspRange // asked on a closing tag's name, sent to its opening tag's
+	blocks    *lspRange // completion after a markup child's {: the word typed, for block snippets
 }
 
 type proxy struct {
@@ -473,21 +474,23 @@ func (p *proxy) stop() {
 
 // vukaMethods are the .vuka requests answered by gopls on the generated Go.
 var vukaMethods = map[string]bool{
-	"textDocument/hover":             true,
-	"textDocument/completion":        true,
-	"textDocument/signatureHelp":     true,
-	"textDocument/definition":        true,
-	"textDocument/declaration":       true,
-	"textDocument/typeDefinition":    true,
-	"textDocument/implementation":    true,
-	"textDocument/references":        true,
-	"textDocument/documentHighlight": true,
-	"textDocument/documentSymbol":    true,
-	"textDocument/rename":            true,
-	"textDocument/prepareRename":     true,
-	"textDocument/codeAction":        true,
-	"textDocument/inlayHint":         true,
-	"textDocument/documentLink":      true,
+	"textDocument/hover":              true,
+	"textDocument/completion":         true,
+	"textDocument/signatureHelp":      true,
+	"textDocument/definition":         true,
+	"textDocument/declaration":        true,
+	"textDocument/typeDefinition":     true,
+	"textDocument/implementation":     true,
+	"textDocument/references":         true,
+	"textDocument/documentHighlight":  true,
+	"textDocument/documentSymbol":     true,
+	"textDocument/rename":             true,
+	"textDocument/prepareRename":      true,
+	"textDocument/codeAction":         true,
+	"textDocument/inlayHint":          true,
+	"textDocument/documentLink":       true,
+	"textDocument/foldingRange":       true,
+	"textDocument/linkedEditingRange": true,
 }
 
 func isVuka(path string) bool { return strings.HasSuffix(path, ".vuka") }
@@ -498,7 +501,7 @@ var quietMethods = map[string]bool{
 	"textDocument/typeDefinition": true, "textDocument/implementation": true, "textDocument/references": true,
 	"textDocument/documentHighlight": true, "textDocument/signatureHelp": true, "textDocument/completion": true,
 	"textDocument/inlayHint": true, "textDocument/codeAction": true, "textDocument/documentSymbol": true,
-	"textDocument/documentLink": true,
+	"textDocument/documentLink": true, "textDocument/foldingRange": true,
 }
 
 var unresolvedImport = regexp.MustCompile(`no required module provides package "([^"]+)"`)
@@ -807,12 +810,14 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 	}
 	out := walk(v, false)
 	if isInit && !p.dropIn {
-		for _, ch := range []string{"@", "<", "/", " "} {
+		for _, ch := range []string{"@", "<", "/", " ", `"`} {
 			addTrigger(out, ch)
 		}
 		if r, ok := out.(map[string]any); ok {
 			if caps, ok := r["capabilities"].(map[string]any); ok {
 				caps["documentFormattingProvider"] = true // .vuka files by vuka fmt, .go files by gopls
+				caps["linkedEditingRangeProvider"] = true // .vuka tag names
+				caps["foldingRangeProvider"] = true
 				if caps["documentLinkProvider"] == nil {
 					caps["documentLinkProvider"] = map[string]any{} // vuka.File literals
 				}
@@ -1273,6 +1278,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 			reply(h())
 			return
 		}
+		if h := markupRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if m.Method != "textDocument/completion" && vf.changedAt(off) {
 			p.mu.Unlock()
 			reply(nil)
@@ -1304,6 +1314,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	id := strconv.Quote("vuka-lsp:" + strconv.Itoa(p.nextID))
 	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf, closeTag: closeTag,
 		attr: m.Method == "textDocument/completion" && afterAt(vf.text(), srcPos)}
+	if m.Method == "textDocument/completion" {
+		if s, ok := blockSpot(vf.text(), offsetOf(vf.text(), srcPos)); ok {
+			vr.blocks = &lspRange{positionOf(vf.text(), s), srcPos}
+		}
+	}
 	if vr.attr {
 		src := vf.text()
 		off := offsetOf(src, srcPos)
@@ -1337,6 +1352,10 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		switch {
 		case vr.method == "textDocument/documentLink":
 			reply["result"] = p.documentLinks(vr.file)
+		case vr.method == "textDocument/foldingRange":
+			reply["result"] = foldingRanges(vr.file, nil)
+		case vr.blocks != nil:
+			reply["result"] = map[string]any{"isIncomplete": false, "items": blockItems(*vr.blocks)}
 		case quietMethods[vr.method]:
 			p.logf("%s: %s", vr.method, m.Error)
 			reply["result"] = nil
@@ -1348,10 +1367,15 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	}
 	var v any
 	_ = json.Unmarshal(m.Result, &v)
-	v = p.rewrite(v, vr.file, vr.file)
+	if vr.method != "textDocument/foldingRange" {
+		v = p.rewrite(v, vr.file, vr.file)
+	}
 	switch vr.method {
 	case "textDocument/completion":
 		v = cleanCompletion(v)
+		if vr.blocks != nil {
+			v = withBlockItems(v, *vr.blocks)
+		}
 		if vr.attr {
 			v = attrCompletion(v, vr.typed)
 			p.mu.Lock()
@@ -1378,6 +1402,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		v = demangleStrings(v)
 	case "textDocument/documentLink":
 		v = p.withFileLinks(v, vr.file)
+	case "textDocument/foldingRange":
+		v = foldingRanges(vr.file, v)
 	}
 	reply["result"] = v
 	_ = p.editor.send(reply)

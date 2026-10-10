@@ -24,8 +24,8 @@ vuka.SortBy(posts, Post.Views.Desc())
 ```
 
 Both are general-purpose — forms, validation, sorting, JSON, in-memory
-filters, query builders — and plain Go underneath. The [ORM](/orm/) is built on
-them: see [Models](/orm/models) and [Queries](/orm/queries).
+filters, query builders — and plain Go underneath. See also the
+[ORM](/orm/models), which declares its models and queries with them.
 
 ## Field attributes
 

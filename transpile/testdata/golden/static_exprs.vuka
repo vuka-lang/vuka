@@ -1,0 +1,40 @@
+package main
+
+import "fmt"
+
+type Store[T any] struct{ rows []*T }
+
+func NewStore[T any]() *Store[T]       { return &Store[T]{} }
+func (s *Store[T]) Add(x *T)           { s.rows = append(s.rows, x) }
+func (s *Store[T]) All() []*T          { return s.rows }
+
+type Model[Self any] struct {
+	static Objects = &Store[Self]{}
+	static Made    = NewStore[Self]()
+	static Fresh   = new(Store[Self])
+	static Seen    = []Self{}
+	static ByName  = map[string]*Self{}
+	static Limit   = 3
+	static Room    = Model[Self].Limit - len(Model[Self].Made.All())
+	static Label   = fmt.Sprintf("%T", *new(Self))
+}
+
+func (m *Model[Self]) Save(self *Self) {
+	Model[Self].Objects.Add(self)
+	Model[Self].Made.Add(self)
+	Model[Self].Fresh.Add(self)
+	Model[Self].Seen = append(Model[Self].Seen, *self)
+}
+
+type User struct {
+	Model
+	Name string
+}
+
+func main() {
+	u := &User{Name: "ada"}
+	u.Save()
+	User.ByName[u.Name] = u
+	fmt.Println(len(User.Objects.All()), len(User.Made.All()), len(User.Fresh.All()), User.Seen[0].Name, User.ByName["ada"].Name)
+	fmt.Println(User.Room, User.Label)
+}

@@ -4,6 +4,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, execFileSync } = require('child_process');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
+const jsx = require('./jsx');
 
 let client;
 let versionItem;
@@ -58,6 +59,10 @@ function start() {
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       synchronize: {
         fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{vuka,go,mod}'),
+      },
+      middleware: {
+        provideCompletionItem: (document, position, context, token, next) =>
+          typedCloser(document, position) ? [] : next(document, position, context, token),
       },
     },
   );
@@ -274,31 +279,46 @@ function showVersion() {
   });
 }
 
-const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
-const openTag = /(?:^|[\s(={,:]|return)<(?:([A-Za-z_][\w.:-]*)(?:\[[^\]<>]*\])?(?:\s+[^<>]*[^/<>])?)?>$/;
+// textBefore is the document's text up to pos.
+function textBefore(document, pos) {
+  return document.getText(new vscode.Range(new vscode.Position(0, 0), pos));
+}
 
-// closeTag adds </tag> after the cursor when a JSX opening tag is finished by
-// typing its >.
+// closeTag finishes JSX tags as they are typed: an opening tag's > adds its
+// closing tag after the cursor, and </ the name of the element it closes.
 function closeTag(e) {
   const editor = vscode.window.activeTextEditor;
   if (e.document.languageId !== 'vuka' || !editor || editor.document !== e.document || e.reason || e.contentChanges.length !== 1) {
     return;
   }
   const change = e.contentChanges[0];
-  if (change.text !== '>' || !vscode.workspace.getConfiguration('vuka', e.document).get('autoCloseTags')) {
+  if ((change.text !== '>' && change.text !== '/') || !vscode.workspace.getConfiguration('vuka', e.document).get('autoCloseTags')) {
     return;
   }
   const end = change.range.start.translate(0, 1);
-  const line = e.document.lineAt(end.line).text;
-  const m = openTag.exec(line.slice(0, end.character));
-  if (!m || voidElements.has(m[1] || '')) {
-    return;
+  const before = textBefore(e.document, end);
+  const after = e.document.lineAt(end.line).text.slice(end.character);
+  let text;
+  if (change.text === '/') {
+    text = jsx.closingFor(before, after);
+  } else {
+    const name = jsx.tagToClose(before);
+    text = name !== null && !after.trimStart().startsWith(`</${name}>`) ? `$0</${name}>` : null;
   }
-  const close = `</${m[1] || ''}>`;
-  if (line.slice(end.character).trimStart().startsWith(close)) {
-    return;
+  if (text) {
+    editor.insertSnippet(new vscode.SnippetString(text), end, { undoStopBefore: false, undoStopAfter: false });
   }
-  editor.insertSnippet(new vscode.SnippetString('$0' + close), end, { undoStopBefore: false, undoStopAfter: false });
+}
+
+// typedCloser reports whether a completion is asked right after a </ the
+// extension completes itself, where the server's closing-tag item would
+// only repeat it.
+function typedCloser(document, position) {
+  if (!vscode.workspace.getConfiguration('vuka', document).get('autoCloseTags')) {
+    return false;
+  }
+  const after = document.lineAt(position.line).text.slice(position.character);
+  return jsx.closingFor(textBefore(document, position), after) !== null;
 }
 
 function activate(context) {

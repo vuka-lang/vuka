@@ -22,7 +22,16 @@ and JSX components — stateless, stateful and live.
   (`onClick={c.Inc}`), `key`, text, `{/* comments */}`, JSX in package-level `var`s, and the Go inside
   `{ … }`: expressions and `{for …}`, `{if …} else {…}`, `{match …}` blocks, including the blocks nested
   without braces in a block's body
-- Closing tags added as you type an opening tag's `>` (`vuka.autoCloseTags`), and indentation inside JSX
+- Markup completion: every HTML element (and SVG's basics) after `<`, with a description and its MDN link;
+  each element's own attributes, then the global ones, event handlers, `aria-*` and `data-`; the values of
+  enumerated attributes (`type="…"`, `target="…"`, `rel="…"`); the open element after `</`; `for`, `if` and
+  `match` blocks after a child's `{`; component props; Go inside `{ … }` while the tags around are unfinished
+- Hover on HTML elements and attributes (description + MDN link)
+- Linked editing: renaming an opening tag renames its closing tag (`editor.linkedEditing`, on by default for
+  `.vuka`); folding of elements and blocks
+- Closing tags added as you type an opening tag's `>` and the open element's name after `</`
+  (`vuka.autoCloseTags`), inside blocks and fragments and after another tag on the line; Enter between tags
+  indents; `{` and quotes pair in markup
 - Snippets: `live` (stateful component), `component`, `match` (Result / Option), `{for`, `{match`,
   `route` (`@web.Get` + handler), `routet` (`@web.Template`), `livepage` (`@web.Live`), `webmain`,
   `model` (`orm.Base @orm.Meta{…}` + fields with attributes), `decorator`, `decoratorp`, `tx`
@@ -81,13 +90,18 @@ switch it on and off, followed by a restart of templ's language server. A
 | `vuka.sharedGopls` | `true` | one gopls daemon shared by every session (`-remote=auto`) |
 | `vuka.offerGoDropIn` | `true` | offer to serve Go files through Vuka |
 | `vuka.offerTemplDropIn` | `true` | offer to let templ's language server use Vuka as its gopls |
-| `vuka.autoCloseTags` | `true` | add a JSX closing tag when an opening tag's `>` is typed |
+| `vuka.autoCloseTags` | `true` | add a JSX closing tag when an opening tag's `>` is typed, and the open element's name after `</` |
+
+`.vuka` files default to `editor.formatOnSave` and `editor.linkedEditing`. Emmet isn't enabled for them: it
+can't tell markup from Go and would offer abbreviations in Go code. To use it anyway, set
+`"emmet.includeLanguages": {"vuka": "javascriptreact"}`.
 
 Run **Vuka: Restart Language Server** after reinstalling vuka.
 
 ## Development
 
-`npm test` checks the grammar: it tokenizes `test/fixtures/*.vuka` (and every
+`npm test` checks the grammar and the JSX editing logic (`jsx.js`, the rules of
+`language-configuration.json`; `test/jsx.test.mjs`, in node, no VS Code). The grammar test tokenizes `test/fixtures/*.vuka` (and every
 `vuka` sample of the docs site, which highlights with this grammar) the way VS
 Code does, checks the scopes at key positions (`test/assertions.mjs`) and
 compares every token with `test/fixtures/*.vuka.snap`; `npm test -- --update`

@@ -1,0 +1,1 @@
+err_static_infer.vuka:4:9: can't infer the type of static Box.cache from nil; write it: static cache T = nil

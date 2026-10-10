@@ -16,6 +16,7 @@
     { "open": "`", "close": "`", "notIn": ["string"] },
     { "open": "'", "close": "'", "notIn": ["string", "comment"] }
   ],
+  "autoCloseBefore": ";:.,=}])>< \n\t",
   "surroundingPairs": [
     ["{", "}"],
     ["[", "]"],
@@ -25,17 +26,17 @@
     ["'", "'"]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*|\\b(case|default)\\b.*:|(?:^|[\\s(={,:]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>)$",
+    "increaseIndentPattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*|\\b(case|default)\\b.*:|(?:^|[\\s(={,:>}]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>)$",
     "decreaseIndentPattern": "^\\s*(\\}|\\)|\\]|case\\b|default\\b|</)"
   },
   "onEnterRules": [
     {
-      "beforeText": "(?:^|[\\s(={,:]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>\\s*$",
+      "beforeText": "(?:^|[\\s(={,:>}]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>\\s*$",
       "afterText": "^\\s*</",
       "action": { "indent": "indentOutdent" }
     },
     {
-      "beforeText": "(?:^|[\\s(={,:]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>\\s*$",
+      "beforeText": "(?:^|[\\s(={,:>}]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>\\s*$",
       "action": { "indent": "indent" }
     }
   ],

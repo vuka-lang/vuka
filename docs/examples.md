@@ -1,10 +1,11 @@
 # Examples
 
-The first ones are in Vuka's
+The language examples are in Vuka's
 [`examples`](https://github.com/vuka-lang/vuka/tree/main/examples) directory;
-run one with `vuka run ./examples/<name>`. The [web](/web/) and [ORM](/orm/)
-examples are in their own repositories; run one with `vuka run .` in its
-directory.
+run one with `vuka run ./examples/<name>`. The [library](#libraries) examples
+are in the [web](https://github.com/vuka-lang/web) and
+[orm](https://github.com/vuka-lang/orm) repositories; run one with
+`vuka run .` in its directory.
 
 ## users — Result, ?, match
 
@@ -90,7 +91,18 @@ func main() {
 }
 ```
 
-## pets — a web app {#pets}
+## More
+
+The transpiler's [test cases](https://github.com/vuka-lang/vuka/tree/main/transpile/testdata/golden)
+are small programs with their expected output: decorators, statics, match,
+dependency injection, and the errors Vuka reports.
+
+## Libraries
+
+Programs built with the [web framework](/web/) and the [ORM](/orm/), from
+their repositories.
+
+### pets — a web app {#pets}
 
 [`examples/pets`](https://github.com/vuka-lang/web/tree/main/examples/pets) in
 the [web](/web/) repository: pages with templ and `html/template` views, a
@@ -121,7 +133,7 @@ type PetAdmin struct {
 func (a *PetAdmin) Remove(ctx context.Context, id int) error { return a.store.Remove(id) }
 ```
 
-## live — live components {#live}
+### live — live components {#live}
 
 [`examples/live`](https://github.com/vuka-lang/web/tree/main/examples/live):
 a counter page, a counter inside an ordinary page, a todo list, and a chat
@@ -152,7 +164,7 @@ func (c *Chat) Send(ctx context.Context, f ChatForm) error {
 }
 ```
 
-## blog — the ORM {#blog}
+### blog — the ORM {#blog}
 
 [`examples/blog`](https://github.com/vuka-lang/orm/tree/main/examples/blog) in
 the [ORM](/orm/) repository: models with field attributes, migrations written
@@ -177,7 +189,7 @@ found := Post.Objects.Filter(doc.Matches("go command")).OrderBy(doc.Rank("go com
 near := Post.Objects.Nearest(Post.Embedding, orm.Vector{1, 0, 0}, orm.Cosine).Limit(2).All(ctx)?
 ```
 
-## multidb — web and the ORM, several databases {#multidb}
+### multidb — web and the ORM, several databases {#multidb}
 
 [`examples/multidb`](https://github.com/vuka-lang/orm/tree/main/examples/multidb):
 products on main read from a replica, sales on analytics holding their
@@ -215,9 +227,3 @@ func newApp(dir string) *web.App {
 	)
 }
 ```
-
-## More
-
-The transpiler's [test cases](https://github.com/vuka-lang/vuka/tree/main/transpile/testdata/golden)
-are small programs with their expected output: decorators, statics, match,
-dependency injection, and the errors Vuka reports.
