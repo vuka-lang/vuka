@@ -1,0 +1,30 @@
+package main
+
+import (
+	"strings"
+	"fmt"
+)
+
+type Pet struct { Name string; Age int }
+
+func PetRow(pet Pet) vuka.Node {
+  return <tr ><td>{ pet.Name }</td><td>{pet.Age}</td></tr>
+}
+
+func Pets(pets []Pet, admin bool, filter string) vuka.Node {
+	x:=1
+	return <section className="pets" id="main-section" data-count={len(pets)} title="All the pets we have">
+	<h1>Pets ({len(pets)})</h1>
+	   <p>
+	   Showing   pets  matching <b>{filter}</b>, sorted by name; {x+1} more lines
+	of text here.
+	   </p>
+		<table>{for _,p:=range pets {<PetRow pet={p}/>}}</table>
+		{if admin { <button disabled={len(pets)==0} >Add a pet</button> } else if len(pets) > 10 {<i>many</i>} else {<span> plain </span>}}
+		<input type = "text" value={strings.ToUpper(filter)} placeholder='Filter pets by their name, age, or anything' autofocus/>
+		{fmt.Sprintf("%d pets", len(pets))}
+		<ul><li>one</li><li>two</li></ul>
+		{/* keep me */}
+		<footer>  spaced  </footer> <hr/>
+	</section>
+}

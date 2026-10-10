@@ -35,6 +35,10 @@ Usage:
 	        show each Vuka construct in file beside the Go it becomes
 	vuka fix [-n] [fixer…]
 	        apply the fixers (all by default); -n only says what would change
+	vuka fmt [-l] [-w] [-d] [paths…]
+	        format .vuka files (the current directory by default), as gofmt
+	        does Go: print them, write them back (-w), list those that
+	        differ (-l) or show the diff (-d)
 	vuka lsp [-gopls path] [-log file] [-shared=false]
 	        language server for .vuka files (gopls behind a proxy), over stdio;
 	        run as gopls (a link named gopls) it is a drop-in gopls for .go files too
@@ -76,6 +80,8 @@ func main() {
 		err = explain(os.Args[2:], os.Stdout)
 	case "fix":
 		err = fix(os.Args[2:], os.Stdout)
+	case "fmt":
+		err = vukaFmt(os.Args[2:], os.Stdout, os.Stderr)
 	case "version":
 		fmt.Println("vuka", version)
 	case "help", "-h", "-help", "--help":

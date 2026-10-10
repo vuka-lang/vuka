@@ -19,9 +19,21 @@ upgrades it.
 - **Rendered by templ.** `vuka.Node` is `templ.Component`: Vuka components and
   templ components call each other, and `.templ` files compile with the rest of
   the package (no `templ generate`), with editor support mapped into them.
+- Components can be generic (type arguments inferred, or `<List[User]>`) or
+  overloaded; `?` and `match` work inside `{…}`; a Vuka component that would
+  drop its children is an error.
 - `vuka.Handler`, `vuka.Write`, `vuka.String`; a walkable node tree
-  (`vuka.Walk`, `vuka.Renderer`) and a terminal renderer, `vuka/term`.
-- VS Code extension 0.3.0: JSX highlighting.
+  (`vuka.Walk`, `vuka.Renderer`) and a terminal renderer, `vuka/term`, which
+  lays out templ components' HTML too.
+- **`vuka fmt`**: Go as gofmt prints it, JSX Prettier-style, never changing
+  what a page renders. Format on save in the editor.
+- Editor: completion after `<`, in a tag's attributes and after `</`; hover,
+  go to definition and rename on tags, closing tags and attributes; a tag
+  being typed no longer breaks the rest of the file.
+- templ's language server can use vuka as its gopls, so `.templ` files see
+  code from `.vuka` files.
+- VS Code extension 0.3.0: JSX highlighting, templ's icon for `.templ` files,
+  format on save, and an offer to serve `.templ` files through Vuka.
 
 **Breaking:** the decorator helper `vuka.Attr[T](c)` is now `vuka.AttrOf[T](c)`
 (`vuka.Attr` is JSX's attribute). `vuka fix attr-of` rewrites it. Go 1.25 or

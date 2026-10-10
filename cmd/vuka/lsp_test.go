@@ -576,6 +576,21 @@ func TestGoplsPassthrough(t *testing.T) {
 	}
 }
 
+func TestGoplsSubcommand(t *testing.T) {
+	for args, want := range map[string]string{
+		"":                     "",
+		"serve":                "serve",
+		"-remote=auto version": "version",
+		"-logfile /tmp/l -rpc.trace -remote auto":  "",
+		"-v -remote auto check x.go":               "check",
+		"-rpc.trace -logfile=/tmp/l serve -listen": "serve",
+	} {
+		if got := goplsSubcommand(strings.Fields(args)); got != want {
+			t.Errorf("%q: got %q, want %q", args, got, want)
+		}
+	}
+}
+
 func TestImportHint(t *testing.T) {
 	root := t.TempDir()
 	os.MkdirAll(filepath.Join(root, "data"), 0o755)
@@ -585,5 +600,43 @@ func TestImportHint(t *testing.T) {
 	}
 	if got := importHint(`could not import nope (no required module provides package "nope")`, root, "hello"); strings.Contains(got, "in this module") {
 		t.Fatalf("hinted a directory that doesn't exist: %q", got)
+	}
+}
+
+func TestLSPFormatting(t *testing.T) {
+	const messy = "package main\n\nfunc main( ) {\n\t_ = <p   a=\"b\">hi</p >\n}\n"
+	c, dir, init := startLSPWith(t, map[string]string{"main.vuka": messy, "util.go": "package main\n\nfunc  util() {}\n"})
+	if caps := init.(map[string]any)["capabilities"].(map[string]any); caps["documentFormattingProvider"] != true {
+		t.Fatalf("formatting not advertised: %v", caps["documentFormattingProvider"])
+	}
+	uri := pathToURI(filepath.Join(dir, "main.vuka"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka", "version": 1, "text": messy}})
+	format := func(uri string) []any {
+		v, _ := c.call("textDocument/formatting", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"options": map[string]any{"tabSize": 4, "insertSpaces": false}}).([]any)
+		return v
+	}
+	want := "package main\n\nfunc main() {\n\t_ = <p a=\"b\">hi</p>\n}\n"
+	if got := applyEdits(messy, format(uri)); got != want {
+		t.Errorf("formatted:\n%s\nwant:\n%s", got, want)
+	}
+
+	// The editor's text, not the file's; a file that doesn't parse gets no edits.
+	broken := "package main\n\nfunc main() {\n\t_ = <p>\n}\n"
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
+		"contentChanges": []any{map[string]any{"text": broken}}})
+	if edits := format(uri); len(edits) != 0 {
+		t.Errorf("edits for a broken file: %v", edits)
+	}
+
+	// .go files are still gopls's.
+	util := filepath.Join(dir, "util.go")
+	src, _ := os.ReadFile(util)
+	goURI := pathToURI(util)
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": goURI, "languageId": "go", "version": 1, "text": string(src)}})
+	if got := applyEdits(string(src), format(goURI)); got != "package main\n\nfunc util() {}\n" {
+		t.Errorf("gopls formatted util.go as %q", got)
 	}
 }

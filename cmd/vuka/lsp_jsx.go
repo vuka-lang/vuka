@@ -618,7 +618,7 @@ func (p *proxy) probe(genPath, before, after string) []map[string]any {
 	p.genMu.Lock()
 	defer p.genMu.Unlock()
 	p.mu.Lock()
-	vf := p.virtual[genPath]
+	vf := p.vfileOf(genPath) // never an editor-owned buffer
 	if vf == nil {
 		p.mu.Unlock()
 		return nil

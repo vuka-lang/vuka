@@ -3,9 +3,11 @@ package main
 import (
 	"encoding/json"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vuka-lang/vuka/internal/load"
 )
@@ -95,4 +97,95 @@ func TestLSPTempl(t *testing.T) {
 	os.WriteFile(templPath, []byte(templSource), 0o644)
 	c.notify("workspace/didChangeWatchedFiles", map[string]any{"changes": []any{map[string]any{"uri": pathToURI(templPath), "type": 2}}})
 	c.waitDiags(pathToURI(templPath), func(ds []any) bool { return len(ds) == 0 })
+}
+
+// TestTemplDropIn runs templ's own language server with vuka as its gopls (a
+// link named gopls first on PATH): a .templ file sees the components of the
+// .vuka files beside it, and templ's buffers win over vuka's Go for them.
+func TestTemplDropIn(t *testing.T) {
+	templBin, err := exec.LookPath("templ")
+	if err != nil {
+		t.Skip("templ not on PATH")
+	}
+	if _, err := findGopls(""); err != nil {
+		t.Skip(err)
+	}
+	bin := t.TempDir()
+	build := exec.Command("go", "build", "-o", filepath.Join(bin, "vuka"), ".")
+	build.Env = append(os.Environ(), "GOWORK=off")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, out)
+	}
+	if err := os.Symlink(filepath.Join(bin, "vuka"), filepath.Join(bin, "gopls")); err != nil {
+		t.Fatal(err)
+	}
+	pages := "package main\n\nfunc Nav(current string) vuka.Node {\n\treturn <nav>{current}</nav>\n}\n\nfunc main() { _ = Layout(\"home\") }\n"
+	layout := "package main\n\ntempl Layout(current string) {\n\t<body>\n\t\t@Nav(current)\n\t</body>\n}\n"
+	dir := realDir(t.TempDir())
+	for name, src := range templFiles(t, map[string]string{"pages.vuka": pages, "layout.templ": layout}) {
+		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
+	}
+
+	cmd := exec.Command(templBin, "lsp", "-goplsLog", filepath.Join(bin, "gopls.log"), "-goplsRPCTrace")
+	cmd.Dir = dir
+	cmd.Env = append(os.Environ(), "PATH="+bin+string(os.PathListSeparator)+os.Getenv("PATH"), "GOWORK=off",
+		"VUKA_GOPLS_SHARED=0", "VUKA_LSP_LOG="+filepath.Join(bin, "vuka.log"))
+	in, _ := cmd.StdinPipe()
+	out, _ := cmd.StdoutPipe()
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		in.Close()
+		done := make(chan struct{})
+		go func() { cmd.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(5 * time.Second):
+			cmd.Process.Kill()
+			<-done
+		}
+	})
+	c := &lspClient{t: t, conn: newRPCConn(out, in), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100)}
+	go c.loop()
+	root := pathToURI(dir)
+	c.call("initialize", map[string]any{"rootUri": root, "workspaceFolders": []any{map[string]any{"uri": root, "name": "t"}},
+		"capabilities": map[string]any{}})
+	c.notify("initialized", map[string]any{})
+	uri := pathToURI(filepath.Join(dir, "layout.templ"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "templ", "version": 1, "text": layout}})
+
+	at := map[string]any{"textDocument": map[string]any{"uri": uri},
+		"position": positionOf([]byte(layout), strings.Index(layout, "Nav(")+1)}
+	var hover string
+	for i := 0; i < 50 && !strings.Contains(hover, "func Nav("); i++ {
+		time.Sleep(200 * time.Millisecond)
+		b, _ := json.Marshal(c.call("textDocument/hover", at))
+		hover = string(b)
+	}
+	if !strings.Contains(hover, "func Nav(current string)") {
+		log, _ := os.ReadFile(filepath.Join(bin, "vuka.log"))
+		t.Fatalf("hover on Nav in layout.templ: %s\n%s", hover, log)
+	}
+	b, _ := json.Marshal(c.call("textDocument/definition", at))
+	if !strings.Contains(string(b), pathToURI(filepath.Join(dir, "pages.vuka"))) || !strings.Contains(string(b), `"line":2`) {
+		t.Fatalf("definition of Nav: %s, want line 2 of pages.vuka", b)
+	}
+
+	// Loaded now: an edit's diagnostics are gopls's on templ's buffer.
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
+		"contentChanges": []any{map[string]any{"text": layout + "\n"}}})
+	deadline := time.After(3 * time.Second)
+	for {
+		select {
+		case p := <-c.diags:
+			if b, _ := json.Marshal(p); strings.Contains(string(b), "undefined") {
+				t.Fatalf("layout.templ should see Nav from pages.vuka: %s", b)
+			}
+			continue
+		case <-deadline:
+		}
+		break
+	}
 }
