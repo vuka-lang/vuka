@@ -21,10 +21,28 @@
     ["[", "]"],
     ["(", ")"],
     ["\"", "\""],
-    ["`", "`"]
+    ["`", "`"],
+    ["'", "'"]
   ],
   "indentationRules": {
-    "increaseIndentPattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*|\\b(case|default)\\b.*:)$",
-    "decreaseIndentPattern": "^\\s*(\\}|\\)|\\]|case\\b|default\\b)"
+    "increaseIndentPattern": "^.*(\\{[^}]*|\\([^)]*|\\[[^\\]]*|\\b(case|default)\\b.*:|(?:^|[\\s(={,:]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>)$",
+    "decreaseIndentPattern": "^\\s*(\\}|\\)|\\]|case\\b|default\\b|</)"
+  },
+  "onEnterRules": [
+    {
+      "beforeText": "(?:^|[\\s(={,:]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>\\s*$",
+      "afterText": "^\\s*</",
+      "action": { "indent": "indentOutdent" }
+    },
+    {
+      "beforeText": "(?:^|[\\s(={,:]|return)<(?:[A-Za-z_][\\w.:-]*(?:\\[[^\\]]*\\])?(?:\\s+[^<>]*[^/<>])?)?>\\s*$",
+      "action": { "indent": "indent" }
+    }
+  ],
+  "folding": {
+    "markers": {
+      "start": "^\\s*//\\s*#?region\\b",
+      "end": "^\\s*//\\s*#?endregion\\b"
+    }
   }
 }

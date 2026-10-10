@@ -1,0 +1,62 @@
+package main
+
+var header = <h1 className="title">Pets</h1>
+
+func Pets(pets []Pet, admin bool) vuka.Node {
+	return <section className="pets">
+		<h1>Pets ({len(pets)})</h1>
+		{/* a comment */}
+		<table>
+			{for _, p := range pets {
+				<PetRow pet={p} key={p.ID} />
+			}}
+		</table>
+		{if admin { <button onClick={add} hx-get="/x" disabled>Add &amp; more</button> }}
+		<theme.Card title="x"><List[User] items={users} /></theme.Card>
+		<>fragment</>
+	</section>
+}
+
+func Items(items []Item) vuka.Node {
+	return <ul>
+		{for _, it := range items {
+			if it.Done {
+				<li className="done">{it.Name}</li>
+			} else if it.Late {
+				<li>late</li>
+			} else {
+				<li>{it.Name}</li>
+			}
+			for _, t := range it.Tags { <i>{t}</i> }
+			match it.Owner {
+			case Some(o):
+				<b>{o}</b>
+			case None:
+				<i>unassigned</i>
+			}
+		}}
+		{match lookup(id) {
+		case Ok(u):
+			<p>{u.Name}</p>
+		case Err(e):
+			<p className="error">{e}</p>
+		}}
+		<p>if you like</p>
+	</ul>
+}
+
+func (c *Counter) Render() vuka.Node {
+	return <div><span>{c.n}</span><button onClick={c.Inc} onKeyDown={func(k string) { c.key = k }}>+</button></div>
+}
+
+func page() vuka.Node {
+	return <Counter Start={5} />
+}
+
+func less(a, b int) bool {
+	return a < b && b > 0
+}
+
+func recv(ch chan int) int {
+	return <-ch
+}

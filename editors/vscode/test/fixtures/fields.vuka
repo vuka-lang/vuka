@@ -1,0 +1,35 @@
+package blog
+
+type Post struct {
+	orm.Base @orm.Meta{Table: "posts", Ordering: []string{"-published"}}
+	Timestamps
+	ID        int64             @orm.PK
+	Title     string            `json:"title"` @orm.Char{Max: 200} @orm.Index
+	Author    orm.FK[User]      @orm.Rel{OnDelete: orm.Cascade, Related: "posts"}
+	Views     int               @orm.DefaultTo(0)
+	A, B      int               @X
+	Published Option[time.Time] @orm.Index // when
+	Note      string
+}
+
+var byAda = Post.Author.Name.Eq("ada")
+var popular = vuka.And(Post.Title.Contains("go"), Post.Views.Gt(100))
+
+type PetList struct { Title string; Pets []Pet }
+
+type Store struct{ db *DB }
+
+type Mixed struct {
+	*Embedded
+	// a comment line
+	Tags   map[string][]int `json:"tags"`
+	Any    interface{}      @Doc("x")
+	Fn     func(int) error
+	Inner  struct {
+		X int @Min(1)
+	}
+	Count int
+}
+
+var empty = struct{}{}
+var pt = Point{X: 1, Y: 2}

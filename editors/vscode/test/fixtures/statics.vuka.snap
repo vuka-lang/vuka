@@ -1,0 +1,153 @@
+1:
+  "package" keyword.package.go
+  "users" entity.name.type.package.go
+2:
+3:
+  "type" meta.struct.vuka keyword.type.go
+  "User" meta.struct.vuka entity.name.type.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+4:
+  "Name" meta.struct.vuka variable.other.field.vuka
+  "string" meta.struct.vuka storage.type.vuka
+5:
+6:
+  "static" meta.struct.vuka storage.modifier.static.vuka
+  "Table" meta.struct.vuka variable.other.property.static.vuka
+  "=" meta.struct.vuka keyword.operator.assignment.go
+  "\"" meta.struct.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "users" meta.struct.vuka string.quoted.double.vuka
+  "\"" meta.struct.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+7:
+  "static" meta.struct.vuka storage.modifier.static.vuka
+  "created" meta.struct.vuka variable.other.property.static.vuka
+  "int" meta.struct.vuka storage.type.numeric.go
+8:
+  "static" meta.struct.vuka storage.modifier.static.vuka
+  "const" meta.struct.vuka storage.modifier.const.vuka
+  "Max" meta.struct.vuka variable.other.property.static.vuka
+  "=" meta.struct.vuka keyword.operator.assignment.go
+  "100" meta.struct.vuka constant.numeric.decimal.go
+9:
+  "static" meta.struct.vuka storage.modifier.static.vuka
+  "Twice" meta.struct.vuka variable.other.property.static.vuka
+  "=" meta.struct.vuka keyword.operator.assignment.go
+  "User" meta.struct.vuka variable.other.go
+  "." meta.struct.vuka punctuation.other.period.go
+  "Max" meta.struct.vuka variable.other.go
+  "*" meta.struct.vuka keyword.operator.arithmetic.go
+  "2" meta.struct.vuka constant.numeric.decimal.go
+10:
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+11:
+12:
+  "func" keyword.function.vuka storage.type.function.vuka
+  "User" entity.name.type.vuka
+  "." punctuation.other.period.go
+  "New" entity.name.function.static.vuka
+  "(" punctuation.definition.begin.bracket.round.go
+  "name" variable.other.go
+  "string" storage.type.string.go
+  ")" punctuation.definition.end.bracket.round.go
+  "*" keyword.operator.address.go
+  "User" variable.other.go
+  "{" punctuation.definition.begin.bracket.curly.go
+13:
+  "User" variable.other.go
+  "." punctuation.other.period.go
+  "created" variable.other.go
+  "++" keyword.operator.increment.go
+14:
+  "return" keyword.control.go
+  "&" keyword.operator.address.go
+  "User" entity.name.type.go
+  "{" punctuation.definition.begin.bracket.curly.go
+  "Name" variable.other.property.go
+  ":" punctuation.other.colon.go
+  "name" variable.other.go
+  "}" punctuation.definition.end.bracket.curly.go
+15:
+  "}" punctuation.definition.end.bracket.curly.go
+16:
+17:
+  "func" keyword.function.vuka storage.type.function.vuka
+  "Box" entity.name.type.vuka
+  "[" punctuation.definition.begin.bracket.square.go
+  "T" entity.name.type.vuka
+  "]" punctuation.definition.end.bracket.square.go
+  "." punctuation.other.period.go
+  "Make" entity.name.function.static.vuka
+  "(" punctuation.definition.begin.bracket.round.go
+  "v" variable.other.go
+  "T" variable.other.go
+  ")" punctuation.definition.end.bracket.round.go
+  "*" keyword.operator.address.go
+  "Box" variable.other.go
+  "[" punctuation.definition.begin.bracket.square.go
+  "T" variable.other.go
+  "]" punctuation.definition.end.bracket.square.go
+  "{" punctuation.definition.begin.bracket.curly.go
+  "return" keyword.control.go
+  "&" keyword.operator.address.go
+  "Box" entity.name.type.go
+  "[" punctuation.definition.begin.bracket.square.go
+  "T" entity.name.type.go
+  "]" punctuation.definition.end.bracket.square.go
+  "{" punctuation.definition.begin.bracket.curly.go
+  "v" variable.other.property.go
+  ":" punctuation.other.colon.go
+  "v" variable.other.go
+  "}" punctuation.definition.end.bracket.curly.go
+  "}" punctuation.definition.end.bracket.curly.go
+18:
+19:
+  "type" meta.struct.vuka keyword.type.go
+  "Model" meta.struct.vuka entity.name.type.go
+  "[" meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "Self" meta.struct.vuka variable.language.self.vuka
+  "any" meta.struct.vuka storage.type.vuka
+  "]" meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+20:
+  "static" meta.struct.vuka storage.modifier.static.vuka
+  "Objects" meta.struct.vuka variable.other.property.static.vuka
+  "=" meta.struct.vuka keyword.operator.assignment.go
+  "Manager" meta.struct.vuka entity.name.type.go
+  "[" meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "Self" meta.struct.vuka entity.name.type.go
+  "]" meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+21:
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+22:
+23:
+  "func" keyword.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "m " variable.parameter.go
+  "*" keyword.operator.address.go
+  "Model" entity.name.type.go
+  "[" punctuation.definition.begin.bracket.square.go
+  "Self" entity.name.type.go
+  "]" punctuation.definition.end.bracket.square.go
+  ")" punctuation.definition.end.bracket.round.go
+  "Save" entity.name.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "self" variable.parameter.go
+  "*" keyword.operator.address.go
+  "Self" entity.name.type.go
+  "," punctuation.other.comma.go
+  "ctx" variable.parameter.go
+  "context" entity.name.type.go
+  "." punctuation.other.period.go
+  "Context" entity.name.type.go
+  ")" punctuation.definition.end.bracket.round.go
+  "error" storage.type.error.go
+  "{" punctuation.definition.begin.bracket.curly.go
+24:
+  "return" keyword.control.go
+  "nil" constant.language.null.go
+25:
+  "}" punctuation.definition.end.bracket.curly.go
+26:

@@ -1,0 +1,24 @@
+package main
+
+func show(r Result[Option[User]]) {
+	match r {
+	case Ok(Some(u)):
+		fmt.Println(u.Name)
+	case Ok(None):
+		fmt.Println("none")
+	case Err(&NotFound{ID: id}):
+		fmt.Println(id)
+	case Err(e) if errors.Is(e, strconv.ErrSyntax):
+		fmt.Println(e)
+	case Err(e):
+		fmt.Println(e)
+	}
+	match x {
+	case 1, 2, 3:
+	case ^y:
+	case _:
+	}
+	x := match
+	v := Some(3)
+	var o Option[int] = None
+}

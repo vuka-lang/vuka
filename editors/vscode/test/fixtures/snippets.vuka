@@ -1,0 +1,143 @@
+// The snippets (snippets/vuka.json) expanded with their defaults, as vuka fmt prints them.
+package main
+
+// Stateful component
+type Counter struct {
+	vuka.Live
+	Start int // a prop: <Counter Start={…} />
+	n     int // state
+}
+
+func (c *Counter) Mount(ctx context.Context) error {
+	c.n = c.Start
+	return nil
+}
+
+func (c *Counter) Inc() { c.n++ }
+
+func (c *Counter) Render() vuka.Node {
+	return <div><span>{c.n}</span><button onClick={c.Inc}>+</button></div>
+}
+
+// Stateless component
+func Card(title string, children vuka.Node) vuka.Node {
+	return <section>{children}</section>
+}
+
+// match Result
+func friv2() vuka.Node {
+	match expr {
+	case Ok(v):
+
+	case Err(err):
+		return err
+	}
+	return nil
+}
+
+// match Option
+func fb858() vuka.Node {
+	match expr {
+	case Some(v):
+
+	case None:
+
+	}
+	return nil
+}
+
+// match block in markup
+func fchvg() vuka.Node {
+	return <div>
+		{match expr {
+		case Ok(v):
+			<p>{v}</p>
+		case Err(e):
+			<p className="error">{e}</p>
+		}}
+	</div>
+}
+
+// for block in markup
+func fgdds() vuka.Node {
+	return <div>
+		{for _, it := range items {
+			<li key={it.ID}></li>
+		}}
+	</div>
+}
+
+// Web route
+@web.Get("/pets/{id}")
+func ShowPet(id int, store *PetStore) Result[Pet] {
+
+}
+
+// Web route with a view
+@web.Get("/pets")
+@web.Template("views/pets.templ")
+func ListPets(store *PetStore) Result[PetList] {
+
+}
+
+// Live page
+@web.Live("/counter")
+type LiveCounter struct {
+	vuka.Live
+	Start int // ?start=3
+	n     int
+}
+
+func (c *LiveCounter) Mount() { c.n = c.Start }
+func (c *LiveCounter) Inc()   { c.n++ }
+
+func (c *LiveCounter) Render() vuka.Node {
+	return <div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>
+}
+
+// Web app main
+func main() {
+	app := web.New(web.Require("DATABASE_URL"))
+	app.Run("") // :$PORT, else :8080
+}
+
+// ORM model
+type Post struct {
+	orm.Base              @orm.Meta{Table: "posts"}
+	ID       int64        @orm.PK
+	Title    string       @orm.Char{Max: 200}
+	Author   orm.FK[User] @orm.Rel{OnDelete: orm.Cascade}
+
+}
+
+// Decorator
+decorator logged(c) {
+
+	c.Next()
+}
+
+// Decorator with parameters
+decorator retry(times int)(c) {
+	for i := 0; i < times; i++ {
+		if c.Next(); c.Err() == nil {
+			return
+		}
+	}
+}
+
+// Transaction
+@orm.Transaction
+func publish(ctx context.Context, slug string) error {
+
+	return nil
+}
+
+// Static
+type S4vhl struct {
+	static Name = value
+}
+
+// Static method
+func User.New(name string) *User {
+	return &User{}
+}

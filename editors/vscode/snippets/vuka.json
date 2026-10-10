@@ -1,0 +1,241 @@
+{
+  "Stateful component": {
+    "prefix": [
+      "live",
+      "stateful"
+    ],
+    "description": "A stateful component: a struct embedding vuka.Live, with Mount, an event handler and Render",
+    "body": [
+      "type ${1:Counter} struct {",
+      "\tvuka.Live",
+      "\t${2:Start} ${3:int} // a prop: <$1 $2={…} />",
+      "\t${4:n}     $3 // state",
+      "}",
+      "",
+      "func (${5:c} *$1) Mount(ctx context.Context) error {",
+      "\t$5.$4 = $5.$2",
+      "\treturn nil",
+      "}",
+      "",
+      "func ($5 *$1) ${6:Inc}() { $5.$4++ }",
+      "",
+      "func ($5 *$1) Render() vuka.Node {",
+      "\treturn <div><span>{$5.$4}</span><button onClick={$5.$6}>+</button></div>",
+      "}"
+    ]
+  },
+  "Stateless component": {
+    "prefix": [
+      "component",
+      "comp"
+    ],
+    "description": "A component: a function returning vuka.Node",
+    "body": [
+      "func ${1:Card}(${2:title string}, children vuka.Node) vuka.Node {",
+      "\treturn <${3:section}>",
+      "\t\t$0",
+      "\t\t{children}",
+      "\t</$3>",
+      "}"
+    ]
+  },
+  "match Result": {
+    "prefix": [
+      "matchr",
+      "match"
+    ],
+    "description": "match on a Result",
+    "body": [
+      "match ${1:expr} {",
+      "case Ok(${2:v}):",
+      "\t$0",
+      "case Err(${3:err}):",
+      "\treturn $3",
+      "}"
+    ]
+  },
+  "match Option": {
+    "prefix": [
+      "matcho",
+      "match"
+    ],
+    "description": "match on an Option",
+    "body": [
+      "match ${1:expr} {",
+      "case Some(${2:v}):",
+      "\t$0",
+      "case None:",
+      "\t",
+      "}"
+    ]
+  },
+  "match block in markup": {
+    "prefix": [
+      "{match",
+      "jmatch"
+    ],
+    "description": "A match block inside JSX",
+    "body": [
+      "{match ${1:expr} {",
+      "case Ok(${2:v}):",
+      "\t<${3:p}>{$2}</$3>",
+      "case Err(${4:e}):",
+      "\t<p className=\"error\">{$4}</p>",
+      "}}"
+    ]
+  },
+  "for block in markup": {
+    "prefix": [
+      "{for",
+      "jfor"
+    ],
+    "description": "A for block inside JSX, keyed rows",
+    "body": [
+      "{for _, ${1:it} := range ${2:items} {",
+      "\t<${3:li} key={$1.${4:ID}}>$0</$3>",
+      "}}"
+    ]
+  },
+  "Web route": {
+    "prefix": [
+      "route",
+      "get"
+    ],
+    "description": "A route of github.com/vuka-lang/web: @web.Get and its handler",
+    "body": [
+      "@web.${1|Get,Post,Put,Patch,Delete|}(\"${2:/pets/{id\\}}\")",
+      "func ${3:ShowPet}(${4:id int}, ${5:store *PetStore}) Result[${6:Pet}] {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Web route with a view": {
+    "prefix": [
+      "routet",
+      "template"
+    ],
+    "description": "A GET route rendering its result with @web.Template",
+    "body": [
+      "@web.Get(\"${1:/pets}\")",
+      "@web.Template(\"${2:views/pets.templ}\")",
+      "func ${3:ListPets}(${4:store *PetStore}) Result[${5:PetList}] {",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Live page": {
+    "prefix": [
+      "livepage",
+      "weblive"
+    ],
+    "description": "A stateful component served as a live page with @web.Live",
+    "body": [
+      "@web.Live(\"${1:/counter}\")",
+      "type ${2:Counter} struct {",
+      "\tvuka.Live",
+      "\t${3:Start} int // ?${3/(.*)/${1:/downcase}/}=3",
+      "\t${4:n}     int",
+      "}",
+      "",
+      "func (${5:c} *$2) Mount() { $5.$4 = $5.$3 }",
+      "func ($5 *$2) ${6:Inc}()   { $5.$4++ }",
+      "",
+      "func ($5 *$2) Render() vuka.Node {",
+      "\treturn <div><output>{$5.$4}</output><button onClick={$5.$6}>+</button></div>",
+      "}"
+    ]
+  },
+  "Web app main": {
+    "prefix": [
+      "webmain",
+      "app"
+    ],
+    "description": "main for a github.com/vuka-lang/web app",
+    "body": [
+      "func main() {",
+      "\tapp := web.New(${1:web.Require(\"DATABASE_URL\")})",
+      "\tapp.Run(\"\") // :\\$PORT, else :8080",
+      "}"
+    ]
+  },
+  "ORM model": {
+    "prefix": [
+      "model",
+      "orm"
+    ],
+    "description": "A model of github.com/vuka-lang/orm: orm.Base with @orm.Meta, fields with attributes",
+    "body": [
+      "type ${1:Post} struct {",
+      "\torm.Base              @orm.Meta{Table: \"${2:posts}\"}",
+      "\tID       int64        @orm.PK",
+      "\t${3:Title}    string       @orm.Char{Max: ${4:200}}",
+      "\t${5:Author}   orm.FK[${6:User}] @orm.Rel{OnDelete: orm.Cascade}",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Decorator": {
+    "prefix": [
+      "decorator",
+      "deco"
+    ],
+    "description": "A decorator: runs around every call of the functions it decorates",
+    "body": [
+      "decorator ${1:logged}(c) {",
+      "\t$0",
+      "\tc.Next()",
+      "}"
+    ]
+  },
+  "Decorator with parameters": {
+    "prefix": [
+      "decoratorp",
+      "decop"
+    ],
+    "description": "A decorator taking parameters",
+    "body": [
+      "decorator ${1:retry}(${2:times int})(c) {",
+      "\tfor i := 0; i < ${3:times}; i++ {",
+      "\t\tif c.Next(); c.Err() == nil {",
+      "\t\t\treturn",
+      "\t\t}",
+      "\t}",
+      "}"
+    ]
+  },
+  "Transaction": {
+    "prefix": [
+      "tx",
+      "transaction"
+    ],
+    "description": "A function run in a transaction with @orm.Transaction: an error or an Err rolls back",
+    "body": [
+      "@orm.Transaction",
+      "func ${1:publish}(ctx context.Context, ${2:slug string}) error {",
+      "\t$0",
+      "\treturn nil",
+      "}"
+    ]
+  },
+  "Static": {
+    "prefix": [
+      "static"
+    ],
+    "description": "A static on a type",
+    "body": [
+      "static ${1:Name} = ${0:value}"
+    ]
+  },
+  "Static method": {
+    "prefix": [
+      "sfunc",
+      "staticfunc"
+    ],
+    "description": "A static method: func Type.Name(…)",
+    "body": [
+      "func ${1:User}.${2:New}(${3:name string}) *$1 {",
+      "\treturn &$1{$0}",
+      "}"
+    ]
+  }
+}

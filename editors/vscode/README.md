@@ -1,16 +1,33 @@
 # Vuka for VS Code
 
 Language support for [Vuka](https://github.com/vuka-lang/vuka): Go with Result,
-Option, `?`, `match`, overloading and attributes.
+Option, `?`, `match`, overloading, decorators, statics, typed field attributes
+and JSX components — stateless, stateful and live.
 
 - Completion, hover, signature help, go to definition, references, rename,
   outline, code actions and inlay hints, through gopls
 - Diagnostics from Vuka (non-exhaustive matches, ambiguous overloads, misplaced
-  `?`) and from Go's type checker, on the `.vuka` lines
-- Syntax highlighting for Vuka's additions (`@attributes`, `decorator`, `match`, `?`, Result/Option) on top of Go's grammar,
-  inside function bodies too
-- JSX highlighting: tags and components (`<div>`, `<Card />`, `<card.Card>`), fragments, attributes
-  (`data-id={x}`, `hx-get="/x"`), text, and the Go inside `{ … }` (expressions, `{for …}`, `{if …}` blocks)
+  `?`, unknown component attributes) and from Go's type checker, on the `.vuka` lines
+- Formatting by `vuka fmt`, on save by default
+- Highlighting for Vuka's additions on top of Go's grammar, inside function bodies too:
+  - attributes and decorators: `@web.Get("/pets")`, `@orm.Meta{Table: "posts"}`, `decorator logged(c) { … }`
+  - struct fields: names, types, tags and the attributes after them
+    (`` Title string `json:"title"` @orm.Char{Max: 200} @orm.Index ``), embedded fields with attributes
+    (`orm.Base @orm.Meta{…}`)
+  - statics and static methods (`static Table = "users"`, `func User.New(…)`), `Self`/`self`
+  - `match` and its patterns: `case Ok(Some(u)):`, guards (`case Err(e) if …:`), `^pin`, `_`; `Result`,
+    `Option`, `Ok`/`Err`/`Some`/`None`; the `?` operator
+- JSX highlighting: tags and components (`<div>`, `<Card />`, `<theme.Card>`, `<List[User]>`, stateful
+  `<Counter Start={5} />`), fragments, attributes (`data-id={x}`, `hx-get="/x"`), event attributes
+  (`onClick={c.Inc}`), `key`, text, `{/* comments */}`, JSX in package-level `var`s, and the Go inside
+  `{ … }`: expressions and `{for …}`, `{if …} else {…}`, `{match …}` blocks, including the blocks nested
+  without braces in a block's body
+- Closing tags added as you type an opening tag's `>` (`vuka.autoCloseTags`), and indentation inside JSX
+- Snippets: `live` (stateful component), `component`, `match` (Result / Option), `{for`, `{match`,
+  `route` (`@web.Get` + handler), `routet` (`@web.Template`), `livepage` (`@web.Live`), `webmain`,
+  `model` (`orm.Base @orm.Meta{…}` + fields with attributes), `decorator`, `decoratorp`, `tx`
+  (`@orm.Transaction`), `static`, `sfunc`
+- The language status shows `vuka version`; clicking it restarts the server
 - `.templ` files beside `.vuka` files are compiled by vuka itself (no `templ generate`); go to definition
   from Vuka code lands in the `.templ` file. Use templ's own extension for editing `.templ` files.
 
@@ -64,5 +81,14 @@ switch it on and off, followed by a restart of templ's language server. A
 | `vuka.sharedGopls` | `true` | one gopls daemon shared by every session (`-remote=auto`) |
 | `vuka.offerGoDropIn` | `true` | offer to serve Go files through Vuka |
 | `vuka.offerTemplDropIn` | `true` | offer to let templ's language server use Vuka as its gopls |
+| `vuka.autoCloseTags` | `true` | add a JSX closing tag when an opening tag's `>` is typed |
 
 Run **Vuka: Restart Language Server** after reinstalling vuka.
+
+## Development
+
+`npm test` checks the grammar: it tokenizes `test/fixtures/*.vuka` (and every
+`vuka` sample of the docs site, which highlights with this grammar) the way VS
+Code does, checks the scopes at key positions (`test/assertions.mjs`) and
+compares every token with `test/fixtures/*.vuka.snap`; `npm test -- --update`
+rewrites the snapshots. `npm run package` builds the `.vsix`.

@@ -1,0 +1,39 @@
+package main
+
+decorator logged(c) {
+	fmt.Println("->", c.Name, c.Args)
+	c.Next()
+}
+
+decorator retry(times int)(c) {
+	for i := 0; i < times; i++ {
+		if c.Next(); c.Err() == nil {
+			return
+		}
+	}
+}
+
+@retry(3)
+@logged
+func charge(ctx context.Context, id int) (Receipt, error) {
+	return Receipt{}, nil
+}
+
+@web.Get("/pets/{id}")
+@web.Template("views/pet.html")
+func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
+
+@orm.Transaction
+func publish(ctx context.Context, slug string) error {
+	p := Post.Objects.Get(ctx, Post.Slug.Eq(slug))?
+	n := strconv.Atoi(s)?
+	ok := a ? b : c
+	return p.Save(ctx)
+}
+
+@web.Live("/counter")
+type Counter struct {
+	vuka.Live
+	Start int
+	n     int
+}

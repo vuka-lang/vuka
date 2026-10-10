@@ -1,0 +1,25 @@
+package users
+
+type User struct {
+	Name string
+
+	static Table   = "users"
+	static created int
+	static const Max = 100
+	static Twice   = User.Max * 2
+}
+
+func User.New(name string) *User {
+	User.created++
+	return &User{Name: name}
+}
+
+func Box[T].Make(v T) *Box[T] { return &Box[T]{v: v} }
+
+type Model[Self any] struct {
+	static Objects = Manager[Self]{}
+}
+
+func (m *Model[Self]) Save(self *Self, ctx context.Context) error {
+	return nil
+}

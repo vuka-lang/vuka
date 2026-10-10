@@ -1,0 +1,262 @@
+1:
+  "package" keyword.package.go
+  "blog" entity.name.type.package.go
+2:
+3:
+  "type" meta.struct.vuka keyword.type.go
+  "Post" meta.struct.vuka entity.name.type.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+4:
+  "orm" meta.struct.vuka entity.name.type.package.go
+  "." meta.struct.vuka punctuation.other.period.go
+  "Base" meta.struct.vuka entity.name.type.embedded.vuka
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "orm.Meta" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "{" meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.curly.go
+  "Table" meta.struct.vuka meta.attribute.vuka variable.other.property.go
+  ":" meta.struct.vuka meta.attribute.vuka punctuation.other.colon.go
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "posts" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  "," meta.struct.vuka meta.attribute.vuka punctuation.other.comma.go
+  "Ordering" meta.struct.vuka meta.attribute.vuka variable.other.property.go
+  ":" meta.struct.vuka meta.attribute.vuka punctuation.other.colon.go
+  "[" meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.square.go
+  "]" meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.square.go
+  "string" meta.struct.vuka meta.attribute.vuka storage.type.string.go
+  "{" meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.curly.go
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "-published" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  "}" meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.curly.go
+  "}" meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.curly.go
+5:
+  "Timestamps" meta.struct.vuka entity.name.type.embedded.vuka
+6:
+  "ID" meta.struct.vuka variable.other.field.vuka
+  "int64" meta.struct.vuka storage.type.vuka
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "orm.PK" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+7:
+  "Title" meta.struct.vuka variable.other.field.vuka
+  "string" meta.struct.vuka storage.type.vuka
+  "`" meta.struct.vuka string.quoted.raw.vuka punctuation.definition.string.begin.vuka
+  "json:\"title\"" meta.struct.vuka string.quoted.raw.vuka
+  "`" meta.struct.vuka string.quoted.raw.vuka punctuation.definition.string.end.vuka
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "orm.Char" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "{" meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.curly.go
+  "Max" meta.struct.vuka meta.attribute.vuka variable.other.property.go
+  ":" meta.struct.vuka meta.attribute.vuka punctuation.other.colon.go
+  "200" meta.struct.vuka meta.attribute.vuka constant.numeric.decimal.go
+  "}" meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.curly.go
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "orm.Index" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+8:
+  "Author" meta.struct.vuka variable.other.field.vuka
+  "orm" meta.struct.vuka entity.name.type.package.go
+  "." meta.struct.vuka punctuation.other.period.go
+  "FK" meta.struct.vuka entity.name.type.vuka
+  "[" meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "User" meta.struct.vuka entity.name.type.vuka
+  "]" meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "orm.Rel" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "{" meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.curly.go
+  "OnDelete" meta.struct.vuka meta.attribute.vuka variable.other.property.go
+  ":" meta.struct.vuka meta.attribute.vuka punctuation.other.colon.go
+  "orm" meta.struct.vuka meta.attribute.vuka variable.other.go
+  "." meta.struct.vuka meta.attribute.vuka punctuation.other.period.go
+  "Cascade" meta.struct.vuka meta.attribute.vuka variable.other.go
+  "," meta.struct.vuka meta.attribute.vuka punctuation.other.comma.go
+  "Related" meta.struct.vuka meta.attribute.vuka variable.other.property.go
+  ":" meta.struct.vuka meta.attribute.vuka punctuation.other.colon.go
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "posts" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  "}" meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.curly.go
+9:
+  "Views" meta.struct.vuka variable.other.field.vuka
+  "int" meta.struct.vuka storage.type.vuka
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "orm.DefaultTo" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "0" meta.struct.vuka meta.attribute.vuka constant.numeric.decimal.go
+  ")" meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.round.go
+10:
+  "A" meta.struct.vuka variable.other.field.vuka
+  "," meta.struct.vuka punctuation.other.comma.go
+  "B" meta.struct.vuka variable.other.field.vuka
+  "int" meta.struct.vuka storage.type.vuka
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "X" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+11:
+  "Published" meta.struct.vuka variable.other.field.vuka
+  "Option" meta.struct.vuka support.type.vuka
+  "[" meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "time" meta.struct.vuka entity.name.type.package.go
+  "." meta.struct.vuka punctuation.other.period.go
+  "Time" meta.struct.vuka entity.name.type.vuka
+  "]" meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "orm.Index" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "// when" meta.struct.vuka comment.line.double-slash.vuka
+12:
+  "Note" meta.struct.vuka variable.other.field.vuka
+  "string" meta.struct.vuka storage.type.vuka
+13:
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+14:
+15:
+  "var" keyword.var.go
+  "byAda" variable.other.assignment.go
+  "=" keyword.operator.assignment.go
+  "Post" variable.other.go
+  "." punctuation.other.period.go
+  "Author" variable.other.go
+  "." punctuation.other.period.go
+  "Name" variable.other.go
+  "." punctuation.other.period.go
+  "Eq" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "\"" string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "ada" string.quoted.double.vuka
+  "\"" string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" punctuation.definition.end.bracket.round.go
+16:
+  "var" keyword.var.go
+  "popular" variable.other.assignment.go
+  "=" keyword.operator.assignment.go
+  "vuka" variable.other.go
+  "." punctuation.other.period.go
+  "And" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "Post" variable.other.go
+  "." punctuation.other.period.go
+  "Title" variable.other.go
+  "." punctuation.other.period.go
+  "Contains" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "\"" string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "go" string.quoted.double.vuka
+  "\"" string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" punctuation.definition.end.bracket.round.go
+  "," punctuation.other.comma.go
+  "Post" variable.other.go
+  "." punctuation.other.period.go
+  "Views" variable.other.go
+  "." punctuation.other.period.go
+  "Gt" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "100" constant.numeric.decimal.go
+  ")" punctuation.definition.end.bracket.round.go
+  ")" punctuation.definition.end.bracket.round.go
+17:
+18:
+  "type" meta.struct.vuka keyword.type.go
+  "PetList" meta.struct.vuka entity.name.type.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+  "Title" meta.struct.vuka variable.other.field.vuka
+  "string" meta.struct.vuka storage.type.vuka
+  ";" meta.struct.vuka punctuation.terminator.go
+  "Pets" meta.struct.vuka variable.other.field.vuka
+  "[" meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "]" meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "Pet" meta.struct.vuka entity.name.type.vuka
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+19:
+20:
+  "type" meta.struct.vuka keyword.type.go
+  "Store" meta.struct.vuka entity.name.type.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+  "db" meta.struct.vuka variable.other.field.vuka
+  "*" meta.struct.vuka keyword.operator.pointer.vuka
+  "DB" meta.struct.vuka entity.name.type.vuka
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+21:
+22:
+  "type" meta.struct.vuka keyword.type.go
+  "Mixed" meta.struct.vuka entity.name.type.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+23:
+  "*" meta.struct.vuka keyword.operator.pointer.vuka
+  "Embedded" meta.struct.vuka entity.name.type.embedded.vuka
+24:
+  "// a comment line" meta.struct.vuka comment.line.double-slash.vuka
+25:
+  "Tags" meta.struct.vuka variable.other.field.vuka
+  "map" meta.struct.vuka keyword.type.vuka
+  "[" meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "string" meta.struct.vuka storage.type.vuka
+  "]" meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "[" meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "]" meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "int" meta.struct.vuka storage.type.vuka
+  "`" meta.struct.vuka string.quoted.raw.vuka punctuation.definition.string.begin.vuka
+  "json:\"tags\"" meta.struct.vuka string.quoted.raw.vuka
+  "`" meta.struct.vuka string.quoted.raw.vuka punctuation.definition.string.end.vuka
+26:
+  "Any" meta.struct.vuka variable.other.field.vuka
+  "interface{}" meta.struct.vuka keyword.interface.go
+  "@" meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Doc" meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "x" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka
+  "\"" meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.round.go
+27:
+  "Fn" meta.struct.vuka variable.other.field.vuka
+  "func" meta.struct.vuka keyword.type.vuka
+  "(" meta.struct.vuka punctuation.definition.begin.bracket.round.go
+  "int" meta.struct.vuka storage.type.vuka
+  ")" meta.struct.vuka punctuation.definition.end.bracket.round.go
+  "error" meta.struct.vuka storage.type.vuka
+28:
+  "Inner" meta.struct.vuka variable.other.field.vuka
+  "struct" meta.struct.vuka meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+29:
+  "X" meta.struct.vuka meta.struct.vuka variable.other.field.vuka
+  "int" meta.struct.vuka meta.struct.vuka storage.type.vuka
+  "@" meta.struct.vuka meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "Min" meta.struct.vuka meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" meta.struct.vuka meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "1" meta.struct.vuka meta.struct.vuka meta.attribute.vuka constant.numeric.decimal.go
+  ")" meta.struct.vuka meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.round.go
+30:
+  "}" meta.struct.vuka meta.struct.vuka punctuation.definition.end.bracket.curly.go
+31:
+  "Count" meta.struct.vuka variable.other.field.vuka
+  "int" meta.struct.vuka storage.type.vuka
+32:
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+33:
+34:
+  "var" keyword.var.go
+  "empty" variable.other.assignment.go
+  "=" keyword.operator.assignment.go
+  "struct" meta.struct.vuka keyword.struct.go
+  "{" meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+  "}" meta.struct.vuka punctuation.definition.end.bracket.curly.go
+  "{" punctuation.definition.begin.bracket.curly.go
+  "}" punctuation.definition.end.bracket.curly.go
+35:
+  "var" keyword.var.go
+  "pt" variable.other.assignment.go
+  "=" keyword.operator.assignment.go
+  "Point" entity.name.type.go
+  "{" punctuation.definition.begin.bracket.curly.go
+  "X" variable.other.property.go
+  ":" punctuation.other.colon.go
+  "1" constant.numeric.decimal.go
+  "," punctuation.other.comma.go
+  "Y" variable.other.property.go
+  ":" punctuation.other.colon.go
+  "2" constant.numeric.decimal.go
+  "}" punctuation.definition.end.bracket.curly.go
+36:

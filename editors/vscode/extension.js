@@ -2,10 +2,11 @@ const vscode = require('vscode');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { execFile, execFileSync } = require('child_process');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 
 let client;
+let versionItem;
 
 // vukaPath is the vuka binary, as an absolute path when it can be found:
 // VS Code started from the Dock has a short PATH, without ~/go/bin.
@@ -249,6 +250,57 @@ async function disableTemplDropIn(context) {
   await restartTempl('templ uses plain gopls again.');
 }
 
+// showVersion puts `vuka version` in the language status of .vuka files;
+// clicking it restarts the server.
+function showVersion() {
+  if (!versionItem) {
+    versionItem = vscode.languages.createLanguageStatusItem('vuka.version', { language: 'vuka' });
+    versionItem.name = 'Vuka';
+    versionItem.command = { title: 'Restart', command: 'vuka.restartServer' };
+  }
+  const command = vukaPath();
+  versionItem.text = 'vuka';
+  versionItem.detail = '';
+  execFile(command, ['version'], { timeout: 5000 }, (err, stdout) => {
+    if (err) {
+      versionItem.text = 'vuka not found';
+      versionItem.detail = `${command}: install with go install github.com/vuka-lang/vuka/cmd/vuka@latest`;
+      versionItem.severity = vscode.LanguageStatusSeverity.Error;
+      return;
+    }
+    versionItem.text = stdout.trim();
+    versionItem.detail = command;
+    versionItem.severity = vscode.LanguageStatusSeverity.Information;
+  });
+}
+
+const voidElements = new Set(['area', 'base', 'br', 'col', 'embed', 'hr', 'img', 'input', 'link', 'meta', 'source', 'track', 'wbr']);
+const openTag = /(?:^|[\s(={,:]|return)<(?:([A-Za-z_][\w.:-]*)(?:\[[^\]<>]*\])?(?:\s+[^<>]*[^/<>])?)?>$/;
+
+// closeTag adds </tag> after the cursor when a JSX opening tag is finished by
+// typing its >.
+function closeTag(e) {
+  const editor = vscode.window.activeTextEditor;
+  if (e.document.languageId !== 'vuka' || !editor || editor.document !== e.document || e.reason || e.contentChanges.length !== 1) {
+    return;
+  }
+  const change = e.contentChanges[0];
+  if (change.text !== '>' || !vscode.workspace.getConfiguration('vuka', e.document).get('autoCloseTags')) {
+    return;
+  }
+  const end = change.range.start.translate(0, 1);
+  const line = e.document.lineAt(end.line).text;
+  const m = openTag.exec(line.slice(0, end.character));
+  if (!m || voidElements.has(m[1] || '')) {
+    return;
+  }
+  const close = `</${m[1] || ''}>`;
+  if (line.slice(end.character).trimStart().startsWith(close)) {
+    return;
+  }
+  editor.insertSnippet(new vscode.SnippetString('$0' + close), end, { undoStopBefore: false, undoStopAfter: false });
+}
+
 function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('vuka.restartServer', async () => {
@@ -257,8 +309,10 @@ function activate(context) {
         await client.stop().catch(() => {});
         client = undefined;
       }
+      showVersion();
       await start();
     }),
+    vscode.workspace.onDidChangeTextDocument(closeTag),
     vscode.commands.registerCommand('vuka.serveGoFiles', () => enableGoDropIn(context, false)),
     vscode.commands.registerCommand('vuka.stopServingGoFiles', () => disableGoDropIn(context)),
     vscode.commands.registerCommand('vuka.serveTemplFiles', () => enableTemplDropIn(context, false)),
@@ -271,6 +325,8 @@ function activate(context) {
   if (config.get('offerTemplDropIn')) {
     enableTemplDropIn(context, true).catch(() => {});
   }
+  showVersion();
+  context.subscriptions.push(versionItem);
   return start();
 }
 

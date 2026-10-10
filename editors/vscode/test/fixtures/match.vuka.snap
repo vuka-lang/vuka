@@ -1,0 +1,164 @@
+1:
+  "package" keyword.package.go
+  "main" entity.name.type.package.go
+2:
+3:
+  "func" keyword.function.go
+  "show" entity.name.function.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "r" variable.parameter.go
+  "Result" entity.name.type.go
+  "[" punctuation.definition.begin.bracket.square.go
+  "Option" entity.name.type.go
+  "[" punctuation.definition.begin.bracket.square.go
+  "User" entity.name.type.go
+  "]" punctuation.definition.end.bracket.square.go
+  "]" -
+  ")" punctuation.definition.end.bracket.round.go
+  "{" punctuation.definition.begin.bracket.curly.go
+4:
+  "match" keyword.control.match.vuka
+  "r" variable.other.go
+  "{" punctuation.definition.begin.bracket.curly.go
+5:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "Ok" meta.pattern.vuka support.function.vuka
+  "(" meta.pattern.vuka punctuation.definition.begin.bracket.round.go
+  "Some" meta.pattern.vuka support.function.vuka
+  "(" meta.pattern.vuka punctuation.definition.begin.bracket.round.go
+  "u" meta.pattern.vuka variable.other.go
+  ")" meta.pattern.vuka punctuation.definition.end.bracket.round.go
+  ")" meta.pattern.vuka punctuation.definition.end.bracket.round.go
+  ":" meta.pattern.vuka punctuation.other.colon.go
+6:
+  "fmt" variable.other.go
+  "." punctuation.other.period.go
+  "Println" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "u" variable.other.go
+  "." punctuation.other.period.go
+  "Name" variable.other.go
+  ")" punctuation.definition.end.bracket.round.go
+7:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "Ok" meta.pattern.vuka support.function.vuka
+  "(" meta.pattern.vuka punctuation.definition.begin.bracket.round.go
+  "None" meta.pattern.vuka support.constant.vuka
+  ")" meta.pattern.vuka punctuation.definition.end.bracket.round.go
+  ":" meta.pattern.vuka punctuation.other.colon.go
+8:
+  "fmt" variable.other.go
+  "." punctuation.other.period.go
+  "Println" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "\"" string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "none" string.quoted.double.vuka
+  "\"" string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" punctuation.definition.end.bracket.round.go
+9:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "Err" meta.pattern.vuka support.function.vuka
+  "(" meta.pattern.vuka punctuation.definition.begin.bracket.round.go
+  "&" meta.pattern.vuka keyword.operator.address.go
+  "NotFound" meta.pattern.vuka entity.name.type.go
+  "{" meta.pattern.vuka punctuation.definition.begin.bracket.curly.go
+  "ID" meta.pattern.vuka variable.other.property.go
+  ":" meta.pattern.vuka punctuation.other.colon.go
+  "id" meta.pattern.vuka variable.other.go
+  "}" meta.pattern.vuka punctuation.definition.end.bracket.curly.go
+  ")" meta.pattern.vuka punctuation.definition.end.bracket.round.go
+  ":" meta.pattern.vuka punctuation.other.colon.go
+10:
+  "fmt" variable.other.go
+  "." punctuation.other.period.go
+  "Println" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "id" variable.other.go
+  ")" punctuation.definition.end.bracket.round.go
+11:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "Err" meta.pattern.vuka support.function.vuka
+  "(" meta.pattern.vuka punctuation.definition.begin.bracket.round.go
+  "e" meta.pattern.vuka variable.other.go
+  ")" meta.pattern.vuka punctuation.definition.end.bracket.round.go
+  "if" meta.pattern.vuka keyword.control.guard.vuka
+  "errors" meta.pattern.vuka variable.other.go
+  "." meta.pattern.vuka punctuation.other.period.go
+  "Is" meta.pattern.vuka entity.name.function.support.go
+  "(" meta.pattern.vuka punctuation.definition.begin.bracket.round.go
+  "e" meta.pattern.vuka variable.other.go
+  "," meta.pattern.vuka punctuation.other.comma.go
+  "strconv" meta.pattern.vuka variable.other.go
+  "." meta.pattern.vuka punctuation.other.period.go
+  "ErrSyntax" meta.pattern.vuka variable.other.go
+  ")" meta.pattern.vuka punctuation.definition.end.bracket.round.go
+  ":" meta.pattern.vuka punctuation.other.colon.go
+12:
+  "fmt" variable.other.go
+  "." punctuation.other.period.go
+  "Println" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "e" variable.other.go
+  ")" punctuation.definition.end.bracket.round.go
+13:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "Err" meta.pattern.vuka support.function.vuka
+  "(" meta.pattern.vuka punctuation.definition.begin.bracket.round.go
+  "e" meta.pattern.vuka variable.other.go
+  ")" meta.pattern.vuka punctuation.definition.end.bracket.round.go
+  ":" meta.pattern.vuka punctuation.other.colon.go
+14:
+  "fmt" variable.other.go
+  "." punctuation.other.period.go
+  "Println" entity.name.function.support.go
+  "(" punctuation.definition.begin.bracket.round.go
+  "e" variable.other.go
+  ")" punctuation.definition.end.bracket.round.go
+15:
+  "}" punctuation.definition.end.bracket.curly.go
+16:
+  "match" keyword.control.match.vuka
+  "x" variable.other.go
+  "{" punctuation.definition.begin.bracket.curly.go
+17:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "1" meta.pattern.vuka constant.numeric.decimal.go
+  "," meta.pattern.vuka punctuation.other.comma.go
+  "2" meta.pattern.vuka constant.numeric.decimal.go
+  "," meta.pattern.vuka punctuation.other.comma.go
+  "3" meta.pattern.vuka constant.numeric.decimal.go
+  ":" meta.pattern.vuka punctuation.other.colon.go
+18:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "^" meta.pattern.vuka keyword.operator.pin.vuka
+  "y" meta.pattern.vuka variable.other.vuka
+  ":" meta.pattern.vuka punctuation.other.colon.go
+19:
+  "case" meta.pattern.vuka keyword.control.vuka
+  "_" meta.pattern.vuka variable.language.wildcard.vuka
+  ":" meta.pattern.vuka punctuation.other.colon.go
+20:
+  "}" punctuation.definition.end.bracket.curly.go
+21:
+  "x" variable.other.assignment.go
+  ":=" keyword.operator.assignment.go
+  "match" variable.other.go
+22:
+  "v" variable.other.assignment.go
+  ":=" keyword.operator.assignment.go
+  "Some" support.function.vuka
+  "(" punctuation.definition.begin.bracket.round.go
+  "3" constant.numeric.decimal.go
+  ")" punctuation.definition.end.bracket.round.go
+23:
+  "var" keyword.var.go
+  "o" variable.other.assignment.go
+  "Option" entity.name.type.go
+  "[" punctuation.definition.begin.bracket.square.go
+  "int" storage.type.numeric.go
+  "]" punctuation.definition.end.bracket.square.go
+  "=" keyword.operator.assignment.go
+  "None" support.constant.vuka
+24:
+  "}" punctuation.definition.end.bracket.curly.go
+25:

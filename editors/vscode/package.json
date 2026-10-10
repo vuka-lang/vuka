@@ -1,8 +1,8 @@
 {
   "name": "vuka",
   "displayName": "Vuka",
-  "description": "Vuka language support: Go with Result, Option, ?, match, overloading and attributes. Completion, navigation, rename and diagnostics through gopls.",
-  "version": "0.3.0",
+  "description": "Vuka language support: Go with Result, Option, ?, match, overloading, decorators, statics, typed field attributes and JSX components (stateless, stateful and live). Highlighting, snippets, format on save, and completion, navigation, rename and diagnostics through gopls.",
+  "version": "0.4.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -10,17 +10,32 @@
     "type": "git",
     "url": "https://github.com/vuka-lang/vuka"
   },
+  "homepage": "https://vuka-lang.github.io/vuka/",
+  "bugs": {
+    "url": "https://github.com/vuka-lang/vuka/issues"
+  },
   "engines": {
     "vscode": "^1.85.0"
   },
   "categories": [
-    "Programming Languages"
+    "Programming Languages",
+    "Snippets",
+    "Formatters"
   ],
   "keywords": [
     "vuka",
     "go",
     "golang",
-    "transpiler"
+    "transpiler",
+    "jsx",
+    "templ",
+    "components",
+    "live",
+    "liveview",
+    "orm",
+    "decorators",
+    "result",
+    "option"
   ],
   "main": "./extension.js",
   "activationEvents": [
@@ -67,6 +82,12 @@
         }
       }
     ],
+    "snippets": [
+      {
+        "language": "vuka",
+        "path": "./snippets/vuka.json"
+      }
+    ],
     "configurationDefaults": {
       "[vuka]": {
         "editor.formatOnSave": true
@@ -109,6 +130,11 @@
           "type": "boolean",
           "default": true,
           "description": "Offer to let templ's language server use Vuka as its gopls (templ.executablePath), so .templ files see code from .vuka files."
+        },
+        "vuka.autoCloseTags": {
+          "type": "boolean",
+          "default": true,
+          "description": "Add the closing tag when a JSX opening tag is finished by typing its >."
         }
       }
     },
@@ -139,9 +165,11 @@
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
-    "@vscode/vsce": "^3.2.1"
+    "@vscode/vsce": "^3.2.1",
+    "shiki": "^2.5.0"
   },
   "scripts": {
-    "package": "vsce package"
+    "package": "vsce package",
+    "test": "node test/grammar.test.mjs"
   }
 }

@@ -27,8 +27,12 @@ go install golang.org/x/tools/gopls@latest
 
 The extension lives in
 [`editors/vscode`](https://github.com/vuka-lang/vuka/tree/main/editors/vscode):
-the language server, highlighting for Vuka's additions on top of Go's grammar,
-and the Vuka icons.
+the language server, highlighting for Vuka's additions on top of Go's grammar
+(field attributes, statics, `match` patterns, JSX with its blocks, event
+attributes and components — the grammar these pages use), snippets for
+components, live pages, routes, models and decorators, closing JSX tags as you
+type, and the Vuka icons. The language status shows `vuka version`; clicking
+it restarts the server.
 
 ### Go files
 
