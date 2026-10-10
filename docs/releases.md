@@ -10,7 +10,7 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
-## v0.10.0
+## v0.10.0 — 2026-10-10
 
 Runtime: `github.com/vuka-lang/vuka v0.10.0` — the UI layer is gone from it.
 New library: [`github.com/vuka-lang/ui`](/ui/) v0.1.0. Run `vuka fix ui`.
@@ -36,6 +36,20 @@ New library: [`github.com/vuka-lang/ui`](/ui/) v0.1.0. Run `vuka fix ui`.
   (`go install github.com/vuka-lang/vuka/cmd/vuka@latest` as before). It
   compiles `.templ` files with templ's parser and generator — a plugin of the
   command, on for modules that require templ.
+- **Decorators, as flexible as Java's annotations:**
+  - A decorator whose parameters are all optional can be written bare:
+    `@tx` calls `tx()`, so `@orm.Transaction` and
+    `@orm.Transaction(orm.TxOn("db"))` are one decorator.
+  - **Parameter attributes:** `func Show(@Path("id") id int, @Body in NewPet)`,
+    read by declarers (`vuka.Param.Attrs`) and call decorators
+    (`c.ParamAttr(i, &x)`).
+  - **Composed decorators:** `decorator ApiRoute(path string) = @web.Get(path)
+    @web.Use(auth) @timed`, exported and used like any decorator.
+  - **Type-level advice:** a call decorator on a type wraps every method of
+    it declared in `.vuka` files; `@vuka.NoAdvice` opts a method out.
+  - **Attribute targets:** `@vuka.Targets(vuka.OnField)` on an attribute type
+    makes using it elsewhere a compile error.
+  [Decorators](/features/decorators), [Attributes](/features/attributes).
 - Docs: [UI](/ui/) is its own section; the language's [JSX](/features/jsx)
   page is library-neutral; [Live protocol](/reference/live-protocol) is the
   reference for transport authors.
