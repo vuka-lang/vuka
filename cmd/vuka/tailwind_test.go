@@ -313,3 +313,28 @@ func TestBuildTailwind(t *testing.T) {
 		t.Errorf("vuka build with VUKA_TAILWIND=off: %v\n%s", err, stderr.Bytes())
 	}
 }
+
+// TestBuildTailwindOldWeb: an app on a web without RegisterCSS builds as
+// before, with or without the Tailwind CLI.
+func TestBuildTailwindOldWeb(t *testing.T) {
+	bin := t.TempDir()
+	goBin, _ := exec.LookPath("go")
+	os.Symlink(goBin, filepath.Join(bin, "go"))
+	t.Setenv("PATH", bin)
+	t.Setenv("GOWORK", "off")
+	root := tempModule(t, map[string]string{
+		"go.mod":     "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web v0.4.0\n\nreplace github.com/vuka-lang/web => ./web\n",
+		"main.go":    "package main\n\nimport _ \"github.com/vuka-lang/web\"\n\nfunc main() {}\n",
+		"page.html":  "<p class=\"p-4\"></p>",
+		"web/go.mod": "module github.com/vuka-lang/web\n\ngo 1.25.0\n",
+		"web/web.go": "package web\n",
+	})
+	gens, err := buildTailwind(root, "")
+	if err != nil || gens != nil {
+		t.Errorf("buildTailwind: %v %v", gens, err)
+	}
+	writeFile(t, filepath.Join(root, "web", "css.go"), "package web\n\nfunc RegisterCSS(name string, css []byte) {}\n")
+	if _, err := buildTailwind(root, ""); err == nil || !strings.Contains(err.Error(), twInstall) {
+		t.Errorf("a web with RegisterCSS, no Tailwind CLI: %v", err)
+	}
+}

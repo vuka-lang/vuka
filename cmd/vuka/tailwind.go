@@ -331,23 +331,19 @@ func (l *twLog) Write(p []byte) (int, error) {
 
 // buildTailwind builds the minified stylesheet and returns, for each main
 // package depending on web, the file embedding it. A web too old to take it
-// (no RegisterCSS) gets none, with a note.
-func buildTailwind(root, overlay string, stderr io.Writer) ([]load.Generated, error) {
+// (no RegisterCSS) gets none.
+func buildTailwind(root, overlay string) ([]load.Generated, error) {
 	tw, err := tailwindFor(root)
 	if tw == nil || err != nil {
 		return nil, err
 	}
+	pkgs, err := listPackages(root, overlay)
+	if err != nil || len(pkgs.mains) == 0 || !hasRegisterCSS(pkgs.web) {
+		return nil, err // a web without RegisterCSS predates Tailwind support
+	}
 	bin, err := tailwindBinary(root)
 	if err != nil {
 		return nil, fmt.Errorf("%v; or VUKA_TAILWIND=off to build without it", err)
-	}
-	pkgs, err := listPackages(root, overlay)
-	if err != nil || len(pkgs.mains) == 0 {
-		return nil, err
-	}
-	if dir := pkgs.web; dir != "" && !hasRegisterCSS(dir) {
-		fmt.Fprintf(stderr, "vuka: %s at %s predates Tailwind support; building without the stylesheet\n", webPath, dir)
-		return nil, nil
 	}
 	entry, err := tw.writeEntry(componentDirs(pkgs.deps))
 	if err != nil {
@@ -379,6 +375,9 @@ func buildTailwind(root, overlay string, stderr io.Writer) ([]load.Generated, er
 }
 
 func hasRegisterCSS(dir string) bool {
+	if dir == "" {
+		return false
+	}
 	files, _ := filepath.Glob(filepath.Join(dir, "*.go"))
 	for _, f := range files {
 		if src, err := os.ReadFile(f); err == nil && bytes.Contains(src, []byte("func RegisterCSS(")) {

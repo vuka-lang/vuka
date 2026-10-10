@@ -135,7 +135,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	stopTailwind := func() {}
 	switch cmd {
 	case "build", "install":
-		css, err := buildTailwind(root, overlay, stderr)
+		css, err := buildTailwind(root, overlay)
 		if err != nil {
 			return err
 		}
@@ -304,7 +304,7 @@ func gen(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	css, err := buildTailwind(root, overlay, os.Stderr)
+	css, err := buildTailwind(root, overlay)
 	if err != nil {
 		return err
 	}
@@ -387,7 +387,7 @@ func genModule(out string, check bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	css, err := buildTailwind(root, overlay, os.Stderr)
+	css, err := buildTailwind(root, overlay)
 	if err != nil {
 		return err
 	}
