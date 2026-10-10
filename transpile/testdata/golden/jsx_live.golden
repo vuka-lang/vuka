@@ -28,7 +28,7 @@ func (c *Counter) Mount(ctx context.Context) error {
 func (c *Counter) Inc() { c.n++ }
 
 func (c *Counter) Render() vuka.Node {
-	return vuka.F(0x52898dba60575256, "E(hthtEd(t))", vuka.El("span", nil, vuka.Child(/*line jsx_live.vuka:28:16*/c.Label), vuka.Text(": "), vuka.Child(/*line jsx_live.vuka:28:27*/c.n), vuka.Text(" "), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line jsx_live.vuka:28:49*/c.Inc)}, }, vuka.Text("+"), ), ), )
+	return vuka.F(0x255446f1e1e9ccd2, "E(hthtEd(t))", vuka.El("span", nil, vuka.Child(/*line jsx_live.vuka:28:16*/c.Label), vuka.Text(": "), vuka.Child(/*line jsx_live.vuka:28:27*/c.n), vuka.Text(" "), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line jsx_live.vuka:28:49*/c.Inc)}, }, vuka.Text("+"), ), ), )
 }
 
 type Item struct {
@@ -68,25 +68,25 @@ func (t *Todo) Remove(id int) {
 }
 
 func (t *Todo) Render() vuka.Node {
-	return vuka.F(0x8ec4a9df618b03d4, "E(E(h)hEd(Esd())E(b)b)", vuka.El("section", nil, vuka.El("h2", nil, vuka.Child(
+	return vuka.F(0xe0cf875f26e2c3e6, "E(E(h)hEd(Esd())E(b)b)", vuka.El("section", nil, vuka.El("h2", nil, vuka.Child(
 /*line jsx_live.vuka:69:8*/t.Title), ), vuka.Child(
 /*line jsx_live.vuka:70:4*/t.Children), vuka.El("form", []vuka.Attr{{Name: "onSubmit", Value: vuka.On(
 /*line jsx_live.vuka:71:19*/t.Add)}, }, vuka.El("input", []vuka.Attr{{Name: "name", Value: "name"}, {Name: "onInput", Value: vuka.On(/*line jsx_live.vuka:71:54*/func(q string) { t.query = q })}, }, ), ), vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
 
-/*line jsx_live.vuka:73:5*/for _, it := range t.items { __add(vuka.F(0xc497e5af0da9a27, "Ed(cEd(t))", vuka.El("li", []vuka.Attr{{Name: "key", Value: 
+/*line jsx_live.vuka:73:5*/for _, it := range t.items { __add(vuka.F(0xebe80b758886d455, "Ed(cEd(t))", vuka.El("li", []vuka.Attr{{Name: "key", Value: 
 /*line jsx_live.vuka:74:14*/it.ID}, }, vuka.Component("jsx_live.vuka#1", nil, 
 &/*line jsx_live.vuka:75:7*/Counter{Label: it.Name, }), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(
 /*line jsx_live.vuka:76:23*/func() { t.Remove(it.ID) })}, }, vuka.Text("x"), ), ), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
 
 
 
-/*line jsx_live.vuka:80:4*/if t.query != "" { __add(vuka.F(0x1c99cb5af9ce827e, "E(th)", vuka.El("p", nil, vuka.Text("typing "), vuka.Child(/*line jsx_live.vuka:80:34*/t.query), ), )); } }), ), 
+/*line jsx_live.vuka:80:4*/if t.query != "" { __add(vuka.F(0xe03b7a1e9fc8ce8c, "E(th)", vuka.El("p", nil, vuka.Text("typing "), vuka.Child(/*line jsx_live.vuka:80:34*/t.query), ), )); } }), ), 
 )
 }
 
 func page(ctx context.Context) vuka.Node {
-	return vuka.F(0xbb146da2c71cd731, "E(cc)", vuka.El("main", nil, vuka.Component("jsx_live.vuka#2", nil, 
-&/*line jsx_live.vuka:86:4*/Todo{Title: "Groceries", Children: vuka.F(0x89e29855fe6cbe, "E(t)", vuka.El("p", nil, vuka.Text("weekly"), ), ), }), vuka.Component("jsx_live.vuka#3", "solo", 
+	return vuka.F(0xa924c306192623b4, "E(cc)", vuka.El("main", nil, vuka.Component("jsx_live.vuka#2", nil, 
+&/*line jsx_live.vuka:86:4*/Todo{Title: "Groceries", Children: vuka.F(0xaa62a1545aee466c, "E(t)", vuka.El("p", nil, vuka.Text("weekly"), ), ), }), vuka.Component("jsx_live.vuka#3", "solo", 
 &/*line jsx_live.vuka:87:4*/Counter{Start: /*line jsx_live.vuka:87:30*/10, Label: "solo", }), ), 
 )
 }

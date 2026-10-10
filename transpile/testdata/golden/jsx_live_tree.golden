@@ -37,12 +37,12 @@ func (t *Table) Do(w string) {
 }
 
 func (t *Table) Render() vuka.Node {
-	return vuka.F(0x20d2d3981cd66ead, "E(E(Ed())bb)", vuka.El("table", nil, vuka.El("caption", nil, vuka.El("input", []vuka.Attr{{Name: "onInput", Value: vuka.On(
+	return vuka.F(0xd71f6ebe8b4bd077, "E(E(Ed())bb)", vuka.El("table", nil, vuka.El("caption", nil, vuka.El("input", []vuka.Attr{{Name: "onInput", Value: vuka.On(
 /*line jsx_live_tree.vuka:38:28*/t.Do)}, }, ), ), vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_live_tree.vuka:39:4*/for _, r := range t.rows { __add(vuka.F(0x9c91197900471392, "Ed(E(h)E(h))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: 
+/*line jsx_live_tree.vuka:39:4*/for _, r := range t.rows { __add(vuka.F(0xc97075a69fd8e3ff, "Ed(E(h)E(h))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: 
 /*line jsx_live_tree.vuka:40:13*/r.ID}, }, vuka.El("td", nil, vuka.Child(/*line jsx_live_tree.vuka:40:24*/r.Name), ), vuka.El("td", nil, vuka.Child(/*line jsx_live_tree.vuka:40:41*/r.Qty), ), ), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
 
-/*line jsx_live_tree.vuka:42:4*/if t.sel > 0 { __add(vuka.F(0x8d6e109b9a683a95, "E(th)", vuka.El("p", nil, vuka.Text("row "), vuka.Child(/*line jsx_live_tree.vuka:42:27*/t.sel), ), )); } /*line jsx_live_tree.vuka:42:40*/else { __add(vuka.F(0x8d4f969b9a4e6db8, "E(t)", vuka.El("p", nil, vuka.Text("none"), ), )); } }), ), 
+/*line jsx_live_tree.vuka:42:4*/if t.sel > 0 { __add(vuka.F(0xc5f3693a6b5383b, "E(th)", vuka.El("p", nil, vuka.Text("row "), vuka.Child(/*line jsx_live_tree.vuka:42:27*/t.sel), ), )); } /*line jsx_live_tree.vuka:42:40*/else { __add(vuka.F(0x8b83ab6dc51ead45, "E(t)", vuka.El("p", nil, vuka.Text("none"), ), )); } }), ), 
 )
 }
 
@@ -55,11 +55,11 @@ type Counter struct {
 func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
 
 func (c *Counter) Render() vuka.Node {
-	return vuka.F(0x4c60c842038850ea, "E(hthtEd(t))", vuka.El("span", nil, vuka.Child(/*line jsx_live_tree.vuka:55:16*/c.Label), vuka.Text(": "), vuka.Child(/*line jsx_live_tree.vuka:55:27*/c.n.Get()), vuka.Text(" "), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line jsx_live_tree.vuka:55:55*/c.Inc)}, }, vuka.Text("+"), ), ), )
+	return vuka.F(0x255446f1e1e9ccd2, "E(hthtEd(t))", vuka.El("span", nil, vuka.Child(/*line jsx_live_tree.vuka:55:16*/c.Label), vuka.Text(": "), vuka.Child(/*line jsx_live_tree.vuka:55:27*/c.n.Get()), vuka.Text(" "), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line jsx_live_tree.vuka:55:55*/c.Inc)}, }, vuka.Text("+"), ), ), )
 }
 
 func page(ctx context.Context) vuka.Node {
-	return vuka.F(0x1372518856f3dfae, "E(cb)", vuka.El("main", nil, vuka.Component("jsx_live_tree.vuka#1", nil, &/*line jsx_live_tree.vuka:59:16*/Table{}), vuka.Nodes(func(__add func(vuka.Node)) { /*line jsx_live_tree.vuka:59:25*/for i, l := range []string{"a", "b"} { __add(vuka.F(0xff3122abc073627b, "c", func(__a1 int, __a2 string) vuka.Node { return vuka.Component("jsx_live_tree.vuka#2", __a1, &/*line jsx_live_tree.vuka:59:65*/Counter{Label: __a2, }) }(/*line jsx_live_tree.vuka:59:78*/i, /*line jsx_live_tree.vuka:59:88*/l, ), )); } }), ), )
+	return vuka.F(0xa9211f061922d731, "E(cb)", vuka.El("main", nil, vuka.Component("jsx_live_tree.vuka#1", nil, &/*line jsx_live_tree.vuka:59:16*/Table{}), vuka.Nodes(func(__add func(vuka.Node)) { /*line jsx_live_tree.vuka:59:25*/for i, l := range []string{"a", "b"} { __add(vuka.F(0xaf63de4c8601eff2, "c", func(__a1 int, __a2 string) vuka.Node { return vuka.Component("jsx_live_tree.vuka#2", __a1, &/*line jsx_live_tree.vuka:59:65*/Counter{Label: __a2, }) }(/*line jsx_live_tree.vuka:59:78*/i, /*line jsx_live_tree.vuka:59:88*/l, ), )); } }), ), )
 }
 
 func main() {

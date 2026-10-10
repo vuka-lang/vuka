@@ -81,7 +81,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		case a.attr != nil:
 			w.attrValue(a.attr)
 		case a.kids:
-			w.frame(el.tagEnd, el.kids)
+			w.frame(el.kids)
 		default:
 			w.gen(a.text)
 		}

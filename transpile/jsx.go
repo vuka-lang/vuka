@@ -754,7 +754,6 @@ type jsxPiece struct {
 type jsxWriter struct {
 	rt     string
 	f      *fileState
-	tree   *jsxTree
 	pieces []jsxPiece
 }
 
@@ -763,8 +762,8 @@ func (w *jsxWriter) keep(s span)  { w.pieces = append(w.pieces, jsxPiece{keep: s
 
 // jsxEdits lowers a tree, as it stands, to edits of the gaps between what it keeps.
 func (f *fileState) jsxEdits(t *jsxTree) edits {
-	w := &jsxWriter{rt: f.rt, f: f, tree: t}
-	w.frame(t.start, []jsxNode{t.root})
+	w := &jsxWriter{rt: f.rt, f: f}
+	w.frame([]jsxNode{t.root})
 	var out edits
 	var buf strings.Builder
 	cur := t.start
@@ -837,7 +836,7 @@ func (w *jsxWriter) node(n jsxNode) {
 			for i, c := range m.cases {
 				w.keep(span{c.start, c.colon + 1})
 				w.gen(" ")
-				w.body(c.colon, n.cases[i])
+				w.body(n.cases[i])
 			}
 			w.keep(span{m.rbrace, m.rbrace + 1})
 		} else {
@@ -847,7 +846,7 @@ func (w *jsxWriter) node(n jsxNode) {
 				}
 				w.keep(h)
 				w.gen(" ")
-				w.body(h.end, n.bodies[i])
+				w.body(n.bodies[i])
 			}
 			w.gen("}")
 		}

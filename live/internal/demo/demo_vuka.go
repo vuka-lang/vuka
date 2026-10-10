@@ -23,7 +23,7 @@ type Row struct {
 func (r *Row) Inc() { r.qty.Update(func(n int) int { return n + 1 }) }
 
 func (r *Row) Render() vuka.Node {
-	return vuka.F(0xb2824ed2095046c8, "Ed(E(h)E(h)E(Ed(t)))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:18*/r.ID}, }, vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:29*/r.Name), ), vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:46*/r.qty.Get()), ), vuka.El("td", nil, vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:84*/r.Inc)}, }, vuka.Text("+"), ), ), ), )
+	return vuka.F(0x4500888e5ca7f1a2, "Ed(E(h)E(h)E(Ed(t)))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:18*/r.ID}, }, vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:29*/r.Name), ), vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:46*/r.qty.Get()), ), vuka.El("td", nil, vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:23:84*/r.Inc)}, }, vuka.Text("+"), ), ), ), )
 }
 
 // PlainRow is Row with plain state: rendered again with its table.
@@ -37,7 +37,7 @@ type PlainRow struct {
 func (r *PlainRow) Inc() { r.qty++ }
 
 func (r *PlainRow) Render() vuka.Node {
-	return vuka.F(0x76e0402558facc31, "Ed(E(h)E(h)E(Ed(t)))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:18*/r.ID}, }, vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:29*/r.Name), ), vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:46*/r.qty), ), vuka.El("td", nil, vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:78*/r.Inc)}, }, vuka.Text("+"), ), ), ), )
+	return vuka.F(0x4500888e5ca7f1a2, "Ed(E(h)E(h)E(Ed(t)))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:18*/r.ID}, }, vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:29*/r.Name), ), vuka.El("td", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:46*/r.qty), ), vuka.El("td", nil, vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:37:78*/r.Inc)}, }, vuka.Text("+"), ), ), ), )
 }
 
 // Table is a table of n rows, each a component.
@@ -49,10 +49,10 @@ type Table struct {
 }
 
 func (t *Table) Render() vuka.Node {
-	return vuka.F(0x7c07b02ea3b107ee, "E(E(h)b)", vuka.El("table", nil, vuka.El("caption", nil, vuka.Child(
+	return vuka.F(0x1001ea6d61c2e18f, "E(E(h)b)", vuka.El("table", nil, vuka.El("caption", nil, vuka.Child(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:50:13*/t.title.Get()), ), vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:51:4*/for i := range t.N { __add(vuka.F(0x721f314025d66884, "b", vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:5*/if t.Plain { __add(vuka.F(0x71fd2a4025b97639, "c", func(__a1 int, __a2 int, __a3 string) vuka.Node { return vuka.Component("demo.vuka#1", __a1, &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:19*/PlainRow{ID: __a2, Name: __a3, }) }(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:33*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:40*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:49*/"row " + strconv.Itoa(i), ), )); } /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:80*/else { __add(vuka.F(0xb841c70046006c58, "c", func(__a1 int, __a2 int, __a3 string) vuka.Node { return vuka.Component("demo.vuka#2", __a1, &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:88*/Row{ID: __a2, Name: __a3, }) }(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:97*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:104*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:113*/"row " + strconv.Itoa(i), ), )); } }), )); } }), ), 
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:51:4*/for i := range t.N { __add(vuka.F(0xaf63df4c8601f1a5, "b", vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:5*/if t.Plain { __add(vuka.F(0xaf63de4c8601eff2, "c", func(__a1 int, __a2 int, __a3 string) vuka.Node { return vuka.Component("demo.vuka#1", __a1, &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:19*/PlainRow{ID: __a2, Name: __a3, }) }(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:33*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:40*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:49*/"row " + strconv.Itoa(i), ), )); } /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:80*/else { __add(vuka.F(0xaf63de4c8601eff2, "c", func(__a1 int, __a2 int, __a3 string) vuka.Node { return vuka.Component("demo.vuka#2", __a1, &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:88*/Row{ID: __a2, Name: __a3, }) }(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:97*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:104*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:52:113*/"row " + strconv.Itoa(i), ), )); } }), )); } }), ), 
 
 )
 }
@@ -70,8 +70,8 @@ func (t *CellTable) Mount() { t.cells = make([]int, t.N) }
 func (t *CellTable) Bump(i int) { t.cells[i]++ }
 
 func (t *CellTable) Render() vuka.Node {
-	return vuka.F(0x62a24345a8ef19a2, "E(b)", vuka.El("table", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:71:4*/for i, v := range t.cells { __add(vuka.F(0x88ce735e0e458255, "Ed(E(th)Es(h)E(Ed(t)))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: 
+	return vuka.F(0xd5334c12df227221, "E(b)", vuka.El("table", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:71:4*/for i, v := range t.cells { __add(vuka.F(0x7e145e55294a2476, "Ed(E(th)Es(h)E(Ed(t)))", vuka.El("tr", []vuka.Attr{{Name: "key", Value: 
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:72:13*/i}, }, vuka.El("td", nil, vuka.Text("row "), vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:72:25*/i), ), vuka.El("td", []vuka.Attr{{Name: "className", Value: "n"}, }, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:72:51*/v), ), vuka.El("td", nil, vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:72:79*/func() { t.Bump(i) })}, }, vuka.Text("+"), ), ), ), )); } }), ), 
 
 )
@@ -87,13 +87,13 @@ type Counter struct {
 func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
 
 func (c *Counter) Render() vuka.Node {
-	return vuka.F(0xb8806d965c0541b2, "E(hthtEd(t))", vuka.El("span", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:87:16*/c.Label), vuka.Text(": "), vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:87:27*/c.n.Get()), vuka.Text(" "), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:87:55*/c.Inc)}, }, vuka.Text("+"), ), ), )
+	return vuka.F(0x255446f1e1e9ccd2, "E(hthtEd(t))", vuka.El("span", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:87:16*/c.Label), vuka.Text(": "), vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:87:27*/c.n.Get()), vuka.Text(" "), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:87:55*/c.Inc)}, }, vuka.Text("+"), ), ), )
 }
 
 // Counters is a page of n counters.
 func Counters(n int) func(context.Context) vuka.Node {
 	return func(context.Context) vuka.Node {
-		return vuka.F(0xf19108625c3aaf9d, "E(b)", vuka.El("main", nil, vuka.Nodes(func(__add func(vuka.Node)) { /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:17*/for i := range n { __add(vuka.F(0xb419db22b7b24766, "c", func(__a1 int, __a2 string) vuka.Node { return vuka.Component("demo.vuka#3", __a1, &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:37*/Counter{Label: __a2, }) }(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:50*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:60*/"c" + strconv.Itoa(i), ), )); } }), ), )
+		return vuka.F(0x77d309cba315688a, "E(b)", vuka.El("main", nil, vuka.Nodes(func(__add func(vuka.Node)) { /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:17*/for i := range n { __add(vuka.F(0xaf63de4c8601eff2, "c", func(__a1 int, __a2 string) vuka.Node { return vuka.Component("demo.vuka#3", __a1, &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:37*/Counter{Label: __a2, }) }(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:50*/i, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:93:60*/"c" + strconv.Itoa(i), ), )); } }), ), )
 	}
 }
 
@@ -175,34 +175,34 @@ func (b *Board) Remove(id int) {
 }
 
 func (b *Board) Render() vuka.Node {
-	return vuka.F(0x534b18238388fab9, "Ed(Ed(htht)hEdd()Ed(t)E(b)E(b)bbE(h)b)", vuka.El("section", []vuka.Attr{{Name: "className", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:175:29*/"board " + b.mode}, }, vuka.El("h2", []vuka.Attr{{Name: "title", Value: 
+	return vuka.F(0x208d9ada60bb505f, "Ed(Ed(htht)hEdd()Ed(t)E(b)E(b)bbE(h)b)", vuka.El("section", []vuka.Attr{{Name: "className", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:175:29*/"board " + b.mode}, }, vuka.El("h2", []vuka.Attr{{Name: "title", Value: 
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:176:14*/b.note}, }, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:176:23*/b.Title), vuka.Text(" ("), vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:176:34*/len(b.items)), vuka.Text(")"), ), vuka.Child(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:177:4*/b.Children), vuka.El("input", []vuka.Attr{{Name: "onInput", Value: vuka.On(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:178:19*/b.Do)}, {Name: "value", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:178:32*/b.mode}, }, ), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:179:20*/b.Toggle)}, }, vuka.Text("toggle"), ), vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:181:5*/for _, it := range b.items { __add(vuka.F(0x909f44647309a9fc, "Ed(htcEd(t))", vuka.El("li", []vuka.Attr{{Name: "key", Value: 
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:181:5*/for _, it := range b.items { __add(vuka.F(0xbb03a5071d868fe7, "Ed(htcEd(t))", vuka.El("li", []vuka.Attr{{Name: "key", Value: 
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:182:14*/it.ID}, }, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:182:22*/it.Name), vuka.Text(" "), vuka.Component("demo.vuka#4", nil, &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:182:32*/Counter{Label: it.Name, }), vuka.El("button", []vuka.Attr{{Name: "onClick", Value: vuka.On(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:182:75*/func() { b.Remove(it.ID) })}, }, vuka.Text("x"), ), ), )); } }), ), vuka.El("ol", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
 
 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:185:8*/for i, it := range b.items { __add(vuka.F(0xc50f526490df1327, "E(hth)", vuka.El("li", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:185:42*/i), vuka.Text(": "), vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:185:47*/it.Name), ), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:186:4*/if b.open { __add(vuka.F(0xc501c36490d395ce, "Ed(th)", vuka.El("p", []vuka.Attr{{Name: "onClick", Value: vuka.On(
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:185:8*/for i, it := range b.items { __add(vuka.F(0x58e327489fab1530, "E(hth)", vuka.El("li", nil, vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:185:42*/i), vuka.Text(": "), vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:185:47*/it.Name), ), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:186:4*/if b.open { __add(vuka.F(0x433c8382836d2b7d, "Ed(th)", vuka.El("p", []vuka.Attr{{Name: "onClick", Value: vuka.On(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:187:16*/b.Toggle)}, }, vuka.Text("open "), vuka.Child(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:187:32*/b.note), ), )); 
-} /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:188:5*/else if len(b.items) == 0 { __add(vuka.F(0xbbf211648b94867c, "E(t)", vuka.El("p", nil, vuka.Text("empty"), ), )); 
+} /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:188:5*/else if len(b.items) == 0 { __add(vuka.F(0xf674339c770eef02, "E(t)", vuka.El("p", nil, vuka.Text("empty"), ), )); 
 
-} /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:190:5*/else { __add(vuka.F(0xbc0a16648ba920dc, "E(t)", vuka.El("p", nil, vuka.Text("closed"), ), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
+} /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:190:5*/else { __add(vuka.F(0xc1566abc726ea497, "E(t)", vuka.El("p", nil, vuka.Text("closed"), ), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
 
 
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:193:4*/if __m1 := /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:193:10*/b.mode; false { panic(__m1)
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:194:3*/} else if __m1 == "big" { __add(vuka.F(0xb34f7a6486b276eb, "E(t)", vuka.El("b", nil, vuka.Text("BIG"), ), )); 
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:194:3*/} else if __m1 == "big" { __add(vuka.F(0xfe27e6131077520f, "E(t)", vuka.El("b", nil, vuka.Text("BIG"), ), )); 
 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:196:3*/} else if __m1 == "note" { __add(vuka.F(0xb3456f6486aa0fb5, "Edd()", vuka.El("input", []vuka.Attr{{Name: "onInput", Value: vuka.On(
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:196:3*/} else if __m1 == "note" { __add(vuka.F(0x9eeb9795ae044d61, "Edd()", vuka.El("input", []vuka.Attr{{Name: "onInput", Value: vuka.On(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:197:20*/b.Note)}, {Name: "value", Value: /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:197:35*/b.note}, }, ), )); 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:198:3*/} else if true { __add(vuka.F(0xb3347564869ba6b4, "h", vuka.Child(
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:198:3*/} else if true { __add(vuka.F(0xaf63e54c8601fbd7, "h", vuka.Child(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:199:5*/vuka.El("i", nil, vuka.Text("opaque " + b.mode), vuka.Component("demo#opaque", nil, &Counter{Label: "inner"}))), )); 
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:200:3*/} else { panic("vuka: no case matched") }/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:200:4*/ }), vuka.El("script", nil, vuka.Child(
 /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:201:12*/"var mode = '" + b.mode + "' </script>"), ), vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:202:4*/for _, it := range b.items { __add(vuka.F(0xde9ec9649f3a477a, "c", func(__a1 int, __a2 string) vuka.Node { return vuka.Component("demo.vuka#5", __a1, 
+/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:202:4*/for _, it := range b.items { __add(vuka.F(0xaf63de4c8601eff2, "c", func(__a1 int, __a2 string) vuka.Node { return vuka.Component("demo.vuka#5", __a1, 
 &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:203:5*/Counter{Label: __a2, }) }(/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:203:18*/it.ID, /*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:203:32*/"k" + it.Name, ), )); } }), ), 
 
 )
@@ -210,8 +210,8 @@ func (b *Board) Render() vuka.Node {
 
 // Page is a page with two boards and a counter.
 func Page(context.Context) vuka.Node {
-	return vuka.F(0xe57695ec4be0cadf, "E(ccc)", vuka.El("main", nil, vuka.Component("demo.vuka#6", nil, 
-&/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:211:4*/Board{Title: "one", Children: vuka.F(0xc9482684eef5b57b, "E(t)", vuka.El("em", nil, vuka.Text("first"), ), ), }), vuka.Component("demo.vuka#7", nil, 
+	return vuka.F(0x8ead5c5cbb04d351, "E(ccc)", vuka.El("main", nil, vuka.Component("demo.vuka#6", nil, 
+&/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:211:4*/Board{Title: "one", Children: vuka.F(0x86ef4689d48dafbf, "E(t)", vuka.El("em", nil, vuka.Text("first"), ), ), }), vuka.Component("demo.vuka#7", nil, 
 &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:212:4*/Board{Title: "two", }), vuka.Component("demo.vuka#8", nil, 
 &/*line /Users/amtz/Documents/personal/vuka-wt-live-diff/live/internal/demo/demo.vuka:213:4*/Counter{Label: "solo", }), ), 
 )

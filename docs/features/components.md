@@ -248,8 +248,9 @@ return vuka.F(0x8ec4a9df618b03d4, "Es(E(tht)E(b)…)", vuka.El("section", []vuka
 ```
 
 `vuka.F` wraps each piece of JSX — a tree, each block body, a component
-tag's children — in a `vuka.Frame`: a fingerprint of the source it comes
-from and its *shape*, which of its nodes are markup the source fixes and
+tag's children — in a `vuka.Frame`: a fingerprint of what its fixed markup
+is made of (tags, attribute names and literal values, text, where the
+expressions go; formatting doesn't change it) and its *shape*, which of its nodes are markup the source fixes and
 which are Go expressions (`t` text, `h` an `{expr}`, `b` a block, `c` a
 component tag, `E` an element with an `s` or `d` per attribute, `G` a
 fragment). A frame renders exactly as its nodes do; a live session uses the
@@ -537,7 +538,8 @@ client keeps a table of each.
 ```
 
 `trees` holds one entry per instance whose tree changed, in render order
-(a parent before the instances it renders):
+(a parent before the instances it renders); a patch where nothing changed
+has none:
 
 | Entry | |
 |---|---|

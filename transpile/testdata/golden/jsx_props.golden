@@ -11,16 +11,16 @@ import (
 )
 
 // JSX outside function bodies.
-var header = vuka.F(0xdf870c8bf7457971, "E(t)", vuka.El("h1", nil, vuka.Text("Pets"), ), )
+var header = vuka.F(0xe9fded799ebcfb14, "E(t)", vuka.El("h1", nil, vuka.Text("Pets"), ), )
 
 var (
-	footer = vuka.F(0xf508d689729a94d, "E(h)", vuka.El("footer", nil, vuka.Child(/*line jsx_props.vuka:14:20*/year()), ), )
-	links  = map[string]vuka.Node{"home": vuka.F(0xbc154f5ba2964baf, "Es(t)", vuka.El("a", []vuka.Attr{{Name: "href", Value: "/"}, }, vuka.Text("home"), ), )/*line jsx_props.vuka:15:60*/}
+	footer = vuka.F(0xc4af0c48534388c6, "E(h)", vuka.El("footer", nil, vuka.Child(/*line jsx_props.vuka:14:20*/year()), ), )
+	links  = map[string]vuka.Node{"home": vuka.F(0x28d3919a035aacf0, "Es(t)", vuka.El("a", []vuka.Attr{{Name: "href", Value: "/"}, }, vuka.Text("home"), ), )/*line jsx_props.vuka:15:60*/}
 )
 
 type Shell struct{ Body vuka.Node }
 
-var shell = Shell{Body: vuka.F(0x1215a0e34567499f, "E(t)", vuka.El("p", nil, vuka.Text("body"), ), )/*line jsx_props.vuka:20:36*/}
+var shell = Shell{Body: vuka.F(0xadf427bf4d4f837f, "E(t)", vuka.El("p", nil, vuka.Text("body"), ), )/*line jsx_props.vuka:20:36*/}
 
 func year() int { return 2026 }
 
@@ -40,7 +40,7 @@ type CardProps struct {
 }
 
 func Card(p CardProps) vuka.Node {
-	return vuka.F(0x95ea5c3a8031e4c, "Edd(hththh)", vuka.El("div", []vuka.Attr{{Name: "id", Value: /*line jsx_props.vuka:40:18*/p.ID}, {Name: "className", Value: /*line jsx_props.vuka:40:35*/p.Class}, }, vuka.Child(/*line jsx_props.vuka:40:45*/p.Title), vuka.Text(" "), vuka.Child(/*line jsx_props.vuka:40:55*/p.Width), vuka.Text("x"), vuka.Child(/*line jsx_props.vuka:40:65*/p.Height), vuka.Child(/*line jsx_props.vuka:40:75*/p.Children), ), )
+	return vuka.F(0x66bd7e93be7008cc, "Edd(hththh)", vuka.El("div", []vuka.Attr{{Name: "id", Value: /*line jsx_props.vuka:40:18*/p.ID}, {Name: "className", Value: /*line jsx_props.vuka:40:35*/p.Class}, }, vuka.Child(/*line jsx_props.vuka:40:45*/p.Title), vuka.Text(" "), vuka.Child(/*line jsx_props.vuka:40:55*/p.Width), vuka.Text("x"), vuka.Child(/*line jsx_props.vuka:40:65*/p.Height), vuka.Child(/*line jsx_props.vuka:40:75*/p.Children), ), )
 }
 
 type Chat struct {
@@ -60,7 +60,7 @@ func (c *Chat) Update__NewMessage/*line jsx_props.vuka:56:22*/(m NewMessage)    
 func (c *Chat) Update__context_Context_Typing/*line jsx_props.vuka:57:22*/(ctx context.Context, t Typing) { c.log = append(c.log, t.Who+" is typing") }
 
 func (c *Chat) Render() vuka.Node {
-	return vuka.F(0xc0651e9d697c3512, "Ed(b)", vuka.El("ul", []vuka.Attr{{Name: "className", Value: /*line jsx_props.vuka:60:24*/c.Class}, }, vuka.Nodes(func(__add func(vuka.Node)) { /*line jsx_props.vuka:60:34*/for _, l := range c.log { __add(vuka.F(0x67fdb57a3e05328b, "E(h)", vuka.El("li", nil, vuka.Child(/*line jsx_props.vuka:60:65*/l), ), )); } }), ), )
+	return vuka.F(0x1052e4d857ec9d16, "Ed(b)", vuka.El("ul", []vuka.Attr{{Name: "className", Value: /*line jsx_props.vuka:60:24*/c.Class}, }, vuka.Nodes(func(__add func(vuka.Node)) { /*line jsx_props.vuka:60:34*/for _, l := range c.log { __add(vuka.F(0xd5b60c5b1c641002, "E(h)", vuka.El("li", nil, vuka.Child(/*line jsx_props.vuka:60:65*/l), ), )); } }), ), )
 }
 
 type Box[T any] struct {
@@ -68,13 +68,13 @@ type Box[T any] struct {
 	Value T
 }
 
-func (b *Box[T]) Render() vuka.Node { return vuka.F(0x4dea11cf24e21602, "E(h)", vuka.El("b", nil, vuka.Child(/*line jsx_props.vuka:68:50*/b.Value), ), )/*line jsx_props.vuka:68:62*/ }
+func (b *Box[T]) Render() vuka.Node { return vuka.F(0x3fea34bf0369609d, "E(h)", vuka.El("b", nil, vuka.Child(/*line jsx_props.vuka:68:50*/b.Value), ), )/*line jsx_props.vuka:68:62*/ }
 
 func page(ctx context.Context) vuka.Node {
 	w := 3
-	return vuka.F(0x7423efd52079eae2, "G(hccccchhh)", vuka.Fragment(vuka.Child(
+	return vuka.F(0x649f1727ab04f1b0, "G(hccccchhh)", vuka.Fragment(vuka.Child(
 /*line jsx_props.vuka:73:4*/header), func(__a1 int, __a2 int, __a3 vuka.Node) vuka.Node { 
-return /*line jsx_props.vuka:74:4*/Card(CardProps{Title: "a", Base: Base{Class: "c", ID: __a2, }, Sized: &Sized{Width: __a1, }, Children: __a3, }) }(/*line jsx_props.vuka:74:36*/w, /*line jsx_props.vuka:74:43*/1, vuka.F(0xd2f46e262f2407d7, "t", vuka.Text("!"), ), ), 
+return /*line jsx_props.vuka:74:4*/Card(CardProps{Title: "a", Base: Base{Class: "c", ID: __a2, }, Sized: &Sized{Width: __a1, }, Children: __a3, }) }(/*line jsx_props.vuka:74:36*/w, /*line jsx_props.vuka:74:43*/1, vuka.F(0xa548a9edc7db94dc, "t", vuka.Text("!"), ), ), 
 /*line jsx_props.vuka:75:4*/Card(CardProps{Sized: &Sized{Width: /*line jsx_props.vuka:75:16*/w, Height: /*line jsx_props.vuka:75:37*/4, }, Title: "b", }), vuka.Component("jsx_props.vuka#3", nil, 
 &/*line jsx_props.vuka:76:4*/Chat{Room: "go", Base: Base{Class: "chat", }, }), func(__a1 int, __a2 string) vuka.Node { return vuka.Component("jsx_props.vuka#4", __a2, 
 &/*line jsx_props.vuka:77:4*/Chat{Base: Base{ID: __a1, }, Room: "rust", }) }(/*line jsx_props.vuka:77:13*/2, /*line jsx_props.vuka:77:21*/"rust", ), vuka.Component("jsx_props.vuka#5", nil, 

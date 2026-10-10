@@ -22,30 +22,30 @@ func lookup(s string) vuka./*line jsx_blocks.vuka:16:23*/Result[int] {
 }
 
 func list(users []User, admin bool, s string) vuka.Node {
-	return vuka.F(0xf8bcf270f9f95df2, "G(E(b)bbE(b)bb)", vuka.Fragment(vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
+	return vuka.F(0x2faaf9b265bfc8b9, "G(E(b)bbE(b)bb)", vuka.Fragment(vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
 
-/*line jsx_blocks.vuka:24:5*/for _, u := range users { __add(vuka.F(0xa26a48f8c2b75e32, "Ed(hth)", vuka.El("li", []vuka.Attr{{Name: "key", Value: 
+/*line jsx_blocks.vuka:24:5*/for _, u := range users { __add(vuka.F(0x830b18bef167bf2a, "Ed(hth)", vuka.El("li", []vuka.Attr{{Name: "key", Value: 
 /*line jsx_blocks.vuka:25:14*/u.ID}, }, vuka.Child(/*line jsx_blocks.vuka:25:21*/u.Name), vuka.Text(" since "), vuka.Child(/*line jsx_blocks.vuka:25:36*/u.Year), ), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
 
 
-/*line jsx_blocks.vuka:28:4*/if admin { __add(vuka.F(0xc3d2e3b2e7d8340b, "E(t)", vuka.El("button", nil, vuka.Text("Edit"), ), )); 
+/*line jsx_blocks.vuka:28:4*/if admin { __add(vuka.F(0xe16b13fedcf82c53, "E(t)", vuka.El("button", nil, vuka.Text("Edit"), ), )); 
 
-} /*line jsx_blocks.vuka:30:5*/else if len(users) == 0 { __add(vuka.F(0xc3cc5ab2e7d2df92, "E(t)tE()", vuka.El("p", nil, vuka.Text("nobody"), ), vuka.Text(" "), vuka.El("hr", nil, ), )); 
-
-
-} /*line jsx_blocks.vuka:33:3*/else { __add(vuka.F(0xaab359b2d9dbe726, "t", vuka.Text("guest"), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
+} /*line jsx_blocks.vuka:30:5*/else if len(users) == 0 { __add(vuka.F(0x6daf55575482d45e, "E(t)tE()", vuka.El("p", nil, vuka.Text("nobody"), ), vuka.Text(" "), vuka.El("hr", nil, ), )); 
 
 
-/*line jsx_blocks.vuka:36:4*/if __m1 := /*line jsx_blocks.vuka:36:10*/lookup(s); false { panic(__m1)/*line jsx_blocks.vuka:36:21*//*line jsx_blocks.vuka:36:22*/} else if n := __m1.Value(); __m1.IsOk() { _ = n;/*line jsx_blocks.vuka:36:33*/ __add(vuka.F(0xaaa967b2d9d3aa6b, "E(h)", vuka.El("p", nil, vuka.Child(/*line jsx_blocks.vuka:36:38*/n), ), )); /*line jsx_blocks.vuka:36:45*/} else if e := __m1.Err(); __m1.IsErr() { _ = e;/*line jsx_blocks.vuka:36:57*/ __add(vuka.F(0xaab05bb2d9d9b4b5, "Es(h)", vuka.El("p", []vuka.Attr{{Name: "className", Value: "error"}, }, vuka.Child(/*line jsx_blocks.vuka:36:80*/e.Error()), ), )); /*line jsx_blocks.vuka:36:95*/} else { panic("vuka: no case matched") }/*line jsx_blocks.vuka:36:96*/ }), vuka.El("nav", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_blocks.vuka:37:9*/for _, link := range []string{"/", "/users"} { __add(vuka.F(0xb1ff0eb2dd9af3de, "Ed(h)", vuka.El("a", []vuka.Attr{{Name: "href", Value: /*line jsx_blocks.vuka:37:65*/link}, }, vuka.Child(/*line jsx_blocks.vuka:37:72*/link), ), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_blocks.vuka:38:4*/if ok := map[string]bool{"a": true}["a"]; ok { __add(vuka.F(0x987d18b2cf4b251a, "E(t)", vuka.El("i", nil, vuka.Text("map in an if"), ), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
+} /*line jsx_blocks.vuka:33:3*/else { __add(vuka.F(0xfa13af51fc743a6d, "t", vuka.Text("guest"), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
+
+
+/*line jsx_blocks.vuka:36:4*/if __m1 := /*line jsx_blocks.vuka:36:10*/lookup(s); false { panic(__m1)/*line jsx_blocks.vuka:36:21*//*line jsx_blocks.vuka:36:22*/} else if n := __m1.Value(); __m1.IsOk() { _ = n;/*line jsx_blocks.vuka:36:33*/ __add(vuka.F(0x1525d33bbcad84b, "E(h)", vuka.El("p", nil, vuka.Child(/*line jsx_blocks.vuka:36:38*/n), ), )); /*line jsx_blocks.vuka:36:45*/} else if e := __m1.Err(); __m1.IsErr() { _ = e;/*line jsx_blocks.vuka:36:57*/ __add(vuka.F(0x70e18ea936648a35, "Es(h)", vuka.El("p", []vuka.Attr{{Name: "className", Value: "error"}, }, vuka.Child(/*line jsx_blocks.vuka:36:80*/e.Error()), ), )); /*line jsx_blocks.vuka:36:95*/} else { panic("vuka: no case matched") }/*line jsx_blocks.vuka:36:96*/ }), vuka.El("nav", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line jsx_blocks.vuka:37:9*/for _, link := range []string{"/", "/users"} { __add(vuka.F(0xfab66ea1e551b1fe, "Ed(h)", vuka.El("a", []vuka.Attr{{Name: "href", Value: /*line jsx_blocks.vuka:37:65*/link}, }, vuka.Child(/*line jsx_blocks.vuka:37:72*/link), ), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line jsx_blocks.vuka:38:4*/if ok := map[string]bool{"a": true}["a"]; ok { __add(vuka.F(0x2f7a202fb0f95b49, "E(t)", vuka.El("i", nil, vuka.Text("map in an if"), ), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
 /*line jsx_blocks.vuka:39:4*/if __m2 := /*line jsx_blocks.vuka:39:10*/len(users); false { panic(__m2)
-/*line jsx_blocks.vuka:40:3*/} else if __m2 == 0 { __add(vuka.F(0xa199bbb2d494a54b, "E(t)", vuka.El("i", nil, vuka.Text("none"), ), )); 
+/*line jsx_blocks.vuka:40:3*/} else if __m2 == 0 { __add(vuka.F(0x16aa7457ccee4a60, "E(t)", vuka.El("i", nil, vuka.Text("none"), ), )); 
 
-/*line jsx_blocks.vuka:42:3*/} else if (__m2 == 1) || (__m2 == 2) { __add(vuka.F(0xa1a0bfb2d49acac5, "th", vuka.Text("a few: "), vuka.Child(
+/*line jsx_blocks.vuka:42:3*/} else if (__m2 == 1) || (__m2 == 2) { __add(vuka.F(0x6f38a7086b3177d4, "th", vuka.Text("a few: "), vuka.Child(
 /*line jsx_blocks.vuka:43:12*/len(users)), )); 
-/*line jsx_blocks.vuka:44:3*/} else if true { __add(vuka.F(0xa1ae3db2d4a62b3b, "b", vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_blocks.vuka:45:5*/for i := range 3 { __add(vuka.F(0xa17eb1b2d47dcc95, "E(h)", vuka.El("b", nil, vuka.Child(/*line jsx_blocks.vuka:45:28*/i), ), )); } }), )); 
+/*line jsx_blocks.vuka:44:3*/} else if true { __add(vuka.F(0xaf63df4c8601f1a5, "b", vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line jsx_blocks.vuka:45:5*/for i := range 3 { __add(vuka.F(0x3fea34bf0369609d, "E(h)", vuka.El("b", nil, vuka.Child(/*line jsx_blocks.vuka:45:28*/i), ), )); } }), )); 
 /*line jsx_blocks.vuka:46:3*/} else { panic("vuka: no case matched") }/*line jsx_blocks.vuka:46:4*/ }), ), 
 )
 }

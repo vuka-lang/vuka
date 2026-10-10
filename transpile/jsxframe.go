@@ -13,35 +13,67 @@ import (
 
 // frame writes ns as a vuka.F: the compile-time shape of a piece of JSX (see
 // vuka.Frame) around its nodes, so a live session can tell the markup the
-// source fixes from what its expressions render. off, the piece's place in
-// its tree, makes its fingerprint.
-func (w *jsxWriter) frame(off int, ns []jsxNode) {
+// source fixes from what its expressions render.
+func (w *jsxWriter) frame(ns []jsxNode) {
 	var sh strings.Builder
 	shapeOf(&sh, ns)
-	w.gen(w.rt + ".F(" + w.fp(off) + ", " + strconv.Quote(sh.String()) + ", ")
+	w.gen(w.rt + ".F(" + fingerprint(ns) + ", " + strconv.Quote(sh.String()) + ", ")
 	w.kids(ns)
 	w.gen(")")
 }
 
 // body writes a block's body: one frame per iteration or branch taken.
-func (w *jsxWriter) body(off int, ns []jsxNode) {
+func (w *jsxWriter) body(ns []jsxNode) {
 	if len(ns) == 0 {
 		return
 	}
 	w.gen("__add(")
-	w.frame(off, ns)
+	w.frame(ns)
 	w.gen("); ")
 }
 
-// fp fingerprints the piece of JSX at off: its file, its tree's source and
-// its place in the tree.
-func (w *jsxWriter) fp(off int) string {
+// fingerprint hashes what a piece of JSX's statics are made of — its tags,
+// attribute names and literal values, text, and where expressions go — so
+// pieces that render the same statics share it, wherever they are and
+// however the source is formatted.
+func fingerprint(ns []jsxNode) string {
+	var b strings.Builder
+	canon(&b, ns)
 	h := fnv.New64a()
-	t := w.tree
-	h.Write([]byte(w.f.name + "\x00"))
-	h.Write(w.f.src[t.start:t.end])
-	h.Write([]byte("\x00" + strconv.Itoa(off-t.start)))
+	h.Write([]byte(b.String()))
 	return "0x" + strconv.FormatUint(h.Sum64(), 16)
+}
+
+func canon(b *strings.Builder, ns []jsxNode) {
+	for _, n := range ns {
+		switch n := n.(type) {
+		case *jsxText:
+			b.WriteString("t" + strconv.Quote(n.val))
+		case *jsxHole:
+			b.WriteByte('h')
+		case *jsxBlock:
+			b.WriteByte('b')
+		case *jsxElem:
+			switch {
+			case n.comp != nil:
+				b.WriteByte('c')
+				continue
+			case n.frag:
+				b.WriteByte('G')
+			default:
+				b.WriteString("E" + n.tag)
+				for _, a := range n.attrs {
+					b.WriteString(" " + a.name + string(a.kind))
+					if a.kind == 's' {
+						b.WriteString(strconv.Quote(a.val))
+					}
+				}
+			}
+			b.WriteByte('(')
+			canon(b, n.kids)
+			b.WriteByte(')')
+		}
+	}
 }
 
 // shapeOf writes the shape of nodes, one item each (vuka.Frame).

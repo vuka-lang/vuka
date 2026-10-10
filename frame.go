@@ -14,8 +14,9 @@ import (
 // produce), so a session sends the statics once and then only the dynamics
 // that changed.
 //
-// FP identifies the JSX it comes from: its file, the tree's source and the
-// frame's place in it. Shape describes Kids, one item each, in the order they
+// FP fingerprints what its statics are made of: its tags, attribute names
+// and literal values, text, and where the expressions go — pieces of JSX
+// that render the same statics share it, however they are formatted. Shape describes Kids, one item each, in the order they
 // appear:
 //
 //	t        text from the source
