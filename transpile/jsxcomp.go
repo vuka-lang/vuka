@@ -10,9 +10,6 @@ import (
 	"strings"
 )
 
-// TemplxPath is the package with the bridge to templ components.
-const TemplxPath = RuntimePath + "/templx"
-
 const templPath = "github.com/a-h/templ"
 
 // jsxComp is a component tag, <UserCard user={u} admin />: a call of the Go
@@ -28,11 +25,11 @@ type jsxComp struct {
 	propsTyp   types.Type // the props struct's, until written
 	args       []*compArg // in the call's order
 	try        bool       // the function returns (Node, error)
-	withKids   bool       // children go through templx.WithChildren
+	withKids   bool       // children go through the target's WithChildren
 	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
-	stateful   bool     // a struct embedding vuka.Live: vuka.Component(site, key, &T{…})
+	stateful   bool     // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
 	site       string   // the tag's place, for a stateful component
 	key        *compArg // its key attribute
 }
@@ -104,11 +101,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen("func(" + strings.Join(params, ", ") + ") " + q + "Node { return ")
 	}
 	if c.withKids {
-		if c.target.path == RuntimePath {
-			w.gen(w.f.importAs(TemplxPath, "__templx") + ".WithChildren(")
-		} else {
-			w.gen(q + "WithChildren(")
-		}
+		w.gen(q + "WithChildren(")
 	}
 	if c.try {
 		w.gen(q + "Try(")
@@ -211,22 +204,15 @@ func (e *engine) nodeType(t *jsxTarget) types.Type {
 	return nil
 }
 
-func isTemplComponent(t, node types.Type) bool {
-	if types.Identical(t, node) {
-		return true
-	}
-	n, ok := types.Unalias(t).(*types.Named)
-	return ok && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == templPath && n.Obj().Name() == "Component"
-}
-
 // resolveComp decides the call a component tag makes:
 //
-//	<UserCard user={u} admin>hi</UserCard>   →   UserCard(u, true, vuka.Fragment(vuka.Text("hi"), ))
+//	<UserCard user={u} admin>hi</UserCard>   →   UserCard(u, true, ui.Fragment(ui.Text("hi"), ))
 //	<ui.Button variant={v} />                →   ui.Button(ui.ButtonProps{Variant: v, })
 //
 // Attributes bind to parameters by name (or, for a function taking one props
 // struct, to its fields); missing ones get zero values, children go to a
-// children parameter, else to a templ component through templx.WithChildren.
+// children parameter, else — for a component that may read them from its
+// context — through the target's WithChildren.
 // A generic function's type arguments are inferred as a call's are; an
 // overloaded function's overload is the one its attributes fit best.
 func (e *engine) resolveComp(f *fileState, c *jsxComp) {
@@ -273,7 +259,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	var sig *types.Signature
 	if tv, ok := e.info.Types[expr]; ok && !isInvalid(tv.Type) {
 		if sig, ok = tv.Type.Underlying().(*types.Signature); !ok {
-			fail(el.start, "<%s> isn't a component: a component is a function returning a vuka.Node", el.tag)
+			fail(el.start, "<%s> isn't a component: a component is a function returning %sNode", el.tag, c.target.q)
 			return
 		}
 	}
@@ -339,15 +325,23 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 	case r.Len() == 2 && types.Identical(r.At(1).Type(), errorType):
 		res, c.try = r.At(0).Type(), true
 	default:
-		return el.start, "<" + el.tag + "> must return a vuka.Node, or a Node and an error"
+		return el.start, "<" + el.tag + "> must return " + c.target.q + "Node, or one and an error"
 	}
 	if !types.AssignableTo(res, node) {
-		return el.start, "<" + el.tag + "> returns " + e.display(res) + ", which isn't a vuka.Node: it has no Render(context.Context, io.Writer) error method"
+		msg := "<" + el.tag + "> returns " + e.display(res) + ", which isn't " + c.target.q + "Node"
+		if iface, ok := node.Underlying().(*types.Interface); ok {
+			if m, wrong := types.MissingMethod(res, iface, true); m != nil && !wrong {
+				msg += " (missing method " + m.Name() + ")"
+			} else if m != nil {
+				msg += " (wrong type for method " + m.Name() + ")"
+			}
+		}
+		return el.start, msg
 	}
 	hasKids := len(el.kids) > 0
 	noKids := func(add string) string {
 		switch {
-		case !isTemplComponent(res, node):
+		case !types.Identical(res, node) || !c.target.has("WithChildren"):
 			return "<" + el.tag + "> takes no children"
 		case templKids:
 			c.withKids = true
@@ -364,7 +358,7 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 			return off, msg
 		}
 		if hasKids && !kids {
-			if msg := noKids("Children vuka.Node field to " + e.display(typ)); msg != "" {
+			if msg := noKids("Children " + c.target.q + "Node field to " + e.display(typ)); msg != "" {
 				return el.start, msg
 			}
 		}
@@ -395,7 +389,7 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 		case i >= 0 && args[i] == nil && types.AssignableTo(node, params.At(i).Type()):
 			args[i] = &compArg{kids: true}
 		default:
-			if msg := noKids("children vuka.Node parameter"); msg != "" {
+			if msg := noKids("children " + c.target.q + "Node parameter"); msg != "" {
 				return el.start, msg
 			}
 		}
@@ -606,7 +600,7 @@ var untypedLit = map[token.Token]types.Type{
 
 // closeOver binds a component's expressions out of order by passing them, in
 // source order, to a function literal that makes the call, so each stays in
-// place: func(__a1 bool, __a2 User) vuka.Node { return Card(__a2, __a1) }(x, u).
+// place: func(__a1 bool, __a2 User) ui.Node { return Card(__a2, __a1) }(x, u).
 func (e *engine) closeOver(f *fileState, c *jsxComp) {
 	type item struct {
 		a   *compArg

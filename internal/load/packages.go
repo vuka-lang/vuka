@@ -18,8 +18,6 @@ import (
 	"strconv"
 	"strings"
 
-	templparser "github.com/a-h/templ/parser/v2"
-
 	"github.com/vuka-lang/vuka/transpile"
 )
 
@@ -76,13 +74,14 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	root, dir = realPath(root), realPath(dir)
 	var pkgs []*Package
 	seen := map[string]bool{}
+	templ := TemplActive(root)
 	var visit func(d string) error
 	visit = func(d string) error {
 		if seen[d] {
 			return nil
 		}
 		seen[d] = true
-		found, err := readDir(root, modPath, d, read)
+		found, err := readDir(root, modPath, d, read, templ)
 		pkgs = append(pkgs, found...)
 		if err != nil || recursive {
 			return err
@@ -119,7 +118,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	return pkgs, err
 }
 
-func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
+func readDir(root, modPath, dir string, read ReadFunc, templ bool) ([]*Package, error) {
 	entries, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
@@ -132,7 +131,7 @@ func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 		case strings.HasSuffix(name, ".vuka"):
 			hasSource = true
 			generated[transpile.GoName(name)] = true
-		case isTempl(name):
+		case templ && isTempl(name):
 			hasSource = true
 			generated[TemplGoName(name)] = true // a `templ generate` output; the fresh one replaces it
 		}
@@ -165,7 +164,7 @@ func readDir(root, modPath, dir string, read ReadFunc) ([]*Package, error) {
 	var broken []*Templ // .templ files templ can't compile
 	for _, e := range entries {
 		name := e.Name()
-		if e.IsDir() || generated[name] || !(strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".go") || isTempl(name)) {
+		if e.IsDir() || generated[name] || !(strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".go") || templ && isTempl(name)) {
 			continue
 		}
 		src, err := read(filepath.Join(dir, name))
@@ -342,9 +341,9 @@ type Generated struct {
 	Src    []byte
 	From   []byte // the source text it was generated from
 	Map    *transpile.SourceMap
-	// TemplMap is templ's source map for a .templ file's Go, when Src is
-	// templ's raw output (Options.Bare); nil otherwise.
-	TemplMap *templparser.SourceMap
+	// TemplMap is templ's source map (a *parser.SourceMap) for a .templ
+	// file's Go, when Src is templ's raw output (Options.Bare); nil otherwise.
+	TemplMap any
 	Files    []transpile.FileRef // a .vuka file's vuka.File literals, in From
 }
 
@@ -395,6 +394,12 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 		_ = imp.Prefetch(imports) // a failure shows up where the import is used
 	}
 	templ := TemplFinder(pkgs)
+	registry := ""
+	if len(pkgs) > 0 {
+		if root, _, err := ModuleRoot(pkgs[0].Dir); err == nil {
+			registry = TemplRegistry(root)
+		}
+	}
 	var errs transpile.ErrorList
 	for i, p := range pkgs {
 		add := func(goName string, src []byte) error {
@@ -433,12 +438,13 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			continue
 		}
 		res, err := transpile.Package(p.Files, transpile.Options{
-			Templ:      templ,
-			Importer:   imp,
-			Path:       func(name string) string { return filepath.Join(p.Dir, name) },
-			Bare:       opts.Bare,
-			Dir:        p.Dir,
-			ImportPath: p.ImportPath,
+			Templ:         templ,
+			TemplRegistry: registry,
+			Importer:      imp,
+			Path:          func(name string) string { return filepath.Join(p.Dir, name) },
+			Bare:          opts.Bare,
+			Dir:           p.Dir,
+			ImportPath:    p.ImportPath,
 		})
 		if err != nil {
 			var list transpile.ErrorList

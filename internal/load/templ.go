@@ -1,17 +1,11 @@
 package load
 
 import (
-	"bytes"
-	"errors"
 	"go/format"
-	"go/token"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
-
-	"github.com/a-h/parse"
-	"github.com/a-h/templ"
-	"github.com/a-h/templ/generator"
-	templparser "github.com/a-h/templ/parser/v2"
 
 	"github.com/vuka-lang/vuka/transpile"
 )
@@ -26,8 +20,9 @@ type Templ struct {
 	Src    []byte
 	GoName string // TemplGoName(Name)
 	Go     []byte // templ's raw output; nil when Err is set
-	// Map is templ's source map between Src and Go (line and column, 0-based).
-	Map *templparser.SourceMap
+	// Map is templ's source map between Src and Go (line and column,
+	// 0-based): a *parser.SourceMap of templ's, from TemplCompiler.
+	Map any
 	Err *transpile.Error // a parse or generate error, positioned in Src
 }
 
@@ -36,34 +31,56 @@ func TemplGoName(name string) string { return strings.TrimSuffix(name, ".templ")
 
 func isTempl(name string) bool { return strings.HasSuffix(name, ".templ") }
 
-// compileTempl runs templ's parser and generator on one file, as `templ
-// generate` would, without its formatting pass, so Map matches Go.
+// TemplCompiler compiles a .templ file as `templ generate` would, without its
+// formatting pass, returning the Go and templ's source map. The vuka
+// command's templ plugin sets it: the plugin links templ's parser and
+// generator, the language module doesn't. Nil leaves .templ files alone.
+var TemplCompiler func(path, name string, src []byte) (goSrc []byte, sourceMap any, err *transpile.Error)
+
+// UIPath is the JSX target whose templx package registers a .templ file's
+// components for a vuka.File naming it.
+const UIPath = "github.com/vuka-lang/ui"
+
+// compileTempl compiles one .templ file with TemplCompiler.
 func compileTempl(path, name string, src []byte) *Templ {
 	t := &Templ{Name: name, Src: src, GoName: TemplGoName(name)}
-	fail := func(pos parse.Position, msg string) *Templ {
-		t.Err = &transpile.Error{Pos: token.Position{Filename: path, Offset: pos.Index, Line: pos.Line + 1, Column: pos.Col + 1}, Msg: msg}
-		return t
-	}
-	tf, err := templparser.ParseString(string(src))
-	if err != nil {
-		var pe parse.ParseError
-		if errors.As(err, &pe) {
-			return fail(pe.Pos, pe.Msg)
-		}
-		return fail(parse.Position{}, err.Error())
-	}
-	tf.Filepath = path
-	var buf bytes.Buffer
-	out, err := generator.Generate(tf, &buf, generator.WithFileName(name), generator.WithVersion(templ.Version()))
-	if err != nil {
-		var pe parse.ParseError
-		if errors.As(err, &pe) {
-			return fail(pe.Pos, pe.Msg)
-		}
-		return fail(parse.Position{}, err.Error())
-	}
-	t.Go, t.Map = buf.Bytes(), out.SourceMap
+	t.Go, t.Map, t.Err = TemplCompiler(path, name, src)
 	return t
+}
+
+var requireLine = regexp.MustCompile(`(?m)^\s*(?:require\s+)?(\S+)\s+v\S+`)
+
+// requires reports whether the go.mod in root requires each of paths.
+func requires(root string, paths ...string) bool {
+	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	if err != nil {
+		return false
+	}
+	have := map[string]bool{}
+	for _, m := range requireLine.FindAllSubmatch(data, -1) {
+		have[string(m[1])] = true
+	}
+	for _, p := range paths {
+		if !have[p] {
+			return false
+		}
+	}
+	return true
+}
+
+// TemplActive reports whether .templ files of the module at root are
+// compiled: the templ plugin is linked and the module requires templ.
+func TemplActive(root string) bool { return TemplCompiler != nil && requires(root, TemplPath) }
+
+// TemplRegistry is the package the code generated for a vuka.File naming a
+// .templ file registers its components with (transpile.Options.TemplRegistry):
+// github.com/vuka-lang/ui/templx when the module at root compiles .templ
+// files and requires ui; else "".
+func TemplRegistry(root string) string {
+	if TemplActive(root) && requires(root, UIPath) {
+		return UIPath + "/templx"
+	}
+	return ""
 }
 
 // formatted is t's Go as `templ generate` writes it: gofmt'ed.

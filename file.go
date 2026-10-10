@@ -17,34 +17,19 @@ import (
 //	@Template("views/pet.html")
 //	func showPet(id int) Pet { … }
 //
-// For a .templ file, TemplComponents also gives its components. The file may
-// be in a subdirectory that is a package of its own (views/pets.templ with
-// `package views`): its File is then that package's ("module/views:pets.templ")
-// and the generated code imports it.
+// A .templ file may be in a subdirectory that is a package of its own
+// (views/pets.templ with `package views`): its File is then that package's
+// ("module/views:pets.templ"). With templ and github.com/vuka-lang/ui, the
+// file's components are registered too: templx.Components(f).
 type File string
 
-// TemplComponent is a component of a .templ file: its name, the generated
-// function (func(params…) templ.Component) and its parameters' names.
-type TemplComponent struct {
-	Name   string
-	Func   any
-	Params []string
-}
-
-var (
-	embedded sync.Map // File → string
-	templs   sync.Map // File → []TemplComponent
-)
+var embedded sync.Map // File → string
 
 // FileOf is an embedded file's File. Generated code calls it.
 func FileOf(key, data string) File {
 	embedded.Store(File(key), data)
 	return File(key)
 }
-
-// RegisterTempl records the components compiled from a .templ file. Generated
-// code calls it.
-func RegisterTempl(key string, components ...TemplComponent) { templs.Store(File(key), components) }
 
 // Pkg is the import path of the package the file belongs to; "" for a File
 // Vuka didn't embed.
@@ -71,15 +56,4 @@ func (f File) Bytes() ([]byte, error) {
 		return []byte(data.(string)), nil
 	}
 	return os.ReadFile(f.Path())
-}
-
-// TemplComponents are the components of an embedded .templ file, in source
-// order: all of them for a file of the referencing package, the exported ones
-// for a file of a subdirectory's package.
-func TemplComponents(f File) ([]TemplComponent, bool) {
-	c, ok := templs.Load(f)
-	if !ok {
-		return nil, false
-	}
-	return c.([]TemplComponent), true
 }

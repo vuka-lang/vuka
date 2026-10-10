@@ -4,11 +4,12 @@ import (
 	"context"
 	"io"
 	"strconv"
+	"github.com/vuka-lang/ui"
 )
 
 type User struct{ Name string }
 
-func UserCard(user User, admin bool) vuka.Node {
+func UserCard(user User, admin bool) ui.Node {
 	return <p>{user.Name}</p>
 }
 
@@ -16,7 +17,7 @@ type Counter struct{ n int }
 
 type Props struct{ Title string }
 
-func Panel(props Props) vuka.Node { return <div>{props.Title}</div> }
+func Panel(props Props) ui.Node { return <div>{props.Title}</div> }
 
 func Plain(n int) int { return n }
 
@@ -26,11 +27,11 @@ func (h html) Render(ctx context.Context, w io.Writer) error { return nil }
 
 func Raw(s string) html { return html(s) }
 
-func Layout(title string) vuka.Node { return <title>{title}</title> }
+func Layout(title string) ui.Node { return <title>{title}</title> }
 
-func Card(props Props) vuka.Node { return <div>{props.Title}</div> }
+func Card(props Props) ui.Node { return <div>{props.Title}</div> }
 
-func page(u User) vuka.Node {
+func page(u User) ui.Node {
 	return <>
 		<UserCard usr={u} />
 		<UserCard user={u} colour="red" />
@@ -43,7 +44,7 @@ func page(u User) vuka.Node {
 	</>
 }
 
-func count(s string) (vuka.Node, error) {
+func count(s string) (ui.Node, error) {
 	return <p>{strconv.Atoi(s)?}</p>, nil
 }
 

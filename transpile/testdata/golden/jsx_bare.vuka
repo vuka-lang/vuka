@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"github.com/vuka-lang/ui"
 )
 
 type Item struct {
@@ -12,7 +13,7 @@ type Item struct {
 	N    int
 }
 
-func list(items []Item) vuka.Node {
+func list(items []Item) ui.Node {
 	return <ul>
 		{for _, it := range items {
 			if it.Ok {
@@ -37,7 +38,7 @@ func list(items []Item) vuka.Node {
 	</ul>
 }
 
-func texts(items []Item) vuka.Node {
+func texts(items []Item) ui.Node {
 	return <div>
 		<p>if you like</p>
 		<p>for now, match me</p>
@@ -50,8 +51,8 @@ func texts(items []Item) vuka.Node {
 
 func main() {
 	items := []Item{{"a", true, nil, 0}, {"b", false, []string{"t1", "t2"}, 2}, {"c", false, nil, 1}, {"d", false, nil, 3}}
-	for _, n := range []vuka.Node{list(items), list(nil), texts(items[:1])} {
-		s, err := vuka.String(context.Background(), n)
+	for _, n := range []ui.Node{list(items), list(nil), texts(items[:1])} {
+		s, err := ui.String(context.Background(), n)
 		fmt.Println(s, err)
 	}
 }

@@ -25,19 +25,18 @@ import (
 // A .vuka file renders its JSX with the one target it imports.
 const JSXVersion = 1
 
+// DefaultJSXTarget is the JSX target messages suggest.
+const DefaultJSXTarget = "github.com/vuka-lang/ui"
+
 // jsxTarget is the package a file's JSX lowers to.
 type jsxTarget struct {
-	path     string
-	q        string // the qualifier, "ui." ("" for a dot import)
-	pkg      *types.Package
-	implicit bool // the runtime, for want of an imported target
+	path string
+	q    string // the qualifier, "ui." ("" for a dot import)
+	pkg  *types.Package
 }
 
 // has reports whether the target declares name.
 func (t *jsxTarget) has(name string) bool {
-	if t.implicit {
-		return true
-	}
 	return t.pkg != nil && t.pkg.Scope().Lookup(name) != nil
 }
 
@@ -148,12 +147,10 @@ func (f *fileState) jsxTarget(toks []tok, off int, errs *ErrorList) *jsxTarget {
 	}
 	switch len(found) {
 	case 0:
-		f.target = &jsxTarget{path: RuntimePath, q: f.scannedRuntime(toks) + ".", implicit: true}
+		errs.add(f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)", DefaultJSXTarget)
+		f.target = &jsxTarget{q: "__jsx."}
 	case 1:
 		f.target = found[0]
-		if f.target.path == RuntimePath {
-			f.scannedRuntime(toks)
-		}
 	default:
 		errs.add(f.at(off), "JSX in this file could render with %s or %s: a file imports one JSX target", found[0].path, found[1].path)
 		f.target = found[0]
@@ -180,7 +177,33 @@ func (e *engine) targetObj(t *jsxTarget, name string) types.Object {
 	return nil
 }
 
-// isTargetNamed reports whether t is the target's type name.
-func isTargetNamed(tg *jsxTarget, t types.Type, name string) bool {
-	return tg != nil && isNamed(t, tg.path, name)
+// declaredBy reports whether t is a named type the target declares.
+func declaredBy(tg *jsxTarget, t types.Type) bool {
+	if p, ok := t.(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	n, ok := types.Unalias(t).(*types.Named)
+	return ok && tg != nil && n.Obj().Pkg() != nil && n.Obj().Pkg().Path() == tg.path
+}
+
+// provider is the target's exported struct whose pointer has method m: what a
+// type embeds to get an unexported method of the target's interface.
+func provider(tg *jsxTarget, m *types.Func) string {
+	if tg.pkg == nil {
+		return ""
+	}
+	sc := tg.pkg.Scope()
+	for _, name := range sc.Names() {
+		tn, ok := sc.Lookup(name).(*types.TypeName)
+		if !ok || !tn.Exported() || tn.IsAlias() {
+			continue
+		}
+		if _, ok := tn.Type().Underlying().(*types.Struct); !ok {
+			continue
+		}
+		if o, _, _ := types.LookupFieldOrMethod(types.NewPointer(tn.Type()), true, m.Pkg(), m.Name()); o != nil {
+			return tg.q + name
+		}
+	}
+	return ""
 }

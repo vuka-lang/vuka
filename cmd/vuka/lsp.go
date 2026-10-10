@@ -1088,7 +1088,8 @@ func (p *proxy) regenerate() {
 
 	want := map[string]*vfile{}
 	for _, g := range gens {
-		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: g.TemplMap, files: g.Files}
+		tm, _ := g.TemplMap.(*templparser.SourceMap)
+		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files}
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])
 		}

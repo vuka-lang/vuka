@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strconv"
+	"github.com/vuka-lang/ui"
 )
 
 type User struct {
@@ -11,12 +12,12 @@ type User struct {
 	Name string
 }
 
-func List[T any](items []T, render func(T) vuka.Node) vuka.Node {
+func List[T any](items []T, render func(T) ui.Node) ui.Node {
 	return <ul>{for _, x := range items { {render(x)} }}</ul>
 }
 
 // Select's selected is left out: its zero value is the inferred type's.
-func Select[T comparable](label string, options []T, selected T) vuka.Node {
+func Select[T comparable](label string, options []T, selected T) ui.Node {
 	return <label>{label}
 		<select>
 			{for _, o := range options {
@@ -31,25 +32,25 @@ type TableProps[T any] struct {
 	Cell func(T) string
 }
 
-func Table[T any](props TableProps[T]) vuka.Node {
+func Table[T any](props TableProps[T]) ui.Node {
 	return <table>{for _, r := range props.Rows { <tr><td>{props.Cell(r)}</td></tr> }}</table>
 }
 
-func Pair[K comparable, V any](name K, value V, children vuka.Node) vuka.Node {
+func Pair[K comparable, V any](name K, value V, children ui.Node) ui.Node {
 	return <p>{fmt.Sprint(name)}={fmt.Sprint(value)} {children}</p>
 }
 
 // Overloaded components: the attributes' types choose.
-func Price(amount int) vuka.Node     { return <b>{amount} cents</b> }
-func Price(amount float64) vuka.Node { return <b>{strconv.FormatFloat(amount, 'f', 2, 64)}</b> }
-func Price(amount string, currency string) vuka.Node {
+func Price(amount int) ui.Node     { return <b>{amount} cents</b> }
+func Price(amount float64) ui.Node { return <b>{strconv.FormatFloat(amount, 'f', 2, 64)}</b> }
+func Price(amount string, currency string) ui.Node {
 	return <b>{amount} {currency}</b>
 }
 
-func page(users []User) vuka.Node {
+func page(users []User) ui.Node {
 	return <>
-		<List items={users} render={func(u User) vuka.Node { return <li>{u.Name}</li> }} />
-		<List render={func(n int) vuka.Node { return <li>{n}</li> }} items={[]int{1, 2}} />
+		<List items={users} render={func(u User) ui.Node { return <li>{u.Name}</li> }} />
+		<List render={func(n int) ui.Node { return <li>{n}</li> }} items={[]int{1, 2}} />
 		<List[string] items={nil} render={nil} />
 		<Select label="pick" options={[]string{"a", "b"}} />
 		<Select label="pick" options={[]int{1, 2}} selected={2} />
@@ -62,5 +63,5 @@ func page(users []User) vuka.Node {
 }
 
 func main() {
-	fmt.Println(vuka.String(context.Background(), page([]User{{1, "Ann"}, {2, "Bo"}})))
+	fmt.Println(ui.String(context.Background(), page([]User{{1, "Ann"}, {2, "Bo"}})))
 }

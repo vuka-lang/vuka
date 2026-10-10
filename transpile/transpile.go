@@ -57,6 +57,13 @@ type Options struct {
 	// module, for a vuka.File naming one in a subdirectory. Nil makes such a
 	// File an error.
 	Templ func(path string) (TemplFile, error)
+	// TemplRegistry is the package that records the components of a .templ
+	// file a vuka.File names: the generated code calls its
+	// Register(key string, components ...Component), Component being
+	// struct{Name string; Func any; Params []string}. Empty embeds .templ
+	// files as plain files. The vuka command's templ plugin sets
+	// github.com/vuka-lang/ui/templx.
+	TemplRegistry string
 }
 
 // TemplFile is a .templ file of another package: its import path and the Go
@@ -402,7 +409,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}

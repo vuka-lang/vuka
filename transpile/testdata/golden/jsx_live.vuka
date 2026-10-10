@@ -7,11 +7,12 @@ import (
 	"net/url"
 	"regexp"
 
-	"github.com/vuka-lang/vuka/live"
+	"github.com/vuka-lang/ui/live"
+	"github.com/vuka-lang/ui"
 )
 
 type Counter struct {
-	vuka.Live
+	ui.Live
 	Start int
 	Label string
 	n     int
@@ -24,7 +25,7 @@ func (c *Counter) Mount(ctx context.Context) error {
 
 func (c *Counter) Inc() { c.n++ }
 
-func (c *Counter) Render() vuka.Node {
+func (c *Counter) Render() ui.Node {
 	return <span>{c.Label}: {c.n} <button onClick={c.Inc}>+</button></span>
 }
 
@@ -34,9 +35,9 @@ type Item struct {
 }
 
 type Todo struct {
-	vuka.Live
+	ui.Live
 	Title    string
-	Children vuka.Node
+	Children ui.Node
 	items    []Item
 	next     int
 	query    string
@@ -64,7 +65,7 @@ func (t *Todo) Remove(id int) {
 	}
 }
 
-func (t *Todo) Render() vuka.Node {
+func (t *Todo) Render() ui.Node {
 	return <section>
 		<h2>{t.Title}</h2>
 		{t.Children}
@@ -81,7 +82,7 @@ func (t *Todo) Render() vuka.Node {
 	</section>
 }
 
-func page(ctx context.Context) vuka.Node {
+func page(ctx context.Context) ui.Node {
 	return <main>
 		<Todo Title="Groceries"><p>weekly</p></Todo>
 		<Counter key="solo" Start={10} Label="solo" />
@@ -101,7 +102,7 @@ func show(p live.Patch, err error) {
 
 func main() {
 	ctx := context.Background()
-	s, err := vuka.String(ctx, page(ctx))
+	s, err := ui.String(ctx, page(ctx))
 	fmt.Println("static:", s, err)
 
 	sess := live.NewSession(ctx, page)
@@ -111,17 +112,17 @@ func main() {
 		fmt.Println(" ", m[1], m[2])
 	}
 	fmt.Println("submit milk:")
-	show(sess.Event(vuka.Event{Target: "c1:0", Type: "submit", Form: url.Values{"name": {"milk"}}}))
+	show(sess.Event(ui.Event{Target: "c1:0", Type: "submit", Form: url.Values{"name": {"milk"}}}))
 	fmt.Println("submit nothing:")
-	show(sess.Event(vuka.Event{Target: "c1:0", Type: "submit", Form: url.Values{}}))
+	show(sess.Event(ui.Event{Target: "c1:0", Type: "submit", Form: url.Values{}}))
 	fmt.Println("submit eggs:")
-	show(sess.Event(vuka.Event{Target: "c1:0", Type: "submit", Form: url.Values{"name": {"eggs"}}}))
+	show(sess.Event(ui.Event{Target: "c1:0", Type: "submit", Form: url.Values{"name": {"eggs"}}}))
 	fmt.Println("click milk's counter:")
-	show(sess.Event(vuka.Event{Target: "c3:0", Type: "click"}))
+	show(sess.Event(ui.Event{Target: "c3:0", Type: "click"}))
 	fmt.Println("type:")
-	show(sess.Event(vuka.Event{Target: "c1:1", Type: "input", Value: "br"}))
+	show(sess.Event(ui.Event{Target: "c1:1", Type: "input", Value: "br"}))
 	fmt.Println("remove milk:")
-	show(sess.Event(vuka.Event{Target: "c1:2", Type: "click"}))
+	show(sess.Event(ui.Event{Target: "c1:2", Type: "click"}))
 	fmt.Println("click solo:")
-	show(sess.Event(vuka.Event{Target: "c2:0", Type: "click"}))
+	show(sess.Event(ui.Event{Target: "c2:0", Type: "click"}))
 }

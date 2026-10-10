@@ -1,23 +1,25 @@
 package main
 
+import "github.com/vuka-lang/ui"
+
 type TableProps[T any] struct{ Rows []T }
 
-func Table[T any](props TableProps[T]) vuka.Node { return <table>{len(props.Rows)}</table> }
+func Table[T any](props TableProps[T]) ui.Node { return <table>{len(props.Rows)}</table> }
 
-func Empty[T any]() vuka.Node { return <p/> }
+func Empty[T any]() ui.Node { return <p/> }
 
-func Box[T any](value T) vuka.Node { return <p>{value}</p> }
+func Box[T any](value T) ui.Node { return <p>{value}</p> }
 
-func Price(amount int) vuka.Node     { return <b>{amount}</b> }
-func Price(amount float64) vuka.Node { return <b>{amount}</b> }
-func Price(amount int, children vuka.Node) vuka.Node {
+func Price(amount int) ui.Node     { return <b>{amount}</b> }
+func Price(amount float64) ui.Node { return <b>{amount}</b> }
+func Price(amount int, children ui.Node) ui.Node {
 	return <b>{amount}{children}</b>
 }
 
-func Num(n int64) vuka.Node { return <i>{n}</i> }
-func Num(n int32) vuka.Node { return <i>{n}</i> }
+func Num(n int64) ui.Node { return <i>{n}</i> }
+func Num(n int32) ui.Node { return <i>{n}</i> }
 
-func page() vuka.Node {
+func page() ui.Node {
 	return <>
 		<Table rows={[]int{1}} />
 		<Empty />

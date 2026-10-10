@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"errors"
 	"strconv"
+	"github.com/vuka-lang/ui"
 )
 
 type User struct {
@@ -16,46 +17,46 @@ type User struct {
 	Year int
 }
 
-func lookup(s string) vuka./*line jsx_blocks.vuka:16:23*/Result[int] {
-	n, __e1/*line jsx_blocks.vuka:17:3*/ := strconv.Atoi(s); if __e1 != nil { return vuka.Err[int](__e1) }
-	return vuka./*line jsx_blocks.vuka:18:9*/Ok[int]/*line jsx_blocks.vuka:18:11*/(n)
+func lookup(s string) vuka./*line jsx_blocks.vuka:17:23*/Result[int] {
+	n, __e1/*line jsx_blocks.vuka:18:3*/ := strconv.Atoi(s); if __e1 != nil { return vuka.Err[int](__e1) }
+	return vuka./*line jsx_blocks.vuka:19:9*/Ok[int]/*line jsx_blocks.vuka:19:11*/(n)
 }
 
-func list(users []User, admin bool, s string) vuka.Node {
-	return vuka.Fragment(vuka.El("ul", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
+func list(users []User, admin bool, s string) ui.Node {
+	return ui.Fragment(ui.El("ul", nil, ui.Nodes(func(__add func(ui.Node)) { 
 
-/*line jsx_blocks.vuka:24:5*/for _, u := range users { __add(vuka.El("li", []vuka.Attr{{Name: "key", Value: 
-/*line jsx_blocks.vuka:25:14*/u.ID}, }, vuka.Child(/*line jsx_blocks.vuka:25:21*/u.Name), vuka.Text(" since "), vuka.Child(/*line jsx_blocks.vuka:25:36*/u.Year), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
-
-
-/*line jsx_blocks.vuka:28:4*/if admin { __add(vuka.El("button", nil, vuka.Text("Edit"), )); 
-
-} /*line jsx_blocks.vuka:30:5*/else if len(users) == 0 { __add(vuka.El("p", nil, vuka.Text("nobody"), )); __add(vuka.Text(" ")); __add(vuka.El("hr", nil, )); 
+/*line jsx_blocks.vuka:25:5*/for _, u := range users { __add(ui.El("li", []ui.Attr{{Name: "key", Value: 
+/*line jsx_blocks.vuka:26:14*/u.ID}, }, ui.Child(/*line jsx_blocks.vuka:26:21*/u.Name), ui.Text(" since "), ui.Child(/*line jsx_blocks.vuka:26:36*/u.Year), )); } }), ), ui.Nodes(func(__add func(ui.Node)) { 
 
 
-} /*line jsx_blocks.vuka:33:3*/else { __add(vuka.Text("guest")); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
+/*line jsx_blocks.vuka:29:4*/if admin { __add(ui.El("button", nil, ui.Text("Edit"), )); 
+
+} /*line jsx_blocks.vuka:31:5*/else if len(users) == 0 { __add(ui.El("p", nil, ui.Text("nobody"), )); __add(ui.Text(" ")); __add(ui.El("hr", nil, )); 
 
 
-/*line jsx_blocks.vuka:36:4*/if __m1 := /*line jsx_blocks.vuka:36:10*/lookup(s); false { panic(__m1)/*line jsx_blocks.vuka:36:21*//*line jsx_blocks.vuka:36:22*/} else if n := __m1.Value(); __m1.IsOk() { _ = n;/*line jsx_blocks.vuka:36:33*/ __add(vuka.El("p", nil, vuka.Child(/*line jsx_blocks.vuka:36:38*/n), )); /*line jsx_blocks.vuka:36:45*/} else if e := __m1.Err(); __m1.IsErr() { _ = e;/*line jsx_blocks.vuka:36:57*/ __add(vuka.El("p", []vuka.Attr{{Name: "className", Value: "error"}, }, vuka.Child(/*line jsx_blocks.vuka:36:80*/e.Error()), )); /*line jsx_blocks.vuka:36:95*/} else { panic("vuka: no case matched") }/*line jsx_blocks.vuka:36:96*/ }), vuka.El("nav", nil, vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_blocks.vuka:37:9*/for _, link := range []string{"/", "/users"} { __add(vuka.El("a", []vuka.Attr{{Name: "href", Value: /*line jsx_blocks.vuka:37:65*/link}, }, vuka.Child(/*line jsx_blocks.vuka:37:72*/link), )); } }), ), vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_blocks.vuka:38:4*/if ok := map[string]bool{"a": true}["a"]; ok { __add(vuka.El("i", nil, vuka.Text("map in an if"), )); } }), vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_blocks.vuka:39:4*/if __m2 := /*line jsx_blocks.vuka:39:10*/len(users); false { panic(__m2)
-/*line jsx_blocks.vuka:40:3*/} else if __m2 == 0 { __add(vuka.El("i", nil, vuka.Text("none"), )); 
+} /*line jsx_blocks.vuka:34:3*/else { __add(ui.Text("guest")); } }), ui.Nodes(func(__add func(ui.Node)) { 
 
-/*line jsx_blocks.vuka:42:3*/} else if (__m2 == 1) || (__m2 == 2) { __add(vuka.Text("a few: ")); __add(vuka.Child(
-/*line jsx_blocks.vuka:43:12*/len(users))); 
-/*line jsx_blocks.vuka:44:3*/} else if true { __add(vuka.Nodes(func(__add func(vuka.Node)) { 
-/*line jsx_blocks.vuka:45:5*/for i := range 3 { __add(vuka.El("b", nil, vuka.Child(/*line jsx_blocks.vuka:45:28*/i), )); } })); 
-/*line jsx_blocks.vuka:46:3*/} else { panic("vuka: no case matched") }/*line jsx_blocks.vuka:46:4*/ }), 
+
+/*line jsx_blocks.vuka:37:4*/if __m1 := /*line jsx_blocks.vuka:37:10*/lookup(s); false { panic(__m1)/*line jsx_blocks.vuka:37:21*//*line jsx_blocks.vuka:37:22*/} else if n := __m1.Value(); __m1.IsOk() { _ = n;/*line jsx_blocks.vuka:37:33*/ __add(ui.El("p", nil, ui.Child(/*line jsx_blocks.vuka:37:38*/n), )); /*line jsx_blocks.vuka:37:45*/} else if e := __m1.Err(); __m1.IsErr() { _ = e;/*line jsx_blocks.vuka:37:57*/ __add(ui.El("p", []ui.Attr{{Name: "className", Value: "error"}, }, ui.Child(/*line jsx_blocks.vuka:37:80*/e.Error()), )); /*line jsx_blocks.vuka:37:95*/} else { panic("vuka: no case matched") }/*line jsx_blocks.vuka:37:96*/ }), ui.El("nav", nil, ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_blocks.vuka:38:9*/for _, link := range []string{"/", "/users"} { __add(ui.El("a", []ui.Attr{{Name: "href", Value: /*line jsx_blocks.vuka:38:65*/link}, }, ui.Child(/*line jsx_blocks.vuka:38:72*/link), )); } }), ), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_blocks.vuka:39:4*/if ok := map[string]bool{"a": true}["a"]; ok { __add(ui.El("i", nil, ui.Text("map in an if"), )); } }), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_blocks.vuka:40:4*/if __m2 := /*line jsx_blocks.vuka:40:10*/len(users); false { panic(__m2)
+/*line jsx_blocks.vuka:41:3*/} else if __m2 == 0 { __add(ui.El("i", nil, ui.Text("none"), )); 
+
+/*line jsx_blocks.vuka:43:3*/} else if (__m2 == 1) || (__m2 == 2) { __add(ui.Text("a few: ")); __add(ui.Child(
+/*line jsx_blocks.vuka:44:12*/len(users))); 
+/*line jsx_blocks.vuka:45:3*/} else if true { __add(ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_blocks.vuka:46:5*/for i := range 3 { __add(ui.El("b", nil, ui.Child(/*line jsx_blocks.vuka:46:28*/i), )); } })); 
+/*line jsx_blocks.vuka:47:3*/} else { panic("vuka: no case matched") }/*line jsx_blocks.vuka:47:4*/ }), 
 )
 }
 
 func main() {
-	for _, n := range []vuka.Node{
+	for _, n := range []ui.Node{
 		list(nil, false, "1"),
 		list([]User{{1, "Ann", 2020}, {2, "Bo", 2021}}, true, "x"),
 	} {
-		s, err := vuka.String(context.Background(), n)
+		s, err := ui.String(context.Background(), n)
 		fmt.Println(s, err)
 	}
 	_ = errors.New

@@ -1,14 +1,11 @@
-err_jsx_live.vuka:49:3: <NoRender> embeds vuka.Live but has no Render() vuka.Node method
-err_jsx_live.vuka:50:3: <BadRender>'s Render is func(ctx context.Context) Node; a stateful component's is func() vuka.Node
-err_jsx_live.vuka:51:3: <Ptr> embeds *vuka.Live; embed vuka.Live by value
-err_jsx_live.vuka:52:3: <Named> is a type, not a component: a component is a function returning a vuka.Node, or a struct embedding vuka.Live with a Render() vuka.Node method
-err_jsx_live.vuka:53:12: <Counter> has no attribute n: unexported fields are its state; its props are its exported fields
-err_jsx_live.vuka:54:12: <Counter> has no attribute Stat; did you mean Start?
-err_jsx_live.vuka:55:3: <Counter> takes no children: add a Children vuka.Node field to Counter
-err_jsx_live.vuka:56:3: <BadMount>'s Mount is func(n int); it takes nothing or a context.Context, and returns nothing or an error
-err_jsx_live.vuka:57:3: <Box> is generic: write its type arguments, <Box[…]>
-err_jsx_live.vuka:58:9: <Both>'s field Title is ambiguous: it is in A and B
-err_jsx_live.vuka:59:11: onClick on <button> takes a func(), a func taking the event's value (a string, number or bool), a form (a struct, or url.Values) or a vuka.Event, optionally after a context.Context, returning nothing or an error; this is int
-err_jsx_live.vuka:60:11: onClick on <button> takes a func(), a func taking the event's value (a string, number or bool), a form (a struct, or url.Values) or a vuka.Event, optionally after a context.Context, returning nothing or an error; this is func(a int, b int)
-err_jsx_live.vuka:61:10: onInput on <input> takes a func(), a func taking the event's value (a string, number or bool), a form (a struct, or url.Values) or a vuka.Event, optionally after a context.Context, returning nothing or an error; this is func(x []int)
-err_jsx_live.vuka:62:10: onInput on <input> takes a func(), a func taking the event's value (a string, number or bool), a form (a struct, or url.Values) or a vuka.Event, optionally after a context.Context, returning nothing or an error; this is func(s string) int
+err_jsx_live.vuka:52:3: <NoRender> isn't a stateful component: *NoRender doesn't implement ui.Stateful (missing method Render)
+err_jsx_live.vuka:53:3: <BadRender> isn't a stateful component: *BadRender doesn't implement ui.Stateful (wrong type for method Render: has func(ctx context.Context) ui.Node, wants func() ui.Node)
+err_jsx_live.vuka:55:3: <Named> is a type, not a component: a component is a function returning ui.Node, or a struct whose pointer implements ui.Stateful
+err_jsx_live.vuka:56:12: <Counter> has no attribute n: unexported fields are its state; its props are its exported fields
+err_jsx_live.vuka:57:12: <Counter> has no attribute Stat; did you mean Start?
+err_jsx_live.vuka:58:3: <Counter> takes no children: add a Children ui.Node field to Counter
+err_jsx_live.vuka:60:3: <Box> is generic: write its type arguments, <Box[…]>
+err_jsx_live.vuka:61:9: <Both>'s field Title is ambiguous: it is in A and B
+err_jsx_live.vuka:62:11: onClick on <button> takes a function; this is int
+err_jsx_live.vuka:66:3: <NotLive> isn't a stateful component: *NotLive doesn't implement ui.Stateful (missing method vukaLive; embed ui.Live)
+err_jsx_live.vuka:67:11: onClick on <button> takes a function; this is string

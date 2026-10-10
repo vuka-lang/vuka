@@ -98,6 +98,9 @@ func (e *engine) embedFiles(f *fileState) bool {
 		if l.tpl != nil && l.tpl.pkg != "" {
 			f.importAs(l.tpl.pkg, e.tplImport(l.tpl.pkg))
 		}
+		if l.tpl != nil && e.templRegistry != "" {
+			f.importAs(e.templRegistry, "__vuka_templx")
+		}
 		l.repl = f.runtime() + ".FileOf(" + strconv.Quote(l.key) + ", " + l.v + ")"
 		f.files = append(f.files, l)
 		sort.Slice(f.files, func(i, j int) bool { return f.files[i].off < f.files[j].off })
@@ -249,7 +252,8 @@ func (e *engine) pkgPath() string {
 }
 
 // renderFiles declares the embedded files' variables and registers the
-// components of .templ files, before any declarer runs.
+// components of .templ files with Options.TemplRegistry, before any declarer
+// runs.
 func (e *engine) renderFiles(f *fileState) {
 	w, seen := &f.deco, map[string]bool{}
 	for _, l := range f.files {
@@ -258,19 +262,19 @@ func (e *engine) renderFiles(f *fileState) {
 		}
 		seen[l.v] = true
 		w.gen("\n//go:embed "+strconv.Quote(l.rel)+"\nvar "+l.v+" string\n", l.off)
-		if l.tpl != nil {
-			rt, qual := f.runtime(), ""
+		if l.tpl != nil && e.templRegistry != "" {
+			reg, qual := f.importAs(e.templRegistry, "__vuka_templx"), ""
 			if l.tpl.pkg != "" {
 				qual = e.tplImport(l.tpl.pkg) + "."
 			}
 			var b strings.Builder
-			b.WriteString("\nfunc init() {\n\t" + rt + ".RegisterTempl(" + strconv.Quote(l.key))
+			b.WriteString("\nfunc init() {\n\t" + reg + ".Register(" + strconv.Quote(l.key))
 			for _, c := range l.tpl.comps {
 				params := make([]string, len(c.params))
 				for i, p := range c.params {
 					params[i] = strconv.Quote(p)
 				}
-				b.WriteString(", " + rt + ".TemplComponent{Name: " + strconv.Quote(c.name) + ", Func: " + qual + c.name +
+				b.WriteString(", " + reg + ".Component{Name: " + strconv.Quote(c.name) + ", Func: " + qual + c.name +
 					", Params: []string{" + strings.Join(params, ", ") + "}}")
 			}
 			b.WriteString(")\n}\n")
