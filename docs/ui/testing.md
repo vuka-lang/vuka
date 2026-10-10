@@ -35,3 +35,27 @@ events through a v1 and a v2 client and require both to hold the server's
 page, byte for byte, after each. Sessions in tests verify skipped
 components ([verification](/ui/live#verification)), so a `Render` reading
 state that isn't an Assign fails the test that exercises it.
+
+## JS commands
+
+The reference client also runs [JS commands](/ui/js), on a model of the
+page: the server's HTML plus what commands changed on its elements, kept
+across patches by the [rule browsers follow](/ui/js#server-patches).
+
+```go
+c, _ := livetest.Join(live.NewSession(ctx, page), 2)
+c.Click(`[data-vk-id="c1"] button`)             // runs the button's commands, sends its pushes
+c.Fire("input[name=q]", ui.Event{Type: "keydown", Key: "Escape"})
+c.HasClass(`[data-vk-ref="menu"]`, "hidden")    // false: the menu is open
+c.Visible("#dialog"); c.Attr("#box", "checked"); c.Text("p")
+```
+
+`Click` and `Fire` find the first element matching a selector (tags, `#id`,
+`.class`, `[attr]`, `[attr=v]`, descendant and `>`), run the commands or
+send the event of the nearest element handling it, and apply the replies,
+running the commands they push. Classes, attributes, `show`/`hide`/`toggle`,
+`set_value`, conditions, `key`, `confirm` (`c.Confirm` answers; nil confirms),
+`dispatch`, `exec`, `copy` (into `c.Clipboard`) and `push` are run;
+`debounce` and `throttle` run at once; focus, scrolling and transitions do
+nothing. Elements are known by their place in the page.
+

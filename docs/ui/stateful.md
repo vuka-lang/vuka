@@ -99,7 +99,8 @@ payload rules are checked when the element first renders, which fails with
 the expected shapes for any other signature (`ui.CheckHandler` is the
 check). A handler's error doesn't stop the session: the page renders again
 (the handler may have changed state before failing) and the reply carries
-the message. A `templ.ComponentScript` is still a script.
+the message. A chain of [JS commands](/ui/js) runs in the browser instead
+(and calls handlers with `Push`); a `templ.ComponentScript` is still a script.
 
 ```vuka
 type NewItem struct{ Name string `form:"name"` }

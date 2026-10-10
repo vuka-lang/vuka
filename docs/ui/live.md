@@ -38,6 +38,11 @@ inserted or removed, a branch's new frame, long markup by token patch. A
 one-cell change in a 1000-row table is 89 bytes instead of 122 KB. The
 format is in the [reference](/reference/live-protocol#protocol-v2-render-trees).
 
+Either version's reply also carries the [JS commands](/ui/js#from-the-server)
+components pushed with `PushJS` while it was made (`Patch.JS`, and
+`s.JS()` for those a `Mount` pushed during the join's render), run by the
+browser once the reply is applied.
+
 ## Change tracking
 
 Components whose state is all `ui.Assign`s are skipped when nothing they
