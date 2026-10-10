@@ -203,7 +203,7 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 	}
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || f.off(sel.Pos()) >= f.body {
+		if !ok || !f.lowerable(sel.Pos()) {
 			return true
 		}
 		base, first, names := e.refChain(sel)

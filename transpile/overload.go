@@ -212,7 +212,7 @@ func (e *engine) resolveCalls(f *fileState) {
 			return true
 		}
 		off := f.orig(id.Pos())
-		if f.done[off] || f.off(id.Pos()) >= f.body {
+		if f.done[off] || !f.lowerable(id.Pos()) {
 			return true
 		}
 		args, ok := e.args(call)

@@ -20,6 +20,7 @@ type staticDecl struct {
 	typ, init  span // in src; start < 0 when absent
 	start, end int  // the whole field, in src
 	nameOff    int
+	vt, rt     string // a generic type's static: its value's type, the runtime's name
 }
 
 // staticFunc is a static method: func User.Create(…) or func Model[Self].Find(…).
@@ -186,11 +187,9 @@ func (f *fileState) staticFuncAt(toks []tok, i int) (*staticFunc, bool) {
 }
 
 // lowerStatics comments the static fields out of their structs, renames the
-// static methods, and writes the statics' declarations for the trailer.
+// static methods, and settles what each static's declaration needs;
+// renderStatics writes them for the trailer.
 func (f *fileState) lowerStatics(toks []tok, bare bool) {
-	if len(f.statics) == 0 && len(f.staticFuncs) == 0 {
-		return
-	}
 	for _, sf := range f.staticFuncs {
 		text := sf.goName
 		if len(sf.tparams) > 0 {
@@ -198,18 +197,37 @@ func (f *fileState) lowerStatics(toks []tok, bare bool) {
 		}
 		f.add(sf.head.start, sf.head.end, text)
 	}
-	if len(f.statics) == 0 {
-		return
-	}
-	w := &f.static
 	for _, s := range f.statics {
 		f.add(s.start, s.end, commentOut(f.src, s.start, s.end))
-		goName := staticGoName(s.typeName, s.name)
-		directive := func(off int) {
-			if !bare {
-				w.gen(lineDirective(f.at(off)), off)
-			}
+		if s.typeParams == "" || s.isConst {
+			continue
 		}
+		switch {
+		case s.typ.start >= 0:
+			s.vt = string(f.src[s.typ.start:s.typ.end])
+		case s.init.start >= 0:
+			s.vt = compositeType(string(f.src[s.init.start:s.init.end]))
+		}
+		if s.vt == "" {
+			f.staticErrs = append(f.staticErrs, &Error{Pos: f.at(s.nameOff),
+				Msg: "a static of a generic type needs its type: static " + s.name + " T = …"})
+		}
+		s.rt = f.scannedRuntime(toks)
+	}
+}
+
+// renderStatics writes the statics' declarations, each initializer with the
+// rewrites decided inside it so far.
+func (f *fileState) renderStatics() {
+	f.static = genWriter{}
+	w := &f.static
+	directive := func(off int) {
+		if !f.bare {
+			w.gen(lineDirective(f.at(off)), off)
+		}
+	}
+	for _, s := range f.statics {
+		goName := staticGoName(s.typeName, s.name)
 		if s.typeParams == "" || s.isConst {
 			kw := "var "
 			if s.isConst {
@@ -225,38 +243,56 @@ func (f *fileState) lowerStatics(toks []tok, bare bool) {
 			if s.init.start >= 0 {
 				w.gen(" = ", s.init.start)
 				directive(s.init.start)
-				w.copy(string(f.src[s.init.start:s.init.end]), s.init.start)
+				f.copyEdited(w, s.init)
 			}
 			w.gen("\n", s.end)
 			continue
 		}
-		// A generic type's static: one value per instantiation.
-		vt := ""
-		switch {
-		case s.typ.start >= 0:
-			vt = string(f.src[s.typ.start:s.typ.end])
-		case s.init.start >= 0:
-			vt = compositeType(string(f.src[s.init.start:s.init.end]))
-		}
-		if vt == "" {
-			f.staticErrs = append(f.staticErrs, &Error{Pos: f.at(s.nameOff),
-				Msg: "a static of a generic type needs its type: static " + s.name + " T = …"})
+		if s.vt == "" {
 			continue
 		}
-		rt := f.scannedRuntime(toks)
+		// A generic type's static: one value per instantiation.
 		store := "__" + strings.TrimPrefix(goName, "_") + "_statics"
 		self := s.typeName + "[" + strings.Join(s.tparams, ", ") + "]"
-		w.gen("\nvar "+store+" "+rt+".Statics\n\n", s.start)
+		w.gen("\nvar "+store+" "+s.rt+".Statics\n\n", s.start)
 		directive(s.nameOff)
-		w.gen("func "+goName+s.typeParams+"() *"+rt+".Static["+vt+"] {\n\treturn "+rt+".StaticOf["+self+"](&"+store+", func() "+vt+" { return ", s.start)
+		w.gen("func "+goName+s.typeParams+"() *"+s.rt+".Static["+s.vt+"] {\n\treturn "+s.rt+".StaticOf["+self+"](&"+store+", func() "+s.vt+" { return ", s.start)
 		if s.init.start >= 0 {
 			directive(s.init.start)
-			w.copy(string(f.src[s.init.start:s.init.end]), s.init.start)
+			f.copyEdited(w, s.init)
 		} else {
-			w.gen("*new("+vt+")", s.start)
+			w.gen("*new("+s.vt+")", s.start)
 		}
 		w.gen(" })\n}\n", s.end)
 	}
+}
+
+// inStaticInit reports whether src offset off is in a static's initializer,
+// which is lowered where the trailer declares the static.
+func (f *fileState) inStaticInit(start, end int) bool {
+	for _, s := range f.statics {
+		if s.init.start >= 0 && start >= s.init.start && end <= s.init.end {
+			return true
+		}
+	}
+	return false
+}
+
+// copyEdited copies src[sp] into w with the rewrites decided inside it.
+func (f *fileState) copyEdited(w *genWriter, sp span) {
+	last := sp.start
+	for _, e := range f.fixed.sorted() {
+		if e.start < sp.start || e.end > sp.end {
+			continue
+		}
+		w.copy(string(f.src[last:e.start]), last)
+		w.replace(e.text, e.start, e.end-e.start)
+		last = e.end
+		if !f.bare && len(e.text) != e.end-e.start && e.end < sp.end {
+			w.gen(lineDirective(f.at(e.end)), e.end)
+		}
+	}
+	w.copy(string(f.src[last:sp.end]), last)
 }
 
 // compositeType is the type of a composite literal, "Manager[Self]" for
@@ -450,7 +486,7 @@ func (e *engine) resolveStatics(f *fileState) {
 			return true
 		}
 		tv, ok := e.info.Types[sel.X]
-		if !ok || !tv.IsType() || f.off(sel.Pos()) >= f.body {
+		if !ok || !tv.IsType() || !f.lowerable(sel.Pos()) {
 			return true
 		}
 		named, ok := types.Unalias(tv.Type).(*types.Named)
@@ -738,7 +774,7 @@ func (e *engine) selfCalls(f *fileState) {
 			return true
 		}
 		sel, ok := ast.Unparen(call.Fun).(*ast.SelectorExpr)
-		if !ok || f.off(call.Pos()) >= f.body {
+		if !ok || !f.lowerable(call.Pos()) {
 			return true
 		}
 		selection := e.info.Selections[sel]
@@ -872,4 +908,133 @@ func importPath(f *fileState, name string) string {
 // through another package's type, and returns that name.
 func (f *fileState) autoImport(p *types.Package) string {
 	return f.importAs(p.Path(), "__"+p.Name())
+}
+
+// staticCycles reports statics whose initializers depend on themselves,
+// through other statics, variables, functions or methods: Go would report the
+// non-generic ones in generated names, and a generic static's lazy initializer
+// would never finish.
+func (e *engine) staticCycles() {
+	decls := map[types.Object]*staticDecl{}
+	declFile := map[types.Object]*fileState{}
+	for _, f := range e.vuka {
+		for _, s := range f.statics {
+			if obj := e.pkg.Scope().Lookup(staticGoName(s.typeName, s.name)); obj != nil {
+				decls[obj], declFile[obj] = s, f
+			}
+		}
+	}
+	if len(decls) == 0 {
+		return
+	}
+	bodies := map[types.Object][]ast.Node{}
+	var order []types.Object
+	for _, f := range e.files {
+		for _, d := range f.ast.Decls {
+			switch d := d.(type) {
+			case *ast.FuncDecl:
+				if obj := e.info.Defs[d.Name]; obj != nil && d.Body != nil {
+					bodies[obj] = []ast.Node{d.Body}
+					order = append(order, obj)
+				}
+			case *ast.GenDecl:
+				for _, sp := range d.Specs {
+					if vs, ok := sp.(*ast.ValueSpec); ok {
+						for i, n := range vs.Names {
+							obj := e.info.Defs[n]
+							if obj == nil {
+								continue
+							}
+							switch {
+							case len(vs.Values) == len(vs.Names):
+								bodies[obj] = []ast.Node{vs.Values[i]}
+							case len(vs.Values) > 0:
+								bodies[obj] = []ast.Node{vs.Values[0]}
+							}
+							order = append(order, obj)
+						}
+					}
+				}
+			}
+		}
+	}
+	edges := map[types.Object][]types.Object{}
+	for _, obj := range order {
+		seen := map[types.Object]bool{}
+		for _, n := range bodies[obj] {
+			ast.Inspect(n, func(n ast.Node) bool {
+				if id, ok := n.(*ast.Ident); ok {
+					if to := e.info.Uses[id]; to != nil {
+						if fn, ok := to.(*types.Func); ok {
+							to = fn.Origin()
+						}
+						if _, ok := bodies[to]; ok && !seen[to] {
+							seen[to] = true
+							edges[obj] = append(edges[obj], to)
+						}
+					}
+				}
+				return true
+			})
+		}
+	}
+	name := func(obj types.Object) string {
+		if s := decls[obj]; s != nil {
+			return s.typeName + "." + s.name
+		}
+		if fn, ok := obj.(*types.Func); ok {
+			if recv := fn.Type().(*types.Signature).Recv(); recv != nil {
+				if n := namedOf(recv.Type()); n != nil {
+					return n.Obj().Name() + "." + fn.Name()
+				}
+			}
+			for _, f := range e.vuka {
+				for _, sf := range f.staticFuncs {
+					if sf.goName == fn.Name() {
+						return string(f.src[sf.head.start:sf.head.end])
+					}
+				}
+			}
+		}
+		return obj.Name()
+	}
+	reported := map[types.Object]bool{}
+	for _, obj := range order {
+		s := decls[obj]
+		if s == nil || reported[obj] {
+			continue
+		}
+		// The shortest way back to obj, breadth first.
+		prev := map[types.Object]types.Object{}
+		queue, found := []types.Object{obj}, false
+		for len(queue) > 0 && !found {
+			cur := queue[0]
+			queue = queue[1:]
+			for _, to := range edges[cur] {
+				if to == obj {
+					prev[obj], found = cur, true
+					break
+				}
+				if _, ok := prev[to]; !ok {
+					prev[to] = cur
+					queue = append(queue, to)
+				}
+			}
+		}
+		if !found {
+			continue
+		}
+		path := []string{name(obj)}
+		for cur := prev[obj]; cur != obj; cur = prev[cur] {
+			path = append([]string{name(cur)}, path...)
+			reported[cur] = true
+		}
+		path = append([]string{name(obj)}, path...)
+		reported[obj] = true
+		if len(path) == 2 {
+			e.errs.add(declFile[obj].at(s.nameOff), "static %s is initialized with itself", path[0])
+			continue
+		}
+		e.errs.add(declFile[obj].at(s.nameOff), "initialization cycle: static %s depends on itself: %s", path[0], strings.Join(path, " → "))
+	}
 }

@@ -112,6 +112,9 @@ func (e *engine) run() {
 		}
 	}
 	if len(*e.errs) == 0 && e.info != nil {
+		e.staticCycles()
+	}
+	if len(*e.errs) == 0 && e.info != nil {
 		e.report()
 	}
 }
@@ -213,7 +216,7 @@ func (e *engine) qualify() {
 			continue
 		}
 		for _, id := range f.ast.Unresolved {
-			if !runtimeNames[id.Name] || e.declared[id.Name] || f.off(id.Pos()) >= f.body {
+			if !runtimeNames[id.Name] || e.declared[id.Name] || !f.lowerable(id.Pos()) {
 				continue
 			}
 			off := f.orig(id.Pos())

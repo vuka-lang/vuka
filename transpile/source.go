@@ -226,6 +226,15 @@ func (w *genWriter) gen(text string, src int) {
 	w.b.WriteString(text)
 }
 
+// replace writes text Vuka wrote in place of src[src:src+n].
+func (w *genWriter) replace(text string, src, n int) {
+	if text == "" && n == 0 {
+		return
+	}
+	w.segs = append(w.segs, segment{gen: w.b.Len(), src: src, genLen: len(text), srcLen: n})
+	w.b.WriteString(text)
+}
+
 // copy writes text taken verbatim from the source at src.
 func (w *genWriter) copy(text string, src int) {
 	if text == "" {

@@ -26,6 +26,33 @@ fmt.Println(User.Table, User.Max)
 They become package-level Go — `User_Table`, `_User_created`, `func User_New` —
 which is also how Go code reaches them.
 
+An initializer is Vuka code like any other: it may use the type's other
+statics and static methods, those it reaches through embedding, and
+[field references](/features/fields):
+
+```vuka
+type Post struct {
+	orm.Model
+	Title string
+	Views int
+
+	static Limit   = 10
+	static Twice   = Post.Limit * 2
+	static ByViews = Post.Views.Desc()
+	static Popular = Post.Objects.Filter(Post.Views.Gt(Post.Limit))
+}
+```
+
+Statics are initialized in dependency order, whatever order they are written
+in, as Go initializes package-level variables; a generic type's statics are
+initialized on first use. A static that depends on itself — directly, through
+other statics, or through the functions and methods its initializer calls —
+is an error:
+
+```text
+main.vuka:6:9: initialization cycle: static Post.A depends on itself: Post.A → Post.B → Post.A
+```
+
 ## Through embedding, with Self
 
 A static on a generic type has one value per instantiation, and a type reaches

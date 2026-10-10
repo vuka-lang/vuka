@@ -170,8 +170,48 @@ func (f *fileState) pos(off int) token.Position {
 
 func (f *fileState) off(p token.Pos) int { return f.tf.Offset(p) }
 
-// orig is the src offset of a position in this round's AST.
-func (f *fileState) orig(p token.Pos) int { return f.cur.toOrig(f.off(p)) }
+// orig is the src offset of a position in this round's AST. A position in the
+// trailer maps through the piece it is in.
+func (f *fileState) orig(p token.Pos) int {
+	off := f.off(p)
+	if off >= f.body {
+		rel := off - f.body
+		for _, s := range f.tsegs {
+			if rel >= s.gen && rel < s.gen+s.genLen {
+				if s.copy {
+					return s.src + rel - s.gen
+				}
+				return s.src
+			}
+		}
+	}
+	return f.cur.toOrig(off)
+}
+
+// lowerable reports whether the node at p is source Vuka lowers: the body,
+// or a static's initializer, copied into the trailer.
+func (f *fileState) lowerable(p token.Pos) bool {
+	if f.off(p) < f.body {
+		return true
+	}
+	o := f.orig(p)
+	return f.inStaticInit(o, o)
+}
+
+// bodyEdits are the rewrites applied in place: all but those inside statics'
+// initializers, which renderStatics applies.
+func (f *fileState) bodyEdits() edits {
+	if len(f.statics) == 0 {
+		return f.fixed
+	}
+	var out edits
+	for _, e := range f.fixed {
+		if !f.inStaticInit(e.start, e.end) {
+			out = append(out, e)
+		}
+	}
+	return out
+}
 
 func (f *fileState) nodePos(p token.Pos) token.Position { return f.pos(f.off(p)) }
 
@@ -215,6 +255,7 @@ func (f *fileState) makeTrailer(bare bool) {
 		f.copySrc(&w, expr, a.nameStart)
 		w.gen("\n", a.end)
 	}
+	f.renderStatics()
 	if (f.deco.len() > 0 || f.static.len() > 0) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
@@ -227,7 +268,10 @@ func (f *fileState) makeTrailer(bare bool) {
 // build produces this round's text: the decided rewrites, plus a placeholder for
 // every construct not lowered yet that still lets the package type-check.
 func (f *fileState) build() {
-	cur := append(edits(nil), f.fixed...)
+	if len(f.statics) > 0 {
+		f.makeTrailer(f.bare)
+	}
+	cur := append(edits(nil), f.bodyEdits()...)
 	for _, t := range f.tries {
 		if !t.done {
 			cur = append(cur, edit{start: t.off, end: t.off + 1})
@@ -322,7 +366,7 @@ func genName(d *ast.GenDecl) string {
 }
 
 func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, *SourceMap, int) {
-	all := f.fixed.sorted()
+	all := f.bodyEdits().sorted()
 	var after func(int) string
 	if !bare {
 		after = func(off int) string { return lineDirective(f.at(off)) }

@@ -1,0 +1,67 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/vuka-lang/vuka"
+)
+
+// Query is a filtered, ordered view of a model's rows.
+type Query[T any] struct {
+	where []vuka.Pred[T]
+	order []vuka.Order[T]
+}
+
+func (q Query[T]) Filter(p vuka.Pred[T]) Query[T] {
+	q.where = append(q.where[:len(q.where):len(q.where)], p)
+	return q
+}
+
+func (q Query[T]) OrderBy(o vuka.Order[T]) Query[T] {
+	q.order = append(q.order[:len(q.order):len(q.order)], o)
+	return q
+}
+
+func (q Query[T]) String() string {
+	var parts []string
+	for _, p := range q.where {
+		parts = append(parts, "where "+p.String())
+	}
+	for _, o := range q.order {
+		parts = append(parts, "order "+o.String())
+	}
+	return "[" + strings.Join(parts, ", ") + "]"
+}
+
+// Model gives every model its Objects; a static may build on another.
+type Model[Self any] struct {
+	static Objects = Query[Self]{}
+	static All Query[Self] = Model[Self].Objects
+}
+
+type Post struct {
+	Model
+	Title string
+	Views int
+
+	static Early = Post.Late + 1 // declared before what it uses
+	static Late = 5
+	static Limit = 10
+	static const Max = 3
+	static const Twice = Post.Max * 2
+	static Double = Post.Limit * 2
+	static ByViews = Post.Views.Desc()
+	static Popular = Post.Objects.Filter(Post.Views.Gt(Post.Limit)).OrderBy(Post.ByViews)
+	static Named = Post.Title.Eq(Post.label("go"))
+	static Everything = Post.All
+}
+
+func Post.label(s string) string { return "post " + s }
+
+func main() {
+	fmt.Println(Post.Early, Post.Late, Post.Twice, Post.Double)
+	fmt.Println(Post.ByViews)
+	fmt.Println(Post.Popular)
+	fmt.Println(Post.Named, Post.Everything)
+}
