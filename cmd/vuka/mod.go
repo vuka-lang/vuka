@@ -102,7 +102,11 @@ func importStubs(root string, pkgs []*load.Package) map[string][]byte {
 			if t.Go == nil {
 				continue
 			}
-			if file, _ := parser.ParseFile(token.NewFileSet(), t.GoName, t.Go, parser.ImportsOnly); file != nil {
+			src := t.Go
+			if t.Live != nil {
+				src = t.Live
+			}
+			if file, _ := parser.ParseFile(token.NewFileSet(), t.GoName, src, parser.ImportsOnly); file != nil {
 				for _, imp := range file.Imports {
 					if path, err := strconv.Unquote(imp.Path.Value); err == nil && path != "C" {
 						imports[test][path] = true
