@@ -1,6 +1,6 @@
-# Design: JSX targets and the UI library split (v0.9.0)
+# Design: JSX targets and the UI library split (v0.10.0)
 
-Status: implemented on branch `ui-split`. Breaking change, released as v0.9.0
+Status: implemented on branch `ui-split`. Breaking change, released as v0.10.0
 together with `github.com/vuka-lang/ui` v0.1.0.
 
 ## Why
@@ -136,7 +136,7 @@ Result and Option, decorators and declarers (`Call`, `Func`, `Type`, `Decl`,
 No requirements at all: `go mod why github.com/a-h/templ` → not needed. The
 `go` line is 1.23: `types.Func.Signature` (and `os.CopyFS` in tests) need it,
 and it makes go/types materialize aliases (`ui.Node` stays `ui.Node` in
-messages). The runtime version generated code requires is v0.9.0.
+messages). The runtime version generated code requires is v0.10.0.
 
 ## .templ files: a toolchain plugin
 

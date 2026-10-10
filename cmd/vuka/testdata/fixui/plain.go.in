@@ -1,0 +1,5 @@
+package plain
+
+import "github.com/vuka-lang/vuka"
+
+func Wrap(c *vuka.Call) { c.Next() }

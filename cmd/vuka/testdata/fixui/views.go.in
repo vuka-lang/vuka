@@ -1,0 +1,22 @@
+package views
+
+import (
+	"context"
+	"fmt"
+
+	v "github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/term"
+)
+
+type Page struct {
+	Title string
+	Body  v.Node
+	File  v.File
+}
+
+func Show(ctx context.Context, p Page) {
+	comps, _ := v.TemplComponents(p.File)
+	fmt.Println(len(comps))
+	s, _ := term.String(ctx, p.Body, term.Options{})
+	fmt.Println(s)
+}

@@ -1,0 +1,13 @@
+// import github.com/vuka-lang/ui
+
+package main
+
+import (
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+func Hello(name string) any {
+	return <p>{fmt.Sprint("hello ", name)}</p>
+}

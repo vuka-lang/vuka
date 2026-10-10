@@ -225,3 +225,20 @@ func provider(tg *jsxTarget, m *types.Func) string {
 
 // oneLine is a multi-line error (the go command's) on one line.
 func oneLine(s string) string { return strings.Join(strings.Fields(s), " ") }
+
+// HasJSX reports whether Vuka source holds a JSX expression, found by tokens
+// as the transpiler finds them: a < that starts an operand and is followed by
+// a tag name or >.
+func HasJSX(src []byte) bool {
+	prev := token.SEMICOLON
+	for _, t := range scanTokens(src) {
+		if t.tok == token.COMMENT {
+			continue
+		}
+		if t.tok == token.LSS && jsxStarts(prev) && jsxTagAt(src, t.off) {
+			return true
+		}
+		prev = t.tok
+	}
+	return false
+}

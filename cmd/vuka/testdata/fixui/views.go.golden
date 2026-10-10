@@ -1,0 +1,30 @@
+// v.Node → ui.Node
+// v.TemplComponents → templx.Components
+// github.com/vuka-lang/vuka/term → github.com/vuka-lang/ui/term
+// import github.com/vuka-lang/ui
+// import github.com/vuka-lang/ui/templx
+
+package views
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/templx"
+	"github.com/vuka-lang/ui/term"
+	v "github.com/vuka-lang/vuka"
+)
+
+type Page struct {
+	Title string
+	Body  ui.Node
+	File  v.File
+}
+
+func Show(ctx context.Context, p Page) {
+	comps, _ := templx.Components(p.File)
+	fmt.Println(len(comps))
+	s, _ := term.String(ctx, p.Body, term.Options{})
+	fmt.Println(s)
+}

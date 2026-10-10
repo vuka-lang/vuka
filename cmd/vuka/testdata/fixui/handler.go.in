@@ -1,0 +1,11 @@
+package web
+
+import (
+	"net/http"
+
+	"github.com/vuka-lang/vuka"
+)
+
+func Serve(n vuka.Node) http.Handler {
+	return vuka.Handler(func(*http.Request) (vuka.Node, error) { return n, nil })
+}
