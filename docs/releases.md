@@ -10,6 +10,23 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.12.0 — 2026-10-10
+
+Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.12.0`. With
+[`github.com/vuka-lang/ui`](/ui/) v0.3.0's [optimistic updates and
+`Call`](/ui/js#optimistic-updates) and [web](https://github.com/vuka-lang/web)
+v0.6.0, which runs them in the browser and styles pages with Tailwind.
+
+- **Tailwind for web apps, with no setup.** In a module that uses web,
+  `vuka run` keeps `tailwindcss --watch` running and pages pick up each new
+  stylesheet without reloading; `vuka build` and `vuka install` build it
+  minified into the binary; `vuka gen` writes the file that registers it, so a
+  plain `go build` works too. Classes are found in your `.vuka`, `.templ`,
+  `.html` and `.go` files and in the component packages you link. Your own
+  `app.css`, `styles/app.css` or `web.Tailwind(path)` replaces the built-in
+  stylesheet; `web.NoTailwind()` or `VUKA_TAILWIND=off` turns it off. See
+  [Styling](/web/styling).
+
 ## v0.11.0 — 2026-10-10
 
 Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.11.0`. With
