@@ -77,4 +77,3 @@ func shapeOf(b *strings.Builder, ns []jsxNode) {
 		}
 	}
 }
-
