@@ -36,10 +36,11 @@ New library: [`github.com/vuka-lang/ui`](/ui/) v0.1.0. Run `vuka fix ui`.
   (`go install github.com/vuka-lang/vuka/cmd/vuka@latest` as before). It
   compiles `.templ` files with templ's parser and generator — a plugin of the
   command, on for modules that require templ.
-- **Decorators, as flexible as Java's annotations:**
+- **Decorators:** optional arguments, parameter attributes, composition,
+  type-level advice and attribute targets.
   - A decorator whose parameters are all optional can be written bare:
-    `@tx` calls `tx()`, so `@orm.Transaction` and
-    `@orm.Transaction(orm.TxOn("db"))` are one decorator.
+    `@transaction` calls `transaction()`, and `@transaction(On("db"))` is
+    the same decorator with settings.
   - **Parameter attributes:** `func Show(@Path("id") id int, @Body in NewPet)`,
     read by declarers (`vuka.Param.Attrs`) and call decorators
     (`c.ParamAttr(i, &x)`).

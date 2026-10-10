@@ -41,8 +41,9 @@ checked at compile time and embedded: see [Files](/features/decorators#files).
 
 ## Parameter attributes
 
-A function's or method's parameters take typed attributes too, before the
-parameter, as Spring's `@PathVariable` and `@RequestBody`:
+Parameters take typed attributes too, written before the parameter, for code
+that needs to know something about each argument: where a web route reads it
+from, which arguments to validate:
 
 ```vuka
 type Path string
@@ -82,7 +83,9 @@ decorator valid(c) {
 
 ## Targets
 
-An attribute type can say where it may be written, as Java's `@Target`:
+Some attributes only make sense in one place — a column setting belongs on a
+field, a route's path source on a parameter. The attribute type can say so,
+and writing it anywhere else becomes a compile error:
 
 ```vuka
 @vuka.Targets(vuka.OnField)

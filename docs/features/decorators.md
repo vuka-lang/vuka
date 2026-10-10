@@ -70,17 +70,18 @@ keeps — a cache, a counter — isn't shared.
 
 ## Optional arguments
 
-A decorator whose arguments are all optional — a function of no parameters, or
-of one `...T` — is written bare or with them, as Java's `@Transactional` and
-`@Transactional(readOnly = true)`:
+Many decorators have a sensible default and only sometimes need settings: run
+in a transaction — usually on the default database, now and then read-only or
+on another one. Give the decorator only optional arguments (no parameters, or
+one `...T`) and it is written bare for the default, with arguments otherwise:
 
 ```vuka
-func Transactional(opts ...TxOption) func(*vuka.Call) { … }
+func transaction(opts ...TxOption) func(*vuka.Call) { … }
 
-@Transactional                          // Transactional()
+@transaction                            // transaction(): the defaults
 func save(ctx context.Context, u User) error { … }
 
-@Transactional(On("analytics"), ReadOnly)
+@transaction(On("analytics"), ReadOnly)
 func report(ctx context.Context) (Report, error) { … }
 ```
 
@@ -90,8 +91,9 @@ call decorators, typed decorators, declarers and type decorators, and for a
 
 ## Composed decorators
 
-A decorator can stand for several, as Spring's `@RestController` stands for
-`@Controller` and `@ResponseBody`:
+When the same decorators keep appearing together — every API route is a GET
+that needs authentication and is timed — name the set once and write that
+name instead:
 
 ```vuka
 decorator ApiRoute(path string) = @web.Get(path) @web.Use(auth) @timed
@@ -124,9 +126,10 @@ decorated function's type; nor can a decorator compose itself
 
 ## Type-level advice
 
-A call decorator on a type is *advice*, as Spring's `@Transactional` on a
-class: it wraps every exported method the package's Vuka files declare for the
-type, on `T` or `*T`.
+To give every method of a type the same behaviour — log each call to a store,
+retry each call to a flaky client — put the call decorator on the type. It
+wraps every exported method the package's Vuka files declare for the type, on
+`T` or `*T`:
 
 ```vuka
 @logged
@@ -251,20 +254,6 @@ still embedded only from the package's directory or below: a path such as
 
 The parameter or field must be `vuka.File` itself; literals elsewhere aren't
 embedded. The web framework's views are files of this kind: see [Views](/web/views).
-
-## Coming from Spring or Java
-
-| Java / Spring | Vuka |
-|---|---|
-| `@interface Route { String path(); }` | `type Route struct{ Path string }`: any Go type is an [attribute](/features/attributes) |
-| `@Target(ElementType.FIELD)` | [`@vuka.Targets(vuka.OnField)`](/features/attributes#targets) on the type |
-| `@Transactional` / `@Transactional(readOnly = true)` | a decorator of [optional arguments](#optional-arguments) |
-| an `@Around` aspect | a call decorator: `decorator name(c) { … c.Next() … }` |
-| `@Transactional` on a class | [type-level advice](#type-level-advice) |
-| `@RestController`, `@GetMapping` (meta-annotations) | a [composed decorator](#composed-decorators): `decorator Api(p string) = @web.Get(p) @web.Use(auth)` |
-| `@PathVariable("id")`, `@RequestBody`, `@Valid` | [parameter attributes](/features/attributes#parameter-attributes), read by a declarer (`d.Params[i].Attr`) or a call decorator (`c.ParamAttr`) |
-| `@Component`, `@Autowired` constructors | a type decorator with [`t.New`](/features/dependency-injection) |
-| reflection on annotations at run time | `c.Attr`, `d.Attr`, `t.Attr`, `vuka.FieldAttrs[T]()`: checked at compile time, no proxies |
 
 ## Details
 
