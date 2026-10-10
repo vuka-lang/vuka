@@ -4,6 +4,9 @@ import (
 	"context"
 	"fmt"
 	"reflect"
+	"slices"
+	"sync"
+	"sync/atomic"
 )
 
 // Decorator wraps a call of any function: it runs code around c.Next(), may
@@ -62,6 +65,14 @@ func (c *Call) Run() {
 // Next runs the rest of the chain: the next decorator, or the function itself.
 // It can be called more than once.
 func (c *Call) Next() {
+	if obs := callObservers.Load(); obs != nil {
+		c.observed(*obs)
+		return
+	}
+	c.next()
+}
+
+func (c *Call) next() {
 	i := c.pos
 	if i == len(c.chain) {
 		c.Results = c.invoke(c)
@@ -70,6 +81,73 @@ func (c *Call) Next() {
 	c.pos = i + 1
 	c.chain[i](c)
 	c.pos = i
+}
+
+// CallObserver sees a decorated call go through its steps, on the
+// goroutine of the call: each decorator (d), and the function itself (d
+// nil). What it returns, when not nil, is called once the step returns.
+type CallObserver func(c *Call, d Decorator) (done func())
+
+var (
+	observersMu   sync.Mutex
+	observerID    int
+	observerFuncs = map[int]CallObserver{}
+	callObservers atomic.Pointer[[]CallObserver] // nil: none, and a call pays one load
+)
+
+// ObserveCalls has fn see the steps of every decorated call of the program:
+// the hook of a tracer, or of a web framework's development toolbar timing
+// each decorator. It returns what stops it.
+func ObserveCalls(fn CallObserver) (stop func()) {
+	observersMu.Lock()
+	defer observersMu.Unlock()
+	id := observerID
+	observerID++
+	observerFuncs[id] = fn
+	publishObservers()
+	return func() {
+		observersMu.Lock()
+		defer observersMu.Unlock()
+		delete(observerFuncs, id)
+		publishObservers()
+	}
+}
+
+func publishObservers() {
+	if len(observerFuncs) == 0 {
+		callObservers.Store(nil)
+		return
+	}
+	ids := make([]int, 0, len(observerFuncs))
+	for id := range observerFuncs {
+		ids = append(ids, id)
+	}
+	slices.Sort(ids)
+	all := make([]CallObserver, len(ids))
+	for i, id := range ids {
+		all[i] = observerFuncs[id]
+	}
+	callObservers.Store(&all)
+}
+
+// observed runs the step at c.pos seen by the observers.
+func (c *Call) observed(obs []CallObserver) {
+	var d Decorator
+	if c.pos < len(c.chain) {
+		d = c.chain[c.pos]
+	}
+	var dones []func()
+	for _, o := range obs {
+		if done := o(c, d); done != nil {
+			dones = append(dones, done)
+		}
+	}
+	defer func() {
+		for i := len(dones) - 1; i >= 0; i-- {
+			dones[i]()
+		}
+	}()
+	c.next()
 }
 
 // Return sets the results without running the function; the rest of the chain
