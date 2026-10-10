@@ -1,0 +1,6 @@
+err_match_nested.vuka:4:2: match on Result[Option[int]] isn't exhaustive: missing Ok(None); add the missing cases or case _:
+err_match_nested.vuka:13:2: match on Result[Option[bool]] isn't exhaustive: missing Ok(Some(false)); add the missing cases or case _:
+err_match_nested.vuka:24:2: unreachable case: earlier cases match everything it does
+err_match_nested.vuka:32:2: match on P isn't exhaustive: missing P{X: false, Y: false}; add the missing cases or case _:
+err_match_nested.vuka:39:2: match on Option[int] isn't exhaustive: missing Some(_); add the missing cases or case _:
+err_match_nested.vuka:49:2: unreachable case: earlier cases match everything it does

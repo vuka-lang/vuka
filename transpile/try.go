@@ -145,7 +145,7 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	}
 	f.add(t.off, t.off+1, suffix)
 	f.insert(end, check, 3)
-	t.done = true
+	t.done, t.fresh = true, true
 	e.progress = true
 }
 

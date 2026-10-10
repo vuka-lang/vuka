@@ -78,6 +78,11 @@ func (e *engine) run() {
 			return
 		}
 		for _, f := range e.vuka {
+			for _, t := range f.tries {
+				t.fresh = false
+			}
+		}
+		for _, f := range e.vuka {
 			embedded := e.embedFiles(f)
 			e.classify(f)
 			if embedded {

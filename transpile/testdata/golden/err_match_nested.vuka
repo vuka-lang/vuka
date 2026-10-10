@@ -1,0 +1,51 @@
+package main
+
+func a(r Result[Option[int]]) {
+	match r {
+	case Ok(Some(p)):
+		_ = p
+	case Err(e):
+		_ = e
+	}
+}
+
+func b(r Result[Option[bool]]) {
+	match r {
+	case Ok(Some(true)):
+	case Ok(None):
+	case Err(_):
+	}
+}
+
+func c(r Result[Option[int]]) {
+	match r {
+	case Ok(_):
+	case Err(_):
+	case Ok(Some(p)):
+		_ = p
+	}
+}
+
+type P struct{ X, Y bool }
+
+func d(p P) {
+	match p {
+	case P{X: true}:
+	case P{Y: true}:
+	}
+}
+
+func e(o Option[int]) {
+	match o {
+	case Some(1):
+	case None:
+	}
+}
+
+func g(p P) {
+	match p {
+	case P{X: true}:
+	case P{X: false}:
+	case P{Y: true} if p.X:
+	}
+}
