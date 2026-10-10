@@ -583,12 +583,12 @@ A keyed insert, removal and move: the rows go from keys 1 2 3 4 to 4 1 5 3
 (4 moves to the front, 2 is removed, 5 is new):
 
 ```json
-{"u":{"1":{"k":[{"m":3},1,-1,{"t":2,"d":[" data-vk-key=\"5\"","plums","1"]},1]}}}
+{"u":{"1":{"k":[{"m":3},1,{"t":2,"d":[" data-vk-key=\"5\"","plums","1"]},-1,1]}}}
 ```
 
-— old item 3 (key 4) first, then from the cursor: key 1 kept, key 2 skipped,
-the new row, key 3 kept; key 4 is not taken again at the cursor and the list
-ends there.
+— old item 3 (key 4) first, then from the cursor: key 1 kept, the new row,
+key 2 skipped, key 3 kept; key 4, already taken, is left behind at the cursor
+and the list ends there.
 
 A branch switch: `t.sel` becomes 2, so the `{if}` renders its other branch,
 whose statics are new to the connection:
