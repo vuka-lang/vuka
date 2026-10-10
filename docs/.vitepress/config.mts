@@ -81,6 +81,7 @@ export default defineConfig({
           { text: 'Routes', link: '/web/routes' },
           { text: 'Parameters and results', link: '/web/parameters' },
           { text: 'Views', link: '/web/views' },
+          { text: 'Styling with Tailwind', link: '/web/styling' },
           { text: 'Dependency injection', link: '/web/dependency-injection' },
           { text: 'Middleware', link: '/web/middleware' },
           { text: 'Live components', link: '/web/live' },

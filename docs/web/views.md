@@ -142,3 +142,5 @@ func About() ui.Node { return <Shell title="About"><p>Pets, since 2026.</p></She
 - A `vuka.File` literal is embedded only where a decorator or attribute takes
   one, so there is no `web.Layout(file)` option: compose layouts in templ or
   JSX, or <span v-pre>`{{define}}`</span> them in one html file.
+
+Views are styled with Tailwind classes out of the box: see [Styling with Tailwind](/web/styling).

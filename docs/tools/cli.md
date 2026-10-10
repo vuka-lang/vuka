@@ -25,6 +25,21 @@ overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are.
 
+In a module on [web](/web/) with views, the app's
+[Tailwind CSS](/web/styling) comes along:
+
+- `vuka run` starts `tailwindcss --watch` beside the program, writing
+  `.vuka/tailwind/app.css` (a directory that ignores itself in git), and names
+  that file to the app in `VUKA_TAILWIND_CSS`; open pages take each rebuild
+  without reloading. A signal stops it with the program. Without the Tailwind
+  CLI, it says how to install it and the pages go unstyled.
+- `vuka build` and `vuka install` build the stylesheet once, minified, and
+  embed it with a generated `vuka_tailwind_gen.go` in each main package that
+  depends on web, through the overlay like the rest. Without the Tailwind CLI
+  they fail, saying how to install it.
+
+`VUKA_TAILWIND=off` skips all of it, as `web.NoTailwind()` in the source does.
+
 ## mod
 
 `go mod`, seeing the imports of `.vuka` files too. Plain `go mod tidy` reads
@@ -39,7 +54,8 @@ dependency is still missing.
 Writes `build/`, a plain Go module (`-o` picks another directory). With
 `-inplace`, writes each generated file beside its `.vuka` file instead — for
 [libraries](/guide/go-interop#publishing-a-library). `-check` writes nothing and
-fails when the output is out of date.
+fails when the output is out of date. Both include the file embedding the
+app's [Tailwind CSS](/web/styling), so plain `go build` serves it too.
 
 ## explain
 
