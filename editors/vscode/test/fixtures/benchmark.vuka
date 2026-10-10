@@ -1,0 +1,25 @@
+package main
+
+import (
+	"fmt"
+
+	"example.com/petstore/data"
+)
+
+func PetTable(pets []data.Pet) vuka.Node {
+	return <>
+		<h1>Pets ({len(pets)})</h1>
+		<table>
+			<tr><th>Name</th><th>Kind</th><th>Age</th></tr>
+			{for _, p := range pets {
+				<tr>
+					<td>
+						<a href={fmt.Sprintf("/pets/%d", p.ID)}>{p.Name}</a>
+					</td>
+					<td>{p.Kind}</td>
+					<td>{p.Age}</td>
+				</tr>
+			}}
+		</table>
+	</>
+}

@@ -17,6 +17,30 @@ A [`vuka.File`](/features/decorators#files) path such as `@Page("views/pets.temp
 go to definition opens the file (a `.templ` file with one component, at that
 component), and hover shows the path and the `.templ` file's components.
 
+### Markup
+
+JSX is served as markup, from the `.vuka` text itself, so it works while a tag
+is half-typed:
+
+- completion: after `<` every HTML element (and the SVG most pages draw with)
+  beside the components in scope, each with a one-line description and its
+  MDN link; in a tag the element's own attributes first (`href` on `<a>`,
+  `colspan` on `<td>`, `type`, `value` and `placeholder` on `<input>`), then
+  the global ones (`className`, `id`, `style`, `key`…), the event handlers
+  (`onClick`, `onInput`…), `aria-*` and `data-`; inside the quotes of an
+  enumerated attribute its values (`type="checkbox"`, `target="_blank"`,
+  `rel="noopener"`); after `</` the element still open; after the `{` of a
+  child, `for`, `if` and `match` complete to whole blocks; a component's
+  attributes are its parameters or props, and the Go in braces completes as
+  Go, the surrounding tags unfinished or not
+- hover on an element or an attribute: its description and MDN link
+- linked editing: renaming an opening tag renames its closing tag as you type
+  (`editor.linkedEditing`, on for `.vuka` files in VS Code); highlights pair
+  the two
+- folding of elements and blocks, beside gopls's folding of the Go
+- one diagnostic at an unclosed tag while it is typed, not a flood
+- go to definition, references and rename on the Go inside braces
+
 Install gopls:
 
 ```sh
@@ -31,7 +55,15 @@ the language server, highlighting for Vuka's additions on top of Go's grammar
 (field attributes, statics, `match` patterns, JSX with its blocks, event
 attributes and components — the grammar these pages use), snippets for
 components, live pages, routes, models and decorators, closing JSX tags as you
-type, and the Vuka icons. The language status shows `vuka version`; clicking
+type (`>` adds the closing tag, `</` the name of the element still open, inside
+blocks and fragments too), Enter between tags indenting, `{` and quotes pairing
+in markup, and the Vuka icons.
+
+VS Code's Emmet isn't turned on for `.vuka` files: Emmet can't tell the markup
+from the Go around it, so it would offer abbreviations for every identifier
+typed in Go code. The markup completion above covers elements and attributes.
+To have Emmet anyway, add `"emmet.includeLanguages": {"vuka": "javascriptreact"}`
+to your settings, and expand abbreviations with Tab. The language status shows `vuka version`; clicking
 it restarts the server.
 
 ### Go files
