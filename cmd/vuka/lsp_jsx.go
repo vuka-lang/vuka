@@ -653,7 +653,7 @@ func (p *proxy) componentAttrs(genPath, tag string) []compAttr {
 		}
 		for _, it := range p.probe(genPath, types.ExprString(only)+"{", "}") {
 			label, _ := it["label"].(string)
-			if kind, _ := it["kind"].(float64); kind == 5 && label != "Children" {
+			if kind, _ := it["kind"].(float64); kind == 5 && label != "Children" && !strings.Contains(label, ".") { // not a deep completion
 				detail, _ := it["detail"].(string)
 				out = append(out, compAttr{strings.ToLower(label[:1]) + label[1:], detail})
 			}

@@ -187,12 +187,18 @@ of the contract it implements, and these names:
 | `Stateful` + `Component(site string, key any, props S) Node` | no | a tag naming a struct type whose pointer implements `Stateful` |
 | `WithChildren(n, children Node) Node` | no | children for a component that reads them from its context (a templ component) |
 | `F(fingerprint uint64, shape string, children ...Node) Node` | no | frames: each piece of JSX with its compile-time shape, for render trees |
+| `Ref(name string) …` | no | refs: `ref="name"` on an element names it for code in the same function, which finds it with `Ref("name")` (ui: [JS commands](/ui/js)) |
 
 What the compiler checks is generic, against those declarations: a
 component's result is assignable to `Node`; a stateful tag's pointer
 implements `Stateful` (the message gives go/types' reason, and the target's
 struct to embed when the missing method is unexported); an event attribute's
-value is a function, `nil`, or a value of a type with methods. What a
+value is a function, `nil`, or a value of a type with methods; and, for a
+target declaring `Ref`, each `Ref("name")` with a literal name in a function
+with JSX names an element of that function's JSX — `no ref="mnu" in Menu's
+render; did you mean "menu"?`. A function with a computed `ref={…}` isn't
+checked, nor a `Ref` outside any function with JSX (a helper building a chain
+for another). What a
 handler may take, what a `Mount` looks like, how a value renders, is the
 target's business, checked by its runtime.
 

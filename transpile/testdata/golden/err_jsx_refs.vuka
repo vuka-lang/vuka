@@ -1,0 +1,30 @@
+package main
+
+import "golden/reftarget"
+
+type Menu struct{ open bool }
+
+func (m *Menu) Render() reftarget.Node {
+	return <div>
+		<button onClick={reftarget.Hide(reftarget.Ref("menu"))}>ok</button>
+		<button onClick={reftarget.Hide(reftarget.Ref("mnu"))}>typo</button>
+		<ul ref="menu">{if m.open { <li ref="item">x</li> }}</ul>
+	</div>
+}
+
+func Page() reftarget.Node {
+	t := reftarget.Ref("list")
+	return <p onClick={reftarget.Hide(t)}>page</p>
+}
+
+func Named() reftarget.Node {
+	return <p ref="a" onClick={reftarget.Hide(reftarget.Ref("b"))}><i ref="c" /></p>
+}
+
+func Computed(name string) reftarget.Node {
+	return <p ref={name} onClick={reftarget.Hide(reftarget.Ref("anything"))}>x</p>
+}
+
+func NoJSX() reftarget.Target { return reftarget.Ref("elsewhere") }
+
+func main() {}

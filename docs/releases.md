@@ -10,6 +10,18 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.11.0 — unreleased
+
+Runtime: `github.com/vuka-lang/vuka v0.11.0`. For
+[`github.com/vuka-lang/ui`](/ui/)'s [JS commands](/ui/js).
+
+- **Refs.** A JSX target declaring `Ref` gets refs: `ref="menu"` on an
+  element names it for the function's code, and each `ui.Ref("menu")` with a
+  literal name in a function with JSX must name one of its elements — `no
+  ref="mnu" in Menu's render; did you mean "menu"?`.
+- The editor no longer offers gopls' deep completions (`x.Y().Z`) as a
+  props struct's attributes.
+
 ## v0.10.1 — 2026-10-10
 
 Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.10.1`.

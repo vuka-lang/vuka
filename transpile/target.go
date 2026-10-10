@@ -22,6 +22,8 @@ import (
 //	          Stateful + Component(site, key, props) — tags naming struct types
 //	          WithChildren(Node, children Node) — children for components that
 //	          read them from their context
+//	          Ref(name string) — ref="name" attributes name elements, and each
+//	          Ref("name") in a function with JSX must name one of its elements
 //
 // A .vuka file renders its JSX with the one target it imports.
 const JSXVersion = 1

@@ -121,6 +121,7 @@ func (e *engine) run() {
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.checkTargets()
+		e.checkRefs()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.report()

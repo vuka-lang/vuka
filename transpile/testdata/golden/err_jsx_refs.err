@@ -1,0 +1,3 @@
+err_jsx_refs.vuka:10:49: no ref="mnu" in Menu's render; did you mean "menu"?
+err_jsx_refs.vuka:16:21: no ref="list" in Page: give an element ref="list"
+err_jsx_refs.vuka:21:58: no ref="b" in Named; its refs are "a", "c"
