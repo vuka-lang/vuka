@@ -158,6 +158,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			gens = append(gens, css...)
 		}
 	case "run":
+		env = append(env, devDirEnv+"="+tmp)
 		var css string
 		css, stopTailwind = devTailwind(root, overlay, stderr)
 		defer stopTailwind()

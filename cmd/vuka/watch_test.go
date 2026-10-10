@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net"
@@ -177,6 +178,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"path/filepath"
 )
 
 // version is what the app answers with.
@@ -188,6 +190,10 @@ func main() {
 	f.Close()
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		fmt.Fprintf(w, "%s %d", version, os.Getpid())
+	})
+	http.HandleFunc("/state", func(w http.ResponseWriter, r *http.Request) {
+		b, _ := os.ReadFile(filepath.Join(os.Getenv("VUKA_DEV_DIR"), "build.json"))
+		w.Write(b)
 	})
 	fmt.Println("listening")
 	http.ListenAndServe("127.0.0.1:"+os.Getenv("PORT"), nil)
@@ -259,6 +265,15 @@ func TestRunWatch(t *testing.T) {
 			}
 		}
 	}
+	state := func() (st buildState) {
+		res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/state", port))
+		if err != nil {
+			return st
+		}
+		defer res.Body.Close()
+		json.NewDecoder(res.Body).Decode(&st)
+		return st
+	}
 	alive := func(pid int) bool { return syscall.Kill(pid, 0) == nil }
 	edit := func(old, new string) {
 		t.Helper()
@@ -271,7 +286,18 @@ func TestRunWatch(t *testing.T) {
 	}
 
 	pid1 := waitVersion("v1")
+	if st := state(); st.State != "ok" || st.At.IsZero() {
+		t.Errorf("the first build's state: %+v", st)
+	}
 	edit(`"v1"`, `"v2"`)
+	for end := time.Now().Add(60 * time.Second); ; time.Sleep(10 * time.Millisecond) { // the first build answers while the next compiles
+		if st := state(); st.State == "building" && !st.Since.IsZero() {
+			break
+		}
+		if v, _ := get(); v == "v2" || time.Now().After(end) {
+			t.Fatalf("no building state before v2; output:\n%s", log.String())
+		}
+	}
 	pid2 := waitVersion("v2")
 	if pid2 == pid1 || alive(pid1) {
 		t.Errorf("the first build (%d) still runs beside the second (%d)", pid1, pid2)
@@ -280,21 +306,27 @@ func TestRunWatch(t *testing.T) {
 
 	edit(`"v2"`, `"v3" + 1`)
 	waitLog("● build failed; the last good build keeps running", 1)
-	if out := log.String(); !strings.Contains(out, "main.vuka:10:") || !strings.Contains(out, "mismatched types") {
+	if out := log.String(); !strings.Contains(out, "main.vuka:11:") || !strings.Contains(out, "mismatched types") {
 		t.Errorf("the compiler's error isn't shown:\n%s", out)
 	}
 	if v, pid := get(); v != "v2" || pid != pid2 {
 		t.Errorf("after a failed build: %s %d, want v2 %d", v, pid, pid2)
 	}
+	if st := state(); st.State != "failed" || !strings.Contains(st.Output, "mismatched types") {
+		t.Errorf("after a failed build, the state: %+v", st)
+	}
 	edit(`"v3" + 1`, `"v3`)
 	waitLog("● build failed", 2)
-	if !strings.Contains(log.String(), "main.vuka:10:") {
+	if !strings.Contains(log.String(), "main.vuka:11:") {
 		t.Errorf("the transpiler's error isn't shown:\n%s", log.String())
 	}
 
 	edit(`"v3`, `"v3"`)
 	pid3 := waitVersion("v3")
 	waitLog("● rebuilt in ", 2)
+	if st := state(); st.State != "ok" || st.Took <= 0 || st.Output != "" {
+		t.Errorf("after a good build, the state: %+v", st)
+	}
 
 	edit("is what the app answers with", "is the answer")
 	writeFile(t, filepath.Join(root, "notes.md"), "not a source")

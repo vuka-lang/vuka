@@ -6,6 +6,7 @@ import (
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"io"
 	"io/fs"
@@ -50,6 +51,12 @@ const (
 	watchQuiet    = 150 * time.Millisecond // a change waits for this long a calm before it builds
 	stopGrace     = 2 * time.Second        // an app's time to stop on SIGTERM before SIGKILL
 	liveKeyEnv    = "VUKA_DEV_LIVE_KEY"    // web signs live pages' tokens with it in development
+	// devDirEnv names the run's session directory, which says the app runs
+	// under vuka run (web turns on its development toolbar). With -watch it
+	// holds buildStateFile: how the next build is going, for the toolbar to
+	// show while the last good build still serves.
+	devDirEnv      = "VUKA_DEV_DIR"
+	buildStateFile = "build.json"
 )
 
 // cutWatch reports whether the flags before the package ask for -watch, and
@@ -140,7 +147,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	env := append(os.Environ(), "PWD="+dir)
+	env := append(os.Environ(), "PWD="+dir, devDirEnv+"="+tmp)
 	if os.Getenv(liveKeyEnv) == "" {
 		// One key for the session: a live page rendered by one build rejoins the next.
 		key := make([]byte, 32)
@@ -157,6 +164,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	defer cancel()
 
 	s.w.scan() // the sources as the first build sees them
+	s.setState(buildState{State: "building", Since: time.Now()})
 	first := s.build(ctx, 1)
 	overlay := first.overlay
 	if first.err != nil {
@@ -180,6 +188,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	startBuild := func() {
 		n++
 		building = true
+		s.setState(buildState{State: "building", Since: changed})
 		go func(n int) { builds <- s.build(ctx, n) }(n)
 	}
 	s.finish(first, time.Time{})
@@ -331,11 +340,17 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		} else {
 			fmt.Fprintln(s.stderr, "● build failed; waiting for a change")
 		}
+		out := string(r.out)
+		if len(r.out) == 0 || !isExit(r.err) {
+			out += r.err.Error() + "\n"
+		}
+		s.setState(buildState{State: "failed", At: time.Now(), Output: out})
 		r.discard()
 		return
 	}
 	if s.app != nil && s.app.sum == r.sum {
 		fmt.Fprintln(s.stderr, "● unchanged")
+		s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
 		r.discard()
 		return
 	}
@@ -346,8 +361,37 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		s.app = nil
 	}
 	s.app = s.start(r)
+	s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
 	if !changed.IsZero() && s.app != nil {
 		fmt.Fprintf(s.stderr, "● rebuilt in %.1fs\n", time.Since(changed).Seconds())
+	}
+}
+
+// buildState is what buildStateFile holds: "building" since a time,
+// "failed" with what the build said, or "ok", the app at At being the
+// build that took Took seconds from the change.
+type buildState struct {
+	State  string    `json:"state"`
+	Since  time.Time `json:"since,omitzero"`
+	At     time.Time `json:"at,omitzero"`
+	Took   float64   `json:"took,omitempty"`
+	Output string    `json:"output,omitempty"`
+}
+
+func took(since time.Time) float64 {
+	if since.IsZero() {
+		return 0
+	}
+	return time.Since(since).Seconds()
+}
+
+// setState writes the build state into the session directory, whole: a
+// reader never sees half of it.
+func (s *supervisor) setState(st buildState) {
+	b, _ := json.Marshal(st)
+	tmp := filepath.Join(s.tmp, buildStateFile+".tmp")
+	if os.WriteFile(tmp, b, 0o644) == nil {
+		os.Rename(tmp, filepath.Join(s.tmp, buildStateFile))
 	}
 }
 
