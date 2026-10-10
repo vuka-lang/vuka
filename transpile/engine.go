@@ -333,7 +333,7 @@ func (e *engine) typeErrPos(err types.Error) token.Position {
 
 // report explains every construct no round could lower.
 func (e *engine) report() {
-	stuck := false
+	stuck, before := false, len(*e.errs)
 	for _, f := range e.vuka {
 		for _, t := range f.tries {
 			if !t.done && !t.dead {
@@ -376,6 +376,16 @@ func (e *engine) report() {
 	if !stuck {
 		return
 	}
+	if e.brokenImport() {
+		// What a failed import leaves untyped is explained by the import's error.
+		kept := (*e.errs)[:before]
+		for _, err := range (*e.errs)[before:] {
+			if !strings.Contains(err.Msg, "type is unknown") && !strings.Contains(err.Msg, "can't infer the type of") {
+				kept = append(kept, err)
+			}
+		}
+		*e.errs = kept
+	}
 	reported := map[token.Position]bool{}
 	for _, err := range *e.errs {
 		reported[err.Pos] = true
@@ -385,11 +395,12 @@ func (e *engine) report() {
 	}
 	shown := 0
 	for _, te := range e.typeErrs {
-		if shown == 5 || reported[e.typeErrPos(te)] || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") ||
+		broken := strings.HasPrefix(te.Msg, "could not import ")
+		if shown >= 5 && !broken || reported[e.typeErrPos(te)] || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") ||
 			strings.Contains(te.Msg, "cannot infer T") {
 			continue
 		}
-		pos, msg := e.typeErrPos(te), te.Msg
+		pos, msg := e.typeErrPos(te), importFailure(te.Msg)
 		if f := e.fileOf(te.Pos); f != nil && f.vuka {
 			m := SourceMap{spellings: f.spellings}
 			msg = m.Message(pos.Line, msg)
@@ -397,6 +408,30 @@ func (e *engine) report() {
 		e.errs.add(pos, "%s", msg)
 		shown++
 	}
+}
+
+// brokenImport reports whether an import of the package failed.
+func (e *engine) brokenImport() bool {
+	for _, te := range e.typeErrs {
+		if strings.HasPrefix(te.Msg, "could not import ") {
+			return true
+		}
+	}
+	return false
+}
+
+// importFailure unwraps go/types' "could not import P (why)" when why
+// already names P, as the load importer's explanations do.
+func importFailure(msg string) string {
+	rest, ok := strings.CutPrefix(msg, "could not import ")
+	if !ok {
+		return msg
+	}
+	path, why, ok := strings.Cut(rest, " (")
+	if !ok || !strings.HasPrefix(why, path+" ") || !strings.HasSuffix(why, ")") {
+		return msg
+	}
+	return strings.TrimSuffix(why, ")")
 }
 
 // oldRuntime reports, as one clear error, generated code using runtime names

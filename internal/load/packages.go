@@ -14,6 +14,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -435,9 +436,11 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 		if !templOK {
 			// The package's Go is incomplete without it; type-checking its
 			// .vuka files would only report what the .templ error explains.
+			imp.Broken(p.ImportPath)
 			if err := writeOverlay(overlay, replace); err != nil {
 				return nil, "", err
 			}
+			imp.OverlayChanged()
 			continue
 		}
 		res, err := transpile.Package(p.Files, transpile.Options{
@@ -453,6 +456,7 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			var list transpile.ErrorList
 			if errors.As(err, &list) {
 				errs = append(errs, list...)
+				imp.Broken(p.ImportPath)
 				continue
 			}
 			return nil, "", fmt.Errorf("%s: %w", p.ImportPath, err)
@@ -473,9 +477,10 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 		if err := writeOverlay(overlay, replace); err != nil {
 			return nil, "", err
 		}
+		imp.OverlayChanged()
 	}
 	if len(errs) > 0 {
-		return out, overlay, errs
+		return out, overlay, onceEach(errs)
 	}
 	return out, overlay, nil
 }
@@ -544,4 +549,43 @@ func realPath(p string) string {
 		return r
 	}
 	return p
+}
+
+var (
+	rootFailure = regexp.MustCompile(`^(\S+) doesn't compile: `)
+	depFailure  = regexp.MustCompile(`^(\S+) depends on (\S+), which doesn't compile: `)
+)
+
+// onceEach keeps the go command's explanation of a dependency that doesn't
+// compile in the first error reporting it; later imports of it, and of
+// packages that fail only because of it, say so without repeating it.
+func onceEach(errs transpile.ErrorList) transpile.ErrorList {
+	first := map[string]token.Position{}
+	for _, e := range errs {
+		if m := rootFailure.FindStringSubmatch(e.Msg); m != nil {
+			if _, ok := first[m[1]]; !ok {
+				first[m[1]] = e.Pos
+			}
+		}
+	}
+	for _, e := range errs {
+		if m := rootFailure.FindStringSubmatch(e.Msg); m != nil && first[m[1]] != e.Pos {
+			e.Msg = m[1] + " doesn't compile (see " + relPos(e.Pos, first[m[1]]) + ")"
+		} else if m := depFailure.FindStringSubmatch(e.Msg); m != nil {
+			if _, ok := first[m[2]]; ok {
+				e.Msg = m[1] + " depends on " + m[2] + ", which doesn't compile"
+			} else {
+				first[m[2]] = e.Pos
+			}
+		}
+	}
+	return errs
+}
+
+// relPos is pos with its file relative to from's directory.
+func relPos(from, pos token.Position) string {
+	if rel, err := filepath.Rel(filepath.Dir(from.Filename), pos.Filename); err == nil {
+		pos.Filename = rel
+	}
+	return pos.String()
 }
