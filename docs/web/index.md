@@ -26,9 +26,8 @@ go get github.com/vuka-lang/web
 ```
 
 ::: info
-Live components use package `github.com/vuka-lang/vuka/live`, which is on
-Vuka's main branch after v0.6.0: until the next release, web's module
-requires `github.com/vuka-lang/vuka v0.6.0` with a `replace` of a checkout.
+Live components are [ui's](/ui/live) (`github.com/vuka-lang/ui/live`), served
+over a WebSocket by web.
 :::
 
 ## A first app
@@ -62,7 +61,7 @@ func (s *PetStore) Find(id int) Result[Pet] {
 }
 
 @web.Get("/")
-func Home(r *http.Request) vuka.Node {
+func Home(r *http.Request) ui.Node {
 	return <html><body><h1>Pets</h1></body></html>
 }
 

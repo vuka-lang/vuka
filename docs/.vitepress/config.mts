@@ -10,6 +10,7 @@ export default defineConfig({
   base: '/vuka/',
   lastUpdated: true,
   cleanUrls: true,
+  srcExclude: ['design/**'], // design notes live in the repository, not on the site
   head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/vuka/logo.svg' }]],
   markdown: {
     languages: ['go', { ...vuka, name: 'vuka', embeddedLangs: ['go'] }],
@@ -20,6 +21,7 @@ export default defineConfig({
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Features', link: '/features/result-option' },
       { text: 'Tools', link: '/tools/cli' },
+      { text: 'UI', link: '/ui/' },
       { text: 'Web', link: '/web/' },
       { text: 'ORM', link: '/orm/' },
       { text: 'Examples', link: '/examples' },
@@ -47,7 +49,7 @@ export default defineConfig({
           { text: 'Decorators', link: '/features/decorators' },
           { text: 'Statics and Self', link: '/features/statics' },
           { text: 'Dependency injection', link: '/features/dependency-injection' },
-          { text: 'Components and JSX', link: '/features/components' },
+          { text: 'JSX', link: '/features/jsx' },
         ],
       },
       {
@@ -55,6 +57,19 @@ export default defineConfig({
         items: [
           { text: 'The vuka command', link: '/tools/cli' },
           { text: 'Editors', link: '/tools/editors' },
+        ],
+      },
+      {
+        text: 'UI',
+        collapsed: false,
+        items: [
+          { text: 'Introduction', link: '/ui/' },
+          { text: 'Components', link: '/ui/components' },
+          { text: 'Stateful components', link: '/ui/stateful' },
+          { text: 'Rendering', link: '/ui/rendering' },
+          { text: 'templ interop', link: '/ui/templ' },
+          { text: 'Live sessions', link: '/ui/live' },
+          { text: 'Testing', link: '/ui/testing' },
         ],
       },
       {
@@ -90,6 +105,10 @@ export default defineConfig({
           { text: 'Testing', link: '/orm/testing' },
           { text: 'Coming from nexus', link: '/orm/nexus' },
         ],
+      },
+      {
+        text: 'Reference',
+        items: [{ text: 'Live protocol', link: '/reference/live-protocol' }],
       },
       { text: 'Examples', link: '/examples' },
       { text: 'Releases', link: '/releases' },

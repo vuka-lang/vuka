@@ -6,7 +6,7 @@
 
 Vuka is Go with Result and Option, `?` error propagation, pattern matching,
 function and method overloading, typed attributes, decorators, and JSX
-components rendered by [templ](https://templ.guide), with Elixir-style
+components (rendered by the [UI library](https://github.com/vuka-lang/ui), on templ), with Elixir-style
 multi-clause functions on the way. It transpiles to plain Go and builds with the
 go command you already have.
 
@@ -199,7 +199,7 @@ bottom, with the function's name, attributes, parameter names and types, and
 the decorated function itself — the way to register routes, commands or jobs.
 A string literal passed where a decorator or attribute takes a `vuka.File`
 (`@Page("views/pet.html")`) is checked at compile time and embedded in
-the binary; `f.Bytes()` reads it, and `vuka.TemplComponents(f)` gives a
+the binary; `f.Bytes()` reads it, and with ui, `templx.Components(f)` gives a
 `.templ` file's components with their parameter names — also for a `.templ`
 file in a subdirectory, which is a package of its own (`package views`).
 
@@ -344,18 +344,23 @@ Prettier-style, without changing what a page renders.
 runtime when generated code needs a newer one, `static-names` rewrites statics
 spelt by their Go names (`User_Table`) to `User.Table` in `.vuka` files, and
 `orphans` removes files `vuka gen -inplace` wrote for `.vuka` files that are
-gone, and `attr-of` renames `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)` (v0.5.0). `-n` reports without changing anything; name fixers to run only those.
+gone, `attr-of` renames `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)` (v0.5.0), and
+`ui` moves UI code to `github.com/vuka-lang/ui` (v0.10.0). `-n` reports without changing anything; name fixers to run only those.
 It is also where future syntax changes will get their codemods.
 
-**Components and JSX.** Markup is an expression, and a component is a function
-returning a `vuka.Node`, which is `templ.Component`:
+**JSX.** Markup is an expression, and a component is a function. JSX is
+syntax: what it renders with is the library the file imports, its JSX target —
+[`github.com/vuka-lang/ui`](https://github.com/vuka-lang/ui), where `ui.Node`
+is `templ.Component`:
 
 ```go
-func PetRow(pet Pet) vuka.Node {
+import "github.com/vuka-lang/ui"
+
+func PetRow(pet Pet) ui.Node {
 	return <tr><td>{pet.Name}</td><td>{pet.Age}</td></tr>
 }
 
-func Page(pets []Pet) vuka.Node {
+func Page(pets []Pet) ui.Node {
 	return <Shell title="Pets">                      // a templ component
 		<table>{for _, p := range pets { <PetRow pet={p} /> }}</table>
 	</Shell>
@@ -363,15 +368,15 @@ func Page(pets []Pet) vuka.Node {
 ```
 
 Attributes bind to parameters by name (or to a props struct's fields), children
-to a `children` parameter; `{for}`, `{if}` and `{match}` blocks hold markup.
-`.templ` files compile with the package, no `templ generate`, and call Vuka
-components back. `vuka.Handler`/`Write`/`String` render HTML; `vuka/term`
-renders the same tree as terminal text. A struct embedding `vuka.Live` is a
-stateful component — exported fields are props, unexported ones state, and
-`onClick={c.Inc}` an event handler — which `vuka/live` keeps alive for a
-connected page, answering each event with the components whose HTML changed.
-See
-[Components and JSX](https://vuka-lang.github.io/vuka/features/components).
+to a `children` parameter; `{for}`, `{if}` and `{match}` blocks hold markup;
+all of it type-checked against the target's declarations. A package is a
+target when it declares `const VukaJSX = 1` and the contract's names. ui
+renders HTML (`ui.Handler`/`Write`/`String`) and terminal text (`ui/term`), and
+its stateful components — a struct embedding `ui.Live`, `onClick={c.Inc}` —
+stay live for a connected page through `ui/live`. `.templ` files compile with
+the package, no `templ generate`, in modules that require templ. See
+[JSX](https://vuka-lang.github.io/vuka/features/jsx) and
+[UI](https://vuka-lang.github.io/vuka/ui/).
 
 ### The build module
 

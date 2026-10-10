@@ -8,7 +8,7 @@ names or returns:
 |---|---|
 | `@web.Template("views/pets.templ")` | a [templ](https://templ.guide) component, its parameters filled from the result |
 | `@web.Template("views/pet.html")` | an `html/template` file, executed with the result |
-| a `vuka.Node` result | a [JSX](/features/components) render function; no view needed |
+| a `ui.Node` result | a [JSX](/features/jsx) render function; no view needed |
 
 ```vuka
 @web.Get("/pets")
@@ -23,7 +23,7 @@ func ListPets(store *PetStore) Result[PetList] {
 func ShowPet(id int, store *PetStore) Result[model.Pet] { return store.Find(id) }
 
 @web.Get("/")
-func Home(r *http.Request) vuka.Node {
+func Home(r *http.Request) ui.Node {
 	return <views.Layout title="Home"><h1>Welcome</h1></views.Layout>
 }
 ```
@@ -110,12 +110,12 @@ in the same file.
 
 ## JSX
 
-A handler returning `vuka.Node` is a page: JSX, a templ component, or
+A handler returning `ui.Node` is a page: JSX, a templ component, or
 `web.Redirect`. Components from `.templ` files and from `.vuka` files mix
-freely — see [Components and JSX](/features/components):
+freely — see [Components and JSX](/features/jsx):
 
 ```vuka
-func Shell(title string, children vuka.Node) vuka.Node {
+func Shell(title string, children ui.Node) ui.Node {
 	return <html lang="en">
 		<head><title>{title}</title></head>
 		<body><main>{children}</main></body>
@@ -123,7 +123,7 @@ func Shell(title string, children vuka.Node) vuka.Node {
 }
 
 @web.Get("/about")
-func About() vuka.Node { return <Shell title="About"><p>Pets, since 2026.</p></Shell> }
+func About() ui.Node { return <Shell title="About"><p>Pets, since 2026.</p></Shell> }
 ```
 
 ## Which to use

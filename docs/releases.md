@@ -10,6 +10,36 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.10.0
+
+Runtime: `github.com/vuka-lang/vuka v0.10.0` — the UI layer is gone from it.
+New library: [`github.com/vuka-lang/ui`](/ui/) v0.1.0. Run `vuka fix ui`.
+
+- **JSX targets.** JSX is syntax; what it renders with is a library the
+  file imports, its [JSX target](/features/jsx#jsx-targets): a package
+  declaring `const VukaJSX = 1` and `Node`, `El`, `Text`, `Child`,
+  `Fragment`, `Nodes`, `Try` (optionally `On`, `Stateful` + `Component`,
+  `WithChildren`, `F`). A file with JSX imports one target; without one it
+  is a compile error saying so. Component resolution, attribute binding,
+  generic and overloaded components are checked against the target's
+  declarations; event payload rules, `Mount`'s shape and `*Live` embedding
+  are the target's runtime checks now.
+- **`github.com/vuka-lang/ui`**: everything that was `vuka.Node`,
+  `vuka.Live`, `vuka.Event`, `vuka.Assign`, `vuka.Tree`, `vuka.String`, … and
+  the `live`, `live/livetest`, `term` and `templx` packages, unchanged but for
+  the package name. `vuka.TemplComponent`, `RegisterTempl` and
+  `TemplComponents` are `templx.Component`, `Register` and `Components`.
+- **`vuka fix ui`** rewrites a module: names, imports, the ui import in
+  every `.vuka` file with JSX, `go get github.com/vuka-lang/ui`.
+- **The runtime requires nothing** (no templ) and needs Go 1.23.
+- **The vuka command is its own module**, `github.com/vuka-lang/vuka/cmd/vuka`
+  (`go install github.com/vuka-lang/vuka/cmd/vuka@latest` as before). It
+  compiles `.templ` files with templ's parser and generator — a plugin of the
+  command, on for modules that require templ.
+- Docs: [UI](/ui/) is its own section; the language's [JSX](/features/jsx)
+  page is library-neutral; [Live protocol](/reference/live-protocol) is the
+  reference for transport authors.
+
 ## v0.9.0 — 2026-10-10
 
 Runtime: `github.com/vuka-lang/vuka v0.9.0` (`vuka fix runtime` upgrades). New `vuka.Frame`/`vuka.F` (JSX's compile-time shape), `vuka.Tree`,
@@ -24,7 +54,7 @@ it: JSX now lowers through `vuka.F`.
   after an event only the changed dynamics: list steps with keyed moves,
   branch switches, long markup by reference or token patch. v1 clients are
   unchanged. A one-cell change in a 1000-row table is 89 bytes instead of
-  122 KB. See [Protocol v2](/features/components#protocol-v2-render-trees).
+  122 KB. See [Protocol v2](/reference/live-protocol#protocol-v2-render-trees).
 - **`vuka.Assign[T]`:** a component whose state is all Assigns is rendered
   again only when one is set or its props change; tests verify skipped
   components against a full render (`VUKA_LIVE_VERIFY`).
@@ -73,7 +103,7 @@ Runtime: `github.com/vuka-lang/vuka v0.7.0` (new: `vuka.Live`, `vuka.Component`,
   `key` keeps list items attached, `Update(msg)` overloads receive broadcasts.
   Rendered without a session they are plain HTML. The `live` package is the
   transport-independent session; [vuka-lang/web](https://github.com/vuka-lang/web)
-  serves it over WebSocket. [Stateful components](/features/components#stateful-components).
+  serves it over WebSocket. [Stateful components](/ui/stateful).
 - **Field attributes.** Typed attributes after a struct field, after its tag:
   `` Title string `json:"title"` @Char{Max: 200} ``, recorded at init.
   [Field attributes](/features/fields#field-attributes).
@@ -128,7 +158,7 @@ Runtime: `github.com/vuka-lang/vuka v0.6.0` (new: `vuka.Decl`, `vuka.File`,
 - **Components and JSX.** Markup is an expression in `.vuka` files; components
   are functions, with attributes bound to parameters by name or to a props
   struct, `{for}`, `{if}` and `{match}` blocks, and errors at the tag.
-  [Components and JSX](/features/components).
+  [Components and JSX](/features/jsx).
 - **Rendered by templ.** `vuka.Node` is `templ.Component`: Vuka components and
   templ components call each other, and `.templ` files compile with the rest of
   the package (no `templ generate`), with editor support mapped into them.
