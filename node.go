@@ -10,6 +10,11 @@ import (
 	"github.com/a-h/templ"
 )
 
+// VukaJSX marks the package as a JSX target implementing version 1 of the
+// contract: .vuka files lower their JSX to its El, Text, Child, Fragment,
+// Nodes, Try, On and Component.
+const VukaJSX = 1
+
 // Node is anything that renders HTML: what a JSX expression evaluates to. It is
 // templ.Component itself, so Vuka components are templ components and templ
 // components are Vuka children, with nothing in between.

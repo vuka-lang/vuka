@@ -20,6 +20,7 @@ const templPath = "github.com/a-h/templ"
 // the tag lowers to a placeholder that type-checks its expressions in place.
 type jsxComp struct {
 	el         *jsxElem
+	target     *jsxTarget
 	resolved   bool
 	dead       bool
 	fail       string
@@ -57,15 +58,15 @@ type compArg struct {
 }
 
 func (w *jsxWriter) comp(c *jsxComp) {
-	el, rt := c.el, w.rt
+	el, q := c.el, w.q
 	tag := span{el.start + 1, el.tagEnd}
 	if !c.resolved {
-		w.gen(rt + ".Fragment(" + rt + ".Child(")
+		w.gen(q + "Fragment(" + q + "Child(")
 		w.keep(tag)
 		w.gen("), ")
 		for _, a := range el.attrs {
 			if a.kind == 'e' {
-				w.gen(rt + ".Child(")
+				w.gen(q + "Child(")
 				w.keep(a.expr)
 				w.gen("), ")
 			}
@@ -81,7 +82,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		case a.attr != nil:
 			w.attrValue(a.attr)
 		case a.kids:
-			w.gen(rt + ".Fragment(")
+			w.gen(q + "Fragment(")
 			w.kids(el.kids, false)
 			w.gen(")")
 		default:
@@ -100,16 +101,20 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		for i, a := range c.closure {
 			params = append(params, a.name+" "+c.closureTyp[i])
 		}
-		w.gen("func(" + strings.Join(params, ", ") + ") " + rt + ".Node { return ")
+		w.gen("func(" + strings.Join(params, ", ") + ") " + q + "Node { return ")
 	}
 	if c.withKids {
-		w.gen(w.f.importAs(TemplxPath, "__templx") + ".WithChildren(")
+		if c.target.path == RuntimePath {
+			w.gen(w.f.importAs(TemplxPath, "__templx") + ".WithChildren(")
+		} else {
+			w.gen(q + "WithChildren(")
+		}
 	}
 	if c.try {
-		w.gen(rt + ".Try(")
+		w.gen(q + "Try(")
 	}
 	if c.stateful {
-		w.gen(rt + ".Component(" + strconv.Quote(c.site) + ", ")
+		w.gen(q + "Component(" + strconv.Quote(c.site) + ", ")
 		if c.key != nil {
 			value(c.key, true)
 		} else {
@@ -198,14 +203,10 @@ func (e *engine) lowerJSX(f *fileState) {
 	}
 }
 
-// nodeType is the runtime's Node.
-func (e *engine) nodeType() types.Type {
-	for _, p := range e.pkg.Imports() {
-		if p.Path() == RuntimePath {
-			if obj := p.Scope().Lookup("Node"); obj != nil {
-				return obj.Type()
-			}
-		}
+// nodeType is the target's Node.
+func (e *engine) nodeType(t *jsxTarget) types.Type {
+	if obj, ok := e.targetObj(t, "Node").(*types.TypeName); ok {
+		return obj.Type()
 	}
 	return nil
 }
@@ -249,7 +250,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		c.dead = true
 		e.errs.add(f.at(off), format, args...)
 	}
-	node := e.nodeType()
+	node := e.nodeType(c.target)
 	if node == nil {
 		c.fail = "the runtime has no Node"
 		return
@@ -489,7 +490,7 @@ func (e *engine) instantiate(f *fileState, c *jsxComp, fun ast.Expr, sig *types.
 	if st, _ := propsStruct(sig, attrs); st != nil {
 		return nil, el.start, "<" + el.tag + "> takes a generic props struct, whose type arguments can't be inferred: write <" + el.tag + "[…]>"
 	}
-	trial := &jsxComp{el: el}
+	trial := &jsxComp{el: el, target: c.target}
 	if off, msg := e.bindComp(trial, sig, attrs, node, true); msg != "" {
 		return nil, off, msg
 	}
@@ -531,7 +532,7 @@ func (e *engine) resolveOverload(f *fileState, c *jsxComp, set *overloadSet, id 
 		if o.sig == nil {
 			continue
 		}
-		b := &jsxComp{el: c.el}
+		b := &jsxComp{el: c.el, target: c.target}
 		if _, msg := e.bindComp(b, o.sig, attrs, node, false); msg != "" {
 			continue
 		}
@@ -619,7 +620,7 @@ func (e *engine) closeOver(f *fileState, c *jsxComp) {
 	for _, a := range c.args {
 		switch {
 		case a.kids:
-			items = append(items, item{a, c.el.end, f.rt + ".Node"})
+			items = append(items, item{a, c.el.end, c.target.q + "Node"})
 		case a.attr != nil && a.attr.kind == 'e':
 			items = append(items, item{a, a.attr.expr.start, e.typeTextAuto(f, a.typ)})
 		}

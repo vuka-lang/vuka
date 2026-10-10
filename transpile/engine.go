@@ -2,7 +2,6 @@ package transpile
 
 import (
 	"go/ast"
-	"go/importer"
 	"go/token"
 	"go/types"
 	"maps"
@@ -26,8 +25,9 @@ type engine struct {
 	dir         string
 	importPath  string
 	templ       func(string) (TemplFile, error)
-	tplImports  map[string]string // packages of .templ files in subdirectories → their names in generated code
-	nfiles      int               // embedded files so far, naming their variables
+	tplImports  map[string]string         // packages of .templ files in subdirectories → their names in generated code
+	nfiles      int                       // embedded files so far, naming their variables
+	targets     map[string]*types.Package // import paths → the JSX target there, or nil
 
 	declared      map[string]bool // package-level names
 	typeNames     map[string]bool // package-level type names
@@ -52,9 +52,6 @@ type engine struct {
 func (e *engine) run() {
 	e.pending = map[*fileState]map[int]string{}
 	e.refErrs = map[*fileState]*refErrs{}
-	if e.imp == nil {
-		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
-	}
 	for round := 0; round < 100; round++ {
 		e.progress = false
 		if !e.parseAll(round == 0) {

@@ -25,7 +25,7 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		fail(el.start, "<%s> is generic: write its type arguments, <%s[…]>", el.tag, el.tag)
 		return
 	}
-	if msg := e.statefulProblem(el.tag, t, node); msg != "" {
+	if msg := e.statefulProblem(c.target, el.tag, t, node); msg != "" {
 		fail(el.start, "%s", msg)
 		return
 	}
@@ -70,23 +70,13 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 	e.finishComp(f, c)
 }
 
-// runtimeObj is a name of the runtime package, if the package imports it.
-func (e *engine) runtimeObj(name string) types.Object {
-	for _, p := range e.pkg.Imports() {
-		if p.Path() == RuntimePath {
-			return p.Scope().Lookup(name)
-		}
-	}
-	return nil
-}
-
 // statefulProblem says why a type isn't a stateful component, if it isn't.
-func (e *engine) statefulProblem(tag string, t, node types.Type) string {
+func (e *engine) statefulProblem(tg *jsxTarget, tag string, t, node types.Type) string {
 	what := "<" + tag + "> is a type, not a component: a component is a function returning a vuka.Node, or a struct embedding vuka.Live with a Render() vuka.Node method"
 	if _, ok := t.Underlying().(*types.Struct); !ok {
 		return what
 	}
-	iface := e.runtimeObj("Stateful")
+	iface := e.targetObj(tg, "Stateful")
 	if iface == nil {
 		return "the Vuka runtime this module requires has no stateful components; update it: go get " + RuntimePath + "@latest"
 	}
@@ -138,7 +128,7 @@ type propField struct {
 // is shallower, and ambiguous when two are equally deep. Exported only, for a
 // stateful component (whose unexported fields are state); fields of another
 // package's struct are reached only through exported embedded fields.
-func (e *engine) propFields(st *types.Struct, exported bool) []propField {
+func (e *engine) propFields(tg *jsxTarget, st *types.Struct, exported bool) []propField {
 	type level struct {
 		st   *types.Struct
 		nest []nestStep
@@ -154,7 +144,7 @@ func (e *engine) propFields(st *types.Struct, exported bool) []propField {
 			for i := 0; i < lv.st.NumFields(); i++ {
 				fld := lv.st.Field(i)
 				visible := fld.Exported() || !exported && fld.Pkg() == e.pkg
-				if isRuntimeNamed(fld.Type(), "Live") || !visible {
+				if isTargetNamed(tg, fld.Type(), "Live") || !visible {
 					continue
 				}
 				name := fld.Name()
@@ -203,7 +193,7 @@ func nestName(n []nestStep) string {
 // the children are bound.
 func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node types.Type, stateful bool) (bool, int, string) {
 	el := c.el
-	fields := e.propFields(st, stateful)
+	fields := e.propFields(c.target, st, stateful)
 	var names []string
 	for _, fl := range fields {
 		names = append(names, fl.name)
@@ -285,14 +275,14 @@ func (e *engine) checkEvents(f *fileState) {
 				continue
 			}
 			ev.checked = true
-			if msg := e.handlerProblem(tv.Type); msg != "" {
+			if msg := e.handlerProblem(f.target, tv.Type); msg != "" {
 				e.errs.add(f.at(ev.attr.off), "%s on <%s> %s", ev.attr.name, ev.tag, msg)
 			}
 		}
 	}
 }
 
-func (e *engine) handlerProblem(t types.Type) string {
+func (e *engine) handlerProblem(tg *jsxTarget, t types.Type) string {
 	if isNamed(t, templPath, "ComponentScript") {
 		return ""
 	}
@@ -311,14 +301,14 @@ func (e *engine) handlerProblem(t types.Type) string {
 	}
 	rs := sig.Results()
 	if sig.Variadic() || ps.Len()-i > 1 || rs.Len() > 1 || rs.Len() == 1 && !types.Identical(rs.At(0).Type(), errorType) ||
-		ps.Len()-i == 1 && !payloadOK(ps.At(i).Type()) {
+		ps.Len()-i == 1 && !payloadOK(tg, ps.At(i).Type()) {
 		return want + "; this is " + e.display(t)
 	}
 	return ""
 }
 
-func payloadOK(t types.Type) bool {
-	if isRuntimeNamed(t, "Event") {
+func payloadOK(tg *jsxTarget, t types.Type) bool {
+	if isTargetNamed(tg, t, "Event") {
 		return true
 	}
 	switch u := t.Underlying().(type) {

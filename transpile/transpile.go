@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/scanner"
 	"go/token"
@@ -135,7 +136,9 @@ type fileState struct {
 
 	done    map[int]bool // src offsets of identifiers already rewritten or reported
 	rt      string       // the name the runtime is imported as; "" until needed
-	pkgEnd  int          // offset just after the package clause's name
+	target  *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	eng     *engine
+	pkgEnd  int // offset just after the package clause's name
 	dotImps bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
@@ -400,9 +403,12 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
 	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ}
+	if e.imp == nil {
+		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
+	}
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
-			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare}
+			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
 		if opts.Path != nil {
 			f.path = opts.Path(file.Name)
 		}
