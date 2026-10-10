@@ -301,10 +301,8 @@ func rooted(n vuka.Node, id string, key any) vuka.Node {
 	if key != nil {
 		attrs = append(attrs, vuka.Attr{Name: "data-vk-key", Value: fmt.Sprint(key)})
 	}
-	if el, ok := n.(*vuka.Element); ok && el != nil {
-		cp := *el
-		cp.Attrs = append(slices.Clip(el.Attrs), attrs...)
-		return &cp
+	if r, ok := vuka.RootAttrs(n, attrs...); ok {
+		return r
 	}
 	return vuka.El("vk-c", append(attrs, vuka.Attr{Name: "style", Value: "display:contents"}), n)
 }

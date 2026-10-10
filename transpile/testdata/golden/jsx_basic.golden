@@ -15,7 +15,7 @@ type User struct {
 }
 
 func card(user User, admin bool, children vuka.Node) vuka.Node {
-	return vuka.El("div", []vuka.Attr{{Name: "className", Value: "card"}, {Name: "data-id", Value: /*line jsx_basic.vuka:15:40*/user.ID}, }, vuka.El("h3", nil, vuka.Child(
+	return vuka.F(0xe82cce234120c311, "Esd(E(h)hEss(t)Esd()E(ht)tE(t))", vuka.El("div", []vuka.Attr{{Name: "className", Value: "card"}, {Name: "data-id", Value: /*line jsx_basic.vuka:15:40*/user.ID}, }, vuka.El("h3", nil, vuka.Child(
 /*line jsx_basic.vuka:16:8*/user.Name), ), vuka.Child(
 /*line jsx_basic.vuka:17:4*/children), vuka.El("p", []vuka.Attr{{Name: "title", Value: "it's \"quoted\""}, {Name: "hidden", Value: true}, }, vuka.Text("Tom & Jerry don't   panic,   it's    fine <3"), ), vuka.El("input", []vuka.Attr{{Name: "type", Value: "checkbox"}, {Name: "checked", Value: 
 
@@ -24,7 +24,7 @@ func card(user User, admin bool, children vuka.Node) vuka.Node {
 
 
 /*line jsx_basic.vuka:23:35*/user.Active}, }, ), vuka.El("span", nil, vuka.Child(
-/*line jsx_basic.vuka:24:10*/fmt.Sprint(user.ID)), vuka.Text(" items"), ), vuka.Text(" "), vuka.El("b", nil, vuka.Text("!"), ), 
+/*line jsx_basic.vuka:24:10*/fmt.Sprint(user.ID)), vuka.Text(" items"), ), vuka.Text(" "), vuka.El("b", nil, vuka.Text("!"), ), ), 
 )
 }
 
@@ -32,9 +32,9 @@ func page(u User) vuka.Node {
 	x := 1
 	y := x < 2
 	_ = y
-	return vuka.Fragment(vuka.El("h1", nil, vuka.Text("Hello, "), vuka.Child(
+	return vuka.F(0x759d6e5363a32aae, "G(E(tht)hE())", vuka.Fragment(vuka.El("h1", nil, vuka.Text("Hello, "), vuka.Child(
 /*line jsx_basic.vuka:33:15*/u.Name), vuka.Text("!"), ), vuka.Child(
-/*line jsx_basic.vuka:34:4*/card(u, true, vuka.El("em", nil, vuka.Text("child"), )/*line jsx_basic.vuka:34:32*/)), vuka.El("hr", nil, ), 
+/*line jsx_basic.vuka:34:4*/card(u, true, vuka.F(0x4c2c74ca9e161a7f, "E(t)", vuka.El("em", nil, vuka.Text("child"), ), )/*line jsx_basic.vuka:34:32*/)), vuka.El("hr", nil, ), ), 
 
 )
 }

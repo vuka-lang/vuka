@@ -70,7 +70,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("), ")
 			}
 		}
-		w.kids(el.kids, false)
+		w.kids(el.kids)
 		w.gen(")")
 		return
 	}
@@ -81,9 +81,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		case a.attr != nil:
 			w.attrValue(a.attr)
 		case a.kids:
-			w.gen(rt + ".Fragment(")
-			w.kids(el.kids, false)
-			w.gen(")")
+			w.frame(el.tagEnd, el.kids)
 		default:
 			w.gen(a.text)
 		}

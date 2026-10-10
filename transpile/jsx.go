@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"fmt"
+	"hash/fnv"
 	"go/parser"
 	"go/scanner"
 	"go/token"
@@ -754,6 +755,7 @@ type jsxPiece struct {
 type jsxWriter struct {
 	rt     string
 	f      *fileState
+	tree   *jsxTree
 	pieces []jsxPiece
 }
 
@@ -762,8 +764,8 @@ func (w *jsxWriter) keep(s span)  { w.pieces = append(w.pieces, jsxPiece{keep: s
 
 // jsxEdits lowers a tree, as it stands, to edits of the gaps between what it keeps.
 func (f *fileState) jsxEdits(t *jsxTree) edits {
-	w := &jsxWriter{rt: f.rt, f: f}
-	w.elem(t.root)
+	w := &jsxWriter{rt: f.rt, f: f, tree: t}
+	w.frame(t.start, []jsxNode{t.root})
 	var out edits
 	var buf strings.Builder
 	cur := t.start
@@ -812,17 +814,77 @@ func padNewlines(text string, n int) string {
 	return text[:at] + strings.Repeat("\n", n) + text[at:]
 }
 
-func (w *jsxWriter) kids(ns []jsxNode, block bool) {
+// frame writes ns as a vuka.F: the compile-time shape of a piece of JSX (see
+// vuka.Frame) around its nodes, so a live session can tell the markup the
+// source fixes from what its expressions render. off, the piece's place in
+// its tree, makes its fingerprint.
+func (w *jsxWriter) frame(off int, ns []jsxNode) {
+	var sh strings.Builder
+	shapeOf(&sh, ns)
+	w.gen(w.rt + ".F(" + w.fp(off) + ", " + strconv.Quote(sh.String()) + ", ")
+	w.kids(ns)
+	w.gen(")")
+}
+
+// body writes a block's body: one frame per iteration or branch taken.
+func (w *jsxWriter) body(off int, ns []jsxNode) {
+	if len(ns) == 0 {
+		return
+	}
+	w.gen("__add(")
+	w.frame(off, ns)
+	w.gen("); ")
+}
+
+// fp fingerprints the piece of JSX at off: its file, its tree's source and
+// its place in the tree.
+func (w *jsxWriter) fp(off int) string {
+	h := fnv.New64a()
+	t := w.tree
+	h.Write([]byte(w.f.name + "\x00"))
+	h.Write(w.f.src[t.start:t.end])
+	h.Write([]byte("\x00" + strconv.Itoa(off-t.start)))
+	return "0x" + strconv.FormatUint(h.Sum64(), 16)
+}
+
+// shapeOf writes the shape of nodes, one item each (vuka.Frame).
+func shapeOf(b *strings.Builder, ns []jsxNode) {
 	for _, n := range ns {
-		if block {
-			w.gen("__add(")
+		switch n := n.(type) {
+		case *jsxText:
+			b.WriteByte('t')
+		case *jsxHole:
+			b.WriteByte('h')
+		case *jsxBlock:
+			b.WriteByte('b')
+		case *jsxElem:
+			switch {
+			case n.comp != nil:
+				b.WriteByte('c')
+				continue
+			case n.frag:
+				b.WriteByte('G')
+			default:
+				b.WriteByte('E')
+				for _, a := range n.attrs {
+					if a.kind == 'e' {
+						b.WriteByte('d')
+					} else {
+						b.WriteByte('s')
+					}
+				}
+			}
+			b.WriteByte('(')
+			shapeOf(b, n.kids)
+			b.WriteByte(')')
 		}
+	}
+}
+
+func (w *jsxWriter) kids(ns []jsxNode) {
+	for _, n := range ns {
 		w.node(n)
-		if block {
-			w.gen("); ")
-		} else {
-			w.gen(", ")
-		}
+		w.gen(", ")
 	}
 }
 
@@ -843,7 +905,7 @@ func (w *jsxWriter) node(n jsxNode) {
 			for i, c := range m.cases {
 				w.keep(span{c.start, c.colon + 1})
 				w.gen(" ")
-				w.kids(n.cases[i], true)
+				w.body(c.colon, n.cases[i])
 			}
 			w.keep(span{m.rbrace, m.rbrace + 1})
 		} else {
@@ -853,7 +915,7 @@ func (w *jsxWriter) node(n jsxNode) {
 				}
 				w.keep(h)
 				w.gen(" ")
-				w.kids(n.bodies[i], true)
+				w.body(h.end, n.bodies[i])
 			}
 			w.gen("}")
 		}
@@ -882,7 +944,7 @@ func (w *jsxWriter) elem(el *jsxElem) {
 	switch {
 	case el.frag:
 		w.gen(w.rt + ".Fragment(")
-		w.kids(el.kids, false)
+		w.kids(el.kids)
 		w.gen(")")
 	case el.comp != nil:
 		w.comp(el.comp)
@@ -901,7 +963,7 @@ func (w *jsxWriter) elem(el *jsxElem) {
 			w.gen("}")
 		}
 		w.gen(", ")
-		w.kids(el.kids, false)
+		w.kids(el.kids)
 		w.gen(")")
 	}
 }
