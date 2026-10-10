@@ -30,6 +30,17 @@ func UserCard(user User, admin bool, children vuka.Node) vuka.Node {
 	</div>
 }
 
+type Counter struct {
+	vuka.Live
+	Start int
+	Label string
+	n     int
+}
+
+func (c *Counter) Inc() { c.n++ }
+
+func (c *Counter) Render() vuka.Node { return <b onClick={c.Inc}>{c.n}</b> }
+
 func Page(users []User) vuka.Node {
 	return <section>
 		{for _, u := range users {
@@ -37,6 +48,7 @@ func Page(users []User) vuka.Node {
 		}}
 		<Button variant="primary">Go</Button>
 		<Hello name="vuka" />
+		<Counter Start={1} />
 	</section>
 }
 
@@ -139,6 +151,9 @@ func TestLSPJSX(t *testing.T) {
 		if d := ask("textDocument/definition", at(jsxSource, "variant=", 1)); !strings.Contains(d, `"start":`+posOf(jsxSource, "Variant  string", 0)) {
 			t.Fatalf("definition of variant=: %s", d)
 		}
+		if d := ask("textDocument/definition", at(jsxSource, "Start={1}", 1)); !strings.Contains(d, `"start":`+posOf(jsxSource, "Start int", 0)) {
+			t.Fatalf("definition of a stateful component's Start=: %s", d)
+		}
 		if d := ask("textDocument/definition", at(jsxSource, `name="vuka"`, 1)); !strings.Contains(d, "hello.templ") {
 			t.Fatalf("definition of a templ component's name=: %s", d)
 		}
@@ -172,6 +187,10 @@ func TestLSPJSX(t *testing.T) {
 		if !has(got, "UserCard=UserCard") || !has(got, "div=div") || has(got, "User=User") {
 			t.Fatalf("<Us: %v", got)
 		}
+		src = strings.Replace(jsxSource, "\t\t<Button variant", "\t\t<Cou\n\t\t<Button variant", 1)
+		if got := complete(src, "<Cou\n", 4); !has(got, "Counter=Counter") {
+			t.Fatalf("<Cou: a stateful component: %v", got)
+		}
 		src = strings.Replace(jsxSource, "\t\t<Button variant", "\t\t<Hel\n\t\t<Button variant", 1)
 		if got := complete(src, "<Hel\n", 4); !has(got, "Hello=Hello") {
 			t.Fatalf("<Hel: a templ component: %v", got)
@@ -195,6 +214,10 @@ func TestLSPJSX(t *testing.T) {
 		src = strings.Replace(jsxSource, `<Button variant="primary">`, `<Button variant="primary" >`, 1)
 		if got := complete(src, `"primary" >`, 10); strings.Join(got, " ") != "disabled=disabled props=props={$1}" {
 			t.Fatalf("<Button: %v", got)
+		}
+		src = strings.Replace(jsxSource, `<Counter Start={1} />`, `<Counter Start={1}  />`, 1)
+		if got := complete(src, `<Counter Start={1}  />`, 19); strings.Join(got, " ") != `Label=Label="$1"` {
+			t.Fatalf("<Counter: %v", got)
 		}
 		src = strings.Replace(jsxSource, `<Hello name="vuka" />`, `<Hello />`, 1)
 		if got := complete(src, `<Hello />`, 7); strings.Join(got, " ") != `name=name="$1"` {
