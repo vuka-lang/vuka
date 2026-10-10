@@ -29,23 +29,25 @@ features:
   - title: Decorators, the Python way
     details: "decorator logged(c) { … } decorates any function, method or type. Retries, caches, auth guards and dependency injection, in a few lines."
   - title: Statics and Self
-    details: User.Objects.All(ctx) and u.Save(ctx) — a Django-style model API, compiled to ordinary Go.
+    details: "User.New(\"ada\"), User.Max — statics that belong to a type, and generic bases whose Self is the type embedding them, compiled to ordinary Go."
+    link: /features/statics
+    linkText: Statics and Self
   - title: Components with JSX
     details: "Markup is an expression and a component is a function. Rendered by templ, so .templ files and templ libraries work side by side with no generate step."
     link: /features/components
     linkText: Components and JSX
-  - title: A web framework
-    details: "@web.Get(\"/pets/{id}\") on a function: parameters bind by name, services are injected, results become JSON or a templ / JSX page — and live components update the page over a WebSocket."
-    link: /web/
-    linkText: Web
-  - title: A Django-style ORM
-    details: Models declared with field attributes, queries written with field references the compiler checks — Post.Objects.Filter(Post.Title.Contains("Go")) — Result and Option from every terminal, and Go migrations.
-    link: /orm/
-    linkText: ORM
   - title: Plain Go comes out
     details: No runtime magic, no reflection where a type will do. vuka explain shows exactly what each line becomes, and build/ holds a plain Go module any Go tool can build.
   - title: Full editor support
     details: vuka lsp puts gopls behind a proxy — completion, hover, go to definition, rename and diagnostics in .vuka files, and Go files that see Vuka code.
+  - title: A web framework
+    details: "A library in Vuka: routes declared with decorators, parameters bound by name, services injected, results as JSON or a templ / JSX page — and live components that update the page over a WebSocket."
+    link: /web/
+    linkText: Web
+  - title: A Django-style ORM
+    details: A library in Vuka. Models declared with field attributes, queries written with field references the compiler checks — Post.Objects.Filter(Post.Title.Contains("Go")) — Result and Option from every terminal, and Go migrations.
+    link: /orm/
+    linkText: ORM
 ---
 
 ## A taste

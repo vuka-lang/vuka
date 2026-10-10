@@ -403,8 +403,8 @@ failed render. Calls are safe from several goroutines and run one at a time.
 
 ### The wire protocol
 
-A browser runtime and a WebSocket transport (the web framework's job, not
-this repository's) speak JSON, one message per frame; `live.ClientMessage`,
+A browser runtime and a WebSocket transport (a library's job, not the
+language runtime's) speak JSON, one message per frame; `live.ClientMessage`,
 `live.ServerMessage` and `Session.Handle`/`HandleJSON` implement the server
 side.
 
@@ -450,9 +450,8 @@ The site string is the file and the tag's ordinal among its component tags.
 
 ### Serving live pages
 
-The [web framework](/web/live) is such a transport: `@web.Live(path)` serves a
-stateful component as a page, any page rendering one is live, and broadcasts
-reach every connected page. See [Live components](/web/live).
+See also [Live components](/web/live): the web framework serves stateful
+components as live pages over a WebSocket.
 
 ### Next
 

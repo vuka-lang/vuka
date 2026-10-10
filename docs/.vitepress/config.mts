@@ -19,9 +19,9 @@ export default defineConfig({
     nav: [
       { text: 'Guide', link: '/guide/getting-started' },
       { text: 'Features', link: '/features/result-option' },
+      { text: 'Tools', link: '/tools/cli' },
       { text: 'Web', link: '/web/' },
       { text: 'ORM', link: '/orm/' },
-      { text: 'Tools', link: '/tools/cli' },
       { text: 'Examples', link: '/examples' },
       { text: 'Releases', link: '/releases' },
     ],
@@ -48,6 +48,13 @@ export default defineConfig({
           { text: 'Statics and Self', link: '/features/statics' },
           { text: 'Dependency injection', link: '/features/dependency-injection' },
           { text: 'Components and JSX', link: '/features/components' },
+        ],
+      },
+      {
+        text: 'Tools',
+        items: [
+          { text: 'The vuka command', link: '/tools/cli' },
+          { text: 'Editors', link: '/tools/editors' },
         ],
       },
       {
@@ -82,13 +89,6 @@ export default defineConfig({
           { text: 'Errors', link: '/orm/errors' },
           { text: 'Testing', link: '/orm/testing' },
           { text: 'Coming from nexus', link: '/orm/nexus' },
-        ],
-      },
-      {
-        text: 'Tools',
-        items: [
-          { text: 'The vuka command', link: '/tools/cli' },
-          { text: 'Editors', link: '/tools/editors' },
         ],
       },
       { text: 'Examples', link: '/examples' },

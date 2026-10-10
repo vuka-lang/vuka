@@ -32,15 +32,17 @@ statics and static methods, those it reaches through embedding, and
 
 ```vuka
 type Post struct {
-	orm.Model
 	Title string
 	Views int
 
 	static Limit   = 10
 	static Twice   = Post.Limit * 2
-	static ByViews = Post.Views.Desc()
-	static Popular = Post.Objects.Filter(Post.Views.Gt(Post.Limit))
+	static ByViews = Post.Views.Desc()           // a vuka.Order[Post]
+	static Popular = Post.Views.Gt(Post.Limit)   // a vuka.Pred[Post]
 }
+
+vuka.SortBy(posts, Post.ByViews)
+Post.Popular.Match(posts[0])
 ```
 
 Statics are initialized in dependency order, whatever order they are written
@@ -61,25 +63,33 @@ named `Self`, Vuka fills in the embedding type, and methods taking `self *Self`
 get the whole outer value:
 
 ```vuka
-// package orm
+type Store[T any] struct{ rows []*T }
+
+func (s *Store[T]) Add(x *T)  { s.rows = append(s.rows, x) }
+func (s *Store[T]) All() []*T { return s.rows }
+
+// a reusable base
 type Model[Self any] struct {
-	static Objects = Manager[Self]{}
+	static Objects = Store[Self]{}
 }
 
-func (m *Model[Self]) Save(self *Self, ctx context.Context) error { … }
+func (m *Model[Self]) Save(self *Self) { Model[Self].Objects.Add(self) }
 
-// your models
+// a type using it
 type User struct {
-	orm.Model               // = orm.Model[User]
+	Model               // = Model[User]
 	Name string
 }
 
-users := User.Objects.All(ctx)   // the User manager, from orm.Model
-err := u.Save(ctx)               // Save gets u itself as self
+u := &User{Name: "ada"}
+u.Save()                    // Save gets u itself as self
+users := User.Objects.All() // User's own store, from Model
 ```
 
-A Django-style model API, in plain Go underneath: `User.Objects` becomes
-`orm.Model_Objects[User]().V`, and `u.Save(ctx)` becomes `u.Save(u, ctx)`.
+Plain Go underneath: `User.Objects` becomes `Model_Objects[User]().V`, and
+`u.Save()` becomes `u.Save(u)`. `Model[User]` written out works the same;
+`Self` is filled in only for a type parameter of that name. The
+[ORM](/orm/models)'s `orm.Base` is built this way.
 
 A static can't share a name with a field or method (in Go, `User.Save` already
 means a method).
