@@ -70,6 +70,10 @@ The route's handler runs once per connection: its result is the page, and
 the page is rendered again after every event. State belongs in the
 components.
 
+Moving between pages — a list and its rows' pages, the next page of a
+list — happens over the same connection with `ui.Link`; see
+[Navigation](/web/navigation).
+
 ## Events
 
 `onClick={c.Inc}` renders `data-vk-on-click="c1:0"`. The runtime listens on
@@ -221,11 +225,12 @@ Vuka's [wire protocol](/reference/live-protocol) as is, plus:
 | `GET /_vuka/live?t=<token>` | the WebSocket; the token is in the URL, so a bad one is refused before any message |
 | `GET /_vuka/live.js?v=<hash>` | the runtime, immutable for its hash (ETag otherwise) |
 | `join` | runs the route; a second `join` on the same connection starts over |
-| `redirect` | sent for a join the route redirects; the connection then closes normally (1000) |
+| `redirect` | sent for a join the route redirects; the connection then closes normally (1000). For a `navigate` whose route doesn't answer with a page: its `Location`, else the URL |
+| `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses |
 | close 4001 | invalid or expired token: reload |
 | close 4004 | the route isn't a live page: the error message precedes it; no retry |
 | close 1001 | the server is stopping: reconnect |
-| request header `X-Vuka-Live: join` | set on the route's run for a join |
+| request header `X-Vuka-Live: join` | set on the route's run for a join; `navigate` on a navigation's |
 
 A broadcast arriving before `join` is dropped (the join renders fresh).
 
@@ -239,5 +244,6 @@ A broadcast arriving before `join` is dropped (the join renders fresh).
   request, and writing to `web.ResponseWriter` goes nowhere.
 
 The [`examples/live`](https://github.com/vuka-lang/web/tree/main/examples/live)
-app has a counter page, a counter inside an ordinary page, a todo list and a
-chat whose tabs see each other's messages.
+app has a counter page, a counter inside an ordinary page, a todo list, a
+chat whose tabs see each other's messages, and a paged shelf of books with a
+page per book; its menu's links move between them on one connection.

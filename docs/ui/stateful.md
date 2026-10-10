@@ -52,8 +52,11 @@ runs.
 | `Unmount()` | optional, when the instance is dropped |
 | `Update(msg T)` | optional, overloadable: the messages the session delivers (below) |
 
-`ui.Live` gives the component `ID()` (its instance id, `""` when static)
-and `Subscribe(topics...)` (call it in `Mount`). Embed it by value: a
+`ui.Live` gives the component `ID()` (its instance id, `""` when static),
+`Subscribe(topics...)` (call it in `Mount`), `PushJS(chain)` ([from the
+server](/ui/js#from-the-server)), and `PushPatch(href)` and
+`PushNavigate(href)`, which move the page to another URL once the reply is
+applied ([navigation](/web/navigation)). Embed it by value: a
 `*ui.Live` fails the render.
 
 ## Which instance?

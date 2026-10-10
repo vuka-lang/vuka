@@ -59,3 +59,24 @@ running the commands they push. Classes, attributes, `show`/`hide`/`toggle`,
 `debounce` and `throttle` run at once; focus, scrolling and transitions do
 nothing. Elements are known by their place in the page.
 
+## Navigation
+
+A click on a `ui.Link`, a `patch` or `navigate` command, `c.Navigate(href)`
+and `c.Patch(href)` send the protocol's `navigate` message; the session
+answers through its [router](/ui/live#navigation), and `c.URL()` is the
+page's URL after it.
+
+```go
+s := live.NewSession(ctx, router("/books?page=1").Render)
+s.SetRouter(router)
+c, _ := livetest.Join(s, 2)
+c.Click(".pager .next")                 // a patch: the shelf stays mounted
+c.URL()                                 // "/books?page=2"
+c.Navigate("/books/7")                  // another page
+m, _ := c.Navigate("/books.json")       // m.Type == live.Redirect: a full page load
+```
+
+A redirect reply changes `c.URL()` and leaves the page the client holds as
+it was: a browser would load a new document there. A navigate drops the optimistic
+pushes still waiting, without their hooks.
+
