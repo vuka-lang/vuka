@@ -10,6 +10,21 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.14.0 — 2026-10-11
+
+Runtime: unchanged, v0.10.0 (`vuka.ObserveCalls` is new in the package; generated
+code doesn't need it). The vuka command is `cmd/vuka/v0.14.0`. With
+[web](https://github.com/vuka-lang/web) v0.9.0's [development toolbar](/web/toolbar).
+
+- **`vuka.ObserveCalls`** lets a tool see each step of every decorated call —
+  each decorator, then the function — on the call's goroutine. The toolbar's
+  Timeline uses it to show `@timed` and `@logged` inside a request. With no
+  observer it costs one atomic load per step.
+- **`vuka run` names a session directory** (`VUKA_DEV_DIR`). Under `-watch`
+  it holds the next build's state — building, failed with the compiler's
+  output, or ok — so the toolbar shows `building… 1.2s` or `build failed` on
+  the page while the last good build keeps serving.
+
 ## v0.13.0 — 2026-10-11
 
 Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.13.0`. With
