@@ -10,7 +10,7 @@ export default defineConfig({
   base: '/vuka/',
   lastUpdated: true,
   cleanUrls: true,
-  head: [['link', { rel: 'icon', href: '/vuka/icon.svg' }]],
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/vuka/logo.svg' }]],
   markdown: {
     languages: ['go', { ...vuka, name: 'vuka', embeddedLangs: ['go'] }],
   },
