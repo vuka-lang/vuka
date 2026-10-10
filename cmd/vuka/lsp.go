@@ -24,6 +24,7 @@ import (
 
 	templparser "github.com/a-h/templ/parser/v2"
 
+	"github.com/vuka-lang/vuka/internal/format"
 	"github.com/vuka-lang/vuka/internal/load"
 	"github.com/vuka-lang/vuka/transpile"
 )
@@ -580,7 +581,10 @@ func (p *proxy) fromEditor() {
 			continue
 		}
 		if isVuka(path) {
-			if m.isRequest() {
+			switch {
+			case m.Method == "textDocument/formatting":
+				p.formatting(&m, p.real(path))
+			case m.isRequest():
 				p.vukaRequest(&m, p.real(path))
 			}
 			continue
@@ -754,11 +758,37 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 		for _, ch := range []string{"@", "<", "/", " "} {
 			addTrigger(out, ch)
 		}
+		if r, ok := out.(map[string]any); ok {
+			if caps, ok := r["capabilities"].(map[string]any); ok {
+				caps["documentFormattingProvider"] = true // .vuka files by vuka fmt, .go files by gopls
+			}
+		}
 	}
 	if b, err := json.Marshal(out); err == nil {
 		*field = b
 	}
 	return m
+}
+
+// formatting answers textDocument/formatting for a .vuka file with vuka fmt:
+// one edit replacing the whole document, or none when it doesn't parse.
+func (p *proxy) formatting(m *rpcMsg, path string) {
+	p.mu.Lock()
+	src, ok := p.bufs[path]
+	p.mu.Unlock()
+	if !ok {
+		src, _ = os.ReadFile(path)
+	}
+	edits := []any{}
+	if out, err := format.Source(src); err != nil {
+		p.logf("format %s: %v", path, err)
+	} else if !bytes.Equal(out, src) {
+		edits = append(edits, map[string]any{
+			"range":   lspRange{Start: lspPosition{}, End: positionOf(src, len(src))},
+			"newText": string(out),
+		})
+	}
+	_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": edits})
 }
 
 // addTrigger makes ch a completion trigger character in initialize's result.

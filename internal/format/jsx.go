@@ -2,6 +2,7 @@ package format
 
 import (
 	"fmt"
+	"go/parser"
 	"go/scanner"
 	"go/token"
 	"strings"
@@ -18,6 +19,7 @@ type jNode any
 type jElem struct {
 	start, end int
 	tag        string // "" for a fragment
+	targs      string // a component's type arguments as written: "[User]"
 	attrs      []*jAttr
 	self       bool
 	kids       []jNode
@@ -98,6 +100,10 @@ func jsxTagAt(src []byte, off int) bool {
 	return off+1 < len(src) && (isLetter(src[off+1]) || src[off+1] == '>')
 }
 
+func isComponent(tag string) bool {
+	return tag != "" && ('A' <= tag[0] && tag[0] <= 'Z' || strings.Contains(tag, "."))
+}
+
 func isLetter(c byte) bool { return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z' }
 
 func isNameByte(c byte) bool {
@@ -143,6 +149,20 @@ func (p *jsxParser) element(off int) *jElem {
 	el.tag, i = p.name(i)
 	if c := el.tag[len(el.tag)-1]; c == '.' || c == '-' || c == ':' {
 		p.fail(off+1, "bad tag name %s", el.tag)
+	}
+	if isComponent(el.tag) && p.at(i) == '[' { // type arguments: <List[User] …>
+		start := i
+		for d := 0; i == start || d > 0; i++ {
+			switch p.at(i) {
+			case 0:
+				p.fail(off, "unclosed [ in <%s>", el.tag)
+			case '[':
+				d++
+			case ']':
+				d--
+			}
+		}
+		el.targs = string(p.src[start:i])
 	}
 	for {
 		i = p.space(i)
@@ -383,15 +403,15 @@ func exprStart(t token.Token) bool {
 
 func (p *jsxParser) block(g *goScan, kw tok, open int) (*jBlock, int) {
 	b := &jBlock{kw: kw.tok.String()}
-	prev, headStart := kw.tok, kw.end()
+	prev, headStart, kwStart := kw.tok, kw.end(), kw.off
 	for {
 		head := span{-1, -1}
 		var h int
 		if prev == token.ELSE {
 			h = g.significant().off + 1
 		} else {
-			_, _, lb, _ := p.goUntil(g, g.next(), prev, open, func(t tok) bool { return t.tok == token.LBRACE })
-			head, h = span{headStart, lb.off}, lb.off+1
+			lb := p.header(g, prev, kwStart, open)
+			head, h = span{headStart, lb}, lb+1
 		}
 		b.heads = append(b.heads, head)
 		kids, rb := p.children(h, nil, open, false)
@@ -403,7 +423,7 @@ func (p *jsxParser) block(g *goScan, kw tok, open int) (*jBlock, int) {
 			save := g.s
 			switch after := g.significant(); after.tok {
 			case token.IF:
-				prev, headStart = token.IF, after.end()
+				prev, headStart, kwStart = token.IF, after.end(), after.off
 			case token.LBRACE:
 				g.s = save
 			default:
@@ -416,6 +436,36 @@ func (p *jsxParser) block(g *goScan, kw tok, open int) (*jBlock, int) {
 		}
 		return b, next.off + 1
 	}
+}
+
+// header reads a for or if header from the keyword at head to its body's {,
+// returning the {'s offset. A { that leaves the header unparsable opens a
+// composite literal (range []string{"a"} {) and is skipped, as transpile does.
+func (p *jsxParser) header(g *goScan, kw token.Token, head, open int) int {
+	_, _, lb, _ := p.goUntil(g, g.next(), kw, open, func(t tok) bool { return t.tok == token.LBRACE })
+	first := lb.off
+	for lb.tok == token.LBRACE && !headerParses(p.src[head:lb.off]) {
+		for depth := 1; depth > 0; {
+			switch t := g.next(); t.tok {
+			case token.LBRACE:
+				depth++
+			case token.RBRACE:
+				depth--
+			case token.EOF:
+				return first
+			}
+		}
+		_, _, lb, _ = p.goUntil(g, g.next(), kw, open, func(t tok) bool { return t.tok == token.LBRACE })
+	}
+	if lb.tok != token.LBRACE {
+		return first
+	}
+	return lb.off
+}
+
+func headerParses(h []byte) bool {
+	_, err := parser.ParseFile(token.NewFileSet(), "", "package p\nfunc _() {\n"+strings.TrimSpace(string(h))+" {}\n}\n", 0)
+	return err == nil
 }
 
 func (p *jsxParser) matchBlock(g *goScan, kw, first tok, open int) (*jBlock, int) {

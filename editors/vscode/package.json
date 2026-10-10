@@ -67,6 +67,11 @@
         }
       }
     ],
+    "configurationDefaults": {
+      "[vuka]": {
+        "editor.formatOnSave": true
+      }
+    },
     "configuration": {
       "title": "Vuka",
       "properties": {

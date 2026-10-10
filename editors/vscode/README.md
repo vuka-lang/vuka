@@ -22,7 +22,9 @@ go install golang.org/x/tools/gopls@latest
 ```
 
 The extension runs `vuka lsp`, which runs gopls and keeps the Go generated from
-your `.vuka` files open in it, so nothing is written to your tree.
+your `.vuka` files open in it, so nothing is written to your tree. `.vuka`
+files are formatted by `vuka fmt` on save (`"[vuka]": {"editor.formatOnSave":
+false}` turns that off).
 
 ## Go files
 

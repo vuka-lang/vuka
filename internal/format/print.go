@@ -118,7 +118,7 @@ func (p *printer) keepBroken(sp span, kids []jNode) bool {
 	return false
 }
 
-func openName(el *jElem) string { return "<" + el.tag }
+func openName(el *jElem) string { return "<" + el.tag + el.targs }
 
 // elem lays out an element starting at col on a line indented by indent.
 func (p *printer) elem(el *jElem, indent string, col int) string {

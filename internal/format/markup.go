@@ -98,7 +98,7 @@ func sigGo(src []byte, sp span) string {
 
 func sigElem(src []byte, el *jElem) string {
 	var b strings.Builder
-	b.WriteString("<" + el.tag)
+	b.WriteString("<" + el.tag + el.targs)
 	for _, a := range el.attrs {
 		b.WriteString(" " + a.name)
 		switch a.kind {

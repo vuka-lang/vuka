@@ -56,8 +56,8 @@ Dependencies are Go's: `go get` a module and import it from any `.vuka` file.
 `vuka lsp` is a language server for `.vuka` files: gopls behind a proxy that
 keeps the generated Go open in gopls as unsaved buffers (nothing is written to
 your tree) and maps every position both ways. Completion, hover, signature
-help, go to definition, references, rename, outline, code actions and inlay
-hints all work; Vuka's own errors and Go's type errors show on the `.vuka`
+help, go to definition, references, rename, outline, code actions, inlay
+hints and formatting (`vuka fmt`) all work; Vuka's own errors and Go's type errors show on the `.vuka`
 lines. Overloads show under the name you wrote (`area`, not `area__Circle`).
 
 - **VS Code:** the extension in [`editors/vscode`](editors/vscode)
