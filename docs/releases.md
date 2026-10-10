@@ -10,6 +10,27 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.13.0 — 2026-10-11
+
+Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.13.0`. With
+[`github.com/vuka-lang/ui`](/ui/) v0.5.0 and [web](https://github.com/vuka-lang/web) v0.8.0.
+
+- **Templ components diff on live pages.** In a module on ui v0.5.0 or
+  later, the vuka command compiles `.templ` files so a live render records
+  their fixed markup apart from the values that change, as it does for JSX.
+  An event inside a templ layout sends only what changed, and moving between
+  pages that share a templ layout sends what differs inside it, not the whole
+  document. Plain HTTP renders write exactly the same HTML as before; templ
+  code compiled elsewhere still renders as one block. See [templ](/ui/templ).
+- **`vuka run -watch`** rebuilds the app when a `.vuka`, `.templ` or `.go`
+  file, `go.mod` or an embedded file changes, and swaps it in once the build
+  succeeds. The running app keeps serving while the next one compiles; a
+  failed build prints its errors at the `.vuka` line and keeps the last good
+  build running; a change that leaves the binary the same (a comment) restarts
+  nothing. Tailwind keeps running through the restarts, and with web v0.8.0
+  live pages rejoin the new build instead of reloading. See
+  [vuka run](/tools/cli#run-watch).
+
 ## v0.12.0 — 2026-10-10
 
 Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.12.0`. With
