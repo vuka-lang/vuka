@@ -389,6 +389,37 @@ func twice(`, 1)
 			return strings.Contains(string(b), "no overload of area accepts")
 		})
 	})
+
+	t.Run("edits apart while the file doesn't transpile", func(t *testing.T) {
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 5},
+			"contentChanges": []any{map[string]any{"text": lspSource + "// base\n"}}})
+		c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+		src := strings.Replace(lspSource+"// base\n", "type Circle", "var top = 1\n\ntype Circle", 1)
+		src = strings.Replace(src, "func main() {\n", "func main() {\n\tif find(1)? > 0 {\n\t}\n", 1)
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 6},
+			"contentChanges": []any{map[string]any{"text": src}}})
+		c.waitDiags(uri, func(ds []any) bool {
+			b, _ := json.Marshal(ds)
+			return strings.Contains(string(b), `"source":"vuka"`)
+		})
+		at := func(needle string, delta int) map[string]any {
+			return map[string]any{"textDocument": map[string]any{"uri": uri},
+				"position": positionOf([]byte(src), strings.Index(src, needle)+delta)}
+		}
+		if b, _ := json.Marshal(c.call("textDocument/hover", at("n * 2", 0))); !strings.Contains(string(b), "var n int") {
+			t.Fatalf("hover between the edits: %s", b)
+		}
+		if b, _ := json.Marshal(c.call("textDocument/hover", at("area(Rect", 1))); !strings.Contains(string(b), "func area(r Rect) float64") {
+			t.Fatalf("hover after the edits: %s", b)
+		}
+		want := positionOf([]byte(src), strings.Index(src, "area(r Rect)"))
+		if b, _ := json.Marshal(c.call("textDocument/definition", at("area(Rect", 1))); !strings.Contains(string(b), `"line":`+itoaTest(want.Line)) {
+			t.Fatalf("definition after the edits: %s, want line %d", b, want.Line)
+		}
+		if b, _ := json.Marshal(c.call("textDocument/hover", at("top = 1", 0))); string(b) != "null" {
+			t.Fatalf("hover on text the Go doesn't have yet: %s", b)
+		}
+	})
 }
 
 func itoaTest(n uint32) string {

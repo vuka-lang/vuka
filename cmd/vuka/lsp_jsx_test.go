@@ -253,6 +253,31 @@ func TestLSPJSX(t *testing.T) {
 		}
 	})
 
+	t.Run("edits apart while a tag is unclosed", func(t *testing.T) {
+		base := jsxSource + "// base\n"
+		edit(base)
+		c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+		src := strings.Replace(base, "type User struct {\n", "type User struct {\n\tID   int\n", 1)
+		src = strings.Replace(src, "<Button variant=\"primary\">Go</Button>", "<Button variant=\"primary\">Go\n", 1)
+		edit(src)
+		c.waitDiags(uri, func(ds []any) bool {
+			b, _ := json.Marshal(ds)
+			return strings.Contains(string(b), "Button")
+		})
+		if h := ask("textDocument/hover", at(src, "props.Variant", 0)); !strings.Contains(h, "props ButtonProps") || !strings.Contains(h, posOf(src, "props.Variant", 0)) {
+			t.Fatalf("hover between the edits: %s", h)
+		}
+		if d := ask("textDocument/definition", at(src, "<UserCard user", 3)); !strings.Contains(d, `"start":`+posOf(src, "UserCard(user User", 0)) {
+			t.Fatalf("definition between the edits: %s", d)
+		}
+		if h := ask("textDocument/hover", at(src, "Start={1}", 1)); !strings.Contains(h, "Start int") {
+			t.Fatalf("hover after the edits: %s", h)
+		}
+		if h := ask("textDocument/hover", at(src, "c.Inc}", 2)); !strings.Contains(h, "func (c *Counter) Inc()") || !strings.Contains(h, posOf(src, "c.Inc}", 2)) {
+			t.Fatalf("hover between the edits: %s", h)
+		}
+	})
+
 	t.Run("an unclosed tag", func(t *testing.T) {
 		src := strings.Replace(jsxSource, "<h3>{user.Name}</h3>", "<h3>{user.Name}\n\n", 1)
 		edit(src)
