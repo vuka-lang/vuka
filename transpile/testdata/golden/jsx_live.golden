@@ -29,7 +29,7 @@ func (c *Counter) Mount(ctx context.Context) error {
 func (c *Counter) Inc() { c.n++ }
 
 func (c *Counter) Render() ui.Node {
-	return ui.El("span", nil, ui.Child(/*line jsx_live.vuka:29:16*/c.Label), ui.Text(": "), ui.Child(/*line jsx_live.vuka:29:27*/c.n), ui.Text(" "), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(/*line jsx_live.vuka:29:49*/c.Inc)}, }, ui.Text("+"), ), )
+	return ui.F(0x255446f1e1e9ccd2, "E(hthtEd(t))", ui.El("span", nil, ui.Child(/*line jsx_live.vuka:29:16*/c.Label), ui.Text(": "), ui.Child(/*line jsx_live.vuka:29:27*/c.n), ui.Text(" "), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(/*line jsx_live.vuka:29:49*/c.Inc)}, }, ui.Text("+"), ), ), )
 }
 
 type Item struct {
@@ -69,26 +69,26 @@ func (t *Todo) Remove(id int) {
 }
 
 func (t *Todo) Render() ui.Node {
-	return ui.El("section", nil, ui.El("h2", nil, ui.Child(
+	return ui.F(0xe0cf875f26e2c3e6, "E(E(h)hEd(Esd())E(b)b)", ui.El("section", nil, ui.El("h2", nil, ui.Child(
 /*line jsx_live.vuka:70:8*/t.Title), ), ui.Child(
 /*line jsx_live.vuka:71:4*/t.Children), ui.El("form", []ui.Attr{{Name: "onSubmit", Value: ui.On(
 /*line jsx_live.vuka:72:19*/t.Add)}, }, ui.El("input", []ui.Attr{{Name: "name", Value: "name"}, {Name: "onInput", Value: ui.On(/*line jsx_live.vuka:72:54*/func(q string) { t.query = q })}, }, ), ), ui.El("ul", nil, ui.Nodes(func(__add func(ui.Node)) { 
 
-/*line jsx_live.vuka:74:5*/for _, it := range t.items { __add(ui.El("li", []ui.Attr{{Name: "key", Value: 
+/*line jsx_live.vuka:74:5*/for _, it := range t.items { __add(ui.F(0xebe80b758886d455, "Ed(cEd(t))", ui.El("li", []ui.Attr{{Name: "key", Value: 
 /*line jsx_live.vuka:75:14*/it.ID}, }, ui.Component("jsx_live.vuka#1", nil, 
 &/*line jsx_live.vuka:76:7*/Counter{Label: it.Name, }), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(
-/*line jsx_live.vuka:77:23*/func() { t.Remove(it.ID) })}, }, ui.Text("x"), ), )); } }), ), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_live.vuka:77:23*/func() { t.Remove(it.ID) })}, }, ui.Text("x"), ), ), )); } }), ), ui.Nodes(func(__add func(ui.Node)) { 
 
 
 
-/*line jsx_live.vuka:81:4*/if t.query != "" { __add(ui.El("p", nil, ui.Text("typing "), ui.Child(/*line jsx_live.vuka:81:34*/t.query), )); } }), 
+/*line jsx_live.vuka:81:4*/if t.query != "" { __add(ui.F(0xe03b7a1e9fc8ce8c, "E(th)", ui.El("p", nil, ui.Text("typing "), ui.Child(/*line jsx_live.vuka:81:34*/t.query), ), )); } }), ), 
 )
 }
 
 func page(ctx context.Context) ui.Node {
-	return ui.El("main", nil, ui.Component("jsx_live.vuka#2", nil, 
-&/*line jsx_live.vuka:87:4*/Todo{Title: "Groceries", Children: ui.Fragment(ui.El("p", nil, ui.Text("weekly"), ), ), }), ui.Component("jsx_live.vuka#3", "solo", 
-&/*line jsx_live.vuka:88:4*/Counter{Start: /*line jsx_live.vuka:88:30*/10, Label: "solo", }), 
+	return ui.F(0xa924c306192623b4, "E(cc)", ui.El("main", nil, ui.Component("jsx_live.vuka#2", nil, 
+&/*line jsx_live.vuka:87:4*/Todo{Title: "Groceries", Children: ui.F(0xaa62a1545aee466c, "E(t)", ui.El("p", nil, ui.Text("weekly"), ), ), }), ui.Component("jsx_live.vuka#3", "solo", 
+&/*line jsx_live.vuka:88:4*/Counter{Start: /*line jsx_live.vuka:88:30*/10, Label: "solo", }), ), 
 )
 }
 

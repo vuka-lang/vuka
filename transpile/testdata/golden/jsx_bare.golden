@@ -17,38 +17,38 @@ type Item struct {
 }
 
 func list(items []Item) ui.Node {
-	return ui.El("ul", nil, ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:18:4*/for _, it := range items { __add(ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:19:4*/if it.Ok { __add(ui.El("li", nil, ui.Child(
-/*line jsx_bare.vuka:20:10*/it.Name), )); 
-} /*line jsx_bare.vuka:21:6*/else if it.N > 1 { __add(ui.El("li", []ui.Attr{{Name: "className", Value: "many"}, }, ui.Child(
-/*line jsx_bare.vuka:22:27*/it.Name), ui.Text(" x"), ui.Child(/*line jsx_bare.vuka:22:38*/it.N), )); 
-} /*line jsx_bare.vuka:23:6*/else { __add(ui.El("li", []ui.Attr{{Name: "className", Value: "off"}, }, ui.Child(
-/*line jsx_bare.vuka:24:26*/it.Name), )); } })); __add(ui.Nodes(func(__add func(ui.Node)) { 
+	return ui.F(0xa072abff0879908e, "E(b)", ui.El("ul", nil, ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:18:4*/for _, it := range items { __add(ui.F(0xfa375899e40d4da5, "bbbbb", ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:19:4*/if it.Ok { __add(ui.F(0xd5b60c5b1c641002, "E(h)", ui.El("li", nil, ui.Child(
+/*line jsx_bare.vuka:20:10*/it.Name), ), )); 
+} /*line jsx_bare.vuka:21:6*/else if it.N > 1 { __add(ui.F(0x7fc483dad2e7ec6b, "Es(hth)", ui.El("li", []ui.Attr{{Name: "className", Value: "many"}, }, ui.Child(
+/*line jsx_bare.vuka:22:27*/it.Name), ui.Text(" x"), ui.Child(/*line jsx_bare.vuka:22:38*/it.N), ), )); 
+} /*line jsx_bare.vuka:23:6*/else { __add(ui.F(0x7c149c3d9f86219b, "Es(h)", ui.El("li", []ui.Attr{{Name: "className", Value: "off"}, }, ui.Child(
+/*line jsx_bare.vuka:24:26*/it.Name), ), )); } }), ui.Nodes(func(__add func(ui.Node)) { 
 
-/*line jsx_bare.vuka:26:4*/for _, t := range it.Tags { __add(ui.El("i", nil, ui.Child(/*line jsx_bare.vuka:26:36*/t), )); } })); __add(ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:26:4*/for _, t := range it.Tags { __add(ui.F(0x3eb236fa49a80e3e, "E(h)", ui.El("i", nil, ui.Child(/*line jsx_bare.vuka:26:36*/t), ), )); } }), ui.Nodes(func(__add func(ui.Node)) { 
 /*line jsx_bare.vuka:27:4*/if __m1 := /*line jsx_bare.vuka:27:10*/it.N; false { panic(__m1)
-/*line jsx_bare.vuka:28:4*/} else if __m1 == 0 { __add(ui.El("b", nil, ui.Text("none"), )); 
+/*line jsx_bare.vuka:28:4*/} else if __m1 == 0 { __add(ui.F(0xebb6ae596c7901e3, "E(t)", ui.El("b", nil, ui.Text("none"), ), )); 
 
-/*line jsx_bare.vuka:30:4*/} else if __m1 == 1 { __add(ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:31:5*/for i := range 2 { __add(ui.Nodes(func(__add func(ui.Node)) { /*line jsx_bare.vuka:31:24*/if i == 1 { __add(ui.El("s", nil, ui.Child(/*line jsx_bare.vuka:31:40*/i), )); } })); } })); 
-/*line jsx_bare.vuka:32:4*/} else if true { __add(ui.Text("many")); 
+/*line jsx_bare.vuka:30:4*/} else if __m1 == 1 { __add(ui.F(0xaf63df4c8601f1a5, "b", ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:31:5*/for i := range 2 { __add(ui.F(0xaf63df4c8601f1a5, "b", ui.Nodes(func(__add func(ui.Node)) { /*line jsx_bare.vuka:31:24*/if i == 1 { __add(ui.F(0x81400f4daa1a69f8, "E(h)", ui.El("s", nil, ui.Child(/*line jsx_bare.vuka:31:40*/i), ), )); } }), )); } }), )); 
+/*line jsx_bare.vuka:32:4*/} else if true { __add(ui.F(0x64fb624e37dbb4aa, "t", ui.Text("many"), )); 
 
-/*line jsx_bare.vuka:34:4*/} else { panic("vuka: no case matched") } })); __add(ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:35:4*/if(it.N == 3) { __add(ui.El("u", nil, ui.Text("three"), )); } })); __add(ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:36:4*/for _, t := range []string{"x"} { __add(ui.El("em", nil, ui.Child(/*line jsx_bare.vuka:36:43*/t), )); } })); } }), 
+/*line jsx_bare.vuka:34:4*/} else { panic("vuka: no case matched") } }), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:35:4*/if(it.N == 3) { __add(ui.F(0xbf1688c7e6620cc0, "E(t)", ui.El("u", nil, ui.Text("three"), ), )); } }), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:36:4*/for _, t := range []string{"x"} { __add(ui.F(0xbf15df7a480b392d, "E(h)", ui.El("em", nil, ui.Child(/*line jsx_bare.vuka:36:43*/t), ), )); } }), )); } }), ), 
 
 )
 }
 
 func texts(items []Item) ui.Node {
-	return ui.El("div", nil, ui.El("p", nil, ui.Text("if you like"), ), ui.El("p", nil, ui.Text("for now, match me"), ), ui.Nodes(func(__add func(ui.Node)) { 
+	return ui.F(0xd9382dcf15dca773, "E(E(t)E(t)bbbb)", ui.El("div", nil, ui.El("p", nil, ui.Text("if you like"), ), ui.El("p", nil, ui.Text("for now, match me"), ), ui.Nodes(func(__add func(ui.Node)) { 
 
 
-/*line jsx_bare.vuka:45:4*/for range items { __add(ui.Text("iffy text")); } }), ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:46:4*/for range items { __add(ui.Text("if-then")); } }), ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:47:4*/for range items { __add(ui.Text("formal matches")); } }), ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_bare.vuka:48:4*/if len(items) > 0 { __add(ui.Text("a match?")); } }), 
+/*line jsx_bare.vuka:45:4*/for range items { __add(ui.F(0xcb5d702bb9609d0a, "t", ui.Text("iffy text"), )); } }), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:46:4*/for range items { __add(ui.F(0x5a0099501539ef4a, "t", ui.Text("if-then"), )); } }), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:47:4*/for range items { __add(ui.F(0x47d5a9f35010c781, "t", ui.Text("formal matches"), )); } }), ui.Nodes(func(__add func(ui.Node)) { 
+/*line jsx_bare.vuka:48:4*/if len(items) > 0 { __add(ui.F(0x6f76ca55e41d6e02, "t", ui.Text("a match?"), )); } }), ), 
 )
 }
 

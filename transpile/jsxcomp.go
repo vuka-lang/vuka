@@ -68,7 +68,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("), ")
 			}
 		}
-		w.kids(el.kids, false)
+		w.kids(el.kids)
 		w.gen(")")
 		return
 	}
@@ -79,9 +79,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		case a.attr != nil:
 			w.attrValue(a.attr)
 		case a.kids:
-			w.gen(q + "Fragment(")
-			w.kids(el.kids, false)
-			w.gen(")")
+			w.frame(el.kids)
 		default:
 			w.gen(a.text)
 		}
@@ -445,6 +443,9 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 			for i := range a.nest {
 				a.nest[i].text = e.typeTextAuto(f, a.nest[i].typ)
 			}
+		}
+		if c.stateful && c.key != nil && c.key.attr.kind == 'e' {
+			c.inOrder = false // ui.Component(site, key, &T{…}) writes the key before the tag
 		}
 	}
 	for _, a := range c.args {

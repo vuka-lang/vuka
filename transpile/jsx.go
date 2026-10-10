@@ -12,14 +12,14 @@ import (
 
 // JSX is an expression in a function body: `<div className="card">{u.Name}</div>`.
 // It is read here, from the source bytes (its text isn't Go tokens), and lowered
-// to calls of the runtime: El, Text, Child, Fragment and Nodes, plus the
-// components' own functions once their types are known.
+// to calls of the file's JSX target (target.go): El, Text, Child, Fragment and
+// Nodes, plus the components' own functions once their types are known.
 //
 // The lowering keeps every Go expression the JSX holds where it is, and writes
 // only the gaps between them, each with as many newlines as the source it
 // replaces, so lines, columns, errors, hover and completion map exactly:
 //
-//	<div id={u.ID}>{u.Name}</div>   →   vuka.El("div", []vuka.Attr{{Name: "id", Value: u.ID}, }, vuka.Child(u.Name), )
+//	<div id={u.ID}>{u.Name}</div>   →   ui.El("div", []ui.Attr{{Name: "id", Value: u.ID}, }, ui.Child(u.Name), )
 
 // jsxStarts reports whether an operand may start after a token of kind prev,
 // so that a `<` there opens JSX rather than comparing.
@@ -763,7 +763,11 @@ func (w *jsxWriter) keep(s span)  { w.pieces = append(w.pieces, jsxPiece{keep: s
 // jsxEdits lowers a tree, as it stands, to edits of the gaps between what it keeps.
 func (f *fileState) jsxEdits(t *jsxTree) edits {
 	w := &jsxWriter{q: f.target.q, f: f}
-	w.elem(t.root)
+	if f.target.has("F") {
+		w.frame([]jsxNode{t.root})
+	} else {
+		w.elem(t.root)
+	}
 	var out edits
 	var buf strings.Builder
 	cur := t.start
@@ -812,17 +816,10 @@ func padNewlines(text string, n int) string {
 	return text[:at] + strings.Repeat("\n", n) + text[at:]
 }
 
-func (w *jsxWriter) kids(ns []jsxNode, block bool) {
+func (w *jsxWriter) kids(ns []jsxNode) {
 	for _, n := range ns {
-		if block {
-			w.gen("__add(")
-		}
 		w.node(n)
-		if block {
-			w.gen("); ")
-		} else {
-			w.gen(", ")
-		}
+		w.gen(", ")
 	}
 }
 
@@ -843,7 +840,7 @@ func (w *jsxWriter) node(n jsxNode) {
 			for i, c := range m.cases {
 				w.keep(span{c.start, c.colon + 1})
 				w.gen(" ")
-				w.kids(n.cases[i], true)
+				w.body(n.cases[i])
 			}
 			w.keep(span{m.rbrace, m.rbrace + 1})
 		} else {
@@ -853,7 +850,7 @@ func (w *jsxWriter) node(n jsxNode) {
 				}
 				w.keep(h)
 				w.gen(" ")
-				w.kids(n.bodies[i], true)
+				w.body(n.bodies[i])
 			}
 			w.gen("}")
 		}
@@ -882,7 +879,7 @@ func (w *jsxWriter) elem(el *jsxElem) {
 	switch {
 	case el.frag:
 		w.gen(w.q + "Fragment(")
-		w.kids(el.kids, false)
+		w.kids(el.kids)
 		w.gen(")")
 	case el.comp != nil:
 		w.comp(el.comp)
@@ -901,7 +898,7 @@ func (w *jsxWriter) elem(el *jsxElem) {
 			w.gen("}")
 		}
 		w.gen(", ")
-		w.kids(el.kids, false)
+		w.kids(el.kids)
 		w.gen(")")
 	}
 }

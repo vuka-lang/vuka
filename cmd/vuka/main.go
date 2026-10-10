@@ -260,6 +260,7 @@ func gen(args []string, stdout io.Writer) error {
 	}
 	stale := 0
 	for _, f := range files {
+		f.Src = relativeLines(f.Src, filepath.Dir(f.Source))
 		old, err := os.ReadFile(f.Target)
 		if err == nil && bytes.Equal(old, f.Src) {
 			continue
@@ -279,6 +280,16 @@ func gen(args []string, stdout io.Writer) error {
 		return fmt.Errorf("%d generated file(s) out of date; run vuka gen", stale)
 	}
 	return nil
+}
+
+// relativeLines makes the line directives of a file generated beside its
+// source name the source by its base name: the compiler reads a relative
+// name against the directive's own directory, and a committed file then
+// doesn't carry the path of the checkout it was generated in.
+func relativeLines(src []byte, dir string) []byte {
+	prefix := filepath.ToSlash(dir) + "/"
+	src = bytes.ReplaceAll(src, []byte("//line "+prefix), []byte("//line "))
+	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "))
 }
 
 func genModule(out string, check bool, stdout io.Writer) error {

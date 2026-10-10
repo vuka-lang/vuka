@@ -21,19 +21,19 @@ type User struct {
 }
 
 func UserCard(user User, admin bool, children ui.Node) ui.Node {
-	return ui.El("div", []ui.Attr{{Name: "className", Value: "card"}, {Name: "data-id", Value: /*line jsx_components.vuka:21:40*/user.ID}, }, ui.El("h3", nil, ui.Child(
+	return ui.F(0x8b3b9a5abd90f302, "Esd(E(h)hb)", ui.El("div", []ui.Attr{{Name: "className", Value: "card"}, {Name: "data-id", Value: /*line jsx_components.vuka:21:40*/user.ID}, }, ui.El("h3", nil, ui.Child(
 /*line jsx_components.vuka:22:8*/user.Name), ), ui.Child(
 /*line jsx_components.vuka:23:4*/children), ui.Nodes(func(__add func(ui.Node)) { 
-/*line jsx_components.vuka:24:4*/if admin { __add(ui.El("button", []ui.Attr{{Name: "disabled", Value: /*line jsx_components.vuka:24:33*/!user.Active}, }, ui.Text("Edit"), )); } }), 
+/*line jsx_components.vuka:24:4*/if admin { __add(ui.F(0x6fa198f7c57d61f6, "Ed(t)", ui.El("button", []ui.Attr{{Name: "disabled", Value: /*line jsx_components.vuka:24:33*/!user.Active}, }, ui.Text("Edit"), ), )); } }), ), 
 )
 }
 
 // Row takes its struct whole: the attribute names the parameter.
-func Row(user User) ui.Node { return ui.El("tr", nil, ui.El("td", nil, ui.Child(/*line jsx_components.vuka:29:47*/user.Name), ), )/*line jsx_components.vuka:29:67*/ }
+func Row(user User) ui.Node { return ui.F(0xee889f223f3f76a3, "E(E(h))", ui.El("tr", nil, ui.El("td", nil, ui.Child(/*line jsx_components.vuka:29:47*/user.Name), ), ), )/*line jsx_components.vuka:29:67*/ }
 
 // Badge takes its attributes out of the order of its parameters.
 func Badge(label string, count int) ui.Node {
-	return ui.El("span", nil, ui.Child(/*line jsx_components.vuka:33:16*/label), ui.Text(": "), ui.Child(/*line jsx_components.vuka:33:25*/count), )
+	return ui.F(0xc7c61548ed5a1b09, "E(hth)", ui.El("span", nil, ui.Child(/*line jsx_components.vuka:33:16*/label), ui.Text(": "), ui.Child(/*line jsx_components.vuka:33:25*/count), ), )
 }
 
 type ButtonProps struct {
@@ -43,7 +43,7 @@ type ButtonProps struct {
 	Children ui.Node
 }
 
-func Button(props ButtonProps) ui.Node { return ui.El("button", nil, ui.Child(/*line jsx_components.vuka:43:58*/props.Variant), )/*line jsx_components.vuka:43:81*/ }
+func Button(props ButtonProps) ui.Node { return ui.F(0xd97d0e3b298ad747, "E(h)", ui.El("button", nil, ui.Child(/*line jsx_components.vuka:43:58*/props.Variant), ), )/*line jsx_components.vuka:43:81*/ }
 
 type IconProps struct {
 	Name  string
@@ -64,43 +64,43 @@ func Avatar(url string) (ui.Node, error) {
 	if url == "" {
 		return nil, errors.New("no url")
 	}
-	return ui.El("img", []ui.Attr{{Name: "src", Value: /*line jsx_components.vuka:64:19*/url}, }, )/*line jsx_components.vuka:64:26*/, nil
+	return ui.F(0x2f4495a51e47738f, "Ed()", ui.El("img", []ui.Attr{{Name: "src", Value: /*line jsx_components.vuka:64:19*/url}, }, ), )/*line jsx_components.vuka:64:26*/, nil
 }
 
 func Layout(title string, children ui.Node) ui.Node {
-	return ui.El("main", nil, ui.El("title", nil, ui.Child(/*line jsx_components.vuka:68:23*/title), ), ui.Child(/*line jsx_components.vuka:68:38*/children), )
+	return ui.F(0xca11cb7fb05757a8, "E(E(h)h)", ui.El("main", nil, ui.El("title", nil, ui.Child(/*line jsx_components.vuka:68:23*/title), ), ui.Child(/*line jsx_components.vuka:68:38*/children), ), )
 }
 
 type Theme struct{ dark bool }
 
 func (t Theme) Card(heading string, children ui.Node) ui.Node {
-	return ui.El("section", []ui.Attr{{Name: "className", Value: /*line jsx_components.vuka:74:29*/map[bool]string{true: "dark"}[t.dark]}, }, ui.El("h2", nil, ui.Child(/*line jsx_components.vuka:74:73*/heading), ), ui.Child(/*line jsx_components.vuka:74:87*/children), )
+	return ui.F(0x1a1e525ff03ab1c6, "Ed(E(h)h)", ui.El("section", []ui.Attr{{Name: "className", Value: /*line jsx_components.vuka:74:29*/map[bool]string{true: "dark"}[t.dark]}, }, ui.El("h2", nil, ui.Child(/*line jsx_components.vuka:74:73*/heading), ), ui.Child(/*line jsx_components.vuka:74:87*/children), ), )
 }
 
 func List(users []User) ui.Node {
-	return ui.Fragment(ui.El("ul", nil, ui.Nodes(func(__add func(ui.Node)) { 
+	return ui.F(0x4f09f16db97bcfe8, "G(E(b)cccccccE(c)cc)", ui.Fragment(ui.El("ul", nil, ui.Nodes(func(__add func(ui.Node)) { 
 
-/*line jsx_components.vuka:80:5*/for _, u := range users { __add(ui.El("li", []ui.Attr{{Name: "key", Value: 
-/*line jsx_components.vuka:81:14*/u.ID}, }, /*line jsx_components.vuka:81:21*/UserCard(/*line jsx_components.vuka:81:36*/u, /*line jsx_components.vuka:81:46*/false, ui.Fragment(ui.Text("since "), ui.Child(/*line jsx_components.vuka:81:60*/u.Year), ), ), )); } }), ), 
+/*line jsx_components.vuka:80:5*/for _, u := range users { __add(ui.F(0x9704e5483929cbf5, "Ed(c)", ui.El("li", []ui.Attr{{Name: "key", Value: 
+/*line jsx_components.vuka:81:14*/u.ID}, }, /*line jsx_components.vuka:81:21*/UserCard(/*line jsx_components.vuka:81:36*/u, /*line jsx_components.vuka:81:46*/false, ui.F(0xf701d7da5a23ffcb, "th", ui.Text("since "), ui.Child(/*line jsx_components.vuka:81:60*/u.Year), ), ), ), )); } }), ), 
 
 
 /*line jsx_components.vuka:84:4*/Badge("users", /*line jsx_components.vuka:84:17*/len(users), ), func(__a1 int, __a2 string) ui.Node { 
 return /*line jsx_components.vuka:85:4*/Badge(__a2, __a1, ) }(
 /*line jsx_components.vuka:86:11*/2, 
 /*line jsx_components.vuka:87:11*/"x", ), 
-/*line jsx_components.vuka:88:4*/Button(ButtonProps{Variant: "primary", Disabled: true, Children: ui.Fragment(ui.Text("Save"), ), }), 
+/*line jsx_components.vuka:88:4*/Button(ButtonProps{Variant: "primary", Disabled: true, Children: ui.F(0x35a2e8a033e31064, "t", ui.Text("Save"), ), }), 
 /*line jsx_components.vuka:89:4*/Icon(IconProps{Name: "star", }), 
 /*line jsx_components.vuka:90:4*/Icon(), ui.Try(
 /*line jsx_components.vuka:91:4*/Avatar(/*line jsx_components.vuka:91:16*/"a.png", )), 
 /*line jsx_components.vuka:92:4*/UserCard(User{}, false, nil, ), ui.El("table", nil, 
 /*line jsx_components.vuka:93:11*/Row(/*line jsx_components.vuka:93:21*/users[0], ), ), 
-/*line jsx_components.vuka:94:4*/Layout("Users", ui.Fragment(ui.El("p", nil, ui.Text("body"), ), ), ), ui.WithChildren(
-/*line jsx_components.vuka:95:4*/templ.Raw("<b>raw</b>", ), ui.Fragment(ui.Text("children through templ's context"), )), 
+/*line jsx_components.vuka:94:4*/Layout("Users", ui.F(0xadf427bf4d4f837f, "E(t)", ui.El("p", nil, ui.Text("body"), ), ), ), ui.WithChildren(
+/*line jsx_components.vuka:95:4*/templ.Raw("<b>raw</b>", ), ui.F(0x372cffa9dfd360f8, "t", ui.Text("children through templ's context"), )), ), 
 )
 }
 
 func Themed(theme Theme) ui.Node {
-	return /*line jsx_components.vuka:100:10*/theme.Card("Hi", ui.Fragment(ui.Text("text"), ), )
+	return ui.F(0xaf63de4c8601eff2, "c", /*line jsx_components.vuka:100:10*/theme.Card("Hi", ui.F(0xae3ded49e808f082, "t", ui.Text("text"), ), ), )
 }
 
 func main() {
