@@ -9,9 +9,12 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"os/signal"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
+	"syscall"
 
 	"github.com/vuka-lang/vuka/internal/load"
 )
@@ -24,7 +27,9 @@ Usage:
 	vuka new <dir> [module path]
 	        start a project: go.mod and a main.vuka, ready for vuka run
 	vuka build|run|test|vet|install [go flags] [packages]
-	        transpile the module's .vuka files into an overlay and run the go command
+	        transpile the module's .vuka files into an overlay and run the go command;
+	        an app on github.com/vuka-lang/web gets its Tailwind CSS (run keeps it
+	        rebuilt, build embeds it; VUKA_TAILWIND=off for none)
 	vuka gen [-check] [-o build]
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
@@ -114,37 +119,78 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	goArgs := []string{cmd}
+	tmp, err := os.MkdirTemp("", "vuka-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(tmp)
 	var gens []load.Generated
+	var overlay string
 	if len(pkgs) > 0 {
-		tmp, err := os.MkdirTemp("", "vuka-")
+		if gens, overlay, err = load.Transpile(pkgs, tmp, load.Options{}); err != nil {
+			return err
+		}
+	}
+	var env []string
+	stopTailwind := func() {}
+	switch cmd {
+	case "build", "install":
+		css, err := buildTailwind(root, overlay, stderr)
 		if err != nil {
 			return err
 		}
-		defer os.RemoveAll(tmp)
-		var overlay string
-		gens, overlay, err = load.Transpile(pkgs, tmp, load.Options{})
-		if err != nil {
-			return err
-		}
-		if cmd == "build" {
-			if _, err := load.Mirror(root, filepath.Join(root, "build"), gens, false); err != nil {
+		if len(css) > 0 {
+			if overlay, err = addToOverlay(overlay, tmp, css); err != nil {
 				return err
 			}
+			gens = append(gens, css...)
 		}
+	case "run":
+		var css string
+		css, stopTailwind = devTailwind(root, overlay, stderr)
+		defer stopTailwind()
+		if css != "" {
+			env = append(env, twCSSEnv+"="+css)
+		}
+	}
+	if cmd == "build" && len(pkgs) > 0 {
+		if _, err := load.Mirror(root, filepath.Join(root, "build"), gens, false); err != nil {
+			return err
+		}
+	}
+	if overlay != "" {
 		goArgs = append(goArgs, "-overlay="+overlay)
 	}
 	c := exec.Command("go", append(goArgs, args...)...)
+	c.Env = append(os.Environ(), env...)
 	// The overlay names real paths; run go from the real directory, or in a
 	// symlinked one (macOS's /tmp is /private/tmp) it finds no files.
 	if wd, err := os.Getwd(); err == nil {
 		c.Dir = wd
 		if real, err := filepath.EvalSymlinks(wd); err == nil {
-			c.Dir, c.Env = real, append(os.Environ(), "PWD="+real)
+			c.Dir, c.Env = real, append(c.Env, "PWD="+real)
 		}
 	}
 	r := &respeller{w: stderr, dir: c.Dir, gens: gens}
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, stdout, r
-	err = c.Run()
+	if cmd == "run" {
+		// A signal stops what vuka started beside the program and goes on to
+		// the go command; vuka waits for it to exit.
+		sig := make(chan os.Signal, 1)
+		signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
+		defer signal.Stop(sig)
+		if err = c.Start(); err == nil {
+			go func() {
+				for s := range sig {
+					stopTailwind()
+					c.Process.Signal(s)
+				}
+			}()
+			err = c.Wait()
+		}
+	} else {
+		err = c.Run()
+	}
 	r.flush()
 	return err
 }
@@ -254,9 +300,18 @@ func gen(args []string, stdout io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	files, _, err := load.Transpile(pkgs, tmp, load.Options{})
+	files, overlay, err := load.Transpile(pkgs, tmp, load.Options{})
 	if err != nil {
 		return err
+	}
+	css, err := buildTailwind(root, overlay, os.Stderr)
+	if err != nil {
+		return err
+	}
+	for _, g := range css {
+		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
+			files = append(files, g)
+		}
 	}
 	stale := 0
 	for _, f := range files {
@@ -280,6 +335,28 @@ func gen(args []string, stdout io.Writer) error {
 		return fmt.Errorf("%d generated file(s) out of date; run vuka gen", stale)
 	}
 	return nil
+}
+
+// inPattern reports whether dir is matched by a package pattern of vuka gen
+// -inplace (a directory, or dir/... for the tree below it).
+func inPattern(dir, pattern string) bool {
+	base, recursive := strings.CutSuffix(pattern, "/...")
+	if base == "" {
+		base = "."
+	}
+	abs, err := filepath.Abs(base)
+	if err != nil {
+		return false
+	}
+	abs, dir = realPathOf(abs), realPathOf(dir)
+	return dir == abs || recursive && strings.HasPrefix(dir, abs+string(filepath.Separator))
+}
+
+func realPathOf(p string) string {
+	if r, err := filepath.EvalSymlinks(p); err == nil {
+		return r
+	}
+	return p
 }
 
 // relativeLines makes the line directives of a file generated beside its
@@ -306,10 +383,15 @@ func genModule(out string, check bool, stdout io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	gens, _, err := load.Transpile(pkgs, tmp, load.Options{})
+	gens, overlay, err := load.Transpile(pkgs, tmp, load.Options{})
 	if err != nil {
 		return err
 	}
+	css, err := buildTailwind(root, overlay, os.Stderr)
+	if err != nil {
+		return err
+	}
+	gens = append(gens, css...)
 	if !filepath.IsAbs(out) {
 		out = filepath.Join(root, out)
 	}
