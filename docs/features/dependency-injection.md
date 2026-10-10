@@ -39,4 +39,6 @@ func Module() nexus.Option { return nexus.Provide(providers...) }
 - A struct that declares its own static `New` is built with that one.
 - Otherwise the generated constructor is the struct's static `New`, handy in
   tests: `OrderService.New(fakeDB, fakeUsers)`.
-- `t.Fields` lists the fields, their tags, and whether each is injected.
+- `t.Fields` lists the fields, their tags, their
+  [attributes](/features/fields#field-attributes), and whether each is
+  injected.

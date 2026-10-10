@@ -28,5 +28,9 @@ at run time by [decorators](/features/decorators) through `c.Attr(&x)`.
 
 An attribute that names a *function* rather than a type is a decorator.
 
+Struct fields take typed attributes too, after the field:
+`Title string @Char{Max: 200}`. See
+[Field attributes and references](/features/fields).
+
 A field of type `vuka.File` set to a string literal names a file that is
 checked at compile time and embedded: see [Files](/features/decorators#files).

@@ -1,0 +1,1 @@
+err_field_static.vuka:13:11: Post.Objects is ambiguous: a field of Post and a static of Model

@@ -1,0 +1,6 @@
+err_field_attrs.vuka:6:15: a field's attributes go after its tag: Title string `json:"title"` @Char
+err_field_attrs.vuka:7:2: a field attribute goes after its field, on the same line: Title string @Char{Max: 200}
+err_field_attrs.vuka:9:14: @doc is for declarations; a field attribute is a value, such as @Char{Max: 200}
+err_field_attrs.vuka:11:12: field attributes go on the fields of a package-level struct type
+err_field_attrs.vuka:13:12: only another attribute or a comment can follow a field attribute
+err_field_attrs.vuka:17:6: Box is generic; its fields can't carry attributes

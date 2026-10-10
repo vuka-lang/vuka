@@ -1,0 +1,20 @@
+package main
+
+type Char struct{ Max int }
+
+type Post struct {
+	Title string @Char{Max: 9} `json:"title"`
+	@Char{}
+	Body string
+	Lead string @doc("no")
+	Meta struct {
+		Size int @Char{}
+	}
+	Views int @Char{} Draft bool
+}
+
+type Box[T any] struct {
+	V T @Char{}
+}
+
+func main() {}

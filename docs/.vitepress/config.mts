@@ -41,6 +41,7 @@ export default defineConfig({
           { text: 'match', link: '/features/match' },
           { text: 'Overloading', link: '/features/overloading' },
           { text: 'Attributes', link: '/features/attributes' },
+          { text: 'Field attributes and references', link: '/features/fields' },
           { text: 'Decorators', link: '/features/decorators' },
           { text: 'Statics and Self', link: '/features/statics' },
           { text: 'Dependency injection', link: '/features/dependency-injection' },

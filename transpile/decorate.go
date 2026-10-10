@@ -427,6 +427,7 @@ func (e *engine) pkgName() string {
 func (e *engine) render(f *fileState) {
 	f.deco = genWriter{}
 	e.renderFiles(f)
+	e.renderFields(f)
 	for _, d := range f.decos {
 		switch d := d.(type) {
 		case *funcDeco:

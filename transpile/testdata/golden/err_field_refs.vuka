@@ -1,0 +1,22 @@
+package main
+
+import "time"
+
+type A struct{ Name string }
+type B struct{ Name string }
+
+type Both struct {
+	A
+	B
+}
+
+type Post struct {
+	Title string
+}
+
+func main() {
+	_ = Post.Titel
+	_ = Post.Title.Size
+	_ = Both.Name
+	_ = time.Time.wall
+}

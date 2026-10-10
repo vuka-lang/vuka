@@ -1,0 +1,14 @@
+package main
+
+type Model[Self any] struct {
+	static Objects int = 0
+}
+
+type Post struct {
+	Model
+	Objects []string
+}
+
+func main() {
+	_ = Post.Objects
+}

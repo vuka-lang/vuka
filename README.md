@@ -256,6 +256,32 @@ didn't write. A type embedding `User` reaches `User`'s statics, as Go promotes
 fields; `self` there is the embedded `User`. Calls that pass `self` must not
 have side effects in the receiver expression (Vuka uses it twice).
 
+**Field attributes and references.** A struct field takes typed attributes
+after it (after its tag, if any), and `Type.Field` — meaningless in Go — is a
+typed reference to the field:
+
+```go
+type Post struct {
+	ID     int64    @PK
+	Title  string   `json:"title"` @Char{Max: 200}
+	Author FK[User] @Rel{OnDelete: Cascade}
+	Views  int      @Default(0)
+}
+
+q := vuka.And(Post.Title.Contains("go"), Post.Author.Name.Eq("ada"), Post.Views.Gt(100))
+q.Match(post)                         // in memory; or translate q.Op, q.Path, q.Value
+vuka.SortBy(posts, Post.Views.Desc())
+```
+
+Attributes are type-checked Go values, stripped from the struct and recorded at
+init: `vuka.FieldAttrs[Post]()["Title"]`, `vuka.FieldsOf[Post]()`, or `Attrs`
+in a type decorator's fields. A reference continues through struct and pointer
+fields, embedded structs, and types implementing `vuka.Related[U]` (a foreign
+key's `Related() *U`). Its type follows the field's — `StringRef` has
+`Contains`, `OrderedRef` has `Gt`, `NullableRef` has `IsNil` — and its
+predicates are `vuka.Pred[Post]`, so an API taking them rejects a `User`
+field. Hover and go to definition on a reference land on the field.
+
 **Dependency injection** comes from a type decorator, with no annotations on
 fields: a struct's fields are its dependencies.
 
@@ -277,7 +303,7 @@ so a container wires it from parameter types, with no reflection on fields
 struct that declares its own static `New` is built with that instead;
 otherwise the generated constructor is its static `New`, handy in tests:
 `OrderService.New(fakeDB, fakeUsers)`. `t.Fields` lists the fields with their
-tags and whether they're injected.
+tags, attributes and whether they're injected.
 
 The whole nexus integration is a few lines
 ([`examples/nexus-di`](examples/nexus-di)):

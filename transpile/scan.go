@@ -96,10 +96,11 @@ func (f *fileState) scan(errs *ErrorList) {
 	depth, lastEnd := 0, -1
 	var pending []*Attr
 	type frame struct {
-		typeGroup bool
-		structOf  string // the named type whose struct body this is
-		tparams   string
-		names     []string
+		typeGroup  bool
+		structBody bool
+		structOf   string // the named type whose struct body this is
+		tparams    string
+		names      []string
 	}
 	var frames []frame
 	top := func() frame {
@@ -121,6 +122,7 @@ func (f *fileState) scan(errs *ErrorList) {
 		case isOpen(t.tok):
 			fr := frame{typeGroup: t.tok == token.LPAREN && p.tok == token.TYPE}
 			if t.tok == token.LBRACE && p.tok == token.STRUCT {
+				fr.structBody = true
 				if name, tp, names, ok := namedStruct(f.src, toks, pIdx, top().typeGroup); ok {
 					fr.structOf, fr.tparams, fr.names = name, tp, names
 				}
@@ -191,7 +193,15 @@ func (f *fileState) scan(errs *ErrorList) {
 			i = next - 1
 			continue
 		}
-		switch {
+		switch fr := top(); {
+		case depth > 0 && fr.structBody:
+			topLevel := len(frames) == 1 || len(frames) == 2 && frames[0].typeGroup
+			if msg := f.fieldAttr(toks, a, p, next, fr.structOf, fr.tparams, topLevel); msg != "" {
+				errs.add(a.Pos, "%s", msg)
+			}
+			i = next - 1
+			prev = toks[i]
+			continue
 		case depth > 0:
 			errs.add(a.Pos, "attributes are only allowed before top-level declarations")
 			i = next - 1
