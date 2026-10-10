@@ -32,6 +32,11 @@ brew install tailwindcss        # or: npm i -D @tailwindcss/cli
 replaces the old one without a reload, so a [live page](/web/live) keeps its
 state and a half-filled form keeps what you typed.
 
+With `vuka run -watch` the program is rebuilt and swapped in when you change
+its code as well; the stylesheet's watcher runs through the restarts, so a
+change to a class restyles the page without a rebuild, and a change to code
+gets the new build ([run -watch](/tools/cli#run-watch)).
+
 The build goes to `.vuka/tailwind/` in the module, a directory that keeps
 itself out of git. Without the Tailwind CLI, `vuka run` says how to install it
 and serves the pages unstyled.
