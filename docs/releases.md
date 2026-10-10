@@ -10,6 +10,30 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## Unreleased
+
+Runtime: new `vuka.Frame`/`vuka.F` (JSX's compile-time shape), `vuka.Tree`,
+`vuka.TreeList`, `vuka.TreeRef`, `vuka.BuildTree`, `vuka.Assign`,
+`vuka.RootAttrs`; `live.Session.RenderTrees`, `HTML`, `live.TreeUpdate`,
+`live.Verify`, `live.Marshal`, package `live/livetest`. Generated code needs
+it: JSX now lowers through `vuka.F`.
+
+- **Live render trees (protocol v2).** A client joining with
+  `{"type":"join","v":2}` gets each instance's render tree — statics sent
+  once per connection, dynamics, block items, instance references — and
+  after an event only the changed dynamics: list steps with keyed moves,
+  branch switches, long markup by reference or token patch. v1 clients are
+  unchanged. A one-cell change in a 1000-row table is 89 bytes instead of
+  122 KB. See [Protocol v2](/features/components#protocol-v2-render-trees).
+- **`vuka.Assign[T]`:** a component whose state is all Assigns is rendered
+  again only when one is set or its props change; tests verify skipped
+  components against a full render (`VUKA_LIVE_VERIFY`).
+- `live/livetest`, a reference client of both protocol versions in Go.
+- Fixed: a stateful component tag with an expression key (`<Row key={i} />`)
+  crashed the compiler.
+- Server messages are written without HTML escaping (`<` rather than
+  `\u003c`); the JSON is the same once parsed.
+
 ## v0.8.0 — 2026-10-10
 
 Runtime: unchanged, v0.7.0.

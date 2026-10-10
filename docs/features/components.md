@@ -239,14 +239,21 @@ layout keeps its headings, tables and lists.
 Calls to the runtime, with your expressions where you wrote them:
 
 ```go
-return vuka.El("section", []vuka.Attr{{Name: "className", Value: "pets"}},
+return vuka.F(0x8ec4a9df618b03d4, "Es(E(tht)E(b)…)", vuka.El("section", []vuka.Attr{{Name: "className", Value: "pets"}},
 	vuka.El("h1", nil, vuka.Text("Pets ("), vuka.Child(len(pets)), vuka.Text(")")),
 	vuka.El("table", nil, vuka.Nodes(func(__add func(vuka.Node)) {
-		for _, p := range pets { __add(PetRow(p)) }
+		for _, p := range pets { __add(vuka.F(0xa26a48f8c2b75e32, "h", PetRow(p))) }
 	})),
-	…)
+	…))
 ```
 
+`vuka.F` wraps each piece of JSX — a tree, each block body, a component
+tag's children — in a `vuka.Frame`: a fingerprint of the source it comes
+from and its *shape*, which of its nodes are markup the source fixes and
+which are Go expressions (`t` text, `h` an `{expr}`, `b` a block, `c` a
+component tag, `E` an element with an `s` or `d` per attribute, `G` a
+fragment). A frame renders exactly as its nodes do; a live session uses the
+shape to render it as a [render tree](#protocol-v2-render-trees).
 `vuka explain` shows it line by line.
 
 ## Stateful components
@@ -302,6 +309,41 @@ optional `Unmount()` runs.
 
 `vuka.Live` gives the component `ID()` (its instance id, `""` when static)
 and `Subscribe(topics...)` (call it in `Mount`).
+
+**Change tracking.** A state field may be a `vuka.Assign[T]`, read with
+`Get()` and changed with `Set(v)` or `Update(func(T) T)`. A component whose
+state fields are all Assigns (fields tagged `` `vuka:"-"` `` don't count) is
+rendered again only when one of them was set or a prop changed: otherwise
+the session keeps its last render, its handlers and the instances it
+rendered, and calls no `Render` — instances inside it still render when
+their own state changed. Props compare by value; a pointer, slice, map,
+func or interface prop (children included) counts as changed unless both are
+nil, since what it points to may have changed in place, so a component taking
+a func prop renders with its parent.
+
+```vuka
+type Row struct {
+	vuka.Live
+	ID   int              // props
+	Name string
+	qty  vuka.Assign[int] // state
+}
+
+func (r *Row) Inc() { r.qty.Update(func(n int) int { return n + 1 }) }
+
+func (r *Row) Render() vuka.Node {
+	return <tr key={r.ID}><td>{r.Name}</td><td>{r.qty.Get()}</td><td><button onClick={r.Inc}>+</button></td></tr>
+}
+```
+
+A click in one row of a thousand renders that row only. `Render` must read
+nothing but props, Assigns and `vuka:"-"` fields that don't change its
+output. **Verification:** in tests (`testing.Testing()`) and with
+`VUKA_LIVE_VERIFY=1` a session renders every component it would skip and
+fails the event with an error naming it when the output differs (a plain
+field changed, or `Render` read something else); it also checks that frames
+sharing a fingerprint render the same statics. `VUKA_LIVE_VERIFY=0` turns it
+off; `live.Verify` is the default for new sessions.
 
 **Which instance?** A tag's place in its parent's render: the component
 rendering it, the keys of the elements around it, the tag itself (each tag in
@@ -401,6 +443,23 @@ message. The `error` results are the session's own: an unknown handler, a
 failed render. Calls are safe from several goroutines and run one at a time.
 `ctx` is the context of every render, `Mount`, handler and `Update`.
 
+`s.RenderTrees()` makes the session a v2 one: it returns every instance's
+render tree (`[]live.TreeUpdate`), and from then on patches carry `Trees` —
+each changed instance's change — instead of `Updates`. `s.HTML()` is the
+page as last rendered, without rendering it again.
+
+**Render trees.** On a v2 session an instance renders to a `vuka.Tree`
+(`vuka.BuildTree`): each `vuka.Frame` becomes the strings its source fixes
+(statics, the same every render, cached by fingerprint) around what its
+expressions rendered (dynamics): markup, nested frames, a block's items as
+a `vuka.TreeList`, another instance as a `vuka.TreeRef`. A node that isn't a
+frame — a hand-written `vuka.El` tree, a templ component — is one dynamic,
+its HTML. The session keeps a *shadow* of what the client holds — frames and
+lists as they were, each string as a hash, markup over 1 KB whole — and
+answers an event with the difference: changed dynamics by index, a list's
+items kept, moved (by `key`), inserted or removed, a branch's new frame,
+long markup by token patch; statics travel once per connection.
+
 ### The wire protocol
 
 A browser runtime and a WebSocket transport (a library's job, not the
@@ -421,7 +480,7 @@ side.
 
 | | |
 |---|---|
-| `join` | the first message: the server renders the page; the reply is `render` |
+| `join` | the first message: the server renders the page; the reply is `render`. `"v":2` asks for [version 2](#protocol-v2-render-trees) |
 | `event` | `target` is the handler's id from its `data-vk-on-…`; `event` the DOM event; `value` the element's value (a checkbox's `checked` as `"true"`/`"false"`); `key` a keyboard event's key; `form` a submit's fields (`FormData`, each name to its values) |
 | `render` | `html` replaces the page container's content |
 | `patch` | for each update, the element whose `data-vk-id` is `id` is morphed into `html`; `id` `"c0"` is the page itself: its `html` replaces the container's content. The morph matches `data-vk-key` among siblings, so keyed rows move instead of being rewritten. `error`, when set, is a handler's message, for the page to show |
@@ -636,20 +695,52 @@ The site string is the file and the tag's ordinal among its component tags.
 See also [Live components](/web/live): the web framework serves stateful
 components as live pages over a WebSocket.
 
+### Reference client
+
+`github.com/vuka-lang/vuka/live/livetest` is a client of both versions in
+Go: `livetest.Join(s, 2)`, `c.Event(ev)`, `c.HTML()`. It keeps what a browser
+keeps (the page's HTML; the statics, kept strings and each instance's tree),
+applies messages as a runtime must — and on a v2 patch checks that morphing
+the updated instances one by one gives the page the trees render. The live
+package's tests drive the same random events through a v1 and a v2 client
+and require both to hold the server's page, byte for byte, after each.
+
+### Numbers
+
+Go benchmarks in `live/bench_test.go`, on an M1 Pro (10 cores), verification
+off; bytes are the JSON of the reply:
+
+| | v1 | v2 |
+|---|---|---|
+| 1000-row table, one component, one cell per event: bytes | 121,753 | 89 |
+| — server time per event | 1.37 ms | 2.0 ms |
+| 1000 row components, one row per event, rows with Assigns: bytes / time | 182 / 93 µs | 63 / 105 µs |
+| — the same rows with plain state | 182 / 1.66 ms | 63 / 2.9 ms |
+| a page of 100 counters, one clicked: bytes / time | 154 / 65 µs | 62 / 102 µs |
+
+A v2 render builds a tree instead of a string, so a component that renders
+again costs about 1.5× the CPU of v1; Assign skipping (18× here) is what
+makes large pages cheap, and v2 makes the replies small. Load
+(`BenchmarkLoad`): 5,000 joined sessions of a page with two boards and a
+counter (about 25 instances' trees) hold **29.6 KB per session**; events from
+10 goroutines answer at p50 55 µs, p99 1.5 ms. (nexus's live views report
+~60 KB per page and p99 7 ms for 20,000 users at an event per 5 s each.)
+
 ### Next
 
-Patches today are a component's whole HTML, for the client to morph. The
-compiler knows which parts of a tag's markup are static and which are Go
-expressions, so the next step is LiveView's: render a component to its
-statics (sent once) and dynamics, and send only the dynamics that changed;
-`live.Update` is where that tree will go. Change tracking (rendering only the
-components whose state changed instead of the whole page), streams, presence
-and flash messages come after.
+Spot-level skipping inside a component's render (nexus's `Rec.Guard`),
+handler ids that don't shift when items are inserted, streams, presence and
+flash messages.
 
 ## Known limits
 
-- A stateful component re-renders with its whole page on every event; cheap
-  for ordinary pages, and the reply is still only what changed.
+- A stateful component re-renders with its whole page on every event,
+  unless its state is all `vuka.Assign`s; the reply is still only what
+  changed.
+- In v2, handler ids count a component's handlers in render order: inserting
+  an item with handlers changes the ids after it, which travel as changed
+  dynamics. Token patches keep the common start and end of long markup and
+  replace the middle (no Myers diff, no dictionary).
 - A generic stateful component needs its type arguments on the tag:
   `<Box[int] Value={7} />`.
 - JSX goes in function bodies and package-level variable initialisers, not
