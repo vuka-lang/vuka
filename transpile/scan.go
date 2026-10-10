@@ -69,6 +69,9 @@ type try struct {
 	done bool
 	dead bool   // reported as an error
 	fail string // why the last round couldn't lower it
+	// fresh is set in the round that lowered it: that round's types still
+	// see the operand, not what ? unwraps it to.
+	fresh bool
 }
 
 type matchCase struct {

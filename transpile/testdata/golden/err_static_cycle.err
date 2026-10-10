@@ -1,0 +1,5 @@
+err_static_cycle.vuka:6:9: initialization cycle: static Post.A depends on itself: Post.A → Post.B → Post.C → Post.A
+err_static_cycle.vuka:9:9: static Post.Itself is initialized with itself
+err_static_cycle.vuka:14:9: initialization cycle: static Model.X depends on itself: Model.X → Model.Y → Model.X
+err_static_cycle.vuka:19:9: initialization cycle: static User.viaFunc depends on itself: User.viaFunc → User.n → User.viaFunc
+err_static_cycle.vuka:20:9: initialization cycle: static User.viaMethod depends on itself: User.viaMethod → User.m → User.viaMethod

@@ -32,6 +32,10 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		m.fail = "internal: placeholder not found"
 		return
 	}
+	if t := e.pendingTry(f, head); t != nil {
+		m.fail = "it waits for the ? at " + f.at(t.off).String() + ", whose operand's type is unknown"
+		return
+	}
 	subj := head.Init.(*ast.AssignStmt).Rhs[0]
 	tv, ok := e.info.Types[subj]
 	if !ok || isInvalid(tv.Type) {
@@ -54,15 +58,12 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		pre, post string // around the guard; post alone when there is none
 	}
 	var heads []header
-	cov := map[string]bool{}
+	var rows [][]*space // the unguarded cases' patterns
 	for _, c := range m.cases {
-		if cov["all"] {
-			fail(c.start, "unreachable case: an earlier case matches everything")
-			return
-		}
 		var alts []*compiled
+		var spaces []*space
 		if len(c.pats) == 0 {
-			alts = append(alts, &compiled{cover: "all"})
+			alts, spaces = append(alts, &compiled{}), append(spaces, anything)
 		}
 		for _, sp := range c.pats {
 			x, err := parser.ParseExpr(string(f.src[sp.start:sp.end]))
@@ -75,14 +76,23 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 				fail(sp.start, "%v", err)
 				return
 			}
-			cp.cover = pc.cover(x, t)
-			alts = append(alts, cp)
+			alts, spaces = append(alts, cp), append(spaces, pc.space(x, t))
+		}
+		reachable := false
+		for _, s := range spaces {
+			reachable = reachable || useful(rows, []*space{s}, []types.Type{t})
+		}
+		if !reachable {
+			if catchAll(rows) {
+				fail(c.start, "unreachable case: an earlier case matches everything")
+			} else {
+				fail(c.start, "unreachable case: earlier cases match everything it does")
+			}
+			return
 		}
 		if c.guard.start < 0 {
-			for _, a := range alts {
-				if a.cover != "" {
-					cov[a.cover] = true
-				}
+			for _, s := range spaces {
+				rows = append(rows, []*space{s})
 			}
 		}
 
@@ -120,7 +130,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 			heads = append(heads, header{post: pre + post})
 		}
 	}
-	if missing := missingCases(cov, t); missing != "" {
+	if missing := pc.exhaustive(rows, t); missing != "" {
 		fail(m.start, "match on %s isn't exhaustive: %s; add the missing cases or case _:", e.display(t), missing)
 		return
 	}
@@ -141,31 +151,27 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 	e.progress = true
 }
 
-func missingCases(cov map[string]bool, t types.Type) string {
-	if cov["all"] {
-		return ""
-	}
-	pairs := map[string][2]string{"Result": {"ok", "err"}, "Option": {"some", "none"}}
-	kind, _ := runtimeType(t)
-	if b, ok := t.Underlying().(*types.Basic); ok && b.Info()&types.IsBoolean != 0 {
-		kind = "bool"
-		pairs["bool"] = [2]string{"true", "false"}
-	}
-	pair, ok := pairs[kind]
-	if !ok {
-		return "only a case that matches anything covers every value"
-	}
-	label := map[string]string{"ok": "Ok(_)", "err": "Err(_)", "some": "Some(_)", "none": "None", "true": "true", "false": "false"}
-	var miss []string
-	for _, k := range pair {
-		if !cov[k] {
-			miss = append(miss, label[k])
+// pendingTry is a ? before the match, in its function, whose lowering this
+// round's types don't reflect yet: in `x := f()?; match x {…}` x still has the
+// operand's type until the round after ? is lowered.
+func (e *engine) pendingTry(f *fileState, head ast.Node) *try {
+	var fn ast.Node
+	for p := f.parents[head]; p != nil && fn == nil; p = f.parents[p] {
+		switch p.(type) {
+		case *ast.FuncDecl, *ast.FuncLit:
+			fn = p
 		}
 	}
-	if len(miss) == 0 {
-		return ""
+	if fn == nil {
+		return nil
 	}
-	return "missing " + strings.Join(miss, " and ")
+	from, at := f.orig(fn.Pos()), f.orig(head.Pos())
+	for _, t := range f.tries {
+		if t.off > from && t.off < at && (t.fresh || !t.done && !t.dead) {
+			return t
+		}
+	}
+	return nil
 }
 
 type binding struct {
@@ -178,8 +184,7 @@ type binding struct {
 type compiled struct {
 	steps   []patStep
 	binds   []binding
-	complex bool   // needs steps run in order (pointers, interfaces)
-	cover   string // what it covers unconditionally: all, ok, err, some, none, true, false
+	complex bool // needs steps run in order (pointers, interfaces)
 	temps   int
 }
 
@@ -387,46 +392,6 @@ func (pc *patCtx) typeExpr(x ast.Expr) (types.Type, error) {
 		return nil, fmt.Errorf("%s isn't a type", types.ExprString(x))
 	}
 	return tn.Type(), nil
-}
-
-// irrefutable reports whether a pattern matches every value of its type.
-func (pc *patCtx) irrefutable(x ast.Expr, t types.Type) bool {
-	switch x := ast.Unparen(x).(type) {
-	case *ast.Ident:
-		kind, _ := runtimeType(t)
-		return x.Name == "_" || !(x.Name == "None" && kind == "Option") && !pc.isValue(x.Name)
-	}
-	return false
-}
-
-// cover is what a top-level pattern covers whatever the value inside it.
-func (pc *patCtx) cover(x ast.Expr, t types.Type) string {
-	if pc.irrefutable(x, t) {
-		return "all"
-	}
-	_, arg := runtimeType(t)
-	switch x := ast.Unparen(x).(type) {
-	case *ast.CallExpr:
-		id, ok := x.Fun.(*ast.Ident)
-		if !ok || len(x.Args) != 1 {
-			return ""
-		}
-		inner := arg
-		if id.Name == "Err" {
-			inner = errorType
-		}
-		if pc.irrefutable(x.Args[0], inner) {
-			return strings.ToLower(id.Name)
-		}
-	case *ast.Ident:
-		switch x.Name {
-		case "None", "true", "false":
-			if x.Name == "None" || pc.isValue(x.Name) {
-				return strings.ToLower(x.Name)
-			}
-		}
-	}
-	return ""
 }
 
 // condition is a case's if-statement init and condition. Simple patterns bind

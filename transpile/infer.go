@@ -14,7 +14,7 @@ func (e *engine) infer(f *fileState) {
 	delete(e.pending, f)
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || !e.isRuntimeFunc(sel) {
+		if !ok || !e.isRuntimeFunc(sel) || !f.lowerable(sel.Pos()) {
 			return true
 		}
 		if ix, ok := f.parents[sel].(*ast.IndexExpr); ok && ix.X == sel {

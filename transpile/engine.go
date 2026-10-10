@@ -78,6 +78,11 @@ func (e *engine) run() {
 			return
 		}
 		for _, f := range e.vuka {
+			for _, t := range f.tries {
+				t.fresh = false
+			}
+		}
+		for _, f := range e.vuka {
 			embedded := e.embedFiles(f)
 			e.classify(f)
 			if embedded {
@@ -105,6 +110,9 @@ func (e *engine) run() {
 		if len(*e.errs) > 0 || !e.progress {
 			break
 		}
+	}
+	if len(*e.errs) == 0 && e.info != nil {
+		e.staticCycles()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.report()
@@ -208,7 +216,7 @@ func (e *engine) qualify() {
 			continue
 		}
 		for _, id := range f.ast.Unresolved {
-			if !runtimeNames[id.Name] || e.declared[id.Name] || f.off(id.Pos()) >= f.body {
+			if !runtimeNames[id.Name] || e.declared[id.Name] || !f.lowerable(id.Pos()) {
 				continue
 			}
 			off := f.orig(id.Pos())
@@ -367,7 +375,12 @@ func (e *engine) report() {
 			strings.Contains(te.Msg, "cannot infer T") {
 			continue
 		}
-		e.errs.add(e.typeErrPos(te), "%s", te.Msg)
+		pos, msg := e.typeErrPos(te), te.Msg
+		if f := e.fileOf(te.Pos); f != nil && f.vuka {
+			m := SourceMap{spellings: f.spellings}
+			msg = m.Message(pos.Line, msg)
+		}
+		e.errs.add(pos, "%s", msg)
 		shown++
 	}
 }

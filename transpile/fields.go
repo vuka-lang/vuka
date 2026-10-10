@@ -203,7 +203,7 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 	}
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || f.off(sel.Pos()) >= f.body {
+		if !ok || !f.lowerable(sel.Pos()) {
 			return true
 		}
 		base, first, names := e.refChain(sel)
@@ -267,11 +267,16 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			}
 			idx = append(idx, "{"+strings.Join(parts, ", ")+"}")
 		}
-		rt, baseText := f.runtime(), f.nodeText(base)
+		rt, baseText, vt := f.runtime(), f.nodeText(base), e.typeTextAuto(f, fieldT)
 		f.insert(f.orig(base.Pos()), rt+"."+refKind(fieldT)+"Of[", 0)
 		end := f.orig(base.End())
 		dot := end + strings.IndexByte(string(f.src[end:at]), '.')
-		f.add(dot, dot+1, ", "+e.typeTextAuto(f, fieldT)+"]([][]int{"+strings.Join(idx, ", ")+"}, func(__x *"+baseText+") { _ = __x.")
+		f.add(dot, dot+1, ", "+vt+"]([][]int{"+strings.Join(idx, ", ")+"}, func(__x *"+baseText+") { _ = __x.")
+		// go/types and the compiler abbreviate the function literal differently.
+		b, ref := types.ExprString(base), e.refName(base, names[:len(steps)])
+		for _, fn := range []string{"func(__x *" + b + ") {…}", "(func(__x *" + b + ") literal)"} {
+			f.spell(rt+"."+refKind(fieldT)+"Of["+b+", "+vt+"]([][]int{…}, "+fn+")", ref, f.orig(base.Pos()))
+		}
 		for i, rel := range rels {
 			if rel {
 				from, to := f.orig(names[i].End()), f.orig(names[i+1].Pos())

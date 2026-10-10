@@ -1,0 +1,27 @@
+package main
+
+type Post struct {
+	Views int
+
+	static A = Post.B + 1
+	static B = Post.C * 2
+	static C = Post.A
+	static Itself = Post.Itself
+	static Fine = Post.Views.Asc()
+}
+
+type Model[Self any] struct {
+	static X int = Model[Self].Y
+	static Y int = Model[Self].X + 1
+}
+
+type User struct {
+	static viaFunc = User.n()
+	static viaMethod = (&User{}).m()
+}
+
+func User.n() int { return User.viaFunc }
+
+func (u *User) m() int { return User.viaMethod }
+
+var _ = Post.Fine

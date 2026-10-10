@@ -1,0 +1,71 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+func find(n int) Result[Option[int]] {
+	switch {
+	case n < 0:
+		return Err[Option[int]](errors.New("negative"))
+	case n == 0:
+		return Ok(None[int]())
+	}
+	return Ok(Some(n * 10))
+}
+
+// x has the type ? unwraps to when the match is checked.
+func run(n int) error {
+	x := find(n)?
+	match x {
+	case Some(v):
+		fmt.Println("some", v)
+	case None:
+		fmt.Println("none")
+	}
+	return nil
+}
+
+// Nested patterns cover Ok as a whole.
+func show(r Result[Option[int]]) string {
+	match r {
+	case Ok(Some(10)):
+		return "ten"
+	case Ok(Some(p)):
+		return fmt.Sprint("some ", p)
+	case Ok(None):
+		return "none"
+	case Err(e):
+		return "error " + e.Error()
+	}
+}
+
+type Flags struct {
+	Admin, Active bool
+	Name          string
+}
+
+func describe(f Flags) string {
+	match f {
+	case Flags{Admin: true, Active: true}:
+		return "active admin"
+	case Flags{Admin: true}:
+		return "admin"
+	case Flags{Active: false, Name: "root"}:
+		return "inactive root"
+	case Flags{Active: b}:
+		return fmt.Sprint("user ", b)
+	}
+}
+
+func main() {
+	for _, n := range []int{1, 0, -1} {
+		if err := run(n); err != nil {
+			fmt.Println(err)
+		}
+		fmt.Println(show(find(n)))
+	}
+	fmt.Println(show(find(2)))
+	fmt.Println(describe(Flags{Admin: true, Active: true}), describe(Flags{Admin: true}), describe(Flags{Name: "root"}), describe(Flags{Active: true}))
+}

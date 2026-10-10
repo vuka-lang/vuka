@@ -42,6 +42,27 @@ error. Both are reported before Go sees the code:
 main.vuka:4:2: match on Result[int] isn't exhaustive: missing Err(_); add the missing cases or case _:
 ```
 
+Coverage goes inside patterns: `Ok` is covered when the patterns inside the Ok
+cases cover the Result's value, and a struct when its fields' patterns do,
+together. So on a `Result[Option[User]]`
+
+```vuka
+match r {
+case Ok(Some(u)):
+	…
+case Ok(None):
+	…
+case Err(e):
+	…
+}
+```
+
+needs no catch-all, while leaving out `case Ok(None):` reports
+`missing Ok(None)`. A case whose patterns earlier cases already match entirely
+— `case Ok(Some(u)):` after `case Ok(_):` — is unreachable, and an error too.
+Guarded cases cover nothing; literals, constants and type tests cover only a
+value of their own, so `Some(1)` leaves `Some(_)` missing.
+
 ## What it becomes
 
 An `if`/`else if` chain; bodies stay where you wrote them:
