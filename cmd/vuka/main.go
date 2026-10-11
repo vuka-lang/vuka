@@ -29,7 +29,9 @@ Usage:
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        an app on github.com/vuka-lang/web gets its Tailwind CSS (run keeps it
-	        rebuilt, build embeds it; VUKA_TAILWIND=off for none)
+	        rebuilt, build embeds it; VUKA_TAILWIND=off for none); a Vite project in
+	        frontend/ too (run starts its dev server, build runs vite build first;
+	        VUKA_FRONTEND=off for none)
 	vuka run -watch [go flags] [package] [args]
 	        run the app and rebuild it when a source changes: the new build
 	        replaces it once it compiles, while the old one keeps serving
@@ -144,9 +146,12 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		}
 	}
 	var env []string
-	stopTailwind := func() {}
+	stopTailwind, stopFrontend := func() {}, func() {}
 	switch cmd {
 	case "build", "install":
+		if err := buildFrontend(root, stderr); err != nil {
+			return err
+		}
 		css, err := buildTailwind(root, overlay)
 		if err != nil {
 			return err
@@ -165,6 +170,8 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		if css != "" {
 			env = append(env, twCSSEnv+"="+css)
 		}
+		stopFrontend = devFrontend(root, stderr)
+		defer stopFrontend()
 	}
 	if cmd == "build" && len(pkgs) > 0 {
 		if _, err := load.Mirror(root, filepath.Join(root, "build"), gens, false); err != nil {
@@ -197,6 +204,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 				for s := range sig {
 					stopTailwind()
 					c.Process.Signal(s)
+					stopFrontend()
 				}
 			}()
 			err = c.Wait()

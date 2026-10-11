@@ -175,6 +175,8 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if css != "" {
 		s.env = append(s.env, twCSSEnv+"="+css)
 	}
+	stopFrontend := devFrontend(root, stderr)
+	defer stopFrontend()
 	changes := make(chan []string)
 	go s.w.run(ctx, watchInterval, watchQuiet, changes)
 
@@ -198,6 +200,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 			cancel()
 			stopTailwind()
 			s.app.stop(first, 0, sig)
+			stopFrontend()
 			return nil
 		case <-changes:
 			changed = time.Now()

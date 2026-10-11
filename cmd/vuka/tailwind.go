@@ -119,7 +119,8 @@ func walkSources(root string, fn func(path, name string) error) error {
 				return nil
 			}
 			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "node_modules" || name == "testdata" ||
-				name == "examples" || name == "vendor" || fileExists(filepath.Join(path, "go.mod")) || fileExists(filepath.Join(path, load.Marker)) {
+				name == "examples" || name == "vendor" || fileExists(filepath.Join(path, "go.mod")) || fileExists(filepath.Join(path, load.Marker)) ||
+				fileExists(filepath.Join(path, "package.json")) { // a frontend's: its .html files aren't views
 				return filepath.SkipDir
 			}
 			return nil
