@@ -130,6 +130,10 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	pa, err := findAssets(root, modPath)
+	if err != nil {
+		return err
+	}
 	goArgs := []string{cmd}
 	tmp, err := os.MkdirTemp("", "vuka-")
 	if err != nil {
@@ -139,7 +143,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	var gens []load.Generated
 	var overlay string
 	if len(pkgs) > 0 {
-		if gens, overlay, err = load.Transpile(pkgs, tmp, load.Options{}); err != nil {
+		if gens, overlay, err = load.Transpile(pkgs, tmp, loadOptions(pa)); err != nil {
 			return err
 		}
 	}
@@ -147,7 +151,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	stopTailwind := func() {}
 	switch cmd {
 	case "build", "install":
-		css, err := buildTailwind(root, overlay)
+		css, err := buildTailwind(root, overlay, pa, stderr)
 		if err != nil {
 			return err
 		}
@@ -160,7 +164,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	case "run":
 		env = append(env, devDirEnv+"="+tmp)
 		var css string
-		css, stopTailwind = devTailwind(root, overlay, stderr)
+		assets := newDevAssets(root, stderr)
+		defer assets.close()
+		assets.set(pa)
+		env = append(env, assetsEnv+"="+assets.dir())
+		css, stopTailwind = devTailwind(root, overlay, stderr, assets)
 		defer stopTailwind()
 		if css != "" {
 			env = append(env, twCSSEnv+"="+css)
@@ -313,11 +321,15 @@ func gen(args []string, stdout io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	files, overlay, err := load.Transpile(pkgs, tmp, load.Options{})
+	pa, err := findAssets(root, modPath)
 	if err != nil {
 		return err
 	}
-	css, err := buildTailwind(root, overlay)
+	files, overlay, err := load.Transpile(pkgs, tmp, loadOptions(pa))
+	if err != nil {
+		return err
+	}
+	css, err := buildTailwind(root, overlay, pa, os.Stderr)
 	if err != nil {
 		return err
 	}
@@ -396,11 +408,15 @@ func genModule(out string, check bool, stdout io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
-	gens, overlay, err := load.Transpile(pkgs, tmp, load.Options{})
+	pa, err := findAssets(root, modPath)
 	if err != nil {
 		return err
 	}
-	css, err := buildTailwind(root, overlay)
+	gens, overlay, err := load.Transpile(pkgs, tmp, loadOptions(pa))
+	if err != nil {
+		return err
+	}
+	css, err := buildTailwind(root, overlay, pa, os.Stderr)
 	if err != nil {
 		return err
 	}

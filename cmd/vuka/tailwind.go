@@ -205,7 +205,9 @@ func componentDirs(dirs []string) []string {
 
 // writeEntry writes the stylesheet Tailwind builds, in the module's
 // .vuka/tailwind (git-ignored by its own .gitignore), and returns its path.
-func (tw *tailwind) writeEntry(deps []string) (string, error) {
+// css are the pages' stylesheets (compileAssets), imported after the app's
+// in order: the global ones, then each component's, scoped.
+func (tw *tailwind) writeEntry(deps, css []string) (string, error) {
 	dir := filepath.Join(tw.root, filepath.FromSlash(twCacheDir))
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", err
@@ -219,6 +221,9 @@ func (tw *tailwind) writeEntry(deps []string) (string, error) {
 		fmt.Fprintf(&b, "@import %q;\n", filepath.ToSlash(tw.sheet))
 	} else {
 		b.WriteString("@import \"tailwindcss\";\n")
+	}
+	for _, f := range css {
+		fmt.Fprintf(&b, "@import %q;\n", filepath.ToSlash(f))
 	}
 	fmt.Fprintf(&b, "@source %q;\n", filepath.ToSlash(tw.root)+"/**/*.{vuka,templ,html,go}")
 	for _, d := range deps {
@@ -239,18 +244,18 @@ func writeIfChanged(path string, data []byte) error {
 // stylesheet's path, for the app's VUKA_TAILWIND_CSS, and a function
 // stopping it. Without the Tailwind CLI it says how to install it and
 // returns "". The watcher starts in the background, while go builds.
-func devTailwind(root, overlay string, stderr io.Writer) (string, func()) {
+func devTailwind(root, overlay string, stderr io.Writer, assets *devAssets) (string, func()) {
 	tw, err := tailwindFor(root)
 	if err != nil {
 		fmt.Fprintln(stderr, "vuka: tailwind:", err)
 	}
 	if tw == nil {
-		return "", func() {}
+		return plainCSS(root, assets), func() {}
 	}
 	bin, err := tailwindBinary(root)
 	if err != nil {
 		fmt.Fprintln(stderr, "vuka:", err)
-		return "", func() {}
+		return plainCSS(root, assets), func() {}
 	}
 	out := filepath.Join(root, filepath.FromSlash(twCacheDir), "app.css")
 	var (
@@ -264,10 +269,14 @@ func devTailwind(root, overlay string, stderr io.Writer) (string, func()) {
 		if err != nil {
 			fmt.Fprintln(stderr, "vuka: tailwind:", err)
 		}
-		entry, err := tw.writeEntry(componentDirs(pkgs.deps))
+		deps := componentDirs(pkgs.deps)
+		entry, err := tw.writeEntry(deps, assets.stylesheets())
 		if err != nil {
 			fmt.Fprintln(stderr, "vuka: tailwind:", err)
 			return
+		}
+		if assets != nil {
+			assets.onEntry(func() { tw.writeEntry(deps, assets.stylesheets()) })
 		}
 		mu.Lock()
 		defer mu.Unlock()
@@ -329,49 +338,102 @@ func (l *twLog) Write(p []byte) (int, error) {
 	}
 }
 
-// buildTailwind builds the minified stylesheet and returns, for each main
-// package depending on web, the file embedding it. A web too old to take it
-// (no RegisterCSS) gets none.
-func buildTailwind(root, overlay string) ([]load.Generated, error) {
+// plainCSS is, for vuka run without Tailwind, the pages' stylesheets
+// (web.Style) as they are, scoped, in one file the app serves as its
+// stylesheet; "" when they have none.
+func plainCSS(root string, assets *devAssets) string {
+	if assets == nil || len(assets.stylesheets()) == 0 {
+		return ""
+	}
+	f := filepath.Join(root, filepath.FromSlash(twCacheDir), "app.css")
+	assets.mu.Lock()
+	assets.plain = f
+	assets.compile()
+	assets.mu.Unlock()
+	return f
+}
+
+// buildTailwind builds the minified stylesheet, with the pages' scoped
+// stylesheets (pa), and returns, for each main package depending on web,
+// the file embedding it, and the one embedding the components' scripts. A
+// web too old to take them (no RegisterCSS, RegisterAssets) gets none.
+// Without Tailwind (VUKA_TAILWIND=off) the stylesheet is the pages' own
+// stylesheets, as they are. Warnings (selectors matching nothing) go to warn.
+func buildTailwind(root, overlay string, pa *pageAssets, warn io.Writer) ([]load.Generated, error) {
 	tw, err := tailwindFor(root)
-	if tw == nil || err != nil {
+	if err != nil || tw == nil && pa.empty() {
 		return nil, err
 	}
 	pkgs, err := listPackages(root, overlay)
 	if err != nil || len(pkgs.mains) == 0 || !hasRegisterCSS(pkgs.web) {
 		return nil, err // a web without RegisterCSS predates Tailwind support
 	}
-	bin, err := tailwindBinary(root)
-	if err != nil {
-		return nil, fmt.Errorf("%v; or VUKA_TAILWIND=off to build without it", err)
-	}
-	entry, err := tw.writeEntry(componentDirs(pkgs.deps))
+	comp, err := compileAssets(pa, false, warn)
 	if err != nil {
 		return nil, err
 	}
-	out := filepath.Join(filepath.Dir(entry), "app.min.css")
-	c := exec.Command(bin, "-i", entry, "-o", out, "--minify")
-	c.Dir = root
-	if msg, err := c.CombinedOutput(); err != nil {
-		return nil, fmt.Errorf("tailwindcss: %v\n%s", err, msg)
+	var gens []load.Generated
+	if !pa.empty() && hasWebFunc(pkgs.web, "RegisterAssets") {
+		src := assetsGo(comp)
+		for _, dir := range pkgs.mains {
+			gens = append(gens, load.Generated{Target: filepath.Join(dir, assetsGoName), Src: src})
+		}
 	}
-	css, err := os.ReadFile(out)
-	if err != nil {
-		return nil, err
+	var css []byte
+	if tw == nil {
+		if len(comp.css) == 0 {
+			return gens, nil
+		}
+		if src, ok := twNoTailwindIn(root); ok {
+			return nil, fmt.Errorf("%s: web.NoTailwind() turns off the stylesheet web.Style and web.CSS compile into", src)
+		}
+		css = comp.plain
+	} else {
+		bin, err := tailwindBinary(root)
+		if err != nil {
+			return nil, fmt.Errorf("%v; or VUKA_TAILWIND=off to build without it", err)
+		}
+		entry, err := tw.writeEntry(componentDirs(pkgs.deps), comp.css)
+		if err != nil {
+			return nil, err
+		}
+		out := filepath.Join(filepath.Dir(entry), "app.min.css")
+		c := exec.Command(bin, "-i", entry, "-o", out, "--minify")
+		c.Dir = root
+		if msg, err := c.CombinedOutput(); err != nil {
+			return nil, fmt.Errorf("tailwindcss: %v\n%s", err, msg)
+		}
+		if css, err = os.ReadFile(out); err != nil {
+			return nil, err
+		}
 	}
 	src := []byte("// Code generated by vuka: the app's Tailwind CSS. DO NOT EDIT.\n\npackage main\n\n" +
 		"import vukaweb \"" + webPath + "\"\n\n" +
 		"func init() { vukaweb.RegisterCSS(\"app.css\", []byte(vukaTailwindCSS)) }\n\n" +
 		"const vukaTailwindCSS = " + strconv.Quote(string(css)) + "\n")
-	from := []byte(nil)
-	if tw.sheet != "" {
-		from, _ = os.ReadFile(tw.sheet)
+	from, sheet := []byte(nil), ""
+	if tw != nil && tw.sheet != "" {
+		sheet = tw.sheet
+		from, _ = os.ReadFile(sheet)
 	}
-	var gens []load.Generated
 	for _, dir := range pkgs.mains {
-		gens = append(gens, load.Generated{Target: filepath.Join(dir, twGoName), Source: tw.sheet, Src: src, From: from})
+		gens = append(gens, load.Generated{Target: filepath.Join(dir, twGoName), Source: sheet, Src: src, From: from})
 	}
 	return gens, nil
+}
+
+// twNoTailwindIn finds a source calling web.NoTailwind().
+func twNoTailwindIn(root string) (string, bool) {
+	found := ""
+	walkSources(root, func(path, name string) error {
+		if found == "" && (strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".go")) && !strings.HasSuffix(name, "_test.go") {
+			if src, err := os.ReadFile(path); err == nil && twNoOption.Match(src) {
+				found, _ = filepath.Rel(root, path)
+			}
+		}
+		return nil
+	})
+	return found, found != ""
 }
 
 func hasRegisterCSS(dir string) bool {
@@ -403,7 +465,7 @@ func addToOverlay(overlay, tmp string, gens []load.Generated) (string, error) {
 		overlay = filepath.Join(tmp, "overlay.json")
 	}
 	for i, g := range gens {
-		file := filepath.Join(tmp, fmt.Sprintf("tw%d_%s", i, twGoName))
+		file := filepath.Join(tmp, fmt.Sprintf("tw%d_%s", i, filepath.Base(g.Target)))
 		if err := os.WriteFile(file, g.Src, 0o644); err != nil {
 			return "", err
 		}

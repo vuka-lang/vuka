@@ -80,7 +80,7 @@ func TestTailwindEntry(t *testing.T) {
 		t.Errorf("componentDirs: %v, want %v", deps, want)
 	}
 	for _, sheet := range []string{filepath.Join(root, "app.css"), ""} {
-		entry, err := (&tailwind{root: root, sheet: sheet}).writeEntry(deps)
+		entry, err := (&tailwind{root: root, sheet: sheet}).writeEntry(deps, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,7 +136,7 @@ echo stopped > BIN/stopped
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+goDir)
 	root := tempModule(t, map[string]string{"go.mod": webMod, "app.css": `@import "tailwindcss";`})
 	var log syncBuffer
-	css, stop := devTailwind(root, "", &log)
+	css, stop := devTailwind(root, "", &log, nil)
 	if want := filepath.Join(root, ".vuka", "tailwind", "app.css"); css != want {
 		t.Fatalf("stylesheet %s, want %s", css, want)
 	}
@@ -156,7 +156,7 @@ echo stopped > BIN/stopped
 
 	t.Setenv("PATH", goDir)
 	log.Reset()
-	if css, stop := devTailwind(root, "", &log); css != "" || !strings.Contains(log.String(), twInstall) {
+	if css, stop := devTailwind(root, "", &log, nil); css != "" || !strings.Contains(log.String(), twInstall) {
 		t.Errorf("without Tailwind: %q, %q", css, log.String())
 	} else {
 		stop()
@@ -329,12 +329,12 @@ func TestBuildTailwindOldWeb(t *testing.T) {
 		"web/go.mod": "module github.com/vuka-lang/web\n\ngo 1.25.0\n",
 		"web/web.go": "package web\n",
 	})
-	gens, err := buildTailwind(root, "")
+	gens, err := buildTailwind(root, "", nil, io.Discard)
 	if err != nil || gens != nil {
 		t.Errorf("buildTailwind: %v %v", gens, err)
 	}
 	writeFile(t, filepath.Join(root, "web", "css.go"), "package web\n\nfunc RegisterCSS(name string, css []byte) {}\n")
-	if _, err := buildTailwind(root, ""); err == nil || !strings.Contains(err.Error(), twInstall) {
+	if _, err := buildTailwind(root, "", nil, io.Discard); err == nil || !strings.Contains(err.Error(), twInstall) {
 		t.Errorf("a web with RegisterCSS, no Tailwind CLI: %v", err)
 	}
 }

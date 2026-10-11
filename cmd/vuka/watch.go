@@ -154,8 +154,11 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		rand.Read(key)
 		env = append(env, liveKeyEnv+"="+hex.EncodeToString(key))
 	}
+	assets := newDevAssets(root, stderr)
+	defer assets.close()
+	env = append(env, assetsEnv+"="+assets.dir())
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
-		w: newWatcher(root), exits: make(chan *app, 4)}
+		w: newWatcher(root), exits: make(chan *app, 4), assets: assets}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -170,7 +173,10 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if first.err != nil {
 		overlay = "" // finish removes it
 	}
-	css, stopTailwind := devTailwind(root, overlay, stderr)
+	if first.err == nil {
+		s.assets.set(first.pa)
+	}
+	css, stopTailwind := devTailwind(root, overlay, stderr, s.assets)
 	defer stopTailwind()
 	if css != "" {
 		s.env = append(s.env, twCSSEnv+"="+css)
@@ -237,6 +243,7 @@ type supervisor struct {
 	w              *watcher
 	app            *app      // the running build; nil when none runs
 	exits          chan *app // each app, once it has exited
+	assets         *devAssets
 }
 
 type buildResult struct {
@@ -247,6 +254,7 @@ type buildResult struct {
 	out     []byte // what the build said
 	err     error
 	embeds  []string
+	pa      *pageAssets // the styles and scripts the sources declare
 }
 
 func (r *buildResult) discard() { os.RemoveAll(r.dir) }
@@ -269,9 +277,13 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	if r.pa, err = findAssets(s.root, modPath); err != nil {
+		r.err = err
+		return r
+	}
 	var gens []load.Generated
 	if len(pkgs) > 0 {
-		if gens, r.overlay, err = load.Transpile(pkgs, dir, load.Options{}); err != nil {
+		if gens, r.overlay, err = load.Transpile(pkgs, dir, loadOptions(r.pa)); err != nil {
 			r.err = err
 			return r
 		}
@@ -347,6 +359,9 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		s.setState(buildState{State: "failed", At: time.Now(), Output: out})
 		r.discard()
 		return
+	}
+	if s.assets != nil {
+		s.assets.set(r.pa)
 	}
 	if s.app != nil && s.app.sum == r.sum {
 		fmt.Fprintln(s.stderr, "● unchanged")
