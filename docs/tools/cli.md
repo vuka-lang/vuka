@@ -3,7 +3,7 @@
 ```text
 vuka new <dir> [module path]
 vuka build|run|test|vet|install [go flags] [packages]
-vuka run -watch [go flags] [package] [args]
+vuka run -watch [-debug] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
@@ -51,6 +51,7 @@ it after each change.
 ```sh
 vuka run -watch .
 PORT=8094 vuka run -watch ./cmd/app -v   # flags after the package are the program's
+vuka run -watch -debug .                 # keep debug information, for delve
 ```
 
 - **The app keeps serving while the next build compiles.** vuka builds the new
@@ -58,6 +59,19 @@ PORT=8094 vuka run -watch ./cmd/app -v   # flags after the package are the progr
   SIGTERM (SIGKILL after 2s) and the new one start, with the same arguments
   and environment. `● rebuilt in 1.2s` counts from the save being seen to the
   new process starting; the app is down only for the swap itself.
+- **A rebuild does only what the change needs.** A save is seen as it
+  happens: vuka listens to the system's file events (kqueue on macOS and the
+  BSDs, inotify on Linux), watches new directories as they appear, and starts
+  the build once the files have been calm for 30ms, so an editor's save
+  through a temporary file, or a formatter's rewrite, is one build. Only the
+  packages whose sources changed are transpiled again, plus those importing a
+  package whose API changed; the module's own packages are type-checked in
+  memory rather than compiled for their export data. A save while a build
+  runs stops that build, stale already, and starts the next one.
+- **Builds link without debug information** (`-ldflags=-w`), which makes the
+  link faster and the binary smaller to start. `-debug` keeps it, for delve or
+  a debugger attaching to the app; other `-ldflags` you pass are kept, with
+  `-w` added in front.
 - **A build that fails changes nothing.** The errors print as `vuka build`
   prints them, with the `.vuka` file and line, and the last good build keeps
   running until the code compiles again.
@@ -69,7 +83,9 @@ PORT=8094 vuka run -watch ./cmd/app -v   # flags after the package are the progr
   `.html` view. Hidden files and directories, `build/`, `.vuka/`,
   `node_modules`, `testdata`, `vendor` and nested modules are left alone.
   Saves that come together, like a formatter rewriting several files, make one
-  build.
+  build. Where the system has no file events (or with `VUKA_WATCH=poll`, for a
+  file system that doesn't deliver them), vuka looks at the sources every
+  200ms instead.
 - **Tailwind keeps running** across the restarts, and restyles open pages as it
   does under `vuka run`.
 - **Open [live pages](/web/live) reconnect** to the new build. A development
