@@ -52,6 +52,7 @@ type lspClient struct {
 	next  int
 	resps map[string]chan rpcMsg
 	diags chan map[string]any
+	init  any // initialize's result
 }
 
 func (c *lspClient) loop() {
@@ -139,8 +140,7 @@ func startLSPWith(t *testing.T, files map[string]string) (*lspClient, string, an
 }
 
 func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspClient, string, any) {
-	gopls, err := findGopls("")
-	if err != nil {
+	if _, err := findGopls(""); err != nil {
 		t.Skip(err)
 	}
 	dir := t.TempDir()
@@ -152,7 +152,16 @@ func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspC
 		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
 	}
 	t.Setenv("GOWORK", "off")
+	c := startLSPAt(t, dir, opts)
+	return c, dir, c.init
+}
 
+// startLSPAt runs the proxy on the module at dir and initializes it.
+func startLSPAt(t *testing.T, dir string, opts lspOptions) *lspClient {
+	gopls, err := findGopls("")
+	if err != nil {
+		t.Skip(err)
+	}
 	toProxyR, toProxyW := io.Pipe()
 	fromProxyR, fromProxyW := io.Pipe()
 	ctx, cancel := context.WithCancel(context.Background())
@@ -169,9 +178,9 @@ func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspC
 	})
 	c := &lspClient{t: t, conn: newRPCConn(fromProxyR, toProxyW), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100)}
 	go c.loop()
-	init := c.call("initialize", map[string]any{"rootUri": pathToURI(dir), "capabilities": map[string]any{}})
+	c.init = c.call("initialize", map[string]any{"rootUri": pathToURI(dir), "capabilities": map[string]any{}})
 	c.notify("initialized", map[string]any{})
-	return c, dir, init
+	return c
 }
 
 func TestLSP(t *testing.T) {

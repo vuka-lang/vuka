@@ -2,8 +2,11 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -312,4 +315,195 @@ func TestLSPBenchmark(t *testing.T) {
 func jsonPos(src string, off int) string {
 	p := positionOf([]byte(src), off)
 	return `{"character":` + itoaTest(p.Character) + `,"line":` + itoaTest(p.Line) + `}`
+}
+
+// TestLSPLatency measures how long the language server takes, on a module of
+// some size, to report a syntax error and a type error after an edit, and to
+// answer a hover and a completion while a rebuild is pending. It reports and
+// checks nothing else: run it with -v. VUKA_LSP_BENCH_MODULE and
+// VUKA_LSP_BENCH_FILE (relative to the module) measure an existing module
+// instead of the generated one.
+func TestLSPLatency(t *testing.T) {
+	if testing.Short() {
+		t.Skip("measures")
+	}
+	dir, file := os.Getenv("VUKA_LSP_BENCH_MODULE"), os.Getenv("VUKA_LSP_BENCH_FILE")
+	opts := lspOptions{renameCommands: true}
+	var c *lspClient
+	if dir == "" {
+		c, dir, _ = startLSPOpts(t, latencyModule(24), opts)
+		file = "p00/p00.vuka"
+	} else {
+		t.Setenv("GOWORK", "off")
+		c = startLSPAt(t, dir, opts)
+	}
+	path := filepath.Join(dir, file)
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	src := string(orig)
+	uri := pathToURI(path)
+	version := 1
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka", "version": version, "text": src}})
+	edit := func(text string) time.Time {
+		version++
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": version},
+			"contentChanges": []any{map[string]any{"text": text}}})
+		return time.Now()
+	}
+	// until waits for diagnostics on the file that satisfy ok.
+	until := func(ok func(string) bool) (time.Time, bool) {
+		deadline := time.After(30 * time.Second)
+		for {
+			select {
+			case p := <-c.diags:
+				if p["uri"] != uri {
+					continue
+				}
+				b, _ := json.Marshal(p["diagnostics"])
+				if ok(string(b)) {
+					return time.Now(), true
+				}
+			case <-deadline:
+				return time.Now(), false
+			}
+		}
+	}
+	// quiet drains diagnostics until none come for a while.
+	quiet := func() string {
+		last := ""
+		for {
+			select {
+			case p := <-c.diags:
+				if p["uri"] == uri {
+					b, _ := json.Marshal(p["diagnostics"])
+					last = string(b)
+				}
+			case <-time.After(1500 * time.Millisecond):
+				return last
+			}
+		}
+	}
+	base := quiet()
+	t.Logf("%s: settled; diagnostics %.200s", file, base)
+	clean := func(d string) bool { return d == base || d == "null" || d == "[]" }
+
+	const runs = 5
+	measure := func(name, add string, ok func(string) bool) {
+		var ds []time.Duration
+		for i := 0; i < runs; i++ {
+			start := edit(src + add + fmt.Sprintf("\n// %d\n", i))
+			at, found := until(ok)
+			if !found {
+				t.Errorf("%s: no diagnostic", name)
+				return
+			}
+			ds = append(ds, at.Sub(start))
+			edit(src)
+			until(clean)
+			quiet()
+		}
+		t.Logf("%-28s %v", name, median(ds))
+	}
+	measure("syntax error (Go syntax)", "\nfunc zzSyntax() { ) }\n", func(d string) bool { return strings.Contains(d, `"source":"vuka"`) })
+	measure("syntax error (Vuka)", "\n@zz(\nfunc zzAttr() {}\n", func(d string) bool { return strings.Contains(d, `"source":"vuka"`) })
+	measure("type error", "\nfunc zzType() int { return \"x\" }\n", func(d string) bool { return strings.Contains(d, "cannot use") })
+
+	// A request while a rebuild is pending: the edit is far from where it asks.
+	needle := os.Getenv("VUKA_LSP_BENCH_HOVER")
+	if needle == "" {
+		needle = "func "
+	}
+	off := strings.Index(src, needle)
+	if off < 0 {
+		t.Fatalf("no %q in %s", needle, file)
+	}
+	off += len(needle) + 1
+	at := map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(src), off)}
+	for _, method := range []string{"textDocument/hover", "textDocument/completion"} {
+		var ds []time.Duration
+		answered := 0
+		for i := 0; i < runs; i++ {
+			edit(src + fmt.Sprintf("\n// pending %d\n", i))
+			start := time.Now()
+			if v := c.call(method, at); v != nil {
+				answered++
+			}
+			ds = append(ds, time.Since(start))
+			quiet()
+		}
+		t.Logf("%-28s %v (%d/%d answered)", method+" while pending", median(ds), answered, runs)
+	}
+	edit(src)
+	quiet()
+}
+
+func median(ds []time.Duration) time.Duration {
+	s := slices.Clone(ds)
+	slices.Sort(s)
+	return s[len(s)/2].Round(time.Millisecond)
+}
+
+// latencyModule is a module of n packages importing one core package, each
+// using what Vuka adds to Go.
+func latencyModule(n int) map[string]string {
+	files := map[string]string{
+		"core/core.vuka": `package core
+
+import "fmt"
+
+type User struct {
+	ID   int
+	Name string
+}
+
+type Shape interface{ Area() float64 }
+
+func Find(id int) Result[User] {
+	if id == 0 {
+		return Err(fmt.Errorf("no user"))
+	}
+	return Ok(User{ID: id, Name: fmt.Sprint("user", id)})
+}
+
+func Lookup(name string) Option[User] {
+	if name == "" {
+		return None[User]()
+	}
+	return Some(User{Name: name})
+}
+`,
+	}
+	var imports, calls strings.Builder
+	for i := 0; i < n; i++ {
+		name := fmt.Sprintf("p%02d", i)
+		var b strings.Builder
+		fmt.Fprintf(&b, "package %s\n\nimport (\n\t\"fmt\"\n\n\t\"lsptest/core\"\n)\n\n", name)
+		for j := 0; j < 12; j++ {
+			fmt.Fprintf(&b, `func Name%d(id int) Result[string] {
+	u := core.Find(id)?
+	return Ok(u.Name)
+}
+
+func Describe%d(id int) string {
+	match core.Lookup(fmt.Sprint(id)) {
+	case Some(u):
+		return u.Name
+	case None:
+		return "none"
+	}
+}
+
+func area%d(r float64) float64 { return r * r * %d }
+func area%d(w, h float64) float64 { return w * h }
+
+`, j, j, j, j+1, j)
+		}
+		files[name+"/"+name+".vuka"] = b.String()
+		fmt.Fprintf(&imports, "\t\"lsptest/%s\"\n", name)
+		fmt.Fprintf(&calls, "\tfmt.Println(%s.Describe0(%d))\n", name, i)
+	}
+	files["main.vuka"] = "package main\n\nimport (\n\t\"fmt\"\n\n" + imports.String() + ")\n\nfunc main() {\n" + calls.String() + "}\n"
+	return files
 }
