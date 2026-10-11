@@ -14,8 +14,10 @@ drawer of panels for that request.
 **Request.** The method, path and status; the route's pattern
 (`GET /pets/{id}`); the handler that answered, with its file and line; the
 arguments it was called with and where each came from — path, query, body
-or a dependency; and the request's and response's headers, with cookies and
-credentials hidden.
+or a dependency (fields named like a password, token or secret hidden); and
+the request's and response's headers, with cookies and credentials hidden.
+With [`web/auth`](/web/auth), who the request came from and which gate let
+it through or refused it.
 
 **SQL.** Every statement the request ran, in order, with its arguments,
 rows and time as a bar. A statement that ran more than once is amber. One
@@ -45,6 +47,9 @@ are failures only the browser saw: a push that got no reply in time, a
 connection that dropped under it.
 
 ![A live page's messages](/toolbar-live.png)
+
+**Assets.** The page's [styles and scripts](/web/assets): its scoped
+components, their files and their module, and the app-wide ones.
 
 **Crons.** The app's [crons](/web/crons): each one's schedule, function,
 next run and last run (red when it failed), and a **Run now** button. Each
@@ -171,9 +176,9 @@ func init() {
 
 A panel noted without `AddPanel` lists its values as they are. A panel's
 markup may use the toolbar's classes: `kv` and `grid` tables, `dim`,
-`errtext`, `status`, and `preview` for an `<iframe>`, as the Mail panel's. `web.Note`
-does nothing outside development, so it can stay in production code. A
-panel whose render panics shows the panic in its place.
+`errtext`, `status`, and `preview` for an `<iframe>`, as the Mail panel's.
+`web.Note` does nothing outside development, so it can stay in production
+code. A panel whose render panics shows the panic in its place.
 
 **Another database layer.** The [ORM](/orm/)'s statements reach the SQL
 panel through `ormweb` by themselves. Another library reports its own with
