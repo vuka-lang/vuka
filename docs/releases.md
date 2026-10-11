@@ -10,6 +10,37 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.20.0 — 2026-10-11 — security release
+
+The vuka command only; the language and runtime are unchanged (v0.17.0, runtime
+v0.16.0). New apps use [`github.com/vuka-lang/ui`](/ui/) v0.10.0,
+[web](https://github.com/vuka-lang/web) v0.15.0 and
+[orm](https://github.com/vuka-lang/orm) v0.4.0, which fix the issues a security
+review found. Upgrade apps with `go get` of those versions, and build them with
+Go 1.27.2 or newer.
+
+What apps may notice:
+
+- **Live pages.** A navigation keeps a page mounted only when it declares an
+  `Update` taking `web.URLParams` — and that `Update` must repeat the checks
+  `Mount` makes; any other page mounts again. Errors that aren't `*web.Error`
+  read "Internal Server Error" outside development (logged in full). Live
+  connections have limits: join within 10s, idle 30m, 10,000 in all, 100 per
+  client address, 4 per page; checks run every 30s and before broadcasts.
+- **JS commands.** `SetAttr`, `RemoveAttr` and `ToggleAttr` refuse event
+  handler attributes and `srcdoc`; URL values and `Navigate`/`Patch` take only
+  paths and http(s) URLs.
+- **Auth.** Gated calls are strict by default (`auth.System(ctx)` for jobs and
+  `main`; crons get it automatically; `LaxGates` opts out). Failed logins take
+  at least 300ms. Throttling counts per account and folds spellings. Policies
+  match `T` and `*T`. Live pages reload when a user's permissions change.
+- **Requests.** Security headers by default; request bodies capped at 32 MiB;
+  forwarded headers trusted only from `web.TrustedProxies`; static files never
+  list directories or serve dotfiles; `.env` files can't set `VUKA_*`.
+- **ORM.** A `ReadOnly` database is read-only on the server; pools are capped by
+  default (20 open); `/healthz` shows states only outside development;
+  `orm migrate` asks before unapplying.
+
 ## v0.17.0 — 2026-10-11
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.19.0`. With

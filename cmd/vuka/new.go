@@ -27,9 +27,9 @@ import (
 // The versions a new app requires; vuka mod tidy brings in the rest.
 const (
 	vukaVersion = "v0.17.0"
-	uiVersion   = "v0.9.0"
-	webVersion  = "v0.14.0"
-	ormVersion  = "v0.3.0"
+	uiVersion   = "v0.10.0"
+	webVersion  = "v0.15.0"
+	ormVersion  = "v0.4.0"
 )
 
 // scaffoldFS holds the files vuka new and vuka add write. A path segment
