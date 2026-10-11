@@ -25,6 +25,29 @@ func Computed(name string) reftarget.Node {
 	return <p ref={name} onClick={reftarget.Hide(reftarget.Ref("anything"))}>x</p>
 }
 
+func Several() reftarget.Node {
+	return <form ref="form">
+		<input ref="username" /><input ref="password" />
+		<button onClick={reftarget.Hide(reftarget.Ref("username", "pasword", "form", "usrname"))}>ok</button>
+	</form>
+}
+
+func Login(name string) reftarget.Node {
+	fields := reftarget.GetAttr("name", "username", "password")
+	typo := reftarget.GetAttr("name", "usrname", reftarget.Prefix("x"), name)
+	other := reftarget.GetAttr("type", "email")
+	unwritten := reftarget.GetAttr("data-step", "anything")
+	present := reftarget.GetAttr("required")
+	return <form onSubmit={reftarget.Hide(fields)}>
+		<input name="username" required /><input name="password" type="password" />
+		<button onClick={reftarget.Hide(typo)}>{other}{unwritten}{present}</button>
+	</form>
+}
+
+func Computed2(kind string) reftarget.Node {
+	return <input name={kind} type="text" onClick={reftarget.Hide(reftarget.GetAttr("name", "anything"))} />
+}
+
 func NoJSX() reftarget.Target { return reftarget.Ref("elsewhere") }
 
 func main() {}

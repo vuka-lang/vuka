@@ -52,6 +52,8 @@ their own.
 | `Key(keys...)` | stop unless a key press is one of `keys` (`"Enter"`, `"Escape"`) |
 | `Confirm(msg)` | stop unless the user confirms |
 | `If(cond)`, `ElseIf(cond)`, `Else()`, `End()` | branches |
+| `When(cond, chain)`, `Else(chain)` | a branch as a block: no `End` ([below](#when)) |
+| `Busy(t?, ui.Timeout(d)?)` | mark an element busy while a post or push is under way ([below](#busy-forms)) |
 | `Copy(t)`, `CopyText(s)` | the clipboard: an element's value or text, or a string |
 | `ScrollTo(t)` | scroll the element into view |
 | `SetValue(t, v)` | set a field's value (a checkbox's `"true"`), firing `input` and `change` |
@@ -66,19 +68,49 @@ their own.
 |---|---|
 | `ui.This` | the element the attribute is on — the default |
 | `ui.Ref("menu")` | the element with `ref="menu"` in the same component instance |
+| `ui.Ref("username", "password")` | the elements with either ref |
+| `ui.GetAttr("name", "username", "password")` | the instance's elements whose `name` is one of the values |
+| `ui.GetAttr("data-step")` | the instance's elements that have the attribute |
 | `ui.Closest(".card")` | the closest ancestor (or itself) matching a selector |
 | `ui.Inner(".item")` | its descendants matching a selector |
-| `ui.Sel("#x")`, `"#x"` | every element of the document matching a selector |
+| `ui.Sel("#x")`, `"#x"`, `ui.Sel("#x", ".y")` | every element of the document matching a selector, or any of several |
+
+A target of several parts finds every element any part finds, in page
+order, each once. A command acting on one element — `Focus`, `ScrollTo`,
+`Copy`, and a read passed to `Call` — takes the first.
 
 `ref="menu"` names an element for commands; it renders as `data-vk-ref`.
 A ref is the instance's own: a list of ten `<Dropdown>`s each opens its own
 menu, though every one is `ref="menu"`. Prefer refs to selectors — they need
 no ids and can't reach into another component. The compiler checks them: a
 `ui.Ref("mnu")` in a `Render` whose JSX has no `ref="mnu"` is an error,
-`no ref="mnu" in Dropdown's render; did you mean "menu"?` (a computed
+`no ref="mnu" in Dropdown's render; did you mean "menu"?`, and each name of
+`ui.Ref("username", "pasword")` is checked the same way (a computed
 `ref={…}` turns the check off for that function). A ref on an element passed
 as children to a stateful component is inside that component's instance, so
 the parent's commands don't reach it.
+
+**By attribute.** `ui.GetAttr` picks elements by an attribute they already
+have, so a form's fields need no refs:
+
+```vuka
+fields := ui.GetAttr("name", "username", "password")
+<button onClick={ui.JS.SetAttr(fields, "readonly", "")}>Lock</button>
+```
+
+A plain value matches exactly; `ui.Prefix("step-")`, `ui.Suffix(".pdf")`,
+`ui.Contains("draft")` and `ui.Word("old")` (one word of a space-separated
+list, as classes are) match part of one. Like a ref it stays in the
+component instance; `.Page()` widens it to the whole page:
+`ui.GetAttr("role", "alert").Page()`. Values are matched as data — a value
+holding `"]` or any other selector syntax is never read as a selector.
+When the function's JSX writes the attribute literally, the compiler checks
+each literal value: `ui.GetAttr("name", "usrname"): no element in Login has
+name="usrname"; did you mean "username"?`. Values computed at run time, and
+attributes some element sets with an expression, aren't checked.
+
+`GetAttr` picks elements; `t.Attr(name)` (below) reads an attribute of a
+target.
 
 ## Conditions
 
@@ -100,9 +132,46 @@ the parent's commands don't reach it.
 | `t.Is(".open")` | it matches the selector |
 | `t.Exists()` | there is such an element |
 
+A read of a target finding several elements holds when every one passes;
+`.Some()` makes it hold when at least one does. A target finding nothing
+fails every read but `Exists`:
+
+```vuka
+fields := ui.GetAttr("name", "username", "password")
+ui.JS.If(fields.Value())        // both filled in
+ui.JS.If(fields.Value().Some()) // either one
+```
+
+**Joining.** `a.And(b, …)`, `a.Or(b, …)`, `a.Not()`, `ui.All(…)` and
+`ui.Any(…)` build a condition from others. They group as written:
+`a.And(b).Or(c)` holds when a and b do, or c does; nest a call for the
+other grouping, `a.And(b.Or(c))`.
+
+```vuka
+<input ref="email" onInput={ui.JS.
+	When(ui.Ref("email").Value().And(ui.Ref("terms").Checked()), ui.JS.RemoveAttr(ui.Ref("send"), "disabled")).
+	Else(ui.JS.SetAttr(ui.Ref("send"), "disabled", ""))} />
+```
+
 Branches nest; `ElseIf`, `Else` and `End` belong to the innermost open `If`,
 and one in the wrong place panics as the chain is built. Without `End` a
 branch runs to the end of the chain.
+
+### When
+
+`When(cond, chain)` is a branch as a block: `chain` runs when `cond`
+holds, and the steps after it run either way, with no `End` to write.
+`Else(chain)` right after it is its other branch:
+
+```vuka
+<input type="checkbox" ref="all" onChange={ui.JS.
+	When(ui.Ref("all").Checked(), ui.JS.Show(ui.Ref("bulk"))).
+	Else(ui.JS.Hide(ui.Ref("bulk"))).
+	Push(c.SelectAll)} />
+```
+
+It encodes to the same `if`, `else` and `end` steps as `If`; an `If` left
+open inside `chain` ends with it.
 
 ## Push
 
@@ -187,6 +256,58 @@ What the server owns is what to predict: the count it will render, the row
 it will delete. A prediction the server's render doesn't confirm is replaced
 by it; one it never renders differently stays until the next render
 changes it.
+
+## Busy forms
+
+`Busy` marks an element busy while what its event started is under way —
+a form posting, a push waiting for its reply — so it can't be sent twice
+and shows that it is working:
+
+```vuka
+<form method="post" class="group" onSubmit={ui.JS.Busy()}>
+	<input name="username" required />
+	<input name="password" type="password" />
+	<button class="group-aria-busy:opacity-50 group-aria-busy:cursor-wait">Sign in</button>
+</form>
+```
+
+On submit the form gets `aria-busy="true"`; its inputs, textareas and
+selects become `readonly` (never `disabled`, so their values are still
+posted); its buttons and links get `aria-disabled="true"` and
+`tabindex="-1"`; and further clicks and submits on it are ignored. The
+browser posts the form as usual — a chain without a `Push` never stops a
+submit — and only once the form is valid: an empty required field keeps
+it from submitting, so from going busy. The next page replaces it.
+
+Everything `Busy` changed is put back exactly as it was — an attribute it
+found already set stays — when:
+
+- a `Push` of the same chain is answered, success or failure: the element
+  is usable again before `OnSuccess` or `OnError` runs;
+- the timeout given with `ui.Timeout(d)` passes;
+- the browser shows the page again from its back/forward cache, as the
+  back button may.
+
+A plain post that loads the next page needs none of them. Style it with
+Tailwind's `aria-busy:` variants on the element itself, or
+`group-aria-busy:` on elements inside one marked `class="group"`.
+
+With a live handler:
+
+```vuka
+<form ref="form" onSubmit={ui.JS.Busy().Push(c.Save).OnError(ui.JS.Focus(ui.GetAttr("name", "title")))}>…</form>
+```
+
+`Busy(ui.Ref("form"))` marks another element; with several targets each is
+marked. `JS.On(t).Busy()` marks `On`'s target.
+
+Marking fields as part of a chain works with the targets above too: the
+login form can lock exactly its two fields once both are filled in.
+
+```vuka
+fields := ui.GetAttr("name", "username", "password")
+ui.JS.If(fields.Value()).SetAttr(ui.Ref("form"), "aria-busy", "true").SetAttr(fields, "readonly", "")
+```
 
 ## Calling JavaScript
 
@@ -322,6 +443,10 @@ The reference client runs commands on its model of the page
 ([testing](/ui/testing#js-commands)): `Click` and `Fire` run an element's
 commands and send its pushes, and `HasClass`, `Attr`, `Visible` read the
 result.
+
+`c.Busy(sel)` reports whether a `Busy` mark is on an element, clicks and
+submits on it are ignored as in a browser, and `c.PageShow()` stands for
+the page coming back from the back/forward cache.
 
 For optimistic pushes, `c.Hold()` keeps the events a test's clicks send
 until `c.Deliver()`, so the predicted page can be checked before the
