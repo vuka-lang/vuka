@@ -119,11 +119,103 @@ func TestWatcher(t *testing.T) {
 	}
 }
 
+// TestWatcherEvents: with the system's file events, a save is seen at once,
+// whether the editor writes the file, renames another over it or writes it
+// twice (a formatter after the save); a new directory is watched, and so is
+// a file the app newly embeds.
+func TestWatcherEvents(t *testing.T) {
+	ow, err := newOSWatch(nil)
+	if err != nil {
+		t.Skipf("no file events: %v", err)
+	}
+	ow.close()
+	defer func(d time.Duration) { osSafetyNet = d }(osSafetyNet)
+	osSafetyNet = time.Hour // only the events tell
+	root := tempModule(t, map[string]string{"go.mod": "module x\n", "a.vuka": "a", "b.vuka": "b", "views/pet.html": "p"})
+	w := newWatcher(root)
+	w.scan()
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out := make(chan []string, 10)
+	go w.run(ctx, time.Hour, time.Hour, out)
+	for end := time.Now().Add(5 * time.Second); !w.events.Load(); time.Sleep(5 * time.Millisecond) {
+		if time.Now().After(end) {
+			t.Fatal("the watcher doesn't use file events")
+		}
+	}
+	path := func(rel string) string { return filepath.Join(root, filepath.FromSlash(rel)) }
+	expect := func(what string, want ...string) {
+		t.Helper()
+		start := time.Now()
+		select {
+		case got := <-out:
+			slices.Sort(got)
+			got = slices.Compact(got)
+			for i := range want {
+				want[i] = path(want[i])
+			}
+			if !slices.Equal(got, want) {
+				t.Errorf("%s: %v, want %v", what, got, want)
+			}
+			t.Logf("%s: seen after %v", what, time.Since(start))
+		case <-time.After(5 * time.Second):
+			t.Fatalf("%s: no change seen", what)
+		}
+		select {
+		case more := <-out:
+			t.Errorf("%s: a second batch %v", what, more)
+		case <-time.After(150 * time.Millisecond):
+		}
+	}
+
+	writeFile(t, path("a.vuka"), "a2")
+	expect("a write", "a.vuka")
+
+	writeFile(t, path("a.vuka.tmp"), "a3") // an editor's save: a temporary file renamed over the source
+	if err := os.Rename(path("a.vuka.tmp"), path("a.vuka")); err != nil {
+		t.Fatal(err)
+	}
+	expect("a save by rename", "a.vuka")
+
+	writeFile(t, path("a.vuka"), "a4") // the file renamed over is watched in turn
+	expect("a write to the renamed file", "a.vuka")
+
+	writeFile(t, path("b.vuka"), "b2 unformatted") // a save, then a formatter's rewrite
+	time.Sleep(5 * time.Millisecond)
+	writeFile(t, path("b.vuka"), "b2")
+	expect("a save and a format", "b.vuka")
+
+	if err := os.Mkdir(path("lib"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	time.Sleep(100 * time.Millisecond) // the directory is looked at before anything is in it
+	writeFile(t, path("lib/c.vuka"), "c")
+	expect("a file in a new directory", "lib/c.vuka")
+	writeFile(t, path("lib/c.vuka"), "c2")
+	expect("a write to it", "lib/c.vuka")
+
+	for i := range 5 { // the app writing its log: not a source
+		writeFile(t, path("app.log"), strings.Repeat("x", i+1))
+		time.Sleep(10 * time.Millisecond)
+	}
+	select {
+	case got := <-out:
+		t.Errorf("a log written: %v", got)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	w.setEmbeds([]string{path("views/pet.html")}) // a build found it embedded
+	time.Sleep(100 * time.Millisecond)
+	writeFile(t, path("views/pet.html"), "p2")
+	expect("an embedded file", "views/pet.html")
+}
+
 // TestWatcherDebounce: a burst of saves is one change, sent once the
 // sources are calm.
 func TestWatcherDebounce(t *testing.T) {
 	root := tempModule(t, map[string]string{"go.mod": "module x\n", "a.vuka": "", "b.vuka": ""})
 	w := newWatcher(root)
+	w.poll = true
 	w.scan()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
