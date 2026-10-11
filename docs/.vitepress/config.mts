@@ -131,7 +131,7 @@ export default defineConfig({
     search: { provider: 'local' },
     footer: {
       message:
-        'Released under the MIT License. Vuka is built on <a href="https://go.dev">Go</a> and its tools, by the Go Authors; it is not affiliated with Google or the Go project. Go is a trademark of Google LLC.',
+        'Released under the MIT License. Vuka builds on <a href="https://go.dev">Go</a> and its tools, which are made by the Go Authors. Vuka is not affiliated with Google or the Go project. Go is a trademark of Google LLC.',
     },
   },
 })
