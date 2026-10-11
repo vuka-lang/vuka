@@ -14,7 +14,9 @@
 | SQL functions | Go functions (`sqlite.Func`) | `CreateFunction` | `CreateFunction` |
 
 SQLite is the development and test database: the same code runs there, with
-searches unindexed. A file-backed SQLite gets a small read pool.
+searches unindexed. A file-backed SQLite gets a small read pool, and its
+directory is made when missing: `sqlite://data/app.db` opens on a fresh
+checkout.
 
 ### MySQL notes
 

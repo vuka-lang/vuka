@@ -13,14 +13,15 @@ library of the Go that built it, so it understands the same Go you write.
 
 ## A first project
 
+A Vuka project is a Go module:
+
 ```sh
-vuka new hello
-cd hello
-vuka run .
+mkdir hello && cd hello
+go mod init hello
 ```
 
-`vuka new` makes an ordinary Go module — a `go.mod`, a `main.vuka`, and the
-Vuka runtime (the small package holding `Result` and `Option`) as a dependency:
+Save this as `main.vuka`, then `vuka mod tidy` (it adds the Vuka runtime,
+the small package holding `Result` and `Option`) and `vuka run .`:
 
 ```vuka
 package main
@@ -51,6 +52,9 @@ func main() {
 	}
 }
 ```
+
+For a web app — pages, sign-in, a database with migrations, tests —
+`vuka new shop` makes one that runs; see [Getting started with web](/web/getting-started).
 
 ## Everyday commands
 

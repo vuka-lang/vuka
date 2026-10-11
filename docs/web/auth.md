@@ -280,6 +280,13 @@ session under a new id and ends the one the browser had, so an id planted
 before the sign-in is worthless. Sessions last `Config.SessionTTL` (14
 days); `Config.SessionIdle` ends one unused for that long.
 
+**Remember me.** With `Config.RememberMe`, staying signed in is the user's
+choice: a sign-in whose form has the `remember` field checked (`"on"`,
+`"1"`, `"true"`; JSON's `"remember": true`) keeps its persistent cookie for
+`SessionTTL`; any other gets a cookie that ends with the browser session,
+and a session of a day at most. `<auth.LoginForm remember />` draws the
+checkbox; a form of your own names it `remember`.
+
 **APIs** sign in with `Authorization: Bearer <token>`: tokens from
 `POST /auth/token` or `auth.IssueToken`, random and opaque (`vka_…`),
 stored hashed, lasting `Config.TokenTTL` (30 days). A token that doesn't
@@ -359,6 +366,7 @@ parameters named like a password, token or secret are hidden.
 | `Roles` | role → perms |
 | `Sessions`, `Tokens` | stores; in memory by default |
 | `SessionTTL`, `SessionIdle`, `TokenTTL` | 14 days, off, 30 days |
+| `RememberMe` | the login form's `remember` field decides whether a sign-in outlives the browser session |
 | `Cookie`, `SecureCookie` | the cookie's name (`vk_session`); `Secure` always |
 | `Passwords` | the Argon2id cost of new hashes (`auth.Argon2Defaults`) |
 | `Throttle`, `ClientIP` | failed-login limits; the address they count |
