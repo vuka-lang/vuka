@@ -114,6 +114,12 @@ value no one knows is a failed login (logged). A match is stale: with
 each user moves off the old encoding at their next sign-in. Compare in
 constant time, as above.
 
+A hasher may also have a `Dummy() string` method returning a value in its
+encoding, of the cost its stored values have. An unknown login is checked
+against a hash of the kind the logins found lately had — Argon2id or
+bcrypt of the same cost, or that dummy — so it takes as long as a known one;
+`Config.FailedLoginTime` evens out the rest.
+
 ## Gates
 
 | | |
@@ -148,7 +154,15 @@ func (b *Board) Clear(ctx context.Context) error { … }
 ```
 
 A route takes its controller's gate and its own, both checked;
-`@auth.Public` on a route opens it alone. On a live event, the gate is
+`@auth.Public` on a route opens it alone.
+
+A live event needs a sign-in unless something marks it, as a route does:
+the gate on its handler, on the handler's type, on the component it
+belongs to — or, for the page's own events, on the page (its type, or
+`web.Attrs` given to `app.Live`). `@auth.Public` on a page opens the page
+and its own events; a component inside it whose type and handler carry no
+gate needs a sign-in for its events. Mark that component `@auth.Public` too
+when anonymous visitors should use it. On a live event, the gate is
 checked when the browser sends the event: a visitor without the perm gets
 the event refused — the handler doesn't run, and the page receives the
 error as it would a handler's (`vk:error`) — whatever the page shows or the
@@ -177,9 +191,11 @@ whatever shape the handler takes. Two checks make sure of it:
 | with a `context.Context` from a request or a live page (what handlers, `Mount` and `Update` are given) | that context's identity, on any goroutine: `go b.Clear(ctx)` is checked; so is a gated service method a route calls with `r.Context()` |
 | on the live connection while the event's handler runs, without such a context | the page's identity |
 | on a goroutine the handler starts (`go b.Clear()`), or a decorator moves the call to | the page's identity: web knows which connection started the goroutine |
+| on the live connection outside an event — a render, a broadcast | the page's identity |
+| on a goroutine serving an HTTP request, without the request's context | the request's identity, once its route runs; refused before |
 | `auth.WithIdentity(ctx, id)` | `id` — a job acting for a user |
-| `auth.System(ctx)` | nothing: the app's own work passes |
-| none of these | runs, as the app's own work (a cron, a job, `main`, a test) — unless `StrictGates` |
+| `auth.System(ctx)` | nothing: the app's own work passes — crons get it by themselves |
+| none of these | refused — unless `LaxGates`, which runs it as the app's own work |
 
 A refused call returns `web.Unauthorized` or `web.Forbidden` as its error
 (a method without an error result just doesn't run); refused while the
@@ -188,9 +204,14 @@ event's handler runs, the event's reply carries it, and the page gets
 session calls itself — `Render`, `Mount`, `Update` — so a page rendering a
 gated component for someone else renders; its events are refused.
 
-**`StrictGates`.** By default, a gated call nothing attributes to an
-identity runs: code outside requests keeps working. What that leaves
-unchecked, for a call that came from a live event:
+**Strict by default.** A gated call nothing attributes to an identity is
+refused. Code outside requests marks its context as the app's own work —
+`ctx = auth.System(ctx)` in `main`, a job, a migration — and gated methods
+called off the handler's own goroutine take a `context.Context`, passed
+down from the handler. Web's crons run with `auth.System` already.
+
+`auth.Config{LaxGates: true}` runs such a call as the app's own work
+instead. That leaves unchecked, for a call that came from a live event:
 
 - a goroutine started by a goroutine of the handler (or a pool's worker),
   calling a gated method without a request's context — web knows a
@@ -199,12 +220,20 @@ unchecked, for a call that came from a live event:
 - a gated method given `context.Background()` (or another context not from
   the request) on such a goroutine.
 
-With `auth.Config{StrictGates: true}` none of them runs: a gated call needs
-an identity, or `auth.System(ctx)`. Crons, jobs and `main` then mark their
-context — `ctx = auth.System(ctx)` — and gated methods called off the
-handler's own goroutine take a `context.Context`, passed down from the
-handler. The setting holds for the whole process once an app with it is
-built.
+Whatever the setting, a call on a goroutine serving a request, or given a
+request's context without auth's state, is never the app's own work: it is
+checked against the request's identity, or refused. The setting holds for
+the whole process once an app with it is built (`StrictGates: true` keeps
+strict whatever another app says).
+
+::: tip Moving from LaxGates being the default
+Apps written when gated calls outside requests ran unchecked: give `main`'s
+and jobs' contexts `auth.System(ctx)` where they call gated methods, pass a
+`context.Context` to gated methods called from goroutines a handler starts,
+or set `LaxGates: true` to keep the old behaviour while you do. Crons need
+nothing. Strict is the default now: `StrictGates: true` only overrides
+another app's `LaxGates` in the same process.
+:::
 
 From Go, gates are attributes: `app.Get("/x", h, web.Attrs(auth.Requires("x")))`,
 `app.Live("/board", &Board{}, web.Attrs(auth.Public()))`.
@@ -248,11 +277,16 @@ func (s *Orders) Delete(ctx context.Context, id int) error {
 | `auth.Check(ctx, perm, obj)` | nil when it may do `perm` to `obj`; else `web.Unauthorized` or `web.Forbidden` |
 | `*auth.Identity`, `auth.Identity` parameters | bound by themselves; the second answers 401 when signed out |
 | `auth.WithIdentity(ctx, id)` | a context signed in as `id`, for work outside a request (a job acting for a user): gates check it |
-| `auth.System(ctx)` | a context marked as the app's own work: gated methods given it run (needed under `StrictGates`) |
+| `auth.System(ctx)` | a context marked as the app's own work: gated methods given it run, and `auth.Check` passes; never give it a request's work |
 
 `auth.Check` asks the policy of the object's type when the config has one,
-and otherwise the perms. A policy decides alone — it may let an owner edit
-their own order without the perm:
+and otherwise the perms. A policy for `Order` decides for an `Order` and an
+`*Order` alike, and so does one for `*Order`. A context without the app's
+auth — `auth.WithIdentity` of a context from outside any request — can't
+ask the app's policies, so `Check` refuses it any object a policy covers
+rather than decide by the perms alone; a context marked `auth.System`
+passes. A policy decides alone — it may let an owner edit their own order
+without the perm:
 
 ```vuka
 auth.Config{
@@ -285,9 +319,13 @@ func (b *Board) Render() ui.Node {
 ```
 
 A page whose sign-in ends — `auth.RevokeUser`, a sign-out in another tab,
-an expired session, a user `Load` no longer finds — is closed at its next
-message, and reloads: its route sends it to the login page. The socket
-only opens from the app's own origin.
+an expired session or token — is closed, and reloads: its route sends it to
+the login page. The sign-in is checked at every message from the page,
+before every broadcast reaches it, and every 25 seconds of a quiet page, so
+a revoked user stops receiving broadcasts too. Every `Config.LiveRecheck`
+(60 seconds) the page also loads its identity again with `Users.Load`: a
+user gone, or whose perms or roles changed, gets the page reloaded with
+what they are now. The socket only opens from the app's own origin.
 
 ## Signing in and out
 
@@ -358,11 +396,22 @@ post), not to a live event. Outside a request — a job, a CLI — inject
 
 **Login errors** are the same for an unknown login and a wrong password —
 `invalid login or password`, after the same work — so the page never tells
-which logins exist. Failed logins are throttled per login and per address
-(5 per login and 50 per address in 15 minutes by default,
+which logins exist. Every failed login, whatever failed — an unknown login,
+a wrong password, a stored hash of another cost or encoding, a password too
+long for bcrypt, a throttled attempt — takes at least
+`Config.FailedLoginTime` (300ms; negative for none), so timing doesn't tell
+either.
+
+Failed logins are throttled per login, per account and per address (5 per
+login or account and 50 per address in 15 minutes by default,
 `Config.Throttle`): further attempts get `429` with `Retry-After`, the right
-password included. Behind a proxy, set `Config.ClientIP` to read the
-address it passes on, or every visitor shares the proxy's.
+password included. Logins compare folded — case, accents and compatibility
+forms aside, as a case- and accent-insensitive database collation finds the
+same row for `Admin` and `ádmin` — and once `FindLogin` finds an account,
+its own count applies whatever spelling or other login reached it. The
+address is `web.ClientIP(r)`: behind a proxy, name it with
+`web.TrustedProxies` ([deployment](/web/deployment#behind-a-proxy)), or
+every visitor shares the proxy's; `Config.ClientIP` replaces it.
 
 **`next`** is only followed when it is a path of this site: no scheme or
 host, no `//` or `/\` a browser reads as another site, no backslash or
@@ -468,8 +517,11 @@ parameters named like a password, token or secret are hidden.
 | `RememberMe` | the login form's `remember` field decides whether a sign-in outlives the browser session |
 | `Cookie`, `SecureCookie` | the cookie's name (`vk_session`); `Secure` always |
 | `Passwords` | the Argon2id cost of new hashes (`auth.Argon2Defaults`) |
-| `Throttle`, `ClientIP` | failed-login limits; the address they count |
+| `Throttle`, `ClientIP` | failed-login limits; the address they count (`web.ClientIP`) |
+| `FailedLoginTime` | the least time a failed login takes (300ms; negative for none) |
+| `LiveRecheck` | how often a live page loads its identity again (60s; negative for never) |
 | `JWT` | JWTs from elsewhere |
 | `Policies` | `auth.PolicyFor` rules for `auth.Check` |
 | `TrustedOrigins` | origins allowed to post |
-| `StrictGates` | a gated call without an identity (or `auth.System`) is refused rather than run |
+| `LaxGates` | a gated call nothing attributes to an identity runs as the app's own, rather than being refused |
+| `StrictGates` | the default; keeps the process strict whatever another app's `LaxGates` says |
