@@ -169,7 +169,9 @@ func init() {
 }
 ```
 
-A panel noted without `AddPanel` lists its values as they are. `web.Note`
+A panel noted without `AddPanel` lists its values as they are. A panel's
+markup may use the toolbar's classes: `kv` and `grid` tables, `dim`,
+`errtext`, `status`, and `preview` for an `<iframe>`, as the Mail panel's. `web.Note`
 does nothing outside development, so it can stay in production code. A
 panel whose render panics shows the panic in its place.
 
