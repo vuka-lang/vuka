@@ -22,11 +22,17 @@ func (regOther) Clear() {}
 
 func regCharge(int) error { return nil }
 
+type regMethodOnly struct{}
+
+func (*regMethodOnly) Go()    {}
+func (*regMethodOnly) Other() {}
+
 func init() {
 	RegisterType[regBoard](perm("board.read"))
 	RegisterFunc((*regBoard).Clear, perm("board.delete"))
 	RegisterFunc(regBoard.Count, perm("board.count"))
 	RegisterFunc(regCharge, perm("pay"))
+	RegisterFunc((*regMethodOnly).Go, perm("go"))
 }
 
 func TestRegistry(t *testing.T) {
@@ -49,6 +55,14 @@ func TestRegistry(t *testing.T) {
 	}
 	if a := MethodAttrs(reflect.TypeFor[regOther](), "Clear"); a != nil {
 		t.Errorf("another type's method of the same name: %v", a)
+	}
+
+	// A method's registration makes its type known.
+	if r, _ := FuncOf((&regMethodOnly{}).Go); r.Recv != reflect.TypeFor[regMethodOnly]() || r.Method != "Go" {
+		t.Errorf("a type known by its method: %+v", r)
+	}
+	if r, _ := FuncOf((&regMethodOnly{}).Other); r.Recv != reflect.TypeFor[regMethodOnly]() || r.Attrs != nil {
+		t.Errorf("its other method: %+v", r)
 	}
 
 	b := &regBoard{}

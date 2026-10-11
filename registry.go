@@ -44,12 +44,17 @@ func RegisterFunc(fn any, attrs ...any) {
 	if f == nil {
 		return
 	}
-	key, _, _, lit := parseFuncName(f.Name())
+	key, recv, _, lit := parseFuncName(f.Name())
 	if lit {
 		panic("vuka: RegisterFunc of a function literal " + f.Name())
 	}
 	registry.Lock()
 	registry.funcs[key] = append(registry.funcs[key], attrs...)
+	if t := v.Type(); recv != "" && t.NumIn() > 0 {
+		if rt := named(t.In(0)); rt != nil && typeKey(rt) == recv {
+			registry.types[recv] = rt // a method expression: its receiver
+		}
+	}
 	registry.Unlock()
 	registry.pcs.Clear()
 }
@@ -95,7 +100,8 @@ func MethodAttrs(t reflect.Type, name string) Attrs {
 type FuncRef struct {
 	Name string // the runtime's name for the code: "example.com/app.(*Board).Clear-fm"
 	// Recv is a method's receiver type as declared (Board for *Board) when
-	// Vuka registered the type; Method is the method's name.
+	// Vuka registered the type or one of its methods; Method is the
+	// method's name.
 	Recv   reflect.Type
 	Method string
 	// Attrs are the declaration's typed attributes: a method's own (its
