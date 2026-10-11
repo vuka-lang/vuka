@@ -10,6 +10,25 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.16.0 — 2026-10-11
+
+Runtime: **v0.16.0** — generated code registers attributes with it; run
+`vuka fix runtime` in your apps after upgrading the vuka command. The vuka
+command is `cmd/vuka/v0.18.0`. With [`github.com/vuka-lang/ui`](/ui/) v0.8.0 and
+[web](https://github.com/vuka-lang/web) v0.13.0.
+
+- **Attributes readable from a value.** `vuka.FuncOf(fn)` (a method value,
+  method expression or function), `vuka.MethodAttrs(t, name)` and
+  `vuka.TypeAttrs(t)` return the attributes written on a declaration, so a
+  library can read `@auth.Requires(…)` where it dispatches. See [Reading
+  attributes from a value](/features/attributes).
+- **web's auth gates checked before a live handler runs** and at each gated
+  call, with the identity carried by `ctx`; `auth.Config.StrictGates` refuses
+  a gated call that has none. See [Authentication](/web/auth).
+- **`web.IsLiveJoin(ctx)`** tells a live page's route it is running again for
+  the socket's join, so side effects such as mail happen once. See [Live
+  components](/web/live).
+
 ## cmd/vuka v0.17.0 — 2026-10-11
 
 The vuka command only; the language and runtime are unchanged (v0.15.0, runtime v0.10.0).
