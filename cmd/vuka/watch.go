@@ -29,7 +29,7 @@ import (
 // one running; a build that comes out byte-identical restarts nothing.
 // Tailwind's watcher runs once, across the restarts.
 
-const runUsage = `usage: vuka run [-watch] [build flags] [package] [arguments...]
+const runUsage = `usage: vuka run [-watch [-debug]] [build flags] [package] [arguments...]
 
 Run transpiles the module's .vuka files into an overlay and runs the
 package with go run. An app on github.com/vuka-lang/web gets its Tailwind
@@ -41,7 +41,13 @@ CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
 	next one compiles; a build that fails prints its errors and leaves it
 	running, and a change that leaves the binary as it was restarts
 	nothing. Changes to .vuka, .templ and .go files (not tests), go.mod,
-	go.sum and the files the app embeds start a rebuild.
+	go.sum and the files the app embeds start a rebuild; a change while a
+	build runs stops it and builds anew. Only the packages a change reaches
+	are transpiled again.
+
+  -debug, --debug
+	with -watch, keep the debug information (DWARF) watch builds leave out
+	to link faster: for delve.
 
 Build flags are go build's; run 'go help run' for them.
 `
@@ -131,8 +137,12 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	flags, debug := cutDebug(flags)
 	if !slices.ContainsFunc(flags, func(f string) bool { return strings.HasPrefix(strings.TrimLeft(f, "-"), "buildvcs") }) {
 		flags = append(flags, "-buildvcs=false") // as go run: no VCS stamp, which would also tell builds apart
+	}
+	if !debug {
+		flags = noDWARF(flags)
 	}
 	root, _, err := load.ModuleRoot(".")
 	if err != nil {
@@ -156,6 +166,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	}
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
 		w: newWatcher(root), exits: make(chan *app, 4)}
+	s.sess, _ = load.NewSession(root) // nil: each build transpiles from scratch
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -180,16 +191,19 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 
 	builds := make(chan *buildResult, 1)
 	var (
-		building bool      // a build runs
-		again    bool      // and the sources changed since it started
-		changed  time.Time // when the change the next build answers was seen: rebuilt in counts from it
-		n        = 1
+		building    bool               // a build runs
+		again       bool               // and the sources changed since it started: it is cancelled
+		cancelBuild context.CancelFunc // cancels the build that runs
+		changed     time.Time          // when the change the next build answers was seen: rebuilt in counts from it
+		n           = 1
 	)
 	startBuild := func() {
 		n++
 		building = true
 		s.setState(buildState{State: "building", Since: changed})
-		go func(n int) { builds <- s.build(ctx, n) }(n)
+		var bctx context.Context
+		bctx, cancelBuild = context.WithCancel(ctx)
+		go func(n int) { builds <- s.build(bctx, n) }(n)
 	}
 	s.finish(first, time.Time{})
 	for {
@@ -201,13 +215,18 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 			return nil
 		case <-changes:
 			changed = time.Now()
+			traceStep("change")
 			if building {
+				// What it builds is stale already: stop it, and build anew
+				// once it has stopped.
 				again = true
+				cancelBuild()
 				continue
 			}
 			startBuild()
 		case r := <-builds:
 			building = false
+			cancelBuild()
 			if again {
 				again = false
 				r.discard()
@@ -235,8 +254,9 @@ type supervisor struct {
 	prog, env      []string
 	stdout, stderr io.Writer
 	w              *watcher
-	app            *app      // the running build; nil when none runs
-	exits          chan *app // each app, once it has exited
+	sess           *load.Session // what the last builds transpiled; nil for none
+	app            *app          // the running build; nil when none runs
+	exits          chan *app     // each app, once it has exited
 }
 
 type buildResult struct {
@@ -270,12 +290,23 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 		return r
 	}
 	var gens []load.Generated
+	t0 := time.Now()
 	if len(pkgs) > 0 {
-		if gens, r.overlay, err = load.Transpile(pkgs, dir, load.Options{}); err != nil {
+		transpile := load.Transpile
+		if s.sess != nil {
+			transpile = s.sess.Transpile
+		}
+		if gens, r.overlay, err = transpile(pkgs, dir, load.Options{}); err != nil {
 			r.err = err
 			return r
 		}
 	}
+	if r.err = ctx.Err(); r.err != nil {
+		return r
+	}
+	tTranspile := time.Since(t0)
+	t0 = time.Now()
+	defer func() { traceStep("transpile %v build %v", tTranspile, time.Since(t0)) }()
 	var embeds []string
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -287,6 +318,10 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	}
 	c := exec.CommandContext(ctx, "go", append(args, s.pkg...)...)
 	c.Dir, c.Env = s.dir, s.env
+	// Cancelled, the go command is interrupted: it stops the compilers and
+	// linker it runs and removes its work directory.
+	c.Cancel = func() error { return c.Process.Signal(os.Interrupt) }
+	c.WaitDelay = 5 * time.Second
 	var out bytes.Buffer
 	resp := &respeller{w: &out, dir: s.dir, gens: gens}
 	c.Stdout, c.Stderr = resp, resp
@@ -354,7 +389,9 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		r.discard()
 		return
 	}
+	t0 := time.Now()
 	prewarm(r.bin)
+	traceStep("prewarm %v", time.Since(t0))
 	if s.app != nil {
 		s.app.stop(syscall.SIGTERM, stopGrace, nil)
 		os.RemoveAll(filepath.Dir(s.app.bin))
@@ -365,6 +402,59 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 	if !changed.IsZero() && s.app != nil {
 		fmt.Fprintf(s.stderr, "● rebuilt in %.1fs\n", time.Since(changed).Seconds())
 	}
+}
+
+// cutDebug reports whether flags ask for -debug, and returns them without it.
+func cutDebug(flags []string) ([]string, bool) {
+	debug := false
+	out := flags[:0:0]
+	for _, f := range flags {
+		switch strings.TrimLeft(f, "-") {
+		case "debug", "debug=true":
+			debug = true
+		case "debug=false":
+		default:
+			out = append(out, f)
+		}
+	}
+	return out, debug
+}
+
+// noDWARF adds -w to the linker's flags: no debug information, which is
+// most of what the linker writes. A build is then faster to link and to
+// start. Linker flags for a package pattern are left as they are.
+func noDWARF(flags []string) []string {
+	out := slices.Clone(flags)
+	at, valueAt := -1, -1 // the last -ldflags: go build takes it
+	for i := 0; i < len(out); i++ {
+		name, _, hasValue := strings.Cut(strings.TrimLeft(out[i], "-"), "=")
+		if name == "ldflags" && strings.HasPrefix(out[i], "-") {
+			at, valueAt = i, i
+			if !hasValue {
+				valueAt = i + 1
+				i++
+			}
+		}
+	}
+	if at < 0 {
+		return append(out, "-ldflags=-w")
+	}
+	if valueAt >= len(out) {
+		return out
+	}
+	value := out[valueAt]
+	if valueAt == at {
+		_, value, _ = strings.Cut(value, "=")
+	}
+	if first := strings.Fields(value); len(first) > 0 && !strings.HasPrefix(first[0], "-") && strings.Contains(first[0], "=") {
+		return out // pattern=flags
+	}
+	if valueAt == at {
+		out[at] = "-ldflags=-w " + value
+	} else {
+		out[valueAt] = "-w " + value
+	}
+	return out
 }
 
 // buildState is what buildStateFile holds: "building" since a time,
@@ -627,3 +717,14 @@ func (w *watcher) run(ctx context.Context, interval, quiet time.Duration, out ch
 		wait = max(interval, 10*took)
 	}
 }
+
+// traceStep prints, with VUKA_WATCH_TRACE set, how long a step of a
+// rebuild took: how the time from a save to the new version answering
+// divides, when it is measured.
+func traceStep(format string, args ...any) {
+	if os.Getenv(traceEnv) != "" {
+		fmt.Fprintf(os.Stderr, "trace %s "+format+"\n", append([]any{time.Now().Format("15:04:05.000")}, args...)...)
+	}
+}
+
+const traceEnv = "VUKA_WATCH_TRACE"

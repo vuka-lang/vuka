@@ -3,7 +3,10 @@ package main
 import (
 	"bufio"
 	"context"
+	"debug/elf"
+	"debug/macho"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -200,6 +203,124 @@ func main() {
 }
 `
 
+// watchRun is vuka run -watch running on a module, for a test.
+type watchRun struct {
+	t    *testing.T
+	root string
+	port int
+	cmd  *exec.Cmd
+	log  *syncBuffer
+}
+
+// buildVuka builds the vuka command for a test.
+func buildVuka(t *testing.T) string {
+	t.Helper()
+	vuka := filepath.Join(t.TempDir(), "vuka")
+	if out, err := exec.Command("go", "build", "-o", vuka, ".").CombinedOutput(); err != nil {
+		t.Fatalf("building vuka: %v\n%s", err, out)
+	}
+	return vuka
+}
+
+// startWatch runs vuka run -watch with args on the module at root, the app
+// listening on a free port ($PORT).
+func startWatch(t *testing.T, vuka, root string, env []string, args ...string) *watchRun {
+	t.Helper()
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	cmd := exec.Command(vuka, append(append([]string{"run", "--watch"}, args...), ".")...)
+	cmd.Dir = root
+	cmd.Env = append(append(os.Environ(), fmt.Sprint("PORT=", port), twEnv+"=off"), env...)
+	pr, pw := io.Pipe()
+	cmd.Stdout, cmd.Stderr = pw, pw
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	r := &watchRun{t: t, root: root, port: port, cmd: cmd, log: &syncBuffer{}}
+	go func() {
+		sc := bufio.NewScanner(pr)
+		for sc.Scan() {
+			fmt.Fprintln(r.log, sc.Text())
+		}
+	}()
+	return r
+}
+
+func (r *watchRun) get() (version string, pid int) {
+	res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/", r.port))
+	if err != nil {
+		return "", 0
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	v, p, _ := strings.Cut(string(b), " ")
+	pid, _ = strconv.Atoi(p)
+	return v, pid
+}
+
+func (r *watchRun) waitVersion(want string) int {
+	r.t.Helper()
+	var pid int
+	for end := time.Now().Add(60 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		var v string
+		if v, pid = r.get(); v == want {
+			return pid
+		}
+		if time.Now().After(end) {
+			r.t.Fatalf("no %s (last %q); output:\n%s", want, v, r.log.String())
+		}
+	}
+}
+
+func (r *watchRun) waitLog(s string, n int) {
+	r.t.Helper()
+	for end := time.Now().Add(60 * time.Second); strings.Count(r.log.String(), s) < n; time.Sleep(50 * time.Millisecond) {
+		if time.Now().After(end) {
+			r.t.Fatalf("no %q; output:\n%s", s, r.log.String())
+		}
+	}
+}
+
+func (r *watchRun) state() (st buildState) {
+	res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/state", r.port))
+	if err != nil {
+		return st
+	}
+	defer res.Body.Close()
+	json.NewDecoder(res.Body).Decode(&st)
+	return st
+}
+
+func (r *watchRun) edit(old, new string) {
+	r.t.Helper()
+	path := filepath.Join(r.root, "main.vuka")
+	src, _ := os.ReadFile(path)
+	if !strings.Contains(string(src), old) {
+		r.t.Fatalf("main.vuka has no %q", old)
+	}
+	writeFile(r.t, path, strings.Replace(string(src), old, new, 1))
+}
+
+// stop sends vuka SIGTERM and waits for it to exit.
+func (r *watchRun) stop() {
+	r.t.Helper()
+	r.cmd.Process.Signal(syscall.SIGTERM)
+	done := make(chan error, 1)
+	go func() { done <- r.cmd.Wait() }()
+	select {
+	case err := <-done:
+		if err != nil {
+			r.t.Errorf("vuka run -watch on SIGTERM: %v", err)
+		}
+	case <-time.After(10 * time.Second):
+		r.t.Fatal("vuka run -watch didn't stop on SIGTERM")
+	}
+}
+
+func alive(pid int) bool { return syscall.Kill(pid, 0) == nil }
+
 // TestRunWatch runs vuka run -watch on a small app and edits it: a change
 // swaps in a new process, a broken build leaves the old one answering, a
 // comment changes nothing, and SIGTERM stops it all.
@@ -208,148 +329,181 @@ func TestRunWatch(t *testing.T) {
 		t.Skip("builds the vuka command and runs the go command")
 	}
 	t.Setenv("GOWORK", "off")
-	vuka := filepath.Join(t.TempDir(), "vuka")
-	if out, err := exec.Command("go", "build", "-o", vuka, ".").CombinedOutput(); err != nil {
-		t.Fatalf("building vuka: %v\n%s", err, out)
-	}
+	vuka := buildVuka(t)
 	root := tempModule(t, map[string]string{"go.mod": "module example.com/w\n\ngo 1.25.0\n", "main.vuka": watchApp})
-	ln, _ := net.Listen("tcp", "127.0.0.1:0")
-	port := ln.Addr().(*net.TCPAddr).Port
-	ln.Close()
+	r := startWatch(t, vuka, root, nil)
 
-	cmd := exec.Command(vuka, "run", "--watch", ".")
-	cmd.Dir = root
-	cmd.Env = append(os.Environ(), fmt.Sprint("PORT=", port), twEnv+"=off")
-	pr, pw := io.Pipe()
-	cmd.Stdout, cmd.Stderr = pw, pw
-	if err := cmd.Start(); err != nil {
-		t.Fatal(err)
-	}
-	defer cmd.Process.Kill()
-	var log syncBuffer
-	go func() {
-		sc := bufio.NewScanner(pr)
-		for sc.Scan() {
-			fmt.Fprintln(&log, sc.Text())
-		}
-	}()
-	get := func() (version string, pid int) {
-		res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/", port))
-		if err != nil {
-			return "", 0
-		}
-		defer res.Body.Close()
-		b, _ := io.ReadAll(res.Body)
-		v, p, _ := strings.Cut(string(b), " ")
-		pid, _ = strconv.Atoi(p)
-		return v, pid
-	}
-	waitVersion := func(want string) int {
-		t.Helper()
-		var pid int
-		for end := time.Now().Add(60 * time.Second); ; time.Sleep(50 * time.Millisecond) {
-			var v string
-			if v, pid = get(); v == want {
-				return pid
-			}
-			if time.Now().After(end) {
-				t.Fatalf("no %s (last %q); output:\n%s", want, v, log.String())
-			}
-		}
-	}
-	waitLog := func(s string, n int) {
-		t.Helper()
-		for end := time.Now().Add(60 * time.Second); strings.Count(log.String(), s) < n; time.Sleep(50 * time.Millisecond) {
-			if time.Now().After(end) {
-				t.Fatalf("no %q; output:\n%s", s, log.String())
-			}
-		}
-	}
-	state := func() (st buildState) {
-		res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/state", port))
-		if err != nil {
-			return st
-		}
-		defer res.Body.Close()
-		json.NewDecoder(res.Body).Decode(&st)
-		return st
-	}
-	alive := func(pid int) bool { return syscall.Kill(pid, 0) == nil }
-	edit := func(old, new string) {
-		t.Helper()
-		path := filepath.Join(root, "main.vuka")
-		src, _ := os.ReadFile(path)
-		if !strings.Contains(string(src), old) {
-			t.Fatalf("main.vuka has no %q", old)
-		}
-		writeFile(t, path, strings.Replace(string(src), old, new, 1))
-	}
-
-	pid1 := waitVersion("v1")
-	if st := state(); st.State != "ok" || st.At.IsZero() {
+	pid1 := r.waitVersion("v1")
+	if st := r.state(); st.State != "ok" || st.At.IsZero() {
 		t.Errorf("the first build's state: %+v", st)
 	}
-	edit(`"v1"`, `"v2"`)
-	for end := time.Now().Add(60 * time.Second); ; time.Sleep(10 * time.Millisecond) { // the first build answers while the next compiles
-		if st := state(); st.State == "building" && !st.Since.IsZero() {
+	r.edit(`"v1"`, `"v2"`)
+	for end := time.Now().Add(60 * time.Second); ; time.Sleep(5 * time.Millisecond) { // the first build answers while the next compiles
+		if st := r.state(); st.State == "building" && !st.Since.IsZero() {
 			break
 		}
-		if v, _ := get(); v == "v2" || time.Now().After(end) {
-			t.Fatalf("no building state before v2; output:\n%s", log.String())
+		if v, _ := r.get(); v == "v2" || time.Now().After(end) {
+			t.Fatalf("no building state before v2; output:\n%s", r.log.String())
 		}
 	}
-	pid2 := waitVersion("v2")
+	pid2 := r.waitVersion("v2")
 	if pid2 == pid1 || alive(pid1) {
 		t.Errorf("the first build (%d) still runs beside the second (%d)", pid1, pid2)
 	}
-	waitLog("● rebuilt in ", 1)
+	r.waitLog("● rebuilt in ", 1)
 
-	edit(`"v2"`, `"v3" + 1`)
-	waitLog("● build failed; the last good build keeps running", 1)
-	if out := log.String(); !strings.Contains(out, "main.vuka:11:") || !strings.Contains(out, "mismatched types") {
+	r.edit(`"v2"`, `"v3" + 1`)
+	r.waitLog("● build failed; the last good build keeps running", 1)
+	if out := r.log.String(); !strings.Contains(out, "main.vuka:11:") || !strings.Contains(out, "mismatched types") {
 		t.Errorf("the compiler's error isn't shown:\n%s", out)
 	}
-	if v, pid := get(); v != "v2" || pid != pid2 {
+	if v, pid := r.get(); v != "v2" || pid != pid2 {
 		t.Errorf("after a failed build: %s %d, want v2 %d", v, pid, pid2)
 	}
-	if st := state(); st.State != "failed" || !strings.Contains(st.Output, "mismatched types") {
+	if st := r.state(); st.State != "failed" || !strings.Contains(st.Output, "mismatched types") {
 		t.Errorf("after a failed build, the state: %+v", st)
 	}
-	edit(`"v3" + 1`, `"v3`)
-	waitLog("● build failed", 2)
-	if !strings.Contains(log.String(), "main.vuka:11:") {
-		t.Errorf("the transpiler's error isn't shown:\n%s", log.String())
+	r.edit(`"v3" + 1`, `"v3`)
+	r.waitLog("● build failed", 2)
+	if !strings.Contains(r.log.String(), "main.vuka:11:") {
+		t.Errorf("the transpiler's error isn't shown:\n%s", r.log.String())
 	}
 
-	edit(`"v3`, `"v3"`)
-	pid3 := waitVersion("v3")
-	waitLog("● rebuilt in ", 2)
-	if st := state(); st.State != "ok" || st.Took <= 0 || st.Output != "" {
+	r.edit(`"v3`, `"v3"`)
+	pid3 := r.waitVersion("v3")
+	r.waitLog("● rebuilt in ", 2)
+	if st := r.state(); st.State != "ok" || st.Took <= 0 || st.Output != "" {
 		t.Errorf("after a good build, the state: %+v", st)
 	}
 
-	edit("is what the app answers with", "is the answer")
+	r.edit("is what the app answers with", "is the answer")
 	writeFile(t, filepath.Join(root, "notes.md"), "not a source")
-	waitLog("● unchanged", 1)
-	if v, pid := get(); v != "v3" || pid != pid3 {
+	r.waitLog("● unchanged", 1)
+	if v, pid := r.get(); v != "v3" || pid != pid3 {
 		t.Errorf("after a comment: %s %d, want v3 %d", v, pid, pid3)
 	}
 
-	cmd.Process.Signal(syscall.SIGTERM)
-	done := make(chan error, 1)
-	go func() { done <- cmd.Wait() }()
-	select {
-	case err := <-done:
-		if err != nil {
-			t.Errorf("vuka run -watch on SIGTERM: %v", err)
-		}
-	case <-time.After(10 * time.Second):
-		t.Fatal("vuka run -watch didn't stop on SIGTERM")
-	}
+	r.stop()
 	if alive(pid3) {
 		t.Errorf("the app (%d) outlived vuka", pid3)
 	}
 	if starts, _ := os.ReadFile(filepath.Join(root, "starts")); string(starts) != "v1\nv2\nv3\n" {
 		t.Errorf("the app's main ran for %q, want v1, v2 and v3 once each", starts) // not for a prewarm
+	}
+}
+
+// TestRunWatchCancel: a change while a build runs stops that build, stale
+// already, and builds the change: the stale version never runs.
+func TestRunWatchCancel(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the vuka command and runs the go command")
+	}
+	t.Setenv("GOWORK", "off")
+	vuka := buildVuka(t)
+	goCmd, err := exec.LookPath("go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A go command whose build of a source marked SLOW takes a minute,
+	// unless interrupted.
+	bin, mark := t.TempDir(), filepath.Join(t.TempDir(), "mark")
+	writeFile(t, filepath.Join(bin, "go"), `#!/bin/sh
+if [ "$1" = build ] && grep -q SLOW main.vuka; then
+	echo started >> "$MARK"
+	sleep 60 &
+	trap 'kill $! 2>/dev/null; echo interrupted >> "$MARK"; exit 130' INT
+	wait $!
+fi
+exec `+goCmd+` "$@"
+`)
+	os.Chmod(filepath.Join(bin, "go"), 0o755)
+	root := tempModule(t, map[string]string{"go.mod": "module example.com/w\n\ngo 1.25.0\n", "main.vuka": watchApp})
+	r := startWatch(t, vuka, root, []string{"PATH=" + bin + string(os.PathListSeparator) + os.Getenv("PATH"), "MARK=" + mark})
+	r.waitVersion("v1")
+
+	r.edit(`"v1"`, `"v2" // SLOW`)
+	for end := time.Now().Add(60 * time.Second); ; time.Sleep(10 * time.Millisecond) {
+		if b, _ := os.ReadFile(mark); strings.Contains(string(b), "started") {
+			break
+		}
+		if time.Now().After(end) {
+			t.Fatalf("the slow build didn't start; output:\n%s", r.log.String())
+		}
+	}
+	start := time.Now()
+	r.edit(`"v2" // SLOW`, `"v3"`)
+	r.waitVersion("v3")
+	if took := time.Since(start); took > 30*time.Second {
+		t.Errorf("v3 answered %v after the change: the stale build ran to its end", took)
+	}
+	if b, _ := os.ReadFile(mark); !strings.Contains(string(b), "interrupted") {
+		t.Errorf("the stale build wasn't interrupted: %q", b)
+	}
+	if out := r.log.String(); strings.Contains(out, "build failed") {
+		t.Errorf("a cancelled build reported as failed:\n%s", out)
+	}
+	r.stop()
+	if starts, _ := os.ReadFile(filepath.Join(root, "starts")); string(starts) != "v1\nv3\n" {
+		t.Errorf("the app's main ran for %q, want v1 and v3", starts)
+	}
+}
+
+// TestBuildDWARF: watch builds leave out debug information, unless -debug.
+func TestBuildDWARF(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	t.Setenv("GOWORK", "off")
+	root := tempModule(t, map[string]string{"go.mod": "module example.com/d\n\ngo 1.25.0\n", "main.go": "package main\n\nfunc main() {}\n"})
+	for _, debug := range []bool{false, true} {
+		flags, _ := cutDebug([]string{"-buildvcs=false"})
+		if !debug {
+			flags = noDWARF(flags)
+		}
+		s := &supervisor{root: root, dir: root, tmp: t.TempDir(), flags: flags, pkg: []string{"."}, env: os.Environ()}
+		r := s.build(context.Background(), 1)
+		if r.err != nil {
+			t.Fatalf("build: %v\n%s", r.err, r.out)
+		}
+		has, err := hasDWARF(r.bin)
+		if err != nil {
+			t.Skip(err)
+		}
+		if has != debug {
+			t.Errorf("debug %v: the binary has DWARF: %v", debug, has)
+		}
+	}
+}
+
+func hasDWARF(bin string) (bool, error) {
+	if f, err := macho.Open(bin); err == nil {
+		defer f.Close()
+		return f.Section("__debug_info") != nil || f.Section("__zdebug_info") != nil, nil
+	}
+	if f, err := elf.Open(bin); err == nil {
+		defer f.Close()
+		return f.Section(".debug_info") != nil || f.Section(".zdebug_info") != nil, nil
+	}
+	return false, errors.New("neither Mach-O nor ELF")
+}
+
+func TestNoDWARF(t *testing.T) {
+	for _, c := range []struct{ in, want []string }{
+		{nil, []string{"-ldflags=-w"}},
+		{[]string{"-race"}, []string{"-race", "-ldflags=-w"}},
+		{[]string{"-ldflags=-X main.v=1"}, []string{"-ldflags=-w -X main.v=1"}},
+		{[]string{"-ldflags", "-s"}, []string{"-ldflags", "-w -s"}},
+		{[]string{"-ldflags=-s", "--ldflags", "-X a.b=c"}, []string{"-ldflags=-s", "--ldflags", "-w -X a.b=c"}}, // the last one counts
+		{[]string{"-ldflags=main=-X main.v=1"}, []string{"-ldflags=main=-X main.v=1"}},                          // a pattern's: as it is
+	} {
+		if got := noDWARF(c.in); !slices.Equal(got, c.want) {
+			t.Errorf("noDWARF(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+	if flags, debug := cutDebug([]string{"-race", "-debug", "-tags", "x"}); !debug || !slices.Equal(flags, []string{"-race", "-tags", "x"}) {
+		t.Errorf("cutDebug: %q %v", flags, debug)
+	}
+	if _, debug := cutDebug([]string{"--debug=false"}); debug {
+		t.Error("cutDebug took --debug=false for -debug")
 	}
 }
