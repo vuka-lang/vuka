@@ -10,6 +10,12 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.18.1 — 2026-10-11
+
+The vuka command only. The editor no longer reports `expected declaration` on a
+method chain that goes on to the next line (`ui.JS.` then `If(…)` below it);
+`vuka build` always accepted it.
+
 ## v0.16.0 — 2026-10-11
 
 Runtime: **v0.16.0** — generated code registers attributes with it; run

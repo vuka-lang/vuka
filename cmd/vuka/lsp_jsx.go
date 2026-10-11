@@ -254,7 +254,7 @@ func danglingDots(src []byte) []int {
 		for j < len(src) && (src[j] == ' ' || src[j] == '\t') {
 			j++
 		}
-		if j < len(src) && strings.IndexByte("})],\r\n", src[j]) < 0 {
+		if j < len(src) && strings.IndexByte("})],\r\n", src[j]) < 0 || continuesOnNextLine(src, j) {
 			continue
 		}
 		k := i
@@ -271,6 +271,47 @@ func danglingDots(src []byte) []int {
 		out = append(out, i+1)
 	}
 	return out
+}
+
+// continuesOnNextLine reports whether the line ending at off is a chain the
+// next line goes on with (ui.JS.⏎ If(…)): that line starts with a name that
+// isn't a keyword, indented deeper, or as deep when this line goes on a chain
+// itself.
+func continuesOnNextLine(src []byte, off int) bool {
+	nl := off
+	for nl < len(src) && (src[nl] == ' ' || src[nl] == '\t' || src[nl] == '\r') {
+		nl++
+	}
+	if nl == len(src) || src[nl] != '\n' {
+		return false
+	}
+	start := strings.LastIndexByte(string(src[:off]), '\n') + 1
+	i := nl + 1
+	for i < len(src) && (src[i] == ' ' || src[i] == '\t') {
+		i++
+	}
+	next, cur := i-nl-1, indentOf(src[start:off])
+	if next < cur || next == cur && !endsWithDot(src[:start]) || i == len(src) || !isLetter(src[i]) && src[i] != '_' {
+		return false
+	}
+	j := i
+	for j < len(src) && isIdentByte(src[j]) {
+		j++
+	}
+	return !token.Lookup(string(src[i:j])).IsKeyword()
+}
+
+func endsWithDot(src []byte) bool {
+	t := strings.TrimRight(string(src), " \t\r\n")
+	return strings.HasSuffix(t, ".")
+}
+
+func indentOf(line []byte) int {
+	n := 0
+	for n < len(line) && (line[n] == ' ' || line[n] == '\t') {
+		n++
+	}
+	return n
 }
 
 // tagAround is the innermost tag whose attributes hold off.
