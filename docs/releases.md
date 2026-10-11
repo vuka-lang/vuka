@@ -10,6 +10,24 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.17.0 — 2026-10-11
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.19.0`. With
+[`github.com/vuka-lang/ui`](/ui/) v0.9.0 and [web](https://github.com/vuka-lang/web) v0.14.0.
+
+- **JS commands reach more elements, more safely.** `ui.Ref` and `ui.Sel` take
+  several names; `ui.GetAttr(name, values…)` picks elements by attribute, and
+  a literal value nothing in the component has is a compile error with a
+  did-you-mean. Conditions combine with `And`, `Or`, `Not`, `ui.All`,
+  `ui.Any` and `.Some()`; `ui.JS.When(cond, chain).Else(chain)` needs no
+  `End`; `ui.JS.Busy()` marks a form or button busy and undoes it on a reply,
+  a timeout or the back button. See [JS commands](/ui/js).
+- **Fixed:** a decorated method with an unnamed receiver no longer fails to
+  compile when a parameter is called `r`.
+- web v0.14.0 also brings trailing-slash redirects, failed form posts that
+  re-render the whole page, and `auth.Config.Hashers` for passwords from
+  another system.
+
 ## cmd/vuka v0.18.1 — 2026-10-11
 
 The vuka command only. The editor no longer reports `expected declaration` on a
