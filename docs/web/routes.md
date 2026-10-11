@@ -166,7 +166,7 @@ app.Get("/page", page, web.View(vuka.File("views/page.html")), web.Wrap(requireT
 | `web.View(file [, name])` | the view, as `@web.Template` |
 | `web.Wrap(mw…)` | middleware for this route, as `@web.Use` |
 | `app.Live(path, &Component{…})` | a [live page](/web/live#how-a-page-becomes-live) |
-| `app.Static(prefix, fsys)` | serves an `fs.FS` (an `embed.FS` sub-tree, `os.DirFS(…)`) |
+| `app.Static(prefix, fsys)` | serves an `fs.FS` (an `embed.FS` sub-tree, `os.DirFS(…)`): a directory as its `index.html`, else 404 — never a listing — and no dotfile or dot directory (`.env`, `.git/`) but `.well-known/` |
 
 From Go, `vuka.File("…")` reads from disk relative to the working directory;
 in Vuka a decorator's [`vuka.File`](/features/decorators#files) literal is

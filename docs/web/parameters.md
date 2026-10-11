@@ -40,6 +40,19 @@ One struct parameter takes the body:
 - otherwise the form — urlencoded, multipart, or the query string;
 - then path segments fill the fields of the same name.
 
+Every request body is bounded, uploads included: 32 MiB by default,
+`web.MaxRequestBody(n)` for the app (negative for no limit), and
+`@web.MaxBody(n)` for one route — `web.Attrs(web.MaxBody(n))` from Go. A
+longer body answers `413`, whether the binding reads it or a handler reads
+`r.Body` itself; a multipart form keeps 10 MB in memory and the rest in
+temporary files, never past the limit.
+
+```vuka
+@web.Post("/videos")
+@web.MaxBody(512 << 20)
+func Upload(r *http.Request, store *Videos) error { … }
+```
+
 ```vuka
 type PetForm struct {
 	Name string `form:"name" validate:"required"`

@@ -90,6 +90,7 @@ In code, `mail.Provide(mail.Config{…})` takes the same settings, and more:
 | `LocalName` | the name given in `EHLO`; `localhost` |
 | `Transport` | sends instead of the driver: an email API over HTTP, say |
 | `Retries`, `Backoff` | `SendLater`'s retries (3) and first wait (2s, doubling) |
+| `Queue` | the most messages `SendLater` holds at once (1000) |
 | `Logger` | the log driver's and `SendLater`'s; `slog`'s default |
 
 `mail.New(cfg)` makes a Mailer outside an app; `mail.ConfigFromEnv()` reads
@@ -146,6 +147,8 @@ here — and sends it in the background. A temporary failure (a `4xx`
 answer, a connection that fails) is retried three times, after 2, 4 and 8
 seconds; a permanent one (`5xx`) is not, and the last failure is logged.
 The app's `Stop` waits for the messages still queued, within its context.
+The queue holds at most `Config.Queue` messages (1000 by default): past
+that, `SendLater` returns `mail.ErrQueueFull` instead of holding more.
 
 The queue is in memory: messages queued when the process dies are lost.
 For mail that must go out, send it from a job of your own that records it,

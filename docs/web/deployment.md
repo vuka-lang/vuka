@@ -30,7 +30,44 @@ log.Fatal(srv.ListenAndServeTLS("cert.pem", "key.pem"))
 
 In production, set real environment variables and leave `VUKA_ENV` unset (or
 `production`): internal errors answer "Internal Server Error", never their
-message.
+message. `VUKA_ENV` and the other `VUKA_` variables are read from the real
+environment only — an env file can't set them — and a binary started
+outside a Go module reads env files from its working directory alone, never
+from a directory above it.
+
+Build with **Go 1.27.2 or newer**: earlier releases have standard-library
+security fixes (`net/http`, `crypto/tls` and others) the binary doesn't get
+otherwise.
+
+## Security headers
+
+Every response carries `X-Content-Type-Options: nosniff`,
+`Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`
+and `Content-Security-Policy: frame-ancestors 'none'`, and HTTPS responses
+`Strict-Transport-Security: max-age=31536000` — unless the handler sets
+its own.
+
+| Option | |
+|---|---|
+| `web.Headers(web.SecurityHeaders{…})` | change them: `FrameOptions: "SAMEORIGIN"` (the CSP follows), `ReferrerPolicy`, `ContentTypeOptions`, `CSP`, `HSTS` (a max-age), `HSTSSubdomains`; `"-"` (or a negative `HSTS`) leaves one out |
+| `web.NoSecurityHeaders()` | none: a proxy in front sets them |
+| `web.MaxRequestBody(n)` | the largest request body, 32 MiB by default ([uploads](/web/parameters#the-body)) |
+
+## Behind a proxy
+
+A proxy or load balancer in front of the app makes every request come from
+its address. Name it, and only then are its headers believed:
+
+```vuka
+app := web.New(web.TrustedProxies("10.0.0.0/8", "fd00::/8"))
+```
+
+From those addresses, `web.ClientIP(r)` is the nearest address in
+`X-Forwarded-For` (else `Forwarded`) that isn't a trusted proxy — entries a
+client added itself further left are ignored — and `X-Forwarded-Proto: https`
+makes a request HTTPS (`web.IsHTTPS(r)`) for HSTS. From any other address,
+those headers are ignored and `web.ClientIP(r)` is the connection's peer.
+[Login throttling](/web/auth#signing-in-and-out) counts by it.
 
 `vuka build` makes one binary: views and every
 [`vuka.File`](/features/decorators#files) are embedded, and so is the live

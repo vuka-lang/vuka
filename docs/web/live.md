@@ -245,7 +245,10 @@ middleware.
 | `web.LiveOrigins(patterns…)` | other origins allowed to open live connections (`"*.example.com"`); by default only the page's own |
 
 A bad or expired token closes the connection with code 4001, and the runtime
-reloads the page (at most once in 10 seconds) for a fresh one.
+reloads the page (at most once in 10 seconds) for a fresh one. A library
+ending sign-ins ([auth](/web/auth#live-pages)) closes a page the same way:
+its checks run before each message, before each broadcast reaches the page,
+and every 25 seconds of a quiet one.
 
 ## The wire
 

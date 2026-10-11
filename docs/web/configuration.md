@@ -29,12 +29,16 @@ By `VUKA_ENV`, the first file listed winning:
   process doesn't have it yet.
 - `.env.local` files hold one machine's settings and are skipped in tests, so
   test runs don't depend on the developer's box.
-- `VUKA_ENV` picks the files, so it comes from the real environment; set in a
-  file, it still turns on dev behaviour.
+- Keys starting with `VUKA_` — `VUKA_ENV`, `VUKA_DEV_DIR`,
+  `VUKA_DEV_LIVE_KEY` — come from the real environment only. An env file
+  setting one is ignored, with a line in the log: a `.env` left next to a
+  deployed binary never switches it into development. `web.IsDev()` says
+  whether the process runs in development.
 - Files are read from the working directory or, when it has none of them,
   from the nearest parent up to the module root (the directory with
-  `go.mod`), so `go test ./pkg/...` finds the project's `.env`. Missing files
-  are fine.
+  `go.mod`), so `go test ./pkg/...` finds the project's `.env`. Without a
+  `go.mod` in the working directory or above it — a deployed binary — only
+  the working directory is read. Missing files are fine.
 - With `VUKA_ENV=development` the app logs which files it read.
 
 | Option | |

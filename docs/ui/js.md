@@ -46,7 +46,7 @@ their own.
 | `Focus(t)`, `FocusFirst(t)` | focus the element, or its first focusable descendant |
 | `PushFocus(t?)`, `PopFocus()` | remember an element (default: the focused one); focus it again later |
 | `Dispatch(t, event, opts...)` | a `CustomEvent`; `ui.Detail(v)`, `ui.NoBubble()` |
-| `Exec(t, attr)` | run the commands held in the element's attribute `attr` |
+| `Exec(t, attr)` | run the commands held in the element's attribute `attr`; point it only at attributes your own markup fills with commands, never at one holding user data |
 | `Push(handler, opts...)` | call a handler on the server; `ui.Value(v)` passes `v` instead of the element's value; `ui.Timeout(d)`, `ui.KeepOnError()` |
 | `Debounce(d)`, `Throttle(d)` | the steps after it run debounced or throttled |
 | `Key(keys...)` | stop unless a key press is one of `keys` (`"Enter"`, `"Escape"`) |
@@ -332,7 +332,8 @@ element, and `ctx.target(spec)` — then the arguments: JSON values, or reads
 of an element made when the step is reached, `t.Value()`, `t.Checked()`,
 `t.Attr(name)` (the attribute's value, or `null`). A name that isn't an
 identifier or a dotted path of them panics as the chain is built; nothing
-is ever evaluated as code.
+is ever evaluated as code. Write the name as a constant: a name built from
+user data could reach any function on `window`.
 
 The chain waits for a promise the function returns. Returning `false` stops
 the chain, like a declined `Confirm`. A throw, a rejected promise or an
