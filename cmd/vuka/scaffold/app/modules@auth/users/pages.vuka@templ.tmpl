@@ -1,0 +1,79 @@
+package users
+
+import (
+	"context"
+	"errors"
+	"net/http"
+	"net/mail"
+	"net/url"
+
+	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/auth"
+{%- if .Mail%}
+	mailer "github.com/vuka-lang/web/mail"
+{%- end%}
+
+	"{%.Module%}/layouts"
+)
+
+var _ = layouts.Nav(layouts.Link{Label: "Users", Href: "/users", Icon: "users", Perm: "users.read", Order: 10})
+
+// UsersPage fills users.templ's UsersView.
+type UsersPage struct {
+	Me      *auth.Identity
+	List    []User
+	Notice  string
+	Problem map[string]string // the add form's errors, by field
+	Form    NewUser           // what was typed, shown again after an error
+}
+
+// ListUsers is the users page; admins add users on it.
+@web.Get("/users")
+@auth.Requires("users.read")
+@web.Template("users.templ")
+func ListUsers(ctx context.Context, r *http.Request, me *auth.Identity, users *Users) Result[UsersPage] {
+	list := users.All(ctx)?
+	page := UsersPage{Me: me, List: list}
+	if name := r.URL.Query().Get("added"); name != "" {
+		page.Notice = name + " can sign in now."
+	}
+	return Ok(page)
+}
+
+// AddUser is the add form's POST: back to the list when it worked, the
+// form again with its errors when it didn't.
+@web.Post("/users")
+@auth.Requires("users.write")
+@web.Template("users.templ")
+func AddUser(ctx context.Context, me *auth.Identity, in NewUser, users *Users{%if .Mail%}, m *mailer.Mailer{%end%}) Result[UsersPage] {
+	problem := map[string]string{}
+	if in.Name == "" {
+		problem["name"] = "Enter a name."
+	}
+	if a, err := mail.ParseAddress(in.Email); err != nil || a.Address != in.Email {
+		problem["email"] = "Enter an email address like name@example.com."
+	}
+	if len(in.Password) < 12 {
+		problem["password"] = "Use 12 characters or more."
+	}
+	if len(problem) == 0 {
+		match users.Create(ctx, in) {
+		case Ok(u):
+{%- if .Mail%}
+			m.SendLater(ctx, mailer.Message{
+				To:      []string{u.Email},
+				Subject: "Welcome to " + layouts.AppName(),
+				Text:    "Hi " + u.Name + ",\n\nAn account on " + layouts.AppName() + " is ready for you: sign in with " + u.Email + " and the password you were given.\n",
+			})?
+{%- end%}
+			return Err(web.Redirect("/users?added=" + url.QueryEscape(u.Name)))
+		case Err(e) if errors.Is(e, ErrEmailTaken):
+			problem["email"] = "Someone already has this email."
+		case Err(e):
+			return Err(e)
+		}
+	}
+	list := users.All(ctx)?
+	in.Password = ""
+	return Ok(UsersPage{Me: me, List: list, Problem: problem, Form: in})
+}

@@ -1,0 +1,29 @@
+package components
+
+import "github.com/vuka-lang/ui"
+
+var flashTones = map[string]string{
+	"error":   "bg-red-50 text-red-800 ring-red-600/15 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-400/20",
+	"success": "bg-emerald-50 text-emerald-800 ring-emerald-600/15 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20",
+	"info":    "bg-slate-50 text-slate-700 ring-slate-600/10 dark:bg-white/5 dark:text-slate-300 dark:ring-white/10",
+}
+
+// Flash is a message: tone "error", "success" or "info". Nothing when
+// message is empty.
+func Flash(tone string, message string, class string) ui.Node {
+	if message == "" {
+		return <></> // nothing, but a node templ can render
+	}
+	colours, ok := flashTones[tone]
+	if !ok {
+		colours = flashTones["info"]
+	}
+	role := "status"
+	if tone == "error" {
+		role = "alert"
+	}
+	return <div role={role} class={cx("flash flex items-start gap-2.5 rounded-lg px-3.5 py-3 text-sm ring-1 ring-inset", colours, class)}>
+		<Icon name={tone} class="mt-0.5 size-4 shrink-0" />
+		<p>{message}</p>
+	</div>
+}

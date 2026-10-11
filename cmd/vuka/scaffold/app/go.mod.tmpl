@@ -1,0 +1,20 @@
+module {%.Module%}
+
+go 1.27
+
+require (
+	github.com/vuka-lang/ui {%.UIVersion%}
+	github.com/vuka-lang/vuka {%.VukaVersion%}
+	github.com/vuka-lang/web {%.WebVersion%}
+{%- if ne .DB "none"%}
+	github.com/vuka-lang/orm {%.ORMVersion%}
+{%- end%}
+)
+{%- if ne .DB "none"%}
+
+tool github.com/vuka-lang/orm/cmd/orm
+{%- end%}
+{%- range .ReplaceLines%}
+
+{%.%}
+{%- end%}

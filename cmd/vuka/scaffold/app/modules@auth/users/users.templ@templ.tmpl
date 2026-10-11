@@ -1,0 +1,87 @@
+package users
+
+import (
+	"github.com/vuka-lang/web/auth"
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+)
+
+templ UsersView(me *auth.Identity, list []User, notice string, problem map[string]string, form NewUser) {
+	@layouts.App(me, "/users", "Users", "Everyone who can sign in.") {
+		@components.Flash("success", notice, "mb-6")
+		if me.Can("users.write") {
+			<details class="group mb-6 rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10" open?={ len(problem) > 0 }>
+				<summary class="flex cursor-pointer list-none items-center gap-2 px-6 py-4 text-sm font-semibold text-slate-900 dark:text-white [&::-webkit-details-marker]:hidden">
+					@components.Icon("plus", "size-4 text-brand-600")
+					Add a user
+				</summary>
+				<form method="post" action="/users" class="grid gap-4 border-t border-slate-900/5 p-6 sm:grid-cols-2 dark:border-white/10" id="add-user">
+					@field("Name", "name", "", problem["name"]) {
+						@components.Input(components.InputProps{Name: "name", Value: form.Name, Autocomplete: "off", Invalid: problem["name"] != ""})
+					}
+					@field("Email", "email", "", problem["email"]) {
+						@components.Input(components.InputProps{Name: "email", Type: "email", Value: form.Email, Autocomplete: "off", Invalid: problem["email"] != ""})
+					}
+					@field("Password", "password", "12 characters or more.", problem["password"]) {
+						@components.Input(components.InputProps{Name: "password", Type: "password", Autocomplete: "new-password", Invalid: problem["password"] != ""})
+					}
+					@field("Role", "role", "", "") {
+						<select id="role" name="role" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600 dark:bg-white/5 dark:text-white dark:ring-white/15">
+							<option value="member">Member</option>
+							<option value="admin" selected?={ form.Role == "admin" }>Admin</option>
+						</select>
+					}
+					<div class="flex justify-end sm:col-span-2">
+						@components.Button(components.ButtonProps{Children: templ.Raw("Add user")})
+					</div>
+				</form>
+			</details>
+		}
+		<div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+			<table class="min-w-full divide-y divide-slate-900/5 text-sm dark:divide-white/10">
+				<thead class="bg-slate-50 text-left text-xs font-medium tracking-wide text-slate-500 uppercase dark:bg-white/5 dark:text-slate-400">
+					<tr>
+						<th scope="col" class="px-5 py-3">Name</th>
+						<th scope="col" class="px-5 py-3">Role</th>
+						<th scope="col" class="hidden px-5 py-3 sm:table-cell">Joined</th>
+					</tr>
+				</thead>
+				<tbody class="divide-y divide-slate-900/5 dark:divide-white/5" id="users">
+					for _, u := range list {
+						<tr>
+							<td class="px-5 py-3.5">
+								<p class="font-medium text-slate-900 dark:text-white">{ u.Name }</p>
+								<p class="text-slate-500 dark:text-slate-400">{ u.Email }</p>
+							</td>
+							<td class="px-5 py-3.5">
+								<span class={ "inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset", roleClass(u.Role) }>{ u.Role }</span>
+							</td>
+							<td class="hidden px-5 py-3.5 text-slate-500 sm:table-cell dark:text-slate-400">{ u.CreatedAt.Format("2 Jan 2006") }</td>
+						</tr>
+					}
+				</tbody>
+			</table>
+		</div>
+	}
+}
+
+// field is a labelled form control with its hint or error.
+templ field(label string, name string, hint string, problem string) {
+	<div class="space-y-1.5">
+		<label for={ name } class="block text-sm font-medium text-slate-700 dark:text-slate-200">{ label }</label>
+		{ children... }
+		if problem != "" {
+			<p class="text-sm text-red-600 dark:text-red-400">{ problem }</p>
+		} else if hint != "" {
+			<p class="text-xs text-slate-500 dark:text-slate-400">{ hint }</p>
+		}
+	</div>
+}
+
+func roleClass(role string) string {
+	if role == "admin" {
+		return "bg-brand-50 text-brand-800 ring-brand-600/20 dark:bg-brand-500/10 dark:text-brand-300 dark:ring-brand-400/20"
+	}
+	return "bg-slate-100 text-slate-700 ring-slate-600/10 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10"
+}

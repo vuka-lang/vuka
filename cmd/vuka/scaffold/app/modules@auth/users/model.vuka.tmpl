@@ -1,0 +1,48 @@
+package users
+
+import (
+	"time"
+
+	"github.com/vuka-lang/orm"
+)
+
+// User is an account that can sign in. Its password is an encoded hash
+// (auth.HashPassword), never the password itself.
+type User struct {
+	orm.Base  `json:"-"` @orm.Meta{Table: "users", Ordering: []string{"name"}}
+	ID        int64     `json:"id"`
+	Name      string    `json:"name"` @orm.Char{Max: 100}
+	Email     string    `json:"email"` @orm.Char{Max: 254, Unique: true}
+	Password  string    `json:"-"` @orm.Char{Max: 255}
+	Role      string    `json:"role"` @orm.Char{Max: 20} @orm.DefaultTo("member")
+	CreatedAt time.Time `json:"createdAt"` @orm.AutoNowAdd
+}
+
+// DisplayName and EmailAddress are what the app's shell shows of the
+// signed-in user.
+func (u *User) DisplayName() string  { return u.Name }
+func (u *User) EmailAddress() string { return u.Email }
+
+// Session is a signed-in browser (auth's sessions, kept in the database
+// so sign-ins survive a restart). Key is the hash of the cookie's id.
+type Session struct {
+	orm.Base @orm.Meta{Table: "sessions"}
+	ID       int64
+	Key      string    @orm.Char{Max: 64, Unique: true}
+	UserID   string    @orm.Char{Max: 64, Index: true}
+	Created  time.Time
+	Seen     time.Time
+	Expires  time.Time @orm.Index
+}
+
+// Token is a bearer token for the API (POST /auth/token), kept as the
+// hash of the token.
+type Token struct {
+	orm.Base @orm.Meta{Table: "tokens"}
+	ID       int64
+	Key      string    @orm.Char{Max: 64, Unique: true}
+	UserID   string    @orm.Char{Max: 64, Index: true}
+	Name     string    @orm.Char{Max: 100}
+	Created  time.Time
+	Expires  time.Time @orm.Index
+}

@@ -1,0 +1,120 @@
+// Package layouts is the app's page frames, in layouts.templ: the document
+// every page sits in, the {%if .Auth%}signed-in {%end%}shell (App) {%if .Auth%}and the centred card of the
+// sign-in page (Auth){%end%}. This file holds what they compute.
+package layouts
+
+import (
+	"strings"
+
+	"github.com/vuka-lang/web"
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+)
+
+// AppName is the app's name, as pages and the shell show it (APP_NAME).
+func AppName() string { return web.Env("APP_NAME", "{%.Name%}") }
+
+// title is a page's <title>.
+func title(page string) string {
+	if page == "" {
+		return AppName()
+	}
+	return page + " · " + AppName()
+}
+{%- if .Auth%}
+
+// Account is what the shell shows of the signed-in user; the users
+// module's User has it.
+type Account interface {
+	DisplayName() string
+	EmailAddress() string
+}
+
+func account(me *auth.Identity) (name, email string) {
+	if me == nil {
+		return "", ""
+	}
+	if a, ok := me.User.(Account); ok {
+		return a.DisplayName(), a.EmailAddress()
+	}
+	return me.ID, ""
+}
+
+func displayName(me *auth.Identity) string {
+	name, _ := account(me)
+	return name
+}
+
+func email(me *auth.Identity) string {
+	_, e := account(me)
+	return e
+}
+
+func initials(me *auth.Identity) string {
+	name, _ := account(me)
+	var out []rune
+	for _, w := range strings.Fields(name) {
+		out = append(out, []rune(strings.ToUpper(w))[0])
+		if len(out) == 2 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return "?"
+	}
+	return string(out)
+}
+
+// visible is the navigation's links the user may see.
+func visible(me *auth.Identity) []Link {
+	var out []Link
+	for _, l := range Links() {
+		if l.Perm == "" || me.Can(l.Perm) {
+			out = append(out, l)
+		}
+	}
+	return out
+}
+{%- else%}
+
+// visible is the navigation's links.
+func visible() []Link { return Links() }
+{%- end%}
+
+// active reports whether the page at path belongs to the link href.
+func active(path, href string) bool {
+	if href == "/" {
+		return path == "/"
+	}
+	return path == href || strings.HasPrefix(path, href+"/")
+}
+
+func navClass(on bool) string {
+	if on {
+		return "inline-flex items-center gap-2 rounded-lg bg-slate-900/5 px-3 py-2 text-sm font-medium text-slate-900 dark:bg-white/10 dark:text-white"
+	}
+	return "inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-900/5 hover:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white"
+}
+
+func current(on bool) string {
+	if on {
+		return "page"
+	}
+	return "false"
+}
+
+// busyForms marks a form's submit button aria-busy while the browser posts
+// it, so it shows its spinner (a page restored from the back-forward cache
+// clears it), and keeps the fields marked data-keep for this tab, so a form
+// that comes back with an error still has them.
+const busyForms = `addEventListener("submit", (e) => {
+  if (e.defaultPrevented) return;
+  const b = e.submitter || e.target.querySelector("[type=submit]");
+  if (b) b.setAttribute("aria-busy", "true");
+  e.target.querySelectorAll("[data-keep]").forEach((f) => sessionStorage.setItem("keep:" + f.name, f.value));
+});
+addEventListener("DOMContentLoaded", () => document.querySelectorAll("[data-keep]").forEach((f) => {
+  if (!f.value) f.value = sessionStorage.getItem("keep:" + f.name) || "";
+}));
+addEventListener("pageshow", () => document.querySelectorAll("[aria-busy=true]").forEach((b) => b.removeAttribute("aria-busy")));`

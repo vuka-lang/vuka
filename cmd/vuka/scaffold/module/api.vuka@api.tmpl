@@ -1,0 +1,29 @@
+package {%.Pkg%}
+
+import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/web"
+)
+
+// List is GET /api/{%.Pkg%}.
+@web.Get("/api/{%.Pkg%}")
+func List(ctx context.Context, s *{%.Service%}) Result[[]{%.Model%}] { return s.All(ctx) }
+
+// Create is POST /api/{%.Pkg%}: JSON in, the new {%.Model%} out.
+@web.Post("/api/{%.Pkg%}")
+func Create(ctx context.Context, in New{%.Model%}, s *{%.Service%}) Result[{%.Model%}] {
+	match s.Add(ctx, in) {
+	case Ok(row):
+		return Ok(row)
+	case Err(e) if errors.Is(e, ErrNoTitle):
+		return Err(web.BadRequest(e.Error()))
+	case Err(e):
+		return Err(e)
+	}
+}
+
+// Remove is DELETE /api/{%.Pkg%}/{id}.
+@web.Delete("/api/{%.Pkg%}/{id}")
+func Remove(ctx context.Context, id int64, s *{%.Service%}) error { return s.Delete(ctx, id) }

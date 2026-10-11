@@ -1,0 +1,27 @@
+<script>
+  import logo from '/logo.svg'
+
+  // APP_NAME comes from the app's environment (web.FrontendEnv).
+  const name = import.meta.env.APP_NAME
+{%- if .Auth%}
+  let me = $state()
+  fetch('/auth/me')
+    .then((r) => (r.ok ? r.json() : null))
+    .then((v) => (me = v), () => (me = null))
+{%- end%}
+</script>
+
+<main class="card">
+  <img src={logo} alt="" />
+  <h1>{name}</h1>
+  <p>A Svelte app, built by Vite and served by the app at <code>/app</code>.</p>
+{%- if .Auth%}
+  {#if me}
+    <p>Signed in as {me.user?.name ?? me.id}. <a href="/">Back to the app</a></p>
+  {:else if me === null}
+    <p><a href="/login?next=/app/">Sign in</a> to see who you are.</p>
+  {/if}
+{%- else%}
+  <p><a href="/">Back to the app</a></p>
+{%- end%}
+</main>

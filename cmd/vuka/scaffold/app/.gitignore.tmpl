@@ -1,0 +1,23 @@
+# Secrets and this machine's settings: .env.example is the committed template.
+.env
+.env.*
+!.env.example
+{%- if ne .DB "none"%}
+
+# The SQLite database and other local data.
+/data/
+{%- end%}
+
+# Build output (vuka build -o {%.Slug%}), and vuka's working files.
+/{%.Slug%}
+/build/
+/.vuka/
+{%- if ne .Frontend "none"%}
+
+# The frontend's dependencies and build (vuka build makes it; .gitkeep lets
+# the binary embed the directory before the first build).
+node_modules/
+/frontend/dist/*
+!/frontend/dist/.gitkeep
+/frontend/vuka/
+{%- end%}

@@ -1,0 +1,249 @@
+package main
+
+import (
+	"context"
+{%- if and .Auth (not .Pages)%}
+	"encoding/json"
+{%- end%}
+	"io"
+	"net/http"
+{%- if and .Auth .Pages%}
+	"net/http/cookiejar"
+{%- end%}
+	"net/http/httptest"
+{%- if and .Auth .Pages%}
+	"net/url"
+{%- end%}
+	"strings"
+	"testing"
+
+{%- if ne .DB "none"%}
+	_ "github.com/vuka-lang/orm/sqlite" // the tests run on SQLite
+{%- end%}
+	"github.com/vuka-lang/web"
+)
+{%- if .Auth%}
+
+const (
+	adminEmail    = "admin@example.com"
+	adminPassword = "a-test-password-1234"
+)
+{%- end%}
+{%- if ne .DB "none"%}
+
+// testDB gives a test a fresh SQLite database{%if .Auth%} and the admin ADMIN_EMAIL
+// names{%end%}: the real environment wins over .env.
+func testDB(t *testing.T) {
+	t.Setenv("DATABASE_URL", "sqlite://"+t.TempDir()+"/test.db?_pragma=busy_timeout(5000)")
+{%- if .Auth%}
+	t.Setenv("ADMIN_EMAIL", adminEmail)
+	t.Setenv("ADMIN_PASSWORD", adminPassword)
+{%- end%}
+}
+{%- end%}
+
+// serve runs a fresh app{%if ne .DB "none"%} on a database of its own{%end%}.
+func serve(t *testing.T) *httptest.Server {
+	t.Helper()
+{%- if ne .DB "none"%}
+	testDB(t)
+{%- end%}
+	return start(t)
+}
+
+// start runs the app{%if ne .DB "none"%} (migrations{%if .Auth%}, the admin{%end%}){%end%} and serves it.
+func start(t *testing.T) *httptest.Server {
+	t.Helper()
+	app := web.New({%if ne .Frontend "none"%}append(options(), web.Dev())...{%else%}options()...{%end%})
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	srv := httptest.NewServer(app.Handler())
+	t.Cleanup(func() {
+		srv.Close()
+		app.Stop(context.Background())
+	})
+	return srv
+}
+
+// client is a browser, cookies kept, that shows redirects rather than
+// following them.
+type client struct {
+	t   *testing.T
+	srv *httptest.Server
+	c   *http.Client
+}
+
+func newClient(t *testing.T, srv *httptest.Server) *client {
+{%- if and .Auth .Pages%}
+	jar, _ := cookiejar.New(nil)
+	return &client{t, srv, &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+{%- else%}
+	return &client{t, srv, &http.Client{CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+{%- end%}
+}
+
+// do sends a request; header holds name, value pairs.
+func (c *client) do(method, path, body string, header ...string) (int, string, http.Header) {
+	c.t.Helper()
+	req, _ := http.NewRequest(method, c.srv.URL+path, strings.NewReader(body))
+	for i := 0; i+1 < len(header); i += 2 {
+		req.Header.Set(header[i], header[i+1])
+	}
+	res, err := c.c.Do(req)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return res.StatusCode, string(b), res.Header
+}
+{%- if and .Auth .Pages%}
+
+// page GETs a page as a browser does.
+func (c *client) page(path string) (int, string, http.Header) {
+	c.t.Helper()
+	return c.do("GET", path, "", "Accept", "text/html")
+}
+
+// login posts the login form.
+func (c *client) login(email, password, next string) (int, string) {
+	c.t.Helper()
+	form := url.Values{"login": {email}, "password": {password}, "next": {next}}
+	code, _, h := c.do("POST", "/auth/login", form.Encode(), "Content-Type", "application/x-www-form-urlencoded", "Accept", "text/html", "Origin", c.srv.URL)
+	return code, h.Get("Location")
+}
+
+func TestHomeNeedsSignIn(t *testing.T) {
+	c := newClient(t, serve(t))
+	if code, _, h := c.page("/"); code != 302 || h.Get("Location") != "/login?next=%2F" {
+		t.Errorf("GET / signed out: %d %s", code, h.Get("Location"))
+	}
+	if code, body, _ := c.page("/login?next=%2F"); code != 200 || !strings.Contains(body, `name="next" value="/"`) {
+		t.Errorf("the login page: %d", code)
+	}
+}
+
+func TestLogin(t *testing.T) {
+	c := newClient(t, serve(t))
+
+	// A wrong password and an unknown email get the same answer.
+	for _, email := range []string{adminEmail, "nobody@example.com"} {
+		if code, to := c.login(email, "not the password", "/users"); code != 303 || to != "/login?error=invalid&next=%2Fusers" {
+			t.Errorf("a wrong login for %s: %d %s", email, code, to)
+		}
+	}
+	if _, body, _ := c.page("/login?error=invalid&next=%2Fusers"); !strings.Contains(body, "That email and password don&#39;t match an account.") {
+		t.Error("the login page doesn't say the login failed")
+	}
+
+	// The right one lands on the page asked for, signed in.
+	if code, to := c.login(adminEmail, adminPassword, "/users"); code != 303 || to != "/users" {
+		t.Fatalf("signing in: %d %s", code, to)
+	}
+	if code, body, _ := c.page("/users"); code != 200 || !strings.Contains(body, adminEmail) {
+		t.Errorf("the users page: %d", code)
+	}
+	if code, body, _ := c.page("/"); code != 200 || !strings.Contains(body, "Welcome back, Admin") {
+		t.Errorf("home signed in: %d", code)
+	}
+
+	// Signing out ends the session.
+	c.do("POST", "/auth/logout", "", "Origin", c.srv.URL)
+	if code, _, _ := c.page("/"); code != 302 {
+		t.Errorf("home after signing out: %d", code)
+	}
+}
+
+// Sessions are kept in the database: restarting the app signs no one out.
+func TestSessionSurvivesRestart(t *testing.T) {
+	testDB(t)
+	first := start(t)
+	c := newClient(t, first)
+	if code, _ := c.login(adminEmail, adminPassword, "/"); code != 303 {
+		t.Fatalf("signing in: %d", code)
+	}
+	first.Close()
+
+	second := start(t) // another app on the same database, as after a restart
+	jar, _ := cookiejar.New(nil)
+	from, _ := url.Parse(first.URL)
+	to, _ := url.Parse(second.URL)
+	jar.SetCookies(to, c.c.Jar.Cookies(from))
+	c.srv, c.c.Jar = second, jar
+	if code, _, _ := c.page("/"); code != 200 {
+		t.Errorf("home after a restart: %d", code)
+	}
+}
+{%- else if .Auth%}
+
+// token signs in at POST /auth/token: a bearer token for the API.
+func (c *client) token(email, password string) (int, string) {
+	c.t.Helper()
+	code, body, _ := c.do("POST", "/auth/token", `{"login":"`+email+`","password":"`+password+`"}`, "Content-Type", "application/json")
+	var tr struct {
+		AccessToken string `json:"access_token"`
+	}
+	json.Unmarshal([]byte(body), &tr)
+	return code, tr.AccessToken
+}
+
+func TestAPINeedsAToken(t *testing.T) {
+	c := newClient(t, serve(t))
+	if code, _, _ := c.do("GET", "/api/users", ""); code != 401 {
+		t.Errorf("GET /api/users without a token: %d", code)
+	}
+	if code, body, _ := c.do("GET", "/", ""); code != 200 || !strings.Contains(body, `"name":"{%.Name%}"`) {
+		t.Errorf("GET /: %d %s", code, body)
+	}
+}
+
+func TestToken(t *testing.T) {
+	c := newClient(t, serve(t))
+
+	// A wrong password and an unknown email get the same answer.
+	for _, email := range []string{adminEmail, "nobody@example.com"} {
+		if code, tok := c.token(email, "not the password"); code != 401 || tok != "" {
+			t.Errorf("a wrong login for %s: %d", email, code)
+		}
+	}
+	code, tok := c.token(adminEmail, adminPassword)
+	if code != 200 || tok == "" {
+		t.Fatalf("a token: %d", code)
+	}
+	bearer := "Bearer " + tok
+	if code, body, _ := c.do("GET", "/api/users", "", "Authorization", bearer); code != 200 || !strings.Contains(body, adminEmail) {
+		t.Errorf("GET /api/users: %d %s", code, body)
+	}
+	code, body, _ := c.do("POST", "/api/users", `{"name":"Grace","email":"grace@example.com","password":"another-password-99"}`, "Authorization", bearer, "Content-Type", "application/json")
+	if code != 200 || !strings.Contains(body, `"email":"grace@example.com"`) || strings.Contains(body, "argon2") {
+		t.Errorf("POST /api/users: %d %s", code, body)
+	}
+	if code, tok := c.token("grace@example.com", "another-password-99"); code != 200 || tok == "" {
+		t.Errorf("the new user's token: %d", code)
+	}
+	c.do("POST", "/auth/logout", "", "Authorization", bearer)
+	if code, _, _ := c.do("GET", "/api/users", "", "Authorization", bearer); code != 401 {
+		t.Errorf("a token after logout: %d", code)
+	}
+}
+{%- else if .Pages%}
+
+func TestHome(t *testing.T) {
+	c := newClient(t, serve(t))
+	if code, body, _ := c.do("GET", "/", "", "Accept", "text/html"); code != 200 || !strings.Contains(body, "{%.Name%}") {
+		t.Errorf("GET /: %d", code)
+	}
+	if code, _, _ := c.do("GET", "/static/logo.svg", ""); code != 200 {
+		t.Errorf("the logo: %d", code)
+	}
+}
+{%- else%}
+
+func TestHome(t *testing.T) {
+	c := newClient(t, serve(t))
+	if code, body, _ := c.do("GET", "/", ""); code != 200 || !strings.Contains(body, `"name":"{%.Name%}"`) {
+		t.Errorf("GET /: %d %s", code, body)
+	}
+}
+{%- end%}

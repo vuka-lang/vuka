@@ -1,0 +1,97 @@
+package pages
+
+import (
+	"strconv"
+{%- if .Auth%}
+
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+)
+
+{%- if .Auth%}
+
+templ HomeView(me *auth.Identity, name string, people int64, sessions int64, role string) {
+	@layouts.App(me, "/", "Welcome back, "+name, "Here is what's happening in "+layouts.AppName()+".") {
+		<div class="grid gap-4 sm:grid-cols-3">
+			@stat("Users", strconv.FormatInt(people, 10), "/users", "users")
+			@stat("Active sessions", strconv.FormatInt(sessions, 10), "", "sparkles")
+			@stat("Your role", role, "", "info")
+		</div>
+		@grow()
+	}
+}
+{%- else%}
+
+templ HomeView() {
+	@layouts.App("/", "Welcome to "+layouts.AppName(), "Your app is running. Here is where it goes next.") {
+		@grow()
+	}
+}
+{%- end%}
+
+// stat is a number on the dashboard, a link when href is set.
+templ stat(label string, value string, href string, icon string) {
+	if href != "" {
+		<a href={ templ.SafeURL(href) } class="block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 transition hover:ring-brand-500/40 focus-visible:outline-2 focus-visible:outline-brand-500 dark:bg-slate-900 dark:ring-white/10">
+			@statBody(label, value, icon)
+		</a>
+	} else {
+		<div class="block rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+			@statBody(label, value, icon)
+		</div>
+	}
+}
+
+templ statBody(label string, value string, icon string) {
+	<div class="flex items-center gap-4">
+		<span class="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+			@components.Icon(icon, "size-5")
+		</span>
+		<div>
+			<p class="text-sm text-slate-500 dark:text-slate-400">{ label }</p>
+			<p class="text-2xl font-semibold tracking-tight text-slate-900 capitalize dark:text-white">{ value }</p>
+		</div>
+	</div>
+}
+
+templ grow() {
+	<div class="mt-8 grid gap-4 lg:grid-cols-3">
+		<section class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 lg:col-span-2 dark:bg-slate-900 dark:ring-white/10">
+			<h2 class="text-base font-semibold text-slate-900 dark:text-white">Grow your app</h2>
+			<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">Everything here is yours to change. A module is the unit of growth.</p>
+			<ol class="mt-4 space-y-4 text-sm">
+{%- if ne .DB "none"%}
+				@step(1, "Add a module", "vuka add module notes", "adds a model, a service, a page, a migration and a test under modules/notes, and links it here.")
+				@step(2, "Change the schema", "go tool orm makemigrations", "after editing a model writes the migration; the app applies it when it starts.")
+{%- else%}
+				@step(1, "Add a page", "@web.Get", "with @web.Template beside a .templ view is a page; layouts.Nav links it here.")
+				@step(2, "Keep data", "vuka new --db=sqlite", "starts an app with a database, migrations and modules.")
+{%- end%}
+				@step(3, "Make it look like yours", "styles/app.css", "holds the brand colour and fonts as tokens; shared pieces are in components/ and layouts/.")
+			</ol>
+		</section>
+		<section class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+			<h2 class="text-base font-semibold text-slate-900 dark:text-white">Resources</h2>
+			<ul class="mt-4 space-y-3 text-sm">
+				<li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/vuka/web/">The web guide</a></li>
+				<li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/vuka/web/views">Views and templ</a></li>
+				<li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/vuka/orm/">The ORM</a></li>
+			</ul>
+		</section>
+	</div>
+}
+
+templ step(n int, heading string, code string, rest string) {
+	<li class="flex gap-3">
+		<span class="grid size-6 shrink-0 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-white dark:text-slate-900">{ strconv.Itoa(n) }</span>
+		<div>
+			<p class="font-medium text-slate-900 dark:text-white">{ heading }</p>
+			<p class="mt-0.5 text-slate-600 dark:text-slate-400">
+				<code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800 dark:bg-white/10 dark:text-slate-200">{ code }</code> { rest }
+			</p>
+		</div>
+	</li>
+}

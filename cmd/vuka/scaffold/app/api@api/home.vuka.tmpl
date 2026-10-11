@@ -1,0 +1,36 @@
+// Package api is the app's own endpoints; a module's are in the module
+// (modules/<name>/api.vuka).
+package api
+
+import (
+	"github.com/vuka-lang/web"
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+)
+
+// About is what GET / answers: the app and where to start.
+type About struct {
+	Name      string            `json:"name"`
+	Endpoints map[string]string `json:"endpoints"`
+}
+
+// Home describes the API.{%if .Auth%} It is public; every other route needs a
+// sign-in (a bearer token from POST /auth/token) unless marked @auth.Public.{%end%}
+@web.Get("/")
+{%- if .Auth%}
+@auth.Public
+{%- end%}
+func Home() About {
+	return About{
+		Name: web.Env("APP_NAME", "{%.Name%}"),
+		Endpoints: map[string]string{
+{%- if .Auth%}
+			"POST /auth/token": "a bearer token for a login and password",
+			"GET /auth/me":     "who the token belongs to",
+			"GET /api/users":   "every user",
+			"POST /api/users":  "a new user (admins)",
+{%- end%}
+		},
+	}
+}

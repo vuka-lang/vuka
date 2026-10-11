@@ -1,0 +1,17 @@
+// Package components is the app's shared JSX: buttons, cards, form fields,
+// flash messages, icons and the logo. Tailwind classes only; the theme's
+// tokens (the brand colour, fonts) are in styles/app.css.
+package components
+
+import "strings"
+
+// cx joins class names, skipping empty ones.
+func cx(classes ...string) string {
+	var out []string
+	for _, c := range classes {
+		if c = strings.TrimSpace(c); c != "" {
+			out = append(out, c)
+		}
+	}
+	return strings.Join(out, " ")
+}

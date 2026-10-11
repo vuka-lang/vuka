@@ -1,0 +1,95 @@
+package {%.Pkg%}
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+)
+
+var _ = layouts.Nav(layouts.Link{Label: "{%.Label%}", Href: "{%.Path%}", Icon: "book", Order: 20})
+
+// Page lists the {%.Pkg%}, with a form to add one. It is live: adding and
+// deleting change the page in place.
+@web.Live("{%.Path%}", web.Layout(layouts.Page("{%.Label%}")))
+type Page struct {
+	ui.Live
+	{%.Service%} *{%.Service%}
+{%- if .Auth%}
+	me      *auth.Identity
+{%- end%}
+	rows    []{%.Model%}
+	problem string
+}
+
+func (p *Page) Mount(ctx context.Context) error {
+{%- if .Auth%}
+	p.me = auth.Current(ctx)
+{%- end%}
+	p.rows = p.{%.Service%}.All(ctx)?
+	return nil
+}
+
+// Add saves the form's {%.Model%}; an error keeps what was typed.
+func (p *Page) Add(ctx context.Context, in New{%.Model%}) error {
+	p.problem = ""
+	match p.{%.Service%}.Add(ctx, in) {
+	case Ok(_):
+		p.rows = p.{%.Service%}.All(ctx)?
+		return nil
+	case Err(e):
+		p.problem = e.Error()
+		return e
+	}
+}
+
+// Delete removes the {%.Model%} whose button was clicked (its value is the id).
+func (p *Page) Delete(ctx context.Context, id int64) error {
+	p.{%.Service%}.Delete(ctx, id)?
+	p.rows = p.{%.Service%}.All(ctx)?
+	return nil
+}
+
+func (p *Page) Render() ui.Node {
+	return <layouts.App{%if .Auth%} me={p.me}{%end%} path="{%.Path%}" title="{%.Label%}" description="Add one, and it is saved in the database.">
+		<div class="grid gap-6 lg:grid-cols-3">
+			<components.Card title="New" description="" class="lg:order-last">
+				<form onSubmit={p.Add} class="space-y-4" id="new-{%.Pkg%}">
+					<components.Field label="Title" name="title" error={p.problem}>
+						<components.Input name="title" autocomplete="off" invalid={p.problem != ""} />
+					</components.Field>
+					<components.Field label="Details" name="body" hint="Optional.">
+						<textarea id="body" name="body" rows="3" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none dark:bg-white/5 dark:text-white dark:ring-white/15" />
+					</components.Field>
+					<components.Button class="w-full">Add</components.Button>
+				</form>
+			</components.Card>
+			<div class="lg:col-span-2">
+				{if len(p.rows) == 0 {
+					<div class="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 dark:border-white/15 dark:text-slate-400">
+						Nothing yet. Add the first one.
+					</div>
+				}}
+				<ul class="space-y-3" id="{%.Pkg%}">
+					{for _, row := range p.rows {
+						<li key={row.ID} id={"{%.Pkg%}-" + strconv.FormatInt(row.ID, 10)} class="flex items-start justify-between gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+							<div>
+								<p class="font-medium text-slate-900 dark:text-white">{row.Title}</p>
+								{if row.Body != "" { <p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{row.Body}</p> }}
+								<p class="mt-2 text-xs text-slate-400">{row.CreatedAt.Format("2 Jan 2006, 15:04")}</p>
+							</div>
+							<components.Button type="button" variant="ghost" size="sm" attrs={[]ui.Attr{{Name: "value", Value: row.ID}}} onClick={ui.JS.Confirm("Delete " + row.Title + "?").Push(p.Delete)}>Delete</components.Button>
+						</li>
+					}}
+				</ul>
+			</div>
+		</div>
+	</layouts.App>
+}

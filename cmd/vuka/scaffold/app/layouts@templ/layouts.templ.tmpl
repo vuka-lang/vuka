@@ -1,0 +1,127 @@
+package layouts
+
+import (
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+
+	"{%.Module%}/components"
+)
+
+// Document is the HTML document around a page. The Tailwind stylesheet
+// (styles/app.css) is linked by the framework.
+templ Document(page string) {
+	<!DOCTYPE html>
+	<html lang="en" class="h-full bg-slate-50 antialiased dark:bg-slate-950">
+		<head>
+			<meta charset="utf-8"/>
+			<meta name="viewport" content="width=device-width, initial-scale=1"/>
+			<meta name="color-scheme" content="light dark"/>
+			<title>{ title(page) }</title>
+			<link rel="icon" type="image/svg+xml" href="/static/logo.svg"/>
+			@templ.Raw("<script>" + busyForms + "</script>")
+		</head>
+		<body class="h-full font-sans text-slate-900 dark:text-slate-100">
+			{ children... }
+		</body>
+	</html>
+}
+{%- if .Auth%}
+
+// Auth is the frame of the signed-out pages: the logo over a centred card.
+templ Auth(heading string, subtitle string) {
+	@Document(heading) {
+		<div class="relative flex min-h-full flex-col justify-center overflow-hidden px-4 py-12 sm:px-6">
+			<div class="pointer-events-none absolute inset-x-0 top-0 -z-10 h-80 bg-gradient-to-b from-brand-100/70 to-transparent dark:from-brand-500/10" aria-hidden="true"></div>
+			<div class="mx-auto w-full max-w-sm">
+				<div class="flex flex-col items-center text-center">
+					<img src="/static/logo.svg" alt={ AppName() } width="56" height="56" class="size-14 rounded-2xl shadow-md ring-1 ring-black/5"/>
+					<h1 class="mt-6 text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{ heading }</h1>
+					if subtitle != "" {
+						<p class="mt-2 text-sm text-slate-500 dark:text-slate-400">{ subtitle }</p>
+					}
+				</div>
+				<div class="mt-8 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 sm:p-8 dark:bg-slate-900 dark:ring-white/10">
+					{ children... }
+				</div>
+				<p class="mt-8 text-center text-xs text-slate-400 dark:text-slate-500">{ AppName() } · built with Vuka</p>
+			</div>
+		</div>
+	}
+}
+{%- end%}
+
+// App is the {%if .Auth%}signed-in {%end%}shell: the top bar with the logo, the navigation
+// (path highlights its link){%if .Auth%} and the user menu{%end%}, then the page's heading and
+// the page itself.
+templ App({%if .Auth%}me *auth.Identity, {%end%}path string, heading string, description string) {
+	@Document(heading) {
+		<div class="min-h-full">
+			<header class="sticky top-0 z-30 border-b border-slate-900/10 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
+				<div class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6 lg:px-8">
+					<a href="/" class="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-500">
+						@components.Logo(AppName(), "")
+					</a>
+					<nav class="hidden items-center gap-1 md:flex" aria-label="Main">
+						@navLinks({%if .Auth%}me, {%end%}path)
+					</nav>
+{%- if .Auth%}
+					<div class="ml-auto">
+						@userMenu(me)
+					</div>
+{%- end%}
+				</div>
+				<nav class="flex gap-1 overflow-x-auto border-t border-slate-900/5 px-4 py-2 md:hidden dark:border-white/5" aria-label="Main">
+					@navLinks({%if .Auth%}me, {%end%}path)
+				</nav>
+			</header>
+			<main id="main" class="mx-auto max-w-6xl px-4 py-8 sm:px-6 lg:px-8">
+				<div class="mb-8">
+					<h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{ heading }</h1>
+					if description != "" {
+						<p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{ description }</p>
+					}
+				</div>
+				{ children... }
+			</main>
+		</div>
+	}
+}
+
+templ navLinks({%if .Auth%}me *auth.Identity, {%end%}path string) {
+	for _, l := range visible({%if .Auth%}me{%end%}) {
+		<a href={ templ.SafeURL(l.Href) } class={ navClass(active(path, l.Href)) } aria-current={ current(active(path, l.Href)) }>
+			@components.Icon(l.Icon, "size-4")
+			{ l.Label }
+		</a>
+	}
+}
+{%- if .Auth%}
+
+// userMenu is the avatar button and its menu: a details element, opened
+// and closed by the browser.
+templ userMenu(me *auth.Identity) {
+	<details class="group relative">
+		<summary id="user-button" class="flex cursor-pointer list-none items-center gap-2 rounded-full p-1 pr-2 text-sm font-medium text-slate-700 hover:bg-slate-900/5 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-slate-200 dark:hover:bg-white/5 [&::-webkit-details-marker]:hidden">
+			<span class="grid size-8 place-items-center rounded-full bg-brand-600 text-xs font-semibold text-white" aria-hidden="true">{ initials(me) }</span>
+			<span class="hidden sm:block">{ displayName(me) }</span>
+			@components.Icon("chevron", "size-4 text-slate-400 transition group-open:rotate-180")
+		</summary>
+		<div id="user-menu" class="absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-slate-900/10 dark:bg-slate-900 dark:ring-white/10">
+			<div class="px-3 py-2.5">
+				<p class="text-sm font-medium text-slate-900 dark:text-white">{ displayName(me) }</p>
+				if email(me) != "" {
+					<p class="truncate text-xs text-slate-500 dark:text-slate-400">{ email(me) }</p>
+				}
+			</div>
+			<div class="my-1 h-px bg-slate-900/5 dark:bg-white/10"></div>
+			<form method="post" action="/auth/logout">
+				<button type="submit" id="sign-out" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-900/5 focus-visible:bg-slate-900/5 focus-visible:outline-none dark:text-slate-200 dark:hover:bg-white/5">
+					@components.Icon("logout", "size-4 text-slate-400")
+					Sign out
+				</button>
+			</form>
+		</div>
+	</details>
+}
+{%- end%}

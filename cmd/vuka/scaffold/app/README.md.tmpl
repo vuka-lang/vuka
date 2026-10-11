@@ -1,0 +1,133 @@
+# {%.Name%}
+
+{%if eq .UI "live"%}A web app built with [Vuka](https://vuka-lang.github.io/vuka/): live pages styled
+with Tailwind{%else if eq .UI "templ"%}A web app built with [Vuka](https://vuka-lang.github.io/vuka/): templ views
+styled with Tailwind{%else%}A JSON API built with [Vuka](https://vuka-lang.github.io/vuka/){%end%}{%if .Auth%}, sign-in with sessions kept in the database{%end%}{%if ne .DB "none"%}, migrations
+applied when it starts{%end%}.
+
+## Run it
+
+```sh
+vuka run -watch .      # http://localhost:8080; rebuilt on every save
+vuka test ./...
+```
+{%- if .Auth%}
+
+Sign in as the admin in `.env` (`ADMIN_EMAIL`, `ADMIN_PASSWORD`). The app
+creates that user when it starts and no user has the email yet; changing
+the values later changes nothing.
+{%- end%}
+{%- if or (eq .DB "postgres") (eq .DB "mysql")%}
+
+Create the database `DATABASE_URL` names in `.env` first. The tests run on
+SQLite and need no server.
+{%- end%}
+{%- if .Pages%}
+
+The Tailwind CLI builds the stylesheet (`brew install tailwindcss`, or
+`npm i -D @tailwindcss/cli`); without it the pages run unstyled.
+{%- end%}
+{%- if ne .Frontend "none"%}
+
+`vuka run` also starts the frontend's Vite dev server (it installs the
+dependencies the first time; commit `frontend/package-lock.json` then), and
+the app serves the frontend at [/app](http://localhost:8080/app/).
+{%- end%}
+
+## What's where
+
+```text
+main.vuka              wiring only: the options web.New takes
+{%- if .Pages%}
+pages/                 the app's own pages{%if .Auth%}: the dashboard (home) and the sign-in page{%else%}: home{%end%}
+layouts/               the document, the {%if .Auth%}signed-in {%end%}shell and its navigation (nav.vuka){%if .Auth%},
+                       the sign-in card{%end%}
+components/            shared pieces: Button, Card, Input, Field, Flash, Icon, Logo
+{%- else%}
+api/                   the app's own endpoints: GET / describes the API
+{%- end%}
+{%- if .Auth%}
+modules/users/         the users module: the User model, the service auth
+                       signs people in with, the session and token stores,
+                       {%if .Pages%}the users page{%else%}the /api/users routes{%end%} and their tests
+{%- end%}
+{%- if ne .DB "none"%}
+migrations/            the database's schema history, one Go file per migration
+{%- end%}
+{%- if .Pages%}
+static/                the logo (also the favicon), served at /static/
+styles/app.css         Tailwind, with the theme's tokens: the brand colour, fonts
+{%- end%}
+{%- if ne .Frontend "none"%}
+frontend/              a {%if eq .Frontend "react"%}React{%else if eq .Frontend "vue"%}Vue{%else%}Svelte{%end%} app built by Vite, served at /app
+{%- end%}
+.env                   this machine's settings and secrets (not committed)
+.env.example           the same keys with placeholders (committed)
+```
+{%- if ne .DB "none"%}
+
+## Grow it
+
+A module is the unit of growth: its model, service, {%if .Pages%}page{%else%}routes{%end%} and test in
+`modules/<name>/`, its table in a migration.
+
+```sh
+vuka add module notes
+```
+
+writes `modules/notes/` (a `Note` model, a `Notes` service, {%if .Pages%}a page at
+`/notes` linked in the navigation{%else%}`/api/notes` routes{%end%}, a test), a migration making the
+`notes` table, and the import in `main.vuka` that registers it. Rename
+fields, add some: it's yours.
+
+**Changing the schema.** Edit a model, then write the migration:
+
+```sh
+go tool orm makemigrations      # DATABASE_URL (.env) says the dialect
+```
+
+Read the file it writes in `migrations/` and commit it. The app applies
+pending migrations when it starts; `go tool orm showmigrations` lists them
+and `go tool orm migrate` applies them without starting the app.
+{%- end%}
+{%- if .Pages%}
+
+**A page.** {%if eq .UI "live"%}A type with `@web.Live("/path")` is a live page: its state stays
+on the server and the page changes in place on each event. Wrap it in
+`layouts.App`, and add `layouts.Nav(layouts.Link{…})` to link it.{%else%}A function with `@web.Get("/path")` and `@web.Template("view.templ")`
+is a page: the templ component beside it renders its result. Wrap it in
+`layouts.App`, and add `layouts.Nav(layouts.Link{…})` to link it.{%end%}
+
+**A component.** A function returning `ui.Node` in `components/` is a
+component every page can use: `<components.Card title="…">…</components.Card>`{%if eq .UI "templ"%}, or
+`@components.Card(…)` from templ{%end%}.
+{%- end%}
+{%- if .Auth%}
+
+## Sign-in
+
+`auth.Module` in `main.vuka` guards every route{%if .Pages%}, page and live event{%end%}: each
+needs a sign-in unless marked `@auth.Public`, and `@auth.Requires("perm")`
+asks for a permission. Roles grant permissions (`users.Roles`: an admin
+has every one, a member `users.read`). {%if .Pages%}The sign-in page posts to
+`/auth/login`; "remember me" keeps a sign-in for two weeks, else it ends with
+the browser session.{%end%} APIs take a bearer token from `POST /auth/token`.
+{%- end%}
+{%- if .Mail%}
+
+## Mail
+
+`MAIL_DRIVER=log` prints messages instead of sending them (the development
+toolbar's Mail panel shows them). In production set `MAIL_DRIVER=smtp`
+and `MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`.
+{%- end%}
+
+## Ship it
+
+```sh
+vuka build -o {%.Slug%} .   # one binary{%if .Pages%}: pages, styles{%end%}{%if ne .Frontend "none"%}, the frontend{%end%} and all
+```
+
+Run it with real environment variables in place of `.env` (see
+`.env.example`){%if eq .DB "sqlite"%}; the SQLite file lives in `data/`, so keep that directory
+on a disk that persists{%end%}.

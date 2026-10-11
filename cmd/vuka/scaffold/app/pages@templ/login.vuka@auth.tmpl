@@ -1,0 +1,39 @@
+package pages
+
+import (
+	"net/http"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/auth"
+)
+
+// keep marks a field the browser keeps for this tab (the layouts' script),
+// so the form comes back with its email after a failed sign-in.
+var keep = []ui.Attr{{Name: "data-keep", Value: true}}
+
+// LoginPage fills login.templ's LoginView.
+type LoginPage struct {
+	Next    string
+	Message string
+}
+
+// Login is the sign-in page every other page sends visitors to. The form
+// posts to auth's endpoint, POST /auth/login, which signs in and goes on to
+// next, or comes back here with ?error=.
+@web.Get("/login")
+@auth.Public
+@web.Template("login.templ")
+func Login(r *http.Request, me *auth.Identity) Result[LoginPage] {
+	if me != nil { // signed in already
+		return Err(web.Redirect(auth.Next(r, "/")))
+	}
+	page := LoginPage{Message: auth.LoginError(r)}
+	if next := r.URL.Query().Get("next"); auth.SafeNext(next) {
+		page.Next = next
+	}
+	if r.URL.Query().Get("error") == "invalid" {
+		page.Message = "That email and password don't match an account."
+	}
+	return Ok(page)
+}
