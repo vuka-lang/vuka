@@ -85,6 +85,35 @@ Argon2id (`$argon2id$v=19$m=19456,t=2,p=1$…`). Hashes from an older system
 in bcrypt (`$2a$`, `$2b$`) are checked too, and replaced at the user's next
 login, as is an Argon2id hash weaker than `Config.Passwords`.
 
+### Passwords from another system
+
+Users moved from another system keep the passwords they had there when
+`Config.Hashers` reads that system's encoding. A `Hasher` checks one
+encoding, and says whether the stored value is in it at all:
+
+```vuka
+// LegacySHA1 reads "sha1$<salt>$<hex>", the old system's encoding.
+type LegacySHA1 struct{}
+
+func (LegacySHA1) Check(encoded, password string) (ok, known bool) {
+	salt, sum, found := strings.Cut(strings.TrimPrefix(encoded, "sha1$"), "$")
+	if !strings.HasPrefix(encoded, "sha1$") || !found {
+		return false, false                    // not this encoding
+	}
+	h := sha1.Sum([]byte(salt + password))
+	return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(h[:])), []byte(sum)) == 1, true
+}
+
+auth.Module(auth.Config{Hashers: []auth.Hasher{LegacySHA1{}}})
+```
+
+A login reads its own encodings (Argon2id, bcrypt) first, then asks each
+hasher in turn; the first that knows the encoding decides, and a stored
+value no one knows is a failed login (logged). A match is stale: with
+`SetPassword` on `Users`, auth stores an Argon2id hash in its place, so
+each user moves off the old encoding at their next sign-in. Compare in
+constant time, as above.
+
 ## Gates
 
 | | |
@@ -285,7 +314,31 @@ func Login(r *http.Request) ui.Node {
 ```
 
 Or write the form yourself: it posts `login`, `password` and `next` to
-`/auth/login`. A sign-out is a POST:
+`/auth/login`.
+
+`POST /auth/login` sends a failure back to the login page with
+`?error=invalid` (or `throttled`, `refused`), which `auth.LoginError(r)`
+turns into a message; what was typed is gone. To keep it, and to show a
+refusal's own message, post the form to your own handler and re-render the
+page — a form post the browser shows gets the whole page
+([Forms that fail](/web/routes#forms-that-fail)):
+
+```vuka
+@web.Post("/login")
+@auth.Public
+func SignIn(ctx context.Context, r *http.Request) ui.Node {
+	if _, err := auth.Login(ctx, r.PostFormValue("login"), r.PostFormValue("password")); err != nil {
+		return <auth.LoginPage request={r} error={auth.LoginMessage(err)} />
+	}
+	return web.Redirect(auth.Next(r, "/"))
+}
+```
+
+`auth.LoginMessage(err)` is the same message for an unknown login and a
+wrong password, the throttle's, a `*web.Error` from `CheckLogin` as it is
+(an account disabled, access that ended), and a general one for anything
+else, which is yours to log. On a POST, `auth.LoginPage` fills the login
+and `next` from the posted form; `auth.LoginForm` takes `login={…}`. A sign-out is a POST:
 `<form method="post" action="/auth/logout"><button>Sign out</button></form>`.
 
 From your own handlers:

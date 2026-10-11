@@ -87,8 +87,10 @@ Classes in component libraries you use (packages shipping `.vuka` or
 
 Every full page — one with `</head>` (or else `</body>`) — from JSX, templ
 and `html/template` views and live pages, unless it links `/_vuka/app.css`
-itself. JSON, fragments and form posts answered with HTML snippets don't, and
-neither do live updates: the page already has it.
+itself — a form post's page too, when the browser shows it as the document
+([Forms that fail](/web/routes#forms-that-fail)). JSON, fragments (a
+script's post answered with HTML) don't, and neither do live updates: the
+page already has it.
 
 ## Turning it off
 

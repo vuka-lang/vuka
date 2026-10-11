@@ -207,7 +207,9 @@ the page's markup is otherwise the one the app renders, and live updates
 never carry the toolbar. The toolbar draws itself in a shadow DOM, so your
 Tailwind classes and its styles never meet, and it follows the system's
 light or dark scheme. Pages that aren't whole documents — fragments, JSON,
-answers to a form's POST, pages fetched by a script — get no tag.
+pages fetched or posted by a script — get no tag; a page a form's POST
+renders for the browser to show does
+([Forms that fail](/web/routes#forms-that-fail)).
 
 The app keeps its latest 100 requests (and 200 messages per live page, with
 their frames up to 1 MB) in memory, and the toolbar fetches them from `/_vuka/toolbar/`. A record that

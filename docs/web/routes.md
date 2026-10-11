@@ -39,13 +39,71 @@ func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 
 | Pattern | Matches |
 |---|---|
-| `/pets` | exactly `/pets` — not `/pets/` |
+| `/pets` | exactly `/pets` — `/pets/` is [redirected](#trailing-slashes) to it |
 | `/pets/{id}` | one segment, bound to a parameter named `id` |
 | `/files/{path...}` | the rest of the path, bound to `path` |
 
 A segment's value binds to the parameter of the same name; see
 [Parameters](/web/parameters). Declaring the same method and path twice is a
 Build error naming both handlers.
+
+### Trailing slashes
+
+A request whose path differs from a route's only by a trailing slash is
+redirected to the route: with `/ajira` declared, `GET /ajira/?tab=2` answers
+`308` to `/ajira?tab=2`, and with `/docs/` declared, `/docs` goes to
+`/docs/`. `308` keeps the method and body, so a form posted to the other
+form arrives as a POST. It never takes a path the app answers otherwise:
+
+- with both `/pets` and `/pets/` declared, each serves its own;
+- a `{path...}` route or `app.Static` tree that answers the path keeps it,
+  and `/_vuka/` is never redirected;
+- a [frontend](/web/frontend)'s fallback doesn't count: `/settings/` goes to
+  your `/settings` route rather than the single-page app's `index.html`, as
+  `/settings` itself would; paths no route has stay the frontend's.
+
+Controller prefixes and route patterns with `{name}` segments work the same
+(`/pets/7/` → `/pets/7`). The `Location` is relative (`../ajira`), so an app
+mounted under a prefix with `http.StripPrefix` redirects within it.
+`web.ExactPaths()` turns the redirect off.
+
+## Forms that fail
+
+A page answering a POST (or PUT, PATCH, DELETE) depends on who asked. A
+form the browser posts itself — no script involved — shows the response as
+the new document, so it gets a **whole page**, as a GET would: the
+[stylesheet](/web/styling), the runtime for its JS commands and, in
+development, the [toolbar](/web/toolbar). A script's request — `fetch`, htmx
+— gets the **fragment** the handler rendered, to put where it likes.
+
+So a form that fails re-renders itself, with its errors and what was typed,
+instead of redirecting with `?error=`:
+
+```vuka
+type Signup struct {
+	Email string `form:"email"`
+	Name  string `form:"name"`
+}
+
+@web.Get("/signup")
+func SignupForm() ui.Node { return <SignupPage form={Signup{}} problem="" /> }
+
+@web.Post("/signup")
+func SignUp(ctx context.Context, in Signup, users *Users) ui.Node {
+	if err := users.Create(ctx, in); err != nil {
+		return <SignupPage form={in} problem={err.Error()} />   // the whole page again
+	}
+	return web.Redirect("/welcome")                             // 303
+}
+```
+
+The browser says it is loading a document with `Sec-Fetch-Dest: document`
+(`iframe` for a form in a frame); a browser too old to send it counts when
+it asks for `text/html` without htmx's `HX-Request`. A page rendered for a
+post isn't live — reconnecting would rebuild it with a GET, losing what the
+post rendered — so its JS commands run but its stateful components don't
+connect; a form on a [live page](/web/live) belongs in a live event instead.
+For signing in, see [Signing in and out](/web/auth#signing-in-and-out).
 
 ## Controllers
 
