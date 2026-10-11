@@ -255,9 +255,9 @@ Each is an option with a default; 0 lifts it.
 | `web.LiveJoinTimeout(d)` | how long a socket may stay open without joining its page; 10s. A socket sending nothing, or anything but `join`, is closed (1008) |
 | `web.LiveIdleTimeout(d)` | how long a joined page may send nothing before its connection closes (4002) and its session, with its components' state, is dropped; 30m. Broadcasts don't count. The runtime joins again at once if the page is in view, else when it is shown |
 | `web.LiveMaxConns(n)` | the app's open live sockets; 10,000. One beyond is refused with 503, and the runtime retries |
-| `web.LiveMaxConnsPerIP(n)` | the sockets from one client address; 100. One beyond is refused with 429 |
+| `web.LiveMaxConnsPerIP(n)` | the sockets from one client address (`web.ClientIP`, so through [trusted proxies](/web/deployment#behind-a-proxy)); 100. One beyond is refused with 429 |
 | `web.LiveMaxConnsPerPage(n)` | the sockets opened with one page token; 4. One beyond is refused with 429 |
-| `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page, besides on every message and before each broadcast it takes; 5m |
+| `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page, besides on every message and before each batch of broadcasts it takes; 30s |
 
 A `LiveCheck` failing — a session ended, a permission revoked — closes the
 page with 4001, and it reloads, its route answering for the browser.
@@ -278,8 +278,8 @@ middleware.
 A bad or expired token closes the connection with code 4001, and the runtime
 reloads the page (at most once in 10 seconds) for a fresh one. A library
 ending sign-ins ([auth](/web/auth#live-pages)) closes a page the same way:
-its checks run before each message, before each broadcast reaches the page,
-and every 25 seconds of a quiet one.
+its checks run before each message, before broadcasts reach the page,
+and every `LiveCheckEvery` (30 seconds).
 
 **Checks in `Mount` and `Update`.** A page that checks in `Mount` whether
 the visitor may see what its URL names (order `{id}`) makes the same check

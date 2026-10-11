@@ -67,7 +67,8 @@ From those addresses, `web.ClientIP(r)` is the nearest address in
 client added itself further left are ignored — and `X-Forwarded-Proto: https`
 makes a request HTTPS (`web.IsHTTPS(r)`) for HSTS. From any other address,
 those headers are ignored and `web.ClientIP(r)` is the connection's peer.
-[Login throttling](/web/auth#signing-in-and-out) counts by it.
+[Login throttling](/web/auth#signing-in-and-out) and the
+[live connection caps](/web/live) per client address count by it.
 
 `vuka build` makes one binary: views and every
 [`vuka.File`](/features/decorators#files) are embedded, and so is the live

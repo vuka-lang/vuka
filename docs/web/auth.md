@@ -321,7 +321,7 @@ func (b *Board) Render() ui.Node {
 A page whose sign-in ends — `auth.RevokeUser`, a sign-out in another tab,
 an expired session or token — is closed, and reloads: its route sends it to
 the login page. The sign-in is checked at every message from the page,
-before every broadcast reaches it, and every 25 seconds of a quiet page, so
+before broadcasts reach it, and every `web.LiveCheckEvery` (30 seconds), so
 a revoked user stops receiving broadcasts too. Every `Config.LiveRecheck`
 (60 seconds) the page also loads its identity again with `Users.Load`: a
 user gone, or whose perms or roles changed, gets the page reloaded with
