@@ -56,7 +56,9 @@ runs.
 `Subscribe(topics...)` (call it in `Mount`), `PushJS(chain)` ([from the
 server](/ui/js#from-the-server)), and `PushPatch(href)` and
 `PushNavigate(href)`, which move the page to another URL once the reply is
-applied ([navigation](/web/navigation)). Embed it by value: a
+applied ([navigation](/web/navigation)), and `PushEvent(name, payload)`,
+which hands `payload` to the component's [scripts](/web/assets#scripts)
+(`ctx.on(name, fn)`). Embed it by value: a
 `*ui.Live` fails the render.
 
 ## Which instance?
