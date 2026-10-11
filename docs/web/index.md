@@ -95,7 +95,9 @@ SIGTERM.
 | [Views](/web/views) | `.templ` components, `html/template` files and JSX pages |
 | [Dependency injection](/web/dependency-injection) | the container, lifecycles, Build errors |
 | [Middleware](/web/middleware) | `@web.Use`, app-wide middleware, decorators that see the request |
+| [Authentication](/web/auth) | sign-in, sessions and tokens, `@auth.Requires` on routes, pages and live events, CSRF |
 | [Live components](/web/live) | stateful components served over a WebSocket |
+| [Frontends](/web/frontend) | a Vite single-page app served from the binary: `web.Frontend` |
 | [Configuration and .env](/web/configuration) | env files, `web.Env`, required variables |
 | [Mail](/web/mail) | a `Mailer` to inject: JSX emails, SMTP or the log driver, `mailtest` |
 | [Crons](/web/crons) | `@web.Cron`: scheduled functions with dependencies, `crontest` |
@@ -104,8 +106,11 @@ SIGTERM.
 
 Complete apps are in the repository:
 [`examples/pets`](https://github.com/vuka-lang/web/tree/main/examples/pets)
-(pages, a JSON API, a controller, middleware, a sign-up email, a cron) and
+(pages, a JSON API, a controller, middleware, a sign-up email, a cron),
 [`examples/live`](https://github.com/vuka-lang/web/tree/main/examples/live)
-(a counter, a todo list, a chat) — see [Examples](/examples#pets).
+(a counter, a todo list, a chat) and
+[`examples/auth`](https://github.com/vuka-lang/web/tree/main/examples/auth)
+(a login, a live board with an admin-only action, an API with bearer tokens)
+— see [Examples](/examples#pets).
 For a database, the [ORM](/orm/) has a web integration:
 [`ormweb`](/orm/databases#web-integration).

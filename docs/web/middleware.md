@@ -70,3 +70,7 @@ Which to use: HTTP middleware for what concerns requests (auth headers,
 CORS, logging, compression) and runs before parameters bind; a decorator for
 what concerns the call (auditing, retries, caching a result, a permission
 read from a [typed attribute](/features/attributes)).
+
+For signing users in and guarding routes, use [Authentication](/web/auth)
+rather than a token check of your own; it also protects cookie-signed-in
+forms from other sites (`web.CSRF`).

@@ -164,6 +164,30 @@ func (c *Chat) Send(ctx context.Context, f ChatForm) error {
 }
 ```
 
+### auth — signing in {#auth}
+
+[`examples/auth`](https://github.com/vuka-lang/web/tree/main/examples/auth):
+a login page, a live notice board that shows who is signed in, a Clear
+button only admins may use, and a JSON API that takes bearer tokens —
+[authentication](/web/auth) with one `Users` service written by the app.
+
+```vuka
+@web.Live("/board")
+type Board struct {
+	ui.Live
+	Notices *Notices
+	me      *auth.Identity
+}
+
+func (b *Board) Mount(ctx context.Context) { b.me = auth.Current(ctx) }
+
+@auth.Requires("notices.delete")
+func (b *Board) Clear(ctx context.Context) error {
+	b.Notices.Clear()
+	return web.Broadcast(ctx, "notices", changed{})
+}
+```
+
 ### blog — the ORM {#blog}
 
 [`examples/blog`](https://github.com/vuka-lang/orm/tree/main/examples/blog) in
