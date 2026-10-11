@@ -64,6 +64,13 @@ type Options struct {
 	// files as plain files. The vuka command's templ plugin sets
 	// github.com/vuka-lang/ui/templx.
 	TemplRegistry string
+	// Scopes names the package's scoped declarations: a type, whose
+	// methods' JSX is its markup, or a function, each with its scope id.
+	// Every element their JSX writes (not a component's tag, whose own
+	// markup is its own) carries data-vk-s="<id>", a static attribute of the
+	// markup, for stylesheets scoped to it. The vuka command fills it from
+	// web.Style and the like.
+	Scopes map[string]string
 }
 
 // TemplFile is a .templ file of another package: its import path and the Go
@@ -145,6 +152,7 @@ type fileState struct {
 	done    map[int]bool // src offsets of identifiers already rewritten or reported
 	rt      string       // the name the runtime is imported as; "" until needed
 	target  *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	scope   string       // the scope id of the declaration being scanned (Options.Scopes)
 	eng     *engine
 	pkgEnd  int // offset just after the package clause's name
 	dotImps bool
@@ -440,7 +448,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}

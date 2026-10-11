@@ -176,7 +176,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 		var t *Templ
 		if isTempl(name) {
 			// Judged, parsed and type-checked as the Go file it becomes.
-			if t = compileTempl(filepath.Join(dir, name), name, src, live); t.Err != nil {
+			if t = compileTempl(filepath.Join(dir, name), name, src, live, nil); t.Err != nil {
 				broken = append(broken, t)
 				continue
 			}
@@ -358,6 +358,10 @@ type Generated struct {
 // Options configure Transpile.
 type Options struct {
 	Bare bool // no header or line directives (the language server maps positions itself)
+	// Scopes names each package's scoped declarations, by its directory
+	// (transpile.Options.Scopes); a .templ file declaring one is compiled
+	// again with its elements marked.
+	Scopes map[string]map[string]string
 }
 
 // Transpile transpiles pkgs in import order. Each package's output is added to
@@ -419,6 +423,9 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			replace[target] = file
 			return nil
 		}
+		if sc := opts.Scopes[p.Dir]; len(sc) > 0 {
+			p.scopeTempl(sc)
+		}
 		templOK := true
 		for _, t := range p.Templ {
 			if t.Err != nil {
@@ -455,6 +462,7 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			Bare:          opts.Bare,
 			Dir:           p.Dir,
 			ImportPath:    p.ImportPath,
+			Scopes:        opts.Scopes[p.Dir],
 		})
 		if err != nil {
 			var list transpile.ErrorList

@@ -26,6 +26,7 @@ type engine struct {
 	importPath    string
 	templ         func(string) (TemplFile, error)
 	templRegistry string
+	scopes        map[string]string         // Options.Scopes
 	tplImports    map[string]string         // packages of .templ files in subdirectories → their names in generated code
 	nfiles        int                       // embedded files so far, naming their variables
 	targets       map[string]*types.Package // import paths → the JSX target there, or nil

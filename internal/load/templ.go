@@ -31,6 +31,35 @@ type Templ struct {
 	// gofmt'ed: what builds use in place of Go, when the module's ui has
 	// the recorder (TemplTrees). The language server keeps to Go and Map.
 	Live []byte
+
+	live bool // instrumented when compiled
+}
+
+// scopeTempl compiles again, with their elements marked, the .templ files
+// of p declaring a component scopes names.
+func (p *Package) scopeTempl(scopes map[string]string) {
+	for _, t := range p.Templ {
+		if t.Err != nil || !declaresTempl(t.Src, scopes) {
+			continue
+		}
+		*t = *compileTempl(filepath.Join(p.Dir, t.Name), t.Name, t.Src, t.live, scopes)
+		for i, f := range p.Files {
+			if f.Name == t.GoName && t.Err == nil {
+				p.Files[i].Src = t.Go
+			}
+		}
+	}
+}
+
+var templDecl = regexp.MustCompile(`(?m)^templ\s+(?:\([^)]*\)\s*)?([A-Za-z_]\w*)\s*[\[(]`)
+
+func declaresTempl(src []byte, names map[string]string) bool {
+	for _, m := range templDecl.FindAllSubmatch(src, -1) {
+		if _, ok := names[string(m[1])]; ok {
+			return true
+		}
+	}
+	return false
 }
 
 // TemplGoName is the name of the Go file templ generates for a .templ file.
@@ -42,7 +71,9 @@ func isTempl(name string) bool { return strings.HasSuffix(name, ".templ") }
 // formatting pass, returning the Go and templ's source map. The vuka
 // command's templ plugin sets it: the plugin links templ's parser and
 // generator, the language module doesn't. Nil leaves .templ files alone.
-var TemplCompiler func(path, name string, src []byte) (goSrc []byte, sourceMap any, err *transpile.Error)
+// scopes names the file's scoped components (Options.Scopes): every element
+// one writes carries data-vk-s="<id>".
+var TemplCompiler func(path, name string, src []byte, scopes map[string]string) (goSrc []byte, sourceMap any, err *transpile.Error)
 
 // UIPath is the JSX target whose templx package registers a .templ file's
 // components for a vuka.File naming it.
@@ -54,9 +85,9 @@ var TemplInstrument func(goSrc []byte) ([]byte, error)
 
 // compileTempl compiles one .templ file with TemplCompiler, and instruments
 // it when live.
-func compileTempl(path, name string, src []byte, live bool) *Templ {
-	t := &Templ{Name: name, Src: src, GoName: TemplGoName(name)}
-	t.Go, t.Map, t.Err = TemplCompiler(path, name, src)
+func compileTempl(path, name string, src []byte, live bool, scopes map[string]string) *Templ {
+	t := &Templ{Name: name, Src: src, GoName: TemplGoName(name), live: live}
+	t.Go, t.Map, t.Err = TemplCompiler(path, name, src, scopes)
 	if t.Err == nil && live && TemplInstrument != nil {
 		out, err := TemplInstrument(t.Go)
 		if err != nil {
