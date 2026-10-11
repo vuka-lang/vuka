@@ -10,6 +10,18 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.16.0 — 2026-10-11
+
+The vuka command only; the language and runtime are unchanged (v0.15.0, runtime v0.10.0).
+With [web](https://github.com/vuka-lang/web) v0.11.0: [authentication](/web/auth),
+[mail](/web/mail), [crons](/web/crons) and [embedded frontends](/web/frontend).
+
+- **Frontend apps in `vuka run` and `vuka build`.** A `frontend/package.json`
+  starts the project's own Vite beside the app (dependencies installed on
+  first run), kept running through `-watch` rebuilds; you open the app's
+  address and get hot module reloading. `vuka build` runs `vite build` before
+  embedding. A prebuilt `dist` with no `package.json` is served as is.
+
 ## v0.15.0 — 2026-10-11
 
 Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.15.0`. With
