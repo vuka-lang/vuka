@@ -106,3 +106,7 @@ var __Store_Count_dec_info = vuka.Func{Name: "Store.Count", ErrIndex: -1, CtxInd
 		}((Store).__Count)
 	})(s)
 }
+
+func init() {
+	vuka.RegisterFunc((*Store).Dump, []any{*new(vuka.NoAdvice)}...)
+}

@@ -170,3 +170,7 @@ func init() {
 	__describe_decl := vuka.FuncDecl(vuka.Decl{Name: "main.describe", Pkg: "main", File: "declarers.vuka", Line: 88, Func: describe, Attrs: []any{}}, "id", "tags")
 	/*line declarers.vuka:87:2*/trace(__describe_decl)
 }
+
+func init() {
+	vuka.RegisterFunc(addPet, []any{Route{Method: "POST", Path: "/pets"}}...)
+}

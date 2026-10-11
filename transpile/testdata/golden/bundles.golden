@@ -175,3 +175,9 @@ var __PetStore_Count_dec_info = vuka.Func{Name: "PetStore.Count", ErrIndex: -1, 
 		}((*PetStore).__Count)
 	})(s)
 }
+
+func init() {
+	vuka.RegisterFunc(listPets, append([]any{}, __listPets_dec_b0.Attrs()...)...)
+	vuka.RegisterFunc(listUsers, append(append([]any{}, __listUsers_dec_b0.Attrs()...), __listUsers_dec_b1.Attrs()...)...)
+	vuka.RegisterType[PetStore](append([]any{}, __PetStore_b0.Attrs()...)...)
+}

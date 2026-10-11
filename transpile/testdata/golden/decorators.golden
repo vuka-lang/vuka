@@ -186,3 +186,7 @@ var __Stack_Push_dec vuka.Instances
 		return /*line decorators.vuka:110:2*/counted((*Stack[T]).__Push)
 	})(s, v)
 }
+
+func init() {
+	vuka.RegisterFunc(plain, []any{Tag{Name: "meta"}}...)
+}

@@ -55,9 +55,21 @@ type Attr struct {
 	value      string // the string argument of a built-in
 	bare       bool   // written @name or @name[T]: a type or a decorator, decided by what it names
 	decl       ast.Decl
-	paramOff   int      // a parameter attribute's parameter: the offset of its name, or type when unnamed
-	structOf   string   // a field attribute's struct type
-	fieldNames []string // the field's names (an embedded field's type name)
+	paramOff   int       // a parameter attribute's parameter: the offset of its name, or type when unnamed
+	structOf   string    // a field attribute's struct type
+	fieldNames []string  // the field's names (an embedded field's type name)
+	regs       []regDecl // what the registry records the attribute under, found when attached
+}
+
+// regDecl is a declaration the runtime's registry records attributes of: a
+// function or method (fn, its Go text: "charge", "(*Board).Clear") or a
+// type, at its name's offset in src.
+type regDecl struct {
+	off      int
+	name     string // as written
+	recv     string // a method's receiver type, as written: "*Board"
+	recvBase string
+	typ      bool
 }
 
 // parseAttr reads the attribute whose @ is toks[i]. It returns the index of the

@@ -225,3 +225,8 @@ func init() {
 	__User_type := vuka.TypeWith[User]("main.User", User_New, Route{Path: "/users"})
 	/*line call_decorators.vuka:118:2*/model(__User_type)
 }
+
+func init() {
+	vuka.RegisterFunc(save, []any{Perm("orders.write"), Route{Path: "/orders"}}...)
+	vuka.RegisterType[User]([]any{Route{Path: "/users"}}...)
+}

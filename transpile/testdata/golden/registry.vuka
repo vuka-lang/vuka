@@ -1,0 +1,48 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"reflect"
+)
+
+// A library reads, where it holds only a value, the attributes written on
+// the declaration: a gate, here, from a method value.
+type Gate struct{ Perm string }
+
+func Requires(perm string) vuka.Bundle { return vuka.Compose(Gate{perm}, vuka.Decorator(check)) }
+
+func check(c *vuka.Call) { c.Next() }
+
+type Label string
+
+@Requires("board.read")
+type Board struct{ n int }
+
+@Requires("board.delete")
+func (b *Board) Clear(ctx context.Context) error { b.n = 0; return nil }
+
+@Label("count")
+func (b Board) Count() int { return b.n }
+
+func (b *Board) Inc() { b.n++ }
+
+@Label("free")
+func charge(amount int) string { return fmt.Sprint(amount) }
+
+func (b *Board) Handlers() []any { return []any{b.Clear, b.Count, b.Inc, func() { b.Inc() }} }
+
+func main() {
+	b := &Board{}
+	var g Gate
+	fmt.Println(vuka.TypeAttrs(reflect.TypeFor[Board]()).Attr(&g), g)
+	fmt.Println(vuka.MethodAttrs(reflect.TypeFor[*Board](), "Clear"))
+	for _, h := range append(b.Handlers(), charge) {
+		r, _ := vuka.FuncOf(h)
+		recv := "-"
+		if r.Recv != nil {
+			recv = r.Recv.Name()
+		}
+		fmt.Println(recv, r.Method, r.Attrs, r.Literal)
+	}
+}

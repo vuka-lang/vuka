@@ -1,0 +1,7 @@
+true {board.read}
+[{board.delete}]
+Board Clear [{board.delete}] false
+Board Count [count] false
+Board Inc [] false
+-  [] true
+-  [free] false

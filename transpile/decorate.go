@@ -495,6 +495,7 @@ func (e *engine) render(f *fileState) {
 			e.renderType(f, d)
 		}
 	}
+	e.renderRegistry(f)
 	f.makeTrailer(e.bare)
 }
 

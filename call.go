@@ -190,6 +190,11 @@ func (c *Call) Context() context.Context {
 // reporting whether there is one: var r Route; c.Attr(&r).
 func (c *Call) Attr(ptr any) bool { return fillAttr(c.fn.Attrs, ptr) }
 
+// Attrs are the declaration's typed attributes, its bundles' included: on
+// a method, its own (a type's call decorators advising it see the method's,
+// not the type's).
+func (c *Call) Attrs() Attrs { return c.fn.Attrs }
+
 // ParamAttr fills ptr with parameter i's typed attribute of ptr's element
 // type, reporting whether there is one. i indexes c.Args:
 //

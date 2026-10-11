@@ -78,3 +78,7 @@ func init() {
 	__home_decl := vuka.FuncDecl(vuka.Decl{Name: "main.home", Pkg: "main", File: "files.vuka", Line: 36, Func: home, Attrs: []any{Page{Title: "Home", Body: vuka.FileOf("main:assets/hello.txt", __vuka_file_0)}}})
 	/*line files.vuka:35:2*/Template(vuka.FileOf("main:assets/hello.txt", __vuka_file_0))(__home_decl)
 }
+
+func init() {
+	vuka.RegisterFunc(home, []any{Page{Title: "Home", Body: vuka.FileOf("main:assets/hello.txt", __vuka_file_0)}}...)
+}

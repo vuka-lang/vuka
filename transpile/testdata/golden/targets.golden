@@ -56,3 +56,10 @@ func (Char) vukaTargets() [vuka.OnField]struct{} { return [vuka.OnField]struct{}
 func (Path) vukaTargets() [vuka.OnParam]struct{} { return [vuka.OnParam]struct{}{} }
 
 func (Route) vukaTargets() [vuka.OnFunc | vuka.OnMethod]struct{} { return [vuka.OnFunc | vuka.OnMethod]struct{}{} }
+
+func init() {
+	vuka.RegisterType[Char]([]any{vuka.Targets(vuka.OnField)}...)
+	vuka.RegisterType[Path]([]any{vuka.Targets(vuka.OnParam)}...)
+	vuka.RegisterType[Route]([]any{vuka.Targets(vuka.OnFunc | vuka.OnMethod)}...)
+	vuka.RegisterFunc(show, []any{Route{"GET", "/pets/{id}"}, Doc("shows a pet")}...)
+}

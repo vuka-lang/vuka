@@ -23,7 +23,7 @@ import (
 const RuntimePath = "github.com/vuka-lang/vuka"
 
 // RuntimeVersion is the runtime version the code Vuka generates needs.
-const RuntimeVersion = "v0.10.0"
+const RuntimeVersion = "v0.16.0"
 
 // File is one source file of a package: a .vuka file to transpile, or a .go file
 // in the same package.
@@ -371,10 +371,28 @@ func (f *fileState) attach() {
 			case *ast.FuncDecl:
 				if f.off(d.Type.Func) == off {
 					a.decl, a.Decl = d, declKey(d)
+					a.regs = nil
+					if d.Type.TypeParams == nil && (d.Recv == nil || !genericRecv(d)) {
+						r := regDecl{off: f.orig(d.Name.Pos()), name: d.Name.Name}
+						r.name = srcIdent(f.src, r.off)
+						if d.Recv != nil && len(d.Recv.List) > 0 {
+							t := d.Recv.List[0].Type
+							r.recv, r.recvBase = string(f.src[f.orig(t.Pos()):f.orig(t.End())]), recvBase(d)
+						}
+						a.regs = []regDecl{r}
+					}
 				}
 			case *ast.GenDecl:
 				if f.off(d.TokPos) == off {
 					a.decl, a.Decl = d, genName(d)
+					a.regs = nil
+					if d.Tok == token.TYPE {
+						for _, s := range d.Specs {
+							if ts := s.(*ast.TypeSpec); ts.TypeParams == nil && !ts.Assign.IsValid() && ts.Name.Name != "_" {
+								a.regs = append(a.regs, regDecl{off: f.orig(ts.Name.Pos()), name: ts.Name.Name, typ: true})
+							}
+						}
+					}
 				}
 			}
 		}
