@@ -82,6 +82,7 @@ export default defineConfig({
           { text: 'Parameters and results', link: '/web/parameters' },
           { text: 'Views', link: '/web/views' },
           { text: 'Styling with Tailwind', link: '/web/styling' },
+          { text: 'Styles and scripts', link: '/web/assets' },
           { text: 'Dependency injection', link: '/web/dependency-injection' },
           { text: 'Middleware', link: '/web/middleware' },
           { text: 'Live components', link: '/web/live' },

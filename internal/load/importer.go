@@ -32,6 +32,9 @@ type Importer struct {
 	broken  map[string]bool      // Vuka packages that didn't transpile
 	gc      types.ImporterFrom
 	cache   *exportCache // packages outside the main module, across runs; nil for none
+	// volatile, when not nil, records the export data file of each listed
+	// package the cache doesn't hold: those that may change (refresh).
+	volatile map[string]string
 }
 
 func NewImporter(dir, overlay string) *Importer {
@@ -111,6 +114,32 @@ func (im *Importer) lookup(path string) (io.ReadCloser, error) {
 	return os.Open(file)
 }
 
+// refresh lists again the packages whose export data may have changed since
+// they were listed (volatile), and reports whether all of them are as they
+// were. Types already imported stay valid only when they are.
+func (im *Importer) refresh() bool {
+	if len(im.volatile) == 0 {
+		return true
+	}
+	old := make(map[string]string, len(im.volatile))
+	paths := make([]string, 0, len(im.volatile))
+	for path, file := range im.volatile {
+		old[path] = file
+		paths = append(paths, path)
+		delete(im.exports, path)
+		delete(im.errs, path)
+	}
+	if err := im.list(paths...); err != nil {
+		return false
+	}
+	for path, file := range old {
+		if file == "" || im.exports[path] != file {
+			return false
+		}
+	}
+	return true
+}
+
 // OverlayChanged tells the importer the overlay has new files: what failed
 // in the main module may compile now.
 func (im *Importer) OverlayChanged() {
@@ -176,6 +205,10 @@ func (im *Importer) list(paths ...string) error {
 			}
 		case im.cache != nil && (p.Standard || p.Module != nil && !p.Module.Main && (p.Module.Replace == nil || p.Module.Replace.Version != "")):
 			im.cache.put(p.ImportPath, p.Export)
+			continue
+		}
+		if im.volatile != nil && !p.Standard {
+			im.volatile[p.ImportPath] = p.Export
 		}
 	}
 	for _, p := range failed {

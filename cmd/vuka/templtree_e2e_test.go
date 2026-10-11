@@ -312,7 +312,7 @@ func TestTemplTreeEquivalence(t *testing.T) {
 	if !load.TemplTrees(root) {
 		t.Skip("the ui checkout ($VUKA_UI) has no recorder (templx/record.go)")
 	}
-	g, _, terr := compileTempl("views.templ", "views.templ", []byte(treeTempl))
+	g, _, terr := compileTempl("views.templ", "views.templ", []byte(treeTempl), nil)
 	if terr != nil {
 		t.Fatal(terr)
 	}

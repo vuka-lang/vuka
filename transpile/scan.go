@@ -162,6 +162,7 @@ func (f *fileState) scan(errs *ErrorList) {
 		case t.tok == token.FUNC && depth == 0:
 			if p.tok != token.ASSIGN && p.tok != token.COMMA && p.tok != token.DEFINE {
 				fstage = 1
+				f.scope = f.eng.scopes[declName(toks, i)]
 			}
 			if sf, ok := f.staticFuncAt(toks, i); ok {
 				f.staticFuncs = append(f.staticFuncs, sf)
@@ -203,6 +204,9 @@ func (f *fileState) scan(errs *ErrorList) {
 			continue
 		case t.tok == token.SEMICOLON && depth == 0:
 			fstage = 0
+			continue
+		case depth == 0 && (t.tok == token.VAR || t.tok == token.CONST || t.tok == token.TYPE):
+			f.scope = "" // a package-level var's JSX belongs to no declaration's markup
 			continue
 		case !isAt(t):
 			continue

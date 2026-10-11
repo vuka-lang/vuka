@@ -13,8 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/vuka-lang/vuka/transpile"
 )
 
 func tempModule(t *testing.T, files map[string]string) string {
@@ -80,7 +78,7 @@ func TestTailwindEntry(t *testing.T) {
 		t.Errorf("componentDirs: %v, want %v", deps, want)
 	}
 	for _, sheet := range []string{filepath.Join(root, "app.css"), ""} {
-		entry, err := (&tailwind{root: root, sheet: sheet}).writeEntry(deps)
+		entry, err := (&tailwind{root: root, sheet: sheet}).writeEntry(deps, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -136,7 +134,7 @@ echo stopped > BIN/stopped
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+goDir)
 	root := tempModule(t, map[string]string{"go.mod": webMod, "app.css": `@import "tailwindcss";`})
 	var log syncBuffer
-	css, stop := devTailwind(root, "", &log)
+	css, stop := devTailwind(root, "", &log, nil)
 	if want := filepath.Join(root, ".vuka", "tailwind", "app.css"); css != want {
 		t.Fatalf("stylesheet %s, want %s", css, want)
 	}
@@ -156,7 +154,7 @@ echo stopped > BIN/stopped
 
 	t.Setenv("PATH", goDir)
 	log.Reset()
-	if css, stop := devTailwind(root, "", &log); css != "" || !strings.Contains(log.String(), twInstall) {
+	if css, stop := devTailwind(root, "", &log, nil); css != "" || !strings.Contains(log.String(), twInstall) {
 		t.Errorf("without Tailwind: %q, %q", css, log.String())
 	} else {
 		stop()
@@ -186,8 +184,9 @@ func waitFor(t *testing.T, ok func() bool) {
 }
 
 // webModule writes a module requiring the local web ($VUKA_WEB, else the
-// sibling checkout ../vuka-web) and vuka (this repository), skipping the test
-// when that web doesn't serve Tailwind CSS yet.
+// sibling checkout ../vuka-web), ui ($VUKA_UI, else ../vuka-ui) and vuka
+// (this repository), skipping the test when that web doesn't serve Tailwind
+// CSS yet.
 func webModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	repo, _ := filepath.Abs("../..")
@@ -198,12 +197,7 @@ func webModule(t *testing.T, files map[string]string) string {
 	if !hasRegisterCSS(web) {
 		t.Skipf("github.com/vuka-lang/web at %s has no RegisterCSS; set VUKA_WEB", web)
 	}
-	webSum, _ := os.ReadFile(filepath.Join(web, "go.sum"))
-	ownSum, _ := os.ReadFile("go.sum")
-	files["go.mod"] = "module example.com/app\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/vuka-lang/web v0.0.0\n\tgithub.com/vuka-lang/vuka " +
-		transpile.RuntimeVersion + "\n)\n\nreplace github.com/vuka-lang/web => " + web + "\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
-	files["go.sum"] = string(webSum) + string(ownSum)
-	return tempModule(t, files)
+	return localModule(t, web, files)
 }
 
 const twPage = `package main
@@ -329,12 +323,12 @@ func TestBuildTailwindOldWeb(t *testing.T) {
 		"web/go.mod": "module github.com/vuka-lang/web\n\ngo 1.25.0\n",
 		"web/web.go": "package web\n",
 	})
-	gens, err := buildTailwind(root, "")
+	gens, err := buildTailwind(root, "", nil, io.Discard)
 	if err != nil || gens != nil {
 		t.Errorf("buildTailwind: %v %v", gens, err)
 	}
 	writeFile(t, filepath.Join(root, "web", "css.go"), "package web\n\nfunc RegisterCSS(name string, css []byte) {}\n")
-	if _, err := buildTailwind(root, ""); err == nil || !strings.Contains(err.Error(), twInstall) {
+	if _, err := buildTailwind(root, "", nil, io.Discard); err == nil || !strings.Contains(err.Error(), twInstall) {
 		t.Errorf("a web with RegisterCSS, no Tailwind CLI: %v", err)
 	}
 }

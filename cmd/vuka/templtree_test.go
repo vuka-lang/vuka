@@ -16,7 +16,7 @@ import (
 // body (and children block) in source order, the recorder calls it makes.
 func recCalls(t *testing.T, src string) ([]string, []byte) {
 	t.Helper()
-	g, _, terr := compileTempl("x.templ", "x.templ", []byte(src))
+	g, _, terr := compileTempl("x.templ", "x.templ", []byte(src), nil)
 	if terr != nil {
 		t.Fatal(terr)
 	}

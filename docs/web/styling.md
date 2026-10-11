@@ -104,3 +104,9 @@ No link, no `/_vuka/app.css`, and the `vuka` command builds nothing.
 `web.RegisterCSS(name, css)` serves a stylesheet at `/_vuka/<name>` with the
 same caching; the embedding file `vuka build` generates registers `app.css`
 this way.
+
+## A page's own stylesheet
+
+For rules that belong to one component — an animation, a `:hover` on a row —
+give it a stylesheet of its own, scoped to its markup and compiled into the
+same `app.css`: see [Styles and scripts](/web/assets).

@@ -143,6 +143,9 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 		f.matches = append(f.matches, m)
 	}
 	for _, t := range p.trees {
+		if f.scope != "" {
+			markScope([]jsxNode{t.root}, f.scope)
+		}
 		f.jsx = append(f.jsx, t)
 		if len(t.comps) == 0 {
 			f.fixed = append(f.fixed, f.jsxEdits(t)...)
