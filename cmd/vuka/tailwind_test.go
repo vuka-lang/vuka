@@ -13,8 +13,6 @@ import (
 	"sync"
 	"testing"
 	"time"
-
-	"github.com/vuka-lang/vuka/transpile"
 )
 
 func tempModule(t *testing.T, files map[string]string) string {
@@ -186,8 +184,9 @@ func waitFor(t *testing.T, ok func() bool) {
 }
 
 // webModule writes a module requiring the local web ($VUKA_WEB, else the
-// sibling checkout ../vuka-web) and vuka (this repository), skipping the test
-// when that web doesn't serve Tailwind CSS yet.
+// sibling checkout ../vuka-web), ui ($VUKA_UI, else ../vuka-ui) and vuka
+// (this repository), skipping the test when that web doesn't serve Tailwind
+// CSS yet.
 func webModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	repo, _ := filepath.Abs("../..")
@@ -198,12 +197,7 @@ func webModule(t *testing.T, files map[string]string) string {
 	if !hasRegisterCSS(web) {
 		t.Skipf("github.com/vuka-lang/web at %s has no RegisterCSS; set VUKA_WEB", web)
 	}
-	webSum, _ := os.ReadFile(filepath.Join(web, "go.sum"))
-	ownSum, _ := os.ReadFile("go.sum")
-	files["go.mod"] = "module example.com/app\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/vuka-lang/web v0.0.0\n\tgithub.com/vuka-lang/vuka " +
-		transpile.RuntimeVersion + "\n)\n\nreplace github.com/vuka-lang/web => " + web + "\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
-	files["go.sum"] = string(webSum) + string(ownSum)
-	return tempModule(t, files)
+	return localModule(t, web, files)
 }
 
 const twPage = `package main

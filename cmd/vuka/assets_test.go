@@ -286,15 +286,24 @@ func TestBundleScripts(t *testing.T) {
 func assetsModule(t *testing.T, files map[string]string) string {
 	t.Helper()
 	repo, _ := filepath.Abs("../..")
-	web, ui := os.Getenv("VUKA_WEB"), os.Getenv("VUKA_UI")
+	web := os.Getenv("VUKA_WEB")
 	if web == "" {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
-	if ui == "" {
-		ui = filepath.Join(filepath.Dir(repo), "vuka-ui")
-	}
 	if !hasWebFunc(web, "RegisterAssets") {
 		t.Skipf("github.com/vuka-lang/web at %s has no RegisterAssets; set VUKA_WEB (and VUKA_UI)", web)
+	}
+	return localModule(t, web, files)
+}
+
+// localModule writes files as a module requiring web (at web), and the
+// local ui ($VUKA_UI, else ../vuka-ui) and vuka (this repository).
+func localModule(t *testing.T, web string, files map[string]string) string {
+	t.Helper()
+	repo, _ := filepath.Abs("../..")
+	ui := os.Getenv("VUKA_UI")
+	if ui == "" {
+		ui = filepath.Join(filepath.Dir(repo), "vuka-ui")
 	}
 	webSum, _ := os.ReadFile(filepath.Join(web, "go.sum"))
 	uiSum, _ := os.ReadFile(filepath.Join(ui, "go.sum"))
