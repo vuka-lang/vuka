@@ -155,6 +155,8 @@ What the browser reads of an error follows what an HTTP route answers:
 - a `*web.Error`'s message as it is — `web.BadRequest("write something
   first")`, `web.Status(409, "that name is taken")`, `web.Forbidden` — and a
   form field that doesn't bind (`"x" isn't a whole number`);
+- an event a [gate](/web/auth) refuses: `unauthorized` or `forbidden`, the
+  gates' own `*web.Error`s;
 - for any other error a handler, `Mount` or `Update` returns, or a panic,
   `Internal Server Error`. The error itself goes to the log (`slog`, at
   error level), with the page's URL and the handler, so a database error
