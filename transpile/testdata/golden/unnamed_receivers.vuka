@@ -1,0 +1,57 @@
+package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+// Methods whose receivers have no name (or "_"), with parameters and
+// results named r: a decorated method's wrapper names the receiver itself,
+// and that name mustn't be one the signature already uses.
+var decls = map[string]*vuka.Decl{}
+
+func record(d *vuka.Decl) { decls[d.Name] = d }
+
+decorator logged(c) {
+	fmt.Println("call", c.Name, c.Args)
+	c.Next()
+}
+
+type Session struct{ user string }
+
+@record
+func (Session) Login(r string) string { return "login " + r }
+
+@record
+func (*Session) SignIn(r string, n int) (r2 string) { return fmt.Sprint("sign in ", r, " ", n) }
+
+@record
+func (_ Session) Who() (r string) { return "who" }
+
+@logged
+func (Session) Logged(r string) string { return "logged " + r }
+
+@logged
+@record
+func (*Session) Both(r, s string) (r1 string) { return r + s }
+
+func main() {
+	s := &Session{}
+	fmt.Println(s.Login("ada"), s.SignIn("bob", 2), s.Who(), s.Logged("cy"), s.Both("a", "b"))
+	for _, name := range []string{"Session.Login", "Session.SignIn", "Session.Who", "Session.Both"} {
+		d := decls[name]
+		var args []reflect.Value
+		if d.Recv.Kind() == reflect.Pointer {
+			args = append(args, reflect.ValueOf(s))
+		} else {
+			args = append(args, reflect.ValueOf(*s))
+		}
+		for range d.Params {
+			args = append(args, reflect.ValueOf("x"))
+		}
+		if name == "Session.SignIn" {
+			args[2] = reflect.ValueOf(3)
+		}
+		fmt.Println(name, d.Recv, reflect.ValueOf(d.Func).Call(args)[0])
+	}
+}

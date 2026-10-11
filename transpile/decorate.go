@@ -413,7 +413,9 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) *fu
 	if d.method {
 		field := fd.Recv.List[0]
 		rt := e.qualText(f, field.Type)
-		rn := "r"
+		// An unnamed receiver gets a name no parameter, result or type in
+		// the signature can be: "r" would clash with a parameter r.
+		rn := "__recv"
 		if len(field.Names) > 0 && field.Names[0].Name != "_" {
 			rn = field.Names[0].Name
 		}

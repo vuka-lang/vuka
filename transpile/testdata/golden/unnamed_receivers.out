@@ -1,0 +1,8 @@
+call Session.Logged [cy]
+call Session.Both [a b]
+login ada sign in bob 2 who logged cy ab
+Session.Login main.Session login x
+Session.SignIn *main.Session sign in x 3
+Session.Who main.Session who
+call Session.Both [x x]
+Session.Both *main.Session xx
