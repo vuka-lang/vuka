@@ -46,6 +46,18 @@ connection that dropped under it.
 
 ![A live page's messages](/toolbar-live.png)
 
+**Crons.** The app's [crons](/web/crons): each one's schedule, function,
+next run and last run (red when it failed), and a **Run now** button. Each
+run is a record of its own, listed under *Cron runs* at the top: open it
+for its statements, timeline, logs and error, as for a request.
+
+![A cron's run](/toolbar-crons.png)
+
+**Mail.** With [`web/mail`](/web/mail), the messages the request (or the
+cron run) sent or queued: sender, recipients, subject, attachments, and
+the HTML in a sandboxed preview — where development email goes under the
+log driver.
+
 ## What a live message sent
 
 Why is this click's reply 9 kB when it changed one number? Open the
@@ -157,7 +169,9 @@ func init() {
 }
 ```
 
-A panel noted without `AddPanel` lists its values as they are. `web.Note`
+A panel noted without `AddPanel` lists its values as they are. A panel's
+markup may use the toolbar's classes: `kv` and `grid` tables, `dim`,
+`errtext`, `status`, and `preview` for an `<iframe>`, as the Mail panel's. `web.Note`
 does nothing outside development, so it can stay in production code. A
 panel whose render panics shows the panic in its place.
 

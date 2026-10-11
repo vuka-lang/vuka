@@ -195,7 +195,7 @@ func greet(name string) string { return "hello " + name }
 run("greet", map[string]string{"name": "ada"})   // -> main.greet [ada] …
 ```
 
-The [web framework](/web/routes) declares its routes this way.
+The [web framework](/web/routes) declares its routes and [crons](/web/crons) this way.
 
 | `*vuka.Decl` | |
 |---|---|

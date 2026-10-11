@@ -97,12 +97,14 @@ SIGTERM.
 | [Middleware](/web/middleware) | `@web.Use`, app-wide middleware, decorators that see the request |
 | [Live components](/web/live) | stateful components served over a WebSocket |
 | [Configuration and .env](/web/configuration) | env files, `web.Env`, required variables |
+| [Mail](/web/mail) | a `Mailer` to inject: JSX emails, SMTP or the log driver, `mailtest` |
+| [Crons](/web/crons) | `@web.Cron`: scheduled functions with dependencies, `crontest` |
 | [Routers and deployment](/web/deployment) | the router seam, `Handler`, `Run`, `PORT`, `VUKA_ENV` |
 | [Testing](/web/testing) | `httptest`, `web.Resolve`, `web.Only` |
 
 Complete apps are in the repository:
 [`examples/pets`](https://github.com/vuka-lang/web/tree/main/examples/pets)
-(pages, a JSON API, a controller, middleware) and
+(pages, a JSON API, a controller, middleware, a sign-up email, a cron) and
 [`examples/live`](https://github.com/vuka-lang/web/tree/main/examples/live)
 (a counter, a todo list, a chat) — see [Examples](/examples#pets).
 For a database, the [ORM](/orm/) has a web integration:
