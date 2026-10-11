@@ -46,6 +46,18 @@ connection that dropped under it.
 
 ![A live page's messages](/toolbar-live.png)
 
+**Crons.** The app's [crons](/web/crons): each one's schedule, function,
+next run and last run (red when it failed), and a **Run now** button. Each
+run is a record of its own, listed under *Cron runs* at the top: open it
+for its statements, timeline, logs and error, as for a request.
+
+![A cron's run](/toolbar-crons.png)
+
+**Mail.** With [`web/mail`](/web/mail), the messages the request (or the
+cron run) sent or queued: sender, recipients, subject, attachments, and
+the HTML in a sandboxed preview — where development email goes under the
+log driver.
+
 ## What a live message sent
 
 Why is this click's reply 9 kB when it changed one number? Open the

@@ -87,6 +87,8 @@ export default defineConfig({
           { text: 'Live components', link: '/web/live' },
           { text: 'Navigation', link: '/web/navigation' },
           { text: 'Configuration and .env', link: '/web/configuration' },
+          { text: 'Mail', link: '/web/mail' },
+          { text: 'Crons', link: '/web/crons' },
           { text: 'Routers and deployment', link: '/web/deployment' },
           { text: 'Testing', link: '/web/testing' },
           { text: 'Development toolbar', link: '/web/toolbar' },

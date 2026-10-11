@@ -52,6 +52,14 @@ func TestStore(t *testing.T) {
 `web.Only` matters when a test binary links packages that declare routes of
 their own: a library's tests, or an app whose packages each register a few.
 
+## Mail and crons
+
+`mailtest.New()` is a Mailer that keeps what the app sends instead of
+sending it, and `mailtest.Last(t, m)` reads it back — see
+[Mail](/web/mail#testing). `crontest.Run(app, name)` runs a cron with its
+dependencies, and `crontest.NewClock` drives the schedule with a virtual
+clock — see [Crons](/web/crons#testing).
+
 ## Live pages in a browser
 
 [Live components](/web/live) are tested over HTTP for their first render (the
