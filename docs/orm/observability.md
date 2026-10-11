@@ -77,4 +77,5 @@ stop := orm.ObserveState(func(e orm.StateEvent) {
 `orm.DBStats` holds `database/sql`'s pool statistics (`Pool`), the state, the
 breaker (`closed`, `open`, `half-open`) and its failures, the last error,
 and each replica's health and pool. It marshals to JSON — it is what
-[ormweb's `/healthz`](/orm/databases#web-integration) answers.
+[ormweb's `/healthz`](/orm/databases#web-integration) answers in
+development; elsewhere that route answers each database's state alone.
