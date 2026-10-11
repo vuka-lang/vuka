@@ -95,6 +95,7 @@ SIGTERM.
 | [Views](/web/views) | `.templ` components, `html/template` files and JSX pages |
 | [Dependency injection](/web/dependency-injection) | the container, lifecycles, Build errors |
 | [Middleware](/web/middleware) | `@web.Use`, app-wide middleware, decorators that see the request |
+| [Authentication](/web/auth) | sign-in, sessions and tokens, `@auth.Requires` on routes, pages and live events, CSRF |
 | [Live components](/web/live) | stateful components served over a WebSocket |
 | [Configuration and .env](/web/configuration) | env files, `web.Env`, required variables |
 | [Routers and deployment](/web/deployment) | the router seam, `Handler`, `Run`, `PORT`, `VUKA_ENV` |
@@ -104,6 +105,8 @@ Complete apps are in the repository:
 [`examples/pets`](https://github.com/vuka-lang/web/tree/main/examples/pets)
 (pages, a JSON API, a controller, middleware) and
 [`examples/live`](https://github.com/vuka-lang/web/tree/main/examples/live)
-(a counter, a todo list, a chat) — see [Examples](/examples#pets).
+(a counter, a todo list, a chat),
+[`examples/auth`](https://github.com/vuka-lang/web/tree/main/examples/auth)
+(a login, a live board with an admin-only action, an API with bearer tokens) — see [Examples](/examples#pets).
 For a database, the [ORM](/orm/) has a web integration:
 [`ormweb`](/orm/databases#web-integration).
