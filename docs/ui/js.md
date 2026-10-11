@@ -40,7 +40,7 @@ their own.
 | Command | |
 |---|---|
 | `AddClass(t, names...)`, `RemoveClass`, `ToggleClass` | classes |
-| `SetAttr(t, name, value)`, `RemoveAttr(t, name)`, `ToggleAttr(t, name, v1, v2)` | attributes; `ToggleAttr` sets `v1`, or `v2` when the attribute is `v1` |
+| `SetAttr(t, name, value)`, `RemoveAttr(t, name)`, `ToggleAttr(t, name, v1, v2)` | attributes; `ToggleAttr` sets `v1`, or `v2` when the attribute is `v1`. Not event handler attributes or `srcdoc`; URL values sanitized ([below](#urls-and-attributes)) |
 | `Show(t, opts...)`, `Hide`, `Toggle` | the style's `display`, and a `hidden` attribute: `ui.Display("flex")` is what `Show` sets (else the declaration is removed, `block` when the element would still be hidden); `ui.Transition(during, from, to)` and `ui.Time(d)` animate it |
 | `Transition(t, during, from, to, opts...)` | the transition alone: `during` and `from` added, `from` swapped for `to` on the next frame, all removed after `ui.Time` (200ms) |
 | `Focus(t)`, `FocusFirst(t)` | focus the element, or its first focusable descendant |
@@ -60,7 +60,30 @@ their own.
 | `SetText(t, text)` | set the element's text, replacing its content |
 | `Call(name, args...)` | call a JavaScript function of the page ([below](#calling-javascript)) |
 | `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s outcome ([below](#optimistic-updates)) |
-| `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)) |
+| `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
+
+### URLs and attributes
+
+A command can't make the page run script it didn't ship with:
+
+- `SetAttr`, `RemoveAttr` and `ToggleAttr` don't touch an event handler
+  attribute (`onclick`, any `on…`, in any case) or `srcdoc`. The names are
+  the code's own, so a chain naming one panics when it is built, as a chain
+  built wrong does; use an `on…` attribute of the element instead.
+- A URL attribute's value — `href`, `src`, `action`, `formaction`,
+  `xlink:href`, `poster`, `data` — is sanitized as an `href` written in
+  markup: a `javascript:` URL becomes
+  `about:invalid#TemplFailedSanitizationURL`. Values often come from
+  visitors, so they are cleaned, not refused.
+- `Patch` and `Navigate` (and `PushPatch`, `PushNavigate`) take a path or an
+  `http`/`https` URL; any other becomes that same placeholder, which the
+  runtime won't load.
+
+The runtime checks again what it runs, whatever built it — commands held in
+an attribute for `Exec`, say: it skips an attribute command naming an event
+handler attribute or `srcdoc`, or setting a URL attribute to a
+`javascript:`, `data:` or `vbscript:` URL, and loads or navigates to
+nothing but `http` and `https` URLs.
 
 ## Targets and refs
 

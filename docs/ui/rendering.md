@@ -52,4 +52,7 @@ s, err := term.String(ctx, Pets(pets, false), term.Options{})
 `term` reads the HTML of templ components and `Safe` content too, parsing
 it into the same tree, so a page inside a templ layout keeps its headings,
 tables and lists. Whether to use color (`NO_COLOR`, a tty) is the caller's
-decision.
+decision. The page's text never carries terminal commands: its control
+characters but newlines and tabs — escape sequences, carriage returns, C1
+controls — are dropped, so text a visitor wrote can't restyle, retitle or
+clear the terminal.

@@ -554,7 +554,9 @@ A connected page moves to another URL over its connection: a paged list,
 a filter or tab kept in the URL, a list and its rows' pages. Two kinds:
 
 - a **patch** stays on the page: the instances the new URL renders where
-  the old one did stay mounted with their state, their props set again;
+  the old one did stay mounted with their state, their props set again —
+  those the server lets stay (an `Update` of theirs takes the URL; a client
+  asking for a patch can't keep the rest);
 - a **navigate** goes to another page: every instance but the page itself
   (`c0`) unmounts, and the new page's mount.
 
@@ -577,11 +579,13 @@ When it is one, the page becomes the session's, rendered and diffed as after
 an event: the reply is a `patch` (v1 `updates`, v2 `trees` — the page `c0`
 is the same instance, so a v2 client gets only what changed of its tree,
 against statics it already holds), carrying `url`, and `js` when the new
-page's `Mount` pushed commands. A patch's `error` is a failed `Update`'s
-message; the page has moved all the same. When `url` isn't a page (a
-redirect, an error, a non-HTML answer), the reply is `redirect`, whose `url`
-the client loads as an ordinary page. An `error` reply means the
-navigation failed. Either version supports navigation.
+page's `Mount` pushed commands. When `url` isn't a page (a redirect, an
+error, a non-HTML answer), the reply is `redirect`, whose `url` the client
+loads as an ordinary page — never one that isn't a path or an `http` or
+`https` URL, which the client refuses to load as well. An `error` reply
+means the navigation failed — a `Mount` or `Update` refused the URL, say —
+and nothing of the page stays mounted; the client loads `url`. Either
+version supports navigation.
 
 A transport may add fields to a navigation's `patch`; the web framework's
 `token` is the new page's join token, which the client uses when it

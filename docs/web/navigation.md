@@ -33,16 +33,15 @@ scrolls, nothing is sent.
 ## Patch or navigate
 
 **Patch** moves to another URL of the page you are on: the next page of a
-list, a filter, a tab. The components stay mounted and keep their state;
-the route runs again for the new URL, so a [Live page](/web/live)'s props
-are bound from it again, and the reply is the usual patch — only what
-changed.
+list, a filter, a tab. The route runs again for the new URL, and a [Live
+page](/web/live) that takes the URL stays mounted and keeps its state: its
+props are bound from the URL again, and the reply is the usual patch — only
+what changed.
 
-When the component has to react to the new URL — load the next rows, say —
-give it an `Update` overload taking a struct that embeds `web.URLParams`.
-Its fields bind from the new URL the way a Live page's props do (the path
-segment, else the query parameter, of each field's name), and `Update` runs
-before the patch renders:
+A Live page takes the URL with an `Update` overload taking a struct that
+embeds `web.URLParams`. Its fields bind from the new URL the way a Live
+page's props do (the path segment, else the query parameter, of each
+field's name), and `Update` runs before the patch renders:
 
 ```vuka
 @web.Live("/books")
@@ -68,10 +67,57 @@ func (s *Shelf) Render() ui.Node {
 }
 ```
 
-`Mount` sees the first URL; `Update` sees each patch. An error `Update`
-returns reaches the page as a handler's does. Params that don't bind (a
-`page=x`) make the route answer 400, and the browser loads that URL as
-an ordinary page.
+`Mount` sees the first URL; `Update` sees each patch. Params that don't
+bind (a `page=x`) make the route answer 400, and the browser loads that URL
+as an ordinary page.
+
+### The server decides what stays mounted
+
+`patch` on a link (and `Patch`, `PushPatch`) only asks. The page stays
+mounted only when its type has an `Update` taking `web.URLParams`; any other
+page **mounts again**, a fresh instance whose `Mount` sees the new URL, even
+on the same route — as a navigate does. A browser can send any URL as a
+patch, so this is what keeps a check in `Mount` from being skipped.
+
+It follows that **`Update` must repeat every check `Mount` makes** of what
+the URL names. A page showing one order checks in `Mount` that the visitor
+may see it; its `Update` checks the new id the same way:
+
+```vuka
+@web.Live("/orders/{id}")
+type OrderPage struct {
+	ui.Live
+	ID     int
+	Orders *Orders
+	me     *User
+	order  Order
+}
+
+type OrderParams struct {
+	web.URLParams
+	ID int
+}
+
+func (p *OrderPage) Mount(ctx context.Context) error { return p.load(ctx, p.ID) }
+func (p *OrderPage) Update(ctx context.Context, q OrderParams) error { return p.load(ctx, q.ID) }
+
+func (p *OrderPage) load(ctx context.Context, id int) error {
+	o, err := p.Orders.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if o.Owner != auth.User[*User](ctx).ID {
+		return web.Forbidden
+	}
+	p.order = o
+	return nil
+}
+```
+
+An error `Update` returns fails the patch: nothing of the page stays
+mounted to take events, and the browser loads the URL, so the route answers
+as for any request (here, `Mount` refusing with 403). The same goes for a
+`Mount` that refuses on a navigate.
 
 **Navigate** moves to another page. Its route runs as a page load does —
 middleware, gates, dependencies, its layout — its components mount on the
@@ -134,6 +180,15 @@ always gets you there:
 - a page that isn't connected (still joining, or reconnecting);
 - a navigation that fails, or gets no reply within 10 seconds, or whose
   connection drops on the way.
+
+Only paths and `http` and `https` URLs are followed. The runtime refuses to
+load a `javascript:`, `data:`, `vbscript:` or any other URL, wherever it
+comes from — a link, a command, a redirect — and the server never sends a
+redirect to one: an app route redirecting to `javascript:` (an open
+redirect fed a crafted URL) answers the navigation with an error, and the
+browser then loads the link's own URL, whose redirect it refuses.
+`ui.JS.Navigate` and `Patch` turn such a URL into
+`about:invalid#TemplFailedSanitizationURL` when the chain is built.
 
 A new page drops the [optimistic pushes](/ui/js#optimistic-updates) still
 waiting for the old one, without running their hooks. A reconnect later

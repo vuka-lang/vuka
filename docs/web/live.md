@@ -122,7 +122,7 @@ type NewItem struct {
 func (t *Todo) Add(f NewItem) error {
 	text := strings.TrimSpace(f.Text)
 	if text == "" {
-		return errors.New("write something first")
+		return web.BadRequest("write something first")
 	}
 	t.next++
 	t.items = append(t.items, Item{ID: t.next, Text: text})
@@ -148,6 +148,21 @@ to what the server rendered; one whose handler returns an error keeps what
 the user typed, and the error reaches the page as `vk:error`. The element of
 a click or submit carries `aria-busy="true"` until the reply.
 
+### Errors
+
+What the browser reads of an error follows what an HTTP route answers:
+
+- a `*web.Error`'s message as it is — `web.BadRequest("write something
+  first")`, `web.Status(409, "that name is taken")`, `web.Forbidden` — and a
+  form field that doesn't bind (`"x" isn't a whole number`);
+- for any other error a handler, `Mount` or `Update` returns, or a panic,
+  `Internal Server Error`. The error itself goes to the log (`slog`, at
+  error level), with the page's URL and the handler, so a database error
+  or a file path never reaches the visitor.
+
+In development (`web.Dev()`, `VUKA_ENV=development`) the browser gets every
+error's own text, as an HTTP error page shows it.
+
 ## Patches
 
 The reply carries the HTML of each component whose output changed (the page
@@ -164,7 +179,7 @@ removals. A whole-document `c0` patch morphs the `<body>` and sets the title.
 | `data-vk-debounce="150"` | send the element's events (not submits) 150ms after the last one |
 | `data-vk-key="Enter Escape"` | send a keyboard event only for these keys |
 | `data-vk-ignore` (with an `id`) | the morph leaves the element as the browser has it |
-| `<html data-vk-state>` | `connecting`, `connected`, `disconnected` or `closed`: style a banner on it |
+| `<html data-vk-state>` | `connecting`, `connected`, `disconnected`, `idle` or `closed`: style a banner on it |
 | `vk:patched` | a document event after each render or patch; `detail.ids` |
 | `vk:error` | a document event for a handler's error or a failed message; `detail.message` (also logged to the console) |
 
@@ -231,6 +246,22 @@ and joins again — **the route runs again and the state starts over**; what
 wasn't saved elsewhere is lost, and events sent while disconnected are
 dropped.
 
+### Limits on connections
+
+Each is an option with a default; 0 lifts it.
+
+| Option | |
+|---|---|
+| `web.LiveJoinTimeout(d)` | how long a socket may stay open without joining its page; 10s. A socket sending nothing, or anything but `join`, is closed (1008) |
+| `web.LiveIdleTimeout(d)` | how long a joined page may send nothing before its connection closes (4002) and its session, with its components' state, is dropped; 30m. Broadcasts don't count. The runtime joins again at once if the page is in view, else when it is shown |
+| `web.LiveMaxConns(n)` | the app's open live sockets; 10,000. One beyond is refused with 503, and the runtime retries |
+| `web.LiveMaxConnsPerIP(n)` | the sockets from one client address; 100. One beyond is refused with 429 |
+| `web.LiveMaxConnsPerPage(n)` | the sockets opened with one page token; 4. One beyond is refused with 429 |
+| `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page, besides on every message and before each broadcast it takes; 5m |
+
+A `LiveCheck` failing — a session ended, a permission revoked — closes the
+page with 4001, and it reloads, its route answering for the browser.
+
 ## Security
 
 The token is the page's URI and an expiry, HMAC-SHA256-signed with the app's
@@ -247,6 +278,14 @@ middleware.
 A bad or expired token closes the connection with code 4001, and the runtime
 reloads the page (at most once in 10 seconds) for a fresh one.
 
+**Checks in `Mount` and `Update`.** A page that checks in `Mount` whether
+the visitor may see what its URL names (order `{id}`) makes the same check
+in its `Update` taking `web.URLParams`, if it has one: a patch keeps the
+page mounted and hands the new URL to that `Update`, not to `Mount`. A page
+without such an `Update` mounts again on every patch, so its `Mount` sees
+each URL; the browser's asking for a patch doesn't change that. See
+[Navigation](/web/navigation#the-server-decides-what-stays-mounted).
+
 ## The wire
 
 Vuka's [wire protocol](/reference/live-protocol) as is, plus:
@@ -256,9 +295,11 @@ Vuka's [wire protocol](/reference/live-protocol) as is, plus:
 | `GET /_vuka/live?t=<token>` | the WebSocket; the token is in the URL, so a bad one is refused before any message |
 | `GET /_vuka/live.js?v=<hash>` | the runtime, immutable for its hash (ETag otherwise) |
 | `join` | runs the route; a second `join` on the same connection starts over |
-| `redirect` | sent for a join the route redirects; the connection then closes normally (1000). For a `navigate` whose route doesn't answer with a page: its `Location`, else the URL |
-| `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses |
-| close 4001 | invalid or expired token: reload |
+| `redirect` | sent for a join the route redirects; the connection then closes normally (1000). For a `navigate` whose route doesn't answer with a page: its `Location`, else the URL. Never to a URL that isn't a path or `http`/`https`: an `error` instead |
+| `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses. `patch: true` asks to keep the page mounted, which the server does only for an `Update` taking `web.URLParams` ([Navigation](/web/navigation#the-server-decides-what-stays-mounted)); a `Mount`, `Update` or render failing answers `error`, nothing staying mounted |
+| close 4001 | invalid or expired token, or a `LiveCheck` failed: reload |
+| close 4002 | the page sat idle (`LiveIdleTimeout`): join again once the page is in view |
+| close 1008 | no `join` within `LiveJoinTimeout` |
 | close 4004 | the route isn't a live page: the error message precedes it; no retry |
 | close 1001 | the server is stopping: reconnect |
 | request header `X-Vuka-Live: join` | set on the route's run for a join; `navigate` on a navigation's. A client can send it too: test `web.IsLiveJoin(ctx)`, not the header |
