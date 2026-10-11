@@ -10,6 +10,20 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.19.0 — 2026-10-11
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.22.0`. With
+[`github.com/vuka-lang/ui`](/ui/) v0.11.0 and [web](https://github.com/vuka-lang/web) v0.16.0.
+
+- **The editor completes statics.** Typing `entities.Letter.` offers
+  `Objects`, the model's fields and every static the type reaches through
+  embedding, with their docs; hover on a static shows its declaration. A file
+  keeps compiling while the member is still being typed.
+- **web v0.16.0: `Mount` runs once per page view.** The socket join adopts
+  the page the HTTP render mounted when it arrives in time (`web.LiveAdopt`,
+  10s) and as the same signed-in user — so a `Mount`'s queries no longer run
+  twice. Anything uncertain mounts fresh, exactly as before.
+
 ## v0.18.0 — 2026-10-11
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.21.0`.
