@@ -206,6 +206,9 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 		if !ok || !f.lowerable(sel.Pos()) {
 			return true
 		}
+		if sel.Sel.Name == completionPlaceholder {
+			return true // mid-edit: the inner chain still lowers
+		}
 		base, first, names := e.refChain(sel)
 		if base == nil || e.info.Selections[first] != nil || e.info.Uses[first.Sel] != nil {
 			return true

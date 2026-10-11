@@ -229,12 +229,13 @@ func (f *fileState) renderStatics() {
 	}
 	for _, s := range f.statics {
 		goName := staticGoName(s.typeName, s.name)
+		doc := docAbove(f.src, s.start)
 		if s.typeParams == "" || s.isConst {
 			kw := "var "
 			if s.isConst {
 				kw = "const "
 			}
-			w.gen("\n"+kw, s.start)
+			w.gen("\n"+doc+kw, s.start)
 			directive(s.nameOff)
 			w.gen(goName, s.nameOff)
 			if s.typ.start >= 0 {
@@ -252,7 +253,7 @@ func (f *fileState) renderStatics() {
 		// A generic type's static: one value per instantiation.
 		store := "__" + strings.TrimPrefix(goName, "_") + "_statics"
 		self := s.typeName + "[" + strings.Join(s.tparams, ", ") + "]"
-		w.gen("\nvar "+store+" "+s.rt+".Statics\n\n", s.start)
+		w.gen("\nvar "+store+" "+s.rt+".Statics\n\n"+doc, s.start)
 		directive(s.nameOff)
 		w.gen("func "+goName+s.typeParams+"() *"+s.rt+".Static["+s.vt+"] {\n\treturn "+s.rt+".StaticOf["+self+"](&"+store+", func() "+s.vt+" { return ", s.start)
 		if s.init.start >= 0 {
@@ -263,6 +264,30 @@ func (f *fileState) renderStatics() {
 		}
 		w.gen(" })\n}\n", s.end)
 	}
+}
+
+// docAbove is the comment block on the lines right above off in src — a
+// static field's doc comment, carried onto its package-level declaration so
+// editors show it. Each line comes back left-trimmed, newline-terminated.
+func docAbove(src []byte, off int) string {
+	end := lineStart(src, off)
+	var lines []string
+	for end > 0 {
+		ls := lineStart(src, end-1)
+		line := strings.TrimSpace(string(src[ls:end]))
+		if !strings.HasPrefix(line, "//") || strings.HasPrefix(line, "//line ") {
+			break
+		}
+		lines = append(lines, line)
+		end = ls
+	}
+	if len(lines) == 0 {
+		return ""
+	}
+	for i, j := 0, len(lines)-1; i < j; i, j = i+1, j-1 {
+		lines[i], lines[j] = lines[j], lines[i]
+	}
+	return strings.Join(lines, "\n") + "\n"
 }
 
 // inStaticInit reports whether src offset off is in a static's initializer,
