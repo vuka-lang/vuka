@@ -12,6 +12,11 @@ import (
 // runtimeNames are the names Vuka code uses unqualified for the runtime package.
 var runtimeNames = map[string]bool{"Result": true, "Option": true, "Ok": true, "Err": true, "Some": true, "None": true}
 
+// completionPlaceholder is the member the language server writes after a
+// selector's dot while it is being typed. Code naming it is mid-edit:
+// nothing is reported about it, and the selector is left as written.
+const completionPlaceholder = "__vuka_complete"
+
 // engine lowers a package in rounds. Each round rebuilds every file's text from
 // the source, the rewrites decided so far, and placeholders for the rest; parses
 // and type-checks it; and decides whatever has become decidable. A construct is
@@ -399,7 +404,7 @@ func (e *engine) report() {
 	for _, te := range e.typeErrs {
 		broken := strings.HasPrefix(te.Msg, "could not import ")
 		if shown >= 5 && !broken || reported[e.typeErrPos(te)] || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") ||
-			strings.Contains(te.Msg, "cannot infer T") {
+			strings.Contains(te.Msg, "cannot infer T") || strings.Contains(te.Msg, completionPlaceholder) {
 			continue
 		}
 		pos, msg := e.typeErrPos(te), importFailure(te.Msg)
