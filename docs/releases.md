@@ -10,6 +10,17 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.18.0 — 2026-10-11
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.21.0`.
+
+- **A faster editor.** `vuka lsp` shows Vuka syntax errors as you type
+  (about 1 ms, from the file being edited alone), type errors about 100 ms
+  after you pause, and answers hover and completion without waiting for the
+  whole module to rebuild: it keeps the transpile cache `vuka run -watch`
+  uses and rebuilds the packages you edited first. Restart the language server
+  in your editor after upgrading.
+
 ## cmd/vuka v0.20.0 — 2026-10-11 — security release
 
 The vuka command only; the language and runtime are unchanged (v0.17.0, runtime
