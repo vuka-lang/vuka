@@ -437,6 +437,41 @@ func TestLSPLatency(t *testing.T) {
 	}
 	edit(src)
 	quiet()
+	if os.Getenv("VUKA_LSP_BENCH_MODULE") != "" {
+		return
+	}
+
+	// An exported signature every package uses: a request on one of them is
+	// answered while their Go is generated again, and their diagnostics
+	// follow the change.
+	corePath := filepath.Join(dir, "core", "core.vuka")
+	core, _ := os.ReadFile(corePath)
+	coreURI := pathToURI(corePath)
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": coreURI, "languageId": "vuka", "version": 1, "text": string(core)}})
+	quiet()
+	var hovers, follows []time.Duration
+	for i := 0; i < runs; i++ {
+		text := string(core)
+		if i%2 == 0 {
+			text = strings.Replace(text, "func Find(id int) Result[User] {", "func Find(id int) User {\n\treturn User{}\n}\n\nfunc find(id int) Result[User] {", 1)
+		}
+		version++
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": coreURI, "version": version},
+			"contentChanges": []any{map[string]any{"text": text}}})
+		start := time.Now()
+		time.Sleep(buildDelay + 20*time.Millisecond) // the build has started
+		h := time.Now()
+		c.call("textDocument/hover", at)
+		hovers = append(hovers, time.Since(h))
+		at, found := until(func(d string) bool { return (i%2 == 0) == strings.Contains(d, `"source":"vuka"`) })
+		if !found {
+			t.Fatalf("p00's diagnostics don't follow core's change %d", i)
+		}
+		follows = append(follows, at.Sub(start))
+		quiet()
+	}
+	t.Logf("%-28s %v", "hover while dependents build", median(hovers))
+	t.Logf("%-28s %v", "a dependent's diagnostics", median(follows))
 }
 
 func median(ds []time.Duration) time.Duration {

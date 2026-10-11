@@ -17,6 +17,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -439,24 +440,43 @@ type proxy struct {
 	virtual          map[string]*vfile       // generated path → buffer in gopls
 	owned            map[string]bool         // Go paths the editor has open itself; its text wins
 	bySource         map[string]string       // .vuka path → generated path
-	vukaDiags        map[string][]any        // .vuka path → transpiler errors
-	goDiags          map[string][]any        // .vuka path → gopls diagnostics mapped from its Go
+	vukaDiags        map[string]*diagSet     // .vuka path → the last build's transpiler errors
+	syntaxDiags      map[string]*diagSet     // .vuka path → its syntax errors, as the editor has it now
+	goDiags          map[string]*diagSet     // .vuka path → gopls diagnostics mapped from its Go
 	shown            map[string]string       // real path → the path the editor uses for it
 	decos            []projectDecorator      // the module's decorators, as of the last regenerate
 	modRoot, modPath string                  // the module, as of the last regenerate
 	started          bool
-	dirty            bool
 	timer            *time.Timer
 	stopped          bool
+
+	// Builds: one runs at a time, on its own goroutine; see build.
+	buildMu  sync.Mutex     // held by the build that runs
+	pubMu    sync.Mutex     // held while diagnostics are worked out and sent
+	synMu    sync.Mutex     // held while a buffer's syntax is checked
+	sess     *load.Session  // what the module's last builds transpiled; nil before the first
+	building bool           // a build runs
+	again    bool           // and another is wanted once it ends
+	preempt  atomic.Bool    // the build that runs should leave the rest of the module for later
+	built    *sync.Cond     // on mu: a build finished a stage
+	edits    int            // the editor's changes to .vuka buffers so far
+	changed  map[string]int // .vuka path → edits when its buffer last changed
+	done     map[string]int // .vuka path → edits as of the build that last transpiled its buffer
+	snapped  int            // edits when the last build took the buffers
+	syntax   syntaxChecker
 }
 
 func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
-	return &proxy{
+	p := &proxy{
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{},
 		bufs: map[string][]byte{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
-		vukaDiags: map[string][]any{}, goDiags: map[string][]any{}, shown: map[string]string{},
+		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
+		shown:   map[string]string{},
+		changed: map[string]int{}, done: map[string]int{},
 	}
+	p.built = sync.NewCond(&p.mu)
+	return p
 }
 
 func (p *proxy) logf(format string, args ...any) {
@@ -469,7 +489,10 @@ func (p *proxy) stop() {
 	if p.timer != nil {
 		p.timer.Stop()
 	}
+	p.built.Broadcast()
 	p.mu.Unlock()
+	p.buildMu.Lock() // the build that runs has stopped
+	p.buildMu.Unlock()
 }
 
 // vukaMethods are the .vuka requests answered by gopls on the generated Go.
@@ -494,6 +517,15 @@ var vukaMethods = map[string]bool{
 }
 
 func isVuka(path string) bool { return strings.HasSuffix(path, ".vuka") }
+
+// moduleFile reports whether path is a go.mod, go.sum or go.work file.
+func moduleFile(path string) bool {
+	switch filepath.Base(path) {
+	case "go.mod", "go.sum", "go.work":
+		return true
+	}
+	return false
+}
 
 // quietMethods are requests whose failure is no answer, not an error to show.
 var quietMethods = map[string]bool{
@@ -595,9 +627,9 @@ func (p *proxy) fromEditor() {
 		case "initialized":
 			_ = p.gopls.write(body)
 			p.mu.Lock()
-			p.started = true
+			p.started, p.building = true, true
 			p.mu.Unlock()
-			p.regenerate()
+			p.builds() // the first, before anything else reaches gopls
 			continue
 		case "exit":
 			_ = p.gopls.write(body)
@@ -628,7 +660,7 @@ func (p *proxy) fromEditor() {
 			}
 			_ = json.Unmarshal(m.Params, &params)
 			for _, c := range params.Changes {
-				if path := uriToPath(c.URI); (strings.HasSuffix(path, ".go") || isVuka(path) || strings.HasSuffix(path, ".templ")) && !p.isVirtual(path) {
+				if path := uriToPath(c.URI); (strings.HasSuffix(path, ".go") || isVuka(path) || strings.HasSuffix(path, ".templ") || moduleFile(path)) && !p.isVirtual(path) {
 					p.schedule()
 					break
 				}
@@ -958,290 +990,6 @@ func (p *proxy) mentionsVirtual(raw json.RawMessage) bool {
 	return false
 }
 
-// schedule regenerates after a short quiet period.
-func (p *proxy) schedule() {
-	p.mu.Lock()
-	defer p.mu.Unlock()
-	p.dirty = true
-	if p.stopped || !p.started {
-		return
-	}
-	if p.timer != nil {
-		p.timer.Stop()
-	}
-	p.timer = time.AfterFunc(150*time.Millisecond, p.regenerate)
-}
-
-// document tracks the editor's .vuka buffers.
-func (p *proxy) document(method string, params json.RawMessage, path string) {
-	switch method {
-	case "textDocument/didOpen":
-		var dp struct {
-			TextDocument struct {
-				Text string `json:"text"`
-			} `json:"textDocument"`
-		}
-		_ = json.Unmarshal(params, &dp)
-		p.mu.Lock()
-		p.bufs[path] = []byte(dp.TextDocument.Text)
-		p.mu.Unlock()
-	case "textDocument/didChange":
-		var dp struct {
-			ContentChanges []struct {
-				Range *lspRange `json:"range"`
-				Text  string    `json:"text"`
-			} `json:"contentChanges"`
-		}
-		_ = json.Unmarshal(params, &dp)
-		p.mu.Lock()
-		buf := p.bufs[path]
-		for _, c := range dp.ContentChanges {
-			if c.Range == nil {
-				buf = []byte(c.Text)
-				continue
-			}
-			start, end := offsetOf(buf, c.Range.Start), offsetOf(buf, c.Range.End)
-			if end < start {
-				end = start
-			}
-			next := make([]byte, 0, len(buf)-(end-start)+len(c.Text))
-			buf = append(append(append(next, buf[:start]...), c.Text...), buf[end:]...)
-		}
-		p.bufs[path] = buf
-		p.mu.Unlock()
-	case "textDocument/didClose":
-		p.mu.Lock()
-		delete(p.bufs, path)
-		p.mu.Unlock()
-	}
-	p.schedule()
-}
-
-// regenerate transpiles the module's Vuka packages, with the editor's unsaved
-// buffers, and syncs gopls and the diagnostics with the result. A package that
-// fails keeps its previous generated files, so the rest keeps type-checking.
-func (p *proxy) regenerate() {
-	p.genMu.Lock()
-	defer p.genMu.Unlock()
-	p.mu.Lock()
-	if p.stopped {
-		p.mu.Unlock()
-		return
-	}
-	p.dirty = false
-	root := p.root
-	bufs := make(map[string][]byte, len(p.bufs))
-	for k, v := range p.bufs {
-		bufs[k] = v
-	}
-	p.mu.Unlock()
-
-	modRoot, modPath, err := load.ModuleRoot(root)
-	if err != nil {
-		p.logf("%v", err)
-		return
-	}
-	if r, err := filepath.EvalSymlinks(modRoot); err == nil {
-		modRoot = r // the paths the editor's buffers are kept by
-	}
-	hunks := map[string][]hunk{}
-	read := func(path string) ([]byte, error) {
-		if b, ok := bufs[path]; ok {
-			src, hs := completable(b)
-			hunks[path] = hs
-			return src, nil
-		}
-		return os.ReadFile(path)
-	}
-	pkgs, err := load.Discover(modRoot, modPath, modRoot, true, read)
-	if err != nil {
-		p.logf("discover: %v", err)
-		return
-	}
-	gens, _, terr := load.Transpile(pkgs, p.tmp, load.Options{Bare: true})
-	decos := findDecorators(modRoot, modPath, read)
-	var list transpile.ErrorList
-	if terr != nil && !errors.As(terr, &list) {
-		p.logf("transpile: %v", terr)
-	}
-	sources := map[string][]byte{}
-	for _, pkg := range pkgs {
-		for _, f := range pkg.Files {
-			if f.IsVuka() {
-				sources[filepath.Join(pkg.Dir, f.Name)] = f.Src
-			}
-		}
-		for _, t := range pkg.Templ {
-			sources[filepath.Join(pkg.Dir, t.Name)] = t.Src
-		}
-	}
-	diags := map[string][]any{}
-	for _, e := range list {
-		src, ok := sources[e.Pos.Filename]
-		if !ok {
-			continue
-		}
-		pos := positionOf(src, e.Pos.Offset)
-		diags[e.Pos.Filename] = append(diags[e.Pos.Filename], lspDiagnostic{
-			Range: lspRange{pos, pos}, Severity: 1, Source: "vuka", Message: e.Msg})
-	}
-
-	want := map[string]*vfile{}
-	for _, g := range gens {
-		tm, _ := g.TemplMap.(*templparser.SourceMap)
-		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files}
-		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
-			vf.withText(b, hunks[g.Source])
-		}
-		want[g.Target] = vf
-	}
-	failing := map[string]bool{} // directories of packages with errors
-	for path := range diags {
-		failing[filepath.Dir(path)] = true
-	}
-
-	type op struct {
-		method string
-		params any
-	}
-	var ops []op
-	p.mu.Lock()
-	for path, old := range p.virtual {
-		if _, ok := want[path]; !ok && sources[old.source] != nil && failing[filepath.Dir(old.source)] {
-			// Keep the last good version while the package has errors, mapped
-			// onto the text as it is now.
-			kept := *old
-			now := bufs[old.source]
-			if now == nil {
-				now = sources[old.source]
-			}
-			if !kept.isTempl() {
-				kept.withText(now, nil)
-			}
-			want[path] = &kept
-		}
-	}
-	for path, vf := range want {
-		old := p.virtual[path]
-		uri := pathToURI(path)
-		switch {
-		case p.owned[path]:
-			if old != nil {
-				vf.version = old.version
-			}
-		case old == nil:
-			vf.version = 1
-			ops = append(ops, op{"textDocument/didOpen", map[string]any{"textDocument": map[string]any{
-				"uri": uri, "languageId": "go", "version": vf.version, "text": string(vf.gen)}}})
-		case !bytes.Equal(old.gen, vf.gen):
-			vf.version = old.version + 1
-			ops = append(ops, op{"textDocument/didChange", map[string]any{
-				"textDocument":   map[string]any{"uri": uri, "version": vf.version},
-				"contentChanges": []any{map[string]any{"text": string(vf.gen)}}}})
-		default:
-			vf.version = old.version
-		}
-	}
-	for path := range p.virtual {
-		if _, ok := want[path]; !ok && !p.owned[path] {
-			ops = append(ops, op{"textDocument/didClose", map[string]any{"textDocument": map[string]any{"uri": pathToURI(path)}}})
-		}
-	}
-	p.virtual = want
-	p.decos = decos
-	p.modRoot, p.modPath = modRoot, modPath
-	p.bySource = map[string]string{}
-	for path, vf := range want {
-		p.bySource[vf.source] = path
-	}
-	touched := map[string]bool{}
-	for path := range p.vukaDiags {
-		touched[path] = true
-	}
-	for path := range diags {
-		touched[path] = true
-	}
-	p.vukaDiags = diags
-	p.mu.Unlock()
-
-	for _, o := range ops {
-		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": o.method, "params": o.params})
-	}
-	for path := range touched {
-		p.publish(path)
-	}
-}
-
-// publish sends a .vuka file's diagnostics: the transpiler's, or when it has
-// none, gopls's on the generated Go.
-func (p *proxy) publish(path string) {
-	if p.dropIn && strings.HasSuffix(path, ".templ") {
-		return // templ's language server reports on its files
-	}
-	p.mu.Lock()
-	ds := append([]any{}, p.vukaDiags[path]...)
-	if len(ds) == 0 {
-		ds = append(ds, p.goDiags[path]...)
-	}
-	p.mu.Unlock()
-	_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
-		"params": map[string]any{"uri": pathToURI(p.display(path)), "diagnostics": ds}})
-}
-
-// goplsDiagnostics routes gopls's diagnostics: a generated file's onto its
-// .vuka file, any other file's straight to the editor.
-func (p *proxy) goplsDiagnostics(params json.RawMessage) {
-	var dp struct {
-		URI         string `json:"uri"`
-		Version     int    `json:"version"`
-		Diagnostics []any  `json:"diagnostics"`
-	}
-	if err := json.Unmarshal(params, &dp); err != nil {
-		return
-	}
-	p.mu.Lock()
-	vf := p.vfileOf(uriToPath(dp.URI))
-	if vf == nil {
-		p.mu.Unlock()
-		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": params})
-		return
-	}
-	if vf.isTempl() || dp.Version != 0 && dp.Version == vf.probed {
-		// templ's own language server reports on .templ files; a probe's
-		// diagnostics are of code that was never there.
-		p.mu.Unlock()
-		return
-	}
-	lines := uint32(bytes.Count(vf.gen, []byte("\n")))
-	var mapped []any
-	for _, d := range dp.Diagnostics {
-		obj, ok := d.(map[string]any)
-		if !ok {
-			continue
-		}
-		r, ok := toRange(obj["range"])
-		if !ok || r.Start.Line > lines {
-			continue
-		}
-		if r, ok = vf.toSource(r, false); !ok {
-			continue
-		}
-		obj["range"] = r
-		if msg, ok := obj["message"].(string); ok {
-			if strings.Contains(msg, placeholder) {
-				continue
-			}
-			obj["message"] = importHint(demangle(vf.m.Message(int(r.Start.Line)+1, msg)), p.modRoot, p.modPath)
-		}
-		delete(obj, "relatedInformation")
-		delete(obj, "data")
-		mapped = append(mapped, obj)
-	}
-	p.goDiags[vf.source] = mapped
-	p.mu.Unlock()
-	p.publish(vf.source)
-}
-
 // vukaRequest asks gopls the editor's question at the matching place in the
 // generated Go.
 func (p *proxy) vukaRequest(m *rpcMsg, path string) {
@@ -1252,18 +1000,20 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		reply(nil)
 		return
 	}
-	p.mu.Lock()
-	dirty := p.dirty
-	p.mu.Unlock()
-	if dirty {
-		p.regenerate()
-	}
+	p.await(path)
 	p.mu.Lock()
 	vf := p.virtual[p.bySource[path]]
 	if vf == nil {
 		p.mu.Unlock()
 		reply(nil)
 		return
+	}
+	if buf, ok := p.bufs[path]; ok && !vf.isTempl() && !bytes.Equal(vf.text(), buf) {
+		// Edited since its last build (which took too long to wait for):
+		// the last generation, mapped onto the text as it is now.
+		cur := *vf
+		cur.withText(buf, nil)
+		vf = &cur
 	}
 	var params map[string]any
 	_ = json.Unmarshal(m.Params, &params)
