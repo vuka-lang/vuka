@@ -30,9 +30,10 @@ Usage:
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        an app on github.com/vuka-lang/web gets its Tailwind CSS (run keeps it
 	        rebuilt, build embeds it; VUKA_TAILWIND=off for none)
-	vuka run -watch [go flags] [package] [args]
+	vuka run -watch [-debug] [go flags] [package] [args]
 	        run the app and rebuild it when a source changes: the new build
 	        replaces it once it compiles, while the old one keeps serving
+	        (-debug keeps the debug information watch builds leave out)
 	vuka gen [-check] [-o build]
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]

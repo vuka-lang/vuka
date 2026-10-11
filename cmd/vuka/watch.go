@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"os/signal"
@@ -17,6 +18,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -29,7 +31,7 @@ import (
 // one running; a build that comes out byte-identical restarts nothing.
 // Tailwind's watcher runs once, across the restarts.
 
-const runUsage = `usage: vuka run [-watch] [build flags] [package] [arguments...]
+const runUsage = `usage: vuka run [-watch [-debug]] [build flags] [package] [arguments...]
 
 Run transpiles the module's .vuka files into an overlay and runs the
 package with go run. An app on github.com/vuka-lang/web gets its Tailwind
@@ -41,7 +43,14 @@ CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
 	next one compiles; a build that fails prints its errors and leaves it
 	running, and a change that leaves the binary as it was restarts
 	nothing. Changes to .vuka, .templ and .go files (not tests), go.mod,
-	go.sum and the files the app embeds start a rebuild.
+	go.sum and the files the app embeds start a rebuild, seen through the
+	system's file events (VUKA_WATCH=poll looks every 200ms instead); a
+	change while a build runs stops it and builds anew. Only the packages a
+	change reaches are transpiled again.
+
+  -debug, --debug
+	with -watch, keep the debug information (DWARF) watch builds leave out
+	to link faster: for delve.
 
 Build flags are go build's; run 'go help run' for them.
 `
@@ -131,8 +140,12 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	flags, debug := cutDebug(flags)
 	if !slices.ContainsFunc(flags, func(f string) bool { return strings.HasPrefix(strings.TrimLeft(f, "-"), "buildvcs") }) {
 		flags = append(flags, "-buildvcs=false") // as go run: no VCS stamp, which would also tell builds apart
+	}
+	if !debug {
+		flags = noDWARF(flags)
 	}
 	root, _, err := load.ModuleRoot(".")
 	if err != nil {
@@ -159,6 +172,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	env = append(env, assetsEnv+"="+assets.dir())
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
 		w: newWatcher(root), exits: make(chan *app, 4), assets: assets}
+	s.sess, _ = load.NewSession(root) // nil: each build transpiles from scratch
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -186,16 +200,19 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 
 	builds := make(chan *buildResult, 1)
 	var (
-		building bool      // a build runs
-		again    bool      // and the sources changed since it started
-		changed  time.Time // when the change the next build answers was seen: rebuilt in counts from it
-		n        = 1
+		building    bool               // a build runs
+		again       bool               // and the sources changed since it started: it is cancelled
+		cancelBuild context.CancelFunc // cancels the build that runs
+		changed     time.Time          // when the change the next build answers was seen: rebuilt in counts from it
+		n           = 1
 	)
 	startBuild := func() {
 		n++
 		building = true
 		s.setState(buildState{State: "building", Since: changed})
-		go func(n int) { builds <- s.build(ctx, n) }(n)
+		var bctx context.Context
+		bctx, cancelBuild = context.WithCancel(ctx)
+		go func(n int) { builds <- s.build(bctx, n) }(n)
 	}
 	s.finish(first, time.Time{})
 	for {
@@ -207,13 +224,18 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 			return nil
 		case <-changes:
 			changed = time.Now()
+			traceStep("change")
 			if building {
+				// What it builds is stale already: stop it, and build anew
+				// once it has stopped.
 				again = true
+				cancelBuild()
 				continue
 			}
 			startBuild()
 		case r := <-builds:
 			building = false
+			cancelBuild()
 			if again {
 				again = false
 				r.discard()
@@ -241,8 +263,9 @@ type supervisor struct {
 	prog, env      []string
 	stdout, stderr io.Writer
 	w              *watcher
-	app            *app      // the running build; nil when none runs
-	exits          chan *app // each app, once it has exited
+	sess           *load.Session // what the last builds transpiled; nil for none
+	app            *app          // the running build; nil when none runs
+	exits          chan *app     // each app, once it has exited
 	assets         *devAssets
 }
 
@@ -282,12 +305,23 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 		return r
 	}
 	var gens []load.Generated
+	t0 := time.Now()
 	if len(pkgs) > 0 {
-		if gens, r.overlay, err = load.Transpile(pkgs, dir, loadOptions(r.pa)); err != nil {
+		transpile := load.Transpile
+		if s.sess != nil {
+			transpile = s.sess.Transpile
+		}
+		if gens, r.overlay, err = transpile(pkgs, dir, loadOptions(r.pa)); err != nil {
 			r.err = err
 			return r
 		}
 	}
+	if r.err = ctx.Err(); r.err != nil {
+		return r
+	}
+	tTranspile := time.Since(t0)
+	t0 = time.Now()
+	defer func() { traceStep("transpile %v build %v", tTranspile, time.Since(t0)) }()
 	var embeds []string
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -299,6 +333,10 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	}
 	c := exec.CommandContext(ctx, "go", append(args, s.pkg...)...)
 	c.Dir, c.Env = s.dir, s.env
+	// Cancelled, the go command is interrupted: it stops the compilers and
+	// linker it runs and removes its work directory.
+	c.Cancel = func() error { return c.Process.Signal(os.Interrupt) }
+	c.WaitDelay = 5 * time.Second
 	var out bytes.Buffer
 	resp := &respeller{w: &out, dir: s.dir, gens: gens}
 	c.Stdout, c.Stderr = resp, resp
@@ -369,7 +407,9 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		r.discard()
 		return
 	}
+	t0 := time.Now()
 	prewarm(r.bin)
+	traceStep("prewarm %v", time.Since(t0))
 	if s.app != nil {
 		s.app.stop(syscall.SIGTERM, stopGrace, nil)
 		os.RemoveAll(filepath.Dir(s.app.bin))
@@ -380,6 +420,59 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 	if !changed.IsZero() && s.app != nil {
 		fmt.Fprintf(s.stderr, "● rebuilt in %.1fs\n", time.Since(changed).Seconds())
 	}
+}
+
+// cutDebug reports whether flags ask for -debug, and returns them without it.
+func cutDebug(flags []string) ([]string, bool) {
+	debug := false
+	out := flags[:0:0]
+	for _, f := range flags {
+		switch strings.TrimLeft(f, "-") {
+		case "debug", "debug=true":
+			debug = true
+		case "debug=false":
+		default:
+			out = append(out, f)
+		}
+	}
+	return out, debug
+}
+
+// noDWARF adds -w to the linker's flags: no debug information, which is
+// most of what the linker writes. A build is then faster to link and to
+// start. Linker flags for a package pattern are left as they are.
+func noDWARF(flags []string) []string {
+	out := slices.Clone(flags)
+	at, valueAt := -1, -1 // the last -ldflags: go build takes it
+	for i := 0; i < len(out); i++ {
+		name, _, hasValue := strings.Cut(strings.TrimLeft(out[i], "-"), "=")
+		if name == "ldflags" && strings.HasPrefix(out[i], "-") {
+			at, valueAt = i, i
+			if !hasValue {
+				valueAt = i + 1
+				i++
+			}
+		}
+	}
+	if at < 0 {
+		return append(out, "-ldflags=-w")
+	}
+	if valueAt >= len(out) {
+		return out
+	}
+	value := out[valueAt]
+	if valueAt == at {
+		_, value, _ = strings.Cut(value, "=")
+	}
+	if first := strings.Fields(value); len(first) > 0 && !strings.HasPrefix(first[0], "-") && strings.Contains(first[0], "=") {
+		return out // pattern=flags
+	}
+	if valueAt == at {
+		out[at] = "-ldflags=-w " + value
+	} else {
+		out[valueAt] = "-w " + value
+	}
+	return out
 }
 
 // buildState is what buildStateFile holds: "building" since a time,
@@ -513,33 +606,80 @@ func embedRoots(ctx context.Context, root, overlay string) []string {
 }
 
 // A watcher looks at the module's sources for changes by their modification
-// times and sizes: the files a build reads, without the module's tests,
-// hidden files and directories, build/, node_modules, testdata, vendor and
-// nested modules.
+// times, sizes and identities: the files a build reads, without the
+// module's tests, hidden files and directories, build/, node_modules,
+// testdata, vendor and nested modules. It is told to look by the system's
+// file events (kqueue, inotify), and else looks every interval.
 type watcher struct {
 	root   string
+	poll   bool        // look every interval, without the system's events
+	events atomic.Bool // the system's events tell when to look
+	kick   chan struct{}
 	mu     sync.Mutex
-	embeds []string         // what the app embeds, from embedRoots
-	fresh  []string         // embeds new since the last look: their files aren't changes
-	files  map[string]stamp // as the last look saw them
+	embeds []string          // what the app embeds, from embedRoots
+	fresh  []string          // embeds new since the last look: their files aren't changes
+	files  map[string]stamp  // as the last look saw them
+	dirs   map[string]uint64 // the directories the last look went through, by identity
 }
 
 type stamp struct {
 	mod  time.Time
 	size int64
+	id   uint64 // the file's identity (inode): a file renamed over it is another
 }
 
-func newWatcher(root string) *watcher { return &watcher{root: root} }
+// An osWatch tells, through events, when something in the directories and
+// files it watches may have changed; a look at the sources finds what.
+type osWatch interface {
+	// watch makes it watch exactly these directories and files, which map
+	// to their identities: one whose identity changed is watched anew.
+	watch(dirs, files map[string]uint64) error
+	events() <-chan struct{}
+	errors() <-chan error
+	close()
+}
+
+const (
+	osQuiet  = 30 * time.Millisecond // with file events: a change waits for this long a calm before it builds
+	watchEnv = "VUKA_WATCH"          // poll: no file events, a look every interval
+)
+
+// osSafetyNet is how often the sources are looked at with file events all
+// the same.
+var osSafetyNet = time.Second
+
+func newWatcher(root string) *watcher {
+	return &watcher{root: root, kick: make(chan struct{}, 1), poll: strings.EqualFold(os.Getenv(watchEnv), "poll")}
+}
 
 func (w *watcher) setEmbeds(roots []string) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+	added := false
 	for _, r := range roots {
 		if !slices.Contains(w.embeds, r) {
 			w.fresh = append(w.fresh, r)
+			added = true
 		}
 	}
 	w.embeds = roots
+	if added {
+		select { // their files are watched once looked at
+		case w.kick <- struct{}{}:
+		default:
+		}
+	}
+}
+
+// relevant reports whether a file event about path may be a change to a
+// source.
+func (w *watcher) relevant(path string, dir bool) bool {
+	if dir {
+		return true
+	}
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.watched(path)
 }
 
 // skipDir reports whether the directory at path holds no sources.
@@ -578,6 +718,7 @@ func (w *watcher) scan() []string {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	files := make(map[string]stamp, len(w.files))
+	dirs := make(map[string]uint64, len(w.dirs))
 	var changed []string
 	filepath.WalkDir(w.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -586,6 +727,9 @@ func (w *watcher) scan() []string {
 		if d.IsDir() {
 			if w.skipDir(path, d.Name()) {
 				return filepath.SkipDir
+			}
+			if fi, err := d.Info(); err == nil {
+				dirs[path] = fileID(fi)
 			}
 			return nil
 		}
@@ -596,7 +740,7 @@ func (w *watcher) scan() []string {
 		if err != nil {
 			return nil
 		}
-		st := stamp{fi.ModTime(), fi.Size()}
+		st := stamp{fi.ModTime(), fi.Size(), fileID(fi)}
 		files[path] = st
 		if old, seen := w.files[path]; seen && old != st || !seen && !under(path, w.fresh) {
 			changed = append(changed, path)
@@ -608,14 +752,29 @@ func (w *watcher) scan() []string {
 			changed = append(changed, path)
 		}
 	}
-	w.files, w.fresh = files, nil
+	w.files, w.dirs, w.fresh = files, dirs, nil
 	return changed
 }
 
-// run looks at the sources every interval and sends each batch of changes
-// once a look finds none for quiet. A tree that takes long to look at is
-// looked at less often.
+// run sends each batch of changes once the sources have been calm for
+// quiet. It looks at the sources when the system's file events say
+// something changed, and else every interval (a tree that takes long to
+// look at less often).
 func (w *watcher) run(ctx context.Context, interval, quiet time.Duration, out chan<- []string) {
+	if !w.poll {
+		if ow, err := newOSWatch(w.relevant); err == nil {
+			err := w.runEvents(ctx, ow, out)
+			ow.close()
+			if err == nil {
+				return
+			}
+			fmt.Fprintf(os.Stderr, "● file events failed (%v); looking for changes every %v\n", err, interval)
+		}
+	}
+	w.runPoll(ctx, interval, quiet, out)
+}
+
+func (w *watcher) runPoll(ctx context.Context, interval, quiet time.Duration, out chan<- []string) {
 	var batch []string
 	wait := interval
 	for {
@@ -642,3 +801,130 @@ func (w *watcher) run(ctx context.Context, interval, quiet time.Duration, out ch
 		wait = max(interval, 10*took)
 	}
 }
+
+// runEvents looks at the sources when file events come, once they have
+// been calm for osQuiet, and every osSafetyNet all the same. It returns
+// nil when ctx is done, or why the file events stopped.
+func (w *watcher) runEvents(ctx context.Context, ow osWatch, out chan<- []string) error {
+	if err := w.sync(ow); err != nil {
+		return err
+	}
+	w.events.Store(true)
+	defer w.events.Store(false)
+	// What changed between the first look and the watch is looked for now.
+	pending := w.scan()
+	safety := osSafetyNet
+	for {
+		if len(pending) > 0 {
+			select {
+			case out <- pending:
+				pending = nil
+			case <-ctx.Done():
+				return nil
+			case err := <-ow.errors():
+				return err
+			case <-ow.events(): // a newer change: it joins this batch
+				if err := w.calm(ctx, ow); err != nil {
+					return err
+				}
+				changed, err := w.look(ow)
+				if err != nil {
+					return err
+				}
+				pending = append(pending, changed...)
+			}
+			continue
+		}
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-ow.errors():
+			return err
+		case <-ow.events():
+			if err := w.calm(ctx, ow); err != nil {
+				return err
+			}
+		case <-w.kick:
+		case <-time.After(safety):
+		}
+		start := time.Now()
+		changed, err := w.look(ow)
+		if err != nil {
+			return err
+		}
+		safety = max(osSafetyNet, 20*time.Since(start))
+		pending = changed
+	}
+}
+
+// calm waits until no file event has come for osQuiet: the writes of one
+// save (a temporary file renamed over the source, a formatter's rewrite)
+// are one change.
+func (w *watcher) calm(ctx context.Context, ow osWatch) error {
+	t := time.NewTimer(osQuiet)
+	defer t.Stop()
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case err := <-ow.errors():
+			return err
+		case <-ow.events():
+			t.Reset(osQuiet)
+		case <-t.C:
+			return nil
+		}
+	}
+}
+
+// look looks at the sources and has the watch follow them: new directories
+// and files watched, replaced ones watched anew. What changed in a new
+// directory before it was watched is seen by a second look.
+func (w *watcher) look(ow osWatch) ([]string, error) {
+	w.mu.Lock()
+	before := len(w.dirs)
+	known := w.dirs
+	w.mu.Unlock()
+	changed := w.scan()
+	if err := w.sync(ow); err != nil {
+		return nil, err
+	}
+	w.mu.Lock()
+	newDirs := len(w.dirs) > before
+	if !newDirs {
+		for d := range w.dirs {
+			if _, ok := known[d]; !ok {
+				newDirs = true
+				break
+			}
+		}
+	}
+	w.mu.Unlock()
+	if newDirs {
+		changed = append(changed, w.scan()...)
+	}
+	return changed, nil
+}
+
+// sync has the watch watch what the last look went through.
+func (w *watcher) sync(ow osWatch) error {
+	w.mu.Lock()
+	dirs := maps.Clone(w.dirs)
+	files := make(map[string]uint64, len(w.files))
+	for path, st := range w.files {
+		files[path] = st.id
+	}
+	w.mu.Unlock()
+	return ow.watch(dirs, files)
+}
+
+// traceStep prints, with VUKA_WATCH_TRACE set, how long a step of a
+// rebuild took: how the time from a save to the new version answering
+// divides, when it is measured.
+func traceStep(format string, args ...any) {
+	if os.Getenv(traceEnv) != "" {
+		fmt.Fprintf(os.Stderr, "trace %s "+format+"\n", append([]any{time.Now().Format("15:04:05.000")}, args...)...)
+	}
+}
+
+const traceEnv = "VUKA_WATCH_TRACE"

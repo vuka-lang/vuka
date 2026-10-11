@@ -10,6 +10,7 @@ import (
 	"go/parser"
 	"go/scanner"
 	"go/token"
+	"go/types"
 	"io"
 	"os"
 	"path"
@@ -369,6 +370,22 @@ type Options struct {
 // type-check. It returns the generated files and the overlay file; when some
 // packages fail, the others' files come back with the error.
 func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, error) {
+	return transpileRun(pkgs, tmp, opts, nil)
+}
+
+// pkgImporter resolves the imports of the packages a run transpiles.
+type pkgImporter interface {
+	types.Importer
+	// Broken records that the Vuka package path didn't transpile.
+	Broken(path string)
+	// OverlayChanged says the overlay has a package's generated files.
+	OverlayChanged()
+}
+
+// transpileRun is Transpile; with a session, packages whose inputs are as the
+// session last transpiled them are taken from it, and imports of the
+// module's own packages are type-checked from source in memory.
+func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]Generated, string, error) {
 	pkgs, err := Order(pkgs)
 	if err != nil {
 		return nil, "", err
@@ -376,8 +393,10 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 	overlay := filepath.Join(tmp, "overlay.json")
 	replace := map[string]string{}
 	var out []Generated
-	if err := writeOverlay(overlay, replace); err != nil {
-		return nil, "", err
+	if sess == nil {
+		if err := writeOverlay(overlay, replace); err != nil {
+			return nil, "", err
+		}
 	}
 	// One importer for the whole run: every package's imports looked up with
 	// one go command, the standard library and dependencies cached across runs.
@@ -389,21 +408,36 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 	seen := map[string]bool{}
 	for _, p := range pkgs {
 		for _, path := range p.Imports {
-			if !vukaPkgs[path] && !seen[path] {
+			if !vukaPkgs[path] && !seen[path] && (sess == nil || !sess.inModule(path)) {
 				seen[path] = true
 				imports = append(imports, path)
 			}
 		}
 	}
-	var imp *Importer
-	if len(pkgs) > 0 {
+	var imp pkgImporter
+	switch {
+	case sess != nil:
+		imp = sess
+		_ = sess.imp.Prefetch(imports)
+	case len(pkgs) > 0:
 		root, _, err := ModuleRoot(pkgs[0].Dir)
 		if err != nil {
 			root = pkgs[0].Dir
 		}
-		imp = newCachedImporter(root, overlay)
-		defer imp.cache.save()
-		_ = imp.Prefetch(imports) // a failure shows up where the import is used
+		im := newCachedImporter(root, overlay)
+		defer im.cache.save()
+		_ = im.Prefetch(imports) // a failure shows up where the import is used
+		imp = im
+	}
+	flush := func() error {
+		if sess != nil {
+			return nil // written once, at the end: the session reads generated files from memory
+		}
+		if err := writeOverlay(overlay, replace); err != nil {
+			return err
+		}
+		imp.OverlayChanged()
+		return nil
 	}
 	templ := TemplFinder(pkgs)
 	registry := ""
@@ -421,11 +455,30 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 				return err
 			}
 			replace[target] = file
+			if sess != nil {
+				sess.gen[target] = src
+			}
 			return nil
 		}
 		if sc := opts.Scopes[p.Dir]; len(sc) > 0 {
 			p.scopeTempl(sc)
 		}
+		key := ""
+		if sess != nil {
+			if key = sess.inputKey(p, pkgs, registry, opts); key == "" {
+				return nil, "", sess.failed // the session gives up on this run
+			}
+			if gens, ok := sess.reuse(p, key); ok {
+				for _, g := range gens {
+					if err := add(filepath.Base(g.Target), g.Src); err != nil {
+						return nil, "", err
+					}
+				}
+				out = append(out, gens...)
+				continue
+			}
+		}
+		first := len(out)
 		templOK := true
 		for _, t := range p.Templ {
 			if t.Err != nil {
@@ -448,10 +501,9 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			// The package's Go is incomplete without it; type-checking its
 			// .vuka files would only report what the .templ error explains.
 			imp.Broken(p.ImportPath)
-			if err := writeOverlay(overlay, replace); err != nil {
+			if err := flush(); err != nil {
 				return nil, "", err
 			}
-			imp.OverlayChanged()
 			continue
 		}
 		res, err := transpile.Package(p.Files, transpile.Options{
@@ -486,10 +538,17 @@ func Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, 
 			}
 			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Files: f.Files})
 		}
+		if sess != nil {
+			sess.store(p, key, out[first:])
+		}
+		if err := flush(); err != nil {
+			return nil, "", err
+		}
+	}
+	if sess != nil {
 		if err := writeOverlay(overlay, replace); err != nil {
 			return nil, "", err
 		}
-		imp.OverlayChanged()
 	}
 	if len(errs) > 0 {
 		return out, overlay, onceEach(errs)
