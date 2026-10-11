@@ -70,6 +70,38 @@ The route's handler runs once per connection: its result is the page, and
 the page is rendered again after every event. State belongs in the
 components.
 
+### Side effects in a live page's handler
+
+One visit runs the page's route twice — the GET, then the join — and again
+on each reconnect. What the handler does besides building the page,
+sending a welcome email or counting a visit, would happen each time.
+`web.IsLiveJoin(ctx)` is true only on the join's run, so the side effect
+happens once:
+
+```vuka
+@web.Get("/welcome")
+func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error) {
+	if !web.IsLiveJoin(ctx) {
+		stats.Visit("/welcome")
+		if err := m.Send(ctx, welcomeMail); err != nil {
+			return nil, err
+		}
+	}
+	return <WelcomePage />, nil
+}
+```
+
+| | `IsLiveJoin` |
+|---|---|
+| the GET | false |
+| the join, a reconnect's join | true |
+| a [navigation](/web/navigation) over the connection | false: it replaces an HTTP load, a visit of its own |
+| the page's events and renders after the join | false |
+
+Web marks its own run in the context, so a client can't fake it: a request
+sending `X-Vuka-Live: join` is an ordinary GET. Side effects the browser
+triggers belong in event handlers, which run once per event.
+
 Moving between pages — a list and its rows' pages, the next page of a
 list — happens over the same connection with `ui.Link`; see
 [Navigation](/web/navigation).
@@ -230,7 +262,7 @@ Vuka's [wire protocol](/reference/live-protocol) as is, plus:
 | close 4001 | invalid or expired token: reload |
 | close 4004 | the route isn't a live page: the error message precedes it; no retry |
 | close 1001 | the server is stopping: reconnect |
-| request header `X-Vuka-Live: join` | set on the route's run for a join; `navigate` on a navigation's |
+| request header `X-Vuka-Live: join` | set on the route's run for a join; `navigate` on a navigation's. A client can send it too: test `web.IsLiveJoin(ctx)`, not the header |
 
 A broadcast arriving before `join` is dropped (the join renders fresh).
 

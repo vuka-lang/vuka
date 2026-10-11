@@ -39,6 +39,20 @@ func main() {
 
 `mail` is a package of its own: an app that sends no email doesn't link it.
 
+**From a live page's route**, send once: the route runs again when the
+page's socket joins, so guard the send with `web.IsLiveJoin` (see
+[Side effects in a live page's handler](/web/live#side-effects-in-a-live-page-s-handler)):
+
+```vuka
+if !web.IsLiveJoin(ctx) {
+	if err := m.Send(ctx, welcome); err != nil {
+		return nil, err
+	}
+}
+```
+
+A mail sent from an event handler goes once per event, needing no guard.
+
 ## Configuration
 
 `mail.Provide()` builds the Mailer from the environment, or from the

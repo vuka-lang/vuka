@@ -24,7 +24,8 @@ func handler() string { … }
 
 A typed attribute (`@Route{…}`, `@Perm("orders.write")`) is checked by Go: a
 wrong field or type is a compile error on the `@` line. Attributes are readable
-at run time by [decorators](/features/decorators) through `c.Attr(&x)`.
+at run time by [decorators](/features/decorators) through `c.Attr(&x)`, and
+from anywhere through [the registry](#reading-attributes-from-a-value).
 
 An attribute that names a *function* rather than a type is a decorator.
 
@@ -38,6 +39,41 @@ Struct fields take typed attributes too, after the field:
 
 A field of type `vuka.File` set to a string literal names a file that is
 checked at compile time and embedded: see [Files](/features/decorators#files).
+
+## Reading attributes from a value
+
+Vuka records, at program start, the typed attributes of every function,
+method and type that has any (a bundle's count), so a library holding only a
+value — a method value it was handed as a handler, a `reflect.Type` — reads
+what was written on its declaration, without calling it:
+
+```vuka
+type Gate struct{ Perm string }
+
+@Gate{"board.delete"}
+func (b *Board) Clear() { … }
+
+ref, _ := vuka.FuncOf(b.Clear)       // a method value, or (*Board).Clear
+var g Gate
+ref.Attrs.Attr(&g)                   // g.Perm == "board.delete"; ref.Recv is Board
+vuka.MethodAttrs(reflect.TypeFor[Board](), "Clear")
+vuka.TypeAttrs(reflect.TypeFor[Board]())
+```
+
+| | |
+|---|---|
+| `vuka.FuncOf(fn)` | the declaration of a function, method expression or method value: `Recv` and `Method` for a method, its `Attrs`; `Literal` for a function literal, which has none |
+| `vuka.MethodAttrs(t, name)` | a method's attributes (its own; its type's are `TypeAttrs`) |
+| `vuka.TypeAttrs(t)` | a type's attributes |
+| `attrs.Attr(&x)` | fills `x` with the attribute of its type, as `c.Attr` does |
+
+The lookups are a map read (`FuncOf` caches its answer per function). Not
+recorded: generic functions and types (there is no one function to name),
+and method values made by reflection (`reflect.Value.Method`), which name no
+declaration — look those up with `MethodAttrs`. Go code registers a
+declaration of its own with `vuka.RegisterFunc(fn, attrs…)` and
+`vuka.RegisterType[T](attrs…)`, what the generated code calls. Its
+`vuka.Call` also lists every attribute: `c.Attrs()`.
 
 ## Parameter attributes
 

@@ -95,8 +95,8 @@ login, as is an Argon2id hash weaker than `Config.Passwords`.
 | `@auth.Requires(perms…)` | a sign-in with every one of these perms |
 | `@auth.RequiresAny(perms…)` | a sign-in with at least one |
 
-They go on routes, on `@web.Live` pages, on controllers and on live event
-methods:
+They go on routes, on `@web.Live` pages, on controllers, on live event
+methods and on any other method or function:
 
 ```vuka
 @web.Controller("/admin")
@@ -126,12 +126,56 @@ error as it would a handler's (`vk:error`) — whatever the page shows or the
 browser sends. Hide the button from those who can't use it with
 `auth.Can(ctx, "board.delete")`, and keep the gate.
 
-The gate covers what the event's handler runs: the gated method as the
-handler, or called from one — a function literal such as
-`onClick={() => b.Clear()}`, or another method's handler. It doesn't apply
-to the render after the event (a gate on a component's type leaves its
-`Render` alone) or to calls from Go outside an event. A gated method called
-on a goroutine the handler starts isn't checked: gate the handler.
+### What a live event's gate covers
+
+A gated method can't be run from the browser by someone the gate refuses,
+whatever shape the handler takes. Two checks make sure of it:
+
+- **Before the handler runs**, where web dispatches the event: the gates
+  written on the handler's method, on its type and on the component the
+  event targets (Vuka records every declaration's attributes, so a method
+  value handed to `onClick` is enough to find them). This refuses a gated
+  method handler, a push by name (`ctx.push("Clear")`), and every event of
+  a component gated on its type — a function literal's
+  (`onClick={func() { b.n++ }}`) included. `@auth.Public` on a method of a
+  gated type opens that method.
+- **When the gated method itself is called**, from inside the handler —
+  a function literal (`onClick={func() { b.Clear() }}`), another method, a
+  goroutine — by its decorator, against the identity found:
+
+| the call | is checked against |
+|---|---|
+| with a `context.Context` from a request or a live page (what handlers, `Mount` and `Update` are given) | that context's identity, on any goroutine: `go b.Clear(ctx)` is checked; so is a gated service method a route calls with `r.Context()` |
+| on the live connection while the event's handler runs, without such a context | the page's identity |
+| on a goroutine the handler starts (`go b.Clear()`), or a decorator moves the call to | the page's identity: web knows which connection started the goroutine |
+| `auth.WithIdentity(ctx, id)` | `id` — a job acting for a user |
+| `auth.System(ctx)` | nothing: the app's own work passes |
+| none of these | runs, as the app's own work (a cron, a job, `main`, a test) — unless `StrictGates` |
+
+A refused call returns `web.Unauthorized` or `web.Forbidden` as its error
+(a method without an error result just doesn't run); refused while the
+event's handler runs, the event's reply carries it, and the page gets
+`vk:error`. A gate on a component's type doesn't apply to the methods the
+session calls itself — `Render`, `Mount`, `Update` — so a page rendering a
+gated component for someone else renders; its events are refused.
+
+**`StrictGates`.** By default, a gated call nothing attributes to an
+identity runs: code outside requests keeps working. What that leaves
+unchecked, for a call that came from a live event:
+
+- a goroutine started by a goroutine of the handler (or a pool's worker),
+  calling a gated method without a request's context — web knows a
+  goroutine's parent, not its grandparent;
+- a goroutine still running after its page's connection closed;
+- a gated method given `context.Background()` (or another context not from
+  the request) on such a goroutine.
+
+With `auth.Config{StrictGates: true}` none of them runs: a gated call needs
+an identity, or `auth.System(ctx)`. Crons, jobs and `main` then mark their
+context — `ctx = auth.System(ctx)` — and gated methods called off the
+handler's own goroutine take a `context.Context`, passed down from the
+handler. The setting holds for the whole process once an app with it is
+built.
 
 From Go, gates are attributes: `app.Get("/x", h, web.Attrs(auth.Requires("x")))`,
 `app.Live("/board", &Board{}, web.Attrs(auth.Public()))`.
@@ -174,6 +218,8 @@ func (s *Orders) Delete(ctx context.Context, id int) error {
 | `auth.Can(ctx, perm)` | whether it has the perm |
 | `auth.Check(ctx, perm, obj)` | nil when it may do `perm` to `obj`; else `web.Unauthorized` or `web.Forbidden` |
 | `*auth.Identity`, `auth.Identity` parameters | bound by themselves; the second answers 401 when signed out |
+| `auth.WithIdentity(ctx, id)` | a context signed in as `id`, for work outside a request (a job acting for a user): gates check it |
+| `auth.System(ctx)` | a context marked as the app's own work: gated methods given it run (needed under `StrictGates`) |
 
 `auth.Check` asks the policy of the object's type when the config has one,
 and otherwise the perms. A policy decides alone — it may let an owner edit
@@ -373,3 +419,4 @@ parameters named like a password, token or secret are hidden.
 | `JWT` | JWTs from elsewhere |
 | `Policies` | `auth.PolicyFor` rules for `auth.Check` |
 | `TrustedOrigins` | origins allowed to post |
+| `StrictGates` | a gated call without an identity (or `auth.System`) is refused rather than run |
