@@ -1,7 +1,8 @@
 # The vuka command
 
 ```text
-vuka new <dir> [module path]
+vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
+vuka add module <name>
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
@@ -16,8 +17,72 @@ vuka version
 
 ## new
 
-Starts a project: a Go module with a `main.vuka`, the runtime as a dependency,
-and `/build/` in `.gitignore`.
+Starts an app you can grow: pages, sign-in, a database with migrations,
+mail, styles and tests, wired together and working before you write a
+line. [Getting started](/web/getting-started) walks through what it makes.
+
+```sh
+vuka new shop                       # asks five questions
+vuka new shop example.com/shop      # a module path other than the directory's name
+vuka new shop --db=postgres --frontend=react --yes
+```
+
+It asks, with the arrow keys (or the item's number) and Enter:
+
+| Question | Choices (first is the default) | Flag |
+|---|---|---|
+| UI | Live pages + Tailwind · templ views + Tailwind · API only | `--ui=live\|templ\|api` |
+| Database | SQLite · PostgreSQL · MySQL · none | `--db=sqlite\|postgres\|mysql\|none` |
+| Mail | logged in development, SMTP in production · none | `--mail=yes\|no` |
+| Authentication | yes, with a login page · no | `--auth=yes\|no` |
+| Frontend app | none · React · Vue · Svelte | `--frontend=none\|react\|vue\|svelte` |
+
+A flag answers its question; `--yes` (`-y`) takes the default for every
+question no flag answers. Without a terminal — a pipe, CI — nothing is
+asked: the flags and the defaults are used, and the command never waits
+for input. `--name` is the app's name as people read it (`APP_NAME`; the
+directory's name, capitalised, by default).
+
+- **Sign-in needs a database.** It keeps its users, sessions and tokens
+  there, so sign-ins survive restarts and replicas share them. With
+  `--db=none` the question isn't asked and the app has none;
+  `--db=none --auth=yes` is refused, saying why.
+- **The first admin** is created when the app first starts, from
+  `ADMIN_EMAIL` and `ADMIN_PASSWORD` in `.env`. `vuka new` fills in a
+  strong random password and prints it once. `.env` is in `.gitignore`;
+  `.env.example`, committed, has placeholders. The app never asks for a
+  password at start-up.
+- **SQLite** needs no setup: the file is made under `data/` on the first
+  run, pure Go, no CGO. PostgreSQL and MySQL get a `DATABASE_URL` to fill in
+  and their driver's import; the generated tests run on SQLite either way.
+- **A frontend** is a Vite project in `frontend/`, served at `/app`
+  (`web.FrontendAt`), with `APP_NAME` passed to it (`web.FrontendEnv`).
+  `vuka run` starts its dev server, `vuka build` builds it into the binary.
+- **A directory that isn't empty** is refused; `--force` writes the app
+  beside what is there, keeping every file it finds (and saying which).
+
+After writing the files it runs `vuka mod tidy`, then prints the next
+steps. `vuka test ./...` passes in the new app as it is.
+
+## add
+
+`vuka add module <name>` grows an app `vuka new` made, a module at a time:
+
+```sh
+vuka add module invoices
+```
+
+writes `modules/invoices/` — an `Invoice` model, an `Invoices` service, a
+page at `/invoices` linked in the navigation (or `/api/invoices` routes in
+an API app), a test of the service — and `migrations/000N_invoices.go`
+making its table, after the latest migration. It adds the module's import
+to `main.vuka`, which is all a module needs to be part of the app: its
+routes, pages and services declare themselves. The app applies the
+migration when it next starts. The name is a plural noun in lower case;
+an existing module, or an app without a database, is refused.
+
+It is `add`, not a form of `new`: `new` makes a project, `add` grows the
+one you are in, and a project directory named `module` stays possible.
 
 ## build, run, test, vet, install
 

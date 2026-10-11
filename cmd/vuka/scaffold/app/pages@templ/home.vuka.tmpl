@@ -1,0 +1,45 @@
+// Package pages is the app's own pages: handlers here, their templ views
+// beside them. A module's pages live in the module (modules/<name>/).
+package pages
+
+import (
+{%- if .Auth%}
+	"context"
+	"strings"
+{%- end%}
+
+	"github.com/vuka-lang/web"
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+
+	"{%.Module%}/modules/users"
+{%- end%}
+)
+
+// HomePage fills home.templ's HomeView, field by parameter.
+type HomePage struct {
+{%- if .Auth%}
+	Me       *auth.Identity
+	Name     string
+	People   int64
+	Sessions int64
+	Role     string
+{%- end%}
+}
+
+// Home is the {%if .Auth%}signed-in {%end%}home page.
+@web.Get("/")
+@web.Template("home.templ")
+func Home({%if .Auth%}ctx context.Context, me *auth.Identity, u *users.Users{%end%}) Result[HomePage] {
+{%- if .Auth%}
+	page := HomePage{Me: me, Name: "there", Role: strings.Join(me.Roles, ", ")}
+	if user, ok := me.User.(*users.User); ok {
+		page.Name = strings.Fields(user.Name + " x")[0]
+	}
+	page.People = u.Count(ctx)?
+	page.Sessions = u.ActiveSessions(ctx)?
+	return Ok(page)
+{%- else%}
+	return Ok(HomePage{})
+{%- end%}
+}

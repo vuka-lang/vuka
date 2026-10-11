@@ -1,0 +1,82 @@
+package users
+
+import (
+	"context"
+	"time"
+
+	"github.com/vuka-lang/orm"
+	"github.com/vuka-lang/web/auth"
+)
+
+// Sessions keeps auth's sessions in the sessions table: sign-ins survive
+// restarts and deploys, and every replica sees them.
+func Sessions(db *orm.Databases) auth.SessionStore { return &sessionStore{db} }
+
+// Tokens keeps auth's bearer tokens in the tokens table.
+func Tokens(db *orm.Databases) auth.TokenStore { return &tokenStore{db} }
+
+type sessionStore struct{ db *orm.Databases }
+
+func (s *sessionStore) Get(ctx context.Context, key string) (*auth.Session, error) {
+	ctx = orm.WithDatabases(ctx, s.db)
+	match Session.Objects.Filter(Session.Key.Eq(key)).First(ctx) {
+	case Ok(Some(row)):
+		return &auth.Session{UserID: row.UserID, Created: row.Created, Seen: row.Seen, Expires: row.Expires}, nil
+	case Ok(None):
+		return nil, nil
+	case Err(e):
+		return nil, e
+	}
+}
+
+func (s *sessionStore) Save(ctx context.Context, key string, v auth.Session) error {
+	ctx = orm.WithDatabases(ctx, s.db)
+	row := Session{Key: key, UserID: v.UserID, Created: v.Created, Seen: v.Seen, Expires: v.Expires}
+	Session.Objects.UpdateOrCreate(ctx, row, Session.Key)?
+	if v.Seen.Equal(v.Created) { // a sign-in: clear out the expired
+		Session.Objects.Filter(Session.Expires.Lt(time.Now())).Delete(ctx)?
+	}
+	return nil
+}
+
+func (s *sessionStore) Delete(ctx context.Context, key string) error {
+	Session.Objects.Filter(Session.Key.Eq(key)).Delete(orm.WithDatabases(ctx, s.db))?
+	return nil
+}
+
+func (s *sessionStore) DeleteUser(ctx context.Context, uid string) error {
+	Session.Objects.Filter(Session.UserID.Eq(uid)).Delete(orm.WithDatabases(ctx, s.db))?
+	return nil
+}
+
+type tokenStore struct{ db *orm.Databases }
+
+func (s *tokenStore) Get(ctx context.Context, key string) (*auth.Token, error) {
+	ctx = orm.WithDatabases(ctx, s.db)
+	match Token.Objects.Filter(Token.Key.Eq(key)).First(ctx) {
+	case Ok(Some(row)):
+		return &auth.Token{UserID: row.UserID, Name: row.Name, Created: row.Created, Expires: row.Expires}, nil
+	case Ok(None):
+		return nil, nil
+	case Err(e):
+		return nil, e
+	}
+}
+
+func (s *tokenStore) Save(ctx context.Context, key string, t auth.Token) error {
+	ctx = orm.WithDatabases(ctx, s.db)
+	row := Token{Key: key, UserID: t.UserID, Name: t.Name, Created: t.Created, Expires: t.Expires}
+	Token.Objects.UpdateOrCreate(ctx, row, Token.Key)?
+	Token.Objects.Filter(Token.Expires.Lt(time.Now())).Delete(ctx)? // clear out the expired
+	return nil
+}
+
+func (s *tokenStore) Delete(ctx context.Context, key string) error {
+	Token.Objects.Filter(Token.Key.Eq(key)).Delete(orm.WithDatabases(ctx, s.db))?
+	return nil
+}
+
+func (s *tokenStore) DeleteUser(ctx context.Context, uid string) error {
+	Token.Objects.Filter(Token.UserID.Eq(uid)).Delete(orm.WithDatabases(ctx, s.db))?
+	return nil
+}

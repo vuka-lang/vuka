@@ -78,6 +78,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Introduction', link: '/web/' },
+          { text: 'Getting started', link: '/web/getting-started' },
           { text: 'Routes', link: '/web/routes' },
           { text: 'Parameters and results', link: '/web/parameters' },
           { text: 'Views', link: '/web/views' },

@@ -1,0 +1,45 @@
+package {%.Pkg%}
+
+import (
+	"context"
+	"errors"
+	"strings"
+
+	"github.com/vuka-lang/web"
+)
+
+// {%.Service%} is where {%.Pkg%} are read and written; pages and the API
+// share it. Its methods take the request's context, which carries the
+// database.
+@web.Service
+type {%.Service%} struct{}
+
+// New{%.Model%} is what Add takes: a form's fields, or JSON.
+type New{%.Model%} struct {
+	Title string `form:"title" json:"title"`
+	Body  string `form:"body" json:"body"`
+}
+
+// ErrNoTitle is Add's error for a {%.Model%} without a title.
+var ErrNoTitle = errors.New("a title is required")
+
+// All is every {%.Model%}, newest first.
+func (s *{%.Service%}) All(ctx context.Context) Result[[]{%.Model%}] {
+	return {%.Model%}.Objects.All(ctx)
+}
+
+// Add saves a new {%.Model%}.
+func (s *{%.Service%}) Add(ctx context.Context, in New{%.Model%}) Result[{%.Model%}] {
+	row := {%.Model%}{Title: strings.TrimSpace(in.Title), Body: strings.TrimSpace(in.Body)}
+	if row.Title == "" {
+		return Err(ErrNoTitle)
+	}
+	{%.Model%}.Objects.Create(ctx, &row)?
+	return Ok(row)
+}
+
+// Delete removes the {%.Model%} whose id is id.
+func (s *{%.Service%}) Delete(ctx context.Context, id int64) error {
+	{%.Model%}.Objects.Filter({%.Model%}.ID.Eq(id)).Delete(ctx)?
+	return nil
+}

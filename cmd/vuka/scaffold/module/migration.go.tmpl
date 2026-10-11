@@ -1,0 +1,26 @@
+// Written by vuka add module {%.Pkg%}: the {%.Table%} table of {%.Model%}. It is
+// the program's own: review it, and edit it as you need.
+
+package migrations
+
+import m "github.com/vuka-lang/orm/migration"
+
+func init() {
+	m.Register(m.Migration{
+		Name: "{%.Migration%}",
+{%- if .Dependency%}
+		Dependencies: []string{"{%.Dependency%}"},
+{%- end%}
+		Operations: []m.Operation{
+			m.CreateModel{
+				Table: "{%.Table%}",
+				Fields: []m.NamedField{
+					m.F("id", m.BigAuto()),
+					m.F("title", m.Varchar(200)),
+					m.F("body", m.Text()),
+					m.F("created_at", m.Time()),
+				},
+			},
+		},
+	})
+}

@@ -1,0 +1,59 @@
+package {%.Pkg%}
+
+import (
+	"strconv"
+{%- if .Auth%}
+
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+)
+
+templ PageView({%if .Auth%}me *auth.Identity, {%end%}rows []{%.Model%}, problem string) {
+	@layouts.App({%if .Auth%}me, {%end%}"{%.Path%}", "{%.Label%}", "Add one, and it is saved in the database.") {
+		<div class="grid gap-6 lg:grid-cols-3">
+			<section class="rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 lg:order-last dark:bg-slate-900 dark:ring-white/10">
+				<h2 class="mb-4 text-base font-semibold text-slate-900 dark:text-white">New</h2>
+				<form method="post" action="{%.Path%}" class="space-y-4" id="new-{%.Pkg%}">
+					<div class="space-y-1.5">
+						<label for="title" class="block text-sm font-medium text-slate-700 dark:text-slate-200">Title</label>
+						@components.Input(components.InputProps{Name: "title", Autocomplete: "off", Invalid: problem != ""})
+						if problem != "" {
+							<p class="text-sm text-red-600 dark:text-red-400">{ problem }</p>
+						}
+					</div>
+					<div class="space-y-1.5">
+						<label for="body" class="block text-sm font-medium text-slate-700 dark:text-slate-200">Details</label>
+						<textarea id="body" name="body" rows="3" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none dark:bg-white/5 dark:text-white dark:ring-white/15"></textarea>
+					</div>
+					@components.Button(components.ButtonProps{Class: "w-full", Children: templ.Raw("Add")})
+				</form>
+			</section>
+			<div class="lg:col-span-2">
+				if len(rows) == 0 {
+					<div class="rounded-2xl border border-dashed border-slate-300 p-10 text-center text-sm text-slate-500 dark:border-white/15 dark:text-slate-400">
+						Nothing yet. Add the first one.
+					</div>
+				}
+				<ul class="space-y-3" id="{%.Pkg%}">
+					for _, row := range rows {
+						<li class="flex items-start justify-between gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+							<div>
+								<p class="font-medium text-slate-900 dark:text-white">{ row.Title }</p>
+								if row.Body != "" {
+									<p class="mt-1 text-sm text-slate-600 dark:text-slate-400">{ row.Body }</p>
+								}
+								<p class="mt-2 text-xs text-slate-400">{ row.CreatedAt.Format("2 Jan 2006, 15:04") }</p>
+							</div>
+							<form method="post" action={ templ.SafeURL("{%.Path%}/" + strconv.FormatInt(row.ID, 10) + "/delete") }>
+								@components.Button(components.ButtonProps{Variant: "ghost", Size: "sm", Children: templ.Raw("Delete")})
+							</form>
+						</li>
+					}
+				</ul>
+			</div>
+		</div>
+	}
+}

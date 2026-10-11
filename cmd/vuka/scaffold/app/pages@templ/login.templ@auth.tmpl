@@ -1,0 +1,28 @@
+package pages
+
+import "{%.Module%}/components"
+import "{%.Module%}/layouts"
+
+templ LoginView(next string, message string) {
+	@layouts.Auth("Sign in to your account", "Welcome back to "+layouts.AppName()+".") {
+		<form method="post" action="/auth/login" class="space-y-5" id="login-form">
+			@components.Flash("error", message, "")
+			if next != "" {
+				<input type="hidden" name="next" value={ next }/>
+			}
+			<div class="space-y-1.5">
+				<label for="login" class="block text-sm font-medium text-slate-700 dark:text-slate-200">Email address</label>
+				@components.Input(components.InputProps{Name: "login", Type: "email", Autocomplete: "username", Placeholder: "you@example.com", Required: true, Autofocus: true, Invalid: message != "", Attrs: keep})
+			</div>
+			<div class="space-y-1.5">
+				<label for="password" class="block text-sm font-medium text-slate-700 dark:text-slate-200">Password</label>
+				@components.Input(components.InputProps{Name: "password", Type: "password", Autocomplete: "current-password", Required: true, Invalid: message != ""})
+			</div>
+			<label class="flex items-center gap-2.5 text-sm text-slate-600 dark:text-slate-300">
+				<input type="checkbox" name="remember" value="1" class="size-4 rounded border-slate-300 accent-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-white/20"/>
+				Remember me for two weeks
+			</label>
+			@components.Button(components.ButtonProps{Class: "w-full", Children: templ.Raw("Sign in")})
+		</form>
+	}
+}

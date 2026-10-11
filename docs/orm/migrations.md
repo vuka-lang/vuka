@@ -66,7 +66,7 @@ go get -tool github.com/vuka-lang/orm/cmd/orm    # then: go tool orm …
 | `--noinput` | ask nothing: a rename is written as a removal and an addition |
 | `--backwards` | sqlmigrate: the SQL unapplying it |
 | `--dialect` | `postgres`, `mysql` (`mysql/9.3.0` for a server version), `sqlite`: the SQL of another dialect |
-| `--database name=URL` | a database's URL (repeatable; `default=` for the default); else `DATABASE_URL` and `DATABASE_URL_<NAME>` |
+| `--database name=URL` | a database's URL (repeatable; `default=` for the default); else `DATABASE_URL` and `DATABASE_URL_<NAME>` from the environment, else from the module's `.env` |
 | `--default name` | the default database's name, as the models name it |
 | `--main dir` | the program's main package, when the module has several |
 

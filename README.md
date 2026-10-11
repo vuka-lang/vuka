@@ -44,7 +44,7 @@ case Err(e):
 
 ```
 go install github.com/vuka-lang/vuka/cmd/vuka@latest
-vuka new hello && cd hello && vuka run .
+vuka new shop && cd shop && vuka run -watch .   # a web app: pages, sign-in, a database, tests
 ```
 
 A Vuka project is a Go module: `.vuka` and `.go` files sit side by side in the
@@ -317,7 +317,8 @@ func Module() nexus.Option  { return nexus.Provide(providers...) }
 **CLI**
 
 ```
-vuka new <dir> [module path]
+vuka new <dir> [module path] [flags]
+vuka add module <name>
 vuka mod tidy|why|vendor|… [args]
 vuka explain [-full] file.vuka
 vuka fix [-n] [fixer…]

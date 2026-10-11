@@ -1,0 +1,100 @@
+// Command {%.Module%} is {%.Name%}, a web app built with Vuka. main is
+// wiring only: the app is in {%if .Pages%}pages/, layouts/, components/ and {%else%}api/ and {%end%}modules/.
+//
+//	vuka run -watch .     then open http://localhost:8080
+package main
+
+import (
+{%- if or .Pages (ne .Frontend "none")%}
+	"embed"
+{%- end%}
+{%- if .Pages%}
+	"io/fs"
+{%- end%}
+	"log"
+
+{%- if ne .DB "none"%}
+	"github.com/vuka-lang/orm"
+	"github.com/vuka-lang/orm/ormweb"
+	_ "github.com/vuka-lang/orm/{%.DB%}" // the database's driver
+{%- end%}
+	"github.com/vuka-lang/web"
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+{%- if .Mail%}
+	"github.com/vuka-lang/web/mail"
+{%- end%}
+
+{%- if eq .UI "live"%}
+	"{%.Module%}/layouts"
+{%- end%}
+{%- if ne .DB "none"%}
+	_ "{%.Module%}/migrations"
+{%- end%}
+{%- if .Auth%}
+	"{%.Module%}/modules/users"
+{%- end%}
+{%- if .Pages%}
+	_ "{%.Module%}/pages"
+{%- else%}
+	_ "{%.Module%}/api"
+{%- end%}
+)
+{%- if .Pages%}
+
+//go:embed static
+var static embed.FS
+{%- end%}
+{%- if ne .Frontend "none"%}
+
+// dist is the frontend's build: vuka build runs vite build first.
+//
+//go:embed all:frontend/dist
+var dist embed.FS
+{%- end%}
+
+// options are the app's, shared by main and the tests.
+func options() []web.Option {
+{%- if ne .DB "none"%}
+	db := orm.NewDatabases() // DATABASE_URL, read as the app starts
+{%- end%}
+	return []web.Option{
+{%- if ne .DB "none"%}
+		ormweb.Set(db).MigrateOnStart(true), // pending migrations run as the app starts
+{%- end%}
+{%- if .Mail%}
+		mail.Provide(), // MAIL_*: logged in development, SMTP in production
+{%- end%}
+{%- if .Auth%}
+		auth.Module(auth.Config{
+			Endpoints:  "/auth", // POST /auth/login, /auth/logout, /auth/token; GET /auth/me
+			Roles:      users.Roles,
+			Sessions:   users.Sessions(db), // in the database: sign-ins survive restarts
+			Tokens:     users.Tokens(db),
+			RememberMe: true,
+		}),
+		users.Admin(), // ADMIN_EMAIL and ADMIN_PASSWORD: the first admin
+{%- end%}
+{%- if eq .UI "live"%}
+		web.LiveLayout(layouts.Page("")),
+{%- end%}
+{%- if .Pages%}
+		web.OptionFunc(func(app *web.App) {
+			files, _ := fs.Sub(static, "static")
+			app.Static("/static", files) // the logo, also the favicon
+		}),
+{%- else%}
+		web.NoTailwind(), // no pages to style
+{%- end%}
+{%- if ne .Frontend "none"%}
+		web.Frontend(dist, "frontend/dist", web.FrontendAt("/app"), web.FrontendEnv("APP_NAME")),
+{%- end%}
+	}
+}
+
+func main() {
+	if err := web.New(options()...).Run(""); err != nil { // :$PORT, else :8080
+		log.Fatal(err)
+	}
+}

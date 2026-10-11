@@ -1,0 +1,45 @@
+package users
+
+import (
+	"context"
+	"errors"
+	"net/mail"
+
+	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/auth"
+{%- if .Mail%}
+	mailer "github.com/vuka-lang/web/mail"
+{%- end%}
+)
+
+// ListUsers is GET /api/users: every user.
+@web.Get("/api/users")
+@auth.Requires("users.read")
+func ListUsers(ctx context.Context, users *Users) Result[[]User] { return users.All(ctx) }
+
+// CreateUser is POST /api/users: a new account{%if .Mail%}, its owner emailed{%end%}.
+@web.Post("/api/users")
+@auth.Requires("users.write")
+func CreateUser(ctx context.Context, in NewUser, users *Users{%if .Mail%}, m *mailer.Mailer{%end%}) Result[User] {
+	if a, err := mail.ParseAddress(in.Email); err != nil || a.Address != in.Email {
+		return Err(web.BadRequest("email: an address like name@example.com"))
+	}
+	if len(in.Password) < 12 {
+		return Err(web.BadRequest("password: 12 characters or more"))
+	}
+	match users.Create(ctx, in) {
+	case Ok(u):
+{%- if .Mail%}
+		m.SendLater(ctx, mailer.Message{
+			To:      []string{u.Email},
+			Subject: "Welcome to " + web.Env("APP_NAME", "{%.Name%}"),
+			Text:    "Hi " + u.Name + ",\n\nAn account is ready for you: sign in with " + u.Email + " and the password you were given.\n",
+		})?
+{%- end%}
+		return Ok(u)
+	case Err(e) if errors.Is(e, ErrEmailTaken):
+		return Err(web.Conflict)
+	case Err(e):
+		return Err(e)
+	}
+}

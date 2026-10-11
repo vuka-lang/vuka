@@ -24,8 +24,11 @@ const version = "v0.16.0"
 const usage = `vuka is Go with overloading and attributes.
 
 Usage:
-	vuka new <dir> [module path]
-	        start a project: go.mod and a main.vuka, ready for vuka run
+	vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --yes]
+	        start an app: a few questions (or flags), then a project that runs,
+	        its tests passing: pages, sign-in, a database with migrations
+	vuka add module <name>
+	        grow the app: a module with a model, service, page, migration and test
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        an app on github.com/vuka-lang/web gets its Tailwind CSS (run keeps it
@@ -81,7 +84,9 @@ func main() {
 	case "build", "run", "test", "vet", "install":
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
 	case "new":
-		err = newProject(os.Args[2:], os.Stdout)
+		err = newProject(os.Args[2:], os.Stdin, os.Stdout)
+	case "add":
+		err = add(os.Args[2:], os.Stdout)
 	case "gen":
 		err = gen(os.Args[2:], os.Stdout)
 	case "lsp":

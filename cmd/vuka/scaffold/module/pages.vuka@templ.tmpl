@@ -1,0 +1,54 @@
+package {%.Pkg%}
+
+import (
+	"context"
+	"errors"
+{%- if .Auth%}
+
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+	"github.com/vuka-lang/web"
+
+	"{%.Module%}/layouts"
+)
+
+var _ = layouts.Nav(layouts.Link{Label: "{%.Label%}", Href: "{%.Path%}", Icon: "book", Order: 20})
+
+// Page fills {%.Pkg%}.templ's PageView.
+type Page struct {
+{%- if .Auth%}
+	Me      *auth.Identity
+{%- end%}
+	Rows    []{%.Model%}
+	Problem string
+}
+
+// List is the {%.Pkg%} page: every {%.Model%}, and a form to add one.
+@web.Get("{%.Path%}")
+@web.Template("{%.Pkg%}.templ")
+func List(ctx context.Context{%if .Auth%}, me *auth.Identity{%end%}, s *{%.Service%}) Result[Page] {
+	rows := s.All(ctx)?
+	return Ok(Page{ {%- if .Auth%}Me: me, {%end%}Rows: rows})
+}
+
+// Add is the form's POST: back to the list, or the page with the error.
+@web.Post("{%.Path%}")
+@web.Template("{%.Pkg%}.templ")
+func Add(ctx context.Context{%if .Auth%}, me *auth.Identity{%end%}, in New{%.Model%}, s *{%.Service%}) Result[Page] {
+	match s.Add(ctx, in) {
+	case Ok(_):
+		return Err(web.Redirect("{%.Path%}"))
+	case Err(e) if errors.Is(e, ErrNoTitle):
+		rows := s.All(ctx)?
+		return Ok(Page{ {%- if .Auth%}Me: me, {%end%}Rows: rows, Problem: e.Error()})
+	case Err(e):
+		return Err(e)
+	}
+}
+
+// Remove is a row's delete button.
+@web.Post("{%.Path%}/{id}/delete")
+func Remove(ctx context.Context, id int64, s *{%.Service%}) error {
+	s.Delete(ctx, id)?
+	return web.Redirect("{%.Path%}")
+}

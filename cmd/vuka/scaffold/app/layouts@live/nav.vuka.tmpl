@@ -1,0 +1,47 @@
+package layouts
+
+import (
+	"slices"
+	"strings"
+	"sync"
+)
+
+// Link is an entry of the shell's navigation.
+type Link struct {
+	Label string
+	Href  string
+	Icon  string // a components.Icon name
+	Perm  string // shown only to users with this perm ("" for everyone)
+	Order int    // lower first; ties by label
+}
+
+var nav struct {
+	sync.Mutex
+	links []Link
+}
+
+// Nav adds links to the shell's navigation. A module calls it from a
+// package-level var, so importing the module is all it takes:
+//
+//	var _ = layouts.Nav(layouts.Link{Label: "Notes", Href: "/notes", Icon: "book", Order: 20})
+func Nav(links ...Link) bool {
+	nav.Lock()
+	defer nav.Unlock()
+	nav.links = append(nav.links, links...)
+	slices.SortStableFunc(nav.links, func(a, b Link) int {
+		if a.Order != b.Order {
+			return a.Order - b.Order
+		}
+		return strings.Compare(a.Label, b.Label)
+	})
+	return true
+}
+
+// Links is the navigation, in order.
+func Links() []Link {
+	nav.Lock()
+	defer nav.Unlock()
+	return slices.Clone(nav.links)
+}
+
+var _ = Nav(Link{Label: "Dashboard", Href: "/", Icon: "home", Order: 0})

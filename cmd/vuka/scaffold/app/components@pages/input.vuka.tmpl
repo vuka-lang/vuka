@@ -1,0 +1,54 @@
+package components
+
+import "github.com/vuka-lang/ui"
+
+// InputProps are an Input's attributes.
+type InputProps struct {
+	ID           string
+	Name         string
+	Type         string // "text" by default
+	Value        string
+	Placeholder  string
+	Autocomplete string
+	Required     bool
+	Autofocus    bool
+	Invalid      bool // shown in red, aria-invalid
+	Class        string
+	Attrs        []ui.Attr
+}
+
+// Input is a text field.
+func Input(p InputProps) ui.Node {
+	typ := p.Type
+	if typ == "" {
+		typ = "text"
+	}
+	id := p.ID
+	if id == "" {
+		id = p.Name
+	}
+	ring := "ring-slate-300 focus:ring-brand-600 dark:ring-white/15 dark:focus:ring-brand-400"
+	if p.Invalid {
+		ring = "ring-red-400 focus:ring-red-500 dark:ring-red-500/60"
+	}
+	class := cx("block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset placeholder:text-slate-400",
+		"focus:outline-none focus:ring-2 focus:ring-inset dark:bg-white/5 dark:text-white dark:placeholder:text-slate-500", ring, p.Class)
+	attrs := []ui.Attr{{Name: "id", Value: id}, {Name: "name", Value: p.Name}, {Name: "type", Value: typ}, {Name: "class", Value: class},
+		{Name: "value", Value: p.Value}, {Name: "placeholder", Value: p.Placeholder}, {Name: "autocomplete", Value: p.Autocomplete},
+		{Name: "required", Value: p.Required}, {Name: "autofocus", Value: p.Autofocus}, {Name: "aria-invalid", Value: p.Invalid}}
+	return ui.El("input", append(attrs, p.Attrs...))
+}
+
+// Field is a labelled form control: its label, the control (children), and
+// a hint or an error under it.
+func Field(label string, name string, hint string, error string, children ui.Node) ui.Node {
+	return <div class="space-y-1.5">
+		<label for={name} class="block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</label>
+		{children}
+		{if error != "" {
+			<p class="text-sm text-red-600 dark:text-red-400" id={name + "-error"}>{error}</p>
+		} else if hint != "" {
+			<p class="text-xs text-slate-500 dark:text-slate-400">{hint}</p>
+		}}
+	</div>
+}

@@ -1,0 +1,59 @@
+package pages
+
+import (
+	"net/http"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/auth"
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+)
+
+// Login is the sign-in page every other page sends visitors to. The form
+// posts to auth's endpoint, POST /auth/login, which signs in and goes on to
+// next, or comes back here with ?error=.
+@web.Get("/login")
+@auth.Public
+func Login(r *http.Request, me *auth.Identity) ui.Node {
+	next := r.URL.Query().Get("next")
+	if me != nil { // signed in already
+		return web.Redirect(auth.Next(r, "/"))
+	}
+	message := auth.LoginError(r)
+	if r.URL.Query().Get("error") == "invalid" {
+		message = "That email and password don't match an account."
+	}
+	return <layouts.Auth title="Sign in to your account" subtitle={"Welcome back to " + layouts.AppName() + "."}>
+		<form method="post" action="/auth/login" class="space-y-5" id="login-form">
+			<components.Flash tone="error" message={message} />
+			{if auth.SafeNext(next) { <input type="hidden" name="next" value={next} /> }}
+			<components.Field label="Email address" name="login">
+				<components.Input
+					name="login"
+					type="email"
+					autocomplete="username"
+					placeholder="you@example.com"
+					required
+					autofocus
+					invalid={message != ""}
+					attrs={[]ui.Attr{{Name: "data-keep", Value: true}}}
+				/>
+			</components.Field>
+			<components.Field label="Password" name="password">
+				<components.Input name="password" type="password" autocomplete="current-password" required invalid={message != ""} />
+			</components.Field>
+			<label class="flex items-center gap-2.5 text-sm text-slate-600 dark:text-slate-300">
+				<input
+					type="checkbox"
+					name="remember"
+					value="1"
+					class="size-4 rounded border-slate-300 text-brand-600 accent-brand-600 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-600 dark:border-white/20"
+				/>
+				Remember me for two weeks
+			</label>
+			<components.Button class="w-full">Sign in</components.Button>
+		</form>
+	</layouts.Auth>
+}

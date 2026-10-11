@@ -1,0 +1,17 @@
+package {%.Pkg%}
+
+import (
+	"time"
+
+	"github.com/vuka-lang/orm"
+)
+
+// {%.Model%} is a row of the {%.Table%} table. Change its fields, then
+// go tool orm makemigrations writes the migration.
+type {%.Model%} struct {
+	orm.Base  `json:"-"` @orm.Meta{Table: "{%.Table%}", Ordering: []string{"-id"}}
+	ID        int64     `json:"id"`
+	Title     string    `json:"title"` @orm.Char{Max: 200}
+	Body      string    `json:"body"` @orm.LongText
+	CreatedAt time.Time `json:"createdAt"` @orm.AutoNowAdd
+}
