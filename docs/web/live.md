@@ -61,9 +61,24 @@ The first, HTTP render is complete HTML, and before `</body>` goes
 again — a GET to the token's URI, with the WebSocket request's headers
 (cookies, auth), through the app's and the route's middleware, with its
 dependencies — and the page it renders becomes the connection's session.
-That second run mounts the instances that keep state. A join the route answers with a redirect sends `redirect`, and the
+A join the route answers with a redirect sends `redirect`, and the
 browser follows it; any other non-page answer (a 404, JSON) is an `error`,
 and the connection closes.
+
+**`Mount` runs once per view.** The GET mounted the page's components
+already, so the join adopts that session — the mounted instances, their
+state and their subscriptions — when it arrives within the adoption window
+(`web.LiveAdopt`, 10 seconds by default) and as the same identity: the same
+signed-in user, or anonymous both times. `Mount`, and whatever it loads,
+doesn't run again. The join still runs the route either way — middleware,
+gates and the handler, with the connecting browser's own cookies — so a
+sign-in ended between the render and the join is refused all the same;
+adoption only skips mounting again. When the window has run out, the token
+was already used (each render's token adopts at most once), another
+identity joins, the server restarted, or anything else is in doubt, the
+join mounts fresh, exactly as a reconnect does: adoption is an
+optimization, and no page may depend on it. `web.LiveAdopt(0)` turns it
+off.
 
 The route's handler runs once per connection: its result is the page, and
 the page is rendered again after every event. State belongs in the
@@ -72,8 +87,9 @@ components.
 ### Side effects in a live page's handler
 
 One visit runs the page's route twice — the GET, then the join — and again
-on each reconnect. What the handler does besides building the page,
-sending a welcome email or counting a visit, would happen each time.
+on each reconnect; the join adopting the GET's session skips `Mount`, never
+the route. So what the handler does besides building the page, sending a
+welcome email or counting a visit, would happen each time.
 `web.IsLiveJoin(ctx)` is true only on the join's run, so the side effect
 happens once:
 
@@ -93,7 +109,7 @@ func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error)
 | | `IsLiveJoin` |
 |---|---|
 | the GET | false |
-| the join, a reconnect's join | true |
+| the join, a reconnect's join | true (whether or not it adopts the GET's session) |
 | a [navigation](/web/navigation) over the connection | false: it replaces an HTTP load, a visit of its own |
 | the page's events and renders after the join | false |
 
@@ -260,6 +276,7 @@ Each is an option with a default; 0 lifts it.
 | `web.LiveMaxConnsPerIP(n)` | the sockets from one client address (`web.ClientIP`, so through [trusted proxies](/web/deployment#behind-a-proxy)); 100. One beyond is refused with 429 |
 | `web.LiveMaxConnsPerPage(n)` | the sockets opened with one page token; 4. One beyond is refused with 429 |
 | `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page, besides on every message and before each batch of broadcasts it takes; 30s |
+| `web.LiveAdopt(d)` | how long after a page's GET its join may adopt the session the render mounted, so `Mount` runs once per view; 10s. At most 1024 pages wait at a time, oldest dropped first; `web.LiveAdopt(0)` mounts fresh on every join |
 
 A `LiveCheck` failing — a session ended, a permission revoked — closes the
 page with 4001, and it reloads, its route answering for the browser.
@@ -276,6 +293,13 @@ middleware.
 | `web.LiveKey(key)` | the signing key; each app draws a random one, so replicas behind one hostname need a shared key |
 | `web.LiveTokenTTL(d)` | how long a rendered page may (re)join; 12h by default |
 | `web.LiveOrigins(patterns…)` | other origins allowed to open live connections (`"*.example.com"`); by default only the page's own |
+
+Each render's token also carries a nonce: the one-shot key under which the
+render's session waits for its join (`web.LiveAdopt`). A join adopts only
+the session its own token's render parked, for the same URI, and only as
+the identity that rendered it — a library that signs visitors in registers
+the comparison with `web.LiveIdentity`, and anything uncertain mounts
+fresh.
 
 A bad or expired token closes the connection with code 4001, and the runtime
 reloads the page (at most once in 10 seconds) for a fresh one. A library
