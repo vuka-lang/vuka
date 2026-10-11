@@ -52,8 +52,10 @@ A page's own [styles and scripts](/web/assets) (`web.Style`, `web.Script`,
 - `vuka build` and `vuka install` compile them with the stylesheet, the
   modules minified, and embed the modules with a generated
   `vuka_assets_gen.go` in each main package. A missing file, a CSS or
-  TypeScript syntax error and a method two scripts of one component export
-  stop the build at their file and line; a selector matching nothing in its
+  TypeScript syntax error, a method two scripts of one component export and
+  a `ctx.push` naming no method of its component (or not as a string
+  literal) stop the build at their file and line; the names scripts push are
+  the only methods the app lets the browser call by name; a selector matching nothing in its
   component's markup is a warning.
 
 `VUKA_TAILWIND=off` skips Tailwind, as `web.NoTailwind()` in the source does;

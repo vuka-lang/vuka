@@ -164,13 +164,31 @@ object, the same in each hook, so state kept on it is per instance:
 |---|---|
 | `ctx.el` | the root element |
 | `ctx.ref(name)` | the instance's element with `ref="name"` |
-| `ctx.push("Inc", payload?)` | call the component's Go method `Inc`, as a live event: a value, or an object of form fields; a promise of the reply |
+| `ctx.push("Inc", payload?)` | call the component's Go method `Inc`, as a live event (below): a value, or an object of form fields; a promise of the reply |
 | `ctx.on(name, fn)` | `fn(payload)` for each `c.PushEvent(name, payload)` the component sends |
 
-`ctx.push` reaches the methods the component declares itself, not
-`Render`, `Mount`, `Update` or what it embeds, and takes one payload at
-most, as an event handler does. Treat them as event handlers: check what
-the caller may do.
+`ctx.push` takes one payload at most, as an event handler does. It reaches
+only the methods the component's scripts name: the `vuka` command collects
+every `ctx.push("Name")` in them, and those names are all the server lets
+the browser call by name for that component. Everything else a component
+declares stays out of reach, whoever opens a socket to the page — a method
+you wrote for Go callers, or one a page only shows behind a check — and a
+push of any other name is refused like an unknown handler. The handlers
+the page renders (`onClick={c.Inc}`) work as they always have, and a
+component without scripts takes no pushes by name at all.
+
+So call it as `ctx.push` (the parameter named `ctx`), with the name as a
+string literal, naming a method of the component's own
+(not `Render`, `Mount`, an `Update`, or one it embeds); anything else stops
+the build at its line:
+
+```
+counter.ts:8: ctx.push needs the method's name as a string literal (the vuka command allows the methods scripts name)
+counter.ts:9: ctx.push("Incr"): Counter has no method Incr; did you mean Inc?
+```
+
+A pushed method still runs with the page's request, as an event handler
+does: check what the caller may do there.
 
 ```vuka
 func (c *Counter) Inc() {

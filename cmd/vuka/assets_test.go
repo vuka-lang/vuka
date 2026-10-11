@@ -460,3 +460,67 @@ templ Card() {
 		t.Errorf("Card's <section> is marked:\n%s", out)
 	}
 }
+
+// TestScriptPushes: the methods a component's scripts push by name are the
+// only ones the browser may call by name; a name that isn't a literal, or
+// that isn't a method of the component, stops the build.
+func TestScriptPushes(t *testing.T) {
+	src := `package main
+
+import (
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+@web.Live("/", web.Layout(page, web.Script("layout.ts")), web.Script("ok.ts"))
+type C struct{ ui.Live }
+
+func (c *C) Render() ui.Node   { return <p /> }
+func (c *C) Inc()              {}
+func (c *C) Save(f Form) error { return nil }
+func (c *C) Mount()            {}
+
+func page(p ui.Node) ui.Node { return <main>{p}</main> }
+`
+	root := tempModule(t, map[string]string{"go.mod": webMod, "main.vuka": src,
+		"ok.ts":      "export default { mounted(el, ctx) { ctx.push(\"Inc\"); ctx.push('Save', { a: 1 }); ctx.push(`Inc`); list.push(x); /* ctx.push(y) */ } };\n",
+		"dyn.ts":     "export default {\n\tmounted(el, ctx) {\n\t\tconst name = \"Inc\";\n\t\tctx.push(name);\n\t},\n};\n",
+		"unknown.ts": "export default {\n\tmounted(el, ctx) { ctx.push(\"Incr\"); ctx.push(\"Mount\") },\n};\n",
+		"layout.ts":  "export default { mounted(el, ctx) { ctx.push(\"Inc\") } };\n"})
+	pa, err := findAssets(root, "example.com/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var comp, layout *assetComp
+	for _, c := range pa.comps {
+		if c.name == "C" {
+			comp = c
+		} else {
+			layout = c
+		}
+	}
+	b, err := bundleScripts(root, comp, false)
+	if err != nil || !slices.Equal(b.pushes, []string{"Inc", "Save"}) {
+		t.Fatalf("pushes: %v %v", b, err)
+	}
+	out, err := compileAssets(pa, false, io.Discard)
+	if err == nil {
+		t.Fatalf("a layout's script pushed: %s", out.manifest)
+	}
+	if !strings.Contains(err.Error(), `layout.ts:1: ctx.push("Inc"): app.page is no live component`) {
+		t.Errorf("layout: %v", err)
+	}
+	layout.scripts = nil
+	if out, err = compileAssets(pa, false, io.Discard); err != nil || !strings.Contains(string(out.manifest), `"type":"main.C","pushes":["Inc","Save"]`) {
+		t.Errorf("manifest: %s %v", out.manifest, err)
+	}
+	for file, want := range map[string]string{
+		"dyn.ts":     "dyn.ts:4: ctx.push needs the method's name as a string literal",
+		"unknown.ts": "unknown.ts:2: ctx.push(\"Incr\"): C has no method Incr; did you mean Inc?\nunknown.ts:2: ctx.push(\"Mount\"): C has no method Mount",
+	} {
+		comp.scripts = []assetSrc{{path: filepath.Join(root, file), label: file, dir: root}}
+		if _, err := bundleScripts(root, comp, false); err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("%s: %v, want %s", file, err, want)
+		}
+	}
+}

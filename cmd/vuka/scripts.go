@@ -28,6 +28,7 @@ type bundle struct {
 	name    string // its file name under /_vuka/c/: <scope>.<hash>.js
 	js      []byte
 	methods []string
+	pushes  []string // the Go methods its scripts push by name
 }
 
 // bundleScripts bundles c's scripts, minified for a build, with an inline
@@ -37,6 +38,10 @@ func bundleScripts(root string, c *assetComp, dev bool) (*bundle, error) {
 		return nil, nil
 	}
 	methods, err := scriptMethods(root, c)
+	if err != nil {
+		return nil, err
+	}
+	pushes, err := scriptPushes(c)
 	if err != nil {
 		return nil, err
 	}
@@ -77,7 +82,7 @@ func bundleScripts(root string, c *assetComp, dev bool) (*bundle, error) {
 	if id == "" {
 		id = "app"
 	}
-	return &bundle{name: id + "." + hex.EncodeToString(sum[:4]) + ".js", js: js, methods: methods}, nil
+	return &bundle{name: id + "." + hex.EncodeToString(sum[:4]) + ".js", js: js, methods: methods, pushes: pushes}, nil
 }
 
 // sourcesPlugin resolves the entry's imports to c's scripts, inline ones
@@ -251,4 +256,115 @@ func objectKeys(code string, open int) []string {
 		}
 	}
 	return keys
+}
+
+// ctxPush is a script's ctx.push( and what follows it.
+var ctxPush = regexp.MustCompile(`\bctx\.push\(\s*`)
+
+// jsString is a string literal at the start of the text: "x", 'x' or `x`
+// (without substitutions).
+var jsString = regexp.MustCompile("^(?:\"([A-Za-z_]\\w*)\"|'([A-Za-z_]\\w*)'|`([A-Za-z_]\\w*)`)")
+
+// scriptPushes lists the Go methods c's scripts push by name, each
+// ctx.push("Name") they make: the only methods the browser may call by name
+// (live.AllowPush). A name that isn't a string literal, or that names no
+// method of the component, is an error at its line.
+func scriptPushes(c *assetComp) ([]string, error) {
+	var names []string
+	var errs []string
+	var methods []string
+	known := false
+	for _, s := range c.scripts {
+		src, label, base := s.inline, s.label, s.line
+		if s.path != "" {
+			data, err := os.ReadFile(s.path)
+			if err != nil {
+				return nil, err
+			}
+			src, base = string(data), 0
+		} else {
+			label, _, _ = strings.Cut(label, ":")
+		}
+		code := blankComments(src)
+		for _, m := range ctxPush.FindAllStringIndex(code, -1) {
+			line := base + strings.Count(src[:m[0]], "\n") + 1
+			lit := jsString.FindStringSubmatch(code[m[1]:])
+			if lit == nil {
+				errs = append(errs, fmt.Sprintf("%s:%d: ctx.push needs the method's name as a string literal (the vuka command allows the methods scripts name)", label, line))
+				continue
+			}
+			name := lit[1] + lit[2] + lit[3]
+			if !known {
+				methods, known = componentMethods(c), true
+			}
+			switch {
+			case !c.live:
+				errs = append(errs, fmt.Sprintf("%s:%d: ctx.push(%q): %s is no live component; only a live component's methods can be pushed", label, line, name, c.goName()))
+			case !slices.Contains(methods, name):
+				msg := fmt.Sprintf("%s:%d: ctx.push(%q): %s has no method %s", label, line, name, c.name, name)
+				if s := closest(name, methods); s != "" {
+					msg += "; did you mean " + s + "?"
+				}
+				errs = append(errs, msg)
+			case !slices.Contains(names, name):
+				names = append(names, name)
+			}
+		}
+	}
+	if len(errs) > 0 {
+		return nil, fmt.Errorf("%s", strings.Join(errs, "\n"))
+	}
+	return names, nil
+}
+
+// blankComments replaces a script's comments with spaces, keeping lines.
+func blankComments(src string) string {
+	b := []byte(src)
+	for i := 0; i < len(b); i++ {
+		switch {
+		case b[i] == '"' || b[i] == '\'' || b[i] == '`':
+			q := b[i]
+			for i++; i < len(b) && b[i] != q && !(q != '`' && b[i] == '\n'); i++ {
+				if b[i] == '\\' {
+					i++
+				}
+			}
+		case b[i] == '/' && i+1 < len(b) && b[i+1] == '/':
+			for ; i < len(b) && b[i] != '\n'; i++ {
+				b[i] = ' '
+			}
+		case b[i] == '/' && i+1 < len(b) && b[i+1] == '*':
+			for ; i < len(b) && !(b[i] == '*' && i+1 < len(b) && b[i+1] == '/'); i++ {
+				if b[i] != '\n' {
+					b[i] = ' '
+				}
+			}
+			if i+1 < len(b) {
+				b[i], b[i+1] = ' ', ' '
+			}
+		}
+	}
+	return string(b)
+}
+
+// componentMethods are the exported methods a live component's type
+// declares in its package's .vuka and .go files that a script may push:
+// not Render, Mount or an Update. Nil when it declares none.
+func componentMethods(c *assetComp) []string {
+	re := regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*` + regexp.QuoteMeta(c.name) + `(?:\[[^\]]*\])?\s*\)\s*([A-Z]\w*)\s*[\[(]`)
+	var out []string
+	entries, _ := os.ReadDir(c.dir)
+	for _, e := range entries {
+		n := e.Name()
+		if !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_test.go") || strings.HasSuffix(n, "_test.vuka") {
+			continue
+		}
+		src, _ := os.ReadFile(filepath.Join(c.dir, n))
+		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
+			if name := m[1]; name != "Render" && name != "Mount" && name != "Update" && !strings.HasPrefix(name, "Update__") && !slices.Contains(out, name) {
+				out = append(out, name)
+			}
+		}
+	}
+	return out
 }

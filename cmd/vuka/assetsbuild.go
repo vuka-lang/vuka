@@ -51,6 +51,10 @@ type manifestEntry struct {
 	Module  string   `json:"module,omitempty"`
 	Methods []string `json:"methods,omitempty"`
 	CSS     int      `json:"css,omitempty"`
+	// Type is a live component's struct type as reflect spells it, and
+	// Pushes the methods its scripts push by name (live.AllowPush).
+	Type   string   `json:"type,omitempty"`
+	Pushes []string `json:"pushes,omitempty"`
 }
 
 type manifestFile struct {
@@ -142,7 +146,10 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		if c != g {
 			e = mf.Scopes[c.id]
 		}
-		e.Module, e.Methods = b.name, b.methods
+		e.Module, e.Methods, e.Pushes = b.name, b.methods, b.pushes
+		if len(b.pushes) > 0 {
+			e.Type = goTypeName(c)
+		}
 	}
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
@@ -540,4 +547,19 @@ func moduleAssets(root string) (*pageAssets, error) {
 		return nil, err
 	}
 	return findAssets(root, modPath)
+}
+
+// goTypeName is c's type as reflect spells it: main.Counter in a main
+// package, else its import path and name.
+func goTypeName(c *assetComp) string {
+	entries, _ := os.ReadDir(c.dir)
+	for _, e := range entries {
+		if n := e.Name(); strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, "_test.go") {
+			src, _ := os.ReadFile(filepath.Join(c.dir, n))
+			if m := pkgClause.FindSubmatch(src); m != nil && string(m[1]) == "main" {
+				return "main." + c.name
+			}
+		}
+	}
+	return c.importPath + "." + c.name
 }

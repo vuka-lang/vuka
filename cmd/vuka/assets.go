@@ -42,6 +42,7 @@ type assetComp struct {
 	dir, importPath, name string // its package, and its declaration
 	id                    string
 	templ                 string // the .templ file declaring it, for a templ component
+	live                  bool   // a live component (@web.Live), whose methods its scripts may push
 	styles, scripts       []assetSrc
 }
 
@@ -277,6 +278,7 @@ func (pa *pageAssets) readFile(file string, src []byte) []error {
 				continue
 			}
 			comp = pa.comp(dir, pa.importPathOf(dir), name, "")
+			comp.live = true
 		case (owner.fn == "Layout" || owner.fn == "LiveLayout") && c.arg > 0 && len(owner.args) > 0:
 			var err string
 			comp, err = pa.layoutComp(dir, imports, toks, owner.args[0])
