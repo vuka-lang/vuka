@@ -10,6 +10,28 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.15.0 — 2026-10-11
+
+Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.15.0`. With
+[`github.com/vuka-lang/ui`](/ui/) v0.7.0 and [web](https://github.com/vuka-lang/web) v0.10.0.
+
+- **Styles and scripts per page.** `web.Style(...)` and `web.Script(...)` on
+  `@web.Live`, `web.Layout` and `web.New` (several files, globs, `web.CSS` and
+  `web.JS` inline, `web.Global` unscoped). CSS is scoped to the component —
+  a marker the compiler adds to its own markup, so it never travels in live
+  diffs — with `:global`, `:deep`, `:scope`, scoped `@keyframes`, Tailwind's
+  `@apply` inside, and a warning for a selector that matches nothing. Scripts
+  are TypeScript or JavaScript, compiled by the vuka command with no Node:
+  `mounted`/`updated`/`destroyed` per instance, `ctx.push("Method")`,
+  `ctx.on`, `ctx.ref`, and `ui.JS.Call` reaching them. Only methods a
+  component's scripts name with `ctx.push("…")` can be called by name; the
+  compiler checks each name. See [Styles and scripts](/web/assets).
+- **Faster `vuka run -watch`.** A save answers in about 0.8–1s on a small app,
+  down from 1.6–1.8s: file events from the operating system instead of
+  polling, transpiling only what changed (checked against a full transpile in
+  the tests), no debug info in watch builds (`-debug` keeps it), and a save
+  during a build cancels the stale build.
+
 ## v0.14.0 — 2026-10-11
 
 Runtime: unchanged, v0.10.0 (`vuka.ObserveCalls` is new in the package; generated
