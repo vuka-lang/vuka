@@ -418,6 +418,7 @@ type vukaRequest struct {
 	qualifier string    // the package typed before the dot, if any
 	closeTag  *lspRange // asked on a closing tag's name, sent to its opening tag's
 	blocks    *lspRange // completion after a markup child's {: the word typed, for block snippets
+	spot      *staticSpot // a possible Type.member use at the cursor (statics, field references)
 }
 
 type proxy struct {
@@ -446,6 +447,8 @@ type proxy struct {
 	shown            map[string]string       // real path → the path the editor uses for it
 	decos            []projectDecorator      // the module's decorators, as of the last regenerate
 	modRoot, modPath string                  // the module, as of the last regenerate
+	staticsPkgs      map[string][]*staticsFile // dependency dir → its parsed Go, for statics
+	importDirs       map[string]string       // import path → package directory
 	started          bool
 	timer            *time.Timer
 	stopped          bool
@@ -472,7 +475,8 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{},
 		bufs: map[string][]byte{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
-		shown:   map[string]string{},
+		shown:       map[string]string{},
+		staticsPkgs: map[string][]*staticsFile{}, importDirs: map[string]string{},
 		changed: map[string]int{}, done: map[string]int{},
 	}
 	p.built = sync.NewCond(&p.mu)
@@ -1095,6 +1099,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		// Typing @ triggers completion; gopls only knows its own triggers.
 		params["context"] = map[string]any{"triggerKind": 1}
 	}
+	if hasPos && !vr.attr && (m.Method == "textDocument/completion" || m.Method == "textDocument/hover") {
+		vr.spot = staticSpotAt(m.Method, vf.text(), offsetOf(vf.text(), srcPos))
+	}
 	p.vukaReqs[id] = vr
 	p.mu.Unlock()
 	_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": m.Method, "params": params})
@@ -1113,6 +1120,22 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			reply["result"] = foldingRanges(vr.file, nil)
 		case vr.blocks != nil:
 			reply["result"] = map[string]any{"isIncomplete": false, "items": blockItems(*vr.blocks)}
+		case vr.spot != nil && vr.method == "textDocument/completion":
+			go func() {
+				if items := p.staticCompletionItems(vr.file, vr.spot); items != nil {
+					reply["result"] = map[string]any{"isIncomplete": false, "items": items}
+				}
+				_ = p.editor.send(reply)
+			}()
+			return
+		case vr.spot != nil && vr.method == "textDocument/hover":
+			go func() {
+				if h := p.staticHoverItem(vr.file, vr.spot); h != nil {
+					reply["result"] = h
+				}
+				_ = p.editor.send(reply)
+			}()
+			return
 		case quietMethods[vr.method]:
 			p.logf("%s: %s", vr.method, m.Error)
 			reply["result"] = nil
@@ -1140,10 +1163,30 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			p.mu.Unlock()
 			v = completeList(withItems(v, decoratorItems(vr.file, decos, vr.full, vr.qualifier)))
 		}
+		if vr.spot != nil {
+			merged := v
+			go func() {
+				reply["result"] = withItems(merged, newItems(merged, p.staticCompletionItems(vr.file, vr.spot)))
+				_ = p.editor.send(reply)
+			}()
+			return
+		}
 	case "textDocument/hover":
 		v = staticHover(demangleStrings(v))
 		if h, ok := v.(map[string]any); ok && vr.closeTag != nil {
 			h["range"] = *vr.closeTag
+		}
+		if vr.spot != nil {
+			usual := v
+			go func() {
+				if h := p.staticHoverItem(vr.file, vr.spot); h != nil {
+					reply["result"] = h
+				} else {
+					reply["result"] = usual
+				}
+				_ = p.editor.send(reply)
+			}()
+			return
 		}
 	case "textDocument/prepareRename":
 		if vr.closeTag != nil {
@@ -1346,7 +1389,7 @@ func demangle(s string) string { return mangled.ReplaceAllString(s, "$1") }
 
 var (
 	// A generic static's accessor: func Model_Objects() *vuka.Static[Manager[User]] …
-	staticAccessor = regexp.MustCompile(`(?m)func _?([A-Z][A-Za-z0-9]*)_([A-Za-z]\w*)\(\) \*\w+\.Static\[(.*?)\](?: //.*)?$`)
+	staticAccessor = regexp.MustCompile(`(?m)func _?([A-Z][A-Za-z0-9]*)_([A-Za-z]\w*)(?:\[[^\]]*\])?\(\) \*\w+\.Static\[(.*?)\](?: //.*)?$`)
 	// A static field, constant or method: var User_Table string, func User_New(…
 	staticDecl = regexp.MustCompile(`\b(var|const|func) _?([A-Z][A-Za-z0-9]*)_([A-Za-z]\w*)`)
 )
