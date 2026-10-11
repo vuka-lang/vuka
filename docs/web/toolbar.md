@@ -39,12 +39,85 @@ from the request's goroutine. They still go to the console as before.
 **Live.** On a [live page](/web/live), each message its connection carried,
 the latest first: the join, each event named by its handler
 (`Counter.Inc (click)`), each navigation and patch, each broadcast it took.
-Each shows its time, statements and reply size; open one for its SQL,
-timeline and logs. A message that failed is red, and so are failures only
-the browser saw: a push that got no reply in time, a connection that
-dropped under it.
+Each shows its time, statements and reply size; open one for what it sent
+(below), its SQL, timeline and logs. A message that failed is red, and so
+are failures only the browser saw: a push that got no reply in time, a
+connection that dropped under it.
 
 ![A live page's messages](/toolbar-live.png)
+
+## What a live message sent
+
+Why is this click's reply 9 kB when it changed one number? Open the
+message in the Live panel: it keeps the frame the browser sent and every
+frame the server answered with, decoded, in three views.
+
+**Summary.** The browser's message in a line (`c1:1 click`,
+`/pets?page=2 (patch)`, `form name, email`), then each server frame: a bar
+and a line splitting its bytes by what they carry —
+
+```text
+974 B: statics 610 B (new fingerprints 2), dynamics 280 B, framing 84 B
+```
+
+— and a row per instance it updated: its id and component (`c1 Counter`),
+whether it went as a full tree, a diff or whole HTML, and how many dynamics
+changed, list steps, statics newly sent (and their bytes), token patches
+and references to strings the browser already keeps. The first changes
+follow, and the JS commands the reply pushed. A large reply's cause is on
+one line: statics mean markup the page hadn't seen yet (a branch taken for
+the first time, a page navigated to); dynamics mean values; a `full tree`
+row means an instance was mounted again rather than changed.
+
+**Diff.** Each changed dynamic by its path in the instance's render tree,
+with the markup it sits in, and the value the browser held beside the new
+one, the part that differs marked:
+
+```text
+c1 › u.3                 "4" → "5"
+<output class="…">
+```
+
+`u.3` is the frame's fourth dynamic, `k.2` a loop's third item, so
+`c1 › u.1 › k.2 › u.0` is a cell of a row of a list. A keyed row that moved
+says where from, a new row shows its markup, removed rows show what went,
+and a token patch shows the whole value before and after. On a page using
+protocol v1 each instance's HTML is one value: the Diff shows it before
+and after.
+
+![A click's change, old value beside the new](/toolbar-live-diff.png)
+
+**Raw.** The browser's message and each server frame as JSON, indented and
+coloured, with a Copy button — what you'd see in the browser's network tab,
+next to the request that produced it.
+
+The old values come from the toolbar's own copy of what the browser holds:
+while it is on, each connection keeps the statics, kept strings and trees
+it has sent, and applies every frame to them as the browser does. Password
+inputs' values, and form fields named like a password, token or secret, are
+`(hidden)` in the recorded message. A frame over 64 kB is kept cut, with
+its full size; a page keeps the frames of its latest messages up to 1 MB,
+and an older message says its frames were dropped. Views are drawn when you
+open a message, so a long session's panel stays quick.
+
+## Following live navigation
+
+A live page that moves over its connection — a `ui.Link`, a
+`JS.Navigate` or `JS.Patch` command, `PushNavigate` or `PushPatch`, the back
+and forward buttons — keeps the toolbar on the page you're looking at:
+
+- While the navigation is in flight the handle says where to:
+  `loading /pets…`.
+- Then the handle shows that navigation's time and statements, and the list
+  at the top selects the page it landed on. Its panels hold the navigation's
+  server work as a page load's would: the route and handler, its
+  parameters, statements, timeline and logs. Its Live panel carries on from
+  there, the navigate message first, with its Summary, Diff and Raw.
+- A patch — the same page with other parameters — updates the URL and the
+  parameters the Request panel shows, without a new entry.
+- Back and forward select the page's entry again while the app keeps it.
+
+![After a navigation from Home to the counter](/toolbar-live-navigate.png)
 
 ## Every call the page makes
 
@@ -105,7 +178,8 @@ Err})`, and `app.Toolbar()` says whether the app shows the toolbar at all.
 
 When it is off nothing is recorded, no route or header is added, and
 nothing hooks into the program; a request costs what it did without it.
-When it is on, recording adds a few microseconds to a request.
+When it is on, recording adds a few microseconds to a request, and keeping
+and decoding a live message's frames a few more.
 
 ## What it changes on the page
 
@@ -116,6 +190,6 @@ Tailwind classes and its styles never meet, and it follows the system's
 light or dark scheme. Pages that aren't whole documents — fragments, JSON,
 answers to a form's POST, pages fetched by a script — get no tag.
 
-The app keeps its latest 100 requests (and 200 messages per live page) in
-memory, and the toolbar fetches them from `/_vuka/toolbar/`. A record that
+The app keeps its latest 100 requests (and 200 messages per live page, with
+their frames up to 1 MB) in memory, and the toolbar fetches them from `/_vuka/toolbar/`. A record that
 has dropped out says so.
