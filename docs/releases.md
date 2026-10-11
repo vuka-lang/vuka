@@ -10,6 +10,22 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.17.0 — 2026-10-11
+
+The vuka command only; the language and runtime are unchanged (v0.15.0, runtime v0.10.0).
+New apps use [web](https://github.com/vuka-lang/web) v0.12.0 and [orm](https://github.com/vuka-lang/orm) v0.3.0.
+
+- **`vuka new` builds a working app.** It asks for the UI (live pages with
+  Tailwind, templ views, or an API), the database (SQLite by default, Postgres,
+  MySQL, none), mail, sign-in and an optional React, Vue or Svelte frontend —
+  or takes flags and `--yes`. The default app has a login page already
+  connected to a users table and sessions in the database, an admin created
+  from `.env` with a generated password, migrations run at start, a signed-in
+  layout with the Vuka logo, shared components, and tests that pass. See
+  [Getting started](/web/getting-started).
+- **`vuka add module <name>`** adds a module — model, service, page, migration
+  and test — to an app made by `vuka new`.
+
 ## cmd/vuka v0.16.0 — 2026-10-11
 
 The vuka command only; the language and runtime are unchanged (v0.15.0, runtime v0.10.0).
