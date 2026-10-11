@@ -363,7 +363,14 @@ type Options struct {
 	// (transpile.Options.Scopes); a .templ file declaring one is compiled
 	// again with its elements marked.
 	Scopes map[string]map[string]string
+	// Stop, when set, is asked before each package is transpiled: true
+	// abandons the run, which returns ErrStopped. A session keeps what the
+	// packages transpiled before it did.
+	Stop func() bool
 }
+
+// ErrStopped is the error of a run Options.Stop abandoned.
+var ErrStopped = errors.New("stopped")
 
 // Transpile transpiles pkgs in import order. Each package's output is added to
 // an overlay in tmp before the next is transpiled, so imports of Vuka packages
@@ -448,6 +455,9 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 	}
 	var errs transpile.ErrorList
 	for i, p := range pkgs {
+		if opts.Stop != nil && opts.Stop() {
+			return nil, "", ErrStopped
+		}
 		add := func(goName string, src []byte) error {
 			target := filepath.Join(p.Dir, goName)
 			file := filepath.Join(tmp, strconv.Itoa(i)+"_"+goName)
@@ -659,4 +669,51 @@ func relPos(from, pos token.Position) string {
 		pos.Filename = rel
 	}
 	return pos.String()
+}
+
+// Closure is roots and what transpiling them needs of pkgs: the packages
+// they import, the packages of the .templ files their vuka.File literals may
+// name, and for an external test package the package it tests, all the way
+// down; in pkgs' order.
+func Closure(pkgs, roots []*Package) []*Package {
+	byPath, byDir := map[string]*Package{}, map[string][]*Package{}
+	for _, p := range pkgs {
+		byPath[p.ImportPath] = p
+		byDir[p.Dir] = append(byDir[p.Dir], p)
+	}
+	in := map[*Package]bool{}
+	var visit func(p *Package)
+	visit = func(p *Package) {
+		if in[p] {
+			return
+		}
+		in[p] = true
+		for _, imp := range p.Imports {
+			if q := byPath[imp]; q != nil {
+				visit(q)
+			}
+		}
+		if strings.HasSuffix(p.ImportPath, "_test") {
+			if q := byPath[strings.TrimSuffix(p.ImportPath, "_test")]; q != nil {
+				visit(q)
+			}
+		}
+		for _, d := range p.Embeds {
+			for _, q := range byDir[d] {
+				if !strings.HasSuffix(q.Name, "_test") {
+					visit(q)
+				}
+			}
+		}
+	}
+	for _, p := range roots {
+		visit(p)
+	}
+	var out []*Package
+	for _, p := range pkgs {
+		if in[p] {
+			out = append(out, p)
+		}
+	}
+	return out
 }

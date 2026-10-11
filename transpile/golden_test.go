@@ -115,3 +115,38 @@ func goldenModule(t *testing.T) (mod, sum []byte) {
 	sum, _ = os.ReadFile("testdata/golden/go.sum")
 	return []byte(b.String()), sum
 }
+
+// TestSyntax checks Syntax against Package on the golden cases: a case it
+// finds errors in is one Package reports exactly those for, and a case that
+// transpiles has none.
+func TestSyntax(t *testing.T) {
+	cases, _ := filepath.Glob("testdata/golden/*.vuka")
+	found := 0
+	for _, path := range cases {
+		name := strings.TrimSuffix(filepath.Base(path), ".vuka")
+		src, err := os.ReadFile(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		dir := filepath.Dir(path)
+		errs := transpile.Syntax(transpile.File{Name: name + ".vuka", Src: src}, transpile.Options{Importer: load.NewImporter(dir, ""), Dir: dir})
+		if !strings.HasPrefix(name, "err_") {
+			if len(errs) > 0 {
+				t.Errorf("%s transpiles, but Syntax reports %v", name, errs)
+			}
+			continue
+		}
+		if len(errs) == 0 {
+			continue
+		}
+		found++
+		want, _ := os.ReadFile(filepath.Join(dir, name+".err"))
+		if got := errs.Error() + "\n"; got != string(want) {
+			t.Errorf("%s: Syntax reports\n%s\nPackage\n%s", name, got, want)
+		}
+	}
+	if found == 0 {
+		t.Error("Syntax found no errors in the err_ cases")
+	}
+	t.Logf("%d err_ cases are syntax errors", found)
+}

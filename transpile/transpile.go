@@ -515,3 +515,30 @@ func Package(files []File, opts Options) (*Result, error) {
 	}
 	return res, nil
 }
+
+// Syntax reports the errors in one .vuka file that need nothing but the file
+// and, for JSX, the packages it imports: Vuka's syntax, and Go's in what the
+// file becomes, with no package to type-check. They are the errors Package
+// reports for the file when it reports any of its syntax. opts are as for
+// Package; only Importer (for JSX's target), Path, Bare and Scopes matter.
+func Syntax(file File, opts Options) ErrorList {
+	var errs ErrorList
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, scopes: opts.Scopes}
+	if e.imp == nil {
+		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
+	}
+	f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: true,
+		lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
+	if opts.Path != nil {
+		f.path = opts.Path(file.Name)
+	}
+	f.scan(&errs)
+	if len(errs) == 0 {
+		f.attrEdits()
+		f.makeTrailer(opts.Bare)
+		f.build()
+		f.parse(token.NewFileSet(), &errs)
+	}
+	_ = errs.err() // sorts
+	return errs
+}

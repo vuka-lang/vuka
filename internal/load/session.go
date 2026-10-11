@@ -20,6 +20,8 @@ import (
 	"slices"
 	"strings"
 	"time"
+
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // A Session transpiles one module again and again, as vuka run -watch does
@@ -42,10 +44,11 @@ import (
 // listed again on every run, and a change in their export data starts the
 // session over too.
 //
-// A run that fails in any way (an error to report, a package that doesn't
-// type-check, cgo, an import cycle) is done again by Transpile, so errors
-// read exactly as Transpile reports them. A session is not safe for
-// concurrent use.
+// Errors in Vuka source, and imports the go command can't resolve, are
+// reported as Transpile reports them. A run that fails in any other way (a
+// Go package of the module that doesn't type-check, cgo, an import cycle) is
+// done again by Transpile, so errors read exactly as Transpile reports them.
+// A session is not safe for concurrent use.
 type Session struct {
 	root, modPath string
 	goVersion     string
@@ -100,6 +103,9 @@ func NewSession(root string) (*Session, error) {
 	return s, nil
 }
 
+// Root is the directory of the session's module, symlinks resolved.
+func (s *Session) Root() string { return s.root }
+
 func (s *Session) reset() {
 	s.key = cacheKey(s.root)
 	s.goVersion = goDirective(s.root)
@@ -119,7 +125,12 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 	s.gen, s.now, s.broken, s.failed, s.walking = map[string][]byte{}, map[string]*checkedPkg{}, map[string]bool{}, nil, map[string]bool{}
 	s.ran = runStats{}
 	gens, overlay, err := transpileRun(pkgs, tmp, opts, s)
-	if s.failed == nil && err != nil {
+	if errors.Is(err, ErrStopped) {
+		s.gen, s.now, s.walking = nil, nil, nil
+		return nil, "", err
+	}
+	var list transpile.ErrorList
+	if s.failed == nil && err != nil && !errors.As(err, &list) {
 		s.failed = err
 	}
 	if s.failed == nil {
@@ -137,7 +148,7 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 		s.ran.fellBack = true
 		return transpileRun(pkgs, tmp, opts, nil)
 	}
-	return gens, overlay, nil
+	return gens, overlay, err
 }
 
 // fail records why the session gives up on this run.
@@ -192,9 +203,7 @@ func (s *Session) ImportFrom(path, dir string, mode types.ImportMode) (*types.Pa
 		return types.Unsafe, nil
 	}
 	if s.broken[path] {
-		err := fmt.Errorf("%s has errors", path)
-		s.fail(err)
-		return nil, err
+		return nil, fmt.Errorf("%s has errors", path) // as the Importer says it
 	}
 	if s.inModule(path) {
 		c, err := s.check(path)
@@ -204,11 +213,9 @@ func (s *Session) ImportFrom(path, dir string, mode types.ImportMode) (*types.Pa
 		}
 		return c.pkg, nil
 	}
-	p, err := s.imp.ImportFrom(path, dir, mode)
-	if err != nil {
-		s.fail(err)
-	}
-	return p, err
+	// What the go command says of an import it can't resolve is what
+	// Transpile's importer, the same code, says too.
+	return s.imp.ImportFrom(path, dir, mode)
 }
 
 func (s *Session) Broken(path string) { s.broken[path] = true }
@@ -358,6 +365,10 @@ func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Op
 	slices.Sort(imports)
 	for _, imp := range slices.Compact(imports) {
 		if imp == p.ImportPath || !s.inModule(imp) {
+			continue
+		}
+		if s.broken[imp] {
+			fmt.Fprintf(h, "import %s broken\n", imp)
 			continue
 		}
 		c, err := s.check(imp)

@@ -52,6 +52,11 @@ func newCachedImporter(root, overlay string) *Importer {
 	return im
 }
 
+// NewModuleImporter is an importer for the module at root, without an
+// overlay, that remembers the standard library's and dependencies' export
+// data across runs and processes.
+func NewModuleImporter(root string) *Importer { return newCachedImporter(root, "") }
+
 // Prefetch looks up the export data of paths, and everything they depend
 // on, with one go command: the imports of all the module's Vuka packages,
 // asked once rather than package by package.

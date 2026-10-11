@@ -165,6 +165,77 @@ func TestSession(t *testing.T) {
 	}
 	edit(t, filepath.Join(root, "plain", "plain.go"), "K = missing", "K = 3")
 
+	// An error in lib's Vuka source: reported as Transpile reports it, and
+	// main, importing lib, says lib has errors; no go command runs for it.
+	edit(t, lib, "func helper() int { return 2 }", "func helper() int { return 1? }")
+	if _, errs := sessionRun(t, s, root); s.ran.fellBack || len(errs) == 0 {
+		t.Errorf("an error in lib: %+v %v", s.ran, errs)
+	}
+	// Go's type error in lib's Vuka source, which only the Go compiler
+	// reports: main's import of lib fails as go build says, so Transpile
+	// does the run.
+	edit(t, lib, "func helper() int { return 1? }", "func helper() int { return \"x\" }")
+	if _, errs := sessionRun(t, s, root); !s.ran.fellBack || len(errs) == 0 {
+		t.Errorf("a type error in lib: %+v %v", s.ran, errs)
+	}
+	edit(t, lib, "func helper() int { return \"x\" }", "func helper() int { return 2 }")
+	if _, errs := sessionRun(t, s, root); s.ran.fellBack || len(errs) != 0 {
+		t.Errorf("lib mended: %+v %v", s.ran, errs)
+	}
+
+	// An import nothing provides, as it is typed.
+	mainFile := filepath.Join(root, "main.vuka")
+	edit(t, mainFile, `"fmt"`, `"fmt"
+	"example.com/nowhere"`)
+	edit(t, mainFile, "func main() {", "func far() Result[int] {\n\tn := nowhere.F()?\n\treturn Ok(n)\n}\n\nfunc main() {")
+	if _, errs := sessionRun(t, s, root); s.ran.fellBack || len(errs) == 0 {
+		t.Errorf("an unresolved import: %+v %v", s.ran, errs)
+	}
+	edit(t, mainFile, "func far() Result[int] {\n\tn := nowhere.F()?\n\treturn Ok(n)\n}\n\n", "")
+	edit(t, mainFile, `
+	"example.com/nowhere"`, "")
+	if _, errs := sessionRun(t, s, root); s.ran.fellBack || len(errs) != 0 {
+		t.Errorf("the import removed: %+v %v", s.ran, errs)
+	}
+
+	// Stopped between packages, a run leaves the session as it was: the next
+	// run reuses what the stopped one transpiled.
+	edit(t, lib, "return 2 }", "return 3 }")
+	pkgs, err := Discover(root, "example.com/app", root, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	n := 0
+	if _, _, err := s.Transpile(pkgs, t.TempDir(), Options{Stop: func() bool { n++; return n > 1 }}); !errors.Is(err, ErrStopped) {
+		t.Fatalf("stopped run: %v", err)
+	}
+	if sessionRun(t, s, root); s.ran.fellBack || s.ran.transpiled != 0 || s.ran.reused != 2 {
+		t.Errorf("after a stopped run: %+v", s.ran)
+	}
+
+	// Some of the packages: those, and the packages they import, as a run
+	// of all of them makes them.
+	edit(t, lib, "return 3 }", "return 4 }")
+	pkgs, _ = Discover(root, "example.com/app", root, true, nil)
+	var libPkg *Package
+	for _, p := range pkgs {
+		if p.ImportPath == "example.com/app/lib" {
+			libPkg = p
+		}
+	}
+	if part := Closure(pkgs, []*Package{libPkg}); len(part) != 1 || part[0] != libPkg {
+		t.Fatalf("lib's closure: %v", part)
+	}
+	if _, _, err := s.Transpile([]*Package{libPkg}, t.TempDir(), Options{}); err != nil || s.ran.transpiled != 1 {
+		t.Fatalf("lib alone: %v %+v", err, s.ran)
+	}
+	if sessionRun(t, s, root); s.ran.fellBack || s.ran.transpiled != 0 || s.ran.reused != 2 {
+		t.Errorf("after lib alone: %+v", s.ran)
+	}
+	if part := Closure(pkgs, []*Package{pkgs[0]}); len(part) != 2 {
+		t.Errorf("main's closure: %d packages", len(part))
+	}
+
 	// A new file, and one removed.
 	write(t, filepath.Join(root, "lib", "more.vuka"), "package lib\n\nfunc More() Option[int] { return Some(1) }\n")
 	sessionRun(t, s, root)
