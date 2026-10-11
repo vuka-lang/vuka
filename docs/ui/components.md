@@ -32,10 +32,18 @@ written as an expression:
 - `style` takes a `ui.Style{"color": "red"}` or anything templ's style
   attributes do, sanitized: an unsafe property or value becomes templ's
   placeholder;
-- `href` on `<a>` and `<link>`, `action` on `<form>`, `data` on `<object>` are
-  URLs: relative ones and http, https, mailto, tel, ftp and ftps pass;
-  anything else (a `javascript:` URL) becomes
-  `about:invalid#TemplFailedSanitizationURL`; a `templ.SafeURL` passes as is;
+- URL attributes are sanitized: `href` on any element (`<a>`, `<link>`,
+  `<area>`, `<base>`, SVG's `<use>`, `<image>`, …), `xlink:href`, `action`
+  on `<form>`, `data` on `<object>`, `src` on `<iframe>`, `<frame>`,
+  `<embed>`, `<source>`, `<track>`, `<video>`, `<audio>`, `<img>`, `<input>`
+  and `<script>`, `poster` on `<video>`, and `formaction` on `<button>` and
+  `<input>`, whatever the case of the name. Relative URLs and http, https,
+  mailto, tel, ftp and ftps pass; anything else (a `javascript:` URL)
+  becomes `about:invalid#TemplFailedSanitizationURL`. A media source (`src`
+  on `<img>`, `<source>`, `<video>`, `<audio>`, `<input>`, `<track>`, a
+  video's `poster`) also keeps a `data:` URL of its kind (`data:image/…`,
+  `data:audio/…`, `data:video/…`, `data:text/vtt`). A `templ.SafeURL`
+  passes as is;
 - a node is rendered and escaped; anything else goes through `fmt.Sprint`,
   escaped.
 
