@@ -63,7 +63,7 @@ go get -tool github.com/vuka-lang/orm/cmd/orm    # then: go tool orm …
 | `--check` | fail when a migration (or a generated file) is missing, writing nothing: for CI |
 | `--dry-run` | print the migration instead of writing it |
 | `--empty` | a migration with an empty `RunGo`, for a data migration |
-| `--noinput` | ask nothing: a rename is written as a removal and an addition |
+| `--noinput` | ask nothing: makemigrations writes a rename as a removal and an addition; migrate unapplies without confirming |
 | `--backwards` | sqlmigrate: the SQL unapplying it |
 | `--dialect` | `postgres`, `mysql` (`mysql/9.3.0` for a server version), `sqlite`: the SQL of another dialect |
 | `--database name=URL` | a database's URL (repeatable; `default=` for the default); else `DATABASE_URL` and `DATABASE_URL_<NAME>` from the environment, else from the module's `.env` |
@@ -72,6 +72,12 @@ go get -tool github.com/vuka-lang/orm/cmd/orm    # then: go tool orm …
 
 On a terminal `makemigrations` asks about renames — "Did you rename
 users.mail to users.email? [y/N]".
+
+On a terminal `migrate` asks before it unapplies anything: a target (or
+`zero`) runs the backwards operations of the migrations after it, which may
+drop tables and their data, so it lists them and runs them only on a yes.
+Any other answer changes nothing. `--noinput` doesn't ask, for CI; neither
+does a `migrate` whose input isn't a terminal.
 
 The commands build the program's main package with an init overlaid that
 answers them before `main` runs; nothing is written to the tree but the
@@ -119,7 +125,8 @@ advisory lock, MySQL's `GET_LOCK`), recording them in `orm_migrations`
 | `orm.Schema{}.Verify(ctx, models…)` | check the models against a database (a schema of it) at start-up |
 
 In a web app, [`ormweb`](/orm/databases#web-integration)'s
-`.MigrateOnStart(true)` runs them as the databases open.
+`.MigrateOnStart(true)` runs them as the databases open (by default it does
+only in development).
 
 ## Several databases
 

@@ -60,7 +60,7 @@ ctx = orm.WithDatabases(ctx, dbs)
 | `orm.Declare(name, url, …)` option | |
 |---|---|
 | `orm.AsDefault()` | the default database |
-| `orm.ReadOnly()` | writes refused |
+| `orm.ReadOnly()` | writes refused, by the ORM and the server ([read-only databases](#read-only-databases)) |
 | `orm.Replicas(urls…)` | read replicas |
 | `orm.Pool{…}` | the [connection pool](#connection-pool) |
 | `orm.Credentials(fn)` | user and password asked for every new connection (a rotating secret) |
@@ -233,15 +233,21 @@ with URL parameters (taken off before the driver sees the URL):
 
 | `orm.Pool` field | URL parameter | Default | |
 |---|---|---|---|
-| `MaxOpen` | `pool_max` | unlimited | connections at most |
-| `MaxIdle` | `pool_max_idle` | 2 | idle connections kept |
+| `MaxOpen` | `pool_max` | 20 | connections at most; negative: no limit |
+| `MaxIdle` | `pool_max_idle` | 5 | idle connections kept (at most `MaxOpen`); negative: none |
 | `MinIdle` | `pool_min_idle` | 0 | opened at start and kept open while up |
-| `MaxLifetime` | `pool_max_lifetime` | none | less up to 20% at random, so connections don't all reconnect at once |
+| `MaxLifetime` | `pool_max_lifetime` | 1h | less up to 20% at random, so connections don't all reconnect at once; negative: never retired |
 | `MaxIdleTime` | `pool_max_idle_time` | none | |
 | `Acquire` | `pool_acquire` | wait | with `MaxOpen` in use, fail `Unavailable` after this |
 | `Health` | `pool_health` | 10s | ping interval, primary and replicas |
 | `Breaker{Failures, Cooldown}` | `breaker_failures`, `breaker_cooldown` | 5, 5s | the circuit breaker |
 | `StartupWait` | `startup_wait` | 5s | how long `Start` waits for the database; negative doesn't wait |
+
+A zero field takes the default, so `pool_max=0` is 20 connections, not
+unlimited: a burst of requests can't open more connections than the server
+allows. Write `pool_max=-1` (`MaxOpen: -1`) for no cap. `orm.Connect` sets
+the same caps (`orm.DefaultMaxOpen`, `DefaultMaxIdle`,
+`DefaultMaxLifetime`) on the pool it opens.
 
 - **States**: `Connecting`, `Up`, `Degraded` (a replica down, or the breaker
   probing), `Down`. A database that doesn't answer within `StartupWait`
@@ -261,6 +267,26 @@ with URL parameters (taken off before the driver sees the URL):
   `orm.WithTimeout(ctx, d)` a context's.
 - **Shutdown**: `set.Close(ctx)` (or `Stop`) refuses new statements, waits
   for running ones until ctx's deadline, then closes the pools.
+
+## Read-only databases
+
+`orm.ReadOnly()` makes a database read-only twice over. The ORM refuses its
+own writes to it (`Create`, `Save`, `Update`, `Delete`, `orm.Exec`), and
+each of its connections is made read-only on the server as it opens, so raw
+SQL (`orm.Raw`, `orm.RawRow`), which is routed as a read, can't write
+either:
+
+| | each connection runs |
+|---|---|
+| MySQL | `SET SESSION TRANSACTION READ ONLY` |
+| Postgres | `SET default_transaction_read_only = on` |
+| SQLite | `PRAGMA query_only = ON` |
+
+These are settings of the connection, and SQL running on it can change them
+back. The one boundary that holds against SQL you didn't write is the
+database's grants: connect a read-only database as a user allowed to
+`SELECT` and nothing more. A database added with `Add` (opened by the
+program, not declared) gets the ORM's refusal alone.
 
 ## Web integration
 
@@ -290,19 +316,28 @@ It:
   take `*Analytics`;
 - puts the set and an `orm.Scope` on each request's context, so handlers'
   queries need nothing more and [read their writes](#read-your-writes);
-- serves `GET /healthz`: JSON of each database's state, pool, breaker and
-  replicas, 503 when the default database is down;
+- serves `GET /healthz`: JSON of the status and each database's state, 503
+  when the default database is down; in development, also each one's pool,
+  breaker, last error and replicas;
 - adds the set's `Check` to the app's `Build`: a model, route or handle
   naming a database the app doesn't declare is a Build error, reported with
   web's own.
 
 | | |
 |---|---|
-| `.MigrateOnStart(b)` | runs pending migrations as the databases open; by default when `VUKA_ENV=development`, read then, so a `.env` counts |
+| `.MigrateOnStart(b)` | runs pending migrations as the databases open; by default only in development |
+| `.HealthDetails(b)` | gives the health route each database's pool, breaker, last error (the driver's text) and replicas; by default only in development |
 | `.Health(path)` | moves the health route; `""` drops it |
 | `ormweb.Set(s, opts…)` | serves a set made elsewhere |
 | `ormweb.UsingFrom(fn)` | middleware sending a request's queries to the database `fn` names (a tenant's); `""` leaves them |
-| `ormweb.Middleware(s)`, `ormweb.HealthHandler(s)` | the parts, for another router |
+| `ormweb.Middleware(s)`, `ormweb.HealthHandler(s)` (states), `ormweb.DetailedHealthHandler(s)` (the whole report) | the parts, for another router |
+
+Development is `VUKA_ENV=development` in the program's real environment, read
+before `main` runs: a `.env` file setting it doesn't count, so a file left on
+a server can't turn on migrations at start or the health details. In
+production, migrate with `.MigrateOnStart(true)` or `orm migrate`, and keep
+the details off a public route: a driver's error text and the replicas'
+addresses are for operators.
 
 [`examples/multidb`](https://github.com/vuka-lang/orm/tree/main/examples/multidb)
 is a whole app: products on main read from a replica, sales on analytics
