@@ -50,6 +50,16 @@ features:
     linkText: ORM
 ---
 
+## Try it
+
+With Go 1.25 or newer:
+
+```sh
+go install github.com/vuka-lang/vuka/cmd/vuka@latest
+vuka new hello && cd hello
+vuka run
+```
+
 ## A taste
 
 ```vuka
