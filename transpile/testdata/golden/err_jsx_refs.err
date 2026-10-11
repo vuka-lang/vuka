@@ -1,3 +1,7 @@
 err_jsx_refs.vuka:10:49: no ref="mnu" in Menu's render; did you mean "menu"?
 err_jsx_refs.vuka:16:21: no ref="list" in Page: give an element ref="list"
 err_jsx_refs.vuka:21:58: no ref="b" in Named; its refs are "a", "c"
+err_jsx_refs.vuka:31:61: no ref="pasword" in Several; did you mean "password"?
+err_jsx_refs.vuka:31:80: no ref="usrname" in Several; did you mean "username"?
+err_jsx_refs.vuka:37:36: reftarget.GetAttr("name", "usrname"): no element in Login has name="usrname"; did you mean "username"?
+err_jsx_refs.vuka:38:37: reftarget.GetAttr("type", "email"): no element in Login has type="email"; its values are "password"

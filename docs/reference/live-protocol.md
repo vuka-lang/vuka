@@ -303,8 +303,12 @@ that is `[["remove_class",{"to":{"ref":"menu"},"names":["hidden"]}],["push",{"h"
 a list of operations `[name, args]`, run in order. The runtime listens,
 delegated, for each event type a `data-vk-js-<event>` names (as it does for
 `data-vk-on-<event>`), runs the commands of the nearest element carrying
-either attribute for that event, and `preventDefault`s a submit. An element
-has one or the other for an event, never both. *this* is the element
+either attribute for that event, and `preventDefault`s the event when the
+list has a top-level `push` (a submit, a link's click, a form button's
+click). A list without one leaves the event to the browser: a form's
+commands run as the browser submits it — after its constraint validation,
+which fires no `submit` when it fails — and the form posts as usual. An
+element has one or the other for an event, never both. *this* is the element
 carrying the attribute.
 
 | Operation | Args | |
@@ -333,6 +337,7 @@ carrying the attribute.
 | `set_value` | `to`, `value` | set the element's value (a checkbox's `checked` from `"true"`), then fire `input` and `change` on it |
 | `set_text` | `to`, `text` | set the element's `textContent` to `text` |
 | `call` | `fn`, `to`?, `args`? | call a JavaScript function ([below](#calling-javascript)) |
+| `busy` | `to`, `timeout`? | mark the elements busy until undone ([below](#busy)) |
 | `patch`, `navigate` | `href` | move the page to `href` over the connection, as a click on a `data-vk-link` (`="patch"`) link would ([navigation](#navigation)); a page without a connection loads `href` |
 
 Branches nest: an `if` inside a branch opens a level of its own, and
@@ -346,17 +351,22 @@ skipped `if` takes no branch.
 |---|---|
 | omitted | *this* |
 | `{"ref":"menu"}` | the elements with `data-vk-ref="menu"` in *this*'s instance: the scope is the nearest ancestor-or-self of *this* carrying `data-vk-id`, and an element is in it when its own nearest ancestor-or-self carrying `data-vk-id` is the scope (so refs of nested instances are theirs, not their parent's). Without a `data-vk-id` ancestor (a static page), the scope is the document and every element with that ref is in it |
+| `{"ref":["user","pass"]}` | the elements with any of the refs, in the same scope |
+| `{"attr":{"name":"name","is":["user",{"prefix":"step-"}],"page":true}}` | the elements with the attribute `name`, in the scope `ref` has, or the document with `page`. Without `is`, any value; else one of `is`: a string is an exact value, `{"prefix":s}`, `{"suffix":s}`, `{"contains":s}` and `{"word":s}` match as CSS's `^=`, `$=`, `*=` and `~=` (an empty `s`, or an unknown kind, matches nothing). A runtime builds the selector with `CSS.escape` of the name and each value, so no value is ever read as selector syntax |
 | `{"sel":"#x"}` | `document.querySelectorAll` |
+| `{"sel":["#x",".y"]}` | the elements any of the selectors matches |
 | `{"closest":".card"}` | `this.closest(…)` |
 | `{"inner":".x"}` | `this.querySelectorAll(…)` |
 
+A target of several parts finds every element any part finds, in document
+order, each once. `focus`, `focus_first`, `scroll_to`, `copy`, a `call`'s
+`to` and a read passed to `call` take the first element a target finds.
 An operation on no element does nothing. `data-vk-ref` comes from the JSX
 attribute `ref="menu"`. In protocol v2 a `data-vk-js-…` attribute is a dynamic
 like any attribute written with an expression: it is sent again only when
 its JSON changes (a push's handler id moving, a value).
 
-**Conditions.** `cond` reads a target (the first element it names) when the
-`if` is reached:
+**Conditions.** `cond` reads a target when the `if` is reached:
 
 | `cond` | holds when |
 |---|---|
@@ -366,8 +376,13 @@ its JSON changes (a push's handler id moving, a value).
 | `{"to":T,"attr":"name"}` | it has the attribute |
 | `{"to":T,"is":".open"}` | it matches the selector (`element.matches`) |
 | `{"to":T,"exists":true}` | there is such an element |
+| `{"and":[c, …]}` | every condition holds (`[]`: true) |
+| `{"or":[c, …]}` | one condition holds (`[]`: false) |
+| `{"not":c}` | the condition doesn't hold |
 
-Only `exists` holds without an element.
+A read holds when every element its target finds passes it; with
+`"some":true` (`{"to":T,"value":true,"some":true}`), when at least one
+does. A target that finds no element fails every read but `exists`.
 
 **Push.** `["push",{"h":"c3:1"}]` sends `{"type":"event","target":"c3:1",…}`
 like a `data-vk-on` handler: `event` the DOM event's type, `key` a keyboard
@@ -464,6 +479,40 @@ reverted only by its own push's failure.
 
 Server-pushed lists (`"js"` entries) may carry optimistic pushes too, with
 the same semantics, *this* being the entry's instance root.
+
+### Busy
+
+`["busy",{"to":T,"timeout":5000}]` marks each element `to` finds (*this*
+without one) busy, unless it is marked already:
+
+- `aria-busy="true"` on it;
+- `readonly` on each `input`, `textarea` and `select` among it and its
+  descendants, except the button kinds (`readonly` already there stays);
+- `aria-disabled="true"` and `tabindex="-1"` on each `button`, `a[href]`
+  and `input` of type `submit`, `button`, `reset` or `image`;
+- every `click` and `submit` whose target is the element or inside it is
+  `preventDefault`ed and stopped before any other listener — except the
+  `submit` a click marking the element goes on to in the same task, so a
+  submit button whose click marks its form still submits it.
+
+Each change is recorded as a command's change is (reconciliation keeps it
+across patches), with the value before it. A mark is undone — each change
+reverted where the server's value and the element's are still the
+recorded ones — by the first of:
+
+- the settling of a push of the same list: the next `push` after the
+  `busy`, or, with none after it, the last one before it; on success or
+  failure, before `on_ok`/`on_error` run (a push failing unsent fails its
+  marks too);
+- `timeout` ms passing;
+- a `pageshow` event with `persisted` (the page restored from the
+  back/forward cache);
+- a navigation to another page.
+
+A mark that none of them reach — a plain form post — lasts until the page
+is left. An element waiting for a reply (`aria-busy` the runtime sets on a
+`data-vk-on` or push's element) keeps a mark's `aria-busy` when the reply
+comes.
 
 ### Calling JavaScript
 
