@@ -84,16 +84,16 @@ session, so a transport that keeps sessions across short disconnects keeps
 state; one that doesn't starts the page over, as the HTTP render did.
 
 The first HTTP render is static (a fresh mount, no ids); the `join` mounts
-the page's live instances, LiveView-style.
+the page's live instances.
 
 ## Protocol v2: render trees
 
 A client that sends `{"type":"join","v":2}` speaks version 2: the server
 sends each live instance's **render tree** instead of its HTML, and after an
 event only what changed in it. A `join` without `v` (or `"v":1`) gets the v1
-messages above, unchanged. The format is nexus's live-view render tree
-(LiveView's statics and dynamics), adapted to Vuka's per-instance model; the
-differences are listed at the end.
+messages above, unchanged. A tree separates what a render fixes (statics,
+sent once) from what it computes (dynamics, sent when they change), one tree
+per live instance; the details are at the end.
 
 **The tree.** The compiler knows which parts of a JSX expression are fixed
 markup and which are Go expressions. A *frame* is the markup of one piece of
@@ -181,7 +181,7 @@ the new list:
 Old items no step takes are gone. Items pair by `key` when the body's first
 element (or component tag) has one, else by position.
 
-A token patch is nexus's: both strings cut before every `<` and after every
+A token patch cuts both strings before every `<` and after every
 `>`, `"` and `&#34;`; steps `n` copy the next `n` old tokens, `-n` skip them,
 `"…"` inserts text, `[p,n]` inserts `n` tokens copied from position `p` of the
 old string. (Tree token patches use no dictionary.)
@@ -270,10 +270,9 @@ When an event changes a parent and a child, both entries come, parent first;
 a child the parent renders for the first time comes as `full` — and a removed
 child is just no longer referenced.
 
-**Differences from nexus.** The tree is per instance (`trees`, by `id`)
-instead of one tree per page, and a frame dynamic may be an instance
-reference `{"id":…}`; nexus's `tree`/`full`/`reset` fields become the entries'
-`tree`/`full`, and a `render` is always a reset. Loops have a move step
+**Details.** There is one tree per instance (`trees`, by `id`), and a frame
+dynamic may be an instance reference `{"id":…}`; each entry has its `tree`
+and whether it is `full`, and a `render` is always a reset. Loops have a move step
 `{"m":i}` for keyed items. Every block is a loop (`{"c":…}`), a branch being
 a loop of zero or one item. An entry may be plain `html`. Handler ids
 (`data-vk-on-click="c1:4"`) are dynamics like any attribute; they count a

@@ -16,9 +16,10 @@ type OrderService struct {
 ```
 
 The decorator receives `t.New`, a generated constructor
-`func(db *DB, users *UserService) *OrderService` — the shape `nexus.Provide`,
-`fx.Provide` and `dig.Provide` take — so a container wires the struct from
-parameter types, unexported fields included, with no reflection on fields.
+`func(db *DB, users *UserService) *OrderService` — the shape `fx.Provide`,
+`dig.Provide` and the [web framework](/web/dependency-injection)'s container
+take — so a container wires the struct from parameter types, unexported fields
+included, with no reflection on fields.
 
 The whole integration with a container is a few lines:
 
@@ -29,7 +30,7 @@ var providers []any
 
 func Component(t *vuka.Type) { providers = append(providers, t.New) }
 
-func Module() nexus.Option { return nexus.Provide(providers...) }
+func Module() fx.Option { return fx.Provide(providers...) }
 ```
 
 ## Rules

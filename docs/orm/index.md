@@ -7,8 +7,6 @@ prefetching, aggregates, `Case`/`When`, subqueries, text and vector search,
 raw SQL, several databases with replicas and routing, mirrored writes, and Go
 migration files written by `makemigrations`.
 
-It was extracted from the [nexus](https://github.com/paulmanoni/nexus)
-framework's ORM: the engine is the same, with no dependency on nexus.
 Connections are plain `database/sql`.
 
 **Go:** an ORM names fields as strings — `Where("author_name = ?", x)`,
@@ -132,7 +130,6 @@ databases, replicas and a supervised pool declares them instead: see
 | [Observability](/orm/observability) | observers, N+1 warnings, slow queries, pool statistics |
 | [Errors](/orm/errors) | the error kinds |
 | [Testing](/orm/testing) | `ormtest` |
-| [Coming from nexus](/orm/nexus) | what moved where |
 
 The repository's
 [`examples/blog`](https://github.com/vuka-lang/orm/tree/main/examples/blog)

@@ -113,7 +113,6 @@ export default defineConfig({
           { text: 'Observability', link: '/orm/observability' },
           { text: 'Errors', link: '/orm/errors' },
           { text: 'Testing', link: '/orm/testing' },
-          { text: 'Coming from nexus', link: '/orm/nexus' },
         ],
       },
       {

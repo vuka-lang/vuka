@@ -109,8 +109,7 @@ migration from the program.
 
 `orm.Migrate(ctx, opts…)` applies pending migrations under a lock (a Postgres
 advisory lock, MySQL's `GET_LOCK`), recording them in `orm_migrations`
-(`orm.MigrationsTable`; a program coming from nexus sets
-`nexus_migrations`):
+(`orm.MigrationsTable` names another table):
 
 | | |
 |---|---|

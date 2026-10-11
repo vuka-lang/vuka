@@ -63,34 +63,6 @@ func scale(x float64) string { return fmt.Sprint("float ", x*2) }
 fmt.Println(scale(2), "|", scale(2.5))   // int 4 | float 5
 ```
 
-## nexus-di — dependency injection with nexus
-
-[`examples/nexus-di`](https://github.com/vuka-lang/vuka/tree/main/examples/nexus-di),
-a module of its own, wires `@di.Component` structs into the
-[nexus](https://github.com/paulmanoni/nexus) container:
-
-```vuka
-@di.Component
-type UserService struct {
-	store *Store
-	log   *slog.Logger // nexus provides the app's logger
-}
-
-@di.Component
-type Greeter struct {
-	users *UserService
-}
-
-func main() {
-	_, stop, err := nexus.InProcess(config.Runtime{},
-		nexus.Provide(NewStore),
-		di.Module(),
-		nexus.Invoke(func(g *Greeter) { fmt.Println(g.Hello(1)) }),
-	)
-	…
-}
-```
-
 ## More
 
 The transpiler's [test cases](https://github.com/vuka-lang/vuka/tree/main/transpile/testdata/golden)

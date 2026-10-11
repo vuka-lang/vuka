@@ -61,8 +61,7 @@ The first, HTTP render is complete HTML, and before `</body>` goes
 again — a GET to the token's URI, with the WebSocket request's headers
 (cookies, auth), through the app's and the route's middleware, with its
 dependencies — and the page it renders becomes the connection's session.
-That second run mounts the instances that keep state (LiveView's two-phase
-mount). A join the route answers with a redirect sends `redirect`, and the
+That second run mounts the instances that keep state. A join the route answers with a redirect sends `redirect`, and the
 browser follows it; any other non-page answer (a 404, JSON) is an `error`,
 and the connection closes.
 
