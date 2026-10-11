@@ -6,3 +6,4 @@ node_modules/
 *.vsix
 docs/.vitepress/dist/
 docs/.vitepress/cache/
+/cmd/vuka/vuka
