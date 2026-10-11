@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -165,5 +166,16 @@ func addImports(src []byte, specs []importSpec) (int, string) {
 	for _, s := range specs {
 		b.WriteString("\nimport " + s.line())
 	}
-	return off(f.Name.End()), b.String()
+	at := off(f.Name.End())
+	if at <= 0 { // the parser lost the position (a decorator confused it)
+		if m := packageClause.FindIndex(src); m != nil {
+			at = m[1]
+		} else {
+			return 0, ""
+		}
+	}
+	return at, b.String()
 }
+
+// packageClause finds the package line, for a file the parser can't place.
+var packageClause = regexp.MustCompile(`(?m)^package[ \t]+\w+`)

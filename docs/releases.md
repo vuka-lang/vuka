@@ -10,6 +10,20 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.22.0 — 2026-10-11
+
+The vuka command only (vuka v0.19.0, runtime v0.16.0 unchanged). New apps use
+ui v0.11.0 and web v0.16.0.
+
+- **Completion knows statics.** `entities.Letter.` offers `Objects`, the
+  fields and every static reached through embedding, with docs; hover on a
+  static shows its declaration; the file keeps compiling while the member is
+  half-typed.
+- **Fixed:** picking a decorator from another package in a file with no
+  import block inserted the import before the `package` line.
+
+Restart the language server in your editor after installing.
+
 ## v0.19.0 — 2026-10-11
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.22.0`. With
