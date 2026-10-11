@@ -41,6 +41,21 @@ In a module on [web](/web/) with views, the app's
 
 `VUKA_TAILWIND=off` skips all of it, as `web.NoTailwind()` in the source does.
 
+A [frontend](/web/frontend) in `frontend/` (of the working directory, else of
+the module root) with a `package.json` is a Vite project, and comes along
+too:
+
+- `vuka run` starts its dev server (`node_modules/.bin/vite`) beside the
+  program, its output prefixed `vite:`; the app's pages load their modules
+  from it. A signal stops it after the program.
+- `vuka build` and `vuka install` run `vite build` before compiling, so the
+  binary embeds the current build.
+- Both first install the dependencies when Vite isn't installed, with the
+  package manager of the lockfile, and copy web's Vite plugin to
+  `frontend/vuka/vite.js` when `vite.config` imports it.
+
+`VUKA_FRONTEND=dir` names another directory; `VUKA_FRONTEND=off` skips it.
+
 ### run -watch
 
 `vuka run -watch` (or `--watch`) keeps the program current while you edit:
@@ -82,7 +97,9 @@ PORT=8094 vuka run -watch ./cmd/app -v   # flags after the package are the progr
   without looking at the terminal. vuka passes the app its session
   directory in `VUKA_DEV_DIR` (under plain `vuka run` too, which turns the
   toolbar on); the build's state is `build.json` there.
-- Ctrl-C or SIGTERM stops the app, the watcher and Tailwind, waiting for the
+- **Vite keeps running** across the restarts: a frontend's page keeps its
+  state through a rebuild of the app.
+- Ctrl-C or SIGTERM stops the app, the watcher, Tailwind and Vite, waiting for the
   app to finish; a second one kills an app that doesn't.
 
 Without `-watch`, `vuka run` starts the program once, as `go run` does.

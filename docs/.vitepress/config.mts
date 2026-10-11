@@ -84,6 +84,7 @@ export default defineConfig({
           { text: 'Styling with Tailwind', link: '/web/styling' },
           { text: 'Dependency injection', link: '/web/dependency-injection' },
           { text: 'Middleware', link: '/web/middleware' },
+          { text: 'Frontends', link: '/web/frontend' },
           { text: 'Live components', link: '/web/live' },
           { text: 'Navigation', link: '/web/navigation' },
           { text: 'Configuration and .env', link: '/web/configuration' },
