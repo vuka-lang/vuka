@@ -10,6 +10,30 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.21.0 — 2026-10-12
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.24.0`.
+
+- **[Enums](/features/enums).** `enum Status { Draft, Sent, Paid }` and
+  `enum Role string { Admin = "admin", … }` declare value enums with
+  `Status.Values()`, `Status.Parse`, `String`, `Valid`, JSON (`MarshalText` /
+  `UnmarshalText`) and `database/sql` (`Scan` / `Value`) methods, so an enum
+  field works in JSON and the ORM as it is. `enum Shape { Circle{Radius
+  float64}; Empty }` declares variants that carry data. Variants are
+  reached as `Status.Draft` and `Shape.Circle{Radius: 2}`, and plain Go uses
+  `StatusDraft`, `ParseStatus` and `ShapeCircle`.
+- `match` takes variants as patterns, `case Shape.Circle{Radius: r}:`, and a
+  match over an enum that misses a variant is an error naming the missing
+  ones. Patterns separated by commas may now be type tests:
+  `case Shape.Circle{}, Shape.Rect{}:`.
+- The editor completes an enum's variants, `Values` and `Parse` after
+  `Status.`, with their doc comments on hover; `vuka fmt` lays enums out;
+  the VS Code grammar highlights them.
+- **Fixed:** `Some` and `None` (and statics) in a field attribute's value are
+  qualified and inferred like any other code: `@orm.Int{Min: Some(0)}`.
+- **Fixed:** an attribute type's `vukaTargets` result may be an alias or a
+  named type of the targets array, and its targets are checked.
+
 ## v0.20.1 — 2026-10-12
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.23.1`.
