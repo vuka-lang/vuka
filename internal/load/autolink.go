@@ -85,6 +85,9 @@ func AutoLink(root, modPath string, pkgs []*Package, gens []Generated) ([]Genera
 			if dx := exampleOf(d.rel); dx != "" && dx != ex {
 				continue // another example's package
 			}
+			if !visible(filepath.ToSlash(rel), d.rel) {
+				continue // internal to a tree the main isn't in
+			}
 			imports = append(imports, d.path)
 		}
 		if len(imports) == 0 && !fileExists(filepath.Join(m.dir, LinkGoName)) {
@@ -94,6 +97,22 @@ func AutoLink(root, modPath string, pkgs []*Package, gens []Generated) ([]Genera
 		linked = append(linked, LinkedMain{Dir: m.dir, Imports: imports})
 	}
 	return out, linked, nil
+}
+
+// visible reports whether the package at slash path imported (relative to
+// the module root) may be imported from the one at importer, by Go's rule
+// for internal directories: only from within the tree rooted at the parent
+// of its last internal element.
+func visible(importer, imported string) bool {
+	parts := strings.Split(imported, "/")
+	for i := len(parts) - 1; i >= 0; i-- {
+		if parts[i] != "internal" {
+			continue
+		}
+		parent := strings.Join(parts[:i], "/")
+		return parent == "" || importer == parent || strings.HasPrefix(importer, parent+"/")
+	}
+	return true
 }
 
 // exampleOf is the examples/<name> prefix of a slash path relative to the

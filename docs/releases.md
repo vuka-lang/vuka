@@ -10,6 +10,18 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.20.1 — 2026-10-12
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.23.1`.
+
+- **Fixed:** auto-linking no longer links a package under an `internal`
+  directory into a program outside that directory's tree (Go refuses such
+  an import, so a module with examples failed to build).
+- With [web](https://github.com/vuka-lang/web) v0.17.0, a live page checks
+  the sign-in when it mounts (join, navigate) and its events read no
+  session; sign-outs through auth close the page at once, and a periodic
+  check (`LiveCheckEvery`, 30s) catches revocations made outside auth.
+
 ## v0.20.0 — 2026-10-12
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.23.0`.

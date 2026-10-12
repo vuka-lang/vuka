@@ -125,3 +125,23 @@ decorator Page(path string) = @Route(path) @timed
 		t.Errorf("a stale disk file should come back empty: %v", links)
 	}
 }
+
+func TestAutoLinkVisible(t *testing.T) {
+	for _, c := range []struct {
+		importer, imported string
+		want               bool
+	}{
+		{"cmd/app", "pages/admin", true},
+		{"cmd/app", "internal/pages", true},
+		{"examples/live", "auth/internal/gatetest", false},
+		{"auth/cmd", "auth/internal/gatetest", true},
+		{"auth", "auth/internal/gatetest", true},
+		{"authx", "auth/internal/gatetest", false},
+		{"a/internal/b", "a/internal/b/internal/c", true},
+		{"a/internal/x", "a/internal/b/internal/c", false},
+	} {
+		if got := visible(c.importer, c.imported); got != c.want {
+			t.Errorf("visible(%q, %q) = %v, want %v", c.importer, c.imported, got, c.want)
+		}
+	}
+}
