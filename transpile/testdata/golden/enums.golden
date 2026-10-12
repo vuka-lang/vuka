@@ -59,8 +59,12 @@ func area(s Shape) float64 {
 	} else { panic("vuka: no case matched") }
 }
 
+func (c ShapeCircle/*line enums.vuka:59:21*/) Diameter() float64 { return 2 * c.Radius }
+
+func grow(c ShapeCircle/*line enums.vuka:61:25*/) ShapeCircle/*line enums.vuka:61:39*/ { return ShapeCircle/*line enums.vuka:61:61*/{Radius: c.Radius + 1} }
+
 func round(s Shape) bool {
-	if __m3 := /*line enums.vuka:60:8*/s; false { panic(__m3)
+	if __m3 := /*line enums.vuka:64:8*/s; false { panic(__m3)
 	} else if (func() (__ok bool) { _, __p1ok := __m3.(ShapeCircle); if !__p1ok { return }; __ok = true; return }()) || (func() (__ok bool) { _, __p1ok := __m3.(ShapeEmpty); if !__p1ok { return }; __ok = true; return }()) {
 		return true
 	} else if func() (__ok bool) { _, __p1ok := __m3.(ShapeRect); if !__p1ok { return }; __ok = true; return }() {
@@ -70,15 +74,15 @@ func round(s Shape) bool {
 
 func main() {
 	s := StatusSent
-	fmt.Println(s, StatusPaid/*line enums.vuka:70:28*/, label(StatusDraft/*line enums.vuka:70:48*/), label(s), s.Valid(), Status(7), Status(7).Valid())
-	fmt.Println(StatusValues/*line enums.vuka:71:27*/(), RoleValues/*line enums.vuka:71:42*/(), RoleAdmin/*line enums.vuka:71:56*/, PriorityHigh/*line enums.vuka:71:71*/, PriorityValues/*line enums.vuka:71:88*/())
-	fmt.Println(ParseStatus/*line enums.vuka:72:26*/("Paid"), ParseStatus/*line enums.vuka:72:48*/("nope"), ParseRole/*line enums.vuka:72:68*/("staff"), ParseRole/*line enums.vuka:72:89*/("Staff"), ParseRole/*line enums.vuka:72:110*/("x"))
-	b, _ := json.Marshal(Order{ID: 1, Status: StatusPaid/*line enums.vuka:73:55*/, Role: RoleStaff/*line enums.vuka:73:73*/})
+	fmt.Println(s, StatusPaid/*line enums.vuka:74:28*/, label(StatusDraft/*line enums.vuka:74:48*/), label(s), s.Valid(), Status(7), Status(7).Valid())
+	fmt.Println(StatusValues/*line enums.vuka:75:27*/(), RoleValues/*line enums.vuka:75:42*/(), RoleAdmin/*line enums.vuka:75:56*/, PriorityHigh/*line enums.vuka:75:71*/, PriorityValues/*line enums.vuka:75:88*/())
+	fmt.Println(ParseStatus/*line enums.vuka:76:26*/("Paid"), ParseStatus/*line enums.vuka:76:48*/("nope"), ParseRole/*line enums.vuka:76:68*/("staff"), ParseRole/*line enums.vuka:76:89*/("Staff"), ParseRole/*line enums.vuka:76:110*/("x"))
+	b, _ := json.Marshal(Order{ID: 1, Status: StatusPaid/*line enums.vuka:77:55*/, Role: RoleStaff/*line enums.vuka:77:73*/})
 	fmt.Println(string(b))
 	var o Order
 	fmt.Println(json.Unmarshal([]byte(`{"ID":2,"Status":"Sent","Role":"admin"}`), &o), o.Status, o.Role)
 	fmt.Println(json.Unmarshal([]byte(`{"Status":"Lost"}`), &o))
-	_, err := json.Marshal(Order{Status: 9, Role: RoleAdmin/*line enums.vuka:78:58*/})
+	_, err := json.Marshal(Order{Status: 9, Role: RoleAdmin/*line enums.vuka:82:58*/})
 	fmt.Println(err)
 	var st Status
 	for _, src := range []any{int64(2), "Sent", []byte("Draft"), int64(9), 1.5} {
@@ -86,15 +90,15 @@ func main() {
 		fmt.Print(st, " ", err, "; ")
 	}
 	fmt.Println()
-	v, err := RoleStaff/*line enums.vuka:86:22*/.Value()
+	v, err := RoleStaff/*line enums.vuka:90:22*/.Value()
 	fmt.Println(v, err)
-	v, err = StatusPaid/*line enums.vuka:88:22*/.Value()
+	v, err = StatusPaid/*line enums.vuka:92:22*/.Value()
 	fmt.Println(v, err)
-	shapes := []Shape{ShapeCircle/*line enums.vuka:90:32*/{Radius: 1}, ShapeRect/*line enums.vuka:90:55*/{W: 2, H: 3}, ShapeRect/*line enums.vuka:90:79*/{W: 2, H: 2}, ShapeEmpty{}/*line enums.vuka:90:104*/}
+	shapes := []Shape{ShapeCircle/*line enums.vuka:94:32*/{Radius: 1}, ShapeRect/*line enums.vuka:94:55*/{W: 2, H: 3}, ShapeRect/*line enums.vuka:94:79*/{W: 2, H: 2}, ShapeEmpty{}/*line enums.vuka:94:104*/}
 	for _, sh := range shapes {
 		fmt.Printf("%.2f ", area(sh))
 	}
-	fmt.Println(StatusDraft, ShapeEmpty{} == ShapeEmpty{}/*line enums.vuka:94:54*/, round(ShapeEmpty{}/*line enums.vuka:94:73*/), round(shapes[1]))
+	fmt.Println(StatusDraft, ShapeEmpty{} == ShapeEmpty{}/*line enums.vuka:98:54*/, round(ShapeEmpty{}/*line enums.vuka:98:73*/), round(shapes[1]), grow(ShapeCircle/*line enums.vuka:98:111*/{Radius: 1}).Diameter())
 }
 
 //line enums.vuka:10:1

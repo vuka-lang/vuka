@@ -56,6 +56,10 @@ func area(s Shape) float64 {
 	}
 }
 
+func (c Shape.Circle) Diameter() float64 { return 2 * c.Radius }
+
+func grow(c Shape.Circle) Shape.Circle { return Shape.Circle{Radius: c.Radius + 1} }
+
 func round(s Shape) bool {
 	match s {
 	case Shape.Circle{}, Shape.Empty:
@@ -91,5 +95,5 @@ func main() {
 	for _, sh := range shapes {
 		fmt.Printf("%.2f ", area(sh))
 	}
-	fmt.Println(StatusDraft, ShapeEmpty{} == Shape.Empty, round(Shape.Empty), round(shapes[1]))
+	fmt.Println(StatusDraft, ShapeEmpty{} == Shape.Empty, round(Shape.Empty), round(shapes[1]), grow(Shape.Circle{Radius: 1}).Diameter())
 }
