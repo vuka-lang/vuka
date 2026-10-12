@@ -155,6 +155,13 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 	}
+	var linkMsg string
+	if overlay, gens, linkMsg, err = autoLink(root, modPath, tmp, overlay, pkgs, gens); err != nil {
+		return err
+	}
+	if linkMsg != "" && (cmd == "run" || cmd == "build" || cmd == "install") {
+		fmt.Fprintln(stderr, linkMsg)
+	}
 	var env []string
 	stopTailwind, stopFrontend := func() {}, func() {}
 	switch cmd {
@@ -343,11 +350,20 @@ func gen(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	// The link files need the whole module's declarer packages, so they are
+	// written (and checked) only when the gen covers the module; a narrower
+	// gen leaves them as they are.
+	var links []load.Generated
+	if slices.ContainsFunc(patterns, func(p string) bool { return moduleWide(root, p) }) {
+		if links, _, err = load.AutoLink(root, modPath, pkgs, files); err != nil {
+			return err
+		}
+	}
 	css, err := buildTailwind(root, overlay, pa, os.Stderr)
 	if err != nil {
 		return err
 	}
-	for _, g := range css {
+	for _, g := range append(links, css...) {
 		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
 			files = append(files, g)
 		}
@@ -374,6 +390,23 @@ func gen(args []string, stdout io.Writer) error {
 		return fmt.Errorf("%d generated file(s) out of date; run vuka gen", stale)
 	}
 	return nil
+}
+
+// moduleWide reports whether a package pattern of vuka gen -inplace covers
+// the whole module: recursive from its root.
+func moduleWide(root, pattern string) bool {
+	base, recursive := strings.CutSuffix(pattern, "/...")
+	if !recursive {
+		return false
+	}
+	if base == "" {
+		base = "."
+	}
+	abs, err := filepath.Abs(base)
+	if err != nil {
+		return false
+	}
+	return realPathOf(abs) == realPathOf(root)
 }
 
 // inPattern reports whether dir is matched by a package pattern of vuka gen
@@ -430,6 +463,11 @@ func genModule(out string, check bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	links, _, err := load.AutoLink(root, modPath, pkgs, gens)
+	if err != nil {
+		return err
+	}
+	gens = append(gens, links...)
 	css, err := buildTailwind(root, overlay, pa, os.Stderr)
 	if err != nil {
 		return err

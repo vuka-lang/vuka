@@ -270,6 +270,7 @@ type supervisor struct {
 	app            *app          // the running build; nil when none runs
 	exits          chan *app     // each app, once it has exited
 	assets         *devAssets
+	linked         string // the last build's auto-link message, said once per change
 }
 
 type buildResult struct {
@@ -318,6 +319,19 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 			r.err = err
 			return r
 		}
+	}
+	var linkMsg string
+	if r.overlay, gens, linkMsg, err = autoLink(s.root, modPath, dir, r.overlay, pkgs, gens); err != nil {
+		r.err = err
+		return r
+	}
+	if linkMsg != s.linked {
+		// Said once per change: a package created mid-session is linked by the
+		// next rebuild, a deleted one unlinked.
+		if linkMsg != "" {
+			fmt.Fprintln(s.stderr, linkMsg)
+		}
+		s.linked = linkMsg
 	}
 	if r.err = ctx.Err(); r.err != nil {
 		return r
