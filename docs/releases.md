@@ -10,6 +10,19 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.23.2 — 2026-10-12
+
+Runtime: unchanged, v0.16.0.
+
+- **Editor:** after a struct field, `@pkg.` completes that package's field
+  attributes — the types and the functions returning one, with their docs —
+  and a half-typed field attribute no longer breaks the file's other
+  diagnostics and hover.
+- New apps use [web](https://github.com/vuka-lang/web) v0.18.0, whose
+  `auth.Config.UserCache` keeps a loaded user for a while, so a signed-in
+  request reads only its session or token; `auth.Refresh(ctx, uid)` drops
+  one after a change.
+
 ## v0.20.1 — 2026-10-12
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.23.1`.
