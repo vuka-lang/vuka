@@ -1,0 +1,35 @@
+package orders
+
+// Status is where an order is.
+enum Status { Draft, Sent, Paid }
+
+enum Role string {
+	Admin = "admin" // everything
+	Clerk = "clerk"
+}
+
+enum Shape {
+	Circle{Radius float64}
+	Rect{W, H float64}
+	Unknown
+}
+
+func label(s Status) string {
+	match s {
+	case Status.Draft:
+		return "draft"
+	case _:
+		return "other"
+	}
+}
+
+func area(s Shape) float64 {
+	match s {
+	case Shape.Circle{Radius: r}:
+		return r
+	case Shape.Rect{W: w, H: h} if w == h:
+		return w
+	case Shape.Unknown:
+		return 0
+	}
+}

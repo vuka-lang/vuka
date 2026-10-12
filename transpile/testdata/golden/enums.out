@@ -1,0 +1,11 @@
+Sent Paid draft out true Status(7) false
+[Draft Sent Paid] [admin staff] admin High [Low High]
+Ok(Paid) Err(invalid Status "nope") Ok(staff) Ok(staff) Err(invalid Role "x")
+{"ID":1,"Status":"Paid","Role":"staff"}
+<nil> Sent admin
+invalid Status "Lost"
+json: error calling MarshalText for type *main.Status: invalid Status 9
+Paid <nil>; Sent <nil>; Draft <nil>; Draft invalid Status 9; Draft can't scan a float64 into a Status; 
+staff <nil>
+2 <nil>
+3.14 6.00 4.00 0.00 Draft true true false 4

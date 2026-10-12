@@ -29,9 +29,10 @@ func wildcards(n int) []*space {
 
 // ctorInfo is one of the constructors that together make up a type.
 type ctorInfo struct {
-	name   string
-	args   []types.Type
-	fields []string // a struct's field names
+	name    string
+	args    []types.Type
+	fields  []string // a struct's field names
+	variant string   // an enum's variant, as written after the dot
 }
 
 // ctors are the constructors that cover t, or nil when t's values can't be
@@ -48,6 +49,20 @@ func ctors(t types.Type) []ctorInfo {
 	}
 	if _, ok := t.(*types.TypeParam); ok {
 		return nil
+	}
+	if info := enumOf(t); info != nil {
+		var out []ctorInfo
+		for _, v := range info.variants {
+			c := ctorInfo{name: ctorKey(v.obj), variant: v.name}
+			if st, ok := v.obj.Type().Underlying().(*types.Struct); ok && info.sum {
+				for i := range st.NumFields() {
+					c.args = append(c.args, st.Field(i).Type())
+					c.fields = append(c.fields, st.Field(i).Name())
+				}
+			}
+			out = append(out, c)
+		}
+		return out
 	}
 	switch u := t.Underlying().(type) {
 	case *types.Basic:
@@ -77,6 +92,9 @@ func (pc *patCtx) space(x ast.Expr, t types.Type) *space {
 		case x.Name == "None" && kind == "Option":
 			return &space{ctor: "None"}
 		case pc.isValue(x.Name):
+			if s := pc.enumSpace(pc.constOf(x), t); s != nil {
+				return s
+			}
 			if b, ok := t.Underlying().(*types.Basic); ok && b.Info()&types.IsBoolean != 0 && (x.Name == "true" || x.Name == "false") {
 				if obj, ok := pc.lookup(x.Name).(*types.Const); ok && obj.Parent() == types.Universe {
 					return &space{ctor: x.Name}
@@ -93,8 +111,22 @@ func (pc *patCtx) space(x ast.Expr, t types.Type) *space {
 			}
 			return &space{ctor: id.Name, args: []*space{pc.space(x.Args[0], inner)}}
 		}
+	case *ast.SelectorExpr:
+		if obj, _, ok := pc.enumVariant(x); ok {
+			if s := pc.enumSpace(obj, t); s != nil {
+				return s
+			}
+		} else if s := pc.enumSpace(pc.constOf(x), t); s != nil {
+			return s
+		}
 	case *ast.CompositeLit:
-		if T, err := pc.typeExpr(x.Type); err == nil && types.Identical(T, t) {
+		if T, err := pc.typeExpr(x.Type); err == nil && enumOf(t) != nil {
+			if tn, ok := T.(*types.Named); ok {
+				if s := pc.enumSpace(tn.Obj(), t); s != nil && pc.fieldSpaces(s, x, T) {
+					return s
+				}
+			}
+		} else if err == nil && types.Identical(T, t) {
 			st, ok := t.Underlying().(*types.Struct)
 			if !ok {
 				break
@@ -112,6 +144,41 @@ func (pc *patCtx) space(x ast.Expr, t types.Type) *space {
 		}
 	}
 	return opaque(x)
+}
+
+// enumSpace is the space of obj, a variant of t's enum, matching all of it;
+// nil when obj is no variant of t.
+func (pc *patCtx) enumSpace(obj types.Object, t types.Type) *space {
+	if obj == nil {
+		return nil
+	}
+	info := enumOf(t)
+	if info == nil || info.variant(obj) == nil {
+		return nil
+	}
+	n := 0
+	if st, ok := obj.Type().Underlying().(*types.Struct); ok && info.sum {
+		n = st.NumFields()
+	}
+	return &space{ctor: ctorKey(obj), args: wildcards(n)}
+}
+
+// fieldSpaces fills s's sub-patterns from a variant's struct pattern; false
+// when a field can't be enumerated.
+func (pc *patCtx) fieldSpaces(s *space, x *ast.CompositeLit, T types.Type) bool {
+	st, ok := T.Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	for _, el := range x.Elts {
+		kv := el.(*ast.KeyValueExpr)
+		i := fieldIndex(st, kv.Key.(*ast.Ident).Name)
+		if i < 0 {
+			return false
+		}
+		s.args[i] = pc.space(kv.Value, st.Field(i).Type())
+	}
+	return true
 }
 
 // opaque is a pattern matching values of its own: equal literals and names
@@ -233,6 +300,19 @@ func (pc *patCtx) missing(rows [][]*space, ts []types.Type) [][]string {
 
 // showCtor writes constructor c of t with sub-patterns args.
 func (pc *patCtx) showCtor(c ctorInfo, t types.Type, args []string) string {
+	if c.variant != "" {
+		var fs []string
+		for i, a := range args {
+			if a != "_" {
+				fs = append(fs, c.fields[i]+": "+a)
+			}
+		}
+		name := pc.e.display(t) + "." + c.variant
+		if len(fs) > 0 {
+			name += "{" + strings.Join(fs, ", ") + "}"
+		}
+		return name
+	}
 	switch c.name {
 	case "Ok", "Err", "Some":
 		return c.name + "(" + args[0] + ")"
@@ -262,11 +342,14 @@ func (pc *patCtx) exhaustive(rows [][]*space, t types.Type) string {
 	}
 	var miss []string
 	for i, w := range ws {
-		if i == 4 {
+		if i == 4 && enumOf(t) == nil {
 			miss = append(miss, "…")
 			break
 		}
 		miss = append(miss, w[0])
+	}
+	if n := len(miss); n > 2 && enumOf(t) != nil {
+		return "missing " + strings.Join(miss[:n-1], ", ") + " and " + miss[n-1]
 	}
 	return "missing " + strings.Join(miss, " and ")
 }

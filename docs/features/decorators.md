@@ -208,6 +208,20 @@ it is saved. Test files don't count, and a `//vuka:nolink` line above a
 package clause opts that package — or, on a main, the whole program — out;
 see [the CLI](/tools/cli#build-run-test-vet-install).
 
+A package also counts when one of its struct types embeds a type that
+declares itself: one with a `vukaDeclares()` method, unexported, with no
+parameters or results. [ORM models](/orm/models) link this way — `orm.Base`
+has the marker — so a model package nothing imports is still migrated. A
+library whose embeddable type registers its embedders at init marks it the
+same way:
+
+```go
+func (Base[Self]) vukaDeclares() {}
+```
+
+Only `.vuka` files are looked at; a `.go` file's embedding doesn't link its
+package.
+
 | `*vuka.Decl` | |
 |---|---|
 | `d.Name`, `d.Pkg` | `"main.greet"`, or `"Shell.Run"` for a method; the import path |

@@ -545,7 +545,13 @@ func lookupStatic(t *types.Named, member string, current *types.Package) types.O
 	if !token.IsExported(member) && obj.Pkg() != current {
 		return nil
 	}
-	return obj.Pkg().Scope().Lookup(name)
+	if found := obj.Pkg().Scope().Lookup(name); found != nil {
+		return found
+	}
+	if found := enumStatic(t, member); found != nil && (found.Exported() || found.Pkg() == current) {
+		return found
+	}
+	return nil
 }
 
 // isStaticAccessor reports whether fn is a generic static's accessor: it
@@ -609,6 +615,17 @@ func (e *engine) resolveStatics(f *fileState) {
 			}
 		}
 		text += ref.obj.Name()
+		if tn, ok := ref.obj.(*types.TypeName); ok {
+			// An enum's variant: a type, or, without fields, a value too.
+			if st, ok := tn.Type().Underlying().(*types.Struct); ok && !typeContext(f, e, sel) {
+				if st.NumFields() > 0 {
+					f.done[start] = true
+					e.errs.add(f.nodePos(sel.Sel.Pos()), "%s.%s holds data: write %s.%s{…}", named.Obj().Name(), sel.Sel.Name, named.Obj().Name(), sel.Sel.Name)
+					return true
+				}
+				text += "{}"
+			}
+		}
 		if fn, ok := ref.obj.(*types.Func); ok && fn.Type().(*types.Signature).TypeParams().Len() > 0 {
 			var args []string
 			for i := 0; i < ref.owner.TypeArgs().Len(); i++ {
@@ -777,7 +794,7 @@ func (e *engine) mayUseStatics(f *fileState) bool {
 	members := e.members
 	statics := false
 	for _, v := range e.vuka {
-		statics = statics || len(v.statics) > 0 || len(v.staticFuncs) > 0
+		statics = statics || len(v.statics) > 0 || len(v.staticFuncs) > 0 || len(v.enums) > 0
 	}
 	nonStd := map[string]bool{}
 	for _, imp := range f.ast.Imports {
@@ -1128,4 +1145,31 @@ func (e *engine) staticCycles() {
 		}
 		e.errs.add(declFile[obj].at(s.nameOff), "initialization cycle: static %s depends on itself: %s", path[0], strings.Join(path, " → "))
 	}
+}
+
+// typeContext reports whether sel stands where Go expects a type: a
+// composite literal's, a declaration's or a conversion's.
+func typeContext(f *fileState, e *engine, sel ast.Expr) bool {
+	switch p := f.parents[sel].(type) {
+	case *ast.CompositeLit:
+		return p.Type == sel
+	case *ast.Field, *ast.StarExpr, *ast.ArrayType, *ast.MapType, *ast.ChanType, *ast.Ellipsis, *ast.TypeSpec, *ast.FuncType:
+		return true
+	case *ast.ValueSpec:
+		return p.Type == sel
+	case *ast.TypeAssertExpr:
+		return p.Type == sel
+	case *ast.CallExpr:
+		return p.Fun == sel
+	case *ast.CaseClause:
+		if b, ok := f.parents[p].(*ast.BlockStmt); ok {
+			_, ok := f.parents[b].(*ast.TypeSwitchStmt)
+			return ok
+		}
+	case *ast.IndexExpr:
+		return p.Index == sel && e.info.Types[p.X].IsType()
+	case *ast.IndexListExpr:
+		return e.info.Types[p.X].IsType()
+	}
+	return false
 }

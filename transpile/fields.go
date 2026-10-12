@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -86,7 +87,23 @@ func (f *fileState) attachField(a *Attr) {
 //			"Title": {Char{Max: 200}},
 //		})
 //	}
+//
+// The registrations are written with the trailer, each time it is, so the
+// rewrites decided inside the attributes (Some and None, statics) reach them.
 func (e *engine) renderFields(f *fileState) {
+	for _, a := range f.attrs {
+		if a.Field && len(a.fieldNames) > 0 {
+			f.fieldsOn = true
+			f.runtime()
+		}
+	}
+}
+
+func (f *fileState) renderFieldAttrs() {
+	f.fieldGen = genWriter{}
+	if !f.fieldsOn {
+		return
+	}
 	var order []string
 	byType := map[string][]*Attr{}
 	for _, a := range f.attrs {
@@ -98,7 +115,7 @@ func (e *engine) renderFields(f *fileState) {
 		}
 		byType[a.structOf] = append(byType[a.structOf], a)
 	}
-	w := &f.deco
+	w := &f.fieldGen
 	for _, typ := range order {
 		attrs := byType[typ]
 		var names []string
@@ -111,14 +128,14 @@ func (e *engine) renderFields(f *fileState) {
 				values[n] = append(values[n], a)
 			}
 		}
-		w.gen("\nfunc init() {\n\t"+f.runtime()+".RegisterFields["+typ+"](map[string][]any{\n", attrs[0].start)
+		w.gen("\nfunc init() {\n\t"+f.rt+".RegisterFields["+typ+"](map[string][]any{\n", attrs[0].start)
 		for _, n := range names {
 			w.gen("\t\t"+strconv.Quote(n)+": {", values[n][0].start)
 			for i, a := range values[n] {
 				if i > 0 {
 					w.gen(", ", a.start)
 				}
-				e.writeFieldAttr(f, a)
+				f.writeFieldAttr(w, a)
 			}
 			w.gen("},\n", values[n][0].end)
 		}
@@ -128,22 +145,71 @@ func (e *engine) renderFields(f *fileState) {
 
 // writeFieldAttr writes a field attribute's value: T{…} or a call as
 // written, a bare T as T's zero value.
-func (e *engine) writeFieldAttr(f *fileState, a *Attr) {
-	w := &f.deco
+func (f *fileState) writeFieldAttr(w *genWriter, a *Attr) {
 	text := string(f.src[a.nameStart:a.end])
 	bare := !strings.HasSuffix(text, "}") && !strings.HasSuffix(text, ")")
 	if bare {
 		w.gen("*new(", a.start)
 	}
-	if !e.bare {
+	if !f.bare {
 		p := a.Pos
 		p.Column++
 		w.gen(lineDirective(p), a.nameStart)
 	}
-	f.copySrc(w, text, a.nameStart)
+	if a.Field {
+		f.copyRewritten(w, span{a.nameStart, a.end})
+	} else {
+		f.copySrc(w, text, a.nameStart)
+	}
 	if bare {
 		w.gen(")", a.end)
 	}
+}
+
+// inFieldAttr reports whether src[start:end] is inside a field attribute's
+// value, which is lowered where the trailer registers it.
+func (f *fileState) inFieldAttr(start, end int) bool {
+	for _, a := range f.attrs {
+		if a.Field && start >= a.nameStart && end <= a.end {
+			return true
+		}
+	}
+	return false
+}
+
+// copyRewritten copies src[sp] into w with the rewrites decided inside it
+// and its vuka.File literals in their place.
+func (f *fileState) copyRewritten(w *genWriter, sp span) {
+	type piece struct {
+		edit
+		file bool
+	}
+	var ps []piece
+	for _, e := range f.fixed.sorted() {
+		if e.start >= sp.start && e.end <= sp.end {
+			ps = append(ps, piece{edit: e})
+		}
+	}
+	for _, l := range f.files {
+		if l.off >= sp.start && l.end <= sp.end {
+			ps = append(ps, piece{edit: edit{start: l.off, end: l.end, text: l.repl}, file: true})
+		}
+	}
+	sort.SliceStable(ps, func(i, j int) bool { return ps[i].start < ps[j].start })
+	last := sp.start
+	for _, p := range ps {
+		if p.start < last {
+			continue
+		}
+		w.copy(string(f.src[last:p.start]), last)
+		if p.file {
+			w.gen(p.text, p.start)
+		} else {
+			w.replace(p.text, p.start, p.end-p.start)
+		}
+		last = p.end
+	}
+	w.copy(string(f.src[last:sp.end]), last)
 }
 
 // refChain splits a selector chain at the type it starts from: Post.Author.Name

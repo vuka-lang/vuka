@@ -94,7 +94,8 @@ packages are passed to go as they are.
 **Declarer packages are linked automatically.** Every package of the module
 with a [declarer](/features/decorators#declaration-decorators), a type
 decorator or a composed decorator on a declaration — routes, crons, live
-pages, commands — is blank-imported into each main package through a
+pages, commands — or a struct type embedding a type marked with
+`vukaDeclares()` — [ORM models](/orm/models) embedding `orm.Base` — is blank-imported into each main package through a
 generated `vuka_link_gen.go` in the overlay, so its registrations exist in
 the binary without a hand-written import, and its compile errors fail the
 build like anyone else's. `vuka build` and `run` say what they link

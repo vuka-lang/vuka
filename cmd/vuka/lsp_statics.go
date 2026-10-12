@@ -218,7 +218,7 @@ func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) (members []staticMemb
 				continue
 			}
 			if l.statics {
-				for _, m := range staticDecls(files, l.name, l.dir == srcDir, spot.written) {
+				for _, m := range append(staticDecls(files, l.name, l.dir == srcDir, spot.written), enumDecls(files, l.name, l.dir == srcDir, spot.written)...) {
 					if taken[m.name] {
 						continue
 					}
@@ -657,6 +657,9 @@ func (p *proxy) staticHoverItem(vf *vfile, spot *staticSpot) map[string]any {
 			continue
 		}
 		head := strings.Replace(m.detail, "static "+m.name, "static "+spot.written+"."+m.name, 1)
+		if rest, ok := strings.CutPrefix(m.detail, "static const "+m.name); ok {
+			head = "static const " + spot.written + "." + m.name + rest
+		}
 		if strings.HasPrefix(m.detail, "static func") {
 			head = "static " + spot.written + "." + m.name + strings.TrimPrefix(m.detail, "static func")
 		}

@@ -1,0 +1,157 @@
+# Enums
+
+**Go:** a set of named values is a defined type, a `const` block with `iota`,
+and the methods around it — `String`, parsing, JSON, the database — written by
+hand.
+
+**Vuka adds** `enum`: the variants, and everything around them, from one line.
+
+```vuka
+// Status is where an order is.
+enum Status { Draft, Sent, Paid }
+
+// Role is what a member of staff may do.
+enum Role string {
+	Admin = "admin"
+	Clerk = "clerk"
+}
+
+s := Status.Sent
+fmt.Println(s)                 // Sent
+fmt.Println(Status.Values())   // [Draft Sent Paid]
+r := Role.Parse("clerk")?      // Role.Clerk
+```
+
+Variants are reached through the enum's name, `Status.Draft`, like
+[statics](/features/statics), and complete in the editor after `Status.`.
+
+## Value enums
+
+`enum Name { … }` numbers its variants from 0 in the order they are written.
+A type after the name — `string`, or an integer type such as `uint8` — makes it
+an enum of that type; then every variant has a value, or none:
+
+```vuka
+enum Priority uint8 {
+	Low  = 1
+	High = 5
+}
+
+enum Visibility string { Public, Private }   // "Public", "Private"
+```
+
+A string enum's variants without values are their own names. Variants are
+separated by commas or new lines, start with a capital letter, and may have doc
+comments.
+
+Every value enum gets:
+
+| | |
+|---|---|
+| `Status.Values()` | every variant, in order: `[]Status` |
+| `Status.Parse(text)` | `Result[Status]` from a variant's name, or a string enum's value |
+| `s.String()` | the variant's name; a string enum's value |
+| `s.Valid()` | whether `s` is one of the variants |
+| `MarshalText`, `UnmarshalText` | JSON and other text formats use the `String` form; an unknown one is an error |
+| `Scan`, `Value` | `database/sql`: stored as the number, or the string enum's value |
+
+So an enum field needs nothing more to be read from JSON, written to JSON,
+stored by the [ORM](/orm/models) or scanned from a row:
+
+```vuka
+type Order struct {
+	ID     int64
+	Status Status
+}
+
+json.Marshal(Order{ID: 7, Status: Status.Paid})   // {"ID":7,"Status":"Paid"}
+```
+
+`Scan` also accepts the variant's name from a text column. A value that isn't
+a variant — `Status(9)`, or `""` in a string enum without an empty variant — is
+an error to marshal or store. Give a string enum an empty variant
+(`None = ""`) for a field that may be unset.
+
+## Enums with data
+
+Variants that carry fields make an enum whose values are different shapes:
+
+```vuka
+// Shape is a parcel's footprint.
+enum Shape {
+	Circle{Radius float64}
+	Rect{W, H float64}
+	Unknown
+}
+
+s := Shape.Circle{Radius: 2}
+var shapes = []Shape{s, Shape.Rect{W: 1, H: 3}, Shape.Unknown}
+```
+
+A variant with fields is built like a struct, `Shape.Circle{Radius: 2}`; one
+without fields is a value, `Shape.Unknown`. `Shape.Circle` is also a type:
+`func grow(c Shape.Circle) Shape.Circle`.
+
+`Shape` is an interface that only its variants satisfy, so it has no methods
+of its own: write functions that take a `Shape`, or methods on the variants,
+`func (c Shape.Circle) Diameter() float64`.
+Its zero value is `nil`, which is none of the variants.
+
+## match
+
+A `match` over an enum takes its variants as patterns, and fields apart the
+way [struct patterns](/features/match) do:
+
+```vuka
+func area(s Shape) float64 {
+	match s {
+	case Shape.Circle{Radius: r}:
+		return math.Pi * r * r
+	case Shape.Rect{W: w, H: h} if w == h:
+		return w * w
+	case Shape.Rect{W: w, H: h}:
+		return w * h
+	case Shape.Unknown:
+		return 0
+	}
+}
+
+func label(s Status) string {
+	match s {
+	case Status.Draft:
+		return "draft"
+	case Status.Sent, Status.Paid:
+		return "out"
+	}
+}
+```
+
+A match must cover every variant, or have a `case _:`. One that doesn't is an
+error at the `match`, in the editor and from `vuka build`, naming what's left:
+
+```text
+orders.vuka:12:2: match on Status isn't exhaustive: missing Status.Sent and Status.Paid; add the missing cases or case _:
+```
+
+So adding a variant points at every match that has to handle it. `Shape.Rect`
+alone (or `Shape.Rect{}`) matches any `Rect`; guarded cases cover nothing, and
+`Shape.Circle{Radius: 0}` covers only that circle.
+
+## From Go
+
+An enum is plain Go underneath, named the way Go code names enums, so `.go`
+files and other modules use it directly:
+
+| Vuka | Go |
+|---|---|
+| `enum Status { Draft, … }` | `type Status int` and `const ( StatusDraft Status = iota; … )` |
+| `Status.Draft` | `StatusDraft` |
+| `Status.Values()` | `StatusValues()` |
+| `Status.Parse(text)` | `ParseStatus(text)`, returning `vuka.Result[Status]` (`.Get()` gives `(Status, error)`) |
+| `enum Shape { Circle{…}; … }` | `type Shape interface{ isShape() }` and `type ShapeCircle struct{ … }` |
+| `Shape.Circle{Radius: 2}` | `ShapeCircle{Radius: 2}` |
+| `Shape.Unknown` | `ShapeUnknown{}` |
+
+An unexported enum's names are unexported too: `enum status` gives
+`statusDraft`, `statusValues` and `parseStatus`. `vuka explain` shows the
+whole expansion.

@@ -26,3 +26,23 @@ var v = 1
 
 @vuka.Targets(vuka.OnType)
 func c() {}
+
+type fieldOnly = [vuka.OnField]struct{}
+
+// Max is declared for fields the way Go code does, through an alias.
+type Max int
+
+func (Max) vukaTargets() fieldOnly { return fieldOnly{} }
+
+type paramOnly [vuka.OnParam]struct{}
+
+// Min is declared for parameters through a named array type.
+type Min int
+
+func (Min) vukaTargets() paramOnly { return paramOnly{} }
+
+@Max(3)
+func d() {}
+
+@Min(1)
+func e() {}

@@ -111,11 +111,20 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		} else {
 			var ors []string
 			for _, a := range alts {
-				if len(a.binds) > 0 || a.complex {
-					fail(c.start, "patterns separated by commas can't bind variables or match inside pointers and interfaces")
+				if len(a.binds) > 0 {
+					fail(c.start, "patterns separated by commas can't bind variables")
 					return
 				}
-				ors = append(ors, "("+a.tests()+")")
+				if !a.complex {
+					ors = append(ors, "("+a.tests()+")")
+					continue
+				}
+				_, cond, msg := pc.condition(a)
+				if msg != "" {
+					fail(c.start, "%s", msg)
+					return
+				}
+				ors = append(ors, "("+cond+")")
 			}
 			cond = strings.Join(ors, " || ")
 		}
@@ -258,6 +267,13 @@ func (pc *patCtx) compile(c *compiled, x ast.Expr, s string, t types.Type) error
 		c.test(s + " == " + x.Value)
 		return nil
 	case *ast.SelectorExpr:
+		if obj, text, ok := pc.enumVariant(x); ok {
+			if _, isType := obj.(*types.TypeName); isType {
+				return pc.structPat(c, &ast.CompositeLit{Type: x}, false, s, t)
+			}
+			c.test(s + " == " + text)
+			return nil
+		}
 		c.test(s + " == " + types.ExprString(x))
 		return nil
 	case *ast.UnaryExpr:
@@ -382,6 +398,15 @@ func (pc *patCtx) typeExpr(x ast.Expr) (types.Type, error) {
 		if id, ok := x.X.(*ast.Ident); ok {
 			if pn, ok := pc.lookup(id.Name).(*types.PkgName); ok {
 				obj = pn.Imported().Scope().Lookup(x.Sel.Name)
+				break
+			}
+		}
+		// Shape.Circle: a variant of an enum with data.
+		if T, err := pc.typeExpr(x.X); err == nil {
+			if info := enumOf(T); info != nil && info.sum {
+				if v := info.byName(x.Sel.Name); v != nil {
+					obj = v.obj
+				}
 			}
 		}
 	default:
@@ -420,7 +445,7 @@ func (pc *patCtx) condition(c *compiled) (init, cond, msg string) {
 		names = append(names, b.name)
 	}
 	var body strings.Builder
-	for _, s := range c.steps {
+	for i, s := range c.steps {
 		switch {
 		case s.test != "":
 			body.WriteString("if !(" + s.test + ") { return }; ")
@@ -428,7 +453,13 @@ func (pc *patCtx) condition(c *compiled) (init, cond, msg string) {
 			body.WriteString(s.bind.name + " = " + s.bind.expr + "; ")
 		default:
 			tmp, from, typ := s.assert[0], s.assert[1], s.assert[2]
-			body.WriteString(tmp + ", " + tmp + "ok := " + from + ".(" + typ + "); if !" + tmp + "ok { return }; ")
+			val := "_"
+			for _, later := range c.steps[i+1:] {
+				if strings.Contains(later.test, tmp) || later.bind != nil && strings.Contains(later.bind.expr, tmp) || strings.Contains(later.assert[1], tmp) {
+					val = tmp
+				}
+			}
+			body.WriteString(val + ", " + tmp + "ok := " + from + ".(" + typ + "); if !" + tmp + "ok { return }; ")
 		}
 	}
 	fn := "func() (" + strings.Join(append(results, "__ok bool"), ", ") + ") { " + body.String() + "__ok = true; return }()"
@@ -436,4 +467,43 @@ func (pc *patCtx) condition(c *compiled) (init, cond, msg string) {
 		return "", fn, ""
 	}
 	return strings.Join(append(names, "__ok"), ", ") + " := " + fn + "; ", "__ok", ""
+}
+
+// enumVariant resolves Enum.Variant (or pkg.Enum.Variant) in a pattern: the
+// variant's constant or type, and its Go spelling here.
+func (pc *patCtx) enumVariant(x *ast.SelectorExpr) (types.Object, string, bool) {
+	T, err := pc.typeExpr(x.X)
+	if err != nil {
+		return nil, "", false
+	}
+	info := enumOf(T)
+	if info == nil {
+		return nil, "", false
+	}
+	v := info.byName(x.Sel.Name)
+	if v == nil {
+		return nil, "", false
+	}
+	text := v.obj.Name()
+	if q, ok := x.X.(*ast.SelectorExpr); ok {
+		text = types.ExprString(q.X) + "." + text
+	}
+	return v.obj, text, true
+}
+
+// constOf is the constant a pattern names directly: Const or pkg.Const.
+func (pc *patCtx) constOf(x ast.Expr) *types.Const {
+	switch x := x.(type) {
+	case *ast.Ident:
+		c, _ := pc.lookup(x.Name).(*types.Const)
+		return c
+	case *ast.SelectorExpr:
+		if id, ok := x.X.(*ast.Ident); ok {
+			if pn, ok := pc.lookup(id.Name).(*types.PkgName); ok {
+				c, _ := pn.Imported().Scope().Lookup(x.Sel.Name).(*types.Const)
+				return c
+			}
+		}
+	}
+	return nil
 }

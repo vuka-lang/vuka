@@ -1,0 +1,49 @@
+package main
+
+enum Status { Draft, Sent, Paid, Cancelled, Refunded, Lost }
+
+enum Shape {
+	Circle{Radius float64}
+	Rect{W, H float64}
+	Empty
+}
+
+func a(s Status) int {
+	match s {
+	case Status.Draft:
+		return 1
+	}
+}
+
+func b(s Shape) int {
+	match s {
+	case Shape.Circle{Radius: 0}:
+		return 0
+	case Shape.Rect{}:
+		return 1
+	}
+}
+
+func c(s Status) int {
+	match s {
+	case Status.Draft, Status.Sent, Status.Paid:
+		return 1
+	case Status.Cancelled, Status.Refunded, Status.Lost:
+		return 2
+	case Status.Sent:
+		return 3
+	}
+}
+
+func d(s Shape) int {
+	match s {
+	case Shape.Circle{Radius: r} if r > 1:
+		return 1
+	case Shape.Circle{}, Shape.Rect{}:
+		return 2
+	}
+}
+
+func e(s Shape) {
+	_ = Shape.Circle
+}

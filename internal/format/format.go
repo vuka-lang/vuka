@@ -53,7 +53,7 @@ type exprResult struct {
 
 // construct is a Vuka construct found in the source and its Go stand-in.
 type construct struct {
-	kind       byte // 'J' JSX, 'S' static field, 'F' static method, 'D' decorator, 'A' attribute, 'B' field attribute, 'P' parameter attribute, 'E' a composed decorator's elements, 'G' guard, 'T' ?, 'M' match, 'C' a decorator's call parameter
+	kind       byte // 'J' JSX, 'S' static field, 'F' static method, 'D' decorator, 'A' attribute, 'B' field attribute, 'P' parameter attribute, 'E' a composed decorator's elements, 'G' guard, 'T' ?, 'M' match, 'C' a decorator's call parameter, 'N' an enum
 	start, end int
 	el         *jElem
 	text       string // what is put back: the attribute, decorator head, static method head, static's name
@@ -117,6 +117,8 @@ func (fm *formatter) standIn(c *construct) string {
 		return " " + fm.marker("C", 0)
 	case 'M':
 		return "switch"
+	case 'N':
+		return "type " + fm.marker("N", 0) + " int"
 	}
 	panic("unknown construct")
 }
@@ -318,6 +320,13 @@ func scan(src []byte) ([]*construct, error) {
 			}
 		case t.tok == token.IDENT && t.lit == "static" && top().structOf && (p.tok == token.SEMICOLON || p.tok == token.LBRACE):
 			c, last, err := static(src, toks, i)
+			if err != nil {
+				return nil, err
+			}
+			cs = append(cs, c)
+			i, prev, prevIdx = last, toks[last], last
+		case t.tok == token.IDENT && t.lit == "enum" && depth == 0 && p.tok == token.SEMICOLON && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
+			c, last, err := enumAt(src, toks, i)
 			if err != nil {
 				return nil, err
 			}
@@ -831,6 +840,9 @@ func (fm *formatter) restore(src, orig []byte, cs []*construct, switches []bool)
 			b.Truncate(b.Len() - len(c.rest)) // the type's start, before its identifier
 			b.WriteString(c.text + " " + c.rest + c.name)
 			last = t.end()
+		case t.lit == m+"N" && k > 0 && k+1 < len(toks) && toks[k-1].tok == token.TYPE:
+			put(toks[k-1].off, toks[k+1].end(), next('N').text)
+			k++
 		case strings.HasPrefix(t.lit, m+"F"):
 			put(t.off, t.end(), next('F').text)
 		case strings.HasPrefix(t.lit, m+"S") && k+1 < len(toks) && toks[k+1].tok == token.IDENT:

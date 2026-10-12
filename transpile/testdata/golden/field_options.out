@@ -1,0 +1,5 @@
+Stock Some(0) None
+Price Some(1) None
+Rank None Some(10)
+Bonus Some(5) None
+State Sent
