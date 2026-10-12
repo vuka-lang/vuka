@@ -107,8 +107,11 @@ a Vuka project `@orm.Entity` registers a model without it.
 
 Fields are written with builders — `m.BigAuto()`, `m.Varchar(n)`, `m.Text()`,
 `m.BigInt().FK("users", "id").OnDelete(m.Cascade)`, `m.Time().Null().Index()`,
-`m.Vector(3)` — and per-dialect SQL with `m.Dialects{Postgres, MySQL,
-SQLite}`. `orm.CreateExtension("vector")` declares an extension for the next
+`m.Vector(3)`, `m.SmallInt()`, `m.Date()`, `m.UUID()`, and
+`.Default(v)`, `.DefaultSQL(sql)`, `.Comment(s)`, `.Collation(name)`,
+`.Precision(n)`, `.Unsigned()`, `.Types(m.Dialects{…})` for what the
+[column attributes](/orm/fields#in-migrations) set — and per-dialect SQL with
+`m.Dialects{Postgres, MySQL, SQLite}`. `orm.CreateExtension("vector")` declares an extension for the next
 migration from the program.
 
 ## At run time
