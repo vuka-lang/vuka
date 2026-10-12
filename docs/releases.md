@@ -10,6 +10,19 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.22.0 — 2026-10-12
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.25.0`.
+
+- **Faster pages.** JSX lowers to a lazy frame (`ui.FT`) when the target
+  declares it ([ui](https://github.com/vuka-lang/ui) v0.13.0 and up): the
+  element tree moves into a build closure with the dynamics passed as
+  arguments, so a server-rendered page writes its static HTML straight through
+  and renders only the parts that change. A 50-row table page is about 2×
+  faster with ~35% fewer allocations, and the HTML and the live render tree
+  are byte-for-byte what the old lowering produced. Generated code built
+  against an older ui still lowers the old way; nothing else changes.
+
 ## v0.21.0 — 2026-10-12
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.24.0`.
