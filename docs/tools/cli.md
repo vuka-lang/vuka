@@ -91,6 +91,23 @@ overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are.
 
+**Declarer packages are linked automatically.** Every package of the module
+with a [declarer](/features/decorators#declaration-decorators), a type
+decorator or a composed decorator on a declaration — routes, crons, live
+pages, commands — is blank-imported into each main package through a
+generated `vuka_link_gen.go` in the overlay, so its registrations exist in
+the binary without a hand-written import, and its compile errors fail the
+build like anyone else's. `vuka build` and `run` say what they link
+(`● linking 2 declarer packages (…)`); with `run -watch`, a declarer package
+created mid-session is linked by the next rebuild and a deleted one
+unlinked. Every declarer package goes into every main — a blank import of a
+package main already reaches is harmless, and a declarer package's init only
+registers — except that a package under `examples/` is linked only into that
+example's own main; test files, `testdata` and nested modules never count.
+Opt out with a `//vuka:nolink` line above a package clause: on a declarer
+package it is left for you to import (or not), and on a main package the
+whole program curates its own imports.
+
 In a module on [web](/web/) with views, the app's
 [Tailwind CSS](/web/styling) comes along:
 
@@ -223,7 +240,12 @@ Writes `build/`, a plain Go module (`-o` picks another directory). With
 [libraries](/guide/go-interop#publishing-a-library). `-check` writes nothing and
 fails when the output is out of date. Both include the files embedding the
 app's [Tailwind CSS](/web/styling) and its pages'
-[styles and scripts](/web/assets), so plain `go build` serves them too.
+[styles and scripts](/web/assets), and each main package's `vuka_link_gen.go`
+of [auto-linked declarer packages](#build-run-test-vet-install), so plain
+`go build` serves them too. The link files need the whole module's packages,
+so `-inplace` writes them only for a module-wide gen (the default `./...`),
+and once the last declarer package is gone the file is written empty rather
+than left with stale imports.
 
 ## explain
 

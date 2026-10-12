@@ -35,6 +35,14 @@ decorator such as `@audited` runs on every request:
 func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 ```
 
+You don't import page packages: the `vuka` command links every package of the
+module that declares routes, crons or live pages into main, so a new package
+of pages serves as soon as it is saved — no `_ "app/pages/reports"` in
+main.vuka. `vuka gen` writes the generated imports as `vuka_link_gen.go` for
+plain go tools, and a `//vuka:nolink` line above a package clause opts a
+package (or, on main, the whole app) out; see
+[the CLI](/tools/cli#build-run-test-vet-install).
+
 ## Paths
 
 | Pattern | Matches |

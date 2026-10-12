@@ -197,6 +197,17 @@ run("greet", map[string]string{"name": "ada"})   // -> main.greet [ada] …
 
 The [web framework](/web/routes) declares its routes and [crons](/web/crons) this way.
 
+A declarer only runs if its package is compiled in, and Go compiles only what
+is imported — so the `vuka` command links declarer packages itself. `vuka
+build`, `run`, `test` and `vet` find every package of the module with a
+declarer, a type decorator or a [composed decorator](#composed-decorators) on
+a declaration and give each main package a generated file of blank imports
+(`vuka gen` writes it as `vuka_link_gen.go` for plain go tools). Nothing to
+write, nothing to forget: a new page package exists in the binary the moment
+it is saved. Test files don't count, and a `//vuka:nolink` line above a
+package clause opts that package — or, on a main, the whole program — out;
+see [the CLI](/tools/cli#build-run-test-vet-install).
+
 | `*vuka.Decl` | |
 |---|---|
 | `d.Name`, `d.Pkg` | `"main.greet"`, or `"Shell.Run"` for a method; the import path |
