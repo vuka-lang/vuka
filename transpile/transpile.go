@@ -174,6 +174,8 @@ type fileState struct {
 	autoImports    map[string]bool // packages imported for statics reached through other types
 	enums          []*enumDecl
 	enumGen        genWriter         // the enums' generated methods
+	fieldGen       genWriter         // the field attributes' registrations
+	fieldsOn       bool              // field attributes are registered: from the first round on
 	scannedImports map[string]string // import path → name, for the enums' methods
 	spellings      []spelling        // rewritten expressions, for messages
 }
@@ -229,18 +231,18 @@ func (f *fileState) lowerable(p token.Pos) bool {
 		return true
 	}
 	o := f.orig(p)
-	return f.inStaticInit(o, o)
+	return f.inStaticInit(o, o) || f.inFieldAttr(o, o)
 }
 
 // bodyEdits are the rewrites applied in place: all but those inside statics'
 // initializers, which renderStatics applies.
 func (f *fileState) bodyEdits() edits {
-	if len(f.statics) == 0 {
+	if len(f.statics) == 0 && !f.fieldsOn {
 		return f.fixed
 	}
 	var out edits
 	for _, e := range f.fixed {
-		if !f.inStaticInit(e.start, e.end) {
+		if !f.inStaticInit(e.start, e.end) && !f.inFieldAttr(e.start, e.end) {
 			out = append(out, e)
 		}
 	}
@@ -290,11 +292,13 @@ func (f *fileState) makeTrailer(bare bool) {
 		w.gen("\n", a.end)
 	}
 	f.renderStatics()
-	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0 || f.fieldsOn) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
 	w.append(&f.enumGen)
 	w.append(&f.static)
+	f.renderFieldAttrs()
+	w.append(&f.fieldGen)
 	f.decoBase = w.len()
 	w.append(&f.deco)
 	f.trailer, f.tsegs = w.String(), w.segs
@@ -303,7 +307,7 @@ func (f *fileState) makeTrailer(bare bool) {
 // build produces this round's text: the decided rewrites, plus a placeholder for
 // every construct not lowered yet that still lets the package type-check.
 func (f *fileState) build() {
-	if len(f.statics) > 0 {
+	if len(f.statics) > 0 || f.fieldsOn {
 		f.makeTrailer(f.bare)
 	}
 	cur := append(edits(nil), f.bodyEdits()...)

@@ -1,0 +1,44 @@
+package main
+
+import (
+	"fmt"
+
+	"github.com/vuka-lang/vuka"
+)
+
+// Int is a field attribute with optional bounds.
+type Int struct {
+	Min Option[int64]
+	Max Option[int64]
+}
+
+// Def is a field's default.
+type Def struct{ V any }
+
+enum Status { Draft, Sent }
+
+func Bounded(lo int64) Int { return Int{Min: Some(lo), Max: None} }
+
+func describe(t *vuka.Type) {
+	for _, f := range t.Fields {
+		for _, a := range f.Attrs {
+			switch a := a.(type) {
+			case Int:
+				fmt.Println(f.Name, a.Min, a.Max)
+			case Def:
+				fmt.Println(f.Name, a.V)
+			}
+		}
+	}
+}
+
+@describe
+type Product struct {
+	Stock int   @Int{Min: Some(0)}
+	Price int   @Int{Min: Some(1), Max: None}
+	Rank  int   @Int{Min: None, Max: Some(10)}
+	Bonus int   @Bounded(5)
+	State Status @Def{V: Status.Sent}
+}
+
+func main() {}

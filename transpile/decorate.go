@@ -943,7 +943,7 @@ func (e *engine) writeParamAttrs(f *fileState, attrs []*Attr, none string, off i
 		if i > 0 {
 			w.gen(", ", a.start)
 		}
-		e.writeFieldAttr(f, a)
+		f.writeFieldAttr(w, a)
 	}
 	w.gen("}", attrs[len(attrs)-1].end)
 }
