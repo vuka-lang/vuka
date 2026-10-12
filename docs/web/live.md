@@ -275,11 +275,17 @@ Each is an option with a default; 0 lifts it.
 | `web.LiveMaxConns(n)` | the app's open live sockets; 10,000. One beyond is refused with 503, and the runtime retries |
 | `web.LiveMaxConnsPerIP(n)` | the sockets from one client address (`web.ClientIP`, so through [trusted proxies](/web/deployment#behind-a-proxy)); 100. One beyond is refused with 429 |
 | `web.LiveMaxConnsPerPage(n)` | the sockets opened with one page token; 4. One beyond is refused with 429 |
-| `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page, besides on every message and before each batch of broadcasts it takes; 30s |
+| `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page; 30s; 0 for never |
 | `web.LiveAdopt(d)` | how long after a page's GET its join may adopt the session the render mounted, so `Mount` runs once per view; 10s. At most 1024 pages wait at a time, oldest dropped first; `web.LiveAdopt(0)` mounts fresh on every join |
 
-A `LiveCheck` failing — a session ended, a permission revoked — closes the
-page with 4001, and it reloads, its route answering for the browser.
+A page is checked when it mounts: its join and each navigation run its
+route through the app's middleware and gates, as a page load does. Its
+events and broadcasts trust what it mounted with. A `LiveCheck` failing — a
+session ended, a permission revoked — closes the page with 4001, and it
+reloads, its route answering for the browser; it catches what changes while
+a page sits open without the app hearing of it. A library that ends a
+session itself closes its pages at once with `app.CloseLive(match)`, which
+closes every joined page whose context `match` picks.
 
 ## Security
 
@@ -304,8 +310,8 @@ fresh.
 A bad or expired token closes the connection with code 4001, and the runtime
 reloads the page (at most once in 10 seconds) for a fresh one. A library
 ending sign-ins ([auth](/web/auth#live-pages)) closes a page the same way:
-its checks run before each message, before broadcasts reach the page,
-and every `LiveCheckEvery` (30 seconds).
+at once when it ends the sign-in itself (`app.CloseLive`), else at its next
+`LiveCheckEvery` check (30 seconds).
 
 **Checks in `Mount` and `Update`.** A page that checks in `Mount` whether
 the visitor may see what its URL names (order `{id}`) makes the same check

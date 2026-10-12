@@ -318,14 +318,28 @@ func (b *Board) Render() ui.Node {
 }
 ```
 
-A page whose sign-in ends — `auth.RevokeUser`, a sign-out in another tab,
-an expired session or token — is closed, and reloads: its route sends it to
-the login page. The sign-in is checked at every message from the page,
-before broadcasts reach it, and every `web.LiveCheckEvery` (30 seconds), so
-a revoked user stops receiving broadcasts too. Every `Config.LiveRecheck`
-(60 seconds) the page also loads its identity again with `Users.Load`: a
-user gone, or whose perms or roles changed, gets the page reloaded with
-what they are now. The socket only opens from the app's own origin.
+A live page's sign-in is checked when the page mounts: its join, and each
+navigation over its connection, run its route, which reads the session or
+token once, through the route's gates. Its events then trust the identity
+it mounted with, and read no session at all, so a busy page costs the
+session store nothing per click.
+
+A page whose sign-in ends is closed, and reloads: its route sends it to the
+login page.
+
+- An ending auth hears of closes the page at once, without waiting for a
+  message from it: `auth.SignOut` (a sign-out in another tab), `auth.Revoke`,
+  `auth.RevokeUser`, a new sign-in replacing the browser's session, and a
+  request finding the session expired or its user gone.
+- An ending auth doesn't hear of — a session row deleted by hand, a
+  sign-out handled by another replica — is caught by the check that runs on
+  every open page every `web.LiveCheckEvery` (30 seconds), so a page sitting
+  open learns of it within that interval.
+
+On that same periodic check, once `Config.LiveRecheck` (60 seconds) has
+passed, the page also loads its identity again with `Users.Load`: a user
+gone, or whose perms or roles changed, gets the page reloaded with what they
+are now. The socket only opens from the app's own origin.
 
 ## Signing in and out
 
@@ -387,7 +401,7 @@ From your own handlers:
 | `auth.SignIn(ctx, userID)` | signs in someone proven another way (a magic link, an invitation) |
 | `auth.SignOut(ctx)` | signs out |
 | `auth.IssueToken(ctx, userID, name, ttl)`, `auth.Revoke(ctx, token)` | bearer tokens |
-| `auth.RevokeUser(ctx, userID)` | ends every session and token of a user, and closes their live pages |
+| `auth.RevokeUser(ctx, userID)` | ends every session and token of a user, and closes their live pages at once |
 
 Signing in and out set a cookie, so they belong to an HTTP request (a form
 post), not to a live event. Outside a request — a job, a CLI — inject
