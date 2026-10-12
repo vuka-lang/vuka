@@ -10,6 +10,20 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.20.0 — 2026-10-12
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.23.0`.
+
+- **Page and route packages link themselves.** Every package of the module
+  that declares something — `@web.Live`, `@web.Get`, `@web.Cron`, or a
+  composed decorator holding one — is linked into the program by
+  `vuka run`, `build`, `test` and `vet`: no blank import to remember, and
+  an error in such a package always fails the build. The command says what
+  it linked (`● linking 3 declarer packages (…)`); `vuka gen -inplace`
+  writes the same file (`vuka_link_gen.go`) for a plain `go build`.
+  `//vuka:nolink` above a package clause opts that package out, or, on a
+  main package, turns linking off for that program.
+
 ## v0.19.1 — 2026-10-12
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.22.2`.
