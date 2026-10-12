@@ -10,6 +10,16 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.19.1 — 2026-10-12
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.22.2`.
+
+- **`vuka explain` shows what the build compiles.** It now takes the file's
+  generated Go from the same full transpile the build runs, so it no longer
+  reports errors the build doesn't (a static reached through an embedded
+  type from another package said "has no field"). A file that truly fails
+  prints the error and exits non-zero.
+
 ## cmd/vuka v0.22.1 — 2026-10-12
 
 The vuka command only. Completion after `entities.Letter.` now works in a file
