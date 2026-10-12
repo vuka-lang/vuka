@@ -21,7 +21,7 @@ case Err(e):
 | `orm.NotFound` | `Get`, the engine's `First`, `Refresh`, `Remove`, `RawRow` found no row |
 | `orm.MultipleFound` | `Get` matched several rows |
 | `orm.Conflict` | a write broke a unique constraint (`Fields`: the column) |
-| `orm.Invalid` | a write referred to a row that doesn't exist (a foreign key) |
+| `orm.Invalid` | a write referred to a row that doesn't exist (a foreign key), or a value broke its [field's checks](/orm/fields#validation) (`Fields`: the columns' messages) |
 | `orm.Unavailable` | the database didn't answer in time; a declared database's breaker is open, no connection was free within `Acquire`, or it is closing |
 
 ```go

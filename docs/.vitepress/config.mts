@@ -104,6 +104,7 @@ export default defineConfig({
         items: [
           { text: 'Introduction', link: '/orm/' },
           { text: 'Models', link: '/orm/models' },
+          { text: 'Fields', link: '/orm/fields' },
           { text: 'Queries', link: '/orm/queries' },
           { text: 'Expressions and functions', link: '/orm/expressions' },
           { text: 'Search', link: '/orm/search' },

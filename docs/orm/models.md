@@ -100,8 +100,10 @@ Attributes say what tags say, and win over them:
 
 | Attribute | Column |
 |---|---|
-| `@orm.PK` | the primary key (`ID` is one by default) |
-| `@orm.Char{Max: n, Unique, Index}` | `VARCHAR(n)` |
+| `@orm.PK{Manual, UUID, …}` | the primary key (`ID` is one by default) |
+| `@orm.Char{Max: n, Unique, Index, Default, Choices, …}` | `VARCHAR(n)` |
+| `@orm.Int{Min, Max, Size, Unsigned, …}` | an integer column, bounded |
+| `@orm.DateField{…}`, `@orm.Datetime{Precision, UTC, DefaultNow, …}` | `DATE`, a timestamp |
 | `@orm.Slug{Max, Unique}` | an indexed `VARCHAR`, 50 by default |
 | `@orm.LongText` | `TEXT` (a string's default) |
 | `@orm.Unique`, `@orm.Index` | a unique constraint, an index |
@@ -118,7 +120,9 @@ Attributes say what tags say, and win over them:
 | `@orm.Trigram`, `@orm.FullText{Config}` | [text search](/orm/search) indexes |
 | `@orm.SearchOf{Fields: []string{"title:A", "body:B"}, Config}` | an `orm.TSVector` generated from fields |
 
-Any number may follow a field. Column types follow the Go type: integers,
+[Fields](/orm/fields) has every setting of the column attributes — defaults,
+the checks a write makes, comments and collations — value types of your own,
+and attributes of your own. Any number may follow a field. Column types follow the Go type: integers,
 floats, `bool`, `string`, `time.Time`, `[]byte`; `orm.JSON[T]` (a JSON
 column), `orm.CSV[E]` (a comma-separated list), `orm.Vector`,
 `orm.TSVector`.
