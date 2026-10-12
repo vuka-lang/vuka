@@ -29,6 +29,10 @@ Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.24.0`.
 - The editor completes an enum's variants, `Values` and `Parse` after
   `Status.`, with their doc comments on hover; `vuka fmt` lays enums out;
   the VS Code grammar highlights them.
+- **Model packages link themselves.** A package whose struct types embed a
+  type with a `vukaDeclares()` marker method is auto-linked like a declarer
+  package; with orm v0.5.1, whose `Base` and `Model` have it, a model package
+  nothing imports is still registered and migrated, with no blank import.
 - **Fixed:** `Some` and `None` (and statics) in a field attribute's value are
   qualified and inferred like any other code: `@orm.Int{Min: Some(0)}`.
 - **Fixed:** an attribute type's `vukaTargets` result may be an alias or a

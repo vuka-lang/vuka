@@ -519,7 +519,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares()})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares() || e.embedsDeclaring(f)})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

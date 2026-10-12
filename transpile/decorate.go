@@ -911,6 +911,68 @@ func (f *fileState) declares() bool {
 	return false
 }
 
+// declaresMethod marks a type whose embedders register something at init, so
+// a package declaring them is auto-linked like one using a declarer:
+//
+//	func (Base[Self]) vukaDeclares() {}
+const declaresMethod = "vukaDeclares"
+
+// embedsDeclaring reports whether one of f's struct types embeds, by value or
+// pointer, a type with the vukaDeclares marker: an ORM model embedding
+// orm.Base registers itself, so its package is linked into the program.
+func (e *engine) embedsDeclaring(f *fileState) bool {
+	if e.pkg == nil || strings.HasSuffix(f.name, "_test.vuka") {
+		return false
+	}
+	for _, d := range f.ast.Decls {
+		g, ok := d.(*ast.GenDecl)
+		if !ok || g.Tok != token.TYPE {
+			continue
+		}
+		for _, s := range g.Specs {
+			tn, ok := e.pkg.Scope().Lookup(s.(*ast.TypeSpec).Name.Name).(*types.TypeName)
+			if !ok {
+				continue
+			}
+			st, ok := tn.Type().Underlying().(*types.Struct)
+			if !ok {
+				continue
+			}
+			for i := range st.NumFields() {
+				if st.Field(i).Embedded() && declaring(st.Field(i).Type()) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// declaring reports whether t (or what it points to) has the vukaDeclares
+// marker: an unexported method without parameters or results, on t or, for
+// an instance of a generic type, on its origin.
+func declaring(t types.Type) bool {
+	if t == nil {
+		return false
+	}
+	if p, ok := types.Unalias(t).(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	n, ok := types.Unalias(t).(*types.Named)
+	if !ok || n.Obj().Pkg() == nil {
+		return false
+	}
+	for _, c := range []*types.Named{n, n.Origin()} {
+		obj, _, _ := types.LookupFieldOrMethod(c, true, c.Obj().Pkg(), declaresMethod)
+		if fn, ok := obj.(*types.Func); ok {
+			if sig := fn.Type().(*types.Signature); sig.Params().Len() == 0 && sig.Results().Len() == 0 {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // writeAttrValues writes typed attributes as values: T{…} as written, a bare
 // @T as T's zero value.
 func (e *engine) writeAttrValues(f *fileState, attrs []*Attr) {
