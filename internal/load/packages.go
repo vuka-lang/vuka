@@ -33,6 +33,7 @@ type Package struct {
 	Templ      []*Templ         // .templ files, compiled with templ's generator
 	Imports    []string
 	Embeds     []string // directories below Dir of .templ files its .vuka files may name (vuka.File)
+	NoLink     bool     // a file's header says //vuka:nolink: auto-link leaves the package alone
 }
 
 // ModuleRoot finds the module enclosing dir.
@@ -201,6 +202,9 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 		}
 		p := pkg(f.Name.Name)
 		p.Files = append(p.Files, transpile.File{Name: name, Src: src})
+		if noLink(src) {
+			p.NoLink = true
+		}
 		if strings.HasSuffix(name, ".vuka") {
 			p.Embeds = append(p.Embeds, templDirs(dir, src)...)
 		}
@@ -353,6 +357,10 @@ type Generated struct {
 	// Body is where the source's own lines end in Src, for a .vuka file
 	// (transpile.Output.Body); 0 for a .templ file's Go.
 	Body int
+	// Declares says the file registers declarations at init — routes, crons,
+	// commands — through a declarer, a type decorator or a composed decorator
+	// (transpile.Output.Declares). AutoLink links its package into main.
+	Declares bool
 	// TemplMap is templ's source map (a *parser.SourceMap) for a .templ
 	// file's Go, when Src is templ's raw output (Options.Bare); nil otherwise.
 	TemplMap any
@@ -549,7 +557,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Declares: f.Declares})
 		}
 		if sess != nil {
 			sess.store(p, key, out[first:])

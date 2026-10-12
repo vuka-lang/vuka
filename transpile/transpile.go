@@ -92,6 +92,12 @@ type Output struct {
 	Body int
 	// Files are the vuka.File literals in the source.
 	Files []FileRef
+	// Declares reports that the file registers declarations at init: a
+	// declarer (func(*vuka.Decl)) or a composed decorator (which may hold
+	// declarers) on a function, or a type decorator (func(*vuka.Type)) or a
+	// composed decorator on a type. Call decorators and typed attributes
+	// alone don't count. Build tools link such packages into main.
+	Declares bool
 }
 
 // FileRef is a vuka.File literal: where it is in the .vuka source (quotes
@@ -505,7 +511,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f)})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares()})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

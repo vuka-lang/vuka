@@ -883,6 +883,34 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 	w.gen("}\n", d.nameOff)
 }
 
+// declares reports whether the file registers declarations at init
+// (Output.Declares): a declarer or a composed decorator — which may hold
+// declarers — on a function, or a type decorator or a composed decorator on
+// a type. Call and typed decorators only wrap calls, and typed attributes
+// are metadata, so neither counts.
+func (f *fileState) declares() bool {
+	for _, d := range f.decos {
+		switch d := d.(type) {
+		case *funcDeco:
+			if d.init || d.generic {
+				continue // a declarer there is an error; nothing registers
+			}
+			for _, u := range d.uses {
+				if u.decided && (u.kind == decoDecl || u.kind == decoBundle) {
+					return true
+				}
+			}
+		case *typeDeco:
+			for _, u := range d.uses {
+				if u.decided && (u.kind == decoType || u.kind == decoBundle) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
 // writeAttrValues writes typed attributes as values: T{…} as written, a bare
 // @T as T's zero value.
 func (e *engine) writeAttrValues(f *fileState, attrs []*Attr) {
