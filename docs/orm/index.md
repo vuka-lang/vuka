@@ -2,7 +2,9 @@
 
 [`github.com/vuka-lang/orm`](https://github.com/vuka-lang/orm) is a
 Django-style ORM for Go and Vuka: a model is a plain struct, its manager a
-package-level value, its queries lazy, immutable QuerySets. Relations and
+package-level value, its queries lazy, immutable QuerySets. Each field's
+column — name, type, default, checks — is declared in one attribute beside
+it, and custom value types and attributes plug in the same way. Relations and
 prefetching, aggregates, `Case`/`When`, subqueries, text and vector search,
 raw SQL, several databases with replicas and routing, mirrored writes, and Go
 migration files written by `makemigrations`.
@@ -19,13 +21,15 @@ queries written with [field references](/features/fields#field-references):
 ```vuka
 type Post struct {
 	orm.Base @orm.Meta{Table: "posts", Ordering: []string{"-published"}}
-	ID        int64             @orm.PK
-	Title     string            @orm.Char{Max: 200}
+	ID        int64             @orm.PK{Column: "post_id"}
+	Title     string            @orm.Char{Max: 200, Trim: true}
 	Slug      string            @orm.Slug{Unique: true}
+	Status    string            @orm.Char{Max: 20, Default: "draft", Choices: []string{"draft", "published"}}
 	Author    orm.FK[User]      @orm.Rel{OnDelete: orm.Cascade, Related: "posts"}
 	Tags      orm.M2M[Tag]
-	Published Option[time.Time] @orm.Index
-	Views     int               @orm.DefaultTo(0)
+	Published Option[time.Time] @orm.Datetime{Index: true}
+	Views     int               @orm.Int{Default: 0, Min: 0}
+	Created   time.Time         @orm.Datetime{DefaultNow: true}
 }
 
 posts := Post.Objects.Filter(Post.Title.Contains("Go"), Post.Author.Name.Eq("ada")).
@@ -38,7 +42,9 @@ case Err(e):            return e
 }
 ```
 
-A misspelt field is a compile error with a suggestion, `Post.Objects.Filter(
+A value outside a field's `Choices`, bounds or length is refused on every
+write with an [`orm.Invalid`](/orm/errors) naming the field, before the
+database sees it. A misspelt field is a compile error with a suggestion, `Post.Objects.Filter(
 User.Name.Eq("x"))` doesn't compile, and `Contains` on a number doesn't
 either. Terminals return [`Result`](/features/result-option), so `?` and
 `match` take them. Everything is plain Go underneath: Go and Vuka packages
@@ -51,12 +57,6 @@ go get github.com/vuka-lang/orm
 ```
 
 It needs Go 1.27 (it uses generic methods: `q.Values[R](…)`).
-
-::: info
-The Vuka layer needs field attributes and field references, which are on
-Vuka's main branch after v0.6.0: until the next release, the module requires
-`github.com/vuka-lang/vuka v0.6.0` with a `replace` of a checkout.
-:::
 
 ## Drivers
 
@@ -120,7 +120,8 @@ databases, replicas and a supervised pool declares them instead: see
 
 | | |
 |---|---|
-| [Models](/orm/models) | `orm.Base`, `@orm.Meta`, field attributes, relations, `Option` fields |
+| [Models](/orm/models) | `orm.Base`, `@orm.Meta`, relations, `Option` fields |
+| [Fields](/orm/fields) | column attributes (`PK`, `Char`, `Int`, `Datetime`, …), defaults, write checks, custom value types and attributes |
 | [Queries](/orm/queries) | predicates from field references, `Get`/`First`, writes, relations, prefetching |
 | [Expressions and functions](/orm/expressions) | `orm/fn`, `Case`/`When`, subqueries, custom functions and lookups |
 | [Search](/orm/search) | text, trigram, vector and hybrid search on each database |

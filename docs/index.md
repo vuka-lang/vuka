@@ -45,7 +45,7 @@ features:
     link: /web/
     linkText: Web
   - title: A Django-style ORM
-    details: A library in Vuka. Models declared with field attributes, queries written with field references the compiler checks — Post.Objects.Filter(Post.Title.Contains("Go")) — Result and Option from every terminal, and Go migrations.
+    details: A library in Vuka. Models declared with field attributes — a column's name, type, default and checks in one — custom value types, queries written with field references the compiler checks — Post.Objects.Filter(Post.Title.Contains("Go")) — Result and Option from every terminal, and Go migrations.
     link: /orm/
     linkText: ORM
 ---
