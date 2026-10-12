@@ -166,13 +166,16 @@ type fileState struct {
 	decorated map[int]string // declaration offset → the decorated function's name
 	files     []*fileLit     // embedded vuka.File literals, by offset
 
-	bare        bool
-	statics     []*staticDecl
-	staticFuncs []*staticFunc
-	static      genWriter // the statics' declarations
-	staticErrs  []*Error
-	autoImports map[string]bool // packages imported for statics reached through other types
-	spellings   []spelling      // rewritten expressions, for messages
+	bare           bool
+	statics        []*staticDecl
+	staticFuncs    []*staticFunc
+	static         genWriter // the statics' declarations
+	staticErrs     []*Error
+	autoImports    map[string]bool // packages imported for statics reached through other types
+	enums          []*enumDecl
+	enumGen        genWriter         // the enums' generated methods
+	scannedImports map[string]string // import path → name, for the enums' methods
+	spellings      []spelling        // rewritten expressions, for messages
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.
@@ -287,9 +290,10 @@ func (f *fileState) makeTrailer(bare bool) {
 		w.gen("\n", a.end)
 	}
 	f.renderStatics()
-	if (f.deco.len() > 0 || f.static.len() > 0) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
+	w.append(&f.enumGen)
 	w.append(&f.static)
 	f.decoBase = w.len()
 	w.append(&f.deco)

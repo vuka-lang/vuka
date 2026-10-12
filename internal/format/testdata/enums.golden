@@ -1,0 +1,28 @@
+package main
+
+// Status doc
+enum Status { Draft, Sent, Paid }
+
+enum Role string {
+	Admin = "admin" // all
+	Staff = "staff"
+
+	LongName = "long"
+}
+
+enum Shape {
+	Circle{Radius float64}
+	Rect{
+		W, H float64
+	}
+	Empty
+}
+
+func f(s Shape) int {
+	match s {
+	case Shape.Circle{Radius: r}:
+		return int(r)
+	case Shape.Rect{}, Shape.Empty:
+		return 0
+	}
+}

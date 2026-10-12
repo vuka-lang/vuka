@@ -52,6 +52,11 @@ func scanFrom(src []byte, off int, afterOperand bool) []tok {
 	return ts
 }
 
+// isEnumKeyword reports whether toks[k] starts an enum declaration.
+func isEnumKeyword(toks []tok, k int) bool {
+	return toks[k].tok == token.IDENT && toks[k].lit == "enum" && k+1 < len(toks) && toks[k+1].tok == token.IDENT
+}
+
 func isAt(t tok) bool       { return t.tok == token.ILLEGAL && t.lit == "@" }
 func isQuestion(t tok) bool { return t.tok == token.ILLEGAL && t.lit == "?" }
 
@@ -168,6 +173,20 @@ func (f *fileState) scan(errs *ErrorList) {
 				f.staticFuncs = append(f.staticFuncs, sf)
 			}
 			continue
+		case t.tok == token.IDENT && t.lit == "enum" && depth == 0 && p.tok == token.SEMICOLON && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
+			d, last, msg := f.enumAt(toks, i)
+			if msg != "" {
+				errs.add(f.at(toks[last].off), "%s", msg)
+				if end, _, ok := matchClose(toks, i); ok && end > i {
+					i = end - 1
+				}
+				prev, prevIdx = toks[i], i
+				continue
+			}
+			f.enums = append(f.enums, d)
+			f.lowerEnum(toks, d)
+			i, prev, prevIdx = last, toks[last], last
+			continue
 		case f.bodyConstruct(toks, i, p, depth, errs):
 			continue
 		case t.tok == token.IDENT && t.lit == "decorator" && depth == 0 && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
@@ -270,7 +289,7 @@ func (f *fileState) scan(errs *ErrorList) {
 		}
 		switch {
 		case k < len(toks) && isAt(toks[k]):
-		case k < len(toks) && (toks[k].tok == token.FUNC || toks[k].tok == token.TYPE || toks[k].tok == token.VAR || toks[k].tok == token.CONST):
+		case k < len(toks) && (toks[k].tok == token.FUNC || toks[k].tok == token.TYPE || toks[k].tok == token.VAR || toks[k].tok == token.CONST || isEnumKeyword(toks, k)):
 			for _, p := range pending {
 				p.declOff = toks[k].off
 				f.attrs = append(f.attrs, p)

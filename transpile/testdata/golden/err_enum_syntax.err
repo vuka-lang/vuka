@@ -1,0 +1,7 @@
+err_enum_syntax.vuka:3:28: Status.Draft is declared twice
+err_enum_syntax.vuka:5:1: an enum's type is string or an integer type, not float64
+err_enum_syntax.vuka:7:1: an enum whose variants hold data has no underlying type: enum Shape { … }
+err_enum_syntax.vuka:11:1: give every variant of Level a value, or none
+err_enum_syntax.vuka:13:14: a variant's name starts with a capital letter: Small
+err_enum_syntax.vuka:15:1: enum Empty needs at least one variant
+err_enum_syntax.vuka:17:1: Code.Values is generated for every enum; name the variant differently

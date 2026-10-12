@@ -1,0 +1,17 @@
+package main
+
+enum Status { Draft, Sent, Draft }
+
+enum Kind float64 { A, B }
+
+enum Shape string {
+	Circle{R float64}
+}
+
+enum Level { Low = 1, High }
+
+enum lower { small }
+
+enum Empty {}
+
+enum Code { Values, Other }

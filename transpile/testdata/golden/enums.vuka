@@ -1,0 +1,95 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"math"
+)
+
+// Status is where an order is.
+enum Status { Draft, Sent, Paid }
+
+// Role is what a user may do.
+enum Role string {
+	Admin = "admin" // everything
+	Staff = "staff"
+}
+
+enum Priority uint8 {
+	Low = 1
+	High = 5
+}
+
+// Shape is a figure to draw.
+enum Shape {
+	// Circle is round.
+	Circle{Radius float64}
+	Rect{W, H float64}
+	Empty
+}
+
+type Order struct {
+	ID     int
+	Status Status
+	Role   Role
+}
+
+func label(s Status) string {
+	match s {
+	case Status.Draft:
+		return "draft"
+	case Status.Sent, Status.Paid:
+		return "out"
+	}
+}
+
+func area(s Shape) float64 {
+	match s {
+	case Shape.Circle{Radius: r}:
+		return math.Pi * r * r
+	case Shape.Rect{W: w, H: h} if w == h:
+		return w * w
+	case Shape.Rect{W: w, H: h}:
+		return w * h
+	case Shape.Empty:
+		return 0
+	}
+}
+
+func round(s Shape) bool {
+	match s {
+	case Shape.Circle{}, Shape.Empty:
+		return true
+	case Shape.Rect{}:
+		return false
+	}
+}
+
+func main() {
+	s := Status.Sent
+	fmt.Println(s, Status.Paid, label(Status.Draft), label(s), s.Valid(), Status(7), Status(7).Valid())
+	fmt.Println(Status.Values(), Role.Values(), Role.Admin, Priority.High, Priority.Values())
+	fmt.Println(Status.Parse("Paid"), Status.Parse("nope"), Role.Parse("staff"), Role.Parse("Staff"), Role.Parse("x"))
+	b, _ := json.Marshal(Order{ID: 1, Status: Status.Paid, Role: Role.Staff})
+	fmt.Println(string(b))
+	var o Order
+	fmt.Println(json.Unmarshal([]byte(`{"ID":2,"Status":"Sent","Role":"admin"}`), &o), o.Status, o.Role)
+	fmt.Println(json.Unmarshal([]byte(`{"Status":"Lost"}`), &o))
+	_, err := json.Marshal(Order{Status: 9, Role: Role.Admin})
+	fmt.Println(err)
+	var st Status
+	for _, src := range []any{int64(2), "Sent", []byte("Draft"), int64(9), 1.5} {
+		err := st.Scan(src)
+		fmt.Print(st, " ", err, "; ")
+	}
+	fmt.Println()
+	v, err := Role.Staff.Value()
+	fmt.Println(v, err)
+	v, err = Status.Paid.Value()
+	fmt.Println(v, err)
+	shapes := []Shape{Shape.Circle{Radius: 1}, Shape.Rect{W: 2, H: 3}, Shape.Rect{W: 2, H: 2}, Shape.Empty}
+	for _, sh := range shapes {
+		fmt.Printf("%.2f ", area(sh))
+	}
+	fmt.Println(StatusDraft, ShapeEmpty{} == Shape.Empty, round(Shape.Empty), round(shapes[1]))
+}
