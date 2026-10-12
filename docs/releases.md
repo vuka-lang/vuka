@@ -10,6 +10,12 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.22.1 — 2026-10-12
+
+The vuka command only. Completion after `entities.Letter.` now works in a file
+that hasn't imported the type's package yet — picking a member also inserts
+the import. Restart the language server after installing.
+
 ## cmd/vuka v0.22.0 — 2026-10-11
 
 The vuka command only (vuka v0.19.0, runtime v0.16.0 unchanged). New apps use
