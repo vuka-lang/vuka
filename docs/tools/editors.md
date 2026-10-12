@@ -12,7 +12,11 @@ outline, code actions, inlay hints and formatting (by
 and Go's type errors appear on the `.vuka` lines; an import of a folder of your
 module written without the module path gets a hint with the right one. Overloads and statics show as
 you wrote them (`area`, `User.New`), and typing `@` lists the project's
-decorators.
+decorators. After a struct field, `@orm.` lists what the package has for a
+field attribute — its types (`Char{…}`, `Column("…")`, `PK`) and the
+functions returning one (`DefaultTo(…)`), types declaring
+[`vuka.OnField`](/features/attributes#targets) first and types whose targets
+leave fields out omitted.
 A [`vuka.File`](/features/decorators#files) path such as `@Page("views/pets.templ")` is a link:
 go to definition opens the file (a `.templ` file with one component, at that
 component), and hover shows the path and the `.templ` file's components.

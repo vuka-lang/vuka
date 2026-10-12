@@ -413,6 +413,7 @@ type vukaRequest struct {
 	method    string
 	file      *vfile
 	attr      bool      // completion after @, on an attribute or decorator
+	field     bool      // and the attribute is a struct field's
 	typed     lspRange  // there: what was typed after the last dot
 	full      lspRange  // and after the @
 	qualifier string    // the package typed before the dot, if any
@@ -1075,6 +1076,7 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	id := strconv.Quote("vuka-lsp:" + strconv.Itoa(p.nextID))
 	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf, closeTag: closeTag,
 		attr: m.Method == "textDocument/completion" && afterAt(vf.text(), srcPos)}
+	vr.field = vr.attr && fieldAttrSpot(vf.text(), offsetOf(vf.text(), srcPos))
 	if m.Method == "textDocument/completion" {
 		if s, ok := blockSpot(vf.text(), offsetOf(vf.text(), srcPos)); ok {
 			vr.blocks = &lspRange{positionOf(vf.text(), s), srcPos}
@@ -1120,6 +1122,14 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			reply["result"] = foldingRanges(vr.file, nil)
 		case vr.blocks != nil:
 			reply["result"] = map[string]any{"isIncomplete": false, "items": blockItems(*vr.blocks)}
+		case vr.field:
+			go func() {
+				if items, ok := p.fieldAttrItems(vr.file, vr.qualifier, vr.typed); ok {
+					reply["result"] = withFieldAttrItems(nil, items, vr.qualifier, vr.typed)
+				}
+				_ = p.editor.send(reply)
+			}()
+			return
 		case vr.spot != nil && vr.method == "textDocument/completion":
 			go func() {
 				if items := p.staticCompletionItems(vr.file, vr.spot); items != nil {
@@ -1155,6 +1165,18 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		v = cleanCompletion(v)
 		if vr.blocks != nil {
 			v = withBlockItems(v, *vr.blocks)
+		}
+		if vr.field {
+			got := v
+			go func() {
+				if items, ok := p.fieldAttrItems(vr.file, vr.qualifier, vr.typed); ok {
+					reply["result"] = withFieldAttrItems(got, items, vr.qualifier, vr.typed)
+				} else {
+					reply["result"] = completeList(attrCompletion(got, vr.typed))
+				}
+				_ = p.editor.send(reply)
+			}()
+			return
 		}
 		if vr.attr {
 			v = attrCompletion(v, vr.typed)
@@ -1505,6 +1527,9 @@ func completable(src []byte) ([]byte, []hunk) {
 	for _, at := range danglingDots(src) {
 		ins = append(ins, insert{at, placeholder})
 	}
+	for _, at := range fieldPlaceholders(src) {
+		ins = append(ins, insert{at, placeholder})
+	}
 	sort.Slice(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
 	blank := blankUnfinishedTags(src)
 	hunks := []hunk{}
@@ -1524,7 +1549,7 @@ func completable(src []byte) ([]byte, []hunk) {
 func afterAt(src []byte, pos lspPosition) bool {
 	off := offsetOf(src, pos)
 	start := bytes.LastIndexByte(src[:off], '\n') + 1
-	return attrPrefix.Match(src[start:off]) || attrSpot.Match(src[start:off])
+	return attrPrefix.Match(src[start:off]) || attrSpot.Match(src[start:off]) || fieldAttrSpot(src, off)
 }
 
 // attrCompletion orders completion after @: decorators (func(*vuka.Call)
