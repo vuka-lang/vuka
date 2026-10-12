@@ -144,7 +144,9 @@ func targetsOf(t types.Type) (int, bool) {
 	if sig.Results().Len() != 1 {
 		return 0, false
 	}
-	arr, ok := sig.Results().At(0).Type().(*types.Array)
+	// The array may be spelled through an alias or a named type:
+	// type fieldOnly = [vuka.OnField]struct{}.
+	arr, ok := sig.Results().At(0).Type().Underlying().(*types.Array)
 	if !ok {
 		return 0, false
 	}
