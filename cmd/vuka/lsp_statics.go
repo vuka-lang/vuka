@@ -18,6 +18,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 )
 
@@ -142,9 +143,6 @@ func staticSpotAt(method string, src []byte, off int) *staticSpot {
 	if s.qual == "" && imported[s.typeName] {
 		return nil // pkg.member — gopls completes it
 	}
-	if s.qual != "" && !imported[s.qual] {
-		return nil // a.b.C — not a plain type reference
-	}
 	return &s
 }
 
@@ -165,7 +163,9 @@ type staticsFile struct {
 
 // staticMembers resolves spot against the Go of its type's package: nil when
 // the name doesn't declare a type there. vf is the .vuka file asked in.
-func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) []staticMember {
+// missing is the import path the file doesn't have yet, when the qualifier
+// names a module package the file never imported.
+func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) (members []staticMember, missing string) {
 	srcDir := filepath.Dir(vf.source)
 	dir := srcDir
 	if spot.qual != "" {
@@ -180,12 +180,16 @@ func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) []staticMember {
 				break
 			}
 		}
-		if path == "" {
-			return nil
+		switch {
+		case path != "":
+			dir = p.importDir(path)
+		default:
+			// Not imported (typed fresh, or the import was dropped as
+			// unused): the module package of that name declaring the type.
+			dir, missing = p.modulePackage(spot.qual, spot.typeName)
 		}
-		dir = p.importDir(path)
 		if dir == "" {
-			return nil
+			return nil, ""
 		}
 	}
 
@@ -209,7 +213,7 @@ func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) []staticMember {
 			ts, declFile := findTypeSpec(files, l.name)
 			if ts == nil {
 				if len(out) == 0 && len(next) == 0 && depth == 0 {
-					return nil // not a type
+					return nil, "" // not a type
 				}
 				continue
 			}
@@ -264,7 +268,7 @@ func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) []staticMember {
 		}
 		queue = next
 	}
-	return out
+	return out, missing
 }
 
 // namedTarget resolves a field or definition type expression to the package
@@ -545,11 +549,57 @@ func (p *proxy) importDir(path string) string {
 	return dir
 }
 
+// modulePackage finds the module package named qual that declares typeName:
+// its directory and import path. The candidates are the directories of the
+// proxy's generated files whose package clause names qual.
+func (p *proxy) modulePackage(qual, typeName string) (string, string) {
+	p.mu.Lock()
+	modRoot, modPath := p.modRoot, p.modPath
+	var dirs []string
+	seen := map[string]bool{}
+	for source, gen := range p.bySource {
+		dir := filepath.Dir(source)
+		if seen[dir] {
+			continue
+		}
+		seen[dir] = true
+		vf := p.virtual[gen]
+		if vf == nil {
+			continue
+		}
+		if m := pkgClause.FindSubmatch(vf.gen); m != nil && string(m[1]) == qual {
+			dirs = append(dirs, dir)
+		}
+	}
+	p.mu.Unlock()
+	sort.Strings(dirs)
+	for _, dir := range dirs {
+		if ts, _ := findTypeSpec(p.packageFiles(dir), typeName); ts == nil {
+			continue
+		}
+		path := modPath
+		if rel, err := filepath.Rel(modRoot, dir); err == nil && rel != "." {
+			path += "/" + filepath.ToSlash(rel)
+		}
+		return dir, path
+	}
+	return "", ""
+}
+
 // staticCompletionItems are the completion items for spot's statics and
-// field references; nil when spot's name turns out not to be a type.
+// field references; nil when spot's name turns out not to be a type. When
+// the type's package isn't imported yet, each item's edits add the import.
 func (p *proxy) staticCompletionItems(vf *vfile, spot *staticSpot) []any {
+	members, missing := p.staticMembers(vf, spot)
+	var importEdits []any
+	if missing != "" {
+		if at, text := addImports(vf.text(), []importSpec{{path: missing}}); text != "" {
+			pos := positionOf(vf.text(), at)
+			importEdits = []any{map[string]any{"range": lspRange{pos, pos}, "newText": text}}
+		}
+	}
 	var items []any
-	for _, m := range p.staticMembers(vf, spot) {
+	for _, m := range members {
 		item := map[string]any{
 			"label":      m.name,
 			"kind":       m.kind,
@@ -560,6 +610,9 @@ func (p *proxy) staticCompletionItems(vf *vfile, spot *staticSpot) []any {
 		}
 		if m.doc != "" {
 			item["documentation"] = map[string]any{"kind": "markdown", "value": m.doc}
+		}
+		if importEdits != nil {
+			item["additionalTextEdits"] = importEdits
 		}
 		items = append(items, item)
 	}
@@ -596,7 +649,8 @@ func newItems(v any, items []any) []any {
 // staticHoverItem is the hover for spot when its member is a static or field
 // reference of the type; nil otherwise, and the usual answer stands.
 func (p *proxy) staticHoverItem(vf *vfile, spot *staticSpot) map[string]any {
-	for _, m := range p.staticMembers(vf, spot) {
+	members, _ := p.staticMembers(vf, spot)
+	for _, m := range members {
 		if m.name != spot.member || !m.static {
 			// A field reference's names are copied into the generated Go,
 			// so gopls's own hover already answers on them.

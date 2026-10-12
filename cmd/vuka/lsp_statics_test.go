@@ -96,7 +96,7 @@ func completionLabels(t *testing.T, v any) map[string]map[string]any {
 
 func TestLSPStatics(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{
-		"a/a.vuka": staticsA, "b/b.vuka": staticsB, "main.vuka": staticsMain,
+		"a/a.vuka": staticsA, "b/b.vuka": staticsB, "c/c.vuka": "package c\n", "main.vuka": staticsMain,
 	})
 	bPath := filepath.Join(dir, "b", "b.vuka")
 	bURI := pathToURI(bPath)
@@ -182,6 +182,34 @@ func TestLSPStatics(t *testing.T) {
 		v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": aURI},
 			"position": positionOf([]byte(src), off)})
 		wantStatics(t, v, false)
+	})
+
+	t.Run("completion on an unimported package's type", func(t *testing.T) {
+		// The real case: the file doesn't import the type's package (yet) —
+		// typed fresh, or the import was dropped as unused. The statics must
+		// still complete, and picking one adds the import.
+		cPath := filepath.Join(dir, "c", "c.vuka")
+		cURI := pathToURI(cPath)
+		src := "package c\n\nfunc Demo() {\n\tx := a.Post.\n}\n"
+		c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+			"uri": cURI, "languageId": "vuka", "version": 1, "text": src}})
+		off := strings.Index(src, "a.Post.\n") + len("a.Post.")
+		v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": cURI},
+			"position": positionOf([]byte(src), off)})
+		items := completionLabels(t, v)
+		objects := items["Objects"]
+		if objects == nil {
+			b, _ := json.Marshal(v)
+			t.Fatalf("no Objects completion without the import: %.700s", b)
+		}
+		edits, _ := objects["additionalTextEdits"].([]any)
+		if got := applyEdits(src, edits); !strings.Contains(got, `"lsptest/a"`) {
+			t.Fatalf("picking Objects doesn't add the import; after edits:\n%s", got)
+		}
+		if items["Title"] == nil || items["Limit"] == nil {
+			b, _ := json.Marshal(v)
+			t.Fatalf("missing Title/Limit without the import: %.700s", b)
+		}
 	})
 
 	t.Run("a variable's dot stays gopls's", func(t *testing.T) {
