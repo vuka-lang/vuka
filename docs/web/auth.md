@@ -460,6 +460,21 @@ fixes the algorithm a token must name; `exp` is required, `nbf`, `Issuer`
 and `Audience` checked when present or set. The `sub` claim is the id
 `Users.Load` takes.
 
+**Caching users.** Each signed-in request loads its user with `Users.Load`
+— for most apps a query or two. `Config.UserCache` keeps the identity it
+returns for that long, so a request reads only its session or token:
+
+```vuka
+auth.Config{Users: accounts, UserCache: 5 * time.Minute}
+```
+
+A cached identity is dropped when `RevokeUser`, `SetPassword` or `SignOut`
+touch its user, and when `Load` finds the user gone; signing in and a live
+page's `LiveRecheck` always load afresh. After changing a user's perms, roles
+or record elsewhere, call `auth.Refresh(ctx, uid)` so the next request sees
+the change. The cache belongs to the process: another replica keeps its copy
+until `UserCache` passes.
+
 ::: warning Memory stores
 Sessions and tokens are kept in memory unless the config gives stores. That
 suits development, tests and a single process that can afford it, but:
@@ -534,6 +549,7 @@ parameters named like a password, token or secret are hidden.
 | `Throttle`, `ClientIP` | failed-login limits; the address they count (`web.ClientIP`) |
 | `FailedLoginTime` | the least time a failed login takes (300ms; negative for none) |
 | `LiveRecheck` | how often a live page loads its identity again (60s; negative for never) |
+| `UserCache` | how long a loaded identity is kept, so a request reads only its session or token (off) |
 | `JWT` | JWTs from elsewhere |
 | `Policies` | `auth.PolicyFor` rules for `auth.Check` |
 | `TrustedOrigins` | origins allowed to post |
