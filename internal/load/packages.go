@@ -350,6 +350,9 @@ type Generated struct {
 	Src    []byte
 	From   []byte // the source text it was generated from
 	Map    *transpile.SourceMap
+	// Body is where the source's own lines end in Src, for a .vuka file
+	// (transpile.Output.Body); 0 for a .templ file's Go.
+	Body int
 	// TemplMap is templ's source map (a *parser.SourceMap) for a .templ
 	// file's Go, when Src is templ's raw output (Options.Bare); nil otherwise.
 	TemplMap any
@@ -546,7 +549,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Files: f.Files})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files})
 		}
 		if sess != nil {
 			sess.store(p, key, out[first:])

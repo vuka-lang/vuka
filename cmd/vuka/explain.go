@@ -34,7 +34,7 @@ func explain(args []string, stdout io.Writer) error {
 	if r, err := filepath.EvalSymlinks(path); err == nil {
 		path = r
 	}
-	out, src, err := generate(path)
+	out, err := generate(path)
 	if err != nil {
 		return err
 	}
@@ -42,59 +42,38 @@ func explain(args []string, stdout io.Writer) error {
 		_, err := stdout.Write(out.Src)
 		return err
 	}
-	writeExplanation(stdout, filepath.Base(path), src, out)
+	writeExplanation(stdout, filepath.Base(path), out)
 	return nil
 }
 
 // generate transpiles the module and returns path's generated Go, bare: no
-// header or line directives, so its lines are the source's lines.
-func generate(path string) (transpile.Output, []byte, error) {
+// header or line directives, so its lines are the source's lines. One run
+// transpiles everything, exactly as the build does — the file's Go is taken
+// from it, never regenerated, so explain can't disagree with the build.
+func generate(path string) (load.Generated, error) {
 	root, modPath, err := load.ModuleRoot(filepath.Dir(path))
 	if err != nil {
-		return transpile.Output{}, nil, err
+		return load.Generated{}, err
 	}
 	pkgs, err := load.Discover(root, modPath, root, true, nil)
 	if err != nil {
-		return transpile.Output{}, nil, err
+		return load.Generated{}, err
 	}
 	tmp, err := os.MkdirTemp("", "vuka-")
 	if err != nil {
-		return transpile.Output{}, nil, err
+		return load.Generated{}, err
 	}
 	defer os.RemoveAll(tmp)
-	// Transpile everything (for imports between Vuka packages), bare, then
-	// once more this package alone to get its maps.
-	if _, _, err := load.Transpile(pkgs, tmp, load.Options{Bare: true}); err != nil {
-		return transpile.Output{}, nil, err
+	gens, _, err := load.Transpile(pkgs, tmp, load.Options{Bare: true})
+	if err != nil {
+		return load.Generated{}, err
 	}
-	for _, p := range pkgs {
-		if p.Dir != filepath.Dir(path) {
-			continue
-		}
-		for _, f := range p.Files {
-			if filepath.Join(p.Dir, f.Name) != path {
-				continue
-			}
-			res, err := transpile.Package(p.Files, transpile.Options{
-				Bare:          true,
-				Templ:         load.TemplFinder(pkgs),
-				TemplRegistry: templRegistry(p.Dir),
-				Importer:      load.NewImporter(p.Dir, filepath.Join(tmp, "overlay.json")),
-				Path:          func(name string) string { return filepath.Join(p.Dir, name) },
-				Dir:           p.Dir,
-				ImportPath:    p.ImportPath,
-			})
-			if err != nil {
-				return transpile.Output{}, nil, err
-			}
-			for _, o := range res.Files {
-				if o.Name == f.Name {
-					return o, f.Src, nil
-				}
-			}
+	for _, g := range gens {
+		if g.Source == path && g.Map != nil {
+			return g, nil
 		}
 	}
-	return transpile.Output{}, nil, fmt.Errorf("%s isn't in a package of this module", path)
+	return load.Generated{}, fmt.Errorf("%s isn't in a package of this module", path)
 }
 
 type explained struct {
@@ -105,7 +84,8 @@ type explained struct {
 	note   string
 }
 
-func writeExplanation(w io.Writer, name string, src []byte, out transpile.Output) {
+func writeExplanation(w io.Writer, name string, out load.Generated) {
+	src := out.From
 	srcLines := strings.Split(string(src), "\n")
 	genBody := strings.Split(string(out.Src[:out.Body]), "\n")
 	lineOf := func(text []byte, off int) int { return bytes.Count(text[:min(off, len(text))], []byte("\n")) + 1 }
