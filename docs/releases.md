@@ -10,6 +10,20 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## Libraries — 2026-10-12
+
+- **[ui](https://github.com/vuka-lang/ui) v0.12.0 and
+  [web](https://github.com/vuka-lang/web) v0.19.0:** server-rendered HTML
+  pages are about 40% faster, with half the allocations, and the output
+  byte-for-byte the same. An element or frame is built in one allocation,
+  text and attribute values are escaped only when they hold `& ' < > "`, and a
+  page with nothing live renders straight into a pooled buffer instead of
+  through a live session. New API `ui.RenderPage`.
+- **[orm](https://github.com/vuka-lang/orm) v0.5.1:** `orm.Base` marks the
+  types embedding it as declaring a model, so Vuka links a model's package
+  into the program and the ORM sees models no code imports (with the next
+  vuka release, which recognises the marker).
+
 ## cmd/vuka v0.23.2 — 2026-10-12
 
 Runtime: unchanged, v0.16.0.
