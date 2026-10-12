@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Vuka
   text: Go, with a few things more
-  tagline: Result and Option, the ? operator, pattern matching, overloading, decorators, statics and JSX components. Vuka transpiles to plain Go and builds with the go command you already have.
+  tagline: Result and Option, the ? operator, pattern matching, enums, overloading, decorators, statics and JSX components. Vuka transpiles to plain Go and builds with the go command you already have.
   image:
     src: /logo.svg
     alt: Vuka
@@ -26,6 +26,10 @@ features:
     linkText: Using Go code
   - title: Errors as values, with less ceremony
     details: Result and Option, ? to pass an error on, and exhaustive match. Go's (T, error) works with all of it.
+  - title: Enums
+    details: "enum Status { Draft, Sent, Paid } — variants with String, Parse, JSON and database methods, or variants carrying data, and a match that must handle every one."
+    link: /features/enums
+    linkText: Enums
   - title: Decorators, the Python way
     details: "decorator logged(c) { … } decorates any function, method or type. Retries, caches, auth guards and dependency injection, in a few lines."
   - title: Statics and Self

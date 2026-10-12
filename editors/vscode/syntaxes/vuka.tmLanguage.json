@@ -16,6 +16,9 @@
       "include": "#jsx"
     },
     {
+      "include": "#enum"
+    },
+    {
       "include": "#struct"
     },
     {
@@ -462,7 +465,33 @@
           "name": "variable.language.wildcard.vuka"
         },
         {
+          "comment": "A qualified name before the case's colon, a comma, a guard or a struct pattern's braces: Status.Draft, pkg.Max.",
+          "match": "(?<![\\w.])((?:[A-Za-z_][A-Za-z0-9_]*\\.)+)([A-Za-z_][A-Za-z0-9_]*)(?=\\s*(?::(?!=)|,|\\{|if\\b))",
+          "captures": {
+            "1": {
+              "patterns": [
+                {
+                  "match": "[A-Za-z_][A-Za-z0-9_]*",
+                  "name": "entity.name.type.go"
+                },
+                {
+                  "match": "\\.",
+                  "name": "punctuation.other.period.go"
+                }
+              ]
+            },
+            "2": {
+              "name": "variable.other.enummember.vuka"
+            }
+          }
+        },
+        {
           "include": "#runtime"
+        },
+        {
+          "comment": "A name right before the case's colon (a guard's last operand), so Go's key: rule doesn't take the colon.",
+          "match": "(?<![\\w.])([A-Za-z_][A-Za-z0-9_]*)(?=\\s*:(?!=))",
+          "name": "variable.other.go"
         },
         {
           "include": "$self"
@@ -991,6 +1020,76 @@
       },
       "name": "meta.decorator.composed.vuka",
       "patterns": [
+        {
+          "include": "source.go"
+        }
+      ]
+    },
+    "enum": {
+      "comment": "An enum: its name, optional underlying type, and variants, each a name with optional fields or value.",
+      "begin": "^\\s*(enum)\\s+([A-Za-z_][A-Za-z0-9_]*)(?:\\s+([A-Za-z_][A-Za-z0-9_]*))?\\s*(\\{)",
+      "beginCaptures": {
+        "1": {
+          "name": "keyword.type.enum.vuka"
+        },
+        "2": {
+          "name": "entity.name.type.enum.vuka"
+        },
+        "3": {
+          "name": "entity.name.type.go"
+        },
+        "4": {
+          "name": "punctuation.definition.begin.bracket.curly.go"
+        }
+      },
+      "end": "\\}",
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.end.bracket.curly.go"
+        }
+      },
+      "name": "meta.enum.vuka",
+      "patterns": [
+        {
+          "include": "#comments"
+        },
+        {
+          "include": "#strings"
+        },
+        {
+          "comment": "A variant with fields.",
+          "begin": "([A-Za-z_][A-Za-z0-9_]*)\\s*(\\{)",
+          "beginCaptures": {
+            "1": {
+              "name": "variable.other.enummember.vuka"
+            },
+            "2": {
+              "name": "punctuation.definition.begin.bracket.curly.go"
+            }
+          },
+          "end": "\\}",
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.end.bracket.curly.go"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#struct-field"
+            },
+            {
+              "include": "source.go"
+            }
+          ]
+        },
+        {
+          "match": "(?:^|(?<=[{,]))\\s*([A-Za-z_][A-Za-z0-9_]*)\\b(?=\\s*(?:=|,|//|\\}|$))",
+          "captures": {
+            "1": {
+              "name": "variable.other.enummember.vuka"
+            }
+          }
+        },
         {
           "include": "source.go"
         }

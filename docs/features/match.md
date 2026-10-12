@@ -28,13 +28,15 @@ case Err(e):
 | `^x` | the current value of the variable `x` (Elixir's pin) |
 | `Ok(p)`, `Err(p)`, `Some(p)`, `None` | a Result or Option, then `p` inside |
 | `T{F: p, …}`, `&T{…}` | a struct's fields; against an interface, a type test too |
+| `Status.Draft`, `Shape.Circle{Radius: p}` | an [enum](/features/enums)'s variant |
 | `1, 2, 3` | any of them |
 
 `case p if cond:` adds a guard.
 
 ## Exhaustive
 
-A `match` must cover every case — Ok and Err, Some and None, true and false, or a
+A `match` must cover every case — Ok and Err, Some and None, true and false,
+every variant of an enum, or a
 case that takes anything — and a case after one that matches everything is an
 error. Both are reported before Go sees the code:
 

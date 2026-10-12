@@ -43,6 +43,7 @@ export default defineConfig({
           { text: 'Result and Option', link: '/features/result-option' },
           { text: 'The ? operator', link: '/features/try' },
           { text: 'match', link: '/features/match' },
+          { text: 'Enums', link: '/features/enums' },
           { text: 'Overloading', link: '/features/overloading' },
           { text: 'Attributes', link: '/features/attributes' },
           { text: 'Field attributes and references', link: '/features/fields' },
