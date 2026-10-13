@@ -36,6 +36,7 @@ type jsxComp struct {
 
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.MountIsland.
 	island       bool      // this comp is a <ui.Island> wrapper
+	islandSite   string    // a stable id for the island's placement (MountIsland's first arg → data-vk-s)
 	consumed     bool      // a tag a <ui.Island> absorbs (its <ui.Template>s and body): not resolved or emitted on its own
 	bodyTag      span      // the island body component's type-name span (kept in the direct form)
 	islandStrat  string    // the strategy constructor: Load/Idle/Visible/Media/ClientOnly/SSR; "" = none

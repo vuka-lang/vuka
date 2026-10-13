@@ -205,6 +205,9 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 	}
 
 	body.comp.consumed, body.comp.resolved = true, true
+	// A stable per-placement id (file + the wrapper's source offset): identical
+	// across renders, so the host's data-vk-s doesn't churn in the live-view diff.
+	c.islandSite = f.name + "#" + strconv.Itoa(c.el.start)
 	c.island, c.resolved = true, true
 	e.progress = true
 }
@@ -283,7 +286,7 @@ func (w *jsxWriter) island(c *jsxComp) {
 	}
 
 	body := func() {
-		w.gen(q + "MountIsland(")
+		w.gen(q + "MountIsland(" + strconv.Quote(c.islandSite) + ", ")
 		if closure {
 			w.gen(c.props)
 		} else {

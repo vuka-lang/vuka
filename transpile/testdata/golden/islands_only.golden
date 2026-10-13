@@ -12,7 +12,7 @@ type Clock struct {
 
 // client:only lowers to ui.ClientOnly(): the island is never server-rendered.
 func clock() ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland(
+	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_only.vuka#243", 
 /*line islands_only.vuka:13:4*/Clock{Zone: "UTC", }, ui.ClientOnly()), 
 )
 }

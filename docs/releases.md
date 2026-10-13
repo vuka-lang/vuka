@@ -28,6 +28,20 @@ use ui v0.21.0, web v0.24.0.
   an island emit runs a server handler that bumps a live prop, which updates the
   island in place.
 
+## v0.28.0 — 2026-10-13
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.34.0`. New apps
+use ui v0.22.0, web v0.25.0.
+
+- **Stable island `data-vk-s`.** A `<ui.Island>` now lowers to
+  `ui.MountIsland("<site>", …)` with a stable per-placement id (the file + the
+  wrapper's source offset), used as the host's `data-vk-s`. Previously the host
+  got a per-render counter, so every island re-render churned `data-vk-s` in the
+  live-view diff (spurious patch weight) and broke `ctx.ref` after an update
+  (the captured scope no longer matched). The id is now identical across
+  renders. Requires ui v0.22.0 (`MountIsland` gained the leading `site`
+  parameter).
+
 ## cmd/vuka v0.33.0 — 2026-10-13
 
 Runtime unchanged (vuka v0.26.0); new apps use ui v0.21.0, web v0.25.0.

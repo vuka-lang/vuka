@@ -12,7 +12,7 @@ type Panel struct {
 
 // A wrapper with no <ui.Template>: just the body (with a slot) and a strategy.
 func panel() ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland(
+	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_notemplate.vuka#241", 
 /*line islands_notemplate.vuka:13:4*/Panel{Open: true, }, ui.Load(), ui.Slot(ui.F(0xadf427bf4d4f837f, "E(t)", ui.El("p", nil, ui.Text("body"), ), ))), 
 )
 }

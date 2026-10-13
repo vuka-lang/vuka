@@ -26,7 +26,7 @@ func (d *page) Delete()   {}
 
 // A bare island: onBump lowers to ui.Emit("bump", d.Bump) (no strategy).
 func (d *page) bare() ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland(
+	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_emit.vuka#600", 
 /*line islands_emit.vuka:27:4*/Counter{Count: 5, }, ui.Emit("bump", /*line islands_emit.vuka:27:30*/d.Bump)), 
 )
 }
@@ -34,7 +34,7 @@ func (d *page) bare() ui.Node {
 // With a strategy and several emits; the emit name drops the leading on and
 // lower-cases its first letter (onRowClick → rowClick, onDelete → delete).
 func (d *page) full() ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland(
+	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_emit.vuka#865", 
 /*line islands_emit.vuka:35:4*/Counter{Count: 5, }, ui.Visible(), ui.Emit("rowClick", /*line islands_emit.vuka:35:49*/d.RowClick), ui.Emit("delete", /*line islands_emit.vuka:35:71*/d.Delete)), 
 )
 }

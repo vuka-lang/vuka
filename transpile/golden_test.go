@@ -46,11 +46,19 @@ func TestGolden(t *testing.T) {
 			out := res.Files[0].Src
 			compare(t, filepath.Join(dir, name+".golden"), out)
 
-			want, err := os.ReadFile(filepath.Join(dir, name+".out"))
+			outPath := filepath.Join(dir, name+".out")
+			want, err := os.ReadFile(outPath)
 			if err != nil {
 				return
 			}
-			if got := run(t, out); got != string(want) {
+			got := run(t, out)
+			if *update {
+				if got != string(want) {
+					os.WriteFile(outPath, []byte(got), 0o644)
+				}
+				return
+			}
+			if got != string(want) {
 				t.Errorf("output:\n%s\nwant:\n%s", got, want)
 			}
 		})

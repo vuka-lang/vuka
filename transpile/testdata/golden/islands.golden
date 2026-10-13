@@ -20,7 +20,7 @@ type Counter struct {
 // page wraps the island to add a fallback shown until hydration; the body's
 // client:visible directive is the strategy and its children are the slot.
 func page() ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland(
+	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands.vuka#498", 
 
 /*line islands.vuka:22:4*/Counter{Count: 5, }, ui.Visible(), ui.Slot(ui.F(0x76c65d8aeeaad933, "E(t)", ui.El("small", nil, ui.Text("clicks"), ), )), ui.Fallback(ui.F(0x613d1b02f27468a6, "Es(t)", ui.El("div", []ui.Attr{{Name: "class", Value: "skeleton"}, }, ui.Text("Loading"), ), ))), 
 )

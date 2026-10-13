@@ -1,2 +1,2 @@
-<vk-island data-vk-s="i1" data-vk-island="Counter" data-vk-client="visible" data-vk-props="{&#34;count&#34;:5}" data-vk-emit-bump></vk-island>
-<vk-island data-vk-s="i2" data-vk-island="Counter" data-vk-client="visible" data-vk-props="{&#34;count&#34;:5}" data-vk-emit-rowclick data-vk-emit-delete></vk-island>
+<vk-island data-vk-s="islands_emit.vuka#600" data-vk-island="Counter" data-vk-client="visible" data-vk-props="{&#34;count&#34;:5}" data-vk-emit-bump></vk-island>
+<vk-island data-vk-s="islands_emit.vuka#865" data-vk-island="Counter" data-vk-client="visible" data-vk-props="{&#34;count&#34;:5}" data-vk-emit-rowclick data-vk-emit-delete></vk-island>
