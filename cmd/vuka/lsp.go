@@ -521,6 +521,13 @@ var vukaMethods = map[string]bool{
 	"textDocument/linkedEditingRange": true,
 }
 
+// semanticTokensMethods are the .vuka requests whose result is a token array
+// over the generated Go, remapped onto the source.
+var semanticTokensMethods = map[string]bool{
+	"textDocument/semanticTokens/full":  true,
+	"textDocument/semanticTokens/range": true,
+}
+
 func isVuka(path string) bool { return strings.HasSuffix(path, ".vuka") }
 
 // moduleFile reports whether path is a go.mod, go.sum or go.work file.
@@ -858,6 +865,14 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 				if caps["documentLinkProvider"] == nil {
 					caps["documentLinkProvider"] = map[string]any{} // vuka.File literals
 				}
+				// Semantic tokens: gopls's, remapped onto the .vuka source, with
+				// gopls's own legend so the token-type indices carry through. full
+				// and range; no delta (the editor asks for a full set each time).
+				if stp, ok := caps["semanticTokensProvider"].(map[string]any); ok {
+					if legend, ok := stp["legend"]; ok {
+						caps["semanticTokensProvider"] = map[string]any{"legend": legend, "full": true, "range": true}
+					}
+				}
 			}
 		}
 	}
@@ -1001,7 +1016,7 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	reply := func(result any) {
 		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": result})
 	}
-	if !vukaMethods[m.Method] {
+	if !vukaMethods[m.Method] && !semanticTokensMethods[m.Method] {
 		reply(nil)
 		return
 	}
@@ -1019,6 +1034,14 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		cur := *vf
 		cur.withText(buf, nil)
 		vf = &cur
+	}
+	if semanticTokensMethods[m.Method] && (vf.isTempl() || vf.stale) {
+		// Mid-edit the generated Go is stale against the buffer; whole-file
+		// tokens remapped onto it would be wrong. Empty is better than garbage,
+		// like the diagnostic gating; the next settled build re-highlights.
+		p.mu.Unlock()
+		reply(emptySemanticTokens())
+		return
 	}
 	var params map[string]any
 	_ = json.Unmarshal(m.Params, &params)
@@ -1146,12 +1169,19 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 				_ = p.editor.send(reply)
 			}()
 			return
+		case semanticTokensMethods[vr.method]:
+			reply["result"] = emptySemanticTokens()
 		case quietMethods[vr.method]:
 			p.logf("%s: %s", vr.method, m.Error)
 			reply["result"] = nil
 		default:
 			reply["error"] = m.Error
 		}
+		_ = p.editor.send(reply)
+		return
+	}
+	if semanticTokensMethods[vr.method] {
+		reply["result"] = p.semanticTokens(vr.file, m.Result)
 		_ = p.editor.send(reply)
 		return
 	}

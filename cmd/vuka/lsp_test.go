@@ -178,7 +178,22 @@ func startLSPAt(t *testing.T, dir string, opts lspOptions) *lspClient {
 	})
 	c := &lspClient{t: t, conn: newRPCConn(fromProxyR, toProxyW), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100)}
 	go c.loop()
-	c.init = c.call("initialize", map[string]any{"rootUri": pathToURI(dir), "capabilities": map[string]any{}})
+	c.init = c.call("initialize", map[string]any{"rootUri": pathToURI(dir),
+		// gopls gates semantic tokens behind this setting, as the editor enables it.
+		"initializationOptions": map[string]any{"semanticTokens": true, "ui.semanticTokens": true},
+		"capabilities": map[string]any{
+			"textDocument": map[string]any{"semanticTokens": map[string]any{
+				"requests": map[string]any{"full": true, "range": true},
+				"tokenTypes": []any{"namespace", "type", "class", "enum", "interface", "struct",
+					"typeParameter", "parameter", "variable", "property", "enumMember", "event",
+					"function", "method", "macro", "keyword", "modifier", "comment", "string",
+					"number", "regexp", "operator", "decorator", "label"},
+				"tokenModifiers": []any{"declaration", "definition", "readonly", "static",
+					"deprecated", "abstract", "async", "modification", "documentation",
+					"defaultLibrary"},
+				"formats": []any{"relative"},
+			}},
+		}})
 	c.notify("initialized", map[string]any{})
 	return c
 }
