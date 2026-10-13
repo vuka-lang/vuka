@@ -39,6 +39,8 @@ type compiled struct {
 	css      []string // the stylesheets Tailwind's entry imports, in order
 	plain    []byte   // all of them, for an app without Tailwind
 	bundles  []*bundle
+	islands  []*islandBundle // the bundled island chunks (/_vuka/i/)
+	dts      []byte          // islands.d.ts, generated from the Go structs
 	manifest []byte
 }
 
@@ -57,9 +59,21 @@ type manifestEntry struct {
 	Pushes []string `json:"pushes,omitempty"`
 }
 
+// manifestIsland is an island's line of the manifest web reads: its name
+// (data-vk-island), its bundled chunk (a file under /_vuka/i/), an optional
+// framework adapter chunk (empty for vanilla, whose module exports mount), and
+// the framework. Its JSON matches web's islandAsset.
+type manifestIsland struct {
+	Name      string `json:"name"`
+	Module    string `json:"module"`
+	Adapter   string `json:"adapter,omitempty"`
+	Framework string `json:"framework,omitempty"`
+}
+
 type manifestFile struct {
-	Scopes map[string]*manifestEntry `json:"scopes,omitempty"`
-	Global *manifestEntry            `json:"global,omitempty"`
+	Scopes  map[string]*manifestEntry  `json:"scopes,omitempty"`
+	Global  *manifestEntry             `json:"global,omitempty"`
+	Islands map[string]*manifestIsland `json:"islands,omitempty"`
 }
 
 func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) {
@@ -150,6 +164,31 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		if len(b.pushes) > 0 {
 			e.Type = goTypeName(c)
 		}
+	}
+	if len(pa.islands) > 0 {
+		mf.Islands = map[string]*manifestIsland{}
+		buildRoot := pa.frontendRoot
+		if buildRoot == "" {
+			buildRoot = pa.root
+		}
+		for _, ic := range pa.islands {
+			if ic.framework != "vanilla" {
+				errs = append(errs, fmt.Errorf("island %s: %s islands need Phase 2 (only vanilla .ts/.js in Phase 1)", ic.name, ic.framework))
+				continue
+			}
+			if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
+				errs = append(errs, fmt.Errorf("%s: island %s: component %s not found", ic.label, ic.name, ic.rel))
+				continue
+			}
+			ib, err := bundleIsland(buildRoot, ic, dev)
+			if err != nil {
+				errs = append(errs, err)
+				continue
+			}
+			out.islands = append(out.islands, ib)
+			mf.Islands[ic.name] = &manifestIsland{Name: ic.name, Module: ib.name, Framework: "vanilla"}
+		}
+		out.dts = islandsDTS(pa.islands)
 	}
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
@@ -387,9 +426,15 @@ func assetsGo(c *compiled) []byte {
 	for i, bn := range c.bundles {
 		fmt.Fprintf(&b, "\tvukaweb.RegisterScript(%q, []byte(vukaScript%d))\n", bn.name, i)
 	}
+	for i, ib := range c.islands {
+		fmt.Fprintf(&b, "\tvukaweb.RegisterIsland(%q, []byte(vukaIsland%d))\n", ib.name, i)
+	}
 	b.WriteString("}\n\nconst vukaAssets = " + strconv.Quote(string(c.manifest)) + "\n")
 	for i, bn := range c.bundles {
 		fmt.Fprintf(&b, "\nconst vukaScript%d = %s\n", i, strconv.Quote(string(bn.js)))
+	}
+	for i, ib := range c.islands {
+		fmt.Fprintf(&b, "\nconst vukaIsland%d = %s\n", i, strconv.Quote(string(ib.js)))
 	}
 	return []byte(b.String())
 }
@@ -431,6 +476,7 @@ type devAssets struct {
 func newDevAssets(root string, stderr io.Writer) *devAssets {
 	d := &devAssets{root: root, stderr: stderr, stop: make(chan struct{})}
 	os.MkdirAll(filepath.Join(root, filepath.FromSlash(assetsDir), "c"), 0o755)
+	os.MkdirAll(filepath.Join(root, filepath.FromSlash(assetsDir), "i"), 0o755)
 	go d.watch()
 	return d
 }
@@ -479,6 +525,11 @@ func (d *devAssets) compile() {
 			}
 		}
 	}
+	for _, ic := range pa.islands {
+		if fi, _ := os.Stat(ic.src); fi != nil {
+			files[ic.src] = fi.ModTime()
+		}
+	}
 	d.files = files
 	var warn bytes.Buffer
 	out, err := compileAssets(pa, true, &warn)
@@ -500,6 +551,26 @@ func (d *devAssets) compile() {
 	for _, e := range entries {
 		if !keep[e.Name()] {
 			os.Remove(filepath.Join(dir, "c", e.Name()))
+		}
+	}
+	ikeep := map[string]bool{}
+	for _, ib := range out.islands {
+		ikeep[ib.name] = true
+		writeIfChanged(filepath.Join(dir, "i", ib.name), ib.js)
+	}
+	ient, _ := os.ReadDir(filepath.Join(dir, "i"))
+	for _, e := range ient {
+		if !ikeep[e.Name()] {
+			os.Remove(filepath.Join(dir, "i", e.Name()))
+		}
+	}
+	if len(out.dts) > 0 {
+		dtsDir := d.root
+		if pa.frontendRoot != "" {
+			dtsDir = pa.frontendRoot
+		}
+		if err := os.MkdirAll(dtsDir, 0o755); err == nil {
+			writeIfChanged(filepath.Join(dtsDir, "islands.d.ts"), out.dts)
 		}
 	}
 	writeIfChanged(filepath.Join(dir, assetsManifest), out.manifest)

@@ -33,8 +33,10 @@ const scopeAttr = "data-vk-s"
 // pageAssets is what a module declares.
 type pageAssets struct {
 	root, modPath string
-	comps         []*assetComp // scoped, in the order first declared
-	global        *assetComp   // web.New's and web.Global's
+	comps         []*assetComp  // scoped, in the order first declared
+	global        *assetComp    // web.New's and web.Global's
+	islands       []*islandComp // @ui.Island types, in the order first declared
+	frontendRoot  string        // the island build's root (web.Frontend's folder); absolute, "" = module root
 }
 
 // assetComp is a component's styles and scripts.
@@ -86,7 +88,7 @@ func (pa *pageAssets) scopes() map[string]map[string]string {
 }
 
 func (pa *pageAssets) empty() bool {
-	return pa == nil || len(pa.comps) == 0 && len(pa.global.styles) == 0 && len(pa.global.scripts) == 0
+	return pa == nil || len(pa.comps) == 0 && len(pa.global.styles) == 0 && len(pa.global.scripts) == 0 && len(pa.islands) == 0
 }
 
 var assetFuncs = map[string]bool{"Style": true, "Script": true, "CSS": true, "JS": true}
@@ -108,10 +110,13 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 		if err != nil {
 			return err
 		}
-		if !strings.Contains(string(src), `"`+webPath+`"`) {
-			return nil
+		s := string(src)
+		if strings.Contains(s, `"`+webPath+`"`) {
+			errs = append(errs, pa.readFile(p, src)...)
 		}
-		errs = append(errs, pa.readFile(p, src)...)
+		if strings.Contains(s, `"`+load.UIPath+`"`) {
+			errs = append(errs, pa.readIslands(p, src)...)
+		}
 		return nil
 	})
 	if err != nil {
@@ -129,6 +134,16 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 			return nil, fmt.Errorf("vuka: %s and %s share the scope %s; rename one", o.goName(), c.goName(), c.id)
 		}
 		ids[c.id] = c
+	}
+	seen := map[string]*islandComp{}
+	for _, ic := range pa.islands {
+		if o := seen[ic.name]; o != nil {
+			return nil, fmt.Errorf("%s: island %s is already declared at %s; two @ui.Island types can't share a name", ic.label, ic.name, o.label)
+		}
+		seen[ic.name] = ic
+	}
+	if len(pa.islands) > 0 {
+		pa.frontendRoot = findFrontendRoot(root)
 	}
 	return pa, nil
 }
