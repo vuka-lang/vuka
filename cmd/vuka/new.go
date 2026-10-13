@@ -26,8 +26,8 @@ import (
 
 // The versions a new app requires; vuka mod tidy brings in the rest.
 const (
-	vukaVersion = "v0.23.0"
-	uiVersion   = "v0.15.0"
+	vukaVersion = "v0.24.0"
+	uiVersion   = "v0.18.0"
 	webVersion  = "v0.21.0"
 	ormVersion  = "v0.7.1"
 )
