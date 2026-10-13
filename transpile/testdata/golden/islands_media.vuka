@@ -1,0 +1,16 @@
+package main
+
+import ui "vukatest.local/islandui"
+
+@ui.Island("islands/Chart.vue")
+type Chart struct {
+	Points int `json:"points"`
+}
+
+// A bare wrapper (no template, no slot) whose body hydrates on a media query:
+// client:media={q} lowers to ui.Media(q).
+func chart() ui.Node {
+	return <ui.Island>
+		<Chart points={12} client:media={"(max-width: 600px)"}/>
+	</ui.Island>
+}
