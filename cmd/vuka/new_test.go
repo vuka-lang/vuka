@@ -110,6 +110,10 @@ func TestAnswerDefaults(t *testing.T) {
 		"db=oracle":                       "--db=oracle: one of sqlite, postgres, mysql, none",
 		"frontend=angular":                "--frontend=angular: one of none, react, vue, svelte",
 		"ui=API db=PG auth=true mail=off": "",
+		"islands=yes":                     "", // ui=live, frontend=none by default: valid
+		"islands=yes ui=templ":            "--islands=yes needs --ui=live",
+		"islands=yes frontend=vue":        "--islands=yes needs --ui=live",
+		"islands=maybe":                   "--islands=maybe:",
 	} {
 		flags := map[string]string{}
 		for kv := range strings.FieldsSeq(given) {
@@ -284,6 +288,60 @@ func TestRenderFileSets(t *testing.T) {
 		if !strings.Contains(string(f[entry]), "APP_NAME") || !strings.Contains(string(f[".gitignore"]), "node_modules") {
 			t.Errorf("%s: the app's name, or .gitignore", fw)
 		}
+	}
+}
+
+// A Vue island app scaffolds its web/ frontend root, the sample component
+// and the page that hosts it, and wires the island frontend in main.vuka;
+// islands=no makes none of them.
+func TestRenderIslands(t *testing.T) {
+	render := func(islands string) map[string][]byte {
+		t.Helper()
+		s := &scaffold{Dir: "shop", Module: "example.com/shop", Name: "Shop"}
+		if err := s.answer(map[string]string{"ui": "live", "db": "none", "mail": "no", "auth": "no", "frontend": "none", "islands": islands}, nil); err != nil {
+			t.Fatal(err)
+		}
+		s.AdminEmail, s.AdminPassword = "admin@example.com", "pw"
+		s.VukaVersion, s.UIVersion, s.WebVersion, s.ORMVersion = "v1", "v2", "v3", "v4"
+		files, err := s.render()
+		if err != nil {
+			t.Fatal(err)
+		}
+		for name, b := range files {
+			if bytes.Contains(b, []byte("{%")) || bytes.Contains(b, []byte("<no value>")) {
+				t.Errorf("%s isn't fully rendered", name)
+			}
+		}
+		return files
+	}
+
+	yes := render("yes")
+	for _, f := range []string{"web/package.json", "web/dist/index.html", "web/islands/Counter.vue", "pages/island.vuka"} {
+		if _, ok := yes[f]; !ok {
+			t.Errorf("islands: no %s", f)
+		}
+	}
+	if pkg := string(yes["web/package.json"]); !strings.Contains(pkg, "esbuild-plugin-vue3") || !strings.Contains(pkg, `"vue"`) {
+		t.Errorf("web/package.json lacks the island build deps:\n%s", pkg)
+	}
+	if m := string(yes["main.vuka"]); !strings.Contains(m, `web.FrontendRoot("web")`) || !strings.Contains(m, "all:web/dist") {
+		t.Errorf("main.vuka doesn't wire the island frontend:\n%s", m)
+	}
+	if p := string(yes["pages/island.vuka"]); !strings.Contains(p, `@ui.Island("../web/islands/Counter.vue")`) || !strings.Contains(p, "<ui.Island>") {
+		t.Errorf("pages/island.vuka doesn't declare and place the island:\n%s", p)
+	}
+	if g := string(yes[".gitignore"]); !strings.Contains(g, "/web/node_modules/") {
+		t.Errorf(".gitignore doesn't ignore the island deps:\n%s", g)
+	}
+
+	no := render("no")
+	for _, f := range []string{"web/package.json", "web/dist/index.html", "web/islands/Counter.vue", "pages/island.vuka"} {
+		if _, ok := no[f]; ok {
+			t.Errorf("islands=no, yet %s", f)
+		}
+	}
+	if m := string(no["main.vuka"]); strings.Contains(m, "web/dist") || strings.Contains(m, "FrontendRoot") {
+		t.Errorf("islands=no, yet main.vuka wires an island frontend:\n%s", m)
 	}
 }
 

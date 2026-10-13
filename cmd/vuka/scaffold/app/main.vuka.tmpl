@@ -5,7 +5,7 @@
 package main
 
 import (
-{%- if or .Pages (ne .Frontend "none")%}
+{%- if or .Pages (ne .Frontend "none") .Islands%}
 	"embed"
 {%- end%}
 {%- if .Pages%}
@@ -53,6 +53,14 @@ var static embed.FS
 //go:embed all:frontend/dist
 var dist embed.FS
 {%- end%}
+{%- if .Islands%}
+
+// dist is the island frontend's build output, embedded in the binary.
+// The sample Vue island lives in web/islands; vuka build bundles it.
+//
+//go:embed all:web/dist
+var dist embed.FS
+{%- end%}
 
 // options are the app's, shared by main and the tests.
 func options() []web.Option {
@@ -89,6 +97,11 @@ func options() []web.Option {
 {%- end%}
 {%- if ne .Frontend "none"%}
 		web.Frontend(dist, "frontend/dist", web.FrontendAt("/app"), web.FrontendEnv("APP_NAME")),
+{%- end%}
+{%- if .Islands%}
+		// web/ is the island frontend root: web/islands/*.vue build from the
+		// vue, esbuild and esbuild-plugin-vue3 in web/node_modules.
+		web.Frontend(dist, "web/dist", web.FrontendRoot("web")),
 {%- end%}
 	}
 }

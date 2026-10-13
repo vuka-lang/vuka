@@ -51,6 +51,7 @@ type scaffold struct {
 	Mail     bool
 	Auth     bool
 	Frontend string // none, react, vue, svelte
+	Islands  bool   // a sample Vue island (needs live pages and its own web/ root)
 
 	AdminEmail, AdminPassword string
 
@@ -86,6 +87,10 @@ var (
 		{"vue", "Vue", "a Vite app at /app"},
 		{"svelte", "Svelte", "a Vite app at /app"},
 	}
+	islandsChoices = []choice{
+		{"no", "No", ""},
+		{"yes", "Yes, a sample Vue component", "hydrated in the browser; needs Node.js"},
+	}
 )
 
 const newUsage = `Usage: vuka new <dir> [module path] [flags]
@@ -100,6 +105,7 @@ Flags:
   --mail=yes|no                     mail, logged in development, SMTP in production (default yes)
   --auth=yes|no                     sign-in, with users in the database (default yes)
   --frontend=none|react|vue|svelte  a Vite app served at /app (default none)
+  --islands=yes|no                  a sample Vue island (needs --ui=live --frontend=none) (default no)
   --name=NAME                       the app's name as people read it (default: the directory's)
   --yes, -y                         the defaults for every question no flag answers
   --force                           use a directory that isn't empty; none of its files is overwritten
@@ -118,7 +124,7 @@ func parseNewArgs(args []string) (newArgs, error) {
 	fs := flag.NewFlagSet("vuka new", flag.ContinueOnError)
 	fs.SetOutput(io.Discard)
 	given := map[string]*string{}
-	for _, k := range []string{"ui", "db", "mail", "auth", "frontend"} {
+	for _, k := range []string{"ui", "db", "mail", "auth", "frontend", "islands"} {
 		given[k] = fs.String(k, "", "")
 	}
 	name := fs.String("name", "", "")
@@ -264,8 +270,32 @@ func (s *scaffold) answer(given map[string]string, p *prompter) error {
 		}
 		s.Auth = a == "yes"
 	}
-	s.Frontend, err = ask("frontend", "Frontend app", frontendChoices)
-	return err
+	if s.Frontend, err = ask("frontend", "Frontend app", frontendChoices); err != nil {
+		return err
+	}
+	// The sample Vue island is a client component on a live page, built from
+	// its own web/ frontend root; it needs live pages to host it and no Vite
+	// frontend to own the root. Offer it only then; refuse --islands=yes
+	// otherwise rather than scaffold something that can't build.
+	if s.UI == "live" && s.Frontend == "none" {
+		i, err := ask("islands", "Vue island sample", islandsChoices)
+		if err != nil {
+			return err
+		}
+		s.Islands = i == "yes"
+		return nil
+	}
+	switch synonym(strings.ToLower(given["islands"])) {
+	case "", "no":
+		if p != nil && given["islands"] == "" {
+			p.note("Vue island sample", "no: it needs live pages and no Vite frontend")
+		}
+	case "yes":
+		return errors.New("--islands=yes needs --ui=live and --frontend=none: the sample is a Vue component on a live page, served from its own web/ frontend root")
+	default:
+		return fmt.Errorf("--islands=%s: one of yes, no", given["islands"])
+	}
+	return nil
 }
 
 // synonym is the choice key a flag's value means.
@@ -290,6 +320,7 @@ func (s *scaffold) tags() map[string]bool {
 		s.DB: true, "db": s.DB != "none", "nodb": s.DB == "none",
 		"auth": s.Auth, "noauth": !s.Auth, "mail": s.Mail,
 		s.Frontend: true, "frontend": s.Frontend != "none",
+		"islands": s.Islands,
 	}
 }
 
@@ -571,6 +602,9 @@ func (s *scaffold) summary(w io.Writer) {
 	if s.Frontend != "none" {
 		what += ", a " + displayName(s.Frontend) + " app at /app"
 	}
+	if s.Islands {
+		what += ", a Vue island at /island"
+	}
 	fmt.Fprintf(w, "\nCreated %s (module %s): %s.\n", s.Dir, s.Module, what)
 	if s.Auth {
 		fmt.Fprintf(w, "\nThe first admin, created when the app first starts (the password is kept in\n.env, which git ignores):\n\n\temail     %s\n\tpassword  %s\n", s.AdminEmail, s.AdminPassword)
@@ -581,6 +615,9 @@ func (s *scaffold) summary(w io.Writer) {
 	fmt.Fprintf(w, "\nNext:\n\n\tcd %s\n\tvuka run -watch .       # then open http://localhost:8080\n\tvuka test ./...\n", s.Dir)
 	if s.DB != "none" {
 		fmt.Fprintf(w, "\tvuka add module notes   # a model, service, page, migration and test\n")
+	}
+	if s.Islands {
+		fmt.Fprintf(w, "\nThe Vue island at /island is built from web/; install its dependencies\nonce (Node.js 20+), then vuka build bundles it:\n\n\t(cd %s/web && npm install)\n", s.Dir)
 	}
 }
 

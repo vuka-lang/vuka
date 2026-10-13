@@ -1,0 +1,9 @@
+{
+  "name": "web",
+  "private": true,
+  "devDependencies": {
+    "esbuild": "^0.28.2",
+    "esbuild-plugin-vue3": "^0.5.1",
+    "vue": "^3.5.44"
+  }
+}

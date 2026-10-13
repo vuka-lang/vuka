@@ -33,6 +33,16 @@ The Tailwind CLI builds the stylesheet (`brew install tailwindcss`, or
 dependencies the first time; commit `frontend/package-lock.json` then), and
 the app serves the frontend at [/app](http://localhost:8080/app/).
 {%- end%}
+{%- if .Islands%}
+
+The sample Vue island at [/island](http://localhost:8080/island) is built from
+`web/`. Install its dependencies once (Node.js 20+), then `vuka build` bundles
+it into the binary:
+
+```sh
+(cd web && npm install)
+```
+{%- end%}
 
 ## What's where
 
@@ -60,6 +70,9 @@ styles/app.css         Tailwind, with the theme's tokens: the brand colour, font
 {%- end%}
 {%- if ne .Frontend "none"%}
 frontend/              a {%if eq .Frontend "react"%}React{%else if eq .Frontend "vue"%}Vue{%else%}Svelte{%end%} app built by Vite, served at /app
+{%- end%}
+{%- if .Islands%}
+web/islands/           the sample Vue island (Counter.vue), hydrated at /island
 {%- end%}
 .env                   this machine's settings and secrets (not committed)
 .env.example           the same keys with placeholders (committed)

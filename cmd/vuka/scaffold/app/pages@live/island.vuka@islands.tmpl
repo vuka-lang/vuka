@@ -1,0 +1,43 @@
+package pages
+
+import (
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+
+	"{%.Module%}/layouts"
+)
+
+// Counter is a Vue island: a client component hydrated in the browser. Go
+// owns the props (the exported fields; json tags are the wire names), and
+// the component itself is web/islands/Counter.vue — under the web/ frontend
+// root so esbuild-plugin-vue3 resolves its `vue` import. The path is
+// relative to this file (pages/ is one level below the root).
+@ui.Island("../web/islands/Counter.vue")
+type Counter struct {
+	Count int    `json:"count"`
+	Label string `json:"label"`
+}
+
+// IslandPage shows the sample island. The page is server-rendered; the
+// island hydrates when it scrolls into view (client:visible). Wrap an island
+// in <ui.Island> to give it a fallback shown until it hydrates.
+@web.Live("/island", web.Layout(layouts.Page("Vue island")))
+type IslandPage struct {
+	ui.Live
+}
+
+func (p *IslandPage) Render() ui.Node {
+	return <main class="mx-auto max-w-2xl px-4 py-16 sm:px-6 lg:px-8">
+		<h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">Vue island</h1>
+		<p class="mt-2 text-sm text-slate-600 dark:text-slate-400">
+			A client-hydrated Vue component on a server-rendered page. The button's
+			count lives in the browser; the page around it is sent as plain HTML.
+		</p>
+		<div class="mt-8 rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+			<ui.Island>
+				<ui.Template fallback><p class="text-sm text-slate-500 dark:text-slate-400">loading…</p></ui.Template>
+				<Counter count={7} label="clicks" client:visible/>
+			</ui.Island>
+		</div>
+	</main>
+}

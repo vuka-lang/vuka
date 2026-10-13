@@ -21,3 +21,12 @@ node_modules/
 !/frontend/dist/.gitkeep
 /frontend/vuka/
 {%- end%}
+{%- if .Islands%}
+
+# The island frontend's dependencies and build. The committed dist/index.html
+# stub lets the binary embed web/dist before the first build.
+/web/node_modules/
+/web/dist/*
+!/web/dist/index.html
+/web/.vuka-island-build-*
+{%- end%}
