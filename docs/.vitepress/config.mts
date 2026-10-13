@@ -91,6 +91,7 @@ export default defineConfig({
           { text: 'Live components', link: '/web/live' },
           { text: 'Navigation', link: '/web/navigation' },
           { text: 'Frontends', link: '/web/frontend' },
+          { text: 'Islands', link: '/web/islands' },
           { text: 'Configuration and .env', link: '/web/configuration' },
           { text: 'Mail', link: '/web/mail' },
           { text: 'Crons', link: '/web/crons' },
