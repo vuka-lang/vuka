@@ -31,16 +31,32 @@ const JSXVersion = 1
 // DefaultJSXTarget is the JSX target messages suggest.
 const DefaultJSXTarget = "github.com/vuka-lang/ui"
 
-// jsxTarget is the package a file's JSX lowers to.
+// jsxTarget is the package a file's JSX lowers to. It is usually a package the
+// file imports (q = "ui."), but a file whose OWN package declares VukaJSX
+// renders its JSX with unqualified calls of that package (self, q = ""): the
+// ui library authors its own components. A self-target's pkg isn't known until
+// the package is type-checked, so names holds the package-level names its JSX
+// asks about before then (scanned from the source), and resolveSelfTargets
+// fills path and pkg once check has run.
 type jsxTarget struct {
-	path string
-	q    string // the qualifier, "ui." ("" for a dot import)
-	pkg  *types.Package
+	path       string
+	q          string // the qualifier, "ui." ("" for a dot import or a self-target)
+	pkg        *types.Package
+	self       bool            // the file's own package is the target
+	names      map[string]bool // a self-target's package-level names, before it is type-checked
+	verChecked bool            // its VukaJSX version has been checked
 }
 
-// has reports whether the target declares name.
+// has reports whether the target declares name. Before a self-target is
+// type-checked its pkg is nil, so the names scanned from the source answer.
 func (t *jsxTarget) has(name string) bool {
-	return t.pkg != nil && t.pkg.Scope().Lookup(name) != nil
+	if t == nil {
+		return false
+	}
+	if t.pkg != nil {
+		return t.pkg.Scope().Lookup(name) != nil
+	}
+	return t.names[name]
 }
 
 type importSpec struct {
@@ -157,6 +173,13 @@ func (f *fileState) jsxTarget(toks []tok, off int, errs *ErrorList) *jsxTarget {
 	}
 	switch len(found) {
 	case 0:
+		if f.eng.selfJSX {
+			// The file's own package declares VukaJSX: its JSX renders with
+			// unqualified calls of the package itself. resolveSelfTargets sets
+			// path and pkg once the package is type-checked.
+			f.target = &jsxTarget{self: true, names: f.eng.selfNames}
+			break
+		}
 		why := ""
 		for _, imp := range tokImports(toks) {
 			if err := f.eng.targetErrs[imp.path]; err != nil {
@@ -173,6 +196,82 @@ func (f *fileState) jsxTarget(toks []tok, off int, errs *ErrorList) *jsxTarget {
 		f.target = found[0]
 	}
 	return f.target
+}
+
+// detectSelfTarget scans the package's sources for a top-level VukaJSX
+// declaration — which makes the package its own JSX target — and the
+// package-level names a self-target's JSX asks about before the package is
+// type-checked (its primitives, e.g. F, FT and On). It runs once, before the
+// files are scanned, so jsxTarget can decide a self-target without types.
+func (e *engine) detectSelfTarget(files []File) {
+	e.selfNames = map[string]bool{}
+	for _, file := range files {
+		toks := scanTokens(file.Src)
+		depth := 0
+		for i := 0; i < len(toks); i++ {
+			t := toks[i]
+			switch {
+			case isOpen(t.tok):
+				depth++
+				continue
+			case isClose(t.tok):
+				depth--
+				continue
+			}
+			// VukaJSX, wherever it is declared (a lone const or a group), marks
+			// the package as its own target; a selector x.VukaJSX does not.
+			if t.tok == token.IDENT && t.lit == "VukaJSX" && (i == 0 || toks[i-1].tok != token.PERIOD) {
+				e.selfJSX = true
+			}
+			if depth != 0 {
+				continue
+			}
+			if t.tok == token.FUNC || t.tok == token.TYPE {
+				j := i + 1
+				for j < len(toks) && (toks[j].tok == token.COMMENT || toks[j].tok == token.SEMICOLON) {
+					j++
+				}
+				if j < len(toks) && toks[j].tok == token.IDENT {
+					e.selfNames[toks[j].lit] = true
+				}
+			}
+		}
+	}
+}
+
+// resolveSelfTargets points each self-target at the package now that it is
+// type-checked, so its component tags resolve against the package's own scope
+// and has/targetObj read the real declarations. e.pkg is rebuilt every round,
+// so the target's pkg is refreshed to keep its types from going stale. The
+// VukaJSX version is checked once, as an imported target's is.
+func (e *engine) resolveSelfTargets() {
+	if e.pkg == nil {
+		return
+	}
+	for _, f := range e.vuka {
+		t := f.target
+		if t == nil || !t.self {
+			continue
+		}
+		t.path, t.pkg = e.pkg.Path(), e.pkg
+		if t.verChecked {
+			continue
+		}
+		t.verChecked = true
+		off := 0
+		if len(f.jsx) > 0 {
+			off = f.jsx[0].start
+		}
+		c, ok := e.pkg.Scope().Lookup("VukaJSX").(*types.Const)
+		switch {
+		case !ok:
+			e.errs.add(f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)", DefaultJSXTarget)
+		default:
+			if v := c.Val(); v.Kind() != constant.Int || constant.Compare(v, token.NEQ, constant.MakeInt64(JSXVersion)) {
+				e.errs.add(f.at(off), "this package implements JSX contract %s; this vuka knows version %d: update vuka", v, JSXVersion)
+			}
+		}
+	}
 }
 
 // targetObj is a name the file's JSX target declares, as the package's type

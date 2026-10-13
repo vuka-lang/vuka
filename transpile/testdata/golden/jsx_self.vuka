@@ -1,0 +1,81 @@
+package main
+
+import "fmt"
+
+// This package IS its own JSX target: it declares VukaJSX and the primitives,
+// so its .vuka files author JSX that lowers to UNQUALIFIED calls (El, F, Text,
+// …) resolved within the package — the way github.com/vuka-lang/ui authors its
+// own components.
+const VukaJSX = 1
+
+type Node interface{ render() string }
+
+type Attr struct {
+	Name  string
+	Value any
+}
+
+type elem struct {
+	tag  string
+	text string
+	kids []Node
+}
+
+func (e elem) render() string {
+	s := e.text
+	for _, k := range e.kids {
+		if k != nil {
+			s += k.render()
+		}
+	}
+	if e.tag == "" {
+		return s
+	}
+	return "<" + e.tag + ">" + s + "</" + e.tag + ">"
+}
+
+func El(tag string, attrs []Attr, kids ...Node) Node { return elem{tag: tag, kids: kids} }
+func Text(v any) Node                                { return elem{text: fmt.Sprint(v)} }
+func Child(v any) Node                               { return Text(v) }
+func Fragment(kids ...Node) Node                     { return elem{kids: kids} }
+
+func Nodes(f func(func(Node))) Node {
+	var kids []Node
+	f(func(n Node) { kids = append(kids, n) })
+	return elem{kids: kids}
+}
+
+// F is the frame the target declares; a self-target with F lowers each piece of
+// JSX through it, exactly as an imported target would.
+func F(fp uint64, shape string, kids ...Node) Node { return elem{kids: kids} }
+
+type Row struct {
+	ID   int
+	Name string
+}
+
+// Badge is a same-package component: its tag resolves against this package's
+// own scope and lowers to an unqualified call.
+func Badge(label string) Node {
+	return <span>{label}</span>
+}
+
+// list exercises the self-target lowering: plain elements, an {expr} child, a
+// {for} loop and a same-package component tag.
+func list(title string, rows []Row) Node {
+	return <div className="list">
+		<h1>{title}</h1>
+		<ul>
+			{for _, r := range rows {
+				<li>
+					<Badge label={r.Name} />
+					{r.ID}
+				</li>
+			}}
+		</ul>
+	</div>
+}
+
+func main() {
+	fmt.Println(list("People", []Row{{1, "Ada"}, {2, "Lin"}}).render())
+}

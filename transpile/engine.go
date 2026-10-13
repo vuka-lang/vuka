@@ -36,6 +36,8 @@ type engine struct {
 	nfiles        int                       // embedded files so far, naming their variables
 	targets       map[string]*types.Package // import paths → the JSX target there, or nil
 	targetErrs    map[string]error          // imports that didn't load, looking for one
+	selfJSX       bool                      // this package declares VukaJSX: its JSX lowers to itself
+	selfNames     map[string]bool           // its package-level names, for a self-target before type-checking
 
 	declared      map[string]bool // package-level names
 	typeNames     map[string]bool // package-level type names
@@ -82,6 +84,7 @@ func (e *engine) run() {
 		if e.oldRuntime() {
 			return
 		}
+		e.resolveSelfTargets()
 		for _, f := range e.vuka {
 			for _, t := range f.tries {
 				t.fresh = false

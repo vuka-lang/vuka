@@ -1,0 +1,1 @@
+err_jsx_notarget.vuka:6:9: JSX needs a target: import github.com/vuka-lang/ui (or another package declaring VukaJSX)

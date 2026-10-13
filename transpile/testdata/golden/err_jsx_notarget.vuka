@@ -1,0 +1,9 @@
+package main
+
+// This package neither imports a JSX target nor declares VukaJSX, so its JSX
+// has nothing to lower to.
+func page() any {
+	return <div><p>hi</p></div>
+}
+
+func main() {}

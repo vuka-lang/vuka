@@ -484,6 +484,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}
+	e.detectSelfTarget(files)
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
 			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
@@ -546,6 +547,7 @@ func Syntax(file File, opts Options) ErrorList {
 	if opts.Path != nil {
 		f.path = opts.Path(file.Name)
 	}
+	e.detectSelfTarget([]File{file})
 	f.scan(&errs)
 	if len(errs) == 0 {
 		f.attrEdits()
