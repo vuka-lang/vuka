@@ -109,12 +109,12 @@ func TestIslands(t *testing.T) {
 	}
 }
 
-// TestIslandsErrors: a non-vanilla framework needs Phase 2; a missing component
-// file is reported.
+// TestIslandsErrors: a framework still awaiting a later phase is reported; a
+// missing component file is reported.
 func TestIslandsErrors(t *testing.T) {
 	web := webDir(t)
 	for _, c := range []struct{ name, decl, file, want string }{
-		{"framework", `@ui.Island("islands/Chart.vue")`, "islands/Chart.vue", "island Chart: vue islands need Phase 2 (only vanilla .ts/.js in Phase 1)"},
+		{"framework", `@ui.Island("islands/Chart.svelte")`, "islands/Chart.svelte", "island Chart: svelte islands need a later phase (Phase 2 supports vanilla and Vue)"},
 		{"missing", `@ui.Island("islands/Gone.ts")`, "", "island Gone: component islands/Gone.ts not found"},
 	} {
 		t.Run(c.name, func(t *testing.T) {

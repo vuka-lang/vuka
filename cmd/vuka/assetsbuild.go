@@ -171,22 +171,37 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		if buildRoot == "" {
 			buildRoot = pa.root
 		}
+		var vueIslands []*islandComp
 		for _, ic := range pa.islands {
-			if ic.framework != "vanilla" {
-				errs = append(errs, fmt.Errorf("island %s: %s islands need Phase 2 (only vanilla .ts/.js in Phase 1)", ic.name, ic.framework))
-				continue
-			}
 			if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
 				errs = append(errs, fmt.Errorf("%s: island %s: component %s not found", ic.label, ic.name, ic.rel))
 				continue
 			}
-			ib, err := bundleIsland(buildRoot, ic, dev)
+			switch ic.framework {
+			case "vanilla":
+				ib, err := bundleIsland(buildRoot, ic, dev)
+				if err != nil {
+					errs = append(errs, err)
+					continue
+				}
+				out.islands = append(out.islands, ib)
+				mf.Islands[ic.name] = &manifestIsland{Name: ic.name, Module: ib.name, Framework: "vanilla"}
+			case "vue":
+				vueIslands = append(vueIslands, ic)
+			default:
+				errs = append(errs, fmt.Errorf("island %s: %s islands need a later phase (Phase 2 supports vanilla and Vue)", ic.name, ic.framework))
+			}
+		}
+		if len(vueIslands) > 0 {
+			bundles, entries, err := buildVueIslands(buildRoot, vueIslands, dev)
 			if err != nil {
 				errs = append(errs, err)
-				continue
+			} else {
+				out.islands = append(out.islands, bundles...)
+				for name, mi := range entries {
+					mf.Islands[name] = mi
+				}
 			}
-			out.islands = append(out.islands, ib)
-			mf.Islands[ic.name] = &manifestIsland{Name: ic.name, Module: ib.name, Framework: "vanilla"}
 		}
 		out.dts = islandsDTS(pa.islands)
 	}

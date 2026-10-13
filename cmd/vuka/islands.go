@@ -25,9 +25,9 @@ import (
 // decorator from the source), bundles each component file with esbuild into a
 // lazy chunk served under /_vuka/i/, records it in the manifest the app reads
 // (web.RegisterIsland / VUKA_ASSETS), and emits islands.d.ts typing the
-// component against the Go struct. Phase 1 is vanilla (.ts/.js) only; a
-// framework component (.vue/.tsx/.jsx/.svelte) needs Phase 2. See
-// docs/design/islands.md.
+// component against the Go struct. Vanilla (.ts/.js) islands bundle with the
+// in-process esbuild; .vue islands use a Node esbuild build (buildVueIslands);
+// .tsx/.jsx/.svelte await a later phase. See docs/design/islands.md.
 
 // islandComp is a discovered island: its type name (the island name, as
 // ui.Island registers it), the component file, the framework from the file's
