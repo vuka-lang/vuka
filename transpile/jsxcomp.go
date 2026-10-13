@@ -45,6 +45,15 @@ type jsxComp struct {
 	fallbackKids []jsxNode // the <ui.Template fallback>'s children → ui.Fallback (when present)
 	hasSlot      bool
 	hasFallback  bool
+	islandEmits  []islandEmit // on<Emit> handler attributes → ui.Emit(name, handler)
+}
+
+// islandEmit is one on<Emit> binding on an island body tag: the emit name
+// (the attribute name minus the leading "on", first letter lower-cased) and the
+// handler expression attribute, emitted verbatim as ui.Emit's handler arg.
+type islandEmit struct {
+	name string
+	attr *jsxAttr
 }
 
 // nestStep is an embedded struct field a promoted field is reached through.

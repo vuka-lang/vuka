@@ -31,6 +31,20 @@ func (e *engine) targetFunc(tg *jsxTarget, obj types.Object) string {
 	return fn.Name()
 }
 
+// isIslandEmit reports whether name is an on<Emit> handler attribute: "on"
+// followed by an uppercase letter (the JSX event convention — onRowClick,
+// onDelete). This tells an emit binding from an ordinary prop (online, on).
+func isIslandEmit(name string) bool {
+	return len(name) > 2 && name[0] == 'o' && name[1] == 'n' && name[2] >= 'A' && name[2] <= 'Z'
+}
+
+// emitName is an on<Emit> attribute name lowered to its emit name: the leading
+// "on" dropped and the first letter lower-cased (onRowClick → rowClick).
+func emitName(attr string) string {
+	s := attr[2:]
+	return strings.ToLower(s[:1]) + s[1:]
+}
+
 // resolveIsland decides a <ui.Island> wrapper: it partitions the wrapper's
 // children into <ui.Template> slots and the one island-body component tag,
 // binds the body's attributes to the body type's fields, and records the
@@ -103,7 +117,8 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 		return
 	}
 
-	// Split the client:*/server:defer directive off the props attributes.
+	// Split the client:*/server:defer directive and the on<Emit> handlers off
+	// the props attributes.
 	var attrs []*jsxAttr
 	var strat *jsxAttr
 	for _, a := range body.attrs {
@@ -116,6 +131,8 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 				return
 			}
 			strat = a
+		case isIslandEmit(a.name):
+			c.islandEmits = append(c.islandEmits, islandEmit{name: emitName(a.name), attr: a})
 		default:
 			attrs = append(attrs, a)
 		}
@@ -231,6 +248,13 @@ func (w *jsxWriter) island(c *jsxComp) {
 		kids := c.fallbackKids
 		fbPiece = &piece{off: nodesStart(kids), typ: q + "Node", write: func() { w.frame(kids) }}
 	}
+	emitPiece := make([]*piece, len(c.islandEmits))
+	for i, em := range c.islandEmits {
+		if em.attr != nil && em.attr.kind == 'e' {
+			ex := em.attr.expr
+			emitPiece[i] = &piece{off: ex.start, typ: "any", write: func() { w.keep(ex) }}
+		}
+	}
 
 	// The span-bearing pieces in emit order; a closure is needed when that
 	// isn't already their source order.
@@ -241,6 +265,11 @@ func (w *jsxWriter) island(c *jsxComp) {
 		}
 	}
 	for _, p := range []*piece{stratPiece, slotPiece, fbPiece} {
+		if p != nil {
+			order = append(order, p)
+		}
+	}
+	for _, p := range emitPiece {
 		if p != nil {
 			order = append(order, p)
 		}
@@ -299,6 +328,18 @@ func (w *jsxWriter) island(c *jsxComp) {
 				w.gen(fbPiece.name)
 			} else {
 				w.frame(c.fallbackKids)
+			}
+			w.gen(")")
+		}
+		for i, em := range c.islandEmits {
+			w.gen(", " + q + "Emit(" + strconv.Quote(em.name) + ", ")
+			switch {
+			case closure && emitPiece[i] != nil:
+				w.gen(emitPiece[i].name)
+			case em.attr != nil && em.attr.kind == 'e':
+				w.keep(em.attr.expr)
+			default:
+				w.attrValue(em.attr)
 			}
 			w.gen(")")
 		}

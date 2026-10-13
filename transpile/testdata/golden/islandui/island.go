@@ -88,6 +88,12 @@ type islandConfig struct {
 	slot     Node
 	fallback Node
 	ssr      bool
+	emits    []islandEmit
+}
+
+type islandEmit struct {
+	name    string
+	handler any
 }
 
 // Load hydrates the island immediately on page load (client:load).
@@ -127,6 +133,33 @@ func Slot(n Node) IslandOpt { return func(c *islandConfig) { c.slot = n } }
 // Fallback sets what shows until the island hydrates (and the SSR target under
 // SSR). Distinct from the component's Slot.
 func Fallback(n Node) IslandOpt { return func(c *islandConfig) { c.fallback = n } }
+
+// Emit binds one of the island component's emits to a live-view handler: the
+// transpiler emits it for an on<Emit> attribute on the tag. handler is an
+// On-style value (a func, usually a view method). Mirrors ui.Emit.
+func Emit(name string, handler any) IslandOpt {
+	return func(c *islandConfig) { c.emits = append(c.emits, islandEmit{name, handler}) }
+}
+
+// emitAttr normalizes an emit name to the lower-case alphanumerics used as the
+// data-vk-emit-<suffix> attribute key.
+func emitAttr(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		switch {
+		case r >= 'A' && r <= 'Z':
+			b.WriteRune(r - 'A' + 'a')
+		case (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9'):
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+// On wraps an island emit handler. The real ui.On yields an EventHandler that
+// renders to nothing without a live session; this fixture renders a bare
+// marker attribute instead so a golden .out shows the data-vk-emit binding.
+func On(handler any) any { return true }
 
 // Template marks a named region slot inside a <ui.Island> wrapper — e.g.
 // <ui.Template fallback>…</ui.Template> gives the island's pre-hydration
@@ -179,6 +212,9 @@ func MountIsland(props any, opts ...IslandOpt) Node {
 	}
 	if cfg.ssr {
 		attrs = append(attrs, Attr{"data-vk-ssr", true})
+	}
+	for _, e := range cfg.emits {
+		attrs = append(attrs, Attr{"data-vk-emit-" + emitAttr(e.name), On(e.handler)})
 	}
 
 	var kids []Node
