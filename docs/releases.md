@@ -10,6 +10,28 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.26.0 — 2026-10-13
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.29.0`. New apps
+use ui v0.19.0, web v0.22.0.
+
+- **UI islands (Phase 1 — vanilla).** Astro-style client islands: a
+  server-rendered page stays zero-JS, and a component becomes an interactive
+  island hydrated on a `client:*` strategy. A `<ui.Island>` wrapper around an
+  island-component tag lowers to a `ui.MountIsland(...)` call — the body's
+  attributes become the island's props, `client:load`/`idle`/`visible`/`media`/
+  `only` the hydration strategy, its children the slot, and a nested
+  `<ui.Template fallback>` the fallback shown until hydration. An island is a Go
+  struct annotated `@ui.Island("islands/Counter.ts")` (Go owns the props); the
+  vuka command bundles the component into a lazy chunk served at `/_vuka/i/`,
+  records it in the asset manifest, and generates `islands.d.ts` from the struct
+  into the frontend root (`web.FrontendRoot`). The client loader arms the
+  strategy (IntersectionObserver / idle / media / load), lazy-imports the module
+  on trigger, and mounts it; a live re-render re-pushes changed props. Phase 1 is
+  vanilla `.ts`/`.js` only (a vanilla module exports `mount` itself); Vue/React/
+  Svelte adapters, the `live()` prop bridge, and the opt-in SSR sidecar are later
+  phases. Design: docs/design/islands.md.
+
 ## v0.25.0 — 2026-10-13
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.28.0`.
