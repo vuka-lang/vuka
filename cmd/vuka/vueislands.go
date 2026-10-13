@@ -43,7 +43,19 @@ export function mount(Component, el, props, ctx) {
   const slots = slotHTML != null && slotHTML !== ''
     ? { default: () => h('span', { innerHTML: slotHTML }) }
     : undefined
-  const app = createApp({ render: () => h(Component, { ...state }, slots) })
+  // Forward the component's declared emits to the server handlers bound on the
+  // tag (on<Emit>): each emit becomes an on<Event> listener that calls
+  // ctx.emit(name, payload); ctx.emit no-ops off a live page.
+  const emitNames = Array.isArray(Component.emits) ? Component.emits : Object.keys(Component.emits || {})
+  const listeners = {}
+  for (const name of emitNames) {
+    const on = 'on' + name.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase())
+    listeners[on] = (...args) => {
+      if (!ctx || !ctx.emit) return
+      try { ctx.emit(name, args.length <= 1 ? args[0] : args) } catch (_) {}
+    }
+  }
+  const app = createApp({ render: () => h(Component, { ...state, ...listeners }, slots) })
   /*SETUP_CALL*/
   app.mount(el)
   return {
