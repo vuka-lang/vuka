@@ -10,6 +10,25 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.25.0 — 2026-10-13
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.28.0`.
+
+- **Inferred type arguments for generic stateful components.** The type-argument
+  inference that v0.24.0 brought to function components now covers **stateful**
+  components — struct-type tags whose pointer implements the target's `Stateful`.
+  `<Box Value={7} />` for `type Box[T any] struct{ ui.Live; Value T }` infers
+  `T = int` from the attribute, where before it required `<Box[int] Value={7} />`.
+  Each attribute binds to its exported field, and the field's declared type
+  (`Value T`, `Items []T`, `At *T`, `Cols []Column[T]`, …) is unified structurally
+  with the value's concrete type to pin the parameters, reusing the same unifier
+  as the function-component path. Because Go can't infer a composite literal's
+  type, the inferred arguments are written onto the generated literal
+  (`&Box[int]{Value: 7}`). Explicit type arguments on the tag still work and take
+  precedence; an under-constrained or conflicting tag still asks for them — now
+  naming the conflicting parameter. Pure compile-time resolution; no runtime or
+  JSX-contract change.
+
 ## v0.24.0 — 2026-10-13
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.27.0`.

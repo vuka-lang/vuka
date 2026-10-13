@@ -1,0 +1,32 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+// Nothing pins T: Note has only an unexported state field and a Label that
+// holds no type parameter, so <Note Label="hi"/> leaves T unsolved.
+type Note[T any] struct {
+	ui.Live
+	Label string
+	value T
+}
+
+func (n *Note[T]) Render() ui.Node { return <p>{n.Label}</p> }
+
+// A and B are the same type parameter, so two attributes of different types
+// conflict.
+type Pair[T any] struct {
+	ui.Live
+	A T
+	B T
+}
+
+func (p *Pair[T]) Render() ui.Node { return <span>{p.A}{p.B}</span> }
+
+func page() ui.Node {
+	return <>
+		<Note Label="hi" />
+		<Pair A={1} B="x" />
+	</>
+}
+
+func main() {}

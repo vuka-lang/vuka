@@ -32,6 +32,7 @@ type jsxComp struct {
 	stateful   bool     // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
 	site       string   // the tag's place, for a stateful component
 	key        *compArg // its key attribute
+	targText   string   // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
 }
 
 // nestStep is an embedded struct field a promoted field is reached through.
@@ -113,6 +114,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		}
 		w.gen(", &")
 		w.keep(tag)
+		w.gen(c.targText) // "" normally; "[int]" for an inferred generic stateful literal
 		w.gen("{")
 	} else {
 		w.keep(tag)
@@ -530,37 +532,14 @@ func (e *engine) inferProps(f *fileState, c *jsxComp, sig *types.Signature, st *
 	if off, msg := e.bindComp(trial, sig, attrs, node, true); msg != "" {
 		return nil, off, msg
 	}
-	u := &unifier{tps: sig.TypeParams(), subst: map[*types.TypeParam]types.Type{}}
-	for _, a := range trial.args {
-		if a.attr == nil { // children or a left-out field: nothing to infer from
-			continue
-		}
-		var conc types.Type
-		switch a.attr.kind {
-		case 's':
-			conc = types.Typ[types.String]
-		case 'b':
-			conc = types.Typ[types.Bool]
-		default:
-			x := e.attrExpr(f, a.attr)
-			tv, ok := e.info.Types[x]
-			if x == nil || !ok || isInvalid(tv.Type) {
-				return nil, 0, "" // a type is still unknown; retry next round
-			}
-			conc = types.Default(tv.Type)
-		}
-		if !u.unify(a.typ, conc) {
-			return nil, el.start, "<" + el.tag + "> is generic, and its attributes make " + u.bad.Obj().Name() +
-				" both " + e.display(u.was) + " and " + e.display(u.now) + ": write <" + el.tag + "[…]>"
-		}
-	}
-	targs := make([]types.Type, u.tps.Len())
-	for i := range targs {
-		t, ok := u.subst[u.tps.At(i)]
-		if !ok {
-			return nil, el.start, "<" + el.tag + "> is generic, and its attributes don't give its type arguments: write <" + el.tag + "[…]>"
-		}
-		targs[i] = t
+	targs, u, status := e.solveTargs(f, trial.args, sig.TypeParams())
+	switch status {
+	case inferRetry:
+		return nil, 0, "" // a type is still unknown; retry next round
+	case inferConflict:
+		return nil, el.start, conflictMsg(el.tag, u, e)
+	case inferUnder:
+		return nil, el.start, underMsg(el.tag)
 	}
 	inst, err := types.Instantiate(nil, sig, targs, true)
 	if err != nil {
@@ -569,7 +548,77 @@ func (e *engine) inferProps(f *fileState, c *jsxComp, sig *types.Signature, st *
 	if s, ok := inst.(*types.Signature); ok {
 		return s, 0, ""
 	}
-	return nil, el.start, "<" + el.tag + "> is generic, and its attributes don't give its type arguments: write <" + el.tag + "[…]>"
+	return nil, el.start, underMsg(el.tag)
+}
+
+// inferStatus is how solveTargs ended: solved, waiting on an unknown type, a
+// parameter bound two ways, or a parameter left unbound.
+type inferStatus int
+
+const (
+	inferOK inferStatus = iota
+	inferRetry
+	inferConflict
+	inferUnder
+)
+
+// attrConc is an attribute value's concrete type for inference: string for a
+// string attribute, bool for a boolean one, else the attribute expression's
+// default type. ok is false while that expression's type isn't known yet, so
+// the caller returns the retry sentinel and the fixpoint loop tries again.
+func (e *engine) attrConc(f *fileState, a *jsxAttr) (conc types.Type, ok bool) {
+	switch a.kind {
+	case 's':
+		return types.Typ[types.String], true
+	case 'b':
+		return types.Typ[types.Bool], true
+	default:
+		x := e.attrExpr(f, a)
+		tv, found := e.info.Types[x]
+		if x == nil || !found || isInvalid(tv.Type) {
+			return nil, false
+		}
+		return types.Default(tv.Type), true
+	}
+}
+
+// solveTargs pins tps by unifying each bound attribute's declared type (which
+// still mentions the type parameters) against its value's concrete type, the
+// shared core of both inferProps (function components) and inferStateful
+// (struct components). args come from a trial bind; children and left-out
+// fields have no attr and infer nothing.
+func (e *engine) solveTargs(f *fileState, args []*compArg, tps *types.TypeParamList) ([]types.Type, *unifier, inferStatus) {
+	u := &unifier{tps: tps, subst: map[*types.TypeParam]types.Type{}}
+	for _, a := range args {
+		if a.attr == nil {
+			continue
+		}
+		conc, ok := e.attrConc(f, a.attr)
+		if !ok {
+			return nil, u, inferRetry
+		}
+		if !u.unify(a.typ, conc) {
+			return nil, u, inferConflict
+		}
+	}
+	targs := make([]types.Type, tps.Len())
+	for i := range targs {
+		t, ok := u.subst[tps.At(i)]
+		if !ok {
+			return nil, u, inferUnder
+		}
+		targs[i] = t
+	}
+	return targs, u, inferOK
+}
+
+func conflictMsg(tag string, u *unifier, e *engine) string {
+	return "<" + tag + "> is generic, and its attributes make " + u.bad.Obj().Name() +
+		" both " + e.display(u.was) + " and " + e.display(u.now) + ": write <" + tag + "[…]>"
+}
+
+func underMsg(tag string) string {
+	return "<" + tag + "> is generic, and its attributes don't give its type arguments: write <" + tag + "[…]>"
 }
 
 // unifier accumulates type-parameter bindings while matching props fields'

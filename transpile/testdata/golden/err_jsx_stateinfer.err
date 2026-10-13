@@ -1,0 +1,2 @@
+err_jsx_stateinfer.vuka:27:3: <Note> is generic, and its attributes don't give its type arguments: write <Note[…]>
+err_jsx_stateinfer.vuka:28:3: <Pair> is generic, and its attributes make T both int and string: write <Pair[…]>

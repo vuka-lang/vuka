@@ -1,0 +1,50 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Box's type argument is inferred from its Value attribute: Value T pins T, so
+// <Box Value={7}/> needs no <Box[int]>. The literal still carries the inferred
+// argument, &Box[int]{…}, because Go can't infer a composite literal's type.
+type Box[T any] struct {
+	ui.Live
+	Value T
+}
+
+func (b *Box[T]) Render() ui.Node { return <span>box {fmt.Sprint(b.Value)}</span> }
+
+// A field reaching the parameter through a slice ([]T) pins it structurally.
+type List[T any] struct {
+	ui.Live
+	Items []T
+}
+
+func (l *List[T]) Render() ui.Node {
+	return <ul>{for _, it := range l.Items { <li>{fmt.Sprint(it)}</li> }}</ul>
+}
+
+// And one through a pointer (*T).
+type Ref[T any] struct {
+	ui.Live
+	At *T
+}
+
+func (r *Ref[T]) Render() ui.Node { return <b>{fmt.Sprint(*r.At)}</b> }
+
+func page(ctx context.Context) ui.Node {
+	n := 7
+	return <main>
+		<Box Value={1} />
+		<Box[string] Value="two" />
+		<List Items={[]string{"a", "b"}} />
+		<Ref At={&n} />
+	</main>
+}
+
+func main() {
+	fmt.Println(ui.String(context.Background(), page(context.Background())))
+}

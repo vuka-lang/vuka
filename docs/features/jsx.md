@@ -135,8 +135,10 @@ func UserCard(user User, admin bool, children ui.Node) ui.Node { … }
   This holds for a generic props struct too — `<Table Rows={rows}
   Cell={fn}/>` for `func Table[T any](p TableProps[T])` infers `T` by matching
   each field's declared type (`Rows []T`, `Cell func(T) string`) against the
-  attribute's value. Give the arguments on the tag when no attribute pins a
-  parameter, or when they would conflict.
+  attribute's value — and for a generic **stateful** component the same way:
+  `<Box Value={7}/>` for `type Box[T any] struct{ ui.Live; Value T }` infers
+  `T = int` and writes `&Box[int]{Value: 7}`. Give the arguments on the tag
+  when no attribute pins a parameter, or when they would conflict.
 - An **overloaded** component's overload is the one its attributes' types fit
   best, as for a call.
 - A props struct's **promoted fields** are attributes too: a struct embedding
@@ -249,8 +251,6 @@ arguments on the tag (`<List[User] …/>`) lowers the same way — it only pins
 
 ## Known limits
 
-- A generic stateful component needs its type arguments on the tag:
-  `<Box[int] Value={7} />`.
 - JSX goes in function bodies and package-level variable initialisers, not
   in constant declarations or struct tags (Go allows neither an expression
   there).
