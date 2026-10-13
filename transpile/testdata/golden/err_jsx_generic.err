@@ -1,4 +1,4 @@
-err_jsx_generic.vuka:24:3: <Table> takes a generic props struct, whose type arguments can't be inferred: write <Table[…]>
+err_jsx_generic.vuka:24:3: <Table> is generic, and its attributes don't give its type arguments: write <Table[…]>
 err_jsx_generic.vuka:25:3: <Empty> is generic, and its attributes don't give its type arguments: write <Empty[…]>
 err_jsx_generic.vuka:26:3: <Box> is generic, and its attributes don't give its type arguments: write <Box[…]>
 err_jsx_generic.vuka:27:3: no overload of Price takes these attributes

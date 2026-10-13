@@ -131,8 +131,12 @@ func UserCard(user User, admin bool, children ui.Node) ui.Node { … }
   error is the target's to render (ui fails the render, unless an
   `ui.ErrorBoundary` above it shows a fallback).
 - A **generic** component's type arguments are inferred from its attributes,
-  as a call's are from its arguments, or given on the tag: `<List[User] …>`. A
-  generic props struct needs them given.
+  as a call's are from its arguments, or given on the tag: `<List[User] …>`.
+  This holds for a generic props struct too — `<Table Rows={rows}
+  Cell={fn}/>` for `func Table[T any](p TableProps[T])` infers `T` by matching
+  each field's declared type (`Rows []T`, `Cell func(T) string`) against the
+  attribute's value. Give the arguments on the tag when no attribute pins a
+  parameter, or when they would conflict.
 - An **overloaded** component's overload is the one its attributes' types fit
   best, as for a call.
 - A props struct's **promoted fields** are attributes too: a struct embedding

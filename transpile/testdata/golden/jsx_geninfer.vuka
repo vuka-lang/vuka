@@ -1,0 +1,73 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"github.com/vuka-lang/ui"
+)
+
+type User struct {
+	ID   int
+	Name string
+}
+
+type ListProps[T any] struct {
+	Items    []T
+	Key      func(T) string
+	Children ui.Node
+}
+
+// List's type argument is inferred from its attributes: Items []T pins T, as
+// does Key func(T) string. No <List[…]> needed.
+func List[T any](p ListProps[T]) ui.Node {
+	return <ul>{for _, it := range p.Items { <li id={p.Key(it)}>{fmt.Sprint(it)}</li> }}{p.Children}</ul>
+}
+
+type PairProps[K comparable, V any] struct {
+	Name  K
+	Value V
+}
+
+// Two type parameters, each pinned by one attribute.
+func Pair[K comparable, V any](p PairProps[K, V]) ui.Node {
+	return <p>{fmt.Sprint(p.Name)}={fmt.Sprint(p.Value)}</p>
+}
+
+type Column[T any] struct {
+	Head string
+	Get  func(T) string
+}
+
+type GridProps[T any] struct {
+	Cols []Column[T]
+	Rows []*T
+}
+
+// T reached through a named generic type (Column[T]) and a pointer ([]*T) is
+// still pinned by unifying those shapes structurally.
+func Grid[T any](p GridProps[T]) ui.Node {
+	return <table>{for _, r := range p.Rows { <tr>{for _, col := range p.Cols { <td>{col.Get(*r)}</td> }}</tr> }}</table>
+}
+
+func page(users []User) ui.Node {
+	key := func(u User) string { return strconv.Itoa(u.ID) }
+	return <>
+		<List Items={users} Key={key}><li>done</li></List>
+		<List[User] Items={nil} Key={nil} />
+		<Pair Name="age" Value={42} />
+		<Grid Cols={[]Column[User]{{Head: "id", Get: key}}} Rows={ptrs(users)} />
+	</>
+}
+
+func ptrs[T any](xs []T) []*T {
+	out := make([]*T, len(xs))
+	for i := range xs {
+		out[i] = &xs[i]
+	}
+	return out
+}
+
+func main() {
+	fmt.Println(ui.String(context.Background(), page([]User{{1, "Ann"}, {2, "Bo"}})))
+}

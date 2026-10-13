@@ -21,7 +21,7 @@ func Num(n int32) ui.Node { return <i>{n}</i> }
 
 func page() ui.Node {
 	return <>
-		<Table rows={[]int{1}} />
+		<Table />
 		<Empty />
 		<Box />
 		<Price amount="x" />

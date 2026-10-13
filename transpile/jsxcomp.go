@@ -483,7 +483,7 @@ func (e *engine) attrExpr(f *fileState, a *jsxAttr) ast.Expr {
 func (e *engine) instantiate(f *fileState, c *jsxComp, fun ast.Expr, sig *types.Signature, attrs []*jsxAttr, node types.Type) (*types.Signature, int, string) {
 	el := c.el
 	if st, _ := propsStruct(sig, attrs); st != nil {
-		return nil, el.start, "<" + el.tag + "> takes a generic props struct, whose type arguments can't be inferred: write <" + el.tag + "[…]>"
+		return e.inferProps(f, c, sig, st, attrs, node)
 	}
 	trial := &jsxComp{el: el, target: c.target}
 	if off, msg := e.bindComp(trial, sig, attrs, node, true); msg != "" {
@@ -515,6 +515,148 @@ func (e *engine) instantiate(f *fileState, c *jsxComp, fun ast.Expr, sig *types.
 		}
 	}
 	return nil, el.start, "<" + el.tag + "> is generic, and its attributes don't give its type arguments: write <" + el.tag + "[…]>"
+}
+
+// inferProps infers a generic component's type arguments when its single
+// parameter is a generic props struct, which Go's call inference can't reach
+// because the struct is written as a literal, not passed as arguments. Each
+// attribute binds to a field whose declared type mentions the type parameters
+// (Rows []T, Cell func(T) string); unifying that against the attribute value's
+// concrete type pins the parameters. It returns nil while an attribute's type
+// is still unknown, so the next round can retry.
+func (e *engine) inferProps(f *fileState, c *jsxComp, sig *types.Signature, st *types.Struct, attrs []*jsxAttr, node types.Type) (*types.Signature, int, string) {
+	el := c.el
+	trial := &jsxComp{el: el, target: c.target}
+	if off, msg := e.bindComp(trial, sig, attrs, node, true); msg != "" {
+		return nil, off, msg
+	}
+	u := &unifier{tps: sig.TypeParams(), subst: map[*types.TypeParam]types.Type{}}
+	for _, a := range trial.args {
+		if a.attr == nil { // children or a left-out field: nothing to infer from
+			continue
+		}
+		var conc types.Type
+		switch a.attr.kind {
+		case 's':
+			conc = types.Typ[types.String]
+		case 'b':
+			conc = types.Typ[types.Bool]
+		default:
+			x := e.attrExpr(f, a.attr)
+			tv, ok := e.info.Types[x]
+			if x == nil || !ok || isInvalid(tv.Type) {
+				return nil, 0, "" // a type is still unknown; retry next round
+			}
+			conc = types.Default(tv.Type)
+		}
+		if !u.unify(a.typ, conc) {
+			return nil, el.start, "<" + el.tag + "> is generic, and its attributes make " + u.bad.Obj().Name() +
+				" both " + e.display(u.was) + " and " + e.display(u.now) + ": write <" + el.tag + "[…]>"
+		}
+	}
+	targs := make([]types.Type, u.tps.Len())
+	for i := range targs {
+		t, ok := u.subst[u.tps.At(i)]
+		if !ok {
+			return nil, el.start, "<" + el.tag + "> is generic, and its attributes don't give its type arguments: write <" + el.tag + "[…]>"
+		}
+		targs[i] = t
+	}
+	inst, err := types.Instantiate(nil, sig, targs, true)
+	if err != nil {
+		return nil, el.start, "<" + el.tag + ">'s inferred type arguments don't fit its constraints: write <" + el.tag + "[…]> (" + err.Error() + ")"
+	}
+	if s, ok := inst.(*types.Signature); ok {
+		return s, 0, ""
+	}
+	return nil, el.start, "<" + el.tag + "> is generic, and its attributes don't give its type arguments: write <" + el.tag + "[…]>"
+}
+
+// unifier accumulates type-parameter bindings while matching props fields'
+// declared types against attribute values' concrete types. go/types has no
+// exported general unifier, so this one covers the field shapes props use.
+type unifier struct {
+	tps      *types.TypeParamList
+	subst    map[*types.TypeParam]types.Type
+	bad      *types.TypeParam // the first parameter bound two incompatible ways
+	was, now types.Type
+}
+
+// unify matches a field's declared type pat (which may mention the type
+// parameters) against an attribute value's concrete type conc, recording each
+// parameter's binding. A shape the two don't share contributes nothing — not
+// every field pins a parameter — so it returns false only on a genuine
+// conflict: a parameter already bound to an incompatible type.
+func (u *unifier) unify(pat, conc types.Type) bool {
+	if tp, ok := types.Unalias(pat).(*types.TypeParam); ok && u.has(tp) {
+		switch prev, ok := u.subst[tp]; {
+		case !ok:
+			u.subst[tp] = conc
+		case !types.Identical(prev, conc):
+			u.bad, u.was, u.now = tp, prev, conc
+			return false
+		}
+		return true
+	}
+	switch p := pat.Underlying().(type) {
+	case *types.Slice:
+		if c, ok := conc.Underlying().(*types.Slice); ok {
+			return u.unify(p.Elem(), c.Elem())
+		}
+	case *types.Array:
+		if c, ok := conc.Underlying().(*types.Array); ok {
+			return u.unify(p.Elem(), c.Elem())
+		}
+	case *types.Pointer:
+		if c, ok := conc.Underlying().(*types.Pointer); ok {
+			return u.unify(p.Elem(), c.Elem())
+		}
+	case *types.Map:
+		if c, ok := conc.Underlying().(*types.Map); ok {
+			return u.unify(p.Key(), c.Key()) && u.unify(p.Elem(), c.Elem())
+		}
+	case *types.Chan:
+		if c, ok := conc.Underlying().(*types.Chan); ok {
+			return u.unify(p.Elem(), c.Elem())
+		}
+	case *types.Signature:
+		if c, ok := conc.Underlying().(*types.Signature); ok {
+			return u.unifyTuple(p.Params(), c.Params()) && u.unifyTuple(p.Results(), c.Results())
+		}
+	}
+	// A named generic type N[X,…] (Column[T]): unify its arguments arg-wise.
+	if pn, ok := types.Unalias(pat).(*types.Named); ok && pn.TypeArgs().Len() > 0 {
+		if cn, ok := types.Unalias(conc).(*types.Named); ok &&
+			pn.TypeArgs().Len() == cn.TypeArgs().Len() && types.Identical(pn.Origin(), cn.Origin()) {
+			for i := 0; i < pn.TypeArgs().Len(); i++ {
+				if !u.unify(pn.TypeArgs().At(i), cn.TypeArgs().At(i)) {
+					return false
+				}
+			}
+		}
+	}
+	return true // an unsupported shape simply contributes no binding
+}
+
+func (u *unifier) unifyTuple(p, c *types.Tuple) bool {
+	if p.Len() != c.Len() {
+		return true // a shape mismatch contributes nothing rather than conflicting
+	}
+	for i := 0; i < p.Len(); i++ {
+		if !u.unify(p.At(i).Type(), c.At(i).Type()) {
+			return false
+		}
+	}
+	return true
+}
+
+func (u *unifier) has(tp *types.TypeParam) bool {
+	for i := 0; i < u.tps.Len(); i++ {
+		if u.tps.At(i) == tp {
+			return true
+		}
+	}
+	return false
 }
 
 // resolveOverload chooses the overload of a component whose parameters fit

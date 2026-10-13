@@ -1,0 +1,2 @@
+err_jsx_geninfer.vuka:23:3: <Box> is generic, and its attributes don't give its type arguments: write <Box[…]>
+err_jsx_geninfer.vuka:24:3: <Pair> is generic, and its attributes make T both int and string: write <Pair[…]>

@@ -10,6 +10,24 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.24.0 — 2026-10-13
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.27.0`.
+
+- **Inferred type arguments for generic JSX components.** A component whose
+  single parameter is a generic props struct — `func Table[T any](p
+  TableProps[T]) Node` — can now be used as a tag without writing its type
+  arguments: `<Table Rows={rows} Cell={fn} />` infers `T` from the attribute
+  values, where before it required `<Table[User] …/>`. Each attribute binds to
+  its field, and the field's declared type (`Rows []T`, `Cell func(T) string`,
+  `Cols []Column[T]`, `Rows []*T`, …) is unified structurally with the
+  attribute value's concrete type to pin the parameters; multi-parameter
+  components (`Pair[K, V]`) are inferred from several attributes. Explicit type
+  arguments on the tag still work and take precedence. When no attribute
+  constrains a parameter, or two attributes imply conflicting types, the tag
+  still asks for explicit type arguments — now naming the conflict. Pure
+  compile-time resolution; no runtime or JSX-contract change.
+
 ## v0.23.0 — 2026-10-13
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.26.0`.

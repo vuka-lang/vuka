@@ -1,0 +1,28 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+type BoxProps[T any] struct {
+	Children ui.Node
+}
+
+// Nothing pins T: only Children is set, and its type holds no type parameter.
+func Box[T any](p BoxProps[T]) ui.Node { return <div>{p.Children}</div> }
+
+type PairProps[T any] struct {
+	A T
+	B T
+}
+
+// A and B are the same type parameter, so two attributes of different types
+// conflict.
+func Pair[T any](p PairProps[T]) ui.Node { return <p>{p.A}{p.B}</p> }
+
+func page() ui.Node {
+	return <>
+		<Box>hi</Box>
+		<Pair A={1} B="x" />
+	</>
+}
+
+func main() {}
