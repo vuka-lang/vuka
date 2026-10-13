@@ -42,6 +42,16 @@ use ui v0.22.0, web v0.25.0.
   renders. Requires ui v0.22.0 (`MountIsland` gained the leading `site`
   parameter).
 
+## cmd/vuka v0.35.0 — 2026-10-13
+
+Runtime unchanged (vuka v0.28.0); a command-only release.
+
+- **`vuka lsp`: auto-imports consolidate into one block.** Accepting a
+  completion (or a decorator / static accessor) that needs an import now folds
+  it into a single sorted `import ( … )` block — folding any existing lone
+  `import "x"` lines in too — instead of appending another lone `import` line
+  each time. (`addImports` now returns a set of edits rather than one insertion.)
+
 ## cmd/vuka v0.33.0 — 2026-10-13
 
 Runtime unchanged (vuka v0.26.0); new apps use ui v0.21.0, web v0.25.0.
