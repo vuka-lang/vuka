@@ -10,6 +10,24 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.27.0 — 2026-10-13
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.32.0`. New apps
+use ui v0.21.0, web v0.24.0.
+
+- **UI islands (Phase 3 — the live bridge).** Islands are now reactive both
+  ways. Server → island: a `*ui.Assign[T]` island prop serializes its value, and
+  a live re-render pushes the changed value to the mounted component's
+  `update()` with no remount (the live-view morph updates an island host's
+  attributes but leaves its client-owned DOM). Island → server: `on<Emit>`
+  attributes on the tag bind the component's emits to live-view handlers —
+  `<DataTable rows={live(d.rows)} onRowClick={d.RowClick}/>` lowers the handler
+  to a registered id (like an element `onClick`, no `AllowPush`), and the client
+  adapter forwards the Vue emit to it; the emit's argument arrives as JSON bound
+  into the handler's struct parameter (`ui.Event.Data`). Verified end to end:
+  an island emit runs a server handler that bumps a live prop, which updates the
+  island in place.
+
 ## cmd/vuka v0.31.0 — 2026-10-13
 
 Runtime unchanged (vuka v0.26.0); a command-only release.

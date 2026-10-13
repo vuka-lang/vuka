@@ -179,6 +179,39 @@ the manifest, and the loader (which already imports an adapter + the module).
   consumed by the island loader — import the component's JS and provide its CSS
   through the app's stylesheet instead.
 
+## Phase 3b — island → server emits (design, locked)
+
+An island's component emits (`emit('row-click', row)`) reach the live view as a
+normal server event, bound with `on<Emit>` attributes on the tag — no
+`AllowPush` needed, because each binding is a **registered handler with an
+opaque id**, exactly like an element's `onClick`.
+
+```vuka
+<ui.Island>
+  <DataTable rows={live(d.rows)} onRowClick={d.RowClick} onDelete={d.Delete}/>
+</ui.Island>
+```
+
+- **Transpiler:** inside `<ui.Island>`, split `on<Emit>` attrs off the body (as
+  it already splits `client:*`); each becomes `ui.Emit("<emit>", <handler>)`
+  appended to the `MountIsland` call. The emit name is the attr minus `on`,
+  lower-cased (`onRowClick` → `rowClick` → normalized `rowclick`).
+- **ui:** `ui.Emit(name, handler) IslandOpt`; `MountIsland` renders one
+  `data-vk-emit-<norm>` attribute per binding with value `ui.On(handler)`, so
+  the live render assigns it a `cN:idx` id like any handler. The emit name
+  normalizes to lower-case alphanumerics for the attr suffix.
+- **Event payload:** `ui.Event` gains `Data json.RawMessage` for an emit's
+  argument (arbitrary JSON); `payload()` binds `Data` into a struct/`*T`
+  handler param (scalars still come from `Value`). So `d.RowClick(ctx, row Row)`
+  receives the emitted row.
+- **Client:** the island ctx gains `emit(name, payload)`, which finds the host's
+  `data-vk-emit-<norm>` id and sends a live event `{target, data: payload}`. The
+  **Vue adapter** reads the component's declared emits and wires each to
+  `ctx.emit(normalizedName, payload)`.
+- `live(d.rows)` (a `*ui.Assign` prop, Phase 3a) + `onRowClick` (3b) together
+  give a fully live island: the server pushes new rows down and the row-click
+  comes back up, no remount.
+
 ## Phasing
 
 1. **Vanilla islands** — decorator + codegen, `<ui.Island>`/`<ui.Template>` +
