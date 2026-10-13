@@ -593,10 +593,7 @@ func (p *proxy) staticCompletionItems(vf *vfile, spot *staticSpot) []any {
 	members, missing := p.staticMembers(vf, spot)
 	var importEdits []any
 	if missing != "" {
-		if at, text := addImports(vf.text(), []importSpec{{path: missing}}); text != "" {
-			pos := positionOf(vf.text(), at)
-			importEdits = []any{map[string]any{"range": lspRange{pos, pos}, "newText": text}}
-		}
+		importEdits = importEditsJSON(vf.text(), addImports(vf.text(), []importSpec{{path: missing}}))
 	}
 	var items []any
 	for _, m := range members {

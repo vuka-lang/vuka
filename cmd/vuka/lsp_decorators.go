@@ -144,9 +144,7 @@ func decoratorItems(f *vfile, decos []projectDecorator, typed lspRange, qualifie
 			"insertTextFormat": format,
 		}
 		if !ok {
-			at, text := addImports(f.text(), []importSpec{{path: d.importPath}})
-			pos := positionOf(f.text(), at)
-			item["additionalTextEdits"] = []any{map[string]any{"range": lspRange{pos, pos}, "newText": text}}
+			item["additionalTextEdits"] = importEditsJSON(f.text(), addImports(f.text(), []importSpec{{path: d.importPath}}))
 		}
 		items = append(items, item)
 	}

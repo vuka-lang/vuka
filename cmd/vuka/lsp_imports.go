@@ -58,9 +58,19 @@ func splitImportEdits(f *vfile, edits []any) (rest, src []any) {
 	if len(added) == 0 {
 		return rest, nil
 	}
-	at, text := addImports(f.text(), added)
-	pos := positionOf(f.text(), at)
-	return rest, []any{map[string]any{"range": lspRange{pos, pos}, "newText": text}}
+	return rest, importEditsJSON(f.text(), addImports(f.text(), added))
+}
+
+// importEditsJSON turns import edits (src offsets) into LSP text edits.
+func importEditsJSON(src []byte, eds []importEdit) []any {
+	out := make([]any, 0, len(eds))
+	for _, e := range eds {
+		out = append(out, map[string]any{
+			"range":   lspRange{positionOf(src, e.start), positionOf(src, e.end)},
+			"newText": e.text,
+		})
+	}
+	return out
 }
 
 type importSpec struct{ name, path string }
@@ -121,28 +131,40 @@ func importsEnd(src []byte) int {
 	return fset.Position(end).Offset
 }
 
-// addImports is an insertion adding specs to src's imports: into its last
-// import block, in sorted place; after a lone import; or after the package
-// clause.
-func addImports(src []byte, specs []importSpec) (int, string) {
+// importEdit replaces src[start:end] with text (start == end inserts).
+type importEdit struct {
+	start, end int
+	text       string
+}
+
+// addImports returns the edits that add specs to src's imports. When an
+// import ( … ) block already exists, the specs go into it in sorted place.
+// Otherwise the specs are consolidated with any existing lone imports into a
+// single sorted grouped block (so repeated auto-imports never pile up as
+// separate `import "x"` lines); with no imports at all, a lone import (one
+// spec) or a grouped block (several) is written after the package clause.
+func addImports(src []byte, specs []importSpec) []importEdit {
 	sort.Slice(specs, func(i, j int) bool { return specs[i].path < specs[j].path })
 	fset, f := parseImports(src)
 	if f == nil {
-		return 0, ""
+		return nil
 	}
-	var last *ast.GenDecl
+	var blocks []*ast.GenDecl
 	for _, d := range f.Decls {
 		if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.IMPORT {
-			last = g
+			blocks = append(blocks, g)
 		}
 	}
 	off := func(p token.Pos) int { return fset.Position(p).Offset }
 	lineStart := func(o int) int { return strings.LastIndexByte(string(src[:o]), '\n') + 1 }
-	switch {
-	case last != nil && last.Lparen.IsValid():
-		// Before the first spec that sorts after the new ones, else at the end.
-		at := lineStart(off(last.Rparen))
-		for _, s := range last.Specs {
+
+	// An existing import ( … ) block: insert into it in sorted place.
+	for _, g := range blocks {
+		if !g.Lparen.IsValid() {
+			continue
+		}
+		at := lineStart(off(g.Rparen))
+		for _, s := range g.Specs {
 			path, _ := strconv.Unquote(s.(*ast.ImportSpec).Path.Value)
 			if path > specs[0].path {
 				at = lineStart(off(s.Pos()))
@@ -153,28 +175,67 @@ func addImports(src []byte, specs []importSpec) (int, string) {
 		for _, s := range specs {
 			b.WriteString("\t" + s.line() + "\n")
 		}
-		return at, b.String()
-	case last != nil:
-		var b strings.Builder
-		for _, s := range specs {
-			b.WriteString("\nimport " + s.line())
+		return []importEdit{{at, at, b.String()}}
+	}
+
+	// No paren block but lone imports exist: fold them and the new specs into
+	// one sorted grouped block, replacing every lone import decl.
+	if len(blocks) > 0 {
+		all := append([]importSpec(nil), specs...)
+		for _, g := range blocks {
+			for _, s := range g.Specs {
+				is := s.(*ast.ImportSpec)
+				path, _ := strconv.Unquote(is.Path.Value)
+				spec := importSpec{path: path}
+				if is.Name != nil {
+					spec.name = is.Name.Name
+				}
+				all = append(all, spec)
+			}
 		}
-		return off(last.End()), b.String()
+		return []importEdit{{off(blocks[0].Pos()), off(blocks[len(blocks)-1].End()), importBlock(all)}}
 	}
-	var b strings.Builder
-	b.WriteString("\n")
-	for _, s := range specs {
-		b.WriteString("\nimport " + s.line())
-	}
+
+	// No imports at all: a lone import (one) or a block (several), after the
+	// package clause.
 	at := off(f.Name.End())
 	if at <= 0 { // the parser lost the position (a decorator confused it)
 		if m := packageClause.FindIndex(src); m != nil {
 			at = m[1]
 		} else {
-			return 0, ""
+			return nil
 		}
 	}
-	return at, b.String()
+	var text string
+	if len(specs) == 1 {
+		text = "\n\nimport " + specs[0].line()
+	} else {
+		text = "\n\n" + importBlock(specs)
+	}
+	return []importEdit{{at, at, text}}
+}
+
+// importBlock renders specs (deduplicated, sorted by path) as a grouped
+// import ( … ) block.
+func importBlock(specs []importSpec) string {
+	sort.Slice(specs, func(i, j int) bool {
+		if specs[i].path != specs[j].path {
+			return specs[i].path < specs[j].path
+		}
+		return specs[i].name < specs[j].name
+	})
+	var b strings.Builder
+	b.WriteString("import (\n")
+	var last importSpec
+	for i, s := range specs {
+		if i > 0 && s == last {
+			continue
+		}
+		b.WriteString("\t" + s.line() + "\n")
+		last = s
+	}
+	b.WriteString(")")
+	return b.String()
 }
 
 // packageClause finds the package line, for a file the parser can't place.
