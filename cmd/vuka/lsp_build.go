@@ -584,6 +584,19 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		p.mu.Unlock()
 		return
 	}
+	// Drop a diagnostic storm gopls raises on a generated file that no longer
+	// matches what we pushed, or that was built from a buffer the editor has
+	// since moved past: the Go it checked still holds mid-edit placeholders, so
+	// one edit scatters errors across the file that clear a moment later. Keep
+	// the last good diagnostics until a build of the current buffer settles.
+	if dp.Version != 0 && dp.Version != vf.version {
+		p.mu.Unlock()
+		return
+	}
+	if _, open := p.bufs[vf.source]; open && p.changed[vf.source] > p.done[vf.source] {
+		p.mu.Unlock()
+		return
+	}
 	lines := uint32(bytes.Count(vf.gen, []byte("\n")))
 	var mapped []any
 	for _, d := range dp.Diagnostics {
