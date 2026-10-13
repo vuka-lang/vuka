@@ -233,6 +233,20 @@ which of its nodes are markup the source fixes and which are Go expressions
 with an `s` or `d` per attribute, `G` a fragment). A target without `F` gets
 the same calls without the frames. `vuka explain` shows it line by line.
 
+A component tag becomes a call of that component. For a function taking one
+struct, the attributes and children become that struct's literal:
+
+```go
+// <List Items={users} Key={key}>{…}</List>   for  func List[T any](p ListProps[T]) ui.Node
+List(ListProps[User]{Items: users, Key: key, Children: ui.F(…)})
+```
+
+The inferred type argument lands on the **props struct literal**
+(`ListProps[User]`); the function's own parameter (`List`'s `T`) is then
+inferred by Go from that argument, so the call needs no `[User]`. Writing the
+arguments on the tag (`<List[User] …/>`) lowers the same way — it only pins
+`T` yourself when the attributes can't.
+
 ## Known limits
 
 - A generic stateful component needs its type arguments on the tag:

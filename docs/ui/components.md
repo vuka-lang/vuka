@@ -81,6 +81,64 @@ runtime's morph uses to pair rows, and it scopes the stateful components
 inside the element (their instances follow the key when the list is
 reordered).
 
+## Kit
+
+ui ships a set of token-styled components in the package itself, so
+`import "github.com/vuka-lang/ui"` brings both the primitives above and these.
+Each takes one props struct (its `Children` field is the tag's children), so
+it is used as a tag:
+
+```vuka
+<ui.Button Variant={ui.Primary} Icon={ui.Icon("plus")} On={c.New}>New</ui.Button>
+<ui.Card Title={ui.Text("Members")} Header={header}>{table}</ui.Card>
+```
+
+| | |
+|---|---|
+| `ui.Button` | a button, or a link when `Href` is set; a click `On` handler spins it until its reply |
+| `ui.Submit` | a form submit button (a `Button` of `type=submit`) |
+| `ui.Actions` | a right-aligned row of buttons, for a card header or modal footer |
+| `ui.Cancel` | a dismiss button for a modal footer |
+| `ui.Card` | a bordered surface with an optional header (title left, actions right) and a body |
+| `ui.Tile` / `ui.TileGrid` | a dashboard stat card (icon, big number, label) and a responsive row of them |
+| `ui.Tabs` | a tab bar underlining the active tab; each tab may carry a count |
+| `ui.Badge` | a small status pill |
+| `ui.Alert` | an inline message box in four tones |
+| `ui.Toast` / `ui.ToastContainer` | one notification, and the stack a live view renders them into |
+| `ui.Modal` | a dialog over a backdrop — server-owned through `Open`/`OnClose`, or browser-only via `OpenModal` |
+| `ui.Form`, `ui.Field`/`ui.Input`/`ui.Password`/`ui.Select`/`ui.Checkbox` | a live-wired form and its fields, errors drawn from the view |
+| `ui.Table` | rows of type `T` as a table; presentational |
+| `ui.DataTable` | a `Table` with a search box, sortable headers and a pager, driven from a live view's events |
+| `ui.Icon`, `ui.Spinner` | an icon by name, and a loading spinner |
+
+Tone and size are shared constants: `ui.Default`, `ui.Primary`, `ui.Success`,
+`ui.Danger`, `ui.Warning`, `ui.Info`, `ui.Ghost`; `ui.SizeSm`, `ui.SizeMd`,
+`ui.SizeLg`. Everything is styled with the `--ui-*`
+[tokens](/ui/rendering), light and dark.
+
+`Table` and `DataTable` are generic in the row type. Their type argument is
+[inferred](/features/jsx#components) from the attributes — `Columns` and
+`Rows` pin it — so a bare tag is enough:
+
+```vuka
+<ui.Table
+	Columns={cols}
+	Rows={d.rows}
+	RowKey={func(t Task) any { return t.ID }}
+	Selectable={true}
+	RowSelected={func(t Task) bool { return d.picked(t.ID) }}
+	OnSelect={func(t Task) any { id := t.ID; return func(on bool) { d.pick(id, on) } }}
+	OnSelectAll={d.pickPage}
+	AllSelected={d.allPicked()}
+/>
+```
+
+A selection checkbox is a live field: it fires `onChange` with its new
+checked state, so `OnSelect` returns a handler taking that `bool` and
+`OnSelectAll` takes one directly — set the row to what the box now is rather
+than toggling a server-side guess, which keeps the box and the server in sync
+(see [field sync](/web/live)).
+
 ## Picking ui
 
 A `.vuka` file uses ui by importing it; any name works, a dot import too.
