@@ -10,6 +10,18 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.23.0 — 2026-10-13
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.26.0`.
+
+- **Self-target JSX.** A package that itself declares `const VukaJSX = 1` — a
+  JSX runtime such as a component kit — can now author JSX in its own `.vuka`
+  files. Its JSX lowers to unqualified `El`/`F`/`Child`/… and same-package
+  component tags (`<Badge/>`) resolve in-package, instead of requiring an
+  imported target. A file that imports an external JSX target still uses it
+  (external wins); nothing changes for apps that import a kit. No runtime or
+  JSX-contract change.
+
 ## v0.22.0 — 2026-10-12
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.25.0`.

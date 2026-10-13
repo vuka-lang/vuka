@@ -1,0 +1,3 @@
+# Rust / Zed extension build artifacts
+/target
+*.wasm

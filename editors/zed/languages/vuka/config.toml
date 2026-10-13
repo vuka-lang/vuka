@@ -1,0 +1,59 @@
+name = "Vuka"
+# grammar = "vuka"   # enable with the [grammars.vuka] block in extension.toml for highlighting (needs the wasi-sdk download)
+path_suffixes = ["vuka"]
+line_comments = ["// "]
+block_comment = ["/* ", " */"]
+# Keep word navigation Go-like.
+word_characters = ["_"]
+# Mirror the VS Code extension's autoCloseBefore set.
+autoclose_before = ";:.,=}])>< \n\t"
+
+# Brackets mirror the VS Code grammar: {} [] () and the quote pairs. Angle
+# brackets are included for JSX matching/surrounding but NOT auto-inserted
+# (close = false), so Go comparisons (a < b), generics and `<-chan` are left
+# alone — the same tradeoff the VS Code extension makes.
+[[brackets]]
+start = "{"
+end = "}"
+close = true
+newline = true
+
+[[brackets]]
+start = "["
+end = "]"
+close = true
+newline = true
+
+[[brackets]]
+start = "("
+end = ")"
+close = true
+newline = true
+
+[[brackets]]
+start = "\""
+end = "\""
+close = true
+newline = false
+not_in = ["string", "comment"]
+
+[[brackets]]
+start = "`"
+end = "`"
+close = true
+newline = false
+not_in = ["string", "comment"]
+
+[[brackets]]
+start = "'"
+end = "'"
+close = true
+newline = false
+not_in = ["string", "comment"]
+
+# Angle brackets: match and surround, but do not auto-close.
+[[brackets]]
+start = "<"
+end = ">"
+close = false
+newline = false
