@@ -12,19 +12,13 @@ repository = "https://github.com/vuka-lang/vuka"
 name = "Vuka"
 languages = ["Vuka"]
 
-# Syntax highlighting (tree-sitter) is OFF by default so the extension installs
-# with no network. Compiling a tree-sitter grammar makes Zed download the
-# wasi-sdk and build a C parser; on a slow/offline connection that download
-# fails and leaves the whole extension unregistered (no language, no LSP).
-# Without a grammar the Vuka language still registers from path_suffixes and
-# `vuka lsp` attaches — completion, hover, go-to-definition, rename,
-# diagnostics, the real intelligence.
+# Highlighting: the Vuka language uses Zed's built-in `go` grammar
+# (languages/vuka/config.toml sets grammar = "go"), since .vuka is a Go
+# superset — no [grammars] block needed, and the queries in languages/vuka/
+# (highlights/injections/outline) are written against tree-sitter-go.
+# tree-sitter-go's error recovery keeps coloring working across the Vuka-only
+# constructs (JSX, @decorators, match, enums, field attributes). A dedicated
+# `tree-sitter-vuka` grammar could later highlight those precisely.
 #
-# To ENABLE highlighting on a stable connection: uncomment the block below AND
-# set `grammar = "vuka"` in languages/vuka/config.toml, then re-run
-# `zed: install dev extension`. Zed fetches the wasi-sdk once (cached after)
-# and compiles tree-sitter-go for the Go majority.
-#
-# [grammars.vuka]
-# repository = "https://github.com/tree-sitter/tree-sitter-go"
-# commit = "2346a3ab1bb3857b48b29d779a1ef9799a248cd7"
+# Intelligence is `vuka lsp` (gopls behind a proxy): completion, hover,
+# go-to-definition, rename, diagnostics.

@@ -1,5 +1,8 @@
 name = "Vuka"
-# grammar = "vuka"   # enable with the [grammars.vuka] block in extension.toml for highlighting (needs the wasi-sdk download)
+# .vuka is a Go superset, so highlight with Zed's built-in Go grammar — the
+# highlights/injections/outline queries are written against tree-sitter-go, and
+# its error recovery keeps coloring working across the Vuka-only constructs.
+grammar = "go"
 path_suffixes = ["vuka"]
 line_comments = ["// "]
 block_comment = ["/* ", " */"]
