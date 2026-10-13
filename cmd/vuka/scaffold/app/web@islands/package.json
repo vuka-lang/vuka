@@ -1,9 +1,16 @@
 {
   "name": "web",
   "private": true,
+  "type": "module",
   "devDependencies": {
-    "esbuild": "^0.28.2",
-    "esbuild-plugin-vue3": "^0.5.1",
+    "@nuxt/ui": "^4.11.3",
+    "@tailwindcss/vite": "^4.3.3",
+    "@vitejs/plugin-vue": "^6.0.10",
+    "tailwindcss": "^4.3.3",
+    "vite": "^8.3.4",
     "vue": "^3.5.44"
+  },
+  "dependencies": {
+    "vue-router": "^5.4.0"
   }
 }

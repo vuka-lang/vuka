@@ -71,9 +71,10 @@ type manifestIsland struct {
 }
 
 type manifestFile struct {
-	Scopes  map[string]*manifestEntry  `json:"scopes,omitempty"`
-	Global  *manifestEntry             `json:"global,omitempty"`
-	Islands map[string]*manifestIsland `json:"islands,omitempty"`
+	Scopes    map[string]*manifestEntry  `json:"scopes,omitempty"`
+	Global    *manifestEntry             `json:"global,omitempty"`
+	Islands   map[string]*manifestIsland `json:"islands,omitempty"`
+	IslandCSS []string                   `json:"islandCSS,omitempty"`
 }
 
 func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) {
@@ -171,6 +172,11 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		if buildRoot == "" {
 			buildRoot = pa.root
 		}
+		// A frontend root that is a Vite project builds its framework islands
+		// through Vite (so they reach Vite-plugin UI libraries); otherwise the
+		// Phase-2 esbuild path builds them. Vanilla islands always use the
+		// in-process esbuild (they are dependency-free).
+		useVite := hasViteConfig(buildRoot)
 		var vueIslands []*islandComp
 		for _, ic := range pa.islands {
 			if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
@@ -189,11 +195,21 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 			case "vue":
 				vueIslands = append(vueIslands, ic)
 			default:
-				errs = append(errs, fmt.Errorf("island %s: %s islands need a later phase (Phase 2 supports vanilla and Vue)", ic.name, ic.framework))
+				errs = append(errs, fmt.Errorf("island %s: %s islands need a later phase (vanilla and Vue are supported)", ic.name, ic.framework))
 			}
 		}
 		if len(vueIslands) > 0 {
-			bundles, entries, err := buildVueIslands(buildRoot, vueIslands, dev)
+			var (
+				bundles  []*islandBundle
+				entries  map[string]*manifestIsland
+				cssNames []string
+				err      error
+			)
+			if useVite {
+				bundles, entries, cssNames, err = buildViteIslands(pa.root, buildRoot, vueIslands, dev, warn)
+			} else {
+				bundles, entries, err = buildVueIslands(buildRoot, vueIslands, dev)
+			}
 			if err != nil {
 				errs = append(errs, err)
 			} else {
@@ -201,6 +217,7 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				for name, mi := range entries {
 					mf.Islands[name] = mi
 				}
+				mf.IslandCSS = cssNames
 			}
 		}
 		out.dts = islandsDTS(pa.islands)

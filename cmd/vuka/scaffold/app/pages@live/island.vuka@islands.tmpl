@@ -10,8 +10,9 @@ import (
 // Counter is a Vue island: a client component hydrated in the browser. Go
 // owns the props (the exported fields; json tags are the wire names), and
 // the component itself is web/islands/Counter.vue — under the web/ frontend
-// root so esbuild-plugin-vue3 resolves its `vue` import. The path is
-// relative to this file (pages/ is one level below the root).
+// root (a Vite project), so vuka build compiles it through Vite with Nuxt UI
+// available. The path is relative to this file (pages/ is one level below
+// the root).
 @ui.Island("../web/islands/Counter.vue")
 type Counter struct {
 	Count int    `json:"count"`

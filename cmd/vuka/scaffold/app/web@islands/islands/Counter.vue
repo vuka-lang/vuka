@@ -9,12 +9,10 @@ const n = ref(props.count)
 </script>
 
 <template>
-  <button
-    type="button"
-    class="inline-flex items-center gap-2 rounded-lg bg-brand-600 px-3 py-2 text-sm font-medium text-white hover:bg-brand-700"
-    @click="n++"
-  >
+  <!-- UButton comes from Nuxt UI: no import needed — its Vite plugin resolves
+       it, and its Tailwind v4 styles ship in the island's CSS. -->
+  <UButton color="primary" variant="soft" icon="i-lucide-plus" @click="n++">
     {{ label }}: {{ n }}
     <slot />
-  </button>
+  </UButton>
 </template>

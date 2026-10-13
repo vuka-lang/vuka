@@ -23,10 +23,13 @@ node_modules/
 {%- end%}
 {%- if .Islands%}
 
-# The island frontend's dependencies and build. The committed dist/index.html
-# stub lets the binary embed web/dist before the first build.
+# The island frontend (a Vite project): its dependencies, the vuka plugin
+# copy, and vuka's island-build temp dirs. The committed dist/index.html stub
+# lets the binary embed web/dist before the first build.
 /web/node_modules/
 /web/dist/*
 !/web/dist/index.html
+/web/vuka/
+/web/.vuka-vite-isl-*
 /web/.vuka-island-build-*
 {%- end%}

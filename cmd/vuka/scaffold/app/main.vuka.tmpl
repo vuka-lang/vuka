@@ -56,7 +56,8 @@ var dist embed.FS
 {%- if .Islands%}
 
 // dist is the island frontend's build output, embedded in the binary.
-// The sample Vue island lives in web/islands; vuka build bundles it.
+// The sample Vue island lives in web/islands; vuka build compiles it
+// through web/'s Vite (Nuxt UI available).
 //
 //go:embed all:web/dist
 var dist embed.FS
@@ -99,8 +100,8 @@ func options() []web.Option {
 		web.Frontend(dist, "frontend/dist", web.FrontendAt("/app"), web.FrontendEnv("APP_NAME")),
 {%- end%}
 {%- if .Islands%}
-		// web/ is the island frontend root: web/islands/*.vue build from the
-		// vue, esbuild and esbuild-plugin-vue3 in web/node_modules.
+		// web/ is the island frontend root (a Vite project): vuka build
+		// compiles web/islands/*.vue through its Vite, with Nuxt UI available.
 		web.Frontend(dist, "web/dist", web.FrontendRoot("web")),
 {%- end%}
 	}

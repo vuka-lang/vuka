@@ -316,13 +316,19 @@ func TestRenderIslands(t *testing.T) {
 	}
 
 	yes := render("yes")
-	for _, f := range []string{"web/package.json", "web/dist/index.html", "web/islands/Counter.vue", "pages/island.vuka"} {
+	for _, f := range []string{"web/package.json", "web/vite.config.mts", "web/app.css", "web/dist/index.html", "web/islands/Counter.vue", "pages/island.vuka"} {
 		if _, ok := yes[f]; !ok {
 			t.Errorf("islands: no %s", f)
 		}
 	}
-	if pkg := string(yes["web/package.json"]); !strings.Contains(pkg, "esbuild-plugin-vue3") || !strings.Contains(pkg, `"vue"`) {
-		t.Errorf("web/package.json lacks the island build deps:\n%s", pkg)
+	if pkg := string(yes["web/package.json"]); !strings.Contains(pkg, "@nuxt/ui") || !strings.Contains(pkg, `"vite"`) || !strings.Contains(pkg, "vue-router") {
+		t.Errorf("web/package.json lacks the Vite island build deps:\n%s", pkg)
+	}
+	if cfg := string(yes["web/vite.config.mts"]); !strings.Contains(cfg, "@nuxt/ui/vite") || !strings.Contains(cfg, "vuka()") {
+		t.Errorf("web/vite.config.mts doesn't wire the UI + vuka plugins:\n%s", cfg)
+	}
+	if vue := string(yes["web/islands/Counter.vue"]); !strings.Contains(vue, "<UButton") {
+		t.Errorf("web/islands/Counter.vue doesn't use a Nuxt UI component:\n%s", vue)
 	}
 	if m := string(yes["main.vuka"]); !strings.Contains(m, `web.FrontendRoot("web")`) || !strings.Contains(m, "all:web/dist") {
 		t.Errorf("main.vuka doesn't wire the island frontend:\n%s", m)

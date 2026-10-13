@@ -36,8 +36,10 @@ the app serves the frontend at [/app](http://localhost:8080/app/).
 {%- if .Islands%}
 
 The sample Vue island at [/island](http://localhost:8080/island) is built from
-`web/`. Install its dependencies once (Node.js 20+), then `vuka build` bundles
-it into the binary:
+`web/`, a Vite project with Nuxt UI. Install its dependencies once (Node.js
+20+); then `vuka run`/`vuka build` compiles the island through Vite and serves
+(or embeds) it. The Nuxt UI component in `web/islands/Counter.vue` resolves and
+styles itself out of the box.
 
 ```sh
 (cd web && npm install)
