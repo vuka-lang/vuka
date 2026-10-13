@@ -212,6 +212,40 @@ opaque id**, exactly like an element's `onClick`.
   give a fully live island: the server pushes new rows down and the row-click
   comes back up, no remount.
 
+## Phase 4 — Vite island build (for rich component libraries, e.g. Nuxt UI)
+
+Nuxt UI (and any Vite-plugin UI library) can't be dropped into the esbuild
+island bundle: `@nuxt/ui/vue-plugin` is types-only; its runtime plugin, Vue
+component auto-import, and Tailwind v4 CSS are produced by its **Vite plugin**
+at build time. So framework islands get a **Vite build path**, chosen when the
+frontend root (`web.FrontendRoot`) is a Vite project (has a `vite.config.*`);
+vanilla `.ts` islands stay on the Go/esbuild path.
+
+Proven recipe (spiked end to end — `<UBadge>`/`<UIcon>` resolve with 0 unresolved
+components, Nuxt UI's `--ui-*` tokens + Tailwind in the CSS):
+- frontend root deps: `vite @vitejs/plugin-vue @nuxt/ui @tailwindcss/vite tailwindcss vue vue-router`.
+- an **ESM** config `vite.config.mts` (Nuxt UI's Vite plugin is ESM-only, so a
+  `.ts`/CJS config fails): `plugins: [vue(), ui(), tailwindcss()]`.
+- `vue-router` must be installed (Nuxt UI references it as an optional peer).
+- the build is multi-entry (`build.manifest: true`): the Vue adapter, one
+  `export { default } from '<abs island>.vue'` entry per island, and a CSS entry
+  (`@import "tailwindcss"; @import "@nuxt/ui";`). Vite emits the island chunk +
+  adapter chunk + a shared Vue chunk + one `styles.*.css`, keyed by its manifest.
+
+vuka integration:
+- The vuka Vite plugin (vite/vuka.js) injects the island entries + adapter + CSS
+  into the project's Vite build (the one `vuka build` already runs), given the
+  `@ui.Island` set; it tags the manifest so the Go side can read island name →
+  chunk + adapter + the CSS asset.
+- `vuka build` reads Vite's `.vite/manifest.json`, `RegisterIsland`s every island
+  chunk/shared chunk (served at `/_vuka/i/` as today), and registers the island
+  CSS so a page carrying an island includes its `<link>`. The loader + adapter
+  contract is unchanged (module + adapter → `mount`). Dev serves island modules
+  from the Vite dev server (HMR) via the hot file, as the SPA frontend already
+  does.
+- `vuka new --islands` scaffolds the frontend root as a Vite project with the
+  Nuxt-UI-ready config + deps above.
+
 ## Phasing
 
 1. **Vanilla islands** — decorator + codegen, `<ui.Island>`/`<ui.Template>` +

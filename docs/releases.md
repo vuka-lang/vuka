@@ -28,6 +28,28 @@ use ui v0.21.0, web v0.24.0.
   an island emit runs a server handler that bumps a live prop, which updates the
   island in place.
 
+## cmd/vuka v0.33.0 — 2026-10-13
+
+Runtime unchanged (vuka v0.26.0); new apps use ui v0.21.0, web v0.25.0.
+
+- **Vite island build (for Nuxt UI and other Vite-plugin UI libraries).** When
+  a framework island's frontend root is a Vite project (has a `vite.config.*`),
+  the vuka command builds the `.vue` islands by running the project's **Vite**
+  (with its `[vue(), ui(), tailwindcss(), vuka()]` plugins) instead of the
+  Node-esbuild path — so Nuxt UI's components auto-resolve and its Tailwind v4
+  CSS is produced. vuka reads Vite's manifest, serves the island + adapter +
+  shared chunks at `/_vuka/i/`, and injects the island CSS (`<link>` on first
+  hydration). A frontend root without a `vite.config` keeps the esbuild path;
+  vanilla `.ts` islands always use esbuild. Needs web v0.25.0 (its Vite plugin
+  gains the island-build mode + island-CSS serving).
+- **`vuka new --islands` now scaffolds a Vite + Nuxt UI frontend root** by
+  default: `vite.config.mts` (`[vue(), ui(), tailwindcss(), vuka()]`), the dep
+  set (vite, @vitejs/plugin-vue, @nuxt/ui, @tailwindcss/vite, tailwindcss, vue,
+  vue-router), `app.css` (`@import "tailwindcss"; @import "@nuxt/ui";`), and a
+  sample island using a Nuxt UI `<UButton>`.
+- Dev (`vuka run`) rebuilds Vite islands on change (a full island build, not yet
+  HMR off the Vite dev server — a follow-up).
+
 ## cmd/vuka v0.31.0 — 2026-10-13
 
 Runtime unchanged (vuka v0.26.0); a command-only release.
