@@ -10,6 +10,23 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.30.0 — 2026-10-13
+
+Runtime unchanged (vuka v0.26.0); a command-only release.
+
+- **UI islands (Phase 2 — Vue).** `@ui.Island("…/X.vue")` now builds: the vuka
+  command compiles the SFC with Node esbuild + `esbuild-plugin-vue3` (one
+  code-split build per app — the Vue adapter and every `.vue` island as entry
+  points, with the Vue runtime deduped into a shared chunk), serves the chunks
+  at `/_vuka/i/`, and records each island with its module + a Vue adapter chunk;
+  the client loader mounts it with `createApp`, re-pushing changed props on a
+  live re-render and unmounting when it leaves. The build deps (`vue`,
+  `esbuild`, `esbuild-plugin-vue3`) come from the frontend root
+  (`web.FrontendRoot`); a server-rendered app without a frontend adds a minimal
+  `package.json` there. An optional `_setup.ts` (default export `(app)=>{}`)
+  runs per island app. Vanilla islands are unchanged; React/Svelte await a later
+  phase. Design: docs/design/islands.md.
+
 ## v0.26.0 — 2026-10-13
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.29.0`. New apps

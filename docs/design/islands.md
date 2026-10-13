@@ -148,6 +148,28 @@ check flags a mismatched `defineProps`.
   marked `data-vk-ssr` so the client **hydrates** instead of mounting. Dev and
   live re-renders skip it. Maps to Astro server islands.
 
+## Phase 2 — Vue islands (build approach, locked)
+
+Go's esbuild library can't compile `.vue`, so framework islands add a **Node
+build step** (used only when `.vue` islands exist; vanilla stays pure-Go). vuka
+uses **Node esbuild + `esbuild-plugin-vue3`** (proven: an SFC compiles to an ESM
+chunk whose default export is the component; a Vue adapter bundles `createApp`
+mount). It reuses Phase 1 end to end — `/_vuka/i/` serving, `RegisterIsland`,
+the manifest, and the loader (which already imports an adapter + the module).
+
+- One esbuild build per app with `splitting: true`, entry points = the Vue
+  adapter + every `.vue` island; esbuild emits a shared Vue chunk the entries
+  import by relative URL (all served under `/_vuka/i/`). The manifest's
+  `adapter` field points at the adapter chunk; the loader calls
+  `adapter.mount(module.default, el, props, ctx)`.
+- The adapter: `createApp({render:()=>h(Comp, reactiveProps)}).mount(el)`;
+  `update` = `Object.assign(state, next)`; `unmount` = `app.unmount()`. An
+  optional `_setup.ts` default export runs per app (Pinia/plugins) — the
+  appEntrypoint analogue.
+- Build deps (`vue`, `esbuild`, `esbuild-plugin-vue3`) come from the frontend
+  root's `node_modules` (`web.FrontendRoot`); a server-rendered app without a
+  frontend gains a minimal `package.json` there.
+
 ## Phasing
 
 1. **Vanilla islands** — decorator + codegen, `<ui.Island>`/`<ui.Template>` +
