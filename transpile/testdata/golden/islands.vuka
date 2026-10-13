@@ -1,0 +1,32 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/islandui"
+)
+
+// Counter is a vanilla island: its exported fields are the client props and
+// @ui.Island registers it so MountIsland's reflect lookup resolves at runtime.
+@ui.Island("islands/Counter.ts")
+type Counter struct {
+	Count int `json:"count"`
+}
+
+// page wraps the island to add a fallback shown until hydration; the body's
+// client:visible directive is the strategy and its children are the slot.
+func page() ui.Node {
+	return <ui.Island>
+		<ui.Template fallback><div class="skeleton">Loading</div></ui.Template>
+		<Counter count={5} client:visible><small>clicks</small></Counter>
+	</ui.Island>
+}
+
+func main() {
+	s, err := ui.String(context.Background(), page())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(s)
+}

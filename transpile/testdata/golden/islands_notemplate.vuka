@@ -1,0 +1,15 @@
+package main
+
+import ui "vukatest.local/islandui"
+
+@ui.Island("islands/Panel.ts")
+type Panel struct {
+	Open bool `json:"open"`
+}
+
+// A wrapper with no <ui.Template>: just the body (with a slot) and a strategy.
+func panel() ui.Node {
+	return <ui.Island>
+		<Panel open={true} client:load><p>body</p></Panel>
+	</ui.Island>
+}

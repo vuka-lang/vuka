@@ -1,0 +1,15 @@
+package main
+
+import ui "vukatest.local/islandui"
+
+@ui.Island("islands/Clock.tsx")
+type Clock struct {
+	Zone string `json:"zone"`
+}
+
+// client:only lowers to ui.ClientOnly(): the island is never server-rendered.
+func clock() ui.Node {
+	return <ui.Island>
+		<Clock zone={"UTC"} client:only/>
+	</ui.Island>
+}

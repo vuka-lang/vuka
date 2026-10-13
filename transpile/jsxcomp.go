@@ -33,6 +33,18 @@ type jsxComp struct {
 	site       string   // the tag's place, for a stateful component
 	key        *compArg // its key attribute
 	targText   string   // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
+
+	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.MountIsland.
+	island       bool      // this comp is a <ui.Island> wrapper
+	consumed     bool      // a tag a <ui.Island> absorbs (its <ui.Template>s and body): not resolved or emitted on its own
+	bodyTag      span      // the island body component's type-name span (kept in the direct form)
+	islandStrat  string    // the strategy constructor: Load/Idle/Visible/Media/ClientOnly/SSR; "" = none
+	strat        *jsxAttr  // the client:*/server:defer attribute, for its value
+	islandArgTyp []string  // closure-mode param type text, one per args entry
+	slotKids     []jsxNode // the body's children → ui.Slot (when any)
+	fallbackKids []jsxNode // the <ui.Template fallback>'s children → ui.Fallback (when present)
+	hasSlot      bool
+	hasFallback  bool
 }
 
 // nestStep is an embedded struct field a promoted field is reached through.
@@ -56,6 +68,10 @@ type compArg struct {
 }
 
 func (w *jsxWriter) comp(c *jsxComp) {
+	if c.island {
+		w.island(c)
+		return
+	}
 	el, q := c.el, w.q
 	tag := span{el.start + 1, el.tagEnd}
 	if !c.resolved {
@@ -215,7 +231,9 @@ func (e *engine) nodeType(t *jsxTarget) types.Type {
 // context — through the target's WithChildren.
 // A generic function's type arguments are inferred as a call's are; an
 // overloaded function's overload is the one its attributes fit best.
-func (e *engine) resolveComp(f *fileState, c *jsxComp) {
+// compExpr is a component tag's expression in this round's syntax tree: the
+// Ident, selector or index placeholder lowerJSX left where the tag name was.
+func (e *engine) compExpr(f *fileState, c *jsxComp) ast.Expr {
 	el := c.el
 	at, end := f.cur.fromOrig(el.start+1), f.cur.fromOrig(el.tagEnd)
 	var expr ast.Expr
@@ -228,6 +246,16 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		}
 		return expr == nil
 	})
+	return expr
+}
+
+func (e *engine) resolveComp(f *fileState, c *jsxComp) {
+	if c.consumed { // a <ui.Island> absorbed this tag; the wrapper emits it
+		c.resolved = true
+		return
+	}
+	el := c.el
+	expr := e.compExpr(f, c)
 	if expr == nil {
 		c.fail = "internal: placeholder not found"
 		return
@@ -235,6 +263,15 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	fail := func(off int, format string, args ...any) {
 		c.dead = true
 		e.errs.add(f.at(off), format, args...)
+	}
+	// UI islands: a <ui.Island> wrapper, and a <ui.Template> outside one.
+	switch e.targetFunc(c.target, e.info.Uses[compIdent(expr)]) {
+	case "Island":
+		e.resolveIsland(f, c, fail)
+		return
+	case "Template":
+		fail(el.start, "<%s> is only valid directly inside <ui.Island>", el.tag)
+		return
 	}
 	node := e.nodeType(c.target)
 	if node == nil {
