@@ -10,6 +10,20 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.31.0 — 2026-10-13
+
+Runtime unchanged (vuka v0.26.0); a command-only release.
+
+- **`vuka new --islands`.** Scaffolds a sample Vue island wired end to end: a
+  `web/` frontend root (`package.json` with esbuild + esbuild-plugin-vue3 + vue,
+  a `web/dist/index.html` stub, `web/islands/Counter.vue`), an `@ui.Island` Go
+  type, a live page placing `<ui.Island><Counter … client:visible/></ui.Island>`,
+  and `web.Frontend(dist, "web/dist", web.FrontendRoot("web"))` in main. Offered
+  for `--ui=live --frontend=none` (refused otherwise, with a clear message);
+  default off, so every existing `vuka new` combination is byte-for-byte
+  unchanged. After scaffolding, run `cd web && npm install` once; `vuka build`
+  then bundles the island on every build.
+
 ## cmd/vuka v0.30.0 — 2026-10-13
 
 Runtime unchanged (vuka v0.26.0); a command-only release.

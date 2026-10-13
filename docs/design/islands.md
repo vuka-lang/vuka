@@ -169,6 +169,15 @@ the manifest, and the loader (which already imports an adapter + the module).
 - Build deps (`vue`, `esbuild`, `esbuild-plugin-vue3`) come from the frontend
   root's `node_modules` (`web.FrontendRoot`); a server-rendered app without a
   frontend gains a minimal `package.json` there.
+- **SFC location (Vue):** `esbuild-plugin-vue3` resolves an SFC's bare imports
+  (`vue`, a datepicker lib, …) from the SFC file's own directory upward — not
+  from esbuild's working dir — so a `.vue` island must live **under the frontend
+  root** (e.g. `web/islands/X.vue`), where `node_modules` is reachable. The
+  `@ui.Island("…/X.vue")` path (relative to the declaring Go file) points there.
+  Vanilla `.ts` islands import nothing bare, so they may sit anywhere.
+- A JS-`import`ed `.css` inside an SFC (e.g. a flatpickr theme) can't be
+  consumed by the island loader — import the component's JS and provide its CSS
+  through the app's stylesheet instead.
 
 ## Phasing
 
