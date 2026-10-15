@@ -1,0 +1,26 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+// A live @ui.Island struct without a Render: a page backed by its island,
+// whose Render the compiler writes.
+@ui.Island("components/Board.vue")
+type Board struct {
+	ui.Live
+	Q string `json:"q"`
+}
+
+func (b *Board) Search(q string) { b.Q = q }
+
+func main() {
+	s, err := ui.String(context.Background(), (&Board{Q: "x"}).Render())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(s)
+}

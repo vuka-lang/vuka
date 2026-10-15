@@ -498,6 +498,7 @@ func Package(files []File, opts Options) (*Result, error) {
 		if f.vuka {
 			f.scan(&errs)
 			e.islandImports(f, &errs)
+			e.islandPages(f, files)
 			f.attrEdits()
 			f.makeTrailer(opts.Bare)
 			e.vuka = append(e.vuka, f)

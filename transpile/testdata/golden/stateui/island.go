@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/vuka-lang/vuka"
 )
 
 // The island API in the shape the compiler lowers imported islands to; a
@@ -68,4 +70,18 @@ func MountIsland(site string, props any, opts ...IslandOpt) Node {
 	}
 	j, _ := json.Marshal(m)
 	return El("vk-island", []Attr{{Name: "data-vk-island", Value: islands[v.Type()]}, {Name: "data-vk-props", Value: string(j)}, {Name: "opts", Value: strings.Join(os, "; ")}})
+}
+
+// Live is the embedded field of a live component.
+type Live struct{}
+
+// Island is the @ui.Island type decorator.
+func Island(path string, strategy ...string) func(*vuka.Type) {
+	return func(t *vuka.Type) { islands[t.Reflect] = path }
+}
+
+// IslandPage renders a page backed by its island.
+func IslandPage(x any) Node {
+	v := reflect.ValueOf(x).Elem()
+	return El("vk-island", []Attr{{Name: "data-vk-island", Value: islands[v.Type()]}, {Name: "page", Value: v.Type().Name()}})
 }

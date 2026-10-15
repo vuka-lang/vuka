@@ -150,7 +150,7 @@ type reader struct {
 	toks              []token
 	decls             map[string]*decl
 	imports           map[string]importRef
-	nested            bool // reading an imported file: its imports aren't followed
+	nested            bool            // reading an imported file: its imports aren't followed
 	defaults          map[string]bool // the props a component's destructuring gives defaults
 }
 

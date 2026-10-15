@@ -500,3 +500,70 @@ func goParam(name string) string {
 }
 
 func readFile(p string) ([]byte, error) { return os.ReadFile(p) }
+
+var (
+	islandDeclRe = regexp.MustCompile(`@(\w+)\.Island\s*\([^)]*\)\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)\s+struct\s*\{`)
+	liveEmbedRe  = regexp.MustCompile(`(?m)^\s*(\w+)\.Live\s*(?://.*)?$`)
+)
+
+// islandPages writes a Render method for each @ui.Island struct of the file
+// that embeds ui.Live and has none: a live page backed by its component,
+// whose markup is the island (ui.IslandPage) — its exported fields the
+// props, its exported methods what the component calls.
+func (e *engine) islandPages(f *fileState, files []File) {
+	for _, m := range islandDeclRe.FindAllSubmatchIndex(f.src, -1) {
+		q, name := string(f.src[m[2]:m[3]]), string(f.src[m[4]:m[5]])
+		open := m[1] - 1
+		end := matchBrace(f.src, open)
+		if end < 0 {
+			continue
+		}
+		body := f.src[open:end]
+		live := false
+		for _, lm := range liveEmbedRe.FindAllSubmatch(body, -1) {
+			if string(lm[1]) == q {
+				live = true
+			}
+		}
+		if !live || hasMethod(files, name, "Render") {
+			continue
+		}
+		off := m[4]
+		var w genWriter
+		w.gen("\n", off)
+		if !f.bare {
+			w.gen(lineDirective(f.at(off)), off)
+		}
+		w.gen("func (x *"+name+") Render() "+q+".Node { return "+q+".IslandPage(x) }\n", off)
+		f.islandGen.append(&w)
+	}
+}
+
+// matchBrace is the offset of the } closing the { at open, or -1.
+func matchBrace(src []byte, open int) int {
+	depth := 0
+	for i := open; i < len(src); i++ {
+		switch src[i] {
+		case '{':
+			depth++
+		case '}':
+			depth--
+			if depth == 0 {
+				return i
+			}
+		}
+	}
+	return -1
+}
+
+// hasMethod reports whether the package's sources declare a method name of
+// type typ.
+func hasMethod(files []File, typ, name string) bool {
+	re := regexp.MustCompile(`func\s*\(\s*\w*\s*\*?\s*` + regexp.QuoteMeta(typ) + `\s*\)\s*` + regexp.QuoteMeta(name) + `\s*\(`)
+	for _, f := range files {
+		if re.Match(f.Src) {
+			return true
+		}
+	}
+	return false
+}
