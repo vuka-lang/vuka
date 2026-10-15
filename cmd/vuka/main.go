@@ -27,8 +27,10 @@ Usage:
 	vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --yes]
 	        start an app: a few questions (or flags), then a project that runs,
 	        its tests passing: pages, sign-in, a database with migrations
-	vuka add module <name>
-	        grow the app: a module with a model, service, page, migration and test
+	vuka add module|service|component|island|page|entity … [--dry-run] [--force]
+	        grow the app: a module (model, service, page, migration, test), a
+	        service, a component, an island, a page (live, or backed by an
+	        island), an orm entity and its migration; vuka add -h for each
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        an app on github.com/vuka-lang/web gets its Tailwind CSS (run keeps it

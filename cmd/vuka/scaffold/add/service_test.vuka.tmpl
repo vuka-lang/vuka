@@ -1,0 +1,13 @@
+package {%.Pkg%}
+
+import (
+	"context"
+	"testing"
+)
+
+func Test{%.Name%}(t *testing.T) {
+	s := {%.Name%}.New()
+	if got := s.Greet(context.Background(), " Ada "); got != "Hello, Ada" {
+		t.Errorf("Greet: %q", got)
+	}
+}

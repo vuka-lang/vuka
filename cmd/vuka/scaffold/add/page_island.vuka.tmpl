@@ -1,0 +1,33 @@
+package {%.Pkg%}
+
+import (
+	"context"
+	"strings"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+// {%.Type%} is the page at {%.Path%}, backed by its component
+// ({%.IslandPath%}): the exported fields are the component's props, the
+// exported methods what it calls{%if .Live%}; it is live, so a call changes the
+// server's instance and the component gets the new props{%end%}.
+@web.Get("{%.Path%}")
+@ui.Island("{%.IslandPath%}")
+type {%.Type%} struct {
+{%- if .Live%}
+	ui.Live
+{%- end%}
+	{%.Prop%} string `json:"{%.PropJSON%}"`
+	{%.URLField%}     string `json:"{%.URLJSON%}" url:"{%.URLJSON%}"` // kept in the address: ?{%.URLJSON%}=
+}
+
+func (p *{%.Type%}) Mount(ctx context.Context) {
+	p.{%.Prop%} = "{%.Title%}"
+}
+
+// {%.Method%} is what the component calls: live.{%.MethodJSON%}(q).
+func (p *{%.Type%}) {%.Method%}(ctx context.Context, q string) error {
+	p.{%.URLField%} = strings.TrimSpace(q)
+	return nil
+}

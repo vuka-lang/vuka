@@ -1,0 +1,36 @@
+package {%.Pkg%}
+
+import (
+	"testing"
+{%- if .SampleTime%}
+	"time"
+{%- end%}
+
+	"github.com/vuka-lang/orm"
+	"github.com/vuka-lang/orm/ormtest"
+{%- range .Imports%}
+	"{%.%}"
+{%- end%}
+)
+
+func Test{%.Name%}(t *testing.T) {
+	ctx := ormtest.Open(t, orm.Objects[{%.Name%}](){%range .Refs%}, orm.Objects[{%.%}](){%end%}) // a fresh SQLite database with the tables
+{%- if .Testable%}
+	row := {%.Name%}{
+{%- range .Fields%}{%if and .Sample (not .Ref)%}
+		{%.Name%}: {%.Sample%},
+{%- end%}{%end%}
+	}
+	if err := {%.Name%}.Objects.Create(ctx, &row); err != nil {
+		t.Fatal(err)
+	}
+	all, err := {%.Name%}.Objects.All(ctx).Get()
+	if err != nil || len(all) != 1 || all[0].ID != row.ID || all[0].CreatedAt.IsZero() {
+		t.Fatalf("All: %v %v", all, err)
+	}
+{%- else%}
+	if n, err := {%.Name%}.Objects.Count(ctx).Get(); err != nil || n != 0 {
+		t.Fatalf("Count: %v %v", n, err)
+	}
+{%- end%}
+}

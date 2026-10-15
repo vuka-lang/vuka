@@ -1,0 +1,34 @@
+{%- if .Live%}<script lang="ts">
+  import { live } from 'vuka:live'
+  import type { {%.Page%} } from 'vuka:live'
+
+  // The page's props are {%.Page%}'s exported fields; l calls its methods.
+  let props: {%.Page%} = $props()
+  const l = live<{%.Page%}>()
+</script>
+
+<main class="mx-auto max-w-2xl px-4 py-16">
+  <h1 class="text-2xl font-semibold">{props.{%.Prop%}}</h1>
+  <input
+    class="mt-6 w-full rounded-lg border px-3 py-2"
+    placeholder="Search"
+    value={props.{%.URLField%}}
+    oninput={(e) => l.{%.Method%}((e.target as HTMLInputElement).value)}
+  />
+  {#if $l.pending}<p class="mt-2 text-sm">…</p>{/if}
+  {#if $l.error}<p class="mt-2 text-sm text-red-600">{$l.error.message}</p>{/if}
+</main>
+{%- else%}<script lang="ts">
+  // The props a .vuka file passes: import {%.Name%} "./…/{%.Name%}.svelte" reads them from here.
+  interface Props {
+    title: string
+    count?: number
+  }
+  let { title, count = 0 }: Props = $props()
+  let n = $state(count)
+</script>
+
+<button type="button" class="rounded-lg px-3 py-2 ring-1 ring-slate-300" onclick={() => n++}>
+  {title}: {n}
+</button>
+{%- end%}

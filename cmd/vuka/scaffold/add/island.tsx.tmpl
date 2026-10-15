@@ -1,0 +1,37 @@
+{%- if .Live%}import { useLive } from 'vuka:live'
+import type { {%.Page%} } from 'vuka:live'
+
+// The page's props are {%.Page%}'s exported fields; live calls its methods.
+export default function {%.Name%}(props: {%.Page%}) {
+  const live = useLive<{%.Page%}>()
+  return (
+    <main className="mx-auto max-w-2xl px-4 py-16">
+      <h1 className="text-2xl font-semibold">{props.{%.Prop%}}</h1>
+      <input
+        className="mt-6 w-full rounded-lg border px-3 py-2"
+        placeholder="Search"
+        defaultValue={props.{%.URLField%}}
+        onInput={(e) => live.{%.Method%}((e.target as HTMLInputElement).value)}
+      />
+      {live.pending && <p className="mt-2 text-sm">…</p>}
+      {live.error && <p className="mt-2 text-sm text-red-600">{live.error.message}</p>}
+    </main>
+  )
+}
+{%- else%}import { useState } from 'react'
+
+// The props a .vuka file passes: import {%.Name%} "./…/{%.Name%}.tsx" reads them from here.
+interface Props {
+  title: string
+  count?: number
+}
+
+export default function {%.Name%}({ title, count = 0 }: Props) {
+  const [n, setN] = useState(count)
+  return (
+    <button type="button" className="rounded-lg px-3 py-2 ring-1 ring-slate-300" onClick={() => setN(n + 1)}>
+      {title}: {n}
+    </button>
+  )
+}
+{%- end%}

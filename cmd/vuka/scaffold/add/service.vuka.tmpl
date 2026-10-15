@@ -1,0 +1,22 @@
+package {%.Pkg%}
+
+import (
+	"context"
+	"strings"
+
+	"github.com/vuka-lang/web"
+)
+
+// {%.Name%} is a service of {%.Pkg%}: pages, routes and other services take a
+// *{%.Name%} parameter or field, and the app builds it once (New's
+// parameters are injected the same way).
+@web.Service
+type {%.Name%} struct{}
+
+// New builds the {%.Name%}.
+func {%.Name%}.New() *{%.Name%} { return &{%.Name%}{} }
+
+// Greet is a sample method: replace it with the service's own.
+func ({%.Recv%} *{%.Name%}) Greet(ctx context.Context, name string) string {
+	return "Hello, " + strings.TrimSpace(name)
+}

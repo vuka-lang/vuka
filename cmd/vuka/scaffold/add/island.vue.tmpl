@@ -1,0 +1,36 @@
+{%- if .Live%}<script setup lang="ts">
+import { useLive } from 'vuka:live'
+import type { {%.Page%} } from 'vuka:live'
+
+// The page's props are {%.Page%}'s exported fields; live calls its methods.
+const props = defineProps<{%.Page%}>()
+const live = useLive<{%.Page%}>()
+</script>
+
+<template>
+  <main class="mx-auto max-w-2xl px-4 py-16">
+    <h1 class="text-2xl font-semibold">{{ props.{%.Prop%} }}</h1>
+    <input
+      class="mt-6 w-full rounded-lg border px-3 py-2"
+      placeholder="Search"
+      :value="props.{%.URLField%}"
+      @input="live.{%.Method%}(($event.target as HTMLInputElement).value)"
+    />
+    <p v-if="live.pending" class="mt-2 text-sm">…</p>
+    <p v-if="live.error" class="mt-2 text-sm text-red-600">{{ live.error.message }}</p>
+  </main>
+</template>
+{%- else%}<script setup lang="ts">
+import { ref } from 'vue'
+
+// The props a .vuka file passes: import {%.Name%} "./…/{%.Name%}.vue" reads them from here.
+const props = defineProps<{ title: string; count?: number }>()
+const n = ref(props.count ?? 0)
+</script>
+
+<template>
+  <button type="button" class="rounded-lg px-3 py-2 ring-1 ring-slate-300" @click="n++">
+    {{ title }}: {{ n }}
+  </button>
+</template>
+{%- end%}

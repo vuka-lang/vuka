@@ -2,7 +2,7 @@
 
 ```text
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
-vuka add module <name>
+vuka add module|service|component|island|page|entity … [--dry-run] [--force]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
@@ -83,6 +83,40 @@ an existing module, or an app without a database, is refused.
 
 It is `add`, not a form of `new`: `new` makes a project, `add` grows the
 one you are in, and a project directory named `module` stays possible.
+
+The other kinds add one piece each:
+
+| | |
+|---|---|
+| `vuka add service notes/Mailer` | a `@web.Service` in `modules/notes/` with a static `New` and a test: pages and routes take a `*notes.Mailer` parameter or field |
+| `vuka add component StatCard [--module m]` | a stateless component taking a props struct (`StatCardProps`), in `components/` or the module |
+| `vuka add island Chart [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`), its props typed so `import Chart "../web/islands/Chart.vue"` reads them; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
+| `vuka add page /reports/{id} [--module m] [--live]` | a page in `pages/`: `@web.Get` on a handler (path parameters are its parameters), or with `--live` a `@web.Live` type with an event |
+| `vuka add page /board --island Board [--live] [--react]` | a page backed by a component: an `@ui.Island` struct routed with `@web.Get` — a prop, a `url:"q"` field and a `Search` method — and the component calling it with `useLive` (Svelte: `live()`); `--live` embeds `ui.Live` |
+| `vuka add entity posts/Comment body:text post:ref email:string:unique` | an orm model in the module with `ID`, `CreatedAt` and `UpdatedAt`, a test, and its migration written by `go tool orm makemigrations` |
+
+An entity's fields are `name:type`, `?` after the type for an optional one
+(an `Option`), and `:unique` or `:index` after it:
+
+| type | Go | column |
+|---|---|---|
+| `string` | `string` | `VARCHAR(255)` (`@orm.Char{Max: 255}`) |
+| `text` | `string` | unbounded text (`@orm.LongText`) |
+| `int`, `bigint` | `int64` | integer |
+| `float` | `float64` | floating point |
+| `decimal` | `float64` | `NUMERIC(12,2)` |
+| `bool` | `bool` | boolean, default false |
+| `time`, `date` | `time.Time` | a timestamp, a date |
+| `json` | `orm.JSON[map[string]any]` | JSON |
+| `ref` | `orm.FK[T]` | `<name>_id`, a foreign key to the model `T` the name names (`user:ref` or `user_id:ref` → `User`, in the module or another one); optional: `ON DELETE SET NULL` |
+
+`--table` names the table (the plural of the name in snake_case otherwise).
+
+Every kind refuses a name that isn't a Go identifier of the right case, a
+declaration or file that exists (`--force` overwrites it), and a module that
+doesn't; `--dry-run` lists what it would write and changes nothing. Files
+are formatted as `vuka fmt` formats them, and a package nothing imports yet
+is imported in `main.vuka`.
 
 ## build, run, test, vet, install
 

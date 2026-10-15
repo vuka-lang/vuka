@@ -15,26 +15,72 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-const addUsage = `Usage: vuka add module <name>
+const addUsage = `Usage:
 
-Add a module to an app vuka new made: modules/<name>/ with a model, a
-service, a page (or API routes) and a test, a migration making its table,
-and an import in main.vuka that registers it. The name is a plural noun in
-lower case: notes, invoices, tickets.
+	vuka add module <name>
+	vuka add service <module>/<Name>
+	vuka add component <Name> [--module m]
+	vuka add island <Name> [--vue|--react|--svelte] [--dir dir] [--no-install]
+	vuka add page <path> [--module m] [--live] [--island Name [--vue|--react|--svelte]] [--name Type]
+	vuka add entity <module>/<Name> [field:type…] [--table name]
+
+Grow an app vuka new made.
+
+  module     modules/<name>/: a model, a service, a page (or API routes), a
+             test, a migration making its table, and main.vuka's import of
+             it. The name is a plural noun in lower case: notes, invoices.
+  service    a @web.Service in a module, with a static New and a test: a
+             dependency pages and routes take as a parameter or field.
+  component  a stateless component taking a props struct, in components/
+             (or the module's package).
+  island     a client component in the island frontend (web/islands/ by
+             default): Vue (the default, or the frontend's framework),
+             React or Svelte, its props typed so an import reads them. The
+             framework's packages and Vite plugin are added when missing,
+             and installed (--no-install: not).
+  page       a page in pages/ (or the module's package): @web.Get, or
+             @web.Live with --live. --island Name makes it a page backed by
+             a component: an @ui.Island struct with a prop, a url: field
+             and a method, and the component calling it (live with --live).
+  entity     an orm model in a module, with ID and created/updated times,
+             its fields name:type — string, text, int, float, decimal,
+             bool, time, date, json, ref (a foreign key to the model the
+             name names: user:ref) — ? for an optional one (published_at:time?),
+             :unique or :index after (email:string:unique); a test, and its
+             migration from go tool orm makemigrations.
+
+Every kind: --dry-run lists what it would write, --force overwrites what
+exists (nothing is overwritten otherwise). Files are formatted as vuka fmt
+formats them, and a new package is imported in main.vuka.
 `
 
-// add is vuka add: it grows an app, a module at a time.
+// add is vuka add: it grows an app, a piece at a time.
 func add(args []string, stdout io.Writer) error {
-	if len(args) == 1 && slices.Contains([]string{"-h", "-help", "--help", "help"}, args[0]) {
+	if len(args) == 0 || len(args) == 1 && slices.Contains([]string{"-h", "-help", "--help", "help"}, args[0]) {
 		fmt.Fprint(stdout, addUsage)
 		return nil
 	}
-	if len(args) != 2 || args[0] != "module" {
-		return errors.New(strings.TrimRight(addUsage, "\n"))
+	kinds := map[string]func(root, mod string, f *addFlags, w io.Writer) error{
+		"service": addService, "component": addComponent, "island": addIsland, "page": addPage, "entity": addEntity,
+	}
+	kind := args[0]
+	if kind != "module" && kinds[kind] == nil {
+		return fmt.Errorf("vuka add: no kind %q%s; the kinds are module, service, component, island, page and entity", kind,
+			suggest(kind, []string{"module", "service", "component", "island", "page", "entity"}, ""))
 	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return err
+	}
+	if kind != "module" {
+		f, err := parseAddFlags(kind, args[1:])
+		if err != nil {
+			return err
+		}
+		return kinds[kind](root, modPath, f, stdout)
+	}
+	if len(args) != 2 {
+		return errors.New(strings.TrimRight(addUsage, "\n"))
 	}
 	files, err := addModule(root, modPath, args[1])
 	if err != nil {
