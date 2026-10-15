@@ -192,10 +192,8 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				}
 				out.islands = append(out.islands, ib)
 				mf.Islands[ic.name] = &manifestIsland{Name: ic.name, Module: ib.name, Framework: "vanilla"}
-			case "vue":
+			default: // vue, react, svelte
 				vueIslands = append(vueIslands, ic)
-			default:
-				errs = append(errs, fmt.Errorf("island %s: %s islands need a later phase (vanilla and Vue are supported)", ic.name, ic.framework))
 			}
 		}
 		if len(vueIslands) > 0 {

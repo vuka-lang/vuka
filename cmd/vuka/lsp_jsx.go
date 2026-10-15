@@ -8,6 +8,8 @@ import (
 	"go/token"
 	"go/types"
 	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 )
 
@@ -732,6 +734,14 @@ func (p *proxy) statefulAttrs(genPath, tag string) []compAttr {
 			out = append(out, compAttr{label, detail})
 		}
 	}
+	if !render && !live && len(out) > 0 && p.isIsland(genPath, tag) {
+		// A struct that isn't stateful: an island's props (an @ui.Island
+		// struct, or an imported component's), written as the component's.
+		for i := range out {
+			out[i].name = strings.ToLower(out[i].name[:1]) + out[i].name[1:]
+		}
+		return out
+	}
 	if !render || !live {
 		return nil
 	}
@@ -739,6 +749,28 @@ func (p *proxy) statefulAttrs(genPath, tag string) []compAttr {
 		out = []compAttr{}
 	}
 	return out
+}
+
+// isIsland reports whether a type of the package genPath is in is an
+// island: its generated code registers it (an imported component's
+// RegisterIsland, an @ui.Island decorator's call).
+func (p *proxy) isIsland(genPath, tag string) bool {
+	if strings.Contains(tag, ".") {
+		return false
+	}
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	dir := filepath.Dir(genPath)
+	for path, vf := range p.virtual {
+		if filepath.Dir(path) != dir {
+			continue
+		}
+		g := string(vf.gen)
+		if strings.Contains(g, "RegisterIsland["+tag+"]") || regexp.MustCompile(`__`+regexp.QuoteMeta(tag)+`_type\)`).MatchString(g) && strings.Contains(g, ".Island(") {
+			return true
+		}
+	}
+	return false
 }
 
 // probe asks gopls to complete code typed into a function added to the end of

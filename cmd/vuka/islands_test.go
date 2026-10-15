@@ -114,7 +114,7 @@ func TestIslands(t *testing.T) {
 func TestIslandsErrors(t *testing.T) {
 	web := webDir(t)
 	for _, c := range []struct{ name, decl, file, want string }{
-		{"framework", `@ui.Island("islands/Chart.svelte")`, "islands/Chart.svelte", "island Chart: svelte islands need a later phase (vanilla and Vue are supported)"},
+		{"framework", `@ui.Island("islands/Chart.svelte")`, "islands/Chart.svelte", "svelte islands need svelte, esbuild, esbuild-svelte in "},
 		{"missing", `@ui.Island("islands/Gone.ts")`, "", "island Gone: component islands/Gone.ts not found"},
 	} {
 		t.Run(c.name, func(t *testing.T) {

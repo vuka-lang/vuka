@@ -125,6 +125,7 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
+	pa.islands = dedupeIslands(pa.islands)
 	if pa.empty() {
 		return nil, nil
 	}

@@ -25,46 +25,6 @@ import (
 // locked loader (Promise.all([import(module), import(adapter)]) then
 // adapter.mount(component, el, props, ctx)). See docs/design/islands.md.
 
-// vueAdapterSrc is the Vue adapter the loader imports for a .vue island. It
-// mounts the component with its props made reactive (so update() is a merge),
-// passes the host's <template data-vk-slot> as the component's default slot,
-// and returns the {update, unmount} handle the loader keeps. /*SETUP_IMPORT*/
-// and /*SETUP_CALL*/ are replaced when the frontend root has a _setup file
-// (its default export runs on the app, the appEntrypoint analogue).
-const vueAdapterSrc = `import { createApp, reactive, h } from 'vue'
-/*SETUP_IMPORT*/
-export function mount(Component, el, props, ctx) {
-  const state = reactive({ ...(props || {}) })
-  let slotHTML = null
-  try {
-    const tpl = el && el.querySelector && el.querySelector('template[data-vk-slot]')
-    if (tpl) slotHTML = tpl.innerHTML
-  } catch (_) {}
-  const slots = slotHTML != null && slotHTML !== ''
-    ? { default: () => h('span', { innerHTML: slotHTML }) }
-    : undefined
-  // Forward the component's declared emits to the server handlers bound on the
-  // tag (on<Emit>): each emit becomes an on<Event> listener that calls
-  // ctx.emit(name, payload); ctx.emit no-ops off a live page.
-  const emitNames = Array.isArray(Component.emits) ? Component.emits : Object.keys(Component.emits || {})
-  const listeners = {}
-  for (const name of emitNames) {
-    const on = 'on' + name.replace(/(^|[-_])(\w)/g, (_, __, c) => c.toUpperCase())
-    listeners[on] = (...args) => {
-      if (!ctx || !ctx.emit) return
-      try { ctx.emit(name, args.length <= 1 ? args[0] : args) } catch (_) {}
-    }
-  }
-  const app = createApp({ render: () => h(Component, { ...state, ...listeners }, slots) })
-  /*SETUP_CALL*/
-  app.mount(el)
-  return {
-    update: (next) => { Object.assign(state, next || {}) },
-    unmount: () => { try { app.unmount() } catch (_) {} },
-  }
-}
-`
-
 // vueBuildMJS is the Node program vuka generates to build the Vue islands. It
 // runs esbuild with splitting, collects every output (entries + shared
 // chunks), renames each to a content-hashed name the /_vuka/i/ route accepts
@@ -73,10 +33,12 @@ export function mount(Component, el, props, ctx) {
 // the per-island / adapter chunk names. /*SPEC*/ is replaced with the build
 // spec.
 const vueBuildMJS = `import esbuild from 'esbuild'
-import vue from 'esbuild-plugin-vue3'
 import { createHash } from 'node:crypto'
 
 const SPEC = /*SPEC*/
+const plugins = []
+if (SPEC.plugins.includes('vue')) plugins.push((await import('esbuild-plugin-vue3')).default())
+if (SPEC.plugins.includes('svelte')) plugins.push((await import('esbuild-svelte')).default({ compilerOptions: { css: 'injected' } }))
 
 const r = await esbuild.build({
   entryPoints: SPEC.entries,
@@ -92,7 +54,10 @@ const r = await esbuild.build({
   write: false,
   charset: 'utf8',
   absWorkingDir: SPEC.cwd,
-  plugins: [vue()],
+  jsx: 'automatic',
+  conditions: ['svelte', 'browser'],
+  mainFields: ['svelte', 'browser', 'module', 'main'],
+  plugins,
 })
 
 const base = (p) => p.split('/').pop()
@@ -129,9 +94,9 @@ for (const bn of order) {
   e.final = buf
   newName.set(bn, stem(e) + '.' + hash8(buf) + '.js')
 }
-const out = { files: {}, adapter: '', islands: {} }
+const out = { files: {}, adapters: {}, islands: {} }
 for (const [bn, e] of files) out.files[newName.get(bn)] = e.final.toString('base64')
-for (const [bn, e] of files) if (e.key === SPEC.adapterKey) out.adapter = newName.get(bn)
+for (const [fw, key] of Object.entries(SPEC.adapters)) for (const [bn, e] of files) if (e.key === key) out.adapters[fw] = newName.get(bn)
 const keyName = {}
 for (const [name, key] of Object.entries(SPEC.islands)) keyName[key] = name
 for (const [bn, e] of files) if (e.key && keyName[e.key]) out.islands[keyName[e.key]] = newName.get(bn)
@@ -142,39 +107,81 @@ process.stdout.write(JSON.stringify(out))
 // points (output key → source file), which key is the adapter, each island's
 // entry key, and build options.
 type vueBuildSpec struct {
-	Entries    map[string]string `json:"entries"`
-	AdapterKey string            `json:"adapterKey"`
-	Islands    map[string]string `json:"islands"`
-	Minify     bool              `json:"minify"`
-	Outdir     string            `json:"outdir"`
-	Cwd        string            `json:"cwd"`
+	Entries  map[string]string `json:"entries"`
+	Adapters map[string]string `json:"adapters"` // framework → its adapter's entry key
+	Islands  map[string]string `json:"islands"`
+	Plugins  []string          `json:"plugins"` // vue, svelte: the esbuild plugins to load
+	Minify   bool              `json:"minify"`
+	Outdir   string            `json:"outdir"`
+	Cwd      string            `json:"cwd"`
 }
 
 // vueBuildResult is what the generated .mjs prints: every emitted file by its
 // served name (base64 contents), the adapter chunk's name, and each island's
 // entry chunk name.
 type vueBuildResult struct {
-	Files   map[string]string `json:"files"`
-	Adapter string            `json:"adapter"`
-	Islands map[string]string `json:"islands"`
+	Files    map[string]string `json:"files"`
+	Adapters map[string]string `json:"adapters"`
+	Islands  map[string]string `json:"islands"`
 }
 
 var jsKeyUnsafe = regexp.MustCompile(`[^a-z0-9]`)
 
-// buildVueIslands compiles the given .vue islands with one Node esbuild build
-// rooted at the frontend root (where vue / esbuild / esbuild-plugin-vue3 are
-// installed). It returns every emitted chunk (entries + the shared Vue chunk)
-// as islandBundles to register under /_vuka/i/, and a manifestIsland per
-// island pointing at its entry chunk and the shared adapter chunk.
+// frameworkDeps are the packages a framework's islands build with.
+var frameworkDeps = map[string][]string{
+	"vue":    {"vue", "esbuild", "esbuild-plugin-vue3"},
+	"react":  {"react", "react-dom", "esbuild"},
+	"svelte": {"svelte", "esbuild", "esbuild-svelte"},
+}
+
+// findSetup is the import and call of the frontend root's _setup file for a
+// framework's adapter: Vue's runs on the app, React's wraps the element.
+func findSetup(frontendRoot, framework string) (string, string) {
+	for _, s := range []string{"_setup.ts", "_setup.mts", "_setup.js", "_setup.mjs"} {
+		if _, e := os.Stat(filepath.Join(frontendRoot, s)); e == nil {
+			imp := fmt.Sprintf("import __vukaSetup from %s", strconv.Quote(filepath.Join(frontendRoot, s)))
+			switch framework {
+			case "vue":
+				return imp, "try { if (typeof __vukaSetup === 'function') __vukaSetup(app) } catch (e) { console.error('vuka island _setup:', e) }"
+			case "react":
+				return imp, "try { if (typeof __vukaSetup === 'function') node = __vukaSetup(node) || node } catch (e) { console.error('vuka island _setup:', e) }"
+			}
+			return "", ""
+		}
+	}
+	return "", ""
+}
+
+func replaceSetup(src, imp, call string) string {
+	return strings.NewReplacer("/*SETUP_IMPORT*/", imp, "/*SETUP_CALL*/", call).Replace(src)
+}
+
+// buildVueIslands compiles the given framework islands (.vue, .tsx/.jsx,
+// .svelte) with one Node esbuild build rooted at the frontend root (where
+// the frameworks, esbuild and its Vue/Svelte plugins are installed). It
+// returns every emitted chunk (entries + shared chunks) as islandBundles to
+// register under /_vuka/i/, and a manifestIsland per island pointing at its
+// entry chunk and its framework's adapter chunk.
 func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*islandBundle, map[string]*manifestIsland, error) {
 	nodeBin, err := exec.LookPath("node")
 	if err != nil {
-		return nil, nil, fmt.Errorf("vue islands need node on PATH (install Node.js 20+): %w", err)
+		return nil, nil, fmt.Errorf("framework islands need node on PATH (install Node.js 20+): %w", err)
 	}
 	nm := filepath.Join(frontendRoot, "node_modules")
-	for _, dep := range []string{"vue", "esbuild", "esbuild-plugin-vue3"} {
-		if fi, e := os.Stat(filepath.Join(nm, filepath.FromSlash(dep))); e != nil || !fi.IsDir() {
-			return nil, nil, fmt.Errorf("vue islands need `vue` and `esbuild-plugin-vue3` in %s; run: npm i -D esbuild esbuild-plugin-vue3 vue", frontendRoot)
+	frameworks := map[string]bool{}
+	for _, ic := range islands {
+		frameworks[ic.framework] = true
+	}
+	fws := make([]string, 0, len(frameworks))
+	for fw := range frameworks {
+		fws = append(fws, fw)
+	}
+	slices.Sort(fws)
+	for _, fw := range fws {
+		for _, dep := range frameworkDeps[fw] {
+			if fi, e := os.Stat(filepath.Join(nm, filepath.FromSlash(dep))); e != nil || !fi.IsDir() {
+				return nil, nil, fmt.Errorf("%s islands need %s in %s; run: npm i -D %s", fw, strings.Join(frameworkDeps[fw], ", "), frontendRoot, strings.Join(frameworkDeps[fw], " "))
+			}
 		}
 	}
 
@@ -182,34 +189,37 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 	// resolver and esbuild reach its node_modules.
 	tmp, err := os.MkdirTemp(frontendRoot, ".vuka-island-build-")
 	if err != nil {
-		return nil, nil, fmt.Errorf("vue islands: %w", err)
+		return nil, nil, fmt.Errorf("islands: %w", err)
 	}
 	defer os.RemoveAll(tmp)
 
-	setupImport, setupCall := "", ""
-	for _, s := range []string{"_setup.ts", "_setup.mts", "_setup.js", "_setup.mjs"} {
-		if _, e := os.Stat(filepath.Join(frontendRoot, s)); e == nil {
-			setupImport = fmt.Sprintf("import __vukaSetup from %s", strconv.Quote(filepath.Join(frontendRoot, s)))
-			setupCall = "try { if (typeof __vukaSetup === 'function') __vukaSetup(app) } catch (e) { console.error('vuka island _setup:', e) }"
-			break
+	spec := vueBuildSpec{
+		Entries:  map[string]string{},
+		Adapters: map[string]string{},
+		Islands:  map[string]string{},
+		Minify:   !dev,
+		Outdir:   filepath.Join(tmp, "o"),
+		Cwd:      frontendRoot,
+	}
+	used := map[string]bool{}
+	for _, fw := range fws {
+		imp, call := findSetup(frontendRoot, fw)
+		ext := ".ts"
+		if fw == "svelte" {
+			ext = ".js"
+		}
+		path := filepath.Join(tmp, fw+"-adapter"+ext)
+		if err := os.WriteFile(path, []byte(adapterSrc(fw, imp, call)), 0o644); err != nil {
+			return nil, nil, fmt.Errorf("islands: %w", err)
+		}
+		key := fw + "adapter"
+		used[key] = true
+		spec.Entries[key] = path
+		spec.Adapters[fw] = key
+		if fw == "vue" || fw == "svelte" {
+			spec.Plugins = append(spec.Plugins, fw)
 		}
 	}
-	adapter := strings.NewReplacer("/*SETUP_IMPORT*/", setupImport, "/*SETUP_CALL*/", setupCall).Replace(vueAdapterSrc)
-	adapterPath := filepath.Join(tmp, "vue-adapter.ts")
-	if err := os.WriteFile(adapterPath, []byte(adapter), 0o644); err != nil {
-		return nil, nil, fmt.Errorf("vue islands: %w", err)
-	}
-
-	const adapterKey = "vue"
-	spec := vueBuildSpec{
-		Entries:    map[string]string{adapterKey: adapterPath},
-		AdapterKey: adapterKey,
-		Islands:    map[string]string{},
-		Minify:     !dev,
-		Outdir:     filepath.Join(tmp, "o"),
-		Cwd:        frontendRoot,
-	}
-	used := map[string]bool{adapterKey: true}
 	for _, ic := range islands {
 		key := jsKeyUnsafe.ReplaceAllString(strings.ToLower(ic.name), "")
 		if key == "" {
@@ -230,7 +240,7 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 	mjs := strings.Replace(vueBuildMJS, "/*SPEC*/", string(specJSON), 1)
 	mjsPath := filepath.Join(tmp, "build.mjs")
 	if err := os.WriteFile(mjsPath, []byte(mjs), 0o644); err != nil {
-		return nil, nil, fmt.Errorf("vue islands: %w", err)
+		return nil, nil, fmt.Errorf("islands: %w", err)
 	}
 
 	var stdout, stderr bytes.Buffer
@@ -247,22 +257,24 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 		for _, ic := range islands {
 			names = append(names, ic.rel)
 		}
-		return nil, nil, fmt.Errorf("vue islands (%s): %s", strings.Join(names, ", "), msg)
+		return nil, nil, fmt.Errorf("islands (%s): %s", strings.Join(names, ", "), msg)
 	}
 
 	var res vueBuildResult
 	if err := json.Unmarshal(stdout.Bytes(), &res); err != nil {
-		return nil, nil, fmt.Errorf("vue islands: unreadable build output: %w", err)
+		return nil, nil, fmt.Errorf("islands: unreadable build output: %w", err)
 	}
-	if res.Adapter == "" {
-		return nil, nil, fmt.Errorf("vue islands: build emitted no adapter chunk")
+	for _, fw := range fws {
+		if res.Adapters[fw] == "" {
+			return nil, nil, fmt.Errorf("islands: build emitted no %s adapter chunk", fw)
+		}
 	}
 
 	var bundles []*islandBundle
 	for name, b64 := range res.Files {
 		js, err := base64.StdEncoding.DecodeString(b64)
 		if err != nil {
-			return nil, nil, fmt.Errorf("vue islands: chunk %s: %w", name, err)
+			return nil, nil, fmt.Errorf("islands: chunk %s: %w", name, err)
 		}
 		bundles = append(bundles, &islandBundle{name: name, js: js})
 	}
@@ -273,9 +285,9 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 	for _, ic := range islands {
 		mod := res.Islands[ic.name]
 		if mod == "" {
-			return nil, nil, fmt.Errorf("vue islands: no chunk emitted for island %s", ic.name)
+			return nil, nil, fmt.Errorf("islands: no chunk emitted for island %s", ic.name)
 		}
-		entries[ic.name] = &manifestIsland{Name: ic.name, Module: mod, Adapter: res.Adapter, Framework: "vue"}
+		entries[ic.name] = &manifestIsland{Name: ic.name, Module: mod, Adapter: res.Adapters[ic.framework], Framework: ic.framework}
 	}
 	return bundles, entries, nil
 }

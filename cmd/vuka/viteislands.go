@@ -95,21 +95,6 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 	defer os.RemoveAll(tmp)
 	outDir := filepath.Join(tmp, "o")
 
-	// The Vue adapter, with the app's optional _setup default export wired in.
-	setupImport, setupCall := "", ""
-	for _, s := range []string{"_setup.ts", "_setup.mts", "_setup.js", "_setup.mjs"} {
-		if _, e := os.Stat(filepath.Join(frontendRoot, s)); e == nil {
-			setupImport = fmt.Sprintf("import __vukaSetup from %s", strconv.Quote(filepath.Join(frontendRoot, s)))
-			setupCall = "try { if (typeof __vukaSetup === 'function') __vukaSetup(app) } catch (e) { console.error('vuka island _setup:', e) }"
-			break
-		}
-	}
-	adapter := strings.NewReplacer("/*SETUP_IMPORT*/", setupImport, "/*SETUP_CALL*/", setupCall).Replace(vueAdapterSrc)
-	adapterPath := filepath.Join(tmp, "vue-adapter.ts")
-	if err := os.WriteFile(adapterPath, []byte(adapter), 0o644); err != nil {
-		return nil, nil, nil, fmt.Errorf("vite islands: %w", err)
-	}
-
 	toRel := func(p string) string {
 		r, err := filepath.Rel(frontendRoot, p)
 		if err != nil {
@@ -118,14 +103,31 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		return filepath.ToSlash(r)
 	}
 
-	const adapterKey = "vue"
-	spec := islandBuildSpec{OutDir: outDir, Input: map[string]string{adapterKey: toRel(adapterPath)}}
-	adapterRel := spec.Input[adapterKey]
+	// One adapter per framework, with the app's optional _setup wired in.
+	spec := islandBuildSpec{OutDir: outDir, Input: map[string]string{}}
+	adapterRel := map[string]string{}
+	used := map[string]bool{"styles": true}
+	for _, ic := range islands {
+		fw := ic.framework
+		if _, ok := adapterRel[fw]; ok {
+			continue
+		}
+		imp, call := findSetup(frontendRoot, fw)
+		path := filepath.Join(tmp, fw+"-adapter.ts")
+		if fw == "svelte" {
+			path = filepath.Join(tmp, fw+"-adapter.js")
+		}
+		if err := os.WriteFile(path, []byte(adapterSrc(fw, imp, call)), 0o644); err != nil {
+			return nil, nil, nil, fmt.Errorf("vite islands: %w", err)
+		}
+		spec.Input[fw] = toRel(path)
+		adapterRel[fw] = spec.Input[fw]
+		used[fw] = true
+	}
 
 	// One `export {default}` entry per island; its manifest key is its path
 	// relative to the Vite root.
 	islandRel := map[string]string{} // island name → entry source rel path
-	used := map[string]bool{adapterKey: true, "styles": true}
 	for _, ic := range islands {
 		key := jsKeyUnsafe.ReplaceAllString(strings.ToLower(ic.name), "")
 		if key == "" {
@@ -167,7 +169,7 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		return nil, nil, nil, fmt.Errorf("vite islands: %w", err)
 	}
 
-	fmt.Fprintf(warn, "vuka: building %d Vue island(s) with Vite in %s\n", len(islands), rel(root, frontendRoot))
+	fmt.Fprintf(warn, "vuka: building %d framework island(s) with Vite in %s\n", len(islands), rel(root, frontendRoot))
 	var stdout bytes.Buffer
 	c := exec.Command(viteBinary(frontendRoot), "build", "--logLevel", "warn")
 	c.Dir = frontendRoot
@@ -207,9 +209,13 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		}
 		return filepath.Base(e.File), true
 	}
-	adapterChunk, ok := fileOf(adapterRel)
-	if !ok {
-		return nil, nil, nil, fmt.Errorf("vite islands: manifest has no adapter entry (%s)", adapterRel)
+	adapterChunk := map[string]string{}
+	for fw, r := range adapterRel {
+		c, ok := fileOf(r)
+		if !ok {
+			return nil, nil, nil, fmt.Errorf("vite islands: manifest has no %s adapter entry (%s)", fw, r)
+		}
+		adapterChunk[fw] = c
 	}
 
 	// Register every emitted JS and CSS file under its own basename, so the
@@ -246,7 +252,7 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		if !ok {
 			return nil, nil, nil, fmt.Errorf("vite islands: no chunk emitted for island %s", ic.name)
 		}
-		entries[ic.name] = &manifestIsland{Name: ic.name, Module: chunk, Adapter: adapterChunk, Framework: "vue"}
+		entries[ic.name] = &manifestIsland{Name: ic.name, Module: chunk, Adapter: adapterChunk[ic.framework], Framework: ic.framework}
 	}
 	return bundles, entries, cssNames, nil
 }
