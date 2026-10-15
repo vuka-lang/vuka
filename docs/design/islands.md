@@ -6,6 +6,15 @@ with a `client:*` strategy. The authoring surface is locked below; machinery
 reuses the existing `web.Script` loader seam (`data-vk-s` scoping, lazy module
 import, lifecycle hooks, SSE dev reload) and esbuild in `vuka build`.
 
+> **Changed (seamless islands).** Three additions on top of the locked
+> design below: (1) a `.vuka` file may *import* a component file and the
+> compiler infers its props from the component's own TypeScript — the
+> `@ui.Island` struct stays and wins when both exist; (2) function props and
+> `ui.State` props are plain props (events and two-way client state);
+> (3) every prop is live by default (`once` opts out). See "Seamless
+> islands" at the end; sections below marked *(changed)* are superseded
+> where they disagree.
+
 ## Declaration — the decorator is the contract
 
 An island is a Go struct type annotated with `@ui.Island(path[, defaultStrategy])`.
@@ -26,13 +35,14 @@ type Counter struct {
 - Registered name = the Go type name (`Counter`); the path is its source. Two
   islands may share a component file.
 - A field typed `*ui.Assign[T]` is a **live prop** (Phase 3): server re-render
-  calls the adapter's `update()`, no remount. A plain field is one-shot
-  (Astro-style).
+  calls the adapter's `update()`, no remount. *(changed: every prop is live;
+  `once` on the tag keeps the first props.)*
 - Props are public — boot refuses secret-named fields (as `[runtime.browser]`).
 
 ## Placement — bare tag, or a region wrapper for fallback/opts
 
-Simple case — a bare, typed tag (the decorated type is in scope):
+Simple case — a bare, typed tag (the decorated type is in scope) *(changed:
+implemented — the wrapper is optional)*:
 
 ```vuka
 <Counter client:visible count={5}>
@@ -255,3 +265,72 @@ vuka integration:
 2. **Vue + React adapters** + `_setup.ts`; then Svelte.
 3. **`live(...)` reactivity** — `*ui.Assign[T]` fields + the `update` path.
 4. **`server:defer` SSR sidecar** + hydrate path.
+
+## Seamless islands (changed)
+
+### Import a component; props inferred
+
+```vuka
+import Week "./frontend/islands/Week.vue"   // also .tsx/.jsx, .svelte, .ts/.js
+<Week days={p.days} picked={p.picked} onBook={p.Book} client:load />
+```
+
+The transpiler (`transpile/islandgen.go`) finds import specs whose path is a
+relative component file, drops them from the Go, reads the component with
+`internal/tsprops` — a small TypeScript type reader in Go (no Node): Vue
+`defineProps`/`withDefaults`/`defineModel`/`defineEmits`, React's default
+export's typed props (function, arrow, `React.FC`, `forwardRef`, `memo`),
+Svelte 5 `$props()` (`$bindable`) and Svelte 4 `export let`, vanilla
+`mount(el, props: P, ctx)`; local interfaces/aliases (generics, `extends`,
+`&`, `Partial`/`Required`/`Readonly`, `PropsWithChildren`) and types imported
+from a relative file one level deep — and writes the island's Go props type
+into the file's trailer (so gopls, the LSP and `vuka gen` see it) plus
+`func init() { ui.RegisterIsland[Week]("./…/Week.vue") }`. Mapping: string →
+string, number → float64 (any Go number converts), boolean → bool, string
+literal union → named string type + consts (other literals refused at
+compile time), `T[]` → `[]T`, objects/interfaces → structs (json tags = prop
+names), `Record<string,T>` → `map[string]T`, `Date` → `time.Time`, `any` →
+`any`, function → Go func type (a function prop), children/default slot →
+`Children ui.Node`. Optional or nullable → pointer + `omitempty` (slices,
+maps, funcs, any stay as they are); a value on the tag is wrapped with
+`ui.Ptr[T]`. Unsupported → a compile error at the import naming
+`file:line` and the prop, suggesting the `@ui.Island` struct. A package
+`@ui.Island` type of the same name wins: the import only names it. The
+`vuka` command discovers imported islands for the bundle and `islands.d.ts`
+(from the component's own types).
+
+### Function and state props
+
+A field whose type is a func is a function prop: the tag's value must be a
+JS chain (`ui.JSChain`) or a handler — after an optional `context.Context`,
+nothing or one parameter the function's first argument is assignable to
+(numbers interchangeable), returning nothing or an error — lowered to
+`ui.Callback("onBook", p.Book)`. A `ui.State[T]` (or a struct state's field,
+or an expression of states → `NewDerived`) given to a non-state prop whose
+type T fits is lowered to `ui.StateProp("picked", s)`.
+
+Wire format additions in `data-vk-props`: `{"$vk":"fn","e":"<norm>"}` (the
+host carries `data-vk-on-<norm>` — a live handler id — or
+`data-vk-js-<norm>` — commands), `{"$vk":"state","s","i","p"}` (a state's
+reference, as bindings carry it) or `{"$vk":"state","x":expr}` (derived,
+read only), `{"$vk":"date","v":RFC3339}`. The props are written at render
+time (a state's key is the render's). No eval, no inline script.
+
+The loader resolves them: a function prop is a stable function that emits
+the host's handler (first argument as `ui.Event.Data`, which live binds into
+a scalar parameter too) or runs its commands; a state prop is the state's
+value, watched through `window.vuka.states` (`read/write/watch`, live.js),
+and `ctx.set(name, v)` / `ctx.bound` let the adapter write back: Vue
+`onUpdate:<prop>`, React `set<Prop>`/`on<Prop>Change` (injected, chained
+before the page's own), Svelte accessor props over a `SvelteMap` whose
+setters write the state. React and Svelte adapters were added (Node esbuild
+with `jsx: automatic` / `esbuild-svelte`; and in the Vite path).
+
+### Live props by default
+
+On a patch the loader compares the host's props without their state and
+function entries; a change calls `update(props)` (state props keep the
+browser's values; no remount), no change calls nothing, `data-vk-once`
+(`once` on the tag, `ui.Once()`) never updates. A state change updates the
+island once per batch of writes. An island that leaves unmounts and stops
+watching its states.

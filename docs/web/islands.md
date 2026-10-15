@@ -6,11 +6,81 @@ module — mounted into a server-rendered page and brought to life in the browse
 It's the Astro model: the page stays static, a few interactive spots hydrate on
 their own, and everything else costs zero JS.
 
-## Declare an island
+## Import a component
 
-An island is a Go struct annotated `@ui.Island`, pointing at the component file.
-Its exported fields are the props — Go owns the contract, so there's nothing to
-restate in the component:
+The simplest island is a component file imported into a `.vuka` file. The
+compiler reads the component's props from the file — no Node, no Go to
+write — and generates their Go type, so the tag is type-checked like any
+component's:
+
+```vuka
+import (
+    "github.com/vuka-lang/ui"
+
+    Week "./frontend/islands/Week.vue"
+)
+
+func (p *Planner) Render() ui.Node {
+    return <Week days={p.days} booked={p.booked} picked={p.picked} onBook={p.Book} client:load />
+}
+```
+
+```vue
+<script setup lang="ts">
+defineProps<{ days: string[]; booked: string[]; onBook?: (day: string) => void }>()
+const picked = defineModel<string>('picked')
+</script>
+```
+
+`days="mon"` is a compile error (`days` is a `[]string`), as is an unknown
+attribute or a literal a string union doesn't allow. The tag needs no
+`<ui.Island>` wrapper; add one only for a fallback (below).
+
+Any framework the file's extension names works — `.vue`, `.tsx`/`.jsx`
+(React), `.svelte`, `.ts`/`.js` (vanilla) — with the props declared the way
+that framework declares them:
+
+| framework | props read from |
+|---|---|
+| Vue | `defineProps<{…}>()` / `defineProps<Props>()`, `withDefaults(…, {…})` and destructuring defaults (optional), `defineModel<T>('name')` (two-way), `defineEmits<{ select: [day: string] }>()` (function props `onSelect`) |
+| React | the default export's typed first parameter: `function X(props: Props)`, `({a, b = 1}: Props)`, `const X: React.FC<Props>`, `forwardRef<El, Props>`, `memo` |
+| Svelte | `let { a, b = 1, value = $bindable() }: Props = $props()`; Svelte 4's `export let a: T` |
+| vanilla | `export function mount(el, props: Props, ctx)` |
+
+`Props` may be an interface or type of the same file, or one imported from a
+relative path (followed one level).
+
+### TypeScript to Go
+
+| TypeScript | Go |
+|---|---|
+| `string` | `string` |
+| `number` | `float64` — any Go number may be passed |
+| `boolean` | `bool` |
+| `'a' \| 'b'` | a named string type, its values as constants; another literal is a compile error |
+| `T[]`, `Array<T>` | `[]T` |
+| `{ … }`, an interface | a struct; json tags are the prop names |
+| `Record<string, T>`, `{ [k: string]: T }` | `map[string]T` |
+| `Date` | `time.Time` (sent as a date) |
+| `any`, `unknown` | `any` |
+| `(a: A) => void`, a Vue emit | a function prop: a live view method or JS commands |
+| `children`, a default `<slot>` | the tag's children |
+
+An optional prop (`?`, a default) or a nullable one (`| null`, `| undefined`)
+is a pointer with `omitempty`: left out, the component's own default
+applies; a value written on the tag is passed as it is (the compiler takes
+its address). Slices, maps, `any` and functions are nil already.
+
+Anything else — `Map`, a tuple, a mixed union — is a compile error naming the
+prop and asking for the explicit form below. Generated types are named after
+the island: `days: { label: string }[]` on `Week` is `[]WeekDays`, an
+interface `Point` is `WeekPoint`.
+
+## Declare the props in Go
+
+When the component's types are out of reach, declare the props as a Go
+struct annotated `@ui.Island`, pointing at the component file. Its exported
+fields are the props; it wins over an import of the same name:
 
 ```vuka
 type Point struct {
@@ -25,14 +95,10 @@ type Chart struct {
 }
 ```
 
-The framework is inferred from the file extension — `.vue`, `.tsx`/`.jsx`
-(React, later), `.svelte` (later), or `.ts`/`.js` (vanilla). The component file
-lives under the frontend root (see [Build](#build)).
-
 ## Place it in a page
 
-Wrap the component tag in `<ui.Island>`. A `client:*` directive says *when* it
-hydrates; a `<ui.Template fallback>` is shown until then:
+A bare tag mounts it; a `client:*` directive says *when* it hydrates. To show
+something until then, wrap it in `<ui.Island>` with a `<ui.Template fallback>`:
 
 ```vuka
 <ui.Island>
@@ -63,39 +129,65 @@ zero-height host never intersects) — give it a fallback with height, or use
 
 ### Live props (server → island)
 
-A prop typed `*ui.Assign[T]` stays live: when a live event changes it, the
-server re-render pushes the new value to the mounted component in place — no
-remount, no lost local state.
+On a live page every prop is live: when a re-render changes the island's
+props, the mounted component gets them through its adapter's `update` — no
+remount, no lost local state. Props that didn't change cause no update.
+`once` on the tag keeps the props it was first given:
 
 ```vuka
-@ui.Island("web/islands/Chart.vue")
-type Chart struct {
-    Series *ui.Assign[[]Point] `json:"series"` // live — updates in place
-    Title  string              `json:"title"`   // one-shot
-}
+<Chart series={p.sales} client:load />        // follows p.sales
+<Chart series={p.sales} once client:load />   // the first series only
 ```
 
-### Emits (island → server)
+A `*ui.Assign[T]` field of an `@ui.Island` struct is sent as its value.
 
-Bind a component's emits to live-view handlers with `on<Emit>` attributes, like
-an element's `onClick`. The emit's argument arrives as JSON, bound into the
+### Function props (island → server)
+
+A prop whose type is a function takes a live view method. Calling the
+function in the browser pushes the method, its first argument as the
+method's parameter (checked against the function's type at compile time):
+
+```vuka
+func (p *Planner) Book(day string) { … }
+
+<Week onBook={p.Book} />            // onBook?: (day: string) => void
+```
+
+It takes JS commands too, run in the browser when the function is called:
+`<Dialog onClose={open.Set(false)} />`. In Vue the function is the listener
+of the matching emit (`defineEmits<{ close: [] }>()` gives `onClose`); in
+React and Svelte it is the prop itself.
+
+### State props (two-way)
+
+A [`ui.State`](/ui/state) passed as a prop is shared with the component:
+the component gets its value, follows it when the page (or another island)
+changes it, and its writes set the state — and every binding on the page
+that reads it:
+
+```vuka
+picked := ui.State("mon")
+<b>{picked}</b>
+<Week picked={picked} />
+```
+
+The component writes back by its framework's convention: a Vue
+`defineModel` (`update:picked`), a React `setPicked` / `onPickedChange` prop
+(the adapter passes them), a Svelte `$bindable` prop. A `ui.Derived`, or an
+expression of states, is passed one way. The state's type must fit the
+prop's (`ui.State[int]` for a `boolean` prop is a compile error).
+
+### Emits
+
+Without a declared prop, `on<Emit>` attributes bind a Vue component's emits
+to live-view handlers; the emit's argument arrives as JSON, bound into the
 handler's struct parameter:
 
 ```vuka
 <ui.Island>
-  <DataTable rows={live(p.rows)} onRowClick={p.Open} onDelete={p.Remove} client:load/>
+  <DataTable rows={p.rows} onRowClick={p.Open} onDelete={p.Remove} client:load/>
 </ui.Island>
 ```
-
-```vuka
-func (p *Page) Open(ctx context.Context, row Row) error   { … }
-func (p *Page) Remove(ctx context.Context, row Row) error { … }
-```
-
-Each binding is a registered handler (an opaque id, like any `onClick`), so
-there's no name-based dispatch to whitelist. A Vue component's declared emits
-(`row-click`, `delete`, …) are forwarded automatically; the name matches the
-`on<Emit>` ignoring case and dashes.
 
 ## Build
 
@@ -105,7 +197,11 @@ Island components live under the **frontend root** — the directory
 
 - **Vanilla `.ts`/`.js`** are bundled by the `vuka` command with esbuild — no
   frontend toolchain, the module exports `mount(el, props, ctx)`.
-- **Vue** builds through the project's **Vite** when the frontend root has a
+- **Vue, React and Svelte** build with Node esbuild (and
+  `esbuild-plugin-vue3` / `esbuild-svelte`) from the frontend root's
+  `node_modules` — `npm i -D esbuild vue esbuild-plugin-vue3`, `react
+  react-dom`, or `svelte esbuild-svelte`.
+- With a `vite.config.*`, they build through the project's **Vite** when the frontend root has a
   `vite.config.*`, so Vite-plugin UI libraries work. The config is ESM
   (`vite.config.mts`) and lists the UI plugins plus the vuka plugin:
 
@@ -159,8 +255,12 @@ The loader arms the strategy, lazy-imports the component chunk (and its
 framework adapter) only when the strategy fires, and mounts it. The host's
 `data-vk-s` is a stable id for its placement, so a live-view re-render updates
 the host's attributes — a changed `data-vk-props` drives the component's
-`update()` — while leaving its client-owned DOM untouched. Emits travel back as
-ordinary live events. See [Live components](/web/live) for the live-view model.
+`update()` — while leaving its client-owned DOM untouched. Values JSON can't
+carry are tagged in the props: `{"$vk":"date","v":…}` a date,
+`{"$vk":"fn","e":"onbook"}` a function prop (the host's `data-vk-on-onbook`
+handler or `data-vk-js-onbook` commands), `{"$vk":"state","s":…,"i":…}` a
+state (`"x"`: a derived state's expression). Function calls and emits travel
+back as ordinary live events. See [Live components](/web/live) for the live-view model.
 
 ## Limits
 
@@ -168,5 +268,7 @@ ordinary live events. See [Live components](/web/live) for the live-view model.
   resolve); a vanilla `.ts` island may live anywhere.
 - A `.css` imported inside an SFC can't be island-bundled — import the
   component's JS and provide its CSS through the app's stylesheet.
-- React and Svelte adapters, and HMR off the Vite dev server (rather than a
-  rebuild per change), are planned.
+- A function prop calls its handler with one payload, its first argument.
+- An imported component's props must be typed (a `.jsx` or untyped Svelte
+  component needs the `@ui.Island` form).
+- HMR off the Vite dev server (rather than a rebuild per change) is planned.
