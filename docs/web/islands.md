@@ -189,11 +189,84 @@ handler's struct parameter:
 </ui.Island>
 ```
 
+## Pages backed by a component
+
+A page can be a component: put `@web.Get` on an `@ui.Island` struct, and
+the page's template is the component file.
+
+```vuka
+@web.Get("/applicants")
+@ui.Island("web/components/Applicants.vue")
+@auth.Required
+type Applicants struct {
+    ui.Live                         // optional: a live page; leave it out for a stateless one
+    Q    string      `url:"q"`      // a prop, kept in the address's ?q=
+    Rows []Applicant                // a prop
+    db   *DB                        // the server's own: injected, never sent
+}
+
+func (a *Applicants) Mount(ctx context.Context) error            { … } // with or without the error
+func (a *Applicants) Search(ctx context.Context, q string) error { … } // callable from the component
+```
+
+```vue
+<script setup lang="ts">
+import { useLive } from 'vuka:live'
+import type { Applicants } from 'vuka:live'
+const props = defineProps<Applicants>()
+const live = useLive<Applicants>()   // live.search(q), live.pending, live.error
+</script>
+```
+
+- **Exported fields are the props** (by their json names); unexported
+  fields are the server's — dependencies of provided types are injected into
+  them, as into other components — and never reach the browser.
+- **Exported methods are what the component calls**: `live.search(q)`
+  returns a promise; the method's arguments are JSON, checked against its Go
+  parameters on the server and typed in `vuka:live`. While it runs
+  `live.pending` is true; an error it returns is `live.error` —
+  `{status, message, fields}`, `fields` from a `web.Invalid{"q": "…"}`. A
+  `web.Redirect` navigates. `Render`, `Mount`, `Update` and `Info` aren't
+  callable.
+- **`url:"name"` fields** are filled from the query when the page loads,
+  and when a call changes them the address follows (`history.replaceState`),
+  so a reload or a shared link shows the same page.
+- **Live** (`ui.Live` embedded): the struct is the live view, its Render the
+  island (the compiler writes it). A call is a live event on the server's
+  instance; the fields it changes reach the component as new props, with no
+  remount. Mount, `Subscribe` and `Update` (broadcasts), `PushJS` and the
+  type's gates work as for any live view.
+- **Stateless** (no `ui.Live`): no connection. A call posts the method, its
+  arguments and the props the page was rendered with — signed with the
+  app's key (`web.LiveKey`), bound to the page's path and an expiry — to
+  the page's URL; the server builds the struct again from them, injects its
+  dependencies, runs Mount and the method, and answers with the new props,
+  signed again. Changed props are refused. Calls are refused cross-origin
+  and pass the type's gates (`@auth.Required`…) like the page.
+- **The visitor** is known to every island's component: `$vuka` in Vue
+  templates (`useVuka()` in script), `useVuka()` in React, and
+  `const vuka = useVuka()` (a store, `$vuka.user`) in Svelte —
+  `{user: {id}, roles, perms, can(perm)}` from the signed-in identity
+  (`web/auth`).
+
+`vuka:live` is a module of the island build — React: `useLive<T>()`, Svelte:
+`live<T>()` (a store: `$l.pending`) — and its types are `vuka-live.d.ts`,
+which `vuka` writes into the island root from the Go structs. Map the name
+to it in `tsconfig.json`, which also lets Vue's compiler read
+`defineProps<Applicants>()` (with `typescript` installed):
+
+```json
+{ "compilerOptions": { "paths": { "vuka:live": ["./vuka-live"] } } }
+```
+
+`App.Page(path, &T{}, attrs…)` declares one from Go.
+
 ## Build
 
 Island components live under the **frontend root** — the directory
 [`web.FrontendRoot`](/web/frontend) names (the one holding `package.json` and
-`node_modules`). How they're bundled depends on the framework:
+`node_modules`), or `web.IslandRoot("web")` for an app with no frontend of
+its own. How they're bundled depends on the framework:
 
 - **Vanilla `.ts`/`.js`** are bundled by the `vuka` command with esbuild — no
   frontend toolchain, the module exports `mount(el, props, ctx)`.

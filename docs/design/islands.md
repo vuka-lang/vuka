@@ -11,8 +11,9 @@ import, lifecycle hooks, SSE dev reload) and esbuild in `vuka build`.
 > compiler infers its props from the component's own TypeScript — the
 > `@ui.Island` struct stays and wins when both exist; (2) function props and
 > `ui.State` props are plain props (events and two-way client state);
-> (3) every prop is live by default (`once` opts out). See "Seamless
-> islands" at the end; sections below marked *(changed)* are superseded
+> (3) every prop is live by default (`once` opts out). And pages backed by
+> a component (`@web.Get` on an `@ui.Island` struct). See "Seamless
+> islands" and "Pages backed by a component" at the end; sections below marked *(changed)* are superseded
 > where they disagree.
 
 ## Declaration — the decorator is the contract
@@ -334,3 +335,50 @@ browser's values; no remount), no change calls nothing, `data-vk-once`
 (`once` on the tag, `ui.Once()`) never updates. A state change updates the
 island once per batch of writes. An island that leaves unmounts and stops
 watching its states.
+
+## Pages backed by a component (changed)
+
+`@web.Get(path)` on an `@ui.Island` struct is a page whose template is the
+component. `web.Get` (and `Post`, … `Handle`) now returns a
+`vuka.Dual` bundle: on a function it declares a route, on a type a page.
+
+- **Props/state split.** Exported fields are the props (json names;
+  `ui.Live` itself left out); unexported fields are server-only — those of
+  provided types injected (`islandBinds`: unexported deps, `url:"q"`
+  fields from the query, fields naming a path segment from the path).
+- **Methods.** `ui.IslandMethods(*T)`: exported methods except the live
+  lifecycle (`Render`, `Mount`, `Update`, `Info`) and `ui.Live`'s, returning
+  nothing or an error; arguments decoded from a JSON array
+  (`IslandMethod.Call`). The host lists them (`data-vk-methods`).
+- **Live variant** (`ui.Live` embedded): the transpiler writes
+  `func (x *T) Render() ui.Node { return ui.IslandPage(x) }` for an
+  `@ui.Island` struct embedding `ui.Live` without a Render. The page is a
+  `web.Live` page; `IslandPage` registers each method as a live handler
+  (`data-vk-on-m-<name>`, payload = the argument array). A method's error is
+  kept for the next render (`data-vk-err`: `{status,message,fields}`) and
+  the handler returns nil, so the re-render reaches the component and the
+  call rejects with it; a `web.Redirect` goes to the session. The session
+  doesn't copy an island page's exported fields from the page's tag on
+  re-render (they are its own state, set from the URL at mount).
+- **Stateless variant.** GET builds T, binds, injects, runs Mount, renders
+  `IslandPage(x, ui.CallAt(path, sig))` (`data-vk-call`, `data-vk-sig`).
+  `POST path` (same route attributes → same gates; always
+  cross-origin-protected) takes `{method,args,props,sig}`; `sig` =
+  `base64url(expiry) "." base64url(HMAC-SHA256(liveKey, "page" 0 path 0
+  expiry props))` over the exact props JSON; on success it answers
+  `{props, sig}`, on error `{error:{status,message,fields}}` with the
+  status, on a redirect `{redirect}`.
+- **Client.** The loader builds `ctx.live` (methods, `pending`, `error`,
+  `subscribe`) and `ctx.vuka` (`data-vk-viewer`: `{user:{id},roles,perms}`
+  from `ui.Viewer`, which `web/auth` sets; plus `can`), syncs `url:` props
+  into the address after updates (`data-vk-url`), and the adapters provide
+  them: Vue `provide('vuka:live')`/`$vuka`, React a context
+  (`globalThis.__vukaReactContext`), Svelte `context`. `vuka:live` is a
+  virtual module of the island build (esbuild plugin; the Vite plugin from
+  the spec's `live`), per framework from the importer's extension.
+- **Types.** `vuka-live.d.ts` (written into the island root before the
+  framework build): an interface per `@ui.Island` struct — props, and the
+  methods as a phantom `__methods` member — plus `Live<T>`, `useLive<T>()`,
+  `live<T>()`, `useVuka()`. A tsconfig `paths` mapping makes it the
+  `vuka:live` module for editors and for Vue's `defineProps<T>()` (the
+  build registers TypeScript with Vue's compiler when installed).
