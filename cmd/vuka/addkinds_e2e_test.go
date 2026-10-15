@@ -90,7 +90,12 @@ func Charts() ui.Node {
 	return <main><Chart title="Sales" count={3} client:load /><Clock title="Now" client:load /></main>
 }
 `), 0o644)
-	e.run(dir, off, "vuka", "vet", "./...")
+	if out, err := e.cmd(dir, off, "vuka", "vet", "./...").CombinedOutput(); err != nil {
+		if strings.Contains(string(out), "has no RegisterIsland") {
+			t.Skip("the released ui imports no island components yet: set VUKA_NEW_REPLACE to a local checkout")
+		}
+		t.Fatalf("vuka vet: %v\n%s", err, out)
+	}
 	// a prop the component doesn't declare is a compile error
 	os.WriteFile(filepath.Join(dir, "pages", "charts.vuka"), []byte(strings.Replace(read(t, filepath.Join(dir, "pages", "charts.vuka")), `count={3}`, `colour="red"`, 1)), 0o644)
 	c := e.cmd(dir, off, "vuka", "vet", "./...")

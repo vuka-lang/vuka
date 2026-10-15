@@ -125,6 +125,19 @@ overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are.
 
+**Only what changed is transpiled again.** The Go each package became is
+kept in the user's cache directory (`vuka/transpile`), keyed by the
+package's sources, the API of the module's packages it imports, the go
+command, the build environment, `go.mod`/`go.sum`/`go.work` and this vuka:
+a build after a build transpiles the packages whose inputs changed, and a
+change to a function's body leaves its importers alone. The island build is
+skipped the same way when nothing in the frontend root (its sources,
+config, lockfile, installed packages, `@source` paths) changed.
+`VUKA_CACHE=off` turns both off. Under `vuka run` the files `web.Frontend`
+serves are left out of the binary (empty in the overlay; it reads them from
+disk in development), so they cost the linker nothing; `-embed` (with
+`-watch`) or `VUKA_EMBED_STUB=off` builds them in.
+
 **Declarer packages are linked automatically.** Every package of the module
 with a [declarer](/features/decorators#declaration-decorators), a type
 decorator or a composed decorator on a declaration — routes, crons, live
