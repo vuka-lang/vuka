@@ -19,6 +19,14 @@ type Bundle struct {
 	decls []func(*Decl)
 	types []func(*Type)
 	attrs []any
+	dual  bool // Dual: a function takes its declarers, a type its type decorators
+}
+
+// Dual is a decorator for a function and for a type alike: written on a
+// function it runs decl, on a type typ. web.Get is one: a route on a
+// handler, a page on a component type.
+func Dual(decl func(*Decl), typ func(*Type)) Bundle {
+	return Bundle{decls: []func(*Decl){decl}, types: []func(*Type){typ}, dual: true}
 }
 
 var (
@@ -35,6 +43,7 @@ func Compose(items ...any) Bundle {
 	for _, it := range items {
 		switch v := it.(type) {
 		case Bundle:
+			b.dual = b.dual || v.dual
 			b.calls = append(b.calls, v.calls...)
 			b.decls = append(b.decls, v.decls...)
 			b.types = append(b.types, v.types...)
@@ -76,21 +85,27 @@ func (b Bundle) Attrs() []any { return slices.Clip(b.attrs) }
 // DeclareWith runs a function's bundle's declarers with d. Generated code
 // calls it.
 func DeclareWith(b Bundle, d *Decl) {
-	if len(b.types) > 0 {
+	if len(b.types) > 0 && !b.dual {
 		panic(fmt.Sprintf("vuka: a decorator of %s bundles a type decorator, which takes a type", d.Name))
 	}
 	for _, f := range b.decls {
 		f(d)
+	}
+	if b.dual && len(b.decls) == 0 {
+		panic(fmt.Sprintf("vuka: a decorator of %s takes a type", d.Name))
 	}
 }
 
 // DecorateType runs a type's bundle's type decorators with t. Generated code
 // calls it.
 func DecorateType(b Bundle, t *Type) {
-	if len(b.decls) > 0 {
+	if len(b.decls) > 0 && !b.dual {
 		panic(fmt.Sprintf("vuka: a decorator of %s bundles a declarer, which takes a function", t.Name))
 	}
 	for _, f := range b.types {
 		f(t)
+	}
+	if b.dual && len(b.types) == 0 {
+		panic(fmt.Sprintf("vuka: a decorator of %s takes a function", t.Name))
 	}
 }
