@@ -374,10 +374,15 @@ all of it type-checked against the target's declarations. A package is a
 target when it declares `const VukaJSX = 1` and the contract's names. ui
 renders HTML (`ui.Handler`/`Write`/`String`) and terminal text (`ui/term`), and
 its stateful components — a struct embedding `ui.Live`, `onClick={c.Inc}` —
-stay live for a connected page through `ui/live`. `.templ` files compile with
+stay live for a connected page through `ui/live`. State the browser keeps
+(`ui.State`, a menu's `open`) is read in JSX as plain Go expressions. A Vue,
+React or Svelte component imported into a `.vuka` file is an island, its
+props read from its TypeScript and type-checked; with `@web.Get` on its Go
+type it is a whole page. `.templ` files compile with
 the package, no `templ generate`, in modules that require templ. See
-[JSX](https://vuka-lang.github.io/vuka/features/jsx) and
-[UI](https://vuka-lang.github.io/vuka/ui/).
+[JSX](https://vuka-lang.github.io/vuka/features/jsx),
+[UI](https://vuka-lang.github.io/vuka/ui/) and
+[Islands](https://vuka-lang.github.io/vuka/web/islands).
 
 ### The build module
 

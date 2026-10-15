@@ -58,8 +58,8 @@ Build error naming both handlers.
 ### Trailing slashes
 
 A request whose path differs from a route's only by a trailing slash is
-redirected to the route: with `/ajira` declared, `GET /ajira/?tab=2` answers
-`308` to `/ajira?tab=2`, and with `/docs/` declared, `/docs` goes to
+redirected to the route: with `/orders` declared, `GET /orders/?tab=2` answers
+`308` to `/orders?tab=2`, and with `/docs/` declared, `/docs` goes to
 `/docs/`. `308` keeps the method and body, so a form posted to the other
 form arrives as a POST. It never takes a path the app answers otherwise:
 
@@ -71,7 +71,7 @@ form arrives as a POST. It never takes a path the app answers otherwise:
   `/settings` itself would; paths no route has stay the frontend's.
 
 Controller prefixes and route patterns with `{name}` segments work the same
-(`/pets/7/` → `/pets/7`). The `Location` is relative (`../ajira`), so an app
+(`/pets/7/` → `/pets/7`). The `Location` is relative (`../orders`), so an app
 mounted under a prefix with `http.StripPrefix` redirects within it.
 `web.ExactPaths()` turns the redirect off.
 

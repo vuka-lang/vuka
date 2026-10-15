@@ -3,8 +3,8 @@
 A Vuka page renders to HTML on the server and ships no JavaScript. An **island**
 is the exception: a client component — a framework component (Vue) or a vanilla
 module — mounted into a server-rendered page and brought to life in the browser.
-It's the Astro model: the page stays static, a few interactive spots hydrate on
-their own, and everything else costs zero JS.
+The page stays static, a few interactive spots hydrate on their own, and
+everything else costs zero JS.
 
 ## Import a component
 
@@ -195,26 +195,26 @@ A page can be a component: put `@web.Get` on an `@ui.Island` struct, and
 the page's template is the component file.
 
 ```vuka
-@web.Get("/applicants")
-@ui.Island("web/components/Applicants.vue")
+@web.Get("/orders")
+@ui.Island("web/components/Orders.vue")
 @auth.Required
-type Applicants struct {
+type Orders struct {
     ui.Live                         // optional: a live page; leave it out for a stateless one
     Q    string      `url:"q"`      // a prop, kept in the address's ?q=
-    Rows []Applicant                // a prop
+    Rows []Order                    // a prop
     db   *DB                        // the server's own: injected, never sent
 }
 
-func (a *Applicants) Mount(ctx context.Context) error            { … } // with or without the error
-func (a *Applicants) Search(ctx context.Context, q string) error { … } // callable from the component
+func (a *Orders) Mount(ctx context.Context) error            { … } // with or without the error
+func (a *Orders) Search(ctx context.Context, q string) error { … } // callable from the component
 ```
 
 ```vue
 <script setup lang="ts">
 import { useLive } from 'vuka:live'
-import type { Applicants } from 'vuka:live'
-const props = defineProps<Applicants>()
-const live = useLive<Applicants>()   // live.search(q), live.pending, live.error
+import type { Orders } from 'vuka:live'
+const props = defineProps<Orders>()
+const live = useLive<Orders>()   // live.search(q), live.pending, live.error
 </script>
 ```
 
@@ -253,7 +253,7 @@ const live = useLive<Applicants>()   // live.search(q), live.pending, live.error
 `live<T>()` (a store: `$l.pending`) — and its types are `vuka-live.d.ts`,
 which `vuka` writes into the island root from the Go structs. Map the name
 to it in `tsconfig.json`, which also lets Vue's compiler read
-`defineProps<Applicants>()` (with `typescript` installed):
+`defineProps<Orders>()` (with `typescript` installed):
 
 ```json
 { "compilerOptions": { "paths": { "vuka:live": ["./vuka-live"] } } }

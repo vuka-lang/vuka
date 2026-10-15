@@ -204,6 +204,14 @@ too:
   package manager of the lockfile, and copy web's Vite plugin to
   `frontend/vuka/vite.js` when `vite.config` imports it.
 
+**Long steps say they are going.** A package install, the Vite island
+build, a migration `vuka add entity` writes and `vuka new`'s module fetch
+show one line on a terminal — a spinner and the seconds so far — that ends
+in `✓ npm packages installed in web/` or `✗`. Off a terminal (CI, a pipe,
+`vuka run`'s prefixed log) it is a line at the start, a `still installing`
+line every ten seconds and a line at the end. The tool's own output is kept
+rather than shown; when the step fails, its last 30 lines follow the error.
+
 `VUKA_FRONTEND=dir` names another directory; `VUKA_FRONTEND=off` skips it.
 
 ### run -watch

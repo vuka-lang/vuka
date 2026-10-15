@@ -10,6 +10,96 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## v0.30.0 — 2026-10-16
+
+Runtime: v0.30.0 (web v0.30.0 requires it). The vuka command is
+`cmd/vuka/v0.39.0`. New apps use ui v0.25.0, web v0.30.0.
+
+- **Import a component as an island.** `import Week "./web/islands/Week.vue"`
+  in a `.vuka` file makes `<Week …/>` a tag: the compiler reads the props
+  from the component's TypeScript — Vue's `defineProps`/`defineModel`/
+  `defineEmits`, a React component's typed props, Svelte's `$props()`, a
+  vanilla `mount(el, props)` — and type-checks every attribute against them,
+  with no Go type to write and no Node to run. `<ui.Island>` is needed only
+  for a fallback. React (`.tsx`/`.jsx`) and Svelte islands build beside Vue.
+  `vuka lsp` completes the props.
+- **Island props both ways.** On a live page every prop follows the server
+  (`once` keeps the first value). A function prop takes a method of the page
+  — the component calls it, the method runs on the server — or JS commands. A
+  `ui.State` passed as a prop is shared: the component writes it back
+  through `defineModel`, a React `setX` prop or a Svelte `$bindable`, and
+  every binding on the page follows.
+- **Pages backed by a component.** `@web.Get` on an `@ui.Island` type serves
+  the component as the page: exported fields are its props (`url:"q"` fields
+  kept in the address), exported methods what it calls with
+  `useLive<T>()` from `vuka:live`, typed from the Go struct in
+  `vuka-live.d.ts`. Embedding `ui.Live` makes it a live page; without it a
+  call is a POST carrying the page's signed props back, so the page needs no
+  connection. Errors arrive as `live.error` (`web.Invalid` for fields), a
+  `web.Redirect` navigates, and the type's gates (`@auth.Required`) hold for
+  calls as for the page. Every island knows the signed-in visitor
+  (`useVuka()`). See [Pages backed by a component](/web/islands#pages-backed-by-a-component).
+- **Client state.** A write (`open.Set(false)`), a `ui.Node` or an attribute
+  list built from states and passed as a prop or child is passed as it is,
+  not read as a state. `ui.BindAttr(name, s)` binds a state into a Go
+  attribute list. An `auto` popover the browser closes (Escape, a click
+  outside) writes its `when` state back, and `<ui.Show>` without a transition hides
+  at once, so swapped panels never show together.
+- **`vuka add` makes the pieces of an app:** `service`, `component`,
+  `island` (Vue, React or Svelte, with its packages installed), `page`
+  (`--live`, `--island`) and `entity` (an orm model with its migration).
+  `--dry-run` lists what it would write; `--force` overwrites. See
+  [add](/tools/cli#add).
+- **Long steps say they are going.** A package install, the Vite island
+  build and `vuka new`'s module fetch show a spinner on a terminal and a
+  heartbeat line elsewhere; a failure prints the tool's last lines.
+- **Faster rebuilds.** What a package was transpiled to, and the API it was
+  checked against, is kept on disk (the user's cache directory,
+  `vuka/transpile`): `vuka build`, `run`, `test`, `vet` and `gen` transpile
+  only the packages whose inputs changed, and `run -watch` starts from that.
+  The Vite island build is skipped when nothing it reads changed.
+  `VUKA_CACHE=off` turns both off. `vuka run` leaves the files
+  `web.Frontend` serves out of the binary (they are read from disk in
+  development), so the linker doesn't copy them on every rebuild; `-embed` or
+  `VUKA_EMBED_STUB=off` builds them in.
+
+**Upgrading.** `web.Get`, `Post`, `Put`, `Patch`, `Delete` and `Handle` now
+return a `vuka.Bundle` (made with the new `vuka.Dual`: a route on a
+function, a page on a type) rather than a `func(*vuka.Decl)`. `@web.Get(…)`
+in a `.vuka` file is unchanged. Go code that used the result as a function
+changes:
+
+```go
+web.Get("/pets")(d)                   // before
+vuka.DeclareWith(web.Get("/pets"), d) // now
+
+func ApiRoute(p string) func(*vuka.Decl) { return web.Get(p) } // before
+func ApiRoute(p string) vuka.Bundle      { return web.Get(p) } // now
+```
+
+A composed decorator (`decorator ApiRoute(p string) = @web.Get(p) …`)
+needs no change. web v0.30.0 requires vuka v0.30.0; `vuka fix runtime`
+moves an app to it.
+
+## v0.29.0 — 2026-10-15
+
+Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.38.1`. New
+apps use ui v0.24.0, web v0.29.0.
+
+- **Client state.** `ui.State(v)` declares a value the browser keeps — a
+  menu's `open`, the picked tab, a filter. Commands change it with no round
+  trip (`open.Toggle()`, `tab.Set("env")`, `n.Inc()`), and the attributes,
+  text and classes that read it follow, written as plain Go expressions:
+  `<ul hidden={!open}>`. `ui.Derived(expr)` names a value built from
+  states, `ui.Class` toggles classes, `<ui.Show when={open}>` shows and hides
+  with transitions, and a struct state's fields are read one by one. The
+  server renders the initial values, so the HTML is right before any script
+  runs; an expression that can't run in the browser is a compile error
+  naming what to compute on the server. See [Client state](/ui/state).
+- **`vuka lsp`:** type-aware highlighting (semantic tokens) in
+  cmd/vuka v0.37.0, and no flicker of stale diagnostics while typing in
+  v0.36.0. cmd/vuka v0.38.1 reports its own version correctly.
+
 ## v0.27.0 — 2026-10-13
 
 Runtime: unchanged, v0.16.0. The vuka command is `cmd/vuka/v0.32.0`. New apps
