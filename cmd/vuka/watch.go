@@ -51,6 +51,9 @@ CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
   -debug, --debug
 	with -watch, keep the debug information (DWARF) watch builds leave out
 	to link faster: for delve.
+  -embed, --embed
+	with -watch, build in the files web.Frontend serves (it reads them from
+	disk under vuka run; VUKA_EMBED_STUB=off does the same)
 
 Build flags are go build's; run 'go help run' for them.
 `
@@ -141,6 +144,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	flags, debug := cutDebug(flags)
+	flags, stub := stubbing(flags)
 	if !slices.ContainsFunc(flags, func(f string) bool { return strings.HasPrefix(strings.TrimLeft(f, "-"), "buildvcs") }) {
 		flags = append(flags, "-buildvcs=false") // as go run: no VCS stamp, which would also tell builds apart
 	}
@@ -171,8 +175,10 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	defer assets.close()
 	env = append(env, assetsEnv+"="+assets.dir())
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
-		w: newWatcher(root), exits: make(chan *app, 4), assets: assets}
-	s.sess, _ = load.NewSession(root) // nil: each build transpiles from scratch
+		w: newWatcher(root), exits: make(chan *app, 4), assets: assets, stub: stub}
+	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
+		s.sess.UseCache("")
+	}
 
 	sig := make(chan os.Signal, 1)
 	signal.Notify(sig, os.Interrupt, syscall.SIGTERM)
@@ -267,6 +273,7 @@ type supervisor struct {
 	stdout, stderr io.Writer
 	w              *watcher
 	sess           *load.Session // what the last builds transpiled; nil for none
+	stub           bool          // the frontend's build is left out of the binary (stubEmbeds)
 	app            *app          // the running build; nil when none runs
 	exits          chan *app     // each app, once it has exited
 	assets         *devAssets
@@ -332,6 +339,12 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 			fmt.Fprintln(s.stderr, linkMsg)
 		}
 		s.linked = linkMsg
+	}
+	if s.stub {
+		if r.overlay, err = stubEmbeds(r.overlay, dir, frontendEmbeds(s.root)); err != nil {
+			r.err = err
+			return r
+		}
 	}
 	if r.err = ctx.Err(); r.err != nil {
 		return r

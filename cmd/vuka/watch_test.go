@@ -308,7 +308,11 @@ type watchRun struct {
 func buildVuka(t *testing.T) string {
 	t.Helper()
 	vuka := filepath.Join(t.TempDir(), "vuka")
-	if out, err := exec.Command("go", "build", "-o", vuka, ".").CombinedOutput(); err != nil {
+	c := exec.Command("go", "build", "-o", vuka, ".")
+	if w := os.Getenv("VUKA_TEST_GOWORK"); w != "" {
+		c.Env = append(os.Environ(), "GOWORK="+w) // a vuka the released modules can't build yet
+	}
+	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("building vuka: %v\n%s", err, out)
 	}
 	return vuka

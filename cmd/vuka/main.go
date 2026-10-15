@@ -80,6 +80,7 @@ func main() {
 		fmt.Fprint(os.Stderr, usage)
 		os.Exit(2)
 	}
+	load.CompilerVersion = compilerVersion()
 	var err error
 	cmd := os.Args[1]
 	switch cmd {
@@ -153,7 +154,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	var gens []load.Generated
 	var overlay string
 	if len(pkgs) > 0 {
-		if gens, overlay, err = load.Transpile(pkgs, tmp, loadOptions(pa)); err != nil {
+		if gens, overlay, err = cachedTranspile(root)(pkgs, tmp, loadOptions(pa)); err != nil {
 			return err
 		}
 	}
@@ -182,6 +183,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			gens = append(gens, css...)
 		}
 	case "run":
+		if _, stub := stubbing(nil); stub {
+			if overlay, err = stubEmbeds(overlay, tmp, frontendEmbeds(root)); err != nil {
+				return err
+			}
+		}
 		env = append(env, devDirEnv+"="+tmp)
 		var css string
 		assets := newDevAssets(root, stderr)
@@ -237,6 +243,31 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	}
 	r.flush()
 	return err
+}
+
+// cachedTranspile is load.Transpile for the module at root, through a
+// session keeping its work in the user's cache directory: a package whose
+// inputs are as a run saw them before isn't transpiled again
+// (VUKA_CACHE=off: every package is).
+func cachedTranspile(root string) func([]*load.Package, string, load.Options) ([]load.Generated, string, error) {
+	sess, err := load.NewSession(root)
+	if err != nil {
+		return load.Transpile
+	}
+	sess.UseCache("")
+	return sess.Transpile
+}
+
+// compilerVersion names this vuka for the transpile cache: its version and
+// its executable, so a rebuilt vuka never reads what another wrote.
+func compilerVersion() string {
+	v := version
+	if exe, err := os.Executable(); err == nil {
+		if fi, err := os.Stat(exe); err == nil {
+			v += fmt.Sprintf(" %s %d %d", exe, fi.Size(), fi.ModTime().UnixNano())
+		}
+	}
+	return v
 }
 
 // respeller passes the go command's errors on, with the code they quote in a
@@ -461,7 +492,7 @@ func genModule(out string, check bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	gens, overlay, err := load.Transpile(pkgs, tmp, loadOptions(pa))
+	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, loadOptions(pa))
 	if err != nil {
 		return err
 	}
