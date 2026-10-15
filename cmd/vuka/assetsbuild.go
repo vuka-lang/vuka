@@ -217,7 +217,7 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				err      error
 			)
 			if useVite {
-				bundles, entries, cssNames, err = buildViteIslands(pa.root, buildRoot, vueIslands, dev, warn)
+				bundles, entries, cssNames, err = cachedViteIslands(pa.root, buildRoot, vueIslands, dev, warn)
 			} else {
 				bundles, entries, err = buildVueIslands(buildRoot, vueIslands, dev)
 			}
