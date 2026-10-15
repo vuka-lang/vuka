@@ -15,6 +15,9 @@ The click removes `hidden` from the menu in the browser, then tells the
 server with `Push` — a call of `c.MenuOpened`, as `onClick={c.MenuOpened}`
 would make. A chain without `Push` never reaches the server.
 
+For state the browser keeps — a menu's open flag, the tab picked — and the
+parts of the page that follow it, see [client state](/ui/state).
+
 ## Chains
 
 `ui.JS` is the empty chain. Each method returns a new chain with one more

@@ -548,6 +548,35 @@ or a rejected promise stops the list and fires a `vk:error` event on *this*
 push's predictions, that push fails without being sent — its predictions so
 far are reverted (unless `keep`) and its `on_error` runs.
 
+## Client state
+
+[Client state](/ui/state) rides the same attributes. A state reference is
+`{"s": key, "i": initial, "p": [field…]}`: the state's key (`c3:s1x9k2:1` —
+the instance, the declaration's site and its count there; `g:<site>` for a
+package-level state), its whole initial value, which sets the state up the
+first time the browser meets it, and, for a struct state's field, the path of
+JSON keys. Three commands write:
+
+| | |
+|---|---|
+| `["state_set", {s, i, p?, v}]` | set the state (or its field) to `v` |
+| `["state_toggle", {s, i, p?}]` | flip a bool |
+| `["state_inc", {s, i, p?, by}]` | add `by` (1 or -1) |
+
+A chain's writes apply in order; the bindings they reach update before the
+chain's next other step and at its end, once each.
+
+Bindings are attributes holding an expression: `data-vk-b-<attr>` on an
+element (the attribute `<attr>`), `data-vk-b` on a `<vk-t>` (its text) and
+`data-vk-show` on a `<vk-show>` (whether its children show, with the
+`data-closed`, `data-enter` and `data-leave` phases). An expression is a
+literal (a string, number, bool or null), `{"v": value}` (a literal object
+or list), a state reference, or `[op, operands…]` with op `!`, `neg`, `&&`,
+`||`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `+`, `-`, `len` (Go's: a string's
+UTF-8 bytes), or `["class", {"names": expr, …}]`. The runtime evaluates it
+again whenever a state it references changes, and after a patch morphs the
+element, so the browser's values outlive the server's renders.
+
 ## Navigation
 
 A connected page moves to another URL over its connection: a paged list,

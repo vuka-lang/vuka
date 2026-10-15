@@ -68,6 +68,7 @@ export default defineConfig({
           { text: 'Components', link: '/ui/components' },
           { text: 'Stateful components', link: '/ui/stateful' },
           { text: 'JS commands', link: '/ui/js' },
+          { text: 'Client state', link: '/ui/state' },
           { text: 'Rendering', link: '/ui/rendering' },
           { text: 'templ interop', link: '/ui/templ' },
           { text: 'Live sessions', link: '/ui/live' },
