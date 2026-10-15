@@ -392,15 +392,19 @@ func constJSON(v constant.Value) any {
 
 // exprAt is the expression at a span of src in this round's syntax tree.
 func (e *engine) exprAt(f *fileState, s span) ast.Expr {
-	at, end := f.cur.fromOrig(s.start), f.cur.fromOrig(s.end)
-	var expr ast.Expr
-	ast.Inspect(f.ast, func(n ast.Node) bool {
-		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {
-			expr = x
-		}
-		return expr == nil && (n == nil || f.off(n.Pos()) <= at)
-	})
-	return expr
+	if f.exprIdxOf != f.ast || f.exprIdx == nil {
+		f.exprIdx, f.exprIdxOf = map[[2]int]ast.Expr{}, f.ast
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			if x, ok := n.(ast.Expr); ok {
+				k := [2]int{f.off(x.Pos()), f.off(x.End())}
+				if _, seen := f.exprIdx[k]; !seen {
+					f.exprIdx[k] = x // the outermost of a span
+				}
+			}
+			return true
+		})
+	}
+	return f.exprIdx[[2]int{f.cur.fromOrig(s.start), f.cur.fromOrig(s.end)}]
 }
 
 // bindTree decides which of a tree's element attributes and children read

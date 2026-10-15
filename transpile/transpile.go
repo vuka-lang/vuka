@@ -180,6 +180,8 @@ type fileState struct {
 	scannedImports map[string]string // import path → name, for the enums' methods
 	spellings      []spelling        // rewritten expressions, for messages
 	stateDone      map[int]bool      // src offsets of state reads and writes lowered or checked (state.go)
+	exprIdx        map[[2]int]ast.Expr // this round's expressions by their spans (exprAt)
+	exprIdxOf      *ast.File           // the syntax tree exprIdx indexes
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.
