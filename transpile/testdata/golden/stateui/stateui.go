@@ -86,6 +86,7 @@ func (s State[T]) Inc() Commands    { return JS.add("inc " + s.String()) }
 func (s State[T]) Dec() Commands    { return JS.add("dec " + s.String()) }
 func (s State[T]) Reset() Commands  { return JS.Set(s, s.v) }
 func (s State[T]) anyState() string { return s.String() }
+func (s State[T]) value() any       { return s.v }
 func (s State[T]) String() string {
 	if s.expr != nil {
 		return "(" + s.expr.String() + ")"
@@ -93,7 +94,15 @@ func (s State[T]) String() string {
 	return s.c.site + strings.Join(append([]string{""}, s.path...), ".") + "=" + fmt.Sprint(s.v)
 }
 
-type AnyState interface{ anyState() string }
+type AnyState interface {
+	anyState() string
+	value() any
+}
+
+// BindAttr is an attribute named name bound to state s.
+func BindAttr(name string, s AnyState) Attr {
+	return Attr{Name: name, Value: Bind(s.value(), `{"$":0}`, s)}
+}
 
 type Commands struct{ ops []string }
 

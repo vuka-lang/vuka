@@ -17,7 +17,14 @@ func Bad() ui.Node {
 		<button onClick={tab.Toggle()} />
 		<button onClick={ui.JS.Set(tab, 3)} />
 		<Label text={!open} />
+		<Any v={strings.ToUpper(tab)} />
+		<p>{strings.Repeat(tab, 2)}</p>
+		<Any v={describe(open)} />
 	</div>
 }
+
+func Any(v any) ui.Node { return <i>{v}</i> }
+
+func describe(open ui.State[bool]) string { return "" }
 
 func Label(text bool) ui.Node { return <span>{text}</span> }

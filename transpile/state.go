@@ -146,11 +146,15 @@ type binder struct {
 }
 
 // readsState reports whether x reads a state: a state-typed operand that
-// isn't the receiver of its Get (which reads the server's value).
+// isn't the receiver of its Get (which reads the server's value), outside
+// what only hands states to Go code (see passesStates).
 func (e *engine) readsState(x ast.Node) bool {
 	found := false
 	ast.Inspect(x, func(n ast.Node) bool {
 		if found {
+			return false
+		}
+		if x, ok := n.(ast.Expr); ok && e.passesStates(x) {
 			return false
 		}
 		if c, ok := n.(*ast.CallExpr); ok {
@@ -171,6 +175,42 @@ func (e *engine) readsState(x ast.Node) bool {
 		return !found
 	})
 	return found
+}
+
+// passesStates reports whether x hands the states it mentions to Go code
+// rather than reading them: a call or composite literal whose value isn't a
+// scalar, a state or a ui.Class — a command (open.Toggle()), a node
+// (p.menu(upload)), an attribute list. The browser has nothing to evaluate
+// there; the Go code gets the states as they are.
+func (e *engine) passesStates(x ast.Expr) bool {
+	switch x := x.(type) {
+	case *ast.CallExpr:
+		if id, ok := ast.Unparen(x.Fun).(*ast.Ident); ok {
+			if _, ok := e.info.Uses[id].(*types.Builtin); ok {
+				return false
+			}
+		}
+	case *ast.CompositeLit:
+	default:
+		return false
+	}
+	t := e.info.TypeOf(x)
+	if t == nil || isInvalid(t) {
+		return false
+	}
+	if _, st := stateOf(t); st {
+		return false
+	}
+	if _, ok := t.Underlying().(*types.Basic); ok {
+		return false
+	}
+	return !isClass(t)
+}
+
+// isClass reports whether t is a JSX target's ui.Class.
+func isClass(t types.Type) bool {
+	n, ok := types.Unalias(t).(*types.Named)
+	return ok && n.Obj().Name() == "Class" && n.Obj().Pkg() != nil && n.Obj().Pkg().Scope().Lookup("NewState") != nil
 }
 
 // unknownTypes reports whether a name in x has no type yet.
@@ -319,7 +359,7 @@ func (bd *binder) lower(x ast.Expr) any {
 		}
 		return bd.fail(x, bd.text(x.Fun)+" can't run in the browser; compute it on the server")
 	case *ast.CompositeLit:
-		if n, ok := types.Unalias(e.info.TypeOf(x)).(*types.Named); ok && n.Obj().Name() == "Class" && n.Obj().Pkg() != nil && n.Obj().Pkg().Scope().Lookup("NewState") != nil {
+		if isClass(e.info.TypeOf(x)) {
 			m := map[string]any{}
 			for _, el := range x.Elts {
 				kv, ok := el.(*ast.KeyValueExpr)
@@ -519,8 +559,14 @@ func (e *engine) lowerStates(f *fileState) {
 	if f.stateDone == nil {
 		f.stateDone = map[int]bool{}
 	}
-	// what JSX bindings lower themselves
+	// what JSX bindings lower themselves: the expressions reading states (a
+	// struct state's field in one handed to Go code is lowered here)
 	var skip []span
+	reads := func(sp span) {
+		if x := e.exprAt(f, sp); x == nil || e.readsState(x) {
+			skip = append(skip, sp)
+		}
+	}
 	for _, t := range f.jsx {
 		if t.done {
 			continue
@@ -530,7 +576,7 @@ func (e *engine) lowerStates(f *fileState) {
 			for _, n := range ns {
 				switch n := n.(type) {
 				case *jsxHole:
-					skip = append(skip, n.expr)
+					reads(n.expr)
 				case *jsxBlock:
 					for _, b := range n.bodies {
 						walk(b)
@@ -541,7 +587,7 @@ func (e *engine) lowerStates(f *fileState) {
 				case *jsxElem:
 					for _, a := range n.attrs {
 						if a.kind == 'e' && !a.event {
-							skip = append(skip, a.expr)
+							reads(a.expr)
 						}
 					}
 					walk(n.kids)

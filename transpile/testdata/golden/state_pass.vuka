@@ -1,0 +1,66 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+type Filters struct {
+	Kind string
+	Open bool
+}
+
+// Button takes commands: a write built from a state is passed as it is.
+func Button(onClick ui.Commands, label string) ui.Node {
+	return <button onClick={onClick}>{label}</button>
+}
+
+// Act takes any handler.
+func Act(onClick any, label string) ui.Node {
+	return <Button onClick={onClick.(ui.Commands)} label={label} />
+}
+
+// OpenDialog builds a command from the state it is given.
+func OpenDialog(s ui.State[bool]) ui.Commands { return s.Set(true) }
+
+// Hint takes any value: an expression of states is a binding.
+func Hint(text any) ui.Node { return <i>{text}</i> }
+
+// Panel takes a state: an expression of states is a derived one.
+func Panel(hide ui.State[bool]) ui.Node { return <p hidden={hide}>panel</p> }
+
+// Box takes attributes.
+func Box(attrs []ui.Attr) ui.Node { return ui.El("div", attrs) }
+
+type Page struct{}
+
+// menu takes a state and returns a node.
+func (p *Page) menu(open ui.State[bool]) ui.Node {
+	return <ul hidden={!open}><li>item</li></ul>
+}
+
+func (p *Page) Render() ui.Node {
+	open := ui.State(false)
+	upload := ui.State(true)
+	f := ui.State(Filters{Kind: "dog"})
+	return <div>
+		<Button onClick={open.Toggle()} label="toggle" />
+		<Button onClick={OpenDialog(upload)} label="upload" />
+		<Button onClick={OpenDialog(f.Open)} label="field" />
+		<Button onClick={open.Set(true).Set(upload, false)} label="chain" />
+		<Act onClick={OpenDialog(upload)} label="any" />
+		<Box attrs={[]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", ui.Derived(!open && upload)), {Name: "id", Value: "box"}}} />
+		{p.menu(upload)}
+		{p.menu(f.Open)}
+		<Hint text={!open} />
+		<Hint text={f.Kind + "s"} />
+		<Panel hide={!open && upload} />
+	</div>
+}
+
+func main() {
+	out, err := ui.String(context.Background(), (&Page{}).Render())
+	fmt.Println(out, err)
+}
