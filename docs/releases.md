@@ -12,7 +12,7 @@ upgrades it.
 
 ## v0.30.0 — 2026-10-16
 
-Runtime: v0.30.0 (web v0.30.0 requires it). The vuka command is
+Runtime: unchanged, v0.16.0. The vuka command is
 `cmd/vuka/v0.39.0`. New apps use ui v0.25.0, web v0.30.0.
 
 - **Import a component as an island.** `import Week "./web/islands/Week.vue"`
@@ -78,8 +78,8 @@ func ApiRoute(p string) vuka.Bundle      { return web.Get(p) } // now
 ```
 
 A composed decorator (`decorator ApiRoute(p string) = @web.Get(p) …`)
-needs no change. web v0.30.0 requires vuka v0.30.0; `vuka fix runtime`
-moves an app to it.
+needs no change. web v0.30.0 requires vuka v0.30.0:
+`go get github.com/vuka-lang/web@v0.30.0` brings it along.
 
 ## v0.29.0 — 2026-10-15
 
