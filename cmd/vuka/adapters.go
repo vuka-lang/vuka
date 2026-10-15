@@ -43,6 +43,16 @@ export function mount(Component, el, props, ctx) {
     listeners['onUpdate:' + name] = (v) => { state[name] = v; ctx.set(name, v) }
   }
   const app = createApp({ render: () => h(Component, { ...listeners, ...state }, slots) })
+  // A page backed by its island: useLive() and useVuka() (vuka:live), $vuka.
+  if (ctx && ctx.live) {
+    const live = reactive({ ...ctx.live.methods, pending: false, error: null })
+    ctx.live.subscribe((s) => { live.pending = s.pending; live.error = s.error })
+    app.provide('vuka:live', live)
+  }
+  if (ctx && ctx.vuka) {
+    app.provide('vuka:vuka', ctx.vuka)
+    app.config.globalProperties.$vuka = ctx.vuka
+  }
   /*SETUP_CALL*/
   app.mount(el)
   return {
@@ -55,9 +65,10 @@ export function mount(Component, el, props, ctx) {
 // reactAdapterSrc is the React adapter: a root rendering the component with
 // the props, again on each update. A state prop gets set<Prop> (taking a
 // value or an updater) and on<Prop>Change, chained before any the page gave.
-const reactAdapterSrc = `import { createElement } from 'react'
+const reactAdapterSrc = `import { createElement, createContext } from 'react'
 import { createRoot } from 'react-dom/client'
 /*SETUP_IMPORT*/
+const VukaContext = globalThis.__vukaReactContext || (globalThis.__vukaReactContext = createContext(null))
 export function mount(Component, el, props, ctx) {
   let slotHTML = null
   try {
@@ -83,6 +94,7 @@ export function mount(Component, el, props, ctx) {
     }
     const kids = slotHTML ? createElement('span', { dangerouslySetInnerHTML: { __html: slotHTML } }) : undefined
     let node = createElement(Component, p, kids)
+    if (ctx && (ctx.live || ctx.vuka)) node = createElement(VukaContext.Provider, { value: { live: ctx.live || null, vuka: ctx.vuka || null } }, node)
     /*SETUP_CALL*/
     root.render(node)
   }
@@ -115,8 +127,15 @@ export function mount(Component, el, props, ctx) {
   })
   for (const k of values.keys()) define(k)
   if (slotHTML) p.children = createRawSnippet(() => ({ render: () => '<span>' + slotHTML + '</span>' }))
+  const context = new Map()
+  if (ctx && ctx.live) {
+    const h = ctx.live
+    const value = () => ({ ...h.methods, pending: h.pending, error: h.error })
+    context.set('vuka:live', { ...h.methods, subscribe: (fn) => { fn(value()); return h.subscribe(() => fn(value())) } })
+  }
+  if (ctx && ctx.vuka) context.set('vuka:vuka', { subscribe: (fn) => { fn(ctx.vuka); return () => {} } })
   el.replaceChildren()
-  const inst = smount(Component, { target: el, props: p })
+  const inst = smount(Component, { target: el, props: p, context })
   return {
     update: (next) => { for (const [k, v] of Object.entries(next || {})) { if (!(k in p)) define(k); values.set(k, v) } },
     unmount: () => { try { sunmount(inst) } catch (_) {} },
@@ -134,4 +153,31 @@ func adapterSrc(framework, setupImport, setupCall string) string {
 		return svelteAdapterSrc
 	}
 	return replaceSetup(vueAdapterSrc, setupImport, setupCall)
+}
+
+// liveModules are vuka:live, the module a page-backed island's component
+// imports useLive (Svelte: live) and useVuka from, per framework: what the
+// island's adapter provides (ctx.live, ctx.vuka).
+var liveModules = map[string]string{
+	"vue": `import { inject } from 'vue'
+export function useLive() { return inject('vuka:live', null) }
+export function useVuka() { return inject('vuka:vuka', null) }
+`,
+	"react": `import { createContext, useContext, useMemo, useSyncExternalStore } from 'react'
+const VukaContext = globalThis.__vukaReactContext || (globalThis.__vukaReactContext = createContext(null))
+const none = { pending: false, error: null }
+const noSub = () => () => {}
+export function useLive() {
+  const c = useContext(VukaContext)
+  const h = c && c.live
+  const s = useSyncExternalStore(h ? h.subscribe : noSub, h ? h.snapshot : () => none)
+  return useMemo(() => ({ ...(h ? h.methods : {}), pending: s.pending, error: s.error }), [h, s])
+}
+export function useVuka() { const c = useContext(VukaContext); return c ? c.vuka : null }
+`,
+	"svelte": `import { getContext } from 'svelte'
+export function live() { return getContext('vuka:live') }
+export const useLive = live
+export function useVuka() { return getContext('vuka:vuka') }
+`,
 }

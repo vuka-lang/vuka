@@ -41,6 +41,7 @@ type compiled struct {
 	bundles  []*bundle
 	islands  []*islandBundle // the bundled island chunks (/_vuka/i/)
 	dts      []byte          // islands.d.ts, generated from the Go structs
+	liveDTS  []byte          // vuka-live.d.ts: the "vuka:live" module of pages backed by a component
 	manifest []byte
 }
 
@@ -177,6 +178,18 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		// Phase-2 esbuild path builds them. Vanilla islands always use the
 		// in-process esbuild (they are dependency-free).
 		useVite := hasViteConfig(buildRoot)
+		// vuka:live's types, before the framework build: Vue's compiler reads
+		// them for defineProps<T>() of a page-backed island's component.
+		var dirs []string
+		for _, ic := range pa.islands {
+			if d := filepath.Dir(strings.SplitN(ic.label, ":", 2)[0]); !ic.imported && !slices.Contains(dirs, filepath.Join(pa.root, d)) {
+				dirs = append(dirs, filepath.Join(pa.root, d))
+			}
+		}
+		out.liveDTS = liveDTS(pa.islands, readIslandLive(dirs))
+		if len(out.liveDTS) > 0 {
+			writeIfChanged(filepath.Join(buildRoot, "vuka-live.d.ts"), out.liveDTS)
+		}
 		var vueIslands []*islandComp
 		for _, ic := range pa.islands {
 			if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
@@ -601,6 +614,7 @@ func (d *devAssets) compile() {
 		}
 		if err := os.MkdirAll(dtsDir, 0o755); err == nil {
 			writeIfChanged(filepath.Join(dtsDir, "islands.d.ts"), out.dts)
+
 		}
 	}
 	writeIfChanged(filepath.Join(dir, assetsManifest), out.manifest)

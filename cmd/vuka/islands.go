@@ -147,10 +147,11 @@ func callArgs(toks []wtok, lparen int) [][2]int {
 }
 
 // findFrontendRoot resolves the island build's root by scanning the app's
-// source for the web.Frontend(fsys, root, ...) call, mirroring how the nexus
-// CLI reads nexus.Frontend: web.FrontendRoot("dir") when present, else the
-// parent of Frontend's root argument (frontend/dist → frontend), else — no
-// Frontend call — the module root. The result is absolute.
+// source for web.IslandRoot("dir"), else the web.Frontend(fsys, root, ...)
+// call, mirroring how the nexus CLI reads nexus.Frontend:
+// web.FrontendRoot("dir") when present, else the parent of Frontend's root
+// argument (frontend/dist → frontend), else — neither — the module root.
+// The result is absolute.
 func findFrontendRoot(root string) string {
 	rel, found := "", false
 	walkSources(root, func(p, name string) error {
@@ -191,6 +192,16 @@ func frontendRootIn(src []byte) (string, bool) {
 		return "", false
 	}
 	clean := func(s string) string { return strings.Trim(path.Clean("/"+filepath.ToSlash(s)), "/") }
+	// web.IslandRoot("dir"): an app without a Frontend names it alone.
+	for i := 0; i+5 < len(toks); i++ {
+		if toks[i].tok == token.IDENT && toks[i].lit == webName && toks[i+1].tok == token.PERIOD &&
+			toks[i+2].tok == token.IDENT && toks[i+2].lit == "IslandRoot" && toks[i+3].tok == token.LPAREN &&
+			toks[i+4].tok == token.STRING && toks[i+5].tok == token.RPAREN {
+			if v, err := strconv.Unquote(toks[i+4].lit); err == nil {
+				return clean(v), true
+			}
+		}
+	}
 	for i := 0; i+3 < len(toks); i++ {
 		if toks[i].tok != token.IDENT || toks[i].lit != webName || toks[i+1].tok != token.PERIOD ||
 			toks[i+2].tok != token.IDENT || toks[i+2].lit != "Frontend" || toks[i+3].tok != token.LPAREN {

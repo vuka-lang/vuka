@@ -34,10 +34,24 @@ import (
 // spec.
 const vueBuildMJS = `import esbuild from 'esbuild'
 import { createHash } from 'node:crypto'
+import { realpathSync } from 'node:fs'
+import { resolve as resolvePath } from 'node:path'
 
 const SPEC = /*SPEC*/
-const plugins = []
-if (SPEC.plugins.includes('vue')) plugins.push((await import('esbuild-plugin-vue3')).default())
+const plugins = [{
+  name: 'vuka-live',
+  setup(b) {
+    b.onResolve({ filter: /^vuka:live$/ }, (a) => ({ path: /\.vue/.test(a.importer) ? 'vue' : /\.svelte/.test(a.importer) ? 'svelte' : 'react', namespace: 'vuka-live' }))
+    b.onLoad({ filter: /.*/, namespace: 'vuka-live' }, (a) => ({ contents: SPEC.live[a.path], loader: 'js', resolveDir: SPEC.cwd }))
+  },
+}]
+if (SPEC.plugins.includes('vue')) {
+  // Vue's compiler resolves defineProps<T>() of a type imported from a
+  // module (vuka:live, through tsconfig's paths) with TypeScript, when the
+  // project has it.
+  try { const sfc = await import('vue/compiler-sfc'); const ts = await import('typescript'); sfc.registerTS(() => ts.default || ts) } catch {}
+  plugins.push((await import('esbuild-plugin-vue3')).default())
+}
 if (SPEC.plugins.includes('svelte')) plugins.push((await import('esbuild-svelte')).default({ compilerOptions: { css: 'injected' } }))
 
 const r = await esbuild.build({
@@ -64,12 +78,16 @@ const base = (p) => p.split('/').pop()
 const files = new Map()
 for (const f of r.outputFiles) files.set(base(f.path), { contents: Buffer.from(f.contents), imports: [], key: '' })
 const entryOf = {}
-for (const [k, v] of Object.entries(SPEC.entries)) entryOf[base(v)] = k
+const real = (p) => { try { return realpathSync(p) } catch { return p } }
+for (const [k, v] of Object.entries(SPEC.entries)) entryOf[real(v)] = k
 for (const [out, info] of Object.entries(r.metafile.outputs)) {
   const e = files.get(base(out))
   if (!e) continue
   e.imports = (info.imports || []).filter((i) => i.kind === 'import-statement').map((i) => base(i.path))
-  if (info.entryPoint) e.key = entryOf[base(info.entryPoint)] || ''
+  if (info.entryPoint) {
+    const ep = info.entryPoint.replace(/^[a-z-]+:/, '')
+    e.key = entryOf[real(resolvePath(SPEC.cwd, ep))] || entryOf[real(resolvePath(real(SPEC.cwd), ep))] || ''
+  }
 }
 const stem = (e) => (e.key ? e.key.toLowerCase().replace(/[^a-z0-9]/g, '') : 'chunk') || 'chunk'
 const hash8 = (b) => createHash('sha256').update(b).digest('hex').slice(0, 8)
@@ -97,9 +115,7 @@ for (const bn of order) {
 const out = { files: {}, adapters: {}, islands: {} }
 for (const [bn, e] of files) out.files[newName.get(bn)] = e.final.toString('base64')
 for (const [fw, key] of Object.entries(SPEC.adapters)) for (const [bn, e] of files) if (e.key === key) out.adapters[fw] = newName.get(bn)
-const keyName = {}
-for (const [name, key] of Object.entries(SPEC.islands)) keyName[key] = name
-for (const [bn, e] of files) if (e.key && keyName[e.key]) out.islands[keyName[e.key]] = newName.get(bn)
+for (const [name, key] of Object.entries(SPEC.islands)) for (const [bn, e] of files) if (e.key === key) out.islands[name] = newName.get(bn)
 process.stdout.write(JSON.stringify(out))
 `
 
@@ -111,6 +127,7 @@ type vueBuildSpec struct {
 	Adapters map[string]string `json:"adapters"` // framework → its adapter's entry key
 	Islands  map[string]string `json:"islands"`
 	Plugins  []string          `json:"plugins"` // vue, svelte: the esbuild plugins to load
+	Live     map[string]string `json:"live"`    // vuka:live, per framework
 	Minify   bool              `json:"minify"`
 	Outdir   string            `json:"outdir"`
 	Cwd      string            `json:"cwd"`
@@ -200,6 +217,7 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 		Minify:   !dev,
 		Outdir:   filepath.Join(tmp, "o"),
 		Cwd:      frontendRoot,
+		Live:     liveModules,
 	}
 	used := map[string]bool{}
 	for _, fw := range fws {
@@ -220,7 +238,12 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 			spec.Plugins = append(spec.Plugins, fw)
 		}
 	}
+	bySrc := map[string]string{} // islands sharing a component share its entry
 	for _, ic := range islands {
+		if key, ok := bySrc[ic.src]; ok {
+			spec.Islands[ic.name] = key
+			continue
+		}
 		key := jsKeyUnsafe.ReplaceAllString(strings.ToLower(ic.name), "")
 		if key == "" {
 			key = "island"
@@ -231,6 +254,7 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 		used[key] = true
 		spec.Entries[key] = ic.src
 		spec.Islands[ic.name] = key
+		bySrc[ic.src] = key
 	}
 
 	specJSON, err := json.Marshal(spec)

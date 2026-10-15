@@ -48,6 +48,7 @@ func hasViteConfig(dir string) bool {
 type islandBuildSpec struct {
 	OutDir string            `json:"outDir"`
 	Input  map[string]string `json:"input"`
+	Live   map[string]string `json:"live,omitempty"` // vuka:live, per framework (the plugin serves it)
 }
 
 // viteManifestEntry is one line of Vite's .vite/manifest.json that vuka reads:
@@ -104,7 +105,7 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 	}
 
 	// One adapter per framework, with the app's optional _setup wired in.
-	spec := islandBuildSpec{OutDir: outDir, Input: map[string]string{}}
+	spec := islandBuildSpec{OutDir: outDir, Input: map[string]string{}, Live: liveModules}
 	adapterRel := map[string]string{}
 	used := map[string]bool{"styles": true}
 	for _, ic := range islands {
