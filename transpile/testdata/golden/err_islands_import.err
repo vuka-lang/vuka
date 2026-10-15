@@ -1,0 +1,6 @@
+err_islands_import.vuka:15:55: <Picker> has no attribute titel; did you mean Title?
+err_islands_import.vuka:17:27: <Picker>'s kind takes "day", "week", not "month"
+err_islands_import.vuka:20:38: <Picker>'s onSelect passes string to its handler; this handler takes int
+err_islands_import.vuka:23:38: <Picker>'s onSelect calls its handler with one payload, its first argument; this handler takes 2
+err_islands_import.vuka:26:38: <Picker>'s onClose takes a function — a live view method or JS commands; this is string
+err_islands_import.vuka:30:38: n is a ui.State[int], and <Picker>'s open takes bool

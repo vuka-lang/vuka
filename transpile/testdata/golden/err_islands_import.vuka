@@ -1,0 +1,31 @@
+package main
+
+import (
+	"context"
+
+	Picker "./islands/Picker.vue"
+	ui "vukatest.local/stateui"
+)
+
+type page struct{}
+
+func (p *page) Pick(ctx context.Context, n int) error { return nil }
+func (p *page) Two(a, b string)                       {}
+
+func (p *page) unknownProp() ui.Node { return <Picker titel="x" days={nil} /> }
+func (p *page) wrongLiteral() ui.Node {
+	return <Picker title="x" kind="month" days={nil} />
+}
+func (p *page) eventArgs() ui.Node {
+	return <Picker title="x" days={nil} onSelect={p.Pick} />
+}
+func (p *page) eventTwo() ui.Node {
+	return <Picker title="x" days={nil} onSelect={p.Two} />
+}
+func (p *page) notAFunc() ui.Node {
+	return <Picker title="x" days={nil} onClose={"no"} />
+}
+func (p *page) stateType() ui.Node {
+	n := ui.State(1)
+	return <Picker title="x" days={nil} open={n} />
+}

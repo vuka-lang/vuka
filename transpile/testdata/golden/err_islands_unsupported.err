@@ -1,0 +1,1 @@
+err_islands_unsupported.vuka:4:6: ./islands/Bad.vue:4: prop lookup: Map<string, number> has no Go type; declare the island's props with an @ui.Island struct

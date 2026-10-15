@@ -1,0 +1,11 @@
+package main
+
+import (
+	Clock "./islands/Clock.tsx"
+	Picker "./islands/Picker.vue"
+	ui "vukatest.local/stateui"
+)
+
+func wrongType() ui.Node { return <Picker title={3} days={nil} /> }
+func date() ui.Node      { return <Clock zone="x" when={"today"} /> }
+func max() ui.Node       { return <Picker title="x" max="3" days={nil} /> }

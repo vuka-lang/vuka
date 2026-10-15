@@ -1,7 +1,10 @@
 package transpile
 
 import (
+	"go/ast"
+	"go/constant"
 	"go/types"
+	"reflect"
 	"sort"
 	"strconv"
 	"strings"
@@ -96,92 +99,13 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 		return
 	}
 
-	// The body type: a struct whose exported fields are the props.
-	bodyExpr := e.compExpr(f, body.comp)
-	if bodyExpr == nil {
-		c.fail = "internal: island body placeholder not found"
+	if body.comp == c {
+		fail(body.start, "internal: island body is its wrapper")
 		return
 	}
-	tn, ok := e.info.Uses[compIdent(bodyExpr)].(*types.TypeName)
-	if !ok {
-		fail(body.start, "<%s> isn't an island component: an island body is a struct type with @ui.Island", body.tag)
+	if !e.bindIsland(f, c, body, fail) {
 		return
 	}
-	t := tn.Type()
-	if tv, ok := e.info.Types[bodyExpr]; ok && tv.IsType() && !isInvalid(tv.Type) {
-		t = tv.Type
-	}
-	st, ok := t.Underlying().(*types.Struct)
-	if !ok {
-		fail(body.start, "<%s> isn't an island component: %s isn't a struct", body.tag, e.display(t))
-		return
-	}
-
-	// Split the client:*/server:defer directive and the on<Emit> handlers off
-	// the props attributes.
-	var attrs []*jsxAttr
-	var strat *jsxAttr
-	for _, a := range body.attrs {
-		switch {
-		case a.name == "key":
-			continue
-		case strings.HasPrefix(a.name, "client:") || strings.HasPrefix(a.name, "server:"):
-			if strat != nil {
-				fail(a.off, "<%s> has more than one hydration directive", body.tag)
-				return
-			}
-			strat = a
-		case isIslandEmit(a.name):
-			c.islandEmits = append(c.islandEmits, islandEmit{name: emitName(a.name), attr: a})
-		default:
-			attrs = append(attrs, a)
-		}
-	}
-	if strat != nil {
-		switch strat.name {
-		case "client:load":
-			c.islandStrat = "Load"
-		case "client:idle":
-			c.islandStrat = "Idle"
-		case "client:visible":
-			c.islandStrat = "Visible"
-		case "client:media":
-			c.islandStrat = "Media"
-			if strat.kind == 'b' {
-				fail(strat.off, "client:media needs a query, e.g. client:media={\"(max-width: 600px)\"}")
-				return
-			}
-		case "client:only":
-			c.islandStrat = "ClientOnly"
-		case "server:defer":
-			c.islandStrat = "SSR"
-		default:
-			fail(strat.off, "unknown hydration directive %s", strat.name)
-			return
-		}
-		c.strat = strat
-	}
-
-	// Bind the props: the body's attributes to the body type's fields, without
-	// the body's children (those are the slot, not a Children field).
-	bodyNoKids := *body
-	bodyNoKids.kids = nil
-	trial := &jsxComp{el: &bodyNoKids, target: c.target}
-	if _, off, msg := e.bindFields(trial, st, attrs, node, true); msg != "" {
-		fail(off, "%s", msg)
-		return
-	}
-	c.args = trial.args
-	c.propsTyp = t
-	c.props = e.typeTextAuto(f, t)
-	c.bodyTag = span{body.start + 1, body.tagEnd}
-	for _, a := range c.args {
-		c.islandArgTyp = append(c.islandArgTyp, e.typeTextAuto(f, a.typ))
-	}
-
-	c.slotKids = body.kids
-	c.hasSlot = len(body.kids) > 0
-
 	for _, tm := range templates {
 		named := ""
 		for _, a := range tm.attrs {
@@ -205,6 +129,11 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 	}
 
 	body.comp.consumed, body.comp.resolved = true, true
+	e.finishIsland(f, c)
+}
+
+// finishIsland marks an island tag decided.
+func (e *engine) finishIsland(f *fileState, c *jsxComp) {
 	// A stable per-placement id (file + the wrapper's source offset): identical
 	// across renders, so the host's data-vk-s doesn't churn in the live-view diff.
 	c.islandSite = f.name + "#" + strconv.Itoa(c.el.start)
@@ -251,6 +180,18 @@ func (w *jsxWriter) island(c *jsxComp) {
 		kids := c.fallbackKids
 		fbPiece = &piece{off: nodesStart(kids), typ: q + "Node", write: func() { w.frame(kids) }}
 	}
+	propPiece := func(ps []islandProp, typs []string) []*piece {
+		out := make([]*piece, len(ps))
+		for i, p := range ps {
+			if p.attr != nil && p.attr.kind == 'e' {
+				a := p.attr
+				out[i] = &piece{off: a.expr.start, typ: typs[i], write: func() { w.attrValue(a) }}
+			}
+		}
+		return out
+	}
+	funcPiece := propPiece(c.islandFuncs, c.islandFuncTyp)
+	statePiece := propPiece(c.islandStates, c.islandStateTyp)
 	emitPiece := make([]*piece, len(c.islandEmits))
 	for i, em := range c.islandEmits {
 		if em.attr != nil && em.attr.kind == 'e' {
@@ -272,9 +213,11 @@ func (w *jsxWriter) island(c *jsxComp) {
 			order = append(order, p)
 		}
 	}
-	for _, p := range emitPiece {
-		if p != nil {
-			order = append(order, p)
+	for _, ps := range [][]*piece{emitPiece, funcPiece, statePiece} {
+		for _, p := range ps {
+			if p != nil {
+				order = append(order, p)
+			}
 		}
 	}
 	closure := false
@@ -295,11 +238,23 @@ func (w *jsxWriter) island(c *jsxComp) {
 		w.gen("{")
 		for i, a := range c.args {
 			w.gen(a.key)
+			if a.wrap != "" {
+				w.gen(a.wrap + "(")
+			}
+			if a.conv != "" {
+				w.gen(a.conv + "(")
+			}
 			switch {
 			case closure && attrPiece[i] != nil:
 				w.gen(attrPiece[i].name)
 			default:
 				w.attrValue(a.attr)
+			}
+			if a.conv != "" {
+				w.gen(")")
+			}
+			if a.wrap != "" {
+				w.gen(")")
 			}
 			w.gen(", ")
 		}
@@ -345,6 +300,24 @@ func (w *jsxWriter) island(c *jsxComp) {
 				w.attrValue(em.attr)
 			}
 			w.gen(")")
+		}
+		for _, x := range []struct {
+			call  string
+			ps    []islandProp
+			piece []*piece
+		}{{"Callback", c.islandFuncs, funcPiece}, {"StateProp", c.islandStates, statePiece}} {
+			for i, p := range x.ps {
+				w.gen(", " + q + x.call + "(" + strconv.Quote(p.prop) + ", ")
+				if closure && x.piece[i] != nil {
+					w.gen(x.piece[i].name)
+				} else {
+					w.attrValue(p.attr)
+				}
+				w.gen(")")
+			}
+		}
+		if c.islandOnce {
+			w.gen(", " + q + "Once()")
 		}
 		w.gen(")")
 	}
@@ -421,3 +394,350 @@ func nodesStart(ns []jsxNode) int {
 	}
 	return 0
 }
+
+// islandProp is a function or state prop of an island tag: its wire name
+// and its attribute, passed as ui.Callback / ui.StateProp.
+type islandProp struct {
+	prop string
+	attr *jsxAttr
+}
+
+// isIslandType reports whether a type is an island of this package: an
+// @ui.Island struct or an imported component's generated type.
+func (e *engine) isIslandType(tn *types.TypeName) bool {
+	if tn.Pkg() == nil || tn.Pkg() != e.pkg {
+		return false
+	}
+	return e.declaredIslands[tn.Name()] || e.islands[tn.Name()] != nil
+}
+
+// bindIsland binds an island tag (body) — inside a <ui.Island> wrapper, or
+// bare — to its props struct: plain props to the struct's fields (a value
+// for an optional, pointer, prop wrapped by Ptr; a string-literal union's
+// value checked), function props and state props to ui.Callback and
+// ui.StateProp, client:* to the strategy, once to Once, on<Emit> to Emit.
+// It reports false when the tag is decided another way: failed, or
+// waiting for types (c.fail).
+func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(int, string, ...any)) bool {
+	node := e.nodeType(c.target)
+	c.islandEmits, c.islandFuncs, c.islandStates, c.islandOnce, c.strat, c.islandStrat, c.args = nil, nil, nil, false, nil, "", nil
+	c.islandFuncTyp, c.islandStateTyp = nil, nil
+	bodyExpr := e.compExpr(f, body.comp)
+	if bodyExpr == nil {
+		c.fail = "internal: island body placeholder not found"
+		return false
+	}
+	tn, ok := e.info.Uses[compIdent(bodyExpr)].(*types.TypeName)
+	if !ok {
+		fail(body.start, "<%s> isn't an island component: an island body is a struct type with @ui.Island", body.tag)
+		return false
+	}
+	t := tn.Type()
+	if tv, ok := e.info.Types[bodyExpr]; ok && tv.IsType() && !isInvalid(tv.Type) {
+		t = tv.Type
+	}
+	st, ok := t.Underlying().(*types.Struct)
+	if !ok {
+		fail(body.start, "<%s> isn't an island component: %s isn't a struct", body.tag, e.display(t))
+		return false
+	}
+	fields := e.propFields(c.target, st, true)
+	var names []string
+	for _, fl := range fields {
+		names = append(names, fl.name)
+	}
+	typeOf := func(a *jsxAttr) (types.Type, ast.Expr, bool) {
+		x := e.attrExpr(f, a)
+		tv, ok := e.info.Types[x]
+		if x == nil || !ok || isInvalid(tv.Type) {
+			c.fail = "an attribute's type is unknown"
+			return nil, nil, false
+		}
+		return tv.Type, x, true
+	}
+
+	var attrs []*jsxAttr
+	for _, a := range body.attrs {
+		switch {
+		case a.name == "key":
+			continue
+		case strings.HasPrefix(a.name, "client:") || strings.HasPrefix(a.name, "server:"):
+			if c.strat != nil {
+				fail(a.off, "<%s> has more than one hydration directive", body.tag)
+				return false
+			}
+			c.strat = a
+			continue
+		}
+		i := bindName(names, a.name)
+		if i < 0 {
+			switch {
+			case a.name == "once" && a.kind == 'b':
+				c.islandOnce = true
+			case isIslandEmit(a.name):
+				c.islandEmits = append(c.islandEmits, islandEmit{name: emitName(a.name), attr: a})
+			default:
+				attrs = append(attrs, a) // bindFields says it's unknown
+			}
+			continue
+		}
+		fl := fields[i]
+		prop := jsonName(st, fl)
+		if sig, ok := fl.typ.Underlying().(*types.Signature); ok {
+			if a.kind != 'e' {
+				fail(a.off, "<%s>'s %s takes a function: a live view method or JS commands", body.tag, a.name)
+				return false
+			}
+			ht, _, ok := typeOf(a)
+			if !ok {
+				return false
+			}
+			if b, ok := ht.(*types.Basic); ok && b.Kind() == types.UntypedNil {
+				continue
+			}
+			if msg := e.callbackProblem(c.target, sig, ht); msg != "" {
+				fail(a.off, "<%s>'s %s %s", body.tag, a.name, msg)
+				return false
+			}
+			c.islandFuncs = append(c.islandFuncs, islandProp{prop, a})
+			c.islandFuncTyp = append(c.islandFuncTyp, "any")
+			continue
+		}
+		if a.kind == 'e' {
+			at, x, ok := typeOf(a)
+			if !ok {
+				return false
+			}
+			want := fl.typ
+			if p, ok := want.Underlying().(*types.Pointer); ok {
+				want = p.Elem()
+			}
+			if elem, ok := stateOf(at); ok {
+				if _, toState := stateOf(fl.typ); !toState {
+					if !types.AssignableTo(elem, want) {
+						fail(a.off, "%s is a ui.State[%s], and <%s>'s %s takes %s", e.nodeText(f, x), e.display(elem), body.tag, a.name, e.display(want))
+						return false
+					}
+					c.islandStates = append(c.islandStates, islandProp{prop, a})
+					c.islandStateTyp = append(c.islandStateTyp, e.typeTextAuto(f, at))
+					continue
+				}
+			} else if e.readsState(x) {
+				if !types.AssignableTo(types.Default(at), want) {
+					fail(a.off, "%s reads a ui.State of %s, and <%s>'s %s takes %s", e.nodeText(f, x), e.display(types.Default(at)), body.tag, a.name, e.display(want))
+					return false
+				}
+				bd := &binder{e: e, f: f, b: &stateBind{}, deps: map[string]int{}}
+				if base, path := bd.fieldPath(x); base != nil {
+					a.bind = &stateBind{call: "StateField", field: stateFieldText(c.target.q, bd.text(base), path)}
+				} else {
+					b, err := e.lowerState(f, x)
+					if err != nil {
+						fail(err.off, "%s", err.msg)
+						return false
+					}
+					b.call = "NewDerived"
+					a.bind = b
+				}
+				c.islandStates = append(c.islandStates, islandProp{prop, a})
+				c.islandStateTyp = append(c.islandStateTyp, c.target.q+"State["+e.typeTextAuto(f, types.Default(at))+"]")
+				continue
+			}
+		}
+		attrs = append(attrs, a)
+	}
+	if c.strat != nil {
+		strat := c.strat
+		switch strat.name {
+		case "client:load":
+			c.islandStrat = "Load"
+		case "client:idle":
+			c.islandStrat = "Idle"
+		case "client:visible":
+			c.islandStrat = "Visible"
+		case "client:media":
+			c.islandStrat = "Media"
+			if strat.kind == 'b' {
+				fail(strat.off, "client:media needs a query, e.g. client:media={\"(max-width: 600px)\"}")
+				return false
+			}
+		case "client:only":
+			c.islandStrat = "ClientOnly"
+		case "server:defer":
+			c.islandStrat = "SSR"
+		default:
+			fail(strat.off, "unknown hydration directive %s", strat.name)
+			return false
+		}
+	}
+
+	// Bind the props: the body's attributes to the body type's fields, without
+	// the body's children (those are the slot, not a Children field).
+	bodyNoKids := *body
+	bodyNoKids.kids = nil
+	trial := &jsxComp{el: &bodyNoKids, target: c.target}
+	if _, off, msg := e.bindFields(trial, st, attrs, node, true); msg != "" {
+		fail(off, "%s", msg)
+		return false
+	}
+	c.args = trial.args
+	c.islandArgTyp = nil
+	for _, a := range c.args {
+		typ := a.typ
+		if p, ok := typ.Underlying().(*types.Pointer); ok && a.attr != nil {
+			wrap := a.attr.kind != 'e'
+			if !wrap {
+				at, _, ok := typeOf(a.attr)
+				if !ok {
+					return false
+				}
+				_, isPtr := at.Underlying().(*types.Pointer)
+				b, isBasic := at.(*types.Basic)
+				wrap = !isPtr && !(isBasic && b.Kind() == types.UntypedNil)
+			}
+			if wrap {
+				typ = p.Elem()
+				a.wrap = c.target.q + "Ptr[" + e.typeTextAuto(f, typ) + "]"
+			}
+		}
+		if b, ok := typ.(*types.Basic); ok && b.Kind() == types.Float64 && a.attr != nil && a.attr.kind == 'e' {
+			// A number prop takes any Go number.
+			if at, x, ok := typeOf(a.attr); ok {
+				if ab, ok := at.(*types.Basic); ok && ab.Info()&types.IsNumeric != 0 && ab.Info()&types.IsUntyped == 0 && ab.Kind() != types.Float64 && e.info.Types[x].Value == nil {
+					a.conv = "float64"
+				}
+			} else {
+				return false
+			}
+		}
+		if msg := e.enumProblem(f, a, typ); msg != "" {
+			fail(a.attr.off, "<%s>'s %s %s", body.tag, a.attr.name, msg)
+			return false
+		}
+		if a.conv != "" {
+			at, _, _ := typeOf(a.attr)
+			typ = at
+		}
+		c.islandArgTyp = append(c.islandArgTyp, e.typeTextAuto(f, typ))
+	}
+	c.propsTyp = t
+	c.props = e.typeTextAuto(f, t)
+	c.bodyTag = span{body.start + 1, body.tagEnd}
+	c.slotKids = body.kids
+	c.hasSlot = len(body.kids) > 0
+	return true
+}
+
+// jsonName is a props field's wire name: its json tag's, else its name.
+func jsonName(st *types.Struct, fl propField) string {
+	if len(fl.nest) == 0 {
+		for i := 0; i < st.NumFields(); i++ {
+			if st.Field(i).Name() == fl.name {
+				if n, _, _ := strings.Cut(reflect.StructTag(st.Tag(i)).Get("json"), ","); n != "" && n != "-" {
+					return n
+				}
+			}
+		}
+	}
+	return fl.name
+}
+
+// enumProblem checks a value given to a prop of an imported island's string
+// union type: a literal must be one of its values.
+func (e *engine) enumProblem(f *fileState, a *compArg, typ types.Type) string {
+	n, ok := types.Unalias(typ).(*types.Named)
+	if !ok || n.Obj().Pkg() != e.pkg || a.attr == nil {
+		return ""
+	}
+	var vals []string
+	for _, im := range e.islands {
+		if v, ok := im.enums[n.Obj().Name()]; ok {
+			vals = v
+		}
+	}
+	if vals == nil {
+		return ""
+	}
+	val, lit := "", false
+	switch a.attr.kind {
+	case 's':
+		val, lit = a.attr.val, true
+	case 'e':
+		x := e.attrExpr(f, a.attr)
+		if tv, ok := e.info.Types[x]; ok && tv.Value != nil && tv.Value.Kind() == constant.String {
+			if b, ok := tv.Type.(*types.Basic); ok && b.Info()&types.IsUntyped != 0 {
+				val, lit = constant.StringVal(tv.Value), true
+			}
+		}
+	}
+	if !lit {
+		return ""
+	}
+	for _, v := range vals {
+		if v == val {
+			return ""
+		}
+	}
+	quoted := make([]string, len(vals))
+	for i, v := range vals {
+		quoted[i] = strconv.Quote(v)
+	}
+	return "takes " + strings.Join(quoted, ", ") + ", not " + strconv.Quote(val)
+}
+
+// callbackProblem says why a value can't be a function prop of type want:
+// it takes a live view method (a func after an optional context.Context
+// taking nothing or one payload the function's first argument fits,
+// returning nothing or an error) or JS commands.
+func (e *engine) callbackProblem(tg *jsxTarget, want *types.Signature, got types.Type) string {
+	if obj, ok := e.targetObj(tg, "JSChain").(*types.TypeName); ok {
+		if iface, ok := obj.Type().Underlying().(*types.Interface); ok && types.Implements(got, iface) {
+			return ""
+		}
+	}
+	hs, ok := got.Underlying().(*types.Signature)
+	if !ok {
+		return "takes a function — a live view method or JS commands; this is " + e.display(got)
+	}
+	r := hs.Results()
+	if r.Len() > 1 || r.Len() == 1 && !types.Identical(r.At(0).Type(), errorType) {
+		return "takes a handler returning nothing or an error; this returns " + e.display(r.At(0).Type())
+	}
+	params := hs.Params()
+	i := 0
+	if params.Len() > 0 && isContext(params.At(0).Type()) {
+		i = 1
+	}
+	switch params.Len() - i {
+	case 0:
+		return ""
+	case 1:
+	default:
+		return "calls its handler with one payload, its first argument; this handler takes " + strconv.Itoa(params.Len()-i)
+	}
+	ht := params.At(i).Type()
+	if want.Params().Len() == 0 {
+		return "passes no argument; this handler takes " + e.display(ht)
+	}
+	at := want.Params().At(0).Type()
+	if want.Variadic() && want.Params().Len() == 1 {
+		at = at.(*types.Slice).Elem()
+	}
+	if types.AssignableTo(at, ht) || isAnyIface(at) || numeric(at) && numeric(ht) {
+		return ""
+	}
+	return "passes " + e.display(at) + " to its handler; this handler takes " + e.display(ht)
+}
+
+func isAnyIface(t types.Type) bool {
+	i, ok := t.Underlying().(*types.Interface)
+	return ok && i.Empty()
+}
+
+func numeric(t types.Type) bool {
+	b, ok := t.Underlying().(*types.Basic)
+	return ok && b.Info()&types.IsNumeric != 0
+}
+
+// nodeText is the source of an expression of this round's tree.
+func (e *engine) nodeText(f *fileState, x ast.Node) string { return f.nodeText(x) }

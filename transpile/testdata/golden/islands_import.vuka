@@ -1,0 +1,44 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	Picker "./islands/Picker.vue"
+	ui "vukatest.local/stateui"
+)
+
+type page struct{}
+
+func (p *page) Pick(ctx context.Context, day string) error { return nil }
+func (p *page) Closed()                                    {}
+
+// An imported island: its props come from Picker.vue — title (string),
+// kind ('day' | 'week', optional), max (optional number), days, open (a
+// model), onSelect/onClose (emits) and a default slot.
+func (p *page) render() ui.Node {
+	open := ui.State(false)
+	return <div>
+		<Picker
+			title="Week"
+			kind="week"
+			max={3}
+			days={[]PickerDays{{Label: "mon", Free: true}}}
+			open={open}
+			onSelect={p.Pick}
+			onClose={p.Closed}
+			client:load
+		>
+			<b>hi</b>
+		</Picker>
+		<Picker title="Again" days={nil} onClose={open.Set(false)} once />
+	</div>
+}
+
+func main() {
+	s, err := ui.String(context.Background(), (&page{}).render())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(s)
+}

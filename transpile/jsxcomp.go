@@ -35,18 +35,22 @@ type jsxComp struct {
 	targText   string   // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
 
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.MountIsland.
-	island       bool      // this comp is a <ui.Island> wrapper
-	islandSite   string    // a stable id for the island's placement (MountIsland's first arg → data-vk-s)
-	consumed     bool      // a tag a <ui.Island> absorbs (its <ui.Template>s and body): not resolved or emitted on its own
-	bodyTag      span      // the island body component's type-name span (kept in the direct form)
-	islandStrat  string    // the strategy constructor: Load/Idle/Visible/Media/ClientOnly/SSR; "" = none
-	strat        *jsxAttr  // the client:*/server:defer attribute, for its value
-	islandArgTyp []string  // closure-mode param type text, one per args entry
-	slotKids     []jsxNode // the body's children → ui.Slot (when any)
-	fallbackKids []jsxNode // the <ui.Template fallback>'s children → ui.Fallback (when present)
-	hasSlot      bool
-	hasFallback  bool
-	islandEmits  []islandEmit // on<Emit> handler attributes → ui.Emit(name, handler)
+	island                        bool      // this comp is a <ui.Island> wrapper
+	islandSite                    string    // a stable id for the island's placement (MountIsland's first arg → data-vk-s)
+	consumed                      bool      // a tag a <ui.Island> absorbs (its <ui.Template>s and body): not resolved or emitted on its own
+	bodyTag                       span      // the island body component's type-name span (kept in the direct form)
+	islandStrat                   string    // the strategy constructor: Load/Idle/Visible/Media/ClientOnly/SSR; "" = none
+	strat                         *jsxAttr  // the client:*/server:defer attribute, for its value
+	islandArgTyp                  []string  // closure-mode param type text, one per args entry
+	slotKids                      []jsxNode // the body's children → ui.Slot (when any)
+	fallbackKids                  []jsxNode // the <ui.Template fallback>'s children → ui.Fallback (when present)
+	hasSlot                       bool
+	hasFallback                   bool
+	islandEmits                   []islandEmit // on<Emit> handler attributes → ui.Emit(name, handler)
+	islandFuncs                   []islandProp // function props → ui.Callback(prop, fn)
+	islandStates                  []islandProp // state props → ui.StateProp(prop, state)
+	islandOnce                    bool         // once → ui.Once()
+	islandFuncTyp, islandStateTyp []string     // their closure-mode parameter types
 }
 
 // islandEmit is one on<Emit> binding on an island body tag: the emit name
@@ -75,6 +79,8 @@ type compArg struct {
 	name string   // the function literal's parameter, in the closure form
 	typ  types.Type
 	nest []nestStep // the embedded fields a promoted props field is in
+	wrap string     // a function the value is passed through: an island's ui.Ptr[T]
+	conv string     // a conversion of the value: an island's number prop takes any Go number
 }
 
 func (w *jsxWriter) comp(c *jsxComp) {
@@ -299,6 +305,12 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		return
 	}
 	obj := e.info.Uses[compIdent(expr)]
+	if tn, ok := obj.(*types.TypeName); ok && e.isIslandType(tn) {
+		if e.bindIsland(f, c, el, fail) {
+			e.finishIsland(f, c)
+		}
+		return
+	}
 	if tn, ok := obj.(*types.TypeName); ok {
 		e.resolveStateful(f, c, expr, tn, attrs, node, fail)
 		return

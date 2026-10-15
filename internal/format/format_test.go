@@ -197,7 +197,7 @@ func writeGoldenModule(t *testing.T, dir string) {
 func lower(t *testing.T, dir, name string, src []byte) []byte {
 	t.Helper()
 	res, err := transpile.Package([]transpile.File{{Name: name + ".vuka", Src: src}},
-		transpile.Options{Importer: load.NewImporter(goldenDir, "")})
+		transpile.Options{Importer: load.NewImporter(goldenDir, ""), Dir: goldenDir})
 	if err != nil {
 		t.Fatalf("transpile: %v\n%s", err, src)
 	}

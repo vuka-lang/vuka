@@ -174,6 +174,7 @@ type fileState struct {
 	autoImports    map[string]bool // packages imported for statics reached through other types
 	enums          []*enumDecl
 	enumGen        genWriter         // the enums' generated methods
+	islandGen      genWriter         // imported islands' props types
 	fieldGen       genWriter         // the field attributes' registrations
 	fieldsOn       bool              // field attributes are registered: from the first round on
 	scannedImports map[string]string // import path → name, for the enums' methods
@@ -293,10 +294,11 @@ func (f *fileState) makeTrailer(bare bool) {
 		w.gen("\n", a.end)
 	}
 	f.renderStatics()
-	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0 || f.fieldsOn) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0 || f.islandGen.len() > 0 || f.fieldsOn) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
 	w.append(&f.enumGen)
+	w.append(&f.islandGen)
 	w.append(&f.static)
 	f.renderFieldAttrs()
 	w.append(&f.fieldGen)
@@ -486,6 +488,7 @@ func Package(files []File, opts Options) (*Result, error) {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}
 	e.detectSelfTarget(files)
+	e.declaredIslands = declaredIslands(files)
 	for _, file := range files {
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
 			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
@@ -494,6 +497,7 @@ func Package(files []File, opts Options) (*Result, error) {
 		}
 		if f.vuka {
 			f.scan(&errs)
+			e.islandImports(f, &errs)
 			f.attrEdits()
 			f.makeTrailer(opts.Bare)
 			e.vuka = append(e.vuka, f)
@@ -521,7 +525,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares() || e.embedsDeclaring(f)})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

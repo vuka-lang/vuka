@@ -1,0 +1,8 @@
+package main
+
+import (
+	Bad "./islands/Bad.vue"
+	ui "vukatest.local/stateui"
+)
+
+func page() ui.Node { return <Bad ok="x" /> }

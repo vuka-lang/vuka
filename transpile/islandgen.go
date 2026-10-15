@@ -1,0 +1,502 @@
+package transpile
+
+import (
+	"fmt"
+	"go/token"
+	"os"
+	"path/filepath"
+	"regexp"
+	"strconv"
+	"strings"
+	"unicode"
+
+	"github.com/vuka-lang/vuka/internal/tsprops"
+)
+
+// Imported islands. A .vuka file may import a client component file:
+//
+//	import Counter "./islands/Counter.vue"
+//
+// The compiler reads the component's props from the file (tsprops: Vue's
+// defineProps/defineModel/defineEmits, a React component's props, Svelte's
+// $props(), a vanilla mount's) and generates the island's Go props type in
+// the file's trailer — a struct named Counter, the types its props need,
+// and its registration — so <Counter count={5}/> is type-checked like any
+// component's props. An @ui.Island struct of the same name, declared in the
+// package, wins: the import then only names it.
+//
+// The TypeScript → Go mapping (docs/web/islands.md):
+//
+//	string → string; number → float64; boolean → bool; Date → time.Time
+//	'a' | 'b' → a named string type, its values as constants (other literals are refused)
+//	T[], Array<T> → []T; Record<string, T>, {[k: string]: T} → map[string]T
+//	an object type or interface → a struct (json tags = the prop names)
+//	any, unknown → any
+//	(a: A) => void, a Vue emit → func(a A): takes a live view method or JS commands
+//	children, a default slot → Children ui.Node
+//	optional (?, a default) or nullable (| null, | undefined) → a pointer with
+//	omitempty (slices, maps, any and funcs are nil already): left out, the
+//	component's default applies; a value given on the tag is wrapped for it
+type islandImport struct {
+	name  string // the island's Go type name
+	path  string // as written
+	off   int    // the import string's offset
+	start int    // the import spec's (or single import declaration's) span
+	end   int
+	gen   bool // the compiler generates its type (no @ui.Island struct of the name)
+	comp  *tsprops.Component
+	enums map[string][]string // generated named string types → their values
+}
+
+var islandDecoRe = regexp.MustCompile(`@\w+\.Island\s*\([^)]*\)\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)`)
+
+// declaredIslands is the names of the package's @ui.Island types, from the
+// sources.
+func declaredIslands(files []File) map[string]bool {
+	out := map[string]bool{}
+	for _, f := range files {
+		for _, m := range islandDecoRe.FindAllSubmatch(f.Src, -1) {
+			out[string(m[1])] = true
+		}
+	}
+	return out
+}
+
+// islandImports finds a file's imports of component files, blanks them, and
+// generates each one's props type into the file's trailer.
+func (e *engine) islandImports(f *fileState, errs *ErrorList) {
+	toks := scanTokens(f.src)
+	if f.pkgEnd == 0 {
+		for k := 0; k+1 < len(toks); k++ {
+			if toks[k].tok == token.PACKAGE {
+				f.pkgEnd = toks[k+1].end()
+				break
+			}
+		}
+	}
+	for i := 0; i < len(toks); i++ {
+		switch toks[i].tok {
+		case token.FUNC, token.TYPE, token.VAR, token.CONST:
+			return
+		case token.IMPORT:
+		default:
+			continue
+		}
+		spec := func(j int, single bool) int {
+			nameTok := -1
+			if j < len(toks) && (toks[j].tok == token.IDENT || toks[j].tok == token.PERIOD) {
+				nameTok = j
+				j++
+			}
+			if j >= len(toks) || toks[j].tok != token.STRING {
+				return j
+			}
+			p, err := strconv.Unquote(toks[j].lit)
+			if err != nil || !tsprops.IsComponent(p) {
+				return j
+			}
+			start := toks[j].off
+			if nameTok >= 0 {
+				start = toks[nameTok].off
+			}
+			if single {
+				start = toks[i].off
+			}
+			end := toks[j].end()
+			f.add(start, end, "")
+			if nameTok < 0 || toks[nameTok].tok != token.IDENT || toks[nameTok].lit == "_" {
+				errs.add(f.at(toks[j].off), "an island import names its component: import Counter %s", toks[j].lit)
+				return j
+			}
+			e.islandImport(f, toks, &islandImport{name: toks[nameTok].lit, path: p, off: toks[j].off, start: start, end: end}, errs)
+			return j
+		}
+		i++
+		if i < len(toks) && toks[i].tok == token.LPAREN {
+			for i++; i < len(toks) && toks[i].tok != token.RPAREN; i++ {
+				if toks[i].tok != token.SEMICOLON && toks[i].tok != token.COMMENT {
+					i = spec(i, false)
+				}
+			}
+		} else {
+			i = spec(i, true)
+		}
+	}
+}
+
+// islandImport reads one imported component and generates its type.
+func (e *engine) islandImport(f *fileState, toks []tok, im *islandImport, errs *ErrorList) {
+	if e.islands == nil {
+		e.islands = map[string]*islandImport{}
+	}
+	if prev := e.islands[im.name]; prev != nil {
+		if prev.path != im.path {
+			errs.add(f.at(im.off), "island %s is imported from %s and from %s", im.name, prev.path, im.path)
+		}
+		return
+	}
+	e.islands[im.name] = im
+	im.gen = !e.declaredIslands[im.name]
+	if !im.gen {
+		return // the @ui.Island struct is the contract
+	}
+	if e.dir == "" {
+		errs.add(f.at(im.off), "can't read %s: the package's directory is unknown", im.path)
+		return
+	}
+	file := filepath.Join(e.dir, filepath.FromSlash(im.path))
+	src, err := readFileFn(file)
+	if err != nil {
+		errs.add(f.at(im.off), "can't read island component %s: %v", im.path, err)
+		return
+	}
+	comp, err := tsprops.Read(filepath.ToSlash(file), src, func(p string) ([]byte, error) { return readFileFn(filepath.FromSlash(p)) })
+	if err != nil {
+		errs.add(f.at(im.off), "%s:%s; or declare the island's props with an @ui.Island struct", im.path, strings.TrimPrefix(":"+err.Error(), ":"))
+		return
+	}
+	im.comp = comp
+	tg := f.jsxTarget(toks, im.off, errs)
+	if tg == nil || tg.q == "__jsx." {
+		return
+	}
+	if !tg.has("RegisterIsland") {
+		errs.add(f.at(im.off), "%s has no RegisterIsland: update it to import island components", tg.path)
+		return
+	}
+	g := &islandGen{island: im.name, q: tg.q, names: map[string]bool{im.name: true}, enums: map[string][]string{}, file: im.path}
+	text, msgs := g.decls(comp)
+	for _, m := range msgs {
+		errs.add(f.at(im.off), "%s; declare the island's props with an @ui.Island struct", m)
+	}
+	if len(msgs) > 0 {
+		return
+	}
+	im.enums = g.enums
+	if g.time {
+		text = strings.ReplaceAll(text, "\x00time.", f.importAs("time", "__vktime")+".")
+	}
+	var w genWriter
+	w.gen("\n", im.off)
+	if !f.bare {
+		p := f.at(im.start)
+		w.gen(lineDirective(p), im.off)
+	}
+	w.gen(text, im.off)
+	w.gen("\nfunc init() { "+tg.q+"RegisterIsland["+im.name+"]("+strconv.Quote(im.path)+") }\n", im.off)
+	f.islandGen.append(&w)
+}
+
+// readFileFn reads a component file; tests may replace it.
+var readFileFn = readFile
+
+// islandGen writes the Go of an imported island's props.
+type islandGen struct {
+	island string
+	q      string
+	file   string
+	names  map[string]bool     // Go type names taken
+	byTS   map[string]string   // TS named types → their Go names
+	enums  map[string][]string // named string types → values
+	out    strings.Builder
+	errs   []string
+	time   bool
+}
+
+// decls is the Go of the island's props: its struct, then the types it uses.
+func (g *islandGen) decls(c *tsprops.Component) (string, []string) {
+	g.byTS = map[string]string{}
+	var b strings.Builder
+	b.WriteString("type " + g.island + " struct {\n")
+	seen := map[string]string{}
+	for _, p := range c.Props {
+		gn := goField(p.Name)
+		if gn == "" {
+			g.errf(p.Line, "prop %s has no Go name", p.Name)
+			continue
+		}
+		if other, dup := seen[gn]; dup {
+			g.errf(p.Line, "props %s and %s are both %s in Go", other, p.Name, gn)
+			continue
+		}
+		seen[gn] = p.Name
+		typ, ok := g.goType(p.Type, g.island+gn, p.Line, p.Name, true)
+		if !ok {
+			continue
+		}
+		optional := p.Optional || nullable(p.Type)
+		if optional {
+			typ = pointerFor(typ)
+		}
+		tag := p.Name
+		if optional {
+			tag += ",omitempty"
+		}
+		fmt.Fprintf(&b, "\t%s %s `json:%s`\n", gn, typ, strconv.Quote(tag))
+	}
+	if c.Children {
+		if _, dup := seen["Children"]; !dup {
+			b.WriteString("\tChildren " + g.q + "Node\n")
+		}
+	}
+	b.WriteString("}\n")
+	b.WriteString(g.out.String())
+	return b.String(), g.errs
+}
+
+func (g *islandGen) errf(line int, format string, args ...any) {
+	g.errs = append(g.errs, fmt.Sprintf("%s:%d: %s", g.file, line, fmt.Sprintf(format, args...)))
+}
+
+// nullable reports whether a union admits null or undefined.
+func nullable(t *tsprops.Type) bool {
+	if t.Kind != tsprops.Union {
+		return false
+	}
+	for _, u := range t.Union {
+		if u.Kind == tsprops.Null || u.Kind == tsprops.Undefined {
+			return true
+		}
+	}
+	return false
+}
+
+// pointerFor is the type an optional prop takes: a pointer, unless the
+// type is nil already.
+func pointerFor(t string) string {
+	if strings.HasPrefix(t, "[]") || strings.HasPrefix(t, "map[") || strings.HasPrefix(t, "func(") || t == "any" || strings.HasPrefix(t, "*") {
+		return t
+	}
+	return "*" + t
+}
+
+// goType maps a TypeScript type to Go. hint names an anonymous object or
+// union's type; top is a prop's own type (where a function may be).
+func (g *islandGen) goType(t *tsprops.Type, hint string, line int, prop string, top bool) (string, bool) {
+	unsupported := func(what string) (string, bool) {
+		g.errf(line, "prop %s: %s has no Go type", prop, what)
+		return "", false
+	}
+	switch t.Kind {
+	case tsprops.String:
+		return "string", true
+	case tsprops.Number:
+		return "float64", true
+	case tsprops.Boolean, tsprops.BoolLit:
+		return "bool", true
+	case tsprops.Date:
+		g.time = true
+		return "\x00time.Time", true
+	case tsprops.Any:
+		return "any", true
+	case tsprops.NumLit:
+		return "float64", true
+	case tsprops.StrLit:
+		return g.enum(&tsprops.Type{Kind: tsprops.Union, Union: []*tsprops.Type{t}}, hint)
+	case tsprops.Array:
+		el, ok := g.goType(t.Elem, hint, line, prop, false)
+		if !ok {
+			return "", false
+		}
+		return "[]" + el, true
+	case tsprops.Record:
+		el, ok := g.goType(t.Elem, hint, line, prop, false)
+		if !ok {
+			return "", false
+		}
+		return "map[string]" + el, true
+	case tsprops.Object:
+		return g.object(t, hint, line, prop)
+	case tsprops.Union:
+		var rest []*tsprops.Type
+		for _, u := range t.Union {
+			if u.Kind != tsprops.Null && u.Kind != tsprops.Undefined {
+				rest = append(rest, u)
+			}
+		}
+		switch {
+		case len(rest) == 0:
+			return "any", true
+		case len(rest) == 1:
+			if t.Name != "" && rest[0].Kind == tsprops.StrLit {
+				rest[0] = &tsprops.Type{Kind: tsprops.Union, Union: rest, Name: t.Name}
+			}
+			return g.goType(rest[0], hint, line, prop, top)
+		}
+		all := func(k ...tsprops.Kind) bool {
+			for _, u := range rest {
+				if !kindIn(u.Kind, k) {
+					return false
+				}
+			}
+			return true
+		}
+		switch {
+		case all(tsprops.StrLit):
+			return g.enum(&tsprops.Type{Kind: tsprops.Union, Union: rest, Name: t.Name}, hint)
+		case all(tsprops.StrLit, tsprops.String):
+			return "string", true
+		case all(tsprops.NumLit, tsprops.Number):
+			return "float64", true
+		case all(tsprops.BoolLit, tsprops.Boolean):
+			return "bool", true
+		}
+		return unsupported("the union " + t.String())
+	case tsprops.Func:
+		if !top {
+			return unsupported("the function type " + t.String() + " (a function is a prop of its own, not inside another type)")
+		}
+		var ps []string
+		for _, p := range t.Params {
+			pt, ok := g.goType(p.Type, hint+goField(p.Name), line, prop, false)
+			if !ok {
+				return "", false
+			}
+			if p.Rest {
+				pt = "..." + pt
+			}
+			ps = append(ps, goParam(p.Name)+" "+pt)
+		}
+		return "func(" + strings.Join(ps, ", ") + ")", true
+	case tsprops.Node:
+		return unsupported(t.String() + " (only the children prop is a slot)")
+	case tsprops.Tuple:
+		return unsupported("the tuple " + t.String())
+	}
+	return unsupported(t.String())
+}
+
+func kindIn(k tsprops.Kind, ks []tsprops.Kind) bool {
+	for _, x := range ks {
+		if k == x {
+			return true
+		}
+	}
+	return false
+}
+
+// name is a free Go type name: the TS name prefixed by the island's, else
+// the hint.
+func (g *islandGen) name(ts, hint string) string {
+	n := hint
+	if ts != "" {
+		n = ts
+		if !strings.HasPrefix(ts, g.island) {
+			n = g.island + goField(ts)
+		}
+	}
+	base := n
+	for i := 2; g.names[n]; i++ {
+		n = base + strconv.Itoa(i)
+	}
+	g.names[n] = true
+	return n
+}
+
+func (g *islandGen) object(t *tsprops.Type, hint string, line int, prop string) (string, bool) {
+	if t.Name != "" {
+		if n, ok := g.byTS[t.Name]; ok {
+			return n, true
+		}
+	}
+	n := g.name(t.Name, hint)
+	if t.Name != "" {
+		g.byTS[t.Name] = n
+	}
+	var b strings.Builder
+	b.WriteString("\ntype " + n + " struct {\n")
+	seen := map[string]bool{}
+	for _, f := range t.Fields {
+		if f.Name == "[index]" || f.Name == "(call)" {
+			g.errf(line, "prop %s: %s mixes named members with an index or call signature", prop, t.String())
+			return "", false
+		}
+		gn := goField(f.Name)
+		if gn == "" || seen[gn] {
+			g.errf(line, "prop %s: member %s of %s has no Go name of its own", prop, f.Name, t.String())
+			return "", false
+		}
+		seen[gn] = true
+		ft, ok := g.goType(f.Type, n+gn, line, prop, false)
+		if !ok {
+			return "", false
+		}
+		tag := f.Name
+		if f.Optional || nullable(f.Type) {
+			ft = pointerFor(ft)
+			tag += ",omitempty"
+		}
+		fmt.Fprintf(&b, "\t%s %s `json:%s`\n", gn, ft, strconv.Quote(tag))
+	}
+	b.WriteString("}\n")
+	g.out.WriteString(b.String())
+	return n, true
+}
+
+// enum writes a union of string literals as a named string type with a
+// constant per value.
+func (g *islandGen) enum(t *tsprops.Type, hint string) (string, bool) {
+	if t.Name != "" {
+		if n, ok := g.byTS[t.Name]; ok {
+			return n, true
+		}
+	}
+	n := g.name(t.Name, hint)
+	if t.Name != "" {
+		g.byTS[t.Name] = n
+	}
+	var vals []string
+	g.out.WriteString("\ntype " + n + " string\n\nconst (\n")
+	used := map[string]bool{}
+	for _, u := range t.Union {
+		c := n + goField(u.Lit)
+		if goField(u.Lit) == "" || used[c] {
+			c = n + "_" + strconv.Itoa(len(vals))
+		}
+		used[c] = true
+		vals = append(vals, u.Lit)
+		fmt.Fprintf(&g.out, "\t%s %s = %s\n", c, n, strconv.Quote(u.Lit))
+	}
+	g.out.WriteString(")\n")
+	g.enums[n] = vals
+	return n, true
+}
+
+// goField is a prop or member name as an exported Go identifier: onSelect →
+// OnSelect, aria-label → AriaLabel, 2x → X2x.
+func goField(name string) string {
+	var b strings.Builder
+	up := true
+	for _, r := range name {
+		if !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' {
+			up = true
+			continue
+		}
+		if up {
+			b.WriteRune(unicode.ToUpper(r))
+			up = false
+			continue
+		}
+		b.WriteRune(r)
+	}
+	s := b.String()
+	if s != "" && unicode.IsDigit(rune(s[0])) {
+		s = "X" + s
+	}
+	return s
+}
+
+// goParam is a parameter name as a Go identifier.
+func goParam(name string) string {
+	s := goField(name)
+	if s == "" {
+		return "_"
+	}
+	s = strings.ToLower(s[:1]) + s[1:]
+	if token.IsKeyword(s) {
+		s += "_"
+	}
+	return s
+}
+
+func readFile(p string) ([]byte, error) { return os.ReadFile(p) }
