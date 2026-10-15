@@ -94,6 +94,26 @@ set the field too.
 Each expression reads a fixed set of states, which the compiler records; the
 browser evaluates it again when one of them changes, and only then.
 
+### Writes and values built from states
+
+Not every expression mentioning a state reads it. A command (`open.Toggle()`,
+`OpenDialog(s)`), a node (`p.menu(upload)`), an attribute list — any call or
+composite literal whose value isn't a scalar — hands the states to Go code
+as they are, in a component's prop as anywhere else:
+
+```vuka
+<components.Button onClick={open.Toggle()}>Menu</components.Button>
+<components.Button onClick={components.OpenDialog(upload)}>Upload</components.Button>
+{p.menu(upload)}
+
+func (p *Page) menu(open ui.State[bool]) ui.Node {
+	return <ul hidden={!open}>…</ul>
+}
+```
+
+Only an expression whose value is computed from states — a bool, a number,
+a string — is a read the browser evaluates.
+
 ### Derived
 
 `ui.Derived(expr)` names an expression for reuse, read wherever a state is:
@@ -136,7 +156,22 @@ func Count(kind ui.State[string]) ui.Node {
 ```
 
 An expression of states passed to a `ui.State` prop is passed as a derived
-state; one passed to a prop of another type is an error (pass `.Get()`).
+state, and to a prop of type `any` as a binding; one passed to a prop of
+another type is an error (pass `.Get()`).
+
+### In an attribute list
+
+A component taking `[]ui.Attr` gets a bound attribute from `ui.BindAttr`:
+rendered with the state's value, kept up to date by the browser, `aria-*`
+bools as `"true"`/`"false"` as in JSX. An expression goes through
+`ui.Derived`:
+
+```vuka
+<components.Button attrs={[]ui.Attr{
+	ui.BindAttr("aria-expanded", open),
+	ui.BindAttr("data-busy", ui.Derived(saving && !failed)),
+}}>Save</components.Button>
+```
 
 ## Showing and hiding
 
@@ -154,10 +189,12 @@ their transitions or animations end. With Tailwind's data variants:
 </ui.Show>
 ```
 
-The children are inside a `<vk-show>` element (`display: contents`). Users
-asking for reduced motion get no wait. A child with the `popover` attribute
-is shown with `showPopover()` instead, in the browser's top layer, with the
-same phases:
+The children are inside a `<vk-show>` element (`display: contents`). Children
+with no transition or animation are hidden at once, in the same update, so
+two `<ui.Show>`s swapped by one state never show together; users asking for
+reduced motion get no wait. A child with the `popover` attribute is shown
+with `showPopover()` instead, in the browser's top layer, with the same
+phases:
 
 ```vuka
 tip := ui.State(false)
@@ -166,6 +203,12 @@ tip := ui.State(false)
 	<div popover="manual" class="transition data-closed:opacity-0">A tip</div>
 </ui.Show>
 ```
+
+An `auto` popover is one the browser closes too — on Escape, or a click
+outside it. The state follows: `when={tip}` is set to false, `when={!hidden}`
+to true, so the next click on the trigger opens it again, and a click on the
+trigger while it is open closes it. A `when` that is a derived expression
+can't be written back; give such a popover `popover="manual"`.
 
 ## With a live session
 
