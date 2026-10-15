@@ -12,6 +12,8 @@ import (
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/vuka-lang/vuka/cmd/vuka/internal/progress"
 )
 
 // Frontends for apps on github.com/vuka-lang/web (web.Frontend): a Vite
@@ -95,6 +97,25 @@ func installCommand(dir string) []string {
 	return []string{name, "install", "--frozen-lockfile"}
 }
 
+// task is a long, quiet step shown on w as it goes (see package progress):
+// a spinner when w is a terminal, a heartbeat line elsewhere.
+func task(w io.Writer, label, done, failed, still string) progress.Task {
+	tty := false
+	if f, ok := w.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
+		tty = true
+	}
+	return progress.Task{W: w, TTY: tty, Color: tty && os.Getenv("NO_COLOR") == "",
+		Label: label, Done: done, Failed: failed, Still: still}
+}
+
+// installTask is a package install (cmd) in dir; the tool's output shows
+// only when it fails.
+func installTask(w io.Writer, dir string, cmd []string) progress.Task {
+	where := filepath.ToSlash(dir) + "/"
+	return task(w, "installing "+cmd[0]+" packages in "+where, cmd[0]+" packages installed in "+where,
+		strings.Join(cmd, " ")+" failed", "still installing")
+}
+
 func viteBinary(dir string) string {
 	return filepath.Join(dir, "node_modules", ".bin", "vite")
 }
@@ -107,14 +128,9 @@ func prepareFrontend(root, dir string, stderr io.Writer) error {
 		if _, err := exec.LookPath(cmd[0]); err != nil {
 			return fmt.Errorf("frontend: %s isn't installed: the frontend in %s needs Node.js 20+ and its package manager (or %s=off to leave it alone)", cmd[0], rel(root, dir), feEnv)
 		}
-		fmt.Fprintf(stderr, "vuka: installing the frontend's dependencies (%s in %s)\n", strings.Join(cmd, " "), rel(root, dir))
 		c := exec.Command(cmd[0], cmd[1:]...)
 		c.Dir = dir
-		w := &prefixed{w: stderr, prefix: "vite: "}
-		c.Stdout, c.Stderr = w, w
-		err := c.Run()
-		w.flush()
-		if err != nil {
+		if err := installTask(stderr, rel(root, dir), cmd).Run(c); err != nil {
 			return fmt.Errorf("frontend: %s: %v", strings.Join(cmd, " "), err)
 		}
 		if !fileExists(viteBinary(dir)) {

@@ -170,8 +170,10 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		return nil, nil, nil, fmt.Errorf("vite islands: %w", err)
 	}
 
-	fmt.Fprintf(warn, "vuka: building %d framework island(s) with Vite in %s\n", len(islands), rel(root, frontendRoot))
-	var stdout bytes.Buffer
+	where := filepath.ToSlash(rel(root, frontendRoot)) + "/"
+	step := task(warn, fmt.Sprintf("building %d framework island(s) with Vite in %s", len(islands), where),
+		fmt.Sprintf("%d island(s) built with Vite in %s", len(islands), where), "vite build failed", "still building").Start()
+	var stdout, stderr bytes.Buffer
 	c := exec.Command(viteBinary(frontendRoot), "build", "--logLevel", "warn")
 	c.Dir = frontendRoot
 	env := append(os.Environ(), "VUKA_ISLAND_BUILD="+specPath)
@@ -181,10 +183,18 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		env = append(env, "NODE_ENV=production")
 	}
 	c.Env = env
-	w := &prefixed{w: warn, prefix: "vite: "}
-	c.Stdout, c.Stderr = &stdout, w
+	c.Stdout, c.Stderr = &stdout, &stderr
 	err = c.Run()
-	w.flush()
+	var tail []string
+	if err != nil {
+		tail = lastLines(stderr.String(), 30)
+	}
+	step.End(err, tail)
+	if err == nil && stderr.Len() > 0 {
+		w := &prefixed{w: warn, prefix: "vite: "}
+		w.Write(stderr.Bytes())
+		w.flush()
+	}
 	if err != nil {
 		names := make([]string, 0, len(islands))
 		for _, ic := range islands {
@@ -256,4 +266,18 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		entries[ic.name] = &manifestIsland{Name: ic.name, Module: chunk, Adapter: adapterChunk[ic.framework], Framework: ic.framework}
 	}
 	return bundles, entries, cssNames, nil
+}
+
+// lastLines is s's last n non-blank lines.
+func lastLines(s string, n int) []string {
+	var out []string
+	for _, l := range strings.Split(s, "\n") {
+		if strings.TrimSpace(l) != "" {
+			out = append(out, strings.TrimRight(l, " \r"))
+		}
+	}
+	if len(out) > n {
+		out = out[len(out)-n:]
+	}
+	return out
 }

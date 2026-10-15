@@ -207,7 +207,7 @@ func (s *scaffold) create(stdout io.Writer) error {
 	for _, k := range kept {
 		fmt.Fprintf(stdout, "kept your %s (the scaffold has its own)\n", k)
 	}
-	if err := tidy(s.Dir); err != nil {
+	if err := tidy(s.Dir, stdout); err != nil {
 		fmt.Fprintf(stdout, "warning: couldn't fetch the dependencies yet (%v); run vuka mod tidy when online\n", err)
 	}
 	return nil
@@ -502,16 +502,20 @@ func writeFiles(dir string, files map[string][]byte) (kept []string, err error) 
 
 // tidy runs vuka mod tidy in dir: go.sum, and the requirements the code
 // imports.
-func tidy(dir string) error {
+func tidy(dir string, w io.Writer) error {
 	self, err := os.Executable()
 	if err != nil {
 		return err
 	}
 	c := exec.Command(self, "mod", "tidy")
 	c.Dir = dir
-	out, err := c.CombinedOutput()
+	var out bytes.Buffer
+	c.Stdout, c.Stderr = &out, &out
+	step := task(w, "fetching the app's Go modules", "Go modules ready", "vuka mod tidy failed", "still fetching").Start()
+	err = c.Run()
+	step.End(err, nil)
 	if err != nil {
-		return fmt.Errorf("%v: %s", err, strings.TrimSpace(string(out)))
+		return fmt.Errorf("%v: %s", err, strings.TrimSpace(out.String()))
 	}
 	return nil
 }

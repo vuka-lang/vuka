@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"sync"
@@ -136,5 +137,45 @@ func TestTailwindSkipsFrontends(t *testing.T) {
 		"frontend/package.json": "{}", "frontend/index.html": "<div></div>"})
 	if tw, err := tailwindFor(root); tw != nil || err != nil {
 		t.Errorf("a frontend's index.html made the app use Tailwind: %v %v", tw, err)
+	}
+}
+
+// fakeNPM puts an npm on PATH that prints a lot and, unless it fails,
+// installs a fake vite.
+func fakeNPM(t *testing.T, fail bool) {
+	bin := t.TempDir()
+	script := "#!/bin/sh\nfor i in 1 2 3 4 5 6 7 8; do echo \"npm noise $i\"; done\n"
+	if fail {
+		script += "echo 'npm error E404 not found' >&2\nexit 1\n"
+	} else {
+		script += "mkdir -p node_modules/.bin && printf '#!/bin/sh\\n' > node_modules/.bin/vite && chmod +x node_modules/.bin/vite\n"
+	}
+	writeFile(t, filepath.Join(bin, "npm"), script)
+	os.Chmod(filepath.Join(bin, "npm"), 0o755)
+	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
+}
+
+func TestPrepareFrontendInstallProgress(t *testing.T) {
+	root := tempModule(t, map[string]string{"go.mod": "module x\n", "web/package.json": "{}"})
+	dir := filepath.Join(root, "web")
+	fakeNPM(t, false)
+	var out bytes.Buffer
+	if err := prepareFrontend(root, dir, &out); err != nil {
+		t.Fatal(err)
+	}
+	if !regexp.MustCompile(`^installing npm packages in web/ …\n✓ npm packages installed in web/ \(\d+s\)\n$`).MatchString(out.String()) {
+		t.Errorf("output: %q", out.String())
+	}
+
+	os.RemoveAll(filepath.Join(dir, "node_modules"))
+	fakeNPM(t, true)
+	out.Reset()
+	err := prepareFrontend(root, dir, &out)
+	if err == nil {
+		t.Fatal("no error")
+	}
+	got := out.String()
+	if !strings.Contains(got, "✗ npm install failed (exit 1)\n") || !strings.HasSuffix(got, "  npm noise 8\n  npm error E404 not found\n") {
+		t.Errorf("output: %q", got)
 	}
 }
