@@ -2,6 +2,8 @@ package transpile
 
 import (
 	"bytes"
+	"encoding/binary"
+	"errors"
 	"go/token"
 	"sort"
 	"strconv"
@@ -168,6 +170,74 @@ type SourceMap struct {
 type spelling struct {
 	gen, src string
 	line     int
+}
+
+// GobEncode writes the map for a cache of generated files.
+func (m *SourceMap) GobEncode() ([]byte, error) {
+	var buf bytes.Buffer
+	w := func(vs ...int) {
+		for _, v := range vs {
+			buf.Write(binary.AppendVarint(nil, int64(v)))
+		}
+	}
+	str := func(s string) { w(len(s)); buf.WriteString(s) }
+	w(len(m.segs))
+	for _, sg := range m.segs {
+		c := 0
+		if sg.copy {
+			c = 1
+		}
+		w(sg.gen, sg.src, sg.genLen, sg.srcLen, c)
+	}
+	w(len(m.spellings))
+	for _, sp := range m.spellings {
+		str(sp.gen)
+		str(sp.src)
+		w(sp.line)
+	}
+	return buf.Bytes(), nil
+}
+
+// GobDecode reads a map GobEncode wrote.
+func (m *SourceMap) GobDecode(data []byte) error {
+	r := bytes.NewReader(data)
+	var err error
+	n := func() int {
+		v, e := binary.ReadVarint(r)
+		if e != nil && err == nil {
+			err = e
+		}
+		return int(v)
+	}
+	str := func() string {
+		l := n()
+		if err != nil || l < 0 || l > r.Len() {
+			if err == nil {
+				err = errors.New("transpile: a bad source map")
+			}
+			return ""
+		}
+		b := make([]byte, l)
+		r.Read(b)
+		return string(b)
+	}
+	segs := n()
+	if err != nil || segs < 0 || segs > len(data) {
+		return errors.New("transpile: a bad source map")
+	}
+	m.segs = make([]segment, segs)
+	for i := range m.segs {
+		m.segs[i] = segment{gen: n(), src: n(), genLen: n(), srcLen: n(), copy: n() == 1}
+	}
+	sps := n()
+	if err != nil || sps < 0 || sps > len(data) {
+		return errors.New("transpile: a bad source map")
+	}
+	m.spellings = make([]spelling, sps)
+	for i := range m.spellings {
+		m.spellings[i] = spelling{gen: str(), src: str(), line: n()}
+	}
+	return err
 }
 
 // Message rewrites a compiler message about line of the source so that the

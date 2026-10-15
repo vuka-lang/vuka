@@ -65,6 +65,9 @@ type Session struct {
 	failed  error                  // why the session gave up on this run; nil when it didn't
 	walking map[string]bool        // packages being checked, for cycles
 	ran     runStats
+
+	cacheBase string // the disk cache's directory (UseCache); "" for none
+	pruned    bool
 }
 
 // runStats counts what a run did, for tests.
@@ -78,6 +81,12 @@ type checkedPkg struct {
 	key string // its files' names and contents, and its module imports' keys
 	pkg *types.Package
 	api string // its API, and its module imports' APIs
+
+	// What type-checking it needs, when its API came from the disk cache
+	// and pkg is made only once something imports it.
+	path, dir string
+	names     []string
+	srcs      [][]byte
 }
 
 // pkgOut is what a run generated for a package.
@@ -122,6 +131,7 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 		s.reset()
 	}
 	defer s.imp.cache.save()
+	s.pruneCache()
 	s.gen, s.now, s.broken, s.failed, s.walking = map[string][]byte{}, map[string]*checkedPkg{}, map[string]bool{}, nil, map[string]bool{}
 	s.ran = runStats{}
 	gens, overlay, err := transpileRun(pkgs, tmp, opts, s)
@@ -207,6 +217,9 @@ func (s *Session) ImportFrom(path, dir string, mode types.ImportMode) (*types.Pa
 	}
 	if s.inModule(path) {
 		c, err := s.check(path)
+		if err == nil {
+			err = s.typeCheck(c)
+		}
 		if err != nil {
 			s.fail(err)
 			return nil, err
@@ -267,11 +280,37 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		s.now[path] = c
 		return c, nil
 	}
+	c := &checkedPkg{key: key, path: path, dir: dir, names: bp.GoFiles, srcs: srcs}
+	if api := s.loadAPI(path, key); api != "" {
+		c.api = api // its pkg once something imports it
+		s.checked[path], s.now[path] = c, c
+		return c, nil
+	}
+	if err := s.typeCheck(c); err != nil {
+		return nil, err
+	}
+	api := sha256.New()
+	writeAPI(api, c.pkg)
+	for _, c := range imports {
+		api.Write([]byte(c.api))
+	}
+	c.api = hex.EncodeToString(api.Sum(nil))
+	s.saveAPI(path, key, c.api)
+	s.checked[path], s.now[path] = c, c
+	return c, nil
+}
+
+// typeCheck makes c's package from its files, when it hasn't been.
+func (s *Session) typeCheck(c *checkedPkg) error {
+	if c.pkg != nil {
+		return nil
+	}
 	fset := token.NewFileSet()
-	files := make([]*ast.File, len(srcs))
-	for i, src := range srcs {
-		if files[i], err = parser.ParseFile(fset, filepath.Join(dir, bp.GoFiles[i]), src, parser.SkipObjectResolution); err != nil {
-			return nil, err
+	files := make([]*ast.File, len(c.srcs))
+	for i, src := range c.srcs {
+		var err error
+		if files[i], err = parser.ParseFile(fset, filepath.Join(c.dir, c.names[i]), src, parser.SkipObjectResolution); err != nil {
+			return err
 		}
 	}
 	var typeErr error
@@ -281,18 +320,12 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		}
 	}}
 	s.ran.checked++
-	pkg, _ := conf.Check(path, fset, files, nil)
+	pkg, _ := conf.Check(c.path, fset, files, nil)
 	if typeErr != nil {
-		return nil, fmt.Errorf("%s doesn't compile: %w", path, typeErr)
+		return fmt.Errorf("%s doesn't compile: %w", c.path, typeErr)
 	}
-	api := sha256.New()
-	writeAPI(api, pkg)
-	for _, c := range imports {
-		api.Write([]byte(c.api))
-	}
-	c := &checkedPkg{key: key, pkg: pkg, api: hex.EncodeToString(api.Sum(nil))}
-	s.checked[path], s.now[path] = c, c
-	return c, nil
+	c.pkg = pkg
+	return nil
 }
 
 // read reads a file as the overlay has it.
@@ -409,6 +442,12 @@ func writeFile(h hash.Hash, name string, src []byte) {
 // are as they were then.
 func (s *Session) reuse(p *Package, key string) ([]Generated, bool) {
 	o := s.outs[p.ImportPath]
+	if o == nil || o.key != key {
+		if d := s.loadOut(p.ImportPath); d != nil {
+			o = d
+			s.outs[p.ImportPath] = d
+		}
+	}
 	if o == nil || o.key != key || o.stats != fileStats(o.gens) {
 		return nil, false
 	}
@@ -418,7 +457,9 @@ func (s *Session) reuse(p *Package, key string) ([]Generated, bool) {
 
 func (s *Session) store(p *Package, key string, gens []Generated) {
 	s.ran.transpiled++
-	s.outs[p.ImportPath] = &pkgOut{key: key, gens: slices.Clone(gens), stats: fileStats(gens)}
+	o := &pkgOut{key: key, gens: slices.Clone(gens), stats: fileStats(gens)}
+	s.outs[p.ImportPath] = o
+	s.saveOut(p.ImportPath, o)
 }
 
 // fileStats says whether each file the vuka.File literals of gens name

@@ -255,3 +255,115 @@ func TestSession(t *testing.T) {
 		t.Errorf("after go.mod changed: %+v", s.ran)
 	}
 }
+
+// TestSessionDiskCache: a new session (a new vuka command) reads what an
+// earlier one cached: nothing unchanged is transpiled or type-checked again;
+// a change reaches the packages it should and no others; another compiler
+// reads nothing; a removed file is gone from the output.
+func TestSessionDiskCache(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := sessionModule(t)
+	cache := t.TempDir()
+	fresh := func() *Session {
+		s, err := NewSession(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		s.UseCache(cache)
+		return s
+	}
+	defer func(v string) { CompilerVersion = v }(CompilerVersion)
+	CompilerVersion = "test 1"
+
+	s := fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 2 {
+		t.Fatalf("first run: %+v", s.ran)
+	}
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.fellBack || s.ran.transpiled != 0 || s.ran.reused != 2 || s.ran.checked != 0 {
+		t.Errorf("a new session, nothing changed: %+v", s.ran)
+	}
+
+	// A body: lib again, main (its API is the same) not.
+	edit(t, filepath.Join(root, "lib", "lib.vuka"), "func helper() int { return 1 }", "func helper() int { return 2 }")
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 1 || s.ran.reused != 1 {
+		t.Errorf("lib's body: %+v", s.ran)
+	}
+	// A type main uses: both.
+	edit(t, filepath.Join(root, "lib", "lib.vuka"), "func Count() (int, error) { return dep.N(), nil }", "func Count() (int64, error) { return int64(dep.N()), nil }")
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 2 {
+		t.Errorf("lib's API: %+v", s.ran)
+	}
+	// A Go package main imports: main again.
+	edit(t, filepath.Join(root, "plain", "plain.go"), "const K = 2", "const K = 3")
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 1 || s.ran.reused != 1 {
+		t.Errorf("plain's constant: %+v", s.ran)
+	}
+
+	// Another compiler: everything.
+	CompilerVersion = "test 2"
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 2 || s.ran.reused != 0 {
+		t.Errorf("another compiler: %+v", s.ran)
+	}
+
+	// A file added, then removed (lib's API changes: main is transpiled too).
+	write(t, filepath.Join(root, "lib", "more.vuka"), "package lib\n\nfunc More() int { return 3 }\n")
+	s = fresh()
+	gens := sessionGens(t, s, root)
+	if !hasTarget(gens, "more_vuka.go") || s.ran.transpiled != 2 {
+		t.Errorf("a file added: %+v", s.ran)
+	}
+	os.Remove(filepath.Join(root, "lib", "more.vuka"))
+	s = fresh()
+	gens = sessionGens(t, s, root)
+	if hasTarget(gens, "more_vuka.go") || s.ran.transpiled != 2 {
+		t.Errorf("a file removed: %+v", s.ran)
+	}
+
+	// A broken cache entry is a miss.
+	filepath.Walk(cache, func(p string, fi os.FileInfo, err error) error {
+		if err == nil && !fi.IsDir() {
+			os.WriteFile(p, []byte("junk"), 0o644)
+		}
+		return nil
+	})
+	s = fresh()
+	sessionRun(t, s, root)
+	if s.ran.transpiled != 2 {
+		t.Errorf("a broken cache: %+v", s.ran)
+	}
+}
+
+func sessionGens(t *testing.T, s *Session, root string) []Generated {
+	t.Helper()
+	pkgs, err := Discover(root, "example.com/app", root, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	gens, _, err := s.Transpile(pkgs, t.TempDir(), Options{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	return gens
+}
+
+func hasTarget(gens []Generated, base string) bool {
+	for _, g := range gens {
+		if filepath.Base(g.Target) == base {
+			return true
+		}
+	}
+	return false
+}
