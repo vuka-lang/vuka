@@ -9,8 +9,11 @@ require (
 	github.com/vuka-lang/ui v0.1.0
 	github.com/vuka-lang/vuka v0.10.0
 	vukatest.local/islandui v0.0.0
+	vukatest.local/stateui v0.0.0
 )
 
 replace github.com/vuka-lang/vuka => ../../..
 
 replace vukatest.local/islandui => ./islandui
+
+replace vukatest.local/stateui => ./stateui

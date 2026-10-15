@@ -108,6 +108,7 @@ func (e *engine) run() {
 			e.selfCalls(f)
 			e.resolveCalls(f)
 			e.infer(f)
+			e.lowerStates(f)
 			e.lowerJSX(f)
 			e.checkEvents(f)
 			for _, t := range f.tries {
@@ -215,6 +216,7 @@ func (e *engine) prepare() {
 		*e.errs = append(*e.errs, f.staticErrs...)
 	}
 	e.fixStaticFuncs()
+	e.declareStates()
 	e.inferSelf()
 	if e.decorate() || len(e.sets) > 0 {
 		e.progress = true

@@ -128,7 +128,7 @@ func (w *jsxWriter) argNode(n jsxNode, idx *int) {
 	switch n := n.(type) {
 	case *jsxText:
 	case *jsxHole:
-		w.keep(n.expr)
+		w.holeValue(n)
 		w.gen(", ")
 		*idx++
 	case *jsxBlock:
@@ -148,13 +148,7 @@ func (w *jsxWriter) argNode(n jsxNode, idx *int) {
 				if a.kind != 'e' {
 					continue
 				}
-				if a.event {
-					w.gen(w.q + "On(")
-					w.keep(a.expr)
-					w.gen(")")
-				} else {
-					w.keep(a.expr)
-				}
+				w.attrValue(a)
 				w.gen(", ")
 				*idx++
 			}

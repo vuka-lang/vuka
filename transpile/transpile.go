@@ -178,6 +178,7 @@ type fileState struct {
 	fieldsOn       bool              // field attributes are registered: from the first round on
 	scannedImports map[string]string // import path → name, for the enums' methods
 	spellings      []spelling        // rewritten expressions, for messages
+	stateDone      map[int]bool      // src offsets of state reads and writes lowered or checked (state.go)
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.

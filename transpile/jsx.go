@@ -83,7 +83,8 @@ type jsxAttr struct {
 	kind  byte   // 's' a string, 'e' an expression, 'b' bare (true)
 	val   string // the decoded string
 	expr  span
-	event bool // an element's event handler: onClick={…}
+	event bool       // an element's event handler: onClick={…}
+	bind  *stateBind // an expression reading states, lowered (state.go)
 }
 
 type jsxText struct {
@@ -92,7 +93,10 @@ type jsxText struct {
 }
 
 // jsxHole is a {expr} child.
-type jsxHole struct{ expr span }
+type jsxHole struct {
+	expr span
+	bind *stateBind // an expression reading states, lowered (state.go)
+}
 
 // jsxBlock is a {for …}, {if …} or {match …} child. For and if keep their
 // headers (`for … {`, `else if c {`) in place; a match is lowered by match.go.
@@ -147,7 +151,7 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 			markScope([]jsxNode{t.root}, f.scope)
 		}
 		f.jsx = append(f.jsx, t)
-		if len(t.comps) == 0 {
+		if len(t.comps) == 0 && !(f.target.has("Bind") && t.mayBind()) {
 			f.fixed = append(f.fixed, f.jsxEdits(t)...)
 			t.done = true
 		}
@@ -535,7 +539,7 @@ func (p *jsxParser) hole(i int) (jsxNode, int) {
 	if !ok {
 		return nil, end
 	}
-	return &jsxHole{sp}, end
+	return &jsxHole{expr: sp}, end
 }
 
 // header reads a for or if header starting at head to its body's {, returning
@@ -834,7 +838,7 @@ func (w *jsxWriter) node(n jsxNode) {
 		w.gen(w.q + "Text(" + strconv.Quote(n.val) + ")")
 	case *jsxHole:
 		w.gen(w.q + "Child(")
-		w.keep(n.expr)
+		w.holeValue(n)
 		w.gen(")")
 	case *jsxBlock:
 		w.gen(w.q + "Nodes(func(__add func(" + w.q + "Node)) { ")
@@ -872,6 +876,10 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 			w.gen(w.q + "On(")
 			w.keep(a.expr)
 			w.gen(")")
+			return
+		}
+		if a.bind != nil {
+			w.bind(a.bind)
 			return
 		}
 		w.keep(a.expr)
