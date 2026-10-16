@@ -589,8 +589,11 @@ its own. How they're bundled depends on the framework:
   is the CSS entry; the command serves the built island CSS automatically.
 
 `vuka build` compiles the islands into the binary; `vuka build` + `go build`
-ship one binary. In development, `vuka run` rebuilds an island when its source
-changes.
+ship one binary. In development, `vuka run` rebuilds the islands when a file
+their build reads changes: the island's source and what it imports, and with a
+Vite frontend anything under its root (`vite.config`, `app.css`, shared
+components, `_setup`, `package.json`) and the directories `app.css` names
+with `@source` — not `node_modules`, `dist` or `.d.ts` files.
 
 ### Scaffold
 
