@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"bytes"
 	"fmt"
 	"go/token"
 	"os"
@@ -48,15 +49,13 @@ type islandImport struct {
 	enums map[string][]string // generated named string types → their values
 }
 
-var islandDecoRe = regexp.MustCompile(`@\w+\.Island(?:\s*\([^)]*\))?\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)`)
-
 // declaredIslands is the names of the package's @ui.Island types, from the
 // sources.
 func declaredIslands(files []File) map[string]bool {
 	out := map[string]bool{}
 	for _, f := range files {
-		for _, m := range islandDecoRe.FindAllSubmatch(f.Src, -1) {
-			out[string(m[1])] = true
+		for _, d := range islandDecls(f.Src) {
+			out[d.name] = true
 		}
 	}
 	return out
@@ -501,19 +500,132 @@ func goParam(name string) string {
 
 func readFile(p string) ([]byte, error) { return os.ReadFile(p) }
 
-var (
-	islandDeclRe = regexp.MustCompile(`@(\w+)\.Island(?:\s*\([^)]*\))?\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)\s+struct\s*\{`)
-	liveEmbedRe  = regexp.MustCompile(`(?m)^\s*(\w+)\.Live\s*(?://.*)?$`)
-)
+var liveEmbedRe = regexp.MustCompile(`(?m)^\s*(\w+)\.Live\s*(?://.*)?$`)
+
+// islandDecl is an @<q>.Island decorator on a type: the package name it is
+// written with, the type's name and offset, and the offset of the { of its
+// struct (-1 when it isn't a struct).
+type islandDecl struct {
+	q, name       string
+	nameOff, open int
+}
+
+// islandDecls are the @<q>.Island decorators of src on types, their
+// arguments any expressions (@ui.Island(ui.Layout(layouts.Page("x")))),
+// other decorators and comments between them and the type.
+func islandDecls(src []byte) []islandDecl {
+	var out []islandDecl
+	for i := 0; i < len(src); i++ {
+		if src[i] != '@' {
+			continue
+		}
+		q, j := identAt(src, i+1)
+		if q == "" || j >= len(src) || src[j] != '.' {
+			continue
+		}
+		name, j := identAt(src, j+1)
+		if name != "Island" {
+			continue
+		}
+		j = skipSpace(src, j)
+		if j < len(src) && src[j] == '(' {
+			if j = skipParens(src, j); j < 0 {
+				continue
+			}
+		}
+		for {
+			j = skipSpace(src, j)
+			if bytes.HasPrefix(src[j:], []byte("//")) {
+				for j < len(src) && src[j] != '\n' {
+					j++
+				}
+				continue
+			}
+			if j < len(src) && src[j] == '@' {
+				_, k := identAt(src, j+1)
+				for k < len(src) && src[k] == '.' {
+					_, k = identAt(src, k+1)
+				}
+				if k < len(src) && src[k] == '(' {
+					if k = skipParens(src, k); k < 0 {
+						break
+					}
+				}
+				j = k
+				continue
+			}
+			break
+		}
+		kw, j := identAt(src, j)
+		if kw != "type" {
+			continue
+		}
+		nameOff := skipSpace(src, j)
+		name, j = identAt(src, nameOff)
+		if name == "" {
+			continue
+		}
+		d := islandDecl{q: q, name: name, nameOff: nameOff, open: -1}
+		if kw, k := identAt(src, skipSpace(src, j)); kw == "struct" {
+			if k = skipSpace(src, k); k < len(src) && src[k] == '{' {
+				d.open = k
+			}
+		}
+		out = append(out, d)
+		i = j - 1
+	}
+	return out
+}
+
+// identAt is the identifier at src[i:] and the offset past it.
+func identAt(src []byte, i int) (string, int) {
+	j := i
+	for j < len(src) && (src[j] == '_' || src[j] >= 'a' && src[j] <= 'z' || src[j] >= 'A' && src[j] <= 'Z' || j > i && src[j] >= '0' && src[j] <= '9') {
+		j++
+	}
+	return string(src[i:j]), j
+}
+
+func skipSpace(src []byte, i int) int {
+	for i < len(src) && (src[i] == ' ' || src[i] == '\t' || src[i] == '\n' || src[i] == '\r') {
+		i++
+	}
+	return i
+}
+
+// skipParens is the offset past the ) closing the ( at open, strings and
+// runes skipped; -1 when it isn't closed.
+func skipParens(src []byte, open int) int {
+	depth := 0
+	for i := open; i < len(src); i++ {
+		switch c := src[i]; c {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			if depth--; depth == 0 {
+				return i + 1
+			}
+		case '"', '\'', '`':
+			for i++; i < len(src) && src[i] != c; i++ {
+				if src[i] == '\\' && c != '`' {
+					i++
+				}
+			}
+		}
+	}
+	return -1
+}
 
 // islandPages writes a Render method for each @ui.Island struct of the file
 // that embeds ui.Live and has none: a live page backed by its component,
 // whose markup is the island (ui.IslandPage) — its exported fields the
 // props, its exported methods what the component calls.
 func (e *engine) islandPages(f *fileState, files []File) {
-	for _, m := range islandDeclRe.FindAllSubmatchIndex(f.src, -1) {
-		q, name := string(f.src[m[2]:m[3]]), string(f.src[m[4]:m[5]])
-		open := m[1] - 1
+	for _, d := range islandDecls(f.src) {
+		if d.open < 0 {
+			continue
+		}
+		q, name, open := d.q, d.name, d.open
 		end := matchBrace(f.src, open)
 		if end < 0 {
 			continue
@@ -528,7 +640,7 @@ func (e *engine) islandPages(f *fileState, files []File) {
 		if !live || hasMethod(files, name, "Render") {
 			continue
 		}
-		off := m[4]
+		off := d.nameOff
 		var w genWriter
 		w.gen("\n", off)
 		if !f.bare {

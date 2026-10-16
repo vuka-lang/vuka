@@ -75,14 +75,42 @@ func MountIsland(site string, props any, opts ...IslandOpt) Node {
 // Live is the embedded field of a live component.
 type Live struct{}
 
-// Island is the @ui.Island type decorator.
-func Island(args ...string) func(*vuka.Type) {
+// Island is the @ui.Island type decorator: a path, then options.
+func Island(args ...any) func(*vuka.Type) {
 	return func(t *vuka.Type) {
 		islands[t.Reflect] = "(inferred)"
-		if len(args) > 0 && args[0] != "" {
-			islands[t.Reflect] = args[0]
+		for _, a := range args {
+			switch a := a.(type) {
+			case string:
+				if a != "" {
+					islands[t.Reflect] = a
+				}
+			case IslandOption:
+				a(t.Reflect)
+			}
 		}
 	}
+}
+
+type IslandOption func(reflect.Type)
+
+var layouts = map[reflect.Type][]func(Node) Node{}
+
+func Layout(ls ...func(Node) Node) IslandOption {
+	return func(t reflect.Type) { layouts[t] = append(layouts[t], ls...) }
+}
+
+func Strategy(s string) IslandOption {
+	return func(t reflect.Type) { islands[t] += " " + s }
+}
+
+// PageLayout is x's page in its layouts.
+func PageLayout(x any, page Node) Node {
+	ls := layouts[reflect.TypeOf(x).Elem()]
+	for i := len(ls) - 1; i >= 0; i-- {
+		page = ls[i](page)
+	}
+	return page
 }
 
 // IslandPage renders a page backed by its island.
