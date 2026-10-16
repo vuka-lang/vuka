@@ -10,6 +10,23 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.45.1 — 2026-10-16
+
+Runtime unchanged, v0.16.0.
+
+- **`vuka run` rebuilds the islands for every file their build reads.** A
+  Vite (or Node) island build is redone when anything under the frontend
+  root changes — `vite.config`, the `app.css` entry, a shared component an
+  island imports, an island in a subfolder, `_setup`, `package.json`, the
+  lockfile — and when a file under a directory `app.css` names with
+  `@source` does; before, only the island's own file was watched.
+  `node_modules`, `dist`, hidden paths, `.d.ts` files (vuka's and those Vite
+  plugins write) and Go sources are left out, so a build doesn't start
+  another. A vanilla island is rebuilt when a file it imports changes.
+- **The island cache keeps up.** A build is cached under what it saw before
+  it ran, so an edit made while Vite builds is built next time, and a
+  component outside the frontend root is keyed with its directory.
+
 ## cmd/vuka v0.45.0, web v0.36.0, ui v0.30.0 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use ui v0.30.0 and web v0.36.0.
