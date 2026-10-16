@@ -81,12 +81,13 @@ const w = window as any
 onMounted(() => (w.__log = w.__log || []).push('mount ` + name + `'))
 onBeforeUnmount(() => w.__log.push('unmount ` + name + `'))
 </script>
-<template><section id="p` + name + `"><h1>{{ live.title.value }}</h1><Lazy /><VukaLink href="/pa" class="la">a</VukaLink><VukaLink href="/pb" class="lb">b</VukaLink></section></template>
+<template><section id="p` + name + `"><h1>{{ live.title.value }}</h1><Lazy /><Teleport to="body"><template v-for="x in ['` + name + `1', '` + name + `2']" :key="x"><i class="tp">{{ x }}</i></template></Teleport><VukaLink href="/pa" class="la">a</VukaLink><VukaLink href="/pb" class="lb">b</VukaLink></section></template>
 `
 }
 
 // TestIslandNavigateE2E: two live pages backed by Vue components sharing a
-// layout, each with deferred fields and a lazily loaded child; moving
+// layout, each with deferred fields, a lazily loaded child and content
+// teleported to the body (a fragment, as a popover's portal); moving
 // between them over the connection (the layout's links, the component's
 // VukaLink, quickly, before the deferred loads land, and back) leaves one
 // app on the host each time, no Vue warning or error, and asks for nothing
@@ -175,6 +176,9 @@ addEventListener("unhandledrejection", (e) => window.__errs.push("rejection " + 
 
 	if m := p.eval(`window.__marker`); m != float64(1) {
 		t.Errorf("the page reloaded")
+	}
+	if n := p.eval(`[...document.querySelectorAll("body > i.tp")].map((e) => e.textContent).join(",")`); n != "B1,B2" {
+		t.Errorf("teleported content in the body: %v", n)
 	}
 	if errs, _ := p.eval(`window.__errs`).([]any); len(errs) > 0 {
 		t.Errorf("console: %v", errs)

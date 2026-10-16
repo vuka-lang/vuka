@@ -10,6 +10,23 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.45.3, web v0.36.3 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use web v0.36.3.
+
+- **Moving between pages backed by Vue components with popovers, modals or
+  selects no longer crashes the next island.** A navigation morphs the body
+  into the new page's, and removed what a component had teleported to the
+  body — Nuxt UI's (reka-ui's) portals and their empty anchors, which every
+  row's popover keeps there even closed. Unmounting the old app then walked a
+  teleported fragment whose anchors were gone and failed, the failure was
+  swallowed, and the next island's mount on that host patched against the
+  old app's tree: "There is already an app instance mounted on the host
+  container", then `can't access property "nextSibling", e is null`. The
+  morph now leaves the nodes the page's scripts put in the body where they
+  are (web), and the Vue adapter forgets an app whose unmount fails, logging
+  why, so the next mount starts clean.
+
 ## cmd/vuka v0.45.2, web v0.36.2 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use web v0.36.2.

@@ -67,12 +67,20 @@ export function mount(Component, el, props, ctx) {
     app.config.globalProperties.$vuka = ctx.vuka
   }
   /*SETUP_CALL*/
-  if (el.__vue_app__) { try { el.__vue_app__.unmount() } catch (_) {} }
+  release(el)
   app.mount(el)
   return {
     update: (next) => { Object.assign(state, next || {}) },
-    unmount: () => { try { app.unmount() } catch (_) {} },
+    unmount: () => { if (el.__vue_app__ === app) release(el) },
   }
+}
+
+// release unmounts the app on el, and forgets it even when its unmount
+// fails (its DOM changed under it): a stale vnode left on the host would
+// make the next app's mount patch against it.
+function release(el) {
+  if (el.__vue_app__) { try { el.__vue_app__.unmount() } catch (err) { console.error('vuka: unmounting a Vue app:', err) } }
+  if (el._vnode || el.__vue_app__) { el._vnode = null; delete el.__vue_app__; el.textContent = '' }
 }
 `
 
