@@ -62,9 +62,53 @@ type PetForm struct {
 ```
 
 A form field binds by the `form` tag, else the `json` tag, else the field's
-name, matched ignoring case (`-` leaves a field out). `validate:"required"`
-rejects a zero value with 400 `name is required` — the only rule; anything
-more is the handler's code.
+name, matched ignoring case (`-` leaves a field out).
+
+### Validation
+
+Once bound, the struct's `validate:` tags are checked — the struct's fields,
+the structs they hold and slices or maps of them, at any depth — whatever
+the request sent it as: JSON, a form, multipart, the query string or path
+segments. The rules are those of [a page backed by a
+component](/web/islands#validation):
+
+| rule | |
+|---|---|
+| `required` | not the zero value (`""`, `0`, `false`, nil, an empty slice) |
+| `omitempty` | the rest is skipped for the zero value |
+| `min=n`, `max=n`, `len=n` | a string's characters, a number's value, a slice's or map's items |
+| `oneof=a b c` | one of the values |
+| `email` | an email address |
+
+```vuka
+type Address struct {
+	City string `json:"city" validate:"required,min=2"`
+}
+
+type Signup struct {
+	Email   string    `json:"email" validate:"required,email"`
+	Plan    string    `json:"plan" validate:"omitempty,oneof=free pro"`
+	Address Address   `json:"address"`
+	Items   []Address `json:"items" validate:"max=5"`
+}
+```
+
+A failure doesn't call the handler: it answers 422 with each field's
+message, keyed by its path — json names for a JSON body (`address.city`,
+`items.1.city`), form names otherwise:
+
+```json
+{"error": "invalid: address.city: required; email: an email address",
+ "fields": {"address.city": "required", "email": "an email address"},
+ "status": 422}
+```
+
+An HTML route answers with its 422 error page. The error is a
+`web.Invalid`, so `web.OnError` reads the fields with `errors.As(e,
+&invalid)` — to render the form again with them, say. A rule that isn't one
+of these, or a bad value (`min=x`), fails `Build` naming the route. Checks
+the tags can't say are the handler's: it returns `web.Invalid{"email":
+"already taken"}`, answered the same way.
 
 ## Results
 
@@ -93,6 +137,7 @@ Success statuses are fixed (200 and 204); write through
 |---|---|
 | `web.NotFound`, `web.Unauthorized`, `web.Forbidden`, `web.Conflict` | 404, 401, 403, 409 |
 | `web.BadRequest(msg)` | 400 |
+| `web.Invalid{"field": "message"}` | 422, with `fields` |
 | `web.Status(code, format, args…)` | any |
 
 ```vuka
@@ -113,7 +158,8 @@ func (s *PetStore) Remove(id int) error {
 `errors.Is(err, web.NotFound)` matches any `*web.Error` with that status.
 
 An error is an HTML page on an HTML route — one with a view, a `ui.Node`
-result or a redirect result — and `{"error": …, "status": …}` elsewhere.
+result or a redirect result — and `{"error": …, "status": …}` elsewhere,
+with `"fields"` for a `web.Invalid`.
 `web.OnError(func(w, r, e *web.Error, html bool))` replaces both. An error
 that isn't a `*web.Error` shows "Internal Server Error" unless the app runs
 in dev (`web.Dev()` or `VUKA_ENV=development`), where its message is shown.

@@ -10,6 +10,29 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.42.1, web v0.33.0, ui v0.28.1 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use ui v0.28.1 and web v0.33.0.
+
+- **Breaking: a route's bound struct is validated with the islands' rules.**
+  After a handler's struct parameter is bound — JSON body, form, multipart,
+  query string or path segments — its `validate:` tags are checked, nested
+  structs and slices of them included: `required`, `omitempty`, `min`,
+  `max`, `len`, `oneof`, `email`. Before, only `required` was checked and
+  other rules were ignored. A failure answers **422** (it was 400 `name is
+  required`) with every failing field's message:
+  `{"error": "invalid: email: required", "fields": {"email": "required"},
+  "status": 422}` — keys are the field's path by json names for a JSON
+  body (`address.city`, `items.1.city`), by form names otherwise; an HTML
+  route answers its 422 error page. Clients that matched 400 or the `"x is
+  required"` text should read status 422 and `fields`. A rule web didn't
+  check before (a typo, `min=x`) now fails `Build` naming the route, and a
+  rule it ignored now applies. The error is a `web.Invalid`, so
+  `web.OnError` reads its fields with `errors.As`. Any JSON error from a
+  `web.Invalid` now carries `fields` too. [Validation](/web/parameters#validation).
+- ui v0.28.1: `ui.ValidateTags(v, "form", "json")` validates naming fields
+  by the first tag they carry.
+
 ## cmd/vuka v0.42.0, web v0.32.0, ui v0.28.0 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use ui v0.28.0 and web v0.32.0.
