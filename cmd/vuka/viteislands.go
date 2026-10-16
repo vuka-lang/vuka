@@ -204,7 +204,7 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		if strings.Contains(stderr.String(), "No fs option provided to `compileScript`") {
 			hint = fmt.Sprintf("\nVue's compiler resolves defineProps<T>() of an imported type with TypeScript's JavaScript API, which TypeScript 7 doesn't have: (cd %s && npm install -D typescript@~6.0.3)\n", rel(root, frontendRoot))
 		}
-		return nil, nil, nil, fmt.Errorf("vite islands (%s): vite build: %v\n%s%s", strings.Join(names, ", "), err, stdout.String(), hint)
+		return nil, nil, nil, &viteError{msg: fmt.Sprintf("vite islands (%s): vite build: %v\n%s%s", strings.Join(names, ", "), err, stdout.String(), hint), tail: tail}
 	}
 
 	manPath := filepath.Join(outDir, ".vite", "manifest.json")
@@ -271,6 +271,15 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 	}
 	return bundles, entries, cssNames, nil
 }
+
+// viteError is a failed Vite build of islands, with the end of what Vite
+// said on stderr (printed as the build failed, not in the message).
+type viteError struct {
+	msg  string
+	tail []string
+}
+
+func (e *viteError) Error() string { return e.msg }
 
 // lastLines is s's last n non-blank lines.
 func lastLines(s string, n int) []string {

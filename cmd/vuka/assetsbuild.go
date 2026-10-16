@@ -32,6 +32,9 @@ const (
 	assetsEnv      = "VUKA_ASSETS"
 	assetsGoName   = "vuka_assets_gen.go"
 	assetsManifest = "manifest.json"
+	// assetsState, beside the manifest, says the last compile failed and why;
+	// the manifest and modules stay the last good ones.
+	assetsState = "state.json"
 )
 
 // compiled is what compileAssets made.
@@ -196,14 +199,14 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		var vueIslands []*islandComp
 		for _, ic := range pa.islands {
 			if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
-				errs = append(errs, fmt.Errorf("%s: island %s: component %s not found", ic.label, ic.name, ic.rel))
+				errs = append(errs, islandError{fmt.Errorf("%s: island %s: component %s not found", ic.label, ic.name, ic.rel)})
 				continue
 			}
 			switch ic.framework {
 			case "vanilla":
 				ib, err := bundleIsland(buildRoot, ic, dev)
 				if err != nil {
-					errs = append(errs, err)
+					errs = append(errs, islandError{err})
 					continue
 				}
 				out.islands = append(out.islands, ib)
@@ -225,7 +228,7 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				bundles, entries, err = buildVueIslands(buildRoot, vueIslands, dev)
 			}
 			if err != nil {
-				errs = append(errs, err)
+				errs = append(errs, islandError{err})
 			} else {
 				out.islands = append(out.islands, bundles...)
 				for name, mi := range entries {
@@ -583,11 +586,14 @@ func (d *devAssets) compile() {
 		d.warned = w
 		io.WriteString(d.stderr, w)
 	}
+	dir := d.dir()
 	if err != nil {
 		fmt.Fprintln(d.stderr, err)
+		b, _ := json.Marshal(failedAssets(err))
+		writeIfChanged(filepath.Join(dir, assetsState), b)
 		return
 	}
-	dir := d.dir()
+	os.Remove(filepath.Join(dir, assetsState))
 	keep := map[string]bool{}
 	for _, b := range out.bundles {
 		keep[b.name] = true
@@ -630,6 +636,45 @@ func (d *devAssets) compile() {
 			go d.entry()
 		}
 	}
+}
+
+// islandError is an island failing to build.
+type islandError struct{ error }
+
+func (e islandError) Unwrap() error { return e.error }
+
+// assetsFailure is what assetsState holds: the development toolbar and the
+// loader read it.
+type assetsFailure struct {
+	Failed  bool   `json:"failed"`
+	Islands bool   `json:"islands,omitempty"` // an island's build is among the failures
+	Output  string `json:"output"`
+}
+
+func failedAssets(err error) assetsFailure {
+	f := assetsFailure{Failed: true, Islands: errors.As(err, new(islandError))}
+	var b strings.Builder
+	var walk func(error)
+	walk = func(e error) {
+		if j, ok := e.(interface{ Unwrap() []error }); ok {
+			for _, e := range j.Unwrap() {
+				walk(e)
+			}
+			return
+		}
+		b.WriteString(strings.TrimRight(e.Error(), "\n"))
+		b.WriteByte('\n')
+		var ve *viteError
+		if errors.As(e, &ve) {
+			for _, l := range ve.tail {
+				b.WriteString(l)
+				b.WriteByte('\n')
+			}
+		}
+	}
+	walk(err)
+	f.Output = ansi.ReplaceAllString(b.String(), "")
+	return f
 }
 
 // watch compiles again when a file the assets name changes.

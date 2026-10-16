@@ -10,6 +10,33 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.40.1, web v0.31.2 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use web v0.31.2.
+
+- **A page whose component has fields but no methods has `live`.** A page
+  backed by a component with `bind:` and read-only fields and only `Mount`
+  and `Changed` gave the component `useLive()` as `null`, so reading
+  `live.title` failed in the browser. Every page backed by a component now
+  gets its handles, live and stateless alike (web v0.31.2; no change to
+  your code or to ui).
+
+- **An island build that fails shows in the browser.** Under `vuka run`
+  (and `-watch`) a failed build of the islands — a Vite build of a `.vue`
+  component that doesn't compile, say — used to reach the terminal only,
+  while the page went on with the last good bundle. The
+  [development toolbar](/web/toolbar#while-vuka-run-watch-rebuilds) now
+  says `island build failed` (`asset build failed` for styles and scripts)
+  with the build's error in its drawer, the end of what Vite said
+  included, colours stripped; it clears when a later build succeeds.
+- **An island the bundle doesn't have says so in its place.** In
+  development, `<Levels … />` whose component isn't in the last good bundle
+  renders a box — "Island Levels isn't built", and that the island build
+  failed when it did — instead of nothing, and mounts once a build has it,
+  without a reload. In production nothing changes: no box, and `vuka build`
+  stops on an island that doesn't build.
+- The last good bundle keeps serving meanwhile: the other islands work.
+
 ## cmd/vuka v0.40.0, web v0.31.0, ui v0.26.0 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use ui v0.26.0, web v0.31.0.

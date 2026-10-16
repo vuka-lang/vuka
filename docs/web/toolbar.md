@@ -153,6 +153,14 @@ compiles, and `build failed` when it didn't — the drawer then shows the
 compiler's output above the panels, `.vuka` file and line included. The
 build that keeps answering is the last good one, until a save compiles.
 
+The styles, scripts and [islands](/web/islands) build beside the app, and
+their failures show the same way: `island build failed` (or `asset build
+failed`) on the handle, the build's error in the drawer — for a Vite build,
+the end of what Vite said. The last good bundle keeps serving, so the other
+islands keep working; an island the last good bundle doesn't have shows a
+box in its place saying it isn't built and why. Both clear once the
+component builds again, and the island then mounts without a reload.
+
 ## Your own panels
 
 Request code records values for a panel with `web.Note`, and

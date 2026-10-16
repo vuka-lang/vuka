@@ -271,7 +271,10 @@ vuka run -watch -debug .                 # keep debug information, for delve
   its drawer: you see that the page in front of you is the last good build
   without looking at the terminal. vuka passes the app its session
   directory in `VUKA_DEV_DIR` (under plain `vuka run` too, which turns the
-  toolbar on); the build's state is `build.json` there.
+  toolbar on); the build's state is `build.json` there. A failed build of
+  the styles, scripts or islands shows as `island build failed` with the
+  build's error (Vite's, for a Vite frontend), while the last good bundle
+  keeps serving; an island it doesn't have shows a box saying why.
 - **Vite keeps running** across the restarts: a frontend's page keeps its
   state through a rebuild of the app.
 - Ctrl-C or SIGTERM stops the app, the watcher, Tailwind and Vite, waiting for the

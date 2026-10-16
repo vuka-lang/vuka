@@ -187,6 +187,31 @@ func (f *SFind) Mount()   { f.Rows = f.db.Find(f.Q) }
 func (f *SFind) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
 func (f *SFind) Drop()    { f.Rows = nil }
 
+@web.Get("/only")
+@ui.Island("./components/Only.vue")
+type Only struct {
+	ui.Live
+	Q       string   ` + "`" + `bind:"q,debounce=150"` + "`" + `
+	Rows    []string
+	Changes int
+	db      *DB
+}
+
+func (f *Only) Mount()   { f.Rows = f.db.Find(f.Q) }
+func (f *Only) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
+
+@web.Get("/onlystatic")
+@ui.Island("./components/Only.vue")
+type OnlyStatic struct {
+	Q       string   ` + "`" + `bind:"q,debounce=150"` + "`" + `
+	Rows    []string
+	Changes int
+	db      *DB
+}
+
+func (f *OnlyStatic) Mount()   { f.Rows = f.db.Find(f.Q) }
+func (f *OnlyStatic) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
+
 func main() {
 	web.New(web.Provide(func() *DB { return &DB{names: []string{"Ada", "Alan", "Grace", "Guido"}} })).Run("")
 }
@@ -253,6 +278,14 @@ const sfindSvelte = `<script lang="ts">
 <div id="f"><input class="q" bind:value={l.q.value} /><span class="rows">{(l.rows.value || []).join(',')}</span><span class="changes">{l.changes.get()}</span><span class="pending">{$l.pending}</span><button class="drop" onclick={() => l.drop()}>d</button></div>
 `
 
+const onlyVue = `<script setup lang="ts">
+import { useLive } from 'vuka:live'
+import type { Only } from 'vuka:live'
+const live = useLive<Only>()
+</script>
+<template><div id="o"><input class="q" v-model="live.q.value" /><span class="rows">{{ (live.rows.value || []).join(',') }}</span><span class="changes">{{ live.changes.get() }}</span></div></template>
+`
+
 // TestIslandPagesE2E: pages backed by a Vue component, live and stateless:
 // the props are the exported fields, ?q= binds Q, the component's
 // useLive() calls the methods — live events on the live page, signed calls
@@ -272,7 +305,7 @@ func TestIslandPagesE2E(t *testing.T) {
 	nm := islandModules(t)
 	root := assetsModule(t, map[string]string{"main.vuka": pagesApp, "components/Board.vue": boardVue,
 		"tsconfig.json": `{"compilerOptions": {"strict": true, "jsx": "react-jsx", "paths": {"vuka:live": ["./vuka-live"]}}}`, "components/RBoard.tsx": rboardTSX, "components/SBoard.svelte": sboardSvelte,
-		"components/Find.vue": findVue, "components/RFind.tsx": rfindTSX, "components/SFind.svelte": sfindSvelte})
+		"components/Find.vue": findVue, "components/RFind.tsx": rfindTSX, "components/SFind.svelte": sfindSvelte, "components/Only.vue": onlyVue})
 	if err := os.Symlink(nm, filepath.Join(root, "node_modules")); err != nil {
 		t.Fatal(err)
 	}
@@ -381,6 +414,24 @@ func TestIslandPagesE2E(t *testing.T) {
 			if n := p.eval(`window.__mounts`); n != float64(1) {
 				t.Errorf("mounted %v times", n)
 			}
+			if t.Failed() {
+				t.Logf("page:\n%v\napp log:\n%s", p.eval(`document.documentElement.outerHTML`), logs.String())
+			}
+		})
+	}
+
+	// A page with fields and no methods but Mount and Changed: its
+	// component still has live.
+	for _, path := range []string{"/only", "/onlystatic"} {
+		t.Run(path, func(t *testing.T) {
+			p := ch.open(base+path, 900, 700)
+			if path == "/only" {
+				p.wait(`document.documentElement.getAttribute("data-vk-state") === "connected"`)
+			}
+			p.wait(`(document.querySelector("#o .rows") || {}).textContent === "Ada,Alan,Grace,Guido"`)
+			p.eval(`(() => { const el = document.querySelector("#o .q"); el.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "Gr"); el.dispatchEvent(new Event("input", {bubbles: true})); })()`)
+			p.wait(`document.querySelector("#o .rows").textContent === "Grace,Guido"`)
+			p.wait(`document.querySelector("#o .changes").textContent === "1"`)
 			if t.Failed() {
 				t.Logf("page:\n%v\napp log:\n%s", p.eval(`document.documentElement.outerHTML`), logs.String())
 			}
