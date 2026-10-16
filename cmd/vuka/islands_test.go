@@ -182,9 +182,9 @@ func TestIslandStructFields(t *testing.T) {
 	full, _ := scanFile("p.go", []byte(src))
 	got := structFields(full, "P")
 	want := []islandProp{
-		{"A", "number", false}, {"B", "number", false},
-		{"f", "number", false}, {"On", "boolean", false},
-		{"M", "Record<string, number>", false}, {"Opt", "string", true},
+		{name: "A", ts: "number", value: true}, {name: "B", ts: "number", value: true},
+		{name: "f", ts: "number", value: true}, {name: "On", ts: "boolean", value: true},
+		{name: "M", ts: "Record<string, number>", value: true}, {name: "Opt", ts: "string", optional: true, value: true},
 	}
 	if !slices.Equal(got, want) {
 		t.Errorf("fields:\n got %+v\nwant %+v", got, want)

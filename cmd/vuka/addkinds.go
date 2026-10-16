@@ -453,11 +453,10 @@ var frameworks = map[string]struct {
 // islandSpec is what the island templates read.
 type islandSpec struct {
 	Name     string
-	Live     bool   // a page-backed component calling its struct's methods
+	Live     bool   // a page-backed component reading its struct's fields
 	Page     string // the page's struct, for its types
-	Method   string // the method it calls, by its wire name
 	Prop     string // the sample prop's json name
-	URLField string // the url: field's json name
+	URLField string // the bind: url: field's json name
 }
 
 // islandRoot is the app's island frontend root (a Vite project with a
@@ -760,12 +759,10 @@ type pageSpec struct {
 	Module, Pkg, Type, Path, Title string
 	Handler                        string
 	Params                         []pageParam
-	MethodJSON                     string
 	Live, Layouts, Auth            bool
 	Island, IslandPath             string
 	Prop, PropJSON                 string
 	URLField, URLJSON              string
-	Method                         string
 }
 
 type pageParam struct{ Name, Field string }
@@ -843,7 +840,7 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if at := declared(filepath.Join(root, t.dir), handler); at != "" && !a.force && !live && f.values["island"] == "" {
 		return fmt.Errorf("vuka add page: %s is declared already in %s/%s (--name names another)", handler, t.dir, at)
 	}
-	spec := pageSpec{Module: mod, Pkg: t.pkg, Type: typ, Path: path, Handler: handler, Params: params, MethodJSON: "search", Title: displayName(strings.Join(words, " ")), Live: live,
+	spec := pageSpec{Module: mod, Pkg: t.pkg, Type: typ, Path: path, Handler: handler, Params: params, Title: displayName(strings.Join(words, " ")), Live: live,
 		Layouts: exists(root, "layouts", "document.vuka"), Auth: exists(root, "modules", "users")}
 	if spec.Title == "" {
 		spec.Title = typ
@@ -867,8 +864,12 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		spec.Prop, spec.PropJSON, spec.URLField, spec.URLJSON, spec.Method = "Title", "title", "Q", "q", "Search"
-		comp, err := a.island(island, f.values["dir"], fw, islandSpec{Name: island, Live: true, Page: island, Method: "search", Prop: "title", URLField: "q"}, w)
+		spec.Prop, spec.PropJSON, spec.URLField, spec.URLJSON = "Title", "title", "Q", "q"
+		dir := f.values["dir"]
+		if dir == "" && f.values["module"] != "" {
+			dir = fr + "/islands/" + f.values["module"]
+		}
+		comp, err := a.island(island, dir, fw, islandSpec{Name: island, Live: true, Page: island, Prop: "title", URLField: "q"}, w)
 		if err != nil {
 			return err
 		}

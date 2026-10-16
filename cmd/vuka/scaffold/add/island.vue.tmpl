@@ -1,24 +1,18 @@
 {%- if .Live%}<script setup lang="ts">
-import { ref, watch } from 'vue'
 import { useLive } from 'vuka:live'
 import type { {%.Page%} } from 'vuka:live'
 
-// The page's props are {%.Page%}'s exported fields; live calls its methods.
-const props = defineProps<{%.Page%}>()
+// live.<field> reads {%.Page%}'s exported fields (.value); a bind: field is set too.
 const live = useLive<{%.Page%}>()
-const {%.URLField%} = ref(props.{%.URLField%})
-watch({%.URLField%}, (v) => live.{%.Method%}(v))
 </script>
 
 <template>
   <main class="mx-auto max-w-2xl px-4 py-16">
-    <h1 class="text-2xl font-semibold">{{ props.{%.Prop%} }}</h1>
-    <input
-      class="mt-6 w-full rounded-lg border px-3 py-2"
-      placeholder="Search"
-      v-model="{%.URLField%}"
-    />
-    <p v-if="live.pending" class="mt-2 text-sm">…</p>
+    <h1 class="text-2xl font-semibold">{{ live.{%.Prop%}.value }}</h1>
+    <input v-model="live.{%.URLField%}.value" placeholder="Search" class="mt-6 w-full rounded-lg border px-3 py-2" />
+    <ul class="mt-4 space-y-1">
+      <li v-for="item in live.items.value ?? []" :key="item">{{ item }}</li>
+    </ul>
     <p v-if="live.error" class="mt-2 text-sm text-red-600">{{ live.error.message }}</p>
   </main>
 </template>

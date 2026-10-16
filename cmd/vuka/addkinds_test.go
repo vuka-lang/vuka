@@ -234,18 +234,27 @@ func TestAddIslandPage(t *testing.T) {
 	dir := islandsApp(t)
 	mustAdd(t, dir, "page", "/reports", "--island", "Reports", "--live", "--no-install")
 	has(t, filepath.Join(dir, "pages/reports.vuka"), `@web.Get("/reports")`, `@ui.Island("islands/Reports.vue")`,
-		"type Reports struct {\n\tui.Live", "Title string `json:\"title\"`", "`json:\"q\" url:\"q\"`", "func (p *Reports) Search(ctx context.Context, q string) error")
-	has(t, filepath.Join(dir, "web/islands/Reports.vue"), "import { useLive } from 'vuka:live'", "defineProps<Reports>()", "live.search(")
+		"type Reports struct {\n\tui.Live", "Title string   `json:\"title\"`", "`json:\"q\" url:\"q\" bind:\"q\"`", "func (p *Reports) Changed(ctx context.Context) error")
+	has(t, filepath.Join(dir, "web/islands/Reports.vue"), "import { useLive } from 'vuka:live'", "const live = useLive<Reports>()", `<input v-model="live.q.value" placeholder="Search"`)
+	if body := read(t, filepath.Join(dir, "web/islands/Reports.vue")); strings.Contains(body, "defineProps") {
+		t.Errorf("the component reads its props through live:\n%s", body)
+	}
 
 	mustAdd(t, dir, "page", "/board", "--island", "Board", "--react", "--stateless", "--no-install")
 	page := read(t, filepath.Join(dir, "pages/board.vuka"))
 	if strings.Contains(page, "ui.Live") || !strings.Contains(page, `@ui.Island("islands/Board.tsx")`) {
 		t.Errorf("a stateless page:\n%s", page)
 	}
-	has(t, filepath.Join(dir, "web/islands/Board.tsx"), "export default function Board(props: Board)", "useLive<Board>()")
+	has(t, filepath.Join(dir, "web/islands/Board.tsx"), "export default function Board()", "useLive<Page>()", "onChange={(e) => live.q.set(e.target.value)}")
 
 	mustAdd(t, dir, "page", "/tags", "--island", "Tags", "--svelte", "--no-install")
-	has(t, filepath.Join(dir, "web/islands/Tags.svelte"), "const l = live<Tags>()", "l.search(")
+	has(t, filepath.Join(dir, "web/islands/Tags.svelte"), "const l = live<Tags>()", "bind:value={l.q.value}")
+
+	// --module puts the component under the module's islands, as vuka add island does.
+	mustAdd(t, dir, "module", "orders")
+	mustAdd(t, dir, "page", "/orders/find", "--island", "FindOrders", "--module", "orders", "--no-install")
+	has(t, filepath.Join(dir, "modules/orders/find_orders.vuka"), `@ui.Island("islands/orders/FindOrders.vue")`)
+	has(t, filepath.Join(dir, "web/islands/orders/FindOrders.vue"), "useLive<FindOrders>()")
 }
 
 func TestAddEntityFields(t *testing.T) {

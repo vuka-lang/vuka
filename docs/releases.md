@@ -10,6 +10,36 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.40.0, web v0.31.0, ui v0.26.0 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use ui v0.26.0, web v0.31.0.
+
+- **A page's component reads and sets its fields through `live`.** In a
+  page backed by a component, every exported field is a handle on
+  `useLive()`: `live.rows.value` (or `get()`) reads it and follows the
+  server. A field tagged `bind:"q"` is one the component sets —
+  `live.q.set(v)`, or `v-model="live.q.value"` — and the value is the
+  browser's at once while the set waits for a pause in typing (300ms;
+  `bind:"q,debounce=500"`, `set(v, { now: true })`). Sets of several fields
+  within one pause go as one update; the server sets the fields, runs the
+  type's `Changed` and answers with the props — over the connection on a
+  live page, as the signed round trip on a stateless one. A field without
+  `bind:` is read only: no `set` in the types, and the server refuses a set
+  of it (403). See [Pages backed by a component](/web/islands#pages-backed-by-a-component).
+- **Each method has its own `pending` and `error`** (`live.cancel.pending`),
+  beside the page's `live.pending` and `live.error`. Calls and sets go one at
+  a time, in order; a method sends the sets waiting first.
+- A method and a field of one name on `live`, or a `bind:` tag that doesn't
+  fit, stop the app at start with what to rename. `Changed` isn't callable.
+- Components reading their props with `defineProps<T>()` (React: props,
+  Svelte: `$props()`) and calling `live.method(…)` work as before.
+- `vuka-live.d.ts` types the handles (`LiveBound<V>`, `LiveField<V>`) and
+  each method's state.
+- `vuka add page --island` writes a page whose search field is `bind:` with
+  a `Changed`, and a component setting it through `live` (`v-model="live.q.value"`,
+  React `value`/`onChange`, Svelte `bind:value`). With `--module m` the
+  component goes in `web/islands/m/`, as `vuka add island --module m` does.
+
 ## cmd/vuka v0.39.3 — 2026-10-16
 
 Runtime unchanged, v0.16.0.

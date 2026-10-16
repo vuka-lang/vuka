@@ -53,6 +53,9 @@ type islandProp struct {
 	name     string
 	ts       string
 	optional bool
+	value    bool   // a plain value, not a function, state or node: a page's component gets a handle for it
+	bind     bool   // bind: the page's component may set it
+	named    string // the Go type's name when ts doesn't know it (a struct of the package)
 }
 
 // islandFramework is the framework a component file's extension names, as
@@ -452,6 +455,8 @@ func fieldProps(toks []wtok) []islandProp {
 	if skip {
 		return nil
 	}
+	b, bound := reflect.StructTag(tag).Lookup("bind")
+	bound = bound && b != "-"
 	var out []islandProp
 	for _, nm := range names {
 		if !token.IsExported(nm) || nm == "Children" {
@@ -461,7 +466,7 @@ func fieldProps(toks []wtok) []islandProp {
 		if jsonName != "" {
 			wire = jsonName
 		}
-		out = append(out, islandProp{name: wire, ts: ts, optional: optional})
+		out = append(out, islandProp{name: wire, ts: ts, optional: optional, value: plainType(typ), bind: bound, named: localTypeName(typ)})
 	}
 	return out
 }
@@ -552,6 +557,37 @@ func basicTS(name string) string {
 		return "boolean"
 	}
 	return "unknown"
+}
+
+// plainType reports whether a field of type typ is a plain value: not a
+// function, a ui state, commands or a node.
+func plainType(typ []wtok) bool {
+	if len(typ) == 0 || typ[0].tok == token.FUNC {
+		return false
+	}
+	if len(typ) >= 3 && typ[0].tok == token.IDENT && typ[0].lit == "ui" && typ[1].tok == token.PERIOD {
+		switch typ[2].lit {
+		case "State", "Derived", "Commands", "JS", "JSChain", "Node":
+			return false
+		}
+	}
+	return true
+}
+
+// localTypeName is the name of the type typ (under pointers and slices) when it
+// is a plain identifier: a type of the package.
+func localTypeName(typ []wtok) string {
+	for len(typ) > 0 && (typ[0].tok == token.MUL || typ[0].tok == token.LBRACK && len(typ) > 1 && typ[1].tok == token.RBRACK) {
+		if typ[0].tok == token.MUL {
+			typ = typ[1:]
+		} else {
+			typ = typ[2:]
+		}
+	}
+	if len(typ) == 1 && typ[0].tok == token.IDENT && basicTS(typ[0].lit) == "unknown" {
+		return typ[0].lit
+	}
+	return ""
 }
 
 // jsonTagName is the wire name a field's struct tag sets, and whether the field

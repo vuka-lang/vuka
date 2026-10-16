@@ -197,55 +197,86 @@ handler's struct parameter:
 ## Pages backed by a component
 
 A page can be a component: put `@web.Get` on an `@ui.Island` struct, and
-the page's template is the component file.
+the page's template is the component file. The struct says what the page
+holds; the component reads it, sets what it may and calls the rest.
 
 ```vuka
 @web.Get("/orders")
 @ui.Island("components/Orders.vue")
 @auth.Required
 type Orders struct {
-    ui.Live                         // optional: a live page; leave it out for a stateless one
-    Q    string      `url:"q"`      // a prop, kept in the address's ?q=
-    Rows []Order                    // a prop
-    db   *DB                        // the server's own: injected, never sent
+    ui.Live                                         // optional: a live page; leave it out for a stateless one
+    Q      string  `url:"q" bind:"q"`               // the component sets it; kept in the address's ?q=
+    Status string  `bind:"status,debounce=0"`      // set at once, no wait
+    Rows   []Order                                  // read only
+    db     *DB                                      // the server's own: injected, never sent
 }
 
-func (a *Orders) Mount(ctx context.Context) error            { … } // with or without the error
-func (a *Orders) Search(ctx context.Context, q string) error { … } // callable from the component
+func (o *Orders) Mount(ctx context.Context) error   { return o.load(ctx) }
+func (o *Orders) Changed(ctx context.Context) error { return o.load(ctx) } // after the component sets Q or Status
+func (o *Orders) Cancel(ctx context.Context, id int64) error { … }       // callable from the component
 ```
 
 ```vue
 <script setup lang="ts">
 import { useLive } from 'vuka:live'
 import type { Orders } from 'vuka:live'
-const props = defineProps<Orders>()
-const live = useLive<Orders>()   // live.search(q), live.pending, live.error
+const live = useLive<Orders>()
 </script>
+
+<template>
+  <input v-model="live.q.value" placeholder="Search" />
+  <ul>
+    <li v-for="o in live.rows.value" :key="o.id">
+      {{ o.number }}
+      <button :disabled="live.cancel.pending" @click="live.cancel(o.id)">Cancel</button>
+    </li>
+  </ul>
+  <p v-if="live.error">{{ live.error.message }}</p>
+</template>
 ```
 
-- **Exported fields are the props** (by their json names); unexported
-  fields are the server's — dependencies of provided types are injected into
-  them, as into other components — and never reach the browser.
-- **Exported methods are what the component calls**: `live.search(q)`
-  returns a promise; the method's arguments are JSON, checked against its Go
-  parameters on the server and typed in `vuka:live`. While it runs
-  `live.pending` is true; an error it returns is `live.error` —
-  `{status, message, fields}`, `fields` from a `web.Invalid{"q": "…"}`. A
-  `web.Redirect` navigates. `Render`, `Mount`, `Update` and `Info` aren't
-  callable.
+- **Every exported field is a handle** on `live`, named like the field's
+  json name with its first letter lower-cased (`Q` → `live.q`, `Rows` →
+  `live.rows`): `get()` and `value` read it, and the component follows when
+  the server changes it. Unexported fields are the server's — dependencies
+  of provided types are injected into them, as into other components — and
+  never reach the browser.
+- **`bind:"name"` fields are the ones the component sets**:
+  `live.q.set(v)`, or `live.q.value = v` (so `v-model="live.q.value"`).
+  The value is the browser's at once; the set is sent after a pause
+  (300ms, `bind:"q,debounce=500"` to change it; `set(v, { now: true })`
+  sends it straight away), and the sets of several fields within one pause
+  go as one update. The server sets the fields, runs `Changed` if the type
+  has one — `Changed()` or `Changed(ctx)`, returning nothing or an error;
+  its dependencies are the struct's injected fields, as for the other
+  methods — and answers with the props. A field without `bind:` has no
+  `set` and its `value` is read only, in the types and on the server, which
+  refuses a set of it (403, as `live.error`).
+- **Exported methods are what the component calls**: `live.cancel(id)`
+  returns a promise; the arguments are JSON, checked against the method's
+  Go parameters on the server and typed in `vuka:live`. A method has its own
+  `live.cancel.pending` and `live.cancel.error`; `live.pending` and
+  `live.error` are the page's (any call). An error is `{status, message,
+  fields}`, `fields` from a `web.Invalid{"q": "…"}`. A `web.Redirect`
+  navigates. Calls and sets go one at a time, in order; a method waits for
+  the sets before it. `Render`, `Mount`, `Update`, `Info` and `Changed`
+  aren't callable, and a method and a field can't share a name on `live`
+  (the app doesn't start).
 - **`url:"name"` fields** are filled from the query when the page loads,
-  and when a call changes them the address follows (`history.replaceState`),
-  so a reload or a shared link shows the same page.
+  and when they change the address follows (`history.replaceState`), so a
+  reload or a shared link shows the same page.
 - **Live** (`ui.Live` embedded): the struct is the live view, its Render the
-  island (the compiler writes it). A call is a live event on the server's
-  instance; the fields it changes reach the component as new props, with no
+  island (the compiler writes it). A set or a call is a live event on the
+  server's instance; the fields it changes reach the component, with no
   remount. Mount, `Subscribe` and `Update` (broadcasts), `PushJS` and the
   type's gates work as for any live view.
-- **Stateless** (no `ui.Live`): no connection. A call posts the method, its
-  arguments and the props the page was rendered with — signed with the
-  app's key (`web.LiveKey`), bound to the page's path and an expiry — to
-  the page's URL; the server builds the struct again from them, injects its
-  dependencies, runs Mount and the method, and answers with the new props,
+- **Stateless** (no `ui.Live`): no connection. A set or a call posts the
+  fields or the method with its arguments, and the props the page was
+  rendered with — signed with the app's key (`web.LiveKey`), bound to the
+  page, the visitor's sign-in and an expiry — to the page's URL; the server
+  builds the struct again from them, injects its dependencies, runs Mount,
+  then the set and `Changed` or the method, and answers with the new props,
   signed again. Changed props are refused. Calls are refused cross-origin
   and pass the type's gates (`@auth.Required`…) like the page.
 - **The visitor** is known to every island's component: `$vuka` in Vue
@@ -254,8 +285,29 @@ const live = useLive<Orders>()   // live.search(q), live.pending, live.error
   `{user: {id}, roles, perms, can(perm)}` from the signed-in identity
   (`web/auth`).
 
+React and Svelte read the same handles:
+
+```tsx
+const live = useLive<Orders>()   // re-renders when anything on live changes
+<input value={live.q.value} onChange={(e) => live.q.set(e.target.value)} />
+```
+
+```svelte
+<script lang="ts">
+  import { live } from 'vuka:live'
+  import type { Orders } from 'vuka:live'
+  const l = live<Orders>()
+</script>
+<input bind:value={l.q.value} />
+{#if $l.pending}…{/if}
+```
+
+The fields still arrive as the component's props too, so a component may
+read them with `defineProps<Orders>()` (React: its props; Svelte:
+`$props()`) instead.
+
 `vuka:live` is a module of the island build — React: `useLive<T>()`, Svelte:
-`live<T>()` (a store: `$l.pending`) — and its types are `vuka-live.d.ts`,
+`live<T>()` (also a store: `$l.pending`) — and its types are `vuka-live.d.ts`,
 which `vuka` writes into the island root from the Go structs. Map the name
 to it in `tsconfig.json`, which also lets Vue's compiler read
 `defineProps<Orders>()` (with `typescript` installed):

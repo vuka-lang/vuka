@@ -12,7 +12,7 @@ package main
 // vueAdapterSrc is the Vue adapter. /*SETUP_IMPORT*/ and /*SETUP_CALL*/ are
 // replaced when the frontend root has a _setup file (its default export runs
 // on the app, the appEntrypoint analogue).
-const vueAdapterSrc = `import { createApp, reactive, h } from 'vue'
+const vueAdapterSrc = `import { createApp, reactive, shallowRef, h } from 'vue'
 /*SETUP_IMPORT*/
 export function mount(Component, el, props, ctx) {
   const state = reactive({ ...(props || {}) })
@@ -44,7 +44,12 @@ export function mount(Component, el, props, ctx) {
   }
   const app = createApp({ render: () => h(Component, { ...listeners, ...state }, slots) })
   // A page backed by its island: useLive() and useVuka() (vuka:live), $vuka.
-  if (ctx && ctx.live) {
+  // live's reads follow a version the runtime bumps on every change.
+  if (ctx && ctx.live && ctx.live.view) {
+    const ver = shallowRef(0)
+    ctx.live.subscribe(() => { ver.value++ })
+    app.provide('vuka:live', ctx.live.view(() => ver.value))
+  } else if (ctx && ctx.live) {
     const live = reactive({ ...ctx.live.methods, pending: false, error: null })
     ctx.live.subscribe((s) => { live.pending = s.pending; live.error = s.error })
     app.provide('vuka:live', live)
@@ -110,7 +115,8 @@ export function mount(Component, el, props, ctx) {
 // over a SvelteMap (so the component follows updates), a $bindable state
 // prop's accessor writing to the state too.
 const svelteAdapterSrc = `import { mount as smount, unmount as sunmount, createRawSnippet } from 'svelte'
-import { SvelteMap } from 'svelte/reactivity'
+import * as reactivity from 'svelte/reactivity'
+const { SvelteMap } = reactivity
 export function mount(Component, el, props, ctx) {
   let slotHTML = null
   try {
@@ -128,7 +134,14 @@ export function mount(Component, el, props, ctx) {
   for (const k of values.keys()) define(k)
   if (slotHTML) p.children = createRawSnippet(() => ({ render: () => '<span>' + slotHTML + '</span>' }))
   const context = new Map()
-  if (ctx && ctx.live) {
+  if (ctx && ctx.live && ctx.live.view) {
+    // live's reads are reactive (createSubscriber), and it is a store too ($l).
+    const h = ctx.live
+    const read = reactivity.createSubscriber ? reactivity.createSubscriber((update) => h.subscribe(() => update())) : () => {}
+    const l = h.view(read)
+    l.subscribe = (fn) => { fn(l); return h.subscribe(() => fn(l)) }
+    context.set('vuka:live', l)
+  } else if (ctx && ctx.live) {
     const h = ctx.live
     const value = () => ({ ...h.methods, pending: h.pending, error: h.error })
     context.set('vuka:live', { ...h.methods, subscribe: (fn) => { fn(value()); return h.subscribe(() => fn(value())) } })
@@ -157,7 +170,8 @@ func adapterSrc(framework, setupImport, setupCall string) string {
 
 // liveModules are vuka:live, the module a page-backed island's component
 // imports useLive (Svelte: live) and useVuka from, per framework: what the
-// island's adapter provides (ctx.live, ctx.vuka).
+// island's adapter provides (ctx.live, ctx.vuka). React's re-renders on
+// each change of the runtime's version.
 var liveModules = map[string]string{
 	"vue": `import { inject } from 'vue'
 export function useLive() { return inject('vuka:live', null) }
@@ -170,8 +184,8 @@ const noSub = () => () => {}
 export function useLive() {
   const c = useContext(VukaContext)
   const h = c && c.live
-  const s = useSyncExternalStore(h ? h.subscribe : noSub, h ? h.snapshot : () => none)
-  return useMemo(() => ({ ...(h ? h.methods : {}), pending: s.pending, error: s.error }), [h, s])
+  const s = useSyncExternalStore(h ? h.subscribe : noSub, h ? (h.version || h.snapshot) : () => none)
+  return useMemo(() => h && h.view ? h.view() : ({ ...(h ? h.methods : {}), pending: s.pending, error: s.error }), [h, s])
 }
 export function useVuka() { const c = useContext(VukaContext); return c ? c.vuka : null }
 `,

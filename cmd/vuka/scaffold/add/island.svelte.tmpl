@@ -2,20 +2,16 @@
   import { live } from 'vuka:live'
   import type { {%.Page%} } from 'vuka:live'
 
-  // The page's props are {%.Page%}'s exported fields; l calls its methods.
-  let props: {%.Page%} = $props()
+  // l.<field> reads {%.Page%}'s exported fields (.value); a bind: field is set too.
   const l = live<{%.Page%}>()
 </script>
 
 <main class="mx-auto max-w-2xl px-4 py-16">
-  <h1 class="text-2xl font-semibold">{props.{%.Prop%}}</h1>
-  <input
-    class="mt-6 w-full rounded-lg border px-3 py-2"
-    placeholder="Search"
-    value={props.{%.URLField%}}
-    oninput={(e) => l.{%.Method%}((e.target as HTMLInputElement).value)}
-  />
-  {#if $l.pending}<p class="mt-2 text-sm">…</p>{/if}
+  <h1 class="text-2xl font-semibold">{l.{%.Prop%}.value}</h1>
+  <input bind:value={l.{%.URLField%}.value} placeholder="Search" class="mt-6 w-full rounded-lg border px-3 py-2" />
+  <ul class="mt-4 space-y-1">
+    {#each l.items.value ?? [] as item (item)}<li>{item}</li>{/each}
+  </ul>
   {#if $l.error}<p class="mt-2 text-sm text-red-600">{$l.error.message}</p>{/if}
 </main>
 {%- else%}<script lang="ts">

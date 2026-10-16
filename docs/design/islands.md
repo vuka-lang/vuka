@@ -363,13 +363,28 @@ component. `web.Get` (and `Post`, … `Handle`) now returns a
 - **Stateless variant.** GET builds T, binds, injects, runs Mount, renders
   `IslandPage(x, ui.CallAt(path, sig))` (`data-vk-call`, `data-vk-sig`).
   `POST path` (same route attributes → same gates; always
-  cross-origin-protected) takes `{method,args,props,sig}`; `sig` =
+  cross-origin-protected) takes `{method,args,set,props,sig}` (`set`, the
+  bound fields the component set, applied before the method, then
+  `Changed`); `sig` =
   `base64url(expiry) "." base64url(HMAC-SHA256(liveKey, "page" 0 path 0
   expiry props))` over the exact props JSON; on success it answers
   `{props, sig}`, on error `{error:{status,message,fields}}` with the
   status, on a redirect `{redirect}`.
-- **Client.** The loader builds `ctx.live` (methods, `pending`, `error`,
-  `subscribe`) and `ctx.vuka` (`data-vk-viewer`: `{user:{id},roles,perms}`
+- **Bound fields.** `bind:"name[,debounce=ms]"` marks a prop the component
+  may set (`ui.IslandFields`; `ui.CheckIsland` refuses a bad tag, a method
+  and a field of one handle name, a wrong `Changed`). The host carries
+  `data-vk-fields` (handle → `{w: wire name, d: debounce ms when bound}`); a
+  live page registers `data-vk-on-m-_set`, whose payload is `{wire: value}`.
+  `ui.SetBound` refuses a field that isn't bound (403, nothing set), decodes
+  the rest (422 on a bad value), sets them and runs `Changed`.
+- **Client.** The loader builds `ctx.live` — each method a function with
+  its own `pending`/`error`, each field a handle (`get`, `value`, and for a
+  bound one `set(v, {now})`, debounced and batched; the value the
+  browser's until the answer to its set), the page's `pending` and `error`,
+  `subscribe`, and `view(read)`, the object a framework's hook returns,
+  `read` called on each read (Vue: a version ref; Svelte:
+  `createSubscriber`; React re-renders on `version()`); sets and calls go
+  one at a time — and `ctx.vuka` (`data-vk-viewer`: `{user:{id},roles,perms}`
   from `ui.Viewer`, which `web/auth` sets; plus `can`), syncs `url:` props
   into the address after updates (`data-vk-url`), and the adapters provide
   them: Vue `provide('vuka:live')`/`$vuka`, React a context
@@ -378,7 +393,9 @@ component. `web.Get` (and `Post`, … `Handle`) now returns a
   the spec's `live`), per framework from the importer's extension.
 - **Types.** `vuka-live.d.ts` (written into the island root before the
   framework build): an interface per `@ui.Island` struct — props, and the
-  methods as a phantom `__methods` member — plus `Live<T>`, `useLive<T>()`,
+  methods and the fields' handles (`LiveBound<V>` for a `bind:` field,
+  `LiveField<V>` otherwise) as phantom `__methods` and `__fields` members —
+  plus `Live<T>`, `useLive<T>()`,
   `live<T>()`, `useVuka()`. A tsconfig `paths` mapping makes it the
   `vuka:live` module for editors and for Vue's `defineProps<T>()` (the
   build registers TypeScript with Vue's compiler when installed).
