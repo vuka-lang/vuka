@@ -67,6 +67,7 @@ export function mount(Component, el, props, ctx) {
     app.config.globalProperties.$vuka = ctx.vuka
   }
   /*SETUP_CALL*/
+  if (el.__vue_app__) { try { el.__vue_app__.unmount() } catch (_) {} }
   app.mount(el)
   return {
     update: (next) => { Object.assign(state, next || {}) },

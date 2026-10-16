@@ -2,12 +2,16 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"io"
+	"net/http"
+	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 )
@@ -115,10 +119,18 @@ export default defineConfig({ plugins: [vue(), ui(), tailwindcss(), vuka()] })
 `)
 	write("app.css", "@import \"tailwindcss\";\n@import \"@nuxt/ui\";\n")
 	write("islands/Card.vue", `<script setup lang="ts">
+import { defineAsyncComponent, ref } from 'vue'
 defineProps<{ label: string }>()
+const Lazy = defineAsyncComponent(() => import('./Lazy.vue'))
+const word = ref('')
+import('./word').then((m) => { word.value = m.word })
 </script>
-<template><UButton color="primary" variant="soft">{{ label }}</UButton></template>
+<template><UButton color="primary" variant="soft">{{ label }}</UButton><Lazy /><i class="word">{{ word }}</i></template>
 `)
+	write("islands/Lazy.vue", `<template><b class="lazy">lazy</b></template>
+<style>.lazy { color: rgb(1, 2, 3) }</style>
+`)
+	write("islands/word.ts", "export const word = 'dynamic'\n")
 
 	pa := &pageAssets{
 		root:         root,
@@ -164,6 +176,11 @@ defineProps<{ label: string }>()
 		t.Fatalf("adapter chunk %q not registered", e.Adapter)
 	}
 	css := mf.IslandCSS[0]
+	for _, c := range mf.IslandCSS {
+		if strings.HasPrefix(c, "styles.") {
+			css = c
+		}
+	}
 	cssBytes, ok := byName[css]
 	if !ok {
 		t.Fatalf("css chunk %q not registered", css)
@@ -174,6 +191,52 @@ defineProps<{ label: string }>()
 	}
 	if !strings.Contains(string(byName[e.Adapter]), "mount") {
 		t.Errorf("adapter chunk has no mount export")
+	}
+
+	// In a browser, from a page under a sub-path: the lazy component, its
+	// CSS chunk and the dynamic import load from /_vuka/i/, nothing else is
+	// asked for.
+	if chromeBinary() == "" {
+		return
+	}
+	var mu sync.Mutex
+	var asked []string
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		asked = append(asked, r.URL.Path)
+		mu.Unlock()
+		if name, ok := strings.CutPrefix(r.URL.Path, "/_vuka/i/"); ok {
+			if b, ok := byName[name]; ok {
+				ct := "text/javascript"
+				if strings.HasSuffix(name, ".css") {
+					ct = "text/css"
+				}
+				w.Header().Set("Content-Type", ct)
+				w.Write(b)
+				return
+			}
+		}
+		if r.URL.Path == "/sub/page" {
+			w.Header().Set("Content-Type", "text/html")
+			fmt.Fprintf(w, `<!doctype html><div id="host"></div><script type="module">
+const [m, a] = await Promise.all([import("/_vuka/i/%s"), import("/_vuka/i/%s")])
+a.mount(m.default, document.getElementById("host"), { label: "hi" }, {})
+</script>`, e.Module, e.Adapter)
+			return
+		}
+		http.NotFound(w, r)
+	}))
+	defer srv.Close()
+	ch := launchChrome(t)
+	p := ch.open(srv.URL+"/sub/page", 800, 600)
+	p.wait(`(document.querySelector("#host .lazy") || {}).textContent === "lazy" && document.querySelector("#host .word").textContent === "dynamic"`)
+	p.wait(`getComputedStyle(document.querySelector("#host .lazy")).color === "rgb(1, 2, 3)"`)
+	mu.Lock()
+	defer mu.Unlock()
+	for _, a := range asked {
+		if a != "/sub/page" && a != "/favicon.ico" && !strings.HasPrefix(a, "/_vuka/i/") {
+			t.Errorf("asked for %s, outside /_vuka/i/ (all: %v)", a, asked)
+		}
 	}
 }
 

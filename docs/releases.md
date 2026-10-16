@@ -10,6 +10,31 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.45.2, web v0.36.2 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use web v0.36.2.
+
+- **Lazy components in Vite islands load.** An island built with Vite is
+  built with a relative base, so a dynamic import — a
+  `defineAsyncComponent(() => import('./Modal.vue'))`, a UI library's
+  lazily loaded component — fetches its chunks and stylesheets beside the
+  chunk importing it, under `/_vuka/i/`. Before, Vite's preload helper asked
+  for them at the site's root (`/chunk.*.js`), where the app answers 404,
+  and the lazy component never rendered. A `base` in `vite.config` no longer
+  matters to the island build; drop one set to work around this.
+- **One island per host.** Moving between pages backed by components, and
+  a rebuild under `vuka run` while a page was open, could mount a second app
+  on an island's host (Vue: "There is already an app instance mounted on the
+  host container", then a `nextSibling` error): a host whose island wasn't
+  built yet was remembered after another island mounted on it, and the next
+  build mounted that island again. The loader now unmounts what a host has
+  before mounting on it, and forgets such a host once an island mounts. The
+  Vue adapter unmounts an app left on its host, too.
+- **An island that fails to load says so.** A module that doesn't load, or
+  a mount that throws, marks the host `data-vk-error="failed"` and, under
+  `vuka run`, shows why on the page; a build bringing another module for it
+  mounts it.
+
 ## cmd/vuka v0.45.1 — 2026-10-16
 
 Runtime unchanged, v0.16.0.
