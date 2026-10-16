@@ -1,7 +1,9 @@
 package {%.Pkg%}
 
 import (
+{%- if not .Unmanaged%}
 	"time"
+{%- end%}
 
 	"github.com/vuka-lang/orm"
 {%- range .Imports%}
@@ -9,14 +11,22 @@ import (
 {%- end%}
 )
 
+{%- if .Unmanaged%}
+// {%.Name%} is a row of the existing {%.Table%} table; migrations leave it alone.
+type {%.Name%} struct {
+	orm.Base `json:"-"` @orm.Meta{Table: "{%.Table%}", Unmanaged: true}
+{%- else%}
 // {%.Name%} is a row of the {%.Table%} table. Change its fields, then
 // go tool orm makemigrations writes the migration.
 type {%.Name%} struct {
 	orm.Base `json:"-"` @orm.Meta{Table: "{%.Table%}", Ordering: []string{"-id"}}
+{%- end%}
 	ID       int64 `json:"id"`
 {%- range .Fields%}
 	{%.Name%} {%.Type%} `json:"{%.JSON%}"`{%if .Attrs%} {%.Attrs%}{%end%}
 {%- end%}
+{%- if not .Unmanaged%}
 	CreatedAt time.Time `json:"createdAt"` @orm.AutoNowAdd
 	UpdatedAt time.Time `json:"updatedAt"` @orm.AutoNow
+{%- end%}
 }

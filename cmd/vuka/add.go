@@ -18,36 +18,41 @@ import (
 const addUsage = `Usage:
 
 	vuka add module <name>
-	vuka add service <module>/<Name>
+	vuka add service <Name> [--module m]
 	vuka add component <Name> [--module m]
-	vuka add island <Name> [--vue|--react|--svelte] [--dir dir] [--no-install]
+	vuka add island <Name> [--module m] [--vue|--react|--svelte] [--dir dir] [--no-install]
 	vuka add page <path> [--module m] [--live] [--island Name [--vue|--react|--svelte]] [--name Type]
-	vuka add entity <module>/<Name> [field:type…] [--table name]
+	vuka add entity <Name> [--module m] [field:type…] [--table name] [--unmanaged]
 
 Grow an app vuka new made.
 
   module     modules/<name>/: a model, a service, a page (or API routes), a
              test, a migration making its table, and main.vuka's import of
              it. The name is a plural noun in lower case: notes, invoices.
-  service    a @web.Service in a module, with a static New and a test: a
+  service    a @web.Service in services/ (or the module's package; m/Name
+             is short for Name --module m), with a static New and a test: a
              dependency pages and routes take as a parameter or field.
   component  a stateless component taking a props struct, in components/
              (or the module's package).
   island     a client component in the island frontend (web/islands/ by
-             default): Vue (the default, or the frontend's framework),
-             React or Svelte, its props typed so an import reads them. The
-             framework's packages and Vite plugin are added when missing,
-             and installed (--no-install: not).
+             default, web/islands/<m>/ with --module m): Vue (the default,
+             or the frontend's framework), React or Svelte, its props typed
+             so an import reads them; and the .vuka component placing it,
+             in components/ (or the module's package). The framework's
+             packages and Vite plugin are added when missing, and installed
+             (--no-install: not).
   page       a page in pages/ (or the module's package): @web.Get, or
              @web.Live with --live. --island Name makes it a page backed by
              a component: an @ui.Island struct with a prop, a url: field
              and a method, and the component calling it (live with --live).
-  entity     an orm model in a module, with ID and created/updated times,
+  entity     an orm model in entities/ (or the module's package; m/Name is
+             short for Name --module m), with ID and created/updated times,
              its fields name:type — string, text, int, float, decimal,
              bool, time, date, json, ref (a foreign key to the model the
              name names: user:ref) — ? for an optional one (published_at:time?),
              :unique or :index after (email:string:unique); a test, and its
-             migration from go tool orm makemigrations.
+             migration from go tool orm makemigrations; --unmanaged maps an
+             existing table instead (no timestamps, test or migration).
 
 Every kind: --dry-run lists what it would write, --force overwrites what
 exists (nothing is overwritten otherwise). Files are formatted as vuka fmt

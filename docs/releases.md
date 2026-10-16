@@ -10,6 +10,25 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.39.2 — 2026-10-16
+
+Runtime unchanged, v0.16.0.
+
+- **`vuka add island` writes the `.vuka` side too.** Besides the component
+  under `web/islands/`, it writes a component placing it —
+  `components/chart.vuka` with `Chart(ChartProps)` — so a page writes
+  `<components.Chart Title="Sales" Count={3} />` instead of importing the
+  file itself. `--module m` puts both in the module: `modules/m/chart.vuka`
+  and `web/islands/m/Chart.vue`.
+- **`--module` for services and entities, and the app's own folders.**
+  `vuka add service Mailer --module notes` and `vuka add entity Comment
+  --module posts` name the module as the other kinds do (`notes/Mailer`
+  still works); without a module they go in `services/` and `entities/`.
+- **`vuka add entity --unmanaged`** maps an existing table:
+  `@orm.Meta{Table: "…", Unmanaged: true}`, no timestamps, test or
+  migration, and the app needs no `migrations/`. (In zsh, quote an optional
+  field: `'code:string?'`.)
+
 ## web v0.30.1 — 2026-10-16
 
 Security fix. Runtime unchanged, v0.16.0; ui unchanged, v0.25.0. The vuka

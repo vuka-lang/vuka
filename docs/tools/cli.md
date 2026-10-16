@@ -88,12 +88,12 @@ The other kinds add one piece each:
 
 | | |
 |---|---|
-| `vuka add service notes/Mailer` | a `@web.Service` in `modules/notes/` with a static `New` and a test: pages and routes take a `*notes.Mailer` parameter or field |
+| `vuka add service Mailer [--module notes]` | a `@web.Service` in `services/` (or `modules/notes/`; `notes/Mailer` is the same) with a static `New` and a test: pages and routes take a `*notes.Mailer` parameter or field |
 | `vuka add component StatCard [--module m]` | a stateless component taking a props struct (`StatCardProps`), in `components/` or the module |
-| `vuka add island Chart [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`), its props typed so `import Chart "../web/islands/Chart.vue"` reads them; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
+| `vuka add island Chart [--module m] [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`; `web/islands/<m>/` with `--module`), its props typed for an import, and `components/chart.vuka` (or `modules/<m>/chart.vuka`) — a `Chart(ChartProps)` component placing it, so pages write `<components.Chart Title="Sales" Count={3} />`; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
 | `vuka add page /reports/{id} [--module m] [--live]` | a page in `pages/`: `@web.Get` on a handler (path parameters are its parameters), or with `--live` a `@web.Live` type with an event |
 | `vuka add page /board --island Board [--live] [--react]` | a page backed by a component: an `@ui.Island` struct routed with `@web.Get` — a prop, a `url:"q"` field and a `Search` method — and the component calling it with `useLive` (Svelte: `live()`); `--live` embeds `ui.Live` |
-| `vuka add entity posts/Comment body:text post:ref email:string:unique` | an orm model in the module with `ID`, `CreatedAt` and `UpdatedAt`, a test, and its migration written by `go tool orm makemigrations` |
+| `vuka add entity Comment --module posts body:text post:ref email:string:unique` | an orm model in `entities/` (or the module; `posts/Comment` is the same); `--unmanaged --table t` maps an existing table — no timestamps, test or migration, and no `migrations/` needed. Otherwise it comes with `ID`, `CreatedAt` and `UpdatedAt`, a test, and its migration written by `go tool orm makemigrations` |
 
 An entity's fields are `name:type`, `?` after the type for an optional one
 (an `Option`), and `:unique` or `:index` after it:

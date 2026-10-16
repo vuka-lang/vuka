@@ -63,9 +63,17 @@ func TestAddService(t *testing.T) {
 	}
 	mustAdd(t, dir, "service", "users/Mailer", "--force")
 	has(t, filepath.Join(dir, "modules/users/mailer.vuka"), "type Mailer struct{}")
+	mustAdd(t, dir, "service", "Notifier", "--module", "users")
+	has(t, filepath.Join(dir, "modules/users/notifier.vuka"), "package users", "type Notifier struct{}")
+	out = mustAdd(t, dir, "service", "Clock")
+	has(t, filepath.Join(dir, "services/clock.vuka"), "package services", "type Clock struct{}")
+	has(t, filepath.Join(dir, "main.vuka"), `/services"`)
+	if _, err := runAdd(t, dir, "service", "users/Pager", "--module", "posts"); err == nil || !strings.Contains(err.Error(), "--module posts names another module") {
+		t.Errorf("two modules: %v", err)
+	}
 	for arg, msg := range map[string]string{
 		"users/mailer":  "upper-case: Invoice, UserCard (Mailer?)",
-		"Mailer":        "<module>/<Name>",
+		"/Mailer":       "<Name> [--module m], or <module>/<Name>",
 		"userz/Mailer":  "no module userz (did you mean users?)",
 		"users/Mail-er": "(MailEr?)",
 		"users/Users":   "declared already in modules/users/service.vuka",
@@ -153,7 +161,9 @@ func TestAddIsland(t *testing.T) {
 	dir := islandsApp(t)
 	out := mustAdd(t, dir, "island", "Chart", "--no-install")
 	has(t, filepath.Join(dir, "web/islands/Chart.vue"), "defineProps<{ title: string; count?: number }>()")
-	if !strings.Contains(out, `Chart "../web/islands/Chart.vue"`) || !strings.Contains(out, "<Chart title=\"Hello\" count={3} client:load />") {
+	has(t, filepath.Join(dir, "components/chart.vuka"), "package components", `ChartIsland "../web/islands/Chart.vue"`,
+		"func Chart(p ChartProps) ui.Node", "<ChartIsland title={p.Title} count={p.Count} client:load />")
+	if !strings.Contains(out, "<components.Chart Title=\"Hello\" Count={3} />") || !strings.Contains(out, "Place it in components/ as") {
 		t.Errorf("output:\n%s", out)
 	}
 	if strings.Contains(out, "package.json") {
@@ -176,13 +186,20 @@ func TestAddIsland(t *testing.T) {
 	has(t, filepath.Join(dir, "web/islands/small/Tag.svelte"), "let { title, count = 0 }: Props = $props()")
 	has(t, filepath.Join(dir, "web/vite.config.mts"), "import { svelte } from '@sveltejs/vite-plugin-svelte'")
 
+	os.WriteFile(filepath.Join(dir, "web/islands/Pie.vue"), []byte("<template/>"), 0o644)
+	mustAdd(t, dir, "module", "notes")
+	mustAdd(t, dir, "island", "Board", "--module", "notes", "--no-install")
+	has(t, filepath.Join(dir, "web/islands/notes/Board.vue"), "defineProps")
+	has(t, filepath.Join(dir, "modules/notes/board.vuka"), "package notes", `BoardIsland "../../web/islands/notes/Board.vue"`)
+
 	for args, msg := range map[string]string{
-		"Chart":             "exists already",
-		"Chart --react":     "an island Chart",
+		"Chart":             "Chart is declared already in components/chart.vuka",
+		"Pye --module nots": "did you mean",
+		"Pie --react":       "an island Pie",
 		"chart":             "upper-case",
-		"Pie --vue --react": "one framework",
-		"Pie --dir islands": "outside the island frontend web/",
-		"Pie --no-instal":   "did you mean --no-install?",
+		"Pye --vue --react": "one framework",
+		"Pye --dir islands": "outside the island frontend web/",
+		"Pye --no-instal":   "did you mean --no-install?",
 	} {
 		if _, err := runAdd(t, dir, append([]string{"island"}, strings.Fields(args)...)...); err == nil || !strings.Contains(err.Error(), msg) {
 			t.Errorf("%s: %v, want %q", args, err, msg)
@@ -236,7 +253,19 @@ func TestAddEntityFields(t *testing.T) {
 	if !strings.Contains(out, "would write modules/posts/comment.vuka") || !strings.Contains(out, "would write migrations/NNNN_post_comments.go") {
 		t.Errorf("output:\n%s", out)
 	}
-	_ = out
+	out = mustAdd(t, dir, "entity", "Tag", "--module", "posts", "--dry-run", "name:string")
+	if !strings.Contains(out, "would write modules/posts/tag.vuka") {
+		t.Errorf("--module:\n%s", out)
+	}
+	out = mustAdd(t, dir, "entity", "Country", "--dry-run", "name:string")
+	if !strings.Contains(out, "would write entities/country.vuka") {
+		t.Errorf("the app's own:\n%s", out)
+	}
+	out = mustAdd(t, dir, "entity", "Region", "--unmanaged", "--table", "regions", "name:string")
+	has(t, filepath.Join(dir, "entities/region.vuka"), `@orm.Meta{Table: "regions", Unmanaged: true}`)
+	if body := read(t, filepath.Join(dir, "entities/region.vuka")); strings.Contains(body, "CreatedAt") || exists(dir, "entities", "region_test.vuka") || !strings.Contains(out, "no migration") {
+		t.Errorf("--unmanaged:\n%s\n%s", body, out)
+	}
 	for args, msg := range map[string]string{
 		"posts/Comment body:txt":        `no type "txt" (did you mean text?)`,
 		"posts/Comment body":            "a field is name:type",

@@ -34,7 +34,7 @@ type addFlags struct {
 // valueFlags take a value: --module notes, --dir=web/islands.
 var valueFlags = map[string]bool{"module": true, "dir": true, "island": true, "table": true, "name": true}
 
-var boolFlags = map[string]bool{"force": true, "dry-run": true, "live": true, "vue": true, "react": true, "svelte": true, "no-install": true}
+var boolFlags = map[string]bool{"unmanaged": true, "force": true, "dry-run": true, "live": true, "vue": true, "react": true, "svelte": true, "no-install": true}
 
 func parseAddFlags(kind string, args []string) (*addFlags, error) {
 	f := &addFlags{bools: map[string]bool{}, values: map[string]string{}}
@@ -333,11 +333,18 @@ func importedAnywhere(root, pkg string) bool {
 	return found
 }
 
-// splitModuleName splits module/Name.
-func splitModuleName(kind, arg, what string) (string, string, error) {
+// moduleAndName is the module and the name of <Name> [--module m], or of
+// the shorter <module>/<Name>; no module is the app's own.
+func moduleAndName(kind, arg string, f *addFlags) (string, string, error) {
 	m, n, ok := strings.Cut(arg, "/")
-	if !ok || m == "" || n == "" {
-		return "", "", fmt.Errorf("vuka add %s %s: name the module and the %s: <module>/<Name>, as in notes/%s", kind, arg, what, map[string]string{"service": "Mailer", "entity": "Comment"}[kind])
+	if !ok {
+		return f.values["module"], arg, nil
+	}
+	if m == "" || n == "" {
+		return "", "", fmt.Errorf("vuka add %s %s: <Name> [--module m], or <module>/<Name>", kind, arg)
+	}
+	if fm := f.values["module"]; fm != "" && fm != m {
+		return "", "", fmt.Errorf("vuka add %s %s: --module %s names another module", kind, arg, fm)
 	}
 	return m, n, nil
 }
@@ -350,17 +357,17 @@ type serviceSpec struct {
 
 func addService(root, mod string, f *addFlags, w io.Writer) error {
 	if len(f.pos) != 1 {
-		return errors.New("usage: vuka add service <module>/<Name> [--force] [--dry-run]")
+		return errors.New("usage: vuka add service <Name> [--module m] [--force] [--dry-run]")
 	}
 	a := newAdder("service", root, mod, f)
-	module, name, err := splitModuleName("service", f.pos[0], "service")
+	module, name, err := moduleAndName("service", f.pos[0], f)
 	if err != nil {
 		return err
 	}
 	if err := checkTypeName("service", name, "service"); err != nil {
 		return err
 	}
-	t, err := a.moduleTarget(module, "")
+	t, err := a.moduleTarget(module, "services")
 	if err != nil {
 		return err
 	}
@@ -688,7 +695,7 @@ func relImport(dir, file string) string {
 
 func addIsland(root, mod string, f *addFlags, w io.Writer) error {
 	if len(f.pos) != 1 {
-		return errors.New("usage: vuka add island <Name> [--vue|--react|--svelte] [--dir dir] [--no-install] [--force] [--dry-run]")
+		return errors.New("usage: vuka add island <Name> [--module m] [--vue|--react|--svelte] [--dir dir] [--no-install] [--force] [--dry-run]")
 	}
 	a := newAdder("island", root, mod, f)
 	name := f.pos[0]
@@ -703,8 +710,29 @@ func addIsland(root, mod string, f *addFlags, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	file, err := a.island(name, f.values["dir"], fw, islandSpec{Name: name}, w)
+	module := f.values["module"]
+	t, err := a.moduleTarget(module, "components")
 	if err != nil {
+		return err
+	}
+	for _, n := range []string{name, name + "Props", name + "Island"} {
+		if at := declared(filepath.Join(root, t.dir), n); at != "" && !a.force {
+			return fmt.Errorf("vuka add island: %s is declared already in %s/%s", n, t.dir, at)
+		}
+	}
+	dir := f.values["dir"]
+	if dir == "" && module != "" {
+		dir = fr + "/islands/" + module
+	}
+	file, err := a.island(name, dir, fw, islandSpec{Name: name}, w)
+	if err != nil {
+		return err
+	}
+	src, err := render("island_host.vuka", islandHostSpec{Pkg: t.pkg, Name: name, Import: relImport(t.dir, file), File: file})
+	if err != nil {
+		return err
+	}
+	if err := a.create(t.dir+"/"+snake(name)+".vuka", src); err != nil {
 		return err
 	}
 	if err := a.commit(w); err != nil {
@@ -713,13 +741,12 @@ func addIsland(root, mod string, f *addFlags, w io.Writer) error {
 	if err := a.install(fr, f, w); err != nil {
 		return err
 	}
-	from := "pages"
-	if !exists(root, "pages") {
-		from = "."
-	}
-	fmt.Fprintf(w, "\nImport it in a .vuka file (the path is relative to the file; from %s/):\n\n\t%s %q\n\nand place it:\n\n\t<%s title=\"Hello\" count={3} client:load />\n",
-		from, name, relImport(from, file), name)
+	fmt.Fprintf(w, "\nPlace it in %s/ as\n\n\t<%s Title=\"Hello\" Count={3} />\n\nand elsewhere (import %q) as\n\n\t<%s.%s Title=\"Hello\" Count={3} />\n", t.dir, name, mod+"/"+t.dir, t.pkg, name)
 	return nil
+}
+
+type islandHostSpec struct {
+	Pkg, Name, Import, File string
 }
 
 // ---- page ----
@@ -905,6 +932,7 @@ type entitySpec struct {
 	Refs             []string // the referenced models' managers, for the test
 	Testable         bool     // the test creates a row (no required reference)
 	SampleTime       bool     // its row has a time
+	Unmanaged        bool     // an existing table: no timestamps, no migration
 }
 
 var entityTypes = []string{"string", "text", "int", "bigint", "float", "decimal", "bool", "time", "date", "ref", "json"}
@@ -1091,27 +1119,28 @@ func findModel(root, mod, pkgDir, name string) (string, string, error) {
 
 func addEntity(root, mod string, f *addFlags, w io.Writer) error {
 	if len(f.pos) < 1 {
-		return errors.New("usage: vuka add entity <module>/<Name> [field:type[?][:unique|:index]…] [--table name] [--force] [--dry-run]")
+		return errors.New("usage: vuka add entity <Name> [--module m] [field:type[?][:unique|:index]…] [--table name] [--force] [--dry-run]")
 	}
 	a := newAdder("entity", root, mod, f)
-	module, name, err := splitModuleName("entity", f.pos[0], "entity")
+	module, name, err := moduleAndName("entity", f.pos[0], f)
 	if err != nil {
 		return err
 	}
 	if err := checkTypeName("entity", name, "entity"); err != nil {
 		return err
 	}
-	if !exists(root, "migrations") {
-		return errors.New("vuka add entity: the app has no migrations/ (no database); start one with vuka new --db=sqlite")
+	unmanaged := f.bools["unmanaged"]
+	if !unmanaged && !exists(root, "migrations") {
+		return errors.New("vuka add entity: the app has no migrations/; --unmanaged maps an existing table without one, or start one with vuka new --db=sqlite")
 	}
-	t, err := a.moduleTarget(module, "")
+	t, err := a.moduleTarget(module, "entities")
 	if err != nil {
 		return err
 	}
 	if at := declared(filepath.Join(root, t.dir), name); at != "" && !a.force {
 		return fmt.Errorf("vuka add entity: %s is declared already in %s/%s", name, t.dir, at)
 	}
-	spec := entitySpec{Pkg: t.pkg, Name: name, Table: f.values["table"], Testable: true}
+	spec := entitySpec{Pkg: t.pkg, Name: name, Table: f.values["table"], Testable: true, Unmanaged: unmanaged}
 	if spec.Table == "" {
 		spec.Table = plural(snake(name))
 	} else if !fieldName.MatchString(spec.Table) {
@@ -1150,7 +1179,11 @@ func addEntity(root, mod string, f *addFlags, w io.Writer) error {
 	if exists(root, filepath.FromSlash(t.dir), snake(name)+".vuka") && !a.force {
 		return fmt.Errorf("vuka add entity: %s/%s.vuka exists already (--force overwrites it)", t.dir, snake(name))
 	}
-	for _, fl := range [][2]string{{"entity.vuka", snake(name) + ".vuka"}, {"entity_test.vuka", snake(name) + "_test.vuka"}} {
+	files := [][2]string{{"entity.vuka", snake(name) + ".vuka"}, {"entity_test.vuka", snake(name) + "_test.vuka"}}
+	if unmanaged {
+		files = files[:1]
+	}
+	for _, fl := range files {
 		src, err := render(fl[0], spec)
 		if err != nil {
 			return err
@@ -1164,6 +1197,10 @@ func addEntity(root, mod string, f *addFlags, w io.Writer) error {
 	}
 	if err := a.commit(w); err != nil {
 		return err
+	}
+	if unmanaged {
+		fmt.Fprintf(w, "\n%s maps the existing table %s: no migration. Match its fields to the table's columns (@orm.Column(\"name\") where they differ).\n", name, spec.Table)
+		return nil
 	}
 	if a.dryRun {
 		fmt.Fprintf(w, "would write migrations/NNNN_%s.go (go tool orm makemigrations %s)\n", spec.Table, spec.Table)
