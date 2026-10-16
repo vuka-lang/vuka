@@ -10,6 +10,30 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.45.0, web v0.36.0, ui v0.30.0 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use ui v0.30.0 and web v0.36.0.
+
+- **Deferred fields.** A field of a page backed by a component tagged
+  `defer:""` isn't in the first render: its group's loader,
+  `Load<Group>(ctx) error`, runs after it and the field reaches the
+  component as an update — a slow count or a list no longer holds up the
+  page, with no code in the component. `defer:"lists"` groups fields under
+  one loader (`LoadLists`); a bare `defer:""` is the field's own group.
+  On a live page the groups load concurrently once the page joins, each
+  sent as it finishes, their context ending with the page; on a stateless
+  page the component posts one signed, gated load once it mounts. A loader
+  runs on a copy of the page and only its group's fields are kept.
+  `live.stats.value` is `undefined` and `live.stats.pending` true until
+  then; a failed loader is `live.stats.error`, the page carrying on.
+  `vuka-live.d.ts` types the field optional and its handle
+  `LiveDeferred<T>`; loaders aren't on `live`, and hover on one names its
+  fields. [Deferred fields](/web/islands#deferred-fields).
+- **`Changed(ctx, changed ui.Changed)`** says which bound fields an update
+  set: `changed.Has("status")` (wire name, handle or Go name) and
+  `changed.Names()` (wire names, sorted). `Changed()` and `Changed(ctx)`
+  still work. [Which fields changed](/web/islands#which-fields-changed).
+
 ## cmd/vuka v0.44.0, web v0.35.0, ui v0.29.0, vuka v0.32.0 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use ui v0.29.0 and web v0.35.0; the

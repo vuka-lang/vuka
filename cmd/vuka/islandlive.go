@@ -17,7 +17,7 @@ import (
 // {"vuka:live": ["./vuka-live.d.ts"]}), which also lets Vue's compiler
 // resolve defineProps<T>(): an interface per @ui.Island struct — its exported fields as the
 // props (json names), its callable methods and its fields' handles (live.q,
-// settable for a bind: field) as phantom __methods and __fields members —
+// settable for a bind: field, pending for a defer: one) as phantom __methods and __fields members —
 // and useLive<T>() / live<T>() / useVuka() typed by them.
 
 // liveMethod is a method of an island's struct its component may call.
@@ -152,10 +152,19 @@ func liveDTS(islands []*islandComp, il *islandLive) []byte {
 	}
 	for _, ic := range decl {
 		fmt.Fprintf(&b, "export interface %s {\n", ic.name)
+		loaders := map[string]bool{}
 		for _, p := range ic.props {
-			fmt.Fprintf(&b, "\t%s\n", fieldTS(tsField{p.name, tsOf(ic, p), p.optional}))
+			fmt.Fprintf(&b, "\t%s\n", fieldTS(tsField{p.name, tsOf(ic, p), p.optional || p.deferred != ""}))
+			if p.deferred != "" {
+				loaders["load"+p.deferred] = true
+			}
 		}
-		ms := il.methods[ic.name]
+		var ms []liveMethod
+		for _, m := range il.methods[ic.name] {
+			if !loaders[m.name] {
+				ms = append(ms, m)
+			}
+		}
 		if len(ms) > 0 {
 			b.WriteString("\treadonly __methods?: {\n")
 			for _, m := range ms {
@@ -172,8 +181,11 @@ func liveDTS(islands []*islandComp, il *islandLive) []byte {
 			b.WriteString("\treadonly __fields?: {\n")
 			for _, p := range hs {
 				kind := "LiveField"
-				if p.bind {
+				switch {
+				case p.bind:
 					kind = "LiveBound"
+				case p.deferred != "":
+					kind = "LiveDeferred"
 				}
 				ts := tsOf(ic, p)
 				if p.optional {
@@ -200,6 +212,8 @@ func liveDTS(islands []*islandComp, il *islandLive) []byte {
 	b.WriteString(`export interface LiveError { status?: number; message: string; fields?: Record<string, string>; }
 /** A prop the component reads: get() or value. */
 export interface LiveField<V> { get(): V; readonly value: V; }
+/** A defer: prop, not in the first render: undefined and pending until its loader (Load<Group>) sends it; error is its loader's. */
+export interface LiveDeferred<V> { get(): V | undefined; readonly value: V | undefined; readonly pending: boolean; readonly error: LiveError | null; }
 /** A bind: prop the component also sets: set(v) (or value = v) is sent after its debounce, {now: true} at once; error is the server's message for it (its validate: tags), what was typed kept. */
 export interface LiveBound<V> { get(): V; value: V; set(v: V, opts?: { now?: boolean }): Promise<void>; readonly error: string | null; }
 export type LiveMethods<M> = { [K in keyof M]: M[K] & { readonly pending: boolean; readonly error: LiveError | null } };

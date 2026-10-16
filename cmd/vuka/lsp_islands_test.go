@@ -104,11 +104,13 @@ type Gone struct {
 @ui.Island
 type Board struct {
 	ui.Live
-	Q string ` + "`json:\"q\" bind:\"q\"`" + `
+	Q     string ` + "`json:\"q\" bind:\"q\"`" + `
+	Stats []int  ` + "`json:\"stats\" defer:\"\"`" + `
 }
 
 func (b *Board) Mount(ctx context.Context) error   { return nil }
 func (b *Board) Changed(ctx context.Context) error { return nil }
+func (b *Board) LoadStats(ctx context.Context) error { return nil }
 
 func main() {}
 `
@@ -158,6 +160,9 @@ func TestLSPIslandDecorators(t *testing.T) {
 	}
 	if h := jsonOf(c.call("textDocument/hover", at("Changed(ctx", 2))); !strings.Contains(h, "after the component sets a bind: field") {
 		t.Errorf("hover on Changed: %s", h)
+	}
+	if h := jsonOf(c.call("textDocument/hover", at("LoadStats(ctx", 2))); !strings.Contains(h, "Loader of deferred fields (live.stats)") {
+		t.Errorf("hover on LoadStats: %s", h)
 	}
 
 	// The file added: the diagnostic goes with the next edit.

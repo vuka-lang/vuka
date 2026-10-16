@@ -18,6 +18,7 @@ const pagesApp = `package main
 
 import (
 	"context"
+	"time"
 
 	"github.com/vuka-lang/ui"
 	"github.com/vuka-lang/web"
@@ -159,8 +160,10 @@ type FindStatic struct {
 
 func (f *FindStatic) Mount() { f.Rows = f.db.Find(f.Q) }
 
-func (f *FindStatic) Changed(ctx context.Context) error {
-	f.Changes++
+func (f *FindStatic) Changed(ctx context.Context, changed ui.Changed) error {
+	if changed.Has("q") && len(changed.Names()) == 1 {
+		f.Changes++
+	}
 	f.Rows = f.db.Find(f.Q)
 	return nil
 }
@@ -243,6 +246,55 @@ type Nav2 struct {
 }
 
 func (n *Nav2) Mount() { n.Title = "second" }
+
+@web.Live("/dash")
+@ui.Island("./components/Dash.vue")
+type Dash struct {
+	ui.Live
+	Title  string         ` + "`" + `json:"title"` + "`" + `
+	Stats  map[string]int ` + "`" + `json:"stats" defer:""` + "`" + `
+	Rows   []string       ` + "`" + `json:"rows" defer:""` + "`" + `
+	Recent []string       ` + "`" + `json:"recent" defer:""` + "`" + `
+	db     *DB
+}
+
+func (d *Dash) Mount() { d.Title = "Dashboard" }
+
+func (d *Dash) LoadStats(ctx context.Context) error {
+	select {
+	case <-time.After(800 * time.Millisecond):
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+	d.Stats = map[string]int{"open": len(d.db.names)}
+	return nil
+}
+
+func (d *Dash) LoadRows(ctx context.Context) error { d.Rows = d.db.Find("G"); return nil }
+
+func (d *Dash) LoadRecent(ctx context.Context) error { return web.BadRequest("recent is down") }
+
+@web.Get("/dashstatic")
+@ui.Island("./components/Dash.vue")
+type DashStatic struct {
+	Title  string         ` + "`" + `json:"title"` + "`" + `
+	Stats  map[string]int ` + "`" + `json:"stats" defer:""` + "`" + `
+	Rows   []string       ` + "`" + `json:"rows" defer:""` + "`" + `
+	Recent []string       ` + "`" + `json:"recent" defer:""` + "`" + `
+	db     *DB
+}
+
+func (d *DashStatic) Mount() { d.Title = "Dashboard" }
+
+func (d *DashStatic) LoadStats(ctx context.Context) error {
+	time.Sleep(800 * time.Millisecond)
+	d.Stats = map[string]int{"open": len(d.db.names)}
+	return nil
+}
+
+func (d *DashStatic) LoadRows(ctx context.Context) error { d.Rows = d.db.Find("G"); return nil }
+
+func (d *DashStatic) LoadRecent(ctx context.Context) error { return web.BadRequest("recent is down") }
 
 func main() {
 	web.New(web.Provide(func() *DB { return &DB{names: []string{"Ada", "Alan", "Grace", "Guido"}} })).Run("")
@@ -337,6 +389,21 @@ const replace = () => vuka.patch('/nav?q=r', { replace: true })
 <VukaLink href="/nav?q=c" patch class="plink" exact>c</VukaLink><VukaLink href="/nav" class="here">here</VukaLink><VukaLink href="/nav2" class="lnk">two</VukaLink></div></template>
 `
 
+const dashVue = `<script setup lang="ts">
+import { watchEffect } from 'vue'
+import { useLive } from 'vuka:live'
+import type { Dash } from 'vuka:live'
+const live = useLive<Dash>()
+const w = window as any
+w.__mounted = { at: performance.now(), pending: live.stats.pending, value: live.stats.value === undefined }
+watchEffect(() => {
+  if (!live.rows.pending && !w.__rowsAt) w.__rowsAt = performance.now()
+  if (!live.stats.pending && !w.__statsAt) w.__statsAt = performance.now()
+})
+</script>
+<template><div id="d"><h1>{{ live.title.value }}</h1><span class="stats">{{ live.stats.pending ? 'loading' : live.stats.value?.open }}</span><span class="rows">{{ live.rows.pending ? 'loading' : live.rows.value?.join(',') }}</span><span class="recent">{{ live.recent.error ? live.recent.error.message : live.recent.pending ? 'loading' : 'ok' }}</span></div></template>
+`
+
 const nav2Vue = `<script setup lang="ts">
 import { VukaLink } from 'vuka:live'
 defineProps<{ title: string }>()
@@ -366,7 +433,7 @@ func TestIslandPagesE2E(t *testing.T) {
 	root := assetsModule(t, map[string]string{"main.vuka": pagesApp, "components/Board.vue": boardVue,
 		"tsconfig.json": `{"compilerOptions": {"strict": true, "jsx": "react-jsx", "paths": {"vuka:live": ["./vuka-live"]}}}`, "components/RBoard.tsx": rboardTSX, "components/SBoard.svelte": sboardSvelte,
 		"components/Find.vue": findVue, "components/RFind.tsx": rfindTSX, "components/SFind.svelte": sfindSvelte, "components/Only.vue": onlyVue,
-		"components/Nav.vue": navVue, "components/Nav2.vue": nav2Vue})
+		"components/Nav.vue": navVue, "components/Nav2.vue": nav2Vue, "components/Dash.vue": dashVue})
 	if err := os.Symlink(nm, filepath.Join(root, "node_modules")); err != nil {
 		t.Fatal(err)
 	}
@@ -385,12 +452,13 @@ func TestIslandPagesE2E(t *testing.T) {
 	dts, _ := os.ReadFile(filepath.Join(root, "vuka-live.d.ts"))
 	for _, want := range []string{"export interface Board {", "\tq: string;", "\trows: string[];",
 		"search(q: string): Promise<void>;", "shout(): Promise<void>;", "export interface Static {", "export declare function useLive<T>(): Live<T>;",
-		"\t\tq: LiveBound<string>;\n\t\trows: LiveField<string[]>;\n\t\tchanges: LiveField<number>;", "\t\tdrop(): Promise<void>;"} {
+		"\t\tq: LiveBound<string>;\n\t\trows: LiveField<string[]>;\n\t\tchanges: LiveField<number>;", "\t\tdrop(): Promise<void>;",
+		"\tstats?: Record<string, number>;", "\t\tstats: LiveDeferred<Record<string, number>>;"} {
 		if !strings.Contains(string(dts), want) {
 			t.Errorf("vuka-live.d.ts lacks %q:\n%s", want, dts)
 		}
 	}
-	if strings.Contains(string(dts), "db") || strings.Contains(string(dts), "update(") || strings.Contains(string(dts), "mount(") {
+	if strings.Contains(string(dts), "db") || strings.Contains(string(dts), "update(") || strings.Contains(string(dts), "mount(") || strings.Contains(string(dts), "loadStats") {
 		t.Errorf("vuka-live.d.ts has the server's own: %s", dts)
 	}
 
@@ -580,6 +648,31 @@ func TestIslandPagesE2E(t *testing.T) {
 			}
 			p.eval(`(() => { const el = document.querySelector("#o .q"); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "Ad"); el.dispatchEvent(new Event("input", {bubbles: true})); })()`)
 			p.wait(`document.querySelector("#o .rows").textContent === "Ada,Alan" && document.querySelector("#o .err").textContent === ""`)
+			if t.Failed() {
+				t.Logf("page:\n%v\napp log:\n%s", p.eval(`document.documentElement.outerHTML`), logs.String())
+			}
+		})
+	}
+
+	// Pages with deferred fields: the page paints and the component mounts
+	// with them pending; each arrives on its own — live after the join,
+	// stateless from the load the component posts — with no component code,
+	// and a failing loader is its field's error.
+	for _, path := range []string{"/dash", "/dashstatic"} {
+		t.Run(path, func(t *testing.T) {
+			p := ch.open(base+path, 900, 700)
+			p.wait(`(document.querySelector("#d h1") || {}).textContent === "Dashboard"`)
+			if got := p.eval(`[window.__mounted.pending, window.__mounted.value, window.__mounted.at < 700]`); fmt.Sprint(got) != "[true true true]" {
+				t.Errorf("at mount (pending, undefined, before the loader): %v", got)
+			}
+			p.wait(`document.querySelector("#d .rows").textContent === "Grace,Guido"`)
+			p.wait(`document.querySelector("#d .recent").textContent === "recent is down"`)
+			p.wait(`document.querySelector("#d .stats").textContent === "4"`)
+			if path == "/dash" {
+				if d := p.eval(`window.__statsAt - window.__rowsAt`); d.(float64) < 400 {
+					t.Errorf("rows waited for stats: %v ms apart", d)
+				}
+			}
 			if t.Failed() {
 				t.Logf("page:\n%v\napp log:\n%s", p.eval(`document.documentElement.outerHTML`), logs.String())
 			}

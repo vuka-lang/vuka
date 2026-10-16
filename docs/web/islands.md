@@ -270,9 +270,11 @@ const live = useLive<Orders>()
   (300ms, `bind:"q,debounce=500"` to change it; `set(v, { now: true })`
   sends it straight away), and the sets of several fields within one pause
   go as one update. The server sets the fields, runs `Changed` if the type
-  has one — `Changed()` or `Changed(ctx)`, returning nothing or an error;
-  its dependencies are the struct's injected fields, as for the other
-  methods — and answers with the props. A field without `bind:` has no
+  has one — `Changed()`, `Changed(ctx)` or `Changed(ctx, changed
+  ui.Changed)`, returning nothing or an error; its dependencies are the
+  struct's injected fields, as for the other methods — and answers with
+  the props. `changed` says which fields the update set
+  ([which fields changed](#which-fields-changed)). A field without `bind:` has no
   `set` and its `value` is read only, in the types and on the server, which
   refuses a set of it (403, as `live.error`).
 - **Exported methods are what the component calls**: `live.cancel(id)`
@@ -282,9 +284,12 @@ const live = useLive<Orders>()
   `live.error` are the page's (any call). An error is `{status, message,
   fields}`, `fields` from a `web.Invalid{"q": "…"}`. A `web.Redirect`
   navigates. Calls and sets go one at a time, in order; a method waits for
-  the sets before it. `Render`, `Mount`, `Update`, `Info` and `Changed`
-  aren't callable, and a method and a field can't share a name on `live`
+  the sets before it. `Render`, `Mount`, `Update`, `Info`, `Changed` and
+  the loaders of deferred fields aren't callable, and a method and a field can't share a name on `live`
   (the app doesn't start).
+- **`defer:""` fields** aren't in the first render: a loader method sends
+  them after it, and the component reads them as pending until then —
+  [deferred fields](#deferred-fields).
 - **`url:"name"` fields** are filled from the query when the page loads,
   and when they change the address follows (`history.replaceState`), so a
   reload or a shared link shows the same page.
@@ -460,6 +465,97 @@ app at start.
 A `web.Invalid` returned by a method or by `Changed` reaches the component
 the same way.
 
+### Which fields changed
+
+Several fields set within one pause reach `Changed` as one update. To
+react to only some of them, take a `ui.Changed`:
+
+```vuka
+func (o *Orders) Changed(ctx context.Context, changed ui.Changed) error {
+    if changed.Has("status") {
+        o.page = 1                       // a new filter starts at the first page
+    }
+    return o.load(ctx)
+}
+```
+
+`changed.Names()` are the wire names of the fields the update set — the
+prop's json name, else the Go name — sorted. `changed.Has(name)` takes
+the wire name, the handle (`live.q`'s `q`) or the Go name (`Q`), so
+`changed.Has("Q")` and `changed.Has("q")` both hold for `Q string
+`+"`"+`bind:"q"`+"`"+`. `ui.Changed` may come alone, `Changed(changed ui.Changed)`.
+
+### Deferred fields
+
+A field tagged `defer:""` isn't in the page's first render: the page
+paints, the component mounts, and the field follows once the server has
+it. Nothing in the component asks for it — a slow count or the first
+tab's rows don't hold up the page.
+
+```vuka
+@web.Live("/orders")
+@ui.Island(ui.Layout(layouts.Page("Orders")))
+type Orders struct {
+    ui.Live
+    Q      string         `+"`"+`url:"q" bind:"q"`+"`"+`
+    Stats  OrderStats     `+"`"+`json:"stats" defer:""`+"`"+`      // its own group: LoadStats
+    Rows   []Order        `+"`"+`json:"rows" defer:"lists"`+"`"+`   // Rows and Total load together: LoadLists
+    Total  int            `+"`"+`json:"total" defer:"lists"`+"`"+`
+    db     *DB
+}
+
+func (o *Orders) LoadStats(ctx context.Context) error {
+    s, err := o.db.Stats(ctx)
+    o.Stats = s
+    return err
+}
+
+func (o *Orders) LoadLists(ctx context.Context) error {
+    rows, total, err := o.db.Orders(ctx, o.Q, 1)
+    o.Rows, o.Total = rows, total
+    return err
+}
+```
+
+- **Groups and loaders.** `defer:"lists"` puts the field in the group
+  `lists`; a bare `defer:""` is a group of its own, named after the field.
+  Each group has one loader, the method `Load<Group>` — `LoadLists`,
+  `LoadStats` — taking a `context.Context` (or nothing) and returning an
+  error (or nothing). A missing or misshapen loader stops the app at
+  start, as does `defer` beside `bind:` or `url:`. A loader isn't on
+  `live`: the component can't call it.
+- **When.** On a live page the loaders run once the page has joined, each
+  group on its own goroutine, and each group's fields reach the component
+  as an update when its loader returns — the fast ones don't wait for the
+  slow. Their context ends when the visitor leaves the page or the
+  connection closes. On a stateless page the component, once mounted,
+  posts one load (signed and gated as its calls are); the server runs
+  `Mount` and the loaders, concurrently, and answers with every group at
+  once. Calls the component makes meanwhile wait for it.
+- **A copy.** A loader runs on a copy of the page taken when it starts, so
+  events keep running beside it. Only its group's fields are taken from the
+  copy: set those; anything else it changes is dropped. Read what `Mount`
+  set and what the URL bound (`o.Q`) freely.
+- **In the component** a deferred field's handle has `pending` and `error`:
+  `live.stats.value` is `undefined` (and `pending` true) until its group
+  arrives; if its loader fails, `pending` turns false and `error` is
+  `{status, message}` — a `web.Error`'s message, or `"error"` (the cause
+  is logged; under `vuka run`, its text). The page itself is fine: the
+  other groups arrive, methods and sets work.
+
+```vue
+<template>
+  <p v-if="live.stats.pending">Loading…</p>
+  <p v-else-if="live.stats.error">{{ live.stats.error.message }}</p>
+  <Tiles v-else :stats="live.stats.value" />
+</template>
+```
+
+`vuka-live.d.ts` types a deferred field as optional in the props
+(`stats?: OrderStats`) and its handle as `LiveDeferred<OrderStats>`:
+`value` and `get()` are `OrderStats | undefined`, with `pending` and
+`error`.
+
 ## Build
 
 Island components live under the **frontend root** — the directory
@@ -532,7 +628,9 @@ carry are tagged in the props: `{"$vk":"date","v":…}` a date,
 `{"$vk":"fn","e":"onbook"}` a function prop (the host's `data-vk-on-onbook`
 handler or `data-vk-js-onbook` commands), `{"$vk":"state","s":…,"i":…}` a
 state (`"x"`: a derived state's expression). Function calls and emits travel
-back as ordinary live events. See [Live components](/web/live) for the live-view model.
+back as ordinary live events. A page's deferred fields are left out of
+`data-vk-props` until loaded; `data-vk-defer` lists those still pending
+(`p`) and the failed ones' errors (`e`). See [Live components](/web/live) for the live-view model.
 
 ## Limits
 

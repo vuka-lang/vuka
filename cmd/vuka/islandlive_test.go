@@ -123,7 +123,7 @@ func TestLiveDTSTypeChecks(t *testing.T) {
 	for _, c := range []struct {
 		dts func(*testing.T) (string, []byte)
 		use string
-	}{{levelsDTS, levelsUse}, {chasingDTS, chasingUse}} {
+	}{{levelsDTS, levelsUse}, {chasingDTS, chasingUse}, {ordersDTS, ordersUse}} {
 		dir, dts := c.dts(t)
 		os.WriteFile(filepath.Join(dir, "vuka-live.d.ts"), dts, 0o644)
 		os.WriteFile(filepath.Join(dir, "use.ts"), []byte(c.use), 0o644)
@@ -132,6 +132,77 @@ func TestLiveDTSTypeChecks(t *testing.T) {
 		if out, err := cmd.CombinedOutput(); err != nil {
 			t.Fatalf("tsc: %v\n%s\n%s", err, out, dts)
 		}
+	}
+}
+
+const ordersSrc = `package app
+
+@web.Live("/orders")
+@ui.Island
+type Orders struct {
+	ui.Live
+	Q      string         ` + "`json:\"q\" bind:\"q\"`" + `
+	Stats  map[string]int ` + "`json:\"stats\" defer:\"\"`" + `
+	Rows   []Order        ` + "`json:\"rows\" defer:\"lists\"`" + `
+	Total  int            ` + "`json:\"total\" defer:\"lists\"`" + `
+}
+
+type Order struct {
+	ID int64 ` + "`json:\"id\"`" + `
+}
+
+func (o *Orders) LoadStats(ctx context.Context) error { return nil }
+func (o *Orders) LoadLists(ctx context.Context) error { return nil }
+func (o *Orders) Cancel(ctx context.Context, id int64) error { return nil }
+`
+
+func ordersDTS(t *testing.T) (dir string, dts []byte) {
+	t.Helper()
+	dir = t.TempDir()
+	if err := os.WriteFile(filepath.Join(dir, "orders.vuka"), []byte(ordersSrc), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	full, _ := scanFile("orders.vuka", []byte(ordersSrc))
+	ic := &islandComp{name: "Orders", props: structFields(full, "Orders")}
+	return dir, liveDTS([]*islandComp{ic}, readIslandLive(dir, "", []string{dir}))
+}
+
+const ordersUse = `import type { Live, Orders, Order } from './vuka-live'
+declare const live: Live<Orders>
+const stats: Record<string, number> | undefined = live.stats.value
+const rows: Order[] = live.rows.get() ?? []
+const loading: boolean = live.stats.pending || live.rows.pending
+const why: string | undefined = live.total.error?.message
+live.cancel(1).then(() => {})
+// @ts-expect-error a deferred field may not be there yet
+const sure: Record<string, number> = live.stats.value
+// @ts-expect-error a deferred field is the server's
+live.stats.set({})
+// @ts-expect-error a loader isn't callable
+live.loadStats()
+// @ts-expect-error a bound field isn't pending
+live.q.pending
+export { stats, rows, loading, why, sure }
+`
+
+// TestLiveDTSDeferred: a defer: field is optional in the props, and its
+// handle is a LiveDeferred (value T | undefined, pending, error); its
+// group's loader isn't a method.
+func TestLiveDTSDeferred(t *testing.T) {
+	_, dts := ordersDTS(t)
+	for _, want := range []string{
+		"	stats?: Record<string, number>;",
+		"	rows?: Order[];",
+		"		cancel(id: number): Promise<void>;",
+		"		stats: LiveDeferred<Record<string, number>>;\n\t\trows: LiveDeferred<Order[]>;\n\t\ttotal: LiveDeferred<number>;",
+		"export interface LiveDeferred<V>",
+	} {
+		if !strings.Contains(string(dts), want) {
+			t.Errorf("lacks %q:\n%s", want, dts)
+		}
+	}
+	if strings.Contains(string(dts), "loadStats") || strings.Contains(string(dts), "loadLists") {
+		t.Errorf("a loader is a method:\n%s", dts)
 	}
 }
 

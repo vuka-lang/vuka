@@ -149,8 +149,8 @@ func (p *proxy) islandRequest(method string, f *vfile, off int) func() any {
 var hookRe = regexp.MustCompile(`func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*$`)
 
 // islandHookNote is what hover adds on an island page's Mount or Changed
-// method name at off: they are hooks the server runs, not methods the
-// component calls.
+// method name, or a deferred group's loader (Load<Group>), at off: they are
+// hooks the server runs, not methods the component calls.
 func islandHookNote(root, path string, text []byte, off int) string {
 	s, e := off, off
 	for s > 0 && isIdentByte(text[s-1]) {
@@ -160,7 +160,7 @@ func islandHookNote(root, path string, text []byte, off int) string {
 		e++
 	}
 	name := string(text[s:e])
-	if name != "Mount" && name != "Changed" {
+	if name != "Mount" && name != "Changed" && !strings.HasPrefix(name, "Load") {
 		return ""
 	}
 	m := hookRe.FindSubmatch(text[max(0, s-200):s])
@@ -169,16 +169,31 @@ func islandHookNote(root, path string, text []byte, off int) string {
 	}
 	typ := string(m[1])
 	found := false
+	var deferred []string
 	for _, ic := range islandDecos(root, path, text, false) {
-		found = found || ic.name == typ
+		if ic.name != typ {
+			continue
+		}
+		found = true
+		for _, p := range ic.props {
+			if p.deferred != "" && "Load"+p.deferred == name {
+				deferred = append(deferred, "live."+strings.ToLower(p.name[:1])+p.name[1:])
+			}
+		}
 	}
 	if !found {
 		return ""
 	}
+	if strings.HasPrefix(name, "Load") {
+		if len(deferred) == 0 {
+			return ""
+		}
+		return "Loader of deferred fields (" + strings.Join(deferred, ", ") + "): the server runs it after the first render — a live page once it joins, a stateless one when its component asks — and sends what it sets; until then the fields are pending. The component can't call it (it isn't on live)."
+	}
 	if name == "Mount" {
 		return "Lifecycle hook: the server runs Mount when the page is opened, before it renders. The component can't call it (it isn't on live)."
 	}
-	return "Lifecycle hook: the server runs Changed after the component sets a bind: field (live.<field>.set(v)) and the bound fields are set. The component can't call it (it isn't on live)."
+	return "Lifecycle hook: the server runs Changed after the component sets a bind: field (live.<field>.set(v)) and the bound fields are set; Changed(ctx, changed ui.Changed) says which (changed.Has(\"q\"), changed.Names()). The component can't call it (it isn't on live)."
 }
 
 // withNote adds note to a hover result.

@@ -170,6 +170,7 @@ type islandProp struct {
 	optional bool
 	value    bool   // a plain value, not a function, state or node: a page's component gets a handle for it
 	bind     bool   // bind: the page's component may set it
+	deferred string // defer: the group whose loader (Load<Group>) sends it after the first render
 	named    string // the Go type's name when ts doesn't know it (a struct of the package)
 	typ      []wtok // the Go type
 }
@@ -678,6 +679,8 @@ func fieldProps(toks []wtok) []islandProp {
 	}
 	b, bound := reflect.StructTag(tag).Lookup("bind")
 	bound = bound && b != "-"
+	group, deferred := reflect.StructTag(tag).Lookup("defer")
+	deferred = deferred && group != "-"
 	var out []islandProp
 	for _, nm := range names {
 		if !token.IsExported(nm) || nm == "Children" {
@@ -687,7 +690,15 @@ func fieldProps(toks []wtok) []islandProp {
 		if jsonName != "" {
 			wire = jsonName
 		}
-		out = append(out, islandProp{name: wire, ts: ts, optional: optional, value: plainType(typ), bind: bound, named: localTypeName(typ), typ: typ})
+		p := islandProp{name: wire, ts: ts, optional: optional, value: plainType(typ), bind: bound, named: localTypeName(typ), typ: typ}
+		if deferred {
+			p.deferred = group
+			if p.deferred == "" {
+				p.deferred = nm
+			}
+			p.deferred = strings.ToUpper(p.deferred[:1]) + p.deferred[1:]
+		}
+		out = append(out, p)
 	}
 	return out
 }
