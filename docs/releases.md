@@ -10,6 +10,30 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.42.0, web v0.32.0, ui v0.28.0 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use ui v0.28.0 and web v0.32.0.
+
+- **Pages backed by a component check `validate:` tags.** A `bind:` field's
+  tag (`` Q string `bind:"q" validate:"max=50"` ``) is checked when the
+  component sets it, every field of one set before any is applied, and a
+  method's struct arguments are checked, with the structs they hold at any
+  depth, before it runs. A failure applies nothing, runs neither `Changed`
+  nor the method, and answers 422 with each field's message —
+  `{"status": 422, "message": "invalid: q: at most 50 characters", "fields":
+  {"q": "at most 50 characters"}}`; a method argument's fields by their path
+  inside it (`years`, `level.code`, `items.0.code`) — live and stateless
+  alike. Rules: `required`, `omitempty`, `min`, `max`, `len`, `oneof`,
+  `email`; another rule, or a bad value, stops the app at start (ui
+  v0.28.0's `ui.Validate` and `ui.CheckValidate`).
+  [Islands](/web/islands#validation).
+- **`live.q.error`.** A bound field's handle has the server's message for
+  it, or `null`; what was typed stays in the input, shown with its error,
+  until the field is set again or a method succeeds. A failed call's
+  promise rejects with an `Error` carrying `status` and `fields`.
+  `vuka-live.d.ts` types it: `LiveBound<V>` has `readonly error: string |
+  null`.
+
 ## cmd/vuka v0.41.0, ui v0.27.0, vuka v0.31.0 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use ui v0.27.0; the command requires

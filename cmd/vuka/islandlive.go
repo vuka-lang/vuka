@@ -199,8 +199,8 @@ func liveDTS(islands []*islandComp, il *islandLive) []byte {
 	b.WriteString(`export interface LiveError { status?: number; message: string; fields?: Record<string, string>; }
 /** A prop the component reads: get() or value. */
 export interface LiveField<V> { get(): V; readonly value: V; }
-/** A bind: prop the component also sets: set(v) (or value = v) is sent after its debounce, {now: true} at once. */
-export interface LiveBound<V> { get(): V; value: V; set(v: V, opts?: { now?: boolean }): Promise<void>; }
+/** A bind: prop the component also sets: set(v) (or value = v) is sent after its debounce, {now: true} at once; error is the server's message for it (its validate: tags), what was typed kept. */
+export interface LiveBound<V> { get(): V; value: V; set(v: V, opts?: { now?: boolean }): Promise<void>; readonly error: string | null; }
 export type LiveMethods<M> = { [K in keyof M]: M[K] & { readonly pending: boolean; readonly error: LiveError | null } };
 export type Live<T> = (T extends { readonly __methods?: infer M } ? LiveMethods<NonNullable<M>> : {}) &
 	(T extends { readonly __fields?: infer F } ? NonNullable<F> : {}) & {

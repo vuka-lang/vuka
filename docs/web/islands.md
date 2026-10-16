@@ -332,6 +332,69 @@ to it in `tsconfig.json`, which also lets Vue's compiler read
 
 `App.Page(path, &T{}, attrs…)` declares one from Go.
 
+### Validation
+
+`validate:` tags are checked on the server before anything runs, live and
+stateless alike:
+
+```vuka
+type Filter struct {
+    Years int   `json:"years" validate:"min=1,max=40"`
+    Level Level `json:"level"`
+}
+
+type Level struct {
+    Code string `json:"code" validate:"required,len=3"`
+}
+
+type Orders struct {
+    ui.Live
+    Q    string  `url:"q" bind:"q" validate:"max=50"`
+    Rows []Order
+}
+
+func (o *Orders) Narrow(ctx context.Context, f Filter) error { … }
+```
+
+The rules: `required` (not the zero value), `omitempty` (skip the rest when
+it is), `min=n`, `max=n` and `len=n` (a string's characters, a number's
+value, a slice's or map's items), `oneof=a b c` and `email`, comma
+separated. A tag with another rule, or a bad value (`max=five`), stops the
+app at start.
+
+- **A method's arguments**: each struct argument (or pointer to one, or a
+  slice or map of them) is checked, and the structs it holds at any depth.
+  If any field fails, the method doesn't run and the call answers 422 with
+  each field by its path inside the argument — its json names, a slice's
+  items by index:
+
+  ```json
+  {"status": 422, "message": "invalid: level.code: exactly 3 characters; years: at least 1",
+   "fields": {"years": "at least 1", "level.code": "exactly 3 characters"}}
+  ```
+
+  The promise rejects with an `Error` whose `status` and `fields` are those
+  (`err.fields["level.code"]`), and `live.narrow.error.fields` holds them
+  too. A slice argument's items are `0.code`, `1.code`; a method taking two
+  structs with a field of one name shows the first one's message.
+  Arguments that are plain values (`id int64`) have no tags to check.
+- **A bound field**: every field of one set is checked before any is
+  applied; if one fails, none is set and `Changed` doesn't run. The answer
+  is the same 422, each field under its wire name (`fields: {"q": "at most
+  50 characters"}`, inside a struct field `where.city`). `live.q.error` is
+  that field's message (`"city: required"` for one inside it), or `null`.
+  What was typed stays in the input, shown with its error, until the field
+  is set again (a valid set clears the error) or a method succeeds; any
+  other refusal (a field that isn't `bind:`) puts the server's value back.
+
+```vue
+<input v-model="live.q.value" />
+<p v-if="live.q.error">{{ live.q.error }}</p>
+```
+
+A `web.Invalid` returned by a method or by `Changed` reaches the component
+the same way.
+
 ## Build
 
 Island components live under the **frontend root** — the directory

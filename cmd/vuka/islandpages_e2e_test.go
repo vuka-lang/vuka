@@ -191,7 +191,7 @@ func (f *SFind) Drop()    { f.Rows = nil }
 @ui.Island("./components/Only.vue")
 type Only struct {
 	ui.Live
-	Q       string   ` + "`" + `bind:"q,debounce=150"` + "`" + `
+	Q       string   ` + "`" + `bind:"q,debounce=150" validate:"max=5"` + "`" + `
 	Rows    []string
 	Changes int
 	db      *DB
@@ -203,7 +203,7 @@ func (f *Only) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
 @web.Get("/onlystatic")
 @ui.Island("./components/Only.vue")
 type OnlyStatic struct {
-	Q       string   ` + "`" + `bind:"q,debounce=150"` + "`" + `
+	Q       string   ` + "`" + `bind:"q,debounce=150" validate:"max=5"` + "`" + `
 	Rows    []string
 	Changes int
 	db      *DB
@@ -283,7 +283,7 @@ import { useLive } from 'vuka:live'
 import type { Only } from 'vuka:live'
 const live = useLive<Only>()
 </script>
-<template><div id="o"><input class="q" v-model="live.q.value" /><span class="rows">{{ (live.rows.value || []).join(',') }}</span><span class="changes">{{ live.changes.get() }}</span></div></template>
+<template><div id="o"><input class="q" v-model="live.q.value" /><span class="err">{{ live.q.error }}</span><span class="rows">{{ (live.rows.value || []).join(',') }}</span><span class="changes">{{ live.changes.get() }}</span></div></template>
 `
 
 // TestIslandPagesE2E: pages backed by a Vue component, live and stateless:
@@ -432,6 +432,13 @@ func TestIslandPagesE2E(t *testing.T) {
 			p.eval(`(() => { const el = document.querySelector("#o .q"); el.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "Gr"); el.dispatchEvent(new Event("input", {bubbles: true})); })()`)
 			p.wait(`document.querySelector("#o .rows").textContent === "Grace,Guido"`)
 			p.wait(`document.querySelector("#o .changes").textContent === "1"`)
+			p.eval(`(() => { const el = document.querySelector("#o .q"); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "Gracey"); el.dispatchEvent(new Event("input", {bubbles: true})); })()`)
+			p.wait(`document.querySelector("#o .err").textContent === "at most 5 characters"`)
+			if v, c := p.eval(`document.querySelector("#o .q").value`), p.text("#o .changes"); v != "Gracey" || c != "1" {
+				t.Errorf("an invalid set: input %v, Changed ran %s times", v, c)
+			}
+			p.eval(`(() => { const el = document.querySelector("#o .q"); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "Ad"); el.dispatchEvent(new Event("input", {bubbles: true})); })()`)
+			p.wait(`document.querySelector("#o .rows").textContent === "Ada,Alan" && document.querySelector("#o .err").textContent === ""`)
 			if t.Failed() {
 				t.Logf("page:\n%v\napp log:\n%s", p.eval(`document.documentElement.outerHTML`), logs.String())
 			}

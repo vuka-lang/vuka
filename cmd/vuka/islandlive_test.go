@@ -78,6 +78,12 @@ const first: Level[] = live.levels.get()
 live.delete(1).then(() => {})
 const busy: boolean = live.delete.pending || live.pending
 const why: string | undefined = live.delete.error?.message
+const qErr: string | null = live.q.error
+const argErr: string | undefined = live.delete.error?.fields?.['level.code']
+// @ts-expect-error a field's error is the server's
+live.q.error = 'x'
+// @ts-expect-error a read-only field has no error
+live.levels.error
 // @ts-expect-error a read-only field has no set
 live.levels.set([])
 // @ts-expect-error a read-only field's value
@@ -86,7 +92,7 @@ live.levels.value = []
 live.changed()
 // @ts-expect-error q is a string
 live.q.set(1)
-export { q, rows, first, busy, why }
+export { q, rows, first, busy, why, qErr, argErr }
 `
 
 // TestLiveDTSTypeChecks: the types check a component's use of them, and
