@@ -53,7 +53,7 @@ func TestReadIslandOptions(t *testing.T) {
 	}
 	for _, c := range []struct {
 		name, src, strategy, route string
-		infer, layout, live      bool
+		infer, layout, live        bool
 	}{
 		{"Levels", "", "", "Live", true, true, true},
 		{"Old", "islands/Old.vue", "idle", "Get", false, true, true},
@@ -80,8 +80,8 @@ func TestReadIslandOptions(t *testing.T) {
 
 func TestReadIslandOptionErrors(t *testing.T) {
 	for decl, want := range map[string]string{
-		`@ui.Island(paths.Chart)`:                 "takes a string literal path",
-		`@ui.Island(ui.Strategy(s))`:              "ui.Strategy takes a string literal",
+		`@ui.Island(paths.Chart)`:                  "takes a string literal path",
+		`@ui.Island(ui.Strategy(s))`:               "ui.Strategy takes a string literal",
 		`@ui.Island("a.vue", ui.Layout(x), other)`: "options are calls",
 	} {
 		src := "package p\n\nimport \"github.com/vuka-lang/ui\"\n\n" + decl + "\ntype T struct{}\n"
