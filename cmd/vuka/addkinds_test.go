@@ -129,17 +129,22 @@ func TestAddPage(t *testing.T) {
 	if !strings.Contains(out, "open http://localhost:8080/reports/1") {
 		t.Errorf("output:\n%s", out)
 	}
+	mustAdd(t, dir, "page", "/charts")
+	has(t, filepath.Join(dir, "pages/charts_page.vuka"), `@web.Live("/charts"`, "type ChartsPage struct {\n\tui.Live")
+	mustAdd(t, dir, "page", "/about", "--stateless")
+	has(t, filepath.Join(dir, "pages/about_page.vuka"), `@web.Get("/about")`)
 	mustAdd(t, dir, "page", "/stats", "--live", "--module", "users")
 	has(t, filepath.Join(dir, "modules/users/stats_page.vuka"), `@web.Live("/stats", web.Layout(layouts.Page("Stats")))`, "type StatsPage struct {\n\tui.Live", "func (p *StatsPage) Inc()")
 	for args, msg := range map[string]string{
-		"reports":            "starts with /",
-		"/Reports":           "isn't a path segment",
-		"/stats":             "StatsPage is declared already",
-		"/login":             "is a route already, in pages/login.vuka",
-		"/x/{id} --live":     "{parameters}",
-		"/x --vue":           "go with --island",
-		"/x --name lower":    "upper-case",
-		"/x --module nobody": "no module nobody",
+		"reports":               "starts with /",
+		"/Reports":              "isn't a path segment",
+		"/stats":                "StatsPage is declared already",
+		"/login":                "is a route already, in pages/login.vuka",
+		"/x/{id} --live":        "{parameters}",
+		"/y --live --stateless": "not both",
+		"/x --vue":              "go with --island",
+		"/x --name lower":       "upper-case",
+		"/x --module nobody":    "no module nobody",
 	} {
 		a := append([]string{"page"}, strings.Fields(args)...)
 		if args == "/stats" {
@@ -159,8 +164,10 @@ func islandsApp(t *testing.T) string {
 
 func TestAddIsland(t *testing.T) {
 	dir := islandsApp(t)
+	os.Remove(filepath.Join(dir, "web/tsconfig.json"))
 	out := mustAdd(t, dir, "island", "Chart", "--no-install")
 	has(t, filepath.Join(dir, "web/islands/Chart.vue"), "defineProps<{ title: string; count?: number }>()")
+	has(t, filepath.Join(dir, "web/tsconfig.json"), `"vuka:live": ["./vuka-live"]`)
 	has(t, filepath.Join(dir, "components/chart.vuka"), "package components", `ChartIsland "../web/islands/Chart.vue"`,
 		"func Chart(p ChartProps) ui.Node", "<ChartIsland title={p.Title} count={p.Count} client:load />")
 	if !strings.Contains(out, "<components.Chart Title=\"Hello\" Count={3} />") || !strings.Contains(out, "Place it in components/ as") {
@@ -226,13 +233,13 @@ func TestAddIslandInstalls(t *testing.T) {
 func TestAddIslandPage(t *testing.T) {
 	dir := islandsApp(t)
 	mustAdd(t, dir, "page", "/reports", "--island", "Reports", "--live", "--no-install")
-	has(t, filepath.Join(dir, "pages/reports.vuka"), `@web.Get("/reports")`, `@ui.Island("../web/islands/Reports.vue")`,
+	has(t, filepath.Join(dir, "pages/reports.vuka"), `@web.Get("/reports")`, `@ui.Island("islands/Reports.vue")`,
 		"type Reports struct {\n\tui.Live", "Title string `json:\"title\"`", "`json:\"q\" url:\"q\"`", "func (p *Reports) Search(ctx context.Context, q string) error")
 	has(t, filepath.Join(dir, "web/islands/Reports.vue"), "import { useLive } from 'vuka:live'", "defineProps<Reports>()", "live.search(")
 
-	mustAdd(t, dir, "page", "/board", "--island", "Board", "--react", "--no-install")
+	mustAdd(t, dir, "page", "/board", "--island", "Board", "--react", "--stateless", "--no-install")
 	page := read(t, filepath.Join(dir, "pages/board.vuka"))
-	if strings.Contains(page, "ui.Live") || !strings.Contains(page, `@ui.Island("../web/islands/Board.tsx")`) {
+	if strings.Contains(page, "ui.Live") || !strings.Contains(page, `@ui.Island("islands/Board.tsx")`) {
 		t.Errorf("a stateless page:\n%s", page)
 	}
 	has(t, filepath.Join(dir, "web/islands/Board.tsx"), "export default function Board(props: Board)", "useLive<Board>()")

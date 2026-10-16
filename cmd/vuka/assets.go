@@ -145,6 +145,15 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 	}
 	if len(pa.islands) > 0 {
 		pa.frontendRoot = findFrontendRoot(root)
+		for _, ic := range pa.islands {
+			if ic.bare == "" || fileExists(ic.src) {
+				continue
+			}
+			if abs := filepath.Join(pa.frontendRoot, filepath.FromSlash(ic.bare)); fileExists(abs) {
+				rel, _ := filepath.Rel(root, abs)
+				ic.src, ic.rel = abs, filepath.ToSlash(rel)
+			}
+		}
 	}
 	return pa, nil
 }

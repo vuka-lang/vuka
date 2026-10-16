@@ -74,7 +74,7 @@ func TestAddIslandsEndToEnd(t *testing.T) {
 	e.run(dir, off, "vuka", "add", "island", "Chart", "--no-install")
 	e.run(dir, off, "vuka", "add", "island", "Clock", "--react", "--no-install")
 	e.run(dir, off, "vuka", "add", "page", "/reports", "--island", "Reports", "--live", "--no-install")
-	e.run(dir, off, "vuka", "add", "page", "/board", "--island", "Board", "--no-install")
+	e.run(dir, off, "vuka", "add", "page", "/board", "--island", "Board", "--stateless", "--no-install")
 	os.WriteFile(filepath.Join(dir, "pages", "charts.vuka"), []byte(`package pages
 
 import (

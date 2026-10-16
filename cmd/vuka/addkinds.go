@@ -34,7 +34,7 @@ type addFlags struct {
 // valueFlags take a value: --module notes, --dir=web/islands.
 var valueFlags = map[string]bool{"module": true, "dir": true, "island": true, "table": true, "name": true}
 
-var boolFlags = map[string]bool{"unmanaged": true, "force": true, "dry-run": true, "live": true, "vue": true, "react": true, "svelte": true, "no-install": true}
+var boolFlags = map[string]bool{"stateless": true, "unmanaged": true, "force": true, "dry-run": true, "live": true, "vue": true, "react": true, "svelte": true, "no-install": true}
 
 func parseAddFlags(kind string, args []string) (*addFlags, error) {
 	f := &addFlags{bools: map[string]bool{}, values: map[string]string{}}
@@ -442,7 +442,7 @@ var frameworks = map[string]struct {
 	deps, devDeps      map[string]string
 	pluginImport, call string
 }{
-	"vue": {".vue", map[string]string{"vue": "^3.5.44"}, map[string]string{"@vitejs/plugin-vue": "^6.0.10"},
+	"vue": {".vue", map[string]string{"vue": "^3.5.44"}, map[string]string{"@vitejs/plugin-vue": "^6.0.10", "typescript": "~6.0.3"},
 		"import vue from '@vitejs/plugin-vue'", "vue()"},
 	"react": {".tsx", map[string]string{"react": "^19.3.0", "react-dom": "^19.3.0"}, map[string]string{"@vitejs/plugin-react": "^6.1.2", "@types/react": "^19.2.0"},
 		"import react from '@vitejs/plugin-react'", "react()"},
@@ -525,6 +525,11 @@ func (a *adder) island(name, dir, fw string, spec islandSpec, w io.Writer) (stri
 	}
 	if err := a.frameworkSetup(fr, fw); err != nil {
 		return "", err
+	}
+	if ts := fr + "/tsconfig.json"; !exists(a.root, filepath.FromSlash(ts)) {
+		if err := a.create(ts, liveTSConfig()); err != nil {
+			return "", err
+		}
 	}
 	return file, nil
 }
@@ -769,7 +774,7 @@ var pathSegment = regexp.MustCompile(`^(\{[a-z][A-Za-z0-9]*\}|[a-z0-9][a-z0-9._-
 
 func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if len(f.pos) != 1 {
-		return errors.New("usage: vuka add page <path> [--module m] [--live] [--island Name [--vue|--react|--svelte]] [--name Type] [--force] [--dry-run]")
+		return errors.New("usage: vuka add page <path> [--module m] [--stateless] [--island Name [--vue|--react|--svelte]] [--name Type] [--force] [--dry-run]")
 	}
 	a := newAdder("page", root, mod, f)
 	path := f.pos[0]
@@ -795,6 +800,11 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 		}
 		words = append(words, strings.NewReplacer(".", "_", "-", "_").Replace(seg))
 	}
+	if f.bools["live"] && f.bools["stateless"] {
+		return fmt.Errorf("vuka add page %s: --live or --stateless, not both", path)
+	}
+	// live unless --stateless; a path with {parameters} only with --live
+	live := !f.bools["stateless"] && (f.bools["live"] || len(params) == 0)
 	if len(params) > 0 && (f.bools["live"] || f.values["island"] != "") {
 		return fmt.Errorf("vuka add page %s: a live or component-backed page from a path with {parameters} is yours to write; vuka add page makes it without them", path)
 	}
@@ -830,10 +840,10 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 		return fmt.Errorf("vuka add page: %s is a route already, in %s", path, other)
 	}
 	handler := "Show" + strings.TrimSuffix(typ, "Page")
-	if at := declared(filepath.Join(root, t.dir), handler); at != "" && !a.force && !f.bools["live"] && f.values["island"] == "" {
+	if at := declared(filepath.Join(root, t.dir), handler); at != "" && !a.force && !live && f.values["island"] == "" {
 		return fmt.Errorf("vuka add page: %s is declared already in %s/%s (--name names another)", handler, t.dir, at)
 	}
-	spec := pageSpec{Module: mod, Pkg: t.pkg, Type: typ, Path: path, Handler: handler, Params: params, MethodJSON: "search", Title: displayName(strings.Join(words, " ")), Live: f.bools["live"],
+	spec := pageSpec{Module: mod, Pkg: t.pkg, Type: typ, Path: path, Handler: handler, Params: params, MethodJSON: "search", Title: displayName(strings.Join(words, " ")), Live: live,
 		Layouts: exists(root, "layouts", "document.vuka"), Auth: exists(root, "modules", "users")}
 	if spec.Title == "" {
 		spec.Title = typ
@@ -862,7 +872,7 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 		if err != nil {
 			return err
 		}
-		spec.Island, spec.IslandPath = island, relImport(t.dir, comp)
+		spec.Island, spec.IslandPath = island, strings.TrimPrefix(comp, fr+"/")
 		tmpl = "page_island.vuka"
 		defer func() { a.install(fr, f, w) }()
 	} else {

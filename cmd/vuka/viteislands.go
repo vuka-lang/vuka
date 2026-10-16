@@ -200,7 +200,11 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		for _, ic := range islands {
 			names = append(names, ic.rel)
 		}
-		return nil, nil, nil, fmt.Errorf("vite islands (%s): vite build: %v\n%s", strings.Join(names, ", "), err, stdout.String())
+		hint := ""
+		if strings.Contains(stderr.String(), "No fs option provided to `compileScript`") {
+			hint = fmt.Sprintf("\nVue's compiler resolves defineProps<T>() of an imported type with TypeScript's JavaScript API, which TypeScript 7 doesn't have: (cd %s && npm install -D typescript@~6.0.3)\n", rel(root, frontendRoot))
+		}
+		return nil, nil, nil, fmt.Errorf("vite islands (%s): vite build: %v\n%s%s", strings.Join(names, ", "), err, stdout.String(), hint)
 	}
 
 	manPath := filepath.Join(outDir, ".vite", "manifest.json")

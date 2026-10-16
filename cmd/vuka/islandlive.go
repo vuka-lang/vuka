@@ -179,3 +179,10 @@ export declare function useVuka(): Vuka;
 `)
 	return []byte(b.String())
 }
+
+// liveTSConfig is the tsconfig.json a frontend without one gets, so editors
+// resolve "vuka:live" to vuka-live.d.ts.
+func liveTSConfig() []byte {
+	b, _ := scaffoldFS.ReadFile("scaffold/app/web@islands/tsconfig.json")
+	return b
+}

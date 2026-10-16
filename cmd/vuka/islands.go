@@ -42,7 +42,8 @@ type islandComp struct {
 	framework string // vanilla | vue | react | svelte (from the extension)
 	strategy  string // the decorator's default strategy, "" when none
 	props     []islandProp
-	imported  bool // from a .vuka import; its props are the component's own
+	imported  bool   // from a .vuka import; its props are the component's own
+	bare      string // the decorator's path when it doesn't start with . (found from the frontend root when not beside the file)
 }
 
 // islandProp is one exported field of an island's struct: its wire name (json
@@ -299,7 +300,12 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 		}
 		abs := filepath.Join(dir, filepath.FromSlash(cp))
 		relSrc, _ := filepath.Rel(pa.root, abs)
+		bare := ""
+		if !strings.HasPrefix(cp, ".") && !filepath.IsAbs(cp) {
+			bare = cp
+		}
 		pa.islands = append(pa.islands, &islandComp{
+			bare:      bare,
 			name:      name,
 			src:       abs,
 			rel:       filepath.ToSlash(relSrc),

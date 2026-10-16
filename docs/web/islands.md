@@ -88,12 +88,17 @@ type Point struct {
     Y float64 `json:"y"`
 }
 
-@ui.Island("web/islands/Chart.vue")
+@ui.Island("islands/Chart.vue")
 type Chart struct {
     Series []Point `json:"series"`
     Title  string  `json:"title"`
 }
 ```
+
+The path is read from the frontend root (`web.FrontendRoot("web")`: here
+`web/islands/Chart.vue`), whichever package declares the struct; a path
+starting with `./` or `../`, or a file beside the declaring one, is read from
+there instead.
 
 ## Place it in a page
 
@@ -196,7 +201,7 @@ the page's template is the component file.
 
 ```vuka
 @web.Get("/orders")
-@ui.Island("web/components/Orders.vue")
+@ui.Island("components/Orders.vue")
 @auth.Required
 type Orders struct {
     ui.Live                         // optional: a live page; leave it out for a stateless one

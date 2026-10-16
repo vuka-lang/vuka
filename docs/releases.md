@@ -10,6 +10,33 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.39.3 — 2026-10-16
+
+Runtime unchanged, v0.16.0.
+
+- **A Vue page backed by a component builds when TypeScript 7 is about.**
+  Vue's compiler reads `defineProps<T>()` of a type imported from
+  `vuka:live` through TypeScript's JavaScript API, which TypeScript 7
+  doesn't have; a UI library depending on `typescript` could hoist 7 into
+  the frontend, and the island build failed, leaving the page blank.
+  `vuka add island` / `page --island` now pin `typescript` `~6.0.3` beside
+  Vue when the frontend has none, and the build's error says what to run.
+- **Editors find `vuka:live`.** A frontend without a `tsconfig.json` gets
+  one (mapping `vuka:live` to `vuka-live.d.ts`) from `vuka add island` and
+  from the build that writes `vuka-live.d.ts`.
+- **`@ui.Island` paths from the frontend root.** A path that doesn't start
+  with `.` and isn't beside the declaring file is found from the frontend
+  root `web.FrontendRoot` names: `@ui.Island("islands/Orders.vue")` from any
+  package, instead of `"../../web/islands/Orders.vue"`. A path beside the
+  file, or starting with `./` or `../`, reads as before.
+- **`vuka add page` makes a live page by default** (`@web.Live`, or
+  `ui.Live` in a page backed by a component); `--stateless` makes the
+  `@web.Get` one. A path with `{parameters}` stays stateless unless `--live`.
+- The Vue component `vuka add page --island` writes binds its search box
+  with `v-model` and calls the method from a `watch`.
+- `vuka add island` picks the framework the frontend already uses; the help
+  now says the flags are for adding one in another.
+
 ## cmd/vuka v0.39.2 — 2026-10-16
 
 Runtime unchanged, v0.16.0.

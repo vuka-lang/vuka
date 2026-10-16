@@ -189,6 +189,9 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		out.liveDTS = liveDTS(pa.islands, readIslandLive(dirs))
 		if len(out.liveDTS) > 0 {
 			writeIfChanged(filepath.Join(buildRoot, "vuka-live.d.ts"), out.liveDTS)
+			if ts := filepath.Join(buildRoot, "tsconfig.json"); !fileExists(ts) {
+				os.WriteFile(ts, liveTSConfig(), 0o644)
+			}
 		}
 		var vueIslands []*islandComp
 		for _, ic := range pa.islands {

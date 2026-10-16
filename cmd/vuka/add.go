@@ -21,7 +21,7 @@ const addUsage = `Usage:
 	vuka add service <Name> [--module m]
 	vuka add component <Name> [--module m]
 	vuka add island <Name> [--module m] [--vue|--react|--svelte] [--dir dir] [--no-install]
-	vuka add page <path> [--module m] [--live] [--island Name [--vue|--react|--svelte]] [--name Type]
+	vuka add page <path> [--module m] [--stateless] [--island Name [--vue|--react|--svelte]] [--name Type]
 	vuka add entity <Name> [--module m] [field:type…] [--table name] [--unmanaged]
 
 Grow an app vuka new made.
@@ -35,16 +35,18 @@ Grow an app vuka new made.
   component  a stateless component taking a props struct, in components/
              (or the module's package).
   island     a client component in the island frontend (web/islands/ by
-             default, web/islands/<m>/ with --module m): Vue (the default,
-             or the frontend's framework), React or Svelte, its props typed
+             default, web/islands/<m>/ with --module m), in the framework the
+             frontend uses (Vue when it has none; --react, --svelte or
+             --vue to add one in another), its props typed
              so an import reads them; and the .vuka component placing it,
              in components/ (or the module's package). The framework's
              packages and Vite plugin are added when missing, and installed
              (--no-install: not).
-  page       a page in pages/ (or the module's package): @web.Get, or
-             @web.Live with --live. --island Name makes it a page backed by
-             a component: an @ui.Island struct with a prop, a url: field
-             and a method, and the component calling it (live with --live).
+  page       a page in pages/ (or the module's package): live, @web.Live
+             (--stateless: @web.Get; a path with {parameters} is stateless
+             unless --live). --island Name makes it a page backed by a
+             component: an @ui.Island struct with a prop, a url: field and a
+             method, and the component calling it (ui.Live unless --stateless).
   entity     an orm model in entities/ (or the module's package; m/Name is
              short for Name --module m), with ID and created/updated times,
              its fields name:type — string, text, int, float, decimal,
