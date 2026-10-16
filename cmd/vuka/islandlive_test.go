@@ -80,6 +80,10 @@ const busy: boolean = live.delete.pending || live.pending
 const why: string | undefined = live.delete.error?.message
 const qErr: string | null = live.q.error
 const argErr: string | undefined = live.delete.error?.fields?.['level.code']
+live.navigate('/levels/2').then((r) => r.url.length)
+live.patch('?q=x', { replace: true }).then((r) => r.patch)
+// @ts-expect-error navigate takes a URL
+live.navigate(2)
 // @ts-expect-error a field's error is the server's
 live.q.error = 'x'
 // @ts-expect-error a read-only field has no error
@@ -249,3 +253,98 @@ live.chasing('x', { by: 'me', level: { code: 'A', group: { name: 'g', years: 1 }
 live.chasing('x', { level: { code: 'A', group: { name: 'g', years: 1 }, kind: 'k' }, tags: [], meta: {}, parent: null })
 export { d, years, total }
 `
+
+// TestVukaLinkTypes: VukaLink's declaration per framework — and joined, for
+// a frontend with all three — checks a link's use and refuses one without
+// href (tsc with each framework's types, installed with npm).
+func TestVukaLinkTypes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("installs typescript and the frameworks")
+	}
+	nm := os.Getenv("VUKA_TS_NM")
+	if nm == "" {
+		npm, err := exec.LookPath("npm")
+		if err != nil {
+			t.Skip("no npm")
+		}
+		dir := t.TempDir()
+		os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"x","private":true}`), 0o644)
+		cmd := exec.Command(npm, "install", "--prefer-offline", "--no-audit", "--no-fund", "-D", "typescript@~6.0", "vue", "react", "@types/react", "svelte")
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Skipf("npm install failed (offline?): %v\n%s", err, out)
+		}
+		nm = filepath.Join(dir, "node_modules")
+	}
+	uses := map[string][2]string{
+		"vue": {"use.ts", `import { h } from 'vue'
+import { VukaLink, useVuka } from './vuka-live'
+h(VukaLink, { href: '/x', patch: true, activeClass: 'on', exact: true })
+useVuka().navigate('/y', { replace: true })
+// @ts-expect-error href is required
+h(VukaLink, { patch: true })
+`},
+		"react": {"use.tsx", `import { VukaLink } from './vuka-live'
+export const a = <VukaLink href="/x" className="c" replace target="_self">t</VukaLink>
+// @ts-expect-error href is required
+export const b = <VukaLink patch>t</VukaLink>
+`},
+		"svelte": {"use.ts", `import { mount } from 'svelte'
+import { VukaLink } from './vuka-live'
+mount(VukaLink, { target: document.body, props: { href: '/x', exact: true, class: 'c' } })
+// @ts-expect-error href is required
+mount(VukaLink, { target: document.body, props: { patch: true } })
+`},
+	}
+	run := func(t *testing.T, fws []string, use [2]string) {
+		dir := t.TempDir()
+		os.Symlink(nm, filepath.Join(dir, "node_modules"))
+		var ics []*islandComp
+		for _, fw := range fws {
+			ics = append(ics, &islandComp{name: "P" + fw, framework: fw})
+		}
+		dts := liveDTS(ics, readIslandLive(dir, "", nil))
+		os.WriteFile(filepath.Join(dir, "vuka-live.d.ts"), dts, 0o644)
+		os.WriteFile(filepath.Join(dir, use[0]), []byte(use[1]), 0o644)
+		cmd := exec.Command(filepath.Join(nm, ".bin", "tsc"), "--noEmit", "--strict", "--skipLibCheck", "--target", "es2020", "--module", "esnext",
+			"--moduleResolution", "bundler", "--jsx", "react-jsx", "--lib", "es2020,dom", use[0])
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("tsc: %v\n%s\n%s", err, out, dts)
+		}
+	}
+	for fw, use := range uses {
+		t.Run(fw, func(t *testing.T) { run(t, []string{fw}, use) })
+		t.Run("all/"+fw, func(t *testing.T) { run(t, []string{"vue", "react", "svelte"}, use) })
+	}
+}
+
+// TestVukaLinkActive: when a VukaLink is active, the helpers every
+// framework's shares (node).
+func TestVukaLinkActive(t *testing.T) {
+	node, err := exec.LookPath("node")
+	if err != nil {
+		t.Skip("no node")
+	}
+	prog := `let location
+const at = (u) => { location = new URL(u) }
+` + linkJS + `
+const got = []
+for (const [url, href, exact] of [
+  ['http://t/books/7', '/books', false], ['http://t/books', '/books', false], ['http://t/bookshelf', '/books', false],
+  ['http://t/books/7', '/books', true], ['http://t/books?x=1', '/books', true], ['http://t/books?x=1', '/books?x=2', true],
+  ['http://t/books', '/', false], ['http://t/', '/', false], ['http://t/books', 'http://other/books', false],
+  ['http://t/books', 'javascript:alert(1)', false], ['http://t/books/', '/books/', false], ['http://t/a/b', 'b', false],
+]) { at(url); got.push(vukaActive(vukaHref(href), exact)) }
+got.push(vukaHref('javascript:x') === undefined, vukaHref(' data:x') === undefined, vukaHref('/x?y#z'))
+console.log(JSON.stringify(got))
+`
+	out, err := exec.Command(node, "-e", prog).CombinedOutput()
+	if err != nil {
+		t.Fatalf("node: %v\n%s", err, out)
+	}
+	want := `[true,true,false,false,true,false,false,true,false,false,true,true,true,true,"/x?y#z"]`
+	if got := strings.TrimSpace(string(out)); got != want {
+		t.Errorf("got  %s\nwant %s", got, want)
+	}
+}

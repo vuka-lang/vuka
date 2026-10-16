@@ -10,6 +10,31 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.43.0, web v0.34.0, ui v0.28.2 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use ui v0.28.2 and web v0.34.0.
+
+- **Islands move the page.** `live.navigate(href, opts?)` and
+  `live.patch(href, opts?)` on `useLive()`, and `navigate` / `patch` on
+  `useVuka()` in any island, do what a `data-vk-link` click does: over the
+  live connection when the page is joined (gates, a patch's `Update`, the
+  address, scroll, focus, `vk:navigate`), else a page load. `{ replace:
+  true }` replaces the history entry. The promise resolves with `{url,
+  patch}` once applied, and rejects for a URL that isn't `http` or `https`
+  or when another move takes its place. `window.vuka.navigate(href,
+  {patch, replace})` is the same call for any script.
+  [From an island](/web/navigation#from-an-island).
+- **`<VukaLink>`** in `vuka:live` for Vue, React and Svelte: an `<a href>`
+  marked `data-vk-link` (`patch`, `replace`), with `activeClass` (default
+  `active`, `exact` for the same path) and `aria-current="page"`, typed in
+  `vuka-live.d.ts` for the frameworks the islands use. A link with
+  `data-vk-replace` replaces the history entry.
+- web v0.34.0: a navigation that morphs an island's host into another
+  island's (another name, or another live instance) unmounts the old one
+  and mounts the new one; before, the old component stayed.
+- ui v0.28.2: a patch of a page backed by its island runs its `Update`
+  taking `web.URLParams`; before, the page stayed as it was.
+
 ## cmd/vuka v0.42.1, web v0.33.0, ui v0.28.1 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use ui v0.28.1 and web v0.33.0.

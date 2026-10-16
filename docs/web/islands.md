@@ -284,7 +284,9 @@ const live = useLive<Orders>()
   island (the compiler writes it). A set or a call is a live event on the
   server's instance; the fields it changes reach the component, with no
   remount. Mount, `Subscribe` and `Update` (broadcasts), `PushJS` and the
-  type's gates work as for any live view.
+  type's gates work as for any live view; on a patch, an `Update` taking
+  [`web.URLParams`](/web/navigation#patch-or-navigate) takes the new URL
+  (the fields are the page's own: it sets what follows from it).
 - **Stateless** (no `ui.Live`): no connection. A set or a call posts the
   fields or the method with its arguments, and the props the page was
   rendered with — signed with the app's key (`web.LiveKey`), bound to the
@@ -298,6 +300,12 @@ const live = useLive<Orders>()
   `const vuka = useVuka()` (a store, `$vuka.user`) in Svelte —
   `{user: {id}, roles, perms, can(perm)}` from the signed-in identity
   (`web/auth`).
+- **Moving the page**: `live.navigate(href)` and `live.patch(href)` — also
+  `vuka.navigate` / `vuka.patch` on `useVuka()`, in any island — move the
+  page as a link would, over the live connection when there is one;
+  `<VukaLink href>` from `vuka:live` is the link itself. A navigation
+  unmounts the old page's islands and mounts the new page's.
+  [From an island](/web/navigation#from-an-island).
 
 React and Svelte read the same handles:
 

@@ -203,22 +203,59 @@ export interface LiveField<V> { get(): V; readonly value: V; }
 export interface LiveBound<V> { get(): V; value: V; set(v: V, opts?: { now?: boolean }): Promise<void>; readonly error: string | null; }
 export type LiveMethods<M> = { [K in keyof M]: M[K] & { readonly pending: boolean; readonly error: LiveError | null } };
 export type Live<T> = (T extends { readonly __methods?: infer M } ? LiveMethods<NonNullable<M>> : {}) &
-	(T extends { readonly __fields?: infer F } ? NonNullable<F> : {}) & {
+	(T extends { readonly __fields?: infer F } ? NonNullable<F> : {}) & Navigation & {
 	readonly pending: boolean;
 	readonly error: LiveError | null;
 };
-export interface Vuka { user: { id: string } | null; roles: string[]; perms: string[]; can(perm: string): boolean; }
+export interface Navigated { url: string; patch: boolean; }
+/** navigate moves to another page, patch stays on this one (Update, else Mount again): over the live connection, as a data-vk-link would, else a page load; replace takes the current history entry's place. The promise resolves once the move is applied; it rejects for a URL that isn't http or https, or when another move takes its place. */
+export interface Navigation {
+	navigate(href: string, opts?: { replace?: boolean }): Promise<Navigated>;
+	patch(href: string, opts?: { replace?: boolean }): Promise<Navigated>;
+}
+export interface Vuka extends Navigation { user: { id: string } | null; roles: string[]; perms: string[]; can(perm: string): boolean; }
+/** A link moving the page over the live connection (data-vk-link); activeClass (default "active") while the address is href's path or below it (exact: the same path), aria-current="page" on the same path. */
+export interface VukaLinkProps { href: string; patch?: boolean; replace?: boolean; activeClass?: string; exact?: boolean; }
 export declare function useLive<T>(): Live<T>;
 export declare function live<T>(): Live<T> & { subscribe(run: (value: Live<T>) => void): () => void };
 export declare function useVuka(): Vuka;
 `)
+	b.WriteString(vukaLinkDTS(islands))
 	return []byte(b.String())
 }
 
+// vukaLinkDTS declares VukaLink for the frameworks the islands use: each
+// one's component type, joined when there are several.
+func vukaLinkDTS(islands []*islandComp) string {
+	var types []string
+	for _, fw := range []string{"vue", "react", "svelte"} {
+		if !slices.ContainsFunc(islands, func(ic *islandComp) bool { return ic.framework == fw }) {
+			continue
+		}
+		switch fw {
+		case "vue": // a class to React's JSX: beside React, Vue's functional form
+			if slices.ContainsFunc(islands, func(ic *islandComp) bool { return ic.framework == "react" }) {
+				types = append(types, "import('vue').FunctionalComponent<VukaLinkProps>")
+			} else {
+				types = append(types, "import('vue').DefineComponent<VukaLinkProps>")
+			}
+		case "react":
+			types = append(types, "((props: VukaLinkProps & Omit<import('react').AnchorHTMLAttributes<HTMLAnchorElement>, 'href'>) => import('react').JSX.Element)")
+		case "svelte":
+			types = append(types, "import('svelte').Component<VukaLinkProps & Omit<import('svelte/elements').HTMLAnchorAttributes, 'href'> & { children?: import('svelte').Snippet }>")
+		}
+	}
+	if len(types) == 0 {
+		return ""
+	}
+	return "export declare const VukaLink: " + strings.Join(types, " & ") + ";\n"
+}
+
 // handles are the props a page's component gets a handle for: the plain
-// values, but live's own names (pending, error, subscribe) and a method's.
+// values, but live's own names (pending, error, subscribe, navigate, patch)
+// and a method's.
 func handles(props []islandProp, ms []liveMethod) []islandProp {
-	taken := map[string]bool{"pending": true, "error": true, "subscribe": true}
+	taken := map[string]bool{"pending": true, "error": true, "subscribe": true, "navigate": true, "patch": true}
 	for _, m := range ms {
 		taken[m.name] = true
 	}

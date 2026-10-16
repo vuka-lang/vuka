@@ -1,5 +1,13 @@
 package main
 
+import (
+	"maps"
+	"os"
+	"path/filepath"
+	"strconv"
+	"strings"
+)
+
 // The framework adapters the island loader imports: mount(Component, el,
 // props, ctx) → {update, unmount}. props are resolved by the loader: a
 // function prop is a function (it pushes a live event or runs commands), a
@@ -146,7 +154,7 @@ export function mount(Component, el, props, ctx) {
     const value = () => ({ ...h.methods, pending: h.pending, error: h.error })
     context.set('vuka:live', { ...h.methods, subscribe: (fn) => { fn(value()); return h.subscribe(() => fn(value())) } })
   }
-  if (ctx && ctx.vuka) context.set('vuka:vuka', { subscribe: (fn) => { fn(ctx.vuka); return () => {} } })
+  if (ctx && ctx.vuka) context.set('vuka:vuka', { subscribe: (fn) => { fn(ctx.vuka); return () => {} }, navigate: ctx.vuka.navigate, patch: ctx.vuka.patch })
   el.replaceChildren()
   const inst = smount(Component, { target: el, props: p, context })
   return {
@@ -168,16 +176,80 @@ func adapterSrc(framework, setupImport, setupCall string) string {
 	return replaceSetup(vueAdapterSrc, setupImport, setupCall)
 }
 
+// linkJS is what each framework's VukaLink shares: the href it renders
+// (http and https only, else none) and whether it is the current URL's —
+// the same path (and query, when it names one) with exact, else that path
+// or one below it ("/" only itself).
+const linkJS = `function vukaHref(href) {
+  try {
+    const u = new URL(String(href), location.href)
+    return u.protocol === 'http:' || u.protocol === 'https:' ? String(href) : undefined
+  } catch (_) { return undefined }
+}
+function vukaActive(href, exact) {
+  if (href === undefined || typeof location === 'undefined') return false
+  const u = new URL(href, location.href)
+  if (u.origin !== location.origin) return false
+  const at = location.pathname, p = u.pathname
+  if (exact) return at === p && (!u.search || u.search === location.search)
+  return at === p || (p !== '/' && at.startsWith(p.replace(/\/$/, '') + '/'))
+}
+function vukaWatchURL(fn) {
+  addEventListener('vk:navigate', fn)
+  addEventListener('popstate', fn)
+  return () => { removeEventListener('vk:navigate', fn); removeEventListener('popstate', fn) }
+}
+`
+
+// vukaLinkSvelte is Svelte's VukaLink, a component file written beside the
+// island build (vuka:live imports it from /*VUKALINK*/).
+var vukaLinkSvelte = `<script>
+  import { onMount } from 'svelte'
+  let { href, patch = false, replace = false, activeClass = 'active', exact = false, class: cls = undefined, children, ...rest } = $props()
+  let at = $state(0)
+  onMount(() => vukaWatchURL(() => { at++ }))
+  const safe = $derived(vukaHref(href))
+  const on = $derived((at, vukaActive(safe, exact)))
+  const current = $derived((at, vukaActive(safe, true)))
+  ` + strings.ReplaceAll(strings.TrimSpace(linkJS), "\n", "\n  ") + `
+</script>
+
+<a {...rest} href={safe} data-vk-link={patch ? 'patch' : ''} data-vk-replace={replace ? '' : undefined}
+  class={[cls, on && activeClass].filter(Boolean).join(' ') || undefined} aria-current={current ? 'page' : undefined}>{@render children?.()}</a>
+`
+
 // liveModules are vuka:live, the module a page-backed island's component
-// imports useLive (Svelte: live) and useVuka from, per framework: what the
-// island's adapter provides (ctx.live, ctx.vuka). React's re-renders on
-// each change of the runtime's version.
+// imports useLive (Svelte: live), useVuka and VukaLink from, per framework:
+// what the island's adapter provides (ctx.live, ctx.vuka). React's
+// re-renders on each change of the runtime's version.
 var liveModules = map[string]string{
-	"vue": `import { inject } from 'vue'
+	"vue": `import { inject, defineComponent, h, shallowRef, onMounted, onBeforeUnmount } from 'vue'
 export function useLive() { return inject('vuka:live', null) }
 export function useVuka() { return inject('vuka:vuka', null) }
+` + linkJS + `export const VukaLink = defineComponent({
+  name: 'VukaLink',
+  inheritAttrs: false,
+  props: { href: { type: String, required: true }, patch: Boolean, replace: Boolean, activeClass: { type: String, default: 'active' }, exact: Boolean },
+  setup(props, { attrs, slots }) {
+    const at = shallowRef(0)
+    let stop = null
+    onMounted(() => { stop = vukaWatchURL(() => { at.value++ }) })
+    onBeforeUnmount(() => { if (stop) stop() })
+    return () => {
+      at.value
+      const href = vukaHref(props.href)
+      return h('a', {
+        ...attrs, href,
+        'data-vk-link': props.patch ? 'patch' : '',
+        'data-vk-replace': props.replace ? '' : undefined,
+        class: [attrs.class, vukaActive(href, props.exact) && props.activeClass],
+        'aria-current': vukaActive(href, true) ? 'page' : undefined,
+      }, slots.default ? slots.default() : undefined)
+    }
+  },
+})
 `,
-	"react": `import { createContext, useContext, useMemo, useSyncExternalStore } from 'react'
+	"react": `import { createContext, createElement, useContext, useMemo, useSyncExternalStore } from 'react'
 const VukaContext = globalThis.__vukaReactContext || (globalThis.__vukaReactContext = createContext(null))
 const none = { pending: false, error: null }
 const noSub = () => () => {}
@@ -188,10 +260,36 @@ export function useLive() {
   return useMemo(() => h && h.view ? h.view() : ({ ...(h ? h.methods : {}), pending: s.pending, error: s.error }), [h, s])
 }
 export function useVuka() { const c = useContext(VukaContext); return c ? c.vuka : null }
+` + linkJS + `const vukaURL = () => location.href
+export function VukaLink({ href, patch, replace, activeClass = 'active', exact, className, children, ...rest }) {
+  useSyncExternalStore(vukaWatchURL, vukaURL, () => '')
+  const safe = vukaHref(href)
+  const cls = [className, vukaActive(safe, exact) && activeClass].filter(Boolean).join(' ')
+  return createElement('a', {
+    ...rest, href: safe,
+    'data-vk-link': patch ? 'patch' : '',
+    'data-vk-replace': replace ? '' : undefined,
+    className: cls || undefined,
+    'aria-current': vukaActive(safe, true) ? 'page' : undefined,
+  }, children)
+}
 `,
 	"svelte": `import { getContext } from 'svelte'
+export { default as VukaLink } from /*VUKALINK*/
 export function live() { return getContext('vuka:live') }
 export const useLive = live
 export function useVuka() { return getContext('vuka:vuka') }
 `,
+}
+
+// liveModulesIn are liveModules for a build in dir: Svelte's VukaLink is
+// written there, and its vuka:live imports it.
+func liveModulesIn(dir string) (map[string]string, error) {
+	path := filepath.Join(dir, "vuka-link.svelte")
+	if err := os.WriteFile(path, []byte(vukaLinkSvelte), 0o644); err != nil {
+		return nil, err
+	}
+	out := maps.Clone(liveModules)
+	out["svelte"] = strings.Replace(out["svelte"], "/*VUKALINK*/", strconv.Quote(filepath.ToSlash(path)), 1)
+	return out, nil
 }

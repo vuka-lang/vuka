@@ -105,7 +105,11 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 	}
 
 	// One adapter per framework, with the app's optional _setup wired in.
-	spec := islandBuildSpec{OutDir: outDir, Input: map[string]string{}, Live: liveModules}
+	live, err := liveModulesIn(tmp)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("vite islands: %w", err)
+	}
+	spec := islandBuildSpec{OutDir: outDir, Input: map[string]string{}, Live: live}
 	adapterRel := map[string]string{}
 	used := map[string]bool{"styles": true}
 	for _, ic := range islands {

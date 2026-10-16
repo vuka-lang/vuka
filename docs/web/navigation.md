@@ -142,6 +142,65 @@ from the browser, after the steps before them:
 <button onClick={ui.JS.AddClass(ui.This, "going").Navigate("/books")}>All books</button>
 ```
 
+## From an island
+
+A component in an [island](/web/islands) moves the page the same way. On
+a [page backed by a component](/web/islands#pages-backed-by-a-component),
+`useLive()` has `navigate` and `patch`; in any island, `useVuka()` has
+them too:
+
+```vue
+<script setup lang="ts">
+import { useLive, useVuka, VukaLink } from 'vuka:live'
+import type { Orders } from 'vuka:live'
+const live = useLive<Orders>()
+const vuka = useVuka()
+
+async function open(id: number) {
+  await live.navigate(`/orders/${id}`)       // another page
+}
+const filter = (status: string) => live.patch(`/orders?status=${status}`)  // this page, Update
+const sort = (by: string) => vuka.patch(`/orders?sort=${by}`, { replace: true })
+</script>
+
+<template>
+  <nav>
+    <VukaLink href="/orders" exact>All</VukaLink>
+    <VukaLink href="/orders?status=open" patch exact>Open</VukaLink>
+    <VukaLink href="/reports" class="tab">Reports</VukaLink>
+  </nav>
+</template>
+```
+
+- **`navigate(href, opts?)` and `patch(href, opts?)`** do what a
+  `data-vk-link` click does: over the connection on a live page, joined —
+  the route and its gates run, a patch keeps the page mounted for its
+  `Update` (else it mounts again), the address, scroll and focus follow
+  and `vk:navigate` fires. Without a connection — a stateless page, one
+  still joining or reconnecting — or to another origin, it's a page load.
+  `{ replace: true }` takes the current history entry's place instead of
+  adding one.
+- **The promise** resolves with `{url, patch}` once the move is applied. It
+  rejects for a URL that isn't `http` or `https` (`javascript:`, `data:`…,
+  refused as everywhere else), and when another move takes its place
+  (`AbortError`). A page load leaves the page, so its promise never
+  settles.
+- **`<VukaLink>`** renders an `<a href>` marked `data-vk-link` (`patch`:
+  `="patch"`), so new tabs, modifier clicks and pages without JavaScript
+  treat it as a link. `replace` takes the current entry's place.
+  `activeClass` (default `active`) is added while the address is the
+  link's path or below it (`/orders` for `/orders/7`; `/` only itself);
+  `exact` asks for the same path, and the same query when the link has
+  one. `aria-current="page"` marks the link to the current path. Other
+  attributes and the children pass through (React: `className`). It is in
+  `vuka:live` for Vue, React and Svelte, typed in `vuka-live.d.ts` for the
+  frameworks the islands use.
+- **Islands follow the page**: a navigate unmounts the old page's islands
+  and mounts the new page's — even where the new page's island takes the
+  old one's place in the markup; a patch keeps them, with new props.
+- In a script outside an island, `window.vuka.navigate(href, {patch,
+  replace})` is the same call.
+
 ## In the browser
 
 - **The address** changes with `pushState`. Back and forward patch or

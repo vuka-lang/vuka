@@ -60,6 +60,7 @@ func islandInputs(frontendRoot string, islands []*islandComp, dev bool) string {
 	for _, k := range names {
 		fmt.Fprintf(h, "live %s %s\n", k, liveModules[k])
 	}
+	fmt.Fprintf(h, "link %s\n", vukaLinkSvelte)
 	seenFw := map[string]bool{}
 	for _, ic := range islands {
 		fmt.Fprintf(h, "island %s %s %s\n", ic.name, ic.src, ic.framework)

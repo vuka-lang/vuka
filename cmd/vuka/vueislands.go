@@ -210,6 +210,10 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 	}
 	defer os.RemoveAll(tmp)
 
+	live, err := liveModulesIn(tmp)
+	if err != nil {
+		return nil, nil, fmt.Errorf("islands: %w", err)
+	}
 	spec := vueBuildSpec{
 		Entries:  map[string]string{},
 		Adapters: map[string]string{},
@@ -217,7 +221,7 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 		Minify:   !dev,
 		Outdir:   filepath.Join(tmp, "o"),
 		Cwd:      frontendRoot,
-		Live:     liveModules,
+		Live:     live,
 	}
 	used := map[string]bool{}
 	for _, fw := range fws {
