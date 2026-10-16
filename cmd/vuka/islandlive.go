@@ -21,8 +21,9 @@ import (
 
 // liveMethod is a method of an island's struct its component may call.
 type liveMethod struct {
-	name string // the wire name: the Go name, first letter lower-cased
-	args []string
+	name   string      // the wire name: the Go name, first letter lower-cased
+	params [][2]string // each parameter's name and Go type, context.Context left out
+	scope  *tsScope    // where its parameters' types are read
 }
 
 var lifecycleMethods = map[string]bool{"Render": true, "Mount": true, "Update": true, "Info": true, "Changed": true,
@@ -32,15 +33,17 @@ var lifecycleMethods = map[string]bool{"Render": true, "Mount": true, "Update": 
 var methodRe = regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*([A-Z]\w*)\s*\(([^)]*)\)\s*([^{]*)\{`)
 
 // islandLive reads, for the declared islands of a package dir, their
-// callable methods and the struct types their props name.
+// callable methods, and maps the types they and the props name.
 type islandLive struct {
 	methods map[string][]liveMethod // island → methods
-	structs map[string][]islandProp // struct name → fields, for nested types
+	types   *tsTypes
+	dirs    []string
 }
 
-func readIslandLive(dirs []string) *islandLive {
-	il := &islandLive{methods: map[string][]liveMethod{}, structs: map[string][]islandProp{}}
+func readIslandLive(root, modPath string, dirs []string) *islandLive {
+	il := &islandLive{methods: map[string][]liveMethod{}, types: newTSTypes(root, modPath), dirs: dirs}
 	for _, dir := range dirs {
+		pkg := il.types.pkg(dir)
 		entries, _ := os.ReadDir(dir)
 		for _, e := range entries {
 			n := e.Name()
@@ -52,11 +55,7 @@ func readIslandLive(dirs []string) *islandLive {
 				continue
 			}
 			full, _ := scanFile(n, src)
-			for i := 0; i+3 < len(full); i++ {
-				if full[i].tok == token.TYPE && full[i+1].tok == token.IDENT && full[i+2].tok == token.STRUCT && full[i+3].tok == token.LBRACE {
-					il.structs[full[i+1].lit] = parseStructBody(full, i+3)
-				}
-			}
+			scope := &tsScope{pkg: pkg, imports: fileImports(dropNewlineSemis(full))}
 			for _, m := range methodRe.FindAllStringSubmatch(string(src), -1) {
 				if lifecycleMethods[m[2]] {
 					continue
@@ -65,23 +64,27 @@ func readIslandLive(dirs []string) *islandLive {
 				if res != "" && res != "error" {
 					continue
 				}
-				lm := liveMethod{name: strings.ToLower(m[2][:1]) + m[2][1:]}
+				lm := liveMethod{name: strings.ToLower(m[2][:1]) + m[2][1:], scope: scope}
 				for _, p := range goParams(m[3]) {
-					if p[1] == "context.Context" {
-						continue
+					if p[1] != "context.Context" {
+						lm.params = append(lm.params, p)
 					}
-					full, _ := scanFile("", []byte(p[1]))
-					_, ts := tsType(dropNewlineSemis(full))
-					if ts == "unknown" {
-						ts = p[1]
-					}
-					lm.args = append(lm.args, p[0]+": "+ts)
 				}
 				il.methods[m[1]] = append(il.methods[m[1]], lm)
 			}
 		}
 	}
 	return il
+}
+
+// islandDecl is the declaration of the island named name.
+func (il *islandLive) islandDecl(name string) *goDecl {
+	for _, dir := range il.dirs {
+		if d := il.types.pkg(dir).decls[name]; d != nil {
+			return d
+		}
+	}
+	return nil
 }
 
 // goParams splits a Go parameter list into (name, type) pairs, names
@@ -129,40 +132,38 @@ func liveDTS(islands []*islandComp, il *islandLive) []byte {
 	b.WriteString("// useLive<T>() (Svelte: live<T>()) — live.<field>.get(), .value, .set(v) for a\n")
 	b.WriteString("// bind: field, live.<method>(…) — or defineProps<T>(). tsconfig.json maps\n")
 	b.WriteString("// \"vuka:live\" here: \"paths\": { \"vuka:live\": [\"./vuka-live.d.ts\"] }.\n\n")
-	nested := map[string]bool{}
-	var want []string
-	tsOf := func(p islandProp) string {
-		ts := p.ts
-		if _, ok := il.structs[p.named]; ok && strings.HasPrefix(ts, "unknown") {
-			ts = p.named + strings.TrimPrefix(ts, "unknown")
+	r := il.types
+	scopes := map[*islandComp]*tsScope{}
+	for _, ic := range decl {
+		if d := il.islandDecl(ic.name); d != nil {
+			r.claim(d, ic.name)
+			scopes[ic] = d.scope(nil)
+		} else {
+			scopes[ic] = &tsScope{}
 		}
-		base := strings.TrimSuffix(ts, "[]")
-		for strings.HasSuffix(base, "[]") {
-			base = strings.TrimSuffix(base, "[]")
-		}
-		if _, ok := il.structs[base]; ok && !nested[base] {
-			nested[base] = true
-			want = append(want, base)
-		}
-		return ts
 	}
-	fields := func(props []islandProp) {
-		for _, p := range props {
-			opt := ""
-			if p.optional {
-				opt = "?"
-			}
-			fmt.Fprintf(&b, "\t%s%s: %s;\n", tsKey(p.name), opt, tsOf(p))
+	tsOf := func(ic *islandComp, p islandProp) string {
+		t := p.typ
+		if len(t) > 0 && t[0].tok == token.MUL {
+			t = t[1:]
 		}
+		return r.ts(t, scopes[ic])
 	}
 	for _, ic := range decl {
 		fmt.Fprintf(&b, "export interface %s {\n", ic.name)
-		fields(ic.props)
+		for _, p := range ic.props {
+			fmt.Fprintf(&b, "\t%s\n", fieldTS(tsField{p.name, tsOf(ic, p), p.optional}))
+		}
 		ms := il.methods[ic.name]
 		if len(ms) > 0 {
 			b.WriteString("\treadonly __methods?: {\n")
 			for _, m := range ms {
-				fmt.Fprintf(&b, "\t\t%s(%s): Promise<void>;\n", m.name, strings.Join(m.args, ", "))
+				args := make([]string, len(m.params))
+				for i, p := range m.params {
+					full, _ := scanFile("", []byte(p[1]))
+					args[i] = p[0] + ": " + r.ts(dropNewlineSemis(full), m.scope)
+				}
+				fmt.Fprintf(&b, "\t\t%s(%s): Promise<void>;\n", m.name, strings.Join(args, ", "))
 			}
 			b.WriteString("\t};\n")
 		}
@@ -173,7 +174,7 @@ func liveDTS(islands []*islandComp, il *islandLive) []byte {
 				if p.bind {
 					kind = "LiveBound"
 				}
-				ts := tsOf(p)
+				ts := tsOf(ic, p)
 				if p.optional {
 					ts += " | undefined"
 				}
@@ -183,10 +184,16 @@ func liveDTS(islands []*islandComp, il *islandLive) []byte {
 		}
 		b.WriteString("}\n\n")
 	}
-	for i := 0; i < len(want); i++ {
-		name := want[i]
-		fmt.Fprintf(&b, "export interface %s {\n", name)
-		fields(il.structs[name])
+	for i := 0; i < len(r.want); i++ {
+		d := r.want[i]
+		tp := ""
+		if len(d.tparams) > 0 {
+			tp = "<" + strings.Join(d.tparams, ", ") + ">"
+		}
+		fmt.Fprintf(&b, "export interface %s%s {\n", r.names[d], tp)
+		for _, f := range r.declFields(d) {
+			fmt.Fprintf(&b, "\t%s\n", fieldTS(f))
+		}
 		b.WriteString("}\n\n")
 	}
 	b.WriteString(`export interface LiveError { status?: number; message: string; fields?: Record<string, string>; }

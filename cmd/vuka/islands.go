@@ -21,7 +21,9 @@ import (
 )
 
 // Islands are client components hydrated in the browser, declared by an
-// @ui.Island("path"[, "strategy"]) decorator on a Go struct type (the props).
+// @ui.Island decorator on a Go struct type (the props): bare, the component is
+// islands/[<module>/]<Type>.<ext> under the frontend root (inferIsland);
+// @ui.Island("path"[, "strategy"]) names it, and "" keeps the inference.
 // The vuka command discovers them like it does web.Style/Script (reading the
 // decorator from the source), bundles each component file with esbuild into a
 // lazy chunk served under /_vuka/i/, records it in the manifest the app reads
@@ -44,6 +46,102 @@ type islandComp struct {
 	props     []islandProp
 	imported  bool   // from a .vuka import; its props are the component's own
 	bare      string // the decorator's path when it doesn't start with . (found from the frontend root when not beside the file)
+	infer     bool   // a bare @ui.Island (or a "" path): the file is islands/[<module>/]<name>.<ext> under the frontend root
+	module    string // the module the declaring file is in (modules/<m>/…), for an inferred path
+	problem   string // why an inferred path finds no one file
+	off, end  int    // the decorator's span in its file, @ to its last token
+}
+
+// islandExts are the component extensions a bare @ui.Island looks for, in
+// the order messages list them.
+var islandExts = []string{".vue", ".tsx", ".jsx", ".svelte", ".ts", ".js"}
+
+// islandModule is the module a source file (slash-form, relative to the
+// module root) is in: m for modules/m/…, else "".
+func islandModule(rel string) string {
+	parts := strings.Split(rel, "/")
+	if len(parts) >= 3 && parts[0] == "modules" {
+		return parts[1]
+	}
+	return ""
+}
+
+// inferIsland finds a bare @ui.Island's component: islands/[<module>/]<name>
+// with one of islandExts under frontendRoot. With none or several, src is the
+// path without an extension and problem says what is wrong.
+func inferIsland(root, frontendRoot, module, name string) (src, problem string) {
+	rel := path.Join("islands", module, name)
+	base := filepath.Join(frontendRoot, filepath.FromSlash(rel))
+	var found []string
+	for _, ext := range islandExts {
+		if fileExists(base + ext) {
+			found = append(found, base+ext)
+		}
+	}
+	shown := func(p string) string {
+		if r, err := filepath.Rel(root, p); err == nil && !strings.HasPrefix(r, "..") {
+			return filepath.ToSlash(r)
+		}
+		return filepath.ToSlash(p)
+	}
+	switch len(found) {
+	case 1:
+		return found[0], ""
+	case 0:
+		exts := make([]string, len(islandExts))
+		for i, e := range islandExts {
+			exts[i] = e[1:]
+		}
+		return base, fmt.Sprintf("no component at %s.{%s}: add it there, or name the file with @ui.Island(\"…\")", shown(base), strings.Join(exts, ","))
+	}
+	names := make([]string, len(found))
+	for i, f := range found {
+		names[i] = shown(f)
+	}
+	both := "both match"
+	if len(names) > 2 {
+		both = "all match"
+	}
+	return base, fmt.Sprintf("%s and %s %s: name one with @ui.Island(%q)", strings.Join(names[:len(names)-1], ", "), names[len(names)-1], both, rel+path.Ext(found[0]))
+}
+
+// locate finds an island's file once the frontend root is known: an
+// inferred path's (again: it may have been added or removed since), or a
+// bare path's from the frontend root when it isn't beside the file.
+func (ic *islandComp) locate(root, frontendRoot string) {
+	if frontendRoot == "" {
+		frontendRoot = root
+	}
+	if !ic.infer {
+		if ic.bare == "" || fileExists(ic.src) {
+			return
+		}
+		if abs := filepath.Join(frontendRoot, filepath.FromSlash(ic.bare)); fileExists(abs) {
+			rel, _ := filepath.Rel(root, abs)
+			ic.src, ic.rel = abs, filepath.ToSlash(rel)
+		}
+		return
+	}
+	ic.src, ic.problem = inferIsland(root, frontendRoot, ic.module, ic.name)
+	rel, _ := filepath.Rel(root, ic.src)
+	ic.rel = filepath.ToSlash(rel)
+	ic.framework = islandFramework(ic.src)
+}
+
+// candidates are the files an inferred island's path may name.
+func (ic *islandComp) candidates() []string {
+	if !ic.infer {
+		return nil
+	}
+	base := strings.TrimSuffix(ic.src, filepath.Ext(ic.src))
+	if ic.problem != "" {
+		base = ic.src
+	}
+	out := make([]string, len(islandExts))
+	for i, e := range islandExts {
+		out[i] = base + e
+	}
+	return out
 }
 
 // islandProp is one exported field of an island's struct: its wire name (json
@@ -56,6 +154,7 @@ type islandProp struct {
 	value    bool   // a plain value, not a function, state or node: a page's component gets a handle for it
 	bind     bool   // bind: the page's component may set it
 	named    string // the Go type's name when ts doesn't know it (a struct of the package)
+	typ      []wtok // the Go type
 }
 
 // islandFramework is the framework a component file's extension names, as
@@ -258,9 +357,9 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 	dir := filepath.Dir(file)
 	var errs []error
 	pa.readIslandImports(file, rel, line, filt)
-	for i := 0; i+3 < len(filt); i++ {
+	for i := 0; i+2 < len(filt); i++ {
 		if filt[i].tok != token.IDENT || filt[i].lit != uiName || filt[i+1].tok != token.PERIOD ||
-			filt[i+2].tok != token.IDENT || filt[i+2].lit != "Island" || filt[i+3].tok != token.LPAREN {
+			filt[i+2].tok != token.IDENT || filt[i+2].lit != "Island" {
 			continue
 		}
 		if filt[i].off == 0 || src[filt[i].off-1] != '@' {
@@ -268,11 +367,15 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 		}
 		where := fmt.Sprintf("%s:%d", rel, line(filt[i].off))
 
-		rp := matchParen(filt, i+3)
-		if rp < 0 {
-			continue
+		after := i + 3
+		var args [][2]int
+		if i+3 < len(filt) && filt[i+3].tok == token.LPAREN {
+			rp := matchParen(filt, i+3)
+			if rp < 0 {
+				continue
+			}
+			args, after = callArgs(filt, i+3), rp+1
 		}
-		args := callArgs(filt, i+3)
 
 		str := func(a [2]int) (string, bool) {
 			if a[1]-a[0] != 1 || filt[a[0]].tok != token.STRING {
@@ -281,14 +384,13 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 			v, err := strconv.Unquote(filt[a[0]].lit)
 			return v, err == nil
 		}
-		if len(args) == 0 {
-			errs = append(errs, fmt.Errorf("%s: @%s.Island needs the component path as a string literal", where, uiName))
-			continue
-		}
-		cp, ok := str(args[0])
-		if !ok {
-			errs = append(errs, fmt.Errorf("%s: @%s.Island takes a string literal path (the vuka command reads it from the source)", where, uiName))
-			continue
+		cp := ""
+		if len(args) > 0 {
+			var ok bool
+			if cp, ok = str(args[0]); !ok {
+				errs = append(errs, fmt.Errorf("%s: @%s.Island takes a string literal path (the vuka command reads it from the source)", where, uiName))
+				continue
+			}
 		}
 		strategy := ""
 		if len(args) >= 2 {
@@ -296,29 +398,41 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 				strategy = v
 			}
 		}
-		name := decoratedType(filt, rp+1)
+		name := decoratedType(filt, after)
 		if name == "" {
 			errs = append(errs, fmt.Errorf("%s: @%s.Island isn't on a type", where, uiName))
 			continue
 		}
-		abs := filepath.Join(dir, filepath.FromSlash(cp))
-		relSrc, _ := filepath.Rel(pa.root, abs)
-		bare := ""
-		if !strings.HasPrefix(cp, ".") && !filepath.IsAbs(cp) {
-			bare = cp
+		last := filt[after-1]
+		ic := &islandComp{
+			off:      filt[i].off - 1,
+			end:      last.off + len(tokenText(last)),
+			name:     name,
+			label:    where,
+			strategy: strategy,
+			props:    structFields(full, name),
 		}
-		pa.islands = append(pa.islands, &islandComp{
-			bare:      bare,
-			name:      name,
-			src:       abs,
-			rel:       filepath.ToSlash(relSrc),
-			label:     where,
-			framework: islandFramework(cp),
-			strategy:  strategy,
-			props:     structFields(full, name),
-		})
+		if cp == "" {
+			ic.infer, ic.module = true, islandModule(rel)
+		} else {
+			abs := filepath.Join(dir, filepath.FromSlash(cp))
+			relSrc, _ := filepath.Rel(pa.root, abs)
+			if !strings.HasPrefix(cp, ".") && !filepath.IsAbs(cp) {
+				ic.bare = cp
+			}
+			ic.src, ic.rel, ic.framework = abs, filepath.ToSlash(relSrc), islandFramework(cp)
+		}
+		pa.islands = append(pa.islands, ic)
 	}
 	return errs
+}
+
+// tokenText is a token's source text.
+func tokenText(t wtok) string {
+	if t.lit != "" {
+		return t.lit
+	}
+	return t.tok.String()
 }
 
 // readIslandImports reads a .vuka file's imports of component files
@@ -466,7 +580,7 @@ func fieldProps(toks []wtok) []islandProp {
 		if jsonName != "" {
 			wire = jsonName
 		}
-		out = append(out, islandProp{name: wire, ts: ts, optional: optional, value: plainType(typ), bind: bound, named: localTypeName(typ)})
+		out = append(out, islandProp{name: wire, ts: ts, optional: optional, value: plainType(typ), bind: bound, named: localTypeName(typ), typ: typ})
 	}
 	return out
 }

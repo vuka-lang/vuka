@@ -540,6 +540,14 @@ func (p *proxy) publish(path string) {
 	p.pubMu.Lock()
 	defer p.pubMu.Unlock()
 	p.mu.Lock()
+	islandText, opened := p.bufs[path]
+	root := p.modRoot
+	p.mu.Unlock()
+	if !opened {
+		islandText, _ = os.ReadFile(path)
+	}
+	island := islandDiags(root, path, islandText)
+	p.mu.Lock()
 	cur, open := p.bufs[path]
 	fresh := !open || p.changed[path] <= p.done[path]
 	var ds []any
@@ -551,6 +559,10 @@ func (p *proxy) publish(path string) {
 	if len(ds) == 0 {
 		ds = p.goDiags[path].in(cur, true)
 	}
+	if open && !bytes.Equal(cur, islandText) {
+		island = nil
+	}
+	ds = append(ds, island...)
 	if ds == nil {
 		ds = []any{}
 	}

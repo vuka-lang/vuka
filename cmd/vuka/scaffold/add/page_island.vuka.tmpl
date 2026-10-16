@@ -14,7 +14,7 @@ import (
 // is live, so the server keeps the instance and the component gets the new
 // props{%end%}.
 @web.Get("{%.Path%}")
-@ui.Island("{%.IslandPath%}")
+@ui.Island{%if not .InferIsland%}("{%.IslandPath%}"){%end%}
 type {%.Type%} struct {
 {%- if .Live%}
 	ui.Live

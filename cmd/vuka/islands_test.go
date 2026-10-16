@@ -5,8 +5,8 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
-	"slices"
 	"strings"
 	"testing"
 )
@@ -181,12 +181,15 @@ func TestIslandStructFields(t *testing.T) {
 		"}\n"
 	full, _ := scanFile("p.go", []byte(src))
 	got := structFields(full, "P")
+	for i := range got {
+		got[i].typ = nil
+	}
 	want := []islandProp{
 		{name: "A", ts: "number", value: true}, {name: "B", ts: "number", value: true},
 		{name: "f", ts: "number", value: true}, {name: "On", ts: "boolean", value: true},
 		{name: "M", ts: "Record<string, number>", value: true}, {name: "Opt", ts: "string", optional: true, value: true},
 	}
-	if !slices.Equal(got, want) {
+	if !reflect.DeepEqual(got, want) {
 		t.Errorf("fields:\n got %+v\nwant %+v", got, want)
 	}
 }
@@ -241,4 +244,63 @@ func webDir(t *testing.T) string {
 		t.Skipf("github.com/vuka-lang/web at %s has no RegisterIsland; set VUKA_WEB (and VUKA_UI)", web)
 	}
 	return web
+}
+
+// TestIslandsInferred: a bare @ui.Island (or a "" path, with a strategy) is
+// islands/[<module>/]<Type>.<ext> under the frontend root — the module's
+// folder for a package under modules/<m>/; none or two such files are
+// errors naming them.
+func TestIslandsInferred(t *testing.T) {
+	web := webDir(t)
+	head := "\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n)\n\n"
+	decl := func(pkg, deco, name string) string {
+		return "package " + pkg + head + deco + "\ntype " + name + " struct{ N int `json:\"n\"` }\n\nvar _ = ui.Node(nil)\n"
+	}
+	root := localModule(t, web, map[string]string{
+		"main.vuka": "package main\n\nimport (\n\t\"embed\"\n\n\t\"github.com/vuka-lang/web\"\n)\n\nvar dist embed.FS\n\n" +
+			"func main() { web.New(web.Frontend(dist, \"front/dist\")).Run(\"\") }\n",
+		"pages/home.vuka":                    decl("pages", "@ui.Island", "Counter"),
+		"modules/orders/list.vuka":           decl("orders", `@ui.Island("", "load")`, "OrderList"),
+		"modules/orders/views/sub.vuka":      decl("views", "@ui.Island()", "OrderRow"),
+		"front/islands/Counter.ts":           counterTS,
+		"front/islands/lib.ts":               "export const twice = (n: number): number => n * 2;\n",
+		"front/islands/orders/OrderList.vue": "<template><p/></template>\n",
+		"front/islands/orders/OrderRow.vue":  "<template><p/></template>\n",
+	})
+	pa, err := findAssets(root, "example.com/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	got := map[string]string{}
+	for _, ic := range pa.islands {
+		if ic.problem != "" {
+			t.Errorf("%s: %s", ic.name, ic.problem)
+		}
+		got[ic.name] = ic.rel + " " + ic.framework + " " + ic.strategy
+	}
+	want := map[string]string{
+		"Counter":   "front/islands/Counter.ts vanilla ",
+		"OrderList": "front/islands/orders/OrderList.vue vue load",
+		"OrderRow":  "front/islands/orders/OrderRow.vue vue ",
+	}
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("got %v, want %v", got, want)
+	}
+
+	os.Remove(filepath.Join(root, "front/islands/orders/OrderRow.vue"))
+	os.WriteFile(filepath.Join(root, "front/islands/OrderList.tsx"), []byte("x"), 0o644)
+	os.WriteFile(filepath.Join(root, "front/islands/orders/OrderList.tsx"), []byte("x"), 0o644)
+	pa, err = findAssets(root, "example.com/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	_, err = compileAssets(pa, false, io.Discard)
+	for _, want := range []string{
+		"island OrderRow: no component at front/islands/orders/OrderRow.{vue,tsx,jsx,svelte,ts,js}: add it there, or name the file with @ui.Island(\"…\")",
+		"island OrderList: front/islands/orders/OrderList.vue and front/islands/orders/OrderList.tsx both match: name one with @ui.Island(\"islands/orders/OrderList.vue\")",
+	} {
+		if err == nil || !strings.Contains(err.Error(), want) {
+			t.Errorf("got %v, want %s", err, want)
+		}
+	}
 }

@@ -333,7 +333,7 @@ func TestRenderIslands(t *testing.T) {
 	if m := string(yes["main.vuka"]); !strings.Contains(m, `web.FrontendRoot("web")`) || !strings.Contains(m, "all:web/dist") {
 		t.Errorf("main.vuka doesn't wire the island frontend:\n%s", m)
 	}
-	if p := string(yes["pages/island.vuka"]); !strings.Contains(p, `@ui.Island("islands/Counter.vue")`) || !strings.Contains(p, "<ui.Island>") {
+	if p := string(yes["pages/island.vuka"]); !strings.Contains(p, "@ui.Island\ntype Counter struct") || !strings.Contains(p, "<ui.Island>") {
 		t.Errorf("pages/island.vuka doesn't declare and place the island:\n%s", p)
 	}
 	if g := string(yes[".gitignore"]); !strings.Contains(g, "/web/node_modules/") {

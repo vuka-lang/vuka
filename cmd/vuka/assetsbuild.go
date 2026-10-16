@@ -189,7 +189,7 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				dirs = append(dirs, filepath.Join(pa.root, d))
 			}
 		}
-		out.liveDTS = liveDTS(pa.islands, readIslandLive(dirs))
+		out.liveDTS = liveDTS(pa.islands, readIslandLive(pa.root, pa.modPath, dirs))
 		if len(out.liveDTS) > 0 {
 			writeIfChanged(filepath.Join(buildRoot, "vuka-live.d.ts"), out.liveDTS)
 			if ts := filepath.Join(buildRoot, "tsconfig.json"); !fileExists(ts) {
@@ -198,6 +198,10 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		}
 		var vueIslands []*islandComp
 		for _, ic := range pa.islands {
+			if ic.problem != "" {
+				errs = append(errs, islandError{fmt.Errorf("%s: island %s: %s", ic.label, ic.name, ic.problem)})
+				continue
+			}
 			if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
 				errs = append(errs, islandError{fmt.Errorf("%s: island %s: component %s not found", ic.label, ic.name, ic.rel)})
 				continue
@@ -575,6 +579,10 @@ func (d *devAssets) compile() {
 		}
 	}
 	for _, ic := range pa.islands {
+		ic.locate(pa.root, pa.frontendRoot)
+		for _, f := range ic.candidates() {
+			files[f] = time.Time{}
+		}
 		if fi, _ := os.Stat(ic.src); fi != nil {
 			files[ic.src] = fi.ModTime()
 		}
@@ -687,7 +695,7 @@ func (d *devAssets) watch() {
 		}
 		d.mu.Lock()
 		for f, mod := range d.files {
-			if fi, err := os.Stat(f); err == nil && !fi.ModTime().Equal(mod) || err != nil {
+			if fi, err := os.Stat(f); err == nil && !fi.ModTime().Equal(mod) || err != nil && !mod.IsZero() {
 				d.compile()
 				break
 			}

@@ -40,7 +40,7 @@ func levelsDTS(t *testing.T) (dir string, dts []byte) {
 	}
 	full, _ := scanFile("levels.vuka", []byte(levelsSrc))
 	ic := &islandComp{name: "Levels", props: structFields(full, "Levels")}
-	return dir, liveDTS([]*islandComp{ic}, readIslandLive([]string{dir}))
+	return dir, liveDTS([]*islandComp{ic}, readIslandLive(dir, "", []string{dir}))
 }
 
 // TestLiveDTSHandles: a page's interface carries its fields' handles —
@@ -110,12 +110,136 @@ func TestLiveDTSTypeChecks(t *testing.T) {
 		}
 		tsc = filepath.Join(nm, "node_modules", ".bin", "tsc")
 	}
-	dir, dts := levelsDTS(t)
-	os.WriteFile(filepath.Join(dir, "vuka-live.d.ts"), dts, 0o644)
-	os.WriteFile(filepath.Join(dir, "use.ts"), []byte(levelsUse), 0o644)
-	cmd := exec.Command(tsc, "--noEmit", "--strict", "--target", "es2020", "--module", "esnext", "--moduleResolution", "bundler", "use.ts")
-	cmd.Dir = dir
-	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Fatalf("tsc: %v\n%s\n%s", err, out, dts)
+	for _, c := range []struct {
+		dts func(*testing.T) (string, []byte)
+		use string
+	}{{levelsDTS, levelsUse}, {chasingDTS, chasingUse}} {
+		dir, dts := c.dts(t)
+		os.WriteFile(filepath.Join(dir, "vuka-live.d.ts"), dts, 0o644)
+		os.WriteFile(filepath.Join(dir, "use.ts"), []byte(c.use), 0o644)
+		cmd := exec.Command(tsc, "--noEmit", "--strict", "--target", "es2020", "--module", "esnext", "--moduleResolution", "bundler", "use.ts")
+		cmd.Dir = dir
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("tsc: %v\n%s\n%s", err, out, dts)
+		}
 	}
 }
+
+const chasingSrc = `package settings
+
+import (
+	"context"
+
+	"example.com/app/modules/shared"
+)
+
+@ui.Island
+type AcademicLevels struct {
+	ui.Live
+	Current shared.Level ` + "`json:\"current\" bind:\"current\"`" + `
+	Rows    Page[Tag]    ` + "`json:\"rows\"`" + `
+}
+
+type Data struct {
+	Audit
+	Level  shared.Level       ` + "`json:\"level\"`" + `
+	Tags   []Tag              ` + "`json:\"tags\"`" + `
+	Meta   map[string]Meta    ` + "`json:\"meta\"`" + `
+	Parent *Data              ` + "`json:\"parent\"`" + `
+	Note   string             ` + "`json:\"note,omitempty\"`" + `
+	Secret string             ` + "`json:\"-\"`" + `
+}
+
+type Audit struct {
+	By   string ` + "`json:\"by\"`" + `
+	Tags int    ` + "`json:\"tags\"`" + `
+}
+
+type Tag struct{ Name string ` + "`json:\"name\"`" + ` }
+
+type Meta struct {
+	Count int ` + "`json:\"count\"`" + `
+}
+
+type Page[T any] struct {
+	Items []T ` + "`json:\"items\"`" + `
+	Total int ` + "`json:\"total\"`" + `
+}
+
+func (p *AcademicLevels) Chasing(ctx context.Context, name string, data Data) error { return nil }
+`
+
+const sharedSrc = `package shared
+
+type Level struct {
+	Code  string ` + "`json:\"code\"`" + `
+	Group Group  ` + "`json:\"group\"`" + `
+	Kind  Kind   ` + "`json:\"kind\"`" + `
+}
+
+type Group struct {
+	Name  string ` + "`json:\"name\"`" + `
+	Years int    ` + "`json:\"years\"`" + `
+}
+
+type Kind string
+`
+
+func chasingDTS(t *testing.T) (dir string, dts []byte) {
+	t.Helper()
+	root := t.TempDir()
+	for name, src := range map[string]string{"go.mod": "module example.com/app\n", "modules/settings/levels.vuka": chasingSrc, "modules/shared/shared.go": sharedSrc} {
+		os.MkdirAll(filepath.Dir(filepath.Join(root, name)), 0o755)
+		if err := os.WriteFile(filepath.Join(root, name), []byte(src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	dir = filepath.Join(root, "modules/settings")
+	full, _ := scanFile("levels.vuka", []byte(chasingSrc))
+	ic := &islandComp{name: "AcademicLevels", props: structFields(full, "AcademicLevels")}
+	return dir, liveDTS([]*islandComp{ic}, readIslandLive(root, "example.com/app", []string{dir}))
+}
+
+// TestLiveDTSParamTypes: the types a method's parameters and the fields name
+// are declared at every depth — another package's, slices, maps, pointers,
+// recursion, embedded fields promoted as JSON does, generics.
+func TestLiveDTSParamTypes(t *testing.T) {
+	_, dts := chasingDTS(t)
+	for _, want := range []string{
+		"\t\tchasing(name: string, data: Data): Promise<void>;",
+		"\tcurrent: Level;",
+		"\trows: Page<Tag>;",
+		"\t\tcurrent: LiveBound<Level>;",
+		"export interface Level {\n\tcode: string;\n\tgroup: Group;\n\tkind: string;\n}",
+		"export interface Group {\n\tname: string;\n\tyears: number;\n}",
+		"export interface Data {\n\tby: string;\n\tlevel: Level;\n\ttags: Tag[];\n\tmeta: Record<string, Meta>;\n\tparent?: Data | null;\n\tnote?: string;\n}",
+		"export interface Page<T> {\n\titems: T[];\n\ttotal: number;\n}",
+		"export interface Tag {\n\tname: string;\n}",
+		"export interface Meta {\n\tcount: number;\n}",
+	} {
+		if !strings.Contains(string(dts), want) {
+			t.Errorf("lacks %q:\n%s", want, dts)
+		}
+	}
+	if strings.Count(string(dts), "export interface Data ") != 1 || strings.Contains(string(dts), "Secret") || strings.Contains(string(dts), "tags: number") {
+		t.Errorf("Data once, without Secret or the shadowed tags:\n%s", dts)
+	}
+	if _, again := chasingDTS(t); string(again) != string(dts) {
+		t.Errorf("not stable:\n%s\n%s", dts, again)
+	}
+}
+
+const chasingUse = `import type { Live, AcademicLevels, Data } from './vuka-live'
+declare const live: Live<AcademicLevels>
+live.chasing('x', { by: 'me', level: { code: 'A', group: { name: 'g', years: 1 }, kind: 'k' }, tags: [{ name: 't' }], meta: { a: { count: 1 } }, parent: null }).then(() => {})
+const d: Data = { by: '', level: { code: '', group: { name: '', years: 0 }, kind: '' }, tags: [], meta: {}, parent: { by: '', level: { code: '', group: { name: '', years: 0 }, kind: '' }, tags: [], meta: {} } }
+const years: number = live.current.value.group.years
+const total: number = live.rows.get().items.length + live.rows.value.total
+// @ts-expect-error a wrong nested field
+live.chasing('x', { by: 'me', level: { code: 'A', group: { name: 'g', years: '1' }, kind: 'k' }, tags: [], meta: {}, parent: null })
+// @ts-expect-error an unknown field
+live.chasing('x', { by: 'me', level: { code: 'A', group: { name: 'g', years: 1 }, kind: 'k' }, tags: [{ name: 't', extra: 1 }], meta: {}, parent: null })
+// @ts-expect-error a missing field
+live.chasing('x', { level: { code: 'A', group: { name: 'g', years: 1 }, kind: 'k' }, tags: [], meta: {}, parent: null })
+export { d, years, total }
+`

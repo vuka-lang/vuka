@@ -9,6 +9,7 @@ import (
 	"io"
 	"os"
 	"os/exec"
+	"path"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -749,6 +750,22 @@ func addIsland(root, mod string, f *addFlags, w io.Writer) error {
 	return nil
 }
 
+// inferredAt reports whether comp (slash-form, relative to root, about to be
+// written) is the one component a bare @ui.Island on name, declared in dir,
+// finds.
+func inferredAt(root, fr, dir, name, comp string) bool {
+	base := path.Join(fr, "islands", islandModule(dir+"/x.vuka"), name)
+	if strings.TrimSuffix(comp, path.Ext(comp)) != base {
+		return false
+	}
+	for _, ext := range islandExts {
+		if o := base + ext; o != comp && exists(root, filepath.FromSlash(o)) {
+			return false
+		}
+	}
+	return true
+}
+
 type islandHostSpec struct {
 	Pkg, Name, Import, File string
 }
@@ -761,6 +778,7 @@ type pageSpec struct {
 	Params                         []pageParam
 	Live, Layouts, Auth            bool
 	Island, IslandPath             string
+	InferIsland                    bool // the component is where a bare @ui.Island looks
 	Prop, PropJSON                 string
 	URLField, URLJSON              string
 }
@@ -874,6 +892,7 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 			return err
 		}
 		spec.Island, spec.IslandPath = island, strings.TrimPrefix(comp, fr+"/")
+		spec.InferIsland = inferredAt(root, fr, t.dir, island, comp)
 		tmpl = "page_island.vuka"
 		defer func() { a.install(fr, f, w) }()
 	} else {

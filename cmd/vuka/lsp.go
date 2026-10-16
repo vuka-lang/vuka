@@ -419,6 +419,7 @@ type vukaRequest struct {
 	qualifier string    // the package typed before the dot, if any
 	closeTag  *lspRange // asked on a closing tag's name, sent to its opening tag's
 	blocks    *lspRange // completion after a markup child's {: the word typed, for block snippets
+	note      string    // hover: what to add to gopls's answer (an island page's lifecycle hook)
 	spot      *staticSpot // a possible Type.member use at the cursor (statics, field references)
 }
 
@@ -1052,6 +1053,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	if hasPos {
 		src := vf.text()
 		off := offsetOf(src, srcPos)
+		if h := p.islandRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if h := p.fileRequest(m.Method, vf, off); h != nil {
 			p.mu.Unlock()
 			reply(h())
@@ -1123,6 +1129,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		}
 		// Typing @ triggers completion; gopls only knows its own triggers.
 		params["context"] = map[string]any{"triggerKind": 1}
+	}
+	if hasPos && m.Method == "textDocument/hover" {
+		vr.note = islandHookNote(p.modRoot, vf.source, vf.text(), offsetOf(vf.text(), srcPos))
 	}
 	if hasPos && !vr.attr && (m.Method == "textDocument/completion" || m.Method == "textDocument/hover") {
 		vr.spot = staticSpotAt(m.Method, vf.text(), offsetOf(vf.text(), srcPos))
@@ -1225,6 +1234,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		}
 	case "textDocument/hover":
 		v = staticHover(demangleStrings(v))
+		if vr.note != "" {
+			v = withNote(v, vr.note)
+		}
 		if h, ok := v.(map[string]any); ok && vr.closeTag != nil {
 			h["range"] = *vr.closeTag
 		}

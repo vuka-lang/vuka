@@ -20,6 +20,12 @@ leave fields out omitted.
 A [`vuka.File`](/features/decorators#files) path such as `@Page("views/pets.templ")` is a link:
 go to definition opens the file (a `.templ` file with one component, at that
 component), and hover shows the path and the `.templ` file's components.
+Hover on an [`@ui.Island`](/web/islands#declare-the-props-in-go) shows the
+component file it names or infers (relative to the module root) and its
+framework; go to definition opens it; a missing or ambiguous file is an error
+on the decorator as you type, the build's message. Hover on `Mount` or
+`Changed` of a page backed by a component says they are hooks the server
+runs, not methods on `live`.
 
 ### Markup
 

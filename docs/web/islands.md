@@ -79,8 +79,8 @@ interface `Point` is `WeekPoint`.
 ## Declare the props in Go
 
 When the component's types are out of reach, declare the props as a Go
-struct annotated `@ui.Island`, pointing at the component file. Its exported
-fields are the props; it wins over an import of the same name:
+struct annotated `@ui.Island`. Its exported fields are the props; it wins
+over an import of the same name:
 
 ```vuka
 type Point struct {
@@ -88,15 +88,29 @@ type Point struct {
     Y float64 `json:"y"`
 }
 
-@ui.Island("islands/Chart.vue")
+@ui.Island
 type Chart struct {
     Series []Point `json:"series"`
     Title  string  `json:"title"`
 }
 ```
 
-The path is read from the frontend root (`web.FrontendRoot("web")`: here
-`web/islands/Chart.vue`), whichever package declares the struct; a path
+Written bare, `@ui.Island` finds the component by the type's name:
+`islands/<Type>.<ext>` under the frontend root (`web.FrontendRoot("web")`:
+here `web/islands/Chart.vue`), in the module's own folder for a package
+under `modules/<m>/` — `@ui.Island` on `Orders` in `modules/sales/` is
+`web/islands/sales/Orders.vue`. The extension is whichever of `.vue`,
+`.tsx`, `.jsx`, `.svelte`, `.ts`, `.js` exists, and gives the framework.
+No such file, or two (`Chart.vue` and `Chart.tsx`), is an error naming
+them, in the build and in the editor. `vuka add island`, `vuka add page
+--island` and `vuka new` put the component where the bare form looks.
+
+To keep the inference and set the default hydration strategy (used when a
+tag has no `client:*` directive), give an empty path: `@ui.Island("",
+"load")`.
+
+Name the file when it is elsewhere: `@ui.Island("charts/Revenue.vue")` is
+read from the frontend root, whichever package declares the struct; a path
 starting with `./` or `../`, or a file beside the declaring one, is read from
 there instead.
 
@@ -197,12 +211,12 @@ handler's struct parameter:
 ## Pages backed by a component
 
 A page can be a component: put `@web.Get` on an `@ui.Island` struct, and
-the page's template is the component file. The struct says what the page
+the page's template is the component file (here `web/islands/Orders.vue`). The struct says what the page
 holds; the component reads it, sets what it may and calls the rest.
 
 ```vuka
 @web.Get("/orders")
-@ui.Island("components/Orders.vue")
+@ui.Island
 @auth.Required
 type Orders struct {
     ui.Live                                         // optional: a live page; leave it out for a stateless one

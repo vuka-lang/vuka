@@ -10,6 +10,37 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.41.0, ui v0.27.0, vuka v0.31.0 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use ui v0.27.0; the command requires
+vuka v0.31.0.
+
+- **`@ui.Island` finds its component.** Written bare, `@ui.Island` on
+  `Orders` is `islands/Orders.<ext>` under the frontend root — in the
+  module's folder for a package under `modules/<m>/`
+  (`web/islands/sales/Orders.vue`) — the extension whichever of `.vue`,
+  `.tsx`, `.jsx`, `.svelte`, `.ts`, `.js` exists. None, or two, is an error
+  naming them. `@ui.Island("", "load")` keeps the inference and sets the
+  default strategy; `@ui.Island("charts/Revenue.vue")` works as before.
+  [Islands](/web/islands#declare-the-props-in-go). ui v0.27.0's `Island`
+  takes its arguments as `...string`.
+- **Generated code infers.** `vuka add page --island`, and `vuka new`'s
+  sample island, write a bare `@ui.Island`; with `--dir` elsewhere the path
+  is written.
+- **The editor knows islands.** Hover on `@ui.Island` shows the component
+  file (inferred or written, relative to the module root) and its
+  framework, go to definition opens it, and a missing or ambiguous file is a
+  diagnostic on the decorator without a build. Hover on a page's `Mount` or
+  `Changed` says it is a hook the server runs, not callable from `live`.
+- **Fixed: a method's parameter types in `vuka-live.d.ts`.** A type used
+  only by a page's method (`Chasing(ctx, name string, data Data)`) was named
+  but never declared, so `live.chasing(…)` didn't type-check. Every struct a
+  field or a parameter reaches is declared now, at any depth: another
+  package of the module's (`shared.Level`), in slices, maps and pointers,
+  recursive ones by name, embedded structs' fields promoted as
+  `encoding/json` does (json names, `omitempty` and pointers optional), and
+  generic ones as generic interfaces (`Page<Tag>`).
+
 ## cmd/vuka v0.40.1, web v0.31.2 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use web v0.31.2.
