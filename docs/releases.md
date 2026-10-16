@@ -10,6 +10,27 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## web v0.30.1 — 2026-10-16
+
+Security fix. Runtime unchanged, v0.16.0; ui unchanged, v0.25.0. The vuka
+command is `cmd/vuka/v0.39.1`. New apps use web v0.30.1.
+
+- **A stateless page's signed props are the visitor's.** A page backed by a
+  component without `ui.Live` sends its props to the browser signed, and
+  each call carries them back. The signature bound the page's path and an
+  expiry but not who the page was rendered for, so anyone holding a page's
+  props could replay them — as another user, or signed out — until they
+  expired (calls still passed the page's gates). The signature now also
+  binds the visitor's sign-in (with `web/auth`: the user and the session,
+  token or JWT they signed in with; no one, for an anonymous visitor) and
+  the page's type. Props replayed by another visitor, anonymously, after a
+  sign-out and in again, or at another page answer like a forged signature
+  (403). Pages already open when the app is upgraded are refused once and
+  work again after a reload. No change to apps or components:
+  `go get github.com/vuka-lang/web@v0.30.1`.
+- `web.LiveIdentity` keys a sign-in, not only a user: live adoption, too,
+  only adopts a page for the sign-in that rendered it.
+
 ## v0.30.0 — 2026-10-16
 
 Runtime: unchanged, v0.16.0. The vuka command is

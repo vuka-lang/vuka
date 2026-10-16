@@ -28,7 +28,7 @@ import (
 const (
 	vukaVersion = "v0.30.0"
 	uiVersion   = "v0.25.0"
-	webVersion  = "v0.30.0"
+	webVersion  = "v0.30.1"
 	ormVersion  = "v0.7.1"
 )
 
