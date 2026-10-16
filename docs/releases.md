@@ -10,6 +10,40 @@ Each release states the **runtime** its generated code needs — the
 `github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
 upgrades it.
 
+## cmd/vuka v0.44.0, web v0.35.0, ui v0.29.0, vuka v0.32.0 — 2026-10-16
+
+Runtime unchanged, v0.16.0. New apps use ui v0.29.0 and web v0.35.0; the
+command requires vuka v0.32.0.
+
+- **`@web.Live` on a page backed by a component.** An `@ui.Island` struct
+  embedding `ui.Live` is routed with `@web.Live("/path")`, its options
+  (`web.Layout`, the type's gates) as for any live page. `@web.Get` stays
+  the stateless form; `@web.Get` with `ui.Live` still serves a live page,
+  and `vuka vet` and the editor suggest `@web.Live` for it.
+  [Pages backed by a component](/web/islands#pages-backed-by-a-component).
+- **Layouts in the decorator.** `@ui.Island(ui.Layout(layouts.Page("Orders")))`
+  is the layout of the page the type backs: a `func(ui.Node) ui.Node`, or
+  a `func(ctx, ui.Node) ui.Node` reading the request (the user, the path,
+  `ui.PageTitle(ctx)`); several nest, the first outermost. It wins over the
+  route's `web.Layout`, then `web.LiveLayout`, then a bare document, and
+  applies only where the type is routed as a page. A `Title() string`
+  method titles the page: the bare document's `<title>`, `ui.PageTitle`,
+  and a document without one. Pages sharing a layout keep its elements
+  across live navigation. [Layouts](/web/islands#layouts).
+- **`ui.Strategy("load")`** sets an island's default strategy:
+  `@ui.Island(ui.Strategy("load"))` keeps the inferred path. ui v0.29.0's
+  `Island` takes `...any`: a path, a strategy, then options.
+- **`vuka add page --island`** writes `@web.Live` for a live page (`@web.Get`
+  with `--stateless`) and `@ui.Island(ui.Layout(layouts.Page("Title")))`
+  when the app has `layouts/`; `--layout expr` names another layout, `--layout
+  none` leaves it out.
+- vuka v0.32.0: the compiler finds the type an `@ui.Island` decorates past
+  any argument expression — nested calls, strings with parentheses, over
+  several lines — so a live island page with options still gets its
+  Render. The vuka command reads the literal path and strategy and skips
+  the other options; hover on a decorator with `ui.Layout` says where the
+  layout applies.
+
 ## cmd/vuka v0.43.0, web v0.34.0, ui v0.28.2 — 2026-10-16
 
 Runtime unchanged, v0.16.0. New apps use ui v0.28.2 and web v0.34.0.

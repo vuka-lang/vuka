@@ -12,7 +12,7 @@ import, lifecycle hooks, SSE dev reload) and esbuild in `vuka build`.
 > `@ui.Island` struct stays and wins when both exist; (2) function props and
 > `ui.State` props are plain props (events and two-way client state);
 > (3) every prop is live by default (`once` opts out). And pages backed by
-> a component (`@web.Get` on an `@ui.Island` struct). See "Seamless
+> a component (`@web.Live` or `@web.Get` on an `@ui.Island` struct). See "Seamless
 > islands" and "Pages backed by a component" at the end; sections below marked *(changed)* are superseded
 > where they disagree.
 
@@ -338,9 +338,28 @@ watching its states.
 
 ## Pages backed by a component (changed)
 
-`@web.Get(path)` on an `@ui.Island` struct is a page whose template is the
-component. `web.Get` (and `Post`, … `Handle`) now returns a
-`vuka.Dual` bundle: on a function it declares a route, on a type a page.
+`@web.Live(path)` (embedding `ui.Live`) or `@web.Get(path)` on an
+`@ui.Island` struct is a page whose template is the component. `web.Get`
+(and `Post`, … `Handle`) returns a `vuka.Dual` bundle: on a function it
+declares a route, on a type a page. `web.Live` on a type that is an island
+(known when the app compiles the route, whichever decorator ran first)
+compiles as `@web.Get` + `ui.Live` did: `islandBinds`, `CheckIsland`.
+
+- **Decorator options.** `ui.Island(args ...any)`: a string path, a string
+  strategy, then `IslandOption`s — `ui.Strategy(s)`, `ui.Layout(l...)`.
+  `ui.Layout` takes `func(ui.Node) ui.Node` and `func(ctx, ui.Node)
+  ui.Node` (`ui.LayoutFunc`), nested first-outermost; a bad one is kept as
+  the island's error, `CheckIsland` reports it, and the app fails to build.
+  The vuka command reads the literal path and strategy (and
+  `ui.Strategy("…")`), and skips other call arguments; the transpiler finds
+  the decorated type past any argument expression (balanced parentheses,
+  strings skipped).
+- **Layout.** web resolves `ui.IslandLayout(t)` > the route's `web.Layout` >
+  `web.LiveLayout` > a bare document, as a `LayoutFunc` called per request
+  with the request's ctx, carrying `ui.WithPageTitle` (the type's `Title()`,
+  else its name). A full page whose `<head>` lacks a `<title>` gets one.
+  Live navigation diffs the whole page's tree, so a layout shared by two
+  pages keeps its DOM.
 
 - **Props/state split.** Exported fields are the props (json names;
   `ui.Live` itself left out); unexported fields are server-only — those of

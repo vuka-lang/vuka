@@ -33,7 +33,7 @@ type addFlags struct {
 }
 
 // valueFlags take a value: --module notes, --dir=web/islands.
-var valueFlags = map[string]bool{"module": true, "dir": true, "island": true, "table": true, "name": true}
+var valueFlags = map[string]bool{"module": true, "dir": true, "island": true, "table": true, "name": true, "layout": true}
 
 var boolFlags = map[string]bool{"stateless": true, "unmanaged": true, "force": true, "dry-run": true, "live": true, "vue": true, "react": true, "svelte": true, "no-install": true}
 
@@ -778,7 +778,9 @@ type pageSpec struct {
 	Params                         []pageParam
 	Live, Layouts, Auth            bool
 	Island, IslandPath             string
-	InferIsland                    bool // the component is where a bare @ui.Island looks
+	InferIsland                    bool   // the component is where a bare @ui.Island looks
+	IslandArgs                     string // @ui.Island's arguments: ("path", ui.Layout(…)), or ""
+	LayoutImport                   bool   // the layout names the app's layouts package
 	Prop, PropJSON                 string
 	URLField, URLJSON              string
 }
@@ -789,7 +791,7 @@ var pathSegment = regexp.MustCompile(`^(\{[a-z][A-Za-z0-9]*\}|[a-z0-9][a-z0-9._-
 
 func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if len(f.pos) != 1 {
-		return errors.New("usage: vuka add page <path> [--module m] [--stateless] [--island Name [--vue|--react|--svelte]] [--name Type] [--force] [--dry-run]")
+		return errors.New("usage: vuka add page <path> [--module m] [--stateless] [--island Name [--vue|--react|--svelte] [--layout expr]] [--name Type] [--force] [--dry-run]")
 	}
 	a := newAdder("page", root, mod, f)
 	path := f.pos[0]
@@ -893,11 +895,32 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 		}
 		spec.Island, spec.IslandPath = island, strings.TrimPrefix(comp, fr+"/")
 		spec.InferIsland = inferredAt(root, fr, t.dir, island, comp)
+		layout := f.values["layout"]
+		switch {
+		case layout == "" && spec.Layouts:
+			layout = fmt.Sprintf("layouts.Page(%q)", spec.Title)
+		case layout == "none":
+			layout = ""
+		}
+		var args []string
+		if !spec.InferIsland {
+			args = append(args, strconv.Quote(spec.IslandPath))
+		}
+		if layout != "" {
+			args = append(args, "ui.Layout("+layout+")")
+			spec.LayoutImport = spec.Layouts && strings.Contains(layout, "layouts.")
+		}
+		if len(args) > 0 {
+			spec.IslandArgs = "(" + strings.Join(args, ", ") + ")"
+		}
 		tmpl = "page_island.vuka"
 		defer func() { a.install(fr, f, w) }()
 	} else {
 		if f.bools["vue"] || f.bools["react"] || f.bools["svelte"] {
 			return errors.New("vuka add page: --vue, --react and --svelte go with --island Name")
+		}
+		if f.values["layout"] != "" {
+			return errors.New("vuka add page: --layout goes with --island Name")
 		}
 		tmpl = "page.vuka"
 	}

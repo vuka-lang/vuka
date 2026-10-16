@@ -102,6 +102,14 @@ func Charts() ui.Node {
 	if out, err := c.CombinedOutput(); err == nil || !strings.Contains(string(out), "colour") {
 		t.Errorf("an unknown prop compiled: %v\n%s", err, out)
 	}
+	os.Remove(filepath.Join(dir, "pages", "charts.vuka"))
+
+	// A live page routed with @web.Get still works; vet suggests @web.Live.
+	reports := filepath.Join(dir, "pages", "reports.vuka")
+	os.WriteFile(reports, []byte(strings.Replace(read(t, reports), `@web.Live("/reports")`, `@web.Get("/reports")`, 1)), 0o644)
+	if out := e.run(dir, off, "vuka", "vet", "./..."); !strings.Contains(out, "pages/reports.vuka:18: warning: Reports embeds ui.Live: route it with @web.Live") {
+		t.Errorf("vet: %s", out)
+	}
 }
 
 // cmd is a command as run runs it, not yet started.

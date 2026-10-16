@@ -3,6 +3,7 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
 	"go/scanner"
 	"go/token"
@@ -23,7 +24,8 @@ import (
 // Islands are client components hydrated in the browser, declared by an
 // @ui.Island decorator on a Go struct type (the props): bare, the component is
 // islands/[<module>/]<Type>.<ext> under the frontend root (inferIsland);
-// @ui.Island("path"[, "strategy"]) names it, and "" keeps the inference.
+// @ui.Island("path"[, "strategy"]) names it, and "" keeps the inference;
+// options follow (ui.Strategy("load"), ui.Layout(…), the latter the app's).
 // The vuka command discovers them like it does web.Style/Script (reading the
 // decorator from the source), bundles each component file with esbuild into a
 // lazy chunk served under /_vuka/i/, records it in the manifest the app reads
@@ -50,6 +52,21 @@ type islandComp struct {
 	module    string // the module the declaring file is in (modules/<m>/…), for an inferred path
 	problem   string // why an inferred path finds no one file
 	off, end  int    // the decorator's span in its file, @ to its last token
+
+	layout            bool   // the decorator gives a ui.Layout
+	route             string // the type's route decorator: "Get", "Live", … ("" when none)
+	routeLabel        string // its file:line
+	routeOff, routeAt int    // its span in the file
+	live              bool   // the struct embeds ui.Live
+}
+
+// routeAdvice is what the vuka command suggests of an island's route: a
+// live page (ui.Live embedded) is routed with @web.Live.
+func (ic *islandComp) routeAdvice() string {
+	if ic.live && ic.route != "" && ic.route != "Live" {
+		return fmt.Sprintf("%s embeds ui.Live: route it with @web.Live (a live page backed by its component); @web.%s is for a stateless one", ic.name, ic.route)
+	}
+	return ""
 }
 
 // islandExts are the component extensions a bare @ui.Island looks for, in
@@ -343,10 +360,13 @@ func frontendRootIn(src []byte) (string, bool) {
 func (pa *pageAssets) readIslands(file string, src []byte) []error {
 	full, line := scanFile(file, src)
 	filt := dropNewlineSemis(full)
-	uiName := ""
+	uiName, webName := "", ""
 	for name, p := range fileImports(filt) {
-		if p == load.UIPath {
+		switch p {
+		case load.UIPath:
 			uiName = name
+		case webPath:
+			webName = name
 		}
 	}
 	if uiName == "" {
@@ -357,6 +377,29 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 	dir := filepath.Dir(file)
 	var errs []error
 	pa.readIslandImports(file, rel, line, filt)
+	type route struct {
+		verb     string
+		off, end int
+	}
+	routes := map[string]route{}
+	for i := 0; webName != "" && i+3 < len(filt); i++ {
+		if filt[i].tok != token.ILLEGAL || filt[i].lit != "@" || filt[i+1].lit != webName || filt[i+2].tok != token.PERIOD {
+			continue
+		}
+		switch verb := filt[i+3].lit; verb {
+		case "Get", "Post", "Put", "Patch", "Delete", "Handle", "Live":
+			end := i + 4
+			if end < len(filt) && filt[end].tok == token.LPAREN {
+				if rp := matchParen(filt, end); rp >= 0 {
+					end = rp + 1
+				}
+			}
+			if name := decoratedType(filt, i); name != "" {
+				last := filt[end-1]
+				routes[name] = route{verb, filt[i].off, last.off + len(tokenText(last))}
+			}
+		}
+	}
 	for i := 0; i+2 < len(filt); i++ {
 		if filt[i].tok != token.IDENT || filt[i].lit != uiName || filt[i+1].tok != token.PERIOD ||
 			filt[i+2].tok != token.IDENT || filt[i+2].lit != "Island" {
@@ -384,19 +427,49 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 			v, err := strconv.Unquote(filt[a[0]].lit)
 			return v, err == nil
 		}
-		cp := ""
-		if len(args) > 0 {
-			var ok bool
-			if cp, ok = str(args[0]); !ok {
-				errs = append(errs, fmt.Errorf("%s: @%s.Island takes a string literal path (the vuka command reads it from the source)", where, uiName))
+		// A string literal path, then a string literal strategy, then
+		// options: ui.Strategy("…"), read here; ui.Layout(…) and any
+		// other call, evaluated by the app.
+		cp, strategy, layout, strs := "", "", false, 0
+		bad := ""
+		for _, a := range args {
+			if v, ok := str(a); ok {
+				switch strs {
+				case 0:
+					cp = v
+				case 1:
+					strategy = v
+				}
+				strs++
 				continue
 			}
-		}
-		strategy := ""
-		if len(args) >= 2 {
-			if v, ok := str(args[1]); ok {
-				strategy = v
+			opt := ""
+			if a[1]-a[0] >= 4 && filt[a[0]].lit == uiName && filt[a[0]+1].tok == token.PERIOD && filt[a[0]+3].tok == token.LPAREN {
+				opt = filt[a[0]+2].lit
 			}
+			switch {
+			case opt == "Strategy":
+				sa := callArgs(filt, a[0]+3)
+				v, ok := "", len(sa) == 1
+				if ok {
+					v, ok = str(sa[0])
+				}
+				if !ok {
+					bad = fmt.Sprintf("%s: %s.Strategy takes a string literal (the vuka command reads it from the source)", where, uiName)
+				}
+				strategy = v
+			case opt == "Layout":
+				layout = true
+			case filt[a[1]-1].tok == token.RPAREN:
+			case strs == 0:
+				bad = fmt.Sprintf("%s: @%s.Island takes a string literal path (the vuka command reads it from the source)", where, uiName)
+			default:
+				bad = fmt.Sprintf("%s: @%s.Island's options are calls: %s.Layout(…), %s.Strategy(\"…\")", where, uiName, uiName, uiName)
+			}
+		}
+		if bad != "" {
+			errs = append(errs, errors.New(bad))
+			continue
 		}
 		name := decoratedType(filt, after)
 		if name == "" {
@@ -411,6 +484,12 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 			label:    where,
 			strategy: strategy,
 			props:    structFields(full, name),
+			layout:   layout,
+			live:     embeds(full, name, uiName, "Live"),
+		}
+		if r, ok := routes[name]; ok {
+			ic.route, ic.routeOff, ic.routeAt = r.verb, r.off, r.end
+			ic.routeLabel = fmt.Sprintf("%s:%d", rel, line(r.off))
 		}
 		if cp == "" {
 			ic.infer, ic.module = true, islandModule(rel)
@@ -425,6 +504,34 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 		pa.islands = append(pa.islands, ic)
 	}
 	return errs
+}
+
+// embeds reports whether the struct type name of a file (its tokens with
+// newlines) embeds pkg.field.
+func embeds(full []wtok, name, pkg, field string) bool {
+	for i := 0; i+3 < len(full); i++ {
+		if full[i].tok != token.TYPE || full[i+1].lit != name || full[i+2].tok != token.STRUCT || full[i+3].tok != token.LBRACE {
+			continue
+		}
+		depth := 0
+		for j := i + 3; j < len(full); j++ {
+			switch full[j].tok {
+			case token.LBRACE, token.LPAREN, token.LBRACK:
+				depth++
+			case token.RBRACE, token.RPAREN, token.RBRACK:
+				if depth--; depth == 0 {
+					return false
+				}
+			case token.IDENT:
+				prev := full[j-1].tok
+				if depth == 1 && (prev == token.LBRACE || prev == token.SEMICOLON) && full[j].lit == pkg && j+2 < len(full) &&
+					full[j+1].tok == token.PERIOD && full[j+2].lit == field && (j+3 >= len(full) || full[j+3].tok == token.SEMICOLON || full[j+3].tok == token.RBRACE || full[j+3].tok == token.STRING) {
+					return true
+				}
+			}
+		}
+	}
+	return false
 }
 
 // tokenText is a token's source text.

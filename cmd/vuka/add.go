@@ -46,7 +46,10 @@ Grow an app vuka new made.
              (--stateless: @web.Get; a path with {parameters} is stateless
              unless --live). --island Name makes it a page backed by a
              component: an @ui.Island struct with a prop, a url: field and a
-             method, and the component calling it (ui.Live unless --stateless).
+             method, and the component calling it (ui.Live unless --stateless);
+             --layout expr is its layout, @ui.Island(ui.Layout(expr)) — by
+             default layouts.Page("Title") when the app has layouts/, none
+             with --layout none.
   entity     an orm model in entities/ (or the module's package; m/Name is
              short for Name --module m), with ID and created/updated times,
              its fields name:type — string, text, int, float, decimal,

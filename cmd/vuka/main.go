@@ -19,7 +19,7 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-const version = "v0.43.0"
+const version = "v0.44.0"
 
 const usage = `vuka is Go with overloading and attributes.
 
@@ -144,6 +144,13 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	pa, err := findAssets(root, modPath)
 	if err != nil {
 		return err
+	}
+	if cmd == "vet" && pa != nil {
+		for _, ic := range pa.islands {
+			if a := ic.routeAdvice(); a != "" {
+				fmt.Fprintf(stderr, "%s: warning: %s\n", ic.routeLabel, a)
+			}
+		}
 	}
 	goArgs := []string{cmd}
 	tmp, err := os.MkdirTemp("", "vuka-")

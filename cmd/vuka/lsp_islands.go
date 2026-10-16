@@ -85,6 +85,9 @@ func islandDiags(root, path string, text []byte) []any {
 			out = append(out, lspDiagnostic{Range: lspRange{positionOf(text, ic.off), positionOf(text, ic.end)}, Severity: 1, Source: "vuka",
 				Message: fmt.Sprintf("island %s: %s", ic.name, msg)})
 		}
+		if a := ic.routeAdvice(); a != "" {
+			out = append(out, lspDiagnostic{Range: lspRange{positionOf(text, ic.routeOff), positionOf(text, ic.routeAt)}, Severity: 2, Source: "vuka", Message: a})
+		}
 	}
 	return out
 }
@@ -127,6 +130,12 @@ func (p *proxy) islandRequest(method string, f *vfile, off int) func() any {
 			fmt.Fprintf(&b, ": `%s` (%s)", at.rel, at.framework)
 		}
 		fmt.Fprintf(&b, "\n\nThe path is %s.", how)
+		if at.layout {
+			b.WriteString("\n\nIts `ui.Layout` is the layout of the page the type backs when it is routed as one (`@web.Live`, `@web.Get`), over `web.Layout` and `web.LiveLayout`; placed inside another page, the island ignores it.")
+			if at.route == "" {
+				b.WriteString(" This type has no route decorator here.")
+			}
+		}
 		if issue != "" {
 			fmt.Fprintf(&b, "\n\n**Warning:** %s", issue)
 		}

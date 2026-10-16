@@ -6,6 +6,10 @@ import (
 
 	"github.com/vuka-lang/ui"
 	"github.com/vuka-lang/web"
+{%- if .LayoutImport%}
+
+	"{%.Module%}/layouts"
+{%- end%}
 )
 
 // {%.Type%} is the page at {%.Path%}, backed by its component
@@ -13,8 +17,8 @@ import (
 // a bind: field one it sets too, and Changed runs after it does{%if .Live%}; it
 // is live, so the server keeps the instance and the component gets the new
 // props{%end%}.
-@web.Get("{%.Path%}")
-@ui.Island{%if not .InferIsland%}("{%.IslandPath%}"){%end%}
+{%if .Live%}@web.Live{%else%}@web.Get{%end%}("{%.Path%}")
+@ui.Island{%.IslandArgs%}
 type {%.Type%} struct {
 {%- if .Live%}
 	ui.Live

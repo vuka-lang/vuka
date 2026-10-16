@@ -92,7 +92,7 @@ The other kinds add one piece each:
 | `vuka add component StatCard [--module m]` | a stateless component taking a props struct (`StatCardProps`), in `components/` or the module |
 | `vuka add island Chart [--module m] [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`; `web/islands/<m>/` with `--module`), its props typed for an import, and `components/chart.vuka` (or `modules/<m>/chart.vuka`) — a `Chart(ChartProps)` component placing it, so pages write `<components.Chart Title="Sales" Count={3} />`; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
 | `vuka add page /reports [--module m] [--stateless]` | a page in `pages/`: a live `@web.Live` type with an event, or with `--stateless` `@web.Get` on a handler; a path with `{parameters}` (`/reports/{id}`) makes the `@web.Get` handler, its parameters the path's, unless `--live` |
-| `vuka add page /board --island Board [--module m] [--stateless] [--react]` | a page backed by a component: a bare `@ui.Island` struct (the component is where it looks) routed with `@web.Get`, embedding `ui.Live` unless `--stateless` — a prop, a `bind:"q"` `url:"q"` field and `Changed` — and the component reading and setting them with `useLive` (Svelte: `live()`): `v-model="live.q.value"`. `--module m` puts the component in `web/islands/m/` |
+| `vuka add page /board --island Board [--module m] [--stateless] [--react] [--layout expr]` | a page backed by a component: an `@ui.Island` struct (bare: the component is where it looks) embedding `ui.Live` and routed with `@web.Live`, or with `--stateless` neither `ui.Live` nor `@web.Live` but `@web.Get`; its layout `@ui.Island(ui.Layout(expr))`, by default `layouts.Page("Board")` when the app has `layouts/`, none with `--layout none` — a prop, a `bind:"q"` `url:"q"` field and `Changed` — and the component reading and setting them with `useLive` (Svelte: `live()`): `v-model="live.q.value"`. `--module m` puts the component in `web/islands/m/` |
 | `vuka add entity Comment --module posts body:text post:ref email:string:unique` | an orm model in `entities/` (or the module; `posts/Comment` is the same); `--unmanaged --table t` maps an existing table — no timestamps, test or migration, and no `migrations/` needed. Otherwise it comes with `ID`, `CreatedAt` and `UpdatedAt`, a test, and its migration written by `go tool orm makemigrations` |
 
 An entity's fields are `name:type`, `?` after the type for an optional one
@@ -137,6 +137,10 @@ config, lockfile, installed packages, `@source` paths) changed.
 serves are left out of the binary (empty in the overlay; it reads them from
 disk in development), so they cost the linker nothing; `-embed` (with
 `-watch`) or `VUKA_EMBED_STUB=off` builds them in.
+
+`vuka vet` also warns of what the go command can't see: a page backed by
+a component that embeds `ui.Live` but is routed with `@web.Get` (it works;
+`@web.Live` says what it is).
 
 **Declarer packages are linked automatically.** Every package of the module
 with a [declarer](/features/decorators#declaration-decorators), a type

@@ -10,7 +10,8 @@ import (
 	"strings"
 )
 
-// Pages backed by a component: an @ui.Island struct routed with @web.Get.
+// Pages backed by a component: an @ui.Island struct routed with @web.Live
+// (live) or @web.Get (stateless).
 // vuka-live.d.ts is the types of the module "vuka:live" its component
 // imports from — the frontend's tsconfig maps the name to it ("paths":
 // {"vuka:live": ["./vuka-live.d.ts"]}), which also lets Vue's compiler

@@ -105,9 +105,10 @@ No such file, or two (`Chart.vue` and `Chart.tsx`), is an error naming
 them, in the build and in the editor. `vuka add island`, `vuka add page
 --island` and `vuka new` put the component where the bare form looks.
 
-To keep the inference and set the default hydration strategy (used when a
-tag has no `client:*` directive), give an empty path: `@ui.Island("",
-"load")`.
+To set the default hydration strategy (used when a tag has no `client:*`
+directive), add `ui.Strategy`: `@ui.Island(ui.Strategy("load"))` keeps the
+inference, `@ui.Island("charts/Revenue.vue", ui.Strategy("idle"))` names
+the file. A second string is a strategy too: `@ui.Island("", "load")`.
 
 Name the file when it is elsewhere: `@ui.Island("charts/Revenue.vue")` is
 read from the frontend root, whichever package declares the struct; a path
@@ -210,16 +211,17 @@ handler's struct parameter:
 
 ## Pages backed by a component
 
-A page can be a component: put `@web.Get` on an `@ui.Island` struct, and
-the page's template is the component file (here `web/islands/Orders.vue`). The struct says what the page
-holds; the component reads it, sets what it may and calls the rest.
+A page can be a component: put `@web.Live` on an `@ui.Island` struct
+embedding `ui.Live`, and the page's template is the component file (here
+`web/islands/Orders.vue`). The struct says what the page holds; the
+component reads it, sets what it may and calls the rest.
 
 ```vuka
-@web.Get("/orders")
-@ui.Island
+@web.Live("/orders")
+@ui.Island(ui.Layout(layouts.Page("Orders")))
 @auth.Required
 type Orders struct {
-    ui.Live                                         // optional: a live page; leave it out for a stateless one
+    ui.Live                                         // a live page
     Q      string  `url:"q" bind:"q"`               // the component sets it; kept in the address's ?q=
     Status string  `bind:"status,debounce=0"`      // set at once, no wait
     Rows   []Order                                  // read only
@@ -230,6 +232,12 @@ func (o *Orders) Mount(ctx context.Context) error   { return o.load(ctx) }
 func (o *Orders) Changed(ctx context.Context) error { return o.load(ctx) } // after the component sets Q or Status
 func (o *Orders) Cancel(ctx context.Context, id int64) error { … }       // callable from the component
 ```
+
+A stateless page — no connection, each call a signed POST — is `@web.Get`
+on a struct without `ui.Live`. `@web.Get` on one with `ui.Live` is a live
+page too, as before; `vuka vet` and the editor suggest `@web.Live` for it.
+`@web.Live`'s options work as for any live page: `web.Layout`, the type's
+gates.
 
 ```vue
 <script setup lang="ts">
@@ -338,7 +346,56 @@ to it in `tsconfig.json`, which also lets Vue's compiler read
 { "compilerOptions": { "paths": { "vuka:live": ["./vuka-live"] } } }
 ```
 
-`App.Page(path, &T{}, attrs…)` declares one from Go.
+`App.Live(path, &T{}, opts…)` and `App.Page(path, &T{}, attrs…)` declare
+one from Go, live and stateless.
+
+### Layouts
+
+`ui.Layout` in the decorator is the layout of the page the type backs:
+the page is `layout(component)`. A layout is a `func(page ui.Node)
+ui.Node` — what `layouts.Page("Orders")` returns — or a `func(ctx
+context.Context, page ui.Node) ui.Node`, which reads the request as a
+page's code does: the signed-in user, the path, the page's title.
+
+```vuka
+// layouts/admin.vuka
+func Admin(title string) func(context.Context, ui.Node) ui.Node {
+    return func(ctx context.Context, page ui.Node) ui.Node {
+        return <Document title={title}>
+            <Shell me={auth.Current(ctx)} path={web.Request(ctx).URL.Path} title={title}>{page}</Shell>
+        </Document>
+    }
+}
+```
+
+```vuka
+@web.Live("/settings/levels")
+@ui.Island(ui.Layout(layouts.Admin("Levels")))
+type Levels struct { ui.Live; … }
+```
+
+Several nest, the first outermost: `ui.Layout(layouts.Page("Levels"),
+layouts.Sidebar)` is `Page(Sidebar(component))`. The page's layout is the
+first of:
+
+1. `ui.Layout` on the island,
+2. `web.Layout` on the route (`@web.Live("/x", web.Layout(…))`),
+3. the app's `web.LiveLayout`,
+4. a bare document.
+
+The layout applies only where the type is routed as a page: placed inside
+another page, the island ignores it (hover on the decorator says so).
+
+The layout decides the `<title>`. A type with a `Title() string` method
+gives the page's title: the bare document uses it (else the type's name),
+a layout reads it with `ui.PageTitle(ctx)`, and a document whose head has
+no `<title>` gets it. A live page's `Title` is read before `Mount`, from
+what the URL binds; a stateless page's after.
+
+Moving between pages that share a layout — a link, `live.navigate` — goes
+over the live connection and changes only what differs: the layout's
+elements stay the same elements (a sidebar keeps its scroll position),
+its marked link following the path.
 
 ### Validation
 

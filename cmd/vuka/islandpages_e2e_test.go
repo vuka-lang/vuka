@@ -35,8 +35,15 @@ func (d *DB) Find(q string) []string {
 	return out
 }
 
-@web.Get("/live")
-@ui.Island("./components/Board.vue")
+func shell(ctx context.Context, page ui.Node) ui.Node {
+	return <html><head><meta charset="utf-8" /></head><body><aside id="side">{web.Request(ctx).URL.Path}</aside>{page}</body></html>
+}
+
+@web.Live("/live")
+@ui.Island(
+	"./components/Board.vue",
+	ui.Layout(shell),
+)
 type Board struct {
 	ui.Live
 	Q     string   ` + "`json:\"q\" url:\"q\"`" + `
@@ -414,6 +421,11 @@ func TestIslandPagesE2E(t *testing.T) {
 				p.wait(`document.documentElement.getAttribute("data-vk-state") === "connected"`)
 			}
 			p.wait(`(document.querySelector("#b .rows") || {}).textContent === "Ada,Alan"`)
+			if path == "/live" {
+				if got := p.eval(`document.title + " " + document.querySelector("#side").textContent`); got != "Board /live" {
+					t.Errorf("the layout: %v", got)
+				}
+			}
 			if q := p.text("#b .q"); q != "A" {
 				t.Errorf("q = %q", q)
 			}
