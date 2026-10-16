@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -84,5 +85,53 @@ func TestRunWatchIslandFailure(t *testing.T) {
 	if l := get("/_vuka/c/loader.js"); strings.Contains(l, `"x":true`) {
 		t.Errorf("the loader after: %s", l)
 	}
+	r.stop()
+}
+
+// TestRunWatchIslandImport: under vuka run -watch an island is bundled again
+// when a file it imports changes, not only its own.
+func TestRunWatchIslandImport(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the vuka command and runs the go command")
+	}
+	t.Setenv("GOWORK", "off")
+	web := webDir(t)
+	vuka := buildVuka(t)
+	t.Setenv("GOFLAGS", "-mod=mod")
+	root := localModule(t, web, map[string]string{
+		"main.vuka":          islandPage,
+		"islands/Counter.ts": counterTS,
+		"islands/lib.ts":     "export const twice = (n: number): number => n * 2;\n",
+	})
+	r := startWatch(t, vuka, root, nil)
+	module := regexp.MustCompile(`"Counter":\["/_vuka/i/(counter\.[0-9a-f]+\.js)`)
+	bundle := func() string {
+		res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/_vuka/c/loader.js", r.port))
+		if err != nil {
+			return ""
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		if m := module.FindSubmatch(b); m != nil {
+			return string(m[1])
+		}
+		return ""
+	}
+	waitFor := func(what string, ok func() bool) {
+		t.Helper()
+		for end := time.Now().Add(30 * time.Second); !ok(); time.Sleep(50 * time.Millisecond) {
+			if time.Now().After(end) {
+				t.Fatalf("%s; output:\n%s", what, r.log.String())
+			}
+		}
+	}
+	waitFor("the island's first bundle", func() bool { return bundle() != "" })
+	first := bundle()
+	time.Sleep(2 * time.Second) // past the first builds: the change alone must rebuild it
+	lib := filepath.Join(root, "islands", "lib.ts")
+	os.WriteFile(lib, []byte("export const twice = (n: number): number => n * 3;\n"), 0o644)
+	later := time.Now().Add(time.Second)
+	os.Chtimes(lib, later, later)
+	waitFor("no new bundle after the imported file changed", func() bool { b := bundle(); return b != "" && b != first })
 	r.stop()
 }

@@ -70,7 +70,7 @@ func islandInputs(frontendRoot string, islands []*islandComp, dev bool) string {
 			fmt.Fprintf(h, "adapter %s\n%s\n", ic.framework, adapterSrc(ic.framework, imp, call))
 		}
 		if !strings.HasPrefix(ic.src, frontendRoot+string(filepath.Separator)) {
-			hashTree(h, ic.src) // a component outside the root
+			hashTree(h, filepath.Dir(ic.src)) // a component outside the root, and what is beside it
 		}
 	}
 	hashTree(h, frontendRoot)
@@ -174,8 +174,8 @@ func cachedViteIslands(root, frontendRoot string, islands []*islandComp, dev boo
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	// The build may have installed packages: key what it saw afterwards.
-	key = islandInputs(frontendRoot, islands, dev)
+	// Keyed by what it saw before: a file changed while it built (an edit, an
+	// install) is built again next time.
 	c := islandCache{Key: key, Entries: entries, CSS: css}
 	for _, b := range bundles {
 		c.Bundles = append(c.Bundles, islandCacheBundle{b.name, b.js})

@@ -333,7 +333,17 @@ func startWatch(t *testing.T, vuka, root string, env []string, args ...string) *
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
-	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	t.Cleanup(func() {
+		// SIGTERM first: vuka stops the app, which holds the output pipe.
+		cmd.Process.Signal(syscall.SIGTERM)
+		done := make(chan struct{})
+		go func() { cmd.Wait(); close(done) }()
+		select {
+		case <-done:
+		case <-time.After(10 * time.Second):
+			cmd.Process.Kill()
+		}
+	})
 	r := &watchRun{t: t, root: root, port: port, cmd: cmd, log: &syncBuffer{}}
 	go func() {
 		sc := bufio.NewScanner(pr)

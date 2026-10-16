@@ -58,6 +58,8 @@ type islandComp struct {
 	routeLabel        string // its file:line
 	routeOff, routeAt int    // its span in the file
 	live              bool   // the struct embeds ui.Live
+
+	inputs []string // the files its last esbuild bundle read (vanilla)
 }
 
 // routeAdvice is what the vuka command suggests of an island's route: a
@@ -856,7 +858,7 @@ func bundleIsland(root string, ic *islandComp, dev bool) (*islandBundle, error) 
 		AbsWorkingDir: root,
 		LogLevel:      api.LogLevelSilent,
 		Charset:       api.CharsetUTF8,
-		Plugins:       []api.Plugin{islandResolve()},
+		Plugins:       []api.Plugin{islandResolve(), recordInputs(&ic.inputs)},
 	}
 	if dev {
 		opts.Sourcemap = api.SourceMapInline

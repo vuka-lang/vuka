@@ -6,8 +6,10 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"strconv"
 	"strings"
 	"testing"
+	"time"
 )
 
 // spikeManifest is a real Vite island-build manifest (the proven spike): the
@@ -178,3 +180,70 @@ defineProps<{ label: string }>()
 // islandFileRe mirrors web's /_vuka/i/ name check (assets.go islandFile):
 // mixed-case dotted segments ending in .js or .css.
 var islandFileRe = regexp.MustCompile(`^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:js|css)$`)
+
+// TestDevAssetsViteRebuild: under vuka run the Vite-built islands are built
+// again when a shared component an island imports, the vite.config or the
+// CSS entry changes — not only the island's own file. Skipped unless
+// VUKA_VITE_NM (a node_modules with vite, @vitejs/plugin-vue and vue) and
+// VUKA_PLUGIN are set.
+func TestDevAssetsViteRebuild(t *testing.T) {
+	nm, plugin := os.Getenv("VUKA_VITE_NM"), os.Getenv("VUKA_PLUGIN")
+	if nm == "" || plugin == "" {
+		t.Skip("set VUKA_VITE_NM and VUKA_PLUGIN")
+	}
+	root := t.TempDir()
+	fr := filepath.Join(root, "web")
+	pluginSrc, err := os.ReadFile(plugin)
+	if err != nil {
+		t.Fatal(err)
+	}
+	config := func(label string) string {
+		return "import { defineConfig } from 'vite'\nimport vue from '@vitejs/plugin-vue'\nimport vuka from './vuka/vite.js'\n" +
+			"export default defineConfig({ define: { __LABEL__: JSON.stringify(" + strconv.Quote(label) + ") }, plugins: [vue(), vuka()] })\n"
+	}
+	for p, c := range map[string]string{
+		"web/package.json":       `{"type": "module"}`,
+		"web/vuka/vite.js":       string(pluginSrc),
+		"web/vite.config.mts":    config("one"),
+		"web/app.css":            ".card { color: red }\n",
+		"web/components/Btn.vue": "<template><button>first</button></template>\n",
+		"web/islands/Card.vue":   "<script setup lang=\"ts\">\nimport Btn from '../components/Btn.vue'\nconst label = __LABEL__\n</script>\n<template><div class=\"card\">{{ label }}<Btn/></div></template>\n",
+	} {
+		writeFile(t, filepath.Join(root, filepath.FromSlash(p)), c)
+	}
+	if err := os.Symlink(nm, filepath.Join(fr, "node_modules")); err != nil {
+		t.Fatal(err)
+	}
+	pa := &pageAssets{root: root, frontendRoot: fr, global: &assetComp{}, islands: []*islandComp{{
+		name: "Card", src: filepath.Join(fr, "islands", "Card.vue"), rel: "web/islands/Card.vue", framework: "vue",
+	}}}
+	var log syncBuffer
+	d := newDevAssets(root, &log)
+	defer d.close()
+	d.set(pa)
+	manifest := func() string {
+		b, _ := os.ReadFile(filepath.Join(d.dir(), assetsManifest))
+		return string(b)
+	}
+	first := manifest()
+	if !strings.Contains(first, `"Card"`) {
+		t.Fatalf("no island built: %s\n%s", first, log.String())
+	}
+	at := time.Now()
+	for _, c := range []struct{ what, file, data string }{
+		{"a shared component", "web/components/Btn.vue", "<template><button>second</button></template>\n"},
+		{"the vite.config", "web/vite.config.mts", config("two")},
+		{"the CSS entry", "web/app.css", ".card { color: blue }\n"},
+	} {
+		before := manifest()
+		f := filepath.Join(root, filepath.FromSlash(c.file))
+		writeFile(t, f, c.data)
+		at = at.Add(time.Second)
+		os.Chtimes(f, at, at)
+		for end := time.Now().Add(60 * time.Second); manifest() == before; time.Sleep(100 * time.Millisecond) {
+			if time.Now().After(end) {
+				t.Fatalf("%s: the islands weren't built again\n%s", c.what, log.String())
+			}
+		}
+	}
+}

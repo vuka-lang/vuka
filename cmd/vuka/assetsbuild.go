@@ -8,6 +8,7 @@ import (
 	"go/scanner"
 	"go/token"
 	"io"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -509,8 +510,8 @@ func hasWebFunc(dir, fn string) bool {
 // devAssets keeps a module's compiled assets up to date for vuka run: the
 // scoped stylesheets Tailwind's watcher imports, and in .vuka/assets the
 // modules and the manifest the app reads (VUKA_ASSETS). It looks at the
-// files the assets name every 200ms; a rebuild hands it the module's new
-// declarations (set).
+// files the assets name, and the frontend files the islands' build reads,
+// every 200ms; a rebuild hands it the module's new declarations (set).
 type devAssets struct {
 	root   string
 	stderr io.Writer
@@ -518,10 +519,14 @@ type devAssets struct {
 	mu      sync.Mutex
 	pa      *pageAssets
 	files   map[string]time.Time
-	css     []string // what the entry imports
-	plain   string   // the stylesheet written without Tailwind, if any
-	warned  string   // the last warnings, said again only when they change
-	entry   func()   // rewrites Tailwind's entry when the stylesheets change
+	trees   []string             // directories the framework islands' build reads (islandTrees)
+	tree    map[string]treeStamp // their files, as the last compile saw them
+	treeAt  time.Time            // the last look at them
+	treeGap time.Duration        // between two looks: longer for a tree slow to look at
+	css     []string             // what the entry imports
+	plain   string               // the stylesheet written without Tailwind, if any
+	warned  string               // the last warnings, said again only when they change
+	entry   func()               // rewrites Tailwind's entry when the stylesheets change
 	stop    chan struct{}
 	stopped sync.Once
 }
@@ -588,8 +593,19 @@ func (d *devAssets) compile() {
 		}
 	}
 	d.files = files
+	d.trees = islandTrees(pa)
+	d.tree, d.treeAt = scanTrees(d.trees), time.Now()
 	var warn bytes.Buffer
 	out, err := compileAssets(pa, true, &warn)
+	for _, ic := range pa.islands {
+		for _, f := range ic.inputs {
+			if _, ok := files[f]; !ok {
+				if fi, _ := os.Stat(f); fi != nil {
+					files[f] = fi.ModTime()
+				}
+			}
+		}
+	}
 	if w := warn.String(); w != d.warned {
 		d.warned = w
 		io.WriteString(d.stderr, w)
@@ -694,14 +710,28 @@ func (d *devAssets) watch() {
 		case <-time.After(200 * time.Millisecond):
 		}
 		d.mu.Lock()
-		for f, mod := range d.files {
-			if fi, err := os.Stat(f); err == nil && !fi.ModTime().Equal(mod) || err != nil && !mod.IsZero() {
-				d.compile()
-				break
-			}
+		if d.stale() {
+			d.compile()
 		}
 		d.mu.Unlock()
 	}
+}
+
+// stale reports whether a file the assets were compiled from changed; d.mu
+// is held.
+func (d *devAssets) stale() bool {
+	for f, mod := range d.files {
+		if fi, err := os.Stat(f); err == nil && !fi.ModTime().Equal(mod) || err != nil && !mod.IsZero() {
+			return true
+		}
+	}
+	if len(d.trees) == 0 || time.Since(d.treeAt) < d.treeGap {
+		return false
+	}
+	t0 := time.Now()
+	now := scanTrees(d.trees)
+	d.treeAt, d.treeGap = time.Now(), 10*time.Since(t0)
+	return !maps.Equal(now, d.tree)
 }
 
 func (d *devAssets) close() {
