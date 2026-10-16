@@ -1,0 +1,26 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+// A bare @ui.Island (the path inferred by the vuka command) on a live struct
+// without a Render: its Render is written all the same.
+@ui.Island
+type Board struct {
+	ui.Live
+	Q string `json:"q"`
+}
+
+func (b *Board) Search(q string) { b.Q = q }
+
+func main() {
+	s, err := ui.String(context.Background(), (&Board{Q: "x"}).Render())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(s)
+}

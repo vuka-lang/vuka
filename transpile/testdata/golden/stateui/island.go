@@ -76,8 +76,13 @@ func MountIsland(site string, props any, opts ...IslandOpt) Node {
 type Live struct{}
 
 // Island is the @ui.Island type decorator.
-func Island(path string, strategy ...string) func(*vuka.Type) {
-	return func(t *vuka.Type) { islands[t.Reflect] = path }
+func Island(args ...string) func(*vuka.Type) {
+	return func(t *vuka.Type) {
+		islands[t.Reflect] = "(inferred)"
+		if len(args) > 0 && args[0] != "" {
+			islands[t.Reflect] = args[0]
+		}
+	}
 }
 
 // IslandPage renders a page backed by its island.

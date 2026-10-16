@@ -48,7 +48,7 @@ type islandImport struct {
 	enums map[string][]string // generated named string types → their values
 }
 
-var islandDecoRe = regexp.MustCompile(`@\w+\.Island\s*\([^)]*\)\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)`)
+var islandDecoRe = regexp.MustCompile(`@\w+\.Island(?:\s*\([^)]*\))?\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)`)
 
 // declaredIslands is the names of the package's @ui.Island types, from the
 // sources.
@@ -502,7 +502,7 @@ func goParam(name string) string {
 func readFile(p string) ([]byte, error) { return os.ReadFile(p) }
 
 var (
-	islandDeclRe = regexp.MustCompile(`@(\w+)\.Island\s*\([^)]*\)\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)\s+struct\s*\{`)
+	islandDeclRe = regexp.MustCompile(`@(\w+)\.Island(?:\s*\([^)]*\))?\s*(?://[^\n]*\n\s*|@[^\n]*\n\s*)*type\s+(\w+)\s+struct\s*\{`)
 	liveEmbedRe  = regexp.MustCompile(`(?m)^\s*(\w+)\.Live\s*(?://.*)?$`)
 )
 
