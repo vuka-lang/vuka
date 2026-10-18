@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"errors"
 	"os"
@@ -34,7 +33,7 @@ func TestDevAssetsIslandFailure(t *testing.T) {
 	pa := &pageAssets{root: root, global: &assetComp{}, islands: []*islandComp{{
 		name: "Counter", src: src, rel: "islands/Counter.ts", label: "page.vuka:3", framework: "vanilla",
 	}}}
-	var stderr bytes.Buffer
+	var stderr syncBuffer
 	d := newDevAssets(root, &stderr)
 	defer d.close()
 	d.set(pa)
@@ -54,7 +53,7 @@ func TestDevAssetsIslandFailure(t *testing.T) {
 	}
 	waitFor := func(what string, ok func() bool) {
 		t.Helper()
-		for end := time.Now().Add(5 * time.Second); !ok(); time.Sleep(20 * time.Millisecond) {
+		for end := time.Now().Add(15 * time.Second); !ok(); time.Sleep(20 * time.Millisecond) {
 			if time.Now().After(end) {
 				t.Fatalf("%s\n%s", what, stderr.String())
 			}

@@ -32,11 +32,11 @@ const n = ref(props.count)
 // island tests skip without the web checkout).
 func TestVueIslands(t *testing.T) {
 	if _, err := exec.LookPath("node"); err != nil {
-		t.Skip("node not on PATH")
+		needs(t, "node not on PATH")
 	}
 	npm, err := exec.LookPath("npm")
 	if err != nil {
-		t.Skip("npm not on PATH")
+		needs(t, "npm not on PATH")
 	}
 
 	root := t.TempDir()
@@ -55,7 +55,7 @@ func TestVueIslands(t *testing.T) {
 	install := exec.Command(npm, "install", "-D", "esbuild", "esbuild-plugin-vue3", "vue")
 	install.Dir = root
 	if out, err := install.CombinedOutput(); err != nil {
-		t.Skipf("npm install failed (offline?): %v\n%s", err, out)
+		needs(t, "npm install failed (offline?): %v\n%s", err, out)
 	}
 
 	pa := &pageAssets{

@@ -195,7 +195,7 @@ func webModule(t *testing.T, files map[string]string) string {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if !hasRegisterCSS(web) {
-		t.Skipf("github.com/vuka-lang/web at %s has no RegisterCSS; set VUKA_WEB", web)
+		needs(t, "github.com/vuka-lang/web at %s has no RegisterCSS; set VUKA_WEB", web)
 	}
 	return localModule(t, web, files)
 }
@@ -226,7 +226,7 @@ func TestBuildTailwind(t *testing.T) {
 		t.Skip("runs the go command")
 	}
 	if _, err := exec.LookPath("tailwindcss"); err != nil {
-		t.Skip("no tailwindcss on PATH")
+		needs(t, "no tailwindcss on PATH")
 	}
 	root := webModule(t, map[string]string{"main.vuka": twPage,
 		"styles/app.css": "@import \"tailwindcss\";\n@theme { --color-brand: #123456; }\n"})

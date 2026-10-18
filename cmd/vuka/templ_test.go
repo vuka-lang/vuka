@@ -95,10 +95,10 @@ func TestLSPTempl(t *testing.T) {
 func TestTemplDropIn(t *testing.T) {
 	templBin, err := exec.LookPath("templ")
 	if err != nil {
-		t.Skip("templ not on PATH")
+		needs(t, "templ not on PATH")
 	}
 	if _, err := findGopls(""); err != nil {
-		t.Skip(err)
+		needs(t, "%v", err)
 	}
 	bin := t.TempDir()
 	build := exec.Command("go", "build", "-o", filepath.Join(bin, "vuka"), ".")

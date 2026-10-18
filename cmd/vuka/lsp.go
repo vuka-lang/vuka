@@ -412,14 +412,14 @@ type vukaRequest struct {
 	editorID  json.RawMessage
 	method    string
 	file      *vfile
-	attr      bool      // completion after @, on an attribute or decorator
-	field     bool      // and the attribute is a struct field's
-	typed     lspRange  // there: what was typed after the last dot
-	full      lspRange  // and after the @
-	qualifier string    // the package typed before the dot, if any
-	closeTag  *lspRange // asked on a closing tag's name, sent to its opening tag's
-	blocks    *lspRange // completion after a markup child's {: the word typed, for block snippets
-	note      string    // hover: what to add to gopls's answer (an island page's lifecycle hook)
+	attr      bool        // completion after @, on an attribute or decorator
+	field     bool        // and the attribute is a struct field's
+	typed     lspRange    // there: what was typed after the last dot
+	full      lspRange    // and after the @
+	qualifier string      // the package typed before the dot, if any
+	closeTag  *lspRange   // asked on a closing tag's name, sent to its opening tag's
+	blocks    *lspRange   // completion after a markup child's {: the word typed, for block snippets
+	note      string      // hover: what to add to gopls's answer (an island page's lifecycle hook)
 	spot      *staticSpot // a possible Type.member use at the cursor (statics, field references)
 }
 
@@ -436,21 +436,21 @@ type proxy struct {
 	dropIn           bool
 	root             string
 	nextID           int
-	goReqs           map[string]bool         // editor requests on Go files
-	vukaReqs         map[string]*vukaRequest // proxy request id → request on a .vuka file
-	asks             map[string]chan rpcMsg  // proxy request id → the proxy's own question to gopls
-	bufs             map[string][]byte       // .vuka path → editor buffer
-	virtual          map[string]*vfile       // generated path → buffer in gopls
-	owned            map[string]bool         // Go paths the editor has open itself; its text wins
-	bySource         map[string]string       // .vuka path → generated path
-	vukaDiags        map[string]*diagSet     // .vuka path → the last build's transpiler errors
-	syntaxDiags      map[string]*diagSet     // .vuka path → its syntax errors, as the editor has it now
-	goDiags          map[string]*diagSet     // .vuka path → gopls diagnostics mapped from its Go
-	shown            map[string]string       // real path → the path the editor uses for it
-	decos            []projectDecorator      // the module's decorators, as of the last regenerate
-	modRoot, modPath string                  // the module, as of the last regenerate
+	goReqs           map[string]bool           // editor requests on Go files
+	vukaReqs         map[string]*vukaRequest   // proxy request id → request on a .vuka file
+	asks             map[string]chan rpcMsg    // proxy request id → the proxy's own question to gopls
+	bufs             map[string][]byte         // .vuka path → editor buffer
+	virtual          map[string]*vfile         // generated path → buffer in gopls
+	owned            map[string]bool           // Go paths the editor has open itself; its text wins
+	bySource         map[string]string         // .vuka path → generated path
+	vukaDiags        map[string]*diagSet       // .vuka path → the last build's transpiler errors
+	syntaxDiags      map[string]*diagSet       // .vuka path → its syntax errors, as the editor has it now
+	goDiags          map[string]*diagSet       // .vuka path → gopls diagnostics mapped from its Go
+	shown            map[string]string         // real path → the path the editor uses for it
+	decos            []projectDecorator        // the module's decorators, as of the last regenerate
+	modRoot, modPath string                    // the module, as of the last regenerate
 	staticsPkgs      map[string][]*staticsFile // dependency dir → its parsed Go, for statics
-	importDirs       map[string]string       // import path → package directory
+	importDirs       map[string]string         // import path → package directory
 	started          bool
 	timer            *time.Timer
 	stopped          bool

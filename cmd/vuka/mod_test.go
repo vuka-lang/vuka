@@ -9,15 +9,17 @@ import (
 )
 
 // TestModTidy: go mod tidy alone drops what only .vuka files use; vuka mod
-// tidy keeps it, and leaves no files behind. Offline: uuid must be in the
-// module cache already.
+// tidy keeps it, and leaves no files behind. The tidy runs offline, uuid
+// downloaded into the module cache first.
 func TestModTidy(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
 	}
 	cache, _ := exec.Command("go", "env", "GOMODCACHE").Output()
 	if _, err := os.Stat(filepath.Join(strings.TrimSpace(string(cache)), "github.com/google/uuid@v1.6.0")); err != nil {
-		t.Skip("github.com/google/uuid v1.6.0 isn't in the module cache")
+		if out, err := exec.Command("go", "mod", "download", "github.com/google/uuid@v1.6.0").CombinedOutput(); err != nil {
+			needs(t, "github.com/google/uuid v1.6.0 isn't in the module cache and can't be downloaded: %v\n%s", err, out)
+		}
 	}
 	dir := module(t, map[string]string{
 		"main.vuka": `package main

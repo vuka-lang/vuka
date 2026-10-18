@@ -106,17 +106,20 @@ func TestLiveDTSTypeChecks(t *testing.T) {
 		t.Skip("installs typescript")
 	}
 	tsc := os.Getenv("VUKA_TSC")
+	if nm := fixtureModules("VUKA_TS_NM", "islands"); tsc == "" && nm != "" {
+		tsc = filepath.Join(nm, ".bin", "tsc")
+	}
 	if tsc == "" {
 		npm, err := exec.LookPath("npm")
 		if err != nil {
-			t.Skip("no npm")
+			needs(t, "no npm")
 		}
 		nm := t.TempDir()
 		os.WriteFile(filepath.Join(nm, "package.json"), []byte(`{"name":"x","private":true}`), 0o644)
 		cmd := exec.Command(npm, "install", "--prefer-offline", "--no-audit", "--no-fund", "-D", "typescript@~6.0")
 		cmd.Dir = nm
 		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Skipf("npm install typescript failed (offline?): %v\n%s", err, out)
+			needs(t, "npm install typescript failed (offline?): %v\n%s", err, out)
 		}
 		tsc = filepath.Join(nm, "node_modules", ".bin", "tsc")
 	}
@@ -332,18 +335,18 @@ func TestVukaLinkTypes(t *testing.T) {
 	if testing.Short() {
 		t.Skip("installs typescript and the frameworks")
 	}
-	nm := os.Getenv("VUKA_TS_NM")
+	nm := fixtureModules("VUKA_TS_NM", "islands")
 	if nm == "" {
 		npm, err := exec.LookPath("npm")
 		if err != nil {
-			t.Skip("no npm")
+			needs(t, "no npm")
 		}
 		dir := t.TempDir()
 		os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"x","private":true}`), 0o644)
 		cmd := exec.Command(npm, "install", "--prefer-offline", "--no-audit", "--no-fund", "-D", "typescript@~6.0", "vue", "react", "@types/react", "svelte")
 		cmd.Dir = dir
 		if out, err := cmd.CombinedOutput(); err != nil {
-			t.Skipf("npm install failed (offline?): %v\n%s", err, out)
+			needs(t, "npm install failed (offline?): %v\n%s", err, out)
 		}
 		nm = filepath.Join(dir, "node_modules")
 	}
@@ -395,7 +398,7 @@ mount(VukaLink, { target: document.body, props: { patch: true } })
 func TestVukaLinkActive(t *testing.T) {
 	node, err := exec.LookPath("node")
 	if err != nil {
-		t.Skip("no node")
+		needs(t, "no node")
 	}
 	prog := `let location
 const at = (u) => { location = new URL(u) }

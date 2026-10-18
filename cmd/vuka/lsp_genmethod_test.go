@@ -65,7 +65,7 @@ func run(ctx context.Context) {
 // the 1.27 language version), with the vuka runtime replaced locally.
 func startLSPGo127(t *testing.T, files map[string]string) (*lspClient, string) {
 	if _, err := findGopls(""); err != nil {
-		t.Skip(err)
+		needs(t, "%v", err)
 	}
 	dir := t.TempDir()
 	repo, _ := filepath.Abs("../..")

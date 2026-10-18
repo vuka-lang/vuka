@@ -83,13 +83,13 @@ func TestHasViteConfig(t *testing.T) {
 // that the island + adapter chunks and a CSS chunk are produced and that the
 // manifest names the Vue framework.
 func TestViteIslandsE2E(t *testing.T) {
-	nm := os.Getenv("VUKA_VITE_NM")
+	nm := fixtureModules("VUKA_VITE_NM", "vite")
 	if nm == "" {
-		t.Skip("set VUKA_VITE_NM to a node_modules with vite + @nuxt/ui installed")
+		needs(t, "set VUKA_VITE_NM to a node_modules with vite + @nuxt/ui installed (or npm ci --prefix testdata/node/vite)")
 	}
-	plugin := os.Getenv("VUKA_PLUGIN")
+	plugin := vitePlugin()
 	if plugin == "" {
-		t.Skip("set VUKA_PLUGIN to the vuka vite plugin (vuka-web/vite/vuka.js)")
+		needs(t, "set VUKA_PLUGIN to the vuka vite plugin (vuka-web/vite/vuka.js)")
 	}
 
 	root := t.TempDir()
@@ -250,9 +250,9 @@ var islandFileRe = regexp.MustCompile(`^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*\.(?:
 // VUKA_VITE_NM (a node_modules with vite, @vitejs/plugin-vue and vue) and
 // VUKA_PLUGIN are set.
 func TestDevAssetsViteRebuild(t *testing.T) {
-	nm, plugin := os.Getenv("VUKA_VITE_NM"), os.Getenv("VUKA_PLUGIN")
+	nm, plugin := fixtureModules("VUKA_VITE_NM", "vite"), vitePlugin()
 	if nm == "" || plugin == "" {
-		t.Skip("set VUKA_VITE_NM and VUKA_PLUGIN")
+		needs(t, "set VUKA_VITE_NM (or npm ci --prefix testdata/node/vite) and VUKA_PLUGIN")
 	}
 	root := t.TempDir()
 	fr := filepath.Join(root, "web")

@@ -291,7 +291,7 @@ func assetsModule(t *testing.T, files map[string]string) string {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if !hasWebFunc(web, "RegisterAssets") {
-		t.Skipf("github.com/vuka-lang/web at %s has no RegisterAssets; set VUKA_WEB (and VUKA_UI)", web)
+		needs(t, "github.com/vuka-lang/web at %s has no RegisterAssets; set VUKA_WEB (and VUKA_UI)", web)
 	}
 	return localModule(t, web, files)
 }
@@ -349,7 +349,7 @@ func TestBuildAssets(t *testing.T) {
 		t.Skip("runs the go command")
 	}
 	if _, err := exec.LookPath("tailwindcss"); err != nil {
-		t.Skip("no tailwindcss on PATH")
+		needs(t, "no tailwindcss on PATH")
 	}
 	root := assetsModule(t, map[string]string{"main.vuka": e2ePage,
 		"counter.css": "output { @apply font-bold; }\n",

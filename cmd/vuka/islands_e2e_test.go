@@ -17,12 +17,12 @@ import (
 // into a temp dir; the test skips without it.
 func islandModules(t *testing.T) string {
 	t.Helper()
-	if nm := os.Getenv("VUKA_ISLAND_NM"); nm != "" {
+	if nm := fixtureModules("VUKA_ISLAND_NM", "islands"); nm != "" {
 		return nm
 	}
 	npm, err := exec.LookPath("npm")
 	if err != nil {
-		t.Skip("no npm")
+		needs(t, "no npm")
 	}
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "package.json"), []byte(`{"name":"x","private":true}`), 0o644)
@@ -30,7 +30,7 @@ func islandModules(t *testing.T) string {
 		"esbuild", "esbuild-plugin-vue3", "esbuild-svelte", "vue", "react", "react-dom", "svelte")
 	cmd.Dir = dir
 	if out, err := cmd.CombinedOutput(); err != nil {
-		t.Skipf("npm install failed (offline?): %v\n%s", err, out)
+		needs(t, "npm install failed (offline?): %v\n%s", err, out)
 	}
 	return filepath.Join(dir, "node_modules")
 }
@@ -110,10 +110,10 @@ func TestIslandsE2E(t *testing.T) {
 		t.Skip("builds and runs an app")
 	}
 	if chromeBinary() == "" {
-		t.Skip("no Chrome (set VUKA_CHROME)")
+		needs(t, "no Chrome (set VUKA_CHROME)")
 	}
 	if _, err := exec.LookPath("node"); err != nil {
-		t.Skip("no node")
+		needs(t, "no node")
 	}
 	nm := islandModules(t)
 	files := map[string]string{"main.vuka": islandsPage}

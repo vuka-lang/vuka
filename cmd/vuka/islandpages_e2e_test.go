@@ -424,10 +424,10 @@ func TestIslandPagesE2E(t *testing.T) {
 		t.Skip("builds and runs an app")
 	}
 	if chromeBinary() == "" {
-		t.Skip("no Chrome (set VUKA_CHROME)")
+		needs(t, "no Chrome (set VUKA_CHROME)")
 	}
 	if _, err := exec.LookPath("node"); err != nil {
-		t.Skip("no node")
+		needs(t, "no node")
 	}
 	nm := islandModules(t)
 	root := assetsModule(t, map[string]string{"main.vuka": pagesApp, "components/Board.vue": boardVue,

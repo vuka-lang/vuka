@@ -92,7 +92,7 @@ func Charts() ui.Node {
 `), 0o644)
 	if out, err := e.cmd(dir, off, "vuka", "vet", "./...").CombinedOutput(); err != nil {
 		if strings.Contains(string(out), "has no RegisterIsland") {
-			t.Skip("the released ui imports no island components yet: set VUKA_NEW_REPLACE to a local checkout")
+			needs(t, "the released ui imports no island components yet: set VUKA_NEW_REPLACE to a local checkout")
 		}
 		t.Fatalf("vuka vet: %v\n%s", err, out)
 	}

@@ -613,7 +613,6 @@ func (d *devAssets) compile() {
 		writeIfChanged(filepath.Join(dir, assetsState), b)
 		return
 	}
-	os.Remove(filepath.Join(dir, assetsState))
 	keep := map[string]bool{}
 	for _, b := range out.bundles {
 		keep[b.name] = true
@@ -647,6 +646,7 @@ func (d *devAssets) compile() {
 		}
 	}
 	writeIfChanged(filepath.Join(dir, assetsManifest), out.manifest)
+	os.Remove(filepath.Join(dir, assetsState))
 	if d.plain != "" {
 		writeIfChanged(d.plain, out.plain)
 	}

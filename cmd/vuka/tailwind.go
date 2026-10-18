@@ -234,11 +234,30 @@ func (tw *tailwind) writeEntry(deps, css []string) (string, error) {
 	return entry, writeIfChanged(entry, []byte(b.String()))
 }
 
+// writeIfChanged writes data to path unless path holds it already, through a
+// rename, so a reader never sees half a file.
 func writeIfChanged(path string, data []byte) error {
 	if old, err := os.ReadFile(path); err == nil && bytes.Equal(old, data) {
 		return nil
 	}
-	return os.WriteFile(path, data, 0o644)
+	tmp, err := os.CreateTemp(filepath.Dir(path), "."+filepath.Base(path)+".*")
+	if err != nil {
+		return os.WriteFile(path, data, 0o644)
+	}
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Chmod(tmp.Name(), 0o644)
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), path)
+	}
+	if err != nil {
+		os.Remove(tmp.Name())
+	}
+	return err
 }
 
 // devTailwind starts tailwindcss --watch for vuka run and returns the

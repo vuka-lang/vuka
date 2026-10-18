@@ -64,7 +64,7 @@ func (e *e2e) new(name string, flags ...string) string {
 	e.t.Helper()
 	out := e.run(e.dir, nil, "vuka", append([]string{"new", name, "example.com/" + name, "--yes"}, flags...)...)
 	if strings.Contains(out, "couldn't fetch the dependencies") {
-		e.t.Skipf("the app's dependencies aren't available (set VUKA_NEW_REPLACE to local checkouts of web and orm):\n%s", out)
+		needs(e.t, "the app's dependencies aren't available (set VUKA_NEW_REPLACE to local checkouts of web and orm):\n%s", out)
 	}
 	return filepath.Join(e.dir, name)
 }
@@ -159,7 +159,7 @@ func TestNewEndToEnd(t *testing.T) {
 	}
 
 	if _, err := exec.LookPath("tailwindcss"); err != nil {
-		t.Skip("no Tailwind CLI: vuka build needs it")
+		needs(t, "no Tailwind CLI: vuka build needs it")
 	}
 	bin := filepath.Join(dir, "shop")
 	e.run(dir, nil, "vuka", "build", "-o", bin, ".")

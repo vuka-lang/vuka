@@ -141,7 +141,7 @@ func startLSPWith(t *testing.T, files map[string]string) (*lspClient, string, an
 
 func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspClient, string, any) {
 	if _, err := findGopls(""); err != nil {
-		t.Skip(err)
+		needs(t, "%v", err)
 	}
 	dir := t.TempDir()
 	mod, sum := testModule(t, "lsptest")
@@ -160,7 +160,7 @@ func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspC
 func startLSPAt(t *testing.T, dir string, opts lspOptions) *lspClient {
 	gopls, err := findGopls("")
 	if err != nil {
-		t.Skip(err)
+		needs(t, "%v", err)
 	}
 	toProxyR, toProxyW := io.Pipe()
 	fromProxyR, fromProxyW := io.Pipe()
@@ -609,7 +609,7 @@ func TestDropIn(t *testing.T) {
 // other than serve reach the real gopls.
 func TestGoplsPassthrough(t *testing.T) {
 	if _, err := findGopls(""); err != nil {
-		t.Skip(err)
+		needs(t, "%v", err)
 	}
 	dir := t.TempDir()
 	bin := filepath.Join(dir, "vuka")

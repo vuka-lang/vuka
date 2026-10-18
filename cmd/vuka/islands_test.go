@@ -241,7 +241,7 @@ func webDir(t *testing.T) string {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if !hasWebFunc(web, "RegisterIsland") {
-		t.Skipf("github.com/vuka-lang/web at %s has no RegisterIsland; set VUKA_WEB (and VUKA_UI)", web)
+		needs(t, "github.com/vuka-lang/web at %s has no RegisterIsland; set VUKA_WEB (and VUKA_UI)", web)
 	}
 	return web
 }

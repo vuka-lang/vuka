@@ -93,12 +93,12 @@ onBeforeUnmount(() => w.__log.push('unmount ` + name + `'))
 // app on the host each time, no Vue warning or error, and asks for nothing
 // outside /_vuka/i/ but the pages.
 func TestIslandNavigateE2E(t *testing.T) {
-	nm := os.Getenv("VUKA_VITE_NM")
+	nm := fixtureModules("VUKA_VITE_NM", "vite")
 	if nm == "" {
-		t.Skip("set VUKA_VITE_NM to a node_modules with vite, @vitejs/plugin-vue and vue")
+		needs(t, "set VUKA_VITE_NM to a node_modules with vite, @vitejs/plugin-vue and vue (or npm ci --prefix testdata/node/vite)")
 	}
 	if chromeBinary() == "" {
-		t.Skip("no Chrome (set VUKA_CHROME)")
+		needs(t, "no Chrome (set VUKA_CHROME)")
 	}
 	root := assetsModule(t, map[string]string{"main.vuka": navApp,
 		"package.json":      `{"name":"app","private":true,"type":"module"}`,

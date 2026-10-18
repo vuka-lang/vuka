@@ -26,7 +26,7 @@ import (
 // pkg.Type.member, read from the source text alone; whether Type really is a
 // type is settled later, against the package's Go.
 type staticSpot struct {
-	qual     string   // the package written before the type, "" when none
+	qual     string // the package written before the type, "" when none
 	typeName string
 	written  string   // the type as the source spells it: "entities.Letter"
 	member   string   // what is typed after the dot so far (may be "")

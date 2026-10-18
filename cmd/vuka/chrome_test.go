@@ -44,7 +44,7 @@ func launchChrome(t *testing.T) *chrome {
 	t.Helper()
 	bin := chromeBinary()
 	if bin == "" {
-		t.Skip("no Chrome (set VUKA_CHROME)")
+		needs(t, "no Chrome (set VUKA_CHROME)")
 	}
 	cmdR, cmdW, err := os.Pipe()
 	if err != nil {
@@ -59,7 +59,7 @@ func launchChrome(t *testing.T) *chrome {
 		"--password-store=basic", "--use-mock-keychain", "about:blank")
 	cmd.ExtraFiles = []*os.File{cmdR, resW}
 	if err := cmd.Start(); err != nil {
-		t.Skipf("starting Chrome: %v", err)
+		needs(t, "starting Chrome: %v", err)
 	}
 	cmdR.Close()
 	resW.Close()

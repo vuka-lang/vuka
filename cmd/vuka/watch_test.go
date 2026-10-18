@@ -126,7 +126,7 @@ func TestWatcher(t *testing.T) {
 func TestWatcherEvents(t *testing.T) {
 	ow, err := newOSWatch(nil)
 	if err != nil {
-		t.Skipf("no file events: %v", err)
+		needs(t, "no file events: %v", err)
 	}
 	ow.close()
 	defer func(d time.Duration) { osSafetyNet = d }(osSafetyNet)
