@@ -1,0 +1,120 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  GO_VERSION: "1.27.x"
+  GOPLS_VERSION: v0.24.0
+  TEMPL_VERSION: v0.3.1020
+  TAILWIND_VERSION: v4.3.0
+
+jobs:
+  lib:
+    name: vuka (vet, race tests)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            cmd/vuka/go.sum
+            transpile/testdata/golden/go.sum
+      - name: gofmt
+        run: |
+          bad=$(git ls-files '*.go' | grep -v -e '/testdata/' -e '_vuka\.go$' -e '_vuka_test\.go$' | xargs gofmt -l)
+          if [ -n "$bad" ]; then echo "not gofmt'd:"; echo "$bad"; exit 1; fi
+      - run: go vet ./...
+      - run: go test -race ./...
+
+  cmd:
+    name: cmd/vuka (e2e — Vite, Chrome, gopls, templ)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      VUKA_UI: ${{ github.workspace }}/vuka-ui
+      VUKA_WEB: ${{ github.workspace }}/vuka-web
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: vuka
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/ui
+          path: vuka-ui
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/web
+          path: vuka-web
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            vuka/cmd/vuka/go.sum
+            vuka-ui/go.sum
+            vuka-web/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vuka/cmd/vuka/testdata/node/*/package-lock.json
+      - id: chrome
+        uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
+        with:
+          chrome-version: stable
+      - name: Tools
+        run: |
+          # Ubuntu 24.04 keeps unprivileged user namespaces from Chrome's sandbox.
+          sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
+          echo "VUKA_CHROME=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
+          go install golang.org/x/tools/gopls@${GOPLS_VERSION}
+          go install github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/tailwindcss" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64"
+          chmod +x "$HOME/.local/bin/tailwindcss"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: The e2e node_modules
+        working-directory: vuka/cmd/vuka
+        run: |
+          npm ci --prefix testdata/node/vite --no-audit --no-fund
+          npm ci --prefix testdata/node/islands --no-audit --no-fund
+      - name: vet
+        working-directory: vuka/cmd/vuka
+        run: go vet ./...
+      - name: test
+        working-directory: vuka/cmd/vuka
+        run: go test -timeout 45m ./...
+
+  fuzz:
+    name: fuzz ${{ matrix.fuzz }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { pkg: ./transpile, fuzz: FuzzPackage }
+          - { pkg: ./transpile, fuzz: FuzzSyntax }
+          - { pkg: ./internal/format, fuzz: FuzzSource }
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: transpile/testdata/golden/go.sum
+      - run: go test -run '^$' -fuzz '^${{ matrix.fuzz }}$' -fuzztime 30s ${{ matrix.pkg }}
+      - name: Keep the failing input
+        if: failure()
+        run: git ls-files --others --exclude-standard | grep '/testdata/fuzz/' | xargs -r tail -n +1
