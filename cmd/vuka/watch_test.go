@@ -613,3 +613,38 @@ func TestNoDWARF(t *testing.T) {
 		t.Error("cutDebug took --debug=false for -debug")
 	}
 }
+
+// TestBinaryID: on each binary format a comment leaves a build's id as it
+// was and a change of the program doesn't (Linux binaries carry a GNU build
+// ID derived from the inputs).
+func TestBinaryID(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	for _, goos := range []string{"linux", "darwin", "windows"} {
+		ids := map[string]string{}
+		for name, src := range map[string]string{
+			"a": "package main\n\n// one\nfunc main() { println(1) }\n",
+			"b": "package main\n\n// two\nfunc main() { println(1) }\n",
+			"c": "package main\n\n// one\nfunc main() { println(2) }\n",
+		} {
+			dir := t.TempDir()
+			writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/b\n\ngo 1.25.0\n")
+			writeFile(t, filepath.Join(dir, "main.go"), src)
+			c := exec.Command("go", "build", "-ldflags=-w", "-o", "bin", ".")
+			c.Dir = dir
+			c.Env = append(os.Environ(), "GOOS="+goos, "GOARCH=amd64", "CGO_ENABLED=0", "GOWORK=off", "GOFLAGS=-trimpath")
+			if out, err := c.CombinedOutput(); err != nil {
+				t.Fatalf("%s: %v\n%s", goos, err, out)
+			}
+			id, err := binaryID(filepath.Join(dir, "bin"))
+			if err != nil {
+				t.Fatal(err)
+			}
+			ids[name] = id
+		}
+		if ids["a"] != ids["b"] || ids["a"] == ids["c"] {
+			t.Errorf("%s: a comment %q→%q, a change →%q", goos, ids["a"], ids["b"], ids["c"])
+		}
+	}
+}

@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/rand"
 	"crypto/sha256"
+	"debug/elf"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
@@ -386,19 +387,32 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 // binaryID tells builds of different programs apart: the content part of
 // the binary's Go build ID, a hash of the binary but its build ID, which
 // changes with any input of the build (a comment does); a hash of the
-// whole file when it has none.
+// whole file when it has none. ELF binaries keep the ID in a note only.
 func binaryID(path string) (string, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 	const mark = "\xff Go build ID: \""
+	var id []byte
 	if i := bytes.Index(data, []byte(mark)); i >= 0 {
-		id := data[i+len(mark):]
-		if j := bytes.IndexByte(id, '"'); j > 0 && j < 256 {
-			id = id[:j]
-			return string(id[bytes.LastIndexByte(id, '/')+1:]), nil
+		rest := data[i+len(mark):]
+		if j := bytes.IndexByte(rest, '"'); j > 0 && j < 256 {
+			id = rest[:j]
 		}
+	} else if f, err := elf.NewFile(bytes.NewReader(data)); err == nil {
+		// the note: namesz, descsz, type, "Go\x00\x00", the ID
+		if sec := f.Section(".note.go.buildid"); sec != nil {
+			if note, err := sec.Data(); err == nil && len(note) > 16 && string(note[12:16]) == "Go\x00\x00" {
+				if n := int(f.ByteOrder.Uint32(note[4:8])); 16+n <= len(note) {
+					id = note[16 : 16+n]
+				}
+			}
+		}
+		f.Close()
+	}
+	if len(id) > 0 {
+		return string(id[bytes.LastIndexByte(id, '/')+1:]), nil
 	}
 	sum := sha256.Sum256(data)
 	return hex.EncodeToString(sum[:]), nil
