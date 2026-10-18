@@ -363,8 +363,11 @@ func (bd *binder) lower(x ast.Expr) any {
 			m := map[string]any{}
 			for _, el := range x.Elts {
 				kv, ok := el.(*ast.KeyValueExpr)
+				if !ok {
+					return bd.fail(el, "a ui.Class reading a state takes constant class names")
+				}
 				tv := e.info.Types[kv.Key]
-				if !ok || tv.Value == nil || tv.Value.Kind() != constant.String {
+				if tv.Value == nil || tv.Value.Kind() != constant.String {
 					return bd.fail(el, "a ui.Class reading a state takes constant class names")
 				}
 				m[constant.StringVal(tv.Value)] = bd.lower(kv.Value)

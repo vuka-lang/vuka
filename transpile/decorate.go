@@ -301,7 +301,7 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) *fu
 	nameOff, declOff := f.orig(fd.Name.Pos()), f.orig(fd.Type.Func)
 	name := srcIdent(f.src, nameOff) // as written: a later round's tree has an overload's mangled name
 	d := &funcDeco{uses: uses(attrs), name: name, nameOff: nameOff,
-		method: fd.Recv != nil, errIndex: -1, ctxIndex: -1, attrs: typedAttrsAt(f, declOff)}
+		method: fd.Recv != nil && len(fd.Recv.List) > 0, errIndex: -1, ctxIndex: -1, attrs: typedAttrsAt(f, declOff)}
 	d.file, d.line = filepath.Base(f.name), f.at(d.nameOff).Line
 	if f.decorated == nil {
 		f.decorated = map[int]string{}
@@ -1263,6 +1263,9 @@ func embeddedName(t ast.Expr) string {
 }
 
 func genericRecv(fd *ast.FuncDecl) bool {
+	if fd.Recv == nil || len(fd.Recv.List) == 0 {
+		return false
+	}
 	t := fd.Recv.List[0].Type
 	if s, ok := t.(*ast.StarExpr); ok {
 		t = s.X

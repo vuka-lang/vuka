@@ -37,7 +37,7 @@ func (f *fileState) exports(bare bool, errs *ErrorList) (string, []segment) {
 			b.WriteString(lineDirective(a.Pos))
 		}
 		call := ""
-		if fd.Recv != nil {
+		if fd.Recv != nil && len(fd.Recv.List) > 0 {
 			fmt.Fprintf(&b, "(r %s) ", f.nodeText(fd.Recv.List[0].Type))
 			call = "r."
 		}

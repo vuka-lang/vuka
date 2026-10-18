@@ -400,7 +400,9 @@ scan:
 	}
 	if name == "" {
 		name = path[strings.LastIndex(path, "/")+1:]
-		f.insert(pkgEnd, "; import "+quoted, 0)
+		if pkgEnd >= 0 { // else no package clause: the parse reports it
+			f.insert(pkgEnd, "; import "+quoted, 0)
+		}
 	}
 	f.scannedImports[path] = name
 	return name

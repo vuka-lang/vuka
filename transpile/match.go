@@ -375,8 +375,11 @@ func (pc *patCtx) structPat(c *compiled, lit *ast.CompositeLit, ptr bool, s stri
 	}
 	for _, el := range lit.Elts {
 		kv, ok := el.(*ast.KeyValueExpr)
-		key, isIdent := kv.Key.(*ast.Ident)
-		if !ok || !isIdent {
+		var key *ast.Ident
+		if ok {
+			key, ok = kv.Key.(*ast.Ident)
+		}
+		if !ok {
 			return fmt.Errorf("struct patterns name their fields: %s{Field: pattern}", types.TypeString(T, q))
 		}
 		obj, _, _ := types.LookupFieldOrMethod(T, false, pc.e.pkg, key.Name)

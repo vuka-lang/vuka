@@ -24,6 +24,24 @@ import (
 // Source formats a .vuka file. On a syntax error it returns the error, with
 // the position in src, and no output.
 func Source(src []byte) ([]byte, error) {
+	out, err := once(src)
+	if err != nil {
+		return nil, err
+	}
+	// gofmt itself takes more than one pass over some input (a carriage
+	// return in a comment, stray semicolons), so formatting runs to a fixed
+	// point: formatting the output again changes nothing.
+	for range 3 {
+		again, err := once(out)
+		if err != nil || bytes.Equal(again, out) {
+			break
+		}
+		out = again
+	}
+	return out, nil
+}
+
+func once(src []byte) ([]byte, error) {
 	if !utf8.Valid(src) {
 		return nil, errors.New("not valid UTF-8")
 	}
@@ -486,6 +504,9 @@ func scan(src []byte) ([]*construct, error) {
 		case 'A', 'B', 'P', 'E':
 			attrs := strings.Split(c.text, "\x00")
 			for i, a := range attrs {
+				if a == "" {
+					return nil, errorAt(src, c.start, "expected an attribute")
+				}
 				if attrs[i], ok = goSnippet("var _ = ", a[1:]); !ok {
 					return nil, errorAt(src, c.start, "bad attribute "+a)
 				}

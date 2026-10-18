@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("package A0000\nimport \"000\" \ntype A0000 struct{A00000000}\ntype A00000 struct{}  //000\n@A00(`0000`) type A00[A0000] struct{A0000} \n@A00000(\"000\") func ()A()")

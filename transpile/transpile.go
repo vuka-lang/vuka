@@ -173,13 +173,13 @@ type fileState struct {
 	staticErrs     []*Error
 	autoImports    map[string]bool // packages imported for statics reached through other types
 	enums          []*enumDecl
-	enumGen        genWriter         // the enums' generated methods
-	islandGen      genWriter         // imported islands' props types
-	fieldGen       genWriter         // the field attributes' registrations
-	fieldsOn       bool              // field attributes are registered: from the first round on
-	scannedImports map[string]string // import path → name, for the enums' methods
-	spellings      []spelling        // rewritten expressions, for messages
-	stateDone      map[int]bool      // src offsets of state reads and writes lowered or checked (state.go)
+	enumGen        genWriter           // the enums' generated methods
+	islandGen      genWriter           // imported islands' props types
+	fieldGen       genWriter           // the field attributes' registrations
+	fieldsOn       bool                // field attributes are registered: from the first round on
+	scannedImports map[string]string   // import path → name, for the enums' methods
+	spellings      []spelling          // rewritten expressions, for messages
+	stateDone      map[int]bool        // src offsets of state reads and writes lowered or checked (state.go)
 	exprIdx        map[[2]int]ast.Expr // this round's expressions by their spans (exprAt)
 	exprIdxOf      *ast.File           // the syntax tree exprIdx indexes
 }

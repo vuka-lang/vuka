@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("package A0000\nenum A000000{A00000,A0000,A0001,A000000000,A00000000,A00020) \nenum Shape {  Circle{A0000000000000},A0000{A,A0 A000000},A000000) \nfunc A(A0000000)A0000{  match 00{  case 000000000000:   retur%0000} } \nfunc A(s Shape)A0000{  match s {  case Shape.Circle{0}:}} ")

@@ -426,7 +426,9 @@ func (f *fileState) scannedRuntime(toks []tok) string {
 		}
 	}
 	f.rt = "vuka"
-	f.insert(pkgEnd, `; import vuka "`+RuntimePath+`"`, 0)
+	if pkgEnd >= 0 { // else no package clause: the parse reports it
+		f.insert(pkgEnd, `; import vuka "`+RuntimePath+`"`, 0)
+	}
 	return f.rt
 }
 
@@ -499,11 +501,20 @@ func (f *fileState) matchAt(toks []tok, i int) (*matchStmt, string) {
 		mc := &matchCase{start: t.off, guard: span{-1, -1}}
 		d, patStart := 0, -1
 		c++
+		if c >= len(toks) {
+			return nil, "unterminated case in match"
+		}
 		if t.tok == token.CASE {
 			patStart = toks[c].off
 		}
 		for ; c < len(toks); c++ {
 			h := toks[c]
+			if (h.tok == token.COMMA || h.tok == token.IF) && c+1 >= len(toks) {
+				return nil, "unterminated case in match"
+			}
+			if d == 0 && patStart == h.off && (h.tok == token.COMMA || h.tok == token.IF || h.tok == token.COLON) {
+				return nil, "a case needs a pattern; use case _: for anything"
+			}
 			switch {
 			case isOpen(h.tok):
 				d++

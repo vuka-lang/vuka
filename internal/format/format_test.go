@@ -293,10 +293,9 @@ func TestMarkupCheck(t *testing.T) {
 	}
 }
 
-// FuzzSource checks that formatting never panics and settles. gofmt itself
-// takes a few passes over some odd input (stray semicolons, comments), so
-// what is checked is that a fixed point comes within four passes (the render
-// check runs inside Source).
+// FuzzSource checks that formatting never panics and is idempotent:
+// formatting the output again changes nothing (the render check runs inside
+// Source).
 func FuzzSource(f *testing.F) {
 	paths, _ := filepath.Glob("../../transpile/testdata/golden/*.vuka")
 	more, _ := filepath.Glob("testdata/*.input")
@@ -309,16 +308,12 @@ func FuzzSource(f *testing.F) {
 		if err != nil {
 			return
 		}
-		for range 4 {
-			again, err := Source(out)
-			if err != nil {
-				t.Fatalf("formatted file doesn't format: %v\n%s", err, out)
-			}
-			if bytes.Equal(again, out) {
-				return
-			}
-			out = again
+		again, err := Source(out)
+		if err != nil {
+			t.Fatalf("formatted file doesn't format: %v\n%s", err, out)
 		}
-		t.Errorf("formatting doesn't settle:\n%s", out)
+		if !bytes.Equal(again, out) {
+			t.Errorf("formatting isn't idempotent:\n%q\nthen:\n%q", out, again)
+		}
 	})
 }
