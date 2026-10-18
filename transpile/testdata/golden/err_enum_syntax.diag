@@ -1,0 +1,57 @@
+error[E0115]: Status.Draft is declared twice
+ --> err_enum_syntax.vuka:3:28
+  |
+3 | enum Status { Draft, Sent, Draft }
+  |                            ^^^^^
+  |
+  = help: declare enum Name { Variant, … } with capitalised, unique variants
+
+error[E0115]: an enum's type is string or an integer type, not float64
+ --> err_enum_syntax.vuka:5:1
+  |
+5 | enum Kind float64 { A, B }
+  | ^^^^
+  |
+  = help: declare enum Name { Variant, … } with capitalised, unique variants
+
+error[E0115]: an enum whose variants hold data has no underlying type: enum Shape { … }
+ --> err_enum_syntax.vuka:7:1
+  |
+7 | enum Shape string {
+  | ^^^^
+  |
+  = help: declare enum Name { Variant, … } with capitalised, unique variants
+
+error[E0115]: give every variant of Level a value, or none
+  --> err_enum_syntax.vuka:11:1
+   |
+11 | enum Level { Low = 1, High }
+   | ^^^^
+   |
+   = help: declare enum Name { Variant, … } with capitalised, unique variants
+
+error[E0115]: a variant's name starts with a capital letter: Small
+  --> err_enum_syntax.vuka:13:14
+   |
+13 | enum lower { small }
+   |              ^^^^^
+   |
+   = help: declare enum Name { Variant, … } with capitalised, unique variants
+
+error[E0115]: enum Empty needs at least one variant
+  --> err_enum_syntax.vuka:15:1
+   |
+15 | enum Empty {}
+   | ^^^^
+   |
+   = help: declare enum Name { Variant, … } with capitalised, unique variants
+
+error[E0115]: Code.Values is generated for every enum; name the variant differently
+  --> err_enum_syntax.vuka:17:1
+   |
+17 | enum Code { Values, Other }
+   | ^^^^
+   |
+   = help: declare enum Name { Variant, … } with capitalised, unique variants
+
+For more information about this error, try `vuka explain E0115`.

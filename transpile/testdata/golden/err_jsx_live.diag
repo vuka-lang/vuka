@@ -1,0 +1,82 @@
+error[E0106]: <NoRender> isn't a stateful component: *NoRender doesn't implement ui.Stateful (missing method Render)
+  --> err_jsx_live.vuka:52:3
+   |
+52 |         <NoRender />
+   |         ^^^^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <BadRender> isn't a stateful component: *BadRender doesn't implement ui.Stateful (wrong type for method Render: has func(ctx context.Context) ui.Node, wants func() ui.Node)
+  --> err_jsx_live.vuka:53:3
+   |
+53 |         <BadRender />
+   |         ^^^^^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Named> is a type, not a component: a component is a function returning ui.Node, or a struct whose pointer implements ui.Stateful
+  --> err_jsx_live.vuka:55:3
+   |
+55 |         <Named />
+   |         ^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Counter> has no attribute n: unexported fields are its state; its props are its exported fields
+  --> err_jsx_live.vuka:56:12
+   |
+56 |         <Counter n={1} />
+   |                  ^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Counter> has no attribute Stat; did you mean Start?
+  --> err_jsx_live.vuka:57:12
+   |
+57 |         <Counter Stat={1} />
+   |                  ^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Counter> takes no children: add a Children ui.Node field to Counter
+  --> err_jsx_live.vuka:58:3
+   |
+58 |         <Counter>kids</Counter>
+   |         ^^^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Both>'s field Title is ambiguous: it is in A and B
+  --> err_jsx_live.vuka:61:9
+   |
+61 |         <Both Title="x" />
+   |               ^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0107]: onClick on <button> takes a function; this is int
+  --> err_jsx_live.vuka:62:11
+   |
+62 |         <button onClick={42}>a</button>
+   |                 ^^^^^^^
+   |
+   = help: pass a function (a live view method or JS commands) of the shape the event calls
+
+error[E0106]: <NotLive> isn't a stateful component: *NotLive doesn't implement ui.Stateful (missing method vukaLive; embed ui.Live)
+  --> err_jsx_live.vuka:66:3
+   |
+66 |         <NotLive />
+   |         ^^^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0107]: onClick on <button> takes a function; this is string
+  --> err_jsx_live.vuka:67:11
+   |
+67 |         <button onClick={"go()"}>c</button>
+   |                 ^^^^^^^
+   |
+   = help: pass a function (a live view method or JS commands) of the shape the event calls
+
+Some errors have detailed explanations: E0106, E0107.
+For more information about an error, try `vuka explain E0106`.

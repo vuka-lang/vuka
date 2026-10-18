@@ -1,0 +1,17 @@
+error[E0106]: <Note> is generic, and its attributes don't give its type arguments: write <Note[…]>
+  --> err_jsx_stateinfer.vuka:27:3
+   |
+27 |         <Note Label="hi" />
+   |         ^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Pair> is generic, and its attributes make T both int and string: write <Pair[…]>
+  --> err_jsx_stateinfer.vuka:28:3
+   |
+28 |         <Pair A={1} B="x" />
+   |         ^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+For more information about this error, try `vuka explain E0106`.

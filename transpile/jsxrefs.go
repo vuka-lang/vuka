@@ -106,7 +106,7 @@ func (e *engine) checkRefs() {
 						default:
 							msg += "; its refs are " + strings.Join(quoteAll(x.names), ", ")
 						}
-						e.errs.add(f.at(f.orig(arg.Pos())), "%s", msg)
+						e.errs.add("E0108", f.at(f.orig(arg.Pos())), "%s", msg)
 					}
 				case getAttr != nil && obj == types.Object(getAttr) && len(call.Args) > 1:
 					attr, ok := stringLit(call.Args[0])
@@ -125,7 +125,7 @@ func (e *engine) checkRefs() {
 						} else {
 							msg += "; its values are " + strings.Join(quoteAll(slices.Compact(slices.Sorted(slices.Values(have)))), ", ")
 						}
-						e.errs.add(f.at(f.orig(arg.Pos())), "%s", msg)
+						e.errs.add("E0108", f.at(f.orig(arg.Pos())), "%s", msg)
 					}
 				}
 				return true

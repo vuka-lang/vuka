@@ -1,0 +1,9 @@
+error[E0117]: can't infer the type of static Box.cache from nil; write it: static cache T = nil
+ --> err_static_infer.vuka:4:9
+  |
+4 |     static cache = nil
+  |            ^^^^^
+  |
+  = help: write the type: static name T = …
+
+For more information about this error, try `vuka explain E0117`.

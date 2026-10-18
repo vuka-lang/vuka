@@ -137,7 +137,7 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 			if !isJSX {
 				panic(r)
 			}
-			errs.add(f.at(je.off), "%s", je.msg)
+			errs.add("E0101", f.at(je.off), "%s", je.msg)
 			end, goToks, ok = 0, nil, false
 		}
 	}()

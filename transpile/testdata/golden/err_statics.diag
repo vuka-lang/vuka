@@ -1,0 +1,17 @@
+error[E0116]: User has a field or method Name already; a static can't share its name
+ --> err_statics.vuka:6:9
+  |
+6 |     static Name = "x"
+  |            ^^^^
+  |
+  = help: declare statics inside their type's struct, with names its fields and methods don't use
+
+error[E0116]: User has a field or method Save already; a static method can't share its name
+  --> err_statics.vuka:11:6
+   |
+11 | func User.Save() {}
+   |      ^^^^^^^^^
+   |
+   = help: declare statics inside their type's struct, with names its fields and methods don't use
+
+For more information about this error, try `vuka explain E0116`.

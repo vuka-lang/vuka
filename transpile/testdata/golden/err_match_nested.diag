@@ -1,0 +1,50 @@
+error[E0113]: match on Result[Option[int]] isn't exhaustive: missing Ok(None); add the missing cases or case _:
+ --> err_match_nested.vuka:4:2
+  |
+4 |     match r {
+  |     ^^^^^
+  |
+  = help: add the missing cases, or case _:
+
+error[E0113]: match on Result[Option[bool]] isn't exhaustive: missing Ok(Some(false)); add the missing cases or case _:
+  --> err_match_nested.vuka:13:2
+   |
+13 |     match r {
+   |     ^^^^^
+   |
+   = help: add the missing cases, or case _:
+
+error[E0114]: unreachable case: earlier cases match everything it does
+  --> err_match_nested.vuka:24:2
+   |
+24 |     case Ok(Some(p)):
+   |     ^^^^
+   |
+   = help: remove the case, or move it before the cases that cover it
+
+error[E0113]: match on P isn't exhaustive: missing P{X: false, Y: false}; add the missing cases or case _:
+  --> err_match_nested.vuka:32:2
+   |
+32 |     match p {
+   |     ^^^^^
+   |
+   = help: add the missing cases, or case _:
+
+error[E0113]: match on Option[int] isn't exhaustive: missing Some(_); add the missing cases or case _:
+  --> err_match_nested.vuka:39:2
+   |
+39 |     match o {
+   |     ^^^^^
+   |
+   = help: add the missing cases, or case _:
+
+error[E0114]: unreachable case: earlier cases match everything it does
+  --> err_match_nested.vuka:49:2
+   |
+49 |     case P{Y: true} if p.X:
+   |     ^^^^
+   |
+   = help: remove the case, or move it before the cases that cover it
+
+Some errors have detailed explanations: E0113, E0114.
+For more information about an error, try `vuka explain E0113`.

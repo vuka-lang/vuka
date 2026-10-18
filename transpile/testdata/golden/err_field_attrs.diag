@@ -1,0 +1,49 @@
+error[E0206]: a field's attributes go after its tag: Title string `json:"title"` @Char
+ --> err_field_attrs.vuka:6:15
+  |
+6 |     Title string @Char{Max: 9} `json:"title"`
+  |                  ^^^^^
+  |
+  = help: write value attributes after the field (and its tag), on the same line
+
+error[E0206]: a field attribute goes after its field, on the same line: Title string @Char{Max: 200}
+ --> err_field_attrs.vuka:7:2
+  |
+7 |     @Char{}
+  |     ^^^^^
+  |
+  = help: write value attributes after the field (and its tag), on the same line
+
+error[E0206]: @doc is for declarations; a field attribute is a value, such as @Char{Max: 200}
+ --> err_field_attrs.vuka:9:14
+  |
+9 |     Lead string @doc("no")
+  |                 ^^^^
+  |
+  = help: write value attributes after the field (and its tag), on the same line
+
+error[E0206]: field attributes go on the fields of a package-level struct type
+  --> err_field_attrs.vuka:11:12
+   |
+11 |         Size int @Char{}
+   |                  ^^^^^
+   |
+   = help: write value attributes after the field (and its tag), on the same line
+
+error[E0206]: only another attribute or a comment can follow a field attribute
+  --> err_field_attrs.vuka:13:12
+   |
+13 |     Views int @Char{} Draft bool
+   |               ^^^^^
+   |
+   = help: write value attributes after the field (and its tag), on the same line
+
+error[E0206]: Box is generic; its fields can't carry attributes
+  --> err_field_attrs.vuka:17:6
+   |
+17 |     V T @Char{}
+   |         ^^^^^
+   |
+   = help: write value attributes after the field (and its tag), on the same line
+
+For more information about this error, try `vuka explain E0206`.

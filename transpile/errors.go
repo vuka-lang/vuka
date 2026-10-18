@@ -3,17 +3,62 @@ package transpile
 import (
 	"fmt"
 	"go/token"
+	"path/filepath"
 	"sort"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
-// Error is a problem in a source file, positioned in the file as written.
+// Error is a problem in a source file, positioned in the file as written,
+// with its code and what to do about it.
 type Error struct {
-	Pos token.Position
-	Msg string
+	Pos     token.Position
+	Msg     string
+	Code    diag.Code
+	Help    string // the fix, when the message doesn't say it
+	Suggest string // did you mean …
+	Len     int    // bytes the problem spans from Pos, 0 for one token
 }
 
-func (e *Error) Error() string { return e.Pos.String() + ": " + e.Msg }
+func (e *Error) Error() string { return e.Pos.String() + ": " + e.Text() }
+
+// Text is the message with its help and suggestion, as one line.
+func (e *Error) Text() string {
+	s := e.Msg
+	if e.Help != "" {
+		s += "; " + e.Help
+	}
+	if e.Suggest != "" {
+		s += "; did you mean " + e.Suggest + "?"
+	}
+	return s
+}
+
+// Diagnostic is e as a diagnostic, its file relative to root ("" keeps it).
+func (e *Error) Diagnostic(root string) diag.Diagnostic {
+	file := e.Pos.Filename
+	if root != "" && filepath.IsAbs(file) {
+		if rel, err := filepath.Rel(root, file); err == nil && !strings.HasPrefix(rel, "..") {
+			file = filepath.ToSlash(rel)
+		}
+	}
+	sp := diag.Span{File: file, Line: e.Pos.Line, Col: e.Pos.Column}
+	if e.Len > 0 && sp.Col > 0 {
+		sp.EndCol = sp.Col + e.Len
+	}
+	return diag.Diagnostic{Code: e.Code, Message: e.Msg, Span: sp, Help: e.Help, Suggest: e.Suggest}
+}
+
+func (e *Error) help(format string, args ...any) *Error {
+	e.Help = fmt.Sprintf(format, args...)
+	return e
+}
+
+func (e *Error) suggest(s string) *Error {
+	e.Suggest = s
+	return e
+}
 
 // ErrorList is every problem found in a package, sorted by position.
 type ErrorList []*Error
@@ -29,8 +74,19 @@ func (l ErrorList) Error() string {
 	return b.String()
 }
 
-func (l *ErrorList) add(pos token.Position, format string, args ...any) {
-	*l = append(*l, &Error{Pos: pos, Msg: fmt.Sprintf(format, args...)})
+func (l *ErrorList) add(code diag.Code, pos token.Position, format string, args ...any) *Error {
+	e := &Error{Pos: pos, Msg: fmt.Sprintf(format, args...), Code: code}
+	*l = append(*l, e)
+	return e
+}
+
+// Diagnostics is the list as diagnostics, files as written.
+func (l ErrorList) Diagnostics() []diag.Diagnostic {
+	out := make([]diag.Diagnostic, len(l))
+	for i, e := range l {
+		out[i] = e.Diagnostic("")
+	}
+	return out
 }
 
 func (l ErrorList) err() error {

@@ -92,12 +92,12 @@ func findOverloads(files []*fileState, errs *ErrorList) map[string]*overloadSet 
 		seen := map[string]*overload{}
 		for _, o := range s.list {
 			if o.decl.Type.TypeParams != nil {
-				errs.add(o.file.nodePos(o.decl.Name.Pos()), "generic functions can't be overloaded yet")
+				errs.add("E0120", o.file.nodePos(o.decl.Name.Pos()), "generic functions can't be overloaded yet")
 			}
 			o.mangled = mangle(o.decl)
 			if prev := seen[o.mangled]; prev != nil {
 				if paramTypes(prev) == paramTypes(o) {
-					errs.add(o.file.nodePos(o.decl.Name.Pos()), "%s is already declared with parameters (%s) at %s",
+					errs.add("E0120", o.file.nodePos(o.decl.Name.Pos()), "%s is already declared with parameters (%s) at %s",
 						s.display(), paramTypes(o), prev.file.nodePos(prev.decl.Name.Pos()))
 					continue
 				}
@@ -222,7 +222,7 @@ func (e *engine) resolveCalls(f *fileState) {
 		f.done[off] = true
 		o, msg := e.pick(set, args, call.Ellipsis.IsValid())
 		if msg != "" {
-			e.errs.add(f.nodePos(call.Pos()), "%s", msg)
+			e.errs.add("E0121", f.nodePos(call.Pos()), "%s", msg)
 			return true
 		}
 		f.add(off, off+len(id.Name), o.mangled)
@@ -438,9 +438,9 @@ func (e *engine) unresolvedOverloads() bool {
 			}
 			if calls[id] {
 				stuck = true
-				e.errs.add(f.nodePos(id.Pos()), "can't choose an overload of %s: an argument's type is unknown", set.display())
+				e.errs.add("E0121", f.nodePos(id.Pos()), "can't choose an overload of %s: an argument's type is unknown", set.display())
 			} else {
-				e.errs.add(f.nodePos(id.Pos()), "%s is overloaded and can't be used as a value; call it, or name one overload with @export", set.display())
+				e.errs.add("E0121", f.nodePos(id.Pos()), "%s is overloaded and can't be used as a value; call it, or name one overload with @export", set.display())
 			}
 		}
 		ast.Inspect(f.ast, func(n ast.Node) bool {

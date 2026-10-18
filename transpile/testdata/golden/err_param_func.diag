@@ -1,0 +1,9 @@
+error[E0205]: @logged is a function, not a value; a parameter attribute is a value, such as @Body or @Path("id")
+ --> err_param_func.vuka:5:11
+  |
+5 | func list(@logged n int) {}
+  |           ^^^^^^^
+  |
+  = help: write a value attribute before the parameter: func f(@Path("id") id int)
+
+For more information about this error, try `vuka explain E0205`.

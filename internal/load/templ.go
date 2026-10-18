@@ -91,7 +91,7 @@ func compileTempl(path, name string, src []byte, live bool, scopes map[string]st
 	if t.Err == nil && live && TemplInstrument != nil {
 		out, err := TemplInstrument(t.Go)
 		if err != nil {
-			t.Err = &transpile.Error{Pos: token.Position{Filename: path, Line: 1, Column: 1}, Msg: "instrumenting the generated Go: " + err.Error()}
+			t.Err = &transpile.Error{Pos: token.Position{Filename: path, Line: 1, Column: 1}, Msg: "instrumenting the generated Go: " + err.Error(), Code: "E0006"}
 			return t
 		}
 		t.Live = out

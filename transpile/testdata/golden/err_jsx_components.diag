@@ -1,0 +1,74 @@
+error[E0106]: <UserCard> has no attribute usr; did you mean user?
+  --> err_jsx_components.vuka:36:13
+   |
+36 |         <UserCard usr={u} />
+   |                   ^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <UserCard> has no attribute colour; its parameters are user, admin
+  --> err_jsx_components.vuka:37:22
+   |
+37 |         <UserCard user={u} colour="red" />
+   |                            ^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Panel> has no attribute titel; did you mean Title?
+  --> err_jsx_components.vuka:38:10
+   |
+38 |         <Panel titel="x" />
+   |                ^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Counter> isn't a stateful component: *Counter doesn't implement ui.Stateful (missing method Render)
+  --> err_jsx_components.vuka:39:3
+   |
+39 |         <Counter />
+   |         ^^^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Raw> takes no children
+  --> err_jsx_components.vuka:40:3
+   |
+40 |         <Raw s="<b>">kids</Raw>
+   |         ^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Plain> returns int, which isn't ui.Node (missing method Render)
+  --> err_jsx_components.vuka:41:3
+   |
+41 |         <Plain n={1} />
+   |         ^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Layout> takes no children: add a children ui.Node parameter
+  --> err_jsx_components.vuka:42:3
+   |
+42 |         <Layout title="x"><p>body</p></Layout>
+   |         ^^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Card> takes no children: add a Children ui.Node field to Props
+  --> err_jsx_components.vuka:43:3
+   |
+43 |         <Card title="x">body</Card>
+   |         ^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0110]: ? must end a statement: x := f()?, return f()?, or f()?
+  --> err_jsx_components.vuka:48:28
+   |
+48 |     return <p>{strconv.Atoi(s)?}</p>, nil
+   |                               ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+
+Some errors have detailed explanations: E0106, E0110.
+For more information about an error, try `vuka explain E0106`.

@@ -123,7 +123,7 @@ func (e *engine) prepareBundles() {
 			switch {
 			case next == nil:
 			case state[next] == 1:
-				e.errs.add(el.a.Pos, "decorator %s composes itself: %s", next.name, strings.Join(append(path[indexOf(path, next.name):], next.name), " → "))
+				e.errs.add("E0209", el.a.Pos, "decorator %s composes itself: %s", next.name, strings.Join(append(path[indexOf(path, next.name):], next.name), " → "))
 				return false
 			case state[next] == 0 && !visit(next):
 				return false
@@ -176,7 +176,7 @@ func (e *engine) resolveBundles(f *fileState) {
 				e.progress, t = true, r
 			}
 			if _, ok := t.Underlying().(*types.Signature); ok && !isRuntimeFunc(t, "Call") && !isRuntimeFunc(t, "Decl") && !isRuntimeFunc(t, "Type") {
-				e.errs.add(a.Pos, "@%s is a typed decorator, of the decorated function's own type; it can't be composed into decorator %s, so write it beside it", a.Name, b.name)
+				e.errs.add("E0210", a.Pos, "@%s is a typed decorator, of the decorated function's own type; it can't be composed into decorator %s, so write it beside it", a.Name, b.name)
 			}
 		}
 	}

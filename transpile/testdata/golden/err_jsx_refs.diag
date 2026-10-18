@@ -1,0 +1,57 @@
+error[E0108]: no ref="mnu" in Menu's render; did you mean "menu"?
+  --> err_jsx_refs.vuka:10:49
+   |
+10 |         <button onClick={reftarget.Hide(reftarget.Ref("mnu"))}>typo</button>
+   |                                                       ^
+   |
+   = help: name a ref= (or attribute value) the component's markup has
+
+error[E0108]: no ref="list" in Page: give an element ref="list"
+  --> err_jsx_refs.vuka:16:21
+   |
+16 |     t := reftarget.Ref("list")
+   |                        ^
+   |
+   = help: name a ref= (or attribute value) the component's markup has
+
+error[E0108]: no ref="b" in Named; its refs are "a", "c"
+  --> err_jsx_refs.vuka:21:58
+   |
+21 |     return <p ref="a" onClick={reftarget.Hide(reftarget.Ref("b"))}><i ref="c" /></p>
+   |                                                             ^
+   |
+   = help: name a ref= (or attribute value) the component's markup has
+
+error[E0108]: no ref="pasword" in Several; did you mean "password"?
+  --> err_jsx_refs.vuka:31:61
+   |
+31 |         <button onClick={reftarget.Hide(reftarget.Ref("username", "pasword", "form", "usrname"))}>ok</button>
+   |                                                                   ^
+   |
+   = help: name a ref= (or attribute value) the component's markup has
+
+error[E0108]: no ref="usrname" in Several; did you mean "username"?
+  --> err_jsx_refs.vuka:31:80
+   |
+31 |         <button onClick={reftarget.Hide(reftarget.Ref("username", "pasword", "form", "usrname"))}>ok</button>
+   |                                                                                      ^
+   |
+   = help: name a ref= (or attribute value) the component's markup has
+
+error[E0108]: reftarget.GetAttr("name", "usrname"): no element in Login has name="usrname"; did you mean "username"?
+  --> err_jsx_refs.vuka:37:36
+   |
+37 |     typo := reftarget.GetAttr("name", "usrname", reftarget.Prefix("x"), name)
+   |                                       ^
+   |
+   = help: name a ref= (or attribute value) the component's markup has
+
+error[E0108]: reftarget.GetAttr("type", "email"): no element in Login has type="email"; its values are "password"
+  --> err_jsx_refs.vuka:38:37
+   |
+38 |     other := reftarget.GetAttr("type", "email")
+   |                                        ^
+   |
+   = help: name a ref= (or attribute value) the component's markup has
+
+For more information about this error, try `vuka explain E0108`.

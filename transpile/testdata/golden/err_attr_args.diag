@@ -1,0 +1,25 @@
+error[E0201]: @doc takes one string: @doc("...")
+ --> err_attr_args.vuka:3:1
+  |
+3 | @doc(42)
+  | ^^^^
+  |
+  = help: write @Name, @Name(args) or @Name{Field: value}
+
+error[E0201]: @export needs an identifier, got "not an ident"
+ --> err_attr_args.vuka:6:1
+  |
+6 | @export("not an ident")
+  | ^^^^^^^
+  |
+  = help: write @Name, @Name(args) or @Name{Field: value}
+
+error[E0201]: @derive is not implemented yet
+  --> err_attr_args.vuka:12:1
+   |
+12 | @derive(Eq)
+   | ^^^^^^^
+   |
+   = help: write @Name, @Name(args) or @Name{Field: value}
+
+For more information about this error, try `vuka explain E0201`.

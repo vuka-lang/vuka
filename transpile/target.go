@@ -162,12 +162,12 @@ func (f *fileState) jsxTarget(toks []tok, off int, errs *ErrorList) *jsxTarget {
 			t.q = pkg.Name() + "."
 		case ".":
 		case "_":
-			errs.add(f.at(imp.off), "JSX renders with %s, which a blank import doesn't name: import it by name", imp.path)
+			errs.add("E0104", f.at(imp.off), "JSX renders with %s, which a blank import doesn't name: import it by name", imp.path)
 		default:
 			t.q = imp.name + "."
 		}
 		if v := pkg.Scope().Lookup("VukaJSX").(*types.Const).Val(); v.Kind() != constant.Int || constant.Compare(v, token.NEQ, constant.MakeInt64(JSXVersion)) {
-			errs.add(f.at(imp.off), "%s implements JSX contract %s; this vuka knows version %d: update vuka", imp.path, v, JSXVersion)
+			errs.add("E0104", f.at(imp.off), "%s implements JSX contract %s; this vuka knows version %d: update vuka", imp.path, v, JSXVersion)
 		}
 		found = append(found, t)
 	}
@@ -187,12 +187,12 @@ func (f *fileState) jsxTarget(toks []tok, off int, errs *ErrorList) *jsxTarget {
 				break
 			}
 		}
-		errs.add(f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)%s", DefaultJSXTarget, why)
+		errs.add("E0102", f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)%s", DefaultJSXTarget, why)
 		f.target = &jsxTarget{q: "__jsx."}
 	case 1:
 		f.target = found[0]
 	default:
-		errs.add(f.at(off), "JSX in this file could render with %s or %s: a file imports one JSX target", found[0].path, found[1].path)
+		errs.add("E0103", f.at(off), "JSX in this file could render with %s or %s: a file imports one JSX target", found[0].path, found[1].path)
 		f.target = found[0]
 	}
 	return f.target
@@ -265,10 +265,10 @@ func (e *engine) resolveSelfTargets() {
 		c, ok := e.pkg.Scope().Lookup("VukaJSX").(*types.Const)
 		switch {
 		case !ok:
-			e.errs.add(f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)", DefaultJSXTarget)
+			e.errs.add("E0102", f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)", DefaultJSXTarget)
 		default:
 			if v := c.Val(); v.Kind() != constant.Int || constant.Compare(v, token.NEQ, constant.MakeInt64(JSXVersion)) {
-				e.errs.add(f.at(off), "this package implements JSX contract %s; this vuka knows version %d: update vuka", v, JSXVersion)
+				e.errs.add("E0104", f.at(off), "this package implements JSX contract %s; this vuka knows version %d: update vuka", v, JSXVersion)
 			}
 		}
 	}

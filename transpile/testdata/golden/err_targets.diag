@@ -1,0 +1,73 @@
+error[E0207]: @Char can't go on a function; Char is for fields
+  --> err_targets.vuka:14:1
+   |
+14 | @Char{Max: 1}
+   | ^^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @Route can't go on a type; Route is for functions
+  --> err_targets.vuka:17:1
+   |
+17 | @Route("/x")
+   | ^^^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @Route can't go on a field; Route is for functions
+  --> err_targets.vuka:19:11
+   |
+19 |     F string @Route("/y")
+   |              ^^^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @Route can't go on a parameter; Route is for functions
+  --> err_targets.vuka:22:8
+   |
+22 | func b(@Route("/z") id string, @Size(3) s string) {}
+   |        ^^^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @Size can't go on a parameter; Char is for fields
+  --> err_targets.vuka:22:32
+   |
+22 | func b(@Route("/z") id string, @Size(3) s string) {}
+   |                                ^^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @Path can't go on a var or const; Path is for fields and parameters
+  --> err_targets.vuka:24:1
+   |
+24 | @Path("v")
+   | ^^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @vuka.Targets goes on an attribute type: @vuka.Targets(vuka.OnField) type Char struct{ … }
+  --> err_targets.vuka:27:1
+   |
+27 | @vuka.Targets(vuka.OnType)
+   | ^^^^^^^^^^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @Max can't go on a function; Max is for fields
+  --> err_targets.vuka:44:1
+   |
+44 | @Max(3)
+   | ^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0207]: @Min can't go on a function; Min is for parameters
+  --> err_targets.vuka:47:1
+   |
+47 | @Min(1)
+   | ^^^^
+   |
+   = help: put it where its type allows (vuka.Targets), or use another attribute
+
+For more information about this error, try `vuka explain E0207`.

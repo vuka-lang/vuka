@@ -349,10 +349,10 @@ func (f *fileState) parse(fset *token.FileSet, errs *ErrorList) bool {
 	if err != nil {
 		if list, ok := err.(scanner.ErrorList); ok {
 			for _, e := range list {
-				errs.add(f.pos(e.Pos.Offset), "%s", e.Msg)
+				errs.add("E0003", f.pos(e.Pos.Offset), "%s", e.Msg)
 			}
 		} else {
-			errs.add(f.at(0), "%v", err)
+			errs.add("E0003", f.at(0), "%v", err)
 		}
 		return false
 	}

@@ -9,6 +9,7 @@ vuka mod tidy|why|vendor|graph|… [args]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka explain [-full] file.vuka
+vuka explain E0201
 vuka fix [-n] [fixer…]
 vuka fmt [-l] [-w] [-d] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
@@ -140,9 +141,14 @@ serves are left out of the binary (empty in the overlay; it reads them from
 disk in development), so they cost the linker nothing; `-embed` (with
 `-watch`) or `VUKA_EMBED_STUB=off` builds them in.
 
-`vuka vet` also warns of what the go command can't see: a page backed by
-a component that embeds `ui.Live` but is routed with `@web.Get` (it works;
-`@web.Live` says what it is).
+`vuka vet` also reports what the go command can't see: a page backed by
+a component that embeds `ui.Live` but is routed with `@web.Get` (a warning,
+[W0301](/errors/W0301): it works; `@web.Live` says what it is), an island's
+component file missing or ambiguous, and what the app would refuse at boot
+of a page backed by a component when the source shows it already: a
+deferred field whose group has no loader ([E0324](/errors/E0324)), a
+loader of the wrong shape, a bad `bind:` or `defer:` tag, two handles of one
+name. Those are errors: vet fails.
 
 **Declarer packages are linked automatically.** Every package of the module
 with a [declarer](/features/decorators#declaration-decorators), a type
@@ -317,6 +323,32 @@ than left with stale imports.
 Shows what Vuka makes of a file: each rewritten line beside the Go it becomes,
 then the code added after the source (decorator wrappers, statics), each
 labelled with the line it comes from. `-full` prints the whole generated file.
+
+Given a diagnostic's code, it prints that code's page of the
+[catalogue](/errors/): what is wrong, why, and an example before and after
+the fix.
+
+```text
+$ vuka build
+error[E0203]: an attribute must start its own line
+ --> pages/users.vuka:12:18
+   |
+12 | func helper() {} @doc("Lists the users")
+   |                  ^^^^
+   |
+   = help: put the attribute on its own line, above the declaration
+
+For more information about this error, try `vuka explain E0203`.
+$ vuka explain E0203
+```
+
+Every diagnostic of the compiler, `vuka vet`, the editor and the libraries'
+checks at boot has a code: `E` for an error, `W` for a warning. On a terminal
+the frame is coloured (`NO_COLOR` turns it off). `vuka build`, `vet`, `test`,
+`run` and `install` take `-diag=json` to print the diagnostics as a JSON
+array instead, each with its code, severity, message, span (file relative to
+the current directory, line, column), related spans, help, suggestion and the
+URL of its page.
 
 ## fix
 

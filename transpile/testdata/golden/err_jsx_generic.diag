@@ -1,0 +1,58 @@
+error[E0106]: <Table> is generic, and its attributes don't give its type arguments: write <Table[…]>
+  --> err_jsx_generic.vuka:24:3
+   |
+24 |         <Table />
+   |         ^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Empty> is generic, and its attributes don't give its type arguments: write <Empty[…]>
+  --> err_jsx_generic.vuka:25:3
+   |
+25 |         <Empty />
+   |         ^^^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: <Box> is generic, and its attributes don't give its type arguments: write <Box[…]>
+  --> err_jsx_generic.vuka:26:3
+   |
+26 |         <Box />
+   |         ^^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: no overload of Price takes these attributes
+  --> err_jsx_generic.vuka:27:3
+   |
+27 |         <Price amount="x" />
+   |         ^^^^^^
+   |
+   = note: (amount int) ui.Node at err_jsx_generic.vuka:13:6
+           (amount float64) ui.Node at err_jsx_generic.vuka:14:6
+           (amount int, children ui.Node) ui.Node at err_jsx_generic.vuka:15:6
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0106]: no overload of Price takes these attributes
+  --> err_jsx_generic.vuka:28:3
+   |
+28 |         <Price cost={1} />
+   |         ^^^^^^
+   |
+   = note: (amount int) ui.Node at err_jsx_generic.vuka:13:6
+           (amount float64) ui.Node at err_jsx_generic.vuka:14:6
+           (amount int, children ui.Node) ui.Node at err_jsx_generic.vuka:15:6
+   = help: pass the attributes the component's parameters or fields declare
+
+error[E0121]: <Num> is ambiguous: its attributes fit
+  --> err_jsx_generic.vuka:29:3
+   |
+29 |         <Num n={1} />
+   |         ^^^^
+   |
+   = note: (n int64) ui.Node at err_jsx_generic.vuka:19:6
+           (n int32) ui.Node at err_jsx_generic.vuka:20:6
+   = help: convert an argument so exactly one overload fits
+
+Some errors have detailed explanations: E0106, E0121.
+For more information about an error, try `vuka explain E0106`.

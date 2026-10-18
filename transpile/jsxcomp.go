@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
 const templPath = "github.com/a-h/templ"
@@ -276,9 +278,9 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		c.fail = "internal: placeholder not found"
 		return
 	}
-	fail := func(off int, format string, args ...any) {
+	fail := func(code diag.Code, off int, format string, args ...any) {
 		c.dead = true
-		e.errs.add(f.at(off), format, args...)
+		e.errs.add(code, f.at(off), format, args...)
 	}
 	// UI islands: a <ui.Island> wrapper, and a <ui.Template> outside one.
 	switch e.targetFunc(c.target, e.info.Uses[compIdent(expr)]) {
@@ -286,7 +288,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		e.resolveIsland(f, c, fail)
 		return
 	case "Template":
-		fail(el.start, "<%s> is only valid directly inside <ui.Island>", el.tag)
+		fail("E0306", el.start, "<%s> is only valid directly inside <ui.Island>", el.tag)
 		return
 	}
 	node := e.nodeType(c.target)
@@ -318,7 +320,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	var sig *types.Signature
 	if tv, ok := e.info.Types[expr]; ok && !isInvalid(tv.Type) {
 		if sig, ok = tv.Type.Underlying().(*types.Signature); !ok {
-			fail(el.start, "<%s> isn't a component: a component is a function returning %sNode", el.tag, c.target.q)
+			fail("E0106", el.start, "<%s> isn't a component: a component is a function returning %sNode", el.tag, c.target.q)
 			return
 		}
 	}
@@ -326,7 +328,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		var off int
 		var msg string
 		if sig, off, msg = e.instantiate(f, c, expr, fn.Signature(), attrs, node); msg != "" {
-			fail(off, "%s", msg)
+			fail("E0106", off, "%s", msg)
 			return
 		}
 		if sig == nil {
@@ -339,7 +341,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		return
 	}
 	if off, msg := e.bindComp(c, sig, attrs, node, e.templChildren(obj)); msg != "" {
-		fail(off, "%s", msg)
+		fail("E0106", off, "%s", msg)
 		return
 	}
 	e.finishComp(f, c)
@@ -774,7 +776,7 @@ func (u *unifier) has(tp *types.TypeParam) bool {
 
 // resolveOverload chooses the overload of a component whose parameters fit
 // its attributes best, scored as a call's arguments are.
-func (e *engine) resolveOverload(f *fileState, c *jsxComp, set *overloadSet, id *ast.Ident, attrs []*jsxAttr, node types.Type, fail func(int, string, ...any)) {
+func (e *engine) resolveOverload(f *fileState, c *jsxComp, set *overloadSet, id *ast.Ident, attrs []*jsxAttr, node types.Type, fail func(diag.Code, int, string, ...any)) {
 	best := -1
 	var winners []*overload
 	var bound []*jsxComp
@@ -800,11 +802,11 @@ func (e *engine) resolveOverload(f *fileState, c *jsxComp, set *overloadSet, id 
 	}
 	switch len(winners) {
 	case 0:
-		fail(c.el.start, "no overload of %s takes these attributes%s", set.display(), e.candidates(set.list))
+		fail("E0106", c.el.start, "no overload of %s takes these attributes%s", set.display(), e.candidates(set.list))
 		return
 	case 1:
 	default:
-		fail(c.el.start, "<%s> is ambiguous: its attributes fit%s", c.el.tag, e.candidates(winners))
+		fail("E0121", c.el.start, "<%s> is ambiguous: its attributes fit%s", c.el.tag, e.candidates(winners))
 		return
 	}
 	*c = *bound[0]

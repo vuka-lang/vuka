@@ -1,0 +1,34 @@
+error[E0113]: match on Result[int] isn't exhaustive: missing Err(_); add the missing cases or case _:
+ --> err_match.vuka:4:2
+  |
+4 |     match r {
+  |     ^^^^^
+  |
+  = help: add the missing cases, or case _:
+
+error[E0113]: match on int isn't exhaustive: only a case that matches anything covers every value; add the missing cases or case _:
+  --> err_match.vuka:12:2
+   |
+12 |     match n {
+   |     ^^^^^
+   |
+   = help: add the missing cases, or case _:
+
+error[E0114]: unreachable case: an earlier case matches everything
+  --> err_match.vuka:22:2
+   |
+22 |     case Some(x):
+   |     ^^^^
+   |
+   = help: remove the case, or move it before the cases that cover it
+
+error[E0112]: Ok(…) matches a Result, not Option[int]
+  --> err_match.vuka:29:7
+   |
+29 |     case Ok(x):
+   |          ^^
+   |
+   = help: match patterns of the subject's type
+
+Some errors have detailed explanations: E0112, E0113, E0114.
+For more information about an error, try `vuka explain E0112`.

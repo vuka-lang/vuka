@@ -1,0 +1,49 @@
+error[E0126]: no file "assets/nope.html" in the package's directory
+ --> err_files.vuka:7:11
+  |
+7 | @Template("assets/nope.html")
+  |           ^
+  |
+  = help: name a file in the package's directory or below it, relative to it
+
+error[E0126]: the vuka.File "../golden.go" is outside the package's directory; a file is embedded from the directory or below it
+  --> err_files.vuka:10:13
+   |
+10 | @View{File: "../golden.go"}
+   |             ^
+   |
+   = help: name a file in the package's directory or below it, relative to it
+
+error[E0126]: the vuka.File "/etc/passwd" is absolute; name it relative to the package's directory
+  --> err_files.vuka:13:11
+   |
+13 | @Template("/etc/passwd")
+   |           ^
+   |
+   = help: name a file in the package's directory or below it, relative to it
+
+error[E0126]: "assets" is a directory; a vuka.File is a file
+  --> err_files.vuka:16:11
+   |
+16 | @Template("assets")
+   |           ^
+   |
+   = help: name a file in the package's directory or below it, relative to it
+
+error[E0126]: no file "page.templ" in the package's directory
+  --> err_files.vuka:19:11
+   |
+19 | @Template("page.templ")
+   |           ^
+   |
+   = help: name a file in the package's directory or below it, relative to it
+
+error[E0126]: a vuka.File needs a file name
+  --> err_files.vuka:22:11
+   |
+22 | @Template("")
+   |           ^
+   |
+   = help: name a file in the package's directory or below it, relative to it
+
+For more information about this error, try `vuka explain E0126`.

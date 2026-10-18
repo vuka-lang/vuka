@@ -361,7 +361,7 @@ func (e *engine) inferStatics() bool {
 			}
 			s.infer = false
 			if b, ok := t.(*types.Basic); ok && b.Kind() == types.UntypedNil {
-				e.errs.add(f.at(s.nameOff), "can't infer the type of static %s.%s from nil; write it: static %s T = nil", s.typeName, s.name, s.name)
+				e.errs.add("E0117", f.at(s.nameOff), "can't infer the type of static %s.%s from nil; write it: static %s T = nil", s.typeName, s.name, s.name)
 				continue
 			}
 			s.vt = types.TypeString(types.Default(t), func(p *types.Package) string {
@@ -449,21 +449,21 @@ func (e *engine) fixStaticFuncs() {
 	for _, f := range e.vuka {
 		for _, s := range f.statics {
 			if members[s.typeName+"."+s.name] {
-				e.errs.add(f.at(s.nameOff), "%s has a field or method %s already; a static can't share its name", s.typeName, s.name)
+				e.errs.add("E0116", f.at(s.nameOff), "%s has a field or method %s already; a static can't share its name", s.typeName, s.name)
 			}
 		}
 		for _, sf := range f.staticFuncs {
 			ts := specs[sf.typeName]
 			if ts == nil {
-				e.errs.add(f.at(sf.head.start), "%s isn't a type of this package; static methods go with their type", sf.typeName)
+				e.errs.add("E0116", f.at(sf.head.start), "%s isn't a type of this package; static methods go with their type", sf.typeName)
 				continue
 			}
 			if member := strings.SplitN(string(f.src[sf.head.start:sf.head.end]), ".", 2)[1]; members[sf.typeName+"."+member] {
-				e.errs.add(f.at(sf.head.start), "%s has a field or method %s already; a static method can't share its name", sf.typeName, member)
+				e.errs.add("E0116", f.at(sf.head.start), "%s has a field or method %s already; a static method can't share its name", sf.typeName, member)
 			}
 			if len(sf.tparams) == 0 {
 				if ts.TypeParams != nil {
-					e.errs.add(f.at(sf.head.start), "%s is generic; write func %s[…].%s", sf.typeName, sf.typeName, "…")
+					e.errs.add("E0116", f.at(sf.head.start), "%s is generic; write func %s[…].%s", sf.typeName, sf.typeName, "…")
 				}
 				continue
 			}
@@ -476,7 +476,7 @@ func (e *engine) fixStaticFuncs() {
 				}
 			}
 			if strings.Join(names, ",") != strings.Join(sf.tparams, ",") {
-				e.errs.add(f.at(sf.head.start), "write the type parameters as %s declares them: [%s]", sf.typeName, strings.Join(names, ", "))
+				e.errs.add("E0116", f.at(sf.head.start), "write the type parameters as %s declares them: [%s]", sf.typeName, strings.Join(names, ", "))
 				continue
 			}
 			text := sf.goName + specFile[ts].nodeText(ts.TypeParams)
@@ -599,7 +599,7 @@ func (e *engine) resolveStatics(f *fileState) {
 		}
 		if obj, _, _ := types.LookupFieldOrMethod(named, false, e.pkg, sel.Sel.Name); obj != nil {
 			f.done[start] = true
-			e.errs.add(f.nodePos(sel.Sel.Pos()), "%s.%s is ambiguous: a field of %s and a static of %s",
+			e.errs.add("E0119", f.nodePos(sel.Sel.Pos()), "%s.%s is ambiguous: a field of %s and a static of %s",
 				named.Obj().Name(), sel.Sel.Name, named.Obj().Name(), ref.owner.Origin().Obj().Name())
 			return true
 		}
@@ -620,7 +620,7 @@ func (e *engine) resolveStatics(f *fileState) {
 			if st, ok := tn.Type().Underlying().(*types.Struct); ok && !typeContext(f, e, sel) {
 				if st.NumFields() > 0 {
 					f.done[start] = true
-					e.errs.add(f.nodePos(sel.Sel.Pos()), "%s.%s holds data: write %s.%s{…}", named.Obj().Name(), sel.Sel.Name, named.Obj().Name(), sel.Sel.Name)
+					e.errs.add("E0119", f.nodePos(sel.Sel.Pos()), "%s.%s holds data: write %s.%s{…}", named.Obj().Name(), sel.Sel.Name, named.Obj().Name(), sel.Sel.Name)
 					return true
 				}
 				text += "{}"
@@ -631,7 +631,7 @@ func (e *engine) resolveStatics(f *fileState) {
 			for i := 0; i < ref.owner.TypeArgs().Len(); i++ {
 				s, msg := e.typeText(f, ref.owner.TypeArgs().At(i))
 				if msg != "" {
-					e.errs.add(f.nodePos(sel.Pos()), "%s", msg)
+					e.errs.add("E0119", f.nodePos(sel.Pos()), "%s", msg)
 					return true
 				}
 				args = append(args, s)
@@ -755,7 +755,7 @@ func (e *engine) inferSelf() {
 							continue
 						}
 						if n > 1 {
-							e.errs.add(f.nodePos(x.Pos()), "%s needs its other type arguments; Self is filled in: %s[…]", types.ExprString(x), types.ExprString(x))
+							e.errs.add("E0119", f.nodePos(x.Pos()), "%s needs its other type arguments; Self is filled in: %s[…]", types.ExprString(x), types.ExprString(x))
 							continue
 						}
 						f.insert(f.orig(x.End()), "["+self+"]", 1)
@@ -901,7 +901,7 @@ func (e *engine) selfCalls(f *fileState) {
 		want := sig.Params().At(0).Type()
 		self, msg := e.selfValue(f, sel, selection, want)
 		if msg != "" {
-			e.errs.add(f.nodePos(sel.Sel.Pos()), "%s", msg)
+			e.errs.add("E0119", f.nodePos(sel.Sel.Pos()), "%s", msg)
 			return true
 		}
 		if len(call.Args) > 0 {
@@ -1140,10 +1140,10 @@ func (e *engine) staticCycles() {
 		path = append([]string{name(obj)}, path...)
 		reported[obj] = true
 		if len(path) == 2 {
-			e.errs.add(declFile[obj].at(s.nameOff), "static %s is initialized with itself", path[0])
+			e.errs.add("E0118", declFile[obj].at(s.nameOff), "static %s is initialized with itself", path[0])
 			continue
 		}
-		e.errs.add(declFile[obj].at(s.nameOff), "initialization cycle: static %s depends on itself: %s", path[0], strings.Join(path, " → "))
+		e.errs.add("E0118", declFile[obj].at(s.nameOff), "initialization cycle: static %s depends on itself: %s", path[0], strings.Join(path, " → "))
 	}
 }
 

@@ -79,7 +79,7 @@ func (e *engine) embedFiles(f *fileState) bool {
 		p, _ := strconv.Unquote(lit.Value)
 		l, msg := e.resolveFile(p)
 		if msg != "" {
-			e.errs.add(f.at(src), "%s", msg)
+			e.errs.add("E0126", f.at(src), "%s", msg)
 			return true
 		}
 		l.off, l.end = src, src+len(lit.Value)

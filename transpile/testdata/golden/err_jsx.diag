@@ -1,0 +1,41 @@
+error[E0101]: expected </p> to close <p> at line 6, found </div>
+ --> err_jsx.vuka:6:21
+  |
+6 |     return <div><p>text</div>
+  |                        ^
+  |
+  = help: close each element, and put Go expressions in { }
+
+error[E0101]: unclosed <ul>: found } at line 12 (write {"}"} for the text)
+  --> err_jsx.vuka:10:9
+   |
+10 |     return <ul>
+   |            ^^^
+   |
+   = help: close each element, and put Go expressions in { }
+
+error[E0101]: expected } to close the block opened at line 19
+  --> err_jsx.vuka:19:35
+   |
+19 |     return <div>{if ok { <b>yes</b> }</div>
+   |                                      ^
+   |
+   = help: close each element, and put Go expressions in { }
+
+error[E0101]: if in a block's body starts a nested block, and needs a { after its header (write {"if"} for the text)
+  --> err_jsx.vuka:23:29
+   |
+23 |     return <ul>{for range xs { if you like }}</ul>
+   |                                ^^
+   |
+   = help: close each element, and put Go expressions in { }
+
+error[E0101]: expected { after the if header
+  --> err_jsx.vuka:27:15
+   |
+27 |     return <div>{if ok }</div>
+   |                  ^^
+   |
+   = help: close each element, and put Go expressions in { }
+
+For more information about this error, try `vuka explain E0101`.

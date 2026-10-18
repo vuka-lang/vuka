@@ -1,0 +1,9 @@
+error[E0119]: Post.Objects is ambiguous: a field of Post and a static of Model
+  --> err_field_static.vuka:13:11
+   |
+13 |     _ = Post.Objects
+   |              ^^^^^^^
+   |
+   = help: use the form the message gives
+
+For more information about this error, try `vuka explain E0119`.

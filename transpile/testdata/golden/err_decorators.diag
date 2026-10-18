@@ -1,0 +1,18 @@
+error[E0207]: decorators apply to functions, methods and types
+ --> err_decorators.vuka:5:1
+  |
+5 | @wrap
+  | ^^^^^
+  |
+  = help: put it where its type allows (vuka.Targets), or use another attribute
+
+error[E0211]: Box is generic; a type decorator needs a type it can name, so instantiate it in a decorated alias: type IntBox = Box[int]
+  --> err_decorators.vuka:10:1
+   |
+10 | @reg
+   | ^^^^
+   |
+   = help: decorate an instantiation: type IntBox = Box[int]
+
+Some errors have detailed explanations: E0207, E0211.
+For more information about an error, try `vuka explain E0207`.

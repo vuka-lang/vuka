@@ -259,7 +259,7 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			re = &refErrs{hide: map[token.Position]bool{}}
 			e.refErrs[f] = re
 		}
-		re.errs = append(re.errs, &Error{Pos: f.nodePos(pos), Msg: fmt.Sprintf(format, args...)})
+		re.errs = append(re.errs, &Error{Pos: f.nodePos(pos), Msg: fmt.Sprintf(format, args...), Code: "E0109"})
 		ast.Inspect(sel, func(n ast.Node) bool { // Go's errors on the same selectors say less
 			if n != nil {
 				re.hide[f.nodePos(n.Pos())] = true

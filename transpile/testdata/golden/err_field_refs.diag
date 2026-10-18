@@ -1,0 +1,33 @@
+error[E0109]: Post has no field Titel; did you mean Title?
+  --> err_field_refs.vuka:18:11
+   |
+18 |     _ = Post.Titel
+   |              ^^^^^
+   |
+   = help: name a field the type has (the message suggests the nearest)
+
+error[E0109]: Post.Title is a string; it has no field Size
+  --> err_field_refs.vuka:19:17
+   |
+19 |     _ = Post.Title.Size
+   |                    ^^^^
+   |
+   = help: name a field the type has (the message suggests the nearest)
+
+error[E0109]: Both.Name is ambiguous: more than one embedded struct has a field Name
+  --> err_field_refs.vuka:20:11
+   |
+20 |     _ = Both.Name
+   |              ^^^^
+   |
+   = help: name a field the type has (the message suggests the nearest)
+
+error[E0109]: time.Time.wall is unexported; another package's code can't refer to it
+  --> err_field_refs.vuka:21:16
+   |
+21 |     _ = time.Time.wall
+   |                   ^^^^
+   |
+   = help: name a field the type has (the message suggests the nearest)
+
+For more information about this error, try `vuka explain E0109`.

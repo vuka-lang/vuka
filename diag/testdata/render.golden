@@ -1,0 +1,48 @@
+error[E0324]: ApplicantDetail.CV is deferred, and the group "profile" has no loader
+ --> modules/applicants/detail.vuka:5:2
+  |
+5 |     CV   *CV `defer:"profile"`
+  |     ^^ the group "profile" needs a loader
+  |
+  = help: add a method
+          func (p *ApplicantDetail) LoadProfile(ctx context.Context) error
+
+error[E0401]: GET /applicants/{id} is declared twice
+ --> modules/applicants/detail.vuka:8:1
+  |
+8 | @web.Get("/applicants/{id}")
+  | ^^^^^^^^
+ ::: admin.vuka:30: and here
+  |
+  = help: give one of them another path or method
+
+warning[W0301]: ApplicantDetail embeds ui.Live: route it with @web.Live
+ --> modules/applicants/detail.vuka:8:1
+  |
+8 | @web.Get("/applicants/{id}")
+  | ^^^^^^^^
+  |
+  = help: did you mean @web.Live?
+
+error[E0415]: environment variable DATABASE_URL is not set
+
+Some errors have detailed explanations: E0324, E0401, E0415, W0301.
+For more information about an error, try `vuka explain E0324`.
+---- no frame
+error[E0324]: ApplicantDetail.CV is deferred, and the group "profile" has no loader
+ --> modules/applicants/detail.vuka:5:2
+  = the group "profile" needs a loader
+  = help: add a method
+          func (p *ApplicantDetail) LoadProfile(ctx context.Context) error
+  = note: vuka explain E0324 (https://vuka-lang.github.io/vuka/errors/E0324)
+error[E0401]: GET /applicants/{id} is declared twice
+ --> modules/applicants/detail.vuka:8:1
+ ::: admin.vuka:30: and here
+  = help: give one of them another path or method
+  = note: vuka explain E0401 (https://vuka-lang.github.io/vuka/errors/E0401)
+warning[W0301]: ApplicantDetail embeds ui.Live: route it with @web.Live
+ --> modules/applicants/detail.vuka:8:1
+  = help: did you mean @web.Live?
+  = note: vuka explain W0301 (https://vuka-lang.github.io/vuka/errors/W0301)
+error[E0415]: environment variable DATABASE_URL is not set
+  = note: vuka explain E0415 (https://vuka-lang.github.io/vuka/errors/E0415)

@@ -1,0 +1,34 @@
+error[E0002]: cannot use User.Age (value of struct type vuka.OrderedRef[User, int]) as int value in variable declaration
+  --> err_ref_message.vuka:11:14
+   |
+11 |     var q int = User.Age
+   |                 ^^^^^^^^
+   |
+   = help: fix the expression as the Go type checker describes it
+
+error[E0002]: invalid operation: User.Name + 1 (mismatched types vuka.StringRef[User, string] and untyped int)
+  --> err_ref_message.vuka:12:6
+   |
+12 |     _ = User.Name + 1
+   |         ^^^^^^^^^
+   |
+   = help: fix the expression as the Go type checker describes it
+
+error[E0002]: invalid operation: User.Limit + "" (mismatched types int and untyped string)
+  --> err_ref_message.vuka:13:6
+   |
+13 |     _ = User.Limit + ""
+   |         ^^^^^^^^^^
+   |
+   = help: fix the expression as the Go type checker describes it
+
+error[E0122]: can't infer the type of None here; write None[T]()
+  --> err_ref_message.vuka:14:7
+   |
+14 |     x := None
+   |          ^^^^
+   |
+   = help: write the type argument: None[T](), Err[T](…)
+
+Some errors have detailed explanations: E0002, E0122.
+For more information about an error, try `vuka explain E0002`.

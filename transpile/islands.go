@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
 // UI islands (Phase 1). A <ui.Island> wrapper is lowered to a ui.MountIsland
@@ -54,7 +56,7 @@ func emitName(attr string) string {
 // strategy, slot and fallback for the MountIsland call the writer emits. The
 // body and template tags are marked consumed so they are not emitted on their
 // own.
-func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, ...any)) {
+func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(diag.Code, int, string, ...any)) {
 	el := c.el
 	node := e.nodeType(c.target)
 	if node == nil {
@@ -70,7 +72,7 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 			if t, ok := k.(*jsxText); ok && strings.TrimSpace(t.val) == "" {
 				continue
 			}
-			fail(el.start, "<%s> may contain only <ui.Template> tags and one island component", el.tag)
+			fail("E0306", el.start, "<%s> may contain only <ui.Template> tags and one island component", el.tag)
 			return
 		}
 		name := ""
@@ -81,26 +83,26 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 		case name == "Template":
 			templates = append(templates, ce)
 		case name == "Island":
-			fail(ce.start, "<%s> can't nest inside another <%s>", ce.tag, el.tag)
+			fail("E0306", ce.start, "<%s> can't nest inside another <%s>", ce.tag, el.tag)
 			return
 		case body != nil:
-			fail(ce.start, "<%s> takes one island component as its body; it already has <%s>", el.tag, body.tag)
+			fail("E0306", ce.start, "<%s> takes one island component as its body; it already has <%s>", el.tag, body.tag)
 			return
 		default:
 			body = ce
 		}
 	}
 	if body == nil {
-		fail(el.start, "<%s> needs one island component as its body", el.tag)
+		fail("E0306", el.start, "<%s> needs one island component as its body", el.tag)
 		return
 	}
 	if body.comp == nil {
-		fail(body.start, "<%s>'s body must be an island component (a type with @ui.Island), not <%s>", el.tag, body.tag)
+		fail("E0306", body.start, "<%s>'s body must be an island component (a type with @ui.Island), not <%s>", el.tag, body.tag)
 		return
 	}
 
 	if body.comp == c {
-		fail(body.start, "internal: island body is its wrapper")
+		fail("E0001", body.start, "internal: island body is its wrapper")
 		return
 	}
 	if !e.bindIsland(f, c, body, fail) {
@@ -113,15 +115,15 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(int, string, 
 				named = "fallback"
 				continue
 			}
-			fail(a.off, "<ui.Template> supports only the boolean fallback slot in this version, not %s", a.name)
+			fail("E0306", a.off, "<ui.Template> supports only the boolean fallback slot in this version, not %s", a.name)
 			return
 		}
 		if named != "fallback" {
-			fail(tm.start, "<ui.Template> needs a slot name; this version supports fallback")
+			fail("E0306", tm.start, "<ui.Template> needs a slot name; this version supports fallback")
 			return
 		}
 		if c.hasFallback {
-			fail(tm.start, "<%s> has more than one fallback template", el.tag)
+			fail("E0306", tm.start, "<%s> has more than one fallback template", el.tag)
 			return
 		}
 		c.fallbackKids, c.hasFallback = tm.kids, true
@@ -418,7 +420,7 @@ func (e *engine) isIslandType(tn *types.TypeName) bool {
 // ui.StateProp, client:* to the strategy, once to Once, on<Emit> to Emit.
 // It reports false when the tag is decided another way: failed, or
 // waiting for types (c.fail).
-func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(int, string, ...any)) bool {
+func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(diag.Code, int, string, ...any)) bool {
 	node := e.nodeType(c.target)
 	c.islandEmits, c.islandFuncs, c.islandStates, c.islandOnce, c.strat, c.islandStrat, c.args = nil, nil, nil, false, nil, "", nil
 	c.islandFuncTyp, c.islandStateTyp = nil, nil
@@ -429,7 +431,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 	}
 	tn, ok := e.info.Uses[compIdent(bodyExpr)].(*types.TypeName)
 	if !ok {
-		fail(body.start, "<%s> isn't an island component: an island body is a struct type with @ui.Island", body.tag)
+		fail("E0307", body.start, "<%s> isn't an island component: an island body is a struct type with @ui.Island", body.tag)
 		return false
 	}
 	t := tn.Type()
@@ -438,7 +440,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 	}
 	st, ok := t.Underlying().(*types.Struct)
 	if !ok {
-		fail(body.start, "<%s> isn't an island component: %s isn't a struct", body.tag, e.display(t))
+		fail("E0307", body.start, "<%s> isn't an island component: %s isn't a struct", body.tag, e.display(t))
 		return false
 	}
 	fields := e.propFields(c.target, st, true)
@@ -463,7 +465,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 			continue
 		case strings.HasPrefix(a.name, "client:") || strings.HasPrefix(a.name, "server:"):
 			if c.strat != nil {
-				fail(a.off, "<%s> has more than one hydration directive", body.tag)
+				fail("E0308", a.off, "<%s> has more than one hydration directive", body.tag)
 				return false
 			}
 			c.strat = a
@@ -485,7 +487,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 		prop := jsonName(st, fl)
 		if sig, ok := fl.typ.Underlying().(*types.Signature); ok {
 			if a.kind != 'e' {
-				fail(a.off, "<%s>'s %s takes a function: a live view method or JS commands", body.tag, a.name)
+				fail("E0309", a.off, "<%s>'s %s takes a function: a live view method or JS commands", body.tag, a.name)
 				return false
 			}
 			ht, _, ok := typeOf(a)
@@ -496,7 +498,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 				continue
 			}
 			if msg := e.callbackProblem(c.target, sig, ht); msg != "" {
-				fail(a.off, "<%s>'s %s %s", body.tag, a.name, msg)
+				fail("E0309", a.off, "<%s>'s %s %s", body.tag, a.name, msg)
 				return false
 			}
 			c.islandFuncs = append(c.islandFuncs, islandProp{prop, a})
@@ -515,7 +517,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 			if elem, ok := stateOf(at); ok {
 				if _, toState := stateOf(fl.typ); !toState {
 					if !types.AssignableTo(elem, want) {
-						fail(a.off, "%s is a ui.State[%s], and <%s>'s %s takes %s", e.nodeText(f, x), e.display(elem), body.tag, a.name, e.display(want))
+						fail("E0309", a.off, "%s is a ui.State[%s], and <%s>'s %s takes %s", e.nodeText(f, x), e.display(elem), body.tag, a.name, e.display(want))
 						return false
 					}
 					c.islandStates = append(c.islandStates, islandProp{prop, a})
@@ -524,7 +526,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 				}
 			} else if e.readsState(x) {
 				if !types.AssignableTo(types.Default(at), want) {
-					fail(a.off, "%s reads a ui.State of %s, and <%s>'s %s takes %s", e.nodeText(f, x), e.display(types.Default(at)), body.tag, a.name, e.display(want))
+					fail("E0309", a.off, "%s reads a ui.State of %s, and <%s>'s %s takes %s", e.nodeText(f, x), e.display(types.Default(at)), body.tag, a.name, e.display(want))
 					return false
 				}
 				bd := &binder{e: e, f: f, b: &stateBind{}, deps: map[string]int{}}
@@ -533,7 +535,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 				} else {
 					b, err := e.lowerState(f, x)
 					if err != nil {
-						fail(err.off, "%s", err.msg)
+						fail("E0124", err.off, "%s", err.msg)
 						return false
 					}
 					b.call = "NewDerived"
@@ -558,7 +560,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 		case "client:media":
 			c.islandStrat = "Media"
 			if strat.kind == 'b' {
-				fail(strat.off, "client:media needs a query, e.g. client:media={\"(max-width: 600px)\"}")
+				fail("E0308", strat.off, "client:media needs a query, e.g. client:media={\"(max-width: 600px)\"}")
 				return false
 			}
 		case "client:only":
@@ -566,7 +568,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 		case "server:defer":
 			c.islandStrat = "SSR"
 		default:
-			fail(strat.off, "unknown hydration directive %s", strat.name)
+			fail("E0308", strat.off, "unknown hydration directive %s", strat.name)
 			return false
 		}
 	}
@@ -577,7 +579,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 	bodyNoKids.kids = nil
 	trial := &jsxComp{el: &bodyNoKids, target: c.target}
 	if _, off, msg := e.bindFields(trial, st, attrs, node, true); msg != "" {
-		fail(off, "%s", msg)
+		fail("E0309", off, "%s", msg)
 		return false
 	}
 	c.args = trial.args
@@ -611,7 +613,7 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(i
 			}
 		}
 		if msg := e.enumProblem(f, a, typ); msg != "" {
-			fail(a.attr.off, "<%s>'s %s %s", body.tag, a.attr.name, msg)
+			fail("E0309", a.attr.off, "<%s>'s %s %s", body.tag, a.attr.name, msg)
 			return false
 		}
 		if a.conv != "" {

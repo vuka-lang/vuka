@@ -25,7 +25,7 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	})
 	fail := func(msg string) {
 		t.dead = true
-		e.errs.add(f.at(t.off), "%s", msg)
+		e.errs.add("E0110", f.at(t.off), "%s", msg)
 	}
 	if stmt == nil {
 		fail("? must end a statement: x := f()?, return f()?, or f()?")

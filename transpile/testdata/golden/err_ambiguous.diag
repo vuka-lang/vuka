@@ -1,0 +1,11 @@
+error[E0121]: call of g with (untyped int) is ambiguous
+ --> err_ambiguous.vuka:7:2
+  |
+7 |     g(1)
+  |     ^
+  |
+  = note: (x int32) at err_ambiguous.vuka:3:6
+          (x int64) at err_ambiguous.vuka:4:6
+  = help: convert an argument so exactly one overload fits
+
+For more information about this error, try `vuka explain E0121`.

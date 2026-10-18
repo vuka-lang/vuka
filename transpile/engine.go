@@ -7,6 +7,8 @@ import (
 	"maps"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
 // runtimeNames are the names Vuka code uses unqualified for the runtime package.
@@ -150,7 +152,7 @@ func (e *engine) parseAll(first bool) bool {
 		}
 		if !f.parse(e.fset, e.errs) {
 			if !first && f.vuka {
-				e.errs.add(f.at(0), "vuka produced Go that doesn't parse; please report this")
+				e.errs.add("E0001", f.at(0), "vuka produced Go that doesn't parse; please report this")
 			}
 			return false
 		}
@@ -209,7 +211,7 @@ func (e *engine) prepare() {
 		for _, d := range f.ast.Decls {
 			if fd, ok := d.(*ast.FuncDecl); ok {
 				if s := e.sets[declKey(fd)]; s != nil {
-					e.errs.add(e.fset.Position(fd.Name.Pos()), "%s is overloaded in Vuka source; a .go file can't declare it too", s.display())
+					e.errs.add("E0120", e.fset.Position(fd.Name.Pos()), "%s is overloaded in Vuka source; a .go file can't declare it too", s.display())
 				}
 			}
 		}
@@ -352,27 +354,27 @@ func (e *engine) report() {
 		for _, t := range f.tries {
 			if !t.done && !t.dead {
 				stuck = true
-				e.errs.add(f.at(t.off), "can't lower ?: %s", or(t.fail, "the operand's type is unknown"))
+				e.errs.add("E0110", f.at(t.off), "can't lower ?: %s", or(t.fail, "the operand's type is unknown"))
 			}
 		}
 		for _, m := range f.matches {
 			if !m.done && !m.dead {
 				stuck = true
-				e.errs.add(f.at(m.start), "can't lower match: %s", or(m.fail, "the subject's type is unknown"))
+				e.errs.add("E0112", f.at(m.start), "can't lower match: %s", or(m.fail, "the subject's type is unknown"))
 			}
 		}
 		for _, t := range f.jsx {
 			for _, c := range t.comps {
 				if !t.done && !c.resolved && !c.dead {
 					stuck = true
-					e.errs.add(f.at(c.el.start), "can't lower <%s>: %s", c.el.tag, or(c.fail, "its type is unknown"))
+					e.errs.add("E0105", f.at(c.el.start), "can't lower <%s>: %s", c.el.tag, or(c.fail, "its type is unknown"))
 				}
 			}
 		}
 		for _, s := range f.statics {
 			if s.infer {
 				stuck = true
-				e.errs.add(f.at(s.nameOff), "can't infer the type of static %s.%s; write it: static %s T = …", s.typeName, s.name, s.name)
+				e.errs.add("E0117", f.at(s.nameOff), "can't infer the type of static %s.%s; write it: static %s T = …", s.typeName, s.name, s.name)
 			}
 		}
 		if re := e.refErrs[f]; re != nil {
@@ -381,7 +383,7 @@ func (e *engine) report() {
 		}
 		for off, name := range e.pending[f] {
 			stuck = true
-			e.errs.add(f.at(off), "can't infer the type of %s here; write %s[T]%s", name, name, map[bool]string{true: "()", false: "(…)"}[name == "None"])
+			e.errs.add("E0122", f.at(off), "can't infer the type of %s here; write %s[T]%s", name, name, map[bool]string{true: "()", false: "(…)"}[name == "None"])
 		}
 	}
 	if e.unresolvedOverloads() {
@@ -419,7 +421,11 @@ func (e *engine) report() {
 			m := SourceMap{spellings: f.spellings}
 			msg = m.Message(pos.Line, msg)
 		}
-		e.errs.add(pos, "%s", msg)
+		code := diag.Code("E0002")
+		if broken || strings.Contains(msg, "doesn't compile") {
+			code = "E0005"
+		}
+		e.errs.add(code, pos, "%s", msg)
 		shown++
 	}
 }
@@ -460,7 +466,7 @@ func (e *engine) oldRuntime() bool {
 		if !ok {
 			continue
 		}
-		e.errs.add(e.typeErrPos(te), "this module requires a Vuka runtime without %s.%s; update it: go get %s@%s",
+		e.errs.add("E0004", e.typeErrPos(te), "this module requires a Vuka runtime without %s.%s; update it: go get %s@%s",
 			f.rt, name, RuntimePath, RuntimeVersion)
 		return true
 	}

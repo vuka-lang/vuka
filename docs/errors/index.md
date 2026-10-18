@@ -1,0 +1,136 @@
+# Errors
+
+Every diagnostic the vuka toolchain reports has a stable code: the
+compiler, `vuka vet`, the editor and the libraries' checks at boot. `E` is
+an error and `W` a warning; the first two digits name the area. Each page
+says what is wrong, why, and shows the fix. `vuka explain E0201` prints the
+same page in the terminal.
+
+## The compiler
+
+| Code | |
+|---|---|
+| [E0001](./E0001) | Internal compiler error |
+| [E0002](./E0002) | Type error |
+| [E0003](./E0003) | Syntax error |
+| [E0004](./E0004) | The Vuka runtime is too old |
+| [E0005](./E0005) | A dependency doesn't compile |
+| [E0006](./E0006) | A .templ file doesn't compile |
+
+## Syntax, JSX and the language
+
+| Code | |
+|---|---|
+| [E0101](./E0101) | JSX syntax error |
+| [E0102](./E0102) | JSX needs a target |
+| [E0103](./E0103) | Two JSX targets |
+| [E0104](./E0104) | The JSX target can't be used |
+| [E0105](./E0105) | Can't lower a JSX element |
+| [E0106](./E0106) | A component's attributes don't fit |
+| [E0107](./E0107) | An event handler doesn't fit |
+| [E0108](./E0108) | No such ref or attribute value |
+| [E0109](./E0109) | A field reference names no field |
+| [E0110](./E0110) | Misplaced ? |
+| [E0111](./E0111) | Malformed match |
+| [E0112](./E0112) | A pattern doesn't fit its subject |
+| [E0113](./E0113) | match isn't exhaustive |
+| [E0114](./E0114) | Unreachable case |
+| [E0115](./E0115) | Malformed enum |
+| [E0116](./E0116) | Malformed static |
+| [E0117](./E0117) | Can't infer a static's type |
+| [E0118](./E0118) | Static initialization cycle |
+| [E0119](./E0119) | A static or field can't be used this way |
+| [E0120](./E0120) | Conflicting overloads |
+| [E0121](./E0121) | Ambiguous or unresolvable overload |
+| [E0122](./E0122) | Can't infer a type argument |
+| [E0124](./E0124) | Code that can't run in the browser |
+| [E0125](./E0125) | ui.State used with the wrong type |
+| [E0126](./E0126) | Bad vuka.File |
+
+## Decorators and attributes
+
+| Code | |
+|---|---|
+| [E0201](./E0201) | Malformed attribute |
+| [E0202](./E0202) | Attribute in the wrong place |
+| [E0203](./E0203) | An attribute must start its own line |
+| [E0204](./E0204) | Attribute without a declaration |
+| [E0205](./E0205) | Bad parameter attribute |
+| [E0206](./E0206) | Bad field attribute |
+| [E0207](./E0207) | Attribute on the wrong kind of declaration |
+| [E0208](./E0208) | Malformed decorator declaration |
+| [E0209](./E0209) | A decorator composes itself |
+| [E0210](./E0210) | A typed decorator in a composition |
+| [E0211](./E0211) | Type decorator on a generic type |
+| [E0212](./E0212) | Decorated init |
+| [E0213](./E0213) | A declarer can't take this declaration |
+| [E0214](./E0214) | Bad @export |
+
+## Islands and live pages
+
+| Code | |
+|---|---|
+| [E0301](./E0301) | Malformed island import |
+| [E0302](./E0302) | Island imported twice |
+| [E0303](./E0303) | Can't read an island component |
+| [E0304](./E0304) | Can't read an island's props |
+| [E0305](./E0305) | The JSX target can't import islands |
+| [E0306](./E0306) | Malformed <ui.Island> |
+| [E0307](./E0307) | Not an island component |
+| [E0308](./E0308) | Bad hydration directive |
+| [E0309](./E0309) | An island's attributes don't fit |
+| [E0310](./E0310) | Island component not found |
+| [E0311](./E0311) | Island component is ambiguous |
+| [E0312](./E0312) | Two islands share a name |
+| [E0320](./E0320) | Bad @ui.Island arguments |
+| [E0321](./E0321) | Bad ui.Layout |
+| [E0322](./E0322) | Bad bind: tag |
+| [E0323](./E0323) | Bad defer: tag |
+| [E0324](./E0324) | A deferred field has no loader |
+| [E0325](./E0325) | A loader has the wrong signature |
+| [E0326](./E0326) | Two handles share a name |
+| [E0327](./E0327) | Changed has the wrong signature |
+| [E0328](./E0328) | Bad validate: tag |
+| [E0329](./E0329) | Bad ui.Live embedding or Mount |
+| [E0330](./E0330) | An island page under @web.Live isn't live |
+| [E0331](./E0331) | A page backed by a component isn't a GET |
+| [E0332](./E0332) | @web.Get on a type without @ui.Island |
+| [E0333](./E0333) | An island page's Mount has the wrong signature |
+| [E0334](./E0334) | Two Update methods take URL parameters |
+| [W0301](./W0301) | A live page routed as a stateless one |
+
+## Routes and the web app
+
+| Code | |
+|---|---|
+| [E0401](./E0401) | A route is declared twice |
+| [E0402](./E0402) | A frontend serves a route a handler serves |
+| [E0403](./E0403) | A handler isn't a function |
+| [E0404](./E0404) | A route's attribute needs what the app doesn't have |
+| [E0405](./E0405) | A handler parameter can't be bound |
+| [E0406](./E0406) | A handler returns what the app can't write |
+| [E0407](./E0407) | No provider for a dependency |
+| [E0408](./E0408) | A type is provided twice |
+| [E0409](./E0409) | A dependency cycle |
+| [E0410](./E0410) | A constructor has the wrong shape |
+| [E0411](./E0411) | A cron is wrong |
+| [E0412](./E0412) | A cron is declared twice |
+| [E0413](./E0413) | Bad TrustedProxies entry |
+| [E0414](./E0414) | Implementation[T] finds no one type |
+| [E0415](./E0415) | An environment variable is missing or invalid |
+| [E0416](./E0416) | A .env file doesn't parse |
+| [E0417](./E0417) | A view doesn't fit its template |
+| [E0418](./E0418) | @web.Service or @web.Controller on a non-struct |
+
+## Frontend and toolchain
+
+| Code | |
+|---|---|
+| [E0601](./E0601) | The frontend isn't built |
+| [E0602](./E0602) | Node.js or the package manager isn't installed |
+| [E0603](./E0603) | A frontend dependency is missing |
+| [E0604](./E0604) | An asset declaration can't be read |
+| [E0605](./E0605) | An asset file isn't there |
+| [E0606](./E0606) | Two pages share an asset scope |
+| [E0607](./E0607) | vite.config doesn't use the vuka plugin |
+| [E0608](./E0608) | TypeScript 7 can't build Vue islands |

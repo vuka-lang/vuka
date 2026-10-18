@@ -104,7 +104,7 @@ func (e *engine) islandImports(f *fileState, errs *ErrorList) {
 			end := toks[j].end()
 			f.add(start, end, "")
 			if nameTok < 0 || toks[nameTok].tok != token.IDENT || toks[nameTok].lit == "_" {
-				errs.add(f.at(toks[j].off), "an island import names its component: import Counter %s", toks[j].lit)
+				errs.add("E0301", f.at(toks[j].off), "an island import names its component: import Counter %s", toks[j].lit)
 				return j
 			}
 			e.islandImport(f, toks, &islandImport{name: toks[nameTok].lit, path: p, off: toks[j].off, start: start, end: end}, errs)
@@ -130,7 +130,7 @@ func (e *engine) islandImport(f *fileState, toks []tok, im *islandImport, errs *
 	}
 	if prev := e.islands[im.name]; prev != nil {
 		if prev.path != im.path {
-			errs.add(f.at(im.off), "island %s is imported from %s and from %s", im.name, prev.path, im.path)
+			errs.add("E0302", f.at(im.off), "island %s is imported from %s and from %s", im.name, prev.path, im.path)
 		}
 		return
 	}
@@ -140,18 +140,18 @@ func (e *engine) islandImport(f *fileState, toks []tok, im *islandImport, errs *
 		return // the @ui.Island struct is the contract
 	}
 	if e.dir == "" {
-		errs.add(f.at(im.off), "can't read %s: the package's directory is unknown", im.path)
+		errs.add("E0303", f.at(im.off), "can't read %s: the package's directory is unknown", im.path)
 		return
 	}
 	file := filepath.Join(e.dir, filepath.FromSlash(im.path))
 	src, err := readFileFn(file)
 	if err != nil {
-		errs.add(f.at(im.off), "can't read island component %s: %v", im.path, err)
+		errs.add("E0303", f.at(im.off), "can't read island component %s: %v", im.path, err)
 		return
 	}
 	comp, err := tsprops.Read(filepath.ToSlash(file), src, func(p string) ([]byte, error) { return readFileFn(filepath.FromSlash(p)) })
 	if err != nil {
-		errs.add(f.at(im.off), "%s:%s; or declare the island's props with an @ui.Island struct", im.path, strings.TrimPrefix(":"+err.Error(), ":"))
+		errs.add("E0304", f.at(im.off), "%s:%s; or declare the island's props with an @ui.Island struct", im.path, strings.TrimPrefix(":"+err.Error(), ":"))
 		return
 	}
 	im.comp = comp
@@ -160,13 +160,13 @@ func (e *engine) islandImport(f *fileState, toks []tok, im *islandImport, errs *
 		return
 	}
 	if !tg.has("RegisterIsland") {
-		errs.add(f.at(im.off), "%s has no RegisterIsland: update it to import island components", tg.path)
+		errs.add("E0305", f.at(im.off), "%s has no RegisterIsland: update it to import island components", tg.path)
 		return
 	}
 	g := &islandGen{island: im.name, q: tg.q, names: map[string]bool{im.name: true}, enums: map[string][]string{}, file: im.path}
 	text, msgs := g.decls(comp)
 	for _, m := range msgs {
-		errs.add(f.at(im.off), "%s; declare the island's props with an @ui.Island struct", m)
+		errs.add("E0304", f.at(im.off), "%s; declare the island's props with an @ui.Island struct", m)
 	}
 	if len(msgs) > 0 {
 		return

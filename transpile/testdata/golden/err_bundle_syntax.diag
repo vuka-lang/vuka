@@ -1,0 +1,33 @@
+error[E0208]: @doc is for declarations; it can't be composed into a decorator
+ --> err_bundle_syntax.vuka:3:1
+  |
+3 | decorator A = @doc("x")
+  | ^^^^^^^^^
+  |
+  = help: write decorator name(c) { … } or decorator Name = @a @b
+
+error[E0208]: a composed decorator is attributes and decorators, each starting with @: decorator B = @logged @timed
+ --> err_bundle_syntax.vuka:5:1
+  |
+5 | decorator B =
+  | ^^^^^^^^^
+  |
+  = help: write decorator name(c) { … } or decorator Name = @a @b
+
+error[E0208]: a composed decorator is attributes and decorators, each starting with @: decorator C = @logged @timed
+ --> err_bundle_syntax.vuka:7:1
+  |
+7 | decorator C = logged
+  | ^^^^^^^^^
+  |
+  = help: write decorator name(c) { … } or decorator Name = @a @b
+
+error[E0208]: unclosed ( in decorator D
+ --> err_bundle_syntax.vuka:9:1
+  |
+9 | decorator D = (
+  | ^^^^^^^^^
+  |
+  = help: write decorator name(c) { … } or decorator Name = @a @b
+
+For more information about this error, try `vuka explain E0208`.

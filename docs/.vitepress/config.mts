@@ -121,7 +121,10 @@ export default defineConfig({
       },
       {
         text: 'Reference',
-        items: [{ text: 'Live protocol', link: '/reference/live-protocol' }],
+        items: [
+          { text: 'Errors', link: '/errors/' },
+          { text: 'Live protocol', link: '/reference/live-protocol' },
+        ],
       },
       {
         text: 'Project',

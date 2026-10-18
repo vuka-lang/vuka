@@ -7,6 +7,8 @@ import (
 	"go/token"
 	"go/types"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
 // lowerMatch rewrites a match statement into an if-else chain. Only the header
@@ -43,9 +45,9 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		return
 	}
 	t := tv.Type
-	fail := func(off int, format string, args ...any) {
+	fail := func(code diag.Code, off int, format string, args ...any) {
 		m.dead = true
-		e.errs.add(f.at(off), format, args...)
+		e.errs.add(code, f.at(off), format, args...)
 	}
 	scope := e.pkg.Scope().Innermost(head.Pos())
 	if scope == nil {
@@ -68,12 +70,12 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		for _, sp := range c.pats {
 			x, err := parser.ParseExpr(string(f.src[sp.start:sp.end]))
 			if err != nil {
-				fail(sp.start, "bad pattern: %v", err)
+				fail("E0112", sp.start, "bad pattern: %v", err)
 				return
 			}
 			cp := &compiled{}
 			if err := pc.compile(cp, x, v, t); err != nil {
-				fail(sp.start, "%v", err)
+				fail("E0112", sp.start, "%v", err)
 				return
 			}
 			alts, spaces = append(alts, cp), append(spaces, pc.space(x, t))
@@ -84,9 +86,9 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		}
 		if !reachable {
 			if catchAll(rows) {
-				fail(c.start, "unreachable case: an earlier case matches everything")
+				fail("E0114", c.start, "unreachable case: an earlier case matches everything")
 			} else {
-				fail(c.start, "unreachable case: earlier cases match everything it does")
+				fail("E0114", c.start, "unreachable case: earlier cases match everything it does")
 			}
 			return
 		}
@@ -102,7 +104,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 			var msg string
 			init, cond, msg = pc.condition(alts[0])
 			if msg != "" {
-				fail(c.start, "%s", msg)
+				fail("E0112", c.start, "%s", msg)
 				return
 			}
 			for _, b := range alts[0].binds {
@@ -112,7 +114,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 			var ors []string
 			for _, a := range alts {
 				if len(a.binds) > 0 {
-					fail(c.start, "patterns separated by commas can't bind variables")
+					fail("E0112", c.start, "patterns separated by commas can't bind variables")
 					return
 				}
 				if !a.complex {
@@ -121,7 +123,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 				}
 				_, cond, msg := pc.condition(a)
 				if msg != "" {
-					fail(c.start, "%s", msg)
+					fail("E0112", c.start, "%s", msg)
 					return
 				}
 				ors = append(ors, "("+cond+")")
@@ -140,7 +142,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		}
 	}
 	if missing := pc.exhaustive(rows, t); missing != "" {
-		fail(m.start, "match on %s isn't exhaustive: %s; add the missing cases or case _:", e.display(t), missing)
+		fail("E0113", m.start, "match on %s isn't exhaustive: %s; add the missing cases or case _:", e.display(t), missing)
 		return
 	}
 

@@ -1,0 +1,50 @@
+error[E0205]: @doc is for declarations; a parameter attribute is a value, such as @Path("id")
+ --> err_param_attrs.vuka:5:8
+  |
+5 | func a(@doc("the id") id int) {}
+  |        ^^^^
+  |
+  = help: write a value attribute before the parameter: func f(@Path("id") id int)
+
+error[E0205]: a parameter attribute goes before its parameter: func f(@Path id int)
+ --> err_param_attrs.vuka:7:11
+  |
+7 | func b(id @Path("id") int) {}
+  |           ^^^^^
+  |
+  = help: write a value attribute before the parameter: func f(@Path("id") id int)
+
+error[E0205]: @Path must be followed by a parameter: func f(@Path id int)
+ --> err_param_attrs.vuka:9:15
+  |
+9 | func c(x int, @Path("id")) {}
+  |               ^^^^^
+  |
+  = help: write a value attribute before the parameter: func f(@Path("id") id int)
+
+error[E0202]: attributes are only allowed before top-level declarations, their parameters, and after struct fields
+  --> err_param_attrs.vuka:11:11
+   |
+11 | func d() (@Path("r") r int) { return 0 }
+   |           ^^^^^
+   |
+   = help: put attributes before top-level declarations, before parameters, or after struct fields
+
+error[E0202]: attributes are only allowed before top-level declarations, their parameters, and after struct fields
+  --> err_param_attrs.vuka:13:7
+   |
+13 | func (@Path("s") s *S) e() {}
+   |       ^^^^^
+   |
+   = help: put attributes before top-level declarations, before parameters, or after struct fields
+
+error[E0202]: attributes are only allowed before top-level declarations, their parameters, and after struct fields
+  --> err_param_attrs.vuka:15:14
+   |
+15 | var f = func(@Path("id") id int) {}
+   |              ^^^^^
+   |
+   = help: put attributes before top-level declarations, before parameters, or after struct fields
+
+Some errors have detailed explanations: E0202, E0205.
+For more information about an error, try `vuka explain E0202`.

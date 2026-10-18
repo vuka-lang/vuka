@@ -1,0 +1,74 @@
+error[E0124]: strings.ToUpper can't run in the browser; compute it on the server
+  --> err_state.vuka:14:13
+   |
+14 |         <p title={strings.ToUpper(tab)} />
+   |                   ^^^^^^^^^^^^^^^
+   |
+   = help: compute it on the server, or read only states and simple operators
+
+error[E0124]: the * operator can't run in the browser; compute it on the server
+  --> err_state.vuka:15:14
+   |
+15 |         <p data-n={n * 2} />
+   |                    ^
+   |
+   = help: compute it on the server, or read only states and simple operators
+
+error[E0125]: Inc needs a ui.State of a number; open is a stateui.State[bool]
+  --> err_state.vuka:16:25
+   |
+16 |         <button onClick={open.Inc()} />
+   |                               ^^^
+   |
+   = help: pass .Get() for the value, or make the prop a ui.State
+
+error[E0125]: Toggle needs a ui.State[bool]; tab is a stateui.State[string]
+  --> err_state.vuka:17:24
+   |
+17 |         <button onClick={tab.Toggle()} />
+   |                              ^^^^^^
+   |
+   = help: pass .Get() for the value, or make the prop a ui.State
+
+error[E0125]: Set: tab is a stateui.State[string]; it takes a string, not int
+  --> err_state.vuka:18:35
+   |
+18 |         <button onClick={ui.JS.Set(tab, 3)} />
+   |                                         ^
+   |
+   = help: pass .Get() for the value, or make the prop a ui.State
+
+error[E0125]: !open reads a ui.State, and <Label>'s text takes bool: pass .Get() for the value it renders with, or make the prop a ui.State
+  --> err_state.vuka:19:10
+   |
+19 |         <Label text={!open} />
+   |                ^^^^
+   |
+   = help: pass .Get() for the value, or make the prop a ui.State
+
+error[E0124]: strings.ToUpper can't run in the browser; compute it on the server
+  --> err_state.vuka:20:11
+   |
+20 |         <Any v={strings.ToUpper(tab)} />
+   |                 ^^^^^^^^^^^^^^^
+   |
+   = help: compute it on the server, or read only states and simple operators
+
+error[E0124]: strings.Repeat can't run in the browser; compute it on the server
+  --> err_state.vuka:21:7
+   |
+21 |         <p>{strings.Repeat(tab, 2)}</p>
+   |             ^^^^^^^^^^^^^^
+   |
+   = help: compute it on the server, or read only states and simple operators
+
+error[E0124]: describe can't run in the browser; compute it on the server
+  --> err_state.vuka:22:11
+   |
+22 |         <Any v={describe(open)} />
+   |                 ^^^^^^^^
+   |
+   = help: compute it on the server, or read only states and simple operators
+
+Some errors have detailed explanations: E0124, E0125.
+For more information about an error, try `vuka explain E0124`.

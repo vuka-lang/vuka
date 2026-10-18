@@ -49,7 +49,7 @@ func (e *engine) infer(f *fileState) {
 		}
 		s, msg := e.typeText(f, arg)
 		if msg != "" {
-			e.errs.add(f.nodePos(sel.Pos()), "%s", msg)
+			e.errs.add("E0122", f.nodePos(sel.Pos()), "%s", msg)
 			return true
 		}
 		text := "[" + s + "]"

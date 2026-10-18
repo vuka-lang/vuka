@@ -1,0 +1,18 @@
+error[E0202]: attributes are only allowed before top-level declarations, their parameters, and after struct fields
+ --> err_attr_place.vuka:4:2
+  |
+4 |     @doc("no")
+  |     ^^^^
+  |
+  = help: put attributes before top-level declarations, before parameters, or after struct fields
+
+error[E0204]: @doc must be followed by a declaration (func, type, var or const)
+ --> err_attr_place.vuka:9:1
+  |
+9 | @doc("dangling")
+  | ^^^^
+  |
+  = help: follow the attribute with func, type, var or const
+
+Some errors have detailed explanations: E0202, E0204.
+For more information about an error, try `vuka explain E0202`.

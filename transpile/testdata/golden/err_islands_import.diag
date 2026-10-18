@@ -1,0 +1,49 @@
+error[E0309]: <Picker> has no attribute titel; did you mean Title?
+  --> err_islands_import.vuka:15:55
+   |
+15 | func (p *page) unknownProp() ui.Node { return <Picker titel="x" days={nil} /> }
+   |                                                       ^^^^^
+   |
+   = help: pass the props the component declares, of their types
+
+error[E0309]: <Picker>'s kind takes "day", "week", not "month"
+  --> err_islands_import.vuka:17:27
+   |
+17 |     return <Picker title="x" kind="month" days={nil} />
+   |                              ^^^^
+   |
+   = help: pass the props the component declares, of their types
+
+error[E0309]: <Picker>'s onSelect passes string to its handler; this handler takes int
+  --> err_islands_import.vuka:20:38
+   |
+20 |     return <Picker title="x" days={nil} onSelect={p.Pick} />
+   |                                         ^^^^^^^^
+   |
+   = help: pass the props the component declares, of their types
+
+error[E0309]: <Picker>'s onSelect calls its handler with one payload, its first argument; this handler takes 2
+  --> err_islands_import.vuka:23:38
+   |
+23 |     return <Picker title="x" days={nil} onSelect={p.Two} />
+   |                                         ^^^^^^^^
+   |
+   = help: pass the props the component declares, of their types
+
+error[E0309]: <Picker>'s onClose takes a function — a live view method or JS commands; this is string
+  --> err_islands_import.vuka:26:38
+   |
+26 |     return <Picker title="x" days={nil} onClose={"no"} />
+   |                                         ^^^^^^^
+   |
+   = help: pass the props the component declares, of their types
+
+error[E0309]: n is a ui.State[int], and <Picker>'s open takes bool
+  --> err_islands_import.vuka:30:38
+   |
+30 |     return <Picker title="x" days={nil} open={n} />
+   |                                         ^^^^
+   |
+   = help: pass the props the component declares, of their types
+
+For more information about this error, try `vuka explain E0309`.

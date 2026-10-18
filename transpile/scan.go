@@ -158,7 +158,7 @@ func (f *fileState) scan(errs *ErrorList) {
 			fr := top()
 			sd, last, msg := f.staticAt(toks, i, fr.structOf, fr.tparams, fr.names)
 			if msg != "" {
-				errs.add(f.at(t.off), "%s", msg)
+				errs.add("E0116", f.at(t.off), "%s", msg)
 				continue
 			}
 			f.statics = append(f.statics, sd)
@@ -176,7 +176,7 @@ func (f *fileState) scan(errs *ErrorList) {
 		case t.tok == token.IDENT && t.lit == "enum" && depth == 0 && p.tok == token.SEMICOLON && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
 			d, last, msg := f.enumAt(toks, i)
 			if msg != "" {
-				errs.add(f.at(toks[last].off), "%s", msg)
+				errs.add("E0115", f.at(toks[last].off), "%s", msg)
 				if end, _, ok := matchClose(toks, i); ok && end > i {
 					i = end - 1
 				}
@@ -192,7 +192,7 @@ func (f *fileState) scan(errs *ErrorList) {
 		case t.tok == token.IDENT && t.lit == "decorator" && depth == 0 && i+1 < len(toks) && toks[i+1].tok == token.IDENT:
 			next, msg := f.decoratorAt(toks, i)
 			if msg != "" {
-				errs.add(f.at(t.off), "%s", msg)
+				errs.add("E0208", f.at(t.off), "%s", msg)
 			}
 			if next > i+1 {
 				i = min(next, len(toks)) - 1
@@ -233,7 +233,7 @@ func (f *fileState) scan(errs *ErrorList) {
 
 		a, next, msg := f.parseAttr(toks, i)
 		if msg != "" {
-			errs.add(f.at(t.off), "%s", msg)
+			errs.add("E0201", f.at(t.off), "%s", msg)
 			i = next - 1
 			continue
 		}
@@ -241,14 +241,14 @@ func (f *fileState) scan(errs *ErrorList) {
 		case depth > 0 && fr.structBody:
 			topLevel := len(frames) == 1 || len(frames) == 2 && frames[0].typeGroup
 			if msg := f.fieldAttr(toks, a, p, next, fr.structOf, fr.tparams, topLevel); msg != "" {
-				errs.add(a.Pos, "%s", msg)
+				errs.add("E0206", a.Pos, "%s", msg)
 			}
 			i = next - 1
 			prev = toks[i]
 			continue
 		case depth == 1 && fr.params:
 			if msg := f.paramAttr(a, p, paramAttrEnd); msg != "" {
-				errs.add(a.Pos, "%s", msg)
+				errs.add("E0205", a.Pos, "%s", msg)
 			}
 			paramAttrEnd = a.end
 			pendingParams = append(pendingParams, a)
@@ -266,7 +266,7 @@ func (f *fileState) scan(errs *ErrorList) {
 				pendingParams = nil
 			default:
 				for _, pa := range pendingParams {
-					errs.add(pa.Pos, "@%s must be followed by a parameter: func f(@%s id int)", pa.Name, pa.Name)
+					errs.add("E0205", pa.Pos, "@%s must be followed by a parameter: func f(@%s id int)", pa.Name, pa.Name)
 				}
 				pendingParams = nil
 			}
@@ -274,11 +274,11 @@ func (f *fileState) scan(errs *ErrorList) {
 			prev = toks[i]
 			continue
 		case depth > 0:
-			errs.add(a.Pos, "attributes are only allowed before top-level declarations, their parameters, and after struct fields")
+			errs.add("E0202", a.Pos, "attributes are only allowed before top-level declarations, their parameters, and after struct fields")
 			i = next - 1
 			continue
 		case !startsLine(f.src, a.start, lastEnd):
-			errs.add(a.Pos, "an attribute must start its own line")
+			errs.add("E0203", a.Pos, "an attribute must start its own line")
 		}
 		lastEnd = a.end
 		pending = append(pending, a)
@@ -297,7 +297,7 @@ func (f *fileState) scan(errs *ErrorList) {
 			pending = nil
 		default:
 			for _, p := range pending {
-				errs.add(p.Pos, "@%s must be followed by a declaration (func, type, var or const)", p.Name)
+				errs.add("E0204", p.Pos, "@%s must be followed by a declaration (func, type, var or const)", p.Name)
 			}
 			pending = nil
 		}
@@ -311,7 +311,7 @@ func (f *fileState) bodyConstruct(toks []tok, i int, p tok, depth int, errs *Err
 	switch t := toks[i]; {
 	case isQuestion(t):
 		if p.end() != t.off || p.tok == token.SEMICOLON {
-			errs.add(f.at(t.off), "unexpected ?: it goes right after the expression it unwraps, as in f()?")
+			errs.add("E0110", f.at(t.off), "unexpected ?: it goes right after the expression it unwraps, as in f()?")
 			return true
 		}
 		f.tries = append(f.tries, &try{off: t.off, n: len(f.tries) + 1})
@@ -321,7 +321,7 @@ func (f *fileState) bodyConstruct(toks []tok, i int, p tok, depth int, errs *Err
 			m.n = len(f.matches) + 1
 			f.matches = append(f.matches, m)
 		} else if msg != "" {
-			errs.add(f.at(t.off), "%s", msg)
+			errs.add("E0111", f.at(t.off), "%s", msg)
 		}
 		return true
 	}
@@ -341,7 +341,7 @@ func (f *fileState) scanJSXGo(toks []tok, errs *ErrorList) {
 		case isClose(t.tok):
 			depth--
 		case isAt(t):
-			errs.add(f.at(t.off), "attributes are only allowed before top-level declarations")
+			errs.add("E0202", f.at(t.off), "attributes are only allowed before top-level declarations")
 		default:
 			f.bodyConstruct(toks, i, p, depth, errs)
 		}

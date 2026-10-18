@@ -166,9 +166,9 @@ func (e *engine) decorate() bool {
 			}
 			if a.Param {
 				if a.decl == nil {
-					e.errs.add(a.Pos, "@%s must be followed by a parameter of a top-level function", a.Name)
+					e.errs.add("E0205", a.Pos, "@%s must be followed by a parameter of a top-level function", a.Name)
 				} else if a.bare && !e.namesType(f, a.Name) {
-					e.errs.add(a.Pos, "@%s is a function, not a value; a parameter attribute is a value, such as @Body or @Path(\"id\")", a.Name)
+					e.errs.add("E0205", a.Pos, "@%s is a function, not a value; a parameter attribute is a value, such as @Body or @Path(\"id\")", a.Name)
 				}
 				continue
 			}
@@ -183,7 +183,7 @@ func (e *engine) decorate() bool {
 				continue
 			}
 			if a.decl == nil {
-				e.errs.add(a.Pos, "@%s isn't attached to a declaration", a.Name)
+				e.errs.add("E0204", a.Pos, "@%s isn't attached to a declaration", a.Name)
 				continue
 			}
 			if groups[a.decl] == nil {
@@ -200,7 +200,7 @@ func (e *engine) decorate() bool {
 				if d.Tok == token.TYPE {
 					e.decorateType(f, d, groups[d])
 				} else {
-					e.errs.add(groups[d][0].Pos, "decorators apply to functions, methods and types")
+					e.errs.add("E0207", groups[d][0].Pos, "decorators apply to functions, methods and types")
 				}
 			}
 		}
@@ -448,7 +448,7 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 	for _, spec := range gd.Specs {
 		ts := spec.(*ast.TypeSpec)
 		if ts.TypeParams != nil {
-			e.errs.add(attrs[0].Pos, "%s is generic; a type decorator needs a type it can name, so instantiate it in a decorated alias: type IntBox = Box[int]", ts.Name.Name)
+			e.errs.add("E0211", attrs[0].Pos, "%s is generic; a type decorator needs a type it can name, so instantiate it in a decorated alias: type IntBox = Box[int]", ts.Name.Name)
 			continue
 		}
 		d := &typeDeco{uses: uses(attrs), nameOff: f.orig(ts.Name.Pos()),
@@ -511,7 +511,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		w.gen("func init() {\n\t", d.nameOff)
 		for _, u := range d.uses {
 			if u.kind == decoCall || u.kind == decoBundle {
-				e.errs.add(u.a.Pos, "init takes no arguments and returns nothing; decorate it with a func(func()) func()")
+				e.errs.add("E0212", u.a.Pos, "init takes no arguments and returns nothing; decorate it with a func(func()) func()")
 			}
 			e.writeDecorator(f, u, "")
 			w.gen("(", u.a.end)
@@ -1084,11 +1084,11 @@ func (e *engine) classify(f *fileState) {
 				kind = decoDecl
 				switch {
 				case isType:
-					e.errs.add(u.a.Pos, "@%s is a declarer, which takes a function; a type's decorator takes a *vuka.Type", u.a.Name)
+					e.errs.add("E0213", u.a.Pos, "@%s is a declarer, which takes a function; a type's decorator takes a *vuka.Type", u.a.Name)
 				case fd.init:
-					e.errs.add(u.a.Pos, "@%s is a declarer, which needs a function it can refer to; init can't be", u.a.Name)
+					e.errs.add("E0213", u.a.Pos, "@%s is a declarer, which needs a function it can refer to; init can't be", u.a.Name)
 				case fd.generic:
-					e.errs.add(u.a.Pos, "@%s is a declarer, which needs a concrete function; %s is generic", u.a.Name, fd.qualName)
+					e.errs.add("E0213", u.a.Pos, "@%s is a declarer, which needs a concrete function; %s is generic", u.a.Name, fd.qualName)
 				}
 			}
 			if kind != u.kind {

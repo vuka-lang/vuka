@@ -18,11 +18,11 @@ func (f *fileState) exports(bare bool, errs *ErrorList) (string, []segment) {
 		}
 		fd, ok := a.decl.(*ast.FuncDecl)
 		if !ok {
-			errs.add(a.Pos, "@export applies to functions and methods")
+			errs.add("E0214", a.Pos, "@export applies to functions and methods")
 			continue
 		}
 		if a.value == fd.Name.Name {
-			errs.add(a.Pos, "@export(%q) names the function itself", a.value)
+			errs.add("E0214", a.Pos, "@export(%q) names the function itself", a.value)
 			continue
 		}
 		start := b.Len()

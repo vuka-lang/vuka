@@ -1,0 +1,9 @@
+error[E0122]: can't infer the type of Err here; write Err[T](…)
+ --> err_infer.vuka:6:7
+  |
+6 |     x := Err(errors.New("e"))
+  |          ^^^
+  |
+  = help: write the type argument: None[T](), Err[T](…)
+
+For more information about this error, try `vuka explain E0122`.

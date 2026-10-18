@@ -2,6 +2,7 @@ package transpile_test
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"os"
 	"os/exec"
@@ -9,6 +10,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/docs"
 	"github.com/vuka-lang/vuka/internal/load"
 	"github.com/vuka-lang/vuka/transpile"
 )
@@ -38,6 +41,12 @@ func TestGolden(t *testing.T) {
 					t.Fatalf("only err_ cases may fail:\n%v", err)
 				}
 				compare(t, filepath.Join(dir, name+".err"), []byte(err.Error()+"\n"))
+				var list transpile.ErrorList
+				if errors.As(err, &list) {
+					var b bytes.Buffer
+					diag.Render(&b, docs.Fill(list.Diagnostics()), diag.Options{Source: func(string) ([]byte, bool) { return src, true }})
+					compare(t, filepath.Join(dir, name+".diag"), b.Bytes())
+				}
 				return
 			}
 			if strings.HasPrefix(name, "err_") {

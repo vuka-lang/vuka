@@ -5,6 +5,8 @@ import (
 	"go/types"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
 // resolveStateful decides a stateful component's tag: a struct type whose
@@ -16,7 +18,7 @@ import (
 // the session which tag an instance comes from. Attributes bind to exported fields (promoted ones too), children to a
 // Children field; the session keeps the instance and sets these on it again
 // each time the tag renders.
-func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *types.TypeName, attrs []*jsxAttr, node types.Type, fail func(int, string, ...any)) {
+func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *types.TypeName, attrs []*jsxAttr, node types.Type, fail func(diag.Code, int, string, ...any)) {
 	el := c.el
 	t := tn.Type()
 	if tv, ok := e.info.Types[expr]; ok && tv.IsType() && !isInvalid(tv.Type) {
@@ -25,7 +27,7 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 	if n, ok := types.Unalias(t).(*types.Named); ok && n.TypeParams().Len() > 0 && n.TypeArgs().Len() == 0 {
 		inst, off, msg := e.inferStateful(f, c, n, attrs, node)
 		if msg != "" {
-			fail(off, "%s", msg)
+			fail("E0106", off, "%s", msg)
 			return
 		}
 		if inst == nil {
@@ -35,17 +37,17 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		t = inst
 	}
 	if msg := e.statefulProblem(c.target, el.tag, t); msg != "" {
-		fail(el.start, "%s", msg)
+		fail("E0106", el.start, "%s", msg)
 		return
 	}
 	st := t.Underlying().(*types.Struct)
 	kids, off, msg := e.bindFields(c, st, attrs, node, true)
 	if msg != "" {
-		fail(off, "%s", msg)
+		fail("E0106", off, "%s", msg)
 		return
 	}
 	if len(el.kids) > 0 && !kids {
-		fail(el.start, "<%s> takes no children: add a Children %sNode field to %s", el.tag, c.target.q, e.display(t))
+		fail("E0106", el.start, "<%s> takes no children: add a Children %sNode field to %s", el.tag, c.target.q, e.display(t))
 		return
 	}
 	for _, a := range el.attrs {
@@ -315,7 +317,7 @@ func (e *engine) checkEvents(f *fileState) {
 			}
 			ev.checked = true
 			if msg := e.handlerProblem(tv.Type); msg != "" {
-				e.errs.add(f.at(ev.attr.off), "%s on <%s> %s", ev.attr.name, ev.tag, msg)
+				e.errs.add("E0107", f.at(ev.attr.off), "%s on <%s> %s", ev.attr.name, ev.tag, msg)
 			}
 		}
 	}

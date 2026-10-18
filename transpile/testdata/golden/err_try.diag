@@ -1,0 +1,33 @@
+error[E0110]: ? passes the error on, so the function must return an error last, or a Result
+ --> err_try.vuka:6:24
+  |
+6 |     n := strconv.Atoi("1")?
+  |                           ^
+  |
+  = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+
+error[E0110]: ? must end a statement: x := f()?, return f()?, or f()?
+  --> err_try.vuka:11:26
+   |
+11 |     x := len(strconv.Itoa(1)?)
+   |                             ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+
+error[E0110]: ? can't be used in an if, for or switch header; give it its own statement
+  --> err_try.vuka:17:27
+   |
+17 |     if n := strconv.Atoi("1")?; n > 0 {
+   |                              ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+
+error[E0110]: ? on an Option needs the function to return an Option
+  --> err_try.vuka:26:10
+   |
+26 |     x := d()?
+   |             ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+
+For more information about this error, try `vuka explain E0110`.

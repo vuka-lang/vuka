@@ -49,6 +49,10 @@ is half-typed:
   the two
 - folding of elements and blocks, beside gopls's folding of the Go
 - one diagnostic at an unclosed tag while it is typed, not a flood
+- each diagnostic with its code, linked to its page in the
+  [catalogue](/errors/), and its help; what `vuka vet` reports of an island
+  page (a deferred field without a loader, a bad `bind:` tag) shows as you
+  type
 - go to definition, references and rename on the Go inside braces
 
 Install gopls:

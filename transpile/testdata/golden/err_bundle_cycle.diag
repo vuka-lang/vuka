@@ -1,0 +1,9 @@
+error[E0209]: decorator A composes itself: A → B → C → A
+ --> err_bundle_cycle.vuka:9:15
+  |
+9 | decorator C = @A
+  |               ^^
+  |
+  = help: remove the decorator from its own composition
+
+For more information about this error, try `vuka explain E0209`.

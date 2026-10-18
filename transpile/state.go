@@ -425,7 +425,7 @@ func (e *engine) bindTree(f *fileState, t *jsxTree) bool {
 		}
 		b, err := e.lowerState(f, x)
 		if err != nil {
-			e.errs.add(f.at(err.off), "%s", err.msg)
+			e.errs.add("E0124", f.at(err.off), "%s", err.msg)
 			return nil
 		}
 		return b
@@ -493,7 +493,7 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 		return
 	}
 	if at.name == "key" {
-		e.errs.add(f.at(at.off), "<%s>'s key can't read a ui.State", c.el.tag)
+		e.errs.add("E0125", f.at(at.off), "<%s>'s key can't read a ui.State", c.el.tag)
 		return
 	}
 	_, toState := stateOf(a.typ)
@@ -504,13 +504,13 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 		return
 	}
 	if !toState && !iface {
-		e.errs.add(f.at(at.off), "%s reads a ui.State, and <%s>'s %s takes %s: pass .Get() for the value it renders with, or make the prop a ui.State",
+		e.errs.add("E0125", f.at(at.off), "%s reads a ui.State, and <%s>'s %s takes %s: pass .Get() for the value it renders with, or make the prop a ui.State",
 			bd.text(x), c.el.tag, at.name, e.display(a.typ))
 		return
 	}
 	b, err := e.lowerState(f, x)
 	if err != nil {
-		e.errs.add(f.at(err.off), "%s", err.msg)
+		e.errs.add("E0124", f.at(err.off), "%s", err.msg)
 		return
 	}
 	if toState {
@@ -636,7 +636,7 @@ func (e *engine) lowerStates(f *fileState) {
 					}
 					b, err := e.lowerState(f, n.Args[0])
 					if err != nil {
-						e.errs.add(f.at(err.off), "%s", err.msg)
+						e.errs.add("E0124", f.at(err.off), "%s", err.msg)
 						return false
 					}
 					f.add(f.orig(sel.Sel.Pos()), f.orig(sel.Sel.End()), "NewDerived")
@@ -703,9 +703,9 @@ func (e *engine) checkStateWrite(f *fileState, call *ast.CallExpr, sel *ast.Sele
 		b, _ := elem.Underlying().(*types.Basic)
 		switch {
 		case fn.Name() == "Toggle" && (b == nil || b.Info()&types.IsBoolean == 0):
-			e.errs.add(f.at(f.orig(sel.Sel.Pos())), "Toggle needs a ui.State[bool]; %s is a %s", string(f.src[f.orig(sel.X.Pos()):f.orig(sel.X.End())]), e.display(e.info.TypeOf(sel.X)))
+			e.errs.add("E0125", f.at(f.orig(sel.Sel.Pos())), "Toggle needs a ui.State[bool]; %s is a %s", string(f.src[f.orig(sel.X.Pos()):f.orig(sel.X.End())]), e.display(e.info.TypeOf(sel.X)))
 		case fn.Name() != "Toggle" && (b == nil || b.Info()&types.IsNumeric == 0):
-			e.errs.add(f.at(f.orig(sel.Sel.Pos())), "%s needs a ui.State of a number; %s is a %s", fn.Name(), string(f.src[f.orig(sel.X.Pos()):f.orig(sel.X.End())]), e.display(e.info.TypeOf(sel.X)))
+			e.errs.add("E0125", f.at(f.orig(sel.Sel.Pos())), "%s needs a ui.State of a number; %s is a %s", fn.Name(), string(f.src[f.orig(sel.X.Pos()):f.orig(sel.X.End())]), e.display(e.info.TypeOf(sel.X)))
 		}
 	case "Set":
 		if _, isState := stateOf(recv.Type()); isState || len(call.Args) != 2 {
@@ -722,7 +722,7 @@ func (e *engine) checkStateWrite(f *fileState, call *ast.CallExpr, sel *ast.Sele
 			fits = fits || constFits(tv.Value, elem)
 		}
 		if !fits {
-			e.errs.add(f.at(f.orig(call.Args[1].Pos())), "Set: %s is a %s; it takes a %s, not %s",
+			e.errs.add("E0125", f.at(f.orig(call.Args[1].Pos())), "Set: %s is a %s; it takes a %s, not %s",
 				string(f.src[f.orig(call.Args[0].Pos()):f.orig(call.Args[0].End())]), e.display(e.info.TypeOf(call.Args[0])), e.display(elem), e.display(tv.Type))
 		}
 	}

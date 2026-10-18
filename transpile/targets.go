@@ -95,7 +95,7 @@ func (e *engine) checkTargets() {
 				}
 			}
 			if where != onType && a.kind == attrTyped && e.isRuntimeName(f, a.Name, "Targets") || where == onType && e.isRuntimeName(f, a.Name, "Targets") && !strings.HasPrefix(a.Args, "(") {
-				e.errs.add(a.Pos, "@%s goes on an attribute type: @%s(vuka.OnField) type Char struct{ … }", a.Name, a.Name)
+				e.errs.add("E0207", a.Pos, "@%s goes on an attribute type: @%s(vuka.OnField) type Char struct{ … }", a.Name, a.Name)
 				continue
 			}
 			t, name := e.attrType(f, a)
@@ -112,7 +112,7 @@ func (e *engine) checkTargets() {
 					can = append(can, n)
 				}
 			}
-			e.errs.add(a.Pos, "@%s can't go on %s; %s is for %s", a.Name, targetOne[indexBit(where)], name, strings.Join(can, " and "))
+			e.errs.add("E0207", a.Pos, "@%s can't go on %s; %s is for %s", a.Name, targetOne[indexBit(where)], name, strings.Join(can, " and "))
 		}
 	}
 }
