@@ -24,8 +24,11 @@ func explain(args []string, stdout io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
+	if fs.NArg() == 1 && codeArg.MatchString(fs.Arg(0)) {
+		return explainCode(fs.Arg(0), stdout)
+	}
 	if fs.NArg() != 1 || !strings.HasSuffix(fs.Arg(0), ".vuka") {
-		return errors.New("usage: vuka explain [-full] file.vuka")
+		return errors.New("usage: vuka explain [-full] file.vuka | vuka explain E0201")
 	}
 	path, err := filepath.Abs(fs.Arg(0))
 	if err != nil {

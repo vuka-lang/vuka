@@ -296,8 +296,8 @@ func TestIslandsInferred(t *testing.T) {
 	}
 	_, err = compileAssets(pa, false, io.Discard)
 	for _, want := range []string{
-		"island OrderRow: no component at front/islands/orders/OrderRow.{vue,tsx,jsx,svelte,ts,js}: add it there, or name the file with @ui.Island(\"…\")",
-		"island OrderList: front/islands/orders/OrderList.vue and front/islands/orders/OrderList.tsx both match: name one with @ui.Island(\"islands/orders/OrderList.vue\")",
+		"error[E0310]: island OrderRow: no component at front/islands/orders/OrderRow.{vue,tsx,jsx,svelte,ts,js}\n --> modules/orders/views/sub.vuka:7\n  = help: add it there, or name the file with @ui.Island(\"…\")",
+		"error[E0311]: island OrderList: front/islands/orders/OrderList.vue and front/islands/orders/OrderList.tsx both match\n --> modules/orders/list.vuka:7\n  = help: name one with @ui.Island(\"islands/orders/OrderList.vue\")",
 	} {
 		if err == nil || !strings.Contains(err.Error(), want) {
 			t.Errorf("got %v, want %s", err, want)

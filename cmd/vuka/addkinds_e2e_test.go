@@ -107,7 +107,7 @@ func Charts() ui.Node {
 	// A live page routed with @web.Get still works; vet suggests @web.Live.
 	reports := filepath.Join(dir, "pages", "reports.vuka")
 	os.WriteFile(reports, []byte(strings.Replace(read(t, reports), `@web.Live("/reports")`, `@web.Get("/reports")`, 1)), 0o644)
-	if out := e.run(dir, off, "vuka", "vet", "./..."); !strings.Contains(out, "pages/reports.vuka:18: warning: Reports embeds ui.Live: route it with @web.Live") {
+	if out := e.run(dir, off, "vuka", "vet", "./..."); !strings.Contains(out, "warning[W0301]: Reports embeds ui.Live: route it with @web.Live") || !strings.Contains(out, "--> pages/reports.vuka:18") {
 		t.Errorf("vet: %s", out)
 	}
 }

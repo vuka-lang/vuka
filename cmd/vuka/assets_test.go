@@ -109,11 +109,11 @@ func TestFindAssets(t *testing.T) {
 
 func TestFindAssetsErrors(t *testing.T) {
 	for _, c := range []struct{ name, decl, want string }{
-		{"missing", `web.Style("countr.css")`, `main.vuka:7: web.Style("countr.css"): no such file; did you mean counter.css?`},
-		{"glob", `web.Script("hook/*.ts")`, `main.vuka:7: web.Script("hook/*.ts"): matches no file`},
-		{"glob near", `web.Style("*.scss")`, `main.vuka:7: web.Style("*.scss"): matches no file`},
-		{"kind", `web.Script("counter.css")`, `main.vuka:7: web.Script("counter.css"): not a .ts, .js, .mts, .mjs file`},
-		{"literal", `web.Style(name)`, `main.vuka:7: web.Style takes string literals (the vuka command reads them from the source)`},
+		{"missing", `web.Style("countr.css")`, "error[E0605]: web.Style(\"countr.css\"): no such file\n --> main.vuka:7\n  = help: did you mean counter.css?"},
+		{"glob", `web.Script("hook/*.ts")`, "error[E0605]: web.Script(\"hook/*.ts\"): matches no file\n --> main.vuka:7"},
+		{"glob near", `web.Style("*.scss")`, "error[E0605]: web.Style(\"*.scss\"): matches no file\n --> main.vuka:7"},
+		{"kind", `web.Script("counter.css")`, "error[E0605]: web.Script(\"counter.css\"): not a .ts, .js, .mts, .mjs file\n --> main.vuka:7"},
+		{"literal", `web.Style(name)`, "error[E0604]: web.Style takes string literals (the vuka command reads them from the source)\n --> main.vuka:7"},
 		{"layout literal", `web.Layout(func(p ui.Node) ui.Node { return p }, web.Style("counter.css"))`, `the layout must be a named function`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
@@ -127,7 +127,7 @@ func TestFindAssetsErrors(t *testing.T) {
 	}
 	root := tempModule(t, map[string]string{"go.mod": webMod, "counter.css": "",
 		"main.vuka": "package main\n\nimport \"github.com/vuka-lang/web\"\n\nvar o = web.Style(\"counter.css\")\n"})
-	if _, err := findAssets(root, "example.com/app"); err == nil || !strings.Contains(err.Error(), "main.vuka:5: web.Style belongs to no page") {
+	if _, err := findAssets(root, "example.com/app"); err == nil || !strings.Contains(err.Error(), "error[E0604]: web.Style belongs to no page: give it to @web.Live, web.Layout, web.LiveLayout or web.New\n --> main.vuka:5") {
 		t.Errorf("an option of no page: %v", err)
 	}
 }

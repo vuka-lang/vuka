@@ -119,10 +119,16 @@ type lspRange struct {
 }
 
 type lspDiagnostic struct {
-	Range    lspRange `json:"range"`
-	Severity int      `json:"severity"`
-	Source   string   `json:"source,omitempty"`
-	Message  string   `json:"message"`
+	Range           lspRange     `json:"range"`
+	Severity        int          `json:"severity"`
+	Code            string       `json:"code,omitempty"`
+	CodeDescription *lspCodeDesc `json:"codeDescription,omitempty"`
+	Source          string       `json:"source,omitempty"`
+	Message         string       `json:"message"`
+}
+
+type lspCodeDesc struct {
+	Href string `json:"href"`
 }
 
 type textDocumentID struct {

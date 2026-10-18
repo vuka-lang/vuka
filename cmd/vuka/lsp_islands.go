@@ -3,9 +3,10 @@ package main
 import (
 	"bytes"
 	"fmt"
-	"os"
 	"regexp"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 	"sync"
 	"time"
 )
@@ -68,11 +69,8 @@ func islandDecos(root, path string, text []byte, locate bool) []*islandComp {
 
 // islandIssue is what is wrong with an island's file, "" when nothing.
 func islandIssue(ic *islandComp) string {
-	if ic.problem != "" {
-		return ic.problem
-	}
-	if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
-		return fmt.Sprintf("component %s not found", ic.rel)
+	if d := ic.diagnostic(); d != nil {
+		return strings.TrimPrefix(d.Message, "island "+ic.name+": ") + ": " + d.Help
 	}
 	return ""
 }
@@ -81,12 +79,22 @@ func islandIssue(ic *islandComp) string {
 func islandDiags(root, path string, text []byte) []any {
 	var out []any
 	for _, ic := range islandDecos(root, path, text, true) {
-		if msg := islandIssue(ic); msg != "" {
-			out = append(out, lspDiagnostic{Range: lspRange{positionOf(text, ic.off), positionOf(text, ic.end)}, Severity: 1, Source: "vuka",
-				Message: fmt.Sprintf("island %s: %s", ic.name, msg)})
+		if d := ic.diagnostic(); d != nil {
+			out = append(out, lspFrom(lspRange{positionOf(text, ic.off), positionOf(text, ic.end)}, *d))
 		}
 		if a := ic.routeAdvice(); a != "" {
-			out = append(out, lspDiagnostic{Range: lspRange{positionOf(text, ic.routeOff), positionOf(text, ic.routeAt)}, Severity: 2, Source: "vuka", Message: a})
+			out = append(out, lspFrom(lspRange{positionOf(text, ic.routeOff), positionOf(text, ic.routeAt)}, *diag.Warn("W0301", "%s", a).WithSuggest("@web.Live")))
+		}
+		if ic.route != "" || ic.live {
+			file := labelSpan(ic.label).File
+			for _, d := range checkIslandSource(root, ic, text) {
+				if d.Span.File != file {
+					continue
+				}
+				s := offsetAt(text, d.Span.Line, d.Span.Col)
+				e := offsetAt(text, d.Span.Line, max(d.Span.EndCol, d.Span.Col))
+				out = append(out, lspFrom(lspRange{positionOf(text, s), positionOf(text, e)}, d))
+			}
 		}
 	}
 	return out

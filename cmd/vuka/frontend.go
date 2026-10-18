@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/vuka-lang/vuka/cmd/vuka/internal/progress"
+	"github.com/vuka-lang/vuka/diag"
 )
 
 // Frontends for apps on github.com/vuka-lang/web (web.Frontend): a Vite
@@ -126,7 +127,8 @@ func prepareFrontend(root, dir string, stderr io.Writer) error {
 	if !fileExists(viteBinary(dir)) {
 		cmd := installCommand(dir)
 		if _, err := exec.LookPath(cmd[0]); err != nil {
-			return fmt.Errorf("frontend: %s isn't installed: the frontend in %s needs Node.js 20+ and its package manager (or %s=off to leave it alone)", cmd[0], rel(root, dir), feEnv)
+			return diag.New("E0602", "frontend: %s isn't installed: the frontend in %s needs Node.js 20+ and its package manager", cmd[0], rel(root, dir)).
+				WithHelp("install Node.js 20+ and %s, or set %s=off to leave the frontend alone", cmd[0], feEnv)
 		}
 		c := exec.Command(cmd[0], cmd[1:]...)
 		c.Dir = dir
@@ -134,7 +136,7 @@ func prepareFrontend(root, dir string, stderr io.Writer) error {
 			return fmt.Errorf("frontend: %s: %v", strings.Join(cmd, " "), err)
 		}
 		if !fileExists(viteBinary(dir)) {
-			return fmt.Errorf("frontend: %s has no Vite after installing: add it (npm i -D vite)", rel(root, dir))
+			return diag.New("E0603", "frontend: %s has no Vite after installing", rel(root, dir)).WithHelp("add it: npm i -D vite")
 		}
 	}
 	return syncPlugin(root, dir)

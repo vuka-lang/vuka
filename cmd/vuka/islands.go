@@ -3,7 +3,6 @@ package main
 import (
 	"crypto/sha256"
 	"encoding/hex"
-	"errors"
 	"fmt"
 	"go/scanner"
 	"go/token"
@@ -17,6 +16,7 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/pkg/api"
+	"github.com/vuka-lang/vuka/diag"
 	"github.com/vuka-lang/vuka/internal/load"
 	"github.com/vuka-lang/vuka/internal/tsprops"
 )
@@ -39,19 +39,21 @@ import (
 // extension, the default strategy the decorator set, and the props the struct
 // declares (for islands.d.ts).
 type islandComp struct {
-	name      string // the Go type's short name — the island name (data-vk-island)
-	src       string // the component file, resolved against the declaring file's dir
-	rel       string // src relative to the module root, for messages
-	label     string // the decorator's file:line, for messages
-	framework string // vanilla | vue | react | svelte (from the extension)
-	strategy  string // the decorator's default strategy, "" when none
-	props     []islandProp
-	imported  bool   // from a .vuka import; its props are the component's own
-	bare      string // the decorator's path when it doesn't start with . (found from the frontend root when not beside the file)
-	infer     bool   // a bare @ui.Island (or a "" path): the file is islands/[<module>/]<name>.<ext> under the frontend root
-	module    string // the module the declaring file is in (modules/<m>/…), for an inferred path
-	problem   string // why an inferred path finds no one file
-	off, end  int    // the decorator's span in its file, @ to its last token
+	name        string // the Go type's short name — the island name (data-vk-island)
+	src         string // the component file, resolved against the declaring file's dir
+	rel         string // src relative to the module root, for messages
+	label       string // the decorator's file:line, for messages
+	framework   string // vanilla | vue | react | svelte (from the extension)
+	strategy    string // the decorator's default strategy, "" when none
+	props       []islandProp
+	imported    bool   // from a .vuka import; its props are the component's own
+	bare        string // the decorator's path when it doesn't start with . (found from the frontend root when not beside the file)
+	infer       bool   // a bare @ui.Island (or a "" path): the file is islands/[<module>/]<name>.<ext> under the frontend root
+	module      string // the module the declaring file is in (modules/<m>/…), for an inferred path
+	problem     string // why an inferred path finds no one file
+	problemHelp string
+	problemCode diag.Code
+	off, end    int // the decorator's span in its file, @ to its last token
 
 	layout            bool   // the decorator gives a ui.Layout
 	route             string // the type's route decorator: "Get", "Live", … ("" when none)
@@ -88,7 +90,7 @@ func islandModule(rel string) string {
 // inferIsland finds a bare @ui.Island's component: islands/[<module>/]<name>
 // with one of islandExts under frontendRoot. With none or several, src is the
 // path without an extension and problem says what is wrong.
-func inferIsland(root, frontendRoot, module, name string) (src, problem string) {
+func inferIsland(root, frontendRoot, module, name string) (src, problem, help string, code diag.Code) {
 	rel := path.Join("islands", module, name)
 	base := filepath.Join(frontendRoot, filepath.FromSlash(rel))
 	var found []string
@@ -105,13 +107,13 @@ func inferIsland(root, frontendRoot, module, name string) (src, problem string) 
 	}
 	switch len(found) {
 	case 1:
-		return found[0], ""
+		return found[0], "", "", ""
 	case 0:
 		exts := make([]string, len(islandExts))
 		for i, e := range islandExts {
 			exts[i] = e[1:]
 		}
-		return base, fmt.Sprintf("no component at %s.{%s}: add it there, or name the file with @ui.Island(\"…\")", shown(base), strings.Join(exts, ","))
+		return base, fmt.Sprintf("no component at %s.{%s}", shown(base), strings.Join(exts, ",")), "add it there, or name the file with @ui.Island(\"…\")", "E0310"
 	}
 	names := make([]string, len(found))
 	for i, f := range found {
@@ -121,7 +123,7 @@ func inferIsland(root, frontendRoot, module, name string) (src, problem string) 
 	if len(names) > 2 {
 		both = "all match"
 	}
-	return base, fmt.Sprintf("%s and %s %s: name one with @ui.Island(%q)", strings.Join(names[:len(names)-1], ", "), names[len(names)-1], both, rel+path.Ext(found[0]))
+	return base, fmt.Sprintf("%s and %s %s", strings.Join(names[:len(names)-1], ", "), names[len(names)-1], both), fmt.Sprintf("name one with @ui.Island(%q)", rel+path.Ext(found[0])), "E0311"
 }
 
 // locate finds an island's file once the frontend root is known: an
@@ -141,7 +143,7 @@ func (ic *islandComp) locate(root, frontendRoot string) {
 		}
 		return
 	}
-	ic.src, ic.problem = inferIsland(root, frontendRoot, ic.module, ic.name)
+	ic.src, ic.problem, ic.problemHelp, ic.problemCode = inferIsland(root, frontendRoot, ic.module, ic.name)
 	rel, _ := filepath.Rel(root, ic.src)
 	ic.rel = filepath.ToSlash(rel)
 	ic.framework = islandFramework(ic.src)
@@ -471,12 +473,12 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 			}
 		}
 		if bad != "" {
-			errs = append(errs, errors.New(bad))
+			errs = append(errs, diag.New("E0320", "%s", strings.TrimPrefix(bad, where+": ")).At(labelSpan(where)))
 			continue
 		}
 		name := decoratedType(filt, after)
 		if name == "" {
-			errs = append(errs, fmt.Errorf("%s: @%s.Island isn't on a type", where, uiName))
+			errs = append(errs, diag.New("E0320", "@%s.Island isn't on a type", uiName).At(labelSpan(where)))
 			continue
 		}
 		last := filt[after-1]
@@ -957,4 +959,16 @@ func tsKey(name string) string {
 		return name
 	}
 	return strconv.Quote(name)
+}
+
+// diagnostic is what is wrong with an island's file, nil when nothing.
+func (ic *islandComp) diagnostic() *diag.Diagnostic {
+	if ic.problem != "" {
+		return diag.New(ic.problemCode, "island %s: %s", ic.name, ic.problem).At(labelSpan(ic.label)).WithHelp("%s", ic.problemHelp)
+	}
+	if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
+		return diag.New("E0310", "island %s: component %s not found", ic.name, ic.rel).At(labelSpan(ic.label)).
+			WithHelp("create the file, or correct the path @ui.Island names")
+	}
+	return nil
 }

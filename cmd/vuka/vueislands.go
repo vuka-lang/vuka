@@ -12,6 +12,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
 // Phase 2 of UI islands adds framework islands that Go's esbuild library can't
@@ -182,7 +184,7 @@ func replaceSetup(src, imp, call string) string {
 func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*islandBundle, map[string]*manifestIsland, error) {
 	nodeBin, err := exec.LookPath("node")
 	if err != nil {
-		return nil, nil, fmt.Errorf("framework islands need node on PATH (install Node.js 20+): %w", err)
+		return nil, nil, diag.New("E0602", "framework islands need node on PATH: %v", err).WithHelp("install Node.js 20+")
 	}
 	nm := filepath.Join(frontendRoot, "node_modules")
 	frameworks := map[string]bool{}
@@ -197,7 +199,7 @@ func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*i
 	for _, fw := range fws {
 		for _, dep := range frameworkDeps[fw] {
 			if fi, e := os.Stat(filepath.Join(nm, filepath.FromSlash(dep))); e != nil || !fi.IsDir() {
-				return nil, nil, fmt.Errorf("%s islands need %s in %s; run: npm i -D %s", fw, strings.Join(frameworkDeps[fw], ", "), frontendRoot, strings.Join(frameworkDeps[fw], " "))
+				return nil, nil, diag.New("E0603", "%s islands need %s in %s", fw, strings.Join(frameworkDeps[fw], ", "), frontendRoot).WithHelp("run: npm i -D %s", strings.Join(frameworkDeps[fw], " "))
 			}
 		}
 	}

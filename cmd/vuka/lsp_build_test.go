@@ -57,7 +57,8 @@ func TestLSPDependents(t *testing.T) {
 		var out []string
 		for _, d := range ds {
 			if m, _ := d.(map[string]any); m["source"] == "vuka" {
-				out = append(out, m["message"].(string))
+				msg, _, _ := strings.Cut(m["message"].(string), "\nhelp: ")
+				out = append(out, msg)
 			}
 		}
 		slices.Sort(out)

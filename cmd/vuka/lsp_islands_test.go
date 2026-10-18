@@ -131,7 +131,7 @@ func TestLSPIslandDecorators(t *testing.T) {
 		diags = jsonOf(ds)
 		return strings.Contains(diags, "island Gone")
 	})
-	if want := `island Gone: no component at islands/Gone.{vue,tsx,jsx,svelte,ts,js}: add it there, or name the file with @ui.Island(\"…\")`; !strings.Contains(diags, want) || strings.Count(diags, `"message"`) != 1 {
+	if want := `"code":"E0310","codeDescription":{"href":"https://vuka-lang.github.io/vuka/errors/E0310"},"message":"island Gone: no component at islands/Gone.{vue,tsx,jsx,svelte,ts,js}\nhelp: add it there, or name the file with @ui.Island(\"…\")"`; !strings.Contains(diags, want) || strings.Count(diags, `"message"`) != 1 {
 		t.Fatalf("diagnostics: %s", diags)
 	}
 	at := func(needle string, delta int) map[string]any {

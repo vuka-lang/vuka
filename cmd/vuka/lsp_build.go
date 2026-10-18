@@ -342,7 +342,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			diags[e.Pos.Filename] = d
 		}
 		pos := positionOf(text, off)
-		d.list = append(d.list, lspDiagnostic{Range: lspRange{pos, pos}, Severity: 1, Source: "vuka", Message: e.Msg})
+		d.list = append(d.list, lspFromError(lspRange{pos, positionOf(text, off+e.Len)}, e))
 	}
 	// Which of them are syntax errors, that the editor's next change may
 	// have mended: the file's own syntax check says so.
@@ -526,7 +526,7 @@ func (d *diagSet) in(cur []byte, syntax bool) []any {
 func equalDiag(a, b any) bool {
 	x, ok1 := a.(lspDiagnostic)
 	y, ok2 := b.(lspDiagnostic)
-	return ok1 && ok2 && x == y
+	return ok1 && ok2 && x.Range == y.Range && x.Severity == y.Severity && x.Code == y.Code && x.Message == y.Message
 }
 
 // publish sends a .vuka file's diagnostics. While the editor's text is newer than the last build's, its own
@@ -674,7 +674,7 @@ func (p *proxy) syntaxOf(path string, buf []byte) *diagSet {
 	d := &diagSet{text: buf}
 	for _, e := range p.syntax.check(path, src) {
 		pos := positionOf(buf, m.curOff(e.Pos.Offset))
-		d.list = append(d.list, lspDiagnostic{Range: lspRange{pos, pos}, Severity: 1, Source: "vuka", Message: e.Msg})
+		d.list = append(d.list, lspFromError(lspRange{pos, positionOf(buf, m.curOff(e.Pos.Offset+e.Len))}, e))
 	}
 	return d
 }

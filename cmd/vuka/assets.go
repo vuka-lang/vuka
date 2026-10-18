@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vuka-lang/vuka/diag"
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
@@ -132,14 +133,16 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 	ids := map[string]*assetComp{}
 	for _, c := range pa.comps {
 		if o := ids[c.id]; o != nil {
-			return nil, fmt.Errorf("vuka: %s and %s share the scope %s; rename one", o.goName(), c.goName(), c.id)
+			return nil, diag.New("E0606", "%s and %s share the scope %s", o.goName(), c.goName(), c.id).WithHelp("rename one")
 		}
 		ids[c.id] = c
 	}
 	seen := map[string]*islandComp{}
 	for _, ic := range pa.islands {
 		if o := seen[ic.name]; o != nil {
-			return nil, fmt.Errorf("%s: island %s is already declared at %s; two @ui.Island types can't share a name", ic.label, ic.name, o.label)
+			return nil, diag.New("E0312", "island %s is already declared at %s", ic.name, o.label).At(labelSpan(ic.label)).
+				WithRelated(diag.Span{File: labelSpan(o.label).File, Line: labelSpan(o.label).Line, Label: "declared here first"}).
+				WithHelp("two @ui.Island types can't share a name: rename one")
 		}
 		seen[ic.name] = ic
 	}
@@ -245,7 +248,7 @@ func (pa *pageAssets) readFile(file string, src []byte) []error {
 
 	var errs []error
 	fail := func(i int, format string, args ...any) {
-		errs = append(errs, fmt.Errorf("%s: %s", where(i), fmt.Sprintf(format, args...)))
+		errs = append(errs, diag.New("E0604", format, args...).At(labelSpan(where(i))))
 	}
 	dir := filepath.Dir(file)
 	for _, c := range calls {
@@ -326,7 +329,12 @@ func (pa *pageAssets) readFile(file string, src []byte) []error {
 				}
 				files, err := expandAssets(dir, v, exts)
 				if err != nil {
-					errs = append(errs, fmt.Errorf("%s:%d: %s(%q): %v", rel, ln, label, v, err))
+					d := diag.New("E0605", "%s(%q): %v", label, v, err).At(diag.Span{File: rel, Line: ln})
+					var nf *diag.Diagnostic
+					if errors.As(err, &nf) {
+						d.Message, d.Suggest = fmt.Sprintf("%s(%q): %s", label, v, nf.Message), nf.Suggest
+					}
+					errs = append(errs, d)
 					continue
 				}
 				for _, f := range files {
@@ -561,9 +569,9 @@ func notFound(dir, pattern string, exts []string, what string) error {
 		}
 	}
 	if s := closest(pattern, names); s != "" {
-		return fmt.Errorf("%s; did you mean %s?", what, s)
+		return diag.New("E0605", "%s", what).WithSuggest(s)
 	}
-	return errors.New(what)
+	return diag.New("E0605", "%s", what)
 }
 
 // closest is the name nearest to s by edit distance, when one is near.

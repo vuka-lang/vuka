@@ -16,6 +16,7 @@ import (
 	"strings"
 	"syscall"
 
+	"github.com/vuka-lang/vuka/diag"
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
@@ -48,6 +49,9 @@ Usage:
 	        drops requirements only Vuka code uses)
 	vuka explain [-full] file.vuka
 	        show each Vuka construct in file beside the Go it becomes
+	vuka explain E0201
+	        explain a diagnostic's code, with an example (vuka build/vet
+	        -diag=json print diagnostics as JSON)
 	vuka fix [-n] [fixer…]
 	        apply the fixers (all by default); -n only says what would change
 	vuka fmt [-l] [-w] [-d] [paths…]
@@ -128,15 +132,25 @@ func main() {
 		if errors.As(err, &exit) {
 			os.Exit(exit.ExitCode())
 		}
-		fmt.Fprintln(os.Stderr, err)
+		var st exitStatus
+		if errors.As(err, &st) {
+			os.Exit(int(st))
+		}
+		printErr(os.Stderr, err)
 		os.Exit(1)
 	}
 }
+
+// exitStatus ends vuka with a status, having said why already.
+type exitStatus int
+
+func (s exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(s)) }
 
 // runGo transpiles every Vuka package in the current module and runs
 // `go <cmd> -overlay=…` so the generated files exist only for the compiler.
 // vuka build also brings the build/ module up to date.
 func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
+	args = cutDiagFlag(args)
 	if cmd == "run" {
 		if len(args) > 0 && slices.Contains([]string{"-h", "-help", "--help"}, args[0]) {
 			fmt.Fprint(stdout, runUsage)
@@ -158,10 +172,12 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
+	var vetFailed bool
 	if cmd == "vet" && pa != nil {
-		for _, ic := range pa.islands {
-			if a := ic.routeAdvice(); a != "" {
-				fmt.Fprintf(stderr, "%s: warning: %s\n", ic.routeLabel, a)
+		if ds := vetIslands(root, modPath, pa); len(ds) > 0 {
+			writeDiags(stderr, ds, colorFor(stderr))
+			for _, d := range ds {
+				vetFailed = vetFailed || d.Severity == diag.Error
 			}
 		}
 	}
@@ -262,6 +278,9 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		err = c.Run()
 	}
 	r.flush()
+	if err == nil && vetFailed {
+		return exitStatus(1)
+	}
 	return err
 }
 

@@ -199,12 +199,8 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		}
 		var vueIslands []*islandComp
 		for _, ic := range pa.islands {
-			if ic.problem != "" {
-				errs = append(errs, islandError{fmt.Errorf("%s: island %s: %s", ic.label, ic.name, ic.problem)})
-				continue
-			}
-			if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
-				errs = append(errs, islandError{fmt.Errorf("%s: island %s: component %s not found", ic.label, ic.name, ic.rel)})
+			if d := ic.diagnostic(); d != nil {
+				errs = append(errs, islandError{d})
 				continue
 			}
 			switch ic.framework {

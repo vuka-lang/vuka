@@ -11,6 +11,8 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/diag"
 )
 
 // Phase 4 of UI islands: framework islands built through the project's own
@@ -83,10 +85,11 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		return nil, nil, nil, fmt.Errorf("vite islands: %w", err)
 	}
 	if !fileExists(viteBinary(frontendRoot)) {
-		return nil, nil, nil, fmt.Errorf("vite islands: no Vite in %s (run its package manager, or add vite)", rel(root, frontendRoot))
+		return nil, nil, nil, diag.New("E0603", "vite islands: no Vite in %s", rel(root, frontendRoot)).WithHelp("run its package manager, or add vite: npm i -D vite")
 	}
 	if !importsPlugin(frontendRoot) {
-		return nil, nil, nil, fmt.Errorf("vite islands: %s's vite.config must import and use the vuka plugin (add vuka() to plugins) so the island entries are injected", rel(root, frontendRoot))
+		return nil, nil, nil, diag.New("E0607", "vite islands: %s's vite.config doesn't use the vuka plugin, which injects the island entries", rel(root, frontendRoot)).
+			WithHelp("import the vuka plugin in vite.config and add vuka() to plugins")
 	}
 
 	tmp, err := os.MkdirTemp(frontendRoot, ".vuka-vite-isl-")
@@ -206,7 +209,9 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 		}
 		hint := ""
 		if strings.Contains(stderr.String(), "No fs option provided to `compileScript`") {
-			hint = fmt.Sprintf("\nVue's compiler resolves defineProps<T>() of an imported type with TypeScript's JavaScript API, which TypeScript 7 doesn't have: (cd %s && npm install -D typescript@~6.0.3)\n", rel(root, frontendRoot))
+			d := diag.New("E0608", "Vue's compiler resolves defineProps<T>() of an imported type with TypeScript's JavaScript API, which TypeScript 7 doesn't have").
+				WithHelp("(cd %s && npm install -D typescript@~6.0.3)", rel(root, frontendRoot))
+			hint = "\n" + d.Error() + "\n"
 		}
 		return nil, nil, nil, &viteError{msg: fmt.Sprintf("vite islands (%s): vite build: %v\n%s%s", strings.Join(names, ", "), err, stdout.String(), hint), tail: tail}
 	}
@@ -214,7 +219,8 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 	manPath := filepath.Join(outDir, ".vite", "manifest.json")
 	manBytes, err := os.ReadFile(manPath)
 	if err != nil {
-		return nil, nil, nil, fmt.Errorf("vite islands: no manifest at %s: %w (does vite.config use the vuka plugin?)", rel(frontendRoot, manPath), err)
+		return nil, nil, nil, diag.New("E0607", "vite islands: no manifest at %s: %v", rel(frontendRoot, manPath), err).
+			WithHelp("check that vite.config uses the vuka plugin: vuka() in plugins")
 	}
 	man, err := parseViteManifest(manBytes)
 	if err != nil {

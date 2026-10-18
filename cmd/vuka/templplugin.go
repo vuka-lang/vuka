@@ -32,7 +32,7 @@ func compileTempl(path, name string, src []byte, scopes map[string]string) ([]by
 		if errors.As(err, &pe) {
 			pos, msg = pe.Pos, pe.Msg
 		}
-		return nil, nil, &transpile.Error{Pos: token.Position{Filename: path, Offset: pos.Index, Line: pos.Line + 1, Column: pos.Col + 1}, Msg: msg}
+		return nil, nil, &transpile.Error{Pos: token.Position{Filename: path, Offset: pos.Index, Line: pos.Line + 1, Column: pos.Col + 1}, Msg: msg, Code: "E0006"}
 	}
 	tf, err := templparser.ParseString(string(src))
 	if err != nil {

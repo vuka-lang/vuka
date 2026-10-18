@@ -39,6 +39,20 @@ v0.16.0 (the vuka module v0.50.0 satisfies it).
   ```
 - **A release train and a compatibility promise**:
   [Versions and compatibility](/project/versions).
+- **Diagnostics with codes.** Every error of the compiler, `vuka vet`, the
+  editor and the libraries' checks at boot has a stable code (`E0203`, and
+  `W0301` for a warning), a place, a code frame on the terminal and a
+  `help:` line with the fix. `vuka explain E0203` prints the code's page of
+  the [catalogue](/errors/), with an example before and after;
+  `-diag=json` prints the diagnostics as JSON. The editor shows each
+  diagnostic's code, linked to its page, and its help. `vuka vet` and the
+  editor now report, from the source, what a page backed by a component
+  would fail with at boot: a deferred field without its loader, a loader of
+  the wrong shape, a bad `bind:`, `defer:` or `validate:` tag, two handles
+  of one name. Boot errors of ui and web are diagnostics too
+  (`diag.Of(err)` is the code), placed at the declaration they are about.
+  What to do: tests matching an error's whole text may need the new form
+  (`error[E0401]: GET /pets is declared twice …`); match its code instead.
 
 ## cmd/vuka v0.45.3, web v0.36.3 — 2026-10-16
 

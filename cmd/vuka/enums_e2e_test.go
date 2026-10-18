@@ -231,7 +231,7 @@ func TestEnums(t *testing.T) {
 	// A match in another package missing a variant fails the build there.
 	writeFile(t, filepath.Join(root, "report", "report.vuka"), strings.Replace(enumsReport, "\tcase orders.Shape.Unknown:\n\t\treturn \"unknown\"\n", "", 1))
 	out, err := runVuka(t, vuka, root, "build", "-o", bin, ".")
-	if err == nil || !strings.Contains(out, "report.vuka:19:2: match on orders.Shape isn't exhaustive: missing orders.Shape.Unknown") {
+	if err == nil || !strings.Contains(out, "error[E0113]: match on orders.Shape isn't exhaustive: missing orders.Shape.Unknown") || !strings.Contains(out, "--> report/report.vuka:19:2") {
 		t.Errorf("a non-exhaustive match: %v\n%s", err, out)
 	}
 }
