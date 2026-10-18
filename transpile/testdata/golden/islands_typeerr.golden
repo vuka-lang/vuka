@@ -9,9 +9,9 @@ import (
 	ui "vukatest.local/stateui"
 )
 
-func wrongType() ui.Node { return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#149", /*line islands_typeerr.vuka:9:36*/Picker{Title: 3, Days: nil, }), )/*line islands_typeerr.vuka:9:66*/ }
-func date() ui.Node      { return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#217", /*line islands_typeerr.vuka:10:36*/Clock{Zone: "x", When: /*line islands_typeerr.vuka:10:57*/"today", }), )/*line islands_typeerr.vuka:10:68*/ }
-func max() ui.Node       { return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#287", /*line islands_typeerr.vuka:11:36*/Picker{Title: "x", Max: ui.Ptr[float64]("3"), Days: /*line islands_typeerr.vuka:11:67*/nil, }), )/*line islands_typeerr.vuka:11:74*/ }
+func wrongType() ui.Node { return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#1", /*line islands_typeerr.vuka:9:36*/Picker{Title: 3, Days: nil, }), )/*line islands_typeerr.vuka:9:66*/ }
+func date() ui.Node      { return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#2", /*line islands_typeerr.vuka:10:36*/Clock{Zone: "x", When: /*line islands_typeerr.vuka:10:57*/"today", }), )/*line islands_typeerr.vuka:10:68*/ }
+func max() ui.Node       { return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#3", /*line islands_typeerr.vuka:11:36*/Picker{Title: "x", Max: ui.Ptr[float64]("3"), Days: /*line islands_typeerr.vuka:11:67*/nil, }), )/*line islands_typeerr.vuka:11:74*/ }
 
 /*line islands_typeerr.vuka:4:2*/type Clock struct {
 	Zone string `json:"zone"`

@@ -21,7 +21,7 @@ func (p *page) Closed()                                    {}
 // model), onSelect/onClose (emits) and a default slot.
 func (p *page) render() ui.Node {
 	open := ui.NewState/*line islands_import.vuka:20:18*/("sqf62je", /*line islands_import.vuka:20:19*/false)
-	return ui.F(0xdc95b16a11a174fa, "E(cc)", ui.El("div", nil, func(__a1 float64, __a2 []PickerDays, __a3 ui.State[bool], __a4 any, __a5 any) ui.Node { return ui.MountIsland("islands_import.vuka#540", Picker{Title: "Week", Kind: ui.Ptr[PickerKind]("week"), Max: ui.Ptr[float64](__a1), Days: __a2, }, ui.Load(), ui.Slot(ui.F(0x31c5103db11cf5c6, "E(t)", ui.El("b", nil, ui.Text("hi"), ), )), ui.Callback("onSelect", __a4), ui.Callback("onClose", __a5), ui.StateProp("open", __a3)) }(
+	return ui.F(0xdc95b16a11a174fa, "E(cc)", ui.El("div", nil, func(__a1 float64, __a2 []PickerDays, __a3 ui.State[bool], __a4 any, __a5 any) ui.Node { return ui.MountIsland("islands_import.vuka#1", Picker{Title: "Week", Kind: ui.Ptr[PickerKind]("week"), Max: ui.Ptr[float64](__a1), Days: __a2, }, ui.Load(), ui.Slot(ui.F(0x31c5103db11cf5c6, "E(t)", ui.El("b", nil, ui.Text("hi"), ), )), ui.Callback("onSelect", __a4), ui.Callback("onClose", __a5), ui.StateProp("open", __a3)) }(
 
 
 
@@ -29,7 +29,7 @@ func (p *page) render() ui.Node {
 /*line islands_import.vuka:26:10*/[]PickerDays{{Label: "mon", Free: true}}, 
 /*line islands_import.vuka:27:10*/open, 
 /*line islands_import.vuka:28:14*/p.Pick, 
-/*line islands_import.vuka:29:13*/p.Closed, ), ui.MountIsland("islands_import.vuka#745", 
+/*line islands_import.vuka:29:13*/p.Closed, ), ui.MountIsland("islands_import.vuka#2", 
 
 
 

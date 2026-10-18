@@ -19,7 +19,7 @@ type Picker struct {
 }
 
 func main() {
-	s, err := ui.String(context.Background(), ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_explicit.vuka#368", /*line islands_explicit.vuka:19:45*/Picker{Weeks: 2, }, ui.Load()), )/*line islands_explicit.vuka:19:76*/)
+	s, err := ui.String(context.Background(), ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_explicit.vuka#1", /*line islands_explicit.vuka:19:45*/Picker{Weeks: 2, }, ui.Load()), )/*line islands_explicit.vuka:19:76*/)
 	if err != nil {
 		panic(err)
 	}

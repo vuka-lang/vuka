@@ -136,9 +136,18 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(diag.Code, in
 
 // finishIsland marks an island tag decided.
 func (e *engine) finishIsland(f *fileState, c *jsxComp) {
-	// A stable per-placement id (file + the wrapper's source offset): identical
-	// across renders, so the host's data-vk-s doesn't churn in the live-view diff.
-	c.islandSite = f.name + "#" + strconv.Itoa(c.el.start)
+	// A stable per-placement id (file + the wrapper's place among the file's
+	// components): identical across renders, so the host's data-vk-s doesn't
+	// churn in the live-view diff, and across reformatting.
+	n := 1
+	for _, t := range f.jsx {
+		for _, o := range t.comps {
+			if o.el.start < c.el.start {
+				n++
+			}
+		}
+	}
+	c.islandSite = f.name + "#" + strconv.Itoa(n)
 	c.island, c.resolved = true, true
 	e.progress = true
 }
