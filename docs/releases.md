@@ -1,14 +1,44 @@
 # Releases
 
-Install a release with your own toolchain:
+From v0.50.0, vuka, ui, web and the `vuka` command are released together
+under one version: a release is a **set**, and `vuka v0.50.0` means all four
+at v0.50.0. An app requires vuka, ui and web at the same version; `vuka
+version` shows the set and warns when an app's go.mod mixes sets, and `vuka
+upgrade` moves an app from one set to another, running the `vuka fix`
+rewrites in between. Patch releases come weekly, security fixes at once,
+features in minor releases with upgrade notes. See
+[Versions and compatibility](/project/versions).
 
 ```sh
 go install github.com/vuka-lang/vuka/cmd/vuka@latest
+vuka upgrade
 ```
 
-Each release states the **runtime** its generated code needs — the
-`github.com/vuka-lang/vuka` package your module requires. `vuka fix runtime`
-upgrades it.
+Releases before v0.50.0 were tagged module by module; their headings name each
+module's version, and each states the **runtime** its generated code needs —
+the `github.com/vuka-lang/vuka` package your module requires.
+
+## v0.50.0 — unreleased
+
+The first set: vuka, ui, web and cmd/vuka at v0.50.0. Runtime unchanged,
+v0.16.0 (the vuka module v0.50.0 satisfies it).
+
+- **One version for the toolchain.** New apps from `vuka new` require vuka,
+  ui and web v0.50.0.
+- **`vuka version`** prints the command's set and, inside an app, the
+  versions its go.mod requires, warning when they aren't one set.
+- **`vuka upgrade [version]`** moves an app to a set (the latest by
+  default): `go get` of vuka, ui and web, never `go mod tidy`; the `vuka fix`
+  rewrites registered for the releases in between; then `vuka vet` and `vuka
+  test`, with a summary. `-n` only says what it would do; go.mod and go.sum
+  are kept in `.vuka/upgrade/`.
+
+  ```sh
+  go install github.com/vuka-lang/vuka/cmd/vuka@v0.50.0
+  vuka upgrade v0.50.0
+  ```
+- **A release train and a compatibility promise**:
+  [Versions and compatibility](/project/versions).
 
 ## cmd/vuka v0.45.3, web v0.36.3 — 2026-10-16
 

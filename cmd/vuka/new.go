@@ -24,13 +24,9 @@ import (
 	"github.com/vuka-lang/vuka/internal/format"
 )
 
-// The versions a new app requires; vuka mod tidy brings in the rest.
-const (
-	vukaVersion = "v0.32.0"
-	uiVersion   = "v0.30.0"
-	webVersion  = "v0.36.3"
-	ormVersion  = "v0.7.1"
-)
+// The orm a new app requires beside the toolchain set (toolchain.go); vuka
+// mod tidy brings in the rest.
+const ormVersion = "v0.7.1"
 
 // scaffoldFS holds the files vuka new and vuka add write. A path segment
 // name@tag1+tag2 is written as name when every tag holds (scaffold.tags);

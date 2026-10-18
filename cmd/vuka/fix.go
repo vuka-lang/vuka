@@ -72,20 +72,30 @@ func fix(args []string, stdout io.Writer) error {
 		}
 		selected[name] = true
 	}
+	n, err := applyFixers(selected, *dry, stdout)
+	if err == nil && n == 0 {
+		fmt.Fprintln(stdout, "nothing to fix")
+	}
+	return err
+}
+
+// applyFixers runs the selected fixers (all when none is) over the module
+// in the current directory, reporting each change; it returns their number.
+func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, error) {
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	if r, err := filepath.EvalSymlinks(root); err == nil {
 		root = r // Discover reports real paths
 	}
 	m := &fixModule{root: root, modPath: modPath}
 	if m.pkgs, err = load.Discover(root, modPath, root, true, nil); err != nil {
-		return err
+		return 0, err
 	}
 	tmp, err := os.MkdirTemp("", "vuka-")
 	if err != nil {
-		return err
+		return 0, err
 	}
 	defer os.RemoveAll(tmp)
 	m.gens, _, m.genErr = load.Transpile(m.pkgs, tmp, load.Options{Bare: true})
@@ -97,24 +107,21 @@ func fix(args []string, stdout io.Writer) error {
 		}
 		changes, err := f.find(m)
 		if err != nil {
-			return fmt.Errorf("%s: %w", f.name, err)
+			return n, fmt.Errorf("%s: %w", f.name, err)
 		}
 		for _, c := range changes {
 			n++
-			if *dry {
+			if dry {
 				fmt.Fprintf(stdout, "%s (not applied): %s\n", f.name, c.what)
 				continue
 			}
 			if err := c.apply(); err != nil {
-				return fmt.Errorf("%s: %s: %w", f.name, c.what, err)
+				return n, fmt.Errorf("%s: %s: %w", f.name, c.what, err)
 			}
 			fmt.Fprintf(stdout, "%s: %s\n", f.name, c.what)
 		}
 	}
-	if n == 0 {
-		fmt.Fprintln(stdout, "nothing to fix")
-	}
-	return nil
+	return n, nil
 }
 
 var requireRuntime = regexp.MustCompile(`(?m)^\s*(?:require\s+)?` + regexp.QuoteMeta(transpile.RuntimePath) + `\s+(v\S+)`)

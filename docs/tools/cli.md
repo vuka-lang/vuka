@@ -13,6 +13,8 @@ vuka fix [-n] [fixer…]
 vuka fmt [-l] [-w] [-d] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
 vuka version
+vuka upgrade [-n] [-no-test] [version]
+vuka release [-yes] [-no-test] [-security] vX.Y.Z   (maintainers)
 ```
 
 ## new
@@ -386,3 +388,26 @@ return <section
 ## lsp
 
 The language server. See [Editors](/tools/editors).
+
+## version
+
+Prints the command's version and the set of vuka, ui and web it expects
+(from v0.50.0 one version for all four; see
+[Versions and compatibility](/project/versions)). Inside an app it also lists
+the versions the app's go.mod requires, with any `replace`, and warns when
+they aren't one set or aren't this command's set.
+
+## upgrade
+
+Moves an app to a set: the latest when no version is named (fetched with
+`GOPROXY=direct`, so a fresh tag counts). It `go get`s vuka, ui and web at that
+version (never `go mod tidy`), runs the `vuka fix` rewrites registered for the
+releases between the app's version and the target, then `vuka vet ./...` and
+`vuka test ./...` (`-no-test` skips the tests), and prints a summary. `-n`
+(or `-dry-run`) prints the plan and changes nothing. go.mod and go.sum as they
+were are kept in `.vuka/upgrade/`; a failed `go get` puts them back.
+
+## release
+
+For maintainers: releases vuka, ui, web and cmd/vuka under one version. A dry
+run unless `-yes`. See [Releasing](/project/releasing).

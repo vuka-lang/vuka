@@ -123,8 +123,15 @@ export default defineConfig({
         text: 'Reference',
         items: [{ text: 'Live protocol', link: '/reference/live-protocol' }],
       },
+      {
+        text: 'Project',
+        items: [
+          { text: 'Versions and compatibility', link: '/project/versions' },
+          { text: 'Releases', link: '/releases' },
+          { text: 'Releasing (maintainers)', link: '/project/releasing' },
+        ],
+      },
       { text: 'Examples', link: '/examples' },
-      { text: 'Releases', link: '/releases' },
       { text: 'Credits', link: '/credits' },
     ],
     socialLinks: [{ icon: 'github', link: 'https://github.com/vuka-lang/vuka' }],

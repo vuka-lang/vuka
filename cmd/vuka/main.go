@@ -19,8 +19,6 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-const version = "v0.45.3"
-
 const usage = `vuka is Go with overloading and attributes.
 
 Usage:
@@ -60,6 +58,17 @@ Usage:
 	        language server for .vuka files (gopls behind a proxy), over stdio;
 	        run as gopls (a link named gopls) it is a drop-in gopls for .go files too
 	vuka version
+	        print this vuka's toolchain set and, in an app, the set its go.mod
+	        requires (warning when its vuka, ui and web aren't one set)
+	vuka upgrade [-n] [-no-test] [version]
+	        move the app to a set (the latest by default): go get vuka, ui and
+	        web at that version, run the vuka fix rewrites for the releases in
+	        between, then vuka vet and vuka test; -n only says what it would do
+
+Maintainers:
+	vuka release [-yes] [-no-test] [-security] vX.Y.Z
+	        release vuka, ui, web and cmd/vuka under one version, from a vuka
+	        checkout with ui and web beside it; a dry run unless -yes
 `
 
 func main() {
@@ -103,7 +112,11 @@ func main() {
 	case "fmt":
 		err = vukaFmt(os.Args[2:], os.Stdout, os.Stderr)
 	case "version":
-		fmt.Println("vuka", version)
+		err = versionCmd(os.Args[2:], os.Stdout, os.Stderr)
+	case "upgrade":
+		err = upgrade(os.Args[2:], os.Stdout, os.Stderr)
+	case "release":
+		err = release(os.Args[2:], os.Stdout, os.Stderr)
 	case "help", "-h", "-help", "--help":
 		fmt.Print(usage)
 	default:

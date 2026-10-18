@@ -349,6 +349,12 @@ gone, `attr-of` renames `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)` (v0.5.0), and
 `ui` moves UI code to `github.com/vuka-lang/ui` (v0.10.0). `-n` reports without changing anything; name fixers to run only those.
 It is also where future syntax changes will get their codemods.
 
+From v0.50.0 vuka, ui, web and the command share one version. `vuka version`
+prints the set and warns when an app's go.mod mixes sets; `vuka upgrade
+[version]` moves an app to a set, runs the `vuka fix` rewrites for the
+releases in between, then vet and tests. See
+[Versions and compatibility](https://vuka-lang.github.io/vuka/project/versions).
+
 **JSX.** Markup is an expression, and a component is a function. JSX is
 syntax: what it renders with is the library the file imports, its JSX target —
 [`github.com/vuka-lang/ui`](https://github.com/vuka-lang/ui), where `ui.Node`
