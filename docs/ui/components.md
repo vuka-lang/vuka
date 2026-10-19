@@ -1,7 +1,9 @@
 # Components
 
-A component is a function returning `ui.Node`; the [JSX](/features/jsx)
-page has how tags bind to it. This page is what ui does with the markup.
+A component is a struct with a `Render() ui.Node` method, its fields its
+props, or a function returning `ui.Node`; the [JSX](/features/jsx) page has
+how tags bind to it, [templates](/ui/templates) how a struct's `Render` is
+written in a `.vuka.html` file. This page is what ui does with the markup.
 
 ## Nodes
 
@@ -86,31 +88,54 @@ reordered).
 
 ui ships a set of token-styled components in the package itself, so
 `import "github.com/vuka-lang/ui"` brings both the primitives above and these.
-Each takes one props struct (its `Children` field is the tag's children), so
-it is used as a tag:
+Each is a struct whose fields are its props: a tag's attributes are its
+fields, camelCase (`noPad` is `NoPad`), its children the `Children` field
+and `<slot:header>` the `Header` one.
 
-```vuka
-<ui.Button Variant={ui.Primary} Icon={ui.Icon("plus")} On={c.New}>New</ui.Button>
-<ui.Card Title={ui.Text("Members")} Header={header}>{table}</ui.Card>
+::: vuka
+```html
+<ui.Card title={ui.Text("Members")} noPad>
+  <slot:header>
+    <ui.Button variant={ui.Primary} icon={ui.Icon("plus")} on={c.New}>New</ui.Button>
+  </slot:header>
+  {table}
+</ui.Card>
 ```
+:::
+
+::: go
+```go
+ui.Card{
+	Title:    ui.Text("Members"),
+	NoPad:    true,
+	Header:   ui.Button{Variant: ui.Primary, Icon: ui.Icon("plus"), On: c.New, Children: ui.Text("New")}.Render(),
+	Children: table,
+}.Render()
+```
+:::
 
 | | |
 |---|---|
 | `ui.Button` | a button, or a link when `Href` is set; a click `On` handler spins it until its reply |
 | `ui.Submit` | a form submit button (a `Button` of `type=submit`) |
-| `ui.Actions` | a right-aligned row of buttons, for a card header or modal footer |
-| `ui.Cancel` | a dismiss button for a modal footer |
+| `ui.Actions(buttons...)` | a right-aligned row of buttons, for a card header or modal footer |
+| `ui.Cancel(on, label...)` | a dismiss button for a modal footer |
 | `ui.Card` | a bordered surface with an optional header (title left, actions right) and a body |
-| `ui.Tile` / `ui.TileGrid` | a dashboard stat card (icon, big number, label) and a responsive row of them |
-| `ui.Tabs` | a tab bar underlining the active tab; each tab may carry a count |
+| `ui.Tile` / `ui.TileGrid(tiles...)` | a dashboard stat card (icon, big number, label) and a responsive row of them |
+| `ui.Tabs` | a tab bar underlining the active tab; each `ui.Tab` may carry a count |
 | `ui.Badge` | a small status pill |
 | `ui.Alert` | an inline message box in four tones |
 | `ui.Toast` / `ui.ToastContainer` | one notification, and the stack a live view renders them into |
 | `ui.Modal` | a dialog over a backdrop — server-owned through `Open`/`OnClose`, or browser-only via `OpenModal` |
-| `ui.Form`, `ui.Field`/`ui.Input`/`ui.Password`/`ui.Select`/`ui.Checkbox` | a live-wired form and its fields, errors drawn from the view |
+| `ui.Form`, `ui.Field`/`ui.Input`/`ui.Password`/`ui.Textarea`/`ui.Select`/`ui.Checkbox` | a live-wired form and its fields, errors given by the host |
 | `ui.Table` | rows of type `T` as a table; presentational |
 | `ui.DataTable` | a `Table` with a search box, sortable headers and a pager, driven from a live view's events |
-| `ui.Icon`, `ui.Spinner` | an icon by name, and a loading spinner |
+| `ui.Image` | a lazy, reserved, off-thread-decoded `<img>` with a placeholder, or a backdrop for an `Overlay` |
+| `ui.Icon(name)`, `ui.Spinner()` | an icon by name, and a loading spinner |
+
+The ones taking arguments rather than fields — `Actions`, `Cancel`,
+`TileGrid`, `Icon`, `Spinner` — are partials, called in a hole:
+`{ui.Icon("plus")}`.
 
 Tone and size are shared constants: `ui.Default`, `ui.Primary`, `ui.Success`,
 `ui.Danger`, `ui.Warning`, `ui.Info`, `ui.Ghost`; `ui.SizeSm`, `ui.SizeMd`,
@@ -118,27 +143,89 @@ Tone and size are shared constants: `ui.Default`, `ui.Primary`, `ui.Success`,
 [tokens](/ui/rendering), light and dark.
 
 `Table` and `DataTable` are generic in the row type. Their type argument is
-[inferred](/features/jsx#components) from the attributes — `Columns` and
-`Rows` pin it — so a bare tag is enough:
+[inferred](/features/jsx#components) from the attributes — `columns` and
+`rows` pin it — so a bare tag is enough:
 
-```vuka
+::: vuka
+```html
 <ui.Table
-	Columns={cols}
-	Rows={d.rows}
-	RowKey={func(t Task) any { return t.ID }}
-	Selectable={true}
-	RowSelected={func(t Task) bool { return d.picked(t.ID) }}
-	OnSelect={func(t Task) any { id := t.ID; return func(on bool) { d.pick(id, on) } }}
-	OnSelectAll={d.pickPage}
-	AllSelected={d.allPicked()}
+  columns={cols}
+  rows={d.rows}
+  rowKey={func(t Task) any { return t.ID }}
+  selectable
+  rowSelected={func(t Task) bool { return d.picked(t.ID) }}
+  onSelect={func(t Task) any { id := t.ID; return func(on bool) { d.pick(id, on) } }}
+  onSelectAll={d.pickPage}
+  allSelected={d.allPicked()}
 />
 ```
+:::
+
+::: go
+```go
+ui.Table[Task]{
+	Columns:     cols,
+	Rows:        d.rows,
+	RowKey:      func(t Task) any { return t.ID },
+	Selectable:  true,
+	RowSelected: func(t Task) bool { return d.picked(t.ID) },
+	OnSelect:    func(t Task) any { id := t.ID; return func(on bool) { d.pick(id, on) } },
+	OnSelectAll: d.pickPage,
+	AllSelected: d.allPicked(),
+}.Render()
+```
+:::
 
 A selection checkbox is a live field: it fires `onChange` with its new
 checked state, so `OnSelect` returns a handler taking that `bool` and
 `OnSelectAll` takes one directly — set the row to what the box now is rather
 than toggling a server-side guess, which keeps the box and the server in sync
 (see [field sync](/web/live)).
+
+### How the kit is written
+
+The kit is written as an app's components are: a `.go` file declares the
+type, the `.vuka.html` beside it is its `Render`
+([templates](/ui/templates)), and the Go `vuka gen` compiles it to is
+committed, so ui builds with plain `go build`.
+
+```go
+// card.go
+type Card struct {
+	Title    Node
+	Header   Node
+	NoPad    bool
+	Class    string
+	Children Node
+}
+```
+
+```html
+<!-- card.vuka.html -->
+func (c Card) Render()
+<div class={withClass("vk-card", c.Class)}>
+  if c.Title != nil || c.Header != nil {
+    <div class="vk-card__header">
+      <div class="vk-card__title">{c.Title}</div>
+      if c.Header != nil {
+        <div class="vk-card__header-actions">{c.Header}</div>
+      }
+    </div>
+  }
+  <div class="vk-card__body" class:vk-card__body--flush={c.NoPad}>{c.Children}</div>
+</div>
+```
+
+Its templates name their receiver (`c.Title`) where an app's would read
+`{Title}`: in package ui, many field names — `Icon`, `Value`, `Class`,
+`Ref`, `On`, `Page` — are also the package's own names, and a bare name that
+the package declares is the package's.
+
+The props types of earlier versions are deprecated aliases of the
+components — `ui.CardProps` is `ui.Card`, `ui.TableProps[T]` is
+`ui.Table[T]` — and a call of the former function, `ui.Card(ui.CardProps{…})`,
+is `ui.Card{…}.Render()`; `vuka fix ui-structs` rewrites those calls. Tags
+are unchanged.
 
 ## Picking ui
 

@@ -42,7 +42,11 @@ func (s Sales) Total() int {
 
 The markup before the file's first `func` line is the component's
 `Render`. Fields and methods are read by bare name — `{Title}`,
-`{Total()}` — and locals and loop variables shadow them, as in Go. The
+`{Total()}` — and locals and loop variables shadow them, as in Go. A name
+the package itself declares (a function, a type, a variable) is the
+package's, not the field: in a package with such names, write the explicit
+header and the receiver, as the [ui kit](/ui/components#how-the-kit-is-written)
+does. The
 receiver is a pointer when the type embeds `ui.Live`, holds a `ui.State`
 or has pointer-receiver methods, and a value otherwise. A file whose
 package declares no such type is an error; start it with an explicit
