@@ -166,7 +166,13 @@ func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htm
 	pkg := packageName(others)
 	var imps []string
 	if ui != "" {
-		imps = append(imps, strings.TrimSuffix(ui, ".")+` "`+DefaultJSXTarget+`"`)
+		target := DefaultJSXTarget // or the package's own, imported as ui
+		for _, imp := range packageImports(others) {
+			if imp.name+"." == ui {
+				target = imp.path
+			}
+		}
+		imps = append(imps, strings.TrimSuffix(ui, ".")+" "+strconv.Quote(target))
 	}
 	text := string(src)
 	for _, imp := range packageImports(others) {

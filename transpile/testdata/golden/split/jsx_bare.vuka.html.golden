@@ -1,0 +1,17 @@
+func texts(items []Item)
+<div>
+  <p>{"if"} you like</p>
+  <p>{"for"} now, match me</p>
+  for range items {
+    iffy text
+  }
+  for range items {
+    {"if"}-then
+  }
+  for range items {
+    formal matches
+  }
+  if len(items) > 0 {
+    a match?
+  }
+</div>

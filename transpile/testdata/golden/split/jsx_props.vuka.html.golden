@@ -1,0 +1,15 @@
+func Card(p CardProps)
+<div id={p.ID} class={p.Class}>
+  {p.Title} {p.Width}x{p.Height}
+  {p.Children}
+</div>
+
+func (c *Chat) Render()
+<ul class={c.Class}>
+  for _, l := range c.log {
+    <li>{l}</li>
+  }
+</ul>
+
+func (b *Box[T]) Render()
+<b>{b.Value}</b>

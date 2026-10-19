@@ -1,0 +1,19 @@
+// Badge is a same-package component: its tag resolves against this package's
+// own scope and lowers to an unqualified call.
+func Badge(label string)
+<span>{label}</span>
+
+// list exercises the self-target lowering: plain elements, an {expr} child, a
+// {for} loop and a same-package component tag.
+func list(title string, rows []Row)
+<div class="list">
+  <h1>{title}</h1>
+  <ul>
+    for _, r := range rows {
+      <li>
+        <Badge label={r.Name} />
+        {r.ID}
+      </li>
+    }
+  </ul>
+</div>

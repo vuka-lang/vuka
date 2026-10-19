@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 
+	"github.com/vuka-lang/vuka/internal/load"
 	"github.com/vuka-lang/vuka/transpile"
 )
 
@@ -21,8 +22,10 @@ const ejectUsage = `usage: vuka eject [-rm] [file.vuka… | dir | dir/...]
 Eject writes the Go generated for .vuka files beside them, as vuka gen
 -inplace does (the module by default). With -rm the Go becomes the source:
 each .vuka file is deleted and its Go kept as x.go (x_vuka.go when x.go is
-taken), without the generated-code header or line directives, so the app
-builds with go build and no vuka command.
+taken), without the generated-code header or line directives; its
+functions that are markup (a Render method, a component) become templates
+of x.vuka.html, compiled to x_html.go, so the app builds with go build and
+no vuka command.
 `
 
 func eject(args []string, stdout io.Writer) error {
@@ -57,7 +60,12 @@ func eject(args []string, stdout io.Writer) error {
 	extra = slices.DeleteFunc(extra, func(dir string) bool {
 		return slices.ContainsFunc(patterns, func(p string) bool { return inPattern(dir, p) })
 	})
-	root, gens, err := inPlace(patterns, extra)
+	if *rm {
+		if err := splitTemplates(patterns, extra, files); err != nil {
+			return err
+		}
+	}
+	root, gens, err := inPlace(patterns, extra, load.Options{})
 	if err != nil {
 		return err
 	}
@@ -90,6 +98,32 @@ func eject(args []string, stdout io.Writer) error {
 		}
 		from := relPath(root, g.Source)
 		fmt.Fprintf(stdout, "ejected %s: %s\n", from, rel)
+	}
+	return nil
+}
+
+// splitTemplates writes the templates of the .vuka files eject takes into
+// x.vuka.html beside each, leaving the rest in the .vuka file.
+func splitTemplates(patterns, extra []string, files map[string]bool) error {
+	_, gens, err := inPlace(patterns, extra, load.Options{Split: true})
+	if err != nil {
+		return err
+	}
+	for _, g := range gens {
+		taken := files[realPathOf(g.Source)] || slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) })
+		if g.Split == nil || !taken {
+			continue
+		}
+		html := strings.TrimSuffix(g.Source, ".vuka") + ".vuka.html"
+		if _, err := os.Stat(html); err == nil {
+			continue // the file has templates already: they stay its own
+		}
+		if err := os.WriteFile(html, g.Split.HTML, 0o644); err != nil {
+			return err
+		}
+		if err := os.WriteFile(g.Source, g.Split.Vuka, 0o644); err != nil {
+			return err
+		}
 	}
 	return nil
 }

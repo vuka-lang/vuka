@@ -20,7 +20,8 @@ import (
 )
 
 // TestLibraryExample builds examples/library-users, plain Go, with go build
-// and no vuka command, and its twin written in Vuka after vuka eject -rm:
+// and no vuka command, and its twin written in Vuka after vuka eject -rm
+// (its markup then templates, users.vuka.html, compiled to users_html.go):
 // the code is written alike — the same web.Routes calls in an init, the
 // same templates, the same Schema and LiveSchema methods — vukavet finds
 // nothing in either, and the two programs answer the same.
@@ -79,13 +80,16 @@ func TestLibraryExample(t *testing.T) {
 		}
 	}
 
+	if html, err := os.ReadFile("decorated/users.vuka.html"); err != nil || !bytes.Contains(html, []byte("func (d *Dashboard) Render()\n<main>")) {
+		t.Errorf("vuka eject -rm writes the markup as templates, decorated/users.vuka.html: %s %v", html, err)
+	}
 	plain := registrations(t, "main.go", "web.Routes.")
 	ejected := registrations(t, "decorated/users.go", "web.Routes.")
 	if len(plain) == 0 || !slices.Equal(plain, ejected) {
 		t.Errorf("registrations differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
 	}
 	plain = registrations(t, "users.go", "ui.HTML(")
-	ejected = registrations(t, "decorated/users.go", "ui.HTML(")
+	ejected = registrations(t, "decorated/users_html.go", "ui.HTML(")
 	if len(plain) == 0 || !slices.Equal(plain, ejected) {
 		t.Errorf("templates differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
 	}
