@@ -62,7 +62,7 @@ func (w *captureWriter) publishedDiags(t *testing.T, uri string) ([]any, bool) {
 // whether the buffer is newer than the last settled build).
 func newProxyFixture(t *testing.T, src string) (*proxy, *captureWriter, string, string) {
 	t.Helper()
-	res, err := transpile.Package([]transpile.File{{Name: "main.vuka", Src: []byte(src)}}, transpile.Options{})
+	res, err := transpile.Package([]transpile.File{{Name: "main.vuka", Src: []byte(src)}}, transpile.Options{Bare: true})
 	if err != nil {
 		t.Fatalf("transpile: %v", err)
 	}
