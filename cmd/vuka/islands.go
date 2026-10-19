@@ -145,10 +145,54 @@ func (ic *islandComp) locate(root, frontendRoot string) {
 		}
 		return
 	}
-	ic.src, ic.problem, ic.problemHelp, ic.problemCode = inferIsland(root, frontendRoot, ic.module, ic.name, ic.naming())
+	ic.src, ic.problem, ic.problemHelp, ic.problemCode = besideGo(root, ic.goDir(root), ic.name, ic.naming())
+	if ic.src == "" {
+		ic.src, ic.problem, ic.problemHelp, ic.problemCode = inferIsland(root, frontendRoot, ic.module, ic.name, ic.naming())
+	}
 	rel, _ := filepath.Rel(root, ic.src)
 	ic.rel = filepath.ToSlash(rel)
 	ic.framework = islandFramework(ic.src)
+}
+
+// goDir is the directory of the Go (or .vuka) file declaring the island.
+func (ic *islandComp) goDir(root string) string {
+	if ic.dir != "" {
+		return ic.dir
+	}
+	if f, _, ok := strings.Cut(ic.label, ":"); ok && f != "" {
+		if filepath.IsAbs(f) {
+			return filepath.Dir(f)
+		}
+		return filepath.Join(root, filepath.Dir(filepath.FromSlash(f)))
+	}
+	return ""
+}
+
+// besideGo finds an inferred island's component next to the file declaring
+// it, <snake>.<ext> (trend.vue for Trend): "" when there is none there.
+func besideGo(root, dir, name, naming string) (src, problem, help string, code diag.Code) {
+	if dir == "" {
+		return "", "", "", ""
+	}
+	base := filepath.Join(dir, snake(name))
+	var found []string
+	for _, ext := range islandExts {
+		if fileExists(base + ext) {
+			found = append(found, base+ext)
+		}
+	}
+	switch len(found) {
+	case 0:
+		return "", "", "", ""
+	case 1:
+		return found[0], "", "", ""
+	}
+	rels := make([]string, len(found))
+	for i, f := range found {
+		r, _ := filepath.Rel(root, f)
+		rels[i] = filepath.ToSlash(r)
+	}
+	return base, strings.Join(rels, " and ") + " both match", fmt.Sprintf("name one with %s(%q)", naming, "./"+filepath.Base(found[0])), "E0311"
 }
 
 // naming is how a person names the island's component: @ui.Island in a
@@ -850,8 +894,8 @@ type islandBundle struct {
 }
 
 // bundleIsland bundles an island's component file with esbuild into one ES
-// module, minified for a build, with an inline source map in development. A
-// vanilla island is dependency-free: bare (package) imports are refused.
+// module, minified for a build, with an inline source map in development.
+// vuka:island is islandModuleJS; packages resolve from root's node_modules.
 func bundleIsland(root string, ic *islandComp, dev bool) (*islandBundle, error) {
 	opts := api.BuildOptions{
 		EntryPoints:   []string{ic.src},
@@ -863,7 +907,8 @@ func bundleIsland(root string, ic *islandComp, dev bool) (*islandBundle, error) 
 		AbsWorkingDir: root,
 		LogLevel:      api.LogLevelSilent,
 		Charset:       api.CharsetUTF8,
-		Plugins:       []api.Plugin{islandResolve(), recordInputs(&ic.inputs)},
+		NodePaths:     []string{filepath.Join(root, "node_modules")},
+		Plugins:       []api.Plugin{islandModulePlugin(), recordInputs(&ic.inputs)},
 	}
 	if dev {
 		opts.Sourcemap = api.SourceMapInline
@@ -880,19 +925,6 @@ func bundleIsland(root string, ic *islandComp, dev bool) (*islandBundle, error) 
 	js := res.OutputFiles[0].Contents
 	sum := sha256.Sum256(js)
 	return &islandBundle{name: strings.ToLower(ic.name) + "." + hex.EncodeToString(sum[:4]) + ".js", js: js}, nil
-}
-
-// islandResolve refuses bare imports: a vanilla island bundles its own
-// relative imports only (there is no node_modules).
-func islandResolve() api.Plugin {
-	return api.Plugin{Name: "vuka-island", Setup: func(b api.PluginBuild) {
-		b.OnResolve(api.OnResolveOptions{Filter: `^[^./]`}, func(a api.OnResolveArgs) (api.OnResolveResult, error) {
-			if a.Kind == api.ResolveEntryPoint {
-				return api.OnResolveResult{}, nil
-			}
-			return api.OnResolveResult{}, fmt.Errorf("%s is a package; a vanilla island bundles relative imports only (./x.ts) — it must be dependency-free", a.Path)
-		})
-	}}
 }
 
 // islandBuildError reports esbuild's errors against the island's files.

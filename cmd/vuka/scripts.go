@@ -26,10 +26,38 @@ import (
 // data-vk-p its root carries (ui.Props), update(next) when a patch changes
 // them; fn(el, live) for a live page — and destroy() when it leaves.
 // ctx.live and live call the instance's exported Go methods: live.reorder(ids)
-// is Reorder.
+// is Reorder; live.q is the field Q's handle, get() and set(v) (a bind:
+// field); ctx.state(name) a ui.State's, from the root's data-vk-s
+// (ui.States); navigate and patch move the page.
 const componentModule = `
-const read = (el) => { try { return JSON.parse(el.getAttribute("data-vk-p") || "{}"); } catch { return {}; } };
-const live = (ctx) => new Proxy({}, { get: (_, k) => typeof k === "string" ? (...a) => ctx.push(k[0].toUpperCase() + k.slice(1), a.length > 1 ? a : a[0]) : undefined });
+const attr = (el, a) => { try { return JSON.parse(el.getAttribute(a) || "{}"); } catch { return {}; } };
+const read = (el) => attr(el, "data-vk-p");
+const go = (href, patch, opts) => {
+  if (window.vuka && window.vuka.navigate) return window.vuka.navigate(href, { ...(opts || {}), patch });
+  const u = new URL(String(href), location.href);
+  if (u.protocol !== "http:" && u.protocol !== "https:") return Promise.reject(new Error("vuka: refused to load a URL that isn't http or https"));
+  opts && opts.replace ? location.replace(u.href) : location.assign(u.href);
+  return new Promise(() => {});
+};
+const nav = { navigate: (href, opts) => go(href, false, opts), patch: (href, opts) => go(href, true, opts) };
+const state = (el) => (name) => {
+  const r = attr(el, "data-vk-s")[name], st = window.vuka && window.vuka.states;
+  if (!r) throw new Error("vuka: no state " + name);
+  const x = r.x !== undefined ? r.x : r;
+  return {
+    get: () => st ? st.read(x) : r.i,
+    set: (v) => { if (r.x === undefined && st) st.write(r, v); },
+    watch: (fn) => st ? st.watch(x, fn, el) : () => {},
+  };
+};
+const key = (p, k) => k in p ? k : k[0].toUpperCase() + k.slice(1) in p ? k[0].toUpperCase() + k.slice(1) : "";
+const live = (el, ctx) => new Proxy({}, { get: (_, k) => {
+  if (typeof k !== "string") return undefined;
+  if (k in nav) return nav[k];
+  const f = key(read(el), k);
+  if (f) return { get: () => read(el)[f], get value() { return read(el)[f]; }, set: (v) => ctx.push("_set", { [f]: v }) };
+  return (...a) => ctx.push(k[0].toUpperCase() + k.slice(1), a.length > 1 ? a : a[0]);
+} });
 function hooks(start) {
   const insts = new WeakMap();
   return {
@@ -41,8 +69,8 @@ function hooks(start) {
     destroyed(el) { const i = insts.get(el); insts.delete(el); if (i && i.h.destroy) i.h.destroy(); },
   };
 }
-export const component = (fn) => hooks((el, ctx) => fn(el, read(el), { live: live(ctx), push: ctx.push, emit: ctx.emit, on: ctx.on, ref: ctx.ref }));
-export const page = (fn) => hooks((el, ctx) => fn(el, live(ctx)));
+export const component = (fn) => hooks((el, ctx) => fn(el, read(el), { live: live(el, ctx), state: state(el), ...nav, push: ctx.push, emit: ctx.emit, on: ctx.on, ref: ctx.ref }));
+export const page = (fn) => hooks((el, ctx) => fn(el, live(el, ctx)));
 `
 
 // hookNames are the hooks the loader runs, not methods ui.JS.Call reaches.
@@ -284,6 +312,10 @@ func objectKeys(code string, open int) []string {
 	return keys
 }
 
+// liveCall is a script's call of a live method, live.reorder(…), or set of
+// a field, live.q.set(…).
+var liveCall = regexp.MustCompile(`\blive\.([A-Za-z_$][\w$]*)\s*(\.\s*set\s*)?\(`)
+
 // ctxPush is a script's ctx.push( and what follows it.
 var ctxPush = regexp.MustCompile(`\bctx\.push\(\s*`)
 
@@ -333,6 +365,26 @@ func scriptPushes(c *assetComp) ([]string, error) {
 				}
 				errs = append(errs, msg)
 			case !slices.Contains(names, name):
+				names = append(names, name)
+			}
+		}
+		// live.reorder(ids) pushes Reorder, live.q.set(v) _set.
+		for _, m := range liveCall.FindAllStringSubmatch(code, -1) {
+			name := m[1]
+			if m[2] != "" {
+				name = "_set"
+			} else if name == "navigate" || name == "patch" {
+				continue
+			} else {
+				name = strings.ToUpper(name[:1]) + name[1:]
+				if !known {
+					methods, known = componentMethods(c), true
+				}
+				if !slices.Contains(methods, name) {
+					continue
+				}
+			}
+			if c.live && !slices.Contains(names, name) {
 				names = append(names, name)
 			}
 		}

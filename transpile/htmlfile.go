@@ -301,7 +301,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		for _, a := range assets {
 			if a.Decl == typ && a.Script {
 				// A component script reads its props from its root.
-				add(propsAt(lines, off, first, firstEnd), " data-vk-p={"+ui+"Props("+recv+")}")
+				add(propsAt(lines, off, first, firstEnd), scriptAttrs(ui, recv, a.Text))
 				break
 			}
 		}
@@ -324,7 +324,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if v := propsOf(lines[hd]); v != "" {
 			for _, a := range assets {
 				if a.Script && a.Line > hd && a.Line <= end {
-					add(propsAt(lines, off, hd+1, end), " data-vk-p={"+ui+"Props("+v+")}")
+					add(propsAt(lines, off, hd+1, end), scriptAttrs(ui, v, a.Text))
 					break
 				}
 			}
@@ -418,6 +418,16 @@ func (h *htmlFile) toSrc(off int) int {
 		d += len(in.text)
 	}
 	return off - d
+}
+
+// scriptAttrs are the attributes a component script reads on its root:
+// its props, and its states when it calls ctx.state.
+func scriptAttrs(ui, v, script string) string {
+	out := " data-vk-p={" + ui + "Props(" + v + ")}"
+	if strings.Contains(script, ".state(") {
+		out += " data-vk-s={" + ui + "States(" + v + ")}"
+	}
+	return out
 }
 
 // propsAt is where data-vk-p goes: after the first element's tag name in

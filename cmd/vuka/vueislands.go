@@ -184,7 +184,12 @@ func replaceSetup(src, imp, call string) string {
 func buildVueIslands(frontendRoot string, islands []*islandComp, dev bool) ([]*islandBundle, map[string]*manifestIsland, error) {
 	nodeBin, err := exec.LookPath("node")
 	if err != nil {
-		return nil, nil, diag.New("E0602", "framework islands need node on PATH: %v", err).WithHelp("install Node.js 20+")
+		var files []string
+		for _, ic := range islands {
+			files = append(files, ic.rel)
+		}
+		return nil, nil, diag.New("E0602", "%s needs Node: .vue and .svelte islands build with Node.js, and there is no node on PATH", strings.Join(files, ", ")).
+			WithHelp("write it as a .tsx (React or Preact) or .ts island, which need no Node, or install Node.js 20+")
 	}
 	nm := filepath.Join(frontendRoot, "node_modules")
 	frameworks := map[string]bool{}

@@ -216,8 +216,20 @@ figcaption { font-weight: bold }
 The script runs once per instance: `el` is its root, `props` the struct's
 data fields as JSON (`ui.Node`, func and unexported fields are not sent),
 `update` runs when a live re-render changes them, `destroy` when the
-instance leaves the page; `ctx.live` calls the component's exported
-methods. The `vuka` command bundles the script and scopes the style to
+instance leaves the page. `ctx.live` calls the component's exported
+methods (`ctx.live.reorder(ids)` is `Reorder`), `ctx.state("open")` is a
+`ui.State` field's handle — `get()`, `set(v)`, `watch(fn)` — and
+`ctx.navigate(href)` / `ctx.patch(href)` move the page. A live page's
+`Render` template takes `page<Orders>((el, live) => …)`: `live.q` is the
+field `Q`'s handle (`get()`, `set(v)` for a `bind:` field), `live.reorder`
+a method.
+
+The types come from the Go struct: `component<Chart>` knows `props.Title`,
+`ctx.live`'s methods and `ctx.state`'s names. The `vuka` command writes
+them to `.vuka/vuka-component.d.ts`, and `vuka lsp` gives each script to a
+TypeScript language server with them — completion, hover, definition and
+errors in the `.vuka.html` — when `typescript-language-server` is on PATH
+or in `node_modules/.bin` (`$VUKA_TSLS` names one). The `vuka` command bundles the script and scopes the style to
 the template's own elements (`:global(…)` escapes). A style has no holes.
 
 `<script is:inline>` is written as it is, not bundled; its one hole is

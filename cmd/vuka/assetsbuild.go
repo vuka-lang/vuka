@@ -171,6 +171,11 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 			e.Type = goTypeName(c)
 		}
 	}
+	if dts := componentDTS(pa.root, pa.modPath, pa.comps); dts != nil {
+		if err := writeIfChanged(filepath.Join(pa.root, ".vuka", componentDTSName), dts); err != nil {
+			return nil, err
+		}
+	}
 	if len(pa.islands) > 0 {
 		mf.Islands = map[string]*manifestIsland{}
 		buildRoot := pa.frontendRoot
@@ -201,7 +206,10 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				os.WriteFile(ts, liveTSConfig(), 0o644)
 			}
 		}
-		var vueIslands []*islandComp
+		if slices.ContainsFunc(pa.islands, func(ic *islandComp) bool { return ic.framework == "vanilla" }) {
+			writeIfChanged(filepath.Join(buildRoot, "vuka-island.d.ts"), []byte(islandModuleDTS))
+		}
+		var vueIslands, reactIslands []*islandComp
 		for _, ic := range pa.islands {
 			if d := ic.diagnostic(); d != nil {
 				errs = append(errs, islandError{d})
@@ -216,8 +224,25 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				}
 				out.islands = append(out.islands, ib)
 				mf.Islands[ic.name] = &manifestIsland{Name: ic.name, Module: ib.name, Framework: "vanilla"}
-			default: // vue, react, svelte
+			case "react":
+				if useVite {
+					vueIslands = append(vueIslands, ic)
+				} else {
+					reactIslands = append(reactIslands, ic)
+				}
+			default: // vue, svelte
 				vueIslands = append(vueIslands, ic)
+			}
+		}
+		if len(reactIslands) > 0 {
+			bundles, entries, err := buildReactIslands(buildRoot, reactIslands, dev)
+			if err != nil {
+				errs = append(errs, islandError{err})
+			} else {
+				out.islands = append(out.islands, bundles...)
+				for name, mi := range entries {
+					mf.Islands[name] = mi
+				}
 			}
 		}
 		if len(vueIslands) > 0 {

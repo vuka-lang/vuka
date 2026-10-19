@@ -355,22 +355,27 @@ func (w *jsxWriter) node(tp *tmpl, n jsxNode, indent string, inline bool) {
 var renderRecv = regexp.MustCompile(`func\s*\(\s*(\w+)\s+\*?\w+\s*\)\s*Render\s*\(`)
 
 // rootProps is ui.Props(recv) for the root element of a Render method's
-// JSX whose children hold a component script: the props the script reads.
-func (w *jsxWriter) rootProps(el *jsxElem) string {
+// JSX whose children hold a component script — the props the script reads
+// — and ui.States(recv) when it calls ctx.state.
+func (w *jsxWriter) rootProps(el *jsxElem) (props, states string) {
 	if w.f.html != nil || el != w.t.root {
-		return ""
+		return "", ""
 	}
-	scripted := false
+	var script *jsxElem
 	for _, k := range el.kids {
 		if a, ok := k.(*jsxElem); ok && a.asset && a.tag == "script" {
-			scripted = true
+			script = a
 		}
 	}
 	m := renderRecv.FindSubmatch(w.f.src[w.t.declOff:w.t.start])
-	if !scripted || m == nil {
-		return ""
+	if script == nil || m == nil {
+		return "", ""
 	}
-	return w.q + "Props(" + string(m[1]) + ")"
+	props = w.q + "Props(" + string(m[1]) + ")"
+	if strings.Contains(string(w.f.src[script.start:script.end]), ".state(") {
+		states = w.q + "States(" + string(m[1]) + ")"
+	}
+	return props, states
 }
 
 // lastName is a tag's last name: ui.Card is Card.
@@ -403,9 +408,13 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 		return
 	}
 	tp.b.WriteString("<" + el.tag)
-	if props := w.rootProps(el); props != "" {
+	if props, states := w.rootProps(el); props != "" {
 		tp.b.WriteString(" data-vk-p=")
 		w.holeIn(tp, "props", func() { w.gen(props) })
+		if states != "" {
+			tp.b.WriteString(" data-vk-s=")
+			w.holeIn(tp, "states", func() { w.gen(states) })
+		}
 	}
 	for _, a := range el.attrs {
 		a := a
