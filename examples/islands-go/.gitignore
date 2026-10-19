@@ -1,0 +1,6 @@
+/web/dist/*
+!/web/dist/.gitkeep
+/web/node_modules
+/web/*.d.ts
+/web/tsconfig.json
+/.vuka
