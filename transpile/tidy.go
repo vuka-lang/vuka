@@ -5,6 +5,7 @@ import (
 	"go/ast"
 	"go/format"
 	"go/parser"
+	"go/printer"
 	"go/scanner"
 	"go/token"
 	"go/types"
@@ -87,13 +88,14 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 	funcs := map[string]bool{}
 	pkgs := map[string]string{} // import name → the package's own
 	for _, t := range files {
-		scan(t.src)
 		if t.ast == nil {
+			scan(t.src)
 			continue
 		}
 		ast.Inspect(t.ast, func(n ast.Node) bool {
 			switch n := n.(type) {
 			case *ast.Ident:
+				taken[n.Name] = true
 				if strings.HasPrefix(n.Name, "__") && !seen[n.Name] && !inGo[n.Name] {
 					seen[n.Name] = true
 					old = append(old, n.Name)
@@ -152,25 +154,33 @@ func plainName(name string) string {
 
 // node is a node of a generated file, in the order walk finds them.
 type node struct {
-	pos, end token.Pos
-	anchor   bool // a //line directive may go before it: a declaration, a statement, a case, a field, a literal's element
-	fn       bool // a top-level function other than init
-	doc      bool // a top-level declaration, or the package clause, with a doc comment
-	leaf     bool // an identifier or a literal
+	pos, end token.Pos // end only for a leaf
+	anchor   bool      // a //line directive may go before it: a declaration, a statement, a case, a field, a literal's element
+	stmt     bool      // a statement of a block or a case, or a case: a directive before it changes no alignment
+	fn       bool      // a top-level function other than init
+	doc      bool      // a top-level declaration, or the package clause, with a doc comment
+	leaf     bool      // an identifier or a literal
 }
+
+const (
+	markAnchor = 1 << iota
+	markTop
+	markStmt
+)
 
 // walk lists file's nodes but its comments, imports and parentheses, the
 // parts formatting may change, so a file and its formatted self list the
 // same nodes in the same order.
 func walk(file *ast.File) []node {
-	out := []node{{pos: file.Package, anchor: true, doc: file.Doc != nil}}
-	anchors, top := map[ast.Node]bool{}, map[ast.Node]bool{}
+	out := make([]node, 1, 1024)
+	out[0] = node{pos: file.Package, anchor: true, doc: file.Doc != nil}
+	marks := make(map[ast.Node]uint8, 256)
 	for _, d := range file.Decls {
-		anchors[d], top[d] = true, true
+		marks[d] = markAnchor | markTop
 	}
-	mark := func(ns ...ast.Node) {
+	mark := func(m uint8, ns ...ast.Node) {
 		for _, n := range ns {
-			anchors[n] = true
+			marks[n] |= m
 		}
 	}
 	ast.Inspect(file, func(n ast.Node) bool {
@@ -187,42 +197,43 @@ func walk(file *ast.File) []node {
 			}
 			if n.Lparen.IsValid() {
 				for _, s := range n.Specs {
-					mark(s)
+					mark(markAnchor, s)
 				}
 			}
 		case *ast.BlockStmt:
 			for _, s := range n.List {
-				mark(s)
+				mark(markAnchor|markStmt, s)
 			}
 		case *ast.CaseClause:
 			for _, s := range n.Body {
-				mark(s)
+				mark(markAnchor|markStmt, s)
 			}
 		case *ast.CommClause:
 			for _, s := range n.Body {
-				mark(s)
+				mark(markAnchor|markStmt, s)
 			}
 		case *ast.StructType:
 			for _, f := range n.Fields.List {
-				mark(f)
+				mark(markAnchor, f)
 			}
 		case *ast.InterfaceType:
 			for _, f := range n.Methods.List {
-				mark(f)
+				mark(markAnchor, f)
 			}
 		case *ast.CompositeLit:
 			for _, x := range n.Elts {
-				mark(x)
+				mark(markAnchor, x)
 			}
 		}
-		nd := node{pos: n.Pos(), end: n.End(), anchor: anchors[n]}
+		m := marks[n]
+		nd := node{pos: n.Pos(), anchor: m&markAnchor != 0, stmt: m&markStmt != 0}
 		switch n := n.(type) {
 		case *ast.FuncDecl:
 			nd.fn, nd.doc = n.Name.Name != "init", n.Doc != nil
 		case *ast.GenDecl:
-			nd.doc = n.Doc != nil && top[n]
+			nd.doc = n.Doc != nil && m&markTop != 0
 		case *ast.Ident, *ast.BasicLit:
-			nd.leaf = true
+			nd.leaf, nd.end = true, n.End()
 		}
 		out = append(out, nd)
 		return true
@@ -345,13 +356,14 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	}
 
 	var buf bytes.Buffer
-	if err := format.Node(&buf, t.fset, file); err != nil {
+	ast.SortImports(t.fset, file)
+	if err := gofmt.Fprint(&buf, t.fset, file); err != nil {
 		return nil, nil, false
 	}
-	text := buf.Bytes()
+	text, reformat := buf.Bytes(), false
 	if len(added) > 0 {
 		var err error
-		if text, err = addImports(text, added); err != nil {
+		if text, reformat, err = addImports(text, added); err != nil {
 			return nil, nil, false
 		}
 	}
@@ -372,43 +384,40 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	type lineInfo struct {
 		col, src int
 		anchor   bool
+		stmt     bool // its anchor is a statement or a case
+		doc      bool // it starts a top-level declaration with a doc comment
 		fnSrc    int
 	}
-	info := map[int]*lineInfo{}
+	info := make([]lineInfo, otf.LineCount()+2) // by output line
 	for i, n := range after {
-		p := otf.Position(n.pos)
-		li := info[p.Line]
-		if li == nil {
-			li = &lineInfo{}
-			info[p.Line] = li
+		off := otf.Offset(n.pos)
+		l := otf.Line(n.pos)
+		li := &info[l]
+		col := off - otf.Offset(otf.LineStart(l)) + 1
+		if mapped[i].exact && (li.src == 0 || col < li.col) {
+			li.col, li.src = col, mapped[i].line
 		}
-		if mapped[i].exact && (li.src == 0 || p.Column < li.col) {
-			li.col, li.src = p.Column, mapped[i].line
-		}
+		li.doc = li.doc || n.doc
 		if !n.anchor {
 			continue
 		}
-		off := otf.Offset(n.pos)
-		if len(bytes.TrimSpace(text[bytes.LastIndexByte(text[:off], '\n')+1:off])) == 0 {
-			li.anchor = true
+		if len(bytes.TrimSpace(text[off-col+1:off])) == 0 {
+			li.anchor, li.stmt = true, n.stmt
 			if n.fn && li.fnSrc == 0 {
 				li.fnSrc = mapped[i].line
 			}
 		}
 	}
-	var outLines []int
-	for l, li := range info {
-		if li.anchor {
-			outLines = append(outLines, l)
-		}
-	}
-	sort.Ints(outLines)
-	directives := map[int]int{} // output line → .vuka line
+	directives := make([]int, len(info)) // output line → .vuka line, 0 for none
 	dirOut, dirSrc := 0, 0
-	for _, l := range outLines {
-		src := info[l].src
+	for l := range info {
+		li := &info[l]
+		if !li.anchor {
+			continue
+		}
+		src := li.src
 		if src == 0 {
-			src = info[l].fnSrc
+			src = li.fnSrc
 		}
 		if src == 0 || dirOut > 0 && dirSrc+l-dirOut == src {
 			continue
@@ -416,50 +425,72 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 		directives[l] = src
 		dirOut, dirSrc = l, src
 	}
-	docs := map[int]bool{} // output lines of top-level declarations with a doc comment
-	for _, n := range after {
-		if n.doc {
-			docs[otf.Line(n.pos)] = true
-		}
-	}
 
 	// The directives go in, after a doc comment's text the empty line gofmt
 	// puts before directives; then the map follows each node's first token
-	// to the .vuka file.
+	// to the .vuka file. A directive gofmt leaves where it is (at the start
+	// of a block or after an empty line or a doc comment) keeps the text
+	// gofmt'd and the nodes where they were, but for the lines it adds; any
+	// other means formatting again.
 	var b bytes.Buffer
-	textLines := bytes.SplitAfter(text, []byte("\n"))
-	for i, line := range textLines {
-		if l, ok := directives[i+1]; ok {
-			if docs[i+1] && i > 0 && !isDirective(bytes.TrimSpace(textLines[i-1])) {
-				b.WriteString("//\n")
+	b.Grow(len(text) + 1024)
+	shift := make([]int, len(info)+1) // bytes added before each line (1-based)
+	settled := !reformat
+	prev := []byte(nil) // the line before, trimmed
+	for i, start := 0, 0; start < len(text); i++ {
+		end := bytes.IndexByte(text[start:], '\n') + 1
+		if end == 0 {
+			end = len(text) - start
+		}
+		line := text[start : start+end]
+		if i+1 < len(info) && directives[i+1] > 0 {
+			switch {
+			case info[i+1].doc:
+				if i > 0 && !isDirective(prev) {
+					b.WriteString("//\n")
+				}
+			case len(prev) == 0, bytes.HasSuffix(prev, []byte("{")), bytes.HasSuffix(prev, []byte("(")), isDirective(prev):
+			case info[i+1].stmt && !hasComment(prev) && !hasComment(line):
+				// No trailing comments to align across it.
+			default:
+				settled = false
 			}
-			b.WriteString("//line " + t.f.path + ":" + strconv.Itoa(l) + "\n")
+			b.WriteString("//line " + t.f.path + ":" + strconv.Itoa(directives[i+1]) + "\n")
+		}
+		if i+1 < len(shift) {
+			shift[i+1] = b.Len() - start
 		}
 		b.Write(line)
+		prev = bytes.TrimSpace(line)
+		start += end
 	}
-	final, err := format.Source(b.Bytes())
-	if err != nil {
-		return nil, nil, false
+	final, ftf := b.Bytes(), otf
+	if !settled {
+		var err error
+		if final, err = format.Source(final); err != nil {
+			return nil, nil, false
+		}
+		fset = token.NewFileSet()
+		if out, err = parser.ParseFile(fset, "", final, parser.SkipObjectResolution); err != nil {
+			return nil, nil, false
+		}
+		ftf = fset.File(out.Pos())
+		if after = walk(out); len(after) != len(before) {
+			return nil, nil, false
+		}
+		shift = make([]int, ftf.LineCount()+2)
 	}
-	fset = token.NewFileSet()
-	if out, err = parser.ParseFile(fset, "", final, parser.SkipObjectResolution); err != nil {
-		return nil, nil, false
-	}
-	ftf := fset.File(out.Pos())
-	if after = walk(out); len(after) != len(before) {
-		return nil, nil, false
-	}
-	var segs []segment
-	seen := map[int]bool{}
+	segs := make([]segment, 0, len(after))
+	last := -1
 	for i, n := range after {
-		gen := ftf.Offset(n.pos)
-		if mapped[i].line == 0 || seen[gen] {
+		gen := ftf.Offset(n.pos) + shift[ftf.Line(n.pos)]
+		if mapped[i].line == 0 || gen == last {
 			continue
 		}
-		seen[gen] = true
-		size := ftf.Offset(n.end) - gen
-		if !n.leaf {
-			size = tokenLen(final[gen:])
+		last = gen
+		size := tokenLen(final[gen:])
+		if n.leaf {
+			size = ftf.Offset(n.end) + shift[ftf.Line(n.end)] - gen
 		}
 		if mapped[i].exact {
 			segs = append(segs, segment{gen: gen, src: mapped[i].src, genLen: size, srcLen: size, copy: true})
@@ -467,9 +498,21 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 			segs = append(segs, segment{gen: gen, src: mapped[i].src, genLen: size})
 		}
 	}
-	sort.Slice(segs, func(i, j int) bool { return segs[i].gen < segs[j].gen })
+	if !sort.SliceIsSorted(segs, func(i, j int) bool { return segs[i].gen < segs[j].gen }) {
+		sort.SliceStable(segs, func(i, j int) bool { return segs[i].gen < segs[j].gen })
+	}
 	return final, segs, true
 }
+
+// hasComment reports whether a line may hold a comment.
+func hasComment(line []byte) bool {
+	return bytes.Contains(line, []byte("//")) || bytes.Contains(line, []byte("/*"))
+}
+
+// gofmt prints as go/format does, number literals normalized too (its
+// printerNormalizeNumbers); format.Node would print and parse a file with an
+// import block once more to sort it.
+var gofmt = printer.Config{Mode: printer.UseSpaces | printer.TabIndent | 1<<30, Tabwidth: 8}
 
 // tokenLen is the length of the keyword, name or operator text starts with.
 func tokenLen(text []byte) int {
@@ -546,29 +589,32 @@ func clearDropped(file *ast.File, dropped map[*ast.CommentGroup]bool) {
 }
 
 // addImports puts specs in the first import block of a formatted file, as a
-// group of their own, and formats it again.
-func addImports(text []byte, specs []*ast.ImportSpec) ([]byte, error) {
+// group of their own sorted as gofmt sorts it, or at the end of the last
+// group when that is of the same kind; reformat reports that the group then
+// needs sorting again.
+func addImports(text []byte, specs []*ast.ImportSpec) (out []byte, reformat bool, err error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "", text, parser.ImportsOnly)
 	if err != nil {
-		return nil, err
+		return nil, false, err
 	}
 	have := map[string]bool{}
 	for _, s := range file.Imports {
 		have[importText(s)] = true
 	}
-	var lines []string
+	var lines, paths []string
 	for _, s := range specs {
 		if l := importText(s); !have[l] {
 			have[l] = true
 			lines = append(lines, l)
+			paths = append(paths, s.Path.Value)
 		}
 	}
 	if len(lines) == 0 {
-		return text, nil
+		return text, false, nil
 	}
+	sort.Sort(byPath{lines, paths})
 	tf := fset.File(file.Pos())
-	var out []byte
 	switch {
 	case len(file.Imports) == 0:
 		at := tf.Offset(file.Name.End())
@@ -584,6 +630,7 @@ func addImports(text []byte, specs []*ast.ImportSpec) ([]byte, error) {
 		group := "\n\n\t"
 		if last := file.Imports[len(file.Imports)-1]; strings.Contains(strings.SplitN(last.Path.Value, "/", 2)[0], ".") {
 			group = "\n\t"
+			reformat = last.Path.Value > paths[0]
 		}
 		if g.Lparen.IsValid() {
 			at := tf.Offset(g.Rparen)
@@ -596,7 +643,17 @@ func addImports(text []byte, specs []*ast.ImportSpec) ([]byte, error) {
 			out = append(out, text[tf.Offset(g.End()):]...)
 		}
 	}
-	return out, nil
+	return out, reformat, nil
+}
+
+// byPath sorts import lines by their quoted paths.
+type byPath struct{ lines, paths []string }
+
+func (b byPath) Len() int           { return len(b.lines) }
+func (b byPath) Less(i, j int) bool { return b.paths[i] < b.paths[j] }
+func (b byPath) Swap(i, j int) {
+	b.lines[i], b.lines[j] = b.lines[j], b.lines[i]
+	b.paths[i], b.paths[j] = b.paths[j], b.paths[i]
 }
 
 // importText is an import spec as a line of an import block: the name only

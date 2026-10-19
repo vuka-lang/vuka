@@ -37,6 +37,8 @@ jobs:
           if [ -n "$bad" ]; then echo "not gofmt'd:"; echo "$bad"; exit 1; fi
       - run: go vet ./...
       - run: go test -race ./...
+      - name: transpile benchmark
+        run: go test -run '^$' -bench BenchmarkGoldens -benchtime 10x -benchmem ./transpile
 
   cmd:
     name: cmd/vuka (e2e — Vite, Chrome, gopls, templ)
