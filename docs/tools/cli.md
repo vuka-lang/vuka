@@ -466,6 +466,7 @@ Repairs what tooling can. `-n` only reports; name fixers to run only those.
 | `orphans` | remove files `vuka gen -inplace` wrote for `.vuka` files that are gone |
 | `attr-of` | rename `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)`, in `.vuka` and `.go` files (v0.5.0) |
 | `ui` | move UI code to [`github.com/vuka-lang/ui`](/ui/) (v0.10.0): `vuka.Node` → `ui.Node` and the other UI names, `vuka/live`, `vuka/term`, `vuka/templx` → `ui/…`, `vuka.TemplComponents` → `templx.Components`; import ui in `.vuka` files with JSX; `go get` ui |
+| `ui-structs` | call the [ui kit](/ui/components#kit)'s components as structs, once the module's ui declares them so: `ui.Card(ui.CardProps{…})` → `ui.Card{…}.Render()`, `ui.Button(p)` → `ui.Button(p).Render()`, in `.vuka` and `.go` files; a generic component given a value, `ui.Table(t)`, is left for its type argument (`ui.Table[Row](t).Render()`) |
 
 ## fmt
 

@@ -1,0 +1,10 @@
+package app
+
+import "github.com/vuka-lang/ui"
+
+func Page(name string) ui.Node {
+	return <main>
+		<ui.Card title={ui.Text(name)}>hi</ui.Card>
+		{ui.Badge(ui.BadgeProps{Children: ui.Text("new")})}
+	</main>
+}

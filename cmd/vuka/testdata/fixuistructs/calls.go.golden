@@ -1,0 +1,36 @@
+// ui.Button(p) → ui.Button(p).Render()
+// ui.Button(ui.ButtonProps{…}) → ui.Button{…}.Render()
+// ui.Card(ui.CardProps{…}) → ui.Card{…}.Render()
+// ui.Image(ui.ImageProps{…}) → ui.Image{…}.Render()
+// ui.Input(ui.FieldProps{…}) → ui.Input{…}.Render()
+// ui.Submit(ui.ButtonProps{…}) → ui.Submit{…}.Render()
+// ui.Table(ui.TableProps{…}) → ui.Table{…}.Render()
+
+package app
+
+import (
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+func page(rows []Row, p ui.ButtonProps, t ui.TableProps[Row]) ui.Node {
+	return ui.Card{
+		Title:  ui.Text("Rows"),
+		Header: ui.Actions(ui.Button{Variant: ui.Primary, Children: ui.Text("New")}.Render()),
+		Children: ui.Fragment(
+			ui.Table[Row]{Rows: rows, Columns: cols}.Render(),
+			ui.Button(p).Render(),
+			ui.Table(t),
+			ui.Submit{Children: ui.Text("Go")}.Render(),
+			ui.Input{Name: "q"}.Render(),
+			ui.Image{Src: "/a.png"}.Render(),
+			ui.Icon("plus"),
+			ui.Card{}.Render(),
+		),
+	}.Render()
+}
+
+func done() ui.Node { return ui.Button(ui.ButtonProps{}).Render() }
+
+var _ = fmt.Sprint

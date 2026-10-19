@@ -47,6 +47,7 @@ var fixers = []fixer{
 	{"attr-of", "rename vuka.Attr[T](c) to vuka.AttrOf[T](c) (v0.5.0: vuka.Attr is JSX's attribute type)", fixAttrOf},
 	{"ui", "move UI code to github.com/vuka-lang/ui (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
 	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…", fixAttributes},
+	{"ui-structs", "call the ui kit's components as structs: ui.Card(ui.CardProps{…}) → ui.Card{…}.Render()", fixUIStructs},
 	{"hooks", "mark the methods a live page's hooks were found by (Mount, Changed, Load<Group>) with @ui.Mount, @ui.OnChange, @ui.Loads", fixHooks},
 }
 
