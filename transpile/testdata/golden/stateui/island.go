@@ -19,8 +19,9 @@ func (c Commands) jsChain() Commands { return c }
 
 var islands = map[reflect.Type]string{}
 
-func RegisterIsland[T any](path string, strategy ...string) {
-	islands[reflect.TypeFor[T]()] = path
+// RegisterIsland is Island in Go: ui.RegisterIsland[T](args...).
+func RegisterIsland[T any](args ...any) {
+	Island(args...)(&vuka.Type{Reflect: reflect.TypeFor[T]()})
 }
 
 type IslandOpt func(*[]string)

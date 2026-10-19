@@ -73,7 +73,7 @@ func TestLibraryExample(t *testing.T) {
 	ejectedURL, _ := serve(t, root, filepath.Join(bin, "decorated"))
 	// A live page's join token and a page's signature are the process's;
 	// the island bundle and its stylesheet are what the vuka command builds
-	// (a plain Go app has none yet: Phase 2 step 5).
+	// (vuka build, or go tool vuka build-islands), which neither binary has.
 	volatile := regexp.MustCompile(`data-vk-(token|sig|session)="[^"]*"|<link rel="stylesheet" href="/_vuka/app\.css\?v=[^"]*">|<script src="/_vuka/c/loader\.js\?v=[^"]*" defer></script>`)
 	for _, path := range []string{"/api/users", "/api/users/2", "/api/users/9", "/", "/users/2", "/users/9"} {
 		var bodies [2]string

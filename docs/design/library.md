@@ -124,6 +124,14 @@ its component from the type's name, `ui.Island("islands/x.vue")` names it
 parameters of provided types are injected (the others start zero), and a
 route's attributes include those registered on the handler.
 
+A type decorator whose package has a generic twin — `Register<Name>[T]`,
+taking what the decorator takes — lowers to the twin, the call a person
+writes: `@ui.Island` on `Chart` is `ui.RegisterIsland[Chart]()`, and
+`@ui.Island("islands/Chart.vue", ui.Strategy("load"))` is
+`ui.RegisterIsland[Chart]("islands/Chart.vue", ui.Strategy("load"))`; the
+path is written only when the source names one. The form older compilers
+wrote, `ui.Island(…)(vuka.TypeFor[Chart](NewChart))`, keeps working.
+
 Two forms stay a decorator's own rather than an option: a composed
 decorator (`vuka.Bundle`, such as `@auth.Required`) on a function wraps the
 function as well — its gate checks direct calls too — and the route reads
@@ -321,7 +329,7 @@ attributes (`@ui.Bind{…}`, `@ui.Defer("lists")`, `@ui.Loads("lists")`,
 | orm field sets (`<Model>Fields`) | `orm.Q{"…"}` / `orm.F("…")`, checked at run time | typed |
 | orm `Register[T]()` | a model's `orm.For[T]()` (or first `Objects`) registers it | at init |
 | live render tracking (`ui.F` frames from JSX) | components built from nodes diff whole: the same page; 1.7–2.2× the bytes on the demo pages' random events | fine-grained, as now; `ui.Template` builds frames at init, no generation needed |
-| `vuka-live.d.ts` (island TypeScript types) | islands work, untyped (`useLive()` comes from the island build) | typed (`defineProps<T>()` needs it) |
+| `vuka-live.d.ts` (island TypeScript types) | islands work, untyped (`useLive()` comes from the island build) | typed (`defineProps<T>()` needs it); `go tool vuka build-islands` writes it |
 
 Measured on an Apple M1 Pro: orm `go test -bench Fallback` (a stub driver
 for the ORM's own cost, SQLite end to end), ui `go test -bench Fallback
@@ -341,12 +349,31 @@ for the ORM's own cost, SQLite end to end), ui `go test -bench Fallback
 ## 5. Frontend assets
 
 - **Production:** `//go:embed all:web/dist` of a prebuilt bundle, as today.
+  The islands go into the same build: `go tool vuka build-islands` finds the
+  registered island types by reading the Go source (never running the app)
+  and writes their bundle and stylesheets to `web/dist/.vuka/`, which the
+  app serves; one line opts in, after the frontend's own build:
+
+  ```go
+  //go:generate go tool vuka build-islands
+  ```
+
+  It writes `islands.d.ts` and `vuka-live.d.ts` too, typed from the Go
+  structs. A build of islands alone (no `index.html`) is served as one.
 - **Development with `go run .`:** `web.Dev()` — active only when
   `VUKA_DEV=1` or the environment is development — starts Tailwind and Vite as
-  child processes when they're installed and serves through them; otherwise
-  it serves the last build and logs one line saying how to get live CSS and
-  islands.
-- Without Node, everything except islands and Tailwind works.
+  child processes when they're installed and serves through them, and for an
+  app registering islands `vuka build-islands -watch`, which keeps them built
+  in `.vuka/assets` from the component files; otherwise it serves the last
+  build and logs one line saying how to get live CSS and islands.
+- Without Node, everything except framework islands and Tailwind works
+  (vanilla islands build in Go).
+
+An island is declared the same way in both: `ui.RegisterIsland[Chart]()`
+finds `islands/[<module>/]Chart.<ext>` under the frontend root, as a bare
+`@ui.Island` does (one implementation, the vuka command's); a missing
+component is E0310 at build time, its help naming the call to write. The
+hand-written line and the generated one are the same.
 
 ## 6. What the CLI is for
 
@@ -404,6 +431,8 @@ Folded into roadmap Phase 2:
 | 4 | orm reflection fallback, live render fallback (**done**); call decorators through a reflective wrapper (open) | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
 | 6 | `vukavet` analyzer — **done** | 2.6 |
+| 2a | Island path inference without the CLI: bare `ui.RegisterIsland[T]()`, the transpiler emits it — **done** | 2.5, 2.6 |
+| 2b | Islands built for plain Go: `go tool vuka build-islands` into the frontend's build, `web.Dev()` keeps them built, `vuka-live.d.ts` from Go types — **done** | 2.6 |
 | 7 | Conformance suite | 2.6 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
@@ -433,5 +462,15 @@ What the contract file still allows, by the step that removes it:
   `vuka.NewCall`): its public form is a reflective wrapper, with the typed
   adapter an optional speed-up like the other step 4 fallbacks.
 
-A plain Go app gets no island bundle or stylesheet yet: the `vuka` command
-builds them from `.vuka` sources (step 5).
+Steps 2a and 2b are done: `ui.RegisterIsland[T](args…)` takes what
+`ui.Island` takes and, bare, leaves the component to the vuka command's
+inference; the transpiler writes it for `@ui.Island` (a type decorator's
+`Register<Name>[T]` twin). `go tool vuka build-islands` reads the
+registrations from Go source — `ui.RegisterIsland[T]`, a route's
+`ui.Island` option (the page its constructor returns), the older generated
+form — and builds them with the same code `vuka build` and `vuka run` use,
+into `web/dist/.vuka/`; `-watch` is what `web.Dev()` runs.
+`examples/islands-go` is such an app, a Vue island in a live page and a page
+backed by its component; `TestIslandsGoE2E` (cmd/vuka) builds it with
+`go tool vuka build-islands` and `go build`, mounts both in Chrome, and again
+under `web.Dev()` with `VUKA_DEV=1`.

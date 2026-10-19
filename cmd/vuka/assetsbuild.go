@@ -186,8 +186,12 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		// them for defineProps<T>() of a page-backed island's component.
 		var dirs []string
 		for _, ic := range pa.islands {
-			if d := filepath.Dir(strings.SplitN(ic.label, ":", 2)[0]); !ic.imported && !slices.Contains(dirs, filepath.Join(pa.root, d)) {
-				dirs = append(dirs, filepath.Join(pa.root, d))
+			d := ic.dir
+			if d == "" {
+				d = filepath.Join(pa.root, filepath.Dir(strings.SplitN(ic.label, ":", 2)[0]))
+			}
+			if !ic.imported && !slices.Contains(dirs, d) {
+				dirs = append(dirs, d)
 			}
 		}
 		out.liveDTS = liveDTS(pa.islands, readIslandLive(pa.root, pa.modPath, dirs))
