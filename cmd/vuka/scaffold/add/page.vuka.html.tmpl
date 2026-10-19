@@ -1,0 +1,27 @@
+{%- if .Live%}
+<main class="mx-auto max-w-2xl px-4 py-16">
+  <h1 class="text-2xl font-semibold tracking-tight">{%.Title%}</h1>
+  <button type="button" class="mt-6 rounded-lg px-3 py-2 ring-1 ring-slate-300" onClick={Inc}>
+    Clicked {count} times
+  </button>
+</main>
+{%- else if .Layouts%}
+import "{%.Module%}/layouts"
+
+<layouts.Document title={Title}>
+  <main class="mx-auto max-w-2xl px-4 py-16">
+    <h1 class="text-2xl font-semibold tracking-tight">{Title}</h1>
+    <p class="mt-2 text-sm text-slate-600">Write the page here.</p>
+  </main>
+</layouts.Document>
+{%- else%}
+<html lang="en">
+  <head><title>{Title}</title></head>
+  <body>
+    <main>
+      <h1>{Title}</h1>
+      <p>Write the page here.</p>
+    </main>
+  </body>
+</html>
+{%- end%}

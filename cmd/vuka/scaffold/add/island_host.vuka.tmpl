@@ -1,18 +1,7 @@
 package {%.Pkg%}
 
-import (
-	"github.com/vuka-lang/ui"
-
-	{%.Name%}Island "{%.Import%}"
-)
-
-// {%.Name%}Props are what <{%.Pkg%}.{%.Name%}> passes to the island.
-type {%.Name%}Props struct {
+// {%.Name%} places the island {%.File%} ({%.Snake%}.vuka.html): <{%.Pkg%}.{%.Name%} Title="…" />.
+type {%.Name%} struct {
 	Title string
 	Count int
-}
-
-// {%.Name%} places the island {%.File%}: <{%.Pkg%}.{%.Name%} Title="…" />.
-func {%.Name%}(p {%.Name%}Props) ui.Node {
-	return <{%.Name%}Island title={p.Title} count={p.Count} client:load />
 }

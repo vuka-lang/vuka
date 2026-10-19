@@ -2,19 +2,9 @@ package {%.Pkg%}
 
 import "github.com/vuka-lang/ui"
 
-// {%.Name%}Props are what <{%.Name%}> takes; Children is the tag's children.
-type {%.Name%}Props struct {
+// {%.Name%} is a component ({%.Snake%}.vuka.html): <{%.Name%} Title="…">…</{%.Name%}>.
+type {%.Name%} struct {
 	Title    string
 	Class    string
 	Children ui.Node
-}
-
-// {%.Name%} is a component: <{%.Name%} Title="…">…</{%.Name%}>.
-func {%.Name%}(p {%.Name%}Props) ui.Node {
-	return <section class={"rounded-2xl p-6 ring-1 ring-slate-900/5 dark:ring-white/10 " + p.Class}>
-		{if p.Title != "" {
-			<h2 class="mb-2 text-base font-semibold text-slate-900 dark:text-white">{p.Title}</h2>
-		}}
-		{p.Children}
-	</section>
 }

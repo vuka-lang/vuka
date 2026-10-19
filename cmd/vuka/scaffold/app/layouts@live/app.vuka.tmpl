@@ -7,8 +7,6 @@ import (
 {%- if .Auth%}
 	"github.com/vuka-lang/web/auth"
 {%- end%}
-
-	"{%.Module%}/components"
 )
 
 {%- if .Auth%}
@@ -19,14 +17,24 @@ type Account interface {
 	EmailAddress() string
 }
 
-func account(me *auth.Identity) (name, email string) {
+func accountName(me *auth.Identity) string {
 	if me == nil {
-		return "", ""
+		return ""
 	}
 	if a, ok := me.User.(Account); ok {
-		return a.DisplayName(), a.EmailAddress()
+		return a.DisplayName()
 	}
-	return me.ID, ""
+	return me.ID
+}
+
+func accountEmail(me *auth.Identity) string {
+	if me == nil {
+		return ""
+	}
+	if a, ok := me.User.(Account); ok {
+		return a.EmailAddress()
+	}
+	return ""
 }
 
 func initials(name string) string {
@@ -65,112 +73,13 @@ func current(on bool) []ui.Attr {
 	}
 	return nil
 }
-
 {%- if .Auth%}
 
-// App is the signed-in shell: the top bar with the logo, the navigation
-// (path highlights its link) and the user menu, then the page's title,
-// its actions and the page itself.
-func App(me *auth.Identity, path string,{%- else%}
-
-// App is the pages' shell: the top bar with the logo and the navigation
-// (path highlights its link), then the page's title, its actions and the
-// page itself.
-func App(path string,{%- end%} title string, description string, actions ui.Node, children ui.Node) ui.Node {
-	return <div class="min-h-full">
-		<header class="sticky top-0 z-30 border-b border-slate-900/10 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
-			<div class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6 lg:px-8">
-				<ui.Link href="/" class="rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-brand-500">
-					<components.Logo name={AppName()} />
-				</ui.Link>
-				<nav class="hidden items-center gap-1 md:flex" aria-label="Main">
-					<NavLinks{%if .Auth%} me={me}{%end%} path={path} />
-				</nav>
-{%- if .Auth%}
-				<div class="ml-auto"><UserMenu me={me} /></div>
-{%- end%}
-			</div>
-			<nav class="flex gap-1 overflow-x-auto border-t border-slate-900/5 px-4 py-2 md:hidden dark:border-white/5" aria-label="Main">
-				<NavLinks{%if .Auth%} me={me}{%end%} path={path} />
-			</nav>
-		</header>
-		<main id="main" class="mx-auto max-w-6xl px-4 py-8 outline-none sm:px-6 lg:px-8">
-			<div class="mb-8 flex flex-wrap items-end justify-between gap-4">
-				<div>
-					<h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{title}</h1>
-					{if description != "" { <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p> }}
-				</div>
-				{actions}
-			</div>
-			{children}
-		</main>
-	</div>
-}
-
-// NavLinks are the navigation's links{%if .Auth%} the user may see{%end%}.
-func NavLinks({%if .Auth%}me *auth.Identity, {%end%}path string) ui.Node {
-	return <>
-		{for _, l := range Links() {
-{%- if .Auth%}
-			if l.Perm == "" || me.Can(l.Perm) {
-				<ui.Link href={l.Href} class={navClass(active(path, l.Href))} attrs={current(active(path, l.Href))}>
-					<components.Icon name={l.Icon} class="size-4" />
-					{l.Label}
-				</ui.Link>
-			}
-{%- else%}
-			<ui.Link href={l.Href} class={navClass(active(path, l.Href))} attrs={current(active(path, l.Href))}>
-				<components.Icon name={l.Icon} class="size-4" />
-				{l.Label}
-			</ui.Link>
-{%- end%}
-		}}
-	</>
-}
-
-{%- if .Auth%}
-
-// UserMenu is the avatar button and its menu, opened and closed in the
-// browser (JS commands): no server round trip.
-func UserMenu(me *auth.Identity) ui.Node {
-	name, email := account(me)
-	toggle := ui.JS.Toggle(ui.Ref("user-menu"), ui.Transition("transition ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100")).
-		ToggleAttr(ui.Ref("user-button"), "aria-expanded", "true", "false")
-	close := ui.JS.Key("Escape").Hide(ui.Ref("user-menu")).SetAttr(ui.Ref("user-button"), "aria-expanded", "false").Focus(ui.Ref("user-button"))
-	return <div class="relative" onKeydown={close}>
-		<button
-			ref="user-button"
-			type="button"
-			id="user-button"
-			class="flex items-center gap-2 rounded-full p-1 pr-2 text-sm font-medium text-slate-700 hover:bg-slate-900/5 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-slate-200 dark:hover:bg-white/5"
-			aria-haspopup="menu"
-			aria-expanded="false"
-			aria-controls="user-menu"
-			onClick={toggle}
-		>
-			<span class="grid size-8 place-items-center rounded-full bg-brand-600 text-xs font-semibold text-white" aria-hidden="true">{initials(name)}</span>
-			<span class="hidden sm:block">{name}</span>
-			<components.Icon name="chevron" class="size-4 text-slate-400" />
-		</button>
-		<div
-			ref="user-menu"
-			id="user-menu"
-			role="menu"
-			hidden
-			class="absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-slate-900/10 dark:bg-slate-900 dark:ring-white/10"
-		>
-			<div class="px-3 py-2.5">
-				<p class="text-sm font-medium text-slate-900 dark:text-white">{name}</p>
-				{if email != "" { <p class="truncate text-xs text-slate-500 dark:text-slate-400">{email}</p> }}
-			</div>
-			<div class="my-1 h-px bg-slate-900/5 dark:bg-white/10" />
-			<form method="post" action="/auth/logout">
-				<button type="submit" role="menuitem" id="sign-out" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-900/5 focus-visible:bg-slate-900/5 focus-visible:outline-none dark:text-slate-200 dark:hover:bg-white/5">
-					<components.Icon name="logout" class="size-4 text-slate-400" />
-					Sign out
-				</button>
-			</form>
-		</div>
-	</div>
-}
+// The user menu opens and closes in the browser (JS commands): no server
+// round trip.
+var (
+	toggleUserMenu = ui.JS.Toggle(ui.Ref("user-menu"), ui.Transition("transition ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100")).
+			ToggleAttr(ui.Ref("user-button"), "aria-expanded", "true", "false")
+	closeUserMenu = ui.JS.Key("Escape").Hide(ui.Ref("user-menu")).SetAttr(ui.Ref("user-button"), "aria-expanded", "false").Focus(ui.Ref("user-button"))
+)
 {%- end%}

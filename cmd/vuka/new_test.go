@@ -8,6 +8,8 @@ import (
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/internal/format"
 )
 
 // The line prompter reads numbers, keys, labels and empty lines (the
@@ -187,6 +189,11 @@ func TestRenderFileSets(t *testing.T) {
 			if bytes.Contains(b, []byte("{%")) || bytes.Contains(b, []byte("<no value>")) {
 				t.Errorf("%s/%s/%s: %s isn't fully rendered", ui, db, auth, name)
 			}
+			if strings.HasSuffix(name, ".vuka.html") {
+				if f, err := format.Template(b); err != nil || !bytes.Equal(f, b) {
+					t.Errorf("%s/%s/%s: %s isn't vuka fmt'd:\n%s", ui, db, auth, name, f)
+				}
+			}
 		}
 		return files
 	}
@@ -195,13 +202,14 @@ func TestRenderFileSets(t *testing.T) {
 	files := render("", "", "", "", "")
 	want := []string{
 		".env", ".env.example", ".gitignore", "README.md", "go.mod", "main.vuka", "main_test.vuka",
-		"components/button.vuka", "components/card.vuka", "components/class.vuka", "components/flash.vuka",
-		"components/icon.vuka", "components/input.vuka", "components/logo.vuka",
-		"layouts/app.vuka", "layouts/auth.vuka", "layouts/document.vuka", "layouts/nav.vuka",
+		"components/button.vuka", "components/button.vuka.html", "components/card.vuka.html", "components/class.vuka",
+		"components/flash.vuka", "components/flash.vuka.html", "components/icon.vuka", "components/icon.vuka.html",
+		"components/input.vuka", "components/input.vuka.html", "components/logo.vuka.html",
+		"layouts/app.vuka", "layouts/app.vuka.html", "layouts/auth.vuka.html", "layouts/document.vuka", "layouts/nav.vuka",
 		"migrations/0001_initial.go", "migrations/doc.go",
-		"modules/users/model.vuka", "modules/users/pages.vuka", "modules/users/service.vuka",
+		"modules/users/model.vuka", "modules/users/pages.vuka", "modules/users/pages.vuka.html", "modules/users/service.vuka",
 		"modules/users/stores.vuka", "modules/users/users_test.vuka",
-		"pages/home.vuka", "pages/login.vuka", "static/logo.svg", "styles/app.css",
+		"pages/home.vuka", "pages/home.vuka.html", "pages/login.vuka", "pages/login.vuka.html", "static/logo.svg", "styles/app.css",
 	}
 	slices.Sort(want)
 	if got := slices.Sorted(maps.Keys(files)); !slices.Equal(got, want) {
@@ -253,7 +261,7 @@ func TestRenderFileSets(t *testing.T) {
 	}
 
 	noauth := render("live", "sqlite", "yes", "no", "none")
-	has(noauth, []string{"pages/home.vuka", "migrations/doc.go"}, []string{"pages/login.vuka", "layouts/auth.vuka", "modules/users/model.vuka", "migrations/0001_initial.go"})
+	has(noauth, []string{"pages/home.vuka", "migrations/doc.go"}, []string{"pages/login.vuka", "layouts/auth.vuka.html", "modules/users/model.vuka", "migrations/0001_initial.go"})
 	if strings.Contains(string(noauth["layouts/app.vuka"]), "auth") {
 		t.Error("the shell of an app without sign-in mentions auth")
 	}
@@ -333,8 +341,11 @@ func TestRenderIslands(t *testing.T) {
 	if m := string(yes["main.vuka"]); !strings.Contains(m, `web.FrontendRoot("web")`) || !strings.Contains(m, "all:web/dist") {
 		t.Errorf("main.vuka doesn't wire the island frontend:\n%s", m)
 	}
-	if p := string(yes["pages/island.vuka"]); !strings.Contains(p, "@ui.Island\ntype Counter struct") || !strings.Contains(p, "<ui.Island>") {
-		t.Errorf("pages/island.vuka doesn't declare and place the island:\n%s", p)
+	if p := string(yes["pages/island.vuka"]); !strings.Contains(p, "@ui.Island\ntype Counter struct") {
+		t.Errorf("pages/island.vuka doesn't declare the island:\n%s", p)
+	}
+	if p := string(yes["pages/island.vuka.html"]); !strings.Contains(p, "ui.Mount(Counter{") {
+		t.Errorf("pages/island.vuka.html doesn't place the island:\n%s", p)
 	}
 	if g := string(yes[".gitignore"]); !strings.Contains(g, "/web/node_modules/") {
 		t.Errorf(".gitignore doesn't ignore the island deps:\n%s", g)

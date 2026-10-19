@@ -1,0 +1,14 @@
+// Button is a button. While its form submits (aria-busy) it shows a
+// spinner and ignores clicks.
+func Button(p ButtonProps)
+<button {p.attrs()...}>
+  <Spinner class="hidden group-aria-busy:block" />
+  {p.Children}
+</button>
+
+// Spinner is a small spinning circle.
+func Spinner(class string)
+<svg class={cx("size-4 animate-spin", class)} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+  <circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
+  <path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
+</svg>
