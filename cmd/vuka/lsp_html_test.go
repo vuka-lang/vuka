@@ -57,3 +57,35 @@ func TestLSPTemplate(t *testing.T) {
 		t.Errorf("definition of n: %s", def)
 	}
 }
+
+const lspHTMLTyping = `<section>
+  <h2>{Title}</h2>
+  <inp
+  <a tar
+  <input type="ch
+  <textarea bi
+</section>
+`
+
+// TestLSPTemplateHTML: completion in a .vuka.html's markup is HTML's: the
+// elements after <, an element's attributes in its tag, an attribute's
+// values in its quotes.
+func TestLSPTemplateHTML(t *testing.T) {
+	c, dir, _ := startLSPWith(t, map[string]string{"sales.go": lspHTMLGo, "sales.vuka.html": lspHTMLTemplate})
+	uri := pathToURI(filepath.Join(dir, "sales.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka-html", "version": 1, "text": lspHTMLTemplate}})
+	c.waitDiags(uri, func(ds []any) bool { return true })
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
+		"contentChanges": []any{map[string]any{"text": lspHTMLTyping}}})
+	at := func(needle string) map[string]any {
+		return map[string]any{"textDocument": map[string]any{"uri": uri},
+			"position": positionOf([]byte(lspHTMLTyping), strings.Index(lspHTMLTyping, needle)+len(needle))}
+	}
+	for needle, want := range map[string]string{"<inp": `"input"`, "<a tar": `"target"`, `type="ch`: `"checkbox"`, "<textarea bi": `"bind:value"`} {
+		b, _ := json.Marshal(c.call("textDocument/completion", at(needle)))
+		if !strings.Contains(string(b), want) {
+			t.Errorf("completion at %s: no %s in %.300s", needle, want, b)
+		}
+	}
+}

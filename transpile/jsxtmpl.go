@@ -108,6 +108,12 @@ func (w *jsxWriter) piece(ns []jsxNode) {
 	ns = flatten(ns)
 	if len(ns) == 1 {
 		switch n := ns[0].(type) {
+		case *jsxBlock:
+			// A branch every way of which picks a Node is that Node.
+			if w.picksOne(n) {
+				w.gen(w.block(n))
+				return
+			}
 		case *jsxElem:
 			// A function component is its call; a keyed stateful one, in a
 			// block, ui.Key: a list's components take the list's place.
@@ -541,9 +547,25 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 			w.holeIn(tp, "states", func() { w.gen(states) })
 		}
 	}
+	style, props := el.styleAttrs()
 	for _, a := range el.attrs {
 		a := a
 		if a.name == "is:inline" {
+			continue
+		}
+		if len(props) > 0 && (a == style || a == props[0] && style == nil) {
+			// style:--x={v}: the style attribute with the properties in it.
+			tp.b.WriteString(" style=")
+			w.holeIn(tp, "style", func() { w.cssVars(style, props) })
+			continue
+		}
+		if len(props) > 0 && strings.HasPrefix(a.name, "style:") {
+			continue
+		}
+		if a.name == "bind:value" {
+			tp.b.WriteString(" {")
+			tp.label(w.value(tp, "bind", func() { w.bindValue(a) }))
+			tp.b.WriteString("...}")
 			continue
 		}
 		if a.kind == 'r' {
@@ -587,6 +609,37 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 		w.markup(tp, kids, indent, indent+"  ", inline || el.tag == "pre" || el.tag == "textarea" || el.tag == "title")
 	}
 	tp.b.WriteString("</" + el.tag + ">")
+}
+
+// cssVars writes a style attribute with style:prop attributes as
+// ui.CSSVars(style, "prop", value, …).
+func (w *jsxWriter) cssVars(style *jsxAttr, props []*jsxAttr) {
+	w.gen(w.q + "CSSVars(")
+	if style == nil {
+		w.gen("nil")
+	} else {
+		w.attrValue(style)
+	}
+	for _, a := range props {
+		w.gen(", " + strconv.Quote(strings.TrimPrefix(a.name, "style:")) + ", ")
+		w.attrValue(a)
+	}
+	w.gen(")")
+}
+
+// bindValue writes bind:value={p.Q} as ui.BindValue(p, &p.Q); a bare name
+// of a file's template is its receiver's field.
+func (w *jsxWriter) bindValue(a *jsxAttr) {
+	w.gen(w.q + "BindValue(")
+	text := string(w.f.src[a.expr.start:a.expr.end])
+	if dot := strings.LastIndexByte(text, '.'); dot >= 0 {
+		w.keep(span{a.expr.start, a.expr.start + dot})
+	} else {
+		w.gen(w.f.html.recv)
+	}
+	w.gen(", &")
+	w.keep(a.expr)
+	w.gen(")")
 }
 
 func allText(ns []jsxNode) bool {
@@ -663,9 +716,9 @@ var (
 	rawEscaper  = strings.NewReplacer("`", "` + \"`\" + `")
 )
 
-// block writes a {for}, {if} or {match} as statements before the tree,
-// building a []ui.Node — a block is a list, the nodes it picks its items —
-// and returns the variable.
+// block writes a {for}, {if} or {match} as statements before the tree —
+// a loop building a []ui.Node, the nodes it makes its items, a branch
+// setting a ui.Node — and returns the variable.
 func (w *jsxWriter) block(n *jsxBlock) string {
 	q := w.q
 	outer := w.inBlock
@@ -694,15 +747,16 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 		})
 		return name
 	}
+	// A branch picks one Node: the block is that Node, nil when none.
 	name := w.varName(lowerFirst(w.nodesName(firstBody(n))))
 	w.stmts(func() {
-		w.gen("var " + name + " []" + q + "Node\n")
+		w.gen("var " + name + " " + q + "Node\n")
 		body := func(ns []jsxNode) {
 			if len(ns) > 0 {
 				e := w.expr(func() { w.piece(ns) })
-				w.gen("\n" + name + " = append(" + name + ", ")
+				w.gen("\n" + name + " = ")
 				w.put(e)
-				w.gen(")\n")
+				w.gen("\n")
 			}
 		}
 		if n.sw {
@@ -775,6 +829,37 @@ func firstBody(n *jsxBlock) []jsxNode {
 		}
 	}
 	return nil
+}
+
+// picksOne reports whether a block is a branch that picks a Node whichever
+// way it goes: an if with an else, a switch with a default, a match, each
+// way with markup.
+func (w *jsxWriter) picksOne(n *jsxBlock) bool {
+	if n.stmt || w.isLoop(n) {
+		return false
+	}
+	ways := n.bodies
+	if n.sw || n.m != nil {
+		ways = n.cases
+	}
+	for _, b := range ways {
+		if len(b) == 0 {
+			return false
+		}
+	}
+	switch {
+	case n.m != nil:
+		return true
+	case n.sw:
+		for _, h := range n.heads[1:] {
+			if strings.HasPrefix(strings.TrimSpace(string(w.f.src[h.start:h.end])), "default") {
+				return true
+			}
+		}
+		return false
+	}
+	last := strings.Fields(string(w.f.src[n.heads[len(n.heads)-1].start:n.heads[len(n.heads)-1].end]))
+	return len(n.heads) > 1 && len(last) > 0 && last[0] == "else" && (len(last) == 1 || last[1] != "if")
 }
 
 // isLoop reports whether a block is a for.

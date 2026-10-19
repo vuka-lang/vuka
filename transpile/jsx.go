@@ -272,6 +272,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 			p.fail(off, "unclosed <%s>", el.tag)
 		case c == '/' && p.at(i+1) == '>':
 			el.end = i + 2
+			p.checkStyle(el)
 			return el
 		case c == '>' && (p.f.html != nil && (el.tag == "script" || el.tag == "style") || el.isAsset()):
 			el.asset = el.isAsset()
@@ -290,6 +291,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 			el.end = k + 1
 			return el
 		case c == '>':
+			p.checkStyle(el)
 			el.kids, i = p.children(i+1, el, 0, false)
 			j := p.space(i + 2)
 			name, k := p.name(j)
@@ -351,6 +353,14 @@ func (p *jsxParser) element(off int) *jsxElem {
 					p.fail(i, "attribute %s needs a value: %s=\"…\" or %s={…}", a.name, a.name, a.name)
 				}
 			}
+			switch {
+			case a.name == "bind:value" && (comp || a.kind != 'e'):
+				p.fail(a.off, "bind:value takes a field of the page: <input bind:value={p.Q}/>")
+			case a.name == "bind:value" && !strings.Contains(string(p.src[a.expr.start:a.expr.end]), ".") && (p.f.html == nil || p.f.html.recv == ""):
+				p.fail(a.off, "bind:value takes a field of the page, through its receiver: bind:value={p.%s}", strings.TrimSpace(string(p.src[a.expr.start:a.expr.end])))
+			case strings.HasPrefix(a.name, "style:") && (comp || a.kind == 'b' || len(a.name) == len("style:")):
+				p.fail(a.off, "%s sets a CSS property of an element: style:--accent={c}", a.name)
+			}
 			if a.kind == 'e' && !comp && isEvent(a.name) && p.f.target.has("On") {
 				a.event = true
 				p.cur.events = append(p.cur.events, &jsxEvent{attr: a, tag: el.tag})
@@ -360,6 +370,26 @@ func (p *jsxParser) element(off int) *jsxElem {
 			p.fail(i, "unexpected %q in <%s>", c, el.tag)
 		}
 	}
+}
+
+// checkStyle refuses style:prop beside a style attribute built of holes.
+func (p *jsxParser) checkStyle(el *jsxElem) {
+	if style, props := el.styleAttrs(); len(props) > 0 && style != nil && style.kind == 'p' {
+		p.fail(style.off, "a style with holes beside %s: write the whole style as one value, style={…}, or each property as style:prop={…}", props[0].name)
+	}
+}
+
+// styleAttrs are an element's style attribute and its style:prop ones.
+func (el *jsxElem) styleAttrs() (style *jsxAttr, props []*jsxAttr) {
+	for _, a := range el.attrs {
+		switch {
+		case a.name == "style":
+			style = a
+		case strings.HasPrefix(a.name, "style:"):
+			props = append(props, a)
+		}
+	}
+	return style, props
 }
 
 // children reads children up to what ends them: a closing tag for an element

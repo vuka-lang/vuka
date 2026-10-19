@@ -16,7 +16,8 @@ import (
 // each value's Go against its label (E0132), and each value's type against
 // its hole's place where the type is known (E0128) — what fails the render,
 // or reads wrong, otherwise — and the package's .vuka.html files: a bare
-// name both a field and a package-level name (W0101).
+// name both a field and a package-level name (W0101) — and the loops that
+// build a live list without keys (W0102, W0103).
 var Templates = &analysis.Analyzer{
 	Name: "templates",
 	Doc:  "check ui.HTML's values against its labelled holes",
@@ -28,6 +29,7 @@ func runTemplates(pass *analysis.Pass) (any, error) {
 	info := pass.TypesInfo
 	k := newKinds(pass)
 	bareNames(pass, htmlSources(pass))
+	listKeys(pass)
 	for _, f := range pass.Files {
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)

@@ -78,11 +78,11 @@ func (t *Todo) Render() ui.Node {
   <button onClick={func() { t.Remove(it.ID) }}>x</button>
 </li>`, it.ID, &Counter{Label: it.Name}, func() { t.Remove(it.ID) }))
 	}
-	var p2 []ui.Node
+	var p2 ui.Node
 //line jsx_live.vuka:81
 	if t.query != "" {
 //line jsx_live.vuka:81
-		p2 = append(p2, ui.HTML(`<p>typing {t.query}</p>`, t.query))
+		p2 = ui.HTML(`<p>typing {t.query}</p>`, t.query)
 	}
 //line jsx_live.vuka:69
 	return ui.HTML(`

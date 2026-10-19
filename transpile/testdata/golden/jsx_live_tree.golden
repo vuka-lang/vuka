@@ -47,13 +47,13 @@ func (t *Table) Render() ui.Node {
   <td>{r.Qty}</td>
 </tr>`, r.ID, r.Name, r.Qty))
 	}
-	var p []ui.Node
+	var p ui.Node
 //line jsx_live_tree.vuka:43
 	if t.sel > 0 {
 //line jsx_live_tree.vuka:43
-		p = append(p, ui.HTML(`<p>row {t.sel}</p>`, t.sel))
+		p = ui.HTML(`<p>row {t.sel}</p>`, t.sel)
 	} else {
-		p = append(p, ui.HTML(`<p>none</p>`))
+		p = ui.HTML(`<p>none</p>`)
 	}
 //line jsx_live_tree.vuka:38
 	return ui.HTML(`
