@@ -232,8 +232,20 @@ figcaption { font-weight: bold }
 The script runs once per instance: `el` is its root, `props` the struct's
 data fields as JSON (`ui.Node`, func and unexported fields are not sent),
 `update` runs when a live re-render changes them, `destroy` when the
-instance leaves the page; `ctx.live` calls the component's exported
-methods. The `vuka` command bundles the script and scopes the style to
+instance leaves the page. `ctx.live` calls the component's exported
+methods (`ctx.live.reorder(ids)` is `Reorder`), `ctx.state("open")` is a
+`ui.State` field's handle — `get()`, `set(v)`, `watch(fn)` — and
+`ctx.navigate(href)` / `ctx.patch(href)` move the page. A live page's
+`Render` template takes `page<Orders>((el, live) => …)`: `live.q` is the
+field `Q`'s handle (`get()`, `set(v)` for a `bind:` field), `live.reorder`
+a method.
+
+The types come from the Go struct: `component<Chart>` knows `props.Title`,
+`ctx.live`'s methods and `ctx.state`'s names. The `vuka` command writes
+them to `.vuka/vuka-component.d.ts`, and `vuka lsp` gives each script to a
+TypeScript language server with them — completion, hover, definition and
+errors in the `.vuka.html` — when `typescript-language-server` is on PATH
+or in `node_modules/.bin` (`$VUKA_TSLS` names one). The `vuka` command bundles the script and scopes the style to
 the template's own elements (`:global(…)` escapes). A style has no holes.
 
 `<script is:inline>` is written as it is, not bundled; its one hole is
@@ -252,4 +264,33 @@ may mix `.go`, `.vuka` and `.vuka.html` files in one scope.
 
 `vuka eject -rm` turns a `.vuka` file's markup functions — its `Render`
 methods and components — into templates of `x.vuka.html`, and keeps the
-rest as `x.go`.
+rest as `x.go`. Markup inside Go logic — assigned, passed as an argument,
+returned mid-way, or the body of a decorated function — becomes a named
+partial, its parameters the variables it reads, called where the markup
+was:
+
+```go
+// card.vuka                               // card.go, after vuka eject -rm
+func (c Card) Render() ui.Node {           func (c Card) Render() ui.Node {
+	head := <h2>{c.Title}</h2>                 head := cardHead(c)
+	if len(c.Items) == 0 {                     if len(c.Items) == 0 {
+		return <section>{head}</section>           return cardView(head)
+	}                                          }
+	return wrap(<ul>…</ul>)                    return wrap(cardView2(c))
+}                                          }
+```
+
+```html
+<!-- card.vuka.html -->
+func cardHead(c Card)
+<h2>{c.Title}</h2>
+
+func cardView(head ui.Node)
+<section>{head}</section>
+```
+
+A partial is named after the variable it is assigned to and the
+declaration it is in (`cardHead`), or after the declaration (`cardView`);
+markup inside a hole's Go, `{wrap(<b/>)}`, after its tag (`cardB`). A
+`{match}` on values is a `switch`; markup that binds patterns, a generic
+function's, or one with a component script stays in the `.vuka`.

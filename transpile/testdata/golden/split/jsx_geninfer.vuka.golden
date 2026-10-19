@@ -1,0 +1,51 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strconv"
+	"github.com/vuka-lang/ui"
+)
+
+type User struct {
+	ID   int
+	Name string
+}
+
+type ListProps[T any] struct {
+	Items    []T
+	Key      func(T) string
+	Children ui.Node
+}
+
+type PairProps[K comparable, V any] struct {
+	Name  K
+	Value V
+}
+
+type Column[T any] struct {
+	Head string
+	Get  func(T) string
+}
+
+type GridProps[T any] struct {
+	Cols []Column[T]
+	Rows []*T
+}
+
+func page(users []User) ui.Node {
+	key := func(u User) string { return strconv.Itoa(u.ID) }
+	return pageView(users, key)
+}
+
+func ptrs[T any](xs []T) []*T {
+	out := make([]*T, len(xs))
+	for i := range xs {
+		out[i] = &xs[i]
+	}
+	return out
+}
+
+func main() {
+	fmt.Println(ui.String(context.Background(), page([]User{{1, "Ann"}, {2, "Bo"}})))
+}

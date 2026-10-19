@@ -88,7 +88,7 @@ that framework declares them:
 | Vue | `defineProps<{…}>()` / `defineProps<Props>()`, `withDefaults(…, {…})` and destructuring defaults (optional), `defineModel<T>('name')` (two-way), `defineEmits<{ select: [day: string] }>()` (function props `onSelect`) |
 | React | the default export's typed first parameter: `function X(props: Props)`, `({a, b = 1}: Props)`, `const X: React.FC<Props>`, `forwardRef<El, Props>`, `memo` |
 | Svelte | `let { a, b = 1, value = $bindable() }: Props = $props()`; Svelte 4's `export let a: T` |
-| vanilla | `export function mount(el, props: Props, ctx)` |
+| vanilla | `export default island<Props>((el, props, ctx) => …)` (from `vuka:island`), or `export function mount(el, props: Props, ctx)` |
 
 `Props` may be an interface or type of the same file, or one imported from a
 relative path (followed one level).
@@ -158,8 +158,9 @@ func init() {
 ```
 :::
 
-Written bare, `@ui.Island` finds the component by the type's name:
-`islands/<Type>.<ext>` under the frontend root (`web.FrontendRoot("web")`:
+Written bare, `@ui.Island` finds the component by the type's name: first
+next to the file declaring the type, `<snake>.<ext>` (`sales_chart.tsx` for
+`SalesChart`), then `islands/<Type>.<ext>` under the frontend root (`web.FrontendRoot("web")`:
 here `web/islands/Chart.vue`), in the module's own folder for a package
 under `modules/<m>/` — `@ui.Island` on `Orders` in `modules/sales/` is
 `web/islands/sales/Orders.vue`. The extension is whichever of `.vue`,
@@ -795,12 +796,32 @@ Island components live under the **frontend root** — the directory
 `node_modules`), or `web.IslandRoot("web")` for an app with no frontend of
 its own. How they're bundled depends on the framework:
 
-- **Vanilla `.ts`/`.js`** are bundled by the `vuka` command with esbuild — no
-  frontend toolchain, the module exports `mount(el, props, ctx)`.
-- **Vue, React and Svelte** build with Node esbuild (and
+- **Script islands need no Node.** A `.ts`/`.js` island is bundled by the
+  `vuka` command's own esbuild; it default-exports `island(fn)` from
+  `vuka:island` (or exports `mount(el, props, ctx)`):
+
+  ```ts
+  import { island } from 'vuka:island'
+  import { Chart } from 'chart.js'
+
+  export default island<SalesChartProps>((el, props, ctx) => {
+    const c = new Chart(el, { type: 'line', data: { datasets: [{ data: props.points }] } })
+    return { update(next) { c.data.datasets[0].data = next.points; c.update() }, destroy() { c.destroy() } }
+  })
+  ```
+
+  `fn` runs once per instance, `update` with new props, `destroy` when it
+  leaves; `pageIsland<T>((el, live) => …)` is a page backed by it. A `.tsx`
+  or `.jsx` island default-exports a React component, compiled the same way
+  with React's adapter; `react` and `react-dom` (or `preact`, used in their
+  place) come from the frontend root's `node_modules`. Packages a script
+  imports (`chart.js`) resolve from there too. Their types are in
+  `vuka-island.d.ts` (tsconfig `"paths": {"vuka:island": ["./vuka-island"]}`).
+- **Vue and Svelte** build with Node esbuild (and
   `esbuild-plugin-vue3` / `esbuild-svelte`) from the frontend root's
-  `node_modules` — `npm i -D esbuild vue esbuild-plugin-vue3`, `react
-  react-dom`, or `svelte esbuild-svelte`.
+  `node_modules` — `npm i -D esbuild vue esbuild-plugin-vue3`, or `svelte
+  esbuild-svelte`. Without Node the build says which file needs it, and
+  that a `.tsx` or `.ts` island doesn't.
 - With a `vite.config.*`, they build through the project's **Vite** when the frontend root has a
   `vite.config.*`, so Vite-plugin UI libraries work. The config is ESM
   (`vite.config.mts`) and lists the UI plugins plus the vuka plugin:
@@ -826,6 +847,9 @@ sources. A module written only in Go doesn't get one from `go build` yet:
 keep the pages that place islands in `.vuka` files, or build the bundle
 with `vuka build`.
 :::
+
+`vuka doctor` lists each island with what builds it — the in-process
+esbuild, the project's Vite, or Node — and what is missing for it.
 
 `vuka build` compiles the islands into the binary; `vuka build` + `go build`
 ship one binary. In development, `vuka run` rebuilds the islands when a file

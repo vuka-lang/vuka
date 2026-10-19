@@ -1,0 +1,22 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"github.com/vuka-lang/ui"
+)
+
+type Item struct {
+	Name string
+	Ok   bool
+	Tags []string
+	N    int
+}
+
+func main() {
+	items := []Item{{"a", true, nil, 0}, {"b", false, []string{"t1", "t2"}, 2}, {"c", false, nil, 1}, {"d", false, nil, 3}}
+	for _, n := range []ui.Node{list(items), list(nil), texts(items[:1])} {
+		s, err := ui.String(context.Background(), n)
+		fmt.Println(s, err)
+	}
+}

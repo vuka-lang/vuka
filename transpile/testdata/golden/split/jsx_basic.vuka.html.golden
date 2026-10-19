@@ -8,3 +8,11 @@ func card(user User, admin bool, children ui.Node)
   <input type="checkbox" checked={user.Active} />
   <span>{fmt.Sprint(user.ID)} items</span> <b>!</b>
 </div>
+
+func pageView(u User)
+<h1>Hello, {u.Name}!</h1>
+{card(u, true, pageEm())}
+<hr />
+
+func pageEm()
+<em>child</em>

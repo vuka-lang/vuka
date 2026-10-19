@@ -1,0 +1,8 @@
+<button type="button">toggle</button>
+
+<script lang="ts">
+import { component } from 'vuka:component'
+export default component<Toggle>((el, props, ctx) => {
+  el.onclick = () => ctx.state("open").set(!ctx.state("open").get())
+})
+</script>

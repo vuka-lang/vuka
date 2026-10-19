@@ -483,6 +483,9 @@ type proxy struct {
 	done     map[string]int // .vuka path → edits as of the build that last transpiled its buffer
 	snapped  int            // edits when the last build took the buffers
 	syntax   syntaxChecker
+
+	tsOnce sync.Once
+	ts     atomic.Pointer[tsServer] // the TypeScript server for script blocks, once started
 }
 
 func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
@@ -513,6 +516,7 @@ func (p *proxy) stop() {
 	p.mu.Unlock()
 	p.buildMu.Lock() // the build that runs has stopped
 	p.buildMu.Unlock()
+	p.ts.Load().stop()
 }
 
 // vukaMethods are the .vuka requests answered by gopls on the generated Go.
@@ -1036,6 +1040,9 @@ func (p *proxy) mentionsVirtual(raw json.RawMessage) bool {
 func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	reply := func(result any) {
 		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": result})
+	}
+	if p.tsRequest(m, path) {
+		return
 	}
 	if !vukaMethods[m.Method] && !semanticTokensMethods[m.Method] {
 		reply(nil)

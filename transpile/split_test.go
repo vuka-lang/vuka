@@ -41,6 +41,7 @@ func TestSplit(t *testing.T) {
 				return
 			}
 			compare(t, golden, s.HTML)
+			compare(t, filepath.Join(dir, "split", name+".vuka.golden"), s.Vuka)
 			files := []transpile.File{{Name: name + ".vuka", Src: s.Vuka}, {Name: name + ".vuka.html", Src: s.HTML}}
 			res, err = transpile.Package(files, opts)
 			if err != nil {

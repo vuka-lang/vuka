@@ -1,0 +1,23 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/islandui"
+)
+
+// Counter is a vanilla island: its exported fields are the client props and
+// @ui.Island registers it so MountIsland's reflect lookup resolves at runtime.
+@ui.Island("islands/Counter.ts")
+type Counter struct {
+	Count int `json:"count"`
+}
+
+func main() {
+	s, err := ui.String(context.Background(), page())
+	if err != nil {
+		panic(err)
+	}
+	fmt.Println(s)
+}

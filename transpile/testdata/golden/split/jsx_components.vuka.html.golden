@@ -20,6 +20,9 @@ func Badge(label string, count int)
 func Button(props ButtonProps)
 <button>{props.Variant}</button>
 
+func avatarView(url string)
+<img src={url} />
+
 func Layout(title string, children ui.Node)
 <main>
   <title>{title}</title>

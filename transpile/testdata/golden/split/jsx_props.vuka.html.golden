@@ -1,3 +1,15 @@
+func headerView()
+<h1>Pets</h1>
+
+func footerView()
+<footer>{year()}</footer>
+
+func linksView()
+<a href="/">home</a>
+
+func shellView()
+<p>body</p>
+
 func Card(p CardProps)
 <div id={p.ID} class={p.Class}>
   {p.Title} {p.Width}x{p.Height}
@@ -13,3 +25,14 @@ func (c *Chat) Render()
 
 func (b *Box[T]) Render()
 <b>{b.Value}</b>
+
+func pageView(w int)
+{header}
+<Card Title="a" Class="c" Width={w} ID={1}>!</Card>
+<Card Width={w} Title="b" Height={4} />
+<Chat Room="go" Class="chat" />
+<Chat ID={2} key={"rust"} Room="rust" />
+<Box[int] Value={7} />
+{footer}
+{links["home"]}
+{shell.Body}

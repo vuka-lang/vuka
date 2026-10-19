@@ -1,1 +1,2 @@
 <figure data-vk-p="{&#34;Points&#34;:[3,5],&#34;Title&#34;:&#34;Sales&#34;}" class="chart"><figcaption>Sales</figcaption><script>window.points = [3,5];</script></figure> <nil>
+<button data-vk-p="{}" data-vk-s="{&#34;open&#34;:{&#34;$vk&#34;:&#34;state&#34;,&#34;i&#34;:true,&#34;s&#34;:&#34;toggle:1&#34;}}" type="button">toggle</button> <nil>
