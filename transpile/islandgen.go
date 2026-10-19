@@ -54,12 +54,22 @@ type islandImport struct {
 func declaredIslands(files []File) map[string]bool {
 	out := map[string]bool{}
 	for _, f := range files {
+		if strings.HasSuffix(f.Name, ".go") {
+			for _, m := range registerIsland.FindAllSubmatch(f.Src, -1) {
+				out[string(m[1])] = true
+			}
+			continue
+		}
 		for _, d := range islandDecls(f.Src) {
 			out[d.name] = true
 		}
 	}
 	return out
 }
+
+// registerIsland is a Go file's registration of an island type: what
+// @ui.Island lowers to, written by hand.
+var registerIsland = regexp.MustCompile(`\bRegisterIsland\[(\w+)\]\(`)
 
 // islandImports finds a file's imports of component files, blanks them, and
 // generates each one's props type into the file's trailer.

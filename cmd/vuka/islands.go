@@ -1,6 +1,7 @@
 package main
 
 import (
+	"cmp"
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
@@ -225,6 +226,7 @@ func (ic *islandComp) candidates() []string {
 // pointer field).
 type islandProp struct {
 	name     string
+	goName   string // the field's name in Go
 	ts       string
 	optional bool
 	value    bool   // a plain value, not a function, state or node: a page's component gets a handle for it
@@ -664,9 +666,128 @@ func structFields(full []wtok, name string) []islandProp {
 		if full[i+2].tok != token.STRUCT || i+3 >= len(full) || full[i+3].tok != token.LBRACE {
 			continue
 		}
-		return parseStructBody(full, i+3)
+		props := parseStructBody(full, i+3)
+		schema := liveSchemaFields(full, name)
+		for j := range props {
+			if f, ok := schema[props[j].goName]; ok {
+				props[j].bind = props[j].bind || f.bind
+				if f.group != "" && props[j].deferred == "" {
+					props[j].deferred = strings.ToUpper(f.group[:1]) + f.group[1:]
+				}
+			}
+		}
+		return props
 	}
 	return nil
+}
+
+// fieldAttrs is what a live page says of a field: bound, deferred to a
+// group.
+type fieldAttrs struct {
+	bind  bool
+	group string
+}
+
+// readFieldAttrs reads ui.Bind and ui.Defer("group") among a field's
+// attributes (their tokens, each an @ attribute or an l.Field argument).
+func readFieldAttrs(attrs [][]wtok) fieldAttrs {
+	var f fieldAttrs
+	for _, a := range attrs {
+		for i, w := range a {
+			if w.tok != token.IDENT || i+1 < len(a) && a[i+1].tok == token.PERIOD {
+				continue
+			}
+			switch {
+			case w.lit == "Bind":
+				f.bind = true
+			case w.lit == "Defer" && i+2 < len(a) && a[i+1].tok == token.LPAREN && a[i+2].tok == token.STRING:
+				f.group, _ = strconv.Unquote(a[i+2].lit)
+			}
+			break
+		}
+	}
+	return f
+}
+
+// liveSchemaFields is what the LiveSchema method of the type name, in a
+// file's tokens, says of its fields, by their Go names:
+// l.Field(&p.Q, ui.Bind{}) and l.Field(&p.Rows, ui.Defer("lists")).
+func liveSchemaFields(full []wtok, name string) map[string]fieldAttrs {
+	out := map[string]fieldAttrs{}
+	for i := 0; i+2 < len(full); i++ {
+		if full[i].tok != token.FUNC || full[i+1].tok != token.LPAREN || full[i+2].tok != token.IDENT {
+			continue
+		}
+		recv, j := full[i+2].lit, i+3
+		if j < len(full) && full[j].tok == token.MUL {
+			j++
+		}
+		if j+3 >= len(full) || full[j].lit != name || full[j+1].tok != token.RPAREN || full[j+2].lit != "LiveSchema" || full[j+3].tok != token.LPAREN {
+			continue
+		}
+		end := matchParen(full, j+3)
+		for end >= 0 && end < len(full) && full[end].tok != token.LBRACE {
+			end++
+		}
+		if end < 0 || end >= len(full) {
+			return out
+		}
+		depth := 0
+		for k := end; k < len(full); k++ {
+			switch full[k].tok {
+			case token.LBRACE:
+				depth++
+			case token.RBRACE:
+				if depth--; depth == 0 {
+					return out
+				}
+			case token.IDENT:
+				if full[k].lit != "Field" || full[k-1].tok != token.PERIOD || k+5 >= len(full) || full[k+1].tok != token.LPAREN ||
+					full[k+2].tok != token.AND || full[k+3].lit != recv || full[k+4].tok != token.PERIOD || full[k+5].tok != token.IDENT {
+					continue
+				}
+				var args [][]wtok
+				for _, a := range callArgs(full, k+1)[1:] {
+					args = append(args, full[a[0]:a[1]])
+				}
+				f := readFieldAttrs(args)
+				prev := out[full[k+5].lit]
+				out[full[k+5].lit] = fieldAttrs{bind: prev.bind || f.bind, group: cmp.Or(prev.group, f.group)}
+			}
+		}
+	}
+	return out
+}
+
+// cutAttrs splits a struct field's tokens from the attributes a .vuka file
+// writes after it (Q string @ui.Bind @ui.Defer("g")): the field's, and each
+// attribute's, its @ dropped.
+func cutAttrs(fl []wtok) ([]wtok, [][]wtok) {
+	cut, depth := -1, 0
+	var attrs [][]wtok
+	for i, w := range fl {
+		switch w.tok {
+		case token.LBRACE, token.LPAREN, token.LBRACK:
+			depth++
+		case token.RBRACE, token.RPAREN, token.RBRACK:
+			depth--
+		case token.ILLEGAL:
+			if w.lit == "@" && depth == 0 {
+				if cut < 0 {
+					cut = i
+				}
+				attrs = append(attrs, nil)
+				continue
+			}
+		}
+		if cut >= 0 {
+			attrs[len(attrs)-1] = append(attrs[len(attrs)-1], w)
+		}
+	}
+	if cut < 0 {
+		return fl, nil
+	}
+	return fl[:cut], attrs
 }
 
 // parseStructBody parses the fields of the struct whose { is at open.
@@ -709,6 +830,8 @@ func parseStructBody(full []wtok, open int) []islandProp {
 // semicolon) into props: one per exported name, sharing the field's type. An
 // embedded field, or the slot (Children), yields none.
 func fieldProps(toks []wtok) []islandProp {
+	toks, attrs := cutAttrs(toks)
+	fa := readFieldAttrs(attrs)
 	tag := ""
 	if n := len(toks); n > 0 && toks[n-1].tok == token.STRING {
 		if v, err := strconv.Unquote(toks[n-1].lit); err == nil {
@@ -729,9 +852,12 @@ func fieldProps(toks []wtok) []islandProp {
 		return nil
 	}
 	b, bound := reflect.StructTag(tag).Lookup("bind")
-	bound = bound && b != "-"
+	bound = bound && b != "-" || fa.bind
 	group, deferred := reflect.StructTag(tag).Lookup("defer")
 	deferred = deferred && group != "-"
+	if fa.group != "" {
+		group, deferred = fa.group, true
+	}
 	var out []islandProp
 	for _, nm := range names {
 		if !token.IsExported(nm) || nm == "Children" {
@@ -741,7 +867,7 @@ func fieldProps(toks []wtok) []islandProp {
 		if jsonName != "" {
 			wire = jsonName
 		}
-		p := islandProp{name: wire, ts: ts, optional: optional, value: plainType(typ), bind: bound, named: localTypeName(typ), typ: typ}
+		p := islandProp{name: wire, goName: nm, ts: ts, optional: optional, value: plainType(typ), bind: bound, named: localTypeName(typ), typ: typ}
 		if deferred {
 			p.deferred = group
 			if p.deferred == "" {

@@ -46,8 +46,9 @@ type pageAssets struct {
 type assetComp struct {
 	dir, importPath, name string // its package, and its declaration
 	id                    string
-	templ                 string // the .templ file declaring it, for a templ component
-	live                  bool   // a live component (@web.Live), whose methods its scripts may push
+	templ                 string   // the .templ file declaring it, for a templ component
+	markup                []string // the .vuka.html files holding its templates
+	live                  bool     // a live component (@web.Live), whose methods its scripts may push
 	styles, scripts       []assetSrc
 }
 
@@ -406,9 +407,11 @@ func (pa *pageAssets) readTemplates(file string, src []byte) {
 		case a.Script:
 			c := pa.comp(dir, pa.importPathOf(dir), a.Decl, "")
 			c.scripts = append(c.scripts, s)
+			c.markup = append(c.markup, file)
 		default:
 			c := pa.comp(dir, pa.importPathOf(dir), a.Decl, "")
 			c.styles = append(c.styles, s)
+			c.markup = append(c.markup, file)
 		}
 	}
 }

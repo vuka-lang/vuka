@@ -1,0 +1,41 @@
+// Command islands-vue is a live page in Vuka placing a Vue island: its
+// props following the page, its emit the page's event. It builds with Node.
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+// Picker is an island, islands/Picker.vue.
+@ui.Island
+type Picker struct {
+	Label   string   `json:"label"`
+	Options []string `json:"options"`
+	Picked  string   `json:"picked"`
+}
+
+
+// Settings places the picker.
+@web.Live("/")
+type Settings struct {
+	ui.Live
+	theme string
+}
+
+// Choose takes the picker's pick.
+func (s *Settings) Choose(v string) { s.theme = v }
+
+func (s *Settings) Render() ui.Node {
+	return <main>
+		<Picker label="Theme" options={[]string{"light", "dark"}} picked={s.theme} onPick={s.Choose}/>
+		<p class="theme">{s.theme}</p>
+	</main>
+}
+
+func main() {
+	app := web.New()
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

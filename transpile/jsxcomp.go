@@ -28,6 +28,8 @@ type jsxComp struct {
 	args       []*compArg // in the call's order
 	try        bool       // the function returns (Node, error)
 	withKids   bool       // children go through the target's WithChildren
+	ctx        types.Type // the context.Context a function component takes first: the call is in the target's Ctx
+	ctxText    string     // its type's text
 	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
@@ -79,6 +81,7 @@ type compArg struct {
 	attr  *jsxAttr  // the value of an attribute
 	kids  bool      // the children, as a Fragment
 	nodes []jsxNode // a slot's children
+	at    int       // a slot's offset
 	zero  bool      // the parameter is left out
 	text  string    // its zero value
 	name  string    // the function literal's parameter, in the closure form
@@ -146,6 +149,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		}
 		w.gen("func(" + strings.Join(params, ", ") + ") " + res + " { return ")
 	}
+	if c.ctx != nil {
+		w.gen(q + "Ctx(func(ctx " + c.ctxText + ") " + q + "Node { return ")
+	}
 	if c.withKids {
 		w.gen(q + "WithChildren(")
 	}
@@ -178,6 +184,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	} else {
 		w.keep(tag)
 		w.gen("(")
+		if c.ctx != nil {
+			w.gen("ctx, ")
+		}
 		if c.props != "" {
 			w.gen(c.props + "{")
 		}
@@ -230,6 +239,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen(", ")
 		value(kidsArg, true)
 		w.gen(")")
+	}
+	if c.ctx != nil {
+		w.gen(" })")
 	}
 	if c.closure != nil {
 		w.gen(" }(")
@@ -432,6 +444,15 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 		}
 		return el.start, msg
 	}
+	c.args, c.rest, c.ctx = nil, nil, nil // a round that left the tag unresolved may have bound them
+	if p := sig.Params(); p.Len() > 0 && isContext(p.At(0).Type()) && c.target.has("Ctx") {
+		rest := make([]*types.Var, p.Len()-1)
+		for i := range rest {
+			rest[i] = p.At(i + 1)
+		}
+		c.ctx = p.At(0).Type()
+		sig = types.NewSignatureType(nil, nil, nil, types.NewTuple(rest...), sig.Results(), sig.Variadic())
+	}
 	hasKids := len(el.kids) > 0
 	noKids := func(add string) string {
 		switch {
@@ -495,7 +516,7 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 		case !types.AssignableTo(node, params.At(i).Type()):
 			return sl.start, "<" + el.tag + ">'s slot " + names[i] + " is " + e.display(params.At(i).Type()) + ", not " + c.target.q + "Node"
 		}
-		args[i] = &compArg{nodes: append([]jsxNode{}, sl.kids...)}
+		args[i] = &compArg{nodes: append([]jsxNode{}, sl.kids...), at: sl.start}
 		slotAt[args[i]] = sl.start
 	}
 	if len(slotAt) > 0 {
@@ -583,7 +604,10 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 			a.text = z
 		}
 	}
-	if !c.inOrder {
+	if c.ctx != nil {
+		c.ctxText = e.typeTextAuto(f, c.ctx)
+	}
+	if !c.inOrder || c.ctx != nil {
 		e.closeOver(f, c)
 	}
 	c.resolved = true
@@ -933,6 +957,8 @@ func (e *engine) closeOver(f *fileState, c *jsxComp) {
 			items = append(items, item{a, c.el.end, c.target.q + "Node"})
 		case a.attr != nil && a.attr.kind == 'e':
 			items = append(items, item{a, a.attr.expr.start, e.typeTextAuto(f, a.typ)})
+		case a.nodes != nil && c.ctx != nil:
+			items = append(items, item{a, a.at, c.target.q + "Node"})
 		}
 	}
 	sort.SliceStable(items, func(i, j int) bool { return items[i].off < items[j].off })

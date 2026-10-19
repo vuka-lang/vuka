@@ -1,0 +1,6 @@
+# islands-vue: a Vue island, built with Node, in a live page: its props
+# follow the page, its emit reaches the page's method.
+# needs: node
+LIVE /
+  {"type":"event","target":"c1:0","event":"pick","data":"dark"}
+  {"type":"event","target":"c1:0","event":"pick","data":"light"}

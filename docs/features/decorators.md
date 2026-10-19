@@ -71,8 +71,10 @@ func (s *Store) save(u User) error { … }
 `vuka.FuncInfo{Attrs, ParamAttrs}` are what `c.Attr` and `c.ParamAttr`
 read. `Wrap` calls the function through reflection; registering a typed
 adapter for its signature, `vuka.RegisterAdapter`, takes reflection out.
-The vuka command writes one per signature a package's decorators wrap in
-`vuka_calls_gen.go` (`vuka gen -inplace` commits it), an optional
+The vuka command writes one per signature a package's decorators wrap —
+or, in a package written in Go, its `vuka.Wrap` calls (a function, a method
+expression, a function literal) — in `vuka_calls_gen.go` (`vuka gen
+-inplace` commits it), an optional
 speed-up the main file never depends on: a call through two decorators is
 about 500ns by reflection, 110ns with the adapter, on an Apple M1 Pro
 (`go test -bench Wrap` in the vuka module). A generic function is always

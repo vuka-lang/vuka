@@ -1,0 +1,29 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+// ShellProps is the layout's.
+type ShellProps struct {
+	Title    string
+	Aside    ui.Node
+	Children ui.Node
+}
+
+// Shell is the pages' layout; it reads the request from the context its
+// tag renders it with.
+func Shell(ctx context.Context, p ShellProps) ui.Node {
+	path := "live"
+	if r := web.Request(ctx); r != nil {
+		path = r.URL.Path
+	}
+	return <div class="shell">
+		<header><h1>{p.Title}</h1><small>{path}</small></header>
+		<aside>{p.Aside}</aside>
+		<main>{p.Children}</main>
+	</div>
+}

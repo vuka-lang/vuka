@@ -185,9 +185,9 @@ func TestIslandStructFields(t *testing.T) {
 		got[i].typ = nil
 	}
 	want := []islandProp{
-		{name: "A", ts: "number", value: true}, {name: "B", ts: "number", value: true},
-		{name: "f", ts: "number", value: true}, {name: "On", ts: "boolean", value: true},
-		{name: "M", ts: "Record<string, number>", value: true}, {name: "Opt", ts: "string", optional: true, value: true},
+		{name: "A", goName: "A", ts: "number", value: true}, {name: "B", goName: "B", ts: "number", value: true},
+		{name: "f", goName: "F", ts: "number", value: true}, {name: "On", goName: "On", ts: "boolean", value: true},
+		{name: "M", goName: "M", ts: "Record<string, number>", value: true}, {name: "Opt", goName: "Opt", ts: "string", optional: true, value: true},
 	}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("fields:\n got %+v\nwant %+v", got, want)

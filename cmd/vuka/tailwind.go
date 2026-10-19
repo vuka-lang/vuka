@@ -227,6 +227,9 @@ func (tw *tailwind) writeEntry(deps, css []string) (string, error) {
 		fmt.Fprintf(&b, "@import %q;\n", filepath.ToSlash(f))
 	}
 	fmt.Fprintf(&b, "@source %q;\n", filepath.ToSlash(tw.root)+"/**/*.{vuka,templ,html,go}")
+	// The stylesheet and the assets generated last time are output, not
+	// sources: their CSS would add classes to the next build.
+	fmt.Fprintf(&b, "@source not %q;\n", filepath.ToSlash(tw.root)+"/**/{"+twGoName+","+assetsGoName+"}")
 	for _, d := range deps {
 		fmt.Fprintf(&b, "@source %q;\n", filepath.ToSlash(d)+"/*.{vuka,templ,go}")
 	}
