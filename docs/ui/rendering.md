@@ -1,5 +1,23 @@
 # Rendering
 
+<!-- go:context
+type Pet struct{ Name string }
+
+type PetStore struct{}
+
+func (PetStore) All() []Pet { return nil }
+
+var (
+	store PetStore
+	pets  []Pet
+)
+
+func Pets(pets []Pet, links bool) ui.Node {
+	rows := ui.Each(pets, func(p Pet) ui.Node { return ui.HTML(`<li>{p.Name}</li>`, p.Name) })
+	return ui.HTML(`<ul>{rows}</ul>`, rows)
+}
+-->
+
 | | |
 |---|---|
 | `ui.Handler(f)` | an `http.Handler` rendering the node `f` builds per request (through `templ.Handler`); an error answers 500 with only the status text |
@@ -7,11 +25,22 @@
 | `ui.String(ctx, n)` | render to a string |
 | `n.Render(ctx, w)` | templ's own method, to any `io.Writer` |
 
+::: vuka
 ```vuka
 http.Handle("/pets", ui.Handler(func(r *http.Request) (ui.Node, error) {
 	return Pets(store.All(), true), nil
 }))
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+http.Handle("/pets", ui.Handler(func(r *http.Request) (ui.Node, error) {
+	return Pets(store.All(), true), nil
+}))
+```
+:::
 
 Escaping and sanitizing are templ's: [attributes](/ui/components#attributes)
 render as templ renders the same expression.
@@ -44,10 +73,20 @@ headings, paragraphs word-wrapped at a width, lists, aligned tables, quotes,
 code, links, and inline bold/italic/underline as ANSI styles when `Color`
 is on.
 
+::: vuka
 ```vuka
 term.Render(ctx, os.Stdout, Pets(pets, false), term.Options{Width: 80, Color: true})
 s, err := term.String(ctx, Pets(pets, false), term.Options{})
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+term.Render(ctx, os.Stdout, Pets(pets, false), term.Options{Width: 80, Color: true})
+s, err := term.String(ctx, Pets(pets, false), term.Options{})
+```
+:::
 
 `term` reads the HTML of templ components and `Safe` content too, parsing
 it into the same tree, so a page inside a templ layout keeps its headings,

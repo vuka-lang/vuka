@@ -3,6 +3,7 @@
 Write [Tailwind](https://tailwindcss.com) classes in your views and they are
 styled — no build config, no `<link>` to add, no CSS file to commit:
 
+::: vuka
 ```vuka
 @web.Get("/")
 func Home() ui.Node {
@@ -13,9 +14,29 @@ func Home() ui.Node {
 	</Layout>
 }
 ```
+:::
+
+::: go
+<!-- go:context
+func Layout(title string, children ui.Node) ui.Node {
+	return ui.HTML(`<html><head><title>{title}</title></head><body>{children}</body></html>`, title, children)
+}
+-->
+
+```go
+func Home() ui.Node {
+	dim := ui.JS.AddClass(ui.Ref("note"), "opacity-50")
+	return Layout("Home", ui.HTML(`
+<button class="rounded bg-emerald-500 px-4 py-2 text-white" onClick={dim}>Save</button>
+<p ref="note" class="mt-2 text-sm text-gray-500">Unsaved changes</p>`, dim))
+}
+
+func init() { web.Routes.Get("/", Home) }
+```
+:::
 
 `vuka run` and `vuka build` build the stylesheet from every class your module
-uses — in JSX, [templ](/web/views) and `.html` views, Go code, and the names a
+uses — in <span class="vuka-only">JSX</span><span class="go-only">templates, `ui.HTML`</span>, [templ](/web/views) and `.html` views, Go code, and the names a
 [JS command](/ui/js) adds, like `opacity-50` above — and every full page the
 app serves links it.
 
@@ -76,9 +97,18 @@ Colors, fonts, plugins and component classes go in your own stylesheet: an
 else and name it — as a string literal, since the `vuka` command reads it from
 your source:
 
+::: vuka
 ```vuka
 app := web.New(web.Tailwind("assets/site.css"))
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+app := web.New(web.Tailwind("assets/site.css"))
+```
+:::
 
 Classes in component libraries you use (packages shipping `.vuka` or
 `.templ` components, like [ui](/ui/)) are found too.
@@ -94,9 +124,18 @@ page already has it.
 
 ## Turning it off
 
+::: vuka
 ```vuka
 app := web.New(web.NoTailwind())
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+app := web.New(web.NoTailwind())
+```
+:::
 
 No link, no `/_vuka/app.css`, and the `vuka` command builds nothing.
 `VUKA_TAILWIND=off` does the same for one `vuka run` or `vuka build`.

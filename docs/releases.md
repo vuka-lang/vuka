@@ -532,12 +532,19 @@ function, a page on a type) rather than a `func(*vuka.Decl)`. `@web.Get(…)`
 in a `.vuka` file is unchanged. Go code that used the result as a function
 changes:
 
-```go
-web.Get("/pets")(d)                   // before
-vuka.DeclareWith(web.Get("/pets"), d) // now
+<!-- go:context
+var d *vuka.Decl
+-->
 
-func ApiRoute(p string) func(*vuka.Decl) { return web.Get(p) } // before
-func ApiRoute(p string) vuka.Bundle      { return web.Get(p) } // now
+<!-- go:fragment -->
+```go
+// before: web.Get("/pets")(d)
+vuka.DeclareWith(web.Get("/pets"), d) // now
+```
+
+```go
+// before: func ApiRoute(p string) func(*vuka.Decl) { return web.Get(p) }
+func ApiRoute(p string) vuka.Bundle { return web.Get(p) } // now
 ```
 
 A composed decorator (`decorator ApiRoute(p string) = @web.Get(p) …`)

@@ -1,5 +1,47 @@
 # Routes
 
+<!-- go:context
+type DB struct{ *orm.DB }
+
+type Pet struct {
+	ID   int
+	Name string
+}
+
+type NewPet struct{ Name string }
+
+func (s *PetStore) All() ([]Pet, error)        { return nil, nil }
+func (s *PetStore) Add(in NewPet) (Pet, error) { return Pet{Name: in.Name}, nil }
+func (s *PetStore) Find(id int) (Pet, error)   { return Pet{ID: id}, nil }
+func (s *PetStore) Remove(id int) error        { return nil }
+
+func NewStore(db *DB) *PetStore { return NewPetStore(db) }
+
+func audit(name string, id int) func() { return func() {} }
+
+type Users struct{}
+
+func (u *Users) Create(ctx context.Context, in Signup) error { return nil }
+
+func SignupPage(form Signup, problem string) ui.Node {
+	return ui.HTML(`<form method="post"><p>{problem}</p><input name="email" value={form.Email}/></form>`, problem, form.Email)
+}
+
+type Board struct{ ui.Live }
+
+func (b *Board) Render() ui.Node { return ui.HTML(`<p>board</p>`) }
+func NewBoard() *Board            { return &Board{} }
+
+type Applicants struct{ ui.Live }
+
+func (a *Applicants) Render() ui.Node { return ui.IslandPage(a) }
+func NewApplicants() *Applicants        { return &Applicants{} }
+
+var layouts = struct{ Page func(title string) func(ui.Node) ui.Node }{
+	Page: func(title string) func(ui.Node) ui.Node { return func(n ui.Node) ui.Node { return n } },
+}
+-->
+
 A route is a function or a method <span class="vuka-only">with a route
 decorator on it</span><span class="go-only">registered on `web.Routes` (or an
 app)</span>:
@@ -206,8 +248,8 @@ For signing in, see [Signing in and out](/web/auth#signing-in-and-out).
 
 ## Controllers
 
-`@web.Controller(prefix)` on a struct makes it a dependency built from its
-fields, and its methods with route decorators are served under the prefix.
+<span class="vuka-only">`@web.Controller(prefix)` on a struct</span><span class="go-only">`web.Routes.Controller(prefix, NewX)`</span> makes it a dependency built <span class="vuka-only">from its
+fields</span><span class="go-only">by its constructor</span>, and its methods <span class="vuka-only">with route decorators</span><span class="go-only">registered after it</span> are served under the prefix.
 Under a controller, `"/"` is the prefix itself:
 
 ::: vuka
@@ -252,9 +294,9 @@ both work.
 
 ## Services
 
-`@web.Service` on a struct makes it a dependency — a lazy singleton built from
+<span class="vuka-only">`@web.Service` on a struct</span><span class="go-only">`web.Routes.Service(NewX)`</span> makes it a dependency — a lazy singleton built <span class="vuka-only">from
 its fields, each injected by type (Vuka's
-[generated constructor](/features/dependency-injection)):
+[generated constructor](/features/dependency-injection))</span><span class="go-only">by its constructor</span>:
 
 ::: vuka
 ```vuka

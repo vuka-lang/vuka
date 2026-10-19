@@ -34,6 +34,14 @@ A breaking change also needs its `vuka fix` fixer (`cmd/vuka/fix.go`) and an
 `upgradeSteps` entry naming it (`cmd/vuka/upgrade.go`), so `vuka upgrade`
 runs it for apps crossing the release:
 
+<!-- go:context
+type upgradeStep struct {
+	version string
+	fixers  []string
+	note    string
+}
+-->
+
 ```go
 var upgradeSteps = []upgradeStep{
 	{"v0.52.0", []string{"url-tags"}, "url:\"q\" tags become @ui.URL(\"q\")"},

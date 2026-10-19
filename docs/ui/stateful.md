@@ -1,10 +1,53 @@
 # Stateful components
 
+<!-- go:context
+type Item struct {
+	ID   int
+	Name string
+}
+
+type Todo struct {
+	ui.Live
+	items []Item
+}
+
+func (t *Todo) SetQuery(q string) {}
+func (t *Todo) Remove(id int)     {}
+
+func (c *Counter) Render() ui.Node { return ui.HTML(`<span>{c.n}</span>`, c.n) }
+
+type Dashboard struct {
+	ui.Live
+	Q    string
+	Rows []Item
+}
+
+func (d *Dashboard) loadLists(ctx context.Context) error                { return nil }
+func (d *Dashboard) changed(ctx context.Context, c ui.Changed) error   { return nil }
+func (d *Dashboard) mount(ctx context.Context) error                    { return nil }
+
+type NewMessage struct{ Text string }
+type Typing struct{ Who string }
+
+type Chat struct {
+	ui.Live
+	Room   string
+	log    []string
+	typing string
+}
+
+var (
+	t  = &Todo{}
+	it Item
+)
+-->
+
 A struct embedding `ui.Live`, whose pointer has a `Render() ui.Node` method,
 is a stateful component. Its exported fields are its props, set from the
 tag's attributes; its unexported fields are its state; its methods are its
 event handlers.
 
+::: vuka
 ```vuka
 type Counter struct {
 	ui.Live
@@ -23,8 +66,32 @@ func (c *Counter) Render() ui.Node {
 
 <Counter Start={5} />
 ```
+:::
 
-The tag works in any JSX. Attributes bind to the exported fields by name
+::: go
+```go
+// counter.go
+type Counter struct {
+	ui.Live
+	Start int    // a prop: <Counter start={5} />, or &Counter{Start: 5} in Go
+	Label string // a prop
+	n     int    // state
+}
+
+func (c *Counter) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
+
+func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+
+func (c *Counter) Inc() { c.n++ }
+```
+
+```html
+<!-- counter.vuka.html: its Render -->
+<div><span>{n}</span><button onClick={Inc}>+</button></div>
+```
+:::
+
+The tag works in any <span class="vuka-only">JSX</span><span class="go-only">template; in Go, `&Counter{Start: 5}` in a `ui.HTML` hole is the same</span>. Attributes bind to the exported fields by name
 (`start` and `Start` both find `Start`; promoted fields too, but not
 `ui.Live` itself), children go to a `Children ui.Node` field, and `key`
 names the instance among the tags it is rendered with. Naming an unexported
@@ -49,9 +116,9 @@ runs.
 | Method | |
 |---|---|
 | `Render() ui.Node` | required; its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
-| `@ui.Mount` | optional, once per instance, before its first render: a method `func(ctx context.Context) error`, which may be unexported; an error fails the render. A method named `Mount` (`Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`) is the form of earlier releases, kept for one minor release (`vuka vet`: W0303, `vuka fix hooks`) |
+| <span class="vuka-only">`@ui.Mount`</span><span class="go-only">`l.Mount(fn)`</span> | optional, once per instance, before its first render: a method `func(ctx context.Context) error`, which may be unexported; an error fails the render. A method named `Mount` (`Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`) is the form of earlier releases, kept for one minor release (`vuka vet`: W0303, `vuka fix hooks`) |
 | `Unmount()` | optional, when the instance is dropped |
-| `Update(msg T)` | optional, overloadable: the messages the session delivers (below) |
+| <span class="vuka-only">`Update(msg T)`</span><span class="go-only">`UpdateT(msg T)`</span> | optional<span class="vuka-only">, overloadable</span>: the messages the session delivers (below) |
 
 `ui.Live` gives the component `ID()` (its instance id, `""` when static),
 `Subscribe(topics...)` (call it in the Mount hook), `PushJS(chain)` ([from the
@@ -71,11 +138,21 @@ it in this render. So `{if}` around one tag never shifts another's
 instance, a loop without keys pairs instances by position, and a loop with
 keys follows them:
 
+::: vuka
 ```vuka
 {for _, it := range t.items {
 	<li key={it.ID}><Counter Label={it.Name} /></li>   // or <Counter key={it.ID} … />
 }}
 ```
+:::
+
+::: go
+```html
+for _, it := range items {
+  <li key={it.ID}><Counter label={it.Name} /></li>   {/* or <Counter key={it.ID} … /> */}
+}
+```
+:::
 
 Two tags in one place with the same key fail the render. Components nest
 freely: a stateful component renders others, each its own instance with its
@@ -108,6 +185,7 @@ check). A handler's error doesn't stop the session: the page renders again
 the message. A chain of [JS commands](/ui/js) runs in the browser instead
 (and calls handlers with `Push`); a `templ.ComponentScript` is still a script.
 
+::: vuka
 ```vuka
 type NewItem struct{ Name string `form:"name"` }
 
@@ -121,6 +199,25 @@ func (t *Todo) Add(ctx context.Context, f NewItem) error {
 
 <form onSubmit={t.Add}><input name="name" onInput={t.SetQuery} /></form>
 ```
+:::
+
+::: go
+```go
+type NewItem struct{ Name string `form:"name"` }
+
+func (t *Todo) Add(ctx context.Context, f NewItem) error {
+	if f.Name == "" {
+		return errors.New("a name, please")
+	}
+	t.items = append(t.items, Item{ID: len(t.items) + 1, Name: f.Name})
+	return nil
+}
+```
+
+```html
+<form onSubmit={Add}><input name="name" onInput={SetQuery} /></form>
+```
+:::
 
 Under a session each handler renders as `data-vk-on-click="c2:0"`: the
 instance's id and the handler's index in that instance's render. The
@@ -133,14 +230,16 @@ replies with what changed.
 
 ## Hooks
 
-The methods the runtime calls are marked with a hook attribute, so they
-may be unexported and the browser can call only what isn't one:
-`@ui.Mount` (`func(ctx context.Context) error`, before the first render),
-`@ui.OnChange` (`func(ctx context.Context, c ui.Changed) error`, after
-the component sets bound fields) and `@ui.Loads("group")` (the loader of
-[deferred fields](/web/islands#deferred-fields)). With the field
-attributes (`@ui.Bind`, `@ui.URL`, `@ui.Defer`, `@validate.…`) they are
-the page's `LiveSchema` method, which plain Go writes itself:
+The methods the runtime calls are named in the component's `LiveSchema`
+method, so they may be unexported and the browser can call only what isn't
+one: `l.Mount` (`func(ctx context.Context) error`, before the first render),
+`l.OnChange` (`func(ctx context.Context, c ui.Changed) error`, after the
+component sets bound fields) and `l.Loads("group", fn)` (the loader of
+[deferred fields](/web/islands#deferred-fields)); `l.Field(&d.X, …)` gives a
+field its attributes (`ui.Bind`, `ui.URL`, `ui.Defer`, `validate.…`).<span class="vuka-only">
+In a `.vuka` file they are hook and field attributes — `@ui.Mount`,
+`@ui.OnChange`, `@ui.Loads("group")`, `@ui.Bind`, … — which become this
+method:</span>
 
 ```go
 func (d *Dashboard) LiveSchema(l *ui.LiveSchema) {
@@ -182,11 +281,10 @@ func (c *Chat) UpdateTyping(ctx context.Context, t Typing) { c.typing = t.Who }
 
 An `Update` takes an optional `context.Context` and the message, and returns
 nothing or an error. One taking the message's type exactly wins over one it
-is assignable to, and those over one taking `any`. In Go an overload is
+is assignable to, and those over one taking `any`. <span class="vuka-only">In Go</span><span class="go-only">Each</span> <span class="vuka-only">an overload</span><span class="go-only">such method</span> is
 `Update` followed by the message type's name (`ui.TypeName`: `UpdateOrders`
 for `[]Order`, `UpdateAny` for `any`), what vuka names `.vuka`'s overloads;
-`ui.IsUpdate` tells one, and the browser can't call it. `Update__T`, the
-name older vuka commands wrote, still counts.
+`ui.IsUpdate` tells one, and the browser can't call it.
 
 ## Change tracking
 
@@ -199,6 +297,7 @@ last render, its handlers and the instances it rendered, and calls no
 Props compare by value; a pointer, slice, map, func or interface prop
 (children included) counts as changed unless both are nil.
 
+::: vuka
 ```vuka
 type Row struct {
 	ui.Live
@@ -213,6 +312,26 @@ func (r *Row) Render() ui.Node {
 	return <tr key={r.ID}><td>{r.Name}</td><td>{r.qty.Get()}</td><td><button onClick={r.Inc}>+</button></td></tr>
 }
 ```
+:::
+
+::: go
+```go
+// row.go
+type Row struct {
+	ui.Live
+	ID   int            // props
+	Name string
+	qty  ui.Assign[int] // state
+}
+
+func (r *Row) Inc() { r.qty.Update(func(n int) int { return n + 1 }) }
+```
+
+```html
+<!-- row.vuka.html -->
+<tr key={ID}><td>{Name}</td><td>{qty.Get()}</td><td><button onClick={Inc}>+</button></td></tr>
+```
+:::
 
 A click in one row of a thousand renders that row only. `Render` must read
 nothing but props, Assigns and `vuka:"-"` fields that don't change its
@@ -220,10 +339,11 @@ output; [verification](/ui/live#verification) catches one that does.
 
 ## What it becomes
 
+<!-- go:fragment -->
 ```go
 counter := &Counter{Label: it.Name}
 remove := func() { t.Remove(it.ID) }
-ui.HTML(`<li>{counter} <button onClick={remove}>x</button></li>`, counter, remove)
+li := ui.HTML(`<li>{counter} <button onClick={remove}>x</button></li>`, counter, remove)
 ```
 
 The tag is a hole of a `ui.HTML` call, and the hole's place — the call's

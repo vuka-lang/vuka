@@ -167,17 +167,17 @@ SIGTERM.
 
 | | |
 |---|---|
-| [Routes](/web/routes) | `@web.Get`, `Post`, …, controllers, services, plain-Go registration |
+| [Routes](/web/routes) | <span class="vuka-only">`@web.Get`</span><span class="go-only">`web.Routes.Get`</span>, `Post`, …, controllers, services, plain-Go registration |
 | [Parameters and results](/web/parameters) | what binds where, what a result becomes, errors and redirects |
 | [Views](/web/views) | `.templ` components, `html/template` files and JSX pages |
 | [Dependency injection](/web/dependency-injection) | the container, lifecycles, Build errors |
-| [Middleware](/web/middleware) | `@web.Use`, app-wide middleware, decorators that see the request |
-| [Authentication](/web/auth) | sign-in, sessions and tokens, `@auth.Requires` on routes, pages and live events, CSRF |
+| [Middleware](/web/middleware) | <span class="vuka-only">`@web.Use`</span><span class="go-only">`web.Use`</span>, app-wide middleware, decorators that see the request |
+| [Authentication](/web/auth) | sign-in, sessions and tokens, <span class="vuka-only">`@auth.Requires`</span><span class="go-only">`auth.Requires(…)`</span> on routes, pages and live events, CSRF |
 | [Live components](/web/live) | stateful components served over a WebSocket |
 | [Frontends](/web/frontend) | a Vite single-page app served from the binary: `web.Frontend` |
 | [Configuration and .env](/web/configuration) | env files, `web.Env`, required variables |
 | [Mail](/web/mail) | a `Mailer` to inject: JSX emails, SMTP or the log driver, `mailtest` |
-| [Crons](/web/crons) | `@web.Cron`: scheduled functions with dependencies, `crontest` |
+| [Crons](/web/crons) | <span class="vuka-only">`@web.Cron`</span><span class="go-only">`app.Cron`</span>: scheduled functions with dependencies, `crontest` |
 | [Routers and deployment](/web/deployment) | the router seam, `Handler`, `Run`, `PORT`, `VUKA_ENV` |
 | [Testing](/web/testing) | `httptest`, `web.Resolve`, `web.Only` |
 

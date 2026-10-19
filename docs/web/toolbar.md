@@ -166,6 +166,7 @@ component builds again, and the island then mounts without a reload.
 Request code records values for a panel with `web.Note`, and
 `web.AddPanel` draws them:
 
+::: vuka
 ```vuka
 func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool) {
 	v, ok := c.m[key]
@@ -181,6 +182,36 @@ func init() {
 	})
 }
 ```
+:::
+
+::: go
+<!-- go:context
+type Cache struct{ m map[string][]byte }
+
+type Lookup struct {
+	Key string
+	Hit bool
+}
+-->
+
+```go
+func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool) {
+	v, ok := c.m[key]
+	web.Note(ctx, "Cache", Lookup{key, ok})
+	return v, ok
+}
+
+func init() {
+	web.AddPanel("Cache", func(notes []any) ui.Node {
+		rows := ui.Each(notes, func(n any) ui.Node {
+			l := n.(Lookup)
+			return ui.HTML(`<li>{l.Key}: {l.Hit}</li>`, l.Key, l.Hit)
+		})
+		return ui.HTML(`<ul>{rows}</ul>`, rows)
+	})
+}
+```
+:::
 
 A panel noted without `AddPanel` lists its values as they are. A panel's
 markup may use the toolbar's classes: `kv` and `grid` tables, `dim`,

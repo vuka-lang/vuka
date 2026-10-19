@@ -77,6 +77,12 @@ directory's name, capitalised, by default).
 After writing the files it runs `vuka mod tidy`, then prints the next
 steps. `vuka test ./...` passes in the new app as it is.
 
+::: go
+`vuka new` writes the app in `.vuka` files. For a Go app, run
+`vuka eject -rm ./...` in it straight after: the same app, as a plain Go
+module that `go run .` and `go test ./...` take (see [eject](#eject)).
+:::
+
 ## add
 
 `vuka add module <name>` grows an app `vuka new` made, a module at a time:
@@ -131,7 +137,23 @@ doesn't; `--dry-run` lists what it would write and changes nothing. Files
 are formatted as `vuka fmt` formats them, and a package nothing imports yet
 is imported in `main.vuka`.
 
+::: go
+`vuka add` writes `.vuka` files too; `vuka eject -rm` on what it wrote
+(`vuka eject -rm ./modules/invoices/...`) keeps them as Go.
+:::
+
 ## build, run, test, vet, install
+
+::: go
+A Go app builds, runs and tests with the go command itself: `go build`,
+`go run .`, `go test ./...`. What these commands add for `.vuka` files it
+doesn't need; the rest has a Go route: `go vet -vettool=$(go tool -n vukavet) ./...`
+for the [framework's checks](/tools/vukavet), `VUKA_DEV=1 go run .` with
+`web.Dev()` among `web.New`'s options for Tailwind and Vite while you work,
+[`go tool vuka build-islands`](#build-islands) for islands, and
+[`go tool vuka gen -inplace ./...`](#gen) for the files embedding the
+Tailwind CSS and the pages' styles and scripts in a production build.
+:::
 
 The go command's, with every `.vuka` file in the module transpiled into an
 overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
@@ -241,7 +263,7 @@ rather than shown; when the step fails, its last 30 lines follow the error.
 
 ### run -watch
 
-`vuka run -watch` (or `--watch`) keeps the program current while you edit:
+`vuka run -watch` (or `--watch`; <span class="go-only">`go tool vuka run -watch .` in a Go app, where the command is a tool of the module</span>) keeps the program current while you edit:
 save a file and, a moment later, the new version is the one answering. You
 stay on one command for the whole session instead of stopping and restarting
 it after each change.
@@ -310,7 +332,7 @@ Without `-watch`, `vuka run` starts the program once, as `go run` does.
 
 ## mod
 
-`go mod`, seeing the imports of `.vuka` files too. Plain `go mod tidy` reads
+<span class="go-only">A Go app needs plain `go mod tidy`.</span> `go mod`, seeing the imports of `.vuka` files too. Plain `go mod tidy` reads
 only `.go` files and would drop requirements only Vuka code uses; for the
 command's duration, each package gets a small file of blank imports standing
 for its `.vuka` files' imports (and the runtime, when the code uses it), removed
@@ -328,11 +350,20 @@ picks them up and the app serves them from. One line in the main package:
 
 ```go
 //go:generate go tool vuka build-islands
+```
 
-//go:embed all:web/dist
+beside the frontend's `//go:embed all:web/dist` of `var dist embed.FS`,
+which the app serves:
+
+<!-- go:context
 var dist embed.FS
+-->
 
-app := web.New(web.Frontend(dist, "web/dist"), web.Dev())
+```go
+func main() {
+	app := web.New(web.Frontend(dist, "web/dist"), web.Dev())
+	log.Fatal(app.Run(""))
+}
 ```
 
 Run it after the frontend's own build (`vite build` empties `dist`), then
@@ -396,6 +427,13 @@ type PetStore struct{ db *DB }
 func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 ```
 :::
+
+<!-- go:context
+type DB struct{ *orm.DB }
+type Pet struct{ ID int }
+
+func (s *PetStore) Find(id int) vuka.Result[Pet] { return vuka.Ok(Pet{ID: id}) }
+-->
 
 ::: go
 ```go
@@ -498,6 +536,7 @@ reported and left alone.
   Each formatted file is checked against the original, and an internal error
   is reported rather than a page that would render differently.
 
+::: vuka
 ```vuka
 // before
 return <section className="pets" id="main" data-count={len(pets)} title="All our pets">
@@ -522,6 +561,12 @@ return <section
 	}}
 </section>
 ```
+:::
+
+::: go
+Go files are `gofmt`'s; `vuka fmt` formats `.vuka` files only, and
+`.vuka.html` templates keep the layout they are written with.
+:::
 
 ## lsp
 

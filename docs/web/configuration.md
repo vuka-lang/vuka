@@ -4,6 +4,7 @@ Configuration comes from environment variables. `web.New()` first reads
 `.env` files into the process environment, so every constructor, `Start`
 method and option sees their values through `os.Getenv` or `web.Env`.
 
+::: vuka
 ```vuka
 func OpenDB() (*sql.DB, error) {        // a constructor: func(deps…) T or (T, error)
 	return sql.Open("pgx", web.MustEnv[string]("DATABASE_URL"))
@@ -14,6 +15,20 @@ func main() {
 	app.Run(":" + web.Env("PORT", "8080"))
 }
 ```
+:::
+
+::: go
+```go
+func OpenDB() (*sql.DB, error) {        // a constructor: func(deps…) T or (T, error)
+	return sql.Open("pgx", web.MustEnv[string]("DATABASE_URL"))
+}
+
+func main() {
+	app := web.New(web.Provide(OpenDB), web.Require("DATABASE_URL", "SECRET_KEY"))
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}
+```
+:::
 
 ## Files and precedence
 
@@ -70,6 +85,7 @@ the file and line, and nothing of that file is set.
 
 ## Reading
 
+<!-- go:fragment -->
 ```go
 port := web.Env("PORT", 8080)                   // int; the default when unset or empty
 debug := web.Env[bool]("DEBUG")                 // true/false, 1/0, yes/no, on/off

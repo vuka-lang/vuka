@@ -48,6 +48,13 @@ vuka upgrade v0.51.0    # or a chosen one
 vuka upgrade -n         # say what it would do, change nothing
 ```
 
+::: go
+In a Go app with the command as a tool of the module, it is
+`go tool vuka upgrade`; or `go get` vuka, ui and web at one version
+(`go get github.com/vuka-lang/vuka@v0.51.0 github.com/vuka-lang/ui@v0.51.0 github.com/vuka-lang/web@v0.51.0`)
+and run `go vet -vettool=$(go tool -n vukavet) ./...` and `go test ./...`.
+:::
+
 `vuka upgrade` moves the app's go.mod to the set (`go get` of vuka, ui and
 web; it never runs `go mod tidy`, which would drop requirements only `.vuka`
 files use), runs the `vuka fix` rewrites registered for the releases in
@@ -112,6 +119,7 @@ rules:
 
 For example, a field attribute replacing a struct tag:
 
+::: vuka
 ```vuka
 // before (v0.51)
 Q string `url:"q"`
@@ -119,8 +127,24 @@ Q string `url:"q"`
 // after (v0.52) — vuka fix url-tags rewrites it
 Q string @ui.URL("q")
 ```
+:::
 
-v0.51 adds `@ui.URL` and makes `url:""` a vet warning; v0.52 may drop the tag.
+::: go
+In Go the attribute is a value in the page's `LiveSchema`; the fixer moves
+a field's tag there:
+
+```go
+type Search struct {
+	ui.Live
+	Q string
+}
+
+// after (v0.52) — vuka fix url-tags writes it
+func (p *Search) LiveSchema(l *ui.LiveSchema) { l.Field(&p.Q, ui.URL("q")) }
+```
+:::
+
+v0.51 adds <span class="vuka-only">`@ui.URL`</span><span class="go-only">`ui.URL`</span> and makes `url:""` a vet warning; v0.52 may drop the tag.
 An app upgrading from v0.50 to v0.52 in one step gets the rewrite applied by
 `vuka upgrade`.
 

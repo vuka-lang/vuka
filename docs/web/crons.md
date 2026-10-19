@@ -1,10 +1,21 @@
 # Crons
 
+<!-- go:context
+type DB struct{}
+
+func OpenDB() *DB { return &DB{} }
+
+type Owners struct{}
+
+func (o *Owners) ForgetUnconfirmed(before time.Time) int { return 0 }
+-->
+
 Sessions to expire every ten minutes, a report at seven on weekday
-mornings, a cache to warm every thirty seconds: put `@web.Cron` on the
-function. It takes a `context.Context` and its dependencies, like a
+mornings, a cache to warm every thirty seconds: <span class="vuka-only">put `@web.Cron` on the
+function</span><span class="go-only">register the function with `app.Cron(name, spec, fn)`</span>. It takes a `context.Context` and its dependencies, like a
 handler, and the app runs it on schedule.
 
+::: vuka
 ```vuka
 // forgetUnconfirmed drops the sign-ups nobody confirmed within a day.
 @web.Cron("@every 10m")
@@ -23,18 +34,51 @@ type Reports struct {
 @web.Cron("CRON_TZ=Africa/Dar_es_Salaam 0 7 * * 1-5")
 func (r *Reports) Morning(ctx context.Context) error { … }   // a service's method
 ```
+:::
+
+::: go
+```go
+// forgetUnconfirmed drops the sign-ups nobody confirmed within a day.
+func forgetUnconfirmed(ctx context.Context, owners *Owners) {
+	if n := owners.ForgetUnconfirmed(time.Now().Add(-24 * time.Hour)); n > 0 {
+		slog.InfoContext(ctx, "forgot unconfirmed sign-ups", "n", n)
+	}
+}
+
+type Reports struct {
+	db     *DB
+	mailer *mail.Mailer
+}
+
+func NewReports(db *DB, mailer *mail.Mailer) *Reports { return &Reports{db: db, mailer: mailer} }
+
+// Morning is a service's method.
+func (r *Reports) Morning(ctx context.Context) error { return nil }
+
+func main() {
+	app := web.New(web.Provide(OpenDB, NewReports))
+	app.Cron("forgetUnconfirmed", "@every 10m", forgetUnconfirmed)
+	app.Cron("Reports.Morning", "CRON_TZ=Africa/Dar_es_Salaam 0 7 * * 1-5", (*Reports).Morning)
+	log.Fatal(app.Run(""))
+}
+```
+:::
 
 A cron returns nothing or an `error`. Its parameters are a
 `context.Context` and [provided types](/web/dependency-injection); on a
-method, the receiver is provided too. Its name is the function's —
+method, the receiver is provided too. <span class="vuka-only">Its name is the function's —
 `forgetUnconfirmed`, `jobs.cleanUp` from a package other than `main`,
-`Reports.Morning` for a method — and names it in logs, the toolbar and
+`Reports.Morning` for a method — and</span><span class="go-only">Its name, `app.Cron`'s first argument,</span> names it in logs, the toolbar and
 `RunCron`.
 
-From Go, `app.Cron(name, spec, fn)`:
+<span class="vuka-only">From Go, `app.Cron(name, spec, fn)`:</span><span class="go-only">A function literal works too:</span>
 
+<!-- go:fragment -->
 ```go
-app.Cron("digest", "0 8 * * *", func(ctx context.Context, m *mail.Mailer) error { … })
+app := web.New()
+app.Cron("digest", "0 8 * * *", func(ctx context.Context, m *mail.Mailer) error {
+	return nil
+})
 ```
 
 ## Schedules
@@ -118,6 +162,7 @@ type CronLock interface {
 Every replica asks for the same name and tick, so the lock is a unique key.
 With a database, insert the pair into a table with a unique index:
 
+::: vuka
 ```vuka
 type DBLock struct{ db *sql.DB }
 
@@ -133,6 +178,27 @@ func (l *DBLock) Claim(ctx context.Context, name string, tick time.Time) (bool, 
 
 app := web.New(web.Provide(func(db *sql.DB) web.CronLock { return &DBLock{db} }))
 ```
+:::
+
+::: go
+```go
+type DBLock struct{ db *sql.DB }
+
+func (l *DBLock) Claim(ctx context.Context, name string, tick time.Time) (bool, error) {
+	res, err := l.db.ExecContext(ctx,
+		`INSERT INTO cron_ticks (name, tick) VALUES ($1, $2) ON CONFLICT DO NOTHING`, name, tick)
+	if err != nil {
+		return false, err
+	}
+	n, err := res.RowsAffected()
+	return n == 1, err
+}
+
+func newApp() *web.App {
+	return web.New(web.Provide(func(db *sql.DB) web.CronLock { return &DBLock{db} }))
+}
+```
+:::
 
 With Redis, `SET cron:<name>:<tick> 1 NX EX 3600` claims it when it answers
 `OK`. A lock that fails skips the tick and logs why. Without one the app
@@ -152,6 +218,7 @@ panel: each cron's schedule, function, next run and last run, and a
 `crontest.Run(app, name)` runs a cron with its dependencies and returns its
 error:
 
+::: vuka
 ```vuka
 func TestForgetUnconfirmed(t *testing.T) {
 	app := web.New(web.Provide(OpenDB, mailtest.New()))
@@ -163,10 +230,29 @@ func TestForgetUnconfirmed(t *testing.T) {
 	… it is gone …
 }
 ```
+:::
+
+::: go
+```go
+func TestForgetUnconfirmed(t *testing.T) {
+	app := web.New(web.Provide(OpenDB, mailtest.New()))
+	owners, err := web.Resolve[*Owners](app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	_ = owners // add an old sign-up
+	if err := crontest.Run(app, "forgetUnconfirmed"); err != nil {
+		t.Fatal(err)
+	}
+	// check it is gone
+}
+```
+:::
 
 For the schedule itself, `crontest.NewClock(t)` is a virtual clock: nothing
 fires until the test moves it.
 
+::: vuka
 ```vuka
 func TestMorningReport(t *testing.T) {
 	clock := crontest.NewClock(time.Date(2026, 1, 5, 6, 59, 0, 0, time.UTC)) // a Monday
@@ -179,6 +265,24 @@ func TestMorningReport(t *testing.T) {
 	crontest.Wait(app)           // and has finished
 }
 ```
+:::
+
+::: go
+```go
+func TestMorningReport(t *testing.T) {
+	clock := crontest.NewClock(time.Date(2026, 1, 5, 6, 59, 0, 0, time.UTC)) // a Monday
+	app := web.New(web.CronClock(clock), web.Provide(OpenDB))
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	defer app.Stop(context.Background())
+
+	clock.WaitTimers(1)        // the scheduler waits for its tick
+	clock.Advance(time.Minute) // 07:00: the report runs
+	crontest.Wait(app)         // and has finished
+}
+```
+:::
 
 | | |
 |---|---|

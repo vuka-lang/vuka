@@ -65,15 +65,36 @@ See [navigation](/web/navigation).
 
 ## Children and errors
 
+<!-- go:context
+type User struct{ Avatar string }
+
+type Avatar struct{ URL string }
+
+func (a Avatar) Render(ctx context.Context, w io.Writer) error {
+	return ui.HTML(`<img src={a.URL}/>`, a.URL).Render(ctx, w)
+}
+-->
+
 Children go to a `children ui.Node` parameter or a `Children ui.Node`
 field. A component returning `(ui.Node, error)` fails the render with its
 error — `ui.String` and `ui.Write` return it, `ui.Handler` answers 500 —
 unless an `ui.ErrorBoundary` above it renders a fallback instead:
 
+::: vuka
 ```vuka
 {ui.ErrorBoundary(func(err error) ui.Node { return <p className="error">{err}</p> },
 	<Avatar url={u.Avatar} />)}
 ```
+:::
+
+::: go
+```go
+func avatarOr(u User) ui.Node {
+	fallback := func(err error) ui.Node { return ui.HTML(`<p class="error">{err}</p>`, err) }
+	return ui.ErrorBoundary(fallback, Avatar{URL: u.Avatar})
+}
+```
+:::
 
 ## key
 
@@ -85,6 +106,34 @@ inside the element (their instances follow the key when the list is
 reordered).
 
 ## Kit
+
+<!-- go:context
+type Task struct {
+	ID    int
+	Title string
+}
+
+type Tasks struct {
+	ui.Live
+	rows []Task
+}
+
+func (d *Tasks) picked(id int) bool        { return false }
+func (d *Tasks) pick(id int, on bool)      {}
+func (d *Tasks) pickPage(on bool)          {}
+func (d *Tasks) allPicked() bool           { return false }
+func (d *Tasks) New()                      {}
+
+var (
+	c     = &Tasks{}
+	d     = c
+	table ui.Node
+	cols  []ui.Column[Task]
+)
+
+// Node is ui's, for the kit's own source below.
+type Node = ui.Node
+-->
 
 ui ships a set of token-styled components in the package itself, so
 `import "github.com/vuka-lang/ui"` brings both the primitives above and these.
@@ -105,8 +154,9 @@ and `<slot:header>` the `Header` one.
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
-ui.Card{
+card := ui.Card{
 	Title:    ui.Text("Members"),
 	NoPad:    true,
 	Header:   ui.Button{Variant: ui.Primary, Icon: ui.Icon("plus"), On: c.New, Children: ui.Text("New")},
@@ -163,8 +213,9 @@ Tone and size are shared constants: `ui.Default`, `ui.Primary`, `ui.Success`,
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
-ui.Table[Task]{
+table := ui.Table[Task]{
 	Columns:     cols,
 	Rows:        d.rows,
 	RowKey:      func(t Task) any { return t.ID },

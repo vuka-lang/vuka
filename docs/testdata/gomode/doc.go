@@ -1,0 +1,26 @@
+package docsamples
+
+import (
+	_ "github.com/vuka-lang/orm"
+	_ "github.com/vuka-lang/orm/fn"
+	_ "github.com/vuka-lang/orm/migration"
+	_ "github.com/vuka-lang/orm/mysql"
+	_ "github.com/vuka-lang/orm/ormtest"
+	_ "github.com/vuka-lang/orm/ormweb"
+	_ "github.com/vuka-lang/orm/postgres"
+	_ "github.com/vuka-lang/orm/sqlite"
+	_ "github.com/vuka-lang/ui"
+	_ "github.com/vuka-lang/ui/live"
+	_ "github.com/vuka-lang/ui/live/livetest"
+	_ "github.com/vuka-lang/ui/templx"
+	_ "github.com/vuka-lang/ui/term"
+	_ "github.com/vuka-lang/ui/validate"
+	_ "github.com/vuka-lang/vuka"
+	_ "github.com/vuka-lang/web"
+	_ "github.com/vuka-lang/web/auth"
+	_ "github.com/vuka-lang/web/auth/authtest"
+	_ "github.com/vuka-lang/web/cron"
+	_ "github.com/vuka-lang/web/crontest"
+	_ "github.com/vuka-lang/web/mail"
+	_ "github.com/vuka-lang/web/mail/mailtest"
+)

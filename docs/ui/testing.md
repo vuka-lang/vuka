@@ -1,5 +1,20 @@
 # Testing
 
+<!-- go:context
+type Pet struct {
+	Name string
+	Age  int
+}
+
+func PetRow(p Pet) ui.Node {
+	return ui.HTML(`<tr><td>{p.Name}</td><td>{p.Age}</td></tr>`, p.Name, p.Age)
+}
+
+func page(ctx context.Context) ui.Node { return ui.HTML(`<p>hi</p>`) }
+
+func router(url string) live.Route { return live.Route{Render: page} }
+-->
+
 Components are functions and values: render one with `ui.String` and look
 at the HTML.
 
@@ -12,7 +27,7 @@ func TestPetRow(t *testing.T) {
 }
 ```
 
-A `_test.vuka` file can use JSX in the test itself; `vuka test` runs it.
+<span class="vuka-only">A `_test.vuka` file can use JSX in the test itself; `vuka test` runs it.</span>
 
 ## Stateful components
 
@@ -23,6 +38,7 @@ statics, kept strings and each instance's tree — and applies messages as a
 browser runtime must; on a v2 patch it checks that morphing the updated
 instances one by one gives the page the trees render.
 
+<!-- go:fragment -->
 ```go
 c, err := livetest.Join(live.NewSession(ctx, page), 2)
 m, err := c.Event(ui.Event{Target: "c1:0", Type: "click"})
@@ -42,12 +58,15 @@ The reference client also runs [JS commands](/ui/js), on a model of the
 page: the server's HTML plus what commands changed on its elements, kept
 across patches by the [rule browsers follow](/ui/js#server-patches).
 
+<!-- go:fragment -->
 ```go
 c, _ := livetest.Join(live.NewSession(ctx, page), 2)
 c.Click(`[data-vk-id="c1"] button`)             // runs the button's commands, sends its pushes
 c.Fire("input[name=q]", ui.Event{Type: "keydown", Key: "Escape"})
 c.HasClass(`[data-vk-ref="menu"]`, "hidden")    // false: the menu is open
-c.Visible("#dialog"); c.Attr("#box", "checked"); c.Text("p")
+c.Visible("#dialog")
+c.Attr("#box", "checked")
+c.Text("p")
 ```
 
 `Click` and `Fire` find the first element matching a selector (tags, `#id`,
@@ -66,6 +85,7 @@ and `c.Patch(href)` send the protocol's `navigate` message; the session
 answers through its [router](/ui/live#navigation), and `c.URL()` is the
 page's URL after it.
 
+<!-- go:fragment -->
 ```go
 s := live.NewSession(ctx, router("/books?page=1").Render)
 s.SetRouter(router)

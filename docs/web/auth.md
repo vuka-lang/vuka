@@ -7,6 +7,7 @@ where its users and their passwords live. Once it is installed, **every
 route, live page and live event needs a sign-in** unless marked public, so
 a page you forget to protect is protected anyway.
 
+::: vuka
 ```vuka
 import (
 	"github.com/vuka-lang/web"
@@ -25,6 +26,58 @@ func main() {
 	web.New(auth.Module(auth.Config{Endpoints: "/auth"})).Run("")
 }
 ```
+:::
+
+::: go
+<!-- go:context
+type Order struct {
+	ID    int
+	Owner string
+}
+
+type Store struct{}
+
+func (s *Store) For(uid string) ([]Order, error) { return nil, nil }
+func (s *Store) All() ([]Order, error)            { return nil, nil }
+
+type Account struct {
+	ID           string
+	Roles        []string
+	PasswordHash string
+}
+
+type DB struct{}
+
+func (db *DB) AccountByEmail(ctx context.Context, email string) (Account, bool, error) {
+	return Account{}, false, nil
+}
+
+func (db *DB) Account(ctx context.Context, id string) (Account, bool, error) {
+	return Account{}, false, nil
+}
+
+func Shell(title string, children ui.Node) ui.Node {
+	return ui.HTML(`<main><h1>{title}</h1>{children}</main>`, title, children)
+}
+
+var accounts *Users
+-->
+
+```go
+func Login(r *http.Request) ui.Node { return auth.LoginPage(auth.LoginPageProps{Request: r}) }
+
+func Orders(me *auth.Identity, store *Store) ([]Order, error) { return store.For(me.ID) }
+
+func init() {
+	web.Routes.Get("/login", Login, auth.Public())
+	web.Routes.Get("/orders", Orders, auth.Requires("orders.read"))
+}
+
+func main() {
+	log.Fatal(web.New(auth.Module(auth.Config{Endpoints: "/auth"})).Run(""))
+}
+```
+:::
 
 A visitor who isn't signed in and opens `/orders` is sent to
 `/login?next=%2Forders`, signs in, and comes back. A script calling it gets
@@ -36,6 +89,7 @@ in [`examples/auth`](https://github.com/vuka-lang/web/tree/main/examples/auth).
 The app's side is two methods: find a user by what they type to sign in,
 and load a user by id.
 
+::: vuka
 ```vuka
 @web.Service
 type Users struct{ db *DB }
@@ -58,8 +112,43 @@ func (a Account) Identity() *auth.Identity {
 	return &auth.Identity{ID: a.ID, Roles: a.Roles, User: a}
 }
 ```
+:::
 
-A `@web.Service` implementing `auth.Users` is found by itself; otherwise
+::: go
+```go
+type Users struct{ db *DB }
+
+func NewUsers(db *DB) *Users { return &Users{db: db} }
+
+// FindLogin returns the identity whose login (a username, an email) this is,
+// with its encoded password; nil when there is none.
+func (u *Users) FindLogin(ctx context.Context, login string) (*auth.Identity, string, error) {
+	a, found, err := u.db.AccountByEmail(ctx, login)
+	if err != nil || !found {
+		return nil, "", err
+	}
+	return a.Identity(), a.PasswordHash, nil
+}
+
+// Load returns the identity of a user id, as a session or token names it;
+// nil when the user is gone, which signs them out.
+func (u *Users) Load(ctx context.Context, id string) (*auth.Identity, error) {
+	a, found, err := u.db.Account(ctx, id)
+	if err != nil || !found {
+		return nil, err
+	}
+	return a.Identity(), nil
+}
+
+func (a Account) Identity() *auth.Identity {
+	return &auth.Identity{ID: a.ID, Roles: a.Roles, User: a}
+}
+
+func init() { web.Routes.Service(NewUsers) }
+```
+:::
+
+A <span class="vuka-only">`@web.Service`</span><span class="go-only">service (`web.Routes.Service`)</span> implementing `auth.Users` is found by itself; otherwise
 give it in the config — `auth.Config{Users: NewUsers}` takes a value or a
 constructor the container builds.
 
@@ -91,6 +180,7 @@ Users moved from another system keep the passwords they had there when
 `Config.Hashers` reads that system's encoding. A `Hasher` checks one
 encoding, and says whether the stored value is in it at all:
 
+::: vuka
 ```vuka
 // LegacySHA1 reads "sha1$<salt>$<hex>", the old system's encoding.
 type LegacySHA1 struct{}
@@ -106,6 +196,25 @@ func (LegacySHA1) Check(encoded, password string) (ok, known bool) {
 
 auth.Module(auth.Config{Hashers: []auth.Hasher{LegacySHA1{}}})
 ```
+:::
+
+::: go
+```go
+// LegacySHA1 reads "sha1$<salt>$<hex>", the old system's encoding.
+type LegacySHA1 struct{}
+
+func (LegacySHA1) Check(encoded, password string) (ok, known bool) {
+	salt, sum, found := strings.Cut(strings.TrimPrefix(encoded, "sha1$"), "$")
+	if !strings.HasPrefix(encoded, "sha1$") || !found {
+		return false, false                    // not this encoding
+	}
+	h := sha1.Sum([]byte(salt + password))
+	return subtle.ConstantTimeCompare([]byte(hex.EncodeToString(h[:])), []byte(sum)) == 1, true
+}
+
+var withLegacy = auth.Module(auth.Config{Hashers: []auth.Hasher{LegacySHA1{}}})
+```
+:::
 
 A login reads its own encodings (Argon2id, bcrypt) first, then asks each
 hasher in turn; the first that knows the encoding decides, and a stored
@@ -130,9 +239,12 @@ bcrypt of the same cost, or that dummy — so it takes as long as a known one;
 | `@auth.Requires(perms…)` | a sign-in with every one of these perms |
 | `@auth.RequiresAny(perms…)` | a sign-in with at least one |
 
-They go on routes, on `@web.Live` pages, on controllers, on live event
-methods and on any other method or function:
+<span class="vuka-only">They go on routes, on `@web.Live` pages, on controllers, on live event
+methods and on any other method or function:</span><span class="go-only">In Go they are
+options of a route, a live page or a controller; an event or any other
+function checks with `auth.Can(ctx, perm)`:</span>
 
+::: vuka
 ```vuka
 @web.Controller("/admin")
 @auth.Requires("admin")                    // every route of the controller
@@ -152,6 +264,40 @@ type Board struct { ui.Live; … }
 @auth.Requires("board.delete")             // this event, refused to anyone else
 func (b *Board) Clear(ctx context.Context) error { … }
 ```
+:::
+
+::: go
+```go
+type Admin struct{ store *Store }
+
+func NewAdmin(store *Store) *Admin { return &Admin{store: store} }
+
+func (a *Admin) Index() ([]Order, error) { return a.store.All() }
+
+func (a *Admin) Status() string { return "ok" }
+
+type Board struct{ ui.Live }
+
+func NewBoard() *Board { return &Board{} }
+
+func (b *Board) Render() ui.Node { return ui.HTML(`<button onClick={b.Clear}>Clear</button>`, b.Clear) }
+
+// Clear is an event; it checks its own permission.
+func (b *Board) Clear(ctx context.Context) error {
+	if !auth.Can(ctx, "board.delete") {
+		return web.Forbidden
+	}
+	return nil
+}
+
+func init() {
+	web.Routes.Controller("/admin", NewAdmin, auth.Requires("admin")) // every route of the controller
+	web.Routes.Get("/", (*Admin).Index)
+	web.Routes.Get("/status", (*Admin).Status, auth.Public())           // this one is open
+	web.Routes.Live("/board", NewBoard, auth.Requires("board.read"))  // the page, and each of its events
+}
+```
+:::
 
 A route takes its controller's gate and its own, both checked;
 `@auth.Public` on a route opens it alone.
@@ -170,6 +316,10 @@ browser sends. Hide the button from those who can't use it with
 `auth.Can(ctx, "board.delete")`, and keep the gate.
 
 ### What a live event's gate covers
+
+<span class="go-only">In Go, a page's or controller's gate is its route
+option and covers its events as below; a gate on one method alone is the
+method's own check, `auth.Can(ctx, perm)` returning `web.Forbidden`.</span>
 
 A gated method can't be run from the browser by someone the gate refuses,
 whatever shape the handler takes. Two checks make sure of it:
@@ -257,6 +407,7 @@ assets are public; put a private file behind a route.
 
 ## In handlers
 
+::: vuka
 ```vuka
 @web.Get("/me")
 func Me(me auth.Identity) string { return "hello " + me.ID }          // 401 when signed out
@@ -271,6 +422,39 @@ func (s *Orders) Delete(ctx context.Context, id int) error {
 	…
 }
 ```
+:::
+
+::: go
+```go
+func Me(me auth.Identity) string { return "hello " + me.ID } // 401 when signed out
+
+func Home(me *auth.Identity) ui.Node { // nil when signed out
+	if me == nil {
+		return ui.HTML(`<p>Welcome</p>`)
+	}
+	return ui.HTML(`<p>Hello {me.ID}</p>`, me.ID)
+}
+
+type OrderBook struct{ orders map[int]*Order }
+
+func (s *OrderBook) Delete(ctx context.Context, id int) error {
+	o, ok := s.orders[id]
+	if !ok {
+		return web.NotFound
+	}
+	if err := auth.Check(ctx, "orders.delete", o); err != nil { // 401 / 403 as is
+		return err
+	}
+	delete(s.orders, id)
+	return nil
+}
+
+func init() {
+	web.Routes.Get("/me", Me)
+	web.Routes.Get("/", Home, auth.Public())
+}
+```
+:::
 
 | | |
 |---|---|
@@ -290,6 +474,7 @@ rather than decide by the perms alone; a context marked `auth.System`
 passes. A policy decides alone — it may let an owner edit their own order
 without the perm:
 
+::: vuka
 ```vuka
 auth.Config{
 	Policies: []auth.Policy{
@@ -299,6 +484,19 @@ auth.Config{
 	},
 }
 ```
+:::
+
+::: go
+```go
+var config = auth.Config{
+	Policies: []auth.Policy{
+		auth.PolicyFor(func(ctx context.Context, id *auth.Identity, perm string, o *Order) bool {
+			return o.Owner == id.ID || id.Can(perm)
+		}),
+	},
+}
+```
+:::
 
 ## Live pages
 
@@ -306,6 +504,7 @@ A live page's identity is the one its connection joined with: the page's
 route runs again for the WebSocket with the browser's cookie, through the
 gates, so `Mount` and every event handler see it.
 
+::: vuka
 ```vuka
 @web.Live("/board")
 type Board struct {
@@ -320,6 +519,28 @@ func (b *Board) Render() ui.Node {
 	return <p>Signed in as {b.me.ID}</p>
 }
 ```
+:::
+
+::: go
+```go
+type BoardPage struct {
+	ui.Live
+	me *auth.Identity
+}
+
+func NewBoardPage() *BoardPage { return &BoardPage{} }
+
+func (b *BoardPage) LiveSchema(l *ui.LiveSchema) { l.Mount(b.mount) }
+
+func (b *BoardPage) mount(ctx context.Context) error { b.me = auth.Current(ctx); return nil }
+
+func (b *BoardPage) Render() ui.Node {
+	return ui.HTML(`<p>Signed in as {b.me.ID}</p>`, b.me.ID)
+}
+
+func init() { web.Routes.Live("/board", NewBoardPage) }
+```
+:::
 
 A live page's sign-in is checked when the page mounts: its join, and each
 navigation over its connection, run its route, which reads the session or
@@ -358,6 +579,7 @@ are now. The socket only opens from the app's own origin.
 The login page is the app's: `auth.LoginPage` is a whole page, and
 `auth.LoginForm` a form to put in your own layout:
 
+::: vuka
 ```vuka
 @web.Get("/login")
 @auth.Public
@@ -367,6 +589,18 @@ func Login(r *http.Request) ui.Node {
 	</Shell>
 }
 ```
+:::
+
+::: go
+```go
+func LoginScreen(r *http.Request) ui.Node {
+	form := auth.LoginForm(auth.LoginFormProps{Next: r.URL.Query().Get("next"), Error: auth.LoginError(r)})
+	return Shell("Sign in", form)
+}
+
+func init() { web.Routes.Get("/login", LoginScreen, auth.Public()) }
+```
+:::
 
 Or write the form yourself: it posts `login`, `password` and `next` to
 `/auth/login`.
@@ -378,6 +612,7 @@ refusal's own message, post the form to your own handler and re-render the
 page — a form post the browser shows gets the whole page
 ([Forms that fail](/web/routes#forms-that-fail)):
 
+::: vuka
 ```vuka
 @web.Post("/login")
 @auth.Public
@@ -388,6 +623,20 @@ func SignIn(ctx context.Context, r *http.Request) ui.Node {
 	return web.Redirect(auth.Next(r, "/"))
 }
 ```
+:::
+
+::: go
+```go
+func SignIn(ctx context.Context, r *http.Request) ui.Node {
+	if _, err := auth.Login(ctx, r.PostFormValue("login"), r.PostFormValue("password")); err != nil {
+		return auth.LoginPage(auth.LoginPageProps{Request: r, Error: auth.LoginMessage(err)})
+	}
+	return web.Redirect(auth.Next(r, "/"))
+}
+
+func init() { web.Routes.Post("/login", SignIn, auth.Public()) }
+```
+:::
 
 `auth.LoginMessage(err)` is the same message for an unknown login and a
 wrong password, the throttle's, a `*web.Error` from `CheckLogin` as it is
@@ -467,9 +716,18 @@ and `Audience` checked when present or set. The `sub` claim is the id
 — for most apps a query or two. `Config.UserCache` keeps the identity it
 returns for that long, so a request reads only its session or token:
 
+::: vuka
 ```vuka
 auth.Config{Users: accounts, UserCache: 5 * time.Minute}
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+config := auth.Config{Users: accounts, UserCache: 5 * time.Minute}
+```
+:::
 
 A cached identity is dropped when `RevokeUser`, `SetPassword` or `SignOut`
 touch its user, and when `Load` finds the user gone; signing in and a live
@@ -504,6 +762,7 @@ post go in `Config.TrustedOrigins`.
 
 `github.com/vuka-lang/web/auth/authtest`:
 
+::: vuka
 ```vuka
 func TestOrders(t *testing.T) {
 	admin := &auth.Identity{ID: "1", Perms: []string{"orders.*"}}
@@ -518,6 +777,24 @@ func TestLogin(t *testing.T) {
 	// POST /auth/login …
 }
 ```
+:::
+
+::: go
+```go
+func TestOrders(t *testing.T) {
+	admin := &auth.Identity{ID: "1", Perms: []string{"orders.*"}}
+	srv := httptest.NewServer(web.New(auth.Module(auth.Config{}), authtest.As(admin)).Handler())
+	defer srv.Close()
+	// every request is signed in as admin: pages, APIs, live pages and their events
+}
+
+func TestLogin(t *testing.T) {
+	users := authtest.NewUsers().Add("ada@example.com", "correct horse", auth.Identity{ID: "1"})
+	app := web.New(auth.Module(auth.Config{Users: users, Passwords: authtest.Cheap, Endpoints: "/auth"}))
+	_ = app // POST /auth/login …
+}
+```
+:::
 
 | | |
 |---|---|

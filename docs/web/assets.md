@@ -5,6 +5,7 @@ Some things a page needs don't fit in class names: a keyframe animation, a
 bumps when it changes. Give a page its own stylesheet and script, next to
 the component that uses them:
 
+::: vuka
 ```vuka
 @web.Live("/counter",
 	web.Layout(counterPage),
@@ -17,6 +18,62 @@ type Counter struct {
 	n     ui.Assign[int]
 }
 ```
+:::
+
+::: go
+<!-- go:context
+func counterPage(page ui.Node) ui.Node { return page }
+
+func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
+
+func (c *Counter) Render() ui.Node { return ui.HTML(`<output>{c.n.Get()}</output>`, c.n.Get()) }
+-->
+
+```go
+// counter.go
+type Counter struct {
+	ui.Live
+	Start int
+	n     ui.Assign[int]
+}
+
+func NewCounter() *Counter { return &Counter{} }
+
+func init() { web.Routes.Live("/counter", NewCounter, web.Layout(counterPage)) }
+```
+
+```html
+<!-- counter.vuka.html -->
+<output>{n.Get()}</output>
+<button onClick={Inc}>+</button>
+
+<style scoped>
+output {
+	display: inline-block;
+	@apply text-4xl font-semibold text-indigo-700;
+}
+
+output.bump { animation: bump 320ms ease-out; }
+
+@keyframes bump {
+	40% { transform: scale(1.4); }
+}
+</style>
+
+<script lang="ts">
+import { component } from 'vuka:component'
+
+export default component<Counter>((el) => ({
+  update() {
+    const out = el.querySelector("output")!
+    out.classList.remove("bump")
+    void out.offsetWidth // start the animation again
+    out.classList.add("bump")
+  },
+}))
+</script>
+```
+:::
 
 ```css
 /* counter.css */
@@ -50,6 +107,15 @@ reach theirs. The script runs when the counter is on the page, and its
 `updated` hook each time a click changes it. There's nothing else to set
 up: `vuka run` and `vuka build` compile both, and every page that shows a
 `Counter` gets them.
+
+::: go
+In Go, a component's stylesheet and script go after the markup of its
+[template](/ui/templates#scripts-and-styles): `<style scoped>` and
+`<script lang="ts">`, bundled by the `vuka` command (`go tool vuka run`,
+`go tool vuka build-islands` for production). The `web.Style`, `web.Script`,
+`web.CSS` and `web.JS` options below are read from `.vuka` source by the
+`vuka` command; given in Go code, they are not read.
+:::
 
 ## Where they go
 
@@ -190,12 +256,23 @@ counter.ts:9: ctx.push("Incr"): Counter has no method Incr; did you mean Inc?
 A pushed method still runs with the page's request, as an event handler
 does: check what the caller may do there.
 
+::: vuka
 ```vuka
 func (c *Counter) Inc() {
 	c.n.Update(func(n int) int { return n + 1 })
 	c.PushEvent("bumped", c.n.Get())
 }
 ```
+:::
+
+::: go
+```go
+func (c *Counter) Inc() {
+	c.n.Update(func(n int) int { return n + 1 })
+	c.PushEvent("bumped", c.n.Get())
+}
+```
+:::
 
 A [JS command](/ui/js) `ui.JS.Call("bump")` reaches the component's own
 methods first, then the app's (global scripts), then `vuka.register`'s and

@@ -9,6 +9,18 @@ attributes the HTML carries. The web framework's
 
 ## The session
 
+<!-- go:context
+type (
+	Session       struct{}
+	TreeUpdate    struct{}
+	Patch         struct{}
+	Route         struct{}
+	Router        interface{}
+	ClientMessage struct{}
+	ServerMessage struct{}
+)
+-->
+
 ```go
 func NewSession(ctx context.Context, render func(ctx context.Context) ui.Node) *Session
 
@@ -188,6 +200,7 @@ old string. (Tree token patches use no dictionary.)
 
 **An example.** A page rendering a table and a counter:
 
+::: vuka
 ```vuka
 type Table struct {
 	ui.Live
@@ -212,6 +225,57 @@ func page(ctx context.Context) ui.Node {
 	return <main><Table /><Counter Label="solo" /></main>
 }
 ```
+:::
+
+<!-- go:context
+type Row struct {
+	ID   int
+	Name string
+	Qty  int
+}
+
+type Counter struct {
+	ui.Live
+	Label string
+	n     int
+}
+
+func (c *Counter) Inc() { c.n++ }
+-->
+
+::: go
+The same page in plain Go renders and diffs the same way:
+
+```go
+type Table struct {
+	ui.Live
+	rows []Row
+	sel  int
+}
+
+func (t *Table) row(r Row) ui.Node {
+	return ui.HTML(`<tr key={r.ID}><td>{r.Name}</td><td>{r.Qty}</td></tr>`, r.ID, r.Name, r.Qty)
+}
+
+func (t *Table) Render() ui.Node {
+	rows := ui.Each(t.rows, t.row)
+	sel := ui.HTML(`<p>none</p>`)
+	if t.sel > 0 {
+		sel = ui.HTML(`<p>row {t.sel}</p>`, t.sel)
+	}
+	return ui.HTML(`<table>{rows}{sel}</table>`, rows, sel)
+}
+
+func (c *Counter) Render() ui.Node {
+	return ui.HTML(`<span>{c.Label}: {c.n} <button onClick={c.Inc}>+</button></span>`, c.Label, c.n, c.Inc)
+}
+
+func page(ctx context.Context) ui.Node {
+	table, counter := &Table{}, &Counter{Label: "solo"}
+	return ui.HTML(`<main>{table}{counter}</main>`, table, counter)
+}
+```
+:::
 
 The join's reply, with two rows (whitespace added):
 
