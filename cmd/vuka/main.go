@@ -52,6 +52,9 @@ Usage:
 	        gen -inplace for the files or packages named; -rm deletes each
 	        .vuka file and keeps its Go (x.go) as the source, building with
 	        plain go build
+	vuka doctor [dir]
+	        what the module's islands build with (the in-process esbuild,
+	        Vite or Node) and what is missing for one to build
 	vuka mod tidy|why|vendor|graph|… [args]
 	        go mod, seeing the imports of .vuka files too (plain go mod tidy
 	        drops requirements only Vuka code uses)
@@ -123,6 +126,8 @@ func main() {
 		err = mod(os.Args[2:])
 	case "explain":
 		err = explain(os.Args[2:], os.Stdout)
+	case "doctor":
+		err = doctor(os.Args[2:], os.Stdout)
 	case "fix":
 		err = fix(os.Args[2:], os.Stdout)
 	case "fmt":

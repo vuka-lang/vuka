@@ -6,7 +6,7 @@
     "strict": true,
     "jsx": "preserve",
     "skipLibCheck": true,
-    "paths": { "vuka:live": ["./vuka-live"] }
+    "paths": { "vuka:live": ["./vuka-live"], "vuka:island": ["./vuka-island"] }
   },
-  "include": ["**/*.ts", "**/*.vue", "*.d.ts"]
+  "include": ["**/*.ts", "**/*.tsx", "**/*.vue", "*.d.ts"]
 }

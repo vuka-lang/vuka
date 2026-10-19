@@ -133,6 +133,13 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		p.changed[path] = p.edits
 		p.mu.Unlock()
 		go p.checkSyntax(path)
+		if strings.HasSuffix(path, ".vuka.html") && strings.Contains(dp.TextDocument.Text, "<script") {
+			go func() {
+				if ts := p.typescript(); ts != nil {
+					ts.sync(path, []byte(dp.TextDocument.Text))
+				}
+			}()
+		}
 	case "textDocument/didChange":
 		var dp struct {
 			ContentChanges []struct {
@@ -160,6 +167,9 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		p.changed[path] = p.edits
 		p.mu.Unlock()
 		go p.checkSyntax(path)
+		if ts := p.ts.Load(); ts != nil && strings.HasSuffix(path, ".vuka.html") {
+			go ts.sync(path, buf)
+		}
 	case "textDocument/didClose":
 		p.mu.Lock()
 		delete(p.bufs, path)
@@ -567,6 +577,7 @@ func (p *proxy) publish(path string) {
 		island = nil
 	}
 	ds = append(ds, island...)
+	ds = append(ds, p.ts.Load().diagsFor(path)...)
 	if ds == nil {
 		ds = []any{}
 	}

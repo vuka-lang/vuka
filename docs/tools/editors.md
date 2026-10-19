@@ -38,6 +38,14 @@ starts, TypeScript in `<script lang="ts">` and CSS in `<style>`, and the
 markup of a `ui.HTML(`…`)` raw string in `.go` and `.vuka` files the same
 way; Zed reads them as HTML.
 
+A template's `<script lang="ts">` is TypeScript with its component's
+types (`component<Chart>`: `props`, `ctx.live`, `ctx.state`): completion,
+hover, signature help, go to definition and errors come from
+[typescript-language-server](https://github.com/typescript-language-server/typescript-language-server),
+which `vuka lsp` starts when one is on `PATH`, in the module's or its
+frontend's `node_modules/.bin`, or named by `$VUKA_TSLS`
+(`npm i -D typescript typescript-language-server`).
+
 ### Markup
 
 JSX is served as markup, from the `.vuka` text itself, so it works while a tag
