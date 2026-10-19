@@ -24,6 +24,7 @@ type jElem struct {
 	self       bool
 	kids       []jNode
 	inner      span // from the end of the opening tag to the closing one
+	raw        bool // <script lang="ts"> or <style scoped>: its content kept as written
 }
 
 type jAttr struct {
@@ -172,6 +173,18 @@ func (p *jsxParser) element(off int) *jElem {
 			p.fail(off, "unclosed <%s>", el.tag)
 		case c == '/' && p.at(i+1) == '>':
 			el.self, el.end = true, i+2
+			return el
+		case c == '>' && isAsset(el):
+			end := strings.Index(string(p.src[i+1:]), "</"+el.tag)
+			if end < 0 {
+				p.fail(off, "unclosed <%s>", el.tag)
+			}
+			el.raw, el.inner = true, span{i + 1, i + 1 + end}
+			k := p.space(i + 1 + end + 2 + len(el.tag))
+			if p.at(k) != '>' {
+				p.fail(i, "expected </%s> to close <%s>", el.tag, el.tag)
+			}
+			el.end = k + 1
 			return el
 		case c == '>':
 			el.inner.start = i + 1
@@ -600,4 +613,15 @@ func (p *jsxParser) caseHeader(g *goScan, kw tok) (*jCase, int) {
 		}
 		prev = h
 	}
+}
+
+// isAsset reports whether an element is a component's script or scoped
+// stylesheet, whose content isn't JSX.
+func isAsset(el *jElem) bool {
+	for _, a := range el.attrs {
+		if el.tag == "script" && a.name == "lang" && a.raw == `"ts"` || el.tag == "style" && a.name == "scoped" {
+			return true
+		}
+	}
+	return false
 }
