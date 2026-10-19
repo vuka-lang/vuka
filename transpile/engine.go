@@ -201,7 +201,7 @@ func (e *engine) prepare() {
 			}
 		}
 	}
-	e.sets = findOverloads(e.vuka, e.errs)
+	e.sets = findOverloads(e.vuka, e.files, e.errs)
 	e.funcs, e.methods, e.mnames = map[string]*overloadSet{}, map[string]*overloadSet{}, map[string]bool{}
 	for key, s := range e.sets {
 		if s.recv == "" {

@@ -69,13 +69,9 @@ type Typing struct{ Who string }
 
 func (c *Chat) Mount() { c.Subscribe("room:" + c.Room) }
 
-func (c *Chat) Update__NewMessage(m NewMessage) { c.log = append(c.log, "says "+m.Text) }
-func (c *Chat) Update__context_Context_Typing(ctx context.Context, t Typing) {
-//line jsx_props.vuka:58
-	c.log = append(c.log, t.Who+" is typing")
-}
+func (c *Chat) UpdateNewMessage(m NewMessage)              { c.log = append(c.log, "says "+m.Text) }
+func (c *Chat) UpdateTyping(ctx context.Context, t Typing) { c.log = append(c.log, t.Who+" is typing") }
 
-//line jsx_props.vuka:60
 func (c *Chat) Render() ui.Node {
 	var lis []ui.Node
 //line jsx_props.vuka:61

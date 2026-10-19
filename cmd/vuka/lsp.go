@@ -219,8 +219,18 @@ type vfile struct {
 	m       *transpile.SourceMap   // a .vuka file's map
 	templ   *templparser.SourceMap // a .templ file's map (templ's own)
 	files   []transpile.FileRef    // a .vuka file's vuka.File literals, in from
+	names   map[string]string      // the package's overloads: Go name → the source's
 	version int
 	probed  int // the version holding the last probe (see probe)
+}
+
+// namesOf is the package's overloads, Go name → the source's; nil for no
+// file.
+func (f *vfile) namesOf() map[string]string {
+	if f == nil {
+		return nil
+	}
+	return f.names
 }
 
 // text is the source as the editor has it.
@@ -1207,7 +1217,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	}
 	switch vr.method {
 	case "textDocument/completion":
-		v = cleanCompletion(v)
+		v = cleanCompletion(v, vr.file.namesOf())
 		if vr.blocks != nil {
 			v = withBlockItems(v, *vr.blocks)
 		}
@@ -1239,7 +1249,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			return
 		}
 	case "textDocument/hover":
-		v = demangleStrings(v)
+		v = demangleStrings(v, vr.file.namesOf())
 		if vr.note != "" {
 			v = withNote(v, vr.note)
 		}
@@ -1269,7 +1279,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	case "textDocument/rename", "textDocument/references", "textDocument/documentHighlight":
 		v = p.withCloseTwins(vr.method, v, vr.file)
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
-		v = demangleStrings(v)
+		v = demangleStrings(v, vr.file.namesOf())
 	case "textDocument/documentLink":
 		v = p.withFileLinks(v, vr.file)
 	case "textDocument/foldingRange":
@@ -1451,23 +1461,39 @@ func mapRange(f *vfile, v any) (lspRange, bool) {
 	return f.toSource(r, true)
 }
 
-// mangled matches an overload's generated name (area__Circle) and Vuka's
-// temporaries (__e1), which the editor should never show.
+// mangled matches an overload's name as older vuka commands wrote it
+// (area__Circle) and Vuka's temporaries (__e1), which the editor should
+// never show.
 var mangled = regexp.MustCompile(`\b([A-Za-z][A-Za-z0-9_]*?)__[A-Za-z0-9_]+\b`)
 
-func demangle(s string) string { return mangled.ReplaceAllString(s, "$1") }
+var ident = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\b`)
 
-func demangleStrings(v any) any {
+// demangle is s with each overload's Go name (names: areaCircle) spelled
+// as the source writes it (area).
+func demangle(s string, names map[string]string) string {
+	s = mangled.ReplaceAllString(s, "$1")
+	if len(names) == 0 {
+		return s
+	}
+	return ident.ReplaceAllStringFunc(s, func(w string) string {
+		if n, ok := names[w]; ok {
+			return n
+		}
+		return w
+	})
+}
+
+func demangleStrings(v any, names map[string]string) any {
 	switch x := v.(type) {
 	case string:
-		return demangle(x)
+		return demangle(x, names)
 	case []any:
 		for i := range x {
-			x[i] = demangleStrings(x[i])
+			x[i] = demangleStrings(x[i], names)
 		}
 	case map[string]any:
 		for k := range x {
-			x[k] = demangleStrings(x[k])
+			x[k] = demangleStrings(x[k], names)
 		}
 	}
 	return v
@@ -1475,7 +1501,7 @@ func demangleStrings(v any) any {
 
 // cleanCompletion drops Vuka's temporaries and shows each overload under the
 // name the source uses (its detail still tells them apart).
-func cleanCompletion(v any) any {
+func cleanCompletion(v any, names map[string]string) any {
 	items := v
 	if list, ok := v.(map[string]any); ok {
 		items = list["items"]
@@ -1493,7 +1519,7 @@ func cleanCompletion(v any) any {
 		if label, _ := item["label"].(string); strings.HasPrefix(label, "__") {
 			continue
 		}
-		kept = append(kept, demangleStrings(item))
+		kept = append(kept, demangleStrings(item, names))
 	}
 	if list, ok := v.(map[string]any); ok {
 		list["items"] = kept
