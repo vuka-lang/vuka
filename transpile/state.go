@@ -17,8 +17,8 @@ import (
 //
 //	open := ui.State(false)              →  open := ui.UseState(false)
 //	var theme = ui.State("light")        →  var theme = ui.UsePageState("light")
-//	<ul hidden={!open}>                  →  <ul hidden="{{0}}">, open.Not()
-//	<span>{n}</span>                     →  <span>{{0}}</span>, n
+//	<ul hidden={!open}>                  →  <ul hidden={open.Not()}>, open.Not()
+//	<span>{n}</span>                     →  <span>{n}</span>, n
 //	ready := ui.Derived(!open && ok)     →  ready := open.Not().And(ok)
 //	"x" + name                           →  ui.Derived("x").Plus(name)
 //	f.Q.Set("x")                         →  ui.At[string](f, "Q").Set("x")

@@ -14,11 +14,10 @@ import (
 
 // JSX is an expression in a function body: `<div className="card">{u.Name}</div>`.
 // It is read here, from the source bytes (its text isn't Go tokens), and lowered
-// to the file's JSX target (target.go): each piece a Template and its Render
-// (jsxtmpl.go), components their own functions once their types are known.
+// to the file's JSX target (target.go): each piece an HTML call (jsxtmpl.go),
+// components their own functions once their types are known.
 //
-//	<div id={u.ID}>{u.Name}</div>   →   var row = ui.Template(`<div id="{{0}}">{{1}}</div>`)
-//	                                    row.Render(u.ID, u.Name)
+//	<div id={u.ID}>{u.Name}</div>   →   ui.HTML(`<div id={u.ID}>{u.Name}</div>`, u.ID, u.Name)
 
 // jsxStarts reports whether an operand may start after a token of kind prev,
 // so that a `<` there opens JSX rather than comparing.

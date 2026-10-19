@@ -157,7 +157,7 @@ type node struct {
 	pos, end token.Pos // end only for a leaf
 	anchor   bool      // a //line directive may go before it: a declaration, a statement, a case, a field, a literal's element
 	stmt     bool      // a statement of a block or a case, or a case: a directive before it changes no alignment
-	fn       bool      // a top-level function other than init, or a template: its line is what generated it
+	fn       bool      // a top-level function other than init: its line is what generated it
 	doc      bool      // a top-level declaration, or the package clause, with a doc comment
 	leaf     bool      // an identifier or a literal
 }
@@ -232,7 +232,6 @@ func walk(file *ast.File) []node {
 			nd.fn, nd.doc = n.Name.Name != "init", n.Doc != nil
 		case *ast.GenDecl:
 			nd.doc = n.Doc != nil && m&markTop != 0
-			nd.fn = m&markTop != 0 && isTemplateDecl(n)
 		case *ast.Ident, *ast.BasicLit:
 			nd.leaf, nd.end = true, n.End()
 		}
@@ -512,28 +511,6 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 		sort.SliceStable(segs, func(i, j int) bool { return segs[i].gen < segs[j].gen })
 	}
 	return final, segs, true
-}
-
-// isTemplateDecl reports whether d declares a template: var x = ui.Template(…).
-func isTemplateDecl(d *ast.GenDecl) bool {
-	if d.Tok != token.VAR || len(d.Specs) != 1 {
-		return false
-	}
-	s := d.Specs[0].(*ast.ValueSpec)
-	if len(s.Values) != 1 {
-		return false
-	}
-	call, ok := s.Values[0].(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	switch f := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		return f.Sel.Name == "Template"
-	case *ast.Ident:
-		return f.Name == "Template"
-	}
-	return false
 }
 
 // hasComment reports whether a line may hold a comment.

@@ -49,13 +49,12 @@ func NewBoard(Q string) *Board {
 }
 
 func init() {
-	boardType := vuka.TypeFor[Board](NewBoard)
 //line islands_page_layout.vuka:19
-	ui.Island(
+	ui.RegisterIsland[Board](
 		"components/Board.vue",
 		ui.Layout(frame(strings.ToUpper("boards (all)")), frame("inner)")),
 		ui.Strategy("load"),
-	)(boardType)
+	)
 //line islands_page_layout.vuka:25
-	Tagged("x")(boardType)
+	Tagged("x")(vuka.TypeFor[Board](NewBoard))
 }
