@@ -46,12 +46,13 @@ func (w *kqWatch) errors() <-chan error    { return w.err }
 
 // watch covers exactly dirs and files (by identity): one replaced since it
 // was opened is opened again.
-func (w *kqWatch) watch(dirs, files map[string]uint64) error {
+func (w *kqWatch) watch(dirs, files map[string]uint64) (bool, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.closed.Load() {
-		return errors.New("closed")
+		return false, errors.New("closed")
 	}
+	added := false
 	paths := make(map[string]uint64, len(dirs)+len(files))
 	for p, id := range dirs {
 		paths[p] = id
@@ -78,7 +79,7 @@ func (w *kqWatch) watch(dirs, files map[string]uint64) error {
 			if err == syscall.ENOENT || err == syscall.ENOTDIR || err == syscall.EACCES {
 				continue // gone, or not ours to read: a later look sees it
 			}
-			return &fs.PathError{Op: "open", Path: path, Err: err}
+			return added, &fs.PathError{Op: "open", Path: path, Err: err}
 		}
 		var st syscall.Stat_t
 		if err := syscall.Fstat(fd, &st); err != nil {
@@ -90,11 +91,12 @@ func (w *kqWatch) watch(dirs, files map[string]uint64) error {
 		ev.Fflags = syscall.NOTE_DELETE | syscall.NOTE_WRITE | syscall.NOTE_EXTEND | syscall.NOTE_ATTRIB | syscall.NOTE_RENAME | syscall.NOTE_REVOKE
 		if _, err := syscall.Kevent(w.kq, []syscall.Kevent_t{ev}, nil, nil); err != nil {
 			syscall.Close(fd)
-			return &fs.PathError{Op: "kevent", Path: path, Err: err}
+			return added, &fs.PathError{Op: "kevent", Path: path, Err: err}
 		}
 		w.open[path] = kqFile{fd, uint64(st.Ino)}
+		added = true
 	}
-	return nil
+	return added, nil
 }
 
 func (w *kqWatch) loop() {

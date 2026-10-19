@@ -127,14 +127,13 @@ func TestLSPIslandDecorators(t *testing.T) {
 	uri := pathToURI(filepath.Join(dir, "main.vuka"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 		"uri": uri, "languageId": "vuka", "version": 1, "text": islandDecoSource}})
-	var diags string
+	// The island's diagnostic, alone once gopls has loaded the package
+	// (while it loads, its own may come along).
+	want := `"code":"E0310","codeDescription":{"href":"` + diag.DocsURL + `E0310"},"message":"island Gone: no component at islands/Gone.{vue,tsx,jsx,svelte,ts,js}\nhelp: add it there, or name the file with @ui.Island(\"…\")"`
 	c.waitDiags(uri, func(ds []any) bool {
-		diags = jsonOf(ds)
-		return strings.Contains(diags, "island Gone")
+		diags := jsonOf(ds)
+		return strings.Contains(diags, want) && strings.Count(diags, `"message"`) == 1
 	})
-	if want := `"code":"E0310","codeDescription":{"href":"` + diag.DocsURL + `E0310"},"message":"island Gone: no component at islands/Gone.{vue,tsx,jsx,svelte,ts,js}\nhelp: add it there, or name the file with @ui.Island(\"…\")"`; !strings.Contains(diags, want) || strings.Count(diags, `"message"`) != 1 {
-		t.Fatalf("diagnostics: %s", diags)
-	}
 	at := func(needle string, delta int) map[string]any {
 		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(islandDecoSource), strings.Index(islandDecoSource, needle)+delta)}
 	}

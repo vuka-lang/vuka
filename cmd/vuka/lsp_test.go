@@ -113,19 +113,33 @@ func (c *lspClient) notify(method string, params any) {
 // waitDiags returns the next diagnostics published for uri that satisfy ok.
 func (c *lspClient) waitDiags(uri string, ok func([]any) bool) []any {
 	c.t.Helper()
+	return c.waitDiagsAt(uri, 0, ok)
+}
+
+// waitDiagsAt returns the next diagnostics published for uri, of its
+// version at least (those of an earlier version may still be on their way),
+// that satisfy ok.
+func (c *lspClient) waitDiagsAt(uri string, version int, ok func([]any) bool) []any {
+	c.t.Helper()
 	deadline := time.After(60 * time.Second)
+	var last any = "none"
 	for {
 		select {
 		case p := <-c.diags:
 			if p["uri"] != uri {
 				continue
 			}
+			if v, _ := p["version"].(float64); int(v) < version {
+				continue
+			}
 			ds, _ := p["diagnostics"].([]any)
 			if ok(ds) {
 				return ds
 			}
+			last = ds
 		case <-deadline:
-			c.t.Fatalf("no matching diagnostics for %s", uri)
+			b, _ := json.Marshal(last)
+			c.t.Fatalf("no matching diagnostics for %s; the last: %s", uri, b)
 			return nil
 		}
 	}
@@ -511,19 +525,24 @@ func helper() {}
 	uri := pathToURI(filepath.Join(dir, "main.vuka"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 		"uri": uri, "languageId": "vuka", "version": 1, "text": main}})
-	time.Sleep(time.Second)
 
+	// The module's decorators are known once the first build has looked
+	// at it: asked before, the completion has gopls's items only.
 	off := strings.Index(main, "\n@") + 2
-	v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
-		"position": positionOf([]byte(main), off), "context": map[string]any{"triggerKind": 2, "triggerCharacter": "@"}})
-	items := v
-	if list, ok := v.(map[string]any); ok {
-		items = list["items"]
-	}
 	found := map[string]map[string]any{}
-	for _, it := range items.([]any) {
-		item := it.(map[string]any)
-		found[item["label"].(string)] = item
+	for deadline := time.Now().Add(30 * time.Second); found["decorators.Logged"] == nil && time.Now().Before(deadline); time.Sleep(100 * time.Millisecond) {
+		v := c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"position": positionOf([]byte(main), off), "context": map[string]any{"triggerKind": 2, "triggerCharacter": "@"}})
+		items := v
+		if list, ok := v.(map[string]any); ok {
+			items = list["items"]
+		}
+		clear(found)
+		its, _ := items.([]any)
+		for _, it := range its {
+			item := it.(map[string]any)
+			found[item["label"].(string)] = item
+		}
 	}
 	for _, want := range []string{"decorators.Logged", "decorators.Timed", "decorators.Retry"} {
 		item := found[want]
@@ -595,10 +614,11 @@ func TestDropIn(t *testing.T) {
 	if !strings.Contains(hover, "func helper() vuka.Result[int]") {
 		t.Fatalf("hover on helper from a .go file: %s", hover)
 	}
-	// Loaded now; the diagnostics that follow are the real ones.
+	// Loaded now; the diagnostics of the next version are the real ones
+	// (the first version's may still be on their way, from before the load).
 	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
 		"contentChanges": []any{map[string]any{"text": string(src) + "\n"}}})
-	ds := c.waitDiags(uri, func([]any) bool { return true })
+	ds := c.waitDiagsAt(uri, 2, func([]any) bool { return true })
 	if len(ds) != 0 {
 		b, _ := json.Marshal(ds)
 		t.Fatalf("util.go should see helper from main.vuka: %s", b)

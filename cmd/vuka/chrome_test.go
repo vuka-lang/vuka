@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"strings"
+	"syscall"
 	"testing"
 	"time"
 )
@@ -58,6 +59,7 @@ func launchChrome(t *testing.T) *chrome {
 		"--no-first-run", "--no-default-browser-check", "--disable-gpu", "--hide-scrollbars", "--disable-extensions",
 		"--password-store=basic", "--use-mock-keychain", "about:blank")
 	cmd.ExtraFiles = []*os.File{cmdR, resW}
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // its helpers with it, to end them all
 	if err := cmd.Start(); err != nil {
 		needs(t, "starting Chrome: %v", err)
 	}
@@ -73,6 +75,13 @@ func launchChrome(t *testing.T) *chrome {
 		case <-time.After(5 * time.Second):
 			cmd.Process.Kill()
 			<-done
+		}
+		// Its helpers may outlive it a moment, writing to the profile the
+		// test's temporary directory removes next: they end first.
+		pgid := cmd.Process.Pid
+		syscall.Kill(-pgid, syscall.SIGKILL)
+		for end := time.Now().Add(10 * time.Second); syscall.Kill(-pgid, 0) == nil && time.Now().Before(end); {
+			time.Sleep(10 * time.Millisecond)
 		}
 	})
 	return c
