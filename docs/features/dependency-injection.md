@@ -6,6 +6,17 @@ such as [fx](https://github.com/uber-go/fx) from constructor functions you write
 **Vuka adds** those constructors for you. Mark a struct with a type decorator;
 its fields are its dependencies — no annotations on fields.
 
+<!-- go:context
+type DB struct{}
+
+type UserService struct{ db *DB }
+
+func NewDB() *DB { return &DB{} }
+
+func NewUserService(db *DB) *UserService { return &UserService{db: db} }
+-->
+
+::: vuka
 ```vuka
 @di.Component
 type OrderService struct {
@@ -43,3 +54,38 @@ func Module() fx.Option { return fx.Provide(providers...) }
 - `t.Fields` lists the fields, their tags, their
   [attributes](/features/fields#field-attributes), and whether each is
   injected.
+:::
+
+::: go
+In Go the constructor is yours: its parameters are the dependencies, and it
+is the shape `fx.Provide`, `dig.Provide` and the
+[web framework](/web/dependency-injection)'s container take, so the
+container wires the struct from parameter types, unexported fields
+included. A field the constructor doesn't take, such as a mutex, isn't a
+dependency.
+
+```go
+type OrderService struct {
+	db    *DB
+	users *UserService
+	mu    sync.Mutex
+}
+
+func NewOrderService(db *DB, users *UserService) *OrderService {
+	return &OrderService{db: db, users: users}
+}
+
+func init() {
+	web.Routes.Service(NewOrderService) // a lazy singleton, for every app
+}
+```
+
+Or, for one app, give the constructors to it:
+
+<!-- go:fragment -->
+```go
+app := web.New(web.Provide(NewDB, NewUserService, NewOrderService))
+```
+
+In tests, call the constructor with fakes: `NewOrderService(fakeDB, fakeUsers)`.
+:::

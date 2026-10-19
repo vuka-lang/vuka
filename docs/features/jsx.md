@@ -9,6 +9,7 @@ from a library the file imports, its **JSX target**, the way TypeScript's
 `jsxImportSource` picks React, Preact or Solid. The examples here use
 [`github.com/vuka-lang/ui`](/ui/), the default target.
 
+::: vuka
 ```vuka
 import "github.com/vuka-lang/ui"
 
@@ -33,9 +34,63 @@ func Pets(pets []Pet, admin bool) ui.Node {
 	</section>
 }
 ```
+:::
+
+::: go
+In Go, markup is a [`.vuka.html` template](/ui/templates) kept beside the
+package's Go, or written inline with [`ui.HTML`](/ui/#markup-in-go): HTML
+whose holes are labelled with the Go of their values, the values after it
+in the order the labels first appear. The same pets, as a template:
+
+```html
+<!-- pets.vuka.html -->
+func Pets(pets []Pet, admin bool)
+<section class="pets">
+  <h1>Pets ({len(pets)})</h1>
+  <table>
+    for _, p := range pets {
+      <tr><td>{p.Name}</td><td>{p.Age}</td></tr>
+    }
+  </table>
+  if admin {
+    <button>Add a pet</button>
+  }
+</section>
+```
+
+and inline, `ui.Each` and `ui.If` for the list and the condition:
+
+```go
+type Pet struct {
+	ID   int
+	Name string
+	Age  int
+}
+
+func PetRow(pet Pet) ui.Node {
+	return ui.HTML(`<tr><td>{pet.Name}</td><td>{pet.Age}</td></tr>`, pet.Name, pet.Age)
+}
+
+func Pets(pets []Pet, admin bool) ui.Node {
+	rows := ui.Each(pets, PetRow)
+	add := ui.If(admin, ui.HTML(`<button>Add a pet</button>`))
+	return ui.HTML(`
+<section class="pets">
+	<h1>Pets ({len(pets)})</h1>
+	<table>{rows}</table>
+	{add}
+</section>`, len(pets), rows, add)
+}
+```
+
+The rest of this page is about `.vuka` files; for Go, the
+[templates](/ui/templates) page and [markup in Go](/ui/#markup-in-go) have
+the details.
+:::
 
 ## Markup
 
+::: vuka
 | JSX | |
 |---|---|
 | `<div a="x">` | a string attribute; HTML entities (`&amp;`) are decoded |
@@ -49,9 +104,34 @@ func Pets(pets []Pet, admin bool) ui.Node {
 
 Whitespace follows React: text on one line keeps its spaces, a line break
 between text and a tag disappears, and lines of text are joined by one space.
+:::
+
+::: go
+A template's or `ui.HTML`'s holes take any Go expression; what each place
+takes — a child, an attribute's value, an event, a toggled class — is in
+[holes](/ui/templates#holes). HTML keeps HTML's names: `class`, `for`.
+:::
 
 ## Blocks
 
+<!-- go:context
+type User struct {
+	ID   int
+	Name string
+	Year int
+}
+
+func lookup(id int) (User, error) { return User{ID: id}, nil }
+
+type Item struct {
+	Name  string
+	Done  bool
+	Tags  []string
+	Owner string
+}
+-->
+
+::: vuka
 `for`, `if` and `match` go inside braces, and their bodies are markup:
 
 ```vuka
@@ -106,9 +186,63 @@ still go in a function literal.
 
 The Go inside braces is Vuka too: a function literal there takes `?` and
 `match` like any other function, at any depth.
+:::
+
+::: go
+In a template, `for`, `if` and `switch` are statements at the start of a
+line, their bodies markup, nesting as Go's do:
+
+```html
+<!-- users.vuka.html -->
+func Users(users []User, found User, err error)
+<ul>
+  for _, u := range users {
+    <li key={u.ID}>{u.Name}</li>
+  }
+</ul>
+if len(users) == 0 {
+  <p>nobody yet</p>
+} else {
+  <p>{len(users)} users</p>
+}
+if err != nil {
+  <p class="error">{err}</p>
+} else {
+  <p>{found.Name}</p>
+}
+```
+
+Inline, the statements are Go's, before the `return`, building the nodes a
+hole takes — a `[]ui.Node` is each node:
+
+```go
+func Users(users []User, id int) ui.Node {
+	var items []ui.Node
+	for _, u := range users {
+		items = append(items, ui.HTML(`<li key={u.ID}>{u.Name}</li>`, u.ID, u.Name))
+	}
+	count := ui.HTML(`<p>nobody yet</p>`)
+	if len(users) > 0 {
+		count = ui.HTML(`<p>{len(users)} users</p>`, len(users))
+	}
+	var who ui.Node
+	if u, err := lookup(id); err != nil {
+		who = ui.HTML(`<p class="error">{err}</p>`, err)
+	} else {
+		who = ui.HTML(`<p>{u.Name}</p>`, u.Name)
+	}
+	return ui.HTML(`<ul>{items}</ul>{count}{who}`, items, count, who)
+}
+```
+:::
 
 ## Components
 
+<!-- go:context
+func (c UserCard) Render(ctx context.Context, w io.Writer) error { return nil }
+-->
+
+::: vuka
 A tag that starts with a capital letter, or has a dot (`<theme.Card>`), is a
 function or method call:
 
@@ -161,9 +295,64 @@ main.vuka:12:14: <UserCard> has no attribute usr; did you mean user?
 main.vuka:20:3: expected </p> to close <p> at line 18, found </div>
 main.vuka:31:3: <Plain> returns int, which isn't ui.Node (missing method Render)
 ```
+:::
+
+::: go
+A component is a struct whose fields are its props, and a `ui.Node` itself;
+its markup is the `.vuka.html` file of the same name, its `Children` field
+what goes between the tags:
+
+```go
+// usercard.go
+type UserCard struct {
+	User     User
+	Admin    bool
+	Children ui.Node
+}
+```
+
+```html
+<!-- usercard.vuka.html -->
+func (c UserCard) View()
+<div class="user-card">
+  <h3>{c.User.Name}</h3>
+  if c.Admin {
+    <span class="badge">admin</span>
+  }
+  {c.Children}
+</div>
+```
+
+<!-- go:fragment -->
+```go
+u := User{Name: "ada", Year: 2020}
+card := UserCard{User: u, Admin: true, Children: ui.HTML(`since {u.Year}`, u.Year)}
+```
+
+A field left out is its zero value, and a wrong one the compiler's error on
+the literal. A generic component takes its type arguments as a generic
+struct does, `List[User]{…}`; a function works too:
+
+```go
+func List[T any](items []T, render func(T) ui.Node) ui.Node {
+	rows := ui.Each(items, render)
+	return ui.HTML(`<ul>{rows}</ul>`, rows)
+}
+```
+
+<!-- go:fragment -->
+```go
+users := []User{{Name: "ada"}}
+list := List(users, func(u User) ui.Node { return ui.HTML(`<li>{u.Name}</li>`, u.Name) })
+```
+
+A struct embedding `ui.Live` is a [stateful component](/ui/stateful),
+`&Counter{…}`, or `ui.Key(k, &Counter{…})` with a key.
+:::
 
 ## JSX targets
 
+::: vuka
 A file's JSX lowers to calls of the one JSX target it imports:
 
 ```vuka
@@ -210,9 +399,20 @@ it, must name a value one of its elements has — `ui.GetAttr("name",
 "username"?`; values that aren't string literals aren't checked. What a
 handler may take, what a `Mount` looks like, how a value renders, is the
 target's business, checked by its runtime.
+:::
+
+::: go
+Go code calls the target's functions itself — `ui.HTML`, `ui.Each`,
+`ui.If`, `ui.Key`:
+
+```go
+func Hello(name string) ui.Node { return ui.HTML(`<p>Hello, {name}!</p>`, name) }
+```
+:::
 
 ## What it becomes
 
+::: vuka
 The Go you would write by hand. Each piece of JSX — a tree, each block
 body, a component tag's children — is a `ui.HTML` call: the markup with
 your expressions as its holes' labels, written where you wrote them, and
@@ -269,9 +469,23 @@ The inferred type argument lands on the **props struct literal**
 inferred by Go from that argument, so the call needs no `[User]`. Writing the
 arguments on the tag (`<List[User] …/>`) lowers the same way — it only pins
 `T` yourself when the attributes can't.
+:::
+
+::: go
+A `.vuka` file's JSX compiles to `ui.HTML` calls like the ones on this
+page, and a
+`.vuka.html` template to the same, written by `vuka gen` as `x_html.go`
+beside it, so `go build` needs no `vuka` command.
+:::
 
 ## Known limits
 
+::: vuka
 - JSX goes in function bodies and package-level variable initialisers, not
   in constant declarations or struct tags (Go allows neither an expression
   there).
+:::
+
+::: go
+`ui.HTML`'s markup is a string, so it goes wherever Go takes an expression.
+:::
