@@ -54,6 +54,7 @@ same page in the terminal.
 | [E0132](./E0132) | A value isn't written as its label |
 | [E0140](./E0140) | a template file has no type to be the Render of |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
+| [W0101](./W0101) | A bare name is a field and a name of the package |
 
 ## Decorators and attributes
 

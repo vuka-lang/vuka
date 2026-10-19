@@ -47,11 +47,12 @@ and the compiler adds the method that makes the struct a `ui.Node`,
 and the live tree read the `View`, so the struct renders and diffs as its
 markup. For a [stateful component](/ui/stateful) (one embedding `ui.Live`)
 the markup is its `Render() ui.Node`, as before. Fields and methods are read by bare name — `{Title}`,
-`{Total()}` — and locals and loop variables shadow them, as in Go. A name
-the package itself declares (a function, a type, a variable) is the
-package's, not the field: in a package with such names, write the explicit
-header and the receiver, as the [ui kit](/ui/components#how-the-kit-is-written)
-does. The
+`{Total()}` — as in a method of the struct: a field or method wins over a
+name the package declares (a function or a variable of the same name), and
+locals and loop variables shadow the field, as in Go. A tag, `<Icon/>`,
+and a type are always the package's. `vukavet` warns where a bare name is
+both ([W0101](/errors/W0101)); write the explicit header and the receiver
+to say which. The
 receiver is a pointer when the type embeds `ui.Live`, holds a `ui.State`
 or has pointer-receiver methods, and a value otherwise. A file whose
 package declares no such type is an error; start it with an explicit
@@ -128,8 +129,18 @@ default:
 ```
 
 `if`, `else if`, `else`, `for` (over a range or a condition), `switch`
-with `case` and `default`, and `x := expr`. Text that starts with a
+with `case` and `default`, `x := expr` and `x = expr`. Text that starts with a
 keyword is written as a string, `{"if you can"}`.
+
+They run in the markup's order, as Go's: a hole shows the value at its
+place, not the value after the statements below it:
+
+```html
+x := 1
+<p>{x}</p>   <!-- 1 -->
+x = 2
+<p>{x}</p>   <!-- 2 -->
+```
 
 ## Components and slots
 
