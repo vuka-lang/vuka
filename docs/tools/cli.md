@@ -149,7 +149,10 @@ component file missing or ambiguous, and what the app would refuse at boot
 of a page backed by a component when the source shows it already: a
 deferred field whose group has no loader ([E0324](/errors/E0324)), a
 loader of the wrong shape, a bad `bind:` or `defer:` tag, two handles of one
-name. Those are errors: vet fails.
+name. Those are errors: vet fails. The checks of
+[vukavet](/tools/vukavet) — routes, handlers, live pages, templates, orm
+schemas — run on the Go the app becomes with
+`vuka vet -vettool=$(go tool -n vukavet) ./...`.
 
 **Declarer packages are linked automatically.** Every package of the module
 with a [declarer](/features/decorators#declaration-decorators), a type

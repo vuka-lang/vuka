@@ -58,6 +58,7 @@ export default defineConfig({
         items: [
           { text: 'The vuka command', link: '/tools/cli' },
           { text: 'Editors', link: '/tools/editors' },
+          { text: 'vukavet', link: '/tools/vukavet' },
         ],
       },
       {

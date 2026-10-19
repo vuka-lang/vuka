@@ -46,6 +46,8 @@ same page in the terminal.
 | [E0124](./E0124) | Code that can't run in the browser |
 | [E0125](./E0125) | ui.State used with the wrong type |
 | [E0126](./E0126) | Bad vuka.File |
+| [E0127](./E0127) | Render doesn't fill a template's holes |
+| [E0128](./E0128) | A value doesn't fit its template hole |
 
 ## Decorators and attributes
 
@@ -121,6 +123,15 @@ same page in the terminal.
 | [E0416](./E0416) | A .env file doesn't parse |
 | [E0417](./E0417) | A view doesn't fit its template |
 | [E0418](./E0418) | @web.Service or @web.Controller on a non-struct |
+| [E0419](./E0419) | web.Params doesn't fit the handler |
+
+## Data and the ORM
+
+| Code | |
+|---|---|
+| [E0501](./E0501) | A Schema field isn't the model's |
+| [E0502](./E0502) | A nil Schema attribute |
+| [E0503](./E0503) | A Schema field behind a pointer |
 
 ## Frontend and toolchain
 
