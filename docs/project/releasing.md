@@ -86,3 +86,23 @@ again: a module whose tag is already on its branch is skipped, and the
 release carries on with the next. A step that failed after its commit but
 before its tag leaves the repository ahead of `origin/main`; push that commit
 (or reset it) so the checks pass, then rerun.
+
+## The VS Code extension
+
+The extension in `editors/vscode` has its own version and is published by the
+`Extension` workflow when a `vscode-vX.Y.Z` tag is pushed (or by hand from the
+Actions tab). The tag must match `version` in its `package.json`.
+
+```sh
+git tag vscode-v0.5.0 && git push origin vscode-v0.5.0
+```
+
+The run tests the grammars, packages `vuka.vsix` (kept as an artifact), then
+publishes it:
+
+- **Open VSX** (VSCodium and other VS Code–based editors) with the `OVSX_PAT`
+  secret: a token from open-vsx.org for an account that owns the `vuka-lang`
+  namespace (`npx ovsx create-namespace vuka-lang -p <token>`, once).
+- **VS Code Marketplace** with the `VSCE_PAT` secret: an Azure DevOps token
+  with the Marketplace "Manage" scope for the `vuka-lang` publisher. Skipped
+  while the secret isn't set.
