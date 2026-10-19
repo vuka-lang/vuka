@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -67,7 +68,8 @@ func TestExplainCrossPackageStatics(t *testing.T) {
 	if err := explain([]string{page}, &out); err != nil {
 		t.Fatalf("explain: %v", err)
 	}
-	if !strings.Contains(out.String(), "ModelObjects") {
+	statics := regexp.MustCompile(`Model_?Objects`) // Model_Objects before TypeMember names
+	if !statics.MatchString(out.String()) {
 		t.Errorf("explanation doesn't show the statics lowering:\n%s", out.String())
 	}
 
@@ -75,7 +77,7 @@ func TestExplainCrossPackageStatics(t *testing.T) {
 	if err := explain([]string{"-full", page}, &out); err != nil {
 		t.Fatalf("explain -full: %v", err)
 	}
-	if !strings.Contains(out.String(), "ModelObjects") {
+	if !statics.MatchString(out.String()) {
 		t.Errorf("-full output doesn't show the statics lowering:\n%s", out.String())
 	}
 }

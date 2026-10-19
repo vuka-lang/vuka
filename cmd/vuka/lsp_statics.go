@@ -331,15 +331,23 @@ func findTypeSpec(files []*staticsFile, name string) (*ast.TypeSpec, *staticsFil
 // statics: TypeMember, and typeMember inside the type's own package.
 func staticDecls(files []*staticsFile, typeName string, samePkg bool, written string) []staticMember {
 	upperAt := func(s string) bool { return s != "" && s[0] >= 'A' && s[0] <= 'Z' }
+	// TypeMember (typeMember unexported); Type_Member (_Type_member) from
+	// runtimes before TypeMember names.
 	member := func(name string) (string, bool) {
+		if m, ok := strings.CutPrefix(name, typeName+"_"); ok && m != "" {
+			return m, true
+		}
 		if m, ok := strings.CutPrefix(name, typeName); ok && upperAt(m) {
 			return m, true
 		}
 		lower := strings.ToLower(typeName[:1]) + typeName[1:]
-		if !samePkg || lower == typeName {
+		if !samePkg {
 			return "", false
 		}
-		if m, ok := strings.CutPrefix(name, lower); ok && upperAt(m) {
+		if m, ok := strings.CutPrefix(name, "_"+typeName+"_"); ok && m != "" {
+			return m, true
+		}
+		if m, ok := strings.CutPrefix(name, lower); ok && lower != typeName && upperAt(m) {
 			return strings.ToLower(m[:1]) + m[1:], true
 		}
 		return "", false
