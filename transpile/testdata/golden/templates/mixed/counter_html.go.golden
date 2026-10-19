@@ -20,3 +20,9 @@ func (c *Counter) Render() ui.Node {
 
 //line counter.vuka.html:7
 func heading(text string) ui.Node { return ui.HTML(`<h1>{text}</h1>`, text) }
+
+//line counter.vuka.html:10
+func step(c *Counter) ui.Node {
+//line counter.vuka.html:10
+	return ui.HTML(`<button onClick={func() { c.Add(2) }}>+2</button>`, func() { c.Add(2) })
+}

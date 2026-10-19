@@ -3,6 +3,7 @@ package transpile
 import (
 	"bytes"
 	"fmt"
+	"go/ast"
 	"go/parser"
 	"go/scanner"
 	"go/token"
@@ -161,7 +162,7 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 			markScope([]jsxNode{t.root}, f.scope)
 		}
 		f.jsx = append(f.jsx, t)
-		if len(t.comps) == 0 && !t.mayBind() && !t.hasBlocks() {
+		if len(t.comps) == 0 && !t.mayBind() && !t.hasBlocks() && !t.callsEvent(f.src) {
 			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 		}
@@ -939,8 +940,26 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 			w.bind(a.bind)
 			return
 		}
+		if a.event && w.voidCall(a) {
+			// onClick={p.Cancel(o.ID)}: the call is the handler.
+			w.gen("func() { ")
+			w.keep(a.expr)
+			w.gen(" }")
+			return
+		}
 		w.keep(a.expr)
 	}
+}
+
+// voidCall reports whether an event's expression is a call with no result:
+// the handler runs it.
+func (w *jsxWriter) voidCall(a *jsxAttr) bool {
+	e := w.f.eng
+	if e.info == nil {
+		return false
+	}
+	x, ok := ast.Unparen(e.attrExpr(w.f, a)).(*ast.CallExpr)
+	return ok && e.info.Types[x].IsVoid()
 }
 
 // lineStmt reports whether a template's Go statement starts at i: the first
@@ -1064,4 +1083,17 @@ func (p *jsxParser) attrParts(start, end int) []attrPart {
 		out = append(out, attrPart{text: html.UnescapeString(b.String())})
 	}
 	return out
+}
+
+// callsEvent reports whether an event attribute of the tree is a call: the
+// handler when it has no result, which only types tell.
+func (t *jsxTree) callsEvent(src []byte) bool {
+	for _, ev := range t.events {
+		if x, err := parser.ParseExpr(string(src[ev.attr.expr.start:ev.attr.expr.end])); err == nil {
+			if _, ok := ast.Unparen(x).(*ast.CallExpr); ok {
+				return true
+			}
+		}
+	}
+	return false
 }

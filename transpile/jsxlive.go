@@ -368,6 +368,9 @@ func (e *engine) checkEvents(f *fileState) {
 				continue
 			}
 			ev.checked = true
+			if _, call := ast.Unparen(x).(*ast.CallExpr); call && tv.IsVoid() {
+				continue // the call is the handler
+			}
 			if msg := e.handlerProblem(tv.Type); msg != "" {
 				e.errs.add("E0107", f.at(ev.attr.off), "%s on <%s> %s", ev.attr.name, ev.tag, msg)
 			}

@@ -19,6 +19,9 @@ type Counter struct {
 
 func (c *Counter) Inc() { c.n++ }
 
+// Add is an event taking an argument: onClick={c.Add(2)}.
+func (c *Counter) Add(n int) { c.n += n }
+
 // Badge is a function component in .vuka, a tag in the template.
 func Badge(label string) ui.Node { return ui.HTML(`<b class="badge">{label}</b>`, label) }
 
@@ -28,10 +31,11 @@ func Page() ui.Node {
 <main>
   {heading("Counters")}
   {&Counter{Start: 5}}
-</main>`, heading("Counters"), &Counter{Start: 5})
+  {step(&Counter{})}
+</main>`, heading("Counters"), &Counter{Start: 5}, step(&Counter{}))
 }
 
-//line counter.vuka:27
+//line counter.vuka:30
 func main() {
 	s, err := ui.String(context.Background(), Page())
 	fmt.Println(s, err)
