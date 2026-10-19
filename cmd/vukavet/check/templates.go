@@ -15,7 +15,8 @@ import (
 // Templates checks ui.HTML calls: the values against the labels (E0127),
 // each value's Go against its label (E0132), and each value's type against
 // its hole's place where the type is known (E0128) — what fails the render,
-// or reads wrong, otherwise.
+// or reads wrong, otherwise — and the package's .vuka.html files: a bare
+// name both a field and a package-level name (W0101).
 var Templates = &analysis.Analyzer{
 	Name: "templates",
 	Doc:  "check ui.HTML's values against its labelled holes",
@@ -26,6 +27,7 @@ var Templates = &analysis.Analyzer{
 func runTemplates(pass *analysis.Pass) (any, error) {
 	info := pass.TypesInfo
 	k := newKinds(pass)
+	bareNames(pass, htmlSources(pass))
 	for _, f := range pass.Files {
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)

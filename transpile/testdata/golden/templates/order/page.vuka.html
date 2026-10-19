@@ -1,0 +1,20 @@
+// Page shows each value as it is where the markup reads it.
+func Page(xs []int)
+<main>
+  x := 1
+  <p>{x}</p>
+  x = 2
+  <p>{x}</p>
+  total := 0
+  <ul>
+    for _, n := range xs {
+      <li>{total}</li>
+      total += n
+    }
+  </ul>
+  <p>{total}</p>
+  c := &counter{}
+  <p>{c.n}</p>
+  k := c.next()
+  <p>{c.n} {k}</p>
+</main>

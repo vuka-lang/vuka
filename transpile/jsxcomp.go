@@ -477,6 +477,31 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 		}
 		args[i] = &compArg{attr: a}
 	}
+	slotAt := map[*compArg]int{}
+	rest := el.kids[:0:0]
+	for _, k := range el.kids {
+		sl, ok := k.(*jsxElem)
+		if !ok || !strings.HasPrefix(sl.tag, "slot:") {
+			rest = append(rest, k)
+			continue
+		}
+		name := strings.TrimPrefix(sl.tag, "slot:")
+		i := bindName(names, name)
+		switch {
+		case i < 0:
+			return sl.start, "<" + el.tag + "> has no slot " + name + ": a slot is a " + c.target.q + "Node parameter, " + name
+		case args[i] != nil:
+			return sl.start, "<" + el.tag + "> sets " + names[i] + " twice"
+		case !types.AssignableTo(node, params.At(i).Type()):
+			return sl.start, "<" + el.tag + ">'s slot " + names[i] + " is " + e.display(params.At(i).Type()) + ", not " + c.target.q + "Node"
+		}
+		args[i] = &compArg{nodes: append([]jsxNode{}, sl.kids...)}
+		slotAt[args[i]] = sl.start
+	}
+	if len(slotAt) > 0 {
+		c.rest = rest
+		hasKids = hasContent(rest)
+	}
 	if hasKids {
 		i := bindName(names, "children")
 		switch {
@@ -499,6 +524,9 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 		case a.kids:
 			c.inOrder = c.inOrder && last < el.end
 			last = el.end
+		case a.nodes != nil:
+			c.inOrder = c.inOrder && last < slotAt[a]
+			last = slotAt[a]
 		case a.attr.kind == 'e':
 			c.inOrder = c.inOrder && last < a.attr.expr.start
 			last = a.attr.expr.start

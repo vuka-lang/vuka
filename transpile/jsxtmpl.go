@@ -4,9 +4,11 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/printer"
+	"go/scanner"
 	"go/token"
 	"go/types"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -33,8 +35,43 @@ import (
 
 // tmpl is a template being written: its markup and its values.
 type tmpl struct {
-	b    strings.Builder
-	args []tmplArg
+	b     strings.Builder
+	args  []tmplArg
+	marks []mark // where labels are in b
+}
+
+type mark struct {
+	at    int
+	label string
+}
+
+// label writes a hole's label, remembering where.
+func (tp *tmpl) label(l string) {
+	tp.marks = append(tp.marks, mark{tp.b.Len(), l})
+	tp.b.WriteString(l)
+}
+
+// relabel renames the holes labelled from.
+func (tp *tmpl) relabel(from, to string) {
+	src := tp.b.String()
+	var b strings.Builder
+	last, d := 0, 0
+	for i, m := range tp.marks {
+		at := m.at
+		tp.marks[i].at += d
+		if m.label != from {
+			continue
+		}
+		b.WriteString(src[last:at])
+		b.WriteString(to)
+		last = at + len(from)
+		tp.marks[i].label = to
+		tp.marks[i].at = b.Len() - len(to)
+		d += len(to) - len(from)
+	}
+	b.WriteString(src[last:])
+	tp.b.Reset()
+	tp.b.WriteString(b.String())
 }
 
 type tmplArg struct {
@@ -185,7 +222,91 @@ func (w *jsxWriter) value(tp *tmpl, base string, write func()) string {
 
 // holeIn writes {label} for what write writes.
 func (w *jsxWriter) holeIn(tp *tmpl, base string, write func()) {
-	tp.b.WriteString("{" + w.value(tp, base, write) + "}")
+	l := w.value(tp, base, write)
+	tp.b.WriteString("{")
+	tp.label(l)
+	tp.b.WriteString("}")
+}
+
+// capture makes the values of tp's first n holes that stmts may change
+// variables declared at the sink's piece at: a statement after a hole
+// doesn't change what it shows.
+func (w *jsxWriter) capture(tp *tmpl, n, at int, stmts []string) {
+	var decls []jsxPiece
+	for i := range tp.args[:n] {
+		a := &tp.args[i]
+		if constLabel(a.label) || !changes(stmts, a.label) {
+			continue
+		}
+		name := w.varName(labelBase(a.label))
+		ps := w.expr(a.write)
+		decls = append(decls, jsxPiece{text: name + " := ", keep: span{-1, -1}})
+		decls = append(decls, ps...)
+		decls = append(decls, jsxPiece{text: "\n", keep: span{-1, -1}})
+		tp.relabel(a.label, name)
+		a.label, a.write = name, func() { w.gen(name) }
+	}
+	w.sink.p = slices.Insert(w.sink.p, at, decls...)
+}
+
+// changes reports whether stmts may change what label reads: they call
+// something, or name what it names.
+func changes(stmts []string, label string) bool {
+	names := goIdents(label)
+	for _, s := range stmts {
+		if strings.Contains(s, "(") {
+			return true
+		}
+		for n := range goIdents(s) {
+			if names[n] {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func goIdents(src string) map[string]bool {
+	out := map[string]bool{}
+	var sc scanner.Scanner
+	fs := token.NewFileSet()
+	sc.Init(fs.AddFile("", -1, len(src)), []byte(src), nil, 0)
+	for {
+		_, tok, lit := sc.Scan()
+		if tok == token.EOF {
+			return out
+		}
+		if tok == token.IDENT {
+			out[lit] = true
+		}
+	}
+}
+
+// constLabel reports whether a hole's value can't change: a variable of
+// the tree's, or a literal.
+func constLabel(l string) bool {
+	if strings.HasPrefix(l, "__") || l == "true" || l == "false" || l == "nil" {
+		return true
+	}
+	x, err := parser.ParseExpr(l)
+	_, lit := x.(*ast.BasicLit)
+	return err == nil && lit
+}
+
+// labelBase is what a captured value is named after: its expression's last
+// name.
+func labelBase(l string) string {
+	x, err := parser.ParseExpr(l)
+	if err != nil {
+		return "value"
+	}
+	switch x := x.(type) {
+	case *ast.Ident:
+		return x.Name
+	case *ast.SelectorExpr:
+		return lowerFirst(x.Sel.Name)
+	}
+	return "value"
 }
 
 // drop writes ps's kept spans as dropped: no text, their rewrites gone.
@@ -270,14 +391,18 @@ func (w *jsxWriter) markup(tp *tmpl, ns []jsxNode, line, child string, inline bo
 		at = child
 	}
 	for i, n := range ns {
+		sink, ran, args := len(w.sink.p), len(w.ran), len(tp.args)
 		if b, ok := n.(*jsxBlock); ok && b.stmt {
 			w.block(b)
-			continue
+		} else {
+			if breaks && (i == 0 || isMarkup(ns[i-1]) && isMarkup(n)) {
+				tp.b.WriteString("\n" + child)
+			}
+			w.node(tp, n, at, inline)
 		}
-		if breaks && (i == 0 || isMarkup(ns[i-1]) && isMarkup(n)) {
-			tp.b.WriteString("\n" + child)
+		if len(w.ran) > ran {
+			w.capture(tp, args, sink, w.ran[ran:])
 		}
-		w.node(tp, n, at, inline)
 	}
 	if breaks && child != line {
 		tp.b.WriteString("\n" + line)
@@ -413,7 +538,10 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 			continue
 		}
 		if a.kind == 'r' {
-			tp.b.WriteString(" {" + w.value(tp, "attrs", func() { w.keep(a.expr) }) + "...}")
+			l := w.value(tp, "attrs", func() { w.keep(a.expr) })
+			tp.b.WriteString(" {")
+			tp.label(l)
+			tp.b.WriteString("...}")
 			continue
 		}
 		tp.b.WriteString(" " + htmlName(a.name))
@@ -535,6 +663,7 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 	w.inBlock = true
 	defer func() { w.inBlock = outer }()
 	if n.stmt {
+		w.ran = append(w.ran, string(w.f.src[n.heads[0].start:n.heads[0].end]))
 		w.stmts(func() {
 			w.keep(n.heads[0])
 			w.gen("\n")

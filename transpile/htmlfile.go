@@ -297,7 +297,11 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if live {
 			method = "Render"
 		}
-		add(off[first], "func ("+recv+" "+star+typ+") "+method+"() "+ui+"Node { return <>")
+		open := "func (" + recv + " " + star + typ + ") " + method + "() " + ui + "Node { return <>"
+		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
+			open += "\n" // a statement starts its line
+		}
+		add(off[first], open)
 		for _, a := range assets {
 			if a.Decl == typ && a.Script {
 				// A component script reads its props from its root.
@@ -611,9 +615,9 @@ func receiverName(typ, markup string) string {
 	return "this"
 }
 
-// resolveBare qualifies the main template's bare names: an identifier the
-// type checker couldn't resolve that names a field or method of the
-// receiver is the receiver's, s.Title.
+// resolveBare qualifies the main template's bare names: an identifier
+// naming a field or method of the receiver is the receiver's, s.Title,
+// unless a local declared in the template names it.
 func (e *engine) resolveBare(f *fileState) {
 	h := f.html
 	if h == nil || h.recv == "" || e.pkg == nil {
@@ -647,8 +651,15 @@ func (e *engine) resolveBare(f *fileState) {
 
 func (e *engine) bareIdent(f *fileState, id *ast.Ident, recv types.Type) {
 	off := f.orig(id.Pos())
-	if off < f.html.start || off >= f.html.end || f.done[off] || e.info.Uses[id] != nil || e.info.Defs[id] != nil {
+	if off < f.html.start || off >= f.html.end || f.done[off] || e.info.Defs[id] != nil {
 		return
+	}
+	// A field or method wins over a package-level name; a local, a
+	// parameter or a loop variable over the field.
+	if o := e.info.Uses[id]; o != nil {
+		if _, typ := o.(*types.TypeName); typ || o.Parent() != e.pkg.Scope() || off > 0 && f.src[off-1] == '<' || off > 1 && string(f.src[off-2:off]) == "</" {
+			return
+		}
 	}
 	if o, _, _ := types.LookupFieldOrMethod(recv, true, e.pkg, id.Name); o == nil {
 		return

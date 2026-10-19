@@ -39,7 +39,9 @@ expression of its argument, checked against the arguments by vukavet.
 ## 2. Markup
 
 - Statements are Go: `if`/`else if`/`else`, `for … range` and `for cond`,
-  `switch`/`case`/`default`, `x := expr`. A statement starts a line and its
+  `switch`/`case`/`default`, `x := expr`, run in the markup's order: a hole
+  is the value at its place (captured before a later statement that may
+  change it). A statement starts a line and its
   body is markup inside `{ }`, as in templ. Text starting with a keyword is
   written `{"if …"}`.
 - Holes `{expr}` are any Go expression. Attributes: `a={expr}`, or text with
@@ -280,8 +282,10 @@ Components are file-based by default.
 - An explicit header on the first line, `func (s Sales) View()` (or
   `func (p *Orders) Render()` for a stateful type), is still allowed (a named
   receiver, another signature); expressions then use the receiver's name.
-  A name the package itself declares is the package's, not the field: in such
-  a package (ui's own) write the header and the receiver.
+  The template's scope is the struct's methods': a field or method wins
+  over a package-level name of the same spelling (not over a tag or a
+  type), and locals shadow the field; vukavet warns where a bare name is
+  both (W0101).
 - Imports (`import Trend "./trend.vue"`) go at the very top, before the
   markup.
 - Live pages are the same pair (`orders.vuka` + `orders.vuka.html`); a page

@@ -217,10 +217,11 @@ func (c Card) View()
 </div>
 ```
 
-Its templates name their receiver (`c.Title`) where an app's would read
-`{Title}`: in package ui, many field names — `Icon`, `Value`, `Class`,
-`Ref`, `On`, `Page` — are also the package's own names, and a bare name that
-the package declares is the package's.
+Most of its templates name their receiver (`m.Icon`): in package ui, many
+field names — `Icon`, `Value`, `Class`, `Ref`, `On`, `Page` — are also the
+package's own names, and a template reading both (`m.Icon` and the function
+`Icon("x")`) says which. The ones that don't, `badge.vuka.html` and `alert.vuka.html` among them,
+read their fields by bare name, as an app's do.
 
 The props types of earlier versions are deprecated aliases of the
 components — `ui.CardProps` is `ui.Card`, `ui.TableProps[T]` is

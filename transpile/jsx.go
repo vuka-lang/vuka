@@ -385,6 +385,9 @@ func (p *jsxParser) children(i int, el *jsxElem, open int, inMatch bool) ([]jsxN
 				p.fail(i, "expected a tag name after <")
 			}
 			n := p.element(i)
+			if strings.HasPrefix(n.tag, "slot:") && (el == nil || el.comp == nil) {
+				p.fail(i, "<%s> is a component's slot: write it directly inside the component's tag", n.tag)
+			}
 			kids = append(kids, n)
 			i = n.end
 		case c == '{' && p.f.html != nil && p.at(i+1) == '{':
@@ -846,10 +849,11 @@ type jsxWriter struct {
 	q       string // the target's qualifier
 	f       *fileState
 	t       *jsxTree
-	final   bool    // the tree's last lowering: its names are for good
-	out     *stream // where pieces are written
-	sink    *stream // the statements before the tree's expression
-	inBlock bool    // writing a block's body
+	final   bool     // the tree's last lowering: its names are for good
+	out     *stream  // where pieces are written
+	sink    *stream  // the statements before the tree's expression
+	inBlock bool     // writing a block's body
+	ran     []string // the template's statements written so far
 	names   map[string]bool
 }
 
