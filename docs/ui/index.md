@@ -25,6 +25,7 @@ language itself doesn't: a module without JSX doesn't need ui at all.
 
 ## A first component
 
+::: vuka
 ```vuka
 package main
 
@@ -48,13 +49,109 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 ```
+:::
 
+::: go
+```go
+package main
+
+import (
+	"net/http"
+
+	"github.com/vuka-lang/ui"
+)
+
+var greeting = ui.Template(`
+<section>
+	<h1>Hello, {{0}}!</h1>
+	{{1}}
+</section>`)
+
+func Greeting(name string, children ui.Node) ui.Node {
+	return greeting.Render(name, children)
+}
+
+var welcome = ui.Template(`<p>Welcome.</p>`)
+
+func main() {
+	http.Handle("/", ui.Handler(func(r *http.Request) (ui.Node, error) {
+		return Greeting(r.URL.Query().Get("name"), welcome.Render()), nil
+	}))
+	http.ListenAndServe(":8080", nil)
+}
+```
+:::
+
+::: vuka
 ```sh
 vuka run .
 ```
+:::
 
+::: go
+```sh
+go run .
+```
+:::
+
+::: vuka
 The import is what makes `<section>` a `ui.El`: a file renders its JSX with
 the [JSX target](/features/jsx#jsx-targets) it imports, and ui is one.
+:::
+
+::: go
+A template is parsed once, when the package initializes, and each `Render`
+fills its holes. It renders the same nodes JSX does, so a page built from
+templates is live, diffed and patched the same way.
+:::
+
+## Templates
+
+JSX is how a `.vuka` file writes markup. Go code writes it with
+`ui.Template`: HTML with numbered holes, `{{0}}`, `{{1}}`, …, that `Render`
+fills in order. Declare templates at package level:
+
+```go
+var orderRow = ui.Template(`
+<tr key="{{0}}" class="{{1}}">
+	<td>{{2}}</td>
+	<td class="tabular-nums">{{3}}</td>
+	<td><button onClick="{{4}}">Cancel</button></td>
+</tr>`)
+
+func (p *Orders) row(o Order) ui.Node {
+	return orderRow.Render(o.ID, ui.Class{"row": true, "late": o.Late}, o.Ref, money(o.Total),
+		func() { p.Cancel(o.ID) })
+}
+```
+
+What a hole takes depends on where it is:
+
+| Place | Takes |
+|---|---|
+| a child, between tags | a `ui.Node`, `[]ui.Node`, a string or number (escaped), an error (its message), `nil`, a `ui.State`, a stateful component (`&Counter{…}`, `ui.Key(k, &Counter{…})`), an island (`ui.Mount(Chart{…}, ui.Idle())`) |
+| text, in `title`, `textarea` or `script` | a string or number |
+| an attribute's value, `class="{{0}}"` | a string, number, bool (false leaves it out), `nil`, a `ui.Class` or `ui.Style`, a `ui.State`; an `on…` attribute takes a handler: a func, `ui.On(…)`, JS commands |
+| part of a value, `href="/orders/{{0}}"` | a string or number |
+| an attribute set, `<input {{0}}>` | a `ui.Attr`, `[]ui.Attr`, `templ.Attributes` |
+
+A value of the wrong kind fails the render with the template's line and the
+hole, and [`vukavet`](/tools/vukavet) reports it from the source; a
+malformed template panics when the package initializes. Loops and
+conditions are Go:
+
+```go
+var list = ui.Template(`<table><tbody>{{0}}</tbody></table>{{1}}`)
+var empty = ui.Template(`<p>No orders yet.</p>`)
+
+func (p *Orders) Render() ui.Node {
+	return list.Render(ui.Each(p.rows, p.row), ui.If(len(p.rows) == 0, empty.Render()))
+}
+```
+
+`ui.Each(items, fn)` is a list, its rows diffed by their `key` under a live
+session; `ui.If(cond, node)` is the node or nothing; a `[]ui.Node` works
+too. Client state is declared where it is used: `open := ui.UseState(false)`.
 
 ## Next
 

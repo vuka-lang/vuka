@@ -1,7 +1,26 @@
 import { readFileSync } from 'node:fs'
+import container from 'markdown-it-container'
 import { defineConfig } from 'vitepress'
 
 // Code samples use Vuka's own grammar (the VS Code extension's), on top of Go's.
+// The Vuka / Go sample preference (theme/style.ts), applied before the
+// first paint: ?style= in the address, else the saved choice, else Vuka.
+const styleScript = `(function(){var s;try{s=new URLSearchParams(location.search).get('style')}catch(e){}if(s!=='go'&&s!=='vuka'){try{s=localStorage.getItem('vuka-docs-style')}catch(e){}}else{try{localStorage.setItem('vuka-docs-style',s)}catch(e){}}if(s!=='go')s='vuka';document.documentElement.classList.add('prefer-'+s)})()`
+
+// ::: vuka and ::: go blocks show only under their preference; both are
+// rendered, so search finds either.
+function styleBlock(name: 'vuka' | 'go') {
+  return [
+    container,
+    name,
+    {
+      render(tokens: any[], idx: number) {
+        return tokens[idx].nesting === 1 ? `<div class="style-block ${name}">\n` : '</div>\n'
+      },
+    },
+  ] as const
+}
+
 const vuka = JSON.parse(readFileSync(new URL('../../editors/vscode/syntaxes/vuka.tmLanguage.json', import.meta.url), 'utf8'))
 
 export default defineConfig({
@@ -11,8 +30,14 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
   srcExclude: ['design/**'], // design notes live in the repository, not on the site
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]],
+  head: [
+    ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
+    ['script', {}, styleScript],
+  ],
   markdown: {
+    config(md) {
+      md.use(...styleBlock('vuka')).use(...styleBlock('go'))
+    },
     languages: ['go', { ...vuka, name: 'vuka', embeddedLangs: ['go'] }],
   },
   themeConfig: {
@@ -32,6 +57,7 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Getting started', link: '/guide/getting-started' },
+          { text: 'Two ways to write Vuka', link: '/guide/two-ways' },
           { text: 'Using Go code', link: '/guide/using-go' },
           { text: 'How it works', link: '/guide/how-it-works' },
           { text: 'Working with Go', link: '/guide/go-interop' },

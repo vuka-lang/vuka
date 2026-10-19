@@ -1,5 +1,13 @@
 # The vuka command
 
+::: go
+A Go app doesn't need the `vuka` command: `go build`, `go run .` and `go test`
+build it, and [`vukavet`](/tools/vukavet) runs the framework's checks under
+`go vet`. The command is still useful beside them — `vuka new` and `vuka
+add` scaffold, `vuka run -watch` rebuilds on save, `vuka upgrade` moves the
+libraries — and `vuka eject` turns `.vuka` files into Go.
+:::
+
 ```text
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
@@ -377,6 +385,35 @@ Go module: `go build`, `go vet` and `go test` take it with no `vuka` command,
 and it behaves as the `.vuka` version did. Eject the whole module (`./...`)
 so the [link files](#build-run-test-vet-install) and the files embedding
 CSS and assets are written too; they stay generated files.
+
+::: vuka
+```vuka
+// pets.vuka
+@web.Service
+type PetStore struct{ db *DB }
+
+@web.Get("/pets/{id}")
+func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
+```
+:::
+
+::: go
+```go
+// pets.go, after vuka eject -rm
+type PetStore struct{ db *DB }
+
+func ShowPet(id int, store *PetStore) vuka.Result[Pet] { return store.Find(id) }
+
+func NewPetStore(db *DB) *PetStore {
+	return &PetStore{db: db}
+}
+
+func init() {
+	web.Routes.Service(NewPetStore)
+	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+}
+```
+:::
 
 Decorators become the calls they stand for. A route, page or service
 decorator is a call of its package's [registry](/features/decorators#registries)
