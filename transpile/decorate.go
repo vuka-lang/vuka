@@ -65,6 +65,7 @@ type funcDeco struct {
 	fn                 string   // F
 	generic, method    bool
 	init               bool
+	wrapped            bool // a run of call decorators wraps it: vuka.Wrap
 	qualName           string
 	errIndex, ctxIndex int
 	lbrace, rbrace     int       // the body's braces in src; -1 without a body
@@ -605,31 +606,6 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 	} else {
 		w.gen("var "+d.state+" "+rt+".Decorated["+d.fn+"]\n\n", d.nameOff)
 	}
-	info := d.state + "_info"
-	hasCall := false
-	for _, u := range wraps {
-		hasCall = hasCall || isCallLike(u.kind)
-	}
-	if hasCall {
-		zeros := make([]string, len(d.rtypes))
-		for i, t := range d.rtypes {
-			zeros[i] = "*new(" + t + ")"
-		}
-		w.gen("var "+info+" = "+rt+".Func{Name: "+strconv.Quote(d.qualName)+", ErrIndex: "+itoa(d.errIndex)+
-			", CtxIndex: "+itoa(d.ctxIndex)+", Zero: func() []any { return []any{"+strings.Join(zeros, ", ")+"} }, Attrs: ", d.nameOff)
-		e.writeAttrsWith(f, d.attrs, d.uses, d.nameOff)
-		if d.pattrs != nil {
-			w.gen(", ParamAttrs: [][]any{", d.nameOff)
-			for i, as := range d.pattrs {
-				if i > 0 {
-					w.gen(", ", d.nameOff)
-				}
-				e.writeParamAttrs(f, as, "nil", d.nameOff)
-			}
-			w.gen("}", d.nameOff)
-		}
-		w.gen("}\n\n", d.nameOff)
-	}
 	doc()
 	if !e.bare {
 		w.gen(lineDirective(f.at(d.nameOff)), d.nameOff)
@@ -645,14 +621,13 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 	}
 
 	// The chain, outermost first: a typed decorator applies to the function
-	// value; each run of vuka.Decorators becomes one adapter.
-	closers := ""
+	// value; each run of vuka.Decorators is one vuka.Wrap.
+	var runs [][2]int
 	for i := 0; i < len(wraps); {
 		u := wraps[i]
 		if !isCallLike(u.kind) {
 			e.writeDecorator(f, u, "")
 			w.gen("(", u.a.end)
-			closers += ")"
 			i++
 			continue
 		}
@@ -660,18 +635,31 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		for j < len(wraps) && isCallLike(wraps[j].kind) {
 			j++
 		}
-		w.gen("func(next "+d.fn+") "+d.fn+" {\n\t\t\tchain := ", d.nameOff)
-		dynamic := e.writeChain(f, wraps[i:j], d.nameOff, func(u *decoUse) { w.gen(u.bvar, u.a.start) })
-		w.gen("\n\t\t\t", d.nameOff)
-		if dynamic {
-			// A bundle may hold no call decorator: then nothing wraps next.
-			w.gen("if len(chain) == 0 {\n\t\t\t\treturn next\n\t\t\t}\n\t\t\t", d.nameOff)
-		}
-		w.gen("return "+e.adapter(f, d, info)+"\n\t\t}(", d.nameOff)
-		closers += ")"
+		w.gen(rt+".Wrap(", d.nameOff)
+		d.wrapped = true
+		runs = append(runs, [2]int{i, j})
 		i = j
 	}
-	w.gen(d.ref+closers+"\n\t})("+strings.Join(d.args, ", ")+")\n}\n", d.nameOff)
+	w.gen(d.ref, d.nameOff)
+	for i := len(wraps) - 1; i >= 0; i-- {
+		if len(runs) == 0 || runs[len(runs)-1][1]-1 != i {
+			if !isCallLike(wraps[i].kind) {
+				w.gen(")", d.nameOff)
+			}
+			continue
+		}
+		run := runs[len(runs)-1]
+		runs = runs[:len(runs)-1]
+		w.gen(", ", d.nameOff)
+		e.writeFuncInfo(f, d)
+		w.gen(", ", d.nameOff)
+		if e.writeChain(f, wraps[run[0]:run[1]], d.nameOff, true, func(u *decoUse) { w.gen(u.bvar, u.a.start) }) {
+			w.gen("...", d.nameOff)
+		}
+		w.gen(")", d.nameOff)
+		i = run[0]
+	}
+	w.gen("\n\t})("+strings.Join(d.args, ", ")+")\n}\n", d.nameOff)
 	e.renderDecls(f, d, decls)
 }
 
@@ -679,18 +667,34 @@ func isCallLike(k decoKind) bool { return k == decoCall || k == decoBundle }
 
 // writeChain writes a run of call decorators as a []vuka.Decorator: the
 // type's advice and bundles spliced in, bundle writing a bundle's value. It
-// reports whether the run's length is only known at run time.
-func (e *engine) writeChain(f *fileState, run []*decoUse, off int, bundle func(u *decoUse)) bool {
+// reports whether the run's length is only known at run time. With args,
+// a run of plain decorators is written as a list of arguments instead.
+func (e *engine) writeChain(f *fileState, run []*decoUse, off int, args bool, bundle func(u *decoUse)) bool {
 	w, rt := &f.deco, f.runtime()
 	lead := 0
 	for lead < len(run) && run[lead].kind == decoCall && run[lead].advice == "" {
 		lead++
 	}
 	rest := run[lead:]
-	if lead == 0 && len(rest) > 0 && rest[0].advice != "" {
+	if args && len(rest) == 0 {
+		for k, u := range run {
+			if k > 0 {
+				w.gen(", ", u.a.start)
+			}
+			e.writeDecorator(f, u, "")
+		}
+		return false
+	}
+	switch {
+	case lead == 0 && rest[0].advice != "":
 		w.gen(strings.Repeat("append(", len(rest)-1)+rest[0].advice+"()", off)
 		rest = rest[1:]
-	} else {
+	case lead == 0 && rest[0].kind == decoBundle:
+		w.gen(strings.Repeat("append(", len(rest)-1), off)
+		bundle(rest[0])
+		w.gen(".Calls()", off)
+		rest = rest[1:]
+	default:
 		w.gen(strings.Repeat("append(", len(rest))+"[]"+rt+".Decorator{", off)
 		for k, u := range run[:lead] {
 			if k > 0 {
@@ -714,6 +718,36 @@ func (e *engine) writeChain(f *fileState, run []*decoUse, off int, bundle func(u
 		w.gen(")", off)
 	}
 	return len(run) > lead
+}
+
+// writeFuncInfo writes the vuka.FuncInfo a decorated function's calls are
+// described by: its name, whether it is a method, its attributes and its
+// parameters'.
+func (e *engine) writeFuncInfo(f *fileState, d *funcDeco) {
+	w, rt := &f.deco, f.runtime()
+	w.gen(rt+".FuncInfo{Name: "+strconv.Quote(d.qualName), d.nameOff)
+	if d.method {
+		w.gen(", Method: true", d.nameOff)
+	}
+	bundles := false
+	for _, u := range d.uses {
+		bundles = bundles || u.kind == decoBundle
+	}
+	if len(d.attrs) > 0 || bundles {
+		w.gen(", Attrs: ", d.nameOff)
+		e.writeAttrsWith(f, d.attrs, d.uses, d.nameOff)
+	}
+	if d.pattrs != nil {
+		w.gen(", ParamAttrs: [][]any{", d.nameOff)
+		for i, as := range d.pattrs {
+			if i > 0 {
+				w.gen(", ", d.nameOff)
+			}
+			e.writeParamAttrs(f, as, "nil", d.nameOff)
+		}
+		w.gen("}", d.nameOff)
+	}
+	w.gen("}", d.nameOff)
 }
 
 // writeBundleVars declares the value of each bundle among uses, once per
@@ -752,9 +786,14 @@ func (e *engine) writeAttrsWith(f *fileState, attrs []*Attr, uses []*decoUse, of
 			bvars = append(bvars, u.bvar)
 		}
 	}
-	w.gen(strings.Repeat("append(", len(bvars))+"[]any{", off)
-	e.writeAttrValues(f, attrs)
-	w.gen("}", off)
+	if len(attrs) == 0 && len(bvars) > 0 {
+		w.gen(strings.Repeat("append(", len(bvars)-1)+bvars[0]+".Attrs()", off)
+		bvars = bvars[1:]
+	} else {
+		w.gen(strings.Repeat("append(", len(bvars))+"[]any{", off)
+		e.writeAttrValues(f, attrs)
+		w.gen("}", off)
+	}
 	for _, b := range bvars {
 		w.gen(", "+b+".Attrs()...)", off)
 	}
@@ -835,49 +874,6 @@ func (e *engine) keepName(f *fileState, d *funcDeco, keep bool) {
 	}
 }
 
-// adapter is the function that packs a call of next into a *vuka.Call, runs
-// the chain, and unpacks the results.
-func (e *engine) adapter(f *fileState, d *funcDeco, info string) string {
-	rt := f.runtime()
-	var params, args, inner []string
-	recv := "nil"
-	for i, t := range d.ftypes {
-		p := "p" + itoa(i)
-		pt, at := t, t
-		if strings.HasPrefix(t, "...") {
-			at = "[]" + t[3:]
-		}
-		params = append(params, p+" "+pt)
-		if d.method && i == 0 {
-			recv = p
-			inner = append(inner, rt+".As["+at+"](c.Receiver)")
-			continue
-		}
-		n := len(args)
-		args = append(args, p)
-		in := rt + ".As[" + at + "](c.Args[" + itoa(n) + "])"
-		if strings.HasPrefix(t, "...") {
-			in += "..."
-		}
-		inner = append(inner, in)
-	}
-	var rs, outs []string
-	for i, t := range d.rtypes {
-		rs = append(rs, "r"+itoa(i))
-		outs = append(outs, rt+".As["+t+"](c.Results["+itoa(i)+"])")
-	}
-	invoke := "next(" + strings.Join(inner, ", ") + "); return nil"
-	if len(rs) > 0 {
-		invoke = strings.Join(rs, ", ") + " := next(" + strings.Join(inner, ", ") + "); return []any{" + strings.Join(rs, ", ") + "}"
-	}
-	body := "c := " + rt + ".NewCall(&" + info + ", chain, " + recv + ", []any{" + strings.Join(args, ", ") +
-		"}, func(c *" + rt + ".Call) []any { " + invoke + " }); c.Run()"
-	if len(outs) > 0 {
-		body += "; return " + strings.Join(outs, ", ")
-	}
-	return "func(" + strings.Join(params, ", ") + ")" + d.results + " { " + body + " }"
-}
-
 func (e *engine) renderType(f *fileState, d *typeDeco) {
 	w := &f.deco
 	var advice, inits []*decoUse
@@ -931,7 +927,7 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 	if len(advice) > 0 {
 		// The advice: each method calls it for decorators of its own.
 		w.gen("\nfunc __"+d.name+"_advice() []"+f.runtime()+".Decorator {\n\treturn ", d.nameOff)
-		e.writeChain(f, advice, d.nameOff, func(u *decoUse) { e.writeDecorator(f, u, "") })
+		e.writeChain(f, advice, d.nameOff, false, func(u *decoUse) { e.writeDecorator(f, u, "") })
 		w.gen("\n}\n", d.nameOff)
 	}
 	if len(inits) == 0 {

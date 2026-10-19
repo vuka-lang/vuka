@@ -116,23 +116,11 @@ func init() {
 
 var showPetDec vuka.Decorated[func(string, string) string]
 
-var showPetDecInfo = vuka.Func{Name: "main.showPet", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(string)} }, Attrs: []any{}}
-
 //line declarers.vuka:70
 func showPet(id string, verbose string) string {
 	return showPetDec.Get(func() func(string, string) string {
-		return func(next func(string, string) string) func(string, string) string {
 //line declarers.vuka:69
-			chain := []vuka.Decorator{logged}
-			return func(p0 string, p1 string) string {
-				c := vuka.NewCall(&showPetDecInfo, chain, nil, []any{p0, p1}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[string](c.Args[0]), vuka.As[string](c.Args[1]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[string](c.Results[0])
-			}
-		}(showPetImpl)
+		return vuka.Wrap(showPetImpl, vuka.FuncInfo{Name: "main.showPet"}, logged)
 	})(id, verbose)
 }
 
