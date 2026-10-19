@@ -92,7 +92,7 @@ holes](/ui/#markup-in-go) take:
 | `<input {attrs...}>` | an attribute set |
 | `onClick={c.Inc}`, `onClick={c.Add(2)}` | an event: a method value, or a call with no result, which runs on the event |
 
-`{{` is a literal brace and `{/* … */}` a comment.
+<span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment.
 
 ## Statements
 

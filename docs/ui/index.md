@@ -132,7 +132,7 @@ What a hole takes depends on where it is:
 | a toggled class, `class:late={on}` | a bool or a `ui.State[bool]` |
 | an attribute set, `<input {attrs...}>` | a `ui.Attr`, `[]ui.Attr`, `templ.Attributes` (`ui.BindAttr` gives one) |
 
-`{{` is a literal brace and `{/* … */}` a comment; inside `script` and
+<span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment; inside `script` and
 `style`, braces are text. The markup is strict — every element closed, void
 elements and `<x/>` aside — and text follows JSX's whitespace rule, so
 indentation adds nothing.

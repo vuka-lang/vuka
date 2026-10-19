@@ -17,7 +17,7 @@ Inline `ui.HTML(`…{label}…`, args…)` in plain Go is the one form that need
 no tools: the same holes and tags inside the string, each label the Go
 expression of its argument, checked against the arguments by vukavet.
 `ui.Component[P](string)` is not part of the design; the unreleased
-`ui.Template` and its `{{n}}` holes are removed.
+`ui.Template` and its numbered holes are removed.
 
 ## 1. Files
 
@@ -46,7 +46,7 @@ expression of its argument, checked against the arguments by vukavet.
   holes `href="/o/{o.ID}"`; `class:x={bool or ui.State[bool]}`; spread
   `{attrs...}`; `bind:value={p.Q}`; events `onClick={p.Cancel}` or
   `onClick={p.Cancel(o.ID)}` (a method value or call is a live event; a JS
-  command value runs in the browser). `{{` is a literal brace.
+  command value runs in the browser). <span v-pre>`{{`</span> is a literal brace.
 - The render tree is the one vuka builds today: live diffs, keys, client
   state, islands, templ's escaping and sanitizing.
 
