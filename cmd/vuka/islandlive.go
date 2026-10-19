@@ -57,8 +57,9 @@ func readIslandLive(root, modPath string, dirs []string) *islandLive {
 			}
 			full, _ := scanFile(n, src)
 			scope := &tsScope{pkg: pkg, imports: fileImports(dropNewlineSemis(full))}
+			hooks := hookMethods(string(src))
 			for _, m := range methodRe.FindAllStringSubmatch(string(src), -1) {
-				if lifecycleMethods[m[2]] {
+				if lifecycleMethods[m[2]] || m[2] == "LiveSchema" || hooks[m[1]+"."+m[2]] || isUpdateName(m[2], goParams(m[3])) {
 					continue
 				}
 				res := strings.TrimSpace(m[4])
@@ -76,6 +77,54 @@ func readIslandLive(root, modPath string, dirs []string) *islandLive {
 		}
 	}
 	return il
+}
+
+var (
+	// schemaRe finds a LiveSchema method's receiver, its type and its body,
+	// up to the method's closing brace at the start of a line.
+	schemaRe = regexp.MustCompile(`(?ms)^func\s*\(\s*(\w+)\s+\*?\s*(\w+)\s*\)\s*LiveSchema\s*\(.*?^}`)
+	// hookDecoRe finds a method a .vuka file marks @ui.Mount, @ui.OnChange
+	// or @ui.Loads(…): its receiver type and name.
+	hookDecoRe = regexp.MustCompile(`(?m)^@\w+\.(?:Mount|OnChange|Loads)\b[^\n]*\n(?:@[^\n]*\n)*func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*(\w+)`)
+)
+
+// hookMethods are the methods a file makes hooks — given to l.Mount,
+// l.OnChange or l.Loads in a LiveSchema, or marked @ui.Mount, @ui.OnChange
+// or @ui.Loads — as "Type.Method": never called from the browser.
+func hookMethods(src string) map[string]bool {
+	out := map[string]bool{}
+	for _, m := range schemaRe.FindAllStringSubmatch(src, -1) {
+		recv := regexp.QuoteMeta(m[1])
+		re := regexp.MustCompile(`\b(?:Mount|OnChange)\(\s*` + recv + `\.(\w+)\s*\)|\bLoads\(\s*"[^"]*"\s*,\s*` + recv + `\.(\w+)\s*\)`)
+		for _, h := range re.FindAllStringSubmatch(m[0], -1) {
+			out[m[2]+"."+h[1]+h[2]] = true
+		}
+	}
+	for _, m := range hookDecoRe.FindAllStringSubmatch(src, -1) {
+		out[m[1]+"."+m[2]] = true
+	}
+	return out
+}
+
+// isUpdateName reports whether a method is an Update overload, as
+// ui.IsUpdate tells one: Update, or Update and its last parameter's type's
+// name (UpdateNewMessage(m NewMessage)).
+func isUpdateName(name string, params [][2]string) bool {
+	switch {
+	case name == "Update" || strings.HasPrefix(name, "Update__"):
+		return true
+	case !strings.HasPrefix(name, "Update") || len(params) == 0:
+		return false
+	}
+	t := strings.TrimLeft(params[len(params)-1][1], "*")
+	plural := strings.HasPrefix(t, "[]")
+	t = strings.TrimLeft(strings.TrimPrefix(t, "[]"), "*")
+	t = t[strings.LastIndex(t, ".")+1:]
+	if t == "" {
+		return false
+	}
+	t = strings.ToUpper(t[:1]) + t[1:]
+	return name == "Update"+t || plural && strings.HasPrefix(name, "Update"+t)
 }
 
 // islandDecl is the declaration of the island named name.

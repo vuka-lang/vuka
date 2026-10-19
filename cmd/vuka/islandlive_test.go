@@ -422,3 +422,39 @@ console.log(JSON.stringify(got))
 		t.Errorf("got  %s\nwant %s", got, want)
 	}
 }
+
+// TestLiveDTSForms: a page written with attributes and hooks in Vuka and
+// the same page in Go, its LiveSchema saying them, its Update overloads
+// named as Go names them, type alike: bound and deferred handles, the
+// fields under their json names, no hook, LiveSchema or Update a method.
+func TestLiveDTSForms(t *testing.T) {
+	const vukaSrc = "package app\n\n@web.Live(\"/board\")\n@ui.Island\ntype Board struct {\n\tui.Live\n" +
+		"\tQ    string `json:\"q\"` @ui.Bind{Debounce: 200 * time.Millisecond} @ui.URL(\"q\") @validate.Max(20)\n" +
+		"\tRows []Note `json:\"rows\"` @ui.Defer(\"notes\")\n\tnotes *Notes\n}\n\n" +
+		"type Note struct {\n\tText string `json:\"text\"`\n}\n\n" +
+		"@ui.Mount\nfunc (b *Board) Start(ctx context.Context) error { return nil }\n\n" +
+		"@ui.Loads(\"notes\")\nfunc (b *Board) Fill(ctx context.Context) error { return nil }\n\n" +
+		"func (b *Board) Update(a Added) {}\n\nfunc (b *Board) Add(ctx context.Context, text string) error { return nil }\n"
+	const goSrc = "package app\n\ntype Board struct {\n\tui.Live\n" +
+		"\tQ    string `json:\"q\"`\n\tRows []Note `json:\"rows\"`\n\tnotes *Notes\n}\n\n" +
+		"type Note struct {\n\tText string `json:\"text\"`\n}\n\n" +
+		"func (b *Board) LiveSchema(l *ui.LiveSchema) {\n\tl.Field(&b.Q, ui.Bind{Debounce: 200 * time.Millisecond}, ui.URL(\"q\"), validate.Max(20))\n" +
+		"\tl.Field(&b.Rows, ui.Defer(\"notes\"))\n\tl.Mount(b.Start)\n\tl.Loads(\"notes\", b.Fill)\n}\n\n" +
+		"func (b *Board) Start(ctx context.Context) error { return nil }\n\nfunc (b *Board) Fill(ctx context.Context) error { return nil }\n\n" +
+		"func (b *Board) UpdateAdded(a Added) {}\n\nfunc (b *Board) Add(ctx context.Context, text string) error { return nil }\n"
+	var dts [2]string
+	for i, f := range []struct{ name, src string }{{"board.vuka", vukaSrc}, {"board.go", goSrc}} {
+		dir := t.TempDir()
+		if err := os.WriteFile(filepath.Join(dir, f.name), []byte(f.src), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		full, _ := scanFile(f.name, []byte(f.src))
+		ic := &islandComp{name: "Board", props: structFields(full, "Board")}
+		dts[i] = string(liveDTS([]*islandComp{ic}, readIslandLive(dir, "", []string{dir})))
+	}
+	want := "export interface Board {\n\tq: string;\n\trows?: Note[];\n\treadonly __methods?: {\n\t\tadd(text: string): Promise<void>;\n\t};\n" +
+		"\treadonly __fields?: {\n\t\tq: LiveBound<string>;\n\t\trows: LiveDeferred<Note[]>;\n\t};\n}"
+	if !strings.Contains(dts[0], want) || dts[0] != dts[1] {
+		t.Errorf("want both with\n%s\nVuka:\n%s\nGo:\n%s", want, dts[0], dts[1])
+	}
+}
