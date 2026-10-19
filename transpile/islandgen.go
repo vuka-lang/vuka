@@ -646,7 +646,8 @@ func (e *engine) islandPages(f *fileState, files []File) {
 		if !f.bare {
 			w.gen(lineDirective(f.at(off)), off)
 		}
-		w.gen("func (x *"+name+") Render() "+q+".Node { return "+q+".IslandPage(x) }\n", off)
+		x := recvOf(files, name)
+		w.gen("func ("+x+" *"+name+") Render() "+q+".Node { return "+q+".IslandPage("+x+") }\n", off)
 		f.islandGen.append(&w)
 	}
 }
@@ -670,6 +671,17 @@ func matchBrace(src []byte, open int) int {
 
 // hasMethod reports whether the package's sources declare a method name of
 // type typ.
+// recvOf is the receiver name typ's methods use, else its initial.
+func recvOf(files []File, typ string) string {
+	re := regexp.MustCompile(`func\s*\(\s*(\w+)\s+\*?\s*` + regexp.QuoteMeta(typ) + `\s*\)`)
+	for _, f := range files {
+		if m := re.FindSubmatch(f.Src); m != nil && string(m[1]) != "_" {
+			return string(m[1])
+		}
+	}
+	return strings.ToLower(typ[:1])
+}
+
 func hasMethod(files []File, typ, name string) bool {
 	re := regexp.MustCompile(`func\s*\(\s*\w*\s*\*?\s*` + regexp.QuoteMeta(typ) + `\s*\)\s*` + regexp.QuoteMeta(name) + `\s*\(`)
 	for _, f := range files {

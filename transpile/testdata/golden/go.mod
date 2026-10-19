@@ -6,10 +6,12 @@ go 1.25.0
 
 require (
 	github.com/a-h/templ v0.3.1020
-	github.com/vuka-lang/ui v0.50.1-0.20261019150249-032d4a9a4ad7
+	github.com/vuka-lang/ui v0.50.1-0.20261019151805-ec1662076f37
 	github.com/vuka-lang/vuka v0.50.0
 	vukatest.local/islandui v0.0.0
+	vukatest.local/orm v0.0.0
 	vukatest.local/stateui v0.0.0
+	vukatest.local/ui v0.0.0
 	vukatest.local/webstub v0.0.0
 )
 
@@ -20,3 +22,7 @@ replace vukatest.local/islandui => ./islandui
 replace vukatest.local/stateui => ./stateui
 
 replace vukatest.local/webstub => ./webstub
+
+replace vukatest.local/orm => ./orm
+
+replace vukatest.local/ui => ./ui

@@ -1004,7 +1004,7 @@ func (p *proxy) jsxRequest(method string, params map[string]any, vf *vfile, genP
 				return nil
 			}
 			h["range"] = lspRange{positionOf(src, a.start), positionOf(src, a.end)}
-			return staticHover(demangleStrings(h))
+			return demangleStrings(h)
 		}
 	}
 	return nil

@@ -136,10 +136,13 @@ func checkIslandSource(root string, ic *islandComp, src []byte) []diag.Diagnosti
 			}
 		}
 	}
+	hooked := hookLoaders(root, path.Dir(file))
 	for _, g := range order {
 		f := groups[g]
 		m, ok := methods["Load"+g]
 		switch {
+		case hooked[g]:
+			// loaded by a hook: @ui.Loads("…")
 		case !ok && embedded:
 			// a loader may come from an embedded type
 		case !ok:
@@ -187,6 +190,12 @@ func sourceFields(full []wtok, name string) (fields []islandField, embedded, ok 
 	field := func(toks []wtok) {
 		for len(toks) > 0 && toks[0].tok == token.SEMICOLON {
 			toks = toks[1:]
+		}
+		for i, t := range toks {
+			if t.tok == token.ILLEGAL && t.lit == "@" {
+				toks = toks[:i] // the field's attributes
+				break
+			}
 		}
 		if len(toks) == 0 {
 			return
@@ -339,4 +348,17 @@ func checkValidateTag(tag string) (msg, help string) {
 		}
 	}
 	return "", ""
+}
+
+// hookLoaders are the deferred groups the package's .vuka files give a
+// loader by attribute, @ui.Loads("lists"), as loaders name them (Lists).
+func hookLoaders(root, relDir string) map[string]bool {
+	out := map[string]bool{}
+	files, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(relDir), "*.vuka"))
+	for _, f := range files {
+		if src, err := os.ReadFile(f); err == nil {
+			attrGroups(src, loadsAttr, out)
+		}
+	}
+	return out
 }

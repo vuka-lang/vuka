@@ -7,9 +7,14 @@ import (
 
 var fieldAttrs sync.Map // reflect.Type of a struct → map[string][]any
 
-// RegisterFields records the typed attributes written on T's fields, by field
-// name. Generated code calls it at init, for every struct with field
-// attributes.
+// RegisterFields records the typed attributes of T's fields, by field name,
+// for FieldAttrs to read: Vuka's field attributes on a struct with no
+// schema method to hold them (orm.Base's Schema, ui.Live's LiveSchema),
+// written at init.
+//
+//	func init() {
+//		vuka.RegisterFields[Address](map[string][]any{"City": {Char{Max: 50}}})
+//	}
 func RegisterFields[T any](attrs map[string][]any) { fieldAttrs.Store(reflect.TypeFor[T](), attrs) }
 
 // FieldAttrs is the typed attributes of T's fields, by field name: for

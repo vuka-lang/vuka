@@ -59,6 +59,13 @@ needed:
 
 A type decorator runs after its type's attributes are recorded.
 
+A struct embedding a type that asks for a schema method — `orm.Base`
+(`Schema`), `ui.Live` (`LiveSchema`) — gets one instead: each field's
+attributes become a call naming the field by address, `s.Field(&p.Title,
+orm.Char{Max: 200})`, those on the embedded field `s.Model(…)`, so the Go
+is what a person writes by hand ([models](/orm/models),
+[live pages](/ui/stateful#hooks)).
+
 ## Field references
 
 `Post.Title`, where `Post` is a struct type and `Title` one of its fields, is a
@@ -89,6 +96,10 @@ predicates that make sense type-check:
 
 `T` is the type the reference starts from, also after a relation:
 `Post.Author.Name` is a `vuka.StringRef[Post, string]`.
+
+An [ORM model](/orm/queries#conditions) is different: its fields are the typed
+fields `orm generate` writes, so `Post.Title` is `PostFields.Title`, an
+`orm.TextField[string]`, and its conditions are the engine's.
 
 ### Predicates and orderings
 

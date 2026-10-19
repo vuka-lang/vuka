@@ -63,7 +63,14 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 	for _, n := range types.Universe.Names() {
 		taken[n] = true
 	}
+	// idents and imports are each file's identifiers and the names it
+	// imports packages under (by path): an auto-import may take the
+	// package's own name where every file using that name imports the
+	// package under it.
+	var idents []map[string]bool
+	var imports []map[string]string
 	scan := func(src []byte) {
+		ids := map[string]bool{}
 		var s scanner.Scanner
 		fs := token.NewFileSet()
 		s.Init(fs.AddFile("", -1, len(src)), src, nil, 0)
@@ -73,9 +80,22 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 				break
 			}
 			if tok == token.IDENT {
-				taken[lit] = true
+				taken[lit], ids[lit] = true, true
 			}
 		}
+		idents = append(idents, ids)
+		imp := map[string]string{}
+		if a, err := parser.ParseFile(token.NewFileSet(), "", src, parser.ImportsOnly); err == nil {
+			for _, is := range a.Imports {
+				path, _ := strconv.Unquote(is.Path.Value)
+				name := pathBase(path)
+				if is.Name != nil {
+					name = is.Name.Name
+				}
+				imp[name] = path
+			}
+		}
+		imports = append(imports, imp)
 	}
 	for _, f := range e.files {
 		if !f.vuka {
@@ -88,8 +108,8 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 	funcs := map[string]bool{}
 	pkgs := map[string]string{} // import name → the package's own
 	for _, t := range files {
+		scan(t.src)
 		if t.ast == nil {
-			scan(t.src)
 			continue
 		}
 		ast.Inspect(t.ast, func(n ast.Node) bool {
@@ -115,7 +135,10 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 	out := map[string]string{}
 	for _, name := range old {
 		base := plainName(name)
-		if p := pkgs[name]; token.IsIdentifier(p) && !taken[p] {
+		if p := pkgs[name]; token.IsIdentifier(p) && taken[p] && ownName(name, p, idents, imports) {
+			out[name] = p
+			continue
+		} else if token.IsIdentifier(p) && !taken[p] {
 			base = p
 		}
 		cand := base
@@ -130,6 +153,27 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 		out[name] = cand
 	}
 	return out
+}
+
+// ownName reports whether the auto-import name may be p, its package's
+// own name: no file using it uses p, and every file using p imports the
+// same package as p.
+func ownName(name, p string, idents []map[string]bool, imports []map[string]string) bool {
+	path := ""
+	for i, ids := range idents {
+		switch {
+		case ids[name] && ids[p]:
+			return false
+		case ids[name]:
+			path = imports[i][name]
+		}
+	}
+	for i, ids := range idents {
+		if ids[p] && (imports[i][p] == "" || imports[i][p] != path) {
+			return false
+		}
+	}
+	return path != ""
 }
 
 // plainName is a generated name without its underscores, in camel case and

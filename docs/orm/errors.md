@@ -1,19 +1,17 @@
 # Errors
 
 The ORM's errors are `*orm.Error` values with a `Kind`; `errors.Is` matches a
-kind, and `match` takes the kinds `Get` fails with:
+kind:
 
 ```vuka
-match User.Objects.Get(ctx, User.Email.Eq(email)) {
-case Ok(u):
-	return Ok(u)
-case Err(orm.NotFound):
-	return Err(web.NotFound)
-case Err(e) if errors.Is(e, orm.ErrConflict):
-	return Err(web.Conflict)
-case Err(e):
-	return Err(e)
+u, err := User.Objects.Get(ctx, User.Email.Eq(email))
+switch {
+case errors.Is(err, orm.ErrNotFound):
+	return u, web.NotFound
+case errors.Is(err, orm.ErrConflict):
+	return u, web.Conflict
 }
+return u, err
 ```
 
 | Kind | When |

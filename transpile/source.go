@@ -384,7 +384,7 @@ func (m *SourceMap) GobDecode(data []byte) error {
 // Message rewrites a compiler message about line of the source so that the
 // code it quotes reads as the source wrote it: a field reference as
 // User.Name, not vuka.StringRefOf[User, string]([][]int{…}, …), a static as
-// User.Table, not User_Table. Where one quoted form stands for differently
+// User.Table, not UserTable. Where one quoted form stands for differently
 // spelled code, the spelling on line wins; failing that, it stays as is.
 func (m *SourceMap) Message(line int, msg string) string {
 	if m == nil || len(m.spellings) == 0 {

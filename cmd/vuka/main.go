@@ -185,8 +185,12 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	var vetFailed bool
-	if cmd == "vet" && pa != nil {
-		if ds := vetIslands(root, modPath, pa); len(ds) > 0 {
+	if cmd == "vet" {
+		var ds []diag.Diagnostic
+		if pa != nil {
+			ds = vetIslands(root, modPath, pa)
+		}
+		if ds = append(ds, vetLivePages(root, pkgs)...); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
 				vetFailed = vetFailed || d.Severity == diag.Error
@@ -210,6 +214,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if overlay, gens, linkMsg, err = autoLink(root, modPath, tmp, overlay, pkgs, gens); err != nil {
 		return err
 	}
+	overlay, gens = typedFields(root, tmp, overlay, gens, cmd == "test" || cmd == "vet", stderr)
 	if linkMsg != "" && (cmd == "run" || cmd == "build" || cmd == "install") {
 		fmt.Fprintln(stderr, linkMsg)
 	}
@@ -483,7 +488,8 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 	if err != nil {
 		return "", nil, err
 	}
-	for _, g := range append(links, css...) {
+	_, fields := typedFields(root, tmp, overlay, files, true, os.Stderr)
+	for _, g := range append(append(links, css...), fields[len(files):]...) {
 		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
 			files = append(files, g)
 		}

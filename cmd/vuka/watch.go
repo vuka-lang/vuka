@@ -333,6 +333,7 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	r.overlay, gens = typedFields(s.root, dir, r.overlay, gens, false, s.stderr)
 	if linkMsg != s.linked {
 		// Said once per change: a package created mid-session is linked by the
 		// next rebuild, a deleted one unlinked.

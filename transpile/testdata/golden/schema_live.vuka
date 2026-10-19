@@ -1,0 +1,58 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"vukatest.local/ui"
+	"vukatest.local/ui/describe"
+	"vukatest.local/ui/validate"
+)
+
+// Dashboard is a live page: its attributes and hooks become its
+// LiveSchema method.
+type Dashboard struct {
+	ui.Live
+	Q     string   @ui.Bind{Debounce: 300 * time.Millisecond} @ui.URL("q") @validate.Max(100)
+	Rows  []string @ui.Defer("lists")
+	Total int      @ui.Defer("lists")
+	Name  string   @ui.Bind @validate.Required
+	ready bool
+}
+
+@ui.Mount
+func (d *Dashboard) mount(ctx context.Context) error {
+	d.ready = true
+	return nil
+}
+
+@ui.Loads("lists")
+func (d *Dashboard) loadLists(ctx context.Context) error {
+	d.Rows, d.Total = []string{"a"}, 1
+	return nil
+}
+
+@ui.OnChange
+func (d *Dashboard) changed(ctx context.Context, c ui.Changed) error { return nil }
+
+// Archive is called from the browser.
+func (d *Dashboard) Archive(id int) {}
+
+// Counter has hooks only.
+type Counter struct {
+	ui.Live
+	n int
+}
+
+@ui.Mount
+func (c *Counter) Start(ctx context.Context) error {
+	c.n = 1
+	return nil
+}
+
+func main() {
+	d := &Dashboard{}
+	fmt.Println(describe.Page(d), d.ready)
+	fmt.Println(describe.Page(&Counter{}))
+}

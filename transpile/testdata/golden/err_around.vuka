@@ -1,0 +1,19 @@
+package main
+
+import (
+	"context"
+
+	"vukatest.local/orm"
+)
+
+@orm.Transaction
+func noContext(title string) error { return nil }
+
+@orm.Transaction
+func noError(ctx context.Context) {}
+
+@orm.Transaction
+@orm.Transaction
+func twice(ctx context.Context) error { return nil }
+
+func main() {}

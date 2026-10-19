@@ -1,0 +1,31 @@
+package main
+
+import (
+	"context"
+
+	"vukatest.local/orm"
+	"vukatest.local/ui"
+)
+
+type Post struct {
+	orm.Base
+	Title string @orm.Char{Max: 200}
+}
+
+func (p *Post) Schema(s *orm.Schema) {}
+
+type Page struct {
+	ui.Live
+	Rows []string @ui.Defer("rows")
+}
+
+@ui.Loads{Group: "rows"}
+func (p *Page) load(ctx context.Context) error { return nil }
+
+@orm.Transaction
+func noContext(title string) error { return nil }
+
+@orm.Transaction
+func noError(ctx context.Context) {}
+
+func main() {}

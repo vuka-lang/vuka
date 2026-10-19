@@ -1,0 +1,2 @@
+err_schema.vuka:15:16: Post has attributes, which Vuka writes into its Schema method, and declares Schema itself; move them into the method: s.Field(&p.X, …)
+err_schema.vuka:22:1: @ui.Loads is a hook; write its arguments in parentheses: @ui.Loads(…)
