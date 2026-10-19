@@ -13,13 +13,28 @@ code in every handler, and the routes are registered by hand in `main`.
 library sees each decorated function with its parameter names — so a handler
 says what it needs and returns what it made:
 
+::: vuka
 ```vuka
 @web.Get("/pets/{id}")
 func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 ```
+:::
 
-`id` comes from the path, `store` from the container, and the `Result`
-becomes JSON, or a 404 when it is an `Err(web.NotFound)`.
+::: go
+```go
+func ShowPet(id int, store *PetStore) (Pet, error) { return store.Find(id) }
+
+func init() {
+	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+}
+```
+:::
+
+`id` comes from the path, `store` from the container, and the
+<span class="vuka-only">`Result` becomes JSON, or a 404 when it is an
+`Err(web.NotFound)`.</span><span class="go-only">result becomes JSON, or a
+404 when the error is `web.NotFound`. Reflection can't see parameter names,
+so `web.Params` names them.</span>
 
 ```sh
 go get github.com/vuka-lang/web
@@ -32,6 +47,7 @@ over a WebSocket by web.
 
 ## A first app
 
+::: vuka
 ```vuka
 package main
 
@@ -74,13 +90,74 @@ func main() {
 	}
 }
 ```
+:::
 
+::: go
+```go
+package main
+
+import (
+	"log"
+	"net/http"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+type Pet struct {
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+type PetStore struct {
+	pets map[int]Pet
+}
+
+func NewPetStore() *PetStore { return &PetStore{pets: map[int]Pet{}} }
+
+func (s *PetStore) Find(id int) (Pet, error) {
+	p, ok := s.pets[id]
+	if !ok {
+		return Pet{}, web.Status(404, "no pet %d", id)
+	}
+	return p, nil
+}
+
+var home = ui.Template(`<html><body><h1>Pets</h1></body></html>`)
+
+func Home(r *http.Request) ui.Node { return home.Render() }
+
+func ShowPet(id int, store *PetStore) (Pet, error) { return store.Find(id) }
+
+func main() {
+	app := web.New()
+	app.Service(NewPetStore)
+	app.Get("/", Home)
+	app.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+	if err := app.Run(""); err != nil { // :$PORT, else :8080
+		log.Fatal(err)
+	}
+}
+```
+:::
+
+::: vuka
 ```sh
 vuka run .
 curl localhost:8080/pets/1     # {"error":"no pet 1","status":404}
 ```
+:::
 
-`web.New()` takes every route, service and controller declared at init.
+::: go
+```sh
+go run .
+curl localhost:8080/pets/1     # {"error":"no pet 1","status":404}
+```
+:::
+
+`web.New()` takes every route, service and controller declared at init<span class="go-only">,
+and the app's own methods (`app.Get`, `app.Service`, …) add to that app
+alone</span>.
 `Run` checks the whole app first — each parameter of each route, each view,
 the dependency graph — and refuses to serve a broken one, listing every
 problem with its source position. It shuts down gracefully on SIGINT and

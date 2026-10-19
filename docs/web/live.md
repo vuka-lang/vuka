@@ -8,6 +8,7 @@ JavaScript to write. [ui](/ui/) gives the component model, the
 the transport, the browser runtime and the routes. Props, state, events,
 messages and `ui.Assign` are on [Stateful components](/ui/stateful).
 
+::: vuka
 ```vuka
 @web.Live("/counter")
 type Counter struct {
@@ -25,6 +26,30 @@ func (c *Counter) Render() ui.Node {
 	return <div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>
 }
 ```
+:::
+
+::: go
+```go
+type Counter struct {
+	ui.Live
+	Start int // ?start=3
+	n     int
+}
+
+func NewCounter() *Counter { return &Counter{} }
+
+func (c *Counter) Mount() { c.n = c.Start }
+func (c *Counter) Inc()   { c.n++ }
+
+var counter = ui.Template(`<div><output>{{0}}</output><button onClick="{{1}}">+</button></div>`)
+
+func (c *Counter) Render() ui.Node { return counter.Render(c.n, c.Inc) }
+
+func init() {
+	web.Routes.Live("/counter", NewCounter)
+}
+```
+:::
 
 ## How a page becomes live
 
@@ -50,10 +75,22 @@ Two ways, one mechanism:
 - **Any GET route** whose page — a `ui.Node` result or a templ view —
   renders a stateful component or an event handler is live by itself:
 
+  ::: vuka
   ```vuka
   @web.Get("/")
   func Home() ui.Node { return <Shell title="Home"><Counter Start={10} /></Shell> }
   ```
+  :::
+
+  ::: go
+  ```go
+  var shell = ui.Template(`<main><h1>{{0}}</h1>{{1}}</main>`)
+
+  func Home() ui.Node { return shell.Render("Home", &Counter{Start: 10}) }
+
+  func init() { web.Routes.Get("/", Home) }
+  ```
+  :::
 
   A Vuka component rendered from a templ view is live too (templ passes the
   context on). `html/template` views and JSON are never live.
@@ -96,6 +133,7 @@ welcome email or counting a visit, would happen each time.
 `web.IsLiveJoin(ctx)` is true only on the join's run, so the side effect
 happens once:
 
+::: vuka
 ```vuka
 @web.Get("/welcome")
 func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error) {
@@ -108,6 +146,23 @@ func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error)
 	return <WelcomePage />, nil
 }
 ```
+:::
+
+::: go
+```go
+func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error) {
+	if !web.IsLiveJoin(ctx) {
+		stats.Visit("/welcome")
+		if err := m.Send(ctx, welcomeMail); err != nil {
+			return nil, err
+		}
+	}
+	return WelcomePage(), nil
+}
+
+func init() { web.Routes.Get("/welcome", Welcome) }
+```
+:::
 
 | | `IsLiveJoin` |
 |---|---|
@@ -133,6 +188,7 @@ of a keyboard event, and a submitted form's fields. What a handler receives
 follows its type — nothing, the value, `ui.Event`, `url.Values`, a struct
 bound from the form; see [Events](/ui/stateful#events).
 
+::: vuka
 ```vuka
 type NewItem struct {
 	Text string `form:"text"`
@@ -160,6 +216,38 @@ func (t *Todo) Render() ui.Node {
 	</section>
 }
 ```
+:::
+
+::: go
+```go
+type NewItem struct {
+	Text string `form:"text"`
+}
+
+func (t *Todo) Add(f NewItem) error {
+	text := strings.TrimSpace(f.Text)
+	if text == "" {
+		return web.BadRequest("write something first")
+	}
+	t.next++
+	t.items = append(t.items, Item{ID: t.next, Text: text})
+	return nil
+}
+
+func (t *Todo) Filter(q string) { t.filter = q }
+
+var todo = ui.Template(`
+<section>
+	<form onSubmit="{{0}}">
+		<input name="text" autocomplete="off">
+		<button>Add</button>
+	</form>
+	<input type="search" value="{{1}}" onInput="{{2}}" data-vk-debounce="150">
+</section>`)
+
+func (t *Todo) Render() ui.Node { return todo.Render(t.Add, t.filter, t.Filter) }
+```
+:::
 
 Submits are `preventDefault`ed; so are clicks on links and on buttons of a
 form without a submit handler. A form whose submit handler succeeds is reset
@@ -217,6 +305,7 @@ request — delivers `msg` to every component subscribed to `topic`
 the [`Update`](/ui/stateful#messages) overload of its type, and its
 page gets the patch:
 
+::: vuka
 ```vuka
 type Said struct{ Who, Text string }
 type Joined struct{ Who string }
@@ -240,6 +329,45 @@ func (c *Chat) Send(ctx context.Context, f ChatForm) error {
 	return web.Broadcast(ctx, "chat:"+c.Room, Said{c.name, f.Text})
 }
 ```
+:::
+
+::: go
+```go
+type Said struct{ Who, Text string }
+type Joined struct{ Who string }
+
+type Chat struct {
+	ui.Live
+	Room  string   // the path segment
+	Log   *ChatLog // injected
+	lines []string
+	name  string
+}
+
+func NewChat(log *ChatLog) *Chat { return &Chat{Log: log} }
+
+func (c *Chat) Mount() { c.Subscribe("chat:" + c.Room) }
+
+// Update takes every message; one Update per message type is the .vuka
+// form of the same.
+func (c *Chat) Update(msg any) {
+	switch m := msg.(type) {
+	case Said:
+		c.lines = append(c.lines, m.Who+": "+m.Text)
+	case Joined:
+		c.lines = append(c.lines, m.Who+" joined")
+	}
+}
+
+func (c *Chat) Send(ctx context.Context, f ChatForm) error {
+	return web.Broadcast(ctx, "chat:"+c.Room, Said{c.name, f.Text})
+}
+
+func init() {
+	web.Routes.Live("/chat/{room}", NewChat)
+}
+```
+:::
 
 A topic of `""` reaches every component. `app.Broadcast(ctx, topic, msg)`
 does the same from outside a request (a worker, a timer). Delivery is
