@@ -32,25 +32,25 @@ func (s Sales) Render(ctx context.Context, w io.Writer) error { return s.View().
 func Page(orders []Order) ui.Node {
 //line sales.vuka.html:13
 	sales := Sales{Title: "Week", Week: []int{3, 12}, Children: ui.HTML(`<em>note</em>`)}
-	var p []ui.Node
+	var p ui.Node
 //line sales.vuka.html:16
 	if len(orders) == 0 {
-		p = append(p, ui.HTML(`<p>none</p>`))
+		p = ui.HTML(`<p>none</p>`)
 	} else {
 		var rows []ui.Node
 		for _, o := range orders {
 			rows = append(rows, row(o))
 		}
-		p = append(p, ui.HTML(`<ul>{rows}</ul>`, rows))
+		p = ui.HTML(`<ul>{rows}</ul>`, rows)
 	}
 	n := len(orders)
-	var p2 []ui.Node
+	var p2 ui.Node
 //line sales.vuka.html:26
 	switch n {
 	case 1:
-		p2 = append(p2, ui.HTML(`<p>one</p>`))
+		p2 = ui.HTML(`<p>one</p>`)
 	default:
-		p2 = append(p2, ui.HTML(`<p>{n} orders</p>`, n))
+		p2 = ui.HTML(`<p>{n} orders</p>`, n)
 	}
 //line sales.vuka.html:11
 	return ui.HTML(`

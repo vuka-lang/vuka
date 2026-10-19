@@ -35,3 +35,5 @@ func TestBareNames(t *testing.T) {
 		}
 	}
 }
+
+func TestListKeys(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Templates, "keys") }

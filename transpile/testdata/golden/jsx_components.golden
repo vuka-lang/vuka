@@ -21,11 +21,11 @@ type User struct {
 }
 
 func UserCard(user User, admin bool, children ui.Node) ui.Node {
-	var button []ui.Node
+	var button ui.Node
 //line jsx_components.vuka:24
 	if admin {
 //line jsx_components.vuka:24
-		button = append(button, ui.HTML(`<button disabled={!user.Active}>Edit</button>`, !user.Active))
+		button = ui.HTML(`<button disabled={!user.Active}>Edit</button>`, !user.Active)
 	}
 //line jsx_components.vuka:21
 	return ui.HTML(`

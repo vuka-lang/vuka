@@ -19,14 +19,14 @@ type Item struct {
 func list(items []Item) ui.Node {
 	var texts2 []ui.Node
 	for _, it := range items {
-		var li []ui.Node
+		var li ui.Node
 //line jsx_bare.vuka:19
 		if it.Ok {
-			li = append(li, ui.HTML(`<li>{it.Name}</li>`, it.Name))
+			li = ui.HTML(`<li>{it.Name}</li>`, it.Name)
 		} else if it.N > 1 {
-			li = append(li, ui.HTML(`<li class="many">{it.Name} x{it.N}</li>`, it.Name, it.N))
+			li = ui.HTML(`<li class="many">{it.Name} x{it.N}</li>`, it.Name, it.N)
 		} else {
-			li = append(li, ui.HTML(`<li class="off">{it.Name}</li>`, it.Name))
+			li = ui.HTML(`<li class="off">{it.Name}</li>`, it.Name)
 		}
 		var is []ui.Node
 //line jsx_bare.vuka:26
@@ -34,34 +34,34 @@ func list(items []Item) ui.Node {
 //line jsx_bare.vuka:26
 			is = append(is, ui.HTML(`<i>{t}</i>`, t))
 		}
-		var b []ui.Node
+		var b ui.Node
 //line jsx_bare.vuka:27
 		if m1 := it.N; false {
 			panic(m1)
 		} else if m1 == 0 {
-			b = append(b, ui.HTML(`<b>none</b>`))
+			b = ui.HTML(`<b>none</b>`)
 		} else if m1 == 1 {
 			var texts22 []ui.Node
 //line jsx_bare.vuka:31
 			for i := range 2 {
-				var s2 []ui.Node
+				var s2 ui.Node
 //line jsx_bare.vuka:31
 				if i == 1 {
 //line jsx_bare.vuka:31
-					s2 = append(s2, ui.HTML(`<s>{i}</s>`, i))
+					s2 = ui.HTML(`<s>{i}</s>`, i)
 				}
 				texts22 = append(texts22, ui.HTML(`{s2}`, s2))
 			}
-			b = append(b, ui.HTML(`{texts22}`, texts22))
+			b = ui.HTML(`{texts22}`, texts22)
 		} else if true {
-			b = append(b, ui.HTML(`many`))
+			b = ui.HTML(`many`)
 		} else {
 			panic("vuka: no case matched")
 		}
-		var u []ui.Node
+		var u ui.Node
 //line jsx_bare.vuka:35
 		if it.N == 3 {
-			u = append(u, ui.HTML(`<u>three</u>`))
+			u = ui.HTML(`<u>three</u>`)
 		}
 		var ems []ui.Node
 //line jsx_bare.vuka:36
@@ -97,10 +97,10 @@ func texts(items []Item) ui.Node {
 	for range items {
 		texts3 = append(texts3, ui.HTML(`formal matches`))
 	}
-	var text []ui.Node
+	var text ui.Node
 //line jsx_bare.vuka:48
 	if len(items) > 0 {
-		text = append(text, ui.HTML(`a match?`))
+		text = ui.HTML(`a match?`)
 	}
 //line jsx_bare.vuka:42
 	return ui.HTML(`

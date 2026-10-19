@@ -1,0 +1,47 @@
+package keys
+
+import "github.com/vuka-lang/ui"
+
+type Item struct {
+	ID   int
+	Name string
+}
+
+type Counter struct {
+	ui.Live
+	Label string
+}
+
+func (c *Counter) Render() ui.Node { return nil }
+
+type List struct {
+	ui.Live
+	Items []Item
+}
+
+func (l *List) Render() ui.Node {
+	var lis []ui.Node
+	for _, it := range l.Items {
+		lis = append(lis, ui.HTML(`<li>{it.Name}</li>`, it.Name)) // want `W0102: a live list's items have no key`
+	}
+	var keyed []ui.Node
+	for _, it := range l.Items {
+		keyed = append(keyed, ui.HTML(`<li key={it.ID}>{it.Name}</li>`, it.ID, it.Name))
+	}
+	var counters []ui.Node
+	for _, it := range l.Items {
+		c := &Counter{Label: it.Name}
+		counters = append(counters, ui.HTML(`<p>{c}</p>`, c)) // want `W0102` `W0103: \{c\}, a stateful component in a loop, has no key`
+		keyed = append(keyed, ui.HTML(`<p key={it.ID}>{c}</p>`, it.ID, c))
+	}
+	return ui.HTML(`<ul>{lis}{keyed}{counters}</ul>`, lis, keyed, counters)
+}
+
+// A stateless function's list needs no keys.
+func names(items []Item) ui.Node {
+	var lis []ui.Node
+	for _, it := range items {
+		lis = append(lis, ui.HTML(`<li>{it.Name}</li>`, it.Name))
+	}
+	return ui.HTML(`<ul>{lis}</ul>`, lis)
+}

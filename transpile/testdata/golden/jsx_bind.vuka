@@ -1,0 +1,28 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Search binds its query to its input and sets a CSS variable.
+type Search struct {
+	ui.Live
+	Q     string
+	Color string
+}
+
+func (s *Search) LiveSchema(l *ui.LiveSchema) { l.Field(&s.Q, ui.Bind{}) }
+
+func (s *Search) Render() ui.Node {
+	return <form style:--accent={s.Color}>
+		<input bind:value={s.Q} />
+	</form>
+}
+
+func main() {
+	out, err := ui.String(context.Background(), ui.Component("s", nil, &Search{Q: "go", Color: "red"}))
+	fmt.Println(out, err)
+}

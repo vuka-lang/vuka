@@ -35,25 +35,25 @@ func list(users []User, admin bool, s string) ui.Node {
 	for _, u := range users {
 		lis = append(lis, ui.HTML(`<li key={u.ID}>{u.Name} since {u.Year}</li>`, u.ID, u.Name, u.Year))
 	}
-	var button []ui.Node
+	var button ui.Node
 	if admin {
-		button = append(button, ui.HTML(`<button>Edit</button>`))
+		button = ui.HTML(`<button>Edit</button>`)
 	} else if len(users) == 0 {
-		button = append(button, ui.HTML(`<p>nobody</p> <hr/>`))
+		button = ui.HTML(`<p>nobody</p> <hr/>`)
 	} else {
-		button = append(button, ui.HTML(`guest`))
+		button = ui.HTML(`guest`)
 	}
-	var p []ui.Node
+	var p ui.Node
 	if m1 := lookup(s); false {
 		panic(m1)
 	} else if n := m1.Value(); m1.IsOk() {
 		_ = n
 //line jsx_blocks.vuka:37
-		p = append(p, ui.HTML(`<p>{n}</p>`, n))
+		p = ui.HTML(`<p>{n}</p>`, n)
 	} else if e := m1.Err(); m1.IsErr() {
 		_ = e
 //line jsx_blocks.vuka:37
-		p = append(p, ui.HTML(`<p class="error">{e.Error()}</p>`, e.Error()))
+		p = ui.HTML(`<p class="error">{e.Error()}</p>`, e.Error())
 	} else {
 		panic("vuka: no case matched")
 	}
@@ -63,20 +63,20 @@ func list(users []User, admin bool, s string) ui.Node {
 //line jsx_blocks.vuka:38
 		as = append(as, ui.HTML(`<a href={link}>{link}</a>`, link))
 	}
-	var i2 []ui.Node
+	var i2 ui.Node
 //line jsx_blocks.vuka:39
 	if ok := map[string]bool{"a": true}["a"]; ok {
-		i2 = append(i2, ui.HTML(`<i>map in an if</i>`))
+		i2 = ui.HTML(`<i>map in an if</i>`)
 	}
-	var i22 []ui.Node
+	var i22 ui.Node
 //line jsx_blocks.vuka:40
 	if m2 := len(users); false {
 		panic(m2)
 	} else if m2 == 0 {
-		i22 = append(i22, ui.HTML(`<i>none</i>`))
+		i22 = ui.HTML(`<i>none</i>`)
 	} else if (m2 == 1) || (m2 == 2) {
 //line jsx_blocks.vuka:44
-		i22 = append(i22, ui.HTML(`a few: {len(users)}`, len(users)))
+		i22 = ui.HTML(`a few: {len(users)}`, len(users))
 	} else if true {
 		var bs []ui.Node
 //line jsx_blocks.vuka:46
@@ -84,7 +84,7 @@ func list(users []User, admin bool, s string) ui.Node {
 //line jsx_blocks.vuka:46
 			bs = append(bs, ui.HTML(`<b>{i}</b>`, i))
 		}
-		i22 = append(i22, ui.HTML(`{bs}`, bs))
+		i22 = ui.HTML(`{bs}`, bs)
 	} else {
 		panic("vuka: no case matched")
 	}

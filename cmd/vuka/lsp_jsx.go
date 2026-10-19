@@ -603,6 +603,12 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				}
 				item("data-", 5, "custom data attribute", `data-${1:name}="$2"`, 2, "4")
 				doc(attrDoc(tag, "data-x"))
+				// a template's own: two-way, toggled classes, CSS properties
+				if (tag == "input" || tag == "textarea" || tag == "select") && !used["bind:value"] {
+					item("bind:value", 5, "two-way: a bound field of the page", "bind:value={$1}", 2, "5")
+				}
+				item("class:", 5, "a class while a condition holds", "class:${1:name}={$2}", 2, "6")
+				item("style:", 5, "a CSS property or variable", "style:${1:--name}={$2}", 2, "7")
 			}
 			break
 		}

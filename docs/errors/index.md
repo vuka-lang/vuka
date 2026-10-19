@@ -55,6 +55,8 @@ same page in the terminal.
 | [E0140](./E0140) | a template file has no type to be the Render of |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
+| [W0102](./W0102) | A live list's items have no key |
+| [W0103](./W0103) | A stateful component in a loop has no key |
 
 ## Decorators and attributes
 
