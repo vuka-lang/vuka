@@ -14,9 +14,12 @@ import (
 type edit struct {
 	start, end int
 	text       string
-	prio       int  // orders insertions at the same offset: lower first
-	src        int  // when not 0, the src offset + 1 the text comes from, else start
-	copy       bool // the text is the source's at src
+	prio       int       // orders insertions at the same offset: lower first
+	src        int       // when not 0, the src offset + 1 the text comes from, else start
+	copy       bool      // the text is the source's at src
+	own        any       // the JSX tree it lowers
+	segs       []segment // a copy holding other rewrites: where its text came from
+	n          int       // a copy's length in src
 }
 
 type edits []edit
@@ -36,6 +39,51 @@ func (es edits) sorted() edits {
 	return out
 }
 
+// nest moves the rewrites inside each copied span into the copy: what is
+// copied is the source with them applied. A copy's span lies in what its
+// tree replaces, so the rewrites there would otherwise overlap it.
+func (es edits) nest(src []byte) edits {
+	var copies []int
+	for i, e := range es {
+		if e.copy && e.own != nil {
+			copies = append(copies, i)
+		}
+	}
+	if len(copies) == 0 {
+		return es
+	}
+	sort.SliceStable(copies, func(i, j int) bool { return len(es[copies[i]].text) < len(es[copies[j]].text) })
+	out := append(edits(nil), es...)
+	gone := make([]bool, len(out))
+	for _, ci := range copies {
+		c := &out[ci]
+		a := c.src - 1
+		b := a + len(c.text)
+		if c.n > 0 {
+			b = a + c.n
+		}
+		var inner edits
+		for i, e := range out {
+			if i != ci && !gone[i] && (e.own == nil || e.own != c.own) && a <= e.start && e.end <= b && e.start < b {
+				inner = append(inner, e)
+				gone[i] = true
+			}
+		}
+		if len(inner) == 0 {
+			continue
+		}
+		text, segs := inner.sorted().applyRange(src, a, b, nil)
+		c.text, c.segs, c.n = string(text), segs, b-a
+	}
+	kept := out[:0]
+	for i, e := range out {
+		if !gone[i] {
+			kept = append(kept, e)
+		}
+	}
+	return kept
+}
+
 // apply returns src with es (sorted, disjoint) applied. When an edit changes the
 // length of a line that has more code after it, after(end) is written behind the
 // replacement so the compiler's columns stay in step with the source.
@@ -46,9 +94,14 @@ func (es edits) apply(src []byte, after func(off int) string) []byte {
 
 // applyMap is apply that also records where each piece of the output came from.
 func (es edits) applyMap(src []byte, after func(off int) string) ([]byte, []segment) {
+	return es.applyRange(src, 0, len(src), after)
+}
+
+// applyRange is applyMap of src[lo:hi], es within it.
+func (es edits) applyRange(src []byte, lo, hi int, after func(off int) string) ([]byte, []segment) {
 	var b bytes.Buffer
 	var segs []segment
-	last := 0
+	last := lo
 	copySrc := func(from, to int) {
 		if to > from {
 			segs = append(segs, segment{gen: b.Len(), src: from, genLen: to - from, srcLen: to - from, copy: true})
@@ -61,7 +114,12 @@ func (es edits) applyMap(src []byte, after func(off int) string) ([]byte, []segm
 		if e.src > 0 {
 			from = e.src - 1
 		}
-		if e.copy {
+		if e.segs != nil {
+			for _, sg := range e.segs {
+				sg.gen += b.Len()
+				segs = append(segs, sg)
+			}
+		} else if e.copy {
 			segs = append(segs, segment{gen: b.Len(), src: from, genLen: len(e.text), srcLen: len(e.text), copy: true})
 		} else {
 			segs = append(segs, segment{gen: b.Len(), src: from, genLen: len(e.text), srcLen: e.end - e.start})
@@ -74,7 +132,7 @@ func (es edits) applyMap(src []byte, after func(off int) string) ([]byte, []segm
 			b.WriteString(d)
 		}
 	}
-	copySrc(last, len(src))
+	copySrc(last, hi)
 	return b.Bytes(), segs
 }
 
@@ -88,6 +146,9 @@ func (es edits) toOrig(off int) int {
 			break
 		}
 		if off < s+len(e.text) {
+			if e.copy {
+				return e.copied(off - s)
+			}
 			return e.start
 		}
 		delta += len(e.text) - (e.end - e.start)
@@ -95,9 +156,37 @@ func (es edits) toOrig(off int) int {
 	return off - delta
 }
 
-// fromOrig maps an offset in src to the applied text.
+// copied is the src offset of a copy's text at rel.
+func (e edit) copied(rel int) int {
+	for _, sg := range e.segs {
+		if rel >= sg.gen && rel < sg.gen+sg.genLen {
+			if sg.copy {
+				return sg.src + rel - sg.gen
+			}
+			return sg.src
+		}
+	}
+	return e.src - 1 + rel
+}
+
+// fromOrig maps an offset in src to the applied text: a copied one to its
+// copy.
 func (es edits) fromOrig(off int) int {
 	delta := 0
+	for _, e := range es {
+		if e.copy && e.own != nil {
+			a := e.src - 1
+			n := len(e.text)
+			if e.n > 0 {
+				n = e.n
+			}
+			if a <= off && off <= a+n {
+				return e.start + delta + e.genOf(off)
+			}
+		}
+		delta += len(e.text) - (e.end - e.start)
+	}
+	delta = 0
 	for _, e := range es {
 		if off < e.start {
 			break
@@ -108,6 +197,22 @@ func (es edits) fromOrig(off int) int {
 		delta += len(e.text) - (e.end - e.start)
 	}
 	return off + delta
+}
+
+// genOf is where src offset off is in a copy's text.
+func (e edit) genOf(off int) int {
+	if e.segs == nil {
+		return off - (e.src - 1)
+	}
+	for _, sg := range e.segs {
+		if sg.copy && off >= sg.src && off <= sg.src+sg.srcLen {
+			return sg.gen + off - sg.src
+		}
+		if !sg.copy && off >= sg.src && off < sg.src+max(sg.srcLen, 1) {
+			return sg.gen
+		}
+	}
+	return 0
 }
 
 func restOfLineHasCode(src []byte, off int) bool {

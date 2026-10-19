@@ -253,6 +253,38 @@ viewtest.Browser runs framework islands.
 
 A and B land in PRs 1 and 2; C and D in PR 3.
 
+## Addendum 2: file-based components
+
+Components are file-based by default.
+
+- `sales.vuka.html` is the `Render` of type `Sales` (the file's base name in
+  PascalCase), declared in `sales.vuka` or `sales.go` of the same package. The
+  main template has no header: everything up to the first `func` line is the
+  component's markup. A missing type is an error with help ("declare type
+  Sales, or start the file with func …").
+- Fields and methods by bare name: `{Title}`, `on-select={Zoom}`,
+  `{Total()}`. It is still Go: the compiler rewrites identifiers that resolve
+  (go/types) to fields or methods of the receiver into `s.Title`; locals and
+  loop variables shadow them, as in Go.
+- The receiver's kind comes from the type: a pointer when it embeds
+  `ui.Live`, holds a `ui.State` or has pointer-receiver methods; a value
+  otherwise.
+- More templates in the file start with `func` lines after the main markup
+  (partials, called `{row(o)}`).
+- An explicit header on the first line, `func (s *Sales) Render()`, is still
+  allowed (a named receiver, another signature); expressions then use the
+  receiver's name.
+- Imports (`import Trend "./trend.vue"`) go at the very top, before the
+  markup.
+- Live pages are the same pair (`orders.vuka` + `orders.vuka.html`); a page
+  backed by its component is the pair with `orders.vue|tsx|ts` in place of
+  the `.vuka.html`.
+- Inline JSX (`Render() Node { return <…> }` in a `.vuka`) and function
+  components remain, as the alternative.
+- The pair is the default everywhere: `vuka add component X` and `vuka add
+  page X` scaffold it, `vuka eject` turns inline JSX `Render` methods into
+  it, and the docs, examples and the hand-written ui kit use it.
+
 ## Delivery
 
 1. Syntax and compiler (`.vuka.html` → Go through the overlay, `vuka gen`),

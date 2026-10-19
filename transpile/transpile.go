@@ -348,7 +348,7 @@ func (f *fileState) build() {
 			cur = append(cur, f.jsxEdits(t, false)...)
 		}
 	}
-	f.cur = cur.sorted()
+	f.cur = cur.nest(f.src).sorted()
 	body := f.cur.apply(f.src, nil)
 	f.body = len(body)
 	f.text = append(body, f.trailer...)
@@ -468,7 +468,7 @@ func genName(d *ast.GenDecl) string {
 }
 
 func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, *SourceMap, int) {
-	all := f.bodyEdits().sorted()
+	all := f.bodyEdits().nest(f.src).sorted()
 	var after func(int) string
 	if !bare {
 		after = func(off int) string { return lineDirective(f.at(off)) }
