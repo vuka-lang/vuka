@@ -274,14 +274,49 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		used[i] = true
 		c.args = append(c.args, &compArg{key: fl.name + ": ", attr: a, typ: fl.typ, nest: fl.nest})
 	}
-	if len(el.kids) == 0 {
-		return false, 0, ""
+	rest := el.kids[:0:0]
+	slots := 0
+	for _, k := range el.kids {
+		sl, ok := k.(*jsxElem)
+		if !ok || !strings.HasPrefix(sl.tag, "slot:") {
+			rest = append(rest, k)
+			continue
+		}
+		name := exportName(strings.TrimPrefix(sl.tag, "slot:"))
+		i := bindName(names, name)
+		switch {
+		case i < 0:
+			return false, sl.start, "<" + el.tag + "> has no slot " + strings.TrimPrefix(sl.tag, "slot:") + ": a slot is a " + c.target.q + "Node field, " + name
+		case used[i]:
+			return false, sl.start, "<" + el.tag + "> sets " + fields[i].name + " twice"
+		case !types.AssignableTo(node, fields[i].typ):
+			return false, sl.start, "<" + el.tag + ">'s slot " + fields[i].name + " is " + e.display(fields[i].typ) + ", not " + c.target.q + "Node"
+		}
+		used[i] = true
+		slots++
+		c.args = append(c.args, &compArg{key: fields[i].name + ": ", nodes: append([]jsxNode{}, sl.kids...), typ: fields[i].typ, nest: fields[i].nest})
+	}
+	if slots > 0 {
+		c.rest = rest
+	}
+	if !hasContent(rest) {
+		return slots > 0, 0, ""
 	}
 	if i := bindName(names, "Children"); i >= 0 && !used[i] && fields[i].ambiguous == "" && types.AssignableTo(node, fields[i].typ) {
 		c.args = append(c.args, &compArg{key: fields[i].name + ": ", kids: true, typ: fields[i].typ, nest: fields[i].nest})
 		return true, 0, ""
 	}
 	return false, 0, ""
+}
+
+// hasContent reports whether ns are more than white space.
+func hasContent(ns []jsxNode) bool {
+	for _, n := range ns {
+		if t, ok := n.(*jsxText); !ok || strings.TrimSpace(t.val) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func hasField(st *types.Struct, name string) bool {

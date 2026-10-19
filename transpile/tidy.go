@@ -357,7 +357,11 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	mapped := make([]mapping, len(before))
 	for i, n := range before {
 		if off, exact, ok := t.m.ToSource(tf.Offset(n.pos)); ok {
-			mapped[i] = mapping{off, srcLines.pos("", off).Line, exact}
+			line := srcLines.pos("", off).Line
+			if t.f.html != nil {
+				line = max(line-1, 1)
+			}
+			mapped[i] = mapping{off, line, exact}
 		}
 	}
 

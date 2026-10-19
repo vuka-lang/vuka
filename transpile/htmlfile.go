@@ -178,15 +178,16 @@ func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htm
 	for _, imp := range imps {
 		prefix += " import " + imp + ";"
 	}
-	if len(out) == 0 {
-		out = []string{""}
-	}
-	out[0] = prefix + " " + out[0]
-	if first >= 0 {
+	// The package clause and imports go on a line of their own before the
+	// file's: its lines are one later (fileState.shift).
+	out = append([]string{prefix + "\n"}, out...)
+	first++
+	firstEnd++
+	if first >= 1 {
 		at := 0
 		for i := range firstEnd {
 			if i == first {
-				h.start = at + strings.Index(out[i], strings.TrimRight(lines[i], "\r\n"))
+				h.start = at + strings.Index(out[i], strings.TrimRight(lines[i-1], "\r\n"))
 			}
 			at += len(out[i])
 		}

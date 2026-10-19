@@ -68,8 +68,8 @@ func TestLibraryExample(t *testing.T) {
 	if len(plain) == 0 || !slices.Equal(plain, ejected) {
 		t.Errorf("registrations differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
 	}
-	plain = registrations(t, "users.go", "ui.Template(")
-	ejected = registrations(t, "decorated/users.go", "ui.Template(")
+	plain = registrations(t, "users.go", "ui.HTML(")
+	ejected = registrations(t, "decorated/users.go", "ui.HTML(")
 	if len(plain) == 0 || !slices.Equal(plain, ejected) {
 		t.Errorf("templates differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
 	}
@@ -99,7 +99,7 @@ func TestLibraryExample(t *testing.T) {
 }
 
 // registrations are the calls of file whose text starts with prefix
-// (web.Routes., ui.Template(), the prefix cut: Get("/x", X,
+// (web.Routes., ui.HTML(, the prefix cut: Get("/x", X,
 // web.Params("id")). app.Run isn't one.
 func registrations(t *testing.T, file, prefix string) []string {
 	t.Helper()

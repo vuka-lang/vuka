@@ -203,7 +203,13 @@ func (f *fileState) spell(gen, src string, off int) {
 }
 
 // at is the position of a src offset.
-func (f *fileState) at(off int) token.Position { return f.lines.pos(f.path, off) }
+func (f *fileState) at(off int) token.Position {
+	p := f.lines.pos(f.path, off)
+	if f.html != nil {
+		p.Line = max(p.Line-1, 1) // a template file's first line is the package clause
+	}
+	return p
+}
 
 // pos is the position, in the file as written, of an offset in this round's text.
 func (f *fileState) pos(off int) token.Position {

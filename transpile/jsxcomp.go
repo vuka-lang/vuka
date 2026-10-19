@@ -31,11 +31,12 @@ type jsxComp struct {
 	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
-	stateful   bool     // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
-	structComp bool     // a struct with a Render() Node method: T{…}.Render()
-	ptrRender  bool     // whose Render takes a pointer: (&T{…}).Render()
-	key        *compArg // its key attribute
-	targText   string   // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
+	stateful   bool      // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
+	structComp bool      // a struct with a Render() Node method: T{…}.Render()
+	rest       []jsxNode // the children but the slots, when there are slots
+	ptrRender  bool      // whose Render takes a pointer: (&T{…}).Render()
+	key        *compArg  // its key attribute
+	targText   string    // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
 
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.Mount.
 	island                        bool      // this comp is a <ui.Island> wrapper
@@ -73,16 +74,17 @@ type nestStep struct {
 
 // compArg is one argument of a component call.
 type compArg struct {
-	key  string   // "Field: " for a props struct
-	attr *jsxAttr // the value of an attribute
-	kids bool     // the children, as a Fragment
-	zero bool     // the parameter is left out
-	text string   // its zero value
-	name string   // the function literal's parameter, in the closure form
-	typ  types.Type
-	nest []nestStep // the embedded fields a promoted props field is in
-	wrap string     // a function the value is passed through: an island's ui.Ptr[T]
-	conv string     // a conversion of the value: an island's number prop takes any Go number
+	key   string    // "Field: " for a props struct
+	attr  *jsxAttr  // the value of an attribute
+	kids  bool      // the children, as a Fragment
+	nodes []jsxNode // a slot's children
+	zero  bool      // the parameter is left out
+	text  string    // its zero value
+	name  string    // the function literal's parameter, in the closure form
+	typ   types.Type
+	nest  []nestStep // the embedded fields a promoted props field is in
+	wrap  string     // a function the value is passed through: an island's ui.Ptr[T]
+	conv  string     // a conversion of the value: an island's number prop takes any Go number
 }
 
 func (w *jsxWriter) comp(c *jsxComp) {
@@ -115,8 +117,12 @@ func (w *jsxWriter) comp(c *jsxComp) {
 			w.gen(a.name)
 		case a.attr != nil:
 			w.attrValue(a.attr)
+		case a.kids && c.rest != nil:
+			w.piece(c.rest)
 		case a.kids:
 			w.piece(el.kids)
+		case a.nodes != nil:
+			w.piece(a.nodes)
 		default:
 			w.gen(a.text)
 		}
