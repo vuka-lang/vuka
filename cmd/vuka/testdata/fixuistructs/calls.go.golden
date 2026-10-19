@@ -1,10 +1,9 @@
-// ui.Button(p) → ui.Button(p).Render()
-// ui.Button(ui.ButtonProps{…}) → ui.Button{…}.Render()
-// ui.Card(ui.CardProps{…}) → ui.Card{…}.Render()
-// ui.Image(ui.ImageProps{…}) → ui.Image{…}.Render()
-// ui.Input(ui.FieldProps{…}) → ui.Input{…}.Render()
-// ui.Submit(ui.ButtonProps{…}) → ui.Submit{…}.Render()
-// ui.Table(ui.TableProps{…}) → ui.Table{…}.Render()
+// ui.Button(ui.ButtonProps{…}) → ui.Button{…}
+// ui.Card(ui.CardProps{…}) → ui.Card{…}
+// ui.Image(ui.ImageProps{…}) → ui.Image{…}
+// ui.Input(ui.FieldProps{…}) → ui.Input{…}
+// ui.Submit(ui.ButtonProps{…}) → ui.Submit{…}
+// ui.Table(ui.TableProps{…}) → ui.Table{…}
 
 package app
 
@@ -17,20 +16,20 @@ import (
 func page(rows []Row, p ui.ButtonProps, t ui.TableProps[Row]) ui.Node {
 	return ui.Card{
 		Title:  ui.Text("Rows"),
-		Header: ui.Actions(ui.Button{Variant: ui.Primary, Children: ui.Text("New")}.Render()),
+		Header: ui.Actions(ui.Button{Variant: ui.Primary, Children: ui.Text("New")}),
 		Children: ui.Fragment(
-			ui.Table[Row]{Rows: rows, Columns: cols}.Render(),
-			ui.Button(p).Render(),
+			ui.Table[Row]{Rows: rows, Columns: cols},
+			ui.Button(p),
 			ui.Table(t),
-			ui.Submit{Children: ui.Text("Go")}.Render(),
-			ui.Input{Name: "q"}.Render(),
-			ui.Image{Src: "/a.png"}.Render(),
+			ui.Submit{Children: ui.Text("Go")},
+			ui.Input{Name: "q"},
+			ui.Image{Src: "/a.png"},
 			ui.Icon("plus"),
-			ui.Card{}.Render(),
+			ui.Card{},
 		),
-	}.Render()
+	}
 }
 
-func done() ui.Node { return ui.Button(ui.ButtonProps{}).Render() }
+func done(b ui.BadgeProps) ui.Node { return ui.Badge(b) }
 
 var _ = fmt.Sprint

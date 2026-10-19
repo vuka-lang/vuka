@@ -1,4 +1,4 @@
-// ui.Badge(ui.BadgeProps{…}) → ui.Badge{…}.Render()
+// ui.Badge(ui.BadgeProps{…}) → ui.Badge{…}
 
 package app
 
@@ -7,6 +7,6 @@ import "github.com/vuka-lang/ui"
 func Page(name string) ui.Node {
 	return <main>
 		<ui.Card title={ui.Text(name)}>hi</ui.Card>
-		{ui.Badge{Children: ui.Text("new")}.Render()}
+		{ui.Badge{Children: ui.Text("new")}}
 	</main>
 }

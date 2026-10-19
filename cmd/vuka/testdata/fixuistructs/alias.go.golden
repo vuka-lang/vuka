@@ -1,7 +1,7 @@
-// kit.Badge(kit.BadgeProps{…}) → kit.Badge{…}.Render()
+// kit.Badge(kit.BadgeProps{…}) → kit.Badge{…}
 
 package app
 
 import kit "github.com/vuka-lang/ui"
 
-func badge() kit.Node { return kit.Badge{Variant: kit.Success}.Render() }
+func badge() kit.Node { return kit.Badge{Variant: kit.Success} }

@@ -10,8 +10,8 @@ import (
 )
 
 // uiKit is each component of the ui kit and its former props type: the
-// kit's components are structs, ui.Card{…}.Render() where a function took
-// its props, ui.Card(ui.CardProps{…}).
+// kit's components are structs, each a ui.Node, ui.Card{…} where a function
+// took its props, ui.Card(ui.CardProps{…}).
 var uiKit = map[string]string{
 	"Alert": "AlertProps", "Badge": "BadgeProps", "Button": "ButtonProps", "Submit": "ButtonProps",
 	"Card": "CardProps", "DataTable": "DataTableProps", "Form": "FormProps", "Image": "ImageProps",
@@ -19,10 +19,6 @@ var uiKit = map[string]string{
 	"Select": "FieldProps", "Checkbox": "FieldProps", "Modal": "ModalProps", "Table": "TableProps",
 	"Tabs": "TabsProps", "Tile": "TileProps", "Toast": "ToastProps", "ToastContainer": "ToastContainerProps",
 }
-
-// uiGeneric are the kit's generic components: a call of one with a value
-// rather than a literal needs the type argument the call inferred.
-var uiGeneric = map[string]bool{"Table": true, "DataTable": true}
 
 // fixUIStructs rewrites calls of the ui kit's components as functions into
 // their struct form, once the module's ui is one whose components are
@@ -76,9 +72,12 @@ func generatedGo(path string) bool {
 	return false
 }
 
-// fixUIStructsSource rewrites one file: ui.X(ui.XProps{…}) is ui.X{…}.Render()
-// (ui.Table(ui.TableProps[T]{…}) ui.Table[T]{…}.Render()), and ui.X(p) with
-// a props value p ui.X(p).Render(). what says what changed, nil for nothing.
+// fixUIStructsSource rewrites one file: ui.X(ui.XProps{…}) is ui.X{…}, and
+// ui.Table(ui.TableProps[T]{…}) ui.Table[T]{…}. (ui.X(p) with a props value
+// p still compiles: the props types are aliases of the components, so it is
+// a conversion, the component itself; a generic one, ui.Table(t), needs its
+// type argument, ui.Table[Row](t), which the source doesn't say.) what says
+// what changed, nil for nothing.
 func fixUIStructsSource(src []byte) ([]byte, []string) {
 	toks, file := uiTokens(src)
 	q := ""
@@ -110,9 +109,6 @@ func fixUIStructsSource(src []byte) ([]byte, []string) {
 		if close < 0 || args != 1 || close == open+1 {
 			continue
 		}
-		if close+2 < len(toks) && toks[close+1].tok == token.PERIOD && toks[close+2].lit == "Render" {
-			continue // already rewritten
-		}
 		if open+3 < close && toks[open+1].lit == q && toks[open+2].tok == token.PERIOD && toks[open+3].lit == props {
 			// ui.X(ui.XProps[T]{…}): the literal is the call's one argument.
 			j := open + 4
@@ -125,17 +121,12 @@ func fixUIStructsSource(src []byte) ([]byte, []string) {
 				if end == close-1 || end == close-2 && toks[close-1].tok == token.COMMA {
 					edits = append(edits,
 						srcEdit{toks[open].off, toks[open+3].off + len(props), ""},
-						srcEdit{toks[end].off + 1, toks[close].off + 1, ".Render()"})
-					seen[q+"."+name+"("+q+"."+props+"{…}) → "+q+"."+name+"{…}.Render()"] = true
+						srcEdit{toks[end].off + 1, toks[close].off + 1, ""})
+					seen[q+"."+name+"("+q+"."+props+"{…}) → "+q+"."+name+"{…}"] = true
 					continue
 				}
 			}
 		}
-		if uiGeneric[name] {
-			continue // ui.Table(p) needs its type argument: ui.Table[T](p).Render()
-		}
-		edits = append(edits, srcEdit{toks[close].off + 1, toks[close].off + 1, ".Render()"})
-		seen[q+"."+name+"(p) → "+q+"."+name+"(p).Render()"] = true
 	}
 	if len(edits) == 0 {
 		return src, nil
