@@ -177,22 +177,20 @@ A file with JSX and no target is an error at its first JSX expression —
 declaring VukaJSX)` — and so is a file importing two. There is no module-wide
 setting: the import is the switch, file by file, as anything else in Go.
 
-A package is a JSX target when it declares `const VukaJSX = 1`, the version
+A package is a JSX target when it declares `const VukaJSX = 2`, the version
 of the contract it implements, and these names:
 
 | Name | Required | Used for |
 |---|---|---|
 | `Node` | yes | the type every JSX expression has; a component returns one |
-| `Attr` | yes | `struct{ Name string; Value any }`, an element's attribute |
-| `El(tag string, attrs []Attr, children ...Node) Node` | yes | an element |
-| `Text(any) Node`, `Child(any) Node` | yes | text, a `{expr}` child |
-| `Fragment(children ...Node) Node` | yes | `<>…</>`, a component's children |
-| `Nodes(func(add func(Node))) Node` | yes | a `{for}`, `{if}` or `{match}` block |
+| `Template(markup string)`, with `Render(args ...any) Node` | yes | each piece of JSX: its markup with numbered holes, filled in document order |
+| `Each(items []T, fn func(T) Node) Node`, `If(cond bool, n Node) Node` | yes | `{for}` over a slice; `{if}` and `{match}` |
 | `Try(Node, error) Node` | yes | a `(Node, error)` component |
-| `On(handler) …` | no | `onClick={…}` on an element is an event; without `On`, a plain attribute |
-| `Stateful` + `Component(site string, key any, props S) Node` | no | a tag naming a struct type whose pointer implements `Stateful` |
+| `Child(any) Node`, `Fragment(children ...Node) Node` | yes | placeholders while a component's type is unknown |
+| `On(handler) …` | no | `onClick={…}` on an element is an event, its value checked; without `On`, a plain attribute |
+| `Stateful` + `Key(key any, props Stateful) Node` | no | a tag naming a struct type whose pointer implements `Stateful` |
 | `WithChildren(n, children Node) Node` | no | children for a component that reads them from its context (a templ component) |
-| `F(fingerprint uint64, shape string, children ...Node) Node` | no | frames: each piece of JSX with its compile-time shape, for render trees |
+| `UseState`, `UsePageState`, State's methods | no | [client state](/ui/state) |
 | `Ref(names ...string) …` | no | refs: `ref="name"` on an element names it for code in the same function, which finds it with `Ref("name")` (ui: [JS commands](/ui/js)) |
 | `GetAttr(name string, values ...string) …` | no | elements picked by an attribute the function's JSX writes |
 
@@ -215,32 +213,37 @@ target's business, checked by its runtime.
 
 ## What it becomes
 
-Calls of the target, with your expressions where you wrote them:
+The Go you would write by hand: each piece of JSX — a tree, each block
+body, a component tag's children — is a template declared before the
+function, named after it, with your expressions in its holes where you
+wrote them:
 
 ```go
-return ui.F(0x8ec4a9df618b03d4, "Es(E(tht)E(b)…)", ui.El("section", []ui.Attr{{Name: "className", Value: "pets"}},
-	ui.El("h1", nil, ui.Text("Pets ("), ui.Child(len(pets)), ui.Text(")")),
-	ui.El("table", nil, ui.Nodes(func(__add func(ui.Node)) {
-		for _, p := range pets { __add(ui.F(0xa26a48f8c2b75e32, "h", PetRow(p))) }
-	})),
-	…))
+var petList = ui.Template(`
+<section className="pets">
+  <h1>Pets ({{0}})</h1>
+  <table>{{1}}</table>
+</section>`)
+
+func PetList(pets []Pet) ui.Node {
+	return petList.Render(len(pets), ui.Each(pets, func(p Pet) ui.Node {
+		return PetRow(p)
+	}))
+}
 ```
 
-For a target declaring `F`, each piece of JSX — a tree, each block body, a
-component tag's children — is wrapped in a frame: a fingerprint of what its
-fixed markup is made of (tags, attribute names and literal values, text,
-where the expressions go; formatting doesn't change it) and its *shape*,
-which of its nodes are markup the source fixes and which are Go expressions
-(`t` text, `h` an `{expr}`, `b` a block, `c` a component tag, `E` an element
-with an `s` or `d` per attribute, `G` a fragment). A target without `F` gets
-the same calls without the frames. `vuka explain` shows it line by line.
+A `{for}` over a slice is `ui.Each`; another loop appends to a
+`[]ui.Node`; an `{if}` or `{match}` picks one node for `ui.If`. A stateful
+component's tag is `&Counter{…}` (`ui.Key(k, &Counter{…})` with a key), an
+island's its props (`ui.Mount(props, opts…)` with options). `vuka explain`
+shows it line by line.
 
 A component tag becomes a call of that component. For a function taking one
 struct, the attributes and children become that struct's literal:
 
 ```go
 // <List Items={users} Key={key}>{…}</List>   for  func List[T any](p ListProps[T]) ui.Node
-List(ListProps[User]{Items: users, Key: key, Children: ui.F(…)})
+List(ListProps[User]{Items: users, Key: key, Children: listText.Render(…)})
 ```
 
 The inferred type argument lands on the **props struct literal**
