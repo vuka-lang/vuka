@@ -91,49 +91,22 @@ func storeAdvice() []vuka.Decorator {
 
 var storeSaveDec vuka.Decorated[func(*Store, Account) error]
 
-var storeSaveDecInfo = vuka.Func{Name: "Store.Save", ErrIndex: 0, CtxIndex: -1, Zero: func() []any { return []any{*new(error)} }, Attrs: []any{}}
-
 // Each method gets its own decorators, outside its own: logged, then retry,
 // then timed.
 //
 //line advice.vuka:42
 func (s *Store) Save(a Account) error {
 	return storeSaveDec.Get(func() func(*Store, Account) error {
-		return func(next func(*Store, Account) error) func(*Store, Account) error {
 //line advice.vuka:41
-			chain := append(storeAdvice(), timed)
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 *Store, p1 Account) error {
-				c := vuka.NewCall(&storeSaveDecInfo, chain, p0, []any{p1}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[*Store](c.Receiver), vuka.As[Account](c.Args[0]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[error](c.Results[0])
-			}
-		}((*Store).save)
+		return vuka.Wrap((*Store).save, vuka.FuncInfo{Name: "Store.Save", Method: true}, append(storeAdvice(), timed)...)
 	})(s, a)
 }
 
 var storeCountDec vuka.Decorated[func(Store) int]
 
-var storeCountDecInfo = vuka.Func{Name: "Store.Count", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{}}
-
 //line advice.vuka:51
 func (s Store) Count() int {
 	return storeCountDec.Get(func() func(Store) int {
-		return func(next func(Store) int) func(Store) int {
-			chain := storeAdvice()
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 Store) int {
-				c := vuka.NewCall(&storeCountDecInfo, chain, p0, []any{}, func(c *vuka.Call) []any { r0 := next(vuka.As[Store](c.Receiver)); return []any{r0} })
-				c.Run()
-				return vuka.As[int](c.Results[0])
-			}
-		}((Store).count)
+		return vuka.Wrap((Store).count, vuka.FuncInfo{Name: "Store.Count", Method: true}, storeAdvice()...)
 	})(s)
 }

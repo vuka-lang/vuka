@@ -61,8 +61,8 @@ var _ = Label("count")
 var _ = Label("free")
 
 func init() {
-	vuka.RegisterType[Board](append([]any{}, boardB0.Attrs()...)...)
-	vuka.RegisterFunc((*Board).Clear, append([]any{}, boardClearDecB0.Attrs()...)...)
+	vuka.RegisterType[Board](boardB0.Attrs()...)
+	vuka.RegisterFunc((*Board).Clear, boardClearDecB0.Attrs()...)
 //line registry.vuka:25
 	vuka.RegisterFunc((Board).Count, []any{Label("count")}...)
 //line registry.vuka:30
@@ -77,7 +77,7 @@ func NewBoard(n int) *Board {
 //line registry.vuka:20
 func boardAdvice() []vuka.Decorator {
 //line registry.vuka:19
-	return append([]vuka.Decorator{}, Requires("board.read").Calls()...)
+	return Requires("board.read").Calls()
 }
 
 //line registry.vuka:19
@@ -92,25 +92,10 @@ var boardClearDecB0 = Requires("board.delete")
 
 var boardClearDec vuka.Decorated[func(*Board, context.Context) error]
 
-var boardClearDecInfo = vuka.Func{Name: "Board.Clear", ErrIndex: 0, CtxIndex: 0, Zero: func() []any { return []any{*new(error)} }, Attrs: append([]any{}, boardClearDecB0.Attrs()...)}
-
 //line registry.vuka:23
 func (b *Board) Clear(ctx context.Context) error {
 	return boardClearDec.Get(func() func(*Board, context.Context) error {
-		return func(next func(*Board, context.Context) error) func(*Board, context.Context) error {
-			chain := append(boardAdvice(), boardClearDecB0.Calls()...)
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 *Board, p1 context.Context) error {
-				c := vuka.NewCall(&boardClearDecInfo, chain, p0, []any{p1}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[*Board](c.Receiver), vuka.As[context.Context](c.Args[0]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[error](c.Results[0])
-			}
-		}((*Board).clearImpl)
+		return vuka.Wrap((*Board).clearImpl, vuka.FuncInfo{Name: "Board.Clear", Method: true, Attrs: boardClearDecB0.Attrs()}, append(boardAdvice(), boardClearDecB0.Calls()...)...)
 	})(b, ctx)
 }
 
@@ -120,63 +105,28 @@ func init() {
 
 var boardCountDec vuka.Decorated[func(Board) int]
 
-//line registry.vuka:25
-var boardCountDecInfo = vuka.Func{Name: "Board.Count", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{Label("count")}}
-
 //line registry.vuka:26
 func (b Board) Count() int {
 	return boardCountDec.Get(func() func(Board) int {
-		return func(next func(Board) int) func(Board) int {
-			chain := boardAdvice()
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 Board) int {
-				c := vuka.NewCall(&boardCountDecInfo, chain, p0, []any{}, func(c *vuka.Call) []any { r0 := next(vuka.As[Board](c.Receiver)); return []any{r0} })
-				c.Run()
-				return vuka.As[int](c.Results[0])
-			}
-		}((Board).count)
+//line registry.vuka:25
+		return vuka.Wrap((Board).count, vuka.FuncInfo{Name: "Board.Count", Method: true, Attrs: []any{Label("count")}}, boardAdvice()...)
 	})(b)
 }
 
 var boardIncDec vuka.Decorated[func(*Board)]
 
-var boardIncDecInfo = vuka.Func{Name: "Board.Inc", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{} }, Attrs: []any{}}
-
 //line registry.vuka:28
 func (b *Board) Inc() {
 	boardIncDec.Get(func() func(*Board) {
-		return func(next func(*Board)) func(*Board) {
-			chain := boardAdvice()
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 *Board) {
-				c := vuka.NewCall(&boardIncDecInfo, chain, p0, []any{}, func(c *vuka.Call) []any { next(vuka.As[*Board](c.Receiver)); return nil })
-				c.Run()
-			}
-		}((*Board).inc)
+		return vuka.Wrap((*Board).inc, vuka.FuncInfo{Name: "Board.Inc", Method: true}, boardAdvice()...)
 	})(b)
 }
 
 var boardHandlersDec vuka.Decorated[func(*Board) []any]
 
-var boardHandlersDecInfo = vuka.Func{Name: "Board.Handlers", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new([]any)} }, Attrs: []any{}}
-
 //line registry.vuka:33
 func (b *Board) Handlers() []any {
 	return boardHandlersDec.Get(func() func(*Board) []any {
-		return func(next func(*Board) []any) func(*Board) []any {
-			chain := boardAdvice()
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 *Board) []any {
-				c := vuka.NewCall(&boardHandlersDecInfo, chain, p0, []any{}, func(c *vuka.Call) []any { r0 := next(vuka.As[*Board](c.Receiver)); return []any{r0} })
-				c.Run()
-				return vuka.As[[]any](c.Results[0])
-			}
-		}((*Board).handlers)
+		return vuka.Wrap((*Board).handlers, vuka.FuncInfo{Name: "Board.Handlers", Method: true}, boardAdvice()...)
 	})(b)
 }

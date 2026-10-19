@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"go/ast"
+	"go/parser"
 	"go/token"
 	"os"
 	"path"
@@ -14,6 +16,7 @@ import (
 	"time"
 
 	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // vetIslands is what vuka vet says of the module's islands: a component
@@ -295,7 +298,7 @@ func sourceMethods(root, relDir, name string) map[string]sourceMethod {
 				continue
 			}
 			mn := string(src[m[4]:m[5]])
-			if lifecycleMethods[mn] || strings.HasPrefix(mn, "Update__") {
+			if lifecycleMethods[mn] || isUpdateMethod(mn, string(src[m[6]:m[7]])) {
 				continue
 			}
 			out[mn] = sourceMethod{params: string(src[m[6]:m[7]]), results: string(src[m[8]:m[9]]), file: rel, line: bytes.Count(src[:m[0]], []byte("\n")) + 1}
@@ -361,4 +364,22 @@ func hookLoaders(root, relDir string) map[string]bool {
 		}
 	}
 	return out
+}
+
+// isUpdateMethod reports whether a method declared with params (their
+// source text) is an overload of a live component's Update: UpdateT taking
+// a T last (ui.IsUpdate), or Update__T as older vuka commands named it.
+func isUpdateMethod(name, params string) bool {
+	if strings.HasPrefix(name, "Update__") {
+		return true
+	}
+	if !strings.HasPrefix(name, "Update") || name == "Update" {
+		return false
+	}
+	ft, err := parser.ParseExpr("func(" + params + ")")
+	if err != nil {
+		return false
+	}
+	list := ft.(*ast.FuncType).Params.List
+	return len(list) > 0 && name == "Update"+transpile.TypeName(list[len(list)-1].Type)
 }

@@ -7,6 +7,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -250,7 +252,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 	for i := range ms.Len() {
 		m := ms.At(i).Obj().(*types.Func)
 		mn := m.Name()
-		if !m.Exported() || lifecycle[mn] || own[mn] || strings.HasPrefix(mn, "Update__") || loaders[mn] || schema.hooks[mn] || mn == "LiveSchema" {
+		if !m.Exported() || lifecycle[mn] || own[mn] || isUpdate(m) || loaders[mn] || schema.hooks[mn] || mn == "LiveSchema" {
 			continue
 		}
 		sig := m.Type().(*types.Signature)
@@ -388,4 +390,68 @@ func isIdent(s string) bool {
 		}
 	}
 	return s != ""
+}
+
+// isUpdate reports whether m is an overload of a live component's Update,
+// which its session calls with a message: UpdateT taking a T last, T
+// written as part of a name as vuka names overloads (ui.IsUpdate), or
+// Update__T as older vuka commands named them.
+func isUpdate(m *types.Func) bool {
+	mn := m.Name()
+	if strings.HasPrefix(mn, "Update__") {
+		return true
+	}
+	p := m.Type().(*types.Signature).Params()
+	return strings.HasPrefix(mn, "Update") && p.Len() > 0 && mn == "Update"+typeName(p.At(p.Len()-1).Type())
+}
+
+// typeName is t written as part of a Go name: int Int, *Order Order,
+// []Order Orders, map[string]int MapStringInt, any Any.
+func typeName(t types.Type) string {
+	switch t := types.Unalias(t).(type) {
+	case *types.Named:
+		name := t.Obj().Name()
+		for a := range t.TypeArgs().Types() {
+			name += typeName(a)
+		}
+		return upperFirst(name)
+	case *types.Basic:
+		return upperFirst(t.Name())
+	case *types.Pointer:
+		return typeName(t.Elem())
+	case *types.Slice:
+		return plural(typeName(t.Elem()))
+	case *types.Array:
+		return plural(typeName(t.Elem()))
+	case *types.Map:
+		return "Map" + typeName(t.Key()) + typeName(t.Elem())
+	case *types.Chan:
+		return "Chan" + typeName(t.Elem())
+	case *types.Signature:
+		return "Func"
+	case *types.Interface:
+		if t.Empty() {
+			return "Any"
+		}
+		return "Interface"
+	case *types.Struct:
+		return "Struct"
+	}
+	return upperFirst(t.String())
+}
+
+func upperFirst(s string) string {
+	r, n := utf8.DecodeRuneInString(s)
+	return string(unicode.ToUpper(r)) + s[n:]
+}
+
+func plural(s string) string {
+	switch {
+	case strings.HasSuffix(s, "s"), strings.HasSuffix(s, "x"), strings.HasSuffix(s, "z"),
+		strings.HasSuffix(s, "ch"), strings.HasSuffix(s, "sh"):
+		return s + "es"
+	case len(s) > 1 && s[len(s)-1] == 'y' && !strings.ContainsRune("aeiouAEIOU", rune(s[len(s)-2])):
+		return s[:len(s)-1] + "ies"
+	}
+	return s + "s"
 }

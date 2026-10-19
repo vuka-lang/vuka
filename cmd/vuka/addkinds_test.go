@@ -113,19 +113,22 @@ func TestAddComponent(t *testing.T) {
 	dir := scaffolded(t, map[string]string{})
 	writeGoMod(t, dir)
 	mustAdd(t, dir, "component", "StatCard")
-	has(t, filepath.Join(dir, "components/stat_card.vuka"), "package components", "type StatCardProps struct", "func StatCard(p StatCardProps) ui.Node")
+	has(t, filepath.Join(dir, "components/stat_card.vuka"), "package components", "type StatCard struct", "Children ui.Node")
+	has(t, filepath.Join(dir, "components/stat_card.vuka.html"), "<section class=", "{Title}", "{Children}")
 	if _, err := runAdd(t, dir, "component", "Card"); err == nil || !strings.Contains(err.Error(), "Card is declared already in components/card.vuka") {
 		t.Errorf("a clash: %v", err)
 	}
 	mustAdd(t, dir, "component", "Avatar", "--module", "users")
-	has(t, filepath.Join(dir, "modules/users/avatar.vuka"), "package users", "func Avatar(p AvatarProps) ui.Node")
+	has(t, filepath.Join(dir, "modules/users/avatar.vuka"), "package users", "type Avatar struct")
+	has(t, filepath.Join(dir, "modules/users/avatar.vuka.html"), "{Children}")
 }
 
 func TestAddPage(t *testing.T) {
 	dir := scaffolded(t, map[string]string{})
 	writeGoMod(t, dir)
 	out := mustAdd(t, dir, "page", "/reports/{id}")
-	has(t, filepath.Join(dir, "pages/reports_page.vuka"), `@web.Get("/reports/{id}")`, "func ShowReports(ctx context.Context, id string) ui.Node", "ID    string", `layouts.Page(p.Title)(`)
+	has(t, filepath.Join(dir, "pages/reports_page.vuka"), `@web.Get("/reports/{id}")`, "func ShowReports(ctx context.Context, id string) ui.Node", "ID    string")
+	has(t, filepath.Join(dir, "pages/reports_page.vuka.html"), `<layouts.Document title={Title}>`, "<h1 class=\"text-2xl font-semibold tracking-tight\">{Title}</h1>")
 	if !strings.Contains(out, "open http://localhost:8080/reports/1") {
 		t.Errorf("output:\n%s", out)
 	}
@@ -134,7 +137,8 @@ func TestAddPage(t *testing.T) {
 	mustAdd(t, dir, "page", "/about", "--stateless")
 	has(t, filepath.Join(dir, "pages/about_page.vuka"), `@web.Get("/about")`)
 	mustAdd(t, dir, "page", "/stats", "--live", "--module", "users")
-	has(t, filepath.Join(dir, "modules/users/stats_page.vuka"), `@web.Live("/stats", web.Layout(layouts.Page("Stats")))`, "type StatsPage struct {\n\tui.Live", "func (p *StatsPage) Inc()")
+	has(t, filepath.Join(dir, "modules/users/stats_page.vuka"), `@web.Live("/stats", web.Layout(layouts.Page("Stats")))`, "type StatsPage struct {\n\tui.Live", "@ui.Mount\nfunc (p *StatsPage) mount(", "func (p *StatsPage) Inc()")
+	has(t, filepath.Join(dir, "modules/users/stats_page.vuka.html"), "onClick={Inc}", "Clicked {count} times")
 	for args, msg := range map[string]string{
 		"reports":               "starts with /",
 		"/Reports":              "isn't a path segment",
@@ -168,8 +172,8 @@ func TestAddIsland(t *testing.T) {
 	out := mustAdd(t, dir, "island", "Chart", "--no-install")
 	has(t, filepath.Join(dir, "web/islands/Chart.vue"), "defineProps<{ title: string; count?: number }>()")
 	has(t, filepath.Join(dir, "web/tsconfig.json"), `"vuka:live": ["./vuka-live"]`)
-	has(t, filepath.Join(dir, "components/chart.vuka"), "package components", `ChartIsland "../web/islands/Chart.vue"`,
-		"func Chart(p ChartProps) ui.Node", "<ChartIsland title={p.Title} count={p.Count} client:load />")
+	has(t, filepath.Join(dir, "components/chart.vuka"), "package components", "type Chart struct")
+	has(t, filepath.Join(dir, "components/chart.vuka.html"), `import ChartIsland "../web/islands/Chart.vue"`, "<ChartIsland title={Title} count={Count} client:load />")
 	if !strings.Contains(out, "<components.Chart Title=\"Hello\" Count={3} />") || !strings.Contains(out, "Place it in components/ as") {
 		t.Errorf("output:\n%s", out)
 	}
@@ -197,7 +201,8 @@ func TestAddIsland(t *testing.T) {
 	mustAdd(t, dir, "module", "notes")
 	mustAdd(t, dir, "island", "Board", "--module", "notes", "--no-install")
 	has(t, filepath.Join(dir, "web/islands/notes/Board.vue"), "defineProps")
-	has(t, filepath.Join(dir, "modules/notes/board.vuka"), "package notes", `BoardIsland "../../web/islands/notes/Board.vue"`)
+	has(t, filepath.Join(dir, "modules/notes/board.vuka"), "package notes", "type Board struct")
+	has(t, filepath.Join(dir, "modules/notes/board.vuka.html"), `import BoardIsland "../../web/islands/notes/Board.vue"`)
 
 	for args, msg := range map[string]string{
 		"Chart":             "Chart is declared already in components/chart.vuka",
@@ -234,7 +239,7 @@ func TestAddIslandPage(t *testing.T) {
 	dir := islandsApp(t)
 	mustAdd(t, dir, "page", "/reports", "--island", "Reports", "--live", "--no-install")
 	has(t, filepath.Join(dir, "pages/reports.vuka"), `@web.Live("/reports")`, "@ui.Island(ui.Layout(layouts.Page(\"Reports\")))\ntype Reports struct", `"example.com/shop/layouts"`,
-		"type Reports struct {\n\tui.Live", "Title string   `json:\"title\"`", "`json:\"q\" url:\"q\" bind:\"q\"`", "func (p *Reports) Changed(ctx context.Context) error")
+		"type Reports struct {\n\tui.Live", "Title string   `json:\"title\"`", "`json:\"q\"` @ui.URL(\"q\") @ui.Bind", "@ui.OnChange\nfunc (p *Reports) changed(ctx context.Context, c ui.Changed) error")
 	has(t, filepath.Join(dir, "web/islands/Reports.vue"), "import { useLive } from 'vuka:live'", "const live = useLive<Reports>()", `<input v-model="live.q.value" placeholder="Search"`)
 	if body := read(t, filepath.Join(dir, "web/islands/Reports.vue")); strings.Contains(body, "defineProps") {
 		t.Errorf("the component reads its props through live:\n%s", body)

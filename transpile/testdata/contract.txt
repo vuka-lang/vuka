@@ -1,15 +1,18 @@
 # The API generated code may call (TestContract, docs/design/library.md).
 #
-# public: documented API a person writes by hand.
+# public: documented API a person writes by hand. Generated code calls
+# nothing else: what it would need and a person couldn't call is a gap in
+# the public API, filled there (library.md, "No hidden runtime").
 # stepN: an internal form generated code still calls, until step N of the
-# Plan in docs/design/library.md gives it a public replacement. Delete an
-# entry when its step lands; one no golden uses fails the test.
+# Plan gives it a public replacement; none is left. An entry no golden uses
+# fails the test.
 
 public github.com/vuka-lang/vuka.And
 public github.com/vuka-lang/vuka.Arg
 public github.com/vuka-lang/vuka.As
 public github.com/vuka-lang/vuka.Bundle
 public github.com/vuka-lang/vuka.Call
+public github.com/vuka-lang/vuka.Caller
 public github.com/vuka-lang/vuka.Compose
 public github.com/vuka-lang/vuka.Decl
 public github.com/vuka-lang/vuka.DeclOf
@@ -20,6 +23,7 @@ public github.com/vuka-lang/vuka.FieldAttrs
 public github.com/vuka-lang/vuka.FieldsOf
 public github.com/vuka-lang/vuka.File
 public github.com/vuka-lang/vuka.FileOf
+public github.com/vuka-lang/vuka.FuncInfo
 public github.com/vuka-lang/vuka.FuncOf
 public github.com/vuka-lang/vuka.Instance
 public github.com/vuka-lang/vuka.Instances
@@ -37,6 +41,7 @@ public github.com/vuka-lang/vuka.Or
 public github.com/vuka-lang/vuka.Order
 public github.com/vuka-lang/vuka.Param
 public github.com/vuka-lang/vuka.Pred
+public github.com/vuka-lang/vuka.RegisterAdapter
 public github.com/vuka-lang/vuka.RegisterFunc
 public github.com/vuka-lang/vuka.RegisterType
 public github.com/vuka-lang/vuka.Result
@@ -46,6 +51,7 @@ public github.com/vuka-lang/vuka.Targets
 public github.com/vuka-lang/vuka.Type
 public github.com/vuka-lang/vuka.TypeAttrs
 public github.com/vuka-lang/vuka.TypeFor
+public github.com/vuka-lang/vuka.Wrap
 
 public github.com/vuka-lang/ui.Assign
 public github.com/vuka-lang/ui.At
@@ -128,28 +134,20 @@ public github.com/vuka-lang/vuka.Static
 public github.com/vuka-lang/vuka.StaticOf
 public github.com/vuka-lang/vuka.Statics
 
+# A field reference on a struct with no generated typed fields
+# (Stats.Author of a plain struct) is the field by address, a kind of
+# reference per field type. Call decorators are vuka.Wrap, reflective; the
+# package's vuka_calls_gen.go registers a typed adapter per signature, a
+# speed-up the main file doesn't depend on.
+public github.com/vuka-lang/vuka.CompareRefTo
+public github.com/vuka-lang/vuka.NullableRefTo
+public github.com/vuka-lang/vuka.OrderedRefTo
+public github.com/vuka-lang/vuka.RefTo
+public github.com/vuka-lang/vuka.StringRefTo
+
 public github.com/vuka-lang/ui/live.ClientMessage
 public github.com/vuka-lang/ui/live.Join
 public github.com/vuka-lang/ui/live.Marshal
 public github.com/vuka-lang/ui/live.NewSession
 public github.com/vuka-lang/ui/live.Patch
 public github.com/vuka-lang/ui/live/livetest.Join
-
-# Step 3 replaced field attribute registrations, field references and
-# statics for types with a schema (orm.Base, ui.Live): their Schema and
-# LiveSchema methods, <Model>Fields, plain Go names. A field reference on a
-# struct with no generated typed fields still lowers to an index path;
-# its public form (a field named by address) is a follow-up.
-step3 github.com/vuka-lang/vuka.CompareRefOf
-step3 github.com/vuka-lang/vuka.NullableRefOf
-step3 github.com/vuka-lang/vuka.OrderedRefOf
-step3 github.com/vuka-lang/vuka.RefOf
-step3 github.com/vuka-lang/vuka.StringRefOf
-
-# Step 4: call decorators (func(*vuka.Call)) run through an adapter
-# written for each function's signature, NewCall packing the call into a
-# vuka.Call described by a vuka.Func. Its public form is a reflective
-# wrapper beside the other fallbacks of step 4, the typed adapter becoming
-# an optional speed-up.
-step4 github.com/vuka-lang/vuka.Func
-step4 github.com/vuka-lang/vuka.NewCall

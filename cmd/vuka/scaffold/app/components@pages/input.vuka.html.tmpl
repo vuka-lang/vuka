@@ -1,0 +1,16 @@
+// Input is a text field.
+func Input(p InputProps)
+<input {p.attrs()...} />
+
+// Field is a labelled form control: its label, the control (children), and
+// a hint or an error under it.
+func Field(label string, name string, hint string, error string, children ui.Node)
+<div class="space-y-1.5">
+  <label for={name} class="block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</label>
+  {children}
+  if error != "" {
+    <p class="text-sm text-red-600 dark:text-red-400" id={name + "-error"}>{error}</p>
+  } else if hint != "" {
+    <p class="text-xs text-slate-500 dark:text-slate-400">{hint}</p>
+  }
+</div>

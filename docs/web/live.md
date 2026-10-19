@@ -354,16 +354,10 @@ func NewChat(log *ChatLog) *Chat { return &Chat{Log: log} }
 
 func (c *Chat) Mount() { c.Subscribe("chat:" + c.Room) }
 
-// Update takes every message; one Update per message type is the .vuka
-// form of the same.
-func (c *Chat) Update(msg any) {
-	switch m := msg.(type) {
-	case Said:
-		c.lines = append(c.lines, m.Who+": "+m.Text)
-	case Joined:
-		c.lines = append(c.lines, m.Who+" joined")
-	}
-}
+// An Update per message type, named after it: the session calls the one
+// taking the message's type.
+func (c *Chat) UpdateSaid(m Said)     { c.lines = append(c.lines, m.Who+": "+m.Text) }
+func (c *Chat) UpdateJoined(j Joined) { c.lines = append(c.lines, j.Who+" joined") }
 
 func (c *Chat) Send(ctx context.Context, f ChatForm) error {
 	return web.Broadcast(ctx, "chat:"+c.Room, Said{c.name, f.Text})

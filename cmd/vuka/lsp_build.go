@@ -364,7 +364,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	want := map[string]*vfile{}
 	for _, g := range gens {
 		tm, _ := g.TemplMap.(*templparser.SourceMap)
-		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files}
+		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names}
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])
 		}
@@ -438,7 +438,9 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	p.virtual = virtual
 	p.bySource = map[string]string{}
 	for path, vf := range virtual {
-		p.bySource[vf.source] = path
+		if vf.source != "" {
+			p.bySource[vf.source] = path
+		}
 	}
 	touched := map[string]bool{}
 	for path := range p.vukaDiags {
@@ -630,7 +632,7 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 			if strings.Contains(msg, placeholder) {
 				continue
 			}
-			obj["message"] = importHint(demangle(vf.m.Message(int(r.Start.Line)+1, msg)), p.modRoot, p.modPath)
+			obj["message"] = importHint(demangle(vf.m.Message(int(r.Start.Line)+1, msg), vf.names), p.modRoot, p.modPath)
 		}
 		delete(obj, "relatedInformation")
 		delete(obj, "data")

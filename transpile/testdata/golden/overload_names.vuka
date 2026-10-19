@@ -1,0 +1,35 @@
+package main
+
+import (
+	"context"
+	"fmt"
+)
+
+type Order struct{ ID int }
+type Entry struct{ N int }
+
+// Overloads are named after their parameters' types, as Go would name
+// them; a name the package has already, or two overloads would share,
+// gets a number.
+func total(o Order) int        { return o.ID }
+func total(o *Order) int       { return -o.ID }
+func total(os []Order) int     { return len(os) }
+func total(es ...Entry) int    { return len(es) * 10 }
+func total(m map[string]int) int { return len(m) * 100 }
+func total(a, b Order) int     { return a.ID + b.ID }
+
+func totalOrders() string { return "declared by hand" }
+
+type Feed struct{ log []string }
+
+func (f *Feed) Push(ctx context.Context, o Order) { f.log = append(f.log, fmt.Sprint("order ", o.ID)) }
+func (f *Feed) Push(e Entry)                      { f.log = append(f.log, fmt.Sprint("entry ", e.N)) }
+
+func main() {
+	o := Order{ID: 3}
+	fmt.Println(total(o), total(&o), total([]Order{o, o}), total(Entry{}, Entry{}), total(map[string]int{"a": 1}), total(o, o), totalOrders())
+	var f Feed
+	f.Push(context.Background(), o)
+	f.Push(Entry{N: 2})
+	fmt.Println(f.log)
+}

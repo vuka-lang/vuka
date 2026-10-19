@@ -94,12 +94,12 @@ const PostTwice = PostMax * 2
 var PostDouble = PostLimit * 2
 
 //line static_init.vuka:54
-var PostByViews = vuka.OrderedRefOf[Post, int]([][]int{{2}}, func(x *Post) { _ = x.Views }).Desc()
+var PostByViews = vuka.OrderedRefTo(func(x *Post) *int { return &x.Views }).Desc()
 
 //line static_init.vuka:55
-var PostPopular = ModelObjects[Post]().V.Filter(vuka.OrderedRefOf[Post, int]([][]int{{2}}, func(x *Post) { _ = x.Views }).Gt(PostLimit)).OrderBy(PostByViews)
+var PostPopular = ModelObjects[Post]().V.Filter(vuka.OrderedRefTo(func(x *Post) *int { return &x.Views }).Gt(PostLimit)).OrderBy(PostByViews)
 
 //line static_init.vuka:56
-var PostNamed = vuka.StringRefOf[Post, string]([][]int{{1}}, func(x *Post) { _ = x.Title }).Eq(postLabel("go"))
+var PostNamed = vuka.StringRefTo(func(x *Post) *string { return &x.Title }).Eq(postLabel("go"))
 
 var PostEverything = ModelAll[Post]().V

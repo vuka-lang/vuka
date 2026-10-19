@@ -63,14 +63,14 @@ func Pair[K comparable, V any](name K, value V, children ui.Node) ui.Node {
 }
 
 // Overloaded components: the attributes' types choose.
-func Price__int(amount int) ui.Node { return ui.HTML(`<b>{amount} cents</b>`, amount) }
-func Price__float64(amount float64) ui.Node {
+func PriceInt(amount int) ui.Node { return ui.HTML(`<b>{amount} cents</b>`, amount) }
+func PriceFloat64(amount float64) ui.Node {
 //line jsx_generic.vuka:45
 	return ui.HTML(`<b>{strconv.FormatFloat(amount, 'f', 2, 64)}</b>`, strconv.FormatFloat(amount, 'f', 2, 64))
 }
 
 //line jsx_generic.vuka:46
-func Price__string_string(amount string, currency string) ui.Node {
+func PriceStringString(amount string, currency string) ui.Node {
 	return ui.HTML(`<b>{amount} {currency}</b>`, amount, currency)
 }
 
@@ -80,9 +80,6 @@ func page(users []User) ui.Node {
 	list2 := func(a1 func(int) ui.Node, a2 []int) ui.Node { return List(a2, a1) }(func(n int) ui.Node { return ui.HTML(`<li>{n}</li>`, n) }, []int{1, 2})
 //line jsx_generic.vuka:58
 	pair := Pair("a", 1.5, ui.HTML(`and more`))
-	price := Price__int(150)
-	price2 := Price__float64(1.5)
-	price3 := Price__string_string("7", "EUR")
 //line jsx_generic.vuka:51
 	return ui.HTML(`
 {list}
@@ -92,9 +89,9 @@ func page(users []User) ui.Node {
 {Select("pick", []int{1, 2}, 2)}
 {Table[User](TableProps[User]{Rows: users, Cell: func(u User) string { return strconv.Itoa(u.ID) }, })}
 {pair}
-{price}
-{price2}
-{price3}`,
+{PriceInt(150)}
+{PriceFloat64(1.5)}
+{PriceStringString("7", "EUR")}`,
 		list,
 		list2,
 		List[string](nil, nil),
@@ -102,9 +99,9 @@ func page(users []User) ui.Node {
 		Select("pick", []int{1, 2}, 2),
 		Table[User](TableProps[User]{Rows: users, Cell: func(u User) string { return strconv.Itoa(u.ID) }}),
 		pair,
-		price,
-		price2,
-		price3,
+		PriceInt(150),
+		PriceFloat64(1.5),
+		PriceStringString("7", "EUR"),
 	)
 }
 

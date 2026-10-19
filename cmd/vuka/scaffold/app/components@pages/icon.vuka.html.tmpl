@@ -1,0 +1,8 @@
+import "cmp"
+
+// Icon is one of the app's icons by name ("home", "users", "logout", …);
+// a box for a name it doesn't know.
+func Icon(name string, class string)
+<svg class={cmp.Or(class, "size-5")} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+  <path d={iconPath(name)} />
+</svg>

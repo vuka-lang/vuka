@@ -8,40 +8,32 @@ import (
 
 	"github.com/vuka-lang/ui"
 	"github.com/vuka-lang/web"
-{%- if .Layouts%}
+{%- if and .Live .Layouts%}
 
 	"{%.Module%}/layouts"
 {%- end%}
 )
 {%- if .Live%}
 
-// {%.Type%} is the page at {%.Path%}. It is live: its events change it in
-// place, over the page's connection.
+// {%.Type%} is the page at {%.Path%}, its markup in {%.File%}.vuka.html. It is
+// live: its events change it in place, over the page's connection.
 @web.Live("{%.Path%}"{%if .Layouts%}, web.Layout(layouts.Page("{%.Title%}")){%end%})
 type {%.Type%} struct {
 	ui.Live
 	count int
 }
 
-func (p *{%.Type%}) Mount(ctx context.Context) error {
+@ui.Mount
+func (p *{%.Type%}) mount(ctx context.Context) error {
 	p.count = 0
 	return nil
 }
 
 // Inc is an event: the button's onClick sends it.
 func (p *{%.Type%}) Inc() { p.count++ }
-
-func (p *{%.Type%}) Render() ui.Node {
-	return <main class="mx-auto max-w-2xl px-4 py-16">
-		<h1 class="text-2xl font-semibold tracking-tight">{%.Title%}</h1>
-		<button type="button" class="mt-6 rounded-lg px-3 py-2 ring-1 ring-slate-300" onClick={p.Inc}>
-			Clicked {p.count} times
-		</button>
-	</main>
-}
 {%- else%}
 
-// {%.Type%} is what the page at {%.Path%} shows.
+// {%.Type%} is what the page at {%.Path%} shows, its markup in {%.File%}.vuka.html.
 type {%.Type%} struct {
 	Title string
 {%- range .Params%}
@@ -52,26 +44,6 @@ type {%.Type%} struct {
 // {%.Handler%} is GET {%.Path%}.
 @web.Get("{%.Path%}")
 func {%.Handler%}(ctx context.Context{%range .Params%}, {%.Name%} string{%end%}) ui.Node {
-	p := {%.Type%}{Title: "{%.Title%}"{%range .Params%}, {%.Field%}: strings.TrimSpace({%.Name%}){%end%}}
-	return p.Render()
-}
-
-func (p {%.Type%}) Render() ui.Node {
-{%- if .Layouts%}
-	return layouts.Page(p.Title)(<main class="mx-auto max-w-2xl px-4 py-16">
-		<h1 class="text-2xl font-semibold tracking-tight">{p.Title}</h1>
-		<p class="mt-2 text-sm text-slate-600">Write the page here.</p>
-	</main>)
-{%- else%}
-	return <html lang="en">
-		<head><title>{p.Title}</title></head>
-		<body>
-			<main>
-				<h1>{p.Title}</h1>
-				<p>Write the page here.</p>
-			</main>
-		</body>
-	</html>
-{%- end%}
+	return {%.Type%}{Title: "{%.Title%}"{%range .Params%}, {%.Field%}: strings.TrimSpace({%.Name%}){%end%}}
 }
 {%- end%}

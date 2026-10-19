@@ -261,10 +261,10 @@ func (e *engine) refChain(sel *ast.SelectorExpr) (base ast.Expr, first *ast.Sele
 // resolveFieldRefs lowers every field reference: Post.Title, where Post is a
 // struct type, becomes a typed reference to the field, a vuka.StringRef[Post,
 // string]; Post.Author.Name goes on into the struct (or Related target) of
-// Author's type. The generated call carries a function, never called, that
-// selects the same fields, so the compiler and gopls see them:
+// Author's type. The generated call is the field by address, so the
+// compiler and gopls see the fields:
 //
-//	vuka.StringRefOf[Post, string]([][]int{{2}, {1}}, func(__x *Post) { _ = __x.Author.Related().Name })
+//	vuka.StringRefTo(func(__x *Post) *string { return &__x.Author.Related().Name })
 //
 // A name that is no field is reported once no round makes progress: a static
 // New, say, only exists once its decorator's form is known.
@@ -356,23 +356,15 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			return false
 		}
 		rels = rels[:len(steps)-1]
-		var idx []string
-		for _, s := range steps {
-			var parts []string
-			for _, k := range s {
-				parts = append(parts, itoa(k))
-			}
-			idx = append(idx, "{"+strings.Join(parts, ", ")+"}")
-		}
-		rt, baseText, vt := f.runtime(), f.nodeText(base), e.typeTextAuto(f, fieldT)
-		f.insert(f.orig(base.Pos()), rt+"."+refKind(fieldT)+"Of[", 0)
+		rt, vt := f.runtime(), e.typeTextAuto(f, fieldT)
+		f.insert(f.orig(base.Pos()), rt+"."+refKind(fieldT)+"To(func(__x *", 0)
 		end := f.orig(base.End())
 		dot := end + strings.IndexByte(string(f.src[end:at]), '.')
-		f.add(dot, dot+1, ", "+vt+"]([][]int{"+strings.Join(idx, ", ")+"}, func(__x *"+baseText+") { _ = __x.")
+		f.add(dot, dot+1, ") *"+vt+" { return &__x.")
 		// go/types and the compiler abbreviate the function literal differently.
 		b, ref := types.ExprString(base), e.refName(base, names[:len(steps)])
-		for _, fn := range []string{"func(__x *" + b + ") {…}", "(func(__x *" + b + ") literal)"} {
-			f.spell(rt+"."+refKind(fieldT)+"Of["+b+", "+vt+"]([][]int{…}, "+fn+")", ref, f.orig(base.Pos()))
+		for _, fn := range []string{"func(__x *" + b + ") *" + vt + " {…}", "(func(__x *" + b + ") *" + vt + " literal)"} {
+			f.spell(rt+"."+refKind(fieldT)+"To("+fn+")", ref, f.orig(base.Pos()))
 		}
 		for i, rel := range rels {
 			if rel {

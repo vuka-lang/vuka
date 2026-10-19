@@ -118,6 +118,21 @@ func (a *adder) create(rel string, src []byte) error {
 	return nil
 }
 
+// pair creates base.vuka and base.vuka.html from the add templates
+// name.vuka and name.vuka.html: a component and its markup.
+func (a *adder) pair(base, name string, data any) error {
+	for _, ext := range []string{".vuka", ".vuka.html"} {
+		src, err := render(name+ext, data)
+		if err != nil {
+			return err
+		}
+		if err := a.create(base+ext, src); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // change replaces an existing file's content.
 func (a *adder) change(rel string, src []byte) {
 	if _, ok := a.changed[rel]; !ok {
@@ -249,7 +264,7 @@ func declared(dir, name string) string {
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_vuka.go") {
+		if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".vuka.html") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_vuka.go") {
 			continue
 		}
 		src, err := os.ReadFile(filepath.Join(dir, n))
@@ -398,7 +413,7 @@ func addService(root, mod string, f *addFlags, w io.Writer) error {
 // ---- component ----
 
 type componentSpec struct {
-	Pkg, Name string
+	Pkg, Name, Snake string
 }
 
 func addComponent(root, mod string, f *addFlags, w io.Writer) error {
@@ -419,11 +434,7 @@ func addComponent(root, mod string, f *addFlags, w io.Writer) error {
 			return fmt.Errorf("vuka add component: %s is declared already in %s/%s", n, t.dir, at)
 		}
 	}
-	src, err := render("component.vuka", componentSpec{Pkg: t.pkg, Name: name})
-	if err != nil {
-		return err
-	}
-	if err := a.create(t.dir+"/"+snake(name)+".vuka", src); err != nil {
+	if err := a.pair(t.dir+"/"+snake(name), "component", componentSpec{Pkg: t.pkg, Name: name, Snake: snake(name)}); err != nil {
 		return err
 	}
 	if err := a.commit(w); err != nil {
@@ -733,11 +744,7 @@ func addIsland(root, mod string, f *addFlags, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	src, err := render("island_host.vuka", islandHostSpec{Pkg: t.pkg, Name: name, Import: relImport(t.dir, file), File: file})
-	if err != nil {
-		return err
-	}
-	if err := a.create(t.dir+"/"+snake(name)+".vuka", src); err != nil {
+	if err := a.pair(t.dir+"/"+snake(name), "island_host", islandHostSpec{Pkg: t.pkg, Name: name, Snake: snake(name), Import: relImport(t.dir, file), File: file}); err != nil {
 		return err
 	}
 	if err := a.commit(w); err != nil {
@@ -767,13 +774,14 @@ func inferredAt(root, fr, dir, name, comp string) bool {
 }
 
 type islandHostSpec struct {
-	Pkg, Name, Import, File string
+	Pkg, Name, Snake, Import, File string
 }
 
 // ---- page ----
 
 type pageSpec struct {
 	Module, Pkg, Type, Path, Title string
+	File                           string // the page's files' base name
 	Handler                        string
 	Params                         []pageParam
 	Live, Layouts, Auth            bool
@@ -865,6 +873,7 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if spec.Title == "" {
 		spec.Title = typ
 	}
+	spec.File = snake(typ)
 	file := t.dir + "/" + snake(typ) + ".vuka"
 	var tmpl string
 	if island := f.values["island"]; island != "" {
@@ -922,13 +931,17 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 		if f.values["layout"] != "" {
 			return errors.New("vuka add page: --layout goes with --island Name")
 		}
-		tmpl = "page.vuka"
+		tmpl = "page"
 	}
-	src, err := render(tmpl, spec)
+	if tmpl == "page" {
+		err = a.pair(strings.TrimSuffix(file, ".vuka"), tmpl, spec)
+	} else {
+		var src []byte
+		if src, err = render(tmpl, spec); err == nil {
+			err = a.create(file, src)
+		}
+	}
 	if err != nil {
-		return err
-	}
-	if err := a.create(file, src); err != nil {
 		return err
 	}
 	if err := a.register(t.dir); err != nil {

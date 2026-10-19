@@ -1,0 +1,8 @@
+// Logo is the app's mark and name.
+func Logo(name string, class string)
+<span class={cx("inline-flex items-center gap-2.5 font-semibold tracking-tight text-slate-900 dark:text-white", class)}>
+  <img src="/static/logo.svg" alt="" width="32" height="32" class="size-8 rounded-lg shadow-sm" />
+  if name != "" {
+    <span>{name}</span>
+  }
+</span>

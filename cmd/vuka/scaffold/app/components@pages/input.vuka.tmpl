@@ -17,8 +17,8 @@ type InputProps struct {
 	Attrs        []ui.Attr
 }
 
-// Input is a text field.
-func Input(p InputProps) ui.Node {
+// attrs are the input element's attributes.
+func (p InputProps) attrs() []ui.Attr {
 	typ := p.Type
 	if typ == "" {
 		typ = "text"
@@ -36,19 +36,5 @@ func Input(p InputProps) ui.Node {
 	attrs := []ui.Attr{{Name: "id", Value: id}, {Name: "name", Value: p.Name}, {Name: "type", Value: typ}, {Name: "class", Value: class},
 		{Name: "value", Value: p.Value}, {Name: "placeholder", Value: p.Placeholder}, {Name: "autocomplete", Value: p.Autocomplete},
 		{Name: "required", Value: p.Required}, {Name: "autofocus", Value: p.Autofocus}, {Name: "aria-invalid", Value: p.Invalid}}
-	return ui.El("input", append(attrs, p.Attrs...))
-}
-
-// Field is a labelled form control: its label, the control (children), and
-// a hint or an error under it.
-func Field(label string, name string, hint string, error string, children ui.Node) ui.Node {
-	return <div class="space-y-1.5">
-		<label for={name} class="block text-sm font-medium text-slate-700 dark:text-slate-200">{label}</label>
-		{children}
-		{if error != "" {
-			<p class="text-sm text-red-600 dark:text-red-400" id={name + "-error"}>{error}</p>
-		} else if hint != "" {
-			<p class="text-xs text-slate-500 dark:text-slate-400">{hint}</p>
-		}}
-	</div>
+	return append(attrs, p.Attrs...)
 }

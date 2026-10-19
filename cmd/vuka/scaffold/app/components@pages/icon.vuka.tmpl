@@ -1,7 +1,5 @@
 package components
 
-import "github.com/vuka-lang/ui"
-
 // icons are 24×24 stroked paths, drawn in currentColor.
 var icons = map[string]string{
 	"home":     "M3 10.5 12 3l9 7.5M5 9v11h5v-6h4v6h5V9",
@@ -18,17 +16,10 @@ var icons = map[string]string{
 	"book":     "M4 19.5A2.5 2.5 0 0 1 6.5 17H20V3H6.5A2.5 2.5 0 0 0 4 5.5v14Zm0 0A2.5 2.5 0 0 0 6.5 22H20v-5",
 }
 
-// Icon is one of the app's icons by name ("home", "users", "logout", …);
-// a box for a name it doesn't know.
-func Icon(name string, class string) ui.Node {
-	d, ok := icons[name]
-	if !ok {
-		d = icons["box"]
+// iconPath is the icon's path, a box for a name it doesn't know.
+func iconPath(name string) string {
+	if d, ok := icons[name]; ok {
+		return d
 	}
-	if class == "" {
-		class = "size-5"
-	}
-	return <svg class={class} viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
-		<path d={d} />
-	</svg>
+	return icons["box"]
 }

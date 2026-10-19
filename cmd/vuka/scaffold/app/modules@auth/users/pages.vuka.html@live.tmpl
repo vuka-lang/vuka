@@ -1,0 +1,80 @@
+import "strconv"
+import "{%.Module%}/components"
+import "{%.Module%}/layouts"
+
+func (p *UsersPage) Render()
+<layouts.App me={p.me} path="/users" title="Users" description="Everyone who can sign in." actions={p.addButton()}>
+  <components.Flash tone="success" message={p.notice} class="mb-6" />
+  if p.me.Can("users.write") {
+    <div id="add-panel" hidden class="mb-6">
+      <components.Card title="Add a user" description="They sign in with this email and password.">
+        <form onSubmit={p.Add} class="grid gap-4 sm:grid-cols-2" id="add-user">
+          <components.Field label="Name" name="name" error={p.problem["name"]}>
+            <components.Input name="name" autocomplete="off" invalid={p.problem["name"] != ""} />
+          </components.Field>
+          <components.Field label="Email" name="email" error={p.problem["email"]}>
+            <components.Input name="email" type="email" autocomplete="off" invalid={p.problem["email"] != ""} />
+          </components.Field>
+          <components.Field label="Password" name="password" hint="12 characters or more." error={p.problem["password"]}>
+            <components.Input name="password" type="password" autocomplete="new-password" invalid={p.problem["password"] != ""} />
+          </components.Field>
+          <components.Field label="Role" name="role">
+            <select id="role" name="role" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600 dark:bg-white/5 dark:text-white dark:ring-white/15">
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </components.Field>
+          <div class="flex justify-end gap-3 sm:col-span-2">
+            <components.Button type="button" variant="secondary" onClick={ui.JS.Hide("#add-panel")}>Cancel</components.Button>
+            <components.Button>Add user</components.Button>
+          </div>
+        </form>
+      </components.Card>
+    </div>
+  }
+  <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+    <table class="min-w-full divide-y divide-slate-900/5 text-sm dark:divide-white/10">
+      <thead class="bg-slate-50 text-left text-xs font-medium tracking-wide text-slate-500 uppercase dark:bg-white/5 dark:text-slate-400">
+        <tr>
+          <th scope="col" class="px-5 py-3">Name</th>
+          <th scope="col" class="px-5 py-3">Role</th>
+          <th scope="col" class="hidden px-5 py-3 sm:table-cell">Joined</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-900/5 dark:divide-white/5" id="users">
+        for _, u := range p.list {
+          <tr key={u.ID} id={"user-" + strconv.FormatInt(u.ID, 10)}>
+            <td class="px-5 py-3.5">
+              <p class="font-medium text-slate-900 dark:text-white">{u.Name}</p>
+              <p class="text-slate-500 dark:text-slate-400">{u.Email}</p>
+            </td>
+            <td class="px-5 py-3.5"><RoleBadge role={u.Role} /></td>
+            <td class="hidden px-5 py-3.5 text-slate-500 sm:table-cell dark:text-slate-400">{u.CreatedAt.Format("2 Jan 2006")}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</layouts.App>
+
+// addButton opens the add form, for those who may add users.
+func (p *UsersPage) addButton()
+if p.me.Can("users.write") {
+  <components.Button type="button" onClick={ui.JS.Toggle("#add-panel").FocusFirst("#add-panel")}>
+    <components.Icon name="plus" class="size-4" />
+    Add user
+  </components.Button>
+}
+
+// RoleBadge is a user's role, as a badge.
+func RoleBadge(role string)
+<span class={"inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset " + roleClass(role)}>{role}</span>
+{%- if .Mail%}
+
+// Welcome is the email a new user gets.
+func Welcome(name string, email string)
+<div style={ui.Style{"font-family": "system-ui, sans-serif", "line-height": "1.5"}}>
+  <p>Hi {name},</p>
+  <p>An account on {layouts.AppName()} is ready for you. Sign in with {email} and the password you were given.</p>
+</div>
+{%- end%}
