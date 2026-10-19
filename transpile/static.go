@@ -118,6 +118,9 @@ func (f *fileState) staticAt(toks []tok, i int, typeName, tparams string, names 
 			d--
 		}
 	}
+	if end == len(toks) {
+		return nil, i, "static " + s.name + " isn't closed: its struct ends with the file"
+	}
 	assign := -1
 	d = 0
 	for k := j; k < end; k++ {
