@@ -41,7 +41,8 @@ func (s Sales) Total() int {
 </section>
 ```
 
-The markup before the file's first `func` line is the component's `View`,
+The markup before the file's first `func` line is the component's `View`
+(it may start with a statement, `n := len(Week)`),
 and the compiler adds the method that makes the struct a `ui.Node`,
 `Render(ctx context.Context, w io.Writer) error`, rendering it; renderers
 and the live tree read the `View`, so the struct renders and diffs as its
@@ -161,7 +162,9 @@ typed value. HTML elements keep HTML's names: `class`, `for`, `data-*`,
 `aria-*`.
 
 Content between the tags fills `Children ui.Node`; `<slot:actions>…</slot:actions>`
-fills the `Actions ui.Node` field:
+fills the `Actions ui.Node` field (of a function component's props struct
+too, or its `actions ui.Node` parameter). A slot is written directly inside
+its component's tag; anywhere else it is an error:
 
 ```go
 // admin.go

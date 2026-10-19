@@ -1,0 +1,10 @@
+n := len(Items)
+<main>
+  <Panel title="Items">
+    <slot:header><b>{n} items</b></slot:header>
+    for _, it := range Items {
+      <p>{it}</p>
+    }
+  </Panel>
+  <Frame title="F"><slot:header><i>h</i></slot:header>body</Frame>
+</main>

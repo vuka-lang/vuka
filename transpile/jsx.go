@@ -385,6 +385,9 @@ func (p *jsxParser) children(i int, el *jsxElem, open int, inMatch bool) ([]jsxN
 				p.fail(i, "expected a tag name after <")
 			}
 			n := p.element(i)
+			if strings.HasPrefix(n.tag, "slot:") && (el == nil || el.comp == nil) {
+				p.fail(i, "<%s> is a component's slot: write it directly inside the component's tag", n.tag)
+			}
 			kids = append(kids, n)
 			i = n.end
 		case c == '{' && p.f.html != nil && p.at(i+1) == '{':

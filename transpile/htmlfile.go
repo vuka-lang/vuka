@@ -297,7 +297,11 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if live {
 			method = "Render"
 		}
-		add(off[first], "func ("+recv+" "+star+typ+") "+method+"() "+ui+"Node { return <>")
+		open := "func (" + recv + " " + star + typ + ") " + method + "() " + ui + "Node { return <>"
+		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
+			open += "\n" // a statement starts its line
+		}
+		add(off[first], open)
 		for _, a := range assets {
 			if a.Decl == typ && a.Script {
 				// A component script reads its props from its root.
