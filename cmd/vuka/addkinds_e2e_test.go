@@ -44,6 +44,9 @@ import (
 @web.Get("/cards")
 func Cards() ui.Node { return <components.StatCard Title="Posts"><p>3</p></components.StatCard> }
 `), 0o644)
+	if out := e.run(dir, off, "vuka", "vet", "./..."); strings.Contains(out, "warning[W030") {
+		t.Errorf("what vuka add writes uses deprecated forms:\n%s", out)
+	}
 	e.run(dir, off, "vuka", "test", "./...")
 	bin := filepath.Join(dir, "blog")
 	e.run(dir, off, "vuka", "build", "-o", bin, ".")

@@ -377,7 +377,7 @@ func blankComments(src string) string {
 // declares in its package's .vuka and .go files that a script may push:
 // not Render, View, Mount or an Update. Nil when it declares none.
 func componentMethods(c *assetComp) []string {
-	re := regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*` + regexp.QuoteMeta(c.name) + `(?:\[[^\]]*\])?\s*\)\s*([A-Z]\w*)\s*[\[(]`)
+	re := regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*` + regexp.QuoteMeta(c.name) + `(?:\[[^\]]*\])?\s*\)\s*([A-Z]\w*)\s*(?:\[[^\]]*\])?\(([^)]*)\)`)
 	var out []string
 	entries, _ := os.ReadDir(c.dir)
 	for _, e := range entries {
@@ -387,7 +387,7 @@ func componentMethods(c *assetComp) []string {
 		}
 		src, _ := os.ReadFile(filepath.Join(c.dir, n))
 		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
-			if name := m[1]; name != "Render" && name != "View" && name != "Mount" && name != "Update" && !strings.HasPrefix(name, "Update__") && !slices.Contains(out, name) {
+			if name := m[1]; name != "Render" && name != "View" && name != "Mount" && name != "Update" && !isUpdateMethod(name, m[2]) && !slices.Contains(out, name) {
 				out = append(out, name)
 			}
 		}

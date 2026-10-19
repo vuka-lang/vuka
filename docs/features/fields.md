@@ -128,12 +128,14 @@ of the last field, and `Value(root)`.
 ### What it becomes
 
 ```go
-vuka.StringRefOf[Post, string]([][]int{{3}, {1}}, func(__x *Post) { _ = __x.Author.Related().Name })
+vuka.StringRefTo(func(p *Post) *string { return &p.Author.Related().Name })
 ```
 
-The index path of each field, and a function that is never called but selects
-the same fields — so the compiler checks them and the editor's hover, go to
-definition and rename land on the struct's fields. An unknown field is an error
+The field by address, the call plain Go writes: the compiler checks the
+fields and the editor's hover, go to definition and rename land on them.
+`RefTo` runs the function once per instantiation, on a value of `Post` made
+for it, and finds the field the address is of; `OrderedRefTo`,
+`StringRefTo`, `CompareRefTo` and `NullableRefTo` are the other kinds. An unknown field is an error
 with a suggestion (`Post has no field Titel; did you mean Title?`), as is an
 unexported field of another package's type, or a name more than one embedded
 struct supplies.

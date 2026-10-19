@@ -115,7 +115,7 @@ manager (`orm.Objects[Post]()` in Go). It gives the rows their methods:
 | | |
 |---|---|
 | `p.Save(ctx)` | inserts a new row (its key filled in), updates a saved one |
-| `p.SaveFields(ctx, Post.Title, …)` | updates only those columns |
+| `p.SaveFields(ctx, Post.Title, …)` | updates only those columns (in Go `PostFields.Title`, or names: `"title"`) |
 | `p.Refresh(ctx)` | reads the row again |
 | `p.Delete(ctx)` | deletes it |
 | `p.Load(ctx, Post.Tags, …)` | reads relations into the row |

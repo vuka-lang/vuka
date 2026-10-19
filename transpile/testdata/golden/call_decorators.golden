@@ -153,125 +153,60 @@ func init() {
 
 var addDec vuka.Decorated[func(int, int) int]
 
-var addDecInfo = vuka.Func{Name: "main.add", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{}}
-
 //line call_decorators.vuka:64
 func add(a int, b int) int {
 	return addDec.Get(func() func(int, int) int {
-		return func(next func(int, int) int) func(int, int) int {
 //line call_decorators.vuka:63
-			chain := []vuka.Decorator{logged}
-			return func(p0 int, p1 int) int {
-				c := vuka.NewCall(&addDecInfo, chain, nil, []any{p0, p1}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[int](c.Args[0]), vuka.As[int](c.Args[1]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[int](c.Results[0])
-			}
-		}(addImpl)
+		return vuka.Wrap(addImpl, vuka.FuncInfo{Name: "main.add"}, logged)
 	})(a, b)
 }
 
 var flakyDec vuka.Decorated[func() (string, error)]
 
-var flakyDecInfo = vuka.Func{Name: "main.flaky", ErrIndex: 1, CtxIndex: -1, Zero: func() []any { return []any{*new(string), *new(error)} }, Attrs: []any{}}
-
-//line call_decorators.vuka:69
 func flaky() (string, error) {
 	return flakyDec.Get(func() func() (string, error) {
-		return func(next func() (string, error)) func() (string, error) {
 //line call_decorators.vuka:68
-			chain := []vuka.Decorator{retry(3)}
-			return func() (string, error) {
-				c := vuka.NewCall(&flakyDecInfo, chain, nil, []any{}, func(c *vuka.Call) []any { r0, r1 := next(); return []any{r0, r1} })
-				c.Run()
-				return vuka.As[string](c.Results[0]), vuka.As[error](c.Results[1])
-			}
-		}(flakyImpl)
+		return vuka.Wrap(flakyImpl, vuka.FuncInfo{Name: "main.flaky"}, retry(3))
 	})()
 }
 
 var slowDec vuka.Decorated[func(int) int]
 
-var slowDecInfo = vuka.Func{Name: "main.slow", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{}}
-
 //line call_decorators.vuka:79
 func slow(n int) int {
 	return slowDec.Get(func() func(int) int {
-		return func(next func(int) int) func(int) int {
-//line call_decorators.vuka:77
-			chain := []vuka.Decorator{memo()}
-			return func(p0 int) int {
-				c := vuka.NewCall(&slowDecInfo, chain, nil, []any{p0}, func(c *vuka.Call) []any { r0 := next(vuka.As[int](c.Args[0])); return []any{r0} })
-				c.Run()
-				return vuka.As[int](c.Results[0])
-			}
-		}(double(slowImpl))
+//line call_decorators.vuka:78
+		return vuka.Wrap(double(slowImpl), vuka.FuncInfo{Name: "main.slow"}, memo())
 	})(n)
 }
 
 var saveDec vuka.Decorated[func(context.Context, int) error]
 
-//line call_decorators.vuka:84
-var saveDecInfo = vuka.Func{Name: "main.save", ErrIndex: 0, CtxIndex: 0, Zero: func() []any { return []any{*new(error)} }, Attrs: []any{Perm("orders.write"), Route{Path: "/orders"}}}
-
 //line call_decorators.vuka:87
 func save(ctx context.Context, id int) error {
 	return saveDec.Get(func() func(context.Context, int) error {
-		return func(next func(context.Context, int) error) func(context.Context, int) error {
-//line call_decorators.vuka:86
-			chain := []vuka.Decorator{guard}
-			return func(p0 context.Context, p1 int) error {
-				c := vuka.NewCall(&saveDecInfo, chain, nil, []any{p0, p1}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[context.Context](c.Args[0]), vuka.As[int](c.Args[1]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[error](c.Results[0])
-			}
-		}(saveImpl)
+//line call_decorators.vuka:84
+		return vuka.Wrap(saveImpl, vuka.FuncInfo{Name: "main.save", Attrs: []any{Perm("orders.write"), Route{Path: "/orders"}}}, guard)
 	})(ctx, id)
 }
 
 var greeterGreetDec vuka.Decorated[func(*Greeter, string) string]
 
-var greeterGreetDecInfo = vuka.Func{Name: "Greeter.Greet", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(string)} }, Attrs: []any{}}
-
 //line call_decorators.vuka:93
 func (g *Greeter) Greet(name string) string {
 	return greeterGreetDec.Get(func() func(*Greeter, string) string {
-		return func(next func(*Greeter, string) string) func(*Greeter, string) string {
 //line call_decorators.vuka:91
-			chain := []vuka.Decorator{upper, logged}
-			return func(p0 *Greeter, p1 string) string {
-				c := vuka.NewCall(&greeterGreetDecInfo, chain, p0, []any{p1}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[*Greeter](c.Receiver), vuka.As[string](c.Args[0]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[string](c.Results[0])
-			}
-		}((*Greeter).greet)
+		return vuka.Wrap((*Greeter).greet, vuka.FuncInfo{Name: "Greeter.Greet", Method: true}, upper, logged)
 	})(g, name)
 }
 
 var sumDec vuka.Decorated[func(...int) int]
 
-var sumDecInfo = vuka.Func{Name: "main.sum", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{}}
-
 //line call_decorators.vuka:101
 func sum(nums ...int) int {
 	return sumDec.Get(func() func(...int) int {
-		return func(next func(...int) int) func(...int) int {
 //line call_decorators.vuka:100
-			chain := []vuka.Decorator{count}
-			return func(p0 ...int) int {
-				c := vuka.NewCall(&sumDecInfo, chain, nil, []any{p0}, func(c *vuka.Call) []any { r0 := next(vuka.As[[]int](c.Args[0])...); return []any{r0} })
-				c.Run()
-				return vuka.As[int](c.Results[0])
-			}
-		}(sumImpl)
+		return vuka.Wrap(sumImpl, vuka.FuncInfo{Name: "main.sum"}, count)
 	})(nums...)
 }
 

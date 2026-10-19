@@ -215,23 +215,10 @@ func init() {
 var addPetDec vuka.Decorated[func(NewPet, *Store) (string, error)]
 
 //line params.vuka:144
-var addPetDecInfo = vuka.Func{Name: "main.addPet", ErrIndex: 1, CtxIndex: -1, Zero: func() []any { return []any{*new(string), *new(error)} }, Attrs: []any{}, ParamAttrs: [][]any{[]any{Body{}, Valid{}}, nil}}
-
-//line params.vuka:144
 func addPet(in NewPet, store *Store) (string, error) {
 	return addPetDec.Get(func() func(NewPet, *Store) (string, error) {
-		return func(next func(NewPet, *Store) (string, error)) func(NewPet, *Store) (string, error) {
-//line params.vuka:143
-			chain := []vuka.Decorator{valid}
-			return func(p0 NewPet, p1 *Store) (string, error) {
-				c := vuka.NewCall(&addPetDecInfo, chain, nil, []any{p0, p1}, func(c *vuka.Call) []any {
-					r0, r1 := next(vuka.As[NewPet](c.Args[0]), vuka.As[*Store](c.Args[1]))
-					return []any{r0, r1}
-				})
-				c.Run()
-				return vuka.As[string](c.Results[0]), vuka.As[error](c.Results[1])
-			}
-		}(addPetImpl)
+//line params.vuka:144
+		return vuka.Wrap(addPetImpl, vuka.FuncInfo{Name: "main.addPet", ParamAttrs: [][]any{[]any{Body{}, Valid{}}, nil}}, valid)
 	})(in, store)
 }
 

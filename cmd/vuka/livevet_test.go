@@ -110,3 +110,22 @@ func TestVetLivePages(t *testing.T) {
 		}
 	}
 }
+
+func TestIsUpdateMethod(t *testing.T) {
+	for _, c := range []struct {
+		name, params string
+		want         bool
+	}{
+		{"UpdateNewMessage", "m NewMessage", true},
+		{"UpdateTyping", "ctx context.Context, t *chat.Typing", true},
+		{"UpdateOrders", "o []Order", true},
+		{"Update__Typing", "t Typing", true},
+		{"UpdateTopic", "topic string", false},
+		{"Update", "m any", false},
+		{"Save", "o Order", false},
+	} {
+		if got := isUpdateMethod(c.name, c.params); got != c.want {
+			t.Errorf("isUpdateMethod(%s, %q) = %v", c.name, c.params, got)
+		}
+	}
+}

@@ -135,6 +135,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 		case strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".vuka.html"):
 			hasSource = true
 			generated[transpile.GoName(name)] = true
+			generated[transpile.CallsGoName] = true
 		case templ && isTempl(name):
 			hasSource = true
 			generated[TemplGoName(name)] = true // a `templ generate` output; the fresh one replaces it
@@ -250,6 +251,13 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 		}
 		p := pkg(name)
 		p.Files = append(p.Files, htmls...)
+		for _, h := range htmls {
+			for _, m := range htmlImport.FindAllSubmatch(h.Src, -1) {
+				if path, err := strconv.Unquote(string(m[1])); err == nil && !strings.HasPrefix(path, ".") {
+					p.Imports = append(p.Imports, path) // a component file (./chart.vue) is no package
+				}
+			}
+		}
 	}
 	var pkgs []*Package
 	for _, n := range order {
@@ -259,6 +267,9 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 	}
 	return pkgs, nil
 }
+
+// htmlImport is an import line of a .vuka.html file.
+var htmlImport = regexp.MustCompile(`(?m)^import\s+(?:[\w.]+\s+)?("[^"\n]*")`)
 
 func (p *Package) hasVuka() bool {
 	for _, f := range p.Files {
@@ -370,7 +381,7 @@ func Order(pkgs []*Package) ([]*Package, error) {
 // the Go of a .vuka file, or of a .templ file (Map nil, TemplMap set when bare).
 type Generated struct {
 	Target string // the .go path beside the source file
-	Source string // the .vuka or .templ file
+	Source string // the .vuka or .templ file; empty for the package's call adapters
 	Src    []byte
 	From   []byte // the source text it was generated from
 	Map    *transpile.SourceMap
@@ -387,6 +398,7 @@ type Generated struct {
 	// file's Go, when Src is templ's raw output (Options.Bare); nil otherwise.
 	TemplMap any
 	Files    []transpile.FileRef // a .vuka file's vuka.File literals, in From
+	Names    map[string]string   // the package's overloads (transpile.Output.Names)
 }
 
 // Options configure Transpile.
@@ -582,7 +594,14 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Declares: f.Declares, Split: f.Split})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Split: f.Split})
+		}
+		if res.Calls != nil {
+			// The call adapters: a file of the package's, no source's.
+			if err := add(transpile.CallsGoName, res.Calls); err != nil {
+				return nil, "", err
+			}
+			out = append(out, Generated{Target: filepath.Join(p.Dir, transpile.CallsGoName), Src: res.Calls})
 		}
 		if sess != nil {
 			sess.store(p, key, out[first:])

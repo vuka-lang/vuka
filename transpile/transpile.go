@@ -100,6 +100,9 @@ type Output struct {
 	Body int
 	// Files are the vuka.File literals in the source.
 	Files []FileRef
+	// Names are the package's overloads, each Go name (areaCircle) and the
+	// name the source writes (area); nil when it has none.
+	Names map[string]string
 	// Declares reports that the file registers declarations at init: a
 	// declarer (func(*vuka.Decl)) or a composed decorator (which may hold
 	// declarers) on a function, or a type decorator (func(*vuka.Type)) or a
@@ -126,7 +129,14 @@ type TemplComponent struct {
 type Result struct {
 	Files []Output
 	Attrs []Attr // every attribute, in file order
+	// Calls is the package's CallsGoName: a typed adapter for each
+	// signature its call decorators wrap (vuka.RegisterAdapter), which
+	// vuka.Wrap uses in place of reflection; nil when none.
+	Calls []byte
 }
+
+// CallsGoName is the file holding a package's call adapters (Result.Calls).
+const CallsGoName = "vuka_calls_gen.go"
 
 // GoName is the name of the Go file generated for a .vuka file, or for a
 // .vuka.html file: x_html.go.
@@ -564,10 +574,19 @@ func Package(files []File, opts Options) (*Result, error) {
 	}
 
 	res := &Result{}
+	var names map[string]string
+	for _, s := range e.sets {
+		for _, o := range s.list {
+			if names == nil {
+				names = map[string]string{}
+			}
+			names[o.mangled] = s.name
+		}
+	}
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0, Split: splits[f]})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0, Split: splits[f]})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}
@@ -592,6 +611,7 @@ func Package(files []File, opts Options) (*Result, error) {
 			res.Files[i].Src, res.Files[i].Map, res.Files[i].Body = srcs[i], maps[i], 0
 		}
 	}
+	res.Calls = e.callAdapters()
 	return res, nil
 }
 

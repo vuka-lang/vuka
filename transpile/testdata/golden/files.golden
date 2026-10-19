@@ -68,21 +68,11 @@ func init() {
 
 var homeDec vuka.Decorated[func() string]
 
-//line files.vuka:33
-var homeDecInfo = vuka.Func{Name: "main.home", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(string)} }, Attrs: []any{Page{Title: "Home", Body: vuka.FileOf("main:assets/hello.txt", vukaFile0)}}}
-
 //line files.vuka:36
 func home() string {
 	return homeDec.Get(func() func() string {
-		return func(next func() string) func() string {
-//line files.vuka:34
-			chain := []vuka.Decorator{page}
-			return func() string {
-				c := vuka.NewCall(&homeDecInfo, chain, nil, []any{}, func(c *vuka.Call) []any { r0 := next(); return []any{r0} })
-				c.Run()
-				return vuka.As[string](c.Results[0])
-			}
-		}(homeImpl)
+//line files.vuka:33
+		return vuka.Wrap(homeImpl, vuka.FuncInfo{Name: "main.home", Attrs: []any{Page{Title: "Home", Body: vuka.FileOf("main:assets/hello.txt", vukaFile0)}}}, page)
 	})()
 }
 

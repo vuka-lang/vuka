@@ -58,7 +58,7 @@ keeps the generated Go open in gopls as unsaved buffers (nothing is written to
 your tree) and maps every position both ways. Completion, hover, signature
 help, go to definition, references, rename, outline, code actions, inlay
 hints and formatting (`vuka fmt`) all work; Vuka's own errors and Go's type errors show on the `.vuka`
-lines. Overloads show under the name you wrote (`area`, not `area__Circle`). `vuka.File` paths (`@Page("views/pets.templ")`) are clickable.
+lines. Overloads show under the name you wrote (`area`, not `areaCircle`). `vuka.File` paths (`@Page("views/pets.templ")`) are clickable.
 
 - **VS Code:** the extension in [`editors/vscode`](editors/vscode)
   (`npm install && npx vsce package`, then install the `.vsix`). It offers to
@@ -121,7 +121,8 @@ and None, true and false, or a case that takes anything), and a case after one
 that matches everything is an error; both are reported before Go sees the code.
 
 **Overloading.** Functions and methods may share a name when their parameter
-types differ. Each declaration is renamed (`area__Circle`, `Add__int_int`), and each
+types differ. Each declaration is named after its parameters' types, as Go would
+name it (`areaCircle`, `AddIntInt`), and each
 call goes to the overload that best fits its arguments' static types: identical
 types beat an untyped constant's default type, which beats any other assignable
 value. A tie is a compile error that lists the candidates. Calls whose argument
@@ -439,7 +440,7 @@ them (`vuka gen -inplace`, and `vuka gen -inplace -check` in CI).
 - Overloads are resolved within a package; calling another package's overloads
   goes through its `@export` names.
 - Generic functions can't be overloaded yet.
-- Go's own error messages show mangled names (`area__int`).
+- Go's own error messages, outside the editor, show the overloads' Go names (`areaInt`).
 - An overloaded method can't satisfy an interface method of the plain name.
 - `?` ends a statement; it can't sit inside a larger expression, or in an
   `if`, `for` or `switch` header.

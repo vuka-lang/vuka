@@ -20,9 +20,8 @@ var buttonVariants = map[string]string{
 	"danger":    "bg-red-600 text-white shadow-sm hover:bg-red-500 focus-visible:outline-red-600",
 }
 
-// Button is a button. While its form submits (aria-busy) it shows a
-// spinner and ignores clicks.
-func Button(p ButtonProps) ui.Node {
+// attrs are the button element's attributes.
+func (p ButtonProps) attrs() []ui.Attr {
 	typ := p.Type
 	if typ == "" {
 		typ = "submit"
@@ -46,16 +45,5 @@ func Button(p ButtonProps) ui.Node {
 		}
 		attrs = append(attrs, ui.Attr{Name: "onClick", Value: on})
 	}
-	return ui.El("button", attrs, <>
-		<Spinner class="hidden group-aria-busy:block" />
-		{p.Children}
-	</>)
-}
-
-// Spinner is a small spinning circle.
-func Spinner(class string) ui.Node {
-	return <svg class={cx("size-4 animate-spin", class)} viewBox="0 0 24 24" fill="none" aria-hidden="true">
-		<circle cx="12" cy="12" r="10" stroke="currentColor" stroke-width="3" class="opacity-25" />
-		<path d="M22 12a10 10 0 0 0-10-10" stroke="currentColor" stroke-width="3" stroke-linecap="round" />
-	</svg>
+	return attrs
 }

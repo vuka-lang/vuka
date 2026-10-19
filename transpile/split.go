@@ -364,23 +364,38 @@ func dropUnusedImports(src string) string {
 	}
 	body := src[fset.Position(a.End()).Offset:]
 	var cut [][2]int
-	for _, s := range a.Imports {
-		path, _ := strconv.Unquote(s.Path.Value)
-		name := pathBase(path)
-		if s.Name != nil {
-			name = s.Name.Name
-		}
-		if name == "_" || name == "." || namesImport(body, goImport{name, path}) {
-			continue
-		}
-		start, end := fset.Position(s.Pos()).Offset, fset.Position(s.End()).Offset
+	span := func(from, to token.Pos) [2]int {
+		start, end := fset.Position(from).Offset, fset.Position(to).Offset
 		for start > 0 && (src[start-1] == ' ' || src[start-1] == '\t') {
 			start--
 		}
 		if end < len(src) && src[end] == '\n' {
 			end++
 		}
-		cut = append(cut, [2]int{start, end})
+		return [2]int{start, end}
+	}
+	for _, d := range a.Decls {
+		g, ok := d.(*ast.GenDecl)
+		if !ok || g.Tok != token.IMPORT {
+			continue
+		}
+		var unused [][2]int
+		for _, sp := range g.Specs {
+			s := sp.(*ast.ImportSpec)
+			path, _ := strconv.Unquote(s.Path.Value)
+			name := pathBase(path)
+			if s.Name != nil {
+				name = s.Name.Name
+			}
+			if name == "_" || name == "." || namesImport(body, goImport{name, path}) {
+				continue
+			}
+			unused = append(unused, span(s.Pos(), s.End()))
+		}
+		if len(unused) == len(g.Specs) {
+			unused = [][2]int{span(g.Pos(), g.End())} // the whole declaration: no import is left
+		}
+		cut = append(cut, unused...)
 	}
 	for i := len(cut) - 1; i >= 0; i-- {
 		src = src[:cut[i][0]] + src[cut[i][1]:]

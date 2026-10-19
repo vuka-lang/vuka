@@ -54,11 +54,24 @@ func TestGolden(t *testing.T) {
 			}
 			out := res.Files[0].Src
 			compare(t, filepath.Join(dir, name+".golden"), out)
+			callsPath := filepath.Join(dir, name+".calls.golden")
+			if res.Calls != nil {
+				compare(t, callsPath, res.Calls)
+			} else if _, err := os.Stat(callsPath); err == nil {
+				t.Errorf("%s: no call adapters any more: remove it", callsPath)
+			}
 
 			outPath := filepath.Join(dir, name+".out")
 			want, err := os.ReadFile(outPath)
 			if err != nil {
 				return
+			}
+			if res.Calls != nil {
+				// The adapters are a speed-up: the program says the same
+				// through reflection.
+				if got := run(t, out, res.Calls); got != string(want) {
+					t.Errorf("output with call adapters:\n%s\nwant:\n%s", got, want)
+				}
 			}
 			got := run(t, out)
 			if *update {
@@ -91,7 +104,7 @@ func compare(t *testing.T, path string, got []byte) {
 	}
 }
 
-func run(t *testing.T, src []byte) string {
+func run(t *testing.T, src []byte, calls ...[]byte) string {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("compiles and runs the program")
@@ -101,6 +114,9 @@ func run(t *testing.T, src []byte) string {
 	os.WriteFile(filepath.Join(dir, "go.mod"), mod, 0o644)
 	os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644)
 	os.WriteFile(filepath.Join(dir, "main.go"), src, 0o644)
+	for _, c := range calls {
+		os.WriteFile(filepath.Join(dir, transpile.CallsGoName), c, 0o644)
+	}
 	// Files a case embeds (vuka.File) are in testdata/golden/assets.
 	os.CopyFS(filepath.Join(dir, "assets"), os.DirFS("testdata/golden/assets"))
 	cmd := exec.Command("go", "run", ".")
