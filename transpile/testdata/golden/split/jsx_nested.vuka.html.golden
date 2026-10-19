@@ -1,0 +1,2 @@
+func boundaryView(err error)
+<p>error: {err}</p>

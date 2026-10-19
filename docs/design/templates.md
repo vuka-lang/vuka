@@ -87,9 +87,12 @@ expression of its argument, checked against the arguments by vukavet.
 - A function returning markup becomes a template with the same signature in
   `<file>.vuka.html`; `Render()` methods likewise.
 - JSX inside Go logic (`head := <div>{t}</div>`, arguments, returns mid-way
-  through a function) becomes a named partial in the `.vuka.html` — its
-  parameters the free variables with their types, its name from the variable
-  assigned or the enclosing component (`cardHead`) — called from the `.go`.
+  through a function, a decorated function's body) becomes a named partial
+  in the `.vuka.html` — its parameters the free variables with their types,
+  its name from the variable assigned or the enclosing component
+  (`cardHead`, else `cardView`; inside a hole's Go, the root's tag:
+  `cardB`) — called from the `.go`. Islands move with their templates, their
+  component imports with them.
 - `{for x in xs}` is `for _, x := range xs`, `{if}` an `if`, `{match}` a
   `switch`; markup given to a Node prop is a `<slot:x>`; component tags are
   unchanged.

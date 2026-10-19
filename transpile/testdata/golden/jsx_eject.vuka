@@ -1,0 +1,46 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Card's markup is built in Go: assigned, passed, returned mid-way.
+type Card struct {
+	Title string
+	Items []string
+}
+
+func wrap(n ui.Node) ui.Node { return n }
+
+func (c Card) Render() ui.Node {
+	head := <h2>{c.Title}</h2>
+	if len(c.Items) == 0 {
+		return <section>{head}<p>empty</p></section>
+	}
+	return wrap(<section>
+		{head}
+		<ul>{for _, it := range c.Items { <li>{it}</li> }}</ul>
+		{match len(c.Items) { case 1: <i>one</i> case _: <i>{wrap(<b>many</b>)}</i> }}
+	</section>)
+}
+
+// framed wraps what it makes in a frame.
+func framed(f func() ui.Node) func() ui.Node {
+	return func() ui.Node { return ui.HTML(`<div class="frame">{f}</div>`, f()) }
+}
+
+// Home is decorated: its markup is a partial, its declaration stays.
+@framed
+func Home() ui.Node {
+	return <main><Card Title="Week" Items={[]string{"a", "b"}} /></main>
+}
+
+func main() {
+	for _, n := range []ui.Node{Card{Title: "none"}.Render(), Card{Title: "one", Items: []string{"x"}}.Render(), Home()} {
+		s, err := ui.String(context.Background(), n)
+		fmt.Println(s, err)
+	}
+}
