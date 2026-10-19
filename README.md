@@ -2,7 +2,7 @@
 
 # Vuka
 
-**Docs: [vuka-lang.github.io/vuka](https://vuka-lang.github.io/vuka/)**
+**Docs: [vuka-lang.github.io](https://vuka-lang.github.io/)**
 
 Vuka is Go with Result and Option, `?` error propagation, pattern matching,
 function and method overloading, typed attributes, decorators, and JSX
@@ -354,7 +354,7 @@ From v0.50.0 vuka, ui, web and the command share one version. `vuka version`
 prints the set and warns when an app's go.mod mixes sets; `vuka upgrade
 [version]` moves an app to a set, runs the `vuka fix` rewrites for the
 releases in between, then vet and tests. See
-[Versions and compatibility](https://vuka-lang.github.io/vuka/project/versions).
+[Versions and compatibility](https://vuka-lang.github.io/project/versions).
 
 **JSX.** Markup is an expression, and a component is a function. JSX is
 syntax: what it renders with is the library the file imports, its JSX target —
@@ -387,9 +387,9 @@ React or Svelte component imported into a `.vuka` file is an island, its
 props read from its TypeScript and type-checked; with `@web.Get` on its Go
 type it is a whole page. `.templ` files compile with
 the package, no `templ generate`, in modules that require templ. See
-[JSX](https://vuka-lang.github.io/vuka/features/jsx),
-[UI](https://vuka-lang.github.io/vuka/ui/) and
-[Islands](https://vuka-lang.github.io/vuka/web/islands).
+[JSX](https://vuka-lang.github.io/features/jsx),
+[UI](https://vuka-lang.github.io/ui/) and
+[Islands](https://vuka-lang.github.io/web/islands).
 
 ### The build module
 
@@ -424,11 +424,11 @@ removed), compile errors in `build/` point at the `.vuka` lines, and a
 - [**web**](https://github.com/vuka-lang/web) — a web framework: routes,
   services and controllers declared with decorators, parameters bound by name,
   templ / html / JSX views, dependency injection, `.env` configuration and live
-  components over a WebSocket. Docs: [vuka-lang.github.io/vuka/web](https://vuka-lang.github.io/vuka/web/).
+  components over a WebSocket. Docs: [vuka-lang.github.io/web](https://vuka-lang.github.io/web/).
 - [**orm**](https://github.com/vuka-lang/orm) — a Django-style ORM: models
   declared with field attributes, queries written with field references,
   `Result`/`Option` terminals, `@orm.Transaction`, search, several databases
-  and Go migrations. Docs: [vuka-lang.github.io/vuka/orm](https://vuka-lang.github.io/vuka/orm/).
+  and Go migrations. Docs: [vuka-lang.github.io/orm](https://vuka-lang.github.io/orm/).
 
 Other modules `go get` your repository root, not `build/`. To publish a Vuka
 library for Go users, write the generated files beside the sources and commit

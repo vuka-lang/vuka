@@ -24,7 +24,7 @@ type Code string
 func (c Code) URL() string { return DocsURL + string(c) }
 
 // DocsURL is the docs site's errors section.
-const DocsURL = "https://vuka-lang.github.io/vuka/errors/"
+const DocsURL = "https://vuka-lang.github.io/errors/"
 
 // Severity is how bad a diagnostic is.
 type Severity int

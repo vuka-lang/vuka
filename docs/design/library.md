@@ -145,24 +145,37 @@ the twin and checks both register the same calls and answer the same.
 
 ```go
 var orderRow = ui.Template(`
-<tr class="{{0}}">
-  <td>{{1}}</td>
-  <td class="tabular-nums">{{2}}</td>
+<tr key="{{0}}" class="{{1}}">
+  <td>{{2}}</td>
+  <td class="tabular-nums">{{3}}</td>
+  <td><button onClick="{{4}}">Cancel</button></td>
 </tr>`)
 
-func OrderRow(o Order) ui.Node {
-	return orderRow.Render(ui.Class("row", o.Late && "late"), o.Ref, money(o.Total))
+func (p *Orders) row(o Order) ui.Node {
+	return orderRow.Render(o.ID, ui.Class{"row": true, "late": o.Late}, o.Ref, money(o.Total),
+		func() { p.Cancel(o.ID) })
 }
 ```
 
 - The same `ui.Template` readable generated code uses (2.3), so performance is
-  identical to transpiled JSX: parsed once at init, static parts precomputed.
-- Holes are escaped by position kind: text, attribute value, attribute set
-  (`ui.Attrs`, `ui.On(…)`, `ui.BindAttr(…)`), child node (`ui.Node`). A value of
-  the wrong kind for its hole is a render-time error in development and a
-  vet error where the analyzer can see it (§7).
+  identical to transpiled JSX: parsed once at init, static parts precomputed,
+  and under a live session the same render tree (statics, dynamics, keyed
+  lists) JSX lowers to.
+- Holes are escaped by position kind: child (`ui.Node`, `[]ui.Node`, text,
+  a `ui.State`, a stateful component, an island), text (in title, textarea,
+  script), attribute value (what a JSX attribute takes; an `on…` attribute
+  takes a handler — a func, `ui.On(…)`, JS commands), part of a value
+  (text), attribute set (`ui.Attr`, `[]ui.Attr`, `templ.Attributes`,
+  `ui.BindAttr(…)`). A value of the wrong kind for its hole is a render-time
+  error naming the template's line and the hole, and a vet error where the
+  analyzer can see it (§7); a malformed template panics at init.
 - Loops and conditionals are ordinary Go producing nodes:
-  `ui.Each(rows, OrderRow)`, `ui.If(cond, node)`.
+  `ui.Each(rows, OrderRow)`, `ui.If(cond, node)`, or a `[]ui.Node`.
+- A hole is a place: a stateful component (`&Counter{…}`,
+  `ui.Key(id, &Counter{…})`) or an island (`Chart{…}`,
+  `ui.Mount(Chart{…}, ui.Idle())`) in it is identified by it, and a list's
+  components by the hole the list is in. Client state is declared where it is
+  called: `open := ui.UseState(false)`, `var theme = ui.UsePageState("light")`.
 
 ### Builders (alternative)
 
@@ -173,32 +186,108 @@ over strings. Same nodes, no template parse.
 
 Existing templ support stays; templ components are `ui.Node`s.
 
-## 3. Field configuration: schema methods, not attributes
+## 3. Configuration: attributes as values in one schema method
 
-### orm
+A `.vuka` attribute is a value. In plain Go the same value is passed to a
+schema method, field by field, so the hand-written form and the generated
+form are the same text: `@X{…}` on a field is `X{…}` after `&t.Field`.
+
+### orm models
 
 ```go
-type Order struct {
-	orm.Model[Order]
-	ID   int64
-	Ref  string
-	Paid bool
+type Applications struct {
+	orm.Base[Applications]
+	ID              int
+	CreatedAt       Option[time.Time]
+	Applicant       orm.FK[Applicant]
+	IsShortlisted   bool
+	InterviewNumber Option[string]
+	TrackNumber     string
 }
 
-func (Order) Schema(s *orm.Schema[Order]) {
-	s.Table("orders")
-	s.Field(func(o *Order) any { return &o.Ref }).Char(64).Unique()
-	s.Field(func(o *Order) any { return &o.Paid }).Default(false)
+func (a *Applications) Schema(s *orm.Schema) {
+	s.Model(orm.Meta{Table: "applicantlist", Unmanaged: true}, mirror.Legacy{})
+	s.Field(&a.ID, orm.PK{}, mirror.Column{Name: "applicant_list_id"})
+	s.Field(&a.CreatedAt, orm.Datetime{Column: "created_at", Null: true}, mirror.Omit{})
+	s.Field(&a.Applicant, orm.Rel{Column: "applicant_id", Related: "applications", Null: true})
+	s.Field(&a.IsShortlisted, orm.Column("is_shortlisted"))
+	s.Field(&a.InterviewNumber, orm.Char{Column: "interview_number", Max: 50, Null: true})
+	s.Field(&a.TrackNumber, orm.Char{Column: "track_number", Max: 50})
 }
 ```
 
-- Fields are selected by pointer, so renames are compiler-checked.
-- Simple cases may use struct tags (`orm:"char=64,unique"`); the schema
-  method wins when both exist.
-- `@mirror.Column{Name: "x"}` ≡ `s.Field(…).Under("legacy").Column("x")`;
-  `@mirror.Omit` ≡ `.Under("legacy").Skip()`.
+The `.vuka` it is generated from:
+
+```vuka
+type Applications struct {
+	orm.Base                          @orm.Meta{Table: "applicantlist", Unmanaged: true} @mirror.Legacy{}
+	ID              int               @orm.PK @mirror.Column{Name: "applicant_list_id"}
+	CreatedAt       Option[time.Time] @orm.Datetime{Column: "created_at", Null: true} @mirror.Omit
+	…
+}
+```
+
+- **Fields by address.** orm calls `Schema` once on a zero value and maps
+  each `&a.X` to its field by offset: renames are compiler-checked, no
+  column names in strings, no closure per field. A pointer that isn't a
+  field of the receiver is an error at registration, with a code.
+- **Only what differs.** A field with no attributes isn't listed; column
+  name, nullability and type come from the field's name and Go type, as
+  they do now.
+- **Attributes are open.** A field attribute implements `orm.FieldAttr`, a
+  model attribute `orm.ModelAttr`. `mirror.Column`, `mirror.Omit` and
+  `mirror.Legacy` are ordinary values from the app's own package; the
+  transpiler has no special case for any attribute.
+- **One way.** Struct tags carry their Go meaning (json, db) only; orm stops
+  reading `orm:` tags after the deprecation window (roadmap 2.1).
+- Schema replaces `Meta()` and `SetFieldOptions`; both keep working for one
+  minor release with a vet warning and a `vuka fix` rewrite.
+
+### Queries
+
+Querying is already Go, and stays as it is. What changes is the plain-Go
+spelling of the two model statics `.vuka` offers:
+
+| `.vuka` | Go |
+|---|---|
+| `Post.Objects` | `orm.For[Post]()` |
+| `Post.Slug` (typed column) | `PostFields.Slug` |
+| `func Post.Live() orm.Query[Post]` (a named query) | `func PostLive() orm.Query[Post]` |
+| `p := Post.Objects.Get(ctx, Post.Slug.Eq(slug))?` | `p, err := orm.For[Post]().Get(ctx, PostFields.Slug.Eq(slug))` + `if err != nil { return err }` |
+
+```go
+func matching(search string) orm.QuerySet[Applicant] {
+	f := ApplicantFields
+	qs := orm.For[Applicant]().QuerySet
+	for _, w := range strings.Fields(search) {
+		qs = qs.Filter(orm.Or(
+			f.FirstName.IStartsWith(w),
+			f.FamilyName.IStartsWith(w),
+		))
+	}
+	return qs.OrderBy(f.CreatedAt.Desc())
+}
+
+rows, err := matching(q).Limit(50).All(ctx)
+```
+
+- **Typed columns are generated**, because Go can't add fields to a type:
+  `ApplicantFields` (one `orm.Field[V]` / `orm.TextField[V]` per column,
+  relations walkable as `f.Applicant.Nin`) lives in `applicant_gen.go`,
+  written by `vuka gen` or `//go:generate go tool vuka gen`. It is a
+  convenience, not a requirement: without it every query works with
+  `orm.Q{"first_name__istartswith": w}` and `orm.F("…")`, as now, and an
+  unknown lookup is still a runtime error with a did-you-mean.
+- `<Model>Fields` is the one naming rule; it needs no pluralisation and
+  can't collide with the model type.
+- Row methods (`Save`, `SaveFields(ctx, f.Title)`, `Load(ctx, f.Tags)`,
+  `Add/Remove/Set`), `Values`, `Annotate`, `GroupBy`/`Having`, subqueries,
+  `Raw` and transactions are unchanged; `@orm.Transaction` is
+  `orm.Transaction(ctx, func(ctx context.Context) error { … })`.
 
 ### Live and island pages
+
+The same shape for page state and hooks:
 
 ```go
 type Dashboard struct {
@@ -208,19 +297,21 @@ type Dashboard struct {
 	Total int
 }
 
-func (Dashboard) LiveSchema(l *ui.LiveSchema[Dashboard]) {
-	l.Bind(func(d *Dashboard) any { return &d.Q }).Debounce(300 * time.Millisecond).URL("q").Max(100)
-	l.Defer("lists", (*Dashboard).loadLists, func(d *Dashboard) []any { return []any{&d.Rows, &d.Total} })
-	l.OnChange((*Dashboard).changed)
-	l.Mount((*Dashboard).mount)
+func (d *Dashboard) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&d.Q, ui.Bind{Debounce: 300 * time.Millisecond}, ui.URL("q"), validate.Max(100))
+	l.Field(&d.Rows, ui.Defer("lists"))
+	l.Field(&d.Total, ui.Defer("lists"))
+	l.Loads("lists", d.loadLists)
+	l.OnChange(d.changed)
+	l.Mount(d.mount)
 }
 ```
 
 These are the explicit hooks of roadmap 2.2: hooks may be unexported, only
 exported methods without a hook are callable from the browser, and signature
-mistakes are compile errors (the method expressions are typed). `.vuka`
+mistakes are compile errors (the method values are typed). `.vuka`
 attributes (`@ui.Bind{…}`, `@ui.Defer("lists")`, `@ui.Loads("lists")`,
-`@ui.OnChange`) lower to exactly these calls.
+`@ui.OnChange`, `@ui.Mount`) lower to exactly these calls.
 
 ## 4. Generated code is optional — a speed-up, not a requirement
 
