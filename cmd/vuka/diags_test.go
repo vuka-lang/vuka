@@ -21,7 +21,7 @@ func TestExplainCode(t *testing.T) {
 		t.Fatal(err)
 	}
 	out := b.String()
-	for _, want := range []string{"E0203: An attribute must start its own line", "Wrong", "Right", "    @doc(\"Lists the users\")", "See https://vuka-lang.github.io/vuka/errors/E0203"} {
+	for _, want := range []string{"E0203: An attribute must start its own line", "Wrong", "Right", "    @doc(\"Lists the users\")", "See " + diag.DocsURL + "E0203"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("explain E0203 lacks %q:\n%s", want, out)
 		}
@@ -83,7 +83,7 @@ For more information about this error, try ` + "`vuka explain E0203`" + `.
 	if err := json.Unmarshal(b.Bytes(), &out); err != nil || len(out) != 1 {
 		t.Fatalf("JSON: %v %s", err, b.String())
 	}
-	if d := out[0]; d["code"] != "E0203" || d["help"] == nil || d["url"] != "https://vuka-lang.github.io/vuka/errors/E0203" ||
+	if d := out[0]; d["code"] != "E0203" || d["help"] == nil || d["url"] != diag.DocsURL+"E0203" ||
 		d["span"].(map[string]any)["file"] != "main.vuka" {
 		t.Errorf("JSON: %v", d)
 	}

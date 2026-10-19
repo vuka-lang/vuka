@@ -7,11 +7,11 @@ const vuka = JSON.parse(readFileSync(new URL('../../editors/vscode/syntaxes/vuka
 export default defineConfig({
   title: 'Vuka',
   description: 'Go, with Result, Option, ?, match, overloading, decorators, statics and JSX components. Transpiles to plain Go.',
-  base: '/vuka/',
+  base: '/',
   lastUpdated: true,
   cleanUrls: true,
   srcExclude: ['design/**'], // design notes live in the repository, not on the site
-  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/vuka/logo.svg' }]],
+  head: [['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }]],
   markdown: {
     languages: ['go', { ...vuka, name: 'vuka', embeddedLangs: ['go'] }],
   },

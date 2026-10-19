@@ -34,15 +34,15 @@ error[E0324]: ApplicantDetail.CV is deferred, and the group "profile" has no loa
   = the group "profile" needs a loader
   = help: add a method
           func (p *ApplicantDetail) LoadProfile(ctx context.Context) error
-  = note: vuka explain E0324 (https://vuka-lang.github.io/vuka/errors/E0324)
+  = note: vuka explain E0324 (https://vuka-lang.github.io/errors/E0324)
 error[E0401]: GET /applicants/{id} is declared twice
  --> modules/applicants/detail.vuka:8:1
  ::: admin.vuka:30: and here
   = help: give one of them another path or method
-  = note: vuka explain E0401 (https://vuka-lang.github.io/vuka/errors/E0401)
+  = note: vuka explain E0401 (https://vuka-lang.github.io/errors/E0401)
 warning[W0301]: ApplicantDetail embeds ui.Live: route it with @web.Live
  --> modules/applicants/detail.vuka:8:1
   = help: did you mean @web.Live?
-  = note: vuka explain W0301 (https://vuka-lang.github.io/vuka/errors/W0301)
+  = note: vuka explain W0301 (https://vuka-lang.github.io/errors/W0301)
 error[E0415]: environment variable DATABASE_URL is not set
-  = note: vuka explain E0415 (https://vuka-lang.github.io/vuka/errors/E0415)
+  = note: vuka explain E0415 (https://vuka-lang.github.io/errors/E0415)
