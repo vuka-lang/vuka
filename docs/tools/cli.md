@@ -8,6 +8,7 @@ vuka run -watch [-debug] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
+vuka eject [-rm] [file.vuka… | dir | dir/...]
 vuka explain [-full] file.vuka
 vuka explain E0201
 vuka fix [-n] [fixer…]
@@ -317,6 +318,31 @@ of [auto-linked declarer packages](#build-run-test-vet-install), so plain
 so `-inplace` writes them only for a module-wide gen (the default `./...`),
 and once the last declarer package is gone the file is written empty rather
 than left with stale imports.
+
+The generated Go reads as hand-written: gofmt'd, one import block, Vuka's own
+names spelled like a person's (`boardType`, not `__Board_type`), doc comments
+on the declarations they document, and a `//line main.vuka:12` directive only
+where the code stops following the `.vuka` file line by line, so compiler
+errors, stack traces and debuggers point at the `.vuka` source. Files
+written to disk name it relative to themselves, never by absolute path.
+
+## eject
+
+```sh
+vuka eject                 # the module: gen -inplace
+vuka eject pages/orders.vuka
+vuka eject -rm ./...       # the Go becomes the source
+```
+
+Writes the Go generated for `.vuka` files beside them, as `gen -inplace`
+does: for the files named, or the packages (`dir`, `dir/...`; the module by
+default). With `-rm` the Go becomes the source: each `.vuka` file is deleted
+and its Go kept as `orders.go` (`orders_vuka.go` when `orders.go` is taken),
+without the generated-code header or line directives. What's left is a plain
+Go module: `go build`, `go vet` and `go test` take it with no `vuka` command,
+and it behaves as the `.vuka` version did. Eject the whole module (`./...`)
+so the [link files](#build-run-test-vet-install) and the files embedding
+CSS and assets are written too; they stay generated files.
 
 ## explain
 
