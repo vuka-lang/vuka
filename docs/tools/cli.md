@@ -14,6 +14,7 @@ vuka add module|service|component|island|page|entity … [--dry-run] [--force]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
+vuka build-islands [-watch]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
@@ -315,6 +316,36 @@ command's duration, each package gets a small file of blank imports standing
 for its `.vuka` files' imports (and the runtime, when the code uses it), removed
 when it ends. It reads imports without transpiling, so it works while a
 dependency is still missing.
+
+## build-islands
+
+Builds the module's [islands](/web/islands) from its source alone, for an
+app built with plain `go build`: the types `ui.RegisterIsland[T](…)`, a
+route's `ui.Island(…)` option or `@ui.Island` registers, read without
+running the app. The bundle and its stylesheets go into `.vuka/` of the
+frontend's build — the root `web.Frontend` serves — where `//go:embed`
+picks them up and the app serves them from. One line in the main package:
+
+```go
+//go:generate go tool vuka build-islands
+
+//go:embed all:web/dist
+var dist embed.FS
+
+app := web.New(web.Frontend(dist, "web/dist"), web.Dev())
+```
+
+Run it after the frontend's own build (`vite build` empties `dist`), then
+`go build`. A build of islands alone, with no `index.html`, is served too.
+It writes `islands.d.ts` and `vuka-live.d.ts`, the components' types,
+in the frontend's folder. A component it can't find is
+[E0310](/errors/E0310); an app with no `web.Frontend` is
+[E0609](/errors/E0609).
+
+`-watch` keeps the islands built in `.vuka/assets` until its input closes:
+[`web.Dev()`](/web/frontend) runs it under `VUKA_DEV=1 go run .` when the
+app registers islands and the command is a tool of the module
+(`go get -tool github.com/vuka-lang/vuka/cmd/vuka`) or on `PATH`.
 
 ## gen
 

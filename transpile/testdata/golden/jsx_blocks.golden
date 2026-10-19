@@ -29,73 +29,123 @@ func lookup(s string) vuka.Result[int] {
 	return vuka.Ok[int](n)
 }
 
-func list(users []User, admin bool, s string) ui.Node {
-	return ui.F(0x2faaf9b265bfc8b9, "G(E(b)bbE(b)bb)", ui.Fragment(ui.El("ul", nil, ui.Nodes(func(add func(ui.Node)) {
+//line jsx_blocks.vuka:24
+var listUl = ui.Template(`
+<ul>{{0}}</ul>
+{{1}}
+{{2}}
+<nav>{{3}}</nav>
+{{4}}
+{{5}}`)
 
-		for _, u := range users {
-			add(ui.F(0x830b18bef167bf2a, "Ed(hth)", ui.El("li", []ui.Attr{{Name: "key", Value: u.ID}}, ui.Child(u.Name), ui.Text(" since "), ui.Child(u.Year))))
-		}
-	})), ui.Nodes(func(add func(ui.Node)) {
+//line jsx_blocks.vuka:26
+var listLi = ui.Template(`<li key="{{0}}">{{1}} since {{2}}</li>`)
 
-//line jsx_blocks.vuka:29
-		if admin {
-			add(ui.F(0xe16b13fedcf82c53, "E(t)", ui.El("button", nil, ui.Text("Edit"))))
+//line jsx_blocks.vuka:30
+var listButton = ui.Template(`<button>Edit</button>`)
 
-		} else if len(users) == 0 {
-			add(ui.F(0x6daf55575482d45e, "E(t)tE()", ui.El("p", nil, ui.Text("nobody")), ui.Text(" "), ui.El("hr", nil)))
+var listP = ui.Template(`<p>nobody</p> <hr/>`)
 
-		} else {
-			add(ui.F(0xfa13af51fc743a6d, "t", ui.Text("guest")))
-		}
-	}), ui.Nodes(func(add func(ui.Node)) {
+var listText = ui.Template(`guest`)
 
 //line jsx_blocks.vuka:37
-		if m1 := lookup(s); false {
-			panic(m1)
-		} else if n := m1.Value(); m1.IsOk() {
-			_ = n
+var listP2 = ui.Template(`<p>{{0}}</p>`)
+
 //line jsx_blocks.vuka:37
-			add(ui.F(0x1525d33bbcad84b, "E(h)", ui.El("p", nil, ui.Child(n))))
-		} else if e := m1.Err(); m1.IsErr() {
-			_ = e
-//line jsx_blocks.vuka:37
-			add(ui.F(0x70e18ea936648a35, "Es(h)", ui.El("p", []ui.Attr{{Name: "className", Value: "error"}}, ui.Child(e.Error()))))
-		} else {
-			panic("vuka: no case matched")
-		}
-	}), ui.El("nav", nil, ui.Nodes(func(add func(ui.Node)) {
+var listP3 = ui.Template(`<p className="error">{{0}}</p>`)
+
 //line jsx_blocks.vuka:38
-		for _, link := range []string{"/", "/users"} {
-//line jsx_blocks.vuka:38
-			add(ui.F(0xfab66ea1e551b1fe, "Ed(h)", ui.El("a", []ui.Attr{{Name: "href", Value: link}}, ui.Child(link))))
-		}
-	})), ui.Nodes(func(add func(ui.Node)) {
+var listA = ui.Template(`<a href="{{0}}">{{1}}</a>`)
+
 //line jsx_blocks.vuka:39
-		if ok := map[string]bool{"a": true}["a"]; ok {
-			add(ui.F(0x2f7a202fb0f95b49, "E(t)", ui.El("i", nil, ui.Text("map in an if"))))
-		}
-	}), ui.Nodes(func(add func(ui.Node)) {
-//line jsx_blocks.vuka:40
-		if m2 := len(users); false {
-			panic(m2)
-		} else if m2 == 0 {
-			add(ui.F(0x16aa7457ccee4a60, "E(t)", ui.El("i", nil, ui.Text("none"))))
+var listI = ui.Template(`<i>map in an if</i>`)
 
-		} else if (m2 == 1) || (m2 == 2) {
-			add(ui.F(0x6f38a7086b3177d4, "th", ui.Text("a few: "), ui.Child(
-				len(users))))
-		} else if true {
-			add(ui.F(0xaf63df4c8601f1a5, "b", ui.Nodes(func(add func(ui.Node)) {
+//line jsx_blocks.vuka:42
+var listI2 = ui.Template(`<i>none</i>`)
+
+//line jsx_blocks.vuka:43
+var listText2 = ui.Template(`a few: {{0}}`)
+
 //line jsx_blocks.vuka:46
-				for i := range 3 {
+var listText3 = ui.Template(`{{0}}`)
+
 //line jsx_blocks.vuka:46
-					add(ui.F(0x3fea34bf0369609d, "E(h)", ui.El("b", nil, ui.Child(i))))
-				}
-			})))
-		} else {
-			panic("vuka: no case matched")
-		}
-	})),
+var listB = ui.Template(`<b>{{0}}</b>`)
+
+//line jsx_blocks.vuka:22
+func list(users []User, admin bool, s string) ui.Node {
+	return listUl.Render(
+		ui.Each(users, func(u User) ui.Node {
+//line jsx_blocks.vuka:26
+			return listLi.Render(u.ID, u.Name, u.Year)
+		}),
+		func() ui.Node {
+			var node ui.Node
+//line jsx_blocks.vuka:29
+			if admin {
+				node = listButton.Render()
+			} else if len(users) == 0 {
+				node = listP.Render()
+			} else {
+				node = listText.Render()
+			}
+			return ui.If(node != nil, node)
+		}(),
+		func() ui.Node {
+			var node ui.Node
+//line jsx_blocks.vuka:37
+			if m1 := lookup(s); false {
+				panic(m1)
+			} else if n := m1.Value(); m1.IsOk() {
+				_ = n
+//line jsx_blocks.vuka:37
+				node = listP2.Render(n)
+			} else if e := m1.Err(); m1.IsErr() {
+				_ = e
+//line jsx_blocks.vuka:37
+				node = listP3.Render(e.Error())
+			} else {
+				panic("vuka: no case matched")
+			}
+			return ui.If(node != nil, node)
+		}(),
+		ui.Each([]string{"/", "/users"}, func(link string) ui.Node {
+//line jsx_blocks.vuka:38
+			return listA.Render(link, link)
+		}),
+		func() ui.Node {
+			var node ui.Node
+//line jsx_blocks.vuka:39
+			if ok := map[string]bool{"a": true}["a"]; ok {
+				node = listI.Render()
+			}
+			return ui.If(node != nil, node)
+		}(),
+		func() ui.Node {
+			var node ui.Node
+//line jsx_blocks.vuka:40
+			if m2 := len(users); false {
+				panic(m2)
+			} else if m2 == 0 {
+				node = listI2.Render()
+			} else if (m2 == 1) || (m2 == 2) {
+//line jsx_blocks.vuka:44
+				node = listText2.Render(len(users))
+			} else if true {
+				node = listText3.Render(func() []ui.Node {
+					var nodes []ui.Node
+//line jsx_blocks.vuka:46
+					for i := range 3 {
+//line jsx_blocks.vuka:46
+						nodes = append(nodes, listB.Render(i))
+					}
+					return nodes
+				}())
+			} else {
+				panic("vuka: no case matched")
+			}
+			return ui.If(node != nil, node)
+		}(),
 	)
 }
 

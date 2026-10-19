@@ -13,7 +13,8 @@ a tree a [renderer](/ui/rendering#walking-a-tree) can walk.
 
 | | |
 |---|---|
-| `ui.El(tag, attrs, children...)` | an element — what `<tag …>` becomes |
+| `ui.Template(markup)` | markup with numbered holes, parsed once — what each piece of JSX becomes; `Render(args...)` fills them |
+| `ui.El(tag, attrs, children...)` | an element built with calls |
 | `ui.Text(v)` | text, escaped |
 | `ui.Child(v)` | a `{v}` child: a node as is, `nil` as nothing, an `error` as its message, a `[]ui.Node` or `[]any` as each element, anything else as text (`fmt.Sprint`) |
 | `ui.Fragment(children...)` | children with no element around them |

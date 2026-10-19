@@ -3,7 +3,6 @@ package transpile
 import (
 	"go/ast"
 	"go/types"
-	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/diag"
@@ -12,12 +11,12 @@ import (
 // resolveStateful decides a stateful component's tag: a struct type whose
 // pointer implements the target's Stateful (ui: embeds ui.Live and renders).
 //
-//	<Counter Start={5} key={id}>hi</Counter>   →   ui.Component("x.vuka#3", id, &Counter{Start: 5, Children: ui.Fragment(ui.Text("hi"), ), })
+//	<Counter Start={5} key={id}>hi</Counter>   →   ui.Key(id, &Counter{Start: 5, Children: counterText.Render()})
 //
-// The site, the file and the tag's ordinal among its component tags, tells
-// the session which tag an instance comes from. Attributes bind to exported fields (promoted ones too), children to a
-// Children field; the session keeps the instance and sets these on it again
-// each time the tag renders.
+// It is a template's hole, whose place tells the session which tag an
+// instance comes from. Attributes bind to exported fields (promoted ones
+// too), children to a Children field; the session keeps the instance and
+// sets these on it again each time the tag renders.
 func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *types.TypeName, attrs []*jsxAttr, node types.Type, fail func(diag.Code, int, string, ...any)) {
 	el := c.el
 	t := tn.Type()
@@ -68,16 +67,7 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 			}
 		}
 	}
-	n := 1
-	for _, t := range f.jsx {
-		for _, o := range t.comps {
-			if o.el.start < el.start {
-				n++
-			}
-		}
-	}
 	c.stateful, c.propsTyp = true, t
-	c.site = f.name + "#" + strconv.Itoa(n)
 	e.finishComp(f, c)
 }
 
@@ -124,7 +114,7 @@ func (e *engine) inferStateful(f *fileState, c *jsxComp, n *types.Named, attrs [
 func (e *engine) statefulProblem(tg *jsxTarget, tag string, t types.Type) string {
 	what := "<" + tag + "> is a type, not a component: a component is a function returning " + tg.q + "Node"
 	iface, _ := e.targetObj(tg, "Stateful").(*types.TypeName)
-	if iface == nil || !tg.has("Component") {
+	if iface == nil || !tg.has("Key") {
 		return what + "; " + tg.path + " has no stateful components"
 	}
 	if _, ok := t.Underlying().(*types.Struct); !ok {

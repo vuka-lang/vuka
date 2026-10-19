@@ -161,19 +161,22 @@ func emitAttr(name string) string {
 // marker attribute instead so a golden .out shows the data-vk-emit binding.
 func On(handler any) any { return true }
 
-// Template marks a named region slot inside a <ui.Island> wrapper — e.g.
-// <ui.Template fallback>…</ui.Template> gives the island's pre-hydration
-// fallback. The transpiler consumes these tags (they render no element of
-// their own); this declaration only lets the tag resolve. Calling it directly
-// renders nothing.
-func Template(...any) Node { return Fragment() }
-
 var islandSeq atomic.Uint64
 
-// MountIsland renders the <vk-island> host the client loader hydrates. The
-// transpiler emits it for a tag whose type carries @ui.Island; props is that
-// type's value (its exported fields are serialized as JSON for the client).
-func MountIsland(site string, props any, opts ...IslandOpt) Node {
+// mount is an island with options, hosted where a template places it.
+type mount struct {
+	props any
+	opts  []IslandOpt
+}
+
+// Mount is an island with options: a tag of a type carrying @ui.Island
+// with a strategy, a slot or a fallback.
+func Mount(props any, opts ...IslandOpt) any { return &mount{props, opts} }
+
+// mountIsland renders the <vk-island> host the client loader hydrates;
+// props is the island type's value (its exported fields are serialized as
+// JSON for the client).
+func mountIsland(site string, props any, opts ...IslandOpt) Node {
 	var cfg islandConfig
 	for _, o := range opts {
 		o(&cfg)

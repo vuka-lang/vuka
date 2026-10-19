@@ -224,7 +224,14 @@ func (b *Board) ShowLogs()  { b.PushJS(b.tab.Set("logs")) }
 
 ## Without the compiler
 
-Go code declares a state with `ui.NewState(site, v)` (`ui.PageState` for the
-page's), `site` naming the declaration uniquely, and writes reads as
-`ui.Bind(value, expr, deps…)` — what the compiler writes; see
-`go doc github.com/vuka-lang/ui Bind` for the expression's JSON.
+Go code writes what the compiler does: `ui.UseState(v)` declares a state
+(`ui.UsePageState` the page's) where it is called, a template's hole takes
+a state as it is, and an expression of states is State's methods, each a
+derived state the browser evaluates again:
+
+```go
+open, tab := ui.UseState(false), ui.UseState("logs")
+ready := open.Not().And(tab.Eq("env"))     // !open && tab == "env"
+q := ui.At[string](f, "Q")                 // f.Q
+menu.Render(ui.Classes{"is-open": open}, open.Toggle(), ready)
+```
