@@ -1,0 +1,128 @@
+# The API generated code may call (TestContract, docs/design/library.md).
+#
+# public: documented API a person writes by hand.
+# stepN: an internal form generated code still calls, until step N of the
+# Plan in docs/design/library.md gives it a public replacement. Delete an
+# entry when its step lands; one no golden uses fails the test.
+
+public github.com/vuka-lang/vuka.And
+public github.com/vuka-lang/vuka.Arg
+public github.com/vuka-lang/vuka.As
+public github.com/vuka-lang/vuka.Bundle
+public github.com/vuka-lang/vuka.Call
+public github.com/vuka-lang/vuka.Compose
+public github.com/vuka-lang/vuka.Decl
+public github.com/vuka-lang/vuka.Decorator
+public github.com/vuka-lang/vuka.Err
+public github.com/vuka-lang/vuka.FieldAttrs
+public github.com/vuka-lang/vuka.FieldsOf
+public github.com/vuka-lang/vuka.File
+public github.com/vuka-lang/vuka.FuncOf
+public github.com/vuka-lang/vuka.MethodAttrs
+public github.com/vuka-lang/vuka.NoAdvice
+public github.com/vuka-lang/vuka.None
+public github.com/vuka-lang/vuka.Not
+public github.com/vuka-lang/vuka.Ok
+public github.com/vuka-lang/vuka.OnField
+public github.com/vuka-lang/vuka.OnFunc
+public github.com/vuka-lang/vuka.OnMethod
+public github.com/vuka-lang/vuka.OnParam
+public github.com/vuka-lang/vuka.Option
+public github.com/vuka-lang/vuka.Or
+public github.com/vuka-lang/vuka.Order
+public github.com/vuka-lang/vuka.Param
+public github.com/vuka-lang/vuka.Pred
+public github.com/vuka-lang/vuka.Result
+public github.com/vuka-lang/vuka.Some
+public github.com/vuka-lang/vuka.SortBy
+public github.com/vuka-lang/vuka.Targets
+public github.com/vuka-lang/vuka.Type
+public github.com/vuka-lang/vuka.TypeAttrs
+
+public github.com/vuka-lang/ui.Assign
+public github.com/vuka-lang/ui.BindAttr
+public github.com/vuka-lang/ui.Class
+public github.com/vuka-lang/ui.ClientOnly
+public github.com/vuka-lang/ui.Commands
+public github.com/vuka-lang/ui.ErrorBoundary
+public github.com/vuka-lang/ui.Event
+public github.com/vuka-lang/ui.Fallback
+public github.com/vuka-lang/ui.Fragment
+public github.com/vuka-lang/ui.Island
+public github.com/vuka-lang/ui.JS
+public github.com/vuka-lang/ui.Layout
+public github.com/vuka-lang/ui.Live
+public github.com/vuka-lang/ui.Load
+public github.com/vuka-lang/ui.Media
+public github.com/vuka-lang/ui.Node
+public github.com/vuka-lang/ui.On
+public github.com/vuka-lang/ui.Once
+public github.com/vuka-lang/ui.PageLayout
+public github.com/vuka-lang/ui.Show
+public github.com/vuka-lang/ui.ShowProps
+public github.com/vuka-lang/ui.Slot
+public github.com/vuka-lang/ui.State
+public github.com/vuka-lang/ui.Strategy
+public github.com/vuka-lang/ui.String
+public github.com/vuka-lang/ui.Visible
+public github.com/vuka-lang/ui/live.ClientMessage
+public github.com/vuka-lang/ui/live.Join
+public github.com/vuka-lang/ui/live.Marshal
+public github.com/vuka-lang/ui/live.NewSession
+public github.com/vuka-lang/ui/live.Patch
+public github.com/vuka-lang/ui/live/livetest.Join
+
+# Step 1: registration calls (app.Get/Live/Island/Provide) in place of
+# decorator wrappers, declaration records and type descriptors; NewX
+# constructors in place of X_New.
+step1 *_New
+step1 github.com/vuka-lang/vuka.DeclareWith
+step1 github.com/vuka-lang/vuka.DecorateType
+step1 github.com/vuka-lang/vuka.Decorated
+step1 github.com/vuka-lang/vuka.FileOf
+step1 github.com/vuka-lang/vuka.Func
+step1 github.com/vuka-lang/vuka.FuncDecl
+step1 github.com/vuka-lang/vuka.Instance
+step1 github.com/vuka-lang/vuka.Instances
+step1 github.com/vuka-lang/vuka.MethodDecl
+step1 github.com/vuka-lang/vuka.NewCall
+step1 github.com/vuka-lang/vuka.RegisterFunc
+step1 github.com/vuka-lang/vuka.RegisterType
+step1 github.com/vuka-lang/vuka.TypeWith
+step1 github.com/vuka-lang/ui.IslandPage
+step1 github.com/vuka-lang/ui.RegisterIsland
+
+# Step 2: ui.Template with typed holes in place of fingerprinted frames,
+# element calls and state bindings with JSON expressions.
+step2 github.com/vuka-lang/ui.Attr
+step2 github.com/vuka-lang/ui.Bind
+step2 github.com/vuka-lang/ui.Callback
+step2 github.com/vuka-lang/ui.Child
+step2 github.com/vuka-lang/ui.Component
+step2 github.com/vuka-lang/ui.El
+step2 github.com/vuka-lang/ui.Emit
+step2 github.com/vuka-lang/ui.F
+step2 github.com/vuka-lang/ui.FT
+step2 github.com/vuka-lang/ui.MountIsland
+step2 github.com/vuka-lang/ui.NewDerived
+step2 github.com/vuka-lang/ui.NewState
+step2 github.com/vuka-lang/ui.Nodes
+step2 github.com/vuka-lang/ui.PageState
+step2 github.com/vuka-lang/ui.Ptr
+step2 github.com/vuka-lang/ui.StateField
+step2 github.com/vuka-lang/ui.StateProp
+step2 github.com/vuka-lang/ui.Text
+step2 github.com/vuka-lang/ui.Try
+step2 github.com/vuka-lang/ui.WithChildren
+
+# Step 3: orm.Schema and ui.LiveSchema in place of field attribute
+# registrations, field references by index path and statics.
+step3 github.com/vuka-lang/vuka.CompareRefOf
+step3 github.com/vuka-lang/vuka.NullableRefOf
+step3 github.com/vuka-lang/vuka.OrderedRefOf
+step3 github.com/vuka-lang/vuka.RefOf
+step3 github.com/vuka-lang/vuka.RegisterFields
+step3 github.com/vuka-lang/vuka.Static
+step3 github.com/vuka-lang/vuka.StaticOf
+step3 github.com/vuka-lang/vuka.Statics
+step3 github.com/vuka-lang/vuka.StringRefOf

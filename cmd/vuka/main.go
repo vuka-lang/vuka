@@ -44,6 +44,10 @@ Usage:
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
 	        write the generated Go beside each .vuka file instead
+	vuka eject [-rm] [file.vuka… | dir | dir/...]
+	        gen -inplace for the files or packages named; -rm deletes each
+	        .vuka file and keeps its Go (x.go) as the source, building with
+	        plain go build
 	vuka mod tidy|why|vendor|graph|… [args]
 	        go mod, seeing the imports of .vuka files too (plain go mod tidy
 	        drops requirements only Vuka code uses)
@@ -105,6 +109,8 @@ func main() {
 		err = add(os.Args[2:], os.Stdout)
 	case "gen":
 		err = gen(os.Args[2:], os.Stdout)
+	case "eject":
+		err = eject(os.Args[2:], os.Stdout)
 	case "lsp":
 		err = lsp(os.Args[2:])
 	case "mod":
@@ -389,60 +395,12 @@ func gen(args []string, stdout io.Writer) error {
 	if len(patterns) == 0 {
 		patterns = []string{"./..."}
 	}
-	root, modPath, err := load.ModuleRoot(".")
+	root, files, err := inPlace(patterns, nil)
 	if err != nil {
 		return err
-	}
-	var pkgs []*load.Package
-	for _, p := range patterns {
-		dir, recursive := strings.CutSuffix(p, "/...")
-		if dir == "" || dir == "." && recursive {
-			dir = "."
-		}
-		dir, err := filepath.Abs(dir)
-		if err != nil {
-			return err
-		}
-		found, err := load.Discover(root, modPath, dir, recursive, nil)
-		if err != nil {
-			return err
-		}
-		pkgs = append(pkgs, found...)
-	}
-	tmp, err := os.MkdirTemp("", "vuka-")
-	if err != nil {
-		return err
-	}
-	defer os.RemoveAll(tmp)
-	pa, err := findAssets(root, modPath)
-	if err != nil {
-		return err
-	}
-	files, overlay, err := load.Transpile(pkgs, tmp, loadOptions(pa))
-	if err != nil {
-		return err
-	}
-	// The link files need the whole module's declarer packages, so they are
-	// written (and checked) only when the gen covers the module; a narrower
-	// gen leaves them as they are.
-	var links []load.Generated
-	if slices.ContainsFunc(patterns, func(p string) bool { return moduleWide(root, p) }) {
-		if links, _, err = load.AutoLink(root, modPath, pkgs, files); err != nil {
-			return err
-		}
-	}
-	css, err := buildTailwind(root, overlay, pa, os.Stderr)
-	if err != nil {
-		return err
-	}
-	for _, g := range append(links, css...) {
-		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
-			files = append(files, g)
-		}
 	}
 	stale := 0
 	for _, f := range files {
-		f.Src = relativeLines(f.Src, filepath.Dir(f.Source))
 		old, err := os.ReadFile(f.Target)
 		if err == nil && bytes.Equal(old, f.Src) {
 			continue
@@ -462,6 +420,70 @@ func gen(args []string, stdout io.Writer) error {
 		return fmt.Errorf("%d generated file(s) out of date; run vuka gen", stale)
 	}
 	return nil
+}
+
+// inPlace transpiles the packages patterns name (dir or dir/...) and
+// returns the files vuka gen -inplace writes for them: each generated file
+// beside its source, line directives naming it by its base name, plus the
+// link files when the patterns cover the module. Extra packages (dirs of
+// single files eject names) are transpiled too, their files left to the
+// caller to pick.
+func inPlace(patterns, extra []string) (string, []load.Generated, error) {
+	root, modPath, err := load.ModuleRoot(".")
+	if err != nil {
+		return "", nil, err
+	}
+	var pkgs []*load.Package
+	for _, p := range append(slices.Clip(patterns), extra...) {
+		dir, recursive := strings.CutSuffix(p, "/...")
+		if dir == "" || dir == "." && recursive {
+			dir = "."
+		}
+		dir, err := filepath.Abs(dir)
+		if err != nil {
+			return "", nil, err
+		}
+		found, err := load.Discover(root, modPath, dir, recursive, nil)
+		if err != nil {
+			return "", nil, err
+		}
+		pkgs = append(pkgs, found...)
+	}
+	tmp, err := os.MkdirTemp("", "vuka-")
+	if err != nil {
+		return "", nil, err
+	}
+	defer os.RemoveAll(tmp)
+	pa, err := findAssets(root, modPath)
+	if err != nil {
+		return "", nil, err
+	}
+	files, overlay, err := load.Transpile(pkgs, tmp, loadOptions(pa))
+	if err != nil {
+		return "", nil, err
+	}
+	// The link files need the whole module's declarer packages, so they are
+	// written (and checked) only when the gen covers the module; a narrower
+	// gen leaves them as they are.
+	var links []load.Generated
+	if slices.ContainsFunc(patterns, func(p string) bool { return moduleWide(root, p) }) {
+		if links, _, err = load.AutoLink(root, modPath, pkgs, files); err != nil {
+			return "", nil, err
+		}
+	}
+	css, err := buildTailwind(root, overlay, pa, os.Stderr)
+	if err != nil {
+		return "", nil, err
+	}
+	for _, g := range append(links, css...) {
+		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
+			files = append(files, g)
+		}
+	}
+	for i := range files {
+		files[i].Src = relativeLines(files[i].Src, filepath.Dir(files[i].Source))
+	}
+	return root, files, nil
 }
 
 // moduleWide reports whether a package pattern of vuka gen -inplace covers

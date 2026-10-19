@@ -225,7 +225,7 @@ Folded into roadmap Phase 2:
 
 | Step | Item | Roadmap |
 |---|---|---|
-| 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` | 2.3 |
+| 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` — **done** | 2.3 |
 | 1 | Public registration API (`app.Get/Live/Island/Provide`), transpiler emits it | 2.5 |
 | 2 | `ui.Template` with typed holes; transpiler emits it | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them | 2.1, 2.2 |
@@ -233,3 +233,24 @@ Folded into roadmap Phase 2:
 | 5 | `web.Dev()` | 2.6 |
 | 6 | `vukavet` analyzer | 2.6 |
 | 7 | Conformance suite | 2.6 |
+
+Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
+one import block, no `/*line*/` markers and no `__` names, and checks its
+calls into vuka and ui against `transpile/testdata/contract.txt`. Generated
+files carry `//line` directives only where the lines stop following the
+source, real names and their doc comments, and `vuka eject -rm` turns an app
+into plain Go. What the contract file still allows, by the step that removes
+it:
+
+- step 1: decorator wrappers and declaration records (`vuka.Decorated`,
+  `Instance(s)`, `NewCall`, `Func`, `FuncDecl`, `MethodDecl`,
+  `RegisterFunc`, `RegisterType`, `TypeWith`, `DeclareWith`,
+  `DecorateType`, `FileOf`), `ui.IslandPage`, `ui.RegisterIsland`, and
+  `X_New` constructors;
+- step 2: the fingerprinted markup (`ui.F`, `ui.FT`, `ui.El`, `ui.Attr`,
+  `ui.Child`, `ui.Text`, `ui.Nodes`, `ui.Component`, `ui.MountIsland`,
+  `ui.Try`, `ui.WithChildren`) and state lowering (`ui.Bind`,
+  `ui.NewState`, `ui.PageState`, `ui.NewDerived`, `ui.StateField`,
+  `ui.StateProp`, `ui.Callback`, `ui.Emit`, `ui.Ptr`);
+- step 3: field references by index path (`vuka.RefOf` and its kinds),
+  `vuka.RegisterFields` and statics (`vuka.Static`, `StaticOf`, `Statics`).

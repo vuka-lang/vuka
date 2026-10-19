@@ -250,9 +250,16 @@ func goTokens(t *testing.T, src []byte) []string {
 	if n := len(f.Decls); n > 0 {
 		rest = fset.Position(f.Decls[n-1].End()).Offset
 	}
+	var toks []tok
 	for _, tk := range scanTokens(src, rest) {
 		if tk.tok == token.COMMENT || tk.tok == token.SEMICOLON || drop[tk.off] {
 			continue
+		}
+		toks = append(toks, tk)
+	}
+	for i, tk := range toks {
+		if tk.tok == token.COMMA && i+1 < len(toks) && (toks[i+1].tok == token.RPAREN || toks[i+1].tok == token.RBRACE || toks[i+1].tok == token.RBRACK) {
+			continue // a trailing comma, which gofmt adds before a closing line
 		}
 		out = append(out, tk.tok.String()+" "+tk.lit)
 	}
