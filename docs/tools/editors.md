@@ -27,6 +27,17 @@ on the decorator as you type, the build's message. Hover on `Mount` or
 `Changed` of a page backed by a component says they are hooks the server
 runs, not methods on `live`.
 
+### Templates
+
+`.vuka.html` files are served like `.vuka` files: hover, go to definition,
+completion and rename on the Go in holes, statements and `func` headers go
+through the Go they compile to (a bare `{Title}` is the receiver's field, so
+go to definition lands on it in the `.go` file), and their errors show at
+their lines. VS Code highlights them as HTML with Go in braces and at line
+starts, TypeScript in `<script lang="ts">` and CSS in `<style>`, and the
+markup of a `ui.HTML(`…`)` raw string in `.go` and `.vuka` files the same
+way; Zed reads them as HTML.
+
 ### Markup
 
 JSX is served as markup, from the `.vuka` text itself, so it works while a tag

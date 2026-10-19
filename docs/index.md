@@ -36,8 +36,8 @@ features:
     details: "User.New(\"ada\"), User.Max — statics that belong to a type, and generic bases whose Self is the type embedding them, compiled to ordinary Go."
     link: /features/statics
     linkText: Statics and Self
-  - title: Components with JSX
-    details: "Markup is an expression and a component is a function. The UI library renders it with templ, so .templ files and templ libraries work side by side — and keeps stateful components live over a connection."
+  - title: Components with JSX or templates
+    details: "Markup is JSX in a .vuka file, a .vuka.html template beside the Go, or ui.HTML in plain Go — all compile to the same calls. The UI library renders it with templ, so .templ files and templ libraries work side by side — and keeps stateful components live over a connection."
     link: /ui/
     linkText: UI
   - title: Plain Go comes out

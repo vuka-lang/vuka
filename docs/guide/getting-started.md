@@ -91,14 +91,12 @@ import (
 	"github.com/vuka-lang/web"
 )
 
-var hello = ui.Template(`<html><body><h1>Hello, {{0}}!</h1></body></html>`)
-
 // Hello answers GET /: name comes from ?name=.
 func Hello(name string) ui.Node {
 	if name == "" {
 		name = "Vuka"
 	}
-	return hello.Render(name)
+	return ui.HTML(`<html><body><h1>Hello, {name}!</h1></body></html>`, name)
 }
 
 func main() {

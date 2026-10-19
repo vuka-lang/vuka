@@ -123,9 +123,9 @@ func (s *PetStore) Find(id int) (Pet, error) {
 	return p, nil
 }
 
-var home = ui.Template(`<html><body><h1>Pets</h1></body></html>`)
-
-func Home(r *http.Request) ui.Node { return home.Render() }
+func Home(r *http.Request) ui.Node {
+	return ui.HTML(`<html><body><h1>Pets</h1></body></html>`)
+}
 
 func ShowPet(id int, store *PetStore) (Pet, error) { return store.Find(id) }
 

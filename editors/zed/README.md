@@ -85,6 +85,12 @@ gopls through its built-in Go support rather than this extension; see the
 [Vuka editors guide](https://vuka-lang.github.io/tools/editors) for the
 cross-server setup. This extension focuses on `.vuka` files.
 
+## Templates
+
+`.vuka.html` files are the "Vuka HTML" language: Zed's HTML grammar
+highlights them and `vuka lsp` serves their Go (hover, go to definition,
+completion, rename, diagnostics).
+
 ## Grammar limitation
 
 Vuka has **no tree-sitter grammar of its own yet**, so this extension references

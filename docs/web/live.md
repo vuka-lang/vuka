@@ -41,15 +41,20 @@ func NewCounter() *Counter { return &Counter{} }
 func (c *Counter) Mount() { c.n = c.Start }
 func (c *Counter) Inc()   { c.n++ }
 
-var counter = ui.Template(`<div><output>{{0}}</output><button onClick="{{1}}">+</button></div>`)
-
-func (c *Counter) Render() ui.Node { return counter.Render(c.n, c.Inc) }
+func (c *Counter) Render() ui.Node {
+	return ui.HTML(`<div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>`, c.n, c.Inc)
+}
 
 func init() {
 	web.Routes.Live("/counter", NewCounter)
 }
 ```
 :::
+
+`Render` can also be a template file beside the type: `counter.vuka.html`
+holds the markup, reading `{n}` and `onClick={Inc}` by bare name, and the
+`vuka` command compiles it into the same method. See
+[Templates](/ui/templates).
 
 ## How a page becomes live
 
@@ -84,9 +89,10 @@ Two ways, one mechanism:
 
   ::: go
   ```go
-  var shell = ui.Template(`<main><h1>{{0}}</h1>{{1}}</main>`)
-
-  func Home() ui.Node { return shell.Render("Home", &Counter{Start: 10}) }
+  func Home() ui.Node {
+  	counter := &Counter{Start: 10}
+  	return ui.HTML(`<main><h1>Home</h1>{counter}</main>`, counter)
+  }
 
   func init() { web.Routes.Get("/", Home) }
   ```
@@ -236,16 +242,16 @@ func (t *Todo) Add(f NewItem) error {
 
 func (t *Todo) Filter(q string) { t.filter = q }
 
-var todo = ui.Template(`
+func (t *Todo) Render() ui.Node {
+	return ui.HTML(`
 <section>
-	<form onSubmit="{{0}}">
+	<form onSubmit={t.Add}>
 		<input name="text" autocomplete="off">
 		<button>Add</button>
 	</form>
-	<input type="search" value="{{1}}" onInput="{{2}}" data-vk-debounce="150">
-</section>`)
-
-func (t *Todo) Render() ui.Node { return todo.Render(t.Add, t.filter, t.Filter) }
+	<input type="search" value={t.filter} onInput={t.Filter} data-vk-debounce="150">
+</section>`, t.Add, t.filter, t.Filter)
+}
 ```
 :::
 

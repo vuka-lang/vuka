@@ -20,7 +20,7 @@ hand against this API.
 The contract for generated code:
 
 - **Public API only.** Generated files call exported orm, web and ui API —
-  `app.Get`, `app.Live`, `ui.Template`, `orm.Schema`, `ui.LiveSchema`, … —
+  `app.Get`, `app.Live`, `ui.HTML`, `orm.Schema`, `ui.LiveSchema`, … —
   never internal hooks (`vuka.TypeWith`, fingerprinted `ui.FT`/`ui.F`
   forms), private helpers or `__`-prefixed names. A test builds every
   generated golden against the public API alone and fails on any other
@@ -145,40 +145,72 @@ same templates) and answer the same.
 
 ## 2. Markup
 
-Markup is `.vuka.html` templates compiled to Go, and `ui.HTML` with
-labelled holes inline: [templates.md](templates.md) is the design, and
-replaces the `ui.Template` form below as it lands.
+Markup is written two ways, compiled to the same calls
+([templates.md](templates.md) is the design).
 
-### Templates with typed holes (default)
+### `.vuka.html` templates (default with the vuka command)
+
+```html
+<!-- orders.vuka.html: the Render of Orders, its fields by bare name -->
+<table>
+  for _, o := range Rows {
+    {row(o, Cancel)}
+  }
+</table>
+
+func row(o Order, cancel func(int))
+<tr key={o.ID} class="row" class:late={o.Late}>
+  <td>{o.Ref}</td>
+  <td class="tabular-nums">{money(o.Total)}</td>
+  <td><button onClick={cancel(o.ID)}>Cancel</button></td>
+</tr>
+```
+
+- A file holds templates: the markup before its first `func` line is the
+  `Render` of the type the file is named after, `func` lines start the others
+  (partials and function components). Go statements start lines (`if`,
+  `for`, `switch`, `x := …`); holes are any Go; component tags are structs
+  with a `Render` method, stateful types or function components, their
+  attributes the fields (`<slot:name>` fills a Node field). A
+  `<script lang="ts">` and `<style scoped>` after the markup are the
+  component's, bundled and scoped by the vuka command.
+- `vuka run|build|test|vet` compile them through the overlay; `vuka gen`
+  writes `orders_html.go` for a plain `go build`; `vuka eject -rm` turns a
+  `.vuka` file's markup functions into a `.vuka.html`.
+
+### `ui.HTML` in plain Go
+
+What a template compiles to, and what plain Go writes with no tools:
 
 ```go
-var orderRow = ui.Template(`
-<tr key="{{0}}" class="{{1}}">
-  <td>{{2}}</td>
-  <td class="tabular-nums">{{3}}</td>
-  <td><button onClick="{{4}}">Cancel</button></td>
-</tr>`)
-
-func (p *Orders) row(o Order) ui.Node {
-	return orderRow.Render(o.ID, ui.Class{"row": true, "late": o.Late}, o.Ref, money(o.Total),
-		func() { p.Cancel(o.ID) })
+func row(o Order, cancel func(int)) ui.Node {
+	click := func() { cancel(o.ID) }
+	return ui.HTML(`
+<tr key={o.ID} class="row" class:late={o.Late}>
+  <td>{o.Ref}</td>
+  <td class="tabular-nums">{money(o.Total)}</td>
+  <td><button onClick={click}>Cancel</button></td>
+</tr>`, o.ID, o.Late, o.Ref, money(o.Total), click)
 }
 ```
 
-- The same `ui.Template` readable generated code uses (2.3), so performance is
-  identical to transpiled JSX: parsed once at init, static parts precomputed,
-  and under a live session the same render tree (statics, dynamics, keyed
-  lists) JSX lowers to.
-- Holes are escaped by position kind: child (`ui.Node`, `[]ui.Node`, text,
-  a `ui.State`, a stateful component, an island), text (in title, textarea,
-  script), attribute value (what a JSX attribute takes; an `on…` attribute
-  takes a handler — a func, `ui.On(…)`, JS commands), part of a value
-  (text), attribute set (`ui.Attr`, `[]ui.Attr`, `templ.Attributes`,
-  `ui.BindAttr(…)`). A value of the wrong kind for its hole is a render-time
-  error naming the template's line and the hole, and a vet error where the
-  analyzer can see it (§7); a malformed template panics at init.
+- Each hole is labelled with its value's Go; the values follow in the order
+  the labels first appear, a label written twice being one value. vukavet
+  checks the values against the labels (§7).
+- Parsed once per source (a constant's), static parts precomputed, and under
+  a live session the same render tree (statics, dynamics, keyed lists) JSX
+  lowers to; as fast as the numbered-hole templates it replaced.
+- Holes are escaped by place: child (`ui.Node`, `[]ui.Node`, text, a
+  `ui.State`, a stateful component, an island), text (in title, textarea),
+  attribute value (what a JSX attribute takes; an `on…` attribute a handler —
+  a func, `ui.On(…)`, JS commands), part of a value (text), toggled class
+  (`class:x={bool or State}`), attribute set (`{attrs...}`: `ui.Attr`,
+  `[]ui.Attr`, `templ.Attributes`, `ui.BindAttr(…)`). A value of the wrong
+  kind is a render error naming the hole's line and label; malformed markup
+  fails the render with its line.
 - Loops and conditionals are ordinary Go producing nodes:
-  `ui.Each(rows, OrderRow)`, `ui.If(cond, node)`, or a `[]ui.Node`.
+  `ui.Each(rows, OrderRow)`, `ui.If(cond, node)`, or a `[]ui.Node` given to
+  a hole.
 - A hole is a place: a stateful component (`&Counter{…}`,
   `ui.Key(id, &Counter{…})`) or an island (`Chart{…}`,
   `ui.Mount(Chart{…}, ui.Idle())`) in it is identified by it, and a list's
@@ -347,7 +379,7 @@ attributes (`@ui.Bind{…}`, `@ui.Defer("lists")`, `@ui.Loads("lists")`,
 | orm row scanners and writers | reflection: the ORM's own cost 1.1–1.7× (1000 rows: 1.34× at 6 columns, 1.67× at 23), 1.05–1.07× end to end on SQLite | generated, as now |
 | orm field sets (`<Model>Fields`) | `orm.Q{"…"}` / `orm.F("…")`, checked at run time | typed |
 | orm `Register[T]()` | a model's `orm.For[T]()` (or first `Objects`) registers it | at init |
-| live render tracking (`ui.F` frames from JSX) | components built from nodes diff whole: the same page; 1.7–2.2× the bytes on the demo pages' random events | fine-grained, as now; `ui.Template` builds frames at init, no generation needed |
+| live render tracking (`ui.F` frames from JSX) | components built from nodes diff whole: the same page; 1.7–2.2× the bytes on the demo pages' random events | fine-grained, as now; `ui.HTML` builds frames when it parses, no generation needed |
 | `vuka-live.d.ts` (island TypeScript types) | islands work, untyped (`useLive()` comes from the island build) | typed (`defineProps<T>()` needs it); `go tool vuka build-islands` writes it |
 
 Measured on an Apple M1 Pro: orm `go test -bench Fallback` (a stub driver
@@ -418,9 +450,9 @@ vuka module stays free of dependencies), runnable as
   (E0331);
 - `live`: live pages' constructors and structs (E0329, E0330) and
   `ui.CheckIsland`'s checks of island pages (E0322–E0328, E0333);
-- `templates`: `ui.Template` hole count (E0127, new) and hole kind against
-  the value's static type (E0128, new), templates of other packages through
-  facts;
+- `templates`: `ui.HTML`'s values against its labels — their number
+  (E0127), each written as its label (E0132), and its type against its
+  hole's place (E0128);
 - `schema`: `s.Field` not given the receiver's field (E0501), a nil
   attribute (E0502), a field behind a pointer (E0503).
 
@@ -445,7 +477,7 @@ Folded into roadmap Phase 2:
 |---|---|---|
 | 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` — **done** | 2.3 |
 | 1 | Public registration API (`web.Routes`, `app.Get/Live/Controller/Service`), transpiler emits it — **done** | 2.5 |
-| 2 | `ui.Template` with typed holes; transpiler emits it — **done** | 2.3, 2.4 |
+| 2 | Markup in Go — now `.vuka.html` templates and `ui.HTML` ([templates.md](templates.md)); transpiler emits them — **done** | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them — **done** | 2.1, 2.2 |
 | 4 | orm reflection fallback, live render fallback (**done**); call decorators through a reflective wrapper (open) | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
@@ -469,10 +501,10 @@ needs), `RegisterFunc`, `RegisterType` (the attribute registry), `FileOf`
 (an embedded file), `ui.IslandPage` (a live island page's one-line
 `Render`) and `ui.RegisterIsland` (an imported component's props type).
 
-Step 2 is done: each piece of JSX is a package-level `ui.Template` named
-after its declaration, rendered with its expressions in document order;
-blocks are `ui.Each`, a loop appending to a `[]ui.Node`, or an if or match
-picking one node for `ui.If`; stateful components are `&C{…}` or `ui.Key`,
+Step 2 is done, and then reworked by [templates.md](templates.md): each
+piece of JSX is a `ui.HTML` call at its place, its holes labelled with their
+Go; blocks are statements before the return appending to a `[]ui.Node` a
+hole names; `.vuka.html` templates compile the same way; stateful components are `&C{…}` or `ui.Key`,
 islands their props or `ui.Mount`; states are `ui.UseState` /
 `ui.UsePageState` and expressions of them State's methods (§2). The
 fingerprinted markup, `ui.Component`, `ui.MountIsland`, the state binding

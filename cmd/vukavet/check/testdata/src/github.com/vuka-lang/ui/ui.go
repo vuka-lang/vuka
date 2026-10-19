@@ -55,11 +55,7 @@ func (islandOpt) Attrs() []any { return nil }
 
 func Island(args ...any) islandOpt { return islandOpt{} }
 
-type Markup struct{}
-
-func Template(src string) *Markup { return &Markup{} }
-
-func (m *Markup) Render(args ...any) Node { return nil }
+func HTML(src string, args ...any) Node { return nil }
 
 type FieldOptions struct{}
 

@@ -3,14 +3,14 @@ name = "Vuka"
 version = "0.1.0"
 schema_version = 1
 authors = ["Paul Manoni <01paulmanoni@gmail.com>"]
-description = "Vuka language support for Zed: .vuka syntax highlighting and full language intelligence (completion, hover, go-to-definition, rename, diagnostics) through `vuka lsp` — gopls behind a proxy that understands Vuka's additions to Go."
+description = "Vuka language support for Zed: .vuka and .vuka.html syntax highlighting and full language intelligence (completion, hover, go-to-definition, rename, diagnostics) through `vuka lsp` — gopls behind a proxy that understands Vuka's additions to Go."
 repository = "https://github.com/vuka-lang/vuka"
 
 # The language server is `vuka lsp` (gopls behind a proxy). The extension locates
 # the `vuka` binary on PATH (or a configured path) and launches it with `lsp`.
 [language_servers.vuka]
 name = "Vuka"
-languages = ["Vuka"]
+languages = ["Vuka", "Vuka HTML"]
 
 # Highlighting: the Vuka language uses Zed's built-in `go` grammar
 # (languages/vuka/config.toml sets grammar = "go"), since .vuka is a Go

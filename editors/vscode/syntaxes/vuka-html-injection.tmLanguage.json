@@ -1,0 +1,16 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "comment": "ui.HTML's markup in Go and .vuka files: the raw string after ui.HTML( as a template.",
+  "scopeName": "inline.vuka-html",
+  "injectionSelector": "L:source.go -comment -string, L:source.vuka -comment -string",
+  "patterns": [
+    {
+      "begin": "(?<=\\bHTML\\()\\s*(`)",
+      "beginCaptures": { "1": { "name": "punctuation.definition.string.begin.go" } },
+      "end": "`",
+      "endCaptures": { "0": { "name": "punctuation.definition.string.end.go" } },
+      "contentName": "meta.embedded.block.vuka-html",
+      "patterns": [{ "include": "text.html.vuka#markup" }]
+    }
+  ]
+}

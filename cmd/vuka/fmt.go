@@ -80,7 +80,7 @@ func vukaFiles(path string) ([]string, error) {
 			}
 			return nil
 		}
-		if strings.HasSuffix(name, ".vuka") && !strings.HasPrefix(name, ".") {
+		if (strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".vuka.html")) && !strings.HasPrefix(name, ".") {
 			files = append(files, p)
 		}
 		return nil
@@ -94,6 +94,9 @@ func fmtFile(path string, list, write, diff bool, stdout io.Writer) error {
 		return err
 	}
 	out, err := format.Source(src)
+	if strings.HasSuffix(path, ".vuka.html") {
+		out, err = format.Template(src)
+	}
 	if err != nil {
 		return fmt.Errorf("%s:%v", path, err)
 	}
