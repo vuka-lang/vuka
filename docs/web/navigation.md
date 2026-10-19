@@ -56,7 +56,9 @@ type ShelfParams struct {
 	Page int // ?page=
 }
 
-func (s *Shelf) Mount()               { s.show(s.Page) }
+@ui.Mount
+func (s *Shelf) mount(ctx context.Context) error { s.show(s.Page); return nil }
+
 func (s *Shelf) Update(p ShelfParams) { s.show(p.Page) }
 
 func (s *Shelf) Render() ui.Node {
@@ -98,7 +100,9 @@ type OrderParams struct {
 	ID int
 }
 
-func (p *OrderPage) Mount(ctx context.Context) error { return p.load(ctx, p.ID) }
+@ui.Mount
+func (p *OrderPage) mount(ctx context.Context) error { return p.load(ctx, p.ID) }
+
 func (p *OrderPage) Update(ctx context.Context, q OrderParams) error { return p.load(ctx, q.ID) }
 
 func (p *OrderPage) load(ctx context.Context, id int) error {

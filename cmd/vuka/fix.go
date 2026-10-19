@@ -46,13 +46,17 @@ var fixers = []fixer{
 	{"orphans", "remove files vuka gen -inplace wrote for .vuka files that are gone", fixOrphans},
 	{"attr-of", "rename vuka.Attr[T](c) to vuka.AttrOf[T](c) (v0.5.0: vuka.Attr is JSX's attribute type)", fixAttrOf},
 	{"ui", "move UI code to github.com/vuka-lang/ui (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
+	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…", fixAttributes},
+	{"hooks", "mark the methods a live page's hooks were found by (Mount, Changed, Load<Group>) with @ui.Mount, @ui.OnChange, @ui.Loads", fixHooks},
 }
 
 func fix(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("fix", flag.ContinueOnError)
 	dry := fs.Bool("n", false, "only report what would change")
+	attributes := fs.Bool("attributes", false, "the attributes fixer")
+	hooks := fs.Bool("hooks", false, "the hooks fixer")
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "usage: vuka fix [-n] [fixer…]\n\nfixers:")
+		fmt.Fprintln(fs.Output(), "usage: vuka fix [-n] [--attributes] [--hooks] [fixer…]\n\nfixers:")
 		for _, f := range fixers {
 			fmt.Fprintf(fs.Output(), "  %-13s %s\n", f.name, f.doc)
 		}
@@ -60,7 +64,12 @@ func fix(args []string, stdout io.Writer) error {
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
-	selected := map[string]bool{}
+	selected := map[string]bool{"attributes": *attributes, "hooks": *hooks}
+	for k, on := range selected {
+		if !on {
+			delete(selected, k)
+		}
+	}
 	for _, name := range fs.Args() {
 		known := false
 		for _, f := range fixers {
@@ -200,7 +209,30 @@ var (
 	staticVar  = regexp.MustCompile(`(?m)^(?:var|const) (_?[A-Za-z][A-Za-z0-9]*_[A-Za-z]\w*)\b`)
 	staticFunc = regexp.MustCompile(`(?m)^func (_?[A-Za-z][A-Za-z0-9]*_[A-Za-z]\w*)\(`)
 	staticHead = regexp.MustCompile(`(?m)^func\s+([A-Za-z]\w*)(?:\[[^\]]*\])?\.([A-Za-z]\w*)\s*\(`)
+	structHead = regexp.MustCompile(`(?m)^type\s+([A-Za-z]\w*)(?:\[[^\]]*\])?\s+struct\s*\{`)
+	staticLine = regexp.MustCompile(`(?m)^\s*static\s+([A-Za-z]\w*)`)
 )
+
+// structStatics are the type.member pairs of the static fields src's
+// struct types declare.
+func structStatics(src []byte) [][2]string {
+	var out [][2]string
+	for _, h := range structHead.FindAllSubmatchIndex(src, -1) {
+		depth, end := 1, h[1]
+		for ; end < len(src) && depth > 0; end++ {
+			switch src[end] {
+			case '{':
+				depth++
+			case '}':
+				depth--
+			}
+		}
+		for _, x := range staticLine.FindAllSubmatch(src[h[1]:end], -1) {
+			out = append(out, [2]string{string(src[h[2]:h[3]]), string(x[1])})
+		}
+	}
+	return out
+}
 
 // fixStaticNames rewrites Go names of statics (User_Table, _User_count,
 // User_New) in .vuka files to the way Vuka writes them (User.Table, …).
@@ -223,12 +255,15 @@ func fixStaticNames(m *fixModule) ([]fixChange, error) {
 	for _, p := range m.pkgs {
 		for _, f := range p.Files {
 			if f.IsVuka() {
+				var statics [][2]string
 				for _, x := range staticHead.FindAllSubmatch(f.Src, -1) {
-					member := string(x[2])
-					if token.IsExported(member) {
-						add(string(x[1]) + "_" + member)
+					statics = append(statics, [2]string{string(x[1]), string(x[2])})
+				}
+				for _, st := range append(statics, structStatics(f.Src)...) {
+					if token.IsExported(st[1]) {
+						add(st[0] + "_" + st[1])
 					} else {
-						add("_" + string(x[1]) + "_" + member)
+						add("_" + st[0] + "_" + st[1])
 					}
 				}
 			}

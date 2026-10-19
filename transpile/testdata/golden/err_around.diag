@@ -1,0 +1,25 @@
+error[E0131]: @orm.Transaction needs the function's context: give it a named context.Context parameter, ctx context.Context
+ --> err_around.vuka:9:1
+  |
+9 | @orm.Transaction
+  | ^^^^^^^^^^^^^^^^
+  |
+  = help: give the function a named context.Context parameter and an error result: error, (T, error) or Result[T]
+
+error[E0131]: @orm.Transaction runs the body inside it, so the function must return an error: error, (T, error) or Result[T]
+  --> err_around.vuka:12:1
+   |
+12 | @orm.Transaction
+   | ^^^^^^^^^^^^^^^^
+   |
+   = help: give the function a named context.Context parameter and an error result: error, (T, error) or Result[T]
+
+error[E0131]: @orm.Transaction and @orm.Transaction both run the body inside them; keep one
+  --> err_around.vuka:16:1
+   |
+16 | @orm.Transaction
+   | ^^^^^^^^^^^^^^^^
+   |
+   = help: give the function a named context.Context parameter and an error result: error, (T, error) or Result[T]
+
+For more information about this error, try `vuka explain E0131`.

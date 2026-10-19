@@ -313,7 +313,8 @@ type Board struct {
 	me *auth.Identity
 }
 
-func (b *Board) Mount(ctx context.Context) { b.me = auth.Current(ctx) }
+@ui.Mount
+func (b *Board) mount(ctx context.Context) error { b.me = auth.Current(ctx); return nil }
 
 func (b *Board) Render() ui.Node {
 	return <p>Signed in as {b.me.ID}</p>

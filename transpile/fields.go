@@ -79,22 +79,30 @@ func (f *fileState) attachField(a *Attr) {
 	}
 }
 
-// renderFields registers each struct's field attributes at init, before any
-// type decorator runs:
+// renderFields declares each struct's field attributes. A struct with a
+// schema (schema.go) gets its schema method; any other registers them at
+// init, before any type decorator runs:
 //
 //	func init() {
-//		vuka.RegisterFields[Post](map[string][]any{
-//			"Title": {Char{Max: 200}},
+//		vuka.RegisterFields[Address](map[string][]any{
+//			"City": {Char{Max: 50}},
 //		})
 //	}
 //
-// The registrations are written with the trailer, each time it is, so the
-// rewrites decided inside the attributes (Some and None, statics) reach them.
+// They are written with the trailer, each time it is, so the rewrites
+// decided inside the attributes (Some and None, statics) reach them.
 func (e *engine) renderFields(f *fileState) {
 	for _, a := range f.attrs {
 		if a.Field && len(a.fieldNames) > 0 {
 			f.fieldsOn = true
-			f.runtime()
+			if e.schemas[a.structOf] == nil {
+				f.runtime()
+			}
+		}
+	}
+	for _, si := range e.schemas {
+		if si.file == f && len(si.hooks) > 0 {
+			f.fieldsOn = true
 		}
 	}
 }
@@ -115,9 +123,18 @@ func (f *fileState) renderFieldAttrs() {
 		}
 		byType[a.structOf] = append(byType[a.structOf], a)
 	}
+	for _, si := range f.eng.schemas {
+		if si.file == f && byType[si.typeName] == nil && len(si.hooks) > 0 {
+			order = append(order, si.typeName)
+		}
+	}
 	w := &f.fieldGen
 	for _, typ := range order {
 		attrs := byType[typ]
+		if si := f.eng.schemas[typ]; si != nil {
+			f.renderSchema(w, si, attrs)
+			continue
+		}
 		var names []string
 		values := map[string][]*Attr{}
 		for _, a := range attrs {
@@ -131,12 +148,7 @@ func (f *fileState) renderFieldAttrs() {
 		w.gen("\nfunc init() {\n\t"+f.rt+".RegisterFields["+typ+"](map[string][]any{\n", attrs[0].start)
 		for _, n := range names {
 			w.gen("\t\t"+strconv.Quote(n)+": {", values[n][0].start)
-			for i, a := range values[n] {
-				if i > 0 {
-					w.gen(", ", a.start)
-				}
-				f.writeFieldAttr(w, a)
-			}
+			f.writeAttrList(w, values[n])
 			w.gen("},\n", values[n][0].end)
 		}
 		w.gen("\t})\n}\n", attrs[len(attrs)-1].end)
@@ -144,11 +156,13 @@ func (f *fileState) renderFieldAttrs() {
 }
 
 // writeFieldAttr writes a field attribute's value: T{…} or a call as
-// written, a bare T as T's zero value.
+// written, a bare T as T{} (T a struct, slice, map or array) or T's zero
+// value.
 func (f *fileState) writeFieldAttr(w *genWriter, a *Attr) {
 	text := string(f.src[a.nameStart:a.end])
 	bare := !strings.HasSuffix(text, "}") && !strings.HasSuffix(text, ")")
-	if bare {
+	composite := bare && f.eng.composite(f, a.Name)
+	if bare && !composite {
 		w.gen("*new(", a.start)
 	}
 	if !f.bare {
@@ -161,7 +175,10 @@ func (f *fileState) writeFieldAttr(w *genWriter, a *Attr) {
 	} else {
 		f.copySrc(w, text, a.nameStart)
 	}
-	if bare {
+	switch {
+	case composite:
+		w.gen("{}", a.end)
+	case bare:
 		w.gen(")", a.end)
 	}
 }
@@ -288,21 +305,27 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			return true
 		}
 		if named, ok := types.Unalias(root).(*types.Named); ok {
-			if _, ok := e.findStatic(named, names[0].Name); ok {
-				return true
+			if ref, ok := e.findStatic(named, names[0].Name); ok {
+				if obj, _, _ := types.LookupFieldOrMethod(named, false, e.pkg, names[0].Name); obj == nil || e.declaredStatic(ref) {
+					return true
+				}
 			}
 		}
 		if e.mnames[names[0].Name] {
 			return true // an overloaded method's expression
 		}
+		// A type with generated typed fields reads the methods after its
+		// fields from them (orm.Field's Gte, Expr): the compiler checks those.
+		typed := hasMarker(root, "vukaFields")
 		cur, fieldT := root, types.Type(nil)
 		var steps [][]int
 		var rels []bool
+		var stepTs []types.Type
 		for i, id := range names {
 			if i > 0 {
 				next, rel, ok := follow(fieldT)
 				if !ok {
-					if !e.isRefMethod(refKind(fieldT), id.Name) {
+					if !typed && !e.isRefMethod(refKind(fieldT), id.Name) {
 						fail(sel, id.Pos(), "%s is a %s; it has no field %s", e.refName(base, names[:i]), e.display(fieldT), id.Name)
 						return false
 					}
@@ -315,9 +338,10 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			if v, ok := obj.(*types.Var); ok && v.IsField() {
 				steps = append(steps, index)
 				fieldT = v.Type()
+				stepTs = append(stepTs, fieldT)
 				continue
 			}
-			if i > 0 && obj == nil && e.isRefMethod(refKind(fieldT), id.Name) {
+			if i > 0 && obj == nil && (typed || e.isRefMethod(refKind(fieldT), id.Name)) {
 				break
 			}
 			fail(sel, id.Pos(), "%s", e.noField(cur, obj, index, id.Name))
@@ -327,6 +351,10 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			return true
 		}
 		f.done[at] = true
+		if typed {
+			e.typedFields(f, base, names[:len(steps)], stepTs)
+			return false
+		}
 		rels = rels[:len(steps)-1]
 		var idx []string
 		for _, s := range steps {
@@ -532,4 +560,68 @@ func (e *engine) mayUseFieldRefs(f *fileState) bool {
 		return !found
 	})
 	return found
+}
+
+// typedFields lowers a reference to a field of a type with generated typed
+// fields (its embedded type has the marker method vukaFields): Post.Slug is
+// PostFields.Slug, Post.Author.Email PostFields.Author.Email; a relation
+// beyond the first is reached by a method, PostFields.Author.Posts().Title.
+func (e *engine) typedFields(f *fileState, base ast.Expr, names []*ast.Ident, ts []types.Type) {
+	f.insert(f.orig(base.End()), "Fields", 0)
+	gen := types.ExprString(base) + "Fields." + names[0].Name
+	for i := 1; i < len(names); i++ {
+		if modelRel(ts[i]) {
+			f.insert(f.orig(names[i].End()), "()", 0)
+		}
+		gen += "." + names[i].Name
+		if modelRel(ts[i]) {
+			gen += "()"
+		}
+	}
+	f.spell(gen, e.refName(base, names), f.orig(base.Pos()))
+	e.progress = true
+}
+
+// modelRel reports whether a field of type t is a relation to a model with
+// typed fields: an FK or M2M (a Related method), or such a model, a pointer
+// to one or a slice of them.
+func modelRel(t types.Type) bool {
+	if _, rel, ok := follow(t); ok && rel {
+		return true
+	}
+	t = derefType(t)
+	if s, ok := t.Underlying().(*types.Slice); ok {
+		t = derefType(s.Elem())
+	}
+	return hasMarker(t, "vukaFields")
+}
+
+// hasMarker reports whether struct type t embeds, at any depth, a type with
+// the marker method name, declared in that type's package.
+func hasMarker(t types.Type, name string) bool {
+	seen := map[types.Type]bool{}
+	var walk func(t types.Type) bool
+	walk = func(t types.Type) bool {
+		st, ok := derefType(t).Underlying().(*types.Struct)
+		if !ok || seen[t] {
+			return false
+		}
+		seen[t] = true
+		for i := range st.NumFields() {
+			fv := st.Field(i)
+			if !fv.Embedded() {
+				continue
+			}
+			if n := namedOf(fv.Type()); n != nil && n.Obj().Pkg() != nil {
+				if _, ok := pkgMethod(types.NewPointer(n), n.Obj().Pkg(), name); ok {
+					return true
+				}
+			}
+			if walk(fv.Type()) {
+				return true
+			}
+		}
+		return false
+	}
+	return walk(t)
 }

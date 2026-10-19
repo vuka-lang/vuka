@@ -38,11 +38,7 @@ type Post struct {
 posts := Post.Objects.Filter(Post.Title.Contains("Go"), Post.Author.Name.Eq("ada")).
 	OrderBy(Post.Views.Desc()).All(ctx)?                     // []Post
 
-match Post.Objects.Get(ctx, Post.Slug.Eq(slug)) {
-case Ok(p):             show(p)
-case Err(orm.NotFound): notFound()
-case Err(e):            return e
-}
+p, err := Post.Objects.Get(ctx, Post.Slug.Eq(slug))   // orm.ErrNotFound when there is none
 ```
 :::
 
@@ -97,16 +93,15 @@ default:
 A value outside a field's `Choices`, bounds or length is refused on every
 write with an [`orm.Invalid`](/orm/errors) naming the field, before the
 database sees it.
-<span class="vuka-only">A misspelt field is a compile error with a suggestion, `Post.Objects.Filter(
-User.Name.Eq("x"))` doesn't compile, and `Contains` on a number doesn't
-either. Terminals return [`Result`](/features/result-option), so `?` and
-`match` take them.</span><span class="go-only">A model's `Schema` names each
+<span class="vuka-only">A misspelt field is a compile error, and `Contains` on a
+number doesn't compile either: `Post.Title` is the model's typed field.
+Terminals return `(T, error)`, so `?` takes them.</span><span class="go-only">A model's `Schema` names each
 field by its address, so a rename is checked by the compiler; `PostFields`,
 written by `ormgen` (`//go:generate go run github.com/vuka-lang/orm/cmd/ormgen`),
 gives typed lookups, and without it every query takes `orm.Q{"title__contains":
 "Go"}` strings. Terminals return `(T, error)`.</span>
-Everything is plain Go underneath: Go and Vuka packages share models and
-databases.
+Everything is plain Go underneath — the attributes are the model's
+`Schema` method — so Go and Vuka packages share models and databases.
 
 ## Install
 

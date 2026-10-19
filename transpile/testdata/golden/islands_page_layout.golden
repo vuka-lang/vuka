@@ -43,7 +43,7 @@ func main() {
 }
 
 //line islands_page_layout.vuka:28
-func (x *Board) Render() ui.Node { return ui.IslandPage(x) }
+func (b *Board) Render() ui.Node { return ui.IslandPage(b) }
 
 //line islands_page_layout.vuka:28
 func NewBoard(Q string) *Board {

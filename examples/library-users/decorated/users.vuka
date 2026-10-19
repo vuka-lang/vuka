@@ -1,52 +1,72 @@
 package main
 
 import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/orm"
+	_ "github.com/vuka-lang/orm/sqlite"
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/validate"
 	"github.com/vuka-lang/web"
 )
 
-// User is a member of the directory.
+// User is a member of the directory, a row of its table.
 type User struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	orm.Base
+	ID   int64  `json:"id"`
+	Name string `json:"name"` @orm.Char{Max: 50}
 }
 
-// Directory holds the users: a service, built once.
+// Directory holds the users: a service, built once, on a database in
+// memory.
 @web.Service
-type Directory struct{ users []User }
+type Directory struct{ users *orm.Manager[User] }
 
-func Directory.New() *Directory {
-	return &Directory{users: []User{{1, "Ada"}, {2, "Grace"}, {3, "Linus"}}}
+func Directory.New() (*Directory, error) {
+	ctx := context.Background()
+	db := orm.ConnectURL("sqlite::memory:")?
+	orm.AddDatabase("main", db, orm.AsDefault())
+	d := &Directory{users: User.Objects}
+	orm.CreateTables(ctx, d.users)?
+	for _, name := range []string{"Ada", "Grace", "Linus"} {
+		u := User{Name: name}
+		u.Save(ctx)?
+	}
+	return d, nil
 }
 
-func (d *Directory) find(id int) (User, bool) {
-	for _, u := range d.users {
-		if u.ID == id {
-			return u, true
-		}
+func (d *Directory) find(ctx context.Context, id int64) (User, error) {
+	u, err := d.users.Get(ctx, User.ID.Eq(id))
+	if errors.Is(err, orm.ErrNotFound) {
+		return u, web.NotFound
 	}
-	return User{}, false
+	return u, err
 }
 
 // ListUsers answers GET /api/users.
 @web.Get("/api/users")
-func ListUsers(dir *Directory) []User { return dir.users }
+func ListUsers(ctx context.Context, dir *Directory) ([]User, error) {
+	return dir.users.OrderBy(User.ID.Asc()).All(ctx)
+}
 
 // ShowUser answers GET /api/users/{id}.
 @web.Get("/api/users/{id}")
-func ShowUser(id int, dir *Directory) (User, error) {
-	if u, ok := dir.find(id); ok {
-		return u, nil
-	}
-	return User{}, web.NotFound
-}
+func ShowUser(ctx context.Context, id int64, dir *Directory) (User, error) { return dir.find(ctx, id) }
 
 // Dashboard is a live page.
 @web.Live("/")
 type Dashboard struct {
 	ui.Live
 	dir   *Directory
+	users int64
 	likes int
+}
+
+@ui.Mount
+func (d *Dashboard) mount(ctx context.Context) (err error) {
+	d.users, err = d.dir.users.Count(ctx)
+	return err
 }
 
 // Like is the button's event.
@@ -55,29 +75,27 @@ func (d *Dashboard) Like() { d.likes++ }
 func (d *Dashboard) Render() ui.Node {
 	return <main>
 		<h1>Users</h1>
-		<p>{len(d.dir.users)} users, {d.likes} likes</p>
+		<p>{d.users} users, {d.likes} likes</p>
 		<button onClick={d.Like}>Like</button>
 	</main>
 }
 
 // Profile is a live page backed by its island, islands/Profile.ts: its
-// exported fields are the component's props.
+// exported fields are the component's props, Name one it may set.
 @web.Live("/users/{id}")
 @ui.Island(ui.Layout(page))
 type Profile struct {
 	ui.Live
-	ID   int    `json:"id"`
-	Name string `json:"name"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"` @ui.Bind @validate.Required @validate.Max(50)
 	dir  *Directory
 }
 
-func (p *Profile) Mount() error {
-	u, ok := p.dir.find(p.ID)
-	if !ok {
-		return web.NotFound
-	}
+@ui.Mount
+func (p *Profile) mount(ctx context.Context) error {
+	u, err := p.dir.find(ctx, p.ID)
 	p.Name = u.Name
-	return nil
+	return err
 }
 
 // page is the profile's layout.

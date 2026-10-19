@@ -15,7 +15,8 @@ import (
 // struct (E0329, E0330), and a page backed by its island as ui.CheckIsland
 // does at boot — bind: (E0322), defer: (E0323), a deferred group without a
 // loader (E0324) or with a wrong one (E0325), two handles of one name
-// (E0326), Changed (E0327), validate: (E0328) and Mount (E0333).
+// (E0326), Changed (E0327), validate: (E0328) and Mount (E0333) — and
+// the page's LiveSchema: its fields (E0335) and hooks (E0336).
 var Live = &analysis.Analyzer{
 	Name: "live",
 	Doc:  "check vuka live pages and pages backed by an island as the app's boot does",
@@ -101,6 +102,7 @@ func (l *liveCheck) page(n *types.Named, r registration, island, live bool) {
 		return
 	}
 	ms := types.NewMethodSet(ptr)
+	schema := l.schema(n)
 	if m := ms.Lookup(nil, "Mount"); m != nil {
 		sig := m.Type().(*types.Signature)
 		p, res := sig.Params(), sig.Results()
@@ -115,7 +117,7 @@ func (l *liveCheck) page(n *types.Named, r registration, island, live bool) {
 		}
 	}
 	if island {
-		l.island(n, st, ms)
+		l.island(n, st, ms, schema)
 	}
 }
 
@@ -127,7 +129,10 @@ var reserved = map[string]bool{"pending": true, "error": true, "subscribe": true
 var lifecycle = map[string]bool{"Render": true, "Mount": true, "Update": true, "Info": true, "Changed": true}
 
 // island checks a page backed by its island as ui.CheckIsland does.
-func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet) {
+func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet, schema *liveSchema) {
+	if schema == nil {
+		schema = &liveSchema{}
+	}
 	pass := l.pass
 	name := n.Obj().Name()
 	node := iface(pass, uiPath, "Node")
@@ -137,6 +142,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 	type group struct {
 		name  string
 		field *types.Var
+		at    analysis.Range
 	}
 	var groups []group
 	seenGroup := map[string]bool{}
@@ -144,8 +150,16 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 		f := st.Field(i)
 		tag := reflect.StructTag(st.Tag(i))
 		fat := at(pass, f, l.r.at)
+		so := schema.fields[f]
 		bind, hasBind := tag.Lookup("bind")
 		hasBind = hasBind && bind != "-"
+		what, sat := "bind:", fat
+		if so.at != nil {
+			sat = so.at // what the LiveSchema says is reported there
+		}
+		if so.bind {
+			what = "ui.Bind"
+		}
 		wire, _, _ := strings.Cut(tag.Get("json"), ",")
 		ft := f.Type()
 		_, isFunc := ft.Underlying().(*types.Signature)
@@ -153,9 +167,9 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 			!(node != nil && types.IsInterface(ft) && implements(ft, node)) && !isFunc &&
 			!implements(ft, jsChain) && !implements(ft, anyState)
 		if !prop {
-			if hasBind {
-				l.report(fat, "E0322", "drop bind:, or make "+f.Name()+" an exported field of a plain value",
-					"%s.%s: bind: is for a prop the component sets (an exported field of a JSON value)", name, f.Name())
+			if hasBind || so.bind {
+				l.report(sat, "E0322", "drop "+what+", or make "+f.Name()+" an exported field of a plain value",
+					"%s.%s: %s is for a prop the component sets (an exported field of a JSON value)", name, f.Name(), what)
 			}
 			continue
 		}
@@ -174,37 +188,48 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 		} else {
 			handles[handle] = f.Name()
 		}
-		if d, ok := tag.Lookup("defer"); ok && d != "-" {
+		d, hasDefer := tag.Lookup("defer")
+		form := fmt.Sprintf("defer:%q", d)
+		if so.deferred {
+			d, hasDefer, form = so.group, true, fmt.Sprintf("ui.Defer(%q)", so.group)
+		}
+		if hasDefer && d != "-" {
 			if d == "" {
 				d = f.Name()
 			}
 			q, _, _ := strings.Cut(tag.Get("url"), ",")
 			switch {
 			case !isIdent(d):
-				l.report(fat, "E0323", `name the group: defer:"stats", loaded by LoadStats`, "%s.%s: defer:%q: a group is a name", name, f.Name(), d)
-			case hasBind:
-				l.report(fat, "E0323", "drop bind: or defer:", "%s.%s: a deferred field is the server's to load", name, f.Name())
-			case q != "" && q != "-":
-				l.report(fat, "E0323", "drop url: or defer:", "%s.%s: a deferred field is the server's to load", name, f.Name())
+				l.report(sat, "E0323", `name the group: ui.Defer("stats"), loaded by l.Loads("stats", …)`, "%s.%s: %s: a group is a name", name, f.Name(), form)
+			case hasBind || so.bind:
+				l.report(sat, "E0323", "drop Bind or Defer", "%s.%s: a deferred field is the server's to load", name, f.Name())
+			case so.url != "" || q != "" && q != "-":
+				l.report(sat, "E0323", "drop URL or Defer", "%s.%s: a deferred field is the server's to load", name, f.Name())
 			default:
 				g := strings.ToUpper(d[:1]) + d[1:]
 				if !seenGroup[g] {
 					seenGroup[g] = true
-					groups = append(groups, group{g, f})
+					groups = append(groups, group{g, f, sat})
 				}
 			}
 		}
-		if hasBind {
+		switch {
+		case so.bind && reserved[handle]:
+			l.report(sat, "E0322", "give the field another json name to bind it", "%s.%s: live.%s is live's own", name, f.Name(), handle)
+		case hasBind && !so.bind:
 			l.bind(name, f, fat, bind, handle, wire)
 		}
 	}
 	loaders := map[string]bool{}
 	for _, g := range groups {
+		if schema.loads[g.name] {
+			continue
+		}
 		loader := "Load" + g.name
 		loaders[loader] = true
 		m := ms.Lookup(nil, loader)
 		if m == nil {
-			l.report(at(pass, g.field, l.r.at), "E0324", fmt.Sprintf("add the method\n\t\tfunc (%s *%s) %s(ctx context.Context) error", strings.ToLower(name[:1]), name, loader),
+			l.report(g.at, "E0324", fmt.Sprintf("give the group a loader in the page's LiveSchema:\n\t\tl.Loads(%q, %s.load%s)", lowerFirst(g.name), strings.ToLower(name[:1]), g.name),
 				"%s.%s is deferred, and the group %s has no loader", name, g.field.Name(), g.name)
 			continue
 		}
@@ -225,7 +250,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 	for i := range ms.Len() {
 		m := ms.At(i).Obj().(*types.Func)
 		mn := m.Name()
-		if !m.Exported() || lifecycle[mn] || own[mn] || strings.HasPrefix(mn, "Update__") || loaders[mn] {
+		if !m.Exported() || lifecycle[mn] || own[mn] || strings.HasPrefix(mn, "Update__") || loaders[mn] || schema.hooks[mn] || mn == "LiveSchema" {
 			continue
 		}
 		sig := m.Type().(*types.Signature)
@@ -239,7 +264,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 			l.report(at(pass, m, l.r.at), "E0326", "rename one, or give the field another json name", "%s: the method %s and the field %s are both live.%s", name, mn, f, lowerFirst(mn))
 		}
 	}
-	if m := ms.Lookup(nil, "Changed"); m != nil && !changedOK(m.Type().(*types.Signature)) {
+	if m := ms.Lookup(nil, "Changed"); m != nil && !schema.onChange && !changedOK(m.Type().(*types.Signature)) {
 		l.report(at(pass, m.Obj(), l.r.at), "E0327", "declare Changed(), Changed(ctx context.Context) or Changed(ctx context.Context, changed ui.Changed), returning nothing or an error",
 			"%s.Changed is %s", name, typeString(pass, m.Type()))
 	}

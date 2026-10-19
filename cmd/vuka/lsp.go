@@ -1233,7 +1233,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			return
 		}
 	case "textDocument/hover":
-		v = staticHover(demangleStrings(v))
+		v = demangleStrings(v)
 		if vr.note != "" {
 			v = withNote(v, vr.note)
 		}
@@ -1450,40 +1450,6 @@ func mapRange(f *vfile, v any) (lspRange, bool) {
 var mangled = regexp.MustCompile(`\b([A-Za-z][A-Za-z0-9_]*?)__[A-Za-z0-9_]+\b`)
 
 func demangle(s string) string { return mangled.ReplaceAllString(s, "$1") }
-
-var (
-	// A generic static's accessor: func Model_Objects() *vuka.Static[Manager[User]] …
-	staticAccessor = regexp.MustCompile(`(?m)func _?([A-Z][A-Za-z0-9]*)_([A-Za-z]\w*)(?:\[[^\]]*\])?\(\) \*\w+\.Static\[(.*?)\](?: //.*)?$`)
-	// A static field, constant or method: var User_Table string, func User_New(…
-	staticDecl = regexp.MustCompile(`\b(var|const|func) _?([A-Z][A-Za-z0-9]*)_([A-Za-z]\w*)`)
-)
-
-// staticHover shows statics the way the source writes them: static
-// User.Table string, func User.New(…).
-func staticHover(v any) any {
-	h, ok := v.(map[string]any)
-	if !ok {
-		return v
-	}
-	c, ok := h["contents"].(map[string]any)
-	if !ok {
-		return v
-	}
-	text, ok := c["value"].(string)
-	if !ok {
-		return v
-	}
-	text = staticAccessor.ReplaceAllString(text, "static $2 $3 // declared by $1")
-	text = staticDecl.ReplaceAllStringFunc(text, func(m string) string {
-		g := staticDecl.FindStringSubmatch(m)
-		if g[1] == "func" {
-			return "func " + g[2] + "." + g[3]
-		}
-		return "static " + g[2] + "." + g[3]
-	})
-	c["value"] = text
-	return v
-}
 
 func demangleStrings(v any) any {
 	switch x := v.(type) {

@@ -13,7 +13,7 @@ import (
 func init() {
 	web.Routes.Service(NewDirectory)
 	web.Routes.Get("/api/users", ListUsers)
-	web.Routes.Get("/api/users/{id}", ShowUser, web.Params("id", "dir"))
+	web.Routes.Get("/api/users/{id}", ShowUser, web.Params("ctx", "id", "dir"))
 	web.Routes.Live("/", NewDashboard)
 	web.Routes.Live("/users/{id}", NewProfile, ui.Island(ui.Layout(page)))
 }
