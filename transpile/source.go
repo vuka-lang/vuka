@@ -216,6 +216,15 @@ func (es edits) fromOrig(off int) int {
 	return off + delta
 }
 
+// fromOrigEnd maps the end of a span of src, an offset just after it, to
+// the applied text: just after where its last byte went.
+func (es edits) fromOrigEnd(off int) int {
+	if off == 0 {
+		return es.fromOrig(0)
+	}
+	return es.fromOrig(off-1) + 1
+}
+
 // genOf is where src offset off is in a copy's text.
 func (e edit) genOf(off int) int {
 	if e.segs == nil {

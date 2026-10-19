@@ -280,7 +280,7 @@ func (e *engine) nodeType(t *jsxTarget) types.Type {
 // Ident, selector or index placeholder lowerJSX left where the tag name was.
 func (e *engine) compExpr(f *fileState, c *jsxComp) ast.Expr {
 	el := c.el
-	at, end := f.cur.fromOrig(el.start+1), f.cur.fromOrig(el.tagEnd)
+	at, end := f.cur.fromOrig(el.start+1), f.cur.fromOrigEnd(el.tagEnd)
 	var expr ast.Expr
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {
@@ -558,7 +558,7 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 
 // attrExpr is an attribute's expression in this round's syntax tree.
 func (e *engine) attrExpr(f *fileState, a *jsxAttr) ast.Expr {
-	at, end := f.cur.fromOrig(a.expr.start), f.cur.fromOrig(a.expr.end)
+	at, end := f.cur.fromOrig(a.expr.start), f.cur.fromOrigEnd(a.expr.end)
 	var expr ast.Expr
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {

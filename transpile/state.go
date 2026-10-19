@@ -406,7 +406,7 @@ func (e *engine) exprAt(f *fileState, s span) ast.Expr {
 			return true
 		})
 	}
-	return f.exprIdx[[2]int{f.cur.fromOrig(s.start), f.cur.fromOrig(s.end)}]
+	return f.exprIdx[[2]int{f.cur.fromOrig(s.start), f.cur.fromOrigEnd(s.end)}]
 }
 
 // bindTree decides which of a tree's element attributes and children read

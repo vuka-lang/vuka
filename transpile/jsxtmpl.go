@@ -114,7 +114,7 @@ func (w *jsxWriter) isNode(n *jsxHole) bool {
 		return false
 	}
 	node := e.nodeType(w.f.target)
-	t := e.typeAt(w.f, w.f.cur.fromOrig(n.expr.start), w.f.cur.fromOrig(n.expr.end))
+	t := e.typeAt(w.f, w.f.cur.fromOrig(n.expr.start), w.f.cur.fromOrigEnd(n.expr.end))
 	return node != nil && t != nil && types.AssignableTo(t, node) && !types.IsInterface(t) || t != nil && types.Identical(t, node)
 }
 
