@@ -317,15 +317,26 @@ attributes (`@ui.Bind{…}`, `@ui.Defer("lists")`, `@ui.Loads("lists")`,
 
 | Generated today | Without it (`go run .`) | With `go generate` |
 |---|---|---|
-| orm row scanners, field sets | reflection fallback (≈1.5–2× slower scans) | generated, as now |
-| live render tracking (changed spots only) | whole-component diffs: correct, larger patches | fine-grained, as now |
-| `vuka-live.d.ts` (island TypeScript types) | islands work, untyped | typed |
+| orm row scanners and writers | reflection: the ORM's own cost 1.1–1.7× (1000 rows: 1.34× at 6 columns, 1.67× at 23), 1.05–1.07× end to end on SQLite | generated, as now |
+| orm field sets (`<Model>Fields`) | `orm.Q{"…"}` / `orm.F("…")`, checked at run time | typed |
+| orm `Register[T]()` | a model's `orm.For[T]()` (or first `Objects`) registers it | at init |
+| live render tracking (`ui.F` frames from JSX) | components built from nodes diff whole: the same page; 1.7–2.2× the bytes on the demo pages' random events | fine-grained, as now; `ui.Template` builds frames at init, no generation needed |
+| `vuka-live.d.ts` (island TypeScript types) | islands work, untyped (`useLive()` comes from the island build) | typed (`defineProps<T>()` needs it) |
 
-- Each package checks at init whether generated code registered itself and
-  falls back otherwise; behaviour is identical, only cost differs.
+Measured on an Apple M1 Pro: orm `go test -bench Fallback` (a stub driver
+for the ORM's own cost, SQLite end to end), ui `go test -bench Fallback
+./live` and `TestWholeComponentFallback`.
+
+- No check costs anything when the generated code is there: an orm model
+  looks for its scanner once, on its first query, and keeps the answer; a
+  live component's node type decides, a frame or plain markup.
 - One line opts in: `//go:generate go tool vuka gen`.
-- The fallbacks are tested by running the conformance suite (§8) with
-  generation off.
+- The fallbacks are tested with generation off: the orm suite runs again
+  with its generated scanners ignored (`ORM_REFLECT=1`); the live sessions'
+  random-event tests run every demo page with frames and as whole
+  components and compare each page; web's runtime test applies whole-
+  component replies with `live.js`. The conformance suite (§8) will run
+  every example both ways.
 
 ## 5. Frontend assets
 
@@ -390,7 +401,7 @@ Folded into roadmap Phase 2:
 | 1 | Public registration API (`web.Routes`, `app.Get/Live/Controller/Service`), transpiler emits it — **done** | 2.5 |
 | 2 | `ui.Template` with typed holes; transpiler emits it | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them | 2.1, 2.2 |
-| 4 | orm reflection fallback; live render fallback; call decorators through a reflective wrapper | 2.6 |
+| 4 | orm reflection fallback, live render fallback (**done**); call decorators through a reflective wrapper (open) | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
 | 6 | `vukavet` analyzer — **done** | 2.6 |
 | 7 | Conformance suite | 2.6 |
