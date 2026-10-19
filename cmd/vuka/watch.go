@@ -660,6 +660,7 @@ type watcher struct {
 	poll   bool        // look every interval, without the system's events
 	events atomic.Bool // the system's events tell when to look
 	kick   chan struct{}
+	after  func(time.Duration) <-chan time.Time // time.After; a test's clock drives the waits
 	mu     sync.Mutex
 	embeds []string          // what the app embeds, from embedRoots
 	fresh  []string          // embeds new since the last look: their files aren't changes
@@ -677,8 +678,10 @@ type stamp struct {
 // files it watches may have changed; a look at the sources finds what.
 type osWatch interface {
 	// watch makes it watch exactly these directories and files, which map
-	// to their identities: one whose identity changed is watched anew.
-	watch(dirs, files map[string]uint64) error
+	// to their identities: one whose identity changed is watched anew. It
+	// reports whether it started watching one: what changed in it before
+	// then had no event.
+	watch(dirs, files map[string]uint64) (bool, error)
 	events() <-chan struct{}
 	errors() <-chan error
 	close()
@@ -694,7 +697,7 @@ const (
 var osSafetyNet = time.Second
 
 func newWatcher(root string) *watcher {
-	return &watcher{root: root, kick: make(chan struct{}, 1), poll: strings.EqualFold(os.Getenv(watchEnv), "poll")}
+	return &watcher{root: root, kick: make(chan struct{}, 1), after: time.After, poll: strings.EqualFold(os.Getenv(watchEnv), "poll")}
 }
 
 func (w *watcher) setEmbeds(roots []string) {
@@ -830,7 +833,7 @@ func (w *watcher) runPoll(ctx context.Context, interval, quiet time.Duration, ou
 		select {
 		case <-ctx.Done():
 			return
-		case <-time.After(wait):
+		case <-w.after(wait):
 		}
 		start := time.Now()
 		changed := w.scan()
@@ -855,13 +858,16 @@ func (w *watcher) runPoll(ctx context.Context, interval, quiet time.Duration, ou
 // been calm for osQuiet, and every osSafetyNet all the same. It returns
 // nil when ctx is done, or why the file events stopped.
 func (w *watcher) runEvents(ctx context.Context, ow osWatch, out chan<- []string) error {
-	if err := w.sync(ow); err != nil {
+	if _, err := w.sync(ow); err != nil {
 		return err
 	}
 	w.events.Store(true)
 	defer w.events.Store(false)
 	// What changed between the first look and the watch is looked for now.
-	pending := w.scan()
+	pending, err := w.look(ow)
+	if err != nil {
+		return err
+	}
 	safety := osSafetyNet
 	for {
 		if len(pending) > 0 {
@@ -894,7 +900,7 @@ func (w *watcher) runEvents(ctx context.Context, ow osWatch, out chan<- []string
 				return err
 			}
 		case <-w.kick:
-		case <-time.After(safety):
+		case <-w.after(safety):
 		}
 		start := time.Now()
 		changed, err := w.look(ow)
@@ -910,8 +916,7 @@ func (w *watcher) runEvents(ctx context.Context, ow osWatch, out chan<- []string
 // save (a temporary file renamed over the source, a formatter's rewrite)
 // are one change.
 func (w *watcher) calm(ctx context.Context, ow osWatch) error {
-	t := time.NewTimer(osQuiet)
-	defer t.Stop()
+	quiet := w.after(osQuiet)
 	for {
 		select {
 		case <-ctx.Done():
@@ -919,44 +924,34 @@ func (w *watcher) calm(ctx context.Context, ow osWatch) error {
 		case err := <-ow.errors():
 			return err
 		case <-ow.events():
-			t.Reset(osQuiet)
-		case <-t.C:
+			quiet = w.after(osQuiet)
+		case <-quiet:
 			return nil
 		}
 	}
 }
 
 // look looks at the sources and has the watch follow them: new directories
-// and files watched, replaced ones watched anew. What changed in a new
-// directory before it was watched is seen by a second look.
+// and files watched, replaced ones watched anew. What changed in one before
+// it was watched sent no event, so the sources are looked at again until the
+// watch has nothing new to follow.
 func (w *watcher) look(ow osWatch) ([]string, error) {
-	w.mu.Lock()
-	before := len(w.dirs)
-	known := w.dirs
-	w.mu.Unlock()
-	changed := w.scan()
-	if err := w.sync(ow); err != nil {
-		return nil, err
-	}
-	w.mu.Lock()
-	newDirs := len(w.dirs) > before
-	if !newDirs {
-		for d := range w.dirs {
-			if _, ok := known[d]; !ok {
-				newDirs = true
-				break
-			}
-		}
-	}
-	w.mu.Unlock()
-	if newDirs {
+	var changed []string
+	for range 4 {
 		changed = append(changed, w.scan()...)
+		added, err := w.sync(ow)
+		if err != nil {
+			return nil, err
+		}
+		if !added {
+			break
+		}
 	}
 	return changed, nil
 }
 
 // sync has the watch watch what the last look went through.
-func (w *watcher) sync(ow osWatch) error {
+func (w *watcher) sync(ow osWatch) (bool, error) {
 	w.mu.Lock()
 	dirs := maps.Clone(w.dirs)
 	files := make(map[string]uint64, len(w.files))

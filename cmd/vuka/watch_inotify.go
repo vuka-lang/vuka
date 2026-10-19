@@ -59,12 +59,13 @@ func (w *inWatch) errors() <-chan error    { return w.err }
 
 // watch covers dirs, and so their files: a directory's watch sees them. One
 // replaced since it was added is added again.
-func (w *inWatch) watch(dirs, files map[string]uint64) error {
+func (w *inWatch) watch(dirs, files map[string]uint64) (bool, error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 	if w.closed.Load() {
-		return errors.New("closed")
+		return false, errors.New("closed")
 	}
+	added := false
 	for path, d := range w.dirs {
 		if id, ok := dirs[path]; !ok || id != 0 && id != d.id {
 			syscall.InotifyRmWatch(w.fd, uint32(d.wd)) // gone already when the directory is
@@ -81,12 +82,13 @@ func (w *inWatch) watch(dirs, files map[string]uint64) error {
 			if err == syscall.ENOENT || err == syscall.ENOTDIR || err == syscall.EACCES {
 				continue
 			}
-			return &fs.PathError{Op: "inotify_add_watch", Path: path, Err: err}
+			return added, &fs.PathError{Op: "inotify_add_watch", Path: path, Err: err}
 		}
 		w.dirs[path] = inDir{wd, id}
 		w.names[int32(wd)] = path
+		added = true
 	}
-	return nil
+	return added, nil
 }
 
 func (w *inWatch) loop() {
