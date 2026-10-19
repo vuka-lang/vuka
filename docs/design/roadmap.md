@@ -108,7 +108,13 @@ the docs site.
 ## Phase 2 — Language (explicit, typed, readable)
 
 Goal: what you write says what it does; what vuka generates reads like Go
-you'd have written.
+you'd have written — and a plain Go module can use orm, web and ui with
+`go run .` and no transpiler.
+
+One runtime, two front-ends: everything `.vuka` says lowers to a documented
+public Go API, and plain-Go apps write that API directly. Items 2.1–2.5 are
+designed as that API first and as `.vuka` syntax second. Design:
+[vuka as a library](./library.md).
 
 ### 2.1 Typed attributes instead of struct-tag DSLs
 
@@ -194,6 +200,26 @@ A one-time API pass with a written style guide and a vet rule:
 - Exported names reviewed for consistency before 1.0; renames go through
   deprecation and `vuka fix`.
 
+### 2.6 vuka as a library
+
+Plain Go, no transpiler, `go run .` ([design](./library.md)):
+
+- Generated code becomes an optional speed-up: an orm reflection fallback
+  for row scanners and field sets, and a whole-component live diff fallback
+  when render tracking isn't generated; `//go:generate go tool vuka gen` opts
+  back in.
+- `web.Dev()` runs Tailwind and Vite for `go run .` in development when
+  they're installed.
+- The vet-time checks ship as a `go/analysis` analyzer (`vukavet`) with the
+  same diagnostic codes.
+- A conformance suite runs every example as `.vuka` and as hand-written Go,
+  with and without generated code, and compares HTML, live patches, SQL and
+  HTTP responses.
+
+2.1–2.5 carry the API half: the registration calls (2.5), `ui.Template` with
+typed holes (2.3, 2.4), and `orm.Schema` / `ui.LiveSchema` as the lowered
+form of typed attributes and explicit hooks (2.1, 2.2).
+
 ## Phase 3 — Knowledge (reference and guides)
 
 Goal: when something surprises you, the docs say whether it's a bug.
@@ -271,7 +297,7 @@ two minor releases using only `vuka upgrade` and `vuka fix`.
 | Phase | Items | Size | Depends on |
 |---|---|---|---|
 | 1 Trust | 1.1–1.5 | 2–3 weeks | — |
-| 2 Language | 2.1–2.5 | 4–6 weeks | 1.3 (deprecations), 1.5 (codes) |
+| 2 Language | 2.1–2.6 | 6–8 weeks | 1.3 (deprecations), 1.5 (codes) |
 | 3 Knowledge | 3.1–3.3 | 2 weeks, ongoing | 2 (so the reference describes the final shapes) |
 | 4 Defaults and tools | 4.1–4.4 | 3–4 weeks, partly parallel | 2.3 for debugging |
 | 5 1.0 | — | when the criteria hold | 1–4 |
