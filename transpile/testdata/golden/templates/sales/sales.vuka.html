@@ -1,0 +1,35 @@
+<section class="sales">
+  <h2>{Title}</h2>
+  for _, d := range Week {
+    <span class="day" class:big={d > 10}>{d}</span>
+  }
+  <p>Total: {Total()} {{literal}</p>
+  {Children}
+</section>
+
+// Page lists the orders below a week of sales.
+func Page(orders []Order)
+<main>
+  <Sales title="Week" week={[]int{3, 12}}>
+    <em>note</em>
+  </Sales>
+  if len(orders) == 0 {
+    <p>none</p>
+  } else {
+    <ul>
+      for _, o := range orders {
+        {row(o)}
+      }
+    </ul>
+  }
+  n := len(orders)
+  switch n {
+  case 1:
+    <p>one</p>
+  default:
+    <p>{n} orders</p>
+  }
+</main>
+
+func row(o Order)
+<li key={o.ID}><a href="/orders/{o.ID}" title={o.Ref}>{o.Ref}</a></li>

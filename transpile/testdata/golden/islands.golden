@@ -17,21 +17,13 @@ type Counter struct {
 	Count int `json:"count"`
 }
 
-//line islands.vuka:20
-var pageText = ui.Template(`{{0}}`)
-
-//line islands.vuka:21
-var pageDiv = ui.Template(`<div class="skeleton">Loading</div>`)
-
-//line islands.vuka:22
-var pageSmall = ui.Template(`<small>clicks</small>`)
-
 // page wraps the island to add a fallback shown until hydration; the body's
 // client:visible directive is the strategy and its children are the slot.
-//
-//line islands.vuka:19
 func page() ui.Node {
-	return pageText.Render(ui.Mount(Counter{Count: 5}, ui.Visible(), ui.Slot(pageSmall.Render()), ui.Fallback(pageDiv.Render())))
+//line islands.vuka:22
+	island := ui.Mount(Counter{Count: 5}, ui.Visible(), ui.Slot(ui.HTML(`<small>clicks</small>`)), ui.Fallback(ui.HTML(`<div class="skeleton">Loading</div>`)))
+//line islands.vuka:20
+	return ui.HTML(`{island}`, island)
 }
 
 //line islands.vuka:26

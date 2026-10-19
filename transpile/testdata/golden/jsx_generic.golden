@@ -15,40 +15,30 @@ type User struct {
 	Name string
 }
 
-//line jsx_generic.vuka:16
-var list = ui.Template(`<ul>{{0}}</ul>`)
-
-//line jsx_generic.vuka:16
-var listText = ui.Template(`{{0}}`)
-
-//line jsx_generic.vuka:15
 func List[T any](items []T, render func(T) ui.Node) ui.Node {
-	return list.Render(ui.Each(items, func(x T) ui.Node {
+	var renders []ui.Node
 //line jsx_generic.vuka:16
-		return listText.Render(render(x))
-	}))
+	for _, x := range items {
+//line jsx_generic.vuka:16
+		renders = append(renders, render(x))
+	}
+//line jsx_generic.vuka:16
+	return ui.HTML(`<ul>{renders}</ul>`, renders)
 }
 
-//line jsx_generic.vuka:21
-var select2 = ui.Template(`
-<label>
-  {{0}}
-  <select>{{1}}</select>
-</label>`)
-
-//line jsx_generic.vuka:24
-var selectOption = ui.Template(`<option selected="{{0}}">{{1}}</option>`)
-
 // Select's selected is left out: its zero value is the inferred type's.
-//
-//line jsx_generic.vuka:20
 func Select[T comparable](label string, options []T, selected T) ui.Node {
-	return select2.Render(
-		label,
-		ui.Each(options, func(o T) ui.Node {
-			return selectOption.Render(o == selected, fmt.Sprint(o))
-		}),
-	)
+	var options2 []ui.Node
+//line jsx_generic.vuka:23
+	for _, o := range options {
+		options2 = append(options2, ui.HTML(`<option selected={o == selected}>{fmt.Sprint(o)}</option>`, o == selected, fmt.Sprint(o)))
+	}
+//line jsx_generic.vuka:21
+	return ui.HTML(`
+<label>
+  {label}
+  <select>{options2}</select>
+</label>`, label, options2)
 }
 
 //line jsx_generic.vuka:30
@@ -57,90 +47,68 @@ type TableProps[T any] struct {
 	Cell func(T) string
 }
 
-//line jsx_generic.vuka:36
-var table = ui.Template(`<table>{{0}}</table>`)
-
-//line jsx_generic.vuka:36
-var tableTr = ui.Template(`<tr><td>{{0}}</td></tr>`)
-
-//line jsx_generic.vuka:35
 func Table[T any](props TableProps[T]) ui.Node {
-	return table.Render(ui.Each(props.Rows, func(r T) ui.Node {
+	var trs []ui.Node
 //line jsx_generic.vuka:36
-		return tableTr.Render(props.Cell(r))
-	}))
+	for _, r := range props.Rows {
+//line jsx_generic.vuka:36
+		trs = append(trs, ui.HTML(`<tr><td>{props.Cell(r)}</td></tr>`, props.Cell(r)))
+	}
+//line jsx_generic.vuka:36
+	return ui.HTML(`<table>{trs}</table>`, trs)
 }
 
-var pair = ui.Template(`<p>{{0}}={{1}} {{2}}</p>`)
-
-//line jsx_generic.vuka:39
 func Pair[K comparable, V any](name K, value V, children ui.Node) ui.Node {
-	return pair.Render(fmt.Sprint(name), fmt.Sprint(value), children)
+	return ui.HTML(`<p>{fmt.Sprint(name)}={fmt.Sprint(value)} {children}</p>`, fmt.Sprint(name), fmt.Sprint(value), children)
 }
-
-//line jsx_generic.vuka:44
-var price = ui.Template(`<b>{{0}} cents</b>`)
 
 // Overloaded components: the attributes' types choose.
-//
-//line jsx_generic.vuka:44
-func Price__int(amount int) ui.Node { return price.Render(amount) }
-
-//line jsx_generic.vuka:45
-var price3 = ui.Template(`<b>{{0}}</b>`)
-
-//line jsx_generic.vuka:45
+func Price__int(amount int) ui.Node { return ui.HTML(`<b>{amount} cents</b>`, amount) }
 func Price__float64(amount float64) ui.Node {
 //line jsx_generic.vuka:45
-	return price3.Render(strconv.FormatFloat(amount, 'f', 2, 64))
+	return ui.HTML(`<b>{strconv.FormatFloat(amount, 'f', 2, 64)}</b>`, strconv.FormatFloat(amount, 'f', 2, 64))
 }
-
-//line jsx_generic.vuka:47
-var price2 = ui.Template(`<b>{{0}} {{1}}</b>`)
 
 //line jsx_generic.vuka:46
 func Price__string_string(amount string, currency string) ui.Node {
-	return price2.Render(amount, currency)
+	return ui.HTML(`<b>{amount} {currency}</b>`, amount, currency)
 }
 
-//line jsx_generic.vuka:52
-var pageText = ui.Template(`
-{{0}}
-{{1}}
-{{2}}
-{{3}}
-{{4}}
-{{5}}
-{{6}}
-{{7}}
-{{8}}
-{{9}}`)
-
-//line jsx_generic.vuka:52
-var pageLi = ui.Template(`<li>{{0}}</li>`)
-
-//line jsx_generic.vuka:53
-var pageLi2 = ui.Template(`<li>{{0}}</li>`)
-
-//line jsx_generic.vuka:58
-var pageText2 = ui.Template(`and more`)
-
-//line jsx_generic.vuka:50
 func page(users []User) ui.Node {
-	return pageText.Render(
-		List(users, func(u User) ui.Node { return pageLi.Render(u.Name) }),
-		func(a1 func(int) ui.Node, a2 []int) ui.Node { return List(a2, a1) }(func(n int) ui.Node { return pageLi2.Render(n) }, []int{1, 2}),
+//line jsx_generic.vuka:52
+	list := List(users, func(u User) ui.Node { return ui.HTML(`<li>{u.Name}</li>`, u.Name) })
+	list2 := func(a1 func(int) ui.Node, a2 []int) ui.Node { return List(a2, a1) }(func(n int) ui.Node { return ui.HTML(`<li>{n}</li>`, n) }, []int{1, 2})
+//line jsx_generic.vuka:58
+	pair := Pair("a", 1.5, ui.HTML(`and more`))
+	price := Price__int(150)
+	price2 := Price__float64(1.5)
+	price3 := Price__string_string("7", "EUR")
+//line jsx_generic.vuka:51
+	return ui.HTML(`
+{list}
+{list2}
+{List[string](nil, nil)}
+{Select("pick", []string{"a", "b"}, "")}
+{Select("pick", []int{1, 2}, 2)}
+{Table[User](TableProps[User]{Rows: users, Cell: func(u User) string { return strconv.Itoa(u.ID) }, })}
+{pair}
+{price}
+{price2}
+{price3}`,
+		list,
+		list2,
 		List[string](nil, nil),
 		Select("pick", []string{"a", "b"}, ""),
 		Select("pick", []int{1, 2}, 2),
 		Table[User](TableProps[User]{Rows: users, Cell: func(u User) string { return strconv.Itoa(u.ID) }}),
-		Pair("a", 1.5, pageText2.Render()),
-		Price__int(150),
-		Price__float64(1.5),
-		Price__string_string("7", "EUR"),
+		pair,
+		price,
+		price2,
+		price3,
 	)
 }
 
+//line jsx_generic.vuka:65
 func main() {
 	fmt.Println(ui.String(context.Background(), page([]User{{1, "Ann"}, {2, "Bo"}})))
 }

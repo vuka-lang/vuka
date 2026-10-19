@@ -145,6 +145,10 @@ same templates) and answer the same.
 
 ## 2. Markup
 
+Markup is `.vuka.html` templates compiled to Go, and `ui.HTML` with
+labelled holes inline: [templates.md](templates.md) is the design, and
+replaces the `ui.Template` form below as it lands.
+
 ### Templates with typed holes (default)
 
 ```go

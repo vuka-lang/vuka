@@ -31,9 +31,12 @@ type jsxComp struct {
 	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
-	stateful   bool     // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
-	key        *compArg // its key attribute
-	targText   string   // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
+	stateful   bool      // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
+	structComp bool      // a struct with a Render() Node method: T{…}.Render()
+	rest       []jsxNode // the children but the slots, when there are slots
+	ptrRender  bool      // whose Render takes a pointer: (&T{…}).Render()
+	key        *compArg  // its key attribute
+	targText   string    // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
 
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.Mount.
 	island                        bool      // this comp is a <ui.Island> wrapper
@@ -71,16 +74,17 @@ type nestStep struct {
 
 // compArg is one argument of a component call.
 type compArg struct {
-	key  string   // "Field: " for a props struct
-	attr *jsxAttr // the value of an attribute
-	kids bool     // the children, as a Fragment
-	zero bool     // the parameter is left out
-	text string   // its zero value
-	name string   // the function literal's parameter, in the closure form
-	typ  types.Type
-	nest []nestStep // the embedded fields a promoted props field is in
-	wrap string     // a function the value is passed through: an island's ui.Ptr[T]
-	conv string     // a conversion of the value: an island's number prop takes any Go number
+	key   string    // "Field: " for a props struct
+	attr  *jsxAttr  // the value of an attribute
+	kids  bool      // the children, as a Fragment
+	nodes []jsxNode // a slot's children
+	zero  bool      // the parameter is left out
+	text  string    // its zero value
+	name  string    // the function literal's parameter, in the closure form
+	typ   types.Type
+	nest  []nestStep // the embedded fields a promoted props field is in
+	wrap  string     // a function the value is passed through: an island's ui.Ptr[T]
+	conv  string     // a conversion of the value: an island's number prop takes any Go number
 }
 
 func (w *jsxWriter) comp(c *jsxComp) {
@@ -113,8 +117,12 @@ func (w *jsxWriter) comp(c *jsxComp) {
 			w.gen(a.name)
 		case a.attr != nil:
 			w.attrValue(a.attr)
+		case a.kids && c.rest != nil:
+			w.piece(c.rest)
 		case a.kids:
 			w.piece(el.kids)
+		case a.nodes != nil:
+			w.piece(a.nodes)
 		default:
 			w.gen(a.text)
 		}
@@ -157,6 +165,12 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		}
 		w.gen(c.targText) // "" normally; "[int]" for an inferred generic stateful literal
 		w.gen("{")
+	} else if c.structComp {
+		if c.ptrRender {
+			w.gen("(&")
+		}
+		w.keep(tag)
+		w.gen(c.targText + "{")
 	} else {
 		w.keep(tag)
 		w.gen("(")
@@ -194,6 +208,10 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen("})")
 	case c.stateful:
 		w.gen("}")
+	case c.structComp && c.ptrRender:
+		w.gen("}).Render()")
+	case c.structComp:
+		w.gen("}.Render()")
 	case c.props != "":
 		w.gen("})")
 	default:
@@ -262,7 +280,7 @@ func (e *engine) nodeType(t *jsxTarget) types.Type {
 // Ident, selector or index placeholder lowerJSX left where the tag name was.
 func (e *engine) compExpr(f *fileState, c *jsxComp) ast.Expr {
 	el := c.el
-	at, end := f.cur.fromOrig(el.start+1), f.cur.fromOrig(el.tagEnd)
+	at, end := f.cur.fromOrig(el.start+1), f.cur.fromOrigEnd(el.tagEnd)
 	var expr ast.Expr
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {
@@ -496,7 +514,7 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 			e.bindArg(f, c, a)
 		}
 	}
-	if c.propsTyp != nil && !c.stateful {
+	if c.propsTyp != nil && !c.stateful && !c.structComp {
 		c.props = e.typeTextAuto(f, c.propsTyp)
 	}
 	if c.propsTyp != nil {
@@ -540,7 +558,7 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 
 // attrExpr is an attribute's expression in this round's syntax tree.
 func (e *engine) attrExpr(f *fileState, a *jsxAttr) ast.Expr {
-	at, end := f.cur.fromOrig(a.expr.start), f.cur.fromOrig(a.expr.end)
+	at, end := f.cur.fromOrig(a.expr.start), f.cur.fromOrigEnd(a.expr.end)
 	var expr ast.Expr
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {

@@ -66,6 +66,7 @@ public github.com/vuka-lang/ui.ErrorBoundary
 public github.com/vuka-lang/ui.Event
 public github.com/vuka-lang/ui.Fallback
 public github.com/vuka-lang/ui.Fragment
+public github.com/vuka-lang/ui.HTML
 public github.com/vuka-lang/ui.If
 public github.com/vuka-lang/ui.Island
 public github.com/vuka-lang/ui.IslandPage
@@ -75,7 +76,6 @@ public github.com/vuka-lang/ui.Layout
 public github.com/vuka-lang/ui.Live
 public github.com/vuka-lang/ui.LiveSchema
 public github.com/vuka-lang/ui.Load
-public github.com/vuka-lang/ui.Markup
 public github.com/vuka-lang/ui.Media
 public github.com/vuka-lang/ui.Mount
 public github.com/vuka-lang/ui.Node

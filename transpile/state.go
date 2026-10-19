@@ -17,8 +17,8 @@ import (
 //
 //	open := ui.State(false)              →  open := ui.UseState(false)
 //	var theme = ui.State("light")        →  var theme = ui.UsePageState("light")
-//	<ul hidden={!open}>                  →  <ul hidden="{{0}}">, open.Not()
-//	<span>{n}</span>                     →  <span>{{0}}</span>, n
+//	<ul hidden={!open}>                  →  <ul hidden={open.Not()}>, open.Not()
+//	<span>{n}</span>                     →  <span>{n}</span>, n
 //	ready := ui.Derived(!open && ok)     →  ready := open.Not().And(ok)
 //	"x" + name                           →  ui.Derived("x").Plus(name)
 //	f.Q.Set("x")                         →  ui.At[string](f, "Q").Set("x")
@@ -406,7 +406,7 @@ func (e *engine) exprAt(f *fileState, s span) ast.Expr {
 			return true
 		})
 	}
-	return f.exprIdx[[2]int{f.cur.fromOrig(s.start), f.cur.fromOrig(s.end)}]
+	return f.exprIdx[[2]int{f.cur.fromOrig(s.start), f.cur.fromOrigEnd(s.end)}]
 }
 
 // bindTree decides which of a tree's element attributes and children read
@@ -514,7 +514,7 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 
 // bind writes a lowered read.
 func (w *jsxWriter) bind(b *stateBind) {
-	w.pieces = append(w.pieces, b.pieces...)
+	w.put(b.pieces)
 }
 
 // pieceEdits are the edits turning the source's span into pieces.

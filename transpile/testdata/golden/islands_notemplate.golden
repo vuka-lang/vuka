@@ -13,17 +13,12 @@ type Panel struct {
 	Open bool `json:"open"`
 }
 
-//line islands_notemplate.vuka:12
-var panelText = ui.Template(`{{0}}`)
-
-//line islands_notemplate.vuka:13
-var panelP = ui.Template(`<p>body</p>`)
-
 // A wrapper with no <ui.Template>: just the body (with a slot) and a strategy.
-//
-//line islands_notemplate.vuka:11
 func panel() ui.Node {
-	return panelText.Render(ui.Mount(Panel{Open: true}, ui.Load(), ui.Slot(panelP.Render())))
+//line islands_notemplate.vuka:13
+	island := ui.Mount(Panel{Open: true}, ui.Load(), ui.Slot(ui.HTML(`<p>body</p>`)))
+//line islands_notemplate.vuka:12
+	return ui.HTML(`{island}`, island)
 }
 
 //line islands_notemplate.vuka:6

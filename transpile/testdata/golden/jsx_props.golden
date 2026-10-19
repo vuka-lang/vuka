@@ -11,32 +11,17 @@ import (
 	"github.com/vuka-lang/ui/live"
 )
 
-//line jsx_props.vuka:12
-var headerH1 = ui.Template(`<h1>Pets</h1>`)
-
 // JSX outside function bodies.
-//
-//line jsx_props.vuka:12
-var header = headerH1.Render()
+var header = ui.HTML(`<h1>Pets</h1>`)
 
-//line jsx_props.vuka:15
-var markupFooter = ui.Template(`<footer>{{0}}</footer>`)
-
-//line jsx_props.vuka:16
-var markupA = ui.Template(`<a href="/">home</a>`)
-
-//line jsx_props.vuka:14
 var (
-	footer = markupFooter.Render(year())
-	links  = map[string]ui.Node{"home": markupA.Render()}
+	footer = ui.HTML(`<footer>{year()}</footer>`, year())
+	links  = map[string]ui.Node{"home": ui.HTML(`<a href="/">home</a>`)}
 )
 
 type Shell struct{ Body ui.Node }
 
-var shellP = ui.Template(`<p>body</p>`)
-
-//line jsx_props.vuka:21
-var shell = Shell{Body: shellP.Render()}
+var shell = Shell{Body: ui.HTML(`<p>body</p>`)}
 
 func year() int { return 2026 }
 
@@ -55,16 +40,12 @@ type CardProps struct {
 	Children ui.Node
 }
 
-//line jsx_props.vuka:41
-var card = ui.Template(`
-<div id="{{0}}" className="{{1}}">
-  {{2}} {{3}}x{{4}}
-  {{5}}
-</div>`)
-
-//line jsx_props.vuka:40
 func Card(p CardProps) ui.Node {
-	return card.Render(
+	return ui.HTML(`
+<div id={p.ID} class={p.Class}>
+  {p.Title} {p.Width}x{p.Height}
+  {p.Children}
+</div>`,
 		p.ID,
 		p.Class,
 		p.Title,
@@ -94,60 +75,49 @@ func (c *Chat) Update__context_Context_Typing(ctx context.Context, t Typing) {
 	c.log = append(c.log, t.Who+" is typing")
 }
 
-var chat = ui.Template(`<ul className="{{0}}">{{1}}</ul>`)
-
-//line jsx_props.vuka:61
-var chatLi = ui.Template(`<li>{{0}}</li>`)
-
 //line jsx_props.vuka:60
 func (c *Chat) Render() ui.Node {
-	return chat.Render(
-		c.Class,
-		ui.Each(c.log, func(l string) ui.Node {
+	var lis []ui.Node
 //line jsx_props.vuka:61
-			return chatLi.Render(l)
-		}),
-	)
+	for _, l := range c.log {
+//line jsx_props.vuka:61
+		lis = append(lis, ui.HTML(`<li>{l}</li>`, l))
+	}
+//line jsx_props.vuka:61
+	return ui.HTML(`<ul class={c.Class}>{lis}</ul>`, c.Class, lis)
 }
 
-//line jsx_props.vuka:64
 type Box[T any] struct {
 	ui.Live
 	Value T
 }
 
-var box = ui.Template(`<b>{{0}}</b>`)
+func (b *Box[T]) Render() ui.Node { return ui.HTML(`<b>{b.Value}</b>`, b.Value) }
 
-//line jsx_props.vuka:69
-func (b *Box[T]) Render() ui.Node { return box.Render(b.Value) }
-
-//line jsx_props.vuka:74
-var pageText = ui.Template(`
-{{0}}
-{{1}}
-{{2}}
-{{3}}
-{{4}}
-{{5}}
-{{6}}
-{{7}}
-{{8}}`)
-
-//line jsx_props.vuka:75
-var pageText2 = ui.Template(`!`)
-
-//line jsx_props.vuka:71
 func page(ctx context.Context) ui.Node {
 	w := 3
-	return pageText.Render(
-		header,
-		func(a1 int, a2 int, a3 ui.Node) ui.Node {
+	card := func(a1 int, a2 int, a3 ui.Node) ui.Node {
 //line jsx_props.vuka:75
-			return Card(CardProps{Title: "a", Base: Base{Class: "c", ID: a2}, Sized: &Sized{Width: a1}, Children: a3})
-		}(w, 1, pageText2.Render()),
+		return Card(CardProps{Title: "a", Base: Base{Class: "c", ID: a2}, Sized: &Sized{Width: a1}, Children: a3})
+	}(w, 1, ui.HTML(`!`))
+//line jsx_props.vuka:78
+	chat := func(a1 int, a2 string) ui.Node { return ui.Key(a2, &Chat{Base: Base{ID: a1}, Room: "rust"}) }(2, "rust")
+//line jsx_props.vuka:73
+	return ui.HTML(`
+{header}
+{card}
+{Card(CardProps{Sized: &Sized{Width: w, Height: 4}, Title: "b"})}
+{&Chat{Room: "go", Base: Base{Class: "chat"}}}
+{chat}
+{&Box[int]{Value: 7}}
+{footer}
+{links["home"]}
+{shell.Body}`,
+		header,
+		card,
 		Card(CardProps{Sized: &Sized{Width: w, Height: 4}, Title: "b"}),
 		&Chat{Room: "go", Base: Base{Class: "chat"}},
-		func(a1 int, a2 string) ui.Node { return ui.Key(a2, &Chat{Base: Base{ID: a1}, Room: "rust"}) }(2, "rust"),
+		chat,
 		&Box[int]{Value: 7},
 		footer,
 		links["home"],

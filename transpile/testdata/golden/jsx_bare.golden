@@ -16,152 +16,102 @@ type Item struct {
 	N    int
 }
 
-//line jsx_bare.vuka:17
-var listUl = ui.Template(`<ul>{{0}}</ul>`)
-
-var listText = ui.Template(`
-{{0}}
-{{1}}
-{{2}}
-{{3}}
-{{4}}`)
-
-//line jsx_bare.vuka:20
-var listLi = ui.Template(`<li>{{0}}</li>`)
-
-var listLi2 = ui.Template(`<li className="many">{{0}} x{{1}}</li>`)
-
-var listLi3 = ui.Template(`<li className="off">{{0}}</li>`)
-
-var listI = ui.Template(`<i>{{0}}</i>`)
-
-//line jsx_bare.vuka:29
-var listB = ui.Template(`<b>none</b>`)
-
-var listText2 = ui.Template(`{{0}}`)
-
-//line jsx_bare.vuka:31
-var listS = ui.Template(`<s>{{0}}</s>`)
-
-//line jsx_bare.vuka:32
-var listText3 = ui.Template(`many`)
-
-//line jsx_bare.vuka:35
-var listU = ui.Template(`<u>three</u>`)
-
-//line jsx_bare.vuka:36
-var listEm = ui.Template(`<em>{{0}}</em>`)
-
-//line jsx_bare.vuka:16
 func list(items []Item) ui.Node {
-	return listUl.Render(ui.Each(items, func(it Item) ui.Node {
-		return listText.Render(
-			func() ui.Node {
-				var node ui.Node
+	var texts2 []ui.Node
+	for _, it := range items {
+		var li []ui.Node
 //line jsx_bare.vuka:19
-				if it.Ok {
-					node = listLi.Render(it.Name)
-				} else if it.N > 1 {
-					node = listLi2.Render(it.Name, it.N)
-				} else {
-					node = listLi3.Render(it.Name)
-				}
-				return ui.If(node != nil, node)
-			}(),
-			ui.Each(it.Tags, func(t string) ui.Node {
+		if it.Ok {
+			li = append(li, ui.HTML(`<li>{it.Name}</li>`, it.Name))
+		} else if it.N > 1 {
+			li = append(li, ui.HTML(`<li class="many">{it.Name} x{it.N}</li>`, it.Name, it.N))
+		} else {
+			li = append(li, ui.HTML(`<li class="off">{it.Name}</li>`, it.Name))
+		}
+		var is []ui.Node
 //line jsx_bare.vuka:26
-				return listI.Render(t)
-			}),
-			func() ui.Node {
-				var node ui.Node
+		for _, t := range it.Tags {
+//line jsx_bare.vuka:26
+			is = append(is, ui.HTML(`<i>{t}</i>`, t))
+		}
+		var b []ui.Node
 //line jsx_bare.vuka:27
-				if m1 := it.N; false {
-					panic(m1)
-				} else if m1 == 0 {
-					node = listB.Render()
-				} else if m1 == 1 {
-					node = listText2.Render(func() []ui.Node {
-						var nodes []ui.Node
+		if m1 := it.N; false {
+			panic(m1)
+		} else if m1 == 0 {
+			b = append(b, ui.HTML(`<b>none</b>`))
+		} else if m1 == 1 {
+			var texts22 []ui.Node
 //line jsx_bare.vuka:31
-						for i := range 2 {
-							nodes = append(nodes, func() ui.Node {
-								var node ui.Node
+			for i := range 2 {
+				var s2 []ui.Node
 //line jsx_bare.vuka:31
-								if i == 1 {
+				if i == 1 {
 //line jsx_bare.vuka:31
-									node = listS.Render(i)
-								}
-								return ui.If(node != nil, node)
-							}())
-						}
-						return nodes
-					}())
-				} else if true {
-					node = listText3.Render()
-				} else {
-					panic("vuka: no case matched")
+					s2 = append(s2, ui.HTML(`<s>{i}</s>`, i))
 				}
-				return ui.If(node != nil, node)
-			}(),
-			func() ui.Node {
-				var node ui.Node
+				texts22 = append(texts22, ui.HTML(`{s2}`, s2))
+			}
+			b = append(b, ui.HTML(`{texts22}`, texts22))
+		} else if true {
+			b = append(b, ui.HTML(`many`))
+		} else {
+			panic("vuka: no case matched")
+		}
+		var u []ui.Node
 //line jsx_bare.vuka:35
-				if it.N == 3 {
-					node = listU.Render()
-				}
-				return ui.If(node != nil, node)
-			}(),
-			ui.Each([]string{"x"}, func(t string) ui.Node {
+		if it.N == 3 {
+			u = append(u, ui.HTML(`<u>three</u>`))
+		}
+		var ems []ui.Node
 //line jsx_bare.vuka:36
-				return listEm.Render(t)
-			}),
-		)
-	}))
+		for _, t := range []string{"x"} {
+//line jsx_bare.vuka:36
+			ems = append(ems, ui.HTML(`<em>{t}</em>`, t))
+		}
+		texts2 = append(texts2, ui.HTML(`
+{li}
+{is}
+{b}
+{u}
+{ems}`, li, is, b, u, ems))
+	}
+//line jsx_bare.vuka:17
+	return ui.HTML(`<ul>{texts2}</ul>`, texts2)
 }
-
-var textsDiv = ui.Template(`
-<div>
-  <p>if you like</p>
-  <p>for now, match me</p>
-  {{0}}
-  {{1}}
-  {{2}}
-  {{3}}
-</div>`)
-
-//line jsx_bare.vuka:45
-var textsText = ui.Template(`iffy text`)
-
-//line jsx_bare.vuka:46
-var textsText2 = ui.Template(`if-then`)
-
-//line jsx_bare.vuka:47
-var textsText3 = ui.Template(`formal matches`)
-
-//line jsx_bare.vuka:48
-var textsText4 = ui.Template(`a match?`)
 
 //line jsx_bare.vuka:41
 func texts(items []Item) ui.Node {
-	return textsDiv.Render(
-		ui.Each(items, func(_ Item) ui.Node {
-			return textsText.Render()
-		}),
-		ui.Each(items, func(_ Item) ui.Node {
-			return textsText2.Render()
-		}),
-		ui.Each(items, func(_ Item) ui.Node {
-			return textsText3.Render()
-		}),
-		func() ui.Node {
-			var node ui.Node
+	var texts2 []ui.Node
+//line jsx_bare.vuka:45
+	for range items {
+		texts2 = append(texts2, ui.HTML(`iffy text`))
+	}
+	var texts22 []ui.Node
+//line jsx_bare.vuka:46
+	for range items {
+		texts22 = append(texts22, ui.HTML(`if-then`))
+	}
+	var texts3 []ui.Node
+//line jsx_bare.vuka:47
+	for range items {
+		texts3 = append(texts3, ui.HTML(`formal matches`))
+	}
+	var text []ui.Node
 //line jsx_bare.vuka:48
-			if len(items) > 0 {
-				node = textsText4.Render()
-			}
-			return ui.If(node != nil, node)
-		}(),
-	)
+	if len(items) > 0 {
+		text = append(text, ui.HTML(`a match?`))
+	}
+//line jsx_bare.vuka:42
+	return ui.HTML(`
+<div>
+  <p>if you like</p>
+  <p>for now, match me</p>
+  {texts2}
+  {texts22}
+  {texts3}
+  {text}
+</div>`, texts2, texts22, texts3, text)
 }
 
 //line jsx_bare.vuka:52

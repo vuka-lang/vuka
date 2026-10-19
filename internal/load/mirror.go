@@ -76,7 +76,7 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 			}
 			return nil
 		}
-		if !d.Type().IsRegular() || strings.HasSuffix(name, ".vuka") || generated[rel] ||
+		if !d.Type().IsRegular() || strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".vuka.html") || generated[rel] ||
 			name == "go.work" || name == "go.work.sum" || strings.HasPrefix(name, ".") {
 			return nil
 		}
@@ -173,7 +173,7 @@ func siblingVuka(path string) bool {
 		return false
 	}
 	for _, e := range entries {
-		if strings.HasSuffix(e.Name(), ".vuka") && transpile.GoName(e.Name()) == name {
+		if (strings.HasSuffix(e.Name(), ".vuka") || strings.HasSuffix(e.Name(), ".vuka.html")) && transpile.GoName(e.Name()) == name {
 			return true
 		}
 	}

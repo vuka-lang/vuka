@@ -28,12 +28,8 @@ func (c *Counter) Mount(ctx context.Context) error {
 
 func (c *Counter) Inc() { c.n++ }
 
-//line jsx_live.vuka:29
-var counter = ui.Template(`<span>{{0}}: {{1}} <button onClick="{{2}}">+</button></span>`)
-
-//line jsx_live.vuka:28
 func (c *Counter) Render() ui.Node {
-	return counter.Render(c.Label, c.n, c.Inc)
+	return ui.HTML(`<span>{c.Label}: {c.n} <button onClick={c.Inc}>+</button></span>`, c.Label, c.n, c.Inc)
 }
 
 type Item struct {
@@ -72,60 +68,50 @@ func (t *Todo) Remove(id int) {
 	}
 }
 
-//line jsx_live.vuka:69
-var todo = ui.Template(`
-<section>
-  <h2>{{0}}</h2>
-  {{1}}
-  <form onSubmit="{{2}}"><input name="name" onInput="{{3}}"/></form>
-  <ul>{{4}}</ul>
-  {{5}}
-</section>`)
-
-//line jsx_live.vuka:75
-var todoLi = ui.Template(`
-<li key="{{0}}">
-  {{1}}
-  <button onClick="{{2}}">x</button>
-</li>`)
-
-var todoP = ui.Template(`<p>typing {{0}}</p>`)
-
-//line jsx_live.vuka:68
 func (t *Todo) Render() ui.Node {
-	return todo.Render(
+	var lis []ui.Node
+//line jsx_live.vuka:74
+	for _, it := range t.items {
+		lis = append(lis, ui.HTML(`
+<li key={it.ID}>
+  {&Counter{Label: it.Name}}
+  <button onClick={func() { t.Remove(it.ID) }}>x</button>
+</li>`, it.ID, &Counter{Label: it.Name}, func() { t.Remove(it.ID) }))
+	}
+	var p2 []ui.Node
+//line jsx_live.vuka:81
+	if t.query != "" {
+//line jsx_live.vuka:81
+		p2 = append(p2, ui.HTML(`<p>typing {t.query}</p>`, t.query))
+	}
+//line jsx_live.vuka:69
+	return ui.HTML(`
+<section>
+  <h2>{t.Title}</h2>
+  {t.Children}
+  <form onSubmit={t.Add}><input name="name" onInput={func(q string) { t.query = q }}/></form>
+  <ul>{lis}</ul>
+  {p2}
+</section>`,
 		t.Title,
 		t.Children,
 		t.Add,
 		func(q string) { t.query = q },
-		ui.Each(t.items, func(it Item) ui.Node {
-			return todoLi.Render(it.ID, &Counter{Label: it.Name}, func() { t.Remove(it.ID) })
-		}),
-		func() ui.Node {
-			var node ui.Node
-//line jsx_live.vuka:81
-			if t.query != "" {
-//line jsx_live.vuka:81
-				node = todoP.Render(t.query)
-			}
-			return ui.If(node != nil, node)
-		}(),
+		lis,
+		p2,
 	)
 }
 
-//line jsx_live.vuka:86
-var pageMain = ui.Template(`
-<main>
-  {{0}}
-  {{1}}
-</main>`)
-
-//line jsx_live.vuka:87
-var pageP = ui.Template(`<p>weekly</p>`)
-
 //line jsx_live.vuka:85
 func page(ctx context.Context) ui.Node {
-	return pageMain.Render(&Todo{Title: "Groceries", Children: pageP.Render()}, ui.Key("solo", &Counter{Start: 10, Label: "solo"}))
+//line jsx_live.vuka:87
+	todo := &Todo{Title: "Groceries", Children: ui.HTML(`<p>weekly</p>`)}
+//line jsx_live.vuka:86
+	return ui.HTML(`
+<main>
+  {todo}
+  {ui.Key("solo", &Counter{Start: 10, Label: "solo"})}
+</main>`, todo, ui.Key("solo", &Counter{Start: 10, Label: "solo"}))
 }
 
 //line jsx_live.vuka:92

@@ -201,7 +201,7 @@ type node struct {
 	pos, end token.Pos // end only for a leaf
 	anchor   bool      // a //line directive may go before it: a declaration, a statement, a case, a field, a literal's element
 	stmt     bool      // a statement of a block or a case, or a case: a directive before it changes no alignment
-	fn       bool      // a top-level function other than init, or a template: its line is what generated it
+	fn       bool      // a top-level function other than init: its line is what generated it
 	doc      bool      // a top-level declaration, or the package clause, with a doc comment
 	leaf     bool      // an identifier or a literal
 }
@@ -276,7 +276,6 @@ func walk(file *ast.File) []node {
 			nd.fn, nd.doc = n.Name.Name != "init", n.Doc != nil
 		case *ast.GenDecl:
 			nd.doc = n.Doc != nil && m&markTop != 0
-			nd.fn = m&markTop != 0 && isTemplateDecl(n)
 		case *ast.Ident, *ast.BasicLit:
 			nd.leaf, nd.end = true, n.End()
 		}
@@ -299,9 +298,14 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	}
 
 	ast.Inspect(file, func(n ast.Node) bool {
-		if id, ok := n.(*ast.Ident); ok {
-			if r, ok := renames[id.Name]; ok {
-				id.Name = r
+		switch n := n.(type) {
+		case *ast.Ident:
+			if r, ok := renames[n.Name]; ok {
+				n.Name = r
+			}
+		case *ast.BasicLit:
+			if n.Kind == token.STRING && strings.Contains(n.Value, "{__") {
+				n.Value = renameLabels(n.Value, renames)
 			}
 		}
 		return true
@@ -396,7 +400,11 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	mapped := make([]mapping, len(before))
 	for i, n := range before {
 		if off, exact, ok := t.m.ToSource(tf.Offset(n.pos)); ok {
-			mapped[i] = mapping{off, srcLines.pos("", off).Line, exact}
+			line := srcLines.pos("", off).Line
+			if t.f.html != nil {
+				line = max(line-1, 1)
+			}
+			mapped[i] = mapping{off, line, exact}
 		}
 	}
 
@@ -547,28 +555,6 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 		sort.SliceStable(segs, func(i, j int) bool { return segs[i].gen < segs[j].gen })
 	}
 	return final, segs, true
-}
-
-// isTemplateDecl reports whether d declares a template: var x = ui.Template(…).
-func isTemplateDecl(d *ast.GenDecl) bool {
-	if d.Tok != token.VAR || len(d.Specs) != 1 {
-		return false
-	}
-	s := d.Specs[0].(*ast.ValueSpec)
-	if len(s.Values) != 1 {
-		return false
-	}
-	call, ok := s.Values[0].(*ast.CallExpr)
-	if !ok {
-		return false
-	}
-	switch f := call.Fun.(type) {
-	case *ast.SelectorExpr:
-		return f.Sel.Name == "Template"
-	case *ast.Ident:
-		return f.Name == "Template"
-	}
-	return false
 }
 
 // hasComment reports whether a line may hold a comment.
@@ -738,4 +724,28 @@ func pathBase(path string) string {
 		return path[i+1:]
 	}
 	return path
+}
+
+// renameLabels renames the {__name} holes of a template literal, as the
+// variables they label are renamed.
+func renameLabels(lit string, renames map[string]string) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(lit, "{__")
+		if i < 0 {
+			b.WriteString(lit)
+			return b.String()
+		}
+		j := i + 1
+		for j < len(lit) && (lit[j] == '_' || unicode.IsLetter(rune(lit[j])) || unicode.IsDigit(rune(lit[j]))) {
+			j++
+		}
+		b.WriteString(lit[:i+1])
+		if r, ok := renames[lit[i+1:j]]; ok {
+			b.WriteString(r)
+		} else {
+			b.WriteString(lit[i+1 : j])
+		}
+		lit = lit[j:]
+	}
 }

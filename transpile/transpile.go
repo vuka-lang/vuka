@@ -33,7 +33,7 @@ type File struct {
 }
 
 // IsVuka reports whether f is Vuka source.
-func (f File) IsVuka() bool { return strings.HasSuffix(f.Name, ".vuka") }
+func (f File) IsVuka() bool { return strings.HasSuffix(f.Name, ".vuka") || f.IsTemplate() }
 
 // Options configure Package.
 type Options struct {
@@ -124,8 +124,12 @@ type Result struct {
 	Attrs []Attr // every attribute, in file order
 }
 
-// GoName is the name of the Go file generated for a .vuka file.
+// GoName is the name of the Go file generated for a .vuka file, or for a
+// .vuka.html file: x_html.go.
 func GoName(name string) string {
+	if base, ok := strings.CutSuffix(name, ".vuka.html"); ok {
+		return base + "_html.go"
+	}
 	base := strings.TrimSuffix(name, ".vuka")
 	if strings.HasSuffix(base, "_test") {
 		return strings.TrimSuffix(base, "_test") + "_vuka_test.go"
@@ -137,6 +141,7 @@ type fileState struct {
 	name, path string
 	src        []byte
 	vuka       bool
+	html       *htmlFile // a .vuka.html file's
 	lines      lineIndex
 
 	attrs   []*Attr
@@ -160,16 +165,14 @@ type fileState struct {
 	tf      *token.File
 	parents map[ast.Node]ast.Node
 
-	done      map[int]bool // src offsets of identifiers already rewritten or reported
-	rt        string       // the name the runtime is imported as; "" until needed
-	target    *jsxTarget   // what its JSX lowers to; nil until its first JSX
-	scope     string       // the scope id of the declaration being scanned (Options.Scopes)
-	declOff   int          // the top-level declaration being scanned: where it starts
-	declBase  string       // and the name its templates are named after
-	declTaken bool         // which is the declaration's own
-	eng       *engine
-	pkgEnd    int // offset just after the package clause's name
-	dotImps   bool
+	done    map[int]bool // src offsets of identifiers already rewritten or reported
+	rt      string       // the name the runtime is imported as; "" until needed
+	target  *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	scope   string       // the scope id of the declaration being scanned (Options.Scopes)
+	declOff int          // the top-level declaration being scanned: where it starts
+	eng     *engine
+	pkgEnd  int // offset just after the package clause's name
+	dotImps bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
 	files     []*fileLit     // embedded vuka.File literals, by offset
@@ -181,17 +184,15 @@ type fileState struct {
 	staticErrs     []*Error
 	autoImports    map[string]bool // packages imported for statics reached through other types
 	enums          []*enumDecl
-	enumGen        genWriter              // the enums' generated methods
-	islandGen      genWriter              // imported islands' props types
-	fieldGen       genWriter              // the field attributes' registrations
-	fieldsOn       bool                   // field attributes are registered: from the first round on
-	scannedImports map[string]string      // import path → name, for the enums' methods
-	spellings      []spelling             // rewritten expressions, for messages
-	stateDone      map[int]bool           // src offsets of state reads and writes lowered or checked (state.go)
-	exprIdx        map[[2]int]ast.Expr    // this round's expressions by their spans (exprAt)
-	exprIdxOf      *ast.File              // the syntax tree exprIdx indexes
-	rangeIdx       map[int]*ast.RangeStmt // this round's range statements by their for's src offset
-	rangeIdxOf     *ast.File
+	enumGen        genWriter           // the enums' generated methods
+	islandGen      genWriter           // imported islands' props types
+	fieldGen       genWriter           // the field attributes' registrations
+	fieldsOn       bool                // field attributes are registered: from the first round on
+	scannedImports map[string]string   // import path → name, for the enums' methods
+	spellings      []spelling          // rewritten expressions, for messages
+	stateDone      map[int]bool        // src offsets of state reads and writes lowered or checked (state.go)
+	exprIdx        map[[2]int]ast.Expr // this round's expressions by their spans (exprAt)
+	exprIdxOf      *ast.File           // the syntax tree exprIdx indexes
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.
@@ -200,7 +201,13 @@ func (f *fileState) spell(gen, src string, off int) {
 }
 
 // at is the position of a src offset.
-func (f *fileState) at(off int) token.Position { return f.lines.pos(f.path, off) }
+func (f *fileState) at(off int) token.Position {
+	p := f.lines.pos(f.path, off)
+	if f.html != nil {
+		p.Line = max(p.Line-1, 1) // a template file's first line is the package clause
+	}
+	return p
+}
 
 // pos is the position, in the file as written, of an offset in this round's text.
 func (f *fileState) pos(off int) token.Position {
@@ -348,7 +355,7 @@ func (f *fileState) build() {
 			cur = append(cur, f.jsxEdits(t, false)...)
 		}
 	}
-	f.cur = cur.sorted()
+	f.cur = cur.nest(f.src).sorted()
 	body := f.cur.apply(f.src, nil)
 	f.body = len(body)
 	f.text = append(body, f.trailer...)
@@ -468,7 +475,7 @@ func genName(d *ast.GenDecl) string {
 }
 
 func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, *SourceMap, int) {
-	all := f.bodyEdits().sorted()
+	all := f.bodyEdits().nest(f.src).sorted()
 	var after func(int) string
 	if !bare {
 		after = func(off int) string { return lineDirective(f.at(off)) }
@@ -506,6 +513,19 @@ func Package(files []File, opts Options) (*Result, error) {
 			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
 		if opts.Path != nil {
 			f.path = opts.Path(file.Name)
+		}
+		if file.IsTemplate() {
+			q := "ui."
+			if e.selfJSX {
+				q = ""
+			}
+			src, h, err := htmlSource(file.Name, file.Src, files, q)
+			if err != nil {
+				err.Pos = token.Position{Filename: f.path, Line: 1, Column: 1}
+				errs = append(errs, err)
+				continue
+			}
+			f.src, f.html, f.lines = src, h, newLineIndex(src)
 		}
 		if f.vuka {
 			f.scan(&errs)

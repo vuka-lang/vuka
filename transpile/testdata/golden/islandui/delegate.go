@@ -15,7 +15,7 @@ import (
 )
 
 // VukaJSX marks this package as a JSX target implementing version 2.
-const VukaJSX = 2
+const VukaJSX = 3
 
 type (
 	Node = ui.Node
@@ -26,26 +26,17 @@ func El(tag string, attrs []Attr, children ...Node) Node { return ui.El(tag, att
 func Child(v any) Node                                   { return ui.Child(v) }
 func Fragment(children ...Node) Node                     { return ui.Fragment(children...) }
 func Try(n Node, err error) Node                         { return ui.Try(n, err) }
-func Each[T any](items []T, fn func(T) Node) Node        { return ui.Each(items, fn) }
-func If(cond bool, n Node) Node                          { return ui.If(cond, n) }
+func Safe(s string) Node                                 { return ui.Safe(s) }
 
 func String(ctx context.Context, n Node) (string, error) { return ui.String(ctx, n) }
 
-// Markup is ui's template, an island in a hole hosted with the hole's
-// place as its site: <file>:<line>#<hole>.
-type Markup struct {
-	m    *ui.Markup
-	site string
-}
-
-func Template(src string) *Markup {
+// HTML is ui's, an island in a hole hosted with the call's place as its
+// site: <file>:<line>#<value>.
+func HTML(src string, args ...any) Node {
 	_, file, line, _ := runtime.Caller(1)
-	return &Markup{ui.Template(src), filepath.Base(file) + ":" + strconv.Itoa(line)}
-}
-
-func (t *Markup) Render(args ...any) Node {
+	site := filepath.Base(file) + ":" + strconv.Itoa(line)
 	for i, a := range args {
-		site := t.site + "#" + strconv.Itoa(i)
+		site := site + "#" + strconv.Itoa(i)
 		switch a := a.(type) {
 		case *mount:
 			args[i] = mountIsland(site, a.props, a.opts...)
@@ -55,5 +46,8 @@ func (t *Markup) Render(args ...any) Node {
 			}
 		}
 	}
-	return t.m.Render(args...)
+	return ui.HTML(src, args...)
 }
+
+// Template marks an island's slot, <ui.Template fallback>.
+func Template(...any) Node { return ui.Fragment() }

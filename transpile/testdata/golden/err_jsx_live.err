@@ -6,5 +6,4 @@ err_jsx_live.vuka:57:12: <Counter> has no attribute Stat; did you mean Start?
 err_jsx_live.vuka:58:3: <Counter> takes no children: add a Children ui.Node field to Counter
 err_jsx_live.vuka:61:9: <Both>'s field Title is ambiguous: it is in A and B
 err_jsx_live.vuka:62:11: onClick on <button> takes a function; this is int
-err_jsx_live.vuka:66:3: <NotLive> isn't a stateful component: *NotLive doesn't implement ui.Stateful (missing method vukaLive; embed ui.Live)
 err_jsx_live.vuka:67:11: onClick on <button> takes a function; this is string

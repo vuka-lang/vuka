@@ -132,7 +132,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 	for _, e := range entries {
 		switch name := e.Name(); {
 		case e.IsDir():
-		case strings.HasSuffix(name, ".vuka"):
+		case strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".vuka.html"):
 			hasSource = true
 			generated[transpile.GoName(name)] = true
 		case templ && isTempl(name):
@@ -165,9 +165,18 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 		}
 		return p
 	}
-	var broken []*Templ // .templ files templ can't compile
+	var broken []*Templ        // .templ files templ can't compile
+	var htmls []transpile.File // .vuka.html files: the package's whose other files name it
 	for _, e := range entries {
 		name := e.Name()
+		if !e.IsDir() && strings.HasSuffix(name, ".vuka.html") {
+			src, err := read(filepath.Join(dir, name))
+			if err != nil {
+				return nil, err
+			}
+			htmls = append(htmls, transpile.File{Name: name, Src: src})
+			continue
+		}
 		if e.IsDir() || generated[name] || !(strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".go") || templ && isTempl(name)) {
 			continue
 		}
@@ -230,6 +239,17 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 		}
 		p := pkg(name)
 		p.Templ = append(p.Templ, t)
+	}
+	if len(htmls) > 0 {
+		name := filepath.Base(dir)
+		for _, n := range order {
+			if !strings.HasSuffix(n, "_test") {
+				name = n
+				break
+			}
+		}
+		p := pkg(name)
+		p.Files = append(p.Files, htmls...)
 	}
 	var pkgs []*Package
 	for _, n := range order {

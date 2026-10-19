@@ -86,15 +86,13 @@ func (d *Dashboard) mount(ctx context.Context) (err error) {
 // Like is the button's event.
 func (d *Dashboard) Like() { d.likes++ }
 
-var dashboard = ui.Template(`
+func (d *Dashboard) Render() ui.Node {
+	return ui.HTML(`
 <main>
   <h1>Users</h1>
-  <p>{{0}} users, {{1}} likes</p>
-  <button onClick="{{2}}">Like</button>
-</main>`)
-
-func (d *Dashboard) Render() ui.Node {
-	return dashboard.Render(d.users, d.likes, d.Like)
+  <p>{d.users} users, {d.likes} likes</p>
+  <button onClick={d.Like}>Like</button>
+</main>`, d.users, d.likes, d.Like)
 }
 
 // Profile is a live page backed by its island, islands/Profile.ts: its
@@ -121,13 +119,11 @@ func (p *Profile) mount(ctx context.Context) error {
 
 func (p *Profile) Render() ui.Node { return ui.IslandPage(p) }
 
-var pageHtml = ui.Template(`
-<html><body>
-  <h1>Profile</h1>
-  {{0}}
-</body></html>`)
-
 // page is the profile's layout.
 func page(content ui.Node) ui.Node {
-	return pageHtml.Render(content)
+	return ui.HTML(`
+<html><body>
+  <h1>Profile</h1>
+  {content}
+</body></html>`, content)
 }

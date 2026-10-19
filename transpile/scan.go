@@ -170,7 +170,6 @@ func (f *fileState) scan(errs *ErrorList) {
 				f.scope = f.eng.scopes[declName(toks, i)]
 				if p.tok == token.SEMICOLON {
 					f.declOff = t.off
-					f.declBase, f.declTaken = tmplBase(toks, i)
 				}
 			}
 			if sf, ok := f.staticFuncAt(toks, i); ok {
@@ -231,7 +230,6 @@ func (f *fileState) scan(errs *ErrorList) {
 		case depth == 0 && (t.tok == token.VAR || t.tok == token.CONST || t.tok == token.TYPE):
 			f.scope = "" // a package-level var's JSX belongs to no declaration's markup
 			f.declOff = t.off
-			f.declBase, f.declTaken = tmplBase(toks, i)
 			continue
 		case !isAt(t):
 			continue

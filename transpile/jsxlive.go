@@ -36,8 +36,12 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		t = inst
 	}
 	if msg := e.statefulProblem(c.target, el.tag, t); msg != "" {
-		fail("E0106", el.start, "%s", msg)
-		return
+		ptr, ok := e.renders(t, node)
+		if !ok {
+			fail("E0106", el.start, "%s", msg)
+			return
+		}
+		c.structComp, c.ptrRender = true, ptr
 	}
 	st := t.Underlying().(*types.Struct)
 	kids, off, msg := e.bindFields(c, st, attrs, node, true)
@@ -67,8 +71,31 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 			}
 		}
 	}
-	c.stateful, c.propsTyp = true, t
+	if c.structComp && c.key != nil {
+		fail("E0106", c.key.attr.off, "<%s> is a struct component, its Render a function of its fields: a key goes on the element it renders, or on a stateful component", el.tag)
+		return
+	}
+	c.stateful, c.propsTyp = !c.structComp, t
 	e.finishComp(f, c)
+}
+
+// renders reports whether t is a struct component: a struct with a
+// Render() Node method, and whether that method takes a pointer.
+func (e *engine) renders(t types.Type, node types.Type) (ptr, ok bool) {
+	if _, isStruct := t.Underlying().(*types.Struct); !isStruct {
+		return false, false
+	}
+	m, _, _ := types.LookupFieldOrMethod(t, true, nil, "Render")
+	fn, isFunc := m.(*types.Func)
+	if !isFunc {
+		return false, false
+	}
+	sig := fn.Signature()
+	if sig.Params().Len() != 0 || sig.Results().Len() != 1 || !types.AssignableTo(sig.Results().At(0).Type(), node) {
+		return false, false
+	}
+	_, ptr = sig.Recv().Type().(*types.Pointer)
+	return ptr, true
 }
 
 // inferStateful infers a generic stateful component's type arguments from its
@@ -247,14 +274,49 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		used[i] = true
 		c.args = append(c.args, &compArg{key: fl.name + ": ", attr: a, typ: fl.typ, nest: fl.nest})
 	}
-	if len(el.kids) == 0 {
-		return false, 0, ""
+	rest := el.kids[:0:0]
+	slots := 0
+	for _, k := range el.kids {
+		sl, ok := k.(*jsxElem)
+		if !ok || !strings.HasPrefix(sl.tag, "slot:") {
+			rest = append(rest, k)
+			continue
+		}
+		name := exportName(strings.TrimPrefix(sl.tag, "slot:"))
+		i := bindName(names, name)
+		switch {
+		case i < 0:
+			return false, sl.start, "<" + el.tag + "> has no slot " + strings.TrimPrefix(sl.tag, "slot:") + ": a slot is a " + c.target.q + "Node field, " + name
+		case used[i]:
+			return false, sl.start, "<" + el.tag + "> sets " + fields[i].name + " twice"
+		case !types.AssignableTo(node, fields[i].typ):
+			return false, sl.start, "<" + el.tag + ">'s slot " + fields[i].name + " is " + e.display(fields[i].typ) + ", not " + c.target.q + "Node"
+		}
+		used[i] = true
+		slots++
+		c.args = append(c.args, &compArg{key: fields[i].name + ": ", nodes: append([]jsxNode{}, sl.kids...), typ: fields[i].typ, nest: fields[i].nest})
+	}
+	if slots > 0 {
+		c.rest = rest
+	}
+	if !hasContent(rest) {
+		return slots > 0, 0, ""
 	}
 	if i := bindName(names, "Children"); i >= 0 && !used[i] && fields[i].ambiguous == "" && types.AssignableTo(node, fields[i].typ) {
 		c.args = append(c.args, &compArg{key: fields[i].name + ": ", kids: true, typ: fields[i].typ, nest: fields[i].nest})
 		return true, 0, ""
 	}
 	return false, 0, ""
+}
+
+// hasContent reports whether ns are more than white space.
+func hasContent(ns []jsxNode) bool {
+	for _, n := range ns {
+		if t, ok := n.(*jsxText); !ok || strings.TrimSpace(t.val) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func hasField(st *types.Struct, name string) bool {
@@ -306,6 +368,9 @@ func (e *engine) checkEvents(f *fileState) {
 				continue
 			}
 			ev.checked = true
+			if _, call := ast.Unparen(x).(*ast.CallExpr); call && tv.IsVoid() {
+				continue // the call is the handler
+			}
 			if msg := e.handlerProblem(tv.Type); msg != "" {
 				e.errs.add("E0107", f.at(ev.attr.off), "%s on <%s> %s", ev.attr.name, ev.tag, msg)
 			}

@@ -62,14 +62,6 @@ error[E0107]: onClick on <button> takes a function; this is int
    |
    = help: pass a function (a live view method or JS commands) of the shape the event calls
 
-error[E0106]: <NotLive> isn't a stateful component: *NotLive doesn't implement ui.Stateful (missing method vukaLive; embed ui.Live)
-  --> err_jsx_live.vuka:66:3
-   |
-66 |         <NotLive />
-   |         ^^^^^^^^
-   |
-   = help: pass the attributes the component's parameters or fields declare
-
 error[E0107]: onClick on <button> takes a function; this is string
   --> err_jsx_live.vuka:67:11
    |

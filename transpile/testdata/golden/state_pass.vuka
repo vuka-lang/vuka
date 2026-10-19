@@ -31,10 +31,10 @@ func Hint(text any) ui.Node { return <i>{text}</i> }
 // Panel takes a state: an expression of states is a derived one.
 func Panel(hide ui.State[bool]) ui.Node { return <p hidden={hide}>panel</p> }
 
-var box = ui.Template(`<div {{0}}></div>`)
-
-// Box takes attributes.
-func Box(attrs []ui.Attr) ui.Node { return box.Render(attrs) }
+// Box takes attributes: a hole where an attribute goes, {attrs...},
+// sets them, a binding among them writing its attribute as one in the
+// markup would.
+func Box(attrs []ui.Attr) ui.Node { return ui.HTML(`<div {attrs...}></div>`, attrs) }
 
 type Page struct{}
 
