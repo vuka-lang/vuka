@@ -14,30 +14,31 @@ type Query struct {
 
 const Max = 10
 
-func Ops(min int) ui.Node {
-	n := ui.NewState("s1n0wjlk", 1)
-	q := ui.NewState("s1nuvcoh", Query{})
-	x := ui.NewState[float64]("s1nkvqzi", 0.5)
-	// one dep per state however often it is read; server values as deps
-	return ui.F(0x24a26c95cbf4e2cd, "Eddddd(h)", ui.El("p", []ui.Attr{{Name: "a", Value: ui.Bind(
-		n.Get() < Max, `["<",{"$":0},10]`, n)}, {Name: "b", Value: ui.Bind(
-		n.Get() <= min && n.Get() >= 0 || n.Get() > q.Get().Range.Hi, `["||",["&&",["<=",{"$":0},{"$":1}],[">=",{"$":0},0]],[">",{"$":0},{"$":2,"p":["Range","Hi"]}]]`, n, min, q)}, {Name: "c", Value: ui.Bind(
-		n.Get() != n.Get()-1 && x.Get() > 0.25, `["&&",["!=",{"$":0},["-",{"$":0},1]],[">",{"$":1},0.25]]`, n, x)}, {Name: "d", Value: ui.Bind(
-		+n.Get(), `{"$":0}`, n)}, {Name: "e", Value: ui.Bind(
-		q.Get().Range.Lo == 0, `["==",{"$":0,"p":["Range","Lo"]},0]`, q)}}, ui.Child(ui.Bind(
+//line state_ops.vuka:19
+var ops = ui.Template(`<p a="{{0}}" b="{{1}}" c="{{2}}" d="{{3}}" e="{{4}}">{{5}}</p>`)
 
-		q.Get().Text+" "+"items", `["+",["+",{"$":0,"p":["Text"]}," "],"items"]`, q))),
+//line state_ops.vuka:14
+func Ops(min int) ui.Node {
+	n := ui.UseState(1)
+	q := ui.UseState(Query{})
+	x := ui.UseState[float64](0.5)
+	// one dep per state however often it is read; server values as deps
+	return ops.Render(
+		n.Lt(Max),
+		n.Le(min).And(n.Ge(0)).Or(n.Gt(ui.At[int](q, "Range.Hi"))),
+		n.Ne(n.Minus(1)).And(x.Gt(0.25)),
+		n,
+		ui.At[int](q, "Range.Lo").Eq(0),
+		ui.At[string](q, "Text").Plus(" ").Plus("items"),
 	)
 }
 
+//line state_ops.vuka:30
 func main() {}
 
 // Outside JSX a struct state's fields are states of their own.
 func narrow(q ui.State[Query]) ui.Commands {
-	return ui.JS.Set(ui.StateField(q, "Text", q.Get().Text), "dog").Set(ui.StateField(ui.StateField(q, "Range", q.Get().Range), "Lo", q.Get().Range.Lo), 2)
+	return ui.JS.Set(ui.At[string](q, "Text"), "dog").Set(ui.At[int](q, "Range.Lo"), 2)
 }
 
-func reset(q ui.State[Query]) ui.Commands {
-//line state_ops.vuka:37
-	return ui.StateField(ui.StateField(q, "Range", q.Get().Range), "Hi", q.Get().Range.Hi).Reset()
-}
+func reset(q ui.State[Query]) ui.Commands { return ui.At[int](q, "Range.Hi").Reset() }

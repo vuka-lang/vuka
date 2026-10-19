@@ -9,22 +9,22 @@ import (
 )
 
 //line islands_typeerr.vuka:9
-func wrongType() ui.Node {
+var wrongTypeText = ui.Template(`{{0}}`)
+
 //line islands_typeerr.vuka:9
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#1", Picker{Title: 3, Days: nil}))
-}
+func wrongType() ui.Node { return wrongTypeText.Render(Picker{Title: 3, Days: nil}) }
 
 //line islands_typeerr.vuka:10
-func date() ui.Node {
+var dateText = ui.Template(`{{0}}`)
+
 //line islands_typeerr.vuka:10
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#2", Clock{Zone: "x", When: "today"}))
-}
+func date() ui.Node { return dateText.Render(Clock{Zone: "x", When: "today"}) }
 
 //line islands_typeerr.vuka:11
-func max() ui.Node {
+var maxText = ui.Template(`{{0}}`)
+
 //line islands_typeerr.vuka:11
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_typeerr.vuka#3", Picker{Title: "x", Max: ui.Ptr[float64]("3"), Days: nil}))
-}
+func max() ui.Node { return maxText.Render(Picker{Title: "x", Max: ui.Ptr[float64]("3"), Days: nil}) }
 
 type Clock struct {
 	Zone   string          `json:"zone"`

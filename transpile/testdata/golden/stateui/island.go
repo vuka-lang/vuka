@@ -46,7 +46,18 @@ func Ptr[T any](v T) *T { return &v }
 
 func opt(s string) IslandOpt { return func(o *[]string) { *o = append(*o, s) } }
 
-func MountIsland(site string, props any, opts ...IslandOpt) Node {
+// Mount is an island with options.
+func Mount(props any, opts ...IslandOpt) Node { return mountIsland(props, opts...) }
+
+// mountOf is v as an island's host when its type is an island's.
+func mountOf(v any) Node {
+	if t := reflect.TypeOf(v); t != nil && islands[t] != "" {
+		return mountIsland(v)
+	}
+	return nil
+}
+
+func mountIsland(props any, opts ...IslandOpt) Node {
 	var os []string
 	for _, o := range opts {
 		o(&os)

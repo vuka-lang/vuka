@@ -32,13 +32,11 @@ type jsxComp struct {
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
 	stateful   bool     // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
-	site       string   // the tag's place, for a stateful component
 	key        *compArg // its key attribute
 	targText   string   // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
 
-	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.MountIsland.
+	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.Mount.
 	island                        bool      // this comp is a <ui.Island> wrapper
-	islandSite                    string    // a stable id for the island's placement (MountIsland's first arg → data-vk-s)
 	consumed                      bool      // a tag a <ui.Island> absorbs (its <ui.Template>s and body): not resolved or emitted on its own
 	bodyTag                       span      // the island body component's type-name span (kept in the direct form)
 	islandStrat                   string    // the strategy constructor: Load/Idle/Visible/Media/ClientOnly/SSR; "" = none
@@ -103,7 +101,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("), ")
 			}
 		}
-		w.kids(el.kids)
+		if len(el.kids) > 0 {
+			w.piece(el.kids)
+		}
 		w.gen(")")
 		return
 	}
@@ -114,7 +114,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		case a.attr != nil:
 			w.attrValue(a.attr)
 		case a.kids:
-			w.frame(el.kids)
+			w.piece(el.kids)
 		default:
 			w.gen(a.text)
 		}
@@ -131,7 +131,11 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		for i, a := range c.closure {
 			params = append(params, a.name+" "+c.closureTyp[i])
 		}
-		w.gen("func(" + strings.Join(params, ", ") + ") " + q + "Node { return ")
+		res := q + "Node"
+		if c.stateful && c.key == nil {
+			res = "any"
+		}
+		w.gen("func(" + strings.Join(params, ", ") + ") " + res + " { return ")
 	}
 	if c.withKids {
 		w.gen(q + "WithChildren(")
@@ -140,14 +144,17 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen(q + "Try(")
 	}
 	if c.stateful {
-		w.gen(q + "Component(" + strconv.Quote(c.site) + ", ")
 		if c.key != nil {
+			w.gen(q + "Key(")
 			value(c.key, true)
-		} else {
-			w.gen("nil")
+			w.gen(", ")
 		}
-		w.gen(", &")
-		w.keep(tag)
+		w.gen("&")
+		if c.key != nil {
+			w.copy(tag) // ui.Key(key, &T{…}) writes the key before the tag
+		} else {
+			w.keep(tag)
+		}
 		w.gen(c.targText) // "" normally; "[int]" for an inferred generic stateful literal
 		w.gen("{")
 	} else {
@@ -183,8 +190,10 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	}
 	closeTo(0)
 	switch {
-	case c.stateful:
+	case c.stateful && c.key != nil:
 		w.gen("})")
+	case c.stateful:
+		w.gen("}")
 	case c.props != "":
 		w.gen("})")
 	default:
@@ -223,7 +232,7 @@ func (e *engine) lowerJSX(f *fileState) {
 			all = all && c.resolved
 		}
 		if all && e.bindTree(f, t) {
-			f.fixed = append(f.fixed, f.jsxEdits(t)...)
+			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 			e.progress = true
 		}
@@ -240,7 +249,7 @@ func (e *engine) nodeType(t *jsxTarget) types.Type {
 
 // resolveComp decides the call a component tag makes:
 //
-//	<UserCard user={u} admin>hi</UserCard>   →   UserCard(u, true, ui.Fragment(ui.Text("hi"), ))
+//	<UserCard user={u} admin>hi</UserCard>   →   UserCard(u, true, userCardText.Render())
 //	<ui.Button variant={v} />                →   ui.Button(ui.ButtonProps{Variant: v, })
 //
 // Attributes bind to parameters by name (or, for a function taking one props
@@ -482,7 +491,7 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 // finishComp writes what a bound component's call needs: its props type, its
 // zero values, and the closure that keeps its expressions in source order.
 func (e *engine) finishComp(f *fileState, c *jsxComp) {
-	if c.target.has("Bind") {
+	if c.target.has("UseState") {
 		for _, a := range c.args {
 			e.bindArg(f, c, a)
 		}
@@ -511,9 +520,6 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 			for i := range a.nest {
 				a.nest[i].text = e.typeTextAuto(f, a.nest[i].typ)
 			}
-		}
-		if c.stateful && c.key != nil && c.key.attr.kind == 'e' {
-			c.inOrder = false // ui.Component(site, key, &T{…}) writes the key before the tag
 		}
 	}
 	for _, a := range c.args {

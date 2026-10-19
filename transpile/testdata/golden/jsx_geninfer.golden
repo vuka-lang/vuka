@@ -21,16 +21,28 @@ type ListProps[T any] struct {
 	Children ui.Node
 }
 
+//line jsx_geninfer.vuka:24
+var list = ui.Template(`
+<ul>
+  {{0}}
+  {{1}}
+</ul>`)
+
+//line jsx_geninfer.vuka:24
+var listLi = ui.Template(`<li id="{{0}}">{{1}}</li>`)
+
 // List's type argument is inferred from its attributes: Items []T pins T, as
 // does Key func(T) string. No <List[…]> needed.
+//
+//line jsx_geninfer.vuka:23
 func List[T any](p ListProps[T]) ui.Node {
-	return ui.F(0x1d47dd5b674c90f8, "E(bh)", ui.El("ul", nil, ui.Nodes(func(add func(ui.Node)) {
+	return list.Render(
+		ui.Each(p.Items, func(it T) ui.Node {
 //line jsx_geninfer.vuka:24
-		for _, it := range p.Items {
-//line jsx_geninfer.vuka:24
-			add(ui.F(0xd01db18104a7fc7a, "Ed(h)", ui.El("li", []ui.Attr{{Name: "id", Value: p.Key(it)}}, ui.Child(fmt.Sprint(it)))))
-		}
-	}), ui.Child(p.Children)))
+			return listLi.Render(p.Key(it), fmt.Sprint(it))
+		}),
+		p.Children,
+	)
 }
 
 //line jsx_geninfer.vuka:27
@@ -39,9 +51,14 @@ type PairProps[K comparable, V any] struct {
 	Value V
 }
 
+//line jsx_geninfer.vuka:34
+var pair = ui.Template(`<p>{{0}}={{1}}</p>`)
+
 // Two type parameters, each pinned by one attribute.
+//
+//line jsx_geninfer.vuka:33
 func Pair[K comparable, V any](p PairProps[K, V]) ui.Node {
-	return ui.F(0x16bf968e40ca115a, "E(hth)", ui.El("p", nil, ui.Child(fmt.Sprint(p.Name)), ui.Text("="), ui.Child(fmt.Sprint(p.Value))))
+	return pair.Render(fmt.Sprint(p.Name), fmt.Sprint(p.Value))
 }
 
 type Column[T any] struct {
@@ -54,34 +71,46 @@ type GridProps[T any] struct {
 	Rows []*T
 }
 
+//line jsx_geninfer.vuka:50
+var grid = ui.Template(`<table>{{0}}</table>`)
+
+//line jsx_geninfer.vuka:50
+var gridTr = ui.Template(`<tr>{{0}}</tr>`)
+
+//line jsx_geninfer.vuka:50
+var gridTd = ui.Template(`<td>{{0}}</td>`)
+
 // T reached through a named generic type (Column[T]) and a pointer ([]*T) is
 // still pinned by unifying those shapes structurally.
+//
+//line jsx_geninfer.vuka:49
 func Grid[T any](p GridProps[T]) ui.Node {
-	return ui.F(0xd5334c12df227221, "E(b)", ui.El("table", nil, ui.Nodes(func(add func(ui.Node)) {
+	return grid.Render(ui.Each(p.Rows, func(r *T) ui.Node {
 //line jsx_geninfer.vuka:50
-		for _, r := range p.Rows {
-			add(ui.F(0x512426eef99c70ff, "E(b)", ui.El("tr", nil, ui.Nodes(func(add func(ui.Node)) {
+		return gridTr.Render(ui.Each(p.Cols, func(col Column[T]) ui.Node {
 //line jsx_geninfer.vuka:50
-				for _, col := range p.Cols {
-//line jsx_geninfer.vuka:50
-					add(ui.F(0x90379b42571a50c3, "E(h)", ui.El("td", nil, ui.Child(col.Get(*r)))))
-				}
-			}))))
-		}
-	})))
+			return gridTd.Render(col.Get(*r))
+		}))
+	}))
 }
+
+//line jsx_geninfer.vuka:56
+var pageText = ui.Template(`
+{{0}}
+{{1}}
+{{2}}
+{{3}}`)
+
+//line jsx_geninfer.vuka:56
+var pageLi = ui.Template(`<li>done</li>`)
 
 //line jsx_geninfer.vuka:53
 func page(users []User) ui.Node {
 	key := func(u User) string { return strconv.Itoa(u.ID) }
-	return ui.F(0xca8c132c8e01f6fd, "G(cccc)", ui.Fragment(
-		List(ListProps[User]{Items: users, Key: key, Children: ui.F(0x201c8feac7b560c2, "E(t)", ui.El("li", nil, ui.Text("done")))}),
-		List[User](ListProps[User]{Items: nil, Key: nil}),
-		Pair(PairProps[string, int]{Name: "age", Value: 42}),
-		Grid(GridProps[User]{Cols: []Column[User]{{Head: "id", Get: key}}, Rows: ptrs(users)})),
-	)
+	return pageText.Render(List(ListProps[User]{Items: users, Key: key, Children: pageLi.Render()}), List[User](ListProps[User]{Items: nil, Key: nil}), Pair(PairProps[string, int]{Name: "age", Value: 42}), Grid(GridProps[User]{Cols: []Column[User]{{Head: "id", Get: key}}, Rows: ptrs(users)}))
 }
 
+//line jsx_geninfer.vuka:63
 func ptrs[T any](xs []T) []*T {
 	out := make([]*T, len(xs))
 	for i := range xs {

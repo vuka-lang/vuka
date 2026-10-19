@@ -16,23 +16,26 @@ type page struct{}
 func (p *page) Pick(ctx context.Context, day string) error { return nil }
 func (p *page) Closed()                                    {}
 
+//line islands_import.vuka:21
+var pageRender = ui.Template(`
+<div>
+  {{0}}
+  {{1}}
+</div>`)
+
+//line islands_import.vuka:32
+var pageRenderB = ui.Template(`<b>hi</b>`)
+
 // An imported island: its props come from Picker.vue — title (string),
 // kind ('day' | 'week', optional), max (optional number), days, open (a
 // model), onSelect/onClose (emits) and a default slot.
+//
+//line islands_import.vuka:19
 func (p *page) render() ui.Node {
-	open := ui.NewState("sqf62je", false)
-	return ui.F(0xdc95b16a11a174fa, "E(cc)", ui.El("div", nil, func(a1 float64, a2 []PickerDays, a3 ui.State[bool], a4 any, a5 any) ui.Node {
-		return ui.MountIsland("islands_import.vuka#1", Picker{Title: "Week", Kind: ui.Ptr[PickerKind]("week"), Max: ui.Ptr[float64](a1), Days: a2}, ui.Load(), ui.Slot(ui.F(0x31c5103db11cf5c6, "E(t)", ui.El("b", nil, ui.Text("hi")))), ui.Callback("onSelect", a4), ui.Callback("onClose", a5), ui.StateProp("open", a3))
-	}(
-
-		3,
-		[]PickerDays{{Label: "mon", Free: true}},
-		open,
-		p.Pick,
-		p.Closed), ui.MountIsland("islands_import.vuka#2",
-
-		Picker{Title: "Again", Days: nil}, ui.Callback("onClose", open.Set(false)), ui.Once())),
-	)
+	open := ui.UseState(false)
+	return pageRender.Render(func(a1 float64, a2 []PickerDays, a3 ui.State[bool], a4 any, a5 any) any {
+		return ui.Mount(Picker{Title: "Week", Kind: ui.Ptr[PickerKind]("week"), Max: ui.Ptr[float64](a1), Days: a2}, ui.Load(), ui.Slot(pageRenderB.Render()), ui.Callback("onSelect", a4), ui.Callback("onClose", a5), ui.StateProp("open", a3))
+	}(3, []PickerDays{{Label: "mon", Free: true}}, open, p.Pick, p.Closed), ui.Mount(Picker{Title: "Again", Days: nil}, ui.Callback("onClose", open.Set(false)), ui.Once()))
 }
 
 //line islands_import.vuka:38

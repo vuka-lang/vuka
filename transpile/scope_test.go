@@ -52,25 +52,21 @@ func main() {}
 		t.Fatal(err)
 	}
 	out := string(res.Files[0].Src)
-	mark := func(id string) string { return `{Name: "data-vk-s", Value: "` + id + `"}` }
-	for _, el := range []string{`"div"`, `"p"`, `"span"`, `"li"`} {
-		if !strings.Contains(out, `ui.El(`+el+`, []ui.Attr{`+mark("k1")) {
-			t.Errorf("<%s> of Counter isn't marked:\n%s", strings.Trim(el, `"`), out)
+	mark := func(id string) string { return ` data-vk-s="` + id + `"` }
+	for _, el := range []string{"div", "p", "span", "li"} {
+		if !strings.Contains(out, "<"+el+mark("k1")) {
+			t.Errorf("<%s> of Counter isn't marked:\n%s", el, out)
 		}
 	}
-	if !strings.Contains(out, `ui.El("main", []ui.Attr{`+mark("p2")) {
+	if !strings.Contains(out, "<main"+mark("p2")) {
 		t.Errorf("page's <main> isn't marked:\n%s", out)
 	}
-	for _, el := range []string{`"section"`, `"h2"`, `"aside"`} {
-		if !strings.Contains(out, `ui.El(`+el+`, nil`) {
-			t.Errorf("<%s> is marked:\n%s", strings.Trim(el, `"`), out)
+	for _, el := range []string{"section>", "h2>", "aside/>"} {
+		if !strings.Contains(out, "<"+el) {
+			t.Errorf("<%s is marked:\n%s", el, out)
 		}
 	}
-	if strings.Count(out, `"data-vk-s"`) != 5 {
+	if strings.Count(out, "data-vk-s") != 5 {
 		t.Errorf("want 5 marks:\n%s", out)
-	}
-	// The mark is static markup in the frame's shape: s, not d.
-	if !strings.Contains(out, `"Es(`) {
-		t.Errorf("the mark isn't a static of the frame:\n%s", out)
 	}
 }

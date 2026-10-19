@@ -3,82 +3,120 @@
 //line jsx_self.vuka:1
 package main
 
-import "fmt"
+import (
+	"fmt"
+	"regexp"
+	"strconv"
+	"strings"
+)
 
 // This package IS its own JSX target: it declares VukaJSX and the primitives,
-// so its .vuka files author JSX that lowers to UNQUALIFIED calls (El, F, Text,
-// …) resolved within the package — the way github.com/vuka-lang/ui authors its
-// own components.
-const VukaJSX = 1
+// so its .vuka files author JSX that lowers to UNQUALIFIED calls (Template,
+// Each, …) resolved within the package — the way github.com/vuka-lang/ui
+// authors its own components.
+const VukaJSX = 2
 
 type Node interface{ render() string }
 
-type Attr struct {
-	Name  string
-	Value any
+type text string
+
+func (t text) render() string { return string(t) }
+
+// Markup renders its holes into its markup, attributes and the space
+// between lines left out.
+type Markup struct{ src string }
+
+var attrs, lines = regexp.MustCompile(`<(\w+)[^>]*?(/?)>`), regexp.MustCompile(`\n\s*`)
+
+func Template(src string) *Markup {
+	return &Markup{lines.ReplaceAllString(attrs.ReplaceAllString(src, "<$1$2>"), "")}
 }
 
-type elem struct {
-	tag  string
-	text string
-	kids []Node
+func (m *Markup) Render(args ...any) Node {
+	s := m.src
+	for i, a := range args {
+		s = strings.Replace(s, "{{"+strconv.Itoa(i)+"}}", child(a), 1)
+	}
+	return text(s)
 }
 
-func (e elem) render() string {
-	s := e.text
-	for _, k := range e.kids {
-		if k != nil {
-			s += k.render()
+func child(v any) string {
+	switch v := v.(type) {
+	case Node:
+		return v.render()
+	case []Node:
+		var b strings.Builder
+		for _, n := range v {
+			b.WriteString(n.render())
 		}
+		return b.String()
 	}
-	if e.tag == "" {
-		return s
-	}
-	return "<" + e.tag + ">" + s + "</" + e.tag + ">"
+	return fmt.Sprint(v)
 }
 
-func El(tag string, attrs []Attr, kids ...Node) Node { return elem{tag: tag, kids: kids} }
-func Text(v any) Node                                { return elem{text: fmt.Sprint(v)} }
-func Child(v any) Node                               { return Text(v) }
-func Fragment(kids ...Node) Node                     { return elem{kids: kids} }
-
-func Nodes(f func(func(Node))) Node {
-	var kids []Node
-	f(func(n Node) { kids = append(kids, n) })
-	return elem{kids: kids}
+func Each[T any](items []T, fn func(T) Node) Node {
+	var b strings.Builder
+	for _, it := range items {
+		b.WriteString(fn(it).render())
+	}
+	return text(b.String())
 }
 
-// F is the frame the target declares; a self-target with F lowers each piece of
-// JSX through it, exactly as an imported target would.
-func F(fp uint64, shape string, kids ...Node) Node { return elem{kids: kids} }
+func If(cond bool, n Node) Node {
+	if !cond {
+		return text("")
+	}
+	return n
+}
+
+func Child(v any) Node           { return text(child(v)) }
+func Fragment(kids ...Node) Node { return Each(kids, func(n Node) Node { return n }) }
 
 type Row struct {
 	ID   int
 	Name string
 }
 
+//line jsx_self.vuka:80
+var badge = Template(`<span>{{0}}</span>`)
+
 // Badge is a same-package component: its tag resolves against this package's
 // own scope and lowers to an unqualified call.
+//
+//line jsx_self.vuka:79
 func Badge(label string) Node {
-	return F(0xc33e5e62a0d789db, "E(h)", El("span", nil, Child(label)))
+	return badge.Render(label)
 }
+
+//line jsx_self.vuka:86
+var listDiv = Template(`
+<div className="list">
+  <h1>{{0}}</h1>
+  <ul>{{1}}</ul>
+</div>`)
+
+//line jsx_self.vuka:90
+var listLi = Template(`
+<li>
+  {{0}}
+  {{1}}
+</li>`)
 
 // list exercises the self-target lowering: plain elements, an {expr} child, a
 // {for} loop and a same-package component tag.
+//
+//line jsx_self.vuka:85
 func list(title string, rows []Row) Node {
-	return F(0x143e9d21316b9b86, "Es(E(h)E(b))", El("div", []Attr{{Name: "className", Value: "list"}}, El("h1", nil, Child(
-		title)), El("ul", nil, Nodes(func(add func(Node)) {
-
-		for _, r := range rows {
-			add(F(0xd65fa2d16a31e37d, "E(ch)", El("li", nil,
-
-				Badge(r.Name), Child(
-					r.ID))))
-		}
-	}))),
+	return listDiv.Render(
+		title,
+		Each(rows, func(r Row) Node {
+//line jsx_self.vuka:91
+			return listLi.Render(Badge(r.Name), r.ID)
+		}),
 	)
 }
 
+//line jsx_self.vuka:99
 func main() {
 	fmt.Println(list("People", []Row{{1, "Ada"}, {2, "Lin"}}).render())
 }

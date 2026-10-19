@@ -16,21 +16,3 @@ func TestJSXTextValue(t *testing.T) {
 		}
 	}
 }
-
-func TestPadNewlines(t *testing.T) {
-	for _, c := range []struct {
-		in   string
-		n    int
-		want string
-	}{
-		{"), ", 1, "), \n"},
-		{`Text("a, b")`, 1, "Text(\n" + `"a, b")`},
-		{`"x")`, 1, "\n" + `"x")`},
-		{`f("x"), g(`, 2, `f("x"), g(` + "\n\n"},
-		{`"a\"(" )`, 1, "\n" + `"a\"(" )`},
-	} {
-		if got := padNewlines(c.in, c.n); got != c.want {
-			t.Errorf("padNewlines(%q, %d) = %q, want %q", c.in, c.n, got, c.want)
-		}
-	}
-}

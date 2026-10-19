@@ -20,31 +20,51 @@ type User struct {
 	Year   int
 }
 
-func UserCard(user User, admin bool, children ui.Node) ui.Node {
-	return ui.F(0x8b3b9a5abd90f302, "Esd(E(h)hb)", ui.El("div", []ui.Attr{{Name: "className", Value: "card"}, {Name: "data-id", Value: user.ID}}, ui.El("h3", nil, ui.Child(
-		user.Name)), ui.Child(
-		children), ui.Nodes(func(add func(ui.Node)) {
-		if admin {
+//line jsx_components.vuka:21
+var userCard = ui.Template(`
+<div className="card" data-id="{{0}}">
+  <h3>{{1}}</h3>
+  {{2}}
+  {{3}}
+</div>`)
+
 //line jsx_components.vuka:24
-			add(ui.F(0x6fa198f7c57d61f6, "Ed(t)", ui.El("button", []ui.Attr{{Name: "disabled", Value: !user.Active}}, ui.Text("Edit"))))
-		}
-	})),
+var userCardButton = ui.Template(`<button disabled="{{0}}">Edit</button>`)
+
+//line jsx_components.vuka:20
+func UserCard(user User, admin bool, children ui.Node) ui.Node {
+	return userCard.Render(
+		user.ID,
+		user.Name,
+		children,
+		func() ui.Node {
+			var node ui.Node
+//line jsx_components.vuka:24
+			if admin {
+//line jsx_components.vuka:24
+				node = userCardButton.Render(!user.Active)
+			}
+			return ui.If(node != nil, node)
+		}(),
 	)
 }
+
+//line jsx_components.vuka:29
+var row = ui.Template(`<tr><td>{{0}}</td></tr>`)
 
 // Row takes its struct whole: the attribute names the parameter.
 //
 //line jsx_components.vuka:29
-func Row(user User) ui.Node {
-//line jsx_components.vuka:29
-	return ui.F(0xee889f223f3f76a3, "E(E(h))", ui.El("tr", nil, ui.El("td", nil, ui.Child(user.Name))))
-}
+func Row(user User) ui.Node { return row.Render(user.Name) }
+
+//line jsx_components.vuka:33
+var badge = ui.Template(`<span>{{0}}: {{1}}</span>`)
 
 // Badge takes its attributes out of the order of its parameters.
 //
 //line jsx_components.vuka:32
 func Badge(label string, count int) ui.Node {
-	return ui.F(0xc7c61548ed5a1b09, "E(hth)", ui.El("span", nil, ui.Child(label), ui.Text(": "), ui.Child(count)))
+	return badge.Render(label, count)
 }
 
 type ButtonProps struct {
@@ -54,12 +74,11 @@ type ButtonProps struct {
 	Children ui.Node
 }
 
-func Button(props ButtonProps) ui.Node {
-//line jsx_components.vuka:43
-	return ui.F(0xd97d0e3b298ad747, "E(h)", ui.El("button", nil, ui.Child(props.Variant)))
-}
+var button = ui.Template(`<button>{{0}}</button>`)
 
-//line jsx_components.vuka:45
+//line jsx_components.vuka:43
+func Button(props ButtonProps) ui.Node { return button.Render(props.Variant) }
+
 type IconProps struct {
 	Name  string
 	Class string
@@ -75,51 +94,98 @@ func (h html) Render(ctx context.Context, w io.Writer) error {
 // Icon is templUI-style: variadic props, a result that isn't ui.Node.
 func Icon(props ...IconProps) html { return "<i></i>" }
 
+//line jsx_components.vuka:64
+var avatar = ui.Template(`<img src="{{0}}"/>`)
+
+//line jsx_components.vuka:60
 func Avatar(url string) (ui.Node, error) {
 	if url == "" {
 		return nil, errors.New("no url")
 	}
-	return ui.F(0x2f4495a51e47738f, "Ed()", ui.El("img", []ui.Attr{{Name: "src", Value: url}})), nil
+	return avatar.Render(url), nil
 }
 
+//line jsx_components.vuka:68
+var layout = ui.Template(`
+<main>
+  <title>{{0}}</title>
+  {{1}}
+</main>`)
+
+//line jsx_components.vuka:67
 func Layout(title string, children ui.Node) ui.Node {
-	return ui.F(0xca11cb7fb05757a8, "E(E(h)h)", ui.El("main", nil, ui.El("title", nil, ui.Child(title)), ui.Child(children)))
+	return layout.Render(title, children)
 }
 
 type Theme struct{ dark bool }
 
+//line jsx_components.vuka:74
+var themeCard = ui.Template(`
+<section className="{{0}}">
+  <h2>{{1}}</h2>
+  {{2}}
+</section>`)
+
+//line jsx_components.vuka:73
 func (t Theme) Card(heading string, children ui.Node) ui.Node {
-	return ui.F(0x1a1e525ff03ab1c6, "Ed(E(h)h)", ui.El("section", []ui.Attr{{Name: "className", Value: map[bool]string{true: "dark"}[t.dark]}}, ui.El("h2", nil, ui.Child(heading)), ui.Child(children)))
+	return themeCard.Render(map[bool]string{true: "dark"}[t.dark], heading, children)
 }
 
+//line jsx_components.vuka:79
+var list = ui.Template(`
+<ul>{{0}}</ul>
+{{1}}
+{{2}}
+{{3}}
+{{4}}
+{{5}}
+{{6}}
+{{7}}
+<table>{{8}}</table>
+{{9}}
+{{10}}`)
+
+//line jsx_components.vuka:81
+var listLi = ui.Template(`<li key="{{0}}">{{1}}</li>`)
+
+//line jsx_components.vuka:81
+var listText = ui.Template(`since {{0}}`)
+
+//line jsx_components.vuka:88
+var listText2 = ui.Template(`Save`)
+
+//line jsx_components.vuka:94
+var listP = ui.Template(`<p>body</p>`)
+
+//line jsx_components.vuka:95
+var listText3 = ui.Template(`children through templ's context`)
+
+//line jsx_components.vuka:77
 func List(users []User) ui.Node {
-	return ui.F(0x4f09f16db97bcfe8, "G(E(b)cccccccE(c)cc)", ui.Fragment(ui.El("ul", nil, ui.Nodes(func(add func(ui.Node)) {
-
-		for _, u := range users {
-			add(ui.F(0x9704e5483929cbf5, "Ed(c)", ui.El("li", []ui.Attr{{Name: "key", Value: u.ID}}, UserCard(u, false, ui.F(0xf701d7da5a23ffcb, "th", ui.Text("since "), ui.Child(u.Year))))))
-		}
-	})),
-
-		Badge("users", len(users)), func(a1 int, a2 string) ui.Node {
-//line jsx_components.vuka:85
-			return Badge(a2, a1)
-		}(
-			2,
-			"x"),
-		Button(ButtonProps{Variant: "primary", Disabled: true, Children: ui.F(0x35a2e8a033e31064, "t", ui.Text("Save"))}),
+	return list.Render(
+		ui.Each(users, func(u User) ui.Node {
+//line jsx_components.vuka:81
+			return listLi.Render(u.ID, UserCard(u, false, listText.Render(u.Year)))
+		}),
+		Badge("users", len(users)),
+		func(a1 int, a2 string) ui.Node { return Badge(a2, a1) }(2, "x"),
+		Button(ButtonProps{Variant: "primary", Disabled: true, Children: listText2.Render()}),
 		Icon(IconProps{Name: "star"}),
-		Icon(), ui.Try(
-			Avatar("a.png")),
-		UserCard(User{}, false, nil), ui.El("table", nil,
-			Row(users[0])),
-		Layout("Users", ui.F(0xadf427bf4d4f837f, "E(t)", ui.El("p", nil, ui.Text("body")))), ui.WithChildren(
-			templ.Raw("<b>raw</b>"), ui.F(0x372cffa9dfd360f8, "t", ui.Text("children through templ's context")))),
+		Icon(),
+		ui.Try(Avatar("a.png")),
+		UserCard(User{}, false, nil),
+		Row(users[0]),
+		Layout("Users", listP.Render()),
+		ui.WithChildren(templ.Raw("<b>raw</b>"), listText3.Render()),
 	)
 }
 
+//line jsx_components.vuka:100
+var themed = ui.Template(`text`)
+
 //line jsx_components.vuka:99
 func Themed(theme Theme) ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", theme.Card("Hi", ui.F(0xae3ded49e808f082, "t", ui.Text("text"))))
+	return theme.Card("Hi", themed.Render())
 }
 
 func main() {

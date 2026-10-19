@@ -28,8 +28,12 @@ func (c *Counter) Mount(ctx context.Context) error {
 
 func (c *Counter) Inc() { c.n++ }
 
+//line jsx_live.vuka:29
+var counter = ui.Template(`<span>{{0}}: {{1}} <button onClick="{{2}}">+</button></span>`)
+
+//line jsx_live.vuka:28
 func (c *Counter) Render() ui.Node {
-	return ui.F(0x255446f1e1e9ccd2, "E(hthtEd(t))", ui.El("span", nil, ui.Child(c.Label), ui.Text(": "), ui.Child(c.n), ui.Text(" "), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(c.Inc)}}, ui.Text("+"))))
+	return counter.Render(c.Label, c.n, c.Inc)
 }
 
 type Item struct {
@@ -68,35 +72,63 @@ func (t *Todo) Remove(id int) {
 	}
 }
 
+//line jsx_live.vuka:69
+var todo = ui.Template(`
+<section>
+  <h2>{{0}}</h2>
+  {{1}}
+  <form onSubmit="{{2}}"><input name="name" onInput="{{3}}"/></form>
+  <ul>{{4}}</ul>
+  {{5}}
+</section>`)
+
+//line jsx_live.vuka:75
+var todoLi = ui.Template(`
+<li key="{{0}}">
+  {{1}}
+  <button onClick="{{2}}">x</button>
+</li>`)
+
+var todoP = ui.Template(`<p>typing {{0}}</p>`)
+
+//line jsx_live.vuka:68
 func (t *Todo) Render() ui.Node {
-	return ui.F(0xe0cf875f26e2c3e6, "E(E(h)hEd(Esd())E(b)b)", ui.El("section", nil, ui.El("h2", nil, ui.Child(
-		t.Title)), ui.Child(
-		t.Children), ui.El("form", []ui.Attr{{Name: "onSubmit", Value: ui.On(
-		t.Add)}}, ui.El("input", []ui.Attr{{Name: "name", Value: "name"}, {Name: "onInput", Value: ui.On(func(q string) { t.query = q })}})), ui.El("ul", nil, ui.Nodes(func(add func(ui.Node)) {
-
-		for _, it := range t.items {
-			add(ui.F(0xebe80b758886d455, "Ed(cEd(t))", ui.El("li", []ui.Attr{{Name: "key", Value: it.ID}}, ui.Component("jsx_live.vuka#1", nil,
-				&Counter{Label: it.Name}), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(
-				func() { t.Remove(it.ID) })}}, ui.Text("x")))))
-		}
-	})), ui.Nodes(func(add func(ui.Node)) {
-
-		if t.query != "" {
+	return todo.Render(
+		t.Title,
+		t.Children,
+		t.Add,
+		func(q string) { t.query = q },
+		ui.Each(t.items, func(it Item) ui.Node {
+			return todoLi.Render(it.ID, &Counter{Label: it.Name}, func() { t.Remove(it.ID) })
+		}),
+		func() ui.Node {
+			var node ui.Node
 //line jsx_live.vuka:81
-			add(ui.F(0xe03b7a1e9fc8ce8c, "E(th)", ui.El("p", nil, ui.Text("typing "), ui.Child(t.query))))
-		}
-	})),
+			if t.query != "" {
+//line jsx_live.vuka:81
+				node = todoP.Render(t.query)
+			}
+			return ui.If(node != nil, node)
+		}(),
 	)
 }
+
+//line jsx_live.vuka:86
+var pageMain = ui.Template(`
+<main>
+  {{0}}
+  {{1}}
+</main>`)
+
+//line jsx_live.vuka:87
+var pageP = ui.Template(`<p>weekly</p>`)
 
 //line jsx_live.vuka:85
 func page(ctx context.Context) ui.Node {
-	return ui.F(0xa924c306192623b4, "E(cc)", ui.El("main", nil, ui.Component("jsx_live.vuka#2", nil,
-		&Todo{Title: "Groceries", Children: ui.F(0xaa62a1545aee466c, "E(t)", ui.El("p", nil, ui.Text("weekly")))}), ui.Component("jsx_live.vuka#3", "solo",
-		&Counter{Start: 10, Label: "solo"})),
-	)
+	return pageMain.Render(&Todo{Title: "Groceries", Children: pageP.Render()}, ui.Key("solo", &Counter{Start: 10, Label: "solo"}))
 }
 
+//line jsx_live.vuka:92
 var handlers = regexp.MustCompile(`data-vk-on-(\w+)="([^"]+)"`)
 
 func show(p live.Patch, err error) {

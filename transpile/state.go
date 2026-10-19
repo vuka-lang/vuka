@@ -1,49 +1,47 @@
 package transpile
 
 import (
-	"encoding/json"
 	"go/ast"
 	"go/constant"
 	"go/token"
 	"go/types"
-	"hash/fnv"
-	"sort"
 	"strconv"
 	"strings"
 )
 
-// Client state. A JSX target declaring NewState (ui does) has states the
+// Client state. A JSX target declaring UseState (ui does) has states the
 // browser keeps: ui.State(v) declares one, and JSX reads them in plain Go
-// expressions that the browser evaluates again when a state changes.
+// expressions that the browser evaluates again when a state changes. They
+// lower to what a person writes in Go: a state read as the state, an
+// operator as State's method on its left operand.
 //
-//	open := ui.State(false)              →  open := ui.NewState("s1x9k2", false)
-//	var theme = ui.State("light")        →  var theme = ui.PageState("s4ab0c", "light")
-//	<ul hidden={!open}>                  →  ui.El("ul", []ui.Attr{{Name: "hidden", Value: ui.Bind(!open.Get(), `["!",{"$":0}]`, open)}})
-//	<span>{n}</span>                     →  ui.Child(ui.Bind(n.Get(), `{"$":0}`, n))
-//	ready := ui.Derived(!open && ok)     →  ready := ui.NewDerived(!open.Get() && ok, `["&&",["!",{"$":0}],{"$":1}]`, open, ok)
-//	f.Q.Set("x")                         →  ui.StateField(f, "Q", f.Get().Q).Set("x")
+//	open := ui.State(false)              →  open := ui.UseState(false)
+//	var theme = ui.State("light")        →  var theme = ui.UsePageState("light")
+//	<ul hidden={!open}>                  →  <ul hidden="{{0}}">, open.Not()
+//	<span>{n}</span>                     →  <span>{{0}}</span>, n
+//	ready := ui.Derived(!open && ok)     →  ready := open.Not().And(ok)
+//	"x" + name                           →  ui.Derived("x").Plus(name)
+//	f.Q.Set("x")                         →  ui.At[string](f, "Q").Set("x")
+//	ui.Class{"on": open}                 →  ui.Classes{"on": open}
 //
-// A declaration's site is a hash of the package, file and its place, so the
-// browser tells states apart however they are named; one in a function is
-// the rendering component instance's, one at package level the page's.
-// A read keeps its Go expression for the value the server renders, each
-// state read as its Get(), so Go checks its types; the expression the
-// browser evaluates is JSON, with the states and any server values it uses
-// as deps. Only literals, state reads (a struct state's fields too), !, -,
-// &&, ||, comparisons, + and -, len and ui.Class run in the browser; any
-// other expression mixed with a state is an error.
+// A state's place is where UseState is called, so the browser tells states
+// apart however they are named; one in a function is the rendering
+// component instance's, one at package level the page's. Only literals,
+// state reads (a struct state's fields too), !, -, &&, ||, comparisons, +
+// and -, len and ui.Class run in the browser; any other expression mixed
+// with a state is an error.
 
-// declareStates gives each ui.State(v) call its site: NewState in a
-// function, PageState at package level.
+// declareStates writes each ui.State(v) call as UseState in a function,
+// UsePageState at package level.
 func (e *engine) declareStates() {
-	pkgs := map[string]bool{} // import path → declares NewState
+	pkgs := map[string]bool{} // import path → declares UseState
 	declares := func(path string) bool {
 		if ok, seen := pkgs[path]; seen {
 			return ok
 		}
 		ok := false
 		if !stdPackage(path) {
-			if p, err := e.imp.Import(path); err == nil && p.Scope().Lookup("NewState") != nil && p.Scope().Lookup("Bind") != nil {
+			if p, err := e.imp.Import(path); err == nil && p.Scope().Lookup("UseState") != nil {
 				ok = true
 			}
 		}
@@ -60,7 +58,6 @@ func (e *engine) declareStates() {
 			}
 			names[name] = path
 		}
-		n := 0
 		ast.Inspect(f.ast, func(nd ast.Node) bool {
 			call, ok := nd.(*ast.CallExpr)
 			if !ok || len(call.Args) != 1 {
@@ -78,16 +75,11 @@ func (e *engine) declareStates() {
 			if !ok || x.Obj != nil || names[x.Name] == "" || !declares(names[x.Name]) {
 				return true
 			}
-			n++
-			h := fnv.New32a()
-			h.Write([]byte(e.pkgPath() + "/" + f.name + "#" + strconv.Itoa(n)))
-			site := "s" + strconv.FormatUint(uint64(h.Sum32()), 36)
-			fn := "PageState"
+			fn := "UsePageState"
 			if e.inFunc(f, call) {
-				fn = "NewState"
+				fn = "UseState"
 			}
 			f.add(f.orig(sel.Sel.Pos()), f.orig(sel.Sel.End()), fn)
-			f.insert(f.orig(call.Lparen)+1, strconv.Quote(site)+", ", 0)
 			e.progress = true
 			return true
 		})
@@ -112,22 +104,17 @@ func stateOf(t types.Type) (types.Type, bool) {
 		return nil, false
 	}
 	sc := n.Obj().Pkg().Scope()
-	if sc.Lookup("NewState") == nil || sc.Lookup("Bind") == nil {
+	if sc.Lookup("UseState") == nil {
 		return nil, false
 	}
 	return n.TypeArgs().At(0), true
 }
 
-// stateBind is an expression of states lowered: the Go expression of the
-// value it renders with (the source, with .Get() after each state read),
-// the browser's expression, and its deps.
+// stateBind is an expression of states lowered: the source's operands kept
+// in place, its operators State's methods (state.go's header).
 type stateBind struct {
-	start, end int      // the expression in src
-	gets       []int    // where .Get() goes, in src
-	expr       string   // JSON
-	deps       []string // Go
-	call       string   // "Bind", "NewDerived" or "StateField"
-	field      string   // StateField: the whole call
+	start, end int
+	pieces     []jsxPiece
 }
 
 // bindError is a read the browser can't run.
@@ -138,11 +125,19 @@ type bindError struct {
 
 // binder lowers one expression.
 type binder struct {
-	e    *engine
-	f    *fileState
-	b    *stateBind
-	err  *bindError
-	deps map[string]int
+	e   *engine
+	f   *fileState
+	q   string // how the file names the target: "ui."
+	b   *stateBind
+	err *bindError
+}
+
+func (bd *binder) gen(s string) {
+	bd.b.pieces = append(bd.b.pieces, jsxPiece{text: s, keep: span{-1, -1}})
+}
+
+func (bd *binder) keep(x ast.Node) {
+	bd.b.pieces = append(bd.b.pieces, jsxPiece{keep: span{bd.f.orig(x.Pos()), bd.f.orig(x.End())}})
 }
 
 // readsState reports whether x reads a state: a state-typed operand that
@@ -210,7 +205,7 @@ func (e *engine) passesStates(x ast.Expr) bool {
 // isClass reports whether t is a JSX target's ui.Class.
 func isClass(t types.Type) bool {
 	n, ok := types.Unalias(t).(*types.Named)
-	return ok && n.Obj().Name() == "Class" && n.Obj().Pkg() != nil && n.Obj().Pkg().Scope().Lookup("NewState") != nil
+	return ok && n.Obj().Name() == "Class" && n.Obj().Pkg() != nil && n.Obj().Pkg().Scope().Lookup("UseState") != nil
 }
 
 // unknownTypes reports whether a name in x has no type yet.
@@ -227,53 +222,43 @@ func (e *engine) unknownTypes(x ast.Node) bool {
 	return unknown
 }
 
-// lowerState lowers x, an expression reading states, as a binding.
+// lowerState lowers x, an expression reading states, to State's methods.
 func (e *engine) lowerState(f *fileState, x ast.Expr) (*stateBind, *bindError) {
-	bd := &binder{e: e, f: f, b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End()), call: "Bind"}, deps: map[string]int{}}
-	j := bd.lower(x)
+	bd := &binder{e: e, f: f, q: e.statePkg(f, e.statePackage(x)), b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End())}}
+	bd.lower(x)
 	if bd.err != nil {
 		return nil, bd.err
 	}
-	var out strings.Builder
-	enc := json.NewEncoder(&out)
-	enc.SetEscapeHTML(false)
-	enc.Encode(j)
-	bd.b.expr = strings.TrimSuffix(out.String(), "\n")
 	return bd.b, nil
 }
 
-func (bd *binder) fail(n ast.Node, msg string) any {
+// statePackage is the package declaring the states x reads.
+func (e *engine) statePackage(x ast.Expr) *types.Package {
+	var pkg *types.Package
+	ast.Inspect(x, func(n ast.Node) bool {
+		if x, ok := n.(ast.Expr); ok && pkg == nil {
+			if _, st := stateOf(e.info.TypeOf(x)); st {
+				pkg = types.Unalias(e.info.TypeOf(x)).(*types.Named).Obj().Pkg()
+			}
+		}
+		return pkg == nil
+	})
+	return pkg
+}
+
+func (bd *binder) fail(n ast.Node, msg string) {
 	if bd.err == nil {
 		bd.err = &bindError{bd.f.orig(n.Pos()), msg}
 	}
-	return nil
 }
 
 func (bd *binder) text(n ast.Node) string {
 	return string(bd.f.src[bd.f.orig(n.Pos()):bd.f.orig(n.End())])
 }
 
-// dep is x as a dep, {"$": i}, with path p: the same Go text is one dep.
-func (bd *binder) dep(x ast.Expr, p []string) any {
-	t := bd.text(x)
-	i, ok := bd.deps[t]
-	if !ok {
-		i = len(bd.b.deps)
-		bd.deps[t] = i
-		bd.b.deps = append(bd.b.deps, t)
-	}
-	r := map[string]any{"$": i}
-	if len(p) > 0 {
-		r["p"] = p
-	}
-	return r
-}
-
-// fieldPath is x as a field of a struct state: the state and the field
-// names down to x, each a field of the struct before it.
-func (bd *binder) fieldPath(x ast.Expr) (ast.Expr, []string) { return bd.e.stateField(x) }
-
-func (e *engine) stateField(x ast.Expr) (ast.Expr, []string) {
+// stateField is x as a field of a struct state: the state, the field names
+// down to x, and the field's type.
+func (e *engine) stateField(x ast.Expr) (ast.Expr, []string, types.Type) {
 	var path []string
 	for {
 		x = ast.Unparen(x)
@@ -281,7 +266,7 @@ func (e *engine) stateField(x ast.Expr) (ast.Expr, []string) {
 			for _, name := range path {
 				st, _ := elem.Underlying().(*types.Struct)
 				if st == nil {
-					return nil, nil
+					return nil, nil, nil
 				}
 				var fl *types.Var
 				for i := 0; i < st.NumFields(); i++ {
@@ -290,107 +275,121 @@ func (e *engine) stateField(x ast.Expr) (ast.Expr, []string) {
 					}
 				}
 				if fl == nil {
-					return nil, nil
+					return nil, nil, nil
 				}
 				elem = fl.Type()
 			}
-			return x, path
+			return x, path, elem
 		}
 		sel, ok := x.(*ast.SelectorExpr)
 		if !ok || e.info.Selections[sel] != nil {
-			return nil, nil
+			return nil, nil, nil
 		}
 		path = append([]string{sel.Sel.Name}, path...)
 		x = sel.X
 	}
 }
 
-// stateFieldText is a struct state's field as Go: base's StateField, one
-// per field down the path.
-func stateFieldText(q, base string, path []string) string {
-	s := base
-	for i := range path {
-		s = q + "StateField(" + s + ", " + strconv.Quote(path[i]) + ", " + base + ".Get()." + strings.Join(path[:i+1], ".") + ")"
-	}
-	return s
+// field writes a struct state's field: ui.At[T](f, "Range.Hi").
+func (bd *binder) field(base ast.Expr, path []string, t types.Type) {
+	bd.gen(bd.q + "At[" + bd.e.typeTextAuto(bd.f, t) + "](")
+	bd.keep(base)
+	bd.gen(", " + strconv.Quote(strings.Join(path, ".")) + ")")
 }
 
-var bindOps = map[token.Token]string{
-	token.LAND: "&&", token.LOR: "||", token.EQL: "==", token.NEQ: "!=", token.LSS: "<", token.LEQ: "<=",
-	token.GTR: ">", token.GEQ: ">=", token.ADD: "+", token.SUB: "-",
+var bindMethods = map[token.Token]string{
+	token.LAND: "And", token.LOR: "Or", token.EQL: "Eq", token.NEQ: "Ne", token.LSS: "Lt", token.LEQ: "Le",
+	token.GTR: "Gt", token.GEQ: "Ge", token.ADD: "Plus", token.SUB: "Minus",
 }
 
-func (bd *binder) lower(x ast.Expr) any {
+// lower writes x, which reads a state, as a state: one read as it is, an
+// operator as State's method on its left operand (ui.Derived of a value
+// that isn't a state), len as Len, a ui.Class as ui.Classes.
+func (bd *binder) lower(x ast.Expr) {
 	e := bd.e
-	if tv, ok := e.info.Types[x]; ok && tv.Value != nil {
-		return constJSON(tv.Value)
-	}
-	if !e.readsState(x) {
-		return bd.dep(x, nil)
-	}
-	if base, path := bd.fieldPath(x); base != nil {
-		bd.b.gets = append(bd.b.gets, bd.f.orig(base.End()))
-		return bd.dep(base, path)
+	if base, path, t := e.stateField(x); base != nil {
+		if len(path) == 0 {
+			bd.keep(x)
+		} else {
+			bd.field(base, path, t)
+		}
+		return
 	}
 	switch x := x.(type) {
 	case *ast.ParenExpr:
-		return bd.lower(x.X)
+		bd.lower(x.X)
+		return
 	case *ast.UnaryExpr:
 		switch x.Op {
 		case token.NOT:
-			return []any{"!", bd.lower(x.X)}
+			bd.lower(x.X)
+			bd.gen(".Not()")
+			return
 		case token.SUB:
-			return []any{"neg", bd.lower(x.X)}
+			bd.lower(x.X)
+			bd.gen(".Neg()")
+			return
 		case token.ADD:
-			return bd.lower(x.X)
+			bd.lower(x.X)
+			return
 		}
-		return bd.fail(x, "the "+x.Op.String()+" operator can't run in the browser; compute it on the server")
+		bd.fail(x, "the "+x.Op.String()+" operator can't run in the browser; compute it on the server")
+		return
 	case *ast.BinaryExpr:
-		op, ok := bindOps[x.Op]
+		m, ok := bindMethods[x.Op]
 		if !ok {
-			return bd.fail(x, "the "+x.Op.String()+" operator can't run in the browser; compute it on the server")
+			bd.fail(x, "the "+x.Op.String()+" operator can't run in the browser; compute it on the server")
+			return
 		}
-		return []any{op, bd.lower(x.X), bd.lower(x.Y)}
+		if e.readsState(x.X) {
+			bd.lower(x.X)
+		} else {
+			bd.gen(bd.q + "Derived(")
+			bd.keep(x.X)
+			bd.gen(")")
+		}
+		bd.gen("." + m + "(")
+		bd.operand(x.Y)
+		bd.gen(")")
+		return
 	case *ast.CallExpr:
 		if id, ok := ast.Unparen(x.Fun).(*ast.Ident); ok && len(x.Args) == 1 {
 			if b, ok := e.info.Uses[id].(*types.Builtin); ok && b.Name() == "len" {
-				return []any{"len", bd.lower(x.Args[0])}
+				bd.lower(x.Args[0])
+				bd.gen(".Len()")
+				return
 			}
 		}
-		return bd.fail(x, bd.text(x.Fun)+" can't run in the browser; compute it on the server")
+		bd.fail(x, bd.text(x.Fun)+" can't run in the browser; compute it on the server")
+		return
 	case *ast.CompositeLit:
 		if isClass(e.info.TypeOf(x)) {
-			m := map[string]any{}
+			bd.gen(bd.q + "Classes{")
 			for _, el := range x.Elts {
 				kv, ok := el.(*ast.KeyValueExpr)
-				if !ok {
-					return bd.fail(el, "a ui.Class reading a state takes constant class names")
+				if tv := e.info.Types[kv.Key]; !ok || tv.Value == nil || tv.Value.Kind() != constant.String {
+					bd.fail(el, "a ui.Class reading a state takes constant class names")
+					return
 				}
-				tv := e.info.Types[kv.Key]
-				if tv.Value == nil || tv.Value.Kind() != constant.String {
-					return bd.fail(el, "a ui.Class reading a state takes constant class names")
-				}
-				m[constant.StringVal(tv.Value)] = bd.lower(kv.Value)
+				bd.keep(kv.Key)
+				bd.gen(": ")
+				bd.operand(kv.Value)
+				bd.gen(", ")
 			}
-			return []any{"class", m}
+			bd.gen("}")
+			return
 		}
 	}
-	return bd.fail(x, bd.text(x)+" can't run in the browser; compute it on the server")
+	bd.fail(x, bd.text(x)+" can't run in the browser; compute it on the server")
 }
 
-func constJSON(v constant.Value) any {
-	switch v.Kind() {
-	case constant.Bool:
-		return constant.BoolVal(v)
-	case constant.String:
-		return constant.StringVal(v)
-	case constant.Int:
-		if i, ok := constant.Int64Val(v); ok {
-			return i
-		}
+// operand writes an operator's operand: a state lowered, a value as it is.
+func (bd *binder) operand(x ast.Expr) {
+	if bd.e.readsState(x) {
+		bd.lower(x)
+		return
 	}
-	f, _ := constant.Float64Val(v)
-	return f
+	bd.keep(x)
 }
 
 // exprAt is the expression at a span of src in this round's syntax tree.
@@ -413,7 +412,7 @@ func (e *engine) exprAt(f *fileState, s span) ast.Expr {
 // bindTree decides which of a tree's element attributes and children read
 // states. It reports false while a type they need is unknown.
 func (e *engine) bindTree(f *fileState, t *jsxTree) bool {
-	if !f.target.has("Bind") {
+	if !f.target.has("UseState") {
 		return true
 	}
 	ok := true
@@ -479,10 +478,9 @@ func (e *engine) pendingLowering(f *fileState) bool {
 	return false
 }
 
-// bindArg decides how a component's attribute reading states is passed: a
-// state as it is; a struct state's field as its StateField; another
-// expression as a Binding to a prop taking one (any), or as a derived state
-// to a prop that is a ui.State. A prop of another type takes no state.
+// bindArg lowers a component's attribute reading states, for a prop that
+// is a ui.State or takes any value: a state as it is, an expression of
+// states as a derived one. A prop of another type takes no state.
 func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 	at := a.attr
 	if at == nil || at.kind != 'e' || at.bind != nil {
@@ -501,14 +499,9 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 	}
 	_, toState := stateOf(a.typ)
 	_, iface := a.typ.Underlying().(*types.Interface)
-	bd := &binder{e: e, f: f, b: &stateBind{}, deps: map[string]int{}}
-	if base, path := bd.fieldPath(x); base != nil && (toState || iface) {
-		at.bind = &stateBind{call: "StateField", field: stateFieldText(c.target.q, bd.text(base), path)}
-		return
-	}
 	if !toState && !iface {
 		e.errs.add("E0125", f.at(at.off), "%s reads a ui.State, and <%s>'s %s takes %s: pass .Get() for the value it renders with, or make the prop a ui.State",
-			bd.text(x), c.el.tag, at.name, e.display(a.typ))
+			f.src[f.orig(x.Pos()):f.orig(x.End())], c.el.tag, at.name, e.display(a.typ))
 		return
 	}
 	b, err := e.lowerState(f, x)
@@ -516,46 +509,34 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 		e.errs.add("E0124", f.at(err.off), "%s", err.msg)
 		return
 	}
-	if toState {
-		b.call = "NewDerived"
-	}
 	at.bind = b
 }
 
-// bind writes a lowered read: Bind(value, expr, deps…), the value's
-// expression kept in place.
+// bind writes a lowered read.
 func (w *jsxWriter) bind(b *stateBind) {
-	if b.call == "StateField" {
-		w.gen(b.field)
-		return
-	}
-	w.gen(w.q + b.call + "(")
-	writeKept(w.keep, w.gen, b)
-	w.gen(", " + goString(b.expr))
-	for _, d := range b.deps {
-		w.gen(", " + d)
-	}
-	w.gen(")")
+	w.pieces = append(w.pieces, b.pieces...)
 }
 
-func writeKept(keep func(span), gen func(string), b *stateBind) {
-	gets := append([]int(nil), b.gets...)
-	sort.Ints(gets)
-	at := b.start
-	for _, g := range gets {
-		keep(span{at, g})
-		gen(".Get()")
-		at = g
+// pieceEdits are the edits turning the source's span into pieces.
+func pieceEdits(start, end int, pieces []jsxPiece) edits {
+	var out edits
+	var text strings.Builder
+	cur := start
+	for _, p := range pieces {
+		if p.keep.start < 0 {
+			text.WriteString(p.text)
+			continue
+		}
+		if p.keep.start > cur || text.Len() > 0 {
+			out = append(out, edit{start: cur, end: p.keep.start, text: text.String()})
+		}
+		text.Reset()
+		cur = p.keep.end
 	}
-	keep(span{at, b.end})
-}
-
-// goString is s as a Go string literal, raw when it can be.
-func goString(s string) string {
-	if !strings.ContainsAny(s, "`\r") {
-		return "`" + s + "`"
+	if end > cur || text.Len() > 0 {
+		out = append(out, edit{start: cur, end: end, text: text.String()})
 	}
-	return strconv.Quote(s)
+	return out
 }
 
 // lowerStates lowers what Go code does with states, once types are known:
@@ -629,7 +610,7 @@ func (e *engine) lowerStates(f *fileState) {
 			}
 			switch fn := e.info.Uses[sel.Sel].(type) {
 			case *types.Func:
-				if fn.Pkg() == nil || fn.Pkg().Scope().Lookup("NewState") == nil {
+				if fn.Pkg() == nil || fn.Pkg().Scope().Lookup("UseState") == nil {
 					return true
 				}
 				if fn.Name() == "Derived" && fn.Signature().Recv() == nil && len(n.Args) == 1 {
@@ -642,15 +623,7 @@ func (e *engine) lowerStates(f *fileState) {
 						e.errs.add("E0124", f.at(err.off), "%s", err.msg)
 						return false
 					}
-					f.add(f.orig(sel.Sel.Pos()), f.orig(sel.Sel.End()), "NewDerived")
-					for _, g := range b.gets {
-						f.insert(g, ".Get()", 0)
-					}
-					tail := ", " + goString(b.expr)
-					for _, d := range b.deps {
-						tail += ", " + d
-					}
-					f.insert(b.end, tail, 1)
+					f.fixed = append(f.fixed, pieceEdits(off, f.orig(n.End()), b.pieces)...)
 					e.progress = true
 					return false
 				}
@@ -660,14 +633,14 @@ func (e *engine) lowerStates(f *fileState) {
 			if f.stateDone[off] || skipped(off) || e.info.Selections[n] != nil {
 				return true
 			}
-			base, path := e.stateField(n)
+			base, path, t := e.stateField(n)
 			if base == nil || len(path) == 0 {
 				return true
 			}
 			f.stateDone[off] = true
-			pkg := types.Unalias(e.info.TypeOf(base)).(*types.Named).Obj().Pkg()
-			b := string(f.src[f.orig(base.Pos()):f.orig(base.End())])
-			f.add(off, f.orig(n.End()), stateFieldText(e.statePkg(f, pkg), b, path))
+			bd := &binder{e: e, f: f, q: e.statePkg(f, e.statePackage(base)), b: &stateBind{}}
+			bd.field(base, path, t)
+			f.fixed = append(f.fixed, pieceEdits(off, f.orig(n.End()), bd.b.pieces)...)
 			e.progress = true
 			return false
 		}
@@ -748,6 +721,36 @@ func constFits(v constant.Value, t types.Type) bool {
 		return v.Kind() == constant.Int || v.Kind() == constant.Float
 	}
 	return false
+}
+
+// hasBlocks reports whether a tree has a block: a loop's is ui.Each once
+// its type is known.
+func (t *jsxTree) hasBlocks() bool {
+	found := false
+	walkNodes([]jsxNode{t.root}, func(n jsxNode) {
+		if _, ok := n.(*jsxBlock); ok {
+			found = true
+		}
+	})
+	return found
+}
+
+// walkNodes calls fn for each of ns and what they hold.
+func walkNodes(ns []jsxNode, fn func(jsxNode)) {
+	for _, n := range ns {
+		fn(n)
+		switch n := n.(type) {
+		case *jsxBlock:
+			for _, b := range n.bodies {
+				walkNodes(b, fn)
+			}
+			for _, c := range n.cases {
+				walkNodes(c, fn)
+			}
+		case *jsxElem:
+			walkNodes(n.kids, fn)
+		}
+	}
 }
 
 // mayBind reports whether a tree has expressions an element's attribute or
