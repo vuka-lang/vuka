@@ -16,14 +16,14 @@ type User struct {
 }
 
 func List[T any](items []T, render func(T) ui.Node) ui.Node {
-	texts := make([]ui.Node, 0, len(items))
+	renders := make([]ui.Node, 0, len(items))
 //line jsx_generic.vuka:16
 	for _, x := range items {
 //line jsx_generic.vuka:16
-		texts = append(texts, render(x))
+		renders = append(renders, render(x))
 	}
 //line jsx_generic.vuka:16
-	return ui.HTML(`<ul>{texts}</ul>`, texts)
+	return ui.HTML(`<ul>{renders}</ul>`, renders)
 }
 
 // Select's selected is left out: its zero value is the inferred type's.
@@ -81,6 +81,9 @@ func page(users []User) ui.Node {
 	list2 := func(a1 func(int) ui.Node, a2 []int) ui.Node { return List(a2, a1) }(func(n int) ui.Node { return ui.HTML(`<li>{n}</li>`, n) }, []int{1, 2})
 //line jsx_generic.vuka:58
 	pair := Pair("a", 1.5, ui.HTML(`and more`))
+	price := Price__int(150)
+	price2 := Price__float64(1.5)
+	price3 := Price__string_string("7", "EUR")
 //line jsx_generic.vuka:51
 	return ui.HTML(`
 {list}
@@ -90,9 +93,9 @@ func page(users []User) ui.Node {
 {Select("pick", []int{1, 2}, 2)}
 {Table[User](TableProps[User]{Rows: users, Cell: func(u User) string { return strconv.Itoa(u.ID) }, })}
 {pair}
-{Price(150)}
-{Price(1.5)}
-{Price("7", "EUR")}`,
+{price}
+{price2}
+{price3}`,
 		list,
 		list2,
 		List[string](nil, nil),
@@ -100,9 +103,9 @@ func page(users []User) ui.Node {
 		Select("pick", []int{1, 2}, 2),
 		Table[User](TableProps[User]{Rows: users, Cell: func(u User) string { return strconv.Itoa(u.ID) }}),
 		pair,
-		Price__int(150),
-		Price__float64(1.5),
-		Price__string_string("7", "EUR"),
+		price,
+		price2,
+		price3,
 	)
 }
 

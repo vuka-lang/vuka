@@ -47,7 +47,6 @@ func sum(s []string) ui.Node {
 					panic("vuka: no case matched")
 				}
 			}()
-
 //line jsx_nested.vuka:21
 			return ui.HTML(`<li title={value}>{n}</li>`, value, n), nil
 		}()))

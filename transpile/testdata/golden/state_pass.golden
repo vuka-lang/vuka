@@ -54,12 +54,12 @@ func (p *Page) Render() ui.Node {
 <div>
   {Button(open.Toggle(), "toggle")}
   {Button(OpenDialog(upload), "upload")}
-  {Button(OpenDialog(f.Open), "field")}
+  {Button(OpenDialog(ui.At[bool](f, "Open")), "field")}
   {Button(open.Set(true).Set(upload, false), "chain")}
   {Act(OpenDialog(upload), "any")}
-  {Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", ui.Derived(!open && upload)), {Name: "id", Value: "box"}})}
+  {Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", open.Not().And(upload)), {Name: "id", Value: "box"}})}
   {p.menu(upload)}
-  {p.menu(f.Open)}
+  {p.menu(ui.At[bool](f, "Open"))}
   {Hint(open.Not())}
   {Hint(ui.At[string](f, "Kind").Plus("s"))}
   {Panel(open.Not().And(upload))}

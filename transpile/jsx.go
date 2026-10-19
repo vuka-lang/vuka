@@ -85,6 +85,13 @@ type jsxAttr struct {
 	expr  span
 	event bool       // an element's event handler: onClick={…}
 	bind  *stateBind // an expression reading states, lowered (state.go)
+	parts []attrPart // kind 'p': a template's text with holes, href="/o/{o.ID}"
+}
+
+// attrPart is a piece of an attribute's text: text, or a hole's expression.
+type attrPart struct {
+	text string
+	expr span
 }
 
 type jsxText struct {
@@ -105,6 +112,9 @@ type jsxBlock struct {
 	bodies [][]jsxNode
 	m      *matchStmt
 	cases  [][]jsxNode
+	sw     bool // a template's switch: heads are the switch's and its cases', rbrace its }
+	rbrace int
+	stmt   bool // a template's statement: heads[0]
 }
 
 type jsxError struct {
@@ -250,6 +260,21 @@ func (p *jsxParser) element(off int) *jsxElem {
 		case c == '/' && p.at(i+1) == '>':
 			el.end = i + 2
 			return el
+		case c == '>' && p.f.html != nil && (el.tag == "script" || el.tag == "style"):
+			end := strings.Index(string(p.src[i+1:]), "</"+el.tag)
+			if end < 0 {
+				p.fail(off, "unclosed <%s>", el.tag)
+			}
+			if end > 0 {
+				el.kids = []jsxNode{&jsxText{start: i + 1, val: string(p.src[i+1 : i+1+end])}}
+			}
+			i += 1 + end
+			k := p.space(i + 2 + len(el.tag))
+			if p.at(k) != '>' {
+				p.fail(i, "expected </%s>", el.tag)
+			}
+			el.end = k + 1
+			return el
 		case c == '>':
 			el.kids, i = p.children(i+1, el, 0, false)
 			j := p.space(i + 2)
@@ -264,6 +289,16 @@ func (p *jsxParser) element(off int) *jsxElem {
 			}
 			el.end = k + 1
 			return el
+		case c == '{' && !comp:
+			a := &jsxAttr{off: i, name: "", kind: 'r'}
+			var ok bool
+			a.expr, i, ok = p.expr(i)
+			text := string(p.src[a.expr.start:a.expr.end])
+			if !ok || !strings.HasSuffix(text, "...") {
+				p.fail(a.off, "a hole where an attribute goes is an attribute set: <%s {attrs...}>", el.tag)
+			}
+			a.expr.end -= 3
+			el.attrs = append(el.attrs, a)
 		case isLetter(c) || c == '_':
 			a := &jsxAttr{off: i}
 			a.name, i = p.name(i)
@@ -279,6 +314,17 @@ func (p *jsxParser) element(off int) *jsxElem {
 						p.fail(i, "unterminated attribute value")
 					}
 					a.kind, a.val = 's', html.UnescapeString(string(p.src[i+1:i+1+end]))
+					if p.f.html != nil {
+						a.parts = p.attrParts(i+1, i+1+end)
+						if len(a.parts) == 1 && a.parts[0].expr.end == 0 {
+							a.val, a.parts = a.parts[0].text, nil
+						} else if len(a.parts) > 0 {
+							if comp {
+								p.fail(a.off, "<%s>'s %s takes a value: %s={…}", el.tag, a.name, a.name)
+							}
+							a.kind = 'p'
+						}
+					}
 					i += end + 2
 				case '{':
 					var ok bool
@@ -327,12 +373,22 @@ func (p *jsxParser) children(i int, el *jsxElem, open int, inMatch bool) ([]jsxN
 			n := p.element(i)
 			kids = append(kids, n)
 			i = n.end
+		case c == '{' && p.f.html != nil && p.at(i+1) == '{':
+			kids = append(kids, &jsxText{start: i, val: "{"})
+			i += 2
+		case p.f.html != nil && p.lineStmt(i):
+			n, end := p.nested(i)
+			kids = append(kids, n)
+			i = end
 		case c == '{':
 			var n jsxNode
 			n, i = p.hole(i)
 			if n != nil {
 				kids = append(kids, n)
 			}
+		case c == '}' && el != nil && p.f.html != nil:
+			kids = append(kids, &jsxText{start: i, val: "}"})
+			i++
 		case c == '}':
 			if el == nil {
 				return trimBody(kids), i
@@ -350,7 +406,7 @@ func (p *jsxParser) children(i int, el *jsxElem, open int, inMatch bool) ([]jsxN
 			kids = append(kids, n)
 		default:
 			j := i
-			for j < len(p.src) && strings.IndexByte("<{}", p.src[j]) < 0 && !(inMatch && j > i && p.caseAt(j)) {
+			for j < len(p.src) && strings.IndexByte("<{}", p.src[j]) < 0 && !(inMatch && j > i && p.caseAt(j)) && !(p.f.html != nil && j > i && p.lineStmt(j)) {
 				j++
 			}
 			if v := jsxTextValue(string(p.src[i:j])); v != "" {
@@ -385,6 +441,12 @@ func (p *jsxParser) nestedAt(i int) bool {
 func (p *jsxParser) nested(i int) (jsxNode, int) {
 	g := newGoScan(p.src, i)
 	t := g.significant()
+	if t.tok == token.SWITCH {
+		return p.switchBlock(g, t)
+	}
+	if p.f.html != nil && t.tok != token.IF && t.tok != token.FOR {
+		return p.stmt(g, t)
+	}
 	if t.tok == token.IDENT {
 		return p.matchBlock(g, t, g.significant(), i, true)
 	}
@@ -811,9 +873,6 @@ func (f *fileState) jsxEdits(t *jsxTree, final bool) edits {
 		}
 		out = append(out, e)
 	}
-	if len(stmts) > 0 {
-		out = append(out, edit{start: ret, end: ret, text: "\n", prio: len(stmts), own: t})
-	}
 	return out
 }
 
@@ -882,4 +941,127 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 		}
 		w.keep(a.expr)
 	}
+}
+
+// lineStmt reports whether a template's Go statement starts at i: the first
+// thing on its line, an if, for or switch, or an assignment.
+func (p *jsxParser) lineStmt(i int) bool {
+	j := i
+	for j > 0 && (p.src[j-1] == ' ' || p.src[j-1] == '\t') {
+		j--
+	}
+	if j > 0 && p.src[j-1] != '\n' || i < len(p.src) && (p.src[i] == ' ' || p.src[i] == '\t' || p.src[i] == '\n') {
+		return false
+	}
+	for _, kw := range []string{"if", "for", "switch"} {
+		if strings.HasPrefix(string(p.src[i:min(i+len(kw), len(p.src))]), kw) {
+			c := p.at(i + len(kw))
+			return c == ' ' || c == '\t' || c == '(' || c == '{' && kw == "switch"
+		}
+	}
+	if !isLetter(p.at(i)) && p.at(i) != '_' {
+		return false
+	}
+	g := newGoScan(p.src, i)
+	for {
+		switch t := g.next(); t.tok {
+		case token.IDENT, token.PERIOD, token.COMMA:
+		case token.DEFINE, token.ASSIGN, token.ADD_ASSIGN, token.SUB_ASSIGN, token.MUL_ASSIGN, token.QUO_ASSIGN:
+			return true
+		case token.INC, token.DEC:
+			return true
+		default:
+			return false
+		}
+	}
+}
+
+// stmt reads a template's simple statement, up to its line's end.
+func (p *jsxParser) stmt(g *goScan, first tok) (jsxNode, int) {
+	depth, end := 0, first.end()
+	for t := g.next(); ; t = g.next() {
+		switch {
+		case t.tok == token.EOF:
+			return &jsxBlock{stmt: true, heads: []span{{first.off, end}}}, end
+		case isOpen(t.tok):
+			depth++
+		case isClose(t.tok):
+			if depth == 0 {
+				return &jsxBlock{stmt: true, heads: []span{{first.off, end}}}, end
+			}
+			depth--
+		case t.tok == token.SEMICOLON && depth == 0:
+			return &jsxBlock{stmt: true, heads: []span{{first.off, end}}}, end
+		}
+		if !trivia(t) {
+			end = t.end()
+		}
+	}
+}
+
+// switchBlock reads a template's switch: its cases' bodies are markup.
+func (p *jsxParser) switchBlock(g *goScan, kw tok) (jsxNode, int) {
+	h := p.header(g, token.SWITCH, kw.off, kw.off, true)
+	b := &jsxBlock{sw: true, heads: []span{{kw.off, h}}}
+	i := h
+	for {
+		g.reset(i)
+		t := g.significant()
+		switch t.tok {
+		case token.RBRACE:
+			b.rbrace = t.off
+			return b, t.off + 1
+		case token.CASE, token.DEFAULT:
+			depth := 0
+			for c := g.next(); ; c = g.next() {
+				if c.tok == token.EOF {
+					p.fail(t.off, "unterminated case")
+				}
+				if isOpen(c.tok) {
+					depth++
+				} else if isClose(c.tok) {
+					depth--
+				} else if c.tok == token.COLON && depth == 0 {
+					b.heads = append(b.heads, span{t.off, c.end()})
+					kids, end := p.children(c.end(), nil, kw.off, true)
+					b.cases = append(b.cases, kids)
+					i = end
+					break
+				}
+			}
+		default:
+			p.fail(t.off, "expected case or default in switch")
+		}
+	}
+}
+
+// attrParts splits a template's attribute text at its holes; {{ is a brace.
+func (p *jsxParser) attrParts(start, end int) []attrPart {
+	var out []attrPart
+	var b strings.Builder
+	for i := start; i < end; {
+		switch {
+		case p.src[i] == '{' && i+1 < end && p.src[i+1] == '{':
+			b.WriteByte('{')
+			i += 2
+		case p.src[i] == '{':
+			if b.Len() > 0 {
+				out = append(out, attrPart{text: html.UnescapeString(b.String())})
+				b.Reset()
+			}
+			sp, j, ok := p.expr(i)
+			if !ok {
+				p.fail(i, "an empty hole")
+			}
+			out = append(out, attrPart{expr: sp})
+			i = j
+		default:
+			b.WriteByte(p.src[i])
+			i++
+		}
+	}
+	if b.Len() > 0 || len(out) == 0 {
+		out = append(out, attrPart{text: html.UnescapeString(b.String())})
+	}
+	return out
 }

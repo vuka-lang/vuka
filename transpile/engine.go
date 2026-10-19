@@ -112,6 +112,7 @@ func (e *engine) run() {
 				e.render(f)
 				e.progress = true
 			}
+			e.resolveBare(f)
 			e.resolveStatics(f)
 			e.resolveFieldRefs(f)
 			e.selfCalls(f)

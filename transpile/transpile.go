@@ -33,7 +33,7 @@ type File struct {
 }
 
 // IsVuka reports whether f is Vuka source.
-func (f File) IsVuka() bool { return strings.HasSuffix(f.Name, ".vuka") }
+func (f File) IsVuka() bool { return strings.HasSuffix(f.Name, ".vuka") || f.IsTemplate() }
 
 // Options configure Package.
 type Options struct {
@@ -124,8 +124,12 @@ type Result struct {
 	Attrs []Attr // every attribute, in file order
 }
 
-// GoName is the name of the Go file generated for a .vuka file.
+// GoName is the name of the Go file generated for a .vuka file, or for a
+// .vuka.html file: x_html.go.
 func GoName(name string) string {
+	if base, ok := strings.CutSuffix(name, ".vuka.html"); ok {
+		return base + "_html.go"
+	}
 	base := strings.TrimSuffix(name, ".vuka")
 	if strings.HasSuffix(base, "_test") {
 		return strings.TrimSuffix(base, "_test") + "_vuka_test.go"
@@ -137,6 +141,7 @@ type fileState struct {
 	name, path string
 	src        []byte
 	vuka       bool
+	html       *htmlFile // a .vuka.html file's
 	lines      lineIndex
 
 	attrs   []*Attr
@@ -504,6 +509,19 @@ func Package(files []File, opts Options) (*Result, error) {
 			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
 		if opts.Path != nil {
 			f.path = opts.Path(file.Name)
+		}
+		if file.IsTemplate() {
+			q := "ui."
+			if e.selfJSX {
+				q = ""
+			}
+			src, h, err := htmlSource(file.Name, file.Src, files, q)
+			if err != nil {
+				err.Pos = token.Position{Filename: f.path, Line: 1, Column: 1}
+				errs = append(errs, err)
+				continue
+			}
+			f.src, f.html, f.lines = src, h, newLineIndex(src)
 		}
 		if f.vuka {
 			f.scan(&errs)

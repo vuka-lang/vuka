@@ -32,6 +32,8 @@ type jsxComp struct {
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
 	stateful   bool     // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
+	structComp bool     // a struct with a Render() Node method: T{…}.Render()
+	ptrRender  bool     // whose Render takes a pointer: (&T{…}).Render()
 	key        *compArg // its key attribute
 	targText   string   // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
 
@@ -157,6 +159,12 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		}
 		w.gen(c.targText) // "" normally; "[int]" for an inferred generic stateful literal
 		w.gen("{")
+	} else if c.structComp {
+		if c.ptrRender {
+			w.gen("(&")
+		}
+		w.keep(tag)
+		w.gen(c.targText + "{")
 	} else {
 		w.keep(tag)
 		w.gen("(")
@@ -194,6 +202,10 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen("})")
 	case c.stateful:
 		w.gen("}")
+	case c.structComp && c.ptrRender:
+		w.gen("}).Render()")
+	case c.structComp:
+		w.gen("}.Render()")
 	case c.props != "":
 		w.gen("})")
 	default:
@@ -496,7 +508,7 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 			e.bindArg(f, c, a)
 		}
 	}
-	if c.propsTyp != nil && !c.stateful {
+	if c.propsTyp != nil && !c.stateful && !c.structComp {
 		c.props = e.typeTextAuto(f, c.propsTyp)
 	}
 	if c.propsTyp != nil {

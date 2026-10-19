@@ -40,8 +40,8 @@ func (es edits) sorted() edits {
 	return out
 }
 
-// nest moves the rewrites inside each copied span into the copy: what is
-// copied is the source with them applied. A copy's span lies in what its
+// nest moves the rewrites inside each copied span into the copy — into each
+// copy of it: what is copied is the source with them applied. A copy's span lies in what its
 // tree replaces, so the rewrites there would otherwise overlap it.
 func (es edits) nest(src []byte) edits {
 	var copies []int
@@ -61,15 +61,18 @@ func (es edits) nest(src []byte) edits {
 	}
 	sort.SliceStable(copies, func(i, j int) bool { return out[copies[i]].n < out[copies[j]].n })
 	gone := make([]bool, len(out))
+	by := make([]any, len(out)) // the tree whose copy took it
 	for _, ci := range copies {
 		c := &out[ci]
 		a := c.src - 1
 		b := a + c.n
 		var inner edits
 		for i, e := range out {
-			if i != ci && !gone[i] && (e.own == nil || e.own != c.own) && a <= e.start && e.end <= b && e.start < b {
+			// A rewrite another copy of this tree took is this one's too; one a
+			// nested tree's copy took is in that copy.
+			if i != ci && (e.own == nil || e.own != c.own) && a <= e.start && e.end <= b && e.start < b && (!gone[i] || by[i] == c.own) {
 				inner = append(inner, e)
-				gone[i] = true
+				gone[i], by[i] = true, c.own
 			}
 		}
 		if len(inner) == 0 {

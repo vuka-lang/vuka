@@ -746,6 +746,8 @@ func (w *watcher) watched(path string) bool {
 		}
 	case ".templ":
 		return true
+	case ".html":
+		return strings.HasSuffix(name, ".vuka.html")
 	}
 	return name == "go.mod" || name == "go.sum" || under(path, w.embeds)
 }

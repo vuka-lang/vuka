@@ -79,18 +79,18 @@ func (c *Counter) Render() ui.Node {
 }
 
 func page(ctx context.Context) ui.Node {
-	var texts []ui.Node
+	var counters []ui.Node
 //line jsx_live_tree.vuka:60
 	for i, l := range []string{"a", "b"} {
 //line jsx_live_tree.vuka:60
-		texts = append(texts, ui.Key(i, &Counter{Label: l}))
+		counters = append(counters, ui.Key(i, &Counter{Label: l}))
 	}
 //line jsx_live_tree.vuka:60
 	return ui.HTML(`
 <main>
   {&Table{}}
-  {texts}
-</main>`, &Table{}, texts)
+  {counters}
+</main>`, &Table{}, counters)
 }
 
 //line jsx_live_tree.vuka:63

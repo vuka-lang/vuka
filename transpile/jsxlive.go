@@ -36,8 +36,12 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		t = inst
 	}
 	if msg := e.statefulProblem(c.target, el.tag, t); msg != "" {
-		fail("E0106", el.start, "%s", msg)
-		return
+		ptr, ok := e.renders(t, node)
+		if !ok {
+			fail("E0106", el.start, "%s", msg)
+			return
+		}
+		c.structComp, c.ptrRender = true, ptr
 	}
 	st := t.Underlying().(*types.Struct)
 	kids, off, msg := e.bindFields(c, st, attrs, node, true)
@@ -67,8 +71,31 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 			}
 		}
 	}
-	c.stateful, c.propsTyp = true, t
+	if c.structComp && c.key != nil {
+		fail("E0106", c.key.attr.off, "<%s> is a struct component, its Render a function of its fields: a key goes on the element it renders, or on a stateful component", el.tag)
+		return
+	}
+	c.stateful, c.propsTyp = !c.structComp, t
 	e.finishComp(f, c)
+}
+
+// renders reports whether t is a struct component: a struct with a
+// Render() Node method, and whether that method takes a pointer.
+func (e *engine) renders(t types.Type, node types.Type) (ptr, ok bool) {
+	if _, isStruct := t.Underlying().(*types.Struct); !isStruct {
+		return false, false
+	}
+	m, _, _ := types.LookupFieldOrMethod(t, true, nil, "Render")
+	fn, isFunc := m.(*types.Func)
+	if !isFunc {
+		return false, false
+	}
+	sig := fn.Signature()
+	if sig.Params().Len() != 0 || sig.Results().Len() != 1 || !types.AssignableTo(sig.Results().At(0).Type(), node) {
+		return false, false
+	}
+	_, ptr = sig.Recv().Type().(*types.Pointer)
+	return ptr, true
 }
 
 // inferStateful infers a generic stateful component's type arguments from its

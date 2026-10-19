@@ -38,7 +38,7 @@ func Menu(label string) ui.Node {
     <li selected={tab.Eq("env")} onClick={tab.Set(Env).Set(open, false)}>Env</li>
     <li disabled={ui.At[string](f, "Q").Eq("").Or(tab.Ne("logs"))}>Logs</li>
   </ul>
-  <input value={ui.At[string](f, "Q")} onInput={f.Q.Set("x")}/>
+  <input value={ui.At[string](f, "Q")} onInput={ui.At[string](f, "Q").Set("x")}/>
   <span>{n}</span> <span>{n.Plus(1)}</span> <span>{n.Neg()}</span>
   <p title={theme.Plus("!")} data-ready={ready} data-long={ui.At[string](f, "Sort").Len().Gt(limit)} data-get={tab.Get()}/>
   <button onClick={n.Inc()}>+</button>

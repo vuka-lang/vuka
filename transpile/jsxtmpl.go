@@ -136,9 +136,9 @@ func flatten(ns []jsxNode) []jsxNode {
 	return ns
 }
 
-// hole writes {label}, a value written later; the same label is one value.
+// hole adds the value labelled label, written later; the same label is one
+// value.
 func (tp *tmpl) hole(label string, write func()) {
-	tp.b.WriteString("{" + label + "}")
 	for _, a := range tp.args {
 		if a.label == label {
 			return
@@ -147,10 +147,9 @@ func (tp *tmpl) hole(label string, write func()) {
 	tp.args = append(tp.args, tmplArg{label, write})
 }
 
-// value writes a hole for what write writes: labelled with its Go, or, when
-// that can't be a label, a variable declared before the tree named after
-// base.
-func (w *jsxWriter) value(tp *tmpl, base string, write func()) {
+// value is a hole's label for what write writes: its Go, or, when that
+// can't be a label, a variable declared before the tree named after base.
+func (w *jsxWriter) value(tp *tmpl, base string, write func()) string {
 	ps := w.expr(write)
 	if text, ok := w.labelText(ps); ok {
 		label := canonExpr(text)
@@ -161,16 +160,16 @@ func (w *jsxWriter) value(tp *tmpl, base string, write func()) {
 		switch {
 		case !seen:
 			tp.hole(label, func() { w.put(ps) })
-			return
+			return label
 		case w.final && !strings.Contains(label, "("):
 			// The value is the first's: what this one keeps is dropped.
-			tp.b.WriteString("{" + label + "}")
 			w.drop(ps)
-			return
+			return label
 		case !w.final:
 			// Checked as a value of its own until the last round.
-			tp.hole(label+"#"+strconv.Itoa(len(tp.args)), func() { w.put(ps) })
-			return
+			label += "#" + strconv.Itoa(len(tp.args))
+			tp.hole(label, func() { w.put(ps) })
+			return label
 		}
 	}
 	name := w.varName(base)
@@ -180,6 +179,12 @@ func (w *jsxWriter) value(tp *tmpl, base string, write func()) {
 		w.gen("\n")
 	})
 	tp.hole(name, func() { w.gen(name) })
+	return name
+}
+
+// holeIn writes {label} for what write writes.
+func (w *jsxWriter) holeIn(tp *tmpl, base string, write func()) {
+	tp.b.WriteString("{" + w.value(tp, base, write) + "}")
 }
 
 // drop writes ps's kept spans as dropped: no text, their rewrites gone.
@@ -205,7 +210,14 @@ func (w *jsxWriter) labelText(ps []jsxPiece) (string, bool) {
 				return "", false
 			}
 		}
-		b.Write(w.f.src[p.keep.start:p.keep.end])
+		var inner edits
+		for _, e := range w.f.fixed {
+			if e.own == nil && p.keep.start <= e.start && e.end <= p.keep.end && e.start < p.keep.end {
+				inner = append(inner, e)
+			}
+		}
+		text, _ := inner.sorted().applyRange(w.f.src, p.keep.start, p.keep.end, nil)
+		b.Write(text)
 	}
 	s := b.String()
 	return s, s != "" && !strings.ContainsAny(s, "\n`") && !strings.Contains(s, "__")
@@ -256,6 +268,10 @@ func (w *jsxWriter) markup(tp *tmpl, ns []jsxNode, line, child string, inline bo
 		at = child
 	}
 	for i, n := range ns {
+		if b, ok := n.(*jsxBlock); ok && b.stmt {
+			w.block(b)
+			continue
+		}
 		if breaks && (i == 0 || isMarkup(ns[i-1]) && isMarkup(n)) {
 			tp.b.WriteString("\n" + child)
 		}
@@ -298,17 +314,19 @@ func (w *jsxWriter) node(tp *tmpl, n jsxNode, indent string, inline bool) {
 	case *jsxText:
 		tp.b.WriteString(escapeText(n.val))
 	case *jsxHole:
-		w.value(tp, "value", func() { w.holeValue(n) })
+		w.holeIn(tp, "value", func() { w.holeValue(n) })
 	case *jsxBlock:
-		name := w.block(n)
-		tp.hole(name, func() { w.gen(name) })
+		if name := w.block(n); name != "" {
+			tp.b.WriteString("{" + name + "}")
+			tp.hole(name, func() { w.gen(name) })
+		}
 	case *jsxElem:
 		switch {
 		case n.frag:
 			w.markup(tp, flatten(n.kids), indent, indent, inline)
 		case n.comp != nil:
 			c := n.comp
-			w.value(tp, lowerFirst(exportName(lastName(n.tag))), func() { w.comp(c) })
+			w.holeIn(tp, lowerFirst(exportName(lastName(n.tag))), func() { w.comp(c) })
 		default:
 			w.element(tp, n, indent, inline)
 		}
@@ -341,19 +359,34 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 	if (el.tag == "script" || el.tag == "style") && !allText(kids) {
 		// Braces in a script or style are its text: one built with values is
 		// a value.
-		w.value(tp, el.tag, func() { w.rawElement(el, kids) })
+		w.holeIn(tp, el.tag, func() { w.rawElement(el, kids) })
 		return
 	}
 	tp.b.WriteString("<" + el.tag)
 	for _, a := range el.attrs {
+		a := a
+		if a.kind == 'r' {
+			tp.b.WriteString(" {" + w.value(tp, "attrs", func() { w.keep(a.expr) }) + "...}")
+			continue
+		}
 		tp.b.WriteString(" " + htmlName(a.name))
 		switch a.kind {
 		case 's':
 			tp.b.WriteString(`="` + escapeAttr(a.val) + `"`)
 		case 'e':
 			tp.b.WriteString("=")
-			a := a
-			w.value(tp, "value", func() { w.attrValue(a) })
+			w.holeIn(tp, "value", func() { w.attrValue(a) })
+		case 'p':
+			tp.b.WriteString(`="`)
+			for _, pt := range a.parts {
+				if pt.expr.end == 0 {
+					tp.b.WriteString(escapeAttr(pt.text))
+					continue
+				}
+				pt := pt
+				w.holeIn(tp, "value", func() { w.keep(pt.expr) })
+			}
+			tp.b.WriteString(`"`)
 		}
 	}
 	if len(kids) == 0 {
@@ -440,8 +473,15 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 	outer := w.inBlock
 	w.inBlock = true
 	defer func() { w.inBlock = outer }()
+	if n.stmt {
+		w.stmts(func() {
+			w.keep(n.heads[0])
+			w.gen("\n")
+		})
+		return ""
+	}
 	if w.isLoop(n) {
-		name := w.varName(lowerFirst(firstTag(firstBody(n))) + "s")
+		name := w.varName(lowerFirst(w.nodesName(firstBody(n))) + "s")
 		w.stmts(func() {
 			if x := w.rangeLen(n); x != nil {
 				w.gen(name + " := make([]" + q + "Node, 0, len(")
@@ -461,7 +501,7 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 		})
 		return name
 	}
-	name := w.varName(lowerFirst(firstTag(firstBody(n))))
+	name := w.varName(lowerFirst(w.nodesName(firstBody(n))))
 	w.stmts(func() {
 		w.gen("var " + name + " []" + q + "Node\n")
 		body := func(ns []jsxNode) {
@@ -472,7 +512,16 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 				w.gen(")\n")
 			}
 		}
-		if m := n.m; m != nil {
+		if n.sw {
+			w.keep(n.heads[0])
+			for i, h := range n.heads[1:] {
+				w.gen("\n")
+				w.keep(h)
+				body(n.cases[i])
+			}
+			w.gen("\n")
+			w.keep(span{n.rbrace, n.rbrace + 1})
+		} else if m := n.m; m != nil {
 			w.keep(span{m.start, m.lbrace + 1})
 			for i, c := range m.cases {
 				if i == 0 || len(n.cases[i-1]) == 0 {
@@ -498,6 +547,31 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 		w.gen("\n")
 	})
 	return name
+}
+
+// nodesName is what a block's variable is named after: its first element's
+// tag, component, or function called.
+func (w *jsxWriter) nodesName(ns []jsxNode) string {
+	for _, n := range flatten(ns) {
+		switch n := n.(type) {
+		case *jsxElem:
+			if n.comp != nil {
+				return exportName(lastName(n.tag))
+			}
+			return exportName(n.tag)
+		case *jsxHole:
+			x, err := parser.ParseExpr(string(w.f.src[n.expr.start:n.expr.end]))
+			if c, ok := x.(*ast.CallExpr); ok && err == nil {
+				switch f := c.Fun.(type) {
+				case *ast.Ident:
+					return exportName(f.Name)
+				case *ast.SelectorExpr:
+					return exportName(f.Sel.Name)
+				}
+			}
+		}
+	}
+	return "Text"
 }
 
 // firstBody is a block's first body with nodes.
@@ -561,16 +635,6 @@ func (e *engine) rangeAt(f *fileState, off int) *ast.RangeStmt {
 	return f.rangeIdx[off]
 }
 
-// firstTag is the first element's tag of ns, as a name's part: Li, Text
-// when there is none.
-func firstTag(ns []jsxNode) string {
-	for _, n := range ns {
-		if el, ok := n.(*jsxElem); ok && !el.frag && el.comp == nil {
-			return exportName(el.tag)
-		}
-	}
-	return "Text"
-}
 
 // exportName is a tag as an exported Go name: my-chart is MyChart.
 func exportName(tag string) string {
