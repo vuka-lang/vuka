@@ -19,12 +19,12 @@ func Ops(min int) ui.Node {
 	q := ui.NewState("s1nuvcoh", Query{})
 	x := ui.NewState[float64]("s1nkvqzi", 0.5)
 	// one dep per state however often it is read; server values as deps
-	return ui.F(0x24a26c95cbf4e2cd, "Eddddd(h)", ui.El("p", []ui.Attr{{Name: "a", Value: ui.Bind(
-		n.Get() < Max, `["<",{"$":0},10]`, n)}, {Name: "b", Value: ui.Bind(
-		n.Get() <= min && n.Get() >= 0 || n.Get() > q.Get().Range.Hi, `["||",["&&",["<=",{"$":0},{"$":1}],[">=",{"$":0},0]],[">",{"$":0},{"$":2,"p":["Range","Hi"]}]]`, n, min, q)}, {Name: "c", Value: ui.Bind(
-		n.Get() != n.Get()-1 && x.Get() > 0.25, `["&&",["!=",{"$":0},["-",{"$":0},1]],[">",{"$":1},0.25]]`, n, x)}, {Name: "d", Value: ui.Bind(
-		+n.Get(), `{"$":0}`, n)}, {Name: "e", Value: ui.Bind(
-		q.Get().Range.Lo == 0, `["==",{"$":0,"p":["Range","Lo"]},0]`, q)}}, ui.Child(ui.Bind(
+	return ui.F(0x24a26c95cbf4e2cd, "Eddddd(h)", ui.El("p", []ui.Attr{{Name: "a", Value: ui.BindExpr(
+		n.Get() < Max, `["<",{"$":0},10]`, n)}, {Name: "b", Value: ui.BindExpr(
+		n.Get() <= min && n.Get() >= 0 || n.Get() > q.Get().Range.Hi, `["||",["&&",["<=",{"$":0},{"$":1}],[">=",{"$":0},0]],[">",{"$":0},{"$":2,"p":["Range","Hi"]}]]`, n, min, q)}, {Name: "c", Value: ui.BindExpr(
+		n.Get() != n.Get()-1 && x.Get() > 0.25, `["&&",["!=",{"$":0},["-",{"$":0},1]],[">",{"$":1},0.25]]`, n, x)}, {Name: "d", Value: ui.BindExpr(
+		+n.Get(), `{"$":0}`, n)}, {Name: "e", Value: ui.BindExpr(
+		q.Get().Range.Lo == 0, `["==",{"$":0,"p":["Range","Lo"]},0]`, q)}}, ui.Child(ui.BindExpr(
 
 		q.Get().Text+" "+"items", `["+",["+",{"$":0,"p":["Text"]}," "],"items"]`, q))),
 	)

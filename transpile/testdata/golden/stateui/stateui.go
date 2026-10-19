@@ -101,7 +101,7 @@ type AnyState interface {
 
 // BindAttr is an attribute named name bound to state s.
 func BindAttr(name string, s AnyState) Attr {
-	return Attr{Name: name, Value: Bind(s.value(), `{"$":0}`, s)}
+	return Attr{Name: name, Value: BindExpr(s.value(), `{"$":0}`, s)}
 }
 
 type Commands struct{ ops []string }
@@ -120,7 +120,7 @@ type Binding struct {
 	Deps []any
 }
 
-func Bind(init any, expr string, deps ...any) Binding { return Binding{init, expr, deps} }
+func BindExpr(init any, expr string, deps ...any) Binding { return Binding{init, expr, deps} }
 
 func (b Binding) String() string {
 	var ds []string

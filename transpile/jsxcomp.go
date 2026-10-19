@@ -482,7 +482,7 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 // finishComp writes what a bound component's call needs: its props type, its
 // zero values, and the closure that keeps its expressions in source order.
 func (e *engine) finishComp(f *fileState, c *jsxComp) {
-	if c.target.has("Bind") {
+	if c.target.has("BindExpr") {
 		for _, a := range c.args {
 			e.bindArg(f, c, a)
 		}

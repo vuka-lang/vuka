@@ -9,7 +9,9 @@ require (
 	github.com/vuka-lang/ui v0.1.0
 	github.com/vuka-lang/vuka v0.10.0
 	vukatest.local/islandui v0.0.0
+	vukatest.local/orm v0.0.0
 	vukatest.local/stateui v0.0.0
+	vukatest.local/ui v0.0.0
 	vukatest.local/webstub v0.0.0
 )
 
@@ -20,3 +22,7 @@ replace vukatest.local/islandui => ./islandui
 replace vukatest.local/stateui => ./stateui
 
 replace vukatest.local/webstub => ./webstub
+
+replace vukatest.local/orm => ./orm
+
+replace vukatest.local/ui => ./ui

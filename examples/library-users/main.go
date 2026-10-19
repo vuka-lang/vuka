@@ -14,7 +14,7 @@ func main() {
 	app := web.New()
 	app.Service(NewDirectory)
 	app.Get("/api/users", ListUsers)
-	app.Get("/api/users/{id}", ShowUser, web.Params("id", "dir"))
+	app.Get("/api/users/{id}", ShowUser, web.Params("ctx", "id", "dir"))
 	app.Live("/", NewDashboard)
 	app.Live("/users/{id}", NewProfile, ui.Island(ui.Layout(page)))
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))

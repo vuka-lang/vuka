@@ -20,6 +20,7 @@ const (
 	decoBundle                   // vuka.Bundle: decorators and attributes composed into one
 	decoRegistry                 // a method of its package's registry: a call at init with the declaration
 	decoOption                   // an option of a registry decorator on the same declaration
+	decoAround                   // func(ctx, func(ctx) error, opts…) error: the body runs inside it
 )
 
 // registryUse is how a registry decorator is called: @web.Get("/x") on
@@ -42,6 +43,7 @@ type decoUse struct {
 	advice  string       // set instead of a: the function giving a type's advice, for one of its methods
 	t       types.Type   // the decorator's value's type, once decided
 	reg     *registryUse // a registry decorator's call
+	opt     types.Type   // an around decorator's options' type; nil when it takes none
 }
 
 // funcDeco is a decorated function or method: the pieces of its wrapper,
@@ -64,6 +66,7 @@ type funcDeco struct {
 	init               bool
 	qualName           string
 	errIndex, ctxIndex int
+	lbrace, rbrace     int       // the body's braces in src; -1 without a body
 	attrs              []*Attr   // the declaration's typed attributes
 	pattrs             [][]*Attr // each parameter's attributes, receiver excluded; nil when none has any
 	advice             []string  // the functions giving its type's advice, for a method
@@ -176,6 +179,10 @@ func (e *engine) decorate() bool {
 			if f.rt == "" && strings.HasPrefix(a.Name, "vuka.") && e.isRuntimeName(f, a.Name, a.Name[len("vuka."):]) {
 				f.runtime() // @vuka.Targets(…), @vuka.NoAdvice: imported when the file doesn't
 				any = true
+			}
+			if a.kind == attrHook || a.decl != nil && e.hookOf(f, a) {
+				any = true
+				continue
 			}
 			if a.Param {
 				if a.decl == nil {
@@ -322,6 +329,10 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) *fu
 	d := &funcDeco{uses: uses(attrs), name: name, nameOff: nameOff,
 		method: fd.Recv != nil && len(fd.Recv.List) > 0, errIndex: -1, ctxIndex: -1, attrs: typedAttrsAt(f, declOff)}
 	d.file, d.line = filepath.Base(f.name), f.at(d.nameOff).Line
+	d.lbrace, d.rbrace = -1, -1
+	if fd.Body != nil {
+		d.lbrace, d.rbrace = f.orig(fd.Body.Lbrace), f.orig(fd.Body.Rbrace)
+	}
 	if f.decorated == nil {
 		f.decorated = map[int]string{}
 	}
@@ -549,12 +560,14 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 	}
 
 	// The type's advice runs outside the function's own decorators.
-	var wraps, decls []*decoUse
+	var wraps, decls, arounds []*decoUse
 	for _, a := range d.advice {
 		wraps = append(wraps, &decoUse{kind: decoCall, advice: a})
 	}
 	for _, u := range d.uses {
 		switch u.kind {
+		case decoAround:
+			arounds = append(arounds, u)
 		case decoDecl:
 			decls = append(decls, u)
 		case decoBundle:
@@ -571,6 +584,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 			wraps = append(wraps, u)
 		}
 	}
+	e.wrapBody(f, d, arounds)
 	e.keepName(f, d, len(wraps) == 0)
 	if len(wraps) == 0 {
 		// Declarers alone: the function stays as it is.
@@ -1349,7 +1363,11 @@ func (e *engine) classify(f *fileState) {
 			}
 			u.t = t
 			kind := decoTyped
+			if opt, ok := aroundOf(t); ok && fd != nil {
+				kind, u.opt = decoAround, opt
+			}
 			switch {
+			case kind == decoAround:
 			case isRuntimeNamed(t, "Bundle"):
 				kind = decoBundle
 			case isRuntimeFunc(t, "Call"):
@@ -1396,12 +1414,13 @@ func (e *engine) classify(f *fileState) {
 func options(us []*decoUse) bool {
 	changed := false
 	for _, u := range us {
-		if !u.decided || u.kind == decoRegistry || u.kind == decoBundle || u.t == nil {
+		if !u.decided || u.kind == decoRegistry || u.kind == decoBundle || u.kind == decoAround || u.t == nil {
 			continue
 		}
 		opt := false
 		for _, r := range us {
-			if r.kind == decoRegistry && r.reg.elem != nil && types.AssignableTo(u.t, r.reg.elem) {
+			if r.kind == decoRegistry && r.reg.elem != nil && types.AssignableTo(u.t, r.reg.elem) ||
+				r.kind == decoAround && r.opt != nil && u.kind != decoAround && types.AssignableTo(u.t, r.opt) {
 				opt = true
 			}
 		}
@@ -1682,4 +1701,133 @@ func (e *engine) qualText(f *fileState, n ast.Node) string {
 	})
 	b.Write(f.text[last:end])
 	return b.String()
+}
+
+// aroundOf reports whether t is an around decorator's type,
+// func(context.Context, func(context.Context) error, ...O) error, and its
+// options' type O (nil when it takes none): orm.Transaction.
+func aroundOf(t types.Type) (types.Type, bool) {
+	sig, ok := t.Underlying().(*types.Signature)
+	if !ok || sig.TypeParams().Len() > 0 || sig.Results().Len() != 1 || !types.Identical(sig.Results().At(0).Type(), errorType) {
+		return nil, false
+	}
+	n := sig.Params().Len()
+	if n < 2 || n > 3 || n == 3 && !sig.Variadic() || n == 2 && sig.Variadic() || !isContext(sig.Params().At(0).Type()) {
+		return nil, false
+	}
+	fn, ok := sig.Params().At(1).Type().Underlying().(*types.Signature)
+	if !ok || fn.Params().Len() != 1 || !isContext(fn.Params().At(0).Type()) || fn.Results().Len() != 1 || !types.Identical(fn.Results().At(0).Type(), errorType) {
+		return nil, false
+	}
+	if n == 3 {
+		return sig.Params().At(2).Type().(*types.Slice).Elem(), true
+	}
+	return nil, true
+}
+
+// aroundPrio marks the edits wrapBody makes.
+const aroundPrio = 50
+
+// wrapBody runs the body of a function with an around decorator inside
+// it, its options the declaration's decorators of their type:
+//
+//	@orm.Transaction
+//	@orm.TxOn("crm")
+//	func place(ctx context.Context, o Order) error { … }
+//
+// is
+//
+//	func place(ctx context.Context, o Order) error {
+//		return orm.Transaction(ctx, func(ctx context.Context) error { … }, orm.TxOn("crm"))
+//	}
+//
+// A function with results before its error, or a Result, keeps them from
+// the body, run as a function of its own inside.
+func (e *engine) wrapBody(f *fileState, d *funcDeco, arounds []*decoUse) {
+	open, close := "", ""
+	if len(arounds) > 0 {
+		open, close = e.aroundText(f, d, arounds)
+	}
+	set := func(off int, text string) {
+		for i, ed := range f.fixed {
+			if ed.start == off && ed.end == off && ed.prio == aroundPrio {
+				f.fixed[i].text = text
+				return
+			}
+		}
+		if text != "" {
+			f.fixed = append(f.fixed, edit{start: off, end: off, text: text, prio: aroundPrio})
+		}
+	}
+	if d.lbrace >= 0 {
+		set(d.lbrace+1, open)
+		set(d.rbrace, close)
+	}
+}
+
+// aroundText is what wrapBody writes after the body's opening brace and
+// before its closing one.
+func (e *engine) aroundText(f *fileState, d *funcDeco, arounds []*decoUse) (string, string) {
+	u := arounds[0]
+	switch {
+	case len(arounds) > 1:
+		e.errs.add("E0131", arounds[1].a.Pos, "@%s and @%s both run the body inside them; keep one", u.a.Name, arounds[1].a.Name)
+		return "", ""
+	case d.lbrace < 0:
+		e.errs.add("E0131", u.a.Pos, "@%s runs a function's body inside it; this one has none", u.a.Name)
+		return "", ""
+	case d.ctxIndex < 0 || d.pnames[d.ctxIndex] == "" || d.pnames[d.ctxIndex] == "_":
+		e.errs.add("E0131", u.a.Pos, "@%s needs the function's context: give it a named context.Context parameter, ctx context.Context", u.a.Name)
+		return "", ""
+	}
+	ctx, ctxT := d.pnames[d.ctxIndex], d.ftypes[d.ctxIndex]
+	if d.method {
+		ctxT = d.ftypes[d.ctxIndex+1]
+	}
+	call := string(f.src[u.a.nameStart:u.a.nameStart+len(u.a.Name)]) + "(" + ctx + ", func(" + ctx + " " + ctxT + ") "
+	var opts []string
+	for _, o := range d.uses {
+		if o.kind == decoOption && o.t != nil && u.opt != nil && types.AssignableTo(o.t, u.opt) {
+			opts = append(opts, string(f.src[o.a.nameStart:o.a.end]))
+		}
+	}
+	tail := ""
+	if len(opts) > 0 {
+		tail = ", " + strings.Join(opts, ", ")
+	}
+	n := len(d.rtypes)
+	switch {
+	case n == 1 && d.errIndex == 0:
+		return "return " + call + "error {", "}" + tail + ")"
+	case n > 1 && d.errIndex == n-1:
+		vars := make([]string, n-1)
+		decl := ""
+		for i := range vars {
+			vars[i] = "__r" + itoa(i)
+			decl += "var " + vars[i] + " " + d.rtypes[i] + "; "
+		}
+		rs := strings.Join(vars, ", ")
+		return decl + "__err := " + call + "(__e error) { " + rs + ", __e = func()" + d.results + " {",
+			"}(); return __e }" + tail + "); return " + rs + ", __err"
+	case n == 1:
+		if name, arg := runtimeTypeText(d.rtypes[0], f.runtime()); name == "Result" {
+			return "var __r " + d.rtypes[0] + "; __err := " + call + "error { __r = func()" + d.results + " {",
+				"}(); return __r.Err() }" + tail + "); if __err != nil { return " + f.runtime() + ".Err[" + arg + "](__err) }; return __r"
+		}
+	}
+	e.errs.add("E0131", u.a.Pos, "@%s runs the body inside it, so the function must return an error: error, (T, error) or Result[T]", u.a.Name)
+	return "", ""
+}
+
+// runtimeTypeText splits a type written rt.Result[T] into Result and T.
+func runtimeTypeText(t, rt string) (string, string) {
+	rest, ok := strings.CutPrefix(t, rt+".")
+	if !ok {
+		return "", ""
+	}
+	name, arg, ok := strings.Cut(rest, "[")
+	if !ok || !strings.HasSuffix(arg, "]") {
+		return "", ""
+	}
+	return name, strings.TrimSuffix(arg, "]")
 }

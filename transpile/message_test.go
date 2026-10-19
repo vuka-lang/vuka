@@ -35,8 +35,8 @@ var c = User.Table
 		{8, "cannot use " + ref + " as int", "cannot use User.Name as int"},
 		{9, "cannot use " + ref + " as int", "cannot use User.Email as int"},
 		{3, "cannot use " + ref + " as int", "cannot use " + ref + " as int"},
-		{10, "User_Table + 1 (mismatched types)", "User.Table + 1 (mismatched types)"},
-		{10, "User_Tables, xUser_Table", "User_Tables, xUser_Table"},
+		{10, "UserTable + 1 (mismatched types)", "User.Table + 1 (mismatched types)"},
+		{10, "UserTables, xUserTable", "UserTables, xUserTable"},
 	} {
 		if got := m.Message(c.line, c.msg); got != c.out {
 			t.Errorf("line %d: %q\nwant %q", c.line, got, c.out)

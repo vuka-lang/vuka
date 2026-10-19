@@ -52,12 +52,12 @@ The Go spelling is an `Indexes()` method (`orm.GinIndex("search")`,
 
 ## Text
 
-`orm.Search(fields…)` is a document of field references; `Matches` is its
-predicate and `Rank` its relevance, a term to order by:
+`orm.SearchVector(fields…)` is a document of fields; `orm.Match` is its
+condition and `orm.SearchRank` its relevance, an expression to order by:
 
 ```vuka
-doc := orm.Search(Article.Title, Article.Body)
-found := Article.Objects.Filter(doc.Matches("go command")).OrderBy(doc.Rank("go command").Desc()).All(ctx)?
+doc, q := orm.SearchVector(Article.Title.Name(), Article.Body.Name()), orm.SearchQuery("go command")
+found := Article.Objects.Filter(orm.Match(doc, q)).Order(orm.SearchRank(doc, q).Desc()).All(ctx)?
 ```
 
 The query is web search syntax: every word must match, `"a phrase"` in order,
@@ -68,11 +68,11 @@ phrases, never FTS5 syntax of the user's.
 
 | | |
 |---|---|
-| `orm.Search(fields…)`, `.Weight("A")`, `.Config("english")`, `.Add(doc)` | a document |
-| `doc.Matches(text)`, `doc.MatchesQuery(orm.SearchQuery(text))` | the predicate |
-| `doc.Rank(text)`, `doc.RankQuery(q)` | the rank, an `OrderedTerm[T, float64]` |
-| `fn.Headline(ref, q)` | an excerpt with the words marked |
-| `fn.SearchVector`, `fn.Match`, `fn.SearchRank` | the same, under Django's names |
+| `orm.SearchVector(fields…)`, `.Weight("A")`, `.Config("english")`, `.Add(doc)` | a document |
+| `orm.SearchQuery(text)` | the query |
+| `orm.Match(doc, q)` | the condition |
+| `orm.SearchRank(doc, q)` | the rank, an `OrderedExpr[float64]` |
+| `orm.Headline(field, q)` | an excerpt with the words marked |
 
 Where the databases differ:
 
@@ -89,31 +89,31 @@ Where the databases differ:
 
 ## Trigrams
 
-`fn.Similarity(ref, text)` is how alike a field is to a text, from 0 to 1 —
-for typos and near matches:
+`orm.Similarity(field, text)` is how alike a field is to a text, from 0 to
+1 — for typos and near matches:
 
 ```vuka
-sim := fn.Similarity(Article.Title, "go tools").As("sim")
-like := Article.Objects.Annotate(sim).Filter(sim.Gt(0.3)).OrderBy(sim.Desc()).All(ctx)?
+like := Article.Objects.Annotate("sim", orm.Similarity(Article.Title.Name(), "go tools")).
+	Filter(orm.Q{"sim__gt": 0.3}).OrderBy("-sim").All(ctx)?
 ```
 
 ## Vectors
 
-`orm.Vector` is a `[]float32` column. `fn.L2Distance`, `fn.CosineDistance`
-and `fn.InnerProduct` (negated, as pgvector's `<#>`: smaller is nearer) are
-`OrderedTerm[T, float64]`s, so they filter and order:
+`orm.Vector` is a `[]float32` column. `orm.L2Distance`, `orm.CosineDistance`
+and `orm.InnerProduct` (negated, as pgvector's `<#>`: smaller is nearer)
+are `OrderedExpr[float64]`s, so they filter and order:
 
 ```vuka
-v := orm.Vector{0.9, 0.1, 0}
-near := Article.Objects.Filter(fn.CosineDistance(Article.Embedding, v).Lt(0.3)).
-	OrderBy(fn.CosineDistance(Article.Embedding, v).Asc()).All(ctx)?
+v, emb := orm.Vector{0.9, 0.1, 0}, Article.Embedding.Name()
+near := Article.Objects.Filter(orm.CosineDistance(emb, v).Lt(0.3)).
+	Order(orm.CosineDistance(emb, v).Asc()).All(ctx)?
 ```
 
 `Nearest` is the k-nearest-neighbour query: ordered by distance, nearest
 first, annotated `distance`:
 
 ```vuka
-top := Article.Objects.Nearest(Article.Embedding, v, orm.Cosine).Limit(10).All(ctx)?
+top := Article.Objects.Nearest(emb, v, orm.Cosine).Limit(10).All(ctx)?
 ```
 
 On Postgres the `ORDER BY` is pgvector's operator, so an HNSW or IVFFlat
@@ -123,7 +123,7 @@ index of that metric serves it. Options: a metric, `orm.K(n)`,
 with `SET LOCAL` in a transaction of the query's own:
 
 ```vuka
-top = Article.Objects.Nearest(Article.Embedding, v, orm.K(10), orm.MaxDistance(0.4), orm.EfSearch(100)).All(ctx)?
+top = Article.Objects.Nearest(emb, v, orm.K(10), orm.MaxDistance(0.4), orm.EfSearch(100)).All(ctx)?
 ```
 
 MySQL stores vectors but doesn't search them: a `VECTOR(n)` column where the
@@ -139,11 +139,10 @@ ranks by reciprocal rank (a row scores `w/(k + rank)` per ranking), annotated
 `rank`, `distance` and `score`, best first. It runs on Postgres and on SQLite:
 
 ```vuka
-doc := orm.Search(Article.Title, Article.Body)
-best := Article.Objects.Hybrid(doc, "web server", Article.Embedding, v,
+best := Article.Objects.Hybrid(doc, orm.SearchQuery("web server"), emb, v,
 	orm.K(10), orm.Candidates(100), orm.HybridWeights(1, 0.5), orm.RRF(60)).All(ctx)?
 ```
 
 `Candidates(n)` narrows the vector side to the `n` nearest (found by the
-index) plus the text's matches. `fn.Fuse(a.Desc(), b.Asc())` is the fusion on
-its own, over any two named terms.
+index) plus the text's matches. `orm.Fuse("-rank", "distance")` is the
+fusion on its own, over any two orderings by name.

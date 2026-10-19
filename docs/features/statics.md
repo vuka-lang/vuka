@@ -23,7 +23,7 @@ u := User.New("ada")
 fmt.Println(User.Table, User.Max)
 ```
 
-They become package-level Go — `User_Table`, `_User_created`, and for the
+They become package-level Go — `UserTable`, `userCreated`, and for the
 constructor `func NewUser`, Go's convention — which is also how Go code
 reaches them.
 
@@ -87,10 +87,14 @@ u.Save()                    // Save gets u itself as self
 users := User.Objects.All() // User's own store, from Model
 ```
 
-Plain Go underneath: `User.Objects` becomes `Model_Objects[User]().V`, and
+Plain Go underneath: `User.Objects` becomes `ModelObjects[User]().V`, and
 `u.Save()` becomes `u.Save(u)`. `Model[User]` written out works the same;
-`Self` is filled in only for a type parameter of that name. The
-[ORM](/orm/models)'s `orm.Base` is built this way.
+`Self` is filled in only for a type parameter of that name.
+
+A generic type of another package may also give a static as a generic
+function of the static's own name, called with the embedding type: the
+[ORM](/orm/models)'s `orm.Base` has no `Objects` field, so `Post.Objects`
+is `orm.Objects[Post]()`, the model's manager — what Go code writes too.
 
 A generic type's static takes its type from its initializer, like any other:
 `&Store[Self]{}`, `new(Store[Self])`, `[]Self{}`, `map[string]*Self{}`,

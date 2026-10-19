@@ -10,8 +10,8 @@ import (
 
 // staticDecl is a static field: `static Objects = Manager[User]{}` inside a
 // struct type. It leaves the struct and becomes a package-level variable (or
-// constant) named after the type, User_Objects; on a generic type, an accessor
-// holding one value per instantiation, Model_Objects[Self]().V.
+// constant) named after the type, UserObjects; on a generic type, an accessor
+// holding one value per instantiation, ModelObjects[Self]().V.
 type staticDecl struct {
 	typeName   string
 	typeParams string   // the type's type parameter list, "[Self any]"; "" when not generic
@@ -33,10 +33,10 @@ type staticFunc struct {
 	goName   string
 }
 
-// staticGoName is the Go name of a static member: Type_Name, with a leading
-// underscore when the member is unexported, so it stays private. A type's
-// constructor, its static New, is Go's NewType (newType for an unexported
-// type).
+// staticGoName is the Go name of a static member: the type's name and the
+// member's, UserTable, unexported (userCount) when either is, so it stays
+// private. A type's constructor, its static New, is Go's NewType (newType
+// for an unexported type).
 func staticGoName(typeName, member string) string {
 	if member == "New" && typeName != "" {
 		if token.IsExported(typeName) {
@@ -44,10 +44,11 @@ func staticGoName(typeName, member string) string {
 		}
 		return "new" + strings.ToUpper(typeName[:1]) + typeName[1:]
 	}
-	if token.IsExported(member) {
-		return typeName + "_" + member
+	name := typeName + strings.ToUpper(member[:1]) + member[1:]
+	if !token.IsExported(member) {
+		name = strings.ToLower(name[:1]) + name[1:]
 	}
-	return "_" + typeName + "_" + member
+	return name
 }
 
 // namedStruct reports the type a `struct {` at toks[i] (the STRUCT token)
@@ -262,7 +263,7 @@ func (f *fileState) renderStatics() {
 			continue
 		}
 		// A generic type's static: one value per instantiation.
-		store := "__" + strings.TrimPrefix(goName, "_") + "_statics"
+		store := "__" + goName + "Statics"
 		self := s.typeName + "[" + strings.Join(s.tparams, ", ") + "]"
 		w.gen("\nvar "+store+" "+s.rt+".Statics\n\n"+doc, s.start)
 		directive(s.nameOff)
@@ -457,10 +458,13 @@ func (e *engine) fixStaticFuncs() {
 			}
 		}
 	}
+	own := e.ownNames()
 	for _, f := range e.vuka {
 		for _, s := range f.statics {
 			if members[s.typeName+"."+s.name] {
 				e.errs.add("E0116", f.at(s.nameOff), "%s has a field or method %s already; a static can't share its name", s.typeName, s.name)
+			} else if n := staticGoName(s.typeName, s.name); own[n] {
+				e.errs.add("E0116", f.at(s.nameOff), "static %s.%s is %s in Go, which the package declares already", s.typeName, s.name, n)
 			}
 		}
 		for _, sf := range f.staticFuncs {
@@ -471,6 +475,8 @@ func (e *engine) fixStaticFuncs() {
 			}
 			if member := strings.SplitN(string(f.src[sf.head.start:sf.head.end]), ".", 2)[1]; members[sf.typeName+"."+member] {
 				e.errs.add("E0116", f.at(sf.head.start), "%s has a field or method %s already; a static method can't share its name", sf.typeName, member)
+			} else if own[sf.goName] {
+				e.errs.add("E0116", f.at(sf.head.start), "static %s.%s is %s in Go, which the package declares already", sf.typeName, member, sf.goName)
 			}
 			if len(sf.tparams) == 0 {
 				if ts.TypeParams != nil {
@@ -503,8 +509,9 @@ func (e *engine) fixStaticFuncs() {
 // staticRef is what a Type.member selector names: a static of the type or of a
 // type it embeds.
 type staticRef struct {
-	obj   types.Object
-	owner *types.Named // the (instantiated) type declaring it
+	obj    types.Object
+	owner  *types.Named // the (instantiated) type declaring it
+	getter bool         // obj is a generic function named after the member, called for its value
 }
 
 // findStatic looks for member among t's statics, then those of the types it
@@ -520,8 +527,8 @@ func (e *engine) findStatic(t *types.Named, member string) (staticRef, bool) {
 				continue
 			}
 			seen[n] = true
-			if obj := lookupStatic(n, member, e.pkg); obj != nil {
-				found = append(found, staticRef{obj, n})
+			if obj, getter := lookupStatic(n, member, e.pkg); obj != nil {
+				found = append(found, staticRef{obj, n, getter})
 				continue
 			}
 			if st, ok := n.Underlying().(*types.Struct); ok {
@@ -545,24 +552,33 @@ func (e *engine) findStatic(t *types.Named, member string) (staticRef, bool) {
 	return staticRef{}, false
 }
 
-// lookupStatic finds the Go declaration of t's static member: Type_member in
-// t's package (or _Type_member, inside the package itself).
-func lookupStatic(t *types.Named, member string, current *types.Package) types.Object {
-	obj := t.Origin().Obj()
-	if obj.Pkg() == nil {
-		return nil
+// lookupStatic finds the Go declaration of t's static member: TypeMember
+// in t's package (typeMember, inside the package itself). A generic type of
+// another package may declare a static as a generic function named after
+// the member, of the type's type parameters, called with none of its own
+// arguments: Post.Objects, Post embedding orm.Base[Post], is
+// orm.Objects[Post]() (getter).
+func lookupStatic(t *types.Named, member string, current *types.Package) (obj types.Object, getter bool) {
+	tn := t.Origin().Obj()
+	pkg := tn.Pkg()
+	if pkg == nil || !token.IsExported(member) && pkg != current {
+		return nil, false
 	}
-	name := staticGoName(obj.Name(), member)
-	if !token.IsExported(member) && obj.Pkg() != current {
-		return nil
-	}
-	if found := obj.Pkg().Scope().Lookup(name); found != nil {
-		return found
+	if found := pkg.Scope().Lookup(staticGoName(tn.Name(), member)); found != nil {
+		return found, false
 	}
 	if found := enumStatic(t, member); found != nil && (found.Exported() || found.Pkg() == current) {
-		return found
+		return found, false
 	}
-	return nil
+	if n := t.Origin().TypeParams().Len(); n > 0 && pkg != current {
+		if fn, ok := pkg.Scope().Lookup(member).(*types.Func); ok {
+			sig := fn.Type().(*types.Signature)
+			if sig.TypeParams().Len() == n && sig.Results().Len() == 1 && (sig.Params().Len() == 0 || sig.Params().Len() == 1 && sig.Variadic()) {
+				return fn, true
+			}
+		}
+	}
+	return nil, false
 }
 
 // isStaticAccessor reports whether fn is a generic static's accessor: it
@@ -609,6 +625,9 @@ func (e *engine) resolveStatics(f *fileState) {
 			return true
 		}
 		if obj, _, _ := types.LookupFieldOrMethod(named, false, e.pkg, sel.Sel.Name); obj != nil {
+			if !e.declaredStatic(ref) {
+				return true // a field reference: a Go name of the type's and the field's is no static
+			}
 			f.done[start] = true
 			e.errs.add("E0119", f.nodePos(sel.Sel.Pos()), "%s.%s is ambiguous: a field of %s and a static of %s",
 				named.Obj().Name(), sel.Sel.Name, named.Obj().Name(), ref.owner.Origin().Obj().Name())
@@ -648,7 +667,10 @@ func (e *engine) resolveStatics(f *fileState) {
 				args = append(args, s)
 			}
 			text += "[" + strings.Join(args, ", ") + "]"
-			if isStaticAccessor(ref.obj) {
+			switch {
+			case ref.getter:
+				text += "()"
+			case isStaticAccessor(ref.obj):
 				text += "().V"
 			}
 		}
@@ -1181,6 +1203,73 @@ func typeContext(f *fileState, e *engine, sel ast.Expr) bool {
 		return p.Index == sel && e.info.Types[p.X].IsType()
 	case *ast.IndexListExpr:
 		return e.info.Types[p.X].IsType()
+	}
+	return false
+}
+
+// declaredStatic reports whether ref is certainly a static, where a field
+// of the same name is ambiguous: one declared as a static in this
+// package's Vuka files, or a generic type's accessor.
+func (e *engine) declaredStatic(ref staticRef) bool {
+	if isStaticAccessor(ref.obj) {
+		return true
+	}
+	if ref.obj.Pkg() != e.pkg {
+		return false
+	}
+	for _, f := range e.vuka {
+		for _, s := range f.statics {
+			if staticGoName(s.typeName, s.name) == ref.obj.Name() {
+				return true
+			}
+		}
+		for _, sf := range f.staticFuncs {
+			if sf.goName == ref.obj.Name() {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// ownNames are the package-level names the package's source declares, not
+// counting what Vuka writes after a file's own lines.
+func (e *engine) ownNames() map[string]bool {
+	out := map[string]bool{}
+	for _, f := range e.files {
+		for _, d := range f.ast.Decls {
+			if f.vuka && f.off(d.Pos()) >= f.body {
+				continue
+			}
+			switch d := d.(type) {
+			case *ast.FuncDecl:
+				if d.Recv == nil && !f.isStaticFunc(f.orig(d.Name.Pos())) {
+					out[d.Name.Name] = true
+				}
+			case *ast.GenDecl:
+				for _, sp := range d.Specs {
+					switch sp := sp.(type) {
+					case *ast.TypeSpec:
+						out[sp.Name.Name] = true
+					case *ast.ValueSpec:
+						for _, n := range sp.Names {
+							out[n.Name] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	return out
+}
+
+// isStaticFunc reports whether a function's name at src offset off is a
+// static method's, func User.Create.
+func (f *fileState) isStaticFunc(off int) bool {
+	for _, sf := range f.staticFuncs {
+		if sf.head.start == off {
+			return true
+		}
 	}
 	return false
 }

@@ -223,7 +223,7 @@ u := User.New("ada")
 fmt.Println(User.Table, User.Max)
 ```
 
-They lower to plain package-level Go: `User_Table`, `_User_created`, and
+They lower to plain package-level Go: `UserTable`, `userCreated`, and
 for the constructor Go's `func NewUser`, which is also how Go code reaches
 them. A static can't share a
 name with a field or method (in Go, `User.Save` already means a method).

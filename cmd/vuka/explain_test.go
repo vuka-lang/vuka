@@ -67,7 +67,7 @@ func TestExplainCrossPackageStatics(t *testing.T) {
 	if err := explain([]string{page}, &out); err != nil {
 		t.Fatalf("explain: %v", err)
 	}
-	if !strings.Contains(out.String(), "Model_Objects") {
+	if !strings.Contains(out.String(), "ModelObjects") {
 		t.Errorf("explanation doesn't show the statics lowering:\n%s", out.String())
 	}
 
@@ -75,7 +75,7 @@ func TestExplainCrossPackageStatics(t *testing.T) {
 	if err := explain([]string{"-full", page}, &out); err != nil {
 		t.Fatalf("explain -full: %v", err)
 	}
-	if !strings.Contains(out.String(), "Model_Objects") {
+	if !strings.Contains(out.String(), "ModelObjects") {
 		t.Errorf("-full output doesn't show the statics lowering:\n%s", out.String())
 	}
 }

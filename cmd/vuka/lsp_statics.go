@@ -1,7 +1,7 @@
 package main
 
 // Completion and hover for statics: Type.Objects (or pkg.Type.Objects), the
-// members Vuka lowers to package-level Type_Member declarations. gopls can't
+// members Vuka lowers to package-level TypeMember declarations. gopls can't
 // offer them after `Type.` — in the generated Go they live beside the type,
 // not on it — so the proxy finds them itself: it resolves the type's
 // declaration in the generated (or real) Go of its package and walks it the
@@ -218,7 +218,7 @@ func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) (members []staticMemb
 				continue
 			}
 			if l.statics {
-				for _, m := range append(staticDecls(files, l.name, l.dir == srcDir, spot.written), enumDecls(files, l.name, l.dir == srcDir, spot.written)...) {
+				for _, m := range append(enumDecls(files, l.name, l.dir == srcDir, spot.written), staticDecls(files, l.name, l.dir == srcDir, spot.written)...) {
 					if taken[m.name] {
 						continue
 					}
@@ -328,17 +328,19 @@ func findTypeSpec(files []*staticsFile, name string) (*ast.TypeSpec, *staticsFil
 }
 
 // staticDecls collects the package-level declarations that are typeName's
-// statics: Type_Member, and _Type_member inside the type's own package.
+// statics: TypeMember, and typeMember inside the type's own package.
 func staticDecls(files []*staticsFile, typeName string, samePkg bool, written string) []staticMember {
+	upperAt := func(s string) bool { return s != "" && s[0] >= 'A' && s[0] <= 'Z' }
 	member := func(name string) (string, bool) {
-		if m, ok := strings.CutPrefix(name, typeName+"_"); ok && m != "" {
+		if m, ok := strings.CutPrefix(name, typeName); ok && upperAt(m) {
 			return m, true
 		}
-		if !samePkg {
+		lower := strings.ToLower(typeName[:1]) + typeName[1:]
+		if !samePkg || lower == typeName {
 			return "", false
 		}
-		if m, ok := strings.CutPrefix(name, "_"+typeName+"_"); ok && m != "" {
-			return m, true
+		if m, ok := strings.CutPrefix(name, lower); ok && upperAt(m) {
+			return strings.ToLower(m[:1]) + m[1:], true
 		}
 		return "", false
 	}
@@ -401,7 +403,7 @@ func staticDecls(files []*staticsFile, typeName string, samePkg bool, written st
 	return out
 }
 
-// accessorValue reads a generic static's accessor — func Type_M[…]() *rt.Static[V]
+// accessorValue reads a generic static's accessor — func TypeM[…]() *rt.Static[V]
 // — and returns V's text.
 func accessorValue(decl *ast.FuncDecl) (string, bool) {
 	ft := decl.Type

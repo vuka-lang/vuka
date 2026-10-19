@@ -34,7 +34,7 @@ func Hint(text any) ui.Node { return ui.F(0x3eb236fa49a80e3e, "E(h)", ui.El("i",
 // Panel takes a state: an expression of states is a derived one.
 func Panel(hide ui.State[bool]) ui.Node {
 //line state_pass.vuka:32
-	return ui.F(0x1200b3866a85f60a, "Ed(t)", ui.El("p", []ui.Attr{{Name: "hidden", Value: ui.Bind(hide.Get(), `{"$":0}`, hide)}}, ui.Text("panel")))
+	return ui.F(0x1200b3866a85f60a, "Ed(t)", ui.El("p", []ui.Attr{{Name: "hidden", Value: ui.BindExpr(hide.Get(), `{"$":0}`, hide)}}, ui.Text("panel")))
 }
 
 // Box takes attributes.
@@ -46,7 +46,7 @@ type Page struct{}
 
 // menu takes a state and returns a node.
 func (p *Page) menu(open ui.State[bool]) ui.Node {
-	return ui.F(0x7b45369fc274222d, "Ed(E(t))", ui.El("ul", []ui.Attr{{Name: "hidden", Value: ui.Bind(!open.Get(), `["!",{"$":0}]`, open)}}, ui.El("li", nil, ui.Text("item"))))
+	return ui.F(0x7b45369fc274222d, "Ed(E(t))", ui.El("ul", []ui.Attr{{Name: "hidden", Value: ui.BindExpr(!open.Get(), `["!",{"$":0}]`, open)}}, ui.El("li", nil, ui.Text("item"))))
 }
 
 func (p *Page) Render() ui.Node {
@@ -62,8 +62,8 @@ func (p *Page) Render() ui.Node {
 		Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", ui.NewDerived(!open.Get() && upload.Get(), `["&&",["!",{"$":0}],{"$":1}]`, open, upload)), {Name: "id", Value: "box"}}), ui.Child(
 			p.menu(upload)), ui.Child(
 			p.menu(ui.StateField(f, "Open", f.Get().Open))),
-		Hint(ui.Bind(!open.Get(), `["!",{"$":0}]`, open)),
-		Hint(ui.Bind(f.Get().Kind+"s", `["+",{"$":0,"p":["Kind"]},"s"]`, f)),
+		Hint(ui.BindExpr(!open.Get(), `["!",{"$":0}]`, open)),
+		Hint(ui.BindExpr(f.Get().Kind+"s", `["+",{"$":0,"p":["Kind"]},"s"]`, f)),
 		Panel(ui.NewDerived(!open.Get() && upload.Get(), `["&&",["!",{"$":0}],{"$":1}]`, open, upload))),
 	)
 }

@@ -114,15 +114,18 @@ func TestExplain(t *testing.T) {
 	if err := explain([]string{filepath.Join(dir, "main.vuka")}, &out); err != nil {
 		t.Fatal(err)
 	}
-	ctor := "NewUser"
+	ctor, table, count := "NewUser", "UserTable", "userCount"
 	if strings.Contains(out.String(), "func User_New(") {
 		ctor = "User_New" // a vuka runtime module from before the NewX constructors
 	}
+	if strings.Contains(out.String(), "User_Table") {
+		table, count = "User_Table", "_User_count" // one from before TypeMember names
+	}
 	for _, want := range []string{
 		"main.vuka:8\n  vuka │     static Table = \"users\"\n  vuka │     static count int\n  go   │ (becomes a comment here; its Go is below)",
-		"main.vuka:8  added after the code, for: static Table = \"users\"\n  go   │ var User_Table = \"users\"",
+		"main.vuka:8  added after the code, for: static Table = \"users\"\n  go   │ var " + table + " = \"users\"",
 		"main.vuka:12\n  vuka │ func User.New(name string) *User { User.count++; return &User{Name: name} }\n" +
-			"  go   │ func " + ctor + "(name string) *User { _User_count++; return &User{Name: name} }",
+			"  go   │ func " + ctor + "(name string) *User { " + count + "++; return &User{Name: name} }",
 	} {
 		if !strings.Contains(out.String(), want) {
 			t.Fatalf("explain: want\n%s\nin\n%s", want, out.String())

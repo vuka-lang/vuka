@@ -16,8 +16,10 @@ type Counter struct {
 	n     int
 }
 
-func (c *Counter) Mount() { c.n = c.Start }
-func (c *Counter) Inc()   { c.n++ }
+@ui.Mount
+func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+
+func (c *Counter) Inc() { c.n++ }
 
 func (c *Counter) Render() ui.Node {
 	return <div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>
@@ -228,7 +230,9 @@ type Chat struct {
 	name  string
 }
 
-func (c *Chat) Mount()          { c.Subscribe("chat:" + c.Room) }
+@ui.Mount
+func (c *Chat) mount(ctx context.Context) error { c.Subscribe("chat:" + c.Room); return nil }
+
 func (c *Chat) Update(m Said)   { c.lines = append(c.lines, m.Who+": "+m.Text) }
 func (c *Chat) Update(j Joined) { c.lines = append(c.lines, j.Who+" joined") }
 

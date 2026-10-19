@@ -35,20 +35,16 @@ type Post struct {
 posts := Post.Objects.Filter(Post.Title.Contains("Go"), Post.Author.Name.Eq("ada")).
 	OrderBy(Post.Views.Desc()).All(ctx)?                     // []Post
 
-match Post.Objects.Get(ctx, Post.Slug.Eq(slug)) {
-case Ok(p):             show(p)
-case Err(orm.NotFound): notFound()
-case Err(e):            return e
-}
+p, err := Post.Objects.Get(ctx, Post.Slug.Eq(slug))   // orm.ErrNotFound when there is none
 ```
 
 A value outside a field's `Choices`, bounds or length is refused on every
 write with an [`orm.Invalid`](/orm/errors) naming the field, before the
-database sees it. A misspelt field is a compile error with a suggestion, `Post.Objects.Filter(
-User.Name.Eq("x"))` doesn't compile, and `Contains` on a number doesn't
-either. Terminals return [`Result`](/features/result-option), so `?` and
-`match` take them. Everything is plain Go underneath: Go and Vuka packages
-share models and databases.
+database sees it. A misspelt field is a compile error, and `Contains` on a
+number doesn't compile either: `Post.Title` is the model's typed field,
+`PostFields.Title` in Go. Terminals return `(T, error)`, so `?` takes them.
+Everything is plain Go underneath — the attributes are the model's
+`Schema` method — so Go and Vuka packages share models and databases.
 
 ## Install
 

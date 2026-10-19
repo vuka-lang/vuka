@@ -19,6 +19,7 @@ const (
 	attrDecorator
 	attrField // after a struct field: a value recorded for the field
 	attrParam // before a parameter: a value recorded for the parameter
+	attrHook  // on a method: a hook of its type's schema, @ui.Mount
 )
 
 var builtins = map[string]attrKind{
@@ -59,6 +60,7 @@ type Attr struct {
 	structOf   string    // a field attribute's struct type
 	fieldNames []string  // the field's names (an embedded field's type name)
 	regs       []regDecl // what the registry records the attribute under, found when attached
+	hookMethod string    // a hook's method, as written
 }
 
 // regDecl is a declaration the runtime's registry records attributes of: a

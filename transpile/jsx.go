@@ -151,7 +151,7 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 			markScope([]jsxNode{t.root}, f.scope)
 		}
 		f.jsx = append(f.jsx, t)
-		if len(t.comps) == 0 && !(f.target.has("Bind") && t.mayBind()) {
+		if len(t.comps) == 0 && !(f.target.has("BindExpr") && t.mayBind()) {
 			f.fixed = append(f.fixed, f.jsxEdits(t)...)
 			t.done = true
 		}

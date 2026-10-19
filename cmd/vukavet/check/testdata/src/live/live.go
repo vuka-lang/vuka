@@ -69,7 +69,45 @@ func NewClash() *Clash           { return &Clash{} }
 func (c *Clash) Render() ui.Node { return nil }
 func (c *Clash) Open()           {} // want `E0326: Clash: the method Open and the field IsOpen are both live.open`
 
+var query string
+
+type Search struct {
+	ui.Live
+	Q       string
+	Rows    []string
+	Stats   int
+	Pending bool
+	Name    string
+	hidden  string
+	Both    int
+}
+
+func NewSearch() *Search          { return &Search{} }
+func (s *Search) Render() ui.Node { return nil }
+
+func (s *Search) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&s.Q, ui.Bind{}, ui.URL("q"))
+	l.Field(&s.Rows, ui.Defer("rows"))
+	l.Field(&s.Stats, ui.Defer("stats"))         // want `E0324: Search.Stats is deferred, and the group Stats has no loader`
+	l.Field(&s.Pending, ui.Bind{})               // want `E0322: Search.Pending: live.pending is live's own`
+	l.Field(&s.hidden, ui.Bind{})                // want `E0322: Search.hidden: ui.Bind is for a prop`
+	l.Field(&s.Both, ui.Defer("x"), ui.URL("x")) // want `E0323: Search.Both: a deferred field is the server's to load`
+	l.Field(&query, ui.Bind{})                   // want `E0335: Search.LiveSchema: l.Field is given &query, not the address of one of Search's fields`
+	l.Field(&s.Name, nil)                        // want `E0335: Search.LiveSchema: l.Field\(&s.Name, …\) is given a nil attribute`
+	l.Loads("rows", s.loadRows)
+	l.Loads("rows", s.loadRows) // want `E0336: Search.LiveSchema: l.Loads\("rows", …\) is called twice`
+	l.Loads("a-b", s.loadRows)  // want `E0336: Search.LiveSchema: l.Loads\("a-b", …\): a group is a name`
+	l.Mount(nil)                // want `E0336: Search.LiveSchema: l.Mount is given nil`
+	l.OnChange(s.Changed)
+}
+
+func (s *Search) loadRows(ctx context.Context) error { return nil }
+
+// Changed is the OnChange hook, so any signature its method value fits.
+func (s *Search) Changed(ctx context.Context, c ui.Changed) error { return nil }
+
 func init() {
+	web.Routes.Live("/search", NewSearch, ui.Island())
 	web.Routes.Live("/board", NewBoard)
 	web.Routes.Live("/norender", NewNoRender)
 	web.Routes.Live("/ptr", NewPtrLive)

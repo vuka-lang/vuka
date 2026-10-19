@@ -55,7 +55,7 @@ func main() {
 }
 
 //line registries.vuka:39
-func (x *Board) Render() ui.Node { return ui.IslandPage(x) }
+func (b *Board) Render() ui.Node { return ui.IslandPage(b) }
 
 //line registries.vuka:18
 func NewStore(pets []string) *Store {

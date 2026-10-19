@@ -119,6 +119,11 @@ first and as `.vuka` syntax second. Design: [vuka as a library](./library.md).
 
 ### 2.1 Typed attributes instead of struct-tag DSLs
 
+**Done** (library step 3): the attributes lower to `ui.LiveSchema` and
+`orm.Schema`; `vuka vet` warns of the old tags (W0302), `vuka fix
+attributes` rewrites them. Editor completion of attribute arguments is
+gopls's on the generated method.
+
 vuka's own semantics move out of tag strings into attributes the compiler
 and editor check:
 
@@ -136,6 +141,11 @@ and editor check:
   hover.
 
 ### 2.2 Explicit hooks instead of magic method names
+
+**Done** for `@ui.Mount`, `@ui.OnChange` and `@ui.Loads` (library step 3):
+`vuka vet` warns of a hook found by its name (W0303), `vuka fix hooks`
+adds the attribute. `@ui.On[T]` (in place of `Info`) and `Update`
+overloads are still found by name.
 
 `Mount`, `Changed`, `Update(T)` overloads and `Load<Group>` are found by
 name today. That's how a field `CV` required a loader named `LoadCv`, and

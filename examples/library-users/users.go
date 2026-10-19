@@ -1,51 +1,87 @@
 package main
 
 import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/orm"
+	_ "github.com/vuka-lang/orm/sqlite"
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/validate"
 	"github.com/vuka-lang/web"
 )
 
-// User is a member of the directory.
+//go:generate go run github.com/vuka-lang/orm/cmd/orm generate
+
+// User is a member of the directory, a row of its table.
 type User struct {
-	ID   int    `json:"id"`
+	orm.Base[User]
+	ID   int64  `json:"id"`
 	Name string `json:"name"`
 }
 
-// Directory holds the users: a service, built once.
-type Directory struct{ users []User }
-
-func NewDirectory() *Directory {
-	return &Directory{users: []User{{1, "Ada"}, {2, "Grace"}, {3, "Linus"}}}
+func (u *User) Schema(s *orm.Schema) {
+	s.Field(&u.Name, orm.Char{Max: 50})
 }
 
-func (d *Directory) find(id int) (User, bool) {
-	for _, u := range d.users {
-		if u.ID == id {
-			return u, true
+// Directory holds the users: a service, built once, on a database in
+// memory.
+type Directory struct{ users *orm.Manager[User] }
+
+func NewDirectory() (*Directory, error) {
+	ctx := context.Background()
+	db, err := orm.ConnectURL("sqlite::memory:")
+	if err != nil {
+		return nil, err
+	}
+	orm.AddDatabase("main", db, orm.AsDefault())
+	d := &Directory{users: orm.Objects[User]()}
+	if err := orm.CreateTables(ctx, d.users); err != nil {
+		return nil, err
+	}
+	for _, name := range []string{"Ada", "Grace", "Linus"} {
+		u := User{Name: name}
+		if err := u.Save(ctx); err != nil {
+			return nil, err
 		}
 	}
-	return User{}, false
+	return d, nil
+}
+
+func (d *Directory) find(ctx context.Context, id int64) (User, error) {
+	u, err := d.users.Get(ctx, UserFields.ID.Eq(id))
+	if errors.Is(err, orm.ErrNotFound) {
+		return u, web.NotFound
+	}
+	return u, err
 }
 
 // ListUsers answers GET /api/users.
-func ListUsers(dir *Directory) []User { return dir.users }
+func ListUsers(ctx context.Context, dir *Directory) ([]User, error) {
+	return dir.users.OrderBy(UserFields.ID.Asc()).All(ctx)
+}
 
 // ShowUser answers GET /api/users/{id}.
-func ShowUser(id int, dir *Directory) (User, error) {
-	if u, ok := dir.find(id); ok {
-		return u, nil
-	}
-	return User{}, web.NotFound
-}
+func ShowUser(ctx context.Context, id int64, dir *Directory) (User, error) { return dir.find(ctx, id) }
 
 // Dashboard is a live page.
 type Dashboard struct {
 	ui.Live
 	dir   *Directory
+	users int64
 	likes int
 }
 
 func NewDashboard(dir *Directory) *Dashboard { return &Dashboard{dir: dir} }
+
+func (d *Dashboard) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(d.mount)
+}
+
+func (d *Dashboard) mount(ctx context.Context) (err error) {
+	d.users, err = d.dir.users.Count(ctx)
+	return err
+}
 
 // Like is the button's event.
 func (d *Dashboard) Like() { d.likes++ }
@@ -53,28 +89,30 @@ func (d *Dashboard) Like() { d.likes++ }
 func (d *Dashboard) Render() ui.Node {
 	return ui.El("main", nil,
 		ui.El("h1", nil, ui.Text("Users")),
-		ui.El("p", nil, ui.Text(len(d.dir.users)), ui.Text(" users, "), ui.Text(d.likes), ui.Text(" likes")),
+		ui.El("p", nil, ui.Text(d.users), ui.Text(" users, "), ui.Text(d.likes), ui.Text(" likes")),
 		ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(d.Like)}}, ui.Text("Like")))
 }
 
 // Profile is a live page backed by its island, islands/Profile.ts: its
-// exported fields are the component's props.
+// exported fields are the component's props, Name one it may set.
 type Profile struct {
 	ui.Live
-	ID   int    `json:"id"`
+	ID   int64  `json:"id"`
 	Name string `json:"name"`
 	dir  *Directory
 }
 
 func NewProfile(dir *Directory) *Profile { return &Profile{dir: dir} }
 
-func (p *Profile) Mount() error {
-	u, ok := p.dir.find(p.ID)
-	if !ok {
-		return web.NotFound
-	}
+func (p *Profile) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&p.Name, ui.Bind{}, validate.Required{}, validate.Max(50))
+	l.Mount(p.mount)
+}
+
+func (p *Profile) mount(ctx context.Context) error {
+	u, err := p.dir.find(ctx, p.ID)
 	p.Name = u.Name
-	return nil
+	return err
 }
 
 func (p *Profile) Render() ui.Node { return ui.IslandPage(p) }

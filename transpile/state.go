@@ -18,8 +18,8 @@ import (
 //
 //	open := ui.State(false)              →  open := ui.NewState("s1x9k2", false)
 //	var theme = ui.State("light")        →  var theme = ui.PageState("s4ab0c", "light")
-//	<ul hidden={!open}>                  →  ui.El("ul", []ui.Attr{{Name: "hidden", Value: ui.Bind(!open.Get(), `["!",{"$":0}]`, open)}})
-//	<span>{n}</span>                     →  ui.Child(ui.Bind(n.Get(), `{"$":0}`, n))
+//	<ul hidden={!open}>                  →  ui.El("ul", []ui.Attr{{Name: "hidden", Value: ui.BindExpr(!open.Get(), `["!",{"$":0}]`, open)}})
+//	<span>{n}</span>                     →  ui.Child(ui.BindExpr(n.Get(), `{"$":0}`, n))
 //	ready := ui.Derived(!open && ok)     →  ready := ui.NewDerived(!open.Get() && ok, `["&&",["!",{"$":0}],{"$":1}]`, open, ok)
 //	f.Q.Set("x")                         →  ui.StateField(f, "Q", f.Get().Q).Set("x")
 //
@@ -43,7 +43,7 @@ func (e *engine) declareStates() {
 		}
 		ok := false
 		if !stdPackage(path) {
-			if p, err := e.imp.Import(path); err == nil && p.Scope().Lookup("NewState") != nil && p.Scope().Lookup("Bind") != nil {
+			if p, err := e.imp.Import(path); err == nil && p.Scope().Lookup("NewState") != nil && p.Scope().Lookup("BindExpr") != nil {
 				ok = true
 			}
 		}
@@ -112,7 +112,7 @@ func stateOf(t types.Type) (types.Type, bool) {
 		return nil, false
 	}
 	sc := n.Obj().Pkg().Scope()
-	if sc.Lookup("NewState") == nil || sc.Lookup("Bind") == nil {
+	if sc.Lookup("NewState") == nil || sc.Lookup("BindExpr") == nil {
 		return nil, false
 	}
 	return n.TypeArgs().At(0), true
@@ -126,7 +126,7 @@ type stateBind struct {
 	gets       []int    // where .Get() goes, in src
 	expr       string   // JSON
 	deps       []string // Go
-	call       string   // "Bind", "NewDerived" or "StateField"
+	call       string   // "BindExpr", "NewDerived" or "StateField"
 	field      string   // StateField: the whole call
 }
 
@@ -229,7 +229,7 @@ func (e *engine) unknownTypes(x ast.Node) bool {
 
 // lowerState lowers x, an expression reading states, as a binding.
 func (e *engine) lowerState(f *fileState, x ast.Expr) (*stateBind, *bindError) {
-	bd := &binder{e: e, f: f, b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End()), call: "Bind"}, deps: map[string]int{}}
+	bd := &binder{e: e, f: f, b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End()), call: "BindExpr"}, deps: map[string]int{}}
 	j := bd.lower(x)
 	if bd.err != nil {
 		return nil, bd.err
@@ -413,7 +413,7 @@ func (e *engine) exprAt(f *fileState, s span) ast.Expr {
 // bindTree decides which of a tree's element attributes and children read
 // states. It reports false while a type they need is unknown.
 func (e *engine) bindTree(f *fileState, t *jsxTree) bool {
-	if !f.target.has("Bind") {
+	if !f.target.has("BindExpr") {
 		return true
 	}
 	ok := true
@@ -522,7 +522,7 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 	at.bind = b
 }
 
-// bind writes a lowered read: Bind(value, expr, deps…), the value's
+// bind writes a lowered read: BindExpr(value, expr, deps…), the value's
 // expression kept in place.
 func (w *jsxWriter) bind(b *stateBind) {
 	if b.call == "StateField" {

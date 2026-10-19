@@ -218,13 +218,15 @@ own, so a menu the visitor opened stays open. The server knows only the
 initial value (`Get`); it sets a state by pushing the command:
 
 ```vuka
-func (b *Board) Mount()     { b.tab = ui.State("a") }
-func (b *Board) ShowLogs()  { b.PushJS(b.tab.Set("logs")) }
+@ui.Mount
+func (b *Board) mount(ctx context.Context) error { b.tab = ui.State("a"); return nil }
+
+func (b *Board) ShowLogs() { b.PushJS(b.tab.Set("logs")) }
 ```
 
 ## Without the compiler
 
 Go code declares a state with `ui.NewState(site, v)` (`ui.PageState` for the
 page's), `site` naming the declaration uniquely, and writes reads as
-`ui.Bind(value, expr, deps…)` — what the compiler writes; see
-`go doc github.com/vuka-lang/ui Bind` for the expression's JSON.
+`ui.BindExpr(value, expr, deps…)` — what the compiler writes; see
+`go doc github.com/vuka-lang/ui BindExpr` for the expression's JSON.

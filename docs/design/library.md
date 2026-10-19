@@ -250,15 +250,20 @@ spelling of the two model statics `.vuka` offers:
 
 | `.vuka` | Go |
 |---|---|
-| `Post.Objects` | `orm.For[Post]()` |
+| `Post.Objects` | `orm.Objects[Post]()` |
 | `Post.Slug` (typed column) | `PostFields.Slug` |
-| `func Post.Live() orm.Query[Post]` (a named query) | `func PostLive() orm.Query[Post]` |
-| `p := Post.Objects.Get(ctx, Post.Slug.Eq(slug))?` | `p, err := orm.For[Post]().Get(ctx, PostFields.Slug.Eq(slug))` + `if err != nil { return err }` |
+| `func Post.Live() orm.QuerySet[Post]` (a named query) | `func PostLive() orm.QuerySet[Post]` |
+| `p := Post.Objects.Get(ctx, Post.Slug.Eq(slug))?` | `p, err := orm.Objects[Post]().Get(ctx, PostFields.Slug.Eq(slug))` + `if err != nil { return err }` |
+
+`orm.Objects[Post]()` is the model's own manager, the one `orm.For[Post]()`
+declares (or one made from its Meta): `For` takes options and makes a
+manager each time, so it is called once, package-level, and the static —
+read wherever the code names it — is `Objects`.
 
 ```go
 func matching(search string) orm.QuerySet[Applicant] {
 	f := ApplicantFields
-	qs := orm.For[Applicant]().QuerySet
+	qs := orm.Objects[Applicant]().QuerySet
 	for _, w := range strings.Fields(search) {
 		qs = qs.Filter(orm.Or(
 			f.FirstName.IStartsWith(w),
@@ -400,7 +405,7 @@ Folded into roadmap Phase 2:
 | 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` — **done** | 2.3 |
 | 1 | Public registration API (`web.Routes`, `app.Get/Live/Controller/Service`), transpiler emits it — **done** | 2.5 |
 | 2 | `ui.Template` with typed holes; transpiler emits it | 2.3, 2.4 |
-| 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them | 2.1, 2.2 |
+| 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them — **done** | 2.1, 2.2 |
 | 4 | orm reflection fallback, live render fallback (**done**); call decorators through a reflective wrapper (open) | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
 | 6 | `vukavet` analyzer — **done** | 2.6 |
@@ -420,15 +425,42 @@ are `NewX`. Public now, as the calls a person writes: `vuka.Decorated`,
 needs), `RegisterFunc`, `RegisterType` (the attribute registry), `FileOf`
 (an embedded file), `ui.IslandPage` (a live island page's one-line
 `Render`) and `ui.RegisterIsland` (an imported component's props type).
+Step 3 is done: a type embedding `orm.Base` (or `orm.Model`) gets a
+`Schema` method from its attributes — `X @a @b` is `s.Field(&p.X, a, b)`,
+the embedded base's are `s.Model(…)`, a bare `@orm.PK` is `orm.PK{}` — and
+a type embedding `ui.Live` a `LiveSchema` method from its fields'
+attributes and its methods' hooks (`@ui.Mount` on `mount` is
+`l.Mount(d.mount)`). The two types say which method they want with a
+marker method, `vukaSchema(interface{ Schema(*orm.Schema) })`, so the
+transpiler names no package. `Post.Slug` is `PostFields.Slug`,
+`Post.Objects` is `orm.Objects[Post]()`, a static `func Post.Live()` is
+`PostLive()` and any static `TypeMember` (`userCount` unexported). An
+around decorator — `func(ctx, func(ctx) error, opts…) error`, like
+`orm.Transaction` — wraps the function's body, its options the
+declaration's decorators of the option type (`@orm.TxOn("crm")`). The
+vuka command overlays what `orm generate` would write (`post_gen.go`
+beside `post.vuka`) until it is written. Old tags (`bind:`, `url:`,
+`defer:`, `validate:`) and hooks found by name (`Mount`, `Changed`,
+`Load<Group>`) still work for one minor release: `vuka vet` warns (W0302,
+W0303) and `vuka fix attributes` / `vuka fix hooks` (or `--attributes`,
+`--hooks`) rewrite them. New codes: E0129 (attributes and a hand-written
+schema method), E0130 (a hook written as a composite literal), E0131 (a
+function an around decorator can't wrap), E0335 and E0336 (`LiveSchema`
+fields and hooks, at boot and in `vukavet`). Public now: `RegisterFields`
+(field attributes of a struct with no schema method) and `StaticOf`,
+`Static`, `Statics` (a static of a generic type: one value per
+instantiation, which Go has no variable for).
+
 What the contract file still allows, by the step that removes it:
 
 - step 2: the fingerprinted markup (`ui.F`, `ui.FT`, `ui.El`, `ui.Attr`,
   `ui.Child`, `ui.Text`, `ui.Nodes`, `ui.Component`, `ui.MountIsland`,
-  `ui.Try`, `ui.WithChildren`) and state lowering (`ui.Bind`,
+  `ui.Try`, `ui.WithChildren`) and state lowering (`ui.BindExpr`,
   `ui.NewState`, `ui.PageState`, `ui.NewDerived`, `ui.StateField`,
   `ui.StateProp`, `ui.Callback`, `ui.Emit`, `ui.Ptr`);
-- step 3: field references by index path (`vuka.RefOf` and its kinds),
-  `vuka.RegisterFields` and statics (`vuka.Static`, `StaticOf`, `Statics`);
+- step 3: field references by index path (`vuka.RefOf` and its kinds) on
+  a struct with no generated typed fields (`Stats.Author` of a plain
+  struct): their public form, a field named by address, is a follow-up;
 - step 4: call decorators' per-signature adapter (`vuka.Func`,
   `vuka.NewCall`): its public form is a reflective wrapper, with the typed
   adapter an optional speed-up like the other step 4 fallbacks.

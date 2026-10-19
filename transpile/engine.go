@@ -46,6 +46,7 @@ type engine struct {
 	declared      map[string]bool               // package-level names
 	typeNames     map[string]bool               // package-level type names
 	registries    map[*types.Package]*types.Var // each package's registry, nil for none (decorate.go)
+	schemas       map[string]*schemaInfo        // struct types declaring a schema method, by name (schema.go)
 	genericEmbeds map[string]bool               // types embedding a generic or another package's type
 	members       map[string]bool               // Type.field and Type.method names
 	methodNames   map[string]bool               // Type.method names
@@ -227,9 +228,11 @@ func (e *engine) prepare() {
 	e.fixStaticFuncs()
 	e.declareStates()
 	e.inferSelf()
+	e.findSchemas()
 	if e.decorate() || len(e.sets) > 0 {
 		e.progress = true
 	}
+	e.checkSchemas()
 	for _, f := range e.vuka {
 		if len(f.statics) > 0 || len(f.staticFuncs) > 0 {
 			e.progress = true
@@ -420,7 +423,7 @@ func (e *engine) report() {
 	for _, te := range e.typeErrs {
 		broken := strings.HasPrefix(te.Msg, "could not import ")
 		if shown >= 5 && !broken || reported[e.typeErrPos(te)] || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") ||
-			strings.Contains(te.Msg, "cannot infer T") || strings.Contains(te.Msg, completionPlaceholder) {
+			strings.Contains(te.Msg, "cannot infer T") || strings.Contains(te.Msg, completionPlaceholder) || e.typedFieldsMissing(te.Msg) {
 			continue
 		}
 		pos, msg := e.typeErrPos(te), importFailure(te.Msg)
@@ -435,6 +438,21 @@ func (e *engine) report() {
 		e.errs.add(code, pos, "%s", msg)
 		shown++
 	}
+}
+
+// typedFieldsMissing reports whether msg is about a model's typed fields
+// (undefined: PostFields), which orm generate writes after Vuka.
+func (e *engine) typedFieldsMissing(msg string) bool {
+	name, ok := strings.CutPrefix(msg, "undefined: ")
+	if !ok {
+		return false
+	}
+	model, ok := strings.CutSuffix(name, "Fields")
+	if !ok || e.pkg == nil {
+		return false
+	}
+	tn, ok := e.pkg.Scope().Lookup(model).(*types.TypeName)
+	return ok && hasMarker(tn.Type(), "vukaFields")
 }
 
 // brokenImport reports whether an import of the package failed.

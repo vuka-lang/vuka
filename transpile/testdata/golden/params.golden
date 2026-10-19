@@ -215,7 +215,7 @@ func init() {
 var addPetDec vuka.Decorated[func(NewPet, *Store) (string, error)]
 
 //line params.vuka:144
-var addPetDecInfo = vuka.Func{Name: "main.addPet", ErrIndex: 1, CtxIndex: -1, Zero: func() []any { return []any{*new(string), *new(error)} }, Attrs: []any{}, ParamAttrs: [][]any{[]any{*new(Body), *new(Valid)}, nil}}
+var addPetDecInfo = vuka.Func{Name: "main.addPet", ErrIndex: 1, CtxIndex: -1, Zero: func() []any { return []any{*new(string), *new(error)} }, Attrs: []any{}, ParamAttrs: [][]any{[]any{Body{}, Valid{}}, nil}}
 
 //line params.vuka:144
 func addPet(in NewPet, store *Store) (string, error) {
@@ -237,7 +237,7 @@ func addPet(in NewPet, store *Store) (string, error) {
 
 func init() {
 //line params.vuka:142
-	Post("/pets")(vuka.DeclOf(addPet, vuka.Param{Name: "in", Attrs: []any{*new(Body), *new(Valid)}}, vuka.Param{Name: "store"}))
+	Post("/pets")(vuka.DeclOf(addPet, vuka.Param{Name: "in", Attrs: []any{Body{}, Valid{}}}, vuka.Param{Name: "store"}))
 }
 
 func init() {

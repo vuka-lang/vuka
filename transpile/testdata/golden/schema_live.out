@@ -1,0 +1,2 @@
+Name={Bind:true Debounce:0s URL: Defer: Validate:[required]} Q={Bind:true Debounce:300ms URL:q Defer: Validate:[max=100]} Rows={Bind:false Debounce:0s URL: Defer:lists Validate:[]} Total={Bind:false Debounce:0s URL: Defer:lists Validate:[]} Mount=mount Loads(lists)=loadLists OnChange=changed mount: <nil> true
+Mount=Start mount: <nil>
