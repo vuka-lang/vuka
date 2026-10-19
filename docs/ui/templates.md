@@ -7,9 +7,10 @@ errors point at the `.vuka.html` line.
 
 ## A component
 
-A component is a struct whose fields are its props. `sales.vuka.html` is
-the `Render` of the type `Sales`, declared in `sales.go` (or `sales.vuka`)
-of the same package:
+A component is a struct whose fields are its props, and a `ui.Node` itself:
+`Sales{Title: "Week"}` goes in a hole or is returned as it is.
+`sales.vuka.html` is the markup — the `View` — of the type `Sales`,
+declared in `sales.go` (or `sales.vuka`) of the same package:
 
 ```go
 // sales.go
@@ -40,8 +41,12 @@ func (s Sales) Total() int {
 </section>
 ```
 
-The markup before the file's first `func` line is the component's
-`Render`. Fields and methods are read by bare name — `{Title}`,
+The markup before the file's first `func` line is the component's `View`,
+and the compiler adds the method that makes the struct a `ui.Node`,
+`Render(ctx context.Context, w io.Writer) error`, rendering it; renderers
+and the live tree read the `View`, so the struct renders and diffs as its
+markup. For a [stateful component](/ui/stateful) (one embedding `ui.Live`)
+the markup is its `Render() ui.Node`, as before. Fields and methods are read by bare name — `{Title}`,
 `{Total()}` — and locals and loop variables shadow them, as in Go. A name
 the package itself declares (a function, a type, a variable) is the
 package's, not the field: in a package with such names, write the explicit
@@ -50,7 +55,8 @@ does. The
 receiver is a pointer when the type embeds `ui.Live`, holds a `ui.State`
 or has pointer-receiver methods, and a value otherwise. A file whose
 package declares no such type is an error; start it with an explicit
-header, `func (s *Sales) Render()`, to name the receiver.
+header, `func (s Sales) View()` (`func (p *Orders) Render()` for a stateful
+type), to name the receiver.
 
 ## More templates in a file
 
@@ -130,8 +136,9 @@ keyword is written as a string, `{"if you can"}`.
 A capitalised tag is a component: `<Sales …/>` in the same package,
 `<ui.Card>` or `<layouts.Admin>` from another.
 
-- A struct with a `Render` method: `<Sales title="Week" week={w}/>` is
-  `Sales{Title: "Week", Week: w}.Render()`. A pointer type embedding
+- A struct component: `<Sales title="Week" week={w}/>` is
+  `Sales{Title: "Week", Week: w}`. (A struct whose `Render() ui.Node` is its
+  markup, the earlier form, is `Sales{…}.Render()`.) A pointer type embedding
   `ui.Live` is a [stateful component](/ui/stateful), `&Counter{…}`; with
   `key={…}`, `ui.Key`.
 - A function taking one struct: its attributes are the struct's fields.

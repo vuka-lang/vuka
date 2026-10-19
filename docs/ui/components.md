@@ -1,9 +1,9 @@
 # Components
 
-A component is a struct with a `Render() ui.Node` method, its fields its
-props, or a function returning `ui.Node`; the [JSX](/features/jsx) page has
-how tags bind to it, [templates](/ui/templates) how a struct's `Render` is
-written in a `.vuka.html` file. This page is what ui does with the markup.
+A component is a struct whose fields are its props — itself a `ui.Node`,
+its markup its `View` — or a function returning `ui.Node`; the
+[JSX](/features/jsx) page has how tags bind to it, [templates](/ui/templates)
+how a struct's markup is written in a `.vuka.html` file. This page is what ui does with the markup.
 
 ## Nodes
 
@@ -88,7 +88,8 @@ reordered).
 
 ui ships a set of token-styled components in the package itself, so
 `import "github.com/vuka-lang/ui"` brings both the primitives above and these.
-Each is a struct whose fields are its props: a tag's attributes are its
+Each is a struct whose fields are its props, and a `ui.Node` as it is: a
+tag's attributes are its
 fields, camelCase (`noPad` is `NoPad`), its children the `Children` field
 and `<slot:header>` the `Header` one.
 
@@ -108,9 +109,9 @@ and `<slot:header>` the `Header` one.
 ui.Card{
 	Title:    ui.Text("Members"),
 	NoPad:    true,
-	Header:   ui.Button{Variant: ui.Primary, Icon: ui.Icon("plus"), On: c.New, Children: ui.Text("New")}.Render(),
+	Header:   ui.Button{Variant: ui.Primary, Icon: ui.Icon("plus"), On: c.New, Children: ui.Text("New")},
 	Children: table,
-}.Render()
+}
 ```
 :::
 
@@ -172,7 +173,7 @@ ui.Table[Task]{
 	OnSelect:    func(t Task) any { id := t.ID; return func(on bool) { d.pick(id, on) } },
 	OnSelectAll: d.pickPage,
 	AllSelected: d.allPicked(),
-}.Render()
+}
 ```
 :::
 
@@ -185,7 +186,7 @@ than toggling a server-side guess, which keeps the box and the server in sync
 ### How the kit is written
 
 The kit is written as an app's components are: a `.go` file declares the
-type, the `.vuka.html` beside it is its `Render`
+type, the `.vuka.html` beside it is its `View`
 ([templates](/ui/templates)), and the Go `vuka gen` compiles it to is
 committed, so ui builds with plain `go build`.
 
@@ -202,7 +203,7 @@ type Card struct {
 
 ```html
 <!-- card.vuka.html -->
-func (c Card) Render()
+func (c Card) View()
 <div class={withClass("vk-card", c.Class)}>
   if c.Title != nil || c.Header != nil {
     <div class="vk-card__header">
@@ -223,9 +224,10 @@ the package declares is the package's.
 
 The props types of earlier versions are deprecated aliases of the
 components — `ui.CardProps` is `ui.Card`, `ui.TableProps[T]` is
-`ui.Table[T]` — and a call of the former function, `ui.Card(ui.CardProps{…})`,
-is `ui.Card{…}.Render()`; `vuka fix ui-structs` rewrites those calls. Tags
-are unchanged.
+`ui.Table[T]` — so a call of the former function, `ui.Card(ui.CardProps{…})`,
+still compiles: it converts the literal to the component, a Node. A generic
+one needs its type argument, `ui.Table[Row]{…}`; `vuka fix ui-structs`
+writes both as literals. Tags are unchanged.
 
 ## Picking ui
 
