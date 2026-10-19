@@ -150,6 +150,109 @@ expression of its argument, checked against the arguments by vukavet.
 - Editor grammars (editors/vscode, editors/zed) for `.vuka.html`: HTML with Go
   statements and holes, TS and CSS blocks.
 
+## Addendum
+
+### A. Struct-first components
+
+A component is, by default, a struct whose fields are its props, its markup
+a `Render` template:
+
+```go
+// sales.go
+type Sales struct {
+	Title    string
+	Week     []int
+	Points   []Point
+	Zoom     func(ctx context.Context, from, to int) error
+	Children ui.Node
+}
+```
+
+```html
+<!-- sales.vuka.html -->
+func (s Sales) Render()
+<section class="sales">…{s.Title}…</section>
+```
+
+A value receiver is a stateless component; a pointer receiver (`*Counter`)
+a stateful, live one. `<Sales title="x" week={w}/>` is
+`Sales{Title: "x", Week: w}` (a pointer type `&Counter{…}`, keyed `ui.Key`);
+there is no separate `SalesProps`. Children and slots fill the struct's
+`ui.Node` fields. Function components, `func Sales(p SalesProps)`, stay
+supported — a tag works when the one parameter is a struct — and partials
+are call-only. Docs, scaffolds, generated and ejected code and the ui kit
+lead with structs. Lowering JSX: a `.vuka` `type Sales struct{…}` with
+`func (s Sales) Render() Node { return <…> }` keeps the struct in the `.go`
+and puts the `Render` template in the `.vuka.html`; a `.vuka` function
+component stays a function template.
+
+### B. `.vuka` and `.vuka.html` side by side
+
+A package may mix `.go`, `.vuka` and `.vuka.html` files, all in one scope: a
+struct declared in `sales.vuka` may have its `Render()` (and partials) in
+`sales.vuka.html`. The transpiler compiles both into the package (through
+the overlay); templates see `.vuka` declarations and the other way round.
+
+### C. Component files as imports
+
+`import Trend "./trend.vue"`, `import Spark "./spark.tsx"`,
+`import Mini "./mini.ts"`, in templates and in `.vuka`, make island tags
+`<Trend points={…} client:visible on-select={…}/>`, their props type
+generated from the component (internal/tsprops: defineProps, TS props,
+Svelte props). A Go-first island (`type Trend struct{…}` +
+`ui.RegisterIsland[Trend]()`) finds its component next to the Go file first
+(`trend.vue|tsx|ts|jsx|svelte|js`), then at `islands/<module>/<Type>.<ext>`.
+
+### D. Client code: three kinds, one model
+
+The same tags, `client:*` strategies, typed props both ways,
+`ctx = {live, state, navigate, patch}`, lifecycle (`update`, `destroy`), never
+remounted by the morph, the same build commands.
+
+1. Component and page scripts: `<script lang="ts">` after a template in a
+   `.vuka.html`, or as a direct child of a component's root in `.vuka` JSX
+   (lowering moves it after the template; `<script is:inline>` stays in
+   place); the same for `<style scoped>`. No Node: bundled by the CLI's
+   in-process esbuild.
+   - Components: `export default component<Sales>((el, props, ctx) => ({ update(next) {…}, destroy() {…} }))`;
+     `props` is the struct's data fields (`ui.Node`, func and unexported
+     fields are never sent; func fields are events `ctx` can call).
+   - Live pages: `export default page<Orders>((el, live) => ({ destroy() {…} }))`,
+     `live` typed from the page struct: field handles (`live.q.get/set`),
+     methods (`live.reorder(ids)`). It runs once on mount; live patches never
+     run it again (the morph keeps the DOM, `data-nx-ignore` respected);
+     `destroy` on navigating away (VukaLink, `live.navigate`); a patch of the
+     same page keeps it.
+2. Script islands: `.ts`/`.tsx`/`.jsx` exporting a component —
+   `island<P>((el, props, ctx) => …)` for plain DOM, a default-exported React
+   or Preact component in `.tsx`. No Node: esbuild compiles TSX.
+3. Framework islands: `.vue`/`.svelte`, with Node and the project's Vite, as
+   today. Without Node: a clear error with help ("needs Node; or use a .tsx
+   island").
+
+Page-backed islands (`web.Routes.Live(path, NewX, ui.Island(ui.Layout(…)))`,
+`@web.Live @ui.Island`) find their component next to the Go file
+(`<snake>.vue|tsx|ts`), any of the three kinds; `pageIsland<ApplicantDetail>((el, live) => …)`
+for `.ts`. Bare npm imports (`import { Chart } from 'chart.js'`) resolve from
+`node_modules` by esbuild's standard resolution and `NodePaths`.
+
+### E. Files per package
+
+Recommended, in docs and scaffolds: `orders.go` (types, constructors,
+events), `orders.vuka.html` (`Render`, its script and scoped style),
+`row.vuka.html` (partials), `chart.tsx`, `trend.vue`, `util.ts`. `vuka eject`
+of `orders.vuka` writes exactly this.
+
+### F. Tooling additions
+
+`vuka lsp` hands script blocks and `.ts`/`.tsx` islands to the TS server
+with generated types for props, live and ctx. vukavet: a script reading a
+field that isn't sent, a `.vue`/`.svelte` with no Node, a page with two
+backing components. viewtest runs scripts and script islands;
+viewtest.Browser runs framework islands.
+
+A and B land in PRs 1 and 2; C and D in PR 3.
+
 ## Delivery
 
 1. Syntax and compiler (`.vuka.html` → Go through the overlay, `vuka gen`),
