@@ -51,6 +51,7 @@ same page in the terminal.
 | [E0129](./E0129) | Attributes and a hand-written schema method |
 | [E0130](./E0130) | A hook written as a composite literal |
 | [E0131](./E0131) | A function an around decorator can't wrap |
+| [E0140](./E0140) | a template file has no type to be the Render of |
 
 ## Decorators and attributes
 
