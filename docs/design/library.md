@@ -346,9 +346,31 @@ the language server.
 ## 7. Checks without the CLI
 
 The vet-time checks (missing loader, handle clash, bad bind/validate,
-template hole kinds, route conflicts) are packaged as a `go/analysis`
-analyzer, runnable as `go vet -vettool=$(go tool -n vukavet)` or through
-gopls, with the same diagnostic codes (E03xx, E04xx).
+template hole kinds, route conflicts) are packaged as `go/analysis`
+analyzers, `github.com/vuka-lang/vuka/cmd/vukavet` (its own module, so the
+vuka module stays free of dependencies), runnable as
+`go vet -vettool=$(go tool -n vukavet)`, with the same diagnostic codes.
+`vukavet` is `go vet`'s own analyzers plus four checks
+([vukavet](../tools/vukavet.md)):
+
+- `routes`: registrations with web — a method and path declared twice,
+  across the packages it imports too (E0401), a handler that isn't a
+  function (E0403), an unnamed scalar parameter (E0405), results the app
+  can't write (E0406), `web.Params` that doesn't fit (E0419, new), a
+  constructor of the wrong shape (E0418), an island page that isn't a GET
+  (E0331);
+- `live`: live pages' constructors and structs (E0329, E0330) and
+  `ui.CheckIsland`'s checks of island pages (E0322–E0328, E0333);
+- `templates`: `ui.Template` hole count (E0127, new) and hole kind against
+  the value's static type (E0128, new), templates of other packages through
+  facts;
+- `schema`: `s.Field` not given the receiver's field (E0501), a nil
+  attribute (E0502), a field behind a pointer (E0503).
+
+`live` reads struct tags today; once `ui.LiveSchema` lands (step 3) it reads
+the `l.Field`/`l.Loads` calls the same way. gopls can't load third-party analyzers, so editors get them from `go vet`;
+a `.vuka` app runs them as `vuka vet -vettool=$(go tool -n vukavet)`, the
+positions its `.vuka` lines.
 
 ## 8. Conformance
 
@@ -370,7 +392,7 @@ Folded into roadmap Phase 2:
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them | 2.1, 2.2 |
 | 4 | orm reflection fallback; live render fallback; call decorators through a reflective wrapper | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
-| 6 | `vukavet` analyzer | 2.6 |
+| 6 | `vukavet` analyzer — **done** | 2.6 |
 | 7 | Conformance suite | 2.6 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
