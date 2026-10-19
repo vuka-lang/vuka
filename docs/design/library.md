@@ -97,24 +97,37 @@ type's package and name.
 
 ```go
 var orderRow = ui.Template(`
-<tr class="{{0}}">
-  <td>{{1}}</td>
-  <td class="tabular-nums">{{2}}</td>
+<tr key="{{0}}" class="{{1}}">
+  <td>{{2}}</td>
+  <td class="tabular-nums">{{3}}</td>
+  <td><button onClick="{{4}}">Cancel</button></td>
 </tr>`)
 
-func OrderRow(o Order) ui.Node {
-	return orderRow.Render(ui.Class("row", o.Late && "late"), o.Ref, money(o.Total))
+func (p *Orders) row(o Order) ui.Node {
+	return orderRow.Render(o.ID, ui.Class{"row": true, "late": o.Late}, o.Ref, money(o.Total),
+		func() { p.Cancel(o.ID) })
 }
 ```
 
 - The same `ui.Template` readable generated code uses (2.3), so performance is
-  identical to transpiled JSX: parsed once at init, static parts precomputed.
-- Holes are escaped by position kind: text, attribute value, attribute set
-  (`ui.Attrs`, `ui.On(…)`, `ui.BindAttr(…)`), child node (`ui.Node`). A value of
-  the wrong kind for its hole is a render-time error in development and a
-  vet error where the analyzer can see it (§7).
+  identical to transpiled JSX: parsed once at init, static parts precomputed,
+  and under a live session the same render tree (statics, dynamics, keyed
+  lists) JSX lowers to.
+- Holes are escaped by position kind: child (`ui.Node`, `[]ui.Node`, text,
+  a `ui.State`, a stateful component, an island), text (in title, textarea,
+  script), attribute value (what a JSX attribute takes; an `on…` attribute
+  takes a handler — a func, `ui.On(…)`, JS commands), part of a value
+  (text), attribute set (`ui.Attr`, `[]ui.Attr`, `templ.Attributes`,
+  `ui.BindAttr(…)`). A value of the wrong kind for its hole is a render-time
+  error naming the template's line and the hole, and a vet error where the
+  analyzer can see it (§7); a malformed template panics at init.
 - Loops and conditionals are ordinary Go producing nodes:
-  `ui.Each(rows, OrderRow)`, `ui.If(cond, node)`.
+  `ui.Each(rows, OrderRow)`, `ui.If(cond, node)`, or a `[]ui.Node`.
+- A hole is a place: a stateful component (`&Counter{…}`,
+  `ui.Key(id, &Counter{…})`) or an island (`Chart{…}`,
+  `ui.Mount(Chart{…}, ui.Idle())`) in it is identified by it, and a list's
+  components by the hole the list is in. Client state is declared where it is
+  called: `open := ui.UseState(false)`, `var theme = ui.UsePageState("light")`.
 
 ### Builders (alternative)
 
