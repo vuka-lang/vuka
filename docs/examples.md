@@ -10,7 +10,7 @@ are in the [web](https://github.com/vuka-lang/web) and
 ::: go
 The examples are written in Vuka; each sample below shows its Go form.
 Two are whole apps in plain Go, built and run with `go run .`:
-[`examples/library-users`](https://github.com/vuka-lang/vuka/tree/main/examples/library-users)
+[`examples/conformance/library-users`](https://github.com/vuka-lang/vuka/tree/main/examples/conformance/library-users)
 (routes, a service, live pages, an island and the ORM; `decorated/` is the
 same app in Vuka) and
 [`examples/islands-go`](https://github.com/vuka-lang/vuka/tree/main/examples/islands-go).
