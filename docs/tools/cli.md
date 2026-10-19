@@ -1,11 +1,20 @@
 # The vuka command
 
+::: go
+A Go app doesn't need the `vuka` command: `go build`, `go run .` and `go test`
+build it, and [`vukavet`](/tools/vukavet) runs the framework's checks under
+`go vet`. The command is still useful beside them — `vuka new` and `vuka
+add` scaffold, `vuka run -watch` rebuilds on save, `vuka upgrade` moves the
+libraries — and `vuka eject` turns `.vuka` files into Go.
+:::
+
 ```text
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
+vuka build-islands [-watch]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
@@ -308,6 +317,36 @@ for its `.vuka` files' imports (and the runtime, when the code uses it), removed
 when it ends. It reads imports without transpiling, so it works while a
 dependency is still missing.
 
+## build-islands
+
+Builds the module's [islands](/web/islands) from its source alone, for an
+app built with plain `go build`: the types `ui.RegisterIsland[T](…)`, a
+route's `ui.Island(…)` option or `@ui.Island` registers, read without
+running the app. The bundle and its stylesheets go into `.vuka/` of the
+frontend's build — the root `web.Frontend` serves — where `//go:embed`
+picks them up and the app serves them from. One line in the main package:
+
+```go
+//go:generate go tool vuka build-islands
+
+//go:embed all:web/dist
+var dist embed.FS
+
+app := web.New(web.Frontend(dist, "web/dist"), web.Dev())
+```
+
+Run it after the frontend's own build (`vite build` empties `dist`), then
+`go build`. A build of islands alone, with no `index.html`, is served too.
+It writes `islands.d.ts` and `vuka-live.d.ts`, the components' types,
+in the frontend's folder. A component it can't find is
+[E0310](/errors/E0310); an app with no `web.Frontend` is
+[E0609](/errors/E0609).
+
+`-watch` keeps the islands built in `.vuka/assets` until its input closes:
+[`web.Dev()`](/web/frontend) runs it under `VUKA_DEV=1 go run .` when the
+app registers islands and the command is a tool of the module
+(`go get -tool github.com/vuka-lang/vuka/cmd/vuka`) or on `PATH`.
+
 ## gen
 
 Writes `build/`, a plain Go module (`-o` picks another directory). With
@@ -346,6 +385,35 @@ Go module: `go build`, `go vet` and `go test` take it with no `vuka` command,
 and it behaves as the `.vuka` version did. Eject the whole module (`./...`)
 so the [link files](#build-run-test-vet-install) and the files embedding
 CSS and assets are written too; they stay generated files.
+
+::: vuka
+```vuka
+// pets.vuka
+@web.Service
+type PetStore struct{ db *DB }
+
+@web.Get("/pets/{id}")
+func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
+```
+:::
+
+::: go
+```go
+// pets.go, after vuka eject -rm
+type PetStore struct{ db *DB }
+
+func ShowPet(id int, store *PetStore) vuka.Result[Pet] { return store.Find(id) }
+
+func NewPetStore(db *DB) *PetStore {
+	return &PetStore{db: db}
+}
+
+func init() {
+	web.Routes.Service(NewPetStore)
+	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+}
+```
+:::
 
 Decorators become the calls they stand for. A route, page or service
 decorator is a call of its package's [registry](/features/decorators#registries)

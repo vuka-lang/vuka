@@ -50,6 +50,8 @@ type islandComp struct {
 	bare        string // the decorator's path when it doesn't start with . (found from the frontend root when not beside the file)
 	infer       bool   // a bare @ui.Island (or a "" path): the file is islands/[<module>/]<name>.<ext> under the frontend root
 	module      string // the module the declaring file is in (modules/<m>/…), for an inferred path
+	namedBy     string // the call naming its component in a .go file (ui.RegisterIsland[Chart]); "" for @ui.Island
+	dir         string // a .go file's island: its type's package directory
 	problem     string // why an inferred path finds no one file
 	problemHelp string
 	problemCode diag.Code
@@ -90,7 +92,7 @@ func islandModule(rel string) string {
 // inferIsland finds a bare @ui.Island's component: islands/[<module>/]<name>
 // with one of islandExts under frontendRoot. With none or several, src is the
 // path without an extension and problem says what is wrong.
-func inferIsland(root, frontendRoot, module, name string) (src, problem, help string, code diag.Code) {
+func inferIsland(root, frontendRoot, module, name, naming string) (src, problem, help string, code diag.Code) {
 	rel := path.Join("islands", module, name)
 	base := filepath.Join(frontendRoot, filepath.FromSlash(rel))
 	var found []string
@@ -113,7 +115,7 @@ func inferIsland(root, frontendRoot, module, name string) (src, problem, help st
 		for i, e := range islandExts {
 			exts[i] = e[1:]
 		}
-		return base, fmt.Sprintf("no component at %s.{%s}", shown(base), strings.Join(exts, ",")), "add it there, or name the file with @ui.Island(\"…\")", "E0310"
+		return base, fmt.Sprintf("no component at %s.{%s}", shown(base), strings.Join(exts, ",")), "add it there, or name the file with " + naming + "(\"…\")", "E0310"
 	}
 	names := make([]string, len(found))
 	for i, f := range found {
@@ -123,7 +125,7 @@ func inferIsland(root, frontendRoot, module, name string) (src, problem, help st
 	if len(names) > 2 {
 		both = "all match"
 	}
-	return base, fmt.Sprintf("%s and %s %s", strings.Join(names[:len(names)-1], ", "), names[len(names)-1], both), fmt.Sprintf("name one with @ui.Island(%q)", rel+path.Ext(found[0])), "E0311"
+	return base, fmt.Sprintf("%s and %s %s", strings.Join(names[:len(names)-1], ", "), names[len(names)-1], both), fmt.Sprintf("name one with %s(%q)", naming, rel+path.Ext(found[0])), "E0311"
 }
 
 // locate finds an island's file once the frontend root is known: an
@@ -143,10 +145,19 @@ func (ic *islandComp) locate(root, frontendRoot string) {
 		}
 		return
 	}
-	ic.src, ic.problem, ic.problemHelp, ic.problemCode = inferIsland(root, frontendRoot, ic.module, ic.name)
+	ic.src, ic.problem, ic.problemHelp, ic.problemCode = inferIsland(root, frontendRoot, ic.module, ic.name, ic.naming())
 	rel, _ := filepath.Rel(root, ic.src)
 	ic.rel = filepath.ToSlash(rel)
 	ic.framework = islandFramework(ic.src)
+}
+
+// naming is how a person names the island's component: @ui.Island in a
+// .vuka file, the registration's call in a .go one.
+func (ic *islandComp) naming() string {
+	if ic.namedBy != "" {
+		return ic.namedBy
+	}
+	return "@ui.Island"
 }
 
 // candidates are the files an inferred island's path may name.
@@ -496,16 +507,8 @@ func (pa *pageAssets) readIslands(file string, src []byte) []error {
 			ic.route, ic.routeOff, ic.routeAt = r.verb, r.off, r.end
 			ic.routeLabel = fmt.Sprintf("%s:%d", rel, line(r.off))
 		}
-		if cp == "" {
-			ic.infer, ic.module = true, islandModule(rel)
-		} else {
-			abs := filepath.Join(dir, filepath.FromSlash(cp))
-			relSrc, _ := filepath.Rel(pa.root, abs)
-			if !strings.HasPrefix(cp, ".") && !filepath.IsAbs(cp) {
-				ic.bare = cp
-			}
-			ic.src, ic.rel, ic.framework = abs, filepath.ToSlash(relSrc), islandFramework(cp)
-		}
+		ic.src = cp
+		ic.locateArg(pa.root, dir, rel)
 		pa.islands = append(pa.islands, ic)
 	}
 	return errs
@@ -968,7 +971,7 @@ func (ic *islandComp) diagnostic() *diag.Diagnostic {
 	}
 	if fi, err := os.Stat(ic.src); err != nil || fi.IsDir() {
 		return diag.New("E0310", "island %s: component %s not found", ic.name, ic.rel).At(labelSpan(ic.label)).
-			WithHelp("create the file, or correct the path @ui.Island names")
+			WithHelp("create the file, or correct the path %s names", ic.naming())
 	}
 	return nil
 }
