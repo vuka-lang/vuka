@@ -1,6 +1,9 @@
 package transpile
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestJSXTextValue(t *testing.T) {
 	for _, c := range []struct{ in, want string }{
@@ -26,5 +29,18 @@ func TestDropUnusedImports(t *testing.T) {
 		if got := dropUnusedImports(c.src); got != c.want {
 			t.Errorf("dropUnusedImports(%q) = %q, want %q", c.src, got, c.want)
 		}
+	}
+}
+
+func TestGoParts(t *testing.T) {
+	src := "import \"x\"\n\nfunc Row(o Order)\n<li class={cx(\"a\", o.C)}>A <code>@web.Live</code> {strings.Join(\n  o.Tags, \", \")}</li>\nif n := fmt.Sprint(o.N); n != \"\" {\n  <b>{n}</b>\n}\n"
+	got := goParts([]byte(src))
+	for _, want := range []string{"func Row(o Order)", `cx("a", o.C)`, "strings.Join(\n  o.Tags, \", \")", "if n := fmt.Sprint(o.N)"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("goParts lacks %q:\n%s", want, got)
+		}
+	}
+	if strings.Contains(got, "web.") {
+		t.Errorf("goParts has the markup's text:\n%s", got)
 	}
 }

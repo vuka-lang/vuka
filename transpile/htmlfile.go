@@ -318,7 +318,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		imps = append(imps, strings.TrimSuffix(ui, ".")+" "+strconv.Quote(target))
 	}
-	text := string(src)
+	text := goParts(src)
 	for _, imp := range packageImports(others) {
 		if !own[imp.name] && imp.name != strings.TrimSuffix(ui, ".") && regexp.MustCompile(`(^|[^\w.])`+regexp.QuoteMeta(imp.name)+`\.`).MatchString(text) {
 			imps = append(imps, imp.name+" "+strconv.Quote(imp.path))
@@ -419,6 +419,61 @@ func importName(line, name string) string {
 	}
 	path, _ := strconv.Unquote(line[strings.IndexByte(line, '"'):])
 	return pathBase(path)
+}
+
+// goParts is the Go of a template file: its holes, and its lines of Go
+// (headers, statements), not its markup's text — where "@web.Live" names
+// no package.
+func goParts(src []byte) string {
+	var b strings.Builder
+	for _, l := range strings.Split(string(src), "\n") {
+		if goLine.MatchString(l) {
+			b.WriteString(l + "\n")
+		}
+	}
+	text := string(src)
+	for i := 0; i < len(text); i++ {
+		if text[i] != '{' {
+			continue
+		}
+		if i+1 < len(text) && text[i+1] == '{' {
+			i++
+			continue
+		}
+		end := holeEnd(text, i+1)
+		if end < 0 {
+			break
+		}
+		b.WriteString(text[i+1:end] + "\n")
+		i = end
+	}
+	return b.String()
+}
+
+var goLine = regexp.MustCompile(`^\s*(func\s|if\s|for\s|switch\s|case\s|default:|} else|[\w, ]+:=)`)
+
+// holeEnd is the index of the } closing the hole whose Go starts at i, past
+// nested braces and quoted strings; -1 when nothing closes it.
+func holeEnd(s string, i int) int {
+	depth := 0
+	for ; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '"', '\'', '`':
+			for i++; i < len(s) && s[i] != c; i++ {
+				if s[i] == '\\' && c != '`' {
+					i++
+				}
+			}
+		case '{':
+			depth++
+		case '}':
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return -1
 }
 
 type goImport struct{ name, path string }

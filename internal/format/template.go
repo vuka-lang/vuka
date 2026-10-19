@@ -35,7 +35,9 @@ func Template(src []byte) ([]byte, error) {
 			}
 		case funcHeader.MatchString(l):
 			if f, err := format.Source([]byte("package p\n" + l + " {}\n")); err == nil {
-				l = strings.TrimSuffix(strings.TrimPrefix(string(f), "package p\n\n"), " {}\n")
+				// gofmt writes a long header's body on lines of its own
+				l = strings.TrimPrefix(string(f), "package p\n\n")
+				l = strings.TrimSuffix(strings.TrimSuffix(l, " {}\n"), " {\n}\n")
 			}
 			for len(out) > 0 && out[len(out)-1] == "" {
 				out = out[:len(out)-1]
