@@ -282,7 +282,7 @@ func TestLSP(t *testing.T) {
 	t.Run("outline", func(t *testing.T) {
 		v := c.call("textDocument/documentSymbol", map[string]any{"textDocument": map[string]any{"uri": uri}})
 		b, _ := json.Marshal(v)
-		if !strings.Contains(string(b), `"name":"twice"`) || strings.Contains(string(b), "area__") {
+		if !strings.Contains(string(b), `"name":"twice"`) || strings.Contains(string(b), "areaRect") || !strings.Contains(string(b), `"name":"area"`) {
 			t.Fatalf("symbols: %s", b)
 		}
 	})

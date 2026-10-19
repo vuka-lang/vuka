@@ -27,11 +27,23 @@ type doc struct {
 func TestRefs(t *testing.T) {
 	RegisterFields[doc](map[string][]any{"Title": {tag{"title"}}})
 	RegisterFields[stamps](map[string][]any{"Version": {tag{"v"}}})
-	title := StringRefOf[doc, string]([][]int{{1}}, nil)
-	version := OrderedRefOf[doc, int]([][]int{{0, 0}}, nil)
-	ownerName := StringRefOf[doc, string]([][]int{{2}, {0}}, nil)
-	bossName := StringRefOf[doc, string]([][]int{{3}, {0}}, nil)
-	nick := NullableRefOf[doc, Option[string]]([][]int{{5}}, nil)
+	title := StringRefTo(func(d *doc) *string { return &d.Title })
+	version := OrderedRefTo(func(d *doc) *int { return &d.Version })
+	ownerName := StringRefTo(func(d *doc) *string { return &d.Owner.Related().Name })
+	bossName := StringRefTo(func(d *doc) *string { return &d.Boss.Name })
+	nick := NullableRefTo(func(d *doc) *Option[string] { return &d.Nick })
+	for _, c := range []struct {
+		got  FieldPath
+		want [][]int
+	}{
+		{title.FieldPath(), [][]int{{1}}}, {version.FieldPath(), [][]int{{0, 0}}}, {ownerName.FieldPath(), [][]int{{2}, {0}}},
+		{bossName.FieldPath(), [][]int{{3}, {0}}}, {nick.FieldPath(), [][]int{{5}}},
+		{StringRefOf[doc, string]([][]int{{2}, {0}}, nil).FieldPath(), [][]int{{2}, {0}}},
+	} {
+		if !slices.EqualFunc(c.got.Index(), c.want, slices.Equal) {
+			t.Errorf("%s: %v, want %v", c.got, c.got.Index(), c.want)
+		}
+	}
 
 	d := doc{Title: "go", Owner: link[owner]{&owner{"ada"}}}
 	if v, ok := version.Lookup(d); ok || v != 0 {
@@ -78,5 +90,37 @@ func TestRefs(t *testing.T) {
 	}
 	if !slices.Equal(got, []string{"a", "c", "b"}) {
 		t.Errorf("sorted: %v", got)
+	}
+}
+
+type box[T any] struct {
+	N   int
+	V   T
+	sub struct{ inner [2]int }
+}
+
+func TestRefToGeneric(t *testing.T) {
+	ref := func() OrderedRef[box[string], int] { return OrderedRefTo(func(b *box[string]) *int { return &b.N }) }
+	if got := ref().FieldPath().Index(); !slices.EqualFunc(got, [][]int{{0}}, slices.Equal) {
+		t.Errorf("N: %v", got)
+	}
+	if got := RefTo(func(b *box[int]) *int { return &b.V }).FieldPath().Index(); !slices.EqualFunc(got, [][]int{{1}}, slices.Equal) {
+		t.Errorf("V: %v", got)
+	}
+	if got := RefTo(func(b *box[int]) *[2]int { return &b.sub.inner }).FieldPath().Index(); !slices.EqualFunc(got, [][]int{{2}, {0}}, slices.Equal) {
+		t.Errorf("sub.inner: %v", got)
+	}
+	defer func() {
+		if r := recover(); r == nil {
+			t.Error("a function returning no field's address")
+		}
+	}()
+	n := 0
+	RefTo(func(b *box[int]) *int { return &n })
+}
+
+func BenchmarkRefTo(b *testing.B) {
+	for i := 0; i < b.N; i++ {
+		StringRefTo(func(d *doc) *string { return &d.Owner.Related().Name })
 	}
 }

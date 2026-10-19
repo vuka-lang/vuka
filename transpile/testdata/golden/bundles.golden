@@ -105,9 +105,9 @@ func main() {
 }
 
 func init() {
-	vuka.RegisterFunc(listPets, append([]any{}, listPetsDecB0.Attrs()...)...)
-	vuka.RegisterFunc(listUsers, append(append([]any{}, listUsersDecB0.Attrs()...), listUsersDecB1.Attrs()...)...)
-	vuka.RegisterType[PetStore](append([]any{}, petStoreB0.Attrs()...)...)
+	vuka.RegisterFunc(listPets, listPetsDecB0.Attrs()...)
+	vuka.RegisterFunc(listUsers, append(listUsersDecB0.Attrs(), listUsersDecB1.Attrs()...)...)
+	vuka.RegisterType[PetStore](petStoreB0.Attrs()...)
 }
 
 //line bundles.vuka:65
@@ -115,22 +115,10 @@ var listPetsDecB0 = ApiRoute("/pets")
 
 var listPetsDec vuka.Decorated[func() []string]
 
-var listPetsDecInfo = vuka.Func{Name: "main.listPets", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new([]string)} }, Attrs: append([]any{}, listPetsDecB0.Attrs()...)}
-
 //line bundles.vuka:66
 func listPets() []string {
 	return listPetsDec.Get(func() func() []string {
-		return func(next func() []string) func() []string {
-			chain := append([]vuka.Decorator{}, listPetsDecB0.Calls()...)
-			if len(chain) == 0 {
-				return next
-			}
-			return func() []string {
-				c := vuka.NewCall(&listPetsDecInfo, chain, nil, []any{}, func(c *vuka.Call) []any { r0 := next(); return []any{r0} })
-				c.Run()
-				return vuka.As[[]string](c.Results[0])
-			}
-		}(listPetsImpl)
+		return vuka.Wrap(listPetsImpl, vuka.FuncInfo{Name: "main.listPets", Attrs: listPetsDecB0.Attrs()}, listPetsDecB0.Calls()...)
 	})()
 }
 
@@ -146,22 +134,10 @@ var listUsersDecB1 = Audited()
 
 var listUsersDec vuka.Decorated[func(int) []string]
 
-var listUsersDecInfo = vuka.Func{Name: "main.listUsers", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new([]string)} }, Attrs: append(append([]any{}, listUsersDecB0.Attrs()...), listUsersDecB1.Attrs()...)}
-
 //line bundles.vuka:70
 func listUsers(limit int) []string {
 	return listUsersDec.Get(func() func(int) []string {
-		return func(next func(int) []string) func(int) []string {
-			chain := append(append([]vuka.Decorator{}, listUsersDecB0.Calls()...), listUsersDecB1.Calls()...)
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 int) []string {
-				c := vuka.NewCall(&listUsersDecInfo, chain, nil, []any{p0}, func(c *vuka.Call) []any { r0 := next(vuka.As[int](c.Args[0])); return []any{r0} })
-				c.Run()
-				return vuka.As[[]string](c.Results[0])
-			}
-		}(listUsersImpl)
+		return vuka.Wrap(listUsersImpl, vuka.FuncInfo{Name: "main.listUsers", Attrs: append(listUsersDecB0.Attrs(), listUsersDecB1.Attrs()...)}, append(listUsersDecB0.Calls(), listUsersDecB1.Calls()...)...)
 	})(limit)
 }
 
@@ -179,7 +155,7 @@ func NewPetStore(pets []string) *PetStore {
 //line bundles.vuka:73
 func petStoreAdvice() []vuka.Decorator {
 //line bundles.vuka:72
-	return append([]vuka.Decorator{}, Service().Calls()...)
+	return Service().Calls()
 }
 
 //line bundles.vuka:72
@@ -191,21 +167,9 @@ func init() {
 
 var petStoreCountDec vuka.Decorated[func(*PetStore) int]
 
-var petStoreCountDecInfo = vuka.Func{Name: "PetStore.Count", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{}}
-
 //line bundles.vuka:75
 func (s *PetStore) Count() int {
 	return petStoreCountDec.Get(func() func(*PetStore) int {
-		return func(next func(*PetStore) int) func(*PetStore) int {
-			chain := petStoreAdvice()
-			if len(chain) == 0 {
-				return next
-			}
-			return func(p0 *PetStore) int {
-				c := vuka.NewCall(&petStoreCountDecInfo, chain, p0, []any{}, func(c *vuka.Call) []any { r0 := next(vuka.As[*PetStore](c.Receiver)); return []any{r0} })
-				c.Run()
-				return vuka.As[int](c.Results[0])
-			}
-		}((*PetStore).count)
+		return vuka.Wrap((*PetStore).count, vuka.FuncInfo{Name: "PetStore.Count", Method: true}, petStoreAdvice()...)
 	})(s)
 }

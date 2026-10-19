@@ -10,6 +10,7 @@ import (
 	"go/token"
 	"go/types"
 	"maps"
+	"regexp"
 	"slices"
 	"sort"
 	"strconv"
@@ -49,11 +50,29 @@ func (e *engine) tidy(srcs [][]byte, srcMaps []*SourceMap) ([][]byte, []*SourceM
 			continue
 		}
 		if b, segs, ok := t.tidy(renames); ok {
-			outs[i], outMaps[i] = b, &SourceMap{segs: segs, spellings: t.m.spellings}
+			outs[i], outMaps[i] = b, &SourceMap{segs: segs, spellings: renamedSpellings(t.m.spellings, renames)}
 		}
 	}
 	return outs, outMaps
 }
+
+// renamedSpellings are spellings quoting the code as tidied: its
+// __-prefixed names renamed.
+func renamedSpellings(sps []spelling, renames map[string]string) []spelling {
+	out := make([]spelling, len(sps))
+	for i, sp := range sps {
+		sp.gen = tidyName.ReplaceAllStringFunc(sp.gen, func(n string) string {
+			if r, ok := renames[n]; ok {
+				return r
+			}
+			return n
+		})
+		out[i] = sp
+	}
+	return out
+}
+
+var tidyName = regexp.MustCompile(`\b__\w+`)
 
 // renames gives every __-prefixed name Vuka declared in the package's files
 // a plain one, unused anywhere in the package, so no rename captures or

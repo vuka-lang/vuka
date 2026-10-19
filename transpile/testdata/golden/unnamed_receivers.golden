@@ -79,45 +79,21 @@ func init() {
 
 var sessionLoggedDec vuka.Decorated[func(Session, string) string]
 
-var sessionLoggedDecInfo = vuka.Func{Name: "Session.Logged", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(string)} }, Attrs: []any{}}
-
 //line unnamed_receivers.vuka:32
 func (recv Session) Logged(r string) string {
 	return sessionLoggedDec.Get(func() func(Session, string) string {
-		return func(next func(Session, string) string) func(Session, string) string {
 //line unnamed_receivers.vuka:31
-			chain := []vuka.Decorator{logged}
-			return func(p0 Session, p1 string) string {
-				c := vuka.NewCall(&sessionLoggedDecInfo, chain, p0, []any{p1}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[Session](c.Receiver), vuka.As[string](c.Args[0]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[string](c.Results[0])
-			}
-		}((Session).loggedImpl)
+		return vuka.Wrap((Session).loggedImpl, vuka.FuncInfo{Name: "Session.Logged", Method: true}, logged)
 	})(recv, r)
 }
 
 var sessionBothDec vuka.Decorated[func(*Session, string, string) (r1 string)]
 
-var sessionBothDecInfo = vuka.Func{Name: "Session.Both", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(string)} }, Attrs: []any{}}
-
 //line unnamed_receivers.vuka:36
 func (recv *Session) Both(r string, s string) (r1 string) {
 	return sessionBothDec.Get(func() func(*Session, string, string) (r1 string) {
-		return func(next func(*Session, string, string) (r1 string)) func(*Session, string, string) (r1 string) {
 //line unnamed_receivers.vuka:34
-			chain := []vuka.Decorator{logged}
-			return func(p0 *Session, p1 string, p2 string) (r1 string) {
-				c := vuka.NewCall(&sessionBothDecInfo, chain, p0, []any{p1, p2}, func(c *vuka.Call) []any {
-					r0 := next(vuka.As[*Session](c.Receiver), vuka.As[string](c.Args[0]), vuka.As[string](c.Args[1]))
-					return []any{r0}
-				})
-				c.Run()
-				return vuka.As[string](c.Results[0])
-			}
-		}((*Session).both)
+		return vuka.Wrap((*Session).both, vuka.FuncInfo{Name: "Session.Both", Method: true}, logged)
 	})(recv, r, s)
 }
 

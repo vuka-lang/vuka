@@ -9,8 +9,10 @@ import (
 )
 
 // An overload is one declaration of an overloaded function or method. It is
-// renamed to a mangled name, and every call is pointed at the overload whose
-// parameters fit the arguments' static types best.
+// renamed after its parameters' types, as Go would name it — area(c Circle)
+// is areaCircle, Update(ctx, m NewMessage) is UpdateNewMessage — and every
+// call is pointed at the overload whose parameters fit the arguments'
+// static types best.
 type overload struct {
 	file    *fileState
 	decl    *ast.FuncDecl // from the first round
@@ -62,9 +64,11 @@ func declKey(fd *ast.FuncDecl) string {
 	return fd.Name.Name
 }
 
-// findOverloads collects the functions and methods declared more than once, and
-// renames each declaration to its mangled name.
-func findOverloads(files []*fileState, errs *ErrorList) map[string]*overloadSet {
+// findOverloads collects the functions and methods declared more than once
+// in files, and renames each declaration after its parameters' types: a
+// name no declaration of the package (all) has, numbered when two would
+// share one.
+func findOverloads(files, all []*fileState, errs *ErrorList) map[string]*overloadSet {
 	sets := map[string]*overloadSet{}
 	var order []string
 	for _, f := range files {
@@ -83,6 +87,7 @@ func findOverloads(files []*fileState, errs *ErrorList) map[string]*overloadSet 
 			s.list = append(s.list, &overload{file: f, decl: fd, nameOff: f.orig(fd.Name.Pos())})
 		}
 	}
+	taken := declaredNames(all)
 	for _, key := range order {
 		s := sets[key]
 		if len(s.list) < 2 {
@@ -94,16 +99,16 @@ func findOverloads(files []*fileState, errs *ErrorList) map[string]*overloadSet 
 			if o.decl.Type.TypeParams != nil {
 				errs.add("E0120", o.file.nodePos(o.decl.Name.Pos()), "generic functions can't be overloaded yet")
 			}
-			o.mangled = mangle(o.decl)
-			if prev := seen[o.mangled]; prev != nil {
+			for _, prev := range seen {
 				if paramTypes(prev) == paramTypes(o) {
 					errs.add("E0120", o.file.nodePos(o.decl.Name.Pos()), "%s is already declared with parameters (%s) at %s",
 						s.display(), paramTypes(o), prev.file.nodePos(prev.decl.Name.Pos()))
-					continue
 				}
-				for n := 2; seen[o.mangled] != nil; n++ {
-					o.mangled = mangle(o.decl) + "_" + itoa(n)
-				}
+			}
+			base := overloadName(o.decl)
+			o.mangled = base
+			for n := 2; seen[o.mangled] != nil || taken[s.recv+"."+o.mangled]; n++ {
+				o.mangled = base + itoa(n)
 			}
 			seen[o.mangled] = o
 		}
@@ -118,6 +123,45 @@ func findOverloads(files []*fileState, errs *ErrorList) map[string]*overloadSet 
 	return sets
 }
 
+// declaredNames are the package's names: "."+name at package level,
+// "T."+name for the methods and fields of T.
+func declaredNames(files []*fileState) map[string]bool {
+	names := map[string]bool{}
+	for _, f := range files {
+		if f.ast == nil {
+			continue
+		}
+		for _, d := range f.ast.Decls {
+			switch d := d.(type) {
+			case *ast.FuncDecl:
+				names[recvBase(d)+"."+d.Name.Name] = true
+			case *ast.GenDecl:
+				for _, sp := range d.Specs {
+					switch sp := sp.(type) {
+					case *ast.TypeSpec:
+						names["."+sp.Name.Name] = true
+						if st, ok := sp.Type.(*ast.StructType); ok {
+							for _, fl := range st.Fields.List {
+								for _, n := range fl.Names {
+									names[sp.Name.Name+"."+n.Name] = true
+								}
+								if len(fl.Names) == 0 {
+									names[sp.Name.Name+"."+embeddedName(fl.Type)] = true
+								}
+							}
+						}
+					case *ast.ValueSpec:
+						for _, n := range sp.Names {
+							names["."+n.Name] = true
+						}
+					}
+				}
+			}
+		}
+	}
+	return names
+}
+
 func paramTypes(o *overload) string {
 	var ts []string
 	for _, field := range o.decl.Type.Params.List {
@@ -128,62 +172,85 @@ func paramTypes(o *overload) string {
 	return strings.Join(ts, ", ")
 }
 
-// mangle names an overload after its parameter types: area(c Circle) is
-// area__Circle, scale(s *Shape, by float64) is scale__pShape_float64.
-func mangle(fd *ast.FuncDecl) string {
+// overloadName names an overload after its parameters' types, the way a
+// person writing Go would: area(c Circle) is areaCircle, scale(s *Shape,
+// by float64) scaleShapeFloat64, Add(nums ...int) AddInts, an overload
+// taking nothing area0. A leading context.Context is left out when more
+// follows: Update(ctx, t Typing) is UpdateTyping.
+func overloadName(fd *ast.FuncDecl) string {
 	var keys []string
-	for _, field := range fd.Type.Params.List {
-		k := typeKey(field.Type)
+	for i, field := range fd.Type.Params.List {
+		if i == 0 && types.ExprString(field.Type) == "context.Context" && len(field.Names) <= 1 && len(fd.Type.Params.List) > 1 {
+			continue
+		}
+		k := TypeName(field.Type)
 		for range max(1, len(field.Names)) {
 			keys = append(keys, k)
 		}
 	}
 	if len(keys) == 0 {
-		return fd.Name.Name + "__0"
+		return fd.Name.Name + "0"
 	}
-	return fd.Name.Name + "__" + strings.Join(keys, "_")
+	return fd.Name.Name + strings.Join(keys, "")
 }
 
-func typeKey(e ast.Expr) string {
+// TypeName is a type written as part of a Go name: int is Int, *Shape
+// Shape, time.Time Time, []Order Orders, map[string]int MapStringInt, any
+// Any. An overload's name is its function's followed by its parameters':
+// ui.TypeName is the same for a reflect.Type, and ui.IsUpdate finds an
+// Update overload by it.
+func TypeName(e ast.Expr) string {
 	switch t := e.(type) {
 	case *ast.Ident:
-		return t.Name
+		return upperFirst(t.Name)
 	case *ast.ParenExpr:
-		return typeKey(t.X)
+		return TypeName(t.X)
 	case *ast.StarExpr:
-		return "p" + typeKey(t.X)
+		return TypeName(t.X)
 	case *ast.SelectorExpr:
-		return typeKey(t.X) + "_" + t.Sel.Name
+		return upperFirst(t.Sel.Name)
 	case *ast.Ellipsis:
-		return "v" + typeKey(t.Elt)
+		return plural(TypeName(t.Elt))
 	case *ast.ArrayType:
-		if t.Len == nil {
-			return "s" + typeKey(t.Elt)
-		}
-		return "a" + sanitize(types.ExprString(t.Len)) + typeKey(t.Elt)
+		return plural(TypeName(t.Elt))
 	case *ast.MapType:
-		return "m" + typeKey(t.Key) + "_" + typeKey(t.Value)
+		return "Map" + TypeName(t.Key) + TypeName(t.Value)
 	case *ast.ChanType:
-		return "c" + typeKey(t.Value)
+		return "Chan" + TypeName(t.Value)
 	case *ast.FuncType:
-		return "fn"
+		return "Func"
 	case *ast.InterfaceType:
 		if t.Methods == nil || len(t.Methods.List) == 0 {
-			return "any"
+			return "Any"
 		}
-		return "iface"
+		return "Interface"
 	case *ast.StructType:
-		return "struct"
+		return "Struct"
 	case *ast.IndexExpr:
-		return typeKey(t.X) + "_" + typeKey(t.Index)
+		return TypeName(t.X) + TypeName(t.Index)
 	case *ast.IndexListExpr:
-		k := typeKey(t.X)
+		k := TypeName(t.X)
 		for _, x := range t.Indices {
-			k += "_" + typeKey(x)
+			k += TypeName(x)
 		}
 		return k
 	}
-	return sanitize(types.ExprString(e))
+	if s := sanitize(types.ExprString(e)); s != "" {
+		return upperFirst(s)
+	}
+	return "T"
+}
+
+// plural is a name's plural, as Go writes one: Ints, Addresses, Entries.
+func plural(s string) string {
+	switch {
+	case strings.HasSuffix(s, "s"), strings.HasSuffix(s, "x"), strings.HasSuffix(s, "z"),
+		strings.HasSuffix(s, "ch"), strings.HasSuffix(s, "sh"):
+		return s + "es"
+	case len(s) > 1 && s[len(s)-1] == 'y' && !strings.ContainsRune("aeiouAEIOU", rune(s[len(s)-2])):
+		return s[:len(s)-1] + "ies"
+	}
+	return s + "s"
 }
 
 func sanitize(s string) string {

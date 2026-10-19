@@ -92,38 +92,21 @@ func main() {
 
 var saveDec vuka.Decorated[func(string)]
 
-var saveDecInfo = vuka.Func{Name: "main.save", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{} }, Attrs: []any{}}
-
 //line optional_args.vuka:34
 func save(name string) {
 	saveDec.Get(func() func(string) {
-		return func(next func(string)) func(string) {
 //line optional_args.vuka:33
-			chain := []vuka.Decorator{Transactional()}
-			return func(p0 string) {
-				c := vuka.NewCall(&saveDecInfo, chain, nil, []any{p0}, func(c *vuka.Call) []any { next(vuka.As[string](c.Args[0])); return nil })
-				c.Run()
-			}
-		}(saveImpl)
+		return vuka.Wrap(saveImpl, vuka.FuncInfo{Name: "main.save"}, Transactional())
 	})(name)
 }
 
 var reportDec vuka.Decorated[func() int]
 
-var reportDecInfo = vuka.Func{Name: "main.report", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{}}
-
 //line optional_args.vuka:37
 func report() int {
 	return reportDec.Get(func() func() int {
-		return func(next func() int) func() int {
 //line optional_args.vuka:36
-			chain := []vuka.Decorator{Transactional(On("analytics"), ReadOnly)}
-			return func() int {
-				c := vuka.NewCall(&reportDecInfo, chain, nil, []any{}, func(c *vuka.Call) []any { r0 := next(); return []any{r0} })
-				c.Run()
-				return vuka.As[int](c.Results[0])
-			}
-		}(reportImpl)
+		return vuka.Wrap(reportImpl, vuka.FuncInfo{Name: "main.report"}, Transactional(On("analytics"), ReadOnly))
 	})()
 }
 

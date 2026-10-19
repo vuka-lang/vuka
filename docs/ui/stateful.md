@@ -163,16 +163,30 @@ A component subscribed to a topic receives what the transport publishes on
 it, through `Update` methods taking it — overloads included, each picked by
 the message's dynamic type:
 
+::: vuka
 ```vuka
 @ui.Mount
 func (c *Chat) mount(ctx context.Context) error      { c.Subscribe("room:" + c.Room); return nil }
 func (c *Chat) Update(m NewMessage)                  { c.log = append(c.log, m.Text) }
 func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
 ```
+:::
+
+::: go
+```go
+func (c *Chat) mount(ctx context.Context) error            { c.Subscribe("room:" + c.Room); return nil }
+func (c *Chat) UpdateNewMessage(m NewMessage)              { c.log = append(c.log, m.Text) }
+func (c *Chat) UpdateTyping(ctx context.Context, t Typing) { c.typing = t.Who }
+```
+:::
 
 An `Update` takes an optional `context.Context` and the message, and returns
 nothing or an error. One taking the message's type exactly wins over one it
-is assignable to, and those over one taking `any`.
+is assignable to, and those over one taking `any`. In Go an overload is
+`Update` followed by the message type's name (`ui.TypeName`: `UpdateOrders`
+for `[]Order`, `UpdateAny` for `any`), what vuka names `.vuka`'s overloads;
+`ui.IsUpdate` tells one, and the browser can't call it. `Update__T`, the
+name older vuka commands wrote, still counts.
 
 ## Change tracking
 

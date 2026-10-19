@@ -327,7 +327,9 @@ func TestNewVariants(t *testing.T) {
 		{"apishop", []string{"--ui=api", "--frontend=vue"}, nil},
 	} {
 		dir := e.new(v.name, v.flags...)
-		e.run(dir, off, "vuka", "vet", "./...")
+		if out := e.run(dir, off, "vuka", "vet", "./..."); strings.Contains(out, "warning[W030") {
+			t.Errorf("%s: the scaffold uses deprecated forms:\n%s", v.name, out)
+		}
 		e.run(dir, off, "vuka", "test", "./...")
 		e.run(dir, off, "vuka", "build", "-o", filepath.Join(dir, v.name), ".")
 		e.run(dir, off, "vuka", "add", "module", "tasks")

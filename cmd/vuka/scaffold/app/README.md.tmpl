@@ -108,14 +108,17 @@ and `go tool orm migrate` applies them without starting the app.
 {%- if .Pages%}
 
 **A page.** {%if eq .UI "live"%}A type with `@web.Live("/path")` is a live page: its state stays
-on the server and the page changes in place on each event. Wrap it in
-`layouts.App`, and add `layouts.Nav(layouts.Link{…})` to link it.{%else%}A function with `@web.Get("/path")` and `@web.Template("view.templ")`
+on the server and the page changes in place on each event. Its markup is
+the `.vuka.html` file beside it (`vuka add page /path` writes the pair);
+`@ui.Mount` marks the method that loads it. Wrap it in `layouts.App`, and
+add `layouts.Nav(layouts.Link{…})` to link it.{%else%}A function with `@web.Get("/path")` and `@web.Template("view.templ")`
 is a page: the templ component beside it renders its result. Wrap it in
 `layouts.App`, and add `layouts.Nav(layouts.Link{…})` to link it.{%end%}
 
-**A component.** A function returning `ui.Node` in `components/` is a
-component every page can use: `<components.Card title="…">…</components.Card>`{%if eq .UI "templ"%}, or
-`@components.Card(…)` from templ{%end%}.
+**A component.** A template in `components/*.vuka.html` is a component
+every page can use: `<components.Card title="…">…</components.Card>`{%if eq .UI "templ"%}, or
+`@components.Card(…)` from templ{%end%}. `vuka add component Name` writes
+one: a struct of its props in `name.vuka`, its markup in `name.vuka.html`.
 {%- end%}
 {%- if .Auth%}
 

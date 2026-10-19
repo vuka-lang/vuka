@@ -363,17 +363,24 @@ func (o *Orders) LiveSchema(l *ui.LiveSchema) {
 ```go
 type Orders struct {
 	ui.Live         // a live page
-	Q       string  `url:"q" bind:"q"`         // the component sets it; kept in the address's ?q=
-	Status  string  `bind:"status,debounce=0"` // set at once, no wait
+	Q       string  // the component sets it; kept in the address's ?q=
+	Status  string  // set at once, no wait
 	Rows    []Order // read only
 	db      *DB     // the server's own: injected, never sent
 }
 
 func NewOrders(db *DB) *Orders { return &Orders{db: db} }
 
-func (o *Orders) Mount(ctx context.Context) error            { return o.load(ctx) }
-func (o *Orders) Changed(ctx context.Context) error          { return o.load(ctx) } // after the component sets Q or Status
-func (o *Orders) Cancel(ctx context.Context, id int64) error { … }                  // callable from the component
+func (o *Orders) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
+	l.Field(&o.Status, ui.Bind{Debounce: -1})
+	l.Mount(o.mount)
+	l.OnChange(o.changed)
+}
+
+func (o *Orders) mount(ctx context.Context) error                 { return o.load(ctx) }
+func (o *Orders) changed(ctx context.Context, c ui.Changed) error { return o.load(ctx) } // after the component sets Q or Status
+func (o *Orders) Cancel(ctx context.Context, id int64) error      { … }                  // callable from the component
 
 // Render is the component file: web/islands/Orders.vue.
 func (o *Orders) Render() ui.Node { return ui.IslandPage(o) }

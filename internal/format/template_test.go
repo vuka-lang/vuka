@@ -13,3 +13,10 @@ func TestTemplate(t *testing.T) {
 		t.Fatalf("not idempotent:\n%q", again)
 	}
 }
+
+func TestTemplateLongHeader(t *testing.T) {
+	src := "func App(me *auth.Identity, path string, title string, description string, actions ui.Node, children ui.Node)\n<div>{title}</div>\n"
+	if got, err := Template([]byte(src)); err != nil || string(got) != src {
+		t.Fatalf("got\n%q", got)
+	}
+}

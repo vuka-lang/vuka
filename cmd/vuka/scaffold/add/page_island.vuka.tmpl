@@ -14,7 +14,7 @@ import (
 
 // {%.Type%} is the page at {%.Path%}, backed by its component
 // ({%.IslandPath%}): the exported fields are what it reads (live.{%.URLJSON%}.value),
-// a bind: field one it sets too, and Changed runs after it does{%if .Live%}; it
+// the bound one it sets too, and {%if .Live%}changed{%else%}Changed{%end%} runs after it does{%if .Live%}; it
 // is live, so the server keeps the instance and the component gets the new
 // props{%end%}.
 {%if .Live%}@web.Live{%else%}@web.Get{%end%}("{%.Path%}")
@@ -24,17 +24,40 @@ type {%.Type%} struct {
 	ui.Live
 {%- end%}
 	{%.Prop%} string   `json:"{%.PropJSON%}"`
+{%- if .Live%}
+	{%.URLField%}     string   `json:"{%.URLJSON%}"` @ui.URL("{%.URLJSON%}") @ui.Bind // kept in the address (?{%.URLJSON%}=); the component sets it
+{%- else%}
 	{%.URLField%}     string   `json:"{%.URLJSON%}" url:"{%.URLJSON%}" bind:"{%.URLJSON%}"` // kept in the address (?{%.URLJSON%}=); the component sets it
+{%- end%}
 	Items []string `json:"items"`
 }
+
+{%- if .Live%}
+
+@ui.Mount
+func (p *{%.Type%}) mount(ctx context.Context) error {
+	p.{%.Prop%} = "{%.Title%}"
+	p.filter()
+	return nil
+}
+{%- else%}
 
 func (p *{%.Type%}) Mount(ctx context.Context) {
 	p.{%.Prop%} = "{%.Title%}"
 	p.filter()
 }
+{%- end%}
+
+{%- if .Live%}
+
+// changed runs after the component sets {%.URLField%}: live.{%.URLJSON%}.set(v).
+@ui.OnChange
+func (p *{%.Type%}) changed(ctx context.Context, c ui.Changed) error {
+{%- else%}
 
 // Changed runs after the component sets {%.URLField%}: live.{%.URLJSON%}.set(v).
 func (p *{%.Type%}) Changed(ctx context.Context) error {
+{%- end%}
 	p.filter()
 	return nil
 }

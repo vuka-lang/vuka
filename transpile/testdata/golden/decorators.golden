@@ -98,8 +98,8 @@ func oneImpl[T any](v T) []T { return []T{v} }
 func twice(f func(int) int) func(int) int { return func(n int) int { return 2 * f(n) } }
 
 //line decorators.vuka:94
-func areaInt(n int) int         { return n * n }
-func area__string(s string) int { return len(s) }
+func areaIntImpl(n int) int   { return n * n }
+func areaString(s string) int { return len(s) }
 
 //line decorators.vuka:98
 type (
@@ -118,7 +118,7 @@ func counted[T any](f func(*Stack[T], T)) func(*Stack[T], T) {
 func (s *Stack[T]) push(v T) { s.items = append(s.items, v) }
 
 func extras() {
-	fmt.Println(one(7), one("a"), area__int(3), area__string("abcd"))
+	fmt.Println(one(7), one("a"), areaInt(3), areaString("abcd"))
 	var s Stack[int]
 	s.Push(1)
 	s.Push(2)
@@ -186,10 +186,10 @@ func one[T any](v T) []T {
 
 var areaIntDec vuka.Decorated[func(int) int]
 
-func area__int(n int) int {
+func areaInt(n int) int {
 	return areaIntDec.Get(func() func(int) int {
 //line decorators.vuka:93
-		return twice(areaInt)
+		return twice(areaIntImpl)
 	})(n)
 }
 

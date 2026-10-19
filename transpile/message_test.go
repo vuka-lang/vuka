@@ -27,7 +27,7 @@ var c = User.Table
 		t.Fatal(err)
 	}
 	m := res.Files[0].Map
-	ref := "vuka.StringRefOf[User, string]([][]int{…}, func(__x *User) {…})"
+	ref := "vuka.StringRefTo(func(x *User) *string {…})"
 	for _, c := range []struct {
 		line     int
 		msg, out string
