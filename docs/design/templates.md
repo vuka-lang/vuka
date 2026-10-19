@@ -160,7 +160,7 @@ expression of its argument, checked against the arguments by vukavet.
 ### A. Struct-first components
 
 A component is, by default, a struct whose fields are its props, its markup
-a `Render` template:
+a `View` template (see Addendum 3: the struct is the Node):
 
 ```go
 // sales.go
@@ -175,13 +175,13 @@ type Sales struct {
 
 ```html
 <!-- sales.vuka.html -->
-func (s Sales) Render()
+func (s Sales) View()
 <section class="sales">…{s.Title}…</section>
 ```
 
 A value receiver is a stateless component; a pointer receiver (`*Counter`)
 a stateful, live one. `<Sales title="x" week={w}/>` is
-`Sales{Title: "x", Week: w}` (a pointer type `&Counter{…}`, keyed `ui.Key`);
+`Sales{Title: "x", Week: w}`, itself a `ui.Node` (a stateful type `&Counter{…}`, keyed `ui.Key`);
 there is no separate `SalesProps`. Children and slots fill the struct's
 `ui.Node` fields. Function components, `func Sales(p SalesProps)`, stay
 supported — a tag works when the one parameter is a struct — and partials
@@ -262,7 +262,8 @@ A and B land in PRs 1 and 2; C and D in PR 3.
 
 Components are file-based by default.
 
-- `sales.vuka.html` is the `Render` of type `Sales` (the file's base name in
+- `sales.vuka.html` is the markup of type `Sales` — its `View`, or its
+  `Render` for a stateful type (Addendum 3) — (the file's base name in
   PascalCase), declared in `sales.vuka` or `sales.go` of the same package. The
   main template has no header: everything up to the first `func` line is the
   component's markup. A missing type is an error with help ("declare type
@@ -276,9 +277,11 @@ Components are file-based by default.
   otherwise.
 - More templates in the file start with `func` lines after the main markup
   (partials, called `{row(o)}`).
-- An explicit header on the first line, `func (s *Sales) Render()`, is still
-  allowed (a named receiver, another signature); expressions then use the
-  receiver's name.
+- An explicit header on the first line, `func (s Sales) View()` (or
+  `func (p *Orders) Render()` for a stateful type), is still allowed (a named
+  receiver, another signature); expressions then use the receiver's name.
+  A name the package itself declares is the package's, not the field: in such
+  a package (ui's own) write the header and the receiver.
 - Imports (`import Trend "./trend.vue"`) go at the very top, before the
   markup.
 - Live pages are the same pair (`orders.vuka` + `orders.vuka.html`); a page
@@ -289,6 +292,34 @@ Components are file-based by default.
 - The pair is the default everywhere: `vuka add component X` and `vuka add
   page X` scaffold it, `vuka eject` turns inline JSX `Render` methods into
   it, and the docs, examples and the hand-written ui kit use it.
+
+## Addendum 3: the struct is the Node
+
+A struct component is itself a `ui.Node` (`templ.Component`): `ui.Card{Title:
+t, Children: body}` goes in a hole, is returned and passed as it is, with no
+call after it.
+
+- Its markup is its `View() ui.Node` method: the file-based template of a
+  type that is not stateful compiles to `View`, and the compiler adds the
+  templ method rendering it, `func (s Sales) Render(ctx context.Context, w
+  io.Writer) error { return s.View().Render(ctx, w) }`. An explicit header
+  names it, `func (s Sales) View()`, and gets the same method. A hand-written
+  struct component writes both.
+- A stateful component (it embeds `ui.Live`) keeps `Render() ui.Node` as
+  its markup, as `ui.Stateful` has it: `&Counter{…}` in a hole is a
+  component tag, not a Node.
+- The renderers see through a struct component: HTML rendering, the live
+  render tree and blocks read its `View`, so it renders, diffs, keys (its
+  View's root `key`) and nests stateful components exactly as its markup;
+  its `Render(ctx, w)` is for everything else (templ, `http.Handler`s).
+- A tag naming such a struct compiles to the literal, `<Sales title="x"/>`
+  is `Sales{Title: "x"}` (`&T{…}` when only the pointer is a Node). A struct
+  whose `Render() ui.Node` is its markup (the earlier form, and `.vuka`'s
+  inline JSX `Render`) is still a tag, `T{…}.Render()`; `vuka eject` keeps
+  such a method's header, so ejected code keeps its API.
+- The ui kit is written this way; its former props types are aliases of the
+  components, so `ui.Card(ui.CardProps{…})` is a conversion yielding the
+  component, and `vuka fix ui-structs` writes it `ui.Card{…}`.
 
 ## Delivery
 

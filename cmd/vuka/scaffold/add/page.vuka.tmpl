@@ -44,7 +44,6 @@ type {%.Type%} struct {
 // {%.Handler%} is GET {%.Path%}.
 @web.Get("{%.Path%}")
 func {%.Handler%}(ctx context.Context{%range .Params%}, {%.Name%} string{%end%}) ui.Node {
-	p := {%.Type%}{Title: "{%.Title%}"{%range .Params%}, {%.Field%}: strings.TrimSpace({%.Name%}){%end%}}
-	return p.Render()
+	return {%.Type%}{Title: "{%.Title%}"{%range .Params%}, {%.Field%}: strings.TrimSpace({%.Name%}){%end%}}
 }
 {%- end%}

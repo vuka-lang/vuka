@@ -12,5 +12,5 @@ import (
 //line orders.vuka.html:2
 func Orders(n int) ui.Node {
 //line orders.vuka.html:2
-	return Admin{Title: "Orders", Actions: ui.HTML(`<button>New</button>`), Children: ui.HTML(`<p>{n} orders</p>`, n)}.Render()
+	return Admin{Title: "Orders", Actions: ui.HTML(`<button>New</button>`), Children: ui.HTML(`<p>{n} orders</p>`, n)}
 }

@@ -1,0 +1,35 @@
+// ui.Button(ui.ButtonProps{…}) → ui.Button{…}
+// ui.Card(ui.CardProps{…}) → ui.Card{…}
+// ui.Image(ui.ImageProps{…}) → ui.Image{…}
+// ui.Input(ui.FieldProps{…}) → ui.Input{…}
+// ui.Submit(ui.ButtonProps{…}) → ui.Submit{…}
+// ui.Table(ui.TableProps{…}) → ui.Table{…}
+
+package app
+
+import (
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+func page(rows []Row, p ui.ButtonProps, t ui.TableProps[Row]) ui.Node {
+	return ui.Card{
+		Title:  ui.Text("Rows"),
+		Header: ui.Actions(ui.Button{Variant: ui.Primary, Children: ui.Text("New")}),
+		Children: ui.Fragment(
+			ui.Table[Row]{Rows: rows, Columns: cols},
+			ui.Button(p),
+			ui.Table(t),
+			ui.Submit{Children: ui.Text("Go")},
+			ui.Input{Name: "q"},
+			ui.Image{Src: "/a.png"},
+			ui.Icon("plus"),
+			ui.Card{},
+		),
+	}
+}
+
+func done(b ui.BadgeProps) ui.Node { return ui.Badge(b) }
+
+var _ = fmt.Sprint

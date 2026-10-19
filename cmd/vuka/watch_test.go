@@ -119,53 +119,129 @@ func TestWatcher(t *testing.T) {
 	}
 }
 
-// TestWatcherEvents: with the system's file events, a save is seen at once,
-// whether the editor writes the file, renames another over it or writes it
-// twice (a formatter after the save); a new directory is watched, and so is
-// a file the app newly embeds.
+// A testClock is the watcher's clock in a test: each wait the watcher
+// starts is handed to the test, in order, and ends only when the test fires
+// it. The watcher blocks until its wait is taken, so a wait in the test's
+// hands says the watcher has finished what came before it (a look, a batch
+// sent) and is waiting.
+type testClock struct {
+	t     *testing.T
+	waits chan *testWait
+	done  chan struct{}
+}
+
+type testWait struct {
+	d time.Duration
+	c chan time.Time
+}
+
+func (w *testWait) fire() { w.c <- time.Time{} }
+
+func newTestClock(t *testing.T, w *watcher) *testClock {
+	k := &testClock{t: t, waits: make(chan *testWait), done: make(chan struct{})}
+	t.Cleanup(func() { close(k.done) })
+	w.after = func(d time.Duration) <-chan time.Time {
+		tw := &testWait{d, make(chan time.Time, 1)}
+		select {
+		case k.waits <- tw:
+		case <-k.done:
+		}
+		return tw.c
+	}
+	return k
+}
+
+// next is the watcher's next wait.
+func (k *testClock) next(what string) *testWait {
+	k.t.Helper()
+	select {
+	case w := <-k.waits:
+		return w
+	case <-time.After(10 * time.Second):
+		k.t.Fatalf("%s: the watcher doesn't wait", what)
+		return nil
+	}
+}
+
+// TestWatcherEvents: with the system's file events, a save is seen, whether
+// the editor writes the file, renames another over it or writes it twice (a
+// formatter after the save); a new directory is watched, and so is a file
+// the app newly embeds. The test's clock holds each calm until the test's
+// writes are made, so the look after it sees them all: one change is one
+// batch whatever the machine's load.
 func TestWatcherEvents(t *testing.T) {
 	ow, err := newOSWatch(nil)
 	if err != nil {
 		needs(t, "no file events: %v", err)
 	}
 	ow.close()
-	defer func(d time.Duration) { osSafetyNet = d }(osSafetyNet)
-	osSafetyNet = time.Hour // only the events tell
 	root := tempModule(t, map[string]string{"go.mod": "module x\n", "a.vuka": "a", "b.vuka": "b", "views/pet.html": "p"})
 	w := newWatcher(root)
+	clock := newTestClock(t, w)
 	w.scan()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	out := make(chan []string, 10)
-	go w.run(ctx, time.Hour, time.Hour, out)
-	for end := time.Now().Add(5 * time.Second); !w.events.Load(); time.Sleep(5 * time.Millisecond) {
-		if time.Now().After(end) {
-			t.Fatal("the watcher doesn't use file events")
-		}
+	const pollEvery = 2 * time.Hour
+	go w.run(ctx, pollEvery, pollEvery, out)
+	if wait := clock.next("start"); wait.d == pollEvery || !w.events.Load() {
+		t.Fatal("the watcher doesn't use file events")
 	}
 	path := func(rel string) string { return filepath.Join(root, filepath.FromSlash(rel)) }
+	// settle lets the watcher look once the test has made its writes: it
+	// ends each calm the watcher waits for, until the watcher waits for
+	// the next event after a look, and returns the batches sent. The watcher
+	// looks after a calm only, but when kicked: calmed says it needn't wait
+	// for one.
+	settle := func(what string, calmed bool) (batches [][]string) {
+		t.Helper()
+		for {
+			wait := clock.next(what + ": no event")
+			if wait.d == osQuiet {
+				calmed = true
+				wait.fire()
+				continue
+			}
+			if !calmed {
+				t.Fatalf("%s: the watcher looked without waiting for a calm", what)
+			}
+			for len(out) > 0 {
+				batches = append(batches, <-out)
+			}
+			return batches
+		}
+	}
+	// quiet checks that nothing more comes: an event late for the writes
+	// already seen finds nothing.
+	quiet := func(what string) {
+		t.Helper()
+		for {
+			select {
+			case wait := <-clock.waits:
+				if wait.d != osQuiet {
+					t.Fatalf("%s: the watcher looked without waiting for a calm", what)
+				}
+				wait.fire()
+				if more := settle(what, true); len(more) > 0 {
+					t.Errorf("%s: another batch %v", what, more)
+				}
+			case <-time.After(100 * time.Millisecond):
+				return
+			}
+		}
+	}
 	expect := func(what string, want ...string) {
 		t.Helper()
-		start := time.Now()
-		select {
-		case got := <-out:
-			slices.Sort(got)
-			got = slices.Compact(got)
-			for i := range want {
-				want[i] = path(want[i])
-			}
-			if !slices.Equal(got, want) {
-				t.Errorf("%s: %v, want %v", what, got, want)
-			}
-			t.Logf("%s: seen after %v", what, time.Since(start))
-		case <-time.After(5 * time.Second):
-			t.Fatalf("%s: no change seen", what)
+		batches := settle(what, false)
+		for i := range want {
+			want[i] = path(want[i])
 		}
-		select {
-		case more := <-out:
-			t.Errorf("%s: a second batch %v", what, more)
-		case <-time.After(150 * time.Millisecond):
+		if len(batches) != 1 {
+			t.Errorf("%s: batches %v, want one of %v", what, batches, want)
+		} else if got := slices.Compact(slices.Sorted(slices.Values(batches[0]))); !slices.Equal(got, want) {
+			t.Errorf("%s: %v, want %v", what, got, want)
 		}
+		quiet(what)
 	}
 
 	writeFile(t, path("a.vuka"), "a2")
@@ -181,14 +257,15 @@ func TestWatcherEvents(t *testing.T) {
 	expect("a write to the renamed file", "a.vuka")
 
 	writeFile(t, path("b.vuka"), "b2 unformatted") // a save, then a formatter's rewrite
-	time.Sleep(5 * time.Millisecond)
 	writeFile(t, path("b.vuka"), "b2")
 	expect("a save and a format", "b.vuka")
 
 	if err := os.Mkdir(path("lib"), 0o755); err != nil {
 		t.Fatal(err)
 	}
-	time.Sleep(100 * time.Millisecond) // the directory is looked at before anything is in it
+	if batches := settle("a new directory", false); len(batches) > 0 { // looked at before anything is in it
+		t.Errorf("an empty directory: %v", batches)
+	}
 	writeFile(t, path("lib/c.vuka"), "c")
 	expect("a file in a new directory", "lib/c.vuka")
 	writeFile(t, path("lib/c.vuka"), "c2")
@@ -196,52 +273,204 @@ func TestWatcherEvents(t *testing.T) {
 
 	for i := range 5 { // the app writing its log: not a source
 		writeFile(t, path("app.log"), strings.Repeat("x", i+1))
-		time.Sleep(10 * time.Millisecond)
 	}
-	select {
-	case got := <-out:
-		t.Errorf("a log written: %v", got)
-	case <-time.After(200 * time.Millisecond):
-	}
+	quiet("a log written")
 
 	w.setEmbeds([]string{path("views/pet.html")}) // a build found it embedded
-	time.Sleep(100 * time.Millisecond)
+	if batches := settle("new embeds", true); len(batches) > 0 {
+		t.Errorf("new embeds: %v", batches)
+	}
 	writeFile(t, path("views/pet.html"), "p2")
 	expect("an embedded file", "views/pet.html")
 }
 
-// TestWatcherDebounce: a burst of saves is one change, sent once the
-// sources are calm.
+// TestWatcherDebounce: looking every interval, a burst of saves is one
+// change, sent once a look finds the sources calm.
 func TestWatcherDebounce(t *testing.T) {
 	root := tempModule(t, map[string]string{"go.mod": "module x\n", "a.vuka": "", "b.vuka": ""})
 	w := newWatcher(root)
 	w.poll = true
+	clock := newTestClock(t, w)
 	w.scan()
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	out := make(chan []string, 10)
-	go w.run(ctx, 10*time.Millisecond, 80*time.Millisecond, out)
-	start := time.Now()
+	const interval, quiet = time.Hour, time.Minute
+	go w.run(ctx, interval, quiet, out)
+	wait := clock.next("start")
+	if wait.d != interval {
+		t.Fatalf("the first wait: %v, want the interval", wait.d)
+	}
 	for i := range 10 {
 		writeFile(t, filepath.Join(root, []string{"a.vuka", "b.vuka"}[i%2]), strings.Repeat("x", i+1))
-		time.Sleep(20 * time.Millisecond)
+		wait.fire()
+		if wait = clock.next("a save"); wait.d != quiet {
+			t.Fatalf("after save %d the watcher waits %v, want the calm %v", i, wait.d, quiet)
+		}
+		if len(out) > 0 {
+			t.Fatalf("a batch before the saves stopped: %v", <-out)
+		}
+	}
+	wait.fire() // the sources calm: the look finds nothing new
+	if wait = clock.next("the calm"); wait.d != interval {
+		t.Errorf("once calm the watcher waits %v, want the interval", wait.d)
 	}
 	select {
 	case batch := <-out:
-		if took := time.Since(start); took < 250*time.Millisecond {
-			t.Errorf("the batch came %v after the first save, before the saves stopped", took)
-		}
-		slices.Sort(batch)
-		if batch = slices.Compact(batch); len(batch) != 2 {
+		if batch = slices.Compact(slices.Sorted(slices.Values(batch))); len(batch) != 2 {
 			t.Errorf("batch %v", batch)
 		}
-	case <-time.After(5 * time.Second):
-		t.Fatal("no batch")
+	default:
+		t.Fatal("no batch once calm")
+	}
+	wait.fire() // a calm tree: nothing to send
+	clock.next("a look at a calm tree")
+	if len(out) > 0 {
+		t.Errorf("a second batch: %v", <-out)
+	}
+}
+
+// testOSWatch is file events a test sends.
+type testOSWatch struct {
+	c      chan struct{}
+	err    chan error
+	synced chan struct{} // a look has had the watch follow the sources
+	follow func() bool   // when set, what watch does and reports
+}
+
+func (o *testOSWatch) watch(dirs, files map[string]uint64) (bool, error) {
+	if o.follow != nil {
+		return o.follow(), nil
 	}
 	select {
+	case o.synced <- struct{}{}:
+	default:
+	}
+	return false, nil
+}
+func (o *testOSWatch) events() <-chan struct{} { return o.c }
+func (o *testOSWatch) errors() <-chan error    { return o.err }
+func (o *testOSWatch) close()                  {}
+
+// TestWatcherCalm: with file events, a look waits for osQuiet without one,
+// each event starting the wait anew; a change made while the last batch
+// waits for the supervisor joins it; an event that finds nothing sends
+// nothing.
+func TestWatcherCalm(t *testing.T) {
+	root := tempModule(t, map[string]string{"go.mod": "module x\n", "a.vuka": "a", "b.vuka": "b"})
+	w := newWatcher(root)
+	clock := newTestClock(t, w)
+	w.scan()
+	ow := &testOSWatch{c: make(chan struct{}, 1), err: make(chan error, 1), synced: make(chan struct{}, 1)}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	out := make(chan []string) // the supervisor takes a batch when it is ready for it
+	go w.runEvents(ctx, ow, out)
+	if wait := clock.next("start"); wait.d == osQuiet {
+		t.Fatal("the watcher waits for a calm with no event")
+	}
+	<-ow.synced
+	event := func() { ow.c <- struct{}{} }
+	looked := func(what string) {
+		t.Helper()
+		select {
+		case <-ow.synced:
+		case <-time.After(10 * time.Second):
+			t.Fatalf("%s: no look", what)
+		}
+	}
+
+	writeFile(t, filepath.Join(root, "a.vuka"), "a2")
+	event()
+	first := clock.next("an event")
+	if first.d != osQuiet {
+		t.Fatalf("after an event the watcher waits %v, want osQuiet", first.d)
+	}
+	writeFile(t, filepath.Join(root, "a.vuka"), "a22") // a formatter's rewrite
+	event()
+	second := clock.next("a second event")
+	if second.d != osQuiet {
+		t.Fatalf("after a second event the watcher waits %v, want osQuiet", second.d)
+	}
+	first.fire() // the wait the second event replaced
+	select {
+	case <-ow.synced:
+		t.Fatal("the watcher looked before the sources were calm")
+	case <-time.After(50 * time.Millisecond):
+	}
+	second.fire()
+	looked("the calm")
+
+	// The batch waits for the supervisor: a change meanwhile joins it.
+	writeFile(t, filepath.Join(root, "b.vuka"), "b2")
+	event()
+	clock.next("an event while a batch waits").fire()
+	looked("the calm while a batch waits")
+	var idle *testWait
+	select {
 	case batch := <-out:
-		t.Errorf("a second batch: %v", batch)
-	case <-time.After(200 * time.Millisecond):
+		if want := []string{filepath.Join(root, "a.vuka"), filepath.Join(root, "b.vuka")}; !slices.Equal(slices.Compact(slices.Sorted(slices.Values(batch))), want) {
+			t.Errorf("batch %v, want %v", batch, want)
+		}
+	case idle = <-clock.waits:
+		t.Fatalf("the watcher waits %v with its batch unsent", idle.d)
+	case <-time.After(10 * time.Second):
+		t.Fatal("no batch")
+	}
+	clock.next("after the batch")
+
+	// An event about nothing a look finds.
+	event()
+	clock.next("a stray event").fire()
+	looked("a stray event")
+	select {
+	case batch := <-out:
+		t.Errorf("a look that found nothing sent %v", batch)
+	case wait := <-clock.waits:
+		if wait.d == osQuiet {
+			t.Errorf("after a look the watcher waits for a calm")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the watcher doesn't wait after a look")
+	}
+}
+
+// TestWatcherLook: a write between a look and the watch starting on what
+// it found (a new file, a new directory) sends no event, so the look looks
+// again.
+func TestWatcherLook(t *testing.T) {
+	root := tempModule(t, map[string]string{"go.mod": "module x\n", "a.vuka": "a"})
+	w := newWatcher(root)
+	w.scan()
+	for _, c := range []struct{ what, create, write string }{
+		{"a new file", "b.vuka", "b.vuka"},
+		{"a new directory", "lib", "lib/c.vuka"},
+	} {
+		create, write := filepath.Join(root, c.create), filepath.Join(root, c.write)
+		if c.create == c.write {
+			writeFile(t, create, "")
+		} else if err := os.Mkdir(create, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		calls := 0
+		ow := &testOSWatch{follow: func() bool {
+			calls++
+			if calls == 1 { // watched only now: the write had no event
+				writeFile(t, write, "written")
+				return true
+			}
+			return false
+		}}
+		changed, err := w.look(ow)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !slices.Contains(changed, write) || calls != 2 {
+			t.Errorf("%s: a look found %v (%d watches)", c.what, changed, calls)
+		}
+		if later := w.scan(); later != nil {
+			t.Errorf("%s: the write was left for a later look: %v", c.what, later)
+		}
 	}
 }
 

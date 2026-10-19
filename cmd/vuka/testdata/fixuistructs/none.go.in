@@ -1,0 +1,5 @@
+package app
+
+import "github.com/vuka-lang/ui"
+
+func card() ui.Node { return ui.Card{Title: ui.Text("x")}.Render() }

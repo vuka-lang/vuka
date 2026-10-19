@@ -4,11 +4,13 @@
 package main
 
 import (
+	"context"
 	"github.com/vuka-lang/ui"
+	"io"
 )
 
 //line admin.vuka.html:1
-func (a Admin) Render() ui.Node {
+func (a Admin) View() ui.Node {
 //line admin.vuka.html:1
 	return ui.HTML(`
 <div class="admin">
@@ -19,3 +21,6 @@ func (a Admin) Render() ui.Node {
   <main>{a.Children}</main>
 </div>`, a.Title, a.Actions, a.Children)
 }
+
+//line admin.vuka.html:4
+func (a Admin) Render(ctx context.Context, w io.Writer) error { return a.View().Render(ctx, w) }

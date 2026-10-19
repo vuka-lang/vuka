@@ -1,8 +1,8 @@
 {
   "name": "vuka",
   "displayName": "Vuka",
-  "description": "Vuka language support: Go with Result, Option, ?, match, overloading, decorators, statics, typed field attributes and JSX components (stateless, stateful and live), and .vuka.html templates. Highlighting, snippets, format on save, and completion, navigation, rename and diagnostics through gopls.",
-  "version": "0.4.2",
+  "description": "Language support for Vuka: Go with Result, Option, ?, match and decorators, JSX and .vuka.html components, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls, in .vuka, .vuka.html and .go files.",
+  "version": "0.5.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -26,16 +26,13 @@
     "vuka",
     "go",
     "golang",
-    "transpiler",
-    "jsx",
-    "templ",
+    "html templates",
     "components",
     "live",
-    "liveview",
+    "islands",
+    "jsx",
     "orm",
-    "decorators",
-    "result",
-    "option"
+    "typescript"
   ],
   "main": "./extension.js",
   "activationEvents": [

@@ -33,6 +33,7 @@ type jsxComp struct {
 	closureTyp []string
 	stateful   bool      // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
 	structComp bool      // a struct with a Render() Node method: T{…}.Render()
+	nodeComp   bool      // a struct component that is a Node, with its markup its View: T{…}
 	rest       []jsxNode // the children but the slots, when there are slots
 	ptrRender  bool      // whose Render takes a pointer: (&T{…}).Render()
 	key        *compArg  // its key attribute
@@ -166,7 +167,10 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen(c.targText) // "" normally; "[int]" for an inferred generic stateful literal
 		w.gen("{")
 	} else if c.structComp {
-		if c.ptrRender {
+		switch {
+		case c.nodeComp && c.ptrRender:
+			w.gen("&")
+		case c.ptrRender:
 			w.gen("(&")
 		}
 		w.keep(tag)
@@ -207,6 +211,8 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	case c.stateful && c.key != nil:
 		w.gen("})")
 	case c.stateful:
+		w.gen("}")
+	case c.nodeComp:
 		w.gen("}")
 	case c.structComp && c.ptrRender:
 		w.gen("}).Render()")

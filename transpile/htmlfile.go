@@ -203,7 +203,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	var ins []insertion
 	add := func(at int, text string) { ins = append(ins, insertion{at, text}) }
 	contentEnd := func(i int) int { return off[i] + len(strings.TrimRight(lines[i], " \t\r\n")) }
-	body := func(from, to int) {
+	// body closes the template whose markup is lines[from:to], returning
+	// where its function ends.
+	body := func(from, to int) int {
 		last := -1
 		for i := from; i < to; i++ {
 			if strings.TrimSpace(lines[i]) != "" {
@@ -212,9 +214,21 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		if last < 0 {
 			add(contentEnd(from-1), "<></> }")
-			return
+			return contentEnd(from - 1)
 		}
 		add(contentEnd(last), "</> }")
+		return contentEnd(last)
+	}
+	// A struct component's View is its markup; the component is a ui.Node,
+	// rendering its View.
+	nodeMethod := false
+	renderMethod := func(at int, recv, typ string) {
+		w := "w"
+		if recv == "w" {
+			w = "out"
+		}
+		add(at, "\n\nfunc ("+recv+" "+typ+") Render(ctx context.Context, "+w+" io.Writer) error { return "+recv+".View().Render(ctx, "+w+") }")
+		nodeMethod = true
 	}
 	header := func(i int) {
 		l := strings.TrimRight(lines[i], " \t\r\n")
@@ -266,9 +280,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		seen[kind] = true
 	}
 	if first >= 0 {
-		ptr, ok := receiverKind(typ, others)
+		ptr, live, ok := receiverKind(typ, others)
 		if !ok {
-			return nil, nil, nil, &Error{Code: "E0140", Msg: "the markup before the first func is the Render of " + typ + ", and the package declares no type " + typ,
+			return nil, nil, nil, &Error{Code: "E0140", Msg: "the markup before the first func is the component " + typ + "'s, and the package declares no type " + typ,
 				Help: "declare type " + typ + " in a .go or .vuka file of the package, or start the file with func …"}
 		}
 		recv := receiverName(typ, string(src[off[first]:off[firstEnd]]))
@@ -277,7 +291,13 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			star = "*"
 		}
 		*h = htmlFile{recv: recv, recvType: typ, start: off[first], end: off[firstEnd]}
-		add(off[first], "func ("+recv+" "+star+typ+") Render() "+ui+"Node { return <>")
+		// A stateful component's markup is its Render, a struct
+		// component's its View.
+		method := "View"
+		if live {
+			method = "Render"
+		}
+		add(off[first], "func ("+recv+" "+star+typ+") "+method+"() "+ui+"Node { return <>")
 		for _, a := range assets {
 			if a.Decl == typ && a.Script {
 				// A component script reads its props from its root.
@@ -285,10 +305,14 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 				break
 			}
 		}
+		end := contentEnd(first)
 		if strings.TrimSpace(strings.Join(lines[first+1:firstEnd], "")) == "" {
-			add(contentEnd(first), "</> }")
+			add(end, "</> }")
 		} else {
-			body(first+1, firstEnd)
+			end = body(first+1, firstEnd)
+		}
+		if !live {
+			renderMethod(end, recv, star+typ)
 		}
 	}
 	for k, hd := range heads {
@@ -305,7 +329,10 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 				}
 			}
 		}
-		body(hd+1, end)
+		at := body(hd+1, end)
+		if m := viewHeader.FindStringSubmatch(lines[hd]); m != nil {
+			renderMethod(at, m[1], m[2]+m[3])
+		}
 	}
 	pkg := packageName(others)
 	var imps []string
@@ -319,9 +346,18 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		imps = append(imps, strings.TrimSuffix(ui, ".")+" "+strconv.Quote(target))
 	}
 	text := goParts(src)
+	named := map[string]bool{}
 	for _, imp := range packageImports(others) {
 		if !own[imp.name] && imp.name != strings.TrimSuffix(ui, ".") && regexp.MustCompile(`(^|[^\w.])`+regexp.QuoteMeta(imp.name)+`\.`).MatchString(text) {
 			imps = append(imps, imp.name+" "+strconv.Quote(imp.path))
+			named[imp.name] = true
+		}
+	}
+	if nodeMethod {
+		for _, std := range []string{"context", "io"} {
+			if !own[std] && !named[std] {
+				imps = append(imps, std+" "+strconv.Quote(std))
+			}
 		}
 	}
 	prefix := "package " + pkg + ";"
@@ -396,9 +432,10 @@ func propsAt(lines []string, off []int, from, to int) int {
 }
 
 var (
-	firstTag  = regexp.MustCompile(`<[A-Za-z][\w.:-]*`)
-	recvName  = regexp.MustCompile(`^func\s*\(\s*(\w+)\s`)
-	propParam = regexp.MustCompile(`^func\s+\w+\s*\(\s*(\w+)\s+[\w.*]+\s*\)`)
+	viewHeader = regexp.MustCompile(`^func\s*\(\s*(\w+)\s+(\*?)\s*(\w+(?:\[[\w\s,]*\])?)\s*\)\s*View\s*\(\s*\)`)
+	firstTag   = regexp.MustCompile(`<[A-Za-z][\w.:-]*`)
+	recvName   = regexp.MustCompile(`^func\s*\(\s*(\w+)\s`)
+	propParam  = regexp.MustCompile(`^func\s+\w+\s*\(\s*(\w+)\s+[\w.*]+\s*\)`)
 )
 
 // propsOf is what a template's script reads as its props: its receiver, or
@@ -518,10 +555,11 @@ func packageName(files []File) string {
 	return "main"
 }
 
-// receiverKind reports whether typ's Render takes a pointer — it embeds
-// ui.Live, holds a ui.State or has a pointer method — and whether the
-// package declares typ.
-func receiverKind(typ string, files []File) (ptr, ok bool) {
+// receiverKind reports whether typ's markup method takes a pointer — it
+// embeds ui.Live, holds a ui.State or has a pointer method —, whether it is
+// a stateful component (it embeds ui.Live: its markup is its Render), and
+// whether the package declares typ.
+func receiverKind(typ string, files []File) (ptr, live, ok bool) {
 	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(typ) + `\s+struct\s*\{`)
 	method := regexp.MustCompile(`func\s*\(\s*\w*\s*\*\s*` + regexp.QuoteMeta(typ) + `\s*\)`)
 	for _, f := range files {
@@ -539,10 +577,11 @@ func receiverKind(typ string, files []File) (ptr, ok bool) {
 		ok = true
 		if end := goEndBrace(src, loc[1]); end > 0 {
 			body := src[loc[1]:end]
-			ptr = ptr || regexp.MustCompile(`(?m)^\s*(\w+\.)?Live\s*$|State\[`).MatchString(body)
+			live = live || regexp.MustCompile(`(?m)^\s*(\w+\.)?Live\s*$`).MatchString(body)
+			ptr = ptr || live || strings.Contains(body, "State[")
 		}
 	}
-	return ptr, ok
+	return ptr, live, ok
 }
 
 // goEndBrace is the offset of the } closing the brace before i.

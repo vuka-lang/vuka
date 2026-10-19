@@ -10,6 +10,6 @@ import (
 type Page struct{ Zone string }
 
 func main() {
-	out, err := ui.String(context.Background(), Page{Zone: "EAT"}.Render())
+	out, err := ui.String(context.Background(), Page{Zone: "EAT"})
 	fmt.Println(out, err)
 }

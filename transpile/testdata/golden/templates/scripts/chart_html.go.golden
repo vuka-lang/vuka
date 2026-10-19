@@ -4,11 +4,13 @@
 package main
 
 import (
+	"context"
 	"github.com/vuka-lang/ui"
+	"io"
 )
 
 //line chart.vuka.html:1
-func (c Chart) Render() ui.Node {
+func (c Chart) View() ui.Node {
 //line chart.vuka.html:1
 	return ui.HTML(`
 <figure data-vk-p={ui.Props(c)} class="chart">
@@ -16,3 +18,6 @@ func (c Chart) Render() ui.Node {
   {ui.El("script", nil, ui.Safe("window.points = "), ui.JSON(c.Points), ui.Safe(";"))}
 </figure>`, ui.Props(c), c.Title, ui.El("script", nil, ui.Safe("window.points = "), ui.JSON(c.Points), ui.Safe(";")))
 }
+
+//line chart.vuka.html:4
+func (c Chart) Render(ctx context.Context, w io.Writer) error { return c.View().Render(ctx, w) }
