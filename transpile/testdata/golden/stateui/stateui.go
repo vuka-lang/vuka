@@ -11,8 +11,8 @@ import (
 	"fmt"
 	"path/filepath"
 	"reflect"
-	"regexp"
 	"runtime"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -21,7 +21,7 @@ import (
 )
 
 // VukaJSX marks this package as a JSX target implementing version 2.
-const VukaJSX = 2
+const VukaJSX = 3
 
 type (
 	Node = ui.Node
@@ -70,10 +70,8 @@ func Child(v any) Node {
 	return ui.Child(v)
 }
 
-func Fragment(children ...Node) Node              { return ui.Fragment(children...) }
-func Try(n Node, err error) Node                  { return ui.Try(n, err) }
-func Each[T any](items []T, fn func(T) Node) Node { return ui.Each(items, fn) }
-func If(cond bool, n Node) Node                   { return ui.If(cond, n) }
+func Fragment(children ...Node) Node { return ui.Fragment(children...) }
+func Try(n Node, err error) Node     { return ui.Try(n, err) }
 func On(fn any) any {
 	if c, ok := fn.(Commands); ok {
 		return c
@@ -83,34 +81,40 @@ func On(fn any) any {
 
 func String(ctx context.Context, n Node) (string, error) { return ui.String(ctx, n) }
 
-// Markup is a template: ui's, its attribute holes written as attribute
-// sets so a binding can write two attributes.
-type Markup struct {
-	m     *ui.Markup
-	attrs map[int]string // hole → its attribute's name
-}
-
-var attrHole = regexp.MustCompile(`(\s)([A-Za-z_][-A-Za-z0-9_:.]*)="\{\{(\d+)\}\}"`)
-
-func Template(src string) *Markup {
-	t := &Markup{attrs: map[int]string{}}
-	src = attrHole.ReplaceAllStringFunc(src, func(m string) string {
-		g := attrHole.FindStringSubmatch(m)
-		if g[2] == "key" {
-			return m
+// HTML is ui's, its attribute holes written as attribute sets so a binding
+// can write two attributes.
+func HTML(src string, args ...any) Node {
+	var labels []string
+	attrs := map[int]string{}
+	var b strings.Builder
+	for i := 0; i < len(src); i++ {
+		if src[i] != '{' || strings.HasPrefix(src[i:], "{{") {
+			b.WriteByte(src[i])
+			continue
 		}
-		n, _ := strconv.Atoi(g[3])
-		t.attrs[n] = g[2]
-		return g[1] + "{{" + g[3] + "}}"
-	})
-	t.m = ui.Template(src)
-	return t
-}
-
-func (t *Markup) Render(args ...any) Node {
+		end := holeEnd(src, i+1)
+		label := strings.TrimSuffix(src[i+1:end], "...")
+		n := slices.Index(labels, label)
+		if n < 0 {
+			n, labels = len(labels), append(labels, label)
+		}
+		out := b.String()
+		if k := strings.LastIndexAny(out, " \n\t"); k >= 0 && strings.HasSuffix(out, "=") {
+			name := out[k+1 : len(out)-1]
+			if name != "key" && !strings.HasPrefix(name, "class:") {
+				attrs[n] = name
+				b.Reset()
+				b.WriteString(out[:k+1] + "{" + label + "...}")
+				i = end
+				continue
+			}
+		}
+		b.WriteString(src[i : end+1])
+		i = end
+	}
 	out := make([]any, len(args))
 	for i, a := range args {
-		if name, ok := t.attrs[i]; ok {
+		if name, ok := attrs[i]; ok {
 			out[i] = attrOf(name, a)
 			continue
 		}
@@ -131,7 +135,32 @@ func (t *Markup) Render(args ...any) Node {
 			}
 		}
 	}
-	return t.m.Render(out...)
+	return ui.HTML(b.String(), out...)
+}
+
+// holeEnd is the } closing the hole whose label starts at i.
+func holeEnd(s string, i int) int {
+	depth := 0
+	for ; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '"', '`':
+			for i++; i < len(s) && s[i] != c; i++ {
+				if s[i] == '\\' && c == '"' {
+					i++
+				}
+			}
+		case '{', '(', '[':
+			depth++
+		case ')', ']':
+			depth--
+		case '}':
+			if depth == 0 {
+				return i
+			}
+			depth--
+		}
+	}
+	return len(s) - 1
 }
 
 type cell struct {

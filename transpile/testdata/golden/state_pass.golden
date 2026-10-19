@@ -15,14 +15,9 @@ type Filters struct {
 	Open bool
 }
 
-//line state_pass.vuka:17
-var button = ui.Template(`<button onClick="{{0}}">{{1}}</button>`)
-
 // Button takes commands: a write built from a state is passed as it is.
-//
-//line state_pass.vuka:16
 func Button(onClick ui.Commands, label string) ui.Node {
-	return button.Render(onClick, label)
+	return ui.HTML(`<button onClick={onClick}>{label}</button>`, onClick, label)
 }
 
 // Act takes any handler.
@@ -33,61 +28,42 @@ func Act(onClick any, label string) ui.Node {
 // OpenDialog builds a command from the state it is given.
 func OpenDialog(s ui.State[bool]) ui.Commands { return s.Set(true) }
 
-//line state_pass.vuka:29
-var hint = ui.Template(`<i>{{0}}</i>`)
-
 // Hint takes any value: an expression of states is a binding.
-//
-//line state_pass.vuka:29
-func Hint(text any) ui.Node { return hint.Render(text) }
-
-//line state_pass.vuka:32
-var panel = ui.Template(`<p hidden="{{0}}">panel</p>`)
+func Hint(text any) ui.Node { return ui.HTML(`<i>{text}</i>`, text) }
 
 // Panel takes a state: an expression of states is a derived one.
-//
-//line state_pass.vuka:32
-func Panel(hide ui.State[bool]) ui.Node { return panel.Render(hide) }
+func Panel(hide ui.State[bool]) ui.Node { return ui.HTML(`<p hidden={hide}>panel</p>`, hide) }
 
-var box = ui.Template(`<div {{0}}></div>`)
-
-// Box takes attributes.
-func Box(attrs []ui.Attr) ui.Node { return box.Render(attrs) }
+// Box takes attributes: a hole where an attribute goes, {attrs...},
+// sets them, a binding among them writing its attribute as one in the
+// markup would.
+func Box(attrs []ui.Attr) ui.Node { return ui.HTML(`<div {attrs...}></div>`, attrs) }
 
 type Page struct{}
 
-//line state_pass.vuka:43
-var pageMenu = ui.Template(`<ul hidden="{{0}}"><li>item</li></ul>`)
-
 // menu takes a state and returns a node.
-//
-//line state_pass.vuka:42
 func (p *Page) menu(open ui.State[bool]) ui.Node {
-	return pageMenu.Render(open.Not())
+	return ui.HTML(`<ul hidden={open.Not()}><li>item</li></ul>`, open.Not())
 }
 
-//line state_pass.vuka:50
-var page = ui.Template(`
-<div>
-  {{0}}
-  {{1}}
-  {{2}}
-  {{3}}
-  {{4}}
-  {{5}}
-  {{6}}
-  {{7}}
-  {{8}}
-  {{9}}
-  {{10}}
-</div>`)
-
-//line state_pass.vuka:46
 func (p *Page) Render() ui.Node {
 	open := ui.UseState(false)
 	upload := ui.UseState(true)
 	f := ui.UseState(Filters{Kind: "dog"})
-	return page.Render(
+	return ui.HTML(`
+<div>
+  {Button(open.Toggle(), "toggle")}
+  {Button(OpenDialog(upload), "upload")}
+  {Button(OpenDialog(f.Open), "field")}
+  {Button(open.Set(true).Set(upload, false), "chain")}
+  {Act(OpenDialog(upload), "any")}
+  {Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", ui.Derived(!open && upload)), {Name: "id", Value: "box"}})}
+  {p.menu(upload)}
+  {p.menu(f.Open)}
+  {Hint(open.Not())}
+  {Hint(ui.At[string](f, "Kind").Plus("s"))}
+  {Panel(open.Not().And(upload))}
+</div>`,
 		Button(open.Toggle(), "toggle"),
 		Button(OpenDialog(upload), "upload"),
 		Button(OpenDialog(ui.At[bool](f, "Open")), "field"),
@@ -102,6 +78,7 @@ func (p *Page) Render() ui.Node {
 	)
 }
 
+//line state_pass.vuka:65
 func main() {
 	out, err := ui.String(context.Background(), (&Page{}).Render())
 	fmt.Println(out, err)

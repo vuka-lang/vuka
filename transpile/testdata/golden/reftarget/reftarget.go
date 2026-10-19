@@ -2,20 +2,15 @@
 // cases checking refs without depending on a version of the ui library.
 package reftarget
 
-const VukaJSX = 2
+const VukaJSX = 3
 
 type Node interface{}
 
-type Markup struct{}
-
-func Template(src string) *Markup                 { return &Markup{} }
-func (*Markup) Render(args ...any) Node           { return nil }
-func Each[T any](items []T, fn func(T) Node) Node { return nil }
-func If(cond bool, n Node) Node                   { return nil }
-func Child(v any) Node                            { return nil }
-func Fragment(kids ...Node) Node                  { return nil }
-func Try(n Node, err error) Node                  { return nil }
-func On(fn any) any                               { return fn }
+func HTML(src string, args ...any) Node { return nil }
+func Child(v any) Node                  { return nil }
+func Fragment(kids ...Node) Node        { return nil }
+func Try(n Node, err error) Node        { return nil }
+func On(fn any) any                     { return fn }
 
 // Target is what Ref returns.
 type Target string

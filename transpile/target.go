@@ -13,12 +13,13 @@ import (
 )
 
 // JSXVersion is the version of the JSX target contract this compiler lowers
-// to. A package is a JSX target when it declares `const VukaJSX = 2`:
+// to. A package is a JSX target when it declares `const VukaJSX = 3`:
 //
-//	required  Node, Template(markup string) with Render(...any) Node — each
-//	          piece of JSX, its expressions in holes; Each([]T, func(T) Node)
-//	          and If(bool, Node) — blocks; Try(Node, error); Fragment(...Node)
-//	          and Child(any) — placeholders while types are unknown
+//	required  Node, HTML(markup string, values ...any) Node — each piece of
+//	          JSX, its expressions in labelled holes; blocks build a Node or
+//	          a []Node; Try(Node, error); El, Safe and Child — scripts and
+//	          styles with values; Fragment(...Node) and Child(any) —
+//	          placeholders while types are unknown
 //	optional  On — on… attributes of elements are events
 //	          Stateful + Key(key, Stateful) — tags naming struct types
 //	          WithChildren(Node, children Node) — children for components that
@@ -28,7 +29,7 @@ import (
 //	          Ref("name") in a function with JSX must name one of its elements
 //
 // A .vuka file renders its JSX with the one target it imports.
-const JSXVersion = 2
+const JSXVersion = 3
 
 // DefaultJSXTarget is the JSX target messages suggest.
 const DefaultJSXTarget = "github.com/vuka-lang/ui"

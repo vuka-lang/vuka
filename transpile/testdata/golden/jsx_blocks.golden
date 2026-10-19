@@ -29,123 +29,80 @@ func lookup(s string) vuka.Result[int] {
 	return vuka.Ok[int](n)
 }
 
-//line jsx_blocks.vuka:24
-var listUl = ui.Template(`
-<ul>{{0}}</ul>
-{{1}}
-{{2}}
-<nav>{{3}}</nav>
-{{4}}
-{{5}}`)
-
-//line jsx_blocks.vuka:26
-var listLi = ui.Template(`<li key="{{0}}">{{1}} since {{2}}</li>`)
-
-//line jsx_blocks.vuka:30
-var listButton = ui.Template(`<button>Edit</button>`)
-
-var listP = ui.Template(`<p>nobody</p> <hr/>`)
-
-var listText = ui.Template(`guest`)
-
-//line jsx_blocks.vuka:37
-var listP2 = ui.Template(`<p>{{0}}</p>`)
-
-//line jsx_blocks.vuka:37
-var listP3 = ui.Template(`<p className="error">{{0}}</p>`)
-
-//line jsx_blocks.vuka:38
-var listA = ui.Template(`<a href="{{0}}">{{1}}</a>`)
-
-//line jsx_blocks.vuka:39
-var listI = ui.Template(`<i>map in an if</i>`)
-
-//line jsx_blocks.vuka:42
-var listI2 = ui.Template(`<i>none</i>`)
-
-//line jsx_blocks.vuka:43
-var listText2 = ui.Template(`a few: {{0}}`)
-
-//line jsx_blocks.vuka:46
-var listText3 = ui.Template(`{{0}}`)
-
-//line jsx_blocks.vuka:46
-var listB = ui.Template(`<b>{{0}}</b>`)
-
-//line jsx_blocks.vuka:22
 func list(users []User, admin bool, s string) ui.Node {
-	return listUl.Render(
-		ui.Each(users, func(u User) ui.Node {
-//line jsx_blocks.vuka:26
-			return listLi.Render(u.ID, u.Name, u.Year)
-		}),
-		func() ui.Node {
-			var node ui.Node
-//line jsx_blocks.vuka:29
-			if admin {
-				node = listButton.Render()
-			} else if len(users) == 0 {
-				node = listP.Render()
-			} else {
-				node = listText.Render()
-			}
-			return ui.If(node != nil, node)
-		}(),
-		func() ui.Node {
-			var node ui.Node
+//line jsx_blocks.vuka:25
+	lis := make([]ui.Node, 0, len(users))
+//line jsx_blocks.vuka:25
+	for _, u := range users {
+		lis = append(lis, ui.HTML(`<li key={u.ID}>{u.Name} since {u.Year}</li>`, u.ID, u.Name, u.Year))
+	}
+	var button []ui.Node
+	if admin {
+		button = append(button, ui.HTML(`<button>Edit</button>`))
+	} else if len(users) == 0 {
+		button = append(button, ui.HTML(`<p>nobody</p> <hr/>`))
+	} else {
+		button = append(button, ui.HTML(`guest`))
+	}
+	var p []ui.Node
+	if m1 := lookup(s); false {
+		panic(m1)
+	} else if n := m1.Value(); m1.IsOk() {
+		_ = n
 //line jsx_blocks.vuka:37
-			if m1 := lookup(s); false {
-				panic(m1)
-			} else if n := m1.Value(); m1.IsOk() {
-				_ = n
+		p = append(p, ui.HTML(`<p>{n}</p>`, n))
+	} else if e := m1.Err(); m1.IsErr() {
+		_ = e
 //line jsx_blocks.vuka:37
-				node = listP2.Render(n)
-			} else if e := m1.Err(); m1.IsErr() {
-				_ = e
-//line jsx_blocks.vuka:37
-				node = listP3.Render(e.Error())
-			} else {
-				panic("vuka: no case matched")
-			}
-			return ui.If(node != nil, node)
-		}(),
-		ui.Each([]string{"/", "/users"}, func(link string) ui.Node {
+		p = append(p, ui.HTML(`<p class="error">{e.Error()}</p>`, e.Error()))
+	} else {
+		panic("vuka: no case matched")
+	}
+	var as []ui.Node
 //line jsx_blocks.vuka:38
-			return listA.Render(link, link)
-		}),
-		func() ui.Node {
-			var node ui.Node
+	for _, link := range []string{"/", "/users"} {
+//line jsx_blocks.vuka:38
+		as = append(as, ui.HTML(`<a href={link}>{link}</a>`, link))
+	}
+	var i2 []ui.Node
 //line jsx_blocks.vuka:39
-			if ok := map[string]bool{"a": true}["a"]; ok {
-				node = listI.Render()
-			}
-			return ui.If(node != nil, node)
-		}(),
-		func() ui.Node {
-			var node ui.Node
+	if ok := map[string]bool{"a": true}["a"]; ok {
+		i2 = append(i2, ui.HTML(`<i>map in an if</i>`))
+	}
+	var i22 []ui.Node
 //line jsx_blocks.vuka:40
-			if m2 := len(users); false {
-				panic(m2)
-			} else if m2 == 0 {
-				node = listI2.Render()
-			} else if (m2 == 1) || (m2 == 2) {
+	if m2 := len(users); false {
+		panic(m2)
+	} else if m2 == 0 {
+		i22 = append(i22, ui.HTML(`<i>none</i>`))
+	} else if (m2 == 1) || (m2 == 2) {
 //line jsx_blocks.vuka:44
-				node = listText2.Render(len(users))
-			} else if true {
-				node = listText3.Render(func() []ui.Node {
-					var nodes []ui.Node
+		i22 = append(i22, ui.HTML(`a few: {len(users)}`, len(users)))
+	} else if true {
+		var bs []ui.Node
 //line jsx_blocks.vuka:46
-					for i := range 3 {
+		for i := range 3 {
 //line jsx_blocks.vuka:46
-						nodes = append(nodes, listB.Render(i))
-					}
-					return nodes
-				}())
-			} else {
-				panic("vuka: no case matched")
-			}
-			return ui.If(node != nil, node)
-		}(),
+			bs = append(bs, ui.HTML(`<b>{i}</b>`, i))
+		}
+		i22 = append(i22, ui.HTML(`{bs}`, bs))
+	} else {
+		panic("vuka: no case matched")
+	}
+//line jsx_blocks.vuka:23
+	return ui.HTML(`
+<ul>{lis}</ul>
+{button}
+{p}
+<nav>{as}</nav>
+{i2}
+{i22}`,
+		lis,
+		button,
+		p,
+		as,
+		i2,
+		i22,
 	)
 }
 

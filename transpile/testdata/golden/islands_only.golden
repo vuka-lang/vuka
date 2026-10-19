@@ -13,14 +13,9 @@ type Clock struct {
 	Zone string `json:"zone"`
 }
 
-//line islands_only.vuka:12
-var clockText = ui.Template(`{{0}}`)
-
 // client:only lowers to ui.ClientOnly(): the island is never server-rendered.
-//
-//line islands_only.vuka:11
 func clock() ui.Node {
-	return clockText.Render(ui.Mount(Clock{Zone: "UTC"}, ui.ClientOnly()))
+	return ui.HTML(`{ui.Mount(Clock{Zone: "UTC"}, ui.ClientOnly())}`, ui.Mount(Clock{Zone: "UTC"}, ui.ClientOnly()))
 }
 
 //line islands_only.vuka:6

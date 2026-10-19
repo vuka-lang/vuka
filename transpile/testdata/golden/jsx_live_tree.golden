@@ -37,46 +37,32 @@ func (t *Table) Do(w string) {
 	}
 }
 
-//line jsx_live_tree.vuka:38
-var table = ui.Template(`
-<table>
-  <caption><input onInput="{{0}}"/></caption>
-  {{1}}
-  {{2}}
-</table>`)
-
-//line jsx_live_tree.vuka:41
-var tableTr = ui.Template(`
-<tr key="{{0}}">
-  <td>{{1}}</td>
-  <td>{{2}}</td>
-</tr>`)
-
-//line jsx_live_tree.vuka:43
-var tableP = ui.Template(`<p>row {{0}}</p>`)
-
-//line jsx_live_tree.vuka:43
-var tableP2 = ui.Template(`<p>none</p>`)
-
-//line jsx_live_tree.vuka:37
 func (t *Table) Render() ui.Node {
-	return table.Render(
-		t.Do,
-		ui.Each(t.rows, func(r Row) ui.Node {
-			return tableTr.Render(r.ID, r.Name, r.Qty)
-		}),
-		func() ui.Node {
-			var node ui.Node
+//line jsx_live_tree.vuka:40
+	trs := make([]ui.Node, 0, len(t.rows))
+//line jsx_live_tree.vuka:40
+	for _, r := range t.rows {
+		trs = append(trs, ui.HTML(`
+<tr key={r.ID}>
+  <td>{r.Name}</td>
+  <td>{r.Qty}</td>
+</tr>`, r.ID, r.Name, r.Qty))
+	}
+	var p []ui.Node
 //line jsx_live_tree.vuka:43
-			if t.sel > 0 {
+	if t.sel > 0 {
 //line jsx_live_tree.vuka:43
-				node = tableP.Render(t.sel)
-			} else {
-				node = tableP2.Render()
-			}
-			return ui.If(node != nil, node)
-		}(),
-	)
+		p = append(p, ui.HTML(`<p>row {t.sel}</p>`, t.sel))
+	} else {
+		p = append(p, ui.HTML(`<p>none</p>`))
+	}
+//line jsx_live_tree.vuka:38
+	return ui.HTML(`
+<table>
+  <caption><input onInput={t.Do}/></caption>
+  {trs}
+  {p}
+</table>`, t.Do, trs, p)
 }
 
 //line jsx_live_tree.vuka:47
@@ -88,35 +74,23 @@ type Counter struct {
 
 func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
 
-//line jsx_live_tree.vuka:56
-var counter = ui.Template(`<span>{{0}}: {{1}} <button onClick="{{2}}">+</button></span>`)
-
-//line jsx_live_tree.vuka:55
 func (c *Counter) Render() ui.Node {
-	return counter.Render(c.Label, c.n.Get(), c.Inc)
+	return ui.HTML(`<span>{c.Label}: {c.n.Get()} <button onClick={c.Inc}>+</button></span>`, c.Label, c.n.Get(), c.Inc)
 }
 
-//line jsx_live_tree.vuka:60
-var pageMain = ui.Template(`
-<main>
-  {{0}}
-  {{1}}
-</main>`)
-
-//line jsx_live_tree.vuka:59
 func page(ctx context.Context) ui.Node {
-	return pageMain.Render(
-		&Table{},
-		func() []ui.Node {
-			var nodes []ui.Node
+	var texts []ui.Node
 //line jsx_live_tree.vuka:60
-			for i, l := range []string{"a", "b"} {
+	for i, l := range []string{"a", "b"} {
 //line jsx_live_tree.vuka:60
-				nodes = append(nodes, ui.Key(i, &Counter{Label: l}))
-			}
-			return nodes
-		}(),
-	)
+		texts = append(texts, ui.Key(i, &Counter{Label: l}))
+	}
+//line jsx_live_tree.vuka:60
+	return ui.HTML(`
+<main>
+  {&Table{}}
+  {texts}
+</main>`, &Table{}, texts)
 }
 
 //line jsx_live_tree.vuka:63

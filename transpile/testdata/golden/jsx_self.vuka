@@ -3,15 +3,15 @@ package main
 import (
 	"fmt"
 	"regexp"
-	"strconv"
+	"slices"
 	"strings"
 )
 
 // This package IS its own JSX target: it declares VukaJSX and the primitives,
-// so its .vuka files author JSX that lowers to UNQUALIFIED calls (Template,
-// Each, …) resolved within the package — the way github.com/vuka-lang/ui
+// so its .vuka files author JSX that lowers to UNQUALIFIED calls (HTML,
+// Child, …) resolved within the package — the way github.com/vuka-lang/ui
 // authors its own components.
-const VukaJSX = 2
+const VukaJSX = 3
 
 type Node interface{ render() string }
 
@@ -19,23 +19,21 @@ type text string
 
 func (t text) render() string { return string(t) }
 
-// Markup renders its holes into its markup, attributes and the space
-// between lines left out.
-type Markup struct{ src string }
-
-var attrs, lines = regexp.MustCompile(`<(\w+)[^>]*?(/?)>`), regexp.MustCompile(`\n\s*`)
-
-func Template(src string) *Markup {
-	return &Markup{lines.ReplaceAllString(attrs.ReplaceAllString(src, "<$1$2>"), "")}
-}
-
-func (m *Markup) Render(args ...any) Node {
-	s := m.src
-	for i, a := range args {
-		s = strings.Replace(s, "{{"+strconv.Itoa(i)+"}}", child(a), 1)
+// HTML renders its holes into its markup, attributes and the space between
+// lines left out.
+func HTML(src string, args ...any) Node {
+	var labels []string
+	for _, h := range holes.FindAllString(src, -1) {
+		if !slices.Contains(labels, h) {
+			labels = append(labels, h)
+		}
 	}
+	s := lines.ReplaceAllString(attrs.ReplaceAllString(src, "<$1$2>"), "")
+	s = holes.ReplaceAllStringFunc(s, func(h string) string { return child(args[slices.Index(labels, h)]) })
 	return text(s)
 }
+
+var attrs, lines, holes = regexp.MustCompile(`<(\w+)[^>]*?(/?)>`), regexp.MustCompile(`\n\s*`), regexp.MustCompile(`\{[^{}]*\}`)
 
 func child(v any) string {
 	switch v := v.(type) {

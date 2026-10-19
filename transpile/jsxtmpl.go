@@ -17,8 +17,8 @@ import (
 //
 //	<li key={u.ID}>{u.Name}</li>   →   ui.HTML(`<li key={u.ID}>{u.Name}</li>`, u.ID, u.Name)
 //
-// Blocks are Go statements before the call, each building a variable a hole
-// names: {for …} appends to a []ui.Node, {if} and {match} assign a ui.Node.
+// Blocks are Go statements before the call, each appending what it picks
+// to a []ui.Node a hole names.
 // So is a value whose Go can't be a label (a component holding markup):
 //
 //	var lis []ui.Node
@@ -64,8 +64,8 @@ func (w *jsxWriter) stmts(f func()) {
 
 func (w *jsxWriter) put(ps []jsxPiece) { w.out.p = append(w.out.p, ps...) }
 
-// piece writes ns as a ui.HTML call, or as the call or variable it is when
-// ns is one function component's tag or one block.
+// piece writes ns as a ui.HTML call, or as the call it is when ns is one
+// function component's tag or one Node.
 func (w *jsxWriter) piece(ns []jsxNode) {
 	ns = flatten(ns)
 	if len(ns) == 1 {
@@ -77,9 +77,12 @@ func (w *jsxWriter) piece(ns []jsxNode) {
 				w.comp(c)
 				return
 			}
-		case *jsxBlock:
-			w.gen(w.block(n))
-			return
+		case *jsxHole:
+			// A Node is itself.
+			if w.isNode(n) {
+				w.holeValue(n)
+				return
+			}
 		}
 	}
 	tp := &tmpl{}
@@ -102,6 +105,17 @@ func (w *jsxWriter) piece(ns []jsxNode) {
 		w.gen(",\n")
 	}
 	w.gen(")")
+}
+
+// isNode reports whether a hole's value is a Node, once types are known.
+func (w *jsxWriter) isNode(n *jsxHole) bool {
+	e := w.f.eng
+	if !w.final || n.bind != nil || e.info == nil {
+		return false
+	}
+	node := e.nodeType(w.f.target)
+	t := e.typeAt(w.f, w.f.cur.fromOrig(n.expr.start), w.f.cur.fromOrig(n.expr.end))
+	return node != nil && t != nil && types.AssignableTo(t, node) && !types.IsInterface(t) || t != nil && types.Identical(t, node)
 }
 
 // flatten is ns with fragments' children in their place.
@@ -140,16 +154,24 @@ func (w *jsxWriter) value(tp *tmpl, base string, write func()) {
 	ps := w.expr(write)
 	if text, ok := w.labelText(ps); ok {
 		label := canonExpr(text)
+		seen := false
 		for _, a := range tp.args {
-			if a.label == label {
-				// The value is the first's: what this one keeps is dropped.
-				tp.b.WriteString("{" + label + "}")
-				w.drop(ps)
-				return
-			}
+			seen = seen || a.label == label
 		}
-		tp.hole(label, func() { w.put(ps) })
-		return
+		switch {
+		case !seen:
+			tp.hole(label, func() { w.put(ps) })
+			return
+		case w.final && !strings.Contains(label, "("):
+			// The value is the first's: what this one keeps is dropped.
+			tp.b.WriteString("{" + label + "}")
+			w.drop(ps)
+			return
+		case !w.final:
+			// Checked as a value of its own until the last round.
+			tp.hole(label+"#"+strconv.Itoa(len(tp.args)), func() { w.put(ps) })
+			return
+		}
 	}
 	name := w.varName(base)
 	w.stmts(func() {
@@ -170,7 +192,7 @@ func (w *jsxWriter) drop(ps []jsxPiece) {
 }
 
 // labelText is the Go ps write when it can be a label: one line, no raw
-// string, no JSX inside.
+// string, no JSX inside, no name Vuka declares.
 func (w *jsxWriter) labelText(ps []jsxPiece) (string, bool) {
 	var b strings.Builder
 	for _, p := range ps {
@@ -186,7 +208,7 @@ func (w *jsxWriter) labelText(ps []jsxPiece) (string, bool) {
 		b.Write(w.f.src[p.keep.start:p.keep.end])
 	}
 	s := b.String()
-	return s, s != "" && !strings.ContainsAny(s, "\n`")
+	return s, s != "" && !strings.ContainsAny(s, "\n`") && !strings.Contains(s, "__")
 }
 
 // canonExpr is a label's text as gofmt writes the expression as an
@@ -212,7 +234,15 @@ func (w *jsxWriter) varName(base string) string {
 	if base == "" {
 		base = "node"
 	}
-	return "__" + w.f.eng.tmplName(base, w.final)
+	if w.names == nil {
+		w.names = map[string]bool{}
+	}
+	name := base
+	for i := 2; w.names[name]; i++ {
+		name = base + strconv.Itoa(i)
+	}
+	w.names[name] = true
+	return "__" + name
 }
 
 // markup writes nodes: each on a line of its own, indented, where the
@@ -403,8 +433,8 @@ var (
 )
 
 // block writes a {for}, {if} or {match} as statements before the tree,
-// building a variable: a loop appends each body's node to a []ui.Node, an
-// if or a match assigns the one node it picks. It returns the variable.
+// building a []ui.Node — a block is a list, the nodes it picks its items —
+// and returns the variable.
 func (w *jsxWriter) block(n *jsxBlock) string {
 	q := w.q
 	outer := w.inBlock
@@ -433,13 +463,13 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 	}
 	name := w.varName(lowerFirst(firstTag(firstBody(n))))
 	w.stmts(func() {
-		w.gen("var " + name + " " + q + "Node\n")
+		w.gen("var " + name + " []" + q + "Node\n")
 		body := func(ns []jsxNode) {
 			if len(ns) > 0 {
 				e := w.expr(func() { w.piece(ns) })
-				w.gen("\n" + name + " = ")
+				w.gen("\n" + name + " = append(" + name + ", ")
 				w.put(e)
-				w.gen("\n")
+				w.gen(")\n")
 			}
 		}
 		if m := n.m; m != nil {
@@ -558,73 +588,6 @@ func exportName(tag string) string {
 		}
 	}
 	return b.String()
-}
-
-// tmplName is cand, numbered when another template has it: for good once
-// final, else for this round.
-func (e *engine) tmplName(cand string, final bool) string {
-	if e.tmplFixed == nil {
-		e.tmplFixed = map[string]bool{}
-	}
-	if e.tmplRound == nil {
-		e.tmplRound = map[string]bool{}
-	}
-	name := cand
-	for i := 2; e.tmplFixed[name] || !final && e.tmplRound[name]; i++ {
-		name = cand + strconv.Itoa(i)
-	}
-	if final {
-		e.tmplFixed[name] = true
-	} else {
-		e.tmplRound[name] = true
-	}
-	return name
-}
-
-// tmplBase is the name a top-level declaration's templates are named
-// after: a function's (row), a method's type and name (ordersRow; a Render
-// method's type alone), a variable's. taken reports that it is the
-// declaration's own name.
-func tmplBase(toks []tok, i int) (base string, taken bool) {
-	next := func(j int) int {
-		for j++; j < len(toks) && trivia(toks[j]); j++ {
-		}
-		return j
-	}
-	j := next(i)
-	if j >= len(toks) {
-		return "", false
-	}
-	recv := ""
-	switch {
-	case toks[j].tok == token.LPAREN:
-		recv = declName(toks, i)
-		for d := 0; j < len(toks); j++ {
-			if toks[j].tok == token.LPAREN || toks[j].tok == token.LBRACK {
-				d++
-			} else if toks[j].tok == token.RPAREN || toks[j].tok == token.RBRACK {
-				if d--; d == 0 {
-					break
-				}
-			}
-		}
-		j = next(j)
-	case toks[j].tok == token.LPAREN:
-	}
-	if j >= len(toks) || toks[j].tok != token.IDENT {
-		return "", false
-	}
-	name := toks[j].lit
-	if k := next(j); recv == "" && k+1 < len(toks) && toks[k].tok == token.PERIOD && toks[k+1].tok == token.IDENT {
-		recv, name = name, toks[k+1].lit // a static method: func User.New
-	}
-	if recv == "" {
-		return lowerFirst(name), lowerFirst(name) == name
-	}
-	if name == "Render" {
-		return lowerFirst(recv), lowerFirst(recv) == recv
-	}
-	return lowerFirst(recv) + exportName(name), false
 }
 
 func lowerFirst(s string) string {

@@ -20,31 +20,6 @@ const Env = "env"
 // theme is the page's: every component reads one value.
 var theme = ui.UsePageState("light")
 
-//line state.vuka:27
-var menu = ui.Template(`
-<div class="{{0}}">
-  <button onClick="{{1}}" aria-expanded="{{2}}">{{3}}</button>
-  <ul hidden="{{4}}">
-    <li selected="{{5}}" onClick="{{6}}">Env</li>
-    <li disabled="{{7}}">Logs</li>
-  </ul>
-  <input value="{{8}}" onInput="{{9}}"/>
-  <span>{{10}}</span> <span>{{11}}</span> <span>{{12}}</span>
-  <p title="{{13}}" data-ready="{{14}}" data-long="{{15}}" data-get="{{16}}"/>
-  <button onClick="{{17}}">+</button>
-  <button onClick="{{18}}">reset</button>
-  {{19}}
-  {{20}}
-  {{21}}
-</div>`)
-
-//line state.vuka:45
-var menuP = ui.Template(`<p>closed</p>`)
-
-//line state.vuka:46
-var menuP2 = ui.Template(`<p>open</p>`)
-
-//line state.vuka:20
 func Menu(label string) ui.Node {
 	open := ui.UseState(false)
 	tab := ui.UseState("logs")
@@ -52,7 +27,26 @@ func Menu(label string) ui.Node {
 	f := ui.UseState(Filters{Sort: "name"})
 	ready := open.Not().And(tab.Eq(Env))
 	limit := 3
-	return menu.Render(
+//line state.vuka:45
+	show := ui.Show(ui.ShowProps{When: open.Not(), Children: ui.HTML(`<p>closed</p>`)})
+	show2 := ui.Show(ui.ShowProps{When: open, Children: ui.HTML(`<p>open</p>`)})
+//line state.vuka:27
+	return ui.HTML(`
+<div class={ui.Classes{"menu": true, "is-open": open}}>
+  <button onClick={open.Toggle()} aria-expanded={open}>{label}</button>
+  <ul hidden={open.Not()}>
+    <li selected={tab.Eq("env")} onClick={tab.Set(Env).Set(open, false)}>Env</li>
+    <li disabled={ui.At[string](f, "Q").Eq("").Or(tab.Ne("logs"))}>Logs</li>
+  </ul>
+  <input value={ui.At[string](f, "Q")} onInput={f.Q.Set("x")}/>
+  <span>{n}</span> <span>{n.Plus(1)}</span> <span>{n.Neg()}</span>
+  <p title={theme.Plus("!")} data-ready={ready} data-long={ui.At[string](f, "Sort").Len().Gt(limit)} data-get={tab.Get()}/>
+  <button onClick={n.Inc()}>+</button>
+  <button onClick={f.Reset()}>reset</button>
+  {show}
+  {show2}
+  {Panel(open, ui.At[string](f, "Sort"))}
+</div>`,
 		ui.Classes{"menu": true, "is-open": open},
 		open.Toggle(),
 		open,
@@ -72,19 +66,17 @@ func Menu(label string) ui.Node {
 		tab.Get(),
 		n.Inc(),
 		f.Reset(),
-		ui.Show(ui.ShowProps{When: open.Not(), Children: menuP.Render()}),
-		ui.Show(ui.ShowProps{When: open, Children: menuP2.Render()}),
+		show,
+		show2,
 		Panel(open, ui.At[string](f, "Sort")),
 	)
 }
-
-var panel = ui.Template(`<p hidden="{{0}}">{{1}}</p>`)
 
 // Panel gets its parent's states: the same states.
 //
 //line state.vuka:52
 func Panel(open ui.State[bool], sort ui.State[string]) ui.Node {
-	return panel.Render(open.Not(), sort)
+	return ui.HTML(`<p hidden={open.Not()}>{sort}</p>`, open.Not(), sort)
 }
 
 func main() {

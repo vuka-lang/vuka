@@ -18,57 +18,47 @@ type Box[T any] struct {
 	Value T
 }
 
-var box = ui.Template(`<span>box {{0}}</span>`)
-
+func (b *Box[T]) Render() ui.Node {
 //line jsx_stateinfer.vuka:18
-func (b *Box[T]) Render() ui.Node { return box.Render(fmt.Sprint(b.Value)) }
+	return ui.HTML(`<span>box {fmt.Sprint(b.Value)}</span>`, fmt.Sprint(b.Value))
+}
 
 // A field reaching the parameter through a slice ([]T) pins it structurally.
+//
+//line jsx_stateinfer.vuka:21
 type List[T any] struct {
 	ui.Live
 	Items []T
 }
 
-//line jsx_stateinfer.vuka:27
-var list = ui.Template(`<ul>{{0}}</ul>`)
-
-//line jsx_stateinfer.vuka:27
-var listLi = ui.Template(`<li>{{0}}</li>`)
-
-//line jsx_stateinfer.vuka:26
 func (l *List[T]) Render() ui.Node {
-	return list.Render(ui.Each(l.Items, func(it T) ui.Node {
+	lis := make([]ui.Node, 0, len(l.Items))
 //line jsx_stateinfer.vuka:27
-		return listLi.Render(fmt.Sprint(it))
-	}))
+	for _, it := range l.Items {
+//line jsx_stateinfer.vuka:27
+		lis = append(lis, ui.HTML(`<li>{fmt.Sprint(it)}</li>`, fmt.Sprint(it)))
+	}
+//line jsx_stateinfer.vuka:27
+	return ui.HTML(`<ul>{lis}</ul>`, lis)
 }
 
 // And one through a pointer (*T).
-//
-//line jsx_stateinfer.vuka:31
 type Ref[T any] struct {
 	ui.Live
 	At *T
 }
 
-var ref = ui.Template(`<b>{{0}}</b>`)
+func (r *Ref[T]) Render() ui.Node { return ui.HTML(`<b>{fmt.Sprint(*r.At)}</b>`, fmt.Sprint(*r.At)) }
 
-//line jsx_stateinfer.vuka:36
-func (r *Ref[T]) Render() ui.Node { return ref.Render(fmt.Sprint(*r.At)) }
-
-//line jsx_stateinfer.vuka:40
-var pageMain = ui.Template(`
-<main>
-  {{0}}
-  {{1}}
-  {{2}}
-  {{3}}
-</main>`)
-
-//line jsx_stateinfer.vuka:38
 func page(ctx context.Context) ui.Node {
 	n := 7
-	return pageMain.Render(&Box[int]{Value: 1}, &Box[string]{Value: "two"}, &List[string]{Items: []string{"a", "b"}}, &Ref[int]{At: &n})
+	return ui.HTML(`
+<main>
+  {&Box[int]{Value: 1}}
+  {&Box[string]{Value: "two"}}
+  {&List[string]{Items: []string{"a", "b"}}}
+  {&Ref[int]{At: &n}}
+</main>`, &Box[int]{Value: 1}, &Box[string]{Value: "two"}, &List[string]{Items: []string{"a", "b"}}, &Ref[int]{At: &n})
 }
 
 //line jsx_stateinfer.vuka:48

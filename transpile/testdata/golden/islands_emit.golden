@@ -24,25 +24,17 @@ func (d *page) Bump()     {}
 func (d *page) RowClick() {}
 func (d *page) Delete()   {}
 
-//line islands_emit.vuka:26
-var pageBare = ui.Template(`{{0}}`)
-
 // A bare island: onBump lowers to ui.Emit("bump", d.Bump) (no strategy).
-//
-//line islands_emit.vuka:25
 func (d *page) bare() ui.Node {
-	return pageBare.Render(ui.Mount(Counter{Count: 5}, ui.Emit("bump", d.Bump)))
+	return ui.HTML(`{ui.Mount(Counter{Count: 5}, ui.Emit("bump", d.Bump))}`, ui.Mount(Counter{Count: 5}, ui.Emit("bump", d.Bump)))
 }
-
-//line islands_emit.vuka:34
-var pageFull = ui.Template(`{{0}}`)
 
 // With a strategy and several emits; the emit name drops the leading on and
 // lower-cases its first letter (onRowClick → rowClick, onDelete → delete).
 //
 //line islands_emit.vuka:33
 func (d *page) full() ui.Node {
-	return pageFull.Render(ui.Mount(Counter{Count: 5}, ui.Visible(), ui.Emit("rowClick", d.RowClick), ui.Emit("delete", d.Delete)))
+	return ui.HTML(`{ui.Mount(Counter{Count: 5}, ui.Visible(), ui.Emit("rowClick", d.RowClick), ui.Emit("delete", d.Delete))}`, ui.Mount(Counter{Count: 5}, ui.Visible(), ui.Emit("rowClick", d.RowClick), ui.Emit("delete", d.Delete)))
 }
 
 //line islands_emit.vuka:39

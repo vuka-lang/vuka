@@ -160,16 +160,14 @@ type fileState struct {
 	tf      *token.File
 	parents map[ast.Node]ast.Node
 
-	done      map[int]bool // src offsets of identifiers already rewritten or reported
-	rt        string       // the name the runtime is imported as; "" until needed
-	target    *jsxTarget   // what its JSX lowers to; nil until its first JSX
-	scope     string       // the scope id of the declaration being scanned (Options.Scopes)
-	declOff   int          // the top-level declaration being scanned: where it starts
-	declBase  string       // and the name its templates are named after
-	declTaken bool         // which is the declaration's own
-	eng       *engine
-	pkgEnd    int // offset just after the package clause's name
-	dotImps   bool
+	done    map[int]bool // src offsets of identifiers already rewritten or reported
+	rt      string       // the name the runtime is imported as; "" until needed
+	target  *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	scope   string       // the scope id of the declaration being scanned (Options.Scopes)
+	declOff int          // the top-level declaration being scanned: where it starts
+	eng     *engine
+	pkgEnd  int // offset just after the package clause's name
+	dotImps bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
 	files     []*fileLit     // embedded vuka.File literals, by offset

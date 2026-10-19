@@ -153,6 +153,12 @@ func (es edits) toOrig(off int) int {
 		if off < s {
 			break
 		}
+		if e.copy && off <= s+len(e.text) && e.own != nil {
+			if off == s+len(e.text) {
+				return e.src - 1 + e.n
+			}
+			return e.copied(off - s)
+		}
 		if off < s+len(e.text) {
 			if e.copy {
 				return e.copied(off - s)

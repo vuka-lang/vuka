@@ -8,10 +8,8 @@ import (
 	ui "vukatest.local/stateui"
 )
 
-var frameMain = ui.Template(`<main title="{{0}}">{{1}}</main>`)
-
 func frame(title string) func(ui.Node) ui.Node {
-	return func(page ui.Node) ui.Node { return frameMain.Render(title, page) }
+	return func(page ui.Node) ui.Node { return ui.HTML(`<main title={title}>{page}</main>`, title, page) }
 }
 
 // An @ui.Island whose arguments are expressions — a layout, nested calls,

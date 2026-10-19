@@ -47,10 +47,8 @@ func isIdentByte(c byte) bool { return isLetter(c) || '0' <= c && c <= '9' || c 
 // its Go expressions is a tree of its own.
 type jsxTree struct {
 	start, end int
-	declOff    int    // the top-level declaration it is in
-	base       string // what its templates are named after
-	baseTaken  bool   // base is its declaration's own name
-	returned   bool   // it is a return's value
+	declOff    int  // the top-level declaration it is in
+	returned   bool // it is a return's value
 	root       *jsxElem
 	comps      []*jsxComp
 	events     []*jsxEvent
@@ -168,7 +166,7 @@ func returned(src []byte, off int) bool {
 }
 
 func (p *jsxParser) tree(off int) int {
-	t := &jsxTree{start: off, declOff: p.f.declOff, base: p.f.declBase, baseTaken: p.f.declTaken, returned: returned(p.src, off)}
+	t := &jsxTree{start: off, declOff: p.f.declOff, returned: returned(p.src, off)}
 	outer := p.cur
 	p.cur = t
 	t.root = p.element(off)
@@ -776,6 +774,7 @@ type jsxWriter struct {
 	out     *stream // where pieces are written
 	sink    *stream // the statements before the tree's expression
 	inBlock bool    // writing a block's body
+	names   map[string]bool
 }
 
 func (w *jsxWriter) gen(s string) { w.out.p = append(w.out.p, jsxPiece{text: s, keep: span{-1, -1}}) }

@@ -15,36 +15,29 @@ type User struct {
 	Active bool
 }
 
-//line jsx_basic.vuka:16
-var cardDiv = ui.Template(`
-<div className="card" data-id="{{0}}">
-  <h3>{{1}}</h3>
-  {{2}}
-  <p title="it's &quot;quoted&quot;" hidden>Tom &amp; Jerry don't   panic,   it's    fine &lt;3</p>
-  <input type="checkbox" checked="{{3}}"/>
-  <span>{{4}} items</span> <b>!</b>
-</div>`)
-
-//line jsx_basic.vuka:15
 func card(user User, admin bool, children ui.Node) ui.Node {
-	return cardDiv.Render(user.ID, user.Name, children, user.Active, fmt.Sprint(user.ID))
+	return ui.HTML(`
+<div class="card" data-id={user.ID}>
+  <h3>{user.Name}</h3>
+  {children}
+  <p title="it's &quot;quoted&quot;" hidden>Tom &amp; Jerry don't   panic,   it's    fine &lt;3</p>
+  <input type="checkbox" checked={user.Active}/>
+  <span>{fmt.Sprint(user.ID)} items</span> <b>!</b>
+</div>`, user.ID, user.Name, children, user.Active, fmt.Sprint(user.ID))
 }
-
-//line jsx_basic.vuka:34
-var pageH1 = ui.Template(`
-<h1>Hello, {{0}}!</h1>
-{{1}}
-<hr/>`)
-
-//line jsx_basic.vuka:35
-var pageEm = ui.Template(`<em>child</em>`)
 
 //line jsx_basic.vuka:29
 func page(u User) ui.Node {
 	x := 1
 	y := x < 2
 	_ = y
-	return pageH1.Render(u.Name, card(u, true, pageEm.Render()))
+//line jsx_basic.vuka:35
+	value := card(u, true, ui.HTML(`<em>child</em>`))
+//line jsx_basic.vuka:33
+	return ui.HTML(`
+<h1>Hello, {u.Name}!</h1>
+{value}
+<hr/>`, u.Name, value)
 }
 
 //line jsx_basic.vuka:40
