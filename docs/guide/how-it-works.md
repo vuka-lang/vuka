@@ -1,5 +1,26 @@
 # How it works
 
+::: go
+A Go app has nothing to transpile: it calls web, ui and the ORM directly,
+and they do at run time what a `.vuka` file's syntax says.
+
+- **Registrations run at init.** `web.Routes.Get(…)` in a package's `init`
+  records the route; `web.New` gives each app a copy, and `app.Get(…)` adds
+  to that app alone. `Build` (or `Run`) checks every route, page and
+  dependency before serving.
+- **Templates parse once.** `ui.Template` reads its HTML when the package
+  initializes, precomputes the static parts, and builds the same render tree
+  JSX does, so a live page diffs and patches it the same way.
+- **Schemas run once.** The ORM calls a model's `Schema` on a zero value the
+  first time it maps the model, and keeps what it declared.
+- **Generated code is a speed-up.** `go generate` writes the ORM's typed
+  fields and row scanners into `*_gen.go` files registered at init; without
+  them queries take strings and rows are read by reflection.
+
+The rest of this page is how the `vuka` command turns a `.vuka` file into
+that same Go.
+:::
+
 ## Go does the heavy lifting
 
 Vuka is a transpiler that owns as little as it can:

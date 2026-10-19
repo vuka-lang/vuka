@@ -1,7 +1,10 @@
 # Routes
 
-A route is a function or a method with a route decorator on it:
+A route is a function or a method <span class="vuka-only">with a route
+decorator on it</span><span class="go-only">registered on `web.Routes` (or an
+app)</span>:
 
+::: vuka
 ```vuka
 @web.Get("/pets")
 func ListPets(store *PetStore) Result[[]Pet] { return store.All() }
@@ -12,7 +15,25 @@ func CreatePet(in NewPet, store *PetStore) Result[Pet] { return store.Add(in) }
 @web.Handle("OPTIONS", "/api/pets")
 func PetOptions(w http.ResponseWriter) { w.Header().Set("Allow", "GET, POST") }
 ```
+:::
 
+::: go
+```go
+func ListPets(store *PetStore) ([]Pet, error) { return store.All() }
+
+func CreatePet(in NewPet, store *PetStore) (Pet, error) { return store.Add(in) }
+
+func PetOptions(w http.ResponseWriter) { w.Header().Set("Allow", "GET, POST") }
+
+func init() {
+	web.Routes.Get("/pets", ListPets)
+	web.Routes.Post("/api/pets", CreatePet)
+	web.Routes.Handle("OPTIONS", "/api/pets", PetOptions)
+}
+```
+:::
+
+::: vuka
 | Decorator | |
 |---|---|
 | `@web.Get(path)`, `@web.Post(path)`, `@web.Put(path)`, `@web.Patch(path)`, `@web.Delete(path)` | a route for that method |
@@ -22,19 +43,56 @@ func PetOptions(w http.ResponseWriter) { w.Header().Set("Allow", "GET, POST") }
 | `@web.Service` | a struct becomes a [dependency](/web/dependency-injection) |
 | `@web.Controller(prefix)` | a struct becomes a dependency whose route methods are served under `prefix` |
 | `@web.Live(path, opts…)` | a stateful component becomes a [live page](/web/live) |
+:::
 
+::: go
+| Call | |
+|---|---|
+| `web.Routes.Get(path, fn, opts…)`, `Post`, `Put`, `Patch`, `Delete` | a route for that method |
+| `web.Routes.Handle(method, path, fn, opts…)` | a route for any method |
+| `web.Template(file [, name])` | an option: render the result with a [view](/web/views) |
+| `web.Use(mw…)` | an option: [middleware](/web/middleware) for this route |
+| `web.Routes.Service(NewX)` | a struct becomes a [dependency](/web/dependency-injection) |
+| `web.Routes.Controller(prefix, NewX)` | a struct becomes a dependency whose method routes are served under `prefix` |
+| `web.Routes.Live(path, NewX, opts…)` | a stateful component becomes a [live page](/web/live) |
+:::
+
+::: vuka
 Route decorators are Vuka
 [declarers](/features/decorators#declaration-decorators): each runs once at
 init and records the function with its parameter names, which is how `id`
 binds to `{id}`. Other decorators on the same function still wrap it — a call
 decorator such as `@audited` runs on every request:
+:::
+::: go
+Reflection can't see parameter names, so `web.Params` names them, in order:
+that is how `id` binds to `{id}`. What a call decorator does in a `.vuka`
+file is code of the handler's own in Go:
+:::
 
+::: vuka
 ```vuka
 @web.Get("/pets/{id}")
 @audited
 func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 ```
+:::
 
+::: go
+```go
+// audited wraps the handler, as a call decorator does.
+func ShowPet(id int, store *PetStore) (Pet, error) {
+	defer audit("ShowPet", id)()
+	return store.Find(id)
+}
+
+func init() {
+	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+}
+```
+:::
+
+::: vuka
 You don't import page packages: the `vuka` command links every package of the
 module that declares routes, crons or live pages into main, so a new package
 of pages serves as soon as it is saved — no `_ "app/pages/reports"` in
@@ -42,6 +100,14 @@ main.vuka. `vuka gen` writes the generated imports as `vuka_link_gen.go` for
 plain go tools, and a `//vuka:nolink` line above a package clause opts a
 package (or, on main, the whole app) out; see
 [the CLI](/tools/cli#build-run-test-vet-install).
+:::
+
+::: go
+Go links only the packages main imports, so main imports each package
+that registers routes, crons or live pages in its `init`, blank if it uses
+nothing else: `_ "app/pages/reports"`. A module ejected from `.vuka` files
+keeps its generated `vuka_link_gen.go`, which does the same.
+:::
 
 ## Paths
 
@@ -87,6 +153,7 @@ development, the [toolbar](/web/toolbar). A script's request — `fetch`, htmx
 So a form that fails re-renders itself, with its errors and what was typed,
 instead of redirecting with `?error=`:
 
+::: vuka
 ```vuka
 type Signup struct {
 	Email string `form:"email"`
@@ -104,6 +171,30 @@ func SignUp(ctx context.Context, in Signup, users *Users) ui.Node {
 	return web.Redirect("/welcome")                             // 303
 }
 ```
+:::
+
+::: go
+```go
+type Signup struct {
+	Email string `form:"email"`
+	Name  string `form:"name"`
+}
+
+func SignupForm() ui.Node { return SignupPage(Signup{}, "") }
+
+func SignUp(ctx context.Context, in Signup, users *Users) ui.Node {
+	if err := users.Create(ctx, in); err != nil {
+		return SignupPage(in, err.Error()) // the whole page again
+	}
+	return web.Redirect("/welcome") // 303
+}
+
+func init() {
+	web.Routes.Get("/signup", SignupForm)
+	web.Routes.Post("/signup", SignUp)
+}
+```
+:::
 
 The browser says it is loading a document with `Sec-Fetch-Dest: document`
 (`iframe` for a form in a frame); a browser too old to send it counts when
@@ -119,6 +210,7 @@ For signing in, see [Signing in and out](/web/auth#signing-in-and-out).
 fields, and its methods with route decorators are served under the prefix.
 Under a controller, `"/"` is the prefix itself:
 
+::: vuka
 ```vuka
 @web.Controller("/admin/pets")
 type PetAdmin struct {
@@ -131,7 +223,29 @@ func (a *PetAdmin) Index() Result[[]Pet] { return a.store.All() }
 @web.Delete("/{id}")                               // DELETE /admin/pets/{id}
 func (a *PetAdmin) Remove(ctx context.Context, id int) error { return a.store.Remove(id) }
 ```
+:::
 
+::: go
+```go
+type PetAdmin struct {
+	store *PetStore
+}
+
+func NewPetAdmin(store *PetStore) *PetAdmin { return &PetAdmin{store: store} }
+
+func (a *PetAdmin) Index() ([]Pet, error) { return a.store.All() }
+
+func (a *PetAdmin) Remove(ctx context.Context, id int) error { return a.store.Remove(id) }
+
+func init() {
+	web.Routes.Controller("/admin/pets", NewPetAdmin)
+	web.Routes.Get("/", (*PetAdmin).Index)                                  // GET /admin/pets
+	web.Routes.Delete("/{id}", (*PetAdmin).Remove, web.Params("ctx", "id")) // DELETE /admin/pets/{id}
+}
+```
+:::
+
+<span class="go-only">Its routes are its method expressions, registered after it.</span>
 The controller is a singleton like any dependency: its fields are injected
 once, and each request calls the method on it. Pointer and value receivers
 both work.
@@ -142,6 +256,7 @@ both work.
 its fields, each injected by type (Vuka's
 [generated constructor](/features/dependency-injection)):
 
+::: vuka
 ```vuka
 @web.Service
 type PetStore struct {
@@ -149,7 +264,24 @@ type PetStore struct {
 	mu  sync.Mutex `inject:"-"`   // not a dependency
 }
 ```
+:::
 
+::: go
+```go
+type PetStore struct {
+	db *DB
+	mu sync.Mutex
+}
+
+func NewPetStore(db *DB) *PetStore { return &PetStore{db: db} }
+
+func init() {
+	web.Routes.Service(NewPetStore)
+}
+```
+:::
+
+<span class="go-only">The constructor's parameters are injected by type.</span>
 A method of a service (or of any provided type) can be a route too: the
 receiver comes from the container, with no prefix.
 
