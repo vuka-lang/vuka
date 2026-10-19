@@ -43,12 +43,13 @@ type engine struct {
 	selfJSX         bool                      // this package declares VukaJSX: its JSX lowers to itself
 	selfNames       map[string]bool           // its package-level names, for a self-target before type-checking
 
-	declared      map[string]bool // package-level names
-	typeNames     map[string]bool // package-level type names
-	genericEmbeds map[string]bool // types embedding a generic or another package's type
-	members       map[string]bool // Type.field and Type.method names
-	methodNames   map[string]bool // Type.method names
-	typed         bool            // the package is type-checked every round
+	declared      map[string]bool               // package-level names
+	typeNames     map[string]bool               // package-level type names
+	registries    map[*types.Package]*types.Var // each package's registry, nil for none (decorate.go)
+	genericEmbeds map[string]bool               // types embedding a generic or another package's type
+	members       map[string]bool               // Type.field and Type.method names
+	methodNames   map[string]bool               // Type.method names
+	typed         bool                          // the package is type-checked every round
 	sets          map[string]*overloadSet
 	funcs         map[string]*overloadSet
 	methods       map[string]*overloadSet
@@ -87,6 +88,10 @@ func (e *engine) run() {
 		e.check()
 		if e.oldRuntime() {
 			return
+		}
+		if e.unusedRuntime() {
+			e.progress = true
+			continue
 		}
 		e.resolveSelfTargets()
 		for _, f := range e.vuka {
@@ -254,6 +259,8 @@ func (e *engine) qualify() {
 	}
 }
 
+const runtimeImport = `; import vuka "` + RuntimePath + `"`
+
 // runtime is the name the runtime package goes by in f, importing it on first use.
 func (f *fileState) runtime() string {
 	if f.rt != "" {
@@ -269,7 +276,7 @@ func (f *fileState) runtime() string {
 		}
 	}
 	f.rt = "vuka"
-	f.insert(f.pkgEnd, `; import vuka "`+RuntimePath+`"`, 0)
+	f.insert(f.pkgEnd, runtimeImport, 0)
 	return f.rt
 }
 
@@ -452,6 +459,27 @@ func importFailure(msg string) string {
 		return msg
 	}
 	return strings.TrimSuffix(why, ")")
+}
+
+// unusedRuntime drops the runtime's import from the files Vuka added it to
+// when nothing there uses it any more (a decorator found to be a registry's
+// call needs none), reporting whether it dropped one.
+func (e *engine) unusedRuntime() bool {
+	dropped := false
+	for _, te := range e.typeErrs {
+		f := e.fileOf(te.Pos)
+		if f == nil || !f.vuka || !strings.Contains(te.Msg, strconv.Quote(RuntimePath)+" imported and not used") {
+			continue
+		}
+		for i, ed := range f.fixed {
+			if ed.start == f.pkgEnd && ed.text == runtimeImport {
+				f.fixed = append(f.fixed[:i], f.fixed[i+1:]...)
+				f.rt, dropped = "", true
+				break
+			}
+		}
+	}
+	return dropped
 }
 
 // oldRuntime reports, as one clear error, generated code using runtime names

@@ -145,14 +145,15 @@ type fileState struct {
 	matches []*matchStmt
 	jsx     []*jsxTree
 
-	fixed    edits     // decided rewrites, in src offsets
-	cur      edits     // this round's: fixed plus placeholders
-	body     int       // length of text before the trailer
-	trailer  string    // generated after the source: typed attribute checks, decorator wrappers
-	tsegs    []segment // where each piece of the trailer comes from
-	deco     genWriter // the decorator wrappers
-	decoBase int       // where they start in the trailer
-	decos    []any     // *funcDeco and *typeDeco, in source order
+	fixed    edits          // decided rewrites, in src offsets
+	cur      edits          // this round's: fixed plus placeholders
+	body     int            // length of text before the trailer
+	trailer  string         // generated after the source: typed attribute checks, decorator wrappers
+	tsegs    []segment      // where each piece of the trailer comes from
+	deco     genWriter      // the decorator wrappers
+	decoBase int            // where they start in the trailer
+	decos    []any          // *funcDeco and *typeDeco, in source order
+	regs     []registration // this render's registry decorators' calls (decorate.go)
 	text     []byte
 
 	ast     *ast.File

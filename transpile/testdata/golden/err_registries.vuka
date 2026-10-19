@@ -1,0 +1,11 @@
+package main
+
+import web "vukatest.local/webstub"
+
+@web.Get("/first")
+func first[T any](xs []T) T { return xs[0] }
+
+@web.Get("/init")
+func init() {}
+
+func main() {}

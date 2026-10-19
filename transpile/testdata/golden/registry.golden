@@ -60,8 +60,17 @@ var _ = Label("count")
 //line registry.vuka:30
 var _ = Label("free")
 
+func init() {
+	vuka.RegisterType[Board](append([]any{}, boardB0.Attrs()...)...)
+	vuka.RegisterFunc((*Board).Clear, append([]any{}, boardClearDecB0.Attrs()...)...)
+//line registry.vuka:25
+	vuka.RegisterFunc((Board).Count, []any{Label("count")}...)
+//line registry.vuka:30
+	vuka.RegisterFunc(charge, []any{Label("free")}...)
+}
+
 //line registry.vuka:20
-func Board_New(n int) *Board {
+func NewBoard(n int) *Board {
 	return &Board{n: n}
 }
 
@@ -75,8 +84,7 @@ func boardAdvice() []vuka.Decorator {
 var boardB0 = Requires("board.read")
 
 func init() {
-	boardType := vuka.TypeWith[Board]("main.Board", Board_New, append([]any{}, boardB0.Attrs()...)...)
-	vuka.DecorateType(boardB0, boardType)
+	boardB0.Decorate(vuka.TypeFor[Board](NewBoard, boardB0))
 }
 
 //line registry.vuka:22
@@ -107,8 +115,7 @@ func (b *Board) Clear(ctx context.Context) error {
 }
 
 func init() {
-	boardClearDecl := vuka.MethodDecl(vuka.Decl{Name: "Board.Clear", Pkg: "main", File: "registry.vuka", Line: 23, Func: (*Board).Clear, Attrs: append([]any{}, boardClearDecB0.Attrs()...)}, "ctx")
-	vuka.DeclareWith(boardClearDecB0, boardClearDecl)
+	boardClearDecB0.Declare(vuka.DeclOf((*Board).Clear, vuka.Param{Name: "ctx"}))
 }
 
 var boardCountDec vuka.Decorated[func(Board) int]
@@ -172,13 +179,4 @@ func (b *Board) Handlers() []any {
 			}
 		}((*Board).handlers)
 	})(b)
-}
-
-func init() {
-	vuka.RegisterType[Board](append([]any{}, boardB0.Attrs()...)...)
-	vuka.RegisterFunc((*Board).Clear, append([]any{}, boardClearDecB0.Attrs()...)...)
-//line registry.vuka:25
-	vuka.RegisterFunc((Board).Count, []any{Label("count")}...)
-//line registry.vuka:30
-	vuka.RegisterFunc(charge, []any{Label("free")}...)
 }

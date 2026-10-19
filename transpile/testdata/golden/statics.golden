@@ -40,7 +40,7 @@ type User struct {
 }
 
 //line statics.vuka:39
-func User_New(name string) *User {
+func NewUser(name string) *User {
 	_User_created++
 	return &User{Name: name}
 }
@@ -58,7 +58,7 @@ type Admin struct {
 func main() {
 	ctx := context.Background()
 	for _, n := range []string{"ada", "linus"} {
-		u := User_New(n)
+		u := NewUser(n)
 		if err := u.Save(u, ctx); err != nil {
 			panic(err)
 		}

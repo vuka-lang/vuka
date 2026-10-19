@@ -139,7 +139,7 @@ func (p NewPet) Validate() error {
 }
 
 //line params.vuka:135
-func showPetImpl(id int, format string, store *Store) (string, error) {
+func showPet(id int, format string, store *Store) (string, error) {
 	if format == "upper" {
 		return strings.ToUpper(store.pets[id]), nil
 	}
@@ -154,7 +154,7 @@ func addPetImpl(in NewPet, store *Store) (string, error) {
 }
 
 //line params.vuka:151
-func ownedPetImpl(owner, id int, store *Store) (string, error) {
+func ownedPet(owner, id int, store *Store) (string, error) {
 	return fmt.Sprint(owner, " owns ", store.pets[id]), nil
 }
 
@@ -163,7 +163,7 @@ type Admin struct{ store *Store }
 // A method's parameters take attributes too; so do unnamed ones.
 //
 //line params.vuka:159
-func (a *Admin) count(string) (string, error) {
+func (a *Admin) Count(string) (string, error) {
 	return strconv.Itoa(len(a.store.pets)), nil
 }
 
@@ -207,16 +207,9 @@ var _ = Path("pet_id")
 //line params.vuka:159
 var _ = Query("unit")
 
-//line params.vuka:135
-func showPet(id int, format string, store *Store) (string, error) {
-	return showPetImpl(id, format, store)
-}
-
 func init() {
-//line params.vuka:135
-	showPetDecl := vuka.FuncDecl(vuka.Decl{Name: "main.showPet", Pkg: "main", File: "params.vuka", Line: 135, Func: showPet, Attrs: []any{}, Params: []vuka.Param{{Name: "id", Attrs: []any{Path("pet_id")}}, {Name: "format", Attrs: []any{Query("format")}}, {Name: "store"}}})
 //line params.vuka:134
-	Get("/pets/{pet_id}")(showPetDecl)
+	Get("/pets/{pet_id}")(vuka.DeclOf(showPet, vuka.Param{Name: "id", Attrs: []any{Path("pet_id")}}, vuka.Param{Name: "format", Attrs: []any{Query("format")}}, vuka.Param{Name: "store"}))
 }
 
 var addPetDec vuka.Decorated[func(NewPet, *Store) (string, error)]
@@ -243,34 +236,16 @@ func addPet(in NewPet, store *Store) (string, error) {
 }
 
 func init() {
-//line params.vuka:144
-	addPetDecl := vuka.FuncDecl(vuka.Decl{Name: "main.addPet", Pkg: "main", File: "params.vuka", Line: 144, Func: addPet, Attrs: []any{}, Params: []vuka.Param{{Name: "in", Attrs: []any{*new(Body), *new(Valid)}}, {Name: "store"}}})
 //line params.vuka:142
-	Post("/pets")(addPetDecl)
-}
-
-//line params.vuka:151
-func ownedPet(owner int, id int, store *Store) (string, error) {
-	return ownedPetImpl(owner, id, store)
+	Post("/pets")(vuka.DeclOf(addPet, vuka.Param{Name: "in", Attrs: []any{*new(Body), *new(Valid)}}, vuka.Param{Name: "store"}))
 }
 
 func init() {
-//line params.vuka:151
-	ownedPetDecl := vuka.FuncDecl(vuka.Decl{Name: "main.ownedPet", Pkg: "main", File: "params.vuka", Line: 151, Func: ownedPet, Attrs: []any{}, Params: []vuka.Param{{Name: "owner", Attrs: []any{Path("owner")}}, {Name: "id", Attrs: []any{Path("pet_id")}}, {Name: "store"}}})
 //line params.vuka:150
-	Get("/owners/{owner}/pets/{pet_id}")(ownedPetDecl)
-}
-
-// A method's parameters take attributes too; so do unnamed ones.
-//
-//line params.vuka:159
-func (a *Admin) Count(a0 string) (string, error) {
-	return a.count(a0)
+	Get("/owners/{owner}/pets/{pet_id}")(vuka.DeclOf(ownedPet, vuka.Param{Name: "owner", Attrs: []any{Path("owner")}}, vuka.Param{Name: "id", Attrs: []any{Path("pet_id")}}, vuka.Param{Name: "store"}))
 }
 
 func init() {
-//line params.vuka:159
-	adminCountDecl := vuka.MethodDecl(vuka.Decl{Name: "Admin.Count", Pkg: "main", File: "params.vuka", Line: 159, Func: (*Admin).Count, Attrs: []any{}, Params: []vuka.Param{{Name: "", Attrs: []any{Query("unit")}}}})
 //line params.vuka:158
-	Get("/admin/count")(adminCountDecl)
+	Get("/admin/count")(vuka.DeclOf((*Admin).Count, vuka.Param{Name: "", Attrs: []any{Query("unit")}}))
 }

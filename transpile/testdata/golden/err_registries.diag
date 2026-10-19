@@ -1,0 +1,17 @@
+error[E0213]: @web.Get registers the declaration it is on, which needs a concrete function; main.first is generic
+ --> err_registries.vuka:5:1
+  |
+5 | @web.Get("/first")
+  | ^^^^^^^^
+  |
+  = help: put the declarer on a concrete, named function or method
+
+error[E0213]: @web.Get registers the declaration it is on, which needs a function it can refer to; init can't be
+ --> err_registries.vuka:8:1
+  |
+8 | @web.Get("/init")
+  | ^^^^^^^^
+  |
+  = help: put the declarer on a concrete, named function or method
+
+For more information about this error, try `vuka explain E0213`.

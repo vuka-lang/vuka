@@ -132,12 +132,11 @@ func init() {
 }
 
 //line fields.vuka:39
-func User_New(ID int64, Name string, Nick vuka.Option[string]) *User {
+func NewUser(ID int64, Name string, Nick vuka.Option[string]) *User {
 	return &User{ID: ID, Name: Name, Nick: Nick}
 }
 
 func init() {
-	userType := vuka.TypeWith[User]("main.User", User_New)
 //line fields.vuka:38
-	describe(userType)
+	describe(vuka.TypeFor[User](NewUser))
 }

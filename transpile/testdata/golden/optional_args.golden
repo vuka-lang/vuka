@@ -58,10 +58,10 @@ func Command(names ...string) func(*vuka.Decl) {
 }
 
 //line optional_args.vuka:54
-func greetImpl() string { return "hello" }
+func greet() string { return "hello" }
 
 //line optional_args.vuka:57
-func byeImpl() string { return "bye" }
+func bye() string { return "bye" }
 
 var entities []string
 
@@ -127,48 +127,34 @@ func report() int {
 	})()
 }
 
-//line optional_args.vuka:54
-func greet() string {
-	return greetImpl()
-}
-
 func init() {
-	greetDecl := vuka.FuncDecl(vuka.Decl{Name: "main.greet", Pkg: "main", File: "optional_args.vuka", Line: 54, Func: greet, Attrs: []any{}})
 //line optional_args.vuka:53
-	Command()(greetDecl)
-}
-
-//line optional_args.vuka:57
-func bye() string {
-	return byeImpl()
+	Command()(vuka.DeclOf(greet))
 }
 
 func init() {
-	byeDecl := vuka.FuncDecl(vuka.Decl{Name: "main.bye", Pkg: "main", File: "optional_args.vuka", Line: 57, Func: bye, Attrs: []any{}})
 //line optional_args.vuka:56
-	Command("bye", "quit")(byeDecl)
+	Command("bye", "quit")(vuka.DeclOf(bye))
 }
 
 //line optional_args.vuka:66
-func User_New(ID int) *User {
+func NewUser(ID int) *User {
 	return &User{ID: ID}
 }
 
 func init() {
-	userType := vuka.TypeWith[User]("main.User", User_New)
 //line optional_args.vuka:65
-	Entity()(userType)
+	Entity()(vuka.TypeFor[User](NewUser))
 }
 
 //line optional_args.vuka:69
-func Order_New(ID int) *Order {
+func NewOrder(ID int) *Order {
 	return &Order{ID: ID}
 }
 
 func init() {
-	orderType := vuka.TypeWith[Order]("main.Order", Order_New)
 //line optional_args.vuka:68
-	Entity("orders")(orderType)
+	Entity("orders")(vuka.TypeFor[Order](NewOrder))
 }
 
 var incDec vuka.Decorated[func(int) int]

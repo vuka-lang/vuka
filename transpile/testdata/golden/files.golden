@@ -36,7 +36,7 @@ func page(c *vuka.Call) {
 }
 
 //line files.vuka:31
-func showPetImpl(id int) string { return fmt.Sprint("pet ", id) }
+func showPet(id int) string { return fmt.Sprint("pet ", id) }
 
 //line files.vuka:36
 func homeImpl() string { return "home" }
@@ -56,15 +56,14 @@ var vukaFile1 string
 //go:embed "assets/hello.txt"
 var vukaFile0 string
 
-//line files.vuka:31
-func showPet(id int) string {
-	return showPetImpl(id)
+func init() {
+//line files.vuka:33
+	vuka.RegisterFunc(home, []any{Page{Title: "Home", Body: vuka.FileOf("main:assets/hello.txt", vukaFile0)}}...)
 }
 
 func init() {
-	showPetDecl := vuka.FuncDecl(vuka.Decl{Name: "main.showPet", Pkg: "main", File: "files.vuka", Line: 31, Func: showPet, Attrs: []any{}}, "id")
 //line files.vuka:30
-	Template(vuka.FileOf("main:assets/views/pet.html", vukaFile1))(showPetDecl)
+	Template(vuka.FileOf("main:assets/views/pet.html", vukaFile1))(vuka.DeclOf(showPet, vuka.Param{Name: "id"}))
 }
 
 var homeDec vuka.Decorated[func() string]
@@ -88,13 +87,6 @@ func home() string {
 }
 
 func init() {
-//line files.vuka:33
-	homeDecl := vuka.FuncDecl(vuka.Decl{Name: "main.home", Pkg: "main", File: "files.vuka", Line: 36, Func: home, Attrs: []any{Page{Title: "Home", Body: vuka.FileOf("main:assets/hello.txt", vukaFile0)}}})
 //line files.vuka:35
-	Template(vuka.FileOf("main:assets/hello.txt", vukaFile0))(homeDecl)
-}
-
-func init() {
-//line files.vuka:33
-	vuka.RegisterFunc(home, []any{Page{Title: "Home", Body: vuka.FileOf("main:assets/hello.txt", vukaFile0)}}...)
+	Template(vuka.FileOf("main:assets/hello.txt", vukaFile0))(vuka.DeclOf(home))
 }

@@ -28,12 +28,11 @@ func main() {
 }
 
 //line islands_explicit.vuka:14
-func Picker_New(Weeks int) *Picker {
+func NewPicker(Weeks int) *Picker {
 	return &Picker{Weeks: Weeks}
 }
 
 func init() {
-	pickerType := vuka.TypeWith[Picker]("main.Picker", Picker_New)
 //line islands_explicit.vuka:13
-	ui.Island("islands/Picker.vue")(pickerType)
+	ui.Island("islands/Picker.vue")(vuka.TypeFor[Picker](NewPicker))
 }

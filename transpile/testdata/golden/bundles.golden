@@ -104,6 +104,12 @@ func main() {
 	fmt.Println(len(ApiRoute("/x").Calls()), len(Audited().Attrs()))
 }
 
+func init() {
+	vuka.RegisterFunc(listPets, append([]any{}, listPetsDecB0.Attrs()...)...)
+	vuka.RegisterFunc(listUsers, append(append([]any{}, listUsersDecB0.Attrs()...), listUsersDecB1.Attrs()...)...)
+	vuka.RegisterType[PetStore](append([]any{}, petStoreB0.Attrs()...)...)
+}
+
 //line bundles.vuka:65
 var listPetsDecB0 = ApiRoute("/pets")
 
@@ -129,8 +135,7 @@ func listPets() []string {
 }
 
 func init() {
-	listPetsDecl := vuka.FuncDecl(vuka.Decl{Name: "main.listPets", Pkg: "main", File: "bundles.vuka", Line: 66, Func: listPets, Attrs: append([]any{}, listPetsDecB0.Attrs()...)})
-	vuka.DeclareWith(listPetsDecB0, listPetsDecl)
+	listPetsDecB0.Declare(vuka.DeclOf(listPets))
 }
 
 //line bundles.vuka:68
@@ -161,13 +166,13 @@ func listUsers(limit int) []string {
 }
 
 func init() {
-	listUsersDecl := vuka.FuncDecl(vuka.Decl{Name: "main.listUsers", Pkg: "main", File: "bundles.vuka", Line: 70, Func: listUsers, Attrs: append(append([]any{}, listUsersDecB0.Attrs()...), listUsersDecB1.Attrs()...)}, "limit")
-	vuka.DeclareWith(listUsersDecB0, listUsersDecl)
-	vuka.DeclareWith(listUsersDecB1, listUsersDecl)
+	listUsersDecl := vuka.DeclOf(listUsers, vuka.Param{Name: "limit"})
+	listUsersDecB0.Declare(listUsersDecl)
+	listUsersDecB1.Declare(listUsersDecl)
 }
 
 //line bundles.vuka:73
-func PetStore_New(pets []string) *PetStore {
+func NewPetStore(pets []string) *PetStore {
 	return &PetStore{pets: pets}
 }
 
@@ -181,8 +186,7 @@ func petStoreAdvice() []vuka.Decorator {
 var petStoreB0 = Service()
 
 func init() {
-	petStoreType := vuka.TypeWith[PetStore]("main.PetStore", PetStore_New, append([]any{}, petStoreB0.Attrs()...)...)
-	vuka.DecorateType(petStoreB0, petStoreType)
+	petStoreB0.Decorate(vuka.TypeFor[PetStore](NewPetStore, petStoreB0))
 }
 
 var petStoreCountDec vuka.Decorated[func(*PetStore) int]
@@ -204,10 +208,4 @@ func (s *PetStore) Count() int {
 			}
 		}((*PetStore).count)
 	})(s)
-}
-
-func init() {
-	vuka.RegisterFunc(listPets, append([]any{}, listPetsDecB0.Attrs()...)...)
-	vuka.RegisterFunc(listUsers, append(append([]any{}, listUsersDecB0.Attrs()...), listUsersDecB1.Attrs()...)...)
-	vuka.RegisterType[PetStore](append([]any{}, petStoreB0.Attrs()...)...)
 }

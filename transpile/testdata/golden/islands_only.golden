@@ -21,12 +21,11 @@ func clock() ui.Node {
 }
 
 //line islands_only.vuka:6
-func Clock_New(Zone string) *Clock {
+func NewClock(Zone string) *Clock {
 	return &Clock{Zone: Zone}
 }
 
 func init() {
-	clockType := vuka.TypeWith[Clock]("main.Clock", Clock_New)
 //line islands_only.vuka:5
-	ui.Island("islands/Clock.tsx")(clockType)
+	ui.Island("islands/Clock.tsx")(vuka.TypeFor[Clock](NewClock))
 }

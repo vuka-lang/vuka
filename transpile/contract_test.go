@@ -22,6 +22,7 @@ var targets = map[string]string{
 	"vukatest.local/stateui":  "github.com/vuka-lang/ui",
 	"vukatest.local/islandui": "github.com/vuka-lang/ui",
 	"golden/fttarget":         "github.com/vuka-lang/ui",
+	"vukatest.local/webstub":  "github.com/vuka-lang/web",
 }
 
 // TestContract checks the generated goldens against the contract for

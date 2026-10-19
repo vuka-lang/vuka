@@ -1,0 +1,7 @@
+SERVICE - main.NewStore
+GET /pets/{id} main.ShowPet use params(id,store)
+GET /pets main.ListPets
+CONTROLLER /admin main.NewAdmin
+GET /stats main.(*Admin).Stats params(days)
+LIVE /board main.NewBoard stateui.Island.func1
+x true

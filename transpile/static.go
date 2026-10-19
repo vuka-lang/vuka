@@ -34,8 +34,16 @@ type staticFunc struct {
 }
 
 // staticGoName is the Go name of a static member: Type_Name, with a leading
-// underscore when the member is unexported, so it stays private.
+// underscore when the member is unexported, so it stays private. A type's
+// constructor, its static New, is Go's NewType (newType for an unexported
+// type).
 func staticGoName(typeName, member string) string {
+	if member == "New" && typeName != "" {
+		if token.IsExported(typeName) {
+			return "New" + typeName
+		}
+		return "new" + strings.ToUpper(typeName[:1]) + typeName[1:]
+	}
 	if token.IsExported(member) {
 		return typeName + "_" + member
 	}
