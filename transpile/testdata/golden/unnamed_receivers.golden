@@ -27,13 +27,13 @@ func logged(c *vuka.Call) {
 type Session struct{ user string }
 
 //line unnamed_receivers.vuka:23
-func (Session) login(r string) string { return "login " + r }
+func (Session) Login(r string) string { return "login " + r }
 
 //line unnamed_receivers.vuka:26
-func (*Session) signIn(r string, n int) (r2 string) { return fmt.Sprint("sign in ", r, " ", n) }
+func (*Session) SignIn(r string, n int) (r2 string) { return fmt.Sprint("sign in ", r, " ", n) }
 
 //line unnamed_receivers.vuka:29
-func (_ Session) who() (r string) { return "who" }
+func (_ Session) Who() (r string) { return "who" }
 
 //line unnamed_receivers.vuka:32
 func (Session) loggedImpl(r string) string { return "logged " + r }
@@ -62,37 +62,19 @@ func main() {
 	}
 }
 
-//line unnamed_receivers.vuka:23
-func (recv Session) Login(r string) string {
-	return recv.login(r)
-}
-
 func init() {
-	sessionLoginDecl := vuka.MethodDecl(vuka.Decl{Name: "Session.Login", Pkg: "main", File: "unnamed_receivers.vuka", Line: 23, Func: (Session).Login, Attrs: []any{}}, "r")
 //line unnamed_receivers.vuka:22
-	record(sessionLoginDecl)
-}
-
-//line unnamed_receivers.vuka:26
-func (recv *Session) SignIn(r string, n int) (r2 string) {
-	return recv.signIn(r, n)
+	record(vuka.DeclOf((Session).Login, vuka.Param{Name: "r"}))
 }
 
 func init() {
-	sessionSignInDecl := vuka.MethodDecl(vuka.Decl{Name: "Session.SignIn", Pkg: "main", File: "unnamed_receivers.vuka", Line: 26, Func: (*Session).SignIn, Attrs: []any{}}, "r", "n")
 //line unnamed_receivers.vuka:25
-	record(sessionSignInDecl)
-}
-
-//line unnamed_receivers.vuka:29
-func (recv Session) Who() (r string) {
-	return recv.who()
+	record(vuka.DeclOf((*Session).SignIn, vuka.Param{Name: "r"}, vuka.Param{Name: "n"}))
 }
 
 func init() {
-	sessionWhoDecl := vuka.MethodDecl(vuka.Decl{Name: "Session.Who", Pkg: "main", File: "unnamed_receivers.vuka", Line: 29, Func: (Session).Who, Attrs: []any{}})
 //line unnamed_receivers.vuka:28
-	record(sessionWhoDecl)
+	record(vuka.DeclOf((Session).Who))
 }
 
 var sessionLoggedDec vuka.Decorated[func(Session, string) string]
@@ -140,7 +122,6 @@ func (recv *Session) Both(r string, s string) (r1 string) {
 }
 
 func init() {
-	sessionBothDecl := vuka.MethodDecl(vuka.Decl{Name: "Session.Both", Pkg: "main", File: "unnamed_receivers.vuka", Line: 36, Func: (*Session).Both, Attrs: []any{}}, "r", "s")
 //line unnamed_receivers.vuka:35
-	record(sessionBothDecl)
+	record(vuka.DeclOf((*Session).Both, vuka.Param{Name: "r"}, vuka.Param{Name: "s"}))
 }

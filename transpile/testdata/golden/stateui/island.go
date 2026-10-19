@@ -75,8 +75,14 @@ func MountIsland(site string, props any, opts ...IslandOpt) Node {
 // Live is the embedded field of a live component.
 type Live struct{}
 
+// IslandDecorator is what Island returns: a type decorator, and an option
+// of a route serving the type as a page backed by its island.
+type IslandDecorator func(*vuka.Type)
+
+func (d IslandDecorator) Attrs() []any { return []any{d} }
+
 // Island is the @ui.Island type decorator: a path, then options.
-func Island(args ...any) func(*vuka.Type) {
+func Island(args ...any) IslandDecorator {
 	return func(t *vuka.Type) {
 		islands[t.Reflect] = "(inferred)"
 		for _, a := range args {

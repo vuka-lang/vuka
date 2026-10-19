@@ -155,30 +155,51 @@ receiver comes from the container, with no prefix.
 
 ## Plain Go
 
-Everything works from Go, without decorators. Reflection can't see parameter
-names, so scalar parameters are named with `web.Params`, in order (`""` for a
-parameter that isn't a scalar); structs, request values and dependencies bind
-as usual:
+Everything works from Go, without decorators, with the calls the decorators
+are: `@web.Get("/pets/{id}")` on `ShowPet` is
+`web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))`, and an
+app's methods of the same names register on that app alone:
 
 ```go
-app := web.New(web.Provide(NewStore))
-app.Get("/pets/{id}", func(s *Store, id int) (Pet, error) { return s.Find(id) }, web.Params("s", "id"))
-app.Post("/pets", func(in NewPet, s *Store) (Pet, error) { return s.Add(in) })
-app.Get("/page", page, web.View(vuka.File("views/page.html")), web.Wrap(requireToken))
+func main() {
+	app := web.New()
+	app.Service(NewStore)
+	app.Get("/pets", ListPets)
+	app.Get("/pets/{id}", ShowPet, web.Params("id", "store"), auth.Required())
+	app.Live("/board", NewBoard)
+	app.Live("/applicants", NewApplicants, ui.Island(ui.Layout(layouts.Page("Applicants"))))
+	app.Run("")
+}
 ```
+
+`web.Routes` is the registry every app takes, filled at init: what a
+package's `.vuka` decorators lower to, and what a Go package registering its
+own routes calls in its `init`. `vuka eject` turns a `.vuka` file's
+decorators into these calls (see the [library example](https://github.com/vuka-lang/vuka/tree/main/examples/library-users)).
+
+Reflection can't see parameter names, so scalar parameters are named with
+`web.Params`, in order (`""` for a parameter that isn't a scalar), the
+receiver excluded; structs, request values and dependencies bind as usual.
+Options are typed values: web's own, another package's (an auth gate,
+`ui.Island`), or any value carrying [attributes](/features/attributes),
+which become the route's as attributes written on the handler are.
 
 | | |
 |---|---|
-| `app.Get`, `Post`, `Put`, `Patch`, `Delete(path, fn, opts…)`, `app.Handle(method, path, fn, opts…)` | a route |
+| `app.Get`, `Post`, `Put`, `Patch`, `Delete(path, fn, opts…)`, `app.Handle(method, path, fn, opts…)` | a route; `fn` a handler, or an `@ui.Island` struct's constructor (a page backed by its island) |
+| `app.Live(path, NewPage, opts…)` | a [live page](/web/live#how-a-page-becomes-live): the constructor builds each page's component, its parameters of provided types injected and the others zero |
+| `app.Controller(prefix, NewController, opts…)` | a [controller](#controllers); its routes are its method expressions: `app.Get("/{id}", (*PetAdmin).Show, web.Params("id"))` |
+| `app.Service(NewService)` | a [service](/web/dependency-injection); `app.Provide` takes any constructor or value |
 | `web.Params(names…)` | the parameters' names, for scalars |
-| `web.View(file [, name])` | the view, as `@web.Template` |
-| `web.Wrap(mw…)` | middleware for this route, as `@web.Use` |
-| `app.Live(path, &Component{…})` | a [live page](/web/live#how-a-page-becomes-live) |
+| `web.Template(file [, name])` | the view, as `@web.Template` |
+| `web.Use(mw…)`, `web.Wrap(mw…)` | middleware for this route |
+| `web.Layout(f)` | a live page's layout; `ui.Island(ui.Layout(f))` for a page backed by its island |
 | `app.Static(prefix, fsys)` | serves an `fs.FS` (an `embed.FS` sub-tree, `os.DirFS(…)`): a directory as its `index.html`, else 404 — never a listing — and no dotfile or dot directory (`.env`, `.git/`) but `.well-known/` |
 
-From Go, `vuka.File("…")` reads from disk relative to the working directory;
-in Vuka a decorator's [`vuka.File`](/features/decorators#files) literal is
-embedded in the binary.
+The same methods on `web.Routes` register for every app (`web.Only`
+selects by package). From Go, `vuka.File("…")` reads from disk relative to
+the working directory; in Vuka a decorator's
+[`vuka.File`](/features/decorators#files) literal is embedded in the binary.
 
 Register everything before the app is first built (`Build`, `Handler`,
 `Start` or `Run`); a route added after that panics.

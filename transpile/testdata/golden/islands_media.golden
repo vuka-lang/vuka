@@ -22,12 +22,11 @@ func chart() ui.Node {
 }
 
 //line islands_media.vuka:6
-func Chart_New(Points int) *Chart {
+func NewChart(Points int) *Chart {
 	return &Chart{Points: Points}
 }
 
 func init() {
-	chartType := vuka.TypeWith[Chart]("main.Chart", Chart_New)
 //line islands_media.vuka:5
-	ui.Island("islands/Chart.vue")(chartType)
+	ui.Island("islands/Chart.vue")(vuka.TypeFor[Chart](NewChart))
 }

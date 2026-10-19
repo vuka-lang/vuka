@@ -33,7 +33,8 @@ Generated names are ordinary Go:
 | Vuka | What Go code calls |
 |---|---|
 | `User.Table` (static) | `User_Table` |
-| `User.New(…)` (static method) | `User_New(…)` |
+| `User.New(…)` (the static constructor) | `NewUser(…)` |
+| `User.Find(…)` (another static method) | `User_Find(…)` |
 | overload `area(c Circle)` | `area__Circle` — or the name you give with `@export("Area")` |
 | `Result[T]`, `Ok`, `Err` | `vuka.Result[T]`, `vuka.Ok`, `vuka.Err` from `github.com/vuka-lang/vuka` |
 

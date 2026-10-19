@@ -223,8 +223,9 @@ u := User.New("ada")
 fmt.Println(User.Table, User.Max)
 ```
 
-They lower to plain package-level Go: `User_Table`, `_User_created`,
-`func User_New`, which is also how Go code reaches them. A static can't share a
+They lower to plain package-level Go: `User_Table`, `_User_created`, and
+for the constructor Go's `func NewUser`, which is also how Go code reaches
+them. A static can't share a
 name with a field or method (in Go, `User.Save` already means a method).
 
 A static on a **generic** type has one value per instantiation, and statics are

@@ -78,6 +78,11 @@ func main() {
 //line advice.vuka:56
 var _ vuka.NoAdvice
 
+func init() {
+//line advice.vuka:56
+	vuka.RegisterFunc((*Store).Dump, []any{*new(vuka.NoAdvice)}...)
+}
+
 //line advice.vuka:34
 func storeAdvice() []vuka.Decorator {
 //line advice.vuka:32
@@ -131,9 +136,4 @@ func (s Store) Count() int {
 			}
 		}((Store).count)
 	})(s)
-}
-
-func init() {
-//line advice.vuka:56
-	vuka.RegisterFunc((*Store).Dump, []any{*new(vuka.NoAdvice)}...)
 }

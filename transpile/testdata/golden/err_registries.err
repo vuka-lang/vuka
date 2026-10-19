@@ -1,0 +1,2 @@
+err_registries.vuka:5:1: @web.Get registers the declaration it is on, which needs a concrete function; main.first is generic
+err_registries.vuka:8:1: @web.Get registers the declaration it is on, which needs a function it can refer to; init can't be

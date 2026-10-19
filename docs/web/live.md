@@ -41,8 +41,9 @@ Two ways, one mechanism:
   | neither | a bare HTML document |
   | `web.Use(mw…)` | middleware for this page (an option of `@web.Live`) |
 
-  From Go: `app.Live("/counter", &Counter{Start: 1})`, the value's fields
-  being the defaults.
+  From Go: `app.Live("/counter", NewCounter)`, the constructor building
+  each page's component (`&Counter{Start: 1}`, a value whose fields are the
+  defaults, works too).
 
 - **Any GET route** whose page — a `ui.Node` result or a templ view —
   renders a stateful component or an event handler is live by itself:

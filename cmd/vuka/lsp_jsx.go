@@ -753,9 +753,10 @@ func (p *proxy) statefulAttrs(genPath, tag string) []compAttr {
 
 // isIsland reports whether a type of the package genPath is in is an
 // island: its generated code registers it (an imported component's
-// RegisterIsland, an @ui.Island decorator's call).
+// RegisterIsland, an @ui.Island decorator's call on the type's description,
+// or the decorator as an option of a route registering its constructor).
 func (p *proxy) isIsland(genPath, tag string) bool {
-	if strings.Contains(tag, ".") {
+	if tag == "" || strings.Contains(tag, ".") {
 		return false
 	}
 	p.mu.Lock()
@@ -766,8 +767,15 @@ func (p *proxy) isIsland(genPath, tag string) bool {
 			continue
 		}
 		g := string(vf.gen)
-		if strings.Contains(g, "RegisterIsland["+tag+"]") || regexp.MustCompile(`__`+regexp.QuoteMeta(tag)+`_type\)`).MatchString(g) && strings.Contains(g, ".Island(") {
+		if strings.Contains(g, "RegisterIsland["+tag+"]") {
 			return true
+		}
+		ctor := regexp.MustCompile(`\b[Nn]ew` + regexp.QuoteMeta(strings.ToUpper(tag[:1])+tag[1:]) + `\b`)
+		for _, line := range strings.Split(g, "\n") {
+			if strings.Contains(line, ".Island(") && (strings.Contains(line, "TypeFor["+tag+"]") ||
+				strings.Contains(line, "__"+tag+"_type)") || ctor.MatchString(line)) {
+				return true
+			}
 		}
 	}
 	return false

@@ -13,22 +13,35 @@ import (
 type decoKind int
 
 const (
-	decoTyped  decoKind = iota // func(F) F, or for a type a generic func[T]
-	decoCall                   // vuka.Decorator: func(*vuka.Call), for any function
-	decoType                   // func(*vuka.Type), for a type
-	decoDecl                   // func(*vuka.Decl), a declarer: runs once at init, for a function
-	decoBundle                 // vuka.Bundle: decorators and attributes composed into one
+	decoTyped    decoKind = iota // func(F) F, or for a type a generic func[T]
+	decoCall                     // vuka.Decorator: func(*vuka.Call), for any function
+	decoType                     // func(*vuka.Type), for a type
+	decoDecl                     // func(*vuka.Decl), a declarer: runs once at init, for a function
+	decoBundle                   // vuka.Bundle: decorators and attributes composed into one
+	decoRegistry                 // a method of its package's registry: a call at init with the declaration
+	decoOption                   // an option of a registry decorator on the same declaration
 )
+
+// registryUse is how a registry decorator is called: @web.Get("/x") on
+// ShowPet is web.Routes.Get("/x", ShowPet, options…).
+type registryUse struct {
+	field  string     // the registry variable ("Routes")
+	before int        // the method's parameters before the declaration's
+	elem   types.Type // its options' type; nil when it takes none
+	params bool       // the package has Params(...string), an option naming parameters
+}
 
 // decoUse is one decorator on one declaration.
 type decoUse struct {
 	a       *Attr
 	kind    decoKind
 	decided bool
-	called  bool   // written bare, but a function of optional arguments only: called with none
-	at      int    // where the copy of its name starts in f.deco, this render
-	bvar    string // a bundle's value, this render
-	advice  string // set instead of a: the function giving a type's advice, for one of its methods
+	called  bool         // written bare, but a function of optional arguments only: called with none
+	at      int          // where the copy of its name starts in f.deco, this render
+	bvar    string       // a bundle's value, this render
+	advice  string       // set instead of a: the function giving a type's advice, for one of its methods
+	t       types.Type   // the decorator's value's type, once decided
+	reg     *registryUse // a registry decorator's call
 }
 
 // funcDeco is a decorated function or method: the pieces of its wrapper,
@@ -190,6 +203,12 @@ func (e *engine) decorate() bool {
 				order = append(order, a.decl)
 			}
 			groups[a.decl] = append(groups[a.decl], a)
+		}
+		if len(order) > 0 {
+			// Imported until the decorators' forms are known: a decorator's
+			// own declaration may name vuka.Type; unusedRuntime drops it
+			// when nothing does.
+			f.runtime()
 		}
 		for _, d := range order {
 			any = true
@@ -485,10 +504,19 @@ func (e *engine) pkgName() string {
 
 // render writes f's wrappers for the decorators' current forms.
 func (e *engine) render(f *fileState) {
-	f.deco = genWriter{}
+	f.deco, f.regs = genWriter{}, nil
 	e.renderFiles(f)
 	e.renderFields(f)
 	e.renderTargets(f)
+	for _, d := range f.decos {
+		switch d := d.(type) {
+		case *funcDeco:
+			nameBundles(d.uses, d.state)
+		case *typeDeco:
+			nameBundles(d.uses, "__"+d.name)
+		}
+	}
+	e.renderRegistry(f)
 	for _, d := range f.decos {
 		switch d := d.(type) {
 		case *funcDeco:
@@ -497,12 +525,12 @@ func (e *engine) render(f *fileState) {
 			e.renderType(f, d)
 		}
 	}
-	e.renderRegistry(f)
+	e.renderRegistrations(f)
 	f.makeTrailer(e.bare)
 }
 
 func (e *engine) renderFunc(f *fileState, d *funcDeco) {
-	w, rt := &f.deco, f.runtime()
+	w := &f.deco
 	if d.init {
 		w.gen("\n", d.nameOff)
 		if !e.bare {
@@ -532,33 +560,29 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		case decoBundle:
 			decls = append(decls, u)
 			wraps = append(wraps, u)
+		case decoRegistry:
+			fn := d.name
+			if d.method {
+				fn = "(" + d.rtype + ")." + d.name
+			}
+			f.regs = append(f.regs, registration{u: u, decl: fn, uses: d.uses, params: e.paramNames(d)})
+		case decoOption:
 		default:
 			wraps = append(wraps, u)
 		}
 	}
+	e.keepName(f, d, len(wraps) == 0)
+	if len(wraps) == 0 {
+		// Declarers alone: the function stays as it is.
+		e.renderDecls(f, d, decls)
+		return
+	}
+	rt := f.runtime()
 	w.gen("\n", d.nameOff)
 	doc := func() {
 		if d.doc != "" {
 			w.gen(d.doc+"\n", d.nameOff)
 		}
-	}
-	if len(wraps) == 0 {
-		// Declarers alone: the function stays as it is, reached through its name.
-		doc()
-		if !e.bare {
-			w.gen(lineDirective(f.at(d.nameOff)), d.nameOff)
-		}
-		w.gen("func "+d.recv+d.name+d.tparams+"("+strings.Join(d.params, ", ")+")"+d.results+" {\n\t", d.nameOff)
-		if d.results != "" {
-			w.gen("return ", d.nameOff)
-		}
-		call, args := d.impl, d.args
-		if d.method {
-			call, args = d.rname+"."+d.impl, args[1:]
-		}
-		w.gen(call+"("+strings.Join(args, ", ")+")\n}\n", d.nameOff)
-		e.renderDecls(f, d, decls)
-		return
 	}
 	e.writeBundleVars(f, d.uses, d.state)
 	if d.generic {
@@ -680,16 +704,26 @@ func (e *engine) writeChain(f *fileState, run []*decoUse, off int, bundle func(u
 // writeBundleVars declares the value of each bundle among uses, once per
 // decorated declaration.
 func (e *engine) writeBundleVars(f *fileState, uses []*decoUse, state string) {
-	w, n := &f.deco, 0
+	w := &f.deco
 	for _, u := range uses {
 		if u.kind != decoBundle {
 			continue
 		}
-		u.bvar = state + "_b" + itoa(n)
-		n++
 		w.gen("var "+u.bvar+" = ", u.a.start)
 		e.writeDecorator(f, u, "")
 		w.gen("\n\n", u.a.end)
+	}
+}
+
+// nameBundles names the value of each bundle among uses, before the
+// registry's init, which reads their attributes, is written.
+func nameBundles(uses []*decoUse, state string) {
+	n := 0
+	for _, u := range uses {
+		if u.kind == decoBundle {
+			u.bvar = state + "_b" + itoa(n)
+			n++
+		}
 	}
 }
 
@@ -712,52 +746,78 @@ func (e *engine) writeAttrsWith(f *fileState, attrs []*Attr, uses []*decoUse, of
 }
 
 // renderDecls runs a function's declarers at init, top to bottom, with a
-// description of the decorated function.
+// description of the decorated function: vuka.DeclOf, its attributes those
+// renderRegistry registered.
 func (e *engine) renderDecls(f *fileState, d *funcDeco, decls []*decoUse) {
 	if len(decls) == 0 || d.generic {
 		return
 	}
 	w, rt := &f.deco, f.runtime()
-	ctor, fn := "FuncDecl", d.name
+	fn := d.name
 	if d.method {
-		ctor, fn = "MethodDecl", "("+d.rtype+")."+d.name
+		fn = "(" + d.rtype + ")." + d.name
 	}
-	desc := d.state + "l"
-	w.gen("\nfunc init() {\n\t"+desc+" := "+rt+"."+ctor+"("+rt+".Decl{Name: "+strconv.Quote(d.qualName)+
-		", Pkg: "+strconv.Quote(e.pkgPath())+", File: "+strconv.Quote(d.file)+", Line: "+itoa(d.line)+
-		", Func: "+fn+", Attrs: ", d.nameOff)
-	e.writeAttrsWith(f, d.attrs, d.uses, d.nameOff)
-	if d.pattrs != nil {
-		w.gen(", Params: []"+rt+".Param{", d.nameOff)
+	desc := func() {
+		w.gen(rt+".DeclOf("+fn, d.nameOff)
+		named := d.pattrs != nil
+		for _, n := range d.pnames {
+			named = named || n != ""
+		}
 		for i, n := range d.pnames {
-			if i > 0 {
-				w.gen(", ", d.nameOff)
+			if !named {
+				break
 			}
-			w.gen("{Name: "+strconv.Quote(n), d.nameOff)
-			if len(d.pattrs[i]) > 0 {
+			w.gen(", "+rt+".Param{Name: "+strconv.Quote(n), d.nameOff)
+			if d.pattrs != nil && len(d.pattrs[i]) > 0 {
 				w.gen(", Attrs: ", d.nameOff)
 				e.writeParamAttrs(f, d.pattrs[i], "", d.nameOff)
 			}
 			w.gen("}", d.nameOff)
 		}
-		w.gen("}})\n", d.nameOff)
-	} else {
-		w.gen("}", d.nameOff)
-		for _, n := range d.pnames {
-			w.gen(", "+strconv.Quote(n), d.nameOff)
-		}
-		w.gen(")\n", d.nameOff)
+		w.gen(")", d.nameOff)
 	}
+	w.gen("\nfunc init() {\n\t", d.nameOff)
+	if len(decls) == 1 {
+		u := decls[0]
+		if u.kind == decoBundle {
+			w.gen(u.bvar+".Declare(", u.a.start)
+		} else {
+			e.writeDecorator(f, u, "")
+			w.gen("(", u.a.end)
+		}
+		desc()
+		w.gen(")\n}\n", d.nameOff)
+		return
+	}
+	v := d.state + "l"
+	w.gen(v+" := ", d.nameOff)
+	desc()
+	w.gen("\n", d.nameOff)
 	for _, u := range decls {
 		w.gen("\t", u.a.start)
 		if u.kind == decoBundle {
-			w.gen(rt+".DeclareWith("+u.bvar+", "+desc+")\n", u.a.start)
+			w.gen(u.bvar+".Declare("+v+")\n", u.a.start)
 			continue
 		}
 		e.writeDecorator(f, u, "")
-		w.gen("("+desc+")\n", u.a.end)
+		w.gen("("+v+")\n", u.a.end)
 	}
 	w.gen("}\n", d.nameOff)
+}
+
+// keepName gives a function its name back when nothing wraps it: its
+// declarers and registry decorators take it as it is.
+func (e *engine) keepName(f *fileState, d *funcDeco, keep bool) {
+	text := d.impl
+	if keep {
+		text = d.name
+	}
+	for i, ed := range f.fixed {
+		if ed.start == d.nameOff && (ed.text == d.impl || ed.text == d.name) && ed.end > ed.start {
+			f.fixed[i].text = text
+			return
+		}
+	}
 }
 
 // adapter is the function that packs a call of next into a *vuka.Call, runs
@@ -804,13 +864,18 @@ func (e *engine) adapter(f *fileState, d *funcDeco, info string) string {
 }
 
 func (e *engine) renderType(f *fileState, d *typeDeco) {
-	w, rt := &f.deco, f.runtime()
+	w := &f.deco
 	var advice, inits []*decoUse
-	described, bundled := false, false
+	described, bundled, registered, ndesc := false, false, false, 0
 	for _, u := range d.uses {
 		switch u.kind {
 		case decoCall:
 			advice = append(advice, u)
+			continue
+		case decoOption:
+			continue
+		case decoRegistry:
+			registered = true
 			continue
 		case decoBundle:
 			advice = append(advice, u)
@@ -818,11 +883,12 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 			fallthrough
 		case decoType:
 			described = true
+			ndesc++
 		}
 		inits = append(inits, u)
 	}
 	ctor := "nil"
-	if described && d.isStruct {
+	if (described || registered) && d.isStruct {
 		ctor = staticGoName(d.name, "New")
 	}
 	if ctor != "nil" && !d.hasNew {
@@ -833,9 +899,20 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 		w.gen("\nfunc "+ctor+"("+strings.Join(d.ctorParams, ", ")+") *"+d.name+" {\n\treturn &"+d.name+
 			"{"+strings.Join(d.ctorInits, ", ")+"}\n}\n", d.nameOff)
 	}
+	if registered {
+		decl := ctor
+		if ctor == "nil" {
+			decl = "(*" + d.name + ")(nil)"
+		}
+		for _, u := range d.uses {
+			if u.kind == decoRegistry {
+				f.regs = append(f.regs, registration{u: u, decl: decl, uses: d.uses})
+			}
+		}
+	}
 	if len(advice) > 0 {
 		// The advice: each method calls it for decorators of its own.
-		w.gen("\nfunc __"+d.name+"_advice() []"+rt+".Decorator {\n\treturn ", d.nameOff)
+		w.gen("\nfunc __"+d.name+"_advice() []"+f.runtime()+".Decorator {\n\treturn ", d.nameOff)
 		e.writeChain(f, advice, d.nameOff, func(u *decoUse) { e.writeDecorator(f, u, "") })
 		w.gen("\n}\n", d.nameOff)
 	}
@@ -846,8 +923,23 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 		w.gen("\n", d.nameOff)
 		e.writeBundleVars(f, d.uses, "__"+d.name)
 	}
-	w.gen("\nfunc init() {\n", d.nameOff)
+	// The description type decorators take: vuka.TypeFor, inline when one
+	// takes it.
+	descText := func(off int) {
+		w.gen(f.runtime()+".TypeFor["+d.name+"]("+ctor, off)
+		for _, a := range d.attrs {
+			w.gen(", ", a.start)
+			e.writeAttrValues(f, []*Attr{a})
+		}
+		for _, u := range d.uses {
+			if u.kind == decoBundle {
+				w.gen(", "+u.bvar, off)
+			}
+		}
+		w.gen(")", off)
+	}
 	desc := ""
+	w.gen("\nfunc init() {\n", d.nameOff)
 	for _, u := range inits {
 		w.gen("\t", u.a.start)
 		if u.kind != decoType && u.kind != decoBundle {
@@ -855,36 +947,202 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 			w.gen("\n", u.a.end)
 			continue
 		}
-		if desc == "" {
+		if desc == "" && ndesc > 1 {
 			desc = "__" + d.name + "_type"
-			if ctor != "nil" {
-				w.gen(desc+" := "+rt+".TypeWith["+d.name+"]("+strconv.Quote(d.qualName)+", "+ctor, u.a.start)
+			w.gen(desc+" := ", u.a.start)
+			descText(u.a.start)
+			w.gen("\n\t", u.a.start)
+		}
+		arg := func() {
+			if desc != "" {
+				w.gen(desc, u.a.end)
 			} else {
-				w.gen(desc+" := "+rt+".TypeOf["+d.name+"]("+strconv.Quote(d.qualName), u.a.start)
+				descText(u.a.end)
 			}
-			if bundled {
-				w.gen(", ", u.a.start)
-				e.writeAttrsWith(f, d.attrs, d.uses, u.a.start)
-				w.gen("...", u.a.start)
-			} else {
-				for _, a := range d.attrs {
-					w.gen(", ", a.start)
-					e.writeAttrValues(f, []*Attr{a})
-				}
-			}
-			w.gen(")\n\t", u.a.start)
 		}
 		if u.kind == decoBundle {
-			w.gen(rt+".DecorateType("+u.bvar+", "+desc+")\n", u.a.start)
+			w.gen(u.bvar+".Decorate(", u.a.start)
+			arg()
+			w.gen(")\n", u.a.start)
 			continue
 		}
 		e.writeDecorator(f, u, "")
 		if !strings.HasSuffix(strings.TrimSpace(u.a.Args), ")") && u.a.Args != "" {
 			w.gen("()", u.a.end)
 		}
-		w.gen("("+desc+")\n", u.a.end)
+		w.gen("(", u.a.end)
+		arg()
+		w.gen(")\n", u.a.end)
 	}
 	w.gen("}\n", d.nameOff)
+}
+
+// registration is a registry decorator's call, which the file's
+// registrations init makes: what it registers (the function, method
+// expression or constructor), the declaration's decorators (its options
+// among them) and, for a function, its parameters' names when the
+// registry's package names them with Params.
+type registration struct {
+	u      *decoUse
+	decl   string
+	uses   []*decoUse
+	params []string
+}
+
+// renderRegistrations writes the file's registry decorators as calls in one
+// init, in source order: web.Routes.Get("/pets/{id}", ShowPet,
+// web.Params("id", "store")).
+func (e *engine) renderRegistrations(f *fileState) {
+	if len(f.regs) == 0 {
+		return
+	}
+	sortItems(f.regs, func(r registration) int { return r.u.a.start })
+	w := &f.deco
+	w.gen("\nfunc init() {\n", f.regs[0].u.a.start)
+	for _, r := range f.regs {
+		u, a := r.u, r.u.a
+		w.gen("\t", a.start)
+		if !e.bare {
+			p := a.Pos
+			p.Column++
+			w.gen(lineDirective(p), a.nameStart)
+		}
+		dot := strings.LastIndexByte(a.Name, '.') + 1
+		u.at = w.len()
+		w.copy(a.Name[:dot], a.nameStart)
+		w.gen(u.reg.field+".", a.nameStart+dot)
+		w.copy(a.Name[dot:], a.nameStart+dot)
+		nameEnd := a.nameStart + len(a.Name)
+		args := splitArgs(string(f.src[nameEnd:a.end]))
+		w.gen("(", nameEnd)
+		n := 0
+		sep := func(off int) {
+			if n > 0 {
+				w.gen(", ", off)
+			}
+			n++
+		}
+		for i, sp := range args {
+			if i == u.reg.before {
+				sep(a.end)
+				w.gen(r.decl, a.end)
+			}
+			sep(nameEnd + sp[0])
+			f.copySrc(w, string(f.src[nameEnd+sp[0]:nameEnd+sp[1]]), nameEnd+sp[0])
+		}
+		if len(args) <= u.reg.before {
+			sep(a.end)
+			w.gen(r.decl, a.end)
+		}
+		for _, o := range r.uses {
+			if o.kind == decoOption {
+				sep(o.a.start)
+				e.writeDecorator(f, o, "")
+			}
+		}
+		if len(r.params) > 0 && u.reg.params {
+			quoted := make([]string, len(r.params))
+			for i, p := range r.params {
+				quoted[i] = strconv.Quote(p)
+			}
+			sep(a.end)
+			w.gen(a.Name[:dot]+"Params("+strings.Join(quoted, ", ")+")", a.end)
+		}
+		w.gen(")\n", a.end)
+	}
+	w.gen("}\n", f.regs[len(f.regs)-1].u.a.end)
+}
+
+// splitArgs finds the arguments of a call's parenthesized argument list,
+// as spans of args trimmed of space; none for "" or "()".
+func splitArgs(args string) [][2]int {
+	if !strings.HasPrefix(args, "(") {
+		return nil
+	}
+	var out [][2]int
+	depth, start := 0, 1
+	add := func(end int) {
+		s, e := start, end
+		for s < e && isSpace(args[s]) {
+			s++
+		}
+		for e > s && isSpace(args[e-1]) {
+			e--
+		}
+		if s < e {
+			out = append(out, [2]int{s, e})
+		}
+	}
+	for i := 0; i < len(args); i++ {
+		switch c := args[i]; c {
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			depth--
+			if depth == 0 {
+				add(i)
+				return out
+			}
+		case ',':
+			if depth == 1 {
+				add(i)
+				start = i + 1
+			}
+		case '"', '\'', '`':
+			for i++; i < len(args) && args[i] != c; i++ {
+				if args[i] == '\\' && c != '`' {
+					i++
+				}
+			}
+		}
+	}
+	return out
+}
+
+func isSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\r' }
+
+// paramNames are a function's parameters' names, receiver excluded, when
+// one of them is of a type only a name tells apart (a string, a number, a
+// TextUnmarshaler, …): what a registry's Params takes.
+func (e *engine) paramNames(d *funcDeco) []string {
+	if e.pkg == nil || len(d.pnames) == 0 {
+		return nil
+	}
+	var fn *types.Func
+	if !d.method {
+		fn, _ = e.pkg.Scope().Lookup(d.name).(*types.Func)
+	} else if tn, ok := e.pkg.Scope().Lookup(strings.TrimPrefix(d.rtype, "*")).(*types.TypeName); ok {
+		fn, _ = pkgMethod(tn.Type(), e.pkg, d.name)
+	}
+	if fn == nil {
+		return nil
+	}
+	ps := fn.Type().(*types.Signature).Params()
+	for i := range ps.Len() {
+		if byName(ps.At(i).Type()) {
+			return d.pnames
+		}
+	}
+	return nil
+}
+
+// byName reports whether a parameter of type t can only be bound by its
+// name: a basic type, text unmarshaled, or a slice, array or pointer of one.
+func byName(t types.Type) bool {
+	if obj, _, _ := types.LookupFieldOrMethod(types.NewPointer(t), true, nil, "UnmarshalText"); obj != nil {
+		return true
+	}
+	switch u := t.Underlying().(type) {
+	case *types.Basic:
+		return true
+	case *types.Slice:
+		return byName(u.Elem())
+	case *types.Array:
+		return byName(u.Elem())
+	case *types.Pointer:
+		return byName(u.Elem())
+	}
+	return false
 }
 
 // declares reports whether the file registers declarations at init
@@ -900,13 +1158,13 @@ func (f *fileState) declares() bool {
 				continue // a declarer there is an error; nothing registers
 			}
 			for _, u := range d.uses {
-				if u.decided && (u.kind == decoDecl || u.kind == decoBundle) {
+				if u.decided && (u.kind == decoDecl || u.kind == decoBundle || u.kind == decoRegistry) {
 					return true
 				}
 			}
 		case *typeDeco:
 			for _, u := range d.uses {
-				if u.decided && (u.kind == decoType || u.kind == decoBundle) {
+				if u.decided && (u.kind == decoType || u.kind == decoBundle || u.kind == decoRegistry) {
 					return true
 				}
 			}
@@ -1072,10 +1330,24 @@ func (e *engine) classify(f *fileState) {
 				continue
 			}
 			u.decided = true
+			if r := e.registryOf(f, u); r != nil {
+				switch {
+				case fd != nil && fd.init:
+					e.errs.add("E0213", u.a.Pos, "@%s registers the declaration it is on, which needs a function it can refer to; init can't be", u.a.Name)
+				case fd != nil && fd.generic:
+					e.errs.add("E0213", u.a.Pos, "@%s registers the declaration it is on, which needs a concrete function; %s is generic", u.a.Name, fd.qualName)
+				}
+				u.reg, u.t = r, t
+				if u.kind != decoRegistry {
+					u.kind, changed = decoRegistry, true
+				}
+				continue
+			}
 			if r := factoryResult(t); r != nil && u.a.Args == "" {
 				// @tx for tx(opts ...Opt): called with no arguments.
 				u.called, t, changed = true, r, true
 			}
+			u.t = t
 			kind := decoTyped
 			switch {
 			case isRuntimeNamed(t, "Bundle"):
@@ -1099,6 +1371,7 @@ func (e *engine) classify(f *fileState) {
 				u.kind, changed = kind, true
 			}
 		}
+		changed = options(us) || changed
 	}
 	if changed {
 		e.render(f)
@@ -1113,6 +1386,33 @@ func (e *engine) classify(f *fileState) {
 			}
 		}
 	}
+}
+
+// options makes options of a registry decorator the other decorators on
+// its declaration whose values its method takes as options, a vuka.Bundle
+// excepted (it decorates the declaration itself): @web.Use(mw) beside
+// @web.Get("/x") is web.Routes.Get("/x", F, web.Use(mw)). It reports
+// whether a decorator's form changed.
+func options(us []*decoUse) bool {
+	changed := false
+	for _, u := range us {
+		if !u.decided || u.kind == decoRegistry || u.kind == decoBundle || u.t == nil {
+			continue
+		}
+		opt := false
+		for _, r := range us {
+			if r.kind == decoRegistry && r.reg.elem != nil && types.AssignableTo(u.t, r.reg.elem) {
+				opt = true
+			}
+		}
+		switch {
+		case opt && u.kind != decoOption:
+			u.kind, changed = decoOption, true
+		case !opt && u.kind == decoOption:
+			u.kind, u.decided, changed = decoTyped, false, true
+		}
+	}
+	return changed
 }
 
 // advise gives a type's call decorators — its advice — to each exported
@@ -1172,9 +1472,8 @@ func (e *engine) isRuntimeName(f *fileState, name, sel string) bool {
 	return p != nil && p.Path() == RuntimePath
 }
 
-// decoratorType is the type of the value a decorator denotes: its name's type,
-// or for @name(args) what calling it returns.
-func (e *engine) decoratorType(f *fileState, u *decoUse) types.Type {
+// decoratorObj is what a decorator's name denotes, once type-checked.
+func (e *engine) decoratorObj(f *fileState, u *decoUse) types.Object {
 	start := f.body + f.decoBase + u.at
 	end := start + len(u.a.Name)
 	var obj types.Object
@@ -1195,6 +1494,16 @@ func (e *engine) decoratorType(f *fileState, u *decoUse) types.Type {
 	if obj == nil || isInvalid(obj.Type()) {
 		return nil
 	}
+	return obj
+}
+
+// decoratorType is the type of the value a decorator denotes: its name's type,
+// or for @name(args) what calling it returns.
+func (e *engine) decoratorType(f *fileState, u *decoUse) types.Type {
+	obj := e.decoratorObj(f, u)
+	if obj == nil {
+		return nil
+	}
 	t := obj.Type()
 	if strings.HasPrefix(strings.TrimSpace(u.a.Args), "(") {
 		sig, ok := t.Underlying().(*types.Signature)
@@ -1204,6 +1513,76 @@ func (e *engine) decoratorType(f *fileState, u *decoUse) types.Type {
 		return sig.Results().At(0).Type()
 	}
 	return t
+}
+
+// registryOf is how a decorator is called when it names a method of its
+// package's registry: an exported package-level variable whose type has
+// the marker method vukaRegistry() (declared in that package). The method's
+// last parameter before its options takes the declaration.
+func (e *engine) registryOf(f *fileState, u *decoUse) *registryUse {
+	obj, ok := e.decoratorObj(f, u).(*types.Func)
+	if !ok || obj.Pkg() == nil || obj.Type().(*types.Signature).Recv() != nil {
+		return nil
+	}
+	pkg := obj.Pkg()
+	reg, ok := e.registries[pkg]
+	if !ok {
+		reg = registryVar(pkg)
+		if e.registries == nil {
+			e.registries = map[*types.Package]*types.Var{}
+		}
+		e.registries[pkg] = reg
+	}
+	if reg == nil {
+		return nil
+	}
+	m, ok := pkgMethod(reg.Type(), pkg, obj.Name())
+	if !ok || !m.Exported() {
+		return nil
+	}
+	sig := m.Type().(*types.Signature)
+	n := sig.Params().Len()
+	r := &registryUse{field: reg.Name(), before: n - 1}
+	if sig.Variadic() {
+		r.before--
+		r.elem = sig.Params().At(n - 1).Type().(*types.Slice).Elem()
+	}
+	if r.before < 0 {
+		return nil
+	}
+	if r.elem != nil {
+		if pf, ok := pkg.Scope().Lookup("Params").(*types.Func); ok {
+			ps := pf.Type().(*types.Signature)
+			if ps.Variadic() && ps.Params().Len() == 1 && ps.Results().Len() == 1 &&
+				types.Identical(ps.Params().At(0).Type(), types.NewSlice(types.Typ[types.String])) &&
+				types.AssignableTo(ps.Results().At(0).Type(), r.elem) {
+				r.params = true
+			}
+		}
+	}
+	return r
+}
+
+// registryVar is pkg's registry, or nil.
+func registryVar(pkg *types.Package) *types.Var {
+	for _, name := range pkg.Scope().Names() {
+		v, ok := pkg.Scope().Lookup(name).(*types.Var)
+		if !ok || !v.Exported() {
+			continue
+		}
+		if m, ok := pkgMethod(v.Type(), pkg, "vukaRegistry"); ok {
+			if sig := m.Type().(*types.Signature); sig.Params().Len() == 0 && sig.Results().Len() == 0 {
+				return v
+			}
+		}
+	}
+	return nil
+}
+
+func pkgMethod(t types.Type, pkg *types.Package, name string) (*types.Func, bool) {
+	obj, _, _ := types.LookupFieldOrMethod(t, true, pkg, name)
+	m, ok := obj.(*types.Func)
+	return m, ok
 }
 
 // factoryResult is what calling t with no arguments returns, when t is a

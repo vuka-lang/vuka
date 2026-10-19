@@ -78,15 +78,15 @@ func showPetImpl(id string, verbose string) string { return "pet " + id + " " + 
 func helloImpl(name string) string { return "hello " + name }
 
 //line declarers.vuka:79
-func addPetImpl(name string, _ string) string { return "added " + name }
+func addPet(name string, _ string) string { return "added " + name }
 
 type PetAdmin struct{ prefix string }
 
 //line declarers.vuka:85
-func (a *PetAdmin) index(user string) string { return a.prefix + user }
+func (a *PetAdmin) Index(user string) string { return a.prefix + user }
 
 //line declarers.vuka:88
-func describeImpl(id int, tags ...string) (string, error) { return "", nil }
+func describe(id int, tags ...string) (string, error) { return "", nil }
 
 func main() {
 	fmt.Println(order)
@@ -108,6 +108,11 @@ func main() {
 
 //line declarers.vuka:76
 var _ = Route{Method: "POST", Path: "/pets"}
+
+func init() {
+//line declarers.vuka:76
+	vuka.RegisterFunc(addPet, []any{Route{Method: "POST", Path: "/pets"}}...)
+}
 
 var showPetDec vuka.Decorated[func(string, string) string]
 
@@ -132,7 +137,7 @@ func showPet(id string, verbose string) string {
 }
 
 func init() {
-	showPetDecl := vuka.FuncDecl(vuka.Decl{Name: "main.showPet", Pkg: "main", File: "declarers.vuka", Line: 70, Func: showPet, Attrs: []any{}}, "id", "verbose")
+	showPetDecl := vuka.DeclOf(showPet, vuka.Param{Name: "id"}, vuka.Param{Name: "verbose"})
 //line declarers.vuka:67
 	trace(showPetDecl)
 	Get("/pets/{id}")(showPetDecl)
@@ -149,47 +154,23 @@ func hello(name string) string {
 }
 
 func init() {
-	helloDecl := vuka.FuncDecl(vuka.Decl{Name: "main.hello", Pkg: "main", File: "declarers.vuka", Line: 74, Func: hello, Attrs: []any{}}, "name")
 //line declarers.vuka:72
-	Get("/hello")(helloDecl)
-}
-
-//line declarers.vuka:79
-func addPet(a0 string, a1 string) string {
-	return addPetImpl(a0, a1)
+	Get("/hello")(vuka.DeclOf(hello, vuka.Param{Name: "name"}))
 }
 
 func init() {
-//line declarers.vuka:76
-	addPetDecl := vuka.FuncDecl(vuka.Decl{Name: "main.addPet", Pkg: "main", File: "declarers.vuka", Line: 79, Func: addPet, Attrs: []any{Route{Method: "POST", Path: "/pets"}}}, "name", "_")
+	addPetDecl := vuka.DeclOf(addPet, vuka.Param{Name: "name"}, vuka.Param{Name: "_"})
 	routed(addPetDecl)
 	trace(addPetDecl)
 }
 
-//line declarers.vuka:85
-func (a *PetAdmin) Index(user string) string {
-	return a.index(user)
-}
-
 func init() {
-	petAdminIndexDecl := vuka.MethodDecl(vuka.Decl{Name: "PetAdmin.Index", Pkg: "main", File: "declarers.vuka", Line: 85, Func: (*PetAdmin).Index, Attrs: []any{}}, "user")
-//line declarers.vuka:83
+	petAdminIndexDecl := vuka.DeclOf((*PetAdmin).Index, vuka.Param{Name: "user"})
 	Get("/admin")(petAdminIndexDecl)
 	trace(petAdminIndexDecl)
 }
 
-//line declarers.vuka:88
-func describe(id int, tags ...string) (string, error) {
-	return describeImpl(id, tags...)
-}
-
 func init() {
-	describeDecl := vuka.FuncDecl(vuka.Decl{Name: "main.describe", Pkg: "main", File: "declarers.vuka", Line: 88, Func: describe, Attrs: []any{}}, "id", "tags")
 //line declarers.vuka:87
-	trace(describeDecl)
-}
-
-func init() {
-//line declarers.vuka:76
-	vuka.RegisterFunc(addPet, []any{Route{Method: "POST", Path: "/pets"}}...)
+	trace(vuka.DeclOf(describe, vuka.Param{Name: "id"}, vuka.Param{Name: "tags"}))
 }

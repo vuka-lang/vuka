@@ -1,0 +1,15 @@
+// Command decorated is library-users written in Vuka: the same app, its
+// registrations decorators. vuka eject turns them into the calls
+// library-users makes.
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/web"
+)
+
+func main() {
+	app := web.New()
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

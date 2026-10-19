@@ -1,0 +1,51 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+	web "vukatest.local/webstub"
+)
+
+// A registry decorator is a call of its package's registry, at init, with
+// the declaration: a function, a method expression or the type's
+// constructor. The decorators beside it whose values the call takes as
+// options go with it; parameters reflection can't tell apart are named.
+
+// Store is a dependency.
+@web.Service
+type Store struct{ pets []string }
+
+func lower(s string) string { return s }
+
+// ShowPet answers GET /pets/{id}.
+@web.Get("/pets/{id}")
+@web.Use(lower)
+func ShowPet(id int, store *Store) string { return fmt.Sprint("pet ", id) }
+
+@web.Get("/pets")
+func ListPets(ctx context.Context, store *Store) []string { return store.pets }
+
+@web.Controller("/admin")
+type Admin struct{ store *Store }
+
+@web.Get("/stats")
+func (a *Admin) Stats(days int) string { return fmt.Sprint(days) }
+
+// Board is a live page backed by its island.
+@web.Live("/board")
+@ui.Island("components/Board.vue")
+type Board struct {
+	ui.Live
+	Q string `json:"q"`
+}
+
+// Clock is an island of its own, placed in pages.
+@ui.Island("components/Clock.vue")
+type Clock struct{ Zone string }
+
+func main() {
+	web.Routes.Print()
+	fmt.Println(NewBoard("x").Q, NewStore(nil) != nil)
+}

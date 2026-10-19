@@ -144,6 +144,13 @@ var _ = Route{Path: "/orders"}
 //line call_decorators.vuka:117
 var _ = Route{Path: "/users"}
 
+func init() {
+//line call_decorators.vuka:84
+	vuka.RegisterFunc(save, []any{Perm("orders.write"), Route{Path: "/orders"}}...)
+//line call_decorators.vuka:117
+	vuka.RegisterType[User]([]any{Route{Path: "/users"}}...)
+}
+
 var addDec vuka.Decorated[func(int, int) int]
 
 var addDecInfo = vuka.Func{Name: "main.add", ErrIndex: -1, CtxIndex: -1, Zero: func() []any { return []any{*new(int)} }, Attrs: []any{}}
@@ -269,19 +276,11 @@ func sum(nums ...int) int {
 }
 
 //line call_decorators.vuka:119
-func User_New(ID int) *User {
+func NewUser(ID int) *User {
 	return &User{ID: ID}
 }
 
 func init() {
-//line call_decorators.vuka:117
-	userType := vuka.TypeWith[User]("main.User", User_New, Route{Path: "/users"})
-	model(userType)
-}
-
-func init() {
-//line call_decorators.vuka:84
-	vuka.RegisterFunc(save, []any{Perm("orders.write"), Route{Path: "/orders"}}...)
-//line call_decorators.vuka:117
-	vuka.RegisterType[User]([]any{Route{Path: "/users"}}...)
+//line call_decorators.vuka:118
+	model(vuka.TypeFor[User](NewUser, Route{Path: "/users"}))
 }

@@ -21,12 +21,11 @@ func panel() ui.Node {
 }
 
 //line islands_notemplate.vuka:6
-func Panel_New(Open bool) *Panel {
+func NewPanel(Open bool) *Panel {
 	return &Panel{Open: Open}
 }
 
 func init() {
-	panelType := vuka.TypeWith[Panel]("main.Panel", Panel_New)
 //line islands_notemplate.vuka:5
-	ui.Island("islands/Panel.ts")(panelType)
+	ui.Island("islands/Panel.ts")(vuka.TypeFor[Panel](NewPanel))
 }

@@ -127,6 +127,11 @@ func extras() {
 //line decorators.vuka:65
 var _ = Tag{Name: "meta"}
 
+func init() {
+//line decorators.vuka:65
+	vuka.RegisterFunc(plain, []any{Tag{Name: "meta"}}...)
+}
+
 var fibDec vuka.Decorated[func(int) int]
 
 // fib calls itself through the decorated function.
@@ -206,9 +211,4 @@ func (s *Stack[T]) Push(v T) {
 //line decorators.vuka:110
 		return counted((*Stack[T]).push)
 	})(s, v)
-}
-
-func init() {
-//line decorators.vuka:65
-	vuka.RegisterFunc(plain, []any{Tag{Name: "meta"}}...)
 }

@@ -35,12 +35,11 @@ func main() {
 }
 
 //line islands.vuka:13
-func Counter_New(Count int) *Counter {
+func NewCounter(Count int) *Counter {
 	return &Counter{Count: Count}
 }
 
 func init() {
-	counterType := vuka.TypeWith[Counter]("main.Counter", Counter_New)
 //line islands.vuka:12
-	ui.Island("islands/Counter.ts")(counterType)
+	ui.Island("islands/Counter.ts")(vuka.TypeFor[Counter](NewCounter))
 }

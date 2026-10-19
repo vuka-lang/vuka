@@ -235,8 +235,10 @@ nothing. Strict is the default now: `StrictGates: true` only overrides
 another app's `LaxGates` in the same process.
 :::
 
-From Go, gates are attributes: `app.Get("/x", h, web.Attrs(auth.Requires("x")))`,
-`app.Live("/board", &Board{}, web.Attrs(auth.Public()))`.
+From Go, a gate is a route's option: `app.Get("/x", h, auth.Requires("x"))`,
+`app.Live("/board", NewBoard, auth.Public())`. Written on a function in Vuka
+it also gates direct calls; the route reads it from the function's
+attributes.
 
 Who is refused, and how:
 

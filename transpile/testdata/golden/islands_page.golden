@@ -32,12 +32,11 @@ func main() {
 func (x *Board) Render() ui.Node { return ui.IslandPage(x) }
 
 //line islands_page.vuka:13
-func Board_New(Q string) *Board {
+func NewBoard(Q string) *Board {
 	return &Board{Q: Q}
 }
 
 func init() {
-	boardType := vuka.TypeWith[Board]("main.Board", Board_New)
 //line islands_page.vuka:12
-	ui.Island("components/Board.vue")(boardType)
+	ui.Island("components/Board.vue")(vuka.TypeFor[Board](NewBoard))
 }

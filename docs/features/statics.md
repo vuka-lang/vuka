@@ -23,8 +23,9 @@ u := User.New("ada")
 fmt.Println(User.Table, User.Max)
 ```
 
-They become package-level Go — `User_Table`, `_User_created`, `func User_New` —
-which is also how Go code reaches them.
+They become package-level Go — `User_Table`, `_User_created`, and for the
+constructor `func NewUser`, Go's convention — which is also how Go code
+reaches them.
 
 An initializer is Vuka code like any other: it may use the type's other
 statics and static methods, those it reaches through embedding, and
