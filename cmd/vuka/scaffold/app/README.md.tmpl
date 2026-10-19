@@ -1,8 +1,8 @@
 # {%.Name%}
 
-{%if eq .UI "live"%}A web app built with [Vuka](https://vuka-lang.github.io/vuka/): live pages styled
-with Tailwind{%else if eq .UI "templ"%}A web app built with [Vuka](https://vuka-lang.github.io/vuka/): templ views
-styled with Tailwind{%else%}A JSON API built with [Vuka](https://vuka-lang.github.io/vuka/){%end%}{%if .Auth%}, sign-in with sessions kept in the database{%end%}{%if ne .DB "none"%}, migrations
+{%if eq .UI "live"%}A web app built with [Vuka](https://vuka-lang.github.io/): live pages styled
+with Tailwind{%else if eq .UI "templ"%}A web app built with [Vuka](https://vuka-lang.github.io/): templ views
+styled with Tailwind{%else%}A JSON API built with [Vuka](https://vuka-lang.github.io/){%end%}{%if .Auth%}, sign-in with sessions kept in the database{%end%}{%if ne .DB "none"%}, migrations
 applied when it starts{%end%}.
 
 ## Run it

@@ -32,14 +32,32 @@ jobs:
           cache-dependency-path: docs/package-lock.json
       - run: npm ci
       - run: npm run build
+
+  # The site is served from vuka-lang.github.io, whose workflow builds these
+  # docs. This repository's Pages only forwards the old /vuka/... addresses.
+  redirect:
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          mkdir site
+          cat > site/index.html <<'HTML'
+          <!doctype html>
+          <meta charset="utf-8">
+          <title>Vuka</title>
+          <link rel="canonical" href="https://vuka-lang.github.io/">
+          <meta http-equiv="refresh" content="0; url=https://vuka-lang.github.io/">
+          <script>location.replace('https://vuka-lang.github.io' + location.pathname.replace(/^\/vuka(?=\/|$)/, '') + location.search + location.hash)</script>
+          <p>The Vuka docs moved to <a href="https://vuka-lang.github.io/">vuka-lang.github.io</a>.</p>
+          HTML
+          cp site/index.html site/404.html
       - uses: actions/upload-pages-artifact@v5
-        if: github.event_name != 'pull_request'
         with:
-          path: docs/.vitepress/dist
+          path: site
 
   deploy:
     if: github.event_name != 'pull_request'
-    needs: build
+    needs: redirect
     runs-on: ubuntu-latest
     permissions:
       pages: write

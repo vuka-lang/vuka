@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/vuka-lang/vuka/diag"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -19,7 +20,7 @@ func TestLSPDiagnosticCodes(t *testing.T) {
 		got = jsonOf(ds)
 		return strings.Contains(got, "E0203")
 	})
-	for _, want := range []string{`"code":"E0203"`, `"codeDescription":{"href":"https://vuka-lang.github.io/vuka/errors/E0203"}`,
+	for _, want := range []string{`"code":"E0203"`, `"codeDescription":{"href":"` + diag.DocsURL + `E0203"}`,
 		`"message":"an attribute must start its own line\nhelp: put the attribute on its own line, above the declaration"`, `"severity":1`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("diagnostics lack %s: %s", want, got)

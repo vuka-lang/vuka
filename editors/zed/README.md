@@ -1,6 +1,6 @@
 # Vuka for Zed
 
-A [Zed](https://zed.dev) extension for the [Vuka](https://vuka-lang.github.io/vuka/)
+A [Zed](https://zed.dev) extension for the [Vuka](https://vuka-lang.github.io/)
 language — `.vuka` files.
 
 Vuka is a **Go superset**: every `.vuka` file is Go plus a few additions —
@@ -82,7 +82,7 @@ set `lsp.vuka.binary.path`.
 files can be served through Vuka too (point the Go extension's gopls at a link
 named `gopls` → `vuka`), and `.templ` files can use the same gopls. Zed wires
 gopls through its built-in Go support rather than this extension; see the
-[Vuka editors guide](https://vuka-lang.github.io/vuka/tools/editors) for the
+[Vuka editors guide](https://vuka-lang.github.io/tools/editors) for the
 cross-server setup. This extension focuses on `.vuka` files.
 
 ## Grammar limitation
