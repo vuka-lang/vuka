@@ -5,14 +5,35 @@ SQL's expressions are the engine's: a field's `Expr()` is its column
 `SQL` take expressions, values or other calls. A typed call compares by its
 result's type, so `orm.Length(…).Eq("x")` doesn't compile:
 
+::: vuka
 ```vuka
 title := Post.Title.Expr()
 Post.Objects.Filter(orm.Lower(title).Eq("go tooling"))
-Post.Objects.Filter(orm.Q{"likes__gt": orm.SQL("{0} / 2", Post.Views.Expr())})   // likes > views / 2
+Post.Objects.Filter(orm.Q{"likes__gt": Post.Views.Div(2)})   // likes > views / 2
 Post.Objects.Filter(orm.Year(Post.Published.Expr()).Eq(2025))
 Post.Objects.Order(orm.Length(title).Desc())
-Post.Objects.Update(ctx, orm.Set{"views": orm.SQL("{0} + 1", Post.Views.Expr())})?
+Post.Objects.Filter(Post.Slug.Eq(slug)).Update(ctx, orm.Set{"views": Post.Views.Add(1)})?
 ```
+:::
+
+::: go
+```go
+f := PostFields
+title := f.Title.Expr()
+Posts.Filter(orm.Lower(title).Eq("go tooling"))
+Posts.Filter(orm.Q{"likes__gt": f.Views.Div(2)}) // likes > views / 2
+Posts.Filter(orm.Year(f.Published.Expr()).Eq(2025))
+Posts.Order(orm.Length(title).Desc())
+_, err := Posts.Filter(f.Slug.Eq(slug)).Update(ctx, orm.Set{"views": f.Views.Add(1)})
+```
+:::
+
+A number field (an `orm.NumberField`, what `orm generate` writes for an
+integer or float column) does arithmetic: `Add`, `Sub`, `Mul` and `Div`
+take a value of the field's type and give an `orm.NumExpr`, an
+`OrderedExpr` that goes on (`f.Views.Add(1).Mul(2)`); `orm.Num[int](e)`
+makes one of any expression. `Div` divides as the database does: whole
+numbers for integers on SQLite and Postgres.
 
 | `orm.` | |
 |---|---|
@@ -24,7 +45,7 @@ Post.Objects.Update(ctx, orm.Set{"views": orm.SQL("{0} + 1", Post.Views.Expr())}
 | `Date` | the date as `YYYY-MM-DD` text |
 | `Coalesce(e, rest…)` | the first that isn't NULL |
 | `Cast(e, orm.AsText)` | a cast |
-| `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * 2", Post.Likes.Expr())` |
+| `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * {1}", Post.Likes.Expr(), Post.Views.Expr())` |
 | `Where(e, lookup, v)` | a condition on any expression: `orm.Where(orm.SQL("{0} - {1}", views, likes), "gte", 49)` |
 
 A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,

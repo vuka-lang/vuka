@@ -213,7 +213,7 @@ same by hand. Sizes default to 20, at most 100 (`orm.DefaultSize(n)`,
 golang, created, err := Tag.Objects.GetOrCreate(ctx, orm.Q{"name": "go"}, nil)
 
 Post.Objects.Filter(Post.Views.Lt(5)).Update(ctx, orm.Set{"status": "archived"})?
-Post.Objects.Filter(Post.Tags.Name.Eq("go")).Update(ctx, orm.Set{"views": orm.SQL("{0} + 1", Post.Views.Expr())})?
+Post.Objects.Filter(Post.Tags.Name.Eq("go")).Update(ctx, orm.Set{"views": Post.Views.Add(1)})?
 Post.Objects.Filter(Post.Published.IsNull(true)).Delete(ctx)?
 ```
 :::
@@ -224,12 +224,15 @@ golang, created, err := Tags.GetOrCreate(ctx, orm.Q{"name": "go"}, nil)
 fmt.Println(golang.ID, created)
 
 _, err = Posts.Filter(f.Views.Lt(5)).Update(ctx, orm.Set{"status": "archived"})
+_, err = Posts.Filter(f.Tags.Name.Eq("go")).Update(ctx, orm.Set{"views": f.Views.Add(1)})
 _, err = Posts.Filter(f.Published.IsNull(true)).Delete(ctx)
 ```
 :::
 
 `orm.Set` maps columns to values or expressions of the row's own columns,
-computed by the database. `Post.Objects.OnChange(fn)` calls `fn` after each
+computed by the database. A number field's `Add`, `Sub`, `Mul` and `Div`
+are such expressions, typed (`orm.NumExpr`): `f.Views.Add(1).Mul(2)` is
+`(views + 1) * 2`, and `f.Views.Add("x")` doesn't compile. `Post.Objects.OnChange(fn)` calls `fn` after each
 write to the model's rows, and returns the function that stops it.
 
 ## Relations
