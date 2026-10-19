@@ -163,13 +163,17 @@ func TestTemplDropIn(t *testing.T) {
 		t.Fatalf("definition of Nav: %s, want line 4 of pages.vuka", b)
 	}
 
-	// Loaded now: an edit's diagnostics are gopls's on templ's buffer.
+	// Loaded now: an edit's diagnostics are gopls's on templ's buffer (the
+	// first version's may still be on their way, from before the load).
 	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
 		"contentChanges": []any{map[string]any{"text": layout + "\n"}}})
 	deadline := time.After(3 * time.Second)
 	for {
 		select {
 		case p := <-c.diags:
+			if v, ok := p["version"].(float64); ok && v < 2 {
+				continue
+			}
 			if b, _ := json.Marshal(p); strings.Contains(string(b), "undefined") {
 				t.Fatalf("layout.templ should see Nav from pages.vuka: %s", b)
 			}
