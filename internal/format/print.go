@@ -130,6 +130,12 @@ func (p *printer) elem(el *jElem, indent string, col int) string {
 		}
 		return p.openBroken(el, indent)
 	}
+	if el.raw {
+		if !ok {
+			open = p.openBroken(el, indent)
+		}
+		return open + string(p.src[el.inner.start:el.inner.end]) + closeTag(el)
+	}
 	atoms, gaps := p.items(el.kids, false)
 	if ok && !p.keepBroken(el.inner, el.kids) {
 		if inner, flat := p.flat(atoms, gaps, indent, endCol(open, col)); flat {

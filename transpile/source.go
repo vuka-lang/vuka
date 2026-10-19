@@ -222,6 +222,11 @@ func (es edits) fromOrigEnd(off int) int {
 	if off == 0 {
 		return es.fromOrig(0)
 	}
+	for _, e := range es {
+		if !e.copy && e.start < off && e.end == off {
+			return es.fromOrig(e.start) + len(e.text) // a replacement ending there: its end
+		}
+	}
 	return es.fromOrig(off-1) + 1
 }
 

@@ -1,0 +1,13 @@
+<figure class="chart">
+  <figcaption>{Title}</figcaption>
+  <script is:inline>window.points = {json(Points)};</script>
+</figure>
+
+<script lang="ts">
+import { component } from 'vuka:component'
+export default component<Chart>((el, props) => ({ update(next) { el.dataset.n = String(next.Points.length) } }))
+</script>
+
+<style scoped>
+figcaption { font-weight: bold }
+</style>

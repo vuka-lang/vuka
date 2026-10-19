@@ -81,6 +81,7 @@ func (e *engine) islandImports(f *fileState, errs *ErrorList) {
 		default:
 			continue
 		}
+		kw := i // the import keyword
 		spec := func(j int, single bool) int {
 			nameTok := -1
 			if j < len(toks) && (toks[j].tok == token.IDENT || toks[j].tok == token.PERIOD) {
@@ -99,7 +100,7 @@ func (e *engine) islandImports(f *fileState, errs *ErrorList) {
 				start = toks[nameTok].off
 			}
 			if single {
-				start = toks[i].off
+				start = toks[kw].off
 			}
 			end := toks[j].end()
 			f.add(start, end, "")

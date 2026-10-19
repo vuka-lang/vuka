@@ -69,6 +69,7 @@ public github.com/vuka-lang/ui.Fragment
 public github.com/vuka-lang/ui.HTML
 public github.com/vuka-lang/ui.If
 public github.com/vuka-lang/ui.Island
+public github.com/vuka-lang/ui.JSON
 public github.com/vuka-lang/ui.IslandPage
 public github.com/vuka-lang/ui.JS
 public github.com/vuka-lang/ui.Key
@@ -82,6 +83,7 @@ public github.com/vuka-lang/ui.Node
 public github.com/vuka-lang/ui.On
 public github.com/vuka-lang/ui.Once
 public github.com/vuka-lang/ui.PageLayout
+public github.com/vuka-lang/ui.Props
 public github.com/vuka-lang/ui.Ptr
 public github.com/vuka-lang/ui.RegisterIsland
 public github.com/vuka-lang/ui.Show

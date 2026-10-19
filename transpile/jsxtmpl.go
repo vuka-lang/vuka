@@ -6,6 +6,7 @@ import (
 	"go/printer"
 	"go/token"
 	"go/types"
+	"regexp"
 	"strconv"
 	"strings"
 )
@@ -262,6 +263,7 @@ func (w *jsxWriter) varName(base string) string {
 //
 // line is the indent of the line they start on, child their lines'.
 func (w *jsxWriter) markup(tp *tmpl, ns []jsxNode, line, child string, inline bool) {
+	ns = withoutAssets(ns)
 	breaks := !inline && layout(ns)
 	at := line
 	if breaks {
@@ -280,6 +282,23 @@ func (w *jsxWriter) markup(tp *tmpl, ns []jsxNode, line, child string, inline bo
 	if breaks && child != line {
 		tp.b.WriteString("\n" + line)
 	}
+}
+
+// withoutAssets is ns without the component scripts and scoped stylesheets
+// the vuka command bundles.
+func withoutAssets(ns []jsxNode) []jsxNode {
+	for i, n := range ns {
+		if el, ok := n.(*jsxElem); ok && el.asset {
+			out := append([]jsxNode{}, ns[:i]...)
+			for _, m := range ns[i+1:] {
+				if el, ok := m.(*jsxElem); !ok || !el.asset {
+					out = append(out, m)
+				}
+			}
+			return trimBody(out)
+		}
+	}
+	return ns
 }
 
 // isMarkup reports whether n isn't text: a line may break next to it.
@@ -333,6 +352,27 @@ func (w *jsxWriter) node(tp *tmpl, n jsxNode, indent string, inline bool) {
 	}
 }
 
+var renderRecv = regexp.MustCompile(`func\s*\(\s*(\w+)\s+\*?\w+\s*\)\s*Render\s*\(`)
+
+// rootProps is ui.Props(recv) for the root element of a Render method's
+// JSX whose children hold a component script: the props the script reads.
+func (w *jsxWriter) rootProps(el *jsxElem) string {
+	if w.f.html != nil || el != w.t.root {
+		return ""
+	}
+	scripted := false
+	for _, k := range el.kids {
+		if a, ok := k.(*jsxElem); ok && a.asset && a.tag == "script" {
+			scripted = true
+		}
+	}
+	m := renderRecv.FindSubmatch(w.f.src[w.t.declOff:w.t.start])
+	if !scripted || m == nil {
+		return ""
+	}
+	return w.q + "Props(" + string(m[1]) + ")"
+}
+
 // lastName is a tag's last name: ui.Card is Card.
 func lastName(tag string) string {
 	if i := strings.LastIndexByte(tag, '.'); i >= 0 {
@@ -363,8 +403,15 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 		return
 	}
 	tp.b.WriteString("<" + el.tag)
+	if props := w.rootProps(el); props != "" {
+		tp.b.WriteString(" data-vk-p=")
+		w.holeIn(tp, "props", func() { w.gen(props) })
+	}
 	for _, a := range el.attrs {
 		a := a
+		if a.name == "is:inline" {
+			continue
+		}
 		if a.kind == 'r' {
 			tp.b.WriteString(" {" + w.value(tp, "attrs", func() { w.keep(a.expr) }) + "...}")
 			continue
@@ -418,12 +465,22 @@ func allText(ns []jsxNode) bool {
 func (w *jsxWriter) rawElement(el *jsxElem, kids []jsxNode) {
 	q := w.q
 	w.gen(q + "El(" + strconv.Quote(el.tag) + ", ")
-	if len(el.attrs) == 0 {
+	attrs := 0
+	for _, a := range el.attrs {
+		if a.name != "is:inline" {
+			attrs++
+		}
+	}
+	if attrs == 0 {
 		w.gen("nil")
 	} else {
 		w.gen("[]" + q + "Attr{")
-		for i, a := range el.attrs {
-			if i > 0 {
+		n := 0
+		for _, a := range el.attrs {
+			if a.name == "is:inline" {
+				continue
+			}
+			if n++; n > 1 {
 				w.gen(", ")
 			}
 			w.gen("{Name: " + strconv.Quote(htmlName(a.name)) + ", Value: ")
@@ -438,7 +495,11 @@ func (w *jsxWriter) rawElement(el *jsxElem, kids []jsxNode) {
 		case *jsxText:
 			w.gen(q + "Safe(" + strconv.Quote(k.val) + ")")
 		case *jsxHole:
-			w.gen(q + "Child(")
+			if k.json {
+				w.gen(q + "JSON(")
+			} else {
+				w.gen(q + "Child(")
+			}
 			w.holeValue(k)
 			w.gen(")")
 		default:

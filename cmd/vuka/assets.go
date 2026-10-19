@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"crypto/sha256"
 	"encoding/hex"
 	"errors"
@@ -18,6 +19,7 @@ import (
 
 	"github.com/vuka-lang/vuka/diag"
 	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // A page's styles and scripts, for apps on github.com/vuka-lang/web:
@@ -105,6 +107,14 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 	var errs []error
 	err := walkSources(root, func(p, name string) error {
 		ext := filepath.Ext(name)
+		if strings.HasSuffix(name, ".vuka.html") {
+			src, err := os.ReadFile(p)
+			if err != nil {
+				return err
+			}
+			pa.readTemplates(p, src)
+			return nil
+		}
 		if ext != ".vuka" && ext != ".go" || strings.HasSuffix(name, "_test"+ext) || strings.HasSuffix(name, "_gen.go") {
 			return nil
 		}
@@ -113,6 +123,9 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 			return err
 		}
 		s := string(src)
+		if ext == ".vuka" {
+			pa.readJSXAssets(p, src)
+		}
 		if strings.Contains(s, `"`+webPath+`"`) {
 			errs = append(errs, pa.readFile(p, src)...)
 		}
@@ -368,6 +381,74 @@ func (pa *pageAssets) comp(dir, importPath, name, templ string) *assetComp {
 	c := &assetComp{dir: dir, importPath: importPath, name: name, id: scopeID(importPath, name), templ: templ}
 	pa.comps = append(pa.comps, c)
 	return c
+}
+
+// readTemplates reads the scripts and stylesheets of a template file's
+// templates: each its template's, a stylesheet without scoped the app's.
+func (pa *pageAssets) readTemplates(file string, src []byte) {
+	dir := filepath.Dir(file)
+	rel, _ := filepath.Rel(pa.root, file)
+	// The component files its imports name are islands.
+	top := 0
+	for _, l := range strings.SplitAfter(string(src), "\n") {
+		if t := strings.TrimSpace(l); t != "" && !strings.HasPrefix(t, "//") && !strings.HasPrefix(t, "import ") {
+			break
+		}
+		top += len(l)
+	}
+	full, line := scanFile(file, append(src[:top:top], "\nfunc"...)) // the imports end at a declaration
+	pa.readIslandImports(file, filepath.ToSlash(rel), line, dropNewlineSemis(full))
+	for _, a := range transpile.TemplateAssets(filepath.Base(file), src) {
+		s := assetSrc{inline: a.Text, label: fmt.Sprintf("%s:%d", rel, a.Line), line: a.Line - 1, dir: dir}
+		switch {
+		case !a.Script && !a.Scoped:
+			pa.global.styles = append(pa.global.styles, s)
+		case a.Script:
+			c := pa.comp(dir, pa.importPathOf(dir), a.Decl, "")
+			c.scripts = append(c.scripts, s)
+		default:
+			c := pa.comp(dir, pa.importPathOf(dir), a.Decl, "")
+			c.styles = append(c.styles, s)
+		}
+	}
+}
+
+var (
+	jsxAsset = regexp.MustCompile(`(?s)<(script)\s+lang="ts"\s*>(.*?)</script>|<(style)\s+scoped\s*>(.*?)</style>`)
+	jsxDecl  = regexp.MustCompile(`(?m)^func\s*(?:\(\s*\w*\s*\*?\s*(\w+)(?:\[[^\]]*\])?\s*\)\s*\w+|(\w+))`)
+)
+
+// readJSXAssets reads the component scripts and scoped stylesheets a .vuka
+// file's JSX holds, <script lang="ts"> and <style scoped>: each the
+// component's whose function or method it is in.
+func (pa *pageAssets) readJSXAssets(file string, src []byte) {
+	dir := filepath.Dir(file)
+	rel, _ := filepath.Rel(pa.root, file)
+	for _, m := range jsxAsset.FindAllSubmatchIndex(src, -1) {
+		decl := ""
+		for _, d := range jsxDecl.FindAllSubmatch(src[:m[0]], -1) {
+			decl = string(d[1]) + string(d[2])
+		}
+		if decl == "" {
+			continue
+		}
+		body, at := m[4], m[5]
+		if m[2] < 0 {
+			body, at = m[8], m[9]
+		}
+		text := string(src[body:at])
+		line := 1 + bytes.Count(src[:body], []byte("\n"))
+		if strings.HasPrefix(text, "\n") {
+			text, line = text[1:], line+1
+		}
+		s := assetSrc{inline: text, label: fmt.Sprintf("%s:%d", rel, line), line: line - 1, dir: dir}
+		c := pa.comp(dir, pa.importPathOf(dir), decl, "")
+		if m[2] >= 0 {
+			c.scripts = append(c.scripts, s)
+		} else {
+			c.styles = append(c.styles, s)
+		}
+	}
 }
 
 func (pa *pageAssets) importPathOf(dir string) string {
