@@ -18,6 +18,8 @@ const pagesApp = `package main
 
 import (
 	"context"
+	"os"
+	"path/filepath"
 	"time"
 
 	"github.com/vuka-lang/ui"
@@ -25,6 +27,21 @@ import (
 )
 
 type DB struct{ names []string }
+
+// held waits until the test lets the loader of name go on, creating the
+// file of that name in $GATES.
+func held(ctx context.Context, name string) error {
+	for {
+		if _, err := os.Stat(filepath.Join(os.Getenv("GATES"), name)); err == nil {
+			return nil
+		}
+		select {
+		case <-time.After(10 * time.Millisecond):
+		case <-ctx.Done():
+			return ctx.Err()
+		}
+	}
+}
 
 func (d *DB) Find(q string) []string {
 	var out []string
@@ -261,10 +278,8 @@ type Dash struct {
 func (d *Dash) Mount() { d.Title = "Dashboard" }
 
 func (d *Dash) LoadStats(ctx context.Context) error {
-	select {
-	case <-time.After(800 * time.Millisecond):
-	case <-ctx.Done():
-		return ctx.Err()
+	if err := held(ctx, "dash"); err != nil {
+		return err
 	}
 	d.Stats = map[string]int{"open": len(d.db.names)}
 	return nil
@@ -287,7 +302,9 @@ type DashStatic struct {
 func (d *DashStatic) Mount() { d.Title = "Dashboard" }
 
 func (d *DashStatic) LoadStats(ctx context.Context) error {
-	time.Sleep(800 * time.Millisecond)
+	if err := held(ctx, "dashstatic"); err != nil {
+		return err
+	}
 	d.Stats = map[string]int{"open": len(d.db.names)}
 	return nil
 }
@@ -470,8 +487,9 @@ func TestIslandPagesE2E(t *testing.T) {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	port := ln.Addr().(*net.TCPAddr).Port
 	ln.Close()
+	gates := t.TempDir() // the deferred stats load once the test creates their file here
 	cmd := exec.Command(app)
-	cmd.Env = append(os.Environ(), fmt.Sprint("PORT=", port), assetsEnv+"=")
+	cmd.Env = append(os.Environ(), fmt.Sprint("PORT=", port), assetsEnv+"=", "GATES="+gates)
 	var logs bytes.Buffer
 	cmd.Stdout, cmd.Stderr = &logs, &logs
 	if err := cmd.Start(); err != nil {
@@ -655,24 +673,28 @@ func TestIslandPagesE2E(t *testing.T) {
 	}
 
 	// Pages with deferred fields: the page paints and the component mounts
-	// with them pending; each arrives on its own — live after the join,
-	// stateless from the load the component posts — with no component code,
-	// and a failing loader is its field's error.
+	// with them pending, the stats loader held until the test lets it go;
+	// each arrives on its own — live after the join, stateless from the
+	// load the component posts — with no component code, and a failing
+	// loader is its field's error.
 	for _, path := range []string{"/dash", "/dashstatic"} {
 		t.Run(path, func(t *testing.T) {
 			p := ch.open(base+path, 900, 700)
 			p.wait(`(document.querySelector("#d h1") || {}).textContent === "Dashboard"`)
-			if got := p.eval(`[window.__mounted.pending, window.__mounted.value, window.__mounted.at < 700]`); fmt.Sprint(got) != "[true true true]" {
-				t.Errorf("at mount (pending, undefined, before the loader): %v", got)
+			if got := p.eval(`[window.__mounted.pending, window.__mounted.value]`); fmt.Sprint(got) != "[true true]" {
+				t.Errorf("at mount (pending, undefined): %v", got)
 			}
+			if path == "/dash" {
+				p.wait(`document.querySelector("#d .rows").textContent === "Grace,Guido"`)
+				p.wait(`document.querySelector("#d .recent").textContent === "recent is down"`)
+				if got := p.eval(`[document.querySelector("#d .stats").textContent, window.__statsAt === undefined]`); fmt.Sprint(got) != "[loading true]" {
+					t.Errorf("rows waited for stats: the stats %v", got)
+				}
+			}
+			writeFile(t, filepath.Join(gates, strings.TrimPrefix(path, "/")), "")
 			p.wait(`document.querySelector("#d .rows").textContent === "Grace,Guido"`)
 			p.wait(`document.querySelector("#d .recent").textContent === "recent is down"`)
 			p.wait(`document.querySelector("#d .stats").textContent === "4"`)
-			if path == "/dash" {
-				if d := p.eval(`window.__statsAt - window.__rowsAt`); d.(float64) < 400 {
-					t.Errorf("rows waited for stats: %v ms apart", d)
-				}
-			}
 			if t.Failed() {
 				t.Logf("page:\n%v\napp log:\n%s", p.eval(`document.documentElement.outerHTML`), logs.String())
 			}
