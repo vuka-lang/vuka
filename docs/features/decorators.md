@@ -32,6 +32,52 @@ func (s *Store) Save(u User) error { … }
 `decorator name(c) { … }` is shorthand for `func name(c *vuka.Call)`; plain Go
 functions of that type work too, in `.vuka` or `.go` files.
 
+## In Go
+
+A decorated function is `vuka.Wrap(fn, info, decorators…)`: the function
+with the decorators around each of its calls, outermost first, `info` the
+name and attributes they see. A method keeps its name and calls its
+wrapped method expression, built on first use:
+
+::: vuka
+```vuka
+@retry(3)
+@logged
+func charge(ctx context.Context, id int) (Receipt, error) { … }
+
+@logged
+func (s *Store) Save(u User) error { … }
+```
+:::
+
+::: go
+```go
+var charge = vuka.Wrap(chargeOnce, vuka.FuncInfo{Name: "main.charge"}, retry(3), logged)
+
+func chargeOnce(ctx context.Context, id int) (Receipt, error) { … }
+
+var storeSave vuka.Decorated[func(*Store, User) error]
+
+func (s *Store) Save(u User) error {
+	return storeSave.Get(func() func(*Store, User) error {
+		return vuka.Wrap((*Store).save, vuka.FuncInfo{Name: "Store.Save", Method: true}, logged)
+	})(s, u)
+}
+
+func (s *Store) save(u User) error { … }
+```
+:::
+
+`vuka.FuncInfo{Attrs, ParamAttrs}` are what `c.Attr` and `c.ParamAttr`
+read. `Wrap` calls the function through reflection; registering a typed
+adapter for its signature, `vuka.RegisterAdapter`, takes reflection out.
+The vuka command writes one per signature a package's decorators wrap in
+`vuka_calls_gen.go` (`vuka gen -inplace` commits it), an optional
+speed-up the main file never depends on: a call through two decorators is
+about 500ns by reflection, 110ns with the adapter, on an Apple M1 Pro
+(`go test -bench Wrap` in the vuka module). A generic function is always
+called by reflection.
+
 ## The call
 
 | | |

@@ -479,11 +479,12 @@ Folded into roadmap Phase 2:
 | 1 | Public registration API (`web.Routes`, `app.Get/Live/Controller/Service`), transpiler emits it — **done** | 2.5 |
 | 2 | Markup in Go — now `.vuka.html` templates and `ui.HTML` ([templates.md](templates.md)); transpiler emits them — **done** | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them — **done** | 2.1, 2.2 |
-| 4 | orm reflection fallback, live render fallback (**done**); call decorators through a reflective wrapper (open) | 2.6 |
+| 4 | orm reflection fallback, live render fallback, call decorators through `vuka.Wrap` with typed adapters as a speed-up — **done** | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
 | 6 | `vukavet` analyzer — **done** | 2.6 |
 | 2a | Island path inference without the CLI: bare `ui.RegisterIsland[T]()`, the transpiler emits it — **done** | 2.5, 2.6 |
 | 2b | Islands built for plain Go: `go tool vuka build-islands` into the frontend's build, `web.Dev()` keeps them built, `vuka-live.d.ts` from Go types — **done** | 2.6 |
+| 4a | Overloads named as Go names them (`areaCircle`, `UpdateNewMessage`), field references by address (`vuka.RefTo`), orm arithmetic and typed `SaveFields` — **done** | 2.3, 2.6 |
 | 7 | Conformance suite | 2.6 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
@@ -538,14 +539,27 @@ fields and hooks, at boot and in `vukavet`). Public now: `RegisterFields`
 `Static`, `Statics` (a static of a generic type: one value per
 instantiation, which Go has no variable for).
 
-What the contract file still allows, by the step that removes it:
+Step 4 is done: a call decorator lowers to `vuka.Wrap(fn, vuka.FuncInfo{…},
+decorators…)`, the call a person writes, which packs each call by
+reflection; the vuka command writes a typed adapter per signature the
+package's decorators wrap into `vuka_calls_gen.go`
+(`vuka.RegisterAdapter`), which `Wrap` uses in its place — a speed-up the
+main file doesn't depend on, ejected and committed like `post_gen.go`. A
+call through two decorators: 500ns by reflection, 110ns with the adapter,
+95ns through the adapter older commands inlined (`vuka.NewCall`, still
+working, deprecated).
 
-- step 3: field references by index path (`vuka.RefOf` and its kinds) on
-  a struct with no generated typed fields (`Stats.Author` of a plain
-  struct): their public form, a field named by address, is a follow-up;
-- step 4: call decorators' per-signature adapter (`vuka.Func`,
-  `vuka.NewCall`): its public form is a reflective wrapper, with the typed
-  adapter an optional speed-up like the other step 4 fallbacks.
+Step 4a closes what was left: an overload is named after its parameters'
+types as a person names such functions — `area(c Circle)` is `areaCircle`,
+`Add(a, b int)` `AddIntInt`, a live component's `Update(m NewMessage)`
+`UpdateNewMessage`, which `ui.IsUpdate` takes for an Update (and
+`Update__T`, the old name, for one minor release); a field reference on a
+struct with no typed fields is the field by address,
+`vuka.StringRefTo(func(p *Post) *string { return &p.Author.Related().Name })`
+(`RefOf` with index paths deprecated); the orm's number fields take
+arithmetic (`orm.Set{"views": PostFields.Views.Add(1)}`) and `SaveFields`
+typed fields. The contract file has no pending entries: everything
+generated code calls is public API.
 
 Steps 2a and 2b are done: `ui.RegisterIsland[T](args…)` takes what
 `ui.Island` takes and, bare, leaves the component to the vuka command's
