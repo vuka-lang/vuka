@@ -220,6 +220,12 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	overlay, gens = typedFields(root, tmp, overlay, gens, cmd == "test" || cmd == "vet", stderr)
+	if calls := newGens(gens, goCallAdapters(root)); len(calls) > 0 {
+		if overlay, err = addToOverlay(overlay, tmp, calls); err != nil {
+			return err
+		}
+		gens = append(gens, calls...)
+	}
 	if linkMsg != "" && (cmd == "run" || cmd == "build" || cmd == "install") {
 		fmt.Fprintln(stderr, linkMsg)
 	}
@@ -494,7 +500,7 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		return "", nil, err
 	}
 	_, fields := typedFields(root, tmp, overlay, files, true, os.Stderr)
-	for _, g := range append(append(links, css...), fields[len(files):]...) {
+	for _, g := range append(append(append(links, css...), fields[len(files):]...), newGens(files, goCallAdapters(root))...) {
 		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
 			files = append(files, g)
 		}

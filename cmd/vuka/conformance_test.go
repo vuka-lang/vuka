@@ -274,15 +274,20 @@ func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules str
 		}
 		return out
 	}
-	without := func(name, root string) *confRun {
+	// without builds root again with no speed-ups, removing them; it
+	// returns the ones it removed.
+	without := func(name, root string) (*confRun, []string) {
 		t.Helper()
+		var gone []string
 		filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if err == nil && !d.IsDir() && speedUps.MatchString(d.Name()) {
+				rel, _ := filepath.Rel(root, p)
+				gone = append(gone, filepath.ToSlash(rel))
 				return os.Remove(p)
 			}
 			return nil
 		})
-		return &confRun{name: name, bin: goBuild(name), root: root, whole: true, sql: usesORM}
+		return &confRun{name: name, bin: goBuild(name), root: root, whole: true, sql: usesORM}, gone
 	}
 	var runs []*confRun
 
@@ -310,7 +315,8 @@ func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules str
 		}
 	}
 	runs = append(runs, &confRun{name: "go+gen", bin: goBuild("go+gen"), root: root, sql: usesORM})
-	runs = append(runs, without("go", root))
+	run, goSpeedUps := without("go", root)
+	runs = append(runs, run)
 
 	root = confModule(t, filepath.Join(dir, "vuka"), mods, extra, nodeModules)
 	t.Chdir(root)
@@ -333,7 +339,11 @@ func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules str
 		}
 	}
 	runs = append(runs, &confRun{name: "ejected+gen", bin: goBuild("ejected+gen"), root: root, sql: usesORM})
-	runs = append(runs, without("ejected", root))
+	run, ejectedSpeedUps := without("ejected", root)
+	runs = append(runs, run)
+	if !slices.Equal(goSpeedUps, ejectedSpeedUps) {
+		t.Errorf("the speed-ups generated for the Go app, %v, aren't the ejected app's, %v", goSpeedUps, ejectedSpeedUps)
+	}
 	return runs
 }
 
