@@ -101,6 +101,7 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 		return nil, nil
 	}
 	pa := &pageAssets{root: root, modPath: modPath, global: &assetComp{}}
+	g := &goPkgs{root: root, modPath: modPath, fset: token.NewFileSet(), dirs: map[string][]*goFile{}}
 	var errs []error
 	err := walkSources(root, func(p, name string) error {
 		ext := filepath.Ext(name)
@@ -117,6 +118,9 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 		}
 		if strings.Contains(s, `"`+load.UIPath+`"`) {
 			errs = append(errs, pa.readIslands(p, src)...)
+			if ext == ".go" && !strings.HasSuffix(name, "_vuka.go") {
+				errs = append(errs, pa.readGoIslands(g, p)...)
+			}
 		}
 		return nil
 	})
