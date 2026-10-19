@@ -24,7 +24,7 @@ type ListProps[T any] struct {
 // List's type argument is inferred from its attributes: Items []T pins T, as
 // does Key func(T) string. No <List[…]> needed.
 func List[T any](p ListProps[T]) ui.Node {
-	lis := make([]ui.Node, 0, len(p.Items))
+	var lis []ui.Node
 //line jsx_geninfer.vuka:24
 	for _, it := range p.Items {
 //line jsx_geninfer.vuka:24
@@ -62,11 +62,10 @@ type GridProps[T any] struct {
 // T reached through a named generic type (Column[T]) and a pointer ([]*T) is
 // still pinned by unifying those shapes structurally.
 func Grid[T any](p GridProps[T]) ui.Node {
-	trs := make([]ui.Node, 0, len(p.Rows))
+	var trs []ui.Node
 //line jsx_geninfer.vuka:50
 	for _, r := range p.Rows {
-//line jsx_geninfer.vuka:50
-		tds := make([]ui.Node, 0, len(p.Cols))
+		var tds []ui.Node
 //line jsx_geninfer.vuka:50
 		for _, col := range p.Cols {
 //line jsx_geninfer.vuka:50

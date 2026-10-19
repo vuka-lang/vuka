@@ -32,7 +32,7 @@ type List[T any] struct {
 }
 
 func (l *List[T]) Render() ui.Node {
-	lis := make([]ui.Node, 0, len(l.Items))
+	var lis []ui.Node
 //line jsx_stateinfer.vuka:27
 	for _, it := range l.Items {
 //line jsx_stateinfer.vuka:27

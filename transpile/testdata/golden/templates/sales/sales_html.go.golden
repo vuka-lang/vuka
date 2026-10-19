@@ -9,9 +9,7 @@ import (
 
 //line sales.vuka.html:1
 func (s Sales) Render() ui.Node {
-//line sales.vuka.html:3
-	spans := make([]ui.Node, 0, len(s.Week))
-//line sales.vuka.html:3
+	var spans []ui.Node
 	for _, d := range s.Week {
 		spans = append(spans, ui.HTML(`<span class="day" class:big={d > 10}>{d}</span>`, d > 10, d))
 	}
@@ -34,9 +32,7 @@ func Page(orders []Order) ui.Node {
 	if len(orders) == 0 {
 		p = append(p, ui.HTML(`<p>none</p>`))
 	} else {
-//line sales.vuka.html:20
-		rows := make([]ui.Node, 0, len(orders))
-//line sales.vuka.html:20
+		var rows []ui.Node
 		for _, o := range orders {
 			rows = append(rows, row(o))
 		}

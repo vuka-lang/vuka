@@ -38,8 +38,7 @@ func (t *Table) Do(w string) {
 }
 
 func (t *Table) Render() ui.Node {
-//line jsx_live_tree.vuka:40
-	trs := make([]ui.Node, 0, len(t.rows))
+	var trs []ui.Node
 //line jsx_live_tree.vuka:40
 	for _, r := range t.rows {
 		trs = append(trs, ui.HTML(`

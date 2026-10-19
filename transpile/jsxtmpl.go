@@ -483,13 +483,7 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 	if w.isLoop(n) {
 		name := w.varName(lowerFirst(w.nodesName(firstBody(n))) + "s")
 		w.stmts(func() {
-			if x := w.rangeLen(n); x != nil {
-				w.gen(name + " := make([]" + q + "Node, 0, len(")
-				w.copy(*x)
-				w.gen("))\n")
-			} else {
-				w.gen("var " + name + " []" + q + "Node\n")
-			}
+			w.gen("var " + name + " []" + q + "Node\n")
 			w.keep(n.heads[0])
 			if len(n.bodies[0]) > 0 {
 				e := w.expr(func() { w.piece(n.bodies[0]) })
@@ -587,52 +581,6 @@ func firstBody(n *jsxBlock) []jsxNode {
 // isLoop reports whether a block is a for.
 func (w *jsxWriter) isLoop(n *jsxBlock) bool {
 	return n.m == nil && len(n.heads) == 1 && strings.HasPrefix(string(w.f.src[n.heads[0].start:n.heads[0].end]), "for")
-}
-
-// rangeLen is what a loop ranges over when its len is the number of
-// iterations, read again without effects: a slice, array or map named by
-// a variable or its fields.
-func (w *jsxWriter) rangeLen(n *jsxBlock) *span {
-	e := w.f.eng
-	if !w.final || e.info == nil || w.f.ast == nil {
-		return nil
-	}
-	rs := e.rangeAt(w.f, n.heads[0].start)
-	if rs == nil || !plainOperand(rs.X) {
-		return nil
-	}
-	switch e.info.TypeOf(rs.X).Underlying().(type) {
-	case *types.Slice, *types.Array, *types.Map:
-		return &span{w.f.orig(rs.X.Pos()), w.f.orig(rs.X.End())}
-	}
-	return nil
-}
-
-// plainOperand reports whether x is a variable or a field of one.
-func plainOperand(x ast.Expr) bool {
-	switch x := x.(type) {
-	case *ast.Ident:
-		return true
-	case *ast.SelectorExpr:
-		return plainOperand(x.X)
-	case *ast.ParenExpr:
-		return plainOperand(x.X)
-	}
-	return false
-}
-
-// rangeAt is the range statement whose for keyword is at src offset off.
-func (e *engine) rangeAt(f *fileState, off int) *ast.RangeStmt {
-	if f.rangeIdxOf != f.ast {
-		f.rangeIdx, f.rangeIdxOf = map[int]*ast.RangeStmt{}, f.ast
-		ast.Inspect(f.ast, func(n ast.Node) bool {
-			if rs, ok := n.(*ast.RangeStmt); ok && f.lowerable(rs.For) {
-				f.rangeIdx[f.orig(rs.For)] = rs
-			}
-			return true
-		})
-	}
-	return f.rangeIdx[off]
 }
 
 // exportName is a tag as an exported Go name: my-chart is MyChart.

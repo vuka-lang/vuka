@@ -77,7 +77,7 @@ func (c *Chat) Update__context_Context_Typing(ctx context.Context, t Typing) {
 
 //line jsx_props.vuka:60
 func (c *Chat) Render() ui.Node {
-	lis := make([]ui.Node, 0, len(c.log))
+	var lis []ui.Node
 //line jsx_props.vuka:61
 	for _, l := range c.log {
 //line jsx_props.vuka:61

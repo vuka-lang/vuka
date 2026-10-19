@@ -16,7 +16,7 @@ type User struct {
 }
 
 func List[T any](items []T, render func(T) ui.Node) ui.Node {
-	renders := make([]ui.Node, 0, len(items))
+	var renders []ui.Node
 //line jsx_generic.vuka:16
 	for _, x := range items {
 //line jsx_generic.vuka:16
@@ -28,8 +28,7 @@ func List[T any](items []T, render func(T) ui.Node) ui.Node {
 
 // Select's selected is left out: its zero value is the inferred type's.
 func Select[T comparable](label string, options []T, selected T) ui.Node {
-//line jsx_generic.vuka:23
-	options2 := make([]ui.Node, 0, len(options))
+	var options2 []ui.Node
 //line jsx_generic.vuka:23
 	for _, o := range options {
 		options2 = append(options2, ui.HTML(`<option selected={o == selected}>{fmt.Sprint(o)}</option>`, o == selected, fmt.Sprint(o)))
@@ -49,7 +48,7 @@ type TableProps[T any] struct {
 }
 
 func Table[T any](props TableProps[T]) ui.Node {
-	trs := make([]ui.Node, 0, len(props.Rows))
+	var trs []ui.Node
 //line jsx_generic.vuka:36
 	for _, r := range props.Rows {
 //line jsx_generic.vuka:36

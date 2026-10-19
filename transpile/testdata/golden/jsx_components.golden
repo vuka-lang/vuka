@@ -102,8 +102,7 @@ func (t Theme) Card(heading string, children ui.Node) ui.Node {
 
 //line jsx_components.vuka:77
 func List(users []User) ui.Node {
-//line jsx_components.vuka:80
-	lis := make([]ui.Node, 0, len(users))
+	var lis []ui.Node
 //line jsx_components.vuka:80
 	for _, u := range users {
 		userCard := UserCard(u, false, ui.HTML(`since {u.Year}`, u.Year))

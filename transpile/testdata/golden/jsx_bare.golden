@@ -17,9 +17,7 @@ type Item struct {
 }
 
 func list(items []Item) ui.Node {
-//line jsx_bare.vuka:18
-	texts2 := make([]ui.Node, 0, len(items))
-//line jsx_bare.vuka:18
+	var texts2 []ui.Node
 	for _, it := range items {
 		var li []ui.Node
 //line jsx_bare.vuka:19
@@ -30,7 +28,7 @@ func list(items []Item) ui.Node {
 		} else {
 			li = append(li, ui.HTML(`<li class="off">{it.Name}</li>`, it.Name))
 		}
-		is := make([]ui.Node, 0, len(it.Tags))
+		var is []ui.Node
 //line jsx_bare.vuka:26
 		for _, t := range it.Tags {
 //line jsx_bare.vuka:26
@@ -84,20 +82,17 @@ func list(items []Item) ui.Node {
 
 //line jsx_bare.vuka:41
 func texts(items []Item) ui.Node {
-//line jsx_bare.vuka:45
-	texts2 := make([]ui.Node, 0, len(items))
+	var texts2 []ui.Node
 //line jsx_bare.vuka:45
 	for range items {
 		texts2 = append(texts2, ui.HTML(`iffy text`))
 	}
-//line jsx_bare.vuka:46
-	texts22 := make([]ui.Node, 0, len(items))
+	var texts22 []ui.Node
 //line jsx_bare.vuka:46
 	for range items {
 		texts22 = append(texts22, ui.HTML(`if-then`))
 	}
-//line jsx_bare.vuka:47
-	texts3 := make([]ui.Node, 0, len(items))
+	var texts3 []ui.Node
 //line jsx_bare.vuka:47
 	for range items {
 		texts3 = append(texts3, ui.HTML(`formal matches`))

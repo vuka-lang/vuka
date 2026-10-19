@@ -30,8 +30,7 @@ func lookup(s string) vuka.Result[int] {
 }
 
 func list(users []User, admin bool, s string) ui.Node {
-//line jsx_blocks.vuka:25
-	lis := make([]ui.Node, 0, len(users))
+	var lis []ui.Node
 //line jsx_blocks.vuka:25
 	for _, u := range users {
 		lis = append(lis, ui.HTML(`<li key={u.ID}>{u.Name} since {u.Year}</li>`, u.ID, u.Name, u.Year))

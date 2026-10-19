@@ -24,9 +24,7 @@ func lookup(s string) vuka.Result[int] {
 
 // ? and match inside function literals within {…}, at any depth.
 func sum(s []string) ui.Node {
-//line jsx_nested.vuka:18
-	texts := make([]ui.Node, 0, len(s))
-//line jsx_nested.vuka:18
+	var texts []ui.Node
 	for _, x := range s {
 		texts = append(texts, ui.Try(func() (ui.Node, error) {
 			n, e2 := strconv.Atoi(x)
