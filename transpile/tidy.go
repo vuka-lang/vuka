@@ -255,9 +255,14 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	}
 
 	ast.Inspect(file, func(n ast.Node) bool {
-		if id, ok := n.(*ast.Ident); ok {
-			if r, ok := renames[id.Name]; ok {
-				id.Name = r
+		switch n := n.(type) {
+		case *ast.Ident:
+			if r, ok := renames[n.Name]; ok {
+				n.Name = r
+			}
+		case *ast.BasicLit:
+			if n.Kind == token.STRING && strings.Contains(n.Value, "{__") {
+				n.Value = renameLabels(n.Value, renames)
 			}
 		}
 		return true
@@ -694,4 +699,28 @@ func pathBase(path string) string {
 		return path[i+1:]
 	}
 	return path
+}
+
+// renameLabels renames the {__name} holes of a template literal, as the
+// variables they label are renamed.
+func renameLabels(lit string, renames map[string]string) string {
+	var b strings.Builder
+	for {
+		i := strings.Index(lit, "{__")
+		if i < 0 {
+			b.WriteString(lit)
+			return b.String()
+		}
+		j := i + 1
+		for j < len(lit) && (lit[j] == '_' || unicode.IsLetter(rune(lit[j])) || unicode.IsDigit(rune(lit[j]))) {
+			j++
+		}
+		b.WriteString(lit[:i+1])
+		if r, ok := renames[lit[i+1:j]]; ok {
+			b.WriteString(r)
+		} else {
+			b.WriteString(lit[i+1 : j])
+		}
+		lit = lit[j:]
+	}
 }

@@ -514,7 +514,7 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
 
 // bind writes a lowered read.
 func (w *jsxWriter) bind(b *stateBind) {
-	w.pieces = append(w.pieces, b.pieces...)
+	w.put(b.pieces)
 }
 
 // pieceEdits are the edits turning the source's span into pieces.

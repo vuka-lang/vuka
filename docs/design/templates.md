@@ -56,9 +56,14 @@ expression of its argument, checked against the arguments by vukavet.
   package `<Filters q={p.Q}/>`; from another as a Go selector, `<ui.Card>`,
   `<layouts.Admin>`, resolved as Go: an exported template or Go function
   taking one props struct, or a stateful type.
-- Attributes are props fields: kebab-case names the field (`on-change` is
-  `OnChange`); a bare attribute is `true`, `"text"` a string, `{expr}` a typed
-  value.
+- Attributes on a component's tag (a struct or function component, an
+  island, a layout) are camelCase, as in `.vuka` JSX: the field is the name
+  with its first letter upper-cased (`noPad` is `NoPad`, `onSelect`
+  `OnSelect`); on an island's component file they match its props and
+  emits (`points` the prop `points`, `onSelect` the emit `select`). A bare
+  attribute is `true`, `"text"` a string, `{expr}` a typed value. HTML
+  elements keep HTML's attribute names (`class`, `for`, `data-*`, `aria-*`,
+  `onClick={…}` for events). There is no kebab-case.
 - Content between the tags is `Children ui.Node`; `<slot:header>…</slot:header>`
   is the `Header ui.Node` field. An unknown field, or one that isn't a Node,
   is an error at its position.
@@ -71,7 +76,7 @@ expression of its argument, checked against the arguments by vukavet.
   `func (c *Counter) Render()`; `<Counter start={5}/>` is `&Counter{Start: 5}`,
   keyed `<Counter key={r.ID} …/>` is `ui.Key`. Nested live components keep
   their own instance and events, as now.
-- Islands: `<islands.Chart series={p.Sales} client:visible on-select={p.Zoom}/>`,
+- Islands: `<islands.Chart series={p.Sales} client:visible onSelect={p.Zoom}/>`,
   the props struct registered with `ui.RegisterIsland[Chart]()`.
 - Layouts are components with `Children` and slots
   (`func Admin(ctx context.Context, p AdminProps)`); route layouts
@@ -197,7 +202,7 @@ the overlay); templates see `.vuka` declarations and the other way round.
 
 `import Trend "./trend.vue"`, `import Spark "./spark.tsx"`,
 `import Mini "./mini.ts"`, in templates and in `.vuka`, make island tags
-`<Trend points={…} client:visible on-select={…}/>`, their props type
+`<Trend points={…} client:visible onSelect={…}/>`, their props type
 generated from the component (internal/tsprops: defineProps, TS props,
 Svelte props). A Go-first island (`type Trend struct{…}` +
 `ui.RegisterIsland[Trend]()`) finds its component next to the Go file first
@@ -262,7 +267,7 @@ Components are file-based by default.
   main template has no header: everything up to the first `func` line is the
   component's markup. A missing type is an error with help ("declare type
   Sales, or start the file with func …").
-- Fields and methods by bare name: `{Title}`, `on-select={Zoom}`,
+- Fields and methods by bare name: `{Title}`, `onSelect={Zoom}`,
   `{Total()}`. It is still Go: the compiler rewrites identifiers that resolve
   (go/types) to fields or methods of the receiver into `s.Title`; locals and
   loop variables shadow them, as in Go.

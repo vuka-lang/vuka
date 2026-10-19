@@ -765,64 +765,103 @@ type jsxPiece struct {
 	text string
 	keep span
 	copy bool // keep is copied out of the source's order
+	drop bool // keep is left out, with what rewrites it
 }
 
 type jsxWriter struct {
 	q       string // the target's qualifier
 	f       *fileState
 	t       *jsxTree
-	final   bool // the tree's last lowering: its templates are named for good
-	pieces  []jsxPiece
-	decls   []tmplDecl
-	seq     int
-	inBlock bool // writing a block's body
+	final   bool    // the tree's last lowering: its names are for good
+	out     *stream // where pieces are written
+	sink    *stream // the statements before the tree's expression
+	inBlock bool    // writing a block's body
 }
 
-func (w *jsxWriter) gen(s string) { w.pieces = append(w.pieces, jsxPiece{text: s, keep: span{-1, -1}}) }
-func (w *jsxWriter) keep(s span)  { w.pieces = append(w.pieces, jsxPiece{keep: s}) }
+func (w *jsxWriter) gen(s string) { w.out.p = append(w.out.p, jsxPiece{text: s, keep: span{-1, -1}}) }
+func (w *jsxWriter) keep(s span)  { w.out.p = append(w.out.p, jsxPiece{keep: s}) }
 
 // copy writes a span of the source, mapped to it, where the spans kept
 // around it are later in the source.
-func (w *jsxWriter) copy(s span) { w.pieces = append(w.pieces, jsxPiece{keep: s, copy: true}) }
+func (w *jsxWriter) copy(s span) { w.out.p = append(w.out.p, jsxPiece{keep: s, copy: true}) }
 
-// jsxEdits lowers a tree, as it stands, to edits of the gaps between what it
-// keeps, and its templates' declarations before the declaration holding it.
+// jsxEdits lowers a tree, as it stands, to edits: its expression in its
+// place, the statements building its blocks before the return whose value
+// it is, or with it in a function literal called in its place.
 func (f *fileState) jsxEdits(t *jsxTree, final bool) edits {
-	w := &jsxWriter{q: f.target.q, f: f, t: t, final: final}
+	w := &jsxWriter{q: f.target.q, f: f, t: t, final: final, out: &stream{}, sink: &stream{}}
 	w.piece([]jsxNode{t.root})
+	expr, stmts := w.out.p, w.sink.p
+	ret := -1
+	if len(stmts) > 0 && t.returned {
+		ret = returnAt(f.src, t.start)
+	}
+	if len(stmts) > 0 && ret < 0 {
+		lit := []jsxPiece{{text: "func() " + w.q + "Node {\n", keep: span{-1, -1}}}
+		lit = append(lit, stmts...)
+		lit = append(lit, jsxPiece{text: "return ", keep: span{-1, -1}})
+		lit = append(lit, expr...)
+		expr = append(lit, jsxPiece{text: "\n}()", keep: span{-1, -1}})
+		stmts = nil
+	}
+	out := f.pieceEdits(t, t.start, t.end, expr)
+	for i, p := range stmts {
+		e := edit{start: ret, end: ret, text: p.text, prio: i, own: t}
+		if p.keep.start >= 0 {
+			e.text, e.src, e.copy, e.drop = string(f.src[p.keep.start:p.keep.end]), p.keep.start+1, true, p.drop
+		}
+		out = append(out, e)
+	}
+	if len(stmts) > 0 {
+		out = append(out, edit{start: ret, end: ret, text: "\n", prio: len(stmts), own: t})
+	}
+	return out
+}
+
+// pieceEdits is ps in place of src[start:end]: edits of the gaps between
+// the spans kept in the source's order, the others copied or dropped.
+func (f *fileState) pieceEdits(t *jsxTree, start, end int, ps []jsxPiece) edits {
 	var out edits
 	var buf strings.Builder
-	cur := t.start
+	cur := start
 	flush := func(to int) {
 		text := buf.String()
 		if to > cur || text != "" {
-			out = append(out, edit{start: cur, end: to, text: text})
+			out = append(out, edit{start: cur, end: to, text: text, own: t})
 		}
 		buf.Reset()
 	}
-	for _, p := range w.pieces {
+	for _, p := range ps {
 		if p.keep.start < 0 {
 			buf.WriteString(p.text)
 			continue
 		}
-		if p.copy {
+		if p.copy || p.keep.start < cur {
 			if buf.Len() > 0 {
-				out = append(out, edit{start: cur, end: cur, text: buf.String()})
+				out = append(out, edit{start: cur, end: cur, text: buf.String(), own: t})
 				buf.Reset()
 			}
-			out = append(out, edit{start: cur, end: cur, text: string(f.src[p.keep.start:p.keep.end]), src: p.keep.start + 1, copy: true})
+			e := edit{start: cur, end: cur, text: string(f.src[p.keep.start:p.keep.end]), src: p.keep.start + 1, copy: true, own: t, drop: p.drop}
+			out = append(out, e)
 			continue
 		}
 		flush(p.keep.start)
 		cur = p.keep.end
 	}
-	flush(t.end)
-	at := f.leadStart(t.declOff)
-	for _, d := range w.decls {
-		out = append(out, edit{start: at, end: at, prio: d.at, src: d.at + 1,
-			text: "var " + d.name + " = " + w.q + "Template(" + rawString(d.markup) + ")\n\n"})
-	}
+	flush(end)
 	return out
+}
+
+// returnAt is the offset of the return keyword before off, or -1.
+func returnAt(src []byte, off int) int {
+	i := off
+	for i > 0 && strings.IndexByte(" \t\r\n", src[i-1]) >= 0 {
+		i--
+	}
+	if i >= 6 && string(src[i-6:i]) == "return" && (i == 6 || !isIdentByte(src[i-7])) {
+		return i - 6
+	}
+	return -1
 }
 
 // rawString is s as a raw string literal.

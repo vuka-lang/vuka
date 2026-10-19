@@ -20,6 +20,7 @@ type edit struct {
 	own        any       // the JSX tree it lowers
 	segs       []segment // a copy holding other rewrites: where its text came from
 	n          int       // a copy's length in src
+	drop       bool      // a copy left out: its text is nothing
 }
 
 type edits []edit
@@ -52,16 +53,18 @@ func (es edits) nest(src []byte) edits {
 	if len(copies) == 0 {
 		return es
 	}
-	sort.SliceStable(copies, func(i, j int) bool { return len(es[copies[i]].text) < len(es[copies[j]].text) })
 	out := append(edits(nil), es...)
+	for _, ci := range copies {
+		if out[ci].n == 0 {
+			out[ci].n = len(out[ci].text)
+		}
+	}
+	sort.SliceStable(copies, func(i, j int) bool { return out[copies[i]].n < out[copies[j]].n })
 	gone := make([]bool, len(out))
 	for _, ci := range copies {
 		c := &out[ci]
 		a := c.src - 1
-		b := a + len(c.text)
-		if c.n > 0 {
-			b = a + c.n
-		}
+		b := a + c.n
 		var inner edits
 		for i, e := range out {
 			if i != ci && !gone[i] && (e.own == nil || e.own != c.own) && a <= e.start && e.end <= b && e.start < b {
@@ -74,6 +77,11 @@ func (es edits) nest(src []byte) edits {
 		}
 		text, segs := inner.sorted().applyRange(src, a, b, nil)
 		c.text, c.segs, c.n = string(text), segs, b-a
+	}
+	for _, ci := range copies {
+		if c := &out[ci]; c.drop {
+			c.text, c.segs = "", []segment{}
+		}
 	}
 	kept := out[:0]
 	for i, e := range out {
