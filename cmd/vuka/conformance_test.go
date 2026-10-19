@@ -27,10 +27,12 @@ import (
 //
 //	vuka          the .vuka app, built by vuka build
 //	go+gen        the hand-written Go, its speed-ups generated (orm
-//	              generate, vuka gen -inplace, vuka build-islands)
+//	              generate, vuka gen -inplace, vuka build-islands), which
+//	              go vet with vukavet passes
 //	go            the same without the speed-ups (orm's reflection, Wrap's
 //	              reflection, whole-component live diffs)
-//	ejected+gen   the .vuka app after vuka eject -rm, built by go build
+//	ejected+gen   the .vuka app after vuka eject -rm, built by go build and
+//	              passing go vet with vukavet
 //	ejected       the same without the speed-ups
 //
 // An app's script says what to ask: HTTP requests, and live sessions whose
@@ -50,6 +52,12 @@ func TestConformance(t *testing.T) {
 	mods := confCheckouts(t)
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "")
+	vet := filepath.Join(t.TempDir(), "vukavet")
+	build := exec.Command("go", "build", "-o", vet, ".")
+	build.Dir = "../vukavet"
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Fatalf("go build vukavet: %v\n%s", err, out)
+	}
 	scripts, _ := filepath.Glob("../../examples/conformance/*/script")
 	if len(scripts) == 0 {
 		t.Fatal("no examples/conformance/*/script")
@@ -67,7 +75,7 @@ func TestConformance(t *testing.T) {
 					needs(t, "no island node_modules: npm ci --prefix testdata/node/islands")
 				}
 			}
-			runs := confBuild(t, dir, mods, nm)
+			runs := confBuild(t, dir, mods, nm, vet)
 			out := os.Getenv("VUKA_CONFORMANCE_OUT")
 			var first *confRun
 			for _, r := range runs {
@@ -251,7 +259,7 @@ func ConformanceSQL() []string {
 var speedUps = regexp.MustCompile(`^(orm_scanners.*_gen|vuka_calls_gen)\.go$`)
 
 // confBuild builds an app's forms.
-func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules string) []*confRun {
+func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules, vukavet string) []*confRun {
 	t.Helper()
 	bin := t.TempDir()
 	usesORM := false
@@ -271,6 +279,11 @@ func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules str
 		out := filepath.Join(bin, name)
 		if b, err := exec.Command("go", "build", "-o", out, ".").CombinedOutput(); err != nil {
 			t.Fatalf("%s: go build: %v\n%s", name, err, b)
+		}
+		if strings.HasSuffix(name, "+gen") {
+			if b, err := exec.Command("go", "vet", "-vettool="+vukavet, "./...").CombinedOutput(); err != nil {
+				t.Errorf("%s: go vet -vettool=vukavet: %v\n%s", name, err, b)
+			}
 		}
 		return out
 	}

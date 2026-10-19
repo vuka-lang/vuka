@@ -41,12 +41,13 @@ func (d *Dashboard) Zoom(r Range) { d.zoom = fmt.Sprintf("%d–%d", r.From, r.To
 
 func (d *Dashboard) Render() ui.Node {
 	chart := ui.Mount(Chart{Title: "Sales", Points: d.points}, ui.Visible(), ui.Emit("select", d.Zoom))
+	zoom := ui.If(d.zoom != "", ui.HTML(`<p class="zoom">{d.zoom}</p>`, d.zoom))
 	return ui.HTML(`
 <main>
   <button id="add" onClick={d.Add}>Add</button>
   {chart}
   {zoom}
-</main>`, d.Add, chart, ui.If(d.zoom != "", ui.HTML(`<p class="zoom">{d.zoom}</p>`, d.zoom)))
+</main>`, d.Add, chart, zoom)
 }
 
 // About is a page that isn't live, with an island in it.

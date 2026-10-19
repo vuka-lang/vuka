@@ -473,9 +473,9 @@ Every app of `examples/conformance/<app>` exists twice — `vuka/`, the
 | run | |
 |---|---|
 | `vuka` | `vuka/`, built by `vuka build` |
-| `go+gen` | `go/` after `orm generate`, `vuka gen -inplace` (and `vuka build-islands` for a `web/dist`), built by `go build` |
-| `go` | the same without the speed-ups: no `orm_scanners*_gen.go` (the orm reflects), no `vuka_calls_gen.go` (`vuka.Wrap` reflects), every live component diffed whole (`VUKA_LIVE_WHOLE=1`) |
-| `ejected+gen` | `vuka/` after `vuka eject -rm` (no `.vuka` file left; `vuka gen -inplace -check` must find nothing stale), built by `go build` |
+| `go+gen` | `go/` after `orm generate`, `vuka gen -inplace` (and `vuka build-islands` for a `web/dist`), built by `go build`; `go vet` with `vukavet` passes it |
+| `go` | the same without the speed-ups: no `orm_scanners*_gen.go` (the orm reflects), no `vuka_calls_gen.go` (`vuka.Wrap` reflects), every live component diffed whole (`VUKA_LIVE_WHOLE=1`); the two apps must have had the same speed-ups |
+| `ejected+gen` | `vuka/` after `vuka eject -rm` (no `.vuka` file left; `vuka gen -inplace -check` must find nothing stale), built by `go build`; `go vet` with `vukavet` passes it |
 | `ejected` | the same without the speed-ups |
 
 Each run plays the app's `script` — HTTP requests, and live pages whose
