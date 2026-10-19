@@ -151,7 +151,7 @@ Markup is written two ways, compiled to the same calls
 ### `.vuka.html` templates (default with the vuka command)
 
 ```html
-<!-- orders.vuka.html: the Render of Orders, its fields by bare name -->
+<!-- orders.vuka.html: the markup of Orders, its fields by bare name -->
 <table>
   for _, o := range Rows {
     {row(o, Cancel)}
@@ -167,10 +167,12 @@ func row(o Order, cancel func(int))
 ```
 
 - A file holds templates: the markup before its first `func` line is the
-  `Render` of the type the file is named after, `func` lines start the others
-  (partials and function components). Go statements start lines (`if`,
-  `for`, `switch`, `x := …`); holes are any Go; component tags are structs
-  with a `Render` method, stateful types or function components, their
+  markup of the type the file is named after — the `View` of a struct
+  component, which is then itself a `ui.Node`, or the `Render` of a stateful
+  type — and `func` lines start the others (partials and function
+  components). Go statements start lines (`if`, `for`, `switch`, `x :=
+  …`); holes are any Go; component tags are struct components (`Card{…}`),
+  stateful types or function components, their
   attributes the fields (`<slot:name>` fills a Node field). A
   `<script lang="ts">` and `<style scoped>` after the markup are the
   component's, bundled and scoped by the vuka command.

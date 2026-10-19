@@ -36,12 +36,14 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		t = inst
 	}
 	if msg := e.statefulProblem(c.target, el.tag, t); msg != "" {
-		ptr, ok := e.renders(t, node)
-		if !ok {
+		if ptr, ok := e.views(t, node); ok {
+			c.structComp, c.nodeComp, c.ptrRender = true, true, ptr
+		} else if ptr, ok := e.renders(t, node); ok {
+			c.structComp, c.ptrRender = true, ptr
+		} else {
 			fail("E0106", el.start, "%s", msg)
 			return
 		}
-		c.structComp, c.ptrRender = true, ptr
 	}
 	st := t.Underlying().(*types.Struct)
 	kids, off, msg := e.bindFields(c, st, attrs, node, true)
@@ -72,15 +74,42 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		}
 	}
 	if c.structComp && c.key != nil {
-		fail("E0106", c.key.attr.off, "<%s> is a struct component, its Render a function of its fields: a key goes on the element it renders, or on a stateful component", el.tag)
+		fail("E0106", c.key.attr.off, "<%s> is a struct component, its markup a function of its fields: a key goes on the element it renders, or on a stateful component", el.tag)
 		return
 	}
 	c.stateful, c.propsTyp = !c.structComp, t
 	e.finishComp(f, c)
 }
 
-// renders reports whether t is a struct component: a struct with a
-// Render() Node method, and whether that method takes a pointer.
+// views reports whether t is a struct component that is itself a Node: a
+// struct with a View() Node method — its markup — whose value (or pointer,
+// reported) is a Node, rendering its View. Its tag is the literal, T{…}.
+func (e *engine) views(t types.Type, node types.Type) (ptr, ok bool) {
+	if _, isStruct := t.Underlying().(*types.Struct); !isStruct {
+		return false, false
+	}
+	iface, isIface := node.Underlying().(*types.Interface)
+	if !isIface {
+		return false, false
+	}
+	m, _, _ := types.LookupFieldOrMethod(t, true, nil, "View")
+	fn, isFunc := m.(*types.Func)
+	if !isFunc {
+		return false, false
+	}
+	sig := fn.Signature()
+	if sig.Params().Len() != 0 || sig.Results().Len() != 1 || !types.AssignableTo(sig.Results().At(0).Type(), node) {
+		return false, false
+	}
+	if types.Implements(t, iface) {
+		return false, true
+	}
+	return true, types.Implements(types.NewPointer(t), iface)
+}
+
+// renders reports whether t is a struct component of the earlier form: a
+// struct with a Render() Node method, T{…}.Render(), and whether that method
+// takes a pointer.
 func (e *engine) renders(t types.Type, node types.Type) (ptr, ok bool) {
 	if _, isStruct := t.Underlying().(*types.Struct); !isStruct {
 		return false, false

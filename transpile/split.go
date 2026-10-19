@@ -49,7 +49,10 @@ func (e *engine) split(f *fileState) *Split {
 		}
 		header := strings.TrimRight(string(f.src[fn:f.orig(fd.Type.Results.Pos())]), " \t")
 		p := &tprint{f: f, t: t}
-		isMain := fd.Recv != nil && fd.Name.Name == "Render" && fd.Type.Params.NumFields() == 0 && recvTypeName(fd) == main && !haveMain
+		// A stateful component's Render is the file's main markup, read with
+		// bare names; a struct component's Render keeps its header, since a
+		// header-less template is a struct's View.
+		isMain := fd.Recv != nil && fd.Name.Name == "Render" && fd.Type.Params.NumFields() == 0 && recvTypeName(fd) == main && !haveMain && e.embedsLive(main)
 		if isMain {
 			p.strip = e.bareNames(f, fd)
 		}
@@ -168,6 +171,28 @@ func dropUnusedImports(src string) string {
 // squeezeBlank is s with runs of blank lines a removal left made one.
 func squeezeBlank(s string) string {
 	return regexp.MustCompile(`\n{3,}`).ReplaceAllString(s, "\n\n")
+}
+
+// embedsLive reports whether the package's type name is a struct embedding
+// a type named Live (ui.Live): a stateful component.
+func (e *engine) embedsLive(name string) bool {
+	if e.pkg == nil {
+		return false
+	}
+	tn, _ := e.pkg.Scope().Lookup(name).(*types.TypeName)
+	if tn == nil {
+		return false
+	}
+	st, ok := tn.Type().Underlying().(*types.Struct)
+	if !ok {
+		return false
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		if f := st.Field(i); f.Embedded() && f.Name() == "Live" {
+			return true
+		}
+	}
+	return false
 }
 
 func recvTypeName(fd *ast.FuncDecl) string {

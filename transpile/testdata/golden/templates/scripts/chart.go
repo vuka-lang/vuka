@@ -15,6 +15,6 @@ type Chart struct {
 }
 
 func main() {
-	out, err := ui.String(context.Background(), Chart{Title: "Sales", Points: []int{3, 5}}.Render())
+	out, err := ui.String(context.Background(), Chart{Title: "Sales", Points: []int{3, 5}})
 	fmt.Println(out, err)
 }
