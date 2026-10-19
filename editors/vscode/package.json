@@ -1,7 +1,7 @@
 {
   "name": "vuka",
   "displayName": "Vuka",
-  "description": "Vuka language support: Go with Result, Option, ?, match, overloading, decorators, statics, typed field attributes and JSX components (stateless, stateful and live). Highlighting, snippets, format on save, and completion, navigation, rename and diagnostics through gopls.",
+  "description": "Vuka language support: Go with Result, Option, ?, match, overloading, decorators, statics, typed field attributes and JSX components (stateless, stateful and live), and .vuka.html templates. Highlighting, snippets, format on save, and completion, navigation, rename and diagnostics through gopls.",
   "version": "0.4.2",
   "publisher": "vuka-lang",
   "license": "MIT",
@@ -39,7 +39,8 @@
   ],
   "main": "./extension.js",
   "activationEvents": [
-    "onLanguage:vuka"
+    "onLanguage:vuka",
+    "onLanguage:vuka-html"
   ],
   "contributes": {
     "languages": [
@@ -51,6 +52,21 @@
         ],
         "extensions": [
           ".vuka"
+        ],
+        "configuration": "./language-configuration.json",
+        "icon": {
+          "light": "./images/file-icon.svg",
+          "dark": "./images/file-icon.svg"
+        }
+      },
+      {
+        "id": "vuka-html",
+        "aliases": [
+          "Vuka HTML",
+          "vuka-html"
+        ],
+        "extensions": [
+          ".vuka.html"
         ],
         "configuration": "./language-configuration.json",
         "icon": {
@@ -80,6 +96,28 @@
         "embeddedLanguages": {
           "source.go": "go"
         }
+      },
+      {
+        "language": "vuka-html",
+        "scopeName": "text.html.vuka",
+        "path": "./syntaxes/vuka-html.tmLanguage.json",
+        "embeddedLanguages": {
+          "source.go": "go",
+          "source.ts": "typescript",
+          "source.css": "css",
+          "meta.embedded.expression.go": "go"
+        }
+      },
+      {
+        "scopeName": "inline.vuka-html",
+        "path": "./syntaxes/vuka-html-injection.tmLanguage.json",
+        "injectTo": [
+          "source.go",
+          "source.vuka"
+        ],
+        "embeddedLanguages": {
+          "meta.embedded.block.vuka-html": "html"
+        }
       }
     ],
     "snippets": [
@@ -90,6 +128,10 @@
     ],
     "configurationDefaults": {
       "[vuka]": {
+        "editor.formatOnSave": true,
+        "editor.linkedEditing": true
+      },
+      "[vuka-html]": {
         "editor.formatOnSave": true,
         "editor.linkedEditing": true
       }
@@ -171,6 +213,6 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs"
   }
 }

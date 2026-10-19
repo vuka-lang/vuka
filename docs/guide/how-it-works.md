@@ -8,9 +8,11 @@ and they do at run time what a `.vuka` file's syntax says.
   records the route; `web.New` gives each app a copy, and `app.Get(…)` adds
   to that app alone. `Build` (or `Run`) checks every route, page and
   dependency before serving.
-- **Templates parse once.** `ui.Template` reads its HTML when the package
-  initializes, precomputes the static parts, and builds the same render tree
-  JSX does, so a live page diffs and patches it the same way.
+- **Markup parses once.** `ui.HTML` reads its HTML the first time it
+  runs, keeps the static parts, and builds the same render tree JSX does, so
+  a live page diffs and patches it the same way. A `.vuka.html` template is
+  compiled to these calls by the `vuka` command (`vuka gen` writes them out
+  as `x_html.go`).
 - **Schemas run once.** The ORM calls a model's `Schema` on a zero value the
   first time it maps the model, and keeps what it declared.
 - **Generated code is a speed-up.** `go generate` writes the ORM's typed

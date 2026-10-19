@@ -7,17 +7,7 @@ import (
 
 	"github.com/a-h/templ"
 	"github.com/vuka-lang/ui"
-
-	"templates/tpl"
 )
-
-var row = // want row:"8 holes"
-ui.Template(`
-<li key="{{0}}" class="item {{1}}" {{2}}>
-  <a href="/orders/{{3}}" onClick="{{4}}">{{5}}</a>
-  <title>{{6}}</title>
-  <input value="{{7}}"/>
-</li>`)
 
 type Order struct {
 	ID   int
@@ -33,17 +23,28 @@ type comp struct{}
 
 func (comp) Render(ctx context.Context, w io.Writer) error { return nil }
 
-func render(o Order, n ui.Node, v any) {
-	row.Render(o.ID, "late", ui.Attr{Name: "id", Value: "x"}, o.ID, func() {}, n, "t", 3)
-	row.Render(o.ID, ui.Class{"late": o.Late}, []ui.Attr{}, o, ui.On(nil), []ui.Node{n}, errors.New("x"), v)
-	row.Render(o.ID, "late", templ.Attributes{}, amount(2), nil, ui.Attr{}, comp{}, true) // want `E0128: \{\{5\}\} is a child of <a>; it is given ui.Attr, an attribute set` `E0128: \{\{6\}\} is text in <title>; it is given comp, not text`
-	row.Render(o.ID, "late", "id=x", o.Late, "go", n, func() {}, ui.Class{})              // want `E0128: \{\{2\}\} is an attribute set of <li>; it is given string` `E0128: \{\{3\}\} is part of href on <a>; it is given bool, not text` `E0128: \{\{4\}\} is onClick on <a>; it is given string, not a handler` `E0128: \{\{6\}\} is text in <title>; it is given func\(\), not text` `E0128: \{\{7\}\} is value on <input>; it is given ui.Class, a class: only class takes one`
-	row.Render(o.ID, "late")                                                              // want `E0127: row has 8 holes, and Render is given 2 values`
-	tpl.Row.Render("a")                                                                   // want `E0127: tpl.Row has 2 holes, and Render is given 1 values`
-	tpl.Row.Render(ui.Style{}, "b")                                                       // want `E0128: \{\{0\}\} is class on <tr>; it is given ui.Style, a style: only style takes one`
-	ui.Template(`<p>{{0}}</p>`).Render()                                                  // want `E0127: ui.Template\(.*\) has 1 holes, and Render is given 0 values`
-	local := ui.Template(`<p {{0}}></p>`)
-	local.Render(1) // want `E0128: \{\{0\}\} is an attribute set of <p>; it is given int`
+const row = `
+<li key={id} class="item {cls}" {attrs...} class:late={late}>
+  <a href="/orders/{ref}" onClick={click}>{body}</a>
+  <title>{title}</title>
+  <input value={value}/>
+</li>`
+
+func render(o Order, n ui.Node, v any, late bool) {
+	id, cls, attrs, ref, click, body, title, value := o.ID, "late", ui.Attr{Name: "id", Value: "x"}, o.ID, func() {}, n, "t", 3
+	ui.HTML(row, id, cls, attrs, late, ref, click, body, title, value)
+	ui.HTML(`<p title={o.Ref}>{o.Ref} {len(o.Ref)}</p>`, o.Ref, len(o.Ref))
+	ui.HTML(`<p>{ o.Ref }</p>`, o.Ref)
+	ui.HTML(`<p>{a + b}</p>`, 1+2)            // want `E0132: value 1 is 1 \+ 2; its label is \{a \+ b\}`
+	ui.HTML(`<p>{o.ID}{o.Ref}</p>`, o.Ref, o.ID) // want `E0132: value 1 is o.Ref; its label is \{o.ID\}` `E0132: value 2 is o.ID; its label is \{o.Ref\}`
+	ui.HTML(`<p>{o.Ref}{o.Ref}</p>`, o.Ref, o.Ref) // want `E0127: ui.HTML has 1 values \(\{o.Ref\}\), and it is given 2`
+	ui.HTML(`<p>{o.Ref}</p>`)                    // want `E0127: ui.HTML has 1 values \(\{o.Ref\}\), and it is given 0`
+	set, x, y, z, t, on, h := 1, ui.Attr{}, true, "z", comp{}, "on", "go"
+	ui.HTML(`<p {set...}><i>{x}</i><b title="a {y}">{z}</b><title>{t}</title><i class:on={on}></i><a onClick={h}></a></p>`, set, x, y, z, t, on, h) // want `E0128: \{set\} is an attribute set of <p>; it is given int` `E0128: \{x\} is a child of <i>; it is given ui.Attr, an attribute set` `E0128: \{y\} is part of title on <b>; it is given bool, not text` `E0128: \{t\} is text in <title>; it is given comp, not text` `E0128: \{on\} is class:on on <i>; it is given string, not a bool or a ui.State\[bool\]` `E0128: \{h\} is onClick on <a>; it is given string, not a handler`
+	e, xs, tm := errors.New("x"), []ui.Node{n}, templ.Attributes{}
+	ui.HTML(`<p>{e}{xs}{tm}{amount(2)}</p>`, e, xs, tm, amount(2)) // want `E0128: \{tm\} is a child of <p>; it is given templ.Attributes, an attribute set`
 	args := []any{1}
-	local.Render(args...)
+	ui.HTML(`<p>{x}</p>`, args...)
+	ui.HTML(`<p>{v}</p>`, v)
+	ui.HTML(`<script>if (x) { y() }</script>`)
 }

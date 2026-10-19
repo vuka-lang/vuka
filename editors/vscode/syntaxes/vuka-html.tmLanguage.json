@@ -1,0 +1,132 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "Vuka HTML",
+  "scopeName": "text.html.vuka",
+  "fileTypes": ["vuka.html"],
+  "patterns": [
+    { "include": "#imports" },
+    { "include": "#header" },
+    { "include": "#markup" }
+  ],
+  "repository": {
+    "imports": {
+      "match": "^(import)\\s+(?:([A-Za-z_]\\w*)\\s+)?(\"[^\"]*\")",
+      "captures": {
+        "1": { "name": "keyword.control.import.go" },
+        "2": { "name": "entity.name.import.go" },
+        "3": { "name": "string.quoted.double.go" }
+      }
+    },
+    "header": {
+      "comment": "func Card(p CardProps): a template's header, Go to the line's end.",
+      "begin": "^(?=func\\b)",
+      "end": "$",
+      "name": "meta.template.header.vuka",
+      "patterns": [{ "include": "source.go" }]
+    },
+    "markup": {
+      "patterns": [
+        { "include": "#comment" },
+        { "include": "#escape" },
+        { "include": "#script" },
+        { "include": "#style" },
+        { "include": "#statement" },
+        { "include": "#close" },
+        { "include": "#hole" },
+        { "include": "#tag" },
+        { "include": "text.html.basic#entities" }
+      ]
+    },
+    "escape": {
+      "match": "\\{\\{",
+      "name": "constant.character.escape.vuka"
+    },
+    "comment": {
+      "begin": "\\{/\\*",
+      "end": "\\*/\\}",
+      "name": "comment.block.vuka"
+    },
+    "statement": {
+      "comment": "A Go statement starting a line: if, for, switch, case, default, an assignment.",
+      "begin": "^\\s*(?=(?:\\}\\s*)?(?:if|for|switch|else)\\b|case\\b|default\\s*:|[A-Za-z_][\\w.,\\s]*:?=[^=])",
+      "end": "(\\{)\\s*$|:\\s*$|$",
+      "endCaptures": { "1": { "name": "punctuation.definition.block.begin.go" } },
+      "name": "meta.statement.vuka",
+      "patterns": [{ "include": "source.go" }]
+    },
+    "close": {
+      "match": "^\\s*(\\})\\s*$",
+      "captures": { "1": { "name": "punctuation.definition.block.end.go" } }
+    },
+    "hole": {
+      "begin": "\\{(?!\\{)",
+      "beginCaptures": { "0": { "name": "punctuation.section.embedded.begin.vuka" } },
+      "end": "\\}",
+      "endCaptures": { "0": { "name": "punctuation.section.embedded.end.vuka" } },
+      "name": "meta.embedded.expression.go",
+      "contentName": "source.go",
+      "patterns": [{ "include": "#braces" }, { "include": "source.go" }]
+    },
+    "braces": {
+      "begin": "\\{",
+      "end": "\\}",
+      "patterns": [{ "include": "#braces" }, { "include": "source.go" }]
+    },
+    "tag": {
+      "begin": "(</?)((?:slot:)?[A-Za-z][\\w.:-]*)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" }
+      },
+      "end": "(/?>)",
+      "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } },
+      "name": "meta.tag.vuka",
+      "patterns": [
+        { "include": "#hole" },
+        {
+          "match": "([A-Za-z_][\\w:.-]*)(?=\\s*=|\\s|/?>)",
+          "name": "entity.other.attribute-name.html"
+        },
+        {
+          "begin": "\"",
+          "end": "\"",
+          "name": "string.quoted.double.html",
+          "patterns": [{ "include": "#escape" }, { "include": "#hole" }]
+        },
+        { "begin": "'", "end": "'", "name": "string.quoted.single.html", "patterns": [{ "include": "#hole" }] }
+      ]
+    },
+    "script": {
+      "begin": "(<)(script)\\b(?=[^>]*\\blang=\"ts\")([^>]*)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" },
+        "4": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "end": "(</)(script)(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" },
+        "3": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "contentName": "source.ts",
+      "patterns": [{ "include": "source.ts" }]
+    },
+    "style": {
+      "begin": "(<)(style)\\b([^>]*)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" },
+        "4": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "end": "(</)(style)(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" },
+        "3": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "contentName": "source.css",
+      "patterns": [{ "include": "source.css" }]
+    }
+  }
+}

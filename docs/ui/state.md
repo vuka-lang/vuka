@@ -225,7 +225,7 @@ func (b *Board) ShowLogs()  { b.PushJS(b.tab.Set("logs")) }
 ## Without the compiler
 
 Go code writes what the compiler does: `ui.UseState(v)` declares a state
-(`ui.UsePageState` the page's) where it is called, a template's hole takes
+(`ui.UsePageState` the page's) where it is called, a hole of `ui.HTML` takes
 a state as it is, and an expression of states is State's methods, each a
 derived state the browser evaluates again:
 
@@ -233,5 +233,6 @@ derived state the browser evaluates again:
 open, tab := ui.UseState(false), ui.UseState("logs")
 ready := open.Not().And(tab.Eq("env"))     // !open && tab == "env"
 q := ui.At[string](f, "Q")                 // f.Q
-menu.Render(ui.Classes{"is-open": open}, open.Toggle(), ready)
+toggle := open.Toggle()
+return ui.HTML(`<nav class:is-open={open}><button onClick={toggle} disabled={ready}>Menu</button></nav>`, open, toggle, ready)
 ```

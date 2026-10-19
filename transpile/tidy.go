@@ -402,7 +402,7 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 		if off, exact, ok := t.m.ToSource(tf.Offset(n.pos)); ok {
 			line := srcLines.pos("", off).Line
 			if t.f.html != nil {
-				line = max(line-1, 1)
+				line = t.f.html.lines.pos("", t.f.html.toSrc(off)).Line
 			}
 			mapped[i] = mapping{off, line, exact}
 		}

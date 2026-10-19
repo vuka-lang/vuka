@@ -54,11 +54,11 @@ function start() {
     'Vuka',
     { command, args },
     {
-      documentSelector: [{ scheme: 'file', language: 'vuka' }],
+      documentSelector: [{ scheme: 'file', language: 'vuka' }, { scheme: 'file', language: 'vuka-html' }],
       // Like the Go extension: the log is there when wanted, never in the way.
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       synchronize: {
-        fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{vuka,go,mod}'),
+        fileEvents: vscode.workspace.createFileSystemWatcher('**/*.{vuka,vuka.html,go,mod}'),
       },
       middleware: {
         provideCompletionItem: (document, position, context, token, next) =>

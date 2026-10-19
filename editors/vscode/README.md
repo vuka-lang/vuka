@@ -52,6 +52,15 @@ your `.vuka` files open in it, so nothing is written to your tree. `.vuka`
 files are formatted by `vuka fmt` on save (`"[vuka]": {"editor.formatOnSave":
 false}` turns that off).
 
+## Templates
+
+`.vuka.html` files — markup with Go in braces and Go statements at line
+starts, a `<script lang="ts">` and `<style scoped>` after a template — are
+highlighted as HTML with Go, TypeScript and CSS inside, served by `vuka lsp`
+like `.vuka` files (hover, go to definition, completion and rename on their
+Go) and formatted on save. The markup of a `ui.HTML(`…`)` raw string in `.go`
+and `.vuka` files is highlighted the same way.
+
 ## Go files
 
 The extension offers, once, to serve your Go files through Vuka as well: it

@@ -206,11 +206,10 @@ func (f *fileState) spell(gen, src string, off int) {
 
 // at is the position of a src offset.
 func (f *fileState) at(off int) token.Position {
-	p := f.lines.pos(f.path, off)
 	if f.html != nil {
-		p.Line = max(p.Line-1, 1) // a template file's first line is the package clause
+		return f.html.lines.pos(f.path, f.html.toSrc(off)) // the template file's own
 	}
-	return p
+	return f.lines.pos(f.path, off)
 }
 
 // pos is the position, in the file as written, of an offset in this round's text.
@@ -525,7 +524,7 @@ func Package(files []File, opts Options) (*Result, error) {
 			}
 			src, h, err := htmlSource(file.Name, file.Src, files, q)
 			if err != nil {
-				err.Pos = token.Position{Filename: f.path, Line: 1, Column: 1}
+				err.Pos.Filename, err.Pos.Line, err.Pos.Column = f.path, max(err.Pos.Line, 1), 1
 				errs = append(errs, err)
 				continue
 			}
@@ -576,6 +575,13 @@ func Package(files []File, opts Options) (*Result, error) {
 	if err := errs.err(); err != nil {
 		return nil, err
 	}
+	defer func() {
+		for i, f := range e.vuka {
+			if f.html != nil && i < len(res.Files) {
+				f.html.remap(res.Files[i].Map)
+			}
+		}
+	}()
 	if !opts.Bare {
 		srcs, maps := make([][]byte, len(res.Files)), make([]*SourceMap, len(res.Files))
 		for i, o := range res.Files {

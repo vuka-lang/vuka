@@ -163,7 +163,7 @@ func (es edits) toOrig(off int) int {
 			return e.copied(off - s)
 		}
 		if off < s+len(e.text) {
-			if e.copy {
+			if e.copy || e.segs != nil {
 				return e.copied(off - s)
 			}
 			return e.start

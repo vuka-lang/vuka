@@ -92,6 +92,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Introduction', link: '/ui/' },
+          { text: 'Templates', link: '/ui/templates' },
           { text: 'Components', link: '/ui/components' },
           { text: 'Stateful components', link: '/ui/stateful' },
           { text: 'JS commands', link: '/ui/js' },

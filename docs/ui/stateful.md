@@ -207,11 +207,11 @@ output; [verification](/ui/live#verification) catches one that does.
 ## What it becomes
 
 ```go
-var todoLi = ui.Template(`<li>{{0}} <button onClick="{{1}}">x</button></li>`)
-
-todoLi.Render(&Counter{Label: it.Name}, func() { t.Remove(it.ID) })
+counter := &Counter{Label: it.Name}
+remove := func() { t.Remove(it.ID) }
+ui.HTML(`<li>{counter} <button onClick={remove}>x</button></li>`, counter, remove)
 ```
 
-The tag is a hole of a template, and the hole's place — the template's file
-and line, and the hole's number — tells the session which tag an instance
+The tag is a hole of a `ui.HTML` call, and the hole's place — the call's
+file and line, and the hole — tells the session which tag an instance
 comes from; `ui.Key(k, &Counter{…})` gives it a key.

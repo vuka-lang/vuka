@@ -6,6 +6,7 @@ import (
 	"go/token"
 	"go/types"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"unicode"
@@ -30,6 +31,9 @@ type htmlFile struct {
 	recvType string // and its type: Sales
 	start    int    // where the main template's markup is
 	end      int
+	src      []byte      // the file as written
+	ins      []insertion // what its compiled text inserts, in order
+	lines    lineIndex   // src's
 }
 
 var (
@@ -136,10 +140,16 @@ func cutAssets(lines []string, from, to int, decl string) []TemplateAsset {
 		}
 		out = append([]TemplateAsset{{Decl: decl, Script: kind == "script", Scoped: strings.Contains(tag, " scoped"), Text: body, Line: line}}, out...)
 		for j := open; j <= last; j++ {
-			lines[j] = "\n"
+			lines[j] = blank(lines[j])
 		}
 		to = open
 	}
+}
+
+// blank is l with its text spaces: offsets stay those of the file.
+func blank(l string) string {
+	t := strings.TrimRight(l, "\r\n")
+	return strings.Repeat(" ", len(t)) + l[len(t):]
 }
 
 // templateDecl is the declaration a template header names.
@@ -190,7 +200,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		return h
 	}
 	h := &htmlFile{}
-	var out []string
+	var ins []insertion
+	add := func(at int, text string) { ins = append(ins, insertion{at, text}) }
+	contentEnd := func(i int) int { return off[i] + len(strings.TrimRight(lines[i], " \t\r\n")) }
 	body := func(from, to int) {
 		last := -1
 		for i := from; i < to; i++ {
@@ -199,14 +211,10 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			}
 		}
 		if last < 0 {
-			out[from-1] = strings.TrimRight(out[from-1], "\r\n") + "<></> }\n"
+			add(contentEnd(from-1), "<></> }")
 			return
 		}
-		nl := ""
-		if strings.HasSuffix(out[last], "\n") {
-			nl = "\n"
-		}
-		out[last] = strings.TrimRight(out[last], "\r\n") + "</> }" + nl
+		add(contentEnd(last), "</> }")
 	}
 	header := func(i int) {
 		l := strings.TrimRight(lines[i], " \t\r\n")
@@ -214,7 +222,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if strings.HasSuffix(l, "ui.Node") || strings.HasSuffix(l, " Node") {
 			res = ""
 		}
-		out[i] = l + res + " { return <>\n"
+		add(contentEnd(i), res+" { return <>")
 	}
 	firstEnd := len(lines)
 	if len(heads) > 0 {
@@ -242,8 +250,21 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	if assetsOnly {
 		return nil, nil, assets, nil
 	}
-	out = make([]string, len(lines))
-	copy(out, lines)
+	seen := map[[2]string]bool{}
+	for _, a := range assets {
+		kind := [2]string{a.Decl, "a script"}
+		if !a.Script {
+			kind[1] = "a scoped stylesheet"
+			if !a.Scoped {
+				continue
+			}
+		}
+		if seen[kind] {
+			return nil, nil, nil, &Error{Code: "E0141", Pos: token.Position{Line: a.Line - 1, Column: 1}, Msg: "the template of " + a.Decl + " has " + kind[1] + " already",
+				Help: "a template has one script and one scoped stylesheet: join them"}
+		}
+		seen[kind] = true
+	}
 	if first >= 0 {
 		ptr, ok := receiverKind(typ, others)
 		if !ok {
@@ -251,22 +272,23 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 				Help: "declare type " + typ + " in a .go or .vuka file of the package, or start the file with func …"}
 		}
 		recv := receiverName(typ, string(src[off[first]:off[firstEnd]]))
-		for _, a := range assets {
-			if a.Decl == typ && a.Script {
-				// A component script reads its props from its root.
-				propsAttr(lines, out, first, firstEnd, ui+"Props("+recv+")")
-				break
-			}
-		}
 		star := ""
 		if ptr {
 			star = "*"
 		}
-		*h = htmlFile{recv: recv, recvType: typ}
-		out[first] = "func (" + recv + " " + star + typ + ") Render() " + ui + "Node { return <>" + lines[first]
-		body(first+1, firstEnd)
-		if strings.HasSuffix(out[first], "\n") && first+1 >= firstEnd || strings.TrimSpace(strings.Join(lines[first+1:firstEnd], "")) == "" {
-			out[first] = strings.TrimRight(out[first], "\r\n") + "</> }\n"
+		*h = htmlFile{recv: recv, recvType: typ, start: off[first], end: off[firstEnd]}
+		add(off[first], "func ("+recv+" "+star+typ+") Render() "+ui+"Node { return <>")
+		for _, a := range assets {
+			if a.Decl == typ && a.Script {
+				// A component script reads its props from its root.
+				add(propsAt(lines, off, first, firstEnd), " data-vk-p={"+ui+"Props("+recv+")}")
+				break
+			}
+		}
+		if strings.TrimSpace(strings.Join(lines[first+1:firstEnd], "")) == "" {
+			add(contentEnd(first), "</> }")
+		} else {
+			body(first+1, firstEnd)
 		}
 	}
 	for k, hd := range heads {
@@ -274,15 +296,15 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if k+1 < len(heads) {
 			end = docStart(heads[k+1])
 		}
+		header(hd)
 		if v := propsOf(lines[hd]); v != "" {
 			for _, a := range assets {
 				if a.Script && a.Line > hd && a.Line <= end {
-					propsAttr(lines, out, hd+1, end, ui+"Props("+v+")")
+					add(propsAt(lines, off, hd+1, end), " data-vk-p={"+ui+"Props("+v+")}")
 					break
 				}
 			}
 		}
-		header(hd)
 		body(hd+1, end)
 	}
 	pkg := packageName(others)
@@ -307,21 +329,70 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		prefix += " import " + imp + ";"
 	}
 	// The package clause and imports go on a line of their own before the
-	// file's: its lines are one later (fileState.shift).
-	out = append([]string{prefix + "\n"}, out...)
-	first++
-	firstEnd++
-	if first >= 1 {
-		at := 0
-		for i := range firstEnd {
-			if i == first {
-				h.start = at + strings.Index(out[i], strings.TrimRight(lines[i-1], "\r\n"))
-			}
-			at += len(out[i])
-		}
-		h.end = at
+	// file's.
+	ins = append([]insertion{{0, prefix + "\n"}}, ins...)
+	sort.SliceStable(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
+	h.ins, h.src, h.lines = ins, src, newLineIndex(src)
+	if h.recv != "" {
+		h.start, h.end = h.toSynth(h.start), h.toSynth(h.end)
 	}
-	return []byte(strings.Join(out, "")), h, assets, nil
+	var b strings.Builder
+	last := 0
+	blanked := strings.Join(lines, "")
+	for _, in := range ins {
+		b.WriteString(blanked[last:in.at])
+		b.WriteString(in.text)
+		last = in.at
+	}
+	b.WriteString(blanked[last:])
+	return []byte(b.String()), h, assets, nil
+}
+
+// insertion is text a template file compiles with, inserted at a src
+// offset.
+type insertion struct {
+	at   int
+	text string
+}
+
+// toSynth is where src offset off is in the synthesized text: after what is
+// inserted before it.
+func (h *htmlFile) toSynth(off int) int {
+	d := 0
+	for _, in := range h.ins {
+		if in.at > off {
+			break
+		}
+		d += len(in.text)
+	}
+	return off + d
+}
+
+// toSrc is the src offset of the synthesized text's off: an offset inside
+// an insertion is the insertion's place.
+func (h *htmlFile) toSrc(off int) int {
+	d := 0
+	for _, in := range h.ins {
+		if in.at+d > off {
+			break
+		}
+		if off < in.at+d+len(in.text) {
+			return in.at
+		}
+		d += len(in.text)
+	}
+	return off - d
+}
+
+// propsAt is where data-vk-p goes: after the first element's tag name in
+// lines[from:to].
+func propsAt(lines []string, off []int, from, to int) int {
+	for i := from; i < to; i++ {
+		if loc := firstTag.FindStringIndex(lines[i]); loc != nil {
+			return off[i] + loc[1]
+		}
+	}
+	return off[from]
 }
 
 var (
@@ -340,18 +411,6 @@ func propsOf(header string) string {
 		return m[1]
 	}
 	return ""
-}
-
-// propsAttr writes data-vk-p={props} on the first element of a template's
-// markup.
-func propsAttr(lines, out []string, from, to int, props string) {
-	for i := from; i < to; i++ {
-		if loc := firstTag.FindStringIndex(lines[i]); loc != nil {
-			lines[i] = lines[i][:loc[1]] + " data-vk-p={" + props + "}" + lines[i][loc[1]:]
-			out[i] = lines[i]
-			return
-		}
-	}
 }
 
 func importName(line, name string) string {
@@ -501,6 +560,55 @@ func (e *engine) bareIdent(f *fileState, id *ast.Ident, recv types.Type) {
 		return
 	}
 	f.done[off] = true
-	f.add(off, off+len(id.Name), f.html.recv+"."+id.Name)
+	// Title is s.Title, the name still mapping to itself.
+	q := f.html.recv + "."
+	f.fixed = append(f.fixed, edit{start: off, end: off + len(id.Name), text: q + id.Name,
+		segs: []segment{{genLen: len(q), src: off}, {gen: len(q), genLen: len(id.Name), src: off, srcLen: len(id.Name), copy: true}}})
 	e.progress = true
+}
+
+// remap makes m's source offsets the file's own, not its compiled text's:
+// copied text inserted there maps to the insertion's place.
+func (h *htmlFile) remap(m *SourceMap) {
+	if m == nil {
+		return
+	}
+	var out []segment
+	for _, sg := range m.segs {
+		if !sg.copy {
+			from := h.toSrc(sg.src)
+			sg.src, sg.srcLen = from, max(h.toSrc(sg.src+sg.srcLen)-from, 0)
+			out = append(out, sg)
+			continue
+		}
+		// A copy split where it crosses an insertion.
+		for pos := 0; pos < sg.genLen; {
+			at := sg.src + pos
+			n := sg.genLen - pos
+			d := 0
+			inside := false
+			for _, in := range h.ins {
+				s, e := in.at+d, in.at+d+len(in.text)
+				switch {
+				case at >= e:
+					d += len(in.text)
+					continue
+				case at >= s:
+					inside, n = true, min(n, e-at)
+				default:
+					n = min(n, s-at)
+				}
+				break
+			}
+			piece := segment{gen: sg.gen + pos, genLen: n}
+			if inside {
+				piece.src = h.toSrc(at)
+			} else {
+				piece.src, piece.srcLen, piece.copy = at-d, n, true
+			}
+			out = append(out, piece)
+			pos += n
+		}
+	}
+	m.segs = out
 }

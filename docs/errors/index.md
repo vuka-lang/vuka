@@ -46,12 +46,14 @@ same page in the terminal.
 | [E0124](./E0124) | Code that can't run in the browser |
 | [E0125](./E0125) | ui.State used with the wrong type |
 | [E0126](./E0126) | Bad vuka.File |
-| [E0127](./E0127) | Render doesn't fill a template's holes |
-| [E0128](./E0128) | A value doesn't fit its template hole |
+| [E0127](./E0127) | ui.HTML isn't given one value per label |
+| [E0128](./E0128) | A value doesn't fit its hole |
 | [E0129](./E0129) | Attributes and a hand-written schema method |
 | [E0130](./E0130) | A hook written as a composite literal |
 | [E0131](./E0131) | A function an around decorator can't wrap |
+| [E0132](./E0132) | A value isn't written as its label |
 | [E0140](./E0140) | a template file has no type to be the Render of |
+| [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
 
 ## Decorators and attributes
 

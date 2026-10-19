@@ -63,6 +63,18 @@ const picked = defineModel<string>('picked')
 </script>
 ```
 
+A [`.vuka.html` template](/ui/templates) imports one the same way, on
+its first lines:
+
+```html
+<!-- page.vuka.html -->
+import Clock "./clock.tsx"
+
+<main>
+  <Clock zone={Zone} client:visible />
+</main>
+```
+
 `days="mon"` is a compile error (`days` is a `[]string`), as is an unknown
 attribute or a literal a string union doesn't allow. The tag needs no
 `<ui.Island>` wrapper; add one only for a fallback (below).
@@ -182,9 +194,7 @@ something until then, wrap it in `<ui.Island>` with a `<ui.Template fallback>`:
 
 ::: go
 ```go
-var loading = ui.Template(`<p>Loading…</p>`)
-
-ui.Mount(Chart{Series: p.sales, Title: "Revenue"}, ui.Visible(), ui.Fallback(loading.Render()))
+ui.Mount(Chart{Series: p.sales, Title: "Revenue"}, ui.Visible(), ui.Fallback(ui.HTML(`<p>Loading…</p>`)))
 ```
 :::
 
@@ -275,10 +285,9 @@ picked := ui.State("mon")
 
 ::: go
 ```go
-var planner = ui.Template(`<div><b>{{0}}</b>{{1}}</div>`)
-
 picked := ui.UseState("mon")
-planner.Render(picked, ui.Mount(Week{}, ui.StateProp("picked", picked)))
+week := ui.Mount(Week{}, ui.StateProp("picked", picked))
+ui.HTML(`<div><b>{picked}</b>{week}</div>`, picked, week)
 ```
 :::
 

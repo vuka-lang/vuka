@@ -529,7 +529,9 @@ var semanticTokensMethods = map[string]bool{
 	"textDocument/semanticTokens/range": true,
 }
 
-func isVuka(path string) bool { return strings.HasSuffix(path, ".vuka") }
+func isVuka(path string) bool {
+	return strings.HasSuffix(path, ".vuka") || strings.HasSuffix(path, ".vuka.html")
+}
 
 // moduleFile reports whether path is a go.mod, go.sum or go.work file.
 func moduleFile(path string) bool {
@@ -893,7 +895,11 @@ func (p *proxy) formatting(m *rpcMsg, path string) {
 		src, _ = os.ReadFile(path)
 	}
 	edits := []any{}
-	if out, err := format.Source(src); err != nil {
+	fmtSrc := format.Source
+	if strings.HasSuffix(path, ".vuka.html") {
+		fmtSrc = format.Template
+	}
+	if out, err := fmtSrc(src); err != nil {
 		p.logf("format %s: %v", path, err)
 	} else if !bytes.Equal(out, src) {
 		edits = append(edits, map[string]any{

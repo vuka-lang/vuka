@@ -1,22 +1,23 @@
 package check
 
 import (
-	"strconv"
+	"slices"
 	"strings"
 )
 
-// What a hole is, by where it sits in a ui.Template.
+// What a hole is, by where it sits in ui.HTML's markup.
 const (
-	kChild = iota // between tags
-	kText         // inside title, textarea or script
-	kValue        // an attribute's whole value
-	kPart         // part of an attribute's value
-	kSet          // where an attribute goes
+	kChild  = iota // between tags
+	kText          // inside title or textarea
+	kValue         // an attribute's whole value
+	kPart          // part of an attribute's value
+	kSet           // where an attribute goes: {attrs...}
+	kToggle        // class:name={on}
 )
 
-// slot is one place of a hole.
+// slot is one place of a hole: Label is its value's index.
 type slot struct {
-	Hole  int
+	Label int
 	Kind  int
 	Where string
 	Event bool // an on… attribute
@@ -24,25 +25,25 @@ type slot struct {
 	Style bool
 }
 
-// holes reads a template's holes as ui.Template parses them: their count
-// and places. ok is false for markup ui.Template would refuse at init,
-// which the app reports itself.
-func holes(src string) (n int, slots []slot, ok bool) {
+// holes reads ui.HTML's markup as it parses it: the labels, one value each
+// in the order they first appear, and the holes' places. ok is false for
+// markup the render refuses itself.
+func holes(src string) (labels []string, slots []slot, ok bool) {
 	h := &holeScan{src: src}
 	defer func() {
 		if recover() != nil {
-			n, slots, ok = 0, nil, false
+			labels, slots, ok = nil, nil, false
 		}
 	}()
 	h.nodes("")
-	return h.n, h.slots, true
+	return h.labels, h.slots, true
 }
 
 type holeScan struct {
-	src   string
-	i     int
-	n     int
-	slots []slot
+	src    string
+	i      int
+	labels []string
+	slots  []slot
 }
 
 type badMarkup struct{}
@@ -51,22 +52,56 @@ func (h *holeScan) fail() { panic(badMarkup{}) }
 
 func (h *holeScan) at(s string) bool { return strings.HasPrefix(h.src[h.i:], s) }
 
-func (h *holeScan) hole() (int, bool) {
-	s := h.src[h.i:]
-	if !strings.HasPrefix(s, "{{") {
-		return 0, false
+func (h *holeScan) holeAt() bool { return h.i < len(h.src) && h.src[h.i] == '{' && !h.at("{{") }
+
+// hole reads {label} or {label...} at h.i.
+func (h *holeScan) hole() (label int, spread bool) {
+	end := goEnd(h.src, h.i+1)
+	if end < 0 {
+		h.fail()
 	}
-	j := 2
-	for j < len(s) && s[j] >= '0' && s[j] <= '9' {
-		j++
+	l := strings.TrimSpace(h.src[h.i+1 : end])
+	h.i = end + 1
+	if s, ok := strings.CutSuffix(l, "..."); ok {
+		l, spread = strings.TrimSpace(s), true
 	}
-	if j == 2 || j > 6 || !strings.HasPrefix(s[j:], "}}") {
-		return 0, false
+	if l == "" {
+		h.fail()
 	}
-	n, _ := strconv.Atoi(s[2:j])
-	h.i += j + 2
-	h.n = max(h.n, n+1)
-	return n, true
+	if i := slices.Index(h.labels, l); i >= 0 {
+		return i, spread
+	}
+	h.labels = append(h.labels, l)
+	return len(h.labels) - 1, spread
+}
+
+// goEnd is the } closing the Go text at s[i:], past brackets and literals.
+func goEnd(s string, i int) int {
+	depth := 0
+	for ; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '"', '\'', '`':
+			j := i + 1
+			for j < len(s) && s[j] != c {
+				if s[j] == '\\' && c != '`' {
+					j++
+				}
+				j++
+			}
+			i = j
+		case '(', '[', '{':
+			depth++
+		case ')', ']', '}':
+			if depth == 0 {
+				if c == '}' {
+					return i
+				}
+				return -1
+			}
+			depth--
+		}
+	}
+	return -1
 }
 
 func (h *holeScan) add(s slot) { h.slots = append(h.slots, s) }
@@ -110,15 +145,25 @@ func (h *holeScan) nodes(parent string) {
 			h.i += end + 1
 		case h.i+1 < len(h.src) && h.src[h.i] == '<' && (h.src[h.i+1] >= 'a' && h.src[h.i+1] <= 'z' || h.src[h.i+1] >= 'A' && h.src[h.i+1] <= 'Z'):
 			h.element()
-		default:
-			if n, ok := h.hole(); ok {
-				where := "a child"
-				if parent != "" {
-					where = "a child of <" + parent + ">"
-				}
-				h.add(slot{Hole: n, Kind: kChild, Where: where})
-				continue
+		case h.at("{{"):
+			h.i += 2
+		case h.at("{/*"):
+			end := strings.Index(h.src[h.i:], "*/}")
+			if end < 0 {
+				h.fail()
 			}
+			h.i += end + 3
+		case h.holeAt():
+			n, spread := h.hole()
+			if spread {
+				h.fail()
+			}
+			where := "a child"
+			if parent != "" {
+				where = "a child of <" + parent + ">"
+			}
+			h.add(slot{Label: n, Kind: kChild, Where: where})
+		default:
 			h.i++
 		}
 	}
@@ -145,8 +190,12 @@ func (h *holeScan) element() {
 			closed = true
 			break
 		}
-		if n, ok := h.hole(); ok {
-			h.add(slot{Hole: n, Kind: kSet, Where: "an attribute set of <" + tag + ">"})
+		if h.holeAt() {
+			n, spread := h.hole()
+			if !spread {
+				h.fail()
+			}
+			h.add(slot{Label: n, Kind: kSet, Where: "an attribute set of <" + tag + ">"})
 			continue
 		}
 		h.attr(tag)
@@ -161,13 +210,18 @@ func (h *holeScan) element() {
 			h.fail()
 		}
 		end += h.i
-		for h.i < end {
-			if n, ok := h.hole(); ok {
-				h.add(slot{Hole: n, Kind: kText, Where: "text in <" + tag + ">"})
-				continue
+		for h.i < end && tag != "script" && tag != "style" {
+			switch {
+			case h.at("{{"):
+				h.i += 2
+			case h.holeAt():
+				n, _ := h.hole()
+				h.add(slot{Label: n, Kind: kText, Where: "text in <" + tag + ">"})
+			default:
+				h.i++
 			}
-			h.i++
 		}
+		h.i = end
 	default:
 		h.nodes(tag)
 	}
@@ -198,8 +252,11 @@ func (h *holeScan) attr(tag string) {
 	lower := strings.ToLower(name)
 	s := slot{Kind: kValue, Where: name + " on <" + tag + ">", Event: len(lower) > 2 && strings.HasPrefix(lower, "on"),
 		Class: lower == "class" || name == "className", Style: lower == "style"}
-	if n, ok := h.hole(); ok {
-		s.Hole = n
+	if strings.HasPrefix(name, "class:") {
+		s.Kind, s.Where = kToggle, name+" on <"+tag+">"
+	}
+	if h.holeAt() {
+		s.Label, _ = h.hole()
 		h.add(s)
 		return
 	}
@@ -214,30 +271,37 @@ func (h *holeScan) attr(tag string) {
 		return
 	}
 	h.i++
-	end := strings.IndexByte(h.src[h.i:], q)
-	if end < 0 {
-		h.fail()
-	}
-	end += h.i
 	var found []int
 	static := false
-	for h.i < end {
-		if n, ok := h.hole(); ok {
-			found = append(found, n)
-			continue
+	for {
+		if h.i >= len(h.src) {
+			h.fail()
 		}
-		static = true
-		h.i++
-	}
-	h.i = end + 1
-	if len(found) == 1 && !static {
-		s.Hole = found[0]
-		h.add(s)
-		return
-	}
-	s.Kind, s.Where = kPart, "part of "+s.Where
-	for _, n := range found {
-		s.Hole = n
-		h.add(s)
+		switch {
+		case h.src[h.i] == q:
+			h.i++
+			if len(found) == 1 && !static {
+				s.Label = found[0]
+				h.add(s)
+				return
+			}
+			if s.Kind != kToggle {
+				s.Kind, s.Where = kPart, "part of "+s.Where
+			}
+			for _, n := range found {
+				s.Label = n
+				h.add(s)
+			}
+			return
+		case h.at("{{"):
+			static = true
+			h.i += 2
+		case h.holeAt():
+			n, _ := h.hole()
+			found = append(found, n)
+		default:
+			static = true
+			h.i++
+		}
 	}
 }

@@ -13,7 +13,7 @@ a tree a [renderer](/ui/rendering#walking-a-tree) can walk.
 
 | | |
 |---|---|
-| `ui.Template(markup)` | markup with numbered holes, parsed once — what each piece of JSX becomes; `Render(args...)` fills them |
+| `ui.HTML(markup, args...)` | markup whose holes are labelled with the Go of their values, parsed once — what JSX and `.vuka.html` [templates](/ui/templates) compile to; see [markup in Go](/ui/#markup-in-go) |
 | `ui.El(tag, attrs, children...)` | an element built with calls |
 | `ui.Text(v)` | text, escaped |
 | `ui.Child(v)` | a `{v}` child: a node as is, `nil` as nothing, an `error` as its message, a `[]ui.Node` or `[]any` as each element, anything else as text (`fmt.Sprint`) |

@@ -177,15 +177,15 @@ A file with JSX and no target is an error at its first JSX expression —
 declaring VukaJSX)` — and so is a file importing two. There is no module-wide
 setting: the import is the switch, file by file, as anything else in Go.
 
-A package is a JSX target when it declares `const VukaJSX = 2`, the version
+A package is a JSX target when it declares `const VukaJSX = 3`, the version
 of the contract it implements, and these names:
 
 | Name | Required | Used for |
 |---|---|---|
 | `Node` | yes | the type every JSX expression has; a component returns one |
-| `Template(markup string)`, with `Render(args ...any) Node` | yes | each piece of JSX: its markup with numbered holes, filled in document order |
-| `Each(items []T, fn func(T) Node) Node`, `If(cond bool, n Node) Node` | yes | `{for}` over a slice; `{if}` and `{match}` |
+| `HTML(markup string, values ...any) Node` | yes | each piece of JSX: its markup with holes labelled by your expressions, the values in the order the labels first appear |
 | `Try(Node, error) Node` | yes | a `(Node, error)` component |
+| `El`, `Safe`, `Child` | yes | scripts and styles with values in them |
 | `Child(any) Node`, `Fragment(children ...Node) Node` | yes | placeholders while a component's type is unknown |
 | `On(handler) …` | no | `onClick={…}` on an element is an event, its value checked; without `On`, a plain attribute |
 | `Stateful` + `Key(key any, props Stateful) Node` | no | a tag naming a struct type whose pointer implements `Stateful` |
@@ -213,37 +213,55 @@ target's business, checked by its runtime.
 
 ## What it becomes
 
-The Go you would write by hand: each piece of JSX — a tree, each block
-body, a component tag's children — is a template declared before the
-function, named after it, with your expressions in its holes where you
-wrote them:
+The Go you would write by hand. Each piece of JSX — a tree, each block
+body, a component tag's children — is a `ui.HTML` call: the markup with
+your expressions as its holes' labels, written where you wrote them, and
+the same expressions after it as the values. A block is Go statements
+before the `return`, building a `[]ui.Node` that a hole takes:
 
-```go
-var petList = ui.Template(`
-<section className="pets">
-  <h1>Pets ({{0}})</h1>
-  <table>{{1}}</table>
-</section>`)
-
+```vuka
 func PetList(pets []Pet) ui.Node {
-	return petList.Render(len(pets), ui.Each(pets, func(p Pet) ui.Node {
-		return PetRow(p)
-	}))
+	return <section className="pets">
+		<h1>Pets ({len(pets)})</h1>
+		<table>
+			{for _, p := range pets {
+				<tr key={p.ID}><td>{p.Name}</td></tr>
+			}}
+		</table>
+	</section>
 }
 ```
 
-A `{for}` over a slice is `ui.Each`; another loop appends to a
-`[]ui.Node`; an `{if}` or `{match}` picks one node for `ui.If`. A stateful
+```go
+func PetList(pets []Pet) ui.Node {
+	var trs []ui.Node
+	for _, p := range pets {
+		trs = append(trs, ui.HTML(`<tr key={p.ID}><td>{p.Name}</td></tr>`, p.ID, p.Name))
+	}
+	return ui.HTML(`
+<section class="pets">
+  <h1>Pets ({len(pets)})</h1>
+  <table>{trs}</table>
+</section>`, len(pets), trs)
+}
+```
+
+A `{for}` is the same `for`; an `{if}` an `if`/`else`; a `{match}` a chain
+of `if`s over its cases, each branch appending its markup. A stateful
 component's tag is `&Counter{…}` (`ui.Key(k, &Counter{…})` with a key), an
-island's its props (`ui.Mount(props, opts…)` with options). `vuka explain`
-shows it line by line.
+island's its props (`ui.Mount(props, opts…)` with options); a tag inside a
+loop is computed into a variable first. `vuka explain` shows it line by
+line.
+
+`vuka eject -rm` writes a file's markup functions out as a
+[`.vuka.html` template](/ui/templates) beside its Go.
 
 A component tag becomes a call of that component. For a function taking one
 struct, the attributes and children become that struct's literal:
 
 ```go
 // <List Items={users} Key={key}>{…}</List>   for  func List[T any](p ListProps[T]) ui.Node
-List(ListProps[User]{Items: users, Key: key, Children: listText.Render(…)})
+List(ListProps[User]{Items: users, Key: key, Children: ui.HTML(`…`, …)})
 ```
 
 The inferred type argument lands on the **props struct literal**
