@@ -175,6 +175,11 @@ func (fm *formatter) file(src []byte) ([]byte, error) {
 		if err != nil {
 			return nil, mapError(err, masked, src, es)
 		}
+		// gofmt prints some odd input as code that no longer parses
+		// (func(A func())()[0] loses its empty results): leave such a file as it is.
+		if _, err := parser.ParseFile(token.NewFileSet(), "", gofmted, parser.SkipObjectResolution); err != nil {
+			return nil, errorAt(src, 0, "cannot format: gofmt's output would not parse ("+err.Error()+" in the formatted file)")
+		}
 		var switches []bool
 		for _, t := range scanTokens(masked, 0) {
 			if t.tok == token.SWITCH {

@@ -1,0 +1,2 @@
+go test fuzz v1
+[]byte("package A\nimport(\"\"\n\"\" )//\nfunc A()func(func())(){func(A func())()[0]}")
