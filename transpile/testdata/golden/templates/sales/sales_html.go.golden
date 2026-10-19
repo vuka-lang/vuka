@@ -4,11 +4,13 @@
 package main
 
 import (
+	"context"
 	"github.com/vuka-lang/ui"
+	"io"
 )
 
 //line sales.vuka.html:1
-func (s Sales) Render() ui.Node {
+func (s Sales) View() ui.Node {
 	var spans []ui.Node
 	for _, d := range s.Week {
 		spans = append(spans, ui.HTML(`<span class="day" class:big={d > 10}>{d}</span>`, d > 10, d))
@@ -23,10 +25,13 @@ func (s Sales) Render() ui.Node {
 </section>`, s.Title, spans, s.Total(), s.Children)
 }
 
+//line sales.vuka.html:8
+func (s Sales) Render(ctx context.Context, w io.Writer) error { return s.View().Render(ctx, w) }
+
 // Page lists the orders below a week of sales.
 func Page(orders []Order) ui.Node {
 //line sales.vuka.html:13
-	sales := Sales{Title: "Week", Week: []int{3, 12}, Children: ui.HTML(`<em>note</em>`)}.Render()
+	sales := Sales{Title: "Week", Week: []int{3, 12}, Children: ui.HTML(`<em>note</em>`)}
 	var p []ui.Node
 //line sales.vuka.html:16
 	if len(orders) == 0 {

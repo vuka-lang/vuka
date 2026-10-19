@@ -1,8 +1,17 @@
 # Vuka for VS Code
 
-Language support for [Vuka](https://github.com/vuka-lang/vuka): Go with Result,
-Option, `?`, `match`, overloading, decorators, statics, typed field attributes
-and JSX components — stateless, stateful and live.
+Write web apps in Go — server-rendered pages, live pages that update over a
+socket, and client islands — with templates in `.vuka.html` and, if you want
+them, [Vuka](https://github.com/vuka-lang/vuka)'s additions to Go in `.vuka` files.
+
+- **Templates** (`.vuka.html`): HTML with Go statements and expressions, typed
+  against your structs; component scripts (TypeScript) and scoped styles beside the markup.
+- **Vuka** (`.vuka`): Go with `Result`, `Option`, `?`, `match`, overloading,
+  decorators and JSX.
+- **Plain Go**: everything checks and navigates the same in `.go` files that use
+  the library directly.
+
+## Features
 
 - Completion, hover, signature help, go to definition, references, rename,
   outline, code actions and inlay hints, through gopls

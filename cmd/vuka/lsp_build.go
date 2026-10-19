@@ -380,6 +380,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 		params any
 	}
 	var ops []op
+	p.view.Lock()
 	p.mu.Lock()
 	for path, old := range p.virtual {
 		if _, ok := want[path]; !ok && sources[old.source] != nil && failing[filepath.Dir(old.source)] {
@@ -462,6 +463,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	for _, o := range ops {
 		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": o.method, "params": o.params})
 	}
+	p.view.Unlock()
 	for path := range touched {
 		p.publish(path)
 	}

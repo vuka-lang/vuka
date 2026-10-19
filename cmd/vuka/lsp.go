@@ -429,6 +429,10 @@ type proxy struct {
 	tmp           string
 
 	genMu sync.Mutex
+	// view is held to read the generated files and ask gopls about them
+	// (shared), or to change them and tell gopls (alone): a request never
+	// reaches gopls mapped onto a generation gopls hasn't been sent yet.
+	view sync.RWMutex
 
 	mu               sync.Mutex
 	initID           string // the editor's initialize request
@@ -1028,6 +1032,8 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		return
 	}
 	p.await(path)
+	p.view.RLock()
+	defer p.view.RUnlock()
 	p.mu.Lock()
 	vf := p.virtual[p.bySource[path]]
 	if vf == nil {

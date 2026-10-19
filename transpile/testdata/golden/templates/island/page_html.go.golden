@@ -4,15 +4,20 @@
 package main
 
 import (
+	"context"
 	"github.com/vuka-lang/ui"
+	"io"
 	"time"
 )
 
 //line page.vuka.html:3
-func (p Page) Render() ui.Node {
+func (p Page) View() ui.Node {
 //line page.vuka.html:3
 	return ui.HTML(`<main>{ui.Mount(Clock{Zone: p.Zone}, ui.Visible())}</main>`, ui.Mount(Clock{Zone: p.Zone}, ui.Visible()))
 }
+
+//line page.vuka.html:5
+func (p Page) Render(ctx context.Context, w io.Writer) error { return p.View().Render(ctx, w) }
 
 type Clock struct {
 	Zone   string          `json:"zone"`
