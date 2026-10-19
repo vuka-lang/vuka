@@ -51,6 +51,16 @@ func staticGoName(typeName, member string) string {
 	return name
 }
 
+// oldStaticGoName is a static's name in packages built before TypeMember
+// names: Type_Member, _Type_member unexported. A released package of that
+// age (orm's Base_Objects) keeps its statics.
+func oldStaticGoName(typeName, member string) string {
+	if token.IsExported(member) {
+		return typeName + "_" + member
+	}
+	return "_" + typeName + "_" + member
+}
+
 // namedStruct reports the type a `struct {` at toks[i] (the STRUCT token)
 // declares, with its type parameter list, when it is a named type's struct
 // rather than a field's.
@@ -566,6 +576,11 @@ func lookupStatic(t *types.Named, member string, current *types.Package) (obj ty
 	}
 	if found := pkg.Scope().Lookup(staticGoName(tn.Name(), member)); found != nil {
 		return found, false
+	}
+	if pkg != current {
+		if found := pkg.Scope().Lookup(oldStaticGoName(tn.Name(), member)); found != nil {
+			return found, false
+		}
 	}
 	if found := enumStatic(t, member); found != nil && (found.Exported() || found.Pkg() == current) {
 		return found, false
