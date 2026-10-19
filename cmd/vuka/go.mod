@@ -10,6 +10,6 @@ require (
 )
 
 require (
-	github.com/vuka-lang/ui v0.50.1-0.20261019223311-b02b437eeb99
+	github.com/vuka-lang/ui v0.50.1-0.20261019230755-78e3130e2d3c
 	golang.org/x/sys v0.41.0
 )
