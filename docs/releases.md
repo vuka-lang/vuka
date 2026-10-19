@@ -18,41 +18,116 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v0.50.0 — unreleased
+## v0.50.0 — 2026-10-19
 
 The first set: vuka, ui, web and cmd/vuka at v0.50.0. Runtime unchanged,
-v0.16.0 (the vuka module v0.50.0 satisfies it).
+v0.16.0 (the vuka module v0.50.0 satisfies it). New apps use orm v0.9.1.
 
-- **One version for the toolchain.** New apps from `vuka new` require vuka,
-  ui and web v0.50.0.
+```sh
+go install github.com/vuka-lang/vuka/cmd/vuka@v0.50.0
+vuka upgrade v0.50.0
+go get github.com/vuka-lang/orm@v0.9.1
+```
+
+### One version for the toolchain
+
+- **A release is a set.** vuka, ui, web and the `vuka` command are tagged
+  together at v0.50.0. An app requires the three libraries at one version
+  and uses the command of that version; `vuka new` writes a go.mod pinned to
+  its own set. The ORM keeps versions of its own.
 - **`vuka version`** prints the command's set and, inside an app, the
-  versions its go.mod requires, warning when they aren't one set.
-- **`vuka upgrade [version]`** moves an app to a set (the latest by
-  default): `go get` of vuka, ui and web, never `go mod tidy`; the `vuka fix`
-  rewrites registered for the releases in between; then `vuka vet` and `vuka
-  test`, with a summary. `-n` only says what it would do; go.mod and go.sum
-  are kept in `.vuka/upgrade/`.
+  versions its go.mod requires, warning when they aren't one set (after a
+  `go get` of one module alone, say).
+- **`vuka upgrade [version]`** moves an app to a set, the latest by default:
+  `go get` of vuka, ui and web (never `go mod tidy`), the `vuka fix`
+  rewrites registered for the releases in between, then `vuka vet ./...`
+  and `vuka test ./...`, with a summary. `-n` only says what it would do.
+  The go.mod and go.sum it started from are kept in `.vuka/upgrade/`; to
+  undo an upgrade, move them back.
+- **A release train and a compatibility promise.** Fixes ship as a weekly
+  patch release, security fixes at once, features in minor releases with
+  upgrade notes; breaking changes are deprecated first and come with a
+  `vuka fix` rewrite. See [Versions and compatibility](/project/versions).
 
-  ```sh
-  go install github.com/vuka-lang/vuka/cmd/vuka@v0.50.0
-  vuka upgrade v0.50.0
-  ```
-- **A release train and a compatibility promise**:
-  [Versions and compatibility](/project/versions).
-- **Diagnostics with codes.** Every error of the compiler, `vuka vet`, the
-  editor and the libraries' checks at boot has a stable code (`E0203`, and
-  `W0301` for a warning), a place, a code frame on the terminal and a
-  `help:` line with the fix. `vuka explain E0203` prints the code's page of
-  the [catalogue](/errors/), with an example before and after;
-  `-diag=json` prints the diagnostics as JSON. The editor shows each
-  diagnostic's code, linked to its page, and its help. `vuka vet` and the
-  editor now report, from the source, what a page backed by a component
-  would fail with at boot: a deferred field without its loader, a loader of
-  the wrong shape, a bad `bind:`, `defer:` or `validate:` tag, two handles
-  of one name. Boot errors of ui and web are diagnostics too
-  (`diag.Of(err)` is the code), placed at the declaration they are about.
-  What to do: tests matching an error's whole text may need the new form
-  (`error[E0401]: GET /pets is declared twice …`); match its code instead.
+### Diagnostics with codes
+
+- **Every error has a code.** Errors of the compiler, `vuka vet`, the editor
+  and the libraries' checks at boot carry a stable code (`E0203`; `W0301`
+  for a warning), a place, a code frame on the terminal (coloured on a TTY,
+  plain under `NO_COLOR`) and a `help:` line with the fix, with a
+  did-you-mean where one fits.
+- **`vuka explain <code>`** prints the code's page of the
+  [catalogue](/errors/): what it means, and an example before and after.
+- **`-diag=json`** prints diagnostics as JSON, for scripts and tools.
+- **The editor** shows each diagnostic's code, linked to its page, and its
+  help.
+- **More is caught before boot.** `vuka vet` and the editor now report from
+  the source what used to fail only when the app started: an island
+  component that isn't found or is ambiguous (E0310, E0311), two islands of
+  one name (E0312), bad `@ui.Island` arguments (E0320), and on pages backed
+  by a component a bad `bind:`, `defer:` or `validate:` tag (E0322, E0323,
+  E0328), a deferred group without its loader (E0324), a loader of the
+  wrong shape (E0325) and two handles of one name (E0326); W0301 warns about
+  a live page routed with `@web.Get`. Toolchain problems are coded too:
+  Node, packages, the Vite plugin and TypeScript 7 (E0602–E0608).
+- **Boot errors of ui and web are diagnostics**, placed at the declaration
+  they are about — a route declared twice names both declarations (E0401).
+  In Go, `diag.Of(err)` gives the code.
+
+What to do: a test matching an error's whole text may need the new form
+(`error[E0401]: GET /pets is declared twice …`). Match the code instead.
+
+### Fixes
+
+- **`vuka run -watch` on Linux** no longer restarts the app on every save.
+  It compared whole binaries there, which differ on any change; it now reads
+  the Go build ID, so a save that leaves the program as it was (a comment, a
+  test file) keeps the app running, as on macOS.
+- **Live pages: a broadcast right after joining is no longer lost.** A
+  page's topics are now subscribed before its join's (or event's, or
+  navigation's) reply is sent, so a broadcast the client causes as soon as
+  it has the reply reaches it.
+- **Dev assets:** generated asset files are written through a rename, so a
+  page loading while an island is rebuilt no longer reads half a file or the
+  previous manifest.
+- **The compiler and `vuka fmt`** no longer fail on the inputs fuzzing found:
+  a file with a decorator or an enum's import and no package clause, a
+  truncated or empty `match` case, an empty receiver list, a positional
+  struct pattern, a positional `ui.Class` literal, an empty composed
+  decorator. The formatter runs to a fixed point, so formatting a formatted
+  file changes nothing.
+
+### Island ids changed
+
+An island host's `data-vk-s` is now the island's place among its file's
+components instead of a byte offset into the file: `pets.vuka#865` becomes
+`pets.vuka#3`. Reformatting a file no longer changes it. Apps don't read
+it, but a test or script that does — a selector like
+`[data-vk-s="pets.vuka#865"]`, a snapshot or golden of rendered HTML — needs
+the new value: run the page and copy it, or select the island another way
+(its component's own markup, an `id` or a `data-testid` you give it).
+
+### ORM v0.9.1
+
+Go 1.27.2 writes compiled packages in a format the ORM's tools (orm v0.9.0
+and older) can't read. They then saw no models: `go tool orm
+makemigrations` planned to drop every model, and pages using the ORM
+returned 500. orm v0.9.1 reads the new format, and its tools now stop with
+an error naming the cause when they can't read a package, instead of seeing
+no models. Apps building with Go 1.27.2 or newer should move to it:
+
+```sh
+go get github.com/vuka-lang/orm@v0.9.1
+```
+
+New apps from `vuka new` require it.
+
+### Tests
+
+The libraries' and the command's suites run on every push: vet, race
+tests, the end-to-end suites with Vite and Chrome, and the fuzzers. A test
+whose tool (Node, Chrome, Tailwind) is missing fails under CI instead of
+skipping.
 
 ## cmd/vuka v0.45.3, web v0.36.3 — 2026-10-16
 
