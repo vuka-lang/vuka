@@ -19,8 +19,8 @@ import (
 
 // TestLibraryExample builds examples/library-users, plain Go, with go build
 // and no vuka command, and its twin written in Vuka after vuka eject -rm:
-// their registrations are the same calls (app.X in one, web.Routes.X in the
-// other), and the two programs answer the same.
+// the code is written alike — the same web.Routes calls in an init, the
+// same templates — and the two programs answer the same.
 func TestLibraryExample(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
@@ -63,10 +63,15 @@ func TestLibraryExample(t *testing.T) {
 		}
 	}
 
-	plain := registrations(t, "main.go", "app.")
+	plain := registrations(t, "main.go", "web.Routes.")
 	ejected := registrations(t, "decorated/users.go", "web.Routes.")
 	if len(plain) == 0 || !slices.Equal(plain, ejected) {
 		t.Errorf("registrations differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
+	}
+	plain = registrations(t, "users.go", "ui.Template(")
+	ejected = registrations(t, "decorated/users.go", "ui.Template(")
+	if len(plain) == 0 || !slices.Equal(plain, ejected) {
+		t.Errorf("templates differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
 	}
 
 	plainURL, _ := serve(t, root, filepath.Join(bin, "plain"))
@@ -93,9 +98,9 @@ func TestLibraryExample(t *testing.T) {
 	}
 }
 
-// registrations are the calls of file whose function is selected through
-// prefix (app., web.Routes.), the prefix cut: Get("/x", X, web.Params("id")).
-// app.Run isn't one.
+// registrations are the calls of file whose text starts with prefix
+// (web.Routes., ui.Template(), the prefix cut: Get("/x", X,
+// web.Params("id")). app.Run isn't one.
 func registrations(t *testing.T, file, prefix string) []string {
 	t.Helper()
 	src, err := os.ReadFile(file)

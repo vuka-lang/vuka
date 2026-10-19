@@ -37,22 +37,45 @@ func (t *Table) Do(w string) {
 	}
 }
 
-func (t *Table) Render() ui.Node {
-	return ui.F(0xd71f6ebe8b4bd077, "E(E(Ed())bb)", ui.El("table", nil, ui.El("caption", nil, ui.El("input", []ui.Attr{{Name: "onInput", Value: ui.On(
-		t.Do)}})), ui.Nodes(func(add func(ui.Node)) {
-		for _, r := range t.rows {
-			add(ui.F(0xc97075a69fd8e3ff, "Ed(E(h)E(h))", ui.El("tr", []ui.Attr{{Name: "key", Value: r.ID}}, ui.El("td", nil, ui.Child(r.Name)), ui.El("td", nil, ui.Child(r.Qty)))))
-		}
-	}), ui.Nodes(func(add func(ui.Node)) {
+//line jsx_live_tree.vuka:38
+var table = ui.Template(`
+<table>
+  <caption><input onInput="{{0}}"/></caption>
+  {{1}}
+  {{2}}
+</table>`)
+
+//line jsx_live_tree.vuka:41
+var tableTr = ui.Template(`
+<tr key="{{0}}">
+  <td>{{1}}</td>
+  <td>{{2}}</td>
+</tr>`)
 
 //line jsx_live_tree.vuka:43
-		if t.sel > 0 {
+var tableP = ui.Template(`<p>row {{0}}</p>`)
+
 //line jsx_live_tree.vuka:43
-			add(ui.F(0xc5f3693a6b5383b, "E(th)", ui.El("p", nil, ui.Text("row "), ui.Child(t.sel))))
-		} else {
-			add(ui.F(0x8b83ab6dc51ead45, "E(t)", ui.El("p", nil, ui.Text("none"))))
-		}
-	})),
+var tableP2 = ui.Template(`<p>none</p>`)
+
+//line jsx_live_tree.vuka:37
+func (t *Table) Render() ui.Node {
+	return table.Render(
+		t.Do,
+		ui.Each(t.rows, func(r Row) ui.Node {
+			return tableTr.Render(r.ID, r.Name, r.Qty)
+		}),
+		func() ui.Node {
+			var node ui.Node
+//line jsx_live_tree.vuka:43
+			if t.sel > 0 {
+//line jsx_live_tree.vuka:43
+				node = tableP.Render(t.sel)
+			} else {
+				node = tableP2.Render()
+			}
+			return ui.If(node != nil, node)
+		}(),
 	)
 }
 
@@ -65,18 +88,35 @@ type Counter struct {
 
 func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
 
+//line jsx_live_tree.vuka:56
+var counter = ui.Template(`<span>{{0}}: {{1}} <button onClick="{{2}}">+</button></span>`)
+
+//line jsx_live_tree.vuka:55
 func (c *Counter) Render() ui.Node {
-	return ui.F(0x255446f1e1e9ccd2, "E(hthtEd(t))", ui.El("span", nil, ui.Child(c.Label), ui.Text(": "), ui.Child(c.n.Get()), ui.Text(" "), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(c.Inc)}}, ui.Text("+"))))
+	return counter.Render(c.Label, c.n.Get(), c.Inc)
 }
 
+//line jsx_live_tree.vuka:60
+var pageMain = ui.Template(`
+<main>
+  {{0}}
+  {{1}}
+</main>`)
+
+//line jsx_live_tree.vuka:59
 func page(ctx context.Context) ui.Node {
-	return ui.F(0xa9211f061922d731, "E(cb)", ui.El("main", nil, ui.Component("jsx_live_tree.vuka#1", nil, &Table{}), ui.Nodes(func(add func(ui.Node)) {
+	return pageMain.Render(
+		&Table{},
+		func() []ui.Node {
+			var nodes []ui.Node
 //line jsx_live_tree.vuka:60
-		for i, l := range []string{"a", "b"} {
+			for i, l := range []string{"a", "b"} {
 //line jsx_live_tree.vuka:60
-			add(ui.F(0xaf63de4c8601eff2, "c", func(a1 int, a2 string) ui.Node { return ui.Component("jsx_live_tree.vuka#2", a1, &Counter{Label: a2}) }(i, l)))
-		}
-	})))
+				nodes = append(nodes, ui.Key(i, &Counter{Label: l}))
+			}
+			return nodes
+		}(),
+	)
 }
 
 //line jsx_live_tree.vuka:63

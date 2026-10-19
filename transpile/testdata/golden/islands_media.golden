@@ -13,12 +13,15 @@ type Chart struct {
 	Points int `json:"points"`
 }
 
+//line islands_media.vuka:13
+var chartText = ui.Template(`{{0}}`)
+
 // A bare wrapper (no template, no slot) whose body hydrates on a media query:
 // client:media={q} lowers to ui.Media(q).
+//
+//line islands_media.vuka:12
 func chart() ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_media.vuka#1",
-		Chart{Points: 12}, ui.Media("(max-width: 600px)")),
-	)
+	return chartText.Render(ui.Mount(Chart{Points: 12}, ui.Media("(max-width: 600px)")))
 }
 
 //line islands_media.vuka:6

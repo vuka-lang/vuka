@@ -160,13 +160,16 @@ type fileState struct {
 	tf      *token.File
 	parents map[ast.Node]ast.Node
 
-	done    map[int]bool // src offsets of identifiers already rewritten or reported
-	rt      string       // the name the runtime is imported as; "" until needed
-	target  *jsxTarget   // what its JSX lowers to; nil until its first JSX
-	scope   string       // the scope id of the declaration being scanned (Options.Scopes)
-	eng     *engine
-	pkgEnd  int // offset just after the package clause's name
-	dotImps bool
+	done      map[int]bool // src offsets of identifiers already rewritten or reported
+	rt        string       // the name the runtime is imported as; "" until needed
+	target    *jsxTarget   // what its JSX lowers to; nil until its first JSX
+	scope     string       // the scope id of the declaration being scanned (Options.Scopes)
+	declOff   int          // the top-level declaration being scanned: where it starts
+	declBase  string       // and the name its templates are named after
+	declTaken bool         // which is the declaration's own
+	eng       *engine
+	pkgEnd    int // offset just after the package clause's name
+	dotImps   bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
 	files     []*fileLit     // embedded vuka.File literals, by offset
@@ -178,15 +181,17 @@ type fileState struct {
 	staticErrs     []*Error
 	autoImports    map[string]bool // packages imported for statics reached through other types
 	enums          []*enumDecl
-	enumGen        genWriter           // the enums' generated methods
-	islandGen      genWriter           // imported islands' props types
-	fieldGen       genWriter           // the field attributes' registrations
-	fieldsOn       bool                // field attributes are registered: from the first round on
-	scannedImports map[string]string   // import path → name, for the enums' methods
-	spellings      []spelling          // rewritten expressions, for messages
-	stateDone      map[int]bool        // src offsets of state reads and writes lowered or checked (state.go)
-	exprIdx        map[[2]int]ast.Expr // this round's expressions by their spans (exprAt)
-	exprIdxOf      *ast.File           // the syntax tree exprIdx indexes
+	enumGen        genWriter              // the enums' generated methods
+	islandGen      genWriter              // imported islands' props types
+	fieldGen       genWriter              // the field attributes' registrations
+	fieldsOn       bool                   // field attributes are registered: from the first round on
+	scannedImports map[string]string      // import path → name, for the enums' methods
+	spellings      []spelling             // rewritten expressions, for messages
+	stateDone      map[int]bool           // src offsets of state reads and writes lowered or checked (state.go)
+	exprIdx        map[[2]int]ast.Expr    // this round's expressions by their spans (exprAt)
+	exprIdxOf      *ast.File              // the syntax tree exprIdx indexes
+	rangeIdx       map[int]*ast.RangeStmt // this round's range statements by their for's src offset
+	rangeIdxOf     *ast.File
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.
@@ -340,7 +345,7 @@ func (f *fileState) build() {
 	}
 	for _, t := range f.jsx {
 		if !t.done {
-			cur = append(cur, f.jsxEdits(t)...)
+			cur = append(cur, f.jsxEdits(t, false)...)
 		}
 	}
 	f.cur = cur.sorted()

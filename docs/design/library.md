@@ -63,48 +63,43 @@ Consequences:
 
 ## 1. Registration: calls instead of decorators
 
+A package registers what it serves at init, on the package's registry —
+the code the compiler writes for decorators, and what a person writes:
+
 ```go
-func main() {
-	app := web.New(
-		web.Frontend(dist, "web/dist"),
-		orm.Use(databases),
-	)
-	app.Service(NewOrderService)
-	app.Get("/orders", ListOrders, auth.Required())
-	app.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
-	app.Live("/dashboard", NewDashboard, web.Layout(layouts.AdminPage("Dashboard")))
-	app.Live("/applicants/{id}", NewApplicantDetail,
+func init() {
+	web.Routes.Service(NewOrderService)
+	web.Routes.Get("/orders", ListOrders, auth.Required())
+	web.Routes.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
+	web.Routes.Live("/dashboard", NewDashboard, web.Layout(layouts.AdminPage("Dashboard")))
+	web.Routes.Live("/applicants/{id}", NewApplicantDetail,
 		ui.Island(ui.Layout(layouts.AdminPage("Applicant"))))
-	app.Run("")
+}
+
+func main() {
+	app := web.New(web.Frontend(dist, "web/dist"), orm.Use(databases))
+	log.Fatal(app.Run(""))
 }
 ```
 
 | `.vuka` | Go |
 |---|---|
-| `@web.Get("/orders") func ListOrders(…)` | `app.Get("/orders", ListOrders)` |
-| `@web.Get("/orders/{id}") func ShowOrder(id int, …)` | `app.Get("/orders/{id}", ShowOrder, web.Params("id", …))` |
-| `@web.Live("/x") type X struct{ ui.Live … }` | `app.Live("/x", NewX)` |
-| `@web.Live("/x")` + `@ui.Island(opts…)` | `app.Live("/x", NewX, ui.Island(opts…))` |
-| `@web.Get("/x")` + `@ui.Island(opts…)` (stateless) | `app.Get("/x", NewX, ui.Island(opts…))` |
+| `@web.Get("/orders") func ListOrders(…)` | `web.Routes.Get("/orders", ListOrders)` |
+| `@web.Get("/orders/{id}") func ShowOrder(id int, …)` | `web.Routes.Get("/orders/{id}", ShowOrder, web.Params("id", …))` |
+| `@web.Live("/x") type X struct{ ui.Live … }` | `web.Routes.Live("/x", NewX)` |
+| `@web.Live("/x")` + `@ui.Island(opts…)` | `web.Routes.Live("/x", NewX, ui.Island(opts…))` |
+| `@web.Get("/x")` + `@ui.Island(opts…)` (stateless) | `web.Routes.Get("/x", NewX, ui.Island(opts…))` |
 | `@web.Use(mw)`, `@web.Template(f)`, `web.Layout(l)` | the options `web.Use(mw)`, `web.Template(f)`, `web.Layout(l)` |
-| `@web.Controller("/admin") type Admin` | `app.Controller("/admin", NewAdmin)` |
-| `@web.Service type S` | `app.Service(NewS)` |
+| `@web.Controller("/admin") type Admin` | `web.Routes.Controller("/admin", NewAdmin)` |
+| `@web.Service type S` | `web.Routes.Service(NewS)` |
 | `@auth.Required` | `auth.Required()` option |
 | `func X.New(…)` (static constructor) | `func NewX(…)` |
 
-**Registries.** Decorators are scattered over packages that `main` doesn't
-list, so generated code registers at init, on the package's registry:
-`web.Routes`, a `*web.Registry` with the methods above. `web.New` gives each
-app a copy, and `App`'s methods of the same names add to that app alone. A
-Go package registering its own routes writes the same `init` the compiler
-does, and `main` the same calls on its app:
-
-```go
-func init() {
-	web.Routes.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
-	web.Routes.Live("/dashboard", NewDashboard)
-}
-```
+**Registries.** `web.Routes` is a `*web.Registry` with the methods above.
+Decorators are scattered over packages that `main` doesn't list, so they
+register at init; `web.New` gives each app a copy. For routes one app
+alone serves (tests, two apps in a process), `App` has the same methods:
+`app.Get("/orders", ListOrders)` adds to that app only.
 
 The compiler knows no library: a decorator naming a method of its package's
 registry — an exported package-level variable whose type has the marker
@@ -145,7 +140,8 @@ bundle, `X_New`) keep working, deprecated.
 
 `examples/library-users` is an app written this way, with its `.vuka`
 twin; `TestLibraryExample` (cmd/vuka) builds it with plain `go build`, ejects
-the twin and checks both register the same calls and answer the same.
+the twin and checks both are written alike (the same `web.Routes` calls, the
+same templates) and answer the same.
 
 ## 2. Markup
 
@@ -184,6 +180,20 @@ func (p *Orders) row(o Order) ui.Node {
   `ui.Mount(Chart{…}, ui.Idle())`) in it is identified by it, and a list's
   components by the hole the list is in. Client state is declared where it is
   called: `open := ui.UseState(false)`, `var theme = ui.UsePageState("light")`.
+- An expression of states is State's methods, a derived state the browser
+  evaluates again when a state it reads changes — what a `.vuka` file's
+  `!open && tab == "env"` lowers to:
+
+  ```go
+  ready := open.Not().And(tab.Eq("env"))           // !open && tab == "env"
+  q := ui.At[string](f, "Q")                       // f.Q, a state of its own
+  hint := ui.Derived("Hello, ").Plus(name)         // "Hello, " + name
+  cls := ui.Classes{"menu": true, "is-open": open} // ui.Class{…} reading a state
+  ```
+
+  Not, And, Or, Eq, Ne, Lt, Le, Gt, Ge, Plus, Minus, Neg and Len are the
+  operators the browser runs; an operand is a value or a state. The
+  server renders the value with the states' initial values.
 
 ### Builders (alternative)
 
@@ -426,7 +436,7 @@ Folded into roadmap Phase 2:
 |---|---|---|
 | 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` — **done** | 2.3 |
 | 1 | Public registration API (`web.Routes`, `app.Get/Live/Controller/Service`), transpiler emits it — **done** | 2.5 |
-| 2 | `ui.Template` with typed holes; transpiler emits it | 2.3, 2.4 |
+| 2 | `ui.Template` with typed holes; transpiler emits it — **done** | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them | 2.1, 2.2 |
 | 4 | orm reflection fallback, live render fallback (**done**); call decorators through a reflective wrapper (open) | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
@@ -449,13 +459,18 @@ are `NewX`. Public now, as the calls a person writes: `vuka.Decorated`,
 needs), `RegisterFunc`, `RegisterType` (the attribute registry), `FileOf`
 (an embedded file), `ui.IslandPage` (a live island page's one-line
 `Render`) and `ui.RegisterIsland` (an imported component's props type).
-What the contract file still allows, by the step that removes it:
+Step 2 is done: each piece of JSX is a package-level `ui.Template` named
+after its declaration, rendered with its expressions in document order;
+blocks are `ui.Each`, a loop appending to a `[]ui.Node`, or an if or match
+picking one node for `ui.If`; stateful components are `&C{…}` or `ui.Key`,
+islands their props or `ui.Mount`; states are `ui.UseState` /
+`ui.UsePageState` and expressions of them State's methods (§2). The
+fingerprinted markup, `ui.Component`, `ui.MountIsland`, `ui.Bind`,
+`ui.NewState`, `ui.PageState`, `ui.NewDerived` and `ui.StateField` are gone
+from generated code; `ui.Try`, `ui.WithChildren`, `ui.Callback`, `ui.Emit`,
+`ui.StateProp` and `ui.Ptr` are public as they are. What the contract file
+still allows, by the step that removes it:
 
-- step 2: the fingerprinted markup (`ui.F`, `ui.FT`, `ui.El`, `ui.Attr`,
-  `ui.Child`, `ui.Text`, `ui.Nodes`, `ui.Component`, `ui.MountIsland`,
-  `ui.Try`, `ui.WithChildren`) and state lowering (`ui.Bind`,
-  `ui.NewState`, `ui.PageState`, `ui.NewDerived`, `ui.StateField`,
-  `ui.StateProp`, `ui.Callback`, `ui.Emit`, `ui.Ptr`);
 - step 3: field references by index path (`vuka.RefOf` and its kinds),
   `vuka.RegisterFields` and statics (`vuka.Static`, `StaticOf`, `Statics`);
 - step 4: call decorators' per-signature adapter (`vuka.Func`,

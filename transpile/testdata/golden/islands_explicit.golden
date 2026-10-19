@@ -19,8 +19,12 @@ type Picker struct {
 	Weeks int `json:"weeks"`
 }
 
+//line islands_explicit.vuka:19
+var mainText = ui.Template(`{{0}}`)
+
+//line islands_explicit.vuka:18
 func main() {
-	s, err := ui.String(context.Background(), ui.F(0xaf63de4c8601eff2, "c", ui.MountIsland("islands_explicit.vuka#1", Picker{Weeks: 2}, ui.Load())))
+	s, err := ui.String(context.Background(), mainText.Render(ui.Mount(Picker{Weeks: 2}, ui.Load())))
 	if err != nil {
 		panic(err)
 	}

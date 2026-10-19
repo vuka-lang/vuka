@@ -91,7 +91,7 @@ func main() { run() }
 		got, _, _ := s.Transpile(pkgs, t.TempDir(), opts)
 		n := 0
 		for _, g := range got {
-			if strings.Contains(string(g.Src), `data-vk-s=\"p1\"`) || strings.Contains(string(g.Src), `{Name: "data-vk-s", Value: "p1"}`) {
+			if strings.Contains(string(g.Src), `data-vk-s=\"p1\"`) || strings.Contains(string(g.Src), ` data-vk-s="p1"`) {
 				n++
 			}
 		}

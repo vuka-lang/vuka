@@ -13,8 +13,10 @@ import (
 )
 
 //line islands_page_layout.vuka:11
+var frameMain = ui.Template(`<main title="{{0}}">{{1}}</main>`)
+
 func frame(title string) func(ui.Node) ui.Node {
-	return func(page ui.Node) ui.Node { return ui.El("main", []ui.Attr{{Name: "title", Value: title}}, page) }
+	return func(page ui.Node) ui.Node { return frameMain.Render(title, page) }
 }
 
 // An @ui.Island whose arguments are expressions — a layout, nested calls,
@@ -23,7 +25,7 @@ func frame(title string) func(ui.Node) ui.Node {
 // decorator is evaluated at init, its imports kept.
 // Board is a page.
 //
-//line islands_page_layout.vuka:26
+//line islands_page_layout.vuka:28
 type Board struct {
 	ui.Live
 	Q string `json:"q"`
@@ -40,21 +42,21 @@ func main() {
 	fmt.Println(s)
 }
 
-//line islands_page_layout.vuka:26
+//line islands_page_layout.vuka:28
 func (x *Board) Render() ui.Node { return ui.IslandPage(x) }
 
-//line islands_page_layout.vuka:26
+//line islands_page_layout.vuka:28
 func NewBoard(Q string) *Board {
 	return &Board{Q: Q}
 }
 
 func init() {
-//line islands_page_layout.vuka:19
+//line islands_page_layout.vuka:21
 	ui.RegisterIsland[Board](
 		"components/Board.vue",
 		ui.Layout(frame(strings.ToUpper("boards (all)")), frame("inner)")),
 		ui.Strategy("load"),
 	)
-//line islands_page_layout.vuka:25
+//line islands_page_layout.vuka:27
 	Tagged("x")(vuka.TypeFor[Board](NewBoard))
 }

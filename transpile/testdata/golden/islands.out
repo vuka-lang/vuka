@@ -1,1 +1,1 @@
-<vk-island data-vk-s="islands.vuka#1" data-vk-island="Counter" data-vk-client="visible" data-vk-props="{&#34;count&#34;:5}"><div class="skeleton">Loading</div><template data-vk-slot><small>clicks</small></template></vk-island>
+<vk-island data-vk-s="islands.vuka:20#0" data-vk-island="Counter" data-vk-client="visible" data-vk-props="{&#34;count&#34;:5}"><div class="skeleton">Loading</div><template data-vk-slot><small>clicks</small></template></vk-island>

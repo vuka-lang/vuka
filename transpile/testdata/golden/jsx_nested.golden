@@ -22,67 +22,76 @@ func lookup(s string) vuka.Result[int] {
 	return vuka.Ok[int](n)
 }
 
+//line jsx_nested.vuka:17
+var sumUl = ui.Template(`<ul>{{0}}</ul>`)
+
+var sumText = ui.Template(`{{0}}`)
+
+var sumLi = ui.Template(`<li title="{{0}}">{{1}}</li>`)
+
 // ? and match inside function literals within {…}, at any depth.
+//
+//line jsx_nested.vuka:16
 func sum(s []string) ui.Node {
-	return ui.F(0xa072abff0879908e, "E(b)", ui.El("ul", nil, ui.Nodes(func(add func(ui.Node)) {
-		for _, x := range s {
-			add(ui.F(0xaf63e54c8601fbd7, "h", ui.Child(
-				ui.Try(func() (ui.Node, error) {
-//line jsx_nested.vuka:20
-					n, e2 := strconv.Atoi(x)
-					if e2 != nil {
-						return nil, e2
-					}
+	return sumUl.Render(ui.Each(s, func(x string) ui.Node {
+//line jsx_nested.vuka:19
+		return sumText.Render(ui.Try(func() (ui.Node, error) {
+			n, e2 := strconv.Atoi(x)
+			if e2 != nil {
+				return nil, e2
+			}
 //line jsx_nested.vuka:21
-					return ui.F(0xd979a5de999077c7, "Ed(h)", ui.El("li", []ui.Attr{{Name: "title", Value: func() string {
-						if m1 := lookup(x); false {
-							panic(m1)
-						} else if v := m1.Value(); m1.IsOk() && (v > 9) {
-							_ = v
+			return sumLi.Render(func() string {
+				if m1 := lookup(x); false {
+					panic(m1)
+				} else if v := m1.Value(); m1.IsOk() && (v > 9) {
+					_ = v
 //line jsx_nested.vuka:24
-							return "big"
-						} else if true {
-							return "small"
-						} else {
-							panic("vuka: no case matched")
-						}
-					}()}}, ui.Child(n))), nil
-				}()))))
-		}
-	})),
-	)
+					return "big"
+				} else if true {
+					return "small"
+				} else {
+					panic("vuka: no case matched")
+				}
+			}(), n), nil
+		}()))
+	}))
 }
+
+var statusButton = ui.Template(`<button>{{0}}</button>`)
+
+//line jsx_nested.vuka:39
+var statusB = ui.Template(`<b>{{0}}</b>`)
+
+var statusI = ui.Template(`<i>{{0}}</i>`)
 
 //line jsx_nested.vuka:34
 func status(s string) ui.Node {
-	return ui.F(0xd97d0e3b298ad747, "E(h)", ui.El("button", nil, ui.Child(
-		func() ui.Node {
-			if m2 := lookup(s); false {
-				panic(m2)
-			} else if v := m2.Value(); m2.IsOk() {
-				_ = v
+	return statusButton.Render(func() ui.Node {
+//line jsx_nested.vuka:37
+		if m2 := lookup(s); false {
+			panic(m2)
+		} else if v := m2.Value(); m2.IsOk() {
+			_ = v
 //line jsx_nested.vuka:39
-				return ui.F(0x3fea34bf0369609d, "E(h)", ui.El("b", nil, ui.Child(v)))
-			} else if e := m2.Err(); m2.IsErr() {
-				_ = e
+			return statusB.Render(v)
+		} else if e := m2.Err(); m2.IsErr() {
+			_ = e
 //line jsx_nested.vuka:41
-				return ui.F(0x3eb236fa49a80e3e, "E(h)", ui.El("i", nil, ui.Child(e)))
-			} else {
-				panic("vuka: no case matched")
-			}
-		}())),
-	)
+			return statusI.Render(e)
+		} else {
+			panic("vuka: no case matched")
+		}
+	}())
 }
+
+var boundaryP = ui.Template(`<p>error: {{0}}</p>`)
 
 //line jsx_nested.vuka:47
 func boundary(s []string) ui.Node {
-	return ui.ErrorBoundary(func(err error) ui.Node {
-//line jsx_nested.vuka:48
-		return ui.F(0x64d61d4a8fa945f7, "E(th)", ui.El("p", nil, ui.Text("error: "), ui.Child(err)))
-	}, sum(s))
+	return ui.ErrorBoundary(func(err error) ui.Node { return boundaryP.Render(err) }, sum(s))
 }
 
-//line jsx_nested.vuka:51
 func main() {
 	ctx := context.Background()
 	for _, in := range [][]string{{"1", "42"}, {"1", "x"}} {

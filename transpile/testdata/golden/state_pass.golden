@@ -15,56 +15,90 @@ type Filters struct {
 	Open bool
 }
 
+//line state_pass.vuka:17
+var button = ui.Template(`<button onClick="{{0}}">{{1}}</button>`)
+
 // Button takes commands: a write built from a state is passed as it is.
+//
+//line state_pass.vuka:16
 func Button(onClick ui.Commands, label string) ui.Node {
-	return ui.F(0x93c610e98aee2675, "Ed(h)", ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(onClick)}}, ui.Child(label)))
+	return button.Render(onClick, label)
 }
 
 // Act takes any handler.
 func Act(onClick any, label string) ui.Node {
-	return ui.F(0xaf63de4c8601eff2, "c", Button(onClick.(ui.Commands), label))
+	return Button(onClick.(ui.Commands), label)
 }
 
 // OpenDialog builds a command from the state it is given.
 func OpenDialog(s ui.State[bool]) ui.Commands { return s.Set(true) }
 
+//line state_pass.vuka:29
+var hint = ui.Template(`<i>{{0}}</i>`)
+
 // Hint takes any value: an expression of states is a binding.
-func Hint(text any) ui.Node { return ui.F(0x3eb236fa49a80e3e, "E(h)", ui.El("i", nil, ui.Child(text))) }
+//
+//line state_pass.vuka:29
+func Hint(text any) ui.Node { return hint.Render(text) }
+
+//line state_pass.vuka:32
+var panel = ui.Template(`<p hidden="{{0}}">panel</p>`)
 
 // Panel takes a state: an expression of states is a derived one.
-func Panel(hide ui.State[bool]) ui.Node {
+//
 //line state_pass.vuka:32
-	return ui.F(0x1200b3866a85f60a, "Ed(t)", ui.El("p", []ui.Attr{{Name: "hidden", Value: ui.Bind(hide.Get(), `{"$":0}`, hide)}}, ui.Text("panel")))
-}
+func Panel(hide ui.State[bool]) ui.Node { return panel.Render(hide) }
+
+var box = ui.Template(`<div {{0}}></div>`)
 
 // Box takes attributes.
-//
-//line state_pass.vuka:35
-func Box(attrs []ui.Attr) ui.Node { return ui.El("div", attrs) }
+func Box(attrs []ui.Attr) ui.Node { return box.Render(attrs) }
 
 type Page struct{}
 
+//line state_pass.vuka:43
+var pageMenu = ui.Template(`<ul hidden="{{0}}"><li>item</li></ul>`)
+
 // menu takes a state and returns a node.
+//
+//line state_pass.vuka:42
 func (p *Page) menu(open ui.State[bool]) ui.Node {
-	return ui.F(0x7b45369fc274222d, "Ed(E(t))", ui.El("ul", []ui.Attr{{Name: "hidden", Value: ui.Bind(!open.Get(), `["!",{"$":0}]`, open)}}, ui.El("li", nil, ui.Text("item"))))
+	return pageMenu.Render(open.Not())
 }
 
+//line state_pass.vuka:50
+var page = ui.Template(`
+<div>
+  {{0}}
+  {{1}}
+  {{2}}
+  {{3}}
+  {{4}}
+  {{5}}
+  {{6}}
+  {{7}}
+  {{8}}
+  {{9}}
+  {{10}}
+</div>`)
+
+//line state_pass.vuka:46
 func (p *Page) Render() ui.Node {
-	open := ui.NewState("s19n55v9", false)
-	upload := ui.NewState("s18t6csc", true)
-	f := ui.NewState("s1935yhb", Filters{Kind: "dog"})
-	return ui.F(0x5f7fd5b9ee7e0105, "E(cccccchhccc)", ui.El("div", nil,
+	open := ui.UseState(false)
+	upload := ui.UseState(true)
+	f := ui.UseState(Filters{Kind: "dog"})
+	return page.Render(
 		Button(open.Toggle(), "toggle"),
 		Button(OpenDialog(upload), "upload"),
-		Button(OpenDialog(ui.StateField(f, "Open", f.Get().Open)), "field"),
+		Button(OpenDialog(ui.At[bool](f, "Open")), "field"),
 		Button(open.Set(true).Set(upload, false), "chain"),
 		Act(OpenDialog(upload), "any"),
-		Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", ui.NewDerived(!open.Get() && upload.Get(), `["&&",["!",{"$":0}],{"$":1}]`, open, upload)), {Name: "id", Value: "box"}}), ui.Child(
-			p.menu(upload)), ui.Child(
-			p.menu(ui.StateField(f, "Open", f.Get().Open))),
-		Hint(ui.Bind(!open.Get(), `["!",{"$":0}]`, open)),
-		Hint(ui.Bind(f.Get().Kind+"s", `["+",{"$":0,"p":["Kind"]},"s"]`, f)),
-		Panel(ui.NewDerived(!open.Get() && upload.Get(), `["&&",["!",{"$":0}],{"$":1}]`, open, upload))),
+		Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", open.Not().And(upload)), {Name: "id", Value: "box"}}),
+		p.menu(upload),
+		p.menu(ui.At[bool](f, "Open")),
+		Hint(open.Not()),
+		Hint(ui.At[string](f, "Kind").Plus("s")),
+		Panel(open.Not().And(upload)),
 	)
 }
 
