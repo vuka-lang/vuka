@@ -1,0 +1,84 @@
+package main
+
+import (
+	"fmt"
+	"strings"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+// Item is a picture of the gallery.
+type Item struct {
+	ID    int
+	Name  string
+	Tags  []string
+	Liked bool
+}
+
+// Gallery lists the items in cards, each with its own counter.
+@web.Live("/")
+type Gallery struct {
+	ui.Live
+	items []Item
+	wide  bool
+}
+
+func Gallery.New() *Gallery {
+	return &Gallery{items: []Item{{1, "Sunrise", []string{"sky", "red"}, false}, {2, "Harbour", []string{"sea"}, true}, {3, "Forest", nil, false}}}
+}
+
+// Widen toggles the cards' width.
+func (g *Gallery) Widen() { g.wide = !g.wide }
+
+// Like toggles an item's like.
+func (g *Gallery) Like(id int) {
+	for i := range g.items {
+		if g.items[i].ID == id {
+			g.items[i].Liked = !g.items[i].Liked
+		}
+	}
+}
+
+// Drop removes the first item, keeping the others' counters.
+func (g *Gallery) Drop() {
+	if len(g.items) > 0 {
+		g.items = g.items[1:]
+	}
+}
+
+func (g *Gallery) Render() ui.Node {
+	return <Shell title="Gallery">
+		<slot:aside>
+			<p>{len(g.items)} items</p>
+			<button onClick={g.Widen}>Widen</button>
+			<button onClick={g.Drop}>Drop</button>
+		</slot:aside>
+		{for _, it := range g.items {
+			<div key={it.ID} class="item"><Card title={it.Name} accent={accent(it)} wide={g.wide}>
+				{tags(it.Tags)}
+				<Counter key={it.ID} label={strings.ToLower(it.Name)}/>
+				<slot:footer>
+					<button class:on={it.Liked} onClick={g.Like(it.ID)}>{likeText(it.Liked)}</button>
+				</slot:footer>
+			</Card></div>
+		}}
+	</Shell>
+}
+
+func accent(it Item) string { return fmt.Sprintf("#%d%d%d", it.ID, it.ID, it.ID) }
+
+func likeText(liked bool) string {
+	if liked {
+		return "Unlike"
+	}
+	return "Like"
+}
+
+// tags is a partial: the item's tags, or a dash.
+func tags(ts []string) ui.Node {
+	if len(ts) == 0 {
+		return <p class="tags">—</p>
+	}
+	return <ul class="tags">{for _, t := range ts { <li key={t}>{t}</li> }}</ul>
+}

@@ -1,0 +1,15 @@
+// Command islands is a dashboard in Vuka placing script islands (no Node):
+// a chart in a live page, its props following the page, its emits the
+// page's events; and a badge in a page that isn't live.
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/web"
+)
+
+func main() {
+	app := web.New()
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

@@ -1,0 +1,10 @@
+// Admin is the admin pages' layout; it reads the user from ctx.
+func Admin(ctx context.Context, p AdminProps)
+<div class="admin">
+  <header><h1>{p.Title}</h1>{p.Actions}<span>{ctx.Value(userKey{}).(string)}</span></header>
+  <main>{p.Children}</main>
+</div>
+
+// Badge is the user's badge.
+func Badge(ctx context.Context)
+<b>{ctx.Value(userKey{}).(string)}</b>

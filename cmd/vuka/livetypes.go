@@ -413,6 +413,7 @@ func (r *tsTypes) structFields(t []wtok, open int, s *tsScope, seen map[*goDecl]
 	var walk func(t []wtok, open int, s *tsScope, depth int, seen map[*goDecl]bool)
 	walk = func(t []wtok, open int, s *tsScope, depth int, seen map[*goDecl]bool) {
 		for _, fl := range structBodyFields(t, open) {
+			fl, _ = cutAttrs(fl)
 			tag := ""
 			if n := len(fl); n > 0 && fl[n-1].tok == token.STRING {
 				if v, err := strconv.Unquote(fl[n-1].lit); err == nil {

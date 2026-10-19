@@ -1,0 +1,11 @@
+import "context"
+
+// Greeting reads the user from the context its tag renders it with.
+func Greeting(ctx context.Context, title string, children ui.Node)
+<section>
+  <h1>{title}, {ctx.Value(userKey{}).(string)}</h1>
+  {children}
+</section>
+
+func Page(n int)
+<main><Greeting title="Hello"><p>{n} new</p></Greeting></main>

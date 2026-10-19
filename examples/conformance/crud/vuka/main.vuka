@@ -1,0 +1,14 @@
+// Command crud is a blog's API over the orm, in Vuka: authors and their
+// posts, written in transactions and counted with update arithmetic.
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/web"
+)
+
+func main() {
+	app := web.New()
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

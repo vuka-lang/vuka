@@ -1,0 +1,17 @@
+import "fmt"
+
+<article class="note">
+  <h2>#{ID} {note.Text}</h2>
+  <ul>
+    for i, r := range replies {
+      <li key={i}>{r}</li>
+    }
+  </ul>
+  <form onSubmit={Send}>
+    <input name="text" bind:value={Reply}/>
+    <button>Reply</button>
+  </form>
+  <p>{fmt.Sprint(patches)} patches, typing {len(Reply)}</p>
+  <ui.Link href={fmt.Sprint("/notes/", ID+1)} patch class="next">Next</ui.Link>
+  <button onClick={Back}>Back</button>
+</article>

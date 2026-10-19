@@ -10,7 +10,8 @@ Every push and pull request, in each repository (`.github/workflows/ci.yml`):
 | Repository | Job | What |
 | --- | --- | --- |
 | vuka | lib | gofmt, `go vet ./...`, `go test -race ./...` |
-| vuka | cmd | `go vet` and `go test` of `cmd/vuka` against `main` of ui and web, with gopls, templ, Tailwind, Chrome and the pinned `node_modules` of `cmd/vuka/testdata/node` — the real-Vite and Chrome end-to-end suites included |
+| vuka | cmd | `go vet` and `go test` of `cmd/vuka` (but `TestConformance`) against `main` of ui and web, with gopls, templ, Tailwind, Chrome and the pinned `node_modules` of `cmd/vuka/testdata/node` — the real-Vite and Chrome end-to-end suites included |
+| vuka | conformance | `TestConformance` (cmd/vuka): every app of `examples/conformance` as Vuka, hand-written Go and ejected, with and without the generated speed-ups, answering alike ([library.md §8](library.md#_8-conformance)); with ui, web and orm at `main` (or the same branch), Tailwind and the islands' `node_modules` |
 | vuka | fuzz | `FuzzPackage`, `FuzzSyntax` (transpile) and `FuzzSource` (formatter), 30 seconds each |
 | ui | test | gofmt, `go vet ./...`, `go test -race ./...`, the demos checked against the vuka command built from `main` |
 | ui | fuzz | `FuzzTreePatch` (live diffs), 30 seconds |

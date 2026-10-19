@@ -1,7 +1,7 @@
 // The example builds against the vuka, ui, web and orm that have the
 // registration API (web.Routes, App.Service, ui.Island as a route's
 // option), ui.LiveSchema and orm's Schema; cmd/vuka's TestLibraryExample
-// builds it against local checkouts.
+// and TestConformance build it against local checkouts.
 module example.com/library-users
 
 go 1.25.0

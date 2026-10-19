@@ -1,0 +1,23 @@
+# live: a page backed by its script island — a deferred group, a bound
+# query kept in the URL and validated, its methods, broadcasts reaching
+# an Update overload, a patch reaching another, a navigation; and a JSX
+# page with a bound input, a validated form, patches and a navigation.
+GET /notes/9
+LIVE /board
+  wait
+  {"type":"event","target":"c1:2","event":"m-_set","data":{"q":"mi"}}
+  {"type":"event","target":"c1:2","event":"m-_set","data":{"q":"a very long query, too long"}}
+  {"type":"event","target":"c1:0","event":"m-add","data":["  "]}
+  {"type":"event","target":"c1:0","event":"m-add","data":["milk again"]}
+  wait
+  {"type":"navigate","url":"/board?q=call","patch":true}
+  {"type":"event","target":"c1:1","event":"m-open","data":[2]}
+LIVE /notes/2
+  {"type":"event","target":"c1:1","event":"input","value":"hel"}
+  {"type":"event","target":"c1:0","event":"submit","form":{"text":["hello"]}}
+  {"type":"event","target":"c1:0","event":"submit","form":{"text":["hey!"]}}
+  {"type":"event","target":"c1:0","event":"submit","form":{"text":[""]}}
+  {"type":"navigate","url":"/notes/3","patch":true}
+  {"type":"navigate","url":"/notes/7","patch":true}
+  {"type":"event","target":"c1:2","event":"click"}
+GET /board?q=milk

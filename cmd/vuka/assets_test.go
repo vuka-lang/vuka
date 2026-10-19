@@ -230,6 +230,21 @@ func (c *C) helper() ui.Node { return <section /> }
 	if warn.String() != want {
 		t.Errorf("warnings:\n%s\nwant:\n%s", warn.String(), want)
 	}
+
+	// A template's scoped style reads the template's markup.
+	root = tempModule(t, map[string]string{"go.mod": webMod,
+		"card.go":        "package main\n\ntype Card struct{ Title string }\n",
+		"card.vuka.html": "<section class=\"card\"><h3>{Title}</h3></section>\n\n<style scoped>\nh3 { x: y }\n.card { x: y }\nspan { x: y }\n</style>\n"})
+	if pa, err = findAssets(root, "example.com/app"); err != nil {
+		t.Fatal(err)
+	}
+	warn.Reset()
+	if _, err := compileAssets(pa, false, &warn); err != nil {
+		t.Fatal(err)
+	}
+	if want := "card.vuka.html:6: span matches no element in Card\n"; warn.String() != want {
+		t.Errorf("a template's warnings:\n%s\nwant:\n%s", warn.String(), want)
+	}
 }
 
 // TestBundleScripts bundles TypeScript with its relative imports into one

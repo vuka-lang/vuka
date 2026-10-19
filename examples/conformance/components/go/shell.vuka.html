@@ -1,0 +1,8 @@
+// Shell is the pages' layout; it reads the request from the context its
+// tag renders it with.
+func Shell(ctx context.Context, p ShellProps)
+<div class="shell">
+  <header><h1>{p.Title}</h1><small>{requestPath(ctx)}</small></header>
+  <aside>{p.Aside}</aside>
+  <main>{p.Children}</main>
+</div>

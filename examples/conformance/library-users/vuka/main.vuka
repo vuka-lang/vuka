@@ -1,0 +1,15 @@
+// Command library-users is the app of ../go written in Vuka: the same app,
+// its registrations decorators. vuka eject turns them into the calls the
+// Go one makes.
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/web"
+)
+
+func main() {
+	app := web.New()
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

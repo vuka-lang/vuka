@@ -349,7 +349,7 @@ func main() {
 `web.Routes` is the registry every app takes, filled at init: what a
 package's `.vuka` decorators lower to, and what a Go package registering its
 own routes calls in its `init`. `vuka eject` turns a `.vuka` file's
-decorators into these calls (see the [library example](https://github.com/vuka-lang/vuka/tree/main/examples/library-users)).
+decorators into these calls (see the [library example](https://github.com/vuka-lang/vuka/tree/main/examples/conformance/library-users)).
 
 Reflection can't see parameter names, so scalar parameters are named with
 `web.Params`, in order (`""` for a parameter that isn't a scalar), the

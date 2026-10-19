@@ -106,15 +106,76 @@ jobs:
         run: |
           npm ci --prefix testdata/node/vite --no-audit --no-fund
           npm ci --prefix testdata/node/islands --no-audit --no-fund
-      - name: The command builds with this repository's compiler
+      - name: The command builds with this repository's compiler and the ui checkout
         working-directory: vuka/cmd/vuka
-        run: go mod edit -replace github.com/vuka-lang/vuka=../..
+        run: go mod edit -replace github.com/vuka-lang/vuka=../.. -replace github.com/vuka-lang/ui=../../../vuka-ui
       - name: vet
         working-directory: vuka/cmd/vuka
         run: go vet ./...
       - name: test
         working-directory: vuka/cmd/vuka
-        run: go test -timeout 45m ./...
+        run: go test -timeout 45m -skip '^TestConformance$' ./...
+
+  conformance:
+    name: conformance (examples as Vuka, Go and ejected)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    env:
+      VUKA_UI: ${{ github.workspace }}/vuka-ui
+      VUKA_WEB: ${{ github.workspace }}/vuka-web
+      VUKA_ORM: ${{ github.workspace }}/vuka-orm
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: vuka
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/ui
+          path: vuka-ui
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/web
+          path: vuka-web
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/orm
+          path: vuka-orm
+      - name: The ui, web and orm branches of this change, if any
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          for r in vuka-ui vuka-web vuka-orm; do
+            git -C $r fetch --depth=1 origin "$BRANCH" && git -C $r checkout FETCH_HEAD || true
+          done
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            vuka/cmd/vuka/go.sum
+            vuka-ui/go.sum
+            vuka-web/go.sum
+            vuka-orm/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: vuka/cmd/vuka/testdata/node/islands/package-lock.json
+      - name: Tailwind
+        run: |
+          mkdir -p "$HOME/.local/bin"
+          curl -fsSL -o "$HOME/.local/bin/tailwindcss" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64"
+          chmod +x "$HOME/.local/bin/tailwindcss"
+          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+      - name: The islands' node_modules
+        working-directory: vuka/cmd/vuka
+        run: npm ci --prefix testdata/node/islands --no-audit --no-fund
+      - name: The command builds with this repository's compiler and the ui checkout
+        working-directory: vuka/cmd/vuka
+        run: go mod edit -replace github.com/vuka-lang/vuka=../.. -replace github.com/vuka-lang/ui=../../../vuka-ui
+      - name: test
+        working-directory: vuka/cmd/vuka
+        run: go test -timeout 20m -run '^TestConformance$' .
 
   fuzz:
     name: fuzz ${{ matrix.fuzz }}

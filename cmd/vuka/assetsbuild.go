@@ -385,6 +385,10 @@ func markupNames(c *assetComp) (words, tags []string) {
 			}
 		}
 	}
+	for _, f := range slices.Compact(c.markup) {
+		src, _ := os.ReadFile(f)
+		text.Write(src)
+	}
 	for _, s := range c.scripts {
 		src := []byte(s.inline)
 		if s.path != "" {
