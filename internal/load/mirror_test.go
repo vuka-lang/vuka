@@ -114,6 +114,10 @@ func TestDescribe(t *testing.T) {
 			t.Errorf("%s was mirrored", missing)
 		}
 	}
+	area, _ := os.ReadFile(filepath.Join(out, "shapes", "area_vuka.go"))
+	if !strings.Contains(string(area), "//line ../../shapes/area.vuka:") || strings.Contains(string(area), root) {
+		t.Errorf("the mirrored file's line directives don't name its source relative to it:\n%s", area)
+	}
 	mod, _ := os.ReadFile(filepath.Join(out, "go.mod"))
 	if !strings.Contains(string(mod), "example.com/lib => ../../lib") {
 		t.Errorf("relative replace not adjusted:\n%s", mod)

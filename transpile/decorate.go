@@ -537,11 +537,14 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		}
 	}
 	w.gen("\n", d.nameOff)
-	if d.doc != "" {
-		w.gen(d.doc+"\n", d.nameOff)
+	doc := func() {
+		if d.doc != "" {
+			w.gen(d.doc+"\n", d.nameOff)
+		}
 	}
 	if len(wraps) == 0 {
 		// Declarers alone: the function stays as it is, reached through its name.
+		doc()
 		if !e.bare {
 			w.gen(lineDirective(f.at(d.nameOff)), d.nameOff)
 		}
@@ -588,6 +591,7 @@ func (e *engine) renderFunc(f *fileState, d *funcDeco) {
 		}
 		w.gen("}\n\n", d.nameOff)
 	}
+	doc()
 	if !e.bare {
 		w.gen(lineDirective(f.at(d.nameOff)), d.nameOff)
 	}

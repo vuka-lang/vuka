@@ -44,8 +44,10 @@ type Options struct {
 	// Path maps a file name to the path written into //line directives and
 	// errors. Nil uses the name.
 	Path func(name string) string
-	// Bare emits no header and no line directives, so a .vuka file without Vuka
-	// constructs comes out byte-identical.
+	// Bare emits no header and no line directives, and keeps the source's
+	// lines and layout, so a .vuka file without Vuka constructs comes out
+	// byte-identical. Otherwise the Go is gofmt'd and readable, with line
+	// directives where its lines stop following the source.
 	Bare bool
 	// Dir is the package's directory, where vuka.File literals are looked up.
 	// Empty skips the check that they exist.
@@ -85,10 +87,12 @@ type Output struct {
 	Name   string // the .vuka file
 	GoName string // the generated file, GoName(Name)
 	Src    []byte
-	Map    *SourceMap
-	// Body is where the source's own lines end in Src. Before it, line n of
-	// Src is line n of the .vuka file (plus the header when not bare); after
-	// it comes code Vuka adds: attribute checks, statics, wrappers.
+	// Map relates Src to the source: every character when bare, each node's
+	// first token otherwise.
+	Map *SourceMap
+	// Body is where the source's own lines end in bare Src. Before it, line n
+	// of Src is line n of the .vuka file; after it comes code Vuka adds:
+	// attribute checks, statics, wrappers. 0 when not bare.
 	Body int
 	// Files are the vuka.File literals in the source.
 	Files []FileRef
@@ -535,6 +539,16 @@ func Package(files []File, opts Options) (*Result, error) {
 	}
 	if err := errs.err(); err != nil {
 		return nil, err
+	}
+	if !opts.Bare {
+		srcs, maps := make([][]byte, len(res.Files)), make([]*SourceMap, len(res.Files))
+		for i, o := range res.Files {
+			srcs[i], maps[i] = o.Src, o.Map
+		}
+		srcs, maps = e.tidy(srcs, maps)
+		for i := range res.Files {
+			res.Files[i].Src, res.Files[i].Map, res.Files[i].Body = srcs[i], maps[i], 0
+		}
 	}
 	return res, nil
 }

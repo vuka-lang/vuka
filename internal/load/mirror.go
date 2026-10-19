@@ -54,7 +54,7 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 		if err != nil {
 			return res, err
 		}
-		want[rel] = g.Src
+		want[rel] = relativeLines(g.Src, filepath.Dir(g.Source), filepath.Dir(filepath.Join(out, rel)))
 		generated[rel] = true
 	}
 	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
@@ -198,4 +198,22 @@ func relocateReplaces(mod []byte, root, out string) []byte {
 		}
 		return append(append(append([]byte{}, g[1]...), rel...), g[3]...)
 	})
+}
+
+// relativeLines makes the line directives of a generated file, which name
+// sources in dir by absolute path, name them relative to the directory the
+// file is written to (the compiler reads a relative name against the
+// directive's own directory), so a written file doesn't carry the path of
+// the checkout it was generated in.
+func relativeLines(src []byte, dir, to string) []byte {
+	rel, err := filepath.Rel(realPath(to), realPath(dir))
+	if err != nil {
+		return src
+	}
+	prefix, repl := filepath.ToSlash(dir)+"/", ""
+	if rel != "." {
+		repl = filepath.ToSlash(rel) + "/"
+	}
+	src = bytes.ReplaceAll(src, []byte("//line "+prefix), []byte("//line "+repl))
+	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "+repl))
 }
