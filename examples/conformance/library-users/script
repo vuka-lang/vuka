@@ -1,0 +1,12 @@
+# library-users: REST over the orm, a live page, a live page backed by its
+# island.
+GET /api/users
+GET /api/users/2
+GET /api/users/9
+GET /users/9
+LIVE /
+  {"type":"event","target":"c1:0","event":"click"}
+  {"type":"event","target":"c1:0","event":"click"}
+LIVE /users/2
+  {"type":"event","target":"c1:0","event":"m-_set","data":{"name":"Grace Hopper"}}
+  {"type":"event","target":"c1:0","event":"m-_set","data":{"name":""}}

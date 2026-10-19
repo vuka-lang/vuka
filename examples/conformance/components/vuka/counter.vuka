@@ -1,0 +1,17 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+// Counter is a stateful component: its count is its own.
+type Counter struct {
+	ui.Live
+	Label string
+	n     int
+}
+
+// Inc counts one.
+func (c *Counter) Inc() { c.n++ }
+
+func (c *Counter) Render() ui.Node {
+	return <span class="counter">{c.Label}: {c.n} <button onClick={c.Inc}>+</button></span>
+}

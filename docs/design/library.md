@@ -138,7 +138,7 @@ registry lower generically, to calls a person writes as well:
 (`vuka.TypeWith`, `vuka.FuncDecl`, `vuka.DeclareWith`, `web.Get(path)` as a
 bundle, `X_New`) keep working, deprecated.
 
-`examples/library-users` is an app written this way, with its `.vuka`
+`examples/conformance/library-users` is an app written this way, with its `.vuka`
 twin; `TestLibraryExample` (cmd/vuka) builds it with plain `go build`, ejects
 the twin and checks both are written alike (the same `web.Routes` calls, the
 same templates) and answer the same.
@@ -396,7 +396,7 @@ for the ORM's own cost, SQLite end to end), ui `go test -bench Fallback
   with its generated scanners ignored (`ORM_REFLECT=1`); the live sessions'
   random-event tests run every demo page with frames and as whole
   components and compare each page; web's runtime test applies whole-
-  component replies with `live.js`. The conformance suite (§8) will run
+  component replies with `live.js`. The conformance suite (§8) runs
   every example both ways.
 
 ## 5. Frontend assets
@@ -465,11 +465,45 @@ positions its `.vuka` lines.
 
 ## 8. Conformance
 
-Every example app exists twice — `.vuka` and hand-written Go — and a test
-compares rendered HTML, live patches, SQL and HTTP responses, with and
-without the optional `*_gen.go` speed-ups. A third run ejects the `.vuka`
-version (generated Go only, sources deleted) and must match too. A
-difference is a bug.
+Every app of `examples/conformance/<app>` exists twice — `vuka/`, the
+`.vuka` app, and `go/`, the same app written by hand in Go (`.go` and
+`.vuka.html`, struct-first, registered in `init`) — and `TestConformance`
+(cmd/vuka, the CI job `conformance`) builds it five ways:
+
+| run | |
+|---|---|
+| `vuka` | `vuka/`, built by `vuka build` |
+| `go+gen` | `go/` after `orm generate`, `vuka gen -inplace` (and `vuka build-islands` for a `web/dist`), built by `go build` |
+| `go` | the same without the speed-ups: no `orm_scanners*_gen.go` (the orm reflects), no `vuka_calls_gen.go` (`vuka.Wrap` reflects), every live component diffed whole (`VUKA_LIVE_WHOLE=1`) |
+| `ejected+gen` | `vuka/` after `vuka eject -rm` (no `.vuka` file left; `vuka gen -inplace -check` must find nothing stale), built by `go build` |
+| `ejected` | the same without the speed-ups |
+
+Each run plays the app's `script` — HTTP requests, and live pages whose
+messages go over the page's socket with protocol 1 and 2 — and answers with
+a transcript: each response's status, headers and body; each live reply and
+the page `livetest`'s reference client holds once it applied it; the SQL
+each step ran (an `orm.Observe` route the suite adds); every `/_vuka/` file
+a page or the loader's island manifest names; and the `vuka-live.d.ts` and
+`vuka-island.d.ts` the vuka command wrote. Every transcript must be the
+first's; the render trees protocol 2 sends follow the code's shape (a Go
+`if` or `ui.If`), so they are compared where the code is the same (`vuka`
+and `ejected+gen`) and among the whole-component runs. A page's join
+token, a cookie's value and a hole's source position (an island's
+`data-vk-s`, named by order of appearance) are left out. A difference is a
+bug: the test shows the first step answered differently, line by line.
+
+The apps: `library-users` (REST over the orm, a live page, a page backed by
+its island), `crud` (Schema, a relation walked by typed fields, a named
+query, transactions, update arithmetic, typed `SaveFields`, a call
+decorator), `live` (a page backed by its script island with a deferred
+group, a bound and validated query in the URL, an `Update` per message and
+per URL, navigation; a JSX page with a bound input, a validated form and
+patches), `components` (struct components with slots, a script and a
+scoped style, a layout taking `ctx` used as a tag, partials, keyed
+stateful components), `islands` (`.ts` script islands without Node, in a
+live page and a page that isn't) and `islands-vue` (a `.vue` island; it
+needs Node, `npm ci --prefix testdata/node/islands`).
+`VUKA_CONFORMANCE_OUT=dir` writes each run's transcript there.
 
 ## Plan
 
@@ -487,7 +521,7 @@ Folded into roadmap Phase 2:
 | 2a | Island path inference without the CLI: bare `ui.RegisterIsland[T]()`, the transpiler emits it — **done** | 2.5, 2.6 |
 | 2b | Islands built for plain Go: `go tool vuka build-islands` into the frontend's build, `web.Dev()` keeps them built, `vuka-live.d.ts` from Go types — **done** | 2.6 |
 | 4a | Overloads named as Go names them (`areaCircle`, `UpdateNewMessage`), field references by address (`vuka.RefTo`), orm arithmetic and typed `SaveFields` — **done** | 2.3, 2.6 |
-| 7 | Conformance suite | 2.6 |
+| 7 | Conformance suite — **done** | 2.6 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
 one import block, no `/*line*/` markers and no `__` names, and checks its

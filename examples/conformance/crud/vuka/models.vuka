@@ -1,0 +1,27 @@
+package main
+
+import (
+	"github.com/vuka-lang/orm"
+	_ "github.com/vuka-lang/orm/sqlite"
+)
+
+// Author writes posts; Posts counts them.
+type Author struct {
+	orm.Base
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`  @orm.Char{Max: 50, Unique: true}
+	Posts int    `json:"posts"`
+}
+
+// Post is an author's post.
+type Post struct {
+	orm.Base                    @orm.Meta{Table: "posts", Ordering: []string{"id"}}
+	ID        int64          `json:"id"`
+	Author    orm.FK[Author] `json:"author"`    @orm.Rel{Related: "posts"}
+	Title     string         `json:"title"`     @orm.Char{Max: 200}
+	Views     int            `json:"views"`
+	Published bool           `json:"published"`
+}
+
+// Post.Live is the published posts.
+func Post.Live() orm.QuerySet[Post] { return Post.Objects.Filter(Post.Published.Eq(true)) }

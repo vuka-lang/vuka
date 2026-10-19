@@ -19,8 +19,9 @@ import (
 	"testing"
 )
 
-// TestLibraryExample builds examples/library-users, plain Go, with go build
-// and no vuka command, and its twin written in Vuka after vuka eject -rm
+// TestLibraryExample builds examples/conformance/library-users/go, plain Go,
+// with go build and no vuka command, and its twin written in Vuka
+// (library-users/vuka) after vuka eject -rm
 // (its markup then templates, users.vuka.html, compiled to users_html.go):
 // the code is written alike — the same web.Routes calls in an init, the
 // same templates, the same Schema and LiveSchema methods — vukavet finds
@@ -51,7 +52,11 @@ func TestLibraryExample(t *testing.T) {
 	}
 	files := map[string]string{}
 	for _, name := range []string{"main.go", "users.go", "users_gen.go", "orm_scanners_gen.go", "islands/Profile.ts", "decorated/main.vuka", "decorated/users.vuka"} {
-		src, err := os.ReadFile(filepath.Join(repo, "examples/library-users", name))
+		form, file := "go", name
+		if rest, ok := strings.CutPrefix(name, "decorated/"); ok {
+			form, file = "vuka", rest
+		}
+		src, err := os.ReadFile(filepath.Join(repo, "examples/conformance/library-users", form, file))
 		if err != nil {
 			t.Fatal(err)
 		}

@@ -1,0 +1,12 @@
+# components: struct components with a slot, a script and a scoped style;
+# a layout function taking ctx, used as a tag; partials; stateful
+# components keyed in a loop keeping their state when the list changes.
+LIVE /
+  {"type":"event","target":"c2:0","event":"click"}
+  {"type":"event","target":"c2:0","event":"click"}
+  {"type":"event","target":"c3:0","event":"click"}
+  {"type":"event","target":"c1:2","event":"click"}
+  {"type":"event","target":"c1:0","event":"click"}
+  {"type":"event","target":"c1:1","event":"click"}
+  {"type":"event","target":"c3:0","event":"click"}
+  {"type":"event","target":"c1:2","event":"click"}

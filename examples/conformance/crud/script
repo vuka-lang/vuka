@@ -1,0 +1,20 @@
+# crud: models with Schema, a relation walked by typed fields, a named
+# query, transactions (one rolled back), update arithmetic, SaveFields of
+# a typed field, a call decorator.
+GET /authors
+POST /posts json {"author":1,"title":"Notes on the Analytical Engine"}
+POST /posts json {"author":2,"title":"Compilers"}
+POST /posts json {"author":2,"title":"!Bugs"}
+POST /posts json {"author":9,"title":"Nobody"}
+POST /posts json {"author":1}
+GET /authors
+POST /posts/2/view
+POST /posts/2/view
+POST /posts/9/view
+POST /posts/1/publish
+GET /posts
+GET /posts?author=Grace
+GET /posts?live=true
+GET /posts/2
+GET /posts/7
+GET /audit

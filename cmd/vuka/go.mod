@@ -9,4 +9,7 @@ require (
 	github.com/vuka-lang/vuka v0.50.0
 )
 
-require golang.org/x/sys v0.41.0
+require (
+	github.com/vuka-lang/ui v0.50.1-0.20261019223311-b02b437eeb99
+	golang.org/x/sys v0.41.0
+)
