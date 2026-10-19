@@ -26,7 +26,7 @@ import (
 
 // The orm a new app requires beside the toolchain set (toolchain.go); vuka
 // mod tidy brings in the rest.
-const ormVersion = "v0.7.1"
+const ormVersion = "v0.9.1"
 
 // scaffoldFS holds the files vuka new and vuka add write. A path segment
 // name@tag1+tag2 is written as name when every tag holds (scaffold.tags);

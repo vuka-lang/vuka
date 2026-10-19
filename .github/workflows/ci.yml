@@ -13,11 +13,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  # Not 1.27.x: go1.27.2 writes export data the golang.org/x/tools of the
-  # orm a new app pins (v0.49.0) can't read, so the orm tool sees no models
-  # (cmd/vuka TestNewEndToEnd); x/tools v0.52.0 reads it. Move on once the
-  # orm requires that.
-  GO_VERSION: "1.27.1"
+  GO_VERSION: stable
   GOPLS_VERSION: v0.24.0
   TEMPL_VERSION: v0.3.1020
   TAILWIND_VERSION: v4.3.0
