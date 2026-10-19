@@ -16,15 +16,32 @@ Use the go command as always:
 go get github.com/google/uuid
 ```
 
-and import the package in any `.vuka` file. Every Go package works, and `?` works
-directly on functions returning `(T, error)`.
+and import the package in any `.vuka` file. Every Go package works<span class="vuka-only">, and `?` works
+directly on functions returning `(T, error)`</span>.
 
 ## Result meets (T, error)
 
+::: vuka
 ```vuka
-data := vuka.Of(os.ReadFile(name))   // (T, error) → Result[T]
+r := vuka.Of(os.ReadFile(name))      // (T, error) → Result[T]
 v, err := r.Get()                    // Result[T] → (T, error)
 ```
+:::
+
+<!-- go:context
+var name = "app.conf"
+-->
+
+::: go
+A `.vuka` function returning `Result[T]` returns a `vuka.Result[T]` to Go
+code; `vuka.Of` and `Get` convert:
+
+<!-- go:fragment -->
+```go
+r := vuka.Of(os.ReadFile(name)) // (T, error) → vuka.Result[T]
+v, err := r.Get()               // vuka.Result[T] → (T, error)
+```
+:::
 
 ## Calling Vuka from Go
 

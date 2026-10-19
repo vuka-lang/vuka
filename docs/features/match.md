@@ -5,6 +5,26 @@
 **Vuka adds** `match`: cases are patterns, tried in order, that test and bind at
 once.
 
+<!-- go:context
+type User struct {
+	ID   int
+	Name string
+}
+
+type NotFound struct{ ID int }
+
+func (e *NotFound) Error() string { return fmt.Sprintf("user %d not found", e.ID) }
+
+func lookup(arg string) vuka.Result[User] {
+	id, err := strconv.Atoi(arg)
+	if err != nil {
+		return vuka.Err[User](err)
+	}
+	return vuka.Err[User](&NotFound{ID: id})
+}
+-->
+
+::: vuka
 ```vuka
 match lookup(arg) {
 case Ok(u):
@@ -17,7 +37,31 @@ case Err(e):
 	fmt.Println("error:", e)
 }
 ```
+:::
 
+::: go
+In Go, take the value apart first, then `switch` on what you need —
+`errors.As` for an error's type, `errors.Is` for a sentinel:
+
+```go
+func report(arg string) {
+	u, err := lookup(arg).Get()
+	var nf *NotFound
+	switch {
+	case err == nil:
+		fmt.Println(u.Name)
+	case errors.As(err, &nf):
+		fmt.Println("missing user", nf.ID)
+	case errors.Is(err, strconv.ErrSyntax):
+		fmt.Println("not a number:", arg)
+	default:
+		fmt.Println("error:", err)
+	}
+}
+```
+:::
+
+::: vuka
 ## Patterns
 
 | Pattern | Matches |
@@ -67,13 +111,50 @@ value of their own, so `Some(1)` leaves `Some(_)` missing.
 
 ## What it becomes
 
-An `if`/`else if` chain; bodies stay where you wrote them:
+An `if`/`else if` chain that tests each pattern in turn with the Result's and
+Option's own methods (`IsOk`, `Value`, `Err`, `IsSome`), bodies where you
+wrote them, ending in `panic("vuka: no case matched")` — which exhaustiveness
+makes unreachable.
+:::
+
+::: go
+## Nested values
+
+A `vuka.Result[vuka.Option[User]]` comes apart one level at a time, with a
+`switch` once the pieces are plain values:
 
 ```go
-if __m1 := lookup(arg); false { panic(__m1)
-} else if u := __m1.Value(); __m1.IsOk() { _ = u;
-	fmt.Println(u.Name)
-} else if e := __m1.Err(); __m1.IsErr() && (errors.Is(e, strconv.ErrSyntax)) { _ = e;
-	…
-} else { panic("vuka: no case matched") }
+func describe(r vuka.Result[vuka.Option[User]]) string {
+	o, err := r.Get()
+	if err != nil {
+		return "error: " + err.Error()
+	}
+	u, ok := o.Get()
+	switch {
+	case !ok:
+		return "none"
+	case u.Name == "":
+		return "unnamed"
+	default:
+		return u.Name
+	}
+}
 ```
+
+Go doesn't check that a `switch` covers every case: end it with a `default`
+that handles — or panics on — what's left. A type switch takes interfaces
+apart by type:
+
+```go
+func kind(err error) string {
+	switch e := err.(type) {
+	case nil:
+		return "ok"
+	case *NotFound:
+		return fmt.Sprint("missing ", e.ID)
+	default:
+		return "error"
+	}
+}
+```
+:::

@@ -5,6 +5,14 @@ behind a proxy that keeps the Go generated from each `.vuka` file open in gopls
 as an unsaved buffer — never written to disk — and maps every position both
 ways.
 
+::: go
+A Go app's `.go` files need only gopls. `vuka lsp` adds what gopls doesn't
+know: [`.vuka.html` templates](#templates) — hover, go to definition and
+errors on the Go in their holes — and highlighting of the markup in
+`ui.HTML` strings. Run under the name `gopls` it is a drop-in gopls for the
+`.go` files too ([Go files](#go-files)).
+:::
+
 Completion, hover, signature help, go to definition, references, rename,
 outline, code actions, inlay hints and formatting (by
 [`vuka fmt`](/tools/cli#fmt); the VS Code extension formats on save) work in

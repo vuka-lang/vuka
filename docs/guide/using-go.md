@@ -4,6 +4,11 @@ Vuka is Go with additions, so **every Go function, type and library works in
 Vuka exactly as in Go** — no bindings, no wrappers, no special imports. This
 page shows the common cases; every example on it is a program that runs.
 
+::: go
+A Go app needs nothing of this page: it is Go already. Each sample's Go form
+is the same program in plain Go, for reading a `.vuka` file beside it.
+:::
+
 ## Functions from your .go files
 
 ### In the same package
@@ -20,6 +25,7 @@ import "strings"
 func slug(s string) string { return strings.ToLower(strings.ReplaceAll(s, " ", "-")) }
 ```
 
+::: vuka
 ```vuka
 // main.vuka
 package main
@@ -30,6 +36,20 @@ func main() {
 	fmt.Println(slug("Hello World"))   // hello-world
 }
 ```
+:::
+
+::: go
+```go
+// main.go
+package main
+
+import "fmt"
+
+func main() {
+	fmt.Println(slug("Hello World")) // hello-world
+}
+```
+:::
 
 ### In another package of your project
 
@@ -42,17 +62,39 @@ A package written in plain Go is imported by its path, as in Go: the
 // textutil/textutil.go — plain Go
 package textutil
 
+import (
+	"errors"
+	"strings"
+)
+
 var ErrEmpty = errors.New("empty text")
 
-func Title(s string) string { … }
+func Title(s string) string {
+	if s == "" {
+		return s
+	}
+	return strings.ToUpper(s[:1]) + s[1:]
+}
 
 type Counter struct{ total int }
 
-func (c *Counter) Add(s string) int { … }
+// Add counts the words of s and returns the total so far.
+func (c *Counter) Add(s string) int {
+	c.total += len(strings.Fields(s))
+	return c.total
+}
 
-func First(s string) (string, error) { … }  // the first word, or ErrEmpty
+// First is the first word of s, or ErrEmpty.
+func First(s string) (string, error) {
+	f := strings.Fields(s)
+	if len(f) == 0 {
+		return "", ErrEmpty
+	}
+	return f[0], nil
+}
 ```
 
+::: vuka
 ```vuka
 // words.vuka
 package main
@@ -86,13 +128,22 @@ func words() {
 
 Nothing marks the Go package as special: Vuka passes the import to Go, and
 Go's type checker reads it.
+:::
+
+::: go
+In Go it is an ordinary import, `"example.com/usego/textutil"`: `firstTitle`
+returns `(string, error)` and checks `err` after `textutil.First(s)`, and the
+caller tells the package's error value apart with
+`errors.Is(err, textutil.ErrEmpty)`.
+:::
 
 ## The standard library
 
-Import and call it as in Go. Functions returning `(T, error)` work with
+Import and call it as in Go. <span class="vuka-only">Functions returning `(T, error)` work with
 [`?`](/features/try), and library error types work in [`match`](/features/match)
-patterns:
+patterns:</span><span class="go-only">A library's error type is taken apart with `errors.As`:</span>
 
+::: vuka
 ```vuka
 import (
 	"fmt"
@@ -117,7 +168,34 @@ func main() {
 	}
 }
 ```
+:::
 
+::: go
+```go
+func readConfig(path string) (string, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimSpace(string(data)), nil
+}
+
+func main() {
+	text, err := readConfig("missing.conf")
+	var pe *fs.PathError
+	switch {
+	case err == nil:
+		fmt.Println(text)
+	case errors.As(err, &pe): // a library's error type, taken apart
+		fmt.Println("couldn't", pe.Op, "the config") // couldn't open the config
+	default:
+		fmt.Println("error:", err)
+	}
+}
+```
+:::
+
+::: vuka
 `?` works just as well in functions written Go's way:
 
 ```vuka
@@ -126,6 +204,21 @@ func port(s string) (int, error) {
 	return n, nil
 }
 ```
+:::
+
+::: go
+In a function written Go's way, the error is checked where it comes back:
+
+```go
+func port(s string) (int, error) {
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
+	}
+	return n, nil
+}
+```
+:::
 
 ## Third-party libraries
 
@@ -135,47 +228,95 @@ Add a module with the go command, then import it:
 go get github.com/google/uuid
 ```
 
+::: vuka
 ```vuka
 import "github.com/google/uuid"
 
 func newID() string { return uuid.NewString() }
 ```
+:::
+
+::: go
+```go
+import "github.com/google/uuid"
+
+func newID() string { return uuid.NewString() }
+```
+:::
 
 `go.mod` and `go.sum` are the usual ones; Vuka has no package manager of its
 own.
 
-::: tip vuka mod tidy
-Plain `go mod tidy` reads only `.go` files, so it drops requirements that only
-`.vuka` files use. Use **`vuka mod tidy`** instead: it shows the go command the
-imports of your `.vuka` files (and the Vuka runtime, when your code uses it),
-then runs `go mod tidy`. Every `go mod` subcommand works the same way —
-`vuka mod why`, `vuka mod vendor`, …
+::: vuka
+**`vuka mod tidy`.** Plain `go mod tidy` reads only `.go` files, so it drops
+requirements that only `.vuka` files use. Use **`vuka mod tidy`** instead: it
+shows the go command the imports of your `.vuka` files (and the Vuka runtime,
+when your code uses it), then runs `go mod tidy`. Every `go mod` subcommand
+works the same way — `vuka mod why`, `vuka mod vendor`, …
+:::
+
+::: go
+A Go app runs plain `go mod tidy`; only a module holding `.vuka` files needs
+`vuka mod tidy`, which shows the go command their imports too.
 :::
 
 ## Converting between Result and (T, error)
 
+::: vuka
 ```vuka
 r := vuka.Of(os.ReadFile(path))     // (T, error) → Result[T]
 data, err := r.Get()                // Result[T] → (T, error)
 ```
+:::
+
+<!-- go:context
+var path = "app.conf"
+-->
+
+::: go
+Go code meets a `Result` when it calls a `.vuka` function returning one;
+the same two calls convert:
+
+<!-- go:fragment -->
+```go
+r := vuka.Of(os.ReadFile(path)) // (T, error) → vuka.Result[T]
+data, err := r.Get()            // vuka.Result[T] → (T, error)
+```
+:::
 
 Errors keep their identity both ways: `errors.Is(err, fs.ErrNotExist)` is still
 true after a round trip.
 
 ## Decorating code that calls a library
 
+::: vuka
 A decorator applies to a function you declare, so wrap the library call in one:
 
 ```vuka
 @timed
 func newID() string { return uuid.NewString() }
 ```
+:::
+
+<!-- go:context
+func timed(c *vuka.Call) { c.Next() }
+-->
+
+::: go
+A decorator is a `vuka.Decorator`, `func(c *vuka.Call)`; `vuka.Wrap` puts it
+around any function, a library's included:
+
+```go
+var newTimedID = vuka.Wrap(uuid.NewString, vuka.FuncInfo{Name: "newID"}, timed)
+```
+:::
 
 ## Everything else is Go
 
 Generics, goroutines, channels, `select`, `defer`, interfaces, embedding and
 struct tags are Go's, unchanged:
 
+::: vuka
 ```vuka
 names := []string{"linus", "ada", "grace"}
 slices.Sort(names)                  // [ada grace linus]
@@ -188,6 +329,24 @@ for i := range 3 {
 }
 wg.Wait()
 ```
+:::
+
+::: go
+```go
+func squares() {
+	names := []string{"linus", "ada", "grace"}
+	slices.Sort(names) // [ada grace linus]
+
+	var wg sync.WaitGroup
+	results := make(chan int, 3)
+	for i := range 3 {
+		wg.Add(1)
+		go func() { defer wg.Done(); results <- i * i }()
+	}
+	wg.Wait()
+}
+```
+:::
 
 ## The other way: Go calling Vuka
 

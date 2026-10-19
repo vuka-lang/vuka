@@ -1,8 +1,34 @@
 # Testing
 
+<!-- go:context
+type User struct {
+	orm.Model[User]
+	ID    int64
+	Name  string
+	Email string
+}
+
+type Tag struct {
+	orm.Model[Tag]
+	ID   int64
+	Name string
+}
+
+type Post struct {
+	orm.Model[Post]
+	ID   int64
+	Slug string
+}
+
+func publish(ctx context.Context, slug string) error { return nil }
+
+var t *testing.T
+-->
+
 `github.com/vuka-lang/orm/ormtest` opens a fresh database per test, with the
 models' tables made — in-memory SQLite by default:
 
+::: vuka
 ```vuka
 func TestPublish(t *testing.T) {
 	ctx := ormtest.Open(t, orm.Objects[User](), orm.Objects[Tag](), orm.Objects[Post]())
@@ -18,6 +44,25 @@ func TestPublish(t *testing.T) {
 	}
 }
 ```
+:::
+
+::: go
+```go
+func TestPublish(t *testing.T) {
+	ctx := ormtest.Open(t, orm.Objects[User](), orm.Objects[Tag](), orm.Objects[Post]())
+	ada := User{Name: "ada", Email: "ada@example.com"}
+	ormtest.Seed(t, ctx, orm.Objects[User](), &ada)
+
+	ctx, queries := ormtest.CountQueries(ctx)
+	if err := publish(ctx, "generics"); !errors.Is(err, orm.ErrNotFound) {
+		t.Fatalf("publish: %v", err)
+	}
+	if n := queries(); n != 1 {
+		t.Errorf("%d queries", n)
+	}
+}
+```
+:::
 
 | | |
 |---|---|
@@ -28,8 +73,8 @@ func TestPublish(t *testing.T) {
 | `ormtest.Mirror(t, ctx, models…)` | a second database the writes are mirrored on: `(mirrored, onMirror)` contexts |
 | `ormtest.Driver()` | the driver the tests run on, to skip what a database lacks |
 
-`orm.Objects[T]()` is a model's manager, as `Open` takes it;
-`Post.Objects.Manager()` is the same from a query.
+`orm.Objects[T]()` is a model's manager, as `Open` takes it<span class="vuka-only">;
+`Post.Objects.Manager()` is the same from a query</span>.
 
 ## On a real server
 
@@ -37,13 +82,24 @@ func TestPublish(t *testing.T) {
 on a server, each in a schema or database of its own:
 
 ```sh
-ORMTEST_DRIVER=postgres ORMTEST_DSN=postgres://localhost:5432/test?sslmode=disable vuka test ./...
+ORMTEST_DRIVER=postgres ORMTEST_DSN=postgres://localhost:5432/test?sslmode=disable go test ./...   # vuka test ./... for .vuka packages
 ```
 
 Skip what a database can't do with `ormtest.Driver()`:
 
+::: vuka
 ```vuka
 if ormtest.Driver() == "mysql" {
 	t.Skip("no vector search on MySQL")
 }
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+if ormtest.Driver() == "mysql" {
+	t.Skip("no vector search on MySQL")
+}
+```
+:::

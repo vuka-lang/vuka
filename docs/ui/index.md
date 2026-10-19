@@ -51,8 +51,20 @@ func main() {
 ```
 :::
 
+<!-- go:context
+func (g Greeting) Render(ctx context.Context, w io.Writer) error { return g.View().Render(ctx, w) }
+
+func (g Greeting) View() ui.Node {
+	return ui.HTML(`<section><h1>Hello, {g.Name}!</h1>{g.Children}</section>`, g.Name, g.Children)
+}
+-->
+
 ::: go
+A component is a struct, its fields its props, and its markup a
+[template](/ui/templates) beside it:
+
 ```go
+// greeting.go
 package main
 
 import (
@@ -61,20 +73,25 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-func Greeting(name string, children ui.Node) ui.Node {
-	return ui.HTML(`
-<section>
-	<h1>Hello, {name}!</h1>
-	{children}
-</section>`, name, children)
+type Greeting struct {
+	Name     string
+	Children ui.Node
 }
 
 func main() {
 	http.Handle("/", ui.Handler(func(r *http.Request) (ui.Node, error) {
-		return Greeting(r.URL.Query().Get("name"), ui.HTML(`<p>Welcome.</p>`)), nil
+		return Greeting{Name: r.URL.Query().Get("name"), Children: ui.HTML(`<p>Welcome.</p>`)}, nil
 	}))
 	http.ListenAndServe(":8080", nil)
 }
+```
+
+```html
+<!-- greeting.vuka.html -->
+<section>
+  <h1>Hello, {Name}!</h1>
+  {Children}
+</section>
 ```
 :::
 
@@ -86,7 +103,7 @@ vuka run .
 
 ::: go
 ```sh
-go run .
+go tool vuka run .   # or: go tool vuka gen && go run .
 ```
 :::
 
@@ -96,12 +113,31 @@ the [JSX target](/features/jsx#jsx-targets) it imports, and ui is one.
 :::
 
 ::: go
-`ui.HTML` parses its markup once, on its first render, and fills the holes
-with the values after it. It renders the same nodes JSX does, so a page
-built with it is live, diffed and patched the same way.
+The struct is itself a `ui.Node`: `greeting.vuka.html` is its `View`, its
+fields read by bare name, compiled to Go by the `vuka` command (`vuka gen`
+writes it as `greeting_html.go`, for a plain `go build`). Without the
+command, markup is written inline with `ui.HTML` (below).
 :::
 
 ## Markup in Go
+
+<!-- go:context
+type Order struct {
+	ID    int
+	Ref   string
+	Total int
+	Late  bool
+}
+
+type Orders struct {
+	ui.Live
+	rows []Order
+}
+
+func (p *Orders) Cancel(id int) {}
+
+func money(cents int) string { return fmt.Sprintf("%d.%02d", cents/100, cents%100) }
+-->
 
 JSX is how a `.vuka` file writes markup, and a [`.vuka.html`
 template](/ui/templates) is how an app built with the `vuka` command keeps

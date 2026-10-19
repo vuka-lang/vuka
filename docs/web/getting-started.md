@@ -3,7 +3,11 @@
 One command makes an app that runs: live pages styled with Tailwind, a
 sign-in page wired to users in the database, sessions that survive
 restarts, migrations applied at start-up, mail, and tests that pass. It is
-plain Vuka code in plain folders, yours to change from the first minute.
+plain Vuka code in plain folders, yours to change from the first minute.<span class="go-only">
+To keep the app as plain Go, run `vuka eject -rm ./...` in it once: each
+`.vuka` file becomes its `.go` and `.vuka.html`, and the app builds with
+`go build` and runs with `go run .` (`go tool vuka run -watch .` to keep
+the watcher).</span>
 
 ```sh
 go install github.com/vuka-lang/vuka/cmd/vuka@latest
@@ -93,8 +97,9 @@ shop/
   styles/app.css         Tailwind, and the theme's tokens
 ```
 
-**`main.vuka`** is the app's configuration and nothing else:
+**`main.vuka`**<span class="go-only"> (`main.go` once ejected)</span> is the app's configuration and nothing else:
 
+::: vuka
 ```vuka
 func options() []web.Option {
 	db := orm.NewDatabases() // DATABASE_URL, read as the app starts
@@ -114,9 +119,43 @@ func options() []web.Option {
 	}
 }
 ```
+:::
+
+<!-- go:context
+var users = struct {
+	Roles    map[string][]string
+	Sessions func(*orm.Databases) auth.SessionStore
+	Tokens   func(*orm.Databases) auth.TokenStore
+	Admin    func() web.Option
+}{}
+
+var layouts = struct{ Page func(title string) func(ui.Node) ui.Node }{}
+-->
+
+::: go
+```go
+func options() []web.Option {
+	db := orm.NewDatabases() // DATABASE_URL, read as the app starts
+	return []web.Option{
+		ormweb.Set(db).MigrateOnStart(true),
+		mail.Provide(),
+		auth.Module(auth.Config{
+			Endpoints:  "/auth",
+			Roles:      users.Roles,
+			Sessions:   users.Sessions(db), // in the database: sign-ins survive restarts
+			Tokens:     users.Tokens(db),
+			RememberMe: true,
+		}),
+		users.Admin(), // ADMIN_EMAIL and ADMIN_PASSWORD: the first admin
+		web.LiveLayout(layouts.Page("")),
+		// … the static files
+	}
+}
+```
+:::
 
 Every route, page and live event needs a sign-in unless it is marked
-`@auth.Public`; the users page asks for `users.read`, adding a user for
+<span class="vuka-only">`@auth.Public`</span><span class="go-only">with the option `auth.Public()`</span>; the users page asks for `users.read`, adding a user for
 `users.write`. Roles grant them: an admin has every perm, a member
 `users.read`.
 

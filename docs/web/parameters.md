@@ -1,11 +1,30 @@
 # Parameters and results
 
-**Go:** a handler reads `r.PathValue("id")`, converts it, decodes the body,
-writes the status and encodes the response — the same steps in every handler.
+<!-- go:context
+type Pet struct {
+	ID   int
+	Name string
+}
 
-**Vuka adds** binding by name: a handler's parameters say where each value
-comes from, and its result says what to answer.
+type NewPet struct{ Name string }
 
+type PetStore struct{ pets map[int]Pet }
+
+func (s *PetStore) Search(q string, page int) ([]Pet, error) { return nil, nil }
+func (s *PetStore) Update(id int, in PetForm) (Pet, error)  { return Pet{ID: id}, nil }
+func (s *PetStore) Add(in NewPet) (Pet, error)               { return Pet{Name: in.Name}, nil }
+
+type Videos struct{}
+
+func (v *Videos) Save(ctx context.Context, r io.Reader) error { return nil }
+-->
+
+A handler binds by name: its parameters say where each value comes from —
+path, query, body, container — and its result says what to answer, so
+none of them reads `r.PathValue("id")`, converts it, decodes the body or
+encodes the response itself.
+
+::: vuka
 ```vuka
 @web.Get("/pets")
 func SearchPets(q string, page int, store *PetStore) Result[[]Pet] { … }   // ?q=cat&page=2
@@ -13,6 +32,24 @@ func SearchPets(q string, page int, store *PetStore) Result[[]Pet] { … }   // 
 @web.Put("/pets/{id}")
 func UpdatePet(id int, in PetForm, store *PetStore) Result[Pet] { … }       // path, body, container
 ```
+:::
+
+::: go
+```go
+func SearchPets(q string, page int, store *PetStore) ([]Pet, error) { // ?q=cat&page=2
+	return store.Search(q, page)
+}
+
+func UpdatePet(id int, in PetForm, store *PetStore) (Pet, error) { // path, body, container
+	return store.Update(id, in)
+}
+
+func init() {
+	web.Routes.Get("/pets", SearchPets, web.Params("q", "page", ""))
+	web.Routes.Put("/pets/{id}", UpdatePet, web.Params("id", "", ""))
+}
+```
+:::
 
 ## Parameters
 
@@ -42,17 +79,30 @@ One struct parameter takes the body:
 
 Every request body is bounded, uploads included: 32 MiB by default,
 `web.MaxRequestBody(n)` for the app (negative for no limit), and
-`@web.MaxBody(n)` for one route — `web.Attrs(web.MaxBody(n))` from Go. A
+<span class="vuka-only">`@web.MaxBody(n)`</span><span class="go-only">the option `web.Attrs(web.MaxBody(n))`</span> for one route. A
 longer body answers `413`, whether the binding reads it or a handler reads
 `r.Body` itself; a multipart form keeps 10 MB in memory and the rest in
 temporary files, never past the limit.
 
+::: vuka
 ```vuka
 @web.Post("/videos")
 @web.MaxBody(512 << 20)
 func Upload(r *http.Request, store *Videos) error { … }
 ```
+:::
 
+::: go
+```go
+func Upload(r *http.Request, store *Videos) error { return store.Save(r.Context(), r.Body) }
+
+func init() {
+	web.Routes.Post("/videos", Upload, web.Attrs(web.MaxBody(512<<20)))
+}
+```
+:::
+
+::: vuka
 ```vuka
 type PetForm struct {
 	Name string `form:"name" validate:"required"`
@@ -60,6 +110,17 @@ type PetForm struct {
 	Age  int
 }
 ```
+:::
+
+::: go
+```go
+type PetForm struct {
+	Name string `form:"name" validate:"required"`
+	Kind string `json:"kind"`
+	Age  int
+}
+```
+:::
 
 A form field binds by the `form` tag, else the `json` tag, else the field's
 name, matched ignoring case (`-` leaves a field out).
@@ -80,6 +141,7 @@ component](/web/islands#validation):
 | `oneof=a b c` | one of the values |
 | `email` | an email address |
 
+::: vuka
 ```vuka
 type Address struct {
 	City string `json:"city" validate:"required,min=2"`
@@ -92,6 +154,22 @@ type Signup struct {
 	Items   []Address `json:"items" validate:"max=5"`
 }
 ```
+:::
+
+::: go
+```go
+type Address struct {
+	City string `json:"city" validate:"required,min=2"`
+}
+
+type Signup struct {
+	Email   string    `json:"email" validate:"required,email"`
+	Plan    string    `json:"plan" validate:"omitempty,oneof=free pro"`
+	Address Address   `json:"address"`
+	Items   []Address `json:"items" validate:"max=5"`
+}
+```
+:::
 
 A failure doesn't call the handler: it answers 422 with each field's
 message, keyed by its path — json names for a JSON body (`address.city`,
@@ -112,13 +190,13 @@ the tags can't say are the handler's: it returns `web.Invalid{"email":
 
 ## Results
 
-A handler returns nothing, `error`, `T`, `(T, error)` or `Result[T]`:
+A handler returns nothing, `error`, `T`, `(T, error)` or `vuka.Result[T]`:
 
 | Result | Response |
 |---|---|
 | nothing, a nil error | 204 — unless the handler wrote the response itself through its `http.ResponseWriter` |
-| `ui.Node` (JSX, a templ component) | HTML |
-| `T` with `@web.Template` | the [view](/web/views), HTML |
+| `ui.Node` (<span class="vuka-only">JSX</span><span class="go-only">a component, `ui.HTML`</span>, a templ component) | HTML |
+| `T` with <span class="vuka-only">`@web.Template`</span><span class="go-only">the `web.Template` option</span> | the [view](/web/views), HTML |
 | `T` without | JSON, 200 |
 | `web.Redirect(url)`, as a value or an error | 302 for GET and HEAD, else 303 |
 | a `*web.Error`, wrapped or not | its status and message |
@@ -140,6 +218,7 @@ Success statuses are fixed (200 and 204); write through
 | `web.Invalid{"field": "message"}` | 422, with `fields` |
 | `web.Status(code, format, args…)` | any |
 
+::: vuka
 ```vuka
 func (s *PetStore) Find(id int) Result[Pet] {
 	p, ok := s.pets[id]
@@ -154,6 +233,27 @@ func (s *PetStore) Remove(id int) error {
 	return fmt.Errorf("removing pet %d: %w", id, web.NotFound)   // still a 404
 }
 ```
+:::
+
+::: go
+```go
+func (s *PetStore) Find(id int) (Pet, error) {
+	p, ok := s.pets[id]
+	if !ok {
+		return Pet{}, web.Status(404, "no pet %d", id)
+	}
+	return p, nil
+}
+
+func (s *PetStore) Remove(id int) error {
+	if _, ok := s.pets[id]; !ok {
+		return fmt.Errorf("removing pet %d: %w", id, web.NotFound) // still a 404
+	}
+	delete(s.pets, id)
+	return nil
+}
+```
+:::
 
 `errors.Is(err, web.NotFound)` matches any `*web.Error` with that status.
 
@@ -169,6 +269,7 @@ in dev (`web.Dev()` or `VUKA_ENV=development`), where its message is shown.
 `web.Redirect` is a string type that is an `error` and a `ui.Node`, so it
 works as any of a handler's results:
 
+::: vuka
 ```vuka
 @web.Post("/pets")
 func AddPet(in NewPet, store *PetStore) (web.Redirect, error) {
@@ -179,6 +280,26 @@ func AddPet(in NewPet, store *PetStore) (web.Redirect, error) {
 @web.Get("/old")
 func Old() ui.Node { return web.Redirect("/new") }
 ```
+:::
+
+::: go
+```go
+func AddPet(in NewPet, store *PetStore) (web.Redirect, error) {
+	p, err := store.Add(in)
+	if err != nil {
+		return "", err
+	}
+	return web.Redirect("/pets/" + strconv.Itoa(p.ID)), nil
+}
+
+func Old() ui.Node { return web.Redirect("/new") }
+
+func init() {
+	web.Routes.Post("/pets", AddPet)
+	web.Routes.Get("/old", Old)
+}
+```
+:::
 
 A POST answered with a redirect is a 303, so the browser follows it with a
 GET — the post/redirect/get pattern with nothing more to write.

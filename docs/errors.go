@@ -6,6 +6,7 @@ import (
 	"embed"
 	"io/fs"
 	"path"
+	"regexp"
 	"sort"
 	"strconv"
 	"strings"
@@ -86,9 +87,13 @@ func parseEntry(s string) Entry {
 			s = body
 		}
 	}
-	e.Body = strings.TrimLeft(s, "\n")
+	e.Body = strings.TrimLeft(styleMarks.ReplaceAllString(s, ""), "\n")
 	return e
 }
+
+// styleMarks are the lines of a page's ::: vuka and ::: go containers,
+// which only the site reads: the terminal shows both samples.
+var styleMarks = regexp.MustCompile(`(?m)^:::( vuka| go)?[ \t]*\n`)
 
 // yamlScalar is a front-matter value: plain, 'single' or "double" quoted.
 func yamlScalar(v string) string {

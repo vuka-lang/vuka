@@ -38,8 +38,11 @@ type Counter struct {
 
 func NewCounter() *Counter { return &Counter{} }
 
-func (c *Counter) Mount() { c.n = c.Start }
-func (c *Counter) Inc()   { c.n++ }
+func (c *Counter) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
+
+func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+
+func (c *Counter) Inc() { c.n++ }
 
 func (c *Counter) Render() ui.Node {
 	return ui.HTML(`<div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>`, c.n, c.Inc)
@@ -60,7 +63,7 @@ holds the markup, reading `{n}` and `onClick={Inc}` by bare name, and the
 
 Two ways, one mechanism:
 
-- **`@web.Live(path, opts…)`** on a stateful component serves it as a GET
+- <span class="vuka-only">**`@web.Live(path, opts…)`** on a stateful component</span><span class="go-only">**`web.Routes.Live(path, NewX, opts…)`**, in an `init`, with the component's constructor,</span> serves it as a GET
   page. Its exported fields of provided types are injected; the others that
   hold text bind from the path segment or query parameter of their name
   (`form` tag, else the field name, ignoring case). The page is the component
@@ -68,12 +71,12 @@ Two ways, one mechanism:
 
   | | |
   |---|---|
-  | `web.Layout(f)` | this page's layout (an option of `@web.Live`) |
+  | `web.Layout(f)` | this page's layout (an option of <span class="vuka-only">`@web.Live`</span><span class="go-only">`web.Routes.Live`</span>) |
   | `web.LiveLayout(f)` | the app's, for every live page without its own |
   | neither | a bare HTML document |
-  | `web.Use(mw…)` | middleware for this page (an option of `@web.Live`) |
+  | `web.Use(mw…)` | middleware for this page (an option of <span class="vuka-only">`@web.Live`</span><span class="go-only">`web.Routes.Live`</span>) |
 
-  From Go: `app.Live("/counter", NewCounter)`, the constructor building
+  <span class="vuka-only">From Go: `web.Routes.Live("/counter", NewCounter)`, or</span><span class="go-only">On one app:</span> `app.Live("/counter", NewCounter)`, the constructor building
   each page's component (`&Counter{Start: 1}`, a value whose fields are the
   defaults, works too).
 
@@ -163,7 +166,7 @@ func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error)
 			return nil, err
 		}
 	}
-	return WelcomePage(), nil
+	return WelcomePage{}, nil
 }
 
 func init() { web.Routes.Get("/welcome", Welcome) }
@@ -184,6 +187,36 @@ triggers belong in event handlers, which run once per event.
 Moving between pages — a list and its rows' pages, the next page of a
 list — happens over the same connection with `ui.Link`; see
 [Navigation](/web/navigation).
+
+<!-- go:context
+type Item struct {
+	ID   int
+	Text string
+}
+
+type Todo struct {
+	ui.Live
+	items  []Item
+	next   int
+	filter string
+}
+
+type ChatForm struct {
+	Text string `form:"text"`
+}
+
+type ChatLog struct{}
+
+type Stats struct{}
+
+func (s *Stats) Visit(path string) {}
+
+var welcomeMail = mail.Message{}
+
+type WelcomePage struct{}
+
+func (WelcomePage) Render(ctx context.Context, w io.Writer) error { return nil }
+-->
 
 ## Events
 
@@ -308,7 +341,7 @@ html[data-vk-state=disconnected] body::before { content: "reconnecting…"; posi
 `web.Broadcast(ctx, topic, msg)` — from an event handler, an `Update`, or any
 request — delivers `msg` to every component subscribed to `topic`
 (`c.Subscribe(topic)` in `Mount`), in every connected page. Each takes it in
-the [`Update`](/ui/stateful#messages) overload of its type, and its
+the [`Update`](/ui/stateful#messages) <span class="vuka-only">overload of its type</span><span class="go-only">method named after its type (`UpdateSaid(m Said)`)</span>, and its
 page gets the patch:
 
 ::: vuka
@@ -352,7 +385,9 @@ type Chat struct {
 
 func NewChat(log *ChatLog) *Chat { return &Chat{Log: log} }
 
-func (c *Chat) Mount() { c.Subscribe("chat:" + c.Room) }
+func (c *Chat) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
+
+func (c *Chat) mount(ctx context.Context) error { c.Subscribe("chat:" + c.Room); return nil }
 
 // An Update per message type, named after it: the session calls the one
 // taking the message's type.
@@ -382,7 +417,7 @@ type Relay interface {
 ```
 
 Each replica's `deliver` is called with what arrives, its own messages
-included; encoding the messages, whose dynamic types pick the `Update`
+included; encoding the messages, whose dynamic types pick the <span class="vuka-only">`Update`</span><span class="go-only">`Update<Type>`</span>
 methods they reach, is the relay's business.
 
 ## Connections and reconnects
@@ -448,7 +483,7 @@ at once when it ends the sign-in itself (`app.CloseLive`), else at its next
 
 **Checks in `Mount` and `Update`.** A page that checks in `Mount` whether
 the visitor may see what its URL names (order `{id}`) makes the same check
-in its `Update` taking `web.URLParams`, if it has one: a patch keeps the
+in its `Update` taking `web.URLParams` <span class="go-only">(`UpdateURLParams`)</span>, if it has one: a patch keeps the
 page mounted and hands the new URL to that `Update`, not to `Mount`. A page
 without such an `Update` mounts again on every patch, so its `Mount` sees
 each URL; the browser's asking for a patch doesn't change that. See

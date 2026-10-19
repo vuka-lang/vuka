@@ -6,6 +6,72 @@ module — mounted into a server-rendered page and brought to life in the browse
 The page stays static, a few interactive spots hydrate on their own, and
 everything else costs zero JS.
 
+<!-- go:context
+type Planner struct {
+	ui.Live
+	days, booked []string
+	picked       string
+	sales        []Point
+	rows         []Row
+}
+
+var p = &Planner{}
+
+type Row struct {
+	ID int64 `json:"id"`
+}
+
+type DataTable struct {
+	Rows []Row `json:"rows"`
+}
+
+func (p *Planner) Open(r Row)   {}
+func (p *Planner) Remove(r Row) {}
+
+type Order struct {
+	ID     int64  `json:"id"`
+	Number string `json:"number"`
+}
+
+type OrderStats struct {
+	Count int `json:"count"`
+}
+
+type DB struct{}
+
+func (*DB) Stats(ctx context.Context) (OrderStats, error) { return OrderStats{}, nil }
+func (*DB) Orders(ctx context.Context, q string, page int) ([]Order, int, error) {
+	return nil, 0, nil
+}
+func (*DB) Cancel(ctx context.Context, id int64) error { return nil }
+
+var layouts struct {
+	Page  func(title string) func(ui.Node) ui.Node
+	Admin func(title string) func(context.Context, ui.Node) ui.Node
+}
+
+type Document struct {
+	Title    string
+	Children ui.Node
+}
+
+func (Document) Render(ctx context.Context, w io.Writer) error { return nil }
+
+type Shell struct {
+	Me       *auth.Identity
+	Path     string
+	Title    string
+	Children ui.Node
+}
+
+func (Shell) Render(ctx context.Context, w io.Writer) error { return nil }
+
+type Levels struct{ ui.Live }
+
+func NewLevels() *Levels            { return &Levels{} }
+func (l *Levels) Render() ui.Node { return ui.IslandPage(l) }
+-->
+
 ## Import a component
 
 ::: vuka
@@ -77,7 +143,7 @@ import Clock "./clock.tsx"
 
 `days="mon"` is a compile error (`days` is a `[]string`), as is an unknown
 attribute or a literal a string union doesn't allow. The tag needs no
-`<ui.Island>` wrapper; add one only for a fallback (below).
+<span class="vuka-only">`<ui.Island>` wrapper; add one only for a fallback (below).</span><span class="go-only">wrapper; `ui.Mount`'s options give it a fallback (below).</span>
 
 Any framework the file's extension names works — `.vue`, `.tsx`/`.jsx`
 (React), `.svelte`, `.ts`/`.js` (vanilla) — with the props declared the way
@@ -122,7 +188,7 @@ interface `Point` is `WeekPoint`.
 ## Declare the props in Go
 
 When the component's types are out of reach, declare the props as a Go
-struct annotated `@ui.Island`. Its exported fields are the props; it wins
+struct <span class="vuka-only">annotated `@ui.Island`</span><span class="go-only">registered with `ui.RegisterIsland[T]()`</span>. Its exported fields are the props; it wins
 over an import of the same name:
 
 ::: vuka
@@ -153,22 +219,23 @@ type Chart struct {
 }
 
 func init() {
-	ui.RegisterIsland[Chart]("islands/Chart.vue")
+	ui.RegisterIsland[Chart]()
 }
 ```
 :::
 
-Written bare, `@ui.Island` finds the component by the type's name: first
+Written bare, <span class="vuka-only">`@ui.Island`</span><span class="go-only">`ui.RegisterIsland[Chart]()`</span> finds the component by the type's name: first
 next to the file declaring the type, `<snake>.<ext>` (`sales_chart.tsx` for
 `SalesChart`), then `islands/<Type>.<ext>` under the frontend root (`web.FrontendRoot("web")`:
 here `web/islands/Chart.vue`), in the module's own folder for a package
-under `modules/<m>/` — `@ui.Island` on `Orders` in `modules/sales/` is
+under `modules/<m>/` — <span class="vuka-only">`@ui.Island` on</span><span class="go-only">registering</span> `Orders` in `modules/sales/` is
 `web/islands/sales/Orders.vue`. The extension is whichever of `.vue`,
 `.tsx`, `.jsx`, `.svelte`, `.ts`, `.js` exists, and gives the framework.
 No such file, or two (`Chart.vue` and `Chart.tsx`), is an error naming
 them, in the build and in the editor. `vuka add island`, `vuka add page
 --island` and `vuka new` put the component where the bare form looks.
 
+::: vuka
 To set the default hydration strategy (used when a tag has no `client:*`
 directive), add `ui.Strategy`: `@ui.Island(ui.Strategy("load"))` keeps the
 inference, `@ui.Island("charts/Revenue.vue", ui.Strategy("idle"))` names
@@ -178,11 +245,25 @@ Name the file when it is elsewhere: `@ui.Island("charts/Revenue.vue")` is
 read from the frontend root, whichever package declares the struct; a path
 starting with `./` or `../`, or a file beside the declaring one, is read from
 there instead.
+:::
+
+::: go
+To set the default hydration strategy (used when `ui.Mount` is given none),
+add `ui.Strategy`: `ui.RegisterIsland[Chart](ui.Strategy("load"))` keeps the
+inference, `ui.RegisterIsland[Revenue]("charts/Revenue.vue", ui.Strategy("idle"))`
+names the file. A second string is a strategy too:
+`ui.RegisterIsland[Chart]("", "load")`.
+
+Name the file when it is elsewhere: `ui.RegisterIsland[Revenue]("charts/Revenue.vue")`
+is read from the frontend root, whichever package declares the struct; a path
+starting with `./` or `../`, or a file beside the declaring one, is read from
+there instead.
+:::
 
 ## Place it in a page
 
-A bare tag mounts it; a `client:*` directive says *when* it hydrates. To show
-something until then, wrap it in `<ui.Island>` with a `<ui.Template fallback>`:
+<span class="vuka-only">A bare tag mounts it; a `client:*` directive says *when* it hydrates. To show
+something until then, wrap it in `<ui.Island>` with a `<ui.Template fallback>`:</span><span class="go-only">`ui.Mount(props, opts…)` mounts it, in a template's hole or as a `Render`'s result; a strategy option says *when* it hydrates, and `ui.Fallback` what shows until then:</span>
 
 ::: vuka
 ```vuka
@@ -194,28 +275,29 @@ something until then, wrap it in `<ui.Island>` with a `<ui.Template fallback>`:
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
-ui.Mount(Chart{Series: p.sales, Title: "Revenue"}, ui.Visible(), ui.Fallback(ui.HTML(`<p>Loading…</p>`)))
+chart := ui.Mount(Chart{Series: p.sales, Title: "Revenue"}, ui.Visible(), ui.Fallback(ui.HTML(`<p>Loading…</p>`)))
 ```
 :::
 
-The component's attributes bind to the struct fields (type-checked by Go), its
-children become the component's slot, and the fallback is distinct from the
+The component's <span class="vuka-only">attributes bind to</span><span class="go-only">props are</span> the struct fields (type-checked by Go), its
+children (<span class="go-only">`ui.Slot(n)`</span><span class="vuka-only">the tag's</span>) become the component's slot, and the fallback is distinct from the
 slot — it's the pre-hydration view.
 
 ### Hydration strategies
 
-| directive | when it mounts |
-|---|---|
-| `client:load` | immediately on load |
-| `client:idle` | on `requestIdleCallback` |
-| `client:visible` | when it scrolls into view (`IntersectionObserver`) — the default |
-| `client:media={"(max-width: 600px)"}` | when the media query matches |
-| `client:only` | never server-rendered; mount fresh on the client |
+| directive | `ui.Mount` option | when it mounts |
+|---|---|---|
+| `client:load` | `ui.Load()` | immediately on load |
+| `client:idle` | `ui.Idle()` | on `requestIdleCallback` |
+| `client:visible` | `ui.Visible()` | when it scrolls into view (`IntersectionObserver`) — the default |
+| `client:media={"(max-width: 600px)"}` | `ui.Media("(max-width: 600px)")` | when the media query matches |
+| `client:only` | `ui.ClientOnly()` | never server-rendered; mount fresh on the client |
 
-An island with no visible fallback and `client:visible` never hydrates (a
+An island with no visible fallback and `client:visible` (`ui.Visible()`) never hydrates (a
 zero-height host never intersects) — give it a fallback with height, or use
-`client:load`.
+`client:load` (`ui.Load()`).
 
 ## Reactivity
 
@@ -224,7 +306,7 @@ zero-height host never intersects) — give it a fallback with height, or use
 On a live page every prop is live: when a re-render changes the island's
 props, the mounted component gets them through its adapter's `update` — no
 remount, no lost local state. Props that didn't change cause no update.
-`once` on the tag keeps the props it was first given:
+<span class="vuka-only">`once` on the tag</span><span class="go-only">`ui.Once()`</span> keeps the props it was first given:
 
 ::: vuka
 ```vuka
@@ -234,13 +316,14 @@ remount, no lost local state. Props that didn't change cause no update.
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
-ui.Mount(Chart{Series: p.sales}, ui.Load())            // follows p.sales
-ui.Mount(Chart{Series: p.sales}, ui.Once(), ui.Load()) // the first series only
+live := ui.Mount(Chart{Series: p.sales}, ui.Load())            // follows p.sales
+once := ui.Mount(Chart{Series: p.sales}, ui.Once(), ui.Load()) // the first series only
 ```
 :::
 
-A `*ui.Assign[T]` field of an `@ui.Island` struct is sent as its value.
+A `*ui.Assign[T]` field of an island's props struct is sent as its value.
 
 ### Function props (island → server)
 
@@ -258,14 +341,17 @@ func (p *Planner) Book(day string) { … }
 
 ::: go
 ```go
-func (p *Planner) Book(day string) { … }
+func (p *Planner) Book(day string) { p.picked = day }
+```
 
-ui.Mount(Week{}, ui.Callback("onBook", p.Book))   // onBook?: (day: string) => void
+<!-- go:fragment -->
+```go
+week := ui.Mount(Week{}, ui.Callback("onBook", p.Book)) // onBook?: (day: string) => void
 ```
 :::
 
 It takes JS commands too, run in the browser when the function is called:
-`<Dialog onClose={open.Set(false)} />`. In Vue the function is the listener
+<span class="vuka-only">`<Dialog onClose={open.Set(false)} />`</span><span class="go-only">`ui.Mount(Dialog{}, ui.Callback("onClose", open.Set(false)))`</span>. In Vue the function is the listener
 of the matching emit (`defineEmits<{ close: [] }>()` gives `onClose`); in
 React and Svelte it is the prop itself.
 
@@ -285,10 +371,11 @@ picked := ui.State("mon")
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
 picked := ui.UseState("mon")
 week := ui.Mount(Week{}, ui.StateProp("picked", picked))
-ui.HTML(`<div><b>{picked}</b>{week}</div>`, picked, week)
+page := ui.HTML(`<div><b>{picked}</b>{week}</div>`, picked, week)
 ```
 :::
 
@@ -300,7 +387,7 @@ prop's (`ui.State[int]` for a `boolean` prop is a compile error).
 
 ### Emits
 
-Without a declared prop, `on<Emit>` attributes bind a Vue component's emits
+Without a declared prop, <span class="vuka-only">`on<Emit>` attributes</span><span class="go-only">`ui.Emit(name, handler)` options</span> bind a Vue component's emits
 to live-view handlers; the emit's argument arrives as JSON, bound into the
 handler's struct parameter:
 
@@ -313,15 +400,16 @@ handler's struct parameter:
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
-ui.Mount(DataTable{Rows: p.rows}, ui.Emit("rowClick", p.Open), ui.Emit("delete", p.Remove), ui.Load())
+table := ui.Mount(DataTable{Rows: p.rows}, ui.Emit("rowClick", p.Open), ui.Emit("delete", p.Remove), ui.Load())
 ```
 :::
 
 ## Pages backed by a component
 
-A page can be a component: put `@web.Live` on an `@ui.Island` struct
-embedding `ui.Live`, and the page's template is the component file (here
+A page can be a component: <span class="vuka-only">put `@web.Live` on an `@ui.Island` struct
+embedding `ui.Live`</span><span class="go-only">route a struct embedding `ui.Live` with `web.Routes.Live` and the `ui.Island(…)` option, its `Render` returning `ui.IslandPage`</span>, and the page's template is the component file (here
 `web/islands/Orders.vue`). The struct says what the page holds; the
 component reads it, sets what it may and calls the rest.
 
@@ -367,6 +455,7 @@ type Orders struct {
 	Q       string  // the component sets it; kept in the address's ?q=
 	Status  string  // set at once, no wait
 	Rows    []Order // read only
+	page    int     // the server's own, as db is
 	db      *DB     // the server's own: injected, never sent
 }
 
@@ -381,7 +470,12 @@ func (o *Orders) LiveSchema(l *ui.LiveSchema) {
 
 func (o *Orders) mount(ctx context.Context) error                 { return o.load(ctx) }
 func (o *Orders) changed(ctx context.Context, c ui.Changed) error { return o.load(ctx) } // after the component sets Q or Status
-func (o *Orders) Cancel(ctx context.Context, id int64) error      { … }                  // callable from the component
+func (o *Orders) Cancel(ctx context.Context, id int64) error      { return o.db.Cancel(ctx, id) } // callable from the component
+
+func (o *Orders) load(ctx context.Context) (err error) {
+	o.Rows, _, err = o.db.Orders(ctx, o.Q, o.page)
+	return err
+}
 
 // Render is the component file: web/islands/Orders.vue.
 func (o *Orders) Render() ui.Node { return ui.IslandPage(o) }
@@ -392,11 +486,20 @@ func init() {
 ```
 :::
 
+::: vuka
 A stateless page — no connection, each call a signed POST — is `@web.Get`
 on a struct without `ui.Live`. `@web.Get` on one with `ui.Live` is a live
 page too, as before; `vuka vet` and the editor suggest `@web.Live` for it.
 `@web.Live`'s options work as for any live page: `web.Layout`, the type's
 gates.
+:::
+
+::: go
+A stateless page — no connection, each call a signed POST — is
+`web.Routes.Get(path, NewT, ui.Island(…))` on a struct without `ui.Live`.
+`web.Routes.Live`'s options work as for any live page: `web.Layout`, gates
+such as `auth.Required()`.
+:::
 
 ```vue
 <script setup lang="ts">
@@ -423,18 +526,18 @@ const live = useLive<Orders>()
   the server changes it. Unexported fields are the server's — dependencies
   of provided types are injected into them, as into other components — and
   never reach the browser.
-- **`@ui.Bind` fields are the ones the component sets**:
+- **<span class="vuka-only">`@ui.Bind`</span><span class="go-only">`ui.Bind{}`</span> fields are the ones the component sets**:
   `live.q.set(v)`, or `live.q.value = v` (so `v-model="live.q.value"`).
   The value is the browser's at once; the set is sent after a pause
-  (300ms; `@ui.Bind{Debounce: 500 * time.Millisecond}` to change it, a
+  (300ms; <span class="vuka-only">`@ui.Bind{Debounce: 500 * time.Millisecond}`</span><span class="go-only">`ui.Bind{Debounce: 500 * time.Millisecond}`</span> to change it, a
   negative one for none; `set(v, { now: true })` sends it straight away),
   and the sets of several fields within one pause go as one update. The
-  server sets the fields, runs the `@ui.OnChange` hook if the page has one
+  server sets the fields, runs the <span class="vuka-only">`@ui.OnChange`</span><span class="go-only">`l.OnChange`</span> hook if the page has one
   — `func(ctx context.Context, c ui.Changed) error`; its dependencies are
   the struct's injected fields, as for the other methods — and answers
   with the props. `c` says which fields the update set
   ([which fields changed](#which-fields-changed)). A field without
-  `@ui.Bind` has no `set` and its `value` is read only, in the types and
+  <span class="vuka-only">`@ui.Bind`</span><span class="go-only">`ui.Bind`</span> has no `set` and its `value` is read only, in the types and
   on the server, which refuses a set of it (403, as `live.error`).
 - **Exported methods are what the component calls**: `live.cancel(id)`
   returns a promise; the arguments are JSON, checked against the method's
@@ -444,20 +547,20 @@ const live = useLive<Orders>()
   fields}`, `fields` from a `web.Invalid{"q": "…"}`. A `web.Redirect`
   navigates. Calls and sets go one at a time, in order; a method waits for
   the sets before it. `Render`, `Update`, `Info` and the hooks
-  (`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`) aren't callable — a hook may
+  (<span class="vuka-only">`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`</span><span class="go-only">those `LiveSchema` sets: `l.Mount`, `l.OnChange`, `l.Loads`</span>) aren't callable — a hook may
   be unexported — and a method and a field can't share a name on `live`
   (the app doesn't start).
-- **`@ui.Defer("group")` fields** aren't in the first render: the group's
+- **<span class="vuka-only">`@ui.Defer("group")`</span><span class="go-only">`ui.Defer("group")`</span> fields** aren't in the first render: the group's
   loader sends them after it, and the component reads them as pending
   until then — [deferred fields](#deferred-fields).
-- **`@ui.URL("name")` fields** are filled from the query when the page loads,
+- **<span class="vuka-only">`@ui.URL("name")`</span><span class="go-only">`ui.URL("name")`</span> fields** are filled from the query when the page loads,
   and when they change the address follows (`history.replaceState`), so a
   reload or a shared link shows the same page.
 - **Live** (`ui.Live` embedded): the struct is the live view, its Render the
-  island (the compiler writes it). A set or a call is a live event on the
+  island (<span class="vuka-only">the compiler writes it</span><span class="go-only">`ui.IslandPage(x)`</span>). A set or a call is a live event on the
   server's instance; the fields it changes reach the component, with no
   remount. Mount, `Subscribe` and `Update` (broadcasts), `PushJS` and the
-  type's gates work as for any live view; on a patch, an `Update` taking
+  type's gates work as for any live view; on a patch, an `Update` <span class="go-only">(`UpdateURLParams`)</span> taking
   [`web.URLParams`](/web/navigation#patch-or-navigate) takes the new URL
   (the fields are the page's own: it sets what follows from it).
 - **Stateless** (no `ui.Live`): no connection. A set or a call posts the
@@ -467,7 +570,7 @@ const live = useLive<Orders>()
   builds the struct again from them, injects its dependencies, runs its
   Mount hook, then the set and its OnChange hook or the method, and answers with the new props,
   signed again. Changed props are refused. Calls are refused cross-origin
-  and pass the type's gates (`@auth.Required`…) like the page.
+  and pass the <span class="vuka-only">type's gates (`@auth.Required`…)</span><span class="go-only">route's gates (`auth.Required()`…)</span> like the page.
 - **The visitor** is known to every island's component: `$vuka` in Vue
   templates (`useVuka()` in script), `useVuka()` in React, and
   `const vuka = useVuka()` (a store, `$vuka.user`) in Svelte —
@@ -511,14 +614,14 @@ to it in `tsconfig.json`, which also lets Vue's compiler read
 { "compilerOptions": { "paths": { "vuka:live": ["./vuka-live"] } } }
 ```
 
-From Go the decorator is the route's option:
+<span class="vuka-only">From Go the decorator is the route's option:</span><span class="go-only">On one app:</span>
 `app.Live(path, NewT, ui.Island(opts…))` for a live page and
 `app.Get(path, NewT, ui.Island(opts…))` for a stateless one, the component's
-path inferred as bare `@ui.Island` infers it.
+path inferred as <span class="vuka-only">bare `@ui.Island` infers it</span><span class="go-only">a bare `ui.RegisterIsland` infers it</span>.
 
 ### Layouts
 
-`ui.Layout` in the decorator is the layout of the page the type backs:
+`ui.Layout` in <span class="vuka-only">the decorator</span><span class="go-only">the `ui.Island(…)` option</span> is the layout of the page the type backs:
 the page is `layout(component)`. A layout is a `func(page ui.Node)
 ui.Node` — what `layouts.Page("Orders")` returns — or a `func(ctx
 context.Context, page ui.Node) ui.Node`, which reads the request as a
@@ -542,7 +645,12 @@ func Admin(title string) func(context.Context, ui.Node) ui.Node {
 // layouts/admin.go
 func Admin(title string) func(context.Context, ui.Node) ui.Node {
 	return func(ctx context.Context, page ui.Node) ui.Node {
-		return Document(title, Shell(auth.Current(ctx), web.Request(ctx).URL.Path, title, page))
+		return Document{Title: title, Children: Shell{
+			Me:       auth.Current(ctx),
+			Path:     web.Request(ctx).URL.Path,
+			Title:    title,
+			Children: page,
+		}}
 	}
 }
 ```
@@ -569,12 +677,12 @@ layouts.Sidebar)` is `Page(Sidebar(component))`. The page's layout is the
 first of:
 
 1. `ui.Layout` on the island,
-2. `web.Layout` on the route (`@web.Live("/x", web.Layout(…))`),
+2. `web.Layout` on the route (<span class="vuka-only">`@web.Live("/x", web.Layout(…))`</span><span class="go-only">`web.Routes.Live("/x", NewX, web.Layout(…))`</span>),
 3. the app's `web.LiveLayout`,
 4. a bare document.
 
 The layout applies only where the type is routed as a page: placed inside
-another page, the island ignores it (hover on the decorator says so).
+another page, the island ignores it<span class="vuka-only"> (hover on the decorator says so)</span>.
 
 The layout decides the `<title>`. A type with a `Title() string` method
 gives the page's title: the bare document uses it (else the type's name),
@@ -591,8 +699,9 @@ its marked link following the path.
 
 `validate:` tags on a method's arguments, and the `validate` attributes of
 a page's bound fields, are checked on the server before anything runs,
-live and stateless alike:
+live and stateless alike<span class="go-only"> — a bound field's rules are given to `l.Field`, and a method may check its argument itself, answering with a `web.Invalid` as below</span>:
 
+::: vuka
 ```vuka
 type Filter struct {
     Years int   `json:"years" validate:"min=1,max=40"`
@@ -611,12 +720,48 @@ type Orders struct {
 
 func (o *Orders) Narrow(ctx context.Context, f Filter) error { … }
 ```
+:::
+
+::: go
+```go
+type Filter struct {
+	Years int   `json:"years"`
+	Level Level `json:"level"`
+}
+
+type Level struct {
+	Code string `json:"code"`
+}
+
+// Orders as above, its Q with a rule.
+func (o *Orders) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&o.Q, ui.Bind{}, ui.URL("q"), validate.Max(50))
+}
+
+// Narrow checks its argument itself: a web.Invalid answers 422, its keys
+// the fields' paths.
+func (o *Orders) Narrow(ctx context.Context, f Filter) error {
+	bad := web.Invalid{}
+	if f.Years < 1 || f.Years > 40 {
+		bad["years"] = "between 1 and 40"
+	}
+	if len(f.Level.Code) != 3 {
+		bad["level.code"] = "exactly 3 characters"
+	}
+	if len(bad) > 0 {
+		return bad
+	}
+	// …
+	return nil
+}
+```
+:::
 
 The rules: `required` (not the zero value), `omitempty` (skip the rest when
 it is), `min=n`, `max=n` and `len=n` (a string's characters, a number's
 value, a slice's or map's items), `oneof=a b c` and `email`, comma
 separated; the attributes of package `ui/validate` are the same rules
-(`@validate.Required`, `@validate.Max(50)`, `@validate.OneOf{"a", "b"}`).
+(<span class="vuka-only">`@validate.Required`, `@validate.Max(50)`, `@validate.OneOf{"a", "b"}`</span><span class="go-only">`validate.Required{}`, `validate.Max(50)`, `validate.OneOf{"a", "b"}`, given to `l.Field`</span>).
 A tag with another rule, or a bad value (`max=five`), stops the app at
 start.
 
@@ -643,7 +788,7 @@ start.
   that field's message (`"city: required"` for one inside it), or `null`.
   What was typed stays in the input, shown with its error, until the field
   is set again (a valid set clears the error) or a method succeeds; any
-  other refusal (a field without `@ui.Bind`) puts the server's value back.
+  other refusal (a field without <span class="vuka-only">`@ui.Bind`</span><span class="go-only">`ui.Bind`</span>) puts the server's value back.
 
 ```vue
 <input v-model="live.q.value" />
@@ -658,6 +803,7 @@ component the same way.
 Several fields set within one pause reach the OnChange hook as one
 update; its `ui.Changed` says which:
 
+::: vuka
 ```vuka
 @ui.OnChange
 func (o *Orders) changed(ctx context.Context, changed ui.Changed) error {
@@ -667,6 +813,19 @@ func (o *Orders) changed(ctx context.Context, changed ui.Changed) error {
     return o.load(ctx)
 }
 ```
+:::
+
+::: go
+```go
+// the hook l.OnChange(o.changed) sets
+func (o *Orders) changed(ctx context.Context, changed ui.Changed) error {
+	if changed.Has("status") {
+		o.page = 1 // a new filter starts at the first page
+	}
+	return o.load(ctx)
+}
+```
+:::
 
 `changed.Names()` are the wire names of the fields the update set — the
 prop's json name, else the Go name — sorted. `changed.Has(name)` takes
@@ -675,16 +834,16 @@ the wire name, the handle (`live.q`'s `q`) or the Go name (`Q`), so
 
 ### Deferred fields
 
-A field with `@ui.Defer("group")` isn't in the page's first render: the page
+A field with <span class="vuka-only">`@ui.Defer("group")`</span><span class="go-only">`ui.Defer("group")`</span> isn't in the page's first render: the page
 paints, the component mounts, and the field follows once the server has
 it. Nothing in the component asks for it — a slow count or the first
 tab's rows don't hold up the page.
 
 ::: vuka
 ```vuka
-@web.Live("/orders")
-@ui.Island(ui.Layout(layouts.Page("Orders")))
-type Orders struct {
+@web.Live("/overview")
+@ui.Island(ui.Layout(layouts.Page("Overview")))
+type Overview struct {
     ui.Live
     Q      string     @ui.Bind @ui.URL("q")
     Stats  OrderStats `json:"stats"` @ui.Defer("stats")
@@ -694,14 +853,14 @@ type Orders struct {
 }
 
 @ui.Loads("stats")
-func (o *Orders) loadStats(ctx context.Context) error {
+func (o *Overview) loadStats(ctx context.Context) error {
     s, err := o.db.Stats(ctx)
     o.Stats = s
     return err
 }
 
 @ui.Loads("lists")
-func (o *Orders) loadLists(ctx context.Context) error {
+func (o *Overview) loadLists(ctx context.Context) error {
     rows, total, err := o.db.Orders(ctx, o.Q, 1)
     o.Rows, o.Total = rows, total
     return err
@@ -711,7 +870,7 @@ func (o *Orders) loadLists(ctx context.Context) error {
 
 ::: go
 ```go
-type Orders struct {
+type Overview struct {
 	ui.Live
 	Q     string
 	Stats OrderStats `json:"stats"`
@@ -720,9 +879,9 @@ type Orders struct {
 	db    *DB
 }
 
-func NewOrders(db *DB) *Orders { return &Orders{db: db} }
+func NewOverview(db *DB) *Overview { return &Overview{db: db} }
 
-func (o *Orders) LiveSchema(l *ui.LiveSchema) {
+func (o *Overview) LiveSchema(l *ui.LiveSchema) {
 	l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
 	l.Field(&o.Stats, ui.Defer("stats"))
 	l.Field(&o.Rows, ui.Defer("lists")) // Rows and Total load together
@@ -731,29 +890,29 @@ func (o *Orders) LiveSchema(l *ui.LiveSchema) {
 	l.Loads("lists", o.loadLists)
 }
 
-func (o *Orders) loadStats(ctx context.Context) error {
+func (o *Overview) loadStats(ctx context.Context) error {
 	s, err := o.db.Stats(ctx)
 	o.Stats = s
 	return err
 }
 
-func (o *Orders) loadLists(ctx context.Context) error {
+func (o *Overview) loadLists(ctx context.Context) error {
 	rows, total, err := o.db.Orders(ctx, o.Q, 1)
 	o.Rows, o.Total = rows, total
 	return err
 }
 
-func (o *Orders) Render() ui.Node { return ui.IslandPage(o) }
+func (o *Overview) Render() ui.Node { return ui.IslandPage(o) }
 
 func init() {
-	web.Routes.Live("/orders", NewOrders, ui.Island(ui.Layout(layouts.Page("Orders"))))
+	web.Routes.Live("/overview", NewOverview, ui.Island(ui.Layout(layouts.Page("Overview"))))
 }
 ```
 :::
 
-- **Groups and loaders.** `@ui.Defer("lists")` puts the field in the group
-  `lists`. Each group has one loader, the method marked `@ui.Loads("lists")`
-  (`l.Loads("lists", o.loadLists)` in Go), a `func(ctx context.Context)
+- **Groups and loaders.** <span class="vuka-only">`@ui.Defer("lists")`</span><span class="go-only">`ui.Defer("lists")`</span> puts the field in the group
+  `lists`. Each group has one loader, <span class="vuka-only">the method marked `@ui.Loads("lists")`
+  (`l.Loads("lists", o.loadLists)` in Go)</span><span class="go-only">the method `l.Loads("lists", o.loadLists)` names</span>, a `func(ctx context.Context)
   error`. A missing loader stops the app at start (E0324), as does a
   deferred field the component binds or the URL keeps (E0323). A loader
   isn't on `live`: the component can't call it.
@@ -773,7 +932,7 @@ func init() {
   `live.stats.value` is `undefined` (and `pending` true) until its group
   arrives; if its loader fails, `pending` turns false and `error` is
   `{status, message}` — a `web.Error`'s message, or `"error"` (the cause
-  is logged; under `vuka run`, its text). The page itself is fine: the
+  is logged; under <span class="vuka-only">`vuka run`</span><span class="go-only">`web.Dev()`</span>, its text). The page itself is fine: the
   other groups arrive, methods and sets work.
 
 ```vue
@@ -841,22 +1000,46 @@ its own. How they're bundled depends on the framework:
   style out of the box. An `app.css` (`@import "tailwindcss"; @import "@nuxt/ui";`)
   is the CSS entry; the command serves the built island CSS automatically.
 
-::: go
-The island bundle is built by the `vuka` command from a module's `.vuka`
-sources. A module written only in Go doesn't get one from `go build` yet:
-keep the pages that place islands in `.vuka` files, or build the bundle
-with `vuka build`.
-:::
-
 `vuka doctor` lists each island with what builds it — the in-process
 esbuild, the project's Vite, or Node — and what is missing for it.
 
+::: vuka
 `vuka build` compiles the islands into the binary; `vuka build` + `go build`
 ship one binary. In development, `vuka run` rebuilds the islands when a file
 their build reads changes: the island's source and what it imports, and with a
 Vite frontend anything under its root (`vite.config`, `app.css`, shared
 components, `_setup`, `package.json`) and the directories `app.css` names
 with `@source` — not `node_modules`, `dist` or `.d.ts` files.
+:::
+
+::: go
+`go tool vuka build-islands` builds the islands a module registers
+(`ui.RegisterIsland`, a route's `ui.Island` option) from the source alone,
+into the frontend's build directory, where `//go:embed` picks them up; it
+also writes `islands.d.ts` and `vuka-live.d.ts` beside the components. Run
+it after the frontend's own build (`vite build` empties its `dist`), as a
+`go:generate` step, and `go build` ships one binary. In development,
+`web.Dev()` runs `vuka build-islands -watch` beside the app under `go run`
+(`VUKA_DEV=1`), rebuilding the islands when a file their build reads
+changes. The command is a tool of the module:
+`go get -tool github.com/vuka-lang/vuka/cmd/vuka`. The main package
+carries both directives — `//go:generate go tool vuka build-islands`, and
+`//go:embed all:web/dist` above `var dist embed.FS` — and serves the build:
+
+<!-- go:context
+var dist embed.FS
+-->
+
+```go
+func main() {
+	app := web.New(web.Frontend(dist, "web/dist"), web.Dev())
+	app.Live("/orders", NewOrders, ui.Island(ui.Layout(layouts.Page("Orders"))))
+	if err := app.Run(""); err != nil {
+		log.Fatal(err)
+	}
+}
+```
+:::
 
 ### Scaffold
 
@@ -875,7 +1058,7 @@ island app — register a Vue plugin, Pinia, or global components there.
 
 ## How it works
 
-`<ui.Island>` renders a self-describing host element the client loader
+<span class="vuka-only">`<ui.Island>`</span><span class="go-only">An island (`ui.Mount`)</span> renders a self-describing host element the client loader
 hydrates:
 
 ```html
@@ -906,5 +1089,5 @@ back as ordinary live events. A page's deferred fields are left out of
   component's JS and provide its CSS through the app's stylesheet.
 - A function prop calls its handler with one payload, its first argument.
 - An imported component's props must be typed (a `.jsx` or untyped Svelte
-  component needs the `@ui.Island` form).
+  component needs <span class="vuka-only">the `@ui.Island` form</span><span class="go-only">its props declared as a Go struct</span>).
 - HMR off the Vite dev server (rather than a rebuild per change) is planned.

@@ -1,10 +1,27 @@
 # Observability
 
+<!-- go:context
+type User struct {
+	orm.Model[User]
+	ID   int64
+	Name string
+}
+
+type Post struct {
+	orm.Model[Post]
+	ID     int64
+	Author orm.FK[User]
+}
+
+func logQuery(ctx context.Context, q orm.QueryInfo) {}
+-->
+
 ## Observers
 
 Every statement passes through observers — the hook for logging, tracing,
 metrics, a debug toolbar, or counting queries in tests:
 
+::: vuka
 ```vuka
 stop := orm.Observe(func(ctx context.Context, q orm.QueryInfo) {
 	slog.DebugContext(ctx, "sql", "sql", q.SQL, "db", q.DB, "dur", q.Duration, "rows", q.Rows, "err", q.Err)
@@ -13,6 +30,19 @@ defer stop()
 
 ctx = orm.WithObserver(ctx, logQuery)   // one context's statements only
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+stop := orm.Observe(func(ctx context.Context, q orm.QueryInfo) {
+	slog.DebugContext(ctx, "sql", "sql", q.SQL, "db", q.DB, "dur", q.Duration, "rows", q.Rows, "err", q.Err)
+})
+defer stop()
+
+ctx = orm.WithObserver(ctx, logQuery) // one context's statements only
+```
+:::
 
 | `orm.QueryInfo` field | |
 |---|---|
@@ -30,6 +60,7 @@ statement `n` times — the N+1 that
 [`SelectRelated` or `PrefetchRelated`](/orm/queries#relations) would read in
 one query:
 
+::: vuka
 ```vuka
 ctx = orm.WatchRepeats(ctx, 5, func(ctx context.Context, sql string, times int) {
 	slog.WarnContext(ctx, "repeated query", "sql", sql, "times", times)
@@ -40,6 +71,26 @@ for _, p := range posts {
 	p.Author.Get(ctx)?          // an N+1: SelectRelated(Post.Author) reads it in one
 }
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+ctx = orm.WatchRepeats(ctx, 5, func(ctx context.Context, sql string, times int) {
+	slog.WarnContext(ctx, "repeated query", "sql", sql, "times", times)
+})
+
+posts, err := orm.Objects[Post]().All(ctx)
+if err != nil {
+	return err
+}
+for _, p := range posts {
+	if _, err := p.Author.Get(ctx).Get(); err != nil { // an N+1: SelectRelated("author") reads it in one
+		return err
+	}
+}
+```
+:::
 
 Put it on each request's context in development, and on tests' contexts with
 a `warn` that fails the test.
@@ -50,9 +101,18 @@ a `warn` that fails the test.
 each statement slower than `d`, through `orm.Logger(l)` (else
 `slog.Default()`):
 
+::: vuka
 ```vuka
 orm.Declare("analytics", os.Getenv("ANALYTICS_URL"), orm.SlowQuery(200 * time.Millisecond))
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+analytics := orm.Declare("analytics", os.Getenv("ANALYTICS_URL"), orm.SlowQuery(200*time.Millisecond))
+```
+:::
 
 Slow queries and state changes are all a supervised database logs.
 
@@ -61,11 +121,22 @@ Slow queries and state changes are all a supervised database logs.
 `orm.ObserveState(fn)` is told every state change of a declared database or
 replica — `Connecting`, `Up`, `Degraded`, `Down` — for alerts and metrics:
 
+::: vuka
 ```vuka
 stop := orm.ObserveState(func(e orm.StateEvent) {
 	slog.Warn("database", "db", e.DB, "replica", e.Replica, "from", e.From, "to", e.To, "err", e.Err)
 })
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+stop := orm.ObserveState(func(e orm.StateEvent) {
+	slog.Warn("database", "db", e.DB, "replica", e.Replica, "from", e.From, "to", e.To, "err", e.Err)
+})
+```
+:::
 
 ## Stats
 

@@ -8,8 +8,8 @@ are, and `Post.Objects` is its query.
 
 ::: go
 A model is a struct embedding `orm.Model[T]`. Its fields are its columns, its
-`Schema` method says what the columns are, and `orm.For[Post]()` is its
-manager, declared once at package level.
+`Schema` method says what the columns are, and `orm.Objects[Post]()` is its
+manager.
 :::
 
 ::: vuka
@@ -87,12 +87,6 @@ func (p *Post) Schema(s *orm.Schema) {
 	s.Field(&p.Published, orm.Index{})
 	s.Field(&p.Views, orm.DefaultTo(0))
 }
-
-var (
-	Users = orm.For[User]()
-	Tags  = orm.For[Tag]()
-	Posts = orm.For[Post]()
-)
 ```
 :::
 
@@ -106,24 +100,42 @@ value.</span><span class="vuka-only"> Vuka writes them into the model's
 attribute is its zero value (`@orm.PK` is `orm.PK{}`), and a type that
 declares `Schema` itself can't have attributes too (E0129).</span>
 
+::: vuka
 ## orm.Base
 
 `orm.Base` is a Vuka model's base; Vuka fills in the type, so `orm.Base` in
-`Post` is `orm.Base[Post]`, and its static `Objects` is the model's
-manager (`orm.Objects[Post]()` in Go). It gives the rows their methods:
+`Post` is `orm.Base[Post]`. It gives the rows their methods:
 
 | | |
 |---|---|
 | `p.Save(ctx)` | inserts a new row (its key filled in), updates a saved one |
-| `p.SaveFields(ctx, Post.Title, …)` | updates only those columns (in Go `PostFields.Title`, or names: `"title"`) |
+| `p.SaveFields(ctx, Post.Title, …)` | updates only those columns (or names: `"title"`) |
 | `p.Refresh(ctx)` | reads the row again |
 | `p.Delete(ctx)` | deletes it |
 | `p.Load(ctx, Post.Tags, …)` | reads relations into the row |
 | `p.Add(ctx, Post.Tags, rows…)`, `Remove`, `Set` | changes a many-to-many's links |
 
-and a static, `Post.Objects`: the model's [manager](/orm/queries),
-`orm.Objects[Post]()` in Go. A [static method](/features/statics) names a
-query:
+and a static, `Post.Objects`: the model's [manager](/orm/queries). A
+[static method](/features/statics) names a query:
+:::
+
+::: go
+## orm.Model
+
+`orm.Model[Post]`, embedded by value, gives the rows their methods:
+
+| | |
+|---|---|
+| `p.Save(ctx)` | inserts a new row (its key filled in), updates a saved one |
+| `p.SaveFields(ctx, PostFields.Title, …)` | updates only those columns (or names: `"title"`) |
+| `p.Refresh(ctx)` | reads the row again |
+| `p.Delete(ctx)` | deletes it |
+| `p.Load(ctx, PostFields.Tags, …)` | reads relations into the row |
+| `p.Add(ctx, "tags", rows…)`, `Remove`, `Set` | changes a many-to-many's links |
+
+`orm.Objects[Post]()` is the model's [manager](/orm/queries). A named query
+is a package-level function:
+:::
 
 ::: vuka
 ```vuka
@@ -137,15 +149,20 @@ n := Post.Live().Count(ctx)?
 ::: go
 ```go
 // PostLive is the published posts.
-func PostLive() orm.QuerySet[Post] { return Posts.Filter(PostFields.Published.IsNull(false)) }
+func PostLive() orm.QuerySet[Post] {
+	return orm.Objects[Post]().Filter(PostFields.Published.IsNull(false))
+}
+```
 
+<!-- go:fragment -->
+```go
 n, err := PostLive().Count(ctx)
 ```
 :::
 
 ## Meta
 
-`@orm.Meta{…}` on the embedded base describes the model:
+<span class="vuka-only">`@orm.Meta{…}` on the embedded base</span><span class="go-only">`s.Model(orm.Meta{…})` in `Schema`</span> describes the model:
 
 | `orm.Meta` field | |
 |---|---|
@@ -157,10 +174,12 @@ n, err := PostLive().Count(ctx)
 | `Mirror` | a database its writes are repeated on |
 | `Unmanaged` | the database's own table: never created or migrated |
 
-A `Meta() orm.Meta` method works too, and wins. `@orm.Meta{…} @orm.Entity` on
+A `Meta() orm.Meta` method works too, and wins. <span class="vuka-only">`@orm.Meta{…} @orm.Entity` on
 the type itself is the other spelling; the `orm.Entity` type decorator also
 registers the model at start-up, so `orm.Check` and the migration commands
-know it without `orm generate`:
+know it without `orm generate`:</span><span class="go-only">`orm.Register[Entry]()` at
+init registers a model at start-up, so `orm.Check` and the migration commands
+know it without `orm generate`:</span>
 
 ::: vuka
 ```vuka
@@ -184,13 +203,15 @@ type Entry struct {
 
 func (e *Entry) Schema(s *orm.Schema) { s.Model(orm.Meta{Table: "audit_entries"}) }
 
-var Entries = orm.For[Entry]() // registers the model
+func init() { orm.Register[Entry]() }
 ```
 :::
 
 ## Field attributes
 
-Attributes say what tags say, and win over them:
+Attributes say what tags say, and win over them.<span class="go-only"> In Go each
+is the value given to `s.Field` after the field's address: `@orm.Char{Max: n}`
+is `orm.Char{Max: n}`, a bare `@orm.Unique` is `orm.Unique{}`.</span>
 
 | Attribute | Column |
 |---|---|
@@ -238,12 +259,16 @@ name := p.Author.Related().Name     // nil until loaded
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
 p := Post{Title: "Go generics", Author: orm.FKOf(&ada)} // from a row
 q := Post{Title: "SQL", Author: orm.FKID[User](7)}       // from a key
 
 author, err := p.Author.Get(ctx).Get() // read once, then held
-name := p.Author.Related().Name        // nil until loaded
+if err != nil {
+	return err
+}
+name := p.Author.Related().Name // nil until loaded
 ```
 :::
 
@@ -271,12 +296,22 @@ p.Tags.Clear(ctx)?
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
-err := p.Tags.Add(ctx, &golang, &tools)
+if err := p.Tags.Add(ctx, &golang, &tools); err != nil {
+	return err
+}
 tags, err := p.Tags.All(ctx).Get() // the rows held, else read
-err = p.Tags.Remove(ctx, &tools)
-err = p.Tags.Set(ctx, &golang) // its only links
-err = p.Tags.Clear(ctx)
+if err != nil {
+	return err
+}
+if err := p.Tags.Remove(ctx, &tools); err != nil {
+	return err
+}
+if err := p.Tags.Set(ctx, &golang); err != nil { // its only links
+	return err
+}
+return p.Tags.Clear(ctx)
 ```
 :::
 
@@ -284,10 +319,10 @@ err = p.Tags.Clear(ctx)
 `Set`, `Clear` (on a saved row; rows or keys), `Rows` and `Loaded` (what
 `PrefetchRelated` loaded).
 
-A model's typed fields go on through them into the related model: `Post.Author.Name`,
-`Post.Tags.Name`.
+A model's typed fields go on through them into the related model: <span class="vuka-only">`Post.Author.Name`,
+`Post.Tags.Name`</span><span class="go-only">`PostFields.Author.Name`, `PostFields.Tags.Name`</span>.
 
-`@orm.Rel` describes a relation:
+<span class="vuka-only">`@orm.Rel`</span><span class="go-only">`orm.Rel`</span> describes a relation:
 
 | `orm.Rel` field | |
 |---|---|
@@ -303,6 +338,11 @@ engine's lookups, `orm.Q{"posts__views__gt": 60}`.
 
 ## Option fields
 
+<!-- go:context
+var ada, golang, tools = User{}, Tag{}, Tag{}
+var p Post
+-->
+
 An `Option[T]` field is a nullable column: `None` is NULL.
 
 ::: vuka
@@ -313,14 +353,15 @@ drafts := Post.Objects.Filter(Post.Published.IsNil()).All(ctx)?
 :::
 
 ::: go
+<!-- go:fragment -->
 ```go
 p.Published = vuka.Some(time.Now())
-drafts, err := Posts.Filter(PostFields.Published.IsNull(true)).All(ctx)
+drafts, err := orm.Objects[Post]().Filter(PostFields.Published.IsNull(true)).All(ctx)
 ```
 :::
 
-Its reference is a `vuka.NullableRef`: `IsNil`, `NotNil`, and `Eq`, `Ne`,
-`In`.
+<span class="vuka-only">Its reference is a `vuka.NullableRef`: `IsNil`, `NotNil`, and `Eq`, `Ne`,
+`In`.</span><span class="go-only">Its typed field is an `orm.Field[V]` with `IsNull` for its NULLs.</span>
 
 ## Plain Go
 
@@ -333,10 +374,10 @@ attributes: `s.Model(…)` takes the model's (`orm.Meta`, any
 
 | Vuka | Go |
 |---|---|
-| `Post.Objects` | `orm.For[Post]()`, kept in a package-level variable |
+| `Post.Objects` | `orm.Objects[Post]()`; `orm.For[Post](opts…)` for a manager with options |
 | `Post.Title` (a field reference) | `PostFields.Title`, written by `ormgen` |
-| `func Post.Live() orm.Query[Post]` | `func PostLive() orm.QuerySet[Post]` |
-| `@orm.Entity` | `orm.For[T]()` registers the model; `orm.Check(models…)` takes others |
+| `func Post.Live() orm.QuerySet[Post]` | `func PostLive() orm.QuerySet[Post]` |
+| `@orm.Entity` | `orm.Register[T]()` at init; `orm.Check(models…)` takes others |
 
 `PostFields` comes from `ormgen` — `//go:generate go run
 github.com/vuka-lang/orm/cmd/ormgen` beside the models — as an

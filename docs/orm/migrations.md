@@ -32,6 +32,7 @@ func init() {
 The program imports the package, so `orm.Migrate` (and the commands) see
 the migrations:
 
+::: vuka
 ```vuka
 import _ "example.com/blog/migrations"
 
@@ -41,6 +42,29 @@ func run(ctx context.Context) error {
 	return orm.Migrate(ctx)                // pending migrations, under a lock
 }
 ```
+:::
+
+::: go
+```go
+import (
+	"context"
+	"os"
+
+	"github.com/vuka-lang/orm"
+	_ "github.com/vuka-lang/orm/postgres"
+	// _ "example.com/blog/migrations": the migrations makemigrations wrote
+)
+
+func run(ctx context.Context) error {
+	db, err := orm.ConnectURL(os.Getenv("DATABASE_URL"))
+	if err != nil {
+		return err
+	}
+	orm.AddDatabase("main", db, orm.AsDefault())
+	return orm.Migrate(ctx) // pending migrations, under a lock
+}
+```
+:::
 
 ## The orm command
 

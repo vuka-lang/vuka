@@ -269,7 +269,8 @@ returned mid-way, or the body of a decorated function — becomes a named
 partial, its parameters the variables it reads, called where the markup
 was:
 
-```go
+::: vuka
+```vuka
 // card.vuka                               // card.go, after vuka eject -rm
 func (c Card) Render() ui.Node {           func (c Card) Render() ui.Node {
 	head := <h2>{c.Title}</h2>                 head := cardHead(c)
@@ -279,6 +280,32 @@ func (c Card) Render() ui.Node {           func (c Card) Render() ui.Node {
 	return wrap(<ul>…</ul>)                    return wrap(cardView2(c))
 }                                          }
 ```
+:::
+
+<!-- go:context
+type Card struct {
+	Title string
+	Items []string
+}
+
+func wrap(n ui.Node) ui.Node                { return n }
+func cardHead(c Card) ui.Node               { return ui.HTML(`<h2>{c.Title}</h2>`, c.Title) }
+func cardView(head ui.Node) ui.Node         { return ui.HTML(`<section>{head}</section>`, head) }
+func cardView2(c Card) ui.Node              { return ui.HTML(`<ul></ul>`) }
+-->
+
+::: go
+```go
+// card.go, after vuka eject -rm
+func (c Card) Render() ui.Node {
+	head := cardHead(c)
+	if len(c.Items) == 0 {
+		return cardView(head)
+	}
+	return wrap(cardView2(c))
+}
+```
+:::
 
 ```html
 <!-- card.vuka.html -->

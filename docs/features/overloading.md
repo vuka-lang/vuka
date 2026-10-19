@@ -5,6 +5,15 @@
 **Vuka adds** functions and methods that share a name and differ in their
 parameters:
 
+<!-- go:context
+type Circle struct{ R float64 }
+
+type Rect struct{ W, H float64 }
+
+type Counter struct{ n int }
+-->
+
+::: vuka
 ```vuka
 func area(c Circle) float64 { return math.Pi * c.R * c.R }
 func area(r Rect) float64   { return r.W * r.H }
@@ -21,39 +30,42 @@ Each call goes to the overload that best fits its arguments' static types:
 identical types first, then an untyped constant's default type (`scale(2)` picks
 `int`, `scale(2.5)` picks `float64`), then anything assignable. No match, or a
 tie, is an error listing the candidates.
-
-## What it becomes
-
-Each overload is named after its parameter types, the way Go names such
-functions, and each call is pointed at one:
-
-::: vuka
-```vuka
-func area(c Circle) float64 { return math.Pi * c.R * c.R }
-func area(r Rect) float64   { return r.W * r.H }
-
-func (c *Counter) Add(by int)    { c.n += by }
-func (c *Counter) Add(a, b int)  { c.n += a + b }
-func (c *Counter) Add(xs ...int) { c.n += len(xs) }
-
-area(Circle{R: 1})
-c.Add(2, 3)
-```
 :::
 
 ::: go
+In Go, each variant has a name of its own, which says what it takes — the
+convention Vuka's overloads compile to as well:
+
 ```go
 func areaCircle(c Circle) float64 { return math.Pi * c.R * c.R }
 func areaRect(r Rect) float64     { return r.W * r.H }
 
-func (c *Counter) AddInt(by int)      { c.n += by }
-func (c *Counter) AddIntInt(a, b int) { c.n += a + b }
-func (c *Counter) AddInts(xs ...int)  { c.n += len(xs) }
+func (c *Counter) AddInt(by int)       { c.n += by }
+func (c *Counter) AddString(by string) { c.n += len(by) }
+func (c *Counter) AddIntInt(a, b int)  { c.n += a + b }
+```
 
-areaCircle(Circle{R: 1})
+<!-- go:fragment -->
+```go
+var c Counter
+fmt.Println(areaCircle(Circle{R: 1}))
 c.AddIntInt(2, 3)
 ```
 :::
+
+## What it becomes
+
+::: vuka
+Each overload is named after its parameter types, the way Go names such
+functions, and each call is pointed at one:
+
+| Vuka | Go |
+|---|---|
+| `func area(c Circle)` | `func areaCircle(c Circle)` |
+| `func area(r Rect)` | `func areaRect(r Rect)` |
+| `func (c *Counter) Add(a, b int)` | `func (c *Counter) AddIntInt(a, b int)` |
+| `func (c *Counter) Add(xs ...int)` | `func (c *Counter) AddInts(xs ...int)` |
+| `area(Circle{R: 1})`, `c.Add(2, 3)` | `areaCircle(Circle{R: 1})`, `c.AddIntInt(2, 3)` |
 
 A parameter's type is written as part of the name: `int` is `Int`,
 `*Shape` `Shape`, `time.Time` `Time`, `[]Order` and `...Order` `Orders`,
@@ -75,3 +87,22 @@ func area(r Rect) float64 { return r.W * r.H }
 
 An overloaded method can't satisfy an interface method of the plain name, and
 generic functions can't be overloaded yet.
+:::
+
+::: go
+Go code calls a `.vuka` package's overloads by those names: a parameter's type
+is part of the name — `int` is `Int`, `*Shape` `Shape`, `time.Time` `Time`,
+`[]Order` and `...Order` `Orders`, `map[string]int` `MapStringInt`, `any`
+`Any` — a leading `context.Context` is left out when more follows, and a name
+the package already has gets a number (`totalOrder2`). The same naming fits
+your own Go: a live component's message handlers are `UpdateNewMessage`,
+`UpdateTyping` ([Stateful components](/ui/stateful#messages)).
+
+```go
+type Order struct{ ID int }
+
+func totalOrder(o Order) int         { return o.ID }
+func totalOrders(os []Order) int     { return len(os) }
+func totalOrderOrder(a, b Order) int { return a.ID + b.ID }
+```
+:::

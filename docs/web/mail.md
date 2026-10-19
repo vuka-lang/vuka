@@ -1,10 +1,11 @@
 # Mail
 
 A welcome email on sign-up, a password reset link, a receipt: inject a
-`*mail.Mailer` and send a `mail.Message`. The body is a JSX or templ
+`*mail.Mailer` and send a `mail.Message`. The body is a <span class="vuka-only">JSX</span><span class="go-only">`ui.Node`</span> or templ
 component, so an email is written like a page; the plain-text part is made
 from it.
 
+::: vuka
 ```vuka
 import "github.com/vuka-lang/web/mail"
 
@@ -36,6 +37,66 @@ func main() {
 	app.Run("")
 }
 ```
+:::
+
+::: go
+<!-- go:context
+type Signup struct{ Name, Email string }
+
+type Owner struct{ ID int }
+
+type Owners struct{}
+
+func (o *Owners) Add(name, email string) Owner { return Owner{} }
+
+func confirmLink(o Owner) string { return "/confirm" }
+
+type Order struct{ ID int }
+
+func Receipt(o Order) ui.Node { return ui.HTML(`<p>Order {o.ID}</p>`, o.ID) }
+
+var (
+	m       *mail.Mailer
+	welcome mail.Message
+	o       Order
+	pdf     []byte
+)
+
+func OpenDB() *Owners { return &Owners{} }
+-->
+
+```go
+// WelcomeEmail is the welcome email's HTML.
+func WelcomeEmail(name string, link string) ui.Node {
+	return ui.HTML(`
+<div style="font-family: system-ui, sans-serif">
+	<h1>Welcome, {name}</h1>
+	<p>Thanks for signing up. Confirm your address within a day:</p>
+	<p><a href={link}>Confirm my address</a></p>
+</div>`, name, link)
+}
+
+func SignUp(ctx context.Context, in Signup, owners *Owners, m *mail.Mailer) (web.Redirect, error) {
+	ow := owners.Add(in.Name, in.Email)
+	err := m.Send(ctx, mail.Message{
+		To:      []string{in.Name + " <" + in.Email + ">"},
+		Subject: "Welcome to Pets",
+		HTML:    WelcomeEmail(in.Name, confirmLink(ow)),
+	})
+	if err != nil {
+		return "", err
+	}
+	return web.Redirect("/signup/sent"), nil
+}
+
+func init() { web.Routes.Post("/signup", SignUp) }
+
+func main() {
+	app := web.New(mail.Provide()) // the Mailer, configured from the environment
+	log.Fatal(app.Run(""))
+}
+```
+:::
 
 `mail` is a package of its own: an app that sends no email doesn't link it.
 
@@ -43,6 +104,7 @@ func main() {
 page's socket joins, so guard the send with `web.IsLiveJoin` (see
 [Side effects in a live page's handler](/web/live#side-effects-in-a-live-page-s-handler)):
 
+::: vuka
 ```vuka
 if !web.IsLiveJoin(ctx) {
 	if err := m.Send(ctx, welcome); err != nil {
@@ -50,6 +112,18 @@ if !web.IsLiveJoin(ctx) {
 	}
 }
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+if !web.IsLiveJoin(ctx) {
+	if err := m.Send(ctx, welcome); err != nil {
+		return err
+	}
+}
+```
+:::
 
 A mail sent from an event handler goes once per event, needing no guard.
 
@@ -98,6 +172,7 @@ the variables.
 
 ## Messages
 
+::: vuka
 ```vuka
 m.Send(ctx, mail.Message{
 	From:    "Pets Support <help@pets.example>",   // else MAIL_FROM
@@ -114,6 +189,27 @@ m.Send(ctx, mail.Message{
 	},
 })
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+err := m.Send(ctx, mail.Message{
+	From:    "Pets Support <help@pets.example>", // else MAIL_FROM
+	To:      []string{"Ada Lovelace <ada@example.com>"},
+	Cc:      []string{"owner@example.com"},
+	Bcc:     []string{"audit@pets.example"}, // receives it, isn't listed
+	ReplyTo: "help@pets.example",
+	Subject: "Your receipt",
+	HTML:    Receipt(o),
+	Text:    "", // made from the HTML when empty
+	Headers: map[string]string{"List-Unsubscribe": "<https://pets.example/unsubscribe>"},
+	Attachments: []mail.Attachment{
+		{Filename: "receipt.pdf", Data: pdf}, // content type from the extension
+	},
+})
+```
+:::
 
 `HTML` is a `ui.Node`: a JSX element, a templ component, or
 `ui.Safe(html)` for HTML you have as a string. It renders with `Send`'s
@@ -132,12 +228,28 @@ value, a file name — is an error, `*mail.InvalidError`, and nothing is sent.
 A line break is how a header injection smuggles in a `Bcc:`, so input from
 a form can go into a subject safely. Tell the visitor:
 
+::: vuka
 ```vuka
 var invalid *mail.InvalidError
 if errors.As(err, &invalid) {
 	return "", web.BadRequest(invalid.Reason)   // To: "x" isn't an email address
 }
 ```
+:::
+
+::: go
+<!-- go:context
+var err error
+-->
+
+<!-- go:fragment -->
+```go
+var invalid *mail.InvalidError
+if errors.As(err, &invalid) {
+	return web.BadRequest(invalid.Reason) // To: "x" isn't an email address
+}
+```
+:::
 
 ## Sending later
 
@@ -172,6 +284,7 @@ with its rendered `HTML` and `Text`, its `Recipients` (Bcc included) and
 the `Raw` MIME message. Package `mailtest` has a quiet log-driver Mailer
 and helpers:
 
+::: vuka
 ```vuka
 func TestSignup(t *testing.T) {
 	m := mailtest.New()   // logs nothing; sender test@example.com
@@ -187,6 +300,29 @@ func TestSignup(t *testing.T) {
 	}
 }
 ```
+:::
+
+::: go
+```go
+func TestSignup(t *testing.T) {
+	m := mailtest.New() // logs nothing; sender test@example.com
+	app := web.New(web.Provide(OpenDB, m))
+	srv := httptest.NewServer(app.Handler())
+	defer srv.Close()
+
+	res, err := http.PostForm(srv.URL+"/signup", url.Values{"name": {"Ada"}, "email": {"ada@example.com"}})
+	if err != nil {
+		t.Fatal(err)
+	}
+	res.Body.Close()
+
+	msg := mailtest.Last(t, m) // fails the test when nothing was sent
+	if msg.Recipients[0] != "ada@example.com" || !strings.Contains(msg.Text, "Welcome, Ada") {
+		t.Errorf("the welcome email: %+v", msg)
+	}
+}
+```
+:::
 
 | | |
 |---|---|

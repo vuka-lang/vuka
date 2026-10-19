@@ -66,6 +66,7 @@ vuka run
 
 ## A taste
 
+::: vuka
 ```vuka
 func lookup(arg string) Result[User] {
 	id := strconv.Atoi(arg)?          // Go's (T, error) works directly
@@ -88,6 +89,53 @@ case Err(e):
 	fmt.Println("error:", e)
 }
 ```
+:::
+
+<!-- go:context
+type User struct{ Name string }
+type Receipt struct{ ID string }
+type NotFound struct{ ID int }
+
+func (e *NotFound) Error() string { return fmt.Sprint("no user ", e.ID) }
+
+func find(id int) (User, error) { return User{}, &NotFound{ID: id} }
+func logged(c *vuka.Call)       { c.Next() }
+func retry(n int) vuka.Decorator { return func(c *vuka.Call) { c.Next() } }
+-->
+
+::: go
+```go
+func lookup(arg string) (User, error) {
+	id, err := strconv.Atoi(arg)
+	if err != nil {
+		return User{}, err
+	}
+	return find(id)
+}
+
+// Decorators are functions; vuka.Wrap puts them around a call.
+var charge = vuka.Wrap(chargeOnce, vuka.FuncInfo{Name: "charge"}, retry(3), logged)
+
+func chargeOnce(ctx context.Context, id int) (Receipt, error) {
+	return Receipt{ID: fmt.Sprint("r-", id)}, nil
+}
+
+func show(arg string) {
+	u, err := lookup(arg)
+	var missing *NotFound
+	switch {
+	case err == nil:
+		fmt.Println(u.Name)
+	case errors.As(err, &missing):
+		fmt.Println("missing user", missing.ID)
+	case errors.Is(err, strconv.ErrSyntax):
+		fmt.Println("not a number:", arg)
+	default:
+		fmt.Println("error:", err)
+	}
+}
+```
+:::
 
 ## Built on Go
 

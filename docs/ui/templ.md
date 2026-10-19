@@ -1,7 +1,9 @@
 # templ interop
 
 `ui.Node` is `templ.Component`, so templ components and Vuka components call
-each other with no adapter.
+each other with no adapter.<span class="go-only"> Below, `.templ` files sit
+beside `.go` files and `.vuka.html` templates, compiled together by the
+`vuka` command (`go tool vuka run`, or `vuka gen` for a plain `go build`).</span>
 
 ## .templ files beside .vuka files
 
@@ -25,6 +27,7 @@ templ Footer(pets []Pet) {
 }
 ```
 
+::: vuka
 ```vuka
 // pets.vuka
 func Page(pets []Pet) ui.Node {
@@ -34,6 +37,29 @@ func Page(pets []Pet) ui.Node {
 	</Shell>
 }
 ```
+:::
+
+::: go
+```go
+// pets.go
+type Pet struct{ Name string }
+
+type PetRow struct{ Pet Pet }
+```
+
+```html
+<!-- pets.vuka.html -->
+func Page(pets []Pet)
+<Shell title="Pets">
+  <table>
+    for _, p := range pets {
+      <PetRow pet={p} />
+    }
+  </table>
+  <Footer pets={pets} />
+</Shell>
+```
+:::
 
 This is a plugin of the vuka command, not of the language: the command links
 templ's parser and generator and turns them on for a module whose go.mod
@@ -46,7 +72,8 @@ A templ component has no `children` parameter: JSX children reach its
 `{ children... }` through `ui.WithChildren` (templ's context). So do the
 children of a component from another package, which may be a templ
 library: templUI works as it is. `templx.WithChildren` is the same function,
-for Go code.
+for Go code<span class="go-only">, and a template's children reach a templ
+component the same way</span>.
 
 ## On live pages
 
@@ -92,6 +119,11 @@ with their parameters' names, and `templx.Components(f)` returns them — for
 a `.templ` file of the package, or of a subdirectory that is a package of
 its own (exported components only):
 
+<!-- go:context
+var view vuka.File
+-->
+
+<!-- go:fragment -->
 ```go
 comps, _ := templx.Components(view)
 for _, c := range comps {

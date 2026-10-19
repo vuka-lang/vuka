@@ -49,6 +49,7 @@ before Go sees the code.
 
 ## See it for yourself
 
+::: vuka
 ```sh
 vuka explain main.vuka
 ```
@@ -60,6 +61,33 @@ main.vuka:28
 ```
 
 `vuka explain -full` prints the whole generated file.
+:::
+
+<!-- go:context
+type User struct{ ID int }
+
+func find(id int) vuka.Result[User] { return vuka.Ok(User{ID: id}) }
+-->
+
+::: go
+`vuka explain main.vuka` shows each Vuka construct beside the Go it becomes,
+and `vuka explain -full` the whole file. What comes out is the Go a person
+writes against the same API — `id := strconv.Atoi(arg)?` in a function
+returning `Result[User]` is:
+
+```go
+func lookup(arg string) vuka.Result[User] {
+	id, err := strconv.Atoi(arg)
+	if err != nil {
+		return vuka.Err[User](err)
+	}
+	return find(id)
+}
+```
+
+with the transpiler's own name for `err`, and a `//line` directive pointing
+at the `.vuka` line.
+:::
 
 ## The build module
 

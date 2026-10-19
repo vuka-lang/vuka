@@ -1,5 +1,35 @@
 # Navigation
 
+<!-- go:context
+type Book struct {
+	ID    int
+	Title string
+}
+
+var books []Book
+
+func bookURL(id int) string    { return "/books/" + strconv.Itoa(id) }
+func shelfURL(page int) string { return "/books?page=" + strconv.Itoa(page) }
+
+func (s *Shelf) show(page int) {}
+
+type User struct{ ID int }
+
+type Order struct {
+	ID    int
+	Owner string
+}
+
+type Orders struct{}
+
+func (o *Orders) Get(ctx context.Context, id int) (Order, error) { return Order{ID: id}, nil }
+
+type BookPage struct{ ui.Live }
+
+func (p *BookPage) shelfPage() int  { return 1 }
+func (p *BookPage) Render() ui.Node { return ui.HTML(`<p>book</p>`) }
+-->
+
 A list you page through, tabs whose choice belongs in the URL, a list and
 the detail page of each row: moving between them should feel instant. A
 live page can move to another URL over the connection it already has —
@@ -7,10 +37,19 @@ no document reload, no new WebSocket, no layout sent again — while the
 address bar, the back button and links opened in a new tab keep working
 as they do for any site.
 
+::: vuka
 ```vuka
 <ui.Link href="/books/7">Dune</ui.Link>                    // navigate: another page
 <ui.Link href={shelfURL(s.page + 1)} patch>Next</ui.Link>  // patch: this page, other parameters
 ```
+:::
+
+::: go
+```html
+<ui.Link href="/books/7">Dune</ui.Link>                        {/* navigate: another page */}
+<ui.Link href={shelfURL(page + 1)} patch>Next</ui.Link>       {/* patch: this page, other parameters */}
+```
+:::
 
 ## Links
 
@@ -38,11 +77,12 @@ page](/web/live) that takes the URL stays mounted and keeps its state: its
 props are bound from the URL again, and the reply is the usual patch — only
 what changed.
 
-A Live page takes the URL with an `Update` overload taking a struct that
+A Live page takes the URL with an `Update` <span class="vuka-only">overload</span><span class="go-only">method (named after the type it takes: `UpdateShelfParams`)</span> taking a struct that
 embeds `web.URLParams`. Its fields bind from the new URL the way a Live
 page's props do (the path segment, else the query parameter, of each
 field's name), and `Update` runs before the patch renders:
 
+::: vuka
 ```vuka
 @web.Live("/books")
 type Shelf struct {
@@ -68,6 +108,45 @@ func (s *Shelf) Render() ui.Node {
 	</section>
 }
 ```
+:::
+
+::: go
+```go
+// shelf.go
+type Shelf struct {
+	ui.Live
+	Page int // ?page=, the first URL
+	rows []Book
+}
+
+type ShelfParams struct {
+	web.URLParams
+	Page int // ?page=
+}
+
+func NewShelf() *Shelf { return &Shelf{} }
+
+func (s *Shelf) LiveSchema(l *ui.LiveSchema) { l.Mount(s.mount) }
+
+func (s *Shelf) mount(ctx context.Context) error { s.show(s.Page); return nil }
+
+func (s *Shelf) UpdateShelfParams(p ShelfParams) { s.show(p.Page) }
+
+func init() { web.Routes.Live("/books", NewShelf) }
+```
+
+```html
+<!-- shelf.vuka.html -->
+<section>
+  <ol>
+    for _, b := range rows {
+      <li key={b.ID}><ui.Link href={bookURL(b.ID)}>{b.Title}</ui.Link></li>
+    }
+  </ol>
+  <ui.Link href={shelfURL(Page + 1)} patch>Next</ui.Link>
+</section>
+```
+:::
 
 `Mount` sees the first URL; `Update` sees each patch. Params that don't
 bind (a `page=x`) make the route answer 400, and the browser loads that URL
@@ -85,6 +164,7 @@ It follows that **`Update` must repeat every check `Mount` makes** of what
 the URL names. A page showing one order checks in `Mount` that the visitor
 may see it; its `Update` checks the new id the same way:
 
+::: vuka
 ```vuka
 @web.Live("/orders/{id}")
 type OrderPage struct {
@@ -110,13 +190,59 @@ func (p *OrderPage) load(ctx context.Context, id int) error {
 	if err != nil {
 		return err
 	}
-	if o.Owner != auth.User[*User](ctx).ID {
+	if id := auth.Current(ctx); id == nil || o.Owner != id.ID {
 		return web.Forbidden
 	}
 	p.order = o
 	return nil
 }
 ```
+:::
+
+::: go
+```go
+type OrderPage struct {
+	ui.Live
+	ID     int
+	Orders *Orders
+	me     *User
+	order  Order
+}
+
+type OrderParams struct {
+	web.URLParams
+	ID int
+}
+
+func NewOrderPage(orders *Orders) *OrderPage { return &OrderPage{Orders: orders} }
+
+func (p *OrderPage) LiveSchema(l *ui.LiveSchema) { l.Mount(p.mount) }
+
+func (p *OrderPage) mount(ctx context.Context) error { return p.load(ctx, p.ID) }
+
+func (p *OrderPage) UpdateOrderParams(ctx context.Context, q OrderParams) error {
+	return p.load(ctx, q.ID)
+}
+
+func (p *OrderPage) load(ctx context.Context, id int) error {
+	o, err := p.Orders.Get(ctx, id)
+	if err != nil {
+		return err
+	}
+	if id := auth.Current(ctx); id == nil || o.Owner != id.ID {
+		return web.Forbidden
+	}
+	p.order = o
+	return nil
+}
+
+func (p *OrderPage) Render() ui.Node {
+	return ui.HTML(`<h1>Order {p.order.ID}</h1>`, p.order.ID)
+}
+
+func init() { web.Routes.Live("/orders/{id}", NewOrderPage) }
+```
+:::
 
 An error `Update` returns fails the patch: nothing of the page stays
 mounted to take events, and the browser loads the URL, so the route answers
@@ -134,17 +260,36 @@ layout's markup isn't sent again, only the parts that differ.
 
 A handler moves the page once its reply is applied:
 
+::: vuka
 ```vuka
 func (p *BookPage) Done() { p.PushNavigate(shelfURL(p.shelfPage())) }
 func (p *BookPage) Random() { p.PushPatch(bookURL(rand.IntN(len(books)) + 1)) }
 ```
+:::
+
+::: go
+```go
+func (p *BookPage) Done()   { p.PushNavigate(shelfURL(p.shelfPage())) }
+func (p *BookPage) Random() { p.PushPatch(bookURL(rand.IntN(len(books)) + 1)) }
+```
+:::
 
 In a [JS command](/ui/js) chain, `Patch(href)` and `Navigate(href)` do it
 from the browser, after the steps before them:
 
+::: vuka
 ```vuka
 <button onClick={ui.JS.AddClass(ui.This, "going").Navigate("/books")}>All books</button>
 ```
+:::
+
+::: go
+<!-- go:fragment -->
+```go
+all := ui.JS.AddClass(ui.This, "going").Navigate("/books")
+button := ui.HTML(`<button onClick={all}>All books</button>`, all)
+```
+:::
 
 ## From an island
 
