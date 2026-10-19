@@ -69,27 +69,75 @@ func main() {
 		web.Frontend(dist, "web/dist"),
 		orm.Use(databases),
 	)
+	app.Service(NewOrderService)
 	app.Get("/orders", ListOrders, auth.Required())
-	app.Live("/dashboard", NewDashboard, ui.Layout(layouts.AdminPage("Dashboard")))
-	app.Island("/applicants/{id}", NewApplicantDetail,
-		ui.Component("islands/applicants/ApplicantDetail.vue"),
-		ui.Layout(layouts.AdminPage("Applicant")))
-	app.Run()
+	app.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
+	app.Live("/dashboard", NewDashboard, web.Layout(layouts.AdminPage("Dashboard")))
+	app.Live("/applicants/{id}", NewApplicantDetail,
+		ui.Island(ui.Layout(layouts.AdminPage("Applicant"))))
+	app.Run("")
 }
 ```
 
 | `.vuka` | Go |
 |---|---|
 | `@web.Get("/orders") func ListOrders(…)` | `app.Get("/orders", ListOrders)` |
+| `@web.Get("/orders/{id}") func ShowOrder(id int, …)` | `app.Get("/orders/{id}", ShowOrder, web.Params("id", …))` |
 | `@web.Live("/x") type X struct{ ui.Live … }` | `app.Live("/x", NewX)` |
-| `@web.Live` + `@ui.Island` | `app.Island("/x", NewX, ui.Component(path))` |
+| `@web.Live("/x")` + `@ui.Island(opts…)` | `app.Live("/x", NewX, ui.Island(opts…))` |
+| `@web.Get("/x")` + `@ui.Island(opts…)` (stateless) | `app.Get("/x", NewX, ui.Island(opts…))` |
+| `@web.Use(mw)`, `@web.Template(f)`, `web.Layout(l)` | the options `web.Use(mw)`, `web.Template(f)`, `web.Layout(l)` |
+| `@web.Controller("/admin") type Admin` | `app.Controller("/admin", NewAdmin)` |
+| `@web.Service type S` | `app.Service(NewS)` |
 | `@auth.Required` | `auth.Required()` option |
-| `@web.Service type S` | `app.Provide(NewS)` |
+| `func X.New(…)` (static constructor) | `func NewX(…)` |
 
-Today these lower to `web.Get(path)(decl)` and `vuka.TypeWith`; those stay
-as the transpiler's target until both forms emit the calls above. Component
-paths may be inferred exactly as bare `@ui.Island` infers them, from the
-type's package and name.
+**Registries.** Decorators are scattered over packages that `main` doesn't
+list, so generated code registers at init, on the package's registry:
+`web.Routes`, a `*web.Registry` with the methods above. `web.New` gives each
+app a copy, and `App`'s methods of the same names add to that app alone. A
+Go package registering its own routes writes the same `init` the compiler
+does, and `main` the same calls on its app:
+
+```go
+func init() {
+	web.Routes.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
+	web.Routes.Live("/dashboard", NewDashboard)
+}
+```
+
+The compiler knows no library: a decorator naming a method of its package's
+registry — an exported package-level variable whose type has the marker
+method `vukaRegistry()` — is a call of that method with the declaration (a
+function, a method expression, a type's `NewX`), the decorator's arguments
+around it as the method's parameters place them. The declaration's other
+decorators whose values the method takes as options (a `web.RouteOption`:
+`@web.Use`, `@ui.Island`) go with the call, and when the package has
+`Params(...string)` the parameters reflection can't tell apart are named.
+Options are typed values; `web.RouteOption` is any value carrying
+attributes, so an auth gate (`vuka.Bundle`), `ui.Island` and web's own
+options are all one, with no positional strings.
+
+Defaults are inferred as the decorators infer them: `ui.Island()` bare finds
+its component from the type's name, `ui.Island("islands/x.vue")` names it
+(`ui.Component` was taken: it is a live component's tag), a constructor's
+parameters of provided types are injected (the others start zero), and a
+route's attributes include those registered on the handler.
+
+Two forms stay a decorator's own rather than an option: a composed
+decorator (`vuka.Bundle`, such as `@auth.Required`) on a function wraps the
+function as well — its gate checks direct calls too — and the route reads
+its attributes from the function; and decorators of libraries without a
+registry lower generically, to calls a person writes as well:
+`Model(vuka.TypeFor[User](NewUser))` for a type decorator,
+`Command("greet")(vuka.DeclOf(greet))` for a declarer, `b.Declare(d)` and
+`b.Decorate(t)` for a bundle. The forms older compilers wrote
+(`vuka.TypeWith`, `vuka.FuncDecl`, `vuka.DeclareWith`, `web.Get(path)` as a
+bundle, `X_New`) keep working, deprecated.
+
+`examples/library-users` is an app written this way, with its `.vuka`
+twin; `TestLibraryExample` (cmd/vuka) builds it with plain `go build`, ejects
+the twin and checks both register the same calls and answer the same.
 
 ## 2. Markup
 
@@ -226,10 +274,10 @@ Folded into roadmap Phase 2:
 | Step | Item | Roadmap |
 |---|---|---|
 | 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` — **done** | 2.3 |
-| 1 | Public registration API (`app.Get/Live/Island/Provide`), transpiler emits it | 2.5 |
+| 1 | Public registration API (`web.Routes`, `app.Get/Live/Controller/Service`), transpiler emits it — **done** | 2.5 |
 | 2 | `ui.Template` with typed holes; transpiler emits it | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them | 2.1, 2.2 |
-| 4 | orm reflection fallback; live render fallback | 2.6 |
+| 4 | orm reflection fallback; live render fallback; call decorators through a reflective wrapper | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
 | 6 | `vukavet` analyzer | 2.6 |
 | 7 | Conformance suite | 2.6 |
@@ -239,18 +287,27 @@ one import block, no `/*line*/` markers and no `__` names, and checks its
 calls into vuka and ui against `transpile/testdata/contract.txt`. Generated
 files carry `//line` directives only where the lines stop following the
 source, real names and their doc comments, and `vuka eject -rm` turns an app
-into plain Go. What the contract file still allows, by the step that removes
-it:
+into plain Go.
 
-- step 1: decorator wrappers and declaration records (`vuka.Decorated`,
-  `Instance(s)`, `NewCall`, `Func`, `FuncDecl`, `MethodDecl`,
-  `RegisterFunc`, `RegisterType`, `TypeWith`, `DeclareWith`,
-  `DecorateType`, `FileOf`), `ui.IslandPage`, `ui.RegisterIsland`, and
-  `X_New` constructors;
+Step 1 is done: registry decorators lower to `web.Routes` calls, type
+decorators and declarers to `vuka.TypeFor` and `vuka.DeclOf`, constructors
+are `NewX`. Public now, as the calls a person writes: `vuka.Decorated`,
+`Instance(s)` (a decorated function built on first use, which recursion
+needs), `RegisterFunc`, `RegisterType` (the attribute registry), `FileOf`
+(an embedded file), `ui.IslandPage` (a live island page's one-line
+`Render`) and `ui.RegisterIsland` (an imported component's props type).
+What the contract file still allows, by the step that removes it:
+
 - step 2: the fingerprinted markup (`ui.F`, `ui.FT`, `ui.El`, `ui.Attr`,
   `ui.Child`, `ui.Text`, `ui.Nodes`, `ui.Component`, `ui.MountIsland`,
   `ui.Try`, `ui.WithChildren`) and state lowering (`ui.Bind`,
   `ui.NewState`, `ui.PageState`, `ui.NewDerived`, `ui.StateField`,
   `ui.StateProp`, `ui.Callback`, `ui.Emit`, `ui.Ptr`);
 - step 3: field references by index path (`vuka.RefOf` and its kinds),
-  `vuka.RegisterFields` and statics (`vuka.Static`, `StaticOf`, `Statics`).
+  `vuka.RegisterFields` and statics (`vuka.Static`, `StaticOf`, `Statics`);
+- step 4: call decorators' per-signature adapter (`vuka.Func`,
+  `vuka.NewCall`): its public form is a reflective wrapper, with the typed
+  adapter an optional speed-up like the other step 4 fallbacks.
+
+A plain Go app gets no island bundle or stylesheet yet: the `vuka` command
+builds them from `.vuka` sources (step 5).

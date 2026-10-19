@@ -351,8 +351,10 @@ to it in `tsconfig.json`, which also lets Vue's compiler read
 { "compilerOptions": { "paths": { "vuka:live": ["./vuka-live"] } } }
 ```
 
-`App.Live(path, &T{}, opts…)` and `App.Page(path, &T{}, attrs…)` declare
-one from Go, live and stateless.
+From Go the decorator is the route's option:
+`app.Live(path, NewT, ui.Island(opts…))` for a live page and
+`app.Get(path, NewT, ui.Island(opts…))` for a stateless one, the component's
+path inferred as bare `@ui.Island` infers it.
 
 ### Layouts
 

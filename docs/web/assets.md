@@ -226,5 +226,5 @@ generated `vuka_assets_gen.go` in the main package registers them
 by browsers for good. `vuka gen -inplace` writes that file too, for plain
 `go build`.
 
-Options given in Go code (`app.Live(path, &Counter{}, web.Style(…))`) are
+Options given in Go code (`app.Live(path, NewCounter, web.Style(…))`) are
 read by nobody: declare styles and scripts in `.vuka` files.

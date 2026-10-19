@@ -162,7 +162,9 @@ mix freely.
 
 A type decorator runs at start-up with the type: `func Model(t *vuka.Type)` gets
 `t.Name`, `t.Reflect`, `t.Attrs` — and, for a struct, a constructor for
-[dependency injection](/features/dependency-injection).
+[dependency injection](/features/dependency-injection): the type's `NewX`
+(its static `New`), else one Vuka writes taking each injected field. In Go,
+`@Model` on `User` is `Model(vuka.TypeFor[User](NewUser))`.
 
 ## Declaration decorators
 
@@ -232,11 +234,66 @@ package.
 | `d.Results`, `d.Variadic` | result types; whether the last parameter is `...T` |
 | `d.Attr(&x)` | a typed attribute on the declaration |
 
+In Go, `@Command("greet")` on `greet` is
+`Command("greet")(vuka.DeclOf(greet, vuka.Param{Name: "name"}))`: `DeclOf`
+describes a function or method expression, the attributes those registered
+for it (`vuka.RegisterFunc`).
+
 Declarers run in the package's `init`, after its variables are initialised:
 declarations in source order (files in name order, as Go orders `init`), and a
 declaration's declarers top to bottom. They mix freely with call and typed
 decorators. A declarer needs a concrete function: on a generic function, `init`
 or a type it is an error — a type's decorator takes a `*vuka.Type`.
+
+## Registries
+
+A library that registers what it is given — routes, pages, services — offers
+its decorators as methods of a **registry**: an exported package-level
+variable whose type has the marker method `vukaRegistry()` (unexported, no
+parameters or results). A decorator naming a method of its package's
+registry is a call of that method at init with the declaration: the
+function, a method's expression, or a type's constructor. The decorator's
+arguments come first, as many as the method takes before the declaration,
+and the rest after it:
+
+```vuka
+@web.Get("/pets/{id}")
+@web.Use(requireToken)
+func ShowPet(id int, store *Store) Result[Pet] { … }
+
+@web.Live("/board", web.Layout(layouts.Page("Board")))
+type Board struct{ ui.Live … }
+```
+
+is the Go a person would write:
+
+```go
+func init() {
+	web.Routes.Get("/pets/{id}", ShowPet, web.Use(requireToken), web.Params("id", "store"))
+	web.Routes.Live("/board", NewBoard, web.Layout(layouts.Page("Board")))
+}
+```
+
+The other decorators on the declaration whose values the method takes as
+its options (its variadic parameter's type) go with the call — `@web.Use`
+here; a [composed decorator](#composed-decorators) is never one, it
+decorates the declaration itself (an auth gate wraps the function and the
+route reads it from the function's attributes). When the registry's package
+has `Params(names ...string)` returning such an option, a function whose
+parameters include one only a name tells apart (a string, a number, a
+`TextUnmarshaler`) gets its parameters' names with it, since reflection
+can't see them. A registry decorator needs a concrete function, as a
+declarer does.
+
+```go
+type Registry struct{ … }
+
+func (*Registry) vukaRegistry() {}
+
+var Routes = &Registry{}
+
+func (r *Registry) Get(path string, handler any, opts ...RouteOption) *Registry { … }
+```
 
 ## Files
 
@@ -282,8 +339,9 @@ embedded. The web framework's views are files of this kind: see [Views](/web/vie
 
 ## Details
 
-A function keeps its name for a wrapper that builds the decorated function once,
-on first call; recursion goes through the decorators. Methods, `init`,
+A function wrapped by its decorators keeps its name for a wrapper that builds
+the decorated function once, on first call (`vuka.Decorated`); recursion goes
+through the decorators. One only declarers or registries take stays as it is. Methods, `init`,
 overloads, generic functions and `type ( … )` groups can be decorated. In the
 editor, typing `@` lists every decorator in the project, and picking one from
 another package adds the import.

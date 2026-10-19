@@ -344,6 +344,14 @@ and it behaves as the `.vuka` version did. Eject the whole module (`./...`)
 so the [link files](#build-run-test-vet-install) and the files embedding
 CSS and assets are written too; they stay generated files.
 
+Decorators become the calls they stand for. A route, page or service
+decorator is a call of its package's [registry](/features/decorators#registries)
+in an `init` — `@web.Get("/pets/{id}")` on `ShowPet` is
+`web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))`, the
+calls a Go app makes on its `App` — a type's constructor is Go's `NewX`, a
+type decorator is called with `vuka.TypeFor[X](NewX)` and a declarer with
+`vuka.DeclOf(fn)`.
+
 ## explain
 
 Shows what Vuka makes of a file: each rewritten line beside the Go it becomes,

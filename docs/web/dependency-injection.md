@@ -36,12 +36,12 @@ func main() {
 | | |
 |---|---|
 | `web.Provide(ctors…)`, `app.Provide(ctors…)` | constructors — `func(deps…) T` or `func(deps…) (T, error)` — and ready values (anything that isn't a function) |
-| `@web.Service` | a struct built from its fields |
-| `@web.Controller(prefix)` | the same, with [routes](/web/routes#controllers) |
+| `@web.Service`, `app.Service(NewS)` | a struct built from its fields (or by its constructor) |
+| `@web.Controller(prefix)`, `app.Controller(prefix, NewC)` | the same, with [routes](/web/routes#controllers) |
 
 A service's or controller's fields are injected by type, unexported ones
 included; tag a field `inject:"-"` to leave it out. A struct with its own
-static `New` is built with that one.
+static `New` (Go's `NewX`) is built with that one.
 
 - Every value is a **lazy singleton per app**: built the first time something
   needs it, then shared. Two apps (in tests, say) have their own.
