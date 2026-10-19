@@ -250,4 +250,33 @@ may mix `.go`, `.vuka` and `.vuka.html` files in one scope.
 
 `vuka eject -rm` turns a `.vuka` file's markup functions — its `Render`
 methods and components — into templates of `x.vuka.html`, and keeps the
-rest as `x.go`.
+rest as `x.go`. Markup inside Go logic — assigned, passed as an argument,
+returned mid-way, or the body of a decorated function — becomes a named
+partial, its parameters the variables it reads, called where the markup
+was:
+
+```go
+// card.vuka                               // card.go, after vuka eject -rm
+func (c Card) Render() ui.Node {           func (c Card) Render() ui.Node {
+	head := <h2>{c.Title}</h2>                 head := cardHead(c)
+	if len(c.Items) == 0 {                     if len(c.Items) == 0 {
+		return <section>{head}</section>           return cardView(head)
+	}                                          }
+	return wrap(<ul>…</ul>)                    return wrap(cardView2(c))
+}                                          }
+```
+
+```html
+<!-- card.vuka.html -->
+func cardHead(c Card)
+<h2>{c.Title}</h2>
+
+func cardView(head ui.Node)
+<section>{head}</section>
+```
+
+A partial is named after the variable it is assigned to and the
+declaration it is in (`cardHead`), or after the declaration (`cardView`);
+markup inside a hole's Go, `{wrap(<b/>)}`, after its tag (`cardB`). A
+`{match}` on values is a `switch`; markup that binds patterns, a generic
+function's, or one with a component script stays in the `.vuka`.

@@ -1,0 +1,4 @@
+import Picker "./islands/Picker.vue"
+
+func mainView()
+<Picker weeks={2} client:load />

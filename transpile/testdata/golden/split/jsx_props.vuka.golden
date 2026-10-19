@@ -1,0 +1,77 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui/live"
+	"github.com/vuka-lang/ui"
+)
+
+// JSX outside function bodies.
+var header = headerView()
+
+var (
+	footer = footerView()
+	links  = map[string]ui.Node{"home": linksView()}
+)
+
+type Shell struct{ Body ui.Node }
+
+var shell = Shell{Body: shellView()}
+
+func year() int { return 2026 }
+
+type Base struct {
+	ID    int
+	Class string
+}
+
+type Sized struct{ Width, Height int }
+
+// CardProps binds the fields promoted from Base and *Sized.
+type CardProps struct {
+	Base
+	*Sized
+	Title    string
+	Children ui.Node
+}
+
+type Chat struct {
+	ui.Live
+	Base
+	Room string
+	log  []string
+}
+
+type NewMessage struct{ Text string }
+
+type Typing struct{ Who string }
+
+func (c *Chat) Mount() { c.Subscribe("room:" + c.Room) }
+
+func (c *Chat) Update(m NewMessage)                   { c.log = append(c.log, "says "+m.Text) }
+func (c *Chat) Update(ctx context.Context, t Typing) { c.log = append(c.log, t.Who+" is typing") }
+
+type Box[T any] struct {
+	ui.Live
+	Value T
+}
+
+func page(ctx context.Context) ui.Node {
+	w := 3
+	return pageView(w)
+}
+
+func main() {
+	ctx := context.Background()
+	s, err := ui.String(ctx, page(ctx))
+	fmt.Println(s, err)
+	sess := live.NewSession(ctx, page)
+	sess.Render()
+	fmt.Println(sess.Topics())
+	for _, msg := range []any{NewMessage{"hi"}, Typing{"ann"}, 42} {
+		p, err := sess.Info("room:go", msg)
+		fmt.Println(p.Updates, err)
+	}
+}

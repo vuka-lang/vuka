@@ -1,0 +1,100 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+	"net/url"
+	"regexp"
+
+	"github.com/vuka-lang/ui/live"
+	"github.com/vuka-lang/ui"
+)
+
+type Counter struct {
+	ui.Live
+	Start int
+	Label string
+	n     int
+}
+
+func (c *Counter) Mount(ctx context.Context) error {
+	c.n = c.Start
+	return nil
+}
+
+func (c *Counter) Inc() { c.n++ }
+
+type Item struct {
+	ID   int
+	Name string
+}
+
+type Todo struct {
+	ui.Live
+	Title    string
+	Children ui.Node
+	items    []Item
+	next     int
+	query    string
+}
+
+type NewItem struct {
+	Name string `form:"name"`
+}
+
+func (t *Todo) Add(ctx context.Context, f NewItem) error {
+	if f.Name == "" {
+		return errors.New("a name, please")
+	}
+	t.next++
+	t.items = append(t.items, Item{t.next, f.Name})
+	return nil
+}
+
+func (t *Todo) Remove(id int) {
+	for i, it := range t.items {
+		if it.ID == id {
+			t.items = append(t.items[:i:i], t.items[i+1:]...)
+			return
+		}
+	}
+}
+
+var handlers = regexp.MustCompile(`data-vk-on-(\w+)="([^"]+)"`)
+
+func show(p live.Patch, err error) {
+	for _, u := range p.Updates {
+		fmt.Printf("  %s: %s\n", u.ID, u.HTML)
+	}
+	if p.Error != "" || err != nil {
+		fmt.Println("  error:", p.Error, err)
+	}
+}
+
+func main() {
+	ctx := context.Background()
+	s, err := ui.String(ctx, page(ctx))
+	fmt.Println("static:", s, err)
+
+	sess := live.NewSession(ctx, page)
+	html, err := sess.Render()
+	fmt.Println("live:", html, err)
+	for _, m := range handlers.FindAllStringSubmatch(html, -1) {
+		fmt.Println(" ", m[1], m[2])
+	}
+	fmt.Println("submit milk:")
+	show(sess.Event(ui.Event{Target: "c1:0", Type: "submit", Form: url.Values{"name": {"milk"}}}))
+	fmt.Println("submit nothing:")
+	show(sess.Event(ui.Event{Target: "c1:0", Type: "submit", Form: url.Values{}}))
+	fmt.Println("submit eggs:")
+	show(sess.Event(ui.Event{Target: "c1:0", Type: "submit", Form: url.Values{"name": {"eggs"}}}))
+	fmt.Println("click milk's counter:")
+	show(sess.Event(ui.Event{Target: "c3:0", Type: "click"}))
+	fmt.Println("type:")
+	show(sess.Event(ui.Event{Target: "c1:1", Type: "input", Value: "br"}))
+	fmt.Println("remove milk:")
+	show(sess.Event(ui.Event{Target: "c1:2", Type: "click"}))
+	fmt.Println("click solo:")
+	show(sess.Event(ui.Event{Target: "c2:0", Type: "click"}))
+}
