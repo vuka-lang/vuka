@@ -10,7 +10,37 @@ client state) with the same behaviour as a `.vuka` app.
 The CLI stays useful (watcher, scaffolding, upgrades, diagnostics, the
 language server) but is never required to build or run.
 
-## Principle: one runtime, two front-ends
+## Principle: plain Go is the language; `.vuka` is sugar that generates it
+
+The library API in this document is the primary way to write a vuka app.
+`.vuka` adds syntax (JSX, decorators, attributes) and nothing else: the CLI's
+only job is to turn a `.vuka` file into the plain Go a person would write by
+hand against this API.
+
+The contract for generated code:
+
+- **Public API only.** Generated files call exported orm, web and ui API —
+  `app.Get`, `app.Live`, `ui.Template`, `orm.Schema`, `ui.LiveSchema`, … —
+  never internal hooks (`vuka.TypeWith`, fingerprinted `ui.FT`/`ui.F`
+  forms), private helpers or `__`-prefixed names. A test builds every
+  generated golden against the public API alone and fails on any other
+  symbol.
+- **Hand-written shape.** gofmt'd, real names, doc comments carried over,
+  templates as backtick HTML with typed holes, one `//line` marker per
+  statement with relative paths. It should pass review as hand-written code.
+- **Ejectable.** Running `vuka gen -inplace` (or `vuka eject file.vuka`)
+  writes the `.go` next to the source; deleting the `.vuka` leaves a working
+  app that builds with `go build` / `go run .` and behaves identically.
+  The conformance suite (§8) checks this for every example.
+- **Optional speed-ups stay separate.** What only makes things faster (orm
+  scanners, live render tracking, island TypeScript types) is generated into
+  its own `*_gen.go` files registered at init, the same files a plain-Go app
+  gets from `go generate`. The main generated file never depends on them.
+- **No hidden runtime.** Anything the generated code needs that a person
+  couldn't call is a gap in the public API, fixed by adding public API,
+  not by a private hook.
+
+## One runtime, two ways in
 
 Everything a `.vuka` file says already lowers to Go calls on orm, web and ui.
 That lowered layer becomes the documented, stable public API, and `.vuka` is
@@ -24,7 +54,7 @@ plain .go (calls, templates, schemas) ┘
 
 Consequences:
 
-- A plain-Go app writes what vuka would generate; both run identical code.
+- A plain-Go app is written the way vuka generates; both run identical code.
 - Readable generated code (roadmap 2.3) and backtick JSX (2.4) are this API
   seen from the transpiler's side: generated files are a worked example of
   hand-written ones.
@@ -185,7 +215,9 @@ gopls, with the same diagnostic codes (E03xx, E04xx).
 
 Every example app exists twice — `.vuka` and hand-written Go — and a test
 compares rendered HTML, live patches, SQL and HTTP responses, with and
-without generated code. A difference is a bug in one of the front-ends.
+without the optional `*_gen.go` speed-ups. A third run ejects the `.vuka`
+version (generated Go only, sources deleted) and must match too. A
+difference is a bug.
 
 ## Plan
 
@@ -193,6 +225,7 @@ Folded into roadmap Phase 2:
 
 | Step | Item | Roadmap |
 |---|---|---|
+| 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` | 2.3 |
 | 1 | Public registration API (`app.Get/Live/Island/Provide`), transpiler emits it | 2.5 |
 | 2 | `ui.Template` with typed holes; transpiler emits it | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them | 2.1, 2.2 |

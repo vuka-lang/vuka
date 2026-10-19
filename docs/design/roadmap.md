@@ -111,10 +111,11 @@ Goal: what you write says what it does; what vuka generates reads like Go
 you'd have written — and a plain Go module can use orm, web and ui with
 `go run .` and no transpiler.
 
-One runtime, two front-ends: everything `.vuka` says lowers to a documented
-public Go API, and plain-Go apps write that API directly. Items 2.1–2.5 are
-designed as that API first and as `.vuka` syntax second. Design:
-[vuka as a library](./library.md).
+Plain Go on the library API is the language; `.vuka` is sugar. The CLI's
+job is to generate the plain Go a person would write against that API —
+public calls only, hand-written shape, ejectable (delete the `.vuka`, keep
+the `.go`, `go run .` still works). Items 2.1–2.5 are designed as that API
+first and as `.vuka` syntax second. Design: [vuka as a library](./library.md).
 
 ### 2.1 Typed attributes instead of struct-tag DSLs
 
