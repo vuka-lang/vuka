@@ -1,0 +1,29 @@
+import "fmt"
+
+func List[T any](items []T, render func(T) ui.Node)
+<ul>
+  for _, x := range items {
+    {render(x)}
+  }
+</ul>
+
+// Select's selected is left out: its zero value is the inferred type's.
+func Select[T comparable](label string, options []T, selected T)
+<label>
+  {label}
+  <select>
+    for _, o := range options {
+      <option selected={o == selected}>{fmt.Sprint(o)}</option>
+    }
+  </select>
+</label>
+
+func Table[T any](props TableProps[T])
+<table>
+  for _, r := range props.Rows {
+    <tr><td>{props.Cell(r)}</td></tr>
+  }
+</table>
+
+func Pair[K comparable, V any](name K, value V, children ui.Node)
+<p>{fmt.Sprint(name)}={fmt.Sprint(value)} {children}</p>

@@ -401,7 +401,7 @@ func gen(args []string, stdout io.Writer) error {
 	if len(patterns) == 0 {
 		patterns = []string{"./..."}
 	}
-	root, files, err := inPlace(patterns, nil)
+	root, files, err := inPlace(patterns, nil, load.Options{})
 	if err != nil {
 		return err
 	}
@@ -434,7 +434,7 @@ func gen(args []string, stdout io.Writer) error {
 // link files when the patterns cover the module. Extra packages (dirs of
 // single files eject names) are transpiled too, their files left to the
 // caller to pick.
-func inPlace(patterns, extra []string) (string, []load.Generated, error) {
+func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generated, error) {
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return "", nil, err
@@ -464,7 +464,9 @@ func inPlace(patterns, extra []string) (string, []load.Generated, error) {
 	if err != nil {
 		return "", nil, err
 	}
-	files, overlay, err := load.Transpile(pkgs, tmp, loadOptions(pa))
+	opts := loadOptions(pa)
+	opts.Split = lo.Split
+	files, overlay, err := load.Transpile(pkgs, tmp, opts)
 	if err != nil {
 		return "", nil, err
 	}

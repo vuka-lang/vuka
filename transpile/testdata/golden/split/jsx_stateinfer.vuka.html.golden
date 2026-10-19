@@ -1,0 +1,14 @@
+import "fmt"
+
+func (b *Box[T]) Render()
+<span>box {fmt.Sprint(b.Value)}</span>
+
+func (l *List[T]) Render()
+<ul>
+  for _, it := range l.Items {
+    <li>{fmt.Sprint(it)}</li>
+  }
+</ul>
+
+func (r *Ref[T]) Render()
+<b>{fmt.Sprint(*r.At)}</b>

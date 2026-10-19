@@ -1,0 +1,28 @@
+import "context"
+
+func (t *Table) Render()
+<table>
+  <caption><input onInput={t.Do} /></caption>
+  for _, r := range t.rows {
+    <tr key={r.ID}>
+      <td>{r.Name}</td>
+      <td>{r.Qty}</td>
+    </tr>
+  }
+  if t.sel > 0 {
+    <p>row {t.sel}</p>
+  } else {
+    <p>none</p>
+  }
+</table>
+
+func (c *Counter) Render()
+<span>{c.Label}: {c.n.Get()} <button onClick={c.Inc}>+</button></span>
+
+func page(ctx context.Context)
+<main>
+  <Table />
+  for i, l := range []string{"a", "b"} {
+    <Counter key={i} Label={l} />
+  }
+</main>

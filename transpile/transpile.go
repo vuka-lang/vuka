@@ -66,6 +66,9 @@ type Options struct {
 	// files as plain files. The vuka command's templ plugin sets
 	// github.com/vuka-lang/ui/templx.
 	TemplRegistry string
+	// Split asks for each .vuka file's templates apart (Output.Split): what
+	// vuka eject writes as a .vuka.html file.
+	Split bool
 	// Scopes names the package's scoped declarations: a type, whose
 	// methods' JSX is its markup, or a function, each with its scope id.
 	// Every element their JSX writes (not a component's tag, whose own
@@ -87,6 +90,7 @@ type Output struct {
 	Name   string // the .vuka file
 	GoName string // the generated file, GoName(Name)
 	Src    []byte
+	Split  *Split // with Options.Split, the file's templates apart; nil when none moves
 	// Map relates Src to the source: every character when bare, each node's
 	// first token otherwise.
 	Map *SourceMap
@@ -547,6 +551,12 @@ func Package(files []File, opts Options) (*Result, error) {
 	if err := errs.err(); err != nil {
 		return nil, err
 	}
+	splits := map[*fileState]*Split{}
+	if opts.Split {
+		for _, f := range e.vuka {
+			splits[f] = e.split(f)
+		}
+	}
 	if !e.parseAll(false) {
 		return nil, errs.err()
 	}
@@ -558,7 +568,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0, Split: splits[f]})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

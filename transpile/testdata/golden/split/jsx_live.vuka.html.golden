@@ -1,0 +1,28 @@
+import "context"
+
+func (c *Counter) Render()
+<span>{c.Label}: {c.n} <button onClick={c.Inc}>+</button></span>
+
+func (t *Todo) Render()
+<section>
+  <h2>{t.Title}</h2>
+  {t.Children}
+  <form onSubmit={t.Add}><input name="name" onInput={func(q string) { t.query = q }} /></form>
+  <ul>
+    for _, it := range t.items {
+      <li key={it.ID}>
+        <Counter Label={it.Name} />
+        <button onClick={func() { t.Remove(it.ID) }}>x</button>
+      </li>
+    }
+  </ul>
+  if t.query != "" {
+    <p>typing {t.query}</p>
+  }
+</section>
+
+func page(ctx context.Context)
+<main>
+  <Todo Title="Groceries"><p>weekly</p></Todo>
+  <Counter key="solo" Start={10} Label="solo" />
+</main>

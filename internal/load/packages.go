@@ -381,6 +381,8 @@ type Generated struct {
 	// commands — through a declarer, a type decorator or a composed decorator
 	// (transpile.Output.Declares). AutoLink links its package into main.
 	Declares bool
+	// Split is the .vuka file's templates apart, with Options.Split.
+	Split *transpile.Split
 	// TemplMap is templ's source map (a *parser.SourceMap) for a .templ
 	// file's Go, when Src is templ's raw output (Options.Bare); nil otherwise.
 	TemplMap any
@@ -398,6 +400,8 @@ type Options struct {
 	// abandons the run, which returns ErrStopped. A session keeps what the
 	// packages transpiled before it did.
 	Stop func() bool
+	// Split asks for each .vuka file's templates apart (Generated.Split).
+	Split bool
 }
 
 // ErrStopped is the error of a run Options.Stop abandoned.
@@ -556,6 +560,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			Dir:           p.Dir,
 			ImportPath:    p.ImportPath,
 			Scopes:        opts.Scopes[p.Dir],
+			Split:         opts.Split,
 		})
 		if err != nil {
 			var list transpile.ErrorList
@@ -577,7 +582,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Declares: f.Declares})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Declares: f.Declares, Split: f.Split})
 		}
 		if sess != nil {
 			sess.store(p, key, out[first:])
