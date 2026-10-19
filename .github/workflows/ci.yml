@@ -51,6 +51,7 @@ jobs:
     env:
       VUKA_UI: ${{ github.workspace }}/vuka-ui
       VUKA_WEB: ${{ github.workspace }}/vuka-web
+      VUKA_NEW_REPLACE: github.com/vuka-lang/vuka=${{ github.workspace }}/vuka,github.com/vuka-lang/ui=${{ github.workspace }}/vuka-ui,github.com/vuka-lang/web=${{ github.workspace }}/vuka-web
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -63,6 +64,15 @@ jobs:
         with:
           repository: vuka-lang/web
           path: vuka-web
+      # A change made together with ui's or web's has a branch of the same
+      # name there.
+      - name: The ui and web branches of this change, if any
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          for r in vuka-ui vuka-web; do
+            git -C $r fetch --depth=1 origin "$BRANCH" && git -C $r checkout FETCH_HEAD || true
+          done
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ env.GO_VERSION }}
@@ -96,6 +106,9 @@ jobs:
         run: |
           npm ci --prefix testdata/node/vite --no-audit --no-fund
           npm ci --prefix testdata/node/islands --no-audit --no-fund
+      - name: The command builds with this repository's compiler
+        working-directory: vuka/cmd/vuka
+        run: go mod edit -replace github.com/vuka-lang/vuka=../..
       - name: vet
         working-directory: vuka/cmd/vuka
         run: go vet ./...
