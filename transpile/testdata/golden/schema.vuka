@@ -1,0 +1,77 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"vukatest.local/orm"
+	"vukatest.local/orm/describe"
+)
+
+type User struct {
+	orm.Base
+	ID   int64  @orm.PK
+	Name string @orm.Char{Max: 50}
+}
+
+// Post is a model: its attributes become its Schema method.
+type Post struct {
+	orm.Base        @orm.Meta{Table: "posts"}
+	ID       int64  @orm.PK @orm.Column("post_id")
+	Title    string @orm.Char{Max: 200}
+	Slug     string
+	Author   *User
+	Views    int
+}
+
+// Popular counts the posts read at least min times, a static of Post.
+func Post.Popular(min int) int {
+	return Post.Objects.CountWhere(func(p Post) bool { return p.Views >= min })
+}
+
+// PostFields and UserFields are what orm generate writes.
+var PostFields = struct {
+	Slug   orm.Field[string]
+	Title  orm.Field[string]
+	Author struct{ Name orm.Field[string] }
+}{orm.Field[string]{"slug"}, orm.Field[string]{"title"}, struct{ Name orm.Field[string] }{orm.Field[string]{"author__name"}}}
+
+@orm.Transaction
+@orm.TxOn("main")
+func publish(ctx context.Context, slug string) error {
+	p := Post.Objects.Get(ctx, Post.Slug.Eq(slug))?
+	p.Views++
+	return p.Save(ctx)
+}
+
+@orm.Transaction
+func draft(ctx context.Context, title string) (Post, error) {
+	p := Post{Title: title, Slug: "draft"}
+	p.Save(ctx)?
+	if title == "" {
+		return Post{}, errors.New("no title")
+	}
+	return p, nil
+}
+
+@orm.Transaction
+func count(ctx context.Context) Result[int] {
+	return Ok(Post.Objects.Count())
+}
+
+func main() {
+	ctx := context.Background()
+	fmt.Println(describe.Model[User]())
+	fmt.Println(describe.Model[Post]())
+	ada := &User{ID: 1, Name: "ada"}
+	p := &Post{ID: 1, Title: "Go", Slug: "go", Author: ada, Views: 3}
+	p.Save(ctx)
+	fmt.Println(publish(ctx, "go"), publish(ctx, "rust"))
+	byAda, err := Post.Objects.Get(ctx, Post.Author.Name.Eq("ada"))
+	fmt.Println(byAda.Title, err, Post.Title.Desc(), Post.Popular(3))
+	d, err := draft(ctx, "")
+	fmt.Println(d.Title, err, Post.Objects.Count())
+	d, err = draft(ctx, "Notes")
+	fmt.Println(d.Title, err, count(ctx))
+}

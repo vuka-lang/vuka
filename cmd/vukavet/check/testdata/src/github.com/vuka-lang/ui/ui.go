@@ -1,6 +1,10 @@
 package ui
 
-import "github.com/a-h/templ"
+import (
+	"context"
+
+	"github.com/a-h/templ"
+)
 
 type Node = templ.Component
 
@@ -56,3 +60,24 @@ type Markup struct{}
 func Template(src string) *Markup { return &Markup{} }
 
 func (m *Markup) Render(args ...any) Node { return nil }
+
+type FieldOptions struct{}
+
+type FieldAttr interface{ Apply(*FieldOptions) }
+
+type (
+	Bind  struct{ Debounce int }
+	URL   string
+	Defer string
+)
+
+func (Bind) Apply(*FieldOptions)  {}
+func (URL) Apply(*FieldOptions)   {}
+func (Defer) Apply(*FieldOptions) {}
+
+type LiveSchema struct{}
+
+func (l *LiveSchema) Field(ptr any, attrs ...FieldAttr)                      {}
+func (l *LiveSchema) Mount(fn func(ctx context.Context) error)               {}
+func (l *LiveSchema) OnChange(fn func(ctx context.Context, c Changed) error) {}
+func (l *LiveSchema) Loads(group string, fn func(ctx context.Context) error) {}

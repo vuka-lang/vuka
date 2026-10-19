@@ -12,7 +12,8 @@ type Counter struct {
 	n     int // state
 }
 
-func (c *Counter) Mount(ctx context.Context) error { c.n = c.Start; return nil }
+@ui.Mount
+func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
 
 func (c *Counter) Inc() { c.n++ }
 
@@ -48,12 +49,12 @@ runs.
 | Method | |
 |---|---|
 | `Render() ui.Node` | required; its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
-| `Mount()` | optional, once per instance, before its first render: `Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`; an error fails the render, and so does a `Mount` of another shape |
+| `@ui.Mount` | optional, once per instance, before its first render: a method `func(ctx context.Context) error`, which may be unexported; an error fails the render. A method named `Mount` (`Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`) is the form of earlier releases, kept for one minor release (`vuka vet`: W0303, `vuka fix hooks`) |
 | `Unmount()` | optional, when the instance is dropped |
 | `Update(msg T)` | optional, overloadable: the messages the session delivers (below) |
 
 `ui.Live` gives the component `ID()` (its instance id, `""` when static),
-`Subscribe(topics...)` (call it in `Mount`), `PushJS(chain)` ([from the
+`Subscribe(topics...)` (call it in the Mount hook), `PushJS(chain)` ([from the
 server](/ui/js#from-the-server)), and `PushPatch(href)` and
 `PushNavigate(href)`, which move the page to another URL once the reply is
 applied ([navigation](/web/navigation)), and `PushEvent(name, payload)`,
@@ -130,6 +131,32 @@ After any event the session renders the page again — so a handler may change
 any state it can reach, a parent's through a func prop included — and
 replies with what changed.
 
+## Hooks
+
+The methods the runtime calls are marked with a hook attribute, so they
+may be unexported and the browser can call only what isn't one:
+`@ui.Mount` (`func(ctx context.Context) error`, before the first render),
+`@ui.OnChange` (`func(ctx context.Context, c ui.Changed) error`, after
+the component sets bound fields) and `@ui.Loads("group")` (the loader of
+[deferred fields](/web/islands#deferred-fields)). With the field
+attributes (`@ui.Bind`, `@ui.URL`, `@ui.Defer`, `@validate.…`) they are
+the page's `LiveSchema` method, which plain Go writes itself:
+
+```go
+func (d *Dashboard) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&d.Q, ui.Bind{Debounce: 300 * time.Millisecond}, ui.URL("q"), validate.Max(100))
+	l.Field(&d.Rows, ui.Defer("lists"))
+	l.Loads("lists", d.loadLists)
+	l.OnChange(d.changed)
+	l.Mount(d.mount)
+}
+```
+
+A hook's signature is checked by the compiler (it is a method value); a
+field that isn't the page's own (E0335) or a hook that doesn't fit
+(E0336) stops the app at start, and `vukavet` reports both. Writing the
+`LiveSchema` method and attributes too is E0129.
+
 ## Messages
 
 A component subscribed to a topic receives what the transport publishes on
@@ -137,7 +164,8 @@ it, through `Update` methods taking it — overloads included, each picked by
 the message's dynamic type:
 
 ```vuka
-func (c *Chat) Mount()                               { c.Subscribe("room:" + c.Room) }
+@ui.Mount
+func (c *Chat) mount(ctx context.Context) error      { c.Subscribe("room:" + c.Room); return nil }
 func (c *Chat) Update(m NewMessage)                  { c.log = append(c.log, m.Text) }
 func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
 ```

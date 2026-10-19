@@ -51,19 +51,19 @@ type Post struct {
 }
 
 //line static_init.vuka:60
-func _Post_label(s string) string { return "post " + s }
+func postLabel(s string) string { return "post " + s }
 
 func main() {
-	fmt.Println(Post_Early, Post_Late, Post_Twice, Post_Double)
-	fmt.Println(Post_ByViews)
-	fmt.Println(Post_Popular)
-	fmt.Println(Post_Named, Post_Everything)
+	fmt.Println(PostEarly, PostLate, PostTwice, PostDouble)
+	fmt.Println(PostByViews)
+	fmt.Println(PostPopular)
+	fmt.Println(PostNamed, PostEverything)
 }
 
 var modelObjectsStatics vuka.Statics
 
 //line static_init.vuka:39
-func Model_Objects[Self any]() *vuka.Static[Query[Self]] {
+func ModelObjects[Self any]() *vuka.Static[Query[Self]] {
 //line static_init.vuka:39
 	return vuka.StaticOf[Model[Self]](&modelObjectsStatics, func() Query[Self] { return Query[Self]{} })
 }
@@ -71,35 +71,35 @@ func Model_Objects[Self any]() *vuka.Static[Query[Self]] {
 var modelAllStatics vuka.Statics
 
 //line static_init.vuka:40
-func Model_All[Self any]() *vuka.Static[Query[Self]] {
-	return vuka.StaticOf[Model[Self]](&modelAllStatics, func() Query[Self] { return Model_Objects[Self]().V })
+func ModelAll[Self any]() *vuka.Static[Query[Self]] {
+	return vuka.StaticOf[Model[Self]](&modelAllStatics, func() Query[Self] { return ModelObjects[Self]().V })
 }
 
 //line static_init.vuka:48
-var Post_Early = Post_Late + 1
+var PostEarly = PostLate + 1
 
 //line static_init.vuka:49
-var Post_Late = 5
+var PostLate = 5
 
 //line static_init.vuka:50
-var Post_Limit = 10
+var PostLimit = 10
 
 //line static_init.vuka:51
-const Post_Max = 3
+const PostMax = 3
 
 //line static_init.vuka:52
-const Post_Twice = Post_Max * 2
+const PostTwice = PostMax * 2
 
 //line static_init.vuka:53
-var Post_Double = Post_Limit * 2
+var PostDouble = PostLimit * 2
 
 //line static_init.vuka:54
-var Post_ByViews = vuka.OrderedRefOf[Post, int]([][]int{{2}}, func(x *Post) { _ = x.Views }).Desc()
+var PostByViews = vuka.OrderedRefOf[Post, int]([][]int{{2}}, func(x *Post) { _ = x.Views }).Desc()
 
 //line static_init.vuka:55
-var Post_Popular = Model_Objects[Post]().V.Filter(vuka.OrderedRefOf[Post, int]([][]int{{2}}, func(x *Post) { _ = x.Views }).Gt(Post_Limit)).OrderBy(Post_ByViews)
+var PostPopular = ModelObjects[Post]().V.Filter(vuka.OrderedRefOf[Post, int]([][]int{{2}}, func(x *Post) { _ = x.Views }).Gt(PostLimit)).OrderBy(PostByViews)
 
 //line static_init.vuka:56
-var Post_Named = vuka.StringRefOf[Post, string]([][]int{{1}}, func(x *Post) { _ = x.Title }).Eq(_Post_label("go"))
+var PostNamed = vuka.StringRefOf[Post, string]([][]int{{1}}, func(x *Post) { _ = x.Title }).Eq(postLabel("go"))
 
-var Post_Everything = Model_All[Post]().V
+var PostEverything = ModelAll[Post]().V

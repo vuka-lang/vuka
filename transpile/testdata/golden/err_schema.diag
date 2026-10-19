@@ -1,0 +1,18 @@
+error[E0129]: Post has attributes, which Vuka writes into its Schema method, and declares Schema itself; move them into the method: s.Field(&p.X, …)
+  --> err_schema.vuka:15:16
+   |
+15 | func (p *Post) Schema(s *orm.Schema) {}
+   |                ^^^^^^
+   |
+   = help: write the attributes in the method, or drop the method and keep the attributes
+
+error[E0130]: @ui.Loads is a hook; write its arguments in parentheses: @ui.Loads(…)
+  --> err_schema.vuka:22:1
+   |
+22 | @ui.Loads{Group: "rows"}
+   | ^^^^^^^^^
+   |
+   = help: write a hook bare or with its arguments in parentheses: @ui.Mount, @ui.Loads("lists")
+
+Some errors have detailed explanations: E0129, E0130.
+For more information about an error, try `vuka explain E0129`.

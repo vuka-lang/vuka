@@ -1,67 +1,53 @@
 # Expressions and functions
 
-Package `github.com/vuka-lang/orm/fn` is SQL's expressions over field
-references, typed. Each gives an `orm.Term[T, V]` — computed by the database,
-for model `T`, of Go type `V` — whose predicates go in `Filter` beside the
-references', whose `Asc`/`Desc` go in `OrderBy`, and whose `As("name")` names
-it for `Annotate`, `Having` and `Values`.
+SQL's expressions are the engine's: a field's `Expr()` is its column
+(`orm.F("title")`), and functions, `Case`, `Switch`, `Cast`, `Value` and
+`SQL` take expressions, values or other calls. A typed call compares by its
+result's type, so `orm.Length(…).Eq("x")` doesn't compile:
 
 ```vuka
-Post.Objects.Filter(fn.Lower(Post.Title).Eq("go tooling"))
-Post.Objects.Filter(fn.Num(Post.Likes).GtF(fn.Num(Post.Views).Div(2)))     // likes > views / 2
-Post.Objects.Filter(fn.Year(Post.Published).Eq(2025))
-Post.Objects.OrderBy(fn.Length(Post.Title).Desc())
-Post.Objects.Update(ctx, orm.AssignF(Post.Views, fn.Num(Post.Views).Add(1)))?
+title := Post.Title.Expr()
+Post.Objects.Filter(orm.Lower(title).Eq("go tooling"))
+Post.Objects.Filter(orm.Q{"likes__gt": orm.SQL("{0} / 2", Post.Views.Expr())})   // likes > views / 2
+Post.Objects.Filter(orm.Year(Post.Published.Expr()).Eq(2025))
+Post.Objects.Order(orm.Length(title).Desc())
+Post.Objects.Update(ctx, orm.Set{"views": orm.SQL("{0} + 1", Post.Views.Expr())})?
 ```
 
-**Go:** a computed condition is a string of SQL, `"likes > views / 2"`,
-checked by nobody until the database reads it.
-
-**Vuka adds** terms typed by their result: `fn.Length(Post.Title)` is an
-`OrderedTerm[Post, int64]`, so `.Eq("x")` doesn't compile, and `Contains` is
-there only on text.
-
-## Terms
-
-| Term | Of | Predicates and operators |
-|---|---|---|
-| `orm.Term[T, V]` | any | `Eq`, `Ne`, `In`, `IsNull`, `NotNull`, `EqF`, `NeF`, `Asc`, `Desc`, `As` |
-| `orm.OrderedTerm[T, V]` | numbers, strings | those, and `Lt`, `Le`, `Gt`, `Ge`, `Range(lo, hi)`, `LtF`…`GeF`, `Add`, `Sub`, `Mul`, `Div` |
-| `orm.StringTerm[T, V]` | text | those, and `Contains`, `IContains`, `StartsWith`, `IStartsWith`, `EndsWith`, `IEndsWith`, `IExact` |
-| `orm.CompareTerm[T, V]` | times | `Eq`…, `Lt`, `Le`, `Gt`, `Ge` |
-
-The `…F` forms compare with another column or term: `fn.Num(Post.Likes).GtF(Post.Views)`.
-
-| `fn.` | |
+| `orm.` | |
 |---|---|
-| `Num(ref)`, `Str(ref)`, `Time(ref)`, `Val(ref)` | a reference as a term, for its operators: `fn.Str(Post.Body).IContains("go")` |
-| `Lit[T](v)` | a value |
-| `Lower`, `Upper`, `Trim` | text |
+| `F(name)`, `Value(v)` | a column, or an annotation; a value |
+| `Lower`, `Upper`, `Trim` | text, a `TextExpr` |
 | `Length` | `int64` |
 | `Abs` | numbers |
-| `Year`, `Month`, `Day` | `int64` |
+| `Year`, `Month`, `Day` | `int` |
 | `Date` | the date as `YYYY-MM-DD` text |
-| `Coalesce(ref, rest…)` | the first that isn't NULL |
-| `Cast[R](ref, orm.AsText)` | a cast |
-| `SQL[R](template, ref, rest…)` | your own SQL: `fn.SQL[int]("{0} * 2", Post.Likes)` |
-| `Call[R](f, ref, rest…)` | a [custom function](#custom-functions) as a term |
+| `Coalesce(e, rest…)` | the first that isn't NULL |
+| `Cast(e, orm.AsText)` | a cast |
+| `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * 2", Post.Likes.Expr())` |
+| `Where(e, lookup, v)` | a condition on any expression: `orm.Where(orm.SQL("{0} - {1}", views, likes), "gte", 49)` |
+
+A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,
+`Asc`, `Desc`, `As`), an `OrderedExpr[R]` (and `Lt`, `Le`, `Gt`, `Ge`,
+`Between`) or a `TextExpr` (and `Contains`, `IContains`, `StartsWith`,
+`EndsWith`, `Like`). `Asc` and `Desc` go in `Order`; `orm.Asc(e)` and
+`orm.Desc(e)` make any expression a term.
 
 ## Aggregates
 
-`fn.Count(ref)`, `fn.Sum`, `fn.Avg` (a `float64`), `fn.Min`, `fn.Max`, each
-with `.Filter(pred)` and `.Distinct()`:
+`orm.Count(field)`, `orm.Sum`, `orm.Avg`, `orm.Min`, `orm.Max`, each with
+`.Filter(cond)`, `.Distinct()` and `.As(name)`:
 
 ```vuka
 type Stats struct {
-	Author string
+	Author string `orm:"author__name"`
 	Posts  int64
 	Liked  int64
 }
 
-rows := Post.Objects.Values[Stats](ctx,
-	orm.Into(Stats.Author, Post.Author.Name),
-	orm.Into(Stats.Posts, fn.Count(Post.ID)),
-	orm.Into(Stats.Liked, fn.Count(Post.ID).Filter(Post.Likes.Ge(5))))?
+rows := Post.Objects.Annotate("posts", orm.Count("id")).
+	Annotate("liked", orm.Count("id").Filter(Post.Likes.Gte(5))).
+	Values[Stats]("author__name", "posts", "liked").All(ctx)?
 ```
 
 See [Values and aggregates](/orm/queries#values-and-aggregates).
@@ -69,44 +55,42 @@ See [Values and aggregates](/orm/queries#values-and-aggregates).
 ## Case and Switch
 
 ```vuka
-heat := fn.Case(fn.When(Post.Views.Ge(100), "hot"), fn.When(Post.Views.Ge(20), "warm")).Else("cold").As("heat")
-score := fn.Switch(Post.Author.Name).Case("ada", 1).Case("bob", 2).Else(0)
+heat := orm.Case(orm.When(Post.Views.Gte(100), "hot"), orm.When(Post.Views.Gte(20), "warm")).Else("cold")
+score := orm.Switch(Post.Author.Name.Expr()).Case("ada", 1).Case("bob", 2).Else(0)
 
 type Heat struct {
 	Title string
 	Heat  string
 }
 
-hs := Post.Objects.Annotate(heat).Values[Heat](ctx, orm.Into(Heat.Title, Post.Title), orm.Into(Heat.Heat, heat))?
-twos := Post.Objects.Filter(fn.Num(score).Eq(2)).All(ctx)?
+hs := Post.Objects.Annotate("heat", heat).Values[Heat]("title", "heat").All(ctx)?
+twos := Post.Objects.Filter(orm.Where(score, "exact", 2)).All(ctx)?
 ```
 
-`fn.When(pred, value)` takes a predicate of the model; every branch's value
-has the type of the first.
+`orm.When(cond, value)` takes any condition.
 
 ## Subqueries
 
 | | |
 |---|---|
-| `fn.Subquery[T](query, col)` | a column of another query's first row |
-| `fn.Exists[T](query)` | whether another query has rows |
-| `fn.In(ref, query, col)` | `ref IN (SELECT col …)` |
-| `fn.OuterEq(inner, outer)` | inside a subquery: a column equal to the outer row's |
-| `fn.FilteredRelation(rel, pred).As(name)` | a relation joined with a condition: `.Count()`, `.Field(ref)` |
+| `orm.Subquery(values)` | a column of another query's first row |
+| `orm.Exists(query)` | whether another query has rows |
+| `field.InQuery(values)` | `field IN (SELECT …)` |
+| `orm.OuterRef(name)` | inside a subquery: the outer row's column |
 
 ```vuka
 // each user's most-viewed post
-latest := Post.Objects.Filter(fn.OuterEq(Post.Author, User.ID)).OrderBy(Post.Views.Desc()).Limit(1)
+latest := Post.Objects.Filter(orm.Q{"author": orm.OuterRef("id")}).OrderBy(Post.Views.Desc()).Limit(1).Values[string]("title")
 
 type Top struct {
 	Name string
 	Top  string
 }
 
-tops := User.Objects.Values[Top](ctx, orm.Into(Top.Name, User.Name), orm.Into(Top.Top, fn.Subquery[User](latest, Post.Title)))?
+tops := User.Objects.Annotate("top", orm.Subquery(latest)).Values[Top]("name", "top").All(ctx)?
 
-liked := User.Objects.Filter(fn.Exists[User](Post.Objects.Filter(fn.OuterEq(Post.Author, User.ID), Post.Likes.Ge(20))))
-viewed := User.Objects.Filter(fn.In(User.ID, Post.Objects.Filter(Post.Views.Ge(50)), Post.Author))
+liked := User.Objects.Filter(orm.Exists(Post.Objects.Filter(orm.Q{"author": orm.OuterRef("id")}, Post.Likes.Gte(20))))
+viewed := User.Objects.Filter(User.ID.InQuery(Post.Objects.Filter(Post.Views.Gte(50)).Values[int64]("author")))
 ```
 
 ## Custom functions
@@ -140,19 +124,14 @@ var (
 
 A function with no `Template` is called as `name(args…)`; one with templates
 is written only where one applies — elsewhere its query fails with
-`function editdist has no SQL on mysql`. Arguments are field references,
-other expressions, or plain values, which are always bound as parameters,
-never written into the SQL.
-
-Called with field references, a function's comparisons are the engine's
-conditions — they go in `Where`, `Order` and `AnnotateAs`. As a term of the
-model they go everywhere a reference's do:
+`function editdist has no SQL on mysql`. Arguments are expressions (a
+field's `Expr()`) or plain values, which are always bound as parameters,
+never written into the SQL. Its comparisons are conditions, its `Asc` and
+`Desc` terms of `Order`, and `Annotate` names it:
 
 ```vuka
-close := Post.Objects.Where(EditDist(Post.Title, "go").Le(1)).Order(EditDist(Post.Title, "go").Asc())
-
-dist := orm.OrderedTermOf[Post, int](EditDist(Post.Title, "go"))   // or fn.Call[int](EditDist, Post.Title, "go")
-near := Post.Objects.Filter(dist.Le(1), Post.Views.Gt(50)).OrderBy(dist.Asc())
+dist := EditDist(Post.Title.Expr(), "go")
+close := Post.Objects.Filter(dist.Le(1), Post.Views.Gt(50)).Order(dist.Asc()).All(ctx)?
 ```
 
 `.Over(orm.Window{PartitionBy: []string{"author_id"}, OrderBy: []string{"-views"}})`
@@ -176,7 +155,7 @@ orm.RegisterLookup("unaccent_icontains", func(lhs string, rhs func() string, d o
 ```
 
 ```vuka
-Post.Objects.Where(orm.Q{"title__unaccent_icontains": "cafe"})
+Post.Objects.Filter(orm.Q{"title__unaccent_icontains": "cafe"})
 ```
 
 `orm.LookupValue` maps the value before it is bound (`orm.LikePattern`
@@ -197,7 +176,7 @@ func init() {
 	sqlite.MustFunc("now_ms", func() int64 { return time.Now().UnixMilli() }, sqlite.Volatile())
 }
 
-long := Post.Objects.Where(words(Post.Body).Ge(5)).All(ctx)?
+long := Post.Objects.Filter(words(Post.Body.Expr()).Ge(5)).All(ctx)?
 ```
 
 Parameters and results are strings, `[]byte`, bools, numbers, `time.Time`,

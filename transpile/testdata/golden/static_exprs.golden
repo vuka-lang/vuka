@@ -21,10 +21,10 @@ type Model[Self any] struct {
 
 //line static_exprs.vuka:22
 func (m *Model[Self]) Save(self *Self) {
-	Model_Objects[Self]().V.Add(self)
-	Model_Made[Self]().V.Add(self)
-	Model_Fresh[Self]().V.Add(self)
-	Model_Seen[Self]().V = append(Model_Seen[Self]().V, *self)
+	ModelObjects[Self]().V.Add(self)
+	ModelMade[Self]().V.Add(self)
+	ModelFresh[Self]().V.Add(self)
+	ModelSeen[Self]().V = append(ModelSeen[Self]().V, *self)
 }
 
 type User struct {
@@ -35,15 +35,15 @@ type User struct {
 func main() {
 	u := &User{Name: "ada"}
 	u.Save(u)
-	Model_ByName[User]().V[u.Name] = u
-	fmt.Println(len(Model_Objects[User]().V.All()), len(Model_Made[User]().V.All()), len(Model_Fresh[User]().V.All()), Model_Seen[User]().V[0].Name, Model_ByName[User]().V["ada"].Name)
-	fmt.Println(Model_Room[User]().V, Model_Label[User]().V)
+	ModelByName[User]().V[u.Name] = u
+	fmt.Println(len(ModelObjects[User]().V.All()), len(ModelMade[User]().V.All()), len(ModelFresh[User]().V.All()), ModelSeen[User]().V[0].Name, ModelByName[User]().V["ada"].Name)
+	fmt.Println(ModelRoom[User]().V, ModelLabel[User]().V)
 }
 
 var modelObjectsStatics vuka.Statics
 
 //line static_exprs.vuka:12
-func Model_Objects[Self any]() *vuka.Static[*Store[Self]] {
+func ModelObjects[Self any]() *vuka.Static[*Store[Self]] {
 //line static_exprs.vuka:12
 	return vuka.StaticOf[Model[Self]](&modelObjectsStatics, func() *Store[Self] { return &Store[Self]{} })
 }
@@ -51,7 +51,7 @@ func Model_Objects[Self any]() *vuka.Static[*Store[Self]] {
 var modelMadeStatics vuka.Statics
 
 //line static_exprs.vuka:13
-func Model_Made[Self any]() *vuka.Static[*Store[Self]] {
+func ModelMade[Self any]() *vuka.Static[*Store[Self]] {
 //line static_exprs.vuka:13
 	return vuka.StaticOf[Model[Self]](&modelMadeStatics, func() *Store[Self] { return NewStore[Self]() })
 }
@@ -59,7 +59,7 @@ func Model_Made[Self any]() *vuka.Static[*Store[Self]] {
 var modelFreshStatics vuka.Statics
 
 //line static_exprs.vuka:14
-func Model_Fresh[Self any]() *vuka.Static[*Store[Self]] {
+func ModelFresh[Self any]() *vuka.Static[*Store[Self]] {
 //line static_exprs.vuka:14
 	return vuka.StaticOf[Model[Self]](&modelFreshStatics, func() *Store[Self] { return new(Store[Self]) })
 }
@@ -67,7 +67,7 @@ func Model_Fresh[Self any]() *vuka.Static[*Store[Self]] {
 var modelSeenStatics vuka.Statics
 
 //line static_exprs.vuka:15
-func Model_Seen[Self any]() *vuka.Static[[]Self] {
+func ModelSeen[Self any]() *vuka.Static[[]Self] {
 //line static_exprs.vuka:15
 	return vuka.StaticOf[Model[Self]](&modelSeenStatics, func() []Self { return []Self{} })
 }
@@ -75,7 +75,7 @@ func Model_Seen[Self any]() *vuka.Static[[]Self] {
 var modelByNameStatics vuka.Statics
 
 //line static_exprs.vuka:16
-func Model_ByName[Self any]() *vuka.Static[map[string]*Self] {
+func ModelByName[Self any]() *vuka.Static[map[string]*Self] {
 //line static_exprs.vuka:16
 	return vuka.StaticOf[Model[Self]](&modelByNameStatics, func() map[string]*Self { return map[string]*Self{} })
 }
@@ -83,7 +83,7 @@ func Model_ByName[Self any]() *vuka.Static[map[string]*Self] {
 var modelLimitStatics vuka.Statics
 
 //line static_exprs.vuka:17
-func Model_Limit[Self any]() *vuka.Static[int] {
+func ModelLimit[Self any]() *vuka.Static[int] {
 //line static_exprs.vuka:17
 	return vuka.StaticOf[Model[Self]](&modelLimitStatics, func() int { return 3 })
 }
@@ -91,15 +91,15 @@ func Model_Limit[Self any]() *vuka.Static[int] {
 var modelRoomStatics vuka.Statics
 
 //line static_exprs.vuka:18
-func Model_Room[Self any]() *vuka.Static[int] {
+func ModelRoom[Self any]() *vuka.Static[int] {
 //line static_exprs.vuka:18
-	return vuka.StaticOf[Model[Self]](&modelRoomStatics, func() int { return Model_Limit[Self]().V - len(Model_Made[Self]().V.All()) })
+	return vuka.StaticOf[Model[Self]](&modelRoomStatics, func() int { return ModelLimit[Self]().V - len(ModelMade[Self]().V.All()) })
 }
 
 var modelLabelStatics vuka.Statics
 
 //line static_exprs.vuka:19
-func Model_Label[Self any]() *vuka.Static[string] {
+func ModelLabel[Self any]() *vuka.Static[string] {
 //line static_exprs.vuka:19
 	return vuka.StaticOf[Model[Self]](&modelLabelStatics, func() string { return fmt.Sprintf("%T", *new(Self)) })
 }

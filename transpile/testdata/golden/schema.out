@@ -1,0 +1,11 @@
+User table="" ID=[pk] Name=[char(50)]
+Post table="posts" ID=[pk column post_id] Title=[char(200)]
+tx on "main": <nil>
+tx on "main": not found
+<nil> not found
+Go <nil> -title 2
+tx on "": no title
+ no title 2
+tx on "": <nil>
+tx on "": <nil>
+Notes <nil> Ok(3)

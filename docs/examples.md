@@ -122,9 +122,11 @@ type Chat struct {
 	name  string
 }
 
-func (c *Chat) Mount() {
+@ui.Mount
+func (c *Chat) mount(ctx context.Context) error {
 	c.Subscribe(c.topic())
 	c.lines = c.Log.History(c.Room)
+	return nil
 }
 
 func (c *Chat) Update(m Said)   { c.lines = append(c.lines, m.Who+": "+m.Text) }
@@ -151,7 +153,8 @@ type Board struct {
 	me      *auth.Identity
 }
 
-func (b *Board) Mount(ctx context.Context) { b.me = auth.Current(ctx) }
+@ui.Mount
+func (b *Board) mount(ctx context.Context) error { b.me = auth.Current(ctx); return nil }
 
 @auth.Requires("notices.delete")
 func (b *Board) Clear(ctx context.Context) error {

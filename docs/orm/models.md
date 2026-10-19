@@ -101,15 +101,16 @@ composite literal, type-checked, so a wrong setting is a compile error on
 the attribute.<span class="go-only"> `Schema` names each field by its
 address (`&p.Title`), so a renamed field is a compile error too; a field
 with nothing to say isn't listed. The ORM calls `Schema` once, on a zero
-value.</span>
+value.</span><span class="vuka-only"> Vuka writes them into the model's
+`Schema` method, the Go form: a field is named by its address, a bare
+attribute is its zero value (`@orm.PK` is `orm.PK{}`), and a type that
+declares `Schema` itself can't have attributes too (E0129).</span>
 
 ## orm.Base
 
 `orm.Base` is a Vuka model's base; Vuka fills in the type, so `orm.Base` in
-`Post` is `orm.Base[Post]` — its type parameter is named
-[`Self`](/features/statics#through-embedding-with-self), and its static
-`Objects` has one value per model (`Post.Objects` is
-`orm.Base_Objects[Post]().V` in Go). It gives the rows their methods:
+`Post` is `orm.Base[Post]`, and its static `Objects` is the model's
+manager (`orm.Objects[Post]()` in Go). It gives the rows their methods:
 
 | | |
 |---|---|
@@ -120,13 +121,14 @@ value.</span>
 | `p.Load(ctx, Post.Tags, …)` | reads relations into the row |
 | `p.Add(ctx, Post.Tags, rows…)`, `Remove`, `Set` | changes a many-to-many's links |
 
-and a static, `Post.Objects`: the model's [`orm.Query[Post]`](/orm/queries).
-A [static method](/features/statics) names a query:
+and a static, `Post.Objects`: the model's [manager](/orm/queries),
+`orm.Objects[Post]()` in Go. A [static method](/features/statics) names a
+query:
 
 ::: vuka
 ```vuka
 // Live is the published posts.
-func Post.Live() orm.Query[Post] { return Post.Objects.Filter(Post.Published.NotNil()) }
+func Post.Live() orm.QuerySet[Post] { return Post.Objects.Filter(Post.Published.IsNull(false)) }
 
 n := Post.Live().Count(ctx)?
 ```
@@ -278,12 +280,11 @@ err = p.Tags.Clear(ctx)
 ```
 :::
 
-`All`, `Query` (the related rows as an `orm.Query[T]`), `Add`, `Remove`,
+`All`, `Add`, `Remove`,
 `Set`, `Clear` (on a saved row; rows or keys), `Rows` and `Loaded` (what
 `PrefetchRelated` loaded).
 
-Both implement `vuka.Related[T]`, so a [field reference](/features/fields#field-references)
-goes on through them into the related model: `Post.Author.Name`,
+A model's typed fields go on through them into the related model: `Post.Author.Name`,
 `Post.Tags.Name`.
 
 `@orm.Rel` describes a relation:

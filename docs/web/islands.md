@@ -321,16 +321,32 @@ component reads it, sets what it may and calls the rest.
 @ui.Island(ui.Layout(layouts.Page("Orders")))
 @auth.Required
 type Orders struct {
-    ui.Live                                         // a live page
-    Q      string  `url:"q" bind:"q"`               // the component sets it; kept in the address's ?q=
-    Status string  `bind:"status,debounce=0"`      // set at once, no wait
-    Rows   []Order                                  // read only
-    db     *DB                                      // the server's own: injected, never sent
+    ui.Live                                // a live page
+    Q      string  @ui.Bind @ui.URL("q")         // the component sets it; kept in the address's ?q=
+    Status string  @ui.Bind{Debounce: -1}        // set at once, no wait
+    Rows   []Order                               // read only
+    db     *DB                                   // the server's own: injected, never sent
 }
 
-func (o *Orders) Mount(ctx context.Context) error   { return o.load(ctx) }
-func (o *Orders) Changed(ctx context.Context) error { return o.load(ctx) } // after the component sets Q or Status
-func (o *Orders) Cancel(ctx context.Context, id int64) error { … }       // callable from the component
+@ui.Mount
+func (o *Orders) mount(ctx context.Context) error { return o.load(ctx) }
+
+@ui.OnChange
+func (o *Orders) changed(ctx context.Context, c ui.Changed) error { return o.load(ctx) } // after the component sets Q or Status
+
+func (o *Orders) Cancel(ctx context.Context, id int64) error { … } // callable from the component
+```
+
+The attributes and hooks are the page's `LiveSchema` method, which a plain
+Go page writes itself:
+
+```go
+func (o *Orders) LiveSchema(l *ui.LiveSchema) {
+    l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
+    l.Field(&o.Status, ui.Bind{Debounce: -1})
+    l.Mount(o.mount)
+    l.OnChange(o.changed)
+}
 ```
 :::
 
@@ -390,19 +406,19 @@ const live = useLive<Orders>()
   the server changes it. Unexported fields are the server's — dependencies
   of provided types are injected into them, as into other components — and
   never reach the browser.
-- **`bind:"name"` fields are the ones the component sets**:
+- **`@ui.Bind` fields are the ones the component sets**:
   `live.q.set(v)`, or `live.q.value = v` (so `v-model="live.q.value"`).
   The value is the browser's at once; the set is sent after a pause
-  (300ms, `bind:"q,debounce=500"` to change it; `set(v, { now: true })`
-  sends it straight away), and the sets of several fields within one pause
-  go as one update. The server sets the fields, runs `Changed` if the type
-  has one — `Changed()`, `Changed(ctx)` or `Changed(ctx, changed
-  ui.Changed)`, returning nothing or an error; its dependencies are the
-  struct's injected fields, as for the other methods — and answers with
-  the props. `changed` says which fields the update set
-  ([which fields changed](#which-fields-changed)). A field without `bind:` has no
-  `set` and its `value` is read only, in the types and on the server, which
-  refuses a set of it (403, as `live.error`).
+  (300ms; `@ui.Bind{Debounce: 500 * time.Millisecond}` to change it, a
+  negative one for none; `set(v, { now: true })` sends it straight away),
+  and the sets of several fields within one pause go as one update. The
+  server sets the fields, runs the `@ui.OnChange` hook if the page has one
+  — `func(ctx context.Context, c ui.Changed) error`; its dependencies are
+  the struct's injected fields, as for the other methods — and answers
+  with the props. `c` says which fields the update set
+  ([which fields changed](#which-fields-changed)). A field without
+  `@ui.Bind` has no `set` and its `value` is read only, in the types and
+  on the server, which refuses a set of it (403, as `live.error`).
 - **Exported methods are what the component calls**: `live.cancel(id)`
   returns a promise; the arguments are JSON, checked against the method's
   Go parameters on the server and typed in `vuka:live`. A method has its own
@@ -410,13 +426,14 @@ const live = useLive<Orders>()
   `live.error` are the page's (any call). An error is `{status, message,
   fields}`, `fields` from a `web.Invalid{"q": "…"}`. A `web.Redirect`
   navigates. Calls and sets go one at a time, in order; a method waits for
-  the sets before it. `Render`, `Mount`, `Update`, `Info`, `Changed` and
-  the loaders of deferred fields aren't callable, and a method and a field can't share a name on `live`
+  the sets before it. `Render`, `Update`, `Info` and the hooks
+  (`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`) aren't callable — a hook may
+  be unexported — and a method and a field can't share a name on `live`
   (the app doesn't start).
-- **`defer:""` fields** aren't in the first render: a loader method sends
-  them after it, and the component reads them as pending until then —
-  [deferred fields](#deferred-fields).
-- **`url:"name"` fields** are filled from the query when the page loads,
+- **`@ui.Defer("group")` fields** aren't in the first render: the group's
+  loader sends them after it, and the component reads them as pending
+  until then — [deferred fields](#deferred-fields).
+- **`@ui.URL("name")` fields** are filled from the query when the page loads,
   and when they change the address follows (`history.replaceState`), so a
   reload or a shared link shows the same page.
 - **Live** (`ui.Live` embedded): the struct is the live view, its Render the
@@ -430,8 +447,8 @@ const live = useLive<Orders>()
   fields or the method with its arguments, and the props the page was
   rendered with — signed with the app's key (`web.LiveKey`), bound to the
   page, the visitor's sign-in and an expiry — to the page's URL; the server
-  builds the struct again from them, injects its dependencies, runs Mount,
-  then the set and `Changed` or the method, and answers with the new props,
+  builds the struct again from them, injects its dependencies, runs its
+  Mount hook, then the set and its OnChange hook or the method, and answers with the new props,
   signed again. Changed props are refused. Calls are refused cross-origin
   and pass the type's gates (`@auth.Required`…) like the page.
 - **The visitor** is known to every island's component: `$vuka` in Vue
@@ -555,8 +572,9 @@ its marked link following the path.
 
 ### Validation
 
-`validate:` tags are checked on the server before anything runs, live and
-stateless alike:
+`validate:` tags on a method's arguments, and the `validate` attributes of
+a page's bound fields, are checked on the server before anything runs,
+live and stateless alike:
 
 ```vuka
 type Filter struct {
@@ -570,7 +588,7 @@ type Level struct {
 
 type Orders struct {
     ui.Live
-    Q    string  `url:"q" bind:"q" validate:"max=50"`
+    Q    string  @ui.Bind @ui.URL("q") @validate.Max(50)
     Rows []Order
 }
 
@@ -580,8 +598,10 @@ func (o *Orders) Narrow(ctx context.Context, f Filter) error { … }
 The rules: `required` (not the zero value), `omitempty` (skip the rest when
 it is), `min=n`, `max=n` and `len=n` (a string's characters, a number's
 value, a slice's or map's items), `oneof=a b c` and `email`, comma
-separated. A tag with another rule, or a bad value (`max=five`), stops the
-app at start.
+separated; the attributes of package `ui/validate` are the same rules
+(`@validate.Required`, `@validate.Max(50)`, `@validate.OneOf{"a", "b"}`).
+A tag with another rule, or a bad value (`max=five`), stops the app at
+start.
 
 - **A method's arguments**: each struct argument (or pointer to one, or a
   slice or map of them) is checked, and the structs it holds at any depth.
@@ -600,29 +620,30 @@ app at start.
   structs with a field of one name shows the first one's message.
   Arguments that are plain values (`id int64`) have no tags to check.
 - **A bound field**: every field of one set is checked before any is
-  applied; if one fails, none is set and `Changed` doesn't run. The answer
+  applied; if one fails, none is set and the OnChange hook doesn't run. The answer
   is the same 422, each field under its wire name (`fields: {"q": "at most
   50 characters"}`, inside a struct field `where.city`). `live.q.error` is
   that field's message (`"city: required"` for one inside it), or `null`.
   What was typed stays in the input, shown with its error, until the field
   is set again (a valid set clears the error) or a method succeeds; any
-  other refusal (a field that isn't `bind:`) puts the server's value back.
+  other refusal (a field without `@ui.Bind`) puts the server's value back.
 
 ```vue
 <input v-model="live.q.value" />
 <p v-if="live.q.error">{{ live.q.error }}</p>
 ```
 
-A `web.Invalid` returned by a method or by `Changed` reaches the component
-the same way.
+A `web.Invalid` returned by a method or by the OnChange hook reaches the
+component the same way.
 
 ### Which fields changed
 
-Several fields set within one pause reach `Changed` as one update. To
-react to only some of them, take a `ui.Changed`:
+Several fields set within one pause reach the OnChange hook as one
+update; its `ui.Changed` says which:
 
 ```vuka
-func (o *Orders) Changed(ctx context.Context, changed ui.Changed) error {
+@ui.OnChange
+func (o *Orders) changed(ctx context.Context, changed ui.Changed) error {
     if changed.Has("status") {
         o.page = 1                       // a new filter starts at the first page
     }
@@ -633,12 +654,11 @@ func (o *Orders) Changed(ctx context.Context, changed ui.Changed) error {
 `changed.Names()` are the wire names of the fields the update set — the
 prop's json name, else the Go name — sorted. `changed.Has(name)` takes
 the wire name, the handle (`live.q`'s `q`) or the Go name (`Q`), so
-`changed.Has("Q")` and `changed.Has("q")` both hold for ``Q string
-`bind:"q"` ``. `ui.Changed` may come alone, `Changed(changed ui.Changed)`.
+`changed.Has("Q")` and `changed.Has("q")` both hold for `Q`.
 
 ### Deferred fields
 
-A field tagged `defer:""` isn't in the page's first render: the page
+A field with `@ui.Defer("group")` isn't in the page's first render: the page
 paints, the component mounts, and the field follows once the server has
 it. Nothing in the component asks for it — a slow count or the first
 tab's rows don't hold up the page.
@@ -649,20 +669,22 @@ tab's rows don't hold up the page.
 @ui.Island(ui.Layout(layouts.Page("Orders")))
 type Orders struct {
     ui.Live
-    Q      string         `url:"q" bind:"q"`
-    Stats  OrderStats     `json:"stats" defer:""`      // its own group: LoadStats
-    Rows   []Order        `json:"rows" defer:"lists"`   // Rows and Total load together: LoadLists
-    Total  int            `json:"total" defer:"lists"`
+    Q      string     @ui.Bind @ui.URL("q")
+    Stats  OrderStats `json:"stats"` @ui.Defer("stats")
+    Rows   []Order    `json:"rows"` @ui.Defer("lists")   // Rows and Total load together
+    Total  int        `json:"total"` @ui.Defer("lists")
     db     *DB
 }
 
-func (o *Orders) LoadStats(ctx context.Context) error {
+@ui.Loads("stats")
+func (o *Orders) loadStats(ctx context.Context) error {
     s, err := o.db.Stats(ctx)
     o.Stats = s
     return err
 }
 
-func (o *Orders) LoadLists(ctx context.Context) error {
+@ui.Loads("lists")
+func (o *Orders) loadLists(ctx context.Context) error {
     rows, total, err := o.db.Orders(ctx, o.Q, 1)
     o.Rows, o.Total = rows, total
     return err
@@ -674,22 +696,31 @@ func (o *Orders) LoadLists(ctx context.Context) error {
 ```go
 type Orders struct {
 	ui.Live
-	Q     string     `url:"q" bind:"q"`
-	Stats OrderStats `json:"stats" defer:""`     // its own group: LoadStats
-	Rows  []Order    `json:"rows" defer:"lists"` // Rows and Total load together: LoadLists
-	Total int        `json:"total" defer:"lists"`
+	Q     string
+	Stats OrderStats `json:"stats"`
+	Rows  []Order    `json:"rows"`
+	Total int        `json:"total"`
 	db    *DB
 }
 
 func NewOrders(db *DB) *Orders { return &Orders{db: db} }
 
-func (o *Orders) LoadStats(ctx context.Context) error {
+func (o *Orders) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
+	l.Field(&o.Stats, ui.Defer("stats"))
+	l.Field(&o.Rows, ui.Defer("lists")) // Rows and Total load together
+	l.Field(&o.Total, ui.Defer("lists"))
+	l.Loads("stats", o.loadStats)
+	l.Loads("lists", o.loadLists)
+}
+
+func (o *Orders) loadStats(ctx context.Context) error {
 	s, err := o.db.Stats(ctx)
 	o.Stats = s
 	return err
 }
 
-func (o *Orders) LoadLists(ctx context.Context) error {
+func (o *Orders) loadLists(ctx context.Context) error {
 	rows, total, err := o.db.Orders(ctx, o.Q, 1)
 	o.Rows, o.Total = rows, total
 	return err
@@ -703,13 +734,12 @@ func init() {
 ```
 :::
 
-- **Groups and loaders.** `defer:"lists"` puts the field in the group
-  `lists`; a bare `defer:""` is a group of its own, named after the field.
-  Each group has one loader, the method `Load<Group>` — `LoadLists`,
-  `LoadStats` — taking a `context.Context` (or nothing) and returning an
-  error (or nothing). A missing or misshapen loader stops the app at
-  start, as does `defer` beside `bind:` or `url:`. A loader isn't on
-  `live`: the component can't call it.
+- **Groups and loaders.** `@ui.Defer("lists")` puts the field in the group
+  `lists`. Each group has one loader, the method marked `@ui.Loads("lists")`
+  (`l.Loads("lists", o.loadLists)` in Go), a `func(ctx context.Context)
+  error`. A missing loader stops the app at start (E0324), as does a
+  deferred field the component binds or the URL keeps (E0323). A loader
+  isn't on `live`: the component can't call it.
 - **When.** On a live page the loaders run once the page has joined, each
   group on its own goroutine, and each group's fields reach the component
   as an update when its loader returns — the fast ones don't wait for the

@@ -18,7 +18,15 @@ type Statics struct {
 }
 
 // StaticOf returns the static field of the instantiated type K, built by init
-// on first use. Generated code calls it.
+// on first use: a package-level value per instantiation, which Go has no
+// variable for. Vuka's static of a generic type, static Objects =
+// &Store[Self]{} in Model[Self], is
+//
+//	var modelObjectsStatics vuka.Statics
+//
+//	func ModelObjects[Self any]() *vuka.Static[*Store[Self]] {
+//		return vuka.StaticOf[Model[Self]](&modelObjectsStatics, func() *Store[Self] { return &Store[Self]{} })
+//	}
 func StaticOf[K, V any](s *Statics, init func() V) *Static[V] {
 	key := reflect.TypeOf((*K)(nil)).Elem()
 	if v, ok := s.m.Load(key); ok {

@@ -117,14 +117,14 @@ func main() {
 func init() {
 	vuka.RegisterFields[User](map[string][]any{
 //line fields.vuka:40
-		"ID":   {*new(PK)},
+		"ID":   {PK{}},
 		"Name": {Char{Max: 50}},
 	})
 }
 
 func init() {
 	vuka.RegisterFields[Post](map[string][]any{
-		"ID":     {*new(PK)},
+		"ID":     {PK{}},
 		"Title":  {Char{Max: 200}},
 		"Author": {Rel{OnDelete: "cascade"}},
 		"Views":  {Default(0)},

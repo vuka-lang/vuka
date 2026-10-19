@@ -48,7 +48,9 @@ same page in the terminal.
 | [E0126](./E0126) | Bad vuka.File |
 | [E0127](./E0127) | Render doesn't fill a template's holes |
 | [E0128](./E0128) | A value doesn't fit its template hole |
-| [E0140](./E0140) | a template file has no type to be the Render of |
+| [E0129](./E0129) | Attributes and a hand-written schema method |
+| [E0130](./E0130) | A hook written as a composite literal |
+| [E0131](./E0131) | A function an around decorator can't wrap |
 
 ## Decorators and attributes
 
@@ -100,7 +102,11 @@ same page in the terminal.
 | [E0332](./E0332) | @web.Get on a type without @ui.Island |
 | [E0333](./E0333) | An island page's Mount has the wrong signature |
 | [E0334](./E0334) | Two Update methods take URL parameters |
+| [E0335](./E0335) | A LiveSchema field that isn't the page's |
+| [E0336](./E0336) | A LiveSchema hook that doesn't fit |
 | [W0301](./W0301) | A live page routed as a stateless one |
+| [W0302](./W0302) | A live page configured by struct tags |
+| [W0303](./W0303) | A live page hook found by its name |
 
 ## Routes and the web app
 
