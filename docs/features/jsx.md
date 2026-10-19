@@ -127,6 +127,11 @@ func UserCard(user User, admin bool, children ui.Node) ui.Node { … }
   ...ButtonProps)`, templUI's shape), takes the attributes as its fields, and
   the children as a `Children` field. An attribute naming the parameter itself
   passes the struct whole: `<PetRow pet={p}/>` for `func PetRow(pet Pet)`.
+- A component taking `ctx context.Context` first gets the context its tag
+  renders with, the rest binding as above: `<Admin title="x">…</Admin>` for
+  `func Admin(ctx context.Context, p AdminProps)` is
+  `ui.Ctx(func(ctx context.Context) ui.Node { return Admin(ctx, AdminProps{…}) })`,
+  its attributes and children evaluated where the tag is.
 - A component returns the target's node type, or a node and an `error`; the
   error is the target's to render (ui fails the render, unless an
   `ui.ErrorBoundary` above it shows a fallback).

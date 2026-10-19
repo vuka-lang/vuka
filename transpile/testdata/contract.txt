@@ -67,6 +67,7 @@ public github.com/vuka-lang/ui.Classes
 public github.com/vuka-lang/ui.ClientOnly
 public github.com/vuka-lang/ui.Commands
 public github.com/vuka-lang/ui.Component
+public github.com/vuka-lang/ui.Ctx
 public github.com/vuka-lang/ui.Defer
 public github.com/vuka-lang/ui.Derived
 public github.com/vuka-lang/ui.Each
