@@ -73,6 +73,18 @@ type jsxElem struct {
 	attrs      []*jsxAttr
 	kids       []jsxNode
 	comp       *jsxComp // for a component's tag
+	asset      bool     // <script lang="ts"> or <style scoped>: the component's, bundled, not markup
+}
+
+// isAsset reports whether an element is a component's script or scoped
+// stylesheet: <script lang="ts">, <style scoped>.
+func (el *jsxElem) isAsset() bool {
+	for _, a := range el.attrs {
+		if el.tag == "script" && a.name == "lang" && a.kind == 's' && a.val == "ts" || el.tag == "style" && a.name == "scoped" {
+			return true
+		}
+	}
+	return false
 }
 
 func (el *jsxElem) open() string { return "<" + el.tag + ">" }
@@ -102,6 +114,7 @@ type jsxText struct {
 // jsxHole is a {expr} child.
 type jsxHole struct {
 	expr span
+	json bool       // {json(x)} in a template's inline script: x as JSON
 	bind *stateBind // an expression reading states, lowered (state.go)
 }
 
@@ -260,13 +273,14 @@ func (p *jsxParser) element(off int) *jsxElem {
 		case c == '/' && p.at(i+1) == '>':
 			el.end = i + 2
 			return el
-		case c == '>' && p.f.html != nil && (el.tag == "script" || el.tag == "style"):
+		case c == '>' && (p.f.html != nil && (el.tag == "script" || el.tag == "style") || el.isAsset()):
+			el.asset = el.isAsset()
 			end := strings.Index(string(p.src[i+1:]), "</"+el.tag)
 			if end < 0 {
 				p.fail(off, "unclosed <%s>", el.tag)
 			}
 			if end > 0 {
-				el.kids = []jsxNode{&jsxText{start: i + 1, val: string(p.src[i+1 : i+1+end])}}
+				el.kids = p.inlineScript(el, i+1, i+1+end)
 			}
 			i += 1 + end
 			k := p.space(i + 2 + len(el.tag))
@@ -1095,4 +1109,35 @@ func (t *jsxTree) callsEvent(src []byte) bool {
 		}
 	}
 	return false
+}
+
+// inlineScript is a template's script or style content: text, but for the
+// {json(x)} holes of a <script is:inline>.
+func (p *jsxParser) inlineScript(el *jsxElem, start, end int) []jsxNode {
+	inline := false
+	for _, a := range el.attrs {
+		inline = inline || a.name == "is:inline"
+	}
+	var out []jsxNode
+	i := start
+	for inline {
+		k := strings.Index(string(p.src[i:end]), "{json(")
+		if k < 0 {
+			break
+		}
+		k += i
+		sp, j, ok := p.expr(k)
+		if !ok || j > end || sp.end-sp.start < len("json()") || p.src[sp.end-1] != ')' {
+			p.fail(k, "{json(…)} isn't closed")
+		}
+		if k > i {
+			out = append(out, &jsxText{start: i, val: string(p.src[i:k])})
+		}
+		out = append(out, &jsxHole{expr: span{sp.start + len("json("), sp.end - 1}, json: true})
+		i = j
+	}
+	if i < end {
+		out = append(out, &jsxText{start: i, val: string(p.src[i:end])})
+	}
+	return out
 }

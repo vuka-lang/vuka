@@ -271,7 +271,7 @@ func TestBundleScripts(t *testing.T) {
 		files []string
 		want  string
 	}{
-		{[]string{"bad.ts"}, `bad.ts:1:22: canvas-confetti is a package; a component's scripts bundle relative imports only (./x.ts)`},
+		{[]string{"bad.ts"}, `bad.ts:1:22: Could not resolve "canvas-confetti"`},
 		{[]string{"a.ts", "dup.ts"}, `app.C: a.ts and dup.ts both export the method bump`},
 		{[]string{"broken.ts"}, `broken.ts:2: Expected ")" but found "{"`},
 	} {

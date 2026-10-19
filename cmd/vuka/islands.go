@@ -554,7 +554,7 @@ func tokenText(t wtok) string {
 // (import Counter "./islands/Counter.vue"): islands whose props the compiler
 // reads from the component (an @ui.Island struct of the name wins).
 func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, toks []wtok) {
-	if !strings.HasSuffix(file, ".vuka") {
+	if !strings.HasSuffix(file, ".vuka") && !strings.HasSuffix(file, ".vuka.html") {
 		return
 	}
 	dir := filepath.Dir(file)

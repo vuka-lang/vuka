@@ -57,6 +57,9 @@ func (e *engine) split(f *fileState) *Split {
 		if p.fail {
 			continue
 		}
+		for _, a := range p.assets {
+			p.b.WriteString("\n\n" + a)
+		}
 		var b strings.Builder
 		b.WriteString(lead)
 		if !isMain || p.strip == "" {
@@ -250,11 +253,12 @@ func (e *engine) bareNames(f *fileState, fd *ast.FuncDecl) string {
 
 // tprint writes a tree as a template's markup.
 type tprint struct {
-	f     *fileState
-	t     *jsxTree
-	b     strings.Builder
-	strip string // the receiver whose selectors are written bare
-	fail  bool
+	f      *fileState
+	t      *jsxTree
+	b      strings.Builder
+	strip  string // the receiver whose selectors are written bare
+	fail   bool
+	assets []string // the root's scripts and scoped stylesheets, written after the markup
 }
 
 // gocode is the source of a span as Go: nothing Vuka rewrites inside it.
@@ -305,6 +309,12 @@ var stmtLike = regexp.MustCompile(`^(if|for|switch)\b|^[A-Za-z_][\w.]*\s*(:=|=[^
 // nodes writes ns at indent, each on a line of its own where whitespace
 // between them means nothing — always in a block's body — else inline.
 func (p *tprint) nodes(ns []jsxNode, indent string, inline, body bool) {
+	for _, n := range ns {
+		if el, ok := n.(*jsxElem); ok && el.asset {
+			p.assets = append(p.assets, string(p.f.src[el.start:el.end]))
+		}
+	}
+	ns = withoutAssets(ns)
 	blocks := false
 	for _, n := range ns {
 		if _, ok := n.(*jsxBlock); ok {

@@ -18,7 +18,32 @@ import (
 // bundled by esbuild into one ES module whose default export is the list of
 // their default exports, in order: each a hook object, { mounted(el, ctx),
 // updated(el, ctx), destroyed(el, ctx), …methods }. Relative imports are
-// bundled; packages aren't resolved (there is no node_modules here).
+// bundled, and packages from node_modules; vuka:component is componentModule.
+
+// componentModule is vuka:component, what a template's script imports:
+// component(fn) and page(fn) make the loader's hooks of a function run once
+// per instance — fn(el, props, ctx) for a component, its props the
+// data-vk-p its root carries (ui.Props), update(next) when a patch changes
+// them; fn(el, live) for a live page — and destroy() when it leaves.
+// ctx.live and live call the instance's exported Go methods: live.reorder(ids)
+// is Reorder.
+const componentModule = `
+const read = (el) => { try { return JSON.parse(el.getAttribute("data-vk-p") || "{}"); } catch { return {}; } };
+const live = (ctx) => new Proxy({}, { get: (_, k) => typeof k === "string" ? (...a) => ctx.push(k[0].toUpperCase() + k.slice(1), a.length > 1 ? a : a[0]) : undefined });
+function hooks(start) {
+  const insts = new WeakMap();
+  return {
+    mounted(el, ctx) { insts.set(el, { props: el.getAttribute("data-vk-p"), h: start(el, ctx) || {} }); },
+    updated(el) {
+      const i = insts.get(el), p = el.getAttribute("data-vk-p");
+      if (i && p !== i.props) { i.props = p; if (i.h.update) i.h.update(read(el)); }
+    },
+    destroyed(el) { const i = insts.get(el); insts.delete(el); if (i && i.h.destroy) i.h.destroy(); },
+  };
+}
+export const component = (fn) => hooks((el, ctx) => fn(el, read(el), { live: live(ctx), push: ctx.push, emit: ctx.emit, on: ctx.on, ref: ctx.ref }));
+export const page = (fn) => hooks((el, ctx) => fn(el, live(ctx)));
+`
 
 // hookNames are the hooks the loader runs, not methods ui.JS.Call reaches.
 var hookNames = []string{"mounted", "updated", "destroyed"}
@@ -97,11 +122,12 @@ func sourcesPlugin(c *assetComp) api.Plugin {
 			}
 			return api.OnResolveResult{Path: strconv.Itoa(i), Namespace: "vuka-inline"}, nil
 		})
-		b.OnResolve(api.OnResolveOptions{Filter: `^[^./]`}, func(a api.OnResolveArgs) (api.OnResolveResult, error) {
-			if a.Kind == api.ResolveEntryPoint {
-				return api.OnResolveResult{}, nil
-			}
-			return api.OnResolveResult{}, fmt.Errorf("%s is a package; a component's scripts bundle relative imports only (./x.ts)", a.Path)
+		b.OnResolve(api.OnResolveOptions{Filter: `^vuka:component$`}, func(api.OnResolveArgs) (api.OnResolveResult, error) {
+			return api.OnResolveResult{Path: "component", Namespace: "vuka"}, nil
+		})
+		b.OnLoad(api.OnLoadOptions{Filter: `.*`, Namespace: "vuka"}, func(api.OnLoadArgs) (api.OnLoadResult, error) {
+			src := componentModule
+			return api.OnLoadResult{Contents: &src, Loader: api.LoaderJS}, nil
 		})
 		b.OnResolve(api.OnResolveOptions{Filter: `^\.\.?/`, Namespace: "vuka-inline"}, func(a api.OnResolveArgs) (api.OnResolveResult, error) {
 			i, _ := strconv.Atoi(a.Importer)

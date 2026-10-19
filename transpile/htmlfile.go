@@ -64,6 +64,98 @@ func componentName(file string) string {
 // are the package's other files: its name, its imports and the main
 // template's type come from them.
 func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htmlFile, *Error) {
+	out, h, _, err := htmlParts(name, src, others, ui, false)
+	return out, h, err
+}
+
+// TemplateAsset is a template's script or stylesheet: a <script> or
+// <style> after its markup, which it is cut from.
+type TemplateAsset struct {
+	Decl   string // the declaration the template is: a type, for its Render or other method, or a function
+	Script bool   // a script, else a stylesheet
+	Scoped bool   // <style scoped>
+	Text   string
+	Line   int // the line Text starts on
+}
+
+// TemplateAssets are the scripts and stylesheets of a template file's
+// templates.
+func TemplateAssets(name string, src []byte) []TemplateAsset {
+	_, _, assets, _ := htmlParts(name, src, nil, "ui.", true)
+	return assets
+}
+
+var (
+	recvDecl = regexp.MustCompile(`^func\s*\(\s*\w*\s*\*?\s*(\w+)`)
+	funcDecl = regexp.MustCompile(`^func\s+(\w+)`)
+)
+
+// cutAssets cuts the scripts and stylesheets after the markup of lines[from:to],
+// blanking their lines, and returns them, of decl.
+func cutAssets(lines []string, from, to int, decl string) []TemplateAsset {
+	var out []TemplateAsset
+	for {
+		last := to - 1
+		for last >= from && strings.TrimSpace(lines[last]) == "" {
+			last--
+		}
+		if last < from {
+			return out
+		}
+		end := strings.TrimSpace(lines[last])
+		kind := ""
+		switch {
+		case strings.HasSuffix(end, "</script>"):
+			kind = "script"
+		case strings.HasSuffix(end, "</style>"):
+			kind = "style"
+		default:
+			return out
+		}
+		open := -1
+		for j := last; j >= from; j-- {
+			if strings.HasPrefix(strings.TrimSpace(lines[j]), "<"+kind) {
+				open = j
+				break
+			}
+		}
+		if open < 0 {
+			return out
+		}
+		text := strings.Join(lines[open:last+1], "")
+		gt := strings.IndexByte(text, '>')
+		closeAt := strings.LastIndex(text, "</"+kind+">")
+		tag := text[:max(gt, 0)]
+		if gt < 0 || closeAt < gt || strings.Contains(tag, "is:inline") {
+			return out
+		}
+		body := text[gt+1 : closeAt]
+		line := open + 1 + strings.Count(text[:gt+1], "\n")
+		if strings.HasPrefix(body, "\n") {
+			body, line = body[1:], line+1
+		}
+		out = append([]TemplateAsset{{Decl: decl, Script: kind == "script", Scoped: strings.Contains(tag, " scoped"), Text: body, Line: line}}, out...)
+		for j := open; j <= last; j++ {
+			lines[j] = "\n"
+		}
+		to = open
+	}
+}
+
+// templateDecl is the declaration a template header names.
+func templateDecl(header string) string {
+	if m := recvDecl.FindStringSubmatch(header); m != nil {
+		return m[1]
+	}
+	if m := funcDecl.FindStringSubmatch(header); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// htmlParts is htmlSource, and the templates' scripts and stylesheets;
+// assetsOnly reads only those.
+func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
 	lines := strings.SplitAfter(string(src), "\n")
 	off := make([]int, len(lines)+1)
 	for i, l := range lines {
@@ -97,9 +189,8 @@ func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htm
 		}
 		return h
 	}
-	out := make([]string, len(lines))
-	copy(out, lines)
 	h := &htmlFile{}
+	var out []string
 	body := func(from, to int) {
 		last := -1
 		for i := from; i < to; i++ {
@@ -136,14 +227,37 @@ func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htm
 			break
 		}
 	}
+	var assets []TemplateAsset
+	typ := componentName(name)
 	if first >= 0 {
-		typ := componentName(name)
+		assets = append(assets, cutAssets(lines, first, firstEnd, typ)...)
+	}
+	for k, hd := range heads {
+		end := len(lines)
+		if k+1 < len(heads) {
+			end = docStart(heads[k+1])
+		}
+		assets = append(assets, cutAssets(lines, hd+1, end, templateDecl(lines[hd]))...)
+	}
+	if assetsOnly {
+		return nil, nil, assets, nil
+	}
+	out = make([]string, len(lines))
+	copy(out, lines)
+	if first >= 0 {
 		ptr, ok := receiverKind(typ, others)
 		if !ok {
-			return nil, nil, &Error{Code: "E0140", Msg: "the markup before the first func is the Render of " + typ + ", and the package declares no type " + typ,
+			return nil, nil, nil, &Error{Code: "E0140", Msg: "the markup before the first func is the Render of " + typ + ", and the package declares no type " + typ,
 				Help: "declare type " + typ + " in a .go or .vuka file of the package, or start the file with func …"}
 		}
 		recv := receiverName(typ, string(src[off[first]:off[firstEnd]]))
+		for _, a := range assets {
+			if a.Decl == typ && a.Script {
+				// A component script reads its props from its root.
+				propsAttr(lines, out, first, firstEnd, ui+"Props("+recv+")")
+				break
+			}
+		}
 		star := ""
 		if ptr {
 			star = "*"
@@ -156,11 +270,19 @@ func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htm
 		}
 	}
 	for k, hd := range heads {
-		header(hd)
 		end := len(lines)
 		if k+1 < len(heads) {
 			end = docStart(heads[k+1])
 		}
+		if v := propsOf(lines[hd]); v != "" {
+			for _, a := range assets {
+				if a.Script && a.Line > hd && a.Line <= end {
+					propsAttr(lines, out, hd+1, end, ui+"Props("+v+")")
+					break
+				}
+			}
+		}
+		header(hd)
 		body(hd+1, end)
 	}
 	pkg := packageName(others)
@@ -199,7 +321,37 @@ func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htm
 		}
 		h.end = at
 	}
-	return []byte(strings.Join(out, "")), h, nil
+	return []byte(strings.Join(out, "")), h, assets, nil
+}
+
+var (
+	firstTag  = regexp.MustCompile(`<[A-Za-z][\w.:-]*`)
+	recvName  = regexp.MustCompile(`^func\s*\(\s*(\w+)\s`)
+	propParam = regexp.MustCompile(`^func\s+\w+\s*\(\s*(\w+)\s+[\w.*]+\s*\)`)
+)
+
+// propsOf is what a template's script reads as its props: its receiver, or
+// its one parameter.
+func propsOf(header string) string {
+	if m := recvName.FindStringSubmatch(header); m != nil {
+		return m[1]
+	}
+	if m := propParam.FindStringSubmatch(header); m != nil {
+		return m[1]
+	}
+	return ""
+}
+
+// propsAttr writes data-vk-p={props} on the first element of a template's
+// markup.
+func propsAttr(lines, out []string, from, to int, props string) {
+	for i := from; i < to; i++ {
+		if loc := firstTag.FindStringIndex(lines[i]); loc != nil {
+			lines[i] = lines[i][:loc[1]] + " data-vk-p={" + props + "}" + lines[i][loc[1]:]
+			out[i] = lines[i]
+			return
+		}
+	}
 }
 
 func importName(line, name string) string {
@@ -349,6 +501,6 @@ func (e *engine) bareIdent(f *fileState, id *ast.Ident, recv types.Type) {
 		return
 	}
 	f.done[off] = true
-	f.insert(off, f.html.recv+".", 0)
+	f.add(off, off+len(id.Name), f.html.recv+"."+id.Name)
 	e.progress = true
 }

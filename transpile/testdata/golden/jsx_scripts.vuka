@@ -1,0 +1,31 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Chart has a component script and a scoped stylesheet, the vuka
+// command's to bundle: its root carries the props the script reads.
+type Chart struct {
+	Title  string
+	Points []int
+}
+
+func (c Chart) Render() ui.Node {
+	return <figure class="chart">
+		<figcaption>{c.Title}</figcaption>
+		<script lang="ts">
+import { component } from 'vuka:component'
+export default component<Chart>((el, props) => { el.dataset.n = String(props.Points.length) })
+</script>
+		<style scoped>figcaption { font-weight: bold }</style>
+	</figure>
+}
+
+func main() {
+	s, err := ui.String(context.Background(), Chart{Title: "Sales", Points: []int{1, 2}}.Render())
+	fmt.Println(s, err)
+}
