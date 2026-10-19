@@ -1,6 +1,6 @@
 // Command library-users is a vuka app written in plain Go: built and run
 // with go build and go run, no vuka command. decorated/ is the same app
-// written in Vuka; vuka eject turns it into this code's registrations.
+// written in Vuka; vuka eject turns it into this code.
 package main
 
 import (
@@ -10,12 +10,15 @@ import (
 	"github.com/vuka-lang/web"
 )
 
+func init() {
+	web.Routes.Service(NewDirectory)
+	web.Routes.Get("/api/users", ListUsers)
+	web.Routes.Get("/api/users/{id}", ShowUser, web.Params("ctx", "id", "dir"))
+	web.Routes.Live("/", NewDashboard)
+	web.Routes.Live("/users/{id}", NewProfile, ui.Island(ui.Layout(page)))
+}
+
 func main() {
 	app := web.New()
-	app.Service(NewDirectory)
-	app.Get("/api/users", ListUsers)
-	app.Get("/api/users/{id}", ShowUser, web.Params("ctx", "id", "dir"))
-	app.Live("/", NewDashboard)
-	app.Live("/users/{id}", NewProfile, ui.Island(ui.Layout(page)))
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

@@ -7,12 +7,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/vuka"
 	ui "vukatest.local/stateui"
 )
 
 // A live @ui.Island struct without a Render: a page backed by its island,
 // whose Render the compiler writes.
+//
+//line islands_page.vuka:13
 type Board struct {
 	ui.Live
 	Q string `json:"q"`
@@ -31,12 +32,7 @@ func main() {
 //line islands_page.vuka:13
 func (b *Board) Render() ui.Node { return ui.IslandPage(b) }
 
-//line islands_page.vuka:13
-func NewBoard(Q string) *Board {
-	return &Board{Q: Q}
-}
-
 func init() {
 //line islands_page.vuka:12
-	ui.Island("components/Board.vue")(vuka.TypeFor[Board](NewBoard))
+	ui.RegisterIsland[Board]("components/Board.vue")
 }

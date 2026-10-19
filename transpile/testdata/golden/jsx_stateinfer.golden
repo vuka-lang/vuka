@@ -18,27 +18,29 @@ type Box[T any] struct {
 	Value T
 }
 
-func (b *Box[T]) Render() ui.Node {
+var box = ui.Template(`<span>box {{0}}</span>`)
+
 //line jsx_stateinfer.vuka:18
-	return ui.F(0x612fe8b3ae57bb02, "E(th)", ui.El("span", nil, ui.Text("box "), ui.Child(fmt.Sprint(b.Value))))
-}
+func (b *Box[T]) Render() ui.Node { return box.Render(fmt.Sprint(b.Value)) }
 
 // A field reaching the parameter through a slice ([]T) pins it structurally.
-//
-//line jsx_stateinfer.vuka:21
 type List[T any] struct {
 	ui.Live
 	Items []T
 }
 
+//line jsx_stateinfer.vuka:27
+var list = ui.Template(`<ul>{{0}}</ul>`)
+
+//line jsx_stateinfer.vuka:27
+var listLi = ui.Template(`<li>{{0}}</li>`)
+
+//line jsx_stateinfer.vuka:26
 func (l *List[T]) Render() ui.Node {
-	return ui.F(0xa072abff0879908e, "E(b)", ui.El("ul", nil, ui.Nodes(func(add func(ui.Node)) {
+	return list.Render(ui.Each(l.Items, func(it T) ui.Node {
 //line jsx_stateinfer.vuka:27
-		for _, it := range l.Items {
-//line jsx_stateinfer.vuka:27
-			add(ui.F(0xd5b60c5b1c641002, "E(h)", ui.El("li", nil, ui.Child(fmt.Sprint(it)))))
-		}
-	})))
+		return listLi.Render(fmt.Sprint(it))
+	}))
 }
 
 // And one through a pointer (*T).
@@ -49,22 +51,27 @@ type Ref[T any] struct {
 	At *T
 }
 
-func (r *Ref[T]) Render() ui.Node {
+var ref = ui.Template(`<b>{{0}}</b>`)
+
 //line jsx_stateinfer.vuka:36
-	return ui.F(0x3fea34bf0369609d, "E(h)", ui.El("b", nil, ui.Child(fmt.Sprint(*r.At))))
-}
+func (r *Ref[T]) Render() ui.Node { return ref.Render(fmt.Sprint(*r.At)) }
+
+//line jsx_stateinfer.vuka:40
+var pageMain = ui.Template(`
+<main>
+  {{0}}
+  {{1}}
+  {{2}}
+  {{3}}
+</main>`)
 
 //line jsx_stateinfer.vuka:38
 func page(ctx context.Context) ui.Node {
 	n := 7
-	return ui.F(0x746bed91c85dab0e, "E(cccc)", ui.El("main", nil, ui.Component("jsx_stateinfer.vuka#1", nil,
-		&Box[int]{Value: 1}), ui.Component("jsx_stateinfer.vuka#2", nil,
-		&Box[string]{Value: "two"}), ui.Component("jsx_stateinfer.vuka#3", nil,
-		&List[string]{Items: []string{"a", "b"}}), ui.Component("jsx_stateinfer.vuka#4", nil,
-		&Ref[int]{At: &n})),
-	)
+	return pageMain.Render(&Box[int]{Value: 1}, &Box[string]{Value: "two"}, &List[string]{Items: []string{"a", "b"}}, &Ref[int]{At: &n})
 }
 
+//line jsx_stateinfer.vuka:48
 func main() {
 	fmt.Println(ui.String(context.Background(), page(context.Background())))
 }

@@ -15,23 +15,36 @@ type User struct {
 	Active bool
 }
 
+//line jsx_basic.vuka:16
+var cardDiv = ui.Template(`
+<div className="card" data-id="{{0}}">
+  <h3>{{1}}</h3>
+  {{2}}
+  <p title="it's &quot;quoted&quot;" hidden>Tom &amp; Jerry don't   panic,   it's    fine &lt;3</p>
+  <input type="checkbox" checked="{{3}}"/>
+  <span>{{4}} items</span> <b>!</b>
+</div>`)
+
+//line jsx_basic.vuka:15
 func card(user User, admin bool, children ui.Node) ui.Node {
-	return ui.F(0x7feb41e587085d64, "Esd(E(h)hEss(t)Esd()E(ht)tE(t))", ui.El("div", []ui.Attr{{Name: "className", Value: "card"}, {Name: "data-id", Value: user.ID}}, ui.El("h3", nil, ui.Child(
-		user.Name)), ui.Child(
-		children), ui.El("p", []ui.Attr{{Name: "title", Value: "it's \"quoted\""}, {Name: "hidden", Value: true}}, ui.Text("Tom & Jerry don't   panic,   it's    fine <3")), ui.El("input", []ui.Attr{{Name: "type", Value: "checkbox"}, {Name: "checked", Value: user.Active}}), ui.El("span", nil, ui.Child(
-		fmt.Sprint(user.ID)), ui.Text(" items")), ui.Text(" "), ui.El("b", nil, ui.Text("!"))),
-	)
+	return cardDiv.Render(user.ID, user.Name, children, user.Active, fmt.Sprint(user.ID))
 }
+
+//line jsx_basic.vuka:34
+var pageH1 = ui.Template(`
+<h1>Hello, {{0}}!</h1>
+{{1}}
+<hr/>`)
+
+//line jsx_basic.vuka:35
+var pageEm = ui.Template(`<em>child</em>`)
 
 //line jsx_basic.vuka:29
 func page(u User) ui.Node {
 	x := 1
 	y := x < 2
 	_ = y
-	return ui.F(0x80e66a7655410ccf, "G(E(tht)hE())", ui.Fragment(ui.El("h1", nil, ui.Text("Hello, "), ui.Child(
-		u.Name), ui.Text("!")), ui.Child(
-		card(u, true, ui.F(0x61b80100bfe8ef17, "E(t)", ui.El("em", nil, ui.Text("child"))))), ui.El("hr", nil)),
-	)
+	return pageH1.Render(u.Name, card(u, true, pageEm.Render()))
 }
 
 //line jsx_basic.vuka:40

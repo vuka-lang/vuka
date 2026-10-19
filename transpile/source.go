@@ -14,7 +14,9 @@ import (
 type edit struct {
 	start, end int
 	text       string
-	prio       int // orders insertions at the same offset: lower first
+	prio       int  // orders insertions at the same offset: lower first
+	src        int  // when not 0, the src offset + 1 the text comes from, else start
+	copy       bool // the text is the source's at src
 }
 
 type edits []edit
@@ -55,7 +57,15 @@ func (es edits) applyMap(src []byte, after func(off int) string) ([]byte, []segm
 	}
 	for _, e := range es {
 		copySrc(last, e.start)
-		segs = append(segs, segment{gen: b.Len(), src: e.start, genLen: len(e.text), srcLen: e.end - e.start})
+		from := e.start
+		if e.src > 0 {
+			from = e.src - 1
+		}
+		if e.copy {
+			segs = append(segs, segment{gen: b.Len(), src: from, genLen: len(e.text), srcLen: len(e.text), copy: true})
+		} else {
+			segs = append(segs, segment{gen: b.Len(), src: from, genLen: len(e.text), srcLen: e.end - e.start})
+		}
 		b.WriteString(e.text)
 		last = e.end
 		if after != nil && len(e.text) != e.end-e.start && restOfLineHasCode(src, e.end) {

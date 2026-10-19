@@ -205,9 +205,9 @@ opaque id**, exactly like an element's `onClick`.
 
 - **Transpiler:** inside `<ui.Island>`, split `on<Emit>` attrs off the body (as
   it already splits `client:*`); each becomes `ui.Emit("<emit>", <handler>)`
-  appended to the `MountIsland` call. The emit name is the attr minus `on`,
+  appended to the `ui.Mount` call. The emit name is the attr minus `on`,
   lower-cased (`onRowClick` → `rowClick` → normalized `rowclick`).
-- **ui:** `ui.Emit(name, handler) IslandOpt`; `MountIsland` renders one
+- **ui:** `ui.Emit(name, handler) IslandOpt`; the island host renders one
   `data-vk-emit-<norm>` attribute per binding with value `ui.On(handler)`, so
   the live render assigns it a `cN:idx` id like any handler. The emit name
   normalizes to lower-case alphanumerics for the attr suffix.
@@ -307,7 +307,7 @@ JS chain (`ui.JSChain`) or a handler — after an optional `context.Context`,
 nothing or one parameter the function's first argument is assignable to
 (numbers interchangeable), returning nothing or an error — lowered to
 `ui.Callback("onBook", p.Book)`. A `ui.State[T]` (or a struct state's field,
-or an expression of states → `NewDerived`) given to a non-state prop whose
+or an expression of states → a derived state) given to a non-state prop whose
 type T fits is lowered to `ui.StateProp("picked", s)`.
 
 Wire format additions in `data-vk-props`: `{"$vk":"fn","e":"<norm>"}` (the

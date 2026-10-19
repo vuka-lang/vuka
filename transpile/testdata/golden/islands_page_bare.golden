@@ -7,12 +7,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/vuka"
 	ui "vukatest.local/stateui"
 )
 
 // A bare @ui.Island (the path inferred by the vuka command) on a live struct
 // without a Render: its Render is written all the same.
+//
+//line islands_page_bare.vuka:13
 type Board struct {
 	ui.Live
 	Q string `json:"q"`
@@ -31,12 +32,7 @@ func main() {
 //line islands_page_bare.vuka:13
 func (b *Board) Render() ui.Node { return ui.IslandPage(b) }
 
-//line islands_page_bare.vuka:13
-func NewBoard(Q string) *Board {
-	return &Board{Q: Q}
-}
-
 func init() {
 //line islands_page_bare.vuka:12
-	ui.Island()(vuka.TypeFor[Board](NewBoard))
+	ui.RegisterIsland[Board]()
 }

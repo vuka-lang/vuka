@@ -152,3 +152,4 @@ same page in the terminal.
 | [E0606](./E0606) | Two pages share an asset scope |
 | [E0607](./E0607) | vite.config doesn't use the vuka plugin |
 | [E0608](./E0608) | TypeScript 7 can't build Vue islands |
+| [E0609](./E0609) | The islands have no frontend build to go into |

@@ -207,8 +207,11 @@ output; [verification](/ui/live#verification) catches one that does.
 ## What it becomes
 
 ```go
-ui.Component("todo.vuka#3", nil, &Counter{Label: it.Name, })
-ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(func() { t.Remove(it.ID) })}, }, ui.Text("x"), )
+var todoLi = ui.Template(`<li>{{0}} <button onClick="{{1}}">x</button></li>`)
+
+todoLi.Render(&Counter{Label: it.Name}, func() { t.Remove(it.ID) })
 ```
 
-The site string is the file and the tag's ordinal among its component tags.
+The tag is a hole of a template, and the hole's place — the template's file
+and line, and the hole's number — tells the session which tag an instance
+comes from; `ui.Key(k, &Counter{…})` gives it a key.

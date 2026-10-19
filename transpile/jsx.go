@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"bytes"
 	"fmt"
 	"go/parser"
 	"go/scanner"
@@ -12,14 +13,11 @@ import (
 
 // JSX is an expression in a function body: `<div className="card">{u.Name}</div>`.
 // It is read here, from the source bytes (its text isn't Go tokens), and lowered
-// to calls of the file's JSX target (target.go): El, Text, Child, Fragment and
-// Nodes, plus the components' own functions once their types are known.
+// to the file's JSX target (target.go): each piece a Template and its Render
+// (jsxtmpl.go), components their own functions once their types are known.
 //
-// The lowering keeps every Go expression the JSX holds where it is, and writes
-// only the gaps between them, each with as many newlines as the source it
-// replaces, so lines, columns, errors, hover and completion map exactly:
-//
-//	<div id={u.ID}>{u.Name}</div>   →   ui.El("div", []ui.Attr{{Name: "id", Value: u.ID}, }, ui.Child(u.Name), )
+//	<div id={u.ID}>{u.Name}</div>   →   var row = ui.Template(`<div id="{{0}}">{{1}}</div>`)
+//	                                    row.Render(u.ID, u.Name)
 
 // jsxStarts reports whether an operand may start after a token of kind prev,
 // so that a `<` there opens JSX rather than comparing.
@@ -49,6 +47,10 @@ func isIdentByte(c byte) bool { return isLetter(c) || '0' <= c && c <= '9' || c 
 // its Go expressions is a tree of its own.
 type jsxTree struct {
 	start, end int
+	declOff    int    // the top-level declaration it is in
+	base       string // what its templates are named after
+	baseTaken  bool   // base is its declaration's own name
+	returned   bool   // it is a return's value
 	root       *jsxElem
 	comps      []*jsxComp
 	events     []*jsxEvent
@@ -151,16 +153,22 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 			markScope([]jsxNode{t.root}, f.scope)
 		}
 		f.jsx = append(f.jsx, t)
-		if len(t.comps) == 0 && !(f.target.has("BindExpr") && t.mayBind()) {
-			f.fixed = append(f.fixed, f.jsxEdits(t)...)
+		if len(t.comps) == 0 && !t.mayBind() && !t.hasBlocks() {
+			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 		}
 	}
 	return end, p.goToks, true
 }
 
+// returned reports whether the JSX at off is a return's value.
+func returned(src []byte, off int) bool {
+	s := bytes.TrimRight(src[:off], " \t\r\n")
+	return bytes.HasSuffix(s, []byte("return")) && (len(s) == 6 || !isIdentByte(s[len(s)-7]))
+}
+
 func (p *jsxParser) tree(off int) int {
-	t := &jsxTree{start: off}
+	t := &jsxTree{start: off, declOff: p.f.declOff, base: p.f.declBase, baseTaken: p.f.declTaken, returned: returned(p.src, off)}
 	outer := p.cur
 	p.cur = t
 	t.root = p.element(off)
@@ -756,30 +764,37 @@ func jsxTextValue(raw string) string {
 type jsxPiece struct {
 	text string
 	keep span
+	copy bool // keep is copied out of the source's order
 }
 
 type jsxWriter struct {
-	q      string // the target's qualifier
-	f      *fileState
-	pieces []jsxPiece
+	q       string // the target's qualifier
+	f       *fileState
+	t       *jsxTree
+	final   bool // the tree's last lowering: its templates are named for good
+	pieces  []jsxPiece
+	decls   []tmplDecl
+	seq     int
+	inBlock bool // writing a block's body
 }
 
 func (w *jsxWriter) gen(s string) { w.pieces = append(w.pieces, jsxPiece{text: s, keep: span{-1, -1}}) }
 func (w *jsxWriter) keep(s span)  { w.pieces = append(w.pieces, jsxPiece{keep: s}) }
 
-// jsxEdits lowers a tree, as it stands, to edits of the gaps between what it keeps.
-func (f *fileState) jsxEdits(t *jsxTree) edits {
-	w := &jsxWriter{q: f.target.q, f: f}
-	if f.target.has("F") {
-		w.frame([]jsxNode{t.root})
-	} else {
-		w.elem(t.root)
-	}
+// copy writes a span of the source, mapped to it, where the spans kept
+// around it are later in the source.
+func (w *jsxWriter) copy(s span) { w.pieces = append(w.pieces, jsxPiece{keep: s, copy: true}) }
+
+// jsxEdits lowers a tree, as it stands, to edits of the gaps between what it
+// keeps, and its templates' declarations before the declaration holding it.
+func (f *fileState) jsxEdits(t *jsxTree, final bool) edits {
+	w := &jsxWriter{q: f.target.q, f: f, t: t, final: final}
+	w.piece([]jsxNode{t.root})
 	var out edits
 	var buf strings.Builder
 	cur := t.start
 	flush := func(to int) {
-		text := padNewlines(buf.String(), strings.Count(string(f.src[cur:to]), "\n"))
+		text := buf.String()
 		if to > cur || text != "" {
 			out = append(out, edit{start: cur, end: to, text: text})
 		}
@@ -790,81 +805,32 @@ func (f *fileState) jsxEdits(t *jsxTree) edits {
 			buf.WriteString(p.text)
 			continue
 		}
+		if p.copy {
+			if buf.Len() > 0 {
+				out = append(out, edit{start: cur, end: cur, text: buf.String()})
+				buf.Reset()
+			}
+			out = append(out, edit{start: cur, end: cur, text: string(f.src[p.keep.start:p.keep.end]), src: p.keep.start + 1, copy: true})
+			continue
+		}
 		flush(p.keep.start)
 		cur = p.keep.end
 	}
 	flush(t.end)
+	at := f.leadStart(t.declOff)
+	for _, d := range w.decls {
+		out = append(out, edit{start: at, end: at, prio: d.at, src: d.at + 1,
+			text: "var " + d.name + " = " + w.q + "Template(" + rawString(d.markup) + ")\n\n"})
+	}
 	return out
 }
 
-// padNewlines puts n newlines into generated text where Go inserts no
-// semicolon: after the last , ( [ { ; : or = outside a string.
-func padNewlines(text string, n int) string {
-	if n == 0 {
-		return text
-	}
-	at, inStr, lastSig := 0, false, byte(0)
-	for i := 0; i < len(text); i++ {
-		c := text[i]
-		switch {
-		case inStr && c == '\\':
-			i++
-			continue
-		case c == '"':
-			inStr = !inStr
-		}
-		if c != ' ' {
-			lastSig = c
-		}
-		if !inStr && strings.IndexByte(",([{;:=", lastSig) >= 0 {
-			at = i + 1
-		}
-	}
-	return text[:at] + strings.Repeat("\n", n) + text[at:]
-}
+// rawString is s as a raw string literal.
+func rawString(s string) string { return "`" + s + "`" }
 
-func (w *jsxWriter) kids(ns []jsxNode) {
-	for _, n := range ns {
-		w.node(n)
-		w.gen(", ")
-	}
-}
-
-func (w *jsxWriter) node(n jsxNode) {
-	switch n := n.(type) {
-	case *jsxElem:
-		w.elem(n)
-	case *jsxText:
-		w.gen(w.q + "Text(" + strconv.Quote(n.val) + ")")
-	case *jsxHole:
-		w.gen(w.q + "Child(")
-		w.holeValue(n)
-		w.gen(")")
-	case *jsxBlock:
-		w.gen(w.q + "Nodes(func(__add func(" + w.q + "Node)) { ")
-		if m := n.m; m != nil {
-			w.keep(span{m.start, m.lbrace + 1})
-			for i, c := range m.cases {
-				w.keep(span{c.start, c.colon + 1})
-				w.gen(" ")
-				w.body(n.cases[i])
-			}
-			w.keep(span{m.rbrace, m.rbrace + 1})
-		} else {
-			for i, h := range n.heads {
-				if i > 0 {
-					w.gen("} ")
-				}
-				w.keep(h)
-				w.gen(" ")
-				w.body(n.bodies[i])
-			}
-			w.gen("}")
-		}
-		w.gen(" })")
-	}
-}
-
+// attrValue writes an expression attribute's value: an event's handler as
+// it is (a template's on… hole takes a func or commands), a read of states
+// lowered.
 func (w *jsxWriter) attrValue(a *jsxAttr) {
 	switch a.kind {
 	case 's':
@@ -872,44 +838,10 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 	case 'b':
 		w.gen("true")
 	default:
-		if a.event {
-			w.gen(w.q + "On(")
-			w.keep(a.expr)
-			w.gen(")")
-			return
-		}
 		if a.bind != nil {
 			w.bind(a.bind)
 			return
 		}
 		w.keep(a.expr)
-	}
-}
-
-func (w *jsxWriter) elem(el *jsxElem) {
-	switch {
-	case el.frag:
-		w.gen(w.q + "Fragment(")
-		w.kids(el.kids)
-		w.gen(")")
-	case el.comp != nil:
-		w.comp(el.comp)
-	default:
-		w.gen(w.q + "El(" + strconv.Quote(el.tag) + ", ")
-		attrs := el.attrs
-		if len(attrs) == 0 {
-			w.gen("nil")
-		} else {
-			w.gen("[]" + w.q + "Attr{")
-			for _, a := range attrs {
-				w.gen("{Name: " + strconv.Quote(a.name) + ", Value: ")
-				w.attrValue(a)
-				w.gen("}, ")
-			}
-			w.gen("}")
-		}
-		w.gen(", ")
-		w.kids(el.kids)
-		w.gen(")")
 	}
 }

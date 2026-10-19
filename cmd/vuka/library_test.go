@@ -21,9 +21,9 @@ import (
 
 // TestLibraryExample builds examples/library-users, plain Go, with go build
 // and no vuka command, and its twin written in Vuka after vuka eject -rm:
-// their registrations are the same calls (app.X in one, web.Routes.X in the
-// other), so are their Schema and LiveSchema methods, vukavet finds nothing
-// in either, and the two programs answer the same.
+// the code is written alike — the same web.Routes calls in an init, the
+// same templates, the same Schema and LiveSchema methods — vukavet finds
+// nothing in either, and the two programs answer the same.
 func TestLibraryExample(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
@@ -79,10 +79,15 @@ func TestLibraryExample(t *testing.T) {
 		}
 	}
 
-	plain := registrations(t, "main.go", "app.")
+	plain := registrations(t, "main.go", "web.Routes.")
 	ejected := registrations(t, "decorated/users.go", "web.Routes.")
 	if len(plain) == 0 || !slices.Equal(plain, ejected) {
 		t.Errorf("registrations differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
+	}
+	plain = registrations(t, "users.go", "ui.Template(")
+	ejected = registrations(t, "decorated/users.go", "ui.Template(")
+	if len(plain) == 0 || !slices.Equal(plain, ejected) {
+		t.Errorf("templates differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
 	}
 
 	for _, m := range []string{"User.Schema", "Dashboard.LiveSchema", "Profile.LiveSchema"} {
@@ -95,7 +100,7 @@ func TestLibraryExample(t *testing.T) {
 	ejectedURL, _ := serve(t, root, filepath.Join(bin, "decorated"))
 	// A live page's join token and a page's signature are the process's;
 	// the island bundle and its stylesheet are what the vuka command builds
-	// (a plain Go app has none yet: Phase 2 step 5).
+	// (vuka build, or go tool vuka build-islands), which neither binary has.
 	volatile := regexp.MustCompile(`data-vk-(token|sig|session)="[^"]*"|<link rel="stylesheet" href="/_vuka/app\.css\?v=[^"]*">|<script src="/_vuka/c/loader\.js\?v=[^"]*" defer></script>`)
 	for _, path := range []string{"/api/users", "/api/users/2", "/api/users/9", "/", "/users/2", "/users/9"} {
 		var bodies [2]string
@@ -115,9 +120,9 @@ func TestLibraryExample(t *testing.T) {
 	}
 }
 
-// registrations are the calls of file whose function is selected through
-// prefix (app., web.Routes.), the prefix cut: Get("/x", X, web.Params("id")).
-// app.Run isn't one.
+// registrations are the calls of file whose text starts with prefix
+// (web.Routes., ui.Template(), the prefix cut: Get("/x", X,
+// web.Params("id")). app.Run isn't one.
 func registrations(t *testing.T, file, prefix string) []string {
 	t.Helper()
 	src, err := os.ReadFile(file)

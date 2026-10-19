@@ -21,7 +21,6 @@ import (
 var targets = map[string]string{
 	"vukatest.local/stateui":     "github.com/vuka-lang/ui",
 	"vukatest.local/islandui":    "github.com/vuka-lang/ui",
-	"golden/fttarget":            "github.com/vuka-lang/ui",
 	"vukatest.local/webstub":     "github.com/vuka-lang/web",
 	"vukatest.local/orm":         "github.com/vuka-lang/orm",
 	"vukatest.local/ui":          "github.com/vuka-lang/ui",

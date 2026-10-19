@@ -63,6 +63,8 @@ type engine struct {
 	info     *types.Info
 	typeErrs []types.Error
 	progress bool
+
+	tmplFixed, tmplRound map[string]bool // template names taken: for good, and by this round's lowering
 }
 
 func (e *engine) run() {
@@ -150,6 +152,7 @@ func (e *engine) run() {
 
 func (e *engine) parseAll(first bool) bool {
 	e.fset = token.NewFileSet()
+	e.tmplRound = nil
 	for _, f := range e.files {
 		if f.vuka {
 			f.build()

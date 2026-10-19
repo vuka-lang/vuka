@@ -63,48 +63,43 @@ Consequences:
 
 ## 1. Registration: calls instead of decorators
 
+A package registers what it serves at init, on the package's registry —
+the code the compiler writes for decorators, and what a person writes:
+
 ```go
-func main() {
-	app := web.New(
-		web.Frontend(dist, "web/dist"),
-		orm.Use(databases),
-	)
-	app.Service(NewOrderService)
-	app.Get("/orders", ListOrders, auth.Required())
-	app.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
-	app.Live("/dashboard", NewDashboard, web.Layout(layouts.AdminPage("Dashboard")))
-	app.Live("/applicants/{id}", NewApplicantDetail,
+func init() {
+	web.Routes.Service(NewOrderService)
+	web.Routes.Get("/orders", ListOrders, auth.Required())
+	web.Routes.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
+	web.Routes.Live("/dashboard", NewDashboard, web.Layout(layouts.AdminPage("Dashboard")))
+	web.Routes.Live("/applicants/{id}", NewApplicantDetail,
 		ui.Island(ui.Layout(layouts.AdminPage("Applicant"))))
-	app.Run("")
+}
+
+func main() {
+	app := web.New(web.Frontend(dist, "web/dist"), orm.Use(databases))
+	log.Fatal(app.Run(""))
 }
 ```
 
 | `.vuka` | Go |
 |---|---|
-| `@web.Get("/orders") func ListOrders(…)` | `app.Get("/orders", ListOrders)` |
-| `@web.Get("/orders/{id}") func ShowOrder(id int, …)` | `app.Get("/orders/{id}", ShowOrder, web.Params("id", …))` |
-| `@web.Live("/x") type X struct{ ui.Live … }` | `app.Live("/x", NewX)` |
-| `@web.Live("/x")` + `@ui.Island(opts…)` | `app.Live("/x", NewX, ui.Island(opts…))` |
-| `@web.Get("/x")` + `@ui.Island(opts…)` (stateless) | `app.Get("/x", NewX, ui.Island(opts…))` |
+| `@web.Get("/orders") func ListOrders(…)` | `web.Routes.Get("/orders", ListOrders)` |
+| `@web.Get("/orders/{id}") func ShowOrder(id int, …)` | `web.Routes.Get("/orders/{id}", ShowOrder, web.Params("id", …))` |
+| `@web.Live("/x") type X struct{ ui.Live … }` | `web.Routes.Live("/x", NewX)` |
+| `@web.Live("/x")` + `@ui.Island(opts…)` | `web.Routes.Live("/x", NewX, ui.Island(opts…))` |
+| `@web.Get("/x")` + `@ui.Island(opts…)` (stateless) | `web.Routes.Get("/x", NewX, ui.Island(opts…))` |
 | `@web.Use(mw)`, `@web.Template(f)`, `web.Layout(l)` | the options `web.Use(mw)`, `web.Template(f)`, `web.Layout(l)` |
-| `@web.Controller("/admin") type Admin` | `app.Controller("/admin", NewAdmin)` |
-| `@web.Service type S` | `app.Service(NewS)` |
+| `@web.Controller("/admin") type Admin` | `web.Routes.Controller("/admin", NewAdmin)` |
+| `@web.Service type S` | `web.Routes.Service(NewS)` |
 | `@auth.Required` | `auth.Required()` option |
 | `func X.New(…)` (static constructor) | `func NewX(…)` |
 
-**Registries.** Decorators are scattered over packages that `main` doesn't
-list, so generated code registers at init, on the package's registry:
-`web.Routes`, a `*web.Registry` with the methods above. `web.New` gives each
-app a copy, and `App`'s methods of the same names add to that app alone. A
-Go package registering its own routes writes the same `init` the compiler
-does, and `main` the same calls on its app:
-
-```go
-func init() {
-	web.Routes.Get("/orders/{id}", ShowOrder, web.Params("id", "orders"))
-	web.Routes.Live("/dashboard", NewDashboard)
-}
-```
+**Registries.** `web.Routes` is a `*web.Registry` with the methods above.
+Decorators are scattered over packages that `main` doesn't list, so they
+register at init; `web.New` gives each app a copy. For routes one app
+alone serves (tests, two apps in a process), `App` has the same methods:
+`app.Get("/orders", ListOrders)` adds to that app only.
 
 The compiler knows no library: a decorator naming a method of its package's
 registry — an exported package-level variable whose type has the marker
@@ -124,6 +119,14 @@ its component from the type's name, `ui.Island("islands/x.vue")` names it
 parameters of provided types are injected (the others start zero), and a
 route's attributes include those registered on the handler.
 
+A type decorator whose package has a generic twin — `Register<Name>[T]`,
+taking what the decorator takes — lowers to the twin, the call a person
+writes: `@ui.Island` on `Chart` is `ui.RegisterIsland[Chart]()`, and
+`@ui.Island("islands/Chart.vue", ui.Strategy("load"))` is
+`ui.RegisterIsland[Chart]("islands/Chart.vue", ui.Strategy("load"))`; the
+path is written only when the source names one. The form older compilers
+wrote, `ui.Island(…)(vuka.TypeFor[Chart](NewChart))`, keeps working.
+
 Two forms stay a decorator's own rather than an option: a composed
 decorator (`vuka.Bundle`, such as `@auth.Required`) on a function wraps the
 function as well — its gate checks direct calls too — and the route reads
@@ -137,7 +140,8 @@ bundle, `X_New`) keep working, deprecated.
 
 `examples/library-users` is an app written this way, with its `.vuka`
 twin; `TestLibraryExample` (cmd/vuka) builds it with plain `go build`, ejects
-the twin and checks both register the same calls and answer the same.
+the twin and checks both are written alike (the same `web.Routes` calls, the
+same templates) and answer the same.
 
 ## 2. Markup
 
@@ -176,6 +180,20 @@ func (p *Orders) row(o Order) ui.Node {
   `ui.Mount(Chart{…}, ui.Idle())`) in it is identified by it, and a list's
   components by the hole the list is in. Client state is declared where it is
   called: `open := ui.UseState(false)`, `var theme = ui.UsePageState("light")`.
+- An expression of states is State's methods, a derived state the browser
+  evaluates again when a state it reads changes — what a `.vuka` file's
+  `!open && tab == "env"` lowers to:
+
+  ```go
+  ready := open.Not().And(tab.Eq("env"))           // !open && tab == "env"
+  q := ui.At[string](f, "Q")                       // f.Q, a state of its own
+  hint := ui.Derived("Hello, ").Plus(name)         // "Hello, " + name
+  cls := ui.Classes{"menu": true, "is-open": open} // ui.Class{…} reading a state
+  ```
+
+  Not, And, Or, Eq, Ne, Lt, Le, Gt, Ge, Plus, Minus, Neg and Len are the
+  operators the browser runs; an operand is a value or a state. The
+  server renders the value with the states' initial values.
 
 ### Builders (alternative)
 
@@ -326,7 +344,7 @@ attributes (`@ui.Bind{…}`, `@ui.Defer("lists")`, `@ui.Loads("lists")`,
 | orm field sets (`<Model>Fields`) | `orm.Q{"…"}` / `orm.F("…")`, checked at run time | typed |
 | orm `Register[T]()` | a model's `orm.For[T]()` (or first `Objects`) registers it | at init |
 | live render tracking (`ui.F` frames from JSX) | components built from nodes diff whole: the same page; 1.7–2.2× the bytes on the demo pages' random events | fine-grained, as now; `ui.Template` builds frames at init, no generation needed |
-| `vuka-live.d.ts` (island TypeScript types) | islands work, untyped (`useLive()` comes from the island build) | typed (`defineProps<T>()` needs it) |
+| `vuka-live.d.ts` (island TypeScript types) | islands work, untyped (`useLive()` comes from the island build) | typed (`defineProps<T>()` needs it); `go tool vuka build-islands` writes it |
 
 Measured on an Apple M1 Pro: orm `go test -bench Fallback` (a stub driver
 for the ORM's own cost, SQLite end to end), ui `go test -bench Fallback
@@ -346,12 +364,31 @@ for the ORM's own cost, SQLite end to end), ui `go test -bench Fallback
 ## 5. Frontend assets
 
 - **Production:** `//go:embed all:web/dist` of a prebuilt bundle, as today.
+  The islands go into the same build: `go tool vuka build-islands` finds the
+  registered island types by reading the Go source (never running the app)
+  and writes their bundle and stylesheets to `web/dist/.vuka/`, which the
+  app serves; one line opts in, after the frontend's own build:
+
+  ```go
+  //go:generate go tool vuka build-islands
+  ```
+
+  It writes `islands.d.ts` and `vuka-live.d.ts` too, typed from the Go
+  structs. A build of islands alone (no `index.html`) is served as one.
 - **Development with `go run .`:** `web.Dev()` — active only when
   `VUKA_DEV=1` or the environment is development — starts Tailwind and Vite as
-  child processes when they're installed and serves through them; otherwise
-  it serves the last build and logs one line saying how to get live CSS and
-  islands.
-- Without Node, everything except islands and Tailwind works.
+  child processes when they're installed and serves through them, and for an
+  app registering islands `vuka build-islands -watch`, which keeps them built
+  in `.vuka/assets` from the component files; otherwise it serves the last
+  build and logs one line saying how to get live CSS and islands.
+- Without Node, everything except framework islands and Tailwind works
+  (vanilla islands build in Go).
+
+An island is declared the same way in both: `ui.RegisterIsland[Chart]()`
+finds `islands/[<module>/]Chart.<ext>` under the frontend root, as a bare
+`@ui.Island` does (one implementation, the vuka command's); a missing
+component is E0310 at build time, its help naming the call to write. The
+hand-written line and the generated one are the same.
 
 ## 6. What the CLI is for
 
@@ -404,11 +441,13 @@ Folded into roadmap Phase 2:
 |---|---|---|
 | 0 | Generated-code contract: public-API-only check on goldens, `vuka eject` — **done** | 2.3 |
 | 1 | Public registration API (`web.Routes`, `app.Get/Live/Controller/Service`), transpiler emits it — **done** | 2.5 |
-| 2 | `ui.Template` with typed holes; transpiler emits it | 2.3, 2.4 |
+| 2 | `ui.Template` with typed holes; transpiler emits it — **done** | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them — **done** | 2.1, 2.2 |
 | 4 | orm reflection fallback, live render fallback (**done**); call decorators through a reflective wrapper (open) | 2.6 |
 | 5 | `web.Dev()` | 2.6 |
 | 6 | `vukavet` analyzer — **done** | 2.6 |
+| 2a | Island path inference without the CLI: bare `ui.RegisterIsland[T]()`, the transpiler emits it — **done** | 2.5, 2.6 |
+| 2b | Islands built for plain Go: `go tool vuka build-islands` into the frontend's build, `web.Dev()` keeps them built, `vuka-live.d.ts` from Go types — **done** | 2.6 |
 | 7 | Conformance suite | 2.6 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
@@ -425,6 +464,18 @@ are `NewX`. Public now, as the calls a person writes: `vuka.Decorated`,
 needs), `RegisterFunc`, `RegisterType` (the attribute registry), `FileOf`
 (an embedded file), `ui.IslandPage` (a live island page's one-line
 `Render`) and `ui.RegisterIsland` (an imported component's props type).
+
+Step 2 is done: each piece of JSX is a package-level `ui.Template` named
+after its declaration, rendered with its expressions in document order;
+blocks are `ui.Each`, a loop appending to a `[]ui.Node`, or an if or match
+picking one node for `ui.If`; stateful components are `&C{…}` or `ui.Key`,
+islands their props or `ui.Mount`; states are `ui.UseState` /
+`ui.UsePageState` and expressions of them State's methods (§2). The
+fingerprinted markup, `ui.Component`, `ui.MountIsland`, the state binding
+(`ui.BindExpr`, once `ui.Bind`), `ui.NewState`, `ui.PageState`,
+`ui.NewDerived` and `ui.StateField` are gone from generated code; `ui.Try`, `ui.WithChildren`, `ui.Callback`, `ui.Emit`,
+`ui.StateProp` and `ui.Ptr` are public as they are.
+
 Step 3 is done: a type embedding `orm.Base` (or `orm.Model`) gets a
 `Schema` method from its attributes — `X @a @b` is `s.Field(&p.X, a, b)`,
 the embedded base's are `s.Model(…)`, a bare `@orm.PK` is `orm.PK{}` — and
@@ -453,11 +504,6 @@ instantiation, which Go has no variable for).
 
 What the contract file still allows, by the step that removes it:
 
-- step 2: the fingerprinted markup (`ui.F`, `ui.FT`, `ui.El`, `ui.Attr`,
-  `ui.Child`, `ui.Text`, `ui.Nodes`, `ui.Component`, `ui.MountIsland`,
-  `ui.Try`, `ui.WithChildren`) and state lowering (`ui.BindExpr`,
-  `ui.NewState`, `ui.PageState`, `ui.NewDerived`, `ui.StateField`,
-  `ui.StateProp`, `ui.Callback`, `ui.Emit`, `ui.Ptr`);
 - step 3: field references by index path (`vuka.RefOf` and its kinds) on
   a struct with no generated typed fields (`Stats.Author` of a plain
   struct): their public form, a field named by address, is a follow-up;
@@ -465,5 +511,15 @@ What the contract file still allows, by the step that removes it:
   `vuka.NewCall`): its public form is a reflective wrapper, with the typed
   adapter an optional speed-up like the other step 4 fallbacks.
 
-A plain Go app gets no island bundle or stylesheet yet: the `vuka` command
-builds them from `.vuka` sources (step 5).
+Steps 2a and 2b are done: `ui.RegisterIsland[T](args…)` takes what
+`ui.Island` takes and, bare, leaves the component to the vuka command's
+inference; the transpiler writes it for `@ui.Island` (a type decorator's
+`Register<Name>[T]` twin). `go tool vuka build-islands` reads the
+registrations from Go source — `ui.RegisterIsland[T]`, a route's
+`ui.Island` option (the page its constructor returns), the older generated
+form — and builds them with the same code `vuka build` and `vuka run` use,
+into `web/dist/.vuka/`; `-watch` is what `web.Dev()` runs.
+`examples/islands-go` is such an app, a Vue island in a live page and a page
+backed by its component; `TestIslandsGoE2E` (cmd/vuka) builds it with
+`go tool vuka build-islands` and `go build`, mounts both in Chrome, and again
+under `web.Dev()` with `VUKA_DEV=1`.

@@ -220,7 +220,10 @@ Plain Go, no transpiler, `go run .` ([design](./library.md)):
   when render tracking isn't generated; `//go:generate go tool vuka gen` opts
   back in.
 - `web.Dev()` runs Tailwind and Vite for `go run .` in development when
-  they're installed.
+  they're installed, and keeps the islands built.
+- Islands from Go source alone: `ui.RegisterIsland[T]()` finds its
+  component as `@ui.Island` does, and `//go:generate go tool vuka
+  build-islands` builds the bundle into the frontend's build for `go build`.
 - The vet-time checks ship as a `go/analysis` analyzer (`vukavet`) with the
   same diagnostic codes.
 - A conformance suite runs every example as `.vuka` and as hand-written Go,

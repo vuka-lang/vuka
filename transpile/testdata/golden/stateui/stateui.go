@@ -1,22 +1,27 @@
 // Package stateui is a JSX target for the client-state golden cases. It
 // implements the JSX contract by delegating to github.com/vuka-lang/ui and
 // adds ui's state API in the shape the compiler lowers to; a binding renders
-// as its initial value plus data-vk-b-<name>="<expression> <deps>", enough to
-// see what the compiler wrote.
+// as its initial value plus data-vk-b-<name>="<expression> <deps>", and a
+// state as <file>:<line>=<value>, enough to see what the compiler wrote.
 package stateui
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"reflect"
+	"regexp"
+	"runtime"
 	"sort"
+	"strconv"
 	"strings"
 
 	ui "github.com/vuka-lang/ui"
 )
 
-// VukaJSX marks this package as a JSX target implementing version 1.
-const VukaJSX = 1
+// VukaJSX marks this package as a JSX target implementing version 2.
+const VukaJSX = 2
 
 type (
 	Node = ui.Node
@@ -24,31 +29,51 @@ type (
 )
 
 func El(tag string, attrs []Attr, children ...Node) Node {
-	out := make([]Attr, 0, len(attrs))
+	var out []Attr
 	for _, a := range attrs {
-		if b, ok := a.Value.(Binding); ok {
-			out = append(out, Attr{Name: a.Name, Value: classText(b.Init)}, Attr{Name: "data-vk-b-" + strings.ToLower(a.Name), Value: b.String()})
-			continue
-		}
-		a.Value = classText(a.Value)
-		if c, ok := a.Value.(Commands); ok {
-			a = Attr{Name: "data-vk-js-" + strings.ToLower(strings.TrimPrefix(a.Name, "on")), Value: c.String()}
-		}
-		out = append(out, a)
+		out = append(out, attrOf(a.Name, a.Value)...)
 	}
 	return ui.El(tag, out, children...)
 }
-func Text(v any) Node { return ui.Text(v) }
+
+// attrOf is an attribute as the page shows it: a binding as its value and
+// its expression, commands as data-vk-js-<event>.
+func attrOf(name string, v any) []Attr {
+	if s, ok := v.(AnyState); ok {
+		v = s.binding()
+	}
+	if c, ok := v.(Classes); ok {
+		v = c.binding()
+	}
+	switch v := v.(type) {
+	case Binding:
+		return []Attr{{Name: name, Value: classText(v.Init)}, {Name: "data-vk-b-" + strings.ToLower(name), Value: v.String()}}
+	case Commands:
+		return []Attr{{Name: "data-vk-js-" + strings.ToLower(strings.TrimPrefix(name, "on")), Value: v.String()}}
+	}
+	if strings.HasPrefix(name, "on") && reflect.TypeOf(v) != nil && reflect.TypeOf(v).Kind() == reflect.Func {
+		v = ui.On(v)
+	}
+	return []Attr{{Name: name, Value: classText(v)}}
+}
+
 func Child(v any) Node {
+	if s, ok := v.(AnyState); ok {
+		v = s.binding()
+	}
 	if b, ok := v.(Binding); ok {
 		return ui.El("vk-t", []Attr{{Name: "data-vk-b", Value: b.String()}}, ui.Text(b.Init))
 	}
+	if n := mountOf(v); n != nil {
+		return n
+	}
 	return ui.Child(v)
 }
-func Fragment(children ...Node) Node               { return ui.Fragment(children...) }
-func Nodes(build func(add func(Node))) Node        { return ui.Nodes(build) }
-func Try(n Node, err error) Node                   { return ui.Try(n, err) }
-func F(fp uint64, shape string, kids ...Node) Node { return ui.F(fp, shape, kids...) }
+
+func Fragment(children ...Node) Node              { return ui.Fragment(children...) }
+func Try(n Node, err error) Node                  { return ui.Try(n, err) }
+func Each[T any](items []T, fn func(T) Node) Node { return ui.Each(items, fn) }
+func If(cond bool, n Node) Node                   { return ui.If(cond, n) }
 func On(fn any) any {
 	if c, ok := fn.(Commands); ok {
 		return c
@@ -58,51 +83,216 @@ func On(fn any) any {
 
 func String(ctx context.Context, n Node) (string, error) { return ui.String(ctx, n) }
 
-type cell struct{ site string }
+// Markup is a template: ui's, its attribute holes written as attribute
+// sets so a binding can write two attributes.
+type Markup struct {
+	m     *ui.Markup
+	attrs map[int]string // hole → its attribute's name
+}
 
+var attrHole = regexp.MustCompile(`(\s)([A-Za-z_][-A-Za-z0-9_:.]*)="\{\{(\d+)\}\}"`)
+
+func Template(src string) *Markup {
+	t := &Markup{attrs: map[int]string{}}
+	src = attrHole.ReplaceAllStringFunc(src, func(m string) string {
+		g := attrHole.FindStringSubmatch(m)
+		if g[2] == "key" {
+			return m
+		}
+		n, _ := strconv.Atoi(g[3])
+		t.attrs[n] = g[2]
+		return g[1] + "{{" + g[3] + "}}"
+	})
+	t.m = ui.Template(src)
+	return t
+}
+
+func (t *Markup) Render(args ...any) Node {
+	out := make([]any, len(args))
+	for i, a := range args {
+		if name, ok := t.attrs[i]; ok {
+			out[i] = attrOf(name, a)
+			continue
+		}
+		switch a := a.(type) {
+		case []Attr:
+			var set []Attr
+			for _, x := range a {
+				set = append(set, attrOf(x.Name, x.Value)...)
+			}
+			out[i] = set
+		case AnyState, Binding:
+			out[i] = Child(a)
+		default:
+			if n := mountOf(a); n != nil {
+				out[i] = n
+			} else {
+				out[i] = a
+			}
+		}
+	}
+	return t.m.Render(out...)
+}
+
+type cell struct {
+	site string
+	v    any
+}
+
+// State is a state: its cell, the field path in it, the value it renders
+// with; a derived one is its expression instead.
 type State[T any] struct {
 	c    *cell
 	path []string
 	v    T
-	expr *Binding
+	x    *expr
 }
 
-func NewState[T any](site string, initial T) State[T] { return State[T]{c: &cell{site}, v: initial} }
-func PageState[T any](site string, initial T) State[T] {
-	return State[T]{c: &cell{"g:" + site}, v: initial}
-}
-func Derived[T any](value T) State[T] { return NewDerived(value, `{"$":0}`, value) }
-func NewDerived[T any](value T, expr string, deps ...any) State[T] {
-	return State[T]{v: value, expr: &Binding{value, expr, deps}}
-}
-func StateField[S, T any](s State[S], name string, sample T) State[T] {
-	return State[T]{c: s.c, path: append(s.path[:len(s.path):len(s.path)], name), v: sample}
+// expr is an operation over states and values.
+type expr struct {
+	op   string
+	args []any
 }
 
-func (s State[T]) Get() T           { return s.v }
-func (s State[T]) Set(v T) Commands { return JS.Set(s, v) }
-func (s State[T]) Toggle() Commands { return JS.add("toggle " + s.String()) }
-func (s State[T]) Inc() Commands    { return JS.add("inc " + s.String()) }
-func (s State[T]) Dec() Commands    { return JS.add("dec " + s.String()) }
-func (s State[T]) Reset() Commands  { return JS.Set(s, s.v) }
-func (s State[T]) anyState() string { return s.String() }
-func (s State[T]) value() any       { return s.v }
+var sites = map[string]int{}
+
+// site is the file and line UseState is called from, numbered after the
+// first on a line; a package's variable's is the package's.
+func site() string {
+	_, file, line, _ := runtime.Caller(2)
+	s := filepath.Base(file) + ":" + strconv.Itoa(line)
+	if file == "<autogenerated>" {
+		s = "pkg"
+	}
+	if sites[s]++; sites[s] > 1 {
+		s += "." + strconv.Itoa(sites[s])
+	}
+	return s
+}
+
+func UseState[T any](initial T) State[T] { return State[T]{c: &cell{site(), initial}, v: initial} }
+func UsePageState[T any](initial T) State[T] {
+	return State[T]{c: &cell{"g:" + site(), initial}, v: initial}
+}
+
+func Derived[T any](value T) State[T] { return State[T]{v: value, x: &expr{"", []any{value}}} }
+
+func At[T, S any](s State[S], path string) State[T] {
+	v := reflect.ValueOf(s.v)
+	for _, name := range strings.Split(path, ".") {
+		v = v.FieldByName(name)
+	}
+	return State[T]{c: s.c, path: append(s.path[:len(s.path):len(s.path)], strings.Split(path, ".")...), v: v.Interface().(T)}
+}
+
+func derive[T, R any](s State[T], v R, op string, args ...any) State[R] {
+	return State[R]{v: v, x: &expr{op, append([]any{s}, args...)}}
+}
+
+func val(o any) any {
+	if s, ok := o.(AnyState); ok {
+		return s.value()
+	}
+	return o
+}
+
+func (s State[T]) Not() State[bool]               { return derive(s, !any(s.v).(bool), "!") }
+func (s State[T]) Neg() State[T]                  { return derive(s, arith(s.v, s.v, -2).(T), "neg") }
+func (s State[T]) Len() State[int]                { return derive(s, reflect.ValueOf(s.v).Len(), "len") }
+func (s State[T]) And(o any) State[bool]          { return derive(s, any(s.v).(bool) && val(o).(bool), "&&", o) }
+func (s State[T]) Or(o any) State[bool]           { return derive(s, any(s.v).(bool) || val(o).(bool), "||", o) }
+func (s State[T]) Eq(o any) State[bool]           { return derive(s, cmp(s.v, val(o)) == 0, "==", o) }
+func (s State[T]) Ne(o any) State[bool]           { return derive(s, cmp(s.v, val(o)) != 0, "!=", o) }
+func (s State[T]) Lt(o any) State[bool]           { return derive(s, cmp(s.v, val(o)) < 0, "<", o) }
+func (s State[T]) Le(o any) State[bool]           { return derive(s, cmp(s.v, val(o)) <= 0, "<=", o) }
+func (s State[T]) Gt(o any) State[bool]           { return derive(s, cmp(s.v, val(o)) > 0, ">", o) }
+func (s State[T]) Ge(o any) State[bool]           { return derive(s, cmp(s.v, val(o)) >= 0, ">=", o) }
+func (s State[T]) Plus(o any) State[T]            { return derive(s, arith(s.v, val(o), 1).(T), "+", o) }
+func (s State[T]) Minus(o any) State[T]           { return derive(s, arith(s.v, val(o), -1).(T), "-", o) }
+func (s State[T]) Get() T                         { return s.v }
+func (s State[T]) Set(v T) Commands               { return JS.Set(s, v) }
+func (s State[T]) Toggle() Commands               { return JS.add("toggle " + s.String()) }
+func (s State[T]) Inc() Commands                  { return JS.add("inc " + s.String()) }
+func (s State[T]) Dec() Commands                  { return JS.add("dec " + s.String()) }
+func (s State[T]) Reset() Commands                { return JS.Set(s, s.v) }
+func (s State[T]) anyState() string               { return s.String() }
+func (s State[T]) value() any                     { return s.v }
+func (s State[T]) node() (*expr, *cell, []string) { return s.x, s.c, s.path }
+
+// binding is the state as an expression the page shows: a derived one's
+// own, a state's read.
+func (s State[T]) binding() Binding {
+	b := Binding{Init: s.v}
+	var deps []any
+	var m strings.Builder
+	enc := json.NewEncoder(&m)
+	enc.SetEscapeHTML(false)
+	enc.Encode(b.json(s, &deps))
+	b.Expr, b.Deps = strings.TrimSpace(m.String()), deps
+	return b
+}
+
 func (s State[T]) String() string {
-	if s.expr != nil {
-		return "(" + s.expr.String() + ")"
+	if s.x != nil {
+		return "(" + s.binding().String() + ")"
 	}
 	return s.c.site + strings.Join(append([]string{""}, s.path...), ".") + "=" + fmt.Sprint(s.v)
+}
+
+// cmp orders numbers and strings, and tells other values equal or not.
+func cmp(a, b any) int {
+	av, bv := reflect.ValueOf(a), reflect.ValueOf(b)
+	switch {
+	case av.CanInt() || av.CanFloat():
+		x, y := num(av), num(bv)
+		if x < y {
+			return -1
+		} else if x > y {
+			return 1
+		}
+		return 0
+	case av.Kind() == reflect.String:
+		return strings.Compare(av.String(), bv.String())
+	}
+	if a == b {
+		return 0
+	}
+	return 1
+}
+
+func num(v reflect.Value) float64 {
+	if v.CanInt() {
+		return float64(v.Int())
+	}
+	return v.Float()
+}
+
+// arith is a + b (sign 1), a - b (-1) or -a (-2), as a's type.
+func arith(a, b any, sign int) any {
+	av := reflect.ValueOf(a)
+	r := reflect.New(av.Type()).Elem()
+	switch {
+	case av.Kind() == reflect.String:
+		r.SetString(av.String() + reflect.ValueOf(b).String())
+	case av.CanInt():
+		x, y := av.Int(), int64(num(reflect.ValueOf(b)))
+		r.SetInt(map[int]int64{1: x + y, -1: x - y, -2: -x}[sign])
+	default:
+		x, y := av.Float(), num(reflect.ValueOf(b))
+		r.SetFloat(map[int]float64{1: x + y, -1: x - y, -2: -x}[sign])
+	}
+	return r.Interface()
 }
 
 type AnyState interface {
 	anyState() string
 	value() any
+	binding() Binding
+	node() (*expr, *cell, []string)
 }
 
 // BindAttr is an attribute named name bound to state s.
-func BindAttr(name string, s AnyState) Attr {
-	return Attr{Name: name, Value: BindExpr(s.value(), `{"$":0}`, s)}
-}
+func BindAttr(name string, s AnyState) Attr { return Attr{Name: name, Value: s.binding()} }
 
 type Commands struct{ ops []string }
 
@@ -120,15 +310,61 @@ type Binding struct {
 	Deps []any
 }
 
-func BindExpr(init any, expr string, deps ...any) Binding { return Binding{init, expr, deps} }
+// json is x's expression: a state read {"$": i}, with "p" for a field's
+// path, its dep the state; a derived one's operation; a value inline.
+func (Binding) json(x any, deps *[]any) any {
+	s, ok := x.(AnyState)
+	if !ok {
+		return x
+	}
+	ex, c, path := s.node()
+	if ex != nil {
+		if ex.op == "" {
+			return ex.args[0]
+		}
+		out := []any{ex.op}
+		for _, a := range ex.args {
+			if m, ok := a.(map[string]any); ok {
+				obj := map[string]any{}
+				for k, v := range m {
+					obj[k] = Binding{}.json(v, deps)
+				}
+				out = append(out, obj)
+				continue
+			}
+			out = append(out, Binding{}.json(a, deps))
+		}
+		return out
+	}
+	i := -1
+	for j, d := range *deps {
+		if _, dc, _ := d.(AnyState).node(); dc == c {
+			i = j
+		}
+	}
+	if i < 0 {
+		i = len(*deps)
+		*deps = append(*deps, base{c})
+	}
+	r := map[string]any{"$": i}
+	if len(path) > 0 {
+		r["p"] = path
+	}
+	return r
+}
+
+// base is a field's state, as a dep.
+type base struct{ c *cell }
+
+func (b base) anyState() string               { return b.c.site }
+func (b base) value() any                     { return nil }
+func (b base) binding() Binding               { return Binding{} }
+func (b base) node() (*expr, *cell, []string) { return nil, b.c, nil }
+func (b base) String() string                 { return b.c.site + "=" + fmt.Sprint(b.c.v) }
 
 func (b Binding) String() string {
 	var ds []string
 	for _, d := range b.Deps {
-		if reflect.TypeOf(d) != nil && reflect.TypeOf(d).Kind() == reflect.Map {
-			ds = append(ds, fmt.Sprintf("%v", d))
-			continue
-		}
 		ds = append(ds, fmt.Sprint(d))
 	}
 	return b.Expr + " " + strings.Join(ds, " ")
@@ -136,13 +372,32 @@ func (b Binding) String() string {
 
 type Class map[string]bool
 
+type Classes map[string]any
+
+func (c Classes) binding() Binding {
+	init := Class{}
+	m := map[string]any{}
+	for k, v := range c {
+		init[k], _ = val(v).(bool)
+		m[k] = v
+	}
+	s := State[Class]{v: init, x: &expr{"class", []any{m}}}
+	return s.binding()
+}
+
 type ShowProps struct {
 	When     any
 	Children Node
 }
 
 func Show(p ShowProps) Node {
-	return ui.El("vk-show", []Attr{{Name: "data-vk-show", Value: fmt.Sprint(p.When)}}, p.Children)
+	w := p.When
+	if s, ok := w.(AnyState); ok {
+		if ex, _, _ := s.node(); ex != nil {
+			w = s.binding()
+		}
+	}
+	return ui.El("vk-show", []Attr{{Name: "data-vk-show", Value: fmt.Sprint(w)}}, p.Children)
 }
 
 // classText is a Class as its attribute's text; other values as they are.

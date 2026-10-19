@@ -12,18 +12,19 @@ import (
 	"github.com/vuka-lang/vuka/diag"
 )
 
-// UI islands (Phase 1). A <ui.Island> wrapper is lowered to a ui.MountIsland
-// call: the body component tag becomes the props struct literal, its client:*
-// directive the hydration strategy, its children the slot, and a nested
-// <ui.Template fallback> the fallback. See docs/design/islands.md.
+// UI islands (Phase 1). An island tag, or a <ui.Island> wrapper, is its
+// props in a template's hole, or ui.Mount with options: the body component
+// tag becomes the props struct literal, its client:* directive the
+// hydration strategy, its children the slot, and a nested <ui.Template
+// fallback> the fallback. See docs/design/islands.md.
 //
 //	<ui.Island>
 //	  <ui.Template fallback><Skeleton/></ui.Template>
 //	  <Counter client:visible count={5}><small>clicks</small></Counter>
 //	</ui.Island>
 //	// →
-//	ui.MountIsland(Counter{Count: 5}, ui.Visible(),
-//	    ui.Slot(<small>clicks</small>), ui.Fallback(<Skeleton/>))
+//	ui.Mount(Counter{Count: 5}, ui.Visible(),
+//	    ui.Slot(counterSmall.Render()), ui.Fallback(Skeleton()))
 
 // targetFunc is obj's name when it is a function the file's JSX target package
 // declares (Island, Template), else "". It tells a <ui.Island>/<ui.Template>
@@ -53,7 +54,7 @@ func emitName(attr string) string {
 // resolveIsland decides a <ui.Island> wrapper: it partitions the wrapper's
 // children into <ui.Template> slots and the one island-body component tag,
 // binds the body's attributes to the body type's fields, and records the
-// strategy, slot and fallback for the MountIsland call the writer emits. The
+// strategy, slot and fallback for the ui.Mount call the writer emits. The
 // body and template tags are marked consumed so they are not emitted on their
 // own.
 func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(diag.Code, int, string, ...any)) {
@@ -136,23 +137,11 @@ func (e *engine) resolveIsland(f *fileState, c *jsxComp, fail func(diag.Code, in
 
 // finishIsland marks an island tag decided.
 func (e *engine) finishIsland(f *fileState, c *jsxComp) {
-	// A stable per-placement id (file + the wrapper's place among the file's
-	// components): identical across renders, so the host's data-vk-s doesn't
-	// churn in the live-view diff, and across reformatting.
-	n := 1
-	for _, t := range f.jsx {
-		for _, o := range t.comps {
-			if o.el.start < c.el.start {
-				n++
-			}
-		}
-	}
-	c.islandSite = f.name + "#" + strconv.Itoa(n)
 	c.island, c.resolved = true, true
 	e.progress = true
 }
 
-// island writes a <ui.Island> wrapper as a ui.MountIsland call: the props
+// island writes an island tag as its props, or a ui.Mount call: the props
 // literal, the strategy option, then Slot and Fallback. The pieces that carry
 // source spans — the body's prop expressions, the strategy value, and the slot
 // and fallback markup — are emitted in document order; when the fixed argument
@@ -184,12 +173,12 @@ func (w *jsxWriter) island(c *jsxComp) {
 	var slotPiece *piece
 	if c.hasSlot && nodesKeep(c.slotKids) {
 		kids := c.slotKids
-		slotPiece = &piece{off: nodesStart(kids), typ: q + "Node", write: func() { w.frame(kids) }}
+		slotPiece = &piece{off: nodesStart(kids), typ: q + "Node", write: func() { w.piece(kids) }}
 	}
 	var fbPiece *piece
 	if c.hasFallback && nodesKeep(c.fallbackKids) {
 		kids := c.fallbackKids
-		fbPiece = &piece{off: nodesStart(kids), typ: q + "Node", write: func() { w.frame(kids) }}
+		fbPiece = &piece{off: nodesStart(kids), typ: q + "Node", write: func() { w.piece(kids) }}
 	}
 	propPiece := func(ps []islandProp, typs []string) []*piece {
 		out := make([]*piece, len(ps))
@@ -239,8 +228,11 @@ func (w *jsxWriter) island(c *jsxComp) {
 		}
 	}
 
+	opts := c.islandStrat != "" || c.hasSlot || c.hasFallback || len(c.islandEmits) > 0 || len(c.islandFuncs) > 0 || len(c.islandStates) > 0 || c.islandOnce
 	body := func() {
-		w.gen(q + "MountIsland(" + strconv.Quote(c.islandSite) + ", ")
+		if opts {
+			w.gen(q + "Mount(")
+		}
 		if closure {
 			w.gen(c.props)
 		} else {
@@ -287,7 +279,7 @@ func (w *jsxWriter) island(c *jsxComp) {
 			if closure && slotPiece != nil {
 				w.gen(slotPiece.name)
 			} else {
-				w.frame(c.slotKids)
+				w.piece(c.slotKids)
 			}
 			w.gen(")")
 		}
@@ -296,7 +288,7 @@ func (w *jsxWriter) island(c *jsxComp) {
 			if closure && fbPiece != nil {
 				w.gen(fbPiece.name)
 			} else {
-				w.frame(c.fallbackKids)
+				w.piece(c.fallbackKids)
 			}
 			w.gen(")")
 		}
@@ -330,7 +322,9 @@ func (w *jsxWriter) island(c *jsxComp) {
 		if c.islandOnce {
 			w.gen(", " + q + "Once()")
 		}
-		w.gen(")")
+		if opts {
+			w.gen(")")
+		}
 	}
 
 	if !closure {
@@ -347,7 +341,7 @@ func (w *jsxWriter) island(c *jsxComp) {
 		p.name = "__a" + itoa(i+1)
 		params = append(params, p.name+" "+p.typ)
 	}
-	w.gen("func(" + strings.Join(params, ", ") + ") " + q + "Node { return ")
+	w.gen("func(" + strings.Join(params, ", ") + ") any { return ")
 	body()
 	w.gen(" }(")
 	for _, p := range sorted {
@@ -538,18 +532,12 @@ func (e *engine) bindIsland(f *fileState, c *jsxComp, body *jsxElem, fail func(d
 					fail("E0309", a.off, "%s reads a ui.State of %s, and <%s>'s %s takes %s", e.nodeText(f, x), e.display(types.Default(at)), body.tag, a.name, e.display(want))
 					return false
 				}
-				bd := &binder{e: e, f: f, b: &stateBind{}, deps: map[string]int{}}
-				if base, path := bd.fieldPath(x); base != nil {
-					a.bind = &stateBind{call: "StateField", field: stateFieldText(c.target.q, bd.text(base), path)}
-				} else {
-					b, err := e.lowerState(f, x)
-					if err != nil {
-						fail("E0124", err.off, "%s", err.msg)
-						return false
-					}
-					b.call = "NewDerived"
-					a.bind = b
+				b, err := e.lowerState(f, x)
+				if err != nil {
+					fail("E0124", err.off, "%s", err.msg)
+					return false
 				}
+				a.bind = b
 				c.islandStates = append(c.islandStates, islandProp{prop, a})
 				c.islandStateTyp = append(c.islandStateTyp, c.target.q+"State["+e.typeTextAuto(f, types.Default(at))+"]")
 				continue

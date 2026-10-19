@@ -7,7 +7,6 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/vuka"
 	ui "vukatest.local/stateui"
 	web "vukatest.local/webstub"
 )
@@ -18,6 +17,8 @@ import (
 // options go with it; parameters reflection can't tell apart are named.
 
 // Store is a dependency.
+//
+//line registries.vuka:18
 type Store struct{ pets []string }
 
 func lower(s string) string { return s }
@@ -72,14 +73,9 @@ func NewBoard(Q string) *Board {
 	return &Board{Q: Q}
 }
 
-//line registries.vuka:46
-func NewClock(Zone string) *Clock {
-	return &Clock{Zone: Zone}
-}
-
 func init() {
 //line registries.vuka:45
-	ui.Island("components/Clock.vue")(vuka.TypeFor[Clock](NewClock))
+	ui.RegisterIsland[Clock]("components/Clock.vue")
 }
 
 func init() {

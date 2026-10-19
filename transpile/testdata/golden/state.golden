@@ -18,42 +18,73 @@ type Filters struct {
 const Env = "env"
 
 // theme is the page's: every component reads one value.
-var theme = ui.PageState("s9q4z8t", "light")
+var theme = ui.UsePageState("light")
 
+//line state.vuka:27
+var menu = ui.Template(`
+<div class="{{0}}">
+  <button onClick="{{1}}" aria-expanded="{{2}}">{{3}}</button>
+  <ul hidden="{{4}}">
+    <li selected="{{5}}" onClick="{{6}}">Env</li>
+    <li disabled="{{7}}">Logs</li>
+  </ul>
+  <input value="{{8}}" onInput="{{9}}"/>
+  <span>{{10}}</span> <span>{{11}}</span> <span>{{12}}</span>
+  <p title="{{13}}" data-ready="{{14}}" data-long="{{15}}" data-get="{{16}}"/>
+  <button onClick="{{17}}">+</button>
+  <button onClick="{{18}}">reset</button>
+  {{19}}
+  {{20}}
+  {{21}}
+</div>`)
+
+//line state.vuka:45
+var menuP = ui.Template(`<p>closed</p>`)
+
+//line state.vuka:46
+var menuP2 = ui.Template(`<p>open</p>`)
+
+//line state.vuka:20
 func Menu(label string) ui.Node {
-	open := ui.NewState("s8w665w", false)
-	tab := ui.NewState("s965ruv", "logs")
-	n := ui.NewState("s8c6yry", 2)
-	f := ui.NewState("s8m6kgx", Filters{Sort: "name"})
-	ready := ui.NewDerived(!open.Get() && tab.Get() == Env, `["&&",["!",{"$":0}],["==",{"$":1},"env"]]`, open, tab)
+	open := ui.UseState(false)
+	tab := ui.UseState("logs")
+	n := ui.UseState(2)
+	f := ui.UseState(Filters{Sort: "name"})
+	ready := open.Not().And(tab.Eq(Env))
 	limit := 3
-	return ui.F(0xf0f6b3cfe9d0dff1, "Ed(Edd(h)Ed(Edd(t)Ed(t))Edd()E(h)tE(h)tE(h)Edddd()Ed(t)Ed(t)ccc)", ui.El("div", []ui.Attr{{Name: "class", Value: ui.BindExpr(ui.Class{"menu": true, "is-open": open.Get()}, `["class",{"is-open":{"$":0},"menu":true}]`, open)}}, ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(
-		open.Toggle())}, {Name: "aria-expanded", Value: ui.BindExpr(open.Get(), `{"$":0}`, open)}}, ui.Child(label)), ui.El("ul", []ui.Attr{{Name: "hidden", Value: ui.BindExpr(
-		!open.Get(), `["!",{"$":0}]`, open)}}, ui.El("li", []ui.Attr{{Name: "selected", Value: ui.BindExpr(
-		tab.Get() == "env", `["==",{"$":0},"env"]`, tab)}, {Name: "onClick", Value: ui.On(tab.Set(Env).Set(open, false))}}, ui.Text("Env")), ui.El("li", []ui.Attr{{Name: "disabled", Value: ui.BindExpr(
-
-		f.Get().Q == "" || tab.Get() != "logs", `["||",["==",{"$":0,"p":["Q"]},""],["!=",{"$":1},"logs"]]`, f, tab)}}, ui.Text("Logs"))), ui.El("input", []ui.Attr{{Name: "value", Value: ui.BindExpr(
-
-		f.Get().Q, `{"$":0,"p":["Q"]}`, f)}, {Name: "onInput", Value: ui.On(ui.StateField(f, "Q", f.Get().Q).Set("x"))}}), ui.El("span", nil, ui.Child(ui.BindExpr(
-		n.Get(), `{"$":0}`, n))), ui.Text(" "), ui.El("span", nil, ui.Child(ui.BindExpr(n.Get()+1, `["+",{"$":0},1]`, n))), ui.Text(" "), ui.El("span", nil, ui.Child(ui.BindExpr(-n.Get(), `["neg",{"$":0}]`, n))), ui.El("p", []ui.Attr{{Name: "title", Value: ui.BindExpr(
-
-		theme.Get()+"!", `["+",{"$":0},"!"]`, theme)}, {Name: "data-ready", Value: ui.BindExpr(
-		ready.Get(), `{"$":0}`, ready)}, {Name: "data-long", Value: ui.BindExpr(
-		len(f.Get().Sort) > limit, `[">",["len",{"$":0,"p":["Sort"]}],{"$":1}]`, f, limit)}, {Name: "data-get", Value: tab.Get()}}), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(
-
-		n.Inc())}}, ui.Text("+")), ui.El("button", []ui.Attr{{Name: "onClick", Value: ui.On(
-		f.Reset())}}, ui.Text("reset")),
-		ui.Show(ui.ShowProps{When: ui.BindExpr(!open.Get(), `["!",{"$":0}]`, open), Children: ui.F(0xc1566abc726ea497, "E(t)", ui.El("p", nil, ui.Text("closed")))}),
-		ui.Show(ui.ShowProps{When: open, Children: ui.F(0xdfe20d27651b1723, "E(t)", ui.El("p", nil, ui.Text("open")))}),
-		Panel(open, ui.StateField(f, "Sort", f.Get().Sort))),
+	return menu.Render(
+		ui.Classes{"menu": true, "is-open": open},
+		open.Toggle(),
+		open,
+		label,
+		open.Not(),
+		tab.Eq("env"),
+		tab.Set(Env).Set(open, false),
+		ui.At[string](f, "Q").Eq("").Or(tab.Ne("logs")),
+		ui.At[string](f, "Q"),
+		ui.At[string](f, "Q").Set("x"),
+		n,
+		n.Plus(1),
+		n.Neg(),
+		theme.Plus("!"),
+		ready,
+		ui.At[string](f, "Sort").Len().Gt(limit),
+		tab.Get(),
+		n.Inc(),
+		f.Reset(),
+		ui.Show(ui.ShowProps{When: open.Not(), Children: menuP.Render()}),
+		ui.Show(ui.ShowProps{When: open, Children: menuP2.Render()}),
+		Panel(open, ui.At[string](f, "Sort")),
 	)
 }
+
+var panel = ui.Template(`<p hidden="{{0}}">{{1}}</p>`)
 
 // Panel gets its parent's states: the same states.
 //
 //line state.vuka:52
 func Panel(open ui.State[bool], sort ui.State[string]) ui.Node {
-	return ui.F(0xaf73e9c6d88da876, "Ed(h)", ui.El("p", []ui.Attr{{Name: "hidden", Value: ui.BindExpr(!open.Get(), `["!",{"$":0}]`, open)}}, ui.Child(ui.BindExpr(sort.Get(), `{"$":0}`, sort))))
+	return panel.Render(open.Not(), sort)
 }
 
 func main() {

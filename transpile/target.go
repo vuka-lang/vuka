@@ -13,20 +13,22 @@ import (
 )
 
 // JSXVersion is the version of the JSX target contract this compiler lowers
-// to. A package is a JSX target when it declares `const VukaJSX = 1`:
+// to. A package is a JSX target when it declares `const VukaJSX = 2`:
 //
-//	required  Node, Attr{Name string; Value any}, El(tag, []Attr, ...Node),
-//	          Text(any), Child(any), Fragment(...Node), Nodes(func(func(Node))),
-//	          Try(Node, error)
-//	optional  On(handler) — on… attributes of elements are events
-//	          Stateful + Component(site, key, props) — tags naming struct types
+//	required  Node, Template(markup string) with Render(...any) Node — each
+//	          piece of JSX, its expressions in holes; Each([]T, func(T) Node)
+//	          and If(bool, Node) — blocks; Try(Node, error); Fragment(...Node)
+//	          and Child(any) — placeholders while types are unknown
+//	optional  On — on… attributes of elements are events
+//	          Stateful + Key(key, Stateful) — tags naming struct types
 //	          WithChildren(Node, children Node) — children for components that
 //	          read them from their context
+//	          UseState, UsePageState and State's methods — client state
 //	          Ref(name string) — ref="name" attributes name elements, and each
 //	          Ref("name") in a function with JSX must name one of its elements
 //
 // A .vuka file renders its JSX with the one target it imports.
-const JSXVersion = 1
+const JSXVersion = 2
 
 // DefaultJSXTarget is the JSX target messages suggest.
 const DefaultJSXTarget = "github.com/vuka-lang/ui"
@@ -167,7 +169,7 @@ func (f *fileState) jsxTarget(toks []tok, off int, errs *ErrorList) *jsxTarget {
 			t.q = imp.name + "."
 		}
 		if v := pkg.Scope().Lookup("VukaJSX").(*types.Const).Val(); v.Kind() != constant.Int || constant.Compare(v, token.NEQ, constant.MakeInt64(JSXVersion)) {
-			errs.add("E0104", f.at(imp.off), "%s implements JSX contract %s; this vuka knows version %d: update vuka", imp.path, v, JSXVersion)
+			errs.add("E0104", f.at(imp.off), "%s implements JSX contract %s; this vuka knows version %d: update %s", imp.path, v, JSXVersion, olderOf(v, imp.path))
 		}
 		found = append(found, t)
 	}
@@ -268,7 +270,7 @@ func (e *engine) resolveSelfTargets() {
 			e.errs.add("E0102", f.at(off), "JSX needs a target: import %s (or another package declaring VukaJSX)", DefaultJSXTarget)
 		default:
 			if v := c.Val(); v.Kind() != constant.Int || constant.Compare(v, token.NEQ, constant.MakeInt64(JSXVersion)) {
-				e.errs.add("E0104", f.at(off), "this package implements JSX contract %s; this vuka knows version %d: update vuka", v, JSXVersion)
+				e.errs.add("E0104", f.at(off), "this package implements JSX contract %s; this vuka knows version %d: update %s", v, JSXVersion, olderOf(v, "this package"))
 			}
 		}
 	}
@@ -342,4 +344,13 @@ func HasJSX(src []byte) bool {
 		prev = t.tok
 	}
 	return false
+}
+
+// olderOf is what to update when a target implements contract v: the
+// target when it is older than this vuka, else vuka.
+func olderOf(v constant.Value, target string) string {
+	if v.Kind() == constant.Int && constant.Compare(v, token.LSS, constant.MakeInt64(JSXVersion)) {
+		return target
+	}
+	return "vuka"
 }

@@ -44,6 +44,7 @@ type decoUse struct {
 	t       types.Type   // the decorator's value's type, once decided
 	reg     *registryUse // a registry decorator's call
 	opt     types.Type   // an around decorator's options' type; nil when it takes none
+	twin    string       // a type decorator's Register<Name>[T] in its package, called in its place
 }
 
 // funcDeco is a decorated function or method: the pieces of its wrapper,
@@ -896,6 +897,9 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 			bundled = true
 			fallthrough
 		case decoType:
+			if u.twin != "" {
+				break
+			}
 			described = true
 			ndesc++
 		}
@@ -956,6 +960,11 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 	w.gen("\nfunc init() {\n", d.nameOff)
 	for _, u := range inits {
 		w.gen("\t", u.a.start)
+		if u.twin != "" && u.kind == decoType {
+			e.writeTwin(f, u, d.name)
+			w.gen("\n", u.a.end)
+			continue
+		}
 		if u.kind != decoType && u.kind != decoBundle {
 			e.writeDecorator(f, u, d.name)
 			w.gen("\n", u.a.end)
@@ -1318,6 +1327,54 @@ func (e *engine) writeDecorator(f *fileState, u *decoUse, typeArg string) {
 	}
 }
 
+// writeTwin writes a type decorator as its generic twin: @ui.Island(args)
+// on Board is ui.RegisterIsland[Board](args).
+func (e *engine) writeTwin(f *fileState, u *decoUse, typeName string) {
+	w, a := &f.deco, u.a
+	if !e.bare {
+		p := a.Pos
+		p.Column++
+		w.gen(lineDirective(p), a.nameStart)
+	}
+	dot := strings.LastIndexByte(a.Name, '.') + 1
+	nameEnd := a.nameStart + len(a.Name)
+	u.at = w.len()
+	w.copy(a.Name[:dot], a.nameStart)
+	w.gen(u.twin+"["+typeName+"]", a.nameStart+dot)
+	args := string(f.src[nameEnd:a.end])
+	if strings.HasPrefix(strings.TrimSpace(args), "(") {
+		f.copySrc(w, args, nameEnd)
+	} else {
+		w.gen("()", a.end)
+	}
+}
+
+// registerTwin is the name of the generic twin of the type decorator fn:
+// Register<Name>[T any] in its package, taking what fn takes and returning
+// nothing, which a person calls to do what the decorator does
+// (ui.RegisterIsland[Chart]() for @ui.Island). "" when there is none.
+func registerTwin(obj types.Object) string {
+	fn, ok := obj.(*types.Func)
+	if !ok || fn.Pkg() == nil {
+		return ""
+	}
+	sig := fn.Type().(*types.Signature)
+	twin, ok := fn.Pkg().Scope().Lookup("Register" + fn.Name()).(*types.Func)
+	if !ok || !twin.Exported() {
+		return ""
+	}
+	ts := twin.Type().(*types.Signature)
+	if ts.TypeParams().Len() != 1 || ts.Results().Len() != 0 || ts.Variadic() != sig.Variadic() || ts.Params().Len() != sig.Params().Len() {
+		return ""
+	}
+	for i := range ts.Params().Len() {
+		if !types.Identical(ts.Params().At(i).Type(), sig.Params().At(i).Type()) {
+			return ""
+		}
+	}
+	return twin.Name()
+}
+
 // classify finds each decorator's form from its type, and renders again when
 // any changed. A decorator whose type isn't known yet keeps its form.
 func (e *engine) classify(f *fileState) {
@@ -1374,6 +1431,7 @@ func (e *engine) classify(f *fileState) {
 				kind = decoCall // on a type: advice for its methods
 			case isType && isRuntimeFunc(t, "Type"):
 				kind = decoType
+				u.twin = registerTwin(e.decoratorObj(f, u))
 			case isRuntimeFunc(t, "Decl"):
 				kind = decoDecl
 				switch {

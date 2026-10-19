@@ -40,6 +40,10 @@ Usage:
 	        run the app and rebuild it when a source changes: the new build
 	        replaces it once it compiles, while the old one keeps serving
 	        (-debug keeps the debug information watch builds leave out)
+	vuka build-islands [-watch]
+	        build the islands a module registers (in Go or Vuka) into its
+	        frontend's build, for //go:embed: //go:generate go tool vuka
+	        build-islands; -watch keeps them built for web.Dev
 	vuka gen [-check] [-o build]
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
@@ -109,6 +113,8 @@ func main() {
 		err = add(os.Args[2:], os.Stdout)
 	case "gen":
 		err = gen(os.Args[2:], os.Stdout)
+	case "build-islands":
+		err = buildIslands(os.Args[2:], os.Stdout, os.Stderr)
 	case "eject":
 		err = eject(os.Args[2:], os.Stdout)
 	case "lsp":

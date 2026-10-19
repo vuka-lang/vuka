@@ -48,38 +48,56 @@ public github.com/vuka-lang/vuka.TypeAttrs
 public github.com/vuka-lang/vuka.TypeFor
 
 public github.com/vuka-lang/ui.Assign
+public github.com/vuka-lang/ui.At
+public github.com/vuka-lang/ui.Attr
 public github.com/vuka-lang/ui.Bind
 public github.com/vuka-lang/ui.BindAttr
+public github.com/vuka-lang/ui.Callback
 public github.com/vuka-lang/ui.Changed
 public github.com/vuka-lang/ui.Class
+public github.com/vuka-lang/ui.Classes
 public github.com/vuka-lang/ui.ClientOnly
 public github.com/vuka-lang/ui.Commands
 public github.com/vuka-lang/ui.Defer
+public github.com/vuka-lang/ui.Derived
+public github.com/vuka-lang/ui.Each
+public github.com/vuka-lang/ui.Emit
 public github.com/vuka-lang/ui.ErrorBoundary
 public github.com/vuka-lang/ui.Event
 public github.com/vuka-lang/ui.Fallback
 public github.com/vuka-lang/ui.Fragment
+public github.com/vuka-lang/ui.If
 public github.com/vuka-lang/ui.Island
 public github.com/vuka-lang/ui.IslandPage
 public github.com/vuka-lang/ui.JS
+public github.com/vuka-lang/ui.Key
 public github.com/vuka-lang/ui.Layout
 public github.com/vuka-lang/ui.Live
 public github.com/vuka-lang/ui.LiveSchema
 public github.com/vuka-lang/ui.Load
+public github.com/vuka-lang/ui.Markup
 public github.com/vuka-lang/ui.Media
+public github.com/vuka-lang/ui.Mount
 public github.com/vuka-lang/ui.Node
 public github.com/vuka-lang/ui.On
 public github.com/vuka-lang/ui.Once
 public github.com/vuka-lang/ui.PageLayout
+public github.com/vuka-lang/ui.Ptr
 public github.com/vuka-lang/ui.RegisterIsland
 public github.com/vuka-lang/ui.Show
 public github.com/vuka-lang/ui.ShowProps
 public github.com/vuka-lang/ui.Slot
 public github.com/vuka-lang/ui.State
+public github.com/vuka-lang/ui.StateProp
 public github.com/vuka-lang/ui.Strategy
 public github.com/vuka-lang/ui.String
+public github.com/vuka-lang/ui.Template
+public github.com/vuka-lang/ui.Try
 public github.com/vuka-lang/ui.URL
+public github.com/vuka-lang/ui.UsePageState
+public github.com/vuka-lang/ui.UseState
 public github.com/vuka-lang/ui.Visible
+public github.com/vuka-lang/ui.WithChildren
 public github.com/vuka-lang/web.Params
 public github.com/vuka-lang/web.Routes
 public github.com/vuka-lang/web.Use
@@ -114,29 +132,6 @@ public github.com/vuka-lang/ui/live.Marshal
 public github.com/vuka-lang/ui/live.NewSession
 public github.com/vuka-lang/ui/live.Patch
 public github.com/vuka-lang/ui/live/livetest.Join
-
-# Step 2: ui.Template with typed holes in place of fingerprinted frames,
-# element calls and state bindings with JSON expressions.
-step2 github.com/vuka-lang/ui.Attr
-step2 github.com/vuka-lang/ui.BindExpr
-step2 github.com/vuka-lang/ui.Callback
-step2 github.com/vuka-lang/ui.Child
-step2 github.com/vuka-lang/ui.Component
-step2 github.com/vuka-lang/ui.El
-step2 github.com/vuka-lang/ui.Emit
-step2 github.com/vuka-lang/ui.F
-step2 github.com/vuka-lang/ui.FT
-step2 github.com/vuka-lang/ui.MountIsland
-step2 github.com/vuka-lang/ui.NewDerived
-step2 github.com/vuka-lang/ui.NewState
-step2 github.com/vuka-lang/ui.Nodes
-step2 github.com/vuka-lang/ui.PageState
-step2 github.com/vuka-lang/ui.Ptr
-step2 github.com/vuka-lang/ui.StateField
-step2 github.com/vuka-lang/ui.StateProp
-step2 github.com/vuka-lang/ui.Text
-step2 github.com/vuka-lang/ui.Try
-step2 github.com/vuka-lang/ui.WithChildren
 
 # Step 3 replaced field attribute registrations, field references and
 # statics for types with a schema (orm.Base, ui.Live): their Schema and
