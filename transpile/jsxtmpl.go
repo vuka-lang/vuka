@@ -635,7 +635,6 @@ func (e *engine) rangeAt(f *fileState, off int) *ast.RangeStmt {
 	return f.rangeIdx[off]
 }
 
-
 // exportName is a tag as an exported Go name: my-chart is MyChart.
 func exportName(tag string) string {
 	var b strings.Builder

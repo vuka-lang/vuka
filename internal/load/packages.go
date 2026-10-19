@@ -165,7 +165,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 		}
 		return p
 	}
-	var broken []*Templ         // .templ files templ can't compile
+	var broken []*Templ        // .templ files templ can't compile
 	var htmls []transpile.File // .vuka.html files: the package's whose other files name it
 	for _, e := range entries {
 		name := e.Name()
