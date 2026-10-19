@@ -48,6 +48,7 @@ same page in the terminal.
 | [E0126](./E0126) | Bad vuka.File |
 | [E0127](./E0127) | Render doesn't fill a template's holes |
 | [E0128](./E0128) | A value doesn't fit its template hole |
+| [E0140](./E0140) | a template file has no type to be the Render of |
 
 ## Decorators and attributes
 
