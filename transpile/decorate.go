@@ -1526,20 +1526,22 @@ func (e *engine) classify(f *fileState) {
 }
 
 // options makes options of a registry decorator the other decorators on
-// its declaration whose values its method takes as options, a vuka.Bundle
-// excepted (it decorates the declaration itself): @web.Use(mw) beside
-// @web.Get("/x") is web.Routes.Get("/x", F, web.Use(mw)). It reports
+// its declaration whose values its method takes as options: @web.Use(mw)
+// beside @web.Get("/x") is web.Routes.Get("/x", F, web.Use(mw)), and a
+// vuka.Bundle the method takes — an auth gate — is the route's option too
+// rather than wrapping the declaration (or each method of a type): the
+// route applies it, to its requests and its live page's events. It reports
 // whether a decorator's form changed.
 func options(us []*decoUse) bool {
 	changed := false
 	for _, u := range us {
-		if !u.decided || u.kind == decoRegistry || u.kind == decoBundle || u.kind == decoAround || u.t == nil {
+		if !u.decided || u.kind == decoRegistry || u.kind == decoAround || u.t == nil {
 			continue
 		}
 		opt := false
 		for _, r := range us {
 			if r.kind == decoRegistry && r.reg.elem != nil && types.AssignableTo(u.t, r.reg.elem) ||
-				r.kind == decoAround && r.opt != nil && u.kind != decoAround && types.AssignableTo(u.t, r.opt) {
+				u.kind != decoBundle && r.kind == decoAround && r.opt != nil && u.kind != decoAround && types.AssignableTo(u.t, r.opt) {
 				opt = true
 			}
 		}

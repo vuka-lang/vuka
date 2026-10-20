@@ -127,12 +127,16 @@ writes: `@ui.Island` on `Chart` is `ui.RegisterIsland[Chart]()`, and
 path is written only when the source names one. The form older compilers
 wrote, `ui.Island(…)(vuka.TypeFor[Chart](NewChart))`, keeps working.
 
-Two forms stay a decorator's own rather than an option: a composed
-decorator (`vuka.Bundle`, such as `@auth.Required`) on a function wraps the
-function as well — its gate checks direct calls too — and the route reads
-its attributes from the function; and decorators of libraries without a
-registry lower generically, to calls a person writes as well:
-`Model(vuka.TypeFor[User](NewUser))` for a type decorator,
+A composed decorator (`vuka.Bundle`, such as `@auth.Required`) beside a
+registry decorator taking it is an option of the registration too:
+`@web.Live("/applicants")` with `@auth.Requires("view_applicant")` on a
+type is `web.Routes.Live("/applicants", NewApplicants,
+auth.Requires("view_applicant"))`, and the route applies the gate to its
+requests and its live page's events — no method of the type is wrapped. A
+bundle on a declaration with no registry decorator (a method's own gate)
+still wraps it, so its gate checks direct calls too. Decorators of
+libraries without a registry lower generically, to calls a person writes as
+well: `Model(vuka.TypeFor[User](NewUser))` for a type decorator,
 `Command("greet")(vuka.DeclOf(greet))` for a declarer, `b.Declare(d)` and
 `b.Decorate(t)` for a bundle. The forms older compilers wrote
 (`vuka.TypeWith`, `vuka.FuncDecl`, `vuka.DeclareWith`, `web.Get(path)` as a
