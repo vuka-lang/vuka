@@ -222,7 +222,7 @@ func (c *Counter) Render() ui.Node {
 }
 
 func page(ctx context.Context) ui.Node {
-	return <main><Table /><Counter Label="solo" /></main>
+	return <main><Table /><Counter label="solo" /></main>
 }
 ```
 :::

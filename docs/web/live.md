@@ -92,7 +92,7 @@ Two ways, one mechanism:
   ::: vuka
   ```vuka
   @web.Get("/")
-  func Home() ui.Node { return <Shell title="Home"><Counter Start={10} /></Shell> }
+  func Home() ui.Node { return <Shell title="Home"><Counter start={10} /></Shell> }
   ```
   :::
 
