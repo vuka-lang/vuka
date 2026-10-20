@@ -20,10 +20,10 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/vuka-lang/orm v0.9.2-0.20261019193419-ca1d3ef58d27 // indirect
-	github.com/vuka-lang/ui v0.50.1-0.20261020032532-993cfe944a50 // indirect
-	github.com/vuka-lang/vuka v0.50.0 // indirect
-	github.com/vuka-lang/web v0.50.1-0.20261019215631-0bad080b01bb // indirect
+	github.com/vuka-lang/orm v1.0.0 // indirect
+	github.com/vuka-lang/ui v1.0.0 // indirect
+	github.com/vuka-lang/vuka v1.0.0 // indirect
+	github.com/vuka-lang/web v1.0.0 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
