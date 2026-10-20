@@ -8,6 +8,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // splitImportEdits separates the edits on a generated file that touch its
@@ -58,7 +60,7 @@ func splitImportEdits(f *vfile, edits []any) (rest, src []any) {
 	if len(added) == 0 {
 		return rest, nil
 	}
-	return rest, importEditsJSON(f.text(), addImports(f.text(), added))
+	return rest, importEditsJSON(f.text(), sourceImportEdits(f, added))
 }
 
 // importEditsJSON turns import edits (src offsets) into LSP text edits.
@@ -213,6 +215,39 @@ func addImports(src []byte, specs []importSpec) []importEdit {
 		text = "\n\n" + importBlock(specs)
 	}
 	return []importEdit{{at, at, text}}
+}
+
+// sourceImportEdits are the edits adding specs to the imports of f's source. A
+// template file takes them as it writes imports, a line each, unless it
+// groups its imports already.
+func sourceImportEdits(f *vfile, specs []importSpec) []importEdit {
+	src := f.text()
+	if !strings.HasSuffix(f.source, ".vuka.html") {
+		return addImports(src, specs)
+	}
+	head := transpile.ParseTemplateHead(src)
+	lines := strings.SplitAfter(string(src), "\n")
+	for _, imp := range head.Imports {
+		if !strings.HasPrefix(strings.TrimSpace(lines[imp.Line]), "import") {
+			return addImports(src, specs) // in an import ( … ) group
+		}
+	}
+	sort.Slice(specs, func(i, j int) bool { return specs[i].path < specs[j].path })
+	var b strings.Builder
+	at := -1
+	switch {
+	case len(head.Imports) > 0:
+		at = lineStart(src, uint32(head.Imports[len(head.Imports)-1].Line)) + len(strings.TrimRight(lines[head.Imports[len(head.Imports)-1].Line], "\r\n"))
+	case head.Line >= 0:
+		at = lineStart(src, uint32(head.Line)) + len(strings.TrimRight(lines[head.Line], "\r\n"))
+		b.WriteString("\n")
+	default:
+		return nil
+	}
+	for _, s := range specs {
+		b.WriteString("\nimport " + s.line())
+	}
+	return []importEdit{{at, at, b.String()}}
 }
 
 // importBlock renders specs (deduplicated, sorted by path) as a grouped

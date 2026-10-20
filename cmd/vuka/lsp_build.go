@@ -129,6 +129,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		_ = json.Unmarshal(params, &dp)
 		p.mu.Lock()
 		p.bufs[path] = []byte(dp.TextDocument.Text)
+		delete(p.cursors, path)
 		p.edits++
 		p.changed[path] = p.edits
 		p.mu.Unlock()
@@ -150,8 +151,10 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		_ = json.Unmarshal(params, &dp)
 		p.mu.Lock()
 		buf := p.bufs[path]
+		cursor := -1
 		for _, c := range dp.ContentChanges {
 			if c.Range == nil {
+				cursor = changeEnd(buf, []byte(c.Text))
 				buf = []byte(c.Text)
 				continue
 			}
@@ -161,8 +164,10 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 			}
 			next := make([]byte, 0, len(buf)-(end-start)+len(c.Text))
 			buf = append(append(append(next, buf[:start]...), c.Text...), buf[end:]...)
+			cursor = start + len(c.Text)
 		}
 		p.bufs[path] = buf
+		p.cursors[path] = cursor
 		p.edits++
 		p.changed[path] = p.edits
 		p.mu.Unlock()
@@ -173,6 +178,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 	case "textDocument/didClose":
 		p.mu.Lock()
 		delete(p.bufs, path)
+		delete(p.cursors, path)
 		delete(p.changed, path)
 		delete(p.done, path)
 		delete(p.syntaxDiags, path)
@@ -197,9 +203,14 @@ func (p *proxy) build() {
 	root, seq, since := p.root, p.edits, p.snapped
 	p.snapped = seq
 	bufs := make(map[string][]byte, len(p.bufs))
+	cursors := make(map[string]int, len(p.cursors))
 	edited := map[string]bool{}
 	for k, v := range p.bufs {
 		bufs[k] = v
+		cursors[k] = -1
+		if c, ok := p.cursors[k]; ok {
+			cursors[k] = c
+		}
 		if p.changed[k] > since {
 			edited[k] = true
 		}
@@ -221,7 +232,7 @@ func (p *proxy) build() {
 	hunks := map[string][]hunk{}
 	read := func(path string) ([]byte, error) {
 		if b, ok := bufs[path]; ok {
-			src, hs := completable(b)
+			src, hs := completableAt(path, b, cursors[path])
 			hunks[path] = hs
 			return src, nil
 		}
@@ -301,6 +312,20 @@ func (p *proxy) build() {
 	}
 	p.apply(pkgs, gens, list, bufs, hunks, all, seq, true)
 	p.logf("built the module (%d packages) in %v", len(pkgs), time.Since(t0).Round(time.Millisecond))
+}
+
+// changeEnd is where the editor's text was changed from old to cur, in cur:
+// the end of what differs, for a change that sends the whole text.
+func changeEnd(old, cur []byte) int {
+	pre := 0
+	for pre < len(old) && pre < len(cur) && old[pre] == cur[pre] {
+		pre++
+	}
+	suf := 0
+	for suf < len(old)-pre && suf < len(cur)-pre && old[len(old)-1-suf] == cur[len(cur)-1-suf] {
+		suf++
+	}
+	return len(cur) - suf
 }
 
 // finished records that a build took the buffers bufs, as of the edits count

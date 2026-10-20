@@ -170,8 +170,22 @@ func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspC
 	return c, dir, c.init
 }
 
+// withCaps is base with caps added.
+func withCaps(caps, base map[string]any) map[string]any {
+	for k, v := range caps {
+		base[k] = v
+	}
+	return base
+}
+
 // startLSPAt runs the proxy on the module at dir and initializes it.
 func startLSPAt(t *testing.T, dir string, opts lspOptions) *lspClient {
+	return startLSPCaps(t, dir, opts, nil)
+}
+
+// startLSPCaps is startLSPAt for an editor with the text document
+// capabilities caps besides semantic tokens.
+func startLSPCaps(t *testing.T, dir string, opts lspOptions, caps map[string]any) *lspClient {
 	gopls, err := findGopls("")
 	if err != nil {
 		needs(t, "%v", err)
@@ -196,7 +210,7 @@ func startLSPAt(t *testing.T, dir string, opts lspOptions) *lspClient {
 		// gopls gates semantic tokens behind this setting, as the editor enables it.
 		"initializationOptions": map[string]any{"semanticTokens": true, "ui.semanticTokens": true},
 		"capabilities": map[string]any{
-			"textDocument": map[string]any{"semanticTokens": map[string]any{
+			"textDocument": withCaps(caps, map[string]any{"semanticTokens": map[string]any{
 				"requests": map[string]any{"full": true, "range": true},
 				"tokenTypes": []any{"namespace", "type", "class", "enum", "interface", "struct",
 					"typeParameter", "parameter", "variable", "property", "enumMember", "event",
@@ -206,7 +220,7 @@ func startLSPAt(t *testing.T, dir string, opts lspOptions) *lspClient {
 					"deprecated", "abstract", "async", "modification", "documentation",
 					"defaultLibrary"},
 				"formats": []any{"relative"},
-			}},
+			}}),
 		}})
 	c.notify("initialized", map[string]any{})
 	return c
