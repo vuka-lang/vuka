@@ -150,6 +150,7 @@ export default defineConfig({
           { text: 'Introduction', link: '/web/' },
           { text: 'Getting started', link: '/web/getting-started' },
           { text: 'Routes', link: '/web/routes' },
+          { text: 'Folder routes', link: '/web/folder-routes' },
           { text: 'Parameters and results', link: '/web/parameters' },
           { text: 'Views', link: '/web/views' },
           { text: 'Styling with Tailwind', link: '/web/styling' },
