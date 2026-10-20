@@ -411,8 +411,10 @@ Writes the Go generated for `.vuka` files beside them, as `gen -inplace`
 does: for the files named, or the packages (`dir`, `dir/...`; the module by
 default). With `-rm` the Go becomes the source: each `.vuka` file is deleted
 and its Go kept as `orders.go` (`orders_vuka.go` when `orders.go` is taken),
-without the generated-code header or line directives. What's left is a plain
-Go module: `go build`, `go vet` and `go test` take it with no `vuka` command,
+without the generated-code header or line directives, its earlier forms
+rewritten first as the `attributes`, `queries` and `db-schema` [fixers](#fix)
+do (a model's `orm:` tags become its `Schema` method's attributes). What's
+left is a plain Go module: `go build`, `go vet` and `go test` take it with no `vuka` command,
 and it behaves as the `.vuka` version did. Eject the whole module (`./...`)
 so the [link files](#build-run-test-vet-install) and the files embedding
 CSS and assets are written too; they stay generated files.
@@ -504,6 +506,9 @@ Repairs what tooling can. `-n` only reports; name fixers to run only those.
 | `orphans` | remove files `vuka gen -inplace` wrote for `.vuka` files that are gone |
 | `attr-of` | rename `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)`, in `.vuka` and `.go` files (v0.5.0) |
 | `ui` | move UI code to [`github.com/vuka-lang/ui`](/ui/) (v0.10.0): `vuka.Node` → `ui.Node` and the other UI names, `vuka/live`, `vuka/term`, `vuka/templx` → `ui/…`, `vuka.TemplComponents` → `templx.Components`; import ui in `.vuka` files with JSX; `go get` ui |
+| `attributes` | write a live page's field tags (`bind:`, `url:`, `defer:`, `validate:`) and a model's `orm:` tags as attributes: `orm:"elements:tag_ids"` → `@orm.Elements{Column: "tag_ids"}`, `orm:"column:x;unique"` → `@orm.Column("x") @orm.Unique`; what has no attribute stays in the tag |
+| `db-schema` | rename `orm.Schema` values to `orm.DBSchema` (`orm.Of[T](orm.Schema{…})` → `orm.Of[T](orm.DBSchema{…})`), in `.vuka` and `.go` files, once the module's orm names it so; `*orm.Schema`, a schema method's, stays |
+| `queries` | write queries made for `orm.Query`, before `Post.Objects` was the model's manager, as the manager's: `vuka.Or(…)` of a model's fields → `orm.Or(…)`, `fn.Lower(Post.Title)` → `orm.Lower(Post.Title)`, `fn.In(a, q, c)` → `a.InQuery(q.Values[any](c.Name()))`, `x := q.First(ctx)?` read as an `Option` → `orm.Optional(q.First(ctx))?`, `Post.Objects.Manager()` → `Post.Objects` |
 | `ui-structs` | write the [ui kit](/ui/components#kit)'s components as struct literals, once the module's ui declares them so: `ui.Card(ui.CardProps{…})` → `ui.Card{…}`, `ui.Table(ui.TableProps[T]{…})` → `ui.Table[T]{…}`, in `.vuka` and `.go` files; `ui.Button(p)` compiles as it is (a conversion), and a generic one given a value, `ui.Table(t)`, is left for its type argument |
 
 ## fmt

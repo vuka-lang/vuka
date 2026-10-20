@@ -137,7 +137,7 @@ Code reading them finds them by type:
 
 | | |
 |---|---|
-| `vuka.FieldAttrs[T]()` | `map[string][]any`, by field name |
+| `vuka.FieldAttrs[T]()` | `map[string][]any`, by field name; a model's include its `Schema` method's, its model attributes on the embedded `orm.Model` (`vuka.FieldAttrsDeclarer`) |
 | `vuka.FieldsOf[T]()` | `[]vuka.Field`: name, type, tag, `Attrs` |
 | `f.Attr(&x)` | fills `x` with the field's attribute of `x`'s type |
 | `t.Fields[i].Attrs` | the same, in a [type decorator](/features/decorators#types)'s `*vuka.Type` |

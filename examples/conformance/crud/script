@@ -1,6 +1,7 @@
 # crud: models with Schema, a relation walked by typed fields, a named
 # query, transactions (one rolled back), update arithmetic, SaveFields of
-# a typed field, a call decorator.
+# a typed field, a call decorator, First of an orm.Or with a function of a
+# typed field.
 GET /authors
 POST /posts json {"author":1,"title":"Notes on the Analytical Engine"}
 POST /posts json {"author":2,"title":"Compilers"}
@@ -17,4 +18,7 @@ GET /posts?author=Grace
 GET /posts?live=true
 GET /posts/2
 GET /posts/7
+GET /find?q=compilers
+GET /find?q=Grace
+GET /find?q=nobody
 GET /audit

@@ -104,6 +104,17 @@ func ListPosts(ctx context.Context, author string, live bool, b *Blog) ([]Post, 
 // ShowPost answers GET /posts/{id}.
 func ShowPost(ctx context.Context, id int64, b *Blog) (Post, error) { return find(ctx, id) }
 
+// FindPost answers GET /find?q=: the first post titled q in any case, or
+// by the author named q.
+func FindPost(ctx context.Context, q string, b *Blog) (Post, error) {
+	f := PostFields
+	p, err := orm.Objects[Post]().Filter(orm.Or(orm.Lower(f.Title).Eq(strings.ToLower(q)), f.Author.Name.Eq(q))).First(ctx)
+	if errors.Is(err, orm.ErrNotFound) {
+		return p, web.NotFound
+	}
+	return p, err
+}
+
 // CreatePost answers POST /posts.
 func CreatePost(ctx context.Context, in NewPost, b *Blog) (Post, error) { return createPost(ctx, in) }
 
