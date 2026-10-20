@@ -1,0 +1,26 @@
+package main
+
+import "strings"
+
+// Menu is the top bar: a link per item, the current one marked.
+func Menu(items []Item, path string)
+<nav>
+  for _, i := range items {
+    <navLink item={i} on={i.Href == path}/>
+  }
+  <panel title="Me">
+    <slot:footer><badge n={3}/></slot:footer>
+    <who/>
+  </panel>
+  <navLink item={Item{"/x", "X"}} on/>
+  {navLink(Item{"/y", "Y"}, false)}
+</nav>
+
+func navLink(item Item, on bool)
+<a href={item.Href} class:on={on}>{strings.ToUpper(item.Label)}</a>
+
+func panel(title string, footer ui.Node, children ui.Node)
+<section><h2>{title}</h2>{children}<footer>{footer}</footer></section>
+
+func who(ctx context.Context)
+<i>{ctx.Value(userKey{}).(string)}</i>

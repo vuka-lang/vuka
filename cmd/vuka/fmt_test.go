@@ -80,3 +80,19 @@ func TestFmt(t *testing.T) {
 		t.Errorf("bad file: %v %q", err, errs.String())
 	}
 }
+
+func TestFmtTemplate(t *testing.T) {
+	dir := t.TempDir()
+	os.MkdirAll(filepath.Join(dir, "layouts"), 0o755)
+	os.WriteFile(filepath.Join(dir, "layouts", "nav.go"), []byte("package layouts\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "layouts", "nav.vuka.html"), []byte("package layouts\n// Nav is the menu.\n\nfunc Nav()\n\n<nav></nav>\nfunc item()\n<li></li>"), 0o644)
+	chdir(t, dir)
+	var out, errs bytes.Buffer
+	if err := vukaFmt([]string{"-w", "."}, &out, &errs); err != nil {
+		t.Fatal(err, errs.String())
+	}
+	want := "package layouts\n\n// Nav is the menu.\nfunc Nav()\n<nav></nav>\n\nfunc item()\n<li></li>\n"
+	if src, _ := os.ReadFile(filepath.Join("layouts", "nav.vuka.html")); string(src) != want {
+		t.Errorf("got\n%s\nwant\n%s", src, want)
+	}
+}

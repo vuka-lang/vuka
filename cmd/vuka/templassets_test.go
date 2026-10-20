@@ -47,7 +47,9 @@ func main() {
 	app.Run("")
 }
 `,
-		"chart.vuka.html": `<figure class="chart">
+		"chart.vuka.html": `package main
+
+<figure class="chart">
   <figcaption>{Title}</figcaption>
 </figure>
 
@@ -120,7 +122,7 @@ func TestFindTemplateAssets(t *testing.T) {
 	root := tempModule(t, map[string]string{"go.mod": webMod,
 		"main.go":   "package main\n\ntype Chart struct{ Title string }\n\nfunc main() {}\n",
 		"clock.vue": "<script setup lang=\"ts\">\ndefineProps<{ zone?: string }>()\n</script>\n<template><time /></template>\n",
-		"chart.vuka.html": "import Clock \"./clock.vue\"\n\n<figure>{Title}<Clock /></figure>\n\n<script lang=\"ts\">\nexport default {}\n</script>\n\n<style scoped>\nfigure { margin: 0 }\n</style>\n\n" +
+		"chart.vuka.html": "package main\n\nimport Clock \"./clock.vue\"\n\n<figure>{Title}<Clock /></figure>\n\n<script lang=\"ts\">\nexport default {}\n</script>\n\n<style scoped>\nfigure { margin: 0 }\n</style>\n\n" +
 			"func Row(n int)\n<p>{n}</p>\n\n<style>\nbody { margin: 0 }\n</style>\n",
 	})
 	pa, err := findAssets(root, "example.com/app")
@@ -133,7 +135,7 @@ func TestFindTemplateAssets(t *testing.T) {
 			chart = c
 		}
 	}
-	if chart == nil || len(chart.scripts) != 1 || chart.scripts[0].label != "chart.vuka.html:6" || len(chart.styles) != 1 || chart.styles[0].inline != "figure { margin: 0 }\n" {
+	if chart == nil || len(chart.scripts) != 1 || chart.scripts[0].label != "chart.vuka.html:8" || len(chart.styles) != 1 || chart.styles[0].inline != "figure { margin: 0 }\n" {
 		t.Errorf("Chart: %+v", chart)
 	}
 	if len(pa.global.styles) != 1 || pa.global.styles[0].inline != "body { margin: 0 }\n" {

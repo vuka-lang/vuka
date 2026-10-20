@@ -535,7 +535,7 @@ func Package(files []File, opts Options) (*Result, error) {
 			}
 			src, h, err := htmlSource(file.Name, file.Src, files, q)
 			if err != nil {
-				err.Pos.Filename, err.Pos.Line, err.Pos.Column = f.path, max(err.Pos.Line, 1), 1
+				err.Pos.Filename, err.Pos.Line, err.Pos.Column = f.path, max(err.Pos.Line, 1), max(err.Pos.Column, 1)
 				errs = append(errs, err)
 				continue
 			}

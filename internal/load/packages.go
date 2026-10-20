@@ -250,12 +250,16 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 				break
 			}
 		}
-		p := pkg(name)
-		p.Files = append(p.Files, htmls...)
 		for _, h := range htmls {
-			for _, m := range htmlImport.FindAllSubmatch(h.Src, -1) {
-				if path, err := strconv.Unquote(string(m[1])); err == nil && !strings.HasPrefix(path, ".") {
-					p.Imports = append(p.Imports, path) // a component file (./chart.vue) is no package
+			head := transpile.ParseTemplateHead(h.Src)
+			p := pkg(name)
+			if head.Package == name+"_test" {
+				p = pkg(head.Package) // the external test package's
+			}
+			p.Files = append(p.Files, h)
+			for _, imp := range head.Imports {
+				if !strings.HasPrefix(imp.Path, ".") {
+					p.Imports = append(p.Imports, imp.Path) // a component file (./chart.vue) is no package
 				}
 			}
 		}
@@ -268,9 +272,6 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 	}
 	return pkgs, nil
 }
-
-// htmlImport is an import line of a .vuka.html file.
-var htmlImport = regexp.MustCompile(`(?m)^import\s+(?:[\w.]+\s+)?("[^"\n]*")`)
 
 func (p *Package) hasVuka() bool {
 	for _, f := range p.Files {

@@ -10,9 +10,9 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line chart.vuka.html:1
+//line chart.vuka.html:3
 func (c Chart) View() ui.Node {
-//line chart.vuka.html:1
+//line chart.vuka.html:3
 	return ui.HTML(`
 <figure data-vk-p={ui.Props(c)} class="chart">
   <figcaption>{c.Title}</figcaption>
@@ -20,5 +20,5 @@ func (c Chart) View() ui.Node {
 </figure>`, ui.Props(c), c.Title, ui.El("script", nil, ui.Safe("window.points = "), ui.JSON(c.Points), ui.Safe(";")))
 }
 
-//line chart.vuka.html:4
+//line chart.vuka.html:6
 func (c Chart) Render(ctx context.Context, w io.Writer) error { return c.View().Render(ctx, w) }

@@ -35,10 +35,10 @@ func render(o Order, n ui.Node, v any, late bool) {
 	ui.HTML(row, id, cls, attrs, late, ref, click, body, title, value)
 	ui.HTML(`<p title={o.Ref}>{o.Ref} {len(o.Ref)}</p>`, o.Ref, len(o.Ref))
 	ui.HTML(`<p>{ o.Ref }</p>`, o.Ref)
-	ui.HTML(`<p>{a + b}</p>`, 1+2)            // want `E0132: value 1 is 1 \+ 2; its label is \{a \+ b\}`
-	ui.HTML(`<p>{o.ID}{o.Ref}</p>`, o.Ref, o.ID) // want `E0132: value 1 is o.Ref; its label is \{o.ID\}` `E0132: value 2 is o.ID; its label is \{o.Ref\}`
+	ui.HTML(`<p>{a + b}</p>`, 1+2)                 // want `E0132: value 1 is 1 \+ 2; its label is \{a \+ b\}`
+	ui.HTML(`<p>{o.ID}{o.Ref}</p>`, o.Ref, o.ID)   // want `E0132: value 1 is o.Ref; its label is \{o.ID\}` `E0132: value 2 is o.ID; its label is \{o.Ref\}`
 	ui.HTML(`<p>{o.Ref}{o.Ref}</p>`, o.Ref, o.Ref) // want `E0127: ui.HTML has 1 values \(\{o.Ref\}\), and it is given 2`
-	ui.HTML(`<p>{o.Ref}</p>`)                    // want `E0127: ui.HTML has 1 values \(\{o.Ref\}\), and it is given 0`
+	ui.HTML(`<p>{o.Ref}</p>`)                      // want `E0127: ui.HTML has 1 values \(\{o.Ref\}\), and it is given 0`
 	set, x, y, z, t, on, h := 1, ui.Attr{}, true, "z", comp{}, "on", "go"
 	ui.HTML(`<p {set...}><i>{x}</i><b title="a {y}">{z}</b><title>{t}</title><i class:on={on}></i><a onClick={h}></a></p>`, set, x, y, z, t, on, h) // want `E0128: \{set\} is an attribute set of <p>; it is given int` `E0128: \{x\} is a child of <i>; it is given ui.Attr, an attribute set` `E0128: \{y\} is part of title on <b>; it is given bool, not text` `E0128: \{t\} is text in <title>; it is given comp, not text` `E0128: \{on\} is class:on on <i>; it is given string, not a bool or a ui.State\[bool\]` `E0128: \{h\} is onClick on <a>; it is given string, not a handler`
 	e, xs, tm := errors.New("x"), []ui.Node{n}, templ.Attributes{}

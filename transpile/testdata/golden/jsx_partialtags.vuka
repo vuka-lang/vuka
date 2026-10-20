@@ -1,0 +1,41 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Item is a link of the menu.
+type Item struct{ Href, Label string }
+
+type userKey struct{}
+
+func navLink(item Item, on bool) ui.Node {
+	return <a href={item.Href} class:on={on}>{item.Label}</a>
+}
+
+func panel(ctx context.Context, title string, footer ui.Node, children ui.Node) ui.Node {
+	return <section><h2>{title} {ctx.Value(userKey{}).(string)}</h2>{children}<footer>{footer}</footer></section>
+}
+
+// Menu uses the package's lowercase functions as tags.
+func Menu(items []Item, path string) ui.Node {
+	return <nav>
+		{for _, i := range items {
+			<navLink item={i} on={i.Href == path}/>
+		}}
+		<panel title="Me">
+			<slot:footer><navLink item={Item{"/out", "Out"}} on/></slot:footer>
+			<p>hello</p>
+		</panel>
+		<my-badge>{navLink(Item{"/x", "X"}, false)}</my-badge>
+	</nav>
+}
+
+func main() {
+	ctx := context.WithValue(context.Background(), userKey{}, "ada")
+	out, err := ui.String(ctx, Menu([]Item{{"/", "Home"}, {"/o", "Orders"}}, "/o"))
+	fmt.Println(out, err)
+}

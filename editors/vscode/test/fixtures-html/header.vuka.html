@@ -1,6 +1,13 @@
-import "portal/components"
+package layouts
 
-<nav>{navLink(first, true)}</nav>
+import (
+	"strings"
+
+	c "portal/components"
+)
+import "portal/more"
+
+<nav>{navLink(first, true)}<navLink item={first} on /><my-chart></my-chart></nav>
 
 // navLink is one menu entry.
 func navLink(item Item, on bool)

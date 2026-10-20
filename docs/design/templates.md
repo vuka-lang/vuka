@@ -23,6 +23,15 @@ expression of its argument, checked against the arguments by vukavet.
 
 - A package is its `.go` files and any number of `.vuka.html` files, sharing
   one package scope, as Go files do.
+- A `.vuka.html` file starts with its package clause, `package layouts`,
+  as a Go file and a templ file do (comments may come before it): the
+  package of its directory, or `<pkg>_test` for an external test package's
+  templates. A missing or wrong clause is an error (E0142, help `add
+  "package layouts"`); `vuka fmt` inserts a missing one from the directory's
+  package, `vuka fix templates-package` (run by `vuka upgrade`) rewrites a
+  module, and eject and the scaffolds write it. The order is: package,
+  imports (single lines or a grouped `import ( … )`), the main markup, then
+  the `func` templates.
 - A `.vuka.html` file holds several templates. Each starts with a `func`
   header at the start of a line — `func Card(p CardProps)`,
   `func orderRow(o Order, cancel func(int) ui.Action)`,
@@ -30,10 +39,18 @@ expression of its argument, checked against the arguments by vukavet.
   the markup up to the next `func` line or the end of the file. The result,
   `ui.Node`, is implied. An optional first parameter `ctx context.Context` is
   passed by tags and the runtime.
+- Headers have no braces: a header is one line, and its markup runs to the
+  next `func` line or the end of the file.
 - Exported and unexported names, and duplicate names, behave as in Go. A `//`
-  comment line above a header is the template's doc comment.
+  comment line right above a header is the template's doc comment; an
+  exported template without one is a vet warning (W0104, as Go's linters
+  have it), `View` and `Render` methods being documented by their type.
+- Layout, kept by `vuka fmt` (the editors' format-on-save): exactly one
+  blank line before each header (before its doc comment), none between a
+  doc comment and its header or a header and its first markup line, one
+  newline at the end of the file; the markup is not otherwise changed.
 - Imports: the package's `.go` files' imports are visible; a template file may
-  add `import "x"` lines at its top.
+  add imports after its package clause.
 - Comments in markup: `{/* … */}`.
 
 ## 2. Markup
@@ -54,10 +71,20 @@ expression of its argument, checked against the arguments by vukavet.
 
 ## 3. Nesting
 
-- A capitalised tag is a component, a lowercase one HTML. In the same
-  package `<Filters q={p.Q}/>`; from another as a Go selector, `<ui.Card>`,
-  `<layouts.Admin>`, resolved as Go: an exported template or Go function
-  taking one props struct, or a stateful type.
+- A capitalised tag is a component. In the same package `<Filters q={p.Q}/>`;
+  from another as a Go selector, `<ui.Card>`, `<layouts.Admin>`,
+  `<layouts.NavLink item={…}/>`, resolved as Go: an exported template or Go
+  function, or a stateful type.
+- A lowercase tag is an HTML element when it is a known HTML, SVG or MathML
+  element name or holds a hyphen (a custom element); any other lowercase
+  tag resolves to a template or function of the package, with Go's scope
+  and visibility (lowercase is package-private): `<navLink item={i}
+  on={active}/>` in any `.go`, `.vuka` or `.vuka.html` file of the package.
+  A name resolving to nothing is an error (E0143, `unknown element or
+  template <navlnk>`, with did-you-mean; case-sensitive). A package-level
+  template named as an element (`header`, `nav`, `label`, `select`, …) is
+  an error at its declaration (E0145), also reported by vukavet. JSX in
+  `.vuka` follows the same rule.
 - Attributes on a component's tag (a struct or function component, an
   island, a layout) are camelCase, as in `.vuka` JSX: the field is the name
   with its first letter upper-cased (`noPad` is `NoPad`, `onSelect`
@@ -69,8 +96,16 @@ expression of its argument, checked against the arguments by vukavet.
 - Content between the tags is `Children ui.Node`; `<slot:header>…</slot:header>`
   is the `Header ui.Node` field. An unknown field, or one that isn't a Node,
   is an error at its position.
-- Partials — templates whose parameters aren't one props struct — are
-  called, not tagged: `{orderRow(o, p.Cancel)}`.
+- Partials — templates whose parameters aren't one props struct — and Go
+  functions returning `ui.Node` are tags whose attributes are their
+  parameters, by name: `item={…}` is the parameter `item`, a bare attribute
+  sets a bool parameter true, a `children ui.Node` (or `Children`)
+  parameter takes the content between the tags, `<slot:x>` fills an
+  `x ui.Node` parameter, and a first `ctx context.Context` is passed for
+  it. Every other parameter is required: a tag leaving one out is an error
+  listing the missing names (E0144); an unknown attribute is an error with
+  did-you-mean. Calls, `{orderRow(o, p.Cancel)}`, keep working; eject
+  keeps tags where the source has them.
 - Keys: `key={…}` on a loop item's first element or on a component tag.
   Recursion is allowed.
 - Templates are values (render props): `<ui.DataTable rows={p.Orders} row={orderRow}/>`.
@@ -180,6 +215,8 @@ type Sales struct {
 
 ```html
 <!-- sales.vuka.html -->
+package app
+
 func (s Sales) View()
 <section class="sales">…{s.Title}…</section>
 ```
@@ -190,7 +227,7 @@ a stateful, live one. `<Sales title="x" week={w}/>` is
 there is no separate `SalesProps`. Children and slots fill the struct's
 `ui.Node` fields. Function components, `func Sales(p SalesProps)`, stay
 supported — a tag works when the one parameter is a struct — and partials
-are call-only. Docs, scaffolds, generated and ejected code and the ui kit
+are tags whose attributes are their parameters. Docs, scaffolds, generated and ejected code and the ui kit
 lead with structs. Lowering JSX: a `.vuka` `type Sales struct{…}` with
 `func (s Sales) Render() Node { return <…> }` keeps the struct in the `.go`
 and puts the `Render` template in the `.vuka.html`; a `.vuka` function

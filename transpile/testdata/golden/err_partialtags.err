@@ -1,0 +1,3 @@
+err_partialtags.vuka:11:4: unknown element or template <navlink>; did you mean <navLink>?
+err_partialtags.vuka:12:3: <navLink> is missing the attribute on; set every parameter but ctx, children and slots: <navLink on={…}>
+err_partialtags.vuka:13:12: <navLink> has no attribute hrf; did you mean href?

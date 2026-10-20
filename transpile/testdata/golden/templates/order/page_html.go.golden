@@ -9,13 +9,13 @@ import (
 
 // Page shows each value as it is where the markup reads it.
 //
-//line page.vuka.html:2
-func Page(xs []int) ui.Node {
 //line page.vuka.html:4
+func Page(xs []int) ui.Node {
+//line page.vuka.html:6
 	x := 1
 	x2 := x
 	x = 2
-//line page.vuka.html:8
+//line page.vuka.html:10
 	total := 0
 	var lis []ui.Node
 	for _, n := range xs {
@@ -25,14 +25,14 @@ func Page(xs []int) ui.Node {
 <li>{total2}</li>`, total2))
 	}
 	c := &counter{}
-//line page.vuka.html:7
+//line page.vuka.html:9
 	x22 := x
-//line page.vuka.html:15
-	total22 := total
 //line page.vuka.html:17
+	total22 := total
+//line page.vuka.html:19
 	n2 := c.n
 	k := c.next()
-//line page.vuka.html:2
+//line page.vuka.html:4
 	return ui.HTML(`
 <main>
   <p>{x2}</p>

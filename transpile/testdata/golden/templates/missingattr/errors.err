@@ -1,0 +1,1 @@
+menu.vuka.html:5:6: <navLink> is missing the attributes item, on; set every parameter but ctx, children and slots: <navLink item={…} on={…}>

@@ -1,3 +1,5 @@
+package main
+
 import "fmt"
 import "strconv"
 
@@ -8,7 +10,7 @@ func List[T any](items []T, render func(T) ui.Node)
   }
 </ul>
 
-// Select's selected is left out: its zero value is the inferred type's.
+// Select's T is inferred from its options and selected.
 func Select[T comparable](label string, options []T, selected T)
 <label>
   {label}
@@ -42,7 +44,7 @@ func page(users []User)
 <List items={users} render={func(u User) ui.Node { return pageLi(u) }} />
 <List render={func(n int) ui.Node { return pageLi2(n) }} items={[]int{1, 2}} />
 <List[string] items={nil} render={nil} />
-<Select label="pick" options={[]string{"a", "b"}} />
+<Select label="pick" options={[]string{"a", "b"}} selected={""} />
 <Select label="pick" options={[]int{1, 2}} selected={2} />
 <Table[User] rows={users} cell={func(u User) string { return strconv.Itoa(u.ID) }} />
 <Pair name="a" value={1.5}>and more</Pair>

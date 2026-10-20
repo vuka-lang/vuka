@@ -915,7 +915,7 @@ func (p *proxy) formatting(m *rpcMsg, path string) {
 	edits := []any{}
 	fmtSrc := format.Source
 	if strings.HasSuffix(path, ".vuka.html") {
-		fmtSrc = format.Template
+		fmtSrc = func(src []byte) ([]byte, error) { return format.Template(src, format.DirPackage(filepath.Dir(path))) }
 	}
 	if out, err := fmtSrc(src); err != nil {
 		p.logf("format %s: %v", path, err)

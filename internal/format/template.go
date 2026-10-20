@@ -5,8 +5,13 @@ import (
 	"go/format"
 	"go/parser"
 	"go/token"
+	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
+
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 var (
@@ -14,16 +19,31 @@ var (
 	rawBlock   = regexp.MustCompile(`^\s*<(script|style)\b`)
 )
 
-// Template formats a .vuka.html file: the Go of its func headers and of
-// holes on one line written as gofmt writes it, trailing space gone, one
-// blank line between templates and no runs of them. Markup, and the
-// content of scripts and styles, stay as written.
-func Template(src []byte) ([]byte, error) {
-	lines := strings.Split(strings.ReplaceAll(string(src), "\r\n", "\n"), "\n")
+// Template formats a .vuka.html file: its package clause first (pkg's,
+// added when the file has none and pkg isn't ""), the Go of its func
+// headers and of holes on one line written as gofmt writes it, trailing
+// space gone, no runs of blank lines, one blank line before each header (or
+// its doc comment), none between a doc comment and its header or a header
+// and its markup, and one newline at the end. Markup, and the content of
+// scripts and styles, stay as written.
+func Template(src []byte, pkg string) ([]byte, error) {
+	text := strings.ReplaceAll(string(src), "\r\n", "\n")
+	if pkg != "" {
+		text = string(TemplatePackage([]byte(text), pkg))
+	}
+	lines := strings.Split(text, "\n")
 	var out []string
 	raw := ""
+	header, clause, body := false, false, false
 	for _, l := range lines {
 		l = strings.TrimRight(l, " \t")
+		if l == "" && (header || clause) && raw == "" {
+			continue
+		}
+		if clause && l != "" {
+			out = append(out, "")
+		}
+		header, clause = false, false
 		switch {
 		case raw != "":
 			if strings.Contains(l, "</"+raw+">") {
@@ -49,12 +69,16 @@ func Template(src []byte) ([]byte, error) {
 			if doc > 0 && out[doc-1] != "" {
 				out = append(out[:doc], append([]string{""}, out[doc:]...)...)
 			}
+			header = true
+		case packageLine.MatchString(l) && !body:
+			clause = true
 		default:
 			l = holesFormatted(l)
 		}
 		if l == "" && len(out) > 0 && out[len(out)-1] == "" && raw == "" {
 			continue
 		}
+		body = body || l != "" && !strings.HasPrefix(l, "//")
 		out = append(out, l)
 	}
 	for len(out) > 0 && out[len(out)-1] == "" {
@@ -62,6 +86,68 @@ func Template(src []byte) ([]byte, error) {
 	}
 	return []byte(strings.Join(out, "\n") + "\n"), nil
 }
+
+var packageLine = regexp.MustCompile(`^package\s+\w+`)
+
+// TemplatePackage is a template file starting with the package clause of
+// pkg when it has none: above its leading comment, unless a blank line ends
+// that comment (a file comment rather than a template's doc comment).
+func TemplatePackage(src []byte, pkg string) []byte {
+	if transpile.ParseTemplateHead(src).Package != "" {
+		return src
+	}
+	text, at := string(src), 0
+	for _, l := range strings.SplitAfter(text, "\n") {
+		t := strings.TrimSpace(l)
+		if !strings.HasPrefix(t, "//") {
+			if t != "" || at == 0 {
+				at = 0
+			}
+			break
+		}
+		at += len(l)
+	}
+	sep, rest := "", text[at:]
+	for strings.HasPrefix(strings.TrimLeft(rest, " \t"), "\n") {
+		rest, sep = rest[strings.IndexByte(rest, '\n')+1:], "\n"
+	}
+	if at == 0 {
+		sep = ""
+	}
+	return []byte(text[:at] + sep + "package " + pkg + "\n\n" + rest)
+}
+
+// DirPackage is the package of the Go and .vuka files in dir, not an
+// external test package's; else the directory's name.
+func DirPackage(dir string) string {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		n := e.Name()
+		if e.IsDir() || !strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, ".vuka") {
+			continue
+		}
+		src, err := os.ReadFile(filepath.Join(dir, n))
+		if err != nil {
+			continue
+		}
+		if m := packageOf.FindSubmatch(src); m != nil && !bytes.HasSuffix(m[1], []byte("_test")) {
+			return string(m[1])
+		}
+	}
+	abs, _ := filepath.Abs(dir)
+	name := strings.Map(func(r rune) rune {
+		if r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return r
+		}
+		return -1
+	}, strings.ToLower(filepath.Base(abs)))
+	if name == "" || unicode.IsDigit(rune(name[0])) {
+		return "main"
+	}
+	return name
+}
+
+var packageOf = regexp.MustCompile(`(?m)^package\s+(\w+)`)
 
 // holesFormatted is a line with each hole's Go as gofmt writes an
 // expression: {a+b} is {a + b}. A hole spanning lines, or not an

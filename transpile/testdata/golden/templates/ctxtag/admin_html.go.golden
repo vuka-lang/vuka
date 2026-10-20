@@ -11,9 +11,9 @@ import (
 
 // Admin is the admin pages' layout; it reads the user from ctx.
 //
-//line admin.vuka.html:2
+//line admin.vuka.html:4
 func Admin(ctx context.Context, p AdminProps) ui.Node {
-//line admin.vuka.html:2
+//line admin.vuka.html:4
 	return ui.HTML(`
 <div class="admin">
   <header>
@@ -27,8 +27,8 @@ func Admin(ctx context.Context, p AdminProps) ui.Node {
 
 // Badge is the user's badge.
 //
-//line admin.vuka.html:9
+//line admin.vuka.html:11
 func Badge(ctx context.Context) ui.Node {
-//line admin.vuka.html:9
+//line admin.vuka.html:11
 	return ui.HTML(`<b>{ctx.Value(userKey{}).(string)}</b>`, ctx.Value(userKey{}).(string))
 }

@@ -1,6 +1,9 @@
 name = "Vuka HTML"
 # .vuka.html templates are HTML with Go in braces and Go statements at line
-# starts: highlighted with Zed's HTML grammar, and understood by `vuka lsp`.
+# starts: highlighted with Zed's HTML grammar, and understood by `vuka lsp`,
+# whose semantic tokens colour what that grammar can't tell: the package
+# clause, Go in holes and headers, and lowercase tags naming templates
+# (<navLink …/>) as functions. Format on save runs `vuka fmt` through it.
 grammar = "html"
 path_suffixes = ["vuka.html"]
 block_comment = ["{/* ", " */}"]

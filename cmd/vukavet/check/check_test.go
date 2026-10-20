@@ -23,8 +23,8 @@ func TestBareNames(t *testing.T) {
 	var got collect
 	analysistest.Run(&got, analysistest.TestData(), Templates, "bare")
 	want := []string{
-		"card.vuka.html:2:14: unexpected diagnostic: W0101: Title is Card's field or method and a name of the package; the template reads the field",
-		"card.vuka.html:2:30: unexpected diagnostic: W0101: Label is Card's field or method and a name of the package; the template reads the field",
+		"card.vuka.html:4:14: unexpected diagnostic: W0101: Title is Card's field or method and a name of the package; the template reads the field",
+		"card.vuka.html:4:30: unexpected diagnostic: W0101: Label is Card's field or method and a name of the package; the template reads the field",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %q", got)
@@ -37,3 +37,21 @@ func TestBareNames(t *testing.T) {
 }
 
 func TestListKeys(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Templates, "keys") }
+
+func TestTemplateDocs(t *testing.T) {
+	var got collect
+	analysistest.Run(&got, analysistest.TestData(), Templates, "docs")
+	want := []string{
+		"docs.vuka.html:7:6: unexpected diagnostic: W0104: the exported template List has no doc comment",
+		"docs.vuka.html:16:15: unexpected diagnostic: W0104: the exported template Badge has no doc comment",
+		"docs.vuka.html:19:6: unexpected diagnostic: E0145: the template nav has an element's name: <nav> is the element",
+	}
+	if len(got) != len(want) {
+		t.Fatalf("got %q", got)
+	}
+	for i, w := range want {
+		if !strings.Contains(got[i], w) {
+			t.Errorf("got %q, want %q", got[i], w)
+		}
+	}
+}

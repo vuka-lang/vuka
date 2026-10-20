@@ -185,7 +185,8 @@ card := ui.Card{
 | `ui.Icon(name)`, `ui.Spinner()` | an icon by name, and a loading spinner |
 
 The ones taking arguments rather than fields — `Actions`, `Cancel`,
-`TileGrid`, `Icon`, `Spinner` — are partials, called in a hole:
+`TileGrid`, `Icon`, `Spinner` — are partials: tags whose attributes are
+their parameters, `<ui.Icon name="plus"/>`, or calls in a hole,
 `{ui.Icon("plus")}`.
 
 Tone and size are shared constants: `ui.Default`, `ui.Primary`, `ui.Success`,
@@ -254,6 +255,8 @@ type Card struct {
 
 ```html
 <!-- card.vuka.html -->
+package app
+
 func (c Card) View()
 <div class={withClass("vk-card", c.Class)}>
   if c.Title != nil || c.Header != nil {

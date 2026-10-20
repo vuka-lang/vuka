@@ -1,3 +1,5 @@
+package main
+
 import "fmt"
 
 func card(user User, admin bool, children ui.Node)

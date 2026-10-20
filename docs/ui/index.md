@@ -88,6 +88,8 @@ func main() {
 
 ```html
 <!-- greeting.vuka.html -->
+package main
+
 <section>
   <h1>Hello, {Name}!</h1>
   {Children}

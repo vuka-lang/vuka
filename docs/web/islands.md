@@ -134,6 +134,8 @@ its first lines:
 
 ```html
 <!-- page.vuka.html -->
+package app
+
 import Clock "./clock.tsx"
 
 <main>

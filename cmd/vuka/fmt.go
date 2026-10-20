@@ -95,7 +95,7 @@ func fmtFile(path string, list, write, diff bool, stdout io.Writer) error {
 	}
 	out, err := format.Source(src)
 	if strings.HasSuffix(path, ".vuka.html") {
-		out, err = format.Template(src)
+		out, err = format.Template(src, format.DirPackage(filepath.Dir(path)))
 	}
 	if err != nil {
 		return fmt.Errorf("%s:%v", path, err)

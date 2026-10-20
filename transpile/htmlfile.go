@@ -36,10 +36,112 @@ type htmlFile struct {
 	lines    lineIndex   // src's
 }
 
+var funcLine = regexp.MustCompile(`^func\s`)
+
+// TemplateHead is the top of a template file: its package clause, then its
+// imports, single or grouped.
+type TemplateHead struct {
+	Package string // "" when the file has no package clause
+	Line    int    // the clause's line, from 0; -1 without one
+	Col     int    // the column its name starts at, from 1
+	Imports []TemplateImport
+	Top     int // the line the markup, or a doc comment above a header, starts on
+}
+
+// TemplateImport is an import of a template file.
+type TemplateImport struct {
+	Name, Path string // Name is "" when the path's last element names it
+	Line       int
+}
+
+func (i TemplateImport) name() string {
+	if i.Name != "" {
+		return i.Name
+	}
+	return pathBase(i.Path)
+}
+
 var (
-	importLine = regexp.MustCompile(`^import\s+(\w+\s+)?"[^"]*"\s*$`)
-	funcLine   = regexp.MustCompile(`^func\s`)
+	packageClause  = regexp.MustCompile(`^(\s*package\s+)(\w+)\s*(?://.*)?$`)
+	htmlImportSpec = regexp.MustCompile(`^(?:([\w.]+)\s+)?("[^"]*"|` + "`[^`]*`" + `)\s*;?\s*(?://.*)?$`)
+	importKeyword  = regexp.MustCompile(`^import(?:\s|\(|"|$)`)
 )
+
+// ParseTemplateHead reads a template file's package clause and imports;
+// blank lines and // comments may come between them.
+func ParseTemplateHead(src []byte) TemplateHead {
+	lines := strings.SplitAfter(string(src), "\n")
+	h := TemplateHead{Line: -1}
+	last, group, i := -1, false, 0
+	spec := func(text string, line int) bool {
+		m := htmlImportSpec.FindStringSubmatch(text)
+		if m == nil {
+			return false
+		}
+		path, err := strconv.Unquote(m[2])
+		if err != nil {
+			return false
+		}
+		h.Imports = append(h.Imports, TemplateImport{Name: m[1], Path: path, Line: line})
+		last = line
+		return true
+	}
+scan:
+	for ; i < len(lines); i++ {
+		l := strings.TrimSpace(lines[i])
+		switch {
+		case group:
+			if l == ")" {
+				group, last = false, i
+			} else if l != "" && !strings.HasPrefix(l, "//") && !spec(l, i) {
+				break scan
+			}
+		case l == "" || strings.HasPrefix(l, "//"):
+		case h.Line < 0 && len(h.Imports) == 0 && packageClause.MatchString(strings.TrimRight(lines[i], "\r\n")):
+			m := packageClause.FindStringSubmatch(strings.TrimRight(lines[i], "\r\n"))
+			h.Package, h.Line, h.Col, last = m[2], i, len(m[1])+1, i
+		case importKeyword.MatchString(l):
+			rest := strings.TrimSpace(l[len("import"):])
+			switch {
+			case rest == "(":
+				group, last = true, i
+			case strings.HasPrefix(rest, "(") && strings.HasSuffix(rest, ")"):
+				for _, s := range strings.Split(strings.TrimSuffix(rest[1:], ")"), ";") {
+					if s = strings.TrimSpace(s); s != "" && !spec(s, i) {
+						break scan
+					}
+				}
+				last = i
+			case !spec(rest, i):
+				break scan
+			}
+		default:
+			break scan
+		}
+	}
+	for i > last+1 && strings.HasPrefix(strings.TrimSpace(lines[i-1]), "//") {
+		i-- // a doc comment of what follows
+	}
+	h.Top = i
+	return h
+}
+
+// check is the error of a head whose package clause is missing, or names
+// another package than pkg, the directory's ("" when it has no other files).
+func (h TemplateHead) check(pkg string) *Error {
+	switch {
+	case h.Package == "":
+		e := &Error{Code: "E0142", Pos: token.Position{Line: 1, Column: 1}, Msg: "a template file starts with its package clause"}
+		if pkg != "" {
+			return e.help("add \"package %s\"", pkg)
+		}
+		return e.help("add \"package <name>\", its directory's package")
+	case pkg == "" || h.Package == pkg || h.Package == pkg+"_test" || h.Package+"_test" == pkg:
+		return nil
+	}
+	return (&Error{Code: "E0142", Pos: token.Position{Line: h.Line + 1, Column: h.Col}, Len: len(h.Package),
+		Msg: "the template file is in package " + h.Package + ", and its directory's package is " + pkg}).help("write \"package %s\"", pkg)
+}
 
 // componentName is the type a template file is the Render of: sales.vuka.html
 // is Sales, order_row.vuka.html OrderRow.
@@ -171,21 +273,11 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	for i, l := range lines {
 		off[i+1] = off[i] + len(l)
 	}
-	// The imports at the top, comments and blank lines among them.
-	top := 0
+	head := ParseTemplateHead(src)
+	top := head.Top
 	own := map[string]bool{}
-	for ; top < len(lines); top++ {
-		l := strings.TrimSpace(lines[top])
-		if m := importLine.FindStringSubmatch(l); m != nil {
-			own[importName(l, m[1])] = true
-			continue
-		}
-		if l != "" && !strings.HasPrefix(l, "//") {
-			break
-		}
-	}
-	for top > 0 && strings.HasPrefix(strings.TrimSpace(lines[top-1]), "//") {
-		top-- // a doc comment of what follows
+	for _, imp := range head.Imports {
+		own[imp.name()] = true
 	}
 	var heads []int
 	for i := top; i < len(lines); i++ {
@@ -279,6 +371,15 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		seen[kind] = true
 	}
+	if err := head.check(packageNameOf(others)); err != nil {
+		return nil, nil, nil, err
+	}
+	for _, hd := range TemplateHeaders(src) {
+		if !hd.Method && IsElementName(hd.Name) {
+			return nil, nil, nil, (&Error{Code: "E0145", Pos: token.Position{Line: hd.Line, Column: hd.Off - off[hd.Line-1] + 1}, Len: len(hd.Name),
+				Msg: "the template " + hd.Name + " has an element's name: <" + hd.Name + "> is the element"}).help("rename it: %sView, or a name of what it shows", hd.Name)
+		}
+	}
 	if first >= 0 {
 		ptr, live, ok := receiverKind(typ, others)
 		if !ok {
@@ -338,7 +439,6 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			renderMethod(at, m[1], m[2]+m[3])
 		}
 	}
-	pkg := packageName(others)
 	var imps []string
 	if ui != "" {
 		target := DefaultJSXTarget // or the package's own, imported as ui
@@ -364,13 +464,12 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			}
 		}
 	}
-	prefix := "package " + pkg + ";"
+	// The imports go after the package clause, on its line.
+	prefix := ""
 	for _, imp := range imps {
-		prefix += " import " + imp + ";"
+		prefix += "; import " + imp
 	}
-	// The package clause and imports go on a line of their own before the
-	// file's.
-	ins = append([]insertion{{0, prefix + "\n"}}, ins...)
+	ins = append([]insertion{{off[head.Line] + head.Col - 1 + len(head.Package), prefix}}, ins...)
 	sort.SliceStable(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
 	h.ins, h.src, h.lines = ins, src, newLineIndex(src)
 	if h.recv != "" {
@@ -464,14 +563,6 @@ func propsOf(header string) string {
 	return ""
 }
 
-func importName(line, name string) string {
-	if name = strings.TrimSpace(name); name != "" {
-		return name
-	}
-	path, _ := strconv.Unquote(line[strings.IndexByte(line, '"'):])
-	return pathBase(path)
-}
-
 // goParts is the Go of a template file: its holes, and its lines of Go
 // (headers, statements), not its markup's text — where "@web.Live" names
 // no package.
@@ -557,7 +648,8 @@ func packageImports(files []File) []goImport {
 	return out
 }
 
-func packageName(files []File) string {
+// packageNameOf is the package of files but the templates, "" when there are none.
+func packageNameOf(files []File) string {
 	for _, f := range files {
 		if f.IsTemplate() {
 			continue
@@ -566,7 +658,7 @@ func packageName(files []File) string {
 			return a.Name.Name
 		}
 	}
-	return "main"
+	return ""
 }
 
 // receiverKind reports whether typ's markup method takes a pointer — it
@@ -726,4 +818,29 @@ func (h *htmlFile) remap(m *SourceMap) {
 		}
 	}
 	m.segs = out
+}
+
+// TemplateHeader is a template's func line.
+type TemplateHeader struct {
+	Name   string
+	Method bool // it has a receiver
+	Off    int  // where its name is
+	Line   int  // from 1
+	Doc    bool // a // comment is right above it
+}
+
+var headerName = regexp.MustCompile(`^func(?:\s*(\([^)]*\))\s*|\s+)(\w+)`)
+
+// TemplateHeaders are a template file's func lines.
+func TemplateHeaders(src []byte) []TemplateHeader {
+	var out []TemplateHeader
+	off, prev := 0, ""
+	for i, l := range strings.SplitAfter(string(src), "\n") {
+		if m := headerName.FindStringSubmatchIndex(l); m != nil {
+			out = append(out, TemplateHeader{Name: l[m[4]:m[5]], Method: m[2] >= 0, Off: off + m[4], Line: i + 1,
+				Doc: strings.HasPrefix(strings.TrimSpace(prev), "//")})
+		}
+		off, prev = off+len(l), l
+	}
+	return out
 }
