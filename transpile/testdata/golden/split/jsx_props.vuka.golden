@@ -58,11 +58,6 @@ type Box[T any] struct {
 	Value T
 }
 
-func page(ctx context.Context) ui.Node {
-	w := 3
-	return pageView(w)
-}
-
 func main() {
 	ctx := context.Background()
 	s, err := ui.String(ctx, page(ctx))

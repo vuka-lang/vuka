@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"strconv"
 	"github.com/vuka-lang/ui"
 )
 
@@ -31,11 +30,6 @@ type Column[T any] struct {
 type GridProps[T any] struct {
 	Cols []Column[T]
 	Rows []*T
-}
-
-func page(users []User) ui.Node {
-	key := func(u User) string { return strconv.Itoa(u.ID) }
-	return pageView(users, key)
 }
 
 func ptrs[T any](xs []T) []*T {

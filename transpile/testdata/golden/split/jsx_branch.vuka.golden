@@ -1,0 +1,15 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+func main() {
+	for _, n := range []ui.Node{tags(nil), tags([]string{"a", "b"}), badge(1, true), badge(2, false)} {
+		s, err := ui.String(context.Background(), n)
+		fmt.Println(s, err)
+	}
+}
