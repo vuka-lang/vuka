@@ -26,7 +26,9 @@ type upgradeStep struct {
 	note    string
 }
 
-var upgradeSteps = []upgradeStep{}
+var upgradeSteps = []upgradeStep{
+	{"v1.0.0", []string{"attributes", "hooks", "ui-structs", "queries"}, "struct tags and hooks found by name become attributes; the ui kit's components are struct literals; queries are the model's Manager's"},
+}
 
 // upgradeAlways are the fixers every upgrade runs.
 var upgradeAlways = []string{"runtime", "db-schema", "templates-package"}
@@ -93,7 +95,7 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 	fs.BoolVar(dry, "dry-run", false, "same as -n")
 	noTest := fs.Bool("no-test", false, "don't run vuka test after the upgrade")
 	fs.Usage = func() {
-		fmt.Fprintln(fs.Output(), "usage: vuka upgrade [-n] [-no-test] [version]\n\nmoves the app's vuka, ui and web to one set (the latest by default),\nruns the vuka fix rewrites for the releases in between, then vuka vet\nand vuka test.")
+		fmt.Fprintln(fs.Output(), "usage: vuka upgrade [-n] [-no-test] [version]\n\nmoves the app's vuka, ui and web to one set (the latest by default) and,\nto this command's set, its orm to the version new apps use; runs the\nvuka fix rewrites for the releases in between, then vuka vet and\nvuka test.")
 		fs.PrintDefaults()
 	}
 	if err := fs.Parse(args); err != nil {
@@ -142,7 +144,13 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 			from = have[p]
 		}
 	}
-	if v, ok := oneSet(have); ok && v == target {
+	// The orm moves with the command's own set to the version its new apps
+	// use, when the app requires an older one.
+	ormHave, ormTo := m.requires(ormModule), ""
+	if ormHave != "" && target == version && compareVersions(ormHave, ormVersion) < 0 {
+		ormTo = ormVersion
+	}
+	if v, ok := oneSet(have); ok && v == target && ormTo == "" {
 		fmt.Fprintf(stdout, "%s is on the %s set already\n", modPath, target)
 		return nil
 	}
@@ -155,6 +163,9 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 			note = " (downgrade)"
 		}
 		fmt.Fprintf(stdout, "  %-5s %s → %s%s\n", shortModule(p), have[p], target, note)
+	}
+	if ormTo != "" {
+		fmt.Fprintf(stdout, "  %-5s %s → %s\n", "orm", ormHave, ormTo)
 	}
 	fixNames := slices.Clone(upgradeAlways)
 	if len(steps) == 0 {
@@ -185,6 +196,9 @@ func upgrade(args []string, stdout, stderr io.Writer) error {
 	get := []string{"get"}
 	for _, p := range mods {
 		get = append(get, p+"@"+target)
+	}
+	if ormTo != "" {
+		get = append(get, ormModule+"@"+ormTo)
 	}
 	c := exec.Command("go", get...)
 	c.Dir, c.Env, c.Stdout, c.Stderr = root, upgradeEnv(), stdout, stderr

@@ -79,6 +79,16 @@ func (m *goMod) setVersions() map[string]string {
 	return out
 }
 
+// requires is the version of module p the module requires, or "".
+func (m *goMod) requires(p string) string {
+	for _, r := range m.Require {
+		if r.Path == p {
+			return r.Version
+		}
+	}
+	return ""
+}
+
 // replaced is where a replace directive points module p, or "".
 func (m *goMod) replaced(p string) string {
 	for _, r := range m.Replace {
