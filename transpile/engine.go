@@ -125,9 +125,14 @@ func (e *engine) run() {
 			e.lowerJSX(f)
 			e.checkEvents(f)
 			for _, t := range f.tries {
-				if !t.done && !t.dead {
+				// A body an around decorator wrapped this round is type-checked
+				// again first: its returns are the function literal's.
+				if !t.done && !t.dead && !f.wrapped {
 					e.lowerTry(f, t)
 				}
+			}
+			if f.wrapped {
+				f.wrapped, e.progress = false, true
 			}
 			for _, m := range f.matches {
 				if !m.done && !m.dead {
@@ -318,6 +323,7 @@ func (e *engine) check() {
 		Defs:       map[*ast.Ident]types.Object{},
 		Uses:       map[*ast.Ident]types.Object{},
 		Selections: map[*ast.SelectorExpr]*types.Selection{},
+		Scopes:     map[ast.Node]*types.Scope{},
 	}
 	var files []*ast.File
 	for _, f := range e.files {

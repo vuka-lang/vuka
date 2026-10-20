@@ -189,6 +189,7 @@ type fileState struct {
 	dotImps bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
+	wrapped   bool           // an around decorator's wrap of a body changed this round
 	files     []*fileLit     // embedded vuka.File literals, by offset
 
 	bare           bool

@@ -164,9 +164,10 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	e.progress = true
 }
 
-// errFree reports whether the function holding stmt names nothing err, and
-// the package declares no err: then ? declares err itself. The answer is
-// kept per function, as the lowering's own err is in its later passes.
+// errFree reports whether the function holding stmt names nothing err in
+// its source, and the package declares no err: then ? declares err itself.
+// The err the lowering writes (an around decorator's, a ? lowered
+// before) doesn't count; the answer is kept per function.
 func (e *engine) errFree(f *fileState, stmt ast.Stmt) bool {
 	var fd *ast.FuncDecl
 	for p := f.parents[stmt]; p != nil; p = f.parents[p] {
@@ -183,7 +184,7 @@ func (e *engine) errFree(f *fileState, stmt ast.Stmt) bool {
 	}
 	free := true
 	ast.Inspect(fd, func(n ast.Node) bool {
-		if id, ok := n.(*ast.Ident); ok && id.Name == "err" {
+		if id, ok := n.(*ast.Ident); ok && id.Name == "err" && f.orig(id.End())-f.orig(id.Pos()) == len("err") {
 			free = false
 		}
 		return free
