@@ -22,6 +22,7 @@ type Board struct {
 	Rows  []Note `json:"rows"`
 	Total int    `json:"total"`
 	Seen  int    `json:"seen"`
+	Sort  string `json:"sort"`
 	notes *Notes
 }
 
@@ -31,6 +32,7 @@ func (b *Board) LiveSchema(l *ui.LiveSchema) {
 	l.Field(&b.Q, ui.Bind{Debounce: 200 * time.Millisecond}, ui.URL("q"), validate.Max(20))
 	l.Field(&b.Rows, ui.Defer("notes"))
 	l.Field(&b.Total, ui.Defer("notes"))
+	l.Field(&b.Sort, ui.URL("sort"))
 	l.Mount(b.mount)
 	l.Loads("notes", b.loadNotes)
 	l.OnChange(b.changed)
@@ -44,6 +46,9 @@ type BoardParams struct {
 
 func (b *Board) mount(ctx context.Context) error {
 	b.Subscribe("notes")
+	if b.Sort == "" {
+		b.Sort = "new"
+	}
 	return nil
 }
 

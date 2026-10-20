@@ -1,0 +1,26 @@
+package main
+
+import "fmt"
+import "strings"
+
+// tags returns markup early: ejected, it is one template, the rest of the
+// body its else.
+func tags(ts []string)
+if len(ts) == 0 {
+  <p class="tags">—</p>
+} else {
+  <ul class="tags">
+    for _, t := range ts {
+      <li>{t}</li>
+    }
+  </ul>
+}
+
+// badge computes its class first: a statement line of its template.
+func badge(n int, on bool)
+cls := strings.Join([]string{"badge", fmt.Sprint(n)}, "-")
+if on {
+  <b class={cls}>{n}</b>
+} else {
+  <i class={cls}>{n}</i>
+}

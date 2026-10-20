@@ -188,7 +188,7 @@ its type:
 | `func(bool)`, `func(int)`, `func(float64)`, … | the value, parsed: a checkbox sends `"true"`/`"false"`, `"on"` is true; a bad number is the handler's error |
 | `func(ui.Event)` | the whole event: `Type`, `Value`, `Key`, `Form` |
 | `func(url.Values)` | the form's fields as sent (any `map[string][]string`) |
-| `func(T)`, `func(*T)` with `T` a struct | the form's fields bound to `T`'s: a field is named by its `form` tag, else its `json` tag, else its name, matched ignoring case; embedded structs' fields count as `T`'s; a slice takes every value |
+| `func(T)`, `func(*T)` with `T` a struct | the form's fields bound to `T`'s: a field is named by its `form` tag, else its `json` tag, else its name, matched ignoring case; embedded structs' fields count as `T`'s; a slice takes every value. Its `validate:` tags are checked as a route checks what it binds: a field breaking one is a 422 `Invalid` naming it (`text: required`), the reply's error, and the handler isn't called |
 
 Any of them may take a leading `context.Context` (the session's) and may
 return an `error`. The compiler checks that the value is a function; the

@@ -1,6 +1,7 @@
 package main
 
 import "fmt"
+import "strconv"
 
 // List's type argument is inferred from its attributes: Items []T pins T, as
 // does Key func(T) string. No <List[…]> needed.
@@ -29,7 +30,8 @@ func Grid[T any](p GridProps[T])
   }
 </table>
 
-func pageView(users []User, key func(u User) string)
+func page(users []User)
+key := func(u User) string { return strconv.Itoa(u.ID) }
 <List Items={users} Key={key}><li>done</li></List>
 <List[User] Items={nil} Key={nil} />
 <Pair Name="age" Value={42} />

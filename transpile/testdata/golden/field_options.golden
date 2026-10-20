@@ -4,9 +4,9 @@
 package main
 
 import (
+	"database/sql/driver"
 	"fmt"
 
-	"database/sql/driver"
 	"github.com/vuka-lang/vuka"
 )
 

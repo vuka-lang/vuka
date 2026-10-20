@@ -1,5 +1,6 @@
 package main
 
+import "context"
 import "fmt"
 
 func (b *Box[T]) Render()
@@ -15,7 +16,8 @@ func (l *List[T]) Render()
 func (r *Ref[T]) Render()
 <b>{fmt.Sprint(*r.At)}</b>
 
-func pageView(n int)
+func page(ctx context.Context)
+n := 7
 <main>
   <Box Value={1} />
   <Box[string] Value="two" />

@@ -27,16 +27,14 @@ func run(n int) error {
 	if err != nil {
 		return err
 	}
-//line try_match.vuka:21
-	if m1 := x; false {
-		panic(m1)
-	} else if v := m1.Value(); m1.IsSome() {
-		_ = v
+	switch {
+	case x.IsSome():
+		v := x.Value()
 //line try_match.vuka:23
 		fmt.Println("some", v)
-	} else if m1.IsNone() {
+	case x.IsNone():
 		fmt.Println("none")
-	} else {
+	default:
 		panic("vuka: no case matched")
 	}
 //line try_match.vuka:27
@@ -45,22 +43,20 @@ func run(n int) error {
 
 // Nested patterns cover Ok as a whole.
 func show(r vuka.Result[vuka.Option[int]]) string {
-	if m2 := r; false {
-		panic(m2)
-	} else if m2.IsOk() && m2.Value().IsSome() && m2.Value().Value() == 10 {
-//line try_match.vuka:34
+	switch {
+	case r.IsOk() && r.Value().IsSome() && r.Value().Value() == 10:
 		return "ten"
-	} else if p := m2.Value().Value(); m2.IsOk() && m2.Value().IsSome() {
-		_ = p
+	case r.IsOk() && r.Value().IsSome():
+		p := r.Value().Value()
 //line try_match.vuka:36
 		return fmt.Sprint("some ", p)
-	} else if m2.IsOk() && m2.Value().IsNone() {
+	case r.IsOk() && r.Value().IsNone():
 		return "none"
-	} else if e := m2.Err(); m2.IsErr() {
-		_ = e
+	case r.IsErr():
+		e := r.Err()
 //line try_match.vuka:40
 		return "error " + e.Error()
-	} else {
+	default:
 		panic("vuka: no case matched")
 	}
 }
@@ -72,25 +68,20 @@ type Flags struct {
 }
 
 func describe(f Flags) string {
-	if m3 := f; false {
-		panic(m3)
-	} else if m3.Admin == true && m3.Active == true {
-//line try_match.vuka:52
+	switch {
+	case f.Admin == true && f.Active == true:
 		return "active admin"
-	} else if m3.Admin == true {
+	case f.Admin == true:
 		return "admin"
-	} else if m3.Active == false && m3.Name == "root" {
+	case f.Active == false && f.Name == "root":
 		return "inactive root"
-	} else if b := m3.Active; true {
-		_ = b
+	default:
+		b := f.Active
 //line try_match.vuka:58
 		return fmt.Sprint("user ", b)
-	} else {
-		panic("vuka: no case matched")
 	}
 }
 
-//line try_match.vuka:62
 func main() {
 	for _, n := range []int{1, 0, -1} {
 		if err := run(n); err != nil {

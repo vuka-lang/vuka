@@ -71,6 +71,7 @@ type funcDeco struct {
 	qualName           string
 	errIndex, ctxIndex int
 	lbrace, rbrace     int       // the body's braces in src; -1 without a body
+	flat               *flatBody // how an around decorator's body returns its result itself
 	attrs              []*Attr   // the declaration's typed attributes
 	pattrs             [][]*Attr // each parameter's attributes, receiver excluded; nil when none has any
 	advice             []string  // the functions giving its type's advice, for a method
@@ -390,6 +391,7 @@ func (e *engine) decorateFunc(f *fileState, fd *ast.FuncDecl, attrs []*Attr) *fu
 	d.lbrace, d.rbrace = -1, -1
 	if fd.Body != nil {
 		d.lbrace, d.rbrace = f.orig(fd.Body.Lbrace), f.orig(fd.Body.Rbrace)
+		d.flat = flatBodyOf(f, fd)
 	}
 	if f.decorated == nil {
 		f.decorated = map[int]string{}
@@ -1524,20 +1526,22 @@ func (e *engine) classify(f *fileState) {
 }
 
 // options makes options of a registry decorator the other decorators on
-// its declaration whose values its method takes as options, a vuka.Bundle
-// excepted (it decorates the declaration itself): @web.Use(mw) beside
-// @web.Get("/x") is web.Routes.Get("/x", F, web.Use(mw)). It reports
+// its declaration whose values its method takes as options: @web.Use(mw)
+// beside @web.Get("/x") is web.Routes.Get("/x", F, web.Use(mw)), and a
+// vuka.Bundle the method takes — an auth gate — is the route's option too
+// rather than wrapping the declaration (or each method of a type): the
+// route applies it, to its requests and its live page's events. It reports
 // whether a decorator's form changed.
 func options(us []*decoUse) bool {
 	changed := false
 	for _, u := range us {
-		if !u.decided || u.kind == decoRegistry || u.kind == decoBundle || u.kind == decoAround || u.t == nil {
+		if !u.decided || u.kind == decoRegistry || u.kind == decoAround || u.t == nil {
 			continue
 		}
 		opt := false
 		for _, r := range us {
 			if r.kind == decoRegistry && r.reg.elem != nil && types.AssignableTo(u.t, r.reg.elem) ||
-				r.kind == decoAround && r.opt != nil && u.kind != decoAround && types.AssignableTo(u.t, r.opt) {
+				u.kind != decoBundle && r.kind == decoAround && r.opt != nil && u.kind != decoAround && types.AssignableTo(u.t, r.opt) {
 				opt = true
 			}
 		}
@@ -1868,11 +1872,13 @@ func (e *engine) wrapBody(f *fileState, d *funcDeco, arounds []*decoUse) {
 	set := func(off int, text string) {
 		for i, ed := range f.fixed {
 			if ed.start == off && ed.end == off && ed.prio == aroundPrio {
+				f.wrapped = f.wrapped || ed.text != text
 				f.fixed[i].text = text
 				return
 			}
 		}
 		if text != "" {
+			f.wrapped = true
 			f.fixed = append(f.fixed, edit{start: off, end: off, text: text, prio: aroundPrio})
 		}
 	}
@@ -1880,6 +1886,164 @@ func (e *engine) wrapBody(f *fileState, d *funcDeco, arounds []*decoUse) {
 		set(d.lbrace+1, open)
 		set(d.rbrace, close)
 	}
+	if d.flat != nil && open != "" && len(d.rtypes) == 2 && d.errIndex == 1 {
+		for _, ed := range d.flat.edits {
+			if !slices.ContainsFunc(f.fixed, func(x edit) bool { return x.start == ed.start && x.end == ed.end && x.prio == aroundPrio }) {
+				f.fixed = append(f.fixed, ed)
+			}
+		}
+	}
+}
+
+// flatBody is how the body of a function returning (T, error) returns
+// its result itself when an around decorator runs it: the local it
+// returns is declared before the call, and each return gives the error.
+//
+//	func create(ctx context.Context) (Post, error) {
+//		var p Post
+//		err := orm.Transaction(ctx, func(ctx context.Context) error {
+//			p = Post{…}
+//			…
+//			return nil
+//		})
+//		if err != nil {
+//			return Post{}, err
+//		}
+//		return p, nil
+//	}
+type flatBody struct {
+	result string // the local each return without an error returns
+	zero   string // what each return with an error returns beside it
+	edits  []edit
+}
+
+// flatBodyOf is fd's flatBody, nil unless its body allows one: it returns
+// (T, error), unnamed; one top-level statement declares the local x := …,
+// the only declaration of that name in the body; every return of the body
+// is return x, nil or return <zero>, err, the zero written as a literal
+// alike each time; and no ? is in those statements.
+func flatBodyOf(f *fileState, fd *ast.FuncDecl) *flatBody {
+	res := fd.Type.Results
+	if res == nil || len(res.List) != 2 || len(res.List[0].Names) > 0 {
+		return nil
+	}
+	if id, ok := res.List[1].Type.(*ast.Ident); !ok || id.Name != "error" {
+		return nil
+	}
+	tried := func(n ast.Node) bool {
+		for _, t := range f.tries {
+			if t.off >= f.orig(n.Pos()) && t.off <= f.orig(n.End()) {
+				return true
+			}
+		}
+		return false
+	}
+	fb := &flatBody{}
+	declared, ok := map[string]int{}, true
+	ast.Inspect(fd.Body, func(n ast.Node) bool {
+		if !ok {
+			return false
+		}
+		switch n := n.(type) {
+		case *ast.FuncLit:
+			for _, fl := range [][]*ast.Field{n.Type.Params.List, fieldList(n.Type.Results)} {
+				for _, field := range fl {
+					for _, name := range field.Names {
+						declared[name.Name]++
+					}
+				}
+			}
+			ast.Inspect(n.Body, func(m ast.Node) bool {
+				declares(m, declared)
+				return true
+			})
+			return false
+		case *ast.ReturnStmt:
+			if len(n.Results) != 2 || tried(n) {
+				ok = false
+				return false
+			}
+			r0, r1 := n.Results[0], n.Results[1]
+			if id, isID := r1.(*ast.Ident); isID && id.Name == "nil" {
+				x, isID := r0.(*ast.Ident)
+				if !isID || fb.result != "" && x.Name != fb.result {
+					ok = false
+					return false
+				}
+				fb.result = x.Name
+				fb.edits = append(fb.edits, edit{start: f.orig(r0.Pos()), end: f.orig(r1.End()), text: "nil", prio: aroundPrio})
+				return true
+			}
+			zero := f.nodeText(r0)
+			if !isZeroLit(r0) || fb.zero != "" && zero != fb.zero {
+				ok = false
+				return false
+			}
+			fb.zero = zero
+			fb.edits = append(fb.edits, edit{start: f.orig(r0.Pos()), end: f.orig(r1.Pos()), prio: aroundPrio})
+			return true
+		}
+		declares(n, declared)
+		return true
+	})
+	if !ok || fb.zero == "" || fb.result == "" || fb.result == "_" || fb.result == "err" || declared[fb.result] != 1 {
+		return nil
+	}
+	for _, st := range fd.Body.List {
+		if as, isAs := st.(*ast.AssignStmt); isAs && as.Tok == token.DEFINE && len(as.Lhs) == 1 && len(as.Rhs) == 1 {
+			if id, isID := as.Lhs[0].(*ast.Ident); isID && id.Name == fb.result && !tried(as) {
+				fb.edits = append(fb.edits, edit{start: f.orig(as.TokPos), end: f.orig(as.TokPos) + 2, text: "=", prio: aroundPrio})
+				return fb
+			}
+		}
+	}
+	return nil
+}
+
+func fieldList(l *ast.FieldList) []*ast.Field {
+	if l == nil {
+		return nil
+	}
+	return l.List
+}
+
+// declares counts the names n declares: := and range, var.
+func declares(n ast.Node, declared map[string]int) {
+	count := func(xs ...ast.Expr) {
+		for _, x := range xs {
+			if id, ok := x.(*ast.Ident); ok {
+				declared[id.Name]++
+			}
+		}
+	}
+	switch n := n.(type) {
+	case *ast.AssignStmt:
+		if n.Tok == token.DEFINE {
+			count(n.Lhs...)
+		}
+	case *ast.RangeStmt:
+		if n.Tok == token.DEFINE {
+			count(n.Key, n.Value)
+		}
+	case *ast.ValueSpec:
+		for _, id := range n.Names {
+			declared[id.Name]++
+		}
+	}
+}
+
+// isZeroLit reports whether x is written as a zero value: T{}, nil, 0, "",
+// false.
+func isZeroLit(x ast.Expr) bool {
+	switch x := x.(type) {
+	case *ast.CompositeLit:
+		return x.Type != nil && len(x.Elts) == 0
+	case *ast.Ident:
+		return x.Name == "nil" || x.Name == "false"
+	case *ast.BasicLit:
+		return x.Value == "0" || x.Value == `""` || x.Value == "0.0"
+	}
+	return false
 }
 
 // aroundText is what wrapBody writes after the body's opening brace and
@@ -1922,6 +2086,10 @@ func (e *engine) aroundText(f *fileState, d *funcDeco, arounds []*decoUse) (stri
 	switch {
 	case n == 1 && d.errIndex == 0:
 		return "return " + call + "error {", "}" + tail + ")"
+	case n == 2 && d.errIndex == 1 && d.flat != nil:
+		x := d.flat.result
+		return "var " + x + " " + d.rtypes[0] + "; " + errVar + " := " + call + "error {",
+			"}" + tail + "); if " + errVar + " != nil { return " + d.flat.zero + ", " + errVar + " }; return " + x + ", nil"
 	case n > 1 && d.errIndex == n-1:
 		vars := make([]string, n-1)
 		decl := ""

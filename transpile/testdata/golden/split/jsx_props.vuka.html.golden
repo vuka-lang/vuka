@@ -1,5 +1,7 @@
 package main
 
+import "context"
+
 func headerView()
 <h1>Pets</h1>
 
@@ -28,7 +30,8 @@ func (c *Chat) Render()
 func (b *Box[T]) Render()
 <b>{b.Value}</b>
 
-func pageView(w int)
+func page(ctx context.Context)
+w := 3
 {header}
 <Card Title="a" Class="c" Width={w} ID={1}>!</Card>
 <Card Width={w} Title="b" Height={4} />

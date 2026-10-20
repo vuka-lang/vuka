@@ -5,8 +5,9 @@ package main
 
 import (
 	"context"
-	"github.com/vuka-lang/ui"
 	"io"
+
+	"github.com/vuka-lang/ui"
 )
 
 //line toggle.vuka.html:3

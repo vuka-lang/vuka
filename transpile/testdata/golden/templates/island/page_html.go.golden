@@ -5,9 +5,10 @@ package main
 
 import (
 	"context"
-	"github.com/vuka-lang/ui"
 	"io"
 	"time"
+
+	"github.com/vuka-lang/ui"
 )
 
 //line page.vuka.html:5
