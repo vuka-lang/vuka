@@ -39,17 +39,14 @@ func (c Card) Render() ui.Node {
 		}
 		var i ui.Node
 //line jsx_eject.vuka:26
-		if m1 := len(c.Items); false {
-			panic(m1)
-		} else if m1 == 1 {
+		switch len(c.Items) {
+		case 1:
 			i = ui.HTML(`<i>one</i>`)
-		} else if true {
+		default:
 //line jsx_eject.vuka:26
 			value := wrap(ui.HTML(`<b>many</b>`))
 
 			i = ui.HTML(`<i>{value}</i>`, value)
-		} else {
-			panic("vuka: no case matched")
 		}
 		return ui.HTML(`
 <section>

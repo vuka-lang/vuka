@@ -714,7 +714,9 @@ func (e *engine) inferSelf() {
 			}
 		}
 	}
+	var named *types.Named // the last type params found of another package's
 	params := func(f *fileState, x ast.Expr) (first string, n int) {
+		named = nil
 		switch x := x.(type) {
 		case *ast.Ident:
 			if ts := local[x.Name]; ts != nil && ts.TypeParams != nil {
@@ -749,8 +751,9 @@ func (e *engine) inferSelf() {
 					continue
 				}
 				if tn, ok := pkg.Scope().Lookup(x.Sel.Name).(*types.TypeName); ok {
-					if named, ok := tn.Type().(*types.Named); ok && named.TypeParams().Len() > 0 {
-						return named.TypeParams().At(0).Obj().Name(), named.TypeParams().Len()
+					if nt, ok := tn.Type().(*types.Named); ok && nt.TypeParams().Len() > 0 {
+						named = nt
+						return nt.TypeParams().At(0).Obj().Name(), nt.TypeParams().Len()
 					}
 				}
 			}
@@ -809,6 +812,12 @@ func (e *engine) inferSelf() {
 							continue
 						}
 						f.insert(f.orig(x.End()), "["+self+"]", 1)
+						if sel, ok := x.(*ast.SelectorExpr); ok && named != nil {
+							if plain := plainForm(named); plain != "" {
+								e.plainEmbeds = append(e.plainEmbeds, plainEmbed{f: f, typ: ts.Name.Name, field: sel.Sel.Name, name: plain,
+									start: f.orig(sel.Sel.Pos()), end: f.orig(sel.Sel.End())})
+							}
+						}
 						e.progress = true
 					case *ast.IndexExpr, *ast.IndexListExpr:
 						base, lbrack, given := indexParts(x)
@@ -819,6 +828,75 @@ func (e *engine) inferSelf() {
 					}
 				}
 			}
+		}
+	}
+}
+
+// plainEmbed is an embedded type plain Go writes as another: orm.Base[Post]
+// as orm.Model[Post].
+type plainEmbed struct {
+	f          *fileState
+	typ, field string // the struct and the embedded field's name
+	name       string // the type plain Go embeds
+	start, end int    // the embedded type's name in the source
+}
+
+// plainForm is the type plain Go embeds in t's place, the parameter of t's
+// marker method vukaPlain, a generic type of t's package taking Self: Model
+// for orm.Base, whose func (Base[Self]) vukaPlain(Model[Self]); "" for none.
+func plainForm(t *types.Named) string {
+	for i := range t.NumMethods() {
+		m := t.Method(i)
+		if m.Name() != "vukaPlain" {
+			continue
+		}
+		sig := m.Type().(*types.Signature)
+		if sig.Params().Len() != 1 {
+			return ""
+		}
+		p, ok := sig.Params().At(0).Type().(*types.Named)
+		if !ok || p.Obj().Pkg() != t.Obj().Pkg() || p.TypeArgs().Len() != 1 {
+			return ""
+		}
+		return p.Obj().Name()
+	}
+	return ""
+}
+
+// writePlainEmbeds writes each embedded type as plain Go embeds it, once
+// the package type-checked with the Vuka form: unless the code names the
+// embedded field, or the struct has a member of the other's name.
+func (e *engine) writePlainEmbeds() {
+	if e.info == nil || e.pkg == nil {
+		return
+	}
+	for _, p := range e.plainEmbeds {
+		tn, ok := e.pkg.Scope().Lookup(p.typ).(*types.TypeName)
+		if !ok {
+			continue
+		}
+		st, ok := tn.Type().Underlying().(*types.Struct)
+		if !ok {
+			continue
+		}
+		var field *types.Var
+		for i := range st.NumFields() {
+			if v := st.Field(i); v.Embedded() && v.Name() == p.field {
+				field = v
+			}
+		}
+		if obj, _, _ := types.LookupFieldOrMethod(tn.Type(), true, e.pkg, p.name); field == nil || obj != nil {
+			continue
+		}
+		named := false
+		for _, sel := range e.info.Selections {
+			named = named || sel.Obj() == field
+		}
+		for _, use := range e.info.Uses {
+			named = named || use == field
+		}
+		if !named {
+			p.f.add(p.start, p.end, p.name)
 		}
 	}
 }

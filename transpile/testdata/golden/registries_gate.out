@@ -1,0 +1,3 @@
+GET /report main.Report main.Gate
+LIVE /board main.NewBoard main.Gate
+report 2

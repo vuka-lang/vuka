@@ -401,8 +401,8 @@ type confStep struct {
 
 // readScript reads an app's script: lines "GET path", "POST path [json|form
 // body]" and "LIVE path", the messages a live page sends indented under it
-// (JSON; "wait" for a message the server sends of itself). # starts a
-// comment.
+// (JSON; "wait" for a message the server sends of itself; "expect text" for
+// text the page must hold by then, in every run). # starts a comment.
 func readScript(t *testing.T, path string) []confStep {
 	t.Helper()
 	f, err := os.Open(path)
@@ -618,6 +618,12 @@ func (r *confRun) live(t *testing.T, base, token string, v int, msgs []string, s
 	}
 	send(`{"type":"join"}`)
 	for _, m := range msgs {
+		if text, ok := strings.CutPrefix(m, "expect "); ok {
+			if !strings.Contains(pages[len(pages)-1], text) {
+				t.Errorf("%s: live v%d: the page doesn't hold %s:\n%s", r.name, v, text, pages[len(pages)-1])
+			}
+			continue
+		}
 		if m == "wait" {
 			read("(wait)", 0)
 			continue

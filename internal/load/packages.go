@@ -16,6 +16,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -333,6 +334,7 @@ func Order(pkgs []*Package) ([]*Package, error) {
 			byDir[p.Dir] = p
 		}
 	}
+	via := throughGo(pkgs, byPath)
 	var out []*Package
 	state := map[*Package]int{} // 1 visiting, 2 done
 	var visit func(p *Package, stack []string) error
@@ -350,9 +352,11 @@ func Order(pkgs []*Package) ([]*Package, error) {
 		}
 		sort.Strings(deps)
 		for _, d := range deps {
-			if q := byPath[d]; q != nil && q != p {
-				if err := visit(q, append(stack, p.ImportPath)); err != nil {
-					return err
+			for _, q := range via(d) {
+				if q != p {
+					if err := visit(q, append(stack, p.ImportPath)); err != nil {
+						return err
+					}
 				}
 			}
 		}
@@ -375,6 +379,53 @@ func Order(pkgs []*Package) ([]*Package, error) {
 		}
 	}
 	return out, nil
+}
+
+// throughGo is what importing a path brings of pkgs: the package itself, or
+// for a Go package of the module the packages of pkgs it imports, directly
+// or through other Go packages of the module.
+func throughGo(pkgs []*Package, byPath map[string]*Package) func(string) []*Package {
+	var root, modPath string
+	if len(pkgs) > 0 {
+		root, modPath, _ = ModuleRoot(pkgs[0].Dir)
+		root = realPath(root)
+	}
+	memo := map[string][]*Package{}
+	var via func(string) []*Package
+	via = func(path string) []*Package {
+		if q := byPath[path]; q != nil {
+			return []*Package{q}
+		}
+		if got, ok := memo[path]; ok {
+			return got
+		}
+		memo[path] = nil // an import cycle is the go command's to report
+		rel, ok := strings.CutPrefix(path, modPath+"/")
+		if root == "" || !ok && path != modPath {
+			return nil
+		}
+		dir := filepath.Join(root, filepath.FromSlash(rel))
+		for d := dir; d != root && len(d) > len(root); d = filepath.Dir(d) {
+			if _, err := os.Stat(filepath.Join(d, "go.mod")); err == nil {
+				return nil
+			}
+		}
+		bp, _ := build.Default.ImportDir(dir, 0)
+		if bp == nil {
+			return nil
+		}
+		var out []*Package
+		for _, imp := range bp.Imports {
+			for _, q := range via(imp) {
+				if !slices.Contains(out, q) {
+					out = append(out, q)
+				}
+			}
+		}
+		memo[path] = out
+		return out
+	}
+	return via
 }
 
 // Generated is one transpiled file: where it belongs and what it holds. It is
@@ -736,6 +787,7 @@ func Closure(pkgs, roots []*Package) []*Package {
 		byPath[p.ImportPath] = p
 		byDir[p.Dir] = append(byDir[p.Dir], p)
 	}
+	via := throughGo(pkgs, byPath)
 	in := map[*Package]bool{}
 	var visit func(p *Package)
 	visit = func(p *Package) {
@@ -744,7 +796,7 @@ func Closure(pkgs, roots []*Package) []*Package {
 		}
 		in[p] = true
 		for _, imp := range p.Imports {
-			if q := byPath[imp]; q != nil {
+			for _, q := range via(imp) {
 				visit(q)
 			}
 		}
