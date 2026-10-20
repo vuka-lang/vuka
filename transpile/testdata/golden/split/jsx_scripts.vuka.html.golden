@@ -1,3 +1,5 @@
+package main
+
 func (c Chart) Render()
 <figure class="chart"><figcaption>{c.Title}</figcaption></figure>
 

@@ -1,0 +1,1 @@
+menu.vuka.html:1:9: the template file is in package layouts, and its directory's package is main; write "package main"

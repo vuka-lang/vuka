@@ -9,13 +9,13 @@ import (
 	"io"
 )
 
-//line card.vuka.html:1
+//line card.vuka.html:3
 func (c Card) View() ui.Node {
 	var ps []ui.Node
 	for _, Title := range c.Items {
 		ps = append(ps, ui.HTML(`<p>{Title}</p>`, Title))
 	}
-//line card.vuka.html:1
+//line card.vuka.html:3
 	return ui.HTML(`
 <div>
   <h2>{c.Title} {c.Label()}</h2>
@@ -23,5 +23,5 @@ func (c Card) View() ui.Node {
 </div>`, c.Title, c.Label(), ps)
 }
 
-//line card.vuka.html:6
+//line card.vuka.html:8
 func (c Card) Render(ctx context.Context, w io.Writer) error { return c.View().Render(ctx, w) }

@@ -1,3 +1,5 @@
+package main
+
 func list(items []Item)
 <ul>
   for _, it := range items {

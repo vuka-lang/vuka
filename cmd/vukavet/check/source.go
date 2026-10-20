@@ -65,8 +65,9 @@ func componentName(path string) string {
 }
 
 var (
-	importLine = regexp.MustCompile(`^import\s+(\w+\s+)?"[^"]*"\s*$`)
-	stmtLine   = regexp.MustCompile(`^(\}\s*else\b|if\s|for\s|switch\b|case\s|[\w][\w, .]*\s*(:=|=|\+=|-=|\*=|/=|\+\+|--))`)
+	importLine  = regexp.MustCompile(`^import\s+(\w+\s+)?"[^"]*"\s*$`)
+	packageLine = regexp.MustCompile(`^package\s+\w+\s*(//.*)?$`)
+	stmtLine    = regexp.MustCompile(`^(\}\s*else\b|if\s|for\s|switch\b|case\s|[\w][\w, .]*\s*(:=|=|\+=|-=|\*=|/=|\+\+|--))`)
 )
 
 // goPart is Go text of a template: a hole's expression or a statement.
@@ -80,10 +81,15 @@ type goPart struct {
 func (h *htmlSource) mainTemplate() (start, end int, ok bool) {
 	off := 0
 	start = -1
+	group := false
 	for _, l := range strings.SplitAfter(h.src, "\n") {
 		t := strings.TrimSpace(l)
 		switch {
-		case start < 0 && (t == "" || strings.HasPrefix(t, "//") || importLine.MatchString(t)):
+		case group:
+			group = t != ")"
+		case start < 0 && t == "import (":
+			group = true
+		case start < 0 && (t == "" || strings.HasPrefix(t, "//") || importLine.MatchString(t) || packageLine.MatchString(t)):
 		case strings.HasPrefix(l, "func ") || strings.HasPrefix(l, "func("):
 			if start < 0 {
 				return 0, 0, false
@@ -252,6 +258,28 @@ func bareNames(pass *analysis.Pass, files []*htmlSource) {
 				report(pass, h.at(id.off, len(id.name)), "W0101", "rename one, or write the file's header, func (x "+typ+") …, and x."+id.name,
 					"%s is %s's field or method and a name of the package; the template reads the field", id.name, typ)
 			}
+		}
+	}
+}
+
+var headerName = regexp.MustCompile(`^func(?:\s*(\([^)]*\))\s*|\s+)(\w+)`)
+
+// templateHeaders warns where an exported template has no doc comment
+// (W0104), as Go's linters do of an exported function; View and Render
+// methods are documented by their type.
+func templateHeaders(pass *analysis.Pass, files []*htmlSource) {
+	for _, h := range files {
+		off, prev := 0, ""
+		for _, l := range strings.SplitAfter(h.src, "\n") {
+			if m := headerName.FindStringSubmatchIndex(l); m != nil {
+				name := l[m[4]:m[5]]
+				method := m[2] >= 0
+				if unicode.IsUpper([]rune(name)[0]) && !strings.HasPrefix(strings.TrimSpace(prev), "//") && !(method && (name == "View" || name == "Render")) {
+					report(pass, h.at(off+m[4], len(name)), "W0104", "say what it shows in a comment right above it: // "+name+" …",
+						"the exported template %s has no doc comment", name)
+				}
+			}
+			off, prev = off+len(l), l
 		}
 	}
 }

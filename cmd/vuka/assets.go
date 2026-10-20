@@ -391,10 +391,7 @@ func (pa *pageAssets) readTemplates(file string, src []byte) {
 	rel, _ := filepath.Rel(pa.root, file)
 	// The component files its imports name are islands.
 	top := 0
-	for _, l := range strings.SplitAfter(string(src), "\n") {
-		if t := strings.TrimSpace(l); t != "" && !strings.HasPrefix(t, "//") && !strings.HasPrefix(t, "import ") {
-			break
-		}
+	for _, l := range strings.SplitAfter(string(src), "\n")[:transpile.ParseTemplateHead(src).Top] {
 		top += len(l)
 	}
 	full, line := scanFile(file, append(src[:top:top], "\nfunc"...)) // the imports end at a declaration

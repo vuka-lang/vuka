@@ -118,7 +118,7 @@ func (e *engine) split(f *fileState) *Split {
 		text += "\n"
 	}
 	text += html.String()
-	return &Split{Vuka: []byte(squeezeBlank(vuka)), HTML: []byte(e.htmlImports(f, text) + text)}
+	return &Split{Vuka: []byte(squeezeBlank(vuka)), HTML: []byte("package " + f.ast.Name.Name + "\n\n" + e.htmlImports(f, text) + text)}
 }
 
 // nestedIn reports whether t is inside a tree in s other than outer.

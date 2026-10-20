@@ -20,7 +20,9 @@ func (s Sales) Total() int { return len(s.Week) }
 func main() {}
 `
 
-const lspHTMLTemplate = `<section>
+const lspHTMLTemplate = `package main
+
+<section>
   <h2>{Title}</h2>
   for _, d := range Week {
     <i>{d}</i>

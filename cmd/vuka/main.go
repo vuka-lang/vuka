@@ -195,7 +195,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		if pa != nil {
 			ds = vetIslands(root, modPath, pa)
 		}
-		if ds = append(ds, vetLivePages(root, pkgs)...); len(ds) > 0 {
+		if ds = append(append(ds, vetLivePages(root, pkgs)...), vetTemplates(root, pkgs)...); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
 				vetFailed = vetFailed || d.Severity == diag.Error

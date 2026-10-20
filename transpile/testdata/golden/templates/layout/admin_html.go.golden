@@ -9,9 +9,9 @@ import (
 	"io"
 )
 
-//line admin.vuka.html:1
+//line admin.vuka.html:3
 func (a Admin) View() ui.Node {
-//line admin.vuka.html:1
+//line admin.vuka.html:3
 	return ui.HTML(`
 <div class="admin">
   <header>
@@ -22,5 +22,5 @@ func (a Admin) View() ui.Node {
 </div>`, a.Title, a.Actions, a.Children)
 }
 
-//line admin.vuka.html:4
+//line admin.vuka.html:6
 func (a Admin) Render(ctx context.Context, w io.Writer) error { return a.View().Render(ctx, w) }

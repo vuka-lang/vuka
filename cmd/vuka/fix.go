@@ -16,6 +16,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vuka-lang/vuka/internal/format"
 	"github.com/vuka-lang/vuka/internal/load"
 	"github.com/vuka-lang/vuka/transpile"
 )
@@ -48,6 +49,7 @@ var fixers = []fixer{
 	{"ui", "move UI code to github.com/vuka-lang/ui (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
 	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…", fixAttributes},
 	{"ui-structs", "write the ui kit's components as structs: ui.Card(ui.CardProps{…}) → ui.Card{…}, ui.Table(ui.TableProps[T]{…}) → ui.Table[T]{…}", fixUIStructs},
+	{"templates-package", "start each .vuka.html file with its package clause, the package of its directory", fixTemplatesPackage},
 	{"hooks", "mark the methods a live page's hooks were found by (Mount, Changed, Load<Group>) with @ui.Mount, @ui.OnChange, @ui.Loads", fixHooks},
 }
 
@@ -424,6 +426,33 @@ func walkModule(root string, visit func(path string) error) error {
 		return nil
 	}
 	return err
+}
+
+// fixTemplatesPackage adds the package clause a template file without one
+// is in: its directory's package.
+func fixTemplatesPackage(m *fixModule) ([]fixChange, error) {
+	var changes []fixChange
+	err := walkModule(m.root, func(path string) error {
+		if !strings.HasSuffix(path, ".vuka.html") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		pkg := format.DirPackage(filepath.Dir(path))
+		out := format.TemplatePackage(src, pkg)
+		if bytes.Equal(out, src) {
+			return nil
+		}
+		rel, _ := filepath.Rel(m.root, path)
+		changes = append(changes, fixChange{
+			what:  fmt.Sprintf("%s: add package %s", rel, pkg),
+			apply: func() error { return os.WriteFile(path, out, 0o644) },
+		})
+		return nil
+	})
+	return changes, err
 }
 
 // fixOrphans removes files vuka gen -inplace wrote whose .vuka is gone.

@@ -1,3 +1,5 @@
+package main
+
 // page wraps the island to add a fallback shown until hydration; the body's
 // client:visible directive is the strategy and its children are the slot.
 func page()

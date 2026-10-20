@@ -185,3 +185,35 @@ func main() {}
 		t.Fatalf("second run: %v %s", err, out.String())
 	}
 }
+
+func TestFixTemplatesPackage(t *testing.T) {
+	dir := module(t, map[string]string{
+		"main.go":                    "package main\n\nfunc main() {}\n",
+		"layouts/admin.go":           "package layouts\n",
+		"layouts/admin.vuka.html":    "// Admin is the admin frame.\nfunc Admin(children ui.Node)\n<main>{children}</main>\n",
+		"layouts/done.vuka.html":     "package layouts\n\nfunc row()\n<p></p>\n",
+		"pages/orders_test.go":       "package pages_test\n",
+		"pages/orders.vuka":          "package pages\n",
+		"pages/orders.vuka.html":     "<p>orders</p>\n",
+		"node_modules/x/a.vuka.html": "<p></p>\n",
+	})
+	chdir(t, dir)
+	var out bytes.Buffer
+	if err := fix([]string{"templates-package"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{
+		"layouts/admin.vuka.html":    "package layouts\n\n// Admin is the admin frame.\nfunc Admin(children ui.Node)\n<main>{children}</main>\n",
+		"layouts/done.vuka.html":     "package layouts\n\nfunc row()\n<p></p>\n",
+		"pages/orders.vuka.html":     "package pages\n\n<p>orders</p>\n",
+		"node_modules/x/a.vuka.html": "<p></p>\n",
+	} {
+		if src, _ := os.ReadFile(path); string(src) != want {
+			t.Errorf("%s:\n%s\nwant\n%s", path, src, want)
+		}
+	}
+	out.Reset()
+	if err := fix([]string{"templates-package"}, &out); err != nil || strings.TrimSpace(out.String()) != "nothing to fix" {
+		t.Fatalf("second run: %v %s", err, out.String())
+	}
+}

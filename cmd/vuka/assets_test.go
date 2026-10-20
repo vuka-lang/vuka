@@ -234,7 +234,7 @@ func (c *C) helper() ui.Node { return <section /> }
 	// A template's scoped style reads the template's markup.
 	root = tempModule(t, map[string]string{"go.mod": webMod,
 		"card.go":        "package main\n\ntype Card struct{ Title string }\n",
-		"card.vuka.html": "<section class=\"card\"><h3>{Title}</h3></section>\n\n<style scoped>\nh3 { x: y }\n.card { x: y }\nspan { x: y }\n</style>\n"})
+		"card.vuka.html": "package main\n\n<section class=\"card\"><h3>{Title}</h3></section>\n\n<style scoped>\nh3 { x: y }\n.card { x: y }\nspan { x: y }\n</style>\n"})
 	if pa, err = findAssets(root, "example.com/app"); err != nil {
 		t.Fatal(err)
 	}
