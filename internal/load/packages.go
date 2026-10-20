@@ -472,7 +472,7 @@ type Options struct {
 // the overlay holding its files, for more Go of that package the packages
 // importing it need: the vuka command gives the ORM's generated typed
 // fields of a package of models. Its files are added to the overlay and
-// the run's output.
+// the run's output, bare or not: the language server shows them to gopls.
 var AfterPackage func(dir, overlay string, gens []Generated) []Generated
 
 // ErrStopped is the error of a run Options.Stop abandoned.
@@ -672,7 +672,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			}
 			out = append(out, Generated{Target: filepath.Join(p.Dir, transpile.CallsGoName), Src: res.Calls})
 		}
-		if AfterPackage != nil && !opts.Bare {
+		if AfterPackage != nil {
 			if err := writeOverlay(overlay, replace); err != nil {
 				return nil, "", err
 			}

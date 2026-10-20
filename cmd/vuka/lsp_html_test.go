@@ -5,6 +5,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/internal/load"
 )
 
 const lspHTMLGo = `package main
@@ -243,5 +245,33 @@ func TestLSPTemplatePackage(t *testing.T) {
 	b, _ := json.Marshal(c.call("textDocument/hover", at(muri, menu, "{it.Label}", 5)))
 	if !strings.Contains(string(b), "Label string") {
 		t.Errorf("hover in the template without the error: %s", b)
+	}
+}
+
+// TestLSPAfterPackage: the Go a package needs beyond its own, the ORM's typed
+// fields the vuka command adds after each package (load.AfterPackage), is
+// gopls's too: hover on it.
+func TestLSPAfterPackage(t *testing.T) {
+	after := load.AfterPackage
+	t.Cleanup(func() { load.AfterPackage = after })
+	load.AfterPackage = func(dir, overlay string, gens []load.Generated) []load.Generated {
+		for _, g := range gens {
+			if strings.Contains(string(g.Src), "PetFields.") {
+				return []load.Generated{{Target: filepath.Join(dir, "pet_gen.go"),
+					Src: []byte("package main\n\n// PetFields are a pet's typed fields.\nvar PetFields = struct{ Name string }{}\n")}}
+			}
+		}
+		return nil
+	}
+	src := "package main\n\n<p>{PetFields.Name}</p>\n"
+	c, dir, _ := startLSPWith(t, map[string]string{"pets.go": "package main\n\ntype Pets struct{}\n\nfunc main() {}\n", "pets.vuka.html": src})
+	uri := pathToURI(filepath.Join(dir, "pets.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka-html", "version": 1, "text": src}})
+	c.waitDiags(uri, func(ds []any) bool { return true })
+	b, _ := json.Marshal(c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri},
+		"position": positionOf([]byte(src), strings.Index(src, "PetFields")+1)}))
+	if !strings.Contains(string(b), "typed fields") {
+		t.Errorf("hover on the package's added Go: %s", b)
 	}
 }
