@@ -8,6 +8,8 @@ github.com/google/go-cmp v0.6.0 h1:ofyhxvXcZhMsU5ulbFiLKl/XBFqE1GSq7atu8tAmTRI=
 github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeNGIjoY=
 github.com/vuka-lang/ui v0.50.1-0.20261019230755-78e3130e2d3c h1:VDl1PuLkFc3OqtrKQxhiZwtIupgFzmg4BHmHJpmmo9Y=
 github.com/vuka-lang/ui v0.50.1-0.20261019230755-78e3130e2d3c/go.mod h1:Ae8L7SokzzWy52zZriduPBt6tbjgejy22fBf26N8duc=
+github.com/vuka-lang/ui v1.0.0 h1:zb0w3jmRFXdvE7pWra+7toEehCaS/8v3qt82129jQbw=
+github.com/vuka-lang/ui v1.0.0/go.mod h1:g8x9mNWO0Tkc3LG2XKsaIWfiQFHLjVBJR98c096Qe3U=
 github.com/vuka-lang/vuka v0.30.0 h1:v0e1H1ZB8aWhWqEJ7HsU4il17dzz2WpN163VNfih/EY=
 github.com/vuka-lang/vuka v0.30.0/go.mod h1:X+ml+FftmyBqmfBxh4mMOUVaUZS3preV80KzmYpGlpE=
 github.com/vuka-lang/vuka v0.31.0 h1:8NyqEGMYYjng/6fgZWUmwqBsxJTKzqYGprsmCrwsNnk=
@@ -18,6 +20,8 @@ github.com/vuka-lang/vuka v0.32.1-0.20261018220625-a9d037d539b2 h1:65r0eA5WV/j3X
 github.com/vuka-lang/vuka v0.32.1-0.20261018220625-a9d037d539b2/go.mod h1:X+ml+FftmyBqmfBxh4mMOUVaUZS3preV80KzmYpGlpE=
 github.com/vuka-lang/vuka v0.50.0 h1:5Ip4RRYVmGjnAHkfjTdzXsCYKQeCnKCQg7fnjsTp9Qs=
 github.com/vuka-lang/vuka v0.50.0/go.mod h1:X+ml+FftmyBqmfBxh4mMOUVaUZS3preV80KzmYpGlpE=
+github.com/vuka-lang/vuka v1.0.0 h1:g1CD3bI5nRNaQdusY4gXaeAAe/jlFSodT7tEBvWOcJs=
+github.com/vuka-lang/vuka v1.0.0/go.mod h1:X+ml+FftmyBqmfBxh4mMOUVaUZS3preV80KzmYpGlpE=
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
 golang.org/x/sys v0.41.0 h1:Ivj+2Cp/ylzLiEU89QhWblYnOE9zerudt9Ftecq2C6k=
 golang.org/x/sys v0.41.0/go.mod h1:OgkHotnGiDImocRcuBABYBEXf8A9a87e/uXjp9XT3ks=
