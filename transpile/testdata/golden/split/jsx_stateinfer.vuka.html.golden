@@ -15,8 +15,8 @@ func (r *Ref[T]) Render()
 
 func pageView(n int)
 <main>
-  <Box Value={1} />
-  <Box[string] Value="two" />
-  <List Items={[]string{"a", "b"}} />
-  <Ref At={&n} />
+  <Box value={1} />
+  <Box[string] value="two" />
+  <List items={[]string{"a", "b"}} />
+  <Ref at={&n} />
 </main>

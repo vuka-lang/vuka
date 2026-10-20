@@ -42,7 +42,7 @@ func List(users []User)
   }
 </ul>
 <Badge count={len(users)} label="users" />
-<Badge count={2} Label={"x"} />
+<Badge count={2} label={"x"} />
 <Button variant="primary" disabled>Save</Button>
 <Icon name="star" />
 <Icon />

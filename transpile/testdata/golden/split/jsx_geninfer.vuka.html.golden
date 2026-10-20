@@ -28,7 +28,7 @@ func Grid[T any](p GridProps[T])
 </table>
 
 func pageView(users []User, key func(u User) string)
-<List Items={users} Key={key}><li>done</li></List>
-<List[User] Items={nil} Key={nil} />
-<Pair Name="age" Value={42} />
-<Grid Cols={[]Column[User]{{Head: "id", Get: key}}} Rows={ptrs(users)} />
+<List items={users} Key={key}><li>done</li></List>
+<List[User] items={nil} Key={nil} />
+<Pair name="age" value={42} />
+<Grid cols={[]Column[User]{{Head: "id", Get: key}}} rows={ptrs(users)} />
