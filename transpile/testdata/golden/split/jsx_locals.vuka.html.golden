@@ -1,0 +1,12 @@
+import "strings"
+
+// Admin computes its locals, then returns its markup: one template.
+func Admin(admin bool, path string, children ui.Node)
+items := visible(admin, menu)
+count := len(items)
+<nav data-count={count}>
+  for _, i := range items {
+    <a href={i.Href} class={strings.TrimPrefix(path, "/")}>{i.Label}</a>
+  }
+  {children}
+</nav>

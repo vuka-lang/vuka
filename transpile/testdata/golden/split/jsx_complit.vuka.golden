@@ -1,0 +1,39 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"io"
+	"net/url"
+	"strings"
+
+	"github.com/vuka-lang/ui"
+)
+
+// LoginPage is a struct component: its markup is its View.
+type LoginPage struct {
+	Next    string
+	Problem string
+	Remember bool
+}
+
+func (p LoginPage) View() ui.Node {
+	return ui.Text(p.Next + ": " + p.Problem)
+}
+
+func (p LoginPage) Render(ctx context.Context, w io.Writer) error {
+	return p.View().Render(ctx, w)
+}
+
+type Session struct{}
+
+// Login returns one component's tag: in Go it is the literal.
+func (s *Session) Login(q url.Values) ui.Node {
+	return LoginPage{Next: q.Get("next"), Problem: "bad password", Remember: true}
+}
+
+func main() {
+	var b strings.Builder
+	(&Session{}).Login(url.Values{"next": {"/home"}}).Render(context.Background(), &b)
+	fmt.Println(b.String())
+}

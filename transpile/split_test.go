@@ -40,9 +40,14 @@ func TestSplit(t *testing.T) {
 				}
 				return
 			}
-			compare(t, golden, s.HTML)
+			files := []transpile.File{{Name: name + ".vuka", Src: s.Vuka}}
+			if s.HTML != nil {
+				compare(t, golden, s.HTML)
+				files = append(files, transpile.File{Name: name + ".vuka.html", Src: s.HTML})
+			} else if _, err := os.Stat(golden); err == nil {
+				t.Errorf("%s moves no template now", name)
+			}
 			compare(t, filepath.Join(dir, "split", name+".vuka.golden"), s.Vuka)
-			files := []transpile.File{{Name: name + ".vuka", Src: s.Vuka}, {Name: name + ".vuka.html", Src: s.HTML}}
 			res, err = transpile.Package(files, opts)
 			if err != nil {
 				t.Fatalf("the split doesn't compile:\n%v\n--- %s.vuka\n%s\n--- %s.vuka.html\n%s", err, name, s.Vuka, name, s.HTML)

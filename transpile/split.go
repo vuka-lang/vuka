@@ -46,6 +46,10 @@ func (e *engine) split(f *fileState) *Split {
 		if f.nested(t) || branched[f.funcAt(t.start)] {
 			continue
 		}
+		if lit, ok := f.compLiteral(t); ok {
+			out = append(out, moved{start: t.start, end: t.end, call: lit})
+			continue
+		}
 		if fd := f.funcAt(t.start); fd != nil && !e.isMainRender(f, fd, main) {
 			if text, ok := e.branchedTemplate(f, fd, taken, &inner); ok {
 				branched[fd] = true
@@ -58,7 +62,7 @@ func (e *engine) split(f *fileState) *Split {
 				continue
 			}
 		}
-		fd, whole := e.templateFunc(f, t)
+		fd, stmts, whole := e.templateFunc(f, t)
 		if whole && t.returned {
 			start := f.leadStart(f.orig(fd.Pos()))
 			fn := f.orig(fd.Pos())
@@ -70,7 +74,7 @@ func (e *engine) split(f *fileState) *Split {
 				// A stateful component's Render is the file's main markup, read with
 				// bare names; a struct component's Render keeps its header, since a
 				// header-less template is a struct's View.
-				isMain := fd.Recv != nil && fd.Name.Name == "Render" && fd.Type.Params.NumFields() == 0 && recvTypeName(fd) == main && !haveMain && e.embedsLive(main)
+				isMain := len(stmts) == 0 && fd.Recv != nil && fd.Name.Name == "Render" && fd.Type.Params.NumFields() == 0 && recvTypeName(fd) == main && !haveMain && e.embedsLive(main)
 				if isMain {
 					p.strip = e.bareNames(f, fd)
 				}
@@ -86,6 +90,9 @@ func (e *engine) split(f *fileState) *Split {
 					if !isMain || p.strip == "" {
 						b.WriteString(header + "\n")
 						isMain = false
+					}
+					for _, st := range stmts {
+						b.WriteString(st + "\n")
 					}
 					b.WriteString(strings.TrimLeft(p.b.String(), "\n") + "\n")
 					end := f.orig(fd.End())
@@ -131,6 +138,9 @@ func (e *engine) split(f *fileState) *Split {
 		text += "\n"
 	}
 	text += html.String()
+	if text == "" { // only literals: no templates
+		return &Split{Vuka: []byte(squeezeBlank(vuka))}
+	}
 	return &Split{Vuka: []byte(squeezeBlank(vuka)), HTML: []byte(e.htmlImports(f, text) + text)}
 }
 
@@ -398,6 +408,34 @@ func (e *engine) partial(f *fileState, t *jsxTree, nested bool, taken map[string
 	return text, name + "(" + strings.Join(args, ", ") + ")", args, true
 }
 
+// compLiteral is the Go of a tree that is one struct component's tag and
+// nothing else, its literal: <LoginPage next={n}/> is LoginPage{Next: n}.
+func (f *fileState) compLiteral(t *jsxTree) (string, bool) {
+	el := t.root
+	if el == nil || el.frag || el.comp == nil || !el.comp.nodeComp || el.comp.stateful || el.comp.ptrRender || el.comp.key != nil || el.comp.targText != "" || len(flatten(el.kids)) > 0 {
+		return "", false
+	}
+	var fields []string
+	for _, a := range el.attrs {
+		if a.event || a.name == "" || strings.ContainsAny(a.name, ":-") {
+			return "", false
+		}
+		v := ""
+		switch a.kind {
+		case 's':
+			v = strconv.Quote(a.val)
+		case 'b':
+			v = "true"
+		case 'e':
+			v = strings.TrimSpace(string(f.src[a.expr.start:a.expr.end]))
+		default:
+			return "", false
+		}
+		fields = append(fields, exportName(a.name)+": "+v)
+	}
+	return string(f.src[el.start+1:el.tagEnd]) + "{" + strings.Join(fields, ", ") + "}", true
+}
+
 // nester makes the trees inside a tree's Go partials, kept in inner.
 func (e *engine) nester(f *fileState, taken map[string]bool, inner *[]string) func(*jsxTree) (string, []string, bool) {
 	return func(t *jsxTree) (string, []string, bool) {
@@ -612,35 +650,60 @@ func recvTypeName(fd *ast.FuncDecl) string {
 
 // templateFunc is the function a tree is the one statement of, returning
 // it: func X(…) Node { return <…> }.
-func (e *engine) templateFunc(f *fileState, t *jsxTree) (*ast.FuncDecl, bool) {
+func (e *engine) templateFunc(f *fileState, t *jsxTree) (*ast.FuncDecl, []string, bool) {
 	ret := returnAt(f.src, t.start)
 	for _, d := range f.ast.Decls {
 		fd, ok := d.(*ast.FuncDecl)
 		if !ok || fd.Body == nil || len(fd.Body.List) == 0 || f.orig(fd.Body.Pos()) > ret || f.orig(fd.Body.End()) < t.end {
 			continue
 		}
+		var stmts []string
 		for _, st := range fd.Body.List {
-			if off := f.orig(st.Pos()); off < ret || off > t.end {
-				return nil, false // Go of its own beside the markup
+			if off := f.orig(st.Pos()); off >= ret && off <= t.end {
+				continue
 			}
+			// x := expr on a line of its own is a template's statement.
+			text, ok := f.localLine(st)
+			if !ok || f.orig(st.End()) > ret {
+				return nil, nil, false // Go of its own beside the markup
+			}
+			stmts = append(stmts, text)
 		}
 		rs, ok := fd.Body.List[len(fd.Body.List)-1].(*ast.ReturnStmt)
 		if !ok || len(rs.Results) != 1 || f.orig(rs.Pos()) != ret || fd.Type.Results == nil || fd.Type.Results.NumFields() != 1 {
-			return nil, false
+			return nil, nil, false
 		}
 		obj, _ := e.info.Defs[fd.Name].(*types.Func)
 		node := e.nodeType(f.target)
 		if obj == nil || node == nil || !types.Identical(obj.Signature().Results().At(0).Type(), node) {
-			return nil, false
+			return nil, nil, false
 		}
 		// The signature must read as the source writes it: Go, no Vuka.
 		from, to := f.orig(fd.Pos()), f.orig(fd.Type.Results.End())
 		if string(f.src[from:to]) != string(f.text[f.off(fd.Pos()):f.off(fd.Type.Results.End())]) {
-			return nil, false
+			return nil, nil, false
 		}
-		return fd, true
+		return fd, stmts, true
 	}
-	return nil, false
+	return nil, nil, false
+}
+
+// localLine is the text of st when it is x := expr on one line, Go as the
+// source writes it (no Vuka) and no markup: a template's statement.
+func (f *fileState) localLine(st ast.Stmt) (string, bool) {
+	as, ok := st.(*ast.AssignStmt)
+	if !ok || as.Tok != token.DEFINE || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return "", false
+	}
+	from, to := f.orig(as.Pos()), f.orig(as.End())
+	if from < 0 || to > len(f.src) || from >= to {
+		return "", false
+	}
+	text := string(f.src[from:to])
+	if strings.ContainsAny(text, "\n<") || text != string(f.text[f.off(as.Pos()):f.off(as.End())]) {
+		return "", false
+	}
+	return text, true
 }
 
 // bareNames is the receiver name a Render's template drops, writing its

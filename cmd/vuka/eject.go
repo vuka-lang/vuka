@@ -248,8 +248,10 @@ func splitTemplates(patterns, extra []string, files map[string]bool) error {
 		if _, err := os.Stat(html); err == nil {
 			continue // the file has templates already: they stay its own
 		}
-		if err := os.WriteFile(html, g.Split.HTML, 0o644); err != nil {
-			return err
+		if len(g.Split.HTML) > 0 {
+			if err := os.WriteFile(html, g.Split.HTML, 0o644); err != nil {
+				return err
+			}
 		}
 		if err := os.WriteFile(g.Source, g.Split.Vuka, 0o644); err != nil {
 			return err
