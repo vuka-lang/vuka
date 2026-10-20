@@ -603,7 +603,7 @@ func (p *proxy) staticCompletionItems(vf *vfile, spot *staticSpot) []any {
 	members, missing := p.staticMembers(vf, spot)
 	var importEdits []any
 	if missing != "" {
-		importEdits = importEditsJSON(vf.text(), addImports(vf.text(), []importSpec{{path: missing}}))
+		importEdits = importEditsJSON(vf.text(), sourceImportEdits(vf, []importSpec{{path: missing}}))
 	}
 	var items []any
 	for _, m := range members {

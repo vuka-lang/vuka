@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -352,8 +353,16 @@ func (f *vfile) toSource(r lspRange, exact bool) (lspRange, bool) {
 
 // fromRange is a range in the generated Go as offsets in the text it came from.
 func (f *vfile) fromRange(r lspRange) (s, e int, ok bool) {
-	s, _, ok1 := f.m.ToSource(offsetOf(f.gen, r.Start))
-	e, _, ok2 := f.m.ToSource(offsetOf(f.gen, r.End))
+	gs, ge := offsetOf(f.gen, r.Start), offsetOf(f.gen, r.End)
+	s, _, ok1 := f.m.ToSource(gs)
+	e, _, ok2 := f.m.ToSource(ge)
+	if ge > gs && (!ok2 || e < s) {
+		// The end of a statement's copy is where the next one starts, and
+		// that may be elsewhere: the range ends after its last byte.
+		if last, _, ok := f.m.ToSource(ge - 1); ok && last >= s {
+			e, ok2 = last+1, true
+		}
+	}
 	return s, max(s, e), ok1 && ok2
 }
 
@@ -431,6 +440,7 @@ type vukaRequest struct {
 	blocks    *lspRange   // completion after a markup child's {: the word typed, for block snippets
 	note      string      // hover: what to add to gopls's answer (an island page's lifecycle hook)
 	spot      *staticSpot // a possible Type.member use at the cursor (statics, field references)
+	tmpl      *tmplSpot   // completion in a template file's Go
 }
 
 type proxy struct {
@@ -454,6 +464,7 @@ type proxy struct {
 	vukaReqs         map[string]*vukaRequest   // proxy request id → request on a .vuka file
 	asks             map[string]chan rpcMsg    // proxy request id → the proxy's own question to gopls
 	bufs             map[string][]byte         // .vuka path → editor buffer
+	cursors          map[string]int            // .vuka path → where the editor's last change to it ended
 	virtual          map[string]*vfile         // generated path → buffer in gopls
 	owned            map[string]bool           // Go paths the editor has open itself; its text wins
 	bySource         map[string]string         // .vuka path → generated path
@@ -492,7 +503,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 	p := &proxy{
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{},
-		bufs: map[string][]byte{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
+		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
 		shown:       map[string]string{},
 		staticsPkgs: map[string][]*staticsFile{}, importDirs: map[string]string{},
@@ -1135,7 +1146,7 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf, closeTag: closeTag,
 		attr: m.Method == "textDocument/completion" && afterAt(vf.text(), srcPos)}
 	vr.field = vr.attr && fieldAttrSpot(vf.text(), offsetOf(vf.text(), srcPos))
-	if m.Method == "textDocument/completion" {
+	if m.Method == "textDocument/completion" && !strings.HasSuffix(vf.source, ".vuka.html") {
 		if s, ok := blockSpot(vf.text(), offsetOf(vf.text(), srcPos)); ok {
 			vr.blocks = &lspRange{positionOf(vf.text(), s), srcPos}
 		}
@@ -1164,6 +1175,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	}
 	if hasPos && !vr.attr && (m.Method == "textDocument/completion" || m.Method == "textDocument/hover") {
 		vr.spot = staticSpotAt(m.Method, vf.text(), offsetOf(vf.text(), srcPos))
+	}
+	if hasPos && m.Method == "textDocument/completion" && !vr.attr && vr.blocks == nil && closeTag == nil {
+		vr.tmpl = templateSpot(vf, genPath, offsetOf(vf.text(), srcPos))
 	}
 	p.vukaReqs[id] = vr
 	p.mu.Unlock()
@@ -1256,7 +1270,20 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		if vr.spot != nil {
 			merged := v
 			go func() {
-				reply["result"] = withItems(merged, newItems(merged, p.staticCompletionItems(vr.file, vr.spot)))
+				merged = withItems(merged, newItems(merged, p.staticCompletionItems(vr.file, vr.spot)))
+				if vr.tmpl != nil {
+					vr.tmpl.members = false
+					merged = p.templateCompletion(vr.file, vr.tmpl, merged)
+				}
+				reply["result"] = merged
+				_ = p.editor.send(reply)
+			}()
+			return
+		}
+		if vr.tmpl != nil {
+			got := v
+			go func() {
+				reply["result"] = p.templateCompletion(vr.file, vr.tmpl, got)
 				_ = p.editor.send(reply)
 			}()
 			return
@@ -1566,11 +1593,25 @@ const placeholder = "__vuka_complete"
 // keeps its completion, hover and diagnostics mid-edit: the placeholder goes
 // after an unfinished @ and after a selector's dot with nothing after it yet,
 // and a tag with no > yet is blanked out. The hunks say where placeholders went.
-func completable(src []byte) ([]byte, []hunk) {
-	type insert struct {
-		at   int
-		text string
+func completable(src []byte) ([]byte, []hunk) { return completableWith(src, nil) }
+
+// completableAt is completable for the buffer of the file at path, the
+// editor's cursor at cursor (-1: not known): in a template file, the Go
+// being typed there is completed too (see templateRepairs).
+func completableAt(path string, src []byte, cursor int) ([]byte, []hunk) {
+	if cursor < 0 || !strings.HasSuffix(path, ".vuka.html") {
+		return completable(src)
 	}
+	return completableWith(src, templateRepairs(src, cursor))
+}
+
+// insert is text put into a buffer at an offset.
+type insert struct {
+	at   int
+	text string
+}
+
+func completableWith(src []byte, extra []insert) ([]byte, []hunk) {
 	var ins []insert
 	for _, re := range []*regexp.Regexp{unfinishedAttr, unfinishedParamAttr, unfinishedElem} {
 		for _, m := range re.FindAllSubmatchIndex(src, -1) {
@@ -1583,8 +1624,16 @@ func completable(src []byte) ([]byte, []hunk) {
 	for _, at := range fieldPlaceholders(src) {
 		ins = append(ins, insert{at, placeholder})
 	}
-	sort.Slice(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
+	for _, e := range extra {
+		if !slices.Contains(ins, e) {
+			ins = append(ins, e)
+		}
+	}
+	sort.SliceStable(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
 	blank := blankUnfinishedTags(src)
+	if len(extra) > 0 {
+		blank = blankRepaired(src, extra)
+	}
 	hunks := []hunk{}
 	var out []byte
 	last, d := 0, 0
@@ -1595,6 +1644,34 @@ func completable(src []byte) ([]byte, []hunk) {
 		last = in.at
 	}
 	return append(out, blank[last:]...), hunks
+}
+
+// blankRepaired is blankUnfinishedTags of src, its tags read with the
+// repairs extra made: a hole a repair closes no longer runs on over its
+// tag's >.
+func blankRepaired(src []byte, extra []insert) []byte {
+	sorted := slices.Clone(extra)
+	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].at < sorted[j].at })
+	var rep []byte
+	keep := make([]int, 0, len(src)) // rep offset of each src byte
+	last := 0
+	for _, in := range sorted {
+		for i := last; i < in.at; i++ {
+			keep = append(keep, len(rep)+i-last)
+		}
+		rep = append(append(rep, src[last:in.at]...), in.text...)
+		last = in.at
+	}
+	for i := last; i < len(src); i++ {
+		keep = append(keep, len(rep)+i-last)
+	}
+	rep = append(rep, src[last:]...)
+	blank := blankUnfinishedTags(rep)
+	out := make([]byte, len(src))
+	for i, at := range keep {
+		out[i] = blank[at]
+	}
+	return out
 }
 
 // afterAt reports whether pos is in an attribute's name: the line so far is
