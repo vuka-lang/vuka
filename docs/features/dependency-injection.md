@@ -48,6 +48,11 @@ func Module() fx.Option { return fx.Provide(providers...) }
 
 - Every field is injected except `_`, fields tagged `inject:"-"`, and embedded
   values (embedded pointers and interfaces are injected).
+- A struct declaring a schema — a live component (it embeds `ui.Live`) or a
+  model — holds data: its constructor takes only the fields that hold
+  dependencies, pointers and interfaces, as `NewChat(log *ChatLog)` does.
+- A parameter is its field's name with the leading capitals lowered (`Log`
+  is `log`, `DB` `db`).
 - A struct that declares its own static `New` is built with that one.
 - Otherwise the generated constructor is the struct's static `New`, handy in
   tests: `OrderService.New(fakeDB, fakeUsers)`.

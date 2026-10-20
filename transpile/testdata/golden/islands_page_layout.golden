@@ -44,9 +44,7 @@ func main() {
 func (b *Board) Render() ui.Node { return ui.IslandPage(b) }
 
 //line islands_page_layout.vuka:26
-func NewBoard(Q string) *Board {
-	return &Board{Q: Q}
-}
+func NewBoard(q string) *Board { return &Board{Q: q} }
 
 func init() {
 //line islands_page_layout.vuka:19

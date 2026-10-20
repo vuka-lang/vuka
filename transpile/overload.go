@@ -117,6 +117,7 @@ func findOverloads(files, all []*fileState, errs *ErrorList) map[string]*overloa
 		for _, s := range sets {
 			for _, o := range s.list {
 				o.file.add(o.nameOff, o.nameOff+len(s.name), o.mangled)
+				o.file.renameDoc(o.nameOff, o.mangled, s.name)
 			}
 		}
 	}

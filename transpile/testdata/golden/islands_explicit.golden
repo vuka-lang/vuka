@@ -28,9 +28,7 @@ func main() {
 }
 
 //line islands_explicit.vuka:14
-func NewPicker(Weeks int) *Picker {
-	return &Picker{Weeks: Weeks}
-}
+func NewPicker(weeks int) *Picker { return &Picker{Weeks: weeks} }
 
 func init() {
 //line islands_explicit.vuka:13

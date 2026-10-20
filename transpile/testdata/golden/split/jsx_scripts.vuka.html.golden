@@ -3,7 +3,9 @@ func (c Chart) Render()
 
 <script lang="ts">
 import { component } from 'vuka:component'
-export default component<Chart>((el, props) => { el.dataset.n = String(props.Points.length) })
+export default component<Chart>((el, props) => {
+	el.dataset.n = String(props.Points.length)
+})
 </script>
 
 <style scoped>figcaption { font-weight: bold }</style>

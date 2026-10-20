@@ -97,6 +97,16 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	if option {
 		failVar, cond = "__ok"+n, "!__ok"+n
 	}
+	plain := false // err, as Go names it: in an if's init, or beside new variables
+	switch s := stmt.(type) {
+	case *ast.AssignStmt:
+		plain = s.Tok == token.DEFINE
+	case *ast.ExprStmt, *ast.ReturnStmt:
+		plain = true
+	}
+	if plain = plain && !option && e.errFree(f, stmt); plain {
+		failVar, cond = "err", "err != nil"
+	}
 	ret, msg := e.failReturn(f, sig, option, failVar)
 	if msg != "" {
 		fail(msg)
@@ -127,6 +137,11 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 		}
 		f.insert(f.orig(v.Names[len(v.Names)-1].End()), ", "+failVar, 2)
 	case *ast.ExprStmt:
+		if plain {
+			f.insert(f.orig(s.Pos()), "if "+strings.Repeat("_, ", len(values))+"err := ", 0)
+			check = "; err != nil { " + ret + " }"
+			break
+		}
 		f.insert(f.orig(s.Pos()), strings.Repeat("_, ", len(values))+failVar+" := ", 0)
 	case *ast.ReturnStmt:
 		vars := make([]string, len(values))
@@ -147,6 +162,37 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	f.insert(end, check, 3)
 	t.done, t.fresh = true, true
 	e.progress = true
+}
+
+// errFree reports whether the function holding stmt names nothing err, and
+// the package declares no err: then ? declares err itself. The answer is
+// kept per function, as the lowering's own err is in its later passes.
+func (e *engine) errFree(f *fileState, stmt ast.Stmt) bool {
+	var fd *ast.FuncDecl
+	for p := f.parents[stmt]; p != nil; p = f.parents[p] {
+		if d, ok := p.(*ast.FuncDecl); ok {
+			fd = d
+		}
+	}
+	if fd == nil || e.declared["err"] {
+		return false
+	}
+	key := f.name + " " + declKey(fd)
+	if free, ok := e.errFuncs[key]; ok {
+		return free
+	}
+	free := true
+	ast.Inspect(fd, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == "err" {
+			free = false
+		}
+		return free
+	})
+	if e.errFuncs == nil {
+		e.errFuncs = map[string]bool{}
+	}
+	e.errFuncs[key] = free
+	return free
 }
 
 // failReturn is the statement that hands the failure to the caller.

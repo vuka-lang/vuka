@@ -25,12 +25,15 @@ func totalOrders() string { return "declared by hand" }
 
 type Feed struct{ log []string }
 
+// PushOrder logs an order; a doc comment follows its overload's name.
 func (f *Feed) PushOrder(ctx context.Context, o Order) {
-//line overload_names.vuka:25
+//line overload_names.vuka:26
 	f.log = append(f.log, fmt.Sprint("order ", o.ID))
 }
 
-//line overload_names.vuka:26
+// PushEntry logs an entry.
+//
+//line overload_names.vuka:29
 func (f *Feed) PushEntry(e Entry) { f.log = append(f.log, fmt.Sprint("entry ", e.N)) }
 
 func main() {

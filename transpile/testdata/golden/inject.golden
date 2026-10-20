@@ -100,9 +100,7 @@ func main() {
 }
 
 //line inject.vuka:62
-func NewUserService(db *DB, mailer Mailer) *UserService {
-	return &UserService{db: db, mailer: mailer}
-}
+func NewUserService(db *DB, mailer Mailer) *UserService { return &UserService{db: db, mailer: mailer} }
 
 func init() {
 //line inject.vuka:61
@@ -110,8 +108,8 @@ func init() {
 }
 
 //line inject.vuka:69
-func NewOrderService(UserService *UserService, db *DB) *OrderService {
-	return &OrderService{UserService: UserService, db: db}
+func NewOrderService(userService *UserService, db *DB) *OrderService {
+	return &OrderService{UserService: userService, db: db}
 }
 
 func init() {

@@ -27,32 +27,32 @@ func find(id int) (User, error) {
 }
 
 func parse(s string) (int, error) {
-	n, e1 := strconv.Atoi(s)
-	if e1 != nil {
-		return 0, e1
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return 0, err
 	}
 //line try.vuka:25
 	return n * 2, nil
 }
 
 func load(s string) vuka.Result[User] {
-	id, e2 := parse(s)
-	if e2 != nil {
-		return vuka.Err[User](e2)
+	id, err := parse(s)
+	if err != nil {
+		return vuka.Err[User](err)
 	}
 //line try.vuka:30
-	u, e3 := find(id)
-	if e3 != nil {
-		return vuka.Err[User](e3)
+	u, err := find(id)
+	if err != nil {
+		return vuka.Err[User](err)
 	}
 //line try.vuka:31
 	return vuka.Ok[User](u)
 }
 
 func name(s string) (string, error) {
-	u, e4 := load(s).Get()
-	if e4 != nil {
-		return "", e4
+	u, err := load(s).Get()
+	if err != nil {
+		return "", err
 	}
 //line try.vuka:36
 	return u.Name, nil
@@ -84,18 +84,17 @@ func both(a, b string) (int, error) {
 	}
 //line try.vuka:54
 	_ = x
-	v71, e7 := parse(b)
-	if e7 != nil {
-		return 0, e7
+	v71, err := parse(b)
+	if err != nil {
+		return 0, err
 	}
 	return v71, nil
 }
 
 //line try.vuka:58
 func check(s string) error {
-	_, e8 := parse(s)
-	if e8 != nil {
-		return e8
+	if _, err := parse(s); err != nil {
+		return err
 	}
 //line try.vuka:60
 	return nil

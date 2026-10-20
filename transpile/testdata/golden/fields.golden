@@ -128,8 +128,8 @@ func init() {
 }
 
 //line fields.vuka:39
-func NewUser(ID int64, Name string, Nick vuka.Option[string]) *User {
-	return &User{ID: ID, Name: Name, Nick: Nick}
+func NewUser(id int64, name string, nick vuka.Option[string]) *User {
+	return &User{ID: id, Name: name, Nick: nick}
 }
 
 func init() {

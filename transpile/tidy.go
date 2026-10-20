@@ -318,6 +318,15 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 
 	ast.Inspect(file, func(n ast.Node) bool {
 		switch n := n.(type) {
+		case *ast.FuncDecl:
+			// a function Vuka renamed (a decorated one's body, createPostImpl)
+			// is named so in its doc comment too
+			if r, ok := renames[n.Name.Name]; ok && n.Doc != nil {
+				c := n.Doc.List[0]
+				if old := "// " + strings.TrimLeft(n.Name.Name, "_"); strings.HasPrefix(c.Text, old) && !continuesIdent([]byte(c.Text[len(old):])) {
+					c.Text = "// " + r + c.Text[len(old):]
+				}
+			}
 		case *ast.Ident:
 			if r, ok := renames[n.Name]; ok {
 				n.Name = r

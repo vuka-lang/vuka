@@ -19,9 +19,7 @@ func clock() ui.Node {
 }
 
 //line islands_only.vuka:6
-func NewClock(Zone string) *Clock {
-	return &Clock{Zone: Zone}
-}
+func NewClock(zone string) *Clock { return &Clock{Zone: zone} }
 
 func init() {
 //line islands_only.vuka:5

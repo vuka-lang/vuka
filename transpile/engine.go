@@ -44,6 +44,7 @@ type engine struct {
 	selfNames       map[string]bool           // its package-level names, for a self-target before type-checking
 
 	declared      map[string]bool               // package-level names
+	errFuncs      map[string]bool               // per function: whether ? names its error err
 	typeNames     map[string]bool               // package-level type names
 	registries    map[*types.Package]*types.Var // each package's registry, nil for none (decorate.go)
 	schemas       map[string]*schemaInfo        // struct types declaring a schema method, by name (schema.go)

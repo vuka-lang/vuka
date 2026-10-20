@@ -5,8 +5,10 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // decoKind is the form a decorator takes, known once its type is.
@@ -115,6 +117,60 @@ func injected(field *ast.Field, name string, embedded bool) bool {
 		return false
 	}
 	return true
+}
+
+// dependency reports whether a field of type x holds a dependency: a
+// pointer, or an interface the package or an import declares.
+func (e *engine) dependency(f *fileState, x ast.Expr) bool {
+	switch x := x.(type) {
+	case *ast.StarExpr, *ast.InterfaceType:
+		return true
+	case *ast.Ident:
+		for _, g := range e.files {
+			for _, d := range g.ast.Decls {
+				if gd, ok := d.(*ast.GenDecl); ok && gd.Tok == token.TYPE {
+					for _, sp := range gd.Specs {
+						if ts := sp.(*ast.TypeSpec); ts.Name.Name == x.Name {
+							_, ok := ts.Type.(*ast.InterfaceType)
+							return ok
+						}
+					}
+				}
+			}
+		}
+	case *ast.SelectorExpr:
+		if id, ok := x.X.(*ast.Ident); ok {
+			if pkg := e.importedAs(f, id.Name); pkg != nil {
+				if tn, ok := pkg.Scope().Lookup(x.Sel.Name).(*types.TypeName); ok {
+					return types.IsInterface(tn.Type())
+				}
+			}
+		}
+	}
+	return false
+}
+
+// paramName is the constructor parameter for a field: its name with the
+// leading capitals lowered (Log is log, DB db), else the field's name where
+// that is a keyword, a predeclared name or taken.
+func paramName(field string, taken map[string]bool) string {
+	r := []rune(field)
+	i := 0
+	for i < len(r) && unicode.IsUpper(r[i]) {
+		i++
+	}
+	if i > 1 && i < len(r) && string(r[i:]) != "s" {
+		i--
+	}
+	for j := range i {
+		r[j] = unicode.ToLower(r[j])
+	}
+	p := string(r)
+	if token.IsKeyword(p) || types.Universe.Lookup(p) != nil || taken[p] {
+		p = field
+	}
+	taken[p] = true
+	return p
 }
 
 // reflectTag is reflect.StructTag.Get, without importing reflect here.
@@ -488,6 +544,11 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 			hasNew: e.declared[staticGoName(ts.Name.Name, "New")]}
 		if st, ok := ts.Type.(*ast.StructType); ok {
 			d.isStruct = true
+			// A struct declaring a schema (a live component, a model) holds
+			// data: its constructor takes only the fields holding
+			// dependencies, pointers and interfaces.
+			data := e.schemas[ts.Name.Name] != nil
+			taken := map[string]bool{}
 			for _, field := range st.Fields.List {
 				t := e.qualText(f, field.Type)
 				names := field.Names
@@ -495,10 +556,12 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 					names = []*ast.Ident{ast.NewIdent(embeddedName(field.Type))}
 				}
 				for _, n := range names {
-					if injected(field, n.Name, len(field.Names) == 0) {
-						d.ctorParams = append(d.ctorParams, n.Name+" "+t)
-						d.ctorInits = append(d.ctorInits, n.Name+": "+n.Name)
+					if !injected(field, n.Name, len(field.Names) == 0) || data && !e.dependency(f, field.Type) {
+						continue
 					}
+					p := paramName(n.Name, taken)
+					d.ctorParams = append(d.ctorParams, p+" "+t)
+					d.ctorInits = append(d.ctorInits, n.Name+": "+p)
 				}
 			}
 		}
@@ -910,8 +973,8 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 		if !e.bare {
 			w.gen("\n"+lineDirective(f.at(d.nameOff)), d.nameOff)
 		}
-		w.gen("\nfunc "+ctor+"("+strings.Join(d.ctorParams, ", ")+") *"+d.name+" {\n\treturn &"+d.name+
-			"{"+strings.Join(d.ctorInits, ", ")+"}\n}\n", d.nameOff)
+		w.gen("\nfunc "+ctor+"("+strings.Join(d.ctorParams, ", ")+") *"+d.name+" { return &"+d.name+
+			"{"+strings.Join(d.ctorInits, ", ")+"} }\n", d.nameOff)
 	}
 	if registered {
 		decl := ctor
@@ -1849,6 +1912,12 @@ func (e *engine) aroundText(f *fileState, d *funcDeco, arounds []*decoUse) (stri
 	if len(opts) > 0 {
 		tail = ", " + strings.Join(opts, ", ")
 	}
+	// err, unless a parameter, a named result or the package has one: the
+	// body, inside a function literal, declares its own.
+	errVar := "err"
+	if e.declared["err"] || slices.Contains(d.pnames, "err") || slices.Contains(strings.FieldsFunc(d.results, func(r rune) bool { return !unicode.IsLetter(r) && !unicode.IsDigit(r) && r != '_' }), "err") {
+		errVar = "__err"
+	}
 	n := len(d.rtypes)
 	switch {
 	case n == 1 && d.errIndex == 0:
@@ -1861,12 +1930,12 @@ func (e *engine) aroundText(f *fileState, d *funcDeco, arounds []*decoUse) (stri
 			decl += "var " + vars[i] + " " + d.rtypes[i] + "; "
 		}
 		rs := strings.Join(vars, ", ")
-		return decl + "__err := " + call + "(__e error) { " + rs + ", __e = func()" + d.results + " {",
-			"}(); return __e }" + tail + "); return " + rs + ", __err"
+		return decl + errVar + " := " + call + "(__e error) { " + rs + ", __e = func()" + d.results + " {",
+			"}(); return __e }" + tail + "); return " + rs + ", " + errVar
 	case n == 1:
 		if name, arg := runtimeTypeText(d.rtypes[0], f.runtime()); name == "Result" {
-			return "var __r " + d.rtypes[0] + "; __err := " + call + "error { __r = func()" + d.results + " {",
-				"}(); return __r.Err() }" + tail + "); if __err != nil { return " + f.runtime() + ".Err[" + arg + "](__err) }; return __r"
+			return "var __r " + d.rtypes[0] + "; " + errVar + " := " + call + "error { __r = func()" + d.results + " {",
+				"}(); return __r.Err() }" + tail + "); if " + errVar + " != nil { return " + f.runtime() + ".Err[" + arg + "](" + errVar + ") }; return __r"
 		}
 	}
 	e.errs.add("E0131", u.a.Pos, "@%s runs the body inside it, so the function must return an error: error, (T, error) or Result[T]", u.a.Name)

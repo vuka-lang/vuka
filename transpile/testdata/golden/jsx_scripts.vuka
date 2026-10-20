@@ -18,9 +18,11 @@ func (c Chart) Render() ui.Node {
 	return <figure class="chart">
 		<figcaption>{c.Title}</figcaption>
 		<script lang="ts">
-import { component } from 'vuka:component'
-export default component<Chart>((el, props) => { el.dataset.n = String(props.Points.length) })
-</script>
+			import { component } from 'vuka:component'
+			export default component<Chart>((el, props) => {
+				el.dataset.n = String(props.Points.length)
+			})
+		</script>
 		<style scoped>figcaption { font-weight: bold }</style>
 	</figure>
 }
