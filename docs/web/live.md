@@ -80,6 +80,12 @@ Two ways, one mechanism:
   each page's component (`&Counter{Start: 1}`, a value whose fields are the
   defaults, works too).
 
+  Once mounted, the page owns its exported fields: what its handlers, hooks
+  and `bind:` fields set stays set, and the browser shows it — a handler
+  clearing a bound field clears the input. A [patch](/web/navigation) sets
+  again only the fields its URL binds, before its `Update` runs
+  ([whose fields](/ui/stateful#whose-fields)).
+
 - **Any GET route** whose page — a `ui.Node` result or a templ view —
   renders a stateful component or an event handler is live by itself:
 
@@ -315,9 +321,10 @@ error's own text, as an HTTP error page shows it.
 
 The reply carries the HTML of each component whose output changed (the page
 itself is `c0`). The runtime morphs the element in place: elements are
-matched by `id`, else `data-vk-id`, else position and tag; a focused field
-keeps its value and caret; another field takes the server's value when it
-changed. Give list rows an `id` for stable identity across inserts and
+matched by `id`, else `data-vk-id`, else position and tag. A field takes
+the server's value when it changed; a focused one only while it shows what
+it showed when the page last sent an event (a form the server clears once
+sent), else it keeps what the user typed since, and its caret. Give list rows an `id` for stable identity across inserts and
 removals. A whole-document `c0` patch morphs the `<body>` and sets the title.
 
 ## Browser attributes and events

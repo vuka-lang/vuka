@@ -497,8 +497,8 @@ its island), `crud` (Schema, a relation walked by typed fields, a named
 query, transactions, update arithmetic, typed `SaveFields`, a call
 decorator), `live` (a page backed by its script island with a deferred
 group, a bound and validated query in the URL, an `Update` per message and
-per URL, navigation; a JSX page with a bound input, a validated form and
-patches), `components` (struct components with slots, a script and a
+per URL, navigation; a JSX page with a bound input its form clears once sent, a
+validated form and patches), `components` (struct components with slots, a script and a
 scoped style, a layout taking `ctx` used as a tag, partials, keyed
 stateful components), `islands` (`.ts` script islands without Node, in a
 live page and a page that isn't) and `islands-vue` (a `.vue` island; it
