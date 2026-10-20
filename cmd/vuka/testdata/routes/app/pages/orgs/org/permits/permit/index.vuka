@@ -1,0 +1,13 @@
+package permit
+
+import "github.com/vuka-lang/ui"
+
+// Index is a permit's page, live.
+type Index struct {
+	ui.Live
+	Params
+}
+
+func NewIndex() *Index { return &Index{} }
+
+func (x *Index) Render() ui.Node { return ui.Text(IndexURL(x.Org, x.Permit)) }

@@ -318,6 +318,11 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	}
 	var gens []load.Generated
 	t0 := time.Now()
+	routes := scanRoutes(s.root, modPath, nil)
+	if pkgs, err = routes.stub(pkgs); err != nil {
+		r.err = err
+		return r
+	}
 	if len(pkgs) > 0 {
 		transpile := load.Transpile
 		if s.sess != nil {
@@ -327,6 +332,10 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 			r.err = err
 			return r
 		}
+	}
+	if gens, r.overlay, err = routes.apply(gens, r.overlay, dir); err != nil {
+		r.err = err
+		return r
 	}
 	var linkMsg string
 	if r.overlay, gens, linkMsg, err = autoLink(s.root, modPath, dir, r.overlay, pkgs, gens); err != nil {
