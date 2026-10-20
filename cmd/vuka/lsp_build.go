@@ -687,7 +687,11 @@ func (p *proxy) syntaxOf(path string, buf []byte) *diagSet {
 	src, hs := completable(buf)
 	m := vfile{from: src, cur: buf, hunks: hs}
 	d := &diagSet{text: buf}
-	for _, e := range p.syntax.check(path, src) {
+	var others []transpile.File
+	if strings.HasSuffix(path, ".vuka.html") {
+		others = p.packageSources(path)
+	}
+	for _, e := range p.syntax.check(path, src, others) {
 		pos := positionOf(buf, m.curOff(e.Pos.Offset))
 		d.list = append(d.list, lspFromError(lspRange{pos, positionOf(buf, m.curOff(e.Pos.Offset+e.Len))}, e))
 	}
@@ -705,7 +709,41 @@ type syntaxChecker struct {
 	imp           *load.Importer
 }
 
-func (c *syntaxChecker) check(path string, src []byte) transpile.ErrorList {
+// packageSources are the Go and .vuka files of the package of the template
+// at path, as the editor has them: what its syntax check reads its package
+// clause, imports and component type from.
+func (p *proxy) packageSources(path string) []transpile.File {
+	dir := filepath.Dir(path)
+	entries, _ := os.ReadDir(dir)
+	generated := map[string]bool{}
+	for _, e := range entries {
+		if isVuka(e.Name()) {
+			generated[transpile.GoName(e.Name())] = true
+		}
+	}
+	var out []transpile.File
+	for _, e := range entries {
+		name := e.Name()
+		if e.IsDir() || generated[name] || strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_test.vuka") ||
+			!strings.HasSuffix(name, ".go") && !strings.HasSuffix(name, ".vuka") {
+			continue
+		}
+		full := filepath.Join(dir, name)
+		p.mu.Lock()
+		src, ok := p.bufs[full]
+		p.mu.Unlock()
+		if !ok {
+			var err error
+			if src, err = os.ReadFile(full); err != nil {
+				continue
+			}
+		}
+		out = append(out, transpile.File{Name: name, Src: src})
+	}
+	return out
+}
+
+func (c *syntaxChecker) check(path string, src []byte, others []transpile.File) transpile.ErrorList {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	dir := filepath.Dir(path)
@@ -722,7 +760,7 @@ func (c *syntaxChecker) check(path string, src []byte) transpile.ErrorList {
 		Path:     func(name string) string { return filepath.Join(dir, name) },
 		Bare:     true,
 		Dir:      dir,
-	})
+	}, others...)
 	kept := errs[:0]
 	for _, e := range errs {
 		if !strings.HasPrefix(e.Msg, "JSX needs a target") {

@@ -166,6 +166,24 @@ func componentName(file string) string {
 	return b.String()
 }
 
+// template makes the template file f the .vuka source it compiles as, or
+// reports why it can't. files are the package's.
+func (e *engine) template(f *fileState, files []File) bool {
+	q := "ui."
+	if e.selfJSX {
+		q = ""
+	}
+	src, h, err := htmlSource(f.name, f.src, files, q)
+	if err != nil {
+		line, col := max(err.Pos.Line, 1), max(err.Pos.Column, 1)
+		err.Pos = f.lines.pos(f.path, min(f.lines[min(line, len(f.lines))-1]+col-1, len(f.src)))
+		*e.errs = append(*e.errs, err)
+		return false
+	}
+	f.src, f.html, f.lines = src, h, newLineIndex(src)
+	return true
+}
+
 // htmlSource is a template file as the .vuka source it compiles as. others
 // are the package's other files: its name, its imports and the main
 // template's type come from them.
@@ -305,7 +323,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			}
 		}
 		if last < 0 {
-			add(contentEnd(from-1), "<></> }")
+			add(contentEnd(from-1), "</> }") // the header opened the fragment
 			return contentEnd(from - 1)
 		}
 		add(contentEnd(last), "</> }")
@@ -843,4 +861,52 @@ func TemplateHeaders(src []byte) []TemplateHeader {
 		off, prev = off+len(l), l
 	}
 	return out
+}
+
+// BlankTemplate is the template file src with the markup of the template
+// holding the offset off written as spaces, its lines kept: a template
+// without markup, still declared; the whole template, doc comment and
+// header too, when off is in its header. nil when off is in no template
+// (the package clause and imports). The language server compiles a file
+// with an error in one template so, for the others to type-check.
+func BlankTemplate(src []byte, off int) []byte {
+	lines := strings.SplitAfter(string(src), "\n")
+	top := ParseTemplateHead(src).Top
+	type span struct{ doc, head, end int } // a template's lines: its doc comment, header, markup up to end
+	spans := []span{{top, -1, len(lines)}}
+	for i := top; i < len(lines); i++ {
+		if funcLine.MatchString(lines[i]) {
+			d := i
+			for d > top && strings.HasPrefix(lines[d-1], "//") {
+				d--
+			}
+			spans[len(spans)-1].end = d
+			spans = append(spans, span{d, i, len(lines)})
+		}
+	}
+	at, line := 0, 0
+	for line < len(lines) && at+len(lines[line]) <= off {
+		at += len(lines[line])
+		line++
+	}
+	for _, s := range spans {
+		if line < s.doc || line >= s.end {
+			continue
+		}
+		from := s.head + 1 // the markup
+		if line <= s.head || s.head < 0 {
+			from = s.doc
+		}
+		out := []byte(strings.Join(lines[:from], ""))
+		for _, l := range lines[from:s.end] {
+			for _, c := range []byte(l) {
+				if c != '\n' {
+					c = ' '
+				}
+				out = append(out, c)
+			}
+		}
+		return append(out, strings.Join(lines[s.end:], "")...)
+	}
+	return nil
 }

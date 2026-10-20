@@ -528,18 +528,8 @@ func Package(files []File, opts Options) (*Result, error) {
 		if opts.Path != nil {
 			f.path = opts.Path(file.Name)
 		}
-		if file.IsTemplate() {
-			q := "ui."
-			if e.selfJSX {
-				q = ""
-			}
-			src, h, err := htmlSource(file.Name, file.Src, files, q)
-			if err != nil {
-				err.Pos.Filename, err.Pos.Line, err.Pos.Column = f.path, max(err.Pos.Line, 1), max(err.Pos.Column, 1)
-				errs = append(errs, err)
-				continue
-			}
-			f.src, f.html, f.lines = src, h, newLineIndex(src)
+		if file.IsTemplate() && !e.template(f, files) {
+			continue
 		}
 		if f.vuka {
 			f.scan(&errs)
@@ -622,7 +612,9 @@ func Package(files []File, opts Options) (*Result, error) {
 // file becomes, with no package to type-check. They are the errors Package
 // reports for the file when it reports any of its syntax. opts are as for
 // Package; only Importer (for JSX's target), Path, Bare and Scopes matter.
-func Syntax(file File, opts Options) ErrorList {
+// A template file needs others, the package's other files: its package
+// clause, imports and the type of its main template come from them.
+func Syntax(file File, opts Options, others ...File) ErrorList {
 	var errs ErrorList
 	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, scopes: opts.Scopes}
 	if e.imp == nil {
@@ -633,7 +625,10 @@ func Syntax(file File, opts Options) ErrorList {
 	if opts.Path != nil {
 		f.path = opts.Path(file.Name)
 	}
-	e.detectSelfTarget([]File{file})
+	e.detectSelfTarget(append([]File{file}, others...))
+	if file.IsTemplate() && !e.template(f, append([]File{file}, others...)) {
+		return errs
+	}
 	f.scan(&errs)
 	if len(errs) == 0 {
 		f.attrEdits()
