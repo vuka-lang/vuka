@@ -15,14 +15,14 @@ import (
 
 //line schema.vuka:12
 type User struct {
-	orm.Base[User]
+	orm.Model[User]
 	ID   int64
 	Name string
 }
 
 // Post is a model: its attributes become its Schema method.
 type Post struct {
-	orm.Base[Post]
+	orm.Model[Post]
 	ID     int64
 	Title  string
 	Slug   string

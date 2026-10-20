@@ -122,6 +122,7 @@ public github.com/vuka-lang/orm.Char
 public github.com/vuka-lang/orm.Column
 public github.com/vuka-lang/orm.Field
 public github.com/vuka-lang/orm.Meta
+public github.com/vuka-lang/orm.Model
 public github.com/vuka-lang/orm.Objects
 public github.com/vuka-lang/orm.PK
 public github.com/vuka-lang/orm.Schema

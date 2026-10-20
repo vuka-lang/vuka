@@ -16,6 +16,10 @@ type Base[Self any] struct{}
 
 func (Base[Self]) vukaSchema(interface{ Schema(*Schema) }) {}
 func (Base[Self]) vukaFields()                             {}
+func (Base[Self]) vukaPlain(Model[Self])                   {}
+
+// Model is what plain Go embeds in Base's place.
+type Model[Self any] struct{ Base[Self] }
 
 // Save stores the row.
 func (b *Base[Self]) Save(self *Self, ctx context.Context) error {

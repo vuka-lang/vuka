@@ -252,7 +252,7 @@ form are the same text: `@X{…}` on a field is `X{…}` after `&t.Field`.
 
 ```go
 type Applications struct {
-	orm.Base[Applications]
+	orm.Model[Applications]
 	ID              int
 	CreatedAt       Option[time.Time]
 	Applicant       orm.FK[Applicant]
@@ -554,7 +554,9 @@ Step 3 is done: a type embedding `orm.Base` (or `orm.Model`) gets a
 the embedded base's are `s.Model(…)`, a bare `@orm.PK` is `orm.PK{}` — and
 a type embedding `ui.Live` a `LiveSchema` method from its fields'
 attributes and its methods' hooks (`@ui.Mount` on `mount` is
-`l.Mount(d.mount)`). The two types say which method they want with a
+`l.Mount(d.mount)`). An embedded `orm.Base` is written `orm.Model[Post]`, what plain Go
+embeds (`func (Base[Self]) vukaPlain(Model[Self])` names it), unless the
+code names the field `Base`. The two types say which method they want with a
 marker method, `vukaSchema(interface{ Schema(*orm.Schema) })`, so the
 transpiler names no package. `Post.Slug` is `PostFields.Slug`,
 `Post.Objects` is `orm.Objects[Post]()`, a static `func Post.Live()` is
