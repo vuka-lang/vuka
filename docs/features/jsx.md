@@ -281,11 +281,11 @@ func navLink(item Item, on bool) ui.Node { … }
   `ui.ErrorBoundary` above it shows a fallback).
 - A **generic** component's type arguments are inferred from its attributes,
   as a call's are from its arguments, or given on the tag: `<List[User] …>`.
-  This holds for a generic props struct too — `<Table Rows={rows}
-  Cell={fn}/>` for `func Table[T any](p TableProps[T])` infers `T` by matching
+  This holds for a generic props struct too — `<Table rows={rows}
+  cell={fn}/>` for `func Table[T any](p TableProps[T])` infers `T` by matching
   each field's declared type (`Rows []T`, `Cell func(T) string`) against the
   attribute's value — and for a generic **stateful** component the same way:
-  `<Box Value={7}/>` for `type Box[T any] struct{ ui.Live; Value T }` infers
+  `<Box value={7}/>` for `type Box[T any] struct{ ui.Live; Value T }` infers
   `T = int` and writes `&Box[int]{Value: 7}`. Give the arguments on the tag
   when no attribute pins a parameter, or when they would conflict.
 - An **overloaded** component's overload is the one its attributes' types fit
@@ -498,7 +498,7 @@ A component tag becomes a call of that component. For a function taking one
 struct, the attributes and children become that struct's literal:
 
 ```go
-// <List Items={users} Key={key}>{…}</List>   for  func List[T any](p ListProps[T]) ui.Node
+// <List items={users} Key={key}>{…}</List>   for  func List[T any](p ListProps[T]) ui.Node
 List(ListProps[User]{Items: users, Key: key, Children: ui.HTML(`…`, …)})
 ```
 
