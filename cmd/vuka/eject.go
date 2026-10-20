@@ -5,7 +5,10 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/ast"
 	"go/format"
+	"go/parser"
+	"go/token"
 	"io"
 	"os"
 	"path/filepath"
@@ -169,9 +172,97 @@ func ejected(src []byte) []byte {
 		}
 		out = append(out, l)
 	}
-	res := []byte(strings.Join(out, ""))
+	res := arrange([]byte(strings.Join(out, "")))
 	if f, err := format.Source(res); err == nil {
 		return f
 	}
 	return res
+}
+
+// arrange puts what Vuka wrote for a type where a person writes it: its
+// constructor and schema method right after the type, and the file's init
+// functions as one, the last.
+func arrange(src []byte) []byte {
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, "", src, parser.ParseComments)
+	if err != nil {
+		return src
+	}
+	off := func(p token.Pos) int { return fset.Position(p).Offset }
+	type edit struct {
+		start, end int
+		text       string
+	}
+	var edits []edit
+	cut := func(fd *ast.FuncDecl) string {
+		start, end := off(fd.Pos()), off(fd.End())
+		for end < len(src) && src[end] == '\n' {
+			end++
+		}
+		edits = append(edits, edit{start, end, ""})
+		return string(src[start:off(fd.End())])
+	}
+	typeEnd := map[string]int{}
+	for _, d := range f.Decls {
+		if gd, ok := d.(*ast.GenDecl); ok && gd.Tok == token.TYPE && len(gd.Specs) == 1 {
+			typeEnd[gd.Specs[0].(*ast.TypeSpec).Name.Name] = off(gd.End())
+		}
+	}
+	follow := map[string][]string{}
+	var inits []*ast.FuncDecl
+	for _, d := range f.Decls {
+		fd, ok := d.(*ast.FuncDecl)
+		if !ok || fd.Doc != nil {
+			continue
+		}
+		if fd.Recv == nil && fd.Name.Name == "init" {
+			inits = append(inits, fd)
+			continue
+		}
+		typ := ""
+		if fd.Recv == nil {
+			for t := range typeEnd {
+				if fd.Name.Name == "New"+t || fd.Name.Name == "new"+strings.ToUpper(t[:1])+t[1:] {
+					typ = t
+				}
+			}
+		} else if fd.Name.Name == "Schema" || fd.Name.Name == "LiveSchema" {
+			typ = recvName(fd)
+		}
+		if end, ok := typeEnd[typ]; ok && off(fd.Pos()) > end {
+			// the constructor first
+			if fd.Recv == nil {
+				follow[typ] = append([]string{cut(fd)}, follow[typ]...)
+			} else {
+				follow[typ] = append(follow[typ], cut(fd))
+			}
+		}
+	}
+	for t, fns := range follow {
+		edits = append(edits, edit{typeEnd[t], typeEnd[t], "\n\n" + strings.Join(fns, "\n\n")})
+	}
+	if len(inits) > 1 {
+		var body []string
+		for _, fd := range inits {
+			body = append(body, strings.TrimSpace(string(src[off(fd.Body.Lbrace)+1:off(fd.Body.Rbrace)])))
+			if fd != inits[len(inits)-1] {
+				cut(fd)
+			}
+		}
+		last := inits[len(inits)-1].Body
+		edits = append(edits, edit{off(last.Lbrace) + 1, off(last.Rbrace), "\n" + strings.Join(body, "\n") + "\n"})
+	}
+	slices.SortStableFunc(edits, func(a, b edit) int { return a.start - b.start })
+	var b bytes.Buffer
+	at := 0
+	for _, e := range edits {
+		if e.start < at {
+			return src
+		}
+		b.Write(src[at:e.start])
+		b.WriteString(e.text)
+		at = e.end
+	}
+	b.Write(src[at:])
+	return b.Bytes()
 }

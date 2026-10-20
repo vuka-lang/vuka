@@ -15,7 +15,7 @@ import (
 
 // User is a member of the directory, a row of its table.
 type User struct {
-	orm.Base[User]
+	orm.Model[User]
 	ID   int64  `json:"id"`
 	Name string `json:"name"`
 }

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/vuka-lang/ui"
 	"github.com/vuka-lang/web"
 )
@@ -40,7 +42,9 @@ type Profile struct {
 
 func NewProfile() *Profile { return &Profile{} }
 
-func (p *Profile) Mount() error {
+func (p *Profile) LiveSchema(l *ui.LiveSchema) { l.Mount(p.mount) }
+
+func (p *Profile) mount(ctx context.Context) error {
 	names := map[int]string{1: "Ada", 2: "Grace"}
 	if p.Name = names[p.ID]; p.Name == "" {
 		return web.NotFound
