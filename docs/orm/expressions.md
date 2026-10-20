@@ -27,7 +27,8 @@ var slug = "hello-go"
 -->
 SQL's expressions are the engine's: a field's `Expr()` is its column
 (`orm.F("title")`), and functions, `Case`, `Switch`, `Cast`, `Value` and
-`SQL` take expressions, values or other calls. A typed call compares by its
+`SQL` take expressions, values or other calls — and typed fields as they
+are, <span class="vuka-only">`orm.Lower(Post.Title)`</span><span class="go-only">`orm.Lower(PostFields.Title)`</span>. A typed call compares by its
 result's type, so `orm.Length(…).Eq("x")` doesn't compile:
 
 ::: vuka

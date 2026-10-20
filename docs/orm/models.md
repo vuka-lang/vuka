@@ -363,6 +363,11 @@ drafts, err := orm.Objects[Post]().Filter(PostFields.Published.IsNull(true)).All
 <span class="vuka-only">Its reference is a `vuka.NullableRef`: `IsNil`, `NotNil`, and `Eq`, `Ne`,
 `In`.</span><span class="go-only">Its typed field is an `orm.Field[V]` with `IsNull` for its NULLs.</span>
 
+<span class="go-only">A Go model writes a nullable field as a pointer, `Published *time.Time`
+(nil is NULL), the usual Go, or as a `vuka.Option[time.Time]`, what a Vuka
+model's `Option[T]` is and what `vuka eject` keeps: the ORM, JSON and an
+island's props read both. `orm generate` writes a row scanner for either.</span>
+
 ## Plain Go
 
 A Go model embeds `orm.Model[T]` (the type `orm.Base` stands for in a Vuka

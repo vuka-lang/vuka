@@ -82,7 +82,7 @@ func init() {
 | `static Limit = 10`, `func Post.Live()` | `var PostLimit = 10`, `func PostLive()`: package-level, named after the type |
 | `area(c Circle)`, `area(r Rect)` | `areaCircle`, `areaRect`: each overload has its own name |
 | `Result[T]`, `?` | `(T, error)` and `if err != nil` — `vuka.Result[T]` works too |
-| `Option[T]` | `(T, bool)` or a pointer — `vuka.Option[T]` works too |
+| `Option[T]` | `(T, bool)` or a pointer — `vuka.Option[T]` works too; a model's nullable field is a pointer, `*time.Time`, or a `vuka.Option[time.Time]`, which eject keeps |
 | `match` | `switch`, or a type switch |
 | `enum Status { Draft, Sent }` | `type Status int` and its constants, `StatusDraft`, `StatusSent` |
 

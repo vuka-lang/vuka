@@ -243,3 +243,12 @@ func main() { fmt.Println(cli.Names()) }
 		t.Errorf("go run .: %v\n%s", err, got)
 	}
 }
+
+func TestRouteBundle(t *testing.T) {
+	if !routeBundle.MatchString(`func AdminPage(path string) vuka.Bundle { return vuka.Compose(web.Get(path), auth.Required()) }`) {
+		t.Error("a bundle of web.Get isn't seen")
+	}
+	if routeBundle.MatchString(`func Gate() vuka.Bundle { return vuka.Compose(Gate{}, vuka.Decorator(check)) }`) {
+		t.Error("a gate is taken for a route bundle")
+	}
+}
