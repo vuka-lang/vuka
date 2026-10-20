@@ -386,9 +386,10 @@ another app's `LaxGates` in the same process.
 :::
 
 From Go, a gate is a route's option: `app.Get("/x", h, auth.Requires("x"))`,
-`app.Live("/board", NewBoard, auth.Public())`. Written on a function in Vuka
-it also gates direct calls; the route reads it from the function's
-attributes.
+`app.Live("/board", NewBoard, auth.Public())`. In Vuka a gate beside the
+route's decorator (`@web.Get`, `@web.Live`, `@web.Controller`) is that
+option too; a gate on a declaration with no route decorator (a method of a
+page) wraps it, so it also gates direct calls.
 
 Who is refused, and how:
 
