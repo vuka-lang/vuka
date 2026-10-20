@@ -543,8 +543,8 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				item(label, 3, detail, label, 1, "0"+label)
 			case kind == 22 && isExported(label) && structs < 20:
 				structs++
-				if p.statefulAttrs(genPath, spot.qual+label) != nil {
-					item(label, 7, "stateful component", label, 1, "0"+label)
+				if attrs, kind := p.structAttrs(genPath, spot.qual+label); attrs != nil {
+					item(label, 7, kind, label, 1, "0"+label)
 				}
 			case kind == 9 && spot.qual == "":
 				item(label, 9, detail, label, 1, "2"+label)
@@ -679,7 +679,8 @@ func (p *proxy) componentAttrs(genPath, tag string) []compAttr {
 	for _, it := range p.probe(genPath, tag, "") {
 		if it["label"] == last {
 			if kind, _ := it["kind"].(float64); kind == 22 {
-				return p.statefulAttrs(genPath, tag)
+				attrs, _ := p.structAttrs(genPath, tag)
+				return attrs
 			}
 			detail, _ := it["detail"].(string)
 			ft = funcDetail(detail)
@@ -725,39 +726,51 @@ func (p *proxy) componentAttrs(genPath, tag string) []compAttr {
 	return out
 }
 
-// statefulAttrs are the props of a stateful component, its exported fields
-// (promoted ones too) as declared; nil when the struct isn't one: its pointer
-// has no Render method, or no Subscribe promoted from vuka.Live.
-func (p *proxy) statefulAttrs(genPath, tag string) []compAttr {
+// structAttrs are the attributes of a component that is a struct, and what
+// kind it is: a stateful component's props, its exported fields (promoted
+// ones too) as declared; a struct component's (a View or Render method
+// returning its markup) or an island's, the fields written as attributes
+// (glyph for Glyph). nil when the struct is no component.
+func (p *proxy) structAttrs(genPath, tag string) ([]compAttr, string) {
 	var out []compAttr
-	render, live := false, false
+	render, view, live := false, false, false
 	for _, it := range p.probe(genPath, "(&"+tag+"{}).", "") {
 		label, _ := it["label"].(string)
 		detail, _ := it["detail"].(string)
 		switch kind, _ := it["kind"].(float64); {
 		case kind == 2 && label == "Render":
 			render = true
+		case kind == 2 && label == "View":
+			view = true
 		case kind == 2 && label == "Subscribe":
 			live = true
 		case kind == 5 && isExported(label) && label != "Live" && label != "Children":
 			out = append(out, compAttr{label, detail})
 		}
 	}
-	if !render && !live && len(out) > 0 && p.isIsland(genPath, tag) {
-		// A struct that isn't stateful: an island's props (an @ui.Island
-		// struct, or an imported component's), written as the component's.
-		for i := range out {
-			out[i].name = strings.ToLower(out[i].name[:1]) + out[i].name[1:]
+	if render && live {
+		if out == nil {
+			out = []compAttr{}
 		}
-		return out
+		return out, "stateful component"
 	}
-	if !render || !live {
-		return nil
+	kind := "component"
+	switch {
+	case live:
+		return nil, ""
+	case !render && !view:
+		if len(out) == 0 || !p.isIsland(genPath, tag) {
+			return nil, ""
+		}
+		kind = "island"
+	}
+	for i := range out {
+		out[i].name = strings.ToLower(out[i].name[:1]) + out[i].name[1:]
 	}
 	if out == nil {
 		out = []compAttr{}
 	}
-	return out
+	return out, kind
 }
 
 // isIsland reports whether a type of the package genPath is in is an

@@ -615,7 +615,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			}
 			continue
 		}
-		res, err := transpile.Package(p.Files, transpile.Options{
+		topts := transpile.Options{
 			Templ:         templ,
 			TemplRegistry: registry,
 			Importer:      imp,
@@ -625,15 +625,25 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			ImportPath:    p.ImportPath,
 			Scopes:        opts.Scopes[p.Dir],
 			Split:         opts.Split,
-		})
+		}
+		res, err := transpile.Package(p.Files, topts)
+		partial := false
 		if err != nil {
 			var list transpile.ErrorList
-			if errors.As(err, &list) {
-				errs = append(errs, list...)
+			if !errors.As(err, &list) {
+				return nil, "", fmt.Errorf("%s: %w", p.ImportPath, err)
+			}
+			errs = append(errs, list...)
+			if opts.Bare {
+				// The language server: the package's other files still
+				// type-check without those with errors.
+				res = transpileWithout(p, topts, list)
+			}
+			if res == nil {
 				imp.Broken(p.ImportPath)
 				continue
 			}
-			return nil, "", fmt.Errorf("%s: %w", p.ImportPath, err)
+			partial = true
 		}
 		for _, f := range res.Files {
 			target := filepath.Join(p.Dir, f.GoName)
@@ -655,7 +665,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			}
 			out = append(out, Generated{Target: filepath.Join(p.Dir, transpile.CallsGoName), Src: res.Calls})
 		}
-		if sess != nil {
+		if sess != nil && !partial {
 			sess.store(p, key, out[first:])
 		}
 		if err := flush(); err != nil {
@@ -671,6 +681,52 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		return out, overlay, onceEach(errs)
 	}
 	return out, overlay, nil
+}
+
+// transpileWithout transpiles p without what has errors, those of list and
+// any the rest then has: a template file's template holding one is left
+// blank, any other .vuka file left out. nil when no .vuka file is left or
+// the errors are elsewhere.
+func transpileWithout(p *Package, opts transpile.Options, list transpile.ErrorList) *transpile.Result {
+	files := p.Files
+	for {
+		changed := false
+		next := slices.Clone(files)
+		drop := map[string]bool{}
+		for _, e := range list {
+			dir, name := filepath.Split(e.Pos.Filename)
+			if filepath.Clean(dir) != p.Dir || !isVukaName(name) || drop[name] {
+				continue
+			}
+			i := slices.IndexFunc(next, func(f transpile.File) bool { return f.Name == name })
+			if i < 0 {
+				continue
+			}
+			if next[i].IsTemplate() {
+				if b := transpile.BlankTemplate(next[i].Src, e.Pos.Offset); b != nil && !bytes.Equal(b, next[i].Src) {
+					next[i].Src, changed = b, true
+					continue
+				}
+			}
+			drop[name], changed = true, true
+		}
+		next = slices.DeleteFunc(next, func(f transpile.File) bool { return drop[f.Name] })
+		if !changed || !slices.ContainsFunc(next, transpile.File.IsVuka) {
+			return nil
+		}
+		res, err := transpile.Package(next, opts)
+		if err == nil {
+			return res
+		}
+		if !errors.As(err, &list) {
+			return nil
+		}
+		files = next
+	}
+}
+
+func isVukaName(name string) bool {
+	return strings.HasSuffix(name, ".vuka") || strings.HasSuffix(name, ".vuka.html")
 }
 
 // TemplFinder finds .templ files of pkgs for vuka.File literals naming one

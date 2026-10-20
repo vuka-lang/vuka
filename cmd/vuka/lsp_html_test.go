@@ -108,3 +108,140 @@ func TestLSPTemplateHTML(t *testing.T) {
 		}
 	}
 }
+
+// A package of template files read by their bare names, one of them with a
+// syntax error in one of its templates.
+var lspHTMLPackage = map[string]string{
+	"layout.go": `package main
+
+const Name = "Shop"
+
+// Document is the page around every page.
+type Document struct {
+	Title string
+}
+
+// Item is a menu entry.
+type Item struct {
+	Label string
+	Href  string
+}
+
+func main() {}
+`,
+	"document.vuka.html": `package main
+
+import "lsptest/components"
+
+<html>
+  <head><title>{Title + " · " + Name}</title></head>
+  <body>
+    <components.Icon glyph={components.Home} size={16} />
+    <navLink item={Item{Label: "Home"}} on={true} />
+    <Footer />
+  </body>
+</html>
+
+// navLink is a menu entry; on marks the current one.
+func navLink(item Item, on bool)
+<a href={item.Href} class={item.Label}>{item.Label}</a>
+
+// Footer is the pages' footer line.
+func Footer()
+<p>Copyright © 2014</p>
+`,
+	"menu.vuka.html": `package main
+
+func broken(item Item)
+<p><span>{item.Label}</p>
+
+func Menu(items []Item)
+<ul>
+  for _, it := range items {
+    <li>{it.Label}</li>
+  }
+</ul>
+`,
+	"components/icon.go": `package components
+
+// Glyph is an icon's drawing.
+type Glyph struct{ Path string }
+
+var Home = Glyph{"M0 0"}
+
+// Icon draws its glyph.
+type Icon struct {
+	Glyph Glyph
+	Size  int
+	Label string
+}
+
+func (i Icon) Path() string { return i.Glyph.Path }
+`,
+	"components/icon.vuka.html": `package components
+
+<svg width={Size} aria-label={Label}><path d={Path()} /></svg>
+`,
+}
+
+// TestLSPTemplatePackage: in template files read by their bare names, with
+// a package clause, partials and components of another package, hover,
+// definition and completion land on the Go, while another template file of
+// the package has a syntax error; and in that file, outside the template
+// with the error.
+func TestLSPTemplatePackage(t *testing.T) {
+	c, dir, _ := startLSPWith(t, lspHTMLPackage)
+	doc := lspHTMLPackage["document.vuka.html"]
+	uri := pathToURI(filepath.Join(dir, "document.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka-html", "version": 1, "text": doc}})
+	// The first diagnostics are the syntax check's, of the file as a template.
+	first, _ := json.Marshal(c.waitDiags(uri, func(ds []any) bool { return true }))
+	if string(first) != "[]" {
+		t.Errorf("syntax errors in a template with none: %s", first)
+	}
+	at := func(uri, text, needle string, delta int) map[string]any {
+		i := strings.Index(text, needle)
+		if i < 0 {
+			t.Fatalf("no %q", needle)
+		}
+		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(text), i+delta)}
+	}
+	check := func(method, needle string, delta int, want ...string) {
+		t.Helper()
+		b, _ := json.Marshal(c.call(method, at(uri, doc, needle, delta)))
+		for _, w := range want {
+			if !strings.Contains(string(b), w) {
+				t.Errorf("%s at %q+%d: no %s in %.400s", method, needle, delta, w, b)
+			}
+		}
+	}
+	check("textDocument/hover", "{Title +", 2, "Title string")
+	check("textDocument/definition", "{Title +", 2, "layout.go")
+	check("textDocument/hover", "+ Name}", 3, "Name")
+	check("textDocument/completion", "{Title +", 3, `"Title"`)
+	// A partial: its parameters, and their fields.
+	check("textDocument/hover", "class={item.Label}", 14, "Label string")
+	check("textDocument/definition", "class={item.Label}", 14, "layout.go")
+	check("textDocument/completion", "class={item.Label}", 12, `"Label"`, `"Href"`)
+	// Its tag: the template, and its parameters as attributes.
+	check("textDocument/hover", "<navLink", 2, "func navLink(item Item, on bool)")
+	check("textDocument/definition", "<navLink", 2, "document.vuka.html")
+	check("textDocument/hover", "<navLink item", 10, "item Item")
+	check("textDocument/definition", "<navLink item", 10, "document.vuka.html")
+	check("textDocument/completion", "<navLink ", 9, `"item"`) // on is given
+	// A struct component of another package: its fields as attributes.
+	check("textDocument/hover", "glyph={", 1, "Glyph")
+	check("textDocument/definition", "glyph={", 1, "icon.go")
+	check("textDocument/completion", "size={16} ", 10, `"label"`)
+
+	menu := lspHTMLPackage["menu.vuka.html"]
+	muri := pathToURI(filepath.Join(dir, "menu.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": muri, "languageId": "vuka-html", "version": 1, "text": menu}})
+	c.waitDiags(muri, func(ds []any) bool { b, _ := json.Marshal(ds); return strings.Contains(string(b), "E0101") })
+	b, _ := json.Marshal(c.call("textDocument/hover", at(muri, menu, "{it.Label}", 5)))
+	if !strings.Contains(string(b), "Label string") {
+		t.Errorf("hover in the template without the error: %s", b)
+	}
+}
