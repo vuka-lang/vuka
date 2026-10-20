@@ -9,7 +9,7 @@ import (
 
 // List is GET /api/{%.Pkg%}.
 @web.Get("/api/{%.Pkg%}")
-func List(ctx context.Context, s *{%.Service%}) Result[[]{%.Model%}] { return s.All(ctx) }
+func List(ctx context.Context, s *{%.Service%}) ([]{%.Model%}, error) { return s.All(ctx) }
 
 // Create is POST /api/{%.Pkg%}: JSON in, the new {%.Model%} out.
 @web.Post("/api/{%.Pkg%}")

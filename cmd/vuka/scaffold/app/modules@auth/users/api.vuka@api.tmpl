@@ -15,7 +15,7 @@ import (
 // ListUsers is GET /api/users: every user.
 @web.Get("/api/users")
 @auth.Requires("users.read")
-func ListUsers(ctx context.Context, users *Users) Result[[]User] { return users.All(ctx) }
+func ListUsers(ctx context.Context, users *Users) ([]User, error) { return users.All(ctx) }
 
 // CreateUser is POST /api/users: a new account{%if .Mail%}, its owner emailed{%end%}.
 @web.Post("/api/users")

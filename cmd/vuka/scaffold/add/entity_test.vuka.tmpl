@@ -24,12 +24,12 @@ func Test{%.Name%}(t *testing.T) {
 	if err := {%.Name%}.Objects.Create(ctx, &row); err != nil {
 		t.Fatal(err)
 	}
-	all, err := {%.Name%}.Objects.All(ctx).Get()
+	all, err := {%.Name%}.Objects.All(ctx)
 	if err != nil || len(all) != 1 || all[0].ID != row.ID || all[0].CreatedAt.IsZero() {
 		t.Fatalf("All: %v %v", all, err)
 	}
 {%- else%}
-	if n, err := {%.Name%}.Objects.Count(ctx).Get(); err != nil || n != 0 {
+	if n, err := {%.Name%}.Objects.Count(ctx); err != nil || n != 0 {
 		t.Fatalf("Count: %v %v", n, err)
 	}
 {%- end%}

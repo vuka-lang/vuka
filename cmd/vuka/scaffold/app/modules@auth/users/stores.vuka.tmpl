@@ -2,6 +2,7 @@ package users
 
 import (
 	"context"
+	"errors"
 	"time"
 
 	"github.com/vuka-lang/orm"
@@ -19,20 +20,24 @@ type sessionStore struct{ db *orm.Databases }
 
 func (s *sessionStore) Get(ctx context.Context, key string) (*auth.Session, error) {
 	ctx = orm.WithDatabases(ctx, s.db)
-	match Session.Objects.Filter(Session.Key.Eq(key)).First(ctx) {
-	case Ok(Some(row)):
-		return &auth.Session{UserID: row.UserID, Created: row.Created, Seen: row.Seen, Expires: row.Expires}, nil
-	case Ok(None):
+	row, err := Session.Objects.Filter(Session.Key.Eq(key)).First(ctx)
+	if errors.Is(err, orm.ErrNotFound) {
 		return nil, nil
-	case Err(e):
-		return nil, e
 	}
+	if err != nil {
+		return nil, err
+	}
+	return &auth.Session{UserID: row.UserID, Created: row.Created, Seen: row.Seen, Expires: row.Expires}, nil
 }
 
 func (s *sessionStore) Save(ctx context.Context, key string, v auth.Session) error {
 	ctx = orm.WithDatabases(ctx, s.db)
-	row := Session{Key: key, UserID: v.UserID, Created: v.Created, Seen: v.Seen, Expires: v.Expires}
-	Session.Objects.UpdateOrCreate(ctx, row, Session.Key)?
+	_, _, err := Session.Objects.UpdateOrCreate(ctx, orm.Q{Session.Key.Name(): key}, orm.Defaults{
+		Session.UserID.Name(): v.UserID, Session.Created.Name(): v.Created, Session.Seen.Name(): v.Seen, Session.Expires.Name(): v.Expires,
+	})
+	if err != nil {
+		return err
+	}
 	if v.Seen.Equal(v.Created) { // a sign-in: clear out the expired
 		Session.Objects.Filter(Session.Expires.Lt(time.Now())).Delete(ctx)?
 	}
@@ -53,20 +58,24 @@ type tokenStore struct{ db *orm.Databases }
 
 func (s *tokenStore) Get(ctx context.Context, key string) (*auth.Token, error) {
 	ctx = orm.WithDatabases(ctx, s.db)
-	match Token.Objects.Filter(Token.Key.Eq(key)).First(ctx) {
-	case Ok(Some(row)):
-		return &auth.Token{UserID: row.UserID, Name: row.Name, Created: row.Created, Expires: row.Expires}, nil
-	case Ok(None):
+	row, err := Token.Objects.Filter(Token.Key.Eq(key)).First(ctx)
+	if errors.Is(err, orm.ErrNotFound) {
 		return nil, nil
-	case Err(e):
-		return nil, e
 	}
+	if err != nil {
+		return nil, err
+	}
+	return &auth.Token{UserID: row.UserID, Name: row.Name, Created: row.Created, Expires: row.Expires}, nil
 }
 
 func (s *tokenStore) Save(ctx context.Context, key string, t auth.Token) error {
 	ctx = orm.WithDatabases(ctx, s.db)
-	row := Token{Key: key, UserID: t.UserID, Name: t.Name, Created: t.Created, Expires: t.Expires}
-	Token.Objects.UpdateOrCreate(ctx, row, Token.Key)?
+	_, _, err := Token.Objects.UpdateOrCreate(ctx, orm.Q{Token.Key.Name(): key}, orm.Defaults{
+		Token.UserID.Name(): t.UserID, Token.Name.Name(): t.Name, Token.Created.Name(): t.Created, Token.Expires.Name(): t.Expires,
+	})
+	if err != nil {
+		return err
+	}
 	Token.Objects.Filter(Token.Expires.Lt(time.Now())).Delete(ctx)? // clear out the expired
 	return nil
 }

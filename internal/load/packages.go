@@ -468,6 +468,13 @@ type Options struct {
 	Split bool
 }
 
+// AfterPackage, when set, is asked after each Vuka package transpiles, with
+// the overlay holding its files, for more Go of that package the packages
+// importing it need: the vuka command gives the ORM's generated typed
+// fields of a package of models. Its files are added to the overlay and
+// the run's output.
+var AfterPackage func(dir, overlay string, gens []Generated) []Generated
+
 // ErrStopped is the error of a run Options.Stop abandoned.
 var ErrStopped = errors.New("stopped")
 
@@ -664,6 +671,17 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 				return nil, "", err
 			}
 			out = append(out, Generated{Target: filepath.Join(p.Dir, transpile.CallsGoName), Src: res.Calls})
+		}
+		if AfterPackage != nil && !opts.Bare {
+			if err := writeOverlay(overlay, replace); err != nil {
+				return nil, "", err
+			}
+			for _, g := range AfterPackage(p.Dir, overlay, out[first:]) {
+				if err := add(filepath.Base(g.Target), g.Src); err != nil {
+					return nil, "", err
+				}
+				out = append(out, g)
+			}
 		}
 		if sess != nil && !partial {
 			sess.store(p, key, out[first:])

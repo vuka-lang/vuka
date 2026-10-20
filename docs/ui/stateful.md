@@ -51,7 +51,7 @@ event handlers.
 ```vuka
 type Counter struct {
 	ui.Live
-	Start int // a prop: <Counter Start={5} />
+	Start int // a prop: <Counter start={5} />
 	n     int // state
 }
 
@@ -64,7 +64,7 @@ func (c *Counter) Render() ui.Node {
 	return <div><span>{c.n}</span><button onClick={c.Inc}>+</button></div>
 }
 
-<Counter Start={5} />
+<Counter start={5} />
 ```
 :::
 
@@ -155,7 +155,7 @@ keys follows them:
 ::: vuka
 ```vuka
 {for _, it := range t.items {
-	<li key={it.ID}><Counter Label={it.Name} /></li>   // or <Counter key={it.ID} … />
+	<li key={it.ID}><Counter label={it.Name} /></li>   // or <Counter key={it.ID} … />
 }}
 ```
 :::
