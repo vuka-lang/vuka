@@ -206,6 +206,11 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 				os.WriteFile(ts, liveTSConfig(), 0o644)
 			}
 		}
+		if warn != nil && pa.frontendRoot != "" {
+			for _, w := range outsideTSProject(pa.root, pa.frontendRoot, pa.islands) {
+				fmt.Fprintln(warn, "warning:", w)
+			}
+		}
 		if slices.ContainsFunc(pa.islands, func(ic *islandComp) bool { return ic.framework == "vanilla" }) {
 			writeIfChanged(filepath.Join(buildRoot, "vuka-island.d.ts"), []byte(islandModuleDTS))
 		}
@@ -792,4 +797,49 @@ func goTypeName(c *assetComp) string {
 		}
 	}
 	return c.importPath + "." + c.name
+}
+
+// outsideTSProject is a warning for each directory holding framework islands
+// outside the frontend whose tsconfig.json doesn't include it: they build
+// (Vite resolves their imports), but editors and vue-tsc don't check them.
+func outsideTSProject(root, frontend string, islands []*islandComp) []string {
+	b, err := os.ReadFile(filepath.Join(frontend, "tsconfig.json"))
+	if err != nil {
+		return nil
+	}
+	var ts struct{ Include []string }
+	if json.Unmarshal(b, &ts) != nil { // comments: look for the text
+		ts.Include = nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, ic := range islands {
+		if ic.framework == "vanilla" || ic.src == "" {
+			continue
+		}
+		r, err := filepath.Rel(frontend, filepath.Dir(ic.src))
+		parts := strings.Split(filepath.ToSlash(r), "/")
+		if err != nil || parts[0] != ".." {
+			continue
+		}
+		n := 0
+		for n < len(parts) && parts[n] == ".." {
+			n++
+		}
+		if n == len(parts) {
+			continue // above the frontend, not beside it
+		}
+		top := strings.Repeat("../", n) + parts[n]
+		included := slices.ContainsFunc(ts.Include, func(p string) bool { return p == top || strings.HasPrefix(p, top+"/") })
+		if ts.Include == nil {
+			included = bytes.Contains(b, []byte(`"`+top+`/`))
+		}
+		if seen[top] || included {
+			continue
+		}
+		seen[top] = true
+		out = append(out, fmt.Sprintf("%s is outside %s's TypeScript project, so editors and vue-tsc don't check it: add %q to the include of %s/tsconfig.json",
+			ic.rel, rel(root, frontend), top+"/**/*"+filepath.Ext(ic.src), rel(root, frontend)))
+	}
+	return out
 }
