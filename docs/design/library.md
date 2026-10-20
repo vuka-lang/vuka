@@ -378,6 +378,60 @@ mistakes are compile errors (the method values are typed). `.vuka`
 attributes (`@ui.Bind{…}`, `@ui.Defer("lists")`, `@ui.Loads("lists")`,
 `@ui.OnChange`, `@ui.Mount`) lower to exactly these calls.
 
+### Hooks declared by the constructor (proposed, 1.1)
+
+A page whose only schema is its hooks declares them in its constructor, on
+the embedded `ui.Live`, by method expression:
+
+```go
+type Login struct {
+	ui.Live
+	login ui.Assign[Credentials]
+}
+
+func NewLogin() *Login {
+	l := &Login{}
+	l.OnMount((*Login).mount)
+	l.Loads("stats", (*Login).loadStats)
+	return l
+}
+
+func (l *Login) mount(ctx context.Context) error     { … }
+func (l *Login) loadStats(ctx context.Context) error { … }
+```
+
+- `(l *Live) OnMount(fn any)`, `Loads(group string, fn any)` and
+  `OnChange(fn any)`. A hook is a method expression, `func(*T, …)`, never a
+  method value: the runtime runs hooks on the page it holds (a loader's
+  copy, a resumed page), so a hook takes the page as its first argument.
+  Signatures as `LiveSchema`'s: `OnMount` and `Loads` take `func(*T)` or
+  `func(*T, context.Context)`, returning nothing or an error; `OnChange`
+  also `func(*T, context.Context, ui.Changed)`.
+- The hooks are the type's, not the instance's: the first instance of a type
+  to declare them sets its table, checked then (`T` must be the type
+  embedding this `Live`: E0336, naming the call's line); an instance
+  declaring other hooks for the same type is E0336 too. Later constructor
+  calls compare and store a pointer.
+- Hooks stay unexported and out of the browser's reach; `ui.Live`'s methods,
+  these included, are never events.
+- One declaration per hook: a hook set by both the constructor and
+  `LiveSchema` is E0336. Fields keep their attributes in `LiveSchema`; a
+  page may use both, the constructor for hooks and `LiveSchema` for fields.
+- A page built without its constructor has the hooks its type already set,
+  or none. A routed page is built by its constructor; a stateful component
+  placed by a template is a literal (`&Counter{…}`) and runs none, so a
+  component whose hooks live in a constructor is placed as
+  `NewCounter(…)`, or declares them in `LiveSchema`. vukavet reports a
+  literal of a type whose hooks are declared only by a constructor (W0304),
+  and a hook declared outside a function returning the type (W0305).
+- vukavet checks each method expression against the hook's signatures
+  statically, so a mistake shows in the editor before boot.
+- `.vuka` is unchanged: `@ui.Mount` and the other hook attributes lower to
+  `LiveSchema`, which needs no constructor. Nothing to eject: the form is
+  plain Go.
+- Additive: `LiveSchema` stays the explicit form; hooks found by name stay
+  deprecated (W0303).
+
 ## 4. Generated code is optional — a speed-up, not a requirement
 
 | Generated today | Without it (`go run .`) | With `go generate` |
@@ -537,6 +591,7 @@ Folded into roadmap Phase 2:
 | 2b | Islands built for plain Go: `go tool vuka build-islands` into the frontend's build, `web.Dev()` keeps them built, `vuka-live.d.ts` from Go types — **done** | 2.6 |
 | 4a | Overloads named as Go names them (`areaCircle`, `UpdateNewMessage`), field references by address (`vuka.RefTo`), orm arithmetic and typed `SaveFields` — **done** | 2.3, 2.6 |
 | 7 | Conformance suite — **done** | 2.6 |
+| 8 | Hooks declared by the constructor (§3) — proposed, 1.1 | 2.2 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
 one import block, no `/*line*/` markers and no `__` names, and checks its
