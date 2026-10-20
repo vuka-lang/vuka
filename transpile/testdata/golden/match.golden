@@ -172,9 +172,9 @@ func main() {
 	switch {
 	case r.IsOk():
 		n := r.Value()
+//line match.vuka:91
 		switch n {
 		case 3:
-//line match.vuka:93
 			fmt.Println("nested three")
 		default:
 		}

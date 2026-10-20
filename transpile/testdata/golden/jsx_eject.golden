@@ -38,6 +38,7 @@ func (c Card) Render() ui.Node {
 			lis = append(lis, ui.HTML(`<li>{it}</li>`, it))
 		}
 		var i ui.Node
+//line jsx_eject.vuka:26
 		switch len(c.Items) {
 		case 1:
 			i = ui.HTML(`<i>one</i>`)

@@ -35,6 +35,7 @@ func list(items []Item) ui.Node {
 			is = append(is, ui.HTML(`<i>{t}</i>`, t))
 		}
 		var b ui.Node
+//line jsx_bare.vuka:27
 		switch it.N {
 		case 0:
 			b = ui.HTML(`<b>none</b>`)

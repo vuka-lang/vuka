@@ -193,20 +193,26 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 
 	if simple {
 		subj := string(f.src[m.subj.start:m.subj.end])
-		head := "switch " + v + " := " + subj + "; {"
-		if values {
-			head = "switch " + subj + " {"
+		// The subject keeps its place: its own rewrites are there.
+		pre, post := "switch "+v+" := ", "; {"
+		switch {
+		case values:
+			pre, post = "switch ", " {"
 			for i := range arms {
 				arms[i].cond = strings.Join(arms[i].vals, ", ")
 			}
-		} else if token.IsIdentifier(subj) {
-			head = "switch {"
+		case token.IsIdentifier(subj):
 			for i := range arms {
 				arms[i].cond = strings.ReplaceAll(arms[i].cond, v, subj)
 				arms[i].binds = strings.ReplaceAll(arms[i].binds, v, subj)
 			}
 		}
-		f.add(m.start, m.lbrace+1, head)
+		if !values && token.IsIdentifier(subj) {
+			f.add(m.start, m.lbrace+1, "switch {")
+		} else {
+			f.add(m.start, m.subj.start, pre)
+			f.add(m.subj.end, m.lbrace+1, post)
+		}
 		catchAll := false
 		for i, c := range m.cases {
 			a := arms[i]

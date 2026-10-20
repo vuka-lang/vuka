@@ -68,11 +68,11 @@ func list(users []User, admin bool, s string) ui.Node {
 		i2 = ui.HTML(`<i>map in an if</i>`)
 	}
 	var i22 ui.Node
+//line jsx_blocks.vuka:40
 	switch len(users) {
 	case 0:
 		i22 = ui.HTML(`<i>none</i>`)
 	case 1, 2:
-//line jsx_blocks.vuka:44
 		i22 = ui.HTML(`a few: {len(users)}`, len(users))
 	default:
 		var bs []ui.Node
