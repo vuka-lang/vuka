@@ -546,8 +546,15 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 			d.isStruct = true
 			// A struct declaring a schema (a live component, a model) holds
 			// data: its constructor takes only the fields holding
-			// dependencies, pointers and interfaces.
+			// dependencies, pointers and interfaces, but those whose
+			// attributes say they are data (@ui.Defer, @ui.Bind, …).
 			data := e.schemas[ts.Name.Name] != nil
+			from, to := f.orig(ts.Pos()), f.orig(ts.End())
+			attributed := func(name string) bool {
+				return slices.ContainsFunc(f.attrs, func(a *Attr) bool {
+					return a.start >= from && a.start <= to && slices.Contains(a.fieldNames, name)
+				})
+			}
 			taken := map[string]bool{}
 			for _, field := range st.Fields.List {
 				t := e.qualText(f, field.Type)
@@ -556,7 +563,7 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 					names = []*ast.Ident{ast.NewIdent(embeddedName(field.Type))}
 				}
 				for _, n := range names {
-					if !injected(field, n.Name, len(field.Names) == 0) || data && !e.dependency(f, field.Type) {
+					if !injected(field, n.Name, len(field.Names) == 0) || data && (!e.dependency(f, field.Type) || attributed(n.Name)) {
 						continue
 					}
 					p := paramName(n.Name, taken)
