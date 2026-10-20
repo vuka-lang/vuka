@@ -455,7 +455,8 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 	if err != nil {
 		return "", nil, err
 	}
-	var pkgs []*load.Package
+	var roots []*load.Package
+	asked, dirs := map[string]bool{}, map[string]bool{}
 	for _, p := range append(slices.Clip(patterns), extra...) {
 		dir, recursive := strings.CutSuffix(p, "/...")
 		if dir == "" || dir == "." && recursive {
@@ -469,8 +470,20 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		if err != nil {
 			return "", nil, err
 		}
-		pkgs = append(pkgs, found...)
+		for _, p := range found {
+			if !asked[p.ImportPath] {
+				asked[p.ImportPath], dirs[p.Dir] = true, true
+				roots = append(roots, p)
+			}
+		}
 	}
+	// What they import is transpiled too, through the module's Go packages.
+	all, err := load.Discover(root, modPath, root, true, nil)
+	if err != nil {
+		return "", nil, err
+	}
+	all = append(slices.DeleteFunc(all, func(p *load.Package) bool { return asked[p.ImportPath] }), roots...)
+	pkgs := load.Closure(all, roots)
 	tmp, err := os.MkdirTemp("", "vuka-")
 	if err != nil {
 		return "", nil, err
@@ -502,8 +515,13 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 	if err != nil {
 		return "", nil, err
 	}
-	_, fields := typedFields(root, tmp, overlay, files, true, os.Stderr)
-	for _, g := range append(append(append(links, css...), fields[len(files):]...), newGens(files, goCallAdapters(root))...) {
+	fields, err := ormMissing(root, overlay, files, true, true)
+	if err != nil {
+		return "", nil, fmt.Errorf("the models' typed fields: %w", err)
+	}
+	calls := newGens(files, goCallAdapters(root))
+	files = slices.DeleteFunc(files, func(g load.Generated) bool { return !dirs[filepath.Dir(g.Target)] })
+	for _, g := range append(append(append(links, css...), fields...), calls...) {
 		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
 			files = append(files, g)
 		}
