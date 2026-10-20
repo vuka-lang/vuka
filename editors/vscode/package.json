@@ -102,7 +102,12 @@
           "source.go": "go",
           "source.ts": "typescript",
           "source.css": "css",
-          "meta.embedded.expression.go": "go"
+          "meta.embedded.expression.go": "go",
+          "meta.statement.vuka": "go"
+        },
+        "tokenTypes": {
+          "meta.embedded.expression.go": "other",
+          "meta.statement.vuka": "other"
         }
       },
       {
