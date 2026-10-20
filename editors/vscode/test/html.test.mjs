@@ -49,6 +49,23 @@ expect(code, 'vuka-html', 'component<Sales>', 'source.ts');
 expect(code, 'vuka-html', 'color: red', 'source.css');
 expect(code, 'vuka-html', 'Clock "', 'entity.name.import');
 
+// Markup after a template's header is markup, not Go.
+const hdr = readFileSync(new URL('./fixtures-html/header.vuka.html', import.meta.url), 'utf8');
+expect(hdr, 'vuka-html', 'func navLink', 'keyword');
+expect(hdr, 'vuka-html', 'navLink(item', 'entity.name.function');
+expect(hdr, 'vuka-html', 'Item, on', 'entity.name.type');
+expect(hdr, 'vuka-html', 'ui.Link href', 'entity.name.tag');
+expect(hdr, 'vuka-html', 'href={', 'entity.other.attribute-name');
+expect(hdr, 'vuka-html', 'item.link()', 'source.go');
+expect(hdr, 'vuka-html', 'components.Icon', 'entity.name.tag');
+expect(hdr, 'vuka-html', 'glyph=', 'entity.other.attribute-name');
+expect(hdr, 'vuka-html', '"shrink-0"', 'string.quoted.double');
+expect(hdr, 'vuka-html', 'span class', 'entity.name.tag');
+expect(hdr, 'vuka-html', '</ui.Link', 'punctuation.definition.tag');
+expect(hdr, 'vuka-html', 'func (c', 'keyword');
+expect(hdr, 'vuka-html', 'badge()', 'entity.name.function');
+expect(hdr, 'vuka-html', 'b class="badge"', 'entity.name.tag');
+
 const go = 'package p\n\nfunc row(o Order) ui.Node {\n\treturn ui.HTML(`<li key={o.ID}>{o.Ref}</li>`, o.ID, o.Ref)\n}\n';
 expect(go, 'go', '<li', 'punctuation.definition.tag');
 expect(go, 'go', 'o.Ref}', 'source.go');
