@@ -151,8 +151,14 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 		})
 	}
 	sort.Strings(old)
-	out := map[string]string{}
+	out := e.localNames(old)
+	for _, n := range out {
+		taken[n] = true
+	}
 	for _, name := range old {
+		if out[name] != "" {
+			continue
+		}
 		base := plainName(name)
 		if p := pkgs[name]; token.IsIdentifier(p) && taken[p] && ownName(name, p, idents, imports) {
 			out[name] = p
@@ -170,6 +176,108 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 		}
 		taken[cand] = true
 		out[name] = cand
+	}
+	return out
+}
+
+// localName is the name Go code gives a local a lowering declares: the
+// error and ok a ? checks (__e6, __ok5) err and ok, the value it returns
+// (__v7_1) v.
+var localName = []struct {
+	re   *regexp.Regexp
+	name string
+}{{regexp.MustCompile(`^__e\d+$`), "err"}, {regexp.MustCompile(`^__ok\d+$`), "ok"}, {regexp.MustCompile(`^__v\d+_1$`), "v"}}
+
+// localNames renames the locals of old a lowering declares as localName
+// says, wherever go/types shows the new name captures and shadows nothing:
+// no other declaration of it in the local's scope, no use of the local
+// meaning another variable by it, no use of another variable by it the
+// local would take.
+func (e *engine) localNames(old []string) map[string]string {
+	out := map[string]string{}
+	if e.info == nil || e.pkg == nil {
+		return out
+	}
+	vars := map[string][]*types.Var{}
+	for id, obj := range e.info.Defs {
+		if v, ok := obj.(*types.Var); ok && v.Parent() != nil && v.Parent() != e.pkg.Scope() && strings.HasPrefix(id.Name, "__") {
+			vars[id.Name] = append(vars[id.Name], v)
+		}
+	}
+	uses := map[types.Object][]token.Pos{}
+	byName := map[string][]*ast.Ident{}
+	for id, obj := range e.info.Uses {
+		uses[obj] = append(uses[obj], id.Pos())
+		byName[id.Name] = append(byName[id.Name], id)
+	}
+	renamed := map[string][]*types.Var{} // the locals given each name so far
+	encloses := func(outer, s *types.Scope) bool {
+		for ; s != nil; s = s.Parent() {
+			if s == outer {
+				return true
+			}
+		}
+		return false
+	}
+	// at is the scope n resolves to at p, counting the renamed locals.
+	at := func(p token.Pos, n string) *types.Scope {
+		inner := e.pkg.Scope().Innermost(p)
+		if inner == nil {
+			return nil
+		}
+		found, _ := inner.LookupParent(n, p)
+		for s := inner; s != nil && s != found; s = s.Parent() {
+			for _, v := range renamed[n] {
+				if v.Parent() == s && v.Pos() < p {
+					return s
+				}
+			}
+		}
+		return found
+	}
+	safe := func(v *types.Var, n string) bool {
+		s := v.Parent()
+		if s.Lookup(n) != nil || slices.ContainsFunc(renamed[n], func(w *types.Var) bool { return w.Parent() == s }) {
+			return false
+		}
+		for _, p := range uses[v] {
+			if found := at(p, n); found != nil && !encloses(found, s) {
+				return false
+			}
+		}
+		for _, id := range byName[n] {
+			if obj := e.info.Uses[id]; obj != nil && obj.Parent() != nil && s.Contains(id.Pos()) && id.Pos() > v.Pos() && encloses(obj.Parent(), s) {
+				return false
+			}
+		}
+		for _, w := range renamed[n] {
+			for _, p := range uses[w] {
+				if s.Contains(p) && p > v.Pos() && encloses(w.Parent(), s) {
+					return false
+				}
+			}
+		}
+		return true
+	}
+	for _, name := range old {
+		n := ""
+		for _, l := range localName {
+			if l.re.MatchString(name) {
+				n = l.name
+			}
+		}
+		vs := vars[name]
+		if n == "" || len(vs) == 0 {
+			continue
+		}
+		ok := true
+		for _, v := range vs {
+			ok = ok && safe(v, n)
+		}
+		if ok {
+			renamed[n] = append(renamed[n], vs...)
+			out[name] = n
+		}
 	}
 	return out
 }
