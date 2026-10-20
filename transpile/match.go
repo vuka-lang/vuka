@@ -6,6 +6,8 @@ import (
 	"go/parser"
 	"go/token"
 	"go/types"
+	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/vuka-lang/vuka/diag"
@@ -19,6 +21,15 @@ import (
 //	case Err(e) if retry(e):  } else if e := __m1.Err(); __m1.IsErr() && (retry(e)) { _ = e;
 //	case _:                   } else if true {
 //	}                         } else { panic("vuka: no case matched") }
+//
+// A match with no guards and simple patterns is a switch instead, each
+// case's bindings its body's first statement, and a switch on the subject
+// when every case is values:
+//
+//	match r {                 switch {
+//	case Ok(u):               case r.IsOk(): u := r.Value()
+//	case Err(e):              case r.IsErr(): e := r.Err()
+//	}                         default: panic("vuka: no case matched") }
 //
 // A match must be exhaustive; that is checked here, before Go sees it.
 func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
@@ -60,6 +71,14 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		pre, post string // around the guard; post alone when there is none
 	}
 	var heads []header
+	// A match whose cases have no guards and simple patterns is a switch:
+	// each case its condition, its bindings the body's first statement.
+	type arm struct {
+		cond, binds string
+		vals        []string // the values it equals, when that is all it tests
+	}
+	var arms []arm
+	simple, values := true, true
 	var rows [][]*space // the unguarded cases' patterns
 	for _, c := range m.cases {
 		var alts []*compiled
@@ -100,6 +119,24 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 
 		var init, cond string
 		var uses []string
+		body := m.rbrace
+		if i := slices.Index(m.cases, c); i+1 < len(m.cases) {
+			body = m.cases[i+1].start
+		}
+		used := func(name string) bool {
+			return regexp.MustCompile(`(^|[^.\w])` + regexp.QuoteMeta(name) + `\b`).Match(f.src[c.colon+1 : body])
+		}
+		var vals []string
+		for _, a := range alts {
+			ts := strings.Split(a.tests(), " && ")
+			if val, ok := strings.CutPrefix(ts[0], v+" == "); ok && len(ts) == 1 && len(a.binds) == 0 && !a.complex {
+				vals = append(vals, val)
+			} else if ts[0] != "true" || len(a.binds) > 0 || len(alts) > 1 {
+				values = false
+			}
+		}
+		values = values && c.guard.start < 0
+		simple = simple && c.guard.start < 0 && (len(alts) == 1 && !alts[0].complex || values)
 		if len(alts) == 1 {
 			var msg string
 			init, cond, msg = pc.condition(alts[0])
@@ -108,9 +145,17 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 				return
 			}
 			for _, b := range alts[0].binds {
-				uses = append(uses, "_ = "+b.name+";")
+				if !used(b.name) {
+					uses = append(uses, "_ = "+b.name+";")
+				}
+			}
+			if simple {
+				arms = append(arms, arm{cond: cond, binds: init + strings.Join(uses, " "), vals: vals})
 			}
 		} else {
+			if simple {
+				arms = append(arms, arm{vals: vals})
+			}
 			var ors []string
 			for _, a := range alts {
 				if len(a.binds) > 0 {
@@ -146,6 +191,39 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		return
 	}
 
+	if simple {
+		subj := string(f.src[m.subj.start:m.subj.end])
+		head := "switch " + v + " := " + subj + "; {"
+		if values {
+			head = "switch " + subj + " {"
+			for i := range arms {
+				arms[i].cond = strings.Join(arms[i].vals, ", ")
+			}
+		} else if token.IsIdentifier(subj) {
+			head = "switch {"
+			for i := range arms {
+				arms[i].cond = strings.ReplaceAll(arms[i].cond, v, subj)
+				arms[i].binds = strings.ReplaceAll(arms[i].binds, v, subj)
+			}
+		}
+		f.add(m.start, m.lbrace+1, head)
+		catchAll := false
+		for i, c := range m.cases {
+			a := arms[i]
+			line := "case " + a.cond + ":"
+			if a.cond == "true" && !values || a.cond == "" {
+				line, catchAll = "default:", true
+			}
+			f.add(c.start, c.colon+1, line+" "+strings.TrimSuffix(strings.TrimSpace(a.binds), ";"))
+		}
+		if !catchAll {
+			f.add(m.rbrace, m.rbrace, `default: panic("vuka: no case matched")
+`)
+		}
+		m.done = true
+		e.progress = true
+		return
+	}
 	f.add(m.start, m.subj.start, "if "+v+" := ")
 	f.add(m.subj.end, m.lbrace+1, "; false { panic("+v+")")
 	for i, c := range m.cases {

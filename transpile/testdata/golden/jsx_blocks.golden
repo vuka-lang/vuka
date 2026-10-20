@@ -44,17 +44,16 @@ func list(users []User, admin bool, s string) ui.Node {
 		button = ui.HTML(`guest`)
 	}
 	var p ui.Node
-	if m1 := lookup(s); false {
-		panic(m1)
-	} else if n := m1.Value(); m1.IsOk() {
-		_ = n
+	switch m1 := lookup(s); {
+	case m1.IsOk():
+		n := m1.Value()
 //line jsx_blocks.vuka:37
 		p = ui.HTML(`<p>{n}</p>`, n)
-	} else if e := m1.Err(); m1.IsErr() {
-		_ = e
+	case m1.IsErr():
+		e := m1.Err()
 //line jsx_blocks.vuka:37
 		p = ui.HTML(`<p class="error">{e.Error()}</p>`, e.Error())
-	} else {
+	default:
 		panic("vuka: no case matched")
 	}
 	var as []ui.Node
@@ -69,15 +68,13 @@ func list(users []User, admin bool, s string) ui.Node {
 		i2 = ui.HTML(`<i>map in an if</i>`)
 	}
 	var i22 ui.Node
-//line jsx_blocks.vuka:40
-	if m2 := len(users); false {
-		panic(m2)
-	} else if m2 == 0 {
+	switch len(users) {
+	case 0:
 		i22 = ui.HTML(`<i>none</i>`)
-	} else if (m2 == 1) || (m2 == 2) {
+	case 1, 2:
 //line jsx_blocks.vuka:44
 		i22 = ui.HTML(`a few: {len(users)}`, len(users))
-	} else if true {
+	default:
 		var bs []ui.Node
 //line jsx_blocks.vuka:46
 		for i := range 3 {
@@ -85,8 +82,6 @@ func list(users []User, admin bool, s string) ui.Node {
 			bs = append(bs, ui.HTML(`<b>{i}</b>`, i))
 		}
 		i22 = ui.HTML(`{bs}`, bs)
-	} else {
-		panic("vuka: no case matched")
 	}
 //line jsx_blocks.vuka:23
 	return ui.HTML(`

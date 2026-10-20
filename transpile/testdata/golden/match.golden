@@ -32,12 +32,8 @@ func describe(r vuka.Result[int]) string {
 //line match.vuka:25
 		return "zero"
 	} else if n := m1.Value(); m1.IsOk() && (n > Max) {
-		_ = n
-//line match.vuka:27
 		return fmt.Sprint("big ", n)
 	} else if n := m1.Value(); m1.IsOk() {
-		_ = n
-//line match.vuka:29
 		return fmt.Sprint("ok ", n)
 	} else if c, ok := func() (c int, ok bool) {
 		if !(m1.IsErr()) {
@@ -54,12 +50,9 @@ func describe(r vuka.Result[int]) string {
 		ok = true
 		return
 	}(); ok {
-		_ = c
 //line match.vuka:31
 		return fmt.Sprint("missing ", c)
 	} else if e := m1.Err(); m1.IsErr() {
-		_ = e
-//line match.vuka:33
 		return "error: " + e.Error()
 	} else {
 		panic("vuka: no case matched")
@@ -92,7 +85,6 @@ func shape(s Shape) string {
 		ok = true
 		return
 	}(); ok {
-		_ = r
 //line match.vuka:42
 		return fmt.Sprint("circle ", r)
 	} else if w, h, ok := func() (w float64, h float64, ok bool) {
@@ -108,7 +100,6 @@ func shape(s Shape) string {
 		ok = true
 		return
 	}(); ok && (w == h) {
-		_ = w
 		_ = h
 //line match.vuka:44
 		return fmt.Sprint("square ", w)
@@ -121,18 +112,16 @@ func shape(s Shape) string {
 
 //line match.vuka:50
 func opt(o vuka.Option[string], want string) string {
-	if m3 := o; false {
-		panic(m3)
-	} else if m3.IsSome() && m3.Value() == want {
-//line match.vuka:53
+	switch {
+	case o.IsSome() && o.Value() == want:
 		return "wanted"
-	} else if s := m3.Value(); m3.IsSome() {
-		_ = s
+	case o.IsSome():
+		s := o.Value()
 //line match.vuka:55
 		return "got " + s
-	} else if m3.IsNone() {
+	case o.IsNone():
 		return "none"
-	} else {
+	default:
 		panic("vuka: no case matched")
 	}
 }
@@ -159,15 +148,14 @@ func grade(n int) string {
 
 //line match.vuka:74
 func flag(b bool) string {
-	if m5 := b; false {
-		panic(m5)
-	} else if m5 == true {
+	switch b {
+	case true:
 //line match.vuka:76
 		return "yes"
-	} else if m5 == false {
+	case false:
 //line match.vuka:77
 		return "no"
-	} else {
+	default:
 		panic("vuka: no case matched")
 	}
 }
@@ -181,22 +169,17 @@ func main() {
 	fmt.Println(grade(2), grade(10), grade(-1), grade(7), flag(true), flag(false))
 
 	r := vuka.Ok(3)
-	if m6 := r; false {
-		panic(m6)
-	} else if n := m6.Value(); m6.IsOk() {
-		_ = n
-//line match.vuka:91
-		if m7 := n; false {
-			panic(m7)
-		} else if m7 == 3 {
+	switch {
+	case r.IsOk():
+		n := r.Value()
+		switch n {
+		case 3:
 //line match.vuka:93
 			fmt.Println("nested three")
-		} else if true {
-		} else {
-			panic("vuka: no case matched")
+		default:
 		}
-	} else if m6.IsErr() {
-	} else {
+	case r.IsErr():
+	default:
 		panic("vuka: no case matched")
 	}
 }
