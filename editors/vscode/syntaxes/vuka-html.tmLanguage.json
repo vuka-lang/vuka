@@ -4,18 +4,51 @@
   "scopeName": "text.html.vuka",
   "fileTypes": ["vuka.html"],
   "patterns": [
+    { "include": "#package" },
     { "include": "#imports" },
     { "include": "#header" },
     { "include": "#markup" }
   ],
   "repository": {
-    "imports": {
-      "match": "^(import)\\s+(?:([A-Za-z_]\\w*)\\s+)?(\"[^\"]*\")",
+    "package": {
+      "comment": "package layouts: the file's package clause, its first line.",
+      "match": "^\\s*(package)\\s+([A-Za-z_]\\w*)",
       "captures": {
-        "1": { "name": "keyword.control.import.go" },
-        "2": { "name": "entity.name.import.go" },
-        "3": { "name": "string.quoted.double.go" }
+        "1": { "name": "keyword.other.package.go" },
+        "2": { "name": "entity.name.type.package.go" }
       }
+    },
+    "imports": {
+      "patterns": [
+        {
+          "match": "^(import)\\s+(?:([A-Za-z_]\\w*)\\s+)?(\"[^\"]*\")",
+          "captures": {
+            "1": { "name": "keyword.control.import.go" },
+            "2": { "name": "entity.name.import.go" },
+            "3": { "name": "string.quoted.double.go" }
+          }
+        },
+        {
+          "comment": "import ( … ): a grouped import.",
+          "begin": "^(import)\\s*(\\()",
+          "beginCaptures": {
+            "1": { "name": "keyword.control.import.go" },
+            "2": { "name": "punctuation.definition.imports.begin.bracket.round.go" }
+          },
+          "end": "\\)",
+          "endCaptures": { "0": { "name": "punctuation.definition.imports.end.bracket.round.go" } },
+          "patterns": [
+            {
+              "match": "(?:([A-Za-z_]\\w*)\\s+)?(\"[^\"]*\")",
+              "captures": {
+                "1": { "name": "entity.name.import.go" },
+                "2": { "name": "string.quoted.double.go" }
+              }
+            },
+            { "match": "//.*$", "name": "comment.line.double-slash.go" }
+          ]
+        }
+      ]
     },
     "header": {
       "comment": "func Card(p CardProps) or func (c Card) badge(): a template's header, one line; the markup below it is markup.",
@@ -90,7 +123,7 @@
       "begin": "(</?)((?:slot:)?[A-Za-z][\\w.:-]*)",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.tag.begin.html" },
-        "2": { "name": "entity.name.tag.html" }
+        "2": { "patterns": [{ "include": "#tag-name" }] }
       },
       "end": "(/?>)",
       "endCaptures": { "1": { "name": "punctuation.definition.tag.end.html" } },
@@ -108,6 +141,13 @@
           "patterns": [{ "include": "#escape" }, { "include": "#hole" }]
         },
         { "begin": "'", "end": "'", "name": "string.quoted.single.html", "patterns": [{ "include": "#hole" }] }
+      ]
+    },
+    "tag-name": {
+      "comment": "An HTML, SVG, MathML or custom element is a tag; Card, ui.Card and a lowercase template or function of the package (navLink) are components.",
+      "patterns": [
+        { "match": "(?<=<|</)(?:slot:[\\w-]+|(?:feComponentTransfer|feSpecularLighting|feDiffuseLighting|feDisplacementMap|animateTransform|feConvolveMatrix|selectedcontent|annotation\\-xml|feDistantLight|feGaussianBlur|linearGradient|radialGradient|animateMotion|feColorMatrix|foreignObject|mmultiscripts|feDropShadow|feMorphology|fePointLight|feTurbulence|feComposite|feMergeNode|feSpotLight|mprescripts|annotation|blockquote|figcaption|mlabeledtr|munderover|plaintext|semantics|basefont|clipPath|colgroup|datalist|feOffset|fieldset|frameset|menclose|menuitem|metadata|mphantom|noframes|noscript|optgroup|polyline|progress|template|textPath|textarea|acronym|address|animate|article|caption|details|discard|ellipse|feBlend|feFlood|feFuncA|feFuncB|feFuncG|feFuncR|feImage|feMerge|listing|maction|marquee|mpadded|msubsup|noembed|pattern|picture|polygon|section|summary|applet|button|canvas|center|circle|dialog|feTile|figure|filter|footer|header|hgroup|iframe|keygen|legend|marker|merror|mglyph|mspace|mstyle|mtable|munder|object|option|output|portal|script|search|select|source|strike|strong|switch|symbol|aside|audio|blink|embed|frame|image|input|label|meter|mfrac|mover|mpath|mroot|msqrt|mtext|param|small|style|table|tbody|tfoot|thead|title|track|tspan|video|abbr|area|base|body|cite|code|data|defs|desc|font|form|head|html|line|link|main|mark|mask|math|menu|meta|mrow|msub|msup|nobr|path|rect|ruby|samp|slot|span|stop|text|time|view|bdi|bdo|big|col|del|dfn|dir|div|img|ins|kbd|map|mtd|mtr|nav|pre|rtc|set|sub|sup|svg|use|var|wbr|xmp|br|dd|dl|dt|em|h1|h2|h3|h4|h5|h6|hr|li|mi|mn|mo|ms|ol|rb|rp|rt|td|th|tr|tt|ul|a|b|g|i|p|q|s|u)(?![\\w.:-])|[A-Za-z]\\w*[-:][\\w:-]*)", "name": "entity.name.tag.html" },
+        { "match": "[\\w.:-]+", "name": "support.class.component.vuka entity.name.tag.component.vuka" }
       ]
     },
     "script": {

@@ -1,3 +1,5 @@
+package {%.Pkg%}
+
 import "strconv"
 import "{%.Module%}/components"
 import "{%.Module%}/layouts"
@@ -6,10 +8,10 @@ import "{%.Module%}/layouts"
   <div class="grid gap-6 lg:grid-cols-3">
     <components.Card title="New" description="" class="lg:order-last">
       <form onSubmit={Add} class="space-y-4" id="new-{%.Pkg%}">
-        <components.Field label="Title" name="title" error={problem}>
+        <components.Field label="Title" name="title" hint="" error={problem}>
           <components.Input name="title" autocomplete="off" invalid={problem != ""} />
         </components.Field>
-        <components.Field label="Details" name="body" hint="Optional.">
+        <components.Field label="Details" name="body" hint="Optional." error="">
           <textarea id="body" name="body" rows="3" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none dark:bg-white/5 dark:text-white dark:ring-white/15"></textarea>
         </components.Field>
         <components.Button class="w-full">Add</components.Button>

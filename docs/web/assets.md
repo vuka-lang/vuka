@@ -44,6 +44,8 @@ func init() { web.Routes.Live("/counter", NewCounter, web.Layout(counterPage)) }
 
 ```html
 <!-- counter.vuka.html -->
+package app
+
 <output>{n.Get()}</output>
 <button onClick={Inc}>+</button>
 

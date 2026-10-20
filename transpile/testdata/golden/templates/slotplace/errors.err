@@ -1,1 +1,1 @@
-page.vuka.html:2:3: <slot:header> is a component's slot: write it directly inside the component's tag
+page.vuka.html:4:3: <slot:header> is a component's slot: write it directly inside the component's tag

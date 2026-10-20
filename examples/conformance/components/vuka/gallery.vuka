@@ -56,7 +56,7 @@ func (g *Gallery) Render() ui.Node {
 		</slot:aside>
 		{for _, it := range g.items {
 			<div key={it.ID} class="item"><Card title={it.Name} accent={accent(it)} wide={g.wide}>
-				{tags(it.Tags)}
+				<tags ts={it.Tags}/>
 				<Counter key={it.ID} label={strings.ToLower(it.Name)}/>
 				<slot:footer>
 					<button class:on={it.Liked} onClick={g.Like(it.ID)}>{likeText(it.Liked)}</button>

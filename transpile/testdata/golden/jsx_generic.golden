@@ -26,7 +26,7 @@ func List[T any](items []T, render func(T) ui.Node) ui.Node {
 	return ui.HTML(`<ul>{renders}</ul>`, renders)
 }
 
-// Select's selected is left out: its zero value is the inferred type's.
+// Select's T is inferred from its options and selected.
 func Select[T comparable](label string, options []T, selected T) ui.Node {
 	var options2 []ui.Node
 //line jsx_generic.vuka:23

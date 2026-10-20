@@ -10,20 +10,20 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line page.vuka.html:1
+//line page.vuka.html:3
 func (pa Page) View() ui.Node {
-//line page.vuka.html:1
+//line page.vuka.html:3
 	n := len(pa.Items)
 	var ps []ui.Node
-//line page.vuka.html:5
+//line page.vuka.html:7
 	for _, it := range pa.Items {
 		ps = append(ps, ui.HTML(`<p>{it}</p>`, it))
 	}
-//line page.vuka.html:3
+//line page.vuka.html:5
 	panel := Panel(PanelProps{Title: "Items", Header: ui.HTML(`<b>{n} items</b>`, n), Children: ui.HTML(`{ps}`, ps)})
-//line page.vuka.html:9
+//line page.vuka.html:11
 	frame := Frame("F", ui.HTML(`<i>h</i>`), ui.HTML(`body`))
-//line page.vuka.html:1
+//line page.vuka.html:3
 	return ui.HTML(`
 <main>
   {panel}
@@ -31,5 +31,5 @@ func (pa Page) View() ui.Node {
 </main>`, panel, frame)
 }
 
-//line page.vuka.html:10
+//line page.vuka.html:12
 func (pa Page) Render(ctx context.Context, w io.Writer) error { return pa.View().Render(ctx, w) }

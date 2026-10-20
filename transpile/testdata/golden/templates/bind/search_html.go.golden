@@ -7,9 +7,9 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line search.vuka.html:1
+//line search.vuka.html:3
 func (s *Search) Render() ui.Node {
-//line search.vuka.html:1
+//line search.vuka.html:3
 	return ui.HTML(`
 <form style={ui.CSSVars("display: flex", "--accent", s.Accent)}>
   <input type="search" {ui.BindValue(s, &s.Q)...}/>

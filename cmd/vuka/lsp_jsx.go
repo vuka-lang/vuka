@@ -11,6 +11,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // The editor's view of JSX: the markup is read here, from the .vuka text, for
@@ -41,9 +43,10 @@ func isLetter(c byte) bool { return 'a' <= c && c <= 'z' || 'A' <= c && c <= 'Z'
 
 func isNameByte(c byte) bool { return isIdentByte(c) || c == '-' || c == ':' || c == '.' }
 
-// isComponentTag reports whether a tag names a Go function: Capitalized, or pkg.Name.
+// isComponentTag reports whether a tag names a Go function or type, as the
+// compiler reads it: Card, pkg.Name, or a lowercase name no element has.
 func isComponentTag(tag string) bool {
-	return tag != "" && ('A' <= tag[0] && tag[0] <= 'Z' || strings.Contains(tag, "."))
+	return tag != "" && !transpile.IsElement(tag)
 }
 
 // readTag reads the tag whose < is at i; false when there is none there.
@@ -536,7 +539,7 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				continue
 			}
 			switch {
-			case (kind == 2 || kind == 3) && isExported(label) && returnsNode(detail):
+			case (kind == 2 || kind == 3) && (isExported(label) || spot.qual == "" && !transpile.IsElementName(label)) && returnsNode(detail):
 				item(label, 3, detail, label, 1, "0"+label)
 			case kind == 22 && isExported(label) && structs < 20:
 				structs++

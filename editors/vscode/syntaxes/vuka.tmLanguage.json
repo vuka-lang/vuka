@@ -697,10 +697,10 @@
       ]
     },
     "jsx-tag-name": {
-      "comment": "div is an HTML tag; Card, theme.Card and List[User] are components.",
+      "comment": "div is an HTML tag (an HTML, SVG or MathML element, or a custom one with a hyphen); Card, theme.Card, List[User] and a lowercase function of the package (navLink) are components.",
       "patterns": [
         {
-          "match": "(?<=<|</)[a-z][\\w:-]*(?![\\w.:-])",
+          "match": "(?<=<|</)(?:(?:feComponentTransfer|feSpecularLighting|feDiffuseLighting|feDisplacementMap|animateTransform|feConvolveMatrix|selectedcontent|annotation\\-xml|feDistantLight|feGaussianBlur|linearGradient|radialGradient|animateMotion|feColorMatrix|foreignObject|mmultiscripts|feDropShadow|feMorphology|fePointLight|feTurbulence|feComposite|feMergeNode|feSpotLight|mprescripts|annotation|blockquote|figcaption|mlabeledtr|munderover|plaintext|semantics|basefont|clipPath|colgroup|datalist|feOffset|fieldset|frameset|menclose|menuitem|metadata|mphantom|noframes|noscript|optgroup|polyline|progress|template|textPath|textarea|acronym|address|animate|article|caption|details|discard|ellipse|feBlend|feFlood|feFuncA|feFuncB|feFuncG|feFuncR|feImage|feMerge|listing|maction|marquee|mpadded|msubsup|noembed|pattern|picture|polygon|section|summary|applet|button|canvas|center|circle|dialog|feTile|figure|filter|footer|header|hgroup|iframe|keygen|legend|marker|merror|mglyph|mspace|mstyle|mtable|munder|object|option|output|portal|script|search|select|source|strike|strong|switch|symbol|aside|audio|blink|embed|frame|image|input|label|meter|mfrac|mover|mpath|mroot|msqrt|mtext|param|small|style|table|tbody|tfoot|thead|title|track|tspan|video|abbr|area|base|body|cite|code|data|defs|desc|font|form|head|html|line|link|main|mark|mask|math|menu|meta|mrow|msub|msup|nobr|path|rect|ruby|samp|slot|span|stop|text|time|view|bdi|bdo|big|col|del|dfn|dir|div|img|ins|kbd|map|mtd|mtr|nav|pre|rtc|set|sub|sup|svg|use|var|wbr|xmp|br|dd|dl|dt|em|h1|h2|h3|h4|h5|h6|hr|li|mi|mn|mo|ms|ol|rb|rp|rt|td|th|tr|tt|ul|a|b|g|i|p|q|s|u)(?![\\w.:-])|[A-Za-z]\\w*[-:][\\w:-]*)",
           "name": "entity.name.tag.vuka"
         },
         {

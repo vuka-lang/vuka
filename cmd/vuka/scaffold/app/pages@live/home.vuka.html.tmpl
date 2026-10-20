@@ -1,3 +1,5 @@
+package pages
+
 import "{%.Module%}/components"
 import "{%.Module%}/layouts"
 {%- if .Auth%}
@@ -39,7 +41,7 @@ func (h *Home) Render()
         </Step>
       </ol>
     </components.Card>
-    <components.Card title="Resources" description="">
+    <components.Card title="Resources" description="" class="">
       <ul class="space-y-3 text-sm">
         <li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/web/">The web guide</a></li>
         <li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/ui/">Components and live pages</a></li>

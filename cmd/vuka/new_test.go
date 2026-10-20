@@ -190,7 +190,7 @@ func TestRenderFileSets(t *testing.T) {
 				t.Errorf("%s/%s/%s: %s isn't fully rendered", ui, db, auth, name)
 			}
 			if strings.HasSuffix(name, ".vuka.html") {
-				if f, err := format.Template(b); err != nil || !bytes.Equal(f, b) {
+				if f, err := format.Template(b, "missing"); err != nil || !bytes.Equal(f, b) {
 					t.Errorf("%s/%s/%s: %s isn't vuka fmt'd:\n%s", ui, db, auth, name, f)
 				}
 			}

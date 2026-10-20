@@ -28,7 +28,9 @@ var Templates = &analysis.Analyzer{
 func runTemplates(pass *analysis.Pass) (any, error) {
 	info := pass.TypesInfo
 	k := newKinds(pass)
-	bareNames(pass, htmlSources(pass))
+	html := htmlSources(pass)
+	bareNames(pass, html)
+	templateHeaders(pass, html)
 	listKeys(pass)
 	for _, f := range pass.Files {
 		ast.Inspect(f, func(n ast.Node) bool {

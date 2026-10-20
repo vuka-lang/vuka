@@ -44,6 +44,8 @@ in the order the labels first appear. The same pets, as a template:
 
 ```html
 <!-- pets.vuka.html -->
+package app
+
 func Pets(pets []Pet, admin bool)
 <section class="pets">
   <h1>Pets ({len(pets)})</h1>
@@ -194,6 +196,8 @@ line, their bodies markup, nesting as Go's do:
 
 ```html
 <!-- users.vuka.html -->
+package app
+
 func Users(users []User, found User, err error)
 <ul>
   for _, u := range users {
@@ -244,16 +248,22 @@ func (c UserCard) Render(ctx context.Context, w io.Writer) error { return nil }
 
 ::: vuka
 A tag that starts with a capital letter, or has a dot (`<theme.Card>`), is a
-function or method call:
+function or method call; so is a lowercase tag that is no HTML, SVG or
+custom element (`<navLink>`), naming a function of the package:
 
 ```vuka
 func UserCard(user User, admin bool, children ui.Node) ui.Node { … }
+func navLink(item Item, on bool) ui.Node { … }
 
 <UserCard user={u} admin>since {u.Year}</UserCard>
+<navLink item={home} on />
 ```
 
 - Attributes bind to **parameters by name**, in any order; `user` and `User`
-  both find a parameter `user`. A parameter left out gets its zero value.
+  both find a parameter `user`. Every parameter is set, but a first `ctx`,
+  `children` and the `ui.Node` ones slots fill: a tag leaving one out is an
+  error naming it. A lowercase tag naming nothing is an error, `unknown
+  element or template <navlnk>`, with the closest name.
 - Children go to a parameter named `children`. A component of your own with
   none takes no children: `<Layout title="x"><p>…</p></Layout>` for `func
   Layout(title string) ui.Node` is an error, not children silently dropped.
@@ -318,6 +328,8 @@ type UserCard struct {
 
 ```html
 <!-- usercard.vuka.html -->
+package app
+
 func (c UserCard) View()
 <div class="user-card">
   <h3>{c.User.Name}</h3>
@@ -335,7 +347,28 @@ card := UserCard{User: u, Admin: true, Children: ui.HTML(`since {u.Year}`, u.Yea
 ```
 
 A field left out is its zero value, and a wrong one the compiler's error on
-the literal. A generic component takes its type arguments as a generic
+the literal. A partial — a template taking parameters rather than one
+struct — or a function returning `ui.Node` is a tag too, its attributes
+its parameters by name, lowercase ones the package's own:
+
+```html
+<!-- menu.vuka.html -->
+package app
+
+// Menu is the top bar, the current link marked.
+func Menu(items []Item, path string)
+<nav>
+  for _, i := range items {
+    <navLink item={i} on={i.Href == path}/>
+  }
+</nav>
+
+func navLink(item Item, on bool)
+<a href={item.Href} class:on={on}>{item.Label}</a>
+```
+
+Every parameter is set (a first `ctx`, `children` and slots aside), and
+`{navLink(i, on)}` is the same call. A generic component takes its type arguments as a generic
 struct does, `List[User]{…}`; a function works too:
 
 ```go

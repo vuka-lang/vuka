@@ -137,6 +137,8 @@ func init() { web.Routes.Live("/books", NewShelf) }
 
 ```html
 <!-- shelf.vuka.html -->
+package app
+
 <section>
   <ol>
     for _, b := range rows {

@@ -1,0 +1,27 @@
+error[E0143]: unknown element or template <navlink>
+  --> err_partialtags.vuka:11:4
+   |
+11 |         <navlink href="/"/>
+   |          ^^^^^^^
+   |
+   = help: a lowercase tag is an HTML element, or a template or function of the package
+   = help: did you mean <navLink>?
+
+error[E0144]: <navLink> is missing the attribute on
+  --> err_partialtags.vuka:12:3
+   |
+12 |         <navLink href="/"/>
+   |         ^^^^^^^^
+   |
+   = help: set every parameter but ctx, children and slots: <navLink on={…}>
+
+error[E0106]: <navLink> has no attribute hrf; did you mean href?
+  --> err_partialtags.vuka:13:12
+   |
+13 |         <navLink hrf="/" on/>
+   |                  ^^^
+   |
+   = help: pass the attributes the component's parameters or fields declare
+
+Some errors have detailed explanations: E0106, E0143, E0144.
+For more information about an error, try `vuka explain E0106`.

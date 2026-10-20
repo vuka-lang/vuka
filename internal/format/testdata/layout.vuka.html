@@ -1,0 +1,27 @@
+// Package pages' layouts.
+
+package pages
+import "example.com/app/components"
+
+// Shell is the frame of every page.
+func Shell(path string, title string, children ui.Node)
+<html lang="en">
+  <head><title>{title}</title></head>
+  <body>
+    <header class="top">
+      <components.Logo />
+      <nav>
+        for _, l := range links {
+          <navLink item={l} on={l.Href == path} />
+        }
+      </nav>
+    </header>
+    <main>{children}</main>
+    <footer>{footer()}</footer>
+  </body>
+</html>
+// navLink is one link of the top bar.
+func navLink(item Link, on bool)
+<a href={item.Href} class:on={on}>{item.Label}</a>
+func footer()
+<p>Made with care.</p>

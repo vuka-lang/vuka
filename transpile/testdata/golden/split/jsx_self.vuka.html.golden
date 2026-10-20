@@ -1,3 +1,5 @@
+package main
+
 // Badge is a same-package component: its tag resolves against this package's
 // own scope and lowers to an unqualified call.
 func Badge(label string)

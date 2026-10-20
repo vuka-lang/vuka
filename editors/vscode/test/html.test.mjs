@@ -66,6 +66,16 @@ expect(hdr, 'vuka-html', 'func (c', 'keyword');
 expect(hdr, 'vuka-html', 'badge()', 'entity.name.function');
 expect(hdr, 'vuka-html', 'b class="badge"', 'entity.name.tag');
 
+// The package clause, grouped imports, and lowercase tags naming templates.
+expect(hdr, 'vuka-html', 'package layouts', 'keyword.other.package');
+expect(hdr, 'vuka-html', 'layouts\n', 'entity.name.type.package');
+expect(hdr, 'vuka-html', '"strings"', 'string.quoted.double.go');
+expect(hdr, 'vuka-html', 'c "portal', 'entity.name.import');
+expect(hdr, 'vuka-html', 'navLink item', 'support.class.component');
+expect(hdr, 'vuka-html', 'my-chart>', 'entity.name.tag.html');
+expect(hdr, 'vuka-html', 'nav>{', 'entity.name.tag.html');
+expect(code, 'vuka-html', 'package sales', 'keyword.other.package');
+
 const go = 'package p\n\nfunc row(o Order) ui.Node {\n\treturn ui.HTML(`<li key={o.ID}>{o.Ref}</li>`, o.ID, o.Ref)\n}\n';
 expect(go, 'go', '<li', 'punctuation.definition.tag');
 expect(go, 'go', 'o.Ref}', 'source.go');

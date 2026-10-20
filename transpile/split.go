@@ -132,7 +132,7 @@ func (e *engine) split(f *fileState) *Split {
 		text += "\n"
 	}
 	text += html.String()
-	return &Split{Vuka: []byte(squeezeBlank(vuka)), HTML: []byte(e.htmlImports(f, text) + text)}
+	return &Split{Vuka: []byte(squeezeBlank(vuka)), HTML: []byte("package " + f.ast.Name.Name + "\n\n" + e.htmlImports(f, text) + text)}
 }
 
 // isMainRender reports whether fd is the Render of the type the file is

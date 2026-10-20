@@ -21,7 +21,9 @@ type Chart struct {
 func main() {}
 `
 
-const lspTSTemplate = `<figure>{Title}</figure>
+const lspTSTemplate = `package main
+
+<figure>{Title}</figure>
 
 <script lang="ts">
 import { component } from 'vuka:component'

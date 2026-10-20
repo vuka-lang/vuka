@@ -40,6 +40,7 @@ type jsxComp struct {
 	ptrRender  bool      // whose Render takes a pointer: (&T{…}).Render()
 	key        *compArg  // its key attribute
 	targText   string    // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
+	missing    []string  // the parameters no attribute sets, but those a Node fills
 
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.Mount.
 	island                        bool      // this comp is a <ui.Island> wrapper
@@ -341,6 +342,9 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		c.fail = "the runtime has no Node"
 		return
 	}
+	if id, ok := expr.(*ast.Ident); ok && e.unknownTag(f, c, id) {
+		return
+	}
 	var attrs []*jsxAttr
 	for _, a := range el.attrs {
 		if a.name != "key" {
@@ -389,7 +393,48 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		fail("E0106", off, "%s", msg)
 		return
 	}
+	if len(c.missing) > 0 {
+		what := "attribute"
+		if len(c.missing) > 1 {
+			what += "s"
+		}
+		var set []string
+		for _, m := range c.missing {
+			set = append(set, m+"={…}")
+		}
+		c.dead = true
+		e.errs.add("E0144", f.at(el.start), "<%s> is missing the %s %s", el.tag, what, strings.Join(c.missing, ", ")).
+			help("set every parameter but ctx, children and slots: <%s %s>", el.tag, strings.Join(set, " "))
+		return
+	}
 	e.finishComp(f, c)
+}
+
+// unknownTag reports, as an error, a lowercase tag naming nothing: neither an
+// element nor a template or function of the package.
+func (e *engine) unknownTag(f *fileState, c *jsxComp, id *ast.Ident) bool {
+	if id.Name == "" || id.Name[0] < 'a' || id.Name[0] > 'z' || e.pkg == nil || e.info.Uses[id] != nil || e.pkg.Scope().Lookup(id.Name) != nil {
+		return false
+	}
+	var names []string
+	for _, n := range e.pkg.Scope().Names() {
+		if _, fn := e.pkg.Scope().Lookup(n).(*types.Func); fn {
+			names = append(names, n)
+		}
+	}
+	for n := range htmlElements {
+		names = append(names, n)
+	}
+	sort.Strings(names)
+	c.dead = true
+	err := e.errs.add("E0143", f.at(c.el.start+1), "unknown element or template <%s>", id.Name)
+	err.Len = len(id.Name)
+	if s := closestName(id.Name, names); s != "" {
+		err.suggest("<" + s + ">")
+	} else {
+		err.help("a lowercase tag is an HTML element, or a template or function of the package")
+	}
+	return true
 }
 
 // compIdent is the name a component's tag ends in: Card in <theme.Card> and <Card[T]>.
@@ -532,6 +577,12 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 			if msg := noKids("children " + c.target.q + "Node parameter"); msg != "" {
 				return el.start, msg
 			}
+		}
+	}
+	c.missing = nil
+	for i, a := range args {
+		if a == nil && !(sig.Variadic() && i == len(args)-1) && !types.AssignableTo(node, params.At(i).Type()) {
+			c.missing = append(c.missing, names[i])
 		}
 	}
 	last := -1

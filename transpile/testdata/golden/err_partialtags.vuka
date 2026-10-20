@@ -1,0 +1,15 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+func navLink(href string, on bool) ui.Node {
+	return <a href={href} class:on={on}>link</a>
+}
+
+func Menu() ui.Node {
+	return <nav>
+		<navlink href="/"/>
+		<navLink href="/"/>
+		<navLink hrf="/" on/>
+	</nav>
+}

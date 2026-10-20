@@ -1,3 +1,5 @@
+package main
+
 // A bare island: onBump lowers to ui.Emit("bump", d.Bump) (no strategy).
 func (d *page) bare()
 <ui.Island><Counter count={5} onBump={d.Bump} /></ui.Island>

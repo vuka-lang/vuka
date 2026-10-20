@@ -1,3 +1,5 @@
+package main
+
 import Picker "./islands/Picker.vue"
 
 func pageView(open ui.State[bool], p *page)

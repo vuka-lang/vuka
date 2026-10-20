@@ -10,11 +10,11 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line page.vuka.html:1
+//line page.vuka.html:3
 func (p Page) View() ui.Node {
-//line page.vuka.html:1
+//line page.vuka.html:3
 	return ui.HTML(`<main>{ui.Mount(Chart{Title: "Sales", Points: p.Points}, ui.Visible())}</main>`, ui.Mount(Chart{Title: "Sales", Points: p.Points}, ui.Visible()))
 }
 
-//line page.vuka.html:3
+//line page.vuka.html:5
 func (p Page) Render(ctx context.Context, w io.Writer) error { return p.View().Render(ctx, w) }

@@ -20,12 +20,15 @@ func (s Sales) Total() int { return len(s.Week) }
 func main() {}
 `
 
-const lspHTMLTemplate = `<section>
+const lspHTMLTemplate = `package main
+
+<section>
   <h2>{Title}</h2>
   for _, d := range Week {
     <i>{d}</i>
   }
   <p>{Total()}</p>
+  <row n={1}/>
 </section>
 
 func row(n int)
@@ -56,15 +59,31 @@ func TestLSPTemplate(t *testing.T) {
 	if !strings.Contains(string(def), "sales.vuka.html") {
 		t.Errorf("definition of n: %s", def)
 	}
+	// A partial used as a tag is its template.
+	def, _ = json.Marshal(c.call("textDocument/definition", at("<row", 2)))
+	if !strings.Contains(string(def), "sales.vuka.html") {
+		t.Errorf("definition of <row>: %s", def)
+	}
+	hover, _ = json.Marshal(c.call("textDocument/hover", at("<row", 2)))
+	if !strings.Contains(string(hover), "func row(n int)") {
+		t.Errorf("hover on <row>: %s", hover)
+	}
 }
 
-const lspHTMLTyping = `<section>
+const lspHTMLTyping = `package main
+
+<section>
   <h2>{Title}</h2>
+  <ro
+  <row 
   <inp
   <a tar
   <input type="ch
   <textarea bi
 </section>
+
+func row(n int)
+<p>{n}</p>
 `
 
 // TestLSPTemplateHTML: completion in a .vuka.html's markup is HTML's: the
@@ -82,7 +101,7 @@ func TestLSPTemplateHTML(t *testing.T) {
 		return map[string]any{"textDocument": map[string]any{"uri": uri},
 			"position": positionOf([]byte(lspHTMLTyping), strings.Index(lspHTMLTyping, needle)+len(needle))}
 	}
-	for needle, want := range map[string]string{"<inp": `"input"`, "<a tar": `"target"`, `type="ch`: `"checkbox"`, "<textarea bi": `"bind:value"`} {
+	for needle, want := range map[string]string{"<ro": `"row"`, "<row ": `"n"`, "<inp": `"input"`, "<a tar": `"target"`, `type="ch`: `"checkbox"`, "<textarea bi": `"bind:value"`} {
 		b, _ := json.Marshal(c.call("textDocument/completion", at(needle)))
 		if !strings.Contains(string(b), want) {
 			t.Errorf("completion at %s: no %s in %.300s", needle, want, b)
