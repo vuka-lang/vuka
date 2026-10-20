@@ -45,14 +45,14 @@ func identity(row *User) *auth.Identity {
 // FindLogin is the user whose email is login, with their encoded password.
 func (u *Users) FindLogin(ctx context.Context, login string) (*auth.Identity, string, error) {
 	email := strings.ToLower(strings.TrimSpace(login))
-	match User.Objects.Filter(User.Email.Eq(email)).First(u.ctx(ctx)) {
-	case Ok(Some(row)):
-		return identity(&row), row.Password, nil
-	case Ok(None):
+	row, err := User.Objects.Filter(User.Email.Eq(email)).First(u.ctx(ctx))
+	if errors.Is(err, orm.ErrNotFound) {
 		return nil, "", nil
-	case Err(e):
-		return nil, "", e
 	}
+	if err != nil {
+		return nil, "", err
+	}
+	return identity(&row), row.Password, nil
 }
 
 // Load is the user a session or token names; nil once they are gone.
@@ -61,20 +61,20 @@ func (u *Users) Load(ctx context.Context, id string) (*auth.Identity, error) {
 	if err != nil {
 		return nil, nil
 	}
-	match User.Objects.Filter(User.ID.Eq(n)).First(u.ctx(ctx)) {
-	case Ok(Some(row)):
-		return identity(&row), nil
-	case Ok(None):
+	row, err := User.Objects.Filter(User.ID.Eq(n)).First(u.ctx(ctx))
+	if errors.Is(err, orm.ErrNotFound) {
 		return nil, nil
-	case Err(e):
-		return nil, e
 	}
+	if err != nil {
+		return nil, err
+	}
+	return identity(&row), nil
 }
 
 // SetPassword stores a password auth hashed again.
 func (u *Users) SetPassword(ctx context.Context, id, encoded string) error {
 	n := strconv.ParseInt(id, 10, 64)?
-	User.Objects.Filter(User.ID.Eq(n)).Update(u.ctx(ctx), orm.Assign(User.Password, encoded))?
+	User.Objects.Filter(User.ID.Eq(n)).Update(u.ctx(ctx), orm.Set{User.Password.Name(): encoded})?
 	return nil
 }
 
@@ -82,13 +82,13 @@ func (u *Users) SetPassword(ctx context.Context, id, encoded string) error {
 func (u *Users) Public(id *auth.Identity) any { return id.User }
 
 // All is every user, by name.
-func (u *Users) All(ctx context.Context) Result[[]User] { return User.Objects.All(u.ctx(ctx)) }
+func (u *Users) All(ctx context.Context) ([]User, error) { return User.Objects.All(u.ctx(ctx)) }
 
 // Count is how many users there are.
-func (u *Users) Count(ctx context.Context) Result[int64] { return User.Objects.Count(u.ctx(ctx)) }
+func (u *Users) Count(ctx context.Context) (int64, error) { return User.Objects.Count(u.ctx(ctx)) }
 
 // ActiveSessions is how many signed-in browsers there are.
-func (u *Users) ActiveSessions(ctx context.Context) Result[int64] {
+func (u *Users) ActiveSessions(ctx context.Context) (int64, error) {
 	return Session.Objects.Filter(Session.Expires.Gt(time.Now())).Count(u.ctx(ctx))
 }
 

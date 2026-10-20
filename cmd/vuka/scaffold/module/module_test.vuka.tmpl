@@ -22,14 +22,14 @@ func Test{%.Service%}(t *testing.T) {
 	if _, err := s.Add(ctx, New{%.Model%}{Title: "Second"}).Get(); err != nil {
 		t.Fatal(err)
 	}
-	all, err := s.All(ctx).Get()
+	all, err := s.All(ctx)
 	if err != nil || len(all) != 2 || all[0].Title != "Second" {
 		t.Fatalf("All: %v %v", all, err)
 	}
 	if err := s.Delete(ctx, first.ID); err != nil {
 		t.Fatal(err)
 	}
-	if all, _ := s.All(ctx).Get(); len(all) != 1 {
+	if all, _ := s.All(ctx); len(all) != 1 {
 		t.Errorf("after Delete: %v", all)
 	}
 }

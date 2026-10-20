@@ -24,7 +24,7 @@ type New{%.Model%} struct {
 var ErrNoTitle = errors.New("a title is required")
 
 // All is every {%.Model%}, newest first.
-func (s *{%.Service%}) All(ctx context.Context) Result[[]{%.Model%}] {
+func (s *{%.Service%}) All(ctx context.Context) ([]{%.Model%}, error) {
 	return {%.Model%}.Objects.All(ctx)
 }
 

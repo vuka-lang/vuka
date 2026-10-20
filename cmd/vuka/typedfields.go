@@ -48,6 +48,12 @@ func typedFields(root, tmp, overlay string, gens []load.Generated, tests bool, s
 // through overlay (with tests, for the models of test files too); unless
 // all, none when the generated code doesn't read typed fields.
 func ormMissing(root, overlay string, gens []load.Generated, tests, all bool) ([]load.Generated, error) {
+	return ormMissingIn(root, ".", overlay, gens, tests, all)
+}
+
+// ormMissingIn is ormMissing for the models under dir, a directory of the
+// module at root.
+func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all bool) ([]load.Generated, error) {
 	mod, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil || !bytes.Contains(mod, []byte(ormModule+" ")) && !bytes.Contains(mod, []byte("module "+ormModule+"\n")) {
 		return nil, nil
@@ -71,7 +77,7 @@ func ormMissing(root, overlay string, gens []load.Generated, tests, all bool) ([
 		args = append(args, "--overlay", overlay)
 	}
 	var out, errOut bytes.Buffer
-	c := exec.Command("go", append(args, ".")...)
+	c := exec.Command("go", append(args, dir)...)
 	c.Dir, c.Stdout, c.Stderr = root, &out, &errOut
 	if err := c.Run(); err != nil {
 		return nil, fmt.Errorf("go %s: %v\n%s", args[0], err, bytes.TrimSpace(errOut.Bytes()))
@@ -90,4 +96,27 @@ func ormMissing(root, overlay string, gens []load.Generated, tests, all bool) ([
 		missing = append(missing, load.Generated{Target: p, Src: []byte(files[p])})
 	}
 	return missing, nil
+}
+
+func init() { load.AfterPackage = packageTypedFields }
+
+// packageTypedFields is what orm generate would write for a Vuka package
+// just transpiled whose Go reads typed fields (User.Email is
+// UserFields.Email): the packages importing it are type-checked with them.
+func packageTypedFields(dir, overlay string, gens []load.Generated) []load.Generated {
+	root, _, err := load.ModuleRoot(dir)
+	if err != nil {
+		return nil
+	}
+	missing, err := ormMissingIn(root, dir, overlay, gens, false, false)
+	if err != nil {
+		return nil // the build's own pass says so
+	}
+	var out []load.Generated
+	for _, g := range missing {
+		if filepath.Dir(g.Target) == dir {
+			out = append(out, g)
+		}
+	}
+	return out
 }
