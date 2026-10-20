@@ -18,11 +18,25 @@
       }
     },
     "header": {
-      "comment": "func Card(p CardProps): a template's header, Go to the line's end.",
-      "begin": "^(?=func\\b)",
-      "end": "$",
+      "comment": "func Card(p CardProps) or func (c Card) badge(): a template's header, one line; the markup below it is markup.",
+      "match": "^(func)\\s*(\\([^)]*\\))?\\s*([A-Za-z_]\\w*)\\s*(\\[[^\\]]*\\])?\\s*(\\(.*\\))\\s*$",
       "name": "meta.template.header.vuka",
-      "patterns": [{ "include": "source.go" }]
+      "captures": {
+        "1": { "name": "keyword.function.go" },
+        "2": { "patterns": [{ "include": "#params" }] },
+        "3": { "name": "entity.name.function.go" },
+        "4": { "patterns": [{ "include": "#params" }] },
+        "5": { "patterns": [{ "include": "#params" }] }
+      }
+    },
+    "params": {
+      "comment": "A header's receiver, type parameters or parameters: names, then their types.",
+      "patterns": [
+        { "match": "[()\\[\\],]", "name": "punctuation.other.go" },
+        { "match": "\\b[a-z_]\\w*(?=\\s+[*\\[\\]\\w.]+)", "name": "variable.parameter.go" },
+        { "match": "\\b(?:[a-z_]\\w*\\.)?[A-Za-z_]\\w*\\b", "name": "entity.name.type.go" },
+        { "match": "[*.]", "name": "keyword.operator.go" }
+      ]
     },
     "markup": {
       "patterns": [

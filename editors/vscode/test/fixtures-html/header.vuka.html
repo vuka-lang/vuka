@@ -1,0 +1,13 @@
+import "portal/components"
+
+<nav>{navLink(first, true)}</nav>
+
+// navLink is one menu entry.
+func navLink(item Item, on bool)
+<ui.Link href={item.link()} class={navClass(on, "px-5")} attrs={navLinkAttrs(item, on)}>
+  <components.Icon glyph={item.Icon} class="shrink-0" />
+  <span class={wide}>{item.Label}</span>
+</ui.Link>
+
+func (c Card) badge()
+<b class="badge">{c.Count}</b>
