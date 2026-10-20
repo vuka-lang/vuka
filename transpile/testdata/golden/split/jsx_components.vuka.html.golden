@@ -1,3 +1,5 @@
+package main
+
 import "github.com/a-h/templ"
 
 func UserCard(user User, admin bool, children ui.Node)
@@ -47,7 +49,7 @@ func List(users []User)
 <Icon name="star" />
 <Icon />
 <Avatar url={"a.png"} />
-<UserCard />
+<UserCard user={User{}} admin={false} />
 <table><Row user={users[0]} /></table>
 <Layout title="Users"><p>body</p></Layout>
 <templ.Raw html="<b>raw</b>">children through templ's context</templ.Raw>

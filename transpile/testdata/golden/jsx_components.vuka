@@ -89,7 +89,7 @@ func List(users []User) ui.Node {
 		<Icon name="star" />
 		<Icon />
 		<Avatar url={"a.png"} />
-		<UserCard />
+		<UserCard user={User{}} admin={false} />
 		<table><Row user={users[0]} /></table>
 		<Layout title="Users"><p>body</p></Layout>
 		<templ.Raw html="<b>raw</b>">children through templ's context</templ.Raw>

@@ -44,6 +44,7 @@ func TestTemplateDocs(t *testing.T) {
 	want := []string{
 		"docs.vuka.html:7:6: unexpected diagnostic: W0104: the exported template List has no doc comment",
 		"docs.vuka.html:16:15: unexpected diagnostic: W0104: the exported template Badge has no doc comment",
+		"docs.vuka.html:19:6: unexpected diagnostic: E0145: the template nav has an element's name: <nav> is the element",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %q", got)

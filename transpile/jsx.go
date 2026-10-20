@@ -221,9 +221,10 @@ func (p *jsxParser) name(i int) (string, int) {
 	return string(p.src[i:j]), j
 }
 
-// isComponent reports whether a tag names a Go function: Capitalized, or pkg.Name.
+// isComponent reports whether a tag names a Go function or type: Card,
+// pkg.Name, or a lowercase name no HTML, SVG or custom element has (navLink).
 func isComponent(tag string) bool {
-	return tag != "" && ('A' <= tag[0] && tag[0] <= 'Z' || strings.Contains(tag, "."))
+	return tag != "" && !IsElement(tag)
 }
 
 // isEvent reports whether an attribute is an event handler: onclick, onClick.

@@ -374,6 +374,12 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	if err := head.check(packageNameOf(others)); err != nil {
 		return nil, nil, nil, err
 	}
+	for _, hd := range TemplateHeaders(src) {
+		if !hd.Method && IsElementName(hd.Name) {
+			return nil, nil, nil, (&Error{Code: "E0145", Pos: token.Position{Line: hd.Line, Column: hd.Off - off[hd.Line-1] + 1}, Len: len(hd.Name),
+				Msg: "the template " + hd.Name + " has an element's name: <" + hd.Name + "> is the element"}).help("rename it: %sView, or a name of what it shows", hd.Name)
+		}
+	}
 	if first >= 0 {
 		ptr, live, ok := receiverKind(typ, others)
 		if !ok {
