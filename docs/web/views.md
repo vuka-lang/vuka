@@ -205,6 +205,8 @@ func init() { web.Routes.Get("/about", About) }
 
 ```html
 <!-- shell.vuka.html -->
+package views
+
 <html lang="en">
   <head><title>{Title}</title></head>
   <body><main>{Children}</main></body>

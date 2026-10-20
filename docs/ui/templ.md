@@ -49,6 +49,8 @@ type PetRow struct{ Pet Pet }
 
 ```html
 <!-- pets.vuka.html -->
+package main
+
 func Page(pets []Pet)
 <Shell title="Pets">
   <table>

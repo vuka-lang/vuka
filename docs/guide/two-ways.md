@@ -104,6 +104,8 @@ type Sales struct {
 
 ```html
 <!-- sales.vuka.html -->
+package app
+
 <section class="sales">
   <h2>{Title}</h2>
   for _, d := range Week {

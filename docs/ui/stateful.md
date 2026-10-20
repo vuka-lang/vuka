@@ -343,6 +343,8 @@ func (r *Row) Inc() { r.qty.Update(func(n int) int { return n + 1 }) }
 
 ```html
 <!-- row.vuka.html -->
+package app
+
 <tr key={ID}><td>{Name}</td><td>{qty.Get()}</td><td><button onClick={Inc}>+</button></td></tr>
 ```
 :::

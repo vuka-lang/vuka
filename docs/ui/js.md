@@ -708,6 +708,8 @@ var (
 
 ```html
 <!-- dropdown.vuka.html -->
+package app
+
 <div class="relative" onKeyDown={closeMenu}>
   <button onClick={toggleMenu}>{Label}</button>
   <ul ref="menu" class="hidden absolute">

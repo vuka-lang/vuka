@@ -31,6 +31,8 @@ func (s Sales) Total() int {
 
 ```html
 <!-- sales.vuka.html -->
+package app
+
 <section class="sales">
   <h2>{Title}</h2>
   for _, d := range Week {
@@ -63,9 +65,12 @@ type), to name the receiver.
 ## More templates in a file
 
 A `func` line at the start of a line starts another template; its body is
-the markup up to the next `func` line. The result, `ui.Node`, is implied:
+the markup up to the next `func` line or the end of the file. There are no
+braces: the header is one line, and the result, `ui.Node`, is implied:
 
 ```html
+package orders
+
 // Page lists the orders below a week of sales.
 func Page(orders []Order)
 <main>
@@ -74,7 +79,7 @@ func Page(orders []Order)
   </Sales>
   <ul>
     for _, o := range orders {
-      {row(o)}
+      <row o={o} />
     }
   </ul>
 </main>
@@ -83,12 +88,55 @@ func row(o Order)
 <li key={o.ID}><a href="/orders/{o.ID}">{o.Ref}</a></li>
 ```
 
-A template taking one struct is a component, used as a tag; one taking
-anything else is a partial, called in a hole: `{row(o)}`. A `//` line
-above a header is its doc comment. A first parameter `ctx
-context.Context` is passed by tags and the runtime. `import "x"` lines at
-the top of the file add imports; the package's `.go` imports are visible
-too.
+A template taking one struct is a component, its attributes the struct's
+fields; any other template is a partial, its attributes its parameters:
+`<row o={o} />`, or called in a hole, `{row(o)}`. A first parameter `ctx
+context.Context` is passed by tags and the runtime.
+
+## The file
+
+A template file starts with its package clause, as a Go file does: the
+package of its directory (an external test package's templates may say
+`orders_test`). Then come its imports, single or grouped, then the main
+markup (the headerless template of the type the file is named after, when
+there is one), then the `func` templates:
+
+```html
+package layouts
+
+import (
+	"strconv"
+
+	"example.com/app/components"
+)
+
+// Shell is the frame of every page.
+func Shell(title string, children ui.Node)
+<main>
+  <h1>{title}</h1>
+  {children}
+</main>
+
+// Badge is a count in a pill.
+func Badge(n int)
+<components.Pill>{strconv.Itoa(n)}</components.Pill>
+```
+
+A file without the clause, or with another package's, is an error
+([E0142](/errors/E0142)); `vuka fmt` adds a missing one, and `vuka fix
+templates-package` adds it to every template file of a module. The
+package's `.go` imports are visible in its templates too.
+
+`vuka fmt` lays a file out the same way every time, and the editor's
+format-on-save runs it: one blank line before each `func` header (before
+its doc comment, when it has one), the doc comment right above the header,
+the markup right below it, and one newline at the end. The markup stays as
+written.
+
+A `//` comment right above a header is the template's doc comment. An
+exported template has one, as an exported Go function does: `vuka vet`
+warns when it hasn't ([W0104](/errors/W0104)); a `View` or `Render` method
+is documented by its type.
 
 ## Holes
 
@@ -147,8 +195,11 @@ x = 2
 
 ## Components and slots
 
-A capitalised tag is a component: `<Sales …/>` in the same package,
-`<ui.Card>` or `<layouts.Admin>` from another.
+A tag names a component when it is capitalised, `<Sales …/>`, or a selector,
+`<ui.Card>` or `<layouts.Admin>` from another package; a lowercase tag is an
+HTML (or SVG, MathML) element when it is an element's name or holds a hyphen
+(`<my-chart>`), and otherwise a template or function of the package:
+`<navLink …/>`.
 
 - A struct component: `<Sales title="Week" week={w}/>` is
   `Sales{Title: "Week", Week: w}`. (A struct whose `Render() ui.Node` is its
@@ -156,6 +207,41 @@ A capitalised tag is a component: `<Sales …/>` in the same package,
   `ui.Live` is a [stateful component](/ui/stateful), `&Counter{…}`; with
   `key={…}`, `ui.Key`.
 - A function taking one struct: its attributes are the struct's fields.
+- A partial, or any function returning `ui.Node`, in a `.vuka.html`, a
+  `.vuka` or a `.go` file: its attributes are its parameters, by name.
+
+Templates and functions have Go's scope and visibility: a lowercase one is
+the package's own, usable as `<navLink …/>` in any of its files; an
+exported one is usable from other packages through a selector,
+`<layouts.NavLink …/>`:
+
+```html
+package layouts
+
+// Menu is the top bar: a link per item, the current one marked.
+func Menu(items []Item, path string)
+<nav>
+  for _, i := range items {
+    <navLink item={i} on={i.Href == path}/>
+  }
+  <navLink item={home} on/>
+</nav>
+
+func navLink(item Item, on bool)
+<a href={item.Href} class:on={on}>{item.Label}</a>
+```
+
+`item={…}` sets the parameter `item` and a bare attribute a `bool`
+parameter to `true`; a first `ctx context.Context` is passed for it, the
+content between the tags fills a `children ui.Node` (or `Children`)
+parameter, and `<slot:x>` an `x ui.Node` one. Every other parameter is set:
+a tag leaving one out is an error naming it ([E0144](/errors/E0144)), and an
+attribute naming no parameter one with the closest name. A lowercase tag
+naming nothing is an error too, `unknown element or template <navlnk>`
+([E0143](/errors/E0143)): names are case-sensitive, as in Go. So that the
+tag can reach it, a template of the package can't be named as an element —
+`header`, `nav`, `label`, `select` — ([E0145](/errors/E0145)). A call,
+`{navLink(i, on)}`, works as well.
 
 Attributes on a component are camelCase — the field is the name with its
 first letter upper-cased, so `noPad` is `NoPad` and `onSelect` is
@@ -179,6 +265,8 @@ type Admin struct {
 
 ```html
 <!-- admin.vuka.html -->
+package app
+
 <div class="admin">
   <header><h1>{Title}</h1>{Actions}</header>
   <main>{Children}</main>
@@ -187,6 +275,8 @@ type Admin struct {
 
 ```html
 <!-- orders.vuka.html -->
+package app
+
 func Orders(n int)
 <Admin title="Orders">
   <slot:actions><button>New</button></slot:actions>
@@ -309,6 +399,8 @@ func (c Card) Render() ui.Node {
 
 ```html
 <!-- card.vuka.html -->
+package app
+
 func cardHead(c Card)
 <h2>{c.Title}</h2>
 

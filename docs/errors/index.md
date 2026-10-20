@@ -54,9 +54,14 @@ same page in the terminal.
 | [E0132](./E0132) | A value isn't written as its label |
 | [E0140](./E0140) | a template file has no type to be the Render of |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
+| [E0142](./E0142) | A template file has no package clause, or another package's |
+| [E0143](./E0143) | An unknown element or template |
+| [E0144](./E0144) | A tag leaves out a parameter |
+| [E0145](./E0145) | A template has an element's name |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
+| [W0104](./W0104) | An exported template has no doc comment |
 
 ## Decorators and attributes
 
