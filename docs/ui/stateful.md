@@ -270,6 +270,36 @@ field that isn't the page's own (E0335) or a hook that doesn't fit
 (E0336) stops the app at start, and `vukavet` reports both. Writing the
 `LiveSchema` method and attributes too is E0129.
 
+A page whose only schema is its hooks can declare them in its constructor
+instead, on its `ui.Live`, by method expression:
+
+```go
+type Login struct {
+	ui.Live
+	Stats []string
+}
+
+func NewLogin() *Login {
+	l := &Login{}
+	l.OnMount((*Login).mount)
+	l.Loads("stats", (*Login).loadStats)
+	return l
+}
+
+func (l *Login) mount(ctx context.Context) error     { return nil }
+func (l *Login) loadStats(ctx context.Context) error { return nil }
+func (l *Login) Render() ui.Node                     { return nil }
+```
+
+`OnMount`, `Loads` and `OnChange` take the hooks `LiveSchema` takes, the
+page as their first parameter, and the method is unexported. They are the type's: the first constructor
+to run sets them, so a page built without it (`&Login{}`) has them once one
+ran — a template placing a component builds it as a literal, so declare a
+component's hooks in `LiveSchema` (`vukavet`: W0304). A hook declared twice,
+or by both the constructor and `LiveSchema`, is E0336; one declared outside
+a function returning the page is W0305. Fields keep their attributes in
+`LiveSchema`.
+
 ## Messages
 
 A component subscribed to a topic receives what the transport publishes on

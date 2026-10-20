@@ -378,7 +378,7 @@ mistakes are compile errors (the method values are typed). `.vuka`
 attributes (`@ui.Bind{…}`, `@ui.Defer("lists")`, `@ui.Loads("lists")`,
 `@ui.OnChange`, `@ui.Mount`) lower to exactly these calls.
 
-### Hooks declared by the constructor (proposed, 1.1)
+### Hooks declared by the constructor (1.1)
 
 A page whose only schema is its hooks declares them in its constructor, on
 the embedded `ui.Live`, by method expression:
@@ -412,8 +412,12 @@ func (l *Login) loadStats(ctx context.Context) error { … }
   embedding this `Live`: E0336, naming the call's line); an instance
   declaring other hooks for the same type is E0336 too. Later constructor
   calls compare and store a pointer.
-- Hooks stay unexported and out of the browser's reach; `ui.Live`'s methods,
-  these included, are never events.
+- A hook is an unexported method (E0336 otherwise), out of the browser's
+  reach; `ui.Live`'s methods, these included, are never events.
+- The app's start-up checks run before any constructor: a deferred group
+  without a loader (E0324) on a page routed with a constructor is checked
+  again as the constructor builds the page, and a failed check isn't
+  cached.
 - One declaration per hook: a hook set by both the constructor and
   `LiveSchema` is E0336. Fields keep their attributes in `LiveSchema`; a
   page may use both, the constructor for hooks and `LiveSchema` for fields.
@@ -591,7 +595,7 @@ Folded into roadmap Phase 2:
 | 2b | Islands built for plain Go: `go tool vuka build-islands` into the frontend's build, `web.Dev()` keeps them built, `vuka-live.d.ts` from Go types — **done** | 2.6 |
 | 4a | Overloads named as Go names them (`areaCircle`, `UpdateNewMessage`), field references by address (`vuka.RefTo`), orm arithmetic and typed `SaveFields` — **done** | 2.3, 2.6 |
 | 7 | Conformance suite — **done** | 2.6 |
-| 8 | Hooks declared by the constructor (§3) — proposed, 1.1 | 2.2 |
+| 8 | Hooks declared by the constructor (§3) — **done**, 1.1 | 2.2 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
 one import block, no `/*line*/` markers and no `__` names, and checks its

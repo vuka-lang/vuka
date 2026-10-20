@@ -15,6 +15,7 @@ type liveSchema struct {
 	fields   map[*types.Var]schemaField
 	loads    map[string]bool // the groups loaded, as loaders name them: Lists
 	hooks    map[string]bool // the methods hooked
+	mount    bool
 	onChange bool
 }
 
@@ -73,6 +74,7 @@ func (l *liveCheck) schema(n *types.Named) *liveSchema {
 		case "Mount", "OnChange":
 			if len(call.Args) == 1 {
 				hook(m, call.Args[0])
+				s.mount = s.mount || m == "Mount"
 				s.onChange = s.onChange || m == "OnChange"
 			}
 		case "Loads":
