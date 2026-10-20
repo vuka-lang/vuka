@@ -24,8 +24,9 @@ import (
 // (library-users/vuka) after vuka eject -rm
 // (its markup then templates, users.vuka.html, compiled to users_html.go):
 // the code is written alike — the same web.Routes calls in an init, the
-// same templates, the same Schema and LiveSchema methods — vukavet finds
-// nothing in either, and the two programs answer the same.
+// same templates, the same model and its Schema, the same LiveSchema
+// methods — vukavet finds nothing in either, and the two programs answer
+// the same.
 func TestLibraryExample(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
@@ -99,6 +100,9 @@ func TestLibraryExample(t *testing.T) {
 		t.Errorf("templates differ:\nplain Go:\n\t%s\nejected:\n\t%s", strings.Join(plain, "\n\t"), strings.Join(ejected, "\n\t"))
 	}
 
+	if p, e := typeSrc(t, "users.go", "User"), typeSrc(t, "decorated/users.go", "User"); p == "" || p != e {
+		t.Errorf("the model User differs:\nplain Go:\n%s\nejected:\n%s", p, e)
+	}
 	for _, m := range []string{"User.Schema", "Dashboard.LiveSchema", "Profile.LiveSchema"} {
 		if p, e := methodSrc(t, "users.go", m), methodSrc(t, "decorated/users.go", m); p == "" || p != e {
 			t.Errorf("%s differs:\nplain Go:\n%s\nejected:\n%s", m, p, e)
@@ -174,6 +178,28 @@ func methodSrc(t *testing.T, file, name string) string {
 				var b bytes.Buffer
 				format.Node(&b, fset, fd)
 				return b.String()
+			}
+		}
+	}
+	return ""
+}
+
+// typeSrc is the declaration of the type name in file, formatted.
+func typeSrc(t *testing.T, file, name string) string {
+	t.Helper()
+	fset := token.NewFileSet()
+	f, err := parser.ParseFile(fset, file, nil, 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, d := range f.Decls {
+		if gd, ok := d.(*ast.GenDecl); ok && gd.Tok == token.TYPE {
+			for _, s := range gd.Specs {
+				if ts := s.(*ast.TypeSpec); ts.Name.Name == name {
+					var b bytes.Buffer
+					format.Node(&b, fset, ts)
+					return b.String()
+				}
 			}
 		}
 	}

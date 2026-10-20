@@ -1,0 +1,25 @@
+package main
+
+import (
+	"fmt"
+
+	"vukatest.local/orm"
+)
+
+// Tag names its embedded base, so it stays orm.Base.
+type Tag struct {
+	orm.Base
+	Name string
+}
+
+// Note doesn't: plain Go embeds orm.Model.
+type Note struct {
+	orm.Base
+	Text string
+}
+
+func main() {
+	t := Tag{Name: "go"}
+	_ = t.Base
+	fmt.Println(t.Name, Note{Text: "hi"}.Text)
+}

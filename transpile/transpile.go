@@ -566,6 +566,7 @@ func Package(files []File, opts Options) (*Result, error) {
 			splits[f] = e.split(f)
 		}
 	}
+	e.writePlainEmbeds()
 	if !e.parseAll(false) {
 		return nil, errs.err()
 	}

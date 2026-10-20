@@ -49,6 +49,7 @@ type engine struct {
 	registries    map[*types.Package]*types.Var // each package's registry, nil for none (decorate.go)
 	schemas       map[string]*schemaInfo        // struct types declaring a schema method, by name (schema.go)
 	genericEmbeds map[string]bool               // types embedding a generic or another package's type
+	plainEmbeds   []plainEmbed                  // embedded types plain Go writes as others
 	members       map[string]bool               // Type.field and Type.method names
 	methodNames   map[string]bool               // Type.method names
 	typed         bool                          // the package is type-checked every round
