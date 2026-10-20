@@ -9,18 +9,18 @@ func (p *UsersPage) Render()
   <components.Flash tone="success" message={p.notice} class="mb-6" />
   if p.me.Can("users.write") {
     <div id="add-panel" hidden class="mb-6">
-      <components.Card title="Add a user" description="They sign in with this email and password.">
+      <components.Card title="Add a user" description="They sign in with this email and password." class="">
         <form onSubmit={p.Add} class="grid gap-4 sm:grid-cols-2" id="add-user">
-          <components.Field label="Name" name="name" error={p.problem["name"]}>
+          <components.Field label="Name" name="name" hint="" error={p.problem["name"]}>
             <components.Input name="name" autocomplete="off" invalid={p.problem["name"] != ""} />
           </components.Field>
-          <components.Field label="Email" name="email" error={p.problem["email"]}>
+          <components.Field label="Email" name="email" hint="" error={p.problem["email"]}>
             <components.Input name="email" type="email" autocomplete="off" invalid={p.problem["email"] != ""} />
           </components.Field>
           <components.Field label="Password" name="password" hint="12 characters or more." error={p.problem["password"]}>
             <components.Input name="password" type="password" autocomplete="new-password" invalid={p.problem["password"] != ""} />
           </components.Field>
-          <components.Field label="Role" name="role">
+          <components.Field label="Role" name="role" hint="" error="">
             <select id="role" name="role" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600 dark:bg-white/5 dark:text-white dark:ring-white/15">
               <option value="member">Member</option>
               <option value="admin">Admin</option>

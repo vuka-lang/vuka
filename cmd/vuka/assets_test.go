@@ -242,7 +242,7 @@ func (c *C) helper() ui.Node { return <section /> }
 	if _, err := compileAssets(pa, false, &warn); err != nil {
 		t.Fatal(err)
 	}
-	if want := "card.vuka.html:6: span matches no element in Card\n"; warn.String() != want {
+	if want := "card.vuka.html:8: span matches no element in Card\n"; warn.String() != want {
 		t.Errorf("a template's warnings:\n%s\nwant:\n%s", warn.String(), want)
 	}
 }
