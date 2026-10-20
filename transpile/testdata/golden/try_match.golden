@@ -23,9 +23,9 @@ func find(n int) vuka.Result[vuka.Option[int]] {
 
 // x has the type ? unwraps to when the match is checked.
 func run(n int) error {
-	x, e1 := find(n).Get()
-	if e1 != nil {
-		return e1
+	x, err := find(n).Get()
+	if err != nil {
+		return err
 	}
 //line try_match.vuka:21
 	if m1 := x; false {

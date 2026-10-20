@@ -22,9 +22,7 @@ func panel() ui.Node {
 }
 
 //line islands_notemplate.vuka:6
-func NewPanel(Open bool) *Panel {
-	return &Panel{Open: Open}
-}
+func NewPanel(open bool) *Panel { return &Panel{Open: open} }
 
 func init() {
 //line islands_notemplate.vuka:5

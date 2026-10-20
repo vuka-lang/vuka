@@ -108,10 +108,24 @@ page.
 
 Under a [live session](/ui/live) it is an **instance**: created the first
 time its tag renders, mounted once, then kept between renders with its
-state. Each render of the parent sets its props again — exported fields
-belong to the parent; a component changes only its unexported ones. An
-instance not rendered any more is dropped, after its optional `Unmount()`
-runs.
+state. An instance not rendered any more is dropped, after its optional
+`Unmount()` runs.
+
+### Whose fields
+
+An instance's unexported fields are always its own. Its exported fields
+belong to whoever sets them:
+
+| | exported fields |
+|---|---|
+| a component a tag renders | the parent's: each render of the tag sets them again, so the component changes only its unexported ones (a `bind:` field it sets is written to the tag's value too, until the parent renders the tag with another) |
+| a routed live page (<span class="vuka-only">`@web.Live`</span><span class="go-only">`web.Routes.Live`</span>) | the page's own: built for its URL when it mounts, then changed only by the page — its handlers, hooks, `Update` methods and `bind:` fields — and kept as it changes them, so `p.Reply = ""` in a submit's handler clears the input |
+| that page on a [patch](/web/navigation) | the fields its URL binds (path segments and query parameters, as when it mounted) are set from the new URL before its `Update` takes it; the others stay the page's |
+
+In the browser a field shows the server's value when that changes: a field
+with focus too, when it still shows what it showed when the page last sent
+an event (a form cleared once sent); one the user has typed into since keeps
+what is typed.
 
 | Method | |
 |---|---|

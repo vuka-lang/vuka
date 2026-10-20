@@ -59,19 +59,13 @@ func main() {
 func (b *Board) Render() ui.Node { return ui.IslandPage(b) }
 
 //line registries.vuka:18
-func NewStore(pets []string) *Store {
-	return &Store{pets: pets}
-}
+func NewStore(pets []string) *Store { return &Store{pets: pets} }
 
 //line registries.vuka:31
-func NewAdmin(store *Store) *Admin {
-	return &Admin{store: store}
-}
+func NewAdmin(store *Store) *Admin { return &Admin{store: store} }
 
 //line registries.vuka:39
-func NewBoard(Q string) *Board {
-	return &Board{Q: Q}
-}
+func NewBoard(q string) *Board { return &Board{Q: q} }
 
 func init() {
 //line registries.vuka:45

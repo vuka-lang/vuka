@@ -211,9 +211,7 @@ func sum(nums ...int) int {
 }
 
 //line call_decorators.vuka:119
-func NewUser(ID int) *User {
-	return &User{ID: ID}
-}
+func NewUser(id int) *User { return &User{ID: id} }
 
 func init() {
 //line call_decorators.vuka:118

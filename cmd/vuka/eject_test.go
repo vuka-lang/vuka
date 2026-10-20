@@ -95,3 +95,46 @@ func TestEject(t *testing.T) {
 		}
 	}
 }
+
+// An ejected file has its type's constructor and schema method after the
+// type, and one init.
+func TestEjectedArrange(t *testing.T) {
+	src := `package main
+
+// Board is a page.
+type Board struct{ notes *Notes }
+
+// Open opens a note.
+func (b *Board) Open(id int) {}
+
+func init() { register("a") }
+
+func (b *Board) LiveSchema(l *Schema) { l.Mount(b.mount) }
+
+func NewBoard(notes *Notes) *Board { return &Board{notes: notes} }
+
+func init() {
+	register("b")
+}
+`
+	want := `package main
+
+// Board is a page.
+type Board struct{ notes *Notes }
+
+func NewBoard(notes *Notes) *Board { return &Board{notes: notes} }
+
+func (b *Board) LiveSchema(l *Schema) { l.Mount(b.mount) }
+
+// Open opens a note.
+func (b *Board) Open(id int) {}
+
+func init() {
+	register("a")
+	register("b")
+}
+`
+	if got := string(ejected([]byte(src))); got != want {
+		t.Errorf("got:\n%s\nwant:\n%s", got, want)
+	}
+}

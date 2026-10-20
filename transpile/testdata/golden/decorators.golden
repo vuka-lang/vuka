@@ -36,7 +36,7 @@ func memo(f func(int) int) func(int) int {
 	}
 }
 
-// fib calls itself through the decorated function.
+// fibImpl calls itself through the decorated function.
 //
 //line decorators.vuka:34
 func fibImpl(n int) int {

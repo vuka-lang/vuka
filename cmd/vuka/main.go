@@ -481,7 +481,10 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		return "", nil, err
 	}
 	opts := loadOptions(pa)
-	opts.Split = lo.Split
+	if opts.Split = lo.Split; opts.Split {
+		// the templates written apart get their scope as they compile
+		opts.Scopes = nil
+	}
 	files, overlay, err := load.Transpile(pkgs, tmp, opts)
 	if err != nil {
 		return "", nil, err

@@ -290,7 +290,7 @@ type Field struct {
 	Type     reflect.Type
 	Tag      reflect.StructTag
 	Attrs    []any // the field's typed attributes
-	Injected bool  // a parameter of New: not blank, not tagged inject:"-"
+	Injected bool  // not blank, not tagged inject:"-": a parameter of New, when a pointer or interface for a type declaring a schema
 }
 
 // Attr fills ptr with the type's typed attribute of ptr's element type.

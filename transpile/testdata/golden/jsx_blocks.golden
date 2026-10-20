@@ -21,9 +21,9 @@ type User struct {
 }
 
 func lookup(s string) vuka.Result[int] {
-	n, e1 := strconv.Atoi(s)
-	if e1 != nil {
-		return vuka.Err[int](e1)
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return vuka.Err[int](err)
 	}
 //line jsx_blocks.vuka:19
 	return vuka.Ok[int](n)

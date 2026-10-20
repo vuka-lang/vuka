@@ -21,7 +21,7 @@ func (c Chart) Render() ui.Node {
 	return ui.HTML(`<figure data-vk-p={ui.Props(c)} class="chart"><figcaption>{c.Title}</figcaption></figure>`, ui.Props(c), c.Title)
 }
 
-//line jsx_scripts.vuka:28
+//line jsx_scripts.vuka:30
 func main() {
 	s, err := ui.String(context.Background(), Chart{Title: "Sales", Points: []int{1, 2}}.Render())
 	fmt.Println(s, err)

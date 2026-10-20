@@ -576,6 +576,35 @@ func (p *tprint) gocode(s span) string {
 	return b.String()
 }
 
+// dedent is a script or style element written at the template's left
+// margin: its lines without the indent they share, its closing tag on a
+// line of its own at the margin.
+func dedent(el string) string {
+	lines := strings.Split(el, "\n")
+	if len(lines) < 2 {
+		return el
+	}
+	last := len(lines) - 1
+	lines[last] = strings.TrimLeft(lines[last], " \t")
+	common, set := "", false
+	for _, l := range lines[1:last] {
+		if strings.TrimSpace(l) == "" {
+			continue
+		}
+		ind := l[:len(l)-len(strings.TrimLeft(l, " \t"))]
+		if !set {
+			common, set = ind, true
+		}
+		for !strings.HasPrefix(ind, common) {
+			common = common[:len(common)-1]
+		}
+	}
+	for i := 1; i < last; i++ {
+		lines[i] = strings.TrimPrefix(lines[i], common)
+	}
+	return strings.Join(lines, "\n")
+}
+
 var stmtLike = regexp.MustCompile(`^(if|for|switch)\b|^[A-Za-z_][\w.]*\s*(:=|=[^=])`)
 
 // nodes writes ns at indent, each on a line of its own where whitespace
@@ -583,7 +612,7 @@ var stmtLike = regexp.MustCompile(`^(if|for|switch)\b|^[A-Za-z_][\w.]*\s*(:=|=[^
 func (p *tprint) nodes(ns []jsxNode, indent string, inline, body bool) {
 	for _, n := range ns {
 		if el, ok := n.(*jsxElem); ok && el.asset {
-			p.assets = append(p.assets, string(p.f.src[el.start:el.end]))
+			p.assets = append(p.assets, dedent(string(p.f.src[el.start:el.end])))
 		}
 	}
 	ns = withoutAssets(ns)

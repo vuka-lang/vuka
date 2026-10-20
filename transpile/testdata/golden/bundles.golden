@@ -148,9 +148,7 @@ func init() {
 }
 
 //line bundles.vuka:73
-func NewPetStore(pets []string) *PetStore {
-	return &PetStore{pets: pets}
-}
+func NewPetStore(pets []string) *PetStore { return &PetStore{pets: pets} }
 
 //line bundles.vuka:73
 func petStoreAdvice() []vuka.Decorator {

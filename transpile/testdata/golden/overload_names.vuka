@@ -22,8 +22,11 @@ func totalOrders() string { return "declared by hand" }
 
 type Feed struct{ log []string }
 
+// Push logs an order; a doc comment follows its overload's name.
 func (f *Feed) Push(ctx context.Context, o Order) { f.log = append(f.log, fmt.Sprint("order ", o.ID)) }
-func (f *Feed) Push(e Entry)                      { f.log = append(f.log, fmt.Sprint("entry ", e.N)) }
+
+// Push logs an entry.
+func (f *Feed) Push(e Entry) { f.log = append(f.log, fmt.Sprint("entry ", e.N)) }
 
 func main() {
 	o := Order{ID: 3}

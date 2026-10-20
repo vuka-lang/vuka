@@ -7,7 +7,7 @@ import (
 
 // Author writes posts; Posts counts them.
 type Author struct {
-	orm.Base[Author]
+	orm.Model[Author]
 	ID    int64  `json:"id"`
 	Name  string `json:"name"`
 	Posts int    `json:"posts"`
@@ -19,7 +19,7 @@ func (a *Author) Schema(s *orm.Schema) {
 
 // Post is an author's post.
 type Post struct {
-	orm.Base[Post]
+	orm.Model[Post]
 	ID        int64          `json:"id"`
 	Author    orm.FK[Author] `json:"author"`
 	Title     string         `json:"title"`

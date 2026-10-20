@@ -30,7 +30,7 @@ type Post struct {
 	Views  int
 }
 
-// Popular counts the posts read at least min times, a static of Post.
+// PostPopular counts the posts read at least min times, a static of Post.
 func PostPopular(min int) int {
 	return orm.Objects[Post]().CountWhere(func(p Post) bool { return p.Views >= min })
 }
@@ -46,9 +46,9 @@ var PostFields = struct {
 func publish(ctx context.Context, slug string) error {
 	return orm.Transaction(ctx, func(ctx context.Context) error {
 //line schema.vuka:43
-		p, e1 := orm.Objects[Post]().Get(ctx, PostFields.Slug.Eq(slug))
-		if e1 != nil {
-			return e1
+		p, err := orm.Objects[Post]().Get(ctx, PostFields.Slug.Eq(slug))
+		if err != nil {
+			return err
 		}
 //line schema.vuka:44
 		p.Views++
@@ -58,13 +58,12 @@ func publish(ctx context.Context, slug string) error {
 
 func draft(ctx context.Context, title string) (Post, error) {
 	var r0 Post
-	err2 := orm.Transaction(ctx, func(ctx context.Context) (e error) {
+	err := orm.Transaction(ctx, func(ctx context.Context) (e error) {
 		r0, e = func() (Post, error) {
 //line schema.vuka:50
 			p := Post{Title: title, Slug: "draft"}
-			e2 := p.Save(&p, ctx)
-			if e2 != nil {
-				return Post{}, e2
+			if err := p.Save(&p, ctx); err != nil {
+				return Post{}, err
 			}
 //line schema.vuka:52
 			if title == "" {
@@ -74,21 +73,21 @@ func draft(ctx context.Context, title string) (Post, error) {
 		}()
 		return e
 	})
-	return r0, err2
+	return r0, err
 }
 
 //line schema.vuka:59
 func count(ctx context.Context) vuka.Result[int] {
 	var r vuka.Result[int]
-	err2 := orm.Transaction(ctx, func(ctx context.Context) error {
+	err := orm.Transaction(ctx, func(ctx context.Context) error {
 		r = func() vuka.Result[int] {
 //line schema.vuka:60
 			return vuka.Ok[int](orm.Objects[Post]().Count())
 		}()
 		return r.Err()
 	})
-	if err2 != nil {
-		return vuka.Err[int](err2)
+	if err != nil {
+		return vuka.Err[int](err)
 	}
 	return r
 }

@@ -220,6 +220,8 @@ func (f *fileState) lowerStatics(toks []tok, bare bool) {
 			text += "[" + strings.Join(sf.tparams, " any, ") + " any]" // constraints fixed in prepare
 		}
 		f.add(sf.head.start, sf.head.end, text)
+		head := string(f.src[sf.head.start:sf.head.end])
+		f.renameDoc(sf.head.start, sf.goName, head, head[strings.LastIndexByte(head, '.')+1:])
 	}
 	for _, s := range f.statics {
 		f.add(s.start, s.end, commentOut(f.src, s.start, s.end))

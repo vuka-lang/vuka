@@ -8,18 +8,26 @@ import (
 	"vukatest.local/ui"
 	"vukatest.local/ui/describe"
 	"vukatest.local/ui/validate"
+	web "vukatest.local/webstub"
 )
 
 // Dashboard is a live page: its attributes and hooks become its
-// LiveSchema method.
+// LiveSchema method, and its constructor takes what it depends on.
+@web.Live("/dashboard")
 type Dashboard struct {
 	ui.Live
 	Q     string   @ui.Bind{Debounce: 300 * time.Millisecond} @ui.URL("q") @validate.Max(100)
 	Rows  []string @ui.Defer("lists")
 	Total int      @ui.Defer("lists")
 	Name  string   @ui.Bind @validate.Required
+	Log   Logger
 	ready bool
+	store *Store
 }
+
+// Store holds the rows; Logger is where they are logged.
+type Store struct{}
+type Logger interface{ Log(string) }
 
 @ui.Mount
 func (d *Dashboard) mount(ctx context.Context) error {
@@ -55,4 +63,5 @@ func main() {
 	d := &Dashboard{}
 	fmt.Println(describe.Page(d), d.ready)
 	fmt.Println(describe.Page(&Counter{}))
+	web.Routes.Print()
 }

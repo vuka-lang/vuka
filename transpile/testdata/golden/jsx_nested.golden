@@ -14,9 +14,9 @@ import (
 
 //line jsx_nested.vuka:10
 func lookup(s string) vuka.Result[int] {
-	n, e1 := strconv.Atoi(s)
-	if e1 != nil {
-		return vuka.Err[int](e1)
+	n, err := strconv.Atoi(s)
+	if err != nil {
+		return vuka.Err[int](err)
 	}
 //line jsx_nested.vuka:12
 	return vuka.Ok[int](n)
@@ -27,9 +27,9 @@ func sum(s []string) ui.Node {
 	var texts []ui.Node
 	for _, x := range s {
 		texts = append(texts, ui.Try(func() (ui.Node, error) {
-			n, e2 := strconv.Atoi(x)
-			if e2 != nil {
-				return nil, e2
+			n, err := strconv.Atoi(x)
+			if err != nil {
+				return nil, err
 			}
 //line jsx_nested.vuka:21
 			value := func() string {

@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"bytes"
 	"go/ast"
 	"go/parser"
 	"go/printer"
@@ -890,6 +891,45 @@ func lowerFirst(s string) string {
 		return s
 	}
 	return strings.ToLower(s[:1]) + s[1:]
+}
+
+// renameDoc follows a declaration at off renamed to name in its doc
+// comment: a first word that is one of olds (its names in the source)
+// becomes name.
+func (f *fileState) renameDoc(off int, name string, olds ...string) {
+	for start := f.leadStart(off); start < off; {
+		end := start + bytes.IndexByte(f.src[start:off], '\n') + 1
+		if end <= start {
+			end = off
+		}
+		inAttr := false
+		for _, a := range f.attrs {
+			inAttr = inAttr || a.start <= start && start < a.end || start <= a.start && a.start < end
+		}
+		l := f.src[start:end]
+		w := start + len(l) - len(bytes.TrimLeft(l, " \t"))
+		if !inAttr && bytes.HasPrefix(f.src[w:end], []byte("// ")) {
+			w += 3
+			for _, old := range olds {
+				if rest := bytes.TrimRight(f.src[w:end], "\r\n"); bytes.HasPrefix(rest, []byte(old)) && !continuesIdent(rest[len(old):]) {
+					// to the line's end, so no //line marker follows it
+					f.add(w, w+len(rest), name+string(rest[len(old):]))
+					return
+				}
+			}
+			return
+		}
+		start = end
+	}
+}
+
+// continuesIdent reports whether rest, what follows a name, continues it:
+// more of the identifier, or a selector (Post in Post.Live).
+func continuesIdent(rest []byte) bool {
+	ident := func(b byte) bool {
+		return b == '_' || b >= '0' && b <= '9' || b >= 'a' && b <= 'z' || b >= 'A' && b <= 'Z' || b >= 0x80
+	}
+	return len(rest) > 0 && (ident(rest[0]) || rest[0] == '.' && len(rest) > 1 && ident(rest[1]))
 }
 
 // leadStart is where the top-level declaration at off starts with what
