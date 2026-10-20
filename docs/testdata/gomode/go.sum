@@ -38,6 +38,8 @@ github.com/vuka-lang/orm v0.9.2-0.20261019193419-ca1d3ef58d27 h1:PorKWBwGT9Cp/f8
 github.com/vuka-lang/orm v0.9.2-0.20261019193419-ca1d3ef58d27/go.mod h1:FtdrUiI2fIjcA4gIXNvqkxEEXPtxjh/hMJlMqFoPtAI=
 github.com/vuka-lang/ui v0.50.1-0.20261019215624-04c3497ea4ff h1:Uwjyner9KKGzJFxp/03SBBBz4N9Kf1ouZ0BdsK5Zp90=
 github.com/vuka-lang/ui v0.50.1-0.20261019215624-04c3497ea4ff/go.mod h1:Ae8L7SokzzWy52zZriduPBt6tbjgejy22fBf26N8duc=
+github.com/vuka-lang/ui v0.50.1-0.20261020032532-993cfe944a50 h1:QStz3kHyWXEA6PYYoxZo1wmp6sQEz5QE2oZVi6RrvO4=
+github.com/vuka-lang/ui v0.50.1-0.20261020032532-993cfe944a50/go.mod h1:Ae8L7SokzzWy52zZriduPBt6tbjgejy22fBf26N8duc=
 github.com/vuka-lang/web v0.50.1-0.20261019215631-0bad080b01bb h1:FuI9Uoyx6vZkZ3HZnBxtr0Frq2lKQ02eKNO0l3CU7rc=
 github.com/vuka-lang/web v0.50.1-0.20261019215631-0bad080b01bb/go.mod h1:7kc8ocMmfqURr+9/LjpKNuQMA1lg6L+S84oq7Oboj1M=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
