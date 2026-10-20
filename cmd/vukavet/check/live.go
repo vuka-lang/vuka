@@ -18,7 +18,8 @@ import (
 // does at boot — bind: (E0322), defer: (E0323), a deferred group without a
 // loader (E0324) or with a wrong one (E0325), two handles of one name
 // (E0326), Changed (E0327), validate: (E0328) and Mount (E0333) — and
-// the page's LiveSchema: its fields (E0335) and hooks (E0336).
+// the page's LiveSchema: its fields (E0335) and hooks (E0336), and the
+// hooks its constructor declares on its ui.Live (E0336, W0304, W0305).
 var Live = &analysis.Analyzer{
 	Name: "live",
 	Doc:  "check vuka live pages and pages backed by an island as the app's boot does",
@@ -28,6 +29,7 @@ var Live = &analysis.Analyzer{
 
 func runLive(pass *analysis.Pass) (any, error) {
 	l := &liveCheck{pass: pass, done: map[string]bool{}}
+	l.ctor = l.ctorHooks()
 	for _, r := range registrations(pass) {
 		if r.verb == "Live" {
 			l.livePage(r)
@@ -46,6 +48,7 @@ type liveCheck struct {
 	pass *analysis.Pass
 	r    registration
 	done map[string]bool // reported, by place and message
+	ctor map[*types.Named]*ctorHooks
 }
 
 func (l *liveCheck) report(at analysis.Range, code, help, format string, args ...any) {
@@ -104,7 +107,7 @@ func (l *liveCheck) page(n *types.Named, r registration, island, live bool) {
 		return
 	}
 	ms := types.NewMethodSet(ptr)
-	schema := l.schema(n)
+	schema := l.ctor[n].merge(l.schema(n))
 	if m := ms.Lookup(nil, "Mount"); m != nil {
 		sig := m.Type().(*types.Signature)
 		p, res := sig.Params(), sig.Results()
