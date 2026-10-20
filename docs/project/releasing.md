@@ -64,8 +64,10 @@ Every run, dry or not, checks:
 - `go vet ./...` and `go test ./...` pass in each module, run against the
   checkouts being released: for the run, a module's requirements of vuka,
   ui and web are replaced by their checkouts, as CI does, and its go.mod and
-  go.sum are put back after (`-no-test` skips them, for a quick look at the
-  plan).
+  go.sum are put back after; `VUKA` is the command built from them, and apps
+  the tests make with `vuka new` are pointed at them and at an orm checkout
+  `vuka-orm` beside them (`VUKA_NEW_REPLACE`, unless set) (`-no-test` skips
+  them, for a quick look at the plan).
 
 A failed check stops the release before anything changes.
 

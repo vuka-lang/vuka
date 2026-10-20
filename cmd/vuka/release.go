@@ -151,10 +151,12 @@ func release(args []string, stdout, stderr io.Writer) error {
 	check("the patch train", checkTrain(root, *remote, v, *security))
 	checkouts := map[string]string{vukaModPath: vuka.dir, uiModPath: ui.dir, webModPath: web.dir}
 	if !*noTest {
-		env := []string{"GOWORK=off", "VUKA_UI=" + ui.dir, "VUKA_WEB=" + web.dir}
+		env, cleanup, err := releaseTestEnv(root, cmd, ui, web, checkouts)
+		check("cmd/vuka builds from the checkouts, for the tests", err)
 		for _, r := range repos {
 			check(r.name+": go vet, go test", vetTestModule(r.modDir, setReplaces(r, checkouts), env))
 		}
+		cleanup()
 	}
 
 	steps := releaseSteps(v, vuka, ui, web, cmd, vet, *remote, *branch, *proxyWait, stdout)
@@ -444,9 +446,50 @@ func setReplaces(r *releaseRepo, checkouts map[string]string) map[string]string 
 	return out
 }
 
+// releaseTestEnv is the environment the modules' tests run in: the
+// checkouts as CI points the tests at them — ui, web and, beside them, orm;
+// apps vuka new makes replaced by them — and the command built from them
+// ($VUKA, which ui's generated-code tests run).
+func releaseTestEnv(root string, cmd, ui, web *releaseRepo, checkouts map[string]string) (env []string, cleanup func(), err error) {
+	env = []string{"GOWORK=off", "VUKA_UI=" + ui.dir, "VUKA_WEB=" + web.dir}
+	news := []string{vukaModPath + "=" + root, uiModPath + "=" + ui.dir, webModPath + "=" + web.dir}
+	if orm := filepath.Join(filepath.Dir(root), "vuka-orm"); fileExists(filepath.Join(orm, "go.mod")) {
+		env = append(env, "VUKA_ORM="+orm)
+		news = append(news, ormModule+"="+orm)
+	}
+	if os.Getenv("VUKA_NEW_REPLACE") == "" {
+		env = append(env, "VUKA_NEW_REPLACE="+strings.Join(news, ","))
+	}
+	cleanup = func() {}
+	bin, err := os.MkdirTemp("", "vuka-release-test-")
+	if err != nil {
+		return env, cleanup, err
+	}
+	cleanup = func() { os.RemoveAll(bin) }
+	vuka := filepath.Join(bin, "vuka")
+	err = withReplaces(cmd.modDir, setReplaces(cmd, checkouts), env, func() error {
+		return run(cmd.modDir, env, "go", "build", "-o", vuka, ".")
+	})
+	if err != nil {
+		return env, cleanup, err
+	}
+	return append(env, "VUKA="+vuka), cleanup, nil
+}
+
 // vetTestModule runs go vet and go test in dir, with replace directives for
-// the run (go.mod and go.sum are put back after).
-func vetTestModule(dir string, replace map[string]string, env []string) (err error) {
+// the run.
+func vetTestModule(dir string, replace map[string]string, env []string) error {
+	return withReplaces(dir, replace, env, func() error {
+		if err := run(dir, env, "go", "vet", "./..."); err != nil {
+			return err
+		}
+		return run(dir, env, "go", "test", "./...")
+	})
+}
+
+// withReplaces runs fn with replace directives added to dir's go.mod, and
+// puts go.mod and go.sum back after.
+func withReplaces(dir string, replace map[string]string, env []string, fn func() error) (err error) {
 	if len(replace) > 0 {
 		saved := map[string][]byte{}
 		for _, name := range []string{"go.mod", "go.sum"} {
@@ -471,10 +514,7 @@ func vetTestModule(dir string, replace map[string]string, env []string) (err err
 			return err
 		}
 	}
-	if err := run(dir, env, "go", "vet", "./..."); err != nil {
-		return err
-	}
-	return run(dir, env, "go", "test", "./...")
+	return fn()
 }
 
 var toolchainConst = regexp.MustCompile(`(?m)^(\s*(?:version|vukaVersion|uiVersion|webVersion)\s*=\s*)"[^"]*"`)
