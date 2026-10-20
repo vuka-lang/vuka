@@ -531,7 +531,7 @@ Folded into roadmap Phase 2:
 | 2 | Markup in Go — now `.vuka.html` templates and `ui.HTML` ([templates.md](templates.md)); transpiler emits them — **done** | 2.3, 2.4 |
 | 3 | `orm.Schema` / `ui.LiveSchema`; `.vuka` attributes and hooks lower to them — **done** | 2.1, 2.2 |
 | 4 | orm reflection fallback, live render fallback, call decorators through `vuka.Wrap` with typed adapters as a speed-up — **done** | 2.6 |
-| 5 | `web.Dev()` | 2.6 |
+| 5 | `web.Dev()`: Tailwind, Vite and the islands for `go run .` in development — **done** | 2.6 |
 | 6 | `vukavet` analyzer — **done** | 2.6 |
 | 2a | Island path inference without the CLI: bare `ui.RegisterIsland[T]()`, the transpiler emits it — **done** | 2.5, 2.6 |
 | 2b | Islands built for plain Go: `go tool vuka build-islands` into the frontend's build, `web.Dev()` keeps them built, `vuka-live.d.ts` from Go types — **done** | 2.6 |

@@ -1,8 +1,9 @@
 # Releases
 
-From v0.50.0, vuka, ui, web and the `vuka` command are released together
-under one version: a release is a **set**, and `vuka v0.50.0` means all four
-at v0.50.0. An app requires vuka, ui and web at the same version; `vuka
+From v0.50.0, vuka, ui, web and the `vuka` command (and from v1.0.0
+`vukavet`) are released together under one version: a release is a
+**set**, and `vuka v1.0.0` means all of them at v1.0.0. From v1.0.0 the set
+keeps [the compatibility promise](/project/compatibility). An app requires vuka, ui and web at the same version; `vuka
 version` shows the set and warns when an app's go.mod mixes sets, and `vuka
 upgrade` moves an app from one set to another, running the `vuka fix`
 rewrites in between. Patch releases come weekly, security fixes at once,
@@ -17,6 +18,265 @@ vuka upgrade
 Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
+
+## v1.0.0 — 2026-10-20
+
+The first release under [the compatibility promise](/project/compatibility):
+vuka, ui, web, the `vuka` command and `vukavet` at v1.0.0, released with
+orm v1.0.0. From here on, an app that builds and passes its tests on v1.x
+keeps doing so on every later v1. The runtime is v1.0.0: generated code
+needs the vuka module at v1.0.0, and `vuka fix runtime` (which every
+upgrade runs) requires it.
+
+```sh
+go install github.com/vuka-lang/vuka/cmd/vuka@v1.0.0
+vuka upgrade v1.0.0
+```
+
+In an app written in Go, with the command and the analyzer as tools of the
+module:
+
+```sh
+go get github.com/vuka-lang/vuka@v1.0.0 github.com/vuka-lang/ui@v1.0.0 github.com/vuka-lang/web@v1.0.0 github.com/vuka-lang/orm@v1.0.0
+go get -tool github.com/vuka-lang/vuka/cmd/vuka@v1.0.0 github.com/vuka-lang/vuka/cmd/vukavet@v1.0.0
+go vet -vettool=$(go tool -n vukavet) ./... && go test ./...
+```
+
+### Plain Go is the language, `.vuka` the sugar
+
+A vuka app can now be a normal Go module: `.go` files and `.vuka.html`
+templates, built with `go build` and run with `go run .`, with no vuka
+command at all. The orm, web (routes, live pages, islands, auth, deferred
+fields, validation) and ui behave the same as in a `.vuka` app, because a
+`.vuka` file compiles to exactly that Go
+([vuka as a library](/guide/two-ways)):
+
+- **Generated code uses the public API only** and reads as hand-written
+  Go: gofmt'd, one import block, real names (`areaCircle`, not
+  `area__Circle`), doc comments carried over, `//line` directives only where
+  the lines stop following the source, no absolute paths.
+- **`vuka eject [-rm] [files | dir | dir/...]`** writes a `.vuka` file's
+  Go beside it; `-rm` deletes the `.vuka` and leaves plain source — its
+  markup moved to `.vuka.html` templates — that builds and behaves the same.
+- **The generated speed-ups are optional.** Without `orm generate`'s
+  scanners the orm reads rows by reflection (1.05–1.07× end to end on
+  SQLite), without render tracking a live component is diffed whole, and
+  without `vuka_calls_gen.go` `vuka.Wrap` calls by reflection. One line opts
+  back in: `//go:generate go tool vuka gen`.
+- **Each page has a Vuka / Go switch**: the docs show every sample both
+  ways, and the Go ones are type-checked against the libraries.
+
+### `.vuka.html` templates
+
+Markup lives in template files beside the Go (or `.vuka`) it belongs to,
+compiled as the package's Go:
+
+- `orders.vuka.html` starts with its package clause; the markup before its
+  first `func` line is the `Render` of `Orders` (or the `View` of a struct
+  component, which is then itself a `ui.Node`), its fields and methods by
+  bare name; `func` lines start partials and function components.
+- Go statements start lines (`if`, `for`, `switch`, `x := …`), holes are any
+  Go, attributes take `class:late={…}`, `{attrs...}`, `bind:value` and
+  `style:prop`, and an event's call with no result is its handler
+  (`onClick={p.Cancel(o.ID)}`).
+- Component tags are struct components (`<Card title="…">`, attributes
+  camelCase, `<slot:footer>` filling a `Node` field), stateful components,
+  and the package's partials and functions returning `ui.Node`
+  (`<navLink item={i}/>`, `<layouts.NavLink …/>`), every parameter but
+  `ctx`, `children` and slots required (E0144; an unknown tag is E0143 with
+  a did-you-mean). A function component taking `ctx` first is a tag too.
+- A template's `<script lang="ts">` and `<style scoped>` are its
+  component's, bundled and scoped by the vuka command; `<script is:inline>`
+  takes `{json(x)}`.
+- In plain Go the same markup is `ui.HTML`, its holes labelled with their
+  Go and filled by the values after it; JSX in `.vuka` files lowers to it.
+- `vuka run|build|test|vet` compile templates through the overlay, `vuka
+  gen` writes `x_html.go` for a plain `go build`, `vuka fmt` formats them,
+  and `vuka lsp` serves them (below).
+
+The ui kit is written this way: each component is a struct whose fields
+are its props, its markup a `.vuka.html` beside it — `ui.Card{Title: "…"}`
+is a `Node`, a `<Card title="…">` tag in a template.
+
+### Registration in Go
+
+Every decorator is a call a person can write, and the transpiler writes
+that call:
+
+- **`web.Routes`**, the registry every app takes at `web.New`, and `App`'s
+  methods of the same names: `web.Routes.Get("/pets/{id}", ShowPet,
+  web.Params("id", "store"))`, `Live`, `Controller`, `Service`, `Handle`.
+  Options are typed values — `web.Use(mw)`, `web.Layout(l)`,
+  `web.Template(f)`, an auth gate such as `auth.Required()`,
+  `ui.Island(…)` — and a gate on a route applies to its requests and its
+  live page's events. Constructors are `NewX`.
+- **Type decorators and declarers** take `vuka.TypeFor[T](NewT)` and
+  `vuka.DeclOf(fn)`; a call decorator is `vuka.Wrap(fn, vuka.FuncInfo{…},
+  decorators…)`, with typed adapters in `vuka_calls_gen.go` as a speed-up.
+- **Overloads are named as Go names such functions**: `areaCircle`,
+  `AddIntInt`, a live component's `UpdateNewMessage` (`ui.IsUpdate` takes
+  it, and still `Update__T` from older commands).
+- **Field references by address**: `vuka.RefTo(func(p *Post) *string {
+  return &p.Title })`.
+
+### Schema, LiveSchema and typed fields
+
+Attributes are values, given in one method per type:
+
+- **orm models**: `func (p *Post) Schema(s *orm.Schema)` with
+  `s.Model(orm.Meta{Table: "posts"})` and `s.Field(&p.Title, orm.Char{Max:
+  200})`; `.vuka` attributes lower to it. A pointer to no field, a nil
+  attribute or a field behind a pointer is E0501–E0503.
+- **Typed fields**: `orm generate` writes `PostFields` beside the model
+  (`post_gen.go`) — `PostFields.Author.Email.IEndsWith(…)` through
+  relations, `PostPath` for paths — and number fields take arithmetic
+  (`PostFields.Views.Add(1)`). In `.vuka`, `Post.Title` is that field and
+  `Post.Objects` is `orm.Objects[Post]()`, the model's manager.
+- **Live pages**: `func (p *Search) LiveSchema(l *ui.LiveSchema)` with
+  `l.Field(&p.Q, ui.Bind{Debounce: 300 * time.Millisecond}, ui.URL("q"))`,
+  `l.Loads("lists", p.loadLists)`, `l.OnChange(p.changed)`,
+  `l.Mount(p.mount)`. In `.vuka`: `Q string @ui.Bind{…} @ui.URL("q")` and
+  `@ui.Mount` on an unexported method. Hooks may be unexported, so the
+  browser can't call them; only exported methods without a hook are
+  `live.*`. Fields and hooks are checked at boot and by vukavet (E0335,
+  E0336). `ui.NoDebounce` sends a bound field at once.
+- **A routed live page owns its exported fields**: what its handlers,
+  hooks and bound fields set stays set across renders, a patch sets only
+  the fields its URL binds, and a focused input takes a value the server
+  changed (a form cleared once sent clears). An event's struct payload is
+  checked against its `validate:` tags, as a route's.
+
+### Islands for plain Go
+
+- `ui.RegisterIsland[Chart]()` finds its component as a bare `@ui.Island`
+  does; a route's option places a page backed by its island:
+  `app.Live("/board", NewBoard, ui.Island(ui.Layout(page)))`.
+- `go tool vuka build-islands` reads the registrations from Go source and
+  builds the islands into the frontend's build (`web/dist/.vuka/`), with
+  `islands.d.ts` and `vuka-live.d.ts` typed from the Go structs; a missing
+  component is E0310 naming the call, a missing frontend E0609. Opt in with
+  `//go:generate go tool vuka build-islands`.
+- `web.Dev()` runs Tailwind, Vite and `vuka build-islands -watch` for
+  `VUKA_DEV=1 go run .`, when they're installed, and does nothing in a
+  production binary. Script islands (`.ts`) need no Node.
+
+### vukavet
+
+`go vet` with vuka's checks, for apps in plain Go, with the codes the boot,
+the compiler and `vuka vet` use: routes (E0401 across imported packages,
+E0403, E0405, E0406, E0418, E0419, E0331), live and island pages
+(E0322–E0330, E0333, E0335, E0336), `ui.HTML` against its holes (E0127,
+E0128, E0132) and orm `Schema` methods (E0501–E0503). It is released with
+the set from v1.0.0 (`cmd/vukavet/v1.0.0`).
+
+```sh
+go get -tool github.com/vuka-lang/vuka/cmd/vukavet@v1.0.0
+go vet -vettool=$(go tool -n vukavet) ./...
+```
+
+### Conformance
+
+Every app of `examples/conformance` — `library-users`, `crud`, `live`,
+`components`, `islands`, `islands-vue` — exists as `.vuka` and as
+hand-written Go, and CI builds each five ways (`vuka build`; Go with and
+without the generated speed-ups; ejected, with and without them) and
+requires the same HTTP responses, live replies, SQL and generated files from
+each. A difference is a bug.
+
+### Editor
+
+- `vuka lsp` serves `.vuka.html`: diagnostics in the template's own
+  positions, hover, definition and completion of the Go in holes and
+  statement lines as in a Go file of its package (the component's fields and
+  methods first), of tags and their parameters, and semantic tokens. A
+  template with a syntax error leaves the rest of its package checked.
+- The VS Code extension, 0.5.0 (its own version), highlights `.vuka.html`
+  and `ui.HTML` markup, and is published to Open VSX. Zed reads templates as
+  HTML, coloured from `vuka lsp`.
+
+### Breaking changes since v0.50.0
+
+`vuka upgrade v1.0.0` moves vuka, ui and web to v1.0.0, and the orm to
+v1.0.0 when the app requires it; then it runs these `vuka fix` fixers, then
+`vuka vet ./...` and `vuka test ./...`. The go.mod and go.sum it started
+from are kept in `.vuka/upgrade/`.
+
+| Fixer | What it rewrites | Runs |
+|---|---|---|
+| `runtime` | requires the vuka runtime v1.0.0 | every upgrade |
+| `templates-package` | starts each `.vuka.html` with its directory's package clause (a missing one is now E0142) | every upgrade |
+| `db-schema` | `orm.Schema{…}` (the names-set struct) → `orm.DBSchema{…}`; `orm.Schema` is now a model's `Schema` method's | every upgrade |
+| `attributes` | a live page's `bind:`, `url:`, `defer:`, `validate:` tags and a model's `orm:` tags → `@ui.Bind`, `@ui.URL`, `@ui.Defer`, `@validate.…`, `@orm.Column(…)`, … (the tags still work, with W0302) | v1.0.0 |
+| `hooks` | `Mount`, `Changed`, `Load<Group>` found by name → `@ui.Mount`, `@ui.OnChange`, `@ui.Loads("group")` (still found, with W0303) | v1.0.0 |
+| `ui-structs` | `ui.Card(ui.CardProps{…})` → `ui.Card{…}`, `ui.Table(ui.TableProps[T]{…})` → `ui.Table[T]{…}`, in `.go` and `.vuka` | v1.0.0 |
+| `queries` | queries made for `orm.Query`: `vuka.Or` of fields → `orm.Or`, package `fn` → the orm's (`fn.Lower` → `orm.Lower`, `fn.In` → `InQuery`), a `First` read as an Option → `orm.Optional(….First(ctx))`, `Post.Objects.Manager()` → `Post.Objects` | v1.0.0 |
+
+The other fixers (`static-names`, `orphans`, `attr-of`, `ui`) are unchanged;
+`vuka fix -n` lists what any of them would do.
+
+What `vuka fix` can't do, and what to do instead:
+
+- **`Post.Objects` is the model's manager.** In `.vuka`, a model's
+  `Objects` was an `orm.Query`, whose terminals returned `Result`s; it is
+  now `orm.Objects[Post]()`, whose terminals return `(T, error)`. With `?`
+  nothing changes. Code calling a `Result`'s methods on a terminal uses `?`
+  or the value and error instead. `Update` takes an `orm.Set`, and
+  `GetOrCreate` / `UpdateOrCreate` take a lookup and defaults:
+
+  ```diff
+  - Post.Objects.Filter(Post.ID.Eq(id)).Update(ctx, orm.Assign(Post.Views, n))?
+  + Post.Objects.Filter(Post.ID.Eq(id)).Update(ctx, orm.Set{Post.Views.Name(): n})?
+  - out := Session.Objects.UpdateOrCreate(ctx, s, Session.Key)?
+  + s, created, err := Session.Objects.UpdateOrCreate(ctx, orm.Q{Session.Key.Name(): key}, orm.Defaults{…})
+  ```
+
+- **Go code naming an overload by its generated name** uses the new one:
+  `area__Circle` is `areaCircle`. `@export` names are unchanged.
+- **Go code that called `ui.Bind(init, expr, deps…)`** (a state binding,
+  what older commands generated) calls `ui.BindExpr`; `ui.Bind` is the
+  attribute `ui.Bind{Debounce: …}`.
+- **Committed generated code** (`vuka gen -inplace`) is regenerated with
+  `vuka gen -inplace`; forms older commands wrote (`vuka.TypeWith`,
+  `vuka.FuncDecl`, `vuka.NewCall`, `vuka.RefOf` with index paths,
+  `Base_Objects`) are deprecated or gone.
+
+Deprecated, and still working through v1: the struct tags and named hooks
+above (`vuka vet` warns, W0302 and W0303), and, marked `// Deprecated:` with
+their replacement, the kit's `XProps` types (aliases of the structs),
+`orm.Query` and package `fn`, `Meta()` and `SetFieldOptions` on models,
+`vuka.TypeWith`, `TypeOf`, `FuncDecl`, `MethodDecl`, `DeclareWith`,
+`DecorateType`, `vuka.Func` and `NewCall`, and `RefOf` with index paths.
+
+### ORM v1.0.0
+
+orm v1.0.0 is released with the set, requires vuka and web v1.0.0, and
+makes the same promise. Since v0.9.1:
+
+- **`Schema` method and typed fields**, above: `func (p *Post)
+  Schema(s *orm.Schema)`, `PostFields` beside the model, `PostPath` through
+  relations. `Model[T]` is what a Go model embeds (`orm.Base` in `.vuka` is
+  written `orm.Model[T]`); `orm.Objects[T]()` is its manager and
+  `orm.For[T]()` registers it.
+- **The names-set struct is `orm.DBSchema`** (`orm.Of[T](orm.DBSchema{…})`,
+  `DBSchema.Verify`); `vuka fix db-schema` renames it.
+- **Terminals return `(T, error)`** — `All`, `First`, `Get`, `Count`,
+  `Exists`, `Update`, `Delete`; `orm.Optional(qs.First(ctx))` turns
+  `ErrNotFound` into `None`. `Update` takes `orm.Set{column: value}`;
+  `GetOrCreate` and `UpdateOrCreate` take `orm.Q` and `orm.Defaults` and
+  return the row and whether it was created.
+- **`NumberField` and arithmetic**: `orm.Set{"views":
+  PostFields.Views.Add(1)}`, in conditions too; `SaveFields` takes typed
+  fields, Go names or columns.
+- **`orm.Transaction(ctx, fn, opts…)`**, also as an around decorator in
+  `.vuka` (`@orm.Transaction`, `@orm.TxOn("crm")`).
+- **Reflection fallback**: a model without generated scanners works, by
+  reflection (`ORM_REFLECT=1` runs the suite that way); `orm generate
+  --missing` reports what is out of date, for a build tool's overlay.
+- Option fields get generated scanners, typed fields work in `orm.Lower`
+  and `Q` values, and `ModelConfig.Fields` skips fields per model at run
+  time. `orm.Query` and package `fn` are deprecated.
+
+New apps from `vuka new` require orm v1.0.0. The orm needs Go 1.27.
 
 ## v0.50.0 — 2026-10-19
 

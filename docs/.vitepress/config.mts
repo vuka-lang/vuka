@@ -198,6 +198,7 @@ export default defineConfig({
         text: 'Project',
         items: [
           { text: 'Versions and compatibility', link: '/project/versions' },
+          { text: 'Compatibility promise', link: '/project/compatibility' },
           { text: 'Releases', link: '/releases' },
           { text: 'Releasing (maintainers)', link: '/project/releasing' },
         ],

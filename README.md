@@ -345,16 +345,23 @@ Prettier-style, without changing what a page renders.
 
 `vuka fix` repairs what tooling can: `runtime` upgrades the module's Vuka
 runtime when generated code needs a newer one, `static-names` rewrites statics
-spelt by their Go names (`User_Table`) to `User.Table` in `.vuka` files, and
+spelt by their Go names (`User_Table`) to `User.Table` in `.vuka` files,
 `orphans` removes files `vuka gen -inplace` wrote for `.vuka` files that are
-gone, `attr-of` renames `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)` (v0.5.0), and
-`ui` moves UI code to `github.com/vuka-lang/ui` (v0.10.0). `-n` reports without changing anything; name fixers to run only those.
+gone, `attr-of` renames `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)` (v0.5.0),
+`ui` moves UI code to `github.com/vuka-lang/ui` (v0.10.0), `attributes` and
+`hooks` write struct tags and hooks found by name as attributes,
+`ui-structs` writes the ui kit's components as struct literals,
+`templates-package` starts each `.vuka.html` with its package clause, and
+`db-schema` and `queries` move code to orm v1.0.0's `DBSchema` and model
+managers. `-n` reports without changing anything; name fixers to run only those.
 It is also where future syntax changes will get their codemods.
 
-From v0.50.0 vuka, ui, web and the command share one version. `vuka version`
-prints the set and warns when an app's go.mod mixes sets; `vuka upgrade
-[version]` moves an app to a set, runs the `vuka fix` rewrites for the
-releases in between, then vet and tests. See
+vuka, ui, web, the command and vukavet share one version, and from v1.0.0
+they keep [the compatibility promise](https://vuka-lang.github.io/project/compatibility):
+an app that builds and passes its tests on v1.x keeps doing so on every later
+v1. `vuka version` prints the set and warns when an app's go.mod mixes sets;
+`vuka upgrade [version]` moves an app to a set, runs the `vuka fix` rewrites
+for the releases in between, then vet and tests. See
 [Versions and compatibility](https://vuka-lang.github.io/project/versions).
 
 **JSX.** Markup is an expression, and a component is a function. JSX is
@@ -427,9 +434,9 @@ removed), compile errors in `build/` point at the `.vuka` lines, and a
   templ / html / JSX views, dependency injection, `.env` configuration and live
   components over a WebSocket. Docs: [vuka-lang.github.io/web](https://vuka-lang.github.io/web/).
 - [**orm**](https://github.com/vuka-lang/orm) — a Django-style ORM: models
-  declared with field attributes, queries written with field references,
-  `Result`/`Option` terminals, `@orm.Transaction`, search, several databases
-  and Go migrations. Docs: [vuka-lang.github.io/orm](https://vuka-lang.github.io/orm/).
+  declared with field attributes (a `Schema` method in Go), queries written
+  with typed fields, `orm.Transaction`, search, several databases and Go
+  migrations. Docs: [vuka-lang.github.io/orm](https://vuka-lang.github.io/orm/).
 
 Other modules `go get` your repository root, not `build/`. To publish a Vuka
 library for Go users, write the generated files beside the sources and commit
