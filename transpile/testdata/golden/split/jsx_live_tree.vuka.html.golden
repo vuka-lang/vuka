@@ -23,6 +23,6 @@ func page(ctx context.Context)
 <main>
   <Table />
   for i, l := range []string{"a", "b"} {
-    <Counter key={i} Label={l} />
+    <Counter key={i} label={l} />
   }
 </main>

@@ -31,11 +31,11 @@ func (b *Box[T]) Render()
 func page(ctx context.Context)
 w := 3
 {header}
-<Card Title="a" Class="c" Width={w} ID={1}>!</Card>
-<Card Width={w} Title="b" Height={4} />
-<Chat Room="go" Class="chat" />
-<Chat ID={2} key={"rust"} Room="rust" />
-<Box[int] Value={7} />
+<Card title="a" class="c" width={w} ID={1}>!</Card>
+<Card width={w} title="b" height={4} />
+<Chat room="go" class="chat" />
+<Chat ID={2} key={"rust"} room="rust" />
+<Box[int] value={7} />
 {footer}
 {links["home"]}
 {shell.Body}

@@ -11,7 +11,7 @@ func (t *Todo) Render()
   <ul>
     for _, it := range t.items {
       <li key={it.ID}>
-        <Counter Label={it.Name} />
+        <Counter label={it.Name} />
         <button onClick={func() { t.Remove(it.ID) }}>x</button>
       </li>
     }
@@ -23,6 +23,6 @@ func (t *Todo) Render()
 
 func page(ctx context.Context)
 <main>
-  <Todo Title="Groceries"><p>weekly</p></Todo>
-  <Counter key="solo" Start={10} Label="solo" />
+  <Todo title="Groceries"><p>weekly</p></Todo>
+  <Counter key="solo" start={10} label="solo" />
 </main>

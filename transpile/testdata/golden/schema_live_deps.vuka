@@ -1,0 +1,27 @@
+package main
+
+import (
+	"fmt"
+
+	"vukatest.local/ui"
+	web "vukatest.local/webstub"
+)
+
+// Applicants takes its service from its constructor; its deferred rows,
+// pointers though they are, are data: the constructor doesn't take them.
+@web.Live("/applicants")
+type Applicants struct {
+	ui.Live
+	Reasons *Reasons @ui.Defer("lists")
+	srv     *Service
+}
+
+// Reasons are loaded after the first render; Service is a dependency.
+type Reasons struct{ List []string }
+type Service struct{}
+
+func main() {
+	a := NewApplicants(&Service{})
+	fmt.Println(a.srv != nil, a.Reasons == nil)
+	web.Routes.Print()
+}

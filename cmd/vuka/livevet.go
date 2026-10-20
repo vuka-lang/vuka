@@ -389,6 +389,9 @@ func tagAttrs(tag, ui, field string) (attrs []string, rest string, usesTime, use
 				if !ok {
 					return nil, "", false, false, fmt.Errorf("bind:%q: bad debounce", v)
 				}
+				if expr == "-1" {
+					expr = ui + ".NoDebounce"
+				}
 				a += "{Debounce: " + expr + "}"
 				usesTime = usesTime || strings.Contains(expr, "time.")
 			}

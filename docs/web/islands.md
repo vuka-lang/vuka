@@ -421,7 +421,7 @@ component reads it, sets what it may and calls the rest.
 type Orders struct {
     ui.Live                                // a live page
     Q      string  @ui.Bind @ui.URL("q")         // the component sets it; kept in the address's ?q=
-    Status string  @ui.Bind{Debounce: -1}        // set at once, no wait
+    Status string  @ui.Bind{Debounce: ui.NoDebounce} // set at once, no wait
     Rows   []Order                               // read only
     db     *DB                                   // the server's own: injected, never sent
 }
@@ -441,7 +441,7 @@ Go page writes itself:
 ```go
 func (o *Orders) LiveSchema(l *ui.LiveSchema) {
     l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
-    l.Field(&o.Status, ui.Bind{Debounce: -1})
+    l.Field(&o.Status, ui.Bind{Debounce: ui.NoDebounce})
     l.Mount(o.mount)
     l.OnChange(o.changed)
 }
@@ -463,7 +463,7 @@ func NewOrders(db *DB) *Orders { return &Orders{db: db} }
 
 func (o *Orders) LiveSchema(l *ui.LiveSchema) {
 	l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
-	l.Field(&o.Status, ui.Bind{Debounce: -1})
+	l.Field(&o.Status, ui.Bind{Debounce: ui.NoDebounce})
 	l.Mount(o.mount)
 	l.OnChange(o.changed)
 }

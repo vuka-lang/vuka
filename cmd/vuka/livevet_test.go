@@ -21,7 +21,7 @@ import (
 type Orders struct {
 	ui.Live
 	Q     string   ` + "`json:\"q\" bind:\"q,debounce=500\" url:\"q\" validate:\"required,max=50\"`" + `
-	Size  int      ` + "`bind:\"\"`" + `
+	Size  int      ` + "`bind:\",debounce=0\"`" + `
 	Rows  []string ` + "`defer:\"lists\"`" + `
 	Kind  string   ` + "`validate:\"oneof=a b\"`" + `
 	total int
@@ -46,7 +46,7 @@ func TestFixAttributes(t *testing.T) {
 	}
 	for _, want := range []string{
 		"Q     string   `json:\"q\"` @ui.Bind{Debounce: 500 * time.Millisecond} @ui.URL(\"q\") @validate.Required @validate.Max(50)",
-		"Size  int      @ui.Bind",
+		"Size  int      @ui.Bind{Debounce: ui.NoDebounce}",
 		"Rows  []string @ui.Defer(\"lists\")",
 		"Kind  string   @validate.OneOf{\"a\", \"b\"}",
 		"\t\"context\"\n\t\"time\"\n",
