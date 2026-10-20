@@ -314,8 +314,15 @@ for NULL. `orm.FieldOptions` has every setting the built-ins use:
 | `OnDelete`, `Related`, `FK`, `Through`, `CrossDB`, `Dims` | relations, vectors |
 
 Set what the attribute means, and leave the rest: a member left at its zero
-value keeps what an earlier attribute set. `orm.SetFieldOptions` applies the
-same options from outside the models, over their attributes.
+value keeps what an earlier attribute set.
+
+What only the running program knows — the columns a legacy table it read at
+start lacks — a model attribute decides as the ORM maps the model: its
+`ApplyModel` sets `ModelConfig.Fields`, a function giving a field its
+`FieldOptions` over its attributes (`func(owner reflect.Type, f
+reflect.StructField) (orm.FieldOptions, bool)`, false for a field it says
+nothing of), asked once per field before the model's first query.
+`orm.SetFieldOptions` (deprecated) does the same for every model.
 
 The ORM's attribute types declare where they go (`vuka.OnField`; `orm.Meta`
 on the embedded `orm.Base` or the type, `orm.TxOn` and `orm.Retry` on

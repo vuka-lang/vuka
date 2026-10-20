@@ -46,9 +46,11 @@ var fixers = []fixer{
 	{"orphans", "remove files vuka gen -inplace wrote for .vuka files that are gone", fixOrphans},
 	{"attr-of", "rename vuka.Attr[T](c) to vuka.AttrOf[T](c) (v0.5.0: vuka.Attr is JSX's attribute type)", fixAttrOf},
 	{"ui", "move UI code to github.com/vuka-lang/ui (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
-	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…", fixAttributes},
+	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) and a model's orm: tags as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…, @orm.Elements{…}, @orm.Column(…), …", fixAttributes},
 	{"ui-structs", "write the ui kit's components as structs: ui.Card(ui.CardProps{…}) → ui.Card{…}, ui.Table(ui.TableProps[T]{…}) → ui.Table[T]{…}", fixUIStructs},
 	{"hooks", "mark the methods a live page's hooks were found by (Mount, Changed, Load<Group>) with @ui.Mount, @ui.OnChange, @ui.Loads", fixHooks},
+	{"db-schema", "rename orm.Schema values to orm.DBSchema (orm.Of[T](orm.Schema{…})): orm.Schema is a model's Schema method's", fixDBSchema},
+	{"queries", "write queries made for orm.Query as the Manager's: vuka.Or of fields → orm.Or, fn.Lower → orm.Lower, fn.In → InQuery, an Option First → orm.Optional(…First(ctx)), Objects.Manager() → Objects", fixQueries},
 }
 
 func fix(args []string, stdout io.Writer) error {

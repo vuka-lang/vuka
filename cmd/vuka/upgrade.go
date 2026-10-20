@@ -29,7 +29,7 @@ type upgradeStep struct {
 var upgradeSteps = []upgradeStep{}
 
 // upgradeAlways are the fixers every upgrade runs.
-var upgradeAlways = []string{"runtime"}
+var upgradeAlways = []string{"runtime", "db-schema"}
 
 // stepsBetween are the steps of releases after from, up to and including to.
 func stepsBetween(from, to string) []upgradeStep {
