@@ -1,0 +1,11 @@
+package main
+
+<svg width={Size}>
+  <path d={Glyph.Path()}/>
+  <title>{Glyph.Name} {len(Glyph.Name)}</title>
+  <path d={Glyph(Alt).Path()}/>
+  <path d={Glyph{Name: "4"}.Path()}/>
+  for _, Glyph := range Extra {
+    <path d={Glyph.Path()}/>
+  }
+</svg>

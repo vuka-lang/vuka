@@ -53,7 +53,10 @@ the markup is its `Render() ui.Node`, as before. Fields and methods are read by 
 `{Total()}` — as in a method of the struct: a field or method wins over a
 name the package declares (a function or a variable of the same name), and
 locals and loop variables shadow the field, as in Go. A tag, `<Icon/>`,
-and a type are always the package's. `vukavet` warns where a bare name is
+is always the package's. A field named as a type, `Glyph Glyph`, is the
+field where a value goes — `{Glyph.Name}`, `d={Glyph.Path()}`,
+`f(Glyph)` — and the type where only a type goes: `Glyph(x)`,
+`Glyph{Name: "x"}`, `[]Glyph`, `new(Glyph)`. `vukavet` warns where a bare name is
 both ([W0101](/errors/W0101)); write the explicit header and the receiver
 to say which. The
 receiver is a pointer when the type embeds `ui.Live`, holds a `ui.State`
