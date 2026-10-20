@@ -127,6 +127,39 @@ func TestUpgrade(t *testing.T) {
 	}
 }
 
+// The orm moves with the command's own set to the version new apps use.
+func TestUpgradeORM(t *testing.T) {
+	app := setApp(t, "v0.32.0", "v0.30.0", "v0.36.3", nil)
+	orm := filepath.Join(filepath.Dir(app), "orm")
+	writeFile(t, filepath.Join(orm, "go.mod"), "module github.com/vuka-lang/orm\n\ngo 1.23\n")
+	writeFile(t, filepath.Join(orm, "orm.go"), "package orm\n")
+	mod := readTest(t, filepath.Join(app, "go.mod"))
+	mod = strings.Replace(mod, "require (\n", "require (\n\tgithub.com/vuka-lang/orm v0.9.1\n", 1) + "\nreplace github.com/vuka-lang/orm => ../orm\n"
+	writeFile(t, filepath.Join(app, "go.mod"), mod)
+
+	var out, errb bytes.Buffer
+	other := firstSetVersion
+	if other == version {
+		other = "v0.51.0"
+	}
+	if err := upgrade([]string{"-n", other}, &out, &errb); err != nil {
+		t.Fatalf("%v\n%s%s", err, out.String(), errb.String())
+	}
+	if strings.Contains(out.String(), "orm ") {
+		t.Errorf("an upgrade to another set than the command's moves the orm:\n%s", out.String())
+	}
+	out.Reset()
+	if err := upgrade([]string{version}, &out, &errb); err != nil {
+		t.Fatalf("%v\n%s%s", err, out.String(), errb.String())
+	}
+	if want := "orm   v0.9.1 → " + ormVersion; !strings.Contains(out.String(), want) {
+		t.Errorf("missing %q in:\n%s", want, out.String())
+	}
+	if mod := readTest(t, filepath.Join(app, "go.mod")); !strings.Contains(mod, "github.com/vuka-lang/orm "+ormVersion) {
+		t.Errorf("go.mod doesn't require orm %s:\n%s", ormVersion, mod)
+	}
+}
+
 func TestUpgradeFailingTests(t *testing.T) {
 	setApp(t, "v0.32.0", "v0.30.0", "v0.36.3", map[string]string{
 		"fail_test.go": "package main\n\nimport \"testing\"\n\nfunc TestFail(t *testing.T) { t.Fatal(\"red\") }\n",

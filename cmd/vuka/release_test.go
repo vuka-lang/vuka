@@ -70,6 +70,8 @@ func newReleaseFixture(t *testing.T, notes string) *releaseFixture {
 		"docs/releases.md":      "# Releases\n\n" + notes,
 		"cmd/vuka/go.mod":       "module github.com/vuka-lang/vuka/cmd/vuka\n\ngo 1.23\n",
 		"cmd/vuka/toolchain.go": fakeToolchain,
+		"cmd/vukavet/go.mod":    "module github.com/vuka-lang/vuka/cmd/vukavet\n\ngo 1.23\n",
+		"cmd/vukavet/main.go":   "package main\n\nfunc main() {}\n",
 	}, "v0.32.0", "cmd/vuka/v0.45.3")
 	f.ui = f.repo(work, "vuka-ui", "ui", map[string]string{
 		"go.mod": "module github.com/vuka-lang/ui\n\ngo 1.23\n",
@@ -140,7 +142,9 @@ func TestReleaseDryRun(t *testing.T) {
 		"web: go get github.com/vuka-lang/vuka@v0.50.0 github.com/vuka-lang/ui@v0.50.0",
 		"cmd/vuka: go get github.com/vuka-lang/vuka@v0.50.0; the toolchain constants to v0.50.0",
 		"tag cmd/vuka cmd/vuka/v0.50.0",
-		"verify: GOPROXY=direct go install github.com/vuka-lang/vuka/cmd/vuka@v0.50.0",
+		"tag cmd/vukavet cmd/vukavet/v0.50.0 on cmd/vuka/v0.50.0",
+		"push cmd/vukavet/v0.50.0",
+		"verify: GOPROXY=direct go install github.com/vuka-lang/vuka/cmd/vuka@v0.50.0 and github.com/vuka-lang/vuka/cmd/vukavet@v0.50.0",
 		"dry run: nothing changed",
 	} {
 		if !strings.Contains(out, want) {
@@ -193,7 +197,7 @@ func TestRelease(t *testing.T) {
 		t.Fatalf("%v\n%s", err, out)
 	}
 	for dir, want := range map[string]string{
-		f.vuka: "cmd/vuka/v0.50.0\nv0.50.0",
+		f.vuka: "cmd/vuka/v0.50.0\ncmd/vukavet/v0.50.0\nv0.50.0",
 		f.ui:   "v0.50.0",
 		f.web:  "v0.50.0",
 	} {
@@ -204,6 +208,9 @@ func TestRelease(t *testing.T) {
 	webMod := readTest(t, filepath.Join(f.web, "go.mod"))
 	if !strings.Contains(webMod, "github.com/vuka-lang/ui v0.50.0") || !strings.Contains(webMod, "github.com/vuka-lang/vuka v0.50.0") {
 		t.Errorf("web's go.mod:\n%s", webMod)
+	}
+	if vet, cmd := f.git(f.vuka, "rev-list", "-n1", "cmd/vukavet/v0.50.0"), f.git(f.vuka, "rev-list", "-n1", "cmd/vuka/v0.50.0"); vet != cmd {
+		t.Errorf("cmd/vukavet/v0.50.0 is on %s, cmd/vuka/v0.50.0 on %s", vet, cmd)
 	}
 	tc := readTest(t, filepath.Join(f.vuka, "cmd", "vuka", "toolchain.go"))
 	if strings.Count(tc, `"v0.50.0"`) != 4 {

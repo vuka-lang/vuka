@@ -589,7 +589,8 @@ they aren't one set or aren't this command's set.
 
 Moves an app to a set: the latest when no version is named (fetched with
 `GOPROXY=direct`, so a fresh tag counts). It `go get`s vuka, ui and web at that
-version (never `go mod tidy`), runs the `vuka fix` rewrites registered for the
+version — and, to this command's own set, the orm at the version `vuka new`
+pins, when the app requires an older one — (never `go mod tidy`), runs the `vuka fix` rewrites registered for the
 releases between the app's version and the target, then `vuka vet ./...` and
 `vuka test ./...` (`-no-test` skips the tests), and prints a summary. `-n`
 (or `-dry-run`) prints the plan and changes nothing. go.mod and go.sum as they
@@ -597,5 +598,6 @@ were are kept in `.vuka/upgrade/`; a failed `go get` puts them back.
 
 ## release
 
-For maintainers: releases vuka, ui, web and cmd/vuka under one version. A dry
+For maintainers: releases vuka, ui, web, cmd/vuka and cmd/vukavet under one
+version. A dry
 run unless `-yes`. See [Releasing](/project/releasing).

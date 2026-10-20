@@ -27,6 +27,11 @@ can read, docs that answer questions.
 
 ## Phase 1 — Trust (release discipline, tests, errors)
 
+**Done.** The set and its release train came with v0.50.0 (`vuka release`,
+`vuka version`, `vuka upgrade`), diagnostics with codes and `vuka explain`
+with it, the end-to-end suites and fuzzers run on every push, and the
+[compatibility promise](../project/compatibility.md) applies from v1.0.0.
+
 Goal: every release is boring. Upgrading is a decision, not a gamble.
 
 ### 1.1 One version for the whole toolchain
@@ -62,7 +67,10 @@ Done when: there is at most one patch release per week outside security.
   example.
 
 Done when: the policy page exists and the last three breaking changes had a
-fix.
+fix. **Done**: [The compatibility promise](../project/compatibility.md);
+v1.0.0's breaking changes have `vuka fix` fixers (`attributes`, `hooks`,
+`ui-structs`, `templates-package`, `db-schema`, `queries`) that
+`vuka upgrade` runs.
 
 ### 1.4 No red tests
 
@@ -106,6 +114,13 @@ Done when: no diagnostic is a bare Go error string, and the catalogue is on
 the docs site.
 
 ## Phase 2 — Language (explicit, typed, readable)
+
+**Done** in v1.0.0: plain Go on the public API is the language and `.vuka`
+its sugar, markup is `.vuka.html` templates and `ui.HTML`, attributes and
+hooks are `Schema` / `LiveSchema` values, and every example runs alike as
+`.vuka`, as hand-written Go and ejected ([vuka as a library](./library.md),
+its plan all done). 2.4's backtick JSX became `.vuka.html` templates and
+`ui.HTML` instead ([templates](./templates.md)).
 
 Goal: what you write says what it does; what vuka generates reads like Go
 you'd have written — and a plain Go module can use orm, web and ui with
@@ -302,9 +317,20 @@ budgets that fail the build on regression.
 
 ## Phase 5 — 1.0
 
-1.0 means: the compatibility promise applies, the reference is complete, CI
-has been green for a quarter, and two real apps upgraded through at least
-two minor releases using only `vuka upgrade` and `vuka fix`.
+**Done: v1.0.0.**
+
+The criteria first set for 1.0 were: the compatibility promise applies, the
+reference is complete, CI has been green for a quarter, and two real apps
+upgraded through at least two minor releases using only `vuka upgrade` and
+`vuka fix`.
+
+The gate was changed by the maintainer's decision: 1.0 was released once a
+real app had been ported to the plain-Go form — the shape Phase 2 made the
+language — and that port had been reviewed, instead of waiting out the
+quarter of green CI and the two upgraded apps. The port exercised what the
+promise covers more than calendar time would have, and the compatibility
+promise applies from v1.0.0 regardless. Phases 3 and 4 continue in minor
+releases under it.
 
 ## Order and size
 
@@ -314,7 +340,7 @@ two minor releases using only `vuka upgrade` and `vuka fix`.
 | 2 Language | 2.1–2.6 | 6–8 weeks | 1.3 (deprecations), 1.5 (codes) |
 | 3 Knowledge | 3.1–3.3 | 2 weeks, ongoing | 2 (so the reference describes the final shapes) |
 | 4 Defaults and tools | 4.1–4.4 | 3–4 weeks, partly parallel | 2.3 for debugging |
-| 5 1.0 | — | when the criteria hold | 1–4 |
+| 5 1.0 | — | done: v1.0.0, after a real app's port to plain Go and its review | 1–2 |
 
 Phase 1 comes first because everything after it changes the language, and
 those changes are only safe with deprecations, codes and green CI in place.

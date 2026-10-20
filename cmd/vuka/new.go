@@ -28,7 +28,7 @@ import (
 // mod tidy brings in the rest. The scaffolds are written against it: CI's
 // cmd job points new apps at orm main (VUKA_NEW_REPLACE), so a scaffold
 // out of step with the orm fails there, not in the next release.
-const ormVersion = "v0.9.2-0.20261020045121-493937f0b6bd"
+const ormVersion = "v1.0.0"
 
 // scaffoldFS holds the files vuka new and vuka add write. A path segment
 // name@tag1+tag2 is written as name when every tag holds (scaffold.tags);

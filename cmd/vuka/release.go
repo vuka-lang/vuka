@@ -21,7 +21,7 @@ import (
 // A releaseRepo is one repository of the set and the module it releases.
 type releaseRepo struct {
 	name, dir, module string
-	tagPrefix         string // "" or "cmd/vuka/"
+	tagPrefix         string // "", "cmd/vuka/" or "cmd/vukavet/"
 	modDir            string // the module's directory in dir
 	released          bool   // its tag is there already (a resumed release)
 }
@@ -33,8 +33,13 @@ type releaseStep struct {
 	run  func() error
 }
 
-// release releases vuka, ui, web and cmd/vuka under one version: checks, then
-// tags in dependency order, each library requiring the set's others.
+// vukavetModPath is the analyzer, released with the command: tagged on the
+// command's release commit, it requires none of the set.
+const vukavetModPath = "github.com/vuka-lang/vuka/cmd/vukavet"
+
+// release releases vuka, ui, web, cmd/vuka and cmd/vukavet under one
+// version: checks, then tags in dependency order, each module requiring the
+// set's others.
 func release(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("release", flag.ContinueOnError)
 	fs.SetOutput(stderr)
@@ -87,7 +92,8 @@ func release(args []string, stdout, stderr io.Writer) error {
 	ui := &releaseRepo{name: "ui", dir: *uiDir, module: uiModPath, modDir: *uiDir}
 	web := &releaseRepo{name: "web", dir: *webDir, module: webModPath, modDir: *webDir}
 	cmd := &releaseRepo{name: "cmd/vuka", dir: root, module: cmdModPath, tagPrefix: "cmd/vuka/", modDir: filepath.Join(root, "cmd", "vuka")}
-	repos := []*releaseRepo{vuka, ui, web, cmd}
+	vet := &releaseRepo{name: "cmd/vukavet", dir: root, module: vukavetModPath, tagPrefix: "cmd/vukavet/", modDir: filepath.Join(root, "cmd", "vukavet")}
+	repos := []*releaseRepo{vuka, ui, web, cmd, vet}
 
 	fmt.Fprintf(stdout, "release the %s set\n\nchecks:\n", v)
 	var problems []string
@@ -102,7 +108,7 @@ func release(args []string, stdout, stderr io.Writer) error {
 	var latest string // the newest tag of any of the set's modules
 	for _, r := range repos {
 		check(r.name+" is "+r.module, checkModule(r))
-		if r != cmd {
+		if r.dir != root || r == vuka {
 			check(r.name+" is clean, on "+*branch+", level with "+*remote, checkRepoState(r.dir, *remote, *branch))
 		}
 		have, err := releaseTags(r.dir, *remote, r.tagPrefix)
@@ -143,13 +149,17 @@ func release(args []string, stdout, stderr io.Writer) error {
 	}
 	check("docs/releases.md has a section for "+v, err)
 	check("the patch train", checkTrain(root, *remote, v, *security))
+	checkouts := map[string]string{vukaModPath: vuka.dir, uiModPath: ui.dir, webModPath: web.dir}
 	if !*noTest {
+		env, cleanup, err := releaseTestEnv(root, cmd, ui, web, checkouts)
+		check("cmd/vuka builds from the checkouts, for the tests", err)
 		for _, r := range repos {
-			check(r.name+": go vet, go test", vetTestModule(r.modDir, ui.dir))
+			check(r.name+": go vet, go test", vetTestModule(r.modDir, setReplaces(r, checkouts), env))
 		}
+		cleanup()
 	}
 
-	steps := releaseSteps(v, vuka, ui, web, cmd, *remote, *branch, *proxyWait, stdout)
+	steps := releaseSteps(v, vuka, ui, web, cmd, vet, *remote, *branch, *proxyWait, stdout)
 	fmt.Fprintln(stdout, "\nplan:")
 	for i, s := range steps {
 		fmt.Fprintf(stdout, "  %d. %s\n", i+1, s.what)
@@ -172,7 +182,7 @@ func release(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func releaseSteps(v string, vuka, ui, web, cmd *releaseRepo, remote, branch string, proxyWait time.Duration, stdout io.Writer) []releaseStep {
+func releaseSteps(v string, vuka, ui, web, cmd, vet *releaseRepo, remote, branch string, proxyWait time.Duration, stdout io.Writer) []releaseStep {
 	var steps []releaseStep
 	tagPush := func(r *releaseRepo) {
 		steps = append(steps,
@@ -228,12 +238,21 @@ func releaseSteps(v string, vuka, ui, web, cmd *releaseRepo, remote, branch stri
 		tagPush(web)
 	}
 	if !cmd.released {
-		bump(cmd, []string{vukaModPath}, func() error { return setToolchain(filepath.Join(cmd.modDir, "toolchain.go"), v) })
+		bump(cmd, cmdRequires(cmd.modDir), func() error { return setToolchain(filepath.Join(cmd.modDir, "toolchain.go"), v) })
 		tagPush(cmd)
+	}
+	if !vet.released {
+		steps = append(steps,
+			releaseStep{"tag " + vet.name + " " + vet.tag(v) + " on " + cmd.tag(v), func() error {
+				return run(vet.dir, nil, "git", "tag", "-a", vet.tag(v), "-m", vet.name+" "+v, cmd.tag(v)+"^{commit}")
+			}},
+			releaseStep{"push " + vet.tag(v), func() error {
+				return run(vet.dir, nil, "git", "push", remote, "refs/tags/"+vet.tag(v))
+			}})
 	}
 	if proxyWait > 0 {
 		steps = append(steps, releaseStep{"wait (up to " + proxyWait.String() + ") for proxy.golang.org to serve the set", func() error {
-			for _, m := range []string{vukaModPath, uiModPath, webModPath, cmdModPath} {
+			for _, m := range []string{vukaModPath, uiModPath, webModPath, cmdModPath, vukavetModPath} {
 				if err := waitProxy(m, v, proxyWait); err != nil {
 					fmt.Fprintf(stdout, "   warning: %v (GOPROXY=direct installs it meanwhile)\n", err)
 				}
@@ -241,7 +260,7 @@ func releaseSteps(v string, vuka, ui, web, cmd *releaseRepo, remote, branch stri
 			return nil
 		}})
 	}
-	steps = append(steps, releaseStep{"verify: GOPROXY=direct go install " + cmdModPath + "@" + v + ", vuka version", func() error {
+	steps = append(steps, releaseStep{"verify: GOPROXY=direct go install " + cmdModPath + "@" + v + " and " + vukavetModPath + "@" + v + ", vuka version", func() error {
 		return verifyInstall(v)
 	}})
 	return steps
@@ -393,12 +412,109 @@ func checkTrain(root, remote, v string, security bool) error {
 	return nil
 }
 
-func vetTestModule(dir, uiDir string) error {
-	env := []string{"GOWORK=off", "VUKA_UI=" + uiDir}
-	if err := run(dir, env, "go", "vet", "./..."); err != nil {
-		return err
+// cmdRequires are the set's libraries the command requires: vuka always,
+// ui and web when its go.mod names them.
+func cmdRequires(dir string) []string {
+	mods := []string{vukaModPath}
+	m, err := readGoMod(dir)
+	if err != nil {
+		return mods
 	}
-	return run(dir, env, "go", "test", "./...")
+	have := m.setVersions()
+	for _, p := range setModules[1:] {
+		if _, ok := have[p]; ok {
+			mods = append(mods, p)
+		}
+	}
+	return mods
+}
+
+// setReplaces points the set's modules r requires at the checkouts being
+// released, so its tests run against what the release tags rather than
+// against the versions its go.mod requires today.
+func setReplaces(r *releaseRepo, checkouts map[string]string) map[string]string {
+	m, err := readGoMod(r.modDir)
+	if err != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for p := range m.setVersions() {
+		if dir, ok := checkouts[p]; ok && p != r.module {
+			out[p] = dir
+		}
+	}
+	return out
+}
+
+// releaseTestEnv is the environment the modules' tests run in: the
+// checkouts as CI points the tests at them — ui, web and, beside them, orm;
+// apps vuka new makes replaced by them — and the command built from them
+// ($VUKA, which ui's generated-code tests run).
+func releaseTestEnv(root string, cmd, ui, web *releaseRepo, checkouts map[string]string) (env []string, cleanup func(), err error) {
+	env = []string{"GOWORK=off", "VUKA_UI=" + ui.dir, "VUKA_WEB=" + web.dir}
+	news := []string{vukaModPath + "=" + root, uiModPath + "=" + ui.dir, webModPath + "=" + web.dir}
+	if orm := filepath.Join(filepath.Dir(root), "vuka-orm"); fileExists(filepath.Join(orm, "go.mod")) {
+		env = append(env, "VUKA_ORM="+orm)
+		news = append(news, ormModule+"="+orm)
+	}
+	if os.Getenv("VUKA_NEW_REPLACE") == "" {
+		env = append(env, "VUKA_NEW_REPLACE="+strings.Join(news, ","))
+	}
+	cleanup = func() {}
+	bin, err := os.MkdirTemp("", "vuka-release-test-")
+	if err != nil {
+		return env, cleanup, err
+	}
+	cleanup = func() { os.RemoveAll(bin) }
+	vuka := filepath.Join(bin, "vuka")
+	err = withReplaces(cmd.modDir, setReplaces(cmd, checkouts), env, func() error {
+		return run(cmd.modDir, env, "go", "build", "-o", vuka, ".")
+	})
+	if err != nil {
+		return env, cleanup, err
+	}
+	return append(env, "VUKA="+vuka), cleanup, nil
+}
+
+// vetTestModule runs go vet and go test in dir, with replace directives for
+// the run.
+func vetTestModule(dir string, replace map[string]string, env []string) error {
+	return withReplaces(dir, replace, env, func() error {
+		if err := run(dir, env, "go", "vet", "./..."); err != nil {
+			return err
+		}
+		return run(dir, env, "go", "test", "./...")
+	})
+}
+
+// withReplaces runs fn with replace directives added to dir's go.mod, and
+// puts go.mod and go.sum back after.
+func withReplaces(dir string, replace map[string]string, env []string, fn func() error) (err error) {
+	if len(replace) > 0 {
+		saved := map[string][]byte{}
+		for _, name := range []string{"go.mod", "go.sum"} {
+			if b, err := os.ReadFile(filepath.Join(dir, name)); err == nil {
+				saved[name] = b
+			}
+		}
+		defer func() {
+			for name, b := range saved {
+				if werr := os.WriteFile(filepath.Join(dir, name), b, 0o644); werr != nil && err == nil {
+					err = werr
+				}
+			}
+		}()
+		args := []string{"mod", "edit"}
+		for _, p := range setModules {
+			if d, ok := replace[p]; ok {
+				args = append(args, "-replace", p+"="+d)
+			}
+		}
+		if err := run(dir, env, "go", args...); err != nil {
+			return err
+		}
+	}
+	return fn()
 }
 
 var toolchainConst = regexp.MustCompile(`(?m)^(\s*(?:version|vukaVersion|uiVersion|webVersion)\s*=\s*)"[^"]*"`)
@@ -454,8 +570,10 @@ func verifyInstall(v string) error {
 		return err
 	}
 	defer os.RemoveAll(bin)
-	if err := run(bin, append(releaseGoEnv(), "GOBIN="+bin, "GOFLAGS="), "go", "install", cmdModPath+"@"+v); err != nil {
-		return err
+	for _, m := range []string{cmdModPath, vukavetModPath} {
+		if err := run(bin, append(releaseGoEnv(), "GOBIN="+bin, "GOFLAGS="), "go", "install", m+"@"+v); err != nil {
+			return err
+		}
 	}
 	out, err := output(bin, nil, filepath.Join(bin, "vuka"), "version")
 	if err != nil {
