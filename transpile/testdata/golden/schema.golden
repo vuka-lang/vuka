@@ -57,23 +57,23 @@ func publish(ctx context.Context, slug string) error {
 }
 
 func draft(ctx context.Context, title string) (Post, error) {
-	var r0 Post
-	err := orm.Transaction(ctx, func(ctx context.Context) (e error) {
-		r0, e = func() (Post, error) {
+	var p Post
+	err := orm.Transaction(ctx, func(ctx context.Context) error {
 //line schema.vuka:50
-			p := Post{Title: title, Slug: "draft"}
-			if err := p.Save(&p, ctx); err != nil {
-				return Post{}, err
-			}
+		p = Post{Title: title, Slug: "draft"}
+		if err := p.Save(&p, ctx); err != nil {
+			return err
+		}
 //line schema.vuka:52
-			if title == "" {
-				return Post{}, errors.New("no title")
-			}
-			return p, nil
-		}()
-		return e
+		if title == "" {
+			return errors.New("no title")
+		}
+		return nil
 	})
-	return r0, err
+	if err != nil {
+		return Post{}, err
+	}
+	return p, nil
 }
 
 //line schema.vuka:59

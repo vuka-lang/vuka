@@ -36,11 +36,10 @@ func list(items []Item) ui.Node {
 		}
 		var b ui.Node
 //line jsx_bare.vuka:27
-		if m1 := it.N; false {
-			panic(m1)
-		} else if m1 == 0 {
+		switch it.N {
+		case 0:
 			b = ui.HTML(`<b>none</b>`)
-		} else if m1 == 1 {
+		case 1:
 			var texts22 []ui.Node
 //line jsx_bare.vuka:31
 			for i := range 2 {
@@ -53,10 +52,8 @@ func list(items []Item) ui.Node {
 				texts22 = append(texts22, ui.HTML(`{s2}`, s2))
 			}
 			b = ui.HTML(`{texts22}`, texts22)
-		} else if true {
+		default:
 			b = ui.HTML(`many`)
-		} else {
-			panic("vuka: no case matched")
 		}
 		var u ui.Node
 //line jsx_bare.vuka:35

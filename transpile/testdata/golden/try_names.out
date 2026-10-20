@@ -1,0 +1,4 @@
+outer
+1 outer
+3 <nil>
+0 strconv.Atoi: parsing "x": invalid syntax

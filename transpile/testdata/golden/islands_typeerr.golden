@@ -5,10 +5,10 @@ package main
 
 import (
 	"time"
+
 	ui "vukatest.local/stateui"
 )
 
-//line islands_typeerr.vuka:9
 func wrongType() ui.Node {
 //line islands_typeerr.vuka:9
 	return ui.HTML(`{Picker{Title: 3, Days: nil}}`, Picker{Title: 3, Days: nil})

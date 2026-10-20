@@ -66,8 +66,8 @@ func first(xs []int) vuka.Option[int] {
 }
 
 func firstPlusOne(xs []int) vuka.Option[int] {
-	x, ok5 := first(xs).Get()
-	if !ok5 {
+	x, ok := first(xs).Get()
+	if !ok {
 		return vuka.None[int]()
 	}
 //line try.vuka:48
@@ -84,11 +84,11 @@ func both(a, b string) (int, error) {
 	}
 //line try.vuka:54
 	_ = x
-	v71, err := parse(b)
+	v, err := parse(b)
 	if err != nil {
 		return 0, err
 	}
-	return v71, nil
+	return v, nil
 }
 
 //line try.vuka:58

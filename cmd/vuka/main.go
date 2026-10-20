@@ -528,6 +528,9 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 	}
 	for i := range files {
 		files[i].Src = relativeLines(files[i].Src, filepath.Dir(files[i].Source))
+		if strings.HasSuffix(files[i].Source, ".vuka") {
+			files[i].Src = arrange(files[i].Src)
+		}
 	}
 	return root, files, nil
 }

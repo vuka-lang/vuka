@@ -272,9 +272,9 @@ func valueEnumMethods(d *enumDecl, rt, fmtName, driverName string) string {
 	p("func %s() []%s {\n\treturn []%s{%s}\n}\n\n", values, T, T, strings.Join(names, ", "))
 
 	if d.str {
-		p("// %s reads a %s from its value or its name.\n", parse, T)
+		p("// %s reads %s from its value or its name.\n", parse, article(T))
 	} else {
-		p("// %s reads a %s from its name.\n", parse, T)
+		p("// %s reads %s from its name.\n", parse, article(T))
 	}
 	p("func %s(text string) %s.Result[%s] {\n\tswitch text {\n", parse, rt, T)
 	if d.str {
@@ -324,14 +324,14 @@ func valueEnumMethods(d *enumDecl, rt, fmtName, driverName string) string {
 	p("func (%s %s) MarshalText() ([]byte, error) {\n\tif !%s.Valid() {\n\t\treturn nil, %s.Errorf(\"invalid %s %s\", %s)\n\t}\n\treturn []byte(%s.String()), nil\n}\n\n",
 		r, T, r, fmtName, T, verb, unconv(d, r), r)
 
-	p("// UnmarshalText reads a %s as %s does.\n", T, parse)
+	p("// UnmarshalText reads %s as %s does.\n", article(T), parse)
 	p("func (%s *%s) UnmarshalText(text []byte) error {\n\tval, err := %s(string(text)).Get()\n\tif err != nil {\n\t\treturn err\n\t}\n\t*%s = val\n\treturn nil\n}\n\n",
 		r, T, parse, r)
 
 	if d.str {
-		p("// Scan reads a %s from a database column holding its value or its name.\n", T)
+		p("// Scan reads %s from a database column holding its value or its name.\n", article(T))
 	} else {
-		p("// Scan reads a %s from a database column holding its number or its name.\n", T)
+		p("// Scan reads %s from a database column holding its number or its name.\n", article(T))
 	}
 	p("func (%s *%s) Scan(src any) error {\n\tswitch src := src.(type) {\n", r, T)
 	if !d.str {
@@ -536,3 +536,12 @@ func enumStatic(t *types.Named, member string) types.Object {
 
 // ctorKey is the exhaustiveness constructor of an enum's variant.
 func ctorKey(obj types.Object) string { return "enum:" + obj.Pkg().Path() + "." + obj.Name() }
+
+// article is name after the article its first letter takes: an Employer,
+// a Status.
+func article(name string) string {
+	if name != "" && strings.ContainsRune("AEIOU", unicode.ToUpper(rune(name[0]))) {
+		return "an " + name
+	}
+	return "a " + name
+}
