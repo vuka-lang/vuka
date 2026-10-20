@@ -87,6 +87,9 @@ func eject(args []string, stdout io.Writer) error {
 			}
 		}
 		rel := relPath(root, target)
+		if *rm && vuka && routeBundle.Match(src) {
+			fmt.Fprintf(stdout, "warning: %s: a vuka.Compose of route decorators registers nothing in plain Go; pass its options to web.Routes.Get, Live… where it is used\n", rel)
+		}
 		if !*rm || !vuka {
 			fmt.Fprintln(stdout, "wrote", rel)
 			continue
@@ -266,3 +269,7 @@ func arrange(src []byte) []byte {
 	b.Write(src[at:])
 	return b.Bytes()
 }
+
+// routeBundle is a bundle of route decorators, a .vuka decorator alias:
+// plain Go passes route options instead.
+var routeBundle = regexp.MustCompile(`vuka\.Compose\([^\n]*\bweb\.(Get|Post|Put|Patch|Delete|Head|Handle|Live|Controller)\(`)
