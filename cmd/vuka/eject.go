@@ -26,8 +26,9 @@ const ejectUsage = `usage: vuka eject [-rm] [file.vuka… | dir | dir/...]
 
 Eject writes the Go generated for .vuka files beside them, as vuka gen
 -inplace does (the module by default). With -rm the Go becomes the source:
-each .vuka file is deleted and its Go kept as x.go (x_vuka.go when x.go is
-taken), without the generated-code header or line directives; its
+each .vuka file, its earlier forms rewritten first as vuka fix attributes,
+queries and db-schema do, is deleted and its Go kept as x.go (x_vuka.go
+when x.go is taken), without the generated-code header or line directives; its
 functions that are markup (a Render method, a component) become templates
 of x.vuka.html, compiled to x_html.go, so the app builds with go build and
 no vuka command.
@@ -66,6 +67,9 @@ func eject(args []string, stdout io.Writer) error {
 		return slices.ContainsFunc(patterns, func(p string) bool { return inPattern(dir, p) })
 	})
 	if *rm {
+		if err := ejectFixes(patterns, extra, files); err != nil {
+			return err
+		}
 		if err := splitTemplates(patterns, extra, files); err != nil {
 			return err
 		}
@@ -89,6 +93,9 @@ func eject(args []string, stdout io.Writer) error {
 			}
 		}
 		rel := relPath(root, target)
+		if *rm && vuka && routeBundle.Match(src) {
+			fmt.Fprintf(stdout, "warning: %s: a vuka.Compose of route decorators registers nothing in plain Go; pass its options to web.Routes.Get, Live… where it is used\n", rel)
+		}
 		if !*rm || !vuka {
 			fmt.Fprintln(stdout, "wrote", rel)
 			continue
@@ -435,6 +442,10 @@ func arrange(src []byte) []byte {
 	b.Write(src[pos:])
 	return b.Bytes()
 }
+
+// routeBundle is a bundle of route decorators, a .vuka decorator alias:
+// plain Go passes route options instead.
+var routeBundle = regexp.MustCompile(`vuka\.Compose\([^\n]*\bweb\.(Get|Post|Put|Patch|Delete|Head|Handle|Live|Controller)\(`)
 
 // lineEnd is the offset of the newline ending the line holding o.
 func lineEnd(src []byte, o int) int {

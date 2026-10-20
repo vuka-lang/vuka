@@ -11,6 +11,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // Split is a .vuka file as templates and the rest: each function whose
@@ -892,6 +893,8 @@ func (p *tprint) element(el *jsxElem, indent string, inline bool) {
 		name := a.name
 		if el.comp == nil {
 			name = htmlName(name)
+		} else if len(name) > 1 && unicode.IsUpper(rune(name[0])) && unicode.IsLower(rune(name[1])) && name != "Key" {
+			name = strings.ToLower(name[:1]) + name[1:] // a template's attributes are camelCase: Title is title
 		}
 		switch a.kind {
 		case 's':

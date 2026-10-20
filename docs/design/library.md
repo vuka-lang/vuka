@@ -425,6 +425,17 @@ for the ORM's own cost, SQLite end to end), ui `go test -bench Fallback
   build and logs one line saying how to get live CSS and islands.
 - Without Node, everything except framework islands and Tailwind works
   (vanilla islands build in Go).
+- **Which one to ship.** Pick one per app. `vuka gen -inplace ./...` writes
+  `vuka_assets_gen.go` in `main` (the islands' built JavaScript and the
+  Tailwind CSS as Go constants), so a plain `go build` holds everything;
+  `vuka gen -inplace -check` then wants that file present and current.
+  `go tool vuka build-islands` writes the same islands to `web/dist/.vuka/`
+  for an app that already embeds `web/dist` after its own frontend build.
+  Either way the output is generated: keep a `//go:generate` line in
+  `main.go` and run it before `go build` (in CI too) rather than committing
+  a megabyte of JavaScript. `vuka gen` writes Vuka's generated Go only; a
+  `.go` package with models keeps its `//go:generate go tool orm generate`
+  line for the ORM's field sets and scanners.
 
 An island is declared the same way in both: `ui.RegisterIsland[Chart]()`
 finds `islands/[<module>/]Chart.<ext>` under the frontend root, as a bare

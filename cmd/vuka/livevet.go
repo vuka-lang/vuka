@@ -25,9 +25,11 @@ import (
 // liveTags are the field tags a live page's fields were configured by.
 var liveTags = []string{"bind", "url", "defer", "validate"}
 
-// liveType is a struct type of a .vuka file embedding ui.Live.
+// liveType is a struct type of a .vuka file embedding ui.Live (or, for
+// structTypes, any struct type).
 type liveType struct {
 	name, ui string // ui: the name ui is imported as, the embed's
+	orm      string // the package of an embedded Base or Model[T]: an orm model's
 	fields   []liveField
 }
 
@@ -42,6 +44,17 @@ type liveField struct {
 
 // liveTypes are the struct types of a .vuka file's source embedding Live.
 func liveTypes(src []byte) []liveType {
+	var out []liveType
+	for _, lt := range structTypes(src) {
+		if lt.ui != "" {
+			out = append(out, lt)
+		}
+	}
+	return out
+}
+
+// structTypes are the named struct types of a .vuka file's source.
+func structTypes(src []byte) []liveType {
 	toks, _ := scanFile("", src)
 	var out []liveType
 	depth := 0
@@ -74,9 +87,7 @@ func liveTypes(src []byte) []liveType {
 				break
 			}
 		}
-		if lt.ui != "" {
-			out = append(out, lt)
-		}
+		out = append(out, lt)
 	}
 	return out
 }
@@ -102,8 +113,13 @@ func (lt *liveType) field(toks []wtok) {
 	}
 	names, typ := splitNamesType(toks)
 	if len(names) == 0 {
-		if len(typ) == 3 && typ[0].tok == token.IDENT && typ[1].tok == token.PERIOD && typ[2].lit == "Live" {
-			lt.ui = typ[0].lit
+		if len(typ) >= 3 && typ[0].tok == token.IDENT && typ[1].tok == token.PERIOD {
+			switch {
+			case len(typ) == 3 && typ[2].lit == "Live":
+				lt.ui = typ[0].lit
+			case len(typ) == 3 && typ[2].lit == "Base", typ[2].lit == "Model" && len(typ) > 3 && typ[3].tok == token.LBRACK:
+				lt.orm = typ[0].lit
+			}
 		}
 		return
 	}
@@ -285,8 +301,8 @@ func fixAttributes(m *fixModule) ([]fixChange, error) {
 	return changes, nil
 }
 
-// attributeTags is src with its live pages' field tags as attributes, and
-// how many fields changed.
+// attributeTags is src with its live pages' and models' field tags as
+// attributes, and how many fields changed.
 func attributeTags(src []byte) ([]byte, int, error) {
 	type edit struct {
 		start, end int
@@ -294,12 +310,24 @@ func attributeTags(src []byte) ([]byte, int, error) {
 	}
 	var edits []edit
 	needTime, needValidate := false, false
-	for _, lt := range liveTypes(src) {
+	orm := importedAs(src, ormModule)
+	for _, lt := range structTypes(src) {
+		if lt.ui == "" && (lt.orm == "" || lt.orm != orm) {
+			continue
+		}
 		for _, lf := range lt.fields {
 			if lf.tagStart < 0 {
 				continue
 			}
-			attrs, rest, usesTime, usesValidate, err := tagAttrs(lf.tag, lt.ui, lf.names[0])
+			var attrs []string
+			var rest string
+			var usesTime, usesValidate bool
+			var err error
+			if lt.ui != "" {
+				attrs, rest, usesTime, usesValidate, err = tagAttrs(lf.tag, lt.ui, lf.names[0])
+			} else {
+				attrs, rest = ormTagAttrs(lf.tag, orm)
+			}
 			if err != nil {
 				return nil, 0, fmt.Errorf("%s.%s: %w", lt.name, lf.names[0], err)
 			}
@@ -360,6 +388,9 @@ func tagAttrs(tag, ui, field string) (attrs []string, rest string, usesTime, use
 				expr, ok := durationExpr(d)
 				if !ok {
 					return nil, "", false, false, fmt.Errorf("bind:%q: bad debounce", v)
+				}
+				if expr == "-1" {
+					expr = ui + ".NoDebounce"
 				}
 				a += "{Debounce: " + expr + "}"
 				usesTime = usesTime || strings.Contains(expr, "time.")

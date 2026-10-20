@@ -26,7 +26,7 @@ func cardView2(c Card, head ui.Node)
 </section>
 
 func homeView()
-<main><Card Title="Week" Items={[]string{"a", "b"}} /></main>
+<main><Card title="Week" items={[]string{"a", "b"}} /></main>
 
 func cardB()
 <b>many</b>

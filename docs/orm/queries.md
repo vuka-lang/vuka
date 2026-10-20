@@ -143,6 +143,9 @@ tenant's names set).
 | `Count(ctx)`, `Exists(ctx)` | `(int64, error)`, `(bool, error)` |
 | `Iter(ctx)` | `iter.Seq2[T, error]`: rows one at a time |
 
+`orm.Optional(q.First(ctx))` (or of `Get`) is the row as a `vuka.Option[T]`
+and an error: `None` where there is no row, other errors as they are.
+
 <span class="vuka-only">`?` takes them; </span>`errors.Is` tells the kinds apart:
 
 ::: vuka
