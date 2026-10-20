@@ -10,3 +10,6 @@ count := len(items)
   }
   {children}
 </nav>
+
+func mainView()
+<i>x</i>

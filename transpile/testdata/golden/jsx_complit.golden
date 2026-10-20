@@ -20,8 +20,14 @@ type LoginPage struct {
 	Remember bool
 }
 
-func (p LoginPage) View() ui.Node {
-	return ui.Text(p.Next + ": " + p.Problem)
+func (p LoginPage) View() ui.Node { return text(p.Next + ": " + p.Problem) }
+
+// text is markup written as it is.
+type text string
+
+func (t text) Render(ctx context.Context, w io.Writer) error {
+	_, err := io.WriteString(w, string(t))
+	return err
 }
 
 func (p LoginPage) Render(ctx context.Context, w io.Writer) error {

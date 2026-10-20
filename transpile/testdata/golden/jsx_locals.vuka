@@ -38,6 +38,6 @@ func Admin(admin bool, path string, children ui.Node) ui.Node {
 }
 
 func main() {
-	s, _ := ui.String(context.Background(), Admin(false, "/users", ui.Text("x")))
+	s, _ := ui.String(context.Background(), Admin(false, "/users", <i>x</i>))
 	fmt.Println(s)
 }
