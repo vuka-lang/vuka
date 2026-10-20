@@ -4,11 +4,11 @@
 package main
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"math"
 
-	"database/sql/driver"
 	"github.com/vuka-lang/vuka"
 )
 

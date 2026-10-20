@@ -777,10 +777,12 @@ func clearDropped(file *ast.File, dropped map[*ast.CommentGroup]bool) {
 	})
 }
 
-// addImports puts specs in the first import block of a formatted file, as a
-// group of their own sorted as gofmt sorts it, or at the end of the last
-// group when that is of the same kind; reformat reports that the group then
-// needs sorting again.
+// addImports puts specs in the first import block of a formatted file as
+// goimports does: a standard library package into the group of the
+// standard library's (a new first group when there is none), another into
+// the group sharing the longest leading path with it, else the last group
+// of other packages (a new last group when there is none). reformat reports
+// that a group needs sorting again.
 func addImports(text []byte, specs []*ast.ImportSpec) (out []byte, reformat bool, err error) {
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, "", text, parser.ImportsOnly)
@@ -804,35 +806,110 @@ func addImports(text []byte, specs []*ast.ImportSpec) (out []byte, reformat bool
 	}
 	sort.Sort(byPath{lines, paths})
 	tf := fset.File(file.Pos())
-	switch {
-	case len(file.Imports) == 0:
+	if len(file.Imports) == 0 {
+		var std, other []string
+		for i, l := range lines {
+			if p, _ := strconv.Unquote(paths[i]); isStd(p) {
+				std = append(std, l)
+			} else {
+				other = append(other, l)
+			}
+		}
+		block := strings.Join(std, "\n\t")
+		if len(std) > 0 && len(other) > 0 {
+			block += "\n\n\t"
+		}
+		block += strings.Join(other, "\n\t")
 		at := tf.Offset(file.Name.End())
 		out = append(out, text[:at]...)
-		out = append(out, "\n\nimport (\n\t"+strings.Join(lines, "\n\t")+"\n)"...)
-		out = append(out, text[at:]...)
-	default:
-		g := file.Decls[0].(*ast.GenDecl)
-		var body []string
-		if !g.Lparen.IsValid() {
-			body = append(body, string(text[tf.Offset(g.Specs[0].Pos()):tf.Offset(g.End())]))
+		out = append(out, "\n\nimport (\n\t"+block+"\n)"...)
+		return append(out, text[at:]...), len(std) > 0 && len(other) > 0, nil
+	}
+	g := file.Decls[0].(*ast.GenDecl)
+	if !g.Lparen.IsValid() {
+		spec := string(text[tf.Offset(g.Specs[0].Pos()):tf.Offset(g.End())])
+		text = []byte(string(text[:tf.Offset(g.TokPos)]) + "import (\n\t" + spec + "\n)" + string(text[tf.Offset(g.End()):]))
+		return addImports(text, specs)
+	}
+	// the groups: runs of specs on consecutive lines
+	type group struct {
+		end   int // offset of the end of its last line
+		paths []string
+	}
+	var groups []*group
+	last := -1
+	for _, sp := range g.Specs {
+		is := sp.(*ast.ImportSpec)
+		line := tf.Line(is.Pos())
+		p, _ := strconv.Unquote(is.Path.Value)
+		if last < 0 || line > last+1 {
+			groups = append(groups, &group{})
 		}
-		group := "\n\n\t"
-		if last := file.Imports[len(file.Imports)-1]; strings.Contains(strings.SplitN(last.Path.Value, "/", 2)[0], ".") {
-			group = "\n\t"
-			reformat = last.Path.Value > paths[0]
+		gr := groups[len(groups)-1]
+		gr.end = tf.Offset(is.End())
+		if is.Comment != nil {
+			gr.end = tf.Offset(is.Comment.End())
 		}
-		if g.Lparen.IsValid() {
-			at := tf.Offset(g.Rparen)
-			out = append(out, bytes.TrimRight(text[:at], "\n\t ")...)
-			out = append(out, group+strings.Join(lines, "\n\t")+"\n"...)
-			out = append(out, text[at:]...)
-		} else {
-			out = append(out, text[:tf.Offset(g.TokPos)]...)
-			out = append(out, "import ("+"\n\t"+body[0]+group+strings.Join(lines, "\n\t")+"\n)"...)
-			out = append(out, text[tf.Offset(g.End()):]...)
+		gr.paths = append(gr.paths, p)
+		last = tf.Line(is.End())
+	}
+	type insert struct {
+		at   int
+		text string
+	}
+	var ins []insert
+	var first, tail []string // new groups before the first and after the last
+	for i, l := range lines {
+		p, _ := strconv.Unquote(paths[i])
+		best, n := -1, 0
+		for j, gr := range groups {
+			for _, q := range gr.paths {
+				switch {
+				case isStd(p) && isStd(q):
+					if n == 0 {
+						best, n = j, 1
+					}
+				case !isStd(p) && !isStd(q):
+					if k := sharedPath(p, q) + 1; k > n || k == n && k == 1 {
+						best, n = j, k
+					}
+				}
+			}
+		}
+		switch {
+		case best >= 0:
+			ins = append(ins, insert{groups[best].end, "\n\t" + l})
+			reformat = true
+		case isStd(p):
+			first = append(first, l)
+		default:
+			tail = append(tail, l)
 		}
 	}
-	return out, reformat, nil
+	if len(first) > 0 {
+		ins = append(ins, insert{tf.Offset(g.Lparen) + 1, "\n\t" + strings.Join(first, "\n\t") + "\n"})
+	}
+	if len(tail) > 0 {
+		ins = append(ins, insert{groups[len(groups)-1].end, "\n\n\t" + strings.Join(tail, "\n\t")})
+	}
+	sort.SliceStable(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
+	at := 0
+	for _, in := range ins {
+		out = append(out, text[at:in.at]...)
+		out = append(out, in.text...)
+		at = in.at
+	}
+	return append(out, text[at:]...), reformat, nil
+}
+
+// sharedPath is how many leading path elements p and q share.
+func sharedPath(p, q string) int {
+	a, b := strings.Split(p, "/"), strings.Split(q, "/")
+	n := 0
+	for n < len(a) && n < len(b) && a[n] == b[n] {
+		n++
+	}
+	return n
 }
 
 // byPath sorts import lines by their quoted paths.
