@@ -738,6 +738,12 @@ func receiverName(typ, markup string) string {
 // resolveBare qualifies the main template's bare names: an identifier
 // naming a field or method of the receiver is the receiver's, s.Title,
 // unless a local declared in the template names it.
+//
+// A field named as a package-level type (Glyph Glyph) is the field where
+// a value goes — Glyph.Path(), Glyph.Name, f(Glyph), {Glyph} — so a
+// selector on it is the field's, not a method expression or field
+// reference on the type. Where only a type goes the type stays: Glyph(x),
+// Glyph{…}, []Glyph, new(Glyph), F[Glyph].
 func (e *engine) resolveBare(f *fileState) {
 	h := f.html
 	if h == nil || h.recv == "" || e.pkg == nil {
@@ -748,20 +754,58 @@ func (e *engine) resolveBare(f *fileState) {
 		return
 	}
 	recv := types.NewPointer(obj.Type())
+	// value marks the identifiers in a value's place.
+	value := map[*ast.Ident]bool{}
+	mark := func(x ast.Expr) {
+		if id, ok := x.(*ast.Ident); ok {
+			value[id] = true
+		}
+	}
 	var walk func(n ast.Node) bool
 	walk = func(n ast.Node) bool {
 		switch n := n.(type) {
 		case *ast.SelectorExpr:
+			mark(n.X)
 			ast.Inspect(n.X, walk)
 			return false
 		case *ast.KeyValueExpr:
 			if _, field := n.Key.(*ast.Ident); !field {
 				ast.Inspect(n.Key, walk)
 			}
+			mark(n.Value)
 			ast.Inspect(n.Value, walk)
 			return false
+		case *ast.CallExpr:
+			if id, ok := ast.Unparen(n.Fun).(*ast.Ident); !ok || !e.typeArgs(id) {
+				for _, a := range n.Args {
+					mark(a)
+				}
+			}
+		case *ast.BinaryExpr:
+			mark(n.X)
+			mark(n.Y)
+		case *ast.UnaryExpr:
+			mark(n.X)
+		case *ast.CompositeLit:
+			for _, el := range n.Elts {
+				mark(el)
+			}
+		case *ast.ReturnStmt:
+			for _, r := range n.Results {
+				mark(r)
+			}
+		case *ast.AssignStmt:
+			for _, r := range n.Rhs {
+				mark(r)
+			}
+		case *ast.ValueSpec:
+			for _, v := range n.Values {
+				mark(v)
+			}
+		case *ast.RangeStmt:
+			mark(n.X)
 		case *ast.Ident:
-			e.bareIdent(f, n, recv)
+			e.bareIdent(f, n, recv, value[n])
 			return false
 		}
 		return true
@@ -769,15 +813,21 @@ func (e *engine) resolveBare(f *fileState) {
 	ast.Inspect(f.ast, walk)
 }
 
-func (e *engine) bareIdent(f *fileState, id *ast.Ident, recv types.Type) {
+// typeArgs reports whether id is a builtin taking a type: new, make.
+func (e *engine) typeArgs(id *ast.Ident) bool {
+	b, ok := e.info.Uses[id].(*types.Builtin)
+	return ok && (b.Name() == "new" || b.Name() == "make")
+}
+
+func (e *engine) bareIdent(f *fileState, id *ast.Ident, recv types.Type, value bool) {
 	off := f.orig(id.Pos())
 	if off < f.html.start || off >= f.html.end || f.done[off] || e.info.Defs[id] != nil {
 		return
 	}
-	// A field or method wins over a package-level name; a local, a
-	// parameter or a loop variable over the field.
+	// A field or method wins over a package-level name — a type only where
+	// a value goes —; a local, a parameter or a loop variable over the field.
 	if o := e.info.Uses[id]; o != nil {
-		if _, typ := o.(*types.TypeName); typ || o.Parent() != e.pkg.Scope() || off > 0 && f.src[off-1] == '<' || off > 1 && string(f.src[off-2:off]) == "</" {
+		if _, typ := o.(*types.TypeName); typ && !value || o.Parent() != e.pkg.Scope() || off > 0 && f.src[off-1] == '<' || off > 1 && string(f.src[off-2:off]) == "</" {
 			return
 		}
 	}

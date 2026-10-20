@@ -301,7 +301,7 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			return true
 		}
 		at := f.orig(names[0].Pos())
-		if f.done[at] {
+		if f.done[at] || f.done[f.orig(base.Pos())] { // the base is a field: resolveBare took it
 			return true
 		}
 		if named, ok := types.Unalias(root).(*types.Named); ok {
@@ -373,7 +373,13 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 				f.add(dot, dot+1, ".Related().")
 			}
 		}
-		f.insert(f.orig(names[len(steps)-1].End()), " })", 0)
+		// The closing replaces the last name, not inserted after it: a copy of
+		// the expression — a hole hoisted out of its markup — takes only what
+		// is inside it.
+		lastID := names[len(steps)-1]
+		from := f.orig(lastID.Pos())
+		f.fixed = append(f.fixed, edit{start: from, end: from + len(lastID.Name), text: lastID.Name + " })",
+			segs: []segment{{genLen: len(lastID.Name), src: from, srcLen: len(lastID.Name), copy: true}, {gen: len(lastID.Name), genLen: 3, src: from + len(lastID.Name)}}})
 		e.progress = true
 		return false
 	})
