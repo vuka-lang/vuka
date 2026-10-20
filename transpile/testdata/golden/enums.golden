@@ -4,11 +4,11 @@
 package main
 
 import (
+	"database/sql/driver"
 	"encoding/json"
 	"fmt"
 	"math"
 
-	"database/sql/driver"
 	"github.com/vuka-lang/vuka"
 )
 
@@ -59,14 +59,12 @@ type Order struct {
 }
 
 func label(s Status) string {
-	if m1 := s; false {
-		panic(m1)
-	} else if m1 == StatusDraft {
-//line enums.vuka:40
+	switch s {
+	case StatusDraft:
 		return "draft"
-	} else if (m1 == StatusSent) || (m1 == StatusPaid) {
+	case StatusSent, StatusPaid:
 		return "out"
-	} else {
+	default:
 		panic("vuka: no case matched")
 	}
 }
@@ -84,7 +82,6 @@ func area(s Shape) float64 {
 		ok = true
 		return
 	}(); ok {
-		_ = r
 //line enums.vuka:49
 		return math.Pi * r * r
 	} else if w, h, ok := func() (w float64, h float64, ok bool) {
@@ -97,7 +94,6 @@ func area(s Shape) float64 {
 		ok = true
 		return
 	}(); ok && (w == h) {
-		_ = w
 		_ = h
 //line enums.vuka:51
 		return w * w
@@ -111,8 +107,6 @@ func area(s Shape) float64 {
 		ok = true
 		return
 	}(); ok {
-		_ = w
-		_ = h
 //line enums.vuka:53
 		return w * h
 	} else if func() (ok bool) {

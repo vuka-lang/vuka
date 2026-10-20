@@ -18,7 +18,7 @@ const ormModule = "github.com/vuka-lang/orm"
 
 // typedFieldsUse matches generated code reading a model's typed fields:
 // PostFields.Title.
-var typedFieldsUse = regexp.MustCompile(`\b[A-Z]\w*Fields\.[A-Z]`)
+var typedFieldsUse = regexp.MustCompile(`\b[A-Za-z_]\w*Fields\.[A-Z]`)
 
 // typedFields adds what orm generate writes and the tree lacks — a model's
 // typed fields (PostFields, in post_gen.go beside post.vuka) and its
@@ -29,7 +29,7 @@ var typedFieldsUse = regexp.MustCompile(`\b[A-Z]\w*Fields\.[A-Z]`)
 // failure is said and the build goes on: the compiler then names what is
 // missing.
 func typedFields(root, tmp, overlay string, gens []load.Generated, tests bool, stderr io.Writer) (string, []load.Generated) {
-	missing, err := ormMissing(root, overlay, gens, tests)
+	missing, err := ormMissing(root, overlay, gens, tests, false)
 	if err != nil {
 		fmt.Fprintf(stderr, "vuka: the models' typed fields: %v\n  (go tool orm generate writes them)\n", err)
 		return overlay, gens
@@ -45,14 +45,14 @@ func typedFields(root, tmp, overlay string, gens []load.Generated, tests bool, s
 }
 
 // ormMissing is what orm generate would write that the tree lacks, read
-// through overlay (with tests, for the models of test files too); none
-// when nothing needs it.
-func ormMissing(root, overlay string, gens []load.Generated, tests bool) ([]load.Generated, error) {
+// through overlay (with tests, for the models of test files too); unless
+// all, none when the generated code doesn't read typed fields.
+func ormMissing(root, overlay string, gens []load.Generated, tests, all bool) ([]load.Generated, error) {
 	mod, err := os.ReadFile(filepath.Join(root, "go.mod"))
 	if err != nil || !bytes.Contains(mod, []byte(ormModule+" ")) && !bytes.Contains(mod, []byte("module "+ormModule+"\n")) {
 		return nil, nil
 	}
-	used := false
+	used := all
 	for _, g := range gens {
 		used = used || typedFieldsUse.Match(g.Src)
 	}

@@ -27,11 +27,6 @@ type Ref[T any] struct {
 	At *T
 }
 
-func page(ctx context.Context) ui.Node {
-	n := 7
-	return pageView(n)
-}
-
 func main() {
 	fmt.Println(ui.String(context.Background(), page(context.Background())))
 }

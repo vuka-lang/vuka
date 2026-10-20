@@ -24,6 +24,7 @@ type Board struct {
 	Rows  []Note `json:"rows"`  @ui.Defer("notes")
 	Total int    `json:"total"` @ui.Defer("notes")
 	Seen  int    `json:"seen"`
+	Sort  string `json:"sort"`  @ui.URL("sort")
 	notes *Notes
 }
 
@@ -36,6 +37,9 @@ type BoardParams struct {
 @ui.Mount
 func (b *Board) mount(ctx context.Context) error {
 	b.Subscribe("notes")
+	if b.Sort == "" {
+		b.Sort = "new"
+	}
 	return nil
 }
 

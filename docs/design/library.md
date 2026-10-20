@@ -127,12 +127,16 @@ writes: `@ui.Island` on `Chart` is `ui.RegisterIsland[Chart]()`, and
 path is written only when the source names one. The form older compilers
 wrote, `ui.Island(…)(vuka.TypeFor[Chart](NewChart))`, keeps working.
 
-Two forms stay a decorator's own rather than an option: a composed
-decorator (`vuka.Bundle`, such as `@auth.Required`) on a function wraps the
-function as well — its gate checks direct calls too — and the route reads
-its attributes from the function; and decorators of libraries without a
-registry lower generically, to calls a person writes as well:
-`Model(vuka.TypeFor[User](NewUser))` for a type decorator,
+A composed decorator (`vuka.Bundle`, such as `@auth.Required`) beside a
+registry decorator taking it is an option of the registration too:
+`@web.Live("/applicants")` with `@auth.Requires("view_applicant")` on a
+type is `web.Routes.Live("/applicants", NewApplicants,
+auth.Requires("view_applicant"))`, and the route applies the gate to its
+requests and its live page's events — no method of the type is wrapped. A
+bundle on a declaration with no registry decorator (a method's own gate)
+still wraps it, so its gate checks direct calls too. Decorators of
+libraries without a registry lower generically, to calls a person writes as
+well: `Model(vuka.TypeFor[User](NewUser))` for a type decorator,
 `Command("greet")(vuka.DeclOf(greet))` for a declarer, `b.Declare(d)` and
 `b.Decorate(t)` for a bundle. The forms older compilers wrote
 (`vuka.TypeWith`, `vuka.FuncDecl`, `vuka.DeclareWith`, `web.Get(path)` as a
@@ -252,7 +256,7 @@ form are the same text: `@X{…}` on a field is `X{…}` after `&t.Field`.
 
 ```go
 type Applications struct {
-	orm.Base[Applications]
+	orm.Model[Applications]
 	ID              int
 	CreatedAt       Option[time.Time]
 	Applicant       orm.FK[Applicant]
@@ -554,7 +558,9 @@ Step 3 is done: a type embedding `orm.Base` (or `orm.Model`) gets a
 the embedded base's are `s.Model(…)`, a bare `@orm.PK` is `orm.PK{}` — and
 a type embedding `ui.Live` a `LiveSchema` method from its fields'
 attributes and its methods' hooks (`@ui.Mount` on `mount` is
-`l.Mount(d.mount)`). The two types say which method they want with a
+`l.Mount(d.mount)`). An embedded `orm.Base` is written `orm.Model[Post]`, what plain Go
+embeds (`func (Base[Self]) vukaPlain(Model[Self])` names it), unless the
+code names the field `Base`. The two types say which method they want with a
 marker method, `vukaSchema(interface{ Schema(*orm.Schema) })`, so the
 transpiler names no package. `Post.Slug` is `PostFields.Slug`,
 `Post.Objects` is `orm.Objects[Post]()`, a static `func Post.Live()` is

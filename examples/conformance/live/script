@@ -1,10 +1,13 @@
 # live: a page backed by its script island — a deferred group, a bound
-# query kept in the URL and validated, its methods, broadcasts reaching
+# query kept in the URL and validated, a URL field its mount hook defaults
+# kept once the join adopts the page, its methods, broadcasts reaching
 # an Update overload, a patch reaching another, a navigation; and a JSX
-# page with a bound input its form clears once sent, a validated form,
-# patches and a navigation.
+# page with a bound input its form clears once sent, a form whose
+# validate: tags refuse an empty and a long reply, patches and a
+# navigation.
 GET /notes/9
 LIVE /board
+  expect &#34;sort&#34;:&#34;new&#34;
   wait
   {"type":"event","target":"c1:2","event":"m-_set","data":{"q":"mi"}}
   {"type":"event","target":"c1:2","event":"m-_set","data":{"q":"a very long query, too long"}}
@@ -19,6 +22,7 @@ LIVE /notes/2
   {"type":"event","target":"c1:1","event":"input","value":"hey!"}
   {"type":"event","target":"c1:0","event":"submit","form":{"text":["hey!"]}}
   {"type":"event","target":"c1:0","event":"submit","form":{"text":[""]}}
+  {"type":"event","target":"c1:0","event":"submit","form":{"text":["a reply far too long to keep"]}}
   {"type":"navigate","url":"/notes/3","patch":true}
   {"type":"navigate","url":"/notes/7","patch":true}
   {"type":"event","target":"c1:2","event":"click"}

@@ -1,0 +1,40 @@
+package main
+
+import (
+	"fmt"
+
+	ui "vukatest.local/stateui"
+	web "vukatest.local/webstub"
+)
+
+// A gate is a bundle the registry takes as an option: beside a registry
+// decorator it is the route's option, which applies it, rather than a
+// wrapper of the declaration or of each method of the type.
+type Gate struct{ Perm string }
+
+func Requires(perm string) vuka.Bundle { return vuka.Compose(Gate{perm}, vuka.Decorator(check)) }
+
+func check(c *vuka.Call) { c.Next() }
+
+@web.Get("/report")
+@Requires("report.read")
+func Report() string { return "report" }
+
+// Board is a gated live page.
+@web.Live("/board")
+@Requires("board.read")
+type Board struct {
+	ui.Live
+	n int
+}
+
+func (b *Board) Inc() { b.n++ }
+
+func (b *Board) Render() ui.Node { return nil }
+
+func main() {
+	web.Routes.Print()
+	b := NewBoard(1)
+	b.Inc()
+	fmt.Println(Report(), b.n)
+}

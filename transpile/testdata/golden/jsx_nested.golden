@@ -7,9 +7,8 @@ import (
 	"context"
 	"fmt"
 	"github.com/vuka-lang/ui"
-	"strconv"
-
 	"github.com/vuka-lang/vuka"
+	"strconv"
 )
 
 //line jsx_nested.vuka:10
@@ -57,17 +56,16 @@ func sum(s []string) ui.Node {
 func status(s string) ui.Node {
 //line jsx_nested.vuka:36
 	value := func() ui.Node {
-		if m2 := lookup(s); false {
-			panic(m2)
-		} else if v := m2.Value(); m2.IsOk() {
-			_ = v
+		switch m2 := lookup(s); {
+		case m2.IsOk():
+			v := m2.Value()
 //line jsx_nested.vuka:39
 			return ui.HTML(`<b>{v}</b>`, v)
-		} else if e := m2.Err(); m2.IsErr() {
-			_ = e
+		case m2.IsErr():
+			e := m2.Err()
 //line jsx_nested.vuka:41
 			return ui.HTML(`<i>{e}</i>`, e)
-		} else {
+		default:
 			panic("vuka: no case matched")
 		}
 	}()

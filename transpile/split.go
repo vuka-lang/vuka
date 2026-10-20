@@ -42,9 +42,22 @@ func (e *engine) split(f *fileState) *Split {
 	haveMain := false
 	taken := e.takenNames(f)
 	var inner []string // the partials of trees inside others
+	branched := map[*ast.FuncDecl]bool{}
 	for _, t := range f.jsx {
-		if f.nested(t) {
+		if f.nested(t) || branched[f.funcAt(t.start)] {
 			continue
+		}
+		if fd := f.funcAt(t.start); fd != nil && !e.isMainRender(f, fd, main) {
+			if text, ok := e.branchedTemplate(f, fd, taken, &inner); ok {
+				branched[fd] = true
+				start := f.leadStart(f.orig(fd.Pos()))
+				end := f.orig(fd.End())
+				if end < len(f.src) && f.src[end] == '\n' {
+					end++
+				}
+				out = append(out, moved{start: start, end: end, text: text})
+				continue
+			}
 		}
 		fd, whole := e.templateFunc(f, t)
 		if whole && t.returned {
@@ -120,6 +133,162 @@ func (e *engine) split(f *fileState) *Split {
 	}
 	text += html.String()
 	return &Split{Vuka: []byte(squeezeBlank(vuka)), HTML: []byte(e.htmlImports(f, text) + text)}
+}
+
+// isMainRender reports whether fd is the Render of the type the file is
+// named after, main.
+func (e *engine) isMainRender(f *fileState, fd *ast.FuncDecl, main string) bool {
+	return fd.Recv != nil && fd.Name.Name == "Render" && recvTypeName(fd) == main
+}
+
+// branchedTemplate is fd as one template when its body is markup chosen by
+// Go: := lines, ifs returning markup and a last return of markup, an
+// early return's rest its else —
+//
+//	func tags(ts []string) ui.Node {
+//		if len(ts) == 0 {
+//			return <p>—</p>
+//		}
+//		return <ul>…</ul>
+//	}
+//
+// is the template func tags(ts []string) with if len(ts) == 0 { <p>—</p> }
+// else { <ul>…</ul> }. ok is false for any other body, and for one return
+// of markup alone, a template already.
+func (e *engine) branchedTemplate(f *fileState, fd *ast.FuncDecl, taken map[string]bool, inner *[]string) (string, bool) {
+	if fd.Body == nil || len(fd.Body.List) == 0 || fd.Type.Results == nil || fd.Type.Results.NumFields() != 1 {
+		return "", false
+	}
+	if _, ok := fd.Body.List[0].(*ast.ReturnStmt); ok {
+		return "", false
+	}
+	start := f.leadStart(f.orig(fd.Pos()))
+	fn := f.orig(fd.Pos())
+	lead := string(f.src[start:fn])
+	if strings.Contains(lead, "@") {
+		return "", false
+	}
+	obj, _ := e.info.Defs[fd.Name].(*types.Func)
+	node := e.nodeType(f.target)
+	if obj == nil || node == nil || !types.Identical(obj.Signature().Results().At(0).Type(), node) {
+		return "", false
+	}
+	from, to := f.orig(fd.Pos()), f.orig(fd.Type.Results.End())
+	if string(f.src[from:to]) != string(f.text[f.off(fd.Pos()):f.off(fd.Type.Results.End())]) {
+		return "", false
+	}
+	// plain is a statement's source when it is Go alone on one line.
+	plain := func(n ast.Node) (string, bool) {
+		a, b := f.orig(n.Pos()), f.orig(n.End())
+		if a >= b || b > len(f.src) || string(f.src[a:b]) != string(f.text[f.off(n.Pos()):f.off(n.End())]) {
+			return "", false
+		}
+		text := string(f.src[a:b])
+		return text, !strings.Contains(text, "\n")
+	}
+	markup := func(rs *ast.ReturnStmt, indent string) (string, bool) {
+		ret := f.orig(rs.Pos())
+		for _, t := range f.jsx {
+			if !t.returned || f.nested(t) || returnAt(f.src, t.start) != ret {
+				continue
+			}
+			if f.orig(rs.End()) < t.end {
+				return "", false
+			}
+			mark := len(*inner)
+			p := &tprint{f: f, t: t, nest: e.nester(f, taken, inner)}
+			p.nodes(flatten([]jsxNode{t.root}), "", false, false)
+			if p.fail || len(p.assets) > 0 {
+				*inner = (*inner)[:mark]
+				return "", false
+			}
+			var b strings.Builder
+			for _, line := range strings.Split(strings.TrimLeft(p.b.String(), "\n"), "\n") {
+				b.WriteString(indent + line + "\n")
+			}
+			return b.String(), true
+		}
+		return "", false
+	}
+	// lowered reports whether st is the lowering's, before a return of
+	// markup: the Go of a block inside it.
+	lowered := func(st ast.Stmt) bool {
+		a, b := f.orig(st.Pos()), f.orig(st.End())
+		if a == b {
+			return true
+		}
+		for _, t := range f.jsx {
+			if t.start <= a && b <= t.end {
+				return true
+			}
+		}
+		return false
+	}
+	var stmts func(list []ast.Stmt, indent string) (string, bool)
+	stmts = func(list []ast.Stmt, indent string) (string, bool) {
+		var b strings.Builder
+		for i, st := range list {
+			if lowered(st) {
+				continue
+			}
+			switch st := st.(type) {
+			case *ast.AssignStmt:
+				text, ok := plain(st)
+				if !ok || st.Tok != token.DEFINE {
+					return "", false
+				}
+				b.WriteString(indent + text + "\n")
+			case *ast.IfStmt:
+				cond, ok := plain(st.Cond)
+				if !ok || st.Init != nil || len(st.Body.List) != 1 {
+					return "", false
+				}
+				rs, ok := st.Body.List[0].(*ast.ReturnStmt)
+				if !ok {
+					return "", false
+				}
+				then, ok := markup(rs, indent+"  ")
+				if !ok {
+					return "", false
+				}
+				rest := list[i+1:]
+				if st.Else != nil {
+					blk, isBlock := st.Else.(*ast.BlockStmt)
+					if !isBlock || len(rest) > 0 {
+						return "", false
+					}
+					rest = blk.List
+				}
+				other, ok := stmts(rest, indent+"  ")
+				if !ok {
+					return "", false
+				}
+				b.WriteString(indent + "if " + cond + " {\n" + then + indent + "} else {\n" + other + indent + "}\n")
+				return b.String(), true
+			case *ast.ReturnStmt:
+				if i != len(list)-1 {
+					return "", false
+				}
+				text, ok := markup(st, indent)
+				if !ok {
+					return "", false
+				}
+				b.WriteString(text)
+				return b.String(), true
+			default:
+				return "", false
+			}
+		}
+		return "", false
+	}
+	mark := len(*inner)
+	body, ok := stmts(fd.Body.List, "")
+	if !ok {
+		*inner = (*inner)[:mark]
+		return "", false
+	}
+	header := strings.TrimRight(string(f.src[fn:f.orig(fd.Type.Results.Pos())]), " \t")
+	return lead + header + "\n" + body, true
 }
 
 // nestedIn reports whether t is inside a tree in s other than outer.

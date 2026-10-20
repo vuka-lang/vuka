@@ -1,0 +1,32 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+// kept names its error err after a ?, so the ? inside the block keeps its
+// own name: err there would be the block's, not the function's.
+func kept(s string) (int, error) {
+	err := errors.New("outer")
+	n := 0
+	{
+		n = strconv.Atoi(s)?
+		fmt.Println(err)
+	}
+	return n, err
+}
+
+// named has nothing else called err: the ? names its error err.
+func named(s string) (int, error) {
+	n := 0
+	n = strconv.Atoi(s)?
+	return n + 1, nil
+}
+
+func main() {
+	fmt.Println(kept("1"))
+	fmt.Println(named("2"))
+	fmt.Println(named("x"))
+}
