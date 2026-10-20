@@ -1,0 +1,43 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"strings"
+
+	"github.com/vuka-lang/ui"
+)
+
+type Item struct {
+	Href, Label string
+	Admin       bool
+}
+
+var menu = []Item{{"/", "Home", false}, {"/users", "Users", true}}
+
+func visible(admin bool, items []Item) []Item {
+	var out []Item
+	for _, i := range items {
+		if admin || !i.Admin {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+// Admin computes its locals, then returns its markup: one template.
+func Admin(admin bool, path string, children ui.Node) ui.Node {
+	items := visible(admin, menu)
+	count := len(items)
+	return <nav data-count={count}>
+		{for _, i := range items {
+			<a href={i.Href} class={strings.TrimPrefix(path, "/")}>{i.Label}</a>
+		}}
+		{children}
+	</nav>
+}
+
+func main() {
+	s, _ := ui.String(context.Background(), Admin(false, "/users", <i>x</i>))
+	fmt.Println(s)
+}

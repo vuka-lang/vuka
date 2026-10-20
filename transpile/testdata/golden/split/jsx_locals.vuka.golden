@@ -1,0 +1,30 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+type Item struct {
+	Href, Label string
+	Admin       bool
+}
+
+var menu = []Item{{"/", "Home", false}, {"/users", "Users", true}}
+
+func visible(admin bool, items []Item) []Item {
+	var out []Item
+	for _, i := range items {
+		if admin || !i.Admin {
+			out = append(out, i)
+		}
+	}
+	return out
+}
+
+func main() {
+	s, _ := ui.String(context.Background(), Admin(false, "/users", mainView()))
+	fmt.Println(s)
+}
