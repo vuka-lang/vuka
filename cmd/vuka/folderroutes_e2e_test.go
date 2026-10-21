@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io"
 	"io/fs"
 	"net/http"
@@ -21,7 +22,10 @@ import (
 // takes the rest of the path (a client app's shell answers every URL under
 // it but the pages beside it), a template is a page with no type of its
 // own, method handlers answer on their page's path, and every link,
-// parent to child included, comes from pages/urls.
+// parent to child included, comes from pages/urls. Its JSON API under
+// pages/api is endpoints behind a guard: each method answers JSON or a
+// status, and the guard refuses a request before its body is read. Pages
+// without a constructor of their own are routed with a generated one.
 func TestFolderRoutesE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
@@ -36,6 +40,12 @@ func TestFolderRoutesE2E(t *testing.T) {
 	}
 	if !hasWebFunc(web, "PageRoute") || !webDeclares(web, "func LayoutOf[") {
 		t.Skipf("github.com/vuka-lang/web at %s has no folder routes (PageRoute, LayoutOf); set VUKA_WEB", web)
+	}
+	if !webDeclares(web, "func GuardOf[") {
+		t.Skipf("github.com/vuka-lang/web at %s has no guards (GuardOf, 1.2); set VUKA_WEB", web)
+	}
+	if gen, _ := os.ReadFile("folderroutes_gen.go"); !bytes.Contains(gen, []byte("GuardOf[")) {
+		t.Skip("this vuka command generates no endpoints or guards (1.2)")
 	}
 	src := filepath.Join(repo, "examples/folder-routes")
 	files := map[string]string{}
@@ -73,7 +83,8 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, out)
 	}
-	for _, want := range []string{"/employers/new", "/employers/{employer}/edit", "/employers/{employer}/permits/{permit}", "/files/{file...}", "/app/{route...}", "/about", "DELETE", "employer.Layout"} {
+	for _, want := range []string{"/employers/new", "/employers/{employer}/edit", "/employers/{employer}/permits/{permit}", "/files/{file...}", "/app/{route...}", "/about", "DELETE", "employer.Layout",
+		"/api/employers/{employer}", "(endpoint)", "api.Guard", "app.Settings"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("vuka routes has no %q:\n%s", want, out)
 		}
@@ -141,7 +152,8 @@ func TestFolderRoutesE2E(t *testing.T) {
 	page("/employers/new", "New employer - HR", `action="/employers/new"`)
 	// The overview links down to its permits, through pages/urls.
 	body := page("/employers/1", "Acme Logistics - HR", `<a href="/employers/1/edit">Edit</a>`,
-		`<a href="/employers/1/permits/2">Residence permit</a>`, `<a id="contract" href="/files/contracts/1.txt">`)
+		`<a href="/employers/1/permits/2">Residence permit</a>`, `<a id="contract" href="/files/contracts/1.txt">`,
+		`<a id="api" href="/api/employers/1">`)
 	doc, article, overview := strings.Index(body, "<main>"), strings.Index(body, `<article id="employer">`), strings.Index(body, `<section id="overview">`)
 	if doc < 0 || article < doc || overview < article || strings.Index(body, "</article>") < overview || strings.Index(body, "</main>") < overview {
 		t.Errorf("GET /employers/1: the page isn't inside the employer's layout inside the document:\n%s", body)
@@ -150,6 +162,8 @@ func TestFolderRoutesE2E(t *testing.T) {
 	page("/employers/1/permits/2", "Permit 2 - HR", `<article id="employer">`, `<p id="status">Approved</p>`, `<a id="back" href="/employers/1">`, "data-vk-token")
 	page("/files/handbook/leave.txt", "handbook/leave.txt - HR", "<h1>handbook/leave.txt</h1>", "28 days")
 	page("/about", "HR", `<section id="about">`, "<main>")
+	// Settings and the client app's Index have no New<T>: vuka gen writes
+	// their constructors.
 	page("/app/settings", "App settings - HR", `<section id="settings">`, `<a id="open" href="/app/">`)
 	for _, p := range []string{"/app/", "/app/employers/7", "/app/a/b/c"} {
 		page(p, "App - HR", `<div id="app"></div>`)
@@ -190,6 +204,101 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if _, _, body := do("GET", "/employers", nil); strings.Contains(body, "Ghost") || strings.Contains(body, "Pwani") {
 		t.Errorf("GET /employers after writes to unknown employers:\n%s", body)
 	}
+
+	// The JSON API: the guard wants a key, the read key reads, the write
+	// key also writes.
+	const readKey, writeKey = "read-key", "write-key"
+	api := func(method, path, key, body string) (int, string, string) {
+		t.Helper()
+		var rd io.Reader
+		if body != "" {
+			rd = strings.NewReader(body)
+		}
+		req, _ := http.NewRequest(method, base+path, rd)
+		if body != "" {
+			req.Header.Set("Content-Type", "application/json")
+		}
+		if key != "" {
+			req.Header.Set("X-API-Key", key)
+		}
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, res.Header.Get("Content-Type"), string(b)
+	}
+	type employer struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+		City string `json:"city"`
+	}
+	list := func(path string, want ...string) {
+		t.Helper()
+		code, ct, body := api("GET", path, readKey, "")
+		var got []employer
+		if code != http.StatusOK || !strings.HasPrefix(ct, "application/json") || json.Unmarshal([]byte(body), &got) != nil {
+			t.Errorf("GET %s: %d %s, want 200 and a JSON list\n%s", path, code, ct, body)
+			return
+		}
+		var names []string
+		for _, e := range got {
+			names = append(names, e.Name)
+		}
+		if strings.Join(names, ", ") != strings.Join(want, ", ") {
+			t.Errorf("GET %s: %v, want %v", path, names, want)
+		}
+	}
+	one := func(method, path, body string, want employer) {
+		t.Helper()
+		code, _, b := api(method, path, writeKey, body)
+		var got employer
+		if code != http.StatusOK || json.Unmarshal([]byte(b), &got) != nil || got != want {
+			t.Errorf("%s %s: %d %s, want 200 and %+v", method, path, code, b, want)
+		}
+	}
+	status := func(method, path, key, body string, want int) {
+		t.Helper()
+		code, ct, b := api(method, path, key, body)
+		if code != want {
+			t.Errorf("%s %s with key %q: %d, want %d\n%s", method, path, key, code, want, b)
+		}
+		if want >= 400 && !strings.HasPrefix(ct, "application/json") {
+			t.Errorf("%s %s: the %d answers %s, want JSON\n%s", method, path, code, ct, b)
+		}
+	}
+
+	list("/api/employers", "Acme Logistics", "Kilima Foods")
+	list("/api/employers?city=arusha", "Kilima Foods")
+	list("/api/employers?limit=1", "Acme Logistics")
+	status("GET", "/api/employers?limit=500", readKey, "", http.StatusUnprocessableEntity)
+	one("GET", "/api/employers/1", "", employer{1, "Acme Logistics", "Dar es Salaam"})
+	status("GET", "/api/employers/99", readKey, "", http.StatusNotFound)
+	status("GET", "/api/employers/x", readKey, "", http.StatusNotFound)
+
+	// The guard stops a request before its handler, and before its body
+	// is bound: the read key's invalid POST is 403, not 422.
+	status("GET", "/api/employers", "", "", http.StatusUnauthorized)
+	status("GET", "/api/employers/1", "wrong", "", http.StatusUnauthorized)
+	status("POST", "/api/employers", "", `{"name":"Ghost","city":"Nowhere"}`, http.StatusUnauthorized)
+	status("POST", "/api/employers", readKey, `{"name":"Ghost","city":"Nowhere"}`, http.StatusForbidden)
+	status("POST", "/api/employers", readKey, `{}`, http.StatusForbidden)
+	status("PUT", "/api/employers/1", readKey, `{"name":"Ghost","city":"Nowhere"}`, http.StatusForbidden)
+	status("DELETE", "/api/employers/1", readKey, "", http.StatusForbidden)
+	list("/api/employers", "Acme Logistics", "Kilima Foods")
+
+	one("POST", "/api/employers", `{"name":"Pwani Tea","city":"Tanga"}`, employer{4, "Pwani Tea", "Tanga"})
+	status("POST", "/api/employers", writeKey, `{"city":"Tanga"}`, http.StatusUnprocessableEntity)
+	one("PUT", "/api/employers/4", `{"name":"Pwani Tea Estates","city":"Tanga"}`, employer{4, "Pwani Tea Estates", "Tanga"})
+	status("PUT", "/api/employers/99", writeKey, `{"name":"Ghost","city":"Nowhere"}`, http.StatusNotFound)
+	page("/employers/4", "Pwani Tea Estates - HR")
+	if code, _, body := api("DELETE", "/api/employers/4", writeKey, ""); code != http.StatusNoContent || body != "" {
+		t.Errorf("DELETE /api/employers/4: %d %q, want 204 and no body", code, body)
+	}
+	status("GET", "/api/employers/4", readKey, "", http.StatusNotFound)
+	status("DELETE", "/api/employers/4", writeKey, "", http.StatusNotFound)
+	list("/api/employers", "Acme Logistics", "Kilima Foods")
 }
 
 // webDeclares reports whether a Go file of web, in its module directory,

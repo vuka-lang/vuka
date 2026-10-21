@@ -1,5 +1,6 @@
 // The example's routes are its pages/ folders, which need the vuka command's
-// folder routes and web's LayoutOf and Rest (1.1); cmd/vuka's
+// folder routes and web's LayoutOf and Rest (1.1), its endpoints, guards
+// and generated constructors and web's GuardOf (1.2); cmd/vuka's
 // TestFolderRoutesE2E builds it against local checkouts.
 module example.com/folder-routes
 

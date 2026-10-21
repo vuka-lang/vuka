@@ -159,7 +159,8 @@ and editor check:
 
 **Done** for `@ui.Mount`, `@ui.OnChange` and `@ui.Loads` (library step 3):
 `vuka vet` warns of a hook found by its name (W0303), `vuka fix hooks`
-adds the attribute. `@ui.On[T]` (in place of `Info`) and `Update`
+adds the attribute. From 1.2 only `Load<Group>` is warned of: `Mount` and
+`Changed` by name are hooks again. `@ui.On[T]` (in place of `Info`) and `Update`
 overloads are still found by name.
 
 `Mount`, `Changed`, `Update(T)` overloads and `Load<Group>` are found by

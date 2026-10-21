@@ -13,7 +13,9 @@ type EmployerForm struct {
 
 type Store struct{}
 
+func (s *Store) Employers() []Employer               { return nil }
 func (s *Store) Employer(id int) (Employer, bool)   { return Employer{ID: id}, true }
+func (s *Store) Add(f EmployerForm) Employer        { return Employer{} }
 func (s *Store) Update(id int, f EmployerForm)      {}
 func (s *Store) Delete(id int)                      {}
 func (s *Store) Pending() int                       { return 0 }
@@ -47,11 +49,19 @@ type filesURL struct{ path string }
 
 func (u filesURL) File(file string) pathURL { return pathURL{} }
 
+type apiEmployersURL struct{ path string }
+
+func (u apiEmployersURL) Path() string                  { return u.path }
+func (u apiEmployersURL) Employer(employer int) pathURL { return pathURL{} }
+
+type apiURL struct{ Employers apiEmployersURL }
+
 var urls = struct {
 	Root      pathURL
 	About     pathURL
 	Employers employersURL
 	Files     filesURL
+	Api       apiURL
 }{}
 -->
 
@@ -61,8 +71,10 @@ layout named on each route, its parameters parsed and checked in each
 handler. Folder routes put that in the directory tree instead. The
 `pages/` folder of the module is the site: each folder is a path segment,
 each page type in it a route, a `params.go` makes a folder a typed
-parameter, a `layout.go` wraps every page below it, and the `vuka` command
-writes the `web.Routes` calls and a typed link to every page.
+parameter, a `layout.go` wraps every page below it, a `guard.go` checks
+every request below it, and the `vuka` command writes the `web.Routes`
+calls and a typed link to every page. A JSON API lives in the same tree:
+a type with `Get` and `Post` methods and no markup is an endpoint.
 
 It is plain Go — the files are ordinary packages, and what `vuka gen`
 writes is the registration you would write by hand
@@ -75,6 +87,8 @@ writes is the registration you would write by hand
 | catch-all | a `web.Rest` parameter: `files/file/` is `/files/{file...}`, slashes included — also a client app's fallback |
 | layouts | `layout.go`, inherited by every page below, composed parent → child; its `Load` fetches what it shows |
 | several methods per page | `Post`, `Put`, `Patch`, `Delete` methods on the page type answer on its path |
+| JSON endpoints | a type with `Get`, `Post`, `Put`, `Patch` or `Delete` methods and no markup: `api/employers/` answers JSON |
+| guards | `guard.go`, a check over every page, handler and endpoint below it, rendering nothing |
 | precedence | static, then dynamic, then catch-all — what `net/http`'s mux does |
 | typed handlers | a method handler takes a form or JSON struct, bound and validated |
 | templates | a page's `.vuka.html` sits beside its `.go`; a `.vuka.html` alone is a page too |
@@ -110,6 +124,13 @@ pages/
     route/
       params.go              Params{Route web.Rest} — {route...}
       index.go               Index: the client app's shell — /app/{route...}
+  api/
+    guard.go                 Guard: an API key for everything below
+    employers/
+      index.go               Index — GET and POST /api/employers (an endpoint)
+      employer/
+        params.go            Params{Employer int} — {employer}
+        index.go             Index — GET, PUT and DELETE /api/employers/{employer}
 ```
 
 `main` imports `pages` once, blank. `vuka gen` keeps `pages/pages_gen.go`
@@ -122,9 +143,7 @@ example is this tree, with an in-memory store.
 
 ## Pages and segments
 
-A page is an exported struct type with a constructor, `New<T>`, taking what
-it needs from the [container](/web/dependency-injection). What `*T` is
-picks the route:
+A page is an exported struct type whose pointer is a page:
 
 - a [live component](/web/live) (it embeds `ui.Live` and has
   `Render() ui.Node`): a live page;
@@ -133,39 +152,63 @@ picks the route:
 
 `Index` serves the folder's own path; any other page adds its name in
 kebab-case: `New` is `/new`, `Edit` is `/edit`, `ResetPassword` is
-`/reset-password`. Types named `Layout` and `Params` are never pages, and
-an exported type without a `New<T>` is a component the pages use. A `New`
-page's constructor is `NewNew`: the rule has no exceptions, so nothing is
-guessed.
+`/reset-password`. Types named `Layout`, `Guard` and `Params` are never
+pages.
+
+A page with nothing to inject needs no constructor: `vuka gen` writes
+`func NewSettings() *Settings { return &Settings{} }` for it.
+
+```go
+// pages/app/settings.go
+package app
+
+type Settings struct{}
+
+func (p *Settings) Title() string { return "App settings" }
+
+func (p *Settings) Render(ctx context.Context, w io.Writer) error {
+	return ui.HTML(`<h1>Settings</h1>`).Render(ctx, w)
+}
+```
+
+A page that needs something from the [container](/web/dependency-injection)
+declares its constructor, `New<T>`, taking it; a constructor written by
+hand turns the generated one off. A `New` page's constructor is `NewNew`:
+the rule has no exceptions, so nothing is guessed.
+
+Because an exported page-shaped type in `pages/` is a route by itself, a
+component the pages share belongs in another package (`components/`) or
+unexported. One that becomes a route by accident shows in `vuka routes`,
+and lands on a path another page holds as [E0701](/errors/E0701). Types
+registered another way — a route decorator, a `web.Routes` call — are
+left as they are.
 
 Each request builds the page with its constructor and binds its exported
 fields as a live page's are: a provided type injected, text from the path
 segment of its name, else the query parameter. A stateless page may have a
 `Mount()` or `Mount(ctx)` method, returning nothing or an error, run once
-the fields are bound — where it loads what the parameters name:
+the fields are bound and the [guards](#guards) and [layouts](#layouts)
+above it have loaded — where it loads what the parameters name:
 
 ```go
-// pages/employers/employer/index.go
+// pages/employers/employer/edit.go
 package employer
 
-type Index struct {
+type Edit struct {
 	Params
 	store    *Store
 	employer Employer
 }
 
-func NewIndex(s *Store) *Index { return &Index{store: s} }
+func NewEdit(s *Store) *Edit { return &Edit{store: s} }
 
-func (p *Index) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
+func (p *Edit) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
 
-func (p *Index) Title() string { return p.employer.Name }
-
-func (p *Index) Render(ctx context.Context, w io.Writer) error {
-	return ui.HTML(`<h2>{p.employer.City}</h2>
-<a id="edit" href={urls.Employers.Employer(p.Employer).Edit.Path()}>Edit</a>`,
-		p.employer.City, urls.Employers.Employer(p.Employer).Edit.Path()).Render(ctx, w)
-}
+func (p *Edit) Title() string { return "Edit " + p.employer.Name }
 ```
+
+A live page's `Mount(ctx) error` runs as its session renders, the same
+method by name; see [Hooks](/ui/stateful#hooks).
 
 ### Titles
 
@@ -330,12 +373,14 @@ A layout is a stateless component with a `Children ui.Node` field. It may
 embed its package's `Params`, and it may have a `Load` method, its
 parameters after `ctx` coming from the container. On each request, from
 the outermost in, a layout is made fresh, its path parameters bound, `Load`
-called, and then it renders around the next one. An error from `Load`
-answers the request as a handler's would: `web.NotFound` is a 404,
-`web.Forbidden` a 403, a `web.Redirect` redirects. `Load` guards everything
-beneath its folder — every page and every page's `Post`, `Put`, `Patch` and
-`Delete` — so it is the natural place for a check that holds for a whole
-folder: that the record exists, that the visitor may see it.
+called, and then it renders around the next one. Every `Load` runs before
+the page's `Mount`, so `Mount` sees only what the layouts let through. An
+error from `Load` answers the request as a handler's would: `web.NotFound`
+is a 404, `web.Forbidden` a 403, a `web.Redirect` redirects. `Load` guards
+everything beneath its folder — every page and every page's `Post`, `Put`,
+`Patch` and `Delete` — so it is the natural place for a check that holds
+for a whole folder and needs what the layout shows anyway: that the record
+exists. A check with nothing to show is a [guard](#guards).
 
 ```go
 // pages/employers/employer/layout.go
@@ -428,6 +473,155 @@ employer's `Layout` has answered 404 already. A handler's `ui.Node` result
 is wrapped in the layouts when the response is a whole page (a `GET`, or
 the browser asking for a document); a fragment for a script goes out bare.
 
+## Endpoints
+
+A JSON API is folders of endpoints. An endpoint is an exported struct type
+whose pointer isn't a page — no `Render`, no view, no `ui.Live` — with
+methods named `Get`, `Post`, `Put`, `Patch` or `Delete`. Each method
+answers its HTTP method on the type's path, by the page rules: `Index` is
+the folder's path, any other name adds its kebab-case segment. Put them
+under `pages/api/` and the API sits beside the pages, with typed links,
+`Params` and guards like theirs.
+
+```text
+// pages/api/employers/index.go
+package employers
+
+type Index struct {
+	store *Store
+}
+
+func NewIndex(s *Store) *Index { return &Index{store: s} }
+
+// ListQuery is GET's query string: /api/employers?city=Arusha&limit=10.
+type ListQuery struct {
+	City  string `form:"city"`
+	Limit int    `form:"limit" validate:"omitempty,max=100"`
+}
+
+func (e *Index) Get(ctx context.Context, q ListQuery) ([]Employer, error) {
+	out := []Employer{}
+	for _, em := range e.store.Employers() {
+		if q.City == "" || strings.EqualFold(em.City, q.City) {
+			out = append(out, em)
+		}
+	}
+	if q.Limit > 0 && len(out) > q.Limit {
+		out = out[:q.Limit]
+	}
+	return out, nil
+}
+
+func (e *Index) Post(ctx context.Context, in EmployerForm) (Employer, error) {
+	return e.store.Add(in), nil
+}
+```
+
+A `GET`'s struct parameter is its query string; a `POST`, `PUT` or
+`PATCH`'s is the body, JSON or a form, bound and validated (a failing
+`validate:` tag is 422). An endpoint in a parameter folder embeds its
+`Params`, bound from the path per request — a segment that doesn't parse
+is 404 before the method runs:
+
+```go
+// pages/api/employers/employer/index.go
+package employer
+
+type Index struct {
+	Params
+	store *Store
+}
+
+func NewIndex(s *Store) *Index { return &Index{store: s} }
+
+func (e *Index) Get(ctx context.Context) (Employer, error) {
+	em, ok := e.store.Employer(e.Employer)
+	if !ok {
+		return Employer{}, web.NotFound
+	}
+	return em, nil
+}
+
+func (e *Index) Put(ctx context.Context, in EmployerForm) (Employer, error) {
+	if _, ok := e.store.Employer(e.Employer); !ok {
+		return Employer{}, web.NotFound
+	}
+	e.store.Update(e.Employer, in)
+	return e.Get(ctx)
+}
+
+func (e *Index) Delete(ctx context.Context) error {
+	if _, ok := e.store.Employer(e.Employer); !ok {
+		return web.NotFound
+	}
+	e.store.Delete(e.Employer)
+	return nil
+}
+```
+
+A method takes what [any handler](/web/parameters) takes after `ctx`, and
+what it returns is the response:
+
+| the method returns | the response |
+|---|---|
+| a value and a nil error | 200, the value as JSON |
+| a nil error alone | 204, no body |
+| an error | its status, as JSON: `web.NotFound` 404, `web.Forbidden` 403, a failed `validate:` 422, any other `web.Error` its own, else 500 |
+| a `ui.Node` | the markup, as a page's handler answers |
+| a `web.Redirect` | 302 on `GET`, 303 on the others |
+
+A page and an endpoint may share a path when their methods differ; two
+types answering one method on one path are [E0701](/errors/E0701). An
+endpoint with nothing to inject needs no constructor, as a page doesn't.
+`pages/urls` links to endpoints as to pages,
+`urls.Api.Employers.Employer(7).Path()`, and `vuka routes` marks them
+`(endpoint)`.
+
+## Guards
+
+A folder whose package declares `type Guard struct` checks every request to
+a page, handler or endpoint in it and below, and renders nothing. `Guard`
+may embed its package's `Params`, and has a `Load(ctx, deps…) error`, its
+parameters after `ctx` coming from the container — an API key, a
+permission, a tenant that must exist:
+
+```go
+// pages/api/guard.go
+package api
+
+// Guard: the read key may read, the write key may also change.
+type Guard struct{}
+
+func (g *Guard) Load(ctx context.Context) error {
+	r := web.Request(ctx)
+	switch r.Header.Get("X-API-Key") {
+	case web.Env("API_WRITE_KEY", "write-key"):
+		return nil
+	case web.Env("API_READ_KEY", "read-key"):
+		if r.Method == http.MethodGet {
+			return nil
+		}
+		return web.Forbidden
+	}
+	return web.Unauthorized
+}
+```
+
+Per request a guard is made fresh, its path parameters bound and its
+`Load` called; an error answers the request as a layout's does
+(`web.NotFound` 404, `web.Forbidden` 403, any other `web.Error` its status,
+a `web.Redirect` 302 on `GET` and 303 otherwise) — an HTML error page for a
+page, JSON for an endpoint. It runs before anything of the request's own:
+before a stateless page's `Mount`, before a live page renders (on the
+`GET` and again when its socket joins, a refused join answering a live
+error with the status), and before a handler's or endpoint's body is read, so `POST
+/api/employers` with the read key is 403 whatever it sends.
+
+Guards and layouts load from the root down, and within one folder the
+`Guard` before the `Layout`; the first error stops the request. A layout's
+`Load` is for what it shows; a guard is for a check alone, and fits where
+nothing renders — an API, or pages that keep their own document.
+
 ## Typed URLs
 
 `vuka gen` writes one more package, `pages/urls`, with a link to every
@@ -445,6 +639,7 @@ urls.Employers.Employer(7).Path()                   // "/employers/7"
 urls.Employers.Employer(7).Edit.Path()              // "/employers/7/edit"
 urls.Employers.Employer(7).Permits.Permit(3).Path() // "/employers/7/permits/3"
 urls.Files.File("reports/2026/q3.pdf").Path()       // "/files/reports/2026/q3.pdf"
+urls.Api.Employers.Employer(7).Path()               // "/api/employers/7": an endpoint
 ```
 
 - The root folder is `urls.Root`, and each of its children is also a
@@ -455,8 +650,8 @@ urls.Files.File("reports/2026/q3.pdf").Path()       // "/files/reports/2026/q3.p
   (by type name: `New`, `Edit`, `TermsOfService`). Its parameter folders
   are methods named the same way, taking the `Params` field's type:
   `Employer(employer int)`, `File(file web.Rest)`.
-- `Path()` exists only where there is a page: on a page's field, and on a
-  folder with an `Index`. `urls.Employers.Employer(7).Permits` has no
+- `Path()` exists only where there is a page or an endpoint: on its field,
+  and on a folder with an `Index`. `urls.Employers.Employer(7).Permits` has no
   `Path()` — `permits/` holds no `Index` — so a link to a URL that serves
   nothing doesn't compile. Method handlers answer on their page's path:
   the form posts to `urls.Employers.Employer(7).Edit.Path()`.
@@ -490,39 +685,44 @@ the routes are generated, at the file and line that causes it:
 
 | | |
 |---|---|
-| [E0701](/errors/E0701) | two pages on one path |
+| [E0701](/errors/E0701) | two pages or endpoints answering one method on one path |
 | [E0702](/errors/E0702) | two routes matching the same paths, such as two parameter folders side by side |
 | [E0703](/errors/E0703) | a folder or page below a catch-all folder |
 | [E0704](/errors/E0704) | a malformed `Params`: its own fields, their name, the parent's `Params` |
 | [E0705](/errors/E0705) | a parameter type a URL can't hold, or one declared in a page package |
 | [E0706](/errors/E0706) | a name vuka needs that is taken: a template-only page's type, or a child folder and a page named alike |
 | [E0707](/errors/E0707) | a folder route and a hand-written route on one path |
-| [E0708](/errors/E0708) | a malformed `Layout` or `Load` |
-| [E0709](/errors/E0709) | a method handler that can't be bound, or a `Get` method |
+| [E0708](/errors/E0708) | a malformed `Layout`, `Guard` or `Load` |
+| [E0709](/errors/E0709) | a method handler that can't be bound, or a `Get` method on a page |
 
 Hand-written routes stay: `web.Routes` calls and `app.Get(…)` work beside
 folder routes, on paths of their own.
 
 ## vuka routes
 
-`vuka routes` prints the table — method, path, page (marked when it is
-live or a template), source and layouts:
+`vuka routes` prints the table — method, path, page or endpoint (marked
+when it is live, a template or an endpoint), source, guards and layouts:
 
 ```text
 $ vuka routes
-METHOD  PATH                                    PAGE                    FILE                                                 LAYOUTS
-GET     /about                                  pages.About (template)  pages/about.vuka.html:1                              pages.Layout
-GET     /app/settings                           app.Settings            pages/app/settings.go:16                             pages.Layout
-GET     /app/{route...}                         route.Index             pages/app/route/index.go:11                          pages.Layout
-GET     /employers                              employers.Index (live)  pages/employers/index.go:14                          pages.Layout
-GET     /employers/new                          employers.New           pages/employers/new.go:15                            pages.Layout
-POST    /employers/new                          employers.New.Post      pages/employers/new.go:23                            pages.Layout
-GET     /employers/{employer}                   employer.Index          pages/employers/employer/index.go:16                 pages.Layout, employer.Layout
-GET     /employers/{employer}/edit              employer.Edit           pages/employers/employer/edit.go:16                  pages.Layout, employer.Layout
-POST    /employers/{employer}/edit              employer.Edit.Post      pages/employers/employer/edit.go:28                  pages.Layout, employer.Layout
-DELETE  /employers/{employer}/edit              employer.Edit.Delete    pages/employers/employer/edit.go:35                  pages.Layout, employer.Layout
-GET     /employers/{employer}/permits/{permit}  permit.Index (live)     pages/employers/employer/permits/permit/index.go:15  pages.Layout, employer.Layout
-GET     /files/{file...}                        file.Index              pages/files/file/index.go:12                         pages.Layout, file.Layout
+METHOD  PATH                                    PAGE                              FILE                                                 GUARDS     LAYOUTS
+GET     /about                                  pages.About (template)            pages/about.vuka.html:1                                         pages.Layout
+GET     /api/employers                          employers.Index.Get (endpoint)    pages/api/employers/index.go:24                      api.Guard  pages.Layout
+POST    /api/employers                          employers.Index.Post (endpoint)   pages/api/employers/index.go:37                      api.Guard  pages.Layout
+GET     /api/employers/{employer}               employer.Index.Get (endpoint)     pages/api/employers/employer/index.go:18             api.Guard  pages.Layout
+PUT     /api/employers/{employer}               employer.Index.Put (endpoint)     pages/api/employers/employer/index.go:26             api.Guard  pages.Layout
+DELETE  /api/employers/{employer}               employer.Index.Delete (endpoint)  pages/api/employers/employer/index.go:34             api.Guard  pages.Layout
+GET     /app/settings                           app.Settings                      pages/app/settings.go:15                                        pages.Layout
+GET     /app/{route...}                         route.Index                       pages/app/route/index.go:11                                     pages.Layout
+GET     /employers                              employers.Index (live)            pages/employers/index.go:14                                     pages.Layout
+GET     /employers/new                          employers.New                     pages/employers/new.go:15                                       pages.Layout
+POST    /employers/new                          employers.New.Post                pages/employers/new.go:23                                       pages.Layout
+GET     /employers/{employer}                   employer.Index                    pages/employers/employer/index.go:16                            pages.Layout, employer.Layout
+GET     /employers/{employer}/edit              employer.Edit                     pages/employers/employer/edit.go:17                             pages.Layout, employer.Layout
+POST    /employers/{employer}/edit              employer.Edit.Post                pages/employers/employer/edit.go:29                             pages.Layout, employer.Layout
+DELETE  /employers/{employer}/edit              employer.Edit.Delete              pages/employers/employer/edit.go:34                             pages.Layout, employer.Layout
+GET     /employers/{employer}/permits/{permit}  permit.Index (live)               pages/employers/employer/permits/permit/index.go:15             pages.Layout, employer.Layout
+GET     /files/{file...}                        file.Index                        pages/files/file/index.go:12                                    pages.Layout, file.Layout
 ```
 
 ## What it lowers to
@@ -530,10 +730,11 @@ GET     /files/{file...}                        file.Index              pages/fi
 `vuka build`, `run`, `test`, `vet` and the editor see the generated files
 without writing them; `vuka gen -inplace` writes them beside the pages
 (`pages/pages_gen.go`, `pages/urls/urls_gen.go`, and a `routes_gen.go`
-in a folder with template-only pages), so a plain
+in a folder with template-only pages or pages without a constructor), so a plain
 `go build` serves the same routes; `-check` fails when they're stale, and
 [`vuka eject`](/tools/cli#eject) keeps them. They are the registration a
-person would write. For `pages/layout.go` and `pages/about.vuka.html`:
+person would write. For `pages/layout.go`, `pages/about.vuka.html` and
+`pages/app/settings.go`:
 
 ```go
 // pages/pages_gen.go
@@ -550,21 +751,37 @@ type About struct{}
 
 // NewAbout builds the page About.
 func NewAbout() *About { return &About{} }
+
+// pages/app/routes_gen.go
+
+// NewSettings is the constructor of Settings, for its routes.
+func NewSettings() *Settings { return &Settings{} }
 ```
 
 `web.PageRoute()` gives the route the behaviour of a page — fields bound
 from the path, a bad path parameter a 404, `Mount`, `Title` — and
-`web.LayoutOf[T]()` adds a layout, the first given outermost. A live page
-is `web.Routes.Live`, and a method handler is registered with the page's
-constructor as its receiver, `web.Receiver(NewT)`. The example's
-`pages_gen.go` holds, among others:
+`web.LayoutOf[T]()` adds a layout, the first given outermost;
+`web.GuardOf[T]()` adds a guard, loading with the layouts in the order the
+options are given. A live page is `web.Routes.Live`, and a method handler
+or an endpoint's method is registered with the type's constructor as its
+receiver, `web.Receiver(NewT)`. A page or endpoint without a `New<T>` gets
+one in its folder's `routes_gen.go`, as a template-only page does. Packages
+that share a name are imported by their path (`employers_employer`,
+`api_employers_employer`). The example's `pages_gen.go` holds, among
+others:
 
 ```text
-web.Routes.Get("/employers/{employer}", employer.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
-web.Routes.Post("/employers/{employer}/edit", (*employer.Edit).Post, web.Receiver(employer.NewEdit), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
-web.Routes.Live("/employers/{employer}/permits/{permit}", permit.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
+web.Routes.Get("/employers/{employer}", employers_employer.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
+web.Routes.Post("/employers/{employer}/edit", (*employers_employer.Edit).Post, web.Receiver(employers_employer.NewEdit), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
+web.Routes.Live("/employers/{employer}/permits/{permit}", permit.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
 web.Routes.Get("/files/{file...}", file.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[file.Layout]())
+web.Routes.Get("/api/employers", (*api_employers.Index).Get, web.Receiver(api_employers.NewIndex), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+web.Routes.Delete("/api/employers/{employer}", (*api_employers_employer.Index).Delete, web.Receiver(api_employers_employer.NewIndex), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+web.Routes.Get("/app/settings", app.NewSettings, web.PageRoute(), web.LayoutOf[Layout]())
 ```
+
+A layout without a `Load` adds nothing to an endpoint's request: it only
+wraps markup.
 
 Delete the generated files and write those calls yourself, and the app is
 the same.
