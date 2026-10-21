@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Language support for Vuka: Go with Result, Option, ?, match and decorators, JSX and .vuka.html components, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls, in .vuka, .vuka.html and .go files.",
-  "version": "0.5.0",
+  "version": "0.6.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -215,6 +215,6 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs"
   }
 }

@@ -275,3 +275,32 @@ func TestLSPAfterPackage(t *testing.T) {
 		t.Errorf("hover on the package's added Go: %s", b)
 	}
 }
+
+// Implicit ctx is the render context in main markup and named helpers, and
+// remains visible to gopls through the generated closure's source map.
+func TestLSPTemplateContext(t *testing.T) {
+	const source = `package main
+
+type Sales struct { Title string }
+type contextKey struct{}
+func main() {}
+`
+	const template = `package main
+
+value := ctx.Value(contextKey{})
+<section><h1>{Title}</h1><p>{value}</p><contextBadge/></section>
+
+func contextBadge()
+<i>{ctx.Err()}</i>
+`
+	c, dir, _ := startLSPWith(t, map[string]string{"sales.go": source, "sales.vuka.html": template})
+	uri := pathToURI(filepath.Join(dir, "sales.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": template}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	for _, needle := range []string{"ctx.Value", "ctx.Err"} {
+		hover, _ := json.Marshal(c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(template), strings.Index(template, needle))}))
+		if !strings.Contains(string(hover), "context.Context") {
+			t.Errorf("hover on %s: %s", needle, hover)
+		}
+	}
+}

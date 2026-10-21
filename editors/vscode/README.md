@@ -45,7 +45,7 @@ them, [Vuka](https://github.com/vuka-lang/vuka)'s additions to Go in `.vuka` fil
   `route` (`@web.Get` + handler), `routet` (`@web.Template`), `livepage` (`@web.Live`), `webmain`,
   `model` (`orm.Base @orm.Meta{…}` + fields with attributes), `decorator`, `decoratorp`, `tx`
   (`@orm.Transaction`), `static`, `sfunc`
-- The language status shows `vuka version`; clicking it restarts the server
+- The language status in `.vuka` and `.vuka.html` shows `vuka version`; clicking it restarts the server. An older server shows a warning and an update command.
 - `.templ` files beside `.vuka` files are compiled by vuka itself (no `templ generate`); go to definition
   from Vuka code lands in the `.templ` file. Use templ's own extension for editing `.templ` files.
 
@@ -62,6 +62,19 @@ files are formatted by `vuka fmt` on save (`"[vuka]": {"editor.formatOnSave":
 false}` turns that off).
 
 ## Templates
+
+Implicit `ctx` in templates requires **Vuka v1.4.0 or newer**. The extension
+uses your separately installed `vuka lsp`; updating the extension alone does
+not update that binary. If `ctx` is reported as undefined, run:
+
+```sh
+go install github.com/vuka-lang/vuka/cmd/vuka@v1.4.0
+```
+
+Then run **Vuka: Restart Language Server**. The language status shows the
+actual binary path and version, including in `.vuka.html` files. Check
+`vuka.path` if you intentionally use another installation.
+
 
 `.vuka.html` files — markup with Go in braces and Go statements at line
 starts, a `<script lang="ts">` and `<style scoped>` after a template — are

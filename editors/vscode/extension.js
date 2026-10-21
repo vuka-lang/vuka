@@ -5,9 +5,11 @@ const path = require('path');
 const { execFile, execFileSync } = require('child_process');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 const jsx = require('./jsx');
+const toolchain = require('./toolchain');
 
 let client;
 let versionItem;
+const warnedServers = new Set();
 
 // vukaPath is the vuka binary, as an absolute path when it can be found:
 // VS Code started from the Dock has a short PATH, without ~/go/bin.
@@ -259,7 +261,7 @@ async function disableTemplDropIn(context) {
 // clicking it restarts the server.
 function showVersion() {
   if (!versionItem) {
-    versionItem = vscode.languages.createLanguageStatusItem('vuka.version', { language: 'vuka' });
+    versionItem = vscode.languages.createLanguageStatusItem('vuka.version', [{ language: 'vuka' }, { language: 'vuka-html' }]);
     versionItem.name = 'Vuka';
     versionItem.command = { title: 'Restart', command: 'vuka.restartServer' };
   }
@@ -274,8 +276,23 @@ function showVersion() {
       return;
     }
     versionItem.text = stdout.trim();
-    versionItem.detail = command;
-    versionItem.severity = vscode.LanguageStatusSeverity.Information;
+    const supported = toolchain.supportsTemplateContext(stdout);
+    versionItem.detail = supported === false
+      ? `${command}: template ctx requires Vuka ${toolchain.minimumServerVersion} or newer. ${toolchain.updateCommand}`
+      : command;
+    versionItem.severity = supported === false ? vscode.LanguageStatusSeverity.Warning : vscode.LanguageStatusSeverity.Information;
+    if (supported === false) {
+      const key = `${command}:${toolchain.serverVersion(stdout).text}`;
+      if (!warnedServers.has(key)) {
+        warnedServers.add(key);
+        vscode.window.showWarningMessage(
+          `Vuka's language server is ${toolchain.serverVersion(stdout).text}. Templates using ctx require ${toolchain.minimumServerVersion} or newer. Update the server, then run Vuka: Restart Language Server.`,
+          'Copy Update Command',
+        ).then((choice) => {
+          if (choice === 'Copy Update Command') vscode.env.clipboard.writeText(toolchain.updateCommand);
+        });
+      }
+    }
   });
 }
 
