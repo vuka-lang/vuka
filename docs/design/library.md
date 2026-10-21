@@ -200,8 +200,8 @@ person writes, so nothing at run time depends on the tree
   optionally embedding `Params`, optionally `Load(ctx, deps…) error` (deps
   from the container). Per request: zero `T`, bind (path only, 404 on
   failure), `Load`, `Children` = the next layout or the page, render. A
-  `Load` error answers the request (`NotFound` 404, a `Redirect`
-  redirects). A live page's layouts are part of its page render, the GET and
+  `Load` error answers the request (`NotFound` 404, `Forbidden` 403, a
+  `Redirect` redirects), for the pages and their method handlers alike. A live page's layouts are part of its page render, the GET and
   the join's run of the route (`Load` runs for each); patches re-render the
   live component only. Folder layouts replace `web.Layout`, the app's
   `web.LiveLayout` and an island page's layout.
@@ -217,8 +217,9 @@ person writes, so nothing at run time depends on the tree
   with its path parameters bound (404 on failure); its other parameters and
   results are any handler's. Layouts wrap a `ui.Node` result when the
   response is a whole page (GET, or a browser document request); fragments
-  go bare. Layouts' `Load` doesn't run for a handler that renders no page,
-  so a handler checks what it changes.
+  go bare. The layouts' `Load` runs before every handler as before the
+  page: its `NotFound`, `Forbidden` or `Redirect` stops `Post`, `Put`,
+  `Patch` and `Delete` too, so a folder's checks live in one place.
 - **Typed URLs.** Per page, `func <T>URL(params…) string` in the page's
   package, parameters positional in path order and typed as the `Params`
   fields, each segment `url.PathEscape`d (`web.Rest` per segment, slashes

@@ -14,8 +14,8 @@ type EmployerForm struct {
 type Store struct{}
 
 func (s *Store) Employer(id int) (Employer, bool)   { return Employer{ID: id}, true }
-func (s *Store) Update(id int, f EmployerForm) bool { return true }
-func (s *Store) Delete(id int) bool                 { return true }
+func (s *Store) Update(id int, f EmployerForm)      {}
+func (s *Store) Delete(id int)                      {}
 func (s *Store) Pending() int                       { return 0 }
 
 func IndexURL(employer int) string { return "" }
@@ -296,8 +296,11 @@ embed its package's `Params`, and it may have a `Load` method, its
 parameters after `ctx` coming from the container. On each request, from
 the outermost in, a layout is made fresh, its path parameters bound, `Load`
 called, and then it renders around the next one. An error from `Load`
-answers the request as a handler's would: `web.NotFound` is a 404 for every
-page below, a `web.Redirect` redirects.
+answers the request as a handler's would: `web.NotFound` is a 404,
+`web.Forbidden` a 403, a `web.Redirect` redirects. `Load` guards everything
+beneath its folder — every page and every page's `Post`, `Put`, `Patch` and
+`Delete` — so it is the natural place for a check that holds for a whole
+folder: that the record exists, that the visitor may see it.
 
 ```go
 // pages/employers/employer/layout.go
@@ -327,8 +330,8 @@ func (l Layout) Render(ctx context.Context, w io.Writer) error {
 }
 ```
 
-So `/employers/99`, `/employers/99/edit` and every permit of employer 99
-are not found, checked in one place. A live page's layouts are part of its
+So `/employers/99`, `/employers/99/edit`, a `POST` to it and every permit
+of employer 99 are not found, checked in one place. A live page's layouts are part of its
 page: they render around it on the GET and again when its socket joins
 (`Load` runs for each), and the socket's patches re-render the page alone.
 A route with folder layouts takes no `web.Layout` and isn't wrapped in the
@@ -356,16 +359,12 @@ func (p *Edit) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
 func (p *Edit) Title() string { return "Edit " + p.employer.Name }
 
 func (p *Edit) Post(ctx context.Context, form EmployerForm) (web.Redirect, error) {
-	if !p.store.Update(p.Employer, form) {
-		return "", web.NotFound
-	}
+	p.store.Update(p.Employer, form)
 	return web.Redirect(IndexURL(p.Employer)), nil
 }
 
 func (p *Edit) Delete(ctx context.Context) error {
-	if !p.store.Delete(p.Employer) {
-		return web.NotFound
-	}
+	p.store.Delete(p.Employer)
 	return nil
 }
 
@@ -385,11 +384,11 @@ JSON struct, bound and validated (a failing `validate:` tag is 422),
 `*http.Request`, … — and returns an `error`, a `ui.Node` and an error, or
 a [`web.Redirect`](/web/parameters#redirects) and an error.
 
-The layouts' `Load` belongs to rendering a page, so a handler checks what it
-changes itself, as `Post` and `Delete` do above. A handler's `ui.Node`
-result is wrapped in the layouts when the response is a whole page (a
-`GET`, or the browser asking for a document); a fragment for a script goes
-out bare.
+The layouts above the page run their `Load` before a handler as before the
+page, so `Post` and `Delete` above never see an unknown employer: the
+employer's `Layout` has answered 404 already. A handler's `ui.Node` result
+is wrapped in the layouts when the response is a whole page (a `GET`, or
+the browser asking for a document); a fragment for a script goes out bare.
 
 ## Typed URLs
 

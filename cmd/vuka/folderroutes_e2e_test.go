@@ -175,8 +175,18 @@ func TestFolderRoutesE2E(t *testing.T) {
 		t.Errorf("DELETE /employers/3/edit: %d\n%s", code, body)
 	}
 	notFound("GET", "/employers/3")
+
+	// The employer's Layout loads before the handlers too: an unknown
+	// employer is not found, and nothing is written.
 	notFound("DELETE", "/employers/3/edit")
 	notFound("POST", "/employers/x/edit")
+	if code, _, _ := do("POST", "/employers/99/edit", url.Values{"name": {"Ghost"}, "city": {"Nowhere"}}); code != http.StatusNotFound {
+		t.Errorf("POST /employers/99/edit: %d, want 404", code)
+	}
+	notFound("GET", "/employers/99")
+	if _, _, body := do("GET", "/employers", nil); strings.Contains(body, "Ghost") || strings.Contains(body, "Pwani") {
+		t.Errorf("GET /employers after writes to unknown employers:\n%s", body)
+	}
 }
 
 // webDeclares reports whether a Go file of web, in its module directory,

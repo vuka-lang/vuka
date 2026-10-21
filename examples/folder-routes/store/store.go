@@ -80,29 +80,21 @@ func (s *Store) AddEmployer(f EmployerForm) Employer {
 	return e
 }
 
-func (s *Store) UpdateEmployer(id int, f EmployerForm) bool {
+func (s *Store) UpdateEmployer(id int, f EmployerForm) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.employers[id]; !ok {
-		return false
-	}
 	s.employers[id] = Employer{ID: id, Name: f.Name, City: f.City}
-	return true
 }
 
-func (s *Store) DeleteEmployer(id int) bool {
+func (s *Store) DeleteEmployer(id int) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	if _, ok := s.employers[id]; !ok {
-		return false
-	}
 	delete(s.employers, id)
 	for pid, p := range s.permits {
 		if p.Employer == id {
 			delete(s.permits, pid)
 		}
 	}
-	return true
 }
 
 func (s *Store) Permits(employer int) []Permit {

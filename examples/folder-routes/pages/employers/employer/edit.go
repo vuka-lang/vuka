@@ -11,8 +11,8 @@ import (
 
 // Edit is the employer's form: GET /employers/{employer}/edit, its Post
 // method POST and its Delete method DELETE on the same path. Each request
-// builds its own Edit with the employer bound. The layouts' Load runs for
-// the page, not for Post and Delete, so they check the employer themselves.
+// builds its own Edit with the employer bound, and the employer's Layout
+// loads first, so an unknown employer is not found for all three.
 type Edit struct {
 	Params
 	store    *store.Store
@@ -26,16 +26,12 @@ func (p *Edit) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
 func (p *Edit) Title() string { return "Edit " + p.employer.Name }
 
 func (p *Edit) Post(ctx context.Context, form store.EmployerForm) (web.Redirect, error) {
-	if !p.store.UpdateEmployer(p.Employer, form) {
-		return "", web.NotFound
-	}
+	p.store.UpdateEmployer(p.Employer, form)
 	return web.Redirect(IndexURL(p.Employer)), nil
 }
 
 func (p *Edit) Delete(ctx context.Context) error {
-	if !p.store.DeleteEmployer(p.Employer) {
-		return web.NotFound
-	}
+	p.store.DeleteEmployer(p.Employer)
 	return nil
 }
 
