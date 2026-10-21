@@ -131,6 +131,18 @@ off; a `templ.executablePath` you set yourself is left alone.
 Both servers use gopls's shared daemon (`-remote=auto`), so the type-checking is
 done once for the whole editor.
 
+## GoLand
+
+The plugin lives in
+[`editors/goland`](https://github.com/vuka-lang/vuka/tree/main/editors/goland),
+for GoLand and the other JetBrains IDEs with LSP support (2025.1 and later):
+the language server for `.vuka` and `.vuka.html` files, highlighting of
+`.vuka` files by the VS Code extension's grammar, and its snippets. It runs
+`go tool vuka lsp` when `go.mod` declares vuka as a tool, else `vuka lsp`;
+**Settings | Languages & Frameworks | Vuka** sets the binaries. `.vuka.html`
+files open as HTML. GoLand serves `.go` files itself, not through gopls, so
+`.go` files don't see code declared in `.vuka` files.
+
 ## Other editors
 
 Run `vuka lsp` over stdio for the `vuka` file type. For Go files, point the
