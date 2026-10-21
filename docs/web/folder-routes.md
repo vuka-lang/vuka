@@ -860,7 +860,7 @@ func NewSettings() *Settings { return &Settings{} }
 from the path, a bad path parameter a 404, `Mount`, `Title` — and
 `web.LayoutOf[T]()` adds a layout, the first given outermost;
 `web.GuardOf[T]()` adds a guard, loading with the layouts in the order the
-options are given; `web.Use(pkg.Middleware)` wraps the route in each
+options are given; `web.UseOf(pkg.Middleware)` wraps the route in each
 folder's middleware, the root's outermost. A live page is `web.Routes.Live`, and a method handler
 or an endpoint's method is registered with the type's constructor as its
 receiver, `web.Receiver(NewT)`. A page or endpoint without a `New<T>` gets

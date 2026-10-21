@@ -258,7 +258,7 @@ person writes, so nothing at run time depends on the tree
   (deps from DI, resolved at Build, E0407 when unprovided) — wraps every
   page, method handler and endpoint in and below its folder; never
   hand-written routes, static files or the app's 404. gen emits it root-first
-  as `web.Use(pkg.Middleware)` before the folder's GuardOf/LayoutOf; per
+  as `web.UseOf(pkg.Middleware)` before the folder's GuardOf/LayoutOf; per
   request: middlewares (root → leaf, outermost) → guards'/layouts' Load →
   bind → Mount → handler → back out. It wraps the whole route handler, so a
   bad path parameter's 404 passes through it; not calling next

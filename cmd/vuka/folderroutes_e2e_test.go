@@ -53,6 +53,9 @@ func TestFolderRoutesE2E(t *testing.T) {
 	} else if !bytes.Contains(gen, []byte("Middleware")) {
 		t.Skip("this vuka command generates no folder middleware (1.3)")
 	}
+	if !webDeclares(web, "func UseOf(") {
+		t.Skipf("github.com/vuka-lang/web at %s has no folder middleware (UseOf, 1.3); set VUKA_WEB", web)
+	}
 	src := filepath.Join(repo, "examples/folder-routes")
 	files := map[string]string{}
 	filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
