@@ -300,7 +300,10 @@ func init() {
 :::
 
 A route takes its controller's gate and its own, both checked;
-`@auth.Public` on a route opens it alone.
+`@auth.Public` on a route opens it alone. A [folder route](/web/folder-routes)
+has no registration to put the gate on: mark the page's type —
+`vuka.RegisterType[Login](auth.Public())` opens the login page and its
+`Post`, stateless or live.
 
 A live event needs a sign-in unless something marks it, as a route does:
 the gate on its handler, on the handler's type, on the component it

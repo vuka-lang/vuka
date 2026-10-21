@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -26,6 +27,9 @@ import (
 // pages/api is endpoints behind a guard: each method answers JSON or a
 // status, and the guard refuses a request before its body is read. Pages
 // without a constructor of their own are routed with a generated one.
+// Folder middleware wraps everything below its folder, the root's
+// outermost, and short-circuits before the guards; a type's attributes
+// (vuka.RegisterType) reach a stateless page's route.
 func TestFolderRoutesE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
@@ -46,6 +50,11 @@ func TestFolderRoutesE2E(t *testing.T) {
 	}
 	if gen, _ := os.ReadFile("folderroutes_gen.go"); !bytes.Contains(gen, []byte("GuardOf[")) {
 		t.Skip("this vuka command generates no endpoints or guards (1.2)")
+	} else if !bytes.Contains(gen, []byte("Middleware")) {
+		t.Skip("this vuka command generates no folder middleware (1.3)")
+	}
+	if !webDeclares(web, "func UseOf(") {
+		t.Skipf("github.com/vuka-lang/web at %s has no folder middleware (UseOf, 1.3); set VUKA_WEB", web)
 	}
 	src := filepath.Join(repo, "examples/folder-routes")
 	files := map[string]string{}
@@ -84,7 +93,8 @@ func TestFolderRoutesE2E(t *testing.T) {
 		t.Fatalf("vuka routes: %v\n%s", err, out)
 	}
 	for _, want := range []string{"/employers/new", "/employers/{employer}/edit", "/employers/{employer}/permits/{permit}", "/files/{file...}", "/app/{route...}", "/about", "DELETE", "employer.Layout",
-		"/api/employers/{employer}", "(endpoint)", "api.Guard", "app.Settings"} {
+		"/api/employers/{employer}", "(endpoint)", "api.Guard", "app.Settings",
+		"MIDDLEWARE", "pages.Middleware", "api.Middleware"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("vuka routes has no %q:\n%s", want, out)
 		}
@@ -97,7 +107,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build after gen -inplace: %v\n%s", err, out)
 	}
-	base, logs := runApp(t, app, root)
+	base, logs := runApp(t, app, root, "API_RATE=60")
 	t.Cleanup(func() {
 		if t.Failed() {
 			t.Logf("app log:\n%s", logs)
@@ -299,6 +309,56 @@ func TestFolderRoutesE2E(t *testing.T) {
 	status("GET", "/api/employers/4", readKey, "", http.StatusNotFound)
 	status("DELETE", "/api/employers/4", writeKey, "", http.StatusNotFound)
 	list("/api/employers", "Acme Logistics", "Kilima Foods")
+
+	// The middleware stamps pages and endpoints alike, the root's header
+	// before the api folder's; Settings' no-store comes from its type's
+	// attribute, not its folder.
+	head := func(method, path, key string) http.Header {
+		t.Helper()
+		req, _ := http.NewRequest(method, base+path, nil)
+		if key != "" {
+			req.Header.Set("X-API-Key", key)
+		}
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		res.Body.Close()
+		return res.Header
+	}
+	if h := head("GET", "/employers", ""); !slices.Equal(h.Values("X-Served-By"), []string{"hr"}) {
+		t.Errorf("GET /employers: X-Served-By %v, want [hr]", h.Values("X-Served-By"))
+	}
+	if h := head("GET", "/api/employers/1", readKey); !slices.Equal(h.Values("X-Served-By"), []string{"hr", "hr-api"}) {
+		t.Errorf("GET /api/employers/1: X-Served-By %v, want [hr hr-api]: the root's middleware outermost", h.Values("X-Served-By"))
+	}
+	if h := head("GET", "/app/settings", ""); h.Get("Cache-Control") != "no-store" {
+		t.Errorf("GET /app/settings: Cache-Control %q, want no-store from RegisterType[Settings]", h.Get("Cache-Control"))
+	}
+	if h := head("GET", "/employers/1", ""); h.Get("Cache-Control") == "no-store" {
+		t.Error("GET /employers/1: no-store leaked off the Settings type")
+	}
+
+	// The api middleware's rate limit short-circuits: hammered without a
+	// key, the 401s turn 429 once the bucket (API_RATE=60) is empty —
+	// before the guard, which never sees those requests.
+	saw401, saw429 := false, false
+	for i := 0; i < 200 && !saw429; i++ {
+		switch code, _, _ := api("GET", "/api/employers", "", ""); code {
+		case http.StatusUnauthorized:
+			saw401 = true
+		case http.StatusTooManyRequests:
+			saw429 = true
+		default:
+			t.Fatalf("GET /api/employers while hammering: %d", code)
+		}
+	}
+	if !saw401 || !saw429 {
+		t.Errorf("hammering /api/employers: 401 then 429, got 401=%v 429=%v", saw401, saw429)
+	}
+	if h := head("GET", "/employers", ""); !slices.Equal(h.Values("X-Served-By"), []string{"hr"}) {
+		t.Error("the api folder's rate limit reached /employers")
+	}
 }
 
 // webDeclares reports whether a Go file of web, in its module directory,

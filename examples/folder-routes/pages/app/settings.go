@@ -8,11 +8,21 @@ import (
 
 	"example.com/folder-routes/pages/urls"
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/vuka"
 )
 
+// NoStore marks a page main's web.WrapRoutes("no-store") never caches —
+// an attribute a gate like auth's would be.
+type NoStore struct{}
+
+func (NoStore) RouteWrapper() string { return "no-store" }
+
 // Settings is GET /app/settings: a fixed segment, so it wins over the
-// client app's catch-all.
+// client app's catch-all. Its attributes are the type's, as a live
+// page's would be: this page alone is never cached.
 type Settings struct{}
+
+func init() { vuka.RegisterType[Settings](NoStore{}) }
 
 func (p *Settings) Title() string { return "App settings" }
 
