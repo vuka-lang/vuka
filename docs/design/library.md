@@ -270,8 +270,7 @@ person writes, so nothing at run time depends on the tree
   constructor routes) and method handlers/endpoints (Receiver routes), as it
   already did live pages and islands — flattened, type attrs first. So
   `vuka.RegisterType[Login](auth.Public())` opens a stateless login page and
-  its handlers, and `web.Use(mw)` as a type attr puts middleware on one
-  page.
+  its handlers, and a RouteAttr on the type reaches WrapRoutes.
 - **Typed URLs.** One generated package, `pages/urls`
   (`urls_gen.go`), importing no page package, so any page links to any
   other, parent to child included (per-package functions would make a

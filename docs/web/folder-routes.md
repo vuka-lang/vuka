@@ -652,8 +652,10 @@ func Middleware(next http.Handler) http.Handler {
 
 The plain form is `func(next http.Handler) http.Handler`. The constructor
 form, `func Middleware(deps…) web.Middleware`, takes what it needs from
-the [container](/web/dependency-injection) once, when the app builds — the
-place for configuration and state the middleware keeps:
+the [container](/web/dependency-injection) once per route, when the app
+builds — the place for configuration and for the state the middleware
+keeps, which is that route's own (the limiter below counts each API route
+by itself):
 
 ```go
 // pages/api/middleware.go
@@ -680,9 +682,11 @@ Middleware is the outermost ring. Per request, from the root folder down:
 middleware (root → folder) → guards' and layouts' Load → bind → Mount → handler
 ```
 
-and the response passes back out through the middleware. It wraps the
-whole route, so it also sees the 404 a path parameter that doesn't parse
-answers. Not calling `next` short-circuits the request: the middleware
+and the response passes back out through the middleware. A route's own
+middleware — `@web.Use` on a decorated route, or a `web.Use` attribute —
+runs inside its folders'; [auth](/web/auth)'s gates run outside them.
+Folder middleware wraps the whole route, so it also sees the 404 a path
+parameter that doesn't parse answers. Not calling `next` short-circuits the request: the middleware
 writes the response itself — a maintenance page, an IP block, a rate
 limit's 429, a cache hit — and nothing below it runs, the guards
 included, as the api middleware above does while the store reloads.
@@ -716,8 +720,9 @@ the usual way:
 vuka.RegisterType[Login](auth.Public())
 ```
 
-`web.Use(mw)` is an attribute as well, for middleware on one page rather
-than a folder.
+An attribute only a `web.WrapRoutes` function gives a meaning to (a
+`web.RouteAttr`, what auth's gates are) reaches that function with the
+page's route, stateless or live.
 
 ## Typed URLs
 
@@ -799,28 +804,29 @@ folder routes, on paths of their own.
 ## vuka routes
 
 `vuka routes` prints the table — method, path, page or endpoint (marked
-when it is live, a template or an endpoint), source, guards and layouts:
+when it is live, a template or an endpoint), source, middleware, guards
+and layouts:
 
 ```text
 $ vuka routes
-METHOD  PATH                                    PAGE                              FILE                                                 GUARDS     LAYOUTS
-GET     /about                                  pages.About (template)            pages/about.vuka.html:1                                         pages.Layout
-GET     /api/employers                          employers.Index.Get (endpoint)    pages/api/employers/index.go:24                      api.Guard  pages.Layout
-POST    /api/employers                          employers.Index.Post (endpoint)   pages/api/employers/index.go:37                      api.Guard  pages.Layout
-GET     /api/employers/{employer}               employer.Index.Get (endpoint)     pages/api/employers/employer/index.go:18             api.Guard  pages.Layout
-PUT     /api/employers/{employer}               employer.Index.Put (endpoint)     pages/api/employers/employer/index.go:26             api.Guard  pages.Layout
-DELETE  /api/employers/{employer}               employer.Index.Delete (endpoint)  pages/api/employers/employer/index.go:34             api.Guard  pages.Layout
-GET     /app/settings                           app.Settings                      pages/app/settings.go:15                                        pages.Layout
-GET     /app/{route...}                         route.Index                       pages/app/route/index.go:11                                     pages.Layout
-GET     /employers                              employers.Index (live)            pages/employers/index.go:14                                     pages.Layout
-GET     /employers/new                          employers.New                     pages/employers/new.go:15                                       pages.Layout
-POST    /employers/new                          employers.New.Post                pages/employers/new.go:23                                       pages.Layout
-GET     /employers/{employer}                   employer.Index                    pages/employers/employer/index.go:16                            pages.Layout, employer.Layout
-GET     /employers/{employer}/edit              employer.Edit                     pages/employers/employer/edit.go:17                             pages.Layout, employer.Layout
-POST    /employers/{employer}/edit              employer.Edit.Post                pages/employers/employer/edit.go:29                             pages.Layout, employer.Layout
-DELETE  /employers/{employer}/edit              employer.Edit.Delete              pages/employers/employer/edit.go:34                             pages.Layout, employer.Layout
-GET     /employers/{employer}/permits/{permit}  permit.Index (live)               pages/employers/employer/permits/permit/index.go:15             pages.Layout, employer.Layout
-GET     /files/{file...}                        file.Index                        pages/files/file/index.go:12                                    pages.Layout, file.Layout
+METHOD  PATH                                    PAGE                              FILE                                                 MIDDLEWARE                        GUARDS     LAYOUTS
+GET     /about                                  pages.About (template)            pages/about.vuka.html:1                              pages.Middleware                             pages.Layout
+GET     /api/employers                          employers.Index.Get (endpoint)    pages/api/employers/index.go:24                      pages.Middleware, api.Middleware  api.Guard  pages.Layout
+POST    /api/employers                          employers.Index.Post (endpoint)   pages/api/employers/index.go:37                      pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /api/employers/{employer}               employer.Index.Get (endpoint)     pages/api/employers/employer/index.go:18             pages.Middleware, api.Middleware  api.Guard  pages.Layout
+PUT     /api/employers/{employer}               employer.Index.Put (endpoint)     pages/api/employers/employer/index.go:26             pages.Middleware, api.Middleware  api.Guard  pages.Layout
+DELETE  /api/employers/{employer}               employer.Index.Delete (endpoint)  pages/api/employers/employer/index.go:34             pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /app/settings                           app.Settings                      pages/app/settings.go:23                             pages.Middleware                             pages.Layout
+GET     /app/{route...}                         route.Index                       pages/app/route/index.go:11                          pages.Middleware                             pages.Layout
+GET     /employers                              employers.Index (live)            pages/employers/index.go:14                          pages.Middleware                             pages.Layout
+GET     /employers/new                          employers.New                     pages/employers/new.go:15                            pages.Middleware                             pages.Layout
+POST    /employers/new                          employers.New.Post                pages/employers/new.go:23                            pages.Middleware                             pages.Layout
+GET     /employers/{employer}                   employer.Index                    pages/employers/employer/index.go:16                 pages.Middleware                             pages.Layout, employer.Layout
+GET     /employers/{employer}/edit              employer.Edit                     pages/employers/employer/edit.go:17                  pages.Middleware                             pages.Layout, employer.Layout
+POST    /employers/{employer}/edit              employer.Edit.Post                pages/employers/employer/edit.go:29                  pages.Middleware                             pages.Layout, employer.Layout
+DELETE  /employers/{employer}/edit              employer.Edit.Delete              pages/employers/employer/edit.go:34                  pages.Middleware                             pages.Layout, employer.Layout
+GET     /employers/{employer}/permits/{permit}  permit.Index (live)               pages/employers/employer/permits/permit/index.go:15  pages.Middleware                             pages.Layout, employer.Layout
+GET     /files/{file...}                        file.Index                        pages/files/file/index.go:12                         pages.Middleware                             pages.Layout, file.Layout
 ```
 
 ## What it lowers to
@@ -870,13 +876,13 @@ that share a name are imported by their path (`employers_employer`,
 others:
 
 ```text
-web.Routes.Get("/employers/{employer}", employers_employer.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
-web.Routes.Post("/employers/{employer}/edit", (*employers_employer.Edit).Post, web.Receiver(employers_employer.NewEdit), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
-web.Routes.Live("/employers/{employer}/permits/{permit}", permit.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
-web.Routes.Get("/files/{file...}", file.NewIndex, web.PageRoute(), web.LayoutOf[Layout](), web.LayoutOf[file.Layout]())
-web.Routes.Get("/api/employers", (*api_employers.Index).Get, web.Receiver(api_employers.NewIndex), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-web.Routes.Delete("/api/employers/{employer}", (*api_employers_employer.Index).Delete, web.Receiver(api_employers_employer.NewIndex), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-web.Routes.Get("/app/settings", app.NewSettings, web.PageRoute(), web.LayoutOf[Layout]())
+web.Routes.Get("/employers/{employer}", employers_employer.NewIndex, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
+web.Routes.Post("/employers/{employer}/edit", (*employers_employer.Edit).Post, web.Receiver(employers_employer.NewEdit), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
+web.Routes.Live("/employers/{employer}/permits/{permit}", permit.NewIndex, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employers_employer.Layout]())
+web.Routes.Get("/files/{file...}", file.NewIndex, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[file.Layout]())
+web.Routes.Get("/api/employers", (*api_employers.Index).Get, web.Receiver(api_employers.NewIndex), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+web.Routes.Delete("/api/employers/{employer}", (*api_employers_employer.Index).Delete, web.Receiver(api_employers_employer.NewIndex), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+web.Routes.Get("/app/settings", app.NewSettings, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
 ```
 
 A layout without a `Load` adds nothing to an endpoint's request: it only

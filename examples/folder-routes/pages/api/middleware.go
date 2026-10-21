@@ -8,8 +8,9 @@ import (
 	"github.com/vuka-lang/web"
 )
 
-// Middleware rate-limits the API: API_RATE requests at once (100), one
-// more each second; over it is 429 before the guard sees the key.
+// Middleware rate-limits the API, each route by itself: API_RATE requests
+// at once (100), one more each second; over it is 429 before the guard
+// sees the key.
 func Middleware() web.Middleware {
 	limit := web.Env("API_RATE", 100.0)
 	var mu sync.Mutex
