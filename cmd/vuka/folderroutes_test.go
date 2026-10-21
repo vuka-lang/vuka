@@ -128,7 +128,8 @@ func TestFolderRoutes(t *testing.T) {
 }
 
 // routeFiles are the files generated for the fixture.
-var routeFiles = []string{"pages/pages_gen.go", "pages/urls/urls_gen.go", "pages/orgs/org/routes_gen.go", "pages/routes_gen.go"}
+var routeFiles = []string{"pages/pages_gen.go", "pages/urls/urls_gen.go", "pages/orgs/org/routes_gen.go", "pages/routes_gen.go",
+	"pages/files/file/routes_gen.go", "pages/orgs/org/permits/permit/routes_gen.go", "pages/api/orgs/routes_gen.go"}
 
 const editPage = `package org
 
@@ -188,6 +189,14 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0708", "pages/layout.go:3"},
 		{"a layout's Load", map[string]string{"pages/orgs/org/layout.go": "package org\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Layout struct {\n\tParams\n\tChildren ui.Node\n}\n\nfunc (l *Layout) Load() {}\n"},
 			"E0708", "pages/orgs/org/layout.go:10"},
+		{"a guard without Load", map[string]string{"pages/api/guard.go": "package api\n\ntype Guard struct{}\n"},
+			"E0708", "pages/api/guard.go:3"},
+		{"a guard's Load", map[string]string{"pages/api/guard.go": "package api\n\ntype Guard struct{}\n\nfunc (g *Guard) Load() {}\n"},
+			"E0708", "pages/api/guard.go:5"},
+		{"a page and an endpoint on one path", map[string]string{"pages/orgs/new/index.go": "package new\n\nimport \"context\"\n\ntype Index struct{}\n\nfunc NewIndex() *Index { return nil }\n\nfunc (*Index) Get(ctx context.Context) (string, error) { return \"\", nil }\n"},
+			"E0701", "pages/orgs/new/index.go:9"},
+		{"an endpoint's scalar parameter", map[string]string{"pages/api/orgs/org/index.go": "package org\n\nimport \"context\"\n\ntype Index struct{ Params }\n\nfunc NewIndex() *Index { return nil }\n\nfunc (*Index) Get(ctx context.Context, id int) error { return nil }\n"},
+			"E0709", "pages/api/orgs/org/index.go:9"},
 		{"a Get method", map[string]string{"pages/orgs/get.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Get(ctx context.Context) error { return nil }\n"},
 			"E0709", "pages/orgs/get.go:5"},
 		{"a scalar handler parameter", map[string]string{"pages/orgs/put.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Put(ctx context.Context, name string) error { return nil }\n"},
@@ -223,7 +232,7 @@ func generatedProblems(src []byte) []string {
 		for _, part := range strings.Split(string(src), sel)[1:] {
 			name := part[:strings.IndexFunc(part, func(r rune) bool { return !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') })]
 			switch sel + name {
-			case "web.Routes", "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest":
+			case "web.Routes", "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf":
 			default:
 				out = append(out, "names "+sel+name)
 			}
@@ -306,6 +315,42 @@ func TestTemplatePageDeclared(t *testing.T) {
 		t.Errorf("urls_gen.go:\n%s", b)
 	}
 	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
+	}
+}
+
+// TestGeneratedConstructors: a page or endpoint without New<T> gets one in
+// its package's routes_gen.go, which the package's Vuka source sees; one
+// declared by hand turns it off, and a type registered another way gets
+// none.
+func TestGeneratedConstructors(t *testing.T) {
+	app := routesModule(t, map[string]string{
+		"pages/files/file/new.go":                  "package file\n\n// NewIndex is declared by hand.\nfunc NewIndex() *Index { return &Index{} }\n",
+		"pages/api/orgs/first.vuka":                "package orgs\n\nfunc first() *Index { return NewIndex() }\n",
+		"pages/orgs/org/permits/permit/index.vuka": "package permit\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n@web.Live(\"/permit\")\ntype Index struct {\n\tui.Live\n\tParams\n}\n\nfunc (x *Index) Render() ui.Node { return ui.Text(\"\") }\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	if strings.Contains(out.String(), "permit.Index") || !strings.Contains(out.String(), "file.Index") || !strings.Contains(out.String(), "orgs.Index.Post (endpoint)") {
+		t.Errorf("vuka routes:\n%s", out.Bytes())
+	}
+	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -inplace: %v", err)
+	}
+	for _, f := range []string{"pages/files/file/routes_gen.go", "pages/orgs/org/permits/permit/routes_gen.go"} {
+		if b, err := os.ReadFile(filepath.Join(app, f)); err == nil {
+			t.Errorf("%s:\n%s", f, b)
+		}
+	}
+	if b, _ := os.ReadFile(filepath.Join(app, "pages/api/orgs/routes_gen.go")); !strings.Contains(string(b), "func NewIndex() *Index { return &Index{} }") {
+		t.Errorf("pages/api/orgs/routes_gen.go:\n%s", b)
+	}
+	if b, _ := os.ReadFile(filepath.Join(app, "pages/orgs/org/routes_gen.go")); strings.Contains(string(b), "NewCard") {
+		t.Errorf("a constructor for Card, which is no page:\n%s", b)
+	}
+	if err := runGo("vet", []string{"./pages/api/...", "./pages/files/..."}, io.Discard, &errOut); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
 }

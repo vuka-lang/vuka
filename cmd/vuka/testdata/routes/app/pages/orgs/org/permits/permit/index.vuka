@@ -12,6 +12,4 @@ type Index struct {
 	Params
 }
 
-func NewIndex() *Index { return &Index{} }
-
 func (x *Index) Render() ui.Node { return ui.Text(urls.Orgs.Org(x.Org).Permits.Permit(x.Permit).Path()) }

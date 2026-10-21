@@ -1,12 +1,17 @@
-METHOD  PATH                          PAGE                         FILE                                         LAYOUTS
-GET     /                             pages.Index                  pages/index.go:11                            pages.Layout
-GET     /about                        pages.About (template)       pages/about.vuka.html:1                      pages.Layout
-GET     /files/{file...}              file.Index                   pages/files/file/index.go:9                  pages.Layout
-GET     /orgs                         orgs.Index (live)            pages/orgs/index.go:10                       pages.Layout
-GET     /orgs/new                     orgs.New                     pages/orgs/new.go:9                          pages.Layout
-POST    /orgs/new                     orgs.New.Post                pages/orgs/new.go:18                         pages.Layout
-GET     /orgs/{org}                   org.Index                    pages/orgs/org/index.go:11                   pages.Layout, org.Layout
-DELETE  /orgs/{org}                   org.Index.Delete             pages/orgs/org/index.go:20                   pages.Layout, org.Layout
-GET     /orgs/{org}/permits/{permit}  permit.Index (live)          pages/orgs/org/permits/permit/index.vuka:10  pages.Layout, org.Layout
-GET     /orgs/{org}/reset-password    org.ResetPassword            pages/orgs/org/reset_password.go:9           pages.Layout, org.Layout
-GET     /orgs/{org}/team-settings     org.TeamSettings (template)  pages/orgs/org/team-settings.vuka.html:1     pages.Layout, org.Layout
+METHOD  PATH                          PAGE                         FILE                                         GUARDS     LAYOUTS
+GET     /                             pages.Index                  pages/index.go:11                                       pages.Layout
+GET     /about                        pages.About (template)       pages/about.vuka.html:1                                 pages.Layout
+GET     /api/orgs                     orgs.Index.Get (endpoint)    pages/api/orgs/index.go:11                   api.Guard  pages.Layout
+POST    /api/orgs                     orgs.Index.Post (endpoint)   pages/api/orgs/index.go:16                   api.Guard  pages.Layout
+GET     /api/orgs/{org}               org.Index.Get (endpoint)     pages/api/orgs/org/index.go:10               api.Guard  pages.Layout
+PUT     /api/orgs/{org}               org.Index.Put (endpoint)     pages/api/orgs/org/index.go:15               api.Guard  pages.Layout
+DELETE  /api/orgs/{org}               org.Index.Delete (endpoint)  pages/api/orgs/org/index.go:17               api.Guard  pages.Layout
+GET     /files/{file...}              file.Index                   pages/files/file/index.go:9                             pages.Layout
+GET     /orgs                         orgs.Index (live)            pages/orgs/index.go:10                                  pages.Layout
+GET     /orgs/new                     orgs.New                     pages/orgs/new.go:9                                     pages.Layout
+POST    /orgs/new                     orgs.New.Post                pages/orgs/new.go:18                                    pages.Layout
+GET     /orgs/{org}                   org.Index                    pages/orgs/org/index.go:11                   org.Guard  pages.Layout, org.Layout
+DELETE  /orgs/{org}                   org.Index.Delete             pages/orgs/org/index.go:20                   org.Guard  pages.Layout, org.Layout
+GET     /orgs/{org}/permits/{permit}  permit.Index (live)          pages/orgs/org/permits/permit/index.vuka:10  org.Guard  pages.Layout, org.Layout
+GET     /orgs/{org}/reset-password    org.ResetPassword            pages/orgs/org/reset_password.go:9           org.Guard  pages.Layout, org.Layout
+GET     /orgs/{org}/team-settings     org.TeamSettings (template)  pages/orgs/org/team-settings.vuka.html:1     org.Guard  pages.Layout, org.Layout

@@ -16,3 +16,7 @@ func (*ResetPassword) Render(ctx context.Context, w io.Writer) error { return ni
 type Store struct{}
 
 func NewStore() *Store { return &Store{} }
+
+// Card is a part of the organisation's pages, not a page: it embeds Params
+// and renders nothing.
+type Card struct{ Params }

@@ -41,8 +41,8 @@ Usage:
 	        replaces it once it compiles, while the old one keeps serving
 	        (-debug keeps the debug information watch builds leave out)
 	vuka routes [-json]
-	        list the folder routes, the pages under pages/: method, path,
-	        page type, file:line and the layouts wrapping each
+	        list the folder routes, the pages and endpoints under pages/:
+	        method, path, type, file:line and the guards and layouts over each
 	vuka build-islands [-watch]
 	        build the islands a module registers (in Go or Vuka) into its
 	        frontend's build, for //go:embed: //go:generate go tool vuka

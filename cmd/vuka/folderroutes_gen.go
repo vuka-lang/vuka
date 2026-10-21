@@ -13,7 +13,8 @@ import (
 )
 
 // generate writes pages/urls/urls_gen.go, the routes_gen.go of each page
-// package with template-only pages, and pages/pages_gen.go; each also when
+// package with template-only pages or constructors vuka declares, and
+// pages/pages_gen.go; each also when
 // one written earlier is on disk, to replace it.
 func (t *routeTree) generate(routes []*folderRoute) []load.Generated {
 	var out []load.Generated
@@ -29,8 +30,12 @@ func (t *routeTree) generate(routes []*folderRoute) []load.Generated {
 				types = append(types, name)
 			}
 		}
-		if len(types) > 0 || fileExists(target) {
-			out = append(out, load.Generated{Target: target, Src: gofmt(routesHeading + "package " + d.name + "\n" + d.templateTypes(types))})
+		var ctors []string
+		if in != nil {
+			ctors = in.ctors
+		}
+		if len(types) > 0 || len(ctors) > 0 || fileExists(target) {
+			out = append(out, load.Generated{Target: target, Src: gofmt(routesHeading + "package " + d.name + "\n" + d.templateTypes(types) + constructors(ctors))})
 		}
 	}
 	if target := filepath.Join(t.root, pagesDirName, pagesGoName); len(routes) > 0 || fileExists(target) {
@@ -212,24 +217,28 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 	for _, r := range sorted {
 		q := qual(r.dir)
 		var opts []string
-		if r.Kind == "handler" {
+		if r.handler != "" {
 			opts = append(opts, web+".Receiver("+q+r.ctor+")")
 		} else {
 			opts = append(opts, web+".PageRoute()")
 		}
-		for _, l := range r.layouts {
-			opts = append(opts, fmt.Sprintf("%s.LayoutOf[%sLayout]()", web, qual(l)))
+		for _, w := range r.wraps {
+			if w.guard {
+				opts = append(opts, fmt.Sprintf("%s.GuardOf[%sGuard]()", web, qual(w.dir)))
+			} else {
+				opts = append(opts, fmt.Sprintf("%s.LayoutOf[%sLayout]()", web, qual(w.dir)))
+			}
 		}
 		call, fn := "Get", q+r.ctor
 		switch {
 		case r.Kind == "live":
 			call = "Live"
-		case r.Kind == "handler":
+		case r.handler != "":
 			call, fn = r.handler, "(*"+q+r.typ+")."+r.handler
 		}
 		fmt.Fprintf(&body, "\t%s.Routes.%s(%q, %s, %s)\n", web, call, r.Path, fn, strings.Join(opts, ", "))
 	}
-	src := routesHeading + "// Every page under pages/, registered with its method handlers and layouts.\n\npackage " + pkgName + "\n\n"
+	src := routesHeading + "// Every page and endpoint under pages/, registered with its guards and layouts.\n\npackage " + pkgName + "\n\n"
 	if len(sorted) == 0 {
 		return gofmt(src)
 	}
