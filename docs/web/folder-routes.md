@@ -469,6 +469,14 @@ to its children, a layout to the pages it wraps, a page in `employer/` to
 the permits below it. Renaming a folder, removing a page or changing a
 parameter's type makes every stale link a compile error.
 
+`pages/urls` belongs to the generator: it is never a page folder, and
+`vuka gen` creates it, empty, when it is missing. Names in a folder's value
+can't meet — a folder `new/` beside a page `New`, a child named `Path` in a
+folder with an `Index`, a child named `Root` at the root are each
+[E0706](/errors/E0706) — and a parameter folder named `path` would be a
+method `Path(…)` beside `Path()`: name such a folder for what it holds, as
+`files/file/` does.
+
 Query parameters are not part of the chain: add them to the path, as in
 `urls.Employers.Path() + "?page=2"`.
 
