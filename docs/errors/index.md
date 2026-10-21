@@ -117,7 +117,7 @@ same page in the terminal.
 | [E0336](./E0336) | A live page hook that doesn't fit |
 | [W0301](./W0301) | A live page routed as a stateless one |
 | [W0302](./W0302) | A live page configured by struct tags |
-| [W0303](./W0303) | A live page hook found by its name |
+| [W0303](./W0303) | A live page loader found by its name |
 | [W0304](./W0304) | A page built without the constructor that declares its hooks |
 | [W0305](./W0305) | A hook declared outside the page's constructor |
 
@@ -178,5 +178,5 @@ same page in the terminal.
 | [E0705](./E0705) | A path parameter's type can't be in a URL |
 | [E0706](./E0706) | A name vuka declares for a page is taken |
 | [E0707](./E0707) | A folder route and a hand-written route share a path |
-| [E0708](./E0708) | A folder's Layout is malformed |
-| [E0709](./E0709) | A page's method handler doesn't fit |
+| [E0708](./E0708) | A folder's Layout or Guard is malformed |
+| [E0709](./E0709) | A method handler doesn't fit |

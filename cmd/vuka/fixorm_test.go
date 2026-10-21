@@ -237,8 +237,9 @@ func main() {
 }
 `
 
-// TestEjectFixesHooks: eject -rm marks the hooks a live page's methods were
-// found by, so the Go it writes declares them in LiveSchema.
+// TestEjectFixesHooks: eject -rm marks the loaders a live page's methods
+// were found by, so the Go it writes declares them in LiveSchema; Mount
+// stays a hook by name.
 func TestEjectFixesHooks(t *testing.T) {
 	root := t.TempDir()
 	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/app\n\ngo 1.24\n"), 0o644)
@@ -248,9 +249,12 @@ func TestEjectFixesHooks(t *testing.T) {
 		t.Fatal(err)
 	}
 	src, _ := os.ReadFile("orders.vuka")
-	for _, want := range []string{"@ui.Defer(\"lists\")", "@ui.Mount\nfunc (o *Orders) Mount(", "@ui.Loads(\"lists\")\nfunc (o *Orders) LoadLists("} {
+	for _, want := range []string{"@ui.Defer(\"lists\")", "@ui.Loads(\"lists\")\nfunc (o *Orders) LoadLists("} {
 		if !strings.Contains(string(src), want) {
 			t.Errorf("missing %q in\n%s", want, src)
 		}
+	}
+	if strings.Contains(string(src), "@ui.Mount") {
+		t.Errorf("Mount marked:\n%s", src)
 	}
 }
