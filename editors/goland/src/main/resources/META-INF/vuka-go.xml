@@ -1,0 +1,5 @@
+<idea-plugin>
+    <extensions defaultExtensionNs="com.intellij">
+        <multiHostInjector implementation="io.github.vukalang.vuka.VukaGoHtmlInjector"/>
+    </extensions>
+</idea-plugin>

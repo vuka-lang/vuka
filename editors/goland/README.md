@@ -9,9 +9,22 @@ and later) for [Vuka](https://vuka-lang.github.io/): `.vuka` files and
   inlay hints and formatting (`vuka fmt`). `vuka lsp` is gopls behind a proxy
   that keeps the Go generated from each `.vuka` file open in gopls, so
   nothing is written to your tree.
-- **Highlighting** of `.vuka` files by the VS Code extension's TextMate
-  grammar (`editors/vscode/syntaxes`), which the build ships with the plugin,
-  with its snippets.
+- **Highlighting** of `.vuka` and `.vuka.html` files by the VS Code
+  extension's TextMate grammars (`editors/vscode/syntaxes`), which the build
+  ships with the plugin.
+- **Closing tags** as you type in `.vuka` files: an opening tag's `>` adds
+  its closing tag, `</` the name of the element still open; Enter after an
+  opening tag indents, and between two tags puts the closer on its own line.
+- **Formatting on save**, by `vuka lsp` (`vuka fmt`).
+- **Live templates** made from the VS Code extension's snippets at build
+  time: `live`, `component`, `matchr`, `matcho`, `jfor`, `jmatch`, `route`,
+  `routet`, `livepage`, `webmain`, `model`, `decorator`, `decoratorp`, `tx`,
+  `static`, `sfunc` and their other names.
+- **HTML in `ui.HTML(`…`)` strings** in `.go` files: highlighting,
+  completion and tag matching.
+- **The Vuka file icons**, and the server in the status bar's Language
+  Services widget, linking to the settings, which show the running
+  `vuka version`.
 - **Vuka: Restart Language Server** in Find Action, after installing a new
   `vuka` or gopls.
 
@@ -42,8 +55,13 @@ The first of:
 2. `go tool vuka`, when the project's `go.mod` declares it as a tool,
 3. `vuka` on `PATH`, then in `$GOBIN`, `$GOPATH/bin` and `~/go/bin`.
 
-The same page sets the gopls binary and whether to share gopls's daemon
-(`-remote=auto`, on by default). Applying restarts the server.
+The same page sets the gopls binary, whether to share gopls's daemon
+(`-remote=auto`, on by default), formatting on save and closing tags (on by
+default). Applying restarts the server.
+
+The messages between the IDE and `vuka lsp` (VS Code's `vuka.trace.server`)
+go to the IDE log with `#com.intellij.platform.lsp` added in **Help |
+Diagnostic Tools | Debug Log Settings**.
 
 ## Templates
 
@@ -65,11 +83,19 @@ settings: saving a `.vuka` or `.vuka.html` file then runs
 start with a `// Code generated` header; commit them, or ignore them in
 `.gitignore`. `vuka gen -inplace -check` in CI reports stale ones.
 
+## Not ported
+
+- Linked editing of a tag's name and its closer's: the IDE's LSP client
+  doesn't ask for linked editing ranges.
+- Making templ's language server use Vuka as its gopls: the templ plugin
+  for JetBrains IDEs has no setting naming the gopls it runs.
+
 ## Build
 
 ```sh
 ./gradlew buildPlugin    # build/distributions/vuka-goland-<version>.zip
 ./gradlew runIde         # a GoLand sandbox with the plugin
+./gradlew test           # the tag-closing tests
 ```
 
 Install the zip with **Settings | Plugins | ⚙ | Install Plugin from Disk**.
@@ -87,7 +113,16 @@ editors/goland/
     VukaCommand.kt                   # which vuka runs, with which flags
     VukaSettings.kt                  # settings and their page
     VukaBundleProvider.kt            # the TextMate bundle
+    VukaHtmlFileTypeOverrider.kt     # .vuka.html files on the Vuka grammar
+    VukaJsx.kt                       # editors/vscode/jsx.js: which tag > or </ closes
+    VukaEditing.kt                   # closing tags, Enter, the live template context
+    VukaFormatOnSave.kt
+    VukaGenOnSave.kt                 # vuka gen -inplace on save, when asked
+    VukaGoHtmlInjector.kt            # HTML in ui.HTML strings (with the Go plugin)
+    VukaIcons.kt
     RestartServerAction.kt
+  buildSrc/                          # snippets/vuka.json → liveTemplates/Vuka.xml
+  src/test/kotlin/…/VukaJsxTest.kt   # editors/vscode/test/jsx.test.mjs's cases
 ```
 
 ## License

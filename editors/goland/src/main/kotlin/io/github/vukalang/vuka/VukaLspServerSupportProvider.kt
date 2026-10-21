@@ -1,10 +1,13 @@
 package io.github.vukalang.vuka
 
 import com.intellij.execution.configurations.GeneralCommandLine
+import com.intellij.execution.process.CapturingProcessHandler
 import com.intellij.openapi.project.Project
 import com.intellij.openapi.vfs.VirtualFile
+import com.intellij.platform.lsp.api.LspServer
 import com.intellij.platform.lsp.api.LspServerSupportProvider
 import com.intellij.platform.lsp.api.ProjectWideLspServerDescriptor
+import com.intellij.platform.lsp.api.lsWidget.LspServerWidgetItem
 
 // isVukaFile reports whether vuka lsp serves file: .vuka files and
 // .vuka.html templates. Go files stay GoLand's own.
@@ -23,6 +26,18 @@ class VukaLspServerSupportProvider : LspServerSupportProvider {
             serverStarter.ensureServerStarted(VukaLspServerDescriptor(project))
         }
     }
+
+    // The server in the status bar's Language Services widget, with the Vuka
+    // icon and a link to its settings, where the running version shows.
+    override fun createLspServerWidgetItem(lspServer: LspServer, currentFile: VirtualFile?): LspServerWidgetItem =
+        LspServerWidgetItem(lspServer, currentFile, VukaIcons.FILE, VukaConfigurable::class.java)
+}
+
+// VukaVersion is what `vuka version` printed when the server last started,
+// and the command it ran: the VS Code extension's language status.
+object VukaVersion {
+    @Volatile
+    var running: String? = null
 }
 
 // VukaLspServerDescriptor is vuka lsp over stdio: gopls behind a proxy that
@@ -35,5 +50,15 @@ class VukaLspServerDescriptor(project: Project) : ProjectWideLspServerDescriptor
     override fun getLanguageId(file: VirtualFile): String =
         if (file.name.endsWith(".vuka.html")) "vuka-html" else "vuka"
 
-    override fun createCommandLine(): GeneralCommandLine = vukaLspCommandLine(project)
+    override fun createCommandLine(): GeneralCommandLine {
+        val command = vukaLspCommandLine(project)
+        VukaVersion.running = try {
+            val version = vukaCommandLine(project, listOf("version"))
+            val output = CapturingProcessHandler(version).runProcess(30_000)
+            "${output.stdout.trim().ifEmpty { "vuka" }} (${version.commandLineString})"
+        } catch (e: Exception) {
+            null
+        }
+        return command
+    }
 }

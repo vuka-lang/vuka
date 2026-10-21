@@ -136,8 +136,10 @@ done once for the whole editor.
 The plugin lives in
 [`editors/goland`](https://github.com/vuka-lang/vuka/tree/main/editors/goland),
 for GoLand and the other JetBrains IDEs with LSP support (2025.1 and later):
-the language server for `.vuka` and `.vuka.html` files, highlighting of
-`.vuka` files by the VS Code extension's grammar, and its snippets. It runs
+the language server for `.vuka` and `.vuka.html` files, highlighting by the
+VS Code extension's grammars, its snippets as live templates, closing JSX
+tags as you type, formatting on save, HTML in `ui.HTML` strings in `.go`
+files, and the Vuka icons. It runs
 `go tool vuka lsp` when `go.mod` declares vuka as a tool, else `vuka lsp`;
 **Settings | Languages & Frameworks | Vuka** sets the binaries. `.vuka.html`
 files are highlighted with the Vuka grammar. GoLand serves `.go` files

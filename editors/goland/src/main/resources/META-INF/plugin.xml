@@ -12,6 +12,12 @@
           inlay hints and formatting through <code>vuka lsp</code></li>
       <li>Highlighting of <code>.vuka</code> and <code>.vuka.html</code> files by the VS Code extension's TextMate grammars</li>
       <li>Optionally, <code>vuka gen -inplace</code> on save, so <code>.go</code> files see what <code>.vuka</code> files declare</li>
+      <li>Closing JSX tags as they are typed, and Enter between tags indenting</li>
+      <li>Formatting on save</li>
+      <li>Live templates: <code>live</code>, <code>component</code>, <code>match</code>, <code>route</code>,
+          <code>livepage</code>, <code>webmain</code>, <code>model</code>, <code>decorator</code>, <code>tx</code>, …</li>
+      <li>HTML in <code>ui.HTML(`…`)</code> strings in <code>.go</code> files</li>
+      <li>The Vuka file icons</li>
       <li>The project's own <code>go tool vuka</code> when <code>go.mod</code> declares it</li>
     </ul>
     Requires <code>vuka</code> (on <code>PATH</code> or as a tool of the module) and gopls.
@@ -20,6 +26,7 @@
     <depends>com.intellij.modules.platform</depends>
     <depends>com.intellij.modules.lsp</depends>
     <depends>org.jetbrains.plugins.textmate</depends>
+    <depends optional="true" config-file="vuka-go.xml">org.jetbrains.plugins.go</depends>
 
     <extensions defaultExtensionNs="com.intellij">
         <platform.lsp.serverSupportProvider implementation="io.github.vukalang.vuka.VukaLspServerSupportProvider"/>
@@ -29,6 +36,12 @@
                                  id="io.github.vukalang.vuka.settings"
                                  displayName="Vuka"/>
         <fileTypeOverrider implementation="io.github.vukalang.vuka.VukaHtmlFileTypeOverrider"/>
+        <fileIconProvider implementation="io.github.vukalang.vuka.VukaIconProvider"/>
+        <typedHandler implementation="io.github.vukalang.vuka.VukaTypedHandler"/>
+        <enterHandlerDelegate implementation="io.github.vukalang.vuka.VukaEnterHandler"/>
+        <fileDocumentManagerListener implementation="io.github.vukalang.vuka.VukaFormatOnSave"/>
+        <liveTemplateContext contextId="VUKA" implementation="io.github.vukalang.vuka.VukaTemplateContextType"/>
+        <defaultLiveTemplates file="/liveTemplates/Vuka.xml"/>
         <notificationGroup id="Vuka" displayType="BALLOON"/>
     </extensions>
 

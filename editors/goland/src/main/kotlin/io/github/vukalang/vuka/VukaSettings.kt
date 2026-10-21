@@ -19,8 +19,9 @@ import com.intellij.ui.dsl.builder.panel
 import com.intellij.util.FileContentUtilCore
 
 // VukaSettings are the IDE-wide settings, the VS Code extension's vuka.path,
-// vuka.goplsPath and vuka.sharedGopls, and the two GoLand needs: how
-// .vuka.html files open, and whether saving a .vuka file writes its Go.
+// vuka.goplsPath, vuka.sharedGopls, vuka.autoCloseTags and formatOnSave,
+// and the two GoLand needs: how .vuka.html files open, and whether saving a
+// .vuka file writes its Go.
 @Service(Service.Level.APP)
 @State(name = "VukaSettings", storages = [Storage("vuka.xml")])
 class VukaSettings : SimplePersistentStateComponent<VukaSettings.Settings>(Settings()) {
@@ -30,6 +31,8 @@ class VukaSettings : SimplePersistentStateComponent<VukaSettings.Settings>(Setti
         var sharedGopls by property(true)
         var templateGrammar by property(true)
         var genOnSave by property(false)
+        var autoCloseTags by property(true)
+        var formatOnSave by property(true)
     }
 
     companion object {
@@ -43,6 +46,9 @@ class VukaConfigurable : BoundConfigurable("Vuka") {
     private val settings get() = VukaSettings.getInstance().state
 
     override fun createPanel(): DialogPanel = panel {
+        row("Running:") {
+            label(VukaVersion.running ?: "not started: open a .vuka file")
+        }
         row("vuka binary:") {
             textField()
                 .columns(COLUMNS_LARGE)
@@ -58,6 +64,15 @@ class VukaConfigurable : BoundConfigurable("Vuka") {
         row {
             checkBox("Share one gopls daemon (gopls -remote=auto)")
                 .bindSelected({ settings.sharedGopls }, { settings.sharedGopls = it })
+        }
+        row {
+            checkBox("Format .vuka and .vuka.html files on save")
+                .bindSelected({ settings.formatOnSave }, { settings.formatOnSave = it })
+        }
+        row {
+            checkBox("Close JSX tags as they are typed")
+                .bindSelected({ settings.autoCloseTags }, { settings.autoCloseTags = it })
+                .comment("An opening tag's &gt; adds its closing tag, and &lt;/ the name of the element still open.")
         }
         row {
             checkBox("Highlight .vuka.html files with the Vuka grammar")
