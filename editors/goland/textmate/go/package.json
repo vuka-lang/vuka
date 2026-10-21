@@ -1,0 +1,20 @@
+{
+  "name": "vuka-go-grammar",
+  "displayName": "Go grammar for Vuka",
+  "description": "VS Code's Go grammar (source.go), which the Vuka grammars include for the Go in .vuka and .vuka.html files. GoLand's own Go support has none. From https://github.com/microsoft/vscode/tree/main/extensions/go, converted from https://github.com/worlpaker/go-syntax.",
+  "license": "MIT",
+  "contributes": {
+    "languages": [
+      {
+        "id": "vuka-go"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "vuka-go",
+        "scopeName": "source.go",
+        "path": "./syntaxes/go.tmLanguage.json"
+      }
+    ]
+  }
+}

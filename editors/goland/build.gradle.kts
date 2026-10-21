@@ -57,5 +57,9 @@ tasks {
             include("package.json", "language-configuration.json", "syntaxes/**", "LICENSE")
             into(intellijPlatform.projectName.map { "$it/textmate/vuka" })
         }
+        // VS Code's Go grammar, which the Vuka grammars include for their Go.
+        from(layout.projectDirectory.dir("textmate/go")) {
+            into(intellijPlatform.projectName.map { "$it/textmate/go" })
+        }
     }
 }
