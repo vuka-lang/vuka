@@ -222,6 +222,9 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 		} else {
 			opts = append(opts, web+".PageRoute()")
 		}
+		for _, m := range r.mws {
+			opts = append(opts, fmt.Sprintf("%s.UseOf(%sMiddleware)", web, qual(m)))
+		}
 		for _, w := range r.wraps {
 			if w.guard {
 				opts = append(opts, fmt.Sprintf("%s.GuardOf[%sGuard]()", web, qual(w.dir)))
@@ -238,7 +241,7 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 		}
 		fmt.Fprintf(&body, "\t%s.Routes.%s(%q, %s, %s)\n", web, call, r.Path, fn, strings.Join(opts, ", "))
 	}
-	src := routesHeading + "// Every page and endpoint under pages/, registered with its guards and layouts.\n\npackage " + pkgName + "\n\n"
+	src := routesHeading + "// Every page and endpoint under pages/, registered with its middleware, guards and layouts.\n\npackage " + pkgName + "\n\n"
 	if len(sorted) == 0 {
 		return gofmt(src)
 	}

@@ -118,6 +118,7 @@ public github.com/vuka-lang/web.Receiver
 public github.com/vuka-lang/web.Rest
 public github.com/vuka-lang/web.Routes
 public github.com/vuka-lang/web.Use
+public github.com/vuka-lang/web.UseOf
 
 public github.com/vuka-lang/ui/validate.Max
 public github.com/vuka-lang/ui/validate.Required

@@ -180,3 +180,4 @@ same page in the terminal.
 | [E0707](./E0707) | A folder route and a hand-written route share a path |
 | [E0708](./E0708) | A folder's Layout or Guard is malformed |
 | [E0709](./E0709) | A method handler doesn't fit |
+| [E0710](./E0710) | A folder's Middleware is malformed |
