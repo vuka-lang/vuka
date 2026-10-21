@@ -166,3 +166,17 @@ same page in the terminal.
 | [E0607](./E0607) | vite.config doesn't use the vuka plugin |
 | [E0608](./E0608) | TypeScript 7 can't build Vue islands |
 | [E0609](./E0609) | The islands have no frontend build to go into |
+
+## Folder routes
+
+| Code | |
+|---|---|
+| [E0701](./E0701) | Two pages on one path |
+| [E0702](./E0702) | Two routes match the same paths |
+| [E0703](./E0703) | Something is below a catch-all folder |
+| [E0704](./E0704) | A parameter folder's Params is malformed |
+| [E0705](./E0705) | A path parameter's type can't be in a URL |
+| [E0706](./E0706) | A name vuka declares for a page is taken |
+| [E0707](./E0707) | A folder route and a hand-written route share a path |
+| [E0708](./E0708) | A folder's Layout is malformed |
+| [E0709](./E0709) | A page's method handler doesn't fit |

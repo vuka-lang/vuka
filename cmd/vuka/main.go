@@ -40,6 +40,9 @@ Usage:
 	        run the app and rebuild it when a source changes: the new build
 	        replaces it once it compiles, while the old one keeps serving
 	        (-debug keeps the debug information watch builds leave out)
+	vuka routes [-json]
+	        list the folder routes, the pages under pages/: method, path,
+	        page type, file:line and the layouts wrapping each
 	vuka build-islands [-watch]
 	        build the islands a module registers (in Go or Vuka) into its
 	        frontend's build, for //go:embed: //go:generate go tool vuka
@@ -116,6 +119,8 @@ func main() {
 		err = add(os.Args[2:], os.Stdout)
 	case "gen":
 		err = gen(os.Args[2:], os.Stdout)
+	case "routes":
+		err = routesCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "build-islands":
 		err = buildIslands(os.Args[2:], os.Stdout, os.Stderr)
 	case "eject":
@@ -208,12 +213,19 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	defer os.RemoveAll(tmp)
+	routes := scanRoutes(root, modPath, nil)
+	if pkgs, err = routes.stub(pkgs); err != nil {
+		return err
+	}
 	var gens []load.Generated
 	var overlay string
 	if len(pkgs) > 0 {
 		if gens, overlay, err = cachedTranspile(root)(pkgs, tmp, loadOptions(pa)); err != nil {
 			return err
 		}
+	}
+	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
+		return err
 	}
 	var linkMsg string
 	if overlay, gens, linkMsg, err = autoLink(root, modPath, tmp, overlay, pkgs, gens); err != nil {
@@ -498,10 +510,18 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		// the templates written apart get their scope as they compile
 		opts.Scopes = nil
 	}
+	routes := scanRoutes(root, modPath, nil)
+	if pkgs, err = routes.stub(pkgs); err != nil {
+		return "", nil, err
+	}
 	files, overlay, err := load.Transpile(pkgs, tmp, opts)
 	if err != nil {
 		return "", nil, err
 	}
+	if files, overlay, err = routes.apply(files, overlay, tmp); err != nil {
+		return "", nil, err
+	}
+	routeFiles := routes.files()
 	// The link files need the whole module's declarer packages, so they are
 	// written (and checked) only when the gen covers the module; a narrower
 	// gen leaves them as they are.
@@ -520,8 +540,10 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		return "", nil, fmt.Errorf("the models' typed fields: %w", err)
 	}
 	calls := newGens(files, goCallAdapters(root))
-	files = slices.DeleteFunc(files, func(g load.Generated) bool { return !dirs[filepath.Dir(g.Target)] })
-	for _, g := range append(append(append(links, css...), fields...), calls...) {
+	files = slices.DeleteFunc(files, func(g load.Generated) bool {
+		return !dirs[filepath.Dir(g.Target)] || slices.ContainsFunc(routeFiles, func(r load.Generated) bool { return r.Target == g.Target })
+	})
+	for _, g := range append(append(append(append(links, css...), fields...), calls...), routeFiles...) {
 		if slices.ContainsFunc(patterns, func(p string) bool { return inPattern(filepath.Dir(g.Target), p) }) {
 			files = append(files, g)
 		}
@@ -602,8 +624,15 @@ func genModule(out string, check bool, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
+	routes := scanRoutes(root, modPath, nil)
+	if pkgs, err = routes.stub(pkgs); err != nil {
+		return err
+	}
 	gens, overlay, err := cachedTranspile(root)(pkgs, tmp, loadOptions(pa))
 	if err != nil {
+		return err
+	}
+	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err
 	}
 	links, _, err := load.AutoLink(root, modPath, pkgs, gens)

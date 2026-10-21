@@ -1,0 +1,12 @@
+METHOD  PATH                          PAGE                         FILE                                         LAYOUTS
+GET     /                             pages.Index                  pages/index.go:11                            pages.Layout
+GET     /about                        pages.About (template)       pages/about.vuka.html:1                      pages.Layout
+GET     /files/{file...}              file.Index                   pages/files/file/index.go:9                  pages.Layout
+GET     /orgs                         orgs.Index (live)            pages/orgs/index.go:10                       pages.Layout
+GET     /orgs/new                     orgs.New                     pages/orgs/new.go:9                          pages.Layout
+POST    /orgs/new                     orgs.New.Post                pages/orgs/new.go:18                         pages.Layout
+GET     /orgs/{org}                   org.Index                    pages/orgs/org/index.go:11                   pages.Layout, org.Layout
+DELETE  /orgs/{org}                   org.Index.Delete             pages/orgs/org/index.go:20                   pages.Layout, org.Layout
+GET     /orgs/{org}/permits/{permit}  permit.Index (live)          pages/orgs/org/permits/permit/index.vuka:10  pages.Layout, org.Layout
+GET     /orgs/{org}/reset-password    org.ResetPassword            pages/orgs/org/reset_password.go:9           pages.Layout, org.Layout
+GET     /orgs/{org}/team-settings     org.TeamSettings (template)  pages/orgs/org/team-settings.vuka.html:1     pages.Layout, org.Layout

@@ -244,6 +244,10 @@ func (p *proxy) build() {
 		p.logf("discover: %v", err)
 		return
 	}
+	routes := scanRoutes(modRoot, modPath, read)
+	if pkgs, err = routes.stub(pkgs); err != nil {
+		p.logf("folder routes: %v", err)
+	}
 	decos := findDecorators(modRoot, modPath, read)
 	p.mu.Lock()
 	p.decos = decos
@@ -259,14 +263,26 @@ func (p *proxy) build() {
 	if p.sess != nil {
 		transpileAll = p.sess.Transpile
 	}
-	run := func(pkgs []*load.Package, opts load.Options) ([]load.Generated, transpile.ErrorList, error) {
-		gens, _, err := transpileAll(pkgs, p.tmp, opts)
+	run := func(pkgs []*load.Package, opts load.Options, module bool) ([]load.Generated, transpile.ErrorList, error) {
+		gens, overlay, err := transpileAll(pkgs, p.tmp, opts)
 		var list transpile.ErrorList
 		if err != nil && !errors.As(err, &list) {
 			if !errors.Is(err, load.ErrStopped) {
 				p.logf("transpile: %v", err)
 			}
 			return gens, nil, err
+		}
+		if !module {
+			// gopls keeps the route files of the last build of the module.
+			return withoutStubs(gens), list, nil
+		}
+		if g, _, res, err := routes.finish(gens, overlay, p.tmp); err != nil {
+			p.logf("folder routes: %v", err)
+		} else {
+			gens = g
+			if err := res.err(); err != nil {
+				p.logf("folder routes: %v", err)
+			}
 		}
 		return gens, list, nil
 	}
@@ -283,7 +299,7 @@ func (p *proxy) build() {
 	}
 	first := load.Closure(pkgs, roots)
 	if len(first) > 0 && len(first) < len(pkgs) {
-		gens, list, err := run(first, load.Options{Bare: true})
+		gens, list, err := run(first, load.Options{Bare: true}, false)
 		if err != nil {
 			return
 		}
@@ -299,7 +315,7 @@ func (p *proxy) build() {
 	if first != nil || len(edited) == 0 {
 		opts.Stop = p.preempt.Load
 	}
-	gens, list, err := run(pkgs, opts)
+	gens, list, err := run(pkgs, opts, true)
 	if err != nil {
 		if errors.Is(err, load.ErrStopped) {
 			p.logf("stopped for a newer edit")
