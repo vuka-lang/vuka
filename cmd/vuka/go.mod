@@ -6,10 +6,10 @@ require (
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e
 	github.com/a-h/templ v0.3.1020
 	github.com/evanw/esbuild v0.28.2
-	github.com/vuka-lang/vuka v1.1.0
+	github.com/vuka-lang/vuka v1.2.0
 )
 
 require (
-	github.com/vuka-lang/ui v1.1.0
+	github.com/vuka-lang/ui v1.2.0
 	golang.org/x/sys v0.41.0
 )
