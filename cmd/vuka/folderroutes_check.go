@@ -18,22 +18,29 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-// folderRoute is one route of the table: a page, or one of its method
-// handlers.
+// folderRoute is one route of the table: a page, one of its method
+// handlers, or a method of an endpoint.
 type folderRoute struct {
 	Method  string   `json:"method"`
 	Path    string   `json:"path"`
 	Page    string   `json:"page"` // employer.Edit
-	Kind    string   `json:"kind"` // live, page, template or handler
+	Kind    string   `json:"kind"` // live, page, template, handler or endpoint
 	File    string   `json:"file"`
 	Line    int      `json:"line"`
+	Guards  []string `json:"guards,omitempty"`
 	Layouts []string `json:"layouts,omitempty"`
 
 	dir     *routeDir
 	typ     string // the page's type
 	ctor    string // its constructor
-	handler string // the method, for a handler
-	layouts []*routeDir
+	handler string // the method, for a handler or an endpoint
+	wraps   []wrap
+}
+
+// wrap is a guard or a layout over a folder's routes.
+type wrap struct {
+	dir   *routeDir
+	guard bool
 }
 
 // dirInfo is what the type-checked package of a page directory makes it.
@@ -44,10 +51,10 @@ type dirInfo struct {
 	rest    bool       // its parameter is web.Rest
 	param   bool       // it is a parameter folder
 	paramAt token.Pos  // its Params
-	layout  bool
-	layouts []*routeDir // the layouts wrapping its pages, outermost first
-	pages   []string    // its pages' types, sorted
-	broken  bool        // its Params or Layout has an error: no routes
+	wraps   []wrap     // the guards and layouts over its routes, outermost first
+	pages   []string   // its pages' and endpoints' types, sorted
+	ctors   []string   // those whose constructors vuka declares, sorted
+	broken  bool       // its Params, Guard or Layout has an error: no routes
 }
 
 // urlParam is a path parameter, as a URL function takes it.
@@ -220,7 +227,7 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 	// The folders between the parent's and this one are plain segments.
 	from := ""
 	if parent != nil {
-		in.segs, in.params, in.layouts = slices.Clone(pin.segs), slices.Clone(pin.params), slices.Clone(pin.layouts)
+		in.segs, in.params, in.wraps = slices.Clone(pin.segs), slices.Clone(pin.params), slices.Clone(pin.wraps)
 		in.broken = pin.broken
 		from = parent.rel
 	}
@@ -258,10 +265,16 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 	} else if folder != "" {
 		in.segs = append(in.segs, folder)
 	}
+	if obj, ok := pkg.Scope().Lookup("Guard").(*types.TypeName); ok {
+		if c.guard(obj) {
+			in.wraps = append(in.wraps, wrap{d, true})
+		} else {
+			in.broken = true
+		}
+	}
 	if obj, ok := pkg.Scope().Lookup("Layout").(*types.TypeName); ok {
 		if c.layout(obj) {
-			in.layout = true
-			in.layouts = append(in.layouts, d)
+			in.wraps = append(in.wraps, wrap{d, false})
 		} else {
 			in.broken = true
 		}
@@ -414,6 +427,28 @@ func (c *routeChecker) layout(obj *types.TypeName) bool {
 	return true
 }
 
+// guard checks a folder's Guard: a struct with Load(ctx, deps…) error.
+func (c *routeChecker) guard(obj *types.TypeName) bool {
+	bad := func(p token.Pos, format string, args ...any) bool {
+		c.report(diag.New("E0708", "%s.Guard "+format, append([]any{obj.Pkg().Name()}, args...)...), p).
+			WithHelp("declare type Guard struct{ … } with Load(ctx context.Context, deps…) error")
+		return false
+	}
+	if _, ok := obj.Type().Underlying().(*types.Struct); !ok || obj.IsAlias() {
+		return bad(obj.Pos(), "isn't a struct")
+	}
+	sel := types.NewMethodSet(types.NewPointer(obj.Type())).Lookup(nil, "Load")
+	if sel == nil {
+		return bad(obj.Pos(), "has no Load method: it checks nothing")
+	}
+	sig := sel.Obj().Type().(*types.Signature)
+	if sig.Params().Len() == 0 || !isContext(sig.Params().At(0).Type()) || sig.Variadic() ||
+		sig.Results().Len() != 1 || !isError(sig.Results().At(0).Type()) {
+		return bad(sel.Obj().Pos(), "has a Load method of type %s", types.TypeString(sig, types.RelativeTo(obj.Pkg())))
+	}
+	return true
+}
+
 // isNode reports whether t or *t renders: a ui.Node, or Render() / View()
 // giving one.
 func (c *routeChecker) isNode(t types.Type) bool {
@@ -453,7 +488,7 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 	scope := in.pkg.Scope()
 	for _, name := range scope.Names() {
 		obj, ok := scope.Lookup(name).(*types.TypeName)
-		if !ok || !obj.Exported() || obj.IsAlias() || name == "Layout" || name == "Params" {
+		if !ok || !obj.Exported() || obj.IsAlias() || name == "Layout" || name == "Params" || name == "Guard" {
 			continue
 		}
 		named, ok := obj.Type().(*types.Named)
@@ -471,19 +506,30 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			continue
 		}
 		live := c.isLive(named)
-		if !live && !c.isNode(named) {
+		ms := types.NewMethodSet(types.NewPointer(named))
+		var methods []*types.Func // its own Get, Post, Put, Patch and Delete
+		for _, m := range append([]string{"Get"}, handlerMethods...) {
+			if sel := ms.Lookup(nil, m); sel != nil && len(sel.Index()) == 1 {
+				methods = append(methods, sel.Obj().(*types.Func))
+			}
+		}
+		page := live || c.isNode(named)
+		if !page && len(methods) == 0 {
 			continue
 		}
 		seg := ""
 		if name != "Index" {
 			seg = kebab(name)
 			if in.rest {
-				c.report(diag.New("E0703", "%s.%s: a page below the catch-all parameter {%s...}", d.name, name, in.params[len(in.params)-1].name), obj.Pos()).
+				c.report(diag.New("E0703", "%s.%s: a route below the catch-all parameter {%s...}", d.name, name, in.params[len(in.params)-1].name), obj.Pos()).
 					WithHelp("a catch-all folder serves its Index alone: move %s up a folder", name)
 				continue
 			}
 		}
 		in.pages = append(in.pages, name)
+		if generatedRoutesFile(c.r.fset, ctor.Pos()) && !slices.Contains(d.templates, name) {
+			in.ctors = append(in.ctors, name)
+		}
 		if in.broken {
 			continue
 		}
@@ -492,26 +538,38 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			segs = append(slices.Clone(segs), seg)
 		}
 		path := "/" + strings.Join(segs, "/")
+		var guards, layouts []string
+		for _, w := range in.wraps {
+			if w.guard {
+				guards = append(guards, w.dir.name+".Guard")
+			} else {
+				layouts = append(layouts, w.dir.name+".Layout")
+			}
+		}
+		if !page {
+			for _, fn := range methods {
+				if !c.handler(name, fn) {
+					continue
+				}
+				hp := c.r.fset.Position(fn.Pos())
+				c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(fn.Name()), Path: path, Page: d.name + "." + name + "." + fn.Name(),
+					Kind: "endpoint", File: hp.Filename, Line: hp.Line, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name,
+					handler: fn.Name(), wraps: in.wraps})
+			}
+			continue
+		}
 		pos := c.r.fset.Position(obj.Pos())
 		r := &folderRoute{Method: "GET", Path: path, Page: d.name + "." + name, Kind: "page", File: pos.Filename, Line: pos.Line,
-			dir: d, typ: name, ctor: "New" + name, layouts: in.layouts}
+			Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name, wraps: in.wraps}
 		switch {
 		case live:
 			r.Kind = "live"
 		case slices.Contains(d.templates, name) && generatedRoutesFile(c.r.fset, obj.Pos()):
 			r.Kind, r.File, r.Line = "template", filepath.Join(d.dir, d.templateFiles[slices.Index(d.templates, name)]), 1
 		}
-		for _, l := range in.layouts {
-			r.Layouts = append(r.Layouts, l.name+".Layout")
-		}
 		c.res.routes = append(c.res.routes, r)
-		ms := types.NewMethodSet(types.NewPointer(named))
-		for _, m := range append([]string{"Get"}, handlerMethods...) {
-			sel := ms.Lookup(nil, m)
-			if sel == nil || len(sel.Index()) != 1 {
-				continue
-			}
-			fn := sel.Obj().(*types.Func)
+		for _, fn := range methods {
+			m := fn.Name()
 			if m == "Get" {
 				c.report(diag.New("E0709", "%s.Get: a page's GET is the page itself", name), fn.Pos()).
 					WithHelp("rename the method: Post, Put, Patch and Delete handle those methods on the page's path")
@@ -522,7 +580,7 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			}
 			hp := c.r.fset.Position(fn.Pos())
 			c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(m), Path: path, Page: r.Page + "." + m, Kind: "handler",
-				File: hp.Filename, Line: hp.Line, Layouts: r.Layouts, dir: d, typ: name, ctor: r.ctor, handler: m, layouts: in.layouts})
+				File: hp.Filename, Line: hp.Line, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: r.ctor, handler: m, wraps: in.wraps})
 		}
 	}
 }

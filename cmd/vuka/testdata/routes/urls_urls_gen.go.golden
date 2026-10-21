@@ -19,6 +19,7 @@ var Root = newRootURL("")
 // The folders and pages of pages/.
 var (
 	About = Root.About
+	Api   = Root.Api
 	Files = Root.Files
 	Orgs  = Root.Orgs
 )
@@ -32,6 +33,7 @@ func (p pageURL) Path() string { return p.path }
 // rootURL is the folder pages/.
 type rootURL struct {
 	path  string
+	Api   apiURL
 	Files filesURL
 	Orgs  orgsURL
 	About pageURL
@@ -40,6 +42,7 @@ type rootURL struct {
 func newRootURL(path string) rootURL {
 	return rootURL{
 		path:  path,
+		Api:   newApiURL(path + "/api"),
 		Files: newFilesURL(path + "/files"),
 		Orgs:  newOrgsURL(path + "/orgs"),
 		About: pageURL{path + "/about"},
@@ -48,6 +51,44 @@ func newRootURL(path string) rootURL {
 
 // Path is the path of pages/index.
 func (u rootURL) Path() string { return "/" }
+
+// apiURL is the folder pages/api/.
+type apiURL struct {
+	path string
+	Orgs apiOrgsURL
+}
+
+func newApiURL(path string) apiURL {
+	return apiURL{
+		path: path,
+		Orgs: newApiOrgsURL(path + "/orgs"),
+	}
+}
+
+// apiOrgsURL is the folder pages/api/orgs/.
+type apiOrgsURL struct {
+	path string
+}
+
+func newApiOrgsURL(path string) apiOrgsURL { return apiOrgsURL{path: path} }
+
+// Path is the path of pages/api/orgs/index.
+func (u apiOrgsURL) Path() string { return u.path }
+
+// Org is the folder pages/api/orgs/org/, for its parameter.
+func (u apiOrgsURL) Org(org int) apiOrgsOrgURL {
+	return newApiOrgsOrgURL(u.path + "/" + strconv.Itoa(org))
+}
+
+// apiOrgsOrgURL is the folder pages/api/orgs/org/.
+type apiOrgsOrgURL struct {
+	path string
+}
+
+func newApiOrgsOrgURL(path string) apiOrgsOrgURL { return apiOrgsOrgURL{path: path} }
+
+// Path is the path of pages/api/orgs/org/index.
+func (u apiOrgsOrgURL) Path() string { return u.path }
 
 // filesURL is the folder pages/files/.
 type filesURL struct {

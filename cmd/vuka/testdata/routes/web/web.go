@@ -23,3 +23,4 @@ type Rest string
 func PageRoute() RouteOption        { return option{} }
 func LayoutOf[T any]() RouteOption  { return option{} }
 func Receiver(ctor any) RouteOption { return option{} }
+func GuardOf[T any]() RouteOption   { return option{} }

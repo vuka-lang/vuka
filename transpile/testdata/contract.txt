@@ -110,6 +110,7 @@ public github.com/vuka-lang/ui.UsePageState
 public github.com/vuka-lang/ui.UseState
 public github.com/vuka-lang/ui.Visible
 public github.com/vuka-lang/ui.WithChildren
+public github.com/vuka-lang/web.GuardOf
 public github.com/vuka-lang/web.LayoutOf
 public github.com/vuka-lang/web.PageRoute
 public github.com/vuka-lang/web.Params

@@ -189,9 +189,10 @@ func (c *routeChecker) urlTree() *urlNode {
 		}
 		n := root.at(r.dir.rel)
 		n.dir = r.dir
-		if r.typ == "Index" {
+		switch {
+		case r.typ == "Index":
 			n.index = true
-		} else {
+		case !slices.Contains(n.pages, r.typ):
 			n.pages = append(n.pages, r.typ)
 		}
 	}
