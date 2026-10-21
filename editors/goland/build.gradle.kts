@@ -37,9 +37,10 @@ intellijPlatform {
 }
 
 // The highlighting and the snippets are the VS Code extension's, read from
-// editors/vscode, not copied: the plugin ships its grammars as a TextMate
-// bundle in its folder (textmate/vuka), which VukaBundleProvider hands to the
-// IDE, and its snippets as live templates.
+// editors/vscode, not copied: the plugin ships its grammars in its jar as
+// TextMate bundles (textmate/vuka, and textmate/go, VS Code's Go grammar,
+// which the Vuka grammars include for their Go), which VukaBundleProvider
+// unpacks and hands to the IDE, and its snippets as live templates.
 val vscode = layout.projectDirectory.dir("../vscode")
 
 val liveTemplates by tasks.registering(LiveTemplates::class) {
@@ -52,14 +53,13 @@ sourceSets.main {
 }
 
 tasks {
-    prepareSandbox {
+    processResources {
         from(vscode) {
             include("package.json", "language-configuration.json", "syntaxes/**", "LICENSE")
-            into(intellijPlatform.projectName.map { "$it/textmate/vuka" })
+            into("textmate/vuka")
         }
-        // VS Code's Go grammar, which the Vuka grammars include for their Go.
-        from(layout.projectDirectory.dir("textmate/go")) {
-            into(intellijPlatform.projectName.map { "$it/textmate/go" })
+        from(layout.projectDirectory.dir("textmate")) {
+            into("textmate")
         }
     }
 }
