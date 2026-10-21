@@ -3,6 +3,7 @@ package transpile
 import (
 	"go/ast"
 	"go/parser"
+	"go/scanner"
 	"go/token"
 	"go/types"
 	"regexp"
@@ -313,6 +314,17 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	var ins []insertion
 	add := func(at int, text string) { ins = append(ins, insertion{at, text}) }
 	contentEnd := func(i int) int { return off[i] + len(strings.TrimRight(lines[i], " \t\r\n")) }
+	contextual := false
+	closeBody := "</> }"
+	openBody := func(withContext bool) string {
+		closeBody = "</> }"
+		if !withContext {
+			return " { return <>"
+		}
+		contextual = true
+		closeBody = "</> }) }"
+		return " { return " + ui + "Ctx(func(ctx context.Context) " + ui + "Node { return <>"
+	}
 	// body closes the template whose markup is lines[from:to], returning
 	// where its function ends.
 	body := func(from, to int) int {
@@ -323,10 +335,10 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			}
 		}
 		if last < 0 {
-			add(contentEnd(from-1), "</> }") // the header opened the fragment
+			add(contentEnd(from-1), closeBody) // the header opened the fragment
 			return contentEnd(from - 1)
 		}
-		add(contentEnd(last), "</> }")
+		add(contentEnd(last), closeBody)
 		return contentEnd(last)
 	}
 	// A struct component's View is its markup; the component is a ui.Node,
@@ -340,13 +352,13 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		add(at, "\n\nfunc ("+recv+" "+typ+") Render(ctx context.Context, "+w+" io.Writer) error { return "+recv+".View().Render(ctx, "+w+") }")
 		nodeMethod = true
 	}
-	header := func(i int) {
+	header := func(i, end int) {
 		l := strings.TrimRight(lines[i], " \t\r\n")
 		res := " " + ui + "Node"
 		if strings.HasSuffix(l, "ui.Node") || strings.HasSuffix(l, " Node") {
 			res = ""
 		}
-		add(contentEnd(i), res+" { return <>")
+		add(contentEnd(i), res+openBody(templateReadsContext([]byte(strings.Join(lines[i+1:end], "")), l)))
 	}
 	firstEnd := len(lines)
 	if len(heads) > 0 {
@@ -416,7 +428,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if live {
 			method = "Render"
 		}
-		open := "func (" + recv + " " + star + typ + ") " + method + "() " + ui + "Node { return <>"
+		open := "func (" + recv + " " + star + typ + ") " + method + "() " + ui + "Node" + openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), ""))
 		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
 			open += "\n" // a statement starts its line
 		}
@@ -430,7 +442,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		end := contentEnd(first)
 		if strings.TrimSpace(strings.Join(lines[first+1:firstEnd], "")) == "" {
-			add(end, "</> }")
+			add(end, closeBody)
 		} else {
 			end = body(first+1, firstEnd)
 		}
@@ -443,7 +455,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if k+1 < len(heads) {
 			end = docStart(heads[k+1])
 		}
-		header(hd)
+		header(hd, end)
 		if v := propsOf(lines[hd]); v != "" {
 			for _, a := range assets {
 				if a.Script && a.Line > hd && a.Line <= end {
@@ -475,8 +487,12 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			named[imp.name] = true
 		}
 	}
-	if nodeMethod {
-		for _, std := range []string{"context", "io"} {
+	if nodeMethod || contextual {
+		stds := []string{"context"}
+		if nodeMethod {
+			stds = append(stds, "io")
+		}
+		for _, std := range stds {
 			if !own[std] && !named[std] {
 				imps = append(imps, std+" "+strconv.Quote(std))
 			}
@@ -503,6 +519,50 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	b.WriteString(blanked[last:])
 	return []byte(b.String()), h, assets, nil
+}
+
+// templateReadsContext identifies an implicit ctx read in Go expressions,
+// ignoring text, string literals, selectors and explicitly bound contexts.
+func templateReadsContext(src []byte, header string) bool {
+	if header != "" {
+		f, _ := parser.ParseFile(token.NewFileSet(), "", "package p\n"+header+" {}", 0)
+		if f != nil {
+			for _, decl := range f.Decls {
+				if fn, ok := decl.(*ast.FuncDecl); ok {
+					for _, fields := range []*ast.FieldList{fn.Recv, fn.Type.Params} {
+						if fields == nil {
+							continue
+						}
+						for _, field := range fields.List {
+							for _, name := range field.Names {
+								if name.Name == "ctx" {
+									return false
+								}
+							}
+						}
+					}
+				}
+			}
+		}
+	}
+	body := goParts(src)
+	if regexp.MustCompile(`(?m)^\s*(?:ctx\s*:=|var\s+ctx\b)`).Match(src) {
+		return false
+	}
+	var scan scanner.Scanner
+	fs := token.NewFileSet()
+	scan.Init(fs.AddFile("", -1, len(body)), []byte(body), nil, 0)
+	prev := token.ILLEGAL
+	for {
+		_, tok, lit := scan.Scan()
+		if tok == token.EOF {
+			return false
+		}
+		if tok == token.IDENT && lit == "ctx" && prev != token.PERIOD {
+			return true
+		}
+		prev = tok
+	}
 }
 
 // insertion is text a template file compiles with, inserted at a src

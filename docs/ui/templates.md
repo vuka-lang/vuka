@@ -416,3 +416,41 @@ declaration it is in (`cardHead`), or after the declaration (`cardView`);
 markup inside a hole's Go, `{wrap(<b/>)}`, after its tag (`cardB`). A
 `{match}` on values is a `switch`; markup that binds patterns, a generic
 function's, or one with a component script stays in the `.vuka`.
+
+## Render context
+
+A template can read `ctx`, the `context.Context` of its current render,
+without storing it on the page or passing it through every component:
+
+```html
+package dashboard
+
+import "github.com/vuka-lang/web/auth"
+
+me := auth.Current(ctx)
+if me != nil && me.Can("view_analytics") {
+  <p>Analytics</p>
+}
+```
+
+This works in the file's main markup, struct views and named helper
+templates. Existing explicit `ctx` parameters keep their meaning. The
+compiler wraps markup that reads the implicit context in `ui.Ctx`; its
+body runs at render time, with the HTTP request or live session's current
+context. Templates that do not read it keep their existing lowering.
+The context is not a component prop and is not sent to the browser.
+
+Keep rendering free of writes and expensive database work: fetch data in
+`Mount`, loaders or handlers. Context-sensitive live output is rendered
+again even when its props and Assigns have not changed. This avoids
+reusing output after a context-dependent permission or locale changes;
+it does not refresh an application's authentication store by itself.
+
+Templates are trusted Go application code, not a sandbox for user-supplied
+markup. Never print tokens or other secret context values, put context in
+browser props, or share personalized output through a global cache.
+Permission checks in a template control presentation only: guards and
+handlers must authorize every protected action on the server. Live
+applications must also refresh or invalidate identities using their auth
+layer when permissions change. Preserve request cancellation and deadlines;
+do not save the render context in globals or long-lived component fields.

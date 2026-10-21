@@ -1,0 +1,25 @@
+package main
+
+name := ctx.Value(userKey{}).(string)
+<main>
+ <h1>{Title}</h1>
+ <p>{name}</p>
+ <Card title="Identity" />
+ <UserBadge />
+ {Explicit(ctx)}
+ <LocalName />
+ <LiteralName />
+</main>
+
+func UserBadge()
+<b>{ctx.Value(userKey{}).(string)}</b>
+
+func Explicit(ctx context.Context)
+<i>{ctx.Value(userKey{}).(string)}</i>
+
+func LocalName()
+ctx := "local"
+<small>{ctx}</small>
+
+func LiteralName()
+<small>{"ctx"}</small>

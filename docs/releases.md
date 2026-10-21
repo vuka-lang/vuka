@@ -19,6 +19,21 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v1.4.0 — 2026-10-22
+
+- Templates can read the current render's `ctx` in main markup, struct
+  views and helper templates, without retaining a request on the component.
+  Existing explicit context parameters and `Render()` methods remain
+  compatible. The compiler uses `ui.Ctx`, preserving HTML escaping and
+  live frame trees ([Render context](/ui/templates#render-context)).
+- Live components that read context are rendered again instead of reusing
+  output solely because their props and Assigns are unchanged. Permission
+  and identity refresh remains the auth layer's responsibility; handlers
+  still authorize protected actions server-side.
+- Regression coverage: per-user output, escaping, cancellation, implicit
+  and explicit context, and context-dependent live updates in both HTML
+  and tree protocols.
+
 ## v1.3.0 — 2026-10-21
 
 - Middleware in folder routes: a `middleware.go` declaring `Middleware` —
