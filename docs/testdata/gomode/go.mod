@@ -23,7 +23,7 @@ require (
 	github.com/vuka-lang/orm v1.0.0 // indirect
 	github.com/vuka-lang/ui v1.0.1-0.20261020190333-83b5388abf75 // indirect
 	github.com/vuka-lang/vuka v1.0.0 // indirect
-	github.com/vuka-lang/web v1.0.0 // indirect
+	github.com/vuka-lang/web v1.0.1-0.20261021025925-49fe1175944b // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
