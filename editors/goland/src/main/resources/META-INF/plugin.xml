@@ -1,0 +1,39 @@
+<idea-plugin>
+    <id>io.github.vuka-lang.vuka</id>
+    <name>Vuka</name>
+    <vendor url="https://github.com/vuka-lang/vuka">vuka-lang</vendor>
+
+    <description><![CDATA[
+    Language support for <a href="https://vuka-lang.github.io/">Vuka</a> in GoLand and the other
+    JetBrains IDEs with LSP support: <code>.vuka</code> files (Go with Result, Option, <code>?</code>,
+    <code>match</code>, decorators and JSX) and <code>.vuka.html</code> templates.
+    <ul>
+      <li>Completion, hover, go to definition, references, rename, diagnostics, code actions,
+          inlay hints and formatting through <code>vuka lsp</code></li>
+      <li>Highlighting of <code>.vuka</code> files by the VS Code extension's TextMate grammar</li>
+      <li>The project's own <code>go tool vuka</code> when <code>go.mod</code> declares it</li>
+    </ul>
+    Requires <code>vuka</code> (on <code>PATH</code> or as a tool of the module) and gopls.
+    ]]></description>
+
+    <depends>com.intellij.modules.platform</depends>
+    <depends>com.intellij.modules.lsp</depends>
+    <depends>org.jetbrains.plugins.textmate</depends>
+
+    <extensions defaultExtensionNs="com.intellij">
+        <platform.lsp.serverSupportProvider implementation="io.github.vukalang.vuka.VukaLspServerSupportProvider"/>
+        <textmate.bundleProvider implementation="io.github.vukalang.vuka.VukaBundleProvider"/>
+        <applicationConfigurable parentId="language"
+                                 instance="io.github.vukalang.vuka.VukaConfigurable"
+                                 id="io.github.vukalang.vuka.settings"
+                                 displayName="Vuka"/>
+        <notificationGroup id="Vuka" displayType="BALLOON"/>
+    </extensions>
+
+    <actions>
+        <action id="Vuka.RestartServer"
+                class="io.github.vukalang.vuka.RestartServerAction"
+                text="Vuka: Restart Language Server"
+                description="Stop vuka lsp and start it again"/>
+    </actions>
+</idea-plugin>
