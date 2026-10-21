@@ -19,7 +19,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v1.3.0 — unreleased
+## v1.3.0 — 2026-10-21
 
 - Middleware in folder routes: a `middleware.go` declaring `Middleware` —
   `func(next http.Handler) http.Handler`, or `func(deps…) web.Middleware`
