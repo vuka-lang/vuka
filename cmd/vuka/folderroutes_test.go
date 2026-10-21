@@ -197,6 +197,10 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0701", "pages/orgs/new/index.go:9"},
 		{"an endpoint's scalar parameter", map[string]string{"pages/api/orgs/org/index.go": "package org\n\nimport \"context\"\n\ntype Index struct{ Params }\n\nfunc NewIndex() *Index { return nil }\n\nfunc (*Index) Get(ctx context.Context, id int) error { return nil }\n"},
 			"E0709", "pages/api/orgs/org/index.go:9"},
+		{"a middleware's signature", map[string]string{"pages/orgs/middleware.go": "package orgs\n\nimport \"net/http\"\n\nfunc Middleware(next http.Handler) error { return nil }\n"},
+			"E0710", "pages/orgs/middleware.go:5"},
+		{"a middleware constructor's dependency", map[string]string{"pages/api/middleware.go": "package api\n\nimport (\n\t\"net/http\"\n\n\t\"github.com/vuka-lang/web\"\n)\n\nfunc Middleware(n int) web.Middleware {\n\treturn func(next http.Handler) http.Handler { return next }\n}\n"},
+			"E0710", "pages/api/middleware.go:9"},
 		{"a Get method", map[string]string{"pages/orgs/get.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Get(ctx context.Context) error { return nil }\n"},
 			"E0709", "pages/orgs/get.go:5"},
 		{"a scalar handler parameter", map[string]string{"pages/orgs/put.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Put(ctx context.Context, name string) error { return nil }\n"},
@@ -232,7 +236,7 @@ func generatedProblems(src []byte) []string {
 		for _, part := range strings.Split(string(src), sel)[1:] {
 			name := part[:strings.IndexFunc(part, func(r rune) bool { return !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') })]
 			switch sel + name {
-			case "web.Routes", "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf":
+			case "web.Routes", "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.UseOf":
 			default:
 				out = append(out, "names "+sel+name)
 			}

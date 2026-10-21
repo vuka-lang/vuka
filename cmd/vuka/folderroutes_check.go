@@ -21,19 +21,21 @@ import (
 // folderRoute is one route of the table: a page, one of its method
 // handlers, or a method of an endpoint.
 type folderRoute struct {
-	Method  string   `json:"method"`
-	Path    string   `json:"path"`
-	Page    string   `json:"page"` // employer.Edit
-	Kind    string   `json:"kind"` // live, page, template, handler or endpoint
-	File    string   `json:"file"`
-	Line    int      `json:"line"`
-	Guards  []string `json:"guards,omitempty"`
-	Layouts []string `json:"layouts,omitempty"`
+	Method     string   `json:"method"`
+	Path       string   `json:"path"`
+	Page       string   `json:"page"` // employer.Edit
+	Kind       string   `json:"kind"` // live, page, template, handler or endpoint
+	File       string   `json:"file"`
+	Line       int      `json:"line"`
+	Middleware []string `json:"middleware,omitempty"`
+	Guards     []string `json:"guards,omitempty"`
+	Layouts    []string `json:"layouts,omitempty"`
 
 	dir     *routeDir
 	typ     string // the page's type
 	ctor    string // its constructor
 	handler string // the method, for a handler or an endpoint
+	mws     []*routeDir
 	wraps   []wrap
 }
 
@@ -46,15 +48,16 @@ type wrap struct {
 // dirInfo is what the type-checked package of a page directory makes it.
 type dirInfo struct {
 	pkg     *types.Package
-	segs    []string   // the URL's segments down to the folder
-	params  []urlParam // the path parameters down to it, in order
-	rest    bool       // its parameter is web.Rest
-	param   bool       // it is a parameter folder
-	paramAt token.Pos  // its Params
-	wraps   []wrap     // the guards and layouts over its routes, outermost first
-	pages   []string   // its pages' and endpoints' types, sorted
-	ctors   []string   // those whose constructors vuka declares, sorted
-	broken  bool       // its Params, Guard or Layout has an error: no routes
+	segs    []string    // the URL's segments down to the folder
+	params  []urlParam  // the path parameters down to it, in order
+	rest    bool        // its parameter is web.Rest
+	param   bool        // it is a parameter folder
+	paramAt token.Pos   // its Params
+	mws     []*routeDir // the middlewares over its routes, outermost first
+	wraps   []wrap      // the guards and layouts over its routes, outermost first
+	pages   []string    // its pages' and endpoints' types, sorted
+	ctors   []string    // those whose constructors vuka declares, sorted
+	broken  bool        // its Params, Guard or Layout has an error: no routes
 }
 
 // urlParam is a path parameter, as a URL function takes it.
@@ -227,7 +230,7 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 	// The folders between the parent's and this one are plain segments.
 	from := ""
 	if parent != nil {
-		in.segs, in.params, in.wraps = slices.Clone(pin.segs), slices.Clone(pin.params), slices.Clone(pin.wraps)
+		in.segs, in.params, in.mws, in.wraps = slices.Clone(pin.segs), slices.Clone(pin.params), slices.Clone(pin.mws), slices.Clone(pin.wraps)
 		in.broken = pin.broken
 		from = parent.rel
 	}
@@ -264,6 +267,13 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 		in.segs = append(in.segs, seg)
 	} else if folder != "" {
 		in.segs = append(in.segs, folder)
+	}
+	if obj, ok := pkg.Scope().Lookup("Middleware").(*types.Func); ok {
+		if c.middleware(obj) {
+			in.mws = append(in.mws, d)
+		} else {
+			in.broken = true
+		}
 	}
 	if obj, ok := pkg.Scope().Lookup("Guard").(*types.TypeName); ok {
 		if c.guard(obj) {
@@ -449,6 +459,47 @@ func (c *routeChecker) guard(obj *types.TypeName) bool {
 	return true
 }
 
+// middleware checks a folder's Middleware: func(next http.Handler)
+// http.Handler, or a constructor func(deps…) web.Middleware, its
+// dependencies provided types.
+func (c *routeChecker) middleware(fn *types.Func) bool {
+	sig := fn.Type().(*types.Signature)
+	bad := func() bool {
+		c.report(diag.New("E0710", "%s.Middleware is %s", fn.Pkg().Name(), types.TypeString(sig, types.RelativeTo(fn.Pkg()))), fn.Pos()).
+			WithHelp("declare func Middleware(next http.Handler) http.Handler, or func Middleware(deps…) web.Middleware")
+		return false
+	}
+	res := sig.Results()
+	if sig.Variadic() || res.Len() != 1 {
+		return bad()
+	}
+	if isHTTPHandler(res.At(0).Type()) {
+		if sig.Params().Len() != 1 || !isHTTPHandler(sig.Params().At(0).Type()) {
+			return bad()
+		}
+		return true
+	}
+	if !isMiddlewareType(res.At(0).Type()) {
+		return bad()
+	}
+	for i := 0; i < sig.Params().Len(); i++ {
+		if !isPtrOrIface(sig.Params().At(i).Type()) {
+			return bad()
+		}
+	}
+	return true
+}
+
+func isHTTPHandler(t types.Type) bool { return isNamed(t, "net/http", "Handler", false) }
+
+// isMiddlewareType reports whether t is web.Middleware, an alias of
+// func(http.Handler) http.Handler.
+func isMiddlewareType(t types.Type) bool {
+	sig, ok := t.Underlying().(*types.Signature)
+	return ok && !sig.Variadic() && sig.Params().Len() == 1 && isHTTPHandler(sig.Params().At(0).Type()) &&
+		sig.Results().Len() == 1 && isHTTPHandler(sig.Results().At(0).Type())
+}
+
 // isNode reports whether t or *t renders: a ui.Node, or Render() / View()
 // giving one.
 func (c *routeChecker) isNode(t types.Type) bool {
@@ -538,6 +589,10 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			segs = append(slices.Clone(segs), seg)
 		}
 		path := "/" + strings.Join(segs, "/")
+		var mws []string
+		for _, m := range in.mws {
+			mws = append(mws, m.name+".Middleware")
+		}
 		var guards, layouts []string
 		for _, w := range in.wraps {
 			if w.guard {
@@ -553,14 +608,14 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 				}
 				hp := c.r.fset.Position(fn.Pos())
 				c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(fn.Name()), Path: path, Page: d.name + "." + name + "." + fn.Name(),
-					Kind: "endpoint", File: hp.Filename, Line: hp.Line, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name,
-					handler: fn.Name(), wraps: in.wraps})
+					Kind: "endpoint", File: hp.Filename, Line: hp.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name,
+					handler: fn.Name(), mws: in.mws, wraps: in.wraps})
 			}
 			continue
 		}
 		pos := c.r.fset.Position(obj.Pos())
 		r := &folderRoute{Method: "GET", Path: path, Page: d.name + "." + name, Kind: "page", File: pos.Filename, Line: pos.Line,
-			Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name, wraps: in.wraps}
+			Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name, mws: in.mws, wraps: in.wraps}
 		switch {
 		case live:
 			r.Kind = "live"
@@ -580,7 +635,8 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			}
 			hp := c.r.fset.Position(fn.Pos())
 			c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(m), Path: path, Page: r.Page + "." + m, Kind: "handler",
-				File: hp.Filename, Line: hp.Line, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: r.ctor, handler: m, wraps: in.wraps})
+				File: hp.Filename, Line: hp.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: r.ctor, handler: m,
+				mws: in.mws, wraps: in.wraps})
 		}
 	}
 }
