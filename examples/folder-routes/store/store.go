@@ -7,9 +7,9 @@ import (
 )
 
 type Employer struct {
-	ID   int
-	Name string
-	City string
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+	City string `json:"city"`
 }
 
 type Permit struct {

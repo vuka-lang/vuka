@@ -32,9 +32,11 @@ func (p *Index) Render(ctx context.Context, w io.Writer) error {
 		return ui.HTML(`<li><a href={href}>{pm.Kind}</a></li>`, href, pm.Kind)
 	})
 	contract := urls.Files.File(web.Rest(fmt.Sprintf("contracts/%d.txt", p.Employer))).Path()
+	api := urls.Api.Employers.Employer(p.Employer).Path()
 	return ui.HTML(`<section id="overview">
   <h2>Permits</h2>
   <ul id="permits">{permits}</ul>
   <a id="contract" href={contract}>Contract</a>
-</section>`, permits, contract).Render(ctx, w)
+  <a id="api" href={api}>As JSON</a>
+</section>`, permits, contract, api).Render(ctx, w)
 }

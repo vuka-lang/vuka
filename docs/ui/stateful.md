@@ -78,9 +78,7 @@ type Counter struct {
 	n     int    // state
 }
 
-func (c *Counter) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
-
-func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+func (c *Counter) Mount(ctx context.Context) error { c.n = c.Start; return nil }
 
 func (c *Counter) Inc() { c.n++ }
 ```
@@ -130,7 +128,7 @@ what is typed.
 | Method | |
 |---|---|
 | `Render() ui.Node` | required; its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
-| <span class="vuka-only">`@ui.Mount`</span><span class="go-only">`l.Mount(fn)`</span> | optional, once per instance, before its first render: a method `func(ctx context.Context) error`, which may be unexported; an error fails the render. A method named `Mount` (`Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`) is the form of earlier releases, kept for one minor release (`vuka vet`: W0303, `vuka fix hooks`) |
+| <span class="vuka-only">`@ui.Mount`</span><span class="go-only">`Mount(ctx) error`</span> | optional, once per instance, before its first render; an error fails the render. A method named `Mount` (`Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`), which the browser can't call, or an unexported method named in `LiveSchema` (`l.Mount(fn)`) or the constructor ([Hooks](#hooks)) |
 | `Unmount()` | optional, when the instance is dropped |
 | <span class="vuka-only">`Update(msg T)`</span><span class="go-only">`UpdateT(msg T)`</span> | optional<span class="vuka-only">, overloadable</span>: the messages the session delivers (below) |
 
@@ -244,13 +242,41 @@ replies with what changed.
 
 ## Hooks
 
-The methods the runtime calls are named in the component's `LiveSchema`
-method, so they may be unexported and the browser can call only what isn't
-one: `l.Mount` (`func(ctx context.Context) error`, before the first render),
-`l.OnChange` (`func(ctx context.Context, c ui.Changed) error`, after the
-component sets bound fields) and `l.Loads("group", fn)` (the loader of
-[deferred fields](/web/islands#deferred-fields)); `l.Field(&d.X, …)` gives a
-field its attributes (`ui.Bind`, `ui.URL`, `ui.Defer`, `validate.…`).<span class="vuka-only">
+The methods the runtime calls on a component are its hooks: `Mount`,
+before the first render, and `Changed`, after the component sets bound
+fields. The simple form is a method of that name:
+
+```go
+type Profile struct {
+	ui.Live
+	ID   int
+	name string
+}
+
+func (p *Profile) Mount(ctx context.Context) error {
+	p.name = fmt.Sprint("user ", p.ID)
+	return nil
+}
+
+func (p *Profile) Changed(ctx context.Context, c ui.Changed) error { return nil }
+
+func (p *Profile) Render() ui.Node { return ui.HTML(`<h1>{p.name}</h1>`, p.name) }
+```
+
+`Mount` takes nothing or a `context.Context` and returns nothing or an
+error (E0329 otherwise); `Changed` the same, or a `context.Context` and a
+`ui.Changed`, what was set (E0327 otherwise). They are exported, but the
+browser can't call them: the runtime keeps its hooks off the events.
+
+A hook can also be unexported, and a field can have attributes, when the
+component names them in its `LiveSchema` method: `l.Mount`
+(`func(ctx context.Context) error`), `l.OnChange` (`func(ctx
+context.Context, c ui.Changed) error`) and `l.Loads("group", fn)` (the
+loader of [deferred fields](/web/islands#deferred-fields)); `l.Field(&d.X,
+…)` gives a field its attributes (`ui.Bind`, `ui.URL`, `ui.Defer`,
+`validate.…`). A hook named there takes the place of a method of the
+same name. A loader is always declared this way: a method named
+`Load<Group>` is the form of earlier releases (`vuka vet`: W0303).<span class="vuka-only">
 In a `.vuka` file they are hook and field attributes — `@ui.Mount`,
 `@ui.OnChange`, `@ui.Loads("group")`, `@ui.Bind`, … — which become this
 method:</span>
@@ -317,7 +343,7 @@ func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
 
 ::: go
 ```go
-func (c *Chat) mount(ctx context.Context) error            { c.Subscribe("room:" + c.Room); return nil }
+func (c *Chat) Mount(ctx context.Context) error            { c.Subscribe("room:" + c.Room); return nil }
 func (c *Chat) UpdateNewMessage(m NewMessage)              { c.log = append(c.log, m.Text) }
 func (c *Chat) UpdateTyping(ctx context.Context, t Typing) { c.typing = t.Who }
 ```

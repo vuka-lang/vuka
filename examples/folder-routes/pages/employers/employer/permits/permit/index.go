@@ -21,9 +21,9 @@ type Index struct {
 
 func NewIndex(s *store.Store) *Index { return &Index{store: s} }
 
-func (p *Index) LiveSchema(l *ui.LiveSchema) { l.Mount(p.mount) }
-
-func (p *Index) mount(ctx context.Context) error {
+// Mount loads the permit before the first render; another employer's is
+// not found.
+func (p *Index) Mount(ctx context.Context) error {
 	pm, ok := p.store.Permit(p.Employer, p.Permit)
 	if !ok {
 		return web.NotFound
@@ -32,7 +32,7 @@ func (p *Index) mount(ctx context.Context) error {
 	return nil
 }
 
-// Title is read once the parameters are bound, before mount.
+// Title is read once the parameters are bound, before Mount.
 func (p *Index) Title() string { return fmt.Sprintf("Permit %d", p.Permit) }
 
 // Approve is the button's event.

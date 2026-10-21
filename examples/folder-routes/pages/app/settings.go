@@ -14,8 +14,6 @@ import (
 // client app's catch-all.
 type Settings struct{}
 
-func NewSettings() *Settings { return &Settings{} }
-
 func (p *Settings) Title() string { return "App settings" }
 
 func (p *Settings) Render(ctx context.Context, w io.Writer) error {

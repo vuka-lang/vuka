@@ -19,6 +19,44 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v1.2.0 — unreleased
+
+- Endpoints in folder routes: an exported type under `pages/` with `Get`,
+  `Post`, `Put`, `Patch` or `Delete` methods and no markup answers those
+  methods on its path, so a JSON API is folders like the pages
+  (`pages/api/employers/`). A `GET`'s struct parameter is its query string,
+  the others' their body; a value answers JSON, an error its status, a nil
+  error alone 204, a `ui.Node` a page, a `web.Redirect` a redirect.
+  `pages/urls` links to them and `vuka routes` marks them `(endpoint)`
+  ([Endpoints](/web/folder-routes#endpoints)).
+- Guards: a `guard.go` declaring `type Guard struct` with a `Load(ctx,
+  deps…) error` checks every page, handler and endpoint below its folder
+  and renders nothing — an API key, a permission. Guards and layouts load
+  root-first, a folder's guard before its layout, and the first error
+  answers the request, before the page mounts or a body is read. web adds
+  `web.GuardOf[T]()` ([Guards](/web/folder-routes#guards)).
+- A page or endpoint in `pages/` with nothing to inject needs no
+  constructor: `vuka gen` writes `New<T>` for it.
+- `Mount` and `Changed` by name are a live page's hooks again, the simple
+  form: `func (p *T) Mount(ctx context.Context) error`. Their signatures
+  are checked and the browser can't call them; `LiveSchema` and the
+  constructor stay the way to unexported hooks and to field attributes
+  ([Hooks](/ui/stateful#hooks)).
+- Example: `examples/folder-routes` has a JSON API under `pages/api`
+  behind a guard.
+
+### Changes
+
+- On a stateless page the layouts' `Load` now runs before the page's
+  `Mount` (in 1.1 it ran after), so a guard or a layout protects `Mount`
+  too.
+- An exported page-shaped type in `pages/` is a route even without a
+  `New<T>`. A component the pages share belongs in another package
+  (`components/`) or unexported; one that became a route shows in `vuka
+  routes`, and a path it takes from another page is E0701.
+- `Mount` and `Changed` found by name no longer warn (W0303 is only for
+  `Load<Group>` now), and `vuka fix hooks` leaves them as they are.
+
 ## v1.1.0 — 2026-10-21
 
 - A live page's hooks in its constructor: `l.OnMount((*Login).mount)`,

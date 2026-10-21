@@ -12,8 +12,6 @@ type Index struct {
 	Params
 }
 
-func NewIndex() *Index { return &Index{} }
-
 func (p *Index) Title() string { return "App" }
 
 func (p *Index) Render(ctx context.Context, w io.Writer) error {

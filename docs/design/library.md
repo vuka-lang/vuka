@@ -147,7 +147,7 @@ twin; `TestLibraryExample` (cmd/vuka) builds it with plain `go build`, ejects
 the twin and checks both are written alike (the same `web.Routes` calls, the
 same templates) and answer the same.
 
-### Folder routes (1.1)
+### Folder routes (1.1; endpoints and guards 1.2)
 
 The registration of an app with many pages is mostly bookkeeping: a
 `web.Routes` call per page, the path spelt again in every link, the layout
@@ -167,9 +167,18 @@ person writes, so nothing at run time depends on the tree
   a `ui.Node` is `web.Routes.Get` with the constructor (a stateless page
   built per request). `Index` serves the folder's path, any other page adds
   its kebab-case name (`New` → `new`, `ResetPassword` → `reset-password`).
-  `Layout` and `Params` are never pages; exported types without `New<T>` are
-  components. Every page route carries `web.PageRoute()`, the opt-in to the
-  behaviour below, so 1.0 routes are unchanged.
+  `Layout`, `Guard` and `Params` are never pages. Every page route carries
+  `web.PageRoute()`, the opt-in to the behaviour below, so 1.0 routes are
+  unchanged.
+- **Generated constructors (1.2).** An exported page-shaped struct (or
+  endpoint) with no `New<T>` gets `func New<T>() *T { return &T{} }` in its
+  package's `routes_gen.go`, visible to the template compiler as a
+  template-only page's type is; a hand-written `New<T>` turns it off.
+  Unexported types, `Layout`, `Guard`, `Params` and types registered another
+  way (route decorators, `web.Routes` calls) are left alone. In 1.1 such a
+  type was a component the pages used; from 1.2 it is a route, so shared
+  components live in another package or unexported, and an accidental route
+  shows in `vuka routes` or as E0701.
 - **Template-only pages.** A `.vuka.html` with top-level markup whose
   file-based type (`about.vuka.html` → `About`, `index.vuka.html` →
   `Index`) the package doesn't declare is a stateless page: gen declares
@@ -187,7 +196,8 @@ person writes, so nothing at run time depends on the tree
   parameter. A path parameter that doesn't parse or validate is 404
   (`web.NotFound`): the URL names nothing. A query parameter keeps 400. A
   stateless page's `Mount()` / `Mount(ctx)` (returning nothing or an error)
-  runs after binding.
+  runs after binding and after its guards' and layouts' `Load` (1.2; in 1.1
+  the layouts loaded after `Mount`), so a guard protects `Mount`.
 - **Parameters.** A package declaring `type Params struct` makes its folder
   the segment `{folder}`; `Params` has one own field named like the folder
   (case-insensitive) and embeds the nearest ancestor parameter folder's
@@ -221,6 +231,28 @@ person writes, so nothing at run time depends on the tree
   go bare. The layouts' `Load` runs before every handler as before the
   page: its `NotFound`, `Forbidden` or `Redirect` stops `Post`, `Put`,
   `Patch` and `Delete` too, so a folder's checks live in one place.
+- **Endpoints (1.2).** An exported struct `T` whose `*T` is not a page (no
+  `ui.Node`, no `ui.Stateful`, no `Render`/view) with at least one method
+  `Get`, `Post`, `Put`, `Patch` or `Delete` is an endpoint; its path follows
+  the page rules. Each method is `web.Routes.<Method>(path, (*T).<Method>,
+  web.Receiver(NewT), chain…)`, exactly a page's method handler, with `Get`
+  allowed (E0709 only on pages). Results as any handler's: a value → 200
+  JSON, an error → its status (JSON), a nil error alone → 204, a `ui.Node`
+  → a page, a `Redirect` → a redirect. A page and an endpoint share a path
+  when their methods don't collide; a collision is E0701. `pages/urls`
+  links them; `vuka routes` marks them `(endpoint)`.
+- **Guards (1.2).** A package declaring `type Guard struct` guards every
+  page, handler and endpoint in and below its folder: `web.GuardOf[T]()`
+  in the chain at its folder, before that folder's `web.LayoutOf`. A guard
+  renders nothing, optionally embeds `Params` (bound from the path), and
+  must have `Load(ctx, deps…) error` (E0708 at generation; web's E0321 /
+  E0407 at build). Guards' and layouts' `Load`s run in option order,
+  root-first, before a stateless page's `Mount`, a live page's render (GET
+  and join) and a handler's body binding; the first error answers:
+  `NotFound` 404, `Forbidden` 403, another `web.Error` its status,
+  `Redirect` 302 on GET / 303 otherwise; an HTML error page for pages, JSON
+  for JSON handlers, a live error with the status for a refused join. A
+  route with only guards keeps its own document.
 - **Typed URLs.** One generated package, `pages/urls`
   (`urls_gen.go`), importing no page package, so any page links to any
   other, parent to child included (per-package functions would make a
@@ -252,7 +284,7 @@ person writes, so nothing at run time depends on the tree
   `pages/urls/urls_gen.go` and the `routes_gen.go` files; `vuka gen -inplace` writes them, `-check`
   reports staleness, `vuka eject` keeps them. Plain Go, the public web API
   only (`contract.txt`), gofmt'd, deterministic. `vuka routes` prints the
-  table (method, path, page, file:line, layouts).
+  table (method, path, page, file:line, guards, layouts).
 - **Additive.** Routes without `PageRoute`, `LayoutOf` or `Receiver` behave
   as in 1.0 (a live page's bad path parameter is still 400), and
   hand-written routes coexist on other paths. `examples/folder-routes` is
@@ -545,8 +577,12 @@ func (l *Login) loadStats(ctx context.Context) error { … }
 - `.vuka` is unchanged: `@ui.Mount` and the other hook attributes lower to
   `LiveSchema`, which needs no constructor. Nothing to eject: the form is
   plain Go.
-- Additive: `LiveSchema` stays the explicit form; hooks found by name stay
-  deprecated (W0303).
+- Additive: `LiveSchema` stays the explicit form. From 1.2 `Mount` and
+  `Changed` by name are ordinary hooks again (signatures checked: E0329,
+  E0327; the browser can't call them; no W0303); a hook named in
+  `LiveSchema` or the constructor takes the place of a method of its name.
+  `Load<Group>` by name keeps W0303, since the group in its name can drift
+  from the fields' tag.
 
 ## 4. Generated code is optional — a speed-up, not a requirement
 
