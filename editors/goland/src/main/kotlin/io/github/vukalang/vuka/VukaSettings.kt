@@ -6,6 +6,7 @@ import com.intellij.openapi.components.SimplePersistentStateComponent
 import com.intellij.openapi.components.State
 import com.intellij.openapi.components.Storage
 import com.intellij.openapi.components.service
+import com.intellij.openapi.fileEditor.FileEditorManager
 import com.intellij.openapi.options.BoundConfigurable
 import com.intellij.openapi.project.ProjectManager
 import com.intellij.openapi.ui.DialogPanel
@@ -15,9 +16,11 @@ import com.intellij.ui.dsl.builder.bindText
 import com.intellij.ui.dsl.builder.columns
 import com.intellij.ui.dsl.builder.COLUMNS_LARGE
 import com.intellij.ui.dsl.builder.panel
+import com.intellij.util.FileContentUtilCore
 
 // VukaSettings are the IDE-wide settings, the VS Code extension's vuka.path,
-// vuka.goplsPath and vuka.sharedGopls.
+// vuka.goplsPath and vuka.sharedGopls, and the two GoLand needs: how
+// .vuka.html files open, and whether saving a .vuka file writes its Go.
 @Service(Service.Level.APP)
 @State(name = "VukaSettings", storages = [Storage("vuka.xml")])
 class VukaSettings : SimplePersistentStateComponent<VukaSettings.Settings>(Settings()) {
@@ -25,6 +28,8 @@ class VukaSettings : SimplePersistentStateComponent<VukaSettings.Settings>(Setti
         var vukaPath by string()
         var goplsPath by string()
         var sharedGopls by property(true)
+        var templateGrammar by property(true)
+        var genOnSave by property(false)
     }
 
     companion object {
@@ -54,12 +59,24 @@ class VukaConfigurable : BoundConfigurable("Vuka") {
             checkBox("Share one gopls daemon (gopls -remote=auto)")
                 .bindSelected({ settings.sharedGopls }, { settings.sharedGopls = it })
         }
+        row {
+            checkBox("Highlight .vuka.html files with the Vuka grammar")
+                .bindSelected({ settings.templateGrammar }, { settings.templateGrammar = it })
+                .comment("Off: they open as HTML, the Go in them still served by vuka lsp.")
+        }
+        row {
+            checkBox("Write the Go of .vuka files beside them on save (vuka gen -inplace)")
+                .bindSelected({ settings.genOnSave }, { settings.genOnSave = it })
+                .comment("GoLand reads Go from disk only: this lets .go files see what .vuka files declare.")
+        }
     }
 
     override fun apply() {
         super.apply()
         for (project in ProjectManager.getInstance().openProjects) {
             LspServerManager.getInstance(project).stopAndRestartIfNeeded(VukaLspServerSupportProvider::class.java)
+            // Open templates take their new file type.
+            FileContentUtilCore.reparseFiles(FileEditorManager.getInstance(project).openFiles.filter { it.name.endsWith(".vuka.html") })
         }
     }
 }

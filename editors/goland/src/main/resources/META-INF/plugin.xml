@@ -10,7 +10,8 @@
     <ul>
       <li>Completion, hover, go to definition, references, rename, diagnostics, code actions,
           inlay hints and formatting through <code>vuka lsp</code></li>
-      <li>Highlighting of <code>.vuka</code> files by the VS Code extension's TextMate grammar</li>
+      <li>Highlighting of <code>.vuka</code> and <code>.vuka.html</code> files by the VS Code extension's TextMate grammars</li>
+      <li>Optionally, <code>vuka gen -inplace</code> on save, so <code>.go</code> files see what <code>.vuka</code> files declare</li>
       <li>The project's own <code>go tool vuka</code> when <code>go.mod</code> declares it</li>
     </ul>
     Requires <code>vuka</code> (on <code>PATH</code> or as a tool of the module) and gopls.
@@ -27,8 +28,14 @@
                                  instance="io.github.vukalang.vuka.VukaConfigurable"
                                  id="io.github.vukalang.vuka.settings"
                                  displayName="Vuka"/>
+        <fileTypeOverrider implementation="io.github.vukalang.vuka.VukaHtmlFileTypeOverrider"/>
         <notificationGroup id="Vuka" displayType="BALLOON"/>
     </extensions>
+
+    <applicationListeners>
+        <listener class="io.github.vukalang.vuka.VukaGenOnSave"
+                  topic="com.intellij.openapi.vfs.newvfs.BulkFileListener"/>
+    </applicationListeners>
 
     <actions>
         <action id="Vuka.RestartServer"

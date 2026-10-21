@@ -16,11 +16,7 @@ private const val INSTALL = "go install github.com/vuka-lang/vuka/cmd/vuka@lates
 // The tool directive go get -tool writes, in a single line or a tool block.
 private val VUKA_TOOL = Regex("""(?m)^\s*(tool\s+)?github\.com/vuka-lang/vuka/cmd/vuka\s*$""")
 
-// vukaLspCommandLine is the command running vuka lsp for project, the first of:
-//   1. the vuka binary set in Settings | Languages & Frameworks | Vuka,
-//   2. go tool vuka, when the project's go.mod declares vuka as a tool, so
-//      the server is the version the project builds with,
-//   3. vuka on PATH, then in $GOBIN, $GOPATH/bin and ~/go/bin.
+// vukaLspCommandLine is the command running vuka lsp for project.
 fun vukaLspCommandLine(project: Project): GeneralCommandLine {
     val settings = VukaSettings.getInstance().state
     val args = mutableListOf("lsp")
@@ -28,6 +24,17 @@ fun vukaLspCommandLine(project: Project): GeneralCommandLine {
     if (!settings.sharedGopls) {
         args += "-shared=false"
     }
+    return vukaCommandLine(project, args)
+}
+
+// vukaCommandLine is the command running vuka with args for project, in its
+// root, the vuka being the first of:
+//   1. the vuka binary set in Settings | Languages & Frameworks | Vuka,
+//   2. go tool vuka, when the project's go.mod declares vuka as a tool, so
+//      it is the version the project builds with,
+//   3. vuka on PATH, then in $GOBIN, $GOPATH/bin and ~/go/bin.
+fun vukaCommandLine(project: Project, args: List<String>): GeneralCommandLine {
+    val settings = VukaSettings.getInstance().state
     val root = project.basePath
     val configured = settings.vukaPath?.takeIf { it.isNotBlank() }
     val command = when {

@@ -140,8 +140,10 @@ the language server for `.vuka` and `.vuka.html` files, highlighting of
 `.vuka` files by the VS Code extension's grammar, and its snippets. It runs
 `go tool vuka lsp` when `go.mod` declares vuka as a tool, else `vuka lsp`;
 **Settings | Languages & Frameworks | Vuka** sets the binaries. `.vuka.html`
-files open as HTML. GoLand serves `.go` files itself, not through gopls, so
-`.go` files don't see code declared in `.vuka` files.
+files are highlighted with the Vuka grammar. GoLand serves `.go` files
+itself, reading Go from disk only, so for `.go` files to see code declared
+in `.vuka` files, turn on **Write the Go of .vuka files beside them on
+save**: it runs `vuka gen -inplace` on the saved file's package.
 
 ## Other editors
 

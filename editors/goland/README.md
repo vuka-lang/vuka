@@ -47,18 +47,23 @@ The same page sets the gopls binary and whether to share gopls's daemon
 
 ## Templates
 
-`.vuka.html` files open as HTML, as in Zed: HTML's highlighting and editing,
-with `vuka lsp` serving the Go in their holes. To highlight them with the
-Vuka grammar instead (Go in braces, TypeScript in `<script lang="ts">`, CSS
-in `<style>`), add `*.vuka.html` to the TextMate file type in **Settings |
-Editor | File Types**.
+`.vuka.html` files are highlighted with the Vuka grammar, as in VS Code: Go
+in braces and at line starts, TypeScript in `<script lang="ts">`, CSS in
+`<style>`, and `vuka lsp` serves the Go. Turn off **Highlight .vuka.html
+files with the Vuka grammar** in the settings to open them as HTML instead.
 
 ## Go files
 
-GoLand's own Go support serves `.go` files, not gopls, so a `.go` file that
-uses a declaration from a `.vuka` file in the same package shows it as
-unresolved there. The `.vuka` files themselves are fully served. Code that
-`.go` and `.vuka` files share is best declared in `.go` files.
+GoLand's own Go support serves `.go` files, not gopls, and it reads Go only
+from disk, so it doesn't see the Go `vuka lsp` generates in memory: a `.go`
+file using a declaration from a `.vuka` file shows it as unresolved.
+
+Turn on **Write the Go of .vuka files beside them on save** in the
+settings: saving a `.vuka` or `.vuka.html` file then runs
+`vuka gen -inplace` on its package, and GoLand indexes the generated Go
+(`pages/urls/urls_gen.go` among it), so `.go` files resolve it. The files
+start with a `// Code generated` header; commit them, or ignore them in
+`.gitignore`. `vuka gen -inplace -check` in CI reports stale ones.
 
 ## Build
 
