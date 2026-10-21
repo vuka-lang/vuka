@@ -21,6 +21,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v1.5.0 — 2026-10-22
 
+- The development toolbar starts as a small right-edge indicator. Hover
+  nearby or focus it to reveal the handle; click to open the full drawer.
+  Touch devices keep a larger tap target, and reduced motion is respected.
+- Live tables now display partial checkbox selection using the browser's
+  indeterminate state on initial render and subsequent patches.
+
 - Request panic recovery now covers middleware, custom routers and page
   rendering as well as compiled handlers. Uncommitted responses answer a
   safe 500 through `OnError`; panic details and stack traces stay in the
