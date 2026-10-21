@@ -26,6 +26,22 @@ the `github.com/vuka-lang/vuka` package your module requires.
   by method expression; a page whose only schema is its hooks needs no
   `LiveSchema` method ([Hooks](/ui/stateful#hooks)). `vukavet` checks them
   (E0336, W0304, W0305). Additive: `LiveSchema` is unchanged.
+- Folder routes: the module's `pages/` folders are the site's paths, each
+  page type a route — `Index`, `New`, `Edit`…; a folder with a `params.go`
+  is a typed parameter (`employer/` is `{employer}`, a `web.Rest` field
+  `{file...}`, a segment that doesn't parse a 404); a `layout.go` wraps every
+  page below it, composed parent to child, its `Load` fetching what it shows
+  and guarding every page and handler beneath it; `Post`, `Put`, `Patch` and
+  `Delete` methods on a page answer on its path; `Title()` names the
+  document (`ui.PageTitle`); an `about.vuka.html` with no Go type is a page
+  of its own; a catch-all folder serves a client app's shell under its
+  path, the pages beside it still winning. `vuka gen` writes the
+  `web.Routes` calls and `pages/urls`, a typed link to every page
+  (`urls.Employers.Employer(7).Edit.Path()`); `vuka routes` prints the
+  table, and conflicts are errors at generation (E0701–E0709). web adds
+  `web.Rest`, `web.PageRoute()`, `web.LayoutOf[T]()` and
+  `web.Receiver(ctor)`; a stateless page may have a `Mount`. Example:
+  `examples/folder-routes` ([Folder routes](/web/folder-routes)).
 
 ## v1.0.0 — 2026-10-20
 

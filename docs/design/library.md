@@ -147,6 +147,118 @@ twin; `TestLibraryExample` (cmd/vuka) builds it with plain `go build`, ejects
 the twin and checks both are written alike (the same `web.Routes` calls, the
 same templates) and answer the same.
 
+### Folder routes (1.1)
+
+The registration of an app with many pages is mostly bookkeeping: a
+`web.Routes` call per page, the path spelt again in every link, the layout
+named per route, parameters converted and checked per handler. Folder
+routes derive it from the module's `pages/` tree and generate the calls a
+person writes, so nothing at run time depends on the tree
+([guide](../web/folder-routes.md)).
+
+- **Tree.** `<module root>/pages/**` are ordinary packages; the folder path
+  is the URL. `pages/pages_gen.go` (package `pages`, generated) registers
+  every route of every folder, so `main` imports `pages` once and a layout
+  never has to be imported by the pages it wraps. `pages/urls` holds the
+  typed links; a folder with template-only pages gets a `routes_gen.go`
+  declaring their types.
+- **Pages.** An exported struct `T` with `func New<T>(deps…) *T`: `*T` a
+  stateful component (`ui.Live` + `Render() ui.Node`) is `web.Routes.Live`,
+  a `ui.Node` is `web.Routes.Get` with the constructor (a stateless page
+  built per request). `Index` serves the folder's path, any other page adds
+  its kebab-case name (`New` → `new`, `ResetPassword` → `reset-password`).
+  `Layout` and `Params` are never pages; exported types without `New<T>` are
+  components. Every page route carries `web.PageRoute()`, the opt-in to the
+  behaviour below, so 1.0 routes are unchanged.
+- **Template-only pages.** A `.vuka.html` with top-level markup whose
+  file-based type (`about.vuka.html` → `About`, `index.vuka.html` →
+  `Index`) the package doesn't declare is a stateless page: gen declares
+  `type About struct{ Params }` (or `struct{}`) and `NewAbout` in
+  `routes_gen.go`, visible to the template compiler, and routes and links
+  it like any page (`urls.About`). No `Title`; declaring the type by hand turns the generated one off.
+  A file of `func` templates only is not a page. `vuka routes` marks them.
+- **Single-page-app fallback.** Not a mechanism of its own: a catch-all
+  folder (`app/route/`, `Params{Route web.Rest}`) whose `Index` renders a
+  client app's shell answers every `/app/...` URL, and static and dynamic
+  routes beside it win by precedence (`/app/settings`).
+- **Binding.** A page's exported fields, promoted ones from embedded structs
+  at any depth included, bind as a live page's do: a provided type
+  injected, text from the path segment of its name, else the query
+  parameter. A path parameter that doesn't parse or validate is 404
+  (`web.NotFound`): the URL names nothing. A query parameter keeps 400. A
+  stateless page's `Mount()` / `Mount(ctx)` (returning nothing or an error)
+  runs after binding.
+- **Parameters.** A package declaring `type Params struct` makes its folder
+  the segment `{folder}`; `Params` has one own field named like the folder
+  (case-insensitive) and embeds the nearest ancestor parameter folder's
+  `Params`, nothing else. The field's type is the constraint: integer kinds
+  (digits), `string` (one segment), a `TextMarshaler`/`TextUnmarshaler`,
+  `web.Rest` (the rest of the path, `{name...}`, a leaf). `validate:`
+  applies.
+- **Layouts.** A package declaring `type Layout struct` wraps every page in
+  and below its folder: `web.LayoutOf[T]()` per ancestor, outermost first.
+  A layout is a stateless struct component with `Children ui.Node`,
+  optionally embedding `Params`, optionally `Load(ctx, deps…) error` (deps
+  from the container). Per request: zero `T`, bind (path only, 404 on
+  failure), `Load`, `Children` = the next layout or the page, render. A
+  `Load` error answers the request (`NotFound` 404, `Forbidden` 403, a
+  `Redirect` redirects), for the pages and their method handlers alike. A live page's layouts are part of its page render, the GET and
+  the join's run of the route (`Load` runs for each); patches re-render the
+  live component only. Folder layouts replace `web.Layout`, the app's
+  `web.LiveLayout` and an island page's layout.
+- **Titles.** `Title() string` sets `ui.WithPageTitle` before the layouts
+  render; layouts read `ui.PageTitle(ctx)`. A stateless page's after its
+  `Mount`; a live page's after binding and before `Mount` (the session
+  mounts while it renders inside the layouts), so a live page titles itself
+  from its parameters or its constructor.
+- **Method handlers.** `Post`, `Put`, `Patch`, `Delete` methods of a page
+  type answer those methods on its path; a method named `Get` is an error.
+  Registered as `web.Routes.Post(path, (*T).Post, web.Receiver(NewT),
+  layouts…)`: the receiver is built per request by the page's constructor
+  with its path parameters bound (404 on failure); its other parameters and
+  results are any handler's. Layouts wrap a `ui.Node` result when the
+  response is a whole page (GET, or a browser document request); fragments
+  go bare. The layouts' `Load` runs before every handler as before the
+  page: its `NotFound`, `Forbidden` or `Redirect` stops `Post`, `Put`,
+  `Patch` and `Delete` too, so a folder's checks live in one place.
+- **Typed URLs.** One generated package, `pages/urls`
+  (`urls_gen.go`), importing no page package, so any page links to any
+  other, parent to child included (per-package functions would make a
+  parameter folder's link to its children an import cycle, since a child
+  embeds its parent's `Params`). The tree as a chain:
+  `urls.Employers.Employer(7).Permits.Permit(3).Path()`. `urls.Root` is the
+  `pages/` folder and each of its children is also a package-level var. A
+  folder value has a field per fixed child folder (CamelCase of its name)
+  and per non-`Index` page (its type name), a method per parameter child
+  (CamelCase, taking the `Params` field's type), and `Path()` only when it
+  has an `Index`, so only real pages are linkable; a page field has
+  `Path()`. Values carry the path built so far in unexported per-node types.
+  Escaping: integers via `strconv`, strings and `MarshalText` output via
+  `url.PathEscape`, `web.Rest` per segment. Query parameters are outside
+  the chain.
+- **Precedence.** Static, then `{name}`, then `{name...}`, as `net/http`'s
+  `ServeMux`. Everything else is a generation error with file and line:
+  E0701 two pages on one path, E0702 two routes matching the same paths
+  (parameter folders side by side), E0703 something below a catch-all
+  folder, E0704 a malformed `Params`, E0705 a parameter type a URL can't
+  hold or `urls` can't name (declared in a page package), E0706 a taken
+  name (a child folder and a page alike in `urls`, a template-only page's
+  type), E0707 a hand-written route on a folder route's path, E0708 a
+  malformed `Layout`, E0709 a method handler that can't be bound. Web's
+  build checks keep their codes (E0321 a layout or
+  `Load` signature, E0407 an unprovided `Load` dependency, E0410 a
+  `Receiver` that doesn't build the receiver, E0333 a stateless `Mount`).
+- **Generation.** `vuka build/run/test/vet/lsp` overlay `pages/pages_gen.go`,
+  `pages/urls/urls_gen.go` and the `routes_gen.go` files; `vuka gen -inplace` writes them, `-check`
+  reports staleness, `vuka eject` keeps them. Plain Go, the public web API
+  only (`contract.txt`), gofmt'd, deterministic. `vuka routes` prints the
+  table (method, path, page, file:line, layouts).
+- **Additive.** Routes without `PageRoute`, `LayoutOf` or `Receiver` behave
+  as in 1.0 (a live page's bad path parameter is still 400), and
+  hand-written routes coexist on other paths. `examples/folder-routes` is
+  the tree in plain Go; `TestFolderRoutesE2E` (cmd/vuka) generates, builds
+  and requests it.
+
 ## 2. Markup
 
 Markup is written two ways, compiled to the same calls
@@ -596,6 +708,7 @@ Folded into roadmap Phase 2:
 | 4a | Overloads named as Go names them (`areaCircle`, `UpdateNewMessage`), field references by address (`vuka.RefTo`), orm arithmetic and typed `SaveFields` — **done** | 2.3, 2.6 |
 | 7 | Conformance suite — **done** | 2.6 |
 | 8 | Hooks declared by the constructor (§3) — **done**, 1.1 | 2.2 |
+| 9 | Folder routes: `pages/` folders as routes, layouts with `Load`, typed URLs, `vuka routes` (§1) — 1.1 | 2.5 |
 
 Step 0 is done: `TestContract` (transpile) checks every golden for gofmt,
 one import block, no `/*line*/` markers and no `__` names, and checks its
