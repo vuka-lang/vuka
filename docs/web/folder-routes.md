@@ -18,8 +18,41 @@ func (s *Store) Update(id int, f EmployerForm)      {}
 func (s *Store) Delete(id int)                      {}
 func (s *Store) Pending() int                       { return 0 }
 
-func IndexURL(employer int) string { return "" }
-func EditURL(employer int) string  { return "" }
+// What vuka gen writes in pages/urls, as the samples use it.
+type pathURL struct{ path string }
+
+func (u pathURL) Path() string { return u.path }
+
+type employersURL struct {
+	path string
+	New  pathURL
+}
+
+func (u employersURL) Path() string                      { return u.path }
+func (u employersURL) Employer(employer int) employerURL { return employerURL{} }
+
+type employerURL struct {
+	path    string
+	Edit    pathURL
+	Permits permitsURL
+}
+
+func (u employerURL) Path() string { return u.path }
+
+type permitsURL struct{ path string }
+
+func (u permitsURL) Permit(permit int) pathURL { return pathURL{} }
+
+type filesURL struct{ path string }
+
+func (u filesURL) File(file string) pathURL { return pathURL{} }
+
+var urls = struct {
+	Root      pathURL
+	About     pathURL
+	Employers employersURL
+	Files     filesURL
+}{}
 -->
 
 An app with many pages spends a lot of lines saying where each one lives:
@@ -29,7 +62,7 @@ handler. Folder routes put that in the directory tree instead. The
 `pages/` folder of the module is the site: each folder is a path segment,
 each page type in it a route, a `params.go` makes a folder a typed
 parameter, a `layout.go` wraps every page below it, and the `vuka` command
-writes the `web.Routes` calls and a typed URL function for each page.
+writes the `web.Routes` calls and a typed link to every page.
 
 It is plain Go — the files are ordinary packages, and what `vuka gen`
 writes is the registration you would write by hand
@@ -81,8 +114,8 @@ pages/
 
 `main` imports `pages` once, blank. `vuka gen` keeps `pages/pages_gen.go`
 registering every page of every folder, so a new folder is served on the
-next build with nothing else to edit, and each folder gets a
-`routes_gen.go` holding its pages' typed URL functions.
+next build with nothing else to edit, and `pages/urls` holds a typed link
+to every page ([below](#typed-urls)).
 
 The [`folder-routes`](https://github.com/vuka-lang/vuka/tree/main/examples/folder-routes)
 example is this tree, with an in-memory store.
@@ -129,7 +162,8 @@ func (p *Index) Title() string { return p.employer.Name }
 
 func (p *Index) Render(ctx context.Context, w io.Writer) error {
 	return ui.HTML(`<h2>{p.employer.City}</h2>
-<a id="edit" href={EditURL(p.Employer)}>Edit</a>`, p.employer.City, EditURL(p.Employer)).Render(ctx, w)
+<a id="edit" href={urls.Employers.Employer(p.Employer).Edit.Path()}>Edit</a>`,
+		p.employer.City, urls.Employers.Employer(p.Employer).Edit.Path()).Render(ctx, w)
 }
 ```
 
@@ -148,7 +182,8 @@ itself: `about.vuka.html` is a stateless `About` at `/about`,
 `terms-of-service.vuka.html` a `TermsOfService` at `/terms-of-service`, an
 `index.vuka.html` the folder's `Index`. `vuka gen` declares the type for it
 — embedding the folder's `Params` when it has one, so the markup reads
-`{Employer}` — with its `New<T>` and `<T>URL`:
+`{Employer}` — and its `New<T>`, and links to it like any page
+(`urls.About.Path()`):
 
 ```html
 <!-- pages/about.vuka.html -->
@@ -322,11 +357,13 @@ func (l *Layout) Load(ctx context.Context, s *Store) error {
 }
 
 func (l Layout) Render(ctx context.Context, w io.Writer) error {
+	at := urls.Employers.Employer(l.Employer)
+	overview, edit := at.Path(), at.Edit.Path()
 	return ui.HTML(`<article>
   <h1>{l.employer.Name}</h1>
-  <nav><a href={IndexURL(l.Employer)}>Overview</a> <a href={EditURL(l.Employer)}>Edit</a></nav>
+  <nav><a href={overview}>Overview</a> <a href={edit}>Edit</a></nav>
   {l.Children}
-</article>`, l.employer.Name, IndexURL(l.Employer), EditURL(l.Employer), l.Children).Render(ctx, w)
+</article>`, l.employer.Name, overview, edit, l.Children).Render(ctx, w)
 }
 ```
 
@@ -360,7 +397,7 @@ func (p *Edit) Title() string { return "Edit " + p.employer.Name }
 
 func (p *Edit) Post(ctx context.Context, form EmployerForm) (web.Redirect, error) {
 	p.store.Update(p.Employer, form)
-	return web.Redirect(IndexURL(p.Employer)), nil
+	return web.Redirect(urls.Employers.Employer(p.Employer).Path()), nil
 }
 
 func (p *Edit) Delete(ctx context.Context) error {
@@ -369,10 +406,11 @@ func (p *Edit) Delete(ctx context.Context) error {
 }
 
 func (p *Edit) Render(ctx context.Context, w io.Writer) error {
-	return ui.HTML(`<form method="post" action={EditURL(p.Employer)}>
+	action := urls.Employers.Employer(p.Employer).Edit.Path()
+	return ui.HTML(`<form method="post" action={action}>
   <input name="name" value={p.employer.Name}/> <input name="city" value={p.employer.City}/>
   <button>Save</button>
-</form>`, EditURL(p.Employer), p.employer.Name, p.employer.City).Render(ctx, w)
+</form>`, action, p.employer.Name, p.employer.City).Render(ctx, w)
 }
 ```
 
@@ -392,28 +430,47 @@ the browser asking for a document); a fragment for a script goes out bare.
 
 ## Typed URLs
 
-For every page, `vuka gen` writes `<T>URL` in the page's package, its
-parameters those of the path, in order and typed as the `Params` fields:
+`vuka gen` writes one more package, `pages/urls`, with a link to every
+page, shaped like the tree: a folder is a value, a fixed child folder or a
+page its field, a parameter folder a method taking the parameter's type,
+and `Path()` the URL.
 
-| page | function |
-|---|---|
-| `employers.Index` | `employers.IndexURL() string` |
-| `employers.New` | `employers.NewURL() string` |
-| `employer.Edit` | `employer.EditURL(employer int) string` |
-| `permit.Index` | `permit.IndexURL(employer int, permit int) string` |
-| `file.Index` | `file.IndexURL(file web.Rest) string` |
-| `pages.About` (a template) | `pages.AboutURL() string` |
+<!-- go:fragment -->
+```go
+urls.Root.Path()                                    // "/": the pages/ folder's Index
+urls.About.Path()                                   // "/about"
+urls.Employers.Path()                               // "/employers"
+urls.Employers.New.Path()                           // "/employers/new"
+urls.Employers.Employer(7).Path()                   // "/employers/7"
+urls.Employers.Employer(7).Edit.Path()              // "/employers/7/edit"
+urls.Employers.Employer(7).Permits.Permit(3).Path() // "/employers/7/permits/3"
+urls.Files.File("reports/2026/q3.pdf").Path()       // "/files/reports/2026/q3.pdf"
+```
 
-Each segment is escaped (`url.PathEscape`; a `web.Rest` segment by segment,
-its slashes kept; a type with `MarshalText` marshalled). Renaming a folder
-or changing a parameter's type makes every stale link a compile error.
+- The root folder is `urls.Root`, and each of its children is also a
+  variable of the package, so links start at `urls.Employers`, not
+  `urls.Root.Employers`.
+- A folder's fields are its fixed child folders (CamelCase of the folder's
+  name: `job-permits/` is `JobPermits`) and its pages other than `Index`
+  (by type name: `New`, `Edit`, `TermsOfService`). Its parameter folders
+  are methods named the same way, taking the `Params` field's type:
+  `Employer(employer int)`, `File(file web.Rest)`.
+- `Path()` exists only where there is a page: on a page's field, and on a
+  folder with an `Index`. `urls.Employers.Employer(7).Permits` has no
+  `Path()` — `permits/` holds no `Index` — so a link to a URL that serves
+  nothing doesn't compile. Method handlers answer on their page's path:
+  the form posts to `urls.Employers.Employer(7).Edit.Path()`.
+- Each segment is escaped: an integer written out, a string or a type's
+  `MarshalText` output through `url.PathEscape`, a `web.Rest` segment by
+  segment, its slashes kept.
 
-The registrations live in `pages_gen.go`, so a layout links anywhere: the
-document's navigation calls `employers.IndexURL()`. One link follows Go's
-import graph: a parameter folder below another imports it (it embeds its
-`Params`), so a page in `employer/` can't call `permit.IndexURL` — that
-would be an import cycle. Such a link, from a parameter folder to the ones
-below it, is written as a path.
+`urls` imports no page package, so any page links to any other — a parent
+to its children, a layout to the pages it wraps, a page in `employer/` to
+the permits below it. Renaming a folder, removing a page or changing a
+parameter's type makes every stale link a compile error.
+
+Query parameters are not part of the chain: add them to the path, as in
+`urls.Employers.Path() + "?page=2"`.
 
 ## Precedence and conflicts
 
@@ -429,8 +486,8 @@ the routes are generated, at the file and line that causes it:
 | [E0702](/errors/E0702) | two routes matching the same paths, such as two parameter folders side by side |
 | [E0703](/errors/E0703) | a folder or page below a catch-all folder |
 | [E0704](/errors/E0704) | a malformed `Params`: its own fields, their name, the parent's `Params` |
-| [E0705](/errors/E0705) | a parameter type a URL can't hold |
-| [E0706](/errors/E0706) | a `<T>URL` name, or a template-only page's type, the package already declares |
+| [E0705](/errors/E0705) | a parameter type a URL can't hold, or one declared in a page package |
+| [E0706](/errors/E0706) | a name vuka needs that is taken: a template-only page's type, or a child folder and a page named alike |
 | [E0707](/errors/E0707) | a folder route and a hand-written route on one path |
 | [E0708](/errors/E0708) | a malformed `Layout` or `Load` |
 | [E0709](/errors/E0709) | a method handler that can't be bound, or a `Get` method |
@@ -464,7 +521,8 @@ GET     /files/{file...}                        file.Index              pages/fi
 
 `vuka build`, `run`, `test`, `vet` and the editor see the generated files
 without writing them; `vuka gen -inplace` writes them beside the pages
-(`pages/pages_gen.go` and a `routes_gen.go` per folder), so a plain
+(`pages/pages_gen.go`, `pages/urls/urls_gen.go`, and a `routes_gen.go`
+in a folder with template-only pages), so a plain
 `go build` serves the same routes; `-check` fails when they're stale, and
 [`vuka eject`](/tools/cli#eject) keeps them. They are the registration a
 person would write. For `pages/layout.go` and `pages/about.vuka.html`:
@@ -484,11 +542,6 @@ type About struct{}
 
 // NewAbout builds the page About.
 func NewAbout() *About { return &About{} }
-
-// AboutURL is the path of the page About.
-func AboutURL() string {
-	return "/about"
-}
 ```
 
 `web.PageRoute()` gives the route the behaviour of a page — fields bound

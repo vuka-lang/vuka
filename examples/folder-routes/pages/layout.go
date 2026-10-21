@@ -8,11 +8,8 @@ import (
 	"context"
 	"io"
 
-	"example.com/folder-routes/pages/app"
-	"example.com/folder-routes/pages/employers"
-	"example.com/folder-routes/pages/files/file"
+	"example.com/folder-routes/pages/urls"
 	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
 )
 
 type Layout struct {
@@ -24,12 +21,13 @@ func (l Layout) Render(ctx context.Context, w io.Writer) error {
 	if t := ui.PageTitle(ctx); t != "" {
 		title = t + " - HR"
 	}
-	handbook := file.IndexURL(web.Rest("handbook/leave.txt"))
+	employers, handbook := urls.Employers.Path(), urls.Files.File("handbook/leave.txt").Path()
+	about, settings := urls.About.Path(), urls.App.Settings.Path()
 	return ui.HTML(`<html lang="en">
 <head><meta charset="utf-8"/><title>{title}</title></head>
 <body>
-  <nav id="site"><a href={employers.IndexURL()}>Employers</a> <a href={handbook}>Handbook</a> <a href={AboutURL()}>About</a> <a href={app.SettingsURL()}>App</a></nav>
+  <nav id="site"><a href={employers}>Employers</a> <a href={handbook}>Handbook</a> <a href={about}>About</a> <a href={settings}>App</a></nav>
   <main>{l.Children}</main>
 </body>
-</html>`, title, employers.IndexURL(), handbook, AboutURL(), app.SettingsURL(), l.Children).Render(ctx, w)
+</html>`, title, employers, handbook, about, settings, l.Children).Render(ctx, w)
 }

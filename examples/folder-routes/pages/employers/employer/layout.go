@@ -4,6 +4,7 @@ import (
 	"context"
 	"io"
 
+	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/ui"
 	"github.com/vuka-lang/web"
@@ -27,12 +28,14 @@ func (l *Layout) Load(ctx context.Context, s *store.Store) error {
 }
 
 func (l Layout) Render(ctx context.Context, w io.Writer) error {
+	at := urls.Employers.Employer(l.Employer)
+	overview, edit := at.Path(), at.Edit.Path()
 	return ui.HTML(`<article id="employer">
   <header>
     <h1>{l.employer.Name}</h1>
     <p>{l.employer.City}</p>
-    <nav><a href={IndexURL(l.Employer)}>Overview</a> <a href={EditURL(l.Employer)}>Edit</a></nav>
+    <nav><a href={overview}>Overview</a> <a href={edit}>Edit</a></nav>
   </header>
   {l.Children}
-</article>`, l.employer.Name, l.employer.City, IndexURL(l.Employer), EditURL(l.Employer), l.Children).Render(ctx, w)
+</article>`, l.employer.Name, l.employer.City, overview, edit, l.Children).Render(ctx, w)
 }

@@ -159,8 +159,9 @@ person writes, so nothing at run time depends on the tree
 - **Tree.** `<module root>/pages/**` are ordinary packages; the folder path
   is the URL. `pages/pages_gen.go` (package `pages`, generated) registers
   every route of every folder, so `main` imports `pages` once and a layout
-  never has to be imported by the pages it wraps. Each page package gets a
-  `routes_gen.go` with its typed URL functions.
+  never has to be imported by the pages it wraps. `pages/urls` holds the
+  typed links; a folder with template-only pages gets a `routes_gen.go`
+  declaring their types.
 - **Pages.** An exported struct `T` with `func New<T>(deps…) *T`: `*T` a
   stateful component (`ui.Live` + `Render() ui.Node`) is `web.Routes.Live`,
   a `ui.Node` is `web.Routes.Get` with the constructor (a stateless page
@@ -173,8 +174,8 @@ person writes, so nothing at run time depends on the tree
   file-based type (`about.vuka.html` → `About`, `index.vuka.html` →
   `Index`) the package doesn't declare is a stateless page: gen declares
   `type About struct{ Params }` (or `struct{}`) and `NewAbout` in
-  `routes_gen.go`, visible to the template compiler, and routes it like any
-  page. No `Title`; declaring the type by hand turns the generated one off.
+  `routes_gen.go`, visible to the template compiler, and routes and links
+  it like any page (`urls.About`). No `Title`; declaring the type by hand turns the generated one off.
   A file of `func` templates only is not a page. `vuka routes` marks them.
 - **Single-page-app fallback.** Not a mechanism of its own: a catch-all
   folder (`app/route/`, `Params{Route web.Rest}`) whose `Index` renders a
@@ -220,24 +221,35 @@ person writes, so nothing at run time depends on the tree
   go bare. The layouts' `Load` runs before every handler as before the
   page: its `NotFound`, `Forbidden` or `Redirect` stops `Post`, `Put`,
   `Patch` and `Delete` too, so a folder's checks live in one place.
-- **Typed URLs.** Per page, `func <T>URL(params…) string` in the page's
-  package, parameters positional in path order and typed as the `Params`
-  fields, each segment `url.PathEscape`d (`web.Rest` per segment, slashes
-  kept; `encoding.TextMarshaler` marshalled). A child parameter folder
-  imports its parent (embedding), so a parameter folder links to the ones
-  below it by path; every other link, layouts' included, is typed.
+- **Typed URLs.** One generated package, `pages/urls`
+  (`urls_gen.go`), importing no page package, so any page links to any
+  other, parent to child included (per-package functions would make a
+  parameter folder's link to its children an import cycle, since a child
+  embeds its parent's `Params`). The tree as a chain:
+  `urls.Employers.Employer(7).Permits.Permit(3).Path()`. `urls.Root` is the
+  `pages/` folder and each of its children is also a package-level var. A
+  folder value has a field per fixed child folder (CamelCase of its name)
+  and per non-`Index` page (its type name), a method per parameter child
+  (CamelCase, taking the `Params` field's type), and `Path()` only when it
+  has an `Index`, so only real pages are linkable; a page field has
+  `Path()`. Values carry the path built so far in unexported per-node types.
+  Escaping: integers via `strconv`, strings and `MarshalText` output via
+  `url.PathEscape`, `web.Rest` per segment. Query parameters are outside
+  the chain.
 - **Precedence.** Static, then `{name}`, then `{name...}`, as `net/http`'s
   `ServeMux`. Everything else is a generation error with file and line:
   E0701 two pages on one path, E0702 two routes matching the same paths
   (parameter folders side by side), E0703 something below a catch-all
   folder, E0704 a malformed `Params`, E0705 a parameter type a URL can't
-  hold, E0706 a taken `<T>URL` or template-only type name, E0707 a
-  hand-written route on a folder route's path, E0708 a malformed `Layout`,
-  E0709 a method handler that can't be bound. Web's build checks keep their codes (E0321 a layout or
+  hold or `urls` can't name (declared in a page package), E0706 a taken
+  name (a child folder and a page alike in `urls`, a template-only page's
+  type), E0707 a hand-written route on a folder route's path, E0708 a
+  malformed `Layout`, E0709 a method handler that can't be bound. Web's
+  build checks keep their codes (E0321 a layout or
   `Load` signature, E0407 an unprovided `Load` dependency, E0410 a
   `Receiver` that doesn't build the receiver, E0333 a stateless `Mount`).
-- **Generation.** `vuka build/run/test/vet/lsp` overlay `pages/pages_gen.go`
-  and the `routes_gen.go` files; `vuka gen -inplace` writes them, `-check`
+- **Generation.** `vuka build/run/test/vet/lsp` overlay `pages/pages_gen.go`,
+  `pages/urls/urls_gen.go` and the `routes_gen.go` files; `vuka gen -inplace` writes them, `-check`
   reports staleness, `vuka eject` keeps them. Plain Go, the public web API
   only (`contract.txt`), gofmt'd, deterministic. `vuka routes` prints the
   table (method, path, page, file:line, layouts).

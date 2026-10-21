@@ -20,8 +20,8 @@ import (
 // pages, parameters bind typed (a bad one is not found), the catch-all
 // takes the rest of the path (a client app's shell answers every URL under
 // it but the pages beside it), a template is a page with no type of its
-// own, method handlers answer on their page's path, and links are the
-// typed URLs.
+// own, method handlers answer on their page's path, and every link,
+// parent to child included, comes from pages/urls.
 func TestFolderRoutesE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
@@ -60,9 +60,11 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if _, err := os.Stat(filepath.Join(root, "pages", "pages_gen.go")); err != nil {
 		t.Errorf("no pages/pages_gen.go: %v", err)
 	}
-	urls, _ := os.ReadFile(filepath.Join(root, "pages/employers/employer/routes_gen.go"))
-	if !strings.Contains(string(urls), "func EditURL(employer int) string") {
-		t.Errorf("employer/routes_gen.go has no EditURL(employer int):\n%s", urls)
+	urls, _ := os.ReadFile(filepath.Join(root, "pages/urls/urls_gen.go"))
+	for _, want := range []string{"package urls", "Employer(employer int)", "Permit(permit int)", "File(file web.Rest)"} {
+		if !strings.Contains(string(urls), want) {
+			t.Errorf("pages/urls/urls_gen.go has no %s:\n%s", want, urls)
+		}
 	}
 	if out, err := runVuka(t, vuka, root, "gen", "-inplace", "-check"); err != nil {
 		t.Errorf("vuka gen -inplace -check right after gen: %v\n%s", err, out)
@@ -137,6 +139,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 	page("/employers", "Employers - HR", `<nav id="site"><a href="/employers">Employers</a> <a href="/files/handbook/leave.txt">Handbook</a> <a href="/about">About</a> <a href="/app/settings">App</a></nav>`,
 		`<a href="/employers/1">Acme Logistics</a>`, `<a id="new" href="/employers/new">`, "data-vk-token")
 	page("/employers/new", "New employer - HR", `action="/employers/new"`)
+	// The overview links down to its permits, through pages/urls.
 	body := page("/employers/1", "Acme Logistics - HR", `<a href="/employers/1/edit">Edit</a>`,
 		`<a href="/employers/1/permits/2">Residence permit</a>`, `<a id="contract" href="/files/contracts/1.txt">`)
 	doc, article, overview := strings.Index(body, "<main>"), strings.Index(body, `<article id="employer">`), strings.Index(body, `<section id="overview">`)

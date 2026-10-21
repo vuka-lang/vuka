@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"example.com/folder-routes/pages/employers/employer"
+	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/ui"
 	"github.com/vuka-lang/web"
@@ -46,11 +46,12 @@ func (p *Index) Render() ui.Node {
 	if p.permit.Approved {
 		status = "Approved"
 	}
+	back := urls.Employers.Employer(p.Employer).Path()
 	approve := ui.If(!p.permit.Approved, ui.HTML(`<button id="approve" onClick={p.Approve}>Approve</button>`, p.Approve))
 	return ui.HTML(`<section id="permit">
   <h2>{p.permit.Kind}</h2>
   <p id="status">{status}</p>
   {approve}
-  <a id="back" href={employer.IndexURL(p.Employer)}>All permits</a>
-</section>`, p.permit.Kind, status, approve, employer.IndexURL(p.Employer))
+  <a id="back" href={back}>All permits</a>
+</section>`, p.permit.Kind, status, approve, back)
 }

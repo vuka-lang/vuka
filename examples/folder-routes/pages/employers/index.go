@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"example.com/folder-routes/pages/employers/employer"
+	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/ui"
 )
@@ -32,12 +32,13 @@ func (p *Index) Render() ui.Node {
 		label = "Sort by number"
 	}
 	rows := ui.Each(list, func(e store.Employer) ui.Node {
-		return ui.HTML(`<li><a href={employer.IndexURL(e.ID)}>{e.Name}</a>, {e.City}</li>`, employer.IndexURL(e.ID), e.Name, e.City)
+		href := urls.Employers.Employer(e.ID).Path()
+		return ui.HTML(`<li><a href={href}>{e.Name}</a>, {e.City}</li>`, href, e.Name, e.City)
 	})
 	return ui.HTML(`<section id="employers">
   <h1>Employers</h1>
   <button id="sort" onClick={p.Sort}>{label}</button>
   <ul>{rows}</ul>
-  <a id="new" href={NewURL()}>New employer</a>
-</section>`, p.Sort, label, rows, NewURL())
+  <a id="new" href={urls.Employers.New.Path()}>New employer</a>
+</section>`, p.Sort, label, rows, urls.Employers.New.Path())
 }
