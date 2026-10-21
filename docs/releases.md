@@ -19,7 +19,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v1.1.0 — unreleased
+## v1.1.0 — 2026-10-21
 
 - A live page's hooks in its constructor: `l.OnMount((*Login).mount)`,
   `l.Loads("stats", (*Login).loadStats)`, `l.OnChange(…)` on its `ui.Live`,
