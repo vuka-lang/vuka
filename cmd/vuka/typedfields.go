@@ -98,7 +98,11 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	return missing, nil
 }
 
-func init() { load.AfterPackage = packageTypedFields }
+func init() {
+	load.AfterPackage = func(dir, overlay string, gens []load.Generated) []load.Generated {
+		return append(packageTypedFields(dir, overlay, gens), routeStubs[dir]...)
+	}
+}
 
 // packageTypedFields is what orm generate would write for a Vuka package
 // just transpiled whose Go reads typed fields (User.Email is

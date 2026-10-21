@@ -7,13 +7,3 @@ type About struct{}
 
 // NewAbout builds the page About.
 func NewAbout() *About { return &About{} }
-
-// AboutURL is the path of the page About.
-func AboutURL() string {
-	return "/about"
-}
-
-// IndexURL is the path of the page Index.
-func IndexURL() string {
-	return "/"
-}

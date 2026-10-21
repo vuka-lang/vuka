@@ -16,7 +16,6 @@ import (
 
 	"github.com/vuka-lang/vuka/diag"
 	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
 )
 
 // folderRoute is one route of the table: a page, or one of its method
@@ -99,6 +98,7 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 	}
 	c.conflicts()
 	t.info = c.info
+	t.urls = c.urlTree()
 }
 
 // routeImporter type-checks the page packages from source, tolerating
@@ -474,11 +474,6 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 		if !live && !c.isNode(named) {
 			continue
 		}
-		if fn, ok := scope.Lookup(name + "URL").(*types.Func); ok && !generatedRoutesFile(c.r.fset, fn.Pos()) {
-			c.report(diag.New("E0706", "%sURL is declared, and vuka declares it for the page %s", name, name), fn.Pos()).
-				WithHelp("rename the function: vuka writes %sURL in %s", name, routesGoName).WithRelated(c.span(obj.Pos()))
-			continue
-		}
 		seg := ""
 		if name != "Index" {
 			seg = kebab(name)
@@ -633,11 +628,11 @@ func isPtrOrIface(t types.Type) bool {
 	return false
 }
 
-// generatedRoutesFile reports whether pos is in a routes_gen.go file or a
-// stub: what vuka declares.
+// generatedRoutesFile reports whether pos is in a routes_gen.go file, what
+// vuka declares.
 func generatedRoutesFile(fset *token.FileSet, pos token.Pos) bool {
 	name := filepath.Base(fset.PositionFor(pos, false).Filename)
-	return name == routesGoName || name == transpile.GoName(routesStub)
+	return name == routesGoName
 }
 
 func lookupType(pkg *types.Package, name string) types.Type {

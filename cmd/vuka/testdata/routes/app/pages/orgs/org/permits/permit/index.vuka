@@ -1,6 +1,10 @@
 package permit
 
-import "github.com/vuka-lang/ui"
+import (
+	"github.com/vuka-lang/ui"
+
+	"example.com/app/pages/urls"
+)
 
 // Index is a permit's page, live.
 type Index struct {
@@ -10,4 +14,4 @@ type Index struct {
 
 func NewIndex() *Index { return &Index{} }
 
-func (x *Index) Render() ui.Node { return ui.Text(IndexURL(x.Org, x.Permit)) }
+func (x *Index) Render() ui.Node { return ui.Text(urls.Orgs.Org(x.Org).Permits.Permit(x.Permit).Path()) }

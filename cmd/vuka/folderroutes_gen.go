@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"fmt"
 	"go/format"
 	"go/token"
@@ -13,15 +12,27 @@ import (
 	"github.com/vuka-lang/vuka/internal/load"
 )
 
-// generate writes each page package's routes_gen.go and pages_gen.go.
+// generate writes pages/urls/urls_gen.go, the routes_gen.go of each page
+// package with template-only pages, and pages/pages_gen.go; each also when
+// one written earlier is on disk, to replace it.
 func (t *routeTree) generate(routes []*folderRoute) []load.Generated {
 	var out []load.Generated
+	if target := filepath.Join(t.urlsDir(), urlsGoName); len(routes) > 0 || fileExists(target) {
+		out = append(out, load.Generated{Target: target, Src: t.urlsFile()})
+	}
 	for _, d := range t.dirs {
-		if in := t.info[d]; in != nil && len(in.pages) > 0 {
-			out = append(out, load.Generated{Target: filepath.Join(d.dir, routesGoName), Src: t.urlFuncs(d, in)})
+		target := filepath.Join(d.dir, routesGoName)
+		in := t.info[d]
+		var types []string
+		for _, name := range d.templates {
+			if in != nil && slices.Contains(in.pages, name) {
+				types = append(types, name)
+			}
+		}
+		if len(types) > 0 || fileExists(target) {
+			out = append(out, load.Generated{Target: target, Src: gofmt(routesHeading + "package " + d.name + "\n" + d.templateTypes(types))})
 		}
 	}
-	// pages_gen.go once there is a route, or to replace one written earlier.
 	if target := filepath.Join(t.root, pagesDirName, pagesGoName); len(routes) > 0 || fileExists(target) {
 		out = append(out, load.Generated{Target: target, Src: t.registrations(routes)})
 	}
@@ -117,58 +128,9 @@ func unaliased(line string) string {
 	return line
 }
 
-// urlFuncs is a page package's routes_gen.go: <Page>URL for each page.
-func (t *routeTree) urlFuncs(d *routeDir, in *dirInfo) []byte {
-	var names []string
-	for _, p := range in.params {
-		names = append(names, p.name)
-	}
-	im := newImports(d.importPath, in.pkg.Scope(), names...)
-	var body bytes.Buffer
-	args := make([]string, len(in.params))
-	for i, p := range in.params {
-		args[i] = paramIdent(p.name) + " " + types.TypeString(p.typ, im.qualifier)
-	}
-	for _, page := range in.pages {
-		fmt.Fprintf(&body, "\n// %sURL is the path of the page %s.\nfunc %sURL(%s) string {\n", page, page, page, strings.Join(args, ", "))
-		var parts []string
-		lit := ""
-		pi := 0
-		segs := in.segs
-		if page != "Index" {
-			segs = append(slices.Clone(segs), kebab(page))
-		}
-		for _, s := range segs {
-			if !strings.HasPrefix(s, "{") {
-				lit += "/" + s
-				continue
-			}
-			p := in.params[pi]
-			pi++
-			parts = append(parts, fmt.Sprintf("%q", lit+"/"), t.segment(&body, im, p, pi))
-			lit = ""
-		}
-		if lit != "" || len(parts) == 0 {
-			if lit == "" {
-				lit = "/"
-			}
-			parts = append(parts, fmt.Sprintf("%q", lit))
-		}
-		fmt.Fprintf(&body, "\treturn %s\n}\n", strings.Join(parts, " + "))
-	}
-	var types []string
-	for _, name := range d.templates {
-		if slices.Contains(in.pages, name) {
-			types = append(types, name)
-		}
-	}
-	src := routesHeading + "package " + d.name + "\n\n" + im.block() + strings.TrimPrefix(d.templateTypes(types)+body.String(), "\n")
-	return gofmt(src)
-}
-
 // segment is the expression writing a path parameter into the path,
 // statements it needs written to body first.
-func (t *routeTree) segment(body *bytes.Buffer, im *imports, p urlParam, n int) string {
+func (t *routeTree) segment(body *strings.Builder, im *imports, p urlParam) string {
 	v := paramIdent(p.name)
 	switch p.kind {
 	case paramInt, paramUint:
@@ -186,9 +148,8 @@ func (t *routeTree) segment(body *bytes.Buffer, im *imports, p urlParam, n int) 
 		}
 		return sc + "." + fn + "(" + conv + "(" + v + "), 10)"
 	case paramText:
-		text := fmt.Sprintf("text%d", n)
-		fmt.Fprintf(body, "\t%s, _ := %s.MarshalText()\n", text, v)
-		return im.name("net/url", "url") + ".PathEscape(string(" + text + "))"
+		fmt.Fprintf(body, "\ttext, _ := %s.MarshalText()\n", v)
+		return im.name("net/url", "url") + ".PathEscape(string(text))"
 	case paramRest:
 		u, s := im.name("net/url", "url"), im.name("strings", "strings")
 		fmt.Fprintf(body, "\tsegs := %s.Split(string(%s), \"/\")\n\tfor i, seg := range segs {\n\t\tsegs[i] = %s.PathEscape(seg)\n\t}\n", s, v, u)
@@ -203,7 +164,7 @@ func (t *routeTree) segment(body *bytes.Buffer, im *imports, p urlParam, n int) 
 // paramIdent is a path parameter's name as a Go parameter.
 func paramIdent(name string) string {
 	switch name {
-	case "segs", "seg", "i":
+	case "segs", "seg", "i", "u", "text":
 		return name + "_"
 	}
 	if token.Lookup(name).IsKeyword() {

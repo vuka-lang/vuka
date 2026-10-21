@@ -5,7 +5,7 @@
 package pages
 
 import (
-	"example.com/app/pages/files/path"
+	"example.com/app/pages/files/file"
 	"example.com/app/pages/orgs"
 	"example.com/app/pages/orgs/org"
 	"example.com/app/pages/orgs/org/permits/permit"
@@ -15,7 +15,7 @@ import (
 func init() {
 	web.Routes.Get("/", NewIndex, web.PageRoute(), web.LayoutOf[Layout]())
 	web.Routes.Get("/about", NewAbout, web.PageRoute(), web.LayoutOf[Layout]())
-	web.Routes.Get("/files/{path...}", path.NewIndex, web.PageRoute(), web.LayoutOf[Layout]())
+	web.Routes.Get("/files/{file...}", file.NewIndex, web.PageRoute(), web.LayoutOf[Layout]())
 	web.Routes.Live("/orgs", orgs.NewIndex, web.PageRoute(), web.LayoutOf[Layout]())
 	web.Routes.Get("/orgs/new", orgs.NewNew, web.PageRoute(), web.LayoutOf[Layout]())
 	web.Routes.Post("/orgs/new", (*orgs.New).Post, web.Receiver(orgs.NewNew), web.LayoutOf[Layout]())
