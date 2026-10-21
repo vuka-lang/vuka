@@ -147,7 +147,7 @@ twin; `TestLibraryExample` (cmd/vuka) builds it with plain `go build`, ejects
 the twin and checks both are written alike (the same `web.Routes` calls, the
 same templates) and answer the same.
 
-### Folder routes (1.1; endpoints and guards 1.2)
+### Folder routes (1.1; endpoints and guards 1.2; middleware 1.3)
 
 The registration of an app with many pages is mostly bookkeeping: a
 `web.Routes` call per page, the path spelt again in every link, the layout
@@ -253,6 +253,25 @@ person writes, so nothing at run time depends on the tree
   `Redirect` 302 on GET / 303 otherwise; an HTML error page for pages, JSON
   for JSON handlers, a live error with the status for a refused join. A
   route with only guards keeps its own document.
+- **Middleware (1.3).** A package declaring `Middleware` — `func(next
+  http.Handler) http.Handler`, or a constructor `func(deps…) web.Middleware`
+  (deps from DI, resolved at Build, E0407 when unprovided) — wraps every
+  page, method handler and endpoint in and below its folder; never
+  hand-written routes, static files or the app's 404. gen emits it root-first
+  as `web.Use(pkg.Middleware)` before the folder's GuardOf/LayoutOf; per
+  request: middlewares (root → leaf, outermost) → guards'/layouts' Load →
+  bind → Mount → handler → back out. It wraps the whole route handler, so a
+  bad path parameter's 404 passes through it; not calling next
+  short-circuits. Live pages: the GET and the join only, never socket
+  events (a per-session check is a guard). One per package; a wrong
+  signature is E0710; `vuka routes` gains a MIDDLEWARE column.
+- **Type attributes on stateless pages (1.3).** `vuka.RegisterType[T](attrs…)`
+  now reaches the route spec of stateless folder pages (PageRoute
+  constructor routes) and method handlers/endpoints (Receiver routes), as it
+  already did live pages and islands — flattened, type attrs first. So
+  `vuka.RegisterType[Login](auth.Public())` opens a stateless login page and
+  its handlers, and `web.Use(mw)` as a type attr puts middleware on one
+  page.
 - **Typed URLs.** One generated package, `pages/urls`
   (`urls_gen.go`), importing no page package, so any page links to any
   other, parent to child included (per-package functions would make a

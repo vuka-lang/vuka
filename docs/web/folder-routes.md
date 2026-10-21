@@ -19,6 +19,9 @@ func (s *Store) Add(f EmployerForm) Employer        { return Employer{} }
 func (s *Store) Update(id int, f EmployerForm)      {}
 func (s *Store) Delete(id int)                      {}
 func (s *Store) Pending() int                       { return 0 }
+func (s *Store) Reloading() bool                    { return false }
+
+type Login struct{}
 
 // What vuka gen writes in pages/urls, as the samples use it.
 type pathURL struct{ path string }
@@ -89,6 +92,7 @@ writes is the registration you would write by hand
 | several methods per page | `Post`, `Put`, `Patch`, `Delete` methods on the page type answer on its path |
 | JSON endpoints | a type with `Get`, `Post`, `Put`, `Patch` or `Delete` methods and no markup: `api/employers/` answers JSON |
 | guards | `guard.go`, a check over every page, handler and endpoint below it, rendering nothing |
+| middleware | `middleware.go`, HTTP middleware around every route below it — headers, logging, rate limits |
 | precedence | static, then dynamic, then catch-all — what `net/http`'s mux does |
 | typed handlers | a method handler takes a form or JSON struct, bound and validated |
 | templates | a page's `.vuka.html` sits beside its `.go`; a `.vuka.html` alone is a page too |
@@ -100,6 +104,7 @@ writes is the registration you would write by hand
 main.go                      imports _ "example.com/hr/pages"
 pages/
   layout.go                  Layout: the document of every page
+  middleware.go              Middleware: a header and a log line on every request
   about.vuka.html            a page with no Go type — /about
   pages_gen.go               (written by vuka gen) registers every route below
   employers/
@@ -126,6 +131,7 @@ pages/
       index.go               Index: the client app's shell — /app/{route...}
   api/
     guard.go                 Guard: an API key for everything below
+    middleware.go            Middleware: the API's rate limit
     employers/
       index.go               Index — GET and POST /api/employers (an endpoint)
       employer/
@@ -622,6 +628,97 @@ Guards and layouts load from the root down, and within one folder the
 `Load` is for what it shows; a guard is for a check alone, and fits where
 nothing renders — an API, or pages that keep their own document.
 
+## Middleware
+
+A folder whose package declares `Middleware` wraps every page, method
+handler and endpoint in it and below in plain `net/http` middleware —
+where guards and layouts speak the request's language (parameters, the
+container, a typed error), middleware speaks HTTP's: response headers, a
+log line, a rate limit, a cached or short-circuited response. Two forms:
+
+```go
+// pages/middleware.go
+package pages
+
+// Middleware stamps and logs every request of the site.
+func Middleware(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Add("X-Served-By", "hr")
+		log.Printf("%s %s", r.Method, r.URL.Path)
+		next.ServeHTTP(w, r)
+	})
+}
+```
+
+The plain form is `func(next http.Handler) http.Handler`. The constructor
+form, `func Middleware(deps…) web.Middleware`, takes what it needs from
+the [container](/web/dependency-injection) once, when the app builds — the
+place for configuration and state the middleware keeps:
+
+```go
+// pages/api/middleware.go
+package api
+
+// Middleware holds the API while the store reloads.
+func Middleware(s *Store) web.Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if s.Reloading() {
+				w.Header().Set("Retry-After", "1")
+				http.Error(w, "reloading", http.StatusServiceUnavailable)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+```
+
+Middleware is the outermost ring. Per request, from the root folder down:
+
+```text
+middleware (root → folder) → guards' and layouts' Load → bind → Mount → handler
+```
+
+and the response passes back out through the middleware. It wraps the
+whole route, so it also sees the 404 a path parameter that doesn't parse
+answers. Not calling `next` short-circuits the request: the middleware
+writes the response itself — a maintenance page, an IP block, a rate
+limit's 429, a cache hit — and nothing below it runs, the guards
+included, as the api middleware above does while the store reloads.
+
+Middleware wraps folder routes only: hand-written routes, static files
+and the app's 404 pass it by (give the whole app middleware with
+`web.New(web.Use(mw))`). On a live page it wraps the `GET` and the
+socket's join request; the socket's events don't go back through it —
+a check that must hold the whole session is a [guard](#guards), which
+re-runs on the join. One `Middleware` per package, like `Layout` and
+`Guard`; the file name `middleware.go` is convention. A wrong signature
+is [E0710](/errors/E0710).
+
+**A middleware or a guard?** A guard decides *whether* — it has the path's
+parameters and the container, returns a typed error, and answers in the
+route's own shape (an HTML error page, JSON for an endpoint). Middleware
+decides *around* — it sees the raw request and response, runs before
+everything and after everything, and what it writes is its own. An API
+key is a guard; the rate limit in front of it is middleware.
+
+### Attributes on a page type
+
+A folder route has no registration to hang an option on — options a page
+needs go on its type, with `vuka.RegisterType`, as a live page's do. From
+1.3 they reach stateless pages, their method handlers and endpoints too,
+so a login page under `pages/` opts out of [auth](/web/auth)'s sign-in
+the usual way:
+
+<!-- go:fragment -->
+```go
+vuka.RegisterType[Login](auth.Public())
+```
+
+`web.Use(mw)` is an attribute as well, for middleware on one page rather
+than a folder.
+
 ## Typed URLs
 
 `vuka gen` writes one more package, `pages/urls`, with a link to every
@@ -694,6 +791,7 @@ the routes are generated, at the file and line that causes it:
 | [E0707](/errors/E0707) | a folder route and a hand-written route on one path |
 | [E0708](/errors/E0708) | a malformed `Layout`, `Guard` or `Load` |
 | [E0709](/errors/E0709) | a method handler that can't be bound, or a `Get` method on a page |
+| [E0710](/errors/E0710) | a malformed `Middleware` |
 
 Hand-written routes stay: `web.Routes` calls and `app.Get(…)` work beside
 folder routes, on paths of their own.
@@ -762,7 +860,8 @@ func NewSettings() *Settings { return &Settings{} }
 from the path, a bad path parameter a 404, `Mount`, `Title` — and
 `web.LayoutOf[T]()` adds a layout, the first given outermost;
 `web.GuardOf[T]()` adds a guard, loading with the layouts in the order the
-options are given. A live page is `web.Routes.Live`, and a method handler
+options are given; `web.Use(pkg.Middleware)` wraps the route in each
+folder's middleware, the root's outermost. A live page is `web.Routes.Live`, and a method handler
 or an endpoint's method is registered with the type's constructor as its
 receiver, `web.Receiver(NewT)`. A page or endpoint without a `New<T>` gets
 one in its folder's `routes_gen.go`, as a template-only page does. Packages

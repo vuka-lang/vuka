@@ -19,6 +19,25 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v1.3.0 — unreleased
+
+- Middleware in folder routes: a `middleware.go` declaring `Middleware` —
+  `func(next http.Handler) http.Handler`, or `func(deps…) web.Middleware`
+  with its dependencies from the container — wraps every page, handler and
+  endpoint below its folder, the root's outermost: headers, logging, rate
+  limits, a short-circuited response. It runs before the guards and layouts
+  load and sees the response on the way out; on a live page it wraps the
+  `GET` and the socket's join, not the events
+  ([Middleware](/web/folder-routes#middleware)). A wrong signature is
+  [E0710](/errors/E0710); `vuka routes` prints a MIDDLEWARE column.
+- `vuka.RegisterType[T](attrs…)` reaches stateless folder pages, method
+  handlers and endpoints, as it already did live pages:
+  `vuka.RegisterType[Login](auth.Public())` opens a stateless login page
+  and its `Post` ([Attributes on a page type](/web/folder-routes#attributes-on-a-page-type)).
+- Example: `examples/folder-routes` stamps and logs every request from
+  `pages/middleware.go` and rate-limits its API from
+  `pages/api/middleware.go`.
+
 ## v1.2.0 — 2026-10-21
 
 - Endpoints in folder routes: an exported type under `pages/` with `Get`,
