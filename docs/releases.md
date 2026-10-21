@@ -19,7 +19,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v1.2.0 — unreleased
+## v1.2.0 — 2026-10-21
 
 - Endpoints in folder routes: an exported type under `pages/` with `Get`,
   `Post`, `Put`, `Patch` or `Delete` methods and no markup answers those
