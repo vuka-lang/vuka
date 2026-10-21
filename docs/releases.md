@@ -19,6 +19,21 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v1.5.0 — 2026-10-22
+
+- Request panic recovery now covers middleware, custom routers and page
+  rendering as well as compiled handlers. Uncommitted responses answer a
+  safe 500 through `OnError`; panic details and stack traces stay in the
+  server log. A broken error handler falls back to a generic 500.
+- A panic after a response is written or flushed aborts that response,
+  preserving `http.ErrAbortHandler`. HTTP/2 push, streaming and WebSocket
+  upgrades remain available. Hijacked connections are closed on unexpected
+  panics.
+- A panic during a live render or guard closes only the affected socket
+  with code 1011 and a generic reason, discarding its session. Startup
+  errors and panics in application-created goroutines retain their
+  existing behavior.
+
 ## v1.4.0 — 2026-10-22
 
 - Templates can read the current render's `ctx` in main markup, struct
