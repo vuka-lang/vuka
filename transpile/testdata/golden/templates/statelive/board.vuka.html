@@ -1,0 +1,48 @@
+package main
+
+// Board is live: its unexported fields that aren't states are server state
+// the session tracks, and its methods write its states by assignment.
+type Board struct {
+	ui.Live
+	rows    []Row           // server state: tracked
+	n       int             // server state: tracked
+	seen    map[string]bool // server state: tracked
+	tab     ui.State[string]
+	open    ui.State[bool]
+	count   ui.State[int]
+	scratch []string `vuka:"-"` // not tracked
+}
+
+func (b *Board) Add(name string) {
+	if b.seen == nil {
+		b.seen = map[string]bool{}
+	}
+	b.rows = append(b.rows, Row{Name: name})
+	b.seen[name] = true
+	b.n += 10
+	b.scratch = append(b.scratch, name)
+}
+
+func (b *Board) Bump() {
+	b.n++
+	b.count++
+}
+
+func (b *Board) Rename(i int, name string) {
+	b.rows[i].Name = name
+}
+
+func (b *Board) Reset() {
+	b.tab = "env"
+	b.open = !b.open
+	b.open = false
+}
+<section>
+  <p>{len(rows)} rows, n: {n}</p>
+  for _, r := range rows {
+    <p>{r.Name}</p>
+  }
+  <button onClick={tab = "logs"}>{tab}</button>
+  <button onClick={open = false; Bump()}>bump</button>
+  <button onClick={Rename(0, "z")}>rename</button>
+</section>

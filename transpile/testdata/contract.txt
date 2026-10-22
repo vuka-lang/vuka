@@ -3,6 +3,11 @@
 # public: documented API a person writes by hand. Generated code calls
 # nothing else: what it would need and a person couldn't call is a gap in
 # the public API, filled there (library.md, "No hidden runtime").
+# generated: what generated code alone calls — ui's uigen, the lowering of a
+# .vuka.html file's client state and tracked server state. Public so the
+# generated code builds with go build, ejected code included; not an API a
+# person writes (vukavet reports a hand-written use), so it is the
+# compiler's to change. ui.State's own API is Get and Set.
 # stepN: an internal form generated code still calls, until step N of the
 # Plan gives it a public replacement; none is left. An entry no golden uses
 # fails the test.
@@ -53,8 +58,6 @@ public github.com/vuka-lang/vuka.TypeAttrs
 public github.com/vuka-lang/vuka.TypeFor
 public github.com/vuka-lang/vuka.Wrap
 
-public github.com/vuka-lang/ui.Assign
-public github.com/vuka-lang/ui.At
 public github.com/vuka-lang/ui.Attr
 public github.com/vuka-lang/ui.Bind
 public github.com/vuka-lang/ui.BindAttr
@@ -69,8 +72,8 @@ public github.com/vuka-lang/ui.Commands
 public github.com/vuka-lang/ui.Component
 public github.com/vuka-lang/ui.Ctx
 public github.com/vuka-lang/ui.Defer
-public github.com/vuka-lang/ui.Derived
 public github.com/vuka-lang/ui.Each
+public github.com/vuka-lang/ui.El
 public github.com/vuka-lang/ui.Emit
 public github.com/vuka-lang/ui.ErrorBoundary
 public github.com/vuka-lang/ui.Event
@@ -96,18 +99,18 @@ public github.com/vuka-lang/ui.PageLayout
 public github.com/vuka-lang/ui.Props
 public github.com/vuka-lang/ui.Ptr
 public github.com/vuka-lang/ui.RegisterIsland
+public github.com/vuka-lang/ui.Safe
 public github.com/vuka-lang/ui.Show
 public github.com/vuka-lang/ui.ShowProps
 public github.com/vuka-lang/ui.Slot
 public github.com/vuka-lang/ui.State
 public github.com/vuka-lang/ui.StateProp
+public github.com/vuka-lang/ui.States
 public github.com/vuka-lang/ui.Strategy
 public github.com/vuka-lang/ui.String
 public github.com/vuka-lang/ui.Template
 public github.com/vuka-lang/ui.Try
 public github.com/vuka-lang/ui.URL
-public github.com/vuka-lang/ui.UsePageState
-public github.com/vuka-lang/ui.UseState
 public github.com/vuka-lang/ui.Visible
 public github.com/vuka-lang/ui.WithChildren
 public github.com/vuka-lang/web.GuardOf
@@ -119,6 +122,29 @@ public github.com/vuka-lang/web.Rest
 public github.com/vuka-lang/web.Routes
 public github.com/vuka-lang/web.Use
 public github.com/vuka-lang/web.UseOf
+
+generated github.com/vuka-lang/ui/uigen.Assign
+generated github.com/vuka-lang/ui/uigen.And
+generated github.com/vuka-lang/ui/uigen.At
+generated github.com/vuka-lang/ui/uigen.Dec
+generated github.com/vuka-lang/ui/uigen.Derived
+generated github.com/vuka-lang/ui/uigen.Eq
+generated github.com/vuka-lang/ui/uigen.Ge
+generated github.com/vuka-lang/ui/uigen.Gt
+generated github.com/vuka-lang/ui/uigen.Inc
+generated github.com/vuka-lang/ui/uigen.Le
+generated github.com/vuka-lang/ui/uigen.Len
+generated github.com/vuka-lang/ui/uigen.Lt
+generated github.com/vuka-lang/ui/uigen.Minus
+generated github.com/vuka-lang/ui/uigen.Ne
+generated github.com/vuka-lang/ui/uigen.Neg
+generated github.com/vuka-lang/ui/uigen.Not
+generated github.com/vuka-lang/ui/uigen.Or
+generated github.com/vuka-lang/ui/uigen.Plus
+generated github.com/vuka-lang/ui/uigen.States
+generated github.com/vuka-lang/ui/uigen.Toggle
+generated github.com/vuka-lang/ui/uigen.UsePageState
+generated github.com/vuka-lang/ui/uigen.UseState
 
 public github.com/vuka-lang/ui/validate.Max
 public github.com/vuka-lang/ui/validate.Required

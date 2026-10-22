@@ -8,9 +8,9 @@ import (
 	"fmt"
 
 	ui "vukatest.local/stateui"
+	"vukatest.local/stateui/uigen"
 )
 
-//line islands_import.vuka:11
 type page struct{}
 
 func (p *page) Pick(ctx context.Context, day string) error { return nil }
@@ -20,7 +20,7 @@ func (p *page) Closed()                                    {}
 // kind ('day' | 'week', optional), max (optional number), days, open (a
 // model), onSelect/onClose (emits) and a default slot.
 func (p *page) render() ui.Node {
-	open := ui.UseState(false)
+	open := uigen.UseState(false)
 	picker := func(a1 float64, a2 []PickerDays, a3 ui.State[bool], a4 any, a5 any) any {
 		return ui.Mount(Picker{Title: "Week", Kind: ui.Ptr[PickerKind]("week"), Max: ui.Ptr[float64](a1), Days: a2}, ui.Load(), ui.Slot(ui.HTML(`<b>hi</b>`)), ui.Callback("onSelect", a4), ui.Callback("onClose", a5), ui.StateProp("open", a3))
 	}(3, []PickerDays{{Label: "mon", Free: true}}, open, p.Pick, p.Closed)

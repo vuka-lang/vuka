@@ -24,6 +24,7 @@ func Ops(min int) ui.Node {
 		e={q.Range.Lo == 0}
 	>
 		{q.Text + " " + "items"}
+		{"about " + q.Text}
 	</p>
 }
 
@@ -34,4 +35,4 @@ func narrow(q ui.State[Query]) ui.Commands {
 	return ui.JS.Set(q.Text, "dog").Set(q.Range.Lo, 2)
 }
 
-func reset(q ui.State[Query]) ui.Commands { return q.Range.Hi.Reset() }
+func reset(q ui.State[Query]) ui.Commands { return ui.JS.Set(q.Range.Hi, 0) }

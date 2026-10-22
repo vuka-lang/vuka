@@ -8,8 +8,10 @@ import (
 	"fmt"
 
 	ui "vukatest.local/stateui"
+	"vukatest.local/stateui/uigen"
 )
 
+//line state_pass.vuka:10
 type Filters struct {
 	Kind string
 	Open bool
@@ -43,38 +45,38 @@ type Page struct{}
 
 // menu takes a state and returns a node.
 func (p *Page) menu(open ui.State[bool]) ui.Node {
-	return ui.HTML(`<ul hidden={open.Not()}><li>item</li></ul>`, open.Not())
+	return ui.HTML(`<ul hidden={uigen.Not(open)}><li>item</li></ul>`, uigen.Not(open))
 }
 
 func (p *Page) Render() ui.Node {
-	open := ui.UseState(false)
-	upload := ui.UseState(true)
-	f := ui.UseState(Filters{Kind: "dog"})
+	open := uigen.UseState(false)
+	upload := uigen.UseState(true)
+	f := uigen.UseState(Filters{Kind: "dog"})
 	return ui.HTML(`
 <div>
-  {Button(open.Toggle(), "toggle")}
+  {Button(open.Set(true), "set")}
   {Button(OpenDialog(upload), "upload")}
-  {Button(OpenDialog(ui.At[bool](f, "Open")), "field")}
+  {Button(OpenDialog(uigen.At[bool](f, "Open")), "field")}
   {Button(open.Set(true).Set(upload, false), "chain")}
   {Act(OpenDialog(upload), "any")}
-  {Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", open.Not().And(upload)), {Name: "id", Value: "box"}})}
+  {Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", upload), {Name: "id", Value: "box"}})}
   {p.menu(upload)}
-  {p.menu(ui.At[bool](f, "Open"))}
-  {Hint(open.Not())}
-  {Hint(ui.At[string](f, "Kind").Plus("s"))}
-  {Panel(open.Not().And(upload))}
+  {p.menu(uigen.At[bool](f, "Open"))}
+  {Hint(uigen.Not(open))}
+  {Hint(uigen.Plus(uigen.At[string](f, "Kind"), "s"))}
+  {Panel(uigen.And(uigen.Not(open), upload))}
 </div>`,
-		Button(open.Toggle(), "toggle"),
+		Button(open.Set(true), "set"),
 		Button(OpenDialog(upload), "upload"),
-		Button(OpenDialog(ui.At[bool](f, "Open")), "field"),
+		Button(OpenDialog(uigen.At[bool](f, "Open")), "field"),
 		Button(open.Set(true).Set(upload, false), "chain"),
 		Act(OpenDialog(upload), "any"),
-		Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", open.Not().And(upload)), {Name: "id", Value: "box"}}),
+		Box([]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", upload), {Name: "id", Value: "box"}}),
 		p.menu(upload),
-		p.menu(ui.At[bool](f, "Open")),
-		Hint(open.Not()),
-		Hint(ui.At[string](f, "Kind").Plus("s")),
-		Panel(open.Not().And(upload)),
+		p.menu(uigen.At[bool](f, "Open")),
+		Hint(uigen.Not(open)),
+		Hint(uigen.Plus(uigen.At[string](f, "Kind"), "s")),
+		Panel(uigen.And(uigen.Not(open), upload)),
 	)
 }
 

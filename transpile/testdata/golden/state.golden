@@ -8,8 +8,10 @@ import (
 	"fmt"
 
 	ui "vukatest.local/stateui"
+	"vukatest.local/stateui/uigen"
 )
 
+//line state.vuka:10
 type Filters struct {
 	Q    string
 	Sort string
@@ -18,57 +20,58 @@ type Filters struct {
 const Env = "env"
 
 // theme is the page's: every component reads one value.
-var theme = ui.UsePageState("light")
+var theme = uigen.UsePageState("light")
 
 func Menu(label string) ui.Node {
-	open := ui.UseState(false)
-	tab := ui.UseState("logs")
-	n := ui.UseState(2)
-	f := ui.UseState(Filters{Sort: "name"})
-	ready := open.Not().And(tab.Eq(Env))
+	open := uigen.UseState(false)
+	tab := uigen.UseState("logs")
+	n := uigen.UseState(2)
+	f := uigen.UseState(Filters{Sort: "name"})
 	limit := 3
 //line state.vuka:45
-	show := ui.Show(ui.ShowProps{When: open.Not(), Children: ui.HTML(`<p>closed</p>`)})
+	show := ui.Show(ui.ShowProps{When: uigen.Not(open), Children: ui.HTML(`<p>closed</p>`)})
 	show2 := ui.Show(ui.ShowProps{When: open, Children: ui.HTML(`<p>open</p>`)})
-//line state.vuka:27
+//line state.vuka:26
 	return ui.HTML(`
 <div class={ui.Classes{"menu": true, "is-open": open}}>
-  <button onClick={open.Toggle()} aria-expanded={open}>{label}</button>
-  <ul hidden={open.Not()}>
-    <li selected={tab.Eq("env")} onClick={tab.Set(Env).Set(open, false)}>Env</li>
-    <li disabled={ui.At[string](f, "Q").Eq("").Or(tab.Ne("logs"))}>Logs</li>
+  <button onClick={uigen.Toggle(ui.JS, open)} aria-expanded={open}>{label}</button>
+  <ul hidden={uigen.Not(open)}>
+    <li selected={uigen.Eq(tab, "env")} onClick={ui.JS.Set(tab, Env).Set(open, false)}>Env</li>
+    <li disabled={uigen.Or(uigen.Eq(uigen.At[string](f, "Q"), ""), uigen.Ne(tab, "logs"))}>Logs</li>
   </ul>
-  <input value={ui.At[string](f, "Q")} onInput={ui.At[string](f, "Q").Set("x")}/>
-  <span>{n}</span> <span>{n.Plus(1)}</span> <span>{n.Neg()}</span>
-  <p title={theme.Plus("!")} data-ready={ready} data-long={ui.At[string](f, "Sort").Len().Gt(limit)} data-get={tab.Get()}/>
-  <button onClick={n.Inc()}>+</button>
-  <button onClick={f.Reset()}>reset</button>
+  <input value={uigen.At[string](f, "Q")} onInput={ui.JS.Set(uigen.At[string](f, "Q"), "x")}/>
+  <span>{n}</span> <span>{uigen.Plus(n, 1)}</span> <span>{uigen.Neg(n)}</span>
+  <p title={uigen.Plus(theme, "!")} data-ready={uigen.And(uigen.Not(open), uigen.Eq(tab, Env))} data-long={uigen.Gt(uigen.Len(uigen.At[string](f, "Sort")), limit)} data-get={tab.Get()}/>
+  <button onClick={uigen.Inc(ui.JS, n)}>+</button>
+  <button onClick={uigen.Dec(ui.JS, n).Set(open, true)}>-</button>
+  <button onClick={ui.JS.Set(f, Filters{Sort: "name"})}>reset</button>
   {show}
   {show2}
-  {Panel(open, ui.At[string](f, "Sort"))}
+  {Panel(open, uigen.At[string](f, "Sort"))}
 </div>`,
 		ui.Classes{"menu": true, "is-open": open},
-		open.Toggle(),
+		uigen.Toggle(ui.JS, open),
 		open,
 		label,
-		open.Not(),
-		tab.Eq("env"),
-		tab.Set(Env).Set(open, false),
-		ui.At[string](f, "Q").Eq("").Or(tab.Ne("logs")),
-		ui.At[string](f, "Q"),
-		ui.At[string](f, "Q").Set("x"),
+		uigen.Not(open),
+		uigen.Eq(tab, "env"),
+		ui.JS.Set(tab, Env).Set(open, false),
+		uigen.Or(uigen.Eq(uigen.At[string](f, "Q"), ""), uigen.Ne(tab, "logs")),
+		uigen.At[string](f, "Q"),
+		ui.JS.Set(uigen.At[string](f, "Q"), "x"),
 		n,
-		n.Plus(1),
-		n.Neg(),
-		theme.Plus("!"),
-		ready,
-		ui.At[string](f, "Sort").Len().Gt(limit),
+		uigen.Plus(n, 1),
+		uigen.Neg(n),
+		uigen.Plus(theme, "!"),
+		uigen.And(uigen.Not(open), uigen.Eq(tab, Env)),
+		uigen.Gt(uigen.Len(uigen.At[string](f, "Sort")), limit),
 		tab.Get(),
-		n.Inc(),
-		f.Reset(),
+		uigen.Inc(ui.JS, n),
+		uigen.Dec(ui.JS, n).Set(open, true),
+		ui.JS.Set(f, Filters{Sort: "name"}),
 		show,
 		show2,
-		Panel(open, ui.At[string](f, "Sort")),
+		Panel(open, uigen.At[string](f, "Sort")),
 	)
 }
 
@@ -76,7 +79,7 @@ func Menu(label string) ui.Node {
 //
 //line state.vuka:52
 func Panel(open ui.State[bool], sort ui.State[string]) ui.Node {
-	return ui.HTML(`<p hidden={open.Not()}>{sort}</p>`, open.Not(), sort)
+	return ui.HTML(`<p hidden={uigen.Not(open)}>{sort}</p>`, uigen.Not(open), sort)
 }
 
 func main() {

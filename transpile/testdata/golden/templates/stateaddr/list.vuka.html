@@ -1,0 +1,13 @@
+package main
+
+// List tracks rows: a change through a pointer to them wouldn't be seen.
+type List struct {
+	ui.Live
+	rows []string
+}
+
+func (l *List) Grow() {
+	p := &l.rows
+	*p = append(*p, "x")
+}
+<ul>{len(rows)}</ul>

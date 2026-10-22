@@ -48,12 +48,12 @@ func (p *Page) Render() ui.Node {
 	upload := ui.State(true)
 	f := ui.State(Filters{Kind: "dog"})
 	return <div>
-		<Button onClick={open.Toggle()} label="toggle" />
+		<Button onClick={open.Set(true)} label="set" />
 		<Button onClick={OpenDialog(upload)} label="upload" />
 		<Button onClick={OpenDialog(f.Open)} label="field" />
 		<Button onClick={open.Set(true).Set(upload, false)} label="chain" />
 		<Act onClick={OpenDialog(upload)} label="any" />
-		<Box attrs={[]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", ui.Derived(!open && upload)), {Name: "id", Value: "box"}}} />
+		<Box attrs={[]ui.Attr{ui.BindAttr("aria-expanded", open), ui.BindAttr("data-off", upload), {Name: "id", Value: "box"}}} />
 		{p.menu(upload)}
 		{p.menu(f.Open)}
 		<Hint text={!open} />

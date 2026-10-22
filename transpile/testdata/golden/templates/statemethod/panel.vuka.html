@@ -1,0 +1,11 @@
+package main
+
+// Panel is static: no session to push a write to.
+type Panel struct {
+	tab ui.State[string]
+}
+
+func (p *Panel) Pick() { p.tab = "env" }
+
+func reset(t ui.State[string]) { t = "" }
+<p>{tab}</p>

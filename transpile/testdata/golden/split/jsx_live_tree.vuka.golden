@@ -7,6 +7,7 @@ import (
 	"github.com/vuka-lang/ui/live"
 	"github.com/vuka-lang/ui/live/livetest"
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 )
 
 type Row struct {
@@ -37,7 +38,7 @@ func (t *Table) Do(w string) {
 type Counter struct {
 	ui.Live
 	Label string
-	n     ui.Assign[int]
+	n     uigen.Assign[int]
 }
 
 func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }

@@ -1,0 +1,5 @@
+panel.vuka.html:10:3: tab is written while the markup renders: write a state in an on… attribute (onClick={tab = "x"}), or in a method of a live component, which pushes it to the page
+panel.vuka.html:11:20: tab += …: a state is written with =, ++ or --; set it to a value (tab = v)
+panel.vuka.html:12:26: tab + "!" reads a state: a state is set to a value of the server's, or flipped (tab = !tab)
+panel.vuka.html:13:20: Label isn't a ui.State: an on… attribute's statements write states; change server state in a handler, onClick={func() { Label = "x" }}
+panel.vuka.html:14:25: for {} isn't a write: an on… attribute's statements are writes of states and calls

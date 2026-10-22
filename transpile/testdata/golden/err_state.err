@@ -1,7 +1,7 @@
 err_state.vuka:14:13: strings.ToUpper can't run in the browser; compute it on the server
 err_state.vuka:15:14: the * operator can't run in the browser; compute it on the server
-err_state.vuka:16:25: Inc needs a ui.State of a number; open is a stateui.State[bool]
-err_state.vuka:17:24: Toggle needs a ui.State[bool]; tab is a stateui.State[string]
+err_state.vuka:16:20: open++ needs a ui.State of a number; open is a stateui.State[bool]
+err_state.vuka:17:20: tab = !tab needs a ui.State[bool]; tab is a stateui.State[string]
 err_state.vuka:18:35: Set: tab is a stateui.State[string]; it takes a string, not int
 err_state.vuka:19:10: !open reads a ui.State, and <Label>'s text takes bool: pass .Get() for the value it renders with, or make the prop a ui.State
 err_state.vuka:20:11: strings.ToUpper can't run in the browser; compute it on the server

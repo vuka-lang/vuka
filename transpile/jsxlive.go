@@ -389,6 +389,9 @@ func groupArgs(args []*compArg, d int) []*compArg {
 func (e *engine) checkEvents(f *fileState) {
 	for _, t := range f.jsx {
 		for _, ev := range t.events {
+			if ev.attr.stmts {
+				continue // writes.go checks them
+			}
 			if ev.checked {
 				continue
 			}

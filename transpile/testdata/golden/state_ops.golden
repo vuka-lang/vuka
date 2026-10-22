@@ -3,8 +3,12 @@
 //line state_ops.vuka:1
 package main
 
-import ui "vukatest.local/stateui"
+import (
+	ui "vukatest.local/stateui"
+	"vukatest.local/stateui/uigen"
+)
 
+//line state_ops.vuka:5
 type Range struct{ Lo, Hi int }
 
 type Query struct {
@@ -15,26 +19,31 @@ type Query struct {
 const Max = 10
 
 func Ops(min int) ui.Node {
-	n := ui.UseState(1)
-	q := ui.UseState(Query{})
-	x := ui.UseState[float64](0.5)
+	n := uigen.UseState(1)
+	q := uigen.UseState(Query{})
+	x := uigen.UseState[float64](0.5)
 	// one dep per state however often it is read; server values as deps
-	return ui.HTML(`<p a={n.Lt(Max)} b={n.Le(min).And(n.Ge(0)).Or(n.Gt(ui.At[int](q, "Range.Hi")))} c={n.Ne(n.Minus(1)).And(x.Gt(0.25))} d={n} e={ui.At[int](q, "Range.Lo").Eq(0)}>{ui.At[string](q, "Text").Plus(" ").Plus("items")}</p>`,
-		n.Lt(Max),
-		n.Le(min).And(n.Ge(0)).Or(n.Gt(ui.At[int](q, "Range.Hi"))),
-		n.Ne(n.Minus(1)).And(x.Gt(0.25)),
+	return ui.HTML(`
+<p a={uigen.Lt(n, Max)} b={uigen.Or(uigen.And(uigen.Le(n, min), uigen.Ge(n, 0)), uigen.Gt(n, uigen.At[int](q, "Range.Hi")))} c={uigen.And(uigen.Ne(n, uigen.Minus(n, 1)), uigen.Gt(x, 0.25))} d={n} e={uigen.Eq(uigen.At[int](q, "Range.Lo"), 0)}>
+  {uigen.Plus(uigen.Plus(uigen.At[string](q, "Text"), " "), "items")}
+  {uigen.Plus(uigen.Derived("about "), uigen.At[string](q, "Text"))}
+</p>`,
+		uigen.Lt(n, Max),
+		uigen.Or(uigen.And(uigen.Le(n, min), uigen.Ge(n, 0)), uigen.Gt(n, uigen.At[int](q, "Range.Hi"))),
+		uigen.And(uigen.Ne(n, uigen.Minus(n, 1)), uigen.Gt(x, 0.25)),
 		n,
-		ui.At[int](q, "Range.Lo").Eq(0),
-		ui.At[string](q, "Text").Plus(" ").Plus("items"),
+		uigen.Eq(uigen.At[int](q, "Range.Lo"), 0),
+		uigen.Plus(uigen.Plus(uigen.At[string](q, "Text"), " "), "items"),
+		uigen.Plus(uigen.Derived("about "), uigen.At[string](q, "Text")),
 	)
 }
 
-//line state_ops.vuka:30
+//line state_ops.vuka:31
 func main() {}
 
 // Outside JSX a struct state's fields are states of their own.
 func narrow(q ui.State[Query]) ui.Commands {
-	return ui.JS.Set(ui.At[string](q, "Text"), "dog").Set(ui.At[int](q, "Range.Lo"), 2)
+	return ui.JS.Set(uigen.At[string](q, "Text"), "dog").Set(uigen.At[int](q, "Range.Lo"), 2)
 }
 
-func reset(q ui.State[Query]) ui.Commands { return ui.At[int](q, "Range.Hi").Reset() }
+func reset(q ui.State[Query]) ui.Commands { return ui.JS.Set(uigen.At[int](q, "Range.Hi"), 0) }

@@ -122,6 +122,7 @@ func (e *engine) run() {
 			e.resolveCalls(f)
 			e.infer(f)
 			e.lowerStates(f)
+			e.lowerTracked(f, e.lowerWrites(f))
 			e.lowerJSX(f)
 			e.checkEvents(f)
 			for _, t := range f.tries {

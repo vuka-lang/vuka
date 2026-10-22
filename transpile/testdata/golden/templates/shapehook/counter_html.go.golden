@@ -7,24 +7,27 @@ import (
 	"context"
 
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 )
 
 // Counter declares a hook, so it is live: the compiler embeds ui.Live.
+//
+//line counter.vuka.html:10
 type Counter struct {
 //line counter.vuka.html:10
 	ui.Live
 	Start int
-	n     int
+	n     uigen.Assign[int]
 }
 
 //line counter.vuka.html:16
 func (c *Counter) mount(ctx context.Context) error {
-	c.n = c.Start
+	c.n.Set(c.Start)
 	return nil
 }
 
 //line counter.vuka.html:20
-func (c *Counter) Render() ui.Node { return ui.HTML(`<p>{c.n}</p>`, c.n) }
+func (c *Counter) Render() ui.Node { return ui.HTML(`<p>{c.n.Get()}</p>`, c.n.Get()) }
 
 //line counter.vuka.html:10
 func (c *Counter) LiveSchema(l *ui.LiveSchema) {
