@@ -8,7 +8,7 @@ live sessions that keep them running for a connected page.
 
 | Package | |
 |---|---|
-| `github.com/vuka-lang/ui` | `ui.Node` (which is `templ.Component`), elements and text, rendering (`String`, `Write`, `Handler`, `Walk`), stateful components (`ui.Live`, `ui.On`, `ui.Event`, `ui.Assign`) |
+| `github.com/vuka-lang/ui` | `ui.Node` (which is `templ.Component`), elements and text, rendering (`String`, `Write`, `Handler`, `Walk`), stateful components (`ui.Live`, `ui.On`, `ui.Event`), client state (`ui.State`) |
 | `github.com/vuka-lang/ui/live` | sessions: stateful components alive for one connected page, and the wire protocol a transport speaks |
 | `github.com/vuka-lang/ui/live/livetest` | a reference client in Go, for tests |
 | `github.com/vuka-lang/ui/term` | the same components as terminal text |
@@ -194,8 +194,8 @@ func (p *Orders) Render() ui.Node {
 
 `ui.Each(items, fn)` is a list, its rows diffed by their `key` under a live
 session; `ui.If(cond, node)` is the node or nothing; a `[]ui.Node` built in
-a loop works too. Client state is declared where it is used:
-`open := ui.UseState(false)`.
+a loop works too. Client state is a `ui.State` field of the struct,
+written in an `on…` attribute ([client state](/ui/state)).
 
 ## Next
 

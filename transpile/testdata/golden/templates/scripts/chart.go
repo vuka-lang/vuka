@@ -5,6 +5,7 @@ import (
 	"fmt"
 
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 )
 
 // Chart is a component with a script: its data fields are its props.
@@ -22,6 +23,6 @@ type Toggle struct {
 func main() {
 	out, err := ui.String(context.Background(), Chart{Title: "Sales", Points: []int{3, 5}})
 	fmt.Println(out, err)
-	out, err = ui.String(context.Background(), &Toggle{open: ui.NewState("toggle", true)})
+	out, err = ui.String(context.Background(), &Toggle{open: uigen.State("toggle", true)})
 	fmt.Println(out, err)
 }

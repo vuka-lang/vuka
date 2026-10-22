@@ -155,7 +155,7 @@ until it navigates or joins again; a browser loads the URL itself. A
 
 ## Change tracking
 
-Components whose state is all `ui.Assign`s are skipped when nothing they
+Components whose state is all tracked are skipped when nothing they
 read changed — see [Change tracking](/ui/stateful#change-tracking). Skipping
 is what makes large pages cheap: a thousand row components, one clicked,
 renders one.
@@ -178,19 +178,19 @@ verification off; bytes are the JSON of the reply:
 |---|---|---|
 | 1000-row table, one component, one cell per event: bytes | 121,753 | 89 |
 | — server time per event | 1.37 ms | 2.0 ms |
-| 1000 row components, one row per event, rows with Assigns: bytes / time | 182 / 93 µs | 63 / 105 µs |
+| 1000 row components, one row per event, rows with tracked state: bytes / time | 182 / 93 µs | 63 / 105 µs |
 | — the same rows with plain state | 182 / 1.66 ms | 63 / 2.9 ms |
 | a page of 100 counters, one clicked: bytes / time | 154 / 65 µs | 62 / 102 µs |
 
 A v2 render builds a tree instead of a string, so a component that renders
-again costs about 1.5× the CPU of v1; Assign skipping is what makes large
+again costs about 1.5× the CPU of v1; skipping tracked components is what makes large
 pages cheap, and v2 makes the replies small. 5,000 joined sessions of a
 page of about 25 instances hold 29 KB per session.
 
 ## Known limits
 
 - A stateful component re-renders with its whole page on every event,
-  unless its state is all `ui.Assign`s; the reply is still only what
+  unless its state is all tracked; the reply is still only what
   changed.
 - In v2, handler ids count a component's handlers in render order: inserting
   an item with handlers changes the ids after it, which travel as changed

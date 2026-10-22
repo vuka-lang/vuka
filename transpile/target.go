@@ -24,7 +24,9 @@ import (
 //	          Stateful + Key(key, Stateful) — tags naming struct types
 //	          WithChildren(Node, children Node) — children for components that
 //	          read them from their context
-//	          UseState, UsePageState and State's methods — client state
+//	          VukaState, a const naming the package client state lowers
+//	          to — reads, writes and tracked server state (state.go,
+//	          writes.go, tracked.go); its State's own API is Get and Set
 //	          Ref(name string) — ref="name" attributes name elements, and each
 //	          Ref("name") in a function with JSX must name one of its elements
 //

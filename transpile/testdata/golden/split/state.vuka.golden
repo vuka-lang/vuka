@@ -22,26 +22,26 @@ func Menu(label string) ui.Node {
 	tab := ui.State("logs")
 	n := ui.State(2)
 	f := ui.State(Filters{Sort: "name"})
-	ready := ui.Derived(!open && tab == Env)
 	limit := 3
 	return <div class={ui.Class{"menu": true, "is-open": open}}>
-		<button onClick={open.Toggle()} aria-expanded={open}>{label}</button>
+		<button onClick={open = !open} aria-expanded={open}>{label}</button>
 		<ul hidden={!open}>
-			<li selected={tab == "env"} onClick={tab.Set(Env).Set(open, false)}>
+			<li selected={tab == "env"} onClick={tab = Env; open = false}>
 				Env
 			</li>
 			<li disabled={f.Q == "" || tab != "logs"}>Logs</li>
 		</ul>
-		<input value={f.Q} onInput={f.Q.Set("x")} />
+		<input value={f.Q} onInput={f.Q = "x"} />
 		<span>{n}</span> <span>{n + 1}</span> <span>{-n}</span>
 		<p
 			title={theme + "!"}
-			data-ready={ready}
+			data-ready={!open && tab == Env}
 			data-long={len(f.Sort) > limit}
 			data-get={tab.Get()}
 		/>
-		<button onClick={n.Inc()}>+</button>
-		<button onClick={f.Reset()}>reset</button>
+		<button onClick={n++}>+</button>
+		<button onClick={n--; open = true}>-</button>
+		<button onClick={f = Filters{Sort: "name"}}>reset</button>
 		<ui.Show when={!open}><p>closed</p></ui.Show>
 		<ui.Show when={open}><p>open</p></ui.Show>
 		<Panel open={open} sort={f.Sort} />

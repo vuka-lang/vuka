@@ -9,46 +9,84 @@ import (
 	"strings"
 )
 
-// Client state. A JSX target declaring UseState (ui does) has states the
-// browser keeps: ui.State(v) declares one, and JSX reads them in plain Go
-// expressions that the browser evaluates again when a state changes. They
-// lower to what a person writes in Go: a state read as the state, an
-// operator as State's method on its left operand.
+// Client state. A JSX target declaring VukaState (ui does) has states the
+// browser keeps, and names the package their lowering calls (ui's uigen,
+// which is not an API to write by hand). A .vuka.html struct's ui.State
+// field, a package-level var x ui.State[T], or ui.State(v) declares one;
+// markup reads them in plain Go expressions that the browser evaluates
+// again when a state changes, each operator a call of the gen package:
 //
-//	open := ui.State(false)              →  open := ui.UseState(false)
-//	var theme = ui.State("light")        →  var theme = ui.UsePageState("light")
-//	<ul hidden={!open}>                  →  <ul hidden={open.Not()}>, open.Not()
+//	open := ui.State(false)              →  open := uigen.UseState(false)
+//	var theme ui.State[string]           →  var theme ui.State[string] = uigen.UsePageState(*new(string))
+//	<ul hidden={!open}>                  →  <ul hidden={uigen.Not(open)}>
 //	<span>{n}</span>                     →  <span>{n}</span>, n
-//	ready := ui.Derived(!open && ok)     →  ready := open.Not().And(ok)
-//	"x" + name                           →  ui.Derived("x").Plus(name)
-//	f.Q.Set("x")                         →  ui.At[string](f, "Q").Set("x")
+//	"x" + name                           →  uigen.Plus(uigen.Derived("x"), name)
+//	f.Q                                  →  uigen.At[string](f, "Q")
 //	ui.Class{"on": open}                 →  ui.Classes{"on": open}
 //
-// A state's place is where UseState is called, so the browser tells states
-// apart however they are named; one in a function is the rendering
-// component instance's, one at package level the page's. Only literals,
-// state reads (a struct state's fields too), !, -, &&, ||, comparisons, +
-// and -, len and ui.Class run in the browser; any other expression mixed
-// with a state is an error.
+// Writes are assignments (writes.go): in an on… attribute a chain of JS
+// commands, in a live component's method a command pushed to the page.
+//
+// A state's place is where it is declared, so the browser tells states
+// apart however they are named; one in a function or a struct is the
+// rendering component instance's, one at package level the page's. Only
+// literals, state reads (a struct state's fields too), !, -, &&, ||,
+// comparisons, + and -, len and ui.Class run in the browser; any other
+// expression mixed with a state is an error.
 
-// declareStates writes each ui.State(v) call as UseState in a function,
-// UsePageState at package level.
-func (e *engine) declareStates() {
-	pkgs := map[string]bool{} // import path → declares UseState
-	declares := func(path string) bool {
-		if ok, seen := pkgs[path]; seen {
-			return ok
+// declaresState reports whether pkg's State is client state: it declares
+// VukaState, the path of the package its lowering calls.
+func declaresState(pkg *types.Package) bool { return stateGenPath(pkg) != "" }
+
+// stateGenPath is the package pkg's state lowers to, "" when it has none.
+func stateGenPath(pkg *types.Package) string {
+	if pkg == nil {
+		return ""
+	}
+	c, ok := pkg.Scope().Lookup("VukaState").(*types.Const)
+	if !ok || c.Val().Kind() != constant.String {
+		return ""
+	}
+	return constant.StringVal(c.Val())
+}
+
+// genQual is how f names the package at path in generated code ("uigen."),
+// importing it when f doesn't.
+func (f *fileState) genQual(path string) string {
+	for _, imp := range f.ast.Imports {
+		if p, _ := strconv.Unquote(imp.Path.Value); p == path {
+			if imp.Name == nil {
+				return pathBase(path) + "."
+			}
+			if imp.Name.Name == "." {
+				return ""
+			}
+			return imp.Name.Name + "."
 		}
-		ok := false
+	}
+	return f.importAs(path, pathBase(path)) + "."
+}
+
+// declareStates writes each ui.State(v) call as the gen package's UseState
+// in a function, UsePageState at package level; and gives a var x
+// ui.State[T] declared without a value its state, of T's zero value.
+func (e *engine) declareStates() {
+	pkgs := map[string]string{} // import path → its gen package, "" for none
+	declares := func(path string) string {
+		if gen, seen := pkgs[path]; seen {
+			return gen
+		}
+		gen := ""
 		if !stdPackage(path) {
-			if p, err := e.imp.Import(path); err == nil && p.Scope().Lookup("UseState") != nil {
-				ok = true
+			if p, err := e.imp.Import(path); err == nil {
+				gen = stateGenPath(p)
 			}
 		}
-		pkgs[path] = ok
-		return ok
+		pkgs[path] = gen
+		return gen
 	}
 	for _, f := range e.vuka {
+		e.resolveStatesCall(f)
 		names := map[string]string{} // the file's import names → paths
 		for _, imp := range f.ast.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
@@ -59,6 +97,38 @@ func (e *engine) declareStates() {
 			names[name] = path
 		}
 		ast.Inspect(f.ast, func(nd ast.Node) bool {
+			if vs, ok := nd.(*ast.ValueSpec); ok && len(vs.Values) == 0 && vs.Type != nil && f.lowerable(vs.Pos()) {
+				// var x ui.State[T]: a state of T's zero value.
+				ix, ok := vs.Type.(*ast.IndexExpr)
+				if !ok {
+					return true
+				}
+				sel, ok := ix.X.(*ast.SelectorExpr)
+				if !ok || sel.Sel.Name != "State" {
+					return true
+				}
+				x, ok := sel.X.(*ast.Ident)
+				if !ok || x.Obj != nil || names[x.Name] == "" {
+					return true
+				}
+				gen := declares(names[x.Name])
+				if gen == "" {
+					return true
+				}
+				fn := "UsePageState"
+				if e.inFunc(f, vs) {
+					fn = "UseState"
+				}
+				elem := string(f.src[f.orig(ix.Index.Pos()):f.orig(ix.Index.End())])
+				value := f.genQual(gen) + fn + "(*new(" + elem + "))"
+				text := " = " + value
+				for range vs.Names[1:] {
+					text += ", " + value
+				}
+				f.add(f.orig(vs.Type.End()), f.orig(vs.Type.End()), text)
+				e.progress = true
+				return true
+			}
 			call, ok := nd.(*ast.CallExpr)
 			if !ok || len(call.Args) != 1 {
 				return true
@@ -72,14 +142,18 @@ func (e *engine) declareStates() {
 				return true
 			}
 			x, ok := sel.X.(*ast.Ident)
-			if !ok || x.Obj != nil || names[x.Name] == "" || !declares(names[x.Name]) {
+			if !ok || x.Obj != nil || names[x.Name] == "" {
+				return true
+			}
+			gen := declares(names[x.Name])
+			if gen == "" {
 				return true
 			}
 			fn := "UsePageState"
 			if e.inFunc(f, call) {
 				fn = "UseState"
 			}
-			f.add(f.orig(sel.Sel.Pos()), f.orig(sel.Sel.End()), fn)
+			f.add(f.orig(sel.Pos()), f.orig(sel.Sel.End()), f.genQual(gen)+fn)
 			e.progress = true
 			return true
 		})
@@ -103,8 +177,7 @@ func stateOf(t types.Type) (types.Type, bool) {
 	if !ok || n.Obj().Name() != "State" || n.Obj().Pkg() == nil || n.TypeArgs().Len() != 1 {
 		return nil, false
 	}
-	sc := n.Obj().Pkg().Scope()
-	if sc.Lookup("UseState") == nil {
+	if !declaresState(n.Obj().Pkg()) {
 		return nil, false
 	}
 	return n.TypeArgs().At(0), true
@@ -128,6 +201,7 @@ type binder struct {
 	e   *engine
 	f   *fileState
 	q   string // how the file names the target: "ui."
+	g   string // and the target's gen package: "uigen."
 	b   *stateBind
 	err *bindError
 }
@@ -205,7 +279,7 @@ func (e *engine) passesStates(x ast.Expr) bool {
 // isClass reports whether t is a JSX target's ui.Class.
 func isClass(t types.Type) bool {
 	n, ok := types.Unalias(t).(*types.Named)
-	return ok && n.Obj().Name() == "Class" && n.Obj().Pkg() != nil && n.Obj().Pkg().Scope().Lookup("UseState") != nil
+	return ok && n.Obj().Name() == "Class" && declaresState(n.Obj().Pkg())
 }
 
 // unknownTypes reports whether a name in x has no type yet.
@@ -224,7 +298,8 @@ func (e *engine) unknownTypes(x ast.Node) bool {
 
 // lowerState lowers x, an expression reading states, to State's methods.
 func (e *engine) lowerState(f *fileState, x ast.Expr) (*stateBind, *bindError) {
-	bd := &binder{e: e, f: f, q: e.statePkg(f, e.statePackage(x)), b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End())}}
+	pkg := e.statePackage(x)
+	bd := &binder{e: e, f: f, q: e.statePkg(f, pkg), g: f.genQual(stateGenPath(pkg)), b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End())}}
 	bd.lower(x)
 	if bd.err != nil {
 		return nil, bd.err
@@ -290,9 +365,9 @@ func (e *engine) stateField(x ast.Expr) (ast.Expr, []string, types.Type) {
 	}
 }
 
-// field writes a struct state's field: ui.At[T](f, "Range.Hi").
+// field writes a struct state's field: uigen.At[T](f, "Range.Hi").
 func (bd *binder) field(base ast.Expr, path []string, t types.Type) {
-	bd.gen(bd.q + "At[" + bd.e.typeTextAuto(bd.f, t) + "](")
+	bd.gen(bd.g + "At[" + bd.e.typeTextAuto(bd.f, t) + "](")
 	bd.keep(base)
 	bd.gen(", " + strconv.Quote(strings.Join(path, ".")) + ")")
 }
@@ -303,8 +378,8 @@ var bindMethods = map[token.Token]string{
 }
 
 // lower writes x, which reads a state, as a state: one read as it is, an
-// operator as State's method on its left operand (ui.Derived of a value
-// that isn't a state), len as Len, a ui.Class as ui.Classes.
+// operator as the gen package's function of its operands (Derived of a
+// left operand that isn't a state), len as Len, a ui.Class as ui.Classes.
 func (bd *binder) lower(x ast.Expr) {
 	e := bd.e
 	if base, path, t := e.stateField(x); base != nil {
@@ -322,12 +397,14 @@ func (bd *binder) lower(x ast.Expr) {
 	case *ast.UnaryExpr:
 		switch x.Op {
 		case token.NOT:
+			bd.gen(bd.g + "Not(")
 			bd.lower(x.X)
-			bd.gen(".Not()")
+			bd.gen(")")
 			return
 		case token.SUB:
+			bd.gen(bd.g + "Neg(")
 			bd.lower(x.X)
-			bd.gen(".Neg()")
+			bd.gen(")")
 			return
 		case token.ADD:
 			bd.lower(x.X)
@@ -341,22 +418,24 @@ func (bd *binder) lower(x ast.Expr) {
 			bd.fail(x, "the "+x.Op.String()+" operator can't run in the browser; compute it on the server")
 			return
 		}
+		bd.gen(bd.g + m + "(")
 		if e.readsState(x.X) {
 			bd.lower(x.X)
 		} else {
-			bd.gen(bd.q + "Derived(")
+			bd.gen(bd.g + "Derived(")
 			bd.keep(x.X)
 			bd.gen(")")
 		}
-		bd.gen("." + m + "(")
+		bd.gen(", ")
 		bd.operand(x.Y)
 		bd.gen(")")
 		return
 	case *ast.CallExpr:
 		if id, ok := ast.Unparen(x.Fun).(*ast.Ident); ok && len(x.Args) == 1 {
 			if b, ok := e.info.Uses[id].(*types.Builtin); ok && b.Name() == "len" {
+				bd.gen(bd.g + "Len(")
 				bd.lower(x.Args[0])
-				bd.gen(".Len()")
+				bd.gen(")")
 				return
 			}
 		}
@@ -412,7 +491,7 @@ func (e *engine) exprAt(f *fileState, s span) ast.Expr {
 // bindTree decides which of a tree's element attributes and children read
 // states. It reports false while a type they need is unknown.
 func (e *engine) bindTree(f *fileState, t *jsxTree) bool {
-	if !f.target.has("UseState") {
+	if !f.target.has("VukaState") {
 		return true
 	}
 	ok := true
@@ -540,9 +619,8 @@ func pieceEdits(start, end int, pieces []jsxPiece) edits {
 }
 
 // lowerStates lowers what Go code does with states, once types are known:
-// ui.Derived(expr) and a struct state's fields; and checks the writes
-// Go's types can't: Toggle on a bool state, Inc and Dec on a number's, Set's
-// value.
+// a struct state's fields; and checks a chain's Set's value, which Go's
+// types can't.
 func (e *engine) lowerStates(f *fileState) {
 	if f.stateDone == nil {
 		f.stateDone = map[int]bool{}
@@ -610,22 +688,8 @@ func (e *engine) lowerStates(f *fileState) {
 			}
 			switch fn := e.info.Uses[sel.Sel].(type) {
 			case *types.Func:
-				if fn.Pkg() == nil || fn.Pkg().Scope().Lookup("UseState") == nil {
+				if !declaresState(fn.Pkg()) {
 					return true
-				}
-				if fn.Name() == "Derived" && fn.Signature().Recv() == nil && len(n.Args) == 1 {
-					f.stateDone[off] = true
-					if !e.readsState(n.Args[0]) {
-						return true
-					}
-					b, err := e.lowerState(f, n.Args[0])
-					if err != nil {
-						e.errs.add("E0124", f.at(err.off), "%s", err.msg)
-						return false
-					}
-					f.fixed = append(f.fixed, pieceEdits(off, f.orig(n.End()), b.pieces)...)
-					e.progress = true
-					return false
 				}
 				e.checkStateWrite(f, n, sel, fn)
 			}
@@ -638,7 +702,8 @@ func (e *engine) lowerStates(f *fileState) {
 				return true
 			}
 			f.stateDone[off] = true
-			bd := &binder{e: e, f: f, q: e.statePkg(f, e.statePackage(base)), b: &stateBind{}}
+			pkg := e.statePackage(base)
+			bd := &binder{e: e, f: f, q: e.statePkg(f, pkg), g: f.genQual(stateGenPath(pkg)), b: &stateBind{}}
 			bd.field(base, path, t)
 			f.fixed = append(f.fixed, pieceEdits(off, f.orig(n.End()), bd.b.pieces)...)
 			e.progress = true
@@ -661,47 +726,35 @@ func (e *engine) statePkg(f *fileState, pkg *types.Package) string {
 	return q + "."
 }
 
-// checkStateWrite checks a write's types: Toggle needs a bool state, Inc
-// and Dec a number's, Set (the chain's) a value of the state's type.
+// checkStateWrite checks a chain's Set: a value of the state's type.
 func (e *engine) checkStateWrite(f *fileState, call *ast.CallExpr, sel *ast.SelectorExpr, fn *types.Func) {
 	recv := fn.Signature().Recv()
-	if recv == nil {
+	if recv == nil || fn.Name() != "Set" {
 		return
 	}
 	off := f.orig(call.Pos())
-	switch fn.Name() {
-	case "Toggle", "Inc", "Dec":
-		elem, ok := stateOf(e.info.TypeOf(sel.X))
-		if !ok || len(call.Args) != 0 {
-			return
-		}
-		f.stateDone[off] = true
-		b, _ := elem.Underlying().(*types.Basic)
-		switch {
-		case fn.Name() == "Toggle" && (b == nil || b.Info()&types.IsBoolean == 0):
-			e.errs.add("E0125", f.at(f.orig(sel.Sel.Pos())), "Toggle needs a ui.State[bool]; %s is a %s", string(f.src[f.orig(sel.X.Pos()):f.orig(sel.X.End())]), e.display(e.info.TypeOf(sel.X)))
-		case fn.Name() != "Toggle" && (b == nil || b.Info()&types.IsNumeric == 0):
-			e.errs.add("E0125", f.at(f.orig(sel.Sel.Pos())), "%s needs a ui.State of a number; %s is a %s", fn.Name(), string(f.src[f.orig(sel.X.Pos()):f.orig(sel.X.End())]), e.display(e.info.TypeOf(sel.X)))
-		}
-	case "Set":
-		if _, isState := stateOf(recv.Type()); isState || len(call.Args) != 2 {
-			return
-		}
-		elem, ok := stateOf(e.info.TypeOf(call.Args[0]))
-		tv, known := e.info.Types[call.Args[1]]
-		if !ok || !known || isInvalid(tv.Type) {
-			return
-		}
-		f.stateDone[off] = true
-		fits := types.AssignableTo(tv.Type, elem)
-		if tv.Value != nil {
-			fits = fits || constFits(tv.Value, elem)
-		}
-		if !fits {
-			e.errs.add("E0125", f.at(f.orig(call.Args[1].Pos())), "Set: %s is a %s; it takes a %s, not %s",
-				string(f.src[f.orig(call.Args[0].Pos()):f.orig(call.Args[0].End())]), e.display(e.info.TypeOf(call.Args[0])), e.display(elem), e.display(tv.Type))
-		}
+	if _, isState := stateOf(recv.Type()); isState || len(call.Args) != 2 {
+		return
 	}
+	elem, ok := stateOf(e.info.TypeOf(call.Args[0]))
+	tv, known := e.info.Types[call.Args[1]]
+	if !ok || !known || isInvalid(tv.Type) {
+		return
+	}
+	f.stateDone[off] = true
+	if !valueFits(tv, elem) {
+		e.errs.add("E0125", f.at(f.orig(call.Args[1].Pos())), "Set: %s is a %s; it takes a %s, not %s",
+			string(f.src[f.orig(call.Args[0].Pos()):f.orig(call.Args[0].End())]), e.display(e.info.TypeOf(call.Args[0])), e.display(elem), e.display(tv.Type))
+	}
+}
+
+// valueFits reports whether a value of tv's type and constant value is a
+// value of a state of elem.
+func valueFits(tv types.TypeAndValue, elem types.Type) bool {
+	if types.AssignableTo(tv.Type, elem) {
+		return true
+	}
+	return tv.Value != nil && constFits(tv.Value, elem)
 }
 
 func constFits(v constant.Value, t types.Type) bool {
@@ -798,4 +851,36 @@ func (w *jsxWriter) holeValue(h *jsxHole) {
 		return
 	}
 	w.keep(h.expr)
+}
+
+// resolveStatesCall writes a static shape struct's statesCall as its
+// target's gen package's States, or drops it when the target has none.
+func (e *engine) resolveStatesCall(f *fileState) {
+	if f.html == nil {
+		return
+	}
+	ast.Inspect(f.ast, func(n ast.Node) bool {
+		call, ok := n.(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 {
+			return true
+		}
+		id, ok := call.Fun.(*ast.Ident)
+		if !ok || id.Name != statesCall {
+			return true
+		}
+		gen := ""
+		if f.target != nil && f.target.path != "" && !stdPackage(f.target.path) {
+			if p, err := e.imp.Import(f.target.path); err == nil {
+				gen = stateGenPath(p)
+			}
+		}
+		if gen == "" {
+			arg := string(f.src[f.orig(call.Args[0].Pos()):f.orig(call.Args[0].End())])
+			f.add(f.orig(call.Pos()), f.orig(call.End()), "_ = "+arg)
+		} else {
+			f.add(f.orig(id.Pos()), f.orig(id.End()), f.genQual(gen)+"States")
+		}
+		e.progress = true
+		return false
+	})
 }

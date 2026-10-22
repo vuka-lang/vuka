@@ -325,7 +325,8 @@ once := ui.Mount(Chart{Series: p.sales}, ui.Once(), ui.Load()) // the first seri
 ```
 :::
 
-A `*ui.Assign[T]` field of an island's props struct is sent as its value.
+A tracked field — a `.vuka.html` struct's unexported one, which the compiler
+writes as a `uigen.Assign` — is sent as its value.
 
 ### Function props (island → server)
 
@@ -373,18 +374,23 @@ picked := ui.State("mon")
 :::
 
 ::: go
-<!-- go:fragment -->
-```go
-picked := ui.UseState("mon")
-week := ui.Mount(Week{}, ui.StateProp("picked", picked))
-page := ui.HTML(`<div><b>{picked}</b>{week}</div>`, picked, week)
+```html
+<!-- week.vuka.html -->
+package app
+
+import Week "./islands/Week.vue"
+
+type Planner struct {
+	picked ui.State[string]
+}
+<div><b>{picked}</b><Week picked={picked} /></div>
 ```
 :::
 
 The component writes back by its framework's convention: a Vue
 `defineModel` (`update:picked`), a React `setPicked` / `onPickedChange` prop
-(the adapter passes them), a Svelte `$bindable` prop. A `ui.Derived`, or an
-expression of states, is passed one way. The state's type must fit the
+(the adapter passes them), a Svelte `$bindable` prop. An expression of
+states is passed one way. The state's type must fit the
 prop's (`ui.State[int]` for a `boolean` prop is a compile error).
 
 ### Emits

@@ -87,6 +87,14 @@ func mountIsland(props any, opts ...IslandOpt) Node {
 // Live is the embedded field of a live component.
 type Live struct{}
 
+var pushed []string
+
+// PushJS records the commands a component pushes to its page.
+func (l *Live) PushJS(c Commands) { pushed = append(pushed, c.String()) }
+
+// Pushed is what components pushed, in order.
+func Pushed() []string { return pushed }
+
 // IslandDecorator is what Island returns: a type decorator, and an option
 // of a route serving the type as a page backed by its island.
 type IslandDecorator func(*vuka.Type)

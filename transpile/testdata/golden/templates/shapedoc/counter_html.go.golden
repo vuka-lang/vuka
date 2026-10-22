@@ -7,6 +7,7 @@ import (
 	"context"
 
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 )
 
 // Counter counts clicks.
@@ -15,19 +16,19 @@ import (
 type Counter struct {
 //line counter.vuka.html:6
 	ui.Live
-	Start int // a prop
-	n     int // state the server keeps
+	Start int               // a prop
+	n     uigen.Assign[int] // state the server keeps
 }
 
 //line counter.vuka.html:12
-func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+func (c *Counter) mount(ctx context.Context) error { c.n.Set(c.Start); return nil }
 
-func (c *Counter) Inc() { c.n++ }
+func (c *Counter) Inc() { c.n.Set(c.n.Get() + 1) }
 
 //line counter.vuka.html:15
 func (c *Counter) Render() ui.Node {
 //line counter.vuka.html:15
-	return ui.HTML(`<button onClick={c.Inc}>{c.n}</button>`, c.Inc, c.n)
+	return ui.HTML(`<button onClick={c.Inc}>{c.n.Get()}</button>`, c.Inc, c.n.Get())
 }
 
 //line counter.vuka.html:6

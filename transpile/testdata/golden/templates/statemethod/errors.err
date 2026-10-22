@@ -1,0 +1,2 @@
+panel.vuka.html:8:26: p.tab is written outside a live component's method: write a state in an on… attribute (onClick={p.tab = "env"}), or in a method of a live component, which pushes it to the page
+panel.vuka.html:10:34: t is written outside a live component's method: write a state in an on… attribute (onClick={t = ""}), or in a method of a live component, which pushes it to the page

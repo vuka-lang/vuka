@@ -1,0 +1,1 @@
+list.vuka.html:10:7: &l.rows takes the address of server state: a change through it wouldn't be tracked; tag the field `vuka:"-"`, or make it a pointer

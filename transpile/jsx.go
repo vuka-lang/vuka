@@ -97,6 +97,8 @@ type jsxAttr struct {
 	expr  span
 	event bool       // an element's event handler: onClick={…}
 	bind  *stateBind // an expression reading states, lowered (state.go)
+	stmts bool       // an event's statements, not an expression: onClick={open = !open; Save()}
+	write *stateBind // those statements as a chain of commands, lowered (writes.go)
 	parts []attrPart // kind 'p': a template's text with holes, href="/o/{o.ID}"
 }
 
@@ -361,6 +363,12 @@ func (p *jsxParser) element(off int) *jsxElem {
 				p.fail(a.off, "bind:value takes a field of the page, through its receiver: bind:value={p.%s}", strings.TrimSpace(string(p.src[a.expr.start:a.expr.end])))
 			case strings.HasPrefix(a.name, "style:") && (comp || a.kind == 'b' || len(a.name) == len("style:")):
 				p.fail(a.off, "%s sets a CSS property of an element: style:--accent={c}", a.name)
+			}
+			if a.kind == 'e' && isEvent(a.name) && isStmts(p.src[a.expr.start:a.expr.end]) {
+				if comp || !p.f.target.has("On") || !p.f.target.has("VukaState") {
+					p.fail(a.off, "%s={…} holds statements: an element's on… attribute writes states with them (open = !open); a component's %s takes a value", a.name, a.name)
+				}
+				a.stmts = true
 			}
 			if a.kind == 'e' && !comp && isEvent(a.name) && p.f.target.has("On") {
 				a.event = true
@@ -986,6 +994,17 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 	default:
 		if a.bind != nil {
 			w.bind(a.bind)
+			return
+		}
+		if a.write != nil {
+			w.bind(a.write)
+			return
+		}
+		if a.stmts {
+			// Until its types are known: the statements as a handler.
+			w.gen("func() { ")
+			w.keep(a.expr)
+			w.gen(" }")
 			return
 		}
 		if a.event && w.voidCall(a) {

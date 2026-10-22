@@ -417,7 +417,7 @@ of the contract it implements, and these names:
 | `On(handler) …` | no | `onClick={…}` on an element is an event, its value checked; without `On`, a plain attribute |
 | `Stateful` + `Key(key any, props Stateful) Node` | no | a tag naming a struct type whose pointer implements `Stateful` |
 | `WithChildren(n, children Node) Node` | no | children for a component that reads them from its context (a templ component) |
-| `UseState`, `UsePageState`, State's methods | no | [client state](/ui/state) |
+| `VukaState`, the import path of the package client state lowers to (ui's `uigen`) | no | [client state](/ui/state): reads, writes, a struct's tracked server state |
 | `Ref(names ...string) …` | no | refs: `ref="name"` on an element names it for code in the same function, which finds it with `Ref("name")` (ui: [JS commands](/ui/js)) |
 | `GetAttr(name string, values ...string) …` | no | elements picked by an attribute the function's JSX writes |
 

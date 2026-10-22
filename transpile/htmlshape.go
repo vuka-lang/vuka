@@ -508,3 +508,17 @@ func templatesTop(src []byte) int {
 	}
 	return strings.Count(string(src[:markup]), "\n")
 }
+
+// hasRole reports whether a field of the struct has role r.
+func (s *Shape) hasRole(r FieldRole) bool {
+	for _, f := range s.Fields {
+		if f.Role == r {
+			return true
+		}
+	}
+	return false
+}
+
+// statesCall stands, in a static shape struct's View, for the gen package's
+// States until the engine knows which package that is.
+const statesCall = "vukaStates__"

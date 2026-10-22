@@ -382,17 +382,19 @@ func row(o Order, cancel func(int)) ui.Node {
 - A hole is a place: a stateful component (`&Counter{…}`,
   `ui.Key(id, &Counter{…})`) or an island (`Chart{…}`,
   `ui.Mount(Chart{…}, ui.Idle())`) in it is identified by it, and a list's
-  components by the hole the list is in. Client state is declared where it is
-  called: `open := ui.UseState(false)`, `var theme = ui.UsePageState("light")`.
-- An expression of states is State's methods, a derived state the browser
-  evaluates again when a state it reads changes — what a `.vuka` file's
-  `!open && tab == "env"` lowers to:
+  components by the hole the list is in. Client state is a `ui.State` field
+  or a package-level `var x ui.State[T]` (the page's).
+- An expression of states is a derived state the browser evaluates again
+  when a state it reads changes — what `!open && tab == "env"` lowers to,
+  in package uigen, the one exception to "no hidden runtime": public so the
+  generated code builds, but the compiler's output, not an API to write
+  (2.0, docs/rfc/one-way.md):
 
   ```go
-  ready := open.Not().And(tab.Eq("env"))           // !open && tab == "env"
-  q := ui.At[string](f, "Q")                       // f.Q, a state of its own
-  hint := ui.Derived("Hello, ").Plus(name)         // "Hello, " + name
-  cls := ui.Classes{"menu": true, "is-open": open} // ui.Class{…} reading a state
+  ready := uigen.And(uigen.Not(open), uigen.Eq(tab, "env")) // !open && tab == "env"
+  q := uigen.At[string](f, "Q")                             // f.Q, a state of its own
+  hint := uigen.Plus(uigen.Derived("Hello, "), name)        // "Hello, " + name
+  cls := ui.Classes{"menu": true, "is-open": open}          // ui.Class{…} reading a state
   ```
 
   Not, And, Or, Eq, Ne, Lt, Le, Gt, Ge, Plus, Minus, Neg and Len are the
@@ -783,8 +785,8 @@ Step 2 is done, and then reworked by [templates.md](templates.md): each
 piece of JSX is a `ui.HTML` call at its place, its holes labelled with their
 Go; blocks are statements before the return appending to a `[]ui.Node` a
 hole names; `.vuka.html` templates compile the same way; stateful components are `&C{…}` or `ui.Key`,
-islands their props or `ui.Mount`; states are `ui.UseState` /
-`ui.UsePageState` and expressions of them State's methods (§2). The
+islands their props or `ui.Mount`; states and expressions of them are
+package uigen's (§2). The
 fingerprinted markup, `ui.Component`, `ui.MountIsland`, the state binding
 (`ui.BindExpr`, once `ui.Bind`), `ui.NewState`, `ui.PageState`,
 `ui.NewDerived` and `ui.StateField` are gone from generated code; `ui.Try`, `ui.WithChildren`, `ui.Callback`, `ui.Emit`,

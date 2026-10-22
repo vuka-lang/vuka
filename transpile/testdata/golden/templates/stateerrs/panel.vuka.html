@@ -1,0 +1,15 @@
+package main
+
+// Panel's markup writes its states only in on… attributes.
+type Panel struct {
+	Label string
+	tab   ui.State[string]
+	n     ui.State[int]
+}
+<div>
+  tab = "x"
+  <button onClick={tab += "x"}>a</button>
+  <button onClick={tab = tab + "!"}>b</button>
+  <button onClick={Label = "x"}>c</button>
+  <button onClick={n++; for {}}>d</button>
+</div>

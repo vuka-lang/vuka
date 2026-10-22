@@ -1,0 +1,24 @@
+package main
+
+// Menu keeps its states in the browser: fields of type ui.State, read as
+// plain variables, written by assignment in on… attributes.
+type Menu struct {
+	Label   string           // a prop
+	editing ui.State[bool]   // browser state
+	tab     ui.State[string] // browser state
+	open    ui.State[bool]
+	n       ui.State[int]
+}
+
+// theme is the page's: one value every component reads.
+var theme ui.State[string]
+<nav data-theme={theme}>
+  <button onClick={editing = !editing} aria-pressed={editing}>{Label}</button>
+  <button onClick={tab = "env"} aria-selected={tab == "env"}>Env</button>
+  <button onClick={tab = "logs"; open = false}>Logs</button>
+  <button onClick={n++}>+</button>
+  <button onClick={n--}>-</button>
+  <ul hidden={!open || n > 3}>
+    <li>{n + 1} items</li>
+  </ul>
+</nav>

@@ -75,3 +75,9 @@ func TestShape(t *testing.T) {
 		}
 	}
 }
+
+// TestHandWrittenGen: uigen in a file a person wrote is W0105; in a
+// generated one, nothing.
+func TestHandWrittenGen(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Templates, "uigenuse")
+}

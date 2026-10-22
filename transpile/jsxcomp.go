@@ -268,7 +268,7 @@ func (e *engine) lowerJSX(f *fileState) {
 			}
 			all = all && c.resolved
 		}
-		if all && e.bindTree(f, t) {
+		if all && e.bindTree(f, t) && !pendingWrites(f, t) {
 			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 			e.progress = true
@@ -615,7 +615,7 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 // finishComp writes what a bound component's call needs: its props type, its
 // zero values, and the closure that keeps its expressions in source order.
 func (e *engine) finishComp(f *fileState, c *jsxComp) {
-	if c.target.has("UseState") {
+	if c.target.has("VukaState") {
 		for _, a := range c.args {
 			e.bindArg(f, c, a)
 		}

@@ -358,56 +358,40 @@ for `[]Order`, `UpdateAny` for `any`), what vuka names `.vuka`'s overloads;
 
 ## Change tracking
 
-A state field may be a `ui.Assign[T]`, read with `Get()` and changed with
-`Set(v)` or `Update(func(T) T)`. A component whose state fields are all
-Assigns (fields tagged `` `vuka:"-"` `` don't count) is rendered again only
-when one of them was set or a prop changed: otherwise the session keeps its
+A `.vuka.html` file's struct tracks its server state: each unexported field
+that isn't a `ui.State` or a dependency (a pointer, an interface, a func, a
+chan) — and isn't tagged `` `vuka:"-"` `` — is tracked, its writes marked.
+A component whose state fields are all tracked is rendered again only when
+one of them was written or a prop changed: otherwise the session keeps its
 last render, its handlers and the instances it rendered, and calls no
 `Render` — instances inside it still render when their own state changed.
 Props compare by value; a pointer, slice, map, func or interface prop
 (children included) counts as changed unless both are nil.
 
-::: vuka
-```vuka
-type Row struct {
-	ui.Live
-	ID   int            // props
-	Name string
-	qty  ui.Assign[int] // state
-}
-
-func (r *Row) Inc() { r.qty.Update(func(n int) int { return n + 1 }) }
-
-func (r *Row) Render() ui.Node {
-	return <tr key={r.ID}><td>{r.Name}</td><td>{r.qty.Get()}</td><td><button onClick={r.Inc}>+</button></td></tr>
-}
-```
-:::
-
-::: go
-```go
-// row.go
-type Row struct {
-	ui.Live
-	ID   int            // props
-	Name string
-	qty  ui.Assign[int] // state
-}
-
-func (r *Row) Inc() { r.qty.Update(func(n int) int { return n + 1 }) }
-```
-
 ```html
 <!-- row.vuka.html -->
 package app
 
-<tr key={ID}><td>{Name}</td><td>{qty.Get()}</td><td><button onClick={Inc}>+</button></td></tr>
+type Row struct {
+	ui.Live
+	ID   int    // props
+	Name string
+	qty  int    // state, tracked
+}
+
+func (r *Row) Inc() { r.qty++ }
+<tr key={ID}><td>{Name}</td><td>{qty}</td><td><button onClick={Inc}>+</button></td></tr>
 ```
-:::
+
+The field is read and written as any field is — `r.qty++`, `r.rows =
+append(r.rows, x)`, `r.rows[i].Done = true` — and the compiler writes it as
+a `uigen.Assign` of its type, each read a `Get`, each write a `Set` or an
+`Update`. Taking a tracked field's address is
+[E0150](/errors/E0150): a change through the pointer wouldn't be seen.
 
 A click in one row of a thousand renders that row only. `Render` must read
-nothing but props, Assigns and `vuka:"-"` fields that don't change its
-output; [verification](/ui/live#verification) catches one that does.
+nothing but props, tracked fields and `vuka:"-"` fields that don't change
+its output; [verification](/ui/live#verification) catches one that does.
 
 ## What it becomes
 

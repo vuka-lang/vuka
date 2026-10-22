@@ -7,6 +7,7 @@ import (
 	"strconv"
 
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 	"github.com/vuka-lang/vuka"
 )
 
@@ -15,12 +16,12 @@ import (
 //line counter.vuka.html:10
 type Counter struct {
 	ui.Live
-	Start int // a prop
-	n     int // server state
+	Start int               // a prop
+	n     uigen.Assign[int] // server state
 }
 
 // Inc is an event.
-func (c *Counter) Inc() { c.n++ }
+func (c *Counter) Inc() { c.n.Set(c.n.Get() + 1) }
 
 // Parse reads a step with ?, as .vuka does.
 func (c *Counter) Parse(s string) vuka.Result[int] {
@@ -37,7 +38,7 @@ func (c *Counter) Render() ui.Node {
 //line counter.vuka.html:24
 	return ui.HTML(`
 <div class="counter">
-  <span>{c.Start + c.n}</span>
+  <span>{c.Start + c.n.Get()}</span>
   <button onClick={c.Inc}>+</button>
-</div>`, c.Start+c.n, c.Inc)
+</div>`, c.Start+c.n.Get(), c.Inc)
 }

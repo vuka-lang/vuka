@@ -35,6 +35,7 @@ type htmlFile struct {
 	src      []byte      // the file as written
 	ins      []insertion // what its compiled text inserts, in order
 	lines    lineIndex   // src's
+	shape    *Shape      // the struct it declares, in the 2.0 shape (htmlshape.go)
 }
 
 var funcLine = regexp.MustCompile(`^func\s`)
@@ -440,7 +441,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if ptr {
 			star = "*"
 		}
-		*h = htmlFile{recv: recv, recvType: typ, start: off[first], end: off[firstEnd]}
+		*h = htmlFile{recv: recv, recvType: typ, start: off[first], end: off[firstEnd], shape: shape}
 		targs := ""
 		if shape != nil {
 			// The markup reads the struct as its methods do.
@@ -459,7 +460,18 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if live {
 			method = "Render"
 		}
-		open := "func (" + recv + " " + star + typ + targs + ") " + method + "() " + ui + "Node" + openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), ""))
+		opening := openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), ""))
+		if shape != nil && !live && shape.hasRole(BrowserState) {
+			// A static struct's states, before its View renders (a live
+			// one's get theirs before it mounts): the engine names the
+			// call (statesCall).
+			amp := "&"
+			if ptr {
+				amp = ""
+			}
+			opening = " { " + statesCall + "(" + amp + recv + "); " + strings.TrimPrefix(opening, " { ")
+		}
+		open := "func (" + recv + " " + star + typ + targs + ") " + method + "() " + ui + "Node" + opening
 		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
 			open += "\n" // a statement starts its line
 		}

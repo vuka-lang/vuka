@@ -14,21 +14,21 @@ error[E0124]: the * operator can't run in the browser; compute it on the server
    |
    = help: compute it on the server, or read only states and simple operators
 
-error[E0125]: Inc needs a ui.State of a number; open is a stateui.State[bool]
-  --> err_state.vuka:16:25
+error[E0150]: open++ needs a ui.State of a number; open is a stateui.State[bool]
+  --> err_state.vuka:16:20
    |
-16 |         <button onClick={open.Inc()} />
-   |                               ^^^
+16 |         <button onClick={open++} />
+   |                          ^^^^
    |
-   = help: pass .Get() for the value, or make the prop a ui.State
+   = help: write states with x = v, x = !x, x++ or x--, and call handlers
 
-error[E0125]: Toggle needs a ui.State[bool]; tab is a stateui.State[string]
-  --> err_state.vuka:17:24
+error[E0150]: tab = !tab needs a ui.State[bool]; tab is a stateui.State[string]
+  --> err_state.vuka:17:20
    |
-17 |         <button onClick={tab.Toggle()} />
-   |                              ^^^^^^
+17 |         <button onClick={tab = !tab} />
+   |                          ^^^
    |
-   = help: pass .Get() for the value, or make the prop a ui.State
+   = help: write states with x = v, x = !x, x++ or x--, and call handlers
 
 error[E0125]: Set: tab is a stateui.State[string]; it takes a string, not int
   --> err_state.vuka:18:35
@@ -70,5 +70,5 @@ error[E0124]: describe can't run in the browser; compute it on the server
    |
    = help: compute it on the server, or read only states and simple operators
 
-Some errors have detailed explanations: E0124, E0125.
+Some errors have detailed explanations: E0124, E0125, E0150.
 For more information about an error, try `vuka explain E0124`.

@@ -5,6 +5,7 @@ package main
 
 import (
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 )
 
 // Like has an event its markup sends, so it is live: the compiler embeds
@@ -14,13 +15,13 @@ import (
 type Like struct {
 //line like.vuka.html:5
 	ui.Live
-	n int
+	n uigen.Assign[int]
 }
 
-func (l *Like) Add() { l.n++ }
+func (l *Like) Add() { l.n.Set(l.n.Get() + 1) }
 
 //line like.vuka.html:10
 func (l *Like) Render() ui.Node {
 //line like.vuka.html:10
-	return ui.HTML(`<button onClick={l.Add}>♥ {l.n}</button>`, l.Add, l.n)
+	return ui.HTML(`<button onClick={l.Add}>♥ {l.n.Get()}</button>`, l.Add, l.n.Get())
 }

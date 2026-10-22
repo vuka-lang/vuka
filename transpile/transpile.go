@@ -175,9 +175,12 @@ type fileState struct {
 	regs     []registration // this render's registry decorators' calls (decorate.go)
 	text     []byte
 
-	ast     *ast.File
-	tf      *token.File
-	parents map[ast.Node]ast.Node
+	ast          *ast.File
+	tf           *token.File
+	parents      map[ast.Node]ast.Node
+	trackedTypes bool            // its shape struct's tracked fields are Assigns (tracked.go)
+	tracked      map[string]bool // those fields
+	writeDone    map[int]bool    // the state writes lowered or refused, by offset (writes.go)
 
 	done    map[int]bool // src offsets of identifiers already rewritten or reported
 	rt      string       // the name the runtime is imported as; "" until needed

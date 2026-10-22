@@ -580,7 +580,7 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	info := make([]lineInfo, otf.LineCount()+2) // by output line
 	for i, n := range after {
 		off := otf.Offset(n.pos)
-		l := otf.Line(n.pos)
+		l := otf.PositionFor(n.pos, false).Line
 		li := &info[l]
 		col := off - otf.Offset(otf.LineStart(l)) + 1
 		if mapped[i].exact && (li.src == 0 || col < li.col) {
@@ -672,14 +672,14 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	segs := make([]segment, 0, len(after))
 	last := -1
 	for i, n := range after {
-		gen := ftf.Offset(n.pos) + shift[ftf.Line(n.pos)]
+		gen := ftf.Offset(n.pos) + shift[ftf.PositionFor(n.pos, false).Line]
 		if mapped[i].line == 0 || gen == last {
 			continue
 		}
 		last = gen
 		size := tokenLen(final[gen:])
 		if n.leaf {
-			size = ftf.Offset(n.end) + shift[ftf.Line(n.end)] - gen
+			size = ftf.Offset(n.end) + shift[ftf.PositionFor(n.end, false).Line] - gen
 		}
 		if mapped[i].exact {
 			segs = append(segs, segment{gen: gen, src: mapped[i].src, genLen: size, srcLen: size, copy: true})

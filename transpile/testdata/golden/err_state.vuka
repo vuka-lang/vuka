@@ -13,8 +13,8 @@ func Bad() ui.Node {
 	return <div>
 		<p title={strings.ToUpper(tab)} />
 		<p data-n={n * 2} />
-		<button onClick={open.Inc()} />
-		<button onClick={tab.Toggle()} />
+		<button onClick={open++} />
+		<button onClick={tab = !tab} />
 		<button onClick={ui.JS.Set(tab, 3)} />
 		<Label text={!open} />
 		<Any v={strings.ToUpper(tab)} />
