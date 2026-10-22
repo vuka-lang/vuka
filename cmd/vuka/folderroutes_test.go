@@ -323,6 +323,33 @@ func TestTemplatePageDeclared(t *testing.T) {
 	}
 }
 
+// TestShapePages: a .vuka.html file in the 2.0 shape declares its page's
+// type, so it is an ordinary page — static, or live by an event its markup
+// sends — and vuka declares no type for it, only the constructor it lacks.
+func TestShapePages(t *testing.T) {
+	app := routesModule(t, map[string]string{
+		"pages/about.vuka.html":   "package pages\n\n// About is declared above its markup.\ntype About struct {\n\tVersion string\n}\n\nfunc (p *About) Title() string { return \"About\" }\n<article><h1>About {Version}</h1></article>\n",
+		"pages/counter.vuka.html": "package pages\n\n// Counter is live: its markup sends Inc.\ntype Counter struct {\n\tn int\n}\n\nfunc (p *Counter) Inc() { p.n++ }\n<button onClick={Inc}>{n}</button>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	if !strings.Contains(out.String(), "pages.About  ") || strings.Contains(out.String(), "pages.About (template)") || !strings.Contains(out.String(), "pages.Counter (live)") {
+		t.Errorf("vuka routes:\n%s", out.Bytes())
+	}
+	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -inplace: %v", err)
+	}
+	b, _ := os.ReadFile(filepath.Join(app, "pages", "routes_gen.go"))
+	if strings.Contains(string(b), "type About") || strings.Contains(string(b), "type Counter") || !strings.Contains(string(b), "func NewCounter() *Counter") {
+		t.Errorf("routes_gen.go:\n%s", b)
+	}
+	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
+	}
+}
+
 // TestGeneratedConstructors: a page or endpoint without New<T> gets one in
 // its package's routes_gen.go, which the package's Vuka source sees; one
 // declared by hand turns it off, and a type registered another way gets
