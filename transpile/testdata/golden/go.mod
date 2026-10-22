@@ -6,7 +6,7 @@ go 1.25.0
 
 require (
 	github.com/a-h/templ v0.3.1020
-	github.com/vuka-lang/ui v1.5.1-0.20261022131445-19d51e1a8d6b
+	github.com/vuka-lang/ui v1.5.1-0.20261022141038-2a566b34a821
 	github.com/vuka-lang/vuka v1.5.0
 	vukatest.local/islandui v0.0.0
 	vukatest.local/orm v0.0.0

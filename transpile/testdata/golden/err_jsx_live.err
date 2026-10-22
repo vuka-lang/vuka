@@ -1,9 +1,9 @@
-err_jsx_live.vuka:52:3: <NoRender> isn't a stateful component: *NoRender doesn't implement ui.Stateful (missing method Render)
-err_jsx_live.vuka:53:3: <BadRender> isn't a stateful component: *BadRender doesn't implement ui.Stateful (wrong type for method Render: has func(ctx context.Context) ui.Node, wants func() ui.Node)
-err_jsx_live.vuka:55:3: <Named> is a type, not a component: a component is a function returning ui.Node, or a struct whose pointer implements ui.Stateful
-err_jsx_live.vuka:56:12: <Counter> has no attribute n: unexported fields are its state; its props are its exported fields
-err_jsx_live.vuka:57:12: <Counter> has no attribute Stat; did you mean Start?
-err_jsx_live.vuka:58:3: <Counter> takes no children: add a Children ui.Node field to Counter
-err_jsx_live.vuka:61:9: <Both>'s field Title is ambiguous: it is in A and B
-err_jsx_live.vuka:62:11: onClick on <button> takes a function; this is int
-err_jsx_live.vuka:67:11: onClick on <button> takes a function; this is string
+err_jsx_live.vuka:51:3: <NoRender> isn't a stateful component: *NoRender doesn't implement ui.Stateful (missing method Render)
+err_jsx_live.vuka:52:3: <BadRender> isn't a stateful component: *BadRender doesn't implement ui.Stateful (wrong type for method Render: has func(ctx context.Context) ui.Node, wants func() ui.Node)
+err_jsx_live.vuka:54:3: <Named> is a type, not a component: a component is a function returning ui.Node, or a struct whose pointer implements ui.Stateful
+err_jsx_live.vuka:55:12: <Counter> has no attribute n: unexported fields are its state; its props are its exported fields
+err_jsx_live.vuka:56:12: <Counter> has no attribute Stat; did you mean Start?
+err_jsx_live.vuka:57:3: <Counter> takes no children: add a Children ui.Node field to Counter
+err_jsx_live.vuka:60:9: <Both>'s field Title is ambiguous: it is in A and B
+err_jsx_live.vuka:61:11: onClick on <button> takes a function; this is int
+err_jsx_live.vuka:66:11: onClick on <button> takes a function; this is string

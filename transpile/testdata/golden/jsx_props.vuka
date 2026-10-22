@@ -52,7 +52,11 @@ type NewMessage struct{ Text string }
 
 type Typing struct{ Who string }
 
-func (c *Chat) Mount() { c.Subscribe("room:" + c.Room) }
+@ui.Mount
+func (c *Chat) mount(ctx context.Context) error {
+	c.Subscribe("room:" + c.Room)
+	return nil
+}
 
 func (c *Chat) Update(m NewMessage)                   { c.log = append(c.log, "says "+m.Text) }
 func (c *Chat) Update(ctx context.Context, t Typing) { c.log = append(c.log, t.Who+" is typing") }

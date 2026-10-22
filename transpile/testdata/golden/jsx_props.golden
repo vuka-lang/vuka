@@ -67,19 +67,23 @@ type NewMessage struct{ Text string }
 
 type Typing struct{ Who string }
 
-func (c *Chat) Mount() { c.Subscribe("room:" + c.Room) }
+//line jsx_props.vuka:56
+func (c *Chat) mount(ctx context.Context) error {
+	c.Subscribe("room:" + c.Room)
+	return nil
+}
 
 func (c *Chat) UpdateNewMessage(m NewMessage)              { c.log = append(c.log, "says "+m.Text) }
 func (c *Chat) UpdateTyping(ctx context.Context, t Typing) { c.log = append(c.log, t.Who+" is typing") }
 
 func (c *Chat) Render() ui.Node {
 	var lis []ui.Node
-//line jsx_props.vuka:61
+//line jsx_props.vuka:65
 	for _, l := range c.log {
-//line jsx_props.vuka:61
+//line jsx_props.vuka:65
 		lis = append(lis, ui.HTML(`<li>{l}</li>`, l))
 	}
-//line jsx_props.vuka:61
+//line jsx_props.vuka:65
 	return ui.HTML(`<ul class={c.Class}>{lis}</ul>`, c.Class, lis)
 }
 
@@ -93,12 +97,12 @@ func (b *Box[T]) Render() ui.Node { return ui.HTML(`<b>{b.Value}</b>`, b.Value) 
 func page(ctx context.Context) ui.Node {
 	w := 3
 	card := func(a1 int, a2 int, a3 ui.Node) ui.Node {
-//line jsx_props.vuka:75
+//line jsx_props.vuka:79
 		return Card(CardProps{Title: "a", Base: Base{Class: "c", ID: a2}, Sized: &Sized{Width: a1}, Children: a3})
 	}(w, 1, ui.HTML(`!`))
-//line jsx_props.vuka:78
+//line jsx_props.vuka:82
 	chat := func(a1 int, a2 string) ui.Node { return ui.Key(a2, &Chat{Base: Base{ID: a1}, Room: "rust"}) }(2, "rust")
-//line jsx_props.vuka:73
+//line jsx_props.vuka:77
 	return ui.HTML(`
 {header}
 {card}
@@ -121,7 +125,7 @@ func page(ctx context.Context) ui.Node {
 	)
 }
 
-//line jsx_props.vuka:84
+//line jsx_props.vuka:88
 func main() {
 	ctx := context.Background()
 	s, err := ui.String(ctx, page(ctx))
@@ -133,4 +137,9 @@ func main() {
 		p, err := sess.Info("room:go", msg)
 		fmt.Println(p.Updates, err)
 	}
+}
+
+//line jsx_props.vuka:44
+func (c *Chat) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(c.mount)
 }

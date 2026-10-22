@@ -4,10 +4,12 @@
 # nothing else: what it would need and a person couldn't call is a gap in
 # the public API, filled there (library.md, "No hidden runtime").
 # generated: what generated code alone calls — ui's uigen, the lowering of a
-# .vuka.html file's client state and tracked server state. Public so the
-# generated code builds with go build, ejected code included; not an API a
-# person writes (vukavet reports a hand-written use), so it is the
-# compiler's to change. ui.State's own API is Get and Set.
+# .vuka.html file's client state and tracked server state, and
+# ui.LiveSchema, the lowering of a live page's hook and field attributes
+# (@ui.Mount, @ui.OnChange, @ui.Loads, @ui.Bind, @ui.URL, @ui.Defer). Public
+# so the generated code builds with go build, ejected code included; not an
+# API a person writes (vukavet reports a hand-written use: W0105, W0306), so
+# it is the compiler's to change. ui.State's own API is Get and Set.
 # stepN: an internal form generated code still calls, until step N of the
 # Plan gives it a public replacement; none is left. An entry no golden uses
 # fails the test.
@@ -88,7 +90,6 @@ public github.com/vuka-lang/ui.JSON
 public github.com/vuka-lang/ui.Key
 public github.com/vuka-lang/ui.Layout
 public github.com/vuka-lang/ui.Live
-public github.com/vuka-lang/ui.LiveSchema
 public github.com/vuka-lang/ui.Load
 public github.com/vuka-lang/ui.Media
 public github.com/vuka-lang/ui.Mount
@@ -123,6 +124,7 @@ public github.com/vuka-lang/web.Routes
 public github.com/vuka-lang/web.Use
 public github.com/vuka-lang/web.UseOf
 
+generated github.com/vuka-lang/ui.LiveSchema
 generated github.com/vuka-lang/ui/uigen.Assign
 generated github.com/vuka-lang/ui/uigen.And
 generated github.com/vuka-lang/ui/uigen.At

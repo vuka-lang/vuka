@@ -1,0 +1,3 @@
+board.vuka.html:19:4: Board's hook loadRows is declared by Loads on its ui.Live: a hook is declared with an attribute on its method; drop the call and mark the method @ui.Loads("rows")
+board.vuka.html:23:17: Board.Mount isn't a hook: a hook is declared with @ui.Mount, never found by its name; mark the method @ui.Mount (vuka fix hooks), or rename it
+board.vuka.html:24:17: Board.Changed isn't a hook: a hook is declared with @ui.OnChange, never found by its name; mark the method @ui.OnChange (vuka fix hooks), or rename it

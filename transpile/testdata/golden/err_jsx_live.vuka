@@ -27,7 +27,6 @@ func (c *Counter) Render() ui.Node { return <b>{c.n}</b> }
 
 type BadMount struct{ ui.Live }
 
-func (b *BadMount) Mount(n int)       {}
 func (b *BadMount) Render() ui.Node { return nil }
 
 type Box[T any] struct {
