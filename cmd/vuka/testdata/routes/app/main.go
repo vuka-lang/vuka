@@ -3,9 +3,12 @@ package main
 import (
 	"github.com/vuka-lang/web"
 
-	_ "example.com/app/pages"
+	"example.com/app/pages"
 )
 
-func main() { web.Routes.Get("/health", health) }
+func main() {
+	web.Routes.Get("/health", health)
+	web.New(pages.Routes())
+}
 
 func health() string { return "ok" }

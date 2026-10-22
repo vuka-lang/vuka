@@ -7,7 +7,9 @@ import (
 	"io"
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -106,8 +108,8 @@ func TestFolderRoutes(t *testing.T) {
 
 	// A new page, and the files on disk stale: the overlay has the fresh
 	// ones, and gen -check says they are stale.
-	writeFile(t, filepath.Join(app, "pages/orgs/org/edit.go"), editPage)
-	writeFile(t, filepath.Join(app, "pages/orgs/org/index.go"), strings.Replace(orgIndex, "ResetPassword.Path()", "Edit.Path()", 1))
+	writeFile(t, filepath.Join(app, "pages/orgs/[org]/edit.vuka"), editPage)
+	writeFile(t, filepath.Join(app, "pages/orgs/[org]/index.vuka"), strings.Replace(orgIndex, "ResetPassword.Path()", "Edit.Path()", 1))
 	errOut.Reset()
 	if err := runGo("build", []string{"-o", os.DevNull, "."}, io.Discard, &errOut); err != nil {
 		t.Errorf("vuka build with a new page: %v\n%s", err, errOut.Bytes())
@@ -128,8 +130,7 @@ func TestFolderRoutes(t *testing.T) {
 }
 
 // routeFiles are the files generated for the fixture.
-var routeFiles = []string{"pages/pages_gen.go", "pages/urls/urls_gen.go", "pages/orgs/org/routes_gen.go", "pages/routes_gen.go",
-	"pages/files/file/routes_gen.go", "pages/orgs/org/permits/permit/routes_gen.go", "pages/api/orgs/routes_gen.go"}
+var routeFiles = []string{"pages/route.go", "pages/urls/urls_gen.go"}
 
 const editPage = `package org
 
@@ -139,7 +140,7 @@ import (
 )
 
 // Edit edits the organisation.
-type Edit struct{ Params }
+type Edit struct{ Org int }
 
 func NewEdit() *Edit { return &Edit{} }
 
@@ -147,7 +148,7 @@ func (*Edit) Render(ctx context.Context, w io.Writer) error { return nil }
 `
 
 var orgIndex = func() string {
-	b, _ := os.ReadFile(filepath.Join("testdata", "routes", "app", "pages", "orgs", "org", "index.go"))
+	b, _ := os.ReadFile(filepath.Join("testdata", "routes", "app", "pages", "orgs", "[org]", "index.vuka"))
 	return string(b)
 }()
 
@@ -162,41 +163,54 @@ func TestFolderRouteErrors(t *testing.T) {
 	}{
 		{"two pages on a path", map[string]string{"pages/orgs/new/index.go": "package new\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype Index struct{}\n\nfunc NewIndex() *Index { return nil }\n\nfunc (*Index) Render(context.Context, io.Writer) error { return nil }\n"},
 			"E0701", "pages/orgs/new/index.go:8"},
-		{"parameter folders side by side", map[string]string{"pages/orgs/other/params.go": "package other\n\ntype Params struct{ Other int }\n"},
-			"E0702", "pages/orgs/other/params.go:3"},
-		{"ambiguous", map[string]string{"pages/orgs/new/x/params.go": "package x\n\ntype Params struct{ X int }\n",
-			"pages/orgs/new/x/reset_password.go": "package x\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype ResetPassword struct{}\n\nfunc NewResetPassword() *ResetPassword { return nil }\n\nfunc (*ResetPassword) Render(context.Context, io.Writer) error { return nil }\n"},
-			"E0702", "pages/orgs/new/x/reset_password.go:8"},
-		{"below a catch-all", map[string]string{"pages/files/file/more/index.go": "package more\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype Index struct{}\n\nfunc NewIndex() *Index { return nil }\n\nfunc (*Index) Render(context.Context, io.Writer) error { return nil }\n"},
-			"E0703", "pages/files/file/more/index.go:8"},
-		{"a page beside a catch-all's index", map[string]string{"pages/files/file/raw.go": "package file\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype Raw struct{}\n\nfunc NewRaw() *Raw { return nil }\n\nfunc (*Raw) Render(context.Context, io.Writer) error { return nil }\n"},
-			"E0703", "pages/files/file/raw.go:8"},
-		{"Params named unlike its folder", map[string]string{"pages/orgs/org/params.go": "package org\n\ntype Params struct{ ID int }\n"},
-			"E0704", "pages/orgs/org/params.go:3"},
-		{"Params not embedding the parent's", map[string]string{"pages/orgs/org/permits/permit/params.go": "package permit\n\ntype Params struct{ Permit int }\n"},
-			"E0704", "pages/orgs/org/permits/permit/params.go:3"},
-		{"a parameter type", map[string]string{"pages/orgs/org/params.go": "package org\n\ntype Params struct{ Org float64 }\n"},
-			"E0705", "pages/orgs/org/params.go:3"},
+		{"a method func and a method on one path", map[string]string{"pages/api/orgs/index.vuka": "package orgs\n\nimport \"context\"\n\nfunc GET(ctx context.Context) error { return nil }\n"},
+			"E0701", "pages/api/orgs/index.vuka:5"},
+		{"parameter folders side by side", map[string]string{"pages/orgs/[other]/index.vuka": "package other\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype Index struct{ Other int }\n\nfunc (*Index) Render(context.Context, io.Writer) error { return nil }\n"},
+			"E0702", "pages/orgs/[other]"},
+		{"parameter files side by side", map[string]string{"pages/api/pets/[name].vuka": "package pets\n\nimport \"context\"\n\nfunc PUT(ctx context.Context, name string) error { return nil }\n"},
+			"E0702", "pages/api/pets/[name].vuka"},
+		{"ambiguous", map[string]string{"pages/orgs/new/[x]/reset_password.vuka": "package x\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype ResetPassword struct{ X int }\n\nfunc NewResetPassword() *ResetPassword { return nil }\n\nfunc (*ResetPassword) Render(context.Context, io.Writer) error { return nil }\n"},
+			"E0702", "pages/orgs/new/[x]/reset_password.vuka:8"},
+		{"below a catch-all", map[string]string{"pages/files/[rest...]/more/index.go": "package more\n"},
+			"E0716", "pages/files/[rest...]/more/index.go:1"},
+		{"a folder below a catch-all", map[string]string{"pages/app/[route...]/more/index.vuka": "package more\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype Index struct{ Route string }\n\nfunc (*Index) Render(context.Context, io.Writer) error { return nil }\n"},
+			"E0703", "pages/app/[route...]/more/index.vuka:8"},
+		{"a page beside a catch-all's index", map[string]string{"pages/app/[route...]/raw.vuka": "package route\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype Raw struct{ Route string }\n\nfunc (*Raw) Render(context.Context, io.Writer) error { return nil }\n"},
+			"E0703", "pages/app/[route...]/raw.vuka:8"},
+		{"a bracket that names nothing", map[string]string{"pages/orgs/[1x]/index.vuka": "package x\n"},
+			"E0704", "pages/orgs/[1x]"},
+		{"a bracketed file that names nothing", map[string]string{"pages/orgs/[a-b].vuka": "package orgs\n"},
+			"E0704", "pages/orgs/[a-b].vuka:1"},
+		{"a parameter bound twice", map[string]string{"pages/orgs/[org]/members/[org].vuka": "package members\n"},
+			"E0704", "pages/orgs/[org]/members/[org]"},
+		{"a parameter type", map[string]string{"pages/orgs/[org]/guard.vuka": "package org\n\nimport \"context\"\n\ntype Guard struct{ Org float64 }\n\nfunc (g *Guard) Load(ctx context.Context) error { return nil }\n"},
+			"E0712", "pages/orgs/[org]/guard.vuka:5"},
+		{"a parameter type a URL can't hold", map[string]string{"pages/files/[file...].vuka.html": "package files\n\n// File serves a file.\ntype File struct {\n\tFile float64\n}\n<pre></pre>\n"},
+			"E0705", "pages/files/[file...].vuka.html:5"},
+		{"a parameter type of a page package", map[string]string{"pages/files/[file...].vuka.html": "package files\n\n// File serves a file.\ntype File struct {\n\tFile Name\n}\n<pre></pre>\n", "pages/files/name.go": "package files\n\ntype Name string\n"},
+			"E0705", "pages/files/[file...].vuka.html:5"},
+		{"web.Rest on one segment", map[string]string{"pages/api/pets/[id].vuka": "package pets\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/web\"\n)\n\nfunc GET(ctx context.Context, id web.Rest) (string, error) { return \"\", nil }\n"},
+			"E0705", "pages/api/pets/[id].vuka:9"},
 		{"a folder and a page named alike", map[string]string{"pages/orgs/new/draft.go": "package new\n\nimport (\n\t\"context\"\n\t\"io\"\n)\n\ntype Draft struct{}\n\nfunc NewDraft() *Draft { return nil }\n\nfunc (*Draft) Render(context.Context, io.Writer) error { return nil }\n"},
 			"E0706", "pages/orgs/new.go:9"},
-		{"a parameter type of a page package", map[string]string{"pages/orgs/org/params.go": "package org\n\ntype Params struct{ Org ID }\n\ntype ID int\n"},
-			"E0705", "pages/orgs/org/params.go:3"},
-		{"a template-only page's type taken", map[string]string{"pages/about.go": "package pages\n\nfunc About() string { return \"\" }\n"},
-			"E0706", "pages/about.go:3"},
-		{"a declared route", map[string]string{"main.go": "package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\t_ \"example.com/app/pages\"\n)\n\nfunc main() { web.Routes.Get(\"/orgs/{id}\", nil) }\n"},
-			"E0707", "pages/orgs/org/index.go:11"},
-		{"a layout without Children", map[string]string{"pages/layout.go": "package pages\n\ntype Layout struct{ Body string }\n"},
-			"E0708", "pages/layout.go:3"},
-		{"a layout's Load", map[string]string{"pages/orgs/org/layout.go": "package org\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Layout struct {\n\tParams\n\tChildren ui.Node\n}\n\nfunc (l *Layout) Load() {}\n"},
-			"E0708", "pages/orgs/org/layout.go:10"},
+		{"a Routes of package pages", map[string]string{"pages/routes.go": "package pages\n\nfunc Routes() {}\n"},
+			"E0706", "pages/routes.go:3"},
+		{"a declared route", map[string]string{"main.go": "package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\t\"example.com/app/pages\"\n)\n\nfunc main() { web.Routes.Get(\"/orgs/{id}\", nil); web.New(pages.Routes()) }\n"},
+			"E0707", "pages/orgs/[org]/index.vuka:11"},
+		{"a layout without Children", map[string]string{"pages/_layout.vuka.html": "package pages\n\n// Layout has no Children.\ntype Layout struct {\n\tBody string\n}\n<main></main>\n"},
+			"E0708", "pages/_layout.vuka.html:4"},
+		{"a layout's Load", map[string]string{"pages/orgs/[org]/layout.vuka": "package org\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Layout struct {\n\tOrg      int\n\tChildren ui.Node\n}\n\nfunc (l *Layout) Load() {}\n"},
+			"E0708", "pages/orgs/[org]/layout.vuka:10"},
 		{"a guard without Load", map[string]string{"pages/api/guard.go": "package api\n\ntype Guard struct{}\n"},
 			"E0708", "pages/api/guard.go:3"},
 		{"a guard's Load", map[string]string{"pages/api/guard.go": "package api\n\ntype Guard struct{}\n\nfunc (g *Guard) Load() {}\n"},
 			"E0708", "pages/api/guard.go:5"},
 		{"a page and an endpoint on one path", map[string]string{"pages/orgs/new/index.go": "package new\n\nimport \"context\"\n\ntype Index struct{}\n\nfunc NewIndex() *Index { return nil }\n\nfunc (*Index) Get(ctx context.Context) (string, error) { return \"\", nil }\n"},
 			"E0701", "pages/orgs/new/index.go:9"},
-		{"an endpoint's scalar parameter", map[string]string{"pages/api/orgs/org/index.go": "package org\n\nimport \"context\"\n\ntype Index struct{ Params }\n\nfunc NewIndex() *Index { return nil }\n\nfunc (*Index) Get(ctx context.Context, id int) error { return nil }\n"},
-			"E0709", "pages/api/orgs/org/index.go:9"},
+		{"an endpoint's scalar parameter", map[string]string{"pages/api/orgs/get.go": "package orgs\n\nimport \"context\"\n\nfunc (*Index) Put(ctx context.Context, id int) error { return nil }\n"},
+			"E0709", "pages/api/orgs/get.go:5"},
+		{"a method func's unnamed scalar", map[string]string{"pages/api/pets/[id].vuka": "package pets\n\nimport \"context\"\n\nfunc GET(ctx context.Context, _ int64) (int64, error) { return 0, nil }\n"},
+			"E0709", "pages/api/pets/[id].vuka:5"},
 		{"a middleware's signature", map[string]string{"pages/orgs/middleware.go": "package orgs\n\nimport \"net/http\"\n\nfunc Middleware(next http.Handler) error { return nil }\n"},
 			"E0710", "pages/orgs/middleware.go:5"},
 		{"a middleware constructor's dependency", map[string]string{"pages/api/middleware.go": "package api\n\nimport (\n\t\"net/http\"\n\n\t\"github.com/vuka-lang/web\"\n)\n\nfunc Middleware(n int) web.Middleware {\n\treturn func(next http.Handler) http.Handler { return next }\n}\n"},
@@ -205,6 +219,27 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0709", "pages/orgs/get.go:5"},
 		{"a scalar handler parameter", map[string]string{"pages/orgs/put.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Put(ctx context.Context, name string) error { return nil }\n"},
 			"E0709", "pages/orgs/put.go:5"},
+		{"a parameter nothing binds", map[string]string{"pages/orgs/[org]/team-settings.vuka.html": "", "pages/orgs/[org]/layout.vuka": "package org\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Layout struct{ Children ui.Node }\n",
+			"pages/orgs/[org]/guard.vuka": "", "pages/orgs/[org]/index.vuka": "", "pages/orgs/[org]/reset_password.vuka": "package org\n", "pages/orgs/[org]/permits/[permit].vuka": ""},
+			"E0711", "pages/orgs/[org]"},
+		{"a parameter page without a struct", map[string]string{"pages/api/[x].vuka.html": "package api\n\n<p>x</p>\n"},
+			"E0711", "pages/api/[x].vuka.html:1"},
+		{"a parameter folder and file", map[string]string{"pages/orgs/[org].vuka": "package orgs\n\nimport \"context\"\n\nfunc PATCH(ctx context.Context, org int) error { return nil }\n"},
+			"E0713", "pages/orgs/[org].vuka"},
+		{"a 1.x Params", map[string]string{"pages/orgs/params.go": "package orgs\n\n// Params binds nothing now.\ntype Params struct{ Org int }\n"},
+			"E0714", "pages/orgs/params.go:4"},
+		{"a 1.x Layout", map[string]string{"pages/orgs/layout.go": "package orgs\n\nimport \"github.com/vuka-lang/ui\"\n\n// Layout wraps nothing now.\ntype Layout struct{ Children ui.Node }\n"},
+			"E0715", "pages/orgs/layout.go:6"},
+		{"Go in a parameter folder", map[string]string{"pages/orgs/[org]/edit.go": "package org\n"},
+			"E0716", "pages/orgs/[org]/edit.go:1"},
+		{"a method func in two Go files", map[string]string{"pages/api/a.go": "package api\n\nfunc GET() {}\n", "pages/api/b.go": "package api\n\nfunc GET() {}\n"},
+			"E0717", "pages/api/b.go:1"},
+		{"a 1.x generated file", map[string]string{"pages/orgs/routes_gen.go": "package orgs\n"},
+			"E0718", "pages/orgs/routes_gen.go:1"},
+		{"a route.go by hand", map[string]string{"pages/route.go": "package pages\n"},
+			"E0718", "pages/route.go:1"},
+		{"a template-only page", map[string]string{"pages/terms.vuka.html": "package pages\n\n<p>terms</p>\n"},
+			"E0719", "pages/terms.vuka.html:1"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			routesModule(t, c.files)
@@ -236,7 +271,7 @@ func generatedProblems(src []byte) []string {
 		for _, part := range strings.Split(string(src), sel)[1:] {
 			name := part[:strings.IndexFunc(part, func(r rune) bool { return !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') })]
 			switch sel + name {
-			case "web.Routes", "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.UseOf":
+			case "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.UseOf", "web.Params", "web.Option", "web.OptionFunc", "web.App", "web.New":
 			default:
 				out = append(out, "names "+sel+name)
 			}
@@ -281,14 +316,14 @@ func TestPatterns(t *testing.T) {
 // folder page, so an app of earlier releases keeps the routes it had.
 func TestFolderRoutesRegistered(t *testing.T) {
 	routesModule(t, map[string]string{
-		"main.go": "package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\t\"example.com/app/pages/orgs\"\n)\n\nfunc main() { web.Routes.Live(\"/elsewhere\", orgs.NewIndex) }\n",
-		"pages/orgs/org/permits/permit/index.vuka": "package permit\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n@web.Live(\"/permit\")\ntype Index struct {\n\tui.Live\n\tParams\n}\n\nfunc NewIndex() *Index { return &Index{} }\n\nfunc (x *Index) Render() ui.Node { return ui.Text(\"\") }\n",
+		"main.go":                                "package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\t\"example.com/app/pages\"\n\t\"example.com/app/pages/orgs\"\n)\n\nfunc main() { web.Routes.Live(\"/elsewhere\", orgs.NewIndex); web.New(pages.Routes()) }\n",
+		"pages/orgs/[org]/permits/[permit].vuka": "package permits\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n@web.Live(\"/permit\")\ntype Permit struct {\n\tui.Live\n\tOrg    int\n\tPermit string\n}\n\nfunc NewPermit() *Permit { return &Permit{} }\n\nfunc (x *Permit) Render() ui.Node { return ui.Text(\"\") }\n",
 	})
 	var out, errOut bytes.Buffer
 	if err := routesCmd(nil, &out, &errOut); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	for _, page := range []string{"orgs.Index", "permit.Index"} {
+	for _, page := range []string{"orgs.Index", "permits.Permit"} {
 		if strings.Contains(out.String(), page) {
 			t.Errorf("%s is a folder page:\n%s", page, out.Bytes())
 		}
@@ -298,90 +333,104 @@ func TestFolderRoutesRegistered(t *testing.T) {
 	}
 }
 
-// TestTemplatePageDeclared: declaring a template-only page's type makes it
-// an ordinary page, its type and constructor no longer generated.
-func TestTemplatePageDeclared(t *testing.T) {
-	app := routesModule(t, map[string]string{"pages/about.go": "package pages\n\n// About is declared by hand.\ntype About struct{ Version string }\n\nfunc NewAbout() *About { return &About{Version: \"1\"} }\n"})
-	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
-		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
-	}
-	if !strings.Contains(out.String(), "pages.About  ") || strings.Contains(out.String(), "pages.About (template)") {
-		t.Errorf("About isn't an ordinary page:\n%s", out.Bytes())
-	}
-	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
-		t.Fatalf("vuka gen -inplace: %v", err)
-	}
-	if b, err := os.ReadFile(filepath.Join(app, "pages", "routes_gen.go")); err == nil {
-		t.Errorf("routes_gen.go with no template-only page:\n%s", b)
-	}
-	if b, _ := os.ReadFile(filepath.Join(app, "pages", "urls", "urls_gen.go")); !strings.Contains(string(b), "About = Root.About") {
-		t.Errorf("urls_gen.go:\n%s", b)
-	}
-	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
-		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
-	}
-}
-
 // TestShapePages: a .vuka.html file in the 2.0 shape declares its page's
 // type, so it is an ordinary page — static, or live by an event its markup
-// sends — and vuka declares no type for it, only the constructor it lacks.
+// sends — named by its file; one without a constructor is built in
+// route.go, and nothing is written into its folder.
 func TestShapePages(t *testing.T) {
 	app := routesModule(t, map[string]string{
-		"pages/about.vuka.html":   "package pages\n\n// About is declared above its markup.\ntype About struct {\n\tVersion string\n}\n\nfunc (p *About) Title() string { return \"About\" }\n<article><h1>About {Version}</h1></article>\n",
+		"pages/about.vuka.html":   "package pages\n\n// Info is declared above its markup.\ntype Info struct {\n\tVersion string\n}\n\nfunc (p *Info) Title() string { return \"About\" }\n<article><h1>About {Version}</h1></article>\n",
 		"pages/counter.vuka.html": "package pages\n\n// Counter is live: its markup sends Inc.\ntype Counter struct {\n\tn int\n}\n\nfunc (p *Counter) Inc() { p.n++ }\n<button onClick={Inc}>{n}</button>\n",
 	})
 	var out, errOut bytes.Buffer
 	if err := routesCmd(nil, &out, &errOut); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	if !strings.Contains(out.String(), "pages.About  ") || strings.Contains(out.String(), "pages.About (template)") || !strings.Contains(out.String(), "pages.Counter (live)") {
+	if !regexp.MustCompile(`GET +/about +pages\.Info `).MatchString(out.String()) || !strings.Contains(out.String(), "pages.Counter (live)") {
 		t.Errorf("vuka routes:\n%s", out.Bytes())
 	}
 	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
-	b, _ := os.ReadFile(filepath.Join(app, "pages", "routes_gen.go"))
-	if strings.Contains(string(b), "type About") || strings.Contains(string(b), "type Counter") || !strings.Contains(string(b), "func NewCounter() *Counter") {
-		t.Errorf("routes_gen.go:\n%s", b)
+	b, _ := os.ReadFile(filepath.Join(app, "pages", "route.go"))
+	if !strings.Contains(string(b), `app.Live("/counter", func() *Counter { return &Counter{} }`) || !strings.Contains(string(b), `app.Get("/about", func() *Info { return &Info{} }`) {
+		t.Errorf("route.go:\n%s", b)
+	}
+	if u, _ := os.ReadFile(filepath.Join(app, "pages", "urls", "urls_gen.go")); !regexp.MustCompile(`About += Root\.About`).Match(u) {
+		t.Errorf("urls_gen.go names the page by its type, not its file:\n%s", u)
 	}
 	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
 	}
 }
 
-// TestGeneratedConstructors: a page or endpoint without New<T> gets one in
-// its package's routes_gen.go, which the package's Vuka source sees; one
-// declared by hand turns it off, and a type registered another way gets
-// none.
+// TestGeneratedConstructors: a page or endpoint without New<T> is built in
+// route.go; one declared by hand is used, and a type registered another way
+// gets none.
 func TestGeneratedConstructors(t *testing.T) {
 	app := routesModule(t, map[string]string{
-		"pages/files/file/new.go":                  "package file\n\n// NewIndex is declared by hand.\nfunc NewIndex() *Index { return &Index{} }\n",
-		"pages/api/orgs/first.vuka":                "package orgs\n\nfunc first() *Index { return NewIndex() }\n",
-		"pages/orgs/org/permits/permit/index.vuka": "package permit\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n@web.Live(\"/permit\")\ntype Index struct {\n\tui.Live\n\tParams\n}\n\nfunc (x *Index) Render() ui.Node { return ui.Text(\"\") }\n",
+		"pages/files/new.go": "package files\n\n// NewFile is declared by hand.\nfunc NewFile() *File { return &File{} }\n",
 	})
 	var out, errOut bytes.Buffer
 	if err := routesCmd(nil, &out, &errOut); err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
 	}
-	if strings.Contains(out.String(), "permit.Index") || !strings.Contains(out.String(), "file.Index") || !strings.Contains(out.String(), "orgs.Index.Post (endpoint)") {
-		t.Errorf("vuka routes:\n%s", out.Bytes())
-	}
 	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
-	for _, f := range []string{"pages/files/file/routes_gen.go", "pages/orgs/org/permits/permit/routes_gen.go"} {
-		if b, err := os.ReadFile(filepath.Join(app, f)); err == nil {
-			t.Errorf("%s:\n%s", f, b)
+	b, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
+	for _, want := range []string{`app.Get("/files/{file...}", files.NewFile,`, `web.Receiver(func() *api_orgs.Index { return &api_orgs.Index{} })`} {
+		if !strings.Contains(string(b), want) {
+			t.Errorf("route.go has no %s:\n%s", want, b)
 		}
 	}
-	if b, _ := os.ReadFile(filepath.Join(app, "pages/api/orgs/routes_gen.go")); !strings.Contains(string(b), "func NewIndex() *Index { return &Index{} }") {
-		t.Errorf("pages/api/orgs/routes_gen.go:\n%s", b)
+	if strings.Contains(string(b), "Card") || strings.Contains(string(b), "Store") {
+		t.Errorf("route.go builds a type that is no page:\n%s", b)
 	}
-	if b, _ := os.ReadFile(filepath.Join(app, "pages/orgs/org/routes_gen.go")); strings.Contains(string(b), "NewCard") {
-		t.Errorf("a constructor for Card, which is no page:\n%s", b)
-	}
-	if err := runGo("vet", []string{"./pages/api/...", "./pages/files/..."}, io.Discard, &errOut); err != nil {
+	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
+	}
+}
+
+// TestBracketFoldersOnDisk: vuka gen -inplace writes a [id] folder's Go
+// where the go command sees it, its Go name _id, with line directives back
+// to the sources, and a plain go build builds the module.
+func TestBracketFoldersOnDisk(t *testing.T) {
+	app := routesModule(t, nil)
+	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -inplace: %v", err)
+	}
+	b, err := os.ReadFile(filepath.Join(app, "pages/orgs/param_org/index_vuka.go"))
+	if err != nil || !strings.Contains(string(b), "//line ../[org]/index.vuka:") {
+		t.Fatalf("pages/orgs/param_org/index_vuka.go: %v\n%s", err, b)
+	}
+	if _, err := os.Stat(filepath.Join(app, "pages/orgs/[org]/index_vuka.go")); err == nil {
+		t.Error("Go written into the [org] folder")
+	}
+	build := exec.Command("go", "vet", "./...", "./pages/orgs/param_org/...")
+	build.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod")
+	if out, err := build.CombinedOutput(); err != nil {
+		t.Errorf("go vet after gen -inplace: %v\n%s", err, out)
+	}
+}
+
+// TestRoutesUnserved: a main that never passes pages.Routes() to its app
+// serves none of the folder routes, which vuka routes and vuka vet say
+// (W0701); one that does, under any import name, is quiet.
+func TestRoutesUnserved(t *testing.T) {
+	for _, c := range []struct{ main, want string }{
+		{"package main\n\nimport _ \"example.com/app/pages\"\n\nfunc main() {}\n", "W0701"},
+		{"package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\tp \"example.com/app/pages\"\n)\n\nfunc main() { web.New(p.Routes()) }\n", ""},
+	} {
+		t.Run(c.want, func(t *testing.T) {
+			routesModule(t, map[string]string{"main.go": c.main})
+			var out, errOut bytes.Buffer
+			if err := routesCmd(nil, &out, &errOut); err != nil {
+				t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+			}
+			if got := strings.Contains(errOut.String(), "W0701"); got != (c.want != "") {
+				t.Errorf("main %q: W0701 %v:\n%s", c.main, got, errOut.Bytes())
+			}
+		})
 	}
 }

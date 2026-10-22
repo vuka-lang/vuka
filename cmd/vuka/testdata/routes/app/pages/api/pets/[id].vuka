@@ -1,0 +1,8 @@
+package pets
+
+import "context"
+
+// GET is one pet.
+func GET(ctx context.Context, id int64) (int64, error) { return id, nil }
+
+func DELETE(ctx context.Context, id int64) error { return nil }

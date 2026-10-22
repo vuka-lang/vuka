@@ -41,6 +41,7 @@ func routesCmd(args []string, stdout, stderr io.Writer) error {
 	for _, r := range res.routes {
 		r.File = relPath(root, r.File)
 	}
+	res.diags = append(res.diags, routesUnserved(root, modPath, routes)...)
 	res.routes = sortedRoutes(res.routes)
 	if *asJSON {
 		list := res.routes

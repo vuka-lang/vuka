@@ -86,6 +86,14 @@ func eject(args []string, stdout io.Writer) error {
 		target, src := g.Target, g.Src
 		if *rm && vuka {
 			target, src = ejectedName(g.Source), ejected(g.Src)
+			if filepath.Dir(g.Target) != filepath.Dir(g.Source) || load.Bracketed(strings.TrimSuffix(filepath.Base(g.Source), ".vuka")) {
+				// A [id] folder's or file's Go goes where the go command
+				// sees it: param_id/x.go, and [id].vuka param_id.go.
+				target = filepath.Join(filepath.Dir(g.Target), strings.TrimSuffix(filepath.Base(g.Target), "_vuka.go")+".go")
+			}
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
 		}
 		if old, err := os.ReadFile(target); err != nil || !bytes.Equal(old, src) {
 			if err := os.WriteFile(target, src, 0o644); err != nil {

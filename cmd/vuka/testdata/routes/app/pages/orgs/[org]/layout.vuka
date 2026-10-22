@@ -6,9 +6,9 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-// Layout frames an organisation's pages (layout.vuka.html).
+// Layout frames an organisation's pages (_layout.vuka.html).
 type Layout struct {
-	Params
+	Org      int
 	Children ui.Node
 }
 

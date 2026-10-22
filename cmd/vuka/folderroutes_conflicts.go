@@ -3,9 +3,12 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"maps"
 	"os"
 	"path/filepath"
 	"regexp"
+	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/diag"
@@ -16,20 +19,29 @@ import (
 // the same paths with neither more specific (Go's ServeMux refuses them),
 // and folder routes on the path of a route the module declares itself.
 func (c *routeChecker) conflicts() {
-	byParent := map[string]*routeDir{}
-	for _, d := range c.t.dirs {
-		in := c.info[d]
-		if in == nil || !in.param {
+	byParent := map[string]*pathParam{}
+	for _, key := range slices.Sorted(maps.Keys(c.params)) {
+		p := c.params[key]
+		if p.file.File != "" && p.folder.File != "" {
+			c.reportAt(diag.New("E0713", "pages/%s is both a file and a folder", key), p.file).WithRelated(p.folder).
+				WithHelp("move the file into the folder as its index: %s/index%s", key, strings.TrimPrefix(filepath.Base(p.file.File), filepath.Base(key)))
 			continue
 		}
-		p := parentRel(d.rel)
-		if first := byParent[p]; first != nil {
-			c.report(diag.New("E0702", "the parameter folders %s and %s are side by side", first.rel, d.rel), in.paramAt).
-				WithHelp("keep one parameter folder per level: a request can't say which of them it names").
-				WithRelated(c.span(c.info[first].paramAt))
+		parent := parentRel(key)
+		if first := byParent[parent]; first != nil {
+			at := p.folder
+			if at.File == "" {
+				at = p.file
+			}
+			fat := first.folder
+			if fat.File == "" {
+				fat = first.file
+			}
+			c.reportAt(diag.New("E0702", "the parameters pages/%s and pages/%s are side by side", first.key, key), at).
+				WithHelp("keep one parameter per level: a request can't say which of them it names").WithRelated(fat)
 			continue
 		}
-		byParent[p] = d
+		byParent[parent] = p
 	}
 	routes := c.res.routes
 	for i, a := range routes {
@@ -157,8 +169,8 @@ func declaredRoutes(root string, registered map[string]bool) []declaredRoute {
 			return nil
 		}
 		src, err := os.ReadFile(path)
-		if err != nil || !bytes.Contains(src, []byte(`"`+webPath+`"`)) {
-			return nil
+		if err != nil || !bytes.Contains(src, []byte(`"`+webPath+`"`)) || bytes.HasPrefix(src, []byte(routesHeading)) {
+			return nil // pages/route.go is the folder routes'
 		}
 		for _, m := range registeredCtor.FindAllSubmatch(src, -1) {
 			registered[string(m[1])] = true
@@ -190,4 +202,43 @@ func goDirectiveOf(root string) string {
 		}
 	}
 	return ""
+}
+
+// routesUnserved is W0701 when the module has pages under pages/ and none
+// of its main packages passes pages.Routes() to the app: route.go
+// registers nothing until something calls it. nil when one does, or when
+// the module has no main package (a library of pages).
+func routesUnserved(root, modPath string, t *routeTree) []diag.Diagnostic {
+	if t == nil || !slices.ContainsFunc(t.dirs, func(d *routeDir) bool { return len(d.pages) > 0 || len(d.funcs) > 0 }) {
+		return nil
+	}
+	pagesPath := strconv.Quote(modPath + "/" + pagesDirName)
+	importRe := regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+)?\s*` + regexp.QuoteMeta(pagesPath))
+	mains, served := 0, false
+	walkSources(root, func(path, name string) error {
+		if served || !(strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".vuka")) || strings.Contains(name, "_test.") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil || !regexp.MustCompile(`(?m)^package main\b`).Match(src) {
+			return nil
+		}
+		mains++
+		for _, m := range importRe.FindAllSubmatch(src, -1) {
+			alias := string(m[1])
+			if alias == "" {
+				alias = pagesDirName
+			}
+			if bytes.Contains(src, []byte(alias+".Routes()")) {
+				served = true
+			}
+		}
+		return nil
+	})
+	if served || mains == 0 {
+		return nil
+	}
+	return []diag.Diagnostic{*diag.Warn("W0701", "the pages under pages/ are served by no main package: none passes pages.Routes() to its app").
+		At(diag.Span{File: filepath.Join(t.root, pagesDirName, routeGoName)}).
+		WithHelp("register them: web.New(pages.Routes(), …), importing %s", pagesPath)}
 }

@@ -9,6 +9,7 @@ import (
 	"strings"
 
 	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/internal/load"
 )
 
 // The package urls (pages/urls/urls_gen.go) is the paths of the pages as a
@@ -64,8 +65,11 @@ func (n *urlNode) prune() bool {
 }
 
 // name is how a folder is named in its parent's value: JobPermits for
-// job-permits.
+// job-permits, ID for a parameter [id].
 func (n *urlNode) name() string {
+	if load.Bracketed(n.seg) {
+		return goIdent(bracketName(n.seg))
+	}
 	var b strings.Builder
 	for _, part := range strings.FieldsFunc(n.seg, func(r rune) bool { return r == '-' || r == '_' || r == '.' || r == ' ' }) {
 		b.WriteString(upperFirst(part))
@@ -100,15 +104,21 @@ func (t *routeTree) urlsStub() []byte {
 	root := &urlNode{}
 	for _, d := range t.dirs {
 		n := root.at(d.rel)
-		n.param = d.params && d.rel != ""
 		for _, p := range d.pages {
-			if p == "Index" {
+			switch name := d.urlName(p); {
+			case load.Bracketed(name):
+				root.at(joinRel(d.rel, name)).index = true
+			case name == "Index":
 				n.index = true
-			} else {
-				n.pages = append(n.pages, p)
+			case !slices.Contains(n.pages, name):
+				n.pages = append(n.pages, name)
 			}
 		}
+		for _, f := range d.funcs {
+			root.at(joinRel(d.rel, fileSeg(f.file))).index = true
+		}
 	}
+	root.mark()
 	root.prune()
 	root.nameTypes(map[string]bool{"pageURL": true})
 	var b strings.Builder
@@ -175,32 +185,29 @@ func rootVars(root *urlNode) []string {
 // (E0705).
 func (c *routeChecker) urlTree() *urlNode {
 	root := &urlNode{}
-	for _, d := range c.t.dirs {
-		in := c.info[d]
-		if in == nil || !in.param || len(in.params) == 0 {
-			continue
-		}
-		n := root.at(d.rel)
-		n.param, n.p, n.dir = true, in.params[len(in.params)-1], d
+	for key, p := range c.params {
+		n := root.at(key)
+		n.p = p.p
 	}
 	for _, r := range c.res.routes {
 		if r.Kind == "handler" {
 			continue
 		}
-		n := root.at(r.dir.rel)
+		n := root.at(r.node)
 		n.dir = r.dir
 		switch {
-		case r.typ == "Index":
+		case r.leaf == "":
 			n.index = true
-		case !slices.Contains(n.pages, r.typ):
-			n.pages = append(n.pages, r.typ)
+		case !slices.Contains(n.pages, r.leaf):
+			n.pages = append(n.pages, r.leaf)
 		}
 	}
+	root.mark()
 	root.prune()
 	root.nameTypes(map[string]bool{"pageURL": true})
 	pageAt := func(n *urlNode, page string) diag.Span {
 		for _, r := range c.res.routes {
-			if r.dir == n.dir && r.typ == page && r.Kind != "handler" {
+			if r.node == n.rel && r.leaf == page && r.Kind != "handler" {
 				return diag.Span{File: r.File, Line: r.Line}
 			}
 		}
@@ -221,9 +228,6 @@ func (c *routeChecker) urlTree() *urlNode {
 			what := "the folder " + ch.seg
 			if prev, ok := where[name]; ok || !token.IsIdentifier(name) || !token.IsExported(name) {
 				at := diag.Span{File: filepath.Join(c.t.root, pagesDirName, filepath.FromSlash(ch.rel))}
-				if ch.param {
-					at = c.span(c.info[ch.dir].paramAt)
-				}
 				if !ok {
 					prev = "a Go identifier"
 				}
@@ -240,13 +244,6 @@ func (c *routeChecker) urlTree() *urlNode {
 				continue
 			}
 			where[p] = "the page " + p
-		}
-		if n.param {
-			if obj := namedObj(n.p.typ); obj != nil && obj.Pkg() != nil && c.r.byPath[obj.Pkg().Path()] != nil {
-				c.res.diags = append(c.res.diags, *diag.New("E0705", "%s.Params.%s is a %s, declared in a page package, which the package urls can't import",
-					n.dir.name, upperFirst(n.seg), types.TypeString(n.p.typ, nil)).At(c.span(c.info[n.dir].paramAt)).
-					WithHelp("declare the type outside pages/, in a package the pages and urls both import"))
-			}
 		}
 		for _, ch := range n.children {
 			walk(ch)
@@ -271,7 +268,7 @@ func (t *routeTree) urlsFile() []byte {
 	var collect func(n *urlNode)
 	collect = func(n *urlNode) {
 		if n.param {
-			names = append(names, n.p.name)
+			names = append(names, paramIdent(bracketName(n.seg)))
 		}
 		for _, c := range n.children {
 			collect(c)
@@ -287,7 +284,11 @@ func (t *routeTree) urlsFile() []byte {
 		if n.rel != "" {
 			where += n.rel + "/"
 		}
-		fmt.Fprintf(&b, "\n// %s is the folder %s.\ntype %s struct {\n\tpath string\n", n.typ, where, n.typ)
+		what := "the folder " + where
+		if n.param {
+			what = "the parameter " + strings.TrimSuffix(where, "/")
+		}
+		fmt.Fprintf(&b, "\n// %s is %s.\ntype %s struct {\n\tpath string\n", n.typ, what, n.typ)
 		var inits []string
 		for _, c := range n.children {
 			if !c.param {
@@ -315,14 +316,14 @@ func (t *routeTree) urlsFile() []byte {
 			if n.rel == "" {
 				ret = `"/"`
 			}
-			fmt.Fprintf(&b, "\n// Path is the path of %sindex.\nfunc (u %s) Path() string { return %s }\n", where, n.typ, ret)
+			fmt.Fprintf(&b, "\n// Path is the path of %s.\nfunc (u %s) Path() string { return %s }\n", strings.TrimSuffix(what, "/"), n.typ, ret)
 		}
 		for _, c := range n.children {
 			if !c.param {
 				continue
 			}
 			v := paramIdent(c.p.name)
-			fmt.Fprintf(&b, "\n// %s is the folder %s%s/, for its parameter.\nfunc (u %s) %s(%s %s) %s {\n", c.name(), where, c.seg, n.typ, c.name(), v, types.TypeString(c.p.typ, im.qualifier), c.typ)
+			fmt.Fprintf(&b, "\n// %s is %s%s, for its parameter.\nfunc (u %s) %s(%s %s) %s {\n", c.name(), where, c.seg, n.typ, c.name(), v, types.TypeString(c.p.typ, im.qualifier), c.typ)
 			var body strings.Builder
 			seg := t.segment(&body, im, c.p)
 			b.WriteString(body.String())
@@ -348,4 +349,12 @@ func (t *routeTree) urlsFile() []byte {
 		head.WriteString("\n// pageURL is a page's path.\ntype pageURL struct{ path string }\n\n// Path is the page's path.\nfunc (p pageURL) Path() string { return p.path }\n")
 	}
 	return gofmt(head.String() + b.String())
+}
+
+// mark makes each folder named for a parameter one.
+func (n *urlNode) mark() {
+	n.param = load.Bracketed(n.seg)
+	for _, c := range n.children {
+		c.mark()
+	}
 }

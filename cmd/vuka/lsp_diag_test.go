@@ -45,3 +45,21 @@ func TestLSPIslandVet(t *testing.T) {
 		}
 	}
 }
+
+// TestLSPBracketFolder: a [id] folder's package is seen by the go command
+// by its Go name, _id; an error in its Vuka source is reported at the
+// source, in its folder, and nothing about the folder's name.
+func TestLSPBracketFolder(t *testing.T) {
+	src := "package item\n\nfunc Name() string {\n\tvar n int = \"x\"\n\treturn \"\"\n}\n"
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "views/[id]/item.vuka": src})
+	uri := pathToURI(filepath.Join(dir, "views", "[id]", "item.vuka"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka", "version": 1, "text": src}})
+	var got string
+	c.waitDiags(uri, func(ds []any) bool {
+		got = jsonOf(ds)
+		return strings.Contains(got, "cannot use")
+	})
+	if !strings.Contains(got, `"line":3`) || strings.Contains(got, "malformed") || strings.Contains(got, "invalid char") {
+		t.Errorf("diagnostics: %s", got)
+	}
+}

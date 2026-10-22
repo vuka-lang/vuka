@@ -24,7 +24,7 @@ type folderRoute struct {
 	Method     string   `json:"method"`
 	Path       string   `json:"path"`
 	Page       string   `json:"page"` // employer.Edit
-	Kind       string   `json:"kind"` // live, page, template, handler or endpoint
+	Kind       string   `json:"kind"` // live, page, handler or endpoint
 	File       string   `json:"file"`
 	Line       int      `json:"line"`
 	Middleware []string `json:"middleware,omitempty"`
@@ -32,9 +32,13 @@ type folderRoute struct {
 	Layouts    []string `json:"layouts,omitempty"`
 
 	dir     *routeDir
-	typ     string // the page's type
-	ctor    string // its constructor
-	handler string // the method, for a handler or an endpoint
+	typ     string   // the page's type; "" for a method func
+	ctor    string   // its constructor; "" when it has none, and route.go builds it
+	handler string   // the method, for a handler or an endpoint
+	fn      string   // a method func's name in its package
+	names   []string // a method func's parameters' names
+	node    string   // the folder of urls it is in, a slash path ([id] for a parameter)
+	leaf    string   // its field there, "" when it is the folder's Index
 	mws     []*routeDir
 	wraps   []wrap
 }
@@ -47,17 +51,14 @@ type wrap struct {
 
 // dirInfo is what the type-checked package of a page directory makes it.
 type dirInfo struct {
-	pkg     *types.Package
-	segs    []string    // the URL's segments down to the folder
-	params  []urlParam  // the path parameters down to it, in order
-	rest    bool        // its parameter is web.Rest
-	param   bool        // it is a parameter folder
-	paramAt token.Pos   // its Params
-	mws     []*routeDir // the middlewares over its routes, outermost first
-	wraps   []wrap      // the guards and layouts over its routes, outermost first
-	pages   []string    // its pages' and endpoints' types, sorted
-	ctors   []string    // those whose constructors vuka declares, sorted
-	broken  bool        // its Params, Guard or Layout has an error: no routes
+	pkg    *types.Package
+	segs   []string    // the URL's segments down to the folder
+	params []string    // the keys of the path parameters down to it, in order
+	rest   bool        // it is a catch-all folder, [path...]
+	mws    []*routeDir // the middlewares over its routes, outermost first
+	wraps  []wrap      // the guards and layouts over its routes, outermost first
+	pages  []string    // its pages' and endpoints' types, sorted
+	broken bool        // its Guard, Layout or Middleware has an error: no routes
 }
 
 // urlParam is a path parameter, as a URL function takes it.
@@ -77,6 +78,25 @@ const (
 	paramRest
 )
 
+// pathParam is a path parameter of the tree: a [id] folder, a [id] file, or
+// both (E0713). Its key is its slash path from pages/: orgs/[org].
+type pathParam struct {
+	key, name    string
+	rest         bool
+	folder, file diag.Span // where it is named; a zero File when it isn't
+	p            urlParam  // its type, from the fields that bind it
+}
+
+// carrier is a struct or method func a path's parameters bind into: a
+// page, an endpoint, a guard or a layout.
+type carrier struct {
+	typ    types.Type
+	sig    *types.Signature
+	params []string // the keys of its path's parameters
+	prefer string   // the key of the parameter whose folder's layout it is
+	pos    token.Pos
+}
+
 // check type-checks the page packages through the overlay and builds the
 // route table into res.
 func (t *routeTree) check(ov map[string]string, overlay string, res *routesResult) {
@@ -88,7 +108,7 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 		r.byPath[d.importPath] = d
 	}
 	for _, d := range t.dirs {
-		if bp, err := r.ctx.ImportDir(d.dir, 0); err == nil {
+		if bp, err := r.ctx.ImportDir(d.goDir, 0); err == nil {
 			for _, p := range bp.Imports {
 				if r.byPath[p] == nil && !slices.Contains(imports, p) {
 					imports = append(imports, p)
@@ -97,7 +117,7 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 		}
 	}
 	_ = r.im.Prefetch(append(imports, load.UIPath))
-	c := &routeChecker{t: t, r: r, res: res, info: map[*routeDir]*dirInfo{}}
+	c := &routeChecker{t: t, r: r, res: res, info: map[*routeDir]*dirInfo{}, params: map[string]*pathParam{}}
 	if ui, err := r.Import(load.UIPath); err == nil {
 		c.node = lookupType(ui, "Node")
 		c.stateful = lookupType(ui, "Stateful")
@@ -106,6 +126,7 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 		pkg, _ := r.checkDir(d)
 		c.dir(d, pkg)
 	}
+	c.typeParams()
 	c.conflicts()
 	t.info = c.info
 	t.urls = c.urlTree()
@@ -149,16 +170,16 @@ func (r *routeImporter) checkDir(d *routeDir) (*types.Package, error) {
 	r.walking[d.importPath] = true
 	defer delete(r.walking, d.importPath)
 	r.done[d.importPath] = nil
-	bp, err := r.ctx.ImportDir(d.dir, 0)
+	bp, err := r.ctx.ImportDir(d.goDir, 0)
 	if bp == nil || len(bp.GoFiles) == 0 {
 		return nil, fmt.Errorf("%s: %v", d.importPath, err)
 	}
 	var files []*ast.File
 	for _, name := range bp.GoFiles {
-		if d.rel == "" && name == pagesGoName {
+		if d.rel == "" && name == routeGoName {
 			continue
 		}
-		path := filepath.Join(d.dir, name)
+		path := filepath.Join(d.goDir, name)
 		rc, err := r.ctx.OpenFile(path)
 		if err != nil {
 			continue
@@ -185,6 +206,8 @@ type routeChecker struct {
 	r              *routeImporter
 	res            *routesResult
 	info           map[*routeDir]*dirInfo
+	params         map[string]*pathParam
+	carriers       []carrier
 	node, stateful types.Type
 }
 
@@ -195,6 +218,13 @@ func (c *routeChecker) span(p token.Pos) diag.Span {
 
 func (c *routeChecker) report(d *diag.Diagnostic, p token.Pos) *diag.Diagnostic {
 	d.Span = c.span(p)
+	c.res.diags = append(c.res.diags, *d)
+	return &c.res.diags[len(c.res.diags)-1]
+}
+
+// reportAt reports d at a span.
+func (c *routeChecker) reportAt(d *diag.Diagnostic, at diag.Span) *diag.Diagnostic {
+	d.Span = at
 	c.res.diags = append(c.res.diags, *d)
 	return &c.res.diags[len(c.res.diags)-1]
 }
@@ -223,50 +253,81 @@ func parentRel(rel string) string {
 	return ""
 }
 
+// joinRel is rel/name, name alone at pages/.
+func joinRel(rel, name string) string {
+	if rel == "" {
+		return name
+	}
+	return rel + "/" + name
+}
+
+// param records the path parameter named by the bracketed name elem at key,
+// a folder or a file, and returns its segment: {id}, {path...}.
+func (c *routeChecker) param(key, elem string, at diag.Span, file bool) string {
+	p := c.params[key]
+	if p == nil {
+		p = &pathParam{key: key, name: bracketName(elem), rest: isRest(elem)}
+		c.params[key] = p
+	}
+	if file && p.file.File == "" {
+		p.file = at
+	} else if !file && p.folder.File == "" {
+		p.folder = at
+	}
+	if p.rest {
+		return "{" + p.name + "...}"
+	}
+	return "{" + p.name + "}"
+}
+
 func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 	in := &dirInfo{pkg: pkg}
 	c.info[d] = in
-	parent, pin := c.parentOf(d)
-	// The folders between the parent's and this one are plain segments.
-	from := ""
-	if parent != nil {
-		in.segs, in.params, in.mws, in.wraps = slices.Clone(pin.segs), slices.Clone(pin.params), slices.Clone(pin.mws), slices.Clone(pin.wraps)
-		in.broken = pin.broken
-		from = parent.rel
+	if _, pin := c.parentOf(d); pin != nil {
+		in.mws, in.wraps, in.broken = slices.Clone(pin.mws), slices.Clone(pin.wraps), pin.broken
 	}
-	var between []string
+	below := false // below a catch-all folder
 	if d.rel != "" {
-		rest := strings.TrimPrefix(strings.TrimPrefix(d.rel, from), "/")
-		between = strings.Split(rest, "/")
-	}
-	if len(between) > 0 {
-		in.segs = append(in.segs, between[:len(between)-1]...)
+		parts := strings.Split(d.rel, "/")
+		for i, p := range parts {
+			if !load.Bracketed(p) {
+				in.segs = append(in.segs, p)
+				continue
+			}
+			key := strings.Join(parts[:i+1], "/")
+			at := diag.Span{File: filepath.Join(c.t.root, pagesDirName, filepath.FromSlash(key))}
+			in.segs = append(in.segs, c.param(key, p, at, false))
+			in.params = append(in.params, key)
+			if isRest(p) && i < len(parts)-1 {
+				below = true
+			}
+		}
+		in.rest = isRest(parts[len(parts)-1])
 	}
 	if pkg == nil {
-		if len(between) > 0 {
-			in.segs = append(in.segs, between[len(between)-1])
-		}
 		return
 	}
-	folder := ""
-	if len(between) > 0 {
-		folder = between[len(between)-1]
+	if below {
+		c.report(diag.New("E0703", "pages/%s is below a catch-all folder", d.rel), firstPos(pkg)).
+			WithHelp("a [path...] folder takes the rest of the path: it has no subfolders")
+		in.broken = true
 	}
-	if obj, ok := pkg.Scope().Lookup("Params").(*types.TypeName); ok && folder != "" {
-		in.param, in.paramAt = true, obj.Pos()
-		p, ok := c.params(d, obj, folder, pin)
-		if !ok {
-			in.broken = true
+	if obj := pkg.Scope().Lookup("Routes"); obj != nil && d.rel == "" {
+		c.report(diag.New("E0706", "%s.Routes is declared, and vuka declares it in pages/route.go: the option registering the folder routes", d.name), obj.Pos()).
+			WithHelp("rename %s", obj.Name())
+	}
+	// TODO(one-way): vuka fix one-way rewrites a params.go folder into a
+	// bracket folder, and a layout.go Layout into _layout.vuka.html.
+	if obj, ok := pkg.Scope().Lookup("Params").(*types.TypeName); ok {
+		help := "rename the folder to [" + strings.ToLower(filepath.Base(d.dir)) + "]/ and declare the parameter's field on the structs that read it"
+		c.report(diag.New("E0714", "%s.Params: a parameter folder is a bracketed folder now, and Params binds nothing", d.name), obj.Pos()).WithHelp("%s", help)
+	}
+	if obj, ok := pkg.Scope().Lookup("Layout").(*types.TypeName); ok && d.layout == "" {
+		help := "declare the layout's struct and markup in _layout.vuka.html"
+		if d.oldLayout != "" {
+			help = "rename " + d.oldLayout + " to _layout.vuka.html"
 		}
-		in.rest = p.kind == paramRest
-		in.params = append(in.params, p)
-		seg := "{" + folder + "}"
-		if in.rest {
-			seg = "{" + folder + "...}"
-		}
-		in.segs = append(in.segs, seg)
-	} else if folder != "" {
-		in.segs = append(in.segs, folder)
+		c.report(diag.New("E0715", "%s.Layout: a folder's layout is its _layout.vuka.html now, and this Layout wraps nothing", d.name), obj.Pos()).WithHelp("%s", help)
 	}
 	if obj, ok := pkg.Scope().Lookup("Middleware").(*types.Func); ok {
 		if c.middleware(obj) {
@@ -275,99 +336,145 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 			in.broken = true
 		}
 	}
+	prefer := ""
+	if d.rel != "" && load.Bracketed(filepath.Base(d.dir)) {
+		prefer = d.rel
+	}
 	if obj, ok := pkg.Scope().Lookup("Guard").(*types.TypeName); ok {
 		if c.guard(obj) {
 			in.wraps = append(in.wraps, wrap{d, true})
+			c.carriers = append(c.carriers, carrier{typ: obj.Type(), params: in.params, pos: obj.Pos()})
 		} else {
 			in.broken = true
 		}
 	}
-	if obj, ok := pkg.Scope().Lookup("Layout").(*types.TypeName); ok {
-		if c.layout(obj) {
-			in.wraps = append(in.wraps, wrap{d, false})
-		} else {
-			in.broken = true
+	if d.layout != "" {
+		if obj, ok := pkg.Scope().Lookup(d.layout).(*types.TypeName); ok {
+			if c.layout(obj, d) {
+				in.wraps = append(in.wraps, wrap{d, false})
+				c.carriers = append(c.carriers, carrier{typ: obj.Type(), params: in.params, prefer: prefer, pos: obj.Pos()})
+			} else {
+				in.broken = true
+			}
 		}
-	}
-	if pin != nil && pin.rest {
-		c.report(diag.New("E0703", "%s is below the catch-all folder %s", d.rel, parent.rel), firstPos(pkg)).
-			WithHelp("a folder whose parameter is web.Rest takes the rest of the path: it has no subfolders")
-		in.broken = true
 	}
 	c.pages(d, in)
 }
 
-// params checks a parameter folder's Params and returns its parameter.
-func (c *routeChecker) params(d *routeDir, obj *types.TypeName, folder string, pin *dirInfo) (urlParam, bool) {
-	p := urlParam{name: folder}
-	bad := func(format string, args ...any) *diag.Diagnostic {
-		return c.report(diag.New("E0704", "%s.Params: "+format, append([]any{d.name}, args...)...), obj.Pos())
-	}
-	if !token.IsIdentifier(folder) {
-		bad("the folder %q names a path parameter, and isn't an identifier", folder).WithHelp("name the folder as a Go identifier: employer, permitID")
-		return p, false
-	}
-	st, ok := obj.Type().Underlying().(*types.Struct)
-	if !ok || obj.IsAlias() {
-		bad("not a struct").WithHelp("declare type Params struct{ %s int }", upperFirst(folder))
-		return p, false
-	}
-	var parent types.Type
-	if pin != nil {
-		for _, above := range pin.params {
-			if above.name == folder {
-				bad("the parameter {%s} is bound above already", folder).WithHelp("name the folder for what it binds here")
-				return p, false
+// typeParams gives each path parameter its type: the type of the fields
+// binding it — the exported field named like it, case aside, of a struct
+// below it (a page, an endpoint, a guard, a layout), or a method func's
+// parameter of its name — which agree. The parameter folder's layout
+// speaks first.
+func (c *routeChecker) typeParams() {
+	for _, key := range slices.Sorted(func(yield func(string) bool) {
+		for k := range c.params {
+			if !yield(k) {
+				return
 			}
 		}
-		parent = c.parentParams(d)
-	}
-	var own []*types.Var
-	embedsParent := false
-	for i := 0; i < st.NumFields(); i++ {
-		f := st.Field(i)
-		if !f.Embedded() {
-			own = append(own, f)
+	}) {
+		p := c.params[key]
+		at := p.folder
+		if at.File == "" {
+			at = p.file
+		}
+		type use struct {
+			typ  types.Type
+			pos  token.Pos
+			what string
+		}
+		var uses []use
+		for _, cr := range c.carriers {
+			if !slices.Contains(cr.params, key) {
+				continue
+			}
+			var u *use
+			if cr.sig != nil {
+				for i := 0; i < cr.sig.Params().Len(); i++ {
+					if v := cr.sig.Params().At(i); strings.EqualFold(v.Name(), p.name) {
+						u = &use{v.Type(), v.Pos(), "the parameter " + v.Name()}
+						break
+					}
+				}
+			} else if f := fieldFold(cr.typ, p.name); f != nil {
+				u = &use{f.Type(), f.Pos(), types.TypeString(cr.typ, types.RelativeTo(nil)) + "." + f.Name()}
+				if n := namedObj(cr.typ); n != nil {
+					u.what = n.Pkg().Name() + "." + n.Name() + "." + f.Name()
+				}
+			}
+			if u == nil {
+				continue
+			}
+			if cr.prefer == key {
+				uses = append([]use{*u}, uses...)
+			} else {
+				uses = append(uses, *u)
+			}
+		}
+		if len(uses) == 0 {
+			c.reportAt(diag.New("E0711", "pages/%s: nothing binds the parameter {%s}", key, p.name), at).
+				WithHelp("give a page, endpoint or layout below it the field it binds: %s int (or string, a TextUnmarshaler…)", goIdent(p.name))
 			continue
 		}
-		if parent != nil && types.Identical(f.Type(), parent) {
-			embedsParent = true
-			continue
+		first := uses[0]
+		bad := false
+		for _, u := range uses[1:] {
+			if !types.Identical(u.typ, first.typ) {
+				c.report(diag.New("E0712", "%s is a %s, and %s binding {%s} too is a %s", u.what, types.TypeString(u.typ, nil), first.what, p.name, types.TypeString(first.typ, nil)), u.pos).
+					WithRelated(c.span(first.pos)).WithHelp("give every field binding {%s} one type", p.name)
+				bad = true
+			}
 		}
-		c.report(diag.New("E0704", "%s.Params embeds %s, which isn't the parent folder's Params", d.name, types.TypeString(f.Type(), types.RelativeTo(obj.Pkg()))), f.Pos()).
-			WithHelp("a Params embeds the Params of the nearest parameter folder above it, and nothing else")
-		return p, false
+		k, ok := paramKindOf(first.typ)
+		switch {
+		case !ok:
+			c.report(diag.New("E0705", "%s is a %s, which the path parameter {%s} can't be", first.what, types.TypeString(first.typ, nil), p.name), first.pos).
+				WithHelp("use an integer, a string, web.Rest, or a type implementing encoding.TextMarshaler and TextUnmarshaler")
+			bad = true
+		case p.rest && k != paramRest && k != paramString:
+			c.report(diag.New("E0705", "%s is a %s, and {%s...} takes the rest of the path", first.what, types.TypeString(first.typ, nil), p.name), first.pos).
+				WithHelp("declare it as web.Rest or string")
+			bad = true
+		case !p.rest && k == paramRest:
+			c.report(diag.New("E0705", "%s is a web.Rest, and {%s} is one segment", first.what, p.name), first.pos).
+				WithHelp("name the parameter [%s...] to take the rest of the path, or declare the field a string", p.name)
+			bad = true
+		}
+		if obj := namedObj(first.typ); !bad && obj != nil && obj.Pkg() != nil && c.r.byPath[obj.Pkg().Path()] != nil {
+			c.report(diag.New("E0705", "%s is a %s, declared in a page package, which the package urls can't import", first.what, types.TypeString(first.typ, nil)), first.pos).
+				WithHelp("declare the type outside pages/, in a package the pages and urls both import")
+			bad = true
+		}
+		if p.rest {
+			k = paramRest
+		}
+		p.p = urlParam{name: p.name, typ: first.typ, kind: k}
+		if bad {
+			p.p.typ = nil
+		}
 	}
-	switch {
-	case len(own) != 1:
-		bad("%d fields of its own; it has one, the folder's parameter", len(own)).WithHelp("declare one field, named like the folder: %s", upperFirst(folder))
-		return p, false
-	case !strings.EqualFold(own[0].Name(), folder):
-		c.report(diag.New("E0704", "%s.Params.%s: the field is named like its folder, %s", d.name, own[0].Name(), folder), own[0].Pos()).
-			WithHelp("rename it %s", upperFirst(folder))
-		return p, false
-	case parent != nil && !embedsParent:
-		bad("doesn't embed the parent folder's Params, %s", types.TypeString(parent, types.RelativeTo(obj.Pkg()))).
-			WithHelp("embed it, so the pages here get the parameters above too")
-		return p, false
-	}
-	p.typ = own[0].Type()
-	k, ok := paramKindOf(p.typ)
-	if !ok {
-		c.report(diag.New("E0705", "%s.Params.%s is a %s, which a path parameter can't be", d.name, own[0].Name(), types.TypeString(p.typ, types.RelativeTo(obj.Pkg()))), own[0].Pos()).
-			WithHelp("use an integer, a string, web.Rest, or a type implementing encoding.TextMarshaler and TextUnmarshaler")
-		return p, false
-	}
-	p.kind = k
-	return p, true
 }
 
-// parentParams is the Params type of the nearest parameter folder above d.
-func (c *routeChecker) parentParams(d *routeDir) types.Type {
-	for p, in := c.parentOf(d); p != nil; p, in = c.parentOf(p) {
-		if in.param && in.pkg != nil {
-			if obj, ok := in.pkg.Scope().Lookup("Params").(*types.TypeName); ok {
-				return obj.Type()
+// fieldFold is t's exported field named name, case aside, promoted ones
+// included: the field a path parameter binds.
+func fieldFold(t types.Type, name string) *types.Var {
+	if p, ok := t.(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	st, ok := t.Underlying().(*types.Struct)
+	if !ok {
+		return nil
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		if f := st.Field(i); !f.Embedded() && f.Exported() && strings.EqualFold(f.Name(), name) {
+			return f
+		}
+	}
+	for i := 0; i < st.NumFields(); i++ {
+		if f := st.Field(i); f.Embedded() {
+			if g := fieldFold(f.Type(), name); g != nil {
+				return g
 			}
 		}
 	}
@@ -401,15 +508,19 @@ func hasMethod(t types.Type, name string) bool {
 	return sel != nil
 }
 
-// layout checks a folder's Layout.
-func (c *routeChecker) layout(obj *types.TypeName) bool {
+// layout checks a folder's layout, the struct its _layout.vuka.html
+// renders.
+func (c *routeChecker) layout(obj *types.TypeName, d *routeDir) bool {
 	bad := func(p token.Pos, help, format string, args ...any) bool {
-		c.report(diag.New("E0708", "%s.Layout "+format, append([]any{obj.Pkg().Name()}, args...)...), p).WithHelp("%s", help)
+		c.report(diag.New("E0708", "%s.%s, the layout of pages/%s, "+format, append([]any{obj.Pkg().Name(), obj.Name(), d.rel}, args...)...), p).WithHelp("%s", help)
 		return false
 	}
 	st, ok := obj.Type().Underlying().(*types.Struct)
 	if !ok || obj.IsAlias() {
-		return bad(obj.Pos(), "declare type Layout struct{ Children ui.Node }, rendered by its template", "isn't a struct")
+		return bad(obj.Pos(), "declare its struct in _layout.vuka.html, with a field Children ui.Node", "isn't a struct")
+	}
+	if !obj.Exported() {
+		return bad(obj.Pos(), "name it with a capital letter: Layout", "isn't exported, and the routes name it from package pages")
 	}
 	children := false
 	for i := 0; i < st.NumFields(); i++ {
@@ -424,7 +535,7 @@ func (c *routeChecker) layout(obj *types.TypeName) bool {
 		return bad(obj.Pos(), "add the field Children ui.Node: the page, or the next layout, renders there", "has no field Children")
 	}
 	if !c.isNode(obj.Type()) {
-		return bad(obj.Pos(), "give it a template (layout.vuka.html) or a Render method", "isn't a ui.Node: it has nothing to render")
+		return bad(obj.Pos(), "give _layout.vuka.html markup", "isn't a ui.Node: it has nothing to render")
 	}
 	ms := types.NewMethodSet(types.NewPointer(obj.Type()))
 	if sel := ms.Lookup(nil, "Load"); sel != nil {
@@ -534,12 +645,44 @@ func (c *routeChecker) isLive(t types.Type) bool {
 // methods on its path, in the order they register.
 var handlerMethods = []string{"Post", "Put", "Patch", "Delete"}
 
-// pages finds a folder's pages and their method handlers.
+// pages finds a folder's pages, their method handlers and its method funcs.
 func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 	scope := in.pkg.Scope()
+	var mws, guards, layouts []string
+	for _, m := range in.mws {
+		mws = append(mws, m.name+".Middleware")
+	}
+	for _, w := range in.wraps {
+		if w.guard {
+			guards = append(guards, w.dir.name+".Guard")
+		} else {
+			layouts = append(layouts, w.dir.name+"."+w.dir.layout)
+		}
+	}
+	// at is where a route of a file is: its node in urls, its path and its
+	// parameters; "" seg for the folder's own path.
+	at := func(seg string, span diag.Span, pos token.Pos) (node string, path string, params []string, ok bool) {
+		node, params = d.rel, in.params
+		segs := in.segs
+		switch {
+		case seg == "":
+		case in.rest:
+			c.report(diag.New("E0703", "pages/%s: a route below the catch-all parameter {%s...}", joinRel(d.rel, seg), c.params[in.params[len(in.params)-1]].name), pos).
+				WithHelp("a catch-all folder serves its index alone: move it up a folder")
+			return "", "", nil, false
+		case load.Bracketed(seg):
+			node = joinRel(d.rel, seg)
+			segs = append(slices.Clone(segs), c.param(node, seg, span, true))
+			params = append(slices.Clone(params), node)
+		default:
+			node = joinRel(d.rel, seg)
+			segs = append(slices.Clone(segs), seg)
+		}
+		return node, "/" + strings.Join(segs, "/"), params, true
+	}
 	for _, name := range scope.Names() {
 		obj, ok := scope.Lookup(name).(*types.TypeName)
-		if !ok || !obj.Exported() || obj.IsAlias() || name == "Layout" || name == "Params" || name == "Guard" {
+		if !ok || !obj.Exported() || obj.IsAlias() || d.notPage(name) {
 			continue
 		}
 		named, ok := obj.Type().(*types.Named)
@@ -552,9 +695,11 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 		if c.t.registered[name] || c.t.registered[d.importPath+"."+name] {
 			continue
 		}
-		ctor, ok := scope.Lookup("New" + name).(*types.Func)
-		if !ok || !buildsPtr(ctor, named) {
+		ctorName := "New" + name
+		if ctor, ok := scope.Lookup(ctorName).(*types.Func); ok && !buildsPtr(ctor, named) {
 			continue
+		} else if !ok {
+			ctorName = ""
 		}
 		live := c.isLive(named)
 		ms := types.NewMethodSet(types.NewPointer(named))
@@ -568,38 +713,29 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 		if !page && len(methods) == 0 {
 			continue
 		}
-		seg := ""
-		if name != "Index" {
-			seg = kebab(name)
-			if in.rest {
-				c.report(diag.New("E0703", "%s.%s: a route below the catch-all parameter {%s...}", d.name, name, in.params[len(in.params)-1].name), obj.Pos()).
-					WithHelp("a catch-all folder serves its Index alone: move %s up a folder", name)
-				continue
-			}
+		urlName := d.urlName(name)
+		seg, leaf := "", ""
+		switch {
+		case load.Bracketed(urlName):
+			seg = urlName
+		case urlName != "Index":
+			seg, leaf = kebab(urlName), urlName
 		}
-		in.pages = append(in.pages, name)
-		if generatedRoutesFile(c.r.fset, ctor.Pos()) && !slices.Contains(d.templates, name) {
-			in.ctors = append(in.ctors, name)
+		file := filepath.Join(d.dir, d.fileOf[name])
+		if b := d.bracket[name]; b != "" && d.fileOf[name] == "" {
+			file = c.r.fset.Position(obj.Pos()).Filename
 		}
-		if in.broken {
+		node, path, params, ok := at(seg, diag.Span{File: file, Line: 1}, obj.Pos())
+		if !ok {
 			continue
 		}
-		segs := in.segs
-		if seg != "" {
-			segs = append(slices.Clone(segs), seg)
+		if leaf != "" {
+			node = d.rel
 		}
-		path := "/" + strings.Join(segs, "/")
-		var mws []string
-		for _, m := range in.mws {
-			mws = append(mws, m.name+".Middleware")
-		}
-		var guards, layouts []string
-		for _, w := range in.wraps {
-			if w.guard {
-				guards = append(guards, w.dir.name+".Guard")
-			} else {
-				layouts = append(layouts, w.dir.name+".Layout")
-			}
+		in.pages = append(in.pages, name)
+		c.carriers = append(c.carriers, carrier{typ: named, params: params, pos: obj.Pos()})
+		if in.broken {
+			continue
 		}
 		if !page {
 			for _, fn := range methods {
@@ -608,19 +744,16 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 				}
 				hp := c.r.fset.Position(fn.Pos())
 				c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(fn.Name()), Path: path, Page: d.name + "." + name + "." + fn.Name(),
-					Kind: "endpoint", File: hp.Filename, Line: hp.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name,
-					handler: fn.Name(), mws: in.mws, wraps: in.wraps})
+					Kind: "endpoint", File: hp.Filename, Line: hp.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: ctorName,
+					handler: fn.Name(), node: node, leaf: leaf, mws: in.mws, wraps: in.wraps})
 			}
 			continue
 		}
 		pos := c.r.fset.Position(obj.Pos())
 		r := &folderRoute{Method: "GET", Path: path, Page: d.name + "." + name, Kind: "page", File: pos.Filename, Line: pos.Line,
-			Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: "New" + name, mws: in.mws, wraps: in.wraps}
-		switch {
-		case live:
+			Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: ctorName, node: node, leaf: leaf, mws: in.mws, wraps: in.wraps}
+		if live {
 			r.Kind = "live"
-		case slices.Contains(d.templates, name) && generatedRoutesFile(c.r.fset, obj.Pos()):
-			r.Kind, r.File, r.Line = "template", filepath.Join(d.dir, d.templateFiles[slices.Index(d.templates, name)]), 1
 		}
 		c.res.routes = append(c.res.routes, r)
 		for _, fn := range methods {
@@ -636,9 +769,71 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			hp := c.r.fset.Position(fn.Pos())
 			c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(m), Path: path, Page: r.Page + "." + m, Kind: "handler",
 				File: hp.Filename, Line: hp.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, typ: name, ctor: r.ctor, handler: m,
-				mws: in.mws, wraps: in.wraps})
+				node: node, leaf: leaf, mws: in.mws, wraps: in.wraps})
 		}
 	}
+	for _, mf := range d.funcs {
+		fn, ok := scope.Lookup(mf.goName).(*types.Func)
+		if !ok {
+			continue
+		}
+		seg := fileSeg(mf.file)
+		node, path, params, ok := at(seg, diag.Span{File: filepath.Join(d.dir, mf.file), Line: 1}, fn.Pos())
+		if !ok {
+			continue
+		}
+		sig := fn.Type().(*types.Signature)
+		c.carriers = append(c.carriers, carrier{sig: sig, params: params, pos: fn.Pos()})
+		if in.broken || !c.methodFunc(mf, fn) {
+			continue
+		}
+		var names []string
+		for i := 0; i < sig.Params().Len(); i++ {
+			names = append(names, sig.Params().At(i).Name())
+		}
+		hp := c.r.fset.Position(fn.Pos())
+		c.res.routes = append(c.res.routes, &folderRoute{Method: mf.method, Path: path, Page: d.name + "." + mf.method, Kind: "endpoint",
+			File: hp.Filename, Line: hp.Line, Middleware: mws, Guards: guards, Layouts: layouts, dir: d, fn: mf.goName, names: names,
+			node: node, mws: in.mws, wraps: in.wraps})
+	}
+}
+
+// methodFunc checks a method func's signature: what a handler takes, its
+// scalars bound by their names from the path or the query.
+func (c *routeChecker) methodFunc(mf methodFunc, fn *types.Func) bool {
+	sig := fn.Type().(*types.Signature)
+	bad := func(help, format string, args ...any) bool {
+		c.report(diag.New("E0709", "%s (%s) "+format, append([]any{mf.method, mf.file}, args...)...), fn.Pos()).WithHelp("%s", help)
+		return false
+	}
+	if sig.Variadic() || sig.TypeParams().Len() > 0 {
+		return bad("take a struct for what the request carries", "is variadic or generic")
+	}
+	body := false
+	for i := 0; i < sig.Params().Len(); i++ {
+		p := sig.Params().At(i)
+		t := p.Type()
+		switch {
+		case isContext(t), isNamed(t, "net/http", "Request", true), isNamed(t, "net/http", "ResponseWriter", false):
+		case scalarParam(t):
+			if p.Name() == "" || p.Name() == "_" {
+				return bad("name it: a scalar binds the path parameter or query value of its name", "takes a scalar without a name")
+			}
+		case structParam(t):
+			if body {
+				return bad("join them in one struct", "takes a second struct to bind from the request")
+			}
+			body = true
+		case isPtrOrIface(t):
+		default:
+			return bad("take a struct for what the request carries, or a provided dependency", "takes %s, which can't be bound from a request", types.TypeString(t, types.RelativeTo(fn.Pkg())))
+		}
+	}
+	res := sig.Results()
+	if res.Len() > 2 || res.Len() == 2 && !isError(res.At(1).Type()) {
+		return bad("return nothing, error, a value, or (a value, error)", "returns %s", types.TypeString(res, types.RelativeTo(fn.Pkg())))
+	}
+	return true
 }
 
 // buildsPtr reports whether ctor returns *t or (*t, error).
@@ -742,13 +937,6 @@ func isPtrOrIface(t types.Type) bool {
 	return false
 }
 
-// generatedRoutesFile reports whether pos is in a routes_gen.go file, what
-// vuka declares.
-func generatedRoutesFile(fset *token.FileSet, pos token.Pos) bool {
-	name := filepath.Base(fset.PositionFor(pos, false).Filename)
-	return name == routesGoName
-}
-
 func lookupType(pkg *types.Package, name string) types.Type {
 	if obj, ok := pkg.Scope().Lookup(name).(*types.TypeName); ok {
 		return obj.Type()
@@ -794,3 +982,32 @@ func goVersionOf(root string) string {
 	}
 	return ""
 }
+
+// goIdent is a parameter's name as a Go identifier, initialisms upper case:
+// id is ID, petId PetID, org Org.
+func goIdent(name string) string {
+	var words []string
+	start := 0
+	rs := []rune(name)
+	for i := 1; i <= len(rs); i++ {
+		if i == len(rs) || rs[i] == '_' || rs[i] == '-' || unicode.IsUpper(rs[i]) && !unicode.IsUpper(rs[i-1]) {
+			if w := strings.Trim(string(rs[start:i]), "_-"); w != "" {
+				words = append(words, w)
+			}
+			start = i
+		}
+	}
+	var b strings.Builder
+	for _, w := range words {
+		if initialisms[strings.ToUpper(w)] {
+			b.WriteString(strings.ToUpper(w))
+		} else {
+			b.WriteString(upperFirst(w))
+		}
+	}
+	return b.String()
+}
+
+// initialisms are the words Go writes in one case.
+var initialisms = map[string]bool{"ID": true, "URL": true, "URI": true, "API": true, "UUID": true, "HTTP": true, "JSON": true, "SQL": true,
+	"HTML": true, "IP": true, "UID": true, "XML": true, "CSS": true, "DNS": true}

@@ -1,0 +1,17 @@
+package permits
+
+import (
+	"github.com/vuka-lang/ui"
+
+	"example.com/app/codes"
+	"example.com/app/pages/urls"
+)
+
+// Permit is a permit's page, live.
+type Permit struct {
+	ui.Live
+	Org    int
+	Permit codes.Code
+}
+
+func (x *Permit) Render() ui.Node { return ui.Text(urls.Orgs.Org(x.Org).Permits.Permit(x.Permit).Path()) }

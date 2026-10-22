@@ -8,7 +8,7 @@ import (
 )
 
 // Index is an organisation's page.
-type Index struct{ Params }
+type Index struct{ Org int }
 
 func NewIndex() *Index { return &Index{} }
 

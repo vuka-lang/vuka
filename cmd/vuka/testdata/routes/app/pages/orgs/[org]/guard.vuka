@@ -3,6 +3,6 @@ package org
 import "context"
 
 // Guard lets a member in.
-type Guard struct{ Params }
+type Guard struct{ Org int }
 
 func (g *Guard) Load(ctx context.Context) error { return nil }

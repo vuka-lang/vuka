@@ -201,6 +201,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		if pa != nil {
 			ds = vetIslands(root, modPath, pa)
 		}
+		ds = append(ds, routesUnserved(root, modPath, scanRoutes(root, modPath, nil))...)
 		if ds = append(append(ds, vetLivePages(root, pkgs)...), vetTemplates(root, pkgs)...); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
@@ -446,6 +447,9 @@ func gen(args []string, stdout io.Writer) error {
 			stale++
 			continue
 		}
+		if err := os.MkdirAll(filepath.Dir(f.Target), 0o755); err != nil {
+			return err
+		}
 		if err := os.WriteFile(f.Target, f.Src, 0o644); err != nil {
 			return err
 		}
@@ -485,7 +489,7 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		}
 		for _, p := range found {
 			if !asked[p.ImportPath] {
-				asked[p.ImportPath], dirs[p.Dir] = true, true
+				asked[p.ImportPath], dirs[p.BuildDir()] = true, true
 				roots = append(roots, p)
 			}
 		}
@@ -550,7 +554,7 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		}
 	}
 	for i := range files {
-		files[i].Src = relativeLines(files[i].Src, filepath.Dir(files[i].Source))
+		files[i].Src = relativeLines(files[i].Src, filepath.Dir(files[i].Source), filepath.Dir(files[i].Target))
 		if strings.HasSuffix(files[i].Source, ".vuka") {
 			files[i].Src = arrange(files[i].Src)
 		}
@@ -594,17 +598,27 @@ func realPathOf(p string) string {
 	if r, err := filepath.EvalSymlinks(p); err == nil {
 		return r
 	}
+	// A path not on disk, a [id] folder's Go directory: its parent's.
+	if parent := filepath.Dir(p); parent != p && filepath.IsAbs(p) {
+		return filepath.Join(realPathOf(parent), filepath.Base(p))
+	}
 	return p
 }
 
-// relativeLines makes the line directives of a file generated beside its
-// source name the source by its base name: the compiler reads a relative
-// name against the directive's own directory, and a committed file then
-// doesn't carry the path of the checkout it was generated in.
-func relativeLines(src []byte, dir string) []byte {
+// relativeLines makes the line directives of a file generated in target
+// for a source in dir name the source relative to target: by its base name
+// beside it, ../[id]/x.vuka for a parameter folder's (whose Go is in param_id).
+// The compiler reads a relative name against the directive's own
+// directory, and a committed file then doesn't carry the path of the
+// checkout it was generated in.
+func relativeLines(src []byte, dir, target string) []byte {
 	prefix := filepath.ToSlash(dir) + "/"
-	src = bytes.ReplaceAll(src, []byte("//line "+prefix), []byte("//line "))
-	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "))
+	to := ""
+	if rel, err := filepath.Rel(target, dir); err == nil && rel != "." {
+		to = filepath.ToSlash(rel) + "/"
+	}
+	src = bytes.ReplaceAll(src, []byte("//line "+prefix), []byte("//line "+to))
+	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "+to))
 }
 
 func genModule(out string, check bool, stdout io.Writer) error {

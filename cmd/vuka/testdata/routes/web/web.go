@@ -24,6 +24,31 @@ func (g *Registry) Live(path string, page any, opts ...RouteOption) *Registry { 
 
 type Rest string
 
+type App struct{}
+
+func (a *App) Get(path string, fn any, opts ...RouteOption) *App    { return a }
+func (a *App) Post(path string, fn any, opts ...RouteOption) *App   { return a }
+func (a *App) Put(path string, fn any, opts ...RouteOption) *App    { return a }
+func (a *App) Patch(path string, fn any, opts ...RouteOption) *App  { return a }
+func (a *App) Delete(path string, fn any, opts ...RouteOption) *App { return a }
+func (a *App) Live(path string, page any, opts ...RouteOption) *App { return a }
+
+type Option interface{ apply(*App) }
+
+type OptionFunc func(*App)
+
+func (f OptionFunc) apply(a *App) { f(a) }
+
+func New(opts ...Option) *App {
+	a := &App{}
+	for _, o := range opts {
+		o.apply(a)
+	}
+	return a
+}
+
+func Params(names ...string) RouteOption { return option{} }
+
 func PageRoute() RouteOption        { return option{} }
 func LayoutOf[T any]() RouteOption  { return option{} }
 func Receiver(ctor any) RouteOption { return option{} }
