@@ -17,7 +17,8 @@ import (
 // its hole's place where the type is known (E0128) — what fails the render,
 // or reads wrong, otherwise — and the package's .vuka.html files: a bare
 // name both a field and a package-level name (W0101) — and the loops that
-// build a live list without keys (W0102, W0103).
+// build a live list without keys (W0102, W0103) — and a hand-written use of
+// ui's uigen, the compiler's output (W0105).
 var Templates = &analysis.Analyzer{
 	Name: "templates",
 	Doc:  "check ui.HTML's values against its labelled holes",
@@ -32,6 +33,7 @@ func runTemplates(pass *analysis.Pass) (any, error) {
 	bareNames(pass, html)
 	templateHeaders(pass, html)
 	listKeys(pass)
+	handWrittenGen(pass)
 	for _, f := range pass.Files {
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
@@ -246,4 +248,37 @@ func (k *kinds) why(s slot, t types.Type) string {
 		}
 	}
 	return ""
+}
+
+// genPath is ui's package of what the compiler's output calls.
+const genPath = uiPath + "/uigen"
+
+// handWrittenGen reports uses of uigen outside generated files: it is what
+// the compiler writes for a .vuka.html file, not an API to write by hand.
+func handWrittenGen(pass *analysis.Pass) {
+	for _, f := range pass.Files {
+		if ast.IsGenerated(f) {
+			continue
+		}
+		ast.Inspect(f, func(n ast.Node) bool {
+			sel, ok := n.(*ast.SelectorExpr)
+			if !ok {
+				return true
+			}
+			id, ok := sel.X.(*ast.Ident)
+			if !ok {
+				return true
+			}
+			pkg, ok := pass.TypesInfo.Uses[id].(*types.PkgName)
+			if !ok || pkg.Imported().Path() != genPath {
+				return true
+			}
+			help := "write the .vuka.html form — a ui.State field read as a variable and written in an on… attribute (open = !open)"
+			if sel.Sel.Name == "Assign" {
+				help = "declare the field unexported in a .vuka.html file's struct: the compiler tracks it"
+			}
+			report(pass, sel, "W0105", help, "uigen.%s is what the compiler writes; it is not an API to write by hand", sel.Sel.Name)
+			return false
+		})
+	}
 }

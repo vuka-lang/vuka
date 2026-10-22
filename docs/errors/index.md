@@ -67,6 +67,7 @@ same page in the terminal.
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
 | [W0104](./W0104) | An exported template has no doc comment |
+| [W0105](./W0105) | A hand-written use of uigen |
 
 ## Decorators and attributes
 
