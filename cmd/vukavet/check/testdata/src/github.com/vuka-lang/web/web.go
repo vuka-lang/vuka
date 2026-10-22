@@ -6,8 +6,6 @@ type opt struct{}
 
 func (opt) Attrs() []any { return nil }
 
-func Params(names ...string) RouteOption { return opt{} }
-
 type Registry struct{}
 
 var Routes = &Registry{}
@@ -17,7 +15,6 @@ func (g *Registry) Get(path string, fn any, opts ...RouteOption) *Registry      
 func (g *Registry) Post(path string, fn any, opts ...RouteOption) *Registry           { return g }
 func (g *Registry) Live(path string, page any, opts ...RouteOption) *Registry         { return g }
 func (g *Registry) Controller(prefix string, ctor any, opts ...RouteOption) *Registry { return g }
-func (g *Registry) Service(ctor any) *Registry                                        { return g }
 
 type App struct{}
 

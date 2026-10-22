@@ -123,29 +123,6 @@ func (r registration) island(info *types.Info) bool {
 	return false
 }
 
-// params is web.Params(…) among the options: its names, and the call.
-func (r registration) params(info *types.Info) ([]string, *ast.CallExpr, bool) {
-	for _, o := range r.opts {
-		c, ok := ast.Unparen(o).(*ast.CallExpr)
-		if !ok || funcOf(info, c, webPath) != "Params" {
-			continue
-		}
-		if c.Ellipsis.IsValid() {
-			return nil, nil, false
-		}
-		var names []string
-		for _, a := range c.Args {
-			s, ok := str(info, a)
-			if !ok {
-				return nil, nil, false
-			}
-			names = append(names, s)
-		}
-		return names, c, true
-	}
-	return nil, nil, true
-}
-
 // ctor is the struct a constructor's signature builds — func(…) *T or
 // func(…) (*T, error) — and why not when it doesn't.
 func ctor(sig *types.Signature, q types.Qualifier) (*types.Named, string) {

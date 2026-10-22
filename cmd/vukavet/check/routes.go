@@ -6,6 +6,9 @@ import (
 	"go/types"
 	"net/http"
 	"path/filepath"
+	"reflect"
+	"strconv"
+	"strings"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -13,9 +16,10 @@ import (
 // Routes checks registrations with web — web.Routes.X(…) and app.X(…) —
 // as the app's Build does: a method and path declared twice (E0401), a
 // handler that isn't a function (E0403), a scalar parameter with no name
-// (E0405), results the app can't write (E0406), web.Params that doesn't fit
-// the handler (E0419), a constructor of the wrong shape (E0418) and a page
-// backed by its island under another method than GET (E0331).
+// and no path segment to bind (E0405), results the app can't write
+// (E0406), a constructor of the wrong shape (E0418) and a page backed by
+// its island under another method than GET (E0331); and an inject: struct
+// tag, which no longer says anything (E0420).
 var Routes = &analysis.Analyzer{
 	Name:      "routes",
 	Doc:       "check vuka routes, handlers and constructors as the app's boot does",
@@ -40,6 +44,8 @@ type route struct {
 }
 
 func runRoutes(pass *analysis.Pass) (any, error) {
+	checkInjectTags(pass)
+	recorded := recordedParams(pass)
 	regs := registrations(pass)
 	prefixes := map[*types.TypeName]string{}
 	for _, r := range regs {
@@ -60,7 +66,7 @@ func runRoutes(pass *analysis.Pass) (any, error) {
 			continue
 		case "Live":
 		default:
-			checkHandler(pass, r)
+			checkHandler(pass, r, recorded)
 		}
 		if r.method == "" || r.path == "" {
 			continue
@@ -146,7 +152,7 @@ func checkCtor(pass *analysis.Pass, r registration, what, want string) *types.Na
 	return n
 }
 
-func checkHandler(pass *analysis.Pass, r registration) {
+func checkHandler(pass *analysis.Pass, r registration, recorded map[types.Object][]string) {
 	info := pass.TypesInfo
 	t := info.TypeOf(r.fn)
 	if t == nil || types.IsInterface(t) {
@@ -174,28 +180,112 @@ func checkHandler(pass *analysis.Pass, r registration) {
 	if methodExprRecv(info, r.fn) != nil {
 		skip = 1
 	}
-	names, call, ok := r.params(info)
-	if !ok {
-		return
-	}
-	n := params.Len() - skip
-	if len(names) > n {
-		report(pass, call, "E0419", "name the parameters in order, a method's receiver left out", "web.Params gives %d names, and %s takes %d parameters", len(names), types.ExprString(r.fn), n)
-	}
-	seen := map[string]bool{}
-	for _, name := range names {
-		if name != "" && name != "_" && seen[name] {
-			report(pass, call, "E0419", "give each parameter its own name", "web.Params names %q twice", name)
+	// A scalar binds by the name the compiler recorded (vuka.RegisterParams);
+	// unnamed, the path's segments in order, the last scalar the last
+	// segment.
+	names := recorded[funcObj(info, r.fn)]
+	var unnamed []int
+	for i := range params.Len() - skip {
+		if basicScalar(params.At(i+skip).Type()) && (i >= len(names) || names[i] == "" || names[i] == "_") {
+			unnamed = append(unnamed, i)
 		}
-		seen[name] = true
 	}
-	for i := range n {
-		p := params.At(i + skip)
-		if !basicScalar(p.Type()) || i < len(names) && names[i] != "" && names[i] != "_" {
-			continue
+	for _, i := range unnamed[min(len(unnamed), len(pathSegments(r.path))):] {
+		report(pass, r.fn, "E0405", "take the query in a struct, func(q Query), or add the segment to the path",
+			"%s (%s): parameter #%d %s binds the path segment its position gives, and the path has none left for it",
+			what, types.ExprString(r.fn), i+1, typeString(pass, params.At(i+skip).Type()))
+	}
+}
+
+// recordedParams are the parameter names the package records with
+// vuka.RegisterParams, as generated code does, by function.
+func recordedParams(pass *analysis.Pass) map[types.Object][]string {
+	out := map[types.Object][]string{}
+	for _, f := range pass.Files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			c, ok := n.(*ast.CallExpr)
+			if !ok || funcOf(pass.TypesInfo, c, vukaPath) != "RegisterParams" || len(c.Args) == 0 || c.Ellipsis.IsValid() {
+				return true
+			}
+			var names []string
+			for _, a := range c.Args[1:] {
+				s, ok := str(pass.TypesInfo, a)
+				if !ok {
+					return true
+				}
+				names = append(names, s)
+			}
+			if obj := funcObj(pass.TypesInfo, c.Args[0]); obj != nil {
+				out[obj] = names
+			}
+			return true
+		})
+	}
+	return out
+}
+
+// funcObj is the function or method an expression names: F, pkg.F,
+// (*T).M; nil for anything else.
+func funcObj(info *types.Info, e ast.Expr) types.Object {
+	switch x := ast.Unparen(e).(type) {
+	case *ast.Ident:
+		if f, ok := info.Uses[x].(*types.Func); ok {
+			return f
 		}
-		report(pass, r.fn, "E0405", "in plain Go, name it with web.Params", "%s (%s): parameter #%d %s binds by name, and it has none",
-			what, types.ExprString(r.fn), i+1, typeString(pass, p.Type()))
+	case *ast.SelectorExpr:
+		if s, ok := info.Selections[x]; ok {
+			return s.Obj()
+		}
+		if f, ok := info.Uses[x.Sel].(*types.Func); ok {
+			return f
+		}
+	}
+	return nil
+}
+
+// pathSegments are a route path's parameters: {id}, {rest...}.
+func pathSegments(path string) []string {
+	var out []string
+	for path != "" {
+		i := strings.IndexByte(path, '{')
+		if i < 0 {
+			break
+		}
+		j := strings.IndexByte(path[i:], '}')
+		if j < 0 {
+			break
+		}
+		out = append(out, strings.TrimSuffix(path[i+1:i+j], "..."))
+		path = path[i+j+1:]
+	}
+	return out
+}
+
+// checkInjectTags reports a struct field's inject: tag (E0420): the
+// constructor Vuka writes takes a struct's pointer and interface fields,
+// and services are registered with app.Service, so the tag says nothing.
+func checkInjectTags(pass *analysis.Pass) {
+	for _, f := range pass.Files {
+		ast.Inspect(f, func(n ast.Node) bool {
+			st, ok := n.(*ast.StructType)
+			if !ok {
+				return true
+			}
+			for _, field := range st.Fields.List {
+				if field.Tag == nil {
+					continue
+				}
+				tag, err := strconv.Unquote(field.Tag.Value)
+				if err != nil {
+					continue
+				}
+				if _, ok := reflect.StructTag(tag).Lookup("inject"); ok {
+					report(pass, field.Tag, "E0420", "drop the tag: the constructor Vuka writes takes the struct's pointer and interface fields, and nothing else; a struct needing more writes its own New",
+						"the inject: tag is gone")
+				}
+			}
+			return true
+		})
 	}
 }
 
