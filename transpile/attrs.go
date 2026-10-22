@@ -61,6 +61,7 @@ type Attr struct {
 	fieldNames []string  // the field's names (an embedded field's type name)
 	regs       []regDecl // what the registry records the attribute under, found when attached
 	hookMethod string    // a hook's method, as written
+	hookAt     int       // where its name is, in the source
 }
 
 // regDecl is a declaration the runtime's registry records attributes of: a

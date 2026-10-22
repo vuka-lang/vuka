@@ -20,7 +20,7 @@ func chart() ui.Node {
 }
 
 //line islands_media.vuka:6
-func NewChart(points int) *Chart { return &Chart{Points: points} }
+func NewChart() *Chart { return &Chart{} }
 
 func init() {
 //line islands_media.vuka:5

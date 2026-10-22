@@ -162,7 +162,8 @@ func (e *engine) hookOf(f *fileState, a *Attr) bool {
 		return true
 	}
 	a.kind, a.Decorator, a.bare = attrHook, false, false
-	a.hookMethod = srcIdent(f.src, f.orig(fd.Name.Pos()))
+	a.hookAt = f.orig(fd.Name.Pos())
+	a.hookMethod = srcIdent(f.src, a.hookAt)
 	si.hooks = append(si.hooks, a)
 	return true
 }
@@ -375,7 +376,13 @@ func (f *fileState) renderSchema(w *genWriter, si *schemaInfo, attrs []*Attr) {
 			args += ", "
 		}
 		_, sel, _ := strings.Cut(h.Name, ".")
-		w.gen("\t"+p+"."+sel+"("+args+si.recv+"."+h.hookMethod+")\n", start)
+		// At the method's line: the hook's place, as the runtime
+		// reports a parameter nothing fills.
+		at := ""
+		if !f.eng.bare {
+			at = lineDirective(f.at(h.hookAt))
+		}
+		w.gen("\t"+at+p+"."+sel+"("+args+si.recv+"."+h.hookMethod+")\n", start)
 	}
 	w.gen("}\n", start)
 }

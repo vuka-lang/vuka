@@ -34,7 +34,7 @@ func (b *Board) Render() ui.Node { return nil }
 
 func main() {
 	web.Routes.Print()
-	b := NewBoard(1)
+	b := NewBoard()
 	b.Inc()
 	fmt.Println(Report(), b.n)
 }

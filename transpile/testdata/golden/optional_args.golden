@@ -121,7 +121,7 @@ func init() {
 }
 
 //line optional_args.vuka:66
-func NewUser(id int) *User { return &User{ID: id} }
+func NewUser() *User { return &User{} }
 
 func init() {
 //line optional_args.vuka:65
@@ -129,7 +129,7 @@ func init() {
 }
 
 //line optional_args.vuka:69
-func NewOrder(id int) *Order { return &Order{ID: id} }
+func NewOrder() *Order { return &Order{} }
 
 func init() {
 //line optional_args.vuka:68

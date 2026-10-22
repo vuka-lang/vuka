@@ -1,0 +1,25 @@
+package main
+
+import (
+	"sync"
+
+	"github.com/vuka-lang/web"
+)
+
+// A service is a struct with a constructor, registered in main with
+// app.Service: @web.Service and the inject: tag are gone.
+
+@web.Service
+type Store struct{ pets []string }
+
+func component(t *vuka.Type) {}
+
+type DB struct{}
+
+@component
+type Users struct {
+	db *DB
+	mu sync.Mutex `inject:"-"`
+}
+
+func main() { _ = &web.App{} }

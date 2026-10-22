@@ -69,19 +69,20 @@ func (smtp) Send(to string) string { return "mail to " + to }
 type UserService struct {
 	db     *DB
 	mailer Mailer
-	sent   int `inject:"-"`
+	sent   int
 }
 
 //line inject.vuka:69
 type OrderService struct {
 	*UserService
 	db *DB
-	mu sync.Mutex `inject:"-"`
+	mu sync.Mutex
 }
 
-// Audit declares its own constructor; that is the one registered.
+// The constructor Vuka writes takes the pointer and interface fields; Audit
+// declares its own, which is the one registered.
 //
-//line inject.vuka:77
+//line inject.vuka:78
 type Audit struct{ prefix string }
 
 func NewAudit(db *DB) *Audit { return &Audit{prefix: "audit:" + db.name} }
@@ -118,6 +119,6 @@ func init() {
 }
 
 func init() {
-//line inject.vuka:76
+//line inject.vuka:77
 	component(vuka.TypeFor[Audit](NewAudit))
 }

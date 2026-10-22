@@ -29,6 +29,9 @@ func (r *Registry) add(verb, path string, decl any, opts []RouteOption) *Registr
 			parts = append(parts, describe(a))
 		}
 	}
+	if ref, err := vuka.FuncOf(decl); err == nil && ref.Params != nil {
+		parts = append(parts, "params("+strings.Join(ref.Params, ",")+")")
+	}
 	r.lines = append(r.lines, strings.TrimSpace(fmt.Sprintf("%s %s %s %s", verb, path, describe(decl), strings.Join(parts, " "))))
 	return r
 }
@@ -45,8 +48,6 @@ func (r *Registry) Controller(prefix string, ctor any, opts ...RouteOption) *Reg
 	return r.add("CONTROLLER", prefix, ctor, opts)
 }
 
-func (r *Registry) Service(ctor any) *Registry { return r.add("SERVICE", "-", ctor, nil) }
-
 // Print prints what was registered, in order.
 func (r *Registry) Print() {
 	for _, l := range r.lines {
@@ -55,9 +56,7 @@ func (r *Registry) Print() {
 }
 
 func describe(v any) string {
-	switch v := v.(type) {
-	case params:
-		return "params(" + strings.Join(v, ",") + ")"
+	switch v.(type) {
 	case Uses:
 		return "use"
 	}
@@ -71,13 +70,6 @@ func describe(v any) string {
 	return fmt.Sprintf("%T", v)
 }
 
-type params []string
-
-func (p params) Attrs() []any { return []any{p} }
-
-// Params names a handler's parameters, which reflection can't see.
-func Params(names ...string) RouteOption { return params(names) }
-
 // Uses is per-route middleware.
 type Uses func(*vuka.Decl)
 
@@ -90,4 +82,3 @@ func Use(mw ...func(string) string) Uses { return func(*vuka.Decl) {} }
 func Get(path string) vuka.Bundle                    { return vuka.Compose() }
 func Live(path string, opts ...any) func(*vuka.Type) { return func(*vuka.Type) {} }
 func Controller(prefix string) func(*vuka.Type)      { return func(*vuka.Type) {} }
-func Service(t *vuka.Type)                           {}
