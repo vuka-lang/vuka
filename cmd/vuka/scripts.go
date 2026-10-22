@@ -439,7 +439,7 @@ func componentMethods(c *assetComp) []string {
 		}
 		src, _ := os.ReadFile(filepath.Join(c.dir, n))
 		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
-			if name := m[1]; name != "Render" && name != "View" && name != "Mount" && name != "Update" && !isUpdateMethod(name, m[2]) && !slices.Contains(out, name) {
+			if name := m[1]; name != "Render" && name != "View" && name != "Update" && !isUpdateMethod(name, m[2]) && !slices.Contains(out, name) {
 				out = append(out, name)
 			}
 		}

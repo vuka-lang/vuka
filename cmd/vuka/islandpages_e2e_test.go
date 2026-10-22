@@ -70,7 +70,8 @@ type Board struct {
 	db    *DB
 }
 
-func (b *Board) Mount(ctx context.Context) error {
+@ui.Mount
+func (b *Board) mount(ctx context.Context) error {
 	b.Subscribe("board")
 	b.Rows = b.db.Find(b.Q)
 	return nil
@@ -97,7 +98,8 @@ type Static struct {
 	db    *DB
 }
 
-func (s *Static) Mount(ctx context.Context) { s.Rows = s.db.Find(s.Q) }
+func (s *Static) LiveSchema(l *ui.LiveSchema) { l.Mount(s.mount) }
+func (s *Static) mount(_ context.Context) error { s.Rows = s.db.Find(s.Q); return nil }
 
 func (s *Static) Search(ctx context.Context, q string) error {
 	if len(q) < 2 {
@@ -119,7 +121,8 @@ type RBoard struct {
 	db    *DB
 }
 
-func (b *RBoard) Mount() { b.Rows = b.db.Find(b.Q) }
+@ui.Mount
+func (b *RBoard) mount(ctx context.Context) error { b.Rows = b.db.Find(b.Q); return nil }
 
 func (b *RBoard) Search(q string) error {
 	if len(q) < 2 {
@@ -140,7 +143,8 @@ type SBoard struct {
 	db    *DB
 }
 
-func (b *SBoard) Mount() { b.Rows = b.db.Find(b.Q) }
+func (b *SBoard) LiveSchema(l *ui.LiveSchema) { l.Mount(b.mount) }
+func (b *SBoard) mount(_ context.Context) error { b.Rows = b.db.Find(b.Q); return nil }
 
 func (b *SBoard) Search(q string) error {
 	if len(q) < 2 {
@@ -162,8 +166,10 @@ type Find struct {
 	db      *DB
 }
 
-func (f *Find) Mount()   { f.Rows = f.db.Find(f.Q) }
-func (f *Find) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
+@ui.Mount
+func (f *Find) mount(ctx context.Context) error { f.Rows = f.db.Find(f.Q); return nil }
+@ui.OnChange
+func (f *Find) onChange(ctx context.Context, _ ui.Changed) error { f.Changes++; f.Rows = f.db.Find(f.Q); return nil }
 func (f *Find) Drop()    { f.Rows = nil }
 
 @web.Get("/findstatic")
@@ -175,9 +181,14 @@ type FindStatic struct {
 	db      *DB
 }
 
-func (f *FindStatic) Mount() { f.Rows = f.db.Find(f.Q) }
+func (f *FindStatic) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(f.mount)
+	l.OnChange(f.onChange)
+}
 
-func (f *FindStatic) Changed(ctx context.Context, changed ui.Changed) error {
+func (f *FindStatic) mount(_ context.Context) error { f.Rows = f.db.Find(f.Q); return nil }
+
+func (f *FindStatic) onChange(_ context.Context, changed ui.Changed) error {
 	if changed.Has("q") && len(changed.Names()) == 1 {
 		f.Changes++
 	}
@@ -197,8 +208,10 @@ type RFind struct {
 	db      *DB
 }
 
-func (f *RFind) Mount()   { f.Rows = f.db.Find(f.Q) }
-func (f *RFind) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
+@ui.Mount
+func (f *RFind) mount(ctx context.Context) error { f.Rows = f.db.Find(f.Q); return nil }
+@ui.OnChange
+func (f *RFind) onChange(ctx context.Context, _ ui.Changed) error { f.Changes++; f.Rows = f.db.Find(f.Q); return nil }
 func (f *RFind) Drop()    { f.Rows = nil }
 
 @web.Get("/sfind")
@@ -210,8 +223,13 @@ type SFind struct {
 	db      *DB
 }
 
-func (f *SFind) Mount()   { f.Rows = f.db.Find(f.Q) }
-func (f *SFind) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
+func (f *SFind) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(f.mount)
+	l.OnChange(f.onChange)
+}
+
+func (f *SFind) mount(_ context.Context) error { f.Rows = f.db.Find(f.Q); return nil }
+func (f *SFind) onChange(_ context.Context, _ ui.Changed) error { f.Changes++; f.Rows = f.db.Find(f.Q); return nil }
 func (f *SFind) Drop()    { f.Rows = nil }
 
 @web.Get("/only")
@@ -224,8 +242,10 @@ type Only struct {
 	db      *DB
 }
 
-func (f *Only) Mount()   { f.Rows = f.db.Find(f.Q) }
-func (f *Only) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
+@ui.Mount
+func (f *Only) mount(ctx context.Context) error { f.Rows = f.db.Find(f.Q); return nil }
+@ui.OnChange
+func (f *Only) onChange(ctx context.Context, _ ui.Changed) error { f.Changes++; f.Rows = f.db.Find(f.Q); return nil }
 
 @web.Get("/onlystatic")
 @ui.Island("./components/Only.vue")
@@ -236,8 +256,13 @@ type OnlyStatic struct {
 	db      *DB
 }
 
-func (f *OnlyStatic) Mount()   { f.Rows = f.db.Find(f.Q) }
-func (f *OnlyStatic) Changed() { f.Changes++; f.Rows = f.db.Find(f.Q) }
+func (f *OnlyStatic) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(f.mount)
+	l.OnChange(f.onChange)
+}
+
+func (f *OnlyStatic) mount(_ context.Context) error { f.Rows = f.db.Find(f.Q); return nil }
+func (f *OnlyStatic) onChange(_ context.Context, _ ui.Changed) error { f.Changes++; f.Rows = f.db.Find(f.Q); return nil }
 
 @web.Get("/nav")
 @ui.Island("./components/Nav.vue")
@@ -252,7 +277,8 @@ type NavParams struct {
 	Q string ` + "`" + `url:"q"` + "`" + `
 }
 
-func (n *Nav) Mount()             {}
+@ui.Mount
+func (n *Nav) mount(ctx context.Context) error { return nil }
 func (n *Nav) Update(p NavParams) { n.Q = p.Q; n.Updates++ }
 
 @web.Get("/nav2")
@@ -262,7 +288,8 @@ type Nav2 struct {
 	Title string ` + "`" + `json:"title"` + "`" + `
 }
 
-func (n *Nav2) Mount() { n.Title = "second" }
+@ui.Mount
+func (n *Nav2) mount(ctx context.Context) error { n.Title = "second"; return nil }
 
 @web.Live("/dash")
 @ui.Island("./components/Dash.vue")
@@ -275,9 +302,11 @@ type Dash struct {
 	db     *DB
 }
 
-func (d *Dash) Mount() { d.Title = "Dashboard" }
+@ui.Mount
+func (d *Dash) mount(ctx context.Context) error { d.Title = "Dashboard"; return nil }
 
-func (d *Dash) LoadStats(ctx context.Context) error {
+@ui.Loads("stats")
+func (d *Dash) loadStats(ctx context.Context) error {
 	if err := held(ctx, "dash"); err != nil {
 		return err
 	}
@@ -285,9 +314,11 @@ func (d *Dash) LoadStats(ctx context.Context) error {
 	return nil
 }
 
-func (d *Dash) LoadRows(ctx context.Context) error { d.Rows = d.db.Find("G"); return nil }
+@ui.Loads("rows")
+func (d *Dash) loadRows(ctx context.Context) error { d.Rows = d.db.Find("G"); return nil }
 
-func (d *Dash) LoadRecent(ctx context.Context) error { return web.BadRequest("recent is down") }
+@ui.Loads("recent")
+func (d *Dash) loadRecent(ctx context.Context) error { return web.BadRequest("recent is down") }
 
 @web.Get("/dashstatic")
 @ui.Island("./components/Dash.vue")
@@ -299,9 +330,16 @@ type DashStatic struct {
 	db     *DB
 }
 
-func (d *DashStatic) Mount() { d.Title = "Dashboard" }
+func (d *DashStatic) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(d.mount)
+	l.Loads("stats", d.loadStats)
+	l.Loads("rows", d.loadRows)
+	l.Loads("recent", d.loadRecent)
+}
 
-func (d *DashStatic) LoadStats(ctx context.Context) error {
+func (d *DashStatic) mount(_ context.Context) error { d.Title = "Dashboard"; return nil }
+
+func (d *DashStatic) loadStats(ctx context.Context) error {
 	if err := held(ctx, "dashstatic"); err != nil {
 		return err
 	}
@@ -309,9 +347,9 @@ func (d *DashStatic) LoadStats(ctx context.Context) error {
 	return nil
 }
 
-func (d *DashStatic) LoadRows(ctx context.Context) error { d.Rows = d.db.Find("G"); return nil }
+func (d *DashStatic) loadRows(_ context.Context) error { d.Rows = d.db.Find("G"); return nil }
 
-func (d *DashStatic) LoadRecent(ctx context.Context) error { return web.BadRequest("recent is down") }
+func (d *DashStatic) loadRecent(_ context.Context) error { return web.BadRequest("recent is down") }
 
 func main() {
 	web.New(web.Provide(func() *DB { return &DB{names: []string{"Ada", "Alan", "Grace", "Guido"}} })).Run("")

@@ -109,8 +109,12 @@ type Board struct {
 	Stats []int  ` + "`json:\"stats\" defer:\"\"`" + `
 }
 
-func (b *Board) Mount(ctx context.Context) error   { return nil }
-func (b *Board) Changed(ctx context.Context) error { return nil }
+@ui.Mount
+func (b *Board) Mount(ctx context.Context) error { return nil }
+
+@ui.OnChange
+func (b *Board) Changed(ctx context.Context, c ui.Changed) error { return nil }
+
 func (b *Board) LoadStats(ctx context.Context) error { return nil }
 
 func main() {}
@@ -119,7 +123,8 @@ func main() {}
 // TestLSPIslandDecorators: hover on @ui.Island names the component file,
 // inferred or written, and its framework; definition opens it; a missing
 // one is a diagnostic on the decorator, without a build; hover on an island
-// page's Mount and Changed says they are the server's hooks.
+// page's Load<Group> that no attribute marks says it isn't a hook, naming
+// the attribute; on a method an attribute marks there is no such note.
 func TestLSPIslandDecorators(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": islandDecoSource,
 		"islands/Counter.ts": "export function mount() { return { update() {}, unmount() {} } }\n",
@@ -127,12 +132,13 @@ func TestLSPIslandDecorators(t *testing.T) {
 	uri := pathToURI(filepath.Join(dir, "main.vuka"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 		"uri": uri, "languageId": "vuka", "version": 1, "text": islandDecoSource}})
-	// The island's diagnostic, alone once gopls has loaded the package
-	// (while it loads, its own may come along).
+	// The island's diagnostic, and Board's loader found by name (E0324),
+	// alone once gopls has loaded the package (while it loads, its own may
+	// come along).
 	want := `"code":"E0310","codeDescription":{"href":"` + diag.DocsURL + `E0310"},"message":"island Gone: no component at islands/Gone.{vue,tsx,jsx,svelte,ts,js}\nhelp: add it there, or name the file with @ui.Island(\"…\")"`
 	c.waitDiags(uri, func(ds []any) bool {
 		diags := jsonOf(ds)
-		return strings.Contains(diags, want) && strings.Count(diags, `"message"`) == 1
+		return strings.Contains(diags, want) && strings.Count(diags, `"code":"E0324"`) == 1 && strings.Count(diags, `"message"`) == 2
 	})
 	at := func(needle string, delta int) map[string]any {
 		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(islandDecoSource), strings.Index(islandDecoSource, needle)+delta)}
@@ -155,13 +161,13 @@ func TestLSPIslandDecorators(t *testing.T) {
 	if d := c.call("textDocument/definition", at(`@ui.Island("", "load")`, 5)); d != nil {
 		t.Errorf("definition of a missing file: %s", jsonOf(d))
 	}
-	if h := jsonOf(c.call("textDocument/hover", at("Mount(ctx", 2))); !strings.Contains(h, "Lifecycle hook: the server runs Mount") || !strings.Contains(h, "func (b *Board) Mount") {
+	if h := jsonOf(c.call("textDocument/hover", at("Mount(ctx", 2))); strings.Contains(h, "Not a hook") || !strings.Contains(h, "func (b *Board) Mount") {
 		t.Errorf("hover on Mount: %s", h)
 	}
-	if h := jsonOf(c.call("textDocument/hover", at("Changed(ctx", 2))); !strings.Contains(h, "after the component sets a bind: field") {
+	if h := jsonOf(c.call("textDocument/hover", at("Changed(ctx", 2))); strings.Contains(h, "Not a hook") {
 		t.Errorf("hover on Changed: %s", h)
 	}
-	if h := jsonOf(c.call("textDocument/hover", at("LoadStats(ctx", 2))); !strings.Contains(h, "Loader of deferred fields (live.stats)") {
+	if h := jsonOf(c.call("textDocument/hover", at("LoadStats(ctx", 2))); !strings.Contains(h, `Not a hook: a hook is declared with @ui.Loads(\"stats\")`) {
 		t.Errorf("hover on LoadStats: %s", h)
 	}
 
@@ -169,7 +175,7 @@ func TestLSPIslandDecorators(t *testing.T) {
 	os.WriteFile(filepath.Join(dir, "islands/Gone.vue"), []byte("<template><p/></template>\n"), 0o644)
 	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
 		"contentChanges": []any{map[string]any{"text": islandDecoSource + "\n"}}})
-	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 1 && strings.Contains(jsonOf(ds), `"code":"E0324"`) })
 }
 
 func containsAll(s string, subs []string) bool {

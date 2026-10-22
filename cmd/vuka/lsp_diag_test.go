@@ -38,7 +38,7 @@ func TestLSPIslandVet(t *testing.T) {
 		return strings.Contains(got, "E0324")
 	})
 	line := strings.Count(vetPage[:strings.Index(vetPage, "CV ")], "\n")
-	for _, want := range []string{`"code":"E0324"`, `"message":"Detail.CV is deferred, and the group Profile has no loader\nhelp: add the method\nfunc (d *Detail) LoadProfile(ctx context.Context) error"`,
+	for _, want := range []string{`"code":"E0324"`, `"message":"Detail.CV is deferred, and the group Profile has no loader\nhelp: mark its loader @ui.Loads(\"profile\")"`,
 		`"range":{"end":{"character":3,"line":` + itoaTest(uint32(line)) + `},"start":{"character":1,"line":` + itoaTest(uint32(line)) + `}}`, `"code":"E0322"`} {
 		if !strings.Contains(got, want) {
 			t.Errorf("diagnostics lack %s: %s", want, got)

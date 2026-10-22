@@ -38,6 +38,8 @@ func islandModules(t *testing.T) string {
 const islandsPage = `package main
 
 import (
+	"context"
+
 	"github.com/vuka-lang/ui"
 	"github.com/vuka-lang/web"
 
@@ -53,7 +55,8 @@ type Page struct {
 	n     ui.State[float64]
 }
 
-func (p *Page) Mount() { p.n = ui.State(1.0) }
+@ui.Mount
+func (p *Page) mount(ctx context.Context) error { p.n = ui.State(1.0); return nil }
 
 func (p *Page) Add(by float64) { p.total += int(by) }
 
