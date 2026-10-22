@@ -10,8 +10,19 @@ import (
 	"example.com/app/pages/orgs"
 	org "example.com/app/pages/orgs/param_org"
 	"example.com/app/pages/orgs/param_org/permits"
+	"github.com/vuka-lang/vuka"
 	"github.com/vuka-lang/web"
 )
+
+func init() {
+	vuka.RegisterParams(api_orgs.GET, "ctx", "org")
+	vuka.RegisterParams(api_orgs.PUT, "ctx", "org", "f")
+	vuka.RegisterParams(api_orgs.DELETE, "ctx", "org")
+	vuka.RegisterParams(pets.GET_index, "ctx")
+	vuka.RegisterParams(pets.POST, "ctx", "p")
+	vuka.RegisterParams(pets.GET_id, "ctx", "id")
+	vuka.RegisterParams(pets.DELETE, "ctx", "id")
+}
 
 // Routes registers every page and endpoint under pages/ on the app, with
 // its middleware, guards and layouts: web.New(pages.Routes(), …).
@@ -21,13 +32,13 @@ func Routes() web.Option {
 		app.Get("/about", func() *About { return &About{} }, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
 		app.Get("/api/orgs", (*api_orgs.Index).Get, web.Receiver(func() *api_orgs.Index { return &api_orgs.Index{} }), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
 		app.Post("/api/orgs", (*api_orgs.Index).Post, web.Receiver(func() *api_orgs.Index { return &api_orgs.Index{} }), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Get("/api/orgs/{org}", api_orgs.GET, web.PageRoute(), web.Params("ctx", "org"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Put("/api/orgs/{org}", api_orgs.PUT, web.PageRoute(), web.Params("ctx", "org", "f"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Delete("/api/orgs/{org}", api_orgs.DELETE, web.PageRoute(), web.Params("ctx", "org"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Get("/api/pets", pets.GET_index, web.PageRoute(), web.Params("ctx"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Post("/api/pets", pets.POST, web.PageRoute(), web.Params("ctx", "p"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Get("/api/pets/{id}", pets.GET_id, web.PageRoute(), web.Params("ctx", "id"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Delete("/api/pets/{id}", pets.DELETE, web.PageRoute(), web.Params("ctx", "id"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Get("/api/orgs/{org}", api_orgs.GET, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Put("/api/orgs/{org}", api_orgs.PUT, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Delete("/api/orgs/{org}", api_orgs.DELETE, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Get("/api/pets", pets.GET_index, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Post("/api/pets", pets.POST, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Get("/api/pets/{id}", pets.GET_id, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Delete("/api/pets/{id}", pets.DELETE, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
 		app.Get("/files/{file...}", func() *files.File { return &files.File{} }, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
 		app.Live("/orgs", orgs.NewIndex, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
 		app.Get("/orgs/new", orgs.NewNew, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())

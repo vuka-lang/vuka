@@ -190,7 +190,8 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 		return ""
 	}
 	sorted := sortedRoutes(routes)
-	var body strings.Builder
+	var body, inits strings.Builder
+	recorded := map[string]bool{}
 	for _, r := range sorted {
 		q := qual(r.dir)
 		ctor := q + r.ctor
@@ -201,7 +202,9 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 		switch {
 		case r.fn != "":
 			// A scalar binds the path parameter of its name, spelt as the
-			// path spells it: id for [id] when the Go says ID.
+			// path spells it: id for [id] when the Go says ID. The names
+			// are recorded at init, as the compiler records a registered
+			// handler's: vuka.RegisterParams.
 			var names []string
 			for _, n := range r.names {
 				for _, seg := range splitPath(r.Path) {
@@ -211,7 +214,11 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 				}
 				names = append(names, strconv.Quote(n))
 			}
-			opts = append(opts, web+".PageRoute()", web+".Params("+strings.Join(names, ", ")+")")
+			if fn := q + r.fn; !recorded[fn] && len(names) > 0 {
+				recorded[fn] = true
+				fmt.Fprintf(&inits, "\t%s.RegisterParams(%s, %s)\n", im.name(vukaModPath, "vuka"), fn, strings.Join(names, ", "))
+			}
+			opts = append(opts, web+".PageRoute()")
 		case r.handler != "":
 			opts = append(opts, web+".Receiver("+ctor+")")
 		default:
@@ -238,7 +245,11 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 		}
 		fmt.Fprintf(&body, "\t\tapp.%s(%q, %s, %s)\n", call, r.Path, fn, strings.Join(opts, ", "))
 	}
-	src := routesHeading + "package " + root.name + "\n\n" + im.block() +
+	var initFn string
+	if inits.Len() > 0 {
+		initFn = "func init() {\n" + inits.String() + "}\n\n"
+	}
+	src := routesHeading + "package " + root.name + "\n\n" + im.block() + initFn +
 		"// Routes registers every page and endpoint under pages/ on the app, with\n// its middleware, guards and layouts: web.New(pages.Routes(), …).\n" +
 		"func Routes() " + web + ".Option {\n\treturn " + web + ".OptionFunc(func(app *" + web + ".App) {\n" + body.String() + "\t})\n}\n"
 	return gofmt(src)

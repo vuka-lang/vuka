@@ -789,12 +789,19 @@ files. `route.go` is the registration a person would write:
 // pages/route.go
 package pages
 
+func init() {
+	vuka.RegisterParams(api_employers.GET, "ctx", "employer", "s")
+	vuka.RegisterParams(api_employers.PUT, "ctx", "employer", "in", "s")
+	vuka.RegisterParams(api_employers.DELETE, "ctx", "employer", "s")
+	…
+}
+
 func Routes() web.Option {
 	return web.OptionFunc(func(app *web.App) {
 		app.Get("/about", func() *About { return &About{} }, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
-		app.Get("/api/employers/{employer}", api_employers.GET, web.PageRoute(), web.Params("ctx", "employer", "s"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Put("/api/employers/{employer}", api_employers.PUT, web.PageRoute(), web.Params("ctx", "employer", "in", "s"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Delete("/api/employers/{employer}", api_employers.DELETE, web.PageRoute(), web.Params("ctx", "employer", "s"), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Get("/api/employers/{employer}", api_employers.GET, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Put("/api/employers/{employer}", api_employers.PUT, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
+		app.Delete("/api/employers/{employer}", api_employers.DELETE, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
 		app.Get("/app/{route...}", func() *app2.Shell { return &app2.Shell{} }, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
 		app.Get("/employers/{employer}", employer.NewIndex, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
 		app.Post("/employers/{employer}/edit", (*employer.Edit).Post, web.Receiver(employer.NewEdit), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
@@ -811,8 +818,10 @@ from the path, a bad path parameter a 404, `Title` — and
 options are given; `web.UseOf(pkg.Middleware)` wraps the route in each
 folder's middleware, the root's outermost. A live page is `app.Live`, a
 method handler or an endpoint type's method is registered with the type's
-constructor as its receiver, `web.Receiver(NewT)`, and a method func with
-its parameters' names, `web.Params(…)`. A page without a `New<T>` is built
+constructor as its receiver, `web.Receiver(NewT)`, and a method func as it
+is, its parameters' names recorded at init with `vuka.RegisterParams`, as
+the compiler records a registered handler's, so a scalar binds the path
+parameter of its name. A page without a `New<T>` is built
 by a literal, `func() *T { return &T{} }`; nothing is written into a page's
 folder. Packages that share a name are imported by their path
 (`api_employers`), and one named like the function's `app` is `app2`.
