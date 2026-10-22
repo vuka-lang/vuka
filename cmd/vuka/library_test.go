@@ -120,7 +120,11 @@ func withModule(t *testing.T, root, path, dir string) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	mod = append(mod, "\nrequire "+path+" v0.0.0\n\nreplace "+path+" => "+dir+"\n"...)
+	v := "v0.0.0"
+	if m := pathMajor(path); m != "" {
+		v = m[1:] + ".0.0"
+	}
+	mod = append(mod, "\nrequire "+path+" "+v+"\n\nreplace "+path+" => "+dir+"\n"...)
 	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
 	more, _ := os.ReadFile(filepath.Join(dir, "go.sum"))
 	if err := os.WriteFile(filepath.Join(root, "go.mod"), mod, 0o644); err != nil {

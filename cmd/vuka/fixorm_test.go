@@ -125,7 +125,7 @@ func TestQueryFixes(t *testing.T) {
 			t.Errorf("no %q in\n%s", want, out)
 		}
 	}
-	if strings.Contains(string(out), "orm/fn") {
+	if strings.Contains(string(out), "orm/v2/fn") {
 		t.Errorf("fn is still imported:\n%s", out)
 	}
 }

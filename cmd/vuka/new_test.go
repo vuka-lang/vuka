@@ -253,7 +253,7 @@ func TestRenderFileSets(t *testing.T) {
 
 	pg := render("live", "postgres", "no", "yes", "none")
 	has(pg, []string{"migrations/0001_initial.go"}, nil)
-	if m := string(pg["main.vuka"]); !strings.Contains(m, "orm/postgres") || strings.Contains(m, "mail.Provide") {
+	if m := string(pg["main.vuka"]); !strings.Contains(m, "orm/v2/postgres") || strings.Contains(m, "mail.Provide") {
 		t.Errorf("postgres without mail: %s", m)
 	}
 	if e := string(pg[".env"]); !strings.Contains(e, "DATABASE_URL=postgres://postgres:postgres@localhost:5432/shop?sslmode=disable") || strings.Contains(e, "MAIL_") {

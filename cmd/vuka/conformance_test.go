@@ -114,7 +114,7 @@ func confCheckouts(t *testing.T) map[string]string {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
 			needs(t, "no checkout of github.com/vuka-lang/%s at %s; set %s", m.name, dir, m.env)
 		}
-		mods["github.com/vuka-lang/"+m.name] = dir
+		mods["github.com/vuka-lang/"+m.name+"/v2"] = dir
 	}
 	return mods
 }
@@ -157,6 +157,9 @@ func confModule(t *testing.T, src string, mods map[string]string, extra map[stri
 	})
 	for _, p := range paths {
 		req[p] = "v0.0.0"
+		if m := pathMajor(p); m != "" {
+			req[p] = m[1:] + ".0.0"
+		}
 	}
 	for _, p := range paths {
 		out, err := exec.Command("go", "mod", "edit", "-json", filepath.Join(mods[p], "go.mod")).Output()

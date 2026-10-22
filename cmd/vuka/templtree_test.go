@@ -112,7 +112,7 @@ func TestInstrumentTemplOutput(t *testing.T) {
 			t.Errorf("no %q in\n%s", want, out)
 		}
 	}
-	if n := strings.Count(string(out), "ui/templx"); n != 1 {
+	if n := strings.Count(string(out), "ui/v2/templx"); n != 1 {
 		t.Errorf("%d imports of templx", n)
 	}
 }
