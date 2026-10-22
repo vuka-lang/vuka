@@ -4,12 +4,14 @@ package pages
 import "github.com/vuka-lang/ui"
 
 // Chart is an island, islands/Chart.ts: its exported fields are its props.
+@ui.Island
 type Chart struct {
 	Title  string `json:"title"`
 	Points []int  `json:"points"`
 }
 
 // Badge is an island, islands/Badge.ts, loaded when the browser is idle.
+@ui.Island
 type Badge struct {
 	Label string `json:"label"`
 	Count int    `json:"count"`
@@ -19,9 +21,4 @@ type Badge struct {
 type Range struct {
 	From int `json:"from"`
 	To   int `json:"to"`
-}
-
-func init() {
-	ui.RegisterIsland[Chart]()
-	ui.RegisterIsland[Badge]()
 }

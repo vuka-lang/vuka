@@ -4,10 +4,9 @@ package pages
 import "github.com/vuka-lang/ui"
 
 // Picker is an island, islands/Picker.vue.
+@ui.Island
 type Picker struct {
 	Label   string   `json:"label"`
 	Options []string `json:"options"`
 	Picked  string   `json:"picked"`
 }
-
-func init() { ui.RegisterIsland[Picker]() }
