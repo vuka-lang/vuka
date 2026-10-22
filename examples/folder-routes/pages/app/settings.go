@@ -1,4 +1,4 @@
-// Package app is /app: a client-side app under app/route, with Settings, a
+// Package app is /app: a client-side app at [route...], with Settings, a
 // server page, beside it.
 package app
 

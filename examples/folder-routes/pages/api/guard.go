@@ -1,5 +1,6 @@
-// Package api is /api, a JSON API of endpoints: types with Get, Post, Put
-// or Delete methods and no markup.
+// Package api is /api, a JSON API: endpoint types with Get, Post, Put or
+// Delete methods and no markup, and files of method funcs, GET, PUT and
+// DELETE in employers/[employer].vuka.
 package api
 
 import (

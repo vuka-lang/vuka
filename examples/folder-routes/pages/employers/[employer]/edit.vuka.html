@@ -1,0 +1,43 @@
+package employer
+
+import (
+	"context"
+
+	"example.com/folder-routes/pages/urls"
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/web"
+)
+
+// Edit is the employer's form: GET /employers/{employer}/edit, its Post
+// method POST and its Delete method DELETE on the same path. Each request
+// builds its own Edit with the employer bound, and the employer's layout
+// loads first, so an unknown employer is not found for all three.
+type Edit struct {
+	Employer int
+	db       *store.Store
+}
+
+func NewEdit(s *store.Store) *Edit { return &Edit{db: s} }
+
+// employer is the record the form edits.
+func (p *Edit) employer() store.Employer {
+	e, _ := p.db.Employer(p.Employer)
+	return e
+}
+
+func (p *Edit) Title() string { return "Edit " + p.employer().Name }
+
+func (p *Edit) Post(ctx context.Context, form store.EmployerForm) (web.Redirect, error) {
+	p.db.UpdateEmployer(p.Employer, form)
+	return web.Redirect(urls.Employers.Employer(p.Employer).Path()), nil
+}
+
+func (p *Edit) Delete(ctx context.Context) error {
+	p.db.DeleteEmployer(p.Employer)
+	return nil
+}
+<form id="edit" method="post" action={urls.Employers.Employer(Employer).Edit.Path()}>
+  <label>Name <input name="name" value={employer().Name} required/></label>
+  <label>City <input name="city" value={employer().City} required/></label>
+  <button>Save</button>
+</form>

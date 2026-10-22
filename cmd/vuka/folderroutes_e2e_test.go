@@ -16,20 +16,21 @@ import (
 	"testing"
 )
 
-// TestFolderRoutesE2E generates examples/folder-routes, plain Go whose
-// routes are its pages/ folders, with vuka gen -inplace, builds it with go
-// build and requests its pages: the layouts nest, titles come from the
-// pages, parameters bind typed (a bad one is not found), the catch-all
-// takes the rest of the path (a client app's shell answers every URL under
-// it but the pages beside it), a template is a page with no type of its
-// own, method handlers answer on their page's path, and every link,
-// parent to child included, comes from pages/urls. Its JSON API under
-// pages/api is endpoints behind a guard: each method answers JSON or a
-// status, and the guard refuses a request before its body is read. Pages
-// without a constructor of their own are routed with a generated one.
-// Folder middleware wraps everything below its folder, the root's
-// outermost, and short-circuits before the guards; a type's attributes
-// (vuka.RegisterType) reach a stateless page's route.
+// TestFolderRoutesE2E generates examples/folder-routes, whose routes are
+// its pages/ folders, with vuka gen -inplace (pages/route.go, pages/urls,
+// and its bracketed folders' Go under their Go names), builds it with go
+// build and requests its pages: the layouts (_layout.vuka.html) nest,
+// titles come from the pages, parameters bind typed into the pages'
+// fields (a bad one is not found), the catch-all takes the rest of the path
+// (a client app's shell answers every URL under it but the pages beside
+// it), method handlers answer on their page's path, and every link, parent
+// to child included, comes from pages/urls. Its JSON API under pages/api is
+// an endpoint type and a file of method funcs behind a guard: each method
+// answers JSON or a status, and the guard refuses a request before its
+// body is read. Pages without a constructor of their own are built in
+// route.go. Folder middleware wraps everything below its folder, the
+// root's outermost, and short-circuits before the guards; a type's
+// attributes (vuka.RegisterType) reach a stateless page's route.
 func TestFolderRoutesE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
@@ -59,7 +60,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 	src := filepath.Join(repo, "examples/folder-routes")
 	files := map[string]string{}
 	filepath.WalkDir(src, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, ".vuka.html") {
+		if err != nil || d.IsDir() || !strings.HasSuffix(p, ".go") && !strings.HasSuffix(p, ".vuka.html") && !strings.HasSuffix(p, ".vuka") {
 			return err
 		}
 		b, err := os.ReadFile(p)
@@ -76,11 +77,11 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if out, err := runVuka(t, vuka, root, "gen", "-inplace"); err != nil {
 		t.Fatalf("vuka gen -inplace: %v\n%s", err, out)
 	}
-	if _, err := os.Stat(filepath.Join(root, "pages", "pages_gen.go")); err != nil {
-		t.Errorf("no pages/pages_gen.go: %v", err)
+	if b, err := os.ReadFile(filepath.Join(root, "pages", "route.go")); err != nil || !bytes.Contains(b, []byte("func Routes() web.Option")) {
+		t.Errorf("pages/route.go: %v\n%s", err, b)
 	}
 	urls, _ := os.ReadFile(filepath.Join(root, "pages/urls/urls_gen.go"))
-	for _, want := range []string{"package urls", "Employer(employer int)", "Permit(permit int)", "File(file web.Rest)"} {
+	for _, want := range []string{"package urls", "Employer(employer int)", "Permit(permit int)", "File(file web.Rest)", "Route(route string)"} {
 		if !strings.Contains(string(urls), want) {
 			t.Errorf("pages/urls/urls_gen.go has no %s:\n%s", want, urls)
 		}
@@ -93,7 +94,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 		t.Fatalf("vuka routes: %v\n%s", err, out)
 	}
 	for _, want := range []string{"/employers/new", "/employers/{employer}/edit", "/employers/{employer}/permits/{permit}", "/files/{file...}", "/app/{route...}", "/about", "DELETE", "employer.Layout",
-		"/api/employers/{employer}", "(endpoint)", "api.Guard", "app.Settings",
+		"/api/employers/{employer}", "employers.GET (endpoint)", "api.Guard", "app.Settings", "permits.Permit (live)", "app.Shell",
 		"MIDDLEWARE", "pages.Middleware", "api.Middleware"} {
 		if !strings.Contains(out, want) {
 			t.Errorf("vuka routes has no %q:\n%s", want, out)
