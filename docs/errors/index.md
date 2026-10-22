@@ -58,6 +58,9 @@ same page in the terminal.
 | [E0143](./E0143) | An unknown element or template |
 | [E0144](./E0144) | A tag leaves out a parameter |
 | [E0145](./E0145) | A template has an element's name |
+| [E0146](./E0146) | A template file's Go declares no struct |
+| [E0147](./E0147) | A template file declares more than one struct |
+| [E0148](./E0148) | A template file has Go and no markup |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |

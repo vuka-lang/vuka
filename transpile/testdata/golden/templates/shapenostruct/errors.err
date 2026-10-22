@@ -1,0 +1,1 @@
+page.vuka.html:3:1: the template file's Go declares no struct: a .vuka.html file renders one struct, declared above its markup; declare it: type Page struct { … }

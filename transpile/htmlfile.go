@@ -294,6 +294,19 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	head := ParseTemplateHead(src)
 	top := head.Top
+	// A file in the 2.0 shape declares its struct above its markup: the
+	// templates start there.
+	var shape *Shape
+	if isShape(lines, top) {
+		sh, err := parseShape(src, lines, head)
+		if err != nil {
+			if assetsOnly {
+				return nil, nil, nil, nil
+			}
+			return nil, nil, nil, err
+		}
+		shape, top = sh, sh.Markup
+	}
 	own := map[string]bool{}
 	for _, imp := range head.Imports {
 		own[imp.name()] = true
@@ -373,6 +386,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	var assets []TemplateAsset
 	typ := componentName(name)
+	if shape != nil {
+		typ = shape.Type
+	}
 	if first >= 0 {
 		assets = append(assets, cutAssets(lines, first, firstEnd, typ)...)
 	}
@@ -412,6 +428,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	if first >= 0 {
 		ptr, live, ok := receiverKind(typ, others)
+		if shape != nil {
+			ptr, live, ok = shape.Ptr, shape.Live, true
+		}
 		if !ok {
 			return nil, nil, nil, &Error{Code: "E0140", Msg: "the markup before the first func is the component " + typ + "'s, and the package declares no type " + typ,
 				Help: "declare type " + typ + " in a .go or .vuka file of the package, or start the file with func …"}
@@ -422,15 +441,30 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			star = "*"
 		}
 		*h = htmlFile{recv: recv, recvType: typ, start: off[first], end: off[firstEnd]}
+		targs := ""
+		if shape != nil {
+			// The markup reads the struct as its methods do.
+			if shape.Recv != "" {
+				recv, h.recv = shape.Recv, shape.Recv
+			}
+			targs = shape.TypeArgs
+			// A struct live by its hooks or events is a live component.
+			if shape.Live && !shape.EmbedsLive {
+				add(shape.open, ui+"Live; ")
+			}
+		}
 		// A stateful component's markup is its Render, a struct
 		// component's its View.
 		method := "View"
 		if live {
 			method = "Render"
 		}
-		open := "func (" + recv + " " + star + typ + ") " + method + "() " + ui + "Node" + openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), ""))
+		open := "func (" + recv + " " + star + typ + targs + ") " + method + "() " + ui + "Node" + openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), ""))
 		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
 			open += "\n" // a statement starts its line
+		}
+		if shape != nil {
+			open = "\n\n" + open // after the header's last declaration
 		}
 		add(off[first], open)
 		for _, a := range assets {
@@ -447,7 +481,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			end = body(first+1, firstEnd)
 		}
 		if !live {
-			renderMethod(end, recv, star+typ)
+			renderMethod(end, recv, star+typ+targs)
 		}
 	}
 	for k, hd := range heads {
@@ -470,7 +504,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 	}
 	var imps []string
-	if ui != "" {
+	if ui != "" && !own[strings.TrimSuffix(ui, ".")] {
 		target := DefaultJSXTarget // or the package's own, imported as ui
 		for _, imp := range packageImports(others) {
 			if imp.name+"." == ui {
@@ -963,8 +997,9 @@ var headerName = regexp.MustCompile(`^func(?:\s*(\([^)]*\))\s*|\s+)(\w+)`)
 func TemplateHeaders(src []byte) []TemplateHeader {
 	var out []TemplateHeader
 	off, prev := 0, ""
+	top := templatesTop(src)
 	for i, l := range strings.SplitAfter(string(src), "\n") {
-		if m := headerName.FindStringSubmatchIndex(l); m != nil {
+		if m := headerName.FindStringSubmatchIndex(l); m != nil && i >= top {
 			out = append(out, TemplateHeader{Name: l[m[4]:m[5]], Method: m[2] >= 0, Off: off + m[4], Line: i + 1,
 				Doc: strings.HasPrefix(strings.TrimSpace(prev), "//")})
 		}
@@ -981,7 +1016,7 @@ func TemplateHeaders(src []byte) []TemplateHeader {
 // with an error in one template so, for the others to type-check.
 func BlankTemplate(src []byte, off int) []byte {
 	lines := strings.SplitAfter(string(src), "\n")
-	top := ParseTemplateHead(src).Top
+	top := templatesTop(src)
 	type span struct{ doc, head, end int } // a template's lines: its doc comment, header, markup up to end
 	spans := []span{{top, -1, len(lines)}}
 	for i := top; i < len(lines); i++ {

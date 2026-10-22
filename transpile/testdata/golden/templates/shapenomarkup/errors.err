@@ -1,0 +1,1 @@
+page.vuka.html:3:1: the template file has Go and no markup: its markup starts at the first line starting with <; write the struct's markup below its Go, or make the file a .go file
