@@ -332,7 +332,15 @@ func (f *vfile) toGen(pos lspPosition) lspPosition {
 		}
 		return pos
 	}
-	g, _ := f.m.ToGenerated(f.fromOff(offsetOf(f.text(), pos)))
+	o := f.fromOff(offsetOf(f.text(), pos))
+	g, _ := f.m.ToGenerated(o)
+	// At a name's first byte, the name: not text Vuka wrote before it (a
+	// bare field's receiver).
+	if o < len(f.from) && isIdentByte(f.from[o]) && (o == 0 || !isIdentByte(f.from[o-1])) {
+		if next, exact := f.m.ToGenerated(o + 1); exact && next-1 > g {
+			g = next - 1
+		}
+	}
 	return positionOf(f.gen, g)
 }
 
@@ -347,6 +355,9 @@ func (f *vfile) toSource(r lspRange, exact bool) (lspRange, bool) {
 	s, e, ok := f.fromRange(r)
 	if !ok || exact && (f.goneAt(s) || f.goneAt(e)) {
 		return r, false
+	}
+	if exact && s == e && r.Start != r.End {
+		return r, false // a name Vuka wrote: the receiver type of a method it generates
 	}
 	return lspRange{positionOf(f.text(), f.curOff(s)), positionOf(f.text(), f.curOff(e))}, true
 }
@@ -1455,7 +1466,8 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 				}
 				r, ok := mapRange(ctx, val)
 				if !ok {
-					if _, isLocation := x["uri"]; isLocation || x["targetUri"] != nil {
+					_, isLocation := x["uri"]
+					if _, isEdit := x["newText"]; isLocation || isEdit || x["targetUri"] != nil {
 						return nil
 					}
 					delete(x, key)
@@ -1464,7 +1476,11 @@ func (p *proxy) rewrite(v any, ctx, origin *vfile) any {
 				x[key] = r
 			default:
 				if _, nested := val.(map[string]any); nested {
-					x[key] = p.rewrite(val, ctx, origin)
+					if r := p.rewrite(val, ctx, origin); r != nil {
+						x[key] = r
+					} else {
+						delete(x, key)
+					}
 				} else if _, list := val.([]any); list {
 					x[key] = p.rewrite(val, ctx, origin)
 				}

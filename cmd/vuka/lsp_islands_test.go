@@ -12,17 +12,12 @@ import (
 
 const islandLSPSource = `package main
 
-import (
-	"github.com/vuka-lang/ui"
+import Picker "./islands/Picker.vue"
 
-	Picker "./islands/Picker.vue"
-)
-
-func Page() ui.Node {
-	return <Picker title="Week" client:load />
-}
-
-func main() {}
+type Page struct{}
+<section>
+	<Picker title="Week" client:load />
+</section>
 `
 
 const islandLSPVue = `<script setup lang="ts">
@@ -30,14 +25,14 @@ defineProps<{ title: string; weeks?: number; onPick?: (day: string) => void }>()
 </script>
 `
 
-// The LSP sees an imported island's props as the compiler reads them from
-// the component: no diagnostics, hover on an attribute, attribute
+// The LSP sees an island imported in a .vuka.html header with its props as
+// the compiler reads them from the component: no diagnostics, hover on an attribute, attribute
 // completion, and a wrong value reported where it is written.
 func TestLSPIslandImport(t *testing.T) {
-	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": islandLSPSource, "islands/Picker.vue": islandLSPVue})
-	uri := pathToURI(filepath.Join(dir, "main.vuka"))
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "page.vuka.html": islandLSPSource, "islands/Picker.vue": islandLSPVue})
+	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
-		"uri": uri, "languageId": "vuka", "version": 1, "text": islandLSPSource}})
+		"uri": uri, "languageId": "vuka-html", "version": 1, "text": islandLSPSource}})
 	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
 	at := func(src, needle string, delta int) map[string]any {
 		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(src), strings.Index(src, needle)+delta)}
@@ -73,10 +68,13 @@ func TestLSPIslandImport(t *testing.T) {
 	}
 	src = strings.Replace(islandLSPSource, `title="Week"`, `title="Week" weeks="2"`, 1)
 	edit(src)
-	c.waitDiags(uri, func(ds []any) bool {
+	ds := c.waitDiags(uri, func(ds []any) bool {
 		b, _ := json.Marshal(ds)
 		return strings.Contains(string(b), "float64")
 	})
+	if r, _ := toRange(ds[0].(map[string]any)["range"]); r.Start.Line != positionOf([]byte(src), strings.Index(src, "weeks=")).Line {
+		t.Fatalf("a wrong value's diagnostic: %s", jsonOf(ds))
+	}
 }
 
 const islandDecoSource = `package main

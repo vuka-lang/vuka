@@ -8,13 +8,12 @@ import (
 )
 
 // staticChainSource mirrors the real ORM shape: a static `Objects` member and
-// a generic static `Find[T]`, used in a method chain below a JSX construct.
+// a generic static `Find[T]`, used in a method chain below a ? construct.
 const staticChainSource = `package main
 
 import (
 	"context"
-
-	"github.com/vuka-lang/ui"
+	"strconv"
 )
 
 type Manager[T any] struct{ rows []*T }
@@ -31,10 +30,9 @@ type Task struct {
 	Title string
 }
 
-func widget() ui.Node {
-	return <div className="card">
-		<h3>hello</h3>
-	</div>
+func parse(s string) (int, error) {
+	n := strconv.Atoi(s)?
+	return n, nil
 }
 
 func run(ctx context.Context) {
@@ -54,7 +52,7 @@ func openChain(t *testing.T) (*lspClient, string) {
 }
 
 // TestLSPStaticChainHover (BUG D): hover on the method after a static chain,
-// below a JSX construct, returns a non-empty signature mapped to the .vuka.
+// below a ? construct, returns a non-empty signature mapped to the .vuka.
 func TestLSPStaticChainHover(t *testing.T) {
 	c, uri := openChain(t)
 	hover := func(needle string, delta int) (string, lspRange) {
@@ -69,7 +67,7 @@ func TestLSPStaticChainHover(t *testing.T) {
 	}
 	h, r := hover("Objects.All(ctx)", len("Objects."))
 	if !strings.Contains(h, "All(ctx") {
-		t.Fatalf("hover on All after static chain below JSX: %s", h)
+		t.Fatalf("hover on All after static chain below a ?: %s", h)
 	}
 	// Range must land on the .vuka's own `All`, not an offset line.
 	wantLine := positionOf([]byte(staticChainSource), strings.Index(staticChainSource, "Objects.All(ctx)")).Line
@@ -98,12 +96,12 @@ func TestLSPStaticChainCompletion(t *testing.T) {
 		"position": positionOf([]byte(src), off)})
 	b, _ := json.Marshal(v)
 	if !strings.Contains(string(b), `"All"`) || !strings.Contains(string(b), `"Count"`) {
-		t.Fatalf("completion after static chain dot below JSX missing All/Count: %.600s", b)
+		t.Fatalf("completion after static chain dot below a ? missing All/Count: %.600s", b)
 	}
 }
 
 // TestLSPStaticChainDiagnostic (BUG C): a type error below a static chain and
-// a JSX construct lands on its own .vuka line.
+// a ? construct lands on its own .vuka line.
 func TestLSPStaticChainDiagnostic(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": staticChainSource})
 	uri := pathToURI(filepath.Join(dir, "main.vuka"))

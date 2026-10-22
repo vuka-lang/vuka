@@ -7,11 +7,12 @@ import (
 	"testing"
 )
 
-// driftSource has a JSX construct above a plain generic method-chain line, to
-// probe whether positions after a vuka construct still map correctly.
+// driftSource has a vuka construct (an error-propagating ?, lowered to more
+// lines) above a plain generic method-chain line, to probe whether positions
+// after it still map correctly.
 const driftSource = `package main
 
-import "github.com/vuka-lang/ui"
+import "strconv"
 
 type Task struct{ ID int }
 
@@ -21,10 +22,9 @@ func (m *Manager[T]) All() []T { return m.items }
 
 func NewManager[T any]() *Manager[T] { return &Manager[T]{} }
 
-func widget() ui.Node {
-	return <div className="card">
-		<h3>hello</h3>
-	</div>
+func parse(s string) (int, error) {
+	n := strconv.Atoi(s)?
+	return n, nil
 }
 
 func run() {
@@ -61,7 +61,7 @@ func hasLabel(items []map[string]any, label string) bool {
 }
 
 // TestLSPDriftCompletion (BUG B): completion on a plain method chain below a
-// JSX construct returns the right members.
+// vuka construct returns the right members.
 func TestLSPDriftCompletion(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": driftSource})
 	uri := pathToURI(filepath.Join(dir, "main.vuka"))
@@ -79,11 +79,11 @@ func TestLSPDriftCompletion(t *testing.T) {
 		for _, it := range items {
 			labels = append(labels, it["label"].(string))
 		}
-		t.Fatalf("completion after mgr. below JSX missing All; got %v", labels)
+		t.Fatalf("completion after mgr. below a ? missing All; got %v", labels)
 	}
 }
 
-// TestLSPDriftHover (BUG D): hover on a method and a type arg below a JSX
+// TestLSPDriftHover (BUG D): hover on a method and a type arg below a vuka
 // construct returns a non-empty signature.
 func TestLSPDriftHover(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": driftSource})
@@ -100,14 +100,14 @@ func TestLSPDriftHover(t *testing.T) {
 		return string(b)
 	}
 	if h := hover("mgr.All()", 4); !strings.Contains(h, "All()") {
-		t.Fatalf("hover on All below JSX: %s", h)
+		t.Fatalf("hover on All below a ?: %s", h)
 	}
 	if h := hover("NewManager[Task]()", len("NewManager[")); !strings.Contains(h, "type Task struct") {
-		t.Fatalf("hover on type arg Task below JSX: %s", h)
+		t.Fatalf("hover on type arg Task below a ?: %s", h)
 	}
 }
 
-// TestLSPDriftDiagnostic (BUG C): a type error below a JSX construct lands on
+// TestLSPDriftDiagnostic (BUG C): a type error below a vuka construct lands on
 // its own line in the .vuka file.
 func TestLSPDriftDiagnostic(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": driftSource})

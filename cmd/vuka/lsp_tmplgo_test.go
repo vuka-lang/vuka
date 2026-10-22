@@ -51,7 +51,7 @@ func TestTemplateRepairs(t *testing.T) {
 	}
 }
 
-// A package of a file-based component and a partial, read by bare names.
+// A package of a page and a component, read by bare names.
 var lspGoTemplate = map[string]string{
 	"sales.go": `package main
 
@@ -63,6 +63,26 @@ type Item struct {
 	Href  string
 }
 
+// Shout is s, n times.
+func Shout(s string, n int) string { return strings.Repeat(s, n) }
+
+const Limit = 3
+
+func main() {}
+`,
+	"navlink.vuka.html": `package main
+
+// NavLink is a menu entry; On marks the current one.
+type NavLink struct {
+	Item Item
+	On   bool
+}
+<a href={Item.Href}>{Item.Label}</a>
+`,
+	"sales.vuka.html": `package main
+
+import "fmt"
+
 // Sales is a week of sales.
 type Sales struct {
 	Title string
@@ -73,29 +93,17 @@ type Sales struct {
 
 // Total is the week's sales.
 func (s Sales) Total() int { return len(s.Week) }
-
-// Shout is s, n times.
-func Shout(s string, n int) string { return strings.Repeat(s, n) }
-
-const Limit = 3
-
-func main() {}
-`,
-	"sales.vuka.html": `package main
-
-import "fmt"
-
 <section>
   <h2>{Title}</h2>
   for _, it := range Items {
-    <navLink item={it} on={Open}/>
+    <NavLink item={it} on={Open}/>
   }
   <p>{Total()}</p>
   <p>{fmt.Sprint(Limit)}</p>
+  for _, item := range Items {
+    <a href={item.Href}>{item.Label}</a>
+  }
 </section>
-
-func navLink(item Item, on bool)
-<a href={item.Href}>{item.Label}</a>
 <script lang="ts">
 const n = 1
 </script>
@@ -227,11 +235,11 @@ func TestLSPTemplateGoCompletion(t *testing.T) {
 		{"an unclosed statement", "<a href={item.Href}>", "if item.|\n<a href={item.Href}>", "Href", "if item.Href", nil},
 		{"an attribute's value", "href={item.Href}", "href={item.H|}", "Href", `<a href={item.Href}>{item.Label}</a>`, nil},
 		{"an attribute's value half-typed", "href={item.Href}>", "href={item.H|>", "Href", `<a href={item.Href>{item.Label}</a>`, nil},
-		{"a header's type", "func navLink(item Item, on bool)", "func navLink(item It|, on bool)", "Item", "func navLink(item Item, on bool)", nil},
+		{"a header's type", "Items []Item", "Items []It|", "Item", "Items []Item", nil},
 		{"an imported package", "{fmt.Sprint(Limit)}", "{fmt.Spr|}", "Sprintf", "<p>{fmt.Sprintf()}</p>", nil},
 		{"a call's argument", "{fmt.Sprint(Limit)}", "{fmt.Sprint(Li|)}", "Limit", "<p>{fmt.Sprint(Limit)}</p>", []string{`"io.LimitReader"`}},
 		{"a call's argument, unclosed", "{fmt.Sprint(Limit)}</p>", "{fmt.Sprint(Li|</p>", "Limit", "<p>{fmt.Sprint(Limit</p>", nil},
-		{"a composite literal", "<navLink item={it}", "<navLink item={Item{La|}}", "Label", "<navLink item={Item{Label: }} on={Open}/>", nil},
+		{"a composite literal", "<NavLink item={it}", "<NavLink item={Item{La|}}", "Label", "<NavLink item={Item{Label: }} on={Open}/>", nil},
 		{"an index", "<p>{Total()}</p>", "<p>{Week[Li|]}</p>", "Limit", "<p>{Week[Limit]}</p>", nil},
 		{"an assignment", "<p>{Total()}</p>", "x := Sh|\n  <p>{Total()}</p>", "Shout", "x := Shout()", nil},
 		{"the package's import", "{fmt.Sprint(Limit)}", "{strings.ToU|}", "ToUpper", "<p>{strings.ToUpper()}</p>", nil},
@@ -330,16 +338,17 @@ func TestLSPTemplateGoSignature(t *testing.T) {
 	}
 }
 
-// TestLSPTemplateGoDiagnostics: gopls's errors in a hole, a statement and
-// a partial's attribute land on the template's text.
+// TestLSPTemplateGoDiagnostics: gopls's errors in a hole, a statement, an
+// element's attribute and a component's attribute land on the template's
+// text.
 func TestLSPTemplateGoDiagnostics(t *testing.T) {
 	g := startGoTemplate(t)
 	src := strings.NewReplacer("<h2>{Title}</h2>", "<h2>{Title + 1}</h2>",
-		"range Items {", "range Limits {", "href={item.Href}", "href={item.Ref}").Replace(lspGoTemplate["sales.vuka.html"])
+		"it := range Items {", "it := range Limits {", "href={item.Href}", "href={item.Ref}", "on={Open}", "on={Opened}").Replace(lspGoTemplate["sales.vuka.html"])
 	g.v++
 	g.c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": g.uri, "version": g.v},
 		"contentChanges": []any{map[string]any{"text": src}}})
-	want := map[string]string{"Title + 1": "mismatched types", "Limits": "undefined: Limits", "Ref": "item.Ref undefined"}
+	want := map[string]string{"Title + 1": "mismatched types", "Limits": "undefined: Limits", "Ref": "item.Ref undefined", "Opened": "undefined: Opened"}
 	ds := g.c.waitDiags(g.uri, func(ds []any) bool { return len(ds) >= len(want) })
 	for needle, msg := range want {
 		at := positionOf([]byte(src), strings.Index(src, needle))

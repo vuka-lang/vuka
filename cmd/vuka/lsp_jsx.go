@@ -571,18 +571,26 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 		if !isComponentTag(spot.tag.name) {
 			tag := spot.tag.name
 			own, global := elementAttrs(tag)
+			template := strings.HasSuffix(vf.source, ".vuka.html")
 			attr := func(group string, i int, a string) {
-				if used[a] {
+				label := a
+				if template {
+					label = map[string]string{"className": "class", "htmlFor": "for"}[a]
+					if label == "" {
+						label = a
+					}
+				}
+				if used[a] || used[label] {
 					return
 				}
-				text, format := a+`="$1"`, 2
+				text, format := label+`="$1"`, 2
 				switch {
 				case htmlBooleans[a]:
 					text, format = a, 1
 				case a == "style" || a == "key":
 					text = a + "={$1}"
 				}
-				item(a, 5, "", text, format, fmt.Sprintf("%s%03d", group, i))
+				item(label, 5, "", text, format, fmt.Sprintf("%s%03d", group, i))
 				doc(attrDoc(tag, a))
 				if len(attrValues(tag, a)) > 0 {
 					last["command"] = map[string]any{"title": "values", "command": "editor.action.triggerSuggest"}

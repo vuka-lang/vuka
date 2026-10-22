@@ -70,17 +70,37 @@ func typist(prefix, target string, step func(buf, typed string)) {
 	}
 }
 
+// benchPage is the page every editor feature is checked against: typing its
+// markup must feel like TSX.
+const benchPageHead = "package main\n\nimport (\n\t\"fmt\"\n\n\t\"lsptest/data\"\n)\n\n// PetTable lists pets.\ntype PetTable struct {\n\tPets []data.Pet\n}\n"
+const benchPageBody = `<section>
+	<h1>Pets ({len(Pets)})</h1>
+	<table>
+		<tr><th>Name</th><th>Kind</th><th>Age</th></tr>
+		for _, p := range Pets {
+			<tr>
+				<td>
+					<a href={fmt.Sprintf("/pets/%d", p.ID)}>{p.Name}</a>
+				</td>
+				<td>{p.Kind}</td>
+				<td>{p.Age}</td>
+			</tr>
+		}
+	</table>
+</section>`
+const benchPage = benchPageHead + benchPageBody + "\n"
+
 func TestLSPBenchmark(t *testing.T) {
-	start := benchHead + "func PetTable(pets []data.Pet) ui.Node {\n\treturn \n}\n" + benchTail
-	c, dir, init := startLSPWith(t, templFiles(t, map[string]string{"main.vuka": start, "data/data.go": benchData}))
+	start := benchPageHead
+	c, dir, init := startLSPWith(t, templFiles(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "pets.vuka.html": start, "data/data.go": benchData}))
 	caps, _ := json.Marshal(init.(map[string]any)["capabilities"])
 	for _, want := range []string{`"linkedEditingRangeProvider":true`, `"foldingRangeProvider":true`, `"\""`} {
 		if !strings.Contains(string(caps), want) {
 			t.Fatalf("capabilities lack %s: %.300s", want, caps)
 		}
 	}
-	uri := pathToURI(filepath.Join(dir, "main.vuka"))
-	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka", "version": 1, "text": start}})
+	uri := pathToURI(filepath.Join(dir, "pets.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": start}})
 	version := 1
 	edit := func(src string) {
 		version++
@@ -126,18 +146,18 @@ func TestLSPBenchmark(t *testing.T) {
 	}
 	settle()
 
-	prefix := benchHead + "func PetTable(pets []data.Pet) ui.Node {\n\treturn "
-	body := strings.TrimSuffix(strings.TrimPrefix(benchBody, "func PetTable(pets []data.Pet) ui.Node {\n\treturn "), "\n}\n")
+	prefix := benchPageHead
+	body := benchPageBody
 	var final string
 	checks := map[string]func(src string, off int){
 		// 1. completion while typing, the file around mid-edit
-		"return <": func(src string, off int) {
+		"<section>\n\t<": func(src string, off int) {
 			got := complete(src, off)
 			if h1 := got["h1"]; !strings.Contains(h1.Documentation.Value, "Heading_Elements") || got["svg"].Detail != "SVG element" || got["search"].Label == "" {
 				t.Errorf("after <: h1 %+v, %d items", h1, len(got))
 			}
 		},
-		"\t\t<t": func(src string, off int) {
+		"\t<t": func(src string, off int) {
 			got := complete(src, off)
 			for _, want := range []string{"table", "td", "tr", "th", "textarea", "template"} {
 				if got[want].Label == "" {
@@ -159,7 +179,7 @@ func TestLSPBenchmark(t *testing.T) {
 			if target.Command == nil || target.Command.Command != "editor.action.triggerSuggest" {
 				t.Errorf("<a : target doesn't ask for its values: %+v", target)
 			}
-			for _, want := range []string{"className", "id", "onClick", "aria-label", "data-", "key"} {
+			for _, want := range []string{"class", "id", "onClick", "aria-label", "data-"} {
 				if got[want].Label == "" {
 					t.Errorf("<a : no %s", want)
 				}
@@ -168,7 +188,7 @@ func TestLSPBenchmark(t *testing.T) {
 				t.Errorf("<a : colspan offered")
 			}
 			// What other elements take, typed at the same place.
-			for tag, want := range map[string]string{"td": "colspan", "input": "placeholder", "label": "htmlFor"} {
+			for tag, want := range map[string]string{"td": "colspan", "input": "placeholder", "label": "for"} {
 				alt := src[:off-2] + tag + " " + src[off:]
 				edit(alt)
 				if got := complete(alt, off-2+len(tag)+1); got[want].Label == "" {
@@ -199,15 +219,14 @@ func TestLSPBenchmark(t *testing.T) {
 				t.Errorf("<td>{p.: %v", got)
 			}
 		},
-		"\t\t\t{fo": func(src string, off int) {
-			got := complete(src, off)
-			if f := got["for"]; f.InsertTextFormat != 2 || !strings.HasPrefix(f.TextEdit.NewText, "for ${1:_}, ${2:it} := range") {
-				t.Errorf("{fo: %+v", f)
+		"range Pe": func(src string, off int) {
+			if got := complete(src, off); got["Pets"].Label == "" {
+				t.Errorf("range Pe: %v", got)
 			}
 		},
 	}
 	typist(prefix, body, func(buf, typed string) {
-		src := prefix + buf + "\n}\n" + benchTail
+		src := prefix + buf + "\n"
 		final = src
 		edit(src)
 		for k, check := range checks {
@@ -216,7 +235,7 @@ func TestLSPBenchmark(t *testing.T) {
 			}
 		}
 		// 7. diagnostics while typing: never a flood, never stale
-		if strings.HasSuffix(typed, "\n") || strings.HasSuffix(typed, "<a hr") || strings.HasSuffix(typed, "<td>{p.") || strings.HasSuffix(typed, "{for _, p") {
+		if strings.HasSuffix(typed, "\n") || strings.HasSuffix(typed, "<a hr") || strings.HasSuffix(typed, "<td>{p.") || strings.HasSuffix(typed, "for _, p") {
 			ds := settle()
 			b, _ := json.Marshal(ds)
 			vuka := strings.Count(string(b), `"source":"vuka"`)
@@ -225,16 +244,16 @@ func TestLSPBenchmark(t *testing.T) {
 			}
 		}
 	})
-	if final != benchSource {
+	if final != benchPage {
 		t.Fatalf("typed:\n%s", final)
 	}
 	if ds := settle(); len(ds) != 0 {
 		t.Fatalf("diagnostics once typed: %v", ds)
 	}
-	src := benchSource
+	src := benchPage
 
 	// 2. hover
-	for needle, want := range map[string]string{"<table": "Tabular data", "</td": "A data cell", "href=": "Element/a#href", "<>": "fragment"} {
+	for needle, want := range map[string]string{"<table": "Tabular data", "</td": "A data cell", "href=": "Element/a#href"} {
 		h := ask("textDocument/hover", at(src, strings.Index(src, needle)+len(needle)-1))
 		if !strings.Contains(h, want) {
 			t.Errorf("hover %s: %s", needle, h)
@@ -251,33 +270,34 @@ func TestLSPBenchmark(t *testing.T) {
 	if r := ask("textDocument/documentHighlight", at(src, td)); strings.Count(r, `"range"`) != 2 {
 		t.Errorf("documentHighlight: %s", r)
 	}
-	// 5. folding: gopls's function body and imports, markup's elements and blocks
+	// 5. folding: the header's imports, markup's elements and blocks
 	f := ask("textDocument/foldingRange", map[string]any{"textDocument": map[string]any{"uri": uri}})
 	for _, want := range []struct{ from, to string }{
-		{"import (", `"lsptest/data"`}, {"func PetTable", "\t</>"}, {"\t\t<table>", "\t\t\t}}"}, {"{for", "\t\t\t\t</tr>"}, {"\t\t\t\t\t<td>\n", "\t\t\t\t\t\t<a"},
+		{"import (", `"lsptest/data"`}, {"<section>", "</section>"}, {"\t<table>", "\t</table>"}, {"for _, p", "\t\t\t</tr>"}, {"\t\t\t\t<td>\n", "\t\t\t\t\t<a"},
 	} {
 		// gopls ends a fold on its closing line unless the client folds whole lines only.
 		end, startLine := lineOf(src, strings.Index(src, want.to)), `,"startLine":`+itoaTest(lineOf(src, strings.Index(src, want.from)))+`}`
 		fold := `{"endLine":` + itoaTest(end) + startLine
-		if !strings.Contains(f, fold) && !strings.Contains(f, `{"endLine":`+itoaTest(end+1)+startLine) {
+		if !strings.Contains(f, fold) && !strings.Contains(f, `{"endLine":`+itoaTest(end-1)+startLine) && !strings.Contains(f, `{"endLine":`+itoaTest(end+1)+startLine) {
 			t.Errorf("no fold %s…%s (%s) in %s", want.from, want.to, fold, f)
 		}
 	}
-	// 6. formatting: kept as written, a messy copy fixed, nothing mid-edit
+	// 6. formatting: kept as written, a messy copy's holes fixed (markup
+	// stays as written), nothing mid-edit
 	formatting := func(s string) string {
 		edit(s)
 		return ask("textDocument/formatting", map[string]any{"textDocument": map[string]any{"uri": uri}, "options": map[string]any{"tabSize": 4, "insertSpaces": false}})
 	}
-	if r := formatting(src); r != "[]" {
+	if r := formatting(src); r != "[]" && r != "null" {
 		t.Errorf("formatting the benchmark: %s", r)
 	}
-	messy := strings.NewReplacer("\t\t\t\t\t", "    ", "{p.Name}", "{ p.Name }", `"/pets/%d", p.ID`, `"/pets/%d",p.ID`, "\t\t<table>", "      <table>").Replace(src)
+	messy := strings.NewReplacer("{p.Name}", "{ p.Name }", `"/pets/%d", p.ID`, `"/pets/%d",p.ID`, "{len(Pets)}", "{len( Pets )}").Replace(src)
 	var edits []any
 	_ = json.Unmarshal([]byte(formatting(messy)), &edits)
 	if got := applyEdits(messy, edits); got != src {
 		t.Errorf("formatting a messy copy:\n%s", got)
 	}
-	if r := formatting(strings.Replace(src, "<td>{p.Kind}</td>", "<td>{p.Kind}", 1)); r != "[]" {
+	if r := formatting(strings.Replace(src, "<td>{p.Kind}</td>", "<td>{p.Kind}", 1)); r != "[]" && r != "null" {
 		t.Errorf("formatting mid-edit: %s", r)
 	}
 	edit(src)
@@ -289,8 +309,9 @@ func TestLSPBenchmark(t *testing.T) {
 		file   string
 		target string
 	}{
-		{"p.Name", 0, "main.vuka", "p := range"},
-		{"pets {", 0, "main.vuka", "pets []"},
+		{"p.Name", 0, "pets.vuka.html", "p := range"},
+		{"Pets {", 0, "pets.vuka.html", "Pets []"},
+		{"Pets)", 0, "pets.vuka.html", "Pets []"},
 		{"data.Pet", 5, "data.go", ""},
 		{"fmt.Sprintf", 4, "print.go", ""},
 	} {
@@ -299,10 +320,10 @@ func TestLSPBenchmark(t *testing.T) {
 			t.Errorf("definition of %s: %s", tc.needle, d)
 		}
 	}
-	refs := at(src, nth(t, src, "pets []", 1, 0))
+	refs := at(src, nth(t, src, "Pets []", 1, 0))
 	refs["context"] = map[string]any{"includeDeclaration": true}
 	if r := ask("textDocument/references", refs); strings.Count(r, `"uri"`) != 3 {
-		t.Errorf("references of pets: %s", r)
+		t.Errorf("references of Pets: %s", r)
 	}
 	ren := at(src, nth(t, src, "p.Age", 1, 0))
 	ren["newName"] = "pet"
