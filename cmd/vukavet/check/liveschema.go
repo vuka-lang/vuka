@@ -12,9 +12,9 @@ import (
 // liveSchema is what a page's LiveSchema method declares, read from its
 // source as ui reads it at boot: its fields' attributes and its hooks.
 type liveSchema struct {
-	fields   map[*types.Var]schemaField
-	loads    map[string]bool // the groups loaded, as loaders name them: Lists
-	hooks    map[string]bool // the methods hooked
+	fields map[*types.Var]schemaField
+	loads  map[string]bool // the groups loaded, as loaders name them: Lists
+	hooks  map[string]bool // the methods hooked
 }
 
 type schemaField struct {
