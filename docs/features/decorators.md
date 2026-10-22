@@ -273,8 +273,8 @@ decorator ApiRoute(path string) = @web.Get(path) @web.Use(auth) @timed
 
 decorator Audited = @logged @Doc("audited")
 
-decorator Service = (
-	@web.Service
+decorator Admin = (
+	@web.Controller("/admin")
 	@Audited
 )
 
@@ -311,7 +311,7 @@ func ApiRoute(path string) vuka.Bundle {
 
 func Audited() vuka.Bundle { return vuka.Compose(logged, Doc("audited")) }
 
-func Service() vuka.Bundle { return vuka.Compose(web.Service, Audited()) }
+func Admin() vuka.Bundle { return vuka.Compose(web.Controller("/admin"), Audited()) }
 ```
 
 A function takes a bundle's parts where they go — its attributes into
@@ -339,8 +339,9 @@ func init() {
 ```
 
 For the web framework's own routes the registration call is shorter: the
-route's options and middleware go with it,
-`web.Routes.Get("/pets/{id}", showPet, web.Use(auth), web.Params("id", "store"))`.
+route's options and middleware go with it, after the names reflection can't
+see are recorded: `vuka.RegisterParams(showPet, "id", "store")`,
+`web.Routes.Get("/pets/{id}", showPet, web.Use(auth))`.
 :::
 
 ## Type-level advice
@@ -592,7 +593,8 @@ is the Go a person would write:
 
 ```go
 func init() {
-	web.Routes.Get("/pets/{id}", ShowPet, web.Use(requireToken), web.Params("id", "store"))
+	vuka.RegisterParams(ShowPet, "id", "store")
+	web.Routes.Get("/pets/{id}", ShowPet, web.Use(requireToken))
 	web.Routes.Live("/board", NewBoard, web.Layout(pageLayout))
 }
 ```
@@ -601,12 +603,12 @@ The other decorators on the declaration whose values the method takes as
 its options (its variadic parameter's type) go with the call — `@web.Use`
 here; a [composed decorator](#composed-decorators) is never one, it
 decorates the declaration itself (an auth gate wraps the function and the
-route reads it from the function's attributes). When the registry's package
-has `Params(names ...string)` returning such an option, a function whose
-parameters include one only a name tells apart (a string, a number, a
-`TextUnmarshaler`) gets its parameters' names with it, since reflection
-can't see them. A registry decorator needs a concrete function, as a
-declarer does.
+route reads it from the function's attributes). A function whose parameters
+include one only a name tells apart (a string, a number, a
+`TextUnmarshaler`) has its parameters' names recorded before the call, with
+`vuka.RegisterParams`, since reflection can't see them; a library finds them
+with `vuka.FuncOf(fn).Params`. A registry decorator needs a concrete
+function, as a declarer does.
 
 ```go
 type Registry struct{ … }
@@ -628,13 +630,14 @@ options after it:
 
 ```go
 func init() {
-	web.Routes.Get("/pets/{id}", ShowPet, web.Use(requireToken), web.Params("id", "store"))
+	web.Routes.Get("/pets/{id}", ShowPet, web.Use(requireToken))
 	web.Routes.Live("/board", NewBoard, web.Layout(pageLayout))
 }
 ```
 
-`web.Params` names the handler's parameters, which reflection can't see:
-scalars bind from the path or query by name. A registry type marks itself
+Reflection can't see the handler's parameters' names: from Go, its scalars
+bind the path's segments in order, and the query comes in a struct. A
+registry type marks itself
 with an unexported `vukaRegistry()` method, so that `.vuka` files may call
 its methods as decorators.
 :::

@@ -17,6 +17,8 @@ func (s *PetStore) Remove(id int) error        { return nil }
 
 func NewStore(db *DB) *PetStore { return NewPetStore(db) }
 
+func OpenDB() *DB { return &DB{} }
+
 func audit(name string, id int) func() { return func() {} }
 
 type Users struct{}
@@ -82,7 +84,6 @@ func init() {
 | `@web.Handle(method, path)` | a route for any method |
 | `@web.Template(file [, name])` | render the result with a [view](/web/views); before or after the route decorator |
 | `@web.Use(mw…)` | [middleware](/web/middleware) for this route |
-| `@web.Service` | a struct becomes a [dependency](/web/dependency-injection) |
 | `@web.Controller(prefix)` | a struct becomes a dependency whose route methods are served under `prefix` |
 | `@web.Live(path, opts…)` | a stateful component becomes a [live page](/web/live) |
 :::
@@ -94,7 +95,6 @@ func init() {
 | `web.Routes.Handle(method, path, fn, opts…)` | a route for any method |
 | `web.Template(file [, name])` | an option: render the result with a [view](/web/views) |
 | `web.Use(mw…)` | an option: [middleware](/web/middleware) for this route |
-| `web.Routes.Service(NewX)` | a struct becomes a [dependency](/web/dependency-injection) |
 | `web.Routes.Controller(prefix, NewX)` | a struct becomes a dependency whose method routes are served under `prefix` |
 | `web.Routes.Live(path, NewX, opts…)` | a stateful component becomes a [live page](/web/live) |
 :::
@@ -107,9 +107,10 @@ binds to `{id}`. Other decorators on the same function still wrap it — a call
 decorator such as `@audited` runs on every request:
 :::
 ::: go
-Reflection can't see parameter names, so `web.Params` names them, in order:
-that is how `id` binds to `{id}`. What a call decorator does in a `.vuka`
-file is code of the handler's own in Go:
+Reflection can't see parameter names, so a scalar binds the path segment its
+position gives — the last scalar the last segment — which is how `id` binds
+to `{id}`; the query comes in a struct. What a call decorator does in a
+`.vuka` file is code of the handler's own in Go:
 :::
 
 ::: vuka
@@ -129,7 +130,7 @@ func ShowPet(id int, store *PetStore) (Pet, error) {
 }
 
 func init() {
-	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+	web.Routes.Get("/pets/{id}", ShowPet)
 }
 ```
 :::
@@ -281,8 +282,8 @@ func (a *PetAdmin) Remove(ctx context.Context, id int) error { return a.store.Re
 
 func init() {
 	web.Routes.Controller("/admin/pets", NewPetAdmin)
-	web.Routes.Get("/", (*PetAdmin).Index)                                  // GET /admin/pets
-	web.Routes.Delete("/{id}", (*PetAdmin).Remove, web.Params("ctx", "id")) // DELETE /admin/pets/{id}
+	web.Routes.Get("/", (*PetAdmin).Index)          // GET /admin/pets
+	web.Routes.Delete("/{id}", (*PetAdmin).Remove) // DELETE /admin/pets/{id}
 }
 ```
 :::
@@ -294,16 +295,24 @@ both work.
 
 ## Services
 
-<span class="vuka-only">`@web.Service` on a struct</span><span class="go-only">`web.Routes.Service(NewX)`</span> makes it a dependency — a lazy singleton built <span class="vuka-only">from
-its fields, each injected by type (Vuka's
-[generated constructor](/features/dependency-injection))</span><span class="go-only">by its constructor</span>:
+A service is a struct with a constructor whose parameters are its own
+dependencies, registered in `main` with `app.Service(NewX)`: a lazy
+singleton, built when something first needs it. Handlers, hooks and other
+services take it as a parameter, [by type](/web/dependency-injection#parameters-by-type).
 
 ::: vuka
 ```vuka
-@web.Service
 type PetStore struct {
-	db  *DB
-	mu  sync.Mutex `inject:"-"`   // not a dependency
+	db *DB
+	mu sync.Mutex
+}
+
+func NewPetStore(db *DB) *PetStore { return &PetStore{db: db} }
+
+func main() {
+	app := web.New(web.Provide(OpenDB))
+	app.Service(NewPetStore)
+	app.Run("")
 }
 ```
 :::
@@ -317,13 +326,14 @@ type PetStore struct {
 
 func NewPetStore(db *DB) *PetStore { return &PetStore{db: db} }
 
-func init() {
-	web.Routes.Service(NewPetStore)
+func newApp() *web.App {
+	app := web.New(web.Provide(OpenDB))
+	app.Service(NewPetStore)
+	return app
 }
 ```
 :::
 
-<span class="go-only">The constructor's parameters are injected by type.</span>
 A method of a service (or of any provided type) can be a route too: the
 receiver comes from the container, with no prefix.
 
@@ -331,15 +341,17 @@ receiver comes from the container, with no prefix.
 
 Everything works from Go, without decorators, with the calls the decorators
 are: `@web.Get("/pets/{id}")` on `ShowPet` is
-`web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))`, and an
-app's methods of the same names register on that app alone:
+`web.Routes.Get("/pets/{id}", ShowPet)`, after
+`vuka.RegisterParams(ShowPet, "id", "store")` records the names reflection
+can't see, and an app's methods of the same names register on that app
+alone:
 
 ```go
 func main() {
 	app := web.New()
 	app.Service(NewStore)
 	app.Get("/pets", ListPets)
-	app.Get("/pets/{id}", ShowPet, web.Params("id", "store"), auth.Required())
+	app.Get("/pets/{id}", ShowPet, auth.Required())
 	app.Live("/board", NewBoard)
 	app.Live("/applicants", NewApplicants, ui.Island(ui.Layout(layouts.Page("Applicants"))))
 	app.Run("")
@@ -351,9 +363,10 @@ package's `.vuka` decorators lower to, and what a Go package registering its
 own routes calls in its `init`. `vuka eject` turns a `.vuka` file's
 decorators into these calls (see the [library example](https://github.com/vuka-lang/vuka/tree/main/examples/conformance/library-users)).
 
-Reflection can't see parameter names, so scalar parameters are named with
-`web.Params`, in order (`""` for a parameter that isn't a scalar), the
-receiver excluded; structs, request values and dependencies bind as usual.
+Reflection can't see parameter names, so a handler registered from Go binds
+its scalar parameters to the path's segments in order, the last scalar
+taking the last segment, and takes the query in a struct; structs, request
+values and dependencies bind by type as usual.
 Options are typed values: web's own, another package's (an auth gate,
 `ui.Island`), or any value carrying [attributes](/features/attributes),
 which become the route's as attributes written on the handler are.
@@ -362,9 +375,8 @@ which become the route's as attributes written on the handler are.
 |---|---|
 | `app.Get`, `Post`, `Put`, `Patch`, `Delete(path, fn, opts…)`, `app.Handle(method, path, fn, opts…)` | a route; `fn` a handler, or an `@ui.Island` struct's constructor (a page backed by its island) |
 | `app.Live(path, NewPage, opts…)` | a [live page](/web/live#how-a-page-becomes-live): the constructor builds each page's component, its parameters of provided types injected and the others zero |
-| `app.Controller(prefix, NewController, opts…)` | a [controller](#controllers); its routes are its method expressions: `app.Get("/{id}", (*PetAdmin).Show, web.Params("id"))` |
+| `app.Controller(prefix, NewController, opts…)` | a [controller](#controllers); its routes are its method expressions: `app.Get("/{id}", (*PetAdmin).Show)` |
 | `app.Service(NewService)` | a [service](/web/dependency-injection); `app.Provide` takes any constructor or value |
-| `web.Params(names…)` | the parameters' names, for scalars |
 | `web.Template(file [, name])` | the view, as `@web.Template` |
 | `web.Use(mw…)`, `web.Wrap(mw…)` | middleware for this route |
 | `web.Layout(f)` | a live page's layout; `ui.Island(ui.Layout(f))` for a page backed by its island |

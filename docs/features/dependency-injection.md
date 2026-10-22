@@ -4,7 +4,8 @@
 such as [fx](https://github.com/uber-go/fx) from constructor functions you write.
 
 **Vuka adds** those constructors for you. Mark a struct with a type decorator;
-its fields are its dependencies — no annotations on fields.
+its pointer and interface fields are its dependencies — no annotations on
+fields.
 
 <!-- go:context
 type DB struct{}
@@ -22,7 +23,7 @@ func NewUserService(db *DB) *UserService { return &UserService{db: db} }
 type OrderService struct {
 	db    *DB
 	users *UserService
-	mu    sync.Mutex `inject:"-"`   // not a dependency
+	mu    sync.Mutex   // not a pointer or interface: not a dependency
 }
 ```
 
@@ -46,11 +47,14 @@ func Module() fx.Option { return fx.Provide(providers...) }
 
 ## Rules
 
-- Every field is injected except `_`, fields tagged `inject:"-"`, and embedded
-  values (embedded pointers and interfaces are injected).
-- A struct declaring a schema — a live component (it embeds `ui.Live`) or a
-  model — holds data: its constructor takes only the fields that hold
-  dependencies, pointers and interfaces, as `NewChat(log *ChatLog)` does.
+- The fields injected are those holding dependencies: pointers and
+  interfaces, embedded ones included, but `_`. A mutex, a map, a counter is
+  the struct's own; there is no tag to say so (the `inject:` tag is gone,
+  [E0420](/errors/E0420)), and a struct needing a value of another kind
+  writes its own `New`.
+- On a struct declaring a schema — a live component (it embeds `ui.Live`) or
+  a model — a field whose attributes say it is data (`@ui.Defer`,
+  `@ui.Bind`) isn't one, as in `NewChat(log *ChatLog)`.
 - A parameter is its field's name with the leading capitals lowered (`Log`
   is `log`, `DB` `db`).
 - A struct that declares its own static `New` is built with that one.
@@ -80,16 +84,16 @@ func NewOrderService(db *DB, users *UserService) *OrderService {
 	return &OrderService{db: db, users: users}
 }
 
-func init() {
-	web.Routes.Service(NewOrderService) // a lazy singleton, for every app
-}
 ```
 
-Or, for one app, give the constructors to it:
+The app registers it in `main`, a lazy singleton built when something first
+needs it:
 
 <!-- go:fragment -->
 ```go
-app := web.New(web.Provide(NewDB, NewUserService, NewOrderService))
+app := web.New(web.Provide(NewDB))
+app.Service(NewUserService)
+app.Service(NewOrderService)
 ```
 
 In tests, call the constructor with fakes: `NewOrderService(fakeDB, fakeUsers)`.

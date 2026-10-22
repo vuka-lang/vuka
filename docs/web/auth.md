@@ -91,8 +91,9 @@ and load a user by id.
 
 ::: vuka
 ```vuka
-@web.Service
 type Users struct{ db *DB }
+
+func NewUsers(db *DB) *Users { return &Users{db: db} }
 
 // FindLogin returns the identity whose login (a username, an email) this is,
 // with its encoded password; nil when there is none.
@@ -144,11 +145,11 @@ func (a Account) Identity() *auth.Identity {
 	return &auth.Identity{ID: a.ID, Roles: a.Roles, User: a}
 }
 
-func init() { web.Routes.Service(NewUsers) }
 ```
 :::
 
-A <span class="vuka-only">`@web.Service`</span><span class="go-only">service (`web.Routes.Service`)</span> implementing `auth.Users` is found by itself; otherwise
+A service implementing `auth.Users`, registered in `main` with
+`app.Service(NewUsers)`, is found by itself; otherwise
 give it in the config — `auth.Config{Users: NewUsers}` takes a value or a
 constructor the container builds.
 

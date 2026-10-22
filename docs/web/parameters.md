@@ -19,8 +19,8 @@ type Videos struct{}
 func (v *Videos) Save(ctx context.Context, r io.Reader) error { return nil }
 -->
 
-A handler binds by name: its parameters say where each value comes from —
-path, query, body, container — and its result says what to answer, so
+A handler's parameters are filled by type: each says where its value comes
+from — path, query, body, container — and its result says what to answer, so
 none of them reads `r.PathValue("id")`, converts it, decodes the body or
 encodes the response itself.
 
@@ -36,8 +36,14 @@ func UpdatePet(id int, in PetForm, store *PetStore) Result[Pet] { … }       //
 
 ::: go
 ```go
-func SearchPets(q string, page int, store *PetStore) ([]Pet, error) { // ?q=cat&page=2
-	return store.Search(q, page)
+// Search is GET /pets's query: from Go, the query comes in a struct.
+type Search struct {
+	Q    string `form:"q"`
+	Page int    `form:"page"`
+}
+
+func SearchPets(s Search, store *PetStore) ([]Pet, error) { // ?q=cat&page=2
+	return store.Search(s.Q, s.Page)
 }
 
 func UpdatePet(id int, in PetForm, store *PetStore) (Pet, error) { // path, body, container
@@ -45,29 +51,40 @@ func UpdatePet(id int, in PetForm, store *PetStore) (Pet, error) { // path, body
 }
 
 func init() {
-	web.Routes.Get("/pets", SearchPets, web.Params("q", "page", ""))
-	web.Routes.Put("/pets/{id}", UpdatePet, web.Params("id", "", ""))
+	web.Routes.Get("/pets", SearchPets)
+	web.Routes.Put("/pets/{id}", UpdatePet)
 }
 ```
 :::
 
 ## Parameters
 
-Each parameter binds by its type and name:
+Each parameter is filled from the one source its type names — the same rule
+as a live page's hooks and event handlers
+([Parameters, by type](/web/dependency-injection#parameters-by-type)):
 
 | Parameter | From |
 |---|---|
 | `*http.Request`, `http.ResponseWriter`, `context.Context` | the request; the context is the request's |
-| a provided type | the [container](/web/dependency-injection) |
+| a type registered with `app.Service` or `web.Provide` | the [container](/web/dependency-injection) |
+| a `web.ParamFrom` type, such as `*auth.Identity` | its function, for the request |
 | a scalar: `string`, ints, floats, `bool`, an `encoding.TextUnmarshaler`; `*T` of one (nil when absent), `[]T` (repeated) | the path segment of the same name, else the query parameter `?name=`; absent → the zero value |
 | one struct, or pointer to a struct, that isn't provided | the body (below) |
+| `url.Values` | the form's fields, as sent (in place of a struct) |
+
+<span class="vuka-only">The compiler records each handler's parameter
+names (`vuka.RegisterParams`), so a scalar binds by its name.</span><span class="go-only">Reflection
+can't see parameter names: a handler registered from Go binds its scalars to
+the path's segments in order — the last scalar the last segment — and takes
+the query in a struct, whose fields bind by their `form:` names.</span>
 
 A malformed value answers 400 with a message: `id: "x" is not an integer`.
 
 Problems are found when the app is built, not on the first request: a
-scalar with no name, a second struct, a type that can't come from a request
-(`chan int`), or a pointer nothing provides — each is a Build error naming
-the route, its source position and the parameter.
+scalar with no segment to bind, a second struct, a type that can't come from
+a request (`chan int`, [E0405](/errors/E0405)), or a pointer nothing
+provides ([E0407](/errors/E0407)) — each is a Build error at the handler's
+file and line, naming the parameter and its type.
 
 ### The body
 

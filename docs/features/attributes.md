@@ -238,8 +238,9 @@ func init() {
 }
 ```
 
-The web framework's own routes bind scalars by name instead:
-`web.Routes.Get("/pets/{pet_id}", showPet, web.Params("pet_id", "format", "store"))`.
+The web framework's own routes bind scalars by name instead, the names
+recorded by the compiler: `vuka.RegisterParams(showPet, "pet_id", "format", "store")`
+and `web.Routes.Get("/pets/{pet_id}", showPet)`.
 :::
 
 A [declarer](/features/decorators#declaration-decorators)

@@ -91,8 +91,14 @@ import (
 	"github.com/vuka-lang/web"
 )
 
-// Hello answers GET /: name comes from ?name=.
-func Hello(name string) ui.Node {
+// Greeting is GET /'s query: ?name=.
+type Greeting struct {
+	Name string `form:"name"`
+}
+
+// Hello answers GET /.
+func Hello(g Greeting) ui.Node {
+	name := g.Name
 	if name == "" {
 		name = "Vuka"
 	}
@@ -101,7 +107,7 @@ func Hello(name string) ui.Node {
 
 func main() {
 	app := web.New()
-	app.Get("/", Hello, web.Params("name"))
+	app.Get("/", Hello)
 	log.Fatal(app.Run(""))
 }
 ```

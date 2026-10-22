@@ -57,7 +57,7 @@ func requireToken(next http.Handler) http.Handler {
 func RemovePet(id int, store *PetStore) error { return store.Remove(id) }
 
 func init() {
-	web.Routes.Delete("/pets/{id}", RemovePet, web.Params("id", ""), web.Use(requireToken))
+	web.Routes.Delete("/pets/{id}", RemovePet, web.Use(requireToken))
 }
 
 func main() {
@@ -118,7 +118,7 @@ func NewPetAdmin(store *PetStore) *PetAdmin { return &PetAdmin{store: store} }
 
 func init() {
 	web.Routes.Controller("/admin/pets", NewPetAdmin)
-	web.Routes.Delete("/{id}", (*PetAdmin).Remove, web.Params("ctx", "id"), web.Use(requireToken))
+	web.Routes.Delete("/{id}", (*PetAdmin).Remove, web.Use(requireToken))
 }
 ```
 :::

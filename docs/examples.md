@@ -241,7 +241,7 @@ func init() {
 	web.Routes.Get("/pets", ListPets, web.Template("views/pets.templ"))
 	web.Routes.Post("/pets", AddPet)
 	web.Routes.Controller("/admin/pets", NewPetAdmin)
-	web.Routes.Delete("/{id}", (*PetAdmin).Remove, web.Params("ctx", "id"), web.Use(requireToken))
+	web.Routes.Delete("/{id}", (*PetAdmin).Remove, web.Use(requireToken))
 }
 ```
 :::
@@ -324,8 +324,7 @@ func (c *Chat) Send(ctx context.Context, f ChatForm) error {
 }
 
 func init() {
-	web.Routes.Service(NewChatLog)
-	web.Routes.Live("/chat/{room}", NewChat)
+	web.Routes.Live("/chat/{room}", NewChat) // main registers the log: app.Service(NewChatLog)
 }
 ```
 :::

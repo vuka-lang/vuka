@@ -25,11 +25,12 @@ func forgetUnconfirmed(ctx context.Context, owners *Owners) {
 	}
 }
 
-@web.Service
 type Reports struct {
 	db     *DB
 	mailer *mail.Mailer
 }
+
+func NewReports(db *DB, mailer *mail.Mailer) *Reports { return &Reports{db: db, mailer: mailer} } // app.Service(NewReports)
 
 @web.Cron("CRON_TZ=Africa/Dar_es_Salaam 0 7 * * 1-5")
 func (r *Reports) Morning(ctx context.Context) error { … }   // a service's method
@@ -56,7 +57,8 @@ func NewReports(db *DB, mailer *mail.Mailer) *Reports { return &Reports{db: db, 
 func (r *Reports) Morning(ctx context.Context) error { return nil }
 
 func main() {
-	app := web.New(web.Provide(OpenDB, NewReports))
+	app := web.New(web.Provide(OpenDB))
+	app.Service(NewReports)
 	app.Cron("forgetUnconfirmed", "@every 10m", forgetUnconfirmed)
 	app.Cron("Reports.Morning", "CRON_TZ=Africa/Dar_es_Salaam 0 7 * * 1-5", (*Reports).Morning)
 	log.Fatal(app.Run(""))
