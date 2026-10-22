@@ -11,5 +11,6 @@ import (
 
 func main() {
 	app := web.New()
+	app.Service(NewDirectory)
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

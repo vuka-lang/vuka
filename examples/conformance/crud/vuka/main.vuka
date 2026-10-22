@@ -10,5 +10,6 @@ import (
 
 func main() {
 	app := web.New()
+	app.Service(NewBlog)
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

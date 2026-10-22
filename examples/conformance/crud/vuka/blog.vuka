@@ -12,10 +12,10 @@ import (
 )
 
 // Blog is the blog's service: its database, opened in memory and seeded.
-@web.Service
+// main registers it with app.Service.
 type Blog struct{}
 
-func Blog.New() (*Blog, error) {
+func NewBlog() (*Blog, error) {
 	ctx := context.Background()
 	db := orm.ConnectURL("sqlite::memory:")?
 	orm.AddDatabase("main", db, orm.AsDefault())
