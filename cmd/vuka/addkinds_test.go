@@ -247,7 +247,7 @@ func TestAddIslandPage(t *testing.T) {
 
 	mustAdd(t, dir, "page", "/board", "--island", "Board", "--react", "--stateless", "--no-install")
 	page := read(t, filepath.Join(dir, "pages/board.vuka"))
-	if strings.Contains(page, "ui.Live") || !strings.Contains(page, "@web.Get(\"/board\")\n@ui.Island(ui.Layout(layouts.Page(\"Board\")))\ntype Board struct") {
+	if strings.Contains(page, "\tui.Live\n") || !strings.Contains(page, "@web.Get(\"/board\")\n@ui.Island(ui.Layout(layouts.Page(\"Board\")))\ntype Board struct") {
 		t.Errorf("a stateless page:\n%s", page)
 	}
 	has(t, filepath.Join(dir, "web/islands/Board.tsx"), "export default function Board()", "useLive<Page>()", "onChange={(e) => live.q.set(e.target.value)}")

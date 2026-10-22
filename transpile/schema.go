@@ -168,8 +168,12 @@ func (e *engine) hookOf(f *fileState, a *Attr) bool {
 }
 
 // checkSchemas reports a schema type that declares its schema method by
-// hand as well as with attributes.
+// hand as well as with attributes, and the hook forms of earlier releases
+// on a live page: a method found by its name (E0337) and a hook its
+// constructor declares (E0338).
 func (e *engine) checkSchemas() {
+	e.checkNamedHooks()
+	e.checkCtorHooks()
 	for _, f := range e.files {
 		for _, d := range f.ast.Decls {
 			fd, ok := d.(*ast.FuncDecl)
@@ -184,6 +188,112 @@ func (e *engine) checkSchemas() {
 				si.typeName, si.method, si.method, si.example())
 		}
 	}
+}
+
+// namedHooks are the methods earlier releases found a live page's hook by,
+// and the attribute that declares each.
+var namedHooks = map[string]string{"Mount": "@ui.Mount", "Changed": "@ui.OnChange"}
+
+// liveSchema is the schema of the live page typeName: its LiveSchema's; nil
+// for another type.
+func (e *engine) liveSchema(typeName string) *schemaInfo {
+	si := e.schemas[typeName]
+	if si == nil || si.method != "LiveSchema" {
+		return nil
+	}
+	return si
+}
+
+// checkNamedHooks reports a live page's method of .vuka source named as
+// earlier releases found a hook by, which no hook attribute marks: it would
+// otherwise be an event the browser calls.
+func (e *engine) checkNamedHooks() {
+	for _, f := range e.vuka {
+		for _, d := range f.ast.Decls {
+			fd, ok := d.(*ast.FuncDecl)
+			if !ok || fd.Recv == nil || namedHooks[fd.Name.Name] == "" {
+				continue
+			}
+			si := e.liveSchema(recvBase(fd))
+			if si == nil || si.hooked(fd.Name.Name) {
+				continue
+			}
+			attr := namedHooks[fd.Name.Name]
+			e.errs.add("E0337", e.fset.Position(fd.Name.Pos()), "%s.%s isn't a hook: a hook is declared with %s, never found by its name",
+				si.typeName, fd.Name.Name, attr).help("mark the method %s (vuka fix hooks), or rename it", attr)
+		}
+	}
+}
+
+// hooked reports whether a hook attribute marks the method name.
+func (si *schemaInfo) hooked(name string) bool {
+	for _, h := range si.hooks {
+		if h.hookMethod == name {
+			return true
+		}
+	}
+	return false
+}
+
+// ctorHooks are the methods of ui.Live a constructor declared a hook with
+// in earlier releases, and the attribute that declares it now.
+var ctorHooks = map[string]string{"OnMount": "@ui.Mount", "OnChange": "@ui.OnChange", "Loads": "@ui.Loads(\"group\")"}
+
+// checkCtorHooks reports a hook declared on a live page's ui.Live in .vuka
+// source, as earlier releases' constructors did: p.OnMount((*Page).mount).
+func (e *engine) checkCtorHooks() {
+	for _, f := range e.vuka {
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok || len(call.Args) == 0 {
+				return true
+			}
+			sel, ok := call.Fun.(*ast.SelectorExpr)
+			if !ok || ctorHooks[sel.Sel.Name] == "" {
+				return true
+			}
+			typeName, method := methodExpr(call.Args[len(call.Args)-1])
+			if typeName == "" || e.liveSchema(typeName) == nil {
+				return true
+			}
+			attr := ctorHooks[sel.Sel.Name]
+			if sel.Sel.Name == "Loads" {
+				if g, err := strconv.Unquote(exprString(call.Args[0])); err == nil {
+					attr = "@ui.Loads(" + strconv.Quote(g) + ")"
+				}
+			}
+			e.errs.add("E0338", e.fset.Position(sel.Sel.Pos()), "%s's hook %s is declared by %s on its ui.Live: a hook is declared with an attribute on its method",
+				typeName, method, sel.Sel.Name).help("drop the call and mark the method %s", attr)
+			return true
+		})
+	}
+}
+
+// methodExpr is the type and method of (*T).m or T.m.
+func methodExpr(x ast.Expr) (string, string) {
+	sel, ok := x.(*ast.SelectorExpr)
+	if !ok {
+		return "", ""
+	}
+	t := sel.X
+	if p, ok := t.(*ast.ParenExpr); ok {
+		t = p.X
+	}
+	if s, ok := t.(*ast.StarExpr); ok {
+		t = s.X
+	}
+	id, ok := t.(*ast.Ident)
+	if !ok {
+		return "", ""
+	}
+	return id.Name, sel.Sel.Name
+}
+
+func exprString(x ast.Expr) string {
+	if b, ok := x.(*ast.BasicLit); ok {
+		return b.Value
+	}
+	return ""
 }
 
 // declares reports whether the type has attributes for its schema method.

@@ -14,6 +14,13 @@ type Todo struct {
 func (t *Todo) SetQuery(q string) {}
 func (t *Todo) Remove(id int)     {}
 
+type Counter struct {
+	ui.Live
+	Start int
+	Label string
+	n     int
+}
+
 func (c *Counter) Render() ui.Node { return ui.HTML(`<span>{c.n}</span>`, c.n) }
 
 type Dashboard struct {
@@ -47,8 +54,16 @@ is a stateful component. Its exported fields are its props, set from the
 tag's attributes; its unexported fields are its state; its methods are its
 event handlers.
 
-::: vuka
-```vuka
+```html
+<!-- counter.vuka.html -->
+package app
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+)
+
 type Counter struct {
 	ui.Live
 	Start int // a prop: <Counter start={5} />
@@ -59,35 +74,8 @@ type Counter struct {
 func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
 
 func (c *Counter) Inc() { c.n++ }
-
-func (c *Counter) Render() ui.Node {
-	return <div><span>{c.n}</span><button onClick={c.Inc}>+</button></div>
-}
-
-<Counter start={5} />
-```
-:::
-
-::: go
-```go
-// counter.go
-type Counter struct {
-	ui.Live
-	Start int    // a prop: <Counter start={5} />, or &Counter{Start: 5} in Go
-	Label string // a prop
-	n     int    // state
-}
-
-func (c *Counter) Mount(ctx context.Context) error { c.n = c.Start; return nil }
-
-func (c *Counter) Inc() { c.n++ }
-```
-
-```html
-<!-- counter.vuka.html: its Render -->
 <div><span>{n}</span><button onClick={Inc}>+</button></div>
 ```
-:::
 
 The tag works in any <span class="vuka-only">JSX</span><span class="go-only">template; in Go, `&Counter{Start: 5}` in a `ui.HTML` hole is the same</span>. Attributes bind to the exported fields by name
 (`start` and `Start` both find `Start`; promoted fields too, but not
@@ -128,12 +116,12 @@ what is typed.
 | Method | |
 |---|---|
 | `Render() ui.Node` | required; its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
-| <span class="vuka-only">`@ui.Mount`</span><span class="go-only">`Mount(ctx) error`</span> | optional, once per instance, before its first render; an error fails the render. A method named `Mount` (`Mount()`, `Mount() error`, `Mount(ctx)`, `Mount(ctx) error`), which the browser can't call, or an unexported method named in `LiveSchema` (`l.Mount(fn)`) or the constructor ([Hooks](#hooks)) |
+| `@ui.Mount` | optional, once per instance, before its first render; an error fails the render. The method the attribute marks ([Hooks](#hooks)) |
 | `Unmount()` | optional, when the instance is dropped |
 | <span class="vuka-only">`Update(msg T)`</span><span class="go-only">`UpdateT(msg T)`</span> | optional<span class="vuka-only">, overloadable</span>: the messages the session delivers (below) |
 
 `ui.Live` gives the component `ID()` (its instance id, `""` when static),
-`Subscribe(topics...)` (call it in the Mount hook), `PushJS(chain)` ([from the
+`Subscribe(topics...)` (call it in the mount hook), `PushJS(chain)` ([from the
 server](/ui/js#from-the-server)), and `PushPatch(href)` and
 `PushNavigate(href)`, which move the page to another URL once the reply is
 applied ([navigation](/web/navigation)), and `PushEvent(name, payload)`,
@@ -242,89 +230,63 @@ replies with what changed.
 
 ## Hooks
 
-The methods the runtime calls on a component are its hooks: `Mount`,
-before the first render, and `Changed`, after the component sets bound
-fields. The simple form is a method of that name:
+The methods the runtime calls on a component are its hooks, each declared
+with an attribute on the method:
 
-```go
-type Profile struct {
+| Attribute | Runs | Signature |
+|---|---|---|
+| `@ui.Mount` | once per instance, before its first render | `func(ctx context.Context) error` |
+| `@ui.OnChange` | after the component sets bound fields; `c` says which | `func(ctx context.Context, c ui.Changed) error` |
+| `@ui.Loads("group")` | after the first render, loading a group of [deferred fields](/web/islands#deferred-fields) | `func(ctx context.Context) error` |
+
+Fields take attributes too: `@ui.Bind` (the component may set it),
+`@ui.URL("q")` (the page's address keeps it), `@ui.Defer("group")` (loaded
+after the first render), and the rules of package `validate`.
+
+```html
+<!-- dashboard.vuka.html -->
+package app
+
+import (
+	"context"
+	"time"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/validate"
+)
+
+type Dashboard struct {
 	ui.Live
-	ID   int
-	name string
+	Q    string @ui.Bind{Debounce: 300 * time.Millisecond} @ui.URL("q") @validate.Max(100)
+	Rows []Item @ui.Defer("lists")
 }
 
-func (p *Profile) Mount(ctx context.Context) error {
-	p.name = fmt.Sprint("user ", p.ID)
-	return nil
-}
+@ui.Mount
+func (d *Dashboard) mount(ctx context.Context) error { return nil }
 
-func (p *Profile) Changed(ctx context.Context, c ui.Changed) error { return nil }
+@ui.OnChange
+func (d *Dashboard) changed(ctx context.Context, c ui.Changed) error { return nil }
 
-func (p *Profile) Render() ui.Node { return ui.HTML(`<h1>{p.name}</h1>`, p.name) }
+@ui.Loads("lists")
+func (d *Dashboard) loadLists(ctx context.Context) error { return nil }
+<input bind:value={Q} />
 ```
 
-`Mount` takes nothing or a `context.Context` and returns nothing or an
-error (E0329 otherwise); `Changed` the same, or a `context.Context` and a
-`ui.Changed`, what was set (E0327 otherwise). They are exported, but the
-browser can't call them: the runtime keeps its hooks off the events.
+A hook may be unexported, and usually is: the browser calls a component's
+exported methods, never its hooks. A method is a hook only when an
+attribute marks it — a method named `Mount` or `Changed` that none marks is
+an error ([E0337](/errors/E0337)), as is a hook declared by a constructor
+on its `ui.Live` ([E0338](/errors/E0338)), the forms of earlier releases;
+`vuka fix hooks` adds the attributes to `Mount`, `Changed` and
+`Load<Group>` methods whose signatures fit.
 
-A hook can also be unexported, and a field can have attributes, when the
-component names them in its `LiveSchema` method: `l.Mount`
-(`func(ctx context.Context) error`), `l.OnChange` (`func(ctx
-context.Context, c ui.Changed) error`) and `l.Loads("group", fn)` (the
-loader of [deferred fields](/web/islands#deferred-fields)); `l.Field(&d.X,
-…)` gives a field its attributes (`ui.Bind`, `ui.URL`, `ui.Defer`,
-`validate.…`). A hook named there takes the place of a method of the
-same name. A loader is always declared this way: a method named
-`Load<Group>` is the form of earlier releases (`vuka vet`: W0303).<span class="vuka-only">
-In a `.vuka` file they are hook and field attributes — `@ui.Mount`,
-`@ui.OnChange`, `@ui.Loads("group")`, `@ui.Bind`, … — which become this
-method:</span>
-
-```go
-func (d *Dashboard) LiveSchema(l *ui.LiveSchema) {
-	l.Field(&d.Q, ui.Bind{Debounce: 300 * time.Millisecond}, ui.URL("q"), validate.Max(100))
-	l.Field(&d.Rows, ui.Defer("lists"))
-	l.Loads("lists", d.loadLists)
-	l.OnChange(d.changed)
-	l.Mount(d.mount)
-}
-```
-
-A hook's signature is checked by the compiler (it is a method value); a
-field that isn't the page's own (E0335) or a hook that doesn't fit
-(E0336) stops the app at start, and `vukavet` reports both. Writing the
-`LiveSchema` method and attributes too is E0129.
-
-A page whose only schema is its hooks can declare them in its constructor
-instead, on its `ui.Live`, by method expression:
-
-```go
-type Login struct {
-	ui.Live
-	Stats []string
-}
-
-func NewLogin() *Login {
-	l := &Login{}
-	l.OnMount((*Login).mount)
-	l.Loads("stats", (*Login).loadStats)
-	return l
-}
-
-func (l *Login) mount(ctx context.Context) error     { return nil }
-func (l *Login) loadStats(ctx context.Context) error { return nil }
-func (l *Login) Render() ui.Node                     { return nil }
-```
-
-`OnMount`, `Loads` and `OnChange` take the hooks `LiveSchema` takes, the
-page as their first parameter, and the method is unexported. They are the type's: the first constructor
-to run sets them, so a page built without it (`&Login{}`) has them once one
-ran — a template placing a component builds it as a literal, so declare a
-component's hooks in `LiveSchema` (`vukavet`: W0304). A hook declared twice,
-or by both the constructor and `LiveSchema`, is E0336; one declared outside
-a function returning the page is W0305. Fields keep their attributes in
-`LiveSchema`.
+The compiler writes the attributes into the component's `LiveSchema`
+method, `l.Mount(d.mount)`, `l.Field(&d.Q, ui.Bind{…})`, …, so a hook's
+signature is checked by the Go compiler. `ui.LiveSchema` is that generated
+code's, not an API to write: `vukavet` reports a hand-written one
+([W0306](/errors/W0306)). A deferred group without a loader
+([E0324](/errors/E0324)) or a hook that doesn't fit ([E0336](/errors/E0336))
+stops the app at start, and `vukavet` reports both.
 
 ## Messages
 
@@ -343,7 +305,7 @@ func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
 
 ::: go
 ```go
-func (c *Chat) Mount(ctx context.Context) error            { c.Subscribe("room:" + c.Room); return nil }
+// Its mount hook subscribes, as on the Vuka side.
 func (c *Chat) UpdateNewMessage(m NewMessage)              { c.log = append(c.log, m.Text) }
 func (c *Chat) UpdateTyping(ctx context.Context, t Typing) { c.typing = t.Who }
 ```

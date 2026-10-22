@@ -29,7 +29,7 @@ type Orders struct {
 
 func (o *Orders) Mount(ctx context.Context) error { return nil }
 
-func (o *Orders) Changed(ctx context.Context) error { return nil }
+func (o *Orders) Changed(ctx context.Context, c ui.Changed) error { return nil }
 
 func (o *Orders) LoadLists(ctx context.Context) error { return nil }
 
@@ -64,14 +64,13 @@ func TestFixAttributes(t *testing.T) {
 func TestFixHooks(t *testing.T) {
 	live, deferred := deferredGroups([][]byte{[]byte(tagPage)})
 	out, marked := markHooks([]byte(tagPage), live, deferred)
-	if got := strings.Join(marked, " "); got != "Orders.LoadLists" {
-		t.Errorf("marked %s (Mount and Changed are hooks by name; LoadMore isn't a loader)", got)
+	if got := strings.Join(marked, " "); got != "Orders.Mount Orders.Changed Orders.LoadLists" {
+		t.Errorf("marked %s (LoadMore isn't a loader)", got)
 	}
-	if want := "@ui.Loads(\"lists\")\nfunc (o *Orders) LoadLists("; !strings.Contains(string(out), want) {
-		t.Errorf("missing %q in\n%s", want, out)
-	}
-	if strings.Contains(string(out), "@ui.Mount") || strings.Contains(string(out), "@ui.OnChange") {
-		t.Errorf("Mount or Changed marked:\n%s", out)
+	for _, want := range []string{"@ui.Mount\nfunc (o *Orders) Mount(", "@ui.OnChange\nfunc (o *Orders) Changed(", "@ui.Loads(\"lists\")\nfunc (o *Orders) LoadLists("} {
+		if !strings.Contains(string(out), want) {
+			t.Errorf("missing %q in\n%s", want, out)
+		}
 	}
 	if _, again := markHooks(out, live, deferred); len(again) != 0 {
 		t.Errorf("a second run marked %v", again)
@@ -93,7 +92,7 @@ func TestVetLivePages(t *testing.T) {
 		"W0302 Orders.Size is configured by the tag bind:, the form of earlier releases",
 		"W0302 Orders.Rows is configured by the tag defer:, the form of earlier releases",
 		"W0302 Orders.Kind is configured by the tag validate:, the form of earlier releases",
-		"W0303 Orders.LoadLists is a loader found by its name, the form of earlier releases",
+		"E0337 Orders.LoadLists isn't a hook: a loader is declared with @ui.Loads(\"lists\"), never found by its name",
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))

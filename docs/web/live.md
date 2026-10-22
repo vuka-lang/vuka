@@ -38,6 +38,7 @@ type Counter struct {
 
 func NewCounter() *Counter { return &Counter{} }
 
+// What the compiler writes from the attributes.
 func (c *Counter) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
 
 func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
@@ -120,11 +121,11 @@ A join the route answers with a redirect sends `redirect`, and the
 browser follows it; any other non-page answer (a 404, JSON) is an `error`,
 and the connection closes.
 
-**`Mount` runs once per view.** The GET mounted the page's components
+**The mount hook runs once per view.** The GET mounted the page's components
 already, so the join adopts that session — the mounted instances, their
 state and their subscriptions — when it arrives within the adoption window
 (`web.LiveAdopt`, 10 seconds by default) and as the same identity: the same
-signed-in user, or anonymous both times. `Mount`, and whatever it loads,
+signed-in user, or anonymous both times. The mount hook, and whatever it loads,
 doesn't run again. The join still runs the route either way — middleware,
 gates and the handler, with the connecting browser's own cookies — so a
 sign-in ended between the render and the join is refused all the same;
@@ -142,7 +143,7 @@ components.
 ### Side effects in a live page's handler
 
 One visit runs the page's route twice — the GET, then the join — and again
-on each reconnect; the join adopting the GET's session skips `Mount`, never
+on each reconnect; the join adopting the GET's session skips the mount hook, never
 the route. So what the handler does besides building the page, sending a
 welcome email or counting a visit, would happen each time.
 `web.IsLiveJoin(ctx)` is true only on the join's run, so the side effect
@@ -309,7 +310,7 @@ What the browser reads of an error follows what an HTTP route answers:
   form field that doesn't bind (`"x" isn't a whole number`);
 - an event a [gate](/web/auth) refuses: `unauthorized` or `forbidden`, the
   gates' own `*web.Error`s;
-- for any other error a handler, `Mount` or `Update` returns, or a panic,
+- for any other error a handler, the mount hook or `Update` returns, or a panic,
   `Internal Server Error`. The error itself goes to the log (`slog`, at
   error level), with the page's URL and the handler, so a database error
   or a file path never reaches the visitor.
@@ -347,7 +348,7 @@ html[data-vk-state=disconnected] body::before { content: "reconnecting…"; posi
 
 `web.Broadcast(ctx, topic, msg)` — from an event handler, an `Update`, or any
 request — delivers `msg` to every component subscribed to `topic`
-(`c.Subscribe(topic)` in `Mount`), in every connected page. Each takes it in
+(`c.Subscribe(topic)` in the mount hook), in every connected page. Each takes it in
 the [`Update`](/ui/stateful#messages) <span class="vuka-only">overload of its type</span><span class="go-only">method named after its type (`UpdateSaid(m Said)`)</span>, and its
 page gets the patch:
 
@@ -392,6 +393,7 @@ type Chat struct {
 
 func NewChat(log *ChatLog) *Chat { return &Chat{Log: log} }
 
+// What the compiler writes from the attributes.
 func (c *Chat) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
 
 func (c *Chat) mount(ctx context.Context) error { c.Subscribe("chat:" + c.Room); return nil }
@@ -451,7 +453,7 @@ Each is an option with a default; 0 lifts it.
 | `web.LiveMaxConnsPerIP(n)` | the sockets from one client address (`web.ClientIP`, so through [trusted proxies](/web/deployment#behind-a-proxy)); 100. One beyond is refused with 429 |
 | `web.LiveMaxConnsPerPage(n)` | the sockets opened with one page token; 4. One beyond is refused with 429 |
 | `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page; 30s; 0 for never |
-| `web.LiveAdopt(d)` | how long after a page's GET its join may adopt the session the render mounted, so `Mount` runs once per view; 10s. At most 1024 pages wait at a time, oldest dropped first; `web.LiveAdopt(0)` mounts fresh on every join |
+| `web.LiveAdopt(d)` | how long after a page's GET its join may adopt the session the render mounted, so the mount hook runs once per view; 10s. At most 1024 pages wait at a time, oldest dropped first; `web.LiveAdopt(0)` mounts fresh on every join |
 
 A page is checked when it mounts: its join and each navigation run its
 route through the app's middleware and gates, as a page load does. Its
@@ -488,11 +490,11 @@ ending sign-ins ([auth](/web/auth#live-pages)) closes a page the same way:
 at once when it ends the sign-in itself (`app.CloseLive`), else at its next
 `LiveCheckEvery` check (30 seconds).
 
-**Checks in `Mount` and `Update`.** A page that checks in `Mount` whether
+**Checks in the mount hook and `Update`.** A page that checks in the mount hook whether
 the visitor may see what its URL names (order `{id}`) makes the same check
 in its `Update` taking `web.URLParams` <span class="go-only">(`UpdateURLParams`)</span>, if it has one: a patch keeps the
-page mounted and hands the new URL to that `Update`, not to `Mount`. A page
-without such an `Update` mounts again on every patch, so its `Mount` sees
+page mounted and hands the new URL to that `Update`, not to the mount hook. A page
+without such an `Update` mounts again on every patch, so its mount hook sees
 each URL; the browser's asking for a patch doesn't change that. See
 [Navigation](/web/navigation#the-server-decides-what-stays-mounted).
 
@@ -506,7 +508,7 @@ Vuka's [wire protocol](/reference/live-protocol) as is, plus:
 | `GET /_vuka/live.js?v=<hash>` | the runtime, immutable for its hash (ETag otherwise) |
 | `join` | runs the route; a second `join` on the same connection starts over |
 | `redirect` | sent for a join the route redirects; the connection then closes normally (1000). For a `navigate` whose route doesn't answer with a page: its `Location`, else the URL. Never to a URL that isn't a path or `http`/`https`: an `error` instead |
-| `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses. `patch: true` asks to keep the page mounted, which the server does only for an `Update` taking `web.URLParams` ([Navigation](/web/navigation#the-server-decides-what-stays-mounted)); a `Mount`, `Update` or render failing answers `error`, nothing staying mounted |
+| `navigate` | runs the URL's route (`X-Vuka-Live: navigate`) and makes its page the session's; the reply carries `url` and `token`, the new page's join token, which a reconnect uses. `patch: true` asks to keep the page mounted, which the server does only for an `Update` taking `web.URLParams` ([Navigation](/web/navigation#the-server-decides-what-stays-mounted)); a mount hook, `Update` or render failing answers `error`, nothing staying mounted |
 | close 4001 | invalid or expired token, or a `LiveCheck` failed: reload |
 | close 4002 | the page sat idle (`LiveIdleTimeout`): join again once the page is in view |
 | close 1008 | no `join` within `LiveJoinTimeout` |

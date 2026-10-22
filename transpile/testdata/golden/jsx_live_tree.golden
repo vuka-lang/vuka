@@ -25,7 +25,11 @@ type Table struct {
 	sel  int
 }
 
-func (t *Table) Mount() { t.rows = []Row{{1, "apples", 3}, {2, "pears", 5}} }
+//line jsx_live_tree.vuka:26
+func (t *Table) mount(ctx context.Context) error {
+	t.rows = []Row{{1, "apples", 3}, {2, "pears", 5}}
+	return nil
+}
 
 func (t *Table) Do(w string) {
 	switch w {
@@ -40,7 +44,7 @@ func (t *Table) Do(w string) {
 
 func (t *Table) Render() ui.Node {
 	var trs []ui.Node
-//line jsx_live_tree.vuka:41
+//line jsx_live_tree.vuka:45
 	for _, r := range t.rows {
 		trs = append(trs, ui.HTML(`
 <tr key={r.ID}>
@@ -49,14 +53,14 @@ func (t *Table) Render() ui.Node {
 </tr>`, r.ID, r.Name, r.Qty))
 	}
 	var p ui.Node
-//line jsx_live_tree.vuka:44
+//line jsx_live_tree.vuka:48
 	if t.sel > 0 {
-//line jsx_live_tree.vuka:44
+//line jsx_live_tree.vuka:48
 		p = ui.HTML(`<p>row {t.sel}</p>`, t.sel)
 	} else {
 		p = ui.HTML(`<p>none</p>`)
 	}
-//line jsx_live_tree.vuka:39
+//line jsx_live_tree.vuka:43
 	return ui.HTML(`
 <table>
   <caption><input onInput={t.Do}/></caption>
@@ -65,7 +69,7 @@ func (t *Table) Render() ui.Node {
 </table>`, t.Do, trs, p)
 }
 
-//line jsx_live_tree.vuka:48
+//line jsx_live_tree.vuka:52
 type Counter struct {
 	ui.Live
 	Label string
@@ -80,12 +84,12 @@ func (c *Counter) Render() ui.Node {
 
 func page(ctx context.Context) ui.Node {
 	var counters []ui.Node
-//line jsx_live_tree.vuka:61
+//line jsx_live_tree.vuka:65
 	for i, l := range []string{"a", "b"} {
-//line jsx_live_tree.vuka:61
+//line jsx_live_tree.vuka:65
 		counters = append(counters, ui.Key(i, &Counter{Label: l}))
 	}
-//line jsx_live_tree.vuka:61
+//line jsx_live_tree.vuka:65
 	return ui.HTML(`
 <main>
   {&Table{}}
@@ -93,7 +97,7 @@ func page(ctx context.Context) ui.Node {
 </main>`, &Table{}, counters)
 }
 
-//line jsx_live_tree.vuka:64
+//line jsx_live_tree.vuka:68
 func main() {
 	ctx := context.Background()
 	v1, _ := livetest.Join(live.NewSession(ctx, page), 1)
@@ -113,4 +117,9 @@ func main() {
 		fmt.Println("  same page:", v1.HTML() == v2.HTML() && v2.HTML() == s.HTML())
 	}
 	fmt.Println(v2.HTML())
+}
+
+//line jsx_live_tree.vuka:19
+func (t *Table) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(t.mount)
 }

@@ -386,7 +386,12 @@ func arrange(src []byte) []byte {
 		for end < len(src) && src[end] == '\n' {
 			end++
 		}
-		edits = append(edits, edit{start, end, resume(end)})
+		resumed := ""
+		if end < len(src) {
+			// a directive for the code after it; none at the end of the file
+			resumed = resume(end)
+		}
+		edits = append(edits, edit{start, end, resumed})
 		return string(src[start:off(fd.End())])
 	}
 	typeEnd := map[string]int{}
@@ -442,7 +447,8 @@ func arrange(src []byte) []byte {
 		pos = e.end
 	}
 	b.Write(src[pos:])
-	return b.Bytes()
+	// a function moved from the end leaves the blank lines before it
+	return append(bytes.TrimRight(b.Bytes(), "\n"), '\n')
 }
 
 // routeBundle is a bundle of route decorators, a .vuka decorator alias:

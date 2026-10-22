@@ -162,7 +162,7 @@ func TestVetIslands(t *testing.T) {
 		`E0326 detail.vuka:21:2 Detail: fields Open and Mode are both live.open`,
 		`E0328 detail.vuka:23:2 Detail.Years: validate:"min,max=40": min takes a number`,
 		`E0324 detail.vuka:15:2 Detail.CV is deferred, and the group Profile has no loader`,
-		`E0325 detail.vuka:26 Detail.LoadStats is the loader of the deferred group Stats, and it isn't LoadStats() or LoadStats(ctx context.Context) returning nothing or an error`,
+		`E0324 detail.vuka:19:2 Detail.Stats is deferred, and the group Stats has no loader`,
 		`E0326 detail.vuka:28 Detail: the method Cancel and the field Flag are both live.cancel`,
 	}
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {

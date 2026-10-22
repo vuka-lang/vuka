@@ -1,0 +1,42 @@
+error[E0338]: Orders's hook start is declared by OnMount on its ui.Live: a hook is declared with an attribute on its method
+  --> err_hooks.vuka:18:4
+   |
+18 |     o.OnMount((*Orders).start)
+   |       ^^^^^^^
+   |
+   = help: drop the call and mark the method @ui.Mount
+
+error[E0338]: Orders's hook loadRows is declared by Loads on its ui.Live: a hook is declared with an attribute on its method
+  --> err_hooks.vuka:19:4
+   |
+19 |     o.Loads("rows", (*Orders).loadRows)
+   |       ^^^^^
+   |
+   = help: drop the call and mark the method @ui.Loads("rows")
+
+error[E0338]: Orders's hook changed is declared by OnChange on its ui.Live: a hook is declared with an attribute on its method
+  --> err_hooks.vuka:20:4
+   |
+20 |     o.OnChange((*Orders).changed)
+   |       ^^^^^^^^
+   |
+   = help: drop the call and mark the method @ui.OnChange
+
+error[E0337]: Orders.Mount isn't a hook: a hook is declared with @ui.Mount, never found by its name
+  --> err_hooks.vuka:24:18
+   |
+24 | func (o *Orders) Mount(ctx context.Context) error   { return nil }
+   |                  ^^^^^
+   |
+   = help: mark the method @ui.Mount (vuka fix hooks), or rename it
+
+error[E0337]: Orders.Changed isn't a hook: a hook is declared with @ui.OnChange, never found by its name
+  --> err_hooks.vuka:25:18
+   |
+25 | func (o *Orders) Changed(ctx context.Context) error { return nil }
+   |                  ^^^^^^^
+   |
+   = help: mark the method @ui.OnChange (vuka fix hooks), or rename it
+
+Some errors have detailed explanations: E0337, E0338.
+For more information about an error, try `vuka explain E0337`.

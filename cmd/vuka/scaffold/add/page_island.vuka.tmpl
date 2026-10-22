@@ -14,7 +14,7 @@ import (
 
 // {%.Type%} is the page at {%.Path%}, backed by its component
 // ({%.IslandPath%}): the exported fields are what it reads (live.{%.URLJSON%}.value),
-// the bound one it sets too, and {%if .Live%}changed{%else%}Changed{%end%} runs after it does{%if .Live%}; it
+// the bound one it sets too, and changed runs after it does{%if .Live%}; it
 // is live, so the server keeps the instance and the component gets the new
 // props{%end%}.
 {%if .Live%}@web.Live{%else%}@web.Get{%end%}("{%.Path%}")
@@ -42,9 +42,17 @@ func (p *{%.Type%}) mount(ctx context.Context) error {
 }
 {%- else%}
 
-func (p *{%.Type%}) Mount(ctx context.Context) {
+// LiveSchema declares the hooks: a stateless page has no ui.Live, which
+// gives a live page's the attributes @ui.Mount and @ui.OnChange.
+func (p *{%.Type%}) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(p.mount)
+	l.OnChange(p.changed)
+}
+
+func (p *{%.Type%}) mount(ctx context.Context) error {
 	p.{%.Prop%} = "{%.Title%}"
 	p.filter()
+	return nil
 }
 {%- end%}
 
@@ -55,8 +63,8 @@ func (p *{%.Type%}) Mount(ctx context.Context) {
 func (p *{%.Type%}) changed(ctx context.Context, c ui.Changed) error {
 {%- else%}
 
-// Changed runs after the component sets {%.URLField%}: live.{%.URLJSON%}.set(v).
-func (p *{%.Type%}) Changed(ctx context.Context) error {
+// changed runs after the component sets {%.URLField%}: live.{%.URLJSON%}.set(v).
+func (p *{%.Type%}) changed(ctx context.Context, c ui.Changed) error {
 {%- end%}
 	p.filter()
 	return nil

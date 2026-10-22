@@ -341,7 +341,7 @@ whatever shape the handler takes. Two checks make sure of it:
 
 | the call | is checked against |
 |---|---|
-| with a `context.Context` from a request or a live page (what handlers, `Mount` and `Update` are given) | that context's identity, on any goroutine: `go b.Clear(ctx)` is checked; so is a gated service method a route calls with `r.Context()` |
+| with a `context.Context` from a request or a live page (what handlers, the mount hook and `Update` are given) | that context's identity, on any goroutine: `go b.Clear(ctx)` is checked; so is a gated service method a route calls with `r.Context()` |
 | on the live connection while the event's handler runs, without such a context | the page's identity |
 | on a goroutine the handler starts (`go b.Clear()`), or a decorator moves the call to | the page's identity: web knows which connection started the goroutine |
 | on the live connection outside an event — a render, a broadcast | the page's identity |
@@ -354,7 +354,7 @@ A refused call returns `web.Unauthorized` or `web.Forbidden` as its error
 (a method without an error result just doesn't run); refused while the
 event's handler runs, the event's reply carries it, and the page gets
 `vk:error`. A gate on a component's type doesn't apply to the methods the
-session calls itself — `Render`, `Mount`, `Update` — so a page rendering a
+session calls itself — `Render`, the mount hook, `Update` — so a page rendering a
 gated component for someone else renders; its events are refused.
 
 **Strict by default.** A gated call nothing attributes to an identity is
@@ -506,7 +506,7 @@ var config = auth.Config{
 
 A live page's identity is the one its connection joined with: the page's
 route runs again for the WebSocket with the browser's cookie, through the
-gates, so `Mount` and every event handler see it.
+gates, so the mount hook and every event handler see it.
 
 ::: vuka
 ```vuka
@@ -534,6 +534,7 @@ type BoardPage struct {
 
 func NewBoardPage() *BoardPage { return &BoardPage{} }
 
+// What the compiler writes from the attributes.
 func (b *BoardPage) LiveSchema(l *ui.LiveSchema) { l.Mount(b.mount) }
 
 func (b *BoardPage) mount(ctx context.Context) error { b.me = auth.Current(ctx); return nil }

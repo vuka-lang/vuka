@@ -12,11 +12,9 @@ import (
 // liveSchema is what a page's LiveSchema method declares, read from its
 // source as ui reads it at boot: its fields' attributes and its hooks.
 type liveSchema struct {
-	fields   map[*types.Var]schemaField
-	loads    map[string]bool // the groups loaded, as loaders name them: Lists
-	hooks    map[string]bool // the methods hooked
-	mount    bool
-	onChange bool
+	fields map[*types.Var]schemaField
+	loads  map[string]bool // the groups loaded, as loaders name them: Lists
+	hooks  map[string]bool // the methods hooked
 }
 
 type schemaField struct {
@@ -74,8 +72,6 @@ func (l *liveCheck) schema(n *types.Named) *liveSchema {
 		case "Mount", "OnChange":
 			if len(call.Args) == 1 {
 				hook(m, call.Args[0])
-				s.mount = s.mount || m == "Mount"
-				s.onChange = s.onChange || m == "OnChange"
 			}
 		case "Loads":
 			if len(call.Args) != 2 {
@@ -135,6 +131,60 @@ func (l *liveCheck) schemaField(s *liveSchema, page string, recv types.Object, c
 		}
 	}
 	s.fields[field] = o
+}
+
+// handWrittenSchema reports a LiveSchema method written by hand for a page
+// declared in Vuka source (a .vuka or .vuka.html file, whose Go is
+// generated): the compiler writes it from the page's attributes
+// (@ui.Mount, @ui.Bind, …), and a person writes those. A page declared in
+// Go — ejected, or not yet moved to a .vuka.html file — has no attributes
+// to write, so its LiveSchema isn't reported.
+func handWrittenSchema(pass *analysis.Pass) {
+	generated := map[*ast.File]bool{}
+	for _, f := range pass.Files {
+		generated[f] = ast.IsGenerated(f)
+	}
+	fileOf := func(pos token.Pos) *ast.File {
+		for _, f := range pass.Files {
+			if f.FileStart <= pos && pos <= f.FileEnd {
+				return f
+			}
+		}
+		return nil
+	}
+	for _, f := range pass.Files {
+		if generated[f] {
+			continue
+		}
+		for _, d := range f.Decls {
+			fd, ok := d.(*ast.FuncDecl)
+			if !ok || fd.Recv == nil || fd.Name.Name != "LiveSchema" {
+				continue
+			}
+			m, ok := pass.TypesInfo.Defs[fd.Name].(*types.Func)
+			if !ok {
+				continue
+			}
+			sig := m.Type().(*types.Signature)
+			if sig.Params().Len() != 1 {
+				continue
+			}
+			p, ok := sig.Params().At(0).Type().(*types.Pointer)
+			if !ok || !named(p.Elem(), uiPath, "LiveSchema") {
+				continue
+			}
+			recv, ok := types.Unalias(sig.Recv().Type()).(*types.Pointer)
+			if !ok {
+				continue
+			}
+			n, ok := types.Unalias(recv.Elem()).(*types.Named)
+			if !ok || !generated[fileOf(n.Obj().Pos())] {
+				continue
+			}
+			report(pass, fd.Name, "W0306", "write the attributes in the page's source: @ui.Mount, @ui.OnChange and @ui.Loads(\"group\") on its methods, @ui.Bind, @ui.URL(\"q\") and @ui.Defer(\"group\") on its fields",
+				"LiveSchema is what the compiler writes; it is not a method to write by hand")
+		}
+	}
 }
 
 // groupName is a group as its loader names it: lists is Lists.

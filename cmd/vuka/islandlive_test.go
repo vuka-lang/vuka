@@ -27,8 +27,10 @@ type Level struct {
 	Name string ` + "`json:\"name\"`" + `
 }
 
-func (p *Levels) Mount(ctx context.Context) error   { return nil }
-func (p *Levels) Changed(ctx context.Context) error { return nil }
+@ui.Mount
+func (p *Levels) mount(ctx context.Context) error { return nil }
+@ui.OnChange
+func (p *Levels) onChange(ctx context.Context, _ ui.Changed) error { return nil }
 func (p *Levels) Delete(ctx context.Context, id int64) error { return nil }
 `
 
@@ -45,7 +47,7 @@ func levelsDTS(t *testing.T) (dir string, dts []byte) {
 
 // TestLiveDTSHandles: a page's interface carries its fields' handles —
 // settable for a bind: field, read-only otherwise, none for functions or
-// live's own names — and its methods, not Changed or Mount.
+// live's own names — and its methods, not its hooks.
 func TestLiveDTSHandles(t *testing.T) {
 	_, dts := levelsDTS(t)
 	for _, want := range []string{
@@ -92,8 +94,8 @@ live.levels.error
 live.levels.set([])
 // @ts-expect-error a read-only field's value
 live.levels.value = []
-// @ts-expect-error Changed isn't callable
-live.changed()
+// @ts-expect-error a hook isn't callable
+live.onChange()
 // @ts-expect-error q is a string
 live.q.set(1)
 export { q, rows, first, busy, why, qErr, argErr }
@@ -154,8 +156,10 @@ type Order struct {
 	ID int64 ` + "`json:\"id\"`" + `
 }
 
-func (o *Orders) LoadStats(ctx context.Context) error { return nil }
-func (o *Orders) LoadLists(ctx context.Context) error { return nil }
+@ui.Loads("stats")
+func (o *Orders) loadStats(ctx context.Context) error { return nil }
+@ui.Loads("lists")
+func (o *Orders) loadLists(ctx context.Context) error { return nil }
 func (o *Orders) Cancel(ctx context.Context, id int64) error { return nil }
 `
 

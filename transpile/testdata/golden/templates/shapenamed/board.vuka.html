@@ -1,0 +1,27 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Board keeps the hooks of earlier releases: its Mount and Changed found by
+// their names, and a loader its constructor declares.
+type Board struct {
+	ui.Live
+	Q    string
+	rows []string
+}
+
+func NewBoard() *Board {
+	b := &Board{}
+	b.Loads("rows", (*Board).loadRows)
+	return b
+}
+
+func (b *Board) Mount(ctx context.Context) error   { return nil }
+func (b *Board) Changed(ctx context.Context) error { return nil }
+
+func (b *Board) loadRows(ctx context.Context) error { return nil }
+<p>{Q}</p>

@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/diag"
@@ -156,9 +157,9 @@ func (p *proxy) islandRequest(method string, f *vfile, off int) func() any {
 
 var hookRe = regexp.MustCompile(`func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*$`)
 
-// islandHookNote is what hover adds on an island page's Mount or Changed
-// method name, or a deferred group's loader (Load<Group>), at off: they are
-// hooks the server runs, not methods the component calls.
+// islandHookNote is what hover adds on an island page's method named as
+// earlier releases found a hook by — Mount, Changed, a deferred group's
+// Load<Group> — at off, when no hook attribute marks it: it isn't a hook.
 func islandHookNote(root, path string, text []byte, off int) string {
 	s, e := off, off
 	for s > 0 && isIdentByte(text[s-1]) {
@@ -171,13 +172,19 @@ func islandHookNote(root, path string, text []byte, off int) string {
 	if name != "Mount" && name != "Changed" && !strings.HasPrefix(name, "Load") {
 		return ""
 	}
-	m := hookRe.FindSubmatch(text[max(0, s-200):s])
+	from := max(0, s-200)
+	m := hookRe.FindSubmatchIndex(text[from:s])
 	if m == nil {
 		return ""
 	}
-	typ := string(m[1])
+	typ := string(text[from+m[2] : from+m[3]])
+	for _, a := range attrsAbove(text, from+m[0]) {
+		if _, sel, _ := strings.Cut(a, "."); sel == "Mount" || sel == "OnChange" || sel == "Loads" {
+			return ""
+		}
+	}
 	found := false
-	var deferred []string
+	group := ""
 	for _, ic := range islandDecos(root, path, text, false) {
 		if ic.name != typ {
 			continue
@@ -185,23 +192,21 @@ func islandHookNote(root, path string, text []byte, off int) string {
 		found = true
 		for _, p := range ic.props {
 			if p.deferred != "" && "Load"+p.deferred == name {
-				deferred = append(deferred, "live."+strings.ToLower(p.name[:1])+p.name[1:])
+				group = p.deferred
 			}
 		}
 	}
 	if !found {
 		return ""
 	}
+	attr := map[string]string{"Mount": "@ui.Mount", "Changed": "@ui.OnChange"}[name]
 	if strings.HasPrefix(name, "Load") {
-		if len(deferred) == 0 {
+		if group == "" {
 			return ""
 		}
-		return "Loader of deferred fields (" + strings.Join(deferred, ", ") + "): the server runs it after the first render — a live page once it joins, a stateless one when its component asks — and sends what it sets; until then the fields are pending. The component can't call it (it isn't on live)."
+		attr = "@ui.Loads(" + strconv.Quote(strings.ToLower(group[:1])+group[1:]) + ")"
 	}
-	if name == "Mount" {
-		return "Lifecycle hook: the server runs Mount when the page is opened, before it renders. The component can't call it (it isn't on live)."
-	}
-	return "Lifecycle hook: the server runs Changed after the component sets a bind: field (live.<field>.set(v)) and the bound fields are set; Changed(ctx, changed ui.Changed) says which (changed.Has(\"q\"), changed.Names()). The component can't call it (it isn't on live)."
+	return "Not a hook: a hook is declared with " + attr + " on its method, never found by its name (E0337). Mark it " + attr + " (vuka fix hooks)."
 }
 
 // withNote adds note to a hover result.

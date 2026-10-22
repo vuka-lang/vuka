@@ -443,10 +443,11 @@ func (o *Orders) changed(ctx context.Context, c ui.Changed) error { return o.loa
 func (o *Orders) Cancel(ctx context.Context, id int64) error { … } // callable from the component
 ```
 
-The attributes and hooks are the page's `LiveSchema` method, which a plain
-Go page writes itself:
+The compiler writes the attributes and hooks into the page's `LiveSchema`
+method — what ejected Go shows, not a method to write by hand:
 
 ```go
+// What the compiler writes from the attributes.
 func (o *Orders) LiveSchema(l *ui.LiveSchema) {
     l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
     l.Field(&o.Status, ui.Bind{Debounce: ui.NoDebounce})
@@ -469,6 +470,7 @@ type Orders struct {
 
 func NewOrders(db *DB) *Orders { return &Orders{db: db} }
 
+// What the compiler writes from the attributes.
 func (o *Orders) LiveSchema(l *ui.LiveSchema) {
 	l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
 	l.Field(&o.Status, ui.Bind{Debounce: ui.NoDebounce})
@@ -555,7 +557,7 @@ const live = useLive<Orders>()
   fields}`, `fields` from a `web.Invalid{"q": "…"}`. A `web.Redirect`
   navigates. Calls and sets go one at a time, in order; a method waits for
   the sets before it. `Render`, `Update`, `Info` and the hooks
-  (<span class="vuka-only">`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`</span><span class="go-only">those `LiveSchema` sets: `l.Mount`, `l.OnChange`, `l.Loads`</span>) aren't callable — a hook may
+  (`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`) aren't callable — a hook may
   be unexported — and a method and a field can't share a name on `live`
   (the app doesn't start).
 - **<span class="vuka-only">`@ui.Defer("group")`</span><span class="go-only">`ui.Defer("group")`</span> fields** aren't in the first render: the group's
@@ -695,7 +697,7 @@ another page, the island ignores it<span class="vuka-only"> (hover on the decora
 The layout decides the `<title>`. A type with a `Title() string` method
 gives the page's title: the bare document uses it (else the type's name),
 a layout reads it with `ui.PageTitle(ctx)`, and a document whose head has
-no `<title>` gets it. A live page's `Title` is read before `Mount`, from
+no `<title>` gets it. A live page's `Title` is read before the mount hook, from
 what the URL binds; a stateless page's after.
 
 Moving between pages that share a layout — a link, `live.navigate` — goes
@@ -742,6 +744,7 @@ type Level struct {
 }
 
 // Orders as above, its Q with a rule.
+// What the compiler writes from the attributes.
 func (o *Orders) LiveSchema(l *ui.LiveSchema) {
 	l.Field(&o.Q, ui.Bind{}, ui.URL("q"), validate.Max(50))
 }
@@ -889,6 +892,7 @@ type Overview struct {
 
 func NewOverview(db *DB) *Overview { return &Overview{db: db} }
 
+// What the compiler writes from the attributes.
 func (o *Overview) LiveSchema(l *ui.LiveSchema) {
 	l.Field(&o.Q, ui.Bind{}, ui.URL("q"))
 	l.Field(&o.Stats, ui.Defer("stats"))
@@ -930,11 +934,11 @@ func init() {
   slow. Their context ends when the visitor leaves the page or the
   connection closes. On a stateless page the component, once mounted,
   posts one load (signed and gated as its calls are); the server runs
-  `Mount` and the loaders, concurrently, and answers with every group at
+  the mount hook and the loaders, concurrently, and answers with every group at
   once. Calls the component makes meanwhile wait for it.
 - **A copy.** A loader runs on a copy of the page taken when it starts, so
   events keep running beside it. Only its group's fields are taken from the
-  copy: set those; anything else it changes is dropped. Read what `Mount`
+  copy: set those; anything else it changes is dropped. Read what the mount hook
   set and what the URL bound (`o.Q`) freely.
 - **In the component** a deferred field's handle has `pending` and `error`:
   `live.stats.value` is `undefined` (and `pending` true) until its group

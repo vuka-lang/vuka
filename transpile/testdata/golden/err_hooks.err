@@ -1,0 +1,5 @@
+err_hooks.vuka:18:4: Orders's hook start is declared by OnMount on its ui.Live: a hook is declared with an attribute on its method; drop the call and mark the method @ui.Mount
+err_hooks.vuka:19:4: Orders's hook loadRows is declared by Loads on its ui.Live: a hook is declared with an attribute on its method; drop the call and mark the method @ui.Loads("rows")
+err_hooks.vuka:20:4: Orders's hook changed is declared by OnChange on its ui.Live: a hook is declared with an attribute on its method; drop the call and mark the method @ui.OnChange
+err_hooks.vuka:24:18: Orders.Mount isn't a hook: a hook is declared with @ui.Mount, never found by its name; mark the method @ui.Mount (vuka fix hooks), or rename it
+err_hooks.vuka:25:18: Orders.Changed isn't a hook: a hook is declared with @ui.OnChange, never found by its name; mark the method @ui.OnChange (vuka fix hooks), or rename it

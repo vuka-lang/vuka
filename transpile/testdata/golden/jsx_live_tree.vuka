@@ -22,7 +22,11 @@ type Table struct {
 	sel  int
 }
 
-func (t *Table) Mount() { t.rows = []Row{{1, "apples", 3}, {2, "pears", 5}} }
+@ui.Mount
+func (t *Table) mount(ctx context.Context) error {
+	t.rows = []Row{{1, "apples", 3}, {2, "pears", 5}}
+	return nil
+}
 
 func (t *Table) Do(w string) {
 	switch w {

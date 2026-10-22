@@ -502,7 +502,8 @@ type C struct{ ui.Live }
 func (c *C) Render() ui.Node   { return <p /> }
 func (c *C) Inc()              {}
 func (c *C) Save(f Form) error { return nil }
-func (c *C) Mount()            {}
+@ui.Mount
+func (c *C) mount(ctx context.Context) error { return nil }
 
 func page(p ui.Node) ui.Node { return <main>{p}</main> }
 `

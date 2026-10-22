@@ -606,7 +606,7 @@ upload := ui.JS.AddClass(ui.This, "busy").Call("Upload.prepare").Push(c.Upload).
 ## From the server
 
 A stateful component pushes commands to its own page from a handler, an
-`Update`, or `Mount` under a session:
+`Update`, or the mount hook under a session:
 
 ::: vuka
 ```vuka

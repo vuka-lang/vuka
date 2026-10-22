@@ -27,7 +27,7 @@ type liveMethod struct {
 	scope  *tsScope    // where its parameters' types are read
 }
 
-var lifecycleMethods = map[string]bool{"Render": true, "Mount": true, "Update": true, "Info": true, "Changed": true,
+var lifecycleMethods = map[string]bool{"Render": true, "Update": true, "Info": true,
 	"ID": true, "Subscribe": true, "PushJS": true, "PushPatch": true, "PushNavigate": true, "PushEvent": true}
 
 // methodRe finds a method declaration's receiver type, name and parameters.

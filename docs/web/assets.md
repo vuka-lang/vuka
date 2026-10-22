@@ -247,7 +247,7 @@ component without scripts takes no pushes by name at all.
 
 So call it as `ctx.push` (the parameter named `ctx`), with the name as a
 string literal, naming a method of the component's own
-(not `Render`, `Mount`, an `Update`, or one it embeds); anything else stops
+(not `Render`, the mount hook, an `Update`, or one it embeds); anything else stops
 the build at its line:
 
 ```

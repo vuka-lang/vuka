@@ -36,9 +36,11 @@ type PageA struct {
 	Stats []string ` + "`json:\"stats\" defer:\"\"`" + `
 }
 
-func (a *PageA) Mount() { a.Title = "page a" }
+@ui.Mount
+func (a *PageA) mount(ctx context.Context) error { a.Title = "page a"; return nil }
 
-func (a *PageA) LoadStats(ctx context.Context) error {
+@ui.Loads("stats")
+func (a *PageA) loadStats(ctx context.Context) error {
 	select {
 	case <-time.After(600 * time.Millisecond):
 	case <-ctx.Done():
@@ -56,9 +58,11 @@ type PageB struct {
 	Rows  []string ` + "`json:\"rows\" defer:\"\"`" + `
 }
 
-func (b *PageB) Mount() { b.Title = "page b" }
+@ui.Mount
+func (b *PageB) mount(ctx context.Context) error { b.Title = "page b"; return nil }
 
-func (b *PageB) LoadRows(ctx context.Context) error {
+@ui.Loads("rows")
+func (b *PageB) loadRows(ctx context.Context) error {
 	select {
 	case <-time.After(300 * time.Millisecond):
 	case <-ctx.Done():

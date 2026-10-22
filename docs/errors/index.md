@@ -109,23 +109,20 @@ same page in the terminal.
 | [E0322](./E0322) | Bad bind: tag |
 | [E0323](./E0323) | Bad defer: tag |
 | [E0324](./E0324) | A deferred field has no loader |
-| [E0325](./E0325) | A loader has the wrong signature |
 | [E0326](./E0326) | Two handles share a name |
-| [E0327](./E0327) | Changed has the wrong signature |
 | [E0328](./E0328) | Bad validate: tag |
-| [E0329](./E0329) | Bad ui.Live embedding or Mount |
+| [E0329](./E0329) | Bad ui.Live embedding |
 | [E0330](./E0330) | An island page under @web.Live isn't live |
 | [E0331](./E0331) | A page backed by a component isn't a GET |
 | [E0332](./E0332) | @web.Get on a type without @ui.Island |
-| [E0333](./E0333) | An island page's Mount has the wrong signature |
 | [E0334](./E0334) | Two Update methods take URL parameters |
 | [E0335](./E0335) | A LiveSchema field that isn't the page's |
 | [E0336](./E0336) | A live page hook that doesn't fit |
+| [E0337](./E0337) | A hook found by its name |
+| [E0338](./E0338) | A hook declared by the constructor |
 | [W0301](./W0301) | A live page routed as a stateless one |
 | [W0302](./W0302) | A live page configured by struct tags |
-| [W0303](./W0303) | A live page loader found by its name |
-| [W0304](./W0304) | A page built without the constructor that declares its hooks |
-| [W0305](./W0305) | A hook declared outside the page's constructor |
+| [W0306](./W0306) | A hand-written LiveSchema |
 
 ## Routes and the web app
 

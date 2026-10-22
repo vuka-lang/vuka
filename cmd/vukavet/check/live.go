@@ -16,10 +16,11 @@ import (
 // Live checks the pages registered with web: a live page's constructor and
 // struct (E0329, E0330), and a page backed by its island as ui.CheckIsland
 // does at boot — bind: (E0322), defer: (E0323), a deferred group without a
-// loader (E0324) or with a wrong one (E0325), two handles of one name
-// (E0326), Changed (E0327), validate: (E0328) and Mount (E0333) — and
-// the page's LiveSchema: its fields (E0335) and hooks (E0336), and the
-// hooks its constructor declares on its ui.Live (E0336, W0304, W0305).
+// loader (E0324), two handles of one name (E0326), validate: (E0328) — and
+// the page's LiveSchema: its fields (E0335) and hooks (E0336), and a
+// method named as earlier releases found a hook by, Mount or Changed, that
+// it doesn't declare a hook (E0337); and a LiveSchema method written by
+// hand for a page declared in Vuka source, which is the compiler's (W0306).
 var Live = &analysis.Analyzer{
 	Name: "live",
 	Doc:  "check vuka live pages and pages backed by an island as the app's boot does",
@@ -29,7 +30,7 @@ var Live = &analysis.Analyzer{
 
 func runLive(pass *analysis.Pass) (any, error) {
 	l := &liveCheck{pass: pass, done: map[string]bool{}}
-	l.ctor = l.ctorHooks()
+	handWrittenSchema(pass)
 	for _, r := range registrations(pass) {
 		if r.verb == "Live" {
 			l.livePage(r)
@@ -48,7 +49,6 @@ type liveCheck struct {
 	pass *analysis.Pass
 	r    registration
 	done map[string]bool // reported, by place and message
-	ctor map[*types.Named]*ctorHooks
 }
 
 func (l *liveCheck) report(at analysis.Range, code, help, format string, args ...any) {
@@ -107,18 +107,14 @@ func (l *liveCheck) page(n *types.Named, r registration, island, live bool) {
 		return
 	}
 	ms := types.NewMethodSet(ptr)
-	schema := l.ctor[n].merge(l.schema(n))
-	if m := ms.Lookup(nil, "Mount"); m != nil {
-		sig := m.Type().(*types.Signature)
-		p, res := sig.Params(), sig.Results()
-		okIn := p.Len() == 0 || p.Len() == 1 && isContext(p.At(0).Type())
-		okOut := res.Len() == 0 || res.Len() == 1 && types.Identical(res.At(0).Type(), errorType)
-		if !okIn || !okOut {
-			code := "E0329"
-			if island {
-				code = "E0333"
-			}
-			l.report(at(pass, m.Obj(), r.at), code, "declare Mount() or Mount(ctx context.Context), returning nothing or an error", "%s's Mount is %s", name, typeString(pass, sig))
+	schema := l.schema(n)
+	if schema == nil {
+		schema = &liveSchema{fields: map[*types.Var]schemaField{}, loads: map[string]bool{}, hooks: map[string]bool{}}
+	}
+	for _, h := range namedHooks {
+		if m := ms.Lookup(nil, h.method); m != nil && !schema.hooks[h.method] {
+			l.report(at(pass, m.Obj(), r.at), "E0337", "mark the method "+h.attr+" (vuka fix hooks), or rename it",
+				"%s.%s isn't a hook: a hook is declared with %s, never found by its name", name, h.method, h.attr)
 		}
 	}
 	if island {
@@ -130,14 +126,15 @@ func (l *liveCheck) page(n *types.Named, r registration, island, live bool) {
 var reserved = map[string]bool{"pending": true, "error": true, "subscribe": true}
 
 // lifecycle are a live component's methods its session calls, never the
-// component.
-var lifecycle = map[string]bool{"Render": true, "Mount": true, "Update": true, "Info": true, "Changed": true}
+// component. Its hooks are its LiveSchema's.
+var lifecycle = map[string]bool{"Render": true, "Update": true, "Info": true}
+
+// namedHooks are the methods earlier releases found a hook by, and the
+// attribute that declares each, as ui has them.
+var namedHooks = [...]struct{ method, attr string }{{"Mount", "@ui.Mount"}, {"Changed", "@ui.OnChange"}}
 
 // island checks a page backed by its island as ui.CheckIsland does.
 func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet, schema *liveSchema) {
-	if schema == nil {
-		schema = &liveSchema{}
-	}
 	pass := l.pass
 	name := n.Obj().Name()
 	node := iface(pass, uiPath, "Node")
@@ -205,7 +202,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 			q, _, _ := strings.Cut(tag.Get("url"), ",")
 			switch {
 			case !isIdent(d):
-				l.report(sat, "E0323", `name the group: ui.Defer("stats"), loaded by l.Loads("stats", …)`, "%s.%s: %s: a group is a name", name, f.Name(), form)
+				l.report(sat, "E0323", `name the group: @ui.Defer("stats"), loaded by @ui.Loads("stats")`, "%s.%s: %s: a group is a name", name, f.Name(), form)
 			case hasBind || so.bind:
 				l.report(sat, "E0323", "drop Bind or Defer", "%s.%s: a deferred field is the server's to load", name, f.Name())
 			case so.url != "" || q != "" && q != "-":
@@ -225,25 +222,15 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 			l.bind(name, f, fat, bind, handle, wire)
 		}
 	}
-	loaders := map[string]bool{}
 	for _, g := range groups {
 		if schema.loads[g.name] {
 			continue
 		}
-		loader := "Load" + g.name
-		loaders[loader] = true
-		m := ms.Lookup(nil, loader)
-		if m == nil {
-			l.report(g.at, "E0324", fmt.Sprintf("give the group a loader in the page's LiveSchema:\n\t\tl.Loads(%q, %s.load%s)", lowerFirst(g.name), strings.ToLower(name[:1]), g.name),
-				"%s.%s is deferred, and the group %s has no loader", name, g.field.Name(), g.name)
-			continue
+		help := fmt.Sprintf("mark its loader @ui.Loads(%q)", lowerFirst(g.name))
+		if ms.Lookup(nil, "Load"+g.name) != nil {
+			help = fmt.Sprintf("mark Load%s @ui.Loads(%q): a loader isn't found by its name", g.name, lowerFirst(g.name))
 		}
-		sig := m.Type().(*types.Signature)
-		p, res := sig.Params(), sig.Results()
-		if !(p.Len() == 0 || p.Len() == 1 && isContext(p.At(0).Type())) || !(res.Len() == 0 || res.Len() == 1 && types.Identical(res.At(0).Type(), errorType)) {
-			l.report(at(pass, m.Obj(), l.r.at), "E0325", fmt.Sprintf("declare it %s() or %s(ctx context.Context), returning nothing or an error", loader, loader),
-				"%s.%s is the loader of the deferred group %s, and it is %s", name, loader, g.name, typeString(pass, sig))
-		}
+		l.report(g.at, "E0324", help, "%s.%s is deferred, and the group %s has no loader", name, g.field.Name(), g.name)
 	}
 	own := map[string]bool{}
 	if live := lookup(pass.Pkg, uiPath, "Live"); live != nil {
@@ -255,7 +242,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 	for i := range ms.Len() {
 		m := ms.At(i).Obj().(*types.Func)
 		mn := m.Name()
-		if !m.Exported() || lifecycle[mn] || own[mn] || isUpdate(m) || loaders[mn] || schema.hooks[mn] || mn == "LiveSchema" {
+		if !m.Exported() || lifecycle[mn] || own[mn] || isUpdate(m) || schema.hooks[mn] || mn == "LiveSchema" {
 			continue
 		}
 		sig := m.Type().(*types.Signature)
@@ -268,10 +255,6 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 		if f, ok := handles[lowerFirst(mn)]; ok {
 			l.report(at(pass, m, l.r.at), "E0326", "rename one, or give the field another json name", "%s: the method %s and the field %s are both live.%s", name, mn, f, lowerFirst(mn))
 		}
-	}
-	if m := ms.Lookup(nil, "Changed"); m != nil && !schema.onChange && !changedOK(m.Type().(*types.Signature)) {
-		l.report(at(pass, m.Obj(), l.r.at), "E0327", "declare Changed(), Changed(ctx context.Context) or Changed(ctx context.Context, changed ui.Changed), returning nothing or an error",
-			"%s.Changed is %s", name, typeString(pass, m.Type()))
 	}
 }
 
@@ -359,23 +342,6 @@ func validateWhy(tag string) (string, string) {
 		}
 	}
 	return "", ""
-}
-
-func changedOK(sig *types.Signature) bool {
-	var args string
-	for i := range sig.Params().Len() {
-		t := sig.Params().At(i).Type()
-		switch {
-		case isContext(t) && args == "":
-			args += "c"
-		case is(t, uiPath, "Changed") && !strings.Contains(args, "n"):
-			args += "n"
-		default:
-			return false
-		}
-	}
-	res := sig.Results()
-	return res.Len() == 0 || res.Len() == 1 && types.Identical(res.At(0).Type(), errorType)
 }
 
 func validDebounce(v string) bool {

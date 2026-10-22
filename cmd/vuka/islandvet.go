@@ -100,7 +100,7 @@ func checkIslandSource(root string, ic *islandComp, src []byte) []diag.Diagnosti
 			switch q, _, _ := strings.Cut(reflect.StructTag(f.tag).Get("url"), ","); {
 			case !isGoIdent(d):
 				add(diag.New("E0323", "%s.%s: defer:%q: a group is a name", ic.name, f.name, d).At(span).
-					WithHelp("name the group: defer:\"stats\", loaded by LoadStats"))
+					WithHelp("name the group: defer:\"stats\", loaded by @ui.Loads(\"stats\")"))
 			case hasBind:
 				add(diag.New("E0323", "%s.%s: a deferred field is the server's to load", ic.name, f.name).At(span).WithHelp("drop bind: or defer:"))
 			case q != "" && q != "-":
@@ -142,19 +142,19 @@ func checkIslandSource(root string, ic *islandComp, src []byte) []diag.Diagnosti
 	hooked := hookLoaders(root, path.Dir(file))
 	for _, g := range order {
 		f := groups[g]
-		m, ok := methods["Load"+g]
+		_, named := methods["Load"+g]
+		group := strings.ToLower(g[:1]) + g[1:]
 		switch {
 		case hooked[g]:
 			// loaded by a hook: @ui.Loads("…")
-		case !ok && embedded:
-			// a loader may come from an embedded type
-		case !ok:
-			recv := strings.ToLower(ic.name[:1])
+		case named:
 			add(diag.New("E0324", "%s.%s is deferred, and the group %s has no loader", ic.name, f.name, g).
-				At(at(f.off, len(f.name))).WithHelp("add the method\nfunc (%s *%s) Load%s(ctx context.Context) error", recv, ic.name, g))
-		case !m.loader():
-			add(diag.New("E0325", "%s.Load%s is the loader of the deferred group %s, and it isn't Load%s() or Load%s(ctx context.Context) returning nothing or an error",
-				ic.name, g, g, g, g).At(diag.Span{File: m.file, Line: m.line}))
+				At(at(f.off, len(f.name))).WithHelp("mark Load%s @ui.Loads(%q): a loader isn't found by its name", g, group))
+		case embedded:
+			// a loader may come from an embedded type
+		default:
+			add(diag.New("E0324", "%s.%s is deferred, and the group %s has no loader", ic.name, f.name, g).
+				At(at(f.off, len(f.name))).WithHelp("mark its loader @ui.Loads(%q)", group))
 		}
 	}
 	names := make([]string, 0, len(methods))
@@ -260,17 +260,6 @@ type sourceMethod struct {
 func (m sourceMethod) results0() bool {
 	r := strings.TrimSpace(m.results)
 	return r == "" || r == "error"
-}
-
-func (m sourceMethod) loader() bool {
-	p := strings.TrimSpace(m.params)
-	if p != "" {
-		f := strings.Fields(p)
-		if len(f) == 0 || f[len(f)-1] != "context.Context" || strings.Contains(p, ",") {
-			return false
-		}
-	}
-	return m.results0()
 }
 
 func (m sourceMethod) callable() bool { return m.results0() && !strings.Contains(m.params, "...") }

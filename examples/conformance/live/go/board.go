@@ -27,11 +27,7 @@ type Board struct {
 }
 
 func NewBoard(notes *Notes) *Board {
-	b := &Board{notes: notes}
-	b.OnMount((*Board).mount)
-	b.Loads("notes", (*Board).loadNotes)
-	b.OnChange((*Board).changed)
-	return b
+	return &Board{notes: notes}
 }
 
 func (b *Board) LiveSchema(l *ui.LiveSchema) {
@@ -39,6 +35,9 @@ func (b *Board) LiveSchema(l *ui.LiveSchema) {
 	l.Field(&b.Rows, ui.Defer("notes"))
 	l.Field(&b.Total, ui.Defer("notes"))
 	l.Field(&b.Sort, ui.URL("sort"))
+	l.Mount(b.mount)
+	l.Loads("notes", b.loadNotes)
+	l.OnChange(b.changed)
 }
 
 // BoardParams is what a patch of the board's URL brings.

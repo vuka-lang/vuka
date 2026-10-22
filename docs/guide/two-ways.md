@@ -50,6 +50,7 @@ type Counter struct {
 
 func NewCounter() *Counter { return &Counter{} }
 
+// What the compiler writes from the attributes.
 func (c *Counter) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
 
 func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }

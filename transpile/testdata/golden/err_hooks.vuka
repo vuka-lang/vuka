@@ -1,0 +1,39 @@
+package main
+
+import (
+	"context"
+
+	"vukatest.local/ui"
+)
+
+// Orders keeps the hooks of earlier releases: found by their names, and
+// declared by its constructor on its ui.Live.
+type Orders struct {
+	ui.Live
+	Rows []string @ui.Defer("rows")
+}
+
+func NewOrders() *Orders {
+	o := &Orders{}
+	o.OnMount((*Orders).start)
+	o.Loads("rows", (*Orders).loadRows)
+	o.OnChange((*Orders).changed)
+	return o
+}
+
+func (o *Orders) Mount(ctx context.Context) error   { return nil }
+func (o *Orders) Changed(ctx context.Context) error { return nil }
+
+func (o *Orders) start(ctx context.Context) error    { return nil }
+func (o *Orders) loadRows(ctx context.Context) error { return nil }
+func (o *Orders) changed(ctx context.Context, c ui.Changed) error {
+	return nil
+}
+
+// Board declares its hooks: a method named Mount is one when marked.
+type Board struct{ ui.Live }
+
+@ui.Mount
+func (b *Board) Mount(ctx context.Context) error { return nil }
+
+func main() {}

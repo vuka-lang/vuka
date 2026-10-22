@@ -18,11 +18,12 @@ import (
 )
 
 // Live pages of earlier releases are configured by field tags (bind:, url:,
-// defer:, validate:) and loaders found by name (Load<Group>). Both still
-// work for one minor release: vuka vet warns (W0302, W0303) and vuka fix
-// attributes / vuka fix hooks rewrite them as attributes. Mount and Changed
-// found by name are ordinary hooks: the browser can't call them and ui
-// checks their signatures.
+// defer:, validate:) and hooks found by name (Mount, Changed, Load<Group>).
+// The tags still work for one minor release: vuka vet warns (W0302) and vuka
+// fix attributes rewrites them as attributes. A hook is declared only with
+// its attribute (@ui.Mount, @ui.OnChange, @ui.Loads): a method found by its
+// name is an error (E0337, the compiler's for Mount and Changed; vuka vet's
+// for a loader), and vuka fix hooks marks the methods.
 
 // liveTags are the field tags a live page's fields were configured by.
 var liveTags = []string{"bind", "url", "defer", "validate"}
@@ -133,18 +134,19 @@ func (lt *liveType) field(toks []wtok) {
 	lt.fields = append(lt.fields, f)
 }
 
-// hookMethod matches a method of a live page's that a loader was found by.
-var hookMethod = regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*(Load[A-Z]\w*)\s*\(([^)]*)\)\s*([^{]*)\{`)
+// hookMethod matches a method of a live page's that earlier releases found
+// a hook by: Mount, Changed, Load<Group>.
+var hookMethod = regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*(Mount|Changed|Load[A-Z]\w*)\s*\(([^)]*)\)\s*([^{]*)\{`)
 
-// namedHook is a method a live page's loader is found by.
+// namedHook is a method earlier releases found a live page's hook by.
 type namedHook struct {
 	typ, name, params, results string
 	off                        int // the func keyword
 	hooked                     bool
 }
 
-// namedHooks are the methods src declares that loaders are found by,
-// hooked when a loader attribute is written above.
+// namedHooks are the methods src declares that earlier releases found hooks
+// by, hooked when a hook attribute is written above.
 func namedHooks(src []byte) []namedHook {
 	var out []namedHook
 	for _, m := range hookMethod.FindAllSubmatchIndex(src, -1) {
@@ -152,7 +154,7 @@ func namedHooks(src []byte) []namedHook {
 			results: strings.TrimSpace(string(src[m[8]:m[9]])), off: m[0]}
 		for _, a := range attrsAbove(src, m[0]) {
 			_, sel, _ := strings.Cut(a, ".")
-			h.hooked = h.hooked || sel == "Loads"
+			h.hooked = h.hooked || sel == "Loads" || sel == "Mount" || sel == "OnChange"
 		}
 		out = append(out, h)
 	}
@@ -255,10 +257,11 @@ func vetLivePages(root string, pkgs []*load.Package) []diag.Diagnostic {
 				}
 			}
 			for _, h := range namedHooks(src) {
-				if _, ok := live[h.typ]; !ok || h.hooked || !deferred[h.typ+"."+strings.TrimPrefix(h.name, "Load")] {
+				if _, ok := live[h.typ]; !ok || h.hooked || !strings.HasPrefix(h.name, "Load") || !deferred[h.typ+"."+strings.TrimPrefix(h.name, "Load")] {
 					continue
 				}
-				out = append(out, *diag.Warn("W0303", "%s.%s is a loader found by its name, the form of earlier releases", h.typ, h.name).
+				g := strings.TrimPrefix(h.name, "Load")
+				out = append(out, *diag.New("E0337", "%s.%s isn't a hook: a loader is declared with @ui.Loads(%q), never found by its name", h.typ, h.name, strings.ToLower(g[:1])+g[1:]).
 					At(span(file, src, line, h.off, len("func"))).WithHelp("mark it with its group's attribute: vuka fix hooks"))
 			}
 		}
@@ -496,8 +499,8 @@ func ensureImport(src []byte, path string) []byte {
 	return src
 }
 
-// fixHooks marks the methods a live page's loaders are found by with their
-// groups' attributes, when their signatures are a loader's.
+// fixHooks marks the methods earlier releases found a live page's hooks by
+// with the hooks' attributes, when their signatures are the hooks'.
 func fixHooks(m *fixModule) ([]fixChange, error) {
 	var changes []fixChange
 	for _, p := range m.pkgs {
@@ -518,8 +521,12 @@ func fixHooks(m *fixModule) ([]fixChange, error) {
 
 var ctxParam = regexp.MustCompile(`^\w+\s+context\.Context$`)
 
-// markHooks is src with a Loads attribute above each method a loader is
-// found by, and the methods marked.
+var ctxChangedParams = regexp.MustCompile(`^\w+\s+context\.Context\s*,\s*\w+\s+\w+\.Changed$`)
+
+// markHooks is src with a hook attribute above each method earlier releases
+// found a hook by — @ui.Mount on Mount, @ui.OnChange on Changed,
+// @ui.Loads("group") on a deferred group's Load<Group> — whose signature
+// is the hook's, and the methods marked.
 func markHooks(src []byte, live map[string]string, deferred map[string]bool) ([]byte, []string) {
 	var b bytes.Buffer
 	var marked []string
@@ -529,11 +536,18 @@ func markHooks(src []byte, live map[string]string, deferred map[string]bool) ([]
 		if !ok || h.hooked || h.results != "error" {
 			continue
 		}
-		g := strings.TrimPrefix(h.name, "Load")
-		if !deferred[h.typ+"."+g] || !ctxParam.MatchString(h.params) {
+		var attr string
+		switch {
+		case h.name == "Mount" && ctxParam.MatchString(h.params):
+			attr = "@" + ui + ".Mount"
+		case h.name == "Changed" && ctxChangedParams.MatchString(h.params):
+			attr = "@" + ui + ".OnChange"
+		case strings.HasPrefix(h.name, "Load") && ctxParam.MatchString(h.params) && deferred[h.typ+"."+strings.TrimPrefix(h.name, "Load")]:
+			g := strings.TrimPrefix(h.name, "Load")
+			attr = "@" + ui + ".Loads(" + strconv.Quote(strings.ToLower(g[:1])+g[1:]) + ")"
+		default:
 			continue
 		}
-		attr := "@" + ui + ".Loads(" + strconv.Quote(strings.ToLower(g[:1])+g[1:]) + ")"
 		b.Write(src[last:h.off])
 		b.WriteString(attr + "\n")
 		last = h.off

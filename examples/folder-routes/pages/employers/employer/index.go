@@ -15,16 +15,15 @@ import (
 // /employers/{employer}.
 type Index struct {
 	Params
-	store    *store.Store
-	employer store.Employer
+	store *store.Store
 }
 
 func NewIndex(s *store.Store) *Index { return &Index{store: s} }
 
-// Mount runs once the employer is bound, before Title and Render.
-func (p *Index) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
-
-func (p *Index) Title() string { return p.employer.Name }
+func (p *Index) Title() string {
+	e, _ := p.store.Employer(p.Employer)
+	return e.Name
+}
 
 func (p *Index) Render(ctx context.Context, w io.Writer) error {
 	permits := ui.Each(p.store.Permits(p.Employer), func(pm store.Permit) ui.Node {

@@ -16,15 +16,18 @@ import (
 // loads first, so an unknown employer is not found for all three.
 type Edit struct {
 	Params
-	store    *store.Store
-	employer store.Employer
+	store *store.Store
 }
 
 func NewEdit(s *store.Store) *Edit { return &Edit{store: s} }
 
-func (p *Edit) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
+// employer is the bound employer; its layout has found it already.
+func (p *Edit) employer() store.Employer {
+	e, _ := p.store.Employer(p.Employer)
+	return e
+}
 
-func (p *Edit) Title() string { return "Edit " + p.employer.Name }
+func (p *Edit) Title() string { return "Edit " + p.employer().Name }
 
 func (p *Edit) Post(ctx context.Context, form store.EmployerForm) (web.Redirect, error) {
 	p.store.UpdateEmployer(p.Employer, form)
@@ -37,7 +40,7 @@ func (p *Edit) Delete(ctx context.Context) error {
 }
 
 func (p *Edit) Render(ctx context.Context, w io.Writer) error {
-	e, action := p.employer, urls.Employers.Employer(p.Employer).Edit.Path()
+	e, action := p.employer(), urls.Employers.Employer(p.Employer).Edit.Path()
 	return ui.HTML(`<form id="edit" method="post" action={action}>
   <label>Name <input name="name" value={e.Name} required/></label>
   <label>City <input name="city" value={e.City} required/></label>

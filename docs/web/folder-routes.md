@@ -191,10 +191,11 @@ left as they are.
 
 Each request builds the page with its constructor and binds its exported
 fields as a live page's are: a provided type injected, text from the path
-segment of its name, else the query parameter. A stateless page may have a
-`Mount()` or `Mount(ctx)` method, returning nothing or an error, run once
-the fields are bound and the [guards](#guards) and [layouts](#layouts)
-above it have loaded — where it loads what the parameters name:
+segment of its name, else the query parameter. A stateless page has no
+hooks — a page that loads in a hook is a live page, its `@ui.Mount` running
+once the fields are bound and the [guards](#guards) and [layouts](#layouts)
+above it have loaded — so it reads what the parameters name where it uses
+it:
 
 ```go
 // pages/employers/employer/edit.go
@@ -202,26 +203,26 @@ package employer
 
 type Edit struct {
 	Params
-	store    *Store
-	employer Employer
+	store *Store
 }
 
 func NewEdit(s *Store) *Edit { return &Edit{store: s} }
 
-func (p *Edit) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
-
-func (p *Edit) Title() string { return "Edit " + p.employer.Name }
+func (p *Edit) Title() string {
+	e, _ := p.store.Employer(p.Employer)
+	return "Edit " + e.Name
+}
 ```
 
-A live page's `Mount(ctx) error` runs as its session renders, the same
-method by name; see [Hooks](/ui/stateful#hooks).
+A live page loads what it shows in its `@ui.Mount` hook, which runs as its
+session renders; see [Hooks](/ui/stateful#hooks).
 
 ### Titles
 
 A page with `Title() string` names the document: before the layouts render
 the context carries it, and a layout reads it with `ui.PageTitle(ctx)`. A
-stateless page's `Title` runs after its `Mount`. A live page's runs once
-its fields are bound and before its `Mount`, so a live page titles itself
+stateless page's `Title` runs once its fields are bound. A live page's runs
+once its fields are bound and before its mount hook, so a live page titles itself
 from its parameters (`"Permit 2"`) or what its constructor set.
 
 ### Pages that are only a template
@@ -380,7 +381,7 @@ embed its package's `Params`, and it may have a `Load` method, its
 parameters after `ctx` coming from the container. On each request, from
 the outermost in, a layout is made fresh, its path parameters bound, `Load`
 called, and then it renders around the next one. Every `Load` runs before
-the page's `Mount`, so `Mount` sees only what the layouts let through. An
+the page's mount hook, so it sees only what the layouts let through. An
 error from `Load` answers the request as a handler's would: `web.NotFound`
 is a 404, `web.Forbidden` a 403, a `web.Redirect` redirects. `Load` guards
 everything beneath its folder — every page and every page's `Post`, `Put`,
@@ -436,15 +437,15 @@ package employer
 
 type Edit struct {
 	Params
-	store    *Store
-	employer Employer
+	store *Store
 }
 
 func NewEdit(s *Store) *Edit { return &Edit{store: s} }
 
-func (p *Edit) Mount() { p.employer, _ = p.store.Employer(p.Employer) }
-
-func (p *Edit) Title() string { return "Edit " + p.employer.Name }
+func (p *Edit) Title() string {
+	e, _ := p.store.Employer(p.Employer)
+	return "Edit " + e.Name
+}
 
 func (p *Edit) Post(ctx context.Context, form EmployerForm) (web.Redirect, error) {
 	p.store.Update(p.Employer, form)
@@ -457,11 +458,12 @@ func (p *Edit) Delete(ctx context.Context) error {
 }
 
 func (p *Edit) Render(ctx context.Context, w io.Writer) error {
+	e, _ := p.store.Employer(p.Employer)
 	action := urls.Employers.Employer(p.Employer).Edit.Path()
 	return ui.HTML(`<form method="post" action={action}>
-  <input name="name" value={p.employer.Name}/> <input name="city" value={p.employer.City}/>
+  <input name="name" value={e.Name}/> <input name="city" value={e.City}/>
   <button>Save</button>
-</form>`, action, p.employer.Name, p.employer.City).Render(ctx, w)
+</form>`, action, e.Name, e.City).Render(ctx, w)
 }
 ```
 
@@ -618,7 +620,7 @@ Per request a guard is made fresh, its path parameters bound and its
 (`web.NotFound` 404, `web.Forbidden` 403, any other `web.Error` its status,
 a `web.Redirect` 302 on `GET` and 303 otherwise) — an HTML error page for a
 page, JSON for an endpoint. It runs before anything of the request's own:
-before a stateless page's `Mount`, before a live page renders (on the
+before a stateless page renders, before a live page renders (on the
 `GET` and again when its socket joins, a refused join answering a live
 error with the status), and before a handler's or endpoint's body is read, so `POST
 /api/employers` with the read key is 403 whatever it sends.
@@ -679,7 +681,7 @@ func Middleware(s *Store) web.Middleware {
 Middleware is the outermost ring. Per request, from the root folder down:
 
 ```text
-middleware (root → folder) → guards' and layouts' Load → bind → Mount → handler
+middleware (root → folder) → guards' and layouts' Load → bind → mount hook → handler
 ```
 
 and the response passes back out through the middleware. A route's own
@@ -863,7 +865,7 @@ func NewSettings() *Settings { return &Settings{} }
 ```
 
 `web.PageRoute()` gives the route the behaviour of a page — fields bound
-from the path, a bad path parameter a 404, `Mount`, `Title` — and
+from the path, a bad path parameter a 404, the mount hook, `Title` — and
 `web.LayoutOf[T]()` adds a layout, the first given outermost;
 `web.GuardOf[T]()` adds a guard, loading with the layouts in the order the
 options are given; `web.UseOf(pkg.Middleware)` wraps the route in each

@@ -21,7 +21,8 @@ type Counter struct {
 	n     int
 }
 
-func (c *Counter) Mount(ctx context.Context) error {
+//line jsx_live.vuka:22
+func (c *Counter) mount(ctx context.Context) error {
 	c.n = c.Start
 	return nil
 }
@@ -70,7 +71,7 @@ func (t *Todo) Remove(id int) {
 
 func (t *Todo) Render() ui.Node {
 	var lis []ui.Node
-//line jsx_live.vuka:74
+//line jsx_live.vuka:75
 	for _, it := range t.items {
 		lis = append(lis, ui.HTML(`
 <li key={it.ID}>
@@ -79,12 +80,12 @@ func (t *Todo) Render() ui.Node {
 </li>`, it.ID, &Counter{Label: it.Name}, func() { t.Remove(it.ID) }))
 	}
 	var p2 ui.Node
-//line jsx_live.vuka:81
+//line jsx_live.vuka:82
 	if t.query != "" {
-//line jsx_live.vuka:81
+//line jsx_live.vuka:82
 		p2 = ui.HTML(`<p>typing {t.query}</p>`, t.query)
 	}
-//line jsx_live.vuka:69
+//line jsx_live.vuka:70
 	return ui.HTML(`
 <section>
   <h2>{t.Title}</h2>
@@ -102,11 +103,11 @@ func (t *Todo) Render() ui.Node {
 	)
 }
 
-//line jsx_live.vuka:85
-func page(ctx context.Context) ui.Node {
-//line jsx_live.vuka:87
-	todo := &Todo{Title: "Groceries", Children: ui.HTML(`<p>weekly</p>`)}
 //line jsx_live.vuka:86
+func page(ctx context.Context) ui.Node {
+//line jsx_live.vuka:88
+	todo := &Todo{Title: "Groceries", Children: ui.HTML(`<p>weekly</p>`)}
+//line jsx_live.vuka:87
 	return ui.HTML(`
 <main>
   {todo}
@@ -114,7 +115,7 @@ func page(ctx context.Context) ui.Node {
 </main>`, todo, ui.Key("solo", &Counter{Start: 10, Label: "solo"}))
 }
 
-//line jsx_live.vuka:92
+//line jsx_live.vuka:93
 var handlers = regexp.MustCompile(`data-vk-on-(\w+)="([^"]+)"`)
 
 func show(p live.Patch, err error) {
@@ -151,4 +152,9 @@ func main() {
 	show(sess.Event(ui.Event{Target: "c1:2", Type: "click"}))
 	fmt.Println("click solo:")
 	show(sess.Event(ui.Event{Target: "c2:0", Type: "click"}))
+}
+
+//line jsx_live.vuka:14
+func (c *Counter) LiveSchema(l *ui.LiveSchema) {
+	l.Mount(c.mount)
 }

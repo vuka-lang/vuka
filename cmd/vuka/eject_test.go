@@ -174,6 +174,37 @@ func last() {}
 	if got := string(arrange([]byte(gen))); got != wantGen {
 		t.Errorf("gen: got:\n%s\nwant:\n%s", got, wantGen)
 	}
+
+	// A moved function that ended the file leaves no directive behind it:
+	// nothing follows to resume.
+	last := `package main
+
+//line board.vuka:3
+type Board struct{}
+
+var x = 1
+
+//line board.vuka:7
+func (b *Board) LiveSchema(l *Schema) { l.Mount(b.mount) }
+`
+	wantLast := `package main
+
+//line board.vuka:3
+type Board struct{}
+
+//line board.vuka:7
+func (b *Board) LiveSchema(l *Schema) { l.Mount(b.mount) }
+
+//line board.vuka:5
+var x = 1
+`
+	got := string(arrange([]byte(last)))
+	if got != wantLast {
+		t.Errorf("last: got:\n%s\nwant:\n%s", got, wantLast)
+	}
+	if lines := strings.Split(strings.TrimSpace(got), "\n"); strings.HasPrefix(lines[len(lines)-1], "//line ") {
+		t.Errorf("ends in a line directive:\n%s", got)
+	}
 }
 
 // Ejecting a package vuka linked into main implicitly imports it there:

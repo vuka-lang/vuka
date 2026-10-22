@@ -435,7 +435,7 @@ in such a function, when its JSX writes `name` literally and never computes
 it, must name a value one of its elements has — `ui.GetAttr("name",
 "usrname"): no element in Login has name="usrname"; did you mean
 "username"?`; values that aren't string literals aren't checked. What a
-handler may take, what a `Mount` looks like, how a value renders, is the
+handler may take, what a mount hook looks like, how a value renders, is the
 target's business, checked by its runtime.
 :::
 

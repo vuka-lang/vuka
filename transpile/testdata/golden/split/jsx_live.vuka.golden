@@ -18,7 +18,8 @@ type Counter struct {
 	n     int
 }
 
-func (c *Counter) Mount(ctx context.Context) error {
+@ui.Mount
+func (c *Counter) mount(ctx context.Context) error {
 	c.n = c.Start
 	return nil
 }

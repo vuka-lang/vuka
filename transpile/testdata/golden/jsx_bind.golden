@@ -17,14 +17,17 @@ type Search struct {
 	Color string
 }
 
-func (s *Search) LiveSchema(l *ui.LiveSchema) { l.Field(&s.Q, ui.Bind{}) }
-
 func (s *Search) Render() ui.Node {
 	return ui.HTML(`<form style={ui.CSSVars(nil, "--accent", s.Color)}><input {ui.BindValue(s, &s.Q)...}/></form>`, ui.CSSVars(nil, "--accent", s.Color), ui.BindValue(s, &s.Q))
 }
 
-//line jsx_bind.vuka:25
+//line jsx_bind.vuka:23
 func main() {
 	out, err := ui.String(context.Background(), ui.Component("s", nil, &Search{Q: "go", Color: "red"}))
 	fmt.Println(out, err)
+}
+
+//line jsx_bind.vuka:12
+func (s *Search) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&s.Q, ui.Bind{})
 }
