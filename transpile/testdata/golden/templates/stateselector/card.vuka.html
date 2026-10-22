@@ -1,0 +1,27 @@
+package main
+
+// Card keeps an employer as tracked server state: its fields, nested
+// fields and methods read through the Assign, and writes into it update
+// it.
+type Card struct {
+	employer Employer
+}
+
+func (p *Card) Load(name, city string) {
+	p.employer.Name = name
+	p.employer.Addr.City = city
+	p.employer.Tags[0] = "new"
+}
+
+// Rename calls the record's pointer methods: each a write into it.
+func (p *Card) Rename(name string) {
+	p.employer.Rename(name)
+	p.employer.Addr.Fix()
+}
+
+func (p *Card) Title() string { return "Employer " + p.employer.Name + " of " + p.employer.Addr.City }
+<article>
+  <h1>{employer.Name}</h1>
+  <p>{employer.Addr.City}, {employer.Label()}</p>
+  <p>{len(employer.Tags)} tags: {employer.Tags[0]}</p>
+</article>

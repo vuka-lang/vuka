@@ -346,9 +346,12 @@ func (r *Row) Inc() { r.qty++ }
 ```
 
 The field is read and written as any field is — `r.qty++`, `r.rows =
-append(r.rows, x)`, `r.rows[i].Done = true` — and the compiler writes it as
-a `uigen.Assign` of its type, each read a `Get`, each write a `Set` or an
-`Update`. Taking a tracked field's address is
+append(r.rows, x)`, `r.rows[i].Done = true`, `r.employer.Addr.City` in a
+method or `{employer.Label()}` in the markup, `r.employer.Name = x` — and
+the compiler writes it as a `uigen.Assign` of its type, each read a `Get`,
+each write a `Set` or an `Update`; a method with a pointer receiver called
+as a statement (`r.employer.Rename(x)`) is a write too. Taking a tracked
+field's address, or calling such a method inside an expression, is
 [E0150](/errors/E0150): a change through the pointer wouldn't be seen.
 
 A click in one row of a thousand renders that row only. `Render` must read
