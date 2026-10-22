@@ -28,3 +28,5 @@ github.com/vuka-lang/ui v1.5.1-0.20261022131445-19d51e1a8d6b h1:YJgKi2n5SkHeGnOx
 github.com/vuka-lang/ui v1.5.1-0.20261022131445-19d51e1a8d6b/go.mod h1:RGeRDyJ4rq5+TUAh/3qeu6o6W+GhFnMVLdOlGu+JMbw=
 github.com/vuka-lang/ui v1.5.1-0.20261022141038-2a566b34a821 h1:RJQBtXytpG4vG+ze0ZABKQQ3PDQIxdz/dMTTGc1qoUE=
 github.com/vuka-lang/ui v1.5.1-0.20261022141038-2a566b34a821/go.mod h1:RGeRDyJ4rq5+TUAh/3qeu6o6W+GhFnMVLdOlGu+JMbw=
+github.com/vuka-lang/ui v1.5.1-0.20261022151247-43033f491c61 h1:uoh5ayN3xcciH4wqMNX00pVKWyoi0GzADrNYWiipF5I=
+github.com/vuka-lang/ui v1.5.1-0.20261022151247-43033f491c61/go.mod h1:RGeRDyJ4rq5+TUAh/3qeu6o6W+GhFnMVLdOlGu+JMbw=
