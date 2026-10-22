@@ -67,7 +67,7 @@ export default defineConfig({
   base: '/',
   lastUpdated: true,
   cleanUrls: true,
-  srcExclude: ['design/**'], // design notes live in the repository, not on the site
+  srcExclude: ['design/**', 'rfc/**'], // design notes and RFCs live in the repository, not on the site
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['script', {}, styleScript],

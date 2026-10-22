@@ -47,14 +47,14 @@ const (
 	contextMark  = "<!-- go:context"
 )
 
-// docPages are the published pages: every .md but the design notes.
+// docPages are the published pages: every .md but the design notes and RFCs.
 func docPages(t *testing.T) []string {
 	var out []string
 	filepath.WalkDir(".", func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if d.IsDir() && (p == "node_modules" || p == "design" || p == "testdata" || strings.HasPrefix(d.Name(), ".") && p != ".") {
+		if d.IsDir() && (p == "node_modules" || p == "design" || p == "rfc" || p == "testdata" || strings.HasPrefix(d.Name(), ".") && p != ".") {
 			return filepath.SkipDir
 		}
 		if !d.IsDir() && strings.HasSuffix(p, ".md") {
