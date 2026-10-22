@@ -12,10 +12,10 @@ import (
 )
 
 // registration is a call registering with web: web.Routes.Get(…),
-// app.Live(…), app.Service(…).
+// app.Live(…), app.Page(…), app.Service(…).
 type registration struct {
 	at     span   // from the method's name: a chain's call is on its own line
-	verb   string // Handle, Get, Post, Put, Patch, Delete, Live, Controller, Service
+	verb   string // Handle, Get, Post, Put, Patch, Delete, Live, Page, Controller, Service
 	method string // the HTTP method of a route
 	path   string // its path, a controller's prefix; "" when not a constant
 	fn     ast.Expr
@@ -25,7 +25,7 @@ type registration struct {
 }
 
 var verbs = map[string]string{"Get": http.MethodGet, "Post": http.MethodPost, "Put": http.MethodPut,
-	"Patch": http.MethodPatch, "Delete": http.MethodDelete, "Handle": "", "Live": http.MethodGet, "Controller": "", "Service": ""}
+	"Patch": http.MethodPatch, "Delete": http.MethodDelete, "Handle": "", "Live": http.MethodGet, "Page": http.MethodGet, "Controller": "", "Service": ""}
 
 // registrations are the package's calls registering with web, in source
 // order.

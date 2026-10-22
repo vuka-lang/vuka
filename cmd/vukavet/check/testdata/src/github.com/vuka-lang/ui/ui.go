@@ -57,6 +57,8 @@ func Island(args ...any) islandOpt { return islandOpt{} }
 
 func HTML(src string, args ...any) Node { return nil }
 
+func IslandPage(x any) Node { return nil }
+
 type FieldOptions struct{}
 
 type FieldAttr interface{ Apply(*FieldOptions) }

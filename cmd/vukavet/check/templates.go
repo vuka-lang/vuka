@@ -18,7 +18,8 @@ import (
 // or reads wrong, otherwise — and the package's .vuka.html files: a bare
 // name both a field and a package-level name (W0101) — and the loops that
 // build a live list without keys (W0102, W0103) — and a hand-written use of
-// ui's uigen, the compiler's output (W0105).
+// ui's uigen, the compiler's output (W0105) — and a hand-written ui.HTML,
+// the compiler's output for markup (W0106).
 var Templates = &analysis.Analyzer{
 	Name: "templates",
 	Doc:  "check ui.HTML's values against its labelled holes",
@@ -31,9 +32,9 @@ func runTemplates(pass *analysis.Pass) (any, error) {
 	k := newKinds(pass)
 	html := htmlSources(pass)
 	bareNames(pass, html)
-	templateHeaders(pass, html)
 	listKeys(pass)
 	handWrittenGen(pass)
+	handWrittenHTML(pass)
 	for _, f := range pass.Files {
 		ast.Inspect(f, func(n ast.Node) bool {
 			call, ok := n.(*ast.CallExpr)
