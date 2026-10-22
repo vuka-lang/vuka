@@ -14,7 +14,7 @@ type Board struct {
 
 func NewBoard() *Board             { return &Board{} }
 func (b *Board) Render() ui.Node   { return nil }
-func (b *Board) Mount(n int) error { return nil } // want `E0329: Board's Mount is func\(n int\) error`
+func (b *Board) Mount(n int) error { return nil } // want `E0337: Board.Mount isn't a hook: a hook is declared with @ui.Mount, never found by its name`
 
 type NoRender struct{ ui.Live } // want `E0329: NoRender is not a stateful component`
 
@@ -39,18 +39,18 @@ type Detail struct {
 	Pending bool   `bind:""`                // want `E0322: Detail.Pending: live.pending is live's own`
 	hidden  string `bind:""`                // want `E0322: Detail.hidden: bind: is for a prop`
 	CV      string `defer:"profile"`        // want `E0324: Detail.CV is deferred, and the group Profile has no loader`
-	Stats   int    `defer:"stats"`
-	Bad     int    `defer:"a-b"`       // want `E0323: Detail.Bad: defer:"a-b": a group is a name`
-	Both    int    `defer:"x" url:"x"` // want `E0323: Detail.Both: a deferred field is the server's to load`
-	Title   string `json:"name"`       // want `E0326: Detail: fields Name and Title are both live.name`
-	Age     int    `validate:"min=x"`  // want `E0328: Detail.Age: validate:"min=x": min takes a number`
+	Stats   int    `defer:"stats"`          // want `E0324: Detail.Stats is deferred, and the group Stats has no loader`
+	Bad     int    `defer:"a-b"`            // want `E0323: Detail.Bad: defer:"a-b": a group is a name`
+	Both    int    `defer:"x" url:"x"`      // want `E0323: Detail.Both: a deferred field is the server's to load`
+	Title   string `json:"name"`            // want `E0326: Detail: fields Name and Title are both live.name`
+	Age     int    `validate:"min=x"`       // want `E0328: Detail.Age: validate:"min=x": min takes a number`
 	Home    Address
 }
 
 func NewDetail() *Detail                           { return &Detail{} }
 func (d *Detail) Render() ui.Node                  { return nil }
-func (d *Detail) LoadStats(n int) error            { return nil } // want `E0325: Detail.LoadStats is the loader of the deferred group Stats, and it is func\(n int\) error`
-func (d *Detail) Changed(x string)                 {}             // want `E0327: Detail.Changed is func\(x string\)`
+func (d *Detail) LoadStats(n int) error            { return nil }
+func (d *Detail) Changed(x string)                 {} // want `E0337: Detail.Changed isn't a hook: a hook is declared with @ui.OnChange`
 func (d *Detail) Submit(ctx context.Context) error { return nil }
 
 type Card struct {
@@ -58,7 +58,7 @@ type Card struct {
 }
 
 func NewCard() *Card           { return &Card{} }
-func (c *Card) Mount(a, b int) {} // want `E0333: Card's Mount is func\(a int, b int\)`
+func (c *Card) Mount(a, b int) {} // want `E0337: Card.Mount isn't a hook`
 
 type Clash struct {
 	ui.Live
@@ -103,7 +103,7 @@ func (s *Search) LiveSchema(l *ui.LiveSchema) {
 
 func (s *Search) loadRows(ctx context.Context) error { return nil }
 
-// Changed is the OnChange hook, so any signature its method value fits.
+// Changed is the OnChange hook, declared in LiveSchema: no E0337.
 func (s *Search) Changed(ctx context.Context, c ui.Changed) error { return nil }
 
 func init() {

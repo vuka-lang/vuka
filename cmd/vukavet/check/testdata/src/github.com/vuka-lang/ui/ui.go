@@ -12,9 +12,6 @@ type Live struct{}
 
 func (l *Live) vukaLive() *Live            { return l }
 func (l *Live) Subscribe(topics ...string) {}
-func (l *Live) OnMount(fn any)             {}
-func (l *Live) Loads(group string, fn any) {}
-func (l *Live) OnChange(fn any)            {}
 
 type Stateful interface {
 	Render() Node

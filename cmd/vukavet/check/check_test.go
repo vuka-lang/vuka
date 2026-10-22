@@ -81,3 +81,9 @@ func TestShape(t *testing.T) {
 func TestHandWrittenGen(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), Templates, "uigenuse")
 }
+
+// TestHandWrittenSchema: a LiveSchema method a person wrote is W0306; a
+// generated one, nothing.
+func TestHandWrittenSchema(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Live, "schemause")
+}
