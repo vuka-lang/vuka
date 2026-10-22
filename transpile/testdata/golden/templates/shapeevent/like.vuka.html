@@ -1,0 +1,10 @@
+package main
+
+// Like has an event its markup sends, so it is live: the compiler embeds
+// ui.Live.
+type Like struct {
+	n int
+}
+
+func (l *Like) Add() { l.n++ }
+<button onClick={l.Add}>♥ {n}</button>

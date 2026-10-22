@@ -1,0 +1,35 @@
+package main
+
+// Pets lists pets: a header whose method uses a channel and a raw string
+// holding markup, which are Go, not the file's markup.
+type Pets struct {
+	Pets []Pet
+}
+
+func (p Pets) Oldest() string {
+	ch := make(chan string, 1)
+	ch <- "x"
+	<-ch
+	note := `
+<b>not markup</b>`
+	_ = note
+	best := Pet{}
+	for _, x := range p.Pets {
+		if x.Age > best.Age {
+			best = x
+		}
+	}
+	return best.Name
+}
+<section>
+  <h2>Oldest: {Oldest()}</h2>
+  <ul>
+    for _, x := range Pets {
+      {petRow(x)}
+    }
+  </ul>
+  <Footer n={len(Pets)} />
+</section>
+
+func petRow(x Pet)
+<li>{x.Name}</li>

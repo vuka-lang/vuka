@@ -65,6 +65,45 @@ package declares no such type is an error; start it with an explicit
 header, `func (s Sales) View()` (`func (p *Orders) Render()` for a stateful
 type), to name the receiver.
 
+## The struct in the file
+
+A template file can hold the struct it renders too: its Go — the struct,
+its hooks and methods — comes after the imports, and the markup starts at
+the first line beginning with `<` outside that Go (not inside a method's
+body or a string). The Go is `.vuka` source, so decorators, `?` and `match`
+work in it:
+
+```html
+<!-- counter.vuka.html -->
+package app
+
+import "context"
+
+// Counter counts clicks.
+type Counter struct {
+	Start int // a prop
+	n     int // state the server keeps
+}
+
+@ui.Mount
+func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+
+func (c *Counter) Inc() { c.n++ }
+<button onClick={Inc}>{n}</button>
+```
+
+The file declares exactly one struct: none is
+[E0146](/errors/E0146), two are [E0147](/errors/E0147), and Go with no
+markup is [E0148](/errors/E0148). Exported fields are props, unexported
+ones server state, and `ui.State[T]` fields browser state. The struct is
+live — its markup its `Render` — when it embeds `ui.Live`, declares a hook
+(`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`), or has an exported method its
+markup sends from an `on…` attribute; the compiler embeds `ui.Live` for the
+last two. Otherwise it is a struct component, its markup its `View`. The
+markup reads the struct through the receiver its methods name (`c.n`, or
+bare `n`). This is the form vuka 2.0 keeps; see the
+[RFC](https://github.com/vuka-lang/vuka/blob/main/docs/rfc/one-way.md).
+
 ## More templates in a file
 
 A `func` line at the start of a line starts another template; its body is

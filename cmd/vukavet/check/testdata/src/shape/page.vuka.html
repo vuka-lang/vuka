@@ -1,0 +1,15 @@
+package shape
+
+type Page struct {
+	Title string
+}
+
+func (p Page) Upper() string { return p.Title }
+
+func header() string { return "h" }
+<div>
+  <h1>{Title} {Upper()}</h1>
+</div>
+
+func Row(n int)
+<p>{n}</p>

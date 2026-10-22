@@ -1,0 +1,24 @@
+package main
+
+import (
+	"strings"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Card is a titled box: its fields are its props, its markup below.
+type Card struct {
+	Title    string
+	Tags     []string
+	Children ui.Node
+}
+
+// Heading is the title as the card shows it.
+func (c Card) Heading() string { return strings.ToUpper(c.Title) }
+<section class="card">
+  <h2>{Heading()}</h2>
+  for _, t := range Tags {
+    <span class="tag">{t}</span>
+  }
+  {c.Children}
+</section>

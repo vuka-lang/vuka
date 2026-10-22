@@ -1,0 +1,15 @@
+package main
+
+import "context"
+
+// Counter counts clicks.
+type Counter struct {
+	Start int // a prop
+	n     int // state the server keeps
+}
+
+@ui.Mount
+func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+
+func (c *Counter) Inc() { c.n++ }
+<button onClick={Inc}>{n}</button>

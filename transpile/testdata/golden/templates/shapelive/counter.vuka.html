@@ -1,0 +1,27 @@
+package main
+
+import (
+	"strconv"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Counter embeds ui.Live: a live component, its markup its Render.
+type Counter struct {
+	ui.Live
+	Start int // a prop
+	n     int // server state
+}
+
+// Inc is an event.
+func (c *Counter) Inc() { c.n++ }
+
+// Parse reads a step with ?, as .vuka does.
+func (c *Counter) Parse(s string) Result[int] {
+	n := strconv.Atoi(s)?
+	return Ok(n)
+}
+<div class="counter">
+  <span>{Start + n}</span>
+  <button onClick={Inc}>+</button>
+</div>

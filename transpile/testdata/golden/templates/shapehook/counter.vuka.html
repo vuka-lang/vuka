@@ -1,0 +1,20 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Counter declares a hook, so it is live: the compiler embeds ui.Live.
+type Counter struct {
+	Start int
+	n     int
+}
+
+@ui.Mount
+func (c *Counter) mount(ctx context.Context) error {
+	c.n = c.Start
+	return nil
+}
+<p>{n}</p>

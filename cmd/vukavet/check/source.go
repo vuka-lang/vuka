@@ -19,6 +19,9 @@ type htmlSource struct {
 	path string
 	src  string
 	file *token.File
+
+	typ    string // the struct a file in the 2.0 shape renders
+	markup int    // where its markup starts; -1 for a file of templates
 }
 
 // htmlSources are the .vuka.html files of the package pass analyses.
@@ -36,7 +39,11 @@ func htmlSources(pass *analysis.Pass) []*htmlSource {
 		}
 		f := pass.Fset.AddFile(p, -1, len(b))
 		f.SetLinesForContent(b)
-		out = append(out, &htmlSource{path: p, src: string(b), file: f})
+		h := &htmlSource{path: p, src: string(b), file: f, markup: -1}
+		if typ, at, ok := shapeOf(h.src); ok {
+			h.typ, h.markup = typ, at
+		}
+		out = append(out, h)
 	}
 	return out
 }
@@ -79,6 +86,21 @@ type goPart struct {
 // mainTemplate is the markup before a file's first func line, when the
 // file starts with markup: the headerless template of its type.
 func (h *htmlSource) mainTemplate() (start, end int, ok bool) {
+	if h.markup >= 0 {
+		end = len(h.src)
+		for off := h.markup; off < len(h.src); {
+			l := h.src[off:]
+			if i := strings.IndexByte(l, '\n'); i >= 0 {
+				l = l[:i+1]
+			}
+			if strings.HasPrefix(l, "func ") || strings.HasPrefix(l, "func(") {
+				end = off
+				break
+			}
+			off += len(l)
+		}
+		return h.markup, end, true
+	}
 	off := 0
 	start = -1
 	group := false
@@ -227,6 +249,9 @@ func idents(p goPart) []goIdent {
 func bareNames(pass *analysis.Pass, files []*htmlSource) {
 	for _, h := range files {
 		typ := componentName(h.path)
+		if h.markup >= 0 {
+			typ = h.typ
+		}
 		obj, _ := pass.Pkg.Scope().Lookup(typ).(*types.TypeName)
 		start, end, ok := h.mainTemplate()
 		if obj == nil || !ok {
@@ -300,7 +325,7 @@ func templateHeaders(pass *analysis.Pass, files []*htmlSource) {
 	for _, h := range files {
 		off, prev := 0, ""
 		for _, l := range strings.SplitAfter(h.src, "\n") {
-			if m := headerName.FindStringSubmatchIndex(l); m != nil {
+			if m := headerName.FindStringSubmatchIndex(l); m != nil && off >= h.markup {
 				name := l[m[4]:m[5]]
 				method := m[2] >= 0
 				if !method && elements[name] {

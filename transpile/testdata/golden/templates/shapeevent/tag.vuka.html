@@ -1,0 +1,11 @@
+package main
+
+import "strings"
+
+// Tag has an exported method its markup reads but no event: it stays static.
+type Tag struct {
+	Name string
+}
+
+func (t Tag) Label() string { return "#" + strings.ToLower(t.Name) }
+<span onclick="void 0">{Label()}</span>

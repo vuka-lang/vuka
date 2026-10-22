@@ -184,6 +184,15 @@ func readRouteDir(root, modPath, dir string, read load.ReadFunc, registered map[
 			d.name = packageName(n, src)
 		}
 		if strings.HasSuffix(n, ".vuka.html") {
+			// A file in the 2.0 shape declares the struct it renders: a
+			// page as a .go file's would be.
+			if sh, _ := transpile.ParseShape(src); sh != nil {
+				types[sh.Type] = true
+				if token.IsExported(sh.Type) && !sh.Generic {
+					structs[sh.Type], looks[sh.Type] = true, true
+				}
+				continue
+			}
 			if name, ok := templatePage(n, src); ok {
 				templates[name] = n
 			}
