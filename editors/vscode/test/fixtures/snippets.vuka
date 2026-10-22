@@ -8,7 +8,8 @@ type Counter struct {
 	n     int // state
 }
 
-func (c *Counter) Mount(ctx context.Context) error {
+@ui.Mount
+func (c *Counter) mount(ctx context.Context) error {
 	c.n = c.Start
 	return nil
 }
@@ -88,8 +89,10 @@ type LiveCounter struct {
 	n     int
 }
 
-func (c *LiveCounter) Mount() { c.n = c.Start }
-func (c *LiveCounter) Inc()   { c.n++ }
+@ui.Mount
+func (c *LiveCounter) mount(ctx context.Context) error { c.n = c.Start; return nil }
+
+func (c *LiveCounter) Inc() { c.n++ }
 
 func (c *LiveCounter) Render() vuka.Node {
 	return <div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>
