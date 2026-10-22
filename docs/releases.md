@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.0.0 — unreleased
+## v2.0.0 — 2026-10-23
 
 vuka 2.0 has one way to write each part of a UI: markup lives in
 `.vuka.html` files, each declaring the one struct it renders above its
