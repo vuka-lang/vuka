@@ -9,8 +9,8 @@ Recorded 2026-10-22. They settle the open items of §2 and §9; where the text
 below still describes an alternative, this section wins.
 
 1. **Straight to 2.0, no 1.x bridge.** 1.x was released on 2026-10-20 and
-   has no dependents outside the maintainer's own apps, which move with
-   `vuka fix one-way`. There is no 1.6 release carrying the one-way forms
+   has no dependents outside the maintainer's own apps, which move by
+   hand. There is no 1.6 release carrying the one-way forms
    or deprecation warnings: 2.0 hard-removes every surface in the table of
    §2. The set moves to `/v2` module paths:
 
@@ -53,7 +53,17 @@ below still describes an alternative, this section wins.
    a `[id]/` bracket folder holds a segment shared by a layout, several
    pages and an `api/` subtree, and nests for nested parameters;
    `[path...]` is the catch-all. `params.go` parameter folders and their
-   `Params` structs are removed; `vuka fix one-way` rewrites them.
+   `Params` structs are removed; each is an error naming the bracket
+   form.
+
+5. **No migration command.** There is no `vuka fix one-way`: an app moves
+   to 2.0 by hand, guided by the errors. Each retired form is a compile
+   error, a `vukavet` diagnostic or a start-up error whose help names the
+   one way to write it (E0151–E0153 for markup outside a `.vuka.html`
+   file's one struct, E0720, E0721 and W0702 for pages outside `pages/`, W0106 for
+   a hand-written `ui.HTML`, E0714–E0716 for 1.x folder forms, E0420 for
+   `@web.Service`/`inject:`, E0337–E0338 for by-name and constructor
+   hooks).
 
 ## 1. Motivation
 
@@ -160,9 +170,9 @@ did-you-mean to the one way.
 ### Migration path (decided)
 
 2.0 is the only vehicle (Decision 1). `vuka upgrade` to 2.0 bumps the
-import paths to `/v2` and runs `vuka fix one-way`, which rewrites every
-retired form in the table above; `vuka vet` and `vuka test` then run as for
-any upgrade. No 1.x release carries the one-way forms or warnings.
+import paths to `/v2`; every retired form in the table above is then an
+error naming the one way to write it, and the app is moved by hand
+(Decision 5); `vuka vet` and `vuka test` then run as for any upgrade. No 1.x release carries the one-way forms or warnings.
 
 ### Resolved decisions
 
@@ -437,9 +447,8 @@ no `Params` struct at all.
 > folder-route machinery.** The bracketed name reads the URL at a glance and
 > removes the `params.go` boilerplate and the embedding chain; the parameter
 > type and rules move onto the struct that uses them. 2.0 removes
-> `params.go` parameter folders; `vuka fix one-way` rewrites each into a
-> bracket folder or file and folds the `Params` field into the struct that
-> reads it. The generated registration (`web.PageRoute()`, `LayoutOf`,
+> `params.go` parameter folders (E0714, whose help names the bracket
+> folder or file and the struct the `Params` field moves to). The generated registration (`web.PageRoute()`, `LayoutOf`,
 > `GuardOf`, `UseOf`, typed `pages/urls`) is unchanged. A bracket **folder**
 > covers what a single file can't: a segment shared by a layout, several
 > pages and an `api/` subtree, nested parameters, and the `[path...]`
@@ -677,7 +686,7 @@ moves the module paths.
 | 4 | **Hooks decorator-only**: `@ui.Mount`, `@ui.OnChange`, `@ui.Loads`, `@ui.Bind`, `@ui.URL`, `@ui.Defer` as the only forms in a `.vuka.html` header. | lowering to `LiveSchema` unchanged; error goldens for a by-name `Mount`/`Changed` and a constructor hook (did-you-mean `@ui.Mount`). |
 | 5 | **Folder routing**: `[id]` files, `[id]/` folders, `[path...]`, type and `validate:` from the struct's field, `_layout.vuka.html`, `api/` method funcs. | `vuka routes` goldens; 404 on a bad segment; layout order and `Load`; E07xx conflicts. |
 | 6 | **Typed parameter injection** for hooks and handlers (§5); unfillable parameter = startup error with file, line and type. | a test per source (ctx, struct, `url.Values`, scalar, `*http.Request`, `auth.User`, provided type); unfillable-parameter errors; `validate:` on every transport. |
-| 7 | **The break**: remove every surface in the table of §2 (JSX in `.vuka`, hand-written `ui.HTML`, several templates per file, the struct/markup split, `UseState`/`UsePageState`/`State` methods, public `LiveSchema` authoring, constructor and by-name hooks, `@web.Service`/`inject:`/`web.Params`, page routes outside `pages/`, `params.go` folders, the docs toggle); `/v2` module paths for vuka, cmd/vuka, cmd/vukavet, ui, web, and orm; `vuka fix one-way`. | a `vuka fix one-way` fixture per retired form; the maintainer's apps and the conformance apps migrated by the fixer and diffed against their 1.x responses, SQL and live replies. |
+| 7 | **The break**: remove every surface in the table of §2 (JSX in `.vuka`, hand-written `ui.HTML`, several templates per file, the struct/markup split, `UseState`/`UsePageState`/`State` methods, public `LiveSchema` authoring, constructor and by-name hooks, `@web.Service`/`inject:`/`web.Params`, page routes outside `pages/`, `params.go` folders, the docs toggle); `/v2` module paths for vuka, cmd/vuka, cmd/vukavet, ui, web, and orm. | an error per retired form, with its one-way help; the maintainer's apps and the conformance apps migrated by hand and diffed against their 1.x responses, SQL and live replies. |
 
 ## 9. Conflicts with what 1.x shipped — resolved
 
@@ -689,11 +698,12 @@ Each conflict this draft raised, with how the decisions settle it.
    hand-written-Go builds of rendering code go with it in step 7; the
    ejected-Go builds stay, as they test the lowering.
 2. **`[id]` vs v1.1.0's `params.go` folders** — *resolved: `[id]` wins*
-   (Decision 4); `params.go` folders are removed and rewritten by the fixer.
+   (Decision 4); `params.go` folders are removed, each an error naming the
+   bracket form.
 3. **One struct per file vs v1.0.0 template files** — *resolved: one
    struct per file.* Step 2 accepts the new shape beside the old; step 7
-   makes it the only one, and the fixer splits multi-template files into
-   component files.
+   makes it the only one: a multi-template file is an error (E0153) whose
+   help splits it into component files.
 4. **Auto-`ui.Assign` changes render semantics** — *accepted*, landing in
    step 3 with live verification on, including pages reading `ctx` (v1.4.0
    re-renders them regardless of Assigns).

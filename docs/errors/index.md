@@ -52,22 +52,24 @@ same page in the terminal.
 | [E0130](./E0130) | A hook written as a composite literal |
 | [E0131](./E0131) | A function an around decorator can't wrap |
 | [E0132](./E0132) | A value isn't written as its label |
-| [E0140](./E0140) | a template file has no type to be the Render of |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |
 | [E0142](./E0142) | A template file has no package clause, or another package's |
 | [E0143](./E0143) | An unknown element or template |
 | [E0144](./E0144) | A tag leaves out a parameter |
-| [E0145](./E0145) | A template has an element's name |
 | [E0146](./E0146) | A template file's Go declares no struct |
 | [E0147](./E0147) | A template file declares more than one struct |
 | [E0148](./E0148) | A template file has Go and no markup |
 | [E0149](./E0149) | A state written where nothing sends it to the page |
 | [E0150](./E0150) | A write the browser can't run |
+| [E0151](./E0151) | Markup outside a .vuka.html file |
+| [E0152](./E0152) | A template file declares no struct above its markup |
+| [E0153](./E0153) | A second template in a template file |
+| [E0154](./E0154) | An island page that breaks its rules |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
-| [W0104](./W0104) | An exported template has no doc comment |
 | [W0105](./W0105) | A hand-written use of uigen |
+| [W0106](./W0106) | A hand-written ui.HTML or ui.IslandPage |
 
 ## Decorators and attributes
 
@@ -193,4 +195,7 @@ same page in the terminal.
 | [E0717](./E0717) | Two Go files declare one method func |
 | [E0718](./E0718) | A file is in the way of pages/route.go |
 | [E0719](./E0719) | A page's struct is declared nowhere |
+| [E0720](./E0720) | A page declared outside pages/ |
+| [E0721](./E0721) | A page whose markup is written in Go |
 | [W0701](./W0701) | No main package serves the folder routes |
+| [W0702](./W0702) | A hand-written folder-route option |
