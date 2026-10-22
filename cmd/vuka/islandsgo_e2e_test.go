@@ -36,10 +36,10 @@ func TestIslandsGoE2E(t *testing.T) {
 		ui = filepath.Join(filepath.Dir(repo), "vuka-ui")
 	}
 	if !hasWebFunc(web, "distAssets") {
-		t.Skipf("github.com/vuka-lang/web at %s serves no islands from a frontend's build; set VUKA_WEB", web)
+		t.Skipf("github.com/vuka-lang/web/v2 at %s serves no islands from a frontend's build; set VUKA_WEB", web)
 	}
 	if src, _ := os.ReadFile(filepath.Join(ui, "island.go")); !bytes.Contains(src, []byte("func RegisterIsland[T any](args ...any)")) {
-		t.Skipf("github.com/vuka-lang/ui at %s has no bare RegisterIsland; set VUKA_UI", ui)
+		t.Skipf("github.com/vuka-lang/ui/v2 at %s has no bare RegisterIsland; set VUKA_UI", ui)
 	}
 	nm := islandModules(t)
 	bin := t.TempDir()

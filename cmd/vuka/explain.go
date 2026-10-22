@@ -11,8 +11,8 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // explain shows what Vuka makes of a file: each rewritten line beside the Go

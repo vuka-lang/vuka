@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // BenchmarkGoldens transpiles every golden case that transpiles, as the

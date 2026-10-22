@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 
-	"github.com/vuka-lang/vuka/live"
+	"github.com/vuka-lang/vuka/v2/live"
 )
 
 type Counter struct {

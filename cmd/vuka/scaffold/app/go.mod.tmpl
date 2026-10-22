@@ -3,16 +3,16 @@ module {%.Module%}
 go 1.27
 
 require (
-	github.com/vuka-lang/ui {%.UIVersion%}
-	github.com/vuka-lang/vuka {%.VukaVersion%}
-	github.com/vuka-lang/web {%.WebVersion%}
+	github.com/vuka-lang/ui/v2 {%.UIVersion%}
+	github.com/vuka-lang/vuka/v2 {%.VukaVersion%}
+	github.com/vuka-lang/web/v2 {%.WebVersion%}
 {%- if ne .DB "none"%}
-	github.com/vuka-lang/orm {%.ORMVersion%}
+	github.com/vuka-lang/orm/v2 {%.ORMVersion%}
 {%- end%}
 )
 {%- if ne .DB "none"%}
 
-tool github.com/vuka-lang/orm/cmd/orm
+tool github.com/vuka-lang/orm/v2/cmd/orm
 {%- end%}
 {%- range .ReplaceLines%}
 

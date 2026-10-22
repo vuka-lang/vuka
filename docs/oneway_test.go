@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Keep the guides from accidentally reintroducing a second UI authoring form.

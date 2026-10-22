@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Chart has a component script and a scoped stylesheet, the vuka

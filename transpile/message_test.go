@@ -3,8 +3,8 @@ package transpile_test
 import (
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // TestMessage checks that compiler messages quote rewritten code as the

@@ -43,7 +43,7 @@ Generated names are ordinary Go:
 | `Post.Objects` (a model's manager, a static of `orm.Base`) | `orm.Objects[Post]()` |
 | `Post.Title` (a model's field reference) | `PostFields.Title` (written by `orm generate`) |
 | overload `area(c Circle)` | `areaCircle` (named after its parameters' types) — or the name you give with `@export("Area")` |
-| `Result[T]`, `Ok`, `Err` | `vuka.Result[T]`, `vuka.Ok`, `vuka.Err` from `github.com/vuka-lang/vuka` |
+| `Result[T]`, `Ok`, `Err` | `vuka.Result[T]`, `vuka.Ok`, `vuka.Err` from `github.com/vuka-lang/vuka/v2` |
 
 ## Publishing a library
 
@@ -58,5 +58,5 @@ vuka gen -inplace -check   # in CI
 ## The runtime
 
 Result, Option, decorators and statics of generic types use the small package
-`github.com/vuka-lang/vuka` (the module's root). Each Vuka release states the
+`github.com/vuka-lang/vuka/v2` (the module's root). Each Vuka release states the
 runtime it needs.

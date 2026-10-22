@@ -10,9 +10,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/docs"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/docs"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 func TestExplainCode(t *testing.T) {
@@ -115,8 +115,8 @@ const vetPage = `package main
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 @web.Live("/applicants/{id}")

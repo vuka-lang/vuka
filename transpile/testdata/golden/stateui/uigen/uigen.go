@@ -1,4 +1,4 @@
-// Package uigen is the golden cases' stand-in for github.com/vuka-lang/ui/uigen:
+// Package uigen is the golden cases' stand-in for github.com/vuka-lang/ui/v2/uigen:
 // what the compiler's client state and tracked server state lower to, over
 // stateui's states.
 package uigen

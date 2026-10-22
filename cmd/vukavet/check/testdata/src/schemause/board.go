@@ -3,7 +3,7 @@ package schemause
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Board is declared in board.vuka.html (board_html.go): its hooks are

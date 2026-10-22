@@ -17,12 +17,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
-// A page's styles and scripts, for apps on github.com/vuka-lang/web:
+// A page's styles and scripts, for apps on github.com/vuka-lang/web/v2:
 // web.Style, Script, CSS and JS on @web.Live, web.Layout, web.LiveLayout
 // and web.New name them, read here from the source (string literals). Each
 // component they belong to — the live component's type, or the layout
@@ -66,7 +66,7 @@ func (c *assetComp) goName() string {
 	if c.name == "" {
 		return "the app"
 	}
-	return path.Base(c.importPath) + "." + c.name
+	return transpile.ImportName(c.importPath) + "." + c.name
 }
 
 // scopeID is the scope of a package's declaration: short, and the same for
@@ -558,7 +558,7 @@ func fileImports(toks []wtok) map[string]string {
 			if j < len(toks) && toks[j].tok == token.STRING {
 				if p, err := strconv.Unquote(toks[j].lit); err == nil {
 					if name == "" {
-						name = path.Base(p)
+						name = transpile.ImportName(p)
 					}
 					out[name] = p
 				}

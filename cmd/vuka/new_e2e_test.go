@@ -313,7 +313,7 @@ func TestNewVariants(t *testing.T) {
 		check func(dir string)
 	}{
 		{"pgshop", []string{"--db=postgres"}, func(dir string) {
-			if !strings.Contains(read(t, filepath.Join(dir, "main.vuka")), `"github.com/vuka-lang/orm/postgres"`) {
+			if !strings.Contains(read(t, filepath.Join(dir, "main.vuka")), `"github.com/vuka-lang/orm/v2/postgres"`) {
 				t.Error("postgres: no driver import")
 			}
 		}},

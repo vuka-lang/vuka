@@ -3,7 +3,7 @@ package main
 import (
 	"sync"
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 // A service is a struct with a constructor, registered in main with

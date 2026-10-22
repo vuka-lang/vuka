@@ -8,8 +8,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // The package urls (pages/urls/urls_gen.go) is the paths of the pages as a

@@ -4,7 +4,6 @@ import (
 	"go/ast"
 	"go/format"
 	"go/parser"
-	"path"
 	"slices"
 	"strconv"
 	"strings"
@@ -94,7 +93,7 @@ func CallAdapters(pkg string, sigs []CallSig) []byte {
 		if i > 0 && isStd(paths[i-1]) && !isStd(p) {
 			b.WriteString("\n")
 		}
-		if imports[p] == path.Base(p) {
+		if imports[p] == ImportName(p) {
 			b.WriteString("\t" + strconv.Quote(p) + "\n")
 		} else {
 			b.WriteString("\t" + imports[p] + " " + strconv.Quote(p) + "\n")
@@ -118,7 +117,7 @@ func (e *engine) qualifiers(f *fileState, texts []string) (map[string]string, bo
 	byName := map[string]string{}
 	for _, imp := range f.ast.Imports {
 		p, _ := strconv.Unquote(imp.Path.Value)
-		name := path.Base(p)
+		name := ImportName(p)
 		if imp.Name != nil {
 			name = imp.Name.Name
 		} else if e.pkg != nil {

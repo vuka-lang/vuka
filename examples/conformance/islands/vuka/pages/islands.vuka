@@ -1,7 +1,7 @@
 // Package pages is the dashboard's pages, and the islands they place.
 package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 // Chart is an island, islands/Chart.ts: its exported fields are its props.
 @ui.Island

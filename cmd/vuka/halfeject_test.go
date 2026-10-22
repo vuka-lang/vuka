@@ -29,9 +29,9 @@ func halfModule(t *testing.T, files map[string]string, orm bool) string {
 			dir = filepath.Join(filepath.Dir(repo), "vuka-orm")
 		}
 		if src, _ := os.ReadFile(filepath.Join(dir, "vuka_base.go")); !bytes.Contains(src, []byte("type Base[")) {
-			t.Skipf("github.com/vuka-lang/orm at %s has no Base; set VUKA_ORM", dir)
+			t.Skipf("github.com/vuka-lang/orm/v2 at %s has no Base; set VUKA_ORM", dir)
 		}
-		withModule(t, root, "github.com/vuka-lang/orm", dir)
+		withModule(t, root, "github.com/vuka-lang/orm/v2", dir)
 	}
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
@@ -59,7 +59,7 @@ const unexportedModel = `package main
 import (
 	"fmt"
 
-	"github.com/vuka-lang/orm"
+	"github.com/vuka-lang/orm/v2"
 )
 
 type userRow struct {
@@ -162,7 +162,7 @@ func main() { fmt.Println(entities.Applicant.Name.Eq("ada") != nil, entities.Lab
 
 import (
 	"example.com/app/mirror"
-	"github.com/vuka-lang/orm"
+	"github.com/vuka-lang/orm/v2"
 )
 
 type Applicant struct {
@@ -198,7 +198,7 @@ func TestEjectModelsFailure(t *testing.T) {
 	halfModule(t, map[string]string{
 		"entities/applicant.vuka": `package entities
 
-import "github.com/vuka-lang/orm"
+import "github.com/vuka-lang/orm/v2"
 
 type Applicant struct {
 	orm.Base

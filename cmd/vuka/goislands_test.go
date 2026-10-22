@@ -15,9 +15,9 @@ import (
 	"embed"
 
 	"example.com/app/pages"
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/vuka"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/vuka/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 //go:embed all:web/dist
@@ -48,7 +48,7 @@ func main() {
 
 const goIslandsBoard = `package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Board struct {
 	ui.Live
@@ -69,7 +69,7 @@ const islandTS = "export function mount(el: HTMLElement) { el.textContent = 'x';
 // builds them into the frontend's build with their types.
 func TestGoIslands(t *testing.T) {
 	root := tempModule(t, map[string]string{
-		"go.mod":                  "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web v0.50.0\n",
+		"go.mod":                  "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web/v2 v2.0.0\n",
 		"main.go":                 goIslandsMain,
 		"pages/board.go":          goIslandsBoard,
 		"web/islands/Chart.ts":    islandTS,
@@ -150,8 +150,8 @@ func TestGoIslandErrors(t *testing.T) {
 			"error[E0320]: ui.RegisterIsland[Missing]: the island's type isn't a struct of the module"},
 	} {
 		root := tempModule(t, map[string]string{
-			"go.mod":  "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web v0.50.0\n",
-			"main.go": "package main\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Chart struct{ N int }\n\n" + c.src + "\n",
+			"go.mod":  "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web/v2 v2.0.0\n",
+			"main.go": "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Chart struct{ N int }\n\n" + c.src + "\n",
 		})
 		var msg string
 		pa, err := findAssets(root, "example.com/app")
@@ -165,8 +165,8 @@ func TestGoIslandErrors(t *testing.T) {
 			t.Errorf("%s:\ngot  %s\nwant %s", c.src, msg, c.want)
 		}
 	}
-	root := tempModule(t, map[string]string{"go.mod": "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web v0.50.0\n",
-		"main.go": "package main\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Chart struct{ N int }\n\nfunc init() { ui.RegisterIsland[Chart]() }\n", "islands/Chart.ts": islandTS})
+	root := tempModule(t, map[string]string{"go.mod": "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web/v2 v2.0.0\n",
+		"main.go": "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Chart struct{ N int }\n\nfunc init() { ui.RegisterIsland[Chart]() }\n", "islands/Chart.ts": islandTS})
 	pa, err := findAssets(root, "example.com/app")
 	if err != nil || pa.islands[0].diagnostic() != nil {
 		t.Fatal(err, pa.islands[0].diagnostic())

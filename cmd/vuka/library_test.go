@@ -24,9 +24,9 @@ func TestLibraryExample(t *testing.T) {
 		t.Skip("runs the go command")
 	}
 	if bi, ok := debug.ReadBuildInfo(); !ok || !slices.ContainsFunc(bi.Deps, func(m *debug.Module) bool {
-		return m.Path == "github.com/vuka-lang/vuka" && m.Replace != nil
+		return m.Path == "github.com/vuka-lang/vuka/v2" && m.Replace != nil
 	}) {
-		t.Skip("needs this checkout's transpiler: go mod edit -replace github.com/vuka-lang/vuka=../..")
+		t.Skip("needs this checkout's transpiler: go mod edit -replace github.com/vuka-lang/vuka/v2=../..")
 	}
 	repo, _ := filepath.Abs("../..")
 	web := os.Getenv("VUKA_WEB")
@@ -34,14 +34,14 @@ func TestLibraryExample(t *testing.T) {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if src, _ := os.ReadFile(filepath.Join(web, "registry.go")); !bytes.Contains(src, []byte("var Routes = ")) {
-		t.Skipf("github.com/vuka-lang/web at %s has no Routes registry; set VUKA_WEB", web)
+		t.Skipf("github.com/vuka-lang/web/v2 at %s has no Routes registry; set VUKA_WEB", web)
 	}
 	orm := os.Getenv("VUKA_ORM")
 	if orm == "" {
 		orm = filepath.Join(filepath.Dir(repo), "vuka-orm")
 	}
 	if src, _ := os.ReadFile(filepath.Join(orm, "schema.go")); !bytes.Contains(src, []byte("func (s *Schema) Field(")) {
-		t.Skipf("github.com/vuka-lang/orm at %s has no Schema; set VUKA_ORM", orm)
+		t.Skipf("github.com/vuka-lang/orm/v2 at %s has no Schema; set VUKA_ORM", orm)
 	}
 	src := filepath.Join(repo, "examples/conformance/library-users/vuka")
 	files := map[string]string{}
@@ -58,7 +58,7 @@ func TestLibraryExample(t *testing.T) {
 		t.Fatal(err)
 	}
 	root := localModule(t, web, files)
-	withModule(t, root, "github.com/vuka-lang/orm", orm)
+	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)

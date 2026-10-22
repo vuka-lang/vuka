@@ -9,7 +9,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 // A tiny route registry: declarers record routes at start-up, and serve calls

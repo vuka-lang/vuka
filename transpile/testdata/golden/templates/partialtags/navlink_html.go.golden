@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // NavLink is a link of the menu, marked when it is the current one.

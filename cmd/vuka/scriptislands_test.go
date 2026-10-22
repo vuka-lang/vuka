@@ -10,7 +10,7 @@ import (
 )
 
 const scriptIslandPage = "package main\n\n" +
-	"import (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n" +
+	"import (\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n" +
 	"@ui.Island\n" +
 	"type SalesChart struct {\n\tPoints []int `json:\"points\"`\n}\n\n" +
 	"func main() { web.New().Run(\"\") }\n"

@@ -4,6 +4,9 @@
 // its source, without Node: a small reader of the TypeScript types people
 // write for props. What it can't read it reports, so the caller can say to
 // declare the props in Go instead.
+//
+// It is for the vuka command's use only; the compatibility promise doesn't
+// cover it.
 package tsprops
 
 import (

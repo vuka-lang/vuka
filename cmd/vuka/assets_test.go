@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 const assetsPage = `package main
@@ -22,8 +22,8 @@ const assetsPage = `package main
 import (
 	"example.com/app/views"
 
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 @web.Live("/counter",
@@ -117,7 +117,7 @@ func TestFindAssetsErrors(t *testing.T) {
 		{"layout literal", `web.Layout(func(p ui.Node) ui.Node { return p }, web.Style("counter.css"))`, `the layout must be a named function`},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			src := "package main\n\nimport \"github.com/vuka-lang/web\"\n\nconst name = \"x\"\n\n@web.Live(\"/\", " + c.decl + ")\ntype C struct{}\n"
+			src := "package main\n\nimport \"github.com/vuka-lang/web/v2\"\n\nconst name = \"x\"\n\n@web.Live(\"/\", " + c.decl + ")\ntype C struct{}\n"
 			root := tempModule(t, map[string]string{"go.mod": webMod, "main.vuka": src, "counter.css": "", "hooks/a.ts": ""})
 			_, err := findAssets(root, "example.com/app")
 			if err == nil || !strings.Contains(err.Error(), c.want) {
@@ -126,7 +126,7 @@ func TestFindAssetsErrors(t *testing.T) {
 		})
 	}
 	root := tempModule(t, map[string]string{"go.mod": webMod, "counter.css": "",
-		"main.vuka": "package main\n\nimport \"github.com/vuka-lang/web\"\n\nvar o = web.Style(\"counter.css\")\n"})
+		"main.vuka": "package main\n\nimport \"github.com/vuka-lang/web/v2\"\n\nvar o = web.Style(\"counter.css\")\n"})
 	if _, err := findAssets(root, "example.com/app"); err == nil || !strings.Contains(err.Error(), "error[E0604]: web.Style belongs to no page: give it to @web.Live, web.Layout, web.LiveLayout or web.New\n --> main.vuka:5") {
 		t.Errorf("an option of no page: %v", err)
 	}
@@ -197,8 +197,8 @@ func TestSelectorWarnings(t *testing.T) {
 	src := `package main
 
 import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 @web.Live("/", web.Style("c.css"), web.Script("c.ts"))
@@ -306,7 +306,7 @@ func assetsModule(t *testing.T, files map[string]string) string {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if !hasWebFunc(web, "RegisterAssets") {
-		needs(t, "github.com/vuka-lang/web at %s has no RegisterAssets; set VUKA_WEB (and VUKA_UI)", web)
+		needs(t, "github.com/vuka-lang/web/v2 at %s has no RegisterAssets; set VUKA_WEB (and VUKA_UI)", web)
 	}
 	return localModule(t, web, files)
 }
@@ -323,9 +323,9 @@ func localModule(t *testing.T, web string, files map[string]string) string {
 	webSum, _ := os.ReadFile(filepath.Join(web, "go.sum"))
 	uiSum, _ := os.ReadFile(filepath.Join(ui, "go.sum"))
 	ownSum, _ := os.ReadFile("go.sum")
-	files["go.mod"] = "module example.com/app\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/vuka-lang/web v0.0.0\n\tgithub.com/vuka-lang/ui v0.0.0\n\tgithub.com/vuka-lang/vuka " +
-		transpile.RuntimeVersion + "\n)\n\nreplace github.com/vuka-lang/web => " + web + "\n\nreplace github.com/vuka-lang/ui => " + ui +
-		"\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
+	files["go.mod"] = "module example.com/app\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/vuka-lang/web/v2 v2.0.0\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n\tgithub.com/vuka-lang/vuka/v2 " +
+		transpile.RuntimeVersion + "\n)\n\nreplace github.com/vuka-lang/web/v2 => " + web + "\n\nreplace github.com/vuka-lang/ui/v2 => " + ui +
+		"\n\nreplace github.com/vuka-lang/vuka/v2 => " + repo + "\n"
 	files["go.sum"] = string(webSum) + string(uiSum) + string(ownSum)
 	return tempModule(t, files)
 }
@@ -334,7 +334,7 @@ const e2eMain = `package main
 
 import (
 	"example.com/app/pages"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() { web.New(pages.Routes()).Run("") }
@@ -344,7 +344,7 @@ const e2ePage = `package pages
 
 import (
 	"example.com/app/components"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Counter struct {
@@ -364,7 +364,7 @@ export default { bump(el: HTMLElement) { el.classList.add("bump") } };
 
 const e2eLabel = `package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Label struct{ ui.Live }
 <output>label</output>
@@ -509,8 +509,8 @@ func TestScriptPushes(t *testing.T) {
 	src := `package main
 
 import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 @web.Live("/", web.Layout(page, web.Script("layout.ts")), web.Script("ok.ts"))

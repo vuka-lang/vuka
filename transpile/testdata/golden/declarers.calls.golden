@@ -2,7 +2,7 @@
 
 package main
 
-import "github.com/vuka-lang/vuka"
+import "github.com/vuka-lang/vuka/v2"
 
 // The decorated functions' signatures, for vuka.Wrap.
 func init() {

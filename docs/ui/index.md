@@ -8,7 +8,7 @@ Logic without markup belongs in `.go` or `.vuka` files.
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Greeting struct {
     Name string

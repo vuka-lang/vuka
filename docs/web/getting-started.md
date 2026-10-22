@@ -42,7 +42,7 @@ package main
 import (
     "log"
     "example.com/app/pages"
-    "github.com/vuka-lang/web"
+    "github.com/vuka-lang/web/v2"
 )
 
 func main() {

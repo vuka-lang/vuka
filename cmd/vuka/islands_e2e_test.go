@@ -40,7 +40,7 @@ const islandsPage = `package pages
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	RCounter "../islands/RCounter.tsx"
 	SCounter "../islands/SCounter.svelte"
@@ -72,7 +72,7 @@ const pagesMain = `package main
 
 import (
 	"example.com/app/pages"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() { web.New(pages.Routes()).Run("") }

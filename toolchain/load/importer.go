@@ -1,6 +1,9 @@
 // Package load finds Vuka packages in a module and supplies what transpiling
 // them needs from the go command: build-context file selection, export data for
 // imports, and the overlay that puts generated files in front of the compiler.
+//
+// It is for the vuka command's use only; the compatibility promise doesn't
+// cover it.
 package load
 
 import (
@@ -16,6 +19,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Importer reads imported packages' export data from `go list -export`, run by
@@ -313,7 +318,7 @@ func (im *Importer) oldVukaHint(culprit, detail string) string {
 	case m != nil && m.Main:
 		return "it was written for an older Vuka; run vuka fix ui"
 	case m != nil && m.Version != "":
-		return fmt.Sprintf("%s %s was built for an older Vuka; upgrade it (go get %s@latest)", m.Path[strings.LastIndex(m.Path, "/")+1:], m.Version, m.Path)
+		return fmt.Sprintf("%s %s was built for an older Vuka; upgrade it (go get %s@latest)", transpile.ImportName(m.Path), m.Version, m.Path)
 	case m != nil:
 		return m.Path + " was built for an older Vuka; update it"
 	}

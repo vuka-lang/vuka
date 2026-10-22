@@ -21,7 +21,7 @@ func (p *Counter) Increment() { p.n++ }
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Disclosure struct { open ui.State[bool] }
 <section>

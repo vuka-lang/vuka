@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/tsprops"
+	"github.com/vuka-lang/vuka/v2/toolchain/tsprops"
 )
 
 // An island page: a .vuka.html file whose markup is one tag, an island

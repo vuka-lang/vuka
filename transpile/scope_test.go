@@ -4,8 +4,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // TestScopes marks the elements a scoped declaration's JSX writes — in its
@@ -15,7 +15,7 @@ import (
 func TestScopes(t *testing.T) {
 	src := `package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Card struct {
 	ui.Live

@@ -19,13 +19,13 @@ import (
 // targets are the golden module's JSX targets: copies of ui's JSX contract,
 // so what they're called with is what ui would be.
 var targets = map[string]string{
-	"vukatest.local/stateui":       "github.com/vuka-lang/ui",
-	"vukatest.local/stateui/uigen": "github.com/vuka-lang/ui/uigen",
-	"vukatest.local/islandui":      "github.com/vuka-lang/ui",
-	"vukatest.local/webstub":       "github.com/vuka-lang/web",
-	"vukatest.local/orm":           "github.com/vuka-lang/orm",
-	"vukatest.local/ui":            "github.com/vuka-lang/ui",
-	"vukatest.local/ui/validate":   "github.com/vuka-lang/ui/validate",
+	"vukatest.local/stateui":       "github.com/vuka-lang/ui/v2",
+	"vukatest.local/stateui/uigen": "github.com/vuka-lang/ui/v2/uigen",
+	"vukatest.local/islandui":      "github.com/vuka-lang/ui/v2",
+	"vukatest.local/webstub":       "github.com/vuka-lang/web/v2",
+	"vukatest.local/orm":           "github.com/vuka-lang/orm/v2",
+	"vukatest.local/ui":            "github.com/vuka-lang/ui/v2",
+	"vukatest.local/ui/validate":   "github.com/vuka-lang/ui/v2/validate",
 }
 
 // TestContract checks the generated goldens against the contract for

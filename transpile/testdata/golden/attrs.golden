@@ -6,7 +6,7 @@ package main
 import (
 	"fmt"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 //line attrs.vuka:5

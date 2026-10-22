@@ -34,7 +34,7 @@ import (
 const JSXVersion = 3
 
 // DefaultJSXTarget is the JSX target messages suggest.
-const DefaultJSXTarget = "github.com/vuka-lang/ui"
+const DefaultJSXTarget = "github.com/vuka-lang/ui/v2"
 
 // jsxTarget is the package a file's JSX lowers to. It is usually a package the
 // file imports (q = "ui."), but a file whose OWN package declares VukaJSX

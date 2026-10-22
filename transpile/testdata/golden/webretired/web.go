@@ -1,4 +1,4 @@
-// Package web stands in for github.com/vuka-lang/web from 2.0, which has
+// Package web stands in for github.com/vuka-lang/web/v2 from 2.0, which has
 // no @web.Service: services are registered with app.Service.
 package web
 

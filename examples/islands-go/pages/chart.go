@@ -2,7 +2,7 @@
 // /users/{id}.
 package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 // Chart is an island, web/islands/Chart.vue: its exported fields are the
 // component's props.

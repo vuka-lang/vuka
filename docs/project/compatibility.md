@@ -103,8 +103,8 @@ and every breaking change it makes ships with:
 
 ## What is not covered
 
-- **`internal` packages** of any module, and anything documented as for the
-  compiler's use only.
+- **`internal` packages** of any module, vuka's `toolchain` packages, and
+  anything documented as for the compiler's use only.
 - **The private shape of generated code.** Beyond the contract above —
   public API only, building against later v1 libraries — the names of
   generated helpers, how files are split and named (`x_html.go`,

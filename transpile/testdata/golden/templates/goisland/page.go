@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Chart is an island registered in Go, islands/Chart.ts.

@@ -34,7 +34,7 @@
       "webmain",
       "app"
     ],
-    "description": "main for a github.com/vuka-lang/web app",
+    "description": "main for a github.com/vuka-lang/web/v2 app",
     "body": [
       "func main() {",
       "\tapp := web.New(pages.Routes())",
@@ -48,7 +48,7 @@
       "model",
       "orm"
     ],
-    "description": "A model of github.com/vuka-lang/orm: orm.Base with @orm.Meta, fields with attributes",
+    "description": "A model of github.com/vuka-lang/orm/v2: orm.Base with @orm.Meta, fields with attributes",
     "body": [
       "type ${1:Post} struct {",
       "\torm.Base              @orm.Meta{Table: \"${2:posts}\"}",

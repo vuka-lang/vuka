@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 // The island API in the shape the compiler lowers imported islands to; a

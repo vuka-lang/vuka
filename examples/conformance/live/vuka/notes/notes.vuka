@@ -6,7 +6,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 // Note is a note of the board.

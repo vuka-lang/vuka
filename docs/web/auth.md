@@ -28,9 +28,9 @@ including calls from a live page; hiding a button is not authorization.
 package pages
 
 import (
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
     "context"
-    "github.com/vuka-lang/web/auth"
+    "github.com/vuka-lang/web/v2/auth"
 )
 
 type Account struct { name string }

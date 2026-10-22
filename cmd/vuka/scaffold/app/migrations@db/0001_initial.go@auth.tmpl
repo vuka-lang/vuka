@@ -2,7 +2,7 @@
 
 package migrations
 
-import m "github.com/vuka-lang/orm/migration"
+import m "github.com/vuka-lang/orm/v2/migration"
 
 func init() {
 	m.Register(m.Migration{

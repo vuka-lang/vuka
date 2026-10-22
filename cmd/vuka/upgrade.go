@@ -14,7 +14,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // An upgradeStep is what moving an app past a release takes beyond go.mod:

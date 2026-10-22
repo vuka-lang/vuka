@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 var (

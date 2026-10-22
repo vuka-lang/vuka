@@ -20,7 +20,7 @@ package components
 import (
     "context"
     "testing"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
 )
 
 func TestGreeting(t *testing.T) {

@@ -11,7 +11,7 @@ import (
 	"log"
 
 	"example.com/islands-go/pages"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 //go:generate go tool vuka gen -inplace

@@ -930,7 +930,7 @@ func (e *engine) mayUseStatics(f *fileState) bool {
 		if isStd(path) {
 			continue
 		}
-		name := path[strings.LastIndex(path, "/")+1:]
+		name := ImportName(path)
 		if imp.Name != nil {
 			name = imp.Name.Name
 		}
@@ -1129,7 +1129,7 @@ func sideEffectFree(x ast.Expr) bool {
 func importPath(f *fileState, name string) string {
 	for _, imp := range f.ast.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
-		local := path[strings.LastIndex(path, "/")+1:]
+		local := ImportName(path)
 		if imp.Name != nil {
 			local = imp.Name.Name
 		}

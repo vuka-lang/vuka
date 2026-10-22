@@ -7,7 +7,7 @@ codes as the boot, the compiler and `vuka vet` ([`vuka explain
 E0401`](/tools/cli#explain), [the catalogue](/errors/)).
 
 ```sh
-go get -tool github.com/vuka-lang/vuka/cmd/vukavet
+go get -tool github.com/vuka-lang/vuka/cmd/vukavet/v2
 go vet -vettool=$(go tool -n vukavet) ./...
 ```
 
@@ -56,4 +56,4 @@ gopls runs only its own analyzers, so `vukavet`'s reports come from
 reports the island checks itself, as `vuka vet` does.
 
 For a linter that takes `go/analysis` analyzers, they are
-`check.Analyzers` of `github.com/vuka-lang/vuka/cmd/vukavet/check`.
+`check.Analyzers` of `github.com/vuka-lang/vuka/cmd/vukavet/v2/check`.

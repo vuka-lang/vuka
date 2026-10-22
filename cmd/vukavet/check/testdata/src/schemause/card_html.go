@@ -5,7 +5,7 @@ package schemause
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Card struct{ ui.Live }

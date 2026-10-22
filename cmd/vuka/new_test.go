@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/format"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
 )
 
 // The line prompter reads numbers, keys, labels and empty lines (the
@@ -219,8 +219,8 @@ func TestRenderFileSets(t *testing.T) {
 		t.Errorf("the default app's files:\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 	for name, s := range map[string]string{
-		"go.mod":       "github.com/vuka-lang/orm v4",
-		"main.vuka":    `_ "github.com/vuka-lang/orm/sqlite"`,
+		"go.mod":       "github.com/vuka-lang/orm/v2 v4",
+		"main.vuka":    `_ "github.com/vuka-lang/orm/v2/sqlite"`,
 		".env":         "ADMIN_PASSWORD=pw",
 		".env.example": "ADMIN_PASSWORD=change-me",
 		".gitignore":   ".env\n",
@@ -233,7 +233,7 @@ func TestRenderFileSets(t *testing.T) {
 	if strings.Contains(string(files[".env.example"]), "ADMIN_PASSWORD=pw") {
 		t.Error(".env.example has the admin's password")
 	}
-	if !strings.Contains(string(files["main.vuka"]), "import (\n\t\"embed\"\n\t\"io/fs\"\n\t\"log\"\n\n\t\"github.com/vuka-lang/orm\"") {
+	if !strings.Contains(string(files["main.vuka"]), "import (\n\t\"embed\"\n\t\"io/fs\"\n\t\"log\"\n\n\t\"github.com/vuka-lang/orm/v2\"") {
 		t.Errorf("main.vuka's imports aren't grouped:\n%s", files["main.vuka"])
 	}
 

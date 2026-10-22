@@ -261,7 +261,7 @@ Each `orm.FieldInfo` has the field's `Name`, `Column`, `Type`, `PK`, `Null`,
 ## In migrations
 
 <!-- go:context
-import m "github.com/vuka-lang/orm/migration"
+import m "github.com/vuka-lang/orm/v2/migration"
 
 var _ = m.F
 -->

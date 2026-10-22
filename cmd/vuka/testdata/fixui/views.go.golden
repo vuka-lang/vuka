@@ -1,8 +1,8 @@
 // v.Node → ui.Node
 // v.TemplComponents → templx.Components
-// github.com/vuka-lang/vuka/term → github.com/vuka-lang/ui/term
-// import github.com/vuka-lang/ui
-// import github.com/vuka-lang/ui/templx
+// github.com/vuka-lang/vuka/v2/term → github.com/vuka-lang/ui/v2/term
+// import github.com/vuka-lang/ui/v2
+// import github.com/vuka-lang/ui/v2/templx
 
 package views
 
@@ -10,10 +10,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/ui/templx"
-	"github.com/vuka-lang/ui/term"
-	v "github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/ui/v2/templx"
+	"github.com/vuka-lang/ui/v2/term"
+	v "github.com/vuka-lang/vuka/v2"
 )
 
 type Page struct {

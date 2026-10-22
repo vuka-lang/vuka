@@ -18,9 +18,9 @@ import (
 	"testing"
 
 {%- if ne .DB "none"%}
-	_ "github.com/vuka-lang/orm/sqlite" // the tests run on SQLite
+	_ "github.com/vuka-lang/orm/v2/sqlite" // the tests run on SQLite
 {%- end%}
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 {%- if .Auth%}
 

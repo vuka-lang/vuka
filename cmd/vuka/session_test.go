@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // TestSessionTempl edits a module of a Vuka package, a .templ package

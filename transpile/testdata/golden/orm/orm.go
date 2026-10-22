@@ -1,4 +1,4 @@
-// Package orm is a small stand-in for github.com/vuka-lang/orm in the golden
+// Package orm is a small stand-in for github.com/vuka-lang/orm/v2 in the golden
 // cases: Base's markers, Schema, Objects, typed fields and Transaction, in
 // memory.
 package orm

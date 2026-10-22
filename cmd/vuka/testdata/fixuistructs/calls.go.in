@@ -3,7 +3,7 @@ package app
 import (
 	"fmt"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 func page(rows []Row, p ui.ButtonProps, t ui.TableProps[Row]) ui.Node {

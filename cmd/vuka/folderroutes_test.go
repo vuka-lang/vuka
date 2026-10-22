@@ -32,7 +32,7 @@ func routesModule(t *testing.T, files map[string]string) string {
 	})
 	app := filepath.Join(root, "app")
 	gomod, gosum := testModule(t, "example.com/app")
-	gomod = strings.Replace(gomod, "require (", "require (\n\tgithub.com/vuka-lang/web v0.0.0", 1) + "\nreplace github.com/vuka-lang/web => ../web\n"
+	gomod = strings.Replace(gomod, "require (", "require (\n\tgithub.com/vuka-lang/web/v2 v2.0.0", 1) + "\nreplace github.com/vuka-lang/web/v2 => ../web\n"
 	writeFile(t, filepath.Join(app, "go.mod"), gomod)
 	writeFile(t, filepath.Join(app, "go.sum"), gosum)
 	for name, src := range files {
@@ -185,17 +185,17 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0705", "pages/files/[file...].vuka.html:5"},
 		{"a parameter type of a page package", map[string]string{"pages/files/[file...].vuka.html": "package files\n\n// File serves a file.\ntype File struct {\n\tFile Name\n}\n<pre></pre>\n", "pages/files/name.go": "package files\n\ntype Name string\n"},
 			"E0705", "pages/files/[file...].vuka.html:5"},
-		{"web.Rest on one segment", map[string]string{"pages/api/pets/[id].vuka": "package pets\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/web\"\n)\n\nfunc GET(ctx context.Context, id web.Rest) (string, error) { return \"\", nil }\n"},
+		{"web.Rest on one segment", map[string]string{"pages/api/pets/[id].vuka": "package pets\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nfunc GET(ctx context.Context, id web.Rest) (string, error) { return \"\", nil }\n"},
 			"E0705", "pages/api/pets/[id].vuka:9"},
 		{"a folder and a page named alike", map[string]string{"pages/orgs/new/draft.vuka.html": "package new\n\ntype Draft struct{}\n<p>x</p>\n"},
 			"E0706", "pages/orgs/new.vuka.html:6"},
 		{"a Routes of package pages", map[string]string{"pages/routes.go": "package pages\n\nfunc Routes() {}\n"},
 			"E0706", "pages/routes.go:3"},
-		{"a declared route", map[string]string{"main.go": "package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\t\"example.com/app/pages\"\n)\n\nfunc main() { web.New(pages.Routes()).Get(\"/orgs/{id}\", nil) }\n"},
+		{"a declared route", map[string]string{"main.go": "package main\n\nimport (\n\t\"github.com/vuka-lang/web/v2\"\n\n\t\"example.com/app/pages\"\n)\n\nfunc main() { web.New(pages.Routes()).Get(\"/orgs/{id}\", nil) }\n"},
 			"E0707", "pages/orgs/[org]/index.vuka.html:10"},
 		{"a layout without Children", map[string]string{"pages/_layout.vuka.html": "package pages\n\n// Layout has no Children.\ntype Layout struct {\n\tBody string\n}\n<main></main>\n"},
 			"E0708", "pages/_layout.vuka.html:4"},
-		{"a layout's Load", map[string]string{"pages/orgs/[org]/_layout.vuka.html": "package org\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Layout struct {\n\tOrg      int\n\tChildren ui.Node\n}\n\nfunc (l *Layout) Load() {}\n<section>{Children}</section>\n"},
+		{"a layout's Load", map[string]string{"pages/orgs/[org]/_layout.vuka.html": "package org\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Layout struct {\n\tOrg      int\n\tChildren ui.Node\n}\n\nfunc (l *Layout) Load() {}\n<section>{Children}</section>\n"},
 			"E0708", "pages/orgs/[org]/_layout.vuka.html:10"},
 		{"a guard without Load", map[string]string{"pages/api/guard.go": "package api\n\ntype Guard struct{}\n"},
 			"E0708", "pages/api/guard.go:3"},
@@ -209,13 +209,13 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0709", "pages/api/pets/[id].vuka:5"},
 		{"a middleware's signature", map[string]string{"pages/orgs/middleware.go": "package orgs\n\nimport \"net/http\"\n\nfunc Middleware(next http.Handler) error { return nil }\n"},
 			"E0710", "pages/orgs/middleware.go:5"},
-		{"a middleware constructor's dependency", map[string]string{"pages/api/middleware.go": "package api\n\nimport (\n\t\"net/http\"\n\n\t\"github.com/vuka-lang/web\"\n)\n\nfunc Middleware(n int) web.Middleware {\n\treturn func(next http.Handler) http.Handler { return next }\n}\n"},
+		{"a middleware constructor's dependency", map[string]string{"pages/api/middleware.go": "package api\n\nimport (\n\t\"net/http\"\n\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nfunc Middleware(n int) web.Middleware {\n\treturn func(next http.Handler) http.Handler { return next }\n}\n"},
 			"E0710", "pages/api/middleware.go:9"},
 		{"a Get method", map[string]string{"pages/orgs/get.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Get(ctx context.Context) error { return nil }\n"},
 			"E0709", "pages/orgs/get.go:5"},
 		{"a scalar handler parameter", map[string]string{"pages/orgs/put.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Put(ctx context.Context, name string) error { return nil }\n"},
 			"E0709", "pages/orgs/put.go:5"},
-		{"a parameter nothing binds", map[string]string{"pages/orgs/[org]/team-settings.vuka.html": "", "pages/orgs/[org]/_layout.vuka.html": "package org\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Layout struct {\n\tChildren ui.Node\n}\n<section>{Children}</section>\n",
+		{"a parameter nothing binds", map[string]string{"pages/orgs/[org]/team-settings.vuka.html": "", "pages/orgs/[org]/_layout.vuka.html": "package org\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Layout struct {\n\tChildren ui.Node\n}\n<section>{Children}</section>\n",
 			"pages/orgs/[org]/guard.vuka": "", "pages/orgs/[org]/index.vuka.html": "", "pages/orgs/[org]/reset_password.vuka.html": "", "pages/orgs/[org]/store.vuka": "", "pages/orgs/[org]/permits/[permit].vuka.html": ""},
 			"E0711", "pages/orgs/[org]"},
 		{"a parameter page without a struct", map[string]string{"pages/api/[x].vuka.html": "package api\n\n<p>x</p>\n"},
@@ -224,7 +224,7 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0713", "pages/orgs/[org].vuka"},
 		{"a 1.x Params", map[string]string{"pages/orgs/params.go": "package orgs\n\n// Params binds nothing now.\ntype Params struct{ Org int }\n"},
 			"E0714", "pages/orgs/params.go:4"},
-		{"a 1.x Layout", map[string]string{"pages/orgs/layout.go": "package orgs\n\nimport \"github.com/vuka-lang/ui\"\n\n// Layout wraps nothing now.\ntype Layout struct{ Children ui.Node }\n"},
+		{"a 1.x Layout", map[string]string{"pages/orgs/layout.go": "package orgs\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Layout wraps nothing now.\ntype Layout struct{ Children ui.Node }\n"},
 			"E0715", "pages/orgs/layout.go:6"},
 		{"Go in a parameter folder", map[string]string{"pages/orgs/[org]/edit.go": "package org\n"},
 			"E0716", "pages/orgs/[org]/edit.go:1"},
@@ -318,7 +318,7 @@ func TestPatterns(t *testing.T) {
 func TestFolderRoutesRegistered(t *testing.T) {
 	routesModule(t, map[string]string{
 		"pages/orgs/[org]/permits/[permit].vuka.html": "",
-		"pages/orgs/[org]/permits/[permit].vuka":      "package permits\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n@web.Live(\"/permit\")\ntype Permit struct {\n\tui.Live\n\tOrg    int\n\tPermit string\n}\n\nfunc NewPermit() *Permit { return &Permit{} }\n\nfunc (x *Permit) Render() ui.Node { return ui.Text(\"\") }\n",
+		"pages/orgs/[org]/permits/[permit].vuka":      "package permits\n\nimport (\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n@web.Live(\"/permit\")\ntype Permit struct {\n\tui.Live\n\tOrg    int\n\tPermit string\n}\n\nfunc NewPermit() *Permit { return &Permit{} }\n\nfunc (x *Permit) Render() ui.Node { return ui.Text(\"\") }\n",
 	})
 	var out bytes.Buffer
 	err := gen([]string{"-inplace"}, &out)
@@ -414,7 +414,7 @@ func TestBracketFoldersOnDisk(t *testing.T) {
 func TestRoutesUnserved(t *testing.T) {
 	for _, c := range []struct{ main, want string }{
 		{"package main\n\nimport _ \"example.com/app/pages\"\n\nfunc main() {}\n", "W0701"},
-		{"package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\tp \"example.com/app/pages\"\n)\n\nfunc main() { web.New(p.Routes()) }\n", ""},
+		{"package main\n\nimport (\n\t\"github.com/vuka-lang/web/v2\"\n\n\tp \"example.com/app/pages\"\n)\n\nfunc main() { web.New(p.Routes()) }\n", ""},
 	} {
 		t.Run(c.want, func(t *testing.T) {
 			routesModule(t, map[string]string{"main.go": c.main})
@@ -439,7 +439,7 @@ func TestMainPages(t *testing.T) {
 		return "package " + pkg + "\n\ntype " + typ + " struct{}\n<p>" + text + "</p>\n"
 	}
 	app := routesModule(t, map[string]string{
-		"cmd/a/main.go":                   "package main\n\nimport (\n\t\"github.com/vuka-lang/web\"\n\n\t\"example.com/app/cmd/a/pages\"\n)\n\nfunc main() { web.New(pages.Routes()) }\n",
+		"cmd/a/main.go":                   "package main\n\nimport (\n\t\"github.com/vuka-lang/web/v2\"\n\n\t\"example.com/app/cmd/a/pages\"\n)\n\nfunc main() { web.New(pages.Routes()) }\n",
 		"cmd/a/pages/index.vuka.html":     page("pages", "Home", "a"),
 		"cmd/a/pages/pets/[id].vuka.html": "package pets\n\nimport \"example.com/app/cmd/a/pages/urls\"\n\ntype Pet struct {\n\tID int\n}\n<a href={urls.Pets.ID(ID).Path()}>{ID}</a>\n",
 		"cmd/b/main.go":                   "package main\n\nimport _ \"example.com/app/cmd/b/pages\"\n\nfunc main() {}\n",
@@ -493,7 +493,7 @@ func TestBracketFolderGoDirs(t *testing.T) {
 	os.RemoveAll(filepath.Join(app, "pages"))
 	for name, src := range map[string]string{
 		"pages/index.vuka.html":              "package pages\n\ntype Home struct{}\n<p>home</p>\n",
-		"pages/pets/[id]/_layout.vuka.html":  "package pet\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Layout struct {\n\tID       int\n\tChildren ui.Node\n}\n<article data-id={ID}>{Children}</article>\n",
+		"pages/pets/[id]/_layout.vuka.html":  "package pet\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Layout struct {\n\tID       int\n\tChildren ui.Node\n}\n<article data-id={ID}>{Children}</article>\n",
 		"pages/pets/[id]/index.vuka.html":    "package pet\n\ntype Index struct {\n\tID int\n}\n<p>pet {ID}</p>\n",
 		"pages/pets/[id]/edit.vuka.html":     "package pet\n\nimport \"example.com/app/pages/urls\"\n\ntype Edit struct {\n\tID int\n}\n<a href={urls.Pets.ID(ID).Path()}>back</a>\n",
 		"pages/old/param_gone/index_vuka.go": "// Code generated by vuka from index.vuka. DO NOT EDIT.\n\npackage gone\n",

@@ -140,7 +140,7 @@ func TestExplain(t *testing.T) {
 func TestFixAttrOf(t *testing.T) {
 	const deco = `package deco
 
-import v "github.com/vuka-lang/vuka"
+import v "github.com/vuka-lang/vuka/v2"
 
 type Route struct{ Path string }
 

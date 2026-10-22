@@ -6,9 +6,9 @@ module example.com/islands-go
 go 1.25.0
 
 require (
-	github.com/vuka-lang/ui v1.0.0
-	github.com/vuka-lang/vuka v1.0.0
-	github.com/vuka-lang/web v1.0.0
+	github.com/vuka-lang/ui/v2 v2.0.0
+	github.com/vuka-lang/vuka/v2 v2.0.0
+	github.com/vuka-lang/web/v2 v2.0.0
 )
 
 require (

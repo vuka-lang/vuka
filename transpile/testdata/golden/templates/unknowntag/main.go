@@ -1,6 +1,6 @@
 package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 // Item is a link.
 type Item struct{ Href, Label string }

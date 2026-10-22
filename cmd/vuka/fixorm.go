@@ -12,8 +12,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/format"
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // The orm's earlier forms the fixers rewrite: struct tags of models
@@ -36,7 +37,7 @@ func importedAs(src []byte, path string) string {
 		}
 		return alias
 	}
-	return path[strings.LastIndexByte(path, '/')+1:]
+	return transpile.ImportName(path)
 }
 
 // ormTagAttrs are the attributes a model field's orm: tag says, and the
@@ -279,7 +280,7 @@ func queryRound(src []byte, models map[string]bool) ([]byte, int) {
 		}
 		return orm
 	}
-	rt := importedAs(src, "github.com/vuka-lang/vuka")
+	rt := importedAs(src, "github.com/vuka-lang/vuka/v2")
 	if rt == "" {
 		rt = "vuka"
 	}

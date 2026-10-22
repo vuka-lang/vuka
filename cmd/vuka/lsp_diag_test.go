@@ -1,7 +1,7 @@
 package main
 
 import (
-	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/v2/diag"
 	"path/filepath"
 	"strings"
 	"testing"

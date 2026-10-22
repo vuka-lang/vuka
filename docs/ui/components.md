@@ -6,7 +6,7 @@ same file. Exported fields are props; content and named slots are node props.
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Notice struct {
     Title string

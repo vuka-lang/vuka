@@ -694,7 +694,7 @@ the language server.
 
 The vet-time checks (missing loader, handle clash, bad bind/validate,
 template hole kinds, route conflicts) are packaged as `go/analysis`
-analyzers, `github.com/vuka-lang/vuka/cmd/vukavet` (its own module, so the
+analyzers, `github.com/vuka-lang/vuka/cmd/vukavet/v2` (its own module, so the
 vuka module stays free of dependencies), runnable as
 `go vet -vettool=$(go tool -n vukavet)`, with the same diagnostic codes.
 `vukavet` is `go vet`'s own analyzers plus four checks

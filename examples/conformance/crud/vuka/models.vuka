@@ -1,8 +1,8 @@
 package main
 
 import (
-	"github.com/vuka-lang/orm"
-	_ "github.com/vuka-lang/orm/sqlite"
+	"github.com/vuka-lang/orm/v2"
+	_ "github.com/vuka-lang/orm/v2/sqlite"
 )
 
 // Author writes posts; Posts counts them.

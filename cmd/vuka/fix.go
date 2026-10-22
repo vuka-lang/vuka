@@ -16,9 +16,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/format"
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // A fixer finds one kind of problem in a module and how to fix it.
@@ -46,7 +46,7 @@ var fixers = []fixer{
 	{"static-names", "write statics as Type.Member in .vuka files, not by their Go names (User_Table)", fixStaticNames},
 	{"orphans", "remove files vuka gen -inplace wrote for .vuka files that are gone", fixOrphans},
 	{"attr-of", "rename vuka.Attr[T](c) to vuka.AttrOf[T](c) (v0.5.0: vuka.Attr is JSX's attribute type)", fixAttrOf},
-	{"ui", "move UI code to github.com/vuka-lang/ui (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
+	{"ui", "move UI code to github.com/vuka-lang/ui/v2 (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
 	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) and a model's orm: tags as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…, @orm.Elements{…}, @orm.Column(…), …", fixAttributes},
 	{"ui-structs", "write the ui kit's components as structs: ui.Card(ui.CardProps{…}) → ui.Card{…}, ui.Table(ui.TableProps[T]{…}) → ui.Table[T]{…}", fixUIStructs},
 	{"templates-package", "start each .vuka.html file with its package clause, the package of its directory", fixTemplatesPackage},

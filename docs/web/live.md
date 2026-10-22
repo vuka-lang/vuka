@@ -14,7 +14,7 @@ package pages
 
 import (
     "context"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
 )
 
 type Counter struct {
@@ -95,8 +95,8 @@ package pages
 import (
     "context"
     "example.com/app/services"
-    "github.com/vuka-lang/ui"
-    "github.com/vuka-lang/web"
+    "github.com/vuka-lang/ui/v2"
+    "github.com/vuka-lang/web/v2"
 )
 
 type Welcome struct{}
@@ -152,7 +152,7 @@ package pages
 import (
     "strings"
     "example.com/app/models"
-    "github.com/vuka-lang/web"
+    "github.com/vuka-lang/web/v2"
 )
 
 type Todo struct {
@@ -254,8 +254,8 @@ package chat
 import (
     "context"
     "example.com/app/models"
-    "github.com/vuka-lang/ui"
-    "github.com/vuka-lang/web"
+    "github.com/vuka-lang/ui/v2"
+    "github.com/vuka-lang/web/v2"
 )
 
 type Chat struct {
@@ -348,7 +348,7 @@ import (
     "context"
     "net/http"
     "example.com/app/services"
-    "github.com/vuka-lang/web"
+    "github.com/vuka-lang/web/v2"
 )
 
 type Upload struct{}

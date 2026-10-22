@@ -389,7 +389,7 @@ scan:
 			}
 			switch alias {
 			case "":
-				name = path[strings.LastIndex(path, "/")+1:]
+				name = ImportName(path)
 			case ".", "_":
 				continue
 			default:
@@ -399,7 +399,7 @@ scan:
 		}
 	}
 	if name == "" {
-		name = path[strings.LastIndex(path, "/")+1:]
+		name = ImportName(path)
 		if pkgEnd >= 0 { // else no package clause: the parse reports it
 			f.insert(pkgEnd, "; import "+quoted, 0)
 		}

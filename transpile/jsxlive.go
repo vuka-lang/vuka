@@ -5,7 +5,7 @@ import (
 	"go/types"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // resolveStateful decides a stateful component's tag: a struct type whose

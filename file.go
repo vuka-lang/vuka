@@ -19,7 +19,7 @@ import (
 //
 // A .templ file may be in a subdirectory that is a package of its own
 // (views/pets.templ with `package views`): its File is then that package's
-// ("module/views:pets.templ"). With templ and github.com/vuka-lang/ui, the
+// ("module/views:pets.templ"). With templ and github.com/vuka-lang/ui/v2, the
 // file's components are registered too: templx.Components(f).
 type File string
 

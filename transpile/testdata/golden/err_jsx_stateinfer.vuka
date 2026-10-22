@@ -1,6 +1,6 @@
 package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 // Nothing pins T: Note has only an unexported state field and a Label that
 // holds no type parameter, so <Note Label="hi"/> leaves T unsolved.

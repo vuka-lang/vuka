@@ -9,8 +9,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // templModule writes a module requiring templ, the local vuka and the local
@@ -194,7 +194,7 @@ templ Card(title string) {
 `,
 		"note.vuka.html": `package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Note struct {
 	Text     string
@@ -238,7 +238,7 @@ import (
 	"os"
 
 	"github.com/a-h/templ"
-	"github.com/vuka-lang/ui/templx"
+	"github.com/vuka-lang/ui/v2/templx"
 )
 
 func View(f vuka.File) func(*vuka.Decl) {

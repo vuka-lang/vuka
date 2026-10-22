@@ -16,16 +16,16 @@ import (
 	"log"
 
 {%- if ne .DB "none"%}
-	"github.com/vuka-lang/orm"
-	"github.com/vuka-lang/orm/ormweb"
-	_ "github.com/vuka-lang/orm/{%.DB%}" // the database's driver
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/orm/v2/ormweb"
+	_ "github.com/vuka-lang/orm/v2/{%.DB%}" // the database's driver
 {%- end%}
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 {%- if .Auth%}
-	"github.com/vuka-lang/web/auth"
+	"github.com/vuka-lang/web/v2/auth"
 {%- end%}
 {%- if .Mail%}
-	"github.com/vuka-lang/web/mail"
+	"github.com/vuka-lang/web/v2/mail"
 {%- end%}
 
 {%- if ne .DB "none"%}

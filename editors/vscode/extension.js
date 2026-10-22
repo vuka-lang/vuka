@@ -71,7 +71,7 @@ function start() {
   return client.start().catch((err) => {
     vscode.window.showErrorMessage(
       `Vuka: couldn't start "${command} lsp" (${err.message}). ` +
-        'Install it with: go install github.com/vuka-lang/vuka/cmd/vuka@latest',
+        'Install it with: go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest',
     );
   });
 }
@@ -271,7 +271,7 @@ function showVersion() {
   execFile(command, ['version'], { timeout: 5000 }, (err, stdout) => {
     if (err) {
       versionItem.text = 'vuka not found';
-      versionItem.detail = `${command}: install with go install github.com/vuka-lang/vuka/cmd/vuka@latest`;
+      versionItem.detail = `${command}: install with go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest`;
       versionItem.severity = vscode.LanguageStatusSeverity.Error;
       return;
     }

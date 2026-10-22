@@ -12,7 +12,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // The editor's view of JSX: the markup is read here, from the .vuka text, for

@@ -56,7 +56,7 @@ const pagesMainDB = `package main
 import (
 	"example.com/app/pages"
 	"example.com/app/store"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() {
@@ -69,8 +69,8 @@ var pagesApp = map[string]string{
 	"live/_layout.vuka.html": `package live
 
 import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 type Layout struct{ Children ui.Node }
@@ -82,8 +82,8 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 
 	C "../../components/Board.vue"
 )
@@ -122,7 +122,7 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 
 	C "../components/Board.vue"
 )
@@ -153,8 +153,8 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 
 	C "../components/RBoard.tsx"
 )
@@ -185,7 +185,7 @@ func (b *RBoard) Shout() { b.Count++ }
 
 import (
 	"example.com/app/store"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 
 	C "../components/SBoard.svelte"
 )
@@ -216,7 +216,7 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	C "../components/Find.vue"
 )
@@ -244,7 +244,7 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	C "../components/RFind.tsx"
 )
@@ -272,7 +272,7 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	C "../components/SFind.svelte"
 )
@@ -300,7 +300,7 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	C "../components/Only.vue"
 )
@@ -320,13 +320,13 @@ func (f *Only) mount(ctx context.Context) error { f.Rows = f.db.Find(f.Q); retur
 func (f *Only) onChange(ctx context.Context, _ ui.Changed) error { f.Changes++; f.Rows = f.db.Find(f.Q); return nil }
 <C />
 `,
-	"navparams.go": "package pages\n\nimport \"github.com/vuka-lang/web\"\n\ntype NavParams struct {\n\tweb.URLParams\n\tQ string `url:\"q\"`\n}\n",
+	"navparams.go": "package pages\n\nimport \"github.com/vuka-lang/web/v2\"\n\ntype NavParams struct {\n\tweb.URLParams\n\tQ string `url:\"q\"`\n}\n",
 	"nav.vuka.html": `package pages
 
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	C "../components/Nav.vue"
 )
@@ -348,7 +348,7 @@ func (n *Nav) Update(p NavParams) { n.Q = p.Q; n.Updates++ }
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	C "../components/Nav2.vue"
 )
@@ -368,8 +368,8 @@ import (
 	"context"
 
 	"example.com/app/store"
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 
 	C "../components/Dash.vue"
 )
@@ -411,7 +411,7 @@ const dashStatic = `package pages
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	C "../components/Dash.vue"
 )

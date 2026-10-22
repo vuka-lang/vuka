@@ -48,7 +48,7 @@ func main() { fmt.Println(len(id().Unwrap())) }
 		t.Fatal(err)
 	}
 	got, _ := os.ReadFile(mod)
-	for _, want := range []string{"github.com/google/uuid v1.6.0", "github.com/vuka-lang/vuka"} {
+	for _, want := range []string{"github.com/google/uuid v1.6.0", "github.com/vuka-lang/vuka/v2"} {
 		if !strings.Contains(string(got), want) {
 			t.Fatalf("vuka mod tidy dropped %s:\n%s", want, got)
 		}

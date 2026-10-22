@@ -17,10 +17,10 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
-// Tailwind CSS for apps on github.com/vuka-lang/web: vuka run keeps the
+// Tailwind CSS for apps on github.com/vuka-lang/web/v2: vuka run keeps the
 // stylesheet rebuilt (tailwindcss --watch) and names the file to the app in
 // VUKA_TAILWIND_CSS; vuka build builds it once, minified, and embeds it with
 // a file generated in each main package (web.RegisterCSS), added through the
@@ -30,7 +30,7 @@ import (
 // of the dependencies shipping components.
 
 const (
-	webPath     = "github.com/vuka-lang/web"
+	webPath     = "github.com/vuka-lang/web/v2"
 	twEnv       = "VUKA_TAILWIND"     // off: no Tailwind
 	twCSSEnv    = "VUKA_TAILWIND_CSS" // web reads the development stylesheet's path from it
 	twGoName    = "vuka_tailwind_gen.go"

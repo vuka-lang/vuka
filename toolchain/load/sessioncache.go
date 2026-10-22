@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // A session's disk cache: what it transpiled and the API of the module's

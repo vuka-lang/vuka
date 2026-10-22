@@ -20,6 +20,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // staticSpot is a possible statics member use at the cursor: Type.member or
@@ -136,7 +138,7 @@ func staticSpotAt(method string, src []byte, off int) *staticSpot {
 	for _, spec := range importList(src) {
 		name := spec.name
 		if name == "" {
-			name = spec.path[strings.LastIndex(spec.path, "/")+1:]
+			name = transpile.ImportName(spec.path)
 		}
 		imported[name] = true
 	}
@@ -173,7 +175,7 @@ func (p *proxy) staticMembers(vf *vfile, spot *staticSpot) (members []staticMemb
 		for _, spec := range importList(vf.text()) {
 			name := spec.name
 			if name == "" {
-				name = spec.path[strings.LastIndex(spec.path, "/")+1:]
+				name = transpile.ImportName(spec.path)
 			}
 			if name == spot.qual {
 				path = spec.path
@@ -291,7 +293,7 @@ func (p *proxy) namedTarget(dir string, file *staticsFile, t ast.Expr) (string, 
 			}
 			for _, imp := range file.ast.Imports {
 				path := strings.Trim(imp.Path.Value, `"`)
-				name := path[strings.LastIndex(path, "/")+1:]
+				name := transpile.ImportName(path)
 				if imp.Name != nil {
 					name = imp.Name.Name
 				}

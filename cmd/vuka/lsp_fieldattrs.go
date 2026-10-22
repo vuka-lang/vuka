@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // trailingAttr is an attribute at the end of a line's text: @name, @T{…} or
@@ -351,7 +353,7 @@ func (p *proxy) fieldAttrItems(vf *vfile, qualifier string, typed lspRange) (ite
 		for _, s := range importList(vf.text()) {
 			name := s.name
 			if name == "" {
-				name = s.path[strings.LastIndex(s.path, "/")+1:]
+				name = transpile.ImportName(s.path)
 			}
 			if name == qualifier {
 				dir = p.importDir(s.path)

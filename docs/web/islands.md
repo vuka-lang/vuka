@@ -18,7 +18,7 @@ Save as `pages/planner.vuka.html` (the Vue component is shown below):
 package pages
 
 import (
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
     Week "../frontend/islands/Week.vue"
 )
 
@@ -121,7 +121,7 @@ over an inferred import of the same name.
 // components/chart.go
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Point struct {
     X float64 `json:"x"`
@@ -172,7 +172,7 @@ children: it is the pre-hydration view.
 package pages
 
 import (
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
     Chart "../frontend/chart.tsx"
 )
 
@@ -249,7 +249,7 @@ same state and all bindings that observe it.
 package pages
 
 import (
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
     Week "../frontend/islands/Week.vue"
 )
 
@@ -298,7 +298,7 @@ import (
     "context"
     "example.com/app/models"
     "example.com/app/services"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
     OrdersView "../frontend/islands/Orders.vue"
 )
 
@@ -521,7 +521,7 @@ import (
     "context"
     "example.com/app/models"
     "example.com/app/services"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
     OverviewView "../frontend/islands/Overview.vue"
 )
 

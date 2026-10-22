@@ -2,7 +2,7 @@
 
 package schemause
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Board struct {
 	ui.Live

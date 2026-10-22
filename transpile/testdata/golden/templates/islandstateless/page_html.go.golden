@@ -4,7 +4,7 @@
 package main
 
 import (
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Page is a stateless island page: its markup is the island alone, and it

@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/v2/diag"
 	"os"
 	"path/filepath"
 	"sort"
@@ -82,7 +82,7 @@ const islandDecoSource = `package main
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 @ui.Island

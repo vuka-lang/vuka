@@ -19,7 +19,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // The pages' Go samples are code a reader copies: every Go fence is
@@ -291,7 +291,7 @@ func vetSamples(t *testing.T, all [][]sample) {
 	// The folder generator's exported contract is Routes() web.Option.
 	// Register the fixture page using the same page-route option it emits.
 	route := `package pages
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 func Routes() web.Option {
  return web.OptionFunc(func(app *web.App) {
   app.Get("/", func() *Index { return &Index{} }, web.PageRoute())
@@ -396,15 +396,15 @@ var defaultImports = map[string]string{
 	"json": "encoding/json", "math": "math", "slog": "log/slog", "fs": "io/fs", "url": "net/url",
 	"utf8": "unicode/utf8", "sql": "database/sql", "sha1": "crypto/sha1", "sha256": "crypto/sha256", "subtle": "crypto/subtle", "hex": "encoding/hex", "base64": "encoding/base64", "driver": "database/sql/driver", "regexp": "regexp", "filepath": "path/filepath", "iter": "iter", "maps": "maps", "rand": "math/rand/v2", "atomic": "sync/atomic", "bytes": "bytes",
 	"templ": "github.com/a-h/templ",
-	"vuka":  "github.com/vuka-lang/vuka",
-	"ui":    "github.com/vuka-lang/ui", "live": "github.com/vuka-lang/ui/live", "livetest": "github.com/vuka-lang/ui/live/livetest",
-	"validate": "github.com/vuka-lang/ui/validate", "term": "github.com/vuka-lang/ui/term", "templx": "github.com/vuka-lang/ui/templx",
-	"web": "github.com/vuka-lang/web", "auth": "github.com/vuka-lang/web/auth", "authtest": "github.com/vuka-lang/web/auth/authtest",
-	"cron": "github.com/vuka-lang/web/cron", "crontest": "github.com/vuka-lang/web/crontest",
-	"mail": "github.com/vuka-lang/web/mail", "mailtest": "github.com/vuka-lang/web/mail/mailtest",
-	"orm": "github.com/vuka-lang/orm", "fn": "github.com/vuka-lang/orm/fn", "migration": "github.com/vuka-lang/orm/migration",
-	"ormtest": "github.com/vuka-lang/orm/ormtest", "ormweb": "github.com/vuka-lang/orm/ormweb",
-	"sqlite": "github.com/vuka-lang/orm/sqlite", "postgres": "github.com/vuka-lang/orm/postgres", "mysql": "github.com/vuka-lang/orm/mysql",
+	"vuka":  "github.com/vuka-lang/vuka/v2",
+	"ui":    "github.com/vuka-lang/ui/v2", "live": "github.com/vuka-lang/ui/v2/live", "livetest": "github.com/vuka-lang/ui/v2/live/livetest",
+	"validate": "github.com/vuka-lang/ui/v2/validate", "term": "github.com/vuka-lang/ui/v2/term", "templx": "github.com/vuka-lang/ui/v2/templx",
+	"web": "github.com/vuka-lang/web/v2", "auth": "github.com/vuka-lang/web/v2/auth", "authtest": "github.com/vuka-lang/web/v2/auth/authtest",
+	"cron": "github.com/vuka-lang/web/v2/cron", "crontest": "github.com/vuka-lang/web/v2/crontest",
+	"mail": "github.com/vuka-lang/web/v2/mail", "mailtest": "github.com/vuka-lang/web/v2/mail/mailtest",
+	"orm": "github.com/vuka-lang/orm/v2", "fn": "github.com/vuka-lang/orm/v2/fn", "migration": "github.com/vuka-lang/orm/v2/migration",
+	"ormtest": "github.com/vuka-lang/orm/v2/ormtest", "ormweb": "github.com/vuka-lang/orm/v2/ormweb",
+	"sqlite": "github.com/vuka-lang/orm/v2/sqlite", "postgres": "github.com/vuka-lang/orm/v2/postgres", "mysql": "github.com/vuka-lang/orm/v2/mysql",
 }
 
 // parsed is a sample as Go: its declarations and the imports it names.

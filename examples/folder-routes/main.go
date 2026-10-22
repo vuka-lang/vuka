@@ -11,7 +11,7 @@ import (
 	"example.com/folder-routes/pages"
 	"example.com/folder-routes/pages/app"
 	"example.com/folder-routes/store"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() {

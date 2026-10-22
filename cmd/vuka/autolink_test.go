@@ -18,10 +18,10 @@ func linkModule(t *testing.T, mainSrc string) string {
 	t.Helper()
 	repo, _ := filepath.Abs("../..")
 	return tempModule(t, map[string]string{
-		"go.mod": "module example.com/app\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n",
+		"go.mod": "module example.com/app\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => " + repo + "\n",
 		"reg/reg.vuka": `package reg
 
-import "github.com/vuka-lang/vuka"
+import "github.com/vuka-lang/vuka/v2"
 
 var Routes []string
 

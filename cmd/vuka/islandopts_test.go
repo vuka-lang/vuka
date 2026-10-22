@@ -9,8 +9,8 @@ import (
 const islandOptsSource = `package pages
 
 import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 
 	"example.com/app/layouts"
 )
@@ -84,7 +84,7 @@ func TestReadIslandOptionErrors(t *testing.T) {
 		`@ui.Island(ui.Strategy(s))`:               "ui.Strategy takes a string literal",
 		`@ui.Island("a.vue", ui.Layout(x), other)`: "options are calls",
 	} {
-		src := "package p\n\nimport \"github.com/vuka-lang/ui\"\n\n" + decl + "\ntype T struct{}\n"
+		src := "package p\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n" + decl + "\ntype T struct{}\n"
 		pa := &pageAssets{root: "/m"}
 		errs := pa.readIslands("/m/p.vuka", []byte(src))
 		if len(errs) != 1 || !strings.Contains(errs[0].Error(), want) {

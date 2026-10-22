@@ -17,10 +17,10 @@ import (
 	"strings"
 
 	"github.com/evanw/esbuild/pkg/api"
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/internal/tsprops"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/tsprops"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Islands are client components hydrated in the browser, declared by an

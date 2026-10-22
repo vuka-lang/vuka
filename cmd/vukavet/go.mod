@@ -1,4 +1,4 @@
-module github.com/vuka-lang/vuka/cmd/vukavet
+module github.com/vuka-lang/vuka/cmd/vukavet/v2
 
 go 1.26.0
 

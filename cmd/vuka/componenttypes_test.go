@@ -15,7 +15,7 @@ func TestComponentDTS(t *testing.T) {
 	dir := t.TempDir()
 	os.WriteFile(filepath.Join(dir, "chart.go"), []byte(`package views
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Point struct {
 	X, Y int

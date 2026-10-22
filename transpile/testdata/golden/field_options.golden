@@ -7,7 +7,7 @@ import (
 	"database/sql/driver"
 	"fmt"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 // Int is a field attribute with optional bounds.

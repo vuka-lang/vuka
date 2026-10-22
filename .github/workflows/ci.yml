@@ -52,7 +52,7 @@ jobs:
       VUKA_UI: ${{ github.workspace }}/vuka-ui
       VUKA_WEB: ${{ github.workspace }}/vuka-web
       VUKA_ORM: ${{ github.workspace }}/vuka-orm
-      VUKA_NEW_REPLACE: github.com/vuka-lang/vuka=${{ github.workspace }}/vuka,github.com/vuka-lang/ui=${{ github.workspace }}/vuka-ui,github.com/vuka-lang/web=${{ github.workspace }}/vuka-web,github.com/vuka-lang/orm=${{ github.workspace }}/vuka-orm
+      VUKA_NEW_REPLACE: github.com/vuka-lang/vuka/v2=${{ github.workspace }}/vuka,github.com/vuka-lang/ui/v2=${{ github.workspace }}/vuka-ui,github.com/vuka-lang/web/v2=${{ github.workspace }}/vuka-web,github.com/vuka-lang/orm/v2=${{ github.workspace }}/vuka-orm
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -114,7 +114,7 @@ jobs:
           npm ci --prefix testdata/node/islands --no-audit --no-fund
       - name: The command builds with this repository's compiler and the ui checkout
         working-directory: vuka/cmd/vuka
-        run: go mod edit -replace github.com/vuka-lang/vuka=../.. -replace github.com/vuka-lang/ui=../../../vuka-ui
+        run: go mod edit -replace github.com/vuka-lang/vuka/v2=../.. -replace github.com/vuka-lang/ui/v2=../../../vuka-ui
       - name: vet
         working-directory: vuka/cmd/vuka
         run: go vet ./...
@@ -178,7 +178,7 @@ jobs:
         run: npm ci --prefix testdata/node/islands --no-audit --no-fund
       - name: The command builds with this repository's compiler and the ui checkout
         working-directory: vuka/cmd/vuka
-        run: go mod edit -replace github.com/vuka-lang/vuka=../.. -replace github.com/vuka-lang/ui=../../../vuka-ui
+        run: go mod edit -replace github.com/vuka-lang/vuka/v2=../.. -replace github.com/vuka-lang/ui/v2=../../../vuka-ui
       - name: test
         working-directory: vuka/cmd/vuka
         run: go test -timeout 20m -run '^TestConformance$' .
@@ -193,7 +193,7 @@ jobs:
         include:
           - { pkg: ./transpile, fuzz: FuzzPackage }
           - { pkg: ./transpile, fuzz: FuzzSyntax }
-          - { pkg: ./internal/format, fuzz: FuzzSource }
+          - { pkg: ./toolchain/format, fuzz: FuzzSource }
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0

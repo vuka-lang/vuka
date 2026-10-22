@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // main is in a .vuka file, beside the package's templates.

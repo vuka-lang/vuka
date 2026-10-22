@@ -1,9 +1,9 @@
-error[E0102]: JSX needs a target: import github.com/vuka-lang/ui (or another package declaring VukaJSX)
+error[E0102]: JSX needs a target: import github.com/vuka-lang/ui/v2 (or another package declaring VukaJSX)
  --> err_jsx_notarget.vuka:6:9
   |
 6 |     return <div><p>hi</p></div>
   |            ^^^^
   |
-  = help: import github.com/vuka-lang/ui (or another package declaring VukaJSX)
+  = help: import github.com/vuka-lang/ui/v2 (or another package declaring VukaJSX)
 
 For more information about this error, try `vuka explain E0102`.

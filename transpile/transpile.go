@@ -20,10 +20,10 @@ import (
 )
 
 // RuntimePath is the import path of the package holding Result and Option.
-const RuntimePath = "github.com/vuka-lang/vuka"
+const RuntimePath = "github.com/vuka-lang/vuka/v2"
 
 // RuntimeVersion is the runtime version the code Vuka generates needs.
-const RuntimeVersion = "v1.0.0"
+const RuntimeVersion = "v2.0.0"
 
 // File is one source file of a package: a .vuka file to transpile, or a .go file
 // in the same package.
@@ -64,7 +64,7 @@ type Options struct {
 	// Register(key string, components ...Component), Component being
 	// struct{Name string; Func any; Params []string}. Empty embeds .templ
 	// files as plain files. The vuka command's templ plugin sets
-	// github.com/vuka-lang/ui/templx.
+	// github.com/vuka-lang/ui/v2/templx.
 	TemplRegistry string
 	// Scopes names the package's scoped declarations: a type, whose
 	// methods' JSX is its markup, or a function, each with its scope id.

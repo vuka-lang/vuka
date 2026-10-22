@@ -11,7 +11,7 @@ import (
 	"slices"
 	str "strconv"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Total is a week's total, and its best day.

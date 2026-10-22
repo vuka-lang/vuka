@@ -55,7 +55,7 @@ package main
 import (
     "log"
     "example.com/app/pages"
-    "github.com/vuka-lang/web"
+    "github.com/vuka-lang/web/v2"
 )
 
 type DB struct { url string }
@@ -131,7 +131,7 @@ import (
     "net/http"
     "example.com/app/models"
     "example.com/app/services"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
 )
 
 type Index struct {

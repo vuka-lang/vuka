@@ -11,10 +11,10 @@ import (
 	"regexp"
 	"sort"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
-const ormModule = "github.com/vuka-lang/orm"
+const ormModule = "github.com/vuka-lang/orm/v2"
 
 // typedFieldsUse matches generated code reading a model's typed fields:
 // PostFields.Title.

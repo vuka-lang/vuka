@@ -3,7 +3,7 @@ package org
 import (
 	"fmt"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // badge is a part of a page: no page.

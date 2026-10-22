@@ -9,7 +9,7 @@ func declShow(id int, name string) string { return name }
 
 func TestDeclOf(t *testing.T) {
 	d := DeclOf(declShow, Param{Name: "id", Attrs: []any{perm("path")}}, Param{Name: "name"})
-	if d.Name != "vuka.declShow" || d.Pkg != "github.com/vuka-lang/vuka" || d.File != "decl_test.go" || d.Line != 8 {
+	if d.Name != "vuka.declShow" || d.Pkg != "github.com/vuka-lang/vuka/v2" || d.File != "decl_test.go" || d.Line != 8 {
 		t.Errorf("DeclOf: %s in %s at %s:%d", d.Name, d.Pkg, d.File, d.Line)
 	}
 	if len(d.Params) != 2 || d.Params[0].Name != "id" || d.Params[0].Type != reflect.TypeFor[int]() || d.Params[1].Name != "name" {

@@ -4,7 +4,7 @@ go 1.26.2
 
 require (
 	github.com/paulmanoni/nexus/v2 v2.33.7
-	github.com/vuka-lang/vuka v0.3.0
+	github.com/vuka-lang/vuka/v2 v2.0.0
 )
 
 require (
@@ -22,4 +22,4 @@ require (
 	golang.org/x/sys v0.45.0 // indirect
 )
 
-replace github.com/vuka-lang/vuka => ../..
+replace github.com/vuka-lang/vuka/v2 => ../..

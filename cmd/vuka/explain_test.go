@@ -18,7 +18,7 @@ func explainModule(t *testing.T) string {
 	t.Helper()
 	repo, _ := filepath.Abs("../..")
 	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/shop\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => "+repo+"\n")
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/shop\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => "+repo+"\n")
 	writeFile(t, filepath.Join(root, "orm", "orm.vuka"), `package orm
 
 import "context"

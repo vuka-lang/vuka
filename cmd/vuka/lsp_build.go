@@ -13,8 +13,8 @@ import (
 
 	templparser "github.com/a-h/templ/parser/v2"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // How the language server keeps the generated Go current:

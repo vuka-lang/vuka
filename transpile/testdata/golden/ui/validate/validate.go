@@ -1,4 +1,4 @@
-// Package validate stands in for github.com/vuka-lang/ui/validate.
+// Package validate stands in for github.com/vuka-lang/ui/v2/validate.
 package validate
 
 import (

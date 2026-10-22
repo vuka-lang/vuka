@@ -21,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // A Session transpiles one module again and again, as vuka run -watch does

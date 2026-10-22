@@ -44,10 +44,10 @@ func TestFolderRoutesE2E(t *testing.T) {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if !hasWebFunc(web, "PageRoute") || !webDeclares(web, "func LayoutOf[") {
-		t.Skipf("github.com/vuka-lang/web at %s has no folder routes (PageRoute, LayoutOf); set VUKA_WEB", web)
+		t.Skipf("github.com/vuka-lang/web/v2 at %s has no folder routes (PageRoute, LayoutOf); set VUKA_WEB", web)
 	}
 	if !webDeclares(web, "func GuardOf[") {
-		t.Skipf("github.com/vuka-lang/web at %s has no guards (GuardOf, 1.2); set VUKA_WEB", web)
+		t.Skipf("github.com/vuka-lang/web/v2 at %s has no guards (GuardOf, 1.2); set VUKA_WEB", web)
 	}
 	if gen, _ := os.ReadFile("folderroutes_gen.go"); !bytes.Contains(gen, []byte("GuardOf[")) {
 		t.Skip("this vuka command generates no endpoints or guards (1.2)")
@@ -55,7 +55,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 		t.Skip("this vuka command generates no folder middleware (1.3)")
 	}
 	if !webDeclares(web, "func UseOf(") {
-		t.Skipf("github.com/vuka-lang/web at %s has no folder middleware (UseOf, 1.3); set VUKA_WEB", web)
+		t.Skipf("github.com/vuka-lang/web/v2 at %s has no folder middleware (UseOf, 1.3); set VUKA_WEB", web)
 	}
 	src := filepath.Join(repo, "examples/folder-routes")
 	files := map[string]string{}

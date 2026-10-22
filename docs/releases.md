@@ -11,7 +11,7 @@ features in minor releases with upgrade notes. See
 [Versions and compatibility](/project/versions).
 
 ```sh
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 vuka upgrade
 ```
 

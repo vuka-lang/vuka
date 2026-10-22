@@ -25,7 +25,7 @@ func publish(ctx context.Context, slug string) error { return nil }
 var t *testing.T
 -->
 
-`github.com/vuka-lang/orm/ormtest` opens a fresh database per test, with the
+`github.com/vuka-lang/orm/v2/ormtest` opens a fresh database per test, with the
 models' tables made — in-memory SQLite by default:
 
 

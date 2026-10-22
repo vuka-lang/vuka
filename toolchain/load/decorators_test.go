@@ -18,7 +18,7 @@ func TestDecoratorsAcrossPackages(t *testing.T) {
 	t.Setenv("GOFLAGS", "-mod=mod")
 	repo, _ := filepath.Abs("../..")
 	root := filepath.Join(t.TempDir(), "app")
-	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => "+repo+"\n")
+	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.22\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => "+repo+"\n")
 	write(t, filepath.Join(root, "api", "api.vuka"), `package api
 
 import "fmt"

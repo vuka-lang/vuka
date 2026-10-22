@@ -1,6 +1,6 @@
 # ORM
 
-[`github.com/vuka-lang/orm`](https://github.com/vuka-lang/orm) is a
+[`github.com/vuka-lang/orm/v2`](https://github.com/vuka-lang/orm) is a
 Django-style ORM for Go and Vuka: a model is a plain struct, its manager a
 package-level value, its queries lazy, immutable QuerySets. Each field's
 column — name, type, default, checks — is declared in one attribute beside
@@ -79,7 +79,7 @@ write with an [`orm.Invalid`](/orm/errors) naming the field, before the
 database sees it.
 A model's `Schema` names each
 field by its address, so a rename is checked by the compiler; `PostFields`,
-written by `//go:generate go run github.com/vuka-lang/orm/cmd/ormgen`,
+written by `//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen`,
 gives typed lookups; `orm.Objects[Post]()` is the model's manager, and without it every query takes `orm.Q{"title__contains":
 "Go"}` strings. Terminals return `(T, error)`.
 Everything is plain Go underneath — the attributes are the model's
@@ -88,7 +88,7 @@ Everything is plain Go underneath — the attributes are the model's
 ## Install
 
 ```sh
-go get github.com/vuka-lang/orm
+go get github.com/vuka-lang/orm/v2
 ```
 
 It needs Go 1.27 (it uses generic methods: `q.Values[R](…)`).
@@ -100,9 +100,9 @@ links none:
 
 | Import | Driver | Dialect |
 |---|---|---|
-| `github.com/vuka-lang/orm/postgres` | pgx | `postgres` |
-| `github.com/vuka-lang/orm/mysql` | go-sql-driver/mysql | `mysql` |
-| `github.com/vuka-lang/orm/sqlite` | pure-Go `glebarez/go-sqlite` | `sqlite` |
+| `github.com/vuka-lang/orm/v2/postgres` | pgx | `postgres` |
+| `github.com/vuka-lang/orm/v2/mysql` | go-sql-driver/mysql | `mysql` |
+| `github.com/vuka-lang/orm/v2/sqlite` | pure-Go `glebarez/go-sqlite` | `sqlite` |
 
 ## A first program
 
@@ -115,11 +115,11 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/vuka-lang/orm"
-	_ "github.com/vuka-lang/orm/sqlite"
+	"github.com/vuka-lang/orm/v2"
+	_ "github.com/vuka-lang/orm/v2/sqlite"
 )
 
-//go:generate go run github.com/vuka-lang/orm/cmd/ormgen
+//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen
 
 type User struct {
 	orm.Model[User]

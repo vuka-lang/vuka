@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // A releaseRepo is one repository of the set and the module it releases.
@@ -35,7 +35,7 @@ type releaseStep struct {
 
 // vukavetModPath is the analyzer, released with the command: tagged on the
 // command's release commit, it requires none of the set.
-const vukavetModPath = "github.com/vuka-lang/vuka/cmd/vukavet"
+const vukavetModPath = "github.com/vuka-lang/vuka/cmd/vukavet/v2"
 
 // release releases vuka, ui, web, cmd/vuka and cmd/vukavet under one
 // version: checks, then tags in dependency order, each module requiring the
@@ -69,8 +69,8 @@ func release(args []string, stdout, stderr io.Writer) error {
 	if compareVersions(v, firstSetVersion) < 0 {
 		return fmt.Errorf("set versions start at %s", firstSetVersion)
 	}
-	if major := strings.SplitN(v[1:], ".", 2)[0]; major != "0" && major != "1" {
-		return fmt.Errorf("%s needs /v%s module paths; the set's modules have none", v, major)
+	if err := checkMajor(v); err != nil {
+		return err
 	}
 
 	root, modPath, err := load.ModuleRoot(".")
@@ -286,6 +286,38 @@ func output(dir string, env []string, name string, args ...string) (string, erro
 		return out.String(), fmt.Errorf("%s %s: %v\n%s", name, strings.Join(args, " "), err, strings.TrimSpace(out.String()))
 	}
 	return out.String(), nil
+}
+
+// checkMajor refuses a version whose major the set's module paths don't
+// carry: v0 and v1 have no /vN suffix, vN from v2 has /vN.
+func checkMajor(v string) error {
+	major := strings.SplitN(v[1:], ".", 2)[0]
+	want := ""
+	if major != "0" && major != "1" {
+		want = "/v" + major
+	}
+	for _, m := range []string{vukaModPath, uiModPath, webModPath, cmdModPath, vukavetModPath} {
+		if have := pathMajor(m); have != want {
+			if want == "" {
+				return fmt.Errorf("%s is a v%s version, but the set's modules are %s (%s)", v, major, strings.TrimPrefix(have, "/"), m)
+			}
+			return fmt.Errorf("%s needs %s module paths, but the set's modules are %s", v, want, m)
+		}
+	}
+	return nil
+}
+
+// pathMajor is a module path's /vN suffix (N ≥ 2), or "".
+func pathMajor(p string) string {
+	i := strings.LastIndex(p, "/v")
+	if i < 0 {
+		return ""
+	}
+	n, err := strconv.Atoi(p[i+2:])
+	if err != nil || n < 2 || strconv.Itoa(n) != p[i+2:] {
+		return ""
+	}
+	return p[i:]
 }
 
 func checkModule(r *releaseRepo) error {

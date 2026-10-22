@@ -262,7 +262,7 @@ Postgres and MySQL run functions written in SQL. Create them in a
 drops them; SQLite gets nothing, so use a Go function there:
 
 <!-- go:context
-import m "github.com/vuka-lang/orm/migration"
+import m "github.com/vuka-lang/orm/v2/migration"
 
 var _ = m.F
 -->

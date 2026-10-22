@@ -94,7 +94,7 @@ func later(y int) int {
 func TestProbeDriftDecorator(t *testing.T) {
 	src := `package p
 
-import "github.com/vuka-lang/vuka"
+import "github.com/vuka-lang/vuka/v2"
 
 func logit(c *vuka.Call) { c.Next() }
 

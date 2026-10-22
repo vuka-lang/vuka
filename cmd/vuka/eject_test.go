@@ -222,7 +222,7 @@ func TestEjectLinksDeclarers(t *testing.T) {
 import (
 	"sort"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 var commands = map[string]*vuka.Decl{}

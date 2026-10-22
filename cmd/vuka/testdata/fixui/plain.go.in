@@ -1,5 +1,5 @@
 package plain
 
-import "github.com/vuka-lang/vuka"
+import "github.com/vuka-lang/vuka/v2"
 
 func Wrap(c *vuka.Call) { c.Next() }

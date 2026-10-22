@@ -1,7 +1,7 @@
 # Design: JSX targets and the UI library split (v0.10.0)
 
 Status: implemented on branch `ui-split`. Breaking change, released as v0.10.0
-together with `github.com/vuka-lang/ui` v0.1.0.
+together with `github.com/vuka-lang/ui/v2` v0.1.0.
 
 ## Why
 
@@ -16,7 +16,7 @@ compiler checking the live runtime's event payload rules.
 
 After the split the language owns JSX as syntax plus generic, go/types-based
 component resolution against whatever package the file renders with — its
-**JSX target**. `github.com/vuka-lang/ui` is the default (and first) target.
+**JSX target**. `github.com/vuka-lang/ui/v2` is the default (and first) target.
 
 ## What the language keeps
 
@@ -77,9 +77,9 @@ it is used):
 Explicit and per file, like any Go import: a `.vuka` file with JSX renders
 with the one JSX target it imports.
 
-- `import "github.com/vuka-lang/ui"` (any name, or `.`) selects ui; the
+- `import "github.com/vuka-lang/ui/v2"` (any name, or `.`) selects ui; the
   lowering uses the import's name: `ui.El(…)`.
-- No target imported → `JSX needs a target: import github.com/vuka-lang/ui
+- No target imported → `JSX needs a target: import github.com/vuka-lang/ui/v2
   (or another package declaring VukaJSX)`, at the first JSX expression.
 - Two targets imported → `JSX in this file could render with A or B: a file
   imports one JSX target`.
@@ -110,7 +110,7 @@ rules (checked when the handler is first rendered), the `Mount` signature
 (checked when the instance mounts), embedding `*ui.Live` by pointer (checked
 when the component renders).
 
-## github.com/vuka-lang/ui
+## github.com/vuka-lang/ui/v2
 
 A Go module (requires templ, Go 1.25), local repository `../vuka-ui`:
 
@@ -126,7 +126,7 @@ A Go module (requires templ, Go 1.25), local repository `../vuka-ui`:
 - `ui/templx`: `WithChildren` (kept), and the registry of `.templ` files'
   components: `Component`, `Register`, `Components(vuka.File)` (formerly
   `vuka.TemplComponent`, `vuka.RegisterTempl`, `vuka.TemplComponents`). This
-  is why ui requires `github.com/vuka-lang/vuka`.
+  is why ui requires `github.com/vuka-lang/vuka/v2`.
 
 ## What the vuka module keeps
 
@@ -141,7 +141,7 @@ messages). The runtime version generated code requires is v0.10.0.
 ## .templ files: a toolchain plugin
 
 templ is a tool concern. The CLI is its own module,
-`github.com/vuka-lang/vuka/cmd/vuka`, which links templ's parser and
+`github.com/vuka-lang/vuka/cmd/vuka/v2`, which links templ's parser and
 generator; the language module doesn't. `internal/load` keeps the `.templ`
 file conventions (`x.templ` → `x_templ.go`, packages of `.templ` files, the
 source map passed through as `any`) and exposes one hook,
@@ -152,14 +152,14 @@ for a module whose go.mod requires `github.com/a-h/templ`
 github.com/a-h/templ` first.
 
 A `vuka.File` naming a `.templ` file is still embedded by the compiler; when
-the module requires `github.com/vuka-lang/ui` the generated code also
+the module requires `github.com/vuka-lang/ui/v2` the generated code also
 registers the file's components with `templx.Register` (the compiler's
 `Options.TemplRegistry`, set by the plugin), read back with
 `templx.Components(f)`.
 
 Release choreography: tag `vX` (root), then set `cmd/vuka/go.mod` to require
-`github.com/vuka-lang/vuka vX` without the local replace and tag
-`cmd/vuka/vX`. `go install github.com/vuka-lang/vuka/cmd/vuka@latest` keeps
+`github.com/vuka-lang/vuka/v2 vX` without the local replace and tag
+`cmd/vuka/vX`. `go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest` keeps
 working (it resolves the nested module).
 
 ## Compatibility: `vuka fix ui`
@@ -170,11 +170,11 @@ Rewrites a module's `.vuka` and `.go` files:
   `On`, `Event`, `El`, `Text`, …, the full list in `cmd/vuka/fixui.go`);
   `vuka.TemplComponent`/`RegisterTempl`/`TemplComponents` →
   `templx.Component`/`Register`/`Components`;
-- imports `github.com/vuka-lang/vuka/{live,term,templx}` →
-  `github.com/vuka-lang/ui/…`;
-- adds `import "github.com/vuka-lang/ui"` to every `.vuka` file with JSX or
+- imports `github.com/vuka-lang/vuka/v2/{live,term,templx}` →
+  `github.com/vuka-lang/ui/v2/…`;
+- adds `import "github.com/vuka-lang/ui/v2"` to every `.vuka` file with JSX or
   a rewritten name, and drops a `vuka` import left unused;
-- `go get github.com/vuka-lang/ui` when anything changed.
+- `go get github.com/vuka-lang/ui/v2` when anything changed.
 
 ## Move map (old → new)
 
@@ -188,7 +188,7 @@ For porting work done against the old layout (e.g. the live-diff branch):
 | `http.go` | ui `http.go` |
 | `live.go` (Live, Component, On, Event, LiveHost…) | ui `live.go` |
 | `node_test.go`, `walk_test.go`, `live_test.go` | ui, same names |
-| `live/*` | ui `live/*` (import `github.com/vuka-lang/ui/live`) |
+| `live/*` | ui `live/*` (import `github.com/vuka-lang/ui/v2/live`) |
 | `term/*` | ui `term/*` |
 | `templx/*` | ui `templx/*` |
 | `file.go`: `TemplComponent`, `RegisterTempl`, `TemplComponents` | ui `templx/registry.go`: `Component`, `Register`, `Components` |

@@ -5,14 +5,13 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
-	"path"
 	"path/filepath"
 	"slices"
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // goCallAdapters are the vuka_calls_gen.go files of the module's packages
@@ -226,7 +225,7 @@ func (g *goSrc) callSig(ft *ast.FuncType) (transpile.CallSig, bool) {
 	imports := map[string]string{}
 	for _, imp := range g.f.Imports {
 		p, _ := strconv.Unquote(imp.Path.Value)
-		name := path.Base(p)
+		name := transpile.ImportName(p)
 		if imp.Name != nil {
 			name = imp.Name.Name
 		}

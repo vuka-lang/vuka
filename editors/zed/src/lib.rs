@@ -9,7 +9,7 @@
 //! outline, diagnostics and formatting all work on `.vuka` files.
 //!
 //! This extension launches that server. There is no bundled binary; the user
-//! installs it with `go install github.com/vuka-lang/vuka/cmd/vuka@latest`.
+//! installs it with `go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest`.
 //! The `vuka` binary is resolved, in order:
 //!   1. an explicit path from Zed LSP settings (`lsp.vuka.binary.path`), else
 //!   2. `vuka` on the worktree PATH.
@@ -48,7 +48,7 @@ impl zed::Extension for VukaExtension {
             Some(path) => path,
             None => worktree.which("vuka").ok_or_else(|| {
                 "`vuka` not found on PATH. Install it with: \
-                 go install github.com/vuka-lang/vuka/cmd/vuka@latest \
+                 go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest \
                  (and ensure \"$(go env GOPATH)/bin\" is on PATH), or set \
                  lsp.vuka.binary.path in your Zed settings."
                     .to_string()

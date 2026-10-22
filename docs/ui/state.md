@@ -7,7 +7,7 @@ need no round trip.
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Tabs struct {
     open ui.State[bool]

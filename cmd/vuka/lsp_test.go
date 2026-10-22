@@ -523,7 +523,7 @@ func main() { fmt.Println(add(1, 2)) }
 		"decorators/logging.vuka": "package decorators\n\ndecorator Logged(c) { c.Next() }\n",
 		"decorators/timing.go": `package decorators
 
-import "github.com/vuka-lang/vuka"
+import "github.com/vuka-lang/vuka/v2"
 
 func Timed(c *vuka.Call) { c.Next() }
 

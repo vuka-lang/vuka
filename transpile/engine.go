@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // runtimeNames are the names Vuka code uses unqualified for the runtime package.
@@ -496,7 +496,7 @@ func (e *engine) unusedRuntime() bool {
 	dropped := false
 	for _, te := range e.typeErrs {
 		f := e.fileOf(te.Pos)
-		if f == nil || !f.vuka || !strings.Contains(te.Msg, strconv.Quote(RuntimePath)+" imported and not used") {
+		if f == nil || !f.vuka || !unusedImport(te.Msg, RuntimePath) {
 			continue
 		}
 		for i, ed := range f.fixed {
@@ -655,4 +655,11 @@ func (e *engine) zero(f *fileState, t types.Type) (string, string) {
 		}
 	}
 	return "*new(" + s + ")", ""
+}
+
+// unusedImport reports whether msg is go/types' error for an unused import
+// of path: "imported and not used", or "imported as x and not used" when
+// path's last element isn't the package's name (a /vN path).
+func unusedImport(msg, path string) bool {
+	return strings.Contains(msg, strconv.Quote(path)+" imported ") && strings.HasSuffix(msg, " not used")
 }

@@ -24,10 +24,10 @@ func tempModule(t *testing.T, files map[string]string) string {
 	return root
 }
 
-const webMod = "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web v0.5.0\n"
+const webMod = "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web/v2 v2.0.0\n"
 
 func TestTailwindFor(t *testing.T) {
-	ui := "package main\n\nimport \"github.com/vuka-lang/ui\"\n\nvar _ ui.Node\n"
+	ui := "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\nvar _ ui.Node\n"
 	sheet := "@import \"tailwindcss\";\n@theme { --color-brand: #123456; }\n"
 	for _, c := range []struct {
 		name  string
@@ -196,7 +196,7 @@ func webModule(t *testing.T, files map[string]string) string {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if !hasRegisterCSS(web) {
-		needs(t, "github.com/vuka-lang/web at %s has no RegisterCSS; set VUKA_WEB", web)
+		needs(t, "github.com/vuka-lang/web/v2 at %s has no RegisterCSS; set VUKA_WEB", web)
 	}
 	return localModule(t, web, files)
 }
@@ -205,7 +205,7 @@ const twMain = `package main
 
 import (
 	"example.com/app/pages"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() { web.New(pages.Routes()).Run("") }
@@ -213,7 +213,7 @@ func main() { web.New(pages.Routes()).Run("") }
 
 const twPage = `package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Index struct{}
 <html><head><title>t</title></head><body>
@@ -321,10 +321,10 @@ func TestBuildTailwindOldWeb(t *testing.T) {
 	t.Setenv("PATH", bin)
 	t.Setenv("GOWORK", "off")
 	root := tempModule(t, map[string]string{
-		"go.mod":     "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web v0.4.0\n\nreplace github.com/vuka-lang/web => ./web\n",
-		"main.go":    "package main\n\nimport _ \"github.com/vuka-lang/web\"\n\nfunc main() {}\n",
+		"go.mod":     "module example.com/app\n\ngo 1.25.0\n\nrequire github.com/vuka-lang/web/v2 v2.0.0\n\nreplace github.com/vuka-lang/web/v2 => ./web\n",
+		"main.go":    "package main\n\nimport _ \"github.com/vuka-lang/web/v2\"\n\nfunc main() {}\n",
 		"page.html":  "<p class=\"p-4\"></p>",
-		"web/go.mod": "module github.com/vuka-lang/web\n\ngo 1.25.0\n",
+		"web/go.mod": "module github.com/vuka-lang/web/v2\n\ngo 1.25.0\n",
 		"web/web.go": "package web\n",
 	})
 	gens, err := buildTailwind(root, "", nil, io.Discard)

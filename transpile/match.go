@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // lowerMatch rewrites a match statement into an if-else chain. Only the header

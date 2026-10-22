@@ -8,7 +8,7 @@ import (
 	"go/token"
 	"strconv"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // The Go templ generates for a .templ file of a module requiring ui is

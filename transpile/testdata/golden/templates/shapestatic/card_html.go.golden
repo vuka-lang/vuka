@@ -8,7 +8,7 @@ import (
 	"io"
 	"strings"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Card is a titled box: its fields are its props, its markup below.

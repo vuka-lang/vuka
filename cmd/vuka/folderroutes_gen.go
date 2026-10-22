@@ -10,7 +10,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // generate writes pages/urls/urls_gen.go and pages/route.go; each also
@@ -76,7 +77,7 @@ func (im *imports) block() string {
 	var std, other []string
 	for path, n := range im.byPath {
 		line := fmt.Sprintf("%q", path)
-		if base := path[strings.LastIndexByte(path, '/')+1:]; base != n {
+		if base := transpile.ImportName(path); base != n {
 			line = n + " " + line
 		}
 		if strings.Contains(strings.SplitN(path, "/", 2)[0], ".") {
