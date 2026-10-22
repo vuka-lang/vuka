@@ -1,9 +1,8 @@
 # Queries
 
-<span class="vuka-only">`Post.Objects` is the model's manager, `orm.Objects[Post]()` in Go: its
-methods start a lazy, immutable `orm.QuerySet[Post]`.</span><span class="go-only">`orm.Objects[Post]()`,
+`orm.Objects[Post]()`,
 the model's manager, starts an `orm.QuerySet[Post]`: a lazy, immutable
-query.</span> Each method returns a new one; nothing runs until a
+query. Each method returns a new one; nothing runs until a
 terminal (`All`, `Get`, `Count`, …) takes a context.
 
 <!-- go:context
@@ -48,29 +47,14 @@ var (
 )
 -->
 
-::: go
 The Go samples use `PostFields` (`f`), the typed fields `ormgen` writes
 ([Models](/orm/models#plain-go)); every condition is also an engine string,
 `orm.Q{"title__contains": "Go"}`. Terminals return `(T, error)`. Values,
 aggregates and pagination take the engine's names in Go:
 `orm.Objects[Post]().Annotate("n", orm.Count("id")).Values[Stats]("author__name", "n").All(ctx)`, `orm.Paginate(ctx, qs, r,
 orm.Sortable("views"))`.
-:::
 
-::: vuka
-```vuka
-recent := Post.Objects.
-	Filter(Post.Title.Contains("Go"), Post.Author.Name.Eq("ada")).
-	Exclude(Post.Published.IsNull(true)).
-	OrderBy(Post.Views.Desc(), Post.ID.Asc()).
-	Limit(10)
 
-posts := recent.All(ctx)?          // []Post
-n := recent.Count(ctx)?            // int64
-```
-:::
-
-::: go
 <!-- go:fragment -->
 ```go
 f := PostFields
@@ -86,14 +70,11 @@ if err != nil {
 }
 n, err := recent.Count(ctx) // int64
 ```
-:::
 
 ## Conditions
 
-<span class="vuka-only">A model's field, `Post.Title`, is its typed field — `PostFields.Title` in
-Go, which `orm generate` writes beside the model (the vuka command
-overlays it until then).</span><span class="go-only">A model's typed field, `PostFields.Title`, is written beside the model by
-`orm generate` (`//go:generate go run github.com/vuka-lang/orm/cmd/ormgen`).</span> It gives conditions (`orm.Cond`) and orderings:
+A model's typed field, `PostFields.Title`, is written beside the model by
+`orm generate` (`//go:generate go run github.com/vuka-lang/orm/cmd/ormgen`). It gives conditions (`orm.Cond`) and orderings:
 
 | Field | Conditions |
 |---|---|
@@ -102,31 +83,23 @@ overlays it until then).</span><span class="go-only">A model's typed field, `Pos
 | strings | those, and `Contains`, `IContains`, `StartsWith`, `IStartsWith`, `EndsWith`, `IEndsWith`, `IExact` |
 | any | `Asc()`, `Desc()` for `OrderBy`; `Name()`, the lookup path; `Expr()`, the column as an [expression](/orm/expressions) |
 
-Fields go on through relations — <span class="vuka-only">`Post.Author.Name`, `Post.Tags.Name` (a
-second hop is a method: `Post.Author.Posts().Title`)</span><span class="go-only">`PostFields.Author.Name`, `PostFields.Tags.Name` (a
-second hop is a method: `PostFields.Author.Posts().Title`)</span> — and the query joins
+Fields go on through relations — `PostFields.Author.Name`, `PostFields.Tags.Name` (a
+second hop is a method: `PostFields.Author.Posts().Title`) — and the query joins
 what they cross. Combine conditions with `orm.And`, `orm.Or` and
 `orm.Not`; several in one `Filter` are and-ed; an `orm.Q{"title__icontains":
 "go"}` is a condition too:
 
-::: vuka
-```vuka
-q := Post.Objects.Filter(orm.Or(Post.Views.Gt(100), orm.And(Post.Tags.Name.Eq("go"), Post.Published.IsNull(false))))
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 f := PostFields
 q := orm.Objects[Post]().Filter(orm.Or(f.Views.Gt(100), orm.And(f.Tags.Name.Eq("go"), f.Published.IsNull(false))))
 ```
-:::
 
 | | |
 |---|---|
 | `Filter(conds…)`, `Exclude(conds…)` | rows matching, not matching |
-| `OrderBy(`<span class="vuka-only">`Post.Views.Desc()`</span><span class="go-only">`PostFields.Views.Desc()`</span>`, …)`, `Order(terms…)` | the order (names, or [expressions](/orm/expressions)' `Asc`/`Desc`); the model's `Meta.Ordering` otherwise |
+| `OrderBy(``PostFields.Views.Desc()``, …)`, `Order(terms…)` | the order (names, or [expressions](/orm/expressions)' `Asc`/`Desc`); the model's `Meta.Ordering` otherwise |
 | `Limit(n)`, `Offset(n)`, `Distinct()` | |
 | `Unfiltered()` | without the conditions so far |
 
@@ -146,30 +119,9 @@ tenant's names set).
 `orm.Optional(q.First(ctx))` (or of `Get`) is the row as a `vuka.Option[T]`
 and an error: `None` where there is no row, other errors as they are.
 
-<span class="vuka-only">`?` takes them; </span>`errors.Is` tells the kinds apart:
+`errors.Is` tells the kinds apart:
 
-::: vuka
-```vuka
-p, err := Post.Objects.Get(ctx, Post.Slug.Eq(slug))
-switch {
-case errors.Is(err, orm.ErrNotFound):
-	fmt.Println("no such post")
-case err != nil:
-	return err
-default:
-	fmt.Println(p.Title)
-}
 
-for p, err := range Post.Objects.Filter(Post.Views.Gte(50)).Iter(ctx) {
-	if err != nil {
-		return err
-	}
-	fmt.Println(p.Title)
-}
-```
-:::
-
-::: go
 <!-- go:fragment -->
 ```go
 f := PostFields
@@ -200,7 +152,6 @@ for p, err := range orm.Objects[Post]().Filter(f.Views.Gte(50)).Iter(ctx) {
 	fmt.Println(p.Title)
 }
 ```
-:::
 
 ## Values and aggregates
 
@@ -209,23 +160,7 @@ struct (its fields matched by name, or by an `orm:"author__name"` path),
 `map[string]any`, `[]any`, or a scalar for one name. An aggregate
 annotation groups by the other names:
 
-::: vuka
-```vuka
-type Stats struct {
-	Author string `orm:"author__name"`
-	Posts  int64
-	Total  int
-}
 
-stats := Post.Objects.Annotate("posts", orm.Count("id")).Annotate("total", orm.Sum("views")).
-	OrderBy(Post.Author.Name.Asc()).Values[Stats]("author__name", "posts", "total").All(ctx)?
-
-totals := Post.Objects.Aggregate(ctx, orm.Count("author").Distinct().As("authors"), orm.Max("views").As("top"))?
-fmt.Println(totals.Int("authors"), totals.Int("top"))
-```
-:::
-
-::: go
 ```go
 type Stats struct {
 	Author string `orm:"author__name"`
@@ -247,24 +182,15 @@ if err != nil {
 }
 fmt.Println(totals.Int("authors"), totals.Int("top"))
 ```
-:::
 
 `GroupBy` and `Having` group by fields and filter on an aggregate:
 
-::: vuka
-```vuka
-prolific := Post.Objects.Annotate("n", orm.Count("id")).GroupBy(Post.Author.String()).
-	Having(orm.Q{"n__gt": 1}).Values[int64]("n").All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 prolific, err := orm.Objects[Post]().Annotate("n", orm.Count("id")).GroupBy(PostFields.Author.String()).
 	Having(orm.Q{"n__gt": 1}).Values[int64]("n").All(ctx)
 ```
-:::
 
 Aggregates are `orm.Count`, `orm.Sum`, `orm.Avg`, `orm.Min`, `orm.Max`, each
 with `.Filter(cond)` (over the matching rows) and `.Distinct()`; see
@@ -275,17 +201,7 @@ with `.Filter(cond)` (over the matching rows) and `.Distinct()`; see
 `orm.Paginate` reads a page and the total, sorting and searching only by the
 fields you allow:
 
-::: vuka
-```vuka
-page := orm.Paginate(ctx, Post.Objects.QuerySet, orm.PageFrom(r.URL.Query()),
-	orm.Sortable(Post.Views.Name(), Post.Published.Name()),
-	orm.Searchable(Post.Title.Name()),
-	orm.DefaultSort(Post.Views.Desc()))?
-// page.Items, page.Total, page.Page, page.Size, page.Pages
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 f := PostFields
@@ -295,7 +211,6 @@ page, err := orm.Paginate(ctx, orm.Objects[Post]().QuerySet, orm.PageFrom(r.URL.
 	orm.DefaultSort(f.Views.Desc()))
 // page.Items, page.Total, page.Page, page.Size, page.Pages
 ```
-:::
 
 `orm.PageFrom` reads `page`, `size`, `sort` (`-views` for descending) and
 `q` from query parameters; `orm.PageRequest{Page, Size, Sort, Search}` is the
@@ -307,23 +222,13 @@ same by hand. Sizes default to 20, at most 100 (`orm.DefaultSize(n)`,
 | | |
 |---|---|
 | `p.Save(ctx)` | insert or update one row |
-| <span class="vuka-only">`Post.Objects.Create(ctx, &p)`</span><span class="go-only">`orm.Objects[Post]().Create(ctx, &p)`</span>, `BulkCreate(ctx, []*Post{…})` | insert |
+| `orm.Objects[Post]().Create(ctx, &p)`, `BulkCreate(ctx, []*Post{…})` | insert |
 | `GetOrCreate(ctx, orm.Q{…}, orm.Defaults{…})` | `(row, created, err)`: the row matching, else one inserted with the defaults |
 | `UpdateOrCreate(ctx, orm.Q{…}, orm.Defaults{…})` | the same, updating a found row with the defaults |
 | `Update(ctx, orm.Set{…})` | update the matching rows; `(int64, error)` |
 | `Delete(ctx)` | delete the matching rows; `(int64, error)` |
 
-::: vuka
-```vuka
-golang, created, err := Tag.Objects.GetOrCreate(ctx, orm.Q{"name": "go"}, nil)
 
-Post.Objects.Filter(Post.Views.Lt(5)).Update(ctx, orm.Set{"status": "archived"})?
-Post.Objects.Filter(Post.Tags.Name.Eq("go")).Update(ctx, orm.Set{"views": Post.Views.Add(1)})?
-Post.Objects.Filter(Post.Published.IsNull(true)).Delete(ctx)?
-```
-:::
-
-::: go
 <!-- go:fragment -->
 ```go
 golang, created, err := orm.Objects[Tag]().GetOrCreate(ctx, orm.Q{"name": "go"}, nil)
@@ -343,28 +248,18 @@ if _, err := posts.Filter(f.Published.IsNull(true)).Delete(ctx); err != nil {
 	return err
 }
 ```
-:::
 
 `orm.Set` maps columns to values or expressions of the row's own columns,
 computed by the database. A number field's `Add`, `Sub`, `Mul` and `Div`
 are such expressions, typed (`orm.NumExpr`): `f.Views.Add(1).Mul(2)` is
-`(views + 1) * 2`, and `f.Views.Add("x")` doesn't compile. <span class="vuka-only">`Post.Objects.OnChange(fn)`</span><span class="go-only">`orm.Objects[Post]().OnChange(fn)`</span> calls `fn` after each
+`(views + 1) * 2`, and `f.Views.Add("x")` doesn't compile. `orm.Objects[Post]().OnChange(fn)` calls `fn` after each
 write to the model's rows, and returns the function that stops it.
 
 ## Relations
 
 A many-to-many's links change through the field or the row:
 
-::: vuka
-```vuka
-p.Tags.Add(ctx, &golang, &tools)?
-p.Tags.Remove(ctx, &tools)?
-p.Tags.Set(ctx, &golang)?               // its only links
-p.Add(ctx, Post.Tags, &db)?             // the same, through the row
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 if err := p.Tags.Add(ctx, &golang, &tools); err != nil {
@@ -380,28 +275,13 @@ if err := p.Add(ctx, "tags", &db); err != nil { // the same, through the row
 	return err
 }
 ```
-:::
 
 Reading a relation row by row is an N+1: one query for the posts, one per
 post for its author. `SelectRelated` joins a foreign key into the query;
 `PrefetchRelated` reads a relation's rows in one more query, for every row
 at once:
 
-::: vuka
-```vuka
-posts := Post.Objects.
-	SelectRelated("author").                    // JOIN users
-	PrefetchRelated(Post.Tags).                 // one query for every post's tags
-	All(ctx)?
-for _, p := range posts {
-	fmt.Println(p.Author.Related().Name, len(p.Tags.Rows()))
-}
 
-goTags := Post.Objects.PrefetchRelated(orm.Prefetch("tags", Tag.Objects.Filter(Tag.Name.Eq("go"))))
-```
-:::
-
-::: go
 <!-- go:fragment -->
 ```go
 f := PostFields
@@ -418,36 +298,19 @@ for _, p := range posts {
 
 goTags := orm.Objects[Post]().PrefetchRelated(orm.Prefetch("tags", orm.Objects[Tag]().Filter(TagFields.Name.Eq("go"))))
 ```
-:::
 
 `orm.Prefetch(path, query)` prefetches only the rows of `query`.
-<span class="vuka-only">`p.Load(ctx, Post.Tags)`</span><span class="go-only">`p.Load(ctx, PostFields.Tags)`</span> loads a relation into one row.
+`p.Load(ctx, PostFields.Tags)` loads a relation into one row.
 [`orm.WatchRepeats`](/orm/observability#n-1-queries) finds the N+1s you
 missed.
 
 ## Raw SQL
 
-<span class="vuka-only">`Post.Objects.Raw(sql, args…)`</span><span class="go-only">`orm.Objects[Post]().Raw(sql, args…)`</span> reads the model's rows from your own SQL;
+`orm.Objects[Post]().Raw(sql, args…)` reads the model's rows from your own SQL;
 `orm.Raw[R]` reads any struct. See [Raw SQL](/orm/databases#raw-sql).
 
-::: vuka
-```vuka
-popular := Post.Objects.Raw("SELECT * FROM posts WHERE views > ?", 100).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 popular, err := orm.Objects[Post]().Raw("SELECT * FROM posts WHERE views > ?", 100).All(ctx)
 ```
-:::
-
-::: vuka
-## Earlier releases
-
-Vuka once had a query layer of its own: `Post.Objects` an `orm.Query[Post]`,
-field references typed by their model (`vuka.Pred[Post]`), package `orm/fn`,
-`orm.Into`, terminals returning `Result`. It still compiles for code that
-names it, and goes in the next minor release; the forms above replace it.
-:::

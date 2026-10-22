@@ -28,25 +28,7 @@ var t *testing.T
 `github.com/vuka-lang/orm/ormtest` opens a fresh database per test, with the
 models' tables made — in-memory SQLite by default:
 
-::: vuka
-```vuka
-func TestPublish(t *testing.T) {
-	ctx := ormtest.Open(t, orm.Objects[User](), orm.Objects[Tag](), orm.Objects[Post]())
-	ada := User{Name: "ada", Email: "ada@example.com"}
-	ormtest.Seed(t, ctx, User.Objects.Manager(), &ada)
 
-	ctx, queries := ormtest.CountQueries(ctx)
-	if err := publish(ctx, "generics"); !errors.Is(err, orm.ErrNotFound) {
-		t.Fatalf("publish: %v", err)
-	}
-	if n := queries(); n != 1 {
-		t.Errorf("%d queries", n)
-	}
-}
-```
-:::
-
-::: go
 ```go
 func TestPublish(t *testing.T) {
 	ctx := ormtest.Open(t, orm.Objects[User](), orm.Objects[Tag](), orm.Objects[Post]())
@@ -62,7 +44,6 @@ func TestPublish(t *testing.T) {
 	}
 }
 ```
-:::
 
 | | |
 |---|---|
@@ -73,8 +54,7 @@ func TestPublish(t *testing.T) {
 | `ormtest.Mirror(t, ctx, models…)` | a second database the writes are mirrored on: `(mirrored, onMirror)` contexts |
 | `ormtest.Driver()` | the driver the tests run on, to skip what a database lacks |
 
-`orm.Objects[T]()` is a model's manager, as `Open` takes it<span class="vuka-only">;
-`Post.Objects.Manager()` is the same from a query</span>.
+`orm.Objects[T]()` is a model's manager, as `Open` takes it.
 
 ## On a real server
 
@@ -87,19 +67,10 @@ ORMTEST_DRIVER=postgres ORMTEST_DSN=postgres://localhost:5432/test?sslmode=disab
 
 Skip what a database can't do with `ormtest.Driver()`:
 
-::: vuka
-```vuka
-if ormtest.Driver() == "mysql" {
-	t.Skip("no vector search on MySQL")
-}
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 if ormtest.Driver() == "mysql" {
 	t.Skip("no vector search on MySQL")
 }
 ```
-:::

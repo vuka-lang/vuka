@@ -1,199 +1,74 @@
 # Web
 
-[`github.com/vuka-lang/web`](https://github.com/vuka-lang/web) is a web
-framework for Vuka. Routes, views and controllers are declared with
-decorators, services registered with `app.Service`, every handler's and
-hook's parameters filled by type, and `web.New()` gathers everything into an
-app.
-
-**Go:** a handler is `func(http.ResponseWriter, *http.Request)`; reading a path
-parameter, decoding a body, finding the database and writing JSON or HTML is
-code in every handler, and the routes are registered by hand in `main`.
-
-**Vuka adds** [declarers](/features/decorators#declaration-decorators) — a
-library sees each decorated function with its parameter names — so a handler
-says what it needs and returns what it made:
-
-::: vuka
-```vuka
-@web.Get("/pets/{id}")
-func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
-```
-:::
-
-::: go
-```go
-func ShowPet(id int, store *PetStore) (Pet, error) { return store.Find(id) }
-
-func init() {
-	web.Routes.Get("/pets/{id}", ShowPet)
-}
-```
-:::
-
-`id` comes from the path, `store` from the container, and the
-<span class="vuka-only">`Result` becomes JSON, or a 404 when it is an
-`Err(web.NotFound)`.</span><span class="go-only">result becomes JSON, or a
-404 when the error is `web.NotFound`. Reflection can't see parameter names:
-a scalar binds the path segment its position gives, and a handler takes the
-query in a struct.</span> Every parameter is filled by
-[its type](/web/dependency-injection#parameters-by-type).
-
-```sh
-go get github.com/vuka-lang/web
-```
-
-::: info
-Live components are [ui's](/ui/live) (`github.com/vuka-lang/ui/live`), served
-over a WebSocket by web.
-:::
+Build pages as `.vuka.html` shape files under `pages/`. The folder tree
+supplies URLs and layouts; the compiler writes `pages/route.go`. Logic,
+services and API endpoints remain ordinary `.go` or `.vuka` files.
 
 ## A first app
 
-::: vuka
-```vuka
-package main
-
-import (
-	"log"
-	"net/http"
-
-	"github.com/vuka-lang/web"
-)
-
-type Pet struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-type PetStore struct {
-	pets map[int]Pet
-}
-
-func NewPetStore() *PetStore { return &PetStore{pets: map[int]Pet{}} }
-
-func (s *PetStore) Find(id int) Result[Pet] {
-	p, ok := s.pets[id]
-	if !ok {
-		return Err(web.Status(404, "no pet %d", id))
-	}
-	return Ok(p)
-}
-
-@web.Get("/")
-func Home(r *http.Request) ui.Node {
-	return <html><body><h1>Pets</h1></body></html>
-}
-
-@web.Get("/pets/{id}")
-func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
-
-func main() {
-	app := web.New()
-	app.Service(NewPetStore)
-	if err := app.Run(""); err != nil { // :$PORT, else :8080
-		log.Fatal(err)
-	}
-}
+```text
+main.go
+pages/
+  _layout.vuka.html
+  index.vuka.html
+  pets/
+    [id].vuka.html
+  api/
+    pets.go
 ```
-:::
 
-::: go
 ```go
+// main.go
 package main
 
 import (
-	"log"
-	"net/http"
-
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+    "log"
+    "example.com/app/pages"
+    "github.com/vuka-lang/web"
 )
 
-type Pet struct {
-	ID   int    `json:"id"`
-	Name string `json:"name"`
-}
-
-type PetStore struct {
-	pets map[int]Pet
-}
-
-func NewPetStore() *PetStore { return &PetStore{pets: map[int]Pet{}} }
-
-func (s *PetStore) Find(id int) (Pet, error) {
-	p, ok := s.pets[id]
-	if !ok {
-		return Pet{}, web.Status(404, "no pet %d", id)
-	}
-	return p, nil
-}
-
-func Home(r *http.Request) ui.Node {
-	return ui.HTML(`<html><body><h1>Pets</h1></body></html>`)
-}
-
-func ShowPet(id int, store *PetStore) (Pet, error) { return store.Find(id) }
-
 func main() {
-	app := web.New()
-	app.Service(NewPetStore)
-	app.Get("/", Home)
-	app.Get("/pets/{id}", ShowPet)
-	if err := app.Run(""); err != nil { // :$PORT, else :8080
-		log.Fatal(err)
-	}
+    app := web.New(pages.Routes())
+    log.Fatal(app.Run(""))
 }
 ```
-:::
 
-::: vuka
-```sh
-vuka run .
-curl localhost:8080/pets/1     # {"error":"no pet 1","status":404}
+The `pages` import is your app's package, not a library package. Generate
+routes with `vuka gen`, or let `vuka run` build the overlay. Do not edit
+`pages/route.go`.
+
+```html
+package pages
+
+import "github.com/vuka-lang/ui"
+
+type Layout struct { Children ui.Node }
+<html lang="en">
+  <head><title>{ui.PageTitle(ctx)}</title></head>
+  <body>{Children}</body>
+</html>
 ```
-:::
 
-::: go
-```sh
-go run .
-curl localhost:8080/pets/1     # {"error":"no pet 1","status":404}
+Save as `pages/_layout.vuka.html`; it wraps every page below that folder.
+
+```html
+package pages
+
+type Index struct { Name string }
+<main><h1>Hello, {Name}!</h1></main>
 ```
-:::
 
-`web.New()` takes every route, service and controller declared at init<span class="go-only">,
-and the app's own methods (`app.Get`, `app.Service`, …) add to that app
-alone</span>.
-`Run` checks the whole app first — each parameter of each route, each view,
-the dependency graph — and refuses to serve a broken one, listing every
-problem with its source position. It shuts down gracefully on SIGINT and
-SIGTERM.
+Save as `pages/index.vuka.html` and open `/?name=Ada`.
+
+## Services
+
+Register constructors with `app.Service(NewX)`. Hook and handler parameters
+are filled by type: context, form struct, request, signed-in user and services.
+See [Dependency injection](/web/dependency-injection).
 
 ## What's in it
 
-| | |
-|---|---|
-| [Routes](/web/routes) | <span class="vuka-only">`@web.Get`</span><span class="go-only">`web.Routes.Get`</span>, `Post`, …, controllers, services, plain-Go registration |
-| [Parameters and results](/web/parameters) | what binds where, what a result becomes, errors and redirects |
-| [Views](/web/views) | `.templ` components, `html/template` files and JSX pages |
-| [Dependency injection](/web/dependency-injection) | the container, lifecycles, Build errors |
-| [Middleware](/web/middleware) | <span class="vuka-only">`@web.Use`</span><span class="go-only">`web.Use`</span>, app-wide middleware, decorators that see the request |
-| [Authentication](/web/auth) | sign-in, sessions and tokens, <span class="vuka-only">`@auth.Requires`</span><span class="go-only">`auth.Requires(…)`</span> on routes, pages and live events, CSRF |
-| [Live components](/web/live) | stateful components served over a WebSocket |
-| [Frontends](/web/frontend) | a Vite single-page app served from the binary: `web.Frontend` |
-| [Configuration and .env](/web/configuration) | env files, `web.Env`, required variables |
-| [Mail](/web/mail) | a `Mailer` to inject: JSX emails, SMTP or the log driver, `mailtest` |
-| [Crons](/web/crons) | <span class="vuka-only">`@web.Cron`</span><span class="go-only">`app.Cron`</span>: scheduled functions with dependencies, `crontest` |
-| [Routers and deployment](/web/deployment) | the router seam, `Handler`, `Run`, `PORT`, `VUKA_ENV` |
-| [Testing](/web/testing) | `httptest`, `web.Resolve`, `web.Only` |
-
-Complete apps are in the repository:
-[`examples/pets`](https://github.com/vuka-lang/web/tree/main/examples/pets)
-(pages, a JSON API, a controller, middleware, a sign-up email, a cron),
-[`examples/live`](https://github.com/vuka-lang/web/tree/main/examples/live)
-(a counter, a todo list, a chat) and
-[`examples/auth`](https://github.com/vuka-lang/web/tree/main/examples/auth)
-(a login, a live board with an admin-only action, an API with bearer tokens)
-— see [Examples](/examples#pets).
-For a database, the [ORM](/orm/) has a web integration:
-[`ormweb`](/orm/databases#web-integration).
+[Folder routes](/web/folder-routes), [Live pages](/web/live),
+[Authentication](/web/auth), [Styles](/web/assets), [Islands](/web/islands),
+[Mail](/web/mail), [Crons](/web/crons), [Testing](/web/testing) and
+[Deployment](/web/deployment) share the same app and container.

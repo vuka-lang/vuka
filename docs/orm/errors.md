@@ -11,20 +11,7 @@ type User struct {
 The ORM's errors are `*orm.Error` values with a `Kind`; `errors.Is` matches a
 kind:
 
-::: vuka
-```vuka
-u, err := User.Objects.Get(ctx, User.Email.Eq(email))
-switch {
-case errors.Is(err, orm.ErrNotFound):
-	return u, web.NotFound
-case errors.Is(err, orm.ErrConflict):
-	return u, web.Conflict
-}
-return u, err
-```
-:::
 
-::: go
 ```go
 func findUser(ctx context.Context, email string) (User, error) {
 	u, err := orm.Objects[User]().Get(ctx, UserFields.Email.Eq(email))
@@ -37,7 +24,6 @@ func findUser(ctx context.Context, email string) (User, error) {
 	return u, err
 }
 ```
-:::
 
 | Kind | When |
 |---|---|
@@ -61,9 +47,7 @@ if errors.As(err, &e) && e.Kind == orm.Conflict {
 | `orm.ErrNotFound`, `ErrMultipleFound`, `ErrConflict`, `ErrInvalid`, `ErrUnavailable` | the kinds as `error` values, for `errors.Is` |
 | `orm.KindOf(err)` | an error's kind; 0 for one the ORM gives no meaning (a driver's, a bad query) |
 
-<span class="vuka-only">In Vuka, `Get` fails with the kind itself for none or several rows, so
-`case Err(orm.NotFound)` matches it; the other errors are `*orm.Error`
-values, matched with a guard as above.</span>
+
 
 A web app maps the kinds onto statuses where it answers — `NotFound` → 404,
 `Conflict` → 409, `Invalid` → 422, `Unavailable` → 503 — with

@@ -163,66 +163,10 @@ component builds again, and the island then mounts without a reload.
 
 ## Your own panels
 
-Request code records values for a panel with `web.Note`, and
-`web.AddPanel` draws them:
-
-::: vuka
-```vuka
-func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool) {
-	v, ok := c.m[key]
-	web.Note(ctx, "Cache", Lookup{key, ok})
-	return v, ok
-}
-
-func init() {
-	web.AddPanel("Cache", func(notes []any) ui.Node {
-		return <ul>{for _, n := range notes {
-			<li>{n.(Lookup).Key}: {n.(Lookup).Hit}</li>
-		}}</ul>
-	})
-}
-```
-:::
-
-::: go
-<!-- go:context
-type Cache struct{ m map[string][]byte }
-
-type Lookup struct {
-	Key string
-	Hit bool
-}
--->
-
-```go
-func (c *Cache) Get(ctx context.Context, key string) ([]byte, bool) {
-	v, ok := c.m[key]
-	web.Note(ctx, "Cache", Lookup{key, ok})
-	return v, ok
-}
-
-func init() {
-	web.AddPanel("Cache", func(notes []any) ui.Node {
-		rows := ui.Each(notes, func(n any) ui.Node {
-			l := n.(Lookup)
-			return ui.HTML(`<li>{l.Key}: {l.Hit}</li>`, l.Key, l.Hit)
-		})
-		return ui.HTML(`<ul>{rows}</ul>`, rows)
-	})
-}
-```
-:::
-
-A panel noted without `AddPanel` lists its values as they are. A panel's
-markup may use the toolbar's classes: `kv` and `grid` tables, `dim`,
-`errtext`, `status`, and `preview` for an `<iframe>`, as the Mail panel's.
-`web.Note` does nothing outside development, so it can stay in production
-code. A panel whose render panics shows the panic in its place.
-
-**Another database layer.** The [ORM](/orm/)'s statements reach the SQL
-panel through `ormweb` by themselves. Another library reports its own with
-`web.NoteStatement(ctx, web.Statement{SQL, Args, DB, Start, Duration, Rows,
-Err})`, and `app.Toolbar()` says whether the app shows the toolbar at all.
+Keep custom panel data collection in logic files and its rendering in a
+one-struct `.vuka.html` shape. Use the toolbar extension API to expose the
+resulting node; do not couple application page routing to diagnostic panels.
+Never include secrets or personally sensitive values in a development panel.
 
 ## When it is on
 

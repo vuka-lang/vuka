@@ -1,495 +1,124 @@
 # Templates
 
-A `.vuka.html` file is markup kept beside the Go of a package. Its holes
-and statements are Go, checked by the Go compiler; the `vuka` command
-compiles each file to [`ui.HTML`](/ui/#markup-in-go) calls, and compile
-errors point at the `.vuka.html` line.
+A `.vuka.html` file is one complete rendering shape: Go header, then markup.
+The header declares exactly one struct. Put form DTOs and other data types
+in adjacent logic files, not additional structs in this header.
 
 ## A component
 
-A component is a struct whose fields are its props, and a `ui.Node` itself:
-`Sales{Title: "Week"}` goes in a hole or is returned as it is.
-`sales.vuka.html` is the markup — the `View` — of the type `Sales`,
-declared in `sales.go` (or `sales.vuka`) of the same package:
+Save as `components/sales.vuka.html`:
 
-```go
-// sales.go
+```html
+package components
+
+import "github.com/vuka-lang/ui"
+
 type Sales struct {
-	Title    string
-	Week     []int
-	Children ui.Node
+    Title string
+    Week []int
+    Children ui.Node
 }
 
 func (s Sales) Total() int {
-	n := 0
-	for _, d := range s.Week {
-		n += d
-	}
-	return n
+    n := 0
+    for _, d := range s.Week { n += d }
+    return n
 }
-```
-
-```html
-<!-- sales.vuka.html -->
-package app
-
-<section class="sales">
+<section>
   <h2>{Title}</h2>
   for _, d := range Week {
-    <span class="day" class:big={d > 10}>{d}</span>
+    <span class:big={d > 10}>{d}</span>
   }
   <p>Total: {Total()}</p>
   {Children}
 </section>
 ```
 
-The markup before the file's first `func` line is the component's `View`
-(it may start with a statement, `n := len(Week)`),
-and the compiler adds the method that makes the struct a `ui.Node`,
-`Render(ctx context.Context, w io.Writer) error`, rendering it; renderers
-and the live tree read the `View`, so the struct renders and diffs as its
-markup. For a [stateful component](/ui/stateful) (one embedding `ui.Live`)
-the markup is its `Render() ui.Node`, as before. Fields and methods are read by bare name — `{Title}`,
-`{Total()}` — as in a method of the struct: a field or method wins over a
-name the package declares (a function or a variable of the same name), and
-locals and loop variables shadow the field, as in Go. A tag, `<Icon/>`,
-is always the package's. A field named as a type, `Glyph Glyph`, is the
-field where a value goes — `{Glyph.Name}`, `d={Glyph.Path()}`,
-`f(Glyph)` — and the type where only a type goes: `Glyph(x)`,
-`Glyph{Name: "x"}`, `[]Glyph`, `new(Glyph)`. `vukavet` warns where a bare name is
-both ([W0101](/errors/W0101)); write the explicit header and the receiver
-to say which. The
-receiver is a pointer when the type embeds `ui.Live`, holds a `ui.State`
-or has pointer-receiver methods, and a value otherwise. A file whose
-package declares no such type is an error; start it with an explicit
-header, `func (s Sales) View()` (`func (p *Orders) Render()` for a stateful
-type), to name the receiver.
-
-## The struct in the file
-
-A template file can hold the struct it renders too: its Go — the struct,
-its hooks and methods — comes after the imports, and the markup starts at
-the first line beginning with `<` outside that Go (not inside a method's
-body or a string). The Go is `.vuka` source, so decorators, `?` and `match`
-work in it:
-
-```html
-<!-- counter.vuka.html -->
-package app
-
-import "context"
-
-// Counter counts clicks.
-type Counter struct {
-	Start int // a prop
-	n     int // state the server keeps
-}
-
-@ui.Mount
-func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
-
-func (c *Counter) Inc() { c.n++ }
-<button onClick={Inc}>{n}</button>
-```
-
-The file declares exactly one struct: none is
-[E0146](/errors/E0146), two are [E0147](/errors/E0147), and Go with no
-markup is [E0148](/errors/E0148). Exported fields are props, unexported
-ones server state, and `ui.State[T]` fields browser state. The struct is
-live — its markup its `Render` — when it embeds `ui.Live`, declares a hook
-(`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`), or has an exported method its
-markup sends from an `on…` attribute; the compiler embeds `ui.Live` for the
-last two. Otherwise it is a struct component, its markup its `View`. The
-markup reads the struct through the receiver its methods name (`c.n`, or
-bare `n`). This is the form vuka 2.0 keeps; see the
-[RFC](https://github.com/vuka-lang/vuka/blob/main/docs/rfc/one-way.md).
-
-## More templates in a file
-
-A `func` line at the start of a line starts another template; its body is
-the markup up to the next `func` line or the end of the file. There are no
-braces: the header is one line, and the result, `ui.Node`, is implied:
-
-```html
-package orders
-
-// Page lists the orders below a week of sales.
-func Page(orders []Order)
-<main>
-  <Sales title="Week" week={[]int{3, 12}}>
-    <em>this week</em>
-  </Sales>
-  <ul>
-    for _, o := range orders {
-      <row o={o} />
-    }
-  </ul>
-</main>
-
-func row(o Order)
-<li key={o.ID}><a href="/orders/{o.ID}">{o.Ref}</a></li>
-```
-
-A template taking one struct is a component, its attributes the struct's
-fields; any other template is a partial, its attributes its parameters:
-`<row o={o} />`, or called in a hole, `{row(o)}`. A first parameter `ctx
-context.Context` is passed by tags and the runtime.
-
-## The file
-
-A template file starts with its package clause, as a Go file does: the
-package of its directory (an external test package's templates may say
-`orders_test`). Then come its imports, single or grouped, then the main
-markup (the headerless template of the type the file is named after, when
-there is one), then the `func` templates:
-
-```html
-package layouts
-
-import (
-	"strconv"
-
-	"example.com/app/components"
-)
-
-// Shell is the frame of every page.
-func Shell(title string, children ui.Node)
-<main>
-  <h1>{title}</h1>
-  {children}
-</main>
-
-// Badge is a count in a pill.
-func Badge(n int)
-<components.Pill>{strconv.Itoa(n)}</components.Pill>
-```
-
-A file without the clause, or with another package's, is an error
-([E0142](/errors/E0142)); `vuka fmt` adds a missing one, and `vuka fix
-templates-package` adds it to every template file of a module. The
-package's `.go` imports are visible in its templates too.
-
-`vuka fmt` lays a file out the same way every time, and the editor's
-format-on-save runs it: one blank line before each `func` header (before
-its doc comment, when it has one), the doc comment right above the header,
-the markup right below it, and one newline at the end. The markup stays as
-written.
-
-A `//` comment right above a header is the template's doc comment. An
-exported template has one, as an exported Go function does: `vuka vet`
-warns when it hasn't (W0104, retired in 2.0); a `View` or `Render` method
-is documented by its type.
+The first line starting with `<` begins markup. Keep package, imports,
+struct, hooks and Go methods above it. The struct's name need not match
+its filename. A shape with no struct, multiple structs, or no markup is an error.
+A reusable partial gets its own shape file.
 
 ## Holes
 
-Holes are any Go expression, and take what [`ui.HTML`'s
-holes](/ui/#markup-in-go) take:
-
-| | |
+| Form | Meaning |
 |---|---|
-| `<td>{o.Ref}</td>` | a child |
-| `title={o.Ref}`, `title="{o.Ref}"` | an attribute's value |
-| `href="/orders/{o.ID}"` | part of a value |
-| `class:late={o.Late}` | a toggled class: a bool or a `ui.State[bool]` |
-| `<input {attrs...}>` | an attribute set |
-| `onClick={c.Inc}`, `onClick={c.Add(2)}` | an event: a method value, or a call with no result, which runs on the event |
-| `bind:value={Q}` | two-way: the field's value, and what is typed sets it — a `bind:` field of a live page (`@ui.Bind` on the field, its debounce and `validate:` rules), else an error |
-| `style:--accent={Color}` | a CSS variable (any property) beside the element's `style`, sanitized as a `ui.Style` |
+| `{Title}` | Escaped child text or a node |
+| `title={Title}` | Attribute value |
+| `href="/pets/{ID}"` | Interpolated value |
+| `class:active={Active}` | Conditional class |
+| `{attrs...}` | Attribute spread |
+| `style:--accent={Color}` | Sanitized style property |
+| `onClick={Save}` | Server event handler |
+| `onClick={open = !open}` | Browser-state assignment |
+| `bind:value={Q}` | Two-way binding to a field marked `@ui.Bind` |
 
-<span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment.
+Fields and methods are available by bare name in markup. Locals shadow
+fields. The receiver name used by header methods is also available.
+Strings and numbers are escaped; nodes render as nodes; nil renders nothing.
 
 ## Statements
 
-A Go statement at the start of a line, with markup for its body:
+Inside the markup root, use Go control flow, without an extra expression wrapper:
 
 ```html
-if len(orders) == 0 {
-  <p>No orders yet.</p>
-} else {
-  <ul>
-    for _, o := range orders {
-      {row(o)}
+<ul>
+  if len(Week) == 0 {
+    <li>No sales yet.</li>
+  } else {
+    for i, amount := range Week {
+      <li key={i}>{amount}</li>
     }
-  </ul>
-}
-n := len(orders)
-switch n {
-case 1:
-  <p>one order</p>
-default:
-  <p>{n} orders</p>
-}
+  }
+</ul>
 ```
 
-`if`, `else if`, `else`, `for` (over a range or a condition), `switch`
-with `case` and `default`, `x := expr` and `x = expr`. Text that starts with a
-keyword is written as a string, `{"if you can"}`.
-
-They run in the markup's order, as Go's: a hole shows the value at its
-place, not the value after the statements below it:
-
-```html
-x := 1
-<p>{x}</p>   <!-- 1 -->
-x = 2
-<p>{x}</p>   <!-- 2 -->
-```
+`if`, `for`, `switch`, local declarations and assignments run in order.
+Keep rendering free of writes to persistent state and database work.
 
 ## Components and slots
 
-A tag names a component when it is capitalised, `<Sales …/>`, or a selector,
-`<ui.Card>` or `<layouts.Admin>` from another package; a lowercase tag is an
-HTML (or SVG, MathML) element when it is an element's name or holds a hyphen
-(`<my-chart>`), and otherwise a template or function of the package:
-`<navLink …/>`.
-
-- A struct component: `<Sales title="Week" week={w}/>` is
-  `Sales{Title: "Week", Week: w}`. (A struct whose `Render() ui.Node` is its
-  markup, the earlier form, is `Sales{…}.Render()`.) A pointer type embedding
-  `ui.Live` is a [stateful component](/ui/stateful), `&Counter{…}`; with
-  `key={…}`, `ui.Key`.
-- A function taking one struct: its attributes are the struct's fields.
-- A partial, or any function returning `ui.Node`, in a `.vuka.html`, a
-  `.vuka` or a `.go` file: its attributes are its parameters, by name.
-
-Templates and functions have Go's scope and visibility: a lowercase one is
-the package's own, usable as `<navLink …/>` in any of its files; an
-exported one is usable from other packages through a selector,
-`<layouts.NavLink …/>`:
+A capitalized or dotted tag names a component. Attributes set exported
+fields by camelCase: `onSelect` sets `OnSelect`. Content fills
+`Children ui.Node`; `<slot:actions>` fills `Actions ui.Node`.
 
 ```html
-package layouts
+package components
 
-// Menu is the top bar: a link per item, the current one marked.
-func Menu(items []Item, path string)
-<nav>
-  for _, i := range items {
-    <navLink item={i} on={i.Href == path}/>
-  }
-  <navLink item={home} on/>
-</nav>
+import "github.com/vuka-lang/ui"
 
-func navLink(item Item, on bool)
-<a href={item.Href} class:on={on}>{item.Label}</a>
-```
-
-`item={…}` sets the parameter `item` and a bare attribute a `bool`
-parameter to `true`; a first `ctx context.Context` is passed for it, the
-content between the tags fills a `children ui.Node` (or `Children`)
-parameter, and `<slot:x>` an `x ui.Node` one. Every other parameter is set:
-a tag leaving one out is an error naming it ([E0144](/errors/E0144)), and an
-attribute naming no parameter one with the closest name. A lowercase tag
-naming nothing is an error too, `unknown element or template <navlnk>`
-([E0143](/errors/E0143)): names are case-sensitive, as in Go. So that the
-tag can reach it, a template of the package can't be named as an element —
-`header`, `nav`, `label`, `select` — (E0145, retired in 2.0). A call,
-`{navLink(i, on)}`, works as well.
-
-Attributes on a component are camelCase — the field is the name with its
-first letter upper-cased, so `noPad` is `NoPad` and `onSelect` is
-`OnSelect`. A bare attribute is `true`, `"text"` a string, `{expr}` a
-typed value. HTML elements keep HTML's names: `class`, `for`, `data-*`,
-`aria-*`.
-
-Content between the tags fills `Children ui.Node`; `<slot:actions>…</slot:actions>`
-fills the `Actions ui.Node` field (of a function component's props struct
-too, or its `actions ui.Node` parameter). A slot is written directly inside
-its component's tag; anywhere else it is an error:
-
-```go
-// admin.go
-type Admin struct {
-	Title    string
-	Actions  ui.Node
-	Children ui.Node
+type Panel struct {
+    Title string
+    Actions ui.Node
+    Children ui.Node
 }
+<section>
+  <header><h2>{Title}</h2>{Actions}</header>
+  {Children}
+</section>
 ```
 
-```html
-<!-- admin.vuka.html -->
-package app
-
-<div class="admin">
-  <header><h1>{Title}</h1>{Actions}</header>
-  <main>{Children}</main>
-</div>
-```
-
-```html
-<!-- orders.vuka.html -->
-package app
-
-func Orders(n int)
-<Admin title="Orders">
-  <slot:actions><button>New</button></slot:actions>
-  <p>{n} orders</p>
-</Admin>
-```
-
-A component file imported at the top of a template is an
-[island](/web/islands) tag, its props read from the file:
-
-```html
-import Clock "./clock.tsx"
-
-<main>
-  <Clock zone={Zone} client:visible />
-</main>
-```
+Use `<components.Panel title="Orders"><slot:actions><button>New</button></slot:actions><p>Orders</p></components.Panel>`
+in a consuming shape file. Give repeated live children stable keys.
 
 ## Scripts and styles
 
-A `<script lang="ts">` after a template's markup is its component's
-script, and a `<style scoped>` its CSS — one of each per template:
-
-```html
-<figure class="chart">
-  <figcaption>{Title}</figcaption>
-</figure>
-
-<script lang="ts">
-import { component } from 'vuka:component'
-
-export default component<Chart>((el, props, ctx) => ({
-  update(next) { el.dataset.n = String(next.Points.length) },
-  destroy() {},
-}))
-</script>
-
-<style scoped>
-figcaption { font-weight: bold }
-</style>
-```
-
-The script runs once per instance: `el` is its root, `props` the struct's
-data fields as JSON (`ui.Node`, func and unexported fields are not sent),
-`update` runs when a live re-render changes them, `destroy` when the
-instance leaves the page. `ctx.live` calls the component's exported
-methods (`ctx.live.reorder(ids)` is `Reorder`), `ctx.state("open")` is a
-`ui.State` field's handle — `get()`, `set(v)`, `watch(fn)` — and
-`ctx.navigate(href)` / `ctx.patch(href)` move the page. A live page's
-`Render` template takes `page<Orders>((el, live) => …)`: `live.q` is the
-field `Q`'s handle (`get()`, `set(v)` for a `bind:` field), `live.reorder`
-a method.
-
-The types come from the Go struct: `component<Chart>` knows `props.Title`,
-`ctx.live`'s methods and `ctx.state`'s names. The `vuka` command writes
-them to `.vuka/vuka-component.d.ts`, and `vuka lsp` gives each script to a
-TypeScript language server with them — completion, hover, definition and
-errors in the `.vuka.html` — when `typescript-language-server` is on PATH
-or in `node_modules/.bin` (`$VUKA_TSLS` names one). The `vuka` command bundles the script and scopes the style to
-the template's own elements (`:global(…)` escapes). A style has no holes.
-
-`<script is:inline>` is written as it is, not bundled; its one hole is
-`{json(x)}`, the value as script-safe JSON:
-
-```html
-<script is:inline>window.points = {json(Points)};</script>
-```
-
-## Building
-
-`vuka run`, `vuka build` and `vuka test` compile `.vuka.html` files through
-the overlay, writing nothing to the tree. `vuka gen` writes each one's Go
-as `x_html.go`, so `go build` works without the `vuka` command. A package
-may mix `.go`, `.vuka` and `.vuka.html` files in one scope.
-
-`vuka eject -rm` turns a `.vuka` file's markup functions — its `Render`
-methods and components — into templates of `x.vuka.html`, and keeps the
-rest as `x.go`. Markup inside Go logic — assigned, passed as an argument,
-returned mid-way, or the body of a decorated function — becomes a named
-partial, its parameters the variables it reads, called where the markup
-was:
-
-::: vuka
-```vuka
-// card.vuka                               // card.go, after vuka eject -rm
-func (c Card) Render() ui.Node {           func (c Card) Render() ui.Node {
-	head := <h2>{c.Title}</h2>                 head := cardHead(c)
-	if len(c.Items) == 0 {                     if len(c.Items) == 0 {
-		return <section>{head}</section>           return cardView(head)
-	}                                          }
-	return wrap(<ul>…</ul>)                    return wrap(cardView2(c))
-}                                          }
-```
-:::
-
-<!-- go:context
-type Card struct {
-	Title string
-	Items []string
-}
-
-func wrap(n ui.Node) ui.Node                { return n }
-func cardHead(c Card) ui.Node               { return ui.HTML(`<h2>{c.Title}</h2>`, c.Title) }
-func cardView(head ui.Node) ui.Node         { return ui.HTML(`<section>{head}</section>`, head) }
-func cardView2(c Card) ui.Node              { return ui.HTML(`<ul></ul>`) }
--->
-
-::: go
-```go
-// card.go, after vuka eject -rm
-func (c Card) Render() ui.Node {
-	head := cardHead(c)
-	if len(c.Items) == 0 {
-		return cardView(head)
-	}
-	return wrap(cardView2(c))
-}
-```
-:::
-
-```html
-<!-- card.vuka.html -->
-package app
-
-func cardHead(c Card)
-<h2>{c.Title}</h2>
-
-func cardView(head ui.Node)
-<section>{head}</section>
-```
-
-A partial is named after the variable it is assigned to and the
-declaration it is in (`cardHead`), or after the declaration (`cardView`);
-markup inside a hole's Go, `{wrap(<b/>)}`, after its tag (`cardB`). A
-`{match}` on values is a `switch`; markup that binds patterns, a generic
-function's, or one with a component script stays in the `.vuka`.
+A shape can include one `<style scoped>` and a bundled `<script lang="ts">`
+after its root. Scoped CSS applies to that shape's elements; `:global(...)`
+escapes it. A component script receives instance props, update/destroy
+callbacks and live/state handles. See [Styles and scripts](/web/assets).
+`<script is:inline>` stays inline; `{json(value)}` emits script-safe JSON.
+Imported `.tsx`, `.ts` and `.vue` components are [islands](/web/islands).
 
 ## Render context
 
-A template can read `ctx`, the `context.Context` of its current render,
-without storing it on the page or passing it through every component:
+Markup can read the implicit `ctx`, the current render's `context.Context`.
+Do not store it on the component or expose secrets in browser props. Fetch
+expensive data in hooks or handlers. Presentation checks do not replace
+server authorization.
 
-```html
-package dashboard
+## Building
 
-import "github.com/vuka-lang/web/auth"
-
-me := auth.Current(ctx)
-if me != nil && me.Can("view_analytics") {
-  <p>Analytics</p>
-}
-```
-
-This works in the file's main markup, struct views and named helper
-templates. Existing explicit `ctx` parameters keep their meaning. The
-compiler wraps markup that reads the implicit context in `ui.Ctx`; its
-body runs at render time, with the HTTP request or live session's current
-context. Templates that do not read it keep their existing lowering.
-The context is not a component prop and is not sent to the browser.
-
-Keep rendering free of writes and expensive database work: fetch data in
-the mount hook, loaders or handlers. Context-sensitive live output is rendered
-again even when its props and Assigns have not changed. This avoids
-reusing output after a context-dependent permission or locale changes;
-it does not refresh an application's authentication store by itself.
-
-Templates are trusted Go application code, not a sandbox for user-supplied
-markup. Never print tokens or other secret context values, put context in
-browser props, or share personalized output through a global cache.
-Permission checks in a template control presentation only: guards and
-handlers must authorize every protected action on the server. Live
-applications must also refresh or invalidate identities using their auth
-layer when permissions change. Preserve request cancellation and deadlines;
-do not save the render context in globals or long-lived component fields.
+`vuka run`, `vuka build` and `vuka test` compile shape files through the
+overlay. `vuka gen` writes generated Go for ordinary Go tooling. Generated
+rendering methods are compiler output; write the shape file itself.

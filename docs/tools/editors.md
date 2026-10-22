@@ -5,13 +5,6 @@ behind a proxy that keeps the Go generated from each `.vuka` file open in gopls
 as an unsaved buffer — never written to disk — and maps every position both
 ways.
 
-::: go
-A Go app's `.go` files need only gopls. `vuka lsp` adds what gopls doesn't
-know: [`.vuka.html` templates](#templates) — hover, go to definition and
-errors on the Go in their holes — and highlighting of the markup in
-`ui.HTML` strings. Run under the name `gopls` it is a drop-in gopls for the
-`.go` files too ([Go files](#go-files)).
-:::
 
 Completion, hover, signature help, go to definition, references, rename,
 outline, code actions, inlay hints and formatting (by
@@ -39,13 +32,11 @@ it isn't a hook (a hook is declared with `@ui.Mount`, `@ui.OnChange` or
 ### Templates
 
 `.vuka.html` files are served like `.vuka` files: hover, go to definition,
-completion and rename on the Go in holes, statements and `func` headers go
+completion and rename on the Go header, holes and statements go
 through the Go they compile to (a bare `{Title}` is the receiver's field, so
-go to definition lands on it in the `.go` file), and their errors show at
+go to definition lands on it in the shape header), and their errors show at
 their lines. VS Code highlights them as HTML with Go in braces and at line
-starts, TypeScript in `<script lang="ts">` and CSS in `<style>`, and the
-markup of a `ui.HTML(`…`)` raw string in `.go` and `.vuka` files the same
-way; Zed reads them as HTML.
+starts, TypeScript in `<script lang="ts">` and CSS in `<style>`, Zed reads the markup as HTML.
 
 A template's `<script lang="ts">` is TypeScript with its component's
 types (`component<Chart>`: `props`, `ctx.live`, `ctx.state`): completion,
@@ -57,14 +48,14 @@ frontend's `node_modules/.bin`, or named by `$VUKA_TSLS`
 
 ### Markup
 
-JSX is served as markup, from the `.vuka` text itself, so it works while a tag
+Shape markup is served from the `.vuka.html` text itself, so it works while a tag
 is half-typed:
 
 - completion: after `<` every HTML element (and the SVG most pages draw with)
   beside the components in scope, each with a one-line description and its
   MDN link; in a tag the element's own attributes first (`href` on `<a>`,
   `colspan` on `<td>`, `type`, `value` and `placeholder` on `<input>`), then
-  the global ones (`className`, `id`, `style`, `key`…), the event handlers
+  the global ones (`class`, `id`, `style`, `key`…), the event handlers
   (`onClick`, `onInput`…), `aria-*` and `data-`; inside the quotes of an
   enumerated attribute its values (`type="checkbox"`, `target="_blank"`,
   `rel="noopener"`); after `</` the element still open; after the `{` of a
@@ -94,9 +85,9 @@ go install golang.org/x/tools/gopls@latest
 The extension lives in
 [`editors/vscode`](https://github.com/vuka-lang/vuka/tree/main/editors/vscode):
 the language server, highlighting for Vuka's additions on top of Go's grammar
-(field attributes, statics, `match` patterns, JSX with its blocks, event
+(field attributes, statics, `match` patterns, shape markup with its blocks, event
 attributes and components — the grammar these pages use), snippets for
-components, live pages, routes, models and decorators, closing JSX tags as you
+components, live pages, routes, models and decorators, closing markup tags as you
 type (`>` adds the closing tag, `</` the name of the element still open, inside
 blocks and fragments too), Enter between tags indenting, `{` and quotes pairing
 in markup, and the Vuka icons.

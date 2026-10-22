@@ -20,7 +20,7 @@ breaks a working app:
   packages other than `internal` ones, with its signature and documented
   behaviour. Plain Go is the language; this is what an app written in Go
   calls, and what the code `vuka` generates calls.
-- **The `.vuka` language**: its syntax — JSX, `?`, `match`, enums,
+- **The `.vuka` language**: its syntax — `?`, `match`, enums,
   overloading, statics, decorators and attributes — and what each built-in
   decorator and attribute means.
 - **The `.vuka.html` template language**: the package clause and imports,
@@ -49,7 +49,7 @@ improves messages. It adds no API.
 
 **A minor release** (v1.3.0) adds: new API, new decorators and attributes,
 new subcommands and flags, new diagnostics — including new `vuka vet` and
-`vukavet` warnings, which a build doesn't fail on — and new `vuka fix`
+`vukavet` warnings, which a build doesn't fail on — and new tooling
 fixers. It may also:
 
 - deprecate a name, under the policy below;
@@ -89,8 +89,7 @@ deprecated, never removed within v1:
 2. It is marked: `// Deprecated: use X` in Go, `@deprecated("use X")` in
    `.vuka`. `vuka vet` and `vukavet` warn where it is used, and the warning
    names the replacement.
-3. When the move is mechanical, `vuka fix` has a fixer for it, and
-   `vuka upgrade` runs it for apps crossing the release.
+3. The release notes describe the source changes required by a new major version.
 4. The release note says what is deprecated, with a before/after example.
 
 ## Major versions
@@ -99,8 +98,7 @@ A breaking change waits for a major version. A v2, if it ever comes, is a
 new module path (`github.com/vuka-lang/web/v2`), so v1 apps keep building,
 and every breaking change it makes ships with:
 
-- a `vuka fix` rewrite that makes the edit, which `vuka upgrade` runs when
-  it crosses that release, including the import paths;
+- documented source changes, including the import paths;
 - a release-note example of the code before and after.
 
 ## What is not covered

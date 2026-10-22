@@ -3,23 +3,7 @@
 A model's field says what its column is, what a row gets when the field is
 left empty, and what a write may put in it — with attributes after the field:
 
-::: vuka
-```vuka
-type Order struct {
-	orm.Base
-	ID      int64
-	Ref     string    @orm.Char{Max: 12, Min: 3, Pattern: `^[A-Z0-9-]+$`, Trim: true, Label: "Reference"}
-	Status  string    @orm.Char{Max: 20, Default: "draft", Choices: []string{"draft", "paid", "void"}}
-	Qty     int       @orm.Int{Min: 1, Max: 100, Size: orm.Small, Default: 1}
-	Email   string    @Email{Unique: true}
-	Phone   Phone
-	Placed  time.Time @orm.Datetime{DefaultNow: true, Precision: 3, UTC: true}
-	Due     time.Time @orm.DateField{Help: "the day payment is due"}
-}
-```
-:::
 
-::: go
 ```go
 type Order struct {
 	orm.Model[Order]
@@ -42,7 +26,6 @@ func (o *Order) Schema(s *orm.Schema) {
 	s.Field(&o.Due, orm.DateField{Help: "the day payment is due"})
 }
 ```
-:::
 
 `Status` is a `VARCHAR(20)` with `DEFAULT 'draft'` in the table, an order
 created without one is a draft, and a write giving it `"lost"` is refused
@@ -94,14 +77,7 @@ A `Default` (or `@orm.DefaultTo(v)`) is two things at once:
 - the value `Create` (and `BulkCreate`, `GetOrCreate`) gives the field when it
   is left at its zero value.
 
-::: vuka
-```vuka
-o := Order{Ref: "A-1", Email: "ada@example.com", Phone: "+255 712 000"}
-o.Save(ctx)  // o.Status == "draft", o.Qty == 1, o.Placed is now
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 o := Order{Ref: "A-1", Email: "ada@example.com", Phone: "+255 712 000"}
@@ -109,7 +85,6 @@ if err := o.Save(ctx); err != nil { // o.Status == "draft", o.Qty == 1, o.Placed
 	return err
 }
 ```
-:::
 
 The zero value is what counts as empty, so a `bool` with `Default: true` is
 always true on create: give it an `Option[bool]` (None is empty) to create it
@@ -125,17 +100,7 @@ and a query's `Update` (each value it sets that isn't an expression). What
 fails is an `orm.Invalid` error naming the columns, the shape a foreign key
 violation has:
 
-::: vuka
-```vuka
-err := Order.Objects.Create(ctx, &Order{Ref: "a", Status: "lost", Qty: 500})
-errors.Is(err, orm.ErrInvalid)   // true
-var e *orm.Error
-errors.As(err, &e)
-e.Fields // map[qty:[must be at most 100] ref:[must be at least 3 characters must match ^[A-Z0-9-]+$] status:[must be one of draft, paid, void] …]
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 err := orm.Objects[Order]().Create(ctx, &Order{Ref: "a", Status: "lost", Qty: 500})
@@ -145,7 +110,6 @@ if errors.As(err, &e) {
 	fmt.Println(e.Fields) // map[qty:[must be at most 100] ref:[must be at least 3 characters must match ^[A-Z0-9-]+$] status:[must be one of draft, paid, void] …]
 }
 ```
-:::
 
 | Check | Message |
 |---|---|
@@ -167,35 +131,7 @@ messages.
 A field's type can say how its values reach the database and come back, with
 any of four methods — each optional, each independent of the others:
 
-::: vuka
-```vuka
-type Phone string
 
-// DBValue is what's written, and what conditions compare the column with.
-func (p Phone) DBValue(d orm.Dialect) (any, error) {
-	return strings.ReplaceAll(string(p), " ", ""), nil
-}
-
-// FromDB reads the column's value, as the driver gives it.
-func (p *Phone) FromDB(src any) error {
-	*p = Phone(fmt.Sprint(src))
-	return nil
-}
-
-// ColumnType is the column's type in migrations.
-func (Phone) ColumnType(d orm.Dialect) string { return "VARCHAR(20)" }
-
-// Validate checks each value a write gives the field.
-func (p Phone) Validate() error {
-	if !strings.HasPrefix(string(p), "+") {
-		return errors.New("must start with a country code")
-	}
-	return nil
-}
-```
-:::
-
-::: go
 ```go
 type Phone string
 
@@ -221,7 +157,6 @@ func (p Phone) Validate() error {
 	return nil
 }
 ```
-:::
 
 | Method | |
 |---|---|
@@ -244,32 +179,7 @@ An attribute is any value with an `Apply(*orm.FieldOptions)` method; written
 after a field, it is applied in its turn like the built-in ones, which are
 written the same way. A `Validate(v any) error` method adds a write check:
 
-::: vuka
-```vuka
-@vuka.Targets(vuka.OnField)
-type Email struct{ Unique bool }
 
-func (e Email) Apply(o *orm.FieldOptions) {
-	o.MaxLength, o.Lower, o.Trim = 254, true, true
-	o.Unique = o.Unique || e.Unique
-}
-
-func (Email) Validate(v any) error {
-	if !strings.Contains(v.(string), "@") {
-		return errors.New("is not an email address")
-	}
-	return nil
-}
-
-type User struct {
-	orm.Base
-	ID    int64
-	Email string @Email{Unique: true}
-}
-```
-:::
-
-::: go
 ```go
 type Email struct{ Unique bool }
 
@@ -296,7 +206,6 @@ type User struct {
 
 func (u *User) Schema(s *orm.Schema) { s.Field(&u.Email, Email{Unique: true}) }
 ```
-:::
 
 `Validate` gets the value without its pointer or `Option`, and isn't called
 for NULL. `orm.FieldOptions` has every setting the built-ins use:
@@ -327,31 +236,22 @@ nothing of), asked once per field before the model's first query.
 The ORM's attribute types declare where they go (`vuka.OnField`; `orm.Meta`
 on the embedded `orm.Base` or the type, `orm.TxOn` and `orm.Retry` on
 functions), so `@orm.Char` above a function is a compile error, and an
-editor completing `@orm.` after a field offers the field attributes.<span class="go-only">
+editor completing `@orm.` after a field offers the field attributes.
 In Go a type declares them with a `vukaTargets` method, as `Email` does
-above; it matters only to `.vuka` files using the attribute.</span>
+above; it matters only to `.vuka` files using the attribute.
 
 ## Field info
 
 `Fields()` on a model's objects lists its columns as forms, admin pages and
 tools need them:
 
-::: vuka
-```vuka
-for _, f := range Order.Objects.Fields() {
-	fmt.Println(f.Column, f.Label, f.Help, f.MaxLength, f.Choices, f.Null)
-}
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 for _, f := range orm.Objects[Order]().Fields() {
 	fmt.Println(f.Column, f.Label, f.Help, f.MaxLength, f.Choices, f.Null)
 }
 ```
-:::
 
 Each `orm.FieldInfo` has the field's `Name`, `Column`, `Type`, `PK`, `Null`,
 `Unique`, `Index`, `MaxLength`, `MinLength`, `Min`, `Max`, `Choices`,

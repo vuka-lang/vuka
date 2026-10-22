@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Vuka
   text: Go, with a few things more
-  tagline: Result and Option, the ? operator, pattern matching, enums, overloading, decorators, statics and JSX components. Vuka transpiles to plain Go and builds with the go command you already have.
+  tagline: Result and Option, the ? operator, pattern matching, enums, overloading, decorators, statics and shape-file components. Vuka transpiles to plain Go and builds with the go command you already have.
   image:
     src: /logo.svg
     alt: Vuka
@@ -36,8 +36,8 @@ features:
     details: "User.New(\"ada\"), User.Max — statics that belong to a type, and generic bases whose Self is the type embedding them, compiled to ordinary Go."
     link: /features/statics
     linkText: Statics and Self
-  - title: Components with JSX or templates
-    details: "Markup is JSX in a .vuka file, a .vuka.html template beside the Go, or ui.HTML in plain Go — all compile to the same calls. The UI library renders it with templ, so .templ files and templ libraries work side by side — and keeps stateful components live over a connection."
+  - title: Components in shape files
+    details: "UI lives in .vuka.html shape files: one struct, decorated hooks and methods, then markup. Props, tracked server state and browser state share a single authoring form."
     link: /ui/
     linkText: UI
   - title: Plain Go comes out
@@ -45,7 +45,7 @@ features:
   - title: Full editor support
     details: vuka lsp puts gopls behind a proxy — completion, hover, go to definition, rename and diagnostics in .vuka files, and Go files that see Vuka code.
   - title: A web framework
-    details: "A library in Vuka: routes declared with decorators, parameters bound by name, services injected, results as JSON or a templ / JSX page — and live components that update the page over a WebSocket."
+    details: "Pages come from the pages/ tree, with bracket parameters and shared layouts. Typed handlers receive forms, requests, identities and registered services."
     link: /web/
     linkText: Web
   - title: A Django-style ORM
@@ -66,7 +66,6 @@ vuka run
 
 ## A taste
 
-::: vuka
 ```vuka
 func lookup(arg string) Result[User] {
 	id := strconv.Atoi(arg)?          // Go's (T, error) works directly
@@ -89,53 +88,9 @@ case Err(e):
 	fmt.Println("error:", e)
 }
 ```
-:::
 
-<!-- go:context
-type User struct{ Name string }
-type Receipt struct{ ID string }
-type NotFound struct{ ID int }
 
-func (e *NotFound) Error() string { return fmt.Sprint("no user ", e.ID) }
 
-func find(id int) (User, error) { return User{}, &NotFound{ID: id} }
-func logged(c *vuka.Call)       { c.Next() }
-func retry(n int) vuka.Decorator { return func(c *vuka.Call) { c.Next() } }
--->
-
-::: go
-```go
-func lookup(arg string) (User, error) {
-	id, err := strconv.Atoi(arg)
-	if err != nil {
-		return User{}, err
-	}
-	return find(id)
-}
-
-// Decorators are functions; vuka.Wrap puts them around a call.
-var charge = vuka.Wrap(chargeOnce, vuka.FuncInfo{Name: "charge"}, retry(3), logged)
-
-func chargeOnce(ctx context.Context, id int) (Receipt, error) {
-	return Receipt{ID: fmt.Sprint("r-", id)}, nil
-}
-
-func show(arg string) {
-	u, err := lookup(arg)
-	var missing *NotFound
-	switch {
-	case err == nil:
-		fmt.Println(u.Name)
-	case errors.As(err, &missing):
-		fmt.Println("missing user", missing.ID)
-	case errors.Is(err, strconv.ErrSyntax):
-		fmt.Println("not a number:", arg)
-	default:
-		fmt.Println("error:", err)
-	}
-}
-```
-:::
 
 ## Built on Go
 

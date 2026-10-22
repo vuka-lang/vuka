@@ -5,29 +5,7 @@ and ship it inside your binary, beside the JSON routes it calls. One process
 serves both, on one address, so there is no CORS to configure, no second
 deployment and no proxy in development.
 
-::: vuka
-```vuka
-package main
 
-import (
-	"embed"
-
-	"github.com/vuka-lang/web"
-)
-
-//go:embed all:frontend/dist
-var dist embed.FS
-
-@web.Get("/api/pets")
-func ListPets() []Pet { return pets }
-
-func main() {
-	web.New(web.Frontend(dist, "frontend/dist")).Run(":8080")
-}
-```
-:::
-
-::: go
 ```go
 package main
 
@@ -53,13 +31,12 @@ func main() {
 	log.Fatal(app.Run(":8080"))
 }
 ```
-:::
 
 The Vite project lives in `frontend/`:
 
 ```
 myapp/
-  main.vuka
+  main.go
   frontend/
     package.json         vite, react, … (commit the lockfile)
     vite.config.js       plugins: [react(), vuka()]
@@ -92,7 +69,7 @@ before the first build. The plugin puts `.gitkeep` back after each build.
 | `/.vite/…` | 404: the build's manifest is for the server only |
 
 So the frontend's router owns every page the app doesn't, and a JSON route
-declared with <span class="vuka-only">`@web.Get("/api/pets")`</span><span class="go-only">`app.Get("/api/pets", …)`</span> is never shadowed by it.
+declared with `app.Get("/api/pets", …)` is never shadowed by it.
 
 Pages load fast and update at once. A file Vite's manifest lists as build
 output, with a content hash in its name, is cached by browsers for good;
@@ -102,13 +79,7 @@ nothing changed.
 
 ### Under a prefix
 
-::: vuka
-```vuka
-web.Frontend(admin, "admin/dist", web.FrontendAt("/admin"))
-```
-:::
 
-::: go
 <!-- go:context
 //go:embed all:admin/dist
 var admin embed.FS
@@ -118,7 +89,6 @@ var admin embed.FS
 ```go
 opt := web.Frontend(admin, "admin/dist", web.FrontendAt("/admin"))
 ```
-:::
 
 serves the app at `/admin` and below. Build it with the same base, in
 `vite.config`: `base: '/admin/'`. An app can serve several frontends, each
@@ -189,18 +159,11 @@ Settings the frontend needs, such as an analytics key or the name to show,
 come from the app's environment and [`.env` files](/web/configuration), so
 one build runs in every environment:
 
-::: vuka
-```vuka
-web.Frontend(dist, "frontend/dist", web.FrontendEnv("APP_NAME", "MAPS_KEY"))
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 opt := web.Frontend(dist, "frontend/dist", web.FrontendEnv("APP_NAME", "MAPS_KEY"))
 ```
-:::
 
 ```jsx
 <h1>{import.meta.env.APP_NAME}</h1>

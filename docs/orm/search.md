@@ -28,23 +28,7 @@ production — with indexes there.
 
 Search attributes on a model's fields declare what migrations make:
 
-::: vuka
-```vuka
-type Article struct {
-	orm.Base
-	ID        int64
-	Title     string       @orm.Char{Max: 200} @orm.Trigram
-	Body      string       @orm.LongText
-	Search    orm.TSVector @orm.SearchOf{Fields: []string{"title:A", "body:B"}, Config: "english"} @orm.FullText{Config: "english"}
-	Embedding orm.Vector   @orm.Dims(3) @orm.HNSW{Metric: orm.Cosine, M: 16}
-}
 
-// MySQL matches a document by a FULLTEXT index of its columns.
-func (Article) Indexes() []orm.Index { return []orm.Index{orm.FullTextIndex("title", "body")} }
-```
-:::
-
-::: go
 ```go
 type Article struct {
 	orm.Model[Article]
@@ -65,9 +49,8 @@ func (a *Article) Schema(s *orm.Schema) {
 // MySQL matches a document by a FULLTEXT index of its columns.
 func (Article) Indexes() []orm.Index { return []orm.Index{orm.FullTextIndex("title", "body")} }
 ```
-:::
 
-| Attribute<span class="go-only"> (a value given to `s.Field`)</span> | |
+| Attribute (a value given to `s.Field`) | |
 |---|---|
 | `@orm.SearchOf{Fields, Config}` | on an `orm.TSVector` field: a column generated from the fields, each with its weight (`"title:A"`) |
 | `@orm.FullText{Config}` | a full-text index of the field (GIN on Postgres) |
@@ -90,20 +73,12 @@ The same indexes can be written as an `Indexes()` method (`orm.GinIndex("search"
 `orm.SearchVector(fields…)` is a document of fields; `orm.Match` is its
 condition and `orm.SearchRank` its relevance, an expression to order by:
 
-::: vuka
-```vuka
-doc, q := orm.SearchVector(Article.Title.Name(), Article.Body.Name()), orm.SearchQuery("go command")
-found := Article.Objects.Filter(orm.Match(doc, q)).Order(orm.SearchRank(doc, q).Desc()).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 doc, q := orm.SearchVector(ArticleFields.Title.Name(), ArticleFields.Body.Name()), orm.SearchQuery("go command")
 found, err := orm.Objects[Article]().Filter(orm.Match(doc, q)).Order(orm.SearchRank(doc, q).Desc()).All(ctx)
 ```
-:::
 
 The query is web search syntax: every word must match, `"a phrase"` in order,
 `or` between alternatives, `-word` must not, and `word*` matches words
@@ -137,20 +112,12 @@ Where the databases differ:
 `orm.Similarity(field, text)` is how alike a field is to a text, from 0 to
 1 — for typos and near matches:
 
-::: vuka
-```vuka
-like := Article.Objects.Annotate("sim", orm.Similarity(Article.Title.Name(), "go tools")).
-	Filter(orm.Q{"sim__gt": 0.3}).OrderBy("-sim").All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 like, err := orm.Objects[Article]().Annotate("sim", orm.Similarity(ArticleFields.Title.Name(), "go tools")).
 	Filter(orm.Q{"sim__gt": 0.3}).OrderBy("-sim").All(ctx)
 ```
-:::
 
 ## Vectors
 
@@ -158,38 +125,22 @@ like, err := orm.Objects[Article]().Annotate("sim", orm.Similarity(ArticleFields
 and `orm.InnerProduct` (negated, as pgvector's `<#>`: smaller is nearer)
 are `OrderedExpr[float64]`s, so they filter and order:
 
-::: vuka
-```vuka
-v, emb := orm.Vector{0.9, 0.1, 0}, Article.Embedding.Name()
-near := Article.Objects.Filter(orm.CosineDistance(emb, v).Lt(0.3)).
-	Order(orm.CosineDistance(emb, v).Asc()).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 v, emb := orm.Vector{0.9, 0.1, 0}, ArticleFields.Embedding.Name()
 near, err := orm.Objects[Article]().Filter(orm.CosineDistance(emb, v).Lt(0.3)).
 	Order(orm.CosineDistance(emb, v).Asc()).All(ctx)
 ```
-:::
 
 `Nearest` is the k-nearest-neighbour query: ordered by distance, nearest
 first, annotated `distance`:
 
-::: vuka
-```vuka
-top := Article.Objects.Nearest(emb, v, orm.Cosine).Limit(10).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 top, err := orm.Objects[Article]().Nearest(emb, v, orm.Cosine).Limit(10).All(ctx)
 ```
-:::
 
 On Postgres the `ORDER BY` is pgvector's operator, so an HNSW or IVFFlat
 index of that metric serves it. Options: a metric, `orm.K(n)`,
@@ -197,18 +148,11 @@ index of that metric serves it. Options: a metric, `orm.K(n)`,
 (`hnsw.ef_search`) and `orm.Probes(n)` (`ivfflat.probes`), the last two set
 with `SET LOCAL` in a transaction of the query's own:
 
-::: vuka
-```vuka
-top = Article.Objects.Nearest(emb, v, orm.K(10), orm.MaxDistance(0.4), orm.EfSearch(100)).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 top, err = orm.Objects[Article]().Nearest(emb, v, orm.K(10), orm.MaxDistance(0.4), orm.EfSearch(100)).All(ctx)
 ```
-:::
 
 MySQL stores vectors but doesn't search them: a `VECTOR(n)` column where the
 server has the type (MySQL 9, MariaDB 11.7), else `VARBINARY(4n)` holding the
@@ -222,20 +166,12 @@ fails when the query is written, naming the field.
 ranks by reciprocal rank (a row scores `w/(k + rank)` per ranking), annotated
 `rank`, `distance` and `score`, best first. It runs on Postgres and on SQLite:
 
-::: vuka
-```vuka
-best := Article.Objects.Hybrid(doc, orm.SearchQuery("web server"), emb, v,
-	orm.K(10), orm.Candidates(100), orm.HybridWeights(1, 0.5), orm.RRF(60)).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 best, err := orm.Objects[Article]().Hybrid(doc, orm.SearchQuery("web server"), emb, v,
 	orm.K(10), orm.Candidates(100), orm.HybridWeights(1, 0.5), orm.RRF(60)).All(ctx)
 ```
-:::
 
 `Candidates(n)` narrows the vector side to the `n` nearest (found by the
 index) plus the text's matches. `orm.Fuse("-rank", "distance")` is the

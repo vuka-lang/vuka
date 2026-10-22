@@ -3,48 +3,20 @@
 Write [Tailwind](https://tailwindcss.com) classes in your views and they are
 styled — no build config, no `<link>` to add, no CSS file to commit:
 
-::: vuka
-```vuka
-@web.Get("/")
-func Home() ui.Node {
-	return <Layout title="Home">
-		<button class="rounded bg-emerald-500 px-4 py-2 text-white"
-			onClick={ui.JS.AddClass(ui.Ref("note"), "opacity-50")}>Save</button>
-		<p ref="note" class="mt-2 text-sm text-gray-500">Unsaved changes</p>
-	</Layout>
-}
+
+Use utilities directly in a shape:
+
+```html
+package pages
+
+type Index struct{}
+<main class="mx-auto max-w-xl p-8">
+  <h1 class="text-3xl font-bold">Home</h1>
+</main>
 ```
-:::
 
-::: go
-<!-- go:context
-func Layout(title string, children ui.Node) ui.Node {
-	return ui.HTML(`<html><head><title>{title}</title></head><body>{children}</body></html>`, title, children)
-}
--->
-
-```go
-func Home() ui.Node {
-	dim := ui.JS.AddClass(ui.Ref("note"), "opacity-50")
-	return Layout("Home", ui.HTML(`
-<button class="rounded bg-emerald-500 px-4 py-2 text-white" onClick={dim}>Save</button>
-<p ref="note" class="mt-2 text-sm text-gray-500">Unsaved changes</p>`, dim))
-}
-
-func init() { web.Routes.Get("/", Home) }
-```
-:::
-
-`vuka run` and `vuka build` build the stylesheet from every class your module
-uses — in <span class="vuka-only">JSX</span><span class="go-only">templates, `ui.HTML`</span>, [templ](/web/views) and `.html` views, Go code, and the names a
-[JS command](/ui/js) adds, like `opacity-50` above — and every full page the
-app serves links it.
-
-The one thing to install is the Tailwind CLI:
-
-```sh
-brew install tailwindcss        # or: npm i -D @tailwindcss/cli
-```
+The Tailwind scanner reads the classes in shape files and the source files of
+components they use. Document markup belongs in `_layout.vuka.html`.
 
 ## While you work
 
@@ -97,25 +69,18 @@ Colors, fonts, plugins and component classes go in your own stylesheet: an
 else and name it — as a string literal, since the `vuka` command reads it from
 your source:
 
-::: vuka
-```vuka
-app := web.New(web.Tailwind("assets/site.css"))
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 app := web.New(web.Tailwind("assets/site.css"))
 ```
-:::
 
 Classes in component libraries you use (packages shipping `.vuka` or
 `.templ` components, like [ui](/ui/)) are found too.
 
 ## Which pages get it
 
-Every full page — one with `</head>` (or else `</body>`) — from JSX, templ
+Every full page — one with `</head>` (or else `</body>`) — from shape markup, templ
 and `html/template` views and live pages, unless it links `/_vuka/app.css`
 itself — a form post's page too, when the browser shows it as the document
 ([Forms that fail](/web/routes#forms-that-fail)). JSON, fragments (a
@@ -124,18 +89,11 @@ page already has it.
 
 ## Turning it off
 
-::: vuka
-```vuka
-app := web.New(web.NoTailwind())
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 app := web.New(web.NoTailwind())
 ```
-:::
 
 No link, no `/_vuka/app.css`, and the `vuka` command builds nothing.
 `VUKA_TAILWIND=off` does the same for one `vuka run` or `vuka build`.

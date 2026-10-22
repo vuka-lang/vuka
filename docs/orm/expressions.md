@@ -28,22 +28,11 @@ var slug = "hello-go"
 SQL's expressions are the engine's: a field's `Expr()` is its column
 (`orm.F("title")`), and functions, `Case`, `Switch`, `Cast`, `Value` and
 `SQL` take expressions, values or other calls — and typed fields as they
-are, <span class="vuka-only">`orm.Lower(Post.Title)`</span><span class="go-only">`orm.Lower(PostFields.Title)`</span>. A typed call compares by its
+are, `orm.Lower(PostFields.Title)`. A typed call compares by its
 result's type, so `orm.Length(…).Eq("x")` doesn't compile:
 
-::: vuka
-```vuka
-title := Post.Title.Expr()
-Post.Objects.Filter(orm.Lower(title).Eq("go tooling"))
-Post.Objects.Filter(orm.Q{"likes__gt": Post.Views.Div(2)})   // likes > views / 2
-Post.Objects.Filter(orm.Year(Post.Published.Expr()).Eq(2025))
-Post.Objects.Order(orm.Length(title).Desc())
-Post.Objects.Filter(Post.Slug.Eq(slug)).Update(ctx, orm.Set{"views": Post.Views.Add(1)})?
-```
-:::
 
 
-::: go
 <!-- go:fragment -->
 ```go
 f, posts := PostFields, orm.Objects[Post]()
@@ -56,7 +45,6 @@ if _, err := posts.Filter(f.Slug.Eq(slug)).Update(ctx, orm.Set{"views": f.Views.
 	return err
 }
 ```
-:::
 
 A number field (an `orm.NumberField`, what `orm generate` writes for an
 integer or float column) does arithmetic: `Add`, `Sub`, `Mul` and `Div`
@@ -75,7 +63,7 @@ numbers for integers on SQLite and Postgres.
 | `Date` | the date as `YYYY-MM-DD` text |
 | `Coalesce(e, rest…)` | the first that isn't NULL |
 | `Cast(e, orm.AsText)` | a cast |
-| `SQL(template, args…)` | your own SQL: <span class="vuka-only">`orm.SQL("{0} * {1}", Post.Likes.Expr(), Post.Views.Expr())`</span><span class="go-only">`orm.SQL("{0} * {1}", PostFields.Likes.Expr(), PostFields.Views.Expr())`</span> |
+| `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * {1}", PostFields.Likes.Expr(), PostFields.Views.Expr())` |
 | `Where(e, lookup, v)` | a condition on any expression: `orm.Where(orm.SQL("{0} - {1}", views, likes), "gte", 49)` |
 
 A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,
@@ -89,21 +77,7 @@ A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,
 `orm.Count(field)`, `orm.Sum`, `orm.Avg`, `orm.Min`, `orm.Max`, each with
 `.Filter(cond)`, `.Distinct()` and `.As(name)`:
 
-::: vuka
-```vuka
-type Stats struct {
-	Author string `orm:"author__name"`
-	Posts  int64
-	Liked  int64
-}
 
-rows := Post.Objects.Annotate("posts", orm.Count("id")).
-	Annotate("liked", orm.Count("id").Filter(Post.Likes.Gte(5))).
-	Values[Stats]("author__name", "posts", "liked").All(ctx)?
-```
-:::
-
-::: go
 ```go
 type Stats struct {
 	Author string `orm:"author__name"`
@@ -117,28 +91,12 @@ func likedStats(ctx context.Context) ([]Stats, error) {
 		Values[Stats]("author__name", "posts", "liked").All(ctx)
 }
 ```
-:::
 
 See [Values and aggregates](/orm/queries#values-and-aggregates).
 
 ## Case and Switch
 
-::: vuka
-```vuka
-heat := orm.Case(orm.When(Post.Views.Gte(100), "hot"), orm.When(Post.Views.Gte(20), "warm")).Else("cold")
-score := orm.Switch(Post.Author.Name.Expr()).Case("ada", 1).Case("bob", 2).Else(0)
 
-type Heat struct {
-	Title string
-	Heat  string
-}
-
-hs := Post.Objects.Annotate("heat", heat).Values[Heat]("title", "heat").All(ctx)?
-twos := Post.Objects.Filter(orm.Where(score, "exact", 2)).All(ctx)?
-```
-:::
-
-::: go
 ```go
 type Heat struct {
 	Title string
@@ -161,7 +119,6 @@ if err != nil {
 	return err
 }
 ```
-:::
 
 `orm.When(cond, value)` takes any condition.
 
@@ -174,24 +131,7 @@ if err != nil {
 | `field.InQuery(values)` | `field IN (SELECT …)` |
 | `orm.OuterRef(name)` | inside a subquery: the outer row's column |
 
-::: vuka
-```vuka
-// each user's most-viewed post
-latest := Post.Objects.Filter(orm.Q{"author": orm.OuterRef("id")}).OrderBy(Post.Views.Desc()).Limit(1).Values[string]("title")
 
-type Top struct {
-	Name string
-	Top  string
-}
-
-tops := User.Objects.Annotate("top", orm.Subquery(latest)).Values[Top]("name", "top").All(ctx)?
-
-liked := User.Objects.Filter(orm.Exists(Post.Objects.Filter(orm.Q{"author": orm.OuterRef("id")}, Post.Likes.Gte(20))))
-viewed := User.Objects.Filter(User.ID.InQuery(Post.Objects.Filter(Post.Views.Gte(50)).Values[int64]("author")))
-```
-:::
-
-::: go
 ```go
 type Top struct {
 	Name string
@@ -213,7 +153,6 @@ if err != nil {
 liked := users.Filter(orm.Exists(posts.Filter(orm.Q{"author": orm.OuterRef("id")}, PostFields.Likes.Gte(20))))
 viewed := users.Filter(UserFields.ID.InQuery(posts.Filter(PostFields.Views.Gte(50)).Values[int64]("author")))
 ```
-:::
 
 ## Custom functions
 
@@ -234,19 +173,7 @@ like a Go function. The constructor picks the result type's comparisons:
 | `orm.IsAggregate()` | an aggregate: a condition on it is `HAVING`'s |
 | `.Transform()` | (on a one-argument function) a key step before any lookup: `orm.Q{"name__unaccent__icontains": "jose"}` |
 
-::: vuka
-```vuka
-var (
-	EditDist = orm.OrderedFunc[int]("editdist", orm.Arity(2),
-		orm.Template("postgres", "levenshtein({0}, {1})"), // fuzzystrmatch
-		orm.Template("sqlite", "editdist({0}, {1})"))       // a Go function, below
-	Unaccent = orm.TextFunc("unaccent", orm.Arity(1),
-		orm.Template("postgres", "unaccent({0})"), orm.Template("", "{0}")).Transform()
-)
-```
-:::
 
-::: go
 ```go
 var (
 	EditDist = orm.OrderedFunc[int]("editdist", orm.Arity(2),
@@ -256,7 +183,6 @@ var (
 		orm.Template("postgres", "unaccent({0})"), orm.Template("", "{0}")).Transform()
 )
 ```
-:::
 
 A function with no `Template` is called as `name(args…)`; one with templates
 is written only where one applies — elsewhere its query fails with
@@ -265,20 +191,12 @@ field's `Expr()`) or plain values, which are always bound as parameters,
 never written into the SQL. Its comparisons are conditions, its `Asc` and
 `Desc` terms of `Order`, and `Annotate` names it:
 
-::: vuka
-```vuka
-dist := EditDist(Post.Title.Expr(), "go")
-close := Post.Objects.Filter(dist.Le(1), Post.Views.Gt(50)).Order(dist.Asc()).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 dist := EditDist(PostFields.Title.Expr(), "go")
 close, err := orm.Objects[Post]().Filter(dist.Le(1), PostFields.Views.Gt(50)).Order(dist.Asc()).All(ctx)
 ```
-:::
 
 `.Over(orm.Window{PartitionBy: []string{"author_id"}, OrderBy: []string{"-views"}})`
 makes a call a window function's (`row_number`, `rank`, or an aggregate over
@@ -301,18 +219,11 @@ orm.RegisterLookup("unaccent_icontains", func(lhs string, rhs func() string, d o
 }, orm.LookupValue(orm.LikePattern("%", "%")))
 ```
 
-::: vuka
-```vuka
-Post.Objects.Filter(orm.Q{"title__unaccent_icontains": "cafe"})
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 cafes := orm.Objects[Post]().Filter(orm.Q{"title__unaccent_icontains": "cafe"})
 ```
-:::
 
 `orm.LookupValue` maps the value before it is bound (`orm.LikePattern`
 escapes a literal into a `LIKE` pattern). An unknown lookup fails with a
@@ -324,20 +235,7 @@ suggestion: `unknown lookup "icontain" — did you mean "icontains"?`.
 SQLite connection opened after it — register in an `init`, before
 connecting:
 
-::: vuka
-```vuka
-var words = orm.OrderedFunc[int]("words", orm.Arity(1))
 
-func init() {
-	sqlite.MustFunc("words", func(s string) int { return len(strings.Fields(s)) })
-	sqlite.MustFunc("now_ms", func() int64 { return time.Now().UnixMilli() }, sqlite.Volatile())
-}
-
-long := Post.Objects.Filter(words(Post.Body.Expr()).Ge(5)).All(ctx)?
-```
-:::
-
-::: go
 ```go
 var words = orm.OrderedFunc[int]("words", orm.Arity(1))
 
@@ -350,7 +248,6 @@ func longPosts(ctx context.Context) ([]Post, error) {
 	return orm.Objects[Post]().Filter(words(PostFields.Body.Expr()).Ge(5)).All(ctx)
 }
 ```
-:::
 
 Parameters and results are strings, `[]byte`, bools, numbers, `time.Time`,
 `any` or pointers to them (NULL in and out), an `error` result after the

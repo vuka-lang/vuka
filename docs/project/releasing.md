@@ -21,7 +21,7 @@ vuka release -yes v1.1.0     # does it
 ## Before you run it
 
 Write the release's section in `docs/releases.md`, headed with the version
-and date, for app authors: what changed, what to do, what `vuka fix` does.
+and date, for app authors: what changed, what to do, the required source changes.
 
 ```md
 ## v1.1.0 — 2026-11-02
@@ -30,7 +30,7 @@ and date, for app authors: what changed, what to do, what `vuka fix` does.
 A section marked `unreleased` passes a dry run with a warning and stops
 `-yes`.
 
-A deprecation or (in a major) a breaking change also needs its `vuka fix` fixer (`cmd/vuka/fix.go`) and an
+A deprecation or (in a major) a breaking change also needs documented source changes and an
 `upgradeSteps` entry naming it (`cmd/vuka/upgrade.go`), so `vuka upgrade`
 runs it for apps crossing the release:
 
