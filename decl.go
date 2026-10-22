@@ -56,7 +56,8 @@ func (d *Decl) Attr(ptr any) bool { return fillAttr(d.Attrs, ptr) }
 //	Get("/pets/{id}")(vuka.DeclOf(ShowPet, vuka.Param{Name: "id"}))
 //
 // params name its parameters and give their attributes, in order, the
-// receiver excluded (reflection can't see names). Its attributes are those
+// receiver excluded (reflection can't see names); without them the names
+// are those RegisterParams recorded. Its attributes are those
 // registered for it (RegisterFunc), its file and line where the compiler
 // puts it, and its Name the runtime's: the package is its import path's
 // last element ("main" in a program, though a main package's tests build it
@@ -87,10 +88,14 @@ func DeclOf(fn any, params ...Param) *Decl {
 	}
 	d.Pkg = strings.ReplaceAll(d.Pkg, "%2e", ".")
 	d.Name = strings.ReplaceAll(d.Name, "%2e", ".")
+	var names []string
 	if r, err := FuncOf(fn); err == nil {
 		d.Attrs = r.Attrs
+		if len(params) == 0 {
+			names = r.Params
+		}
 	}
-	return d.describe(skip, nil)
+	return d.describe(skip, names)
 }
 
 // FuncDecl describes a function for its declarers.

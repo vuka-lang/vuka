@@ -290,7 +290,7 @@ type Field struct {
 	Type     reflect.Type
 	Tag      reflect.StructTag
 	Attrs    []any // the field's typed attributes
-	Injected bool  // not blank, not tagged inject:"-": a parameter of New, when a pointer or interface for a type declaring a schema
+	Injected bool  // a pointer or an interface, not blank: a dependency, a parameter of the New Vuka writes
 }
 
 // Attr fills ptr with the type's typed attribute of ptr's element type.

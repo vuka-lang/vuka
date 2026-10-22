@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"reflect"
 	"runtime"
+	"slices"
 	"strings"
 	"sync"
 )
@@ -27,10 +28,11 @@ func (a Attrs) Attr(ptr any) bool { return fillAttr(a, ptr) }
 var registry = struct {
 	sync.RWMutex
 	funcs map[string]Attrs        // "example.com/app.Board.Clear", "example.com/app.charge"
+	names map[string][]string     // the functions' parameters' names, as RegisterParams records them
 	types map[string]reflect.Type // "example.com/app.Board"
 	attrs map[reflect.Type]Attrs
 	pcs   sync.Map // uintptr → FuncRef: FuncOf's answers
-}{funcs: map[string]Attrs{}, types: map[string]reflect.Type{}, attrs: map[reflect.Type]Attrs{}}
+}{funcs: map[string]Attrs{}, names: map[string][]string{}, types: map[string]reflect.Type{}, attrs: map[reflect.Type]Attrs{}}
 
 // RegisterFunc records the typed attributes of a function, or of a method
 // given as its method expression ((*Board).Clear). Generated code calls it
@@ -55,6 +57,30 @@ func RegisterFunc(fn any, attrs ...any) {
 			registry.types[recv] = rt // a method expression: its receiver
 		}
 	}
+	registry.Unlock()
+	registry.pcs.Clear()
+}
+
+// RegisterParams records the names of a function's parameters as written,
+// in order, the receiver excluded: what reflection can't see, so that a
+// library binding parameters by name (a route's scalars from the path and
+// the query) finds them with FuncOf. Generated code calls it at init for
+// the functions it registers; "" stands for an unnamed parameter.
+func RegisterParams(fn any, names ...string) {
+	v := reflect.ValueOf(fn)
+	if v.Kind() != reflect.Func || v.IsNil() {
+		panic(fmt.Sprintf("vuka: RegisterParams of %T, not a function", fn))
+	}
+	f := runtime.FuncForPC(v.Pointer())
+	if f == nil {
+		return
+	}
+	key, _, _, lit := parseFuncName(f.Name())
+	if lit {
+		panic("vuka: RegisterParams of a function literal " + f.Name())
+	}
+	registry.Lock()
+	registry.names[key] = slices.Clone(names)
 	registry.Unlock()
 	registry.pcs.Clear()
 }
@@ -107,6 +133,9 @@ type FuncRef struct {
 	// Attrs are the declaration's typed attributes: a method's own (its
 	// type's are TypeAttrs(Recv)).
 	Attrs Attrs
+	// Params are its parameters' names as written, the receiver excluded,
+	// when generated code recorded them (RegisterParams); nil otherwise.
+	Params []string
 	// Literal says fn is a function literal ("…(*Board).Render.func1"): it
 	// is no declaration and has no attributes, and what it calls is found
 	// only when it runs.
@@ -142,6 +171,7 @@ func FuncOf(fn any) (FuncRef, error) {
 	if !lit {
 		registry.RLock()
 		ref.Attrs = registry.funcs[key]
+		ref.Params = registry.names[key]
 		if recv != "" {
 			ref.Recv, ref.Method = registry.types[recv], method
 		}
