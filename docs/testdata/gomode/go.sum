@@ -74,6 +74,8 @@ github.com/vuka-lang/web v1.2.1-0.20261021081239-eb0794ff2f41 h1:Np3poKI1pXHsdiC
 github.com/vuka-lang/web v1.2.1-0.20261021081239-eb0794ff2f41/go.mod h1:z8pSTBchC+1WM1fxWjdxgo16cL/XBumwHInfB/HsWvk=
 github.com/vuka-lang/web v1.5.1-0.20261022155532-68197e6e0cb4 h1:ovKx/X9gyTtTelAHOUc3Pf+Z9OK1iIYHQ5Mw+2fu1NU=
 github.com/vuka-lang/web v1.5.1-0.20261022155532-68197e6e0cb4/go.mod h1:DIAC6oRh6ZVV8pj4YXHlso+bI2tPfaTzJxtJOaJt4QY=
+github.com/vuka-lang/web v1.5.1-0.20261022163923-0198b07fd170 h1:scGQXF85Tq0r+kkSiO8cD2C1HAXkF7+L5uSYv+4XcbU=
+github.com/vuka-lang/web v1.5.1-0.20261022163923-0198b07fd170/go.mod h1:3gItE2ysgrzwwjwVhwNX//1s54NEwZHSjkcVjcujAFY=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
 golang.org/x/crypto v0.55.0/go.mod h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=
