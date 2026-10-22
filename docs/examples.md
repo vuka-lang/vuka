@@ -306,6 +306,7 @@ type Chat struct {
 
 func NewChat(log *ChatLog) *Chat { return &Chat{Log: log} }
 
+// What the compiler writes from the attributes.
 func (c *Chat) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
 
 func (c *Chat) mount(ctx context.Context) error {
@@ -376,6 +377,7 @@ type Board struct {
 
 func NewBoard(n *Notices) *Board { return &Board{Notices: n} }
 
+// What the compiler writes from the attributes.
 func (b *Board) LiveSchema(l *ui.LiveSchema) { l.Mount(b.mount) }
 
 func (b *Board) mount(ctx context.Context) error { b.me = auth.Current(ctx); return nil }

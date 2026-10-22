@@ -193,7 +193,7 @@ holes](/ui/#markup-in-go) take:
 | `class:late={o.Late}` | a toggled class: a bool or a `ui.State[bool]` |
 | `<input {attrs...}>` | an attribute set |
 | `onClick={c.Inc}`, `onClick={c.Add(2)}` | an event: a method value, or a call with no result, which runs on the event |
-| `bind:value={Q}` | two-way: the field's value, and what is typed sets it — a `bind:` field of a live page (`l.Field(&p.Q, ui.Bind{…})` in its LiveSchema, its debounce and `validate:` rules), else an error |
+| `bind:value={Q}` | two-way: the field's value, and what is typed sets it — a `bind:` field of a live page (`@ui.Bind` on the field, its debounce and `validate:` rules), else an error |
 | `style:--accent={Color}` | a CSS variable (any property) beside the element's `style`, sanitized as a `ui.Style` |
 
 <span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment.
@@ -480,7 +480,7 @@ context. Templates that do not read it keep their existing lowering.
 The context is not a component prop and is not sent to the browser.
 
 Keep rendering free of writes and expensive database work: fetch data in
-`Mount`, loaders or handlers. Context-sensitive live output is rendered
+the mount hook, loaders or handlers. Context-sensitive live output is rendered
 again even when its props and Assigns have not changed. This avoids
 reusing output after a context-dependent permission or locale changes;
 it does not refresh an application's authentication store by itself.

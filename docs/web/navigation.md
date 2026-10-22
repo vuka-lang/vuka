@@ -126,6 +126,7 @@ type ShelfParams struct {
 
 func NewShelf() *Shelf { return &Shelf{} }
 
+// What the compiler writes from the attributes.
 func (s *Shelf) LiveSchema(l *ui.LiveSchema) { l.Mount(s.mount) }
 
 func (s *Shelf) mount(ctx context.Context) error { s.show(s.Page); return nil }
@@ -150,7 +151,7 @@ package app
 ```
 :::
 
-`Mount` sees the first URL; `Update` sees each patch. Params that don't
+The mount hook sees the first URL; `Update` sees each patch. Params that don't
 bind (a `page=x`) make the route answer 400, and the browser loads that URL
 as an ordinary page.
 
@@ -158,12 +159,12 @@ as an ordinary page.
 
 `patch` on a link (and `Patch`, `PushPatch`) only asks. The page stays
 mounted only when its type has an `Update` taking `web.URLParams`; any other
-page **mounts again**, a fresh instance whose `Mount` sees the new URL, even
+page **mounts again**, a fresh instance whose mount hook sees the new URL, even
 on the same route — as a navigate does. A browser can send any URL as a
-patch, so this is what keeps a check in `Mount` from being skipped.
+patch, so this is what keeps a check in the mount hook from being skipped.
 
-It follows that **`Update` must repeat every check `Mount` makes** of what
-the URL names. A page showing one order checks in `Mount` that the visitor
+It follows that **`Update` must repeat every check the mount hook makes** of what
+the URL names. A page showing one order checks in the mount hook that the visitor
 may see it; its `Update` checks the new id the same way:
 
 ::: vuka
@@ -218,6 +219,7 @@ type OrderParams struct {
 
 func NewOrderPage(orders *Orders) *OrderPage { return &OrderPage{Orders: orders} }
 
+// What the compiler writes from the attributes.
 func (p *OrderPage) LiveSchema(l *ui.LiveSchema) { l.Mount(p.mount) }
 
 func (p *OrderPage) mount(ctx context.Context) error { return p.load(ctx, p.ID) }
@@ -248,8 +250,8 @@ func init() { web.Routes.Live("/orders/{id}", NewOrderPage) }
 
 An error `Update` returns fails the patch: nothing of the page stays
 mounted to take events, and the browser loads the URL, so the route answers
-as for any request (here, `Mount` refusing with 403). The same goes for a
-`Mount` that refuses on a navigate.
+as for any request (here, the mount hook refusing with 403). The same goes for a
+mount hook that refuses on a navigate.
 
 **Navigate** moves to another page. Its route runs as a page load does —
 middleware, gates, dependencies, its layout — its components mount on the

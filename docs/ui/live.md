@@ -63,11 +63,11 @@ s.Close()                                     // unmounts everything
 
 A `live.Patch` holds the changed instances and `Error`, a handler's message.
 Calls are safe from several goroutines and run one at a time; `ctx` is the
-context of every render, `Mount`, handler and `Update`.
+context of every render, the mount hook, handler and `Update`.
 
 ## Errors
 
-What a handler, `Mount` or `Update` returns, or panics with, and a failed
+What a handler, the mount hook or `Update` returns, or panics with, and a failed
 render become the text of a reply's `error`. By default that text is the
 error's own, which may say more than a visitor should read — a query, a
 path, a panic's value. A transport serving pages to the public sets
@@ -104,7 +104,7 @@ inside it.
 
 Either version's reply also carries the [JS commands](/ui/js#from-the-server)
 components pushed with `PushJS` while it was made (`Patch.JS`, and
-`s.JS()` for those a `Mount` pushed during the join's render), run by the
+`s.JS()` for those a mount hook pushed during the join's render), run by the
 browser once the reply is applied.
 
 ## Navigation
@@ -144,10 +144,10 @@ without one, every navigation is a `redirect`, a full page load.
 patch. A patch whose route has no `Updates` is a navigation: everything
 mounts afresh. An instance whose tag `Updates` names is kept only when an
 `Update` method of its takes the value; otherwise it mounts afresh, so its
-`Mount` sees the new URL. A component that checks in `Mount` whether the
+mount hook sees the new URL. A component that checks in the mount hook whether the
 visitor may see what its props name has to check again in that `Update`.
 
-An error — a `Mount`'s, an `Update`'s, a render's — fails the navigation:
+An error — a mount hook's, an `Update`'s, a render's — fails the navigation:
 `Navigate` returns it, every instance unmounts, and the page takes no events
 until it navigates or joins again; a browser loads the URL itself. A
 `redirect` the router asks for is sent only for a path or an `http` or
