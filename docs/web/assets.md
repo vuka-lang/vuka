@@ -15,7 +15,7 @@ the component that uses them:
 type Counter struct {
 	ui.Live
 	Start int
-	n     ui.Assign[int]
+	n     int
 }
 ```
 :::
@@ -24,9 +24,9 @@ type Counter struct {
 <!-- go:context
 func counterPage(page ui.Node) ui.Node { return page }
 
-func (c *Counter) Inc() { c.n.Update(func(n int) int { return n + 1 }) }
+func (c *Counter) Inc() { c.n++ }
 
-func (c *Counter) Render() ui.Node { return ui.HTML(`<output>{c.n.Get()}</output>`, c.n.Get()) }
+func (c *Counter) Render() ui.Node { return ui.HTML(`<output>{c.n}</output>`, c.n) }
 -->
 
 ```go
@@ -34,7 +34,7 @@ func (c *Counter) Render() ui.Node { return ui.HTML(`<output>{c.n.Get()}</output
 type Counter struct {
 	ui.Live
 	Start int
-	n     ui.Assign[int]
+	n     int
 }
 
 func NewCounter() *Counter { return &Counter{} }
@@ -46,7 +46,7 @@ func init() { web.Routes.Live("/counter", NewCounter, web.Layout(counterPage)) }
 <!-- counter.vuka.html -->
 package app
 
-<output>{n.Get()}</output>
+<output>{n}</output>
 <button onClick={Inc}>+</button>
 
 <style scoped>
@@ -261,8 +261,8 @@ does: check what the caller may do there.
 ::: vuka
 ```vuka
 func (c *Counter) Inc() {
-	c.n.Update(func(n int) int { return n + 1 })
-	c.PushEvent("bumped", c.n.Get())
+	c.n++
+	c.PushEvent("bumped", c.n)
 }
 ```
 :::
@@ -270,8 +270,8 @@ func (c *Counter) Inc() {
 ::: go
 ```go
 func (c *Counter) Inc() {
-	c.n.Update(func(n int) int { return n + 1 })
-	c.PushEvent("bumped", c.n.Get())
+	c.n++
+	c.PushEvent("bumped", c.n)
 }
 ```
 :::

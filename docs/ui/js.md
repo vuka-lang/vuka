@@ -8,7 +8,7 @@ type Item struct {
 
 type List struct {
 	ui.Live
-	likes ui.Assign[int]
+	likes int
 }
 
 func (c *List) Render() ui.Node    { return c.likeButton() }
@@ -345,11 +345,11 @@ and take it back in the rare case the server refuses. The steps before a
 ```vuka
 <button onClick={ui.JS.
 	AddClass(ui.This, "liked").
-	SetText(ui.Ref("likes"), strconv.Itoa(c.likes.Get()+1)).
+	SetText(ui.Ref("likes"), strconv.Itoa(c.likes+1)).
 	Push(c.Like).
 	OnError(ui.JS.Show(ui.Ref("like-error"))).
 	OnSuccess(ui.JS.Dispatch(ui.This, "liked"))}>
-	♥ <span ref="likes">{c.likes.Get()}</span>
+	♥ <span ref="likes">{c.likes}</span>
 </button>
 <p ref="like-error" style="display: none">Couldn't like</p>
 ```
@@ -360,15 +360,15 @@ and take it back in the rare case the server refuses. The steps before a
 func (c *List) likeButton() ui.Node {
 	like := ui.JS.
 		AddClass(ui.This, "liked").
-		SetText(ui.Ref("likes"), strconv.Itoa(c.likes.Get()+1)).
+		SetText(ui.Ref("likes"), strconv.Itoa(c.likes+1)).
 		Push(c.Like).
 		OnError(ui.JS.Show(ui.Ref("like-error"))).
 		OnSuccess(ui.JS.Dispatch(ui.This, "liked"))
 	return ui.HTML(`
 <button onClick={like}>
-	♥ <span ref="likes">{c.likes.Get()}</span>
+	♥ <span ref="likes">{c.likes}</span>
 </button>
-<p ref="like-error" style="display: none">Couldn't like</p>`, like, c.likes.Get())
+<p ref="like-error" style="display: none">Couldn't like</p>`, like, c.likes)
 }
 ```
 :::

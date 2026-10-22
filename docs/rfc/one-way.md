@@ -294,14 +294,14 @@ API changes — it is today's public API — so an ejected 2.0 app is plain Go.
 
 | # | Source form (one-way) | Generated Go |
 |---|---|---|
-| 1 | File header: `type Index struct { ui.Live; store *Todos; rows []Todo }` + markup | `type Index struct { ui.Live; store *Todos; rows ui.Assign[[]Todo] }`; `func (p *Index) Render() ui.Node { return ui.HTML(``…``, …) }`; constructor `NewIndex(store *Todos)` |
-| 2 | unexported non-dep field `rows []Todo` | `rows ui.Assign[[]Todo]`; markup `{rows}` → `p.rows.Get()`; `p.rows = v` in a method → `p.rows.Set(v)` |
-| 3 | `ui.State[string]` field `filter`, read `{filter}` in markup | field kept `ui.State[string]`; hole takes the state as-is (browser keeps it current) |
-| 4a | write in `on…`: `onClick={editing = !editing}` (bool) | `onClick={p.editing.Toggle()}` |
-| 4b | write in `on…`: `onClick={tab = "env"}` | `onClick={p.tab.Set("env")}` |
-| 4c | write in `on…`: `onClick={open = false}` plus `tab = "env"` in one handler | `onClick={p.tab.Set("env").Set(p.open, false)}` (chained, order preserved) |
-| 4d | write + server call: `onClick={open = false; Save()}` | `onClick={p.open.Set(false).Push(p.Save)}` |
-| 4e | server-side write in a method: `p.editing = false` | `p.PushJS(p.editing.Set(false))` |
+| 1 | File header: `type Index struct { ui.Live; store *Todos; rows []Todo }` + markup | `type Index struct { ui.Live; store *Todos; rows uigen.Assign[[]Todo] }`; `func (p *Index) Render() ui.Node { return ui.HTML(``…``, …) }`; constructor `NewIndex(store *Todos)` |
+| 2 | unexported non-dep field `rows []Todo` | `rows uigen.Assign[[]Todo]`; markup `{rows}` → `p.rows.Get()`; `p.rows = v` → `p.rows.Set(v)`; `p.n += 2` → `p.n.Set(p.n.Get() + (2))`; `p.n++` → `p.n.Set(p.n.Get() + 1)`; `p.rows[i].Done = true` → `p.rows.Update(func(rows []Todo) []Todo { rows[i].Done = true; return rows })`; `&p.rows` is E0150 |
+| 3 | `ui.State[string]` field `filter`, read `{filter}`, `{!open && tab == "env"}` in markup | field kept `ui.State[string]`, given its state before the component mounts (`uigen.States` before a static one's View); a read is the state, an expression `uigen.And(uigen.Not(p.open), uigen.Eq(p.tab, "env"))`; package-level `var theme ui.State[string]` → `= uigen.UsePageState(*new(string))` |
+| 4a | write in `on…`: `onClick={editing = !editing}` (bool) | `onClick={uigen.Toggle(ui.JS, p.editing)}`; `n++`/`n--` → `uigen.Inc(ui.JS, p.n)` / `uigen.Dec` |
+| 4b | write in `on…`: `onClick={tab = "env"}` | `onClick={ui.JS.Set(p.tab, "env")}` |
+| 4c | writes in one `on…`: `onClick={tab = "env"; open = false}` | `onClick={ui.JS.Set(p.tab, "env").Set(p.open, false)}` (chained, order preserved) |
+| 4d | write + server call: `onClick={open = false; Save()}` | `onClick={ui.JS.Set(p.open, false).Push(p.Save)}`; a call with arguments `Push(func() { p.Remove(t.ID) })` |
+| 4e | write in a live component's method: `p.editing = false` | `p.PushJS(p.editing.Set(false))`; `p.open = !p.open` → `p.PushJS(uigen.Toggle(ui.JS, p.open))`; anywhere else E0149 |
 | 5 | `@ui.Mount func (p *Index) mount(ctx) error` | `func (p *Index) LiveSchema(l *ui.LiveSchema) { l.Mount(p.mount) }` (compiler may still emit `LiveSchema`) |
 | 5b | `@ui.OnChange` / `@ui.Loads("lists")` / field `@ui.Bind` `@ui.URL("q")` `@ui.Defer("lists")` | the same `l.OnChange(…)`, `l.Loads("lists", …)`, `l.Field(&p.Q, ui.Bind{…}, ui.URL("q"), ui.Defer("lists"))` |
 | 6 | file `pages/pets/[id].vuka.html` | `web.Routes.Get("/pets/{id}", NewIndex, web.PageRoute(), web.LayoutOf[…]())` with `ID` bound from `{id}`; or `web.Routes.Live(…)` when the struct is live |
@@ -311,7 +311,11 @@ API changes — it is today's public API — so an ejected 2.0 app is plain Go.
 | 7b | `<components.Item …>text</…>` and `<slot:actions>…</slot:actions>` | `Children:` and `Actions:` fields of the literal |
 | 8 | handler/hook parameter `f NewTodo`, `id int`, `r *http.Request`, `u auth.User`, `s *Store` | filled by type at the call site; a struct binds the form/JSON, a scalar the event value, the rest from request or container (see §5) |
 
-The three chain examples (4a–4d) are exactly the shapes the client-state
+`uigen` (`github.com/vuka-lang/ui/uigen`) is the one package generated
+code calls that isn't documented API: what `ui.State`'s methods other than
+`Get`/`Set` became (step 3), public so generated code builds with `go
+build`, reported by `vukavet` when written by hand (W0105). The chain
+examples (4a–4d) are exactly the shapes the client-state
 doc already lowers; one-way only changes the *source spelling* from method
 calls (`open.Toggle()`) to assignments (`open = !open`) inside `on…`.
 
@@ -669,7 +673,7 @@ moves the module paths.
 |---|---|---|
 | 1 | **This RFC.** | — |
 | 2 | **The `.vuka.html` file shape**: the Go header up to the first line starting with `<`; the one-struct rule (none, or more than one, is an error at file:line); field classification (exported = prop, unexported = server state, `ui.State[T]` = browser state); live-vs-static detection; header + markup lowered to the Go today's pipeline produces for a struct with its template. The struct-first split and multi-template files still compile. | golden `.vuka.html` → generated Go for each rule; error goldens for no struct, two structs, a header with no markup. |
-| 3 | **Client state**: `ui.State[T]` reduced to `Get`/`Set`; plain-variable reads in markup; assignments in `on…` lowered to the chain (4a–4d); `p.x = v` on a state in a method lowered to `PushJS` (4e); server-state fields lowered to `ui.Assign` (§3). | lowering goldens per chain shape; a coherence test that the emitted chain equals the method-built one; live verification on auto-Assign pages, including ones reading `ctx`. |
+| 3 | **Client state**: `ui.State[T]` reduced to `Get`/`Set`; plain-variable reads in markup; assignments in `on…` lowered to the chain (4a–4d); `p.x = v` on a state in a method lowered to `PushJS` (4e); server-state fields lowered to `uigen.Assign` (§3). | lowering goldens per chain shape; a coherence test that the emitted chain equals the method-built one; live verification on auto-Assign pages, including ones reading `ctx`. |
 | 4 | **Hooks decorator-only**: `@ui.Mount`, `@ui.OnChange`, `@ui.Loads`, `@ui.Bind`, `@ui.URL`, `@ui.Defer` as the only forms in a `.vuka.html` header. | lowering to `LiveSchema` unchanged; error goldens for a by-name `Mount`/`Changed` and a constructor hook (did-you-mean `@ui.Mount`). |
 | 5 | **Folder routing**: `[id]` files, `[id]/` folders, `[path...]`, type and `validate:` from the struct's field, `_layout.vuka.html`, `api/` method funcs. | `vuka routes` goldens; 404 on a bad segment; layout order and `Load`; E07xx conflicts. |
 | 6 | **Typed parameter injection** for hooks and handlers (§5); unfillable parameter = startup error with file, line and type. | a test per source (ctx, struct, `url.Values`, scalar, `*http.Request`, `auth.User`, provided type); unfillable-parameter errors; `validate:` on every transport. |

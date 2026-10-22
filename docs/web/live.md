@@ -6,7 +6,7 @@ elements' events over a WebSocket; the page changes in place, with no
 JavaScript to write. [ui](/ui/) gives the component model, the
 [session](/ui/live) and the [protocol](/reference/live-protocol); web gives
 the transport, the browser runtime and the routes. Props, state, events,
-messages and `ui.Assign` are on [Stateful components](/ui/stateful).
+messages and change tracking are on [Stateful components](/ui/stateful).
 
 ::: vuka
 ```vuka
