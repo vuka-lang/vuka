@@ -1,0 +1,86 @@
+package pages
+
+import (
+    "context"
+    "time"
+    "example.com/app/components"
+    "github.com/vuka-lang/ui/v2"
+    Week "./islands/Week.vue"
+    Chart "./islands/Chart.tsx"
+    JSX "./islands/Widget.jsx"
+    Panel "./islands/Panel.svelte"
+    Vanilla "./islands/Vanilla.ts"
+    Script "./islands/Script.js"
+)
+
+type Index struct {
+    ui.Live
+    Q string @ui.Bind{Debounce: 500 * time.Millisecond} @ui.URL("q")
+    Days []string @ui.Defer("g")
+    editing ui.State[bool]
+    tab ui.State[string]
+    open ui.State[bool]
+    rows []Todo
+}
+
+@ui.Mount
+func (p *Index) mount(ctx context.Context) error {
+    ch := make(chan int, 1)
+    go func() { ch <- 1 }()
+    <-ch
+    if p.Q < "z" {
+        p.Q = "ready"
+    }
+    raw := `
+<div>not markup</div>
+`
+    _ = raw
+    // <aside>not a boundary</aside>
+    /*
+<section>not a boundary either</section>
+    */
+    return nil
+}
+
+@ui.OnChange
+func (p *Index) changed(ctx context.Context, c ui.Changed) error {
+    return nil
+}
+
+@ui.Loads("g")
+func (p *Index) load(ctx context.Context) error {
+    return nil
+}
+
+func (p *Index) Save() {
+    p.Q = "saved"
+}
+<main class:active={editing} style:color={Q}>
+  <input bind:value={Q} />
+  <button onClick={editing = !editing}>Edit</button>
+  <button onClick={tab = "env"; open = false}>Environment</button>
+  <button onClick={open = false; Save()}>Save</button>
+  if editing {
+    <p>{Q}</p>
+  } else {
+    <p>Read only</p>
+  }
+  for _, t := range rows {
+    <components.Item key={t.ID} todo={t}/>
+  }
+  <Week days={Days} client:visible />
+  <Chart client:load />
+  <JSX client:idle />
+  <Panel client:only />
+  <Vanilla client:media={"(min-width: 800px)"} />
+  <Script client:load />
+  <components.Card>
+    <slot:actions><button>Action</button></slot:actions>
+  </components.Card>
+</main>
+<style scoped>
+.active { color: red; }
+</style>
+<script lang="ts">
+const label: string = "ready"
+</script>

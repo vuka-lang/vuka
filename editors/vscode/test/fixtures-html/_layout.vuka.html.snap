@@ -1,0 +1,39 @@
+1:
+  "package" text.html.vuka meta.embedded.block.go source.go keyword.other.package.go
+  "pages" text.html.vuka meta.embedded.block.go source.go entity.name.type.package.go
+2:
+
+3:
+  "import" text.html.vuka meta.embedded.block.go source.go keyword.control.import.go
+  "\"github.com/vuka-lang/ui/v2\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+4:
+
+5:
+  "type" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka keyword.type.go
+  "Layout" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.go
+  "struct" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka keyword.struct.go
+  "{" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+6:
+  "Children" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka variable.other.field.vuka
+  "ui" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.package.go
+  "." text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.other.period.go
+  "Node" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.vuka
+7:
+  "}" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.end.bracket.curly.go
+8:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "html" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "body" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "{" text.html.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "Children" text.html.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "body" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "html" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+9:
