@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/token"
@@ -29,9 +30,10 @@ Grow an app vuka new made.
   module     modules/<name>/: a model, a service, a page (or API routes), a
              test, a migration making its table, and main.vuka's import of
              it. The name is a plural noun in lower case: notes, invoices.
-  service    a @web.Service in services/ (or the module's package; m/Name
-             is short for Name --module m), with a static New and a test: a
-             dependency pages and routes take as a parameter or field.
+  service    a service in services/ (or the module's package; m/Name is
+             short for Name --module m), with its constructor NewName and a
+             test, registered in main.vuka's services with app.Service: a
+             dependency pages, routes and hooks take as a parameter.
   component  a stateless component taking a props struct, in components/
              (or the module's package).
   island     a client component in the island frontend (web/islands/ by
@@ -180,6 +182,10 @@ func addModule(root, modPath, name string) ([]string, error) {
 	if err != nil {
 		return nil, err
 	}
+	registered, serviced, err := registerService(registered, modPath, modPath+"/modules/"+name, name, "New"+spec.Service)
+	if err != nil {
+		return nil, err
+	}
 	if _, err := writeFiles(root, out); err != nil {
 		return nil, err
 	}
@@ -191,7 +197,10 @@ func addModule(root, modPath, name string) ([]string, error) {
 		written = append(written, f)
 	}
 	slices.Sort(written)
-	return append(written, "main.vuka (imports the module)"), nil
+	if !serviced {
+		return append(written, fmt.Sprintf("main.vuka (imports the module; register its service: app.Service(%s.New%s))", name, spec.Service)), nil
+	}
+	return append(written, "main.vuka (imports the module, registers its service)"), nil
 }
 
 func exists(root string, elem ...string) bool {
@@ -236,8 +245,41 @@ func migrations(dir string) (int, string, error) {
 	return high, last, nil
 }
 
+// registerService registers ctor, a constructor of the package pkg (named
+// name), in main.vuka: the package imported by name and
+// app.Service(name.ctor) added to the app's services function. It reports
+// false, src unchanged, when main.vuka has no services function, as an app
+// made before it may not.
+func registerService(src []byte, modPath, pkg, name, ctor string) ([]byte, bool, error) {
+	fn := regexp.MustCompile(`(?m)^func services\(app \*web\.App\) \{\n`).FindIndex(src)
+	if fn == nil {
+		return src, false, nil
+	}
+	call := "app.Service(" + name + "." + ctor + ")"
+	if bytes.Contains(src, []byte(call)) {
+		return src, true, nil
+	}
+	end := bytes.Index(src[fn[1]-1:], []byte("\n}")) + fn[1] - 1
+	out := slices.Concat(src[:end], []byte("\n\t"+call), src[end:])
+	block := regexp.MustCompile(`(?s)\nimport \(\n(.*?)\n\)`).FindSubmatchIndex(out)
+	if block == nil {
+		return nil, false, errors.New("main.vuka has no import ( … ) block to import the service's package in")
+	}
+	imports := string(out[block[2]:block[3]])
+	quoted := strconv.Quote(pkg)
+	switch {
+	case strings.Contains(imports, "_ "+quoted):
+		imports = strings.Replace(imports, "_ "+quoted, quoted, 1)
+	case !strings.Contains(imports, quoted):
+		imports += "\n\t" + quoted
+	}
+	out = slices.Concat(out[:block[2]], []byte(imports), out[block[3]:])
+	b, err := formatSource("main.vuka", out, modPath)
+	return b, err == nil, err
+}
+
 // registerImport adds a blank import of pkg to main.vuka's import block,
-// so the module's routes, pages and services are declared.
+// so the module's routes and pages are declared.
 func registerImport(src []byte, modPath, pkg string) ([]byte, error) {
 	block := regexp.MustCompile(`(?s)\nimport \(\n(.*?)\n\)`).FindSubmatchIndex(src)
 	if block == nil {

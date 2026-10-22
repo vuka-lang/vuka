@@ -134,8 +134,8 @@ func TestLibraryExample(t *testing.T) {
 }
 
 // registrations are the calls of file whose text starts with prefix
-// (web.Routes., ui.HTML(, the prefix cut: Get("/x", X,
-// web.Params("id")). app.Run isn't one.
+// (web.Routes., ui.HTML(, the prefix cut: Get("/x/{id}", X, web.Use(mw))).
+// app.Run isn't one.
 func registrations(t *testing.T, file, prefix string) []string {
 	t.Helper()
 	src, err := os.ReadFile(file)
