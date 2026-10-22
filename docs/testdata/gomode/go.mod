@@ -1,4 +1,4 @@
-// The Go samples of the docs (::: go blocks) are checked as packages of this
+// The ordinary Go samples of the docs are checked as packages of this
 // module, against the libraries at main and this repository's vuka.
 module docsamples
 

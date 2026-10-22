@@ -51,18 +51,15 @@ vuka upgrade v1.1.0     # or a chosen one
 vuka upgrade -n         # say what it would do, change nothing
 ```
 
-::: go
 In a Go app with the command as a tool of the module, it is
 `go tool vuka upgrade`; or `go get` vuka, ui and web at one version
 (`go get github.com/vuka-lang/vuka@v1.1.0 github.com/vuka-lang/ui@v1.1.0 github.com/vuka-lang/web@v1.1.0`)
 and run `go vet -vettool=$(go tool -n vukavet) ./...` and `go test ./...`.
-:::
 
 `vuka upgrade` moves the app's go.mod to the set (`go get` of vuka, ui and
 web, and — to the command's own set — of the orm, at the version its new
 apps use, when the app requires an older one; it never runs `go mod tidy`,
-which would drop requirements only `.vuka` files use), runs the `vuka fix`
-rewrites registered for the releases in between, then `vuka vet ./...` and
+which would drop requirements only `.vuka` files use), then runs `vuka vet ./...` and
 `vuka test ./...`, and prints a summary.
 The go.mod and go.sum it started from are kept in `.vuka/upgrade/`, so an
 upgrade you don't want is undone with:
@@ -82,7 +79,7 @@ a release can be used the hour it is tagged.
 - **Security fixes ship at once**, as a patch release outside the weekly
   train.
 - **Minor releases** (v1.1.0) carry features. Each is announced with
-  upgrade notes: what changed, what to do, and what `vuka fix` does for you.
+  upgrade notes: what changed, what to do, and the required source changes.
 
 Every release has a section in [Releases](/releases), written for app
 authors.
@@ -96,7 +93,7 @@ and orm, the `.vuka` and `.vuka.html` languages, the browser API, the
 command's subcommands and flags, diagnostic codes and the generated-code
 contract. A deprecated name keeps working, with a `vuka vet` warning naming
 its replacement; a breaking change waits for a major version, with a
-`vuka fix` rewrite and a before/after example.
+documented source change and a before/after example.
 
 [The compatibility promise](/project/compatibility) says exactly what is
 covered, what a release may still change, and what is not covered.
@@ -104,7 +101,7 @@ covered, what a release may still change, and what is not covered.
 ### Before 1.0
 
 From v0.50.0 to v1.0.0, a minor release could change what the promise
-covers, after a deprecation of one minor release, with a `vuka fix` rewrite
+covers, after a deprecation of one minor release, with a documented source change
 that `vuka upgrade` ran and a before/after example in the release note.
 v1.0.0 made the last such changes; [Releases](/releases) lists them
 and what `vuka upgrade` does about each.

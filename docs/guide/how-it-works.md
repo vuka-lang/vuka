@@ -1,27 +1,5 @@
 # How it works
 
-::: go
-A Go app has nothing to transpile: it calls web, ui and the ORM directly,
-and they do at run time what a `.vuka` file's syntax says.
-
-- **Registrations run at init.** `web.Routes.Get(…)` in a package's `init`
-  records the route; `web.New` gives each app a copy, and `app.Get(…)` adds
-  to that app alone. `Build` (or `Run`) checks every route, page and
-  dependency before serving.
-- **Markup parses once.** `ui.HTML` reads its HTML the first time it
-  runs, keeps the static parts, and builds the same render tree JSX does, so
-  a live page diffs and patches it the same way. A `.vuka.html` template is
-  compiled to these calls by the `vuka` command (`vuka gen` writes them out
-  as `x_html.go`).
-- **Schemas run once.** The ORM calls a model's `Schema` on a zero value the
-  first time it maps the model, and keeps what it declared.
-- **Generated code is a speed-up.** `go generate` writes the ORM's typed
-  fields and row scanners into `*_gen.go` files registered at init; without
-  them queries take strings and rows are read by reflection.
-
-The rest of this page is how the `vuka` command turns a `.vuka` file into
-that same Go.
-:::
 
 ## Go does the heavy lifting
 
@@ -49,7 +27,6 @@ before Go sees the code.
 
 ## See it for yourself
 
-::: vuka
 ```sh
 vuka explain main.vuka
 ```
@@ -61,7 +38,6 @@ main.vuka:28
 ```
 
 `vuka explain -full` prints the whole generated file.
-:::
 
 <!-- go:context
 type User struct{ ID int }
@@ -69,25 +45,6 @@ type User struct{ ID int }
 func find(id int) vuka.Result[User] { return vuka.Ok(User{ID: id}) }
 -->
 
-::: go
-`vuka explain main.vuka` shows each Vuka construct beside the Go it becomes,
-and `vuka explain -full` the whole file. What comes out is the Go a person
-writes against the same API — `id := strconv.Atoi(arg)?` in a function
-returning `Result[User]` is:
-
-```go
-func lookup(arg string) vuka.Result[User] {
-	id, err := strconv.Atoi(arg)
-	if err != nil {
-		return vuka.Err[User](err)
-	}
-	return find(id)
-}
-```
-
-with the transpiler's own name for `err`, and a `//line` directive pointing
-at the `.vuka` line.
-:::
 
 ## The build module
 
@@ -107,4 +64,4 @@ and `vuka gen -check` fails in CI when it is out of date.
 
 Because Go's syntax reaches Go's own parser, new Go features work in Vuka without
 a Vuka release. If Go adds a native equivalent of a Vuka feature, Vuka can lower
-to it and `vuka fix` can move code across.
+to it.

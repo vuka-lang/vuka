@@ -1,115 +1,51 @@
 # Live components
 
-A [stateful component](/ui/stateful) — a struct
-embedding `ui.Live` — keeps its state on the server and answers its
+A [stateful shape](/ui/stateful) keeps its state on the server and answers its
 elements' events over a WebSocket; the page changes in place, with no
 JavaScript to write. [ui](/ui/) gives the component model, the
 [session](/ui/live) and the [protocol](/reference/live-protocol); web gives
 the transport, the browser runtime and the routes. Props, state, events,
 messages and change tracking are on [Stateful components](/ui/stateful).
 
-::: vuka
-```vuka
-@web.Live("/counter")
+Save the counter as `pages/counter.vuka.html`:
+
+```html
+package pages
+
+import (
+    "context"
+    "github.com/vuka-lang/ui"
+)
+
 type Counter struct {
-	ui.Live
-	Start int // ?start=3
-	n     int
+    Start int
+    n int
 }
 
 @ui.Mount
 func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
 
-func (c *Counter) Inc() { c.n++ }
-
-func (c *Counter) Render() ui.Node {
-	return <div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>
-}
+func (c *Counter) Increment() { c.n++ }
+<div><output>{n}</output><button onClick={Increment}>+</button></div>
 ```
-:::
-
-::: go
-```go
-type Counter struct {
-	ui.Live
-	Start int // ?start=3
-	n     int
-}
-
-func NewCounter() *Counter { return &Counter{} }
-
-// What the compiler writes from the attributes.
-func (c *Counter) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
-
-func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
-
-func (c *Counter) Inc() { c.n++ }
-
-func (c *Counter) Render() ui.Node {
-	return ui.HTML(`<div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>`, c.n, c.Inc)
-}
-
-func init() {
-	web.Routes.Live("/counter", NewCounter)
-}
-```
-:::
-
-`Render` can also be a template file beside the type: `counter.vuka.html`
-holds the markup, reading `{n}` and `onClick={Inc}` by bare name, and the
-`vuka` command compiles it into the same method. See
-[Templates](/ui/templates).
 
 ## How a page becomes live
 
-Two ways, one mechanism:
+A shape becomes live when it embeds ui.Live, declares a decorated hook or
+wires a server method in an event attribute. A static page containing a live
+child participates in the live transport as well. Browser-only JS commands
+and ui.State assignments do not create a server session by themselves.
 
-- <span class="vuka-only">**`@web.Live(path, opts…)`** on a stateful component</span><span class="go-only">**`web.Routes.Live(path, NewX, opts…)`**, in an `init`, with the component's constructor,</span> serves it as a GET
-  page. Its exported fields of provided types are injected; the others that
-  hold text bind from the path segment or query parameter of their name
-  (`form` tag, else the field name, ignoring case). The page is the component
-  inside a layout — `func(page ui.Node) ui.Node`:
+Pages live under pages/, generated route.go registers them, and main passes
+`pages.Routes()` to `web.New`. Exported props bind path and query values;
+unexported provided dependencies are injected and other unexported fields are
+tracked server state. Folder `_layout.vuka.html` files supply the document and
+nested layouts, with middleware and guards from the same tree.
 
-  | | |
-  |---|---|
-  | `web.Layout(f)` | this page's layout (an option of <span class="vuka-only">`@web.Live`</span><span class="go-only">`web.Routes.Live`</span>) |
-  | `web.LiveLayout(f)` | the app's, for every live page without its own |
-  | neither | a bare HTML document |
-  | `web.Use(mw…)` | middleware for this page (an option of <span class="vuka-only">`@web.Live`</span><span class="go-only">`web.Routes.Live`</span>) |
-
-  <span class="vuka-only">From Go: `web.Routes.Live("/counter", NewCounter)`, or</span><span class="go-only">On one app:</span> `app.Live("/counter", NewCounter)`, the constructor building
-  each page's component (`&Counter{Start: 1}`, a value whose fields are the
-  defaults, works too).
-
-  Once mounted, the page owns its exported fields: what its handlers, hooks
-  and `bind:` fields set stays set, and the browser shows it — a handler
-  clearing a bound field clears the input. A [patch](/web/navigation) sets
-  again only the fields its URL binds, before its `Update` runs
-  ([whose fields](/ui/stateful#whose-fields)).
-
-- **Any GET route** whose page — a `ui.Node` result or a templ view —
-  renders a stateful component or an event handler is live by itself:
-
-  ::: vuka
-  ```vuka
-  @web.Get("/")
-  func Home() ui.Node { return <Shell title="Home"><Counter start={10} /></Shell> }
-  ```
-  :::
-
-  ::: go
-  ```go
-  func Home() ui.Node {
-  	counter := &Counter{Start: 10}
-  	return ui.HTML(`<main><h1>Home</h1>{counter}</main>`, counter)
-  }
-
-  func init() { web.Routes.Get("/", Home) }
-  ```
-  :::
-
-  A Vuka component rendered from a templ view is live too (templ passes the
-  context on). `html/template` views and JSON are never live.
+Once mounted, a routed page owns its fields: values changed by handlers, hooks,
+updates and bound fields stay changed. A URL patch rebinds only URL fields
+before its update handler. A child component's props instead come from its
+parent on each render. See [field ownership](/ui/stateful#whose-fields).
 
 The first, HTTP render is complete HTML, and before `</body>` goes
 `<script src="/_vuka/live.js" data-vk-token="…" defer>`. The script opens
@@ -136,49 +72,43 @@ join mounts fresh, exactly as a reconnect does: adoption is an
 optimization, and no page may depend on it. `web.LiveAdopt(0)` turns it
 off.
 
-The route's handler runs once per connection: its result is the page, and
-the page is rendered again after every event. State belongs in the
-components.
+The route constructs the connection's page, which is rendered again after
+every event. State belongs in its components, not transient route logic.
 
 ### Side effects in a live page's handler
 
 One visit runs the page's route twice — the GET, then the join — and again
 on each reconnect; the join adopting the GET's session skips the mount hook, never
-the route. So what the handler does besides building the page, sending a
-welcome email or counting a visit, would happen each time.
+the route. Side effects in request-time constructors or layout loading can therefore
+happen more than once. A mount hook may also run again when adoption is not
+possible; it is not a durable exactly-once transaction.
 `web.IsLiveJoin(ctx)` is true only on the join's run, so the side effect
 happens once:
 
-::: vuka
-```vuka
-@web.Get("/welcome")
-func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error) {
-	if !web.IsLiveJoin(ctx) {
-		stats.Visit("/welcome")
-		if err := m.Send(ctx, welcomeMail); err != nil {
-			return nil, err
-		}
-	}
-	return <WelcomePage />, nil
-}
-```
-:::
+A shape's mount hook can distinguish an initial view from a fresh join.
+Keep Stats and NewStats in a services logic package and register the constructor
+with app.Service before starting the app. In `pages/welcome.vuka.html`:
 
-::: go
-```go
-func Welcome(ctx context.Context, m *mail.Mailer, stats *Stats) (ui.Node, error) {
-	if !web.IsLiveJoin(ctx) {
-		stats.Visit("/welcome")
-		if err := m.Send(ctx, welcomeMail); err != nil {
-			return nil, err
-		}
-	}
-	return WelcomePage{}, nil
-}
+```html
+package pages
 
-func init() { web.Routes.Get("/welcome", Welcome) }
+import (
+    "context"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/web"
+)
+
+type Welcome struct{}
+
+@ui.Mount
+func (p *Welcome) mount(ctx context.Context, stats *services.Stats) error {
+    if !web.IsLiveJoin(ctx) { stats.Visit("/welcome") }
+    return nil
+}
+<main><h1>Welcome</h1></main>
 ```
-:::
+
 
 | | `IsLiveJoin` |
 |---|---|
@@ -195,35 +125,6 @@ Moving between pages — a list and its rows' pages, the next page of a
 list — happens over the same connection with `ui.Link`; see
 [Navigation](/web/navigation).
 
-<!-- go:context
-type Item struct {
-	ID   int
-	Text string
-}
-
-type Todo struct {
-	ui.Live
-	items  []Item
-	next   int
-	filter string
-}
-
-type ChatForm struct {
-	Text string `form:"text"`
-}
-
-type ChatLog struct{}
-
-type Stats struct{}
-
-func (s *Stats) Visit(path string) {}
-
-var welcomeMail = mail.Message{}
-
-type WelcomePage struct{}
-
-func (WelcomePage) Render(ctx context.Context, w io.Writer) error { return nil }
--->
 
 ## Events
 
@@ -234,66 +135,48 @@ of a keyboard event, and a submitted form's fields. What a handler receives
 follows its type — nothing, the value, `ui.Event`, `url.Values`, a struct
 bound from the form; see [Events](/ui/stateful#events).
 
-::: vuka
-```vuka
-type NewItem struct {
-	Text string `form:"text"`
-}
+The payload type belongs in a logic file:
 
-func (t *Todo) Add(f NewItem) error {
-	text := strings.TrimSpace(f.Text)
-	if text == "" {
-		return web.BadRequest("write something first")
-	}
-	t.next++
-	t.items = append(t.items, Item{ID: t.next, Text: text})
-	return nil
-}
-
-func (t *Todo) Filter(q string) { t.filter = q }
-
-func (t *Todo) Render() ui.Node {
-	return <section>
-		<form onSubmit={t.Add}>
-			<input name="text" autocomplete="off" />
-			<button>Add</button>
-		</form>
-		<input type="search" value={t.filter} onInput={t.Filter} data-vk-debounce="150" />
-	</section>
-}
-```
-:::
-
-::: go
 ```go
-type NewItem struct {
-	Text string `form:"text"`
+// models/new_item.go
+package models
+
+type NewItem struct { Text string `form:"text" validate:"required"` }
+```
+
+The page declares just its rendering struct, in `pages/todo.vuka.html`:
+
+```html
+package pages
+
+import (
+    "strings"
+    "example.com/app/models"
+    "github.com/vuka-lang/web"
+)
+
+type Todo struct {
+    items []string
+    filter string
 }
 
-func (t *Todo) Add(f NewItem) error {
-	text := strings.TrimSpace(f.Text)
-	if text == "" {
-		return web.BadRequest("write something first")
-	}
-	t.next++
-	t.items = append(t.items, Item{ID: t.next, Text: text})
-	return nil
+func (t *Todo) Add(f models.NewItem) error {
+    text := strings.TrimSpace(f.Text)
+    if text == "" { return web.BadRequest("write something first") }
+    t.items = append(t.items, text)
+    return nil
 }
 
 func (t *Todo) Filter(q string) { t.filter = q }
-
-func (t *Todo) Render() ui.Node {
-	return ui.HTML(`
 <section>
-	<form onSubmit={t.Add}>
-		<input name="text" autocomplete="off">
-		<button>Add</button>
-	</form>
-	<input type="search" value={t.filter} onInput={t.Filter} data-vk-debounce="150">
-</section>`, t.Add, t.filter, t.Filter)
-}
+  <form onSubmit={Add}>
+    <input name="text" autocomplete="off" />
+    <button>Add</button>
+  </form>
+  <input type="search" value={filter} onInput={Filter} data-vk-debounce="150" />
+</section>
 ```
-:::
+
 
 Submits are `preventDefault`ed; so are clicks on links and on buttons of a
 form without a submit handler. A form whose submit handler succeeds is reset
@@ -349,69 +232,59 @@ html[data-vk-state=disconnected] body::before { content: "reconnecting…"; posi
 `web.Broadcast(ctx, topic, msg)` — from an event handler, an `Update`, or any
 request — delivers `msg` to every component subscribed to `topic`
 (`c.Subscribe(topic)` in the mount hook), in every connected page. Each takes it in
-the [`Update`](/ui/stateful#messages) <span class="vuka-only">overload of its type</span><span class="go-only">method named after its type (`UpdateSaid(m Said)`)</span>, and its
+the [`Update`](/ui/stateful#messages) overload of its type, and its
 page gets the patch:
 
-::: vuka
-```vuka
-type Said struct{ Who, Text string }
-type Joined struct{ Who string }
+Message and form DTOs belong in a logic package:
 
-@web.Live("/chat/{room}")
+```go
+// models/chat.go
+package models
+
+type Said struct { Who, Text string }
+type Joined struct { Who string }
+type ChatForm struct { Text string `form:"text" validate:"required"` }
+```
+
+Save the shape as `pages/chat/[room].vuka.html`:
+
+```html
+package chat
+
+import (
+    "context"
+    "example.com/app/models"
+    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/web"
+)
+
 type Chat struct {
-	ui.Live
-	Room  string   // the path segment
-	Log   *ChatLog // injected
-	lines []string
-	name  string
+    ui.Live
+    Room string
+    lines []string
+    name string
 }
 
 @ui.Mount
-func (c *Chat) mount(ctx context.Context) error { c.Subscribe("chat:" + c.Room); return nil }
-
-func (c *Chat) Update(m Said)   { c.lines = append(c.lines, m.Who+": "+m.Text) }
-func (c *Chat) Update(j Joined) { c.lines = append(c.lines, j.Who+" joined") }
-
-func (c *Chat) Send(ctx context.Context, f ChatForm) error {
-	return web.Broadcast(ctx, "chat:"+c.Room, Said{c.name, f.Text})
+func (c *Chat) mount(ctx context.Context) error {
+    c.Subscribe("chat:" + c.Room)
+    return nil
 }
+
+func (c *Chat) Update(m models.Said) { c.lines = append(c.lines, m.Who+": "+m.Text) }
+func (c *Chat) Update(j models.Joined) { c.lines = append(c.lines, j.Who+" joined") }
+
+func (c *Chat) Send(ctx context.Context, f models.ChatForm) error {
+    return web.Broadcast(ctx, "chat:"+c.Room, models.Said{Who: c.name, Text: f.Text})
+}
+<section>
+  for _, line := range lines {
+    <p>{line}</p>
+  }
+  <form onSubmit={Send}><input name="text" /><button>Send</button></form>
+</section>
 ```
-:::
 
-::: go
-```go
-type Said struct{ Who, Text string }
-type Joined struct{ Who string }
-
-type Chat struct {
-	ui.Live
-	Room  string   // the path segment
-	Log   *ChatLog // injected
-	lines []string
-	name  string
-}
-
-func NewChat(log *ChatLog) *Chat { return &Chat{Log: log} }
-
-// What the compiler writes from the attributes.
-func (c *Chat) LiveSchema(l *ui.LiveSchema) { l.Mount(c.mount) }
-
-func (c *Chat) mount(ctx context.Context) error { c.Subscribe("chat:" + c.Room); return nil }
-
-// An Update per message type, named after it: the session calls the one
-// taking the message's type.
-func (c *Chat) UpdateSaid(m Said)     { c.lines = append(c.lines, m.Who+": "+m.Text) }
-func (c *Chat) UpdateJoined(j Joined) { c.lines = append(c.lines, j.Who+" joined") }
-
-func (c *Chat) Send(ctx context.Context, f ChatForm) error {
-	return web.Broadcast(ctx, "chat:"+c.Room, Said{c.name, f.Text})
-}
-
-func init() {
-	web.Routes.Live("/chat/{room}", NewChat)
-}
-```
-:::
 
 A topic of `""` reaches every component. `app.Broadcast(ctx, topic, msg)`
 does the same from outside a request (a worker, a timer). Delivery is
@@ -426,8 +299,82 @@ type Relay interface {
 ```
 
 Each replica's `deliver` is called with what arrives, its own messages
-included; encoding the messages, whose dynamic types pick the <span class="vuka-only">`Update`</span><span class="go-only">`Update<Type>`</span>
+included; encoding the messages, whose dynamic types pick the `Update`
 methods they reach, is the relay's business.
+
+## Streams
+
+A stream of application records can update a connected page through typed
+broadcast messages and tracked server fields. Keep the record's stable ID as
+the key in its markup loop so inserts, deletes and reordering retain the
+corresponding browser/component instances. Replacing the whole slice does
+not require replacing every keyed row's DOM.
+
+Load the initial snapshot in a decorated mount hook, then apply incoming
+messages in Update methods. Define whether a message inserts, replaces or
+removes a record in application logic. Bound the retained collection for long
+feeds, handle duplicate/out-of-order deliveries according to the service's
+contract, and reload a snapshot after reconnect: connection-local memory is
+not a durable stream or replay log. Message DTOs and shared storage remain
+logic types rather than extra rendering structs in the shape.
+
+## Presence
+
+Presence is membership associated with a connection or mounted instance, not
+an inference from the number of initial HTTP renders. Subscribe only after
+authorizing the room/resource; publish application membership updates through
+typed messages and render the membership snapshot from tracked state.
+
+The initial GET and join may adopt one mount or create fresh mounts, and a
+browser can open several tabs. Use the session/instance lifecycle and optional
+Unmount cleanup to release membership; define in the shared service whether
+several connections count as one visitor or several. Reconnect and abnormal
+disconnect require expiry/refresh behavior in that service. Across replicas,
+coordinate presence and messages through the application's shared store/relay.
+The transport's serialized event dispatch does not make external service data
+thread-safe.
+
+## Uploads
+
+Upload files through an HTTP multipart action, not by assuming a live event's
+JSON/form-value payload contains file bytes. Keep file handling in a typed
+HTTP handler (a page's Post method or an endpoint under pages/api) and receive
+`*http.Request` by type. For example, `pages/upload.vuka.html`:
+
+```html
+package pages
+
+import (
+    "context"
+    "net/http"
+    "example.com/app/services"
+    "github.com/vuka-lang/web"
+)
+
+type Upload struct{}
+
+func (p *Upload) Post(ctx context.Context, r *http.Request, files *services.Files) (web.Redirect, error) {
+    file, header, err := r.FormFile("attachment")
+    if err != nil { return "", web.BadRequest("choose an attachment") }
+    defer file.Close()
+    if err := files.Save(ctx, header.Filename, file); err != nil { return "", err }
+    return web.Redirect("/uploads"), nil
+}
+<form method="post" enctype="multipart/form-data">
+  <input type="file" name="attachment" />
+  <button>Upload</button>
+</form>
+```
+
+Files is an application service, registered with app.Service; its Save method
+must validate the file and choose a safe storage name rather than trust the
+submitted filename. Complete copying before request-scoped multipart temporary
+files are released. Apply the normal authentication, CSRF and resource checks.
+`web.MaxRequestBody(n)` bounds requests (32 MiB by default); an over-limit body
+answers 413. Multipart parsing can spill to temporary files, so a memory
+threshold is not a total upload-size limit. A streaming HTTP response likewise
+belongs in an endpoint with a typed response writer; it is not a live render
+patch and must respect cancellation and transport flush behavior.
 
 ## Connections and reconnects
 
@@ -492,7 +439,7 @@ at once when it ends the sign-in itself (`app.CloseLive`), else at its next
 
 **Checks in the mount hook and `Update`.** A page that checks in the mount hook whether
 the visitor may see what its URL names (order `{id}`) makes the same check
-in its `Update` taking `web.URLParams` <span class="go-only">(`UpdateURLParams`)</span>, if it has one: a patch keeps the
+in its `Update` taking `web.URLParams` , if it has one: a patch keeps the
 page mounted and hands the new URL to that `Update`, not to the mount hook. A page
 without such an `Update` mounts again on every patch, so its mount hook sees
 each URL; the browser's asking for a patch doesn't change that. See

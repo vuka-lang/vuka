@@ -32,19 +32,7 @@ func init() {
 The program imports the package, so `orm.Migrate` (and the commands) see
 the migrations:
 
-::: vuka
-```vuka
-import _ "example.com/blog/migrations"
 
-func run(ctx context.Context) error {
-	db := orm.ConnectURL(os.Getenv("DATABASE_URL"))?
-	orm.AddDatabase("main", db, orm.AsDefault())
-	return orm.Migrate(ctx)                // pending migrations, under a lock
-}
-```
-:::
-
-::: go
 ```go
 import (
 	"context"
@@ -64,7 +52,6 @@ func run(ctx context.Context) error {
 	return orm.Migrate(ctx) // pending migrations, under a lock
 }
 ```
-:::
 
 ## The orm command
 

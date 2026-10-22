@@ -1,61 +1,14 @@
 # Stateful components
 
-<!-- go:context
-type Item struct {
-	ID   int
-	Name string
-}
 
-type Todo struct {
-	ui.Live
-	items []Item
-}
-
-func (t *Todo) SetQuery(q string) {}
-func (t *Todo) Remove(id int)     {}
-
-type Counter struct {
-	ui.Live
-	Start int
-	Label string
-	n     int
-}
-
-func (c *Counter) Render() ui.Node { return ui.HTML(`<span>{c.n}</span>`, c.n) }
-
-type Dashboard struct {
-	ui.Live
-	Q    string
-	Rows []Item
-}
-
-func (d *Dashboard) loadLists(ctx context.Context) error                { return nil }
-func (d *Dashboard) changed(ctx context.Context, c ui.Changed) error   { return nil }
-func (d *Dashboard) mount(ctx context.Context) error                    { return nil }
-
-type NewMessage struct{ Text string }
-type Typing struct{ Who string }
-
-type Chat struct {
-	ui.Live
-	Room   string
-	log    []string
-	typing string
-}
-
-var (
-	t  = &Todo{}
-	it Item
-)
--->
-
-A struct embedding `ui.Live`, whose pointer has a `Render() ui.Node` method,
-is a stateful component. Its exported fields are its props, set from the
-tag's attributes; its unexported fields are its state; its methods are its
-event handlers.
+A `.vuka.html` shape is live when it embeds `ui.Live`, declares a decorated
+hook, or wires a server handler in markup. Its exported fields are props,
+unexported fields are tracked server state (or provided dependencies), and
+`ui.State[T]` fields are browser state. The struct, hooks, methods and markup
+live together in one shape file.
 
 ```html
-<!-- counter.vuka.html -->
+// counter.vuka.html
 package app
 
 import (
@@ -77,13 +30,12 @@ func (c *Counter) Inc() { c.n++ }
 <div><span>{n}</span><button onClick={Inc}>+</button></div>
 ```
 
-The tag works in any <span class="vuka-only">JSX</span><span class="go-only">template; in Go, `&Counter{Start: 5}` in a `ui.HTML` hole is the same</span>. Attributes bind to the exported fields by name
-(`start` and `Start` both find `Start`; promoted fields too, but not
-`ui.Live` itself), children go to a `Children ui.Node` field, and `key`
-names the instance among the tags it is rendered with. Naming an unexported
-field is a compile error that says it is state. The compiler checks that
-`*Counter` implements `ui.Stateful`; a struct missing `ui.Live` is told to
-embed it.
+Use `<Counter start={5}/>` in another shape. Attributes bind exported fields
+by name (`start` and `Start` find Start; promoted fields count, but ui.Live
+itself does not). Children fill Children ui.Node, and key identifies the child
+among sibling placements. An attribute naming an unexported field is a compile
+error: server state is not a prop. The compiler supplies the node and live
+interfaces; no render method needs to be authored.
 
 ## Static and live
 
@@ -104,8 +56,8 @@ belong to whoever sets them:
 
 | | exported fields |
 |---|---|
-| a component a tag renders | the parent's: each render of the tag sets them again, so the component changes only its unexported ones (a `bind:` field it sets is written to the tag's value too, until the parent renders the tag with another) |
-| a routed live page (<span class="vuka-only">`@web.Live`</span><span class="go-only">`web.Routes.Live`</span>) | the page's own: built for its URL when it mounts, then changed only by the page — its handlers, hooks, `Update` methods and `bind:` fields — and kept as it changes them, so `p.Reply = ""` in a submit's handler clears the input |
+| a component a tag renders | the parent's: each render of the tag sets them again, so the component changes only its unexported ones (a field marked `@ui.Bind` it sets is written to the tag's value too, until the parent renders the tag with another) |
+| a routed live page (a shape under `pages/`) | the page's own: built for its URL when it mounts, then changed only by the page — its handlers, hooks, `Update` methods and fields marked `@ui.Bind` — and kept as it changes them, so `p.Reply = ""` in a submit's handler clears the input |
 | that page on a [patch](/web/navigation) | the fields its URL binds (path segments and query parameters, as when it mounted) are set from the new URL before its `Update` takes it; the others stay the page's |
 
 In the browser a field shows the server's value when that changes: a field
@@ -115,10 +67,10 @@ what is typed.
 
 | Method | |
 |---|---|
-| `Render() ui.Node` | required; its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
+| Shape markup | its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
 | `@ui.Mount` | optional, once per instance, before its first render; an error fails the render. The method the attribute marks ([Hooks](#hooks)) |
 | `Unmount()` | optional, when the instance is dropped |
-| <span class="vuka-only">`Update(msg T)`</span><span class="go-only">`UpdateT(msg T)`</span> | optional<span class="vuka-only">, overloadable</span>: the messages the session delivers (below) |
+| `Update(msg T)` | optional, overloadable: the messages the session delivers (below) |
 
 `ui.Live` gives the component `ID()` (its instance id, `""` when static),
 `Subscribe(topics...)` (call it in the mount hook), `PushJS(chain)` ([from the
@@ -131,28 +83,23 @@ which hands `payload` to the component's [scripts](/web/assets#scripts)
 
 ## Which instance?
 
-A tag's place in its parent's render: the component rendering it, the keys
+A tag's place in its parent's markup: the component rendering it, the keys
 of the elements around it, the tag itself (each tag in the source is its own
 place), and its `key`, or else how many times that tag has rendered before
-it in this render. So `{if}` around one tag never shifts another's
+it in this render. So `if` around one tag never shifts another's
 instance, a loop without keys pairs instances by position, and a loop with
 keys follows them:
 
-::: vuka
-```vuka
-{for _, it := range t.items {
-	<li key={it.ID}><Counter label={it.Name} /></li>   // or <Counter key={it.ID} … />
-}}
-```
-:::
+Inside a shape's markup root:
 
-::: go
 ```html
-for _, it := range items {
-  <li key={it.ID}><Counter label={it.Name} /></li>   {/* or <Counter key={it.ID} … /> */}
-}
+<ul>
+  for _, it := range items {
+    <li key={it.ID}><Counter label={it.Name} /></li>
+  }
+</ul>
 ```
-:::
+
 
 Two tags in one place with the same key fail the render. Components nest
 freely: a stateful component renders others, each its own instance with its
@@ -195,39 +142,41 @@ check). A handler's error doesn't stop the session: the page renders again
 the message. A chain of [JS commands](/ui/js) runs in the browser instead
 (and calls handlers with `Push`); a `templ.ComponentScript` is still a script.
 
-::: vuka
-```vuka
-type NewItem struct{ Name string `form:"name"` }
+The form DTO belongs in a logic file:
 
-func (t *Todo) Add(ctx context.Context, f NewItem) error {
-	if f.Name == "" {
-		return errors.New("a name, please")
-	}
-	t.items = append(t.items, f.Name)
-	return nil
-}
-
-<form onSubmit={t.Add}><input name="name" onInput={t.SetQuery} /></form>
-```
-:::
-
-::: go
 ```go
-type NewItem struct{ Name string `form:"name"` }
+// forms.go
+package components
 
-func (t *Todo) Add(ctx context.Context, f NewItem) error {
-	if f.Name == "" {
-		return errors.New("a name, please")
-	}
-	t.items = append(t.items, Item{ID: len(t.items) + 1, Name: f.Name})
-	return nil
-}
+type NewItem struct { Name string `form:"name" validate:"required"` }
 ```
+
+Save the rendering component as `todo.vuka.html` in the same package:
 
 ```html
-<form onSubmit={Add}><input name="name" onInput={SetQuery} /></form>
+package components
+
+import "context"
+
+type Todo struct {
+    names []string
+    query string
+}
+
+func (t *Todo) Add(ctx context.Context, f NewItem) error {
+    t.names = append(t.names, f.Name)
+    return nil
+}
+
+func (t *Todo) SetQuery(q string) { t.query = q }
+<section>
+  <form onSubmit={Add}><input name="name" onInput={SetQuery} /><button>Add</button></form>
+  for _, name := range names {
+    <p>{name}</p>
+  }
+</section>
 ```
-:::
+
 
 Under a session each handler renders as `data-vk-on-click="c2:0"`: the
 instance's id and the handler's index in that instance's render. The
@@ -254,7 +203,7 @@ Fields take attributes too: `@ui.Bind` (the component may set it),
 after the first render), and the rules of package `validate`.
 
 ```html
-<!-- dashboard.vuka.html -->
+// dashboard.vuka.html
 package app
 
 import (
@@ -282,25 +231,16 @@ func (d *Dashboard) loadLists(ctx context.Context) error { return nil }
 <input bind:value={Q} />
 ```
 
-A hook may be unexported, and usually is: the browser calls a component's
-exported methods, never its hooks. A method is a hook only when an
-attribute marks it — a method named `Mount` or `Changed` that none marks is
-an error ([E0337](/errors/E0337)), as is a hook declared by a constructor
-on its `ui.Live` ([E0338](/errors/E0338)), the forms of earlier releases;
-`vuka fix hooks` adds the attributes to `Mount`, `Changed` and
-`Load<Group>` methods whose signatures fit.
+A hook may be unexported, and usually is: the browser calls exported event
+methods, not hooks. Only a decorator marks a hook; an ordinary method name
+does not. The signatures in the table are common forms, not positional
+requirements: context, request, signed-in identity, provided services and
+ui.Changed are supplied by type. Hooks return nothing or error.
 
-The compiler writes the attributes into the component's `LiveSchema`
-method, `l.Mount(d.mount)`, `l.Field(&d.Q, ui.Bind{…})`, …. A hook
-returns nothing or an error, its parameters filled by type: a
-`context.Context`, what the app injects (the request, the signed-in user, a
-service), and for `@ui.OnChange` the `ui.Changed` set; the signatures above
-are the common ones. A parameter nothing fills is an error where the hook is
-declared when the app starts. `ui.LiveSchema` is that generated
-code's, not an API to write: `vukavet` reports a hand-written one
-([W0306](/errors/W0306)). A deferred group without a loader
-([E0324](/errors/E0324)) or a hook that doesn't fit ([E0336](/errors/E0336))
-stops the app at start, and `vukavet` reports both.
+An unfillable parameter is a startup error at the method's source location.
+A deferred group without a loader ([E0324](/errors/E0324)) or a malformed hook
+([E0336](/errors/E0336)) also stops startup. Field attributes remain in the
+shape header; the generated hook metadata is compiler output.
 
 ## Messages
 
@@ -308,45 +248,59 @@ A component subscribed to a topic receives what the transport publishes on
 it, through `Update` methods taking it — overloads included, each picked by
 the message's dynamic type:
 
-::: vuka
-```vuka
-@ui.Mount
-func (c *Chat) mount(ctx context.Context) error      { c.Subscribe("room:" + c.Room); return nil }
-func (c *Chat) Update(m NewMessage)                  { c.log = append(c.log, m.Text) }
-func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
-```
-:::
+Declare NewMessage and Typing as data types in a logic file. The shape itself
+holds only its one render struct:
 
-::: go
-```go
-// Its mount hook subscribes, as on the Vuka side.
-func (c *Chat) UpdateNewMessage(m NewMessage)              { c.log = append(c.log, m.Text) }
-func (c *Chat) UpdateTyping(ctx context.Context, t Typing) { c.typing = t.Who }
+```html
+package components
+
+import (
+    "context"
+    "github.com/vuka-lang/ui"
+)
+
+type Chat struct {
+    ui.Live
+    Room string
+    log []string
+    typing string
+}
+
+@ui.Mount
+func (c *Chat) mount(ctx context.Context) error { c.Subscribe("room:" + c.Room); return nil }
+
+func (c *Chat) Update(m NewMessage) { c.log = append(c.log, m.Text) }
+func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
+<section>
+  for _, line := range log {
+    <p>{line}</p>
+  }
+  <small>{typing}</small>
+</section>
 ```
-:::
+
 
 An `Update` takes an optional `context.Context` and the message, and returns
 nothing or an error. One taking the message's type exactly wins over one it
-is assignable to, and those over one taking `any`. <span class="vuka-only">In Go</span><span class="go-only">Each</span> <span class="vuka-only">an overload</span><span class="go-only">such method</span> is
-`Update` followed by the message type's name (`ui.TypeName`: `UpdateOrders`
-for `[]Order`, `UpdateAny` for `any`), what vuka names `.vuka`'s overloads;
-`ui.IsUpdate` tells one, and the browser can't call it.
+is assignable to, and those over one taking `any`. The compiler gives the overloads distinct Go names. Message update methods
+are dispatched by message type, not exposed as browser events.
 
 ## Change tracking
 
 A `.vuka.html` file's struct tracks its server state: each unexported field
-that isn't a `ui.State` or a dependency (a pointer, an interface, a func, a
-chan) — and isn't tagged `` `vuka:"-"` `` — is tracked, its writes marked.
+that isn't a `ui.State` or a provided dependency — and isn't tagged `` `vuka:"-"` `` — is tracked, its writes marked.
 A component whose state fields are all tracked is rendered again only when
 one of them was written or a prop changed: otherwise the session keeps its
-last render, its handlers and the instances it rendered, and calls no
-`Render` — instances inside it still render when their own state changed.
+last render, its handlers and the instances it rendered, and does not evaluate
+its markup — instances inside it still render when their own state changed.
 Props compare by value; a pointer, slice, map, func or interface prop
 (children included) counts as changed unless both are nil.
 
 ```html
-<!-- row.vuka.html -->
+// row.vuka.html
 package app
+
+import "github.com/vuka-lang/ui"
 
 type Row struct {
 	ui.Live
@@ -362,25 +316,38 @@ func (r *Row) Inc() { r.qty++ }
 The field is read and written as any field is — `r.qty++`, `r.rows =
 append(r.rows, x)`, `r.rows[i].Done = true`, `r.employer.Addr.City` in a
 method or `{employer.Label()}` in the markup, `r.employer.Name = x` — and
-the compiler writes it as a `uigen.Assign` of its type, each read a `Get`,
-each write a `Set` or an `Update`; a method with a pointer receiver called
+the compiler records reads and writes for the whole tracked value;
+a method with a pointer receiver called
 as a statement (`r.employer.Rename(x)`) is a write too. Taking a tracked
 field's address, or calling such a method inside an expression, is
 [E0150](/errors/E0150): a change through the pointer wouldn't be seen.
 
-A click in one row of a thousand renders that row only. `Render` must read
+A click in one row of a thousand renders that row only. Markup must read
 nothing but props, tracked fields and `vuka:"-"` fields that don't change
 its output; [verification](/ui/live#verification) catches one that does.
 
-## What it becomes
 
-<!-- go:fragment -->
-```go
-counter := &Counter{Label: it.Name}
-remove := func() { t.Remove(it.ID) }
-li := ui.HTML(`<li>{counter} <button onClick={remove}>x</button></li>`, counter, remove)
-```
+### Selectors and mutable values
 
-The tag is a hole of a `ui.HTML` call, and the hole's place — the call's
-file and line, and the hole — tells the session which tag an instance
-comes from; `ui.Key(k, &Counter{…})` gives it a key.
+A tracked struct field can be read through selectors and methods without
+unwrapping it: `{employer.Addr.City}` and `{employer.Label()}` observe the
+tracked employer value. Writes such as `p.employer.Addr.City = city`,
+`p.rows[i].Done = true` and `p.rows = append(p.rows, row)` mark the enclosing
+tracked field. A pointer-receiver mutator used as a statement, such as
+`p.employer.Rename(name)`, is tracked as a write too.
+
+Do not retain an address into tracked state, mutate through an escaped pointer,
+or call a pointer-receiver mutator inside an expression: the compiler cannot
+observe those writes and reports [E0150](/errors/E0150). Treat a tracked
+container's nested mutation as an update of that value, not independently
+tracked storage for every element. Provided services keep shared application
+state; their private mutations do not automatically write a component field.
+Refresh the component's snapshot when service data changes.
+
+### Browser state and shared state
+
+Browser-only state belongs in ui.State[T] fields. Assign it in event
+attributes (`onClick={open = !open}`) or in live methods. It does not require
+a server re-render for a browser-side change. Shared or durable state belongs
+in services or persistence, not in one component instance. Passing callbacks
+lets a child request a parent update without giving it ownership of parent props.

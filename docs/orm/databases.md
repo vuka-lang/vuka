@@ -64,20 +64,7 @@ A database added this way is used as it is: the program opened it, and
 closes it. To have the ORM open, supervise and close them — with replicas, a
 pool, health checks and a circuit breaker — declare them:
 
-::: vuka
-```vuka
-dbs := orm.OpenDatabases(ctx,
-	orm.Declare("main", os.Getenv("DATABASE_URL"), orm.AsDefault(),
-		orm.Replicas(os.Getenv("REPLICA_URL")),
-		orm.Pool{MaxOpen: 20, MinIdle: 2, Acquire: 2 * time.Second}),
-	orm.Declare("analytics", "postgres://…/analytics?pool_max=5&breaker_failures=3", orm.ReadOnly()),
-	orm.Routers(tenants{}))?
-defer dbs.Close(ctx)
-ctx = orm.WithDatabases(ctx, dbs)
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 dbs, err := orm.OpenDatabases(ctx,
@@ -92,7 +79,6 @@ if err != nil {
 defer dbs.Close(ctx)
 ctx = orm.WithDatabases(ctx, dbs)
 ```
-:::
 
 | `orm.Declare(name, url, …)` option | |
 |---|---|
@@ -131,25 +117,7 @@ A model's database comes from, first to last:
    Mirror: "main"})` — configuration for tables whose models say nothing;
 5. the default.
 
-::: vuka
-```vuka
-type Event struct {
-	orm.Base @orm.Meta{DB: "analytics"}
-	ID   int64
-	Kind string @orm.Char{Max: 50}
-}
 
-type Note struct {
-	orm.Base @orm.Meta{Read: "replica", Write: "main"}
-	ID   int64
-	Text string
-}
-
-eu := Event.Objects.Count(orm.Using(ctx, "analytics_eu"))?   // another database, for this query
-```
-:::
-
-::: go
 ```go
 type Event struct {
 	orm.Model[Event]
@@ -175,30 +143,19 @@ func euEvents(ctx context.Context) (int64, error) {
 	return orm.Objects[Event]().Count(orm.Using(ctx, "analytics_eu"))
 }
 ```
-:::
 
 ### Routers
 
 An `orm.Router` decides per query; embed `orm.BaseRouter` for the methods you
 don't decide. The first router naming a database wins; `""` abstains:
 
-::: vuka
-```vuka
-type tenants struct{ orm.BaseRouter }
 
-func (tenants) ReadDB(ctx context.Context, m orm.ModelInfo) string  { return tenantOf(ctx) }
-func (tenants) WriteDB(ctx context.Context, m orm.ModelInfo) string { return tenantOf(ctx) }
-```
-:::
-
-::: go
 ```go
 type tenants struct{ orm.BaseRouter }
 
 func (tenants) ReadDB(ctx context.Context, m orm.ModelInfo) string  { return tenantOf(ctx) }
 func (tenants) WriteDB(ctx context.Context, m orm.ModelInfo) string { return tenantOf(ctx) }
 ```
-:::
 
 | `orm.Router` method | |
 |---|---|
@@ -224,18 +181,7 @@ it off.
 
 A relation to a model on another database is declared `CrossDB`:
 
-::: vuka
-```vuka
-type Sale struct {
-	orm.Base @orm.Meta{DB: "analytics"}
-	ID      int64
-	Product orm.FK[Product] @orm.Rel{CrossDB: true, Related: "sales"}
-	Amount  int
-}
-```
-:::
 
-::: go
 ```go
 type Sale struct {
 	orm.Model[Sale]
@@ -249,20 +195,19 @@ func (x *Sale) Schema(s *orm.Schema) {
 	s.Field(&x.Product, orm.Rel{CrossDB: true, Related: "sales"})
 }
 ```
-:::
 
 Its key is a plain indexed column with no foreign key constraint.
 `PrefetchRelated`, `Load` and `FK.Get` read the related rows from their own
 database, in batches by key, and filtering by the key reads the column. A
 query that would join it — a filter, an ordering or `SelectRelated` through
-it (<span class="vuka-only">`Sale.Product.Name.Eq(…)`</span><span class="go-only">`SaleFields.Product.Name.Eq(…)`</span>) — is refused before it is sent, naming the
+it (`SaleFields.Product.Name.Eq(…)`) — is refused before it is sent, naming the
 relation. Without `CrossDB`, a relation between models on two databases
 fails `Check`, naming both.
 
 ### Transactions
 
 A transaction spans one database: the one of its first write, or the one
-<span class="vuka-only">`@orm.TxOn("db")`</span><span class="go-only">`orm.TxOn("db")`</span> names. See [Transactions](/orm/transactions#which-database).
+`orm.TxOn("db")` names. See [Transactions](/orm/transactions#which-database).
 
 ### Mirrors
 
@@ -272,22 +217,7 @@ switch.
 
 ## Raw SQL
 
-::: vuka
-```vuka
-type Sale struct {
-	Day   time.Time
-	Total int64
-	Note  Option[string]  // NULL → None; a pointer works too
-}
 
-sales := orm.Raw[Sale](ctx, "SELECT day, SUM(total) AS total, NULL AS note FROM sales WHERE day > ? GROUP BY day", since, orm.On("analytics"))?
-n := orm.RawRow[int64](ctx, "SELECT COUNT(*) FROM sales", orm.On("analytics"))?   // NotFound for no row
-orm.Exec(ctx, "DELETE FROM sales WHERE day < ?", cutoff, orm.On("analytics"))?
-posts := Post.Objects.Raw("SELECT * FROM posts WHERE views > ?", 10).All(ctx)?   // the model's read database
-```
-:::
-
-::: go
 ```go
 type DaySale struct {
 	Day   time.Time
@@ -311,14 +241,13 @@ if _, err := orm.Exec(ctx, "DELETE FROM sales WHERE day < ?", cutoff, orm.On("an
 }
 posts, err := orm.Objects[Post]().Raw("SELECT * FROM posts WHERE views > ?", 10).All(ctx) // the model's read database
 ```
-:::
 
 | | |
 |---|---|
 | `orm.Raw[R](ctx, sql, args…)` | rows into structs (or scalars) |
 | `orm.RawRow[R](ctx, sql, args…)` | one row; `orm.NotFound` when there is none |
 | `orm.Exec(ctx, sql, args…)` | a statement; the rows affected |
-| <span class="vuka-only">`Post.Objects.Raw(sql, args…).All(ctx)`</span><span class="go-only">`orm.Objects[Post]().Raw(sql, args…).All(ctx)`</span> | a model's rows |
+| `orm.Objects[Post]().Raw(sql, args…).All(ctx)` | a model's rows |
 
 Columns fill struct fields by `db` tag, column or name; a column the struct
 has no field for is an error unless `orm.Loose()` is among the arguments.
@@ -333,19 +262,7 @@ observers apply as to any query.
 A struct embedding `orm.Conn`, named for a database, is a handle on it —
 injected by type in a web app:
 
-::: vuka
-```vuka
-@orm.Database("analytics")
-type Analytics struct{ orm.Conn }
 
-@web.Get("/report")
-func Report(ctx context.Context, a *Analytics) Result[[]Sale] {
-	return vuka.Of(orm.Raw[Sale](a.With(ctx), "SELECT day, SUM(total) AS total FROM sales GROUP BY day"))
-}
-```
-:::
-
-::: go
 ```go
 type Analytics struct{ orm.Conn }
 
@@ -355,10 +272,8 @@ func Report(ctx context.Context, a *Analytics) ([]DaySale, error) {
 
 func init() {
 	orm.Database("analytics")(vuka.TypeFor[Analytics](nil))
-	web.Routes.Get("/report", Report)
 }
 ```
-:::
 
 A `Conn` is a `context.Context` too (background, carrying its database), so
 `orm.Raw[R](a, …)` works; `a.With(ctx)` keeps the request's cancellation,
@@ -434,22 +349,7 @@ program, not declared) gets the ORM's refusal alone.
 `github.com/vuka-lang/orm/ormweb` serves a set of databases in a
 [web](/web/) app. `ormweb.Databases(opts…)` is one `web.Option`:
 
-::: vuka
-```vuka
-func main() {
-	app := web.New(
-		ormweb.Databases(
-			orm.Declare("main", os.Getenv("DATABASE_URL"), orm.AsDefault(), orm.Replicas(os.Getenv("REPLICA_URL"))),
-			orm.Declare("analytics", os.Getenv("ANALYTICS_URL")),
-		).MigrateOnStart(true),
-		web.Use(ormweb.UsingFrom(func(r *http.Request) string { return r.Header.Get("X-Tenant") })),
-	)
-	log.Fatal(app.Run(""))
-}
-```
-:::
 
-::: go
 ```go
 func main() {
 	app := web.New(
@@ -462,7 +362,6 @@ func main() {
 	log.Fatal(app.Run(""))
 }
 ```
-:::
 
 It:
 

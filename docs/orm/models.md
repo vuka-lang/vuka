@@ -1,47 +1,11 @@
 # Models
 
-::: vuka
-A model is a struct embedding `orm.Base`. Its fields are its columns, typed
-[field attributes](/features/fields#field-attributes) say what the columns
-are, and `Post.Objects` is its query.
-:::
 
-::: go
 A model is a struct embedding `orm.Model[T]`. Its fields are its columns, its
 `Schema` method says what the columns are, and `orm.Objects[Post]()` is its
 manager.
-:::
 
-::: vuka
-```vuka
-type User struct {
-	orm.Base
-	ID    int64
-	Name  string @orm.Char{Max: 100, Unique: true}
-	Email string @orm.Char{Max: 200}
-}
 
-type Tag struct {
-	orm.Base
-	ID   int64
-	Name string @orm.Slug{Unique: true}
-}
-
-type Post struct {
-	orm.Base @orm.Meta{Table: "posts", Ordering: []string{"-published"}}
-	ID        int64             @orm.PK
-	Title     string            @orm.Char{Max: 200} @orm.Trigram
-	Slug      string            @orm.Slug{Unique: true}
-	Body      string            @orm.LongText
-	Author    orm.FK[User]      @orm.Rel{OnDelete: orm.Cascade, Related: "posts"}
-	Tags      orm.M2M[Tag]
-	Published Option[time.Time] @orm.Index
-	Views     int               @orm.DefaultTo(0)
-}
-```
-:::
-
-::: go
 ```go
 type User struct {
 	orm.Model[User]
@@ -88,38 +52,15 @@ func (p *Post) Schema(s *orm.Schema) {
 	s.Field(&p.Views, orm.DefaultTo(0))
 }
 ```
-:::
 
 Attributes are Go values, not struct tags: `orm.Char{Max: 200}` is a
 composite literal, type-checked, so a wrong setting is a compile error on
-the attribute.<span class="go-only"> `Schema` names each field by its
+the attribute. `Schema` names each field by its
 address (`&p.Title`), so a renamed field is a compile error too; a field
 with nothing to say isn't listed. The ORM calls `Schema` once, on a zero
-value.</span><span class="vuka-only"> Vuka writes them into the model's
-`Schema` method, the Go form: a field is named by its address, a bare
-attribute is its zero value (`@orm.PK` is `orm.PK{}`), and a type that
-declares `Schema` itself can't have attributes too (E0129).</span>
+value.
 
-::: vuka
-## orm.Base
 
-`orm.Base` is a Vuka model's base; Vuka fills in the type, so `orm.Base` in
-`Post` is `orm.Base[Post]`. It gives the rows their methods:
-
-| | |
-|---|---|
-| `p.Save(ctx)` | inserts a new row (its key filled in), updates a saved one |
-| `p.SaveFields(ctx, Post.Title, …)` | updates only those columns (or names: `"title"`) |
-| `p.Refresh(ctx)` | reads the row again |
-| `p.Delete(ctx)` | deletes it |
-| `p.Load(ctx, Post.Tags, …)` | reads relations into the row |
-| `p.Add(ctx, Post.Tags, rows…)`, `Remove`, `Set` | changes a many-to-many's links |
-
-and a static, `Post.Objects`: the model's [manager](/orm/queries). A
-[static method](/features/statics) names a query:
-:::
-
-::: go
 ## orm.Model
 
 `orm.Model[Post]`, embedded by value, gives the rows their methods:
@@ -135,18 +76,8 @@ and a static, `Post.Objects`: the model's [manager](/orm/queries). A
 
 `orm.Objects[Post]()` is the model's [manager](/orm/queries). A named query
 is a package-level function:
-:::
 
-::: vuka
-```vuka
-// Live is the published posts.
-func Post.Live() orm.QuerySet[Post] { return Post.Objects.Filter(Post.Published.IsNull(false)) }
 
-n := Post.Live().Count(ctx)?
-```
-:::
-
-::: go
 ```go
 // PostLive is the published posts.
 func PostLive() orm.QuerySet[Post] {
@@ -158,11 +89,10 @@ func PostLive() orm.QuerySet[Post] {
 ```go
 n, err := PostLive().Count(ctx)
 ```
-:::
 
 ## Meta
 
-<span class="vuka-only">`@orm.Meta{…}` on the embedded base</span><span class="go-only">`s.Model(orm.Meta{…})` in `Schema`</span> describes the model:
+`s.Model(orm.Meta{…})` in `Schema` describes the model:
 
 | `orm.Meta` field | |
 |---|---|
@@ -174,26 +104,11 @@ n, err := PostLive().Count(ctx)
 | `Mirror` | a database its writes are repeated on |
 | `Unmanaged` | the database's own table: never created or migrated |
 
-A `Meta() orm.Meta` method works too, and wins. <span class="vuka-only">`@orm.Meta{…} @orm.Entity` on
-the type itself is the other spelling; the `orm.Entity` type decorator also
-registers the model at start-up, so `orm.Check` and the migration commands
-know it without `orm generate`:</span><span class="go-only">`orm.Register[Entry]()` at
+A `Meta() orm.Meta` method works too, and wins. `orm.Register[Entry]()` at
 init registers a model at start-up, so `orm.Check` and the migration commands
-know it without `orm generate`:</span>
+know it without `orm generate`:
 
-::: vuka
-```vuka
-@orm.Meta{Table: "audit_entries"}
-@orm.Entity
-type Entry struct {
-	orm.Base
-	ID   int64
-	Note string
-}
-```
-:::
 
-::: go
 ```go
 type Entry struct {
 	orm.Model[Entry]
@@ -205,13 +120,12 @@ func (e *Entry) Schema(s *orm.Schema) { s.Model(orm.Meta{Table: "audit_entries"}
 
 func init() { orm.Register[Entry]() }
 ```
-:::
 
 ## Field attributes
 
-Attributes say what tags say, and win over them.<span class="go-only"> In Go each
+Attributes say what tags say, and win over them. In Go each
 is the value given to `s.Field` after the field's address: `@orm.Char{Max: n}`
-is `orm.Char{Max: n}`, a bare `@orm.Unique` is `orm.Unique{}`.</span>
+is `orm.Char{Max: n}`, a bare `@orm.Unique` is `orm.Unique{}`.
 
 | Attribute | Column |
 |---|---|
@@ -248,17 +162,7 @@ column), `orm.CSV[E]` (a comma-separated list), `orm.Vector`,
 the related row once it is loaded (`SelectRelated`, `PrefetchRelated`,
 `Get`).
 
-::: vuka
-```vuka
-p := Post{Title: "Go generics", Author: orm.FKOf(&ada)}   // from a row
-q := Post{Title: "SQL", Author: orm.FKID[User](7)}         // from a key
 
-author := p.Author.Get(ctx)?        // read once, then held
-name := p.Author.Related().Name     // nil until loaded
-```
-:::
-
-::: go
 <!-- go:fragment -->
 ```go
 p := Post{Title: "Go generics", Author: orm.FKOf(&ada)} // from a row
@@ -270,7 +174,6 @@ if err != nil {
 }
 name := p.Author.Related().Name // nil until loaded
 ```
-:::
 
 | | |
 |---|---|
@@ -285,17 +188,7 @@ Its JSON is the key.
 **`orm.M2M[T]`** is a many-to-many, through a table between
 (`<table>_<field>`, `posts_tags`, or `Rel`'s `Through`):
 
-::: vuka
-```vuka
-p.Tags.Add(ctx, &golang, &tools)?
-tags := p.Tags.All(ctx)?             // the rows held, else read
-p.Tags.Remove(ctx, &tools)?
-p.Tags.Set(ctx, &golang)?            // its only links
-p.Tags.Clear(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 if err := p.Tags.Add(ctx, &golang, &tools); err != nil {
@@ -313,16 +206,14 @@ if err := p.Tags.Set(ctx, &golang); err != nil { // its only links
 }
 return p.Tags.Clear(ctx)
 ```
-:::
 
 `All`, `Add`, `Remove`,
 `Set`, `Clear` (on a saved row; rows or keys), `Rows` and `Loaded` (what
 `PrefetchRelated` loaded).
 
-A model's typed fields go on through them into the related model: <span class="vuka-only">`Post.Author.Name`,
-`Post.Tags.Name`</span><span class="go-only">`PostFields.Author.Name`, `PostFields.Tags.Name`</span>.
+A model's typed fields go on through them into the related model: `PostFields.Author.Name`, `PostFields.Tags.Name`.
 
-<span class="vuka-only">`@orm.Rel`</span><span class="go-only">`orm.Rel`</span> describes a relation:
+`orm.Rel` describes a relation:
 
 | `orm.Rel` field | |
 |---|---|
@@ -345,28 +236,19 @@ var p Post
 
 An `Option[T]` field is a nullable column: `None` is NULL.
 
-::: vuka
-```vuka
-p.Published = Some(time.Now())
-drafts := Post.Objects.Filter(Post.Published.IsNil()).All(ctx)?
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 p.Published = vuka.Some(time.Now())
 drafts, err := orm.Objects[Post]().Filter(PostFields.Published.IsNull(true)).All(ctx)
 ```
-:::
 
-<span class="vuka-only">Its reference is a `vuka.NullableRef`: `IsNil`, `NotNil`, and `Eq`, `Ne`,
-`In`.</span><span class="go-only">Its typed field is an `orm.Field[V]` with `IsNull` for its NULLs.</span>
+Its typed field is an `orm.Field[V]` with `IsNull` for its NULLs.
 
-<span class="go-only">A Go model writes a nullable field as a pointer, `Published *time.Time`
+A Go model writes a nullable field as a pointer, `Published *time.Time`
 (nil is NULL), the usual Go, or as a `vuka.Option[time.Time]`, what a Vuka
 model's `Option[T]` is and what `vuka eject` keeps: the ORM, JSON and an
-island's props read both. `orm generate` writes a row scanner for either.</span>
+island's props read both. `orm generate` writes a row scanner for either.
 
 ## Plain Go
 

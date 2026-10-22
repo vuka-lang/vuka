@@ -107,16 +107,16 @@ messages above, unchanged. A tree separates what a render fixes (statics,
 sent once) from what it computes (dynamics, sent when they change), one tree
 per live instance; the details are at the end.
 
-**The tree.** The compiler knows which parts of a JSX expression are fixed
+**The tree.** The compiler knows which parts of a shape template are fixed
 markup and which are Go expressions. A *frame* is the markup of one piece of
-JSX: its *statics*, the fixed strings, around its *dynamics*, what the
+markup: its *statics*, the fixed strings, around its *dynamics*, what the
 expressions rendered — `len(s) == len(d) + 1`, and the frame's HTML is
 `s[0] + d[0] + s[1] + … + d[n-1] + s[n]`. A dynamic is one of
 
 | JSON | |
 |---|---|
 | `"…"` | markup: text, an attribute (with its leading space and name, `" class=\"on\""`, or `""` when omitted), or anything rendered opaquely (a hand-written `ui.El` tree, a templ component not compiled by the vuka command) |
-| `{"t":id,"s":[…],"d":[…]}` | a nested frame: a JSX value in an `{expr}`, a component tag's children. `t` is its statics' id; `s` the statics themselves, present the first time the connection meets that id and omitted after |
+| `{"t":id,"s":[…],"d":[…]}` | a nested frame: a shape node in an `{expr}`, a component tag's children. `t` is its statics' id; `s` the statics themselves, present the first time the connection meets that id and omitted after |
 | `{"c":[frame,…]}` | a block, `{for}`, `{if}` or `{match}`: one item frame per loop iteration; an `{if}`/`{match}` has zero items or one, whose statics id says which branch |
 | `{"r":id,"v":"…"}` | markup of 64 bytes or more, which the connection keeps under `id` (a space of its own, not the statics'); later the same markup is `{"r":id}` |
 | `{"id":"c3"}` | a stateful component instance: its HTML is that instance's tree's HTML |
@@ -200,82 +200,12 @@ old string. (Tree token patches use no dictionary.)
 
 **An example.** A page rendering a table and a counter:
 
-::: vuka
-```vuka
-type Table struct {
-	ui.Live
-	rows []Row // Row{ID int; Name string; Qty int}
-	sel  int
-}
 
-func (t *Table) Render() ui.Node {
-	return <table>
-		{for _, r := range t.rows {
-			<tr key={r.ID}><td>{r.Name}</td><td>{r.Qty}</td></tr>
-		}}
-		{if t.sel > 0 { <p>row {t.sel}</p> } else { <p>none</p> }}
-	</table>
-}
-
-func (c *Counter) Render() ui.Node {
-	return <span>{c.Label}: {c.n} <button onClick={c.Inc}>+</button></span>
-}
-
-func page(ctx context.Context) ui.Node {
-	return <main><Table /><Counter label="solo" /></main>
-}
-```
-:::
-
-<!-- go:context
-type Row struct {
-	ID   int
-	Name string
-	Qty  int
-}
-
-type Counter struct {
-	ui.Live
-	Label string
-	n     int
-}
-
-func (c *Counter) Inc() { c.n++ }
--->
-
-::: go
-The same page in plain Go renders and diffs the same way:
-
-```go
-type Table struct {
-	ui.Live
-	rows []Row
-	sel  int
-}
-
-func (t *Table) row(r Row) ui.Node {
-	return ui.HTML(`<tr key={r.ID}><td>{r.Name}</td><td>{r.Qty}</td></tr>`, r.ID, r.Name, r.Qty)
-}
-
-func (t *Table) Render() ui.Node {
-	rows := ui.Each(t.rows, t.row)
-	sel := ui.HTML(`<p>none</p>`)
-	if t.sel > 0 {
-		sel = ui.HTML(`<p>row {t.sel}</p>`, t.sel)
-	}
-	return ui.HTML(`<table>{rows}{sel}</table>`, rows, sel)
-}
-
-func (c *Counter) Render() ui.Node {
-	return ui.HTML(`<span>{c.Label}: {c.n} <button onClick={c.Inc}>+</button></span>`, c.Label, c.n, c.Inc)
-}
-
-func page(ctx context.Context) ui.Node {
-	table, counter := &Table{}, &Counter{Label: "solo"}
-	return ui.HTML(`<main>{table}{counter}</main>`, table, counter)
-}
-```
-:::
+The table and counter are separate `.vuka.html` shapes. The table loops over
+records with stable `key={row.ID}` values; the counter has an unexported `n`
+field and an Increment handler. Their parent shape contains the two component
+tags. See [Templates](/ui/templates) and [Stateful components](/ui/stateful)
+for the source form. The protocol below describes the resulting render trees.
 
 The join's reply, with two rows (whitespace added):
 
@@ -355,7 +285,7 @@ statically rendered page carries its commands too.
 
 **On an element.** `data-vk-js-<event>` holds the commands to run when the
 DOM event `<event>` fires (`click`, `input`, `keydown`, `submit`, … — the
-lowercased name after `on` in the JSX attribute), as JSON (HTML-escaped, in
+lowercased name after `on` in the markup attribute), as JSON (HTML-escaped, in
 double quotes like every attribute):
 
 ```html
@@ -424,7 +354,7 @@ skipped `if` takes no branch.
 A target of several parts finds every element any part finds, in document
 order, each once. `focus`, `focus_first`, `scroll_to`, `copy`, a `call`'s
 `to` and a read passed to `call` take the first element a target finds.
-An operation on no element does nothing. `data-vk-ref` comes from the JSX
+An operation on no element does nothing. `data-vk-ref` comes from the shape markup
 attribute `ref="menu"`. In protocol v2 a `data-vk-js-…` attribute is a dynamic
 like any attribute written with an expression: it is sent again only when
 its JSON changes (a push's handler id moving, a value).
@@ -711,4 +641,3 @@ the position kept in the entry's state. Focus, after a navigate: the
 `c0` sets `document.title` and adds the `<head>` children the document lacks
 (compared by their markup; a script is recreated so that it runs). A
 navigate drops the optimistic pushes still waiting, without their hooks.
-

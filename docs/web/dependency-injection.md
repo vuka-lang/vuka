@@ -47,66 +47,44 @@ func (t *Todos) All() []Todo     { return t.rows }
 func (t *Todos) Add(text string) { t.rows = append(t.rows, Todo{text}) }
 -->
 
-::: vuka
-```vuka
-type DB struct{ … }
 
-func OpenDB() *DB { … }
-
-type PetStore struct {
-	db *DB
-}
-
-func NewPetStore(db *DB) *PetStore { return &PetStore{db: db} }
-
-@web.Get("/pets")
-func ListPets(store *PetStore) Result[[]Pet] { return store.All() }
-
-func main() {
-	app := web.New(web.Provide(OpenDB))   // or app.Provide(OpenDB)
-	app.Service(NewPetStore)
-	app.Run("")
-}
-```
-:::
-
-::: go
 ```go
-type DB struct{ url string }
+// main.go (service types and constructors live in logic files)
+package main
 
+import (
+    "log"
+    "example.com/app/pages"
+    "github.com/vuka-lang/web"
+)
+
+type DB struct { url string }
 func OpenDB() *DB { return &DB{url: web.Env("DATABASE_URL", "sqlite:app.db")} }
 
-type PetStore struct {
-	db *DB
-}
-
+type PetStore struct { db *DB }
 func NewPetStore(db *DB) *PetStore { return &PetStore{db: db} }
 
-func ListPets(store *PetStore) ([]Pet, error) { return store.All() }
-
-func init() {
-	web.Routes.Get("/pets", ListPets)
-}
-
 func main() {
-	app := web.New(web.Provide(OpenDB)) // or app.Provide(OpenDB)
-	app.Service(NewPetStore)
-	log.Fatal(app.Run(""))
+    app := web.New(pages.Routes())
+    app.Service(OpenDB)
+    app.Service(NewPetStore)
+    log.Fatal(app.Run(""))
 }
 ```
-:::
+
+The rendering page belongs in a `.vuka.html` shape under pages; it receives
+PetStore as a provided field or a typed hook/handler parameter. It does not
+register its own route or service.
 
 ## Providers
 
 | | |
 |---|---|
-| `app.Service(NewS)` | a service: the struct its constructor, `func(deps…) *S` or `func(deps…) (*S, error)`, builds |
-| `web.Provide(ctors…)`, `app.Provide(ctors…)` | constructors — `func(deps…) T` or `func(deps…) (T, error)` — and ready values (anything that isn't a function) |
-| <span class="vuka-only">`@web.Controller(prefix)`, </span>`web.Routes.Controller(prefix, NewC)`, `app.Controller(prefix, NewC)` | a struct built by its constructor, with [routes](/web/routes#controllers) |
+| `app.Service(NewS)` | a service built by `func(deps…) T` or `func(deps…) (T, error)` |
+| `app.Provide(value)` | an already constructed configuration or resource value; library options can use `web.Provide(value)` |
+| `app.Controller(prefix, NewC)` | an API controller built by its constructor; page rendering still belongs in the page tree |
 
-A constructor's parameters are injected by type.<span class="vuka-only"> A
-`@web.Controller` struct without its own static `New` is built by the one
-Vuka writes, which takes its pointer and interface fields.</span>
+A constructor's parameters are injected by type.
 
 - Every value is a **lazy singleton per app**: built the first time something
   needs it, then shared. Two apps (in tests, say) have their own.
@@ -129,74 +107,76 @@ guard's `Load`, and a middleware's constructor:
 | `url.Values` | the form's fields, as sent |
 | a string, number, bool or `encoding.TextUnmarshaler` | a route: the path segment of its name, else the query parameter; a live handler: the event's value (a keyboard event's key, else the element's value) |
 | `*http.Request`, `http.ResponseWriter` | the request (a live page's: the one it joined with) |
-| `*auth.Identity` (any `web.ParamFrom` type) | the signed-in visitor |
-| a type registered with `app.Service` or `web.Provide` | the container |
+| `auth.User`, or the app's request identity (`web.ParamFrom`) | the signed-in visitor |
+| a service type registered with `app.Service` | the container |
 
-<span class="vuka-only">The compiler records a handler's parameter names, so
-a scalar binds the path segment or query parameter of its name.</span><span class="go-only">A
-handler registered from Go binds its scalars to the path's segments in
-order, the last scalar taking the last segment; it takes the query in a
-struct, whose fields bind by their `form:` names.</span>
+The compiler can read scalar parameter names in a shape header, so path
+segments bind by matching name and query values use the corresponding name.
+For a plain Go API registration whose parameter names are unavailable at
+runtime, scalars map to trailing path segments in order; put query values
+in a form/query struct. Type matching takes priority over positional binding.
+One payload struct is bound and validated; a provided struct is a service,
+not a second request body.
 
-::: vuka
-```vuka
-@ui.Mount
-func (p *Index) mount(ctx context.Context, store *Todos, r *http.Request) error { … }
+Declare form data in a logic file and the page's single rendering struct in
+its shape. In `pages/index.vuka.html`:
 
-func (p *Index) Add(ctx context.Context, f NewTodo, store *Todos) error { … }
-```
-:::
+```html
+package pages
 
-::: go
-```go
+import (
+    "example.com/app/store"
+
+    "context"
+    "net/http"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui"
+)
+
 type Index struct {
-	ui.Live
-	rows []Todo
+    rows []models.Todo
 }
 
-func (p *Index) LiveSchema(l *ui.LiveSchema) { l.Mount(p.mount) }
-
-func (p *Index) mount(ctx context.Context, store *Todos, r *http.Request) error {
-	p.rows = store.All()
-	return nil
+@ui.Mount
+func (p *Index) mount(ctx context.Context, store *services.Todos, r *http.Request) error {
+    p.rows = store.All()
+    return nil
 }
 
-func (p *Index) Add(ctx context.Context, f NewTodo, store *Todos) error {
-	store.Add(f.Text)
-	p.rows = store.All()
-	return nil
+func (p *Index) Add(ctx context.Context, f models.NewTodo, store *services.Todos) error {
+    store.Add(f.Text)
+    p.rows = store.All()
+    return nil
 }
-
-func (p *Index) Render() ui.Node { return ui.HTML(`<p>todo</p>`) }
+<section>
+  <form onSubmit={Add}><input name="text" /><button>Add</button></form>
+  for _, row := range rows {
+    <p>{row.Text}</p>
+  }
+</section>
 ```
-:::
 
-A live page's exported methods are its event handlers: one taking two
-values (`p.Toggle(id, done)`, called from a closure) is no event, and only a
-service it takes that nothing provides is reported for it.
+A live page's exported methods are callable event methods. A closure can
+capture ordinary arguments (for example an ID and a bool); those values are
+not extra independent event payloads. Provided parameters are still checked
+even on methods whose direct payload signature is not an event signature.
+An unfillable parameter is reported with its method, source file, line and type.
 
 ## Lifecycle
 
 A provided value with a `Start` or `Stop` method takes part in the app's
 life:
 
-::: vuka
-```vuka
-func (db *DB) Start(ctx context.Context) error { return db.Ping(ctx) }
-func (db *DB) Stop(ctx context.Context) error  { return db.Close() }
-```
-:::
 
-::: go
 ```go
 func (db *DB) Start(ctx context.Context) error { return db.Ping(ctx) }
 func (db *DB) Stop(ctx context.Context) error  { return db.Close() }
 ```
-:::
 
 `app.Start` (and `Run`) builds what the routes need, then runs the start
 sequence; `app.Stop` (and `Run`'s shutdown) runs the stop sequence, its exact
-reverse. The sequence holds, in order:
+reverse. The sequence holds, in order (register services before building the app):
 
 1. ready values given to `Provide`, and hooks added with `OnStart`/`OnStop`,
    in the order they were added — a ready value was given explicitly, so it
@@ -215,17 +195,7 @@ runs, and their errors are joined.
 | `web.OnStart(fn)`, `web.OnStop(fn)`, `app.OnStart`, `app.OnStop` | hooks, `func(context.Context) error` |
 | `web.Eager(ctors…)`, `app.Eager` | constructors built and started even when nothing needs them |
 
-::: vuka
-```vuka
-app := web.New(
-	web.Provide(cfg),         // cfg.Start, if any, runs first
-	web.OnStart(migrate),
-	web.Eager(NewMailer),     // started though no route takes it
-)
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 app := web.New(
@@ -234,7 +204,6 @@ app := web.New(
 	web.Eager(NewMailer),  // started though no route takes it
 )
 ```
-:::
 
 ## Build errors
 
@@ -244,7 +213,7 @@ the file and line of the handler or hook, naming the parameter and its type:
 ```text
 error[E0407]: GET / (live page pages.Index): Index.Add's 2nd parameter, *sql.DB, is not provided
  --> index.vuka.html:41
-  = help: register it in main with app.Service(NewX), or web.Provide(NewX)
+  = help: register it in main with app.Service(NewX)
 error[E0405]: GET /items (live page pages.Item): Item.mount's 2nd parameter, chan int, can't come from a hook's call, which gives the context
  --> item.vuka.html:12
 error[E0409]: dependency cycle: *main.A -> *main.B -> *main.A
@@ -268,8 +237,9 @@ reported with the routes' and the container's.
 ```go
 func CacheOption(cfg Config) web.Option {
 	return web.Options(
-		web.Provide(cfg, NewCache),
+		web.Provide(cfg),
 		web.OptionFunc(func(a *web.App) {
+			a.Service(NewCache)
 			a.Use(cacheHeaders)
 			a.Get("/cache/stats", (*Cache).Stats)
 			a.OnStop(func(ctx context.Context) error { return flush(ctx) })

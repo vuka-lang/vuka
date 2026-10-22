@@ -31,7 +31,6 @@ func parseID(arg string) (int, error) {
 
 **Vuka adds** `?`: on failure the function returns, passing the error on.
 
-::: vuka
 ```vuka
 func lookup(arg string) Result[User] {
 	id := strconv.Atoi(arg)?          // Go's (T, error) works directly
@@ -39,40 +38,8 @@ func lookup(arg string) Result[User] {
 	return Ok(u)
 }
 ```
-:::
 
-::: go
-In Go, each step is checked where it happens; a `vuka.Result` comes back to
-`(T, error)` with `Get`:
 
-```go
-func lookup(arg string) vuka.Result[User] {
-	id, err := strconv.Atoi(arg)
-	if err != nil {
-		return vuka.Err[User](err)
-	}
-	u, err := find(id).Get()
-	if err != nil {
-		return vuka.Err[User](err)
-	}
-	return vuka.Ok(u)
-}
-```
-
-The same function in Go's own shape:
-
-```go
-func lookupUser(arg string) (User, error) {
-	id, err := strconv.Atoi(arg)
-	if err != nil {
-		return User{}, err
-	}
-	return find(id).Get()
-}
-```
-:::
-
-::: vuka
 ## Where it works
 
 `?` ends a statement:
@@ -97,18 +64,3 @@ the Go form of `lookup` above.
 
 Using `?` inside a larger expression, or in an `if`, `for` or `switch` header, is
 an error that tells you to give it its own statement.
-:::
-
-::: go
-An `Option` steps the same way with its comma-ok `Get`:
-
-```go
-func firstName(u vuka.Option[User]) vuka.Option[string] {
-	v, ok := u.Get()
-	if !ok {
-		return vuka.None[string]()
-	}
-	return vuka.Some(v.Name)
-}
-```
-:::

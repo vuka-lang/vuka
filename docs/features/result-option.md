@@ -19,7 +19,6 @@ func (e *NotFound) Error() string { return fmt.Sprintf("user %d not found", e.ID
 var users = map[int]User{}
 -->
 
-::: vuka
 ```vuka
 func find(id int) Result[User] {
 	u, ok := users[id]
@@ -41,42 +40,7 @@ Write `Result`, `Option`, `Ok`, `Err`, `Some` and `None` unqualified; Vuka
 imports the runtime for you. `Err` and `None` take their type from where the
 value goes — `return Err(e)` in a function returning `Result[User]` becomes
 `vuka.Err[User](e)`.
-:::
 
-::: go
-The types are the `vuka` package's, and Go code uses them like any other
-generic type. `Err` and `None` take their type argument:
-
-```go
-func find(id int) vuka.Result[User] {
-	u, ok := users[id]
-	if !ok {
-		return vuka.Err[User](&NotFound{ID: id})
-	}
-	return vuka.Ok(u)
-}
-
-func nickname(u User) vuka.Option[string] {
-	if u.Name == "linus" {
-		return vuka.Some("torvalds")
-	}
-	return vuka.None[string]()
-}
-```
-
-Most Go code keeps to `(T, error)` and `(T, bool)` and reaches for these only
-to hold an outcome as one value; `r.Get()` and `o.Get()` turn them back:
-
-```go
-func findUser(id int) (User, error) {
-	return find(id).Get()
-}
-
-func nicknameOf(u User) (string, bool) {
-	return nickname(u).Get()
-}
-```
-:::
 
 ## Go's error, not a new one
 
@@ -94,7 +58,6 @@ A Result's error is Go's `error`, so it meets Go code halfway:
 Option has the same shape: `Some`, `None`, `o.Get()` (Go's comma-ok),
 `IsSome`, `IsNone`, `Unwrap`, `UnwrapOr`, `vuka.FromPtr`, `vuka.MapOption`.
 
-::: vuka
 ## What it becomes
 
 ```go
@@ -106,18 +69,3 @@ func find(id int) vuka.Result[User] {
 	return vuka.Ok(u)
 }
 ```
-:::
-
-::: go
-Converting at the edges of Go code:
-
-<!-- go:fragment -->
-```go
-data, err := vuka.Of(os.ReadFile("users.json")).Get()
-if err != nil {
-	return err
-}
-name := vuka.Map(find(7), func(u User) string { return u.Name }).UnwrapOr("nobody")
-fmt.Println(len(data), name)
-```
-:::

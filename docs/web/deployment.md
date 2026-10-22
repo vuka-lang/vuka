@@ -59,18 +59,11 @@ its own.
 A proxy or load balancer in front of the app makes every request come from
 its address. Name it, and only then are its headers believed:
 
-::: vuka
-```vuka
-app := web.New(web.TrustedProxies("10.0.0.0/8", "fd00::/8"))
-```
-:::
 
-::: go
 <!-- go:fragment -->
 ```go
 app := web.New(web.TrustedProxies("10.0.0.0/8", "fd00::/8"))
 ```
-:::
 
 From those addresses, `web.ClientIP(r)` is the nearest address in
 `X-Forwarded-For` (else `Forwarded`) that isn't a trusted proxy — entries a
@@ -84,21 +77,7 @@ those headers are ignored and `web.ClientIP(r)` is the connection's peer.
 [`vuka.File`](/features/decorators#files) are embedded, and so is the live
 runtime. Static files are served from an `embed.FS`:
 
-::: vuka
-```vuka
-//go:embed static
-var static embed.FS
 
-func main() {
-	app := web.New()
-	assets, _ := fs.Sub(static, "static")
-	app.Static("/assets", assets)
-	app.Run("")
-}
-```
-:::
-
-::: go
 ```go
 //go:embed static
 var static embed.FS
@@ -110,7 +89,6 @@ func main() {
 	log.Fatal(app.Run(""))
 }
 ```
-:::
 
 Several replicas behind one hostname need a shared `web.LiveKey(key)` for
 [live pages](/web/live#security), and a `web.WithRelay(r)` for broadcasts to

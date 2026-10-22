@@ -16,33 +16,11 @@ Connections are plain `database/sql`.
 takes conditions written for another.
 
 **Vuka adds** models declared with [field attributes](/features/fields) and
-queries written with [field references](/features/fields#field-references)<span class="go-only">;
+queries written with [field references](/features/fields#field-references);
 in Go, the same attributes go in a `Schema` method and the references are
-generated</span>:
+generated:
 
-::: vuka
-```vuka
-type Post struct {
-	orm.Base @orm.Meta{Table: "posts", Ordering: []string{"-published"}}
-	ID        int64             @orm.PK{Column: "post_id"}
-	Title     string            @orm.Char{Max: 200, Trim: true}
-	Slug      string            @orm.Slug{Unique: true}
-	Status    string            @orm.Char{Max: 20, Default: "draft", Choices: []string{"draft", "published"}}
-	Author    orm.FK[User]      @orm.Rel{OnDelete: orm.Cascade, Related: "posts"}
-	Tags      orm.M2M[Tag]
-	Published Option[time.Time] @orm.Datetime{Index: true}
-	Views     int               @orm.Int{Default: 0, Min: 0}
-	Created   time.Time         @orm.Datetime{DefaultNow: true}
-}
 
-posts := Post.Objects.Filter(Post.Title.Contains("Go"), Post.Author.Name.Eq("ada")).
-	OrderBy(Post.Views.Desc()).All(ctx)?                     // []Post
-
-p, err := Post.Objects.Get(ctx, Post.Slug.Eq(slug))   // orm.ErrNotFound when there is none
-```
-:::
-
-::: go
 ```go
 type Post struct {
 	orm.Model[Post]
@@ -95,18 +73,15 @@ if errors.Is(err, orm.ErrNotFound) { // there is none
 	return web.NotFound
 }
 ```
-:::
 
 A value outside a field's `Choices`, bounds or length is refused on every
 write with an [`orm.Invalid`](/orm/errors) naming the field, before the
 database sees it.
-<span class="vuka-only">A misspelt field is a compile error, and `Contains` on a
-number doesn't compile either: `Post.Title` is the model's typed field.
-Terminals return `(T, error)`, so `?` takes them.</span><span class="go-only">A model's `Schema` names each
+A model's `Schema` names each
 field by its address, so a rename is checked by the compiler; `PostFields`,
 written by `//go:generate go run github.com/vuka-lang/orm/cmd/ormgen`,
 gives typed lookups; `orm.Objects[Post]()` is the model's manager, and without it every query takes `orm.Q{"title__contains":
-"Go"}` strings. Terminals return `(T, error)`.</span>
+"Go"}` strings. Terminals return `(T, error)`.
 Everything is plain Go underneath — the attributes are the model's
 `Schema` method — so Go and Vuka packages share models and databases.
 
@@ -131,48 +106,7 @@ links none:
 
 ## A first program
 
-::: vuka
-```vuka
-package main
 
-import (
-	"context"
-	"fmt"
-	"log"
-
-	"github.com/vuka-lang/orm"
-	_ "github.com/vuka-lang/orm/sqlite"
-)
-
-type User struct {
-	orm.Base
-	ID    int64
-	Name  string @orm.Char{Max: 100, Unique: true}
-	Email string @orm.Char{Max: 200}
-}
-
-func run(ctx context.Context) error {
-	db := orm.ConnectURL("sqlite:app.db")?
-	orm.AddDatabase("main", db, orm.AsDefault())
-	orm.CreateTables(ctx, orm.Objects[User]())?    // a real program runs migrations
-
-	ada := User{Name: "ada", Email: "ada@example.com"}
-	ada.Save(ctx)?
-
-	users := User.Objects.Filter(User.Name.StartsWith("a")).OrderBy(User.Name.Asc()).All(ctx)?
-	fmt.Println(len(users), "users")
-	return nil
-}
-
-func main() {
-	if err := run(context.Background()); err != nil {
-		log.Fatal(err)
-	}
-}
-```
-:::
-
-::: go
 ```go
 package main
 
@@ -228,7 +162,6 @@ func main() {
 	}
 }
 ```
-:::
 
 `orm.ConnectURL` picks the dialect from the URL — `postgres://…`,
 `mysql://user:pass@tcp(host)/db`, `sqlite:file.db`; `orm.Connect(dialect,
@@ -240,12 +173,12 @@ databases, replicas and a supervised pool declares them instead: see
 
 | | |
 |---|---|
-| [Models](/orm/models) | <span class="vuka-only">`orm.Base`, `@orm.Meta`</span><span class="go-only">`orm.Model[T]`, `Schema`</span>, relations, `Option` fields |
+| [Models](/orm/models) | `orm.Model[T]`, `Schema`, relations, `Option` fields |
 | [Fields](/orm/fields) | column attributes (`PK`, `Char`, `Int`, `Datetime`, …), defaults, write checks, custom value types and attributes |
 | [Queries](/orm/queries) | predicates from field references, `Get`/`First`, writes, relations, prefetching |
 | [Expressions and functions](/orm/expressions) | `orm/fn`, `Case`/`When`, subqueries, custom functions and lookups |
 | [Search](/orm/search) | text, trigram, vector and hybrid search on each database |
-| [Transactions](/orm/transactions) | <span class="vuka-only">`@orm.Transaction`</span><span class="go-only">`orm.Transaction`</span>, retries, `OnCommit` |
+| [Transactions](/orm/transactions) | `orm.Transaction`, retries, `OnCommit` |
 | [Migrations](/orm/migrations) | the `orm` command and Go migration files |
 | [Databases](/orm/databases) | dialects, several databases, routing, raw SQL, the connection pool |
 | [Observability](/orm/observability) | observers, N+1 warnings, slow queries, pool statistics |

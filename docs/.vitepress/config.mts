@@ -1,82 +1,26 @@
 import { readFileSync } from 'node:fs'
-import container from 'markdown-it-container'
 import { defineConfig } from 'vitepress'
-
-// Code samples use Vuka's own grammar (the VS Code extension's), on top of Go's.
-// The Vuka / Go sample preference (theme/style.ts), applied before the
-// first paint: ?style= in the address, else the saved choice, else Vuka.
-const styleScript = `(function(){var s;try{s=new URLSearchParams(location.search).get('style')}catch(e){}if(s!=='go'&&s!=='vuka'){try{s=localStorage.getItem('vuka-docs-style')}catch(e){}}else{try{localStorage.setItem('vuka-docs-style',s)}catch(e){}}if(s!=='go')s='vuka';document.documentElement.classList.add('prefer-'+s)})()`
-
-// ::: vuka and ::: go blocks show only under their preference; both are
-// rendered, so search finds either.
-function styleBlock(name: 'vuka' | 'go') {
-  return [
-    container,
-    name,
-    {
-      render(tokens: any[], idx: number) {
-        return tokens[idx].nesting === 1 ? `<div class="style-block ${name}">\n` : '</div>\n'
-      },
-    },
-  ] as const
-}
-
-// An error page whose samples are all .vuka is about a .vuka file: under
-// the Go preference its Wrong and Right sections give way to a note. A page
-// with Go samples, or ::: vuka / ::: go twins, shows as written.
-function vukaErrorPages(md: any) {
-  md.core.ruler.push('vuka_error_pages', (state: any) => {
-    if (!/^errors\/[EW]\d{4}\.md$/.test(state.env?.relativePath ?? '')) return
-    const toks = state.tokens
-    const styled = toks.some((t: any) => t.type === 'container_vuka_open' || t.type === 'container_go_open')
-    const fences = toks.filter((t: any) => t.type === 'fence').map((t: any) => t.info.trim().split(/\s+/)[0])
-    if (styled || fences.length === 0 || fences.some((l: string) => l !== 'vuka')) return
-    const at = toks.findIndex((t: any) => t.type === 'heading_open' && t.tag === 'h2')
-    if (at < 0) return
-    const html = (content: string) => Object.assign(new state.Token('html_block', '', 0), { content })
-    toks.splice(at, 0,
-      html('<div class="style-block go"><div class="tip custom-block"><p>This code is reported for <code>.vuka</code> source, which plain Go has no form of. Switch the samples to Vuka to see them.</p></div></div>\n'),
-      html('<div class="style-block vuka">\n'))
-    toks.push(html('</div>\n'))
-  })
-}
-
-// An ORM attribute or auth gate in running text, `@orm.Char{Max: n}`, is
-// the value Go passes (to s.Field, or a route as an option): under the Go
-// preference it reads `orm.Char{Max: n}`, a bare `@orm.PK` `orm.PK{}`, a
-// bare `@auth.Public` `auth.Public()`. Decorators (@orm.Transaction,
-// @orm.Entity, @orm.Database) aren't values and stay as written.
-function attrValues(md: any) {
-  const code = md.renderer.rules.code_inline
-  md.renderer.rules.code_inline = (tokens: any[], idx: number, opts: any, env: any, self: any) => {
-    const m = /^@((orm|mirror|auth)\.([A-Z]\w*))([\s\S]*)$/.exec(tokens[idx].content)
-    if (!m || ['Transaction', 'Entity', 'Database'].includes(m[3])) return code(tokens, idx, opts, env, self)
-    const esc = md.utils.escapeHtml
-    const at = '<span class="vuka-only">@</span>'
-    const rest = esc(m[4]).replace(/(^|\s)@(?=(?:orm|mirror|auth)\.)/g, `$1${at}`)
-    const bare = m[2] === 'auth' ? '()' : '{}' // auth's gates are functions, the ORM's attributes structs
-    return `<code>${at}${esc(m[1])}${rest}${m[4] ? '' : `<span class="go-only">${bare}</span>`}</code>`
-  }
-}
+import container from 'markdown-it-container'
 
 const vuka = JSON.parse(readFileSync(new URL('../../editors/vscode/syntaxes/vuka.tmLanguage.json', import.meta.url), 'utf8'))
 
 export default defineConfig({
   title: 'Vuka',
-  description: 'Go, with Result, Option, ?, match, overloading, decorators, statics and JSX components. Transpiles to plain Go.',
+  description: 'Go, with Result, Option, ?, match, overloading, decorators, statics and .vuka.html components. Transpiles to plain Go.',
   base: '/',
   lastUpdated: true,
   cleanUrls: true,
   srcExclude: ['design/**', 'rfc/**'], // design notes and RFCs live in the repository, not on the site
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
-    ['script', {}, styleScript],
   ],
   markdown: {
     config(md) {
-      md.use(...styleBlock('vuka')).use(...styleBlock('go'))
-      vukaErrorPages(md)
-      attrValues(md)
+      // Diagnostic sources are kept verbatim. Unwrap their legacy sample
+      // containers without a preference, hidden content or sample switch.
+      for (const name of ['vuka', 'go']) {
+        md.use(container, name, { render: () => '' })
+      }
     },
     languages: ['go', { ...vuka, name: 'vuka', embeddedLangs: ['go'] }],
   },
@@ -97,7 +41,7 @@ export default defineConfig({
         text: 'Guide',
         items: [
           { text: 'Getting started', link: '/guide/getting-started' },
-          { text: 'Two ways to write Vuka', link: '/guide/two-ways' },
+          { text: 'Source files', link: '/guide/two-ways' },
           { text: 'Using Go code', link: '/guide/using-go' },
           { text: 'How it works', link: '/guide/how-it-works' },
           { text: 'Working with Go', link: '/guide/go-interop' },
@@ -116,7 +60,7 @@ export default defineConfig({
           { text: 'Decorators', link: '/features/decorators' },
           { text: 'Statics and Self', link: '/features/statics' },
           { text: 'Dependency injection', link: '/features/dependency-injection' },
-          { text: 'JSX', link: '/features/jsx' },
+          { text: 'UI markup', link: '/features/jsx' },
         ],
       },
       {

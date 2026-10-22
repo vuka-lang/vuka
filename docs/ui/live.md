@@ -7,59 +7,11 @@ answers each with what changed. It knows no transport — a WebSocket server
 drives it with the messages of the [live protocol](/reference/live-protocol);
 the [web framework](/web/live) is one such server.
 
-::: vuka
-```vuka
-s := live.NewSession(ctx, func(ctx context.Context) ui.Node { return <App user={u} /> })
-html, err := s.Render()                         // the page container's HTML
-p, err := s.Event(ui.Event{Target: "c2:0", Type: "click"})
-p, err := s.Info("room:go", NewMessage{"hi"})    // "" reaches every instance
-topics := s.Topics()                            // what to route to Info
-p, err := s.Navigate(route, patch)              // another URL's page, on the same connection
-s.Close()                                       // unmounts everything
-```
-:::
 
-<!-- go:context
-type User struct{ Name string }
-
-type App struct{ User User }
-
-func (a App) Render(ctx context.Context, w io.Writer) error {
-	return ui.HTML(`<p>{a.User.Name}</p>`, a.User.Name).Render(ctx, w)
-}
-
-type NewMessage struct{ Text string }
-
-type page struct {
-	Render func(ctx context.Context) ui.Node
-	Params map[ui.Stateful]any
-}
-
-type routes struct{}
-
-func (routes) Match(url string) (page, bool) { return page{}, false }
-
-var (
-	u      User
-	route  live.Route
-	patch  bool
-	pages  routes
-	s      = live.NewSession(context.Background(), func(ctx context.Context) ui.Node { return App{} })
-)
--->
-
-::: go
-<!-- go:fragment -->
-```go
-s := live.NewSession(ctx, func(ctx context.Context) ui.Node { return App{User: u} })
-html, err := s.Render()                       // the page container's HTML
-p, err := s.Event(ui.Event{Target: "c2:0", Type: "click"})
-p, err = s.Info("room:go", NewMessage{"hi"}) // "" reaches every instance
-topics := s.Topics()                          // what to route to Info
-p, err = s.Navigate(route, patch)             // another URL's page, on the same connection
-s.Close()                                     // unmounts everything
-```
-:::
+A transport creates a session with `live.NewSession(ctx, render)`, where
+`render` returns the node produced from a shape. The session exposes Render,
+Event, Info, Navigate, Topics and Close. Applications using web receive this
+transport automatically from their generated page routes.
 
 A `live.Patch` holds the changed instances and `Error`, a handler's message.
 Calls are safe from several goroutines and run one at a time; `ctx` is the
@@ -97,7 +49,7 @@ one-cell change in a 1000-row table is 89 bytes instead of 122 KB. The
 format is in the [reference](/reference/live-protocol#protocol-v2-render-trees).
 
 [`.templ` files](/ui/templ#on-live-pages) the vuka command compiles record
-the same trees, so a templ layout or view diffs like JSX. A frame holding
+the same trees, so a templ layout or view diffs like shape markup. A frame holding
 nothing but one other frame (a page returning its layout) is that frame, so
 pages sharing a layout key alike, and navigating between them is a change
 inside it.
@@ -113,16 +65,8 @@ A connected page can move to another URL without a new session: the
 transport resolves the URL to a `live.Route` and the session makes its page
 its own ([navigation](/web/navigation) is what users see of it).
 
-<!-- go:fragment -->
-```go
-s.SetRouter(func(url string) live.Route {
-	page, ok := pages.Match(url)
-	if !ok {
-		return live.Route{}                        // not a page: the browser loads url
-	}
-	return live.Route{Ctx: ctx, Render: page.Render, Updates: page.Params}
-})
-```
+Use `s.SetRouter` to resolve a URL into a `live.Route`. The web framework
+installs the router for pages generated from the folder tree.
 
 | `live.Route` | |
 |---|---|

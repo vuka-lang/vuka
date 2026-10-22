@@ -5,8 +5,10 @@ import (
 	"flag"
 	"fmt"
 	"go/ast"
+	"go/importer"
 	"go/parser"
 	"go/token"
+	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -16,10 +18,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/transpile"
 )
 
-// The pages' Go samples are code a reader copies: every Go fence a page
-// shows under the Go preference is type-checked and vetted against the
+// The pages' Go samples are code a reader copies: every Go fence is
+// type-checked and vetted against the
 // libraries at main (testdata/gomode's module), and none of them may use
 // what only a .vuka file has. A sample is a file; one marked
 // <!-- go:fragment --> is statements, checked as a function's body with ctx
@@ -151,7 +155,7 @@ func parsePage(page, text string) ([]sample, []container) {
 }
 
 // vukaOnly are what a .vuka file has and Go doesn't, or older API: none of
-// them may appear in a sample the Go preference shows.
+// them may appear in an ordinary Go sample.
 var vukaOnly = []struct {
 	re    *regexp.Regexp
 	help  string
@@ -160,12 +164,12 @@ var vukaOnly = []struct {
 	{regexp.MustCompile(`\b[A-Z]\w*\.Objects\b`), "a model's manager is orm.Objects[T]()", false},
 	{regexp.MustCompile(`\b\w*[A-Za-z0-9]__\w|\b__\w`), "__ names are the transpiler's; Go names them (UpdateNewMessage, areaCircle)", true},
 	{regexp.MustCompile(`\bSelf\b`), "Self is .vuka's; name the type", false},
-	{regexp.MustCompile("`[^`\n]*\\b(bind|defer|url):\""), "live fields are configured in LiveSchema: l.Field(&p.X, ui.Bind{…}, ui.URL(…), ui.Defer(…))", false},
-	{regexp.MustCompile(`\bui\.Template\b`), "markup is ui.HTML or a .vuka.html template", false},
-	{regexp.MustCompile(`\{\{\d+\}\}`), "ui.HTML's holes are labelled with their Go: {p.Title}", false},
+	{regexp.MustCompile("`[^`\n]*\\b(bind|defer|url):\""), "declare live field attributes in the shape header", false},
+	{regexp.MustCompile(`\bui\.Template\b`), "markup belongs in a .vuka.html shape", false},
+	{regexp.MustCompile(`\{\{\d+\}\}`), "shape holes use expressions: {Title}", false},
 	{regexp.MustCompile(`\bui\.(Alert|Badge|Button|Card|DataTable|Form|Field|Image|Modal|Tabs|Table|ToastContainer|Toast|Tile)Props\b`), "kit components are structs: ui.Card{…}", false},
 	{regexp.MustCompile(`\}\.Render\(\)`), "a struct component is itself a ui.Node: no .Render()", false},
-	{regexp.MustCompile(`(?m)^\s*@(\w+\.)?[A-Za-z]\w*[({]|^\s*@\w+\.[A-Z]\w*\s*$`), "decorators are calls in Go: web.Routes.Get(…), vuka.Wrap(…)", false},
+	{regexp.MustCompile(`(?m)^\s*@(\w+\.)?[A-Za-z]\w*[({]|^\s*@\w+\.[A-Z]\w*\s*$`), "decorators belong in .vuka logic or .vuka.html headers; use vuka.Wrap for Go call decorators", false},
 	{regexp.MustCompile(`\bmatch\s+\w[^{\n]*\{`), "match is a switch in Go", false},
 }
 
@@ -204,6 +208,14 @@ func TestGoSamples(t *testing.T) {
 				vet = append(vet, s)
 			}
 		}
+		if page == "ui/testing.md" {
+			for _, shape := range samples {
+				if shape.lang == "html" && strings.Contains(shape.code, "package components") {
+					shape.lang = "shape"
+					vet = append(vet, shape)
+				}
+			}
+		}
 		if len(vet) > 0 {
 			all = append(all, vet)
 		}
@@ -214,48 +226,14 @@ func TestGoSamples(t *testing.T) {
 	vetSamples(t, all)
 }
 
-// checkContainers: a .vuka sample is in ::: vuka, next to its ::: go twin
-// (only blank lines or comments between them).
+// checkContainers rejects the retired preference containers in published guides.
 func checkContainers(t *testing.T, page, text string, samples []sample, cs []container) {
 	if strings.HasPrefix(page, "errors/") {
-		return // the site shows their .vuka samples under Vuka only (config.mts)
+		return
 	}
-	for _, s := range samples {
-		if s.lang == "vuka" && !s.inVuka && page != "guide/two-ways.md" {
-			t.Errorf("%s:%d: a .vuka sample outside ::: vuka (add its ::: go twin)", page, s.line)
-		}
-	}
-	lines := strings.Split(text, "\n")
-	blankBetween := func(a, b container) bool { // a ends before b starts
-		if a.end == 0 || a.end >= b.line {
-			return false
-		}
-		comment := false // a go:context block between them is fine
-		for _, l := range lines[a.end : b.line-1] {
-			t := strings.TrimSpace(l)
-			switch {
-			case comment:
-				comment = t != "-->"
-			case strings.HasPrefix(t, "<!--"):
-				comment = !strings.HasSuffix(t, "-->")
-			case t != "":
-				return false
-			}
-		}
-		return true
-	}
-	for i, c := range cs {
-		if c.name != "vuka" {
-			continue
-		}
-		twin := false
-		for j, o := range cs {
-			if j != i && o.name == "go" && (blankBetween(c, o) || blankBetween(o, c)) {
-				twin = true
-			}
-		}
-		if !twin {
-			t.Errorf("%s:%d: ::: vuka without a ::: go next to it", page, c.line)
+	for _, c := range cs {
+		if c.name == "vuka" || c.name == "go" {
+			t.Errorf("%s:%d: retired sample preference container %s", page, c.line, c.name)
 		}
 	}
 }
@@ -273,11 +251,76 @@ func vetSamples(t *testing.T, all [][]sample) {
 		t.Fatal(err)
 	}
 	mod = bytes.Replace(mod, []byte("=> ../../.."), []byte("=> "+root), 1)
+	// A generated page package backs the copyable main.go samples. Its shape
+	// is read from the actual guide, so startup is checked against a real node.
+	mod = append(mod, []byte("\nrequire example.com/app v0.0.0\nreplace example.com/app => ./exampleapp\n")...)
+	if err := os.WriteFile(filepath.Join(dir, "go.mod"), mod, 0o644); err != nil {
+		t.Fatal(err)
+	}
+	sums, _ := os.ReadFile("testdata/gomode/go.sum")
+	os.WriteFile(filepath.Join(dir, "go.sum"), sums, 0o644)
+	guide, err := os.ReadFile("web/index.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	guideSamples, _ := parsePage("web/index.md", string(guide))
+	fixture := filepath.Join(dir, "exampleapp", "pages")
+	if err := os.MkdirAll(fixture, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	os.WriteFile(filepath.Join(dir, "exampleapp", "go.mod"), []byte("module example.com/app\ngo 1.27\n"), 0o644)
+	found := false
+	for _, shape := range guideSamples {
+		if shape.lang != "html" || !strings.Contains(shape.code, "type Index struct") {
+			continue
+		}
+		result, err := transpileFixture(t, dir, "index.vuka.html", shape.code)
+		if err != nil {
+			t.Fatal(err)
+		}
+		for _, f := range result.Files {
+			if err := os.WriteFile(filepath.Join(fixture, f.GoName), f.Src, 0o644); err != nil {
+				t.Fatal(err)
+			}
+		}
+		found = true
+	}
+	if !found {
+		t.Fatal("web/index.md must provide the startup fixture's Index shape")
+	}
+	// The folder generator's exported contract is Routes() web.Option.
+	// Register the fixture page using the same page-route option it emits.
+	route := `package pages
+import "github.com/vuka-lang/web"
+func Routes() web.Option {
+ return web.OptionFunc(func(app *web.App) {
+  app.Get("/", func() *Index { return &Index{} }, web.PageRoute())
+ })
+}
+`
+	if err := os.WriteFile(filepath.Join(fixture, "route.go"), []byte(route), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
 	sum, _ := os.ReadFile("testdata/gomode/go.sum")
 	os.WriteFile(filepath.Join(dir, "go.mod"), mod, 0o644)
 	os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0o644)
 	n := 0
 	for _, page := range all {
+		for i := range page {
+			if page[i].lang != "shape" {
+				continue
+			}
+			result, err := transpileFixture(t, dir, "greeting.vuka.html", page[i].code)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if len(result.Files) != 1 {
+				t.Fatal("expected one generated shape")
+			}
+			page[i].code = string(result.Files[0].Src)
+			page[i].lang = "go"
+		}
 		for i := range page {
 			files, err := samplePackage(page, i)
 			if err != nil {
@@ -664,4 +707,20 @@ func withImports(name string, src []byte, imports map[string]string, declared ma
 	b.WriteString(")\n\n")
 	b.WriteString(string(src))
 	return []byte(b.String())
+}
+
+// transpileFixture resolves the same pinned libraries as the Go sample module.
+func transpileFixture(t *testing.T, dir, name, code string) (*transpile.Result, error) {
+	t.Helper()
+	imp := importer.ForCompiler(token.NewFileSet(), "gc", func(path string) (io.ReadCloser, error) {
+		cmd := exec.Command("go", "list", "-export", "-f", "{{.Export}}", path)
+		cmd.Dir = dir
+		cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=readonly")
+		out, err := cmd.Output()
+		if err != nil {
+			return nil, fmt.Errorf("export %s: %w", path, err)
+		}
+		return os.Open(strings.TrimSpace(string(out)))
+	})
+	return transpile.Package([]transpile.File{{Name: name, Src: []byte(code)}}, transpile.Options{Importer: imp})
 }

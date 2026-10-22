@@ -70,8 +70,8 @@ var pages = struct{ Routes func() web.Option }{func() web.Option { return web.Op
 An app with many pages spends a lot of lines saying where each one lives:
 a registration per page, its path spelt again in every link, its layout
 named on each route, its parameters parsed and checked in each handler.
-Folder routes put that in the directory tree instead. The `pages/` folder
-of the module is the site: each folder is a path segment, each page in it
+Folder routes put that in the directory tree instead. A `pages/` directory is discovered at the module root and directly beside
+each `package main`. Each tree describes one app: each folder is a path segment, each page shape in it
 a route, a name in brackets — `[employer]` — a typed parameter, a
 `_layout.vuka.html` wraps every page below it, a `guard.go` checks every
 request below it, and the `vuka` command writes one file, `pages/route.go`,
@@ -79,8 +79,8 @@ registering it all, and a typed link to every page. A JSON API lives in the
 same tree: a file of functions named `GET`, `POST`, `PUT`, `PATCH` and
 `DELETE` is an endpoint.
 
-What `vuka` writes is the registration you would write by hand
-([below](#what-it-lowers-to)): plain Go, on the public `web` API.
+The generated route table is ordinary Go; applications pass its exported
+`pages.Routes()` option to `web.New`.
 
 | | |
 |---|---|
@@ -106,8 +106,8 @@ pages/
   about.vuka.html              About — /about
   route.go                     (written by vuka) func Routes() web.Option
   employers/
-    index.go                   Index — /employers
-    new.go                     New   — /employers/new (+ Post)
+    index.vuka.html            Index — /employers
+    new.vuka.html              New   — /employers/new (+ Post)
     [employer]/                {employer}, for everything below
       _layout.vuka.html        Layout{Employer int; Children} with Load
       index.vuka.html          Index — /employers/{employer}
@@ -119,7 +119,7 @@ pages/
       _layout.vuka.html        Layout with Load: an unknown file is not found
       index.vuka.html          Index — /files/{file...}
   app/
-    settings.go                Settings — /app/settings
+    settings.vuka.html         Settings — /app/settings
     [route...].vuka.html       Shell — /app/{route...}
   api/
     guard.go                   Guard: an API key for everything below
@@ -133,7 +133,8 @@ pages/
 
 ```go
 func main() {
-	a := web.New(pages.Routes(), web.Provide(NewStore))
+	a := web.New(pages.Routes())
+	a.Service(NewStore)
 	if err := a.Run(""); err != nil {
 		log.Fatal(err)
 	}
@@ -150,25 +151,57 @@ page ([below](#typed-urls)). A module with pages whose `main` never calls
 The [`folder-routes`](https://github.com/vuka-lang/vuka/tree/main/examples/folder-routes)
 example is this tree, with an in-memory store.
 
+## Several apps in one module
+
+Discovery checks the module-root `pages/` and a `pages/` directly beside
+each package whose clause is `package main`. It is not restricted to a
+folder named `cmd/`, and a nested main package does not silently acquire
+a sibling app's route tree.
+
+```text
+go.mod
+pages/                       module-root page tree
+  index.vuka.html
+  route.go                   generated root Routes
+  urls/urls_gen.go           generated root links
+cmd/
+  admin/
+    main.go                  imports example.com/app/cmd/admin/pages
+    pages/
+      index.vuka.html
+      route.go               generated admin Routes
+      urls/urls_gen.go        generated admin links
+  public/
+    main.go                  imports example.com/app/cmd/public/pages
+    pages/
+      index.vuka.html
+      route.go               generated public Routes
+      urls/urls_gen.go        generated public links
+```
+
+Each app imports its own pages package and passes that package's `Routes()`
+to `web.New`; its pages import that tree's own `pages/urls` path. Generation
+writes a separate route table and URL package per tree. The trees are not
+merged into a global registration. The module-root tree is discovered too;
+serving a tree still requires passing its Routes option to the app.
+
 ## Pages and segments
 
-A page is an exported struct whose pointer is a page:
+A page is a `.vuka.html` shape in the page tree:
 
 - a [live component](/web/live) (it embeds `ui.Live`, or its markup sends
   an event): a live page;
-- a `ui.Node` (a `.vuka.html` file's struct and markup, or a
-  `Render(ctx, w)` method): a stateless page, built and rendered per
+- a static shape (a `.vuka.html` file's struct and markup): a stateless page, built and rendered per
   request.
 
 A page declared in a `.vuka.html` file is named by its file: `index` serves
 the folder's own path, any other name adds itself, `new.vuka.html` is
 `/new`, `reset-password.vuka.html` `/reset-password`, whatever its struct
-is called. A page declared in Go is named by its type, in kebab-case (`New`
-is `/new`, `ResetPassword` `/reset-password`). A `_layout.vuka.html`'s
+is called. A `_layout.vuka.html`'s
 struct, and types named `Guard`, are never pages.
 
 ```html
-<!-- pages/about.vuka.html -->
+// pages/about.vuka.html
 package pages
 
 // About is GET /about, a page with nothing to load.
@@ -180,20 +213,17 @@ type About struct{}
 ```
 
 A page with nothing to inject needs no constructor: `route.go` builds it
-with `func() *About { return &About{} }`. A page that needs something from
-the [container](/web/dependency-injection) declares its constructor,
-`New<T>`, taking it. A `New` page's constructor is `NewNew`: the rule has
-no exceptions, so nothing is guessed.
+with `func() *About { return &About{} }`. A shape's provided dependency fields are filled by the generated constructor.
+An explicit `New<T>` constructor can still initialize dependencies and defaults;
+for a page named `New`, that constructor is `NewNew`.
 
-Because an exported page-shaped type in `pages/` is a route by itself, a
-component the pages share belongs in another package (`components/`) or
-unexported. One that becomes a route by accident shows in `vuka routes`,
-and lands on a path another page holds as [E0701](/errors/E0701). Types
-registered another way — a route decorator, a `web.Routes` call — are
-left as they are.
+A rendering shape placed under `pages/` declares a route, so shared
+components belong in another package such as `components/`. A misplaced
+shape appears in `vuka routes` and collides with an existing method/path as
+[E0701](/errors/E0701). Logic-only types do not become alternative page views.
 
 Each request builds the page with its constructor and binds its exported
-fields as a live page's are: a provided type injected, text from the path
+fields as a live page's are: props from the path
 segment of its name, else the query parameter, once the
 [guards](#guards) and [layouts](#layouts) above it have loaded. A stateless
 page has no hooks — a page that loads in a hook is a live page, its
@@ -201,8 +231,11 @@ page has no hooks — a page that loads in a hook is a live page, its
 uses it:
 
 ```html
-<!-- pages/employers/[employer]/edit.vuka.html -->
+// pages/employers/[employer]/edit.vuka.html
 package employer
+
+import "example.com/app/store"
+import "example.com/app/pages/urls"
 
 type Edit struct {
 	Employer int
@@ -264,8 +297,13 @@ names no employer, the same as a page that isn't there. (A query parameter
 that doesn't parse is still 400.)
 
 ```html
-<!-- pages/employers/[employer]/permits/[permit].vuka.html -->
+// pages/employers/[employer]/permits/[permit].vuka.html
 package permits
+
+import "github.com/vuka-lang/ui"
+import "context"
+import "github.com/vuka-lang/web"
+import "example.com/app/store"
 
 type Permit struct {
 	ui.Live
@@ -321,7 +359,7 @@ the app reads `location.pathname`. Pages beside it still win: a fixed
 segment beats the catch-all, so `/app/settings` stays a server page.
 
 ```html
-<!-- pages/app/[route...].vuka.html: Shell, /app/{route...} -->
+// pages/app/[route...].vuka.html: Shell, /app/{route...}
 package app
 
 type Shell struct {
@@ -345,7 +383,7 @@ the innermost. The leading underscore keeps it from being a page of its
 own.
 
 ```html
-<!-- pages/_layout.vuka.html -->
+// pages/_layout.vuka.html
 package pages
 
 import (
@@ -383,8 +421,14 @@ for a whole folder and needs what the layout shows anyway: that the record
 exists. A check with nothing to show is a [guard](#guards).
 
 ```html
-<!-- pages/employers/[employer]/_layout.vuka.html -->
+// pages/employers/[employer]/_layout.vuka.html
 package employer
+
+import "github.com/vuka-lang/ui"
+import "context"
+import "github.com/vuka-lang/web"
+import "example.com/app/store"
+import "example.com/app/pages/urls"
 
 type Layout struct {
 	Employer int
@@ -414,10 +458,9 @@ socket joins (`Load` runs for each), and the socket's patches re-render the
 page alone. A route with folder layouts takes no `web.Layout` and isn't
 wrapped in the app's `web.LiveLayout`.
 
-The struct may also be declared in Go beside markup alone: a
-`_layout.vuka.html` without a struct renders `Layout`, declared in a
-`.go` or `.vuka` file of the folder. A `Layout` type in a folder without a
-`_layout.vuka.html` wraps nothing ([E0715](/errors/E0715)).
+The layout struct and markup belong in the same shape file. A layout type
+without its `_layout.vuka.html` renders nothing and is an error
+([E0715](/errors/E0715)).
 
 ## Several methods on one page
 
@@ -425,8 +468,13 @@ A page answers other methods on its own path with methods named after
 them: `Post`, `Put`, `Patch` and `Delete`. (`GET` is the page itself.)
 
 ```html
-<!-- pages/employers/[employer]/edit.vuka.html -->
+// pages/employers/[employer]/edit.vuka.html
 package employer
+
+import "context"
+import "github.com/vuka-lang/web"
+import "example.com/app/store"
+import "example.com/app/pages/urls"
 
 type Edit struct {
 	Employer int
@@ -621,7 +669,7 @@ middleware (root → folder) → guards' and layouts' Load → bind → mount ho
 ```
 
 and the response passes back out through the middleware. A route's own
-middleware — `@web.Use` on a decorated route, or a `web.Use` attribute —
+middleware — a `web.Use` attribute —
 runs inside its folders'; [auth](/web/auth)'s gates run outside them.
 Folder middleware wraps the whole route, so it also sees the 404 a path
 parameter that doesn't parse answers. Not calling `next` short-circuits
@@ -687,8 +735,7 @@ urls.Api.Employers.Employer(7).Path()               // "/api/employers/7": an en
   `urls.Root.Employers`.
 - A folder's fields are its fixed child folders (CamelCase of the folder's
   name: `job-permits/` is `JobPermits`) and its pages other than its index
-  (by file: `New`, `Edit`, `TermsOfService`; by type for a page declared in
-  Go). Its parameters are methods named for them in Go's style — `[id]` is
+  (by file: `New`, `Edit`, `TermsOfService`). Its parameters are methods named for them in Go's style — `[id]` is
   `ID(id int64)`, `[employer]` `Employer(employer int)` — taking the type
   of the field that binds them.
 - `Path()` exists only where there is a page or an endpoint: on its field,
@@ -737,15 +784,15 @@ error when the routes are generated, at the file and line that causes it:
 | [E0711](/errors/E0711) | a parameter no field binds, or a parameter page without a struct |
 | [E0712](/errors/E0712) | the fields binding a parameter of different types |
 | [E0713](/errors/E0713) | a parameter both a file and a folder |
-| [E0714](/errors/E0714) | a vuka 1 `Params` parameter folder |
-| [E0715](/errors/E0715) | a vuka 1 `Layout` type without `_layout.vuka.html` |
+| [E0714](/errors/E0714) | a legacy parameter declaration instead of a bracketed segment |
+| [E0715](/errors/E0715) | a layout type without `_layout.vuka.html` |
 | [E0716](/errors/E0716) | a `.go` file in a bracket folder |
 | [E0717](/errors/E0717) | two `.go` files declaring one method func |
 | [E0718](/errors/E0718) | a vuka 1 `pages_gen.go` or `routes_gen.go`, or a hand-written `pages/route.go` |
 | [E0719](/errors/E0719) | a page template whose struct is declared nowhere |
 
-Hand-written routes stay: `web.Routes` calls and `app.Get(…)` work beside
-folder routes, on paths of their own.
+Explicit API handlers registered on an app can coexist on distinct paths.
+Page URLs remain declared by the page tree.
 
 ## vuka routes
 
@@ -761,11 +808,11 @@ POST    /api/employers                          employers.Index.Post (endpoint) 
 GET     /api/employers/{employer}               employers.GET (endpoint)         pages/api/employers/[employer].vuka:13                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
 PUT     /api/employers/{employer}               employers.PUT (endpoint)         pages/api/employers/[employer].vuka:22                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
 DELETE  /api/employers/{employer}               employers.DELETE (endpoint)      pages/api/employers/[employer].vuka:31                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
-GET     /app/settings                           app.Settings                     pages/app/settings.go:23                                  pages.Middleware                             pages.Layout
+GET     /app/settings                           app.Settings                     pages/app/settings.vuka.html:23                                  pages.Middleware                             pages.Layout
 GET     /app/{route...}                         app.Shell                        pages/app/[route...].vuka.html:5                          pages.Middleware                             pages.Layout
-GET     /employers                              employers.Index (live)           pages/employers/index.go:14                               pages.Middleware                             pages.Layout
-GET     /employers/new                          employers.New                    pages/employers/new.go:15                                 pages.Middleware                             pages.Layout
-POST    /employers/new                          employers.New.Post               pages/employers/new.go:23                                 pages.Middleware                             pages.Layout
+GET     /employers                              employers.Index (live)           pages/employers/index.vuka.html:14                               pages.Middleware                             pages.Layout
+GET     /employers/new                          employers.New                    pages/employers/new.vuka.html:15                                 pages.Middleware                             pages.Layout
+POST    /employers/new                          employers.New.Post               pages/employers/new.vuka.html:23                                 pages.Middleware                             pages.Layout
 GET     /employers/{employer}                   employer.Index                   pages/employers/[employer]/index.vuka.html:13             pages.Middleware                             pages.Layout, employer.Layout
 GET     /employers/{employer}/edit              employer.Edit                    pages/employers/[employer]/edit.vuka.html:15              pages.Middleware                             pages.Layout, employer.Layout
 POST    /employers/{employer}/edit              employer.Edit.Post               pages/employers/[employer]/edit.vuka.html:32              pages.Middleware                             pages.Layout, employer.Layout
@@ -774,60 +821,15 @@ GET     /employers/{employer}/permits/{permit}  permits.Permit (live)           
 GET     /files/{file...}                        file.Index                       pages/files/[file...]/index.vuka.html:9                   pages.Middleware                             pages.Layout, file.Layout
 ```
 
-## What it lowers to
+## Generated files
 
-`vuka build`, `run`, `test`, `vet` and the editor see the generated files
-without writing them; `vuka gen -inplace` writes them —
-`pages/route.go`, `pages/urls/urls_gen.go`, and a bracket folder's Go in
-its `param_name/` folder — so a plain `go build` serves the same routes;
-`-check` fails when they're stale, and [`vuka eject`](/tools/cli#eject)
-keeps them. Commit them or ignore them (`pages/route.go`,
-`pages/urls/urls_gen.go`, `pages/**/param_*/`) as you do vuka's other generated
-files. `route.go` is the registration a person would write:
+`vuka build`, `run`, `test`, `vet` and the editor see generated routes through
+an overlay. `vuka gen -inplace` writes each tree's `route.go`,
+`urls/urls_gen.go` and the Go for bracket folders under `param_name/`, so
+ordinary Go tooling can build the result. `-check` fails if generated files
+are stale. Commit or ignore these generated artifacts consistently; edit the
+source tree rather than the generated registrations.
 
-```text
-// pages/route.go
-package pages
-
-func init() {
-	vuka.RegisterParams(api_employers.GET, "ctx", "employer", "s")
-	vuka.RegisterParams(api_employers.PUT, "ctx", "employer", "in", "s")
-	vuka.RegisterParams(api_employers.DELETE, "ctx", "employer", "s")
-	…
-}
-
-func Routes() web.Option {
-	return web.OptionFunc(func(app *web.App) {
-		app.Get("/about", func() *About { return &About{} }, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
-		app.Get("/api/employers/{employer}", api_employers.GET, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Put("/api/employers/{employer}", api_employers.PUT, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Delete("/api/employers/{employer}", api_employers.DELETE, web.PageRoute(), web.UseOf(Middleware), web.UseOf(api.Middleware), web.LayoutOf[Layout](), web.GuardOf[api.Guard]())
-		app.Get("/app/{route...}", func() *app2.Shell { return &app2.Shell{} }, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout]())
-		app.Get("/employers/{employer}", employer.NewIndex, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
-		app.Post("/employers/{employer}/edit", (*employer.Edit).Post, web.Receiver(employer.NewEdit), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
-		app.Live("/employers/{employer}/permits/{permit}", permits.NewPermit, web.PageRoute(), web.UseOf(Middleware), web.LayoutOf[Layout](), web.LayoutOf[employer.Layout]())
-		…
-	})
-}
-```
-
-`web.PageRoute()` gives the route the behaviour of a page — fields bound
-from the path, a bad path parameter a 404, `Title` — and
-`web.LayoutOf[T]()` adds a layout, the first given outermost;
-`web.GuardOf[T]()` adds a guard, loading with the layouts in the order the
-options are given; `web.UseOf(pkg.Middleware)` wraps the route in each
-folder's middleware, the root's outermost. A live page is `app.Live`, a
-method handler or an endpoint type's method is registered with the type's
-constructor as its receiver, `web.Receiver(NewT)`, and a method func as it
-is, its parameters' names recorded at init with `vuka.RegisterParams`, as
-the compiler records a registered handler's, so a scalar binds the path
-parameter of its name. A page without a `New<T>` is built
-by a literal, `func() *T { return &T{} }`; nothing is written into a page's
-folder. Packages that share a name are imported by their path
-(`api_employers`), and one named like the function's `app` is `app2`.
-
-A layout without a `Load` adds nothing to an endpoint's request: it only
-wraps markup.
-
-Delete the generated files and write that function yourself, and the app is
-the same.
+The route table records page constructors, typed parameter binding, layout
+and guard loading, method receivers and middleware order. A layout without
+Load only wraps markup and adds no work to an endpoint's request.
