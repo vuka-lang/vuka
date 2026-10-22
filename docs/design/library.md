@@ -721,18 +721,19 @@ positions its `.vuka` lines.
 
 ## 8. Conformance
 
-Every app of `examples/conformance/<app>` exists twice — `vuka/`, the
-`.vuka` app, and `go/`, the same app written by hand in Go (`.go` and
-`.vuka.html`, struct-first, registered in `init`) — and `TestConformance`
-(cmd/vuka, the CI job `conformance`) builds it five ways:
+Every app of `examples/conformance/<app>/vuka` is written the one way
+([one-way RFC](../rfc/one-way.md)): pages are `.vuka.html` files under
+`pages/`, markup is in one-struct `.vuka.html` files, logic in `.vuka`
+files. Go-first UI authoring is retired (Decision 2), so there is no
+hand-written Go twin any more: what conformance tests is the lowering, the
+one-way source against the Go it ejects to. `TestConformance` (cmd/vuka,
+the CI job `conformance`) builds each app three ways:
 
 | run | |
 |---|---|
 | `vuka` | `vuka/`, built by `vuka build` |
-| `go+gen` | `go/` after `orm generate`, `vuka gen -inplace` (and `vuka build-islands` for a `web/dist`), built by `go build`; `go vet` with `vukavet` passes it |
-| `go` | the same without the speed-ups: no `orm_scanners*_gen.go` (the orm reflects), no `vuka_calls_gen.go` (`vuka.Wrap` reflects), every live component diffed whole (`VUKA_LIVE_WHOLE=1`); the two apps must have had the same speed-ups |
 | `ejected+gen` | `vuka/` after `vuka eject -rm` (no `.vuka` file left; `vuka gen -inplace -check` must find nothing stale), built by `go build`; `go vet` with `vukavet` passes it |
-| `ejected` | the same without the speed-ups |
+| `ejected` | the same without the speed-ups: no `orm_scanners*_gen.go` (the orm reflects), no `vuka_calls_gen.go` (`vuka.Wrap` reflects), every live component diffed whole (`VUKA_LIVE_WHOLE=1`) |
 
 Each run plays the app's `script` — HTTP requests, and live pages whose
 messages go over the page's socket with protocol 1 and 2 — and answers with
@@ -741,9 +742,8 @@ the page `livetest`'s reference client holds once it applied it; the SQL
 each step ran (an `orm.Observe` route the suite adds); every `/_vuka/` file
 a page or the loader's island manifest names; and the `vuka-live.d.ts` and
 `vuka-island.d.ts` the vuka command wrote. Every transcript must be the
-first's; the render trees protocol 2 sends follow the code's shape (a Go
-`if` or `ui.If`), so they are compared where the code is the same (`vuka`
-and `ejected+gen`) and among the whole-component runs. A page's join
+first's; the render trees protocol 2 sends follow the code's shape, so
+they are compared where the code is the same, `vuka` and `ejected+gen`. A page's join
 token, a cookie's value and a hole's source position (an island's
 `data-vk-s`, named by order of appearance) are left out. A difference is a
 bug: the test shows the first step answered differently, line by line.

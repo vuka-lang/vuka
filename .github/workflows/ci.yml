@@ -123,7 +123,7 @@ jobs:
         run: go test -timeout 45m -skip '^TestConformance$' ./...
 
   conformance:
-    name: conformance (examples as Vuka, Go and ejected)
+    name: conformance (examples as Vuka and ejected)
     runs-on: ubuntu-24.04
     timeout-minutes: 25
     env:
