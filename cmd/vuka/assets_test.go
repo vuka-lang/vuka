@@ -330,29 +330,48 @@ func localModule(t *testing.T, web string, files map[string]string) string {
 	return tempModule(t, files)
 }
 
-const e2ePage = `package main
+const e2eMain = `package main
 
 import (
-	"github.com/vuka-lang/ui"
+	"example.com/app/pages"
 	"github.com/vuka-lang/web"
 )
 
-@web.Live("/", web.Style("counter.css"), web.Script("counter.ts"))
+func main() { web.New(pages.Routes()).Run("") }
+`
+
+const e2ePage = `package pages
+
+import (
+	"example.com/app/components"
+	"github.com/vuka-lang/ui"
+)
+
 type Counter struct {
 	ui.Live
 	n int
 }
+<div><output>{n}</output><components.Label /></div>
 
-func (c *Counter) Render() ui.Node {
-	return <div><output>{c.n}</output><Label /></div>
-}
+<style scoped>
+output { @apply font-bold; }
+</style>
 
-@web.Live("/label", web.CSS(` + "`" + `output { color: rgb(1, 2, 3) }` + "`" + `))
+<script lang="ts">
+export default { bump(el: HTMLElement) { el.classList.add("bump") } };
+</script>
+`
+
+const e2eLabel = `package components
+
+import "github.com/vuka-lang/ui"
+
 type Label struct{ ui.Live }
+<output>label</output>
 
-func (l *Label) Render() ui.Node { return <output>label</output> }
-
-func main() { web.New().Run("") }
+<style scoped>
+output { color: rgb(1, 2, 3) }
+</style>
 `
 
 // TestBuildAssets: vuka build compiles a component's scoped stylesheet
@@ -366,9 +385,7 @@ func TestBuildAssets(t *testing.T) {
 	if _, err := exec.LookPath("tailwindcss"); err != nil {
 		needs(t, "no tailwindcss on PATH")
 	}
-	root := assetsModule(t, map[string]string{"main.vuka": e2ePage,
-		"counter.css": "output { @apply font-bold; }\n",
-		"counter.ts":  "export default { bump(el: HTMLElement) { el.classList.add(\"bump\") } };\n"})
+	root := assetsModule(t, map[string]string{"main.go": e2eMain, "pages/index.vuka.html": e2ePage, "components/label.vuka.html": e2eLabel})
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Setenv(twEnv, "")
@@ -408,9 +425,9 @@ func TestBuildAssets(t *testing.T) {
 	check := func(get func(string) (string, http.Header)) {
 		t.Helper()
 		page, _ := get("/")
-		counter, label := scopeID("example.com/app", "Counter"), scopeID("example.com/app", "Label")
+		counter, label := scopeID("example.com/app/pages", "Counter"), scopeID("example.com/app/components", "Label")
 		if !strings.Contains(page, `<output data-vk-s="`+counter+`">0</output>`) || !strings.Contains(page, `<output data-vk-s="`+label+`" data-vk-id="c2">label</output>`) ||
-			!strings.Contains(page, `<div data-vk-s="`+counter+`"`) {
+			!strings.Contains(page, `<div data-vk-p="{}" data-vk-s="`+counter+`"`) {
 			t.Errorf("the page's elements aren't marked with their own component's scope: %s", page)
 		}
 		css, _ := get(regexp.MustCompile(`/_vuka/app\.css\?v=[^"]+`).FindString(page))

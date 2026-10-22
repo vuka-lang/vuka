@@ -47,6 +47,7 @@ func runRoutes(pass *analysis.Pass) (any, error) {
 	checkInjectTags(pass)
 	recorded := recordedParams(pass)
 	regs := registrations(pass)
+	checkPages(pass, regs)
 	prefixes := map[*types.TypeName]string{}
 	for _, r := range regs {
 		if r.verb != "Controller" {
@@ -64,7 +65,7 @@ func runRoutes(pass *analysis.Pass) (any, error) {
 		case "Service":
 			checkCtor(pass, r, "Service(…)", "the service's constructor: func(deps…) *Service")
 			continue
-		case "Live":
+		case "Live", "Page":
 		default:
 			checkHandler(pass, r, recorded)
 		}

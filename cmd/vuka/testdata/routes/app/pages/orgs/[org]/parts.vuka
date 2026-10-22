@@ -1,0 +1,10 @@
+package org
+
+import (
+	"fmt"
+
+	"github.com/vuka-lang/ui"
+)
+
+// badge is a part of a page: no page.
+func badge(n int) ui.Node { return ui.Text(fmt.Sprint(n)) }

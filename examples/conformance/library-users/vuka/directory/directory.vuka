@@ -1,0 +1,56 @@
+// Package directory is the directory: its model, the service holding it and
+// its API's handlers.
+package directory
+
+import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/orm"
+	_ "github.com/vuka-lang/orm/sqlite"
+	"github.com/vuka-lang/web"
+)
+
+// User is a member of the directory, a row of its table.
+type User struct {
+	orm.Base
+	ID   int64  `json:"id"`
+	Name string `json:"name"` @orm.Char{Max: 50}
+}
+
+// Directory holds the users: a service, built once, on a database in
+// memory.
+type Directory struct{ users *orm.Manager[User] }
+
+func NewDirectory() (*Directory, error) {
+	ctx := context.Background()
+	db := orm.ConnectURL("sqlite::memory:")?
+	orm.AddDatabase("main", db, orm.AsDefault())
+	d := &Directory{users: User.Objects}
+	orm.CreateTables(ctx, d.users)?
+	for _, name := range []string{"Ada", "Grace", "Linus"} {
+		u := User{Name: name}
+		u.Save(ctx)?
+	}
+	return d, nil
+}
+
+// Find is the user id.
+func (d *Directory) Find(ctx context.Context, id int64) (User, error) {
+	u, err := d.users.Get(ctx, User.ID.Eq(id))
+	if errors.Is(err, orm.ErrNotFound) {
+		return u, web.NotFound
+	}
+	return u, err
+}
+
+// Count is how many users there are.
+func (d *Directory) Count(ctx context.Context) (int64, error) { return d.users.Count(ctx) }
+
+// ListUsers answers GET /api/users.
+func ListUsers(ctx context.Context, dir *Directory) ([]User, error) {
+	return dir.users.OrderBy(User.ID.Asc()).All(ctx)
+}
+
+// ShowUser answers GET /api/users/{id}.
+func ShowUser(ctx context.Context, id int64, dir *Directory) (User, error) { return dir.Find(ctx, id) }

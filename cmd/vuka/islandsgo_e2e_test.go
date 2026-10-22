@@ -8,13 +8,14 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
-// TestIslandsGoE2E builds examples/islands-go, plain Go with a Vue island
-// placed in a live page and a page backed by its component, as its
-// go:generate line does (vuka build-islands) and then with go build: the
-// binary embeds the islands, which mount in Chrome. Under VUKA_DEV=1,
+// TestIslandsGoE2E builds examples/islands-go, Go with a Vue island placed
+// in a live page and a page backed by its component, as its go:generate
+// lines do (vuka gen -inplace, vuka build-islands) and then with go build:
+// the binary embeds the islands, which mount in Chrome. Under VUKA_DEV=1,
 // web.Dev runs vuka build-islands -watch and the islands mount from there.
 func TestIslandsGoE2E(t *testing.T) {
 	if testing.Short() {
@@ -46,12 +47,13 @@ func TestIslandsGoE2E(t *testing.T) {
 		t.Fatalf("building vuka: %v\n%s", err, out)
 	}
 	files := map[string]string{}
-	for _, name := range []string{"main.go", "pages.go", "web/islands/Chart.vue", "web/islands/Profile.vue", "web/dist/.gitkeep"} {
+	for _, name := range []string{"main.go", "pages/chart.go", "pages/index.vuka.html", "pages/users/_layout.vuka.html", "pages/users/[id].vuka.html",
+		"web/islands/Chart.vue", "web/islands/Profile.vue", "web/dist/.gitkeep"} {
 		src, err := os.ReadFile(filepath.Join(repo, "examples/islands-go", name))
 		if err != nil {
 			t.Fatal(err)
 		}
-		files[name] = string(src)
+		files[name] = strings.ReplaceAll(string(src), "example.com/islands-go/", "example.com/app/")
 	}
 	root := localModule(t, web, files)
 	if err := os.Symlink(nm, filepath.Join(root, "web", "node_modules")); err != nil {
@@ -60,6 +62,9 @@ func TestIslandsGoE2E(t *testing.T) {
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
+	if err := gen([]string{"-inplace", "./..."}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -inplace: %v", err)
+	}
 	if err := buildIslands(nil, io.Discard, os.Stderr); err != nil {
 		t.Fatalf("vuka build-islands: %v", err)
 	}

@@ -2,6 +2,7 @@ package format
 
 import (
 	"bytes"
+	"errors"
 	"flag"
 	"go/ast"
 	"go/parser"
@@ -157,6 +158,9 @@ func TestTranspileGolden(t *testing.T) {
 			}
 			dir := filepath.Dir(path)
 			before, after := lower(t, dir, name, src), lower(t, dir, name, got)
+			if before == nil {
+				return // markup in a .vuka file, which only transpile's own tests compile
+			}
 			if a, b := goTokens(t, before), goTokens(t, after); !slices.Equal(a, b) {
 				t.Fatalf("formatting changed the generated Go:\n%s\nformatted:\n%s", before, after)
 			}
@@ -198,6 +202,10 @@ func lower(t *testing.T, dir, name string, src []byte) []byte {
 	t.Helper()
 	res, err := transpile.Package([]transpile.File{{Name: name + ".vuka", Src: src}},
 		transpile.Options{Importer: load.NewImporter(goldenDir, ""), Dir: goldenDir})
+	var list transpile.ErrorList
+	if errors.As(err, &list) && len(list) > 0 && list[0].Code == "E0151" {
+		return nil
+	}
 	if err != nil {
 		t.Fatalf("transpile: %v\n%s", err, src)
 	}

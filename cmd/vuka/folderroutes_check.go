@@ -295,7 +295,7 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 				continue
 			}
 			key := strings.Join(parts[:i+1], "/")
-			at := diag.Span{File: filepath.Join(c.t.root, pagesDirName, filepath.FromSlash(key))}
+			at := diag.Span{File: filepath.Join(c.t.pages, filepath.FromSlash(key))}
 			in.segs = append(in.segs, c.param(key, p, at, false))
 			in.params = append(in.params, key)
 			if isRest(p) && i < len(parts)-1 {
@@ -316,8 +316,8 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 		c.report(diag.New("E0706", "%s.Routes is declared, and vuka declares it in pages/route.go: the option registering the folder routes", d.name), obj.Pos()).
 			WithHelp("rename %s", obj.Name())
 	}
-	// TODO(one-way): vuka fix one-way rewrites a params.go folder into a
-	// bracket folder, and a layout.go Layout into _layout.vuka.html.
+	// A params.go folder and a layout.go Layout are 1.x's: each is an error
+	// naming the one-way form.
 	if obj, ok := pkg.Scope().Lookup("Params").(*types.TypeName); ok {
 		help := "rename the folder to [" + strings.ToLower(filepath.Base(d.dir)) + "]/ and declare the parameter's field on the structs that read it"
 		c.report(diag.New("E0714", "%s.Params: a parameter folder is a bracketed folder now, and Params binds nothing", d.name), obj.Pos()).WithHelp("%s", help)
@@ -709,7 +709,14 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 				methods = append(methods, sel.Obj().(*types.Func))
 			}
 		}
-		page := live || c.isNode(named)
+		// A .vuka.html file whose markup is one island tag is the page its
+		// island backs, live or not.
+		island := false
+		if f := d.fileOf[name]; f != "" {
+			p, _, _, _ := islandPageOf(filepath.Join(d.dir, f))
+			island = p == name
+		}
+		page := live || c.isNode(named) || island
 		if !page && len(methods) == 0 {
 			continue
 		}

@@ -4,13 +4,21 @@
 package main
 
 import (
+	"context"
+	"io"
+
 	"github.com/vuka-lang/ui"
 )
 
 // Orders is a page in the Admin layout.
 //
 //line orders.vuka.html:4
-func Orders(n int) ui.Node {
-//line orders.vuka.html:4
-	return Admin{Title: "Orders", Actions: ui.HTML(`<button>New</button>`), Children: ui.HTML(`<p>{n} orders</p>`, n)}
+type Orders struct{ N int }
+
+//line orders.vuka.html:5
+func (o Orders) View() ui.Node {
+//line orders.vuka.html:5
+	return Admin{Title: "Orders", Actions: ui.HTML(`<button>New</button>`), Children: ui.HTML(`<p>{o.N} orders</p>`, o.N)}
 }
+
+func (o Orders) Render(ctx context.Context, w io.Writer) error { return o.View().Render(ctx, w) }

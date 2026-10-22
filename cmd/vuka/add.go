@@ -22,36 +22,40 @@ const addUsage = `Usage:
 	vuka add service <Name> [--module m]
 	vuka add component <Name> [--module m]
 	vuka add island <Name> [--module m] [--vue|--react|--svelte] [--dir dir] [--no-install]
-	vuka add page <path> [--module m] [--stateless] [--island Name [--vue|--react|--svelte]] [--name Type]
+	vuka add page <path> [--live|--stateless] [--island Name [--module m] [--vue|--react|--svelte]] [--name Type]
 	vuka add entity <Name> [--module m] [field:type…] [--table name] [--unmanaged]
 
 Grow an app vuka new made.
 
-  module     modules/<name>/: a model, a service, a page (or API routes), a
-             test, a migration making its table, and main.vuka's import of
-             it. The name is a plural noun in lower case: notes, invoices.
+  module     modules/<name>/: a model, a service, a test and a migration
+             making its table, with main.vuka's import of it; and its page,
+             pages/<name>/index.vuka.html, at /<name> (templ views: handlers
+             and a view in the module; an API: its routes in the module).
+             The name is a plural noun in lower case: notes, invoices.
   service    a service in services/ (or the module's package; m/Name is
              short for Name --module m), with its constructor NewName and a
              test, registered in main.vuka's services with app.Service: a
              dependency pages, routes and hooks take as a parameter.
-  component  a stateless component taking a props struct, in components/
-             (or the module's package).
+  component  a component, one .vuka.html file: its struct (the props, its
+             exported fields) above its markup, in components/ (or the
+             module's package).
   island     a client component in the island frontend (web/islands/ by
              default, web/islands/<m>/ with --module m), in the framework the
              frontend uses (Vue when it has none; --react, --svelte or
              --vue to add one in another), its props typed
-             so an import reads them; and the .vuka component placing it,
-             in components/ (or the module's package). The framework's
+             so an import reads them; and the .vuka.html component placing
+             it, in components/ (or the module's package). The framework's
              packages and Vite plugin are added when missing, and installed
              (--no-install: not).
-  page       a page in pages/ (or the module's package): live, @web.Live
-             (--stateless: @web.Get; a path with {parameters} is stateless
-             unless --live). --island Name makes it a page backed by a
-             component: an @ui.Island struct with a prop, a url: field and a
-             method, and the component calling it (ui.Live unless --stateless);
-             --layout expr is its layout, @ui.Island(ui.Layout(expr)) — by
-             default layouts.Page("Title") when the app has layouts/, none
-             with --layout none.
+  page       a page: the .vuka.html file its path names under pages/
+             (/reports/{id} is pages/reports/[id].vuka.html, a parameter a
+             field of its struct), live (--stateless: built per request; a
+             path with {parameters} is stateless unless --live). --island
+             Name makes it a page backed by a component: pages/<path>.vuka,
+             an @ui.Island struct with a prop, a url: field and a method, and
+             the component calling it (ui.Live unless --stateless; --module m
+             puts the component in web/islands/<m>/). The folder's
+             _layout.vuka.html is its layout.
   entity     an orm model in entities/ (or the module's package; m/Name is
              short for Name --module m), with ID and created/updated times,
              its fields name:type — string, text, int, float, decimal,
@@ -129,6 +133,9 @@ func addModule(root, modPath, name string) ([]string, error) {
 	if exists(root, "modules", name) {
 		return nil, fmt.Errorf("vuka add module %s: modules/%s exists already", name, name)
 	}
+	if exists(root, "pages", name) && exists(root, "layouts", "app.vuka") {
+		return nil, fmt.Errorf("vuka add module %s: pages/%s exists already", name, name)
+	}
 	if !exists(root, "migrations") {
 		return nil, errors.New("vuka add module: the app has no migrations/ (no database): a module keeps its rows in the database; start one with vuka new --db=sqlite")
 	}
@@ -169,6 +176,8 @@ func addModule(root, modPath, name string) ([]string, error) {
 			out["modules/"+name+"/"+name+"_test.vuka"] = b
 		case "page.templ":
 			out["modules/"+name+"/"+name+".templ"] = b
+		case "page.vuka.html":
+			out["pages/"+name+"/index.vuka.html"] = b
 		default:
 			out["modules/"+name+"/"+f] = b
 		}

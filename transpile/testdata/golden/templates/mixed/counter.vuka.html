@@ -1,13 +1,21 @@
 package main
 
+import "github.com/vuka-lang/ui"
+
+// Counter is a live component.
+type Counter struct {
+	ui.Live
+	Start int
+	n     int
+}
+
+func (c *Counter) Inc() { c.n++ }
+
+// Add is an event taking an argument: onClick={Add(2)}.
+func (c *Counter) Add(n int) { c.n += n }
 <div class="counter">
   <Badge label="count" />
   <span>{Start + n}</span>
   <button onClick={Inc}>+</button>
+  <button onClick={Add(2)}>+2</button>
 </div>
-
-func heading(text string)
-<h1>{text}</h1>
-
-func step(c *Counter)
-<button onClick={c.Add(2)}>+2</button>

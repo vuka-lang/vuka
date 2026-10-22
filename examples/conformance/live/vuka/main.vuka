@@ -6,11 +6,13 @@ package main
 import (
 	"log"
 
+	"example.com/app/notes"
+	"example.com/app/pages"
 	"github.com/vuka-lang/web"
 )
 
 func main() {
-	app := web.New()
-	app.Service(NewNotes)
+	app := web.New(pages.Routes())
+	app.Service(notes.NewNotes)
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

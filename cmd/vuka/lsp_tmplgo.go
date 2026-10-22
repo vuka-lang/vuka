@@ -276,10 +276,16 @@ func reverseClosers(open []byte) []byte {
 }
 
 // mainTemplate reports whether off in a template file is in its main
-// template, the markup before the first func line: where bare names are the
-// component's fields and methods.
+// template, the markup below its Go header and before any func line after
+// it: where bare names are the component's fields and methods.
 func mainTemplate(src []byte, off int) bool {
 	start := 0
+	if m := shapeMarkup(src); m >= 0 {
+		if off < m {
+			return false
+		}
+		src, off = src[m:], off-m
+	}
 	for _, l := range strings.SplitAfter(string(src), "\n") {
 		if start > off {
 			return true
@@ -290,6 +296,21 @@ func mainTemplate(src []byte, off int) bool {
 		start += len(l)
 	}
 	return true
+}
+
+// shapeMarkup is the offset in a template file of its markup below its Go
+// header, or -1 when it has no header.
+func shapeMarkup(src []byte) int {
+	sh, _ := transpile.ParseShape(src)
+	if sh == nil || sh.Markup < 0 {
+		return -1
+	}
+	lines := strings.SplitAfter(string(src), "\n")
+	off := 0
+	for _, l := range lines[:sh.Markup] {
+		off += len(l)
+	}
+	return off
 }
 
 // receiverAt is the receiver of the method of the generated Go at off: its
@@ -343,6 +364,9 @@ func templateSpot(vf *vfile, genPath string, off int) *tmplSpot {
 		start--
 	}
 	s.typed = lspRange{positionOf(src, start), positionOf(src, off)}
+	if m := shapeMarkup(src); m >= 0 && off < m {
+		return s // the Go header: Go as gopls has it
+	}
 	if _, ok := templateGoAt(src, off); ok && mainTemplate(src, off) {
 		gen := offsetOf(vf.gen, vf.toGen(positionOf(src, off)))
 		if recv, typ, ok := receiverAt(vf.gen, gen); ok {

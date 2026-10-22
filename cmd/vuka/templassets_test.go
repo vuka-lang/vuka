@@ -29,26 +29,26 @@ func TestTemplateAssets(t *testing.T) {
 		"main.go": `package main
 
 import (
-	"github.com/vuka-lang/ui"
+	"example.com/app/pages"
 	"github.com/vuka-lang/web"
 )
+
+func main() { web.New(pages.Routes()).Run("") }
+`,
+		"pages/index.vuka.html": `package pages
+
+import "example.com/app/components"
+
+type Index struct{}
+<html><head><title>chart</title></head><body><components.Chart title="Sales" points={[]int{3, 5}} /></body></html>
+`,
+		"components/chart.vuka.html": `package components
 
 // Chart is a component with a script.
 type Chart struct {
 	Title  string
 	Points []int
 }
-
-func home() ui.Node { return Page() }
-
-func main() {
-	app := web.New()
-	app.Get("/", home)
-	app.Run("")
-}
-`,
-		"chart.vuka.html": `package main
-
 <figure class="chart">
   <figcaption>{Title}</figcaption>
 </figure>
@@ -64,9 +64,6 @@ export default component<Chart>((el, props) => {
 <style scoped>
 figcaption { color: rgb(1, 2, 3) }
 </style>
-
-func Page()
-<html><head><title>chart</title></head><body><Chart title="Sales" points={[]int{3, 5}} /></body></html>
 `,
 	})
 	t.Setenv("GOWORK", "off")
@@ -99,7 +96,7 @@ func Page()
 		return string(b)
 	}
 	page := get("/")
-	id := scopeID("example.com/app", "Chart")
+	id := scopeID("example.com/app/components", "Chart")
 	if !strings.Contains(page, `<figure data-vk-p="{&#34;Points&#34;:[3,5],&#34;Title&#34;:&#34;Sales&#34;}" class="chart" data-vk-s="`+id+`">`) ||
 		!strings.Contains(page, `<figcaption data-vk-s="`+id+`">Sales</figcaption>`) || strings.Contains(page, "<style") {
 		t.Errorf("the template's elements: %s", page)

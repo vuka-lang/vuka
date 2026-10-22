@@ -1,0 +1,154 @@
+package users
+
+import (
+	"context"
+	"errors"
+	"net/mail"
+	"strconv"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web/auth"
+{%- if .Mail%}
+	mailer "github.com/vuka-lang/web/mail"
+{%- end%}
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+	"{%.Module%}/modules/users"
+)
+
+var _ = layouts.Nav(layouts.Link{Label: "Users", Href: "/users", Icon: "users", Perm: "users.read", Order: 10})
+
+// Index lists the accounts, /users; admins add them.
+@auth.Requires("users.read")
+type Index struct {
+	ui.Live
+	Users   *users.Users
+{%- if .Mail%}
+	Mail    *mailer.Mailer
+{%- end%}
+	me      *auth.Identity
+	list    []users.User
+	problem map[string]string // the add form's errors, by field
+	notice  string
+}
+
+@ui.Mount
+func (p *Index) mount(ctx context.Context) error {
+	p.me = auth.Current(ctx)
+	list := p.Users.All(ctx)?
+	p.list = list
+	return nil
+}
+
+func (p *Index) Title() string { return "Users" }
+
+// Add creates an account from the form{%if .Mail%} and emails its owner{%end%}.
+@auth.Requires("users.write")
+func (p *Index) Add(ctx context.Context, in users.NewUser) error {
+	p.notice = ""
+	problem := map[string]string{}
+	if in.Name == "" {
+		problem["name"] = "Enter a name."
+	}
+	if a, err := mail.ParseAddress(in.Email); err != nil || a.Address != in.Email {
+		problem["email"] = "Enter an email address like name@example.com."
+	}
+	if len(in.Password) < 12 {
+		problem["password"] = "Use 12 characters or more."
+	}
+	p.problem = problem
+	if len(problem) > 0 {
+		return errors.New("check the form")
+	}
+	match p.Users.Create(ctx, in) {
+	case Ok(u):
+		list := p.Users.All(ctx)?
+		p.list = list
+{%- if .Mail%}
+		p.notice = u.Name + " can sign in now. We sent them a welcome email."
+		return p.Mail.SendLater(ctx, mailer.Message{
+			To:      []string{u.Email},
+			Subject: "Welcome to " + layouts.AppName(),
+			HTML:    users.Welcome{Name: u.Name, Email: u.Email, AppName: layouts.AppName()},
+		})
+{%- else%}
+		p.notice = u.Name + " can sign in now."
+		return nil
+{%- end%}
+	case Err(e) if errors.Is(e, users.ErrEmailTaken):
+		problem["email"] = "Someone already has this email."
+		p.problem = problem
+		return e
+	case Err(e):
+		return e
+	}
+}
+
+func roleClass(role string) string {
+	if role == "admin" {
+		return "bg-brand-50 text-brand-800 ring-brand-600/20 dark:bg-brand-500/10 dark:text-brand-300 dark:ring-brand-400/20"
+	}
+	return "bg-slate-100 text-slate-700 ring-slate-600/10 dark:bg-white/10 dark:text-slate-300 dark:ring-white/10"
+}
+<layouts.App me={p.me} path="/users" title="Users" description="Everyone who can sign in.">
+  <slot:actions>
+    if p.me.Can("users.write") {
+      <components.Button type="button" onClick={ui.JS.Toggle("#add-panel").FocusFirst("#add-panel")}>
+        <components.Icon name="plus" class="size-4" />
+        Add user
+      </components.Button>
+    }
+  </slot:actions>
+  <components.Flash tone="success" message={p.notice} class="mb-6" />
+  if p.me.Can("users.write") {
+    <div id="add-panel" hidden class="mb-6">
+      <components.Card title="Add a user" description="They sign in with this email and password.">
+        <form onSubmit={p.Add} class="grid gap-4 sm:grid-cols-2" id="add-user">
+          <components.Field label="Name" name="name" error={p.problem["name"]}>
+            <components.Input name="name" autocomplete="off" invalid={p.problem["name"] != ""} />
+          </components.Field>
+          <components.Field label="Email" name="email" error={p.problem["email"]}>
+            <components.Input name="email" type="email" autocomplete="off" invalid={p.problem["email"] != ""} />
+          </components.Field>
+          <components.Field label="Password" name="password" hint="12 characters or more." error={p.problem["password"]}>
+            <components.Input name="password" type="password" autocomplete="new-password" invalid={p.problem["password"] != ""} />
+          </components.Field>
+          <components.Field label="Role" name="role">
+            <select id="role" name="role" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:outline-none focus:ring-2 focus:ring-brand-600 dark:bg-white/5 dark:text-white dark:ring-white/15">
+              <option value="member">Member</option>
+              <option value="admin">Admin</option>
+            </select>
+          </components.Field>
+          <div class="flex justify-end gap-3 sm:col-span-2">
+            <components.Button type="button" variant="secondary" onClick={ui.JS.Hide("#add-panel")}>Cancel</components.Button>
+            <components.Button>Add user</components.Button>
+          </div>
+        </form>
+      </components.Card>
+    </div>
+  }
+  <div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+    <table class="min-w-full divide-y divide-slate-900/5 text-sm dark:divide-white/10">
+      <thead class="bg-slate-50 text-left text-xs font-medium tracking-wide text-slate-500 uppercase dark:bg-white/5 dark:text-slate-400">
+        <tr>
+          <th scope="col" class="px-5 py-3">Name</th>
+          <th scope="col" class="px-5 py-3">Role</th>
+          <th scope="col" class="hidden px-5 py-3 sm:table-cell">Joined</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-slate-900/5 dark:divide-white/5" id="users">
+        for _, u := range p.list {
+          <tr key={u.ID} id={"user-" + strconv.FormatInt(u.ID, 10)}>
+            <td class="px-5 py-3.5">
+              <p class="font-medium text-slate-900 dark:text-white">{u.Name}</p>
+              <p class="text-slate-500 dark:text-slate-400">{u.Email}</p>
+            </td>
+            <td class="px-5 py-3.5"><span class={"inline-flex items-center rounded-md px-2 py-0.5 text-xs font-medium capitalize ring-1 ring-inset " + roleClass(u.Role)}>{u.Role}</span></td>
+            <td class="hidden px-5 py-3.5 text-slate-500 sm:table-cell dark:text-slate-400">{u.CreatedAt.Format("2 Jan 2006")}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </div>
+</layouts.App>

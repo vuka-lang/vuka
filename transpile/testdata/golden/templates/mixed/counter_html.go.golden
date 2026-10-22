@@ -5,24 +5,31 @@ package main
 
 import (
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 )
 
-//line counter.vuka.html:3
-func (c *Counter) Render() ui.Node {
-//line counter.vuka.html:3
-	return ui.HTML(`
-<div class="counter">
-  {Badge("count")}
-  <span>{c.Start + c.n}</span>
-  <button onClick={c.Inc}>+</button>
-</div>`, Badge("count"), c.Start+c.n, c.Inc)
+// Counter is a live component.
+//
+//line counter.vuka.html:6
+type Counter struct {
+	ui.Live
+	Start int
+	n     uigen.Assign[int]
 }
 
-//line counter.vuka.html:9
-func heading(text string) ui.Node { return ui.HTML(`<h1>{text}</h1>`, text) }
+func (c *Counter) Inc() { c.n.Set(c.n.Get() + 1) }
 
-//line counter.vuka.html:12
-func step(c *Counter) ui.Node {
-//line counter.vuka.html:12
-	return ui.HTML(`<button onClick={func() { c.Add(2) }}>+2</button>`, func() { c.Add(2) })
+// Add is an event taking an argument: onClick={Add(2)}.
+func (c *Counter) Add(n int) { c.n.Set(c.n.Get() + (n)) }
+
+//line counter.vuka.html:16
+func (c *Counter) Render() ui.Node {
+//line counter.vuka.html:16
+	return ui.HTML(`
+<div class="counter">
+  {Badge{Label: "count"}}
+  <span>{c.Start + c.n.Get()}</span>
+  <button onClick={c.Inc}>+</button>
+  <button onClick={func() { c.Add(2) }}>+2</button>
+</div>`, Badge{Label: "count"}, c.Start+c.n.Get(), c.Inc, func() { c.Add(2) })
 }

@@ -11,13 +11,18 @@ import (
 	"github.com/vuka-lang/vuka"
 )
 
-//line icon.vuka.html:3
+// Icon reads a field reference, Glyph.Name, as a hole of its own.
+//
+//line icon.vuka.html:4
+type Icon struct{ Size int }
+
+//line icon.vuka.html:5
 func (i Icon) View() ui.Node {
-//line icon.vuka.html:3
+//line icon.vuka.html:5
 	value := vuka.StringRefTo(func(x *Glyph) *string { return &x.Name })
-//line icon.vuka.html:3
+//line icon.vuka.html:5
 	return ui.HTML(`<p data-size={i.Size}>{value}</p>`, i.Size, value)
 }
 
-//line icon.vuka.html:3
+//line icon.vuka.html:5
 func (i Icon) Render(ctx context.Context, w io.Writer) error { return i.View().Render(ctx, w) }

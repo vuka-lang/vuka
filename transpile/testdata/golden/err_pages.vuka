@@ -1,0 +1,14 @@
+package main
+
+import "github.com/vuka-lang/web"
+
+// A page is a file under pages/: @web.Live and a route decorator on a type
+// declare none.
+
+@web.Live("/pets/{id}")
+type Pet struct{ ID int }
+
+@web.Get("/")
+type Home struct{}
+
+func main() { _ = &web.App{} }

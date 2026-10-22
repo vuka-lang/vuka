@@ -1,0 +1,14 @@
+package users
+
+import "github.com/vuka-lang/ui"
+
+// Welcome is the email a new user gets.
+type Welcome struct {
+	Name    string
+	Email   string
+	AppName string
+}
+<div style={ui.Style{"font-family": "system-ui, sans-serif", "line-height": "1.5"}}>
+  <p>Hi {Name},</p>
+  <p>An account on {AppName} is ready for you. Sign in with {Email} and the password you were given.</p>
+</div>

@@ -1,5 +1,13 @@
 package main
 
+// Icon has a field named after its own type: where a value goes, Glyph is
+// the field; where only a type goes, the type.
+type Icon struct {
+	Glyph Glyph
+	Alt   Raw
+	Extra []Glyph
+	Size  int
+}
 <svg width={Size}>
   <path d={Glyph.Path()}/>
   <title>{Glyph.Name} {len(Glyph.Name)}</title>

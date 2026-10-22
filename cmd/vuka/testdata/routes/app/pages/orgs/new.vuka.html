@@ -1,0 +1,11 @@
+package orgs
+
+import "context"
+
+// New is the form for a new organisation.
+type New struct{}
+
+func NewNew() *New { return &New{} }
+
+func (*New) Post(ctx context.Context, f Form) error { return nil }
+<form method="post"><input name="name"/></form>

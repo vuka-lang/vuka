@@ -13,29 +13,31 @@ import (
 	"unicode"
 )
 
-// A .vuka.html file is templates: markup, and func headers starting the
-// templates after the first. What comes before the first header is the
-// Render of the type the file is named after (sales.vuka.html: Sales), its
-// fields and methods read by their bare names. It compiles as the .vuka
-// source writing each template as a function returning its markup, on the
-// template's own lines:
+// A .vuka.html file is one struct and its markup: a Go header declaring the
+// struct (htmlshape.go), then, from the first line starting with <, the
+// markup that struct renders, its fields and methods read by their bare
+// names. It compiles as the .vuka source writing the markup as the struct's
+// View (a static struct, which then renders it) or Render (a live one), on
+// the markup's own lines:
 //
-//	func Card(p CardProps)              func Card(p CardProps) ui.Node { return <>
-//	<div>{p.Title}</div>          →     <div>{p.Title}</div></> }
+//	type Card struct{ Title string }    type Card struct{ Title string }
+//	<div>{Title}</div>            →     func (c Card) View() ui.Node { return <>
+//	                                    <div>{c.Title}</div></> }
 
 // IsTemplate reports whether f is a .vuka.html template file.
 func (f File) IsTemplate() bool { return strings.HasSuffix(f.Name, ".vuka.html") }
 
 // htmlFile is what a template file's compilation needs to know about it.
 type htmlFile struct {
-	recv     string // the main template's receiver: s
+	recv     string // the markup's receiver: s
 	recvType string // and its type: Sales
-	start    int    // where the main template's markup is
+	start    int    // where the markup is
 	end      int
 	src      []byte      // the file as written
 	ins      []insertion // what its compiled text inserts, in order
 	lines    lineIndex   // src's
-	shape    *Shape      // the struct it declares, in the 2.0 shape (htmlshape.go)
+	shape    *Shape      // the struct it declares (htmlshape.go)
+	markup   int         // where its markup starts in src: what is above is its Go header
 }
 
 var funcLine = regexp.MustCompile(`^func\s`)
@@ -145,8 +147,9 @@ func (h TemplateHead) check(pkg string) *Error {
 		Msg: "the template file is in package " + h.Package + ", and its directory's package is " + pkg}).help("write \"package %s\"", pkg)
 }
 
-// componentName is the type a template file is the Render of: sales.vuka.html
-// is Sales, order_row.vuka.html OrderRow.
+// componentName is the type a template file is named after: sales.vuka.html
+// is Sales, order_row.vuka.html OrderRow. A file with no struct above its
+// markup (E0152) names it so.
 func componentName(file string) string {
 	base := strings.TrimSuffix(file, ".vuka.html")
 	if i := strings.LastIndexByte(base, '/'); i >= 0 {
@@ -187,8 +190,8 @@ func (e *engine) template(f *fileState, files []File) bool {
 }
 
 // htmlSource is a template file as the .vuka source it compiles as. others
-// are the package's other files: its name, its imports and the main
-// template's type come from them.
+// are the package's other files: its package's name and imports come from
+// them.
 func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htmlFile, *Error) {
 	out, h, _, err := htmlParts(name, src, others, ui, false)
 	return out, h, err
@@ -197,7 +200,7 @@ func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htm
 // TemplateAsset is a template's script or stylesheet: a <script> or
 // <style> after its markup, which it is cut from.
 type TemplateAsset struct {
-	Decl   string // the declaration the template is: a type, for its Render or other method, or a function
+	Decl   string // the struct the markup is of; a func's name for a second template (E0153)
 	Script bool   // a script, else a stylesheet
 	Scoped bool   // <style scoped>
 	Text   string
@@ -205,7 +208,7 @@ type TemplateAsset struct {
 }
 
 // TemplateAssets are the scripts and stylesheets of a template file's
-// templates.
+// markup.
 func TemplateAssets(name string, src []byte) []TemplateAsset {
 	_, _, assets, _ := htmlParts(name, src, nil, "ui.", true)
 	return assets
@@ -285,7 +288,7 @@ func templateDecl(header string) string {
 	return ""
 }
 
-// htmlParts is htmlSource, and the templates' scripts and stylesheets;
+// htmlParts is htmlSource, and the markup's scripts and stylesheets;
 // assetsOnly reads only those.
 func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
 	lines := strings.SplitAfter(string(src), "\n")
@@ -295,8 +298,14 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	head := ParseTemplateHead(src)
 	top := head.Top
-	// A file in the 2.0 shape declares its struct above its markup: the
-	// templates start there.
+	if !assetsOnly {
+		if err := head.check(packageNameOf(others)); err != nil {
+			return nil, nil, nil, err
+		}
+	}
+	// The file declares its struct above its markup: the markup starts
+	// there. A file without one is E0152 (oneTemplate); its assets are still
+	// read, for the language server.
 	var shape *Shape
 	if isShape(lines, top) {
 		sh, err := parseShape(src, lines, head)
@@ -339,41 +348,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		closeBody = "</> }) }"
 		return " { return " + ui + "Ctx(func(ctx context.Context) " + ui + "Node { return <>"
 	}
-	// body closes the template whose markup is lines[from:to], returning
-	// where its function ends.
-	body := func(from, to int) int {
-		last := -1
-		for i := from; i < to; i++ {
-			if strings.TrimSpace(lines[i]) != "" {
-				last = i
-			}
-		}
-		if last < 0 {
-			add(contentEnd(from-1), closeBody) // the header opened the fragment
-			return contentEnd(from - 1)
-		}
-		add(contentEnd(last), closeBody)
-		return contentEnd(last)
-	}
-	// A struct component's View is its markup; the component is a ui.Node,
-	// rendering its View.
 	nodeMethod := false
-	renderMethod := func(at int, recv, typ string) {
-		w := "w"
-		if recv == "w" {
-			w = "out"
-		}
-		add(at, "\n\nfunc ("+recv+" "+typ+") Render(ctx context.Context, "+w+" io.Writer) error { return "+recv+".View().Render(ctx, "+w+") }")
-		nodeMethod = true
-	}
-	header := func(i, end int) {
-		l := strings.TrimRight(lines[i], " \t\r\n")
-		res := " " + ui + "Node"
-		if strings.HasSuffix(l, "ui.Node") || strings.HasSuffix(l, " Node") {
-			res = ""
-		}
-		add(contentEnd(i), res+openBody(templateReadsContext([]byte(strings.Join(lines[i+1:end], "")), l)))
-	}
 	firstEnd := len(lines)
 	if len(heads) > 0 {
 		firstEnd = docStart(heads[0])
@@ -403,6 +378,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	if assetsOnly {
 		return nil, nil, assets, nil
 	}
+	if err := oneTemplate(name, src, lines, heads, shape, others); err != nil {
+		return nil, nil, nil, err
+	}
 	seen := map[[2]string]bool{}
 	for _, a := range assets {
 		kind := [2]string{a.Decl, "a script"}
@@ -418,41 +396,36 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		seen[kind] = true
 	}
-	if err := head.check(packageNameOf(others)); err != nil {
+	// An island page's markup is its component: the struct is the island,
+	// and the compiler writes its Render.
+	if isl, err := islandOnly(shape, head, lines, first, firstEnd); err != nil {
 		return nil, nil, nil, err
-	}
-	for _, hd := range TemplateHeaders(src) {
-		if !hd.Method && IsElementName(hd.Name) {
-			return nil, nil, nil, (&Error{Code: "E0145", Pos: token.Position{Line: hd.Line, Column: hd.Off - off[hd.Line-1] + 1}, Len: len(hd.Name),
-				Msg: "the template " + hd.Name + " has an element's name: <" + hd.Name + "> is the element"}).help("rename it: %sView, or a name of what it shows", hd.Name)
+	} else if isl != nil {
+		lines[isl.imp.Line] = blank(lines[isl.imp.Line])
+		for i := first; i < firstEnd; i++ {
+			lines[i] = blank(lines[i])
 		}
+		add(off[shape.TypeLine-1], isl.decorator(ui))
+		first = -1
 	}
+	// The struct's markup: past oneTemplate, the file has its struct and no
+	// other template.
 	if first >= 0 {
-		ptr, live, ok := receiverKind(typ, others)
-		if shape != nil {
-			ptr, live, ok = shape.Ptr, shape.Live, true
-		}
-		if !ok {
-			return nil, nil, nil, &Error{Code: "E0140", Msg: "the markup before the first func is the component " + typ + "'s, and the package declares no type " + typ,
-				Help: "declare type " + typ + " in a .go or .vuka file of the package, or start the file with func …"}
-		}
+		ptr, live := shape.Ptr, shape.Live
 		recv := receiverName(typ, string(src[off[first]:off[firstEnd]]))
 		star := ""
 		if ptr {
 			star = "*"
 		}
-		*h = htmlFile{recv: recv, recvType: typ, start: off[first], end: off[firstEnd], shape: shape}
-		targs := ""
-		if shape != nil {
-			// The markup reads the struct as its methods do.
-			if shape.Recv != "" {
-				recv, h.recv = shape.Recv, shape.Recv
-			}
-			targs = shape.TypeArgs
-			// A struct live by its hooks or events is a live component.
-			if shape.Live && !shape.EmbedsLive {
-				add(shape.open, ui+"Live; ")
-			}
+		*h = htmlFile{recv: recv, recvType: typ, start: off[first], end: off[firstEnd], shape: shape, markup: off[shape.Markup]}
+		// The markup reads the struct as its methods do.
+		if shape.Recv != "" {
+			recv, h.recv = shape.Recv, shape.Recv
+		}
+		targs := shape.TypeArgs
+		// A struct live by its hooks or events is a live component.
+		if shape.Live && !shape.EmbedsLive {
+			add(shape.open, ui+"Live; ")
 		}
 		// A stateful component's markup is its Render, a struct
 		// component's its View.
@@ -461,7 +434,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			method = "Render"
 		}
 		opening := openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), ""))
-		if shape != nil && !live && shape.hasRole(BrowserState) {
+		if !live && shape.hasRole(BrowserState) {
 			// A static struct's states, before its View renders (a live
 			// one's get theirs before it mounts): the engine names the
 			// call (statesCall).
@@ -475,9 +448,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
 			open += "\n" // a statement starts its line
 		}
-		if shape != nil {
-			open = "\n\n" + open // after the header's last declaration
-		}
+		open = "\n\n" + open // after the header's last declaration
 		add(off[first], open)
 		for _, a := range assets {
 			if a.Decl == typ && a.Script {
@@ -486,33 +457,24 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 				break
 			}
 		}
-		end := contentEnd(first)
-		if strings.TrimSpace(strings.Join(lines[first+1:firstEnd], "")) == "" {
-			add(end, closeBody)
-		} else {
-			end = body(first+1, firstEnd)
-		}
-		if !live {
-			renderMethod(end, recv, star+typ+targs)
-		}
-	}
-	for k, hd := range heads {
-		end := len(lines)
-		if k+1 < len(heads) {
-			end = docStart(heads[k+1])
-		}
-		header(hd, end)
-		if v := propsOf(lines[hd]); v != "" {
-			for _, a := range assets {
-				if a.Script && a.Line > hd && a.Line <= end {
-					add(propsAt(lines, off, hd+1, end), scriptAttrs(ui, v, a.Text))
-					break
-				}
+		// The markup's function ends after its last line.
+		last := first
+		for i := first + 1; i < firstEnd; i++ {
+			if strings.TrimSpace(lines[i]) != "" {
+				last = i
 			}
 		}
-		at := body(hd+1, end)
-		if m := viewHeader.FindStringSubmatch(lines[hd]); m != nil {
-			renderMethod(at, m[1], m[2]+m[3])
+		end := contentEnd(last)
+		add(end, closeBody)
+		if !live {
+			// A static struct's View is its markup; the struct is a ui.Node,
+			// rendering its View.
+			w := "w"
+			if recv == "w" {
+				w = "out"
+			}
+			add(end, "\n\nfunc ("+recv+" "+star+typ+targs+") Render(ctx context.Context, "+w+" io.Writer) error { return "+recv+".View().Render(ctx, "+w+") }")
+			nodeMethod = true
 		}
 	}
 	var imps []string
@@ -668,24 +630,7 @@ func propsAt(lines []string, off []int, from, to int) int {
 	return off[from]
 }
 
-var (
-	viewHeader = regexp.MustCompile(`^func\s*\(\s*(\w+)\s+(\*?)\s*(\w+(?:\[[\w\s,]*\])?)\s*\)\s*View\s*\(\s*\)`)
-	firstTag   = regexp.MustCompile(`<[A-Za-z][\w.:-]*`)
-	recvName   = regexp.MustCompile(`^func\s*\(\s*(\w+)\s`)
-	propParam  = regexp.MustCompile(`^func\s+\w+\s*\(\s*(\w+)\s+[\w.*]+\s*\)`)
-)
-
-// propsOf is what a template's script reads as its props: its receiver, or
-// its one parameter.
-func propsOf(header string) string {
-	if m := recvName.FindStringSubmatch(header); m != nil {
-		return m[1]
-	}
-	if m := propParam.FindStringSubmatch(header); m != nil {
-		return m[1]
-	}
-	return ""
-}
+var firstTag = regexp.MustCompile(`<[A-Za-z][\w.:-]*`)
 
 // goParts is the Go of a template file: its holes, and its lines of Go
 // (headers, statements), not its markup's text — where "@web.Live" names
@@ -785,51 +730,7 @@ func packageNameOf(files []File) string {
 	return ""
 }
 
-// receiverKind reports whether typ's markup method takes a pointer — it
-// embeds ui.Live, holds a ui.State or has a pointer method —, whether it is
-// a stateful component (it embeds ui.Live: its markup is its Render), and
-// whether the package declares typ.
-func receiverKind(typ string, files []File) (ptr, live, ok bool) {
-	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(typ) + `\s+struct\s*\{`)
-	method := regexp.MustCompile(`func\s*\(\s*\w*\s*\*\s*` + regexp.QuoteMeta(typ) + `\s*\)`)
-	for _, f := range files {
-		if f.IsTemplate() {
-			continue
-		}
-		src := string(f.Src)
-		if method.MatchString(src) {
-			ptr = true
-		}
-		loc := decl.FindStringIndex(src)
-		if loc == nil {
-			continue
-		}
-		ok = true
-		if end := goEndBrace(src, loc[1]); end > 0 {
-			body := src[loc[1]:end]
-			live = live || regexp.MustCompile(`(?m)^\s*(\w+\.)?Live\s*$`).MatchString(body)
-			ptr = ptr || live || strings.Contains(body, "State[")
-		}
-	}
-	return ptr, live, ok
-}
-
-// goEndBrace is the offset of the } closing the brace before i.
-func goEndBrace(s string, i int) int {
-	for depth := 1; i < len(s); i++ {
-		switch s[i] {
-		case '{':
-			depth++
-		case '}':
-			if depth--; depth == 0 {
-				return i
-			}
-		}
-	}
-	return -1
-}
-
-// receiverName is the main template's receiver: the type's first letter,
+// receiverName is the markup's receiver: the type's first letter,
 // unless the markup names something so.
 func receiverName(typ, markup string) string {
 	r := strings.ToLower(typ[:1])
@@ -841,7 +742,7 @@ func receiverName(typ, markup string) string {
 	return "this"
 }
 
-// resolveBare qualifies the main template's bare names: an identifier
+// resolveBare qualifies the markup's bare names: an identifier
 // naming a field or method of the receiver is the receiver's, s.Title,
 // unless a local declared in the template names it.
 //
@@ -994,7 +895,8 @@ func (h *htmlFile) remap(m *SourceMap) {
 	m.segs = out
 }
 
-// TemplateHeader is a template's func line.
+// TemplateHeader is a func line after a template file's markup: a second
+// template (E0153).
 type TemplateHeader struct {
 	Name   string
 	Method bool // it has a receiver
@@ -1005,7 +907,7 @@ type TemplateHeader struct {
 
 var headerName = regexp.MustCompile(`^func(?:\s*(\([^)]*\))\s*|\s+)(\w+)`)
 
-// TemplateHeaders are a template file's func lines.
+// TemplateHeaders are the func lines after a template file's markup.
 func TemplateHeaders(src []byte) []TemplateHeader {
 	var out []TemplateHeader
 	off, prev := 0, ""
@@ -1020,12 +922,12 @@ func TemplateHeaders(src []byte) []TemplateHeader {
 	return out
 }
 
-// BlankTemplate is the template file src with the markup of the template
-// holding the offset off written as spaces, its lines kept: a template
-// without markup, still declared; the whole template, doc comment and
-// header too, when off is in its header. nil when off is in no template
-// (the package clause and imports). The language server compiles a file
-// with an error in one template so, for the others to type-check.
+// BlankTemplate is the template file src with the markup holding the offset
+// off written as spaces, its lines kept, its struct still declared; a second
+// template (E0153) holding it is blanked whole, doc comment and header too,
+// when off is in its header. nil when off is in no markup (the package
+// clause, the imports, the Go header). The language server compiles a file
+// with an error in its markup so, for the package to type-check.
 func BlankTemplate(src []byte, off int) []byte {
 	lines := strings.SplitAfter(string(src), "\n")
 	top := templatesTop(src)
@@ -1066,4 +968,53 @@ func BlankTemplate(src []byte, off int) []byte {
 		return append(out, strings.Join(lines[s.end:], "")...)
 	}
 	return nil
+}
+
+// oneTemplate checks that a template file is one struct's markup: the
+// struct declared above it (E0152) and no other template after it (E0153).
+// heads are the lines of its func templates, from 0.
+func oneTemplate(name string, src []byte, lines []string, heads []int, shape *Shape, others []File) *Error {
+	if len(heads) > 0 {
+		hd := TemplateHeaders(src)
+		at, what := heads[0], "a template"
+		for _, h := range hd {
+			if h.Line == heads[0]+1 {
+				what = h.Name
+				if h.Method {
+					what = "the method template " + h.Name
+				}
+			}
+		}
+		e := &Error{Code: "E0153", Pos: token.Position{Line: at + 1, Column: 1}, Len: len(strings.TrimRight(lines[at], " \t\r\n")),
+			Msg: what + " is a second template in this file: a .vuka.html file renders one struct, the one above its markup"}
+		if shape == nil {
+			e.Msg = what + " is a template func: a .vuka.html file renders one struct, declared above its markup"
+		}
+		return e.help("move it to its own .vuka.html file, a struct whose exported fields are its parameters, used as a tag; or write it as a Go func returning ui.Node in a .go file")
+	}
+	if shape != nil {
+		return nil
+	}
+	typ := componentName(name)
+	first := 0
+	for first < len(lines)-1 && (strings.TrimSpace(lines[first]) == "" || !strings.HasPrefix(strings.TrimSpace(lines[first]), "<")) {
+		first++
+	}
+	e := &Error{Code: "E0152", Pos: token.Position{Line: first + 1, Column: 1},
+		Msg: "this markup has no struct above it: a .vuka.html file declares the struct it renders in its Go header"}
+	if where := typeFile(typ, others); where != "" {
+		return e.help("move type %s struct {…} and its methods from %s into this file, between its imports and its markup", typ, where)
+	}
+	return e.help("declare the struct it renders between the imports and the markup: type %s struct {…}", typ)
+}
+
+// typeFile is the file of others declaring the struct typ, "" when none does.
+func typeFile(typ string, others []File) string {
+	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(typ) + `\b`)
+	for _, f := range others {
+		if !f.IsTemplate() && decl.Match(f.Src) {
+			return f.Name
+		}
+	}
+	return ""
 }

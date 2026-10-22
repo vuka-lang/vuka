@@ -10,13 +10,24 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line card.vuka.html:3
+// Card has fields named as the package's Title and Label.
+//
+//line card.vuka.html:4
+type Card struct {
+	Title string
+	Items []string
+}
+
+// Label is the card's label.
+func (c Card) Label() string { return "card" }
+
+//line card.vuka.html:11
 func (c Card) View() ui.Node {
 	var ps []ui.Node
 	for _, Title := range c.Items {
 		ps = append(ps, ui.HTML(`<p>{Title}</p>`, Title))
 	}
-//line card.vuka.html:3
+//line card.vuka.html:11
 	return ui.HTML(`
 <div>
   <h2>{c.Title} {c.Label()}</h2>
@@ -24,5 +35,5 @@ func (c Card) View() ui.Node {
 </div>`, c.Title, c.Label(), ps)
 }
 
-//line card.vuka.html:8
+//line card.vuka.html:16
 func (c Card) Render(ctx context.Context, w io.Writer) error { return c.View().Render(ctx, w) }

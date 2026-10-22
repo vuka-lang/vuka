@@ -1,7 +1,7 @@
 package main
 
 // Page shows each value as it is where the markup reads it.
-func Page(xs []int)
+type Page struct{ Xs []int }
 <main>
   x := 1
   <p>{x}</p>
@@ -9,7 +9,7 @@ func Page(xs []int)
   <p>{x}</p>
   total := 0
   <ul>
-    for _, n := range xs {
+    for _, n := range Xs {
       <li>{total}</li>
       total += n
     }

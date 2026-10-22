@@ -1,0 +1,27 @@
+package user
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+
+	Profile "../../web/islands/Profile.vue"
+)
+
+// Profile is a live page backed by its island, web/islands/Profile.vue.
+type Profile struct {
+	ui.Live
+	ID   int    `json:"id"`
+	Name string `json:"name"`
+}
+
+@ui.Mount
+func (p *Profile) mount(ctx context.Context) error {
+	names := map[int]string{1: "Ada", 2: "Grace"}
+	if p.Name = names[p.ID]; p.Name == "" {
+		return web.NotFound
+	}
+	return nil
+}
+<Profile client:load />

@@ -19,7 +19,7 @@ templ PageView({%if .Auth%}me *auth.Identity, {%end%}rows []{%.Model%}, problem 
 				<form method="post" action="{%.Path%}" class="space-y-4" id="new-{%.Pkg%}">
 					<div class="space-y-1.5">
 						<label for="title" class="block text-sm font-medium text-slate-700 dark:text-slate-200">Title</label>
-						@components.Input(components.InputProps{Name: "title", Autocomplete: "off", Invalid: problem != ""})
+						@components.Input{Name: "title", Autocomplete: "off", Invalid: problem != ""}
 						if problem != "" {
 							<p class="text-sm text-red-600 dark:text-red-400">{ problem }</p>
 						}
@@ -28,7 +28,7 @@ templ PageView({%if .Auth%}me *auth.Identity, {%end%}rows []{%.Model%}, problem 
 						<label for="body" class="block text-sm font-medium text-slate-700 dark:text-slate-200">Details</label>
 						<textarea id="body" name="body" rows="3" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none dark:bg-white/5 dark:text-white dark:ring-white/15"></textarea>
 					</div>
-					@components.Button(components.ButtonProps{Class: "w-full", Children: templ.Raw("Add")})
+					@components.Button{Class: "w-full", Children: templ.Raw("Add")}
 				</form>
 			</section>
 			<div class="lg:col-span-2">
@@ -48,7 +48,7 @@ templ PageView({%if .Auth%}me *auth.Identity, {%end%}rows []{%.Model%}, problem 
 								<p class="mt-2 text-xs text-slate-400">{ row.CreatedAt.Format("2 Jan 2006, 15:04") }</p>
 							</div>
 							<form method="post" action={ templ.SafeURL("{%.Path%}/" + strconv.FormatInt(row.ID, 10) + "/delete") }>
-								@components.Button(components.ButtonProps{Variant: "ghost", Size: "sm", Children: templ.Raw("Delete")})
+								@components.Button{Variant: "ghost", Size: "sm", Children: templ.Raw("Delete")}
 							</form>
 						</li>
 					}

@@ -1,15 +1,22 @@
 package components
 
+import "github.com/vuka-lang/ui"
+
 // Card is a panel with an optional title and description.
-func Card(title string, description string, class string, children ui.Node)
-<section class={cx("rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10", class)}>
-  if title != "" {
+type Card struct {
+	Title       string
+	Description string
+	Class       string
+	Children    ui.Node
+}
+<section class={cx("rounded-2xl bg-white p-6 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10", Class)}>
+  if Title != "" {
     <header class="mb-4">
-      <h2 class="text-base font-semibold text-slate-900 dark:text-white">{title}</h2>
-      if description != "" {
-        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{description}</p>
+      <h2 class="text-base font-semibold text-slate-900 dark:text-white">{Title}</h2>
+      if Description != "" {
+        <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{Description}</p>
       }
     </header>
   }
-  {children}
+  {Children}
 </section>

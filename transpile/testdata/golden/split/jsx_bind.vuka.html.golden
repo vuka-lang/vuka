@@ -1,4 +1,0 @@
-package main
-
-func (s *Search) Render()
-<form style:--accent={s.Color}><input bind:value={s.Q} /></form>

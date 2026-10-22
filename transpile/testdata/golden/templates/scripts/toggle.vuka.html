@@ -1,5 +1,11 @@
 package main
 
+import "github.com/vuka-lang/ui"
+
+// Toggle's script reads its state.
+type Toggle struct {
+	open ui.State[bool]
+}
 <button type="button">toggle</button>
 
 <script lang="ts">

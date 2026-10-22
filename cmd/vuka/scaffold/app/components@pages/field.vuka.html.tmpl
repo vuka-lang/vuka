@@ -1,0 +1,22 @@
+package components
+
+import "github.com/vuka-lang/ui"
+
+// Field is a labelled form control: its label, the control (its
+// children), and a hint or an error under it.
+type Field struct {
+	Label    string
+	Name     string
+	Hint     string
+	Error    string
+	Children ui.Node
+}
+<div class="space-y-1.5">
+  <label for={Name} class="block text-sm font-medium text-slate-700 dark:text-slate-200">{Label}</label>
+  {Children}
+  if Error != "" {
+    <p class="text-sm text-red-600 dark:text-red-400" id={Name + "-error"}>{Error}</p>
+  } else if Hint != "" {
+    <p class="text-xs text-slate-500 dark:text-slate-400">{Hint}</p>
+  }
+</div>

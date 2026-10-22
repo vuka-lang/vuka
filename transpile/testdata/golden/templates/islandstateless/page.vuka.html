@@ -1,0 +1,10 @@
+package main
+
+import Board "./board.vue"
+
+// Page is a stateless island page: its markup is the island alone, and it
+// embeds no ui.Live, so it is built per request.
+type Page struct {
+	Q string `json:"q"`
+}
+<Board q={Q} client:load />

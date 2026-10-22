@@ -5,6 +5,7 @@ import (
 	"go/token"
 	"go/types"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -133,6 +134,52 @@ func (e *engine) retiredDecorator(f *fileState, a *Attr) bool {
 	return ok
 }
 
+// pageVerbs are web's route decorators, which declare a page on a type.
+var pageVerbs = map[string]bool{"Get": true, "Post": true, "Put": true, "Patch": true, "Delete": true, "Handle": true}
+
+// pageDecorator reports a's decorator when it declares a page — @web.Live,
+// or a route decorator on a type (E0720): a page is a file under pages/,
+// which vuka registers. A route decorator on a function declares a handler,
+// which stays.
+func (e *engine) pageDecorator(f *fileState, a *Attr) bool {
+	pkgName, sel, ok := strings.Cut(a.Name, ".")
+	if !ok || sel != "Live" && !pageVerbs[sel] {
+		return false
+	}
+	if pkg := e.importedAs(f, pkgName); pkg == nil || pkg.Path() != "github.com/vuka-lang/web" {
+		return false
+	}
+	if gd, ok := a.decl.(*ast.GenDecl); sel != "Live" && (!ok || gd.Tok != token.TYPE) {
+		return false
+	}
+	file := "pages/…"
+	if m := routePath.FindStringSubmatch(a.Args); m != nil {
+		file = pageFile(m[1])
+	}
+	e.errs.add("E0720", a.Pos, "@%s declares a page outside pages/: a page is a .vuka.html file under pages/, its path its URL, and vuka registers it", a.Name).
+		help("move %s to %s: the struct above its markup; it is live when it embeds ui.Live or the markup calls its methods", a.Decl, file)
+	return true
+}
+
+// routePath is a route decorator's path argument.
+var routePath = regexp.MustCompile(`^\(\s*(?:"[A-Z]+"\s*,\s*)?"([^"]*)"`)
+
+// pageFile is the file under pages/ serving path: / is pages/index.vuka.html,
+// /pets/{id} pages/pets/[id].vuka.html, /files/{path...}
+// pages/files/[path...].vuka.html.
+func pageFile(path string) string {
+	segs := strings.Split(strings.Trim(path, "/"), "/")
+	for i, s := range segs {
+		if strings.HasPrefix(s, "{") && strings.HasSuffix(s, "}") {
+			segs[i] = "[" + s[1:len(s)-1] + "]"
+		}
+	}
+	if len(segs) == 1 && segs[0] == "" {
+		segs = []string{"index"}
+	}
+	return "pages/" + strings.Join(segs, "/") + ".vuka.html"
+}
+
 // dependency reports whether a field of type x holds a dependency: a
 // pointer, or an interface the package or an import declares.
 func (e *engine) dependency(f *fileState, x ast.Expr) bool {
@@ -245,7 +292,7 @@ func (e *engine) decorate() bool {
 		groups := map[ast.Decl][]*Attr{}
 		var order []ast.Decl
 		for _, a := range f.attrs {
-			if e.retiredDecorator(f, a) {
+			if e.retiredDecorator(f, a) || e.pageDecorator(f, a) {
 				continue
 			}
 			if f.rt == "" && strings.HasPrefix(a.Name, "vuka.") && e.isRuntimeName(f, a.Name, a.Name[len("vuka."):]) {

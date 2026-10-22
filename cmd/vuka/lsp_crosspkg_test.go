@@ -28,20 +28,19 @@ type Task struct {
 }
 `
 
-// crossMain uses the cross-package static chain below a JSX construct.
+// crossMain uses the cross-package static chain below a ? construct.
 const crossMain = `package main
 
 import (
 	"context"
+	"strconv"
 
-	"github.com/vuka-lang/ui"
 	"lsptest/entities"
 )
 
-func widget() ui.Node {
-	return <div className="card">
-		<h3>hi</h3>
-	</div>
+func parse(s string) (int, error) {
+	n := strconv.Atoi(s)?
+	return n, nil
 }
 
 func run(ctx context.Context) {
@@ -51,7 +50,7 @@ func run(ctx context.Context) {
 `
 
 // TestLSPCrossPkgStaticChain (BUG B/C/D, cross-package): hover, completion and
-// diagnostics on a cross-package static chain below a JSX construct map right.
+// diagnostics on a cross-package static chain below a ? construct map right.
 func TestLSPCrossPkgStaticChain(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{
 		"main.vuka":              crossMain,

@@ -1,0 +1,16 @@
+package pages
+
+import "github.com/vuka-lang/ui"
+
+// Settings places the picker.
+type Settings struct {
+	ui.Live
+	theme string
+}
+
+// Choose takes the picker's pick.
+func (s *Settings) Choose(v string) { s.theme = v }
+<main>
+  <Picker label="Theme" options={[]string{"light", "dark"}} picked={theme} onPick={Choose}/>
+  <p class="theme">{theme}</p>
+</main>

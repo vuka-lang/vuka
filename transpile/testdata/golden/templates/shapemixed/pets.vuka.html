@@ -25,11 +25,8 @@ func (p Pets) Oldest() string {
   <h2>Oldest: {Oldest()}</h2>
   <ul>
     for _, x := range Pets {
-      {petRow(x)}
+      <PetRow x={x}/>
     }
   </ul>
   <Footer n={len(Pets)} />
 </section>
-
-func petRow(x Pet)
-<li>{x.Name}</li>

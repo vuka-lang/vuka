@@ -1195,3 +1195,28 @@ func (p *jsxParser) inlineScript(el *jsxElem, start, end int) []jsxNode {
 	}
 	return out
 }
+
+// jsxInVuka lets a .vuka file hold JSX: only the compiler's own tests of
+// the lowering a .vuka.html file's markup compiles through set it.
+var jsxInVuka bool
+
+// markupOutsideTemplate reports JSX at off that a person wrote outside a
+// .vuka.html file's markup: in a .vuka file, or in a template file's Go
+// header (E0151). Markup is written in .vuka.html files only; the JSX the
+// compiler makes of their markup is what it lowers.
+func (f *fileState) markupOutsideTemplate(off int, errs *ErrorList) {
+	if f.jsxReported || jsxInVuka && f.html == nil {
+		return
+	}
+	switch {
+	case f.html == nil:
+		errs.add("E0151", f.at(off), "markup in a .vuka file: a .vuka file is logic, and markup is written in .vuka.html files").
+			help("move the markup into a .vuka.html file: the struct it renders above, the markup below; logic stays in .vuka and .go files")
+	case f.html.shape != nil && f.html.toSrc(off) < f.html.markup:
+		errs.add("E0151", f.at(off), "markup in a .vuka.html file's Go header: the header is Go, and the file's markup starts at its first line starting with <").
+			help("write the markup below the Go header, as the struct's markup, or in its own .vuka.html file used as a tag")
+	default:
+		return
+	}
+	f.jsxReported = true
+}

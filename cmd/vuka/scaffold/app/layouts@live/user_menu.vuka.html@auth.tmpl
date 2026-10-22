@@ -1,0 +1,49 @@
+package layouts
+
+import (
+	"github.com/vuka-lang/web/auth"
+
+	"{%.Module%}/components"
+)
+
+// UserMenu is the avatar button and its menu.
+type UserMenu struct {
+	Me *auth.Identity
+}
+<div class="relative" onKeydown={closeUserMenu}>
+  <button
+    ref="user-button"
+    type="button"
+    id="user-button"
+    class="flex items-center gap-2 rounded-full p-1 pr-2 text-sm font-medium text-slate-700 hover:bg-slate-900/5 focus-visible:outline-2 focus-visible:outline-brand-500 dark:text-slate-200 dark:hover:bg-white/5"
+    aria-haspopup="menu"
+    aria-expanded="false"
+    aria-controls="user-menu"
+    onClick={toggleUserMenu}
+  >
+    <span class="grid size-8 place-items-center rounded-full bg-brand-600 text-xs font-semibold text-white" aria-hidden="true">{initials(accountName(Me))}</span>
+    <span class="hidden sm:block">{accountName(Me)}</span>
+    <components.Icon name="chevron" class="size-4 text-slate-400" />
+  </button>
+  <div
+    ref="user-menu"
+    id="user-menu"
+    role="menu"
+    hidden
+    class="absolute right-0 mt-2 w-64 origin-top-right rounded-xl bg-white p-1.5 shadow-lg ring-1 ring-slate-900/10 dark:bg-slate-900 dark:ring-white/10"
+  >
+    <div class="px-3 py-2.5">
+      <p class="text-sm font-medium text-slate-900 dark:text-white">{accountName(Me)}</p>
+      if email := accountEmail(Me); email != "" {
+        <p class="truncate text-xs text-slate-500 dark:text-slate-400">{email}</p>
+      }
+    </div>
+    <div class="my-1 h-px bg-slate-900/5 dark:bg-white/10" />
+    <form method="post" action="/auth/logout">
+      <button type="submit" role="menuitem" id="sign-out" class="flex w-full items-center gap-2 rounded-lg px-3 py-2 text-left text-sm text-slate-700 hover:bg-slate-900/5 focus-visible:bg-slate-900/5 focus-visible:outline-none dark:text-slate-200 dark:hover:bg-white/5">
+        <components.Icon name="logout" class="size-4 text-slate-400" />
+        Sign out
+      </button>
+    </form>
+  </div>
+</div>

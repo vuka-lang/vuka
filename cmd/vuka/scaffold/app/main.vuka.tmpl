@@ -1,5 +1,7 @@
 // Command {%.Module%} is {%.Name%}, a web app built with Vuka. main is
-// wiring only: the app is in {%if .Pages%}pages/, layouts/, components/ and {%else%}api/ and {%end%}modules/.
+// wiring only: the app is in {%if .Pages%}pages/, layouts/, components/ and {%else%}api/ and {%end%}modules/.{%if eq .UI "live"%}
+// A .vuka.html file under pages/ is a page, its path its URL:
+// pages.Routes(), which vuka writes, registers them.{%end%}
 //
 //	vuka run -watch .     then open http://localhost:8080
 package main
@@ -26,16 +28,15 @@ import (
 	"github.com/vuka-lang/web/mail"
 {%- end%}
 
-{%- if eq .UI "live"%}
-	"{%.Module%}/layouts"
-{%- end%}
 {%- if ne .DB "none"%}
 	_ "{%.Module%}/migrations"
 {%- end%}
 {%- if .Auth%}
 	"{%.Module%}/modules/users"
 {%- end%}
-{%- if .Pages%}
+{%- if eq .UI "live"%}
+	"{%.Module%}/pages"
+{%- else if .Pages%}
 	_ "{%.Module%}/pages"
 {%- else%}
 	_ "{%.Module%}/api"
@@ -86,7 +87,7 @@ func options() []web.Option {
 		users.Admin(), // ADMIN_EMAIL and ADMIN_PASSWORD: the first admin
 {%- end%}
 {%- if eq .UI "live"%}
-		web.LiveLayout(layouts.Page("")),
+		pages.Routes(), // the pages under pages/
 {%- end%}
 {%- if .Pages%}
 		web.OptionFunc(func(app *web.App) {

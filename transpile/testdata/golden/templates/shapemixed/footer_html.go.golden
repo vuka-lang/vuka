@@ -4,10 +4,19 @@
 package main
 
 import (
+	"context"
+	"io"
+
 	"github.com/vuka-lang/ui"
 )
 
-// Footer is a template of the 1.x form, beside a file in the 2.0 shape.
+// Footer counts the pets.
 //
 //line footer.vuka.html:4
-func Footer(n int) ui.Node { return ui.HTML(`<footer>{n} pets</footer>`, n) }
+type Footer struct{ N int }
+
+//line footer.vuka.html:5
+func (f Footer) View() ui.Node { return ui.HTML(`<footer>{f.N} pets</footer>`, f.N) }
+
+//line footer.vuka.html:5
+func (f Footer) Render(ctx context.Context, w io.Writer) error { return f.View().Render(ctx, w) }

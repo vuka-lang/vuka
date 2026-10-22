@@ -20,7 +20,7 @@ func (t *routeTree) generate(routes []*folderRoute) []load.Generated {
 	if target := filepath.Join(t.urlsDir(), urlsGoName); len(routes) > 0 || fileExists(target) {
 		out = append(out, load.Generated{Target: target, Src: t.urlsFile()})
 	}
-	if target := filepath.Join(t.root, pagesDirName, routeGoName); len(routes) > 0 || fileExists(target) {
+	if target := filepath.Join(t.pages, routeGoName); len(routes) > 0 || fileExists(target) {
 		out = append(out, load.Generated{Target: target, Src: t.registrations(routes)})
 	}
 	return out
@@ -163,7 +163,7 @@ func paramIdent(name string) string {
 // registrations is pages/route.go: func Routes, the option registering
 // every page, its handlers and their layouts on the app.
 func (t *routeTree) registrations(routes []*folderRoute) []byte {
-	self := t.modPath + "/" + pagesDirName
+	self := t.pagesPath
 	var scope *types.Scope
 	root := t.root0()
 	if t.info[root] != nil && t.info[root].pkg != nil {

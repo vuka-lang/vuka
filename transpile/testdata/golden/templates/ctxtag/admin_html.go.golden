@@ -5,30 +5,37 @@ package main
 
 import (
 	"context"
+	"io"
 
 	"github.com/vuka-lang/ui"
 )
 
-// Admin is the admin pages' layout; it reads the user from ctx.
+// Admin is the admin pages' layout: its title, Children and the Actions
+// slot; it reads the user from ctx.
 //
-//line admin.vuka.html:4
-func Admin(ctx context.Context, p AdminProps) ui.Node {
-//line admin.vuka.html:4
-	return ui.HTML(`
-<div class="admin">
-  <header>
-    <h1>{p.Title}</h1>
-    {p.Actions}
-    <span>{ctx.Value(userKey{}).(string)}</span>
-  </header>
-  <main>{p.Children}</main>
-</div>`, p.Title, p.Actions, ctx.Value(userKey{}).(string), p.Children)
+//line admin.vuka.html:7
+type Admin struct {
+	Title    string
+	Actions  ui.Node
+	Children ui.Node
 }
 
-// Badge is the user's badge.
-//
-//line admin.vuka.html:11
-func Badge(ctx context.Context) ui.Node {
-//line admin.vuka.html:11
-	return ui.HTML(`<b>{ctx.Value(userKey{}).(string)}</b>`, ctx.Value(userKey{}).(string))
+//line admin.vuka.html:12
+func (a Admin) View() ui.Node {
+//line admin.vuka.html:12
+	return ui.Ctx(func(ctx context.Context) ui.Node {
+//line admin.vuka.html:12
+		return ui.HTML(`
+<div class="admin">
+  <header>
+    <h1>{a.Title}</h1>
+    {a.Actions}
+    <span>{ctx.Value(userKey{}).(string)}</span>
+  </header>
+  <main>{a.Children}</main>
+</div>`, a.Title, a.Actions, ctx.Value(userKey{}).(string), a.Children)
+	})
 }
+
+//line admin.vuka.html:15
+func (a Admin) Render(ctx context.Context, w io.Writer) error { return a.View().Render(ctx, w) }

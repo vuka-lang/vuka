@@ -280,64 +280,9 @@ func bareNames(pass *analysis.Pass, files []*htmlSource) {
 					continue
 				}
 				seen[id.name] = true
-				report(pass, h.at(id.off, len(id.name)), "W0101", "rename one, or write the file's header, func (x "+typ+") …, and x."+id.name,
+				report(pass, h.at(id.off, len(id.name)), "W0101", "rename one, or read the field through the receiver the struct's methods name: x."+id.name,
 					"%s is %s's field or method and a name of the package; the template reads the field", id.name, typ)
 			}
-		}
-	}
-}
-
-var headerName = regexp.MustCompile(`^func(?:\s*(\([^)]*\))\s*|\s+)(\w+)`)
-
-// elements are the HTML, SVG and MathML element names, as the compiler has
-// them (transpile/elements.go): a template can't be named so.
-var elements = map[string]bool{}
-
-func init() {
-	for _, n := range strings.Fields(`
-a abbr acronym address applet area article aside audio b base basefont bdi bdo big blink blockquote
-body br button canvas caption center cite code col colgroup data datalist dd del details dfn dialog
-dir div dl dt em embed fieldset figcaption figure font footer form frame frameset h1 h2 h3 h4 h5 h6
-head header hgroup hr html i iframe image img input ins kbd keygen label legend li link listing main
-map mark marquee math menu menuitem meta meter nav nobr noembed noframes noscript object ol optgroup
-option output p param picture plaintext portal pre progress q rb rp rt rtc ruby s samp script search
-section select selectedcontent slot small source span strike strong style sub summary sup svg table
-tbody td template textarea tfoot th thead time title tr track tt u ul var video wbr xmp
-animate animateMotion animateTransform circle clipPath defs desc discard ellipse feBlend
-feColorMatrix feComponentTransfer feComposite feConvolveMatrix feDiffuseLighting feDisplacementMap
-feDistantLight feDropShadow feFlood feFuncA feFuncB feFuncG feFuncR feGaussianBlur feImage feMerge
-feMergeNode feMorphology feOffset fePointLight feSpecularLighting feSpotLight feTile feTurbulence
-filter foreignObject g line linearGradient marker mask metadata mpath path pattern polygon polyline
-radialGradient rect set stop switch symbol text textPath tspan use view
-annotation annotation-xml maction menclose merror mfrac mglyph mi mlabeledtr mmultiscripts mn mo
-mover mpadded mphantom mprescripts mroot mrow ms mspace msqrt mstyle msub msubsup msup mtable mtd
-mtext mtr munder munderover semantics
-`) {
-		elements[n] = true
-	}
-}
-
-// templateHeaders reports a template named as an element (E0145), and warns
-// where an exported template has no doc comment (W0104), as Go's linters do
-// of an exported function; View and Render methods are documented by their
-// type.
-func templateHeaders(pass *analysis.Pass, files []*htmlSource) {
-	for _, h := range files {
-		off, prev := 0, ""
-		for _, l := range strings.SplitAfter(h.src, "\n") {
-			if m := headerName.FindStringSubmatchIndex(l); m != nil && off >= h.markup {
-				name := l[m[4]:m[5]]
-				method := m[2] >= 0
-				if !method && elements[name] {
-					report(pass, h.at(off+m[4], len(name)), "E0145", "rename it: "+name+"View, or a name of what it shows",
-						"the template %s has an element's name: <%s> is the element", name, name)
-				}
-				if unicode.IsUpper([]rune(name)[0]) && !strings.HasPrefix(strings.TrimSpace(prev), "//") && !(method && (name == "View" || name == "Render")) {
-					report(pass, h.at(off+m[4], len(name)), "W0104", "say what it shows in a comment right above it: // "+name+" …",
-						"the exported template %s has no doc comment", name)
-				}
-			}
-			off, prev = off+len(l), l
 		}
 	}
 }

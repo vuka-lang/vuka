@@ -10,20 +10,25 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line page.vuka.html:3
+// Page fills the slots of function components: a props struct's field,
+// and a parameter.
+//
+//line page.vuka.html:5
+type Page struct{ Items []string }
+
+//line page.vuka.html:6
 func (pa Page) View() ui.Node {
-//line page.vuka.html:3
 	n := len(pa.Items)
 	var ps []ui.Node
-//line page.vuka.html:7
+//line page.vuka.html:10
 	for _, it := range pa.Items {
 		ps = append(ps, ui.HTML(`<p>{it}</p>`, it))
 	}
-//line page.vuka.html:5
+//line page.vuka.html:8
 	panel := Panel(PanelProps{Title: "Items", Header: ui.HTML(`<b>{n} items</b>`, n), Children: ui.HTML(`{ps}`, ps)})
-//line page.vuka.html:11
+//line page.vuka.html:14
 	frame := Frame("F", ui.HTML(`<i>h</i>`), ui.HTML(`body`))
-//line page.vuka.html:3
+//line page.vuka.html:6
 	return ui.HTML(`
 <main>
   {panel}
@@ -31,5 +36,5 @@ func (pa Page) View() ui.Node {
 </main>`, panel, frame)
 }
 
-//line page.vuka.html:12
+//line page.vuka.html:15
 func (pa Page) Render(ctx context.Context, w io.Writer) error { return pa.View().Render(ctx, w) }

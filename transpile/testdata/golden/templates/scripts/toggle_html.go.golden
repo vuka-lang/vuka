@@ -8,13 +8,23 @@ import (
 	"io"
 
 	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/uigen"
 )
 
-//line toggle.vuka.html:3
+// Toggle's script reads its state.
+//
+//line toggle.vuka.html:6
+type Toggle struct {
+	open ui.State[bool]
+}
+
+//line toggle.vuka.html:9
 func (t *Toggle) View() ui.Node {
-//line toggle.vuka.html:3
+//line toggle.vuka.html:9
+	uigen.States(t)
+//line toggle.vuka.html:9
 	return ui.HTML(`<button data-vk-p={ui.Props(t)} data-vk-s={ui.States(t)} type="button">toggle</button>`, ui.Props(t), ui.States(t))
 }
 
-//line toggle.vuka.html:3
+//line toggle.vuka.html:9
 func (t *Toggle) Render(ctx context.Context, w io.Writer) error { return t.View().Render(ctx, w) }

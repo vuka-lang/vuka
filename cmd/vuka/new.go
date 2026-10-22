@@ -22,6 +22,7 @@ import (
 	"unicode"
 
 	"github.com/vuka-lang/vuka/internal/format"
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // The orm a new app requires beside the toolchain set (toolchain.go); vuka
@@ -398,12 +399,17 @@ func execute(name string, src []byte, data any) ([]byte, error) {
 	return blankRuns.ReplaceAll(b.Bytes(), []byte("\n\n")), nil
 }
 
-// formatSource formats a rendered .go or .vuka file as vuka fmt and gofmt
-// do, its imports grouped: the standard library's, then other modules',
+// formatSource formats a rendered .go, .vuka or .vuka.html file as vuka
+// fmt and gofmt do, its imports grouped: the standard library's, then other modules',
 // then the app's own.
 func formatSource(name string, src []byte, module string) ([]byte, error) {
 	var formatter func([]byte) ([]byte, error)
 	switch path.Ext(name) {
+	case ".html":
+		if !strings.HasSuffix(name, ".vuka.html") {
+			return src, nil
+		}
+		formatter = formatShape
 	case ".vuka":
 		formatter = format.Source
 	case ".go":
@@ -416,6 +422,20 @@ func formatSource(name string, src []byte, module string) ([]byte, error) {
 		return nil, fmt.Errorf("scaffold: %s: %v\n%s", name, err, src)
 	}
 	return out, nil
+}
+
+// formatShape formats a .vuka.html file: its Go header as vuka fmt formats
+// a .vuka file, then the whole as vuka fmt formats a template.
+func formatShape(src []byte) ([]byte, error) {
+	if sh, _ := transpile.ParseShape(src); sh != nil {
+		lines := strings.SplitAfter(string(src), "\n")
+		head, err := format.Source([]byte(strings.Join(lines[:sh.Markup], "")))
+		if err != nil {
+			return nil, err
+		}
+		src = slices.Concat(head, []byte(strings.Join(lines[sh.Markup:], "")))
+	}
+	return format.Template(src, "")
 }
 
 // groupImports puts a blank line between the groups of the import block:

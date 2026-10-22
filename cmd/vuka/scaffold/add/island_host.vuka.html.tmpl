@@ -2,4 +2,13 @@ package {%.Pkg%}
 
 import {%.Name%}Island "{%.Import%}"
 
-<{%.Name%}Island title={Title} count={Count} client:load />
+// {%.Name%} places the island {%.File%} in a div: <{%.Name%} title="…"
+// count={3} />. (A file whose markup is the island alone is the page the
+// island backs.)
+type {%.Name%} struct {
+	Title string
+	Count int
+}
+<div>
+  <{%.Name%}Island title={Title} count={Count} client:load />
+</div>

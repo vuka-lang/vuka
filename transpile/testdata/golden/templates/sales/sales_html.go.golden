@@ -10,13 +10,31 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line sales.vuka.html:3
+// Sales is a week of sales: its fields are its props.
+//
+//line sales.vuka.html:6
+type Sales struct {
+	Title    string
+	Week     []int
+	Children ui.Node
+}
+
+// Total is the week's sum.
+func (s Sales) Total() int {
+	n := 0
+	for _, d := range s.Week {
+		n += d
+	}
+	return n
+}
+
+//line sales.vuka.html:20
 func (s Sales) View() ui.Node {
 	var spans []ui.Node
 	for _, d := range s.Week {
 		spans = append(spans, ui.HTML(`<span class="day" class:big={d > 10}>{d}</span>`, d > 10, d))
 	}
-//line sales.vuka.html:3
+//line sales.vuka.html:20
 	return ui.HTML(`
 <section class="sales">
   <h2>{s.Title}</h2>
@@ -26,44 +44,5 @@ func (s Sales) View() ui.Node {
 </section>`, s.Title, spans, s.Total(), s.Children)
 }
 
-//line sales.vuka.html:10
+//line sales.vuka.html:27
 func (s Sales) Render(ctx context.Context, w io.Writer) error { return s.View().Render(ctx, w) }
-
-// Page lists the orders below a week of sales.
-func Page(orders []Order) ui.Node {
-//line sales.vuka.html:15
-	sales := Sales{Title: "Week", Week: []int{3, 12}, Children: ui.HTML(`<em>note</em>`)}
-	var p ui.Node
-//line sales.vuka.html:18
-	if len(orders) == 0 {
-		p = ui.HTML(`<p>none</p>`)
-	} else {
-		var rows []ui.Node
-		for _, o := range orders {
-			rows = append(rows, row(o))
-		}
-		p = ui.HTML(`<ul>{rows}</ul>`, rows)
-	}
-	n := len(orders)
-	var p2 ui.Node
-//line sales.vuka.html:28
-	switch n {
-	case 1:
-		p2 = ui.HTML(`<p>one</p>`)
-	default:
-		p2 = ui.HTML(`<p>{n} orders</p>`, n)
-	}
-//line sales.vuka.html:13
-	return ui.HTML(`
-<main>
-  {sales}
-  {p}
-  {p2}
-</main>`, sales, p, p2)
-}
-
-//line sales.vuka.html:36
-func row(o Order) ui.Node {
-//line sales.vuka.html:36
-	return ui.HTML(`<li key={o.ID}><a href="/orders/{o.ID}" title={o.Ref}>{o.Ref}</a></li>`, o.ID, o.Ref)
-}

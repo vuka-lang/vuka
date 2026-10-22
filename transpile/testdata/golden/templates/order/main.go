@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	out, err := ui.String(context.Background(), Page([]int{1, 2, 3}))
+	out, err := ui.String(context.Background(), Page{Xs: []int{1, 2, 3}})
 	fmt.Println(out, err)
 }
 

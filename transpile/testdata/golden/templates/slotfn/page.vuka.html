@@ -1,7 +1,10 @@
 package main
 
-n := len(Items)
+// Page fills the slots of function components: a props struct's field,
+// and a parameter.
+type Page struct{ Items []string }
 <main>
+  n := len(Items)
   <Panel title="Items">
     <slot:header><b>{n} items</b></slot:header>
     for _, it := range Items {

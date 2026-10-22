@@ -1,0 +1,1 @@
+page.vuka.html:3:1: this markup has no struct above it: a .vuka.html file declares the struct it renders in its Go header; move type Page struct {…} and its methods from page.go into this file, between its imports and its markup

@@ -1,11 +1,13 @@
 package components
 
-// Flash is a message: tone "error", "success" or "info". Nothing when
-// message is empty.
-func Flash(tone string, message string, class string)
-if message != "" {
-  <div role={flashRole(tone)} class={cx("flash flex items-start gap-2.5 rounded-lg px-3.5 py-3 text-sm ring-1 ring-inset", flashColours(tone), class)}>
-    <Icon name={tone} class="mt-0.5 size-4 shrink-0" />
-    <p>{message}</p>
-  </div>
+// Flash is a message: tone "error", "success" or "info". Hidden when
+// Message is empty.
+type Flash struct {
+	Tone    string
+	Message string
+	Class   string
 }
+<div role={flashRole(Tone)} hidden={Message == ""} class={cx("flash flex items-start gap-2.5 rounded-lg px-3.5 py-3 text-sm ring-1 ring-inset", flashColours(Tone), Class)}>
+  <Icon name={Tone} class="mt-0.5 size-4 shrink-0" />
+  <p>{Message}</p>
+</div>

@@ -1,8 +1,8 @@
 package main
 
 // Orders is a page in the Admin layout.
-func Orders(n int)
+type Orders struct{ N int }
 <Admin title="Orders">
   <slot:actions><button>New</button></slot:actions>
-  <p>{n} orders</p>
+  <p>{N} orders</p>
 </Admin>

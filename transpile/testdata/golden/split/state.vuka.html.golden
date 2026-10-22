@@ -1,5 +1,0 @@
-package main
-
-// Panel gets its parent's states: the same states.
-func Panel(open ui.State[bool], sort ui.State[string])
-<p hidden={!open}>{sort}</p>

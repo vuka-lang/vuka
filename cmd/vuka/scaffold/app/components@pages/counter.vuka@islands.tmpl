@@ -1,0 +1,14 @@
+package components
+
+import "github.com/vuka-lang/ui"
+
+// Counter is a Vue island: a client component hydrated in the browser. Go
+// owns the props (the exported fields; json tags are the wire names), and
+// the component itself is web/islands/Counter.vue — where a bare @ui.Island
+// looks (islands/<Type> under the web/ frontend root, a Vite project), so
+// vuka build compiles it through Vite with Nuxt UI available.
+@ui.Island
+type Counter struct {
+	Count int    `json:"count"`
+	Label string `json:"label"`
+}

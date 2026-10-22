@@ -1,0 +1,17 @@
+package org
+
+import (
+	"context"
+
+	"example.com/app/pages/urls"
+)
+
+// Index is an organisation's page.
+type Index struct {
+	Org int
+}
+
+func NewIndex() *Index { return &Index{} }
+
+func (*Index) Delete(ctx context.Context) error { return nil }
+<p>{urls.Orgs.Org(Org).ResetPassword.Path() + urls.Orgs.Org(Org).TeamSettings.Path()}</p>

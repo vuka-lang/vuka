@@ -1,0 +1,11 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+// Panel is a titled section with a footer slot.
+type Panel struct {
+	Title    string
+	Footer   ui.Node
+	Children ui.Node
+}
+<section><h2>{Title}</h2>{Children}<footer>{Footer}</footer></section>

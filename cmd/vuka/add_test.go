@@ -43,14 +43,14 @@ func TestAddModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"migrations/0002_invoices.go", "modules/invoices/invoices_test.vuka", "modules/invoices/model.vuka",
-		"modules/invoices/page.vuka.html", "modules/invoices/pages.vuka", "modules/invoices/service.vuka", "main.vuka (imports the module, registers its service)"}
+		"modules/invoices/service.vuka", "pages/invoices/index.vuka.html", "main.vuka (imports the module, registers its service)"}
 	if strings.Join(files, ",") != strings.Join(want, ",") {
 		t.Errorf("wrote %v", files)
 	}
 	for path, s := range map[string]string{
 		"modules/invoices/model.vuka":         "type Invoice struct",
 		"modules/invoices/service.vuka":       "type Invoices struct{}",
-		"modules/invoices/pages.vuka":         `@web.Live("/invoices", web.Layout(layouts.Page("Invoices")))`,
+		"pages/invoices/index.vuka.html":      "type Index struct {\n\tui.Live\n\tInvoices *invoices.Invoices",
 		"migrations/0002_invoices.go":         `Dependencies: []string{"0001_initial"}`,
 		"modules/invoices/invoices_test.vuka": "func TestInvoices(t *testing.T)",
 	} {

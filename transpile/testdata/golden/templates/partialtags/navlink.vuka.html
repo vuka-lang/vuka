@@ -1,0 +1,10 @@
+package main
+
+import "strings"
+
+// NavLink is a link of the menu, marked when it is the current one.
+type NavLink struct {
+	Item Item
+	On   bool
+}
+<a href={Item.Href} class:on={On}>{strings.ToUpper(Item.Label)}</a>

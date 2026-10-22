@@ -1,0 +1,26 @@
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Dashboard is a live page placing a Chart.
+type Dashboard struct {
+	ui.Live
+	points []int
+}
+
+@ui.Mount
+func (d *Dashboard) mount(ctx context.Context) error {
+	d.points = []int{3, 1, 4}
+	return nil
+}
+
+// Add is the button's event: the chart gets the new point.
+func (d *Dashboard) Add() { d.points = append(d.points, len(d.points)) }
+<main>
+  <button id="add" onClick={Add}>Add</button>
+  <Chart title="Sales" points={points} client:load/>
+</main>

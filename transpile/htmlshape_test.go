@@ -36,8 +36,8 @@ func (p *Index) Add(ctx context.Context, f NewTodo) error { return nil }
 <main>{Title}</main>
 `
 
-// TestParseShape: a file in the 2.0 shape is read as its header and its
-// markup, its one struct's fields classified.
+// TestParseShape: a template file is read as its header and its markup, its
+// one struct's fields classified.
 func TestParseShape(t *testing.T) {
 	s, err := transpile.ParseShape([]byte(shapeIndex))
 	if err != nil || s == nil {
@@ -95,8 +95,9 @@ func TestShapeLive(t *testing.T) {
 	}
 }
 
-// TestShapeRules: a file in the shape renders one struct, and has markup;
-// a file of templates isn't in the shape.
+// TestShapeRules: a template file renders one struct, and has markup; a
+// file with no struct above its markup isn't read as the shape (compiled,
+// it is E0152).
 func TestShapeRules(t *testing.T) {
 	for _, c := range []struct{ name, src, code string }{
 		{"no struct", "var x = 1\n<p/>", "E0146"},
@@ -121,13 +122,13 @@ func TestShapeRules(t *testing.T) {
 		"package p\n\nif ok {\n  <p/>\n}\n",
 	} {
 		if s, err := transpile.ParseShape([]byte(src)); s != nil || err != nil {
-			t.Errorf("a file of templates read as the shape: %v, %v\n%s", s, err, src)
+			t.Errorf("a file with no struct above its markup read as the shape: %v, %v\n%s", s, err, src)
 		}
 	}
 }
 
-// TestShapeTemplateHeaders: a header's methods aren't templates; the func
-// lines after its markup are.
+// TestShapeTemplateHeaders: a header's methods aren't templates; a func line
+// after its markup is (a second template, E0153).
 func TestShapeTemplateHeaders(t *testing.T) {
 	src := "package p\n\ntype A struct{}\n\nfunc (a A) F() int { return 1 }\n<p/>\n\nfunc row(n int)\n<i>{n}</i>\n"
 	hs := transpile.TemplateHeaders([]byte(src))

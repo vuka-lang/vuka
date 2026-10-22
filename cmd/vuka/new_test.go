@@ -202,14 +202,17 @@ func TestRenderFileSets(t *testing.T) {
 	files := render("", "", "", "", "")
 	want := []string{
 		".env", ".env.example", ".gitignore", "README.md", "go.mod", "main.vuka", "main_test.vuka",
-		"components/button.vuka", "components/button.vuka.html", "components/card.vuka.html", "components/class.vuka",
+		"components/button.vuka.html", "components/card.vuka.html", "components/class.vuka", "components/field.vuka.html",
 		"components/flash.vuka", "components/flash.vuka.html", "components/icon.vuka", "components/icon.vuka.html",
-		"components/input.vuka", "components/input.vuka.html", "components/logo.vuka.html",
-		"layouts/app.vuka", "layouts/app.vuka.html", "layouts/auth.vuka.html", "layouts/document.vuka", "layouts/nav.vuka",
+		"components/input.vuka.html", "components/logo.vuka.html", "components/spinner.vuka.html", "components/stat.vuka.html",
+		"components/step.vuka.html",
+		"layouts/app.vuka", "layouts/app.vuka.html", "layouts/auth.vuka.html", "layouts/layouts.vuka", "layouts/nav.vuka",
+		"layouts/nav_links.vuka.html", "layouts/user_menu.vuka.html",
 		"migrations/0001_initial.go", "migrations/doc.go",
-		"modules/users/model.vuka", "modules/users/pages.vuka", "modules/users/pages.vuka.html", "modules/users/service.vuka",
-		"modules/users/stores.vuka", "modules/users/users_test.vuka",
-		"pages/home.vuka", "pages/home.vuka.html", "pages/login.vuka", "pages/login.vuka.html", "static/logo.svg", "styles/app.css",
+		"modules/users/model.vuka", "modules/users/service.vuka", "modules/users/stores.vuka", "modules/users/users_test.vuka",
+		"modules/users/welcome.vuka.html",
+		"pages/_layout.vuka.html", "pages/index.vuka.html", "pages/login/guard.go", "pages/login/index.vuka.html",
+		"pages/users/index.vuka.html", "static/forms.js", "static/logo.svg", "styles/app.css",
 	}
 	slices.Sort(want)
 	if got := slices.Sorted(maps.Keys(files)); !slices.Equal(got, want) {
@@ -261,27 +264,27 @@ func TestRenderFileSets(t *testing.T) {
 	}
 
 	noauth := render("live", "sqlite", "yes", "no", "none")
-	has(noauth, []string{"pages/home.vuka", "migrations/doc.go"}, []string{"pages/login.vuka", "layouts/auth.vuka.html", "modules/users/model.vuka", "migrations/0001_initial.go"})
-	if strings.Contains(string(noauth["layouts/app.vuka"]), "auth") {
+	has(noauth, []string{"pages/index.vuka.html", "migrations/doc.go"}, []string{"pages/login/index.vuka.html", "pages/users/index.vuka.html", "layouts/auth.vuka.html", "modules/users/model.vuka", "migrations/0001_initial.go"})
+	if strings.Contains(string(noauth["layouts/app.vuka"])+string(noauth["layouts/app.vuka.html"]), "auth") {
 		t.Error("the shell of an app without sign-in mentions auth")
 	}
 
 	nodb := render("live", "none", "no", "", "none")
-	has(nodb, []string{"pages/home.vuka"}, []string{"migrations/doc.go", "modules/users/model.vuka"})
+	has(nodb, []string{"pages/index.vuka.html"}, []string{"migrations/doc.go", "modules/users/model.vuka"})
 	if m := string(nodb["main.vuka"]) + string(nodb["go.mod"]); strings.Contains(m, "orm") {
 		t.Errorf("an app without a database has the ORM:\n%s", m)
 	}
 
 	api := render("api", "sqlite", "yes", "yes", "none")
 	has(api, []string{"api/home.vuka", "modules/users/api.vuka", "modules/users/service.vuka"},
-		[]string{"pages/home.vuka", "layouts/app.vuka", "components/button.vuka", "static/logo.svg", "styles/app.css", "modules/users/pages.vuka"})
+		[]string{"pages/index.vuka.html", "layouts/app.vuka", "components/button.vuka.html", "static/logo.svg", "styles/app.css", "pages/users/index.vuka.html"})
 	if !strings.Contains(string(api["main.vuka"]), "web.NoTailwind()") {
 		t.Error("an API has Tailwind")
 	}
 
 	templ := render("templ", "sqlite", "yes", "yes", "none")
-	has(templ, []string{"layouts/layouts.templ", "layouts/layouts.vuka", "pages/home.templ", "pages/login.templ", "modules/users/users.templ", "components/button.vuka"},
-		[]string{"layouts/app.vuka", "pages/login.vuka@auth"})
+	has(templ, []string{"layouts/layouts.templ", "layouts/layouts.vuka", "pages/home.templ", "pages/login.templ", "modules/users/users.templ", "components/button.vuka.html"},
+		[]string{"layouts/app.vuka", "pages/_layout.vuka.html", "pages/login/index.vuka.html", "static/forms.js"})
 	if strings.Contains(string(templ["main.vuka"]), "LiveLayout") {
 		t.Error("a templ app has a live layout")
 	}
@@ -324,7 +327,7 @@ func TestRenderIslands(t *testing.T) {
 	}
 
 	yes := render("yes")
-	for _, f := range []string{"web/package.json", "web/vite.config.mts", "web/app.css", "web/dist/index.html", "web/islands/Counter.vue", "pages/island.vuka"} {
+	for _, f := range []string{"web/package.json", "web/vite.config.mts", "web/app.css", "web/dist/index.html", "web/islands/Counter.vue", "components/counter.vuka", "pages/island.vuka.html"} {
 		if _, ok := yes[f]; !ok {
 			t.Errorf("islands: no %s", f)
 		}
@@ -341,10 +344,10 @@ func TestRenderIslands(t *testing.T) {
 	if m := string(yes["main.vuka"]); !strings.Contains(m, `web.FrontendRoot("web")`) || !strings.Contains(m, "all:web/dist") {
 		t.Errorf("main.vuka doesn't wire the island frontend:\n%s", m)
 	}
-	if p := string(yes["pages/island.vuka"]); !strings.Contains(p, "@ui.Island\ntype Counter struct") {
-		t.Errorf("pages/island.vuka doesn't declare the island:\n%s", p)
+	if p := string(yes["components/counter.vuka"]); !strings.Contains(p, "@ui.Island\ntype Counter struct") {
+		t.Errorf("components/counter.vuka doesn't declare the island:\n%s", p)
 	}
-	if p := string(yes["pages/island.vuka.html"]); !strings.Contains(p, "ui.Mount(Counter{") {
+	if p := string(yes["pages/island.vuka.html"]); !strings.Contains(p, "ui.Mount(components.Counter{") {
 		t.Errorf("pages/island.vuka.html doesn't place the island:\n%s", p)
 	}
 	if g := string(yes[".gitignore"]); !strings.Contains(g, "/web/node_modules/") {
@@ -352,7 +355,7 @@ func TestRenderIslands(t *testing.T) {
 	}
 
 	no := render("no")
-	for _, f := range []string{"web/package.json", "web/dist/index.html", "web/islands/Counter.vue", "pages/island.vuka"} {
+	for _, f := range []string{"web/package.json", "web/dist/index.html", "web/islands/Counter.vue", "components/counter.vuka", "pages/island.vuka.html"} {
 		if _, ok := no[f]; ok {
 			t.Errorf("islands=no, yet %s", f)
 		}

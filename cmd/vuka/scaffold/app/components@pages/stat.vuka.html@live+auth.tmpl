@@ -1,0 +1,23 @@
+package components
+
+import "github.com/vuka-lang/ui"
+
+// Stat is a number on the dashboard, a link when Href is set.
+type Stat struct {
+	Label string
+	Value any
+	Href  string
+	Icon  string
+}
+<div class="relative flex items-center gap-4 rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 has-[a:hover]:ring-brand-500/40 dark:bg-slate-900 dark:ring-white/10">
+  <span class="grid size-11 place-items-center rounded-xl bg-brand-50 text-brand-700 dark:bg-brand-500/10 dark:text-brand-400">
+    <Icon name={Icon} class="size-5" />
+  </span>
+  <div>
+    <p class="text-sm text-slate-500 dark:text-slate-400">{Label}</p>
+    <p class="text-2xl font-semibold tracking-tight text-slate-900 capitalize dark:text-white">{Value}</p>
+  </div>
+  if Href != "" {
+    <ui.Link href={Href} class="absolute inset-0 rounded-2xl focus-visible:outline-2 focus-visible:outline-brand-500"><span class="sr-only">{Label}</span></ui.Link>
+  }
+</div>

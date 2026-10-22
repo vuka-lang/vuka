@@ -1,0 +1,34 @@
+// Package pages is the directory's pages.
+package pages
+
+import (
+	"context"
+
+	"example.com/app/directory"
+	"github.com/vuka-lang/ui"
+)
+
+// Dashboard is a live page.
+type Dashboard struct {
+	ui.Live
+	dir   *directory.Directory
+	users int64
+	likes int
+}
+
+func NewDashboard(dir *directory.Directory) *Dashboard { return &Dashboard{dir: dir} }
+
+@ui.Mount
+func (d *Dashboard) mount(ctx context.Context) error {
+	n, err := d.dir.Count(ctx)
+	d.users = n
+	return err
+}
+
+// Like is the button's event.
+func (d *Dashboard) Like() { d.likes++ }
+<main>
+  <h1>Users</h1>
+  <p>{users} users, {likes} likes</p>
+  <button onClick={Like}>Like</button>
+</main>

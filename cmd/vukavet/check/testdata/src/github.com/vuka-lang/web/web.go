@@ -24,5 +24,8 @@ func (a *App) Handle(method, path string, fn any, opts ...RouteOption) *App { re
 func (a *App) Get(path string, fn any, opts ...RouteOption) *App            { return a }
 func (a *App) Post(path string, fn any, opts ...RouteOption) *App           { return a }
 func (a *App) Live(path string, page any, opts ...RouteOption) *App         { return a }
+func (a *App) Page(path string, component any, attrs ...any) *App           { return a }
 func (a *App) Controller(prefix string, ctor any, opts ...RouteOption) *App { return a }
 func (a *App) Service(ctor any) *App                                        { return a }
+
+func PageRoute() RouteOption { return opt{} }

@@ -1,0 +1,1 @@
+pets.vuka.html:12:1: petRow is a second template in this file: a .vuka.html file renders one struct, the one above its markup; move it to its own .vuka.html file, a struct whose exported fields are its parameters, used as a tag; or write it as a Go func returning ui.Node in a .go file

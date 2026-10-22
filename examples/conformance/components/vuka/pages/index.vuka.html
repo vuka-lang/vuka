@@ -1,0 +1,62 @@
+package pages
+
+import (
+	"context"
+	"strings"
+
+	"example.com/app/components"
+	"github.com/vuka-lang/ui"
+)
+
+// Gallery lists the items in cards, each with its own counter: GET /.
+type Gallery struct {
+	ui.Live
+	items []Item
+	wide  bool
+}
+
+@ui.Mount
+func (g *Gallery) mount(ctx context.Context) error {
+	g.items = []Item{{1, "Sunrise", []string{"sky", "red"}, false}, {2, "Harbour", []string{"sea"}, true}, {3, "Forest", nil, false}}
+	return nil
+}
+
+// Widen toggles the cards' width.
+func (g *Gallery) Widen() { g.wide = !g.wide }
+
+// Like toggles an item's like.
+func (g *Gallery) Like(id int) {
+	for i := range g.items {
+		if g.items[i].ID == id {
+			g.items[i].Liked = !g.items[i].Liked
+		}
+	}
+}
+
+// Drop removes the first item, keeping the others' counters.
+func (g *Gallery) Drop() {
+	if len(g.items) > 0 {
+		g.items = g.items[1:]
+	}
+}
+<div class="shell">
+  <components.Header title="Gallery"/>
+  <aside>
+    <p>{len(items)} items</p>
+    <button onClick={Widen}>Widen</button>
+    <button onClick={Drop}>Drop</button>
+  </aside>
+  <main>
+    for _, it := range items {
+      <div key={it.ID} class="item">
+        <components.Card title={it.Name} accent={accent(it)} wide={wide}>
+          <components.Tags ts={it.Tags}/>
+          <components.Counter key={it.ID} label={strings.ToLower(it.Name)}/>
+          <slot:footer>
+            <button class:on={it.Liked} onClick={Like(it.ID)}>{likeText(it.Liked)}</button>
+          </slot:footer>
+        </components.Card>
+      </div>
+    }
+  </main>
+</div>

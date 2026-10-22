@@ -68,32 +68,30 @@ func TestGoldenTemplates(t *testing.T) {
 
 const blankSrc = `package main
 
+// Page is a page.
+type Page struct{ Title string }
+
+func (p Page) upper() string { return p.Title }
 <h1>{Title}</h1>
-
-// row is a row.
-func row(n int)
-<p>{n}</p>
-
-func other()
-<i>x</i>
+<p>{upper()}</p>
 `
 
-// TestBlankTemplate: the template holding an offset loses its markup, kept
-// declared; all of it from its header; nothing in the package clause.
+// TestBlankTemplate: the markup holding an offset is written as spaces, its
+// lines kept, the struct still declared; nothing in the package clause or
+// the Go header.
 func TestBlankTemplate(t *testing.T) {
 	spaces := func(s string) string { return strings.Repeat(" ", len(s)) }
-	for _, c := range []struct{ at, want string }{
-		{"{Title}", strings.Replace(blankSrc, "<h1>{Title}</h1>", spaces("<h1>{Title}</h1>"), 1)},
-		{"{n}", strings.Replace(blankSrc, "<p>{n}</p>", spaces("<p>{n}</p>"), 1)},
-		{"row(n int)", strings.Replace(blankSrc, "// row is a row.\nfunc row(n int)\n<p>{n}</p>", spaces("// row is a row.")+"\n"+spaces("func row(n int)")+"\n"+spaces("<p>{n}</p>"), 1)},
-		{"<i>", strings.Replace(blankSrc, "<i>x</i>", spaces("<i>x</i>"), 1)},
-	} {
-		if got := string(transpile.BlankTemplate([]byte(blankSrc), strings.Index(blankSrc, c.at))); got != c.want {
-			t.Errorf("at %s:\n%s\nwant:\n%s", c.at, got, c.want)
+	markup := "<h1>{Title}</h1>\n<p>{upper()}</p>"
+	want := strings.Replace(blankSrc, markup, spaces("<h1>{Title}</h1>")+"\n"+spaces("<p>{upper()}</p>"), 1)
+	for _, at := range []string{"{Title}", "{upper()}"} {
+		if got := string(transpile.BlankTemplate([]byte(blankSrc), strings.Index(blankSrc, at))); got != want {
+			t.Errorf("at %s:\n%s\nwant:\n%s", at, got, want)
 		}
 	}
-	if got := transpile.BlankTemplate([]byte(blankSrc), 3); got != nil {
-		t.Errorf("in the package clause: %q", got)
+	for _, at := range []int{3, strings.Index(blankSrc, "Title string"), strings.Index(blankSrc, "return p.Title")} {
+		if got := transpile.BlankTemplate([]byte(blankSrc), at); got != nil {
+			t.Errorf("at %d, outside the markup: %q", at, got)
+		}
 	}
 }
 
@@ -101,15 +99,15 @@ func TestBlankTemplate(t *testing.T) {
 // template, with the package's other files: no errors when it has none,
 // and its own at their place.
 func TestSyntaxTemplate(t *testing.T) {
-	goFile := transpile.File{Name: "page.go", Src: []byte("package main\n\ntype Page struct{ Title string }\n")}
-	src := "package main\n\n<title>{Title + \" · \"}</title>\n\nfunc Footer()\n<p>Copyright © 2014</p>\n"
+	goFile := transpile.File{Name: "main.go", Src: []byte("package main\n\nfunc main() {}\n")}
+	src := "package main\n\ntype Page struct{ Title string }\n<title>{Title + \" · \"}</title>\n<p>Copyright © 2014</p>\n"
 	opts := transpile.Options{Bare: true, Importer: load.NewImporter("testdata/golden", "")}
 	if errs := transpile.Syntax(transpile.File{Name: "page.vuka.html", Src: []byte(src)}, opts, goFile); len(errs) > 0 {
 		t.Errorf("errors in a template with none: %v", errs)
 	}
 	bad := strings.Replace(src, "</p>", "</div>", 1)
 	errs := transpile.Syntax(transpile.File{Name: "page.vuka.html", Src: []byte(bad)}, opts, goFile)
-	if len(errs) != 1 || errs[0].Pos.Line != 6 || !strings.Contains(errs[0].Msg, "</div>") {
+	if len(errs) != 1 || errs[0].Pos.Line != 5 || !strings.Contains(errs[0].Msg, "</div>") {
 		t.Errorf("the error of a template: %v", errs)
 	}
 }

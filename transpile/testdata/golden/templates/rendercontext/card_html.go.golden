@@ -10,11 +10,16 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line card.vuka.html:3
+// Card reads ctx in its markup.
+//
+//line card.vuka.html:4
+type Card struct{ Title string }
+
+//line card.vuka.html:5
 func (c Card) View() ui.Node {
-//line card.vuka.html:3
+//line card.vuka.html:5
 	return ui.Ctx(func(ctx context.Context) ui.Node {
-//line card.vuka.html:3
+//line card.vuka.html:5
 		return ui.HTML(`
 <section>
   <h2>{c.Title}</h2>
@@ -23,5 +28,5 @@ func (c Card) View() ui.Node {
 	})
 }
 
-//line card.vuka.html:3
+//line card.vuka.html:5
 func (c Card) Render(ctx context.Context, w io.Writer) error { return c.View().Render(ctx, w) }

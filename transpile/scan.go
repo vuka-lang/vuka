@@ -203,6 +203,7 @@ func (f *fileState) scan(errs *ErrorList) {
 			}
 			continue
 		case t.tok == token.LSS && (depth > 0 || p.tok == token.ASSIGN) && jsxStarts(p.tok) && jsxTagAt(f.src, t.off):
+			f.markupOutsideTemplate(t.off, errs)
 			f.jsxTarget(toks, t.off, errs)
 			end, goToks, ok := f.parseJSX(t.off, errs)
 			if !ok {

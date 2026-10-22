@@ -155,17 +155,11 @@ import (
 	"example.com/site/views"
 )
 
-func jsx(label string) ui.Node {
-	return <b class="j">{label}</b>
-}
+func jsx(label string) ui.Node { return Bold{Label: label} }
 
-func templInJSX(title string) ui.Node {
-	return <main><views.Card title={title}><p>{title}</p></views.Card></main>
-}
+func templInJSX(title string) ui.Node { return TemplIn{Title: title} }
 
-func plainInJSX(title string) ui.Node {
-	return <main><plain.Card title={title}><p>{title}</p></plain.Card></main>
-}
+func plainInJSX(title string) ui.Node { return PlainIn{Title: title} }
 
 type tcase struct {
 	name     string
@@ -307,7 +301,10 @@ func TestTemplTreeEquivalence(t *testing.T) {
 	}
 	root := templModule(t, map[string]string{
 		"views/views.templ": treeTempl,
-		"main.vuka":         treeMain,
+		"main.go":           treeMain,
+		"bold.vuka.html":    "package main\n\ntype Bold struct{ Label string }\n<b class=\"j\">{Label}</b>\n",
+		"templin.vuka.html": "package main\n\nimport \"example.com/site/views\"\n\ntype TemplIn struct{ Title string }\n<main><views.Card title={Title}><p>{Title}</p></views.Card></main>\n",
+		"plainin.vuka.html": "package main\n\nimport \"example.com/site/plain\"\n\ntype PlainIn struct{ Title string }\n<main><plain.Card title={Title}><p>{Title}</p></plain.Card></main>\n",
 	})
 	if !load.TemplTrees(root) {
 		needs(t, "the ui checkout ($VUKA_UI) has no recorder (templx/record.go)")

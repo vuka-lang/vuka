@@ -7,8 +7,7 @@ import (
 )
 
 func main() {
-	web.Routes.Get("/health", health)
-	web.New(pages.Routes())
+	web.New(pages.Routes()).Get("/health", health)
 }
 
 func health() string { return "ok" }

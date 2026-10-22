@@ -20,6 +20,6 @@ func badge(n int) ui.Node {
 
 func main() {
 	ctx := context.WithValue(context.Background(), userKey{}, "ada")
-	out, err := ui.String(ctx, Menu([]Item{{"/", "Home"}, {"/orders", "Orders"}}, "/orders"))
+	out, err := ui.String(ctx, Menu{Items: []Item{{"/", "Home"}, {"/orders", "Orders"}}, Path: "/orders"})
 	fmt.Println(strings.Join(strings.Fields(out), " "), err)
 }

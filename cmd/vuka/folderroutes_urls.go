@@ -227,7 +227,7 @@ func (c *routeChecker) urlTree() *urlNode {
 			name := ch.name()
 			what := "the folder " + ch.seg
 			if prev, ok := where[name]; ok || !token.IsIdentifier(name) || !token.IsExported(name) {
-				at := diag.Span{File: filepath.Join(c.t.root, pagesDirName, filepath.FromSlash(ch.rel))}
+				at := diag.Span{File: filepath.Join(c.t.pages, filepath.FromSlash(ch.rel))}
 				if !ok {
 					prev = "a Go identifier"
 				}
@@ -275,7 +275,7 @@ func (t *routeTree) urlsFile() []byte {
 		}
 	}
 	collect(root)
-	im := newImports(t.modPath+"/"+pagesDirName+"/"+urlsDirName, nil, append(names, "u", "p", "path", "text", "segs", "seg", "i")...)
+	im := newImports(t.pagesPath+"/"+urlsDirName, nil, append(names, "u", "p", "path", "text", "segs", "seg", "i")...)
 	var b strings.Builder
 	pageType := false
 	var walk func(n *urlNode)

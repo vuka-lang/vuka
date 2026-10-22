@@ -1,0 +1,20 @@
+package pages
+
+import "fmt"
+
+// Item is a picture of the gallery.
+type Item struct {
+	ID    int
+	Name  string
+	Tags  []string
+	Liked bool
+}
+
+func accent(it Item) string { return fmt.Sprintf("#%d%d%d", it.ID, it.ID, it.ID) }
+
+func likeText(liked bool) string {
+	if liked {
+		return "Unlike"
+	}
+	return "Like"
+}

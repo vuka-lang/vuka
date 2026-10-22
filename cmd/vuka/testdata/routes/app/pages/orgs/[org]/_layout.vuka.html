@@ -1,3 +1,16 @@
 package org
 
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+)
+
+// Layout frames an organisation's pages.
+type Layout struct {
+	Org      int
+	Children ui.Node
+}
+
+func (l *Layout) Load(ctx context.Context) error { return nil }
 <section data-org={Org}>{Children}</section>
