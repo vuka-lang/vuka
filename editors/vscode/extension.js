@@ -4,7 +4,7 @@ const os = require('os');
 const path = require('path');
 const { execFile, execFileSync } = require('child_process');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
-const jsx = require('./jsx');
+const { markupBefore, tagToClose, closingFor } = require('./shape');
 const toolchain = require('./toolchain');
 
 let client;
@@ -301,11 +301,11 @@ function textBefore(document, pos) {
   return document.getText(new vscode.Range(new vscode.Position(0, 0), pos));
 }
 
-// closeTag finishes JSX tags as they are typed: an opening tag's > adds its
+// closeTag finishes shape markup tags as they are typed: an opening tag's > adds its
 // closing tag after the cursor, and </ the name of the element it closes.
 function closeTag(e) {
   const editor = vscode.window.activeTextEditor;
-  if (e.document.languageId !== 'vuka' || !editor || editor.document !== e.document || e.reason || e.contentChanges.length !== 1) {
+  if (e.document.languageId !== 'vuka-html' || !editor || editor.document !== e.document || e.reason || e.contentChanges.length !== 1) {
     return;
   }
   const change = e.contentChanges[0];
@@ -313,13 +313,14 @@ function closeTag(e) {
     return;
   }
   const end = change.range.start.translate(0, 1);
-  const before = textBefore(e.document, end);
+  const before = markupBefore(e.document, textBefore(e.document, end));
+  if (before === null) return;
   const after = e.document.lineAt(end.line).text.slice(end.character);
   let text;
   if (change.text === '/') {
-    text = jsx.closingFor(before, after);
+    text = closingFor(before, after);
   } else {
-    const name = jsx.tagToClose(before);
+    const name = tagToClose(before);
     text = name !== null && !after.trimStart().startsWith(`</${name}>`) ? `$0</${name}>` : null;
   }
   if (text) {
@@ -331,11 +332,12 @@ function closeTag(e) {
 // extension completes itself, where the server's closing-tag item would
 // only repeat it.
 function typedCloser(document, position) {
-  if (!vscode.workspace.getConfiguration('vuka', document).get('autoCloseTags')) {
+  if (document.languageId !== 'vuka-html' || !vscode.workspace.getConfiguration('vuka', document).get('autoCloseTags')) {
     return false;
   }
   const after = document.lineAt(position.line).text.slice(position.character);
-  return jsx.closingFor(textBefore(document, position), after) !== null;
+  const before = markupBefore(document, textBefore(document, position));
+  return before !== null && closingFor(before, after) !== null;
 }
 
 function activate(context) {

@@ -4,9 +4,7 @@
   "scopeName": "text.html.vuka",
   "fileTypes": ["vuka.html"],
   "patterns": [
-    { "include": "#package" },
-    { "include": "#imports" },
-    { "include": "#header" },
+    { "include": "#go-header" },
     { "include": "#markup" }
   ],
   "repository": {
@@ -51,7 +49,7 @@
       ]
     },
     "header": {
-      "comment": "func Card(p CardProps) or func (c Card) badge(): a template's header, one line; the markup below it is markup.",
+      "comment": "Tolerate an old template signature in markup; new shapes declare one struct in their Go header.",
       "match": "^(func)\\s*(\\([^)]*\\))?\\s*([A-Za-z_]\\w*)\\s*(\\[[^\\]]*\\])?\\s*(\\(.*\\))\\s*$",
       "name": "meta.template.header.vuka",
       "captures": {
@@ -73,6 +71,8 @@
     },
     "markup": {
       "patterns": [
+        { "include": "#header" },
+        { "begin": "<!--", "end": "-->", "name": "comment.block.html" },
         { "include": "#comment" },
         { "include": "#escape" },
         { "include": "#script" },
@@ -95,11 +95,11 @@
     },
     "statement": {
       "comment": "A Go statement starting a line: if, for, switch, case, default, an assignment.",
-      "begin": "^\\s*(?=(?:\\}\\s*)?(?:if|for|switch|else)\\b|case\\b|default\\s*:|[A-Za-z_][\\w.,\\s]*:?=[^=])",
+      "begin": "^\\s*(?=(?:\\}\\s*)?(?:if|for|switch|else|match)\\b|case\\b|default\\s*:|[A-Za-z_][\\w.,\\s]*:?=[^=])",
       "end": "(\\{)\\s*$|:\\s*$|$",
       "endCaptures": { "1": { "name": "punctuation.definition.block.begin.go" } },
       "name": "meta.statement.vuka",
-      "patterns": [{ "include": "source.go" }]
+      "patterns": [{ "include": "#go-code" }]
     },
     "close": {
       "match": "^\\s*(\\})\\s*$",
@@ -112,12 +112,12 @@
       "endCaptures": { "0": { "name": "punctuation.section.embedded.end.vuka" } },
       "name": "meta.embedded.expression.go",
       "contentName": "source.go",
-      "patterns": [{ "include": "#braces" }, { "include": "source.go" }]
+      "patterns": [{ "include": "#go-code" }]
     },
     "braces": {
       "begin": "\\{",
       "end": "\\}",
-      "patterns": [{ "include": "#braces" }, { "include": "source.go" }]
+      "patterns": [{ "include": "#go-code" }]
     },
     "tag": {
       "begin": "(</?)((?:slot:)?[A-Za-z][\\w.:-]*)",
@@ -151,7 +151,7 @@
       ]
     },
     "script": {
-      "begin": "(<)(script)\\b(?=[^>]*\\blang=\"ts\")([^>]*)(>)",
+      "begin": "(<)(script)\\b(?=[^>]*\\blang\\s*=\\s*[\"']ts[\"'])([^>]*)(>)",
       "beginCaptures": {
         "1": { "name": "punctuation.definition.tag.begin.html" },
         "2": { "name": "entity.name.tag.html" },
@@ -181,6 +181,64 @@
       },
       "contentName": "source.css",
       "patterns": [{ "include": "source.css" }]
+    },
+    "go-header": {
+      "begin": "\\A",
+      "end": "(?=^[ \\t]*<(?!-))",
+      "name": "meta.embedded.block.go",
+      "contentName": "source.go",
+      "patterns": [
+        {
+          "include": "#package"
+        },
+        {
+          "include": "#imports"
+        },
+        {
+          "include": "#go-code"
+        }
+      ]
+    },
+    "go-code": {
+      "patterns": [
+        {
+          "include": "source.vuka#comments"
+        },
+        {
+          "include": "source.vuka#strings"
+        },
+        {
+          "include": "source.vuka#attribute"
+        },
+        {
+          "include": "source.vuka#struct"
+        },
+        {
+          "include": "#go-block"
+        },
+        {
+          "include": "source.go"
+        }
+      ]
+    },
+    "go-block": {
+      "begin": "\\{",
+      "end": "\\}",
+      "beginCaptures": {
+        "0": {
+          "name": "punctuation.definition.block.begin.go"
+        }
+      },
+      "endCaptures": {
+        "0": {
+          "name": "punctuation.definition.block.end.go"
+        }
+      },
+      "patterns": [
+        {
+          "include": "#go-code"
+        }
+      ]
     }
   }
 }

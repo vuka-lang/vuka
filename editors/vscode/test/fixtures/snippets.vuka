@@ -1,107 +1,33 @@
-// The snippets (snippets/vuka.json) expanded with their defaults, as vuka fmt prints them.
+// Current logic snippets expanded with defaults. UI snippets belong in .vuka.html.
 package main
 
-// Stateful component
-type Counter struct {
-	vuka.Live
-	Start int // a prop: <Counter Start={…} />
-	n     int // state
-}
-
-@ui.Mount
-func (c *Counter) mount(ctx context.Context) error {
-	c.n = c.Start
-	return nil
-}
-
-func (c *Counter) Inc() { c.n++ }
-
-func (c *Counter) Render() vuka.Node {
-	return <div><span>{c.n}</span><button onClick={c.Inc}>+</button></div>
-}
-
-// Stateless component
-func Card(title string, children vuka.Node) vuka.Node {
-	return <section>{children}</section>
-}
-
 // match Result
-func friv2() vuka.Node {
-	match expr {
-	case Ok(v):
+func matchResult() error {
+match expr {
+case Ok(v):
 
-	case Err(err):
-		return err
-	}
-	return nil
+case Err(err):
+	return err
+}
+return nil
 }
 
 // match Option
-func fb858() vuka.Node {
-	match expr {
-	case Some(v):
+func matchOption() error {
+match expr {
+case Some(v):
 
-	case None:
-
-	}
-	return nil
-}
-
-// match block in markup
-func fchvg() vuka.Node {
-	return <div>
-		{match expr {
-		case Ok(v):
-			<p>{v}</p>
-		case Err(e):
-			<p className="error">{e}</p>
-		}}
-	</div>
-}
-
-// for block in markup
-func fgdds() vuka.Node {
-	return <div>
-		{for _, it := range items {
-			<li key={it.ID}></li>
-		}}
-	</div>
-}
-
-// Web route
-@web.Get("/pets/{id}")
-func ShowPet(id int, store *PetStore) Result[Pet] {
+case None:
 
 }
-
-// Web route with a view
-@web.Get("/pets")
-@web.Template("views/pets.templ")
-func ListPets(store *PetStore) Result[PetList] {
-
-}
-
-// Live page
-@web.Live("/counter")
-type LiveCounter struct {
-	vuka.Live
-	Start int // ?start=3
-	n     int
-}
-
-@ui.Mount
-func (c *LiveCounter) mount(ctx context.Context) error { c.n = c.Start; return nil }
-
-func (c *LiveCounter) Inc() { c.n++ }
-
-func (c *LiveCounter) Render() vuka.Node {
-	return <div><output>{c.n}</output><button onClick={c.Inc}>+</button></div>
+return nil
 }
 
 // Web app main
 func main() {
-	app := web.New(web.Require("DATABASE_URL"))
-	app.Run("") // :$PORT, else :8080
+	app := web.New(pages.Routes())
+	app.Service(services.NewStore)
+	app.Run("")
 }
 
 // ORM model
@@ -136,11 +62,21 @@ func publish(ctx context.Context, slug string) error {
 }
 
 // Static
-type S4vhl struct {
-	static Name = value
+type Settings struct {
+static Name = value
 }
 
 // Static method
 func User.New(name string) *User {
 	return &User{}
+}
+
+// API endpoint
+func GET(ctx context.Context) (Response, error) {
+
+	return Response{}, nil
+}
+
+func POST(ctx context.Context, input Input) (Response, error) {
+	return Response{}, nil
 }

@@ -1,8 +1,8 @@
 {
   "name": "vuka",
   "displayName": "Vuka",
-  "description": "Language support for Vuka: Go with Result, Option, ?, match and decorators, JSX and .vuka.html components, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls, in .vuka, .vuka.html and .go files.",
-  "version": "0.6.0",
+  "description": "Language support for Vuka 2.0: Go logic and .vuka.html shapes, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls.",
+  "version": "0.6.1",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -30,7 +30,6 @@
     "components",
     "live",
     "islands",
-    "jsx",
     "orm",
     "typescript"
   ],
@@ -103,11 +102,13 @@
           "source.ts": "typescript",
           "source.css": "css",
           "meta.embedded.expression.go": "go",
-          "meta.statement.vuka": "go"
+          "meta.statement.vuka": "go",
+          "meta.embedded.block.go": "go"
         },
         "tokenTypes": {
           "meta.embedded.expression.go": "other",
-          "meta.statement.vuka": "other"
+          "meta.statement.vuka": "other",
+          "meta.embedded.block.go": "other"
         }
       },
       {
@@ -126,6 +127,10 @@
       {
         "language": "vuka",
         "path": "./snippets/vuka.json"
+      },
+      {
+        "language": "vuka-html",
+        "path": "./snippets/vuka-html.json"
       }
     ],
     "configurationDefaults": {
@@ -179,7 +184,7 @@
         "vuka.autoCloseTags": {
           "type": "boolean",
           "default": true,
-          "description": "Add the closing tag when a JSX opening tag is finished by typing its >, and the open element's name after </."
+          "description": "Add a closing tag when an opening tag in .vuka.html markup is finished by typing >, and the open element's name after </."
         }
       }
     },
@@ -215,6 +220,6 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs"
   }
 }

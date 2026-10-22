@@ -1,0 +1,121 @@
+{
+  "Live page shape": {
+    "prefix": [
+      "livepage",
+      "live"
+    ],
+    "description": "One live .vuka.html shape in pages/",
+    "body": [
+      "package ${1:pages}",
+      "",
+      "import (",
+      "\t\"context\"",
+      "\t\"github.com/vuka-lang/ui/v2\"",
+      ")",
+      "",
+      "type ${2:Index} struct {",
+      "\tui.Live",
+      "\tcount int",
+      "\topen ui.State[bool]",
+      "}",
+      "",
+      "@ui.Mount",
+      "func (p *$2) mount(ctx context.Context) error {",
+      "\t$0",
+      "\treturn nil",
+      "}",
+      "",
+      "func (p *$2) Inc() { p.count++ }",
+      "<main>",
+      "\t<output>{count}</output>",
+      "\t<button onClick={Inc}>+</button>",
+      "\t<button onClick={open = !open}>Toggle</button>",
+      "</main>"
+    ]
+  },
+  "Static component shape": {
+    "prefix": [
+      "component",
+      "comp"
+    ],
+    "description": "One static .vuka.html component with props and children",
+    "body": [
+      "package ${1:components}",
+      "",
+      "import \"github.com/vuka-lang/ui/v2\"",
+      "",
+      "type ${2:Card} struct {",
+      "\tTitle string",
+      "\tChildren ui.Node",
+      "}",
+      "<section>",
+      "\t<h2>{Title}</h2>",
+      "\t{Children}",
+      "\t$0",
+      "</section>"
+    ]
+  },
+  "Folder layout shape": {
+    "prefix": [
+      "layout"
+    ],
+    "description": "Save as _layout.vuka.html to wrap this pages/ subtree",
+    "body": [
+      "package ${1:pages}",
+      "",
+      "import \"github.com/vuka-lang/ui/v2\"",
+      "",
+      "type Layout struct {",
+      "\tChildren ui.Node",
+      "}",
+      "<html lang=\"${2:en}\">",
+      "\t<head><title>{ui.PageTitle(ctx)}</title></head>",
+      "\t<body>",
+      "\t\t{Children}",
+      "\t\t$0",
+      "\t</body>",
+      "</html>"
+    ]
+  },
+  "Island-only page shape": {
+    "prefix": [
+      "islandpage"
+    ],
+    "description": "A .vuka.html page whose markup is just an imported island",
+    "body": [
+      "package ${1:pages}",
+      "",
+      "import ${2:Week} \"${3:./islands/Week.vue}\"",
+      "",
+      "type ${4:Index} struct {",
+      "\tDays []string",
+      "}",
+      "<$2 days={Days} client:${5|load,idle,visible,only|} />",
+      "$0"
+    ]
+  },
+  "Mount hook": {
+    "prefix": [
+      "mount"
+    ],
+    "description": "Decorator hook in a .vuka.html Go header (requires context import)",
+    "body": [
+      "@ui.Mount",
+      "func (${1:p} *${2:Index}) mount(ctx context.Context) error {",
+      "\t$0",
+      "\treturn nil",
+      "}"
+    ]
+  },
+  "For rows": {
+    "prefix": [
+      "forrows"
+    ],
+    "description": "A keyed Go loop in markup",
+    "body": [
+      "for _, ${1:item} := range ${2:items} {",
+      "\t<${3:li} key={$1.${4:ID}}>$0</$3>",
+      "}"
+    ]
+  }
+}
