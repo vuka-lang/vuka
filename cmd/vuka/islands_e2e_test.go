@@ -35,44 +35,47 @@ func islandModules(t *testing.T) string {
 	return filepath.Join(dir, "node_modules")
 }
 
-const islandsPage = `package main
+const islandsPage = `package pages
 
 import (
 	"context"
 
 	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
 
-	RCounter "./islands/RCounter.tsx"
-	SCounter "./islands/SCounter.svelte"
-	VCounter "./islands/VCounter.vue"
+	RCounter "../islands/RCounter.tsx"
+	SCounter "../islands/SCounter.svelte"
+	VCounter "../islands/VCounter.vue"
 )
 
-@web.Live("/")
 type Page struct {
 	ui.Live
-	total int
+	total float64
 	n     ui.State[float64]
 }
 
 @ui.Mount
-func (p *Page) mount(ctx context.Context) error { p.n = ui.State(1.0); return nil }
+func (p *Page) mount(ctx context.Context) error { p.n = 1.0; return nil }
 
-func (p *Page) Add(by float64) { p.total += int(by) }
+func (p *Page) Add(by float64) { p.total += by }
+<main>
+	<output id="n">{n}</output>
+	<output id="total">{total}</output>
+	<button id="set" onClick={n = 5}>5</button>
+	<VCounter label="vue" total={total} count={n} onAdd={p.Add} client:load />
+	<RCounter label="react" total={total} count={n} onAdd={p.Add} client:load />
+	<SCounter label="svelte" total={total} count={n} onadd={p.Add} client:load />
+	<VCounter label="once" total={total} once client:load />
+</main>
+`
 
-func (p *Page) Render() ui.Node {
-	return <main>
-		<output id="n">{p.n}</output>
-		<output id="total">{p.total}</output>
-		<button id="set" onClick={p.n.Set(5)}>5</button>
-		<VCounter label="vue" total={p.total} count={p.n} onAdd={p.Add} client:load />
-		<RCounter label="react" total={p.total} count={p.n} onAdd={p.Add} client:load />
-		<SCounter label="svelte" total={p.total} count={p.n} onadd={p.Add} client:load />
-		<VCounter label="once" total={p.total} once client:load />
-	</main>
-}
+const pagesMain = `package main
 
-func main() { web.New().Run("") }
+import (
+	"example.com/app/pages"
+	"github.com/vuka-lang/web"
+)
+
+func main() { web.New(pages.Routes()).Run("") }
 `
 
 const mounted = `const w = window as any; w.__mounts = w.__mounts || {}; w.__mounts[props.label] = (w.__mounts[props.label] || 0) + 1`
@@ -119,7 +122,7 @@ func TestIslandsE2E(t *testing.T) {
 		needs(t, "no node")
 	}
 	nm := islandModules(t)
-	files := map[string]string{"main.vuka": islandsPage}
+	files := map[string]string{"main.go": pagesMain, "pages/index.vuka.html": islandsPage}
 	for k, v := range islandFiles {
 		files[k] = v
 	}

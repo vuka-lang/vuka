@@ -50,7 +50,14 @@ styles itself out of the box.
 
 ```text
 main.vuka              wiring only: the options web.New takes
-{%- if .Pages%}
+{%- if eq .UI "live"%}
+pages/                 the pages, each file's path its URL: _layout.vuka.html (the
+                       document), index.vuka.html (home){%if .Auth%}, login/ and users/{%end%}{%if .Islands%},
+                       island.vuka.html{%end%}; vuka writes route.go and urls/
+layouts/               the shell (App) and its navigation (nav.vuka){%if .Auth%}, the
+                       sign-in card (Auth){%end%}
+components/            shared pieces: Button, Card, Input, Field, Flash, Icon, Logo
+{%- else if .Pages%}
 pages/                 the app's own pages{%if .Auth%}: the dashboard (home) and the sign-in page{%else%}: home{%end%}
 layouts/               the document, the {%if .Auth%}signed-in {%end%}shell and its navigation (nav.vuka){%if .Auth%},
                        the sign-in card{%end%}
@@ -61,7 +68,8 @@ api/                   the app's own endpoints: GET / describes the API
 {%- if .Auth%}
 modules/users/         the users module: the User model, the service auth
                        signs people in with, the session and token stores,
-                       {%if .Pages%}the users page{%else%}the /api/users routes{%end%} and their tests
+                       {%if eq .UI "templ"%}the users page{%else if not .Pages%}the /api/users routes{%end%} and tests
+                       {%- if eq .UI "live"%} (its page is pages/users/){%end%}
 {%- end%}
 {%- if ne .DB "none"%}
 migrations/            the database's schema history, one Go file per migration
@@ -83,17 +91,18 @@ web/islands/           the sample Vue island (Counter.vue), hydrated at /island
 
 ## Grow it
 
-A module is the unit of growth: its model, service, {%if .Pages%}page{%else%}routes{%end%} and test in
-`modules/<name>/`, its table in a migration.
+A module is the unit of growth: its model, service, {%if eq .UI "templ"%}page{%else if not .Pages%}routes{%end%}{%if ne .UI "live"%} {%end%}and test in
+`modules/<name>/`{%if eq .UI "live"%}, its page in `pages/<name>/`{%end%}, its table in a migration.
 
 ```sh
 vuka add module notes
 ```
 
-writes `modules/notes/` (a `Note` model, a `Notes` service, {%if .Pages%}a page at
-`/notes` linked in the navigation{%else%}`/api/notes` routes{%end%}, a test), a migration making the
-`notes` table, and the import in `main.vuka` that registers it. Rename
-fields, add some: it's yours.
+writes `modules/notes/` (a `Note` model, a `Notes` service, {%if eq .UI "templ"%}a page at
+`/notes` linked in the navigation, {%else if not .Pages%}`/api/notes` routes, {%end%}a test){%if eq .UI "live"%}, its page
+`pages/notes/index.vuka.html` at `/notes`, linked in the navigation{%end%}, a migration making the
+`notes` table, and the import in `main.vuka` that registers its service.
+Rename fields, add some: it's yours.
 
 **Changing the schema.** Edit a model, then write the migration:
 
@@ -107,18 +116,21 @@ and `go tool orm migrate` applies them without starting the app.
 {%- end%}
 {%- if .Pages%}
 
-**A page.** {%if eq .UI "live"%}A type with `@web.Live("/path")` is a live page: its state stays
-on the server and the page changes in place on each event. Its markup is
-the `.vuka.html` file beside it (`vuka add page /path` writes the pair);
-`@ui.Mount` marks the method that loads it. Wrap it in `layouts.App`, and
-add `layouts.Nav(layouts.Link{…})` to link it.{%else%}A function with `@web.Get("/path")` and `@web.Template("view.templ")`
+**A page.** {%if eq .UI "live"%}A `.vuka.html` file under `pages/` is a page, its path its
+URL: `pages/reports/[id].vuka.html` is `/reports/{id}`, its struct's `ID`
+field the parameter. The struct and its methods sit above the markup; one
+embedding `ui.Live` is live, its state on the server and the page changed
+in place on each event, and `@ui.Mount` marks the method that loads it.
+`pages/_layout.vuka.html` is the document around every page. Wrap a page
+in `layouts.App`, and add `layouts.Nav(layouts.Link{…})` to link it;
+`vuka add page /path` writes one, and `vuka routes` lists them.{%else%}A function with `@web.Get("/path")` and `@web.Template("view.templ")`
 is a page: the templ component beside it renders its result. Wrap it in
 `layouts.App`, and add `layouts.Nav(layouts.Link{…})` to link it.{%end%}
 
-**A component.** A template in `components/*.vuka.html` is a component
-every page can use: `<components.Card title="…">…</components.Card>`{%if eq .UI "templ"%}, or
-`@components.Card(…)` from templ{%end%}. `vuka add component Name` writes
-one: a struct of its props in `name.vuka`, its markup in `name.vuka.html`.
+**A component.** A `components/*.vuka.html` file is a component every page
+can use: `<components.Card title="…">…</components.Card>`{%if eq .UI "templ"%}, or
+`@components.Card{Title: "…"}` from templ{%end%}. `vuka add component Name`
+writes one: its struct (the props, its exported fields) above its markup.
 {%- end%}
 {%- if .Auth%}
 

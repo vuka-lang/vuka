@@ -13,5 +13,4 @@ type Index struct {
 }
 
 func NewIndex() *Index { return &Index{First: urls.Orgs.Org(1).Path()} }
-
-func (x *Index) Render() ui.Node { return ui.Text(x.First + urls.Orgs.New.Path()) }
+<p>{First + urls.Orgs.New.Path()}</p>

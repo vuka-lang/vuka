@@ -33,7 +33,7 @@ type addFlags struct {
 }
 
 // valueFlags take a value: --module notes, --dir=web/islands.
-var valueFlags = map[string]bool{"module": true, "dir": true, "island": true, "table": true, "name": true, "layout": true}
+var valueFlags = map[string]bool{"module": true, "dir": true, "island": true, "table": true, "name": true}
 
 var boolFlags = map[string]bool{"stateless": true, "unmanaged": true, "force": true, "dry-run": true, "live": true, "vue": true, "react": true, "svelte": true, "no-install": true}
 
@@ -115,21 +115,6 @@ func (a *adder) create(rel string, src []byte) error {
 	}
 	a.files[rel] = b
 	a.order = append(a.order, rel)
-	return nil
-}
-
-// pair creates base.vuka and base.vuka.html from the add templates
-// name.vuka and name.vuka.html: a component and its markup.
-func (a *adder) pair(base, name string, data any) error {
-	for _, ext := range []string{".vuka", ".vuka.html"} {
-		src, err := render(name+ext, data)
-		if err != nil {
-			return err
-		}
-		if err := a.create(base+ext, src); err != nil {
-			return err
-		}
-	}
 	return nil
 }
 
@@ -440,7 +425,7 @@ func addService(root, mod string, f *addFlags, w io.Writer) error {
 // ---- component ----
 
 type componentSpec struct {
-	Pkg, Name, Snake string
+	Pkg, Name string
 }
 
 func addComponent(root, mod string, f *addFlags, w io.Writer) error {
@@ -461,14 +446,18 @@ func addComponent(root, mod string, f *addFlags, w io.Writer) error {
 			return fmt.Errorf("vuka add component: %s is declared already in %s/%s", n, t.dir, at)
 		}
 	}
-	if err := a.pair(t.dir+"/"+snake(name), "component", componentSpec{Pkg: t.pkg, Name: name, Snake: snake(name)}); err != nil {
+	src, err := render("component.vuka.html", componentSpec{Pkg: t.pkg, Name: name})
+	if err != nil {
+		return err
+	}
+	if err := a.create(t.dir+"/"+snake(name)+".vuka.html", src); err != nil {
 		return err
 	}
 	if err := a.commit(w); err != nil {
 		return err
 	}
 	q := t.pkg + "."
-	fmt.Fprintf(w, "\nUse it as a tag (import %q):\n\n\t<%s%s Title=\"Hello\">…</%s%s>\n", mod+"/"+t.dir, q, name, q, name)
+	fmt.Fprintf(w, "\nUse it as a tag (import %q):\n\n\t<%s%s title=\"Hello\">…</%s%s>\n", mod+"/"+t.dir, q, name, q, name)
 	return nil
 }
 
@@ -771,7 +760,11 @@ func addIsland(root, mod string, f *addFlags, w io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if err := a.pair(t.dir+"/"+snake(name), "island_host", islandHostSpec{Pkg: t.pkg, Name: name, Snake: snake(name), Import: relImport(t.dir, file), File: file}); err != nil {
+	src, err := render("island_host.vuka.html", islandHostSpec{Pkg: t.pkg, Name: name, Import: relImport(t.dir, file), File: file})
+	if err != nil {
+		return err
+	}
+	if err := a.create(t.dir+"/"+snake(name)+".vuka.html", src); err != nil {
 		return err
 	}
 	if err := a.commit(w); err != nil {
@@ -780,7 +773,7 @@ func addIsland(root, mod string, f *addFlags, w io.Writer) error {
 	if err := a.install(fr, f, w); err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "\nPlace it in %s/ as\n\n\t<%s Title=\"Hello\" Count={3} />\n\nand elsewhere (import %q) as\n\n\t<%s.%s Title=\"Hello\" Count={3} />\n", t.dir, name, mod+"/"+t.dir, t.pkg, name)
+	fmt.Fprintf(w, "\nPlace it in %s/ as\n\n\t<%s title=\"Hello\" count={3} />\n\nand elsewhere (import %q) as\n\n\t<%s.%s title=\"Hello\" count={3} />\n", t.dir, name, mod+"/"+t.dir, t.pkg, name)
 	return nil
 }
 
@@ -801,21 +794,17 @@ func inferredAt(root, fr, dir, name, comp string) bool {
 }
 
 type islandHostSpec struct {
-	Pkg, Name, Snake, Import, File string
+	Pkg, Name, Import, File string
 }
 
 // ---- page ----
 
 type pageSpec struct {
 	Module, Pkg, Type, Path, Title string
-	File                           string // the page's files' base name
-	Handler                        string
 	Params                         []pageParam
-	Live, Layouts, Auth            bool
+	Live, Document                 bool // live; the page writes its own <html> (no pages/_layout.vuka.html)
 	Island, IslandPath             string
-	InferIsland                    bool   // the component is where a bare @ui.Island looks
-	IslandArgs                     string // @ui.Island's arguments: ("path", ui.Layout(…)), or ""
-	LayoutImport                   bool   // the layout names the app's layouts package
+	InferIsland                    bool // the component is where a bare @ui.Island looks
 	Prop, PropJSON                 string
 	URLField, URLJSON              string
 }
@@ -826,14 +815,14 @@ var pathSegment = regexp.MustCompile(`^(\{[a-z][A-Za-z0-9]*\}|[a-z0-9][a-z0-9._-
 
 func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if len(f.pos) != 1 {
-		return errors.New("usage: vuka add page <path> [--module m] [--stateless] [--island Name [--vue|--react|--svelte] [--layout expr]] [--name Type] [--force] [--dry-run]")
+		return errors.New("usage: vuka add page <path> [--live|--stateless] [--island Name [--module m] [--vue|--react|--svelte]] [--name Type] [--force] [--dry-run]")
 	}
 	a := newAdder("page", root, mod, f)
 	path := f.pos[0]
 	if !strings.HasPrefix(path, "/") {
 		return fmt.Errorf("vuka add page %s: a page's path starts with /: /%s", path, path)
 	}
-	var words []string
+	var words, segs []string // the path's fixed words; its segments as files and folders name them
 	var params []pageParam
 	for _, seg := range strings.Split(strings.Trim(path, "/"), "/") {
 		if seg == "" && path == "/" {
@@ -848,17 +837,23 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 				field = strings.TrimSuffix(field, "Id") + "ID"
 			}
 			params = append(params, pageParam{Name: p, Field: field})
+			segs = append(segs, "["+p+"]")
 			continue
 		}
 		words = append(words, strings.NewReplacer(".", "_", "-", "_").Replace(seg))
+		segs = append(segs, seg)
 	}
 	if f.bools["live"] && f.bools["stateless"] {
 		return fmt.Errorf("vuka add page %s: --live or --stateless, not both", path)
 	}
 	// live unless --stateless; a path with {parameters} only with --live
 	live := !f.bools["stateless"] && (f.bools["live"] || len(params) == 0)
-	if len(params) > 0 && (f.bools["live"] || f.values["island"] != "") {
-		return fmt.Errorf("vuka add page %s: a live or component-backed page from a path with {parameters} is yours to write; vuka add page makes it without them", path)
+	island := f.values["island"]
+	if len(params) > 0 && island != "" {
+		return fmt.Errorf("vuka add page %s: a component-backed page from a path with {parameters} is yours to write; vuka add page makes it without them", path)
+	}
+	if f.values["module"] != "" && island == "" {
+		return fmt.Errorf("vuka add page %s: a page's file is its path under pages/, so --module goes with --island Name (the component's folder)", path)
 	}
 	typ := f.values["name"]
 	if typ == "" {
@@ -874,36 +869,42 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 				return '_'
 			}, strings.Join(words, "_"))))
 		}
-		if f.values["island"] == "" {
+		if island == "" {
 			typ += "Page"
 		}
 	}
 	if err := checkTypeName("page", typ, "page"); err != nil {
 		return err
 	}
-	t, err := a.moduleTarget(f.values["module"], "pages")
-	if err != nil {
-		return err
+	if f.values["module"] != "" {
+		if _, err := a.moduleTarget(f.values["module"], ""); err != nil {
+			return err
+		}
 	}
-	if at := declared(filepath.Join(root, t.dir), typ); at != "" && !a.force {
-		return fmt.Errorf("vuka add page: %s is declared already in %s/%s (--name names another)", typ, t.dir, at)
+	// The page's file is its path under pages/: /reports/{id} is
+	// pages/reports/[id].vuka.html, / and a folder's own path its index.
+	dir, base := "pages", "index"
+	if len(segs) > 0 {
+		dir, base = "pages/"+strings.Join(segs[:len(segs)-1], "/"), segs[len(segs)-1]
+		if fi, err := os.Stat(filepath.Join(root, "pages", filepath.FromSlash(strings.Join(segs, "/")))); err == nil && fi.IsDir() {
+			dir, base = "pages/"+strings.Join(segs, "/"), "index"
+		}
+	}
+	dir = strings.TrimSuffix(dir, "/")
+	if at := declared(filepath.Join(root, dir), typ); at != "" && !a.force {
+		return fmt.Errorf("vuka add page: %s is declared already in %s/%s (--name names another)", typ, dir, at)
 	}
 	if other := routeTaken(root, path); other != "" && !a.force {
 		return fmt.Errorf("vuka add page: %s is a route already, in %s", path, other)
 	}
-	handler := "Show" + strings.TrimSuffix(typ, "Page")
-	if at := declared(filepath.Join(root, t.dir), handler); at != "" && !a.force && !live && f.values["island"] == "" {
-		return fmt.Errorf("vuka add page: %s is declared already in %s/%s (--name names another)", handler, t.dir, at)
-	}
-	spec := pageSpec{Module: mod, Pkg: t.pkg, Type: typ, Path: path, Handler: handler, Params: params, Title: displayName(strings.Join(words, " ")), Live: live,
-		Layouts: exists(root, "layouts", "document.vuka"), Auth: exists(root, "modules", "users")}
+	spec := pageSpec{Module: mod, Pkg: pagePackage(root, dir), Type: typ, Path: path, Params: params, Title: displayName(strings.Join(words, " ")), Live: live,
+		Document: !exists(root, "pages", "_layout.vuka.html")}
 	if spec.Title == "" {
 		spec.Title = typ
 	}
-	spec.File = snake(typ)
-	file := t.dir + "/" + snake(typ) + ".vuka"
-	var tmpl string
-	if island := f.values["island"]; island != "" {
+	file := dir + "/" + base + ".vuka.html"
+	tmpl := "page.vuka.html"
+	if island != "" {
 		if err := checkTypeName("page", island, "island"); err != nil {
 			return err
 		}
@@ -911,7 +912,7 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 			return fmt.Errorf("vuka add page: --island %s backs the page, so the page's type is %s: leave --name out", island, island)
 		}
 		typ, spec.Type = island, island
-		file = t.dir + "/" + snake(typ) + ".vuka"
+		file = dir + "/" + base + ".vuka"
 		fr, err := islandRoot(root)
 		if err != nil {
 			return err
@@ -921,57 +922,29 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 			return err
 		}
 		spec.Prop, spec.PropJSON, spec.URLField, spec.URLJSON = "Title", "title", "Q", "q"
-		dir := f.values["dir"]
-		if dir == "" && f.values["module"] != "" {
-			dir = fr + "/islands/" + f.values["module"]
+		cdir := f.values["dir"]
+		if cdir == "" && f.values["module"] != "" {
+			cdir = fr + "/islands/" + f.values["module"]
 		}
-		comp, err := a.island(island, dir, fw, islandSpec{Name: island, Live: true, Page: island, Prop: "title", URLField: "q"}, w)
+		comp, err := a.island(island, cdir, fw, islandSpec{Name: island, Live: true, Page: island, Prop: "title", URLField: "q"}, w)
 		if err != nil {
 			return err
 		}
 		spec.Island, spec.IslandPath = island, strings.TrimPrefix(comp, fr+"/")
-		spec.InferIsland = inferredAt(root, fr, t.dir, island, comp)
-		layout := f.values["layout"]
-		switch {
-		case layout == "" && spec.Layouts:
-			layout = fmt.Sprintf("layouts.Page(%q)", spec.Title)
-		case layout == "none":
-			layout = ""
-		}
-		var args []string
-		if !spec.InferIsland {
-			args = append(args, strconv.Quote(spec.IslandPath))
-		}
-		if layout != "" {
-			args = append(args, "ui.Layout("+layout+")")
-			spec.LayoutImport = spec.Layouts && strings.Contains(layout, "layouts.")
-		}
-		if len(args) > 0 {
-			spec.IslandArgs = "(" + strings.Join(args, ", ") + ")"
-		}
+		spec.InferIsland = inferredAt(root, fr, dir, island, comp)
 		tmpl = "page_island.vuka"
 		defer func() { a.install(fr, f, w) }()
-	} else {
-		if f.bools["vue"] || f.bools["react"] || f.bools["svelte"] {
-			return errors.New("vuka add page: --vue, --react and --svelte go with --island Name")
-		}
-		if f.values["layout"] != "" {
-			return errors.New("vuka add page: --layout goes with --island Name")
-		}
-		tmpl = "page"
+	} else if f.bools["vue"] || f.bools["react"] || f.bools["svelte"] {
+		return errors.New("vuka add page: --vue, --react and --svelte go with --island Name")
 	}
-	if tmpl == "page" {
-		err = a.pair(strings.TrimSuffix(file, ".vuka"), tmpl, spec)
-	} else {
-		var src []byte
-		if src, err = render(tmpl, spec); err == nil {
-			err = a.create(file, src)
-		}
+	if exists(root, filepath.FromSlash(file)) && !a.force {
+		return fmt.Errorf("vuka add page: %s exists already: it is the page at %s (--force overwrites it)", file, path)
 	}
+	src, err := render(tmpl, spec)
 	if err != nil {
 		return err
 	}
-	if err := a.register(t.dir); err != nil {
+	if err := a.create(file, src); err != nil {
 		return err
 	}
 	if err := a.commit(w); err != nil {
@@ -980,6 +953,34 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	example := strings.NewReplacer("{", "", "}", "").Replace(regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, "1"))
 	fmt.Fprintf(w, "\nRun the app (vuka run -watch .) and open http://localhost:8080%s\n", example)
 	return nil
+}
+
+// pagePackage is the package name of the pages folder dir (relative to
+// root): its files', else its name's (a bracket folder's, its
+// parameter's).
+func pagePackage(root, dir string) string {
+	entries, _ := os.ReadDir(filepath.Join(root, filepath.FromSlash(dir)))
+	for _, e := range entries {
+		n := e.Name()
+		if e.IsDir() || strings.Contains(n, "_test.") || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".vuka.html")) {
+			continue
+		}
+		if src, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(dir), n)); err == nil {
+			if name := packageName(n, src); name != "" {
+				return name
+			}
+		}
+	}
+	name := strings.Map(func(r rune) rune {
+		if r >= 'a' && r <= 'z' || r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, strings.ToLower(strings.TrimSuffix(path.Base(dir), "...")))
+	if name == "" || token.IsKeyword(name) || unicode.IsDigit(rune(name[0])) {
+		return "page"
+	}
+	return name
 }
 
 var routeRe = regexp.MustCompile(`@web\.(?:Get|Live|Post|Handle)\("([^"]*)"`)

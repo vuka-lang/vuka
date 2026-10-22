@@ -1,0 +1,17 @@
+package components
+
+import "github.com/vuka-lang/ui"
+
+// Step is one of the home page's next steps.
+type Step struct {
+	N        int
+	Title    string
+	Children ui.Node
+}
+<li class="flex gap-3">
+  <span class="grid size-6 shrink-0 place-items-center rounded-full bg-slate-900 text-xs font-semibold text-white dark:bg-white dark:text-slate-900">{N}</span>
+  <div>
+    <p class="font-medium text-slate-900 dark:text-white">{Title}</p>
+    <p class="mt-0.5 text-slate-600 dark:text-slate-400">{Children}</p>
+  </div>
+</li>

@@ -7,6 +7,8 @@ import (
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // tsTypes maps the Go types a page's fields and method parameters name to
@@ -67,11 +69,11 @@ func (r *tsTypes) pkg(dir string) *goPkg {
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.Contains(n, "_test.") || strings.HasSuffix(n, "_vuka.go") {
+		if e.IsDir() || strings.Contains(n, "_test.") || strings.HasSuffix(n, "_vuka.go") || strings.HasSuffix(n, "_html.go") {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(dir, n))
-		if err != nil {
+		src, ok := goSource(filepath.Join(dir, n))
+		if !ok {
 			continue
 		}
 		full, _ := scanFile(n, src)
@@ -557,4 +559,26 @@ func structBodyFields(t []wtok, open int) [][]wtok {
 		}
 	}
 	return out
+}
+
+// goSource is the Go of a module source file: a .go or .vuka file's text,
+// a .vuka.html file's header (read in place of its x_html.go); false for
+// any other file.
+func goSource(file string) ([]byte, bool) {
+	if !strings.HasSuffix(file, ".go") && !strings.HasSuffix(file, ".vuka") && !strings.HasSuffix(file, ".vuka.html") {
+		return nil, false
+	}
+	src, err := os.ReadFile(file)
+	if err != nil {
+		return nil, false
+	}
+	if !strings.HasSuffix(file, ".vuka.html") {
+		return src, true
+	}
+	sh, _ := transpile.ParseShape(src)
+	if sh == nil {
+		return nil, false
+	}
+	lines := strings.SplitAfter(string(src), "\n")
+	return []byte(strings.Join(lines[:min(sh.Markup, len(lines))], "")), true
 }

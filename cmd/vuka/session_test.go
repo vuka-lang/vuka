@@ -21,9 +21,9 @@ func TestSessionTempl(t *testing.T) {
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
 	files := map[string]string{
-		"data/data.vuka":   "package data\n\ntype Pet struct{ Name string }\n\nfunc All() Result[[]Pet] { return Ok([]Pet{{Name: \"Rex\"}}) }\n",
-		"data/card.vuka":   "package data\n\nimport \"github.com/vuka-lang/ui\"\n\nfunc Card() ui.Node { return <p>card</p> }\n",
-		"views/pets.templ": "package views\n\nimport \"example.com/s/data\"\n\ntempl Pets(pets []data.Pet) {\n\tfor _, p := range pets {\n\t\t<p>{ p.Name }</p>\n\t}\n}\n",
+		"data/data.vuka":      "package data\n\ntype Pet struct{ Name string }\n\nfunc All() Result[[]Pet] { return Ok([]Pet{{Name: \"Rex\"}}) }\n",
+		"data/card.vuka.html": "package data\n\ntype Card struct{}\n<p>card</p>\n",
+		"views/pets.templ":    "package views\n\nimport \"example.com/s/data\"\n\ntempl Pets(pets []data.Pet) {\n\tfor _, p := range pets {\n\t\t<p>{ p.Name }</p>\n\t}\n}\n",
 		"main.vuka": `package main
 
 import (

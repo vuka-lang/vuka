@@ -176,6 +176,9 @@ func declaredRoutes(root string, registered map[string]bool) []declaredRoute {
 			registered[string(m[1])] = true
 		}
 		for _, m := range declaredRouteRe.FindAllSubmatchIndex(src, -1) {
+			if onMethod(src, m[0]) {
+				continue // a controller's action: its path is below the controller's
+			}
 			r := declaredRoute{file: path, line: bytes.Count(src[:m[0]], []byte("\n")) + 1}
 			if m[2] >= 0 {
 				r.method, r.path = strings.ToUpper(string(src[m[2]:m[3]])), string(src[m[4]:m[5]])
@@ -187,6 +190,27 @@ func declaredRoutes(root string, registered map[string]bool) []declaredRoute {
 		return nil
 	})
 	return out
+}
+
+// onMethod reports whether the route decorator at i, an attribute line
+// @web.Get("/x"), is a method's: a controller's action.
+func onMethod(src []byte, i int) bool {
+	start := bytes.LastIndexByte(src[:i], '\n') + 1
+	if !bytes.HasPrefix(bytes.TrimSpace(src[start:i]), []byte("@")) {
+		return false
+	}
+	for rest := src[i:]; ; {
+		nl := bytes.IndexByte(rest, '\n')
+		if nl < 0 {
+			return false
+		}
+		rest = rest[nl+1:]
+		line := bytes.TrimSpace(rest[:max(bytes.IndexByte(rest, '\n'), 0)])
+		if len(line) == 0 || line[0] == '@' || bytes.HasPrefix(line, []byte("//")) {
+			continue
+		}
+		return bytes.HasPrefix(line, []byte("func ("))
+	}
 }
 
 // goDirectiveOf is the go directive of the go.mod at root ("1.25.0").
@@ -204,41 +228,60 @@ func goDirectiveOf(root string) string {
 	return ""
 }
 
-// routesUnserved is W0701 when the module has pages under pages/ and none
-// of its main packages passes pages.Routes() to the app: route.go
-// registers nothing until something calls it. nil when one does, or when
-// the module has no main package (a library of pages).
-func routesUnserved(root, modPath string, t *routeTree) []diag.Diagnostic {
-	if t == nil || !slices.ContainsFunc(t.dirs, func(d *routeDir) bool { return len(d.pages) > 0 || len(d.funcs) > 0 }) {
-		return nil
-	}
-	pagesPath := strconv.Quote(modPath + "/" + pagesDirName)
-	importRe := regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+)?\s*` + regexp.QuoteMeta(pagesPath))
-	mains, served := 0, false
-	walkSources(root, func(path, name string) error {
-		if served || !(strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".vuka")) || strings.Contains(name, "_test.") {
+// routesUnserved is W0701 for each page tree with pages that no main
+// package serves: route.go registers nothing until something passes
+// pages.Routes() to an app. The module's pages/ are served by any of its
+// main packages, and nil when it has none (a library of pages); a pages/
+// directory beside a package main, by that main.
+func routesUnserved(root, modPath string, ts routeTrees) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	for _, t := range ts {
+		if !slices.ContainsFunc(t.dirs, func(d *routeDir) bool { return len(d.pages) > 0 || len(d.funcs) > 0 }) {
+			continue
+		}
+		pagesPath := strconv.Quote(t.pagesPath)
+		importRe := regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+)?\s*` + regexp.QuoteMeta(pagesPath))
+		mains, served := 0, false
+		visit := func(path, name string) error {
+			if served || !(strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".vuka")) || strings.Contains(name, "_test.") {
+				return nil
+			}
+			src, err := os.ReadFile(path)
+			if err != nil || !mainPkg.Match(src) {
+				return nil
+			}
+			mains++
+			for _, m := range importRe.FindAllSubmatch(src, -1) {
+				alias := string(m[1])
+				if alias == "" {
+					alias = pagesDirName
+				}
+				if bytes.Contains(src, []byte(alias+".Routes()")) {
+					served = true
+				}
+			}
 			return nil
 		}
-		src, err := os.ReadFile(path)
-		if err != nil || !regexp.MustCompile(`(?m)^package main\b`).Match(src) {
-			return nil
-		}
-		mains++
-		for _, m := range importRe.FindAllSubmatch(src, -1) {
-			alias := string(m[1])
-			if alias == "" {
-				alias = pagesDirName
+		msg := "the pages under pages/ are served by no main package: none passes pages.Routes() to its app"
+		if t.main == "" {
+			walkSources(root, visit)
+			if mains == 0 {
+				continue
 			}
-			if bytes.Contains(src, []byte(alias+".Routes()")) {
-				served = true
+		} else {
+			entries, _ := os.ReadDir(t.main)
+			for _, e := range entries {
+				if !e.IsDir() {
+					visit(filepath.Join(t.main, e.Name()), e.Name())
+				}
 			}
+			msg = "the pages under " + filepath.ToSlash(relPath(root, t.pages)) + "/ are served by no app: the package main beside them never passes pages.Routes() to it"
 		}
-		return nil
-	})
-	if served || mains == 0 {
-		return nil
+		if !served {
+			out = append(out, *diag.Warn("W0701", "%s", msg).
+				At(diag.Span{File: filepath.Join(t.pages, routeGoName)}).
+				WithHelp("register them: web.New(pages.Routes(), …), importing %s", pagesPath))
+		}
 	}
-	return []diag.Diagnostic{*diag.Warn("W0701", "the pages under pages/ are served by no main package: none passes pages.Routes() to its app").
-		At(diag.Span{File: filepath.Join(t.root, pagesDirName, routeGoName)}).
-		WithHelp("register them: web.New(pages.Routes(), …), importing %s", pagesPath)}
+	return out
 }

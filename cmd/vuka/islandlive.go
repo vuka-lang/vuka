@@ -48,11 +48,11 @@ func readIslandLive(root, modPath string, dirs []string) *islandLive {
 		entries, _ := os.ReadDir(dir)
 		for _, e := range entries {
 			n := e.Name()
-			if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.Contains(n, "_test.") || strings.HasSuffix(n, "_vuka.go") {
+			if e.IsDir() || strings.Contains(n, "_test.") || strings.HasSuffix(n, "_vuka.go") || strings.HasSuffix(n, "_html.go") {
 				continue
 			}
-			src, err := os.ReadFile(filepath.Join(dir, n))
-			if err != nil {
+			src, ok := goSource(filepath.Join(dir, n))
+			if !ok {
 				continue
 			}
 			full, _ := scanFile(n, src)

@@ -13,5 +13,4 @@ type Permit struct {
 	Org    int
 	Permit codes.Code
 }
-
-func (x *Permit) Render() ui.Node { return ui.Text(urls.Orgs.Org(x.Org).Permits.Permit(x.Permit).Path()) }
+<p>{urls.Orgs.Org(Org).Permits.Permit(Permit).Path()}</p>

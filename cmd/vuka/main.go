@@ -202,7 +202,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			ds = vetIslands(root, modPath, pa)
 		}
 		ds = append(ds, routesUnserved(root, modPath, scanRoutes(root, modPath, nil))...)
-		if ds = append(append(ds, vetLivePages(root, pkgs)...), vetTemplates(root, pkgs)...); len(ds) > 0 {
+		if ds = append(ds, vetLivePages(root, pkgs)...); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
 				vetFailed = vetFailed || d.Severity == diag.Error
@@ -511,10 +511,6 @@ func inPlace(patterns, extra []string, lo load.Options) (string, []load.Generate
 		return "", nil, err
 	}
 	opts := loadOptions(pa)
-	if opts.Split = lo.Split; opts.Split {
-		// the templates written apart get their scope as they compile
-		opts.Scopes = nil
-	}
 	routes := scanRoutes(root, modPath, nil)
 	if pkgs, err = routes.stub(pkgs); err != nil {
 		return "", nil, err

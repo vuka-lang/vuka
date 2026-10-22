@@ -1,0 +1,48 @@
+package layouts
+{%- if .Auth%}
+
+import (
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web/auth"
+
+	"{%.Module%}/components"
+)
+
+// NavLinks is the navigation: the links the user may see, Path's
+// highlighted.
+type NavLinks struct {
+	Me    *auth.Identity
+	Path  string
+	Class string
+}
+{%- else%}
+
+import (
+	"github.com/vuka-lang/ui"
+
+	"{%.Module%}/components"
+)
+
+// NavLinks is the navigation, Path's link highlighted.
+type NavLinks struct {
+	Path  string
+	Class string
+}
+{%- end%}
+<nav class={Class} aria-label="Main">
+  for _, l := range Links() {
+{%- if .Auth%}
+    if l.Perm == "" || Me.Can(l.Perm) {
+      <ui.Link href={l.Href} class={navClass(active(Path, l.Href))} attrs={current(active(Path, l.Href))}>
+        <components.Icon name={l.Icon} class="size-4" />
+        {l.Label}
+      </ui.Link>
+    }
+{%- else%}
+    <ui.Link href={l.Href} class={navClass(active(Path, l.Href))} attrs={current(active(Path, l.Href))}>
+      <components.Icon name={l.Icon} class="size-4" />
+      {l.Label}
+    </ui.Link>
+{%- end%}
+  }
+</nav>

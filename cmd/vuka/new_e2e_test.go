@@ -144,7 +144,7 @@ func envValue(t *testing.T, dir, key string) string {
 func TestNewEndToEnd(t *testing.T) {
 	e := newE2E(t)
 	dir := e.new("shop")
-	for _, f := range []string{"main.vuka", "pages/login.vuka", "modules/users/stores.vuka", "migrations/0001_initial.go", "static/logo.svg", "go.sum"} {
+	for _, f := range []string{"main.vuka", "pages/login/index.vuka.html", "modules/users/stores.vuka", "migrations/0001_initial.go", "static/logo.svg", "go.sum"} {
 		if _, err := os.Stat(filepath.Join(dir, f)); err != nil {
 			t.Fatalf("no %s", f)
 		}

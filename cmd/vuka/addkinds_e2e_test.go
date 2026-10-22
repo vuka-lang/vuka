@@ -21,7 +21,7 @@ func TestAddKindsEndToEnd(t *testing.T) {
 	e.run(dir, off, "vuka", "add", "service", "posts/Mailer")
 	e.run(dir, off, "vuka", "add", "component", "StatCard")
 	e.run(dir, off, "vuka", "add", "page", "/reports/{id}")
-	e.run(dir, off, "vuka", "add", "page", "/stats", "--live", "--module", "posts")
+	e.run(dir, off, "vuka", "add", "page", "/posts/stats", "--live")
 	out := e.run(dir, off, "vuka", "add", "entity", "posts/Comment", "body:text", "post:ref", "email:string:unique",
 		"score:int:index", "approved_at:time?", "price:decimal", "active:bool", "meta:json", "due:date")
 	if !strings.Contains(out, "migration written") || !exists(dir, "migrations", "0002_comments.go") {
@@ -32,17 +32,12 @@ func TestAddKindsEndToEnd(t *testing.T) {
 		t.Errorf("makemigrations --check: %s", out)
 	}
 	// a page using the component
-	os.WriteFile(filepath.Join(dir, "pages", "cards.vuka"), []byte(`package pages
+	os.WriteFile(filepath.Join(dir, "pages", "cards.vuka.html"), []byte(`package pages
 
-import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+import "example.com/blog/components"
 
-	"example.com/blog/components"
-)
-
-@web.Get("/cards")
-func Cards() ui.Node { return <components.StatCard Title="Posts"><p>3</p></components.StatCard> }
+type Cards struct{}
+<components.StatCard title="Posts"><p>3</p></components.StatCard>
 `), 0o644)
 	if out := e.run(dir, off, "vuka", "vet", "./..."); strings.Contains(out, "warning[W030") {
 		t.Errorf("what vuka add writes uses deprecated forms:\n%s", out)
@@ -51,7 +46,7 @@ func Cards() ui.Node { return <components.StatCard Title="Posts"><p>3</p></compo
 	bin := filepath.Join(dir, "blog")
 	e.run(dir, off, "vuka", "build", "-o", bin, ".")
 	base, stop := serve(t, dir, bin)
-	for path, want := range map[string]string{"/reports/7": "Reports", "/stats": "Clicked 0 times", "/cards": "Posts", "/posts": "Posts"} {
+	for path, want := range map[string]string{"/reports/7": "Reports", "/posts/stats": "Clicked 0 times", "/cards": "Posts", "/posts": "Posts"} {
 		res, err := http.Get(base + path)
 		if err != nil {
 			t.Fatal(err)
@@ -78,20 +73,16 @@ func TestAddIslandsEndToEnd(t *testing.T) {
 	e.run(dir, off, "vuka", "add", "island", "Clock", "--react", "--no-install")
 	e.run(dir, off, "vuka", "add", "page", "/reports", "--island", "Reports", "--live", "--no-install")
 	e.run(dir, off, "vuka", "add", "page", "/board", "--island", "Board", "--stateless", "--no-install")
-	os.WriteFile(filepath.Join(dir, "pages", "charts.vuka"), []byte(`package pages
+	charts := filepath.Join(dir, "pages", "charts.vuka.html")
+	os.WriteFile(charts, []byte(`package pages
 
 import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
-
 	Chart "../web/islands/Chart.vue"
 	Clock "../web/islands/Clock.tsx"
 )
 
-@web.Get("/charts")
-func Charts() ui.Node {
-	return <main><Chart title="Sales" count={3} client:load /><Clock title="Now" client:load /></main>
-}
+type Charts struct{}
+<main><Chart title="Sales" count={3} client:load /><Clock title="Now" client:load /></main>
 `), 0o644)
 	if out, err := e.cmd(dir, off, "vuka", "vet", "./...").CombinedOutput(); err != nil {
 		if strings.Contains(string(out), "has no RegisterIsland") {
@@ -100,18 +91,20 @@ func Charts() ui.Node {
 		t.Fatalf("vuka vet: %v\n%s", err, out)
 	}
 	// a prop the component doesn't declare is a compile error
-	os.WriteFile(filepath.Join(dir, "pages", "charts.vuka"), []byte(strings.Replace(read(t, filepath.Join(dir, "pages", "charts.vuka")), `count={3}`, `colour="red"`, 1)), 0o644)
+	os.WriteFile(charts, []byte(strings.Replace(read(t, charts), `count={3}`, `colour="red"`, 1)), 0o644)
 	c := e.cmd(dir, off, "vuka", "vet", "./...")
 	if out, err := c.CombinedOutput(); err == nil || !strings.Contains(string(out), "colour") {
 		t.Errorf("an unknown prop compiled: %v\n%s", err, out)
 	}
-	os.Remove(filepath.Join(dir, "pages", "charts.vuka"))
+	os.Remove(charts)
 
-	// A live page routed with @web.Get still works; vet suggests @web.Live.
+	// A page is its file under pages/: a route decorator on its type is E0720.
 	reports := filepath.Join(dir, "pages", "reports.vuka")
-	os.WriteFile(reports, []byte(strings.Replace(read(t, reports), `@web.Live("/reports")`, `@web.Get("/reports")`, 1)), 0o644)
-	if out := e.run(dir, off, "vuka", "vet", "./..."); !strings.Contains(out, "warning[W0301]: Reports embeds ui.Live: route it with @web.Live") || !strings.Contains(out, "--> pages/reports.vuka:18") {
-		t.Errorf("vet: %s", out)
+	src := strings.Replace(read(t, reports), "@ui.Island\n", "@web.Live(\"/reports\")\n@ui.Island\n", 1)
+	src = strings.Replace(src, "\t\"github.com/vuka-lang/ui\"\n", "\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n", 1)
+	os.WriteFile(reports, []byte(src), 0o644)
+	if out, err := e.cmd(dir, off, "vuka", "vet", "./...").CombinedOutput(); err == nil || !strings.Contains(string(out), "@web.Live declares a page outside pages/") {
+		t.Errorf("vet with @web.Live on a page: %v\n%s", err, out)
 	}
 }
 

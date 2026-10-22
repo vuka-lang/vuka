@@ -91,7 +91,7 @@ func TestLSPTempl(t *testing.T) {
 
 // TestTemplDropIn runs templ's own language server with vuka as its gopls (a
 // link named gopls first on PATH): a .templ file sees the components of the
-// .vuka files beside it, and templ's buffers win over vuka's Go for them.
+// .vuka.html files beside it, and templ's buffers win over vuka's Go for them.
 func TestTemplDropIn(t *testing.T) {
 	templBin, err := exec.LookPath("templ")
 	if err != nil {
@@ -109,10 +109,10 @@ func TestTemplDropIn(t *testing.T) {
 	if err := os.Symlink(filepath.Join(bin, "vuka"), filepath.Join(bin, "gopls")); err != nil {
 		t.Fatal(err)
 	}
-	pages := "package main\n\nimport \"github.com/vuka-lang/ui\"\n\nfunc Nav(current string) ui.Node {\n\treturn <nav>{current}</nav>\n}\n\nfunc main() { _ = Layout(\"home\") }\n"
-	layout := "package main\n\ntempl Layout(current string) {\n\t<body>\n\t\t@Nav(current)\n\t</body>\n}\n"
+	nav := "package main\n\ntype Nav struct{ Current string }\n<nav>{Current}</nav>\n"
+	layout := "package main\n\ntempl Layout(current string) {\n\t<body>\n\t\t@Nav{Current: current}\n\t</body>\n}\n"
 	dir := realDir(t.TempDir())
-	for name, src := range templFiles(t, map[string]string{"pages.vuka": pages, "layout.templ": layout}) {
+	for name, src := range templFiles(t, map[string]string{"nav.vuka.html": nav, "main.go": "package main\n\nfunc main() { _ = Layout(\"home\") }\n", "layout.templ": layout}) {
 		os.WriteFile(filepath.Join(dir, name), []byte(src), 0o644)
 	}
 
@@ -147,20 +147,20 @@ func TestTemplDropIn(t *testing.T) {
 		"uri": uri, "languageId": "templ", "version": 1, "text": layout}})
 
 	at := map[string]any{"textDocument": map[string]any{"uri": uri},
-		"position": positionOf([]byte(layout), strings.Index(layout, "Nav(")+1)}
+		"position": positionOf([]byte(layout), strings.Index(layout, "Nav{")+1)}
 	var hover string
-	for i := 0; i < 50 && !strings.Contains(hover, "func Nav("); i++ {
+	for i := 0; i < 50 && !strings.Contains(hover, "type Nav struct"); i++ {
 		time.Sleep(200 * time.Millisecond)
 		b, _ := json.Marshal(c.call("textDocument/hover", at))
 		hover = string(b)
 	}
-	if !strings.Contains(hover, "func Nav(current string)") {
+	if !strings.Contains(hover, "type Nav struct") {
 		log, _ := os.ReadFile(filepath.Join(bin, "vuka.log"))
 		t.Fatalf("hover on Nav in layout.templ: %s\n%s", hover, log)
 	}
 	b, _ := json.Marshal(c.call("textDocument/definition", at))
-	if !strings.Contains(string(b), pathToURI(filepath.Join(dir, "pages.vuka"))) || !strings.Contains(string(b), `"line":4`) {
-		t.Fatalf("definition of Nav: %s, want line 4 of pages.vuka", b)
+	if !strings.Contains(string(b), pathToURI(filepath.Join(dir, "nav.vuka.html"))) || !strings.Contains(string(b), `"line":2`) {
+		t.Fatalf("definition of Nav: %s, want line 2 of nav.vuka.html", b)
 	}
 
 	// Loaded now: an edit's diagnostics are gopls's on templ's buffer (the
@@ -175,7 +175,7 @@ func TestTemplDropIn(t *testing.T) {
 				continue
 			}
 			if b, _ := json.Marshal(p); strings.Contains(string(b), "undefined") {
-				t.Fatalf("layout.templ should see Nav from pages.vuka: %s", b)
+				t.Fatalf("layout.templ should see Nav from nav.vuka.html: %s", b)
 			}
 			continue
 		case <-deadline:

@@ -12,24 +12,25 @@ import (
 	"testing"
 )
 
-const navApp = `package main
+const navLayout = `package pages
+
+import "github.com/vuka-lang/ui"
+
+type Layout struct{ Children ui.Node }
+<html><head><meta charset="utf-8" /><title>admin</title></head><body><nav><ui.Link href="/pa" ID="to-a">A</ui.Link><ui.Link href="/pb" ID="to-b">B</ui.Link></nav><main>{Children}</main></body></html>
+`
+
+const navPageA = `package pages
 
 import (
 	"context"
 	"time"
 
 	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+
+	A "../islands/PageA.vue"
 )
 
-func admin(title string) func(context.Context, ui.Node) ui.Node {
-	return func(ctx context.Context, page ui.Node) ui.Node {
-		return <html><head><meta charset="utf-8" /><title>{title}</title></head><body><nav><ui.Link href="/pa" ID="to-a">A</ui.Link><ui.Link href="/pb" ID="to-b">B</ui.Link></nav><main>{page}</main></body></html>
-	}
-}
-
-@web.Live("/pa")
-@ui.Island("./islands/PageA.vue", ui.Layout(admin("A")))
 type PageA struct {
 	ui.Live
 	Title string   ` + "`json:\"title\"`" + `
@@ -49,9 +50,20 @@ func (a *PageA) loadStats(ctx context.Context) error {
 	a.Stats = []string{"x", "y"}
 	return nil
 }
+<A title={Title} stats={Stats} client:load />
+`
 
-@web.Live("/pb")
-@ui.Island("./islands/PageB.vue", ui.Layout(admin("B")))
+const navPageB = `package pages
+
+import (
+	"context"
+	"time"
+
+	"github.com/vuka-lang/ui"
+
+	B "../islands/PageB.vue"
+)
+
 type PageB struct {
 	ui.Live
 	Title string   ` + "`json:\"title\"`" + `
@@ -71,8 +83,7 @@ func (b *PageB) loadRows(ctx context.Context) error {
 	b.Rows = []string{"r"}
 	return nil
 }
-
-func main() { web.New().Run("") }
+<B title={Title} rows={Rows} client:load />
 `
 
 func navVueSrc(name string) string {
@@ -104,14 +115,17 @@ func TestIslandNavigateE2E(t *testing.T) {
 	if chromeBinary() == "" {
 		needs(t, "no Chrome (set VUKA_CHROME)")
 	}
-	root := assetsModule(t, map[string]string{"main.vuka": navApp,
-		"package.json":      `{"name":"app","private":true,"type":"module"}`,
-		"vite.config.mts":   "import { defineConfig } from 'vite'\nimport vue from '@vitejs/plugin-vue'\nimport vuka from './vuka/vite.js'\nexport default defineConfig({ base: '/elsewhere/', plugins: [vue(), vuka()] })\n",
-		"app.css":           "",
-		"islands/PageA.vue": navVueSrc("A"),
-		"islands/PageB.vue": navVueSrc("B"),
-		"islands/Lazy.vue":  "<template><b class=\"lazy\">lazy</b></template>\n<style>.lazy { color: rgb(1, 2, 3) }</style>\n",
-		"tsconfig.json":     `{"compilerOptions": {"strict": true, "paths": {"vuka:live": ["./vuka-live"]}}}`,
+	root := assetsModule(t, map[string]string{"main.go": pagesMain,
+		"pages/_layout.vuka.html": navLayout,
+		"pages/pa.vuka.html":      navPageA,
+		"pages/pb.vuka.html":      navPageB,
+		"package.json":            `{"name":"app","private":true,"type":"module"}`,
+		"vite.config.mts":         "import { defineConfig } from 'vite'\nimport vue from '@vitejs/plugin-vue'\nimport vuka from './vuka/vite.js'\nexport default defineConfig({ base: '/elsewhere/', plugins: [vue(), vuka()] })\n",
+		"app.css":                 "",
+		"islands/PageA.vue":       navVueSrc("A"),
+		"islands/PageB.vue":       navVueSrc("B"),
+		"islands/Lazy.vue":        "<template><b class=\"lazy\">lazy</b></template>\n<style>.lazy { color: rgb(1, 2, 3) }</style>\n",
+		"tsconfig.json":           `{"compilerOptions": {"strict": true, "paths": {"vuka:live": ["./vuka-live"]}}}`,
 	})
 	if err := os.Symlink(nm, filepath.Join(root, "node_modules")); err != nil {
 		t.Fatal(err)

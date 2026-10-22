@@ -1,24 +1,20 @@
 package {%.Pkg%}
 
 import (
+{%- if .Live%}
 	"context"
 	"strings"
 
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
-{%- if .LayoutImport%}
-
-	"{%.Module%}/layouts"
 {%- end%}
+	"github.com/vuka-lang/ui"
 )
 
 // {%.Type%} is the page at {%.Path%}, backed by its component
 // ({%.IslandPath%}): the exported fields are what it reads (live.{%.URLJSON%}.value),
-// the bound one it sets too, and changed runs after it does{%if .Live%}; it
+// the bound one it sets too{%if .Live%}, and changed runs after it does; it
 // is live, so the server keeps the instance and the component gets the new
 // props{%end%}.
-{%if .Live%}@web.Live{%else%}@web.Get{%end%}("{%.Path%}")
-@ui.Island{%.IslandArgs%}
+@ui.Island{%if not .InferIsland%}("{%.IslandPath%}"){%end%}
 type {%.Type%} struct {
 {%- if .Live%}
 	ui.Live
@@ -31,7 +27,6 @@ type {%.Type%} struct {
 {%- end%}
 	Items []string `json:"items"`
 }
-
 {%- if .Live%}
 
 @ui.Mount
@@ -40,32 +35,10 @@ func (p *{%.Type%}) mount(ctx context.Context) error {
 	p.filter()
 	return nil
 }
-{%- else%}
-
-// LiveSchema declares the hooks: a stateless page has no ui.Live, which
-// gives a live page's the attributes @ui.Mount and @ui.OnChange.
-func (p *{%.Type%}) LiveSchema(l *ui.LiveSchema) {
-	l.Mount(p.mount)
-	l.OnChange(p.changed)
-}
-
-func (p *{%.Type%}) mount(ctx context.Context) error {
-	p.{%.Prop%} = "{%.Title%}"
-	p.filter()
-	return nil
-}
-{%- end%}
-
-{%- if .Live%}
 
 // changed runs after the component sets {%.URLField%}: live.{%.URLJSON%}.set(v).
 @ui.OnChange
 func (p *{%.Type%}) changed(ctx context.Context, c ui.Changed) error {
-{%- else%}
-
-// changed runs after the component sets {%.URLField%}: live.{%.URLJSON%}.set(v).
-func (p *{%.Type%}) changed(ctx context.Context, c ui.Changed) error {
-{%- end%}
 	p.filter()
 	return nil
 }
@@ -78,3 +51,9 @@ func (p *{%.Type%}) filter() {
 		}
 	}
 }
+{%- else%}
+
+func New{%.Type%}() *{%.Type%} {
+	return &{%.Type%}{ {%- .Prop%}: "{%.Title%}", Items: []string{"Apples", "Bread", "Coffee"}}
+}
+{%- end%}

@@ -1,0 +1,10 @@
+package org
+
+// Store is a service, not a page: it renders nothing.
+type Store struct{}
+
+func NewStore() *Store { return &Store{} }
+
+// Card is a part of the organisation's pages, not a page: it renders
+// nothing.
+type Card struct{ Org int }

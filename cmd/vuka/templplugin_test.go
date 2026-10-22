@@ -179,7 +179,7 @@ func TestTemplError(t *testing.T) {
 	t.Log(e)
 }
 
-// TestTemplChildren: JSX children reach a .templ component's { children... }
+// TestTemplChildren: a template's children reach a .templ component's { children... }
 // through templ's context.
 func TestTemplChildren(t *testing.T) {
 	if testing.Short() {
@@ -192,21 +192,29 @@ templ Card(title string) {
 	<div class="card"><h2>{ title }</h2>{ children... }</div>
 }
 `,
-		"main.vuka": `package main
+		"note.vuka.html": `package main
+
+import "github.com/vuka-lang/ui"
+
+type Note struct {
+	Text     string
+	Children ui.Node
+}
+<p>{Text}: {Children}</p>
+`,
+		"page.vuka.html": `package main
+
+type Page struct{}
+<Card title="Hi"><Note text="note">body</Note></Card>
+`,
+		"main.go": `package main
 
 import (
 	"context"
 	"os"
-
-	"github.com/vuka-lang/ui"
 )
 
-func Note(text string, children ui.Node) ui.Node { return <p>{text}: {children}</p> }
-
-func main() {
-	page := <Card title="Hi"><Note text="note">body</Note></Card>
-	page.Render(context.Background(), os.Stdout)
-}
+func main() { Page{}.Render(context.Background(), os.Stdout) }
 `,
 	})
 	pkgs, err := load.Discover(root, "example.com/site", root, true, nil)

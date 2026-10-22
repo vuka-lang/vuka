@@ -20,6 +20,7 @@ import (
 	"github.com/vuka-lang/vuka/diag"
 	"github.com/vuka-lang/vuka/internal/load"
 	"github.com/vuka-lang/vuka/internal/tsprops"
+	"github.com/vuka-lang/vuka/transpile"
 )
 
 // Islands are client components hydrated in the browser, declared by an
@@ -604,6 +605,7 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 		return
 	}
 	dir := filepath.Dir(file)
+	page, tag, full, live := islandPageOf(file)
 	for i := 0; i+1 < len(toks); i++ {
 		switch toks[i].tok {
 		case token.FUNC, token.TYPE, token.VAR, token.CONST:
@@ -633,9 +635,45 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 				}
 			}
 		}
+		if page != "" && tag == ic.name {
+			// An island page: its struct is the island, as an @ui.Island
+			// struct is, and its props the struct's.
+			ic.name, ic.imported, ic.live, ic.props = page, false, live, structFields(full, page)
+		}
 		pa.islands = append(pa.islands, ic)
 	}
 }
+
+// islandPageOf reads a .vuka.html file as an island page's: the struct it
+// renders, the tag its markup is, alone, the file's tokens, and whether
+// the page is live (its struct embeds ui.Live; a stateless one declares
+// no hook); "" when it isn't one.
+func islandPageOf(file string) (page, tag string, full []wtok, live bool) {
+	if !strings.HasSuffix(file, ".vuka.html") {
+		return "", "", nil, false
+	}
+	src, err := os.ReadFile(file)
+	if err != nil {
+		return "", "", nil, false
+	}
+	sh, _ := transpile.ParseShape(src)
+	if sh == nil || sh.Live && !sh.EmbedsLive {
+		return "", "", nil, false
+	}
+	lines := strings.SplitAfter(string(src), "\n")
+	if sh.Markup < 0 || sh.Markup >= len(lines) {
+		return "", "", nil, false
+	}
+	m := islandPageTag.FindStringSubmatch(strings.Join(lines[sh.Markup:], " "))
+	if m == nil {
+		return "", "", nil, false
+	}
+	full, _ = scanFile(file, []byte(strings.Join(lines[:sh.Markup], "")))
+	return sh.Type, m[1], full, sh.EmbedsLive
+}
+
+// islandPageTag is an island page's markup: one self-closing tag.
+var islandPageTag = regexp.MustCompile(`^\s*<([A-Z]\w*)\b[^<>]*/>\s*$`)
 
 // dedupeIslands keeps one island per name: an @ui.Island struct over an
 // import of the same name, the first of several imports.

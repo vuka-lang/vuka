@@ -201,26 +201,29 @@ func webModule(t *testing.T, files map[string]string) string {
 	return localModule(t, web, files)
 }
 
-const twPage = `package main
+const twMain = `package main
 
 import (
-	"github.com/vuka-lang/ui"
+	"example.com/app/pages"
 	"github.com/vuka-lang/web"
 )
 
-@web.Get("/")
-func Home() ui.Node {
-	return <html><head><title>t</title></head><body>
-		<p ref="note" class="bg-emerald-950 text-brand">hi</p>
-		<button onClick={ui.JS.AddClass(ui.Ref("note"), "opacity-35")}>go</button>
-	</body></html>
-}
+func main() { web.New(pages.Routes()).Run("") }
+`
 
-func main() { web.New().Run("") }
+const twPage = `package pages
+
+import "github.com/vuka-lang/ui"
+
+type Index struct{}
+<html><head><title>t</title></head><body>
+	<p ref="note" class="bg-emerald-950 text-brand">hi</p>
+	<button onClick={ui.JS.AddClass(ui.Ref("note"), "opacity-35")}>go</button>
+</body></html>
 `
 
 // TestBuildTailwind: vuka build embeds the stylesheet, with the classes of a
-// .vuka file's JSX and of a JS command and the project's theme, in a binary
+// page's markup and of a JS command and the project's theme, in a binary
 // that links it from its pages; the source tree gets no generated file.
 func TestBuildTailwind(t *testing.T) {
 	if testing.Short() {
@@ -229,7 +232,7 @@ func TestBuildTailwind(t *testing.T) {
 	if _, err := exec.LookPath("tailwindcss"); err != nil {
 		needs(t, "no tailwindcss on PATH")
 	}
-	root := webModule(t, map[string]string{"main.vuka": twPage,
+	root := webModule(t, map[string]string{"main.go": twMain, "pages/index.vuka.html": twPage,
 		"styles/app.css": "@import \"tailwindcss\";\n@theme { --color-brand: #123456; }\n"})
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")

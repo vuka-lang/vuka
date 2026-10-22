@@ -1,0 +1,10 @@
+// Package layouts is the app's page frames: the shell of the pages (App){%if .Auth%}
+// and the centred card of the sign-in page (Auth){%end%}. The document around
+// every page is pages/_layout.vuka.html.
+package layouts
+
+import "github.com/vuka-lang/web"
+
+// AppName is the app's name, as pages and the shell show it (APP_NAME).
+func AppName() string { return web.Env("APP_NAME", "{%.Name%}") }
+

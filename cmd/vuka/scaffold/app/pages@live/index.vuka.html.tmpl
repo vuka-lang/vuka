@@ -1,0 +1,100 @@
+package pages
+
+import (
+{%- if .Auth%}
+	"context"
+	"strings"
+
+{%- end%}
+	"github.com/vuka-lang/ui"
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+{%- if .Auth%}
+	"{%.Module%}/modules/users"
+{%- end%}
+)
+{%- if .Auth%}
+
+// Dashboard is the signed-in home page, /. It is live (it embeds ui.Live),
+// so the shell's links move between pages over its connection.
+type Dashboard struct {
+	ui.Live
+	Users    *users.Users
+	me       *auth.Identity
+	people   int64
+	sessions int64
+}
+
+@ui.Mount
+func (d *Dashboard) mount(ctx context.Context) error {
+	d.me = auth.Current(ctx)
+	people := d.Users.Count(ctx)?
+	sessions := d.Users.ActiveSessions(ctx)?
+	d.people = people
+	d.sessions = sessions
+	return nil
+}
+
+func (d *Dashboard) Title() string { return "Dashboard" }
+
+// firstName is what the greeting calls the user.
+func (d *Dashboard) firstName() string {
+	if u, ok := d.me.User.(*users.User); ok {
+		return strings.Fields(u.Name + " x")[0]
+	}
+	return "there"
+}
+<layouts.App me={d.me} path="/" title={"Welcome back, " + d.firstName()} description={"Here is what's happening in " + layouts.AppName() + "."}>
+  <div class="grid gap-4 sm:grid-cols-3">
+    <components.Stat label="Users" value={d.people} href="/users" icon="users" />
+    <components.Stat label="Active sessions" value={d.sessions} icon="sparkles" />
+    <components.Stat label="Your role" value={strings.Join(d.me.Roles, ", ")} icon="info" />
+  </div>
+{%- else%}
+
+// Home is the home page, /. It is live (it embeds ui.Live), so the shell's
+// links move between pages over its connection.
+type Home struct {
+	ui.Live
+}
+
+func (h *Home) Title() string { return "Home" }
+<layouts.App path="/" title={"Welcome to " + layouts.AppName()} description="Your app is running. Here is where it goes next.">
+{%- end%}
+  <div class="mt-8 grid gap-4 lg:grid-cols-3">
+    <components.Card title="Grow your app" description="Everything here is yours to change. A module is the unit of growth." class="lg:col-span-2">
+      <ol class="space-y-4 text-sm">
+{%- if ne .DB "none"%}
+        <components.Step n={1} title="Add a module">
+          <code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800 dark:bg-white/10 dark:text-slate-200">vuka add module notes</code>
+          adds a model, a service, a migration and a test under <code class="font-mono text-xs">modules/notes</code>, its page under <code class="font-mono text-xs">pages/notes</code>, and links it here.
+        </components.Step>
+        <components.Step n={2} title="Change the schema">
+          Edit a model, then <code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800 dark:bg-white/10 dark:text-slate-200">go tool orm makemigrations</code>; the app applies new migrations when it starts.
+        </components.Step>
+{%- else%}
+        <components.Step n={1} title="Add a page">
+          A <code class="font-mono text-xs">.vuka.html</code> file in <code class="font-mono text-xs">pages/</code> is a page, its path its URL; <code class="font-mono text-xs">layouts.Nav</code> links it here.
+        </components.Step>
+        <components.Step n={2} title="Keep data">
+          Start again with <code class="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-xs text-slate-800 dark:bg-white/10 dark:text-slate-200">vuka new --db=sqlite</code> for a database, migrations and modules.
+        </components.Step>
+{%- end%}
+        <components.Step n={3} title="Make it look like yours">
+          The brand colour and fonts are tokens in <code class="font-mono text-xs">styles/app.css</code>; shared pieces are in <code class="font-mono text-xs">components/</code>.
+        </components.Step>
+      </ol>
+    </components.Card>
+    <components.Card title="Resources">
+      <ul class="space-y-3 text-sm">
+        <li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/web/">The web guide</a></li>
+        <li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/ui/">Components and live pages</a></li>
+        <li><a class="font-medium text-brand-700 hover:underline dark:text-brand-400" href="https://vuka-lang.github.io/orm/">The ORM</a></li>
+      </ul>
+    </components.Card>
+  </div>
+</layouts.App>

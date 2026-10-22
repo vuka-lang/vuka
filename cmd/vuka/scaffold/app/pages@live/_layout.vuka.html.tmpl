@@ -1,0 +1,35 @@
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui"
+
+	"{%.Module%}/layouts"
+)
+
+// Layout is the HTML document around every page. The Tailwind stylesheet
+// (styles/app.css) is linked by the framework.
+type Layout struct {
+	Children ui.Node
+}
+
+// Title is the document's: the page's (its Title method), then the app's
+// name.
+func (l Layout) Title(ctx context.Context) string {
+	if t := ui.PageTitle(ctx); t != "" {
+		return t + " · " + layouts.AppName()
+	}
+	return layouts.AppName()
+}
+<html lang="en" class="h-full bg-slate-50 antialiased dark:bg-slate-950">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="color-scheme" content="light dark" />
+    <title>{Title(ctx)}</title>
+    <link rel="icon" type="image/svg+xml" href="/static/logo.svg" />
+    <script src="/static/forms.js"></script>
+  </head>
+  <body class="h-full font-sans text-slate-900 dark:text-slate-100">{Children}</body>
+</html>

@@ -1,17 +1,75 @@
 package {%.Pkg%}
 
-import "strconv"
-import "{%.Module%}/components"
-import "{%.Module%}/layouts"
+import (
+	"context"
+	"strconv"
 
+	"github.com/vuka-lang/ui"
+{%- if .Auth%}
+	"github.com/vuka-lang/web/auth"
+{%- end%}
+
+	"{%.Module%}/components"
+	"{%.Module%}/layouts"
+	"{%.Module%}/modules/{%.Pkg%}"
+)
+
+var _ = layouts.Nav(layouts.Link{Label: "{%.Label%}", Href: "{%.Path%}", Icon: "book", Order: 20})
+
+// Index lists the {%.Pkg%}, {%.Path%}, with a form to add one. It is live:
+// adding and deleting change the page in place. The model and service are
+// in modules/{%.Pkg%}.
+type Index struct {
+	ui.Live
+	{%.Service%} *{%.Pkg%}.{%.Service%}
+{%- if .Auth%}
+	me      *auth.Identity
+{%- end%}
+	rows    []{%.Pkg%}.{%.Model%}
+	problem string
+}
+
+@ui.Mount
+func (p *Index) mount(ctx context.Context) error {
+{%- if .Auth%}
+	p.me = auth.Current(ctx)
+{%- end%}
+	rows := p.{%.Service%}.All(ctx)?
+	p.rows = rows
+	return nil
+}
+
+func (p *Index) Title() string { return "{%.Label%}" }
+
+// Add saves the form's {%.Model%}; an error keeps what was typed.
+func (p *Index) Add(ctx context.Context, in {%.Pkg%}.New{%.Model%}) error {
+	p.problem = ""
+	match p.{%.Service%}.Add(ctx, in) {
+	case Ok(_):
+		rows := p.{%.Service%}.All(ctx)?
+		p.rows = rows
+		return nil
+	case Err(e):
+		p.problem = e.Error()
+		return e
+	}
+}
+
+// Remove deletes the {%.Model%} whose button was clicked (its value is the id).
+func (p *Index) Remove(ctx context.Context, id int64) error {
+	p.{%.Service%}.Delete(ctx, id)?
+	rows := p.{%.Service%}.All(ctx)?
+	p.rows = rows
+	return nil
+}
 <layouts.App{%if .Auth%} me={me}{%end%} path="{%.Path%}" title="{%.Label%}" description="Add one, and it is saved in the database.">
   <div class="grid gap-6 lg:grid-cols-3">
-    <components.Card title="New" description="" class="lg:order-last">
+    <components.Card title="New" class="lg:order-last">
       <form onSubmit={Add} class="space-y-4" id="new-{%.Pkg%}">
-        <components.Field label="Title" name="title" hint="" error={problem}>
+        <components.Field label="Title" name="title" error={problem}>
           <components.Input name="title" autocomplete="off" invalid={problem != ""} />
         </components.Field>
-        <components.Field label="Details" name="body" hint="Optional." error="">
+        <components.Field label="Details" name="body" hint="Optional.">
           <textarea id="body" name="body" rows="3" class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm text-slate-900 shadow-sm ring-1 ring-inset ring-slate-300 focus:ring-2 focus:ring-brand-600 focus:outline-none dark:bg-white/5 dark:text-white dark:ring-white/15"></textarea>
         </components.Field>
         <components.Button class="w-full">Add</components.Button>
@@ -33,7 +91,7 @@ import "{%.Module%}/layouts"
               }
               <p class="mt-2 text-xs text-slate-400">{row.CreatedAt.Format("2 Jan 2006, 15:04")}</p>
             </div>
-            <components.Button type="button" variant="ghost" size="sm" attrs={[]ui.Attr{{Name: "value", Value: row.ID}}} onClick={ui.JS.Confirm("Delete " + row.Title + "?").Push(Delete)}>Delete</components.Button>
+            <components.Button type="button" variant="ghost" size="sm" attrs={[]ui.Attr{{Name: "value", Value: row.ID}}} onClick={ui.JS.Confirm("Delete " + row.Title + "?").Push(Remove)}>Delete</components.Button>
           </li>
         }
       </ul>

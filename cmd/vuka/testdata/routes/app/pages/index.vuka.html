@@ -1,0 +1,9 @@
+package pages
+
+import "example.com/app/pages/urls"
+
+// Index is the home page.
+type Index struct{}
+
+func NewIndex() *Index { return &Index{} }
+<p>{urls.Orgs.Path() + urls.Api.Orgs.Path() + urls.Api.Orgs.Org(2).Path() + urls.About.Path() + urls.Files.File("a b/c").Path() + urls.Api.Pets.ID(7).Path()}</p>

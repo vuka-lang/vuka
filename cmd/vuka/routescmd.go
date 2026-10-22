@@ -53,7 +53,7 @@ func routesCmd(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 		fmt.Fprintf(stdout, "%s\n", b)
-	} else if routes == nil {
+	} else if len(routes) == 0 {
 		fmt.Fprintln(stdout, "no pages/ directory: the module has no folder routes")
 	} else {
 		writeRoutes(stdout, res.routes)
@@ -68,9 +68,9 @@ func routesCmd(args []string, stdout, stderr io.Writer) error {
 }
 
 // routeTable transpiles the module and builds its folder routes' table.
-func routeTable(root, modPath string) (*routeTree, *routesResult, error) {
+func routeTable(root, modPath string) (routeTrees, *routesResult, error) {
 	routes := scanRoutes(root, modPath, nil)
-	if routes == nil {
+	if len(routes) == 0 {
 		return nil, &routesResult{}, nil
 	}
 	pkgs, err := load.Discover(root, modPath, root, true, nil)

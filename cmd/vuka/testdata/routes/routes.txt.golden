@@ -1,21 +1,21 @@
-METHOD  PATH                          PAGE                        FILE                                        MIDDLEWARE                        GUARDS     LAYOUTS
-GET     /                             pages.Index                 pages/index.go:11                           pages.Middleware                             pages.Layout
-GET     /about                        pages.About                 pages/about.vuka.html:4                     pages.Middleware                             pages.Layout
-GET     /api/orgs                     orgs.Index.Get (endpoint)   pages/api/orgs/index.go:11                  pages.Middleware, api.Middleware  api.Guard  pages.Layout
-POST    /api/orgs                     orgs.Index.Post (endpoint)  pages/api/orgs/index.go:16                  pages.Middleware, api.Middleware  api.Guard  pages.Layout
-GET     /api/orgs/{org}               orgs.GET (endpoint)         pages/api/orgs/[org].vuka:6                 pages.Middleware, api.Middleware  api.Guard  pages.Layout
-PUT     /api/orgs/{org}               orgs.PUT (endpoint)         pages/api/orgs/[org].vuka:11                pages.Middleware, api.Middleware  api.Guard  pages.Layout
-DELETE  /api/orgs/{org}               orgs.DELETE (endpoint)      pages/api/orgs/[org].vuka:13                pages.Middleware, api.Middleware  api.Guard  pages.Layout
-GET     /api/pets                     pets.GET (endpoint)         pages/api/pets/index.vuka:6                 pages.Middleware, api.Middleware  api.Guard  pages.Layout
-POST    /api/pets                     pets.POST (endpoint)        pages/api/pets/index.vuka:11                pages.Middleware, api.Middleware  api.Guard  pages.Layout
-GET     /api/pets/{id}                pets.GET (endpoint)         pages/api/pets/[id].vuka:6                  pages.Middleware, api.Middleware  api.Guard  pages.Layout
-DELETE  /api/pets/{id}                pets.DELETE (endpoint)      pages/api/pets/[id].vuka:8                  pages.Middleware, api.Middleware  api.Guard  pages.Layout
-GET     /files/{file...}              files.File                  pages/files/[file...].vuka.html:6           pages.Middleware                             pages.Layout
-GET     /orgs                         orgs.Index (live)           pages/orgs/index.go:10                      pages.Middleware                             pages.Layout
-GET     /orgs/new                     orgs.New                    pages/orgs/new.go:9                         pages.Middleware                             pages.Layout
-POST    /orgs/new                     orgs.New.Post               pages/orgs/new.go:18                        pages.Middleware                             pages.Layout
-GET     /orgs/{org}                   org.Index                   pages/orgs/[org]/index.vuka:11              pages.Middleware                  org.Guard  pages.Layout, org.Layout
-DELETE  /orgs/{org}                   org.Index.Delete            pages/orgs/[org]/index.vuka:20              pages.Middleware                  org.Guard  pages.Layout, org.Layout
-GET     /orgs/{org}/permits/{permit}  permits.Permit (live)       pages/orgs/[org]/permits/[permit].vuka:11   pages.Middleware                  org.Guard  pages.Layout, org.Layout
-GET     /orgs/{org}/reset-password    org.ResetPassword           pages/orgs/[org]/reset_password.vuka:9      pages.Middleware                  org.Guard  pages.Layout, org.Layout
-GET     /orgs/{org}/team-settings     org.TeamSettings            pages/orgs/[org]/team-settings.vuka.html:4  pages.Middleware                  org.Guard  pages.Layout, org.Layout
+METHOD  PATH                          PAGE                        FILE                                            MIDDLEWARE                        GUARDS     LAYOUTS
+GET     /                             pages.Index                 pages/index.vuka.html:6                         pages.Middleware                             pages.Layout
+GET     /about                        pages.About                 pages/about.vuka.html:4                         pages.Middleware                             pages.Layout
+GET     /api/orgs                     orgs.Index.Get (endpoint)   pages/api/orgs/index.go:11                      pages.Middleware, api.Middleware  api.Guard  pages.Layout
+POST    /api/orgs                     orgs.Index.Post (endpoint)  pages/api/orgs/index.go:16                      pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /api/orgs/{org}               orgs.GET (endpoint)         pages/api/orgs/[org].vuka:6                     pages.Middleware, api.Middleware  api.Guard  pages.Layout
+PUT     /api/orgs/{org}               orgs.PUT (endpoint)         pages/api/orgs/[org].vuka:11                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
+DELETE  /api/orgs/{org}               orgs.DELETE (endpoint)      pages/api/orgs/[org].vuka:13                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /api/pets                     pets.GET (endpoint)         pages/api/pets/index.vuka:6                     pages.Middleware, api.Middleware  api.Guard  pages.Layout
+POST    /api/pets                     pets.POST (endpoint)        pages/api/pets/index.vuka:11                    pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /api/pets/{id}                pets.GET (endpoint)         pages/api/pets/[id].vuka:6                      pages.Middleware, api.Middleware  api.Guard  pages.Layout
+DELETE  /api/pets/{id}                pets.DELETE (endpoint)      pages/api/pets/[id].vuka:8                      pages.Middleware, api.Middleware  api.Guard  pages.Layout
+GET     /files/{file...}              files.File                  pages/files/[file...].vuka.html:6               pages.Middleware                             pages.Layout
+GET     /orgs                         orgs.Index (live)           pages/orgs/index.vuka.html:10                   pages.Middleware                             pages.Layout
+GET     /orgs/new                     orgs.New                    pages/orgs/new.vuka.html:6                      pages.Middleware                             pages.Layout
+POST    /orgs/new                     orgs.New.Post               pages/orgs/new.vuka.html:10                     pages.Middleware                             pages.Layout
+GET     /orgs/{org}                   org.Index                   pages/orgs/[org]/index.vuka.html:10             pages.Middleware                  org.Guard  pages.Layout, org.Layout
+DELETE  /orgs/{org}                   org.Index.Delete            pages/orgs/[org]/index.vuka.html:16             pages.Middleware                  org.Guard  pages.Layout, org.Layout
+GET     /orgs/{org}/permits/{permit}  permits.Permit (live)       pages/orgs/[org]/permits/[permit].vuka.html:11  pages.Middleware                  org.Guard  pages.Layout, org.Layout
+GET     /orgs/{org}/reset-password    org.ResetPassword           pages/orgs/[org]/reset_password.vuka.html:4     pages.Middleware                  org.Guard  pages.Layout, org.Layout
+GET     /orgs/{org}/team-settings     org.TeamSettings            pages/orgs/[org]/team-settings.vuka.html:4      pages.Middleware                  org.Guard  pages.Layout, org.Layout

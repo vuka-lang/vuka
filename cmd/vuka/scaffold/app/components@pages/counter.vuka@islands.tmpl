@@ -1,11 +1,6 @@
-package pages
+package components
 
-import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
-
-	"{%.Module%}/layouts"
-)
+import "github.com/vuka-lang/ui"
 
 // Counter is a Vue island: a client component hydrated in the browser. Go
 // owns the props (the exported fields; json tags are the wire names), and
@@ -16,12 +11,4 @@ import (
 type Counter struct {
 	Count int    `json:"count"`
 	Label string `json:"label"`
-}
-
-// IslandPage shows the sample island (island.vuka.html). The page is
-// server-rendered; the island hydrates when it scrolls into view
-// (ui.Visible), showing its fallback until then.
-@web.Live("/island", web.Layout(layouts.Page("Vue island")))
-type IslandPage struct {
-	ui.Live
 }
