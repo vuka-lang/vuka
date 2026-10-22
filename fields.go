@@ -67,7 +67,7 @@ func fieldsOf(t reflect.Type) []Field {
 	for i := range fields {
 		sf := t.Field(i)
 		fields[i] = Field{Name: sf.Name, Type: sf.Type, Tag: sf.Tag, Attrs: attrs[sf.Name],
-			Injected: sf.Name != "_" && sf.Tag.Get("inject") != "-"}
+			Injected: sf.Name != "_" && (sf.Type.Kind() == reflect.Pointer || sf.Type.Kind() == reflect.Interface)}
 	}
 	return fields
 }

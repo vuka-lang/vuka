@@ -145,8 +145,8 @@ same page in the terminal.
 | [E0415](./E0415) | An environment variable is missing or invalid |
 | [E0416](./E0416) | A .env file doesn't parse |
 | [E0417](./E0417) | A view doesn't fit its template |
-| [E0418](./E0418) | @web.Service or @web.Controller on a non-struct |
-| [E0419](./E0419) | web.Params doesn't fit the handler |
+| [E0418](./E0418) | A service or controller that isn't a struct |
+| [E0420](./E0420) | A removed way to declare a dependency |
 
 ## Data and the ORM
 

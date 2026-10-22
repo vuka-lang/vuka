@@ -11,11 +11,13 @@ import (
 // A registry decorator is a call of its package's registry, at init, with
 // the declaration: a function, a method expression or the type's
 // constructor. The decorators beside it whose values the call takes as
-// options go with it; parameters reflection can't tell apart are named.
+// options go with it; the names of parameters reflection can't tell apart
+// are recorded with vuka.RegisterParams.
 
-// Store is a dependency.
-@web.Service
+// Store is a dependency, registered in main with app.Service(NewStore).
 type Store struct{ pets []string }
+
+func NewStore() *Store { return &Store{} }
 
 func lower(s string) string { return s }
 
@@ -47,5 +49,5 @@ type Clock struct{ Zone string }
 
 func main() {
 	web.Routes.Print()
-	fmt.Println(NewBoard("x").Q, NewStore(nil) != nil)
+	fmt.Println(NewBoard() != nil, NewStore() != nil)
 }

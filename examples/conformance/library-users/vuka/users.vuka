@@ -20,10 +20,9 @@ type User struct {
 
 // Directory holds the users: a service, built once, on a database in
 // memory.
-@web.Service
 type Directory struct{ users *orm.Manager[User] }
 
-func Directory.New() (*Directory, error) {
+func NewDirectory() (*Directory, error) {
 	ctx := context.Background()
 	db := orm.ConnectURL("sqlite::memory:")?
 	orm.AddDatabase("main", db, orm.AsDefault())

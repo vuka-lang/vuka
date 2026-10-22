@@ -43,7 +43,7 @@ func TestAddModule(t *testing.T) {
 		t.Fatal(err)
 	}
 	want := []string{"migrations/0002_invoices.go", "modules/invoices/invoices_test.vuka", "modules/invoices/model.vuka",
-		"modules/invoices/page.vuka.html", "modules/invoices/pages.vuka", "modules/invoices/service.vuka", "main.vuka (imports the module)"}
+		"modules/invoices/page.vuka.html", "modules/invoices/pages.vuka", "modules/invoices/service.vuka", "main.vuka (imports the module, registers its service)"}
 	if strings.Join(files, ",") != strings.Join(want, ",") {
 		t.Errorf("wrote %v", files)
 	}
@@ -59,8 +59,9 @@ func TestAddModule(t *testing.T) {
 		}
 	}
 	main := read(t, filepath.Join(dir, "main.vuka"))
-	if !strings.Contains(main, "\t_ \"example.com/shop/modules/invoices\"\n\t\"example.com/shop/modules/users\"") {
-		t.Errorf("main.vuka doesn't import the module among the app's packages:\n%s", main)
+	if !strings.Contains(main, "\t\"example.com/shop/modules/invoices\"\n\t\"example.com/shop/modules/users\"") ||
+		!strings.Contains(main, "\tapp.Service(invoices.NewInvoices)\n}") {
+		t.Errorf("main.vuka doesn't import the module among the app's packages and register its service:\n%s", main)
 	}
 
 	// The next one depends on it; the same one again is refused, as are

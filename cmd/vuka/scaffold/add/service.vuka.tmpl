@@ -3,18 +3,16 @@ package {%.Pkg%}
 import (
 	"context"
 	"strings"
-
-	"github.com/vuka-lang/web"
 )
 
-// {%.Name%} is a service of {%.Pkg%}: pages, routes and other services take a
-// *{%.Name%} parameter or field, and the app builds it once (New's
-// parameters are injected the same way).
-@web.Service
+// {%.Name%} is a service of {%.Pkg%}, registered in main with app.Service:
+// pages, routes, hooks and other services take a *{%.Name%} parameter, and the
+// app builds it once.
 type {%.Name%} struct{}
 
-// New builds the {%.Name%}.
-func {%.Name%}.New() *{%.Name%} { return &{%.Name%}{} }
+// New{%.Name%} builds the {%.Name%}; its parameters are its own dependencies,
+// filled the same way.
+func New{%.Name%}() *{%.Name%} { return &{%.Name%}{} }
 
 // Greet is a sample method: replace it with the service's own.
 func ({%.Recv%} *{%.Name%}) Greet(ctx context.Context, name string) string {

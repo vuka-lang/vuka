@@ -1,14 +1,13 @@
 # Dependency injection
 
-Each app has a container. A handler, a controller or a service names what it
-needs as a parameter or a field; the container builds it once and hands the
-same value to everyone.
+Each app has a container. A service is a struct with a constructor whose
+parameters are its own dependencies, registered in `main` with
+`app.Service(NewX)`; a handler, a hook or another service takes it as a
+parameter, by type, and the container builds it once and hands the same
+value to everyone.
 
-Web checks the whole graph when the app is built: every route's
-dependencies, before anything is served.<span class="vuka-only"> Vuka writes
-the constructors (from a struct's fields, see
-[Dependency injection](/features/dependency-injection)).</span><span class="go-only">
-Go writes the constructors, `func(deps…) T`.</span>
+Web checks the whole graph when the app is built: every route's, hook's and
+handler's parameters, before anything is served.
 
 <!-- go:context
 type Pet struct{ Name string }
@@ -35,6 +34,17 @@ type Mailer struct{}
 func NewMailer() *Mailer { return &Mailer{} }
 
 var cfg Config
+
+type Todo struct{ Text string }
+
+type NewTodo struct {
+	Text string `form:"text" validate:"required"`
+}
+
+type Todos struct{ rows []Todo }
+
+func (t *Todos) All() []Todo     { return t.rows }
+func (t *Todos) Add(text string) { t.rows = append(t.rows, Todo{text}) }
 -->
 
 ::: vuka
@@ -43,16 +53,18 @@ type DB struct{ … }
 
 func OpenDB() *DB { … }
 
-@web.Service
 type PetStore struct {
 	db *DB
 }
+
+func NewPetStore(db *DB) *PetStore { return &PetStore{db: db} }
 
 @web.Get("/pets")
 func ListPets(store *PetStore) Result[[]Pet] { return store.All() }
 
 func main() {
 	app := web.New(web.Provide(OpenDB))   // or app.Provide(OpenDB)
+	app.Service(NewPetStore)
 	app.Run("")
 }
 ```
@@ -73,12 +85,12 @@ func NewPetStore(db *DB) *PetStore { return &PetStore{db: db} }
 func ListPets(store *PetStore) ([]Pet, error) { return store.All() }
 
 func init() {
-	web.Routes.Service(NewPetStore)
 	web.Routes.Get("/pets", ListPets)
 }
 
 func main() {
 	app := web.New(web.Provide(OpenDB)) // or app.Provide(OpenDB)
+	app.Service(NewPetStore)
 	log.Fatal(app.Run(""))
 }
 ```
@@ -88,20 +100,80 @@ func main() {
 
 | | |
 |---|---|
+| `app.Service(NewS)` | a service: the struct its constructor, `func(deps…) *S` or `func(deps…) (*S, error)`, builds |
 | `web.Provide(ctors…)`, `app.Provide(ctors…)` | constructors — `func(deps…) T` or `func(deps…) (T, error)` — and ready values (anything that isn't a function) |
-| <span class="vuka-only">`@web.Service`, </span>`web.Routes.Service(NewS)`, `app.Service(NewS)` | a struct built <span class="vuka-only">from its fields (or </span>by its constructor<span class="vuka-only">)</span> |
-| <span class="vuka-only">`@web.Controller(prefix)`, </span>`web.Routes.Controller(prefix, NewC)`, `app.Controller(prefix, NewC)` | the same, with [routes](/web/routes#controllers) |
+| <span class="vuka-only">`@web.Controller(prefix)`, </span>`web.Routes.Controller(prefix, NewC)`, `app.Controller(prefix, NewC)` | a struct built by its constructor, with [routes](/web/routes#controllers) |
 
-<span class="vuka-only">A service's or controller's fields are injected by type, unexported ones
-included; tag a field `inject:"-"` to leave it out. A struct with its own
-static `New` (Go's `NewX`) is built with that one.</span><span class="go-only">A
-constructor's parameters are injected by type.</span>
+A constructor's parameters are injected by type.<span class="vuka-only"> A
+`@web.Controller` struct without its own static `New` is built by the one
+Vuka writes, which takes its pointer and interface fields.</span>
 
 - Every value is a **lazy singleton per app**: built the first time something
   needs it, then shared. Two apps (in tests, say) have their own.
 - Dependencies match by **exact type**. To inject an interface, provide a
   constructor returning the interface; there are no named values or groups.
 - A constructor's error fails `app.Start` (and `Run`).
+
+## Parameters, by type
+
+Hooks and handlers declare what they need by parameter type, and each
+parameter is filled from the one source its type names. The rule is the same
+for a route's handler, a controller's method, a live page's hooks
+(`@ui.Mount`, `@ui.OnChange`, `@ui.Loads`) and event handlers, a layout's or
+guard's `Load`, and a middleware's constructor:
+
+| Parameter | Filled from |
+|---|---|
+| `context.Context` | the request's, or the live session's |
+| a struct, or pointer to one, that isn't provided | the form or JSON body (a route), the event's form fields (a live handler); its `validate:` tags checked, 422 |
+| `url.Values` | the form's fields, as sent |
+| a string, number, bool or `encoding.TextUnmarshaler` | a route: the path segment of its name, else the query parameter; a live handler: the event's value (a keyboard event's key, else the element's value) |
+| `*http.Request`, `http.ResponseWriter` | the request (a live page's: the one it joined with) |
+| `*auth.Identity` (any `web.ParamFrom` type) | the signed-in visitor |
+| a type registered with `app.Service` or `web.Provide` | the container |
+
+<span class="vuka-only">The compiler records a handler's parameter names, so
+a scalar binds the path segment or query parameter of its name.</span><span class="go-only">A
+handler registered from Go binds its scalars to the path's segments in
+order, the last scalar taking the last segment; it takes the query in a
+struct, whose fields bind by their `form:` names.</span>
+
+::: vuka
+```vuka
+@ui.Mount
+func (p *Index) mount(ctx context.Context, store *Todos, r *http.Request) error { … }
+
+func (p *Index) Add(ctx context.Context, f NewTodo, store *Todos) error { … }
+```
+:::
+
+::: go
+```go
+type Index struct {
+	ui.Live
+	rows []Todo
+}
+
+func (p *Index) LiveSchema(l *ui.LiveSchema) { l.Mount(p.mount) }
+
+func (p *Index) mount(ctx context.Context, store *Todos, r *http.Request) error {
+	p.rows = store.All()
+	return nil
+}
+
+func (p *Index) Add(ctx context.Context, f NewTodo, store *Todos) error {
+	store.Add(f.Text)
+	p.rows = store.All()
+	return nil
+}
+
+func (p *Index) Render() ui.Node { return ui.HTML(`<p>todo</p>`) }
+```
+:::
+
+A live page's exported methods are its event handlers: one taking two
+values (`p.Toggle(id, done)`, called from a closure) is no event, and only a
+service it takes that nothing provides is reported for it.
 
 ## Lifecycle
 
@@ -166,15 +238,22 @@ app := web.New(
 
 ## Build errors
 
-`app.Build()` resolves everything and returns all problems at once, each
-naming the route, its source position and the parameter:
+`app.Build()` resolves everything and returns all problems at once, each at
+the file and line of the handler or hook, naming the parameter and its type:
 
 ```text
-web: GET /admin (main.Admin at admin.vuka:9): parameter db *sql.DB: no provider for *sql.DB, needed by main.Admin at admin.vuka:9
-web: dependency cycle: *main.A -> *main.B -> *main.A
+error[E0407]: GET / (live page pages.Index): Index.Add's 2nd parameter, *sql.DB, is not provided
+ --> index.vuka.html:41
+  = help: register it in main with app.Service(NewX), or web.Provide(NewX)
+error[E0405]: GET /items (live page pages.Item): Item.mount's 2nd parameter, chan int, can't come from a hook's call, which gives the context
+ --> item.vuka.html:12
+error[E0409]: dependency cycle: *main.A -> *main.B -> *main.A
 ```
 
-Missing providers, cycles and two providers of one type are Build errors.
+A parameter nothing fills ([E0407](/errors/E0407) for a pointer or interface
+nothing provides, [E0405](/errors/E0405) for a type a request or an event
+can't carry), missing providers, cycles and two providers of one type are
+Build errors.
 `Handler`, `Start` and `Run` call `Build` first, so a broken app never
 serves.
 

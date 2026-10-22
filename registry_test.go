@@ -137,3 +137,32 @@ func TestCallAttrs(t *testing.T) {
 		t.Errorf("Call.Attrs: %v", a)
 	}
 }
+
+func regShow(id int, tab string) error { return nil }
+
+func (b *regBoard) Move(from, to int) {}
+
+func TestRegisterParams(t *testing.T) {
+	RegisterParams(regShow, "id", "tab")
+	RegisterParams((*regBoard).Move, "from", "to")
+	if r, _ := FuncOf(regShow); !reflect.DeepEqual(r.Params, []string{"id", "tab"}) {
+		t.Errorf("a function's: %q", r.Params)
+	}
+	b := &regBoard{}
+	for _, fn := range []any{(*regBoard).Move, b.Move} {
+		if r, _ := FuncOf(fn); !reflect.DeepEqual(r.Params, []string{"from", "to"}) {
+			t.Errorf("%T: %q", fn, r.Params)
+		}
+	}
+	if r, _ := FuncOf(regCharge); r.Params != nil {
+		t.Errorf("unrecorded: %q", r.Params)
+	}
+	d := DeclOf(regShow)
+	if d.Params[0].Name != "id" || d.Params[1].Name != "tab" {
+		t.Errorf("DeclOf: %+v", d.Params)
+	}
+	d = DeclOf(regShow, Param{Name: "x"})
+	if d.Params[0].Name != "x" || d.Params[1].Name != "" {
+		t.Errorf("DeclOf with params given: %+v", d.Params)
+	}
+}

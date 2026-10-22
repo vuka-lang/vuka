@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 	"strings"
-
-	"github.com/vuka-lang/web"
 )
 
 // {%.Service%} is where {%.Pkg%} are read and written; pages and the API
-// share it. Its methods take the request's context, which carries the
-// database.
-@web.Service
+// share it, registered in main with app.Service. Its methods take the
+// request's context, which carries the database.
 type {%.Service%} struct{}
+
+// New{%.Service%} builds the {%.Service%}.
+func New{%.Service%}() *{%.Service%} { return &{%.Service%}{} }
 
 // New{%.Model%} is what Add takes: a form's fields, or JSON.
 type New{%.Model%} struct {

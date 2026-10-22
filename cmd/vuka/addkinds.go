@@ -335,6 +335,27 @@ func (a *adder) register(dir string) error {
 	return nil
 }
 
+// registerService registers the service ctor of the package at dir
+// (relative to root) in main.vuka's services function (registerService);
+// false when main.vuka has none, the package then imported as register
+// does.
+func (a *adder) registerService(dir, pkg, ctor string) (bool, error) {
+	path := a.mod + "/" + dir
+	main, err := os.ReadFile(filepath.Join(a.root, "main.vuka"))
+	if err != nil {
+		return false, nil // an app without a main.vuka wires itself
+	}
+	if src, ok := a.changed["main.vuka"]; ok {
+		main = src
+	}
+	out, ok, err := registerService(main, a.mod, path, pkg, ctor)
+	if err != nil || !ok {
+		return false, errors.Join(err, a.register(dir))
+	}
+	a.change("main.vuka", out)
+	return true, nil
+}
+
 func importedAnywhere(root, pkg string) bool {
 	found := false
 	walkSources(root, func(p, name string) error {
@@ -400,13 +421,19 @@ func addService(root, mod string, f *addFlags, w io.Writer) error {
 			return err
 		}
 	}
-	if err := a.register(t.dir); err != nil {
+	registered, err := a.registerService(t.dir, t.pkg, "New"+name)
+	if err != nil {
 		return err
 	}
 	if err := a.commit(w); err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "\n%s is a dependency now: take a *%s.%s parameter or field where you need it. Then:\n\n\tvuka test ./%s\n", name, t.pkg, name, t.dir)
+	if !registered {
+		fmt.Fprintf(w, "\nRegister it in main: app.Service(%s.New%s). ", t.pkg, name)
+	} else {
+		fmt.Fprint(w, "\n")
+	}
+	fmt.Fprintf(w, "%s is a dependency now: take a *%s.%s parameter where you need it. Then:\n\n\tvuka test ./%s\n", name, t.pkg, name, t.dir)
 	return nil
 }
 

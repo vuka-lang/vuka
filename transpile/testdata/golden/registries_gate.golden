@@ -39,13 +39,13 @@ func (b *Board) Render() ui.Node { return nil }
 
 func main() {
 	web.Routes.Print()
-	b := NewBoard(1)
+	b := NewBoard()
 	b.Inc()
 	fmt.Println(Report(), b.n)
 }
 
 //line registries_gate.vuka:26
-func NewBoard(n int) *Board { return &Board{n: n} }
+func NewBoard() *Board { return &Board{} }
 
 func init() {
 //line registries_gate.vuka:19

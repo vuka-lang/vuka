@@ -89,16 +89,28 @@ func ListAuthors(ctx context.Context, b *Blog) ([]Author, error) {
 	return orm.Objects[Author]().OrderBy(AuthorFields.Name.Asc()).All(ctx)
 }
 
+// PostsQuery is GET /posts's query: from Go, a handler takes the query in
+// a struct (the compiler names a .vuka handler's scalars).
+type PostsQuery struct {
+	Author string `form:"author"`
+	Live   bool   `form:"live"`
+}
+
 // ListPosts answers GET /posts: ?author= one author's, ?live= the published.
-func ListPosts(ctx context.Context, author string, live bool, b *Blog) ([]Post, error) {
+func ListPosts(ctx context.Context, q PostsQuery, b *Blog) ([]Post, error) {
 	qs := orm.Objects[Post]().QuerySet
-	if live {
+	if q.Live {
 		qs = PostLive()
 	}
-	if author != "" {
-		qs = qs.Filter(PostFields.Author.Name.Eq(author))
+	if q.Author != "" {
+		qs = qs.Filter(PostFields.Author.Name.Eq(q.Author))
 	}
 	return qs.All(ctx)
+}
+
+// FindQuery is GET /find's query.
+type FindQuery struct {
+	Q string `form:"q"`
 }
 
 // ShowPost answers GET /posts/{id}.
@@ -106,8 +118,8 @@ func ShowPost(ctx context.Context, id int64, b *Blog) (Post, error) { return fin
 
 // FindPost answers GET /find?q=: the first post titled q in any case, or
 // by the author named q.
-func FindPost(ctx context.Context, q string, b *Blog) (Post, error) {
-	f := PostFields
+func FindPost(ctx context.Context, in FindQuery, b *Blog) (Post, error) {
+	q, f := in.Q, PostFields
 	p, err := orm.Objects[Post]().Filter(orm.Or(orm.Lower(f.Title).Eq(strings.ToLower(q)), f.Author.Name.Eq(q))).First(ctx)
 	if errors.Is(err, orm.ErrNotFound) {
 		return p, web.NotFound

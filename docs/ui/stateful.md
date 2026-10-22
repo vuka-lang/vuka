@@ -176,10 +176,20 @@ its type:
 | `func(url.Values)` | the form's fields as sent (any `map[string][]string`) |
 | `func(T)`, `func(*T)` with `T` a struct | the form's fields bound to `T`'s: a field is named by its `form` tag, else its `json` tag, else its name, matched ignoring case; embedded structs' fields count as `T`'s; a slice takes every value. Its `validate:` tags are checked as a route checks what it binds: a field breaking one is a 422 `Invalid` naming it (`text: required`), the reply's error, and the handler isn't called |
 
-Any of them may take a leading `context.Context` (the session's) and may
-return an `error`. The compiler checks that the value is a function; the
-payload rules are checked when the element first renders, which fails with
-the expected shapes for any other signature (`ui.CheckHandler` is the
+The event fills one of those parameters, its payload. A handler's other
+parameters are filled [by type](/web/dependency-injection#parameters-by-type)
+too: a `context.Context` (the session's), and what the app injects — the
+request the page joined with, the signed-in user (`*auth.Identity`), a
+service registered with `app.Service` — so a method takes the store it
+writes to as `func (t *Todo) Add(ctx context.Context, f NewItem, store
+*Items) error`. ui fills them through the `ui.Injector` the session's
+context carries, which package web gives it. A handler returns nothing or
+an `error`. The compiler checks that the value is a function; the payload
+rules are checked when the element first renders, which fails with the
+expected shapes for any other signature (`ui.CheckHandler` is the check),
+and an app checks its pages' hooks and exported methods when it is built:
+a parameter nothing fills is a Build error at its file and line
+([E0407](/errors/E0407), [E0405](/errors/E0405); `ui.CheckParams` is the
 check). A handler's error doesn't stop the session: the page renders again
 (the handler may have changed state before failing) and the reply carries
 the message. A chain of [JS commands](/ui/js) runs in the browser instead
@@ -281,8 +291,12 @@ on its `ui.Live` ([E0338](/errors/E0338)), the forms of earlier releases;
 `Load<Group>` methods whose signatures fit.
 
 The compiler writes the attributes into the component's `LiveSchema`
-method, `l.Mount(d.mount)`, `l.Field(&d.Q, ui.Bind{…})`, …, so a hook's
-signature is checked by the Go compiler. `ui.LiveSchema` is that generated
+method, `l.Mount(d.mount)`, `l.Field(&d.Q, ui.Bind{…})`, …. A hook
+returns nothing or an error, its parameters filled by type: a
+`context.Context`, what the app injects (the request, the signed-in user, a
+service), and for `@ui.OnChange` the `ui.Changed` set; the signatures above
+are the common ones. A parameter nothing fills is an error where the hook is
+declared when the app starts. `ui.LiveSchema` is that generated
 code's, not an API to write: `vukavet` reports a hand-written one
 ([W0306](/errors/W0306)). A deferred group without a loader
 ([E0324](/errors/E0324)) or a hook that doesn't fit ([E0336](/errors/E0336))

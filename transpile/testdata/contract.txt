@@ -50,6 +50,7 @@ public github.com/vuka-lang/vuka.Param
 public github.com/vuka-lang/vuka.Pred
 public github.com/vuka-lang/vuka.RegisterAdapter
 public github.com/vuka-lang/vuka.RegisterFunc
+public github.com/vuka-lang/vuka.RegisterParams
 public github.com/vuka-lang/vuka.RegisterType
 public github.com/vuka-lang/vuka.Result
 public github.com/vuka-lang/vuka.Some
@@ -117,7 +118,6 @@ public github.com/vuka-lang/ui.WithChildren
 public github.com/vuka-lang/web.GuardOf
 public github.com/vuka-lang/web.LayoutOf
 public github.com/vuka-lang/web.PageRoute
-public github.com/vuka-lang/web.Params
 public github.com/vuka-lang/web.Receiver
 public github.com/vuka-lang/web.Rest
 public github.com/vuka-lang/web.Routes

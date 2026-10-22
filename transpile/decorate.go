@@ -31,7 +31,6 @@ type registryUse struct {
 	field  string     // the registry variable ("Routes")
 	before int        // the method's parameters before the declaration's
 	elem   types.Type // its options' type; nil when it takes none
-	params bool       // the package has Params(...string), an option naming parameters
 }
 
 // decoUse is one decorator on one declaration.
@@ -89,35 +88,49 @@ type typeDeco struct {
 	advised  bool // its call decorators were given to its methods
 
 	// For a struct: its constructor, the static New. It is the type's own
-	// when it declares one; otherwise Vuka writes one taking each injected
-	// field as a parameter.
+	// when it declares one; otherwise Vuka writes one taking each
+	// dependency (a pointer or interface field) as a parameter.
 	isStruct   bool
 	hasNew     bool
 	ctorParams []string // "db *DB"
 	ctorInits  []string // "db: db"
 }
 
-// injected reports whether a struct field is a dependency its constructor
-// takes: every named field but _ and those tagged inject:"-"; an embedded
-// field only when it is a pointer or interface (embedding a value is
-// composition, not a dependency).
-func injected(field *ast.Field, name string, embedded bool) bool {
-	if name == "_" {
+// injectTag reports a field's inject: tag, which no longer says anything:
+// the constructor Vuka writes takes a struct's dependencies, its pointer
+// and interface fields, and a struct needing another says so in its own New.
+func (e *engine) injectTag(f *fileState, field *ast.Field) {
+	if field.Tag == nil {
+		return
+	}
+	tag, err := strconv.Unquote(field.Tag.Value)
+	if err != nil || !hasTag(tag, "inject") {
+		return
+	}
+	e.errs.add("E0420", f.at(f.orig(field.Tag.Pos())), "the inject: tag is gone: the constructor Vuka writes takes the struct's pointer and interface fields, and nothing else; drop the tag, or write the struct's own New")
+}
+
+// retired is what a decorator the libraries no longer have became, by its
+// package's path and name: the one way to write it now.
+var retired = map[string]string{
+	"github.com/vuka-lang/web.Service": "@web.Service is gone: give the struct a constructor, func NewX(deps…) *X, and register it in main with app.Service(NewX); handlers and hooks then take *X as a parameter",
+}
+
+// retiredDecorator reports a's decorator when its package no longer has it.
+func (e *engine) retiredDecorator(f *fileState, a *Attr) bool {
+	pkgName, sel, ok := strings.Cut(a.Name, ".")
+	if !ok {
 		return false
 	}
-	if field.Tag != nil {
-		if tag, err := strconv.Unquote(field.Tag.Value); err == nil && reflectTag(tag, "inject") == "-" {
-			return false
-		}
-	}
-	if embedded {
-		switch field.Type.(type) {
-		case *ast.StarExpr, *ast.InterfaceType:
-			return true
-		}
+	pkg := e.importedAs(f, pkgName)
+	if pkg == nil || pkg.Scope().Lookup(sel) != nil {
 		return false
 	}
-	return true
+	msg, ok := retired[pkg.Path()+"."+sel]
+	if ok {
+		e.errs.add("E0420", a.Pos, "%s", msg)
+	}
+	return ok
 }
 
 // dependency reports whether a field of type x holds a dependency: a
@@ -174,8 +187,8 @@ func paramName(field string, taken map[string]bool) string {
 	return p
 }
 
-// reflectTag is reflect.StructTag.Get, without importing reflect here.
-func reflectTag(tag, key string) string {
+// hasTag is reflect.StructTag.Lookup's ok, without importing reflect here.
+func hasTag(tag, key string) bool {
 	for tag != "" {
 		i := 0
 		for i < len(tag) && tag[i] == ' ' {
@@ -187,7 +200,7 @@ func reflectTag(tag, key string) string {
 			i++
 		}
 		if i == 0 || i+1 >= len(tag) || tag[i] != ':' || tag[i+1] != '"' {
-			return ""
+			return false
 		}
 		name := tag[:i]
 		tag = tag[i+1:]
@@ -199,19 +212,16 @@ func reflectTag(tag, key string) string {
 			i++
 		}
 		if i >= len(tag) {
-			return ""
+			return false
 		}
 		value := tag[:i+1]
 		tag = tag[i+1:]
 		if name == key {
-			v, err := strconv.Unquote(value)
-			if err != nil {
-				return ""
-			}
-			return v
+			_, err := strconv.Unquote(value)
+			return err == nil
 		}
 	}
-	return ""
+	return false
 }
 
 // decorate lowers every decorator, in the first round, and reports whether
@@ -235,6 +245,9 @@ func (e *engine) decorate() bool {
 		groups := map[ast.Decl][]*Attr{}
 		var order []ast.Decl
 		for _, a := range f.attrs {
+			if e.retiredDecorator(f, a) {
+				continue
+			}
 			if f.rt == "" && strings.HasPrefix(a.Name, "vuka.") && e.isRuntimeName(f, a.Name, a.Name[len("vuka."):]) {
 				f.runtime() // @vuka.Targets(…), @vuka.NoAdvice: imported when the file doesn't
 				any = true
@@ -546,9 +559,9 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 			hasNew: e.declared[staticGoName(ts.Name.Name, "New")]}
 		if st, ok := ts.Type.(*ast.StructType); ok {
 			d.isStruct = true
-			// A struct declaring a schema (a live component, a model) holds
-			// data: its constructor takes only the fields holding
-			// dependencies, pointers and interfaces, but those whose
+			// Its constructor takes the fields holding dependencies,
+			// pointers and interfaces; on a struct declaring a schema (a
+			// live component, a model), which holds data, not those whose
 			// attributes say they are data (@ui.Defer, @ui.Bind, …).
 			data := e.schemas[ts.Name.Name] != nil
 			from, to := f.orig(ts.Pos()), f.orig(ts.End())
@@ -559,13 +572,14 @@ func (e *engine) decorateType(f *fileState, gd *ast.GenDecl, attrs []*Attr) {
 			}
 			taken := map[string]bool{}
 			for _, field := range st.Fields.List {
+				e.injectTag(f, field)
 				t := e.qualText(f, field.Type)
 				names := field.Names
 				if len(names) == 0 {
 					names = []*ast.Ident{ast.NewIdent(embeddedName(field.Type))}
 				}
 				for _, n := range names {
-					if !injected(field, n.Name, len(field.Names) == 0) || data && (!e.dependency(f, field.Type) || attributed(n.Name)) {
+					if n.Name == "_" || !e.dependency(f, field.Type) || data && attributed(n.Name) {
 						continue
 					}
 					p := paramName(n.Name, taken)
@@ -1071,8 +1085,8 @@ func (e *engine) renderType(f *fileState, d *typeDeco) {
 // registration is a registry decorator's call, which the file's
 // registrations init makes: what it registers (the function, method
 // expression or constructor), the declaration's decorators (its options
-// among them) and, for a function, its parameters' names when the
-// registry's package names them with Params.
+// among them) and, for a function, its parameters' names, which the init
+// records with vuka.RegisterParams.
 type registration struct {
 	u      *decoUse
 	decl   string
@@ -1081,8 +1095,9 @@ type registration struct {
 }
 
 // renderRegistrations writes the file's registry decorators as calls in one
-// init, in source order: web.Routes.Get("/pets/{id}", ShowPet,
-// web.Params("id", "store")).
+// init, in source order: web.Routes.Get("/pets/{id}", ShowPet), after
+// vuka.RegisterParams(ShowPet, "id", "store") when it takes a parameter
+// only its name binds.
 func (e *engine) renderRegistrations(f *fileState) {
 	if len(f.regs) == 0 {
 		return
@@ -1092,6 +1107,13 @@ func (e *engine) renderRegistrations(f *fileState) {
 	w.gen("\nfunc init() {\n", f.regs[0].u.a.start)
 	for _, r := range f.regs {
 		u, a := r.u, r.u.a
+		if len(r.params) > 0 {
+			quoted := make([]string, len(r.params))
+			for i, p := range r.params {
+				quoted[i] = strconv.Quote(p)
+			}
+			w.gen("\t"+f.runtime()+".RegisterParams("+r.decl+", "+strings.Join(quoted, ", ")+")\n", a.start)
+		}
 		w.gen("\t", a.start)
 		if !e.bare {
 			p := a.Pos
@@ -1130,14 +1152,6 @@ func (e *engine) renderRegistrations(f *fileState) {
 				sep(o.a.start)
 				e.writeDecorator(f, o, "")
 			}
-		}
-		if len(r.params) > 0 && u.reg.params {
-			quoted := make([]string, len(r.params))
-			for i, p := range r.params {
-				quoted[i] = strconv.Quote(p)
-			}
-			sep(a.end)
-			w.gen(a.Name[:dot]+"Params("+strings.Join(quoted, ", ")+")", a.end)
 		}
 		w.gen(")\n", a.end)
 	}
@@ -1194,7 +1208,7 @@ func isSpace(c byte) bool { return c == ' ' || c == '\t' || c == '\n' || c == '\
 
 // paramNames are a function's parameters' names, receiver excluded, when
 // one of them is of a type only a name tells apart (a string, a number, a
-// TextUnmarshaler, …): what a registry's Params takes.
+// TextUnmarshaler, …): what vuka.RegisterParams records.
 func (e *engine) paramNames(d *funcDeco) []string {
 	if e.pkg == nil || len(d.pnames) == 0 {
 		return nil
@@ -1696,16 +1710,6 @@ func (e *engine) registryOf(f *fileState, u *decoUse) *registryUse {
 	}
 	if r.before < 0 {
 		return nil
-	}
-	if r.elem != nil {
-		if pf, ok := pkg.Scope().Lookup("Params").(*types.Func); ok {
-			ps := pf.Type().(*types.Signature)
-			if ps.Variadic() && ps.Params().Len() == 1 && ps.Results().Len() == 1 &&
-				types.Identical(ps.Params().At(0).Type(), types.NewSlice(types.Typ[types.String])) &&
-				types.AssignableTo(ps.Results().At(0).Type(), r.elem) {
-				r.params = true
-			}
-		}
 	}
 	return r
 }

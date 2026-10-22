@@ -7,6 +7,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/vuka-lang/vuka"
 	ui "vukatest.local/stateui"
 	web "vukatest.local/webstub"
 )
@@ -14,32 +15,35 @@ import (
 // A registry decorator is a call of its package's registry, at init, with
 // the declaration: a function, a method expression or the type's
 // constructor. The decorators beside it whose values the call takes as
-// options go with it; parameters reflection can't tell apart are named.
+// options go with it; the names of parameters reflection can't tell apart
+// are recorded with vuka.RegisterParams.
 
-// Store is a dependency.
+// Store is a dependency, registered in main with app.Service(NewStore).
 //
 //line registries.vuka:18
 type Store struct{ pets []string }
+
+func NewStore() *Store { return &Store{} }
 
 func lower(s string) string { return s }
 
 // ShowPet answers GET /pets/{id}.
 //
-//line registries.vuka:25
+//line registries.vuka:27
 func ShowPet(id int, store *Store) string { return fmt.Sprint("pet ", id) }
 
-//line registries.vuka:28
+//line registries.vuka:30
 func ListPets(ctx context.Context, store *Store) []string { return store.pets }
 
-//line registries.vuka:31
+//line registries.vuka:33
 type Admin struct{ store *Store }
 
-//line registries.vuka:34
+//line registries.vuka:36
 func (a *Admin) Stats(days int) string { return fmt.Sprint(days) }
 
 // Board is a live page backed by its island.
 //
-//line registries.vuka:39
+//line registries.vuka:41
 type Board struct {
 	ui.Live
 	Q string `json:"q"`
@@ -47,42 +51,39 @@ type Board struct {
 
 // Clock is an island of its own, placed in pages.
 //
-//line registries.vuka:46
+//line registries.vuka:48
 type Clock struct{ Zone string }
 
 func main() {
 	web.Routes.Print()
-	fmt.Println(NewBoard("x").Q, NewStore(nil) != nil)
+	fmt.Println(NewBoard() != nil, NewStore() != nil)
 }
 
-//line registries.vuka:39
+//line registries.vuka:41
 func (b *Board) Render() ui.Node { return ui.IslandPage(b) }
 
-//line registries.vuka:18
-func NewStore(pets []string) *Store { return &Store{pets: pets} }
-
-//line registries.vuka:31
+//line registries.vuka:33
 func NewAdmin(store *Store) *Admin { return &Admin{store: store} }
 
-//line registries.vuka:39
-func NewBoard(q string) *Board { return &Board{Q: q} }
+//line registries.vuka:41
+func NewBoard() *Board { return &Board{} }
 
 func init() {
-//line registries.vuka:45
+//line registries.vuka:47
 	ui.RegisterIsland[Clock]("components/Clock.vue")
 }
 
 func init() {
-//line registries.vuka:17
-	web.Routes.Service(NewStore)
-//line registries.vuka:23
-	web.Routes.Get("/pets/{id}", ShowPet, web.Use(lower), web.Params("id", "store"))
-//line registries.vuka:27
+	vuka.RegisterParams(ShowPet, "id", "store")
+//line registries.vuka:25
+	web.Routes.Get("/pets/{id}", ShowPet, web.Use(lower))
+//line registries.vuka:29
 	web.Routes.Get("/pets", ListPets)
-//line registries.vuka:30
+//line registries.vuka:32
 	web.Routes.Controller("/admin", NewAdmin)
-//line registries.vuka:33
-	web.Routes.Get("/stats", (*Admin).Stats, web.Params("days"))
-//line registries.vuka:37
+	vuka.RegisterParams((*Admin).Stats, "days")
+//line registries.vuka:35
+	web.Routes.Get("/stats", (*Admin).Stats)
+//line registries.vuka:39
 	web.Routes.Live("/board", NewBoard, ui.Island("components/Board.vue"))
 }

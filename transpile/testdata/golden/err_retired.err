@@ -1,0 +1,2 @@
+err_retired.vuka:12:1: @web.Service is gone: give the struct a constructor, func NewX(deps…) *X, and register it in main with app.Service(NewX); handlers and hooks then take *X as a parameter
+err_retired.vuka:22:16: the inject: tag is gone: the constructor Vuka writes takes the struct's pointer and interface fields, and nothing else; drop the tag, or write the struct's own New

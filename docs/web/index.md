@@ -1,9 +1,10 @@
 # Web
 
 [`github.com/vuka-lang/web`](https://github.com/vuka-lang/web) is a web
-framework for Vuka. Routes, views, services and controllers are declared with
-decorators, handler parameters bind by name, and `web.New()` gathers
-everything into an app.
+framework for Vuka. Routes, views and controllers are declared with
+decorators, services registered with `app.Service`, every handler's and
+hook's parameters filled by type, and `web.New()` gathers everything into an
+app.
 
 **Go:** a handler is `func(http.ResponseWriter, *http.Request)`; reading a path
 parameter, decoding a body, finding the database and writing JSON or HTML is
@@ -25,7 +26,7 @@ func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 func ShowPet(id int, store *PetStore) (Pet, error) { return store.Find(id) }
 
 func init() {
-	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+	web.Routes.Get("/pets/{id}", ShowPet)
 }
 ```
 :::
@@ -33,8 +34,10 @@ func init() {
 `id` comes from the path, `store` from the container, and the
 <span class="vuka-only">`Result` becomes JSON, or a 404 when it is an
 `Err(web.NotFound)`.</span><span class="go-only">result becomes JSON, or a
-404 when the error is `web.NotFound`. Reflection can't see parameter names,
-so `web.Params` names them.</span>
+404 when the error is `web.NotFound`. Reflection can't see parameter names:
+a scalar binds the path segment its position gives, and a handler takes the
+query in a struct.</span> Every parameter is filled by
+[its type](/web/dependency-injection#parameters-by-type).
 
 ```sh
 go get github.com/vuka-lang/web
@@ -63,10 +66,11 @@ type Pet struct {
 	Name string `json:"name"`
 }
 
-@web.Service
 type PetStore struct {
-	pets map[int]Pet `inject:"-"`
+	pets map[int]Pet
 }
+
+func NewPetStore() *PetStore { return &PetStore{pets: map[int]Pet{}} }
 
 func (s *PetStore) Find(id int) Result[Pet] {
 	p, ok := s.pets[id]
@@ -85,7 +89,9 @@ func Home(r *http.Request) ui.Node {
 func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 
 func main() {
-	if err := web.New().Run(""); err != nil { // :$PORT, else :8080
+	app := web.New()
+	app.Service(NewPetStore)
+	if err := app.Run(""); err != nil { // :$PORT, else :8080
 		log.Fatal(err)
 	}
 }
@@ -133,7 +139,7 @@ func main() {
 	app := web.New()
 	app.Service(NewPetStore)
 	app.Get("/", Home)
-	app.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+	app.Get("/pets/{id}", ShowPet)
 	if err := app.Run(""); err != nil { // :$PORT, else :8080
 		log.Fatal(err)
 	}

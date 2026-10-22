@@ -3,8 +3,6 @@ package main
 import (
 	"strings"
 	"sync"
-
-	"github.com/vuka-lang/web"
 )
 
 // Note is a note of the board.
@@ -13,14 +11,13 @@ type Note struct {
 	Text string `json:"text"`
 }
 
-// Notes holds the notes, in memory.
-@web.Service
+// Notes holds the notes, in memory: a service, registered in main.
 type Notes struct {
 	mu   sync.Mutex
 	list []Note
 }
 
-func Notes.New() *Notes {
+func NewNotes() *Notes {
 	return &Notes{list: []Note{{1, "buy milk"}, {2, "call mum"}, {3, "write tests"}}}
 }
 

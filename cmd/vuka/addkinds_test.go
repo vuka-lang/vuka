@@ -50,8 +50,9 @@ func TestAddService(t *testing.T) {
 	if !strings.Contains(out, "wrote modules/users/mailer.vuka\nwrote modules/users/mailer_test.vuka\n") {
 		t.Errorf("output:\n%s", out)
 	}
-	has(t, filepath.Join(dir, "modules/users/mailer.vuka"), "package users", "@web.Service\ntype Mailer struct{}", "func Mailer.New() *Mailer")
-	has(t, filepath.Join(dir, "modules/users/mailer_test.vuka"), "func TestMailer(t *testing.T)", "Mailer.New()")
+	has(t, filepath.Join(dir, "modules/users/mailer.vuka"), "package users", "\ntype Mailer struct{}", "func NewMailer() *Mailer")
+	has(t, filepath.Join(dir, "modules/users/mailer_test.vuka"), "func TestMailer(t *testing.T)", "NewMailer()")
+	has(t, filepath.Join(dir, "main.vuka"), "\tapp.Service(users.NewUsers)\n\tapp.Service(users.NewMailer)\n}")
 
 	// no overwrite; --force; clashes and bad names
 	if _, err := runAdd(t, dir, "service", "users/Mailer"); err == nil || !strings.Contains(err.Error(), "declared already") {
@@ -67,7 +68,7 @@ func TestAddService(t *testing.T) {
 	has(t, filepath.Join(dir, "modules/users/notifier.vuka"), "package users", "type Notifier struct{}")
 	out = mustAdd(t, dir, "service", "Clock")
 	has(t, filepath.Join(dir, "services/clock.vuka"), "package services", "type Clock struct{}")
-	has(t, filepath.Join(dir, "main.vuka"), `/services"`)
+	has(t, filepath.Join(dir, "main.vuka"), "\t\"example.com/shop/services\"", "app.Service(services.NewClock)")
 	if _, err := runAdd(t, dir, "service", "users/Pager", "--module", "posts"); err == nil || !strings.Contains(err.Error(), "--module posts names another module") {
 		t.Errorf("two modules: %v", err)
 	}

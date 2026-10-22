@@ -14,8 +14,8 @@ go vet -vettool=$(go tool -n vukavet) ./...
 ```
 users.go:66:2: E0324: Profile.Bio is deferred, and the group Profile has no loader
 	help: mark its loader @ui.Loads("profile")
-main.go:17:29: E0405: GET /api/users/{id} (ShowUser): parameter #1 int binds by name, and it has none
-	help: in plain Go, name it with web.Params
+main.go:17:29: E0405: GET /api/users (ShowUser): parameter #2 int binds the path segment its position gives, and the path has none left for it
+	help: take the query in a struct, func(q Query), or add the segment to the path
 main.go:18:6: E0401: GET /api/users is declared twice: by ListUsers at main.go:16 and by ListUsers at main.go:18
 	help: give one of them another path or method
 ```
@@ -28,7 +28,7 @@ main.go:18:6: E0401: GET /api/users is declared twice: by ListUsers at main.go:1
 
 | Check | Reports |
 |---|---|
-| `routes` | on `web.Routes.X(…)` and `app.X(…)`: a method and path declared twice, in the package or by a package it imports ([E0401](/errors/E0401)); a handler that isn't a function ([E0403](/errors/E0403)); a scalar parameter `web.Params` doesn't name ([E0405](/errors/E0405)); results the app can't write ([E0406](/errors/E0406)); `web.Params` with more names than parameters, or a name twice ([E0419](/errors/E0419)); a service's or controller's constructor of the wrong shape ([E0418](/errors/E0418)); a page backed by its island under another method than GET ([E0331](/errors/E0331)) |
+| `routes` | on `web.Routes.X(…)` and `app.X(…)`: a method and path declared twice, in the package or by a package it imports ([E0401](/errors/E0401)); a handler that isn't a function ([E0403](/errors/E0403)); a scalar parameter with neither a name the compiler recorded (`vuka.RegisterParams`) nor a path segment left to bind ([E0405](/errors/E0405)); results the app can't write ([E0406](/errors/E0406)); a service's or controller's constructor of the wrong shape ([E0418](/errors/E0418)); a page backed by its island under another method than GET ([E0331](/errors/E0331)); an `inject:` struct tag, which no longer says anything ([E0420](/errors/E0420)) |
 | `live` | a live page's constructor or struct ([E0329](/errors/E0329), [E0330](/errors/E0330)); its `LiveSchema`, the compiler's from the page's attributes: a field that isn't the page's own or a nil attribute ([E0335](/errors/E0335)), a hook given nil, a group that isn't a name or loaded twice ([E0336](/errors/E0336)), and a `LiveSchema` method written by hand for a page declared in Vuka source ([W0306](/errors/W0306)); a method named `Mount` or `Changed` that no hook attribute marks ([E0337](/errors/E0337)); and what `ui.CheckIsland` refuses of a page backed by its island: `ui.Bind` or `bind:` ([E0322](/errors/E0322)), `ui.Defer` or `defer:` ([E0323](/errors/E0323)), a deferred group without a loader ([E0324](/errors/E0324)), two handles of one name ([E0326](/errors/E0326)), `validate:` ([E0328](/errors/E0328)) |
 | `templates` | a `ui.HTML` call given more or fewer values than its labels ([E0127](/errors/E0127)), a value not written as its label ([E0132](/errors/E0132)), or a value whose type its hole's place can't take ([E0128](/errors/E0128)); in a `.vuka.html`, a bare name that is both a field and a package-level name ([W0101](/errors/W0101)); a live list without keys ([W0102](/errors/W0102)) and a stateful component in a loop without one ([W0103](/errors/W0103)) |
 | `schema` | an orm model's `Schema` method: `s.Field` given something other than the address of the receiver's field ([E0501](/errors/E0501)), a nil attribute ([E0502](/errors/E0502)), a field behind a pointer ([E0503](/errors/E0503)) |

@@ -13,12 +13,12 @@ import (
 //go:generate go tool vuka gen -inplace
 
 func init() {
-	web.Routes.Service(NewNotes)
 	web.Routes.Live("/board", NewBoard, ui.Island(ui.Layout(page)))
 	web.Routes.Live("/notes/{id}", NewNotePage)
 }
 
 func main() {
 	app := web.New()
+	app.Service(NewNotes)
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

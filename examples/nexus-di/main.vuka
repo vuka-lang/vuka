@@ -24,8 +24,8 @@ func (s *UserService) Name(id int) string { return s.store.names[id] }
 
 @di.Component
 type Greeter struct {
-	users *UserService
-	greeting string `inject:"-"`
+	users    *UserService
+	greeting string // not a pointer or interface: the generated New leaves it out
 }
 
 func (g *Greeter) Hello(id int) string { return "hello, " + g.users.Name(id) }

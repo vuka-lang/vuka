@@ -68,9 +68,9 @@ func init() {
 
 | `.vuka` | Go |
 |---|---|
-| `@web.Get("/pets/{id}")` on `ShowPet` | `web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))`, or `app.Get(…)` in `main` |
+| `@web.Get("/pets/{id}")` on `ShowPet` | `web.Routes.Get("/pets/{id}", ShowPet)`, or `app.Get(…)` in `main`; the compiler records the names `vuka.RegisterParams(ShowPet, "id", "store")` |
 | `@web.Live("/x")` on a type | `web.Routes.Live("/x", NewX)` |
-| `@web.Service` on a type | `web.Routes.Service(NewX)` |
+| a service: a struct and its `NewX`, `app.Service(NewX)` in `main` | the same |
 | `@ui.Island(opts…)` beside a route | the route's option: `ui.Island(opts…)` |
 | `Q string @ui.Bind @ui.URL("q")`, `@ui.Mount` on a method | `l.Field(&p.Q, ui.Bind{}, ui.URL("q"))`, `l.Mount(p.mount)` in `func (p *X) LiveSchema(l *ui.LiveSchema)` |
 | JSX: `<li>{x}</li>` | `` ui.HTML(`<li>{x}</li>`, x) ``; `ui.Each`, `ui.If` for lists and conditions — or a `.vuka.html` [template](/ui/templates) |

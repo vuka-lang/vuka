@@ -67,7 +67,7 @@ func Home(r *http.Request) ui.Node { return Layout("Home", ui.HTML(`<h1>Welcome<
 
 func init() {
 	web.Routes.Get("/pets", ListPets, web.Template(vuka.File("views/pets.templ")))
-	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", ""), web.Template(vuka.File("views/pet.html")))
+	web.Routes.Get("/pets/{id}", ShowPet, web.Template(vuka.File("views/pet.html")))
 	web.Routes.Get("/", Home)
 }
 ```

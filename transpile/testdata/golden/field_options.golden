@@ -162,9 +162,7 @@ func init() {
 }
 
 //line field_options.vuka:36
-func NewProduct(stock int, price int, rank int, bonus int, state Status) *Product {
-	return &Product{Stock: stock, Price: price, Rank: rank, Bonus: bonus, State: state}
-}
+func NewProduct() *Product { return &Product{} }
 
 func init() {
 //line field_options.vuka:35

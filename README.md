@@ -284,23 +284,24 @@ predicates are `vuka.Pred[Post]`, so an API taking them rejects a `User`
 field. Hover and go to definition on a reference land on the field.
 
 **Dependency injection** comes from a type decorator, with no annotations on
-fields: a struct's fields are its dependencies.
+fields: a struct's pointer and interface fields are its dependencies.
 
 ```go
 @di.Component
 type OrderService struct {
 	db    *DB
 	users *UserService
-	mu    sync.Mutex `inject:"-"`   // not a dependency
+	mu    sync.Mutex   // not a pointer or interface: not a dependency
 }
 ```
 
 A type decorator `func(t *vuka.Type)` on a struct gets `t.New`, a constructor
-taking each injected field as a parameter, `func(db *DB, users *UserService)
+taking each dependency field as a parameter, `func(db *DB, users *UserService)
 *OrderService`: the shape `nexus.Provide`, `fx.Provide` and `dig.Provide` take,
 so a container wires it from parameter types, with no reflection on fields
-(and unexported fields work). Every field is injected except `_`, those tagged
-`inject:"-"`, and embedded values (embedded pointers and interfaces are). A
+(and unexported fields work). The fields injected are the pointers and
+interfaces, embedded ones included, but `_`; a mutex or a map is the
+struct's own, with no tag to say so. A
 struct that declares its own static `New` is built with that instead;
 otherwise the generated constructor is its static `New`, handy in tests:
 `OrderService.New(fakeDB, fakeUsers)`. `t.Fields` lists the fields with their

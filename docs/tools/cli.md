@@ -107,7 +107,7 @@ The other kinds add one piece each:
 
 | | |
 |---|---|
-| `vuka add service Mailer [--module notes]` | a `@web.Service` in `services/` (or `modules/notes/`; `notes/Mailer` is the same) with a static `New` and a test: pages and routes take a `*notes.Mailer` parameter or field |
+| `vuka add service Mailer [--module notes]` | a service in `services/` (or `modules/notes/`; `notes/Mailer` is the same) with its constructor `NewMailer` and a test, registered in `main.vuka`'s `services` with `app.Service(notes.NewMailer)`: pages, routes and hooks take a `*notes.Mailer` parameter |
 | `vuka add component StatCard [--module m]` | a stateless component, in `components/` or the module: the struct of its props in `stat_card.vuka`, its markup in `stat_card.vuka.html` |
 | `vuka add island Chart [--module m] [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`; `web/islands/<m>/` with `--module`), its props typed for an import, and `components/chart.vuka` with `chart.vuka.html` (or in `modules/<m>/`) — a `Chart` component placing it, so pages write `<components.Chart title="Sales" count={3} />`; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
 | `vuka add page /reports [--module m] [--stateless]` | a page in `pages/`, `reports_page.vuka` and its markup `reports_page.vuka.html`: a live `@web.Live` type with an event (and an `@ui.Mount` hook), or with `--stateless` `@web.Get` on a handler; a path with `{parameters}` (`/reports/{id}`) makes the `@web.Get` handler, its parameters the path's, unless `--live` |
@@ -422,8 +422,8 @@ CSS and assets are written too; they stay generated files.
 ::: vuka
 ```vuka
 // pets.vuka
-@web.Service
-type PetStore struct{ db *DB }
+@web.Controller("/admin/pets")
+type PetAdmin struct{ store *PetStore }
 
 @web.Get("/pets/{id}")
 func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
@@ -434,32 +434,36 @@ func ShowPet(id int, store *PetStore) Result[Pet] { return store.Find(id) }
 type DB struct{ *orm.DB }
 type Pet struct{ ID int }
 
+type PetStore struct{ db *DB }
+
 func (s *PetStore) Find(id int) vuka.Result[Pet] { return vuka.Ok(Pet{ID: id}) }
 -->
 
 ::: go
 ```go
 // pets.go, after vuka eject -rm
-type PetStore struct{ db *DB }
+type PetAdmin struct{ store *PetStore }
 
 func ShowPet(id int, store *PetStore) vuka.Result[Pet] { return store.Find(id) }
 
-func NewPetStore(db *DB) *PetStore {
-	return &PetStore{db: db}
+func NewPetAdmin(store *PetStore) *PetAdmin {
+	return &PetAdmin{store: store}
 }
 
 func init() {
-	web.Routes.Service(NewPetStore)
-	web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))
+	web.Routes.Controller("/admin/pets", NewPetAdmin)
+	vuka.RegisterParams(ShowPet, "id", "store")
+	web.Routes.Get("/pets/{id}", ShowPet)
 }
 ```
 :::
 
-Decorators become the calls they stand for. A route, page or service
+Decorators become the calls they stand for. A route, page or controller
 decorator is a call of its package's [registry](/features/decorators#registries)
 in an `init` — `@web.Get("/pets/{id}")` on `ShowPet` is
-`web.Routes.Get("/pets/{id}", ShowPet, web.Params("id", "store"))`, the
-calls a Go app makes on its `App` — a type's constructor is Go's `NewX`, a
+`web.Routes.Get("/pets/{id}", ShowPet)`, after `vuka.RegisterParams`
+records the parameters' names, the calls a Go app makes on its `App` — a
+type's constructor is Go's `NewX` (taking its pointer and interface fields), a
 type decorator is called with `vuka.TypeFor[X](NewX)` and a declarer with
 `vuka.DeclOf(fn)`.
 

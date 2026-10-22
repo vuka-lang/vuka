@@ -6,7 +6,7 @@ import (
 )
 
 func Test{%.Name%}(t *testing.T) {
-	s := {%.Name%}.New()
+	s := New{%.Name%}()
 	if got := s.Greet(context.Background(), " Ada "); got != "Hello, Ada" {
 		t.Errorf("Greet: %q", got)
 	}

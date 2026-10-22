@@ -53,7 +53,7 @@ func main() {
 }
 
 //line islands_emit.vuka:13
-func NewCounter(count int) *Counter { return &Counter{Count: count} }
+func NewCounter() *Counter { return &Counter{} }
 
 func init() {
 //line islands_emit.vuka:12

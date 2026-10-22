@@ -70,7 +70,7 @@ func init() {
 }
 
 //line registry.vuka:20
-func NewBoard(n int) *Board { return &Board{n: n} }
+func NewBoard() *Board { return &Board{} }
 
 //line registry.vuka:20
 func boardAdvice() []vuka.Decorator {
