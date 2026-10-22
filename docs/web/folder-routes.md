@@ -153,6 +153,14 @@ example is this tree, with an in-memory store.
 
 ## Several apps in one module
 
+A `pages/` directory beside a `package main` belongs to that main: it is
+that app's folder routes, its URLs start from that `pages/`
+(`cmd/admin/pages/index.vuka.html` is `/` of the `cmd/admin` app), and only
+that main serves it — [W0701](/errors/W0701) is reported when it doesn't
+pass that tree's `Routes()` to `web.New`. The module-root `pages/` is
+served by any of the module's mains. A `pages/` directory beside no main,
+other than the module's, is not folder routes.
+
 Discovery checks the module-root `pages/` and a `pages/` directly beside
 each package whose clause is `package main`. It is not restricted to a
 folder named `cmd/`, and a nested main package does not silently acquire
