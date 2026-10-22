@@ -177,7 +177,7 @@ written.
 
 A `//` comment right above a header is the template's doc comment. An
 exported template has one, as an exported Go function does: `vuka vet`
-warns when it hasn't ([W0104](/errors/W0104)); a `View` or `Render` method
+warns when it hasn't (W0104, retired in 2.0); a `View` or `Render` method
 is documented by its type.
 
 ## Holes
@@ -282,7 +282,7 @@ attribute naming no parameter one with the closest name. A lowercase tag
 naming nothing is an error too, `unknown element or template <navlnk>`
 ([E0143](/errors/E0143)): names are case-sensitive, as in Go. So that the
 tag can reach it, a template of the package can't be named as an element —
-`header`, `nav`, `label`, `select` — ([E0145](/errors/E0145)). A call,
+`header`, `nav`, `label`, `select` — (E0145, retired in 2.0). A call,
 `{navLink(i, on)}`, works as well.
 
 Attributes on a component are camelCase — the field is the name with its
