@@ -156,6 +156,21 @@ routes derive it from the module's `pages/` tree and generate the calls a
 person writes, so nothing at run time depends on the tree
 ([guide](../web/folder-routes.md)).
 
+**2.0 (one way to write UI, step 5).** The notes below describe 1.x; 2.0
+changes the spelling and keeps the machinery. A parameter is a bracketed
+name — a `[id]` file or folder, `[path...]` the catch-all — typed by the
+field of its name on the structs below it (no `Params`, E0714); the go
+command sees a bracketed folder by its Go name, `param_id` (`load.GoDir`), and
+its logic files are `.vuka` (E0716). A layout is `_layout.vuka.html` (a
+`Layout` elsewhere is E0715). A file of method funcs (`GET`, `POST`, …) is
+an endpoint at the file's path; files of one package declaring one method
+func alike are renamed per file (`GET_id`). Everything is registered by
+one generated file, `pages/route.go`: `func Routes() web.Option`
+registering on the `*web.App` main passes it to (`web.New(pages.Routes(),
+…)`), with literals for missing constructors; no `pages_gen.go`,
+`routes_gen.go` or template-only types (E0718, E0719); W0701 when no main
+calls it.
+
 - **Tree.** `<module root>/pages/**` are ordinary packages; the folder path
   is the URL. `pages/pages_gen.go` (package `pages`, generated) registers
   every route of every folder, so `main` imports `pages` once and a layout
