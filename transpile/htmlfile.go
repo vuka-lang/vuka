@@ -156,7 +156,7 @@ func componentName(file string) string {
 	up := true
 	for _, r := range base {
 		switch {
-		case r == '_' || r == '-' || r == '.':
+		case r == '_' || r == '-' || r == '.' || r == '[' || r == ']':
 			up = true
 		case up:
 			b.WriteRune(unicode.ToUpper(r))

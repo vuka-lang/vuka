@@ -138,3 +138,22 @@ func TestShapeTemplateHeaders(t *testing.T) {
 		t.Errorf("blanking in the header: %q", got)
 	}
 }
+
+// TestGoName: the Go file of a source Go wouldn't compile under its own
+// name: a folder route's parameter file, [id].vuka.html, and a private
+// _layout.vuka.html, which go would ignore.
+func TestGoName(t *testing.T) {
+	for in, want := range map[string]string{
+		"index.vuka.html":    "index_html.go",
+		"[id].vuka.html":     "param_id_html.go",
+		"[path...].vuka":     "param_path_vuka.go",
+		"_layout.vuka.html":  "private_layout_html.go",
+		"pets_test.vuka":     "pets_vuka_test.go",
+		"[id]_test.vuka":     "param_id_vuka_test.go",
+		"team-settings.vuka": "team-settings_vuka.go",
+	} {
+		if got := transpile.GoName(in); got != want {
+			t.Errorf("GoName(%s) = %s, want %s", in, got, want)
+		}
+	}
+}
