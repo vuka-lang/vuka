@@ -20,6 +20,10 @@ import (
 //	p.n += 2                       →  p.n.Set(p.n.Get() + (2))
 //	p.n++                          →  p.n.Set(p.n.Get() + 1)
 //	p.rows[i].Done = true          →  p.rows.Update(func(rows []Todo) []Todo { rows[i].Done = true; return rows })
+//	p.e.Addr.City                  →  p.e.Get().Addr.City
+//	p.e.Label()                    →  p.e.Get().Label()
+//	p.e.Name = x                   →  p.e.Update(func(e Employer) Employer { e.Name = x; return e })
+//	p.e.Rename(x)  (*Employer)     →  p.e.Update(func(e Employer) Employer { e.Rename(x); return e })
 //
 // A dependency — a pointer, an interface, a func or a chan, which the
 // container injects —, a sync value and a field tagged `vuka:"-"` stay as
@@ -176,7 +180,11 @@ func (e *engine) trackUses(f *fileState, name string, attrs []span) {
 			return true
 		}
 		if p, ok := f.parents[sel].(*ast.SelectorExpr); ok && p.X == sel {
-			return false // sel.Get(), sel.Set(…): lowered, or Assign's own
+			if ps := e.info.Selections[p]; ps != nil && ps.Kind() == types.MethodVal && isAssign(ps.Recv()) {
+				return false // sel.Get(), sel.Set(…): lowered, or Assign's own
+			}
+			// A field or method of the value (p.e.Name, e.Label()): the
+			// selector reads or writes through the Assign.
 		}
 		var top ast.Expr = sel
 		for {
@@ -199,6 +207,18 @@ func (e *engine) trackUses(f *fileState, name string, attrs []span) {
 				continue
 			}
 			break
+		}
+		if m, ok := top.(*ast.SelectorExpr); ok && m != sel && e.pointerMethod(sel, m) {
+			// A method changing the value (p.e.Rename(x)): a statement is
+			// a write into it; anywhere else it can't be called.
+			if call, ok := f.parents[m].(*ast.CallExpr); ok && call.Fun == m {
+				if st, ok := f.parents[call].(*ast.ExprStmt); ok {
+					writes = append(writes, use{sel, top, st})
+					return false
+				}
+			}
+			e.errs.add("E0150", f.at(f.orig(m.Pos())), "%s changes server state inside an expression: call it as a statement of its own, which updates %s", text(m), sel.Sel.Name)
+			return false
 		}
 		switch p := f.parents[top].(type) {
 		case *ast.AssignStmt:
@@ -263,6 +283,50 @@ func (e *engine) trackUses(f *fileState, name string, attrs []span) {
 		}
 		e.progress = true
 	}
+}
+
+// pointerMethod reports whether m, a selector chain on the tracked field
+// sel (p.e.Rename, p.e.Addr.Fix), names a method with a pointer receiver,
+// which may change the value it is called on. The chain is resolved on the
+// Assign's element: the field's own selections are Assign's now.
+func (e *engine) pointerMethod(sel, m *ast.SelectorExpr) bool {
+	var chain []*ast.SelectorExpr
+	for x := ast.Expr(m); x != ast.Expr(sel); {
+		s, ok := x.(*ast.SelectorExpr)
+		if !ok {
+			return false // an index or a dereference on the way: left as written
+		}
+		chain = append([]*ast.SelectorExpr{s}, chain...)
+		x = s.X
+	}
+	n, ok := types.Unalias(e.info.TypeOf(sel)).(*types.Named)
+	if !ok || !isAssign(n) || n.TypeArgs().Len() != 1 {
+		return false
+	}
+	t := n.TypeArgs().At(0)
+	for i, s := range chain {
+		obj, _, _ := types.LookupFieldOrMethod(t, true, e.pkg, s.Sel.Name)
+		switch o := obj.(type) {
+		case *types.Var:
+			t = o.Type()
+		case *types.Func:
+			_, ptr := o.Type().(*types.Signature).Recv().Type().(*types.Pointer)
+			return ptr && i == len(chain)-1
+		default:
+			return false
+		}
+	}
+	return false
+}
+
+// isAssign reports whether t is the gen package's Assign, or a pointer
+// to it.
+func isAssign(t types.Type) bool {
+	if p, ok := t.(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	n, ok := types.Unalias(t).(*types.Named)
+	return ok && n.Obj().Name() == "Assign" && n.Obj().Pkg() != nil
 }
 
 // freeName is name, or name with underscores after it, not an identifier

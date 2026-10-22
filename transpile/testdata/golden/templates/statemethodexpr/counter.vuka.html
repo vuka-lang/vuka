@@ -1,0 +1,11 @@
+package main
+
+// Counter tracks a tally: a method changing it, called inside an
+// expression, would change a copy.
+type Counter struct {
+	ui.Live
+	t tally
+}
+
+func (c *Counter) Bump() int { return c.t.Inc() + 1 }
+<p>{t.N}</p>
