@@ -1,0 +1,11 @@
+package app
+
+// Shell is the client app's shell, the same for every /app/... URL: the
+// catch-all file [route...], which the fixed Settings beside it beats.
+type Shell struct {
+	Route string
+}
+
+func (p *Shell) Title() string { return "App" }
+<div id="app"></div>
+<script is:inline>document.getElementById("app").textContent = "client route: " + location.pathname</script>

@@ -1,0 +1,28 @@
+package pages
+
+import (
+	"context"
+
+	"example.com/folder-routes/pages/urls"
+	"github.com/vuka-lang/ui"
+)
+
+// Layout is the document of every page: the outermost layout, in pages/.
+type Layout struct {
+	Children ui.Node
+}
+
+// Title is the page's title, which the page names with its Title method.
+func (l Layout) Title(ctx context.Context) string {
+	if t := ui.PageTitle(ctx); t != "" {
+		return t + " - HR"
+	}
+	return "HR"
+}
+<html lang="en">
+<head><meta charset="utf-8"/><title>{Title(ctx)}</title></head>
+<body>
+  <nav id="site"><a href={urls.Employers.Path()}>Employers</a> <a href={urls.Files.File("handbook/leave.txt").Path()}>Handbook</a> <a href={urls.About.Path()}>About</a> <a href={urls.App.Settings.Path()}>App</a></nav>
+  <main>{Children}</main>
+</body>
+</html>

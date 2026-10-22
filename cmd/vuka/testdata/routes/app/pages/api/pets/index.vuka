@@ -1,0 +1,11 @@
+package pets
+
+import "context"
+
+// GET lists the pets.
+func GET(ctx context.Context) ([]string, error) { return nil, nil }
+
+// Pet is a new pet.
+type Pet struct{ Name string }
+
+func POST(ctx context.Context, p Pet) (string, error) { return p.Name, nil }

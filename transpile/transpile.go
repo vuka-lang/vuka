@@ -139,16 +139,33 @@ type Result struct {
 const CallsGoName = "vuka_calls_gen.go"
 
 // GoName is the name of the Go file generated for a .vuka file, or for a
-// .vuka.html file: x_html.go.
+// .vuka.html file: x_html.go. A name the go command wouldn't compile is
+// renamed: a folder route's parameter, [id].vuka.html or [path...].vuka,
+// is param_id_html.go or param_path_vuka.go (Go file names have no
+// brackets), and _layout.vuka.html, which go would ignore, is
+// private_layout_html.go.
 func GoName(name string) string {
 	if base, ok := strings.CutSuffix(name, ".vuka.html"); ok {
-		return base + "_html.go"
+		return goBase(base) + "_html.go"
 	}
 	base := strings.TrimSuffix(name, ".vuka")
 	if strings.HasSuffix(base, "_test") {
-		return strings.TrimSuffix(base, "_test") + "_vuka_test.go"
+		return goBase(strings.TrimSuffix(base, "_test")) + "_vuka_test.go"
 	}
-	return base + "_vuka.go"
+	return goBase(base) + "_vuka.go"
+}
+
+// goBase is a source's base name as a Go file's: see GoName.
+func goBase(base string) string {
+	if inner, ok := strings.CutPrefix(base, "["); ok {
+		inner, _ = strings.CutSuffix(inner, "]")
+		inner, _ = strings.CutSuffix(inner, "...")
+		return "param_" + inner
+	}
+	if strings.HasPrefix(base, "_") {
+		return "private" + base
+	}
+	return base
 }
 
 type fileState struct {

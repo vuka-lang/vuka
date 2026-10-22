@@ -76,9 +76,33 @@ func importStubs(root string, pkgs []*load.Package) map[string][]byte {
 	mod, _ := os.ReadFile(filepath.Join(root, "go.mod"))
 	keepRuntime := bytes.Contains(mod, []byte(transpile.RuntimePath+" "))
 	out := map[string][]byte{}
+	type host struct {
+		p    *load.Package
+		test bool
+		imps map[bool]map[string]bool // in a _test file?
+	}
+	var hosts []*host
+	hostOf := map[*load.Package]*host{}
 	for _, p := range pkgs {
-		test := strings.HasSuffix(p.Name, "_test")
-		imports := map[bool]map[string]bool{false: {}, true: {}} // in a _test file?
+		// A bracketed folder's package ([id]) is no directory the go command
+		// reads: its imports stand in the nearest package above it.
+		h := p
+		if p.GoDir != "" {
+			h = nil
+			for _, q := range pkgs {
+				if q.GoDir == "" && !strings.HasSuffix(q.Name, "_test") && strings.HasPrefix(p.Dir, q.Dir+string(filepath.Separator)) && (h == nil || len(q.Dir) > len(h.Dir)) {
+					h = q
+				}
+			}
+			if h == nil {
+				continue
+			}
+		}
+		if hostOf[h] == nil {
+			hostOf[h] = &host{p: h, test: strings.HasSuffix(h.Name, "_test"), imps: map[bool]map[string]bool{false: {}, true: {}}}
+			hosts = append(hosts, hostOf[h])
+		}
+		test, imports := hostOf[h].test || strings.HasSuffix(p.Name, "_test"), hostOf[h].imps
 		for _, f := range p.Files {
 			if !f.IsVuka() {
 				continue
@@ -114,6 +138,9 @@ func importStubs(root string, pkgs []*load.Package) map[string][]byte {
 				}
 			}
 		}
+	}
+	for _, h := range hosts {
+		p, test, imports := h.p, h.test, h.imps
 		for inTest, set := range imports {
 			if len(set) == 0 {
 				continue

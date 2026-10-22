@@ -1,0 +1,13 @@
+package orgs
+
+import "context"
+
+// GET is an organisation, as JSON.
+func GET(ctx context.Context, org int) (int, error) { return org, nil }
+
+// Rename is an organisation's new name.
+type Rename struct{ Name string }
+
+func PUT(ctx context.Context, org int, f Rename) error { return nil }
+
+func DELETE(ctx context.Context, org int) error { return nil }

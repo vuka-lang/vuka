@@ -35,6 +35,109 @@ type Package struct {
 	Imports    []string
 	Embeds     []string // directories below Dir of .templ files its .vuka files may name (vuka.File)
 	NoLink     bool     // a file's header says //vuka:nolink: auto-link leaves the package alone
+	// GoDir is where the go command sees the package when it isn't Dir: a
+	// folder route's parameter folder, pages/pets/[id], is pages/pets/param_id
+	// (GoDir). The generated files go there; the sources stay in Dir.
+	GoDir string
+}
+
+// BuildDir is the directory the go command sees p in: GoDir, else Dir.
+func (p *Package) BuildDir() string {
+	if p.GoDir != "" {
+		return p.GoDir
+	}
+	return p.Dir
+}
+
+// A folder route names a path parameter with a bracketed folder,
+// pages/pets/[id] or pages/files/[path...], which no import path can hold.
+// The go command sees such a folder, and the folders below it, by its Go
+// name: param_id, param_path. vuka's discovery passes over a folder named
+// so beside its bracketed folder: the generated files vuka gen -inplace
+// writes there are the bracketed folder's.
+
+// Bracketed reports whether a file or folder name (its extension removed)
+// is a path parameter's: [id], [path...].
+func Bracketed(name string) bool {
+	return len(name) > 2 && name[0] == '[' && name[len(name)-1] == ']'
+}
+
+// GoElem is a folder's name as the go command sees it: [id] is param_id,
+// [path...] param_path; any other name is itself.
+func GoElem(name string) string {
+	if !Bracketed(name) {
+		return name
+	}
+	return goPrefix + strings.TrimSuffix(name[1:len(name)-1], "...")
+}
+
+// goPrefix starts a bracketed folder's Go name.
+const goPrefix = "param_"
+
+// IsGoName reports whether the folder dir is the Go name of a bracketed
+// folder beside it: param_id beside [id] or [id...].
+func IsGoName(dir string) bool {
+	name, ok := strings.CutPrefix(filepath.Base(dir), goPrefix)
+	if !ok || name == "" {
+		return false
+	}
+	parent := filepath.Dir(dir)
+	for _, b := range []string{"[" + name + "]", "[" + name + "...]"} {
+		if fi, err := os.Stat(filepath.Join(parent, b)); err == nil && fi.IsDir() {
+			return true
+		}
+	}
+	return false
+}
+
+// GoRel is a slash-separated path with each element its GoElem.
+func GoRel(rel string) string {
+	if !strings.Contains(rel, "[") {
+		return rel
+	}
+	parts := strings.Split(rel, "/")
+	for i, p := range parts {
+		parts[i] = GoElem(p)
+	}
+	return strings.Join(parts, "/")
+}
+
+// GoDir is the directory the go command sees the source directory dir,
+// below root, as: dir itself unless a folder below root is bracketed.
+func GoDir(root, dir string) string {
+	rel, err := filepath.Rel(root, dir)
+	if err != nil || !strings.Contains(rel, "[") || strings.HasPrefix(rel, "..") {
+		return dir
+	}
+	return filepath.Join(root, filepath.FromSlash(GoRel(filepath.ToSlash(rel))))
+}
+
+// SourceDir is the source directory whose GoDir is goDir, below root, when
+// one of its folders is bracketed and goDir isn't on disk: param_id is
+// [id], or [id...], whichever is there.
+func SourceDir(root, goDir string) (string, bool) {
+	rel, err := filepath.Rel(root, goDir)
+	if err != nil || strings.HasPrefix(rel, "..") || !strings.Contains(rel, goPrefix) {
+		return "", false
+	}
+	if _, err := os.Stat(goDir); err == nil {
+		return "", false
+	}
+	dir, mapped := root, false
+	for _, p := range strings.Split(filepath.ToSlash(rel), "/") {
+		if name, ok := strings.CutPrefix(p, goPrefix); ok && name != "" {
+			if fi, err := os.Stat(filepath.Join(dir, "["+name+"]")); err == nil && fi.IsDir() {
+				dir, mapped = filepath.Join(dir, "["+name+"]"), true
+				continue
+			}
+			if fi, err := os.Stat(filepath.Join(dir, "["+name+"...]")); err == nil && fi.IsDir() {
+				dir, mapped = filepath.Join(dir, "["+name+"...]"), true
+				continue
+			}
+		}
+		dir = filepath.Join(dir, p)
+	}
+	return dir, mapped
 }
 
 // ModuleRoot finds the module enclosing dir.
@@ -111,7 +214,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 		}
 		name := e.Name()
 		if path != dir {
-			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata" || name == "vendor" || name == "node_modules" {
+			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata" || name == "vendor" || name == "node_modules" || IsGoName(path) {
 				return filepath.SkipDir
 			}
 			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
@@ -151,14 +254,18 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 	}
 	importPath := modPath
 	if rel != "." {
-		importPath += "/" + filepath.ToSlash(rel)
+		importPath += "/" + GoRel(filepath.ToSlash(rel))
+	}
+	goDir := ""
+	if g := GoDir(root, dir); g != dir {
+		goDir = g
 	}
 	byName := map[string]*Package{}
 	var order []string
 	pkg := func(name string) *Package {
 		p := byName[name]
 		if p == nil {
-			p = &Package{Dir: dir, ImportPath: importPath, Name: name}
+			p = &Package{Dir: dir, ImportPath: importPath, Name: name, GoDir: goDir}
 			if strings.HasSuffix(name, "_test") {
 				p.ImportPath += "_test"
 			}
@@ -565,7 +672,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			return nil, "", ErrStopped
 		}
 		add := func(goName string, src []byte) error {
-			target := filepath.Join(p.Dir, goName)
+			target := filepath.Join(p.BuildDir(), goName)
 			file := filepath.Join(tmp, strconv.Itoa(i)+"_"+goName)
 			if err := os.WriteFile(file, src, 0o644); err != nil {
 				return err
@@ -602,7 +709,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 				templOK = false
 				continue
 			}
-			g := Generated{Target: filepath.Join(p.Dir, t.GoName), Source: filepath.Join(p.Dir, t.Name), From: t.Src}
+			g := Generated{Target: filepath.Join(p.BuildDir(), t.GoName), Source: filepath.Join(p.Dir, t.Name), From: t.Src}
 			if opts.Bare {
 				g.Src, g.TemplMap = t.Go, t.Map
 			} else {
@@ -653,7 +760,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			partial = true
 		}
 		for _, f := range res.Files {
-			target := filepath.Join(p.Dir, f.GoName)
+			target := filepath.Join(p.BuildDir(), f.GoName)
 			if err := add(f.GoName, f.Src); err != nil {
 				return nil, "", err
 			}
@@ -670,13 +777,13 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			if err := add(transpile.CallsGoName, res.Calls); err != nil {
 				return nil, "", err
 			}
-			out = append(out, Generated{Target: filepath.Join(p.Dir, transpile.CallsGoName), Src: res.Calls})
+			out = append(out, Generated{Target: filepath.Join(p.BuildDir(), transpile.CallsGoName), Src: res.Calls})
 		}
 		if AfterPackage != nil {
 			if err := writeOverlay(overlay, replace); err != nil {
 				return nil, "", err
 			}
-			for _, g := range AfterPackage(p.Dir, overlay, out[first:]) {
+			for _, g := range AfterPackage(p.BuildDir(), overlay, out[first:]) {
 				if err := add(filepath.Base(g.Target), g.Src); err != nil {
 					return nil, "", err
 				}

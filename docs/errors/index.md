@@ -177,10 +177,20 @@ same page in the terminal.
 | [E0701](./E0701) | Two pages on one path |
 | [E0702](./E0702) | Two routes match the same paths |
 | [E0703](./E0703) | Something is below a catch-all folder |
-| [E0704](./E0704) | A parameter folder's Params is malformed |
+| [E0704](./E0704) | A bracketed name names no path parameter |
 | [E0705](./E0705) | A path parameter's type can't be in a URL |
 | [E0706](./E0706) | A name vuka declares for a page is taken |
 | [E0707](./E0707) | A folder route and a hand-written route share a path |
-| [E0708](./E0708) | A folder's Layout or Guard is malformed |
+| [E0708](./E0708) | A folder's layout or Guard is malformed |
 | [E0709](./E0709) | A method handler doesn't fit |
 | [E0710](./E0710) | A folder's Middleware is malformed |
+| [E0711](./E0711) | Nothing binds a path parameter |
+| [E0712](./E0712) | The fields binding a path parameter disagree on its type |
+| [E0713](./E0713) | A parameter is both a file and a folder |
+| [E0714](./E0714) | A Params struct makes no parameter folder |
+| [E0715](./E0715) | A Layout type wraps no folder |
+| [E0716](./E0716) | A Go file is in a bracketed folder |
+| [E0717](./E0717) | Two Go files declare one method func |
+| [E0718](./E0718) | A file is in the way of pages/route.go |
+| [E0719](./E0719) | A page's struct is declared nowhere |
+| [W0701](./W0701) | No main package serves the folder routes |

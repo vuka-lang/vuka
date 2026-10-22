@@ -1,0 +1,37 @@
+package employers
+
+import (
+	"context"
+
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/web"
+)
+
+// GET is one employer, /api/employers/{employer}: the file names the
+// parameter, and the scalar of its name binds it, digits, so
+// /api/employers/x is not found.
+func GET(ctx context.Context, employer int, s *store.Store) (store.Employer, error) {
+	em, ok := s.Employer(employer)
+	if !ok {
+		return store.Employer{}, web.NotFound
+	}
+	return em, nil
+}
+
+// PUT replaces it.
+func PUT(ctx context.Context, employer int, in store.EmployerForm, s *store.Store) (store.Employer, error) {
+	if _, ok := s.Employer(employer); !ok {
+		return store.Employer{}, web.NotFound
+	}
+	s.UpdateEmployer(employer, in)
+	return GET(ctx, employer, s)
+}
+
+// DELETE removes it.
+func DELETE(ctx context.Context, employer int, s *store.Store) error {
+	if _, ok := s.Employer(employer); !ok {
+		return web.NotFound
+	}
+	s.DeleteEmployer(employer)
+	return nil
+}

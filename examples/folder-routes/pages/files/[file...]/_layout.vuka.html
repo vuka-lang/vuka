@@ -1,0 +1,24 @@
+package file
+
+import (
+	"context"
+
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+// Layout is the catch-all folder's: File is the rest of the path, slashes
+// included (handbook/leave.txt). A path naming no file is not found.
+type Layout struct {
+	File     web.Rest
+	Children ui.Node
+}
+
+func (l *Layout) Load(ctx context.Context, s *store.Store) error {
+	if _, ok := s.File(string(l.File)); !ok {
+		return web.NotFound
+	}
+	return nil
+}
+<article id="file"><h1>{string(File)}</h1>{Children}</article>

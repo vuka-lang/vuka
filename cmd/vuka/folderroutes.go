@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"crypto/sha256"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/build"
@@ -18,6 +19,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 
 	"github.com/vuka-lang/vuka/diag"
 	"github.com/vuka-lang/vuka/internal/load"
@@ -25,28 +27,30 @@ import (
 )
 
 // Folder routes: the module's pages/ directory is a tree of packages whose
-// folder path is the URL. pages/pages_gen.go registers every page, its
-// method handlers, every endpoint, and the guards and layouts over them
-// with web.Routes; pages/urls/urls_gen.go, the package urls, is their paths
-// as a chain of values (urls.Orgs.Org(7).Edit.Path()) importing no page
-// package, so any page links to any other; a page package's routes_gen.go
-// declares its template-only pages (about.vuka.html, its type About
-// declared nowhere), so their templates compile as the types' Render, and
-// the constructors of its pages and endpoints that have none.
+// folder path is the URL. A bracketed name is a path parameter: a [id]
+// folder (seen by the go command by its Go name, param_id: load.GoDir) or a [id]
+// file in a folder; [path...] takes the rest of the path. A folder's
+// _layout.vuka.html wraps the pages below it, and its Guard and Middleware
+// check and wrap them. pages/route.go, package pages, holds func Routes, a
+// web.Option registering every page, its method handlers, every endpoint
+// and method func, and the guards, layouts and middleware over them on the
+// app; pages/urls/urls_gen.go, the package urls, is their paths as a chain
+// of values (urls.Orgs.Org(7).Edit.Path()) importing no page package, so
+// any page links to any other.
 //
-// The page packages use urls and those types while they are transpiled,
-// before their types are known: urls is transpiled as a stub read from the
-// sources (every page a field, parameters taken as ...any), and the types
-// are declared by a stub routes_gen.go; both go in the overlay after their
-// package (load.AfterPackage), over any written to disk earlier. Once the
-// module is transpiled, the page packages are type-checked from the
-// overlay, the route table is built from their types, and the real files
-// replace the stubs in the overlay.
+// The page packages use urls while they are transpiled, before their types
+// are known: urls is transpiled as a stub read from the sources (every page
+// a field, parameters taken as ...any), and route.go as a stub registering
+// nothing; both go in the overlay after their package (load.AfterPackage),
+// over any written to disk earlier. Once the module is transpiled, the page
+// packages are type-checked from the overlay, the route table is built from
+// their types, and the real files replace the stubs in the overlay.
 
 const (
 	pagesDirName  = "pages"
-	routesGoName  = "routes_gen.go"
-	pagesGoName   = "pages_gen.go"
+	routeGoName   = "route.go"      // pages/route.go: every route, func Routes() web.Option
+	routesGoName  = "routes_gen.go" // 1.x's, in each page folder: E0718
+	pagesGoName   = "pages_gen.go"  // 1.x's pages/pages_gen.go: E0718
 	urlsGoName    = "urls_gen.go"
 	urlsDirName   = "urls"
 	routesStub    = "vuka_routes_stub.vuka"
@@ -86,17 +90,40 @@ func (t *routeTree) files() []load.Generated {
 
 // routeDir is one directory under pages/ holding Go or Vuka source.
 type routeDir struct {
-	dir, rel      string // rel: slash path from pages/ ("" for pages/ itself)
-	importPath    string
-	name          string   // the package's name
-	pages         []string // the types its sources give a New<T>: its pages, roughly
-	goFiles       []string // its .go files, when it has no Vuka source
-	templates     []string // its template-only pages
-	templateFiles []string // their files
-	ctors         []string // the types that may be pages or endpoints and have no New<T>, sorted
-	params        bool     // it declares Params
-	clashes       []diag.Diagnostic
-	vuka          bool // it has .vuka, .vuka.html or .templ files
+	dir, rel   string // rel: slash path from pages/ ("" for pages/ itself); [id] for a parameter folder
+	goDir      string // where the go command sees the package: dir, or its Go name below a [id] folder (load.GoDir)
+	importPath string
+	name       string   // the package's name
+	pages      []string // the types its sources give a New<T>: its pages, roughly
+	goFiles    []string // its .go files, when it has no Vuka source
+	layout     string   // the type its _layout.vuka.html renders, "" when it has none
+	layoutFile string
+	oldLayout  string            // a 1.x layout.vuka.html, for E0715's help
+	bracket    map[string]string // a type declared in a [id] file → its parameter, "[id]"
+	fileOf     map[string]string // a type declared in a .vuka.html file → the file
+	files      map[string]string // a parameter → a file named for it
+	funcs      []methodFunc      // its method funcs: GET, POST… declared by a file
+	clashes    []diag.Diagnostic // found before the transpile, which they would derail
+	vuka       bool              // it has .vuka, .vuka.html or .templ files
+}
+
+// methodFunc is an endpoint written as a function named for its HTTP
+// method, GET, POST, PUT, PATCH or DELETE: the file declaring it is the
+// route (index.vuka its folder, [id].vuka a parameter, list.vuka /list).
+type methodFunc struct {
+	method string // GET
+	goName string // the function's name in the package: GET, or GET_id when files of the package declare it alike
+	file   string // [id].vuka
+}
+
+// fileSeg is the URL segment of a route file: "" for index, its parameter
+// ("[id]") or its name.
+func fileSeg(file string) string {
+	base := strings.TrimSuffix(strings.TrimSuffix(strings.TrimSuffix(file, ".vuka.html"), ".vuka"), ".go")
+	if base == "index" {
+		return ""
+	}
+	return base
 }
 
 var (
@@ -105,6 +132,7 @@ var (
 	structDecl = regexp.MustCompile(`(?m)^type\s+([A-Z]\w*)\s+struct\b`)
 	topFunc    = regexp.MustCompile(`(?m)^(?:func|var|const)\s+([A-Z]\w*)\b`)
 	routeAttr  = regexp.MustCompile(`^\w+\.(Get|Post|Put|Patch|Delete|Handle|Live)$`)
+	methodDecl = regexp.MustCompile(`(?m)^func(\s+)(GET|POST|PUT|PATCH|DELETE)(\s*\()`)
 )
 
 // scanRoutes finds the page packages of the module at root: nil when it has
@@ -125,8 +153,10 @@ func scanRoutes(root, modPath string, read load.ReadFunc) *routeTree {
 		if err != nil || !e.IsDir() {
 			return nil
 		}
+		// A folder named _x is private, and param_id beside [id] that
+		// folder's Go name: the generated files vuka gen -inplace writes.
 		if n := e.Name(); path != base && (strings.HasPrefix(n, ".") || strings.HasPrefix(n, "_") || n == "testdata" || n == "vendor" ||
-			n == "node_modules" || fileExists(filepath.Join(path, "go.mod")) || path == t.urlsDir()) {
+			n == "node_modules" || fileExists(filepath.Join(path, "go.mod")) || path == t.urlsDir() || load.IsGoName(path)) {
 			return filepath.SkipDir
 		}
 		if d := readRouteDir(root, modPath, path, read, t.registered); d != nil {
@@ -134,6 +164,7 @@ func scanRoutes(root, modPath string, read load.ReadFunc) *routeTree {
 		}
 		return nil
 	})
+	t.checkNames()
 	return t
 }
 
@@ -150,24 +181,59 @@ func readRouteDir(root, modPath, dir string, read load.ReadFunc, registered map[
 	if rel == "." {
 		rel = ""
 	}
-	d := &routeDir{dir: dir, rel: rel, importPath: modPath + "/" + pagesDirName}
+	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: modPath + "/" + pagesDirName, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}}
 	if rel != "" {
-		d.importPath += "/" + rel
+		d.importPath += "/" + load.GoRel(rel)
 	}
+	inBracket := strings.Contains(rel, "[")
 	ctors := map[string]bool{}
 	types, others := map[string]bool{}, map[string]diag.Span{} // declared types; other declared names, where
 	structs, looks := map[string]bool{}, map[string]bool{}
-	templates := map[string]string{} // template-only page → its file
+	templates := map[string]string{}   // template-only page → its file
+	funcFiles := map[string][]string{} // a method func → the files declaring it
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() || strings.Contains(n, "_test.") || n == routesGoName {
+		path := filepath.Join(dir, n)
+		if !e.IsDir() && validBracket(fileSeg(n)) {
+			d.files[fileSeg(n)] = n
+		}
+		if !e.IsDir() && (n == routesGoName || n == pagesGoName && rel == "") {
+			// TODO(one-way): vuka fix one-way deletes them.
+			d.clashes = append(d.clashes, *diag.New("E0718", "%s is what vuka 1 generated for the folder routes, and pages/route.go registers them now", n).At(diag.Span{File: path, Line: 1}).
+				WithHelp("delete %s: vuka generates pages/route.go, and a page without a constructor needs none of its own", n))
+			continue
+		}
+		if !e.IsDir() && n == routeGoName && rel == "" {
+			if src, err := read(path); err == nil && !bytes.HasPrefix(src, []byte("// Code generated by vuka")) {
+				d.clashes = append(d.clashes, *diag.New("E0718", "pages/route.go is vuka's, the routes of the folders under pages/, and this one is written by hand").At(diag.Span{File: path, Line: 1}).
+					WithHelp("rename the file: vuka writes pages/route.go"))
+			}
+			continue
+		}
+		if e.IsDir() || strings.Contains(n, "_test.") {
 			continue
 		}
 		vukaSrc := strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".vuka.html") || strings.HasSuffix(n, ".templ")
-		if !vukaSrc && (!strings.HasSuffix(n, ".go") || n == pagesGoName && rel == "") {
+		if !vukaSrc && !strings.HasSuffix(n, ".go") {
 			continue
 		}
-		src, err := read(filepath.Join(dir, n))
+		seg := fileSeg(n)
+		if strings.HasSuffix(n, ".go") && (inBracket || strings.ContainsAny(n, "[]")) {
+			// TODO(one-way): vuka fix one-way renames these to .vuka.
+			what := "a parameter folder, " + filepath.Base(dir) + ","
+			if strings.ContainsAny(n, "[]") {
+				what = "a file named for a parameter"
+			}
+			d.clashes = append(d.clashes, *diag.New("E0716", "%s is Go in %s which the go command can't build", n, what).At(diag.Span{File: path, Line: 1}).
+				WithHelp("write it as %s: Go names no [x] file or folder, so vuka compiles it", strings.TrimSuffix(n, ".go")+".vuka"))
+			continue
+		}
+		if strings.ContainsAny(seg, "[]") && !validBracket(seg) {
+			d.clashes = append(d.clashes, *diag.New("E0704", "%s: %s names no path parameter", n, seg).At(diag.Span{File: path, Line: 1}).
+				WithHelp("bracket a Go identifier, [id], or [path...] for the rest of the path"))
+			continue
+		}
+		src, err := read(path)
 		if err != nil {
 			continue
 		}
@@ -175,21 +241,49 @@ func readRouteDir(root, modPath, dir string, read load.ReadFunc, registered map[
 			if ok, _ := build.Default.MatchFile(dir, n); !ok {
 				continue
 			}
-			if !generatedFor(n, entries) {
-				d.goFiles = append(d.goFiles, n)
+			if generatedFor(n, entries) {
+				continue // its source's, read as the source
 			}
+			d.goFiles = append(d.goFiles, n)
 		}
 		d.vuka = d.vuka || vukaSrc
 		if d.name == "" {
 			d.name = packageName(n, src)
 		}
 		if strings.HasSuffix(n, ".vuka.html") {
+			if n == "layout.vuka.html" {
+				d.oldLayout = n
+			}
 			// A file in the 2.0 shape declares the struct it renders: a
 			// page as a .go file's would be.
-			if sh, _ := transpile.ParseShape(src); sh != nil {
+			sh, _ := transpile.ParseShape(src)
+			switch {
+			case n == "_layout.vuka.html":
+				d.layout, d.layoutFile = "Layout", n
+				if sh != nil {
+					d.layout = sh.Type
+					types[sh.Type] = true
+				}
+				continue
+			case strings.HasPrefix(n, "_"):
+				if sh != nil {
+					types[sh.Type] = true
+				}
+				continue
+			case sh != nil:
 				types[sh.Type] = true
 				if token.IsExported(sh.Type) && !sh.Generic {
 					structs[sh.Type], looks[sh.Type] = true, true
+					d.fileOf[sh.Type] = n
+					if load.Bracketed(seg) {
+						d.bracket[sh.Type] = seg
+					}
+				}
+				continue
+			case load.Bracketed(seg):
+				if _, ok := templatePage("page.vuka.html", src); ok {
+					d.clashes = append(d.clashes, *diag.New("E0711", "%s is a page at the parameter %s and declares no struct to bind it", n, seg).At(diag.Span{File: path, Line: 1}).
+						WithHelp("declare the page's struct above its markup, with a field for the parameter: type Page struct { %s int }", goIdent(bracketName(seg))))
 				}
 				continue
 			}
@@ -198,7 +292,15 @@ func readRouteDir(root, modPath, dir string, read load.ReadFunc, registered map[
 			}
 			continue
 		}
-		topLevel(filepath.Join(dir, n), src, types, others, structs, looks)
+		before := maps.Clone(types)
+		topLevel(path, src, types, others, structs, looks)
+		if load.Bracketed(seg) {
+			for name := range types {
+				if !before[name] {
+					d.bracket[name] = seg
+				}
+			}
+		}
 		if strings.HasSuffix(n, ".vuka") {
 			for _, m := range typeDecl.FindAllSubmatchIndex(src, -1) {
 				for _, a := range attrsAbove(src, m[0]) {
@@ -208,49 +310,160 @@ func readRouteDir(root, modPath, dir string, read load.ReadFunc, registered map[
 				}
 			}
 		}
+		for _, m := range methodDecl.FindAllSubmatch(src, -1) {
+			funcFiles[string(m[2])] = append(funcFiles[string(m[2])], n)
+		}
 		for _, m := range ctorDecl.FindAllSubmatch(src, -1) {
 			ctors[string(m[1])] = true
 		}
 	}
+	if len(d.clashes) > 0 {
+		return d
+	}
 	if d.name == "" || d.name == "main" || len(d.goFiles) == 0 && !d.vuka {
 		return nil
 	}
-	d.params = types["Params"]
+	for _, method := range slices.Sorted(maps.Keys(funcFiles)) {
+		files := funcFiles[method]
+		var goFiles []string
+		for _, f := range files {
+			if strings.HasSuffix(f, ".go") {
+				goFiles = append(goFiles, f)
+			}
+		}
+		if len(goFiles) > 1 {
+			d.clashes = append(d.clashes, *diag.New("E0717", "%s and %s both declare %s, and are Go: a method func is its file's route", goFiles[0], goFiles[1], method).
+				At(diag.Span{File: filepath.Join(dir, goFiles[1]), Line: 1}).WithRelated(diag.Span{File: filepath.Join(dir, goFiles[0]), Line: 1}).
+				WithHelp("write them as .vuka files, whose method funcs vuka keeps apart, or join the two routes' files"))
+			continue
+		}
+		for _, f := range files {
+			goName := method
+			if len(files) > 1 && strings.HasSuffix(f, ".vuka") {
+				goName = method + "_" + fileKey(f)
+			}
+			d.funcs = append(d.funcs, methodFunc{method: method, goName: goName, file: f})
+		}
+	}
 	for _, name := range slices.Sorted(maps.Keys(templates)) {
-		file := templates[name]
-		if types[name] || name == "Layout" || name == "Params" {
-			continue
+		if types[name] {
+			continue // its struct is in a .go or .vuka file
 		}
-		if at, ok := others[name]; ok {
-			d.clashes = append(d.clashes, *diag.New("E0706", "%s is declared, and vuka declares the type %s for the template-only page %s", name, name, file).At(at).
-				WithHelp("rename %s, or declare the page's type yourself: type %s struct{…}", name, name))
-			continue
-		}
-		if at, ok := others["New"+name]; ok {
-			d.clashes = append(d.clashes, *diag.New("E0706", "New%s is declared, and vuka declares it for the template-only page %s", name, file).At(at).
-				WithHelp("declare the type %s yourself beside its constructor, or rename the function", name))
-			continue
-		}
-		d.templates = append(d.templates, name)
-		d.templateFiles = append(d.templateFiles, file)
-		ctors[name] = true
+		// TODO(one-way): vuka fix one-way writes the struct above the markup.
+		d.clashes = append(d.clashes, *diag.New("E0719", "%s is a page whose struct, %s, is declared nowhere", templates[name], name).At(diag.Span{File: filepath.Join(dir, templates[name]), Line: 1}).
+			WithHelp("declare it above the markup: type %s struct{}", name))
 	}
 	for _, name := range slices.Sorted(maps.Keys(structs)) {
-		_, declared := others["New"+name]
-		if ctors[name] || declared || types["New"+name] || !looks[name] && templates[name] == "" ||
-			name == "Layout" || name == "Params" || name == "Guard" || registered[name] || registered[d.importPath+"."+name] {
-			continue
+		if looks[name] && !registered[name] && !registered[d.importPath+"."+name] {
+			ctors[name] = true
 		}
-		d.ctors = append(d.ctors, name)
-		ctors[name] = true
 	}
 	for name := range ctors {
-		if name != "Layout" && name != "Params" && name != "Guard" {
+		if !d.notPage(name) {
 			d.pages = append(d.pages, name)
 		}
 	}
 	slices.Sort(d.pages)
 	return d
+}
+
+// notPage reports whether the type name is no page of d's whatever it
+// looks like: its layout, Guard, and the 1.x Layout and Params.
+func (d *routeDir) notPage(name string) bool {
+	return name == d.layout || name == "Layout" || name == "Params" || name == "Guard"
+}
+
+// urlName is how a page of d is named: by the .vuka.html file declaring it
+// (new.vuka.html is New, whatever its struct's name), else by its type; a
+// [id] file's page is its parameter.
+func (d *routeDir) urlName(typ string) string {
+	if b := d.bracket[typ]; b != "" {
+		return b
+	}
+	if f := d.fileOf[typ]; f != "" {
+		if seg := fileSeg(f); seg != "" {
+			return componentName(f)
+		}
+		return "Index"
+	}
+	return typ
+}
+
+// componentName is the type a template file names: team-settings.vuka.html
+// is TeamSettings.
+func componentName(file string) string {
+	var b strings.Builder
+	for _, part := range strings.FieldsFunc(strings.TrimSuffix(file, ".vuka.html"), func(r rune) bool { return r == '-' || r == '_' || r == '.' }) {
+		b.WriteString(upperFirst(part))
+	}
+	return b.String()
+}
+
+// fileKey is a file's name as a part of an identifier: [id].vuka is id,
+// list-all.vuka list_all.
+func fileKey(file string) string {
+	base := strings.TrimSuffix(strings.TrimSuffix(file, ".vuka"), ".go")
+	base = strings.TrimSuffix(strings.TrimPrefix(strings.TrimSuffix(base, "]"), "["), "...")
+	return strings.Map(func(r rune) rune {
+		if r == '_' || unicode.IsLetter(r) || unicode.IsDigit(r) {
+			return r
+		}
+		return '_'
+	}, base)
+}
+
+// validBracket reports whether a name is a path parameter's: a Go
+// identifier in brackets, [id], or [path...] for the rest of the path.
+func validBracket(name string) bool {
+	return load.Bracketed(name) && token.IsIdentifier(bracketName(name))
+}
+
+// bracketName is the parameter a bracketed name binds: id for [id] and
+// [id...].
+func bracketName(name string) string {
+	return strings.TrimSuffix(strings.TrimSuffix(strings.TrimPrefix(name, "["), "]"), "...")
+}
+
+// isRest reports whether a bracketed name takes the rest of the path.
+func isRest(name string) bool { return strings.HasSuffix(name, "...]") }
+
+// checkNames reports the folders whose bracketed names name no parameter,
+// or a parameter bound above already.
+func (t *routeTree) checkNames() {
+	seen := map[string]bool{}
+	for _, d := range t.dirs {
+		if d.rel == "" {
+			continue
+		}
+		parts := strings.Split(d.rel, "/")
+		bound := map[string]string{}
+		for i, p := range parts {
+			at := strings.Join(parts[:i+1], "/")
+			bad := ""
+			switch {
+			case strings.ContainsAny(p, "[]") && !validBracket(p):
+				bad = fmt.Sprintf("the folder %s names no path parameter", p)
+			case load.Bracketed(p):
+				name := strings.ToLower(bracketName(p))
+				if above, ok := bound[name]; ok {
+					bad = fmt.Sprintf("the parameter %s is bound above already, by %s", p, above)
+				}
+				bound[name] = at
+			}
+			if bad != "" && !seen[at] {
+				seen[at] = true
+				d.clashes = append(d.clashes, *diag.New("E0704", "pages/%s: %s", at, bad).At(diag.Span{File: filepath.Join(t.root, pagesDirName, filepath.FromSlash(at))}).
+					WithHelp("bracket a Go identifier, [id], or [path...] for the rest of the path, each parameter once in a path"))
+			}
+		}
+		for _, b := range slices.Sorted(maps.Keys(d.files)) {
+			if _, ok := bound[strings.ToLower(bracketName(b))]; ok && !seen[d.rel+"/"+b] {
+				seen[d.rel+"/"+b] = true
+				d.clashes = append(d.clashes, *diag.New("E0704", "pages/%s/%s: the parameter %s is bound above already", d.rel, b, b).At(diag.Span{File: filepath.Join(d.dir, b)}).
+					WithHelp("name the parameter for what it binds here"))
+			}
+		}
+	}
 }
 
 // generatedFor reports whether a .go file is the Go generated for a source
@@ -284,13 +497,13 @@ func packageName(name string, src []byte) string {
 var routeStubs = map[string][]load.Generated{}
 
 // stub readies pkgs for the transpile: the package urls, as a stub with
-// every name a page could use (its paths' types taking ...any), and each
-// page package with template-only pages or pages and endpoints without a
-// constructor, with a routes_gen.go declaring their types and
-// constructors. A package of Go alone is made a Vuka package for it, by a
-// placeholder .vuka file, and a pages_gen.go written earlier is left out of
-// the pages package. Its error is the template-only pages whose names are
-// taken, which the transpile would report as their templates' errors.
+// every name a page could use (its paths' types taking ...any), and the
+// package pages with a stub route.go, func Routes() registering nothing, so
+// a main of Vuka source calling pages.Routes() transpiles; a package of Go
+// alone is made a Vuka package for it, by a placeholder .vuka file. A .vuka
+// file sharing a method func's name with another file of its package has
+// its declaration renamed (GET of [id].vuka is GET_id). Its error is what
+// the scan found that would derail the transpile.
 func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 	clear(routeStubs)
 	if t == nil {
@@ -303,15 +516,20 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 	if len(clashes) > 0 {
 		return pkgs, clashes
 	}
-	if !slices.ContainsFunc(t.dirs, func(d *routeDir) bool { return len(d.pages) > 0 }) && !fileExists(filepath.Join(t.urlsDir(), urlsGoName)) {
+	pagesDir := filepath.Join(t.root, pagesDirName)
+	if !slices.ContainsFunc(t.dirs, func(d *routeDir) bool { return len(d.pages) > 0 || len(d.funcs) > 0 }) &&
+		!fileExists(filepath.Join(t.urlsDir(), urlsGoName)) && !fileExists(filepath.Join(pagesDir, routeGoName)) {
 		return pkgs, nil
 	}
-	pkg := func(dir, importPath, name string, goFiles []string) *load.Package {
+	pkg := func(dir, goDir, importPath, name string, goFiles []string) *load.Package {
 		i := slices.IndexFunc(pkgs, func(p *load.Package) bool { return realPathOf(p.Dir) == dir && p.Name == name })
 		if i >= 0 {
 			return pkgs[i]
 		}
 		p := &load.Package{Dir: dir, ImportPath: importPath, Name: name}
+		if goDir != dir {
+			p.GoDir = goDir
+		}
 		for _, n := range goFiles {
 			src, err := os.ReadFile(filepath.Join(dir, n))
 			if err != nil {
@@ -340,29 +558,45 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 		return nil, err
 	}
 	urls := t.urlsStub()
-	up := pkg(t.urlsDir(), t.modPath+"/"+pagesDirName+"/"+urlsDirName, urlsDirName, nil)
+	up := pkg(t.urlsDir(), t.urlsDir(), t.modPath+"/"+pagesDirName+"/"+urlsDirName, urlsDirName, nil)
 	placeholder(up, urls)
 	routeStubs[up.Dir] = []load.Generated{{Target: filepath.Join(up.Dir, urlsGoName), Src: urls}}
+	root := t.root0()
+	rp := pkg(pagesDir, pagesDir, t.modPath+"/"+pagesDirName, root.name, root.goFiles)
+	rp.Files = slices.DeleteFunc(rp.Files, func(f transpile.File) bool { return f.Name == routeGoName })
+	stub := []byte(routesHeading + "package " + root.name + "\n\nimport \"" + webPath + "\"\n\n// Routes registers the pages under pages/.\nfunc Routes() web.Option { return web.OptionFunc(func(*web.App) {}) }\n")
+	placeholder(rp, stub)
+	routeStubs[pagesDir] = []load.Generated{{Target: filepath.Join(pagesDir, routeGoName), Src: stub}}
 	for _, d := range t.dirs {
-		onDisk := fileExists(filepath.Join(d.dir, routesGoName))
-		need := len(d.templates) > 0 || len(d.ctors) > 0 || onDisk
-		if !need && !slices.ContainsFunc(pkgs, func(p *load.Package) bool { return realPathOf(p.Dir) == d.dir && p.Name == d.name }) {
+		if !slices.ContainsFunc(d.funcs, func(f methodFunc) bool { return f.goName != f.method }) {
 			continue
 		}
-		p := pkg(d.dir, d.importPath, d.name, d.goFiles)
-		p.Files = slices.DeleteFunc(p.Files, func(f transpile.File) bool { return f.Name == routesGoName || d.rel == "" && f.Name == pagesGoName })
-		if d.rel == "" && fileExists(filepath.Join(d.dir, pagesGoName)) {
-			routeStubs[d.dir] = append(routeStubs[d.dir], load.Generated{Target: filepath.Join(d.dir, pagesGoName), Src: []byte(routesHeading + "package " + d.name + "\n")})
+		p := pkg(d.dir, d.goDir, d.importPath, d.name, d.goFiles)
+		// Files declaring one method func alike, each its route: the
+		// function of a .vuka file is renamed for it.
+		for _, mf := range d.funcs {
+			if mf.goName == mf.method {
+				continue
+			}
+			for i, f := range p.Files {
+				if f.Name == mf.file {
+					p.Files[i] = transpile.File{Name: f.Name, Src: renameMethodFunc(f.Src, mf.method, mf.goName)}
+				}
+			}
 		}
-		if !need {
-			continue
-		}
-		stub := []byte(routesHeading + "package " + d.name + "\n" + d.templateTypes(d.templates) + constructors(d.ctors))
-		p.Files = append(p.Files, transpile.File{Name: routesGoName, Src: stub})
-		placeholder(p, stub)
-		routeStubs[d.dir] = append(routeStubs[d.dir], load.Generated{Target: filepath.Join(d.dir, routesGoName), Src: stub})
 	}
 	return pkgs, nil
+}
+
+// root0 is the folder pages/, a routeDir when it holds no source.
+func (t *routeTree) root0() *routeDir {
+	for _, d := range t.dirs {
+		if d.rel == "" {
+			return d
+		}
+	}
+	dir := filepath.Join(t.root, pagesDirName)
+	return &routeDir{dir: dir, goDir: dir, name: pagesDirName, importPath: t.modPath + "/" + pagesDirName}
 }
 
 // stubbed reports whether a generated file is a stub or a placeholder's.
@@ -475,7 +709,7 @@ func overlayContext(ov map[string]string) *build.Context {
 	ctx := build.Default
 	ctx.ReadDir = func(dir string) ([]fs.FileInfo, error) {
 		entries, err := os.ReadDir(dir)
-		if err != nil {
+		if err != nil && (!errors.Is(err, fs.ErrNotExist) || !slices.ContainsFunc(slices.Collect(maps.Keys(ov)), func(t string) bool { return filepath.Dir(t) == dir })) {
 			return nil, err
 		}
 		var infos []fs.FileInfo
@@ -506,6 +740,19 @@ func overlayContext(ov map[string]string) *build.Context {
 		slices.SortFunc(infos, func(a, b fs.FileInfo) int { return strings.Compare(a.Name(), b.Name()) })
 		return infos, nil
 	}
+	// A [id] folder's package is in its Go name's directory, which only
+	// the overlay holds.
+	ctx.IsDir = func(path string) bool {
+		if fi, err := os.Stat(path); err == nil {
+			return fi.IsDir()
+		}
+		for target := range ov {
+			if strings.HasPrefix(target, path+string(filepath.Separator)) {
+				return true
+			}
+		}
+		return false
+	}
 	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 		if r, ok := ov[path]; ok {
 			if r == "" {
@@ -525,32 +772,6 @@ type overlaidInfo struct {
 }
 
 func (i overlaidInfo) Name() string { return i.name }
-
-// templateTypes declares the types of template-only pages, names, and
-// their constructors.
-func (d *routeDir) templateTypes(names []string) string {
-	var b strings.Builder
-	for _, name := range names {
-		body := "struct{}"
-		if d.params {
-			body = "struct{ Params }"
-		}
-		file := d.templateFiles[slices.Index(d.templates, name)]
-		fmt.Fprintf(&b, "\n// %s is the page %s renders.\ntype %s %s\n\n// New%s builds the page %s.\nfunc New%s() *%s { return &%s{} }\n",
-			name, file, name, body, name, name, name, name, name)
-	}
-	return b.String()
-}
-
-// constructors declares the constructors vuka gives the pages and
-// endpoints named that have none.
-func constructors(names []string) string {
-	var b strings.Builder
-	for _, name := range names {
-		fmt.Fprintf(&b, "\n// New%s is the constructor of %s, for its routes.\nfunc New%s() *%s { return &%s{} }\n", name, name, name, name, name)
-	}
-	return b.String()
-}
 
 // templatePage is the type a .vuka.html file's template renders, when the
 // file has markup of its own (not only partials): about.vuka.html and
@@ -641,3 +862,14 @@ func topLevel(path string, src []byte, types map[string]bool, others map[string]
 // routeLooks are the methods that make a type look like a page or an
 // endpoint before its package is type-checked.
 var routeLooks = []string{"Render", "View", "Get", "Post", "Put", "Patch", "Delete"}
+
+// renameMethodFunc renames the declaration of the method func method in
+// src, keeping the file's lines and every other name.
+func renameMethodFunc(src []byte, method, goName string) []byte {
+	return methodDecl.ReplaceAllFunc(src, func(m []byte) []byte {
+		if sub := methodDecl.FindSubmatch(m); string(sub[2]) == method {
+			return []byte("func" + string(sub[1]) + goName + string(sub[3]))
+		}
+		return m
+	})
+}

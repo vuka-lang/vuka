@@ -1,0 +1,37 @@
+package employer
+
+import (
+	"context"
+
+	"example.com/folder-routes/pages/urls"
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+// Layout wraps every page of an employer, inside hr's document. Its field
+// Employer declares the folder's parameter, {employer}: digits, so
+// /employers/x is not found. Load runs first, so an unknown employer is
+// not found on each page below.
+type Layout struct {
+	Employer int
+	Children ui.Node
+	employer store.Employer
+}
+
+func (l *Layout) Load(ctx context.Context, s *store.Store) error {
+	e, ok := s.Employer(l.Employer)
+	if !ok {
+		return web.NotFound
+	}
+	l.employer = e
+	return nil
+}
+<article id="employer">
+  <header>
+    <h1>{employer.Name}</h1>
+    <p>{employer.City}</p>
+    <nav><a href={urls.Employers.Employer(Employer).Path()}>Overview</a> <a href={urls.Employers.Employer(Employer).Edit.Path()}>Edit</a></nav>
+  </header>
+  {Children}
+</article>

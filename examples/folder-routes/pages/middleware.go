@@ -1,3 +1,7 @@
+// Package pages is the app's folder routes: each folder below is a path,
+// each page in it a route, and a bracketed name a parameter. vuka writes
+// route.go, whose Routes main passes to web.New. _layout.vuka.html is the
+// document of every page.
 package pages
 
 import (

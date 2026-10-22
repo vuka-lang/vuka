@@ -1,21 +1,21 @@
-// Command folder-routes is a vuka app in plain Go whose routes are the
-// folders under pages/: vuka gen writes their web.Routes calls and typed
-// URLs, and vuka routes lists them. Run it with vuka run, or vuka gen
-// -inplace then go run.
+// Command folder-routes is a vuka app whose routes are the folders under
+// pages/: vuka writes pages/route.go, whose Routes registers them, and
+// their typed URLs, and vuka routes lists them. Run it with vuka run, or
+// vuka gen -inplace then go run.
 package main
 
 import (
 	"log"
 	"net/http"
 
-	_ "example.com/folder-routes/pages"
+	"example.com/folder-routes/pages"
 	"example.com/folder-routes/pages/app"
 	"example.com/folder-routes/store"
 	"github.com/vuka-lang/web"
 )
 
 func main() {
-	a := web.New(web.Provide(store.New), web.WrapRoutes("no-store", noStore))
+	a := web.New(pages.Routes(), web.Provide(store.New), web.WrapRoutes("no-store", noStore))
 	a.Get("/", func() web.Redirect { return "/employers" })
 	if err := a.Run(""); err != nil {
 		log.Fatal(err)

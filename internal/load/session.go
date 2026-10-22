@@ -194,6 +194,10 @@ func (s *Session) dirOf(path string) (string, bool) {
 		}
 	}
 	if fi, err := os.Stat(dir); err != nil || !fi.IsDir() {
+		// A bracketed folder's package: its Go is what the run generates.
+		if _, ok := SourceDir(s.root, dir); ok {
+			return dir, true
+		}
 		return "", false
 	}
 	return dir, true
@@ -342,7 +346,7 @@ func (s *Session) buildContext() *build.Context {
 	ctx := build.Default
 	ctx.ReadDir = func(dir string) ([]fs.FileInfo, error) {
 		entries, err := os.ReadDir(dir)
-		if err != nil {
+		if err != nil && (!errors.Is(err, fs.ErrNotExist) || !s.generates(dir)) {
 			return nil, err
 		}
 		var infos []fs.FileInfo
@@ -364,6 +368,12 @@ func (s *Session) buildContext() *build.Context {
 		slices.SortFunc(infos, func(a, b fs.FileInfo) int { return strings.Compare(a.Name(), b.Name()) })
 		return infos, nil
 	}
+	ctx.IsDir = func(path string) bool {
+		if fi, err := os.Stat(path); err == nil {
+			return fi.IsDir()
+		}
+		return s.generates(path)
+	}
 	ctx.OpenFile = func(path string) (io.ReadCloser, error) {
 		if src, ok := s.gen[path]; ok {
 			return io.NopCloser(bytes.NewReader(src)), nil
@@ -371,6 +381,17 @@ func (s *Session) buildContext() *build.Context {
 		return os.Open(path)
 	}
 	return &ctx
+}
+
+// generates reports whether the run generated a file in dir: a bracketed
+// folder's GoDir, which is on no disk.
+func (s *Session) generates(dir string) bool {
+	for target := range s.gen {
+		if filepath.Dir(target) == dir {
+			return true
+		}
+	}
+	return false
 }
 
 // genInfo is a generated file as ReadDir shows it.

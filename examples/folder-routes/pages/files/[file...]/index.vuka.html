@@ -1,0 +1,22 @@
+package file
+
+import (
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/web"
+)
+
+// Index shows a file: GET /files/{file...}.
+type Index struct {
+	File  web.Rest
+	db    *store.Store
+}
+
+func NewIndex(s *store.Store) *Index { return &Index{db: s} }
+
+func (p *Index) Title() string { return string(p.File) }
+
+func (p *Index) text() string {
+	text, _ := p.db.File(string(p.File))
+	return text
+}
+<pre>{text()}</pre>

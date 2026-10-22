@@ -1,0 +1,38 @@
+package employer
+
+import (
+	"fmt"
+
+	"example.com/folder-routes/pages/urls"
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/web"
+)
+
+// Index is an employer's overview, a stateless page: GET
+// /employers/{employer}. It reads the employer where it shows it; the
+// layout has answered 404 for one that isn't there.
+type Index struct {
+	Employer int
+	db       *store.Store
+}
+
+func NewIndex(s *store.Store) *Index { return &Index{db: s} }
+
+func (p *Index) Title() string {
+	e, _ := p.db.Employer(p.Employer)
+	return e.Name
+}
+
+func (p *Index) contract() string {
+	return urls.Files.File(web.Rest(fmt.Sprintf("contracts/%d.txt", p.Employer))).Path()
+}
+<section id="overview">
+  <h2>Permits</h2>
+  <ul id="permits">
+    for _, pm := range db.Permits(Employer) {
+      <li><a href={urls.Employers.Employer(Employer).Permits.Permit(pm.ID).Path()}>{pm.Kind}</a></li>
+    }
+  </ul>
+  <a id="contract" href={contract()}>Contract</a>
+  <a id="api" href={urls.Api.Employers.Employer(Employer).Path()}>As JSON</a>
+</section>

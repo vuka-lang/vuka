@@ -49,19 +49,21 @@ func newRootURL(path string) rootURL {
 	}
 }
 
-// Path is the path of pages/index.
+// Path is the path of the folder pages.
 func (u rootURL) Path() string { return "/" }
 
 // apiURL is the folder pages/api/.
 type apiURL struct {
 	path string
 	Orgs apiOrgsURL
+	Pets apiPetsURL
 }
 
 func newApiURL(path string) apiURL {
 	return apiURL{
 		path: path,
 		Orgs: newApiOrgsURL(path + "/orgs"),
+		Pets: newApiPetsURL(path + "/pets"),
 	}
 }
 
@@ -72,23 +74,48 @@ type apiOrgsURL struct {
 
 func newApiOrgsURL(path string) apiOrgsURL { return apiOrgsURL{path: path} }
 
-// Path is the path of pages/api/orgs/index.
+// Path is the path of the folder pages/api/orgs.
 func (u apiOrgsURL) Path() string { return u.path }
 
-// Org is the folder pages/api/orgs/org/, for its parameter.
+// Org is pages/api/orgs/[org], for its parameter.
 func (u apiOrgsURL) Org(org int) apiOrgsOrgURL {
 	return newApiOrgsOrgURL(u.path + "/" + strconv.Itoa(org))
 }
 
-// apiOrgsOrgURL is the folder pages/api/orgs/org/.
+// apiOrgsOrgURL is the parameter pages/api/orgs/[org].
 type apiOrgsOrgURL struct {
 	path string
 }
 
 func newApiOrgsOrgURL(path string) apiOrgsOrgURL { return apiOrgsOrgURL{path: path} }
 
-// Path is the path of pages/api/orgs/org/index.
+// Path is the path of the parameter pages/api/orgs/[org].
 func (u apiOrgsOrgURL) Path() string { return u.path }
+
+// apiPetsURL is the folder pages/api/pets/.
+type apiPetsURL struct {
+	path string
+}
+
+func newApiPetsURL(path string) apiPetsURL { return apiPetsURL{path: path} }
+
+// Path is the path of the folder pages/api/pets.
+func (u apiPetsURL) Path() string { return u.path }
+
+// ID is pages/api/pets/[id], for its parameter.
+func (u apiPetsURL) ID(id int64) apiPetsIDURL {
+	return newApiPetsIDURL(u.path + "/" + strconv.FormatInt(id, 10))
+}
+
+// apiPetsIDURL is the parameter pages/api/pets/[id].
+type apiPetsIDURL struct {
+	path string
+}
+
+func newApiPetsIDURL(path string) apiPetsIDURL { return apiPetsIDURL{path: path} }
+
+// Path is the path of the parameter pages/api/pets/[id].
+func (u apiPetsIDURL) Path() string { return u.path }
 
 // filesURL is the folder pages/files/.
 type filesURL struct {
@@ -97,7 +124,7 @@ type filesURL struct {
 
 func newFilesURL(path string) filesURL { return filesURL{path: path} }
 
-// File is the folder pages/files/file/, for its parameter.
+// File is pages/files/[file...], for its parameter.
 func (u filesURL) File(file web.Rest) filesFileURL {
 	segs := strings.Split(string(file), "/")
 	for i, seg := range segs {
@@ -106,14 +133,14 @@ func (u filesURL) File(file web.Rest) filesFileURL {
 	return newFilesFileURL(u.path + "/" + strings.Join(segs, "/"))
 }
 
-// filesFileURL is the folder pages/files/file/.
+// filesFileURL is the parameter pages/files/[file...].
 type filesFileURL struct {
 	path string
 }
 
 func newFilesFileURL(path string) filesFileURL { return filesFileURL{path: path} }
 
-// Path is the path of pages/files/file/index.
+// Path is the path of the parameter pages/files/[file...].
 func (u filesFileURL) Path() string { return u.path }
 
 // orgsURL is the folder pages/orgs/.
@@ -129,15 +156,15 @@ func newOrgsURL(path string) orgsURL {
 	}
 }
 
-// Path is the path of pages/orgs/index.
+// Path is the path of the folder pages/orgs.
 func (u orgsURL) Path() string { return u.path }
 
-// Org is the folder pages/orgs/org/, for its parameter.
+// Org is pages/orgs/[org], for its parameter.
 func (u orgsURL) Org(org int) orgsOrgURL {
 	return newOrgsOrgURL(u.path + "/" + strconv.Itoa(org))
 }
 
-// orgsOrgURL is the folder pages/orgs/org/.
+// orgsOrgURL is the parameter pages/orgs/[org].
 type orgsOrgURL struct {
 	path          string
 	Permits       orgsOrgPermitsURL
@@ -154,23 +181,23 @@ func newOrgsOrgURL(path string) orgsOrgURL {
 	}
 }
 
-// Path is the path of pages/orgs/org/index.
+// Path is the path of the parameter pages/orgs/[org].
 func (u orgsOrgURL) Path() string { return u.path }
 
-// orgsOrgPermitsURL is the folder pages/orgs/org/permits/.
+// orgsOrgPermitsURL is the folder pages/orgs/[org]/permits/.
 type orgsOrgPermitsURL struct {
 	path string
 }
 
 func newOrgsOrgPermitsURL(path string) orgsOrgPermitsURL { return orgsOrgPermitsURL{path: path} }
 
-// Permit is the folder pages/orgs/org/permits/permit/, for its parameter.
+// Permit is pages/orgs/[org]/permits/[permit], for its parameter.
 func (u orgsOrgPermitsURL) Permit(permit codes.Code) orgsOrgPermitsPermitURL {
 	text, _ := permit.MarshalText()
 	return newOrgsOrgPermitsPermitURL(u.path + "/" + url.PathEscape(string(text)))
 }
 
-// orgsOrgPermitsPermitURL is the folder pages/orgs/org/permits/permit/.
+// orgsOrgPermitsPermitURL is the parameter pages/orgs/[org]/permits/[permit].
 type orgsOrgPermitsPermitURL struct {
 	path string
 }
@@ -179,5 +206,5 @@ func newOrgsOrgPermitsPermitURL(path string) orgsOrgPermitsPermitURL {
 	return orgsOrgPermitsPermitURL{path: path}
 }
 
-// Path is the path of pages/orgs/org/permits/permit/index.
+// Path is the path of the parameter pages/orgs/[org]/permits/[permit].
 func (u orgsOrgPermitsPermitURL) Path() string { return u.path }

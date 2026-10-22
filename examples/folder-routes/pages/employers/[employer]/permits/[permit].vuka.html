@@ -1,0 +1,60 @@
+package permits
+
+import (
+	"context"
+	"fmt"
+
+	"example.com/folder-routes/pages/urls"
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/web"
+)
+
+// Permit is a permit, a live page: GET
+// /employers/{employer}/permits/{permit}, inside the employer's layout.
+// Its file names the parameter, [permit]; its field Permit types it.
+type Permit struct {
+	ui.Live
+	Employer int
+	Permit   int
+	db       *store.Store
+	permit   store.Permit
+}
+
+func NewPermit(s *store.Store) *Permit { return &Permit{db: s} }
+
+// mount loads the permit before the first render; another employer's is
+// not found.
+@ui.Mount
+func (p *Permit) mount(ctx context.Context) error {
+	pm, ok := p.db.Permit(p.Employer, p.Permit)
+	if !ok {
+		return web.NotFound
+	}
+	p.permit = pm
+	return nil
+}
+
+// Title is read once the parameters are bound, before mount.
+func (p *Permit) Title() string { return fmt.Sprintf("Permit %d", p.Permit) }
+
+// Approve is the button's event.
+func (p *Permit) Approve() {
+	p.db.Approve(p.permit.ID)
+	p.permit.Approved = true
+}
+
+func (p *Permit) status() string {
+	if p.permit.Approved {
+		return "Approved"
+	}
+	return "Pending"
+}
+<section id="permit">
+  <h2>{permit.Kind}</h2>
+  <p id="status">{status()}</p>
+  if !permit.Approved {
+    <button id="approve" onClick={Approve}>Approve</button>
+  }
+  <a id="back" href={urls.Employers.Employer(Employer).Path()}>All permits</a>
+</section>
