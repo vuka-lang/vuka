@@ -2,8 +2,9 @@
 
 From v0.50.0, vuka, ui, web and the `vuka` command (and from v1.0.0
 `vukavet`) are released together under one version: a release is a
-**set**, and `vuka v1.0.0` means all of them at v1.0.0. From v1.0.0 the set
-keeps [the compatibility promise](/project/compatibility). An app requires vuka, ui and web at the same version; `vuka
+**set**, and `vuka v1.0.0` means all of them at v1.0.0. The set keeps
+[the compatibility promise](/project/compatibility), which from v2.0.0
+covers the `/v2` modules. An app requires vuka, ui and web at the same version; `vuka
 version` shows the set and warns when an app's go.mod mixes sets, and `vuka
 upgrade` moves an app from one set to another, running the `vuka fix`
 rewrites in between. Patch releases come weekly, security fixes at once,
@@ -18,6 +19,259 @@ vuka upgrade
 Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
+
+## v2.0.0 — 2026-10-23
+
+vuka 2.0 has one way to write each part of a UI: markup lives in
+`.vuka.html` files, each declaring the one struct it renders above its
+markup; a page is a file under `pages/`, its path its URL; a hook is a
+method marked with its attribute; and a handler's parameters are filled by
+their types. Two vuka apps now look alike, and the docs teach one form of
+each thing. The design and its decisions are in the
+[one-way RFC](https://github.com/vuka-lang/vuka/blob/main/docs/rfc/one-way.md).
+
+Every module of the set moves to a `/v2` path, and the orm with it:
+
+| 1.x | 2.0 |
+|---|---|
+| `github.com/vuka-lang/vuka` | `github.com/vuka-lang/vuka/v2` |
+| `github.com/vuka-lang/ui` | `github.com/vuka-lang/ui/v2` |
+| `github.com/vuka-lang/web` | `github.com/vuka-lang/web/v2` |
+| `github.com/vuka-lang/orm` | `github.com/vuka-lang/orm/v2` |
+| `github.com/vuka-lang/vuka/cmd/vuka` | `github.com/vuka-lang/vuka/cmd/vuka/v2` |
+| `github.com/vuka-lang/vuka/cmd/vukavet` | `github.com/vuka-lang/vuka/cmd/vukavet/v2` |
+
+The runtime is v2.0.0: generated code needs `github.com/vuka-lang/vuka/v2`
+at v2.0.0. A 1.x app keeps building on its 1.x requirements; the
+[compatibility promise](/project/compatibility) now applies to the v2 set.
+
+```sh
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@v2.0.0
+```
+
+### One struct per `.vuka.html` file
+
+- A `.vuka.html` file is a Go header — package clause, imports, one struct,
+  its hooks and methods — then markup, from the first line starting with
+  `<`. The struct no longer lives in a sibling `.go` file, and a file holds
+  no second template: a partial is its own file, used as a tag.
+- `.vuka` and `.go` files are logic only: services, models, helpers,
+  `main`. Markup anywhere else is [E0151](/errors/E0151); a template file
+  declaring no struct is [E0152](/errors/E0152), a second template in one
+  [E0153](/errors/E0153).
+- A file whose markup is one island tag is the page that island backs; its
+  struct's exported fields are the island's props
+  ([E0154](/errors/E0154)).
+- A struct's fields say what they are: exported fields are props (on a page,
+  filled from the path segment of their name, else the query), unexported
+  fields are server state the page tracks — or dependencies, when their type
+  is a pointer or interface the container provides — and `ui.State[T]`
+  fields are browser state. A struct is live when it embeds `ui.Live`,
+  declares a hook or wires a server handler in its markup.
+- Writing `ui.HTML` by hand is [W0106](/errors/W0106); it stays the
+  compiler's output.
+
+### Client state is a field
+
+`ui.State[T]` is declared as a field (or a package variable in a logic
+file), read as a plain variable in markup and written by assignment in an
+`on…` attribute: `onClick={open = !open}`, `onClick={tab = "env"; Save()}`.
+Its Go API is `Get` and `Set`. `ui.UseState`, `ui.UsePageState`,
+`Toggle`, `Inc`, `Dec`, `Reset`, `Derived`, `At` and `ui.Assign` moved to
+`github.com/vuka-lang/ui/v2/uigen`, the package generated code calls;
+`vukavet` reports a hand-written use ([W0105](/errors/W0105))
+([Client state](/ui/state)).
+
+### Folder routes
+
+- A path parameter is a bracketed name: `pages/pets/[id].vuka.html` is
+  `/pets/{id}`, a `[employer]/` folder holds a segment shared by a layout,
+  several pages and an `api/` subtree, and `[path...]` is the catch-all. The
+  parameter's type and `validate:` rules are the field of its name on the
+  struct that reads it. `params.go` folders and their `Params` structs are
+  gone ([E0714](/errors/E0714)).
+- A folder's layout is its `_layout.vuka.html` ([E0715](/errors/E0715)).
+  `guard.go` and `middleware.go` stay Go.
+- The `vuka` command writes one file, `pages/route.go`, whose `Routes()` is
+  the tree's registration; `main` passes it to `web.New`. A 1.x
+  `pages_gen.go` in its way is [E0718](/errors/E0718).
+- Pages are declared under `pages/` only: a page registered with a
+  decorator or a `web.Routes` call is [E0720](/errors/E0720), a page under
+  `pages/` whose markup is written in Go [E0721](/errors/E0721), and a
+  hand-written `web.PageRoute`, `LayoutOf`, `GuardOf`, `UseOf` or `Receiver`
+  [W0702](/errors/W0702). `app.Get` and the other route methods stay, for
+  APIs in Go.
+- A `pages/` directory beside a `package main` is that main's routes, so a
+  module holds several apps ([Several apps in one module](/web/folder-routes#several-apps-in-one-module)).
+
+### Hooks are attributes
+
+`@ui.Mount`, `@ui.OnChange` and `@ui.Loads("group")` on a method, and
+`@ui.Bind`, `@ui.URL` and `@ui.Defer` on a field, are the only way to
+declare a hook. A method named `Mount` or `Changed` is an ordinary method —
+and, being exported, an event the browser can call
+([E0337](/errors/E0337)); the constructor hooks `OnMount`, `Loads` and
+`OnChange` on `ui.Live` are [E0338](/errors/E0338). A hand-written
+`LiveSchema` method is reported by `vukavet`; the compiler still writes one
+([Hooks](/ui/stateful#hooks)).
+
+### Parameters by type
+
+A hook, a page handler, a live event and an endpoint read their parameters
+by type: `context.Context`, a struct (the form or JSON body), `url.Values`,
+a scalar (the path segment of its name, else the event's value),
+`*http.Request`, `http.ResponseWriter`, the signed-in user, and any type
+registered with `app.Service(NewX)` or `web.Provide`. A parameter with no
+source is a start-up error naming it. `web.Params` is gone: the command
+records parameter names from the source. `@web.Service` and the `inject:`
+tag are [E0420](/errors/E0420); a service is a struct with a constructor,
+registered in `main` ([Parameters](/web/parameters),
+[Dependency injection](/web/dependency-injection)).
+
+### Removed
+
+- The diagnostics of retired forms are gone with them: E0140 (a template
+  file with no type to render), E0145 (a template named like an element)
+  and W0104 (an exported template without a doc comment). Their codes are
+  not reused.
+- The conformance suite's hand-written Go twins are deleted: each app of
+  `examples/conformance` is written the one way and compared with the Go
+  it ejects to, with and without the generated speed-ups.
+- vuka's `internal/format`, `internal/load` and `internal/tsprops` are
+  `toolchain/format`, `toolchain/load` and `toolchain/tsprops`, for the
+  command and the editors; they are outside the promise.
+- The docs show one form of each sample; the Vuka / Go switch is gone.
+
+### Moving an app from 1.x
+
+There is no migration command: an app moves to 2.0 by hand, and the
+compiler guides it. Each retired form is an error whose help names the one
+way to write it, and each error's page shows the change, wrong and right.
+
+**1. The import paths.** Move go.mod to the v2 set, then rewrite the
+imports in the app's source:
+
+```sh
+go get github.com/vuka-lang/vuka/v2@v2.0.0 github.com/vuka-lang/ui/v2@v2.0.0 github.com/vuka-lang/web/v2@v2.0.0
+go get github.com/vuka-lang/orm/v2@v2.0.0     # when the app uses the orm
+go get -tool github.com/vuka-lang/vuka/cmd/vuka/v2@v2.0.0 github.com/vuka-lang/vuka/cmd/vukavet/v2@v2.0.0
+
+find . \( -name '*.go' -o -name '*.vuka' -o -name '*.vuka.html' -o -name '*.templ' \) -not -path './node_modules/*' -print0 |
+  xargs -0 perl -pi -e '
+    s#github\.com/vuka-lang/vuka/cmd/(vuka|vukavet)\b(?!/v2\b)#github.com/vuka-lang/vuka/cmd/$1/v2#g;
+    s#github\.com/vuka-lang/(vuka|ui|web|orm)\b(?!/v2\b|/cmd/vuka)#github.com/vuka-lang/$1/v2#g'
+```
+
+The rewrite also changes `github.com/vuka-lang/...` in comments and string
+literals, links included; read the diff. Then drop the 1.x requirements and
+tools from go.mod (`go mod edit -droprequire github.com/vuka-lang/web`, and
+so on, `-droptool` for the old command and `vukavet`). Sub-packages follow
+their module: `github.com/vuka-lang/ui/validate` is
+`github.com/vuka-lang/ui/v2/validate`, `github.com/vuka-lang/web/auth`
+`github.com/vuka-lang/web/v2/auth`.
+
+**2. Pages into `pages/`, as `.vuka.html` files.** A page's struct moves
+from its `.go` file into the header of its template, the template moves to
+the page's path under `pages/`, and a `params.go` folder becomes a
+bracketed one, its field moving onto the struct that reads it:
+
+```text
+1.x                                      2.0
+pages/pets/pet/params.go   Params{Pet}   (gone)
+pages/pets/pet/index.go    type Index    pages/pets/[pet]/index.vuka.html
+pages/pets/pet/index.vuka.html           (one file: struct, methods, markup)
+pages/layout.go + layout.vuka.html       pages/_layout.vuka.html
+pages/pages_gen.go                       pages/route.go (written by vuka)
+```
+
+```diff
+- // pages/pets/pet/index.go
+- package pet
+-
+- type Index struct {
+- 	Params
+- 	store *store.Pets
+- }
+-
+- // pages/pets/pet/index.vuka.html
+- package pet
+- <h1>{store.Name(Pet)}</h1>
++ // pages/pets/[pet]/index.vuka.html
++ package pet
++
++ import "example.com/shop/store"
++
++ type Index struct {
++ 	Pet   int64 `validate:"min=1"`
++ 	store *store.Pets
++ }
++
++ func NewIndex(s *store.Pets) *Index { return &Index{store: s} }
++ <h1>{store.Name(Pet)}</h1>
+```
+
+A partial (a `func` template after the main one) becomes its own
+`.vuka.html` file, a struct whose exported fields are its parameters, used
+as a tag; a component whose struct was in Go moves the same way. JSX in a
+`.vuka` file moves to a `.vuka.html` file beside it.
+
+**3. Hooks as attributes.**
+
+```diff
+- func (p *Search) Mount(ctx context.Context) error { … }
+- func (p *Search) Changed(ctx context.Context, c ui.Changed) error { … }
++ @ui.Mount
++ func (p *Search) mount(ctx context.Context) error { … }
++
++ @ui.OnChange
++ func (p *Search) changed(ctx context.Context, c ui.Changed) error { … }
+```
+
+A `LiveSchema` method or constructor hooks become the same attributes, and
+a field's `l.Field(&p.Q, ui.Bind{…}, ui.URL("q"))` becomes
+`Q string @ui.Bind{…} @ui.URL("q")`.
+
+**4. `main` passes the routes.** The blank import of the pages package
+becomes a call, and services are registered on the app:
+
+```diff
+  import (
+- 	_ "example.com/shop/pages"
++ 	"example.com/shop/pages"
+- 	"github.com/vuka-lang/web"
++ 	"github.com/vuka-lang/web/v2"
+  )
+
+  func main() {
+- 	a := web.New()
++ 	a := web.New(pages.Routes())
++ 	a.Service(store.NewPets)
+  	log.Fatal(a.Run(""))
+  }
+```
+
+**5. Build, and follow the errors.** `vuka build` (or `go vet
+-vettool=$(go tool -n vukavet) ./...` in a Go app) reports each form still
+in the 1.x shape, with its fix: [E0151](/errors/E0151)–[E0154](/errors/E0154)
+for markup, [E0714](/errors/E0714)–[E0716](/errors/E0716) and
+[E0718](/errors/E0718) for folders, [E0720](/errors/E0720),
+[E0721](/errors/E0721) and [W0702](/errors/W0702) for pages outside
+`pages/`, [E0337](/errors/E0337) and [E0338](/errors/E0338) for hooks,
+[E0420](/errors/E0420) for dependencies, [W0105](/errors/W0105) and
+[W0106](/errors/W0106) for the compiler's own API written by hand. Then run
+the tests.
+
+### Known issues
+
+- An unexported dependency field of a folder page that isn't an island
+  page is not injected: `pages/route.go` builds the page with `&T{}`.
+  Write a `NewT` taking the dependencies, as in the example above.
+- `vuka add page` in an app using templ doesn't add `pages.Routes()` to
+  `main`; add it by hand.
+- `vuka upgrade` doesn't rewrite 1.x import paths; use the recipe above.
+- A hole, `{expr}`, inside `<script>` or `<style>` is written out literally,
+  not evaluated. Pass a value to a script through an element's attribute
+  (`data-total={total}`) and read it there.
 
 ## v1.5.0 — 2026-10-22
 

@@ -3,6 +3,18 @@
 Examples follow one file type per job: rendering in `.vuka.html`, logic in
 `.go` or `.vuka`, pages under `pages/` and service constructors registered on the app.
 
+Whole apps written this way are in the repository:
+[`examples/folder-routes`](https://github.com/vuka-lang/vuka/tree/main/examples/folder-routes)
+(pages, layouts, guards and a JSON API as folders, with a `main.go` passing
+`pages.Routes()` to `web.New`),
+[`examples/islands-go`](https://github.com/vuka-lang/vuka/tree/main/examples/islands-go)
+(a Vue island in a live page and a page backed by its component, built
+with `go generate` and run with `go run .`) and the apps of
+[`examples/conformance`](https://github.com/vuka-lang/vuka/tree/main/examples/conformance)
+— `library-users`, `crud`, `live`, `components`, `islands`, `islands-vue`.
+Each conformance app is written once, in Vuka, and CI checks that it
+answers alike built by `vuka build` and ejected to plain Go.
+
 ## Counter
 
 Save as `pages/counter.vuka.html`:
