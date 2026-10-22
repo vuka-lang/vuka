@@ -1,0 +1,17 @@
+package components
+
+// Tags is an item's tags, or a dash.
+type Tags struct {
+	Ts []string
+}
+<>
+  if len(Ts) == 0 {
+    <p class="tags">—</p>
+  } else {
+    <ul class="tags">
+      for _, t := range Ts {
+        <li key={t}>{t}</li>
+      }
+    </ul>
+  }
+</>

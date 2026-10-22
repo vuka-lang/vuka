@@ -11,5 +11,13 @@ import (
 func main() {
 	app := web.New()
 	app.Service(NewBlog)
+	app.Get("/authors", ListAuthors)
+	app.Get("/posts", ListPosts)
+	app.Get("/posts/{id}", ShowPost)
+	app.Get("/find", FindPost)
+	app.Post("/posts", CreatePost)
+	app.Post("/posts/{id}/view", ViewPost)
+	app.Post("/posts/{id}/publish", PublishPost)
+	app.Get("/audit", Audit)
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

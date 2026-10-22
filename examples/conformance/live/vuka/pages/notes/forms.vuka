@@ -1,0 +1,6 @@
+package note
+
+// ReplyForm is the reply form's.
+type ReplyForm struct {
+	Text string `form:"text" validate:"required,max=20"`
+}

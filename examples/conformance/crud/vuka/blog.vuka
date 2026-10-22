@@ -12,7 +12,8 @@ import (
 )
 
 // Blog is the blog's service: its database, opened in memory and seeded.
-// main registers it with app.Service.
+// main registers it with app.Service, and the handlers below with app.Get
+// and app.Post.
 type Blog struct{}
 
 func NewBlog() (*Blog, error) {
@@ -70,32 +71,40 @@ func find(ctx context.Context, id int64) (Post, error) {
 }
 
 // ListAuthors answers GET /authors.
-@web.Get("/authors")
 func ListAuthors(ctx context.Context, b *Blog) ([]Author, error) {
 	return Author.Objects.OrderBy(Author.Name.Asc()).All(ctx)
 }
 
+// PostsQuery is GET /posts's query.
+type PostsQuery struct {
+	Author string `form:"author"`
+	Live   bool   `form:"live"`
+}
+
 // ListPosts answers GET /posts: ?author= one author's, ?live= the published.
-@web.Get("/posts")
-func ListPosts(ctx context.Context, author string, live bool, b *Blog) ([]Post, error) {
+func ListPosts(ctx context.Context, q PostsQuery, b *Blog) ([]Post, error) {
 	qs := Post.Objects.QuerySet
-	if live {
+	if q.Live {
 		qs = Post.Live()
 	}
-	if author != "" {
-		qs = qs.Filter(Post.Author.Name.Eq(author))
+	if q.Author != "" {
+		qs = qs.Filter(Post.Author.Name.Eq(q.Author))
 	}
 	return qs.All(ctx)
 }
 
 // ShowPost answers GET /posts/{id}.
-@web.Get("/posts/{id}")
 func ShowPost(ctx context.Context, id int64, b *Blog) (Post, error) { return find(ctx, id) }
+
+// FindQuery is GET /find's query.
+type FindQuery struct {
+	Q string `form:"q"`
+}
 
 // FindPost answers GET /find?q=: the first post titled q in any case, or
 // by the author named q.
-@web.Get("/find")
-func FindPost(ctx context.Context, q string, b *Blog) (Post, error) {
+func FindPost(ctx context.Context, in FindQuery, b *Blog) (Post, error) {
+	q := in.Q
 	p, err := Post.Objects.Filter(orm.Or(orm.Lower(Post.Title).Eq(strings.ToLower(q)), Post.Author.Name.Eq(q))).First(ctx)
 	if errors.Is(err, orm.ErrNotFound) {
 		return p, web.NotFound
@@ -104,11 +113,9 @@ func FindPost(ctx context.Context, q string, b *Blog) (Post, error) {
 }
 
 // CreatePost answers POST /posts.
-@web.Post("/posts")
 func CreatePost(ctx context.Context, in NewPost, b *Blog) (Post, error) { return createPost(ctx, in) }
 
 // ViewPost counts a read: views + 1, in the database.
-@web.Post("/posts/{id}/view")
 @audited
 func ViewPost(ctx context.Context, id int64, b *Blog) (Post, error) {
 	Post.Objects.Filter(Post.ID.Eq(id)).Update(ctx, orm.Set{"views": Post.Views.Add(1)})?
@@ -116,7 +123,6 @@ func ViewPost(ctx context.Context, id int64, b *Blog) (Post, error) {
 }
 
 // PublishPost publishes a post, writing that field alone.
-@web.Post("/posts/{id}/publish")
 func PublishPost(ctx context.Context, id int64, b *Blog) (Post, error) {
 	p := find(ctx, id)?
 	p.Published = true
@@ -125,7 +131,6 @@ func PublishPost(ctx context.Context, id int64, b *Blog) (Post, error) {
 }
 
 // Audit answers GET /audit: what the audited functions did.
-@web.Get("/audit")
 func Audit() []string {
 	audit.Lock()
 	defer audit.Unlock()

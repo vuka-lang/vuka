@@ -1,0 +1,27 @@
+// Package pages is the dashboard's pages, and the islands they place.
+package pages
+
+import "github.com/vuka-lang/ui"
+
+// Chart is an island, islands/Chart.ts: its exported fields are its props.
+type Chart struct {
+	Title  string `json:"title"`
+	Points []int  `json:"points"`
+}
+
+// Badge is an island, islands/Badge.ts, loaded when the browser is idle.
+type Badge struct {
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+
+// Range is what the chart emits when a span of it is selected.
+type Range struct {
+	From int `json:"from"`
+	To   int `json:"to"`
+}
+
+func init() {
+	ui.RegisterIsland[Chart]()
+	ui.RegisterIsland[Badge]()
+}

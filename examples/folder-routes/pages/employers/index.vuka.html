@@ -1,0 +1,52 @@
+// Package employers is /employers.
+package employers
+
+import (
+	"slices"
+	"strings"
+
+	"example.com/folder-routes/pages/urls"
+	"example.com/folder-routes/store"
+	"github.com/vuka-lang/ui"
+)
+
+// Index is the list of employers, a live page: GET /employers.
+type Index struct {
+	ui.Live
+	store  *store.Store
+	byCity bool
+}
+
+func NewIndex(s *store.Store) *Index { return &Index{store: s} }
+
+func (p *Index) Title() string { return "Employers" }
+
+// Sort orders the list by city, or back by number.
+func (p *Index) Sort() { p.byCity = !p.byCity }
+
+// list is the employers, by city when sorted so.
+func (p *Index) list() []store.Employer {
+	list := p.store.Employers()
+	if p.byCity {
+		slices.SortStableFunc(list, func(a, b store.Employer) int { return strings.Compare(a.City, b.City) })
+	}
+	return list
+}
+
+// label is the sort button's.
+func (p *Index) label() string {
+	if p.byCity {
+		return "Sort by number"
+	}
+	return "Sort by city"
+}
+<section id="employers">
+  <h1>Employers</h1>
+  <button id="sort" onClick={Sort}>{label()}</button>
+  <ul>
+    for _, e := range list() {
+      <li><a href={urls.Employers.Employer(e.ID).Path()}>{e.Name}</a>, {e.City}</li>
+    }
+  </ul>
+  <a id="new" href={urls.Employers.New.Path()}>New employer</a>
+</section>

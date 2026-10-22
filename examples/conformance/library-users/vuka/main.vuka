@@ -1,16 +1,21 @@
-// Command library-users is the app of ../go written in Vuka: the same app,
-// its registrations decorators. vuka eject turns them into the calls the
-// Go one makes.
+// Command library-users is a directory of users in Vuka: its API, handler
+// functions over the orm registered on the app, and its pages, a live page
+// and a live page backed by its island, under pages/. vuka eject turns it
+// into plain Go.
 package main
 
 import (
 	"log"
 
+	"example.com/app/pages"
+	"example.com/app/directory"
 	"github.com/vuka-lang/web"
 )
 
 func main() {
-	app := web.New()
-	app.Service(NewDirectory)
+	app := web.New(pages.Routes())
+	app.Service(directory.NewDirectory)
+	app.Get("/api/users", directory.ListUsers)
+	app.Get("/api/users/{id}", directory.ShowUser)
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

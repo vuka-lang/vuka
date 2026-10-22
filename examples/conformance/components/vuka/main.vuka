@@ -1,15 +1,16 @@
 // Command components is a gallery in Vuka: struct components with slots,
-// a script and a scoped stylesheet, a layout taking the render's context,
-// partials, and stateful components keyed in a loop.
+// a script and a scoped stylesheet, a layout reading the render's context,
+// a partial as a component, and stateful components keyed in a loop.
 package main
 
 import (
 	"log"
 
+	"example.com/app/pages"
 	"github.com/vuka-lang/web"
 )
 
 func main() {
-	app := web.New()
+	app := web.New(pages.Routes())
 	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
 }

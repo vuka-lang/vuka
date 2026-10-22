@@ -1,0 +1,23 @@
+package components
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web"
+)
+
+// Header is a page's heading; it reads the request from the context its
+// tag renders it with.
+type Header struct {
+	Title string
+}
+
+// requestPath is the path of the request rendering ctx, "live" in a live
+// session's renders.
+func requestPath(ctx context.Context) string {
+	if r := web.Request(ctx); r != nil {
+		return r.URL.Path
+	}
+	return "live"
+}
+<header><h1>{Title}</h1><small>{requestPath(ctx)}</small></header>

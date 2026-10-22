@@ -1,0 +1,28 @@
+package user
+
+import (
+	"context"
+
+	"example.com/app/directory"
+	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/validate"
+
+	Profile "../../islands/Profile.ts"
+)
+
+// Profile is a live page backed by its island, islands/Profile.ts: its
+// exported fields are the component's props, Name one it may set.
+type Profile struct {
+	ui.Live
+	ID   int64  `json:"id"`
+	Name string `json:"name"` @ui.Bind @validate.Required @validate.Max(50)
+	dir  *directory.Directory
+}
+
+@ui.Mount
+func (p *Profile) mount(ctx context.Context) error {
+	u, err := p.dir.Find(ctx, p.ID)
+	p.Name = u.Name
+	return err
+}
+<Profile id={ID} name={Name} client:load />

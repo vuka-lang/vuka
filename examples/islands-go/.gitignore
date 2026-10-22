@@ -4,3 +4,7 @@
 /web/*.d.ts
 /web/tsconfig.json
 /.vuka
+*_html.go
+/pages/route.go
+/pages/urls/
+/vuka_*_gen.go
