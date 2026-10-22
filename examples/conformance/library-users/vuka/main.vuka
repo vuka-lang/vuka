@@ -9,7 +9,7 @@ import (
 
 	"example.com/app/pages"
 	"example.com/app/directory"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() {

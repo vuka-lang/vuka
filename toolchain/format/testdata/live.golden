@@ -2,7 +2,7 @@ package main
 
 import (
 	"context"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 var header = <h1 className="top">Pets</h1>

@@ -32,7 +32,7 @@ func TestOrmTagAttrs(t *testing.T) {
 }
 
 func TestAttributeTagsModel(t *testing.T) {
-	src := "package entities\n\nimport \"github.com/vuka-lang/orm\"\n\n" +
+	src := "package entities\n\nimport \"github.com/vuka-lang/orm/v2\"\n\n" +
 		"type Employer struct {\n\torm.Base @orm.Meta{Table: \"employers\"}\n\tID int64\n" +
 		"\tPlacements []Placement `json:\"placements\" orm:\"elements:placement_id\"`\n" +
 		"\tName string `orm:\"column:employer_name\"` @orm.Char{Max: 100}\n}\n\n" +
@@ -53,7 +53,7 @@ func TestAttributeTagsModel(t *testing.T) {
 }
 
 func TestDBSchemaRefs(t *testing.T) {
-	src := "package entities\n\nimport \"github.com/vuka-lang/orm\"\n\n" +
+	src := "package entities\n\nimport \"github.com/vuka-lang/orm/v2\"\n\n" +
 		"var legacy = orm.DBSchema{Names: \"x\"}\n" +
 		"var tenant orm.Schema\n\n" +
 		"func (a *Applicant) Schema(s *orm.Schema) {}\n\n" +
@@ -71,8 +71,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/vuka-lang/orm"
-	"github.com/vuka-lang/orm/fn"
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/orm/v2/fn"
 )
 
 type userRow struct {
@@ -125,7 +125,7 @@ func TestQueryFixes(t *testing.T) {
 			t.Errorf("no %q in\n%s", want, out)
 		}
 	}
-	if strings.Contains(string(out), "orm/fn") {
+	if strings.Contains(string(out), "orm/v2/fn") {
 		t.Errorf("fn is still imported:\n%s", out)
 	}
 }
@@ -138,9 +138,9 @@ func TestEjectORM(t *testing.T) {
 		t.Skip("runs the go command")
 	}
 	if bi, ok := debug.ReadBuildInfo(); !ok || !slices.ContainsFunc(bi.Deps, func(m *debug.Module) bool {
-		return m.Path == "github.com/vuka-lang/vuka" && m.Replace != nil
+		return m.Path == "github.com/vuka-lang/vuka/v2" && m.Replace != nil
 	}) {
-		t.Skip("needs this checkout's transpiler: go mod edit -replace github.com/vuka-lang/vuka=../..")
+		t.Skip("needs this checkout's transpiler: go mod edit -replace github.com/vuka-lang/vuka/v2=../..")
 	}
 	repo, _ := filepath.Abs("../..")
 	web, orm := os.Getenv("VUKA_WEB"), os.Getenv("VUKA_ORM")
@@ -151,10 +151,10 @@ func TestEjectORM(t *testing.T) {
 		orm = filepath.Join(filepath.Dir(repo), "vuka-orm")
 	}
 	if src, _ := os.ReadFile(filepath.Join(orm, "queryset.go")); !bytes.Contains(src, []byte("func Optional[")) {
-		t.Skipf("github.com/vuka-lang/orm at %s has no Optional; set VUKA_ORM", orm)
+		t.Skipf("github.com/vuka-lang/orm/v2 at %s has no Optional; set VUKA_ORM", orm)
 	}
 	root := localModule(t, web, map[string]string{"main.vuka": ejectORMSrc})
-	withModule(t, root, "github.com/vuka-lang/orm", orm)
+	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
@@ -185,9 +185,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vuka-lang/orm"
-	"github.com/vuka-lang/orm/fn"
-	_ "github.com/vuka-lang/orm/sqlite"
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/orm/v2/fn"
+	_ "github.com/vuka-lang/orm/v2/sqlite"
 )
 
 type Tag struct {

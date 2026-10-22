@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 const lspHTMLGo = `package main
@@ -351,8 +351,8 @@ type ContextBadge struct{}
 func TestLSPOneWay(t *testing.T) {
 	files := map[string]string{
 		"main.go":            "package main\n\nfunc main() {}\n",
-		"logic.vuka":         "package main\n\nimport \"github.com/vuka-lang/ui\"\n\nfunc card(title string) ui.Node {\n\treturn <div class=\"card\">{title}</div>\n}\n",
-		"header.vuka.html":   "package main\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Header struct{ Title string }\n\nfunc (h Header) Badge() ui.Node { return <b>{h.Title}</b> }\n<h1>{Title}</h1>\n",
+		"logic.vuka":         "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\nfunc card(title string) ui.Node {\n\treturn <div class=\"card\">{title}</div>\n}\n",
+		"header.vuka.html":   "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Header struct{ Title string }\n\nfunc (h Header) Badge() ui.Node { return <b>{h.Title}</b> }\n<h1>{Title}</h1>\n",
 		"nostruct.vuka.html": "package main\n\n<p>no struct</p>\n",
 		"two.vuka.html":      "package main\n\ntype Two struct{ N int }\n<p>{N}</p>\n\nfunc item(n int)\n<li>{n}</li>\n",
 	}

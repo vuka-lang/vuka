@@ -1,7 +1,7 @@
 // Package uigen stands in for ui's: what the compiler's output calls.
 package uigen
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Assign[T any] struct{ v T }
 

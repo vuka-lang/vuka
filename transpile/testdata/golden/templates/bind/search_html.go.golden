@@ -3,7 +3,7 @@
 //line search.vuka.html:1
 package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 // Search binds its query to its input, and colours itself with a CSS
 // variable.

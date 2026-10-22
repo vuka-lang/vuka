@@ -8,7 +8,7 @@ import (
 
 // benchSource is the page every editor feature is checked against: typing it
 // must feel like TSX.
-const benchHead = "package main\n\nimport (\n\t\"fmt\"\n\n\t\"github.com/vuka-lang/ui\"\n\t\"lsptest/data\"\n)\n\n"
+const benchHead = "package main\n\nimport (\n\t\"fmt\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"lsptest/data\"\n)\n\n"
 const benchBody = `func PetTable(pets []data.Pet) ui.Node {
 	return <>
 		<h1>Pets ({len(pets)})</h1>

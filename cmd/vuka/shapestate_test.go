@@ -14,7 +14,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 func main() {

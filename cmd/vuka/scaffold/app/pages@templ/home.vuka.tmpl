@@ -8,9 +8,9 @@ import (
 	"strings"
 {%- end%}
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 {%- if .Auth%}
-	"github.com/vuka-lang/web/auth"
+	"github.com/vuka-lang/web/v2/auth"
 
 	"{%.Module%}/modules/users"
 {%- end%}

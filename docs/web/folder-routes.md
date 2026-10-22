@@ -300,9 +300,9 @@ that doesn't parse is still 400.)
 // pages/employers/[employer]/permits/[permit].vuka.html
 package permits
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 import "context"
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 import "example.com/app/store"
 
 type Permit struct {
@@ -389,7 +389,7 @@ package pages
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Layout struct {
@@ -424,9 +424,9 @@ exists. A check with nothing to show is a [guard](#guards).
 // pages/employers/[employer]/_layout.vuka.html
 package employer
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 import "context"
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 import "example.com/app/store"
 import "example.com/app/pages/urls"
 
@@ -472,7 +472,7 @@ them: `Post`, `Put`, `Patch` and `Delete`. (`GET` is the page itself.)
 package employer
 
 import "context"
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 import "example.com/app/store"
 import "example.com/app/pages/urls"
 

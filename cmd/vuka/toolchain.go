@@ -13,19 +13,19 @@ import (
 // vuka release writes them. vuka new pins the set, and vuka version and vuka
 // upgrade compare an app's go.mod with it.
 const (
-	version     = "v1.5.0"
-	vukaVersion = "v1.5.0"
-	uiVersion   = "v1.5.0"
-	webVersion  = "v1.5.0"
+	version     = "v2.0.0"
+	vukaVersion = "v2.0.0"
+	uiVersion   = "v2.0.0"
+	webVersion  = "v2.0.0"
 )
 
 const firstSetVersion = "v0.50.0"
 
 const (
-	vukaModPath = "github.com/vuka-lang/vuka"
-	uiModPath   = "github.com/vuka-lang/ui"
-	webModPath  = "github.com/vuka-lang/web"
-	cmdModPath  = "github.com/vuka-lang/vuka/cmd/vuka"
+	vukaModPath = "github.com/vuka-lang/vuka/v2"
+	uiModPath   = "github.com/vuka-lang/ui/v2"
+	webModPath  = "github.com/vuka-lang/web/v2"
+	cmdModPath  = "github.com/vuka-lang/vuka/cmd/vuka/v2"
 )
 
 // setModules are the libraries of the set, in dependency order.
@@ -118,5 +118,5 @@ func oneSet(vs map[string]string) (string, bool) {
 }
 
 func shortModule(p string) string {
-	return strings.TrimPrefix(p, "github.com/vuka-lang/")
+	return strings.TrimSuffix(strings.TrimPrefix(p, "github.com/vuka-lang/"), pathMajor(p))
 }

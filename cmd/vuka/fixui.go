@@ -14,11 +14,11 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // UIPath is the UI library the runtime's UI layer moved to in v0.10.0.
-const UIPath = "github.com/vuka-lang/ui"
+const UIPath = "github.com/vuka-lang/ui/v2"
 
 // uiNames are the runtime's names that moved to package ui.
 var uiNames = names(`Assign AttachLive Attr Boundary BuildTree Builder Child Component
@@ -38,7 +38,7 @@ func names(s string) map[string]bool {
 	return m
 }
 
-// fixUI moves code to github.com/vuka-lang/ui (v0.10.0): the runtime's UI
+// fixUI moves code to github.com/vuka-lang/ui/v2 (v0.10.0): the runtime's UI
 // names, the live, term and templx packages, and an import of ui in every
 // .vuka file with JSX.
 func fixUI(m *fixModule) ([]fixChange, error) {

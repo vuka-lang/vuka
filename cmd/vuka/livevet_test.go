@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 const tagPage = `package app
@@ -15,7 +15,7 @@ const tagPage = `package app
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Orders struct {
@@ -50,7 +50,7 @@ func TestFixAttributes(t *testing.T) {
 		"Rows  []string @ui.Defer(\"lists\")",
 		"Kind  string   @validate.OneOf{\"a\", \"b\"}",
 		"\t\"context\"\n\t\"time\"\n",
-		"\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/ui/validate\"\n",
+		"\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/ui/v2/validate\"\n",
 	} {
 		if !strings.Contains(string(out), want) {
 			t.Errorf("missing %q in\n%s", want, out)

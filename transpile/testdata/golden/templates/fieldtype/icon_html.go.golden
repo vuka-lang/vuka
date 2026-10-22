@@ -7,7 +7,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Icon has a field named after its own type: where a value goes, Glyph is

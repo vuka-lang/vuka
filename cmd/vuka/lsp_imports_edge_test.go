@@ -26,9 +26,9 @@ func TestAddImportsWithDecoratorNoBlock(t *testing.T) {
 // lone `import "x"` lines, adding a new import folds them all into one sorted
 // grouped block rather than appending more lone lines.
 func TestAddImportsConsolidatesLoneImports(t *testing.T) {
-	src := "package p\n\nimport \"context\"\nimport \"github.com/vuka-lang/ui\"\n\nfunc f() {}\n"
+	src := "package p\n\nimport \"context\"\nimport \"github.com/vuka-lang/ui/v2\"\n\nfunc f() {}\n"
 	out := applyImportEdits(src, addImports([]byte(src), []importSpec{{path: "portal/entities"}}))
-	want := "package p\n\nimport (\n\t\"context\"\n\t\"github.com/vuka-lang/ui\"\n\t\"portal/entities\"\n)\n\nfunc f() {}\n"
+	want := "package p\n\nimport (\n\t\"context\"\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"portal/entities\"\n)\n\nfunc f() {}\n"
 	if out != want {
 		t.Fatalf("lone imports not consolidated:\ngot:\n%s\nwant:\n%s", out, want)
 	}

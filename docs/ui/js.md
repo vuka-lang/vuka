@@ -6,7 +6,7 @@ commands in the event attributes of a `.vuka.html` shape.
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Menu struct{}
 <section>

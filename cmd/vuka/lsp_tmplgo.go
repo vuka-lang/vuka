@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Go in a .vuka.html: holes, attribute values and statement lines. While a
@@ -446,7 +446,7 @@ func specName(s importSpec) string {
 	if s.name != "" {
 		return s.name
 	}
-	return s.path[strings.LastIndexByte(s.path, '/')+1:]
+	return transpile.ImportName(s.path)
 }
 
 // unqualify writes a completion of recv.X as the template's bare X.

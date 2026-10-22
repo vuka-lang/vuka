@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // sessionModule writes a module: main imports the Vuka package lib and the
@@ -22,8 +22,8 @@ func sessionModule(t *testing.T) (root string) {
 	write(t, filepath.Join(dir, "dep", "go.mod"), "module example.com/dep\n\ngo 1.23\n")
 	write(t, filepath.Join(dir, "dep", "dep.go"), "package dep\n\nfunc N() int { return 1 }\n")
 	root = filepath.Join(dir, "app")
-	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.23\n\nrequire (\n\tgithub.com/vuka-lang/vuka v0.0.0\n\texample.com/dep v0.0.0\n)\n\n"+
-		"replace github.com/vuka-lang/vuka => "+repo+"\n\nreplace example.com/dep => ../dep\n")
+	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.23\n\nrequire (\n\tgithub.com/vuka-lang/vuka/v2 v2.0.0\n\texample.com/dep v0.0.0\n)\n\n"+
+		"replace github.com/vuka-lang/vuka/v2 => "+repo+"\n\nreplace example.com/dep => ../dep\n")
 	write(t, filepath.Join(root, "main.vuka"), `package main
 
 import (

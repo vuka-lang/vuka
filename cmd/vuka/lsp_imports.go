@@ -9,7 +9,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // splitImportEdits separates the edits on a generated file that touch its

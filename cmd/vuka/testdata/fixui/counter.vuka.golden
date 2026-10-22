@@ -1,16 +1,16 @@
 // vuka.Live → ui.Live
 // vuka.Node → ui.Node
 // vuka.String → ui.String
-// github.com/vuka-lang/vuka/live → github.com/vuka-lang/ui/live
-// import github.com/vuka-lang/ui
+// github.com/vuka-lang/vuka/v2/live → github.com/vuka-lang/ui/v2/live
+// import github.com/vuka-lang/ui/v2
 
 package main
 
 import (
 	"context"
 
-	"github.com/vuka-lang/ui/live"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2/live"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Counter struct {

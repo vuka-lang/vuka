@@ -267,7 +267,7 @@ attributes: `s.Model(…)` takes the model's (`orm.Meta`, any
 | `@orm.Entity` | `orm.Register[T]()` at init; `orm.Check(models…)` takes others |
 
 `PostFields` comes from `ormgen` — `//go:generate go run
-github.com/vuka-lang/orm/cmd/ormgen` beside the models — as an
+github.com/vuka-lang/orm/v2/cmd/ormgen` beside the models — as an
 `orm.Field[V]` (an `orm.TextField[V]` for strings) per column and a field
 per relation (`PostFields.Author.Name`, `PostFields.Tags`). It is a
 convenience: without it every query takes the engine's strings,

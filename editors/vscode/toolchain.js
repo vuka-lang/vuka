@@ -1,7 +1,7 @@
 // Keep editor requirements explicit: updating the extension does not update
 // the separately installed language server.
 const minimumServerVersion = 'v1.4.0';
-const updateCommand = `go install github.com/vuka-lang/vuka/cmd/vuka@${minimumServerVersion}`;
+const updateCommand = `go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest`;
 
 function serverVersion(output) {
   const match = /^vuka v(\d+)\.(\d+)\.(\d+)(?=[\s+-]|$)/m.exec(output);

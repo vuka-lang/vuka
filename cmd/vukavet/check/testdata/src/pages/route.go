@@ -2,7 +2,7 @@
 
 package pages
 
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 
 func init() {
 	web.Routes.Get("/home", NewHome, web.PageRoute())

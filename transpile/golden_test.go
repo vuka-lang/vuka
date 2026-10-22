@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/docs"
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/docs"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 var update = flag.Bool("update", false, "rewrite golden files")

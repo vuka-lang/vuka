@@ -3,7 +3,7 @@ package web
 import (
 	"net/http"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 func Serve(n vuka.Node) http.Handler {

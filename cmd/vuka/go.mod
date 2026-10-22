@@ -1,4 +1,4 @@
-module github.com/vuka-lang/vuka/cmd/vuka
+module github.com/vuka-lang/vuka/cmd/vuka/v2
 
 go 1.25.0
 
@@ -6,10 +6,10 @@ require (
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e
 	github.com/a-h/templ v0.3.1020
 	github.com/evanw/esbuild v0.28.2
-	github.com/vuka-lang/vuka v1.5.0
+	github.com/vuka-lang/vuka/v2 v2.0.0-20261022221221-0baaa805f90c
 )
 
 require (
-	github.com/vuka-lang/ui v1.5.0
+	github.com/vuka-lang/ui/v2 v2.0.0-20261022221307-3737266aaf1e
 	golang.org/x/sys v0.41.0
 )

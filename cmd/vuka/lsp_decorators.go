@@ -6,6 +6,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // projectDecorator is a decorator declared somewhere in the module.
@@ -100,7 +102,7 @@ func decoratorItems(f *vfile, decos []projectDecorator, typed lspRange, qualifie
 	for _, s := range importList(f.text()) {
 		name := s.name
 		if name == "" {
-			name = s.path[strings.LastIndex(s.path, "/")+1:]
+			name = transpile.ImportName(s.path)
 		}
 		imported[s.path] = name
 	}

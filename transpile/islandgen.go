@@ -11,7 +11,7 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/vuka-lang/vuka/internal/tsprops"
+	"github.com/vuka-lang/vuka/v2/toolchain/tsprops"
 )
 
 // Imported islands. A .vuka file may import a client component file:

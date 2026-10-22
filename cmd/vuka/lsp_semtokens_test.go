@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // genVFile transpiles src and returns a settled vfile for it, as the proxy holds

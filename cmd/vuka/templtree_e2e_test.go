@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // treeTempl is a broad set of templ: text, attributes, loops, branches,
@@ -17,7 +17,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Item struct {
@@ -149,7 +149,7 @@ import (
 	"time"
 
 	"github.com/a-h/templ"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	"example.com/site/plain"
 	"example.com/site/views"

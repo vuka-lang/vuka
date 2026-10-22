@@ -5,7 +5,7 @@ Vuka needs [Go](https://go.dev/dl/) 1.25 or newer.
 ## Install
 
 ```sh
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 ```
 
 Installing with your own toolchain matters: Vuka parses Go with the standard

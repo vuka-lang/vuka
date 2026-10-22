@@ -5,7 +5,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 const shapeIndex = `package pages
@@ -13,7 +13,7 @@ const shapeIndex = `package pages
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Index struct {

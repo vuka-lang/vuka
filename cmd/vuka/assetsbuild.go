@@ -18,7 +18,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // compileAssets turns a module's declared styles and scripts into what the

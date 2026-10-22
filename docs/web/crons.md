@@ -90,7 +90,7 @@ first passing. With the hour field `*` the job runs by the clock instead:
 an hourly job runs every hour that happens, twice in the repeated one,
 never in the skipped one.
 
-The parser is its own package, `github.com/vuka-lang/web/cron`, with no
+The parser is its own package, `github.com/vuka-lang/web/v2/cron`, with no
 dependencies: `cron.Parse(spec)` returns a `Schedule` whose `Next(t)` is the
 first run after `t`.
 

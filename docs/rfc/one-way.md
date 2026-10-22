@@ -16,11 +16,11 @@ below still describes an alternative, this section wins.
 
    | go.mod | 1.x module path | 2.0 module path | tag prefix |
    |---|---|---|---|
-   | `vuka/go.mod` | `github.com/vuka-lang/vuka` | `github.com/vuka-lang/vuka/v2` | `v2.x.y` |
-   | `vuka/cmd/vuka/go.mod` | `github.com/vuka-lang/vuka/cmd/vuka` | `github.com/vuka-lang/vuka/cmd/vuka/v2` | `cmd/vuka/v2.x.y` |
-   | `vuka/cmd/vukavet/go.mod` | `github.com/vuka-lang/vuka/cmd/vukavet` | `github.com/vuka-lang/vuka/cmd/vukavet/v2` | `cmd/vukavet/v2.x.y` |
-   | `ui/go.mod` (repo vuka-lang/ui) | `github.com/vuka-lang/ui` | `github.com/vuka-lang/ui/v2` | `v2.x.y` |
-   | `web/go.mod` (repo vuka-lang/web) | `github.com/vuka-lang/web` | `github.com/vuka-lang/web/v2` | `v2.x.y` |
+   | `vuka/go.mod` | `github.com/vuka-lang/vuka/v2` | `github.com/vuka-lang/vuka/v2` | `v2.x.y` |
+   | `vuka/cmd/vuka/go.mod` | `github.com/vuka-lang/vuka/cmd/vuka/v2` | `github.com/vuka-lang/vuka/cmd/vuka/v2` | `cmd/vuka/v2.x.y` |
+   | `vuka/cmd/vukavet/go.mod` | `github.com/vuka-lang/vuka/cmd/vukavet/v2` | `github.com/vuka-lang/vuka/cmd/vukavet/v2` | `cmd/vukavet/v2.x.y` |
+   | `ui/go.mod` (repo vuka-lang/ui) | `github.com/vuka-lang/ui/v2` | `github.com/vuka-lang/ui/v2` | `v2.x.y` |
+   | `web/go.mod` (repo vuka-lang/web) | `github.com/vuka-lang/web/v2` | `github.com/vuka-lang/web/v2` | `v2.x.y` |
 
    Every import of these paths in the five modules, in `templx`/`live`/
    `term` and the other sub-packages (they are packages, not modules, so
@@ -29,7 +29,7 @@ below still describes an alternative, this section wins.
    `cmd/vuka/testdata/routes/web`, `docs/testdata/gomode`, the conformance
    and example apps) moves with them.
 
-   **orm follows.** `github.com/vuka-lang/orm` requires vuka and web and
+   **orm follows.** `github.com/vuka-lang/orm/v2` requires vuka and web and
    exposes vuka types in its API (`vuka.Option`, `vuka.Result`,
    `*vuka.Type` in `orm.Optional`, `orm.Entity`, `orm.Database`, …), so
    moving its requires to `/v2` changes its exported signatures: it becomes
@@ -205,7 +205,7 @@ import (                              │
     "context"                         │  Go header:
                                       │  package, imports, ONE struct,
     "example.com/todo/services"       │  decorated hooks, methods.
-    "github.com/vuka-lang/ui"         │
+    "github.com/vuka-lang/ui/v2"         │
 )                                     │
                                       │
 type Index struct {                   │
@@ -321,7 +321,7 @@ API changes — it is today's public API — so an ejected 2.0 app is plain Go.
 | 7b | `<components.Item …>text</…>` and `<slot:actions>…</slot:actions>` | `Children:` and `Actions:` fields of the literal |
 | 8 | handler/hook parameter `f NewTodo`, `id int`, `r *http.Request`, `u auth.User`, `s *Store` | filled by type at the call site; a struct binds the form/JSON, a scalar the event value, the rest from request or container (see §5) |
 
-`uigen` (`github.com/vuka-lang/ui/uigen`) is the one package generated
+`uigen` (`github.com/vuka-lang/ui/v2/uigen`) is the one package generated
 code calls that isn't documented API: what `ui.State`'s methods other than
 `Get`/`Set` became (step 3), public so generated code builds with `go
 build`, reported by `vukavet` when written by hand (W0105). The chain
@@ -536,7 +536,7 @@ import (
 
 	_ "example.com/todo/pages" // vuka gen writes this link; shown for plain go build
 	"example.com/todo/services"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() {
@@ -551,7 +551,7 @@ func main() {
 <!-- pages/_layout.vuka.html — the document, wraps every page -->
 package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Layout struct {
 	Children ui.Node
@@ -574,7 +574,7 @@ import (
 	"example.com/todo/components"
 	"example.com/todo/models"
 	"example.com/todo/services"
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Index struct {

@@ -8,7 +8,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // fileLink is a vuka.File literal in the editor's text: the path inside its

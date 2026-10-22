@@ -24,7 +24,7 @@ package main
 import (
     "log"
     "example.com/app/pages"
-    "github.com/vuka-lang/web"
+    "github.com/vuka-lang/web/v2"
 )
 
 func main() {
@@ -40,7 +40,7 @@ routes with `vuka gen`, or let `vuka run` build the overlay. Do not edit
 ```html
 package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Layout struct { Children ui.Node }
 <html lang="en">

@@ -12,7 +12,7 @@ import (
 )
 
 const islandPage = "package main\n\n" +
-	"import (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n" +
+	"import (\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n" +
 	"@ui.Island(\"islands/Counter.ts\")\n" +
 	"type Counter struct {\n" +
 	"\tCount    int      `json:\"count\"`\n" +
@@ -122,7 +122,7 @@ func TestIslandsErrors(t *testing.T) {
 			if c.name == "missing" {
 				typeName = "Gone"
 			}
-			src := "package main\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n" +
+			src := "package main\n\nimport (\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n" +
 				c.decl + "\ntype " + typeName + " struct{ N int `json:\"n\"` }\n\nvar _ = ui.Node(nil)\n\nfunc main() { web.New().Run(\"\") }\n"
 			files := map[string]string{"main.vuka": src}
 			if c.file != "" {
@@ -155,7 +155,7 @@ func TestFindFrontendRoot(t *testing.T) {
 			if c.call != "" {
 				body = "func main() { web.New(" + c.call + ").Run(\"\") }\n"
 			}
-			src := "package main\n\nimport (\n\t\"embed\"\n\t\"github.com/vuka-lang/web\"\n)\n\n//go:embed all:dist\nvar dist embed.FS\n\n" + body
+			src := "package main\n\nimport (\n\t\"embed\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n//go:embed all:dist\nvar dist embed.FS\n\n" + body
 			root := tempModule(t, map[string]string{"go.mod": webMod, "main.go": src})
 			got := findFrontendRoot(root)
 			want := root
@@ -199,7 +199,7 @@ func TestIslandStructFields(t *testing.T) {
 // web.Frontend's parent, "frontend").
 func TestIslandDevAssets(t *testing.T) {
 	src := "package main\n\n" +
-		"import (\n\t\"embed\"\n\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n)\n\n" +
+		"import (\n\t\"embed\"\n\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\n" +
 		"//go:embed all:frontend/dist\nvar dist embed.FS\n\n" +
 		"@ui.Island(\"islands/Counter.ts\")\ntype Counter struct {\n\tCount int `json:\"count\"`\n\tChildren ui.Node\n}\n\n" +
 		"func main() { web.New(web.Frontend(dist, \"frontend/dist\")).Run(\"\") }\n"
@@ -241,7 +241,7 @@ func webDir(t *testing.T) string {
 		web = filepath.Join(filepath.Dir(repo), "vuka-web")
 	}
 	if !hasWebFunc(web, "RegisterIsland") {
-		needs(t, "github.com/vuka-lang/web at %s has no RegisterIsland; set VUKA_WEB (and VUKA_UI)", web)
+		needs(t, "github.com/vuka-lang/web/v2 at %s has no RegisterIsland; set VUKA_WEB (and VUKA_UI)", web)
 	}
 	return web
 }
@@ -252,12 +252,12 @@ func webDir(t *testing.T) string {
 // errors naming them.
 func TestIslandsInferred(t *testing.T) {
 	web := webDir(t)
-	head := "\n\nimport (\n\t\"github.com/vuka-lang/ui\"\n)\n\n"
+	head := "\n\nimport (\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\n"
 	decl := func(pkg, deco, name string) string {
 		return "package " + pkg + head + deco + "\ntype " + name + " struct{ N int `json:\"n\"` }\n\nvar _ = ui.Node(nil)\n"
 	}
 	root := localModule(t, web, map[string]string{
-		"main.vuka": "package main\n\nimport (\n\t\"embed\"\n\n\t\"github.com/vuka-lang/web\"\n)\n\nvar dist embed.FS\n\n" +
+		"main.vuka": "package main\n\nimport (\n\t\"embed\"\n\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nvar dist embed.FS\n\n" +
 			"func main() { web.New(web.Frontend(dist, \"front/dist\")).Run(\"\") }\n",
 		"pages/home.vuka":                    decl("pages", "@ui.Island", "Counter"),
 		"modules/orders/list.vuka":           decl("orders", `@ui.Island("", "load")`, "OrderList"),

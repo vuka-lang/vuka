@@ -9,11 +9,11 @@ The set is five modules:
 
 | Module | What it is |
 |---|---|
-| `github.com/vuka-lang/vuka` | the language runtime your generated code imports |
-| `github.com/vuka-lang/ui` | components, templates, live sessions |
-| `github.com/vuka-lang/web` | the web framework: routes, pages, islands, auth |
-| `github.com/vuka-lang/vuka/cmd/vuka` | the `vuka` command |
-| `github.com/vuka-lang/vuka/cmd/vukavet` | `go vet` with vuka's checks, for apps in plain Go |
+| `github.com/vuka-lang/vuka/v2` | the language runtime your generated code imports |
+| `github.com/vuka-lang/ui/v2` | components, templates, live sessions |
+| `github.com/vuka-lang/web/v2` | the web framework: routes, pages, islands, auth |
+| `github.com/vuka-lang/vuka/cmd/vuka/v2` | the `vuka` command |
+| `github.com/vuka-lang/vuka/cmd/vukavet/v2` | `go vet` with vuka's checks, for apps in plain Go |
 
 From v0.50.0 they are released together under one version, a **set**: vuka
 v1.0.0 is the runtime, ui, web, the command and vukavet, all tagged v1.0.0
@@ -22,38 +22,38 @@ and uses the command of that version.
 
 ```text
 $ vuka version
-vuka v1.0.0 (vuka, ui, web v1.0.0)
+vuka v2.0.0 (vuka, ui, web v2.0.0)
 
 example.com/shop:
-  github.com/vuka-lang/vuka  v1.0.0
-  github.com/vuka-lang/ui    v1.0.0
-  github.com/vuka-lang/web   v1.0.0
+  github.com/vuka-lang/vuka/v2  v2.0.0
+  github.com/vuka-lang/ui/v2    v2.0.0
+  github.com/vuka-lang/web/v2   v2.0.0
 ```
 
 `vuka version` warns when an app's go.mod mixes sets, for example after a
 `go get` of one module alone:
 
 ```text
-warning: example.com/shop is not one vuka set (vuka v1.0.0, ui v1.0.0, web v1.1.0); vuka upgrade moves it to one
+warning: example.com/shop is not one vuka set (vuka v2.0.0, ui v2.0.0, web v2.1.0); vuka upgrade moves it to one
 ```
 
 `vuka new` writes a go.mod pinned to its own set. The ORM,
-`github.com/vuka-lang/orm`, has versions of its own; v1.0.0 of the set and
+`github.com/vuka-lang/orm/v2`, has versions of its own; v1.0.0 of the set and
 orm v1.0.0 were released together, and `vuka new` pins the orm its scaffolds
 are written against.
 
 ## Upgrading
 
 ```sh
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 vuka upgrade            # the latest set
-vuka upgrade v1.1.0     # or a chosen one
+vuka upgrade v2.1.0     # or a chosen one
 vuka upgrade -n         # say what it would do, change nothing
 ```
 
 In a Go app with the command as a tool of the module, it is
 `go tool vuka upgrade`; or `go get` vuka, ui and web at one version
-(`go get github.com/vuka-lang/vuka@v1.1.0 github.com/vuka-lang/ui@v1.1.0 github.com/vuka-lang/web@v1.1.0`)
+(`go get github.com/vuka-lang/vuka/v2@v2.1.0 github.com/vuka-lang/ui/v2@v2.1.0 github.com/vuka-lang/web/v2@v2.1.0`)
 and run `go vet -vettool=$(go tool -n vukavet) ./...` and `go test ./...`.
 
 `vuka upgrade` moves the app's go.mod to the set (`go get` of vuka, ui and

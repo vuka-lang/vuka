@@ -55,7 +55,7 @@ Declare the URL update message in a logic file, separate from the shape:
 // models/shelf_params.go
 package models
 
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 
 type ShelfParams struct {
     web.URLParams
@@ -74,7 +74,7 @@ import (
     "fmt"
     "example.com/app/models"
     "example.com/app/services"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
 )
 
 type Shelf struct {
@@ -131,7 +131,7 @@ The update-message DTO is a logic type:
 // models/order_params.go
 package models
 
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 
 type OrderParams struct {
     web.URLParams
@@ -148,9 +148,9 @@ import (
     "context"
     "example.com/app/models"
     "example.com/app/services"
-    "github.com/vuka-lang/ui"
-    "github.com/vuka-lang/web"
-    "github.com/vuka-lang/web/auth"
+    "github.com/vuka-lang/ui/v2"
+    "github.com/vuka-lang/web/v2"
+    "github.com/vuka-lang/web/v2/auth"
 )
 
 type OrderPage struct {
@@ -200,7 +200,7 @@ In a shape header, handlers can call the methods supplied by ui.Live:
 ```html
 package books
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type BookActions struct { ui.Live }
 

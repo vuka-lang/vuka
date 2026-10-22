@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // TestStdlibPassesThrough feeds every Go file of the installed Go's source tree

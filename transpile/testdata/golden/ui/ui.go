@@ -1,4 +1,4 @@
-// Package ui is a small stand-in for github.com/vuka-lang/ui's LiveSchema in
+// Package ui is a small stand-in for github.com/vuka-lang/ui/v2's LiveSchema in
 // the golden cases.
 package ui
 

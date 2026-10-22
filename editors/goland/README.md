@@ -25,13 +25,13 @@ and vuka, either as a tool of the module (the server then is the version the
 project builds with):
 
 ```sh
-go get -tool github.com/vuka-lang/vuka/cmd/vuka
+go get -tool github.com/vuka-lang/vuka/cmd/vuka/v2
 ```
 
 or installed:
 
 ```sh
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 ```
 
 ## Which vuka runs

@@ -26,9 +26,9 @@ import (
 
 	templparser "github.com/a-h/templ/parser/v2"
 
-	"github.com/vuka-lang/vuka/internal/format"
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // lsp runs `vuka lsp`: gopls behind a proxy that keeps each .vuka file's

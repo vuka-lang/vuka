@@ -51,7 +51,7 @@ them, [Vuka](https://github.com/vuka-lang/vuka)'s additions to Go in `.vuka` fil
 ## Requirements
 
 ```
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 go install golang.org/x/tools/gopls@latest
 ```
 
@@ -67,7 +67,7 @@ uses your separately installed `vuka lsp`; updating the extension alone does
 not update that binary. If `ctx` is reported as undefined, run:
 
 ```sh
-go install github.com/vuka-lang/vuka/cmd/vuka@v1.4.0
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 ```
 
 Then run **Vuka: Restart Language Server**. The language status shows the

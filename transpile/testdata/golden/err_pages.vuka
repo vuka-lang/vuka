@@ -1,6 +1,6 @@
 package main
 
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 
 // A page is a file under pages/: @web.Live and a route decorator on a type
 // declare none.

@@ -101,7 +101,7 @@ type Charts struct{}
 	// A page is its file under pages/: a route decorator on its type is E0720.
 	reports := filepath.Join(dir, "pages", "reports.vuka")
 	src := strings.Replace(read(t, reports), "@ui.Island\n", "@web.Live(\"/reports\")\n@ui.Island\n", 1)
-	src = strings.Replace(src, "\t\"github.com/vuka-lang/ui\"\n", "\t\"github.com/vuka-lang/ui\"\n\t\"github.com/vuka-lang/web\"\n", 1)
+	src = strings.Replace(src, "\t\"github.com/vuka-lang/ui/v2\"\n", "\t\"github.com/vuka-lang/ui/v2\"\n\t\"github.com/vuka-lang/web/v2\"\n", 1)
 	os.WriteFile(reports, []byte(src), 0o644)
 	if out, err := e.cmd(dir, off, "vuka", "vet", "./...").CombinedOutput(); err == nil || !strings.Contains(string(out), "@web.Live declares a page outside pages/") {
 		t.Errorf("vet with @web.Live on a page: %v\n%s", err, out)

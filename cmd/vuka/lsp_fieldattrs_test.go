@@ -9,7 +9,7 @@ import (
 
 const lspFieldAttrsPkg = `package orm
 
-import "github.com/vuka-lang/vuka"
+import "github.com/vuka-lang/vuka/v2"
 
 // Column names the column.
 type Column string

@@ -10,9 +10,9 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/docs"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/docs"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // diagJSON is set by -diag=json: diagnostics go to stderr as one JSON array

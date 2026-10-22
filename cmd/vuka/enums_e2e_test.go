@@ -204,7 +204,7 @@ func TestEnums(t *testing.T) {
 	vuka := buildVuka(t)
 	repo, _ := filepath.Abs("../..")
 	root := tempModule(t, map[string]string{
-		"go.mod":                  "module example.com/shop\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n",
+		"go.mod":                  "module example.com/shop\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => " + repo + "\n",
 		"orders/orders.vuka":      enumsOrdersPkg,
 		"orders/orders_test.vuka": enumsOrdersTest,
 		"orders/plain.go":         enumsPlainGo,
@@ -246,7 +246,7 @@ func TestExplainEnums(t *testing.T) {
 	t.Setenv("GOWORK", "off")
 	repo, _ := filepath.Abs("../..")
 	root := tempModule(t, map[string]string{
-		"go.mod":             "module example.com/shop\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n",
+		"go.mod":             "module example.com/shop\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => " + repo + "\n",
 		"orders/orders.vuka": enumsOrdersPkg,
 	})
 	var out bytes.Buffer

@@ -29,7 +29,7 @@ The extension does **not** bundle a binary. Install the Vuka toolchain (which
 provides `vuka lsp`) and gopls:
 
 ```sh
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 go install golang.org/x/tools/gopls@latest
 ```
 

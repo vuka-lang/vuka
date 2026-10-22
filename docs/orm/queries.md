@@ -74,7 +74,7 @@ n, err := recent.Count(ctx) // int64
 ## Conditions
 
 A model's typed field, `PostFields.Title`, is written beside the model by
-`orm generate` (`//go:generate go run github.com/vuka-lang/orm/cmd/ormgen`). It gives conditions (`orm.Cond`) and orderings:
+`orm generate` (`//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen`). It gives conditions (`orm.Cond`) and orderings:
 
 | Field | Conditions |
 |---|---|

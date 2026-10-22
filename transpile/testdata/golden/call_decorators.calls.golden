@@ -5,7 +5,7 @@ package main
 import (
 	"context"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 // The decorated functions' signatures, for vuka.Wrap.

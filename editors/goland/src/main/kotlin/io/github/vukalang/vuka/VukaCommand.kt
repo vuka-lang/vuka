@@ -11,10 +11,10 @@ import com.intellij.util.EnvironmentUtil
 import java.io.File
 import java.nio.charset.StandardCharsets
 
-private const val INSTALL = "go install github.com/vuka-lang/vuka/cmd/vuka@latest"
+private const val INSTALL = "go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest"
 
 // The tool directive go get -tool writes, in a single line or a tool block.
-private val VUKA_TOOL = Regex("""(?m)^\s*(tool\s+)?github\.com/vuka-lang/vuka/cmd/vuka\s*$""")
+private val VUKA_TOOL = Regex("""(?m)^\s*(tool\s+)?github\.com/vuka-lang/vuka/cmd/vuka(?:/v2)?\s*$""")
 
 // vukaLspCommandLine is the command running vuka lsp for project, the first of:
 //   1. the vuka binary set in Settings | Languages & Frameworks | Vuka,
@@ -65,7 +65,7 @@ fun findTool(name: String): String? {
 
 private fun notFound(project: Project): Nothing {
     val message = "Couldn't find vuka. Install it with: $INSTALL, add it to the module with " +
-        "go get -tool github.com/vuka-lang/vuka/cmd/vuka, or set its path in Settings | Languages & Frameworks | Vuka."
+        "go get -tool github.com/vuka-lang/vuka/cmd/vuka/v2, or set its path in Settings | Languages & Frameworks | Vuka."
     NotificationGroupManager.getInstance().getNotificationGroup("Vuka")
         .createNotification("Vuka", message, NotificationType.ERROR)
         .notify(project)

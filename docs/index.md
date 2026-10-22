@@ -59,7 +59,7 @@ features:
 With Go 1.25 or newer:
 
 ```sh
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 vuka new hello && cd hello
 vuka run
 ```

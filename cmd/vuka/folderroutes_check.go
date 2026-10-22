@@ -14,8 +14,8 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // folderRoute is one route of the table: a page, one of its method

@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 // Middleware rate-limits the API, each route by itself: API_RATE requests

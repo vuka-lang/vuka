@@ -3,8 +3,8 @@
 package uigenuse
 
 import (
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/ui/uigen"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/ui/v2/uigen"
 )
 
 func generated(open any) ui.Commands { return uigen.Toggle(nil, open) }

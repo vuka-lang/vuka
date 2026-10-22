@@ -60,8 +60,8 @@ func (d *Decl) Attr(ptr any) bool { return fillAttr(d.Attrs, ptr) }
 // are those RegisterParams recorded. Its attributes are those
 // registered for it (RegisterFunc), its file and line where the compiler
 // puts it, and its Name the runtime's: the package is its import path's
-// last element ("main" in a program, though a main package's tests build it
-// under its path).
+// last element, or the one before a major-version suffix ("main" in a
+// program, though a main package's tests build it under its path).
 func DeclOf(fn any, params ...Param) *Decl {
 	v := reflect.ValueOf(fn)
 	if v.Kind() != reflect.Func || v.IsNil() {
@@ -84,7 +84,7 @@ func DeclOf(fn any, params ...Param) *Decl {
 	default:
 		dot = strings.LastIndexByte(key, '.')
 		d.Pkg = key[:dot]
-		d.Name = d.Pkg[strings.LastIndexByte(d.Pkg, '/')+1:] + key[dot:]
+		d.Name = pathName(d.Pkg) + key[dot:]
 	}
 	d.Pkg = strings.ReplaceAll(d.Pkg, "%2e", ".")
 	d.Name = strings.ReplaceAll(d.Name, "%2e", ".")
@@ -133,4 +133,16 @@ func (d Decl) describe(skip int, names []string) *Decl {
 	}
 	d.Variadic = t.IsVariadic()
 	return &d
+}
+
+// pathName is an import path's last element, or the element before a
+// major-version suffix: ui for github.com/vuka-lang/ui/v2.
+func pathName(p string) string {
+	i := strings.LastIndexByte(p, '/')
+	last := p[i+1:]
+	if n, ok := strings.CutPrefix(last, "v"); ok && i > 0 && n != "" && n != "1" && n[0] != '0' && strings.Trim(n, "0123456789") == "" {
+		p = p[:i]
+		return p[strings.LastIndexByte(p, '/')+1:]
+	}
+	return last
 }

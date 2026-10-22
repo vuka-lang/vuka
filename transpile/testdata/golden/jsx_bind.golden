@@ -7,7 +7,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Search binds its query to its input and sets a CSS variable.

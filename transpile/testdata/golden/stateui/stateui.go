@@ -1,5 +1,5 @@
 // Package stateui is a JSX target for the client-state golden cases. It
-// implements the JSX contract by delegating to github.com/vuka-lang/ui and
+// implements the JSX contract by delegating to github.com/vuka-lang/ui/v2 and
 // adds ui's state API in the shape the compiler lowers to; a binding renders
 // as its initial value plus data-vk-b-<name>="<expression> <deps>", and a
 // state as <file>:<line>=<value>, enough to see what the compiler wrote.
@@ -17,7 +17,7 @@ import (
 	"strconv"
 	"strings"
 
-	ui "github.com/vuka-lang/ui"
+	ui "github.com/vuka-lang/ui/v2"
 )
 
 // VukaJSX marks this package as a JSX target implementing version 3.

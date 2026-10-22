@@ -5,15 +5,15 @@ command, run in a vuka checkout with the ui and web checkouts beside it:
 
 ```text
 work/
-  vuka/       github.com/vuka-lang/vuka (and cmd/vuka, cmd/vukavet)
-  vuka-ui/    github.com/vuka-lang/ui
-  vuka-web/   github.com/vuka-lang/web
+  vuka/       github.com/vuka-lang/vuka/v2 (and cmd/vuka, cmd/vukavet)
+  vuka-ui/    github.com/vuka-lang/ui/v2
+  vuka-web/   github.com/vuka-lang/web/v2
 ```
 
 ```sh
 cd work/vuka
-vuka release v1.1.0          # checks, then prints the plan; changes nothing
-vuka release -yes v1.1.0     # does it
+vuka release v2.1.0          # checks, then prints the plan; changes nothing
+vuka release -yes v2.1.0     # does it
 ```
 
 `-ui` and `-web` point at checkouts elsewhere.
@@ -24,7 +24,7 @@ Write the release's section in `docs/releases.md`, headed with the version
 and date, for app authors: what changed, what to do, the required source changes.
 
 ```md
-## v1.1.0 — 2026-11-02
+## v2.1.0 — 2026-11-02
 ```
 
 A section marked `unreleased` passes a dry run with a warning and stops
@@ -57,7 +57,7 @@ Every run, dry or not, checks:
 - each module is the one expected, and `cmd/vuka/toolchain.go` has its four
   version constants;
 - the version is `vX.Y.Z`, at least v0.50.0, after every tag of every module
-  of the set, and needs no `/vN` module path;
+  of the set, and its major is the one the module paths carry (`/v2` for v2.x);
 - `docs/releases.md` has its section;
 - the patch train: a patch release within seven days of the set's last one is
   refused unless `-security` says it is a security fix;
@@ -76,7 +76,7 @@ A failed check stops the release before anything changes.
 In dependency order, so each module requires tags that exist:
 
 1. tag vuka `vX.Y.Z` (annotated) and push it;
-2. ui: `go get github.com/vuka-lang/vuka@vX.Y.Z`, `go build ./...`, commit,
+2. ui: `go get github.com/vuka-lang/vuka/v2@vX.Y.Z`, `go build ./...`, commit,
    tag, push;
 3. web: `go get` vuka and ui at `vX.Y.Z`, build, commit, tag, push;
 4. cmd/vuka: write `vX.Y.Z` into `toolchain.go` (the command's version and the
@@ -86,8 +86,8 @@ In dependency order, so each module requires tags that exist:
    (it requires none of the set);
 6. wait for proxy.golang.org to serve the five modules (`-proxy-wait`, 10m by
    default; 0 skips it; a slow proxy is a warning, not a failure);
-7. install `github.com/vuka-lang/vuka/cmd/vuka@vX.Y.Z` and
-   `github.com/vuka-lang/vuka/cmd/vukavet@vX.Y.Z` with `GOPROXY=direct` into
+7. install `github.com/vuka-lang/vuka/cmd/vuka/v2@vX.Y.Z` and
+   `github.com/vuka-lang/vuka/cmd/vukavet/v2@vX.Y.Z` with `GOPROXY=direct` into
    a temporary directory and check that its `vuka version` reports the set.
 
 The go commands run with `GOPROXY=direct GOSUMDB=off GOWORK=off`, so fresh
@@ -96,12 +96,12 @@ release. It never runs `go mod tidy`.
 
 ## The ORM
 
-`github.com/vuka-lang/orm` has versions of its own and isn't part of
+`github.com/vuka-lang/orm/v2` has versions of its own and isn't part of
 `vuka release`. It requires vuka and web, so a release of it that should
 require a new set comes after that set: in an orm checkout on main,
 
 ```sh
-GOPROXY=direct GOSUMDB=off GOWORK=off go get github.com/vuka-lang/vuka@vX.Y.Z github.com/vuka-lang/web@vX.Y.Z
+GOPROXY=direct GOSUMDB=off GOWORK=off go get github.com/vuka-lang/vuka/v2@vX.Y.Z github.com/vuka-lang/web/v2@vX.Y.Z
 go build ./... && go vet ./... && go test ./...
 git commit -am "orm vA.B.C: require vuka, web vX.Y.Z"
 git tag -a vA.B.C -m "orm vA.B.C"

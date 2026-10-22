@@ -107,7 +107,7 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 		if a, err := parser.ParseFile(token.NewFileSet(), "", src, parser.ImportsOnly); err == nil {
 			for _, is := range a.Imports {
 				path, _ := strconv.Unquote(is.Path.Value)
-				name := pathBase(path)
+				name := ImportName(path)
 				if is.Name != nil {
 					name = is.Name.Name
 				}
@@ -144,7 +144,7 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 			case *ast.ImportSpec:
 				if n.Name != nil {
 					path, _ := strconv.Unquote(n.Path.Value)
-					pkgs[n.Name.Name] = pathBase(path)
+					pkgs[n.Name.Name] = ImportName(path)
 				}
 			}
 			return true
@@ -926,17 +926,38 @@ func (b byPath) Swap(i, j int) {
 // when it isn't the package's own.
 func importText(s *ast.ImportSpec) string {
 	path, _ := strconv.Unquote(s.Path.Value)
-	if s.Name == nil || s.Name.Name == pathBase(path) {
+	if s.Name == nil || s.Name.Name == ImportName(path) {
 		return strconv.Quote(path)
 	}
 	return s.Name.Name + " " + strconv.Quote(path)
 }
 
-func pathBase(path string) string {
-	if i := strings.LastIndexByte(path, '/'); i >= 0 {
-		return path[i+1:]
+// ImportName is the name an import of path brings into scope when the
+// package follows the convention: the path's last element, or the element
+// before a major-version suffix (ui for github.com/vuka-lang/ui/v2).
+func ImportName(path string) string {
+	i := strings.LastIndexByte(path, '/')
+	last := path[i+1:]
+	if i > 0 && isMajorSuffix(last) {
+		prev := path[:i]
+		return prev[strings.LastIndexByte(prev, '/')+1:]
 	}
-	return path
+	return last
+}
+
+// isMajorSuffix reports whether elem is a module path's major-version
+// element: v2, v3, ….
+func isMajorSuffix(elem string) bool {
+	n, ok := strings.CutPrefix(elem, "v")
+	if !ok || n == "" || n[0] == '0' || n == "1" {
+		return false
+	}
+	for _, r := range n {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // renameLabels renames the {__name} holes of a template literal, as the

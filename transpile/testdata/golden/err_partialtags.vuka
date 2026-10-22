@@ -1,6 +1,6 @@
 package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 func navLink(href string, on bool) ui.Node {
 	return <a href={href} class:on={on}>link</a>

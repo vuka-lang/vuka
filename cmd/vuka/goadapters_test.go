@@ -18,7 +18,7 @@ func TestGoCallAdapters(t *testing.T) {
 import (
 	"context"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 func logged(c *vuka.Call) { c.Next() }
@@ -38,7 +38,7 @@ var (
 
 func main() {}
 `,
-		"mixed/a.go":   "package mixed\n\nimport \"github.com/vuka-lang/vuka\"\n\nvar F = vuka.Wrap(func() {}, vuka.FuncInfo{}, nil)\n",
+		"mixed/a.go":   "package mixed\n\nimport \"github.com/vuka-lang/vuka/v2\"\n\nvar F = vuka.Wrap(func() {}, vuka.FuncInfo{}, nil)\n",
 		"mixed/b.vuka": "package mixed\n",
 	})
 	gens := goCallAdapters(root)
@@ -50,7 +50,7 @@ func main() {}
 		"vuka.RegisterAdapter(func(next func(int, int) int, call vuka.Caller) func(int, int) int {",
 		"vuka.RegisterAdapter(func(next func(*Store, context.Context, int) error, call vuka.Caller) func(*Store, context.Context, int) error {",
 		"vuka.RegisterAdapter(func(next func(string) string, call vuka.Caller) func(string) string {",
-		"import (\n\t\"context\"\n\n\t\"github.com/vuka-lang/vuka\"\n)",
+		"import (\n\t\"context\"\n\n\t\"github.com/vuka-lang/vuka/v2\"\n)",
 	} {
 		if !strings.Contains(src, want) {
 			t.Errorf("lacks %s:\n%s", want, src)

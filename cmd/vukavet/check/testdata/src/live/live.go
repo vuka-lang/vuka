@@ -3,8 +3,8 @@ package live
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 type Board struct {

@@ -7,7 +7,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // captureWriter collects the bytes an rpcConn writes so a test can read the

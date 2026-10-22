@@ -9,7 +9,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 // A tiny container: constructors by result type, each built once.

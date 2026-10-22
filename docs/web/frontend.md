@@ -13,7 +13,7 @@ import (
 	"embed"
 	"log"
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 //go:embed all:frontend/dist

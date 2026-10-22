@@ -1,6 +1,6 @@
 package schema
 
-import "github.com/vuka-lang/orm"
+import "github.com/vuka-lang/orm/v2"
 
 type Stamps struct{ Created int }
 

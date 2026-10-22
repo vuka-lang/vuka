@@ -14,7 +14,7 @@ import (
 
 const navLayout = `package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Layout struct{ Children ui.Node }
 <html><head><meta charset="utf-8" /><title>admin</title></head><body><nav><ui.Link href="/pa" ID="to-a">A</ui.Link><ui.Link href="/pb" ID="to-b">B</ui.Link></nav><main>{Children}</main></body></html>
@@ -26,7 +26,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	A "../islands/PageA.vue"
 )
@@ -59,7 +59,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 
 	B "../islands/PageB.vue"
 )

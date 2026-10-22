@@ -10,7 +10,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Marker is the file that marks a directory as Mirror's output, so it never

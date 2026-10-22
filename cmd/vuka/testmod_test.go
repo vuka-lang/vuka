@@ -7,11 +7,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // testModule is a test module's go.mod and go.sum: it requires the local
-// vuka (this repository), the local github.com/vuka-lang/ui (a sibling
+// vuka (this repository), the local github.com/vuka-lang/ui/v2 (a sibling
 // checkout, ../vuka-ui, or $VUKA_UI) and templ at the version this command
 // builds with, with checksums go can trust offline.
 func testModule(t *testing.T, path string) (gomod, gosum string) {
@@ -22,7 +22,7 @@ func testModule(t *testing.T, path string) (gomod, gosum string) {
 		ui = filepath.Join(filepath.Dir(repo), "vuka-ui")
 	}
 	if _, err := os.Stat(filepath.Join(ui, "go.mod")); err != nil {
-		t.Fatalf("the tests need github.com/vuka-lang/ui checked out at %s (or $VUKA_UI): %v", ui, err)
+		t.Fatalf("the tests need github.com/vuka-lang/ui/v2 checked out at %s (or $VUKA_UI): %v", ui, err)
 	}
 	mod, _ := os.ReadFile("go.mod")
 	var templ []string // templ and its requirements, as this command requires them
@@ -36,7 +36,7 @@ func testModule(t *testing.T, path string) (gomod, gosum string) {
 	runtime := transpile.RuntimeVersion
 	uiMod, _ := os.ReadFile(filepath.Join(ui, "go.mod"))
 	for _, line := range strings.Split(string(uiMod), "\n") {
-		if f := strings.Fields(line); len(f) >= 2 && f[0] == "github.com/vuka-lang/vuka" && semverLess(runtime, f[1]) {
+		if f := strings.Fields(line); len(f) >= 2 && f[0] == "github.com/vuka-lang/vuka/v2" && semverLess(runtime, f[1]) {
 			runtime = f[1]
 		}
 	}
@@ -44,8 +44,8 @@ func testModule(t *testing.T, path string) (gomod, gosum string) {
 	ownSum, _ := os.ReadFile("go.sum")
 	sum := append(uiSum, ownSum...)
 	return "module " + path + "\n\ngo 1.25.0\n\nrequire (\n\t" + strings.Join(templ, "\n\t") +
-		"\n\tgithub.com/vuka-lang/ui v0.0.0\n\tgithub.com/vuka-lang/vuka " + runtime + "\n)\n\n" +
-		"replace github.com/vuka-lang/vuka => " + repo + "\n\nreplace github.com/vuka-lang/ui => " + ui + "\n", string(sum)
+		"\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n\tgithub.com/vuka-lang/vuka/v2 " + runtime + "\n)\n\n" +
+		"replace github.com/vuka-lang/vuka/v2 => " + repo + "\n\nreplace github.com/vuka-lang/ui/v2 => " + ui + "\n", string(sum)
 }
 
 func writeFile(t *testing.T, path, content string) {

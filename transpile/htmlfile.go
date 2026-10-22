@@ -62,7 +62,7 @@ func (i TemplateImport) name() string {
 	if i.Name != "" {
 		return i.Name
 	}
-	return pathBase(i.Path)
+	return ImportName(i.Path)
 }
 
 var (
@@ -703,7 +703,7 @@ func packageImports(files []File) []goImport {
 		}
 		for _, s := range a.Imports {
 			path, _ := strconv.Unquote(s.Path.Value)
-			name := pathBase(path)
+			name := ImportName(path)
 			if s.Name != nil {
 				name = s.Name.Name
 			}

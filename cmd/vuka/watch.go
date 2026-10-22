@@ -23,7 +23,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // vuka run --watch builds the program to a binary and runs it; when a source
@@ -35,7 +35,7 @@ import (
 const runUsage = `usage: vuka run [-watch [-debug]] [build flags] [package] [arguments...]
 
 Run transpiles the module's .vuka files into an overlay and runs the
-package with go run. An app on github.com/vuka-lang/web gets its Tailwind
+package with go run. An app on github.com/vuka-lang/web/v2 gets its Tailwind
 CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
 
   -watch, --watch

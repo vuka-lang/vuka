@@ -10,7 +10,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Script blocks of .vuka.html files go to a TypeScript language server

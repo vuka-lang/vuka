@@ -5,7 +5,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // autoLink puts the link file of every main package of the module — blank

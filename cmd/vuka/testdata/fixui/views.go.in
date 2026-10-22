@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	v "github.com/vuka-lang/vuka"
-	"github.com/vuka-lang/vuka/term"
+	v "github.com/vuka-lang/vuka/v2"
+	"github.com/vuka-lang/vuka/v2/term"
 )
 
 type Page struct {

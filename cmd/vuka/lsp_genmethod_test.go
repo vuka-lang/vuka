@@ -69,7 +69,7 @@ func startLSPGo127(t *testing.T, files map[string]string) (*lspClient, string) {
 	}
 	dir := t.TempDir()
 	repo, _ := filepath.Abs("../..")
-	mod := "module lsptest\n\ngo 1.27.1\n\nrequire github.com/vuka-lang/vuka v0.0.0\n\nreplace github.com/vuka-lang/vuka => " + repo + "\n"
+	mod := "module lsptest\n\ngo 1.27.1\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => " + repo + "\n"
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644)
 	ownSum, _ := os.ReadFile("go.sum")
 	os.WriteFile(filepath.Join(dir, "go.sum"), ownSum, 0o644)

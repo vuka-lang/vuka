@@ -7,7 +7,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 // Guard checks the API key of every request below /api: the read key may

@@ -1,11 +1,11 @@
-// import github.com/vuka-lang/ui
+// import github.com/vuka-lang/ui/v2
 
 package main
 
 import (
 	"fmt"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 func Hello(name string) any {

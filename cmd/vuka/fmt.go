@@ -12,8 +12,8 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/format"
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // vukaFmt formats .vuka files, as gofmt does .go files: it prints them,

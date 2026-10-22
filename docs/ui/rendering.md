@@ -22,7 +22,7 @@ rendering side-effect free and propagate context cancellation.
 
 ## The terminal
 
-`github.com/vuka-lang/ui/term` renders the same nodes as text, including lists,
+`github.com/vuka-lang/ui/v2/term` renders the same nodes as text, including lists,
 tables, headings and links. Its Options select width and ANSI color. Respect
 `NO_COLOR` and terminal detection in your caller. Visitor control characters
 must not become terminal commands.

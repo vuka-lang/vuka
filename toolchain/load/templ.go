@@ -10,7 +10,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // TemplPath is the import path of templ's runtime, which the Go generated
@@ -77,7 +77,7 @@ var TemplCompiler func(path, name string, src []byte, scopes map[string]string) 
 
 // UIPath is the JSX target whose templx package registers a .templ file's
 // components for a vuka.File naming it.
-const UIPath = "github.com/vuka-lang/ui"
+const UIPath = "github.com/vuka-lang/ui/v2"
 
 // TemplInstrument rewrites a .templ file's Go to record live render trees
 // (ui.Rec). The vuka command's templ plugin sets it.
@@ -134,7 +134,7 @@ func TemplActive(root string) bool { return TemplCompiler != nil && requires(roo
 
 // TemplRegistry is the package the code generated for a vuka.File naming a
 // .templ file registers its components with (transpile.Options.TemplRegistry):
-// github.com/vuka-lang/ui/templx when the module at root compiles .templ
+// github.com/vuka-lang/ui/v2/templx when the module at root compiles .templ
 // files and requires ui; else "".
 func TemplRegistry(root string) string {
 	if TemplActive(root) && requires(root, UIPath) {

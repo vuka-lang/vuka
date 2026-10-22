@@ -16,8 +16,8 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 const usage = `vuka is Go with overloading and attributes.
@@ -32,7 +32,7 @@ Usage:
 	        island), an orm entity and its migration; vuka add -h for each
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
-	        an app on github.com/vuka-lang/web gets its Tailwind CSS (run keeps it
+	        an app on github.com/vuka-lang/web/v2 gets its Tailwind CSS (run keeps it
 	        rebuilt, build embeds it; VUKA_TAILWIND=off for none); a Vite project in
 	        frontend/ too (run starts its dev server, build runs vite build first;
 	        VUKA_FRONTEND=off for none)

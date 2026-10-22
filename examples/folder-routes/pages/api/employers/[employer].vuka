@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"example.com/folder-routes/store"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 // GET is one employer, /api/employers/{employer}: the file names the

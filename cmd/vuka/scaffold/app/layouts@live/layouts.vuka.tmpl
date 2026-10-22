@@ -3,7 +3,7 @@
 // every page is pages/_layout.vuka.html.
 package layouts
 
-import "github.com/vuka-lang/web"
+import "github.com/vuka-lang/web/v2"
 
 // AppName is the app's name, as pages and the shell show it (APP_NAME).
 func AppName() string { return web.Env("APP_NAME", "{%.Name%}") }

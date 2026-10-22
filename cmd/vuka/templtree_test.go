@@ -9,7 +9,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // recCalls compiles a .templ file, instruments it and lists, per component
@@ -103,7 +103,7 @@ func TestInstrumentTempl(t *testing.T) {
 func TestInstrumentTemplOutput(t *testing.T) {
 	_, out := recCalls(t, "package views\n\n// Doc stays.\ntempl Hello(name string) {\n\t<p>{ name }</p>\n}\n\nfunc helper() int { return 1 }\n")
 	for _, want := range []string{
-		"import templ_vk \"github.com/vuka-lang/ui/templx\"\n",
+		"import templ_vk \"github.com/vuka-lang/ui/v2/templx\"\n",
 		"// Doc stays.\nfunc Hello(name string) templ.Component {",
 		"templ_vk_r := templ_vk.Record(ctx, templ_7745c5c3_Buffer)",
 		"func helper() int { return 1 }",
@@ -112,7 +112,7 @@ func TestInstrumentTemplOutput(t *testing.T) {
 			t.Errorf("no %q in\n%s", want, out)
 		}
 	}
-	if n := strings.Count(string(out), "ui/templx"); n != 1 {
+	if n := strings.Count(string(out), "ui/v2/templx"); n != 1 {
 		t.Errorf("%d imports of templx", n)
 	}
 }
@@ -129,14 +129,14 @@ func TestTemplTrees(t *testing.T) {
 		want      bool
 	}{
 		{"no ui", "require github.com/a-h/templ v0.3.1020\n", false},
-		{"no templ", "require github.com/vuka-lang/ui v0.5.0\n", false},
-		{"old ui", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui v0.4.0\n)\n", false},
-		{"ui v0.5.0", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui v0.5.0\n)\n", true},
-		{"ui v1", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui v1.0.0\n)\n", true},
-		{"local ui with the recorder", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui v0.4.0\n)\n\nreplace github.com/vuka-lang/ui => " + uiDir + "\n", true},
-		{"local ui without it", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui v0.9.0\n)\n\nreplace github.com/vuka-lang/ui => " + old + "\n", false},
-		{"replaced by a version", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui v0.4.0\n)\n\nreplace (\n\tgithub.com/vuka-lang/ui v0.4.0 => github.com/vuka-lang/ui v0.5.1\n)\n", true},
-		{"ui itself", "module github.com/vuka-lang/ui\n\nrequire github.com/a-h/templ v0.3.1020\n", true},
+		{"no templ", "require github.com/vuka-lang/ui/v2 v2.0.0\n", false},
+		{"ui v1 (not this command's ui)", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui v0.4.0\n)\n", false},
+		{"ui v2", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n)\n", true},
+		{"ui v2.1", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui/v2 v2.1.0\n)\n", true},
+		{"local ui with the recorder", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n)\n\nreplace github.com/vuka-lang/ui/v2 => " + uiDir + "\n", true},
+		{"local ui without it", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n)\n\nreplace github.com/vuka-lang/ui/v2 => " + old + "\n", false},
+		{"replaced by a version", "require (\n\tgithub.com/a-h/templ v0.3.1020\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n)\n\nreplace (\n\tgithub.com/vuka-lang/ui/v2 v2.0.0 => github.com/vuka-lang/ui/v2 v2.0.1\n)\n", true},
+		{"ui itself", "module github.com/vuka-lang/ui/v2\n\nrequire github.com/a-h/templ v0.3.1020\n", true},
 	}
 	for _, tt := range tests {
 		root := t.TempDir()

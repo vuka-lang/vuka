@@ -6,7 +6,7 @@ header and markup starting on the first line beginning with `<`.
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type PetCard struct {
     Name string

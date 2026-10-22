@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 // Limiter paces the API.

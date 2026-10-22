@@ -1,6 +1,6 @@
 # Live sessions
 
-`github.com/vuka-lang/ui/live` keeps a page's [stateful
+`github.com/vuka-lang/ui/v2/live` keeps a page's [stateful
 components](/ui/stateful) alive for one connected browser: a session holds
 their instances, calls their event handlers and `Update` methods, and
 answers each with what changed. It knows no transport — a WebSocket server

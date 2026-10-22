@@ -5,6 +5,9 @@
 // identifiers as wide as they print, so gofmt's alignment around them is
 // right; match by a switch; ? by a selector; an attribute by a comment), the
 // result goes through go/format, and the constructs are put back, formatted.
+//
+// It is for the vuka command's use only; the compatibility promise doesn't
+// cover it.
 package format
 
 import (

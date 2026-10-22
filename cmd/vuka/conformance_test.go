@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/vuka-lang/ui/live/livetest"
+	"github.com/vuka-lang/ui/v2/live/livetest"
 )
 
 // TestConformance runs every app of examples/conformance, written the one
@@ -44,9 +44,9 @@ func TestConformance(t *testing.T) {
 		t.Skip("builds and runs every example app three ways")
 	}
 	if bi, ok := debug.ReadBuildInfo(); !ok || !slices.ContainsFunc(bi.Deps, func(m *debug.Module) bool {
-		return m.Path == "github.com/vuka-lang/vuka" && m.Replace != nil
+		return m.Path == "github.com/vuka-lang/vuka/v2" && m.Replace != nil
 	}) {
-		needs(t, "needs this checkout's transpiler: go mod edit -replace github.com/vuka-lang/vuka=../..")
+		needs(t, "needs this checkout's transpiler: go mod edit -replace github.com/vuka-lang/vuka/v2=../..")
 	}
 	mods := confCheckouts(t)
 	t.Setenv("GOWORK", "off")
@@ -105,7 +105,7 @@ func TestConformance(t *testing.T) {
 // against: $VUKA_UI, $VUKA_WEB, $VUKA_ORM, else the siblings of this one.
 func confCheckouts(t *testing.T) map[string]string {
 	repo, _ := filepath.Abs("../..")
-	mods := map[string]string{"github.com/vuka-lang/vuka": repo}
+	mods := map[string]string{"github.com/vuka-lang/vuka/v2": repo}
 	for _, m := range []struct{ name, env string }{{"ui", "VUKA_UI"}, {"web", "VUKA_WEB"}, {"orm", "VUKA_ORM"}} {
 		dir := os.Getenv(m.env)
 		if dir == "" {
@@ -114,7 +114,7 @@ func confCheckouts(t *testing.T) map[string]string {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err != nil {
 			needs(t, "no checkout of github.com/vuka-lang/%s at %s; set %s", m.name, dir, m.env)
 		}
-		mods["github.com/vuka-lang/"+m.name] = dir
+		mods["github.com/vuka-lang/"+m.name+"/v2"] = dir
 	}
 	return mods
 }
@@ -157,6 +157,9 @@ func confModule(t *testing.T, src string, mods map[string]string, extra map[stri
 	})
 	for _, p := range paths {
 		req[p] = "v0.0.0"
+		if m := pathMajor(p); m != "" {
+			req[p] = m[1:] + ".0.0"
+		}
 	}
 	for _, p := range paths {
 		out, err := exec.Command("go", "mod", "edit", "-json", filepath.Join(mods[p], "go.mod")).Output()
@@ -224,8 +227,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/vuka-lang/orm"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 var conformanceSQL struct {
@@ -263,7 +266,7 @@ func confBuild(t *testing.T, dir string, mods map[string]string, nodeModules, vu
 	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
 		if err == nil && !d.IsDir() && (strings.HasSuffix(p, ".go") || strings.HasSuffix(p, ".vuka")) {
 			b, _ := os.ReadFile(p)
-			usesORM = usesORM || bytes.Contains(b, []byte(`"github.com/vuka-lang/orm"`))
+			usesORM = usesORM || bytes.Contains(b, []byte(`"github.com/vuka-lang/orm/v2"`))
 		}
 		return nil
 	})

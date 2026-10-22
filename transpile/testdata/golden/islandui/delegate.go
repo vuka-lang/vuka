@@ -1,5 +1,5 @@
 // Package islandui is a JSX target for the island golden cases. It implements
-// the JSX contract by delegating the primitives to github.com/vuka-lang/ui and
+// the JSX contract by delegating the primitives to github.com/vuka-lang/ui/v2 and
 // adds the island API (island.go) that an island tag lowers to, so the cases
 // transpile and run without perturbing the other goldens' ui version.
 package islandui
@@ -11,7 +11,7 @@ import (
 	"runtime"
 	"strconv"
 
-	ui "github.com/vuka-lang/ui"
+	ui "github.com/vuka-lang/ui/v2"
 )
 
 // VukaJSX marks this package as a JSX target implementing version 2.

@@ -7,7 +7,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Pets lists pets: a header whose method uses a channel and a raw string

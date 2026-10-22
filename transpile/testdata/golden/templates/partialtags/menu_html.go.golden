@@ -7,7 +7,7 @@ import (
 	"context"
 	"io"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Menu is the top bar: a link per item, the current one marked.

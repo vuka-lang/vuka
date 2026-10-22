@@ -13,7 +13,7 @@ Save as `components/sales.vuka.html`:
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Sales struct {
     Title string
@@ -68,7 +68,7 @@ package components
 
 import (
     "context"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
 )
 
 type Counter struct {
@@ -188,7 +188,7 @@ In `components/admin.vuka.html`:
 ```html
 package components
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Admin struct {
     Title string
@@ -311,7 +311,7 @@ without storing it on the page or passing it through every component:
 ```html
 package dashboard
 
-import "github.com/vuka-lang/web/auth"
+import "github.com/vuka-lang/web/v2/auth"
 
 type Analytics struct{}
 <section>

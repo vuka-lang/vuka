@@ -1,7 +1,7 @@
 // Package pages is the settings page, and the island it places.
 package pages
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 // Picker is an island, islands/Picker.vue.
 @ui.Island

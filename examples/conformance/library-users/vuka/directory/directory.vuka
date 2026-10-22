@@ -6,9 +6,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/vuka-lang/orm"
-	_ "github.com/vuka-lang/orm/sqlite"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/orm/v2"
+	_ "github.com/vuka-lang/orm/v2/sqlite"
+	"github.com/vuka-lang/web/v2"
 )
 
 // User is a member of the directory, a row of its table.

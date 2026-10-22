@@ -149,7 +149,7 @@
         "vuka.path": {
           "type": "string",
           "default": "vuka",
-          "description": "The vuka binary (install: go install github.com/vuka-lang/vuka/cmd/vuka@latest)."
+          "description": "The vuka binary (install: go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest)."
         },
         "vuka.goplsPath": {
           "type": "string",

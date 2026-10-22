@@ -7,8 +7,8 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/vuka-lang/orm"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
 // Blog is the blog's service: its database, opened in memory and seeded.

@@ -5,7 +5,7 @@ For authors of transports and browser runtimes: how a
 attributes the HTML carries. The web framework's
 [live pages](/web/live) are one implementation; the
 [reference client](/ui/testing#stateful-components)
-(`github.com/vuka-lang/ui/live/livetest`) is another, in Go.
+(`github.com/vuka-lang/ui/v2/live/livetest`) is another, in Go.
 
 ## The session
 

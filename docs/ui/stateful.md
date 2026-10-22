@@ -14,7 +14,7 @@ package app
 import (
 	"context"
 
-	"github.com/vuka-lang/ui"
+	"github.com/vuka-lang/ui/v2"
 )
 
 type Counter struct {
@@ -210,8 +210,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/vuka-lang/ui"
-	"github.com/vuka-lang/ui/validate"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/ui/v2/validate"
 )
 
 type Dashboard struct {
@@ -256,7 +256,7 @@ package components
 
 import (
     "context"
-    "github.com/vuka-lang/ui"
+    "github.com/vuka-lang/ui/v2"
 )
 
 type Chat struct {
@@ -300,7 +300,7 @@ Props compare by value; a pointer, slice, map, func or interface prop
 // row.vuka.html
 package app
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Row struct {
 	ui.Live

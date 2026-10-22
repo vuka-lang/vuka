@@ -1,5 +1,5 @@
 package app
 
-import kit "github.com/vuka-lang/ui"
+import kit "github.com/vuka-lang/ui/v2"
 
 func badge() kit.Node { return kit.Badge(kit.BadgeProps{Variant: kit.Success}) }

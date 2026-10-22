@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/internal/format"
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // Live pages of earlier releases are configured by field tags (bind:, url:,
@@ -283,7 +283,7 @@ func groupOf(tag, field string) string {
 	return strings.ToUpper(tag[:1]) + tag[1:]
 }
 
-const validatePath = "github.com/vuka-lang/ui/validate"
+const validatePath = "github.com/vuka-lang/ui/v2/validate"
 
 // fixAttributes rewrites a live page's field tags as attributes.
 func fixAttributes(m *fixModule) ([]fixChange, error) {

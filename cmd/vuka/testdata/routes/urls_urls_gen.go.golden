@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	"example.com/app/codes"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 // Root is the folder pages/.

@@ -56,7 +56,7 @@ func (f *fileState) genQual(path string) string {
 	for _, imp := range f.ast.Imports {
 		if p, _ := strconv.Unquote(imp.Path.Value); p == path {
 			if imp.Name == nil {
-				return pathBase(path) + "."
+				return ImportName(path) + "."
 			}
 			if imp.Name.Name == "." {
 				return ""
@@ -64,7 +64,7 @@ func (f *fileState) genQual(path string) string {
 			return imp.Name.Name + "."
 		}
 	}
-	return f.importAs(path, pathBase(path)) + "."
+	return f.importAs(path, ImportName(path)) + "."
 }
 
 // declareStates writes each ui.State(v) call as the gen package's UseState
@@ -90,7 +90,7 @@ func (e *engine) declareStates() {
 		names := map[string]string{} // the file's import names → paths
 		for _, imp := range f.ast.Imports {
 			path, _ := strconv.Unquote(imp.Path.Value)
-			name := path[strings.LastIndex(path, "/")+1:]
+			name := ImportName(path)
 			if imp.Name != nil {
 				name = imp.Name.Name
 			}

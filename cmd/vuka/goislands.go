@@ -10,8 +10,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Islands of plain Go: what the vuka command reads of a .go file, as it
@@ -61,7 +62,7 @@ func (g *goPkgs) pkg(dir string) []*goFile {
 func (g *goPkgs) importDir(f *goFile, name string) string {
 	for _, im := range f.ast.Imports {
 		p, _ := strconv.Unquote(im.Path.Value)
-		n := p[strings.LastIndexByte(p, '/')+1:]
+		n := transpile.ImportName(p)
 		if im.Name != nil {
 			n = im.Name.Name
 		}
@@ -342,7 +343,7 @@ func importName(f *ast.File, path string) string {
 			if im.Name != nil {
 				return im.Name.Name
 			}
-			return path[strings.LastIndexByte(path, '/')+1:]
+			return transpile.ImportName(path)
 		}
 	}
 	return ""

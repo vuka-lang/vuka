@@ -346,7 +346,7 @@ program, not declared) gets the ORM's refusal alone.
 
 ## Web integration
 
-`github.com/vuka-lang/orm/ormweb` serves a set of databases in a
+`github.com/vuka-lang/orm/v2/ormweb` serves a set of databases in a
 [web](/web/) app. `ormweb.Databases(opts…)` is one `web.Option`:
 
 

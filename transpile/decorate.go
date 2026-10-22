@@ -114,7 +114,7 @@ func (e *engine) injectTag(f *fileState, field *ast.Field) {
 // retired is what a decorator the libraries no longer have became, by its
 // package's path and name: the one way to write it now.
 var retired = map[string]string{
-	"github.com/vuka-lang/web.Service": "@web.Service is gone: give the struct a constructor, func NewX(deps…) *X, and register it in main with app.Service(NewX); handlers and hooks then take *X as a parameter",
+	"github.com/vuka-lang/web/v2.Service": "@web.Service is gone: give the struct a constructor, func NewX(deps…) *X, and register it in main with app.Service(NewX); handlers and hooks then take *X as a parameter",
 }
 
 // retiredDecorator reports a's decorator when its package no longer has it.
@@ -146,7 +146,7 @@ func (e *engine) pageDecorator(f *fileState, a *Attr) bool {
 	if !ok || sel != "Live" && !pageVerbs[sel] {
 		return false
 	}
-	if pkg := e.importedAs(f, pkgName); pkg == nil || pkg.Path() != "github.com/vuka-lang/web" {
+	if pkg := e.importedAs(f, pkgName); pkg == nil || pkg.Path() != "github.com/vuka-lang/web/v2" {
 		return false
 	}
 	if gd, ok := a.decl.(*ast.GenDecl); sel != "Live" && (!ok || gd.Tok != token.TYPE) {

@@ -6,7 +6,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // versionCmd prints this command's toolchain set and, inside an app, the
@@ -40,7 +40,7 @@ func versionCmd(args []string, stdout, stderr io.Writer) error {
 		if !ok {
 			continue
 		}
-		line := fmt.Sprintf("  %-26s %s", p, v)
+		line := fmt.Sprintf("  %-29s %s", p, v)
 		if r := m.replaced(p); r != "" {
 			line += " => " + r
 		}

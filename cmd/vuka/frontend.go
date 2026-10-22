@@ -13,11 +13,11 @@ import (
 	"sync"
 	"time"
 
-	"github.com/vuka-lang/vuka/cmd/vuka/internal/progress"
-	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/cmd/vuka/v2/internal/progress"
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
-// Frontends for apps on github.com/vuka-lang/web (web.Frontend): a Vite
+// Frontends for apps on github.com/vuka-lang/web/v2 (web.Frontend): a Vite
 // project in frontend/ (a directory with a package.json). vuka run starts its
 // dev server beside the app, whose pages then load their modules from it;
 // vuka build runs vite build before the go build embeds the output. Both

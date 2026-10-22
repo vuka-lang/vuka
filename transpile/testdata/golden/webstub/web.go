@@ -1,4 +1,4 @@
-// Package web is a stand-in for github.com/vuka-lang/web's registry: its
+// Package web is a stand-in for github.com/vuka-lang/web/v2's registry: its
 // decorators and the registry methods they name, which print what they
 // register.
 package web
@@ -9,7 +9,7 @@ import (
 	"runtime"
 	"strings"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 // RouteOption configures a registration: anything carrying attributes.

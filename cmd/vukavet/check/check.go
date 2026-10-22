@@ -20,10 +20,10 @@ import (
 var Analyzers = []*analysis.Analyzer{Routes, Live, Templates, Schema}
 
 const (
-	vukaPath  = "github.com/vuka-lang/vuka"
-	webPath   = "github.com/vuka-lang/web"
-	uiPath    = "github.com/vuka-lang/ui"
-	ormPath   = "github.com/vuka-lang/orm"
+	vukaPath  = "github.com/vuka-lang/vuka/v2"
+	webPath   = "github.com/vuka-lang/web/v2"
+	uiPath    = "github.com/vuka-lang/ui/v2"
+	ormPath   = "github.com/vuka-lang/orm/v2"
 	templPath = "github.com/a-h/templ"
 	docsURL   = "https://vuka-lang.github.io/errors/"
 )

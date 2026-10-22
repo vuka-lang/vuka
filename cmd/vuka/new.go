@@ -21,15 +21,15 @@ import (
 	"text/template"
 	"unicode"
 
-	"github.com/vuka-lang/vuka/internal/format"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // The orm a new app requires beside the toolchain set (toolchain.go); vuka
 // mod tidy brings in the rest. The scaffolds are written against it: CI's
 // cmd job points new apps at orm main (VUKA_NEW_REPLACE), so a scaffold
 // out of step with the orm fails there, not in the next release.
-const ormVersion = "v1.0.0"
+const ormVersion = "v2.0.0"
 
 // scaffoldFS holds the files vuka new and vuka add write. A path segment
 // name@tag1+tag2 is written as name when every tag holds (scaffold.tags);

@@ -2,7 +2,7 @@
 
 package htmluse
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 func (c Card) Generated() ui.Node {
 	return ui.HTML(`<h2>{c.Title}</h2>`, c.Title)

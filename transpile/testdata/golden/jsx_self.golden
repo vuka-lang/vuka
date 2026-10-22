@@ -12,7 +12,7 @@ import (
 
 // This package IS its own JSX target: it declares VukaJSX and the primitives,
 // so its .vuka files author JSX that lowers to UNQUALIFIED calls (HTML,
-// Child, …) resolved within the package — the way github.com/vuka-lang/ui
+// Child, …) resolved within the package — the way github.com/vuka-lang/ui/v2
 // authors its own components.
 const VukaJSX = 3
 

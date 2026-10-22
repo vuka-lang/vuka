@@ -14,8 +14,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/vuka-lang/vuka/internal/load"
-	"github.com/vuka-lang/vuka/transpile"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // mod runs `go mod <args>` so the go command sees the imports of .vuka files:

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/vuka-lang/vuka"
+	"github.com/vuka-lang/vuka/v2"
 )
 
 // A decorator whose arguments are all optional is written bare or with

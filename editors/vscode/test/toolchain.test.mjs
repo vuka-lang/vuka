@@ -10,5 +10,5 @@ for (const version of ['v1.4.0', 'v1.4.1', 'v1.10.0', 'v2.0.0']) {
 assert.equal(toolchain.supportsTemplateContext('vuka dev'), undefined);
 assert.equal(toolchain.supportsTemplateContext('error: v1.4.0'), undefined);
 assert.equal(toolchain.serverVersion('vuka v1.4.0 (vuka, ui, web v1.4.0)').text, 'v1.4.0');
-assert.equal(toolchain.updateCommand, 'go install github.com/vuka-lang/vuka/cmd/vuka@v1.4.0');
+assert.equal(toolchain.updateCommand, 'go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest');
 console.log('toolchain tests passed');

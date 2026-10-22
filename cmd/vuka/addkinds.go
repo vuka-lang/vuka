@@ -1307,8 +1307,8 @@ func addEntity(root, mod string, f *addFlags, w io.Writer) error {
 // app's orm tool.
 func makeMigration(root, name string, w io.Writer) error {
 	gomod, _ := os.ReadFile(filepath.Join(root, "go.mod"))
-	if !bytes.Contains(gomod, []byte("tool github.com/vuka-lang/orm/cmd/orm")) {
-		fmt.Fprintf(w, "\nWrite its migration: go run github.com/vuka-lang/orm/cmd/orm makemigrations %s\n", name)
+	if !bytes.Contains(gomod, []byte("tool github.com/vuka-lang/orm/v2/cmd/orm")) {
+		fmt.Fprintf(w, "\nWrite its migration: go run github.com/vuka-lang/orm/v2/cmd/orm makemigrations %s\n", name)
 		return nil
 	}
 	c := exec.Command("go", "tool", "orm", "makemigrations", "--noinput", name)

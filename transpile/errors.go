@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/vuka-lang/vuka/diag"
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // Error is a problem in a source file, positioned in the file as written,

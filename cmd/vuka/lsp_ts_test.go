@@ -9,7 +9,7 @@ import (
 
 const lspTSGo = `package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 // Chart is a component with a script.
 type Chart struct {

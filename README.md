@@ -43,7 +43,7 @@ case Err(e):
 ```
 
 ```
-go install github.com/vuka-lang/vuka/cmd/vuka@latest
+go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 vuka new shop && cd shop && vuka run -watch .   # a web app: pages, sign-in, a database, tests
 ```
 
@@ -89,14 +89,14 @@ syntax, Vuka already accepts it.
 
 ## What works
 
-**Result and Option** live in the runtime package `github.com/vuka-lang/vuka`
+**Result and Option** live in the runtime package `github.com/vuka-lang/vuka/v2`
 (its root; nothing else in it). Vuka code writes `Result[User]`, `Ok(u)`,
 `Err(e)`, `Some(x)` and `None` unqualified, and the transpiler adds the import
 wherever the package doesn't declare those names itself. `Err` and `None` take
 their type from where the value goes (`return Err(e)` in a function returning
 `Result[User]`). Result's error is Go's `error`, so it meets Go code halfway:
 `vuka.Of(os.ReadFile(p))` wraps a Go call, `r.Get()` hands back `(T, error)`.
-Your module needs the dependency: `go get github.com/vuka-lang/vuka`.
+Your module needs the dependency: `go get github.com/vuka-lang/vuka/v2`.
 
 **`?`** ends a statement: `x := f()?`, `x = f()?`, `var x = f()?`,
 `return f()?` or `f()?`. The operand is Go's `(T…, error)`, an `error`, a
@@ -349,7 +349,7 @@ runtime when generated code needs a newer one, `static-names` rewrites statics
 spelt by their Go names (`User_Table`) to `User.Table` in `.vuka` files,
 `orphans` removes files `vuka gen -inplace` wrote for `.vuka` files that are
 gone, `attr-of` renames `vuka.Attr[T](c)` to `vuka.AttrOf[T](c)` (v0.5.0),
-`ui` moves UI code to `github.com/vuka-lang/ui` (v0.10.0), `attributes` and
+`ui` moves UI code to `github.com/vuka-lang/ui/v2` (v0.10.0), `attributes` and
 `hooks` write struct tags and hooks found by name as attributes,
 `ui-structs` writes the ui kit's components as struct literals,
 `templates-package` starts each `.vuka.html` with its package clause, and
@@ -367,11 +367,11 @@ for the releases in between, then vet and tests. See
 
 **JSX.** Markup is an expression, and a component is a function. JSX is
 syntax: what it renders with is the library the file imports, its JSX target —
-[`github.com/vuka-lang/ui`](https://github.com/vuka-lang/ui), where `ui.Node`
+[`github.com/vuka-lang/ui/v2`](https://github.com/vuka-lang/ui), where `ui.Node`
 is `templ.Component`:
 
 ```go
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 func PetRow(pet Pet) ui.Node {
 	return <tr><td>{pet.Name}</td><td>{pet.Age}</td></tr>

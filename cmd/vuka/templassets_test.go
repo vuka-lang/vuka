@@ -30,7 +30,7 @@ func TestTemplateAssets(t *testing.T) {
 
 import (
 	"example.com/app/pages"
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 func main() { web.New(pages.Routes()).Run("") }
@@ -147,7 +147,7 @@ func TestFindTemplateAssets(t *testing.T) {
 // .vuka JSX are its own, as a template's are.
 func TestJSXAssets(t *testing.T) {
 	root := tempModule(t, map[string]string{"go.mod": webMod,
-		"main.vuka": "package main\n\nimport \"github.com/vuka-lang/ui\"\n\ntype Chart struct{ Title string }\n\nfunc (c Chart) Render() ui.Node {\n\treturn <figure>{c.Title}\n\t\t<script lang=\"ts\">\nexport default { mounted(el: HTMLElement) { el.dataset.x = \"1\" } }\n</script>\n\t\t<style scoped>figure { margin: 0 }</style>\n\t</figure>\n}\n\nfunc main() {}\n",
+		"main.vuka": "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Chart struct{ Title string }\n\nfunc (c Chart) Render() ui.Node {\n\treturn <figure>{c.Title}\n\t\t<script lang=\"ts\">\nexport default { mounted(el: HTMLElement) { el.dataset.x = \"1\" } }\n</script>\n\t\t<style scoped>figure { margin: 0 }</style>\n\t</figure>\n}\n\nfunc main() {}\n",
 	})
 	pa, err := findAssets(root, "example.com/app")
 	if err != nil || pa == nil {

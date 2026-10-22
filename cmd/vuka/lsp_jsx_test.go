@@ -16,7 +16,7 @@ var componentFiles = map[string]string{
 	"hello.templ": "package main\n\ntempl Hello(name string) {\n\t<p>Hello, { name }!</p>\n}\n",
 	"button.vuka.html": `package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Button struct {
 	Variant  string
@@ -27,7 +27,7 @@ type Button struct {
 `,
 	"usercard.vuka.html": `package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type UserCard struct {
 	User     User
@@ -41,7 +41,7 @@ type UserCard struct {
 `,
 	"counter.vuka.html": `package main
 
-import "github.com/vuka-lang/ui"
+import "github.com/vuka-lang/ui/v2"
 
 type Counter struct {
 	ui.Live

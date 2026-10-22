@@ -19,7 +19,7 @@ func TestFrontendEmbeds(t *testing.T) {
 import (
 	"embed"
 
-	"github.com/vuka-lang/web"
+	"github.com/vuka-lang/web/v2"
 )
 
 //go:embed static
