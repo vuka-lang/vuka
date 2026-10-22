@@ -1,5 +1,11 @@
 package main
 
+// Chart is a component with a script: its data fields are its props.
+type Chart struct {
+	Title  string
+	Points []int
+	Zoom   func(from, to int)
+}
 <figure class="chart">
   <figcaption>{Title}</figcaption>
   <script is:inline>window.points = {json(Points)};</script>

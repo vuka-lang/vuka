@@ -1,0 +1,11 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+// Card is a titled box.
+type Card struct{ Title string }
+
+func (c Card) heading() ui.Node {
+	return <h2>{c.Title}</h2>
+}
+<section>{heading()}</section>

@@ -1,25 +1,18 @@
 package main
 
-name := ctx.Value(userKey{}).(string)
+import "github.com/vuka-lang/ui"
+
+// Page reads ctx in a statement of its markup.
+type Page struct {
+	ui.Live
+	Title string
+}
 <main>
+ name := ctx.Value(userKey{}).(string)
  <h1>{Title}</h1>
  <p>{name}</p>
  <Card title="Identity" />
  <UserBadge />
- {Explicit(ctx)}
  <LocalName />
  <LiteralName />
 </main>
-
-func UserBadge()
-<b>{ctx.Value(userKey{}).(string)}</b>
-
-func Explicit(ctx context.Context)
-<i>{ctx.Value(userKey{}).(string)}</i>
-
-func LocalName()
-ctx := "local"
-<small>{ctx}</small>
-
-func LiteralName()
-<small>{"ctx"}</small>

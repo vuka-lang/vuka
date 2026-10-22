@@ -10,14 +10,25 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line icon.vuka.html:3
+// Icon has a field named after its own type: where a value goes, Glyph is
+// the field; where only a type goes, the type.
+//
+//line icon.vuka.html:5
+type Icon struct {
+	Glyph Glyph
+	Alt   Raw
+	Extra []Glyph
+	Size  int
+}
+
+//line icon.vuka.html:11
 func (i Icon) View() ui.Node {
 	var paths []ui.Node
-//line icon.vuka.html:8
+//line icon.vuka.html:16
 	for _, Glyph := range i.Extra {
 		paths = append(paths, ui.HTML(`<path d={Glyph.Path()}/>`, Glyph.Path()))
 	}
-//line icon.vuka.html:3
+//line icon.vuka.html:11
 	return ui.HTML(`
 <svg width={i.Size}>
   <path d={i.Glyph.Path()}/>
@@ -36,5 +47,5 @@ func (i Icon) View() ui.Node {
 	)
 }
 
-//line icon.vuka.html:11
+//line icon.vuka.html:19
 func (i Icon) Render(ctx context.Context, w io.Writer) error { return i.View().Render(ctx, w) }

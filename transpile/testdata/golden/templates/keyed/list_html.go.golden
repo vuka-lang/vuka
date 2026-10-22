@@ -10,16 +10,21 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line list.vuka.html:3
+// List keys its rows and the counters in them.
+//
+//line list.vuka.html:4
+type List struct{ Items []Item }
+
+//line list.vuka.html:5
 func (l List) View() ui.Node {
 	var lis []ui.Node
-//line list.vuka.html:4
+//line list.vuka.html:6
 	for _, it := range l.Items {
 		lis = append(lis, ui.HTML(`<li key={it.ID}>{ui.Key(it.ID, &Counter{Label: it.Name})}</li>`, it.ID, ui.Key(it.ID, &Counter{Label: it.Name})))
 	}
-//line list.vuka.html:3
+//line list.vuka.html:5
 	return ui.HTML(`<ul>{lis}</ul>`, lis)
 }
 
-//line list.vuka.html:7
+//line list.vuka.html:9
 func (l List) Render(ctx context.Context, w io.Writer) error { return l.View().Render(ctx, w) }

@@ -1,0 +1,1 @@
+card.vuka.html:9:9: markup in a .vuka.html file's Go header: the header is Go, and the file's markup starts at its first line starting with <; write the markup below the Go header, as the struct's markup, or in its own .vuka.html file used as a tag

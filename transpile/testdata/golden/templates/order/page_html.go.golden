@@ -4,21 +4,26 @@
 package main
 
 import (
+	"context"
+	"io"
+
 	"github.com/vuka-lang/ui"
 )
 
 // Page shows each value as it is where the markup reads it.
 //
 //line page.vuka.html:4
-func Page(xs []int) ui.Node {
-//line page.vuka.html:6
+type Page struct{ Xs []int }
+
+//line page.vuka.html:5
+func (pa Page) View() ui.Node {
 	x := 1
 	x2 := x
 	x = 2
 //line page.vuka.html:10
 	total := 0
 	var lis []ui.Node
-	for _, n := range xs {
+	for _, n := range pa.Xs {
 		total2 := total
 		total += n
 		lis = append(lis, ui.HTML(`
@@ -32,7 +37,7 @@ func Page(xs []int) ui.Node {
 //line page.vuka.html:19
 	n2 := c.n
 	k := c.next()
-//line page.vuka.html:4
+//line page.vuka.html:5
 	return ui.HTML(`
 <main>
   <p>{x2}</p>
@@ -51,3 +56,6 @@ func Page(xs []int) ui.Node {
 		k,
 	)
 }
+
+//line page.vuka.html:22
+func (pa Page) Render(ctx context.Context, w io.Writer) error { return pa.View().Render(ctx, w) }

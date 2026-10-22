@@ -10,9 +10,18 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line admin.vuka.html:3
+// Admin is the admin pages' layout: its Children and the Actions slot.
+//
+//line admin.vuka.html:6
+type Admin struct {
+	Title    string
+	Actions  ui.Node
+	Children ui.Node
+}
+
+//line admin.vuka.html:11
 func (a Admin) View() ui.Node {
-//line admin.vuka.html:3
+//line admin.vuka.html:11
 	return ui.HTML(`
 <div class="admin">
   <header>
@@ -23,5 +32,5 @@ func (a Admin) View() ui.Node {
 </div>`, a.Title, a.Actions, a.Children)
 }
 
-//line admin.vuka.html:6
+//line admin.vuka.html:14
 func (a Admin) Render(ctx context.Context, w io.Writer) error { return a.View().Render(ctx, w) }

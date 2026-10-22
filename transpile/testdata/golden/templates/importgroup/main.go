@@ -8,6 +8,6 @@ import (
 )
 
 func main() {
-	out, err := ui.String(context.Background(), Total([]int{3, 4}))
+	out, err := ui.String(context.Background(), Total{Days: []int{3, 4}})
 	fmt.Println(out, err)
 }

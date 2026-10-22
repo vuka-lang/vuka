@@ -1,5 +1,22 @@
 package main
 
+import "github.com/vuka-lang/ui"
+
+// Sales is a week of sales: its fields are its props.
+type Sales struct {
+	Title    string
+	Week     []int
+	Children ui.Node
+}
+
+// Total is the week's sum.
+func (s Sales) Total() int {
+	n := 0
+	for _, d := range s.Week {
+		n += d
+	}
+	return n
+}
 <section class="sales">
   <h2>{Title}</h2>
   for _, d := range Week {
@@ -8,30 +25,3 @@ package main
   <p>Total: {Total()} {{literal}</p>
   {Children}
 </section>
-
-// Page lists the orders below a week of sales.
-func Page(orders []Order)
-<main>
-  <Sales title="Week" week={[]int{3, 12}}>
-    <em>note</em>
-  </Sales>
-  if len(orders) == 0 {
-    <p>none</p>
-  } else {
-    <ul>
-      for _, o := range orders {
-        {row(o)}
-      }
-    </ul>
-  }
-  n := len(orders)
-  switch n {
-  case 1:
-    <p>one</p>
-  default:
-    <p>{n} orders</p>
-  }
-</main>
-
-func row(o Order)
-<li key={o.ID}><a href="/orders/{o.ID}" title={o.Ref}>{o.Ref}</a></li>

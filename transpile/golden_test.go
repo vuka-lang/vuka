@@ -29,6 +29,10 @@ func TestGolden(t *testing.T) {
 	for _, path := range cases {
 		name := strings.TrimSuffix(filepath.Base(path), ".vuka")
 		t.Run(name, func(t *testing.T) {
+			if strings.HasPrefix(name, "err_markup") {
+				// What an app's .vuka file is held to: no markup.
+				defer transpile.SetJSXInVuka(transpile.SetJSXInVuka(false))
+			}
 			src, err := os.ReadFile(path)
 			if err != nil {
 				t.Fatal(err)

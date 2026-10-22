@@ -7,27 +7,8 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-// Counter is a live component; its Render is counter.vuka.html.
-type Counter struct {
-	ui.Live
-	Start int
-	n     int
-}
-
-func (c *Counter) Inc() { c.n++ }
-
-// Add is an event taking an argument: onClick={c.Add(2)}.
-func (c *Counter) Add(n int) { c.n += n }
-
-// Badge is a function component in .vuka, a tag in the template.
-func Badge(label string) ui.Node { return <b class="badge">{label}</b> }
-
-// Page uses the template's partial from JSX.
-func Page() ui.Node {
-	return <main>{heading("Counters")}<Counter start={5} />{step(&Counter{})}</main>
-}
-
+// main is in a .vuka file, beside the package's templates.
 func main() {
-	s, err := ui.String(context.Background(), Page())
+	s, err := ui.String(context.Background(), Page{})
 	fmt.Println(s, err)
 }

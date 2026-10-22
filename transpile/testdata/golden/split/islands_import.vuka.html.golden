@@ -1,9 +1,0 @@
-package main
-
-import Picker "./islands/Picker.vue"
-
-func pageView(open ui.State[bool], p *page)
-<div>
-  <Picker title="Week" kind="week" max={3} days={[]PickerDays{{Label: "mon", Free: true}}} open={open} onSelect={p.Pick} onClose={p.Closed} client:load><b>hi</b></Picker>
-  <Picker title="Again" days={nil} onClose={open.Set(false)} once />
-</div>

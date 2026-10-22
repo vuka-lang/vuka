@@ -13,8 +13,6 @@ type PanelProps struct {
 	Children ui.Node
 }
 
-type Page struct{ Items []string }
-
 func main() {
 	out, err := ui.String(context.Background(), Page{Items: []string{"a", "b"}})
 	fmt.Println(out, err)

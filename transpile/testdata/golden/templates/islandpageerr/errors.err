@@ -1,0 +1,1 @@
+page.vuka.html:17:1: Page's markup is the island Board, and Page is live (it declares the hook @ui.Mount) without embedding ui.Live: an island page is live when its struct embeds ui.Live; embed ui.Live in Page for a live island page, or drop its hooks for a stateless one

@@ -5,6 +5,7 @@ package main
 
 import (
 	"context"
+	"io"
 
 	"github.com/vuka-lang/ui"
 )
@@ -12,14 +13,12 @@ import (
 // Orders is a page in the Admin layout.
 //
 //line orders.vuka.html:4
-func Orders(n int) ui.Node {
-//line orders.vuka.html:7
-	badge := ui.Ctx(func(ctx context.Context) ui.Node { return Badge(ctx) })
-//line orders.vuka.html:4
-	return func(a1 ui.Node, a2 ui.Node) ui.Node {
-		return ui.Ctx(func(ctx context.Context) ui.Node {
+type Orders struct{ N int }
+
 //line orders.vuka.html:5
-			return Admin(ctx, AdminProps{Title: "Orders", Actions: a1, Children: a2})
-		})
-	}(ui.HTML(`<button>New</button>`), ui.HTML(`<p>{n} orders {badge}</p>`, n, badge))
+func (o Orders) View() ui.Node {
+//line orders.vuka.html:5
+	return Admin{Title: "Orders", Actions: ui.HTML(`<button>New</button>`), Children: ui.HTML(`<p>{o.N} orders {Badge{}}</p>`, o.N, Badge{})}
 }
+
+func (o Orders) Render(ctx context.Context, w io.Writer) error { return o.View().Render(ctx, w) }

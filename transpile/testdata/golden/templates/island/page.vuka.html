@@ -2,6 +2,8 @@ package main
 
 import Clock "./clock.tsx"
 
+// Page shows a clock island.
+type Page struct{ Zone string }
 <main>
   <Clock zone={Zone} client:visible />
 </main>

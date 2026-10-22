@@ -1,3 +1,5 @@
 package main
 
+// Card reads ctx in its markup.
+type Card struct{ Title string }
 <section><h2>{Title}</h2><span>{ctx.Value(userKey{}).(string)}</span></section>

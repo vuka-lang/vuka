@@ -1,0 +1,11 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+// Counter is a stateful component, keyed in a loop.
+type Counter struct {
+	ui.Live
+	Label string
+	n     int
+}
+<span>{Label}: {n}</span>

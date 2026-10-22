@@ -9,54 +9,35 @@ import (
 	"github.com/vuka-lang/ui"
 )
 
-//line page.vuka.html:3
+// Page reads ctx in a statement of its markup.
+//
+//line page.vuka.html:6
+type Page struct {
+	ui.Live
+	Title string
+}
+
+//line page.vuka.html:10
 func (pa *Page) Render() ui.Node {
-//line page.vuka.html:3
+//line page.vuka.html:10
 	return ui.Ctx(func(ctx context.Context) ui.Node {
-//line page.vuka.html:3
 		name := ctx.Value(userKey{}).(string)
-//line page.vuka.html:3
+//line page.vuka.html:10
 		return ui.HTML(`
 <main>
   <h1>{pa.Title}</h1>
   <p>{name}</p>
   {Card{Title: "Identity"}}
-  {UserBadge()}
-  {Explicit(ctx)}
-  {LocalName()}
-  {LiteralName()}
+  {UserBadge{}}
+  {LocalName{}}
+  {LiteralName{}}
 </main>`,
 			pa.Title,
 			name,
 			Card{Title: "Identity"},
-			UserBadge(),
-			Explicit(ctx),
-			LocalName(),
-			LiteralName(),
+			UserBadge{},
+			LocalName{},
+			LiteralName{},
 		)
 	})
 }
-
-//line page.vuka.html:14
-func UserBadge() ui.Node {
-//line page.vuka.html:14
-	return ui.Ctx(func(ctx context.Context) ui.Node {
-//line page.vuka.html:14
-		return ui.HTML(`<b>{ctx.Value(userKey{}).(string)}</b>`, ctx.Value(userKey{}).(string))
-	})
-}
-
-//line page.vuka.html:17
-func Explicit(ctx context.Context) ui.Node {
-//line page.vuka.html:17
-	return ui.HTML(`<i>{ctx.Value(userKey{}).(string)}</i>`, ctx.Value(userKey{}).(string))
-}
-
-func LocalName() ui.Node {
-	ctx := "local"
-//line page.vuka.html:20
-	return ui.HTML(`
-<small>{ctx}</small>`, ctx)
-}
-
-func LiteralName() ui.Node { return ui.HTML(`<small>{"ctx"}</small>`, "ctx") }

@@ -1,0 +1,17 @@
+error[E0720]: @web.Live declares a page outside pages/: a page is a .vuka.html file under pages/, its path its URL, and vuka registers it
+ --> err_pages.vuka:8:1
+  |
+8 | @web.Live("/pets/{id}")
+  | ^^^^^^^^^
+  |
+  = help: move Pet to pages/pets/[id].vuka.html: the struct above its markup; it is live when it embeds ui.Live or the markup calls its methods
+
+error[E0720]: @web.Get declares a page outside pages/: a page is a .vuka.html file under pages/, its path its URL, and vuka registers it
+  --> err_pages.vuka:11:1
+   |
+11 | @web.Get("/")
+   | ^^^^^^^^
+   |
+   = help: move Home to pages/index.vuka.html: the struct above its markup; it is live when it embeds ui.Live or the markup calls its methods
+
+For more information about this error, try `vuka explain E0720`.

@@ -1,5 +1,16 @@
 package main
 
+import "github.com/vuka-lang/ui"
+
+// Search binds its query to its input, and colours itself with a CSS
+// variable.
+type Search struct {
+	ui.Live
+	Q      string
+	Accent string
+}
+
+func (s *Search) LiveSchema(l *ui.LiveSchema) { l.Field(&s.Q, ui.Bind{}) }
 <form style="display: flex" style:--accent={Accent}>
   <input type="search" bind:value={Q}/>
   <output style:--n={len(Q)}>{Q}</output>

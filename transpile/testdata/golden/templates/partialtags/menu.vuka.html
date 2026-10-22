@@ -1,26 +1,18 @@
 package main
 
-import "strings"
-
 // Menu is the top bar: a link per item, the current one marked.
-func Menu(items []Item, path string)
+type Menu struct {
+	Items []Item
+	Path  string
+}
 <nav>
-  for _, i := range items {
-    <navLink item={i} on={i.Href == path}/>
+  for _, i := range Items {
+    <NavLink item={i} on={i.Href == Path}/>
   }
-  <panel title="Me">
+  <Panel title="Me">
     <slot:footer><badge n={3}/></slot:footer>
-    <who/>
-  </panel>
-  <navLink item={Item{"/x", "X"}} on/>
-  {navLink(Item{"/y", "Y"}, false)}
+    <Who/>
+  </Panel>
+  <NavLink item={Item{"/x", "X"}} on/>
+  {NavLink{Item: Item{"/y", "Y"}}}
 </nav>
-
-func navLink(item Item, on bool)
-<a href={item.Href} class:on={on}>{strings.ToUpper(item.Label)}</a>
-
-func panel(title string, footer ui.Node, children ui.Node)
-<section><h2>{title}</h2>{children}<footer>{footer}</footer></section>
-
-func who(ctx context.Context)
-<i>{ctx.Value(userKey{}).(string)}</i>

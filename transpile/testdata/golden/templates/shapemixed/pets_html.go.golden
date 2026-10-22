@@ -39,17 +39,15 @@ func (p Pets) View() ui.Node {
 	var petRows []ui.Node
 //line pets.vuka.html:27
 	for _, x := range p.Pets {
-		petRows = append(petRows, petRow(x))
+		petRows = append(petRows, PetRow{X: x})
 	}
 //line pets.vuka.html:24
 	return ui.HTML(`
 <section>
   <h2>Oldest: {p.Oldest()}</h2>
   <ul>{petRows}</ul>
-  {Footer(len(p.Pets))}
-</section>`, p.Oldest(), petRows, Footer(len(p.Pets)))
+  {Footer{N: len(p.Pets)}}
+</section>`, p.Oldest(), petRows, Footer{N: len(p.Pets)})
 }
 
 func (p Pets) Render(ctx context.Context, w io.Writer) error { return p.View().Render(ctx, w) }
-
-func petRow(x Pet) ui.Node { return ui.HTML(`<li>{x.Name}</li>`, x.Name) }

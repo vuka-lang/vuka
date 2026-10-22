@@ -1,8 +1,5 @@
 package main
 
 // Menu is the menu.
-func Menu(i Item)
-<nav><navLink label="x"/></nav>
-
-func navLink(item Item, on bool, label string)
-<a href={item.Href} class:on={on}>{label}</a>
+type Menu struct{ I Item }
+<nav><NavLink label="x"/></nav>

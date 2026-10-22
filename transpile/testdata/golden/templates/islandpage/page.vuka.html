@@ -1,0 +1,17 @@
+package main
+
+import (
+	"github.com/vuka-lang/ui"
+
+	Board "./board.vue"
+)
+
+// Page is the page Board.vue backs: its markup is the island alone, so the
+// struct is the island's, its exported fields the component's props.
+type Page struct {
+	ui.Live
+	Q string `json:"q"`
+}
+
+func (p *Page) Search(q string) { p.Q = q }
+<Board q={Q} client:load />

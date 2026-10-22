@@ -5,47 +5,35 @@ package main
 
 import (
 	"context"
-	"strings"
+	"io"
 
 	"github.com/vuka-lang/ui"
 )
 
 // Menu is the top bar: a link per item, the current one marked.
 //
-//line menu.vuka.html:6
-func Menu(items []Item, path string) ui.Node {
+//line menu.vuka.html:4
+type Menu struct {
+	Items []Item
+	Path  string
+}
+
+//line menu.vuka.html:8
+func (m Menu) View() ui.Node {
 	var navLinks []ui.Node
-	for _, i := range items {
-		navLinks = append(navLinks, navLink(i, i.Href == path))
+//line menu.vuka.html:9
+	for _, i := range m.Items {
+		navLinks = append(navLinks, NavLink{Item: i, On: i.Href == m.Path})
 	}
-//line menu.vuka.html:6
+//line menu.vuka.html:8
 	return ui.HTML(`
 <nav>
   {navLinks}
-  {panel("Me", badge(3, ), ui.Ctx(func(ctx context.Context) ui.Node { return who(ctx, ) }), )}
-  {navLink(Item{"/x", "X"}, true)}
-  {navLink(Item{"/y", "Y"}, false)}
-</nav>`, navLinks, panel("Me", badge(3), ui.Ctx(func(ctx context.Context) ui.Node { return who(ctx) })), navLink(Item{"/x", "X"}, true), navLink(Item{"/y", "Y"}, false))
+  {Panel{Title: "Me", Footer: badge(3), Children: Who{}}}
+  {NavLink{Item: Item{"/x", "X"}, On: true}}
+  {NavLink{Item: Item{"/y", "Y"}}}
+</nav>`, navLinks, Panel{Title: "Me", Footer: badge(3), Children: Who{}}, NavLink{Item: Item{"/x", "X"}, On: true}, NavLink{Item: Item{"/y", "Y"}})
 }
 
-//line menu.vuka.html:19
-func navLink(item Item, on bool) ui.Node {
-//line menu.vuka.html:19
-	return ui.HTML(`<a href={item.Href} class:on={on}>{strings.ToUpper(item.Label)}</a>`, item.Href, on, strings.ToUpper(item.Label))
-}
-
-func panel(title string, footer ui.Node, children ui.Node) ui.Node {
-//line menu.vuka.html:22
-	return ui.HTML(`
-<section>
-  <h2>{title}</h2>
-  {children}
-  <footer>{footer}</footer>
-</section>`, title, children, footer)
-}
-
-//line menu.vuka.html:25
-func who(ctx context.Context) ui.Node {
-//line menu.vuka.html:25
-	return ui.HTML(`<i>{ctx.Value(userKey{}).(string)}</i>`, ctx.Value(userKey{}).(string))
-}
+//line menu.vuka.html:18
+func (m Menu) Render(ctx context.Context, w io.Writer) error { return m.View().Render(ctx, w) }

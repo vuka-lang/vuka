@@ -9,9 +9,9 @@ import (
 	"strings"
 )
 
-// A .vuka.html file in the 2.0 shape is Go above markup: its package clause
-// and imports, then a header of Go — one struct, the decorated hooks and
-// methods of it — up to the first line starting with <, then the markup that
+// A .vuka.html file is Go above markup: its package clause and imports, then
+// a header of Go — one struct, the decorated hooks and methods of it, other
+// helpers — up to the first line starting with <, then the markup that
 // struct renders:
 //
 //	package pages
@@ -25,11 +25,11 @@ import (
 //	func (p *Index) mount(ctx context.Context) error { … }
 //	<ul>…</ul>
 //
-// The header is .vuka source and compiles as such; the markup is the struct's
-// Render (a live struct) or View (a static one), as the markup of a
-// struct-first template is.
+// The header is .vuka source and compiles as such, without markup (E0151);
+// the markup is the struct's Render (a live struct) or View (a static one).
+// Nothing follows it: a func after the markup is a second template (E0153).
 
-// Shape is a template file in the 2.0 shape.
+// Shape is a template file's header: the struct its markup renders.
 type Shape struct {
 	Header int // the line its Go starts on, from 0
 	Markup int // the line its markup starts on, from 0: the first starting with <
@@ -95,10 +95,10 @@ var (
 )
 
 // isShape reports whether the template file's lines, its head ending at top,
-// are in the 2.0 shape: the first line after the imports that isn't blank or
-// a comment starts a declaration (type, var, const) or a decorator, or a
-// struct type is declared before the first line starting with <. A file of
-// templates starts with markup, a statement or a func header.
+// have a Go header: the first line after the imports that isn't blank or a
+// comment starts a declaration (type, var, const) or a decorator, or a struct
+// type is declared before the first line starting with <. A file without one
+// starts with markup, a statement or a func header: E0152.
 func isShape(lines []string, top int) bool {
 	first := true
 	for i := top; i < len(lines); i++ {
@@ -120,9 +120,9 @@ func isShape(lines []string, top int) bool {
 	return false
 }
 
-// ParseShape reads src, a template file, as the 2.0 shape: nil without an
-// error when it is a file of templates (the struct-first form), and an error
-// when it is in the shape but breaks one of its rules.
+// ParseShape reads src, a template file, as its Go header and markup: nil
+// without an error when it has no Go header (E0152 when compiled), and an
+// error when the header breaks one of its rules.
 func ParseShape(src []byte) (*Shape, *Error) {
 	head := ParseTemplateHead(src)
 	lines := strings.SplitAfter(string(src), "\n")
@@ -489,9 +489,8 @@ func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
 	return string(out), hooks, markup
 }
 
-// templatesTop is the line, from 0, a template file's templates start on:
-// past its head, and past its Go in the 2.0 shape (its line count when it
-// has no markup).
+// templatesTop is the line, from 0, a template file's markup starts on: past
+// its head and its Go header (its line count when it has no markup).
 func templatesTop(src []byte) int {
 	head := ParseTemplateHead(src)
 	lines := strings.SplitAfter(string(src), "\n")

@@ -1,0 +1,17 @@
+package main
+
+import (
+	"context"
+
+	Board "./board.vue"
+)
+
+// Page's markup is the island alone, and its hook makes it live, but it
+// embeds no ui.Live.
+type Page struct {
+	Q string `json:"q"`
+}
+
+@ui.Mount
+func (p *Page) mount(ctx context.Context) error { return nil }
+<Board q={Q} />

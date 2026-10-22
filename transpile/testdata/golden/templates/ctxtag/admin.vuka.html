@@ -1,12 +1,15 @@
 package main
 
-// Admin is the admin pages' layout; it reads the user from ctx.
-func Admin(ctx context.Context, p AdminProps)
-<div class="admin">
-  <header><h1>{p.Title}</h1>{p.Actions}<span>{ctx.Value(userKey{}).(string)}</span></header>
-  <main>{p.Children}</main>
-</div>
+import "github.com/vuka-lang/ui"
 
-// Badge is the user's badge.
-func Badge(ctx context.Context)
-<b>{ctx.Value(userKey{}).(string)}</b>
+// Admin is the admin pages' layout: its title, Children and the Actions
+// slot; it reads the user from ctx.
+type Admin struct {
+	Title    string
+	Actions  ui.Node
+	Children ui.Node
+}
+<div class="admin">
+  <header><h1>{Title}</h1>{Actions}<span>{ctx.Value(userKey{}).(string)}</span></header>
+  <main>{Children}</main>
+</div>

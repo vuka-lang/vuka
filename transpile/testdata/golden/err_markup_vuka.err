@@ -1,0 +1,1 @@
+err_markup_vuka.vuka:8:9: markup in a .vuka file: a .vuka file is logic, and markup is written in .vuka.html files; move the markup into a .vuka.html file: the struct it renders above, the markup below; logic stays in .vuka and .go files

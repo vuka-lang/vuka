@@ -6,6 +6,8 @@
 package main
 
 import (
+	"context"
+	"io"
 	"slices"
 	str "strconv"
 
@@ -15,7 +17,13 @@ import (
 // Total is a week's total, and its best day.
 //
 //line total.vuka.html:11
-func Total(days []int) ui.Node {
-//line total.vuka.html:11
-	return ui.HTML(`<p>{str.Itoa(len(days))} days, best {str.Itoa(slices.Max(days))}</p>`, str.Itoa(len(days)), str.Itoa(slices.Max(days)))
+type Total struct{ Days []int }
+
+//line total.vuka.html:12
+func (t Total) View() ui.Node {
+//line total.vuka.html:12
+	return ui.HTML(`<p>{str.Itoa(len(t.Days))} days, best {str.Itoa(slices.Max(t.Days))}</p>`, str.Itoa(len(t.Days)), str.Itoa(slices.Max(t.Days)))
 }
+
+//line total.vuka.html:12
+func (t Total) Render(ctx context.Context, w io.Writer) error { return t.View().Render(ctx, w) }

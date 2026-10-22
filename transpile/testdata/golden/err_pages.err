@@ -1,0 +1,2 @@
+err_pages.vuka:8:1: @web.Live declares a page outside pages/: a page is a .vuka.html file under pages/, its path its URL, and vuka registers it; move Pet to pages/pets/[id].vuka.html: the struct above its markup; it is live when it embeds ui.Live or the markup calls its methods
+err_pages.vuka:11:1: @web.Get declares a page outside pages/: a page is a .vuka.html file under pages/, its path its URL, and vuka registers it; move Home to pages/index.vuka.html: the struct above its markup; it is live when it embeds ui.Live or the markup calls its methods

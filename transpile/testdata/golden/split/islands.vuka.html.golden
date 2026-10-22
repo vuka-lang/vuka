@@ -1,9 +1,0 @@
-package main
-
-// page wraps the island to add a fallback shown until hydration; the body's
-// client:visible directive is the strategy and its children are the slot.
-func page()
-<ui.Island>
-  <ui.Template fallback><div class="skeleton">Loading</div></ui.Template>
-  <Counter count={5} client:visible><small>clicks</small></Counter>
-</ui.Island>

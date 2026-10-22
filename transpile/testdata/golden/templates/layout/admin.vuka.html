@@ -1,5 +1,13 @@
 package main
 
+import "github.com/vuka-lang/ui"
+
+// Admin is the admin pages' layout: its Children and the Actions slot.
+type Admin struct {
+	Title    string
+	Actions  ui.Node
+	Children ui.Node
+}
 <div class="admin">
   <header><h1>{Title}</h1>{Actions}</header>
   <main>{Children}</main>

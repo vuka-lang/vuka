@@ -15,8 +15,6 @@ type Chart struct {
 
 func init() { ui.RegisterIsland[Chart]() }
 
-type Page struct{ Points []int }
-
 func main() {
 	out, err := ui.String(context.Background(), Page{Points: []int{3, 1}})
 	fmt.Println(out, err)

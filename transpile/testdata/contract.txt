@@ -4,12 +4,17 @@
 # nothing else: what it would need and a person couldn't call is a gap in
 # the public API, filled there (library.md, "No hidden runtime").
 # generated: what generated code alone calls — ui's uigen, the lowering of a
-# .vuka.html file's client state and tracked server state, and
-# ui.LiveSchema, the lowering of a live page's hook and field attributes
-# (@ui.Mount, @ui.OnChange, @ui.Loads, @ui.Bind, @ui.URL, @ui.Defer). Public
-# so the generated code builds with go build, ejected code included; not an
-# API a person writes (vukavet reports a hand-written use: W0105, W0306), so
-# it is the compiler's to change. ui.State's own API is Get and Set.
+# .vuka.html file's client state and tracked server state; ui.LiveSchema,
+# the lowering of a live page's hook and field attributes (@ui.Mount,
+# @ui.OnChange, @ui.Loads, @ui.Bind, @ui.URL, @ui.Defer); ui.HTML, the
+# lowering of a .vuka.html file's markup, and ui.IslandPage, an island
+# page's. Public so the generated code builds with go build, ejected code
+# included; not an API a person writes (vukavet reports a hand-written
+# use: W0105, W0306, W0106), so it is the compiler's to change. web.Routes
+# stays public: a route decorator on a function lowers to it, and a page
+# registered on it by hand is E0720; pages/route.go's own options
+# (web.PageRoute, LayoutOf, GuardOf, UseOf, Receiver) are W0702 by hand.
+# ui.State's own API is Get and Set.
 # stepN: an internal form generated code still calls, until step N of the
 # Plan gives it a public replacement; none is left. An entry no golden uses
 # fails the test.
@@ -82,10 +87,8 @@ public github.com/vuka-lang/ui.ErrorBoundary
 public github.com/vuka-lang/ui.Event
 public github.com/vuka-lang/ui.Fallback
 public github.com/vuka-lang/ui.Fragment
-public github.com/vuka-lang/ui.HTML
 public github.com/vuka-lang/ui.If
 public github.com/vuka-lang/ui.Island
-public github.com/vuka-lang/ui.IslandPage
 public github.com/vuka-lang/ui.JS
 public github.com/vuka-lang/ui.JSON
 public github.com/vuka-lang/ui.Key
@@ -115,15 +118,12 @@ public github.com/vuka-lang/ui.Try
 public github.com/vuka-lang/ui.URL
 public github.com/vuka-lang/ui.Visible
 public github.com/vuka-lang/ui.WithChildren
-public github.com/vuka-lang/web.GuardOf
-public github.com/vuka-lang/web.LayoutOf
-public github.com/vuka-lang/web.PageRoute
-public github.com/vuka-lang/web.Receiver
 public github.com/vuka-lang/web.Rest
 public github.com/vuka-lang/web.Routes
 public github.com/vuka-lang/web.Use
-public github.com/vuka-lang/web.UseOf
 
+generated github.com/vuka-lang/ui.HTML
+generated github.com/vuka-lang/ui.IslandPage
 generated github.com/vuka-lang/ui.LiveSchema
 generated github.com/vuka-lang/ui/uigen.Assign
 generated github.com/vuka-lang/ui/uigen.And

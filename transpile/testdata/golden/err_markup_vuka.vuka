@@ -1,0 +1,11 @@
+package main
+
+import "github.com/vuka-lang/ui"
+
+type Card struct{ Title string }
+
+func (c Card) View() ui.Node {
+	return <h2>{c.Title}</h2>
+}
+
+func main() {}
