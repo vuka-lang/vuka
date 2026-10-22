@@ -123,11 +123,16 @@ func (f *fileState) renderFieldAttrs() {
 		}
 		byType[a.structOf] = append(byType[a.structOf], a)
 	}
+	// The types with hooks and no field attributes, in source order: the
+	// schema table is a map.
+	var hooked []string
 	for _, si := range f.eng.schemas {
 		if si.file == f && byType[si.typeName] == nil && len(si.hooks) > 0 {
-			order = append(order, si.typeName)
+			hooked = append(hooked, si.typeName)
 		}
 	}
+	sort.SliceStable(hooked, func(i, j int) bool { return f.typeOff(hooked[i]) < f.typeOff(hooked[j]) })
+	order = append(order, hooked...)
 	w := &f.fieldGen
 	for _, typ := range order {
 		attrs := byType[typ]

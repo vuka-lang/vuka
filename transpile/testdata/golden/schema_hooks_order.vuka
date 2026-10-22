@@ -1,0 +1,24 @@
+package main
+
+import (
+	"context"
+
+	"vukatest.local/ui"
+)
+
+// A, B and C declare hooks and no field attributes: their LiveSchema
+// methods follow the source's order of the types, every time.
+type A struct{ ui.Live }
+type B struct{ ui.Live }
+type C struct{ ui.Live }
+
+@ui.Mount
+func (c *C) mount(ctx context.Context) error { return nil }
+
+@ui.Mount
+func (a *A) mount(ctx context.Context) error { return nil }
+
+@ui.Mount
+func (b *B) mount(ctx context.Context) error { return nil }
+
+func main() {}
