@@ -1,7 +1,59 @@
 # RFC: One way to write UI (vuka 2.0)
 
-Status: draft, for review. No code changes accompany this document; it is
-the artifact to agree on before any implementation.
+Status: accepted, decisions recorded below. No code changes accompany this
+document; implementation lands step by step (§8).
+
+## Decisions
+
+Recorded 2026-10-22. They settle the open items of §2 and §9; where the text
+below still describes an alternative, this section wins.
+
+1. **Straight to 2.0, no 1.x bridge.** 1.x was released on 2026-10-20 and
+   has no dependents outside the maintainer's own apps, which move with
+   `vuka fix one-way`. There is no 1.6 release carrying the one-way forms
+   or deprecation warnings: 2.0 hard-removes every surface in the table of
+   §2. The set moves to `/v2` module paths:
+
+   | go.mod | 1.x module path | 2.0 module path | tag prefix |
+   |---|---|---|---|
+   | `vuka/go.mod` | `github.com/vuka-lang/vuka` | `github.com/vuka-lang/vuka/v2` | `v2.x.y` |
+   | `vuka/cmd/vuka/go.mod` | `github.com/vuka-lang/vuka/cmd/vuka` | `github.com/vuka-lang/vuka/cmd/vuka/v2` | `cmd/vuka/v2.x.y` |
+   | `vuka/cmd/vukavet/go.mod` | `github.com/vuka-lang/vuka/cmd/vukavet` | `github.com/vuka-lang/vuka/cmd/vukavet/v2` | `cmd/vukavet/v2.x.y` |
+   | `ui/go.mod` (repo vuka-lang/ui) | `github.com/vuka-lang/ui` | `github.com/vuka-lang/ui/v2` | `v2.x.y` |
+   | `web/go.mod` (repo vuka-lang/web) | `github.com/vuka-lang/web` | `github.com/vuka-lang/web/v2` | `v2.x.y` |
+
+   Every import of these paths in the five modules, in `templx`/`live`/
+   `term` and the other sub-packages (they are packages, not modules, so
+   only their import paths change), in generated code, and in the
+   repository's own test modules (`transpile/testdata/golden/*`,
+   `cmd/vuka/testdata/routes/web`, `docs/testdata/gomode`, the conformance
+   and example apps) moves with them.
+
+   **orm follows.** `github.com/vuka-lang/orm` requires vuka and web and
+   exposes vuka types in its API (`vuka.Option`, `vuka.Result`,
+   `*vuka.Type` in `orm.Optional`, `orm.Entity`, `orm.Database`, …), so
+   moving its requires to `/v2` changes its exported signatures: it becomes
+   `github.com/vuka-lang/orm/v2` in the same release. Linking a v1 orm
+   beside a v2 set would load two vuka registries, which is not supported.
+
+2. **Go-first UI authoring is retired.** Rendering is `.vuka.html`-only.
+   `ui.HTML`, `ui.UseState` and the other retired names survive only as
+   compiler output and interop, and leave the guide. Logic stays in `.go`
+   and `.vuka` files. The docs' Vuka / Go toggle goes.
+
+3. **Hooks are decorator-only**: `@ui.Mount`, `@ui.OnChange`,
+   `@ui.Loads("group")`, and the field attributes `@ui.Bind`, `@ui.URL`,
+   `@ui.Defer`. `Mount` / `Changed` found by name, the `LiveSchema` method
+   and the constructor hooks (`OnMount`, `Loads`, `OnChange` on `ui.Live`)
+   are removed as ways to write; a method named `Mount` is an ordinary
+   method (and, being exported, an event the browser can call — `vukavet`
+   warns, naming `@ui.Mount`). The compiler may still emit `LiveSchema`.
+
+4. **Routing: `[id]` wins.** `pages/pets/[id].vuka.html` is `/pets/{id}`;
+   a `[id]/` bracket folder holds a segment shared by a layout, several
+   pages and an `api/` subtree, and nests for nested parameters;
+   `[path...]` is the catch-all. `params.go` parameter folders and their
+   `Params` structs are removed; `vuka fix one-way` rewrites them.
 
 ## 1. Motivation
 
@@ -95,7 +147,7 @@ packages as interop — it simply stops being a way a person writes vuka, and
 | Public `ui.Assign[T]` (`Get`/`Set`/`Update`) as a field a person types | change tracking **v1.0.0** | unexported fields auto-lower to `ui.Assign` |
 | `LiveSchema(l *ui.LiveSchema)` method | **v1.0.0** | `@ui.Mount` / `@ui.OnChange` / `@ui.Loads` and field attrs (compiler may still emit `LiveSchema`) |
 | Constructor hooks `OnMount` / `Loads` / `OnChange` on `ui.Live` | **v1.1.0** | the same decorators |
-| `Mount` / `Changed` found by name | pre-1.0; deprecated at **v1.0.0**, restored as the simple form at **v1.2.0** | `@ui.Mount` / `@ui.OnChange` — see open decision (b) |
+| `Mount` / `Changed` found by name | pre-1.0; deprecated at **v1.0.0**, restored as the simple form at **v1.2.0** | `@ui.Mount` / `@ui.OnChange` (decided: decorator-only) |
 | `@web.Service`, `inject:"-"` field tag, `web.Params` | `web.Params` **v1.0.0**; `@web.Service` and `inject:` pre-1.0, promised from **v1.0.0** | `app.Service(ctor)` in Go; params filled by type |
 | `@web.Get` / `@web.Live` / `web.Routes.*` / `app.Get` **for pages** | `web.Routes` **v1.0.0**; `@web.Live` **v0.44.0**; `@web.Get`-on-page **v0.30.0** | folder routes under `pages/` (compiler still emits `web.Routes.*`). `app.Get` stays for **APIs** in Go |
 | The docs' Vuka / Go sample toggle | **v1.0.0** ("each page has a Vuka / Go switch") | one documented form per sample |
@@ -105,58 +157,28 @@ packages as interop — it simply stops being a way a person writes vuka, and
 they leave the guide, and `vukavet` reports a hand-written use with a
 did-you-mean to the one way.
 
-### Recommended migration path
+### Migration path (decided)
 
-1. **A final 1.x minor (call it 1.6)** ships the one-way *additions* that
-   are safe under the promise (they add API and accept new file shapes
-   without removing anything): the `.vuka.html` Go-header grammar as an
-   accepted shape, `[id]` filename routing as an alternative to `params.go`,
-   and typed parameter injection for hooks and handlers. It also ships
-   `vuka fix one-way`, a rewrite that moves a 1.x app onto the one-way
-   forms, and `vukavet` **warnings** on every retired surface (new warnings
-   are allowed in a minor and never fail a build).
-2. **2.0** removes the retired surfaces, flips the defaults (one struct per
-   file becomes mandatory; unexported render fields auto-lower to
-   `ui.Assign`), and `vuka upgrade` to 2.0 runs `vuka fix one-way` across
-   the import-path bump.
+2.0 is the only vehicle (Decision 1). `vuka upgrade` to 2.0 bumps the
+import paths to `/v2` and runs `vuka fix one-way`, which rewrites every
+retired form in the table above; `vuka vet` and `vuka test` then run as for
+any upgrade. No 1.x release carries the one-way forms or warnings.
 
-This keeps the promise intact (nothing is removed inside v1), gives a
-mechanical upgrade, and lets teams adopt the one-way forms before the break.
+### Resolved decisions
 
-### Open decisions for the reviewer
+The two items this draft left open are settled (see [Decisions](#decisions)):
 
-These two are deliberately left for review; the RFC recommends but does not
-decide them.
+**(a) Deprecation window vs hard-remove-now — resolved: hard removal in
+2.0, no 1.6 bridge.** The draft recommended a bridge to honor the v1
+promise for outside users; there are none, so the bridge would cost a
+release and buy nothing.
 
-**(a) Deprecation window vs hard-remove-now.** Options: ship the additive
-1.6 + `vuka fix one-way` + warnings first (above), or make 2.0 the only
-vehicle and skip the 1.6 bridge.
-
-> **Recommendation: the deprecation window.** It is the only option that
-> honors the v1 promise (no removals in 1.x) and still lets apps move early;
-> the bridge release costs one minor but turns the 2.0 upgrade into a
-> `vuka upgrade` with the fixers already exercised. A hard cut with no 1.6
-> bridge leaves every app's first contact with one-way being a module-path
-> break, which is riskier for no real saving.
-
-**(b) The hook reversal: decorator-only vs keep `Mount`-by-name.** The brief
-calls for `@ui.Mount` / `@ui.OnChange` / `@ui.Loads` to be the sole way, and
-`Mount`/`Changed` found by name to go. Note the history: `Mount`/`Changed`
-by name were deprecated at v1.0.0, then **deliberately restored at v1.2.0**
-as the "simple form" precisely because the decorator felt heavy for the
-common case.
-
-> **Recommendation: keep `@ui.Mount` as the canonical form, but treat a
-> method literally named `Mount` / `Changed` as recognized sugar the
-> compiler lowers to the same hook** — identical semantics, uncallable from
-> the browser, params filled by type. This gives the document exactly one
-> *concept* (a hook is a hook) while not reversing the ergonomics win of
-> v1.2.0 or breaking muscle memory. If the reviewer wants the stricter
-> reading (decorator-only, by-name is an error with a did-you-mean), that is
-> a one-line change to the lowering and is also defensible — it is simply
-> stricter than v1.2.0 chose to be. `@ui.OnChange` and `@ui.Loads` have no
-> by-name form either way, since `Changed`-by-name is the only one that ever
-> existed and `Loads` never did.
+**(b) Hook reversal — resolved: decorator-only.** `@ui.Mount`,
+`@ui.OnChange` and `@ui.Loads` are the only hook forms. The draft
+recommended keeping `Mount`/`Changed` by name as sugar because v1.2.0 had
+restored them on purpose; the decision instead removes them, so a hook is
+always marked where it is declared and an exported method is always an
+event.
 
 ## 3. The `.vuka.html` file grammar
 
@@ -407,22 +429,21 @@ no `Params` struct at all.
 | Shared across sibling pages/endpoints | one `Params` struct embedded by all | one `_layout.vuka.html` field, or a bracket folder |
 | Catch-all | `web.Rest` field in `Params` | `[path...]` name |
 
-> **Recommendation: `[id]` wins as the one way, lowering to the existing
+> **Decided (Decision 4): `[id]` wins, lowering to the existing
 > folder-route machinery.** The bracketed name reads the URL at a glance and
 > removes the `params.go` boilerplate and the embedding chain; the parameter
-> type and rules move onto the struct that actually uses them, which is
-> where a reader looks. The 1.6 bridge accepts `[id]` *and* `params.go` so
-> apps can migrate folder by folder; `vuka fix one-way` rewrites a
-> `params.go` folder into a bracket folder/file and folds the `Params` field
-> into the page struct; 2.0 removes `params.go` as an authoring form (the
-> generated code still produces the same `web.PageRoute()` registration, so
-> the lowering target is unchanged). Keep a bracket **folder** for the cases
-> `params.go` handled that a single file can't: a segment shared by a
-> layout, several pages and an `api/` subtree, and `web.Rest`.
+> type and rules move onto the struct that uses them. 2.0 removes
+> `params.go` parameter folders; `vuka fix one-way` rewrites each into a
+> bracket folder or file and folds the `Params` field into the struct that
+> reads it. The generated registration (`web.PageRoute()`, `LayoutOf`,
+> `GuardOf`, `UseOf`, typed `pages/urls`) is unchanged. A bracket **folder**
+> covers what a single file can't: a segment shared by a layout, several
+> pages and an `api/` subtree, nested parameters, and the `[path...]`
+> catch-all (`web.Rest`).
 
-This is the **one place the one-way syntax genuinely conflicts with shipped
-1.x behavior** rather than merely retiring a redundant spelling, so it is
-called out for the reviewer explicitly.
+This was the one place the one-way syntax conflicted with shipped 1.x
+behavior rather than retiring a redundant spelling; it is resolved in its
+favor.
 
 ## 7. Worked example — a todo app, every file
 
@@ -639,91 +660,55 @@ Notes on the example against the rules:
 
 ## 8. Deliverables and sequencing
 
-Seven independently reviewable steps, each with its own tests. "Additive"
-steps are safe in the final 1.x minor (1.6) under the compatibility promise;
-"breaking" steps are 2.0 only (new module path + `vuka fix one-way`).
+Seven steps, each its own reviewable PR with its own tests, all shipping in
+2.0 (Decision 1: no 1.x bridge). Until step 7 the old forms keep compiling,
+so every step lands with the existing suites green; step 7 removes them and
+moves the module paths.
 
-| # | Step | Nature | Tests |
-|---|---|---|---|
-| 1 | **`.vuka.html` Go-header grammar**: parse the header (package, imports, one struct, decorated hooks, methods) up to the first `<` line; field classification (prop / server-state → `ui.Assign` / browser-state); live-vs-static inference; one-struct and no-struct errors. | **Additive** (a new accepted file shape; the old split still parses in 1.6). The *mandatory* one-struct rule and auto-`Assign` default are **breaking** → 2.0. | parser golden tests; a conformance app authored in the new shape renders byte-identical to its 1.x twin; error-code tests for no-struct / two-struct / header-without-markup. |
-| 2 | **`ui.State` reduced to `Get`/`Set`**: plain-variable reads in markup, assignment writes in `on…` lowering to the chain (4a–4e), server-side `p.x = v` → `PushJS`. Remove `Toggle`/`Inc`/`Dec`/`Reset`/`Derived`/`At`/`UseState`/`UsePageState` from the public surface (keep unexported for lowering). | **Breaking** (removes exported names) → 2.0; the assignment *sugar* can land additively in 1.6. | lowering golden tests for each chain shape; goja coherence test that the emitted chain matches the current method-built chain; vukavet warning tests on hand-written `Toggle`/`UseState`. |
-| 3 | **Hooks decorator-only**: `@ui.Mount`/`@ui.OnChange`/`@ui.Loads` and field attrs `@ui.Bind`/`@ui.URL`/`@ui.Defer` as the one way; retire `LiveSchema`, constructor hooks (`OnMount`/`Loads`/`OnChange`), and — per open decision (b) — `Mount`/`Changed` by name (or keep as recognized sugar). | **Breaking** → 2.0. Decorators already exist (additive since v1.0.0), so only the *removal* is new. | lowering to `LiveSchema` unchanged; boot/vukavet error tests (E0335/E0336 equivalents); a fixture per retired form that `vuka fix one-way` rewrites. |
-| 4 | **Typed parameter injection** for hooks and handlers: fill by type; unfillable parameter = startup error with file/line/type. Retire `web.Params`, `@web.Service`, `inject:`. | **Additive** for the injection itself (1.6 can fill hooks/handlers by type); **breaking** for removing `web.Params`/`@web.Service`/`inject:` → 2.0. | per-source fill tests (ctx, struct body, url.Values, scalar event value, `*http.Request`, `auth.User`, provided type); unfillable-param error tests; validate-tag enforcement across route/page/live. |
-| 5 | **Components as tags, children, slots, layouts**: `<components.Item …/>`, `Children`, `<slot:x>`, `_layout.vuka.html`. | **Additive** (`_layout.vuka.html` as an accepted layout file beside `layout.go` in 1.6); making `_layout.vuka.html` the one way is **breaking** → 2.0. | tag-binding tests already covered by templates; new tests for `_layout.vuka.html` composition order and `Load` equivalence to `layout.go`. |
-| 6 | **Folder routing with `[id]`**: bracket filename/foldername parameters, type and `validate:` from the page struct's field, `[path...]` catch-all, `api/` method funcs. | **Additive** in 1.6 (`[id]` accepted *alongside* `params.go`); **breaking** when `params.go` is retired → 2.0. | route-table golden tests (`vuka routes`); 404-on-bad-segment tests; `vuka fix one-way` rewrites a `params.go` folder to a bracket folder/file; E07xx conflict tests. |
-| 7 | **Retire the redundant authoring surfaces**: JSX in `.vuka`, hand-written `ui.HTML`, multiple templates per file, `@web.Get`/`@web.Live`/`web.Routes.*`/`app.Get` **for pages** (keep `app.Get` for APIs), and the docs' Vuka/Go toggle. Ship `vuka fix one-way` and `vukavet` warnings. | **Breaking** (removes authoring surfaces) → 2.0; the warnings + `vuka fix one-way` are **additive** → 1.6. | `vuka fix one-way` fixture suite (one per retired form); vukavet warning-code tests; docs build with one form per sample; conformance apps re-authored one-way and diffed against their 1.x responses/SQL/live replies. |
+| # | Step | Tests |
+|---|---|---|
+| 1 | **This RFC.** | — |
+| 2 | **The `.vuka.html` file shape**: the Go header up to the first line starting with `<`; the one-struct rule (none, or more than one, is an error at file:line); field classification (exported = prop, unexported = server state, `ui.State[T]` = browser state); live-vs-static detection; header + markup lowered to the Go today's pipeline produces for a struct with its template. The struct-first split and multi-template files still compile. | golden `.vuka.html` → generated Go for each rule; error goldens for no struct, two structs, a header with no markup. |
+| 3 | **Client state**: `ui.State[T]` reduced to `Get`/`Set`; plain-variable reads in markup; assignments in `on…` lowered to the chain (4a–4d); `p.x = v` on a state in a method lowered to `PushJS` (4e); server-state fields lowered to `ui.Assign` (§3). | lowering goldens per chain shape; a coherence test that the emitted chain equals the method-built one; live verification on auto-Assign pages, including ones reading `ctx`. |
+| 4 | **Hooks decorator-only**: `@ui.Mount`, `@ui.OnChange`, `@ui.Loads`, `@ui.Bind`, `@ui.URL`, `@ui.Defer` as the only forms in a `.vuka.html` header. | lowering to `LiveSchema` unchanged; error goldens for a by-name `Mount`/`Changed` and a constructor hook (did-you-mean `@ui.Mount`). |
+| 5 | **Folder routing**: `[id]` files, `[id]/` folders, `[path...]`, type and `validate:` from the struct's field, `_layout.vuka.html`, `api/` method funcs. | `vuka routes` goldens; 404 on a bad segment; layout order and `Load`; E07xx conflicts. |
+| 6 | **Typed parameter injection** for hooks and handlers (§5); unfillable parameter = startup error with file, line and type. | a test per source (ctx, struct, `url.Values`, scalar, `*http.Request`, `auth.User`, provided type); unfillable-parameter errors; `validate:` on every transport. |
+| 7 | **The break**: remove every surface in the table of §2 (JSX in `.vuka`, hand-written `ui.HTML`, several templates per file, the struct/markup split, `UseState`/`UsePageState`/`State` methods, public `LiveSchema` authoring, constructor and by-name hooks, `@web.Service`/`inject:`/`web.Params`, page routes outside `pages/`, `params.go` folders, the docs toggle); `/v2` module paths for vuka, cmd/vuka, cmd/vukavet, ui, web, and orm; `vuka fix one-way`. | a `vuka fix one-way` fixture per retired form; the maintainer's apps and the conformance apps migrated by the fixer and diffed against their 1.x responses, SQL and live replies. |
 
-Steps 1, 4, 5 and 6 (and the `vuka fix`/vukavet parts of 2, 3, 7) are the
-additive 1.6 bridge; the removals in 2, 3, 6 and 7, and the mandatory
-defaults in 1, are the 2.0 break.
+## 9. Conflicts with what 1.x shipped — resolved
 
-## 9. Conflicts with what 1.x already shipped
+Each conflict this draft raised, with how the decisions settle it.
 
-Flagged for the reviewer, worst first.
-
-1. **One-way removes the Go-first authoring path that v1.0.0 made central.**
-   v1.0.0's headline was "plain Go is the language, `.vuka` the sugar": an
-   app can be `.go` + `.vuka.html` built with `go build`, every doc sample
-   has a Go form, and the conformance suite builds each example five ways
-   including hand-written Go. Retiring hand-written `ui.HTML`,
-   `ui.UseState`, the `State` methods, `LiveSchema` and `web.Routes.*`-for-
-   pages as *authoring surfaces* means a person can no longer write a
-   rendering component in pure Go — those names survive only as the
-   compiler's output and interop. This is a philosophy reversal and the
-   biggest thing to agree on: one-way keeps Go as the *lowering target* but
-   not as a *way to write UI*. (Logic in `.go` is unaffected.)
-
-2. **`[id]` filename routing conflicts with v1.1.0's `params.go` folders.**
-   Covered in §6: the shipped design is a folder + `Params` struct; one-way
-   is a bracket name with the type on the page struct. This is a real
-   behavioral divergence (not just a retired spelling), which is why the RFC
-   recommends `[id]` wins, lowers to the same registration, and is bridged
-   in 1.6 with a fixer.
-
-3. **The one-struct-per-file rule conflicts with v1.0.0 template files.**
-   Today a `.vuka.html` may hold a headerless main template plus any number
-   of `func` partials and function components, and the render struct lives
-   in a sibling `.go`. One-way forbids both: one struct, declared in the
-   file's own header. Every multi-template file and every struct/markup
-   split must be migrated (fixer territory).
-
-4. **Auto-`ui.Assign` for unexported fields changes render semantics.**
-   Today `ui.Assign` is opt-in and governs change-tracking/skip behavior;
-   plain unexported fields are whole-render state. Auto-lowering every
-   unexported non-dependency field to `ui.Assign` makes the "`Render` reads
-   only props, Assigns and `vuka:"-"`" rule universal and makes skip
-   behavior the default. Combined with v1.4.0 (a component reading the
-   render `ctx` is re-rendered regardless of Assigns), the interaction needs
-   explicit test coverage so a context-reading one-way page isn't wrongly
-   skipped.
-
-5. **"Has handlers ⇒ live" changes the static/live boundary.** Today
-   liveness is "embeds `ui.Live` + `Render`". Inferring live from a server
-   handler's presence is friendlier but means a component that gains a
-   `Push`ing handler silently becomes live (holding a session); the compiler
-   must distinguish a JS-command-only `on…` (stays static) from one that
-   `Push`es (needs live), and report the transition so it isn't surprising.
-
-6. **Hooks decorator-only reverses a deliberate v1.2.0 decision.** v1.2.0
-   restored `Mount`/`Changed` by name as the simple form on purpose. Open
-   decision (b) is exactly this reversal; the RFC recommends keeping by-name
-   as recognized sugar to avoid re-litigating it.
-
-7. **Retiring `@web.Service`/`inject:`/`web.Params` touches DI ergonomics.**
-   These are small and mechanical (a service becomes a `.go` struct with a
-   hand-written or generated constructor registered via `app.Service`), but
-   `inject:"-"` has no one-way equivalent beyond "a field the constructor
-   doesn't take isn't a dependency," which is already how Go-side DI works —
-   so this aligns with the DI doc rather than fighting it, and is noted only
-   for completeness.
+1. **The Go-first authoring path v1.0.0 made central** — *resolved:
+   retired* (Decision 2). Rendering is `.vuka.html`-only; Go stays the
+   lowering target and the language of logic. The conformance suite's
+   hand-written-Go builds of rendering code go with it in step 7; the
+   ejected-Go builds stay, as they test the lowering.
+2. **`[id]` vs v1.1.0's `params.go` folders** — *resolved: `[id]` wins*
+   (Decision 4); `params.go` folders are removed and rewritten by the fixer.
+3. **One struct per file vs v1.0.0 template files** — *resolved: one
+   struct per file.* Step 2 accepts the new shape beside the old; step 7
+   makes it the only one, and the fixer splits multi-template files into
+   component files.
+4. **Auto-`ui.Assign` changes render semantics** — *accepted*, landing in
+   step 3 with live verification on, including pages reading `ctx` (v1.4.0
+   re-renders them regardless of Assigns).
+5. **"Has handlers ⇒ live" moves the static/live boundary** — *accepted*,
+   landing in step 2: a struct is live when it embeds `ui.Live`, declares a
+   hook, or has an exported method the markup wires to an `on…` attribute.
+   A JS-command-only `on…` keeps it static.
+6. **Decorator-only hooks reverse v1.2.0** — *resolved: decorator-only*
+   (Decision 3).
+7. **Retiring `@web.Service`/`inject:`/`web.Params`** — *accepted* (step 6
+   adds injection by type, step 7 removes them); it matches Go-side DI.
 
 ## 10. Out of scope
 
 The expression language is untouched: `Result`/`Option`, `?`, `match`,
 enums, overloading and decorators-as-a-language-mechanism keep their syntax
 and meaning. Guards (`guard.go`), middleware (`middleware.go`), the live
-wire protocol, islands, `templx` interop, auth, the orm and the toolbar are
-unchanged except where a render file replaces a markup-bearing one
+wire protocol, islands, `templx` interop, auth, the orm's API (it moves to
+`/v2` import paths only) and the toolbar are unchanged except where a render file replaces a markup-bearing one
 (`_layout.vuka.html` for `layout.go`). This RFC does not propose any change
 to how the binary is built (`go build`, `vuka run`/`build`/`gen`) beyond the
 new parser mode and the `[id]` route generation.
