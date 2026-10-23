@@ -118,7 +118,7 @@ The other kinds add one piece each:
 | `vuka add service Mailer [--module notes]` | a service in `services/` (or `modules/notes/`; `notes/Mailer` is the same) with its constructor `NewMailer` and a test, registered in `main.vuka`'s `services` with `app.Service(notes.NewMailer)`: pages, routes and hooks take a `*notes.Mailer` parameter |
 | `vuka add component StatCard [--module m]` | a stateless component, in `components/` or the module: the struct of its props in `stat_card.vuka`, its markup in `stat_card.vuka.html` |
 | `vuka add island Chart [--module m] [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`; `web/islands/<m>/` with `--module`), its props typed for an import, and `components/chart.vuka` with `chart.vuka.html` (or in `modules/<m>/`) — a `Chart` component placing it, so pages write `<components.Chart title="Sales" count={3} />`; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
-| `vuka add page /reports` | a one-struct `.vuka.html` page under `pages/`; use `[id]` names for parameters and `_layout.vuka.html` for shared layout |
+| `vuka add page /reports` | a one-struct `.vuka.html` page under `pages/`; use `[id]` names for parameters and `_layout.vuka.html` for shared layout. When the app's `main` doesn't pass `pages.Routes()` yet (an app with templ views, an API, or none of `pages/` so far), it adds the import and the option to `web.New` — see [serving the pages](#add-page-routes) |
 | `vuka add page /board --island Board` | a page shape under `pages/` that imports its frontend component; layouts use `_layout.vuka.html`, hooks use decorators |
 | `vuka add entity Comment --module posts body:text post:ref email:string:unique` | an orm model in `entities/` (or the module; `posts/Comment` is the same); `--unmanaged --table t` maps an existing table — no timestamps, test or migration, and no `migrations/` needed. Otherwise it comes with `ID`, `CreatedAt` and `UpdatedAt`, a test, and its migration written by `go tool orm makemigrations` |
 
@@ -140,6 +140,34 @@ An entity's fields are `name:type`, `?` after the type for an optional one
 | `ref` | `orm.FK[T]` | `<name>_id`, a foreign key to the model `T` the name names (`user:ref` or `user_id:ref` → `User`, in the module or another one); optional: `ON DELETE SET NULL` |
 
 `--table` names the table (the plural of the name in snake_case otherwise).
+
+### Serving the Pages {#add-page-routes}
+
+A page under `pages/` is served once the app's `main` passes
+`pages.Routes()` to `web.New`. An app made with live pages does from the
+start; for any other, the first `vuka add page` (or `vuka add module`
+writing a page) adds it:
+
+```diff
+ import (
+ 	"github.com/vuka-lang/web/v2"
++
++	"example.com/shop/pages"
+ )
+ …
+-	web.New(web.Dev()).Run("")
++	web.New(pages.Routes(), web.Dev()).Run("")
+```
+
+It edits the main that owns `pages/` — the module root's, else the
+module's only package main — in `main.go` or `main.vuka`, keeping its
+comments and layout. When `web.New` spreads a list of options
+(`web.New(options()...)`), `pages.Routes()` goes at the end of that list.
+A main that passes it already is left as it is. When the module has
+several mains and none passes it, or `web.New` can't be found, nothing is
+edited: the command prints the line to add and the file it goes in.
+`vuka fix routes` makes the same change in an existing app, the fix for
+[W0701](/errors/W0701).
 
 ### Refusals and Dry Runs
 

@@ -53,6 +53,7 @@ var fixers = []fixer{
 	{"templates-package", "start each .vuka.html file with its package clause, the package of its directory", fixTemplatesPackage},
 	{"hooks", "mark the methods earlier releases found a live page's hooks by (Mount, Changed, Load<Group>) with @ui.Mount, @ui.OnChange, @ui.Loads", fixHooks},
 	{"db-schema", "rename orm.Schema values to orm.DBSchema (orm.Of[T](orm.Schema{…})): orm.Schema is a model's Schema method's", fixDBSchema},
+	{"routes", "pass each pages/ tree's Routes() to web.New in the package main that owns it, importing it (W0701)", fixRoutes},
 	{"queries", "write queries made for orm.Query as the Manager's: vuka.Or of fields → orm.Or, fn.Lower → orm.Lower, fn.In → InQuery, an Option First → orm.Optional(…First(ctx)), Objects.Manager() → Objects", fixQueries},
 }
 
