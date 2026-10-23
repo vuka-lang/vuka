@@ -1,13 +1,20 @@
-# Live protocol
+# Live Protocol
 
-For authors of transports and browser runtimes: how a
-[`live.Session`](/ui/live) is driven, what travels on the wire, and the
-attributes the HTML carries. The web framework's
-[live pages](/web/live) are one implementation; the
+[[toc]]
+
+## Introduction
+
+This page is for authors of transports and browser runtimes. It describes
+how a [`live.Session`](/ui/live) is driven, what travels on the wire, and the
+attributes the HTML carries.
+
+The web framework's [Live Pages](/web/live) are one implementation; the
 [reference client](/ui/testing#stateful-components)
 (`github.com/vuka-lang/ui/v2/live/livetest`) is another, in Go.
 
-## The session
+## The Session {#the-session}
+
+A transport drives a session through these functions and methods:
 
 <!-- go:context
 type (
@@ -42,12 +49,15 @@ func PatchMessage(ref int, p Patch) ServerMessage        // a broadcast's patch 
 
 A `Patch` is `Updates []Update{ID, HTML}` (v1) or `Trees []TreeUpdate` (v2),
 and `Error`, a handler's message. The `error` results are the session's own:
-an unknown handler, a failed render. Calls are safe from several goroutines
-and run one at a time. A transport keeps one session per connection, calls
+an unknown handler, a failed render.
+
+Calls are safe from several goroutines and run one at a time. A transport keeps one session per connection, calls
 `HandleJSON` for each message, routes `Topics()` to `Info`, and sends
 `PatchMessage` for what `Info` returns.
 
-## The HTML contract
+## The HTML Contract {#the-html-contract}
+
+The HTML a session renders carries these attributes:
 
 | | |
 |---|---|
@@ -64,7 +74,7 @@ submit. Ids are per render: after a patch, use the new HTML's.
 
 A browser runtime and a WebSocket transport speak JSON, one message per frame; `live.ClientMessage`,
 `live.ServerMessage` and `Session.Handle`/`HandleJSON` implement the server
-side.
+side. A join, events, patches, a broadcast and an error look like this:
 
 ```text
 → {"type":"join"}
@@ -77,6 +87,8 @@ side.
 ← {"type":"error","ref":3,"error":"live: no handler \"c9:0\""}
 ```
 
+Each message type means:
+
 | | |
 |---|---|
 | `join` | the first message: the server renders the page; the reply is `render`. `"v":2` asks for [version 2](#protocol-v2-render-trees) |
@@ -88,30 +100,38 @@ side.
 | `redirect` | load `url` as an ordinary page load |
 
 `ref` is any number the client picks; the reply to a message carries it, and
-a broadcast has none. The runtime listens, delegated, for each event type a
+a broadcast has none.
+
+The runtime listens, delegated, for each event type a
 `data-vk-on-<event>` names, sends the nearest such element's id, and
 `preventDefault`s a submit. Ids are per render: after a patch, use the new
-HTML's. On reconnect the client joins again — state lives in the server's
+HTML's.
+
+On reconnect the client joins again — state lives in the server's
 session, so a transport that keeps sessions across short disconnects keeps
 state; one that doesn't starts the page over, as the HTTP render did.
 
 The first HTTP render is static (a fresh mount, no ids); the `join` mounts
 the page's live instances.
 
-## Protocol v2: render trees
+## Protocol v2: Render Trees {#protocol-v2-render-trees}
 
 A client that sends `{"type":"join","v":2}` speaks version 2: the server
 sends each live instance's **render tree** instead of its HTML, and after an
 event only what changed in it. A `join` without `v` (or `"v":1`) gets the v1
-messages above, unchanged. A tree separates what a render fixes (statics,
+messages above, unchanged.
+
+A tree separates what a render fixes (statics,
 sent once) from what it computes (dynamics, sent when they change), one tree
 per live instance; the details are at the end.
 
-**The tree.** The compiler knows which parts of a shape template are fixed
+### The Tree {#the-tree}
+
+The compiler knows which parts of a shape template are fixed
 markup and which are Go expressions. A *frame* is the markup of one piece of
 markup: its *statics*, the fixed strings, around its *dynamics*, what the
 expressions rendered — `len(s) == len(d) + 1`, and the frame's HTML is
-`s[0] + d[0] + s[1] + … + d[n-1] + s[n]`. A dynamic is one of
+`s[0] + d[0] + s[1] + … + d[n-1] + s[n]`. A dynamic is one of:
 
 | JSON | |
 |---|---|
@@ -121,12 +141,16 @@ expressions rendered — `len(s) == len(d) + 1`, and the frame's HTML is
 | `{"r":id,"v":"…"}` | markup of 64 bytes or more, which the connection keeps under `id` (a space of its own, not the statics'); later the same markup is `{"r":id}` |
 | `{"id":"c3"}` | a stateful component instance: its HTML is that instance's tree's HTML |
 
-**templ.** The vuka command compiles a module's `.templ` files to produce
+### templ Components {#templ-components}
+
+The vuka command compiles a module's `.templ` files to produce
 the same frames: a templ component's fixed markup is its statics; its
 `{ expr }` text and attribute values (an attribute value alone, between the
 statics `…class="` and `"…`) are dynamics; a `for` is a block, an `if` or
 `switch` a frame for the branch taken, and an `@component` call or
-`{ children... }` a nested frame (or an instance's `{"id"}`). Two frames
+`{ children... }` a nested frame (or an instance's `{"id"}`).
+
+Two frames
 with the same statics share a statics id, whichever component made them, so
 pages sharing a templ layout share its frames. A frame whose statics are
 all empty and that holds one frame is sent as that frame. The wire format
@@ -136,7 +160,10 @@ Statics ids and string ids are numbers the server allocates per connection
 (0, 1, 2, … in order of first use); a `render` starts both afresh. The
 client keeps a table of each.
 
-**Messages.**
+### Messages {#messages}
+
+A v2 join, an event and its patch, a broadcast and a patch carrying a
+handler's error look like this:
 
 ```text
 → {"type":"join","v":2}
@@ -149,7 +176,7 @@ client keeps a table of each.
 
 `trees` holds one entry per instance whose tree changed, in render order
 (a parent before the instances it renders); a patch where nothing changed
-has none:
+has none. An entry is one of:
 
 | Entry | |
 |---|---|
@@ -164,12 +191,16 @@ the updated instances outermost first, as v1 does — the element whose
 `data-vk-id` is the entry's `id` into that instance's new HTML, `c0` the
 container's content — skipping an entry whose element is inside one it has
 already morphed in this message (that morph already carried it). Instances no
-longer reached from `c0` can be dropped. A component's root carries
+longer reached from `c0` can be dropped.
+
+A component's root carries
 `data-vk-id` (and `data-vk-key`) as a dynamic of its root frame, so the HTML a
 client renders from a tree is the HTML v1 would have sent.
 
-**Changes.** A change `{"u":{"i":X,…}}` names the dynamics of a frame that
-changed, by index; the others stay. X is
+### Changes {#changes}
+
+A change `{"u":{"i":X,…}}` names the dynamics of a frame that
+changed, by index; the others stay. X is:
 
 | X | |
 |---|---|
@@ -180,7 +211,7 @@ changed, by index; the others stay. X is
 | `{"p":[step,…]}` | the dynamic is markup of 1024 bytes or more: a token patch against it (below) |
 
 Loop steps run over the old items with a cursor starting at 0, appending to
-the new list:
+the new list. A step is one of:
 
 | Step | |
 |---|---|
@@ -198,16 +229,18 @@ A token patch cuts both strings before every `<` and after every
 `"…"` inserts text, `[p,n]` inserts `n` tokens copied from position `p` of the
 old string. (Tree token patches use no dictionary.)
 
-**An example.** A page rendering a table and a counter:
+### An Example {#an-example}
 
+This example follows a page rendering a table and a counter.
 
 The table and counter are separate `.vuka.html` shapes. The table loops over
 records with stable `key={row.ID}` values; the counter has an unexported `n`
 field and an Increment handler. Their parent shape contains the two component
-tags. See [Templates](/ui/templates) and [Stateful components](/ui/stateful)
+tags. See [Templates](/ui/templates) and [Stateful Components](/ui/stateful)
 for the source form. The protocol below describes the resulting render trees.
 
-The join's reply, with two rows (whitespace added):
+The join's reply, with two rows (whitespace added), holds the page's tree
+and both components' trees:
 
 ```json
 {"type":"render","v":2,"trees":[
@@ -239,7 +272,7 @@ A keyed insert, removal and move: the rows go from keys 1 2 3 4 to 4 1 5 3
 {"u":{"1":{"k":[{"m":3},1,{"t":2,"d":[" data-vk-key=\"5\"","plums","1"]},-1,1]}}}
 ```
 
-— old item 3 (key 4) first, then from the cursor: key 1 kept, the new row,
+The steps take old item 3 (key 4) first, then from the cursor: key 1 kept, the new row,
 key 2 skipped, key 3 kept; key 4, already taken, is left behind at the cursor
 and the list ends there.
 
@@ -250,7 +283,7 @@ whose statics are new to the connection:
 {"u":{"2":{"c":[{"t":5,"s":["<p>row ","</p>"],"d":["2"]}]}}}
 ```
 
-and back to 0 later: `{"u":{"2":{"c":[{"t":3,"d":[]}]}}}`. While the same
+The change back to 0 later is `{"u":{"2":{"c":[{"t":3,"d":[]}]}}}`. While the same
 branch stays, changes are `{"k":[{"u":…}]}`.
 
 A nested component's event: a click on the counter's button (`c2:0`)
@@ -264,18 +297,21 @@ When an event changes a parent and a child, both entries come, parent first;
 a child the parent renders for the first time comes as `full` — and a removed
 child is just no longer referenced.
 
-**Details.** There is one tree per instance (`trees`, by `id`), and a frame
+### Details {#details}
+
+There is one tree per instance (`trees`, by `id`), and a frame
 dynamic may be an instance reference `{"id":…}`; each entry has its `tree`
 and whether it is `full`, and a `render` is always a reset. Loops have a move step
 `{"m":i}` for keyed items. Every block is a loop (`{"c":…}`), a branch being
-a loop of zero or one item. An entry may be plain `html`. Handler ids
+a loop of zero or one item. An entry may be plain `html`.
+
+Handler ids
 (`data-vk-on-click="c1:4"`) are dynamics like any attribute; they count a
 component's handlers in render order, so inserting a row with handlers
 changes the ids of the handlers after it, which then travel as changed
 dynamics.
 
-
-## JS commands
+## JS Commands {#js-commands}
 
 [JS commands](/ui/js) are DOM changes the browser makes on an event without
 asking the server: show a menu, toggle a class, move focus. A runtime
@@ -283,26 +319,35 @@ implements them from two places: the `data-vk-js-<event>` attributes of the
 HTML, and the `js` field of server messages. Neither needs a session — a
 statically rendered page carries its commands too.
 
-**On an element.** `data-vk-js-<event>` holds the commands to run when the
+### Commands on an Element {#commands-on-an-element}
+
+`data-vk-js-<event>` holds the commands to run when the
 DOM event `<event>` fires (`click`, `input`, `keydown`, `submit`, … — the
 lowercased name after `on` in the markup attribute), as JSON (HTML-escaped, in
-double quotes like every attribute):
+double quotes like every attribute). This button shows its instance's menu (removing its `hidden`
+class) and pushes an event:
 
 ```html
 <button data-vk-js-click="[[&#34;remove_class&#34;,{&#34;to&#34;:{&#34;ref&#34;:&#34;menu&#34;},&#34;names&#34;:[&#34;hidden&#34;]}],[&#34;push&#34;,{&#34;h&#34;:&#34;c3:1&#34;}]]">Open</button>
 ```
 
-that is `[["remove_class",{"to":{"ref":"menu"},"names":["hidden"]}],["push",{"h":"c3:1"}]]`:
-a list of operations `[name, args]`, run in order. The runtime listens,
+The attribute's value is `[["remove_class",{"to":{"ref":"menu"},"names":["hidden"]}],["push",{"h":"c3:1"}]]`:
+a list of operations `[name, args]`, run in order.
+
+The runtime listens,
 delegated, for each event type a `data-vk-js-<event>` names (as it does for
 `data-vk-on-<event>`), runs the commands of the nearest element carrying
 either attribute for that event, and `preventDefault`s the event when the
 list has a top-level `push` (a submit, a link's click, a form button's
-click). A list without one leaves the event to the browser: a form's
+click).
+
+A list without one leaves the event to the browser: a form's
 commands run as the browser submits it — after its constraint validation,
 which fires no `submit` when it fails — and the form posts as usual. An
 element has one or the other for an event, never both. *this* is the element
 carrying the attribute.
+
+The operations, their arguments and what they do:
 
 | Operation | Args | |
 |---|---|---|
@@ -338,7 +383,9 @@ Branches nest: an `if` inside a branch opens a level of its own, and
 step a branch skips doesn't run — a skipped `debounce` defers nothing, a
 skipped `if` takes no branch.
 
-**Targets.** `to` is the elements an operation acts on; omitted, *this*:
+### Targets {#targets}
+
+`to` is the elements an operation acts on; omitted, *this*:
 
 | `to` | |
 |---|---|
@@ -354,12 +401,16 @@ skipped `if` takes no branch.
 A target of several parts finds every element any part finds, in document
 order, each once. `focus`, `focus_first`, `scroll_to`, `copy`, a `call`'s
 `to` and a read passed to `call` take the first element a target finds.
-An operation on no element does nothing. `data-vk-ref` comes from the shape markup
+An operation on no element does nothing.
+
+`data-vk-ref` comes from the shape markup
 attribute `ref="menu"`. In protocol v2 a `data-vk-js-…` attribute is a dynamic
 like any attribute written with an expression: it is sent again only when
 its JSON changes (a push's handler id moving, a value).
 
-**Conditions.** `cond` reads a target when the `if` is reached:
+### Conditions {#conditions}
+
+`cond` reads a target when the `if` is reached:
 
 | `cond` | holds when |
 |---|---|
@@ -377,15 +428,21 @@ A read holds when every element its target finds passes it; with
 `"some":true` (`{"to":T,"value":true,"some":true}`), when at least one
 does. A target that finds no element fails every read but `exists`.
 
-**Push.** `["push",{"h":"c3:1"}]` sends `{"type":"event","target":"c3:1",…}`
+### Push {#push}
+
+`["push",{"h":"c3:1"}]` sends `{"type":"event","target":"c3:1",…}`
 like a `data-vk-on` handler: `event` the DOM event's type, `key` a keyboard
 event's key, `form` a submit's fields, and `value` — the push's `value` when
 it has one (a JSON string as is, anything else as its JSON text: `3`,
-`true`, `{"a":1}`), else *this*'s value. `h` is a handler id of the same
+`true`, `{"a":1}`), else *this*'s value.
+
+`h` is a handler id of the same
 render, counted with the `data-vk-on-…` ids of its instance. A push without
 `h` (rendered without a session) does nothing.
 
-**Pushed by the server.** `render` (v1 and v2) and `patch` messages may carry
+### Commands Pushed by the Server {#commands-pushed-by-the-server}
+
+`render` (v1 and v2) and `patch` messages may carry a `js` field:
 
 ```text
 "js":[{"id":"c3","ops":[…]}, …]
@@ -396,31 +453,39 @@ the element whose `data-vk-id` is `id` (`c0`: the container), refs resolving
 in that instance. An entry whose instance isn't on the page is skipped. An
 `error` message carries none.
 
-**Reconciliation.** What commands change on an element — a class, an
+### Reconciliation {#reconciliation}
+
+What commands change on an element — a class, an
 attribute, the `style` display — stays as the browser set it across the
 server's patches as long as the server keeps rendering that attribute as it
 did when the command ran: a runtime records, per element and attribute it
 changed, the server's value at that time, and after a morph sets the
 attribute back to the browser's value while the server's value is
 unchanged. When the server renders a different value, the server's wins and
-the record is dropped. Classes count as the `class` attribute, `show`/`hide`
+the record is dropped.
+
+Classes count as the `class` attribute, `show`/`hide`
 as `style` (and `hidden`); `set_value` changes the value property, not an
 attribute, and a field's value follows the runtime's usual rules.
 `set_text` is recorded as the element's text: the override stays while the
 server keeps rendering the same text in the element, and is dropped when
 the server's text changes.
 
-### Optimistic pushes
+### Optimistic Pushes {#optimistic-pushes}
 
 A push can show its outcome before the server answers — a like counted, a
 row gone — and take it back if the server refuses. The operations before a
 `push` in a list are its **predictions**; the push's reply settles them.
+This list marks a like and updates its count before the push, with hooks for
+either outcome:
 
 ```text
 [["add_class",{"names":["liked"]}],
  ["set_text",{"to":{"ref":"likes"},"text":"8"}],
  ["push",{"h":"c3:1","on_error":[["show",{"to":{"ref":"like-error"}}]],"on_ok":[["dispatch",{"event":"liked","bubbles":true}]]}]]
 ```
+
+The push takes these fields:
 
 | `push` field | |
 |---|---|
@@ -430,21 +495,27 @@ row gone — and take it back if the server refuses. The operations before a
 | `timeout` | ms to wait for the reply before the push fails; default `10000` |
 | `keep` | `true`: a failure reverts nothing (`on_error` still runs) |
 
-**Predictions.** A list is cut into segments at its `push` operations: the
+#### Predictions {#predictions}
+
+A list is cut into segments at its `push` operations: the
 operations from the list's start, or from the previous `push`, up to a
 `push` are that push's predictions. The runtime records every DOM change
 they make — an attribute, a class (as `class`), the `style` display, a
 `hidden` attribute, the text (`set_text`), a field's value or checked state
 (`set_value`) — with, for each, the value before the change, the value it
 set, and the server's value at that moment (what the server's last markup
-renders there). An `exec`'d list runs within the segment it is called
+renders there).
+
+An `exec`'d list runs within the segment it is called
 in: its changes join that segment, and a push in it closes it. A segment closed by a
 push that doesn't run (a skipped branch, a push without `h`) or not closed
 at all (operations after the last push, a chain stopped by `key`,
 `confirm` or a `call`) is not a prediction: its changes stay as ordinary
 command changes.
 
-**Settling.** Every event message the runtime sends has a `ref`, and the
+#### Settling {#settling}
+
+Every event message the runtime sends has a `ref`, and the
 server answers each with exactly one message carrying that `ref` — a
 `patch` (with `error` when the handler failed; with no `updates`/`trees`
 when nothing changed, `{"type":"patch","ref":4}`) or an `error` message
@@ -458,7 +529,9 @@ when nothing changed, `{"type":"patch","ref":4}`) or an `error` message
 
 On failure, unless `keep`, each recorded change is reverted, latest first,
 to its value before the change — where the server's value is still the one
-recorded and the element still shows the value the prediction set. Where
+recorded and the element still shows the value the prediction set.
+
+Where
 the server has rendered a different value since, or a later command changed
 it, the current value stays. Reverting to the server's own value drops the
 command record; to an earlier command's value, keeps that record.
@@ -467,6 +540,7 @@ A reply is applied in this order: its markup (and reconciliation), the
 push's reverts on failure, the message's `js` entries, then `on_ok` or
 `on_error`. A reply arriving after its push timed out is applied as usual,
 minus the settling: the push was already reverted and its `on_error` run.
+
 Pushes settle independently: a list with two pushes has two segments, each
 reverted only by its own push's failure.
 
@@ -507,7 +581,7 @@ is left. An element waiting for a reply (`aria-busy` the runtime sets on a
 `data-vk-on` or push's element) keeps a mark's `aria-busy` when the reply
 comes.
 
-### Calling JavaScript
+### Calling JavaScript {#calling-javascript}
 
 `["call",{"fn":"confetti","to":T,"args":[…]}]` calls a page function.
 `fn` is a name registered with `vuka.register(name, fn)`, else a dotted
@@ -523,7 +597,7 @@ code. The function is called as `fn(ctx, ...args)`:
 
 `args` are JSON values, each passed as is, except **element reads**,
 objects of one key `$read` whose value is a condition's JSON
-([Conditions](#js-commands)), read when the `call` is reached:
+([Conditions](#conditions)), read when the `call` is reached:
 
 | `{"$read":…}` | passes |
 |---|---|
@@ -536,20 +610,24 @@ A read of no element passes `null` (`exists`: `false`). A `$read` nested in
 another value is not a read.
 
 The list waits while a returned promise is pending. A result of `false`
-stops the list, as a declined `confirm` does. An unknown function, a throw
+stops the list, as a declined `confirm` does.
+
+An unknown function, a throw
 or a rejected promise stops the list and fires a `vk:error` event on *this*
 (`detail`: `{"error": message, "fn": name}`); when the `call` is among a
 push's predictions, that push fails without being sent — its predictions so
 far are reverted (unless `keep`) and its `on_error` runs.
 
-## Client state
+## Client State {#client-state}
 
-[Client state](/ui/state) rides the same attributes. A state reference is
+[Client State](/ui/state) rides the same attributes. A state reference is
 `{"s": key, "i": initial, "p": [field…]}`: the state's key (`c3:s1x9k2:1` —
 the instance, the declaration's site and its count there; `g:<site>` for a
 package-level state), its whole initial value, which sets the state up the
 first time the browser meets it, and, for a struct state's field, the path of
-JSON keys. Three commands write:
+JSON keys.
+
+Three commands write:
 
 | | |
 |---|---|
@@ -563,7 +641,9 @@ chain's next other step and at its end, once each.
 Bindings are attributes holding an expression: `data-vk-b-<attr>` on an
 element (the attribute `<attr>`), `data-vk-b` on a `<vk-t>` (its text) and
 `data-vk-show` on a `<vk-show>` (whether its children show, with the
-`data-closed`, `data-enter` and `data-leave` phases). An expression is a
+`data-closed`, `data-enter` and `data-leave` phases).
+
+An expression is a
 literal (a string, number, bool or null), `{"v": value}` (a literal object
 or list), a state reference, or `[op, operands…]` with op `!`, `neg`, `&&`,
 `||`, `==`, `!=`, `<`, `<=`, `>`, `>=`, `+`, `-`, `len` (Go's: a string's
@@ -583,6 +663,9 @@ a filter or tab kept in the URL, a list and its rows' pages. Two kinds:
 - a **navigate** goes to another page: every instance but the page itself
   (`c0`) unmounts, and the new page's mount.
 
+A patch, a navigate and a navigation answered with a redirect look like
+this:
+
 ```text
 → {"type":"navigate","ref":5,"url":"/books?page=2","patch":true}
 ← {"type":"patch","ref":5,"url":"/books?page=2","trees":[{"id":"c3","tree":{"u":{…}}}]}
@@ -591,6 +674,8 @@ a filter or tab kept in the URL, a list and its rows' pages. Two kinds:
 → {"type":"navigate","ref":7,"url":"/books.json"}
 ← {"type":"redirect","ref":7,"url":"/books.json"}
 ```
+
+The `navigate` message has two fields:
 
 | `navigate` field | |
 |---|---|
@@ -602,10 +687,14 @@ When it is one, the page becomes the session's, rendered and diffed as after
 an event: the reply is a `patch` (v1 `updates`, v2 `trees` — the page `c0`
 is the same instance, so a v2 client gets only what changed of its tree,
 against statics it already holds), carrying `url`, and `js` when the new
-page's mount hook pushed commands. When `url` isn't a page (a redirect, an
+page's mount hook pushed commands.
+
+When `url` isn't a page (a redirect, an
 error, a non-HTML answer), the reply is `redirect`, whose `url` the client
 loads as an ordinary page — never one that isn't a path or an `http` or
-`https` URL, which the client refuses to load as well. An `error` reply
+`https` URL, which the client refuses to load as well.
+
+An `error` reply
 means the navigation failed — a mount hook or `Update` refused the URL, say —
 and nothing of the page stays mounted; the client loads `url`. Either
 version supports navigation.
@@ -615,15 +704,18 @@ A transport may add fields to a navigation's `patch`; the web framework's
 reconnects, and `title` the new page's title, which the client gives the
 document.
 
-**The client.** A runtime takes clicks on `<a data-vk-link>` (bubbling, so
+### The Client {#the-client}
+
+A runtime takes clicks on `<a data-vk-link>` (bubbling, so
 an element's own commands and handlers run first), unless the event's
 default is already prevented, the click is not the main button or has a
 modifier key (`ctrl`, `meta`, `shift`, `alt`), the link has a `target`
 other than `_self` or a `download` attribute, `href` is of another origin,
 or `href` is the page's own URL with a `#hash`; those stay the browser's.
-It also moves on `patch` and `navigate` commands, and on `popstate`. While a
-navigation is in flight it sets `data-vk-navigating` on `<html>` and sends
-no events. Then:
+It also moves on `patch` and `navigate` commands, and on `popstate`.
+
+While a navigation is in flight it sets `data-vk-navigating` on `<html>` and
+sends no events. Then:
 
 | | |
 |---|---|
@@ -634,11 +726,17 @@ no events. Then:
 History entries carry a page id in their state: a patch keeps the page's, a
 navigate makes a new one. Back or forward to an entry of the page shown
 sends a patch; to another page's, a navigate; to the same URL with only a
-different `#hash`, nothing. Scroll: a navigate goes to the top, or to the
+different `#hash`, nothing.
+
+Scroll: a navigate goes to the top, or to the
 element whose id the `#hash` names; a patch stays; back and forward go to
-the position kept in the entry's state. Focus, after a navigate: the
+the position kept in the entry's state.
+
+Focus, after a navigate: the
 `[autofocus]` element, else `<main>`, else the first element with
-`data-vk-id`, given `tabindex="-1"` when it isn't focusable. A whole-document
+`data-vk-id`, given `tabindex="-1"` when it isn't focusable.
+
+A whole-document
 `c0` sets `document.title` and adds the `<head>` children the document lacks
 (compared by their markup; a script is recreated so that it runs). A
 navigate drops the optimistic pushes still waiting, without their hooks.

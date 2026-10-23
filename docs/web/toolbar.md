@@ -1,4 +1,8 @@
-# Development toolbar
+# Development Toolbar
+
+[[toc]]
+
+## Introduction
 
 Why is this page slow? Which statements did it run, and did one of them run
 once per row? What did that click do on the server? Did my last save
@@ -7,11 +11,15 @@ without a profiler, log grep or terminal: a handle on the page's right edge
 shows the request's time and statement count, and clicking it opens a
 drawer of panels for that request.
 
+## The Panels {#panels}
+
+Each panel shows one side of the request.
+
 ![The SQL panel naming an N+1](/toolbar-sql.png)
 
-## Panels
+### Request
 
-**Request.** The method, path and status; the route's pattern
+The method, path and status; the route's pattern
 (`GET /pets/{id}`); the handler that answered, with its file and line; the
 arguments it was called with and where each came from — path, query, body
 or a dependency (fields named like a password, token or secret hidden); and
@@ -19,7 +27,9 @@ the request's and response's headers, with cookies and credentials hidden.
 With [`web/auth`](/web/auth), who the request came from and which gate let
 it through or refused it.
 
-**SQL.** Every statement the request ran, in order, with its arguments,
+### SQL
+
+Every statement the request ran, in order, with its arguments,
 rows and time as a bar. A statement that ran more than once is amber. One
 that ran three times or more with different arguments is an N+1 — one
 statement per row of an earlier result — and the panel says so, with the
@@ -28,17 +38,23 @@ statement: read those rows in one query instead
 ORM). A statement that failed, or that the ORM refused before sending it, is
 red with its error.
 
-**Timeline.** Where the time went, as bars against the request: the app's
+### Timeline
+
+Where the time went, as bars against the request: the app's
 and the route's middleware, each call decorator (`@timed`, `@cached`), the
 handler, the render, and the statements, nested as they ran. A decorated
 function called while the page renders shows inside the render — without a
 `context.Context` parameter too.
 
-**Logs.** What `slog`'s default logger wrote for the request: records
+### Logs
+
+What `slog`'s default logger wrote for the request: records
 written with its context (`slog.InfoContext(ctx, …)`), and those written
 from the request's goroutine. They still go to the console as before.
 
-**Live.** On a [live page](/web/live), each message its connection carried,
+### Live
+
+On a [live page](/web/live), each message its connection carried,
 the latest first: the join, each event named by its handler
 (`Counter.Inc (click)`), each navigation and patch, each broadcast it took.
 Each shows its time, statements and reply size; open one for what it sent
@@ -48,28 +64,36 @@ connection that dropped under it.
 
 ![A live page's messages](/toolbar-live.png)
 
-**Assets.** The page's [styles and scripts](/web/assets): its scoped
+### Assets
+
+The page's [styles and scripts](/web/assets): its scoped
 components, their files and their module, and the app-wide ones.
 
-**Crons.** The app's [crons](/web/crons): each one's schedule, function,
+### Crons
+
+The app's [crons](/web/crons): each one's schedule, function,
 next run and last run (red when it failed), and a **Run now** button. Each
 run is a record of its own, listed under *Cron runs* at the top: open it
 for its statements, timeline, logs and error, as for a request.
 
 ![A cron's run](/toolbar-crons.png)
 
-**Mail.** With [`web/mail`](/web/mail), the messages the request (or the
+### Mail
+
+With [`web/mail`](/web/mail), the messages the request (or the
 cron run) sent or queued: sender, recipients, subject, attachments, and
 the HTML in a sandboxed preview — where development email goes under the
 log driver.
 
-## What a live message sent
+## Inspecting What a Live Message Sent {#what-a-live-message-sent}
 
 Why is this click's reply 9 kB when it changed one number? Open the
 message in the Live panel: it keeps the frame the browser sent and every
 frame the server answered with, decoded, in three views.
 
-**Summary.** The browser's message in a line (`c1:1 click`,
+### Summary
+
+The browser's message in a line (`c1:1 click`,
 `/pets?page=2 (patch)`, `form name, email`), then each server frame: a bar
 and a line splitting its bytes by what they carry —
 
@@ -86,7 +110,9 @@ one line: statics mean markup the page hadn't seen yet (a branch taken for
 the first time, a page navigated to); dynamics mean values; a `full tree`
 row means an instance was mounted again rather than changed.
 
-**Diff.** Each changed dynamic by its path in the instance's render tree,
+### Diff
+
+Each changed dynamic by its path in the instance's render tree,
 with the markup it sits in, and the value the browser held beside the new
 one, the part that differs marked:
 
@@ -104,9 +130,13 @@ and after.
 
 ![A click's change, old value beside the new](/toolbar-live-diff.png)
 
-**Raw.** The browser's message and each server frame as JSON, indented and
+### Raw
+
+The browser's message and each server frame as JSON, indented and
 coloured, with a Copy button — what you'd see in the browser's network tab,
 next to the request that produced it.
+
+### Where the Old Values Come From
 
 The old values come from the toolbar's own copy of what the browser holds:
 while it is on, each connection keeps the statics, kept strings and trees
@@ -117,11 +147,12 @@ its full size; a page keeps the frames of its latest messages up to 1 MB,
 and an older message says its frames were dropped. Views are drawn when you
 open a message, so a long session's panel stays quick.
 
-## Following live navigation
+## Following Live Navigation
 
 A live page that moves over its connection — a `ui.Link`, a
 `JS.Navigate` or `JS.Patch` command, `PushNavigate` or `PushPatch`, the back
-and forward buttons — keeps the toolbar on the page you're looking at:
+and forward buttons — keeps the toolbar on the page you're looking at
+([Navigation](/web/navigation)):
 
 - While the navigation is in flight the handle says where to:
   `loading /pets…`.
@@ -136,7 +167,7 @@ and forward buttons — keeps the toolbar on the page you're looking at:
 
 ![After a navigation from Home to the counter](/toolbar-live-navigate.png)
 
-## Every call the page makes
+## Every Call the Page Makes
 
 The list at the top of the drawer holds the page and each `fetch` and XHR
 call it made since it loaded (`POST /api/pets → 201`); pick one to see its
@@ -144,14 +175,16 @@ panels. Every response of a development app carries the id of its record in
 an `X-Vuka-Toolbar` header, which is how the page finds them — and how you
 can find a request's record from the network tab.
 
-## While vuka run -watch rebuilds
+## While vuka run -watch Rebuilds {#while-vuka-run-watch-rebuilds}
 
-With [`vuka run -watch`](/tools/cli#run-watch) the old build keeps answering
+With [`vuka run -watch`](/tools/cli#build-run-test-vet-install) the old build keeps answering
 while the next one compiles, so the page in front of you can be older than
 your code. The handle says so: `building… 1.2s` while the next build
 compiles, and `build failed` when it didn't — the drawer then shows the
 compiler's output above the panels, `.vuka` file and line included. The
 build that keeps answering is the last good one, until a save compiles.
+
+### Asset and Island Builds
 
 The styles, scripts and [islands](/web/islands) build beside the app, and
 their failures show the same way: `island build failed` (or `asset build
@@ -161,14 +194,19 @@ islands keep working; an island the last good bundle doesn't have shows a
 box in its place saying it isn't built and why. Both clear once the
 component builds again, and the island then mounts without a reload.
 
-## Your own panels
+## Adding Your Own Panels {#your-own-panels}
 
 Keep custom panel data collection in logic files and its rendering in a
 one-struct `.vuka.html` shape. Use the toolbar extension API to expose the
 resulting node; do not couple application page routing to diagnostic panels.
-Never include secrets or personally sensitive values in a development panel.
 
-## When it is on
+> [!WARNING]
+> Never include secrets or personally sensitive values in a development
+> panel.
+
+## When It Is On
+
+The toolbar is on in development and off everywhere else:
 
 | | toolbar |
 |---|---|
@@ -183,7 +221,7 @@ nothing hooks into the program; a request costs what it did without it.
 When it is on, recording adds a few microseconds to a request, and keeping
 and decoding a live message's frames a few more.
 
-## What it changes on the page
+## What It Changes on the Page
 
 Only one script tag in the page's `<head>`, beside the stylesheet's link;
 the page's markup is otherwise the one the app renders, and live updates

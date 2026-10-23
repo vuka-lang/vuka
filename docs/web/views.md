@@ -1,7 +1,20 @@
-# Views
+# Pages & Layouts
+
+[[toc]]
+
+## Introduction
 
 Every application view is a `.vuka.html` shape file: one struct in its Go
-header and markup starting on the first line beginning with `<`.
+header, and markup starting on the first line that begins with `<`.
+
+You use the same form for a reusable component, a page under `pages/` and
+the layout that wraps a folder of pages. This page shows each, and how they
+get their data.
+
+## Writing a Component
+
+This component renders a pet's name and whatever its caller passes inside
+it:
 
 ```html
 package components
@@ -18,25 +31,34 @@ type PetCard struct {
 </article>
 ```
 
-Save as `components/pet_card.vuka.html`, import that package in a page shape,
-and use `<components.PetCard name={Name}>…</components.PetCard>`.
+Save it as `components/pet_card.vuka.html`, import that package in a page
+shape, and use `<components.PetCard name={Name}>…</components.PetCard>`.
 
-## Pages and layouts
+## Pages and Layouts
 
-Page shapes live under `pages/`; the path declares the URL. A folder's
-`_layout.vuka.html` wraps its descendants through `Children ui.Node`.
+Page shapes live under `pages/`, and the path declares the URL. A folder's
+`_layout.vuka.html` wraps its descendants through `Children ui.Node`. See
+[Routing](/web/routes) and [Folder Routes](/web/folder-routes).
+
 Start the app with `web.New(pages.Routes(), …)`. Route generation writes
-`pages/route.go`, which should not be edited by hand.
+`pages/route.go`.
 
-## Data and context
+> [!WARNING]
+> `pages/route.go` should not be edited by hand.
+
+## Data and Context
 
 Exported fields are props; unexported fields hold tracked server state or
-provided dependencies. Fetch data in decorated hooks and handlers. Markup
-can read implicit `ctx` for request-dependent presentation, but protected
-actions must enforce permissions on the server.
+provided dependencies. Fetch data in decorated hooks and handlers.
 
-## Interop
+Markup can read the implicit `ctx` for request-dependent presentation.
+
+> [!WARNING]
+> Protected actions must enforce permissions on the server, whatever the
+> markup shows.
+
+## Using templ and Browser Libraries {#interop}
 
 Existing templ libraries can be used as nodes or tags inside shapes; see
-[templ interop](/ui/templ). This does not change the application authoring
-form. Browser component libraries are integrated as [islands](/web/islands).
+[templ Interop](/ui/templ). This does not change the application authoring
+form. Browser component libraries are integrated as [Islands](/web/islands).

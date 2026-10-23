@@ -1782,7 +1782,7 @@ Runtime: unchanged, v0.10.0. The vuka command is `cmd/vuka/v0.13.0`. With
   build running; a change that leaves the binary the same (a comment) restarts
   nothing. Tailwind keeps running through the restarts, and with web v0.8.0
   live pages rejoin the new build instead of reloading. See
-  [vuka run](/tools/cli#run-watch).
+  [vuka run](/tools/cli#build-run-test-vet-install).
 
 ## v0.12.0 — 2026-10-10
 
@@ -1832,7 +1832,7 @@ Runtime: `github.com/vuka-lang/vuka v0.10.0` — the UI layer is gone from it.
 New library: [`github.com/vuka-lang/ui`](/ui/) v0.1.0. Run `vuka fix ui`.
 
 - **JSX targets.** JSX is syntax; what it renders with is a library the
-  file imports, its [JSX target](/features/jsx#jsx-targets): a package
+  file imports, its [JSX target](/features/jsx): a package
   declaring `const VukaJSX = 1` and `Node`, `El`, `Text`, `Child`,
   `Fragment`, `Nodes`, `Try` (optionally `On`, `Stateful` + `Component`,
   `WithChildren`, `F`). A file with JSX imports one target; without one it

@@ -1,16 +1,24 @@
-# Using Go code
+# Using Go Code
+
+[[toc]]
+
+## Introduction
 
 Vuka is Go with additions, so **every Go function, type and library works in
-Vuka exactly as in Go** — no bindings, no wrappers, no special imports. This
-page shows the common cases; every example on it is a program that runs.
+Vuka exactly as in Go** — no bindings, no wrappers, no special imports.
 
+This page shows the common cases: your own `.go` files, the standard library,
+third-party modules, and converting between `Result` and `(T, error)`. Every
+example on it is a program that runs.
 
-## Functions from your .go files
+## Calling Functions From Your .go Files
 
-### In the same package
+### Calling Code in the Same Package
 
 `.go` and `.vuka` files share packages. A function in a `.go` file is called
 from a `.vuka` file like any other — and the other way round.
+
+Here `util.go` declares a function in plain Go:
 
 ```go
 // util.go — plain Go
@@ -20,6 +28,8 @@ import "strings"
 
 func slug(s string) string { return strings.ToLower(strings.ReplaceAll(s, " ", "-")) }
 ```
+
+And `main.vuka` calls it:
 
 ```vuka
 // main.vuka
@@ -32,13 +42,15 @@ func main() {
 }
 ```
 
-
-### In another package of your project
+### Importing Another Package of Your Project
 
 A package written in plain Go is imported by its path, as in Go: the
 **module path** from `go.mod` followed by the **directory**. In a module named
 `hello`, the package in `hello/data/` is imported as `"hello/data"` — not
 `"data"`, which Go would look for among your dependencies.
+
+This package, `textutil/textutil.go`, is plain Go with a function, an error
+value and a type with a method:
 
 ```go
 // textutil/textutil.go — plain Go
@@ -76,6 +88,8 @@ func First(s string) (string, error) {
 }
 ```
 
+The file `words.vuka` imports it by its full path and uses each piece:
+
 ```vuka
 // words.vuka
 package main
@@ -110,8 +124,7 @@ func words() {
 Nothing marks the Go package as special: Vuka passes the import to Go, and
 Go's type checker reads it.
 
-
-## The standard library
+## Using the Standard Library
 
 Import and call it as in Go. Functions returning `(T, error)` work with
 [`?`](/features/try), and library error types work in [`match`](/features/match)
@@ -142,7 +155,6 @@ func main() {
 }
 ```
 
-
 `?` works just as well in functions written Go's way:
 
 ```vuka
@@ -152,14 +164,15 @@ func port(s string) (int, error) {
 }
 ```
 
+## Using Third-Party Libraries
 
-## Third-party libraries
-
-Add a module with the go command, then import it:
+Add a module with the go command:
 
 ```sh
 go get github.com/google/uuid
 ```
+
+Then import it from a `.vuka` file:
 
 ```vuka
 import "github.com/google/uuid"
@@ -167,18 +180,21 @@ import "github.com/google/uuid"
 func newID() string { return uuid.NewString() }
 ```
 
-
 `go.mod` and `go.sum` are the usual ones; Vuka has no package manager of its
 own.
 
-**`vuka mod tidy`.** Plain `go mod tidy` reads only `.go` files, so it drops
+### The vuka mod tidy Command
+
+Plain `go mod tidy` reads only `.go` files, so it drops
 requirements that only `.vuka` files use. Use **`vuka mod tidy`** instead: it
 shows the go command the imports of your `.vuka` files (and the Vuka runtime,
 when your code uses it), then runs `go mod tidy`. Every `go mod` subcommand
 works the same way — `vuka mod why`, `vuka mod vendor`, …
 
+## Converting Between Result and (T, error)
 
-## Converting between Result and (T, error)
+`vuka.Of` turns a `(T, error)` into a [Result](/features/result-option), and
+`Get` turns it back:
 
 ```vuka
 r := vuka.Of(os.ReadFile(path))     // (T, error) → Result[T]
@@ -189,13 +205,12 @@ data, err := r.Get()                // Result[T] → (T, error)
 var path = "app.conf"
 -->
 
-
 Errors keep their identity both ways: `errors.Is(err, fs.ErrNotExist)` is still
 true after a round trip.
 
-## Decorating code that calls a library
+## Decorating Code That Calls a Library
 
-A decorator applies to a function you declare, so wrap the library call in one:
+A [decorator](/features/decorators) applies to a function you declare, so wrap the library call in one:
 
 ```vuka
 @timed
@@ -206,11 +221,11 @@ func newID() string { return uuid.NewString() }
 func timed(c *vuka.Call) { c.Next() }
 -->
 
-
-## Everything else is Go
+## Everything Else Is Go
 
 Generics, goroutines, channels, `select`, `defer`, interfaces, embedding and
-struct tags are Go's, unchanged:
+struct tags are Go's, unchanged. This sample sorts a slice and fans work out
+to goroutines exactly as Go does:
 
 ```vuka
 names := []string{"linus", "ada", "grace"}
@@ -225,9 +240,8 @@ for i := range 3 {
 wg.Wait()
 ```
 
-
-## The other way: Go calling Vuka
+## Calling Vuka From Go
 
 Go code calls functions and types declared in `.vuka` files directly. A few
 Vuka-only constructs have generated Go names — see
-[Working with Go](/guide/go-interop#calling-vuka-from-go).
+[Working With Go](/guide/go-interop#calling-vuka-from-go).

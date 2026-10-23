@@ -1,9 +1,18 @@
 # match
 
-**Go:** `switch` compares values or types; taking a value apart is done by hand.
+[[toc]]
 
-**Vuka adds** `match`: cases are patterns, tried in order, that test and bind at
-once.
+## Introduction
+
+In Go, `switch` compares values or types, and taking a value apart is done by
+hand. Vuka adds `match`: cases are patterns, tried in order, that test and bind
+at once.
+
+You use it to take apart a [Result or Option](/features/result-option), an
+[enum](/features/enums), or a struct, and the compiler checks that every case
+is covered.
+
+## Matching a Value
 
 <!-- go:context
 type User struct {
@@ -24,6 +33,9 @@ func lookup(arg string) vuka.Result[User] {
 }
 -->
 
+This sample matches the Result of a lookup, taking apart a specific error type
+and using a guard for another:
+
 ```vuka
 match lookup(arg) {
 case Ok(u):
@@ -37,23 +49,26 @@ case Err(e):
 }
 ```
 
-
 ## Patterns
+
+The table below lists every pattern a case can use:
 
 | Pattern | Matches |
 |---|---|
 | `_`, `default` | anything |
 | `x` | anything, bound to `x` (a constant's name compares instead) |
 | `0`, `"a"`, `Max`, `pkg.Const`, `true` | an equal value |
-| `^x` | the current value of the variable `x` (Elixir's pin) |
+| `^x` | the current value of the variable `x` (pinned, not bound) |
 | `Ok(p)`, `Err(p)`, `Some(p)`, `None` | a Result or Option, then `p` inside |
 | `T{F: p, …}`, `&T{…}` | a struct's fields; against an interface, a type test too |
 | `Status.Draft`, `Shape.Circle{Radius: p}` | an [enum](/features/enums)'s variant |
 | `1, 2, 3` | any of them |
 
+### Guards
+
 `case p if cond:` adds a guard.
 
-## Exhaustive
+## Exhaustive Matching
 
 A `match` must cover every case — Ok and Err, Some and None, true and false,
 every variant of an enum, or a
@@ -64,9 +79,11 @@ error. Both are reported before Go sees the code:
 main.vuka:4:2: match on Result[int] isn't exhaustive: missing Err(_); add the missing cases or case _:
 ```
 
+### Coverage Inside Patterns
+
 Coverage goes inside patterns: `Ok` is covered when the patterns inside the Ok
 cases cover the Result's value, and a struct when its fields' patterns do,
-together. So on a `Result[Option[User]]`
+together. So on a `Result[Option[User]]`, this match
 
 ```vuka
 match r {
@@ -85,7 +102,7 @@ needs no catch-all, while leaving out `case Ok(None):` reports
 Guarded cases cover nothing; literals, constants and type tests cover only a
 value of their own, so `Some(1)` leaves `Some(_)` missing.
 
-## What it becomes
+## What It Becomes
 
 An `if`/`else if` chain that tests each pattern in turn with the Result's and
 Option's own methods (`IsOk`, `Value`, `Err`, `IsSome`), bodies where you

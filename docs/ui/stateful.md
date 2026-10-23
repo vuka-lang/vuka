@@ -1,11 +1,22 @@
-# Stateful components
+# Stateful Components
 
+[[toc]]
+
+## Introduction
+
+A stateful component keeps server state between renders and answers browser
+events with Go methods. You reach for one when a part of a page has to change
+in response to the visitor, such as a counter, a form or a chat.
 
 A `.vuka.html` shape is live when it embeds `ui.Live`, declares a decorated
 hook, or wires a server handler in markup. Its exported fields are props,
 unexported fields are tracked server state (or provided dependencies), and
 `ui.State[T]` fields are browser state. The struct, hooks, methods and markup
 live together in one shape file.
+
+## Writing a Stateful Component
+
+This counter takes a starting value as a prop and keeps its count as state:
 
 ```html
 // counter.vuka.html
@@ -33,11 +44,13 @@ func (c *Counter) Inc() { c.n++ }
 Use `<Counter start={5}/>` in another shape. Attributes bind exported fields
 by name (`start` and `Start` find Start; promoted fields count, but ui.Live
 itself does not). Children fill Children ui.Node, and key identifies the child
-among sibling placements. An attribute naming an unexported field is a compile
-error: server state is not a prop. The compiler supplies the node and live
+among sibling placements.
+
+An attribute naming an unexported field is a compile error: server state is
+not a prop. The compiler supplies the node and live
 interfaces; no render method needs to be authored.
 
-## Static and live
+## Static and Live Rendering {#static-and-live}
 
 Rendered by `ui.String`, `ui.Handler` or any templ code, a stateful
 component is plain HTML: a copy of the tag's value is mounted, rendered once,
@@ -49,7 +62,7 @@ time its tag renders, mounted once, then kept between renders with its
 state. An instance not rendered any more is dropped, after its optional
 `Unmount()` runs.
 
-### Whose fields
+### Whose Fields Are Whose {#whose-fields}
 
 An instance's unexported fields are always its own. Its exported fields
 belong to whoever sets them:
@@ -65,6 +78,10 @@ with focus too, when it still shows what it showed when the page last sent
 an event (a form cleared once sent); one the user has typed into since keeps
 what is typed.
 
+### Instance Methods
+
+A component's markup and optional methods are what the runtime uses:
+
 | Method | |
 |---|---|
 | Shape markup | its output gets the instance's id as `data-vk-id` on its root element, or in a `<vk-c style="display:contents">` around it when it isn't one element; a tag with a `key` puts it there too, as `data-vk-key` |
@@ -78,17 +95,19 @@ server](/ui/js#from-the-server)), and `PushPatch(href)` and
 `PushNavigate(href)`, which move the page to another URL once the reply is
 applied ([navigation](/web/navigation)), and `PushEvent(name, payload)`,
 which hands `payload` to the component's [scripts](/web/assets#scripts)
-(`ctx.on(name, fn)`). Embed it by value: a
-`*ui.Live` fails the render.
+(`ctx.on(name, fn)`).
 
-## Which instance?
+> [!WARNING]
+> Embed `ui.Live` by value: a `*ui.Live` fails the render.
+
+## Which Instance a Tag Gets {#which-instance}
 
 A tag's place in its parent's markup: the component rendering it, the keys
 of the elements around it, the tag itself (each tag in the source is its own
 place), and its `key`, or else how many times that tag has rendered before
 it in this render. So `if` around one tag never shifts another's
 instance, a loop without keys pairs instances by position, and a loop with
-keys follows them:
+keys follows them.
 
 Inside a shape's markup root:
 
@@ -100,12 +119,11 @@ Inside a shape's markup root:
 </ul>
 ```
 
-
 Two tags in one place with the same key fail the render. Components nest
 freely: a stateful component renders others, each its own instance with its
 own state, and a parent passes a child func props to hear from it.
 
-## Events
+## Handling Events {#events}
 
 An `on…` attribute with an expression on an element is an event handler:
 `onClick` handles `click`, `onKeyDown` `keydown` — any `onXxx`, lowercased
@@ -123,6 +141,8 @@ its type:
 | `func(url.Values)` | the form's fields as sent (any `map[string][]string`) |
 | `func(T)`, `func(*T)` with `T` a struct | the form's fields bound to `T`'s: a field is named by its `form` tag, else its `json` tag, else its name, matched ignoring case; embedded structs' fields count as `T`'s; a slice takes every value. Its `validate:` tags are checked as a route checks what it binds: a field breaking one is a 422 `Invalid` naming it (`text: required`), the reply's error, and the handler isn't called |
 
+### Handler Parameters
+
 The event fills one of those parameters, its payload. A handler's other
 parameters are filled [by type](/web/dependency-injection#parameters-by-type)
 too: a `context.Context` (the session's), and what the app injects — the
@@ -131,16 +151,24 @@ service registered with `app.Service` — so a method takes the store it
 writes to as `func (t *Todo) Add(ctx context.Context, f NewItem, store
 *Items) error`. ui fills them through the `ui.Injector` the session's
 context carries, which package web gives it. A handler returns nothing or
-an `error`. The compiler checks that the value is a function; the payload
+an `error`.
+
+### Checking Handlers
+
+The compiler checks that the value is a function; the payload
 rules are checked when the element first renders, which fails with the
 expected shapes for any other signature (`ui.CheckHandler` is the check),
 and an app checks its pages' hooks and exported methods when it is built:
 a parameter nothing fills is a Build error at its file and line
 ([E0407](/errors/E0407), [E0405](/errors/E0405); `ui.CheckParams` is the
-check). A handler's error doesn't stop the session: the page renders again
+check).
+
+A handler's error doesn't stop the session: the page renders again
 (the handler may have changed state before failing) and the reply carries
 the message. A chain of [JS commands](/ui/js) runs in the browser instead
 (and calls handlers with `Push`); a `templ.ComponentScript` is still a script.
+
+### A Form Example
 
 The form DTO belongs in a logic file:
 
@@ -177,6 +205,7 @@ func (t *Todo) SetQuery(q string) { t.query = q }
 </section>
 ```
 
+### How Handlers Render
 
 Under a session each handler renders as `data-vk-on-click="c2:0"`: the
 instance's id and the handler's index in that instance's render. The
@@ -187,7 +216,7 @@ After any event the session renders the page again — so a handler may change
 any state it can reach, a parent's through a func prop included — and
 replies with what changed.
 
-## Hooks
+## Hooks {#hooks}
 
 The methods the runtime calls on a component are its hooks, each declared
 with an attribute on the method:
@@ -200,7 +229,8 @@ with an attribute on the method:
 
 Fields take attributes too: `@ui.Bind` (the component may set it),
 `@ui.URL("q")` (the page's address keeps it), `@ui.Defer("group")` (loaded
-after the first render), and the rules of package `validate`.
+after the first render), and the rules of package `validate`. This dashboard
+uses each hook and field attribute:
 
 ```html
 // dashboard.vuka.html
@@ -233,20 +263,24 @@ func (d *Dashboard) loadLists(ctx context.Context) error { return nil }
 
 A hook may be unexported, and usually is: the browser calls exported event
 methods, not hooks. Only a decorator marks a hook; an ordinary method name
-does not. The signatures in the table are common forms, not positional
+does not.
+
+The signatures in the table are common forms, not positional
 requirements: context, request, signed-in identity, provided services and
 ui.Changed are supplied by type. Hooks return nothing or error.
+
+### Hook Errors at Startup
 
 An unfillable parameter is a startup error at the method's source location.
 A deferred group without a loader ([E0324](/errors/E0324)) or a malformed hook
 ([E0336](/errors/E0336)) also stops startup. Field attributes remain in the
 shape header; the generated hook metadata is compiler output.
 
-## Messages
+## Receiving Messages {#messages}
 
 A component subscribed to a topic receives what the transport publishes on
 it, through `Update` methods taking it — overloads included, each picked by
-the message's dynamic type:
+the message's dynamic type.
 
 Declare NewMessage and Typing as data types in a logic file. The shape itself
 holds only its one render struct:
@@ -279,13 +313,13 @@ func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
 </section>
 ```
 
-
 An `Update` takes an optional `context.Context` and the message, and returns
 nothing or an error. One taking the message's type exactly wins over one it
-is assignable to, and those over one taking `any`. The compiler gives the overloads distinct Go names. Message update methods
-are dispatched by message type, not exposed as browser events.
+is assignable to, and those over one taking `any`. The compiler gives the overloads distinct Go names (see [Overloading](/features/overloading)).
 
-## Change tracking
+Message update methods are dispatched by message type, not exposed as browser events.
+
+## Change Tracking {#change-tracking}
 
 A `.vuka.html` file's struct tracks its server state: each unexported field
 that isn't a `ui.State` or a provided dependency — and isn't tagged `` `vuka:"-"` `` — is tracked, its writes marked.
@@ -295,6 +329,8 @@ last render, its handlers and the instances it rendered, and does not evaluate
 its markup — instances inside it still render when their own state changed.
 Props compare by value; a pointer, slice, map, func or interface prop
 (children included) counts as changed unless both are nil.
+
+In this row, `ID` and `Name` are props and `qty` is tracked state:
 
 ```html
 // row.vuka.html
@@ -326,12 +362,13 @@ A click in one row of a thousand renders that row only. Markup must read
 nothing but props, tracked fields and `vuka:"-"` fields that don't change
 its output; [verification](/ui/live#verification) catches one that does.
 
-### Where its methods live
+### Where Its Methods Live {#where-its-methods-live}
 
 A shape's methods may sit in its header or in a `.vuka` file of the same
 package beside it: the compiler lowers tracked fields' reads and writes in
 both alike, so a larger page keeps its markup and fields in the
-`.vuka.html` file and its logic next to it.
+`.vuka.html` file and its logic next to it. This `.vuka` file reads and
+writes the tracked fields of a shape declared beside it:
 
 <!-- go:context
 type Rows struct {
@@ -355,8 +392,7 @@ tracked field is not its declared type, and reading or writing it as one is
 [E0155](/errors/E0155), naming the field and the shape file declaring it.
 Move the method to a `.vuka` file, or into the header.
 
-
-### Selectors and mutable values
+### Selectors and Mutable Values {#selectors-and-mutable-values}
 
 A tracked struct field can be read through selectors and methods without
 unwrapping it: `{employer.Addr.City}` and `{employer.Label()}` observe the
@@ -365,18 +401,23 @@ tracked employer value. Writes such as `p.employer.Addr.City = city`,
 tracked field. A pointer-receiver mutator used as a statement, such as
 `p.employer.Rename(name)`, is tracked as a write too.
 
-Do not retain an address into tracked state, mutate through an escaped pointer,
-or call a pointer-receiver mutator inside an expression: the compiler cannot
-observe those writes and reports [E0150](/errors/E0150). Treat a tracked
+> [!WARNING]
+> Do not retain an address into tracked state, mutate through an escaped pointer,
+> or call a pointer-receiver mutator inside an expression: the compiler cannot
+> observe those writes and reports [E0150](/errors/E0150).
+
+Treat a tracked
 container's nested mutation as an update of that value, not independently
 tracked storage for every element. Provided services keep shared application
 state; their private mutations do not automatically write a component field.
 Refresh the component's snapshot when service data changes.
 
-### Browser state and shared state
+### Browser State and Shared State {#browser-state-and-shared-state}
 
-Browser-only state belongs in ui.State[T] fields. Assign it in event
+Browser-only state belongs in ui.State[T] fields (see [Client State](/ui/state)). Assign it in event
 attributes (`onClick={open = !open}`) or in live methods. It does not require
-a server re-render for a browser-side change. Shared or durable state belongs
+a server re-render for a browser-side change.
+
+Shared or durable state belongs
 in services or persistence, not in one component instance. Passing callbacks
 lets a child request a parent update without giving it ownership of parent props.

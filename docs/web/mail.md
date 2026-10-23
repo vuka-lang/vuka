@@ -1,9 +1,18 @@
 # Mail
 
-Mail sending is a service; email markup is a `.vuka.html` shape. Keep transport
-configuration and sending logic in `.go` or `.vuka` files.
+[[toc]]
 
-Save as `emails/receipt.vuka.html`:
+## Introduction
+
+Mail sending is a service, and email markup is a `.vuka.html` shape. You
+keep transport configuration and sending logic in `.go` or `.vuka` files.
+
+This page shows an email shape, how to configure delivery, what a message
+holds, and how to test what the app sends.
+
+## Writing an Email
+
+Save this as `emails/receipt.vuka.html`:
 
 ```html
 package emails
@@ -20,34 +29,48 @@ type Receipt struct {
 
 Render `emails.Receipt{OrderID: id, Customer: name}` with `ui.String` when
 constructing the message body. This uses the actual generated shape type.
-Register the mail service's constructor with `app.Service(NewMailer)`.
 
-## Configuration
+Register the mail service's constructor with `app.Service(NewMailer)`; see
+[Dependency Injection](/web/dependency-injection).
 
-Provide SMTP credentials through environment variables, not source or browser
-props. Use verified sender addresses and transport security suitable for the
-provider. Fail startup when required configuration is absent.
+## Configuring Delivery {#configuration}
 
-## Messages
+Provide SMTP credentials through environment variables, not source or
+browser props; see [Configuration](/web/configuration). Use verified sender
+addresses and transport security suitable for the provider.
 
-A message has sender, recipients, subject and text/HTML bodies. Supply a useful
-plain-text alternative, escape visitor content through the renderer and avoid
-putting tokens in logs. Treat delivery failure as a service error rather than
-silently reporting success to the visitor.
+Fail startup when required configuration is absent.
 
-## Sending later
+## Composing Messages {#messages}
+
+A message has a sender, recipients, a subject and text and HTML bodies.
+Supply a useful plain-text alternative, and escape visitor content through
+the renderer.
+
+Treat delivery failure as a service error rather than silently reporting
+success to the visitor.
+
+> [!WARNING]
+> Avoid putting tokens in logs.
+
+## Sending Later
 
 Queue slow delivery outside a latency-sensitive request where appropriate.
-Retries need idempotency so a repeated submission does not send duplicates.
-Ensure background work participates in the app lifecycle and shutdown.
+Retries need idempotency, so that a repeated submission does not send
+duplicates. Ensure background work participates in the app lifecycle and
+shutdown.
 
-## Testing
+## Testing Mail {#testing}
 
-`mailtest.New()` captures messages instead of sending them;
-`mailtest.Last(t, mailer)` inspects the latest one. Assert recipients, subject,
-text and rendered HTML. Use fake delivery services in request tests.
+`mailtest.New()` captures messages instead of sending them, and
+`mailtest.Last(t, mailer)` inspects the latest one. Assert recipients,
+subject, text and rendered HTML. Use fake delivery services in request
+tests.
 
-## In the toolbar
+## In the Toolbar
 
-Development mail diagnostics help inspect delivery without production SMTP.
-Never expose them publicly or log secret links in production.
+Development mail diagnostics in the [Development Toolbar](/web/toolbar) help
+inspect delivery without production SMTP.
+
+> [!WARNING]
+> Never expose them publicly or log secret links in production.

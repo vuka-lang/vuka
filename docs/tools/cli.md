@@ -1,5 +1,16 @@
-# The vuka command
+# The vuka Command
 
+[[toc]]
+
+## Introduction
+
+The `vuka` command creates apps, grows them a piece at a time, and builds,
+runs, tests and vets them through the go command. It also formats `.vuka`
+files, explains what the compiler makes of them, and serves your editor.
+
+## Command Overview
+
+These are the subcommands and their flags:
 
 ```text
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
@@ -20,17 +31,21 @@ vuka upgrade [-n] [-no-test] [version]
 vuka release [-yes] [-no-test] [-security] vX.Y.Z   (maintainers)
 ```
 
-## new
+## Creating an App {#new}
 
-Starts an app you can grow: pages, sign-in, a database with migrations,
+`vuka new` starts an app you can grow: pages, sign-in, a database with migrations,
 mail, styles and tests, wired together and working before you write a
 line. [Getting started](/web/getting-started) walks through what it makes.
+
+You can name the module path and answer questions with flags:
 
 ```sh
 vuka new shop                       # asks five questions
 vuka new shop example.com/shop      # a module path other than the directory's name
 vuka new shop --db=postgres --frontend=react --yes
 ```
+
+### Answering the Questions
 
 It asks, with the arrow keys (or the item's number) and Enter:
 
@@ -47,6 +62,8 @@ question no flag answers. Without a terminal — a pipe, CI — nothing is
 asked: the flags and the defaults are used, and the command never waits
 for input. `--name` is the app's name as people read it (`APP_NAME`; the
 directory's name, capitalised, by default).
+
+### What It Sets Up
 
 - **Sign-in needs a database.** It keeps its users, sessions and tokens
   there, so sign-ins survive restarts and replicas share them. With
@@ -69,8 +86,9 @@ directory's name, capitalised, by default).
 After writing the files it runs `vuka mod tidy`, then prints the next
 steps. `vuka test ./...` passes in the new app as it is.
 
+## Adding to an App {#add}
 
-## add
+### Adding a Module
 
 `vuka add module <name>` grows an app `vuka new` made, a module at a time:
 
@@ -78,17 +96,20 @@ steps. `vuka test ./...` passes in the new app as it is.
 vuka add module invoices
 ```
 
-writes `modules/invoices/` — an `Invoice` model, an `Invoices` service, a
+This writes `modules/invoices/` — an `Invoice` model, an `Invoices` service, a
 page at `/invoices` linked in the navigation (or `/api/invoices` routes in
 an API app), a test of the service — and `migrations/000N_invoices.go`
 making its table, after the latest migration. It adds the module's import
 to `main.vuka`, which is all a module needs to be part of the app: its
-routes, pages and services declare themselves. The app applies the
-migration when it next starts. The name is a plural noun in lower case;
+routes, pages and services declare themselves.
+
+The app applies the migration when it next starts. The name is a plural noun in lower case;
 an existing module, or an app without a database, is refused.
 
 It is `add`, not a form of `new`: `new` makes a project, `add` grows the
 one you are in, and a project directory named `module` stays possible.
+
+### Adding Services, Components, Islands, Pages and Entities
 
 The other kinds add one piece each:
 
@@ -100,6 +121,8 @@ The other kinds add one piece each:
 | `vuka add page /reports` | a one-struct `.vuka.html` page under `pages/`; use `[id]` names for parameters and `_layout.vuka.html` for shared layout |
 | `vuka add page /board --island Board` | a page shape under `pages/` that imports its frontend component; layouts use `_layout.vuka.html`, hooks use decorators |
 | `vuka add entity Comment --module posts body:text post:ref email:string:unique` | an orm model in `entities/` (or the module; `posts/Comment` is the same); `--unmanaged --table t` maps an existing table — no timestamps, test or migration, and no `migrations/` needed. Otherwise it comes with `ID`, `CreatedAt` and `UpdatedAt`, a test, and its migration written by `go tool orm makemigrations` |
+
+### Entity Field Types
 
 An entity's fields are `name:type`, `?` after the type for an optional one
 (an `Option`), and `:unique` or `:index` after it:
@@ -118,33 +141,41 @@ An entity's fields are `name:type`, `?` after the type for an optional one
 
 `--table` names the table (the plural of the name in snake_case otherwise).
 
+### Refusals and Dry Runs
+
 Every kind refuses a name that isn't a Go identifier of the right case, a
 declaration or file that exists (`--force` overwrites it), and a module that
 doesn't; `--dry-run` lists what it would write and changes nothing. Files
 are formatted as `vuka fmt` formats them, and a package nothing imports yet
 is imported in `main.vuka`.
 
+## Building, Running and Testing {#build-run-test-vet-install}
 
-## build, run, test, vet, install
-
-
-The go command's, with every `.vuka` file in the module transpiled into an
+`vuka build`, `run`, `test`, `vet` and `install` are the go command's, with every `.vuka` file in the module transpiled into an
 overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are.
+
+### Incremental Transpiling
 
 **Only what changed is transpiled again.** The Go each package became is
 kept in the user's cache directory (`vuka/transpile`), keyed by the
 package's sources, the API of the module's packages it imports, the go
 command, the build environment, `go.mod`/`go.sum`/`go.work` and this vuka:
 a build after a build transpiles the packages whose inputs changed, and a
-change to a function's body leaves its importers alone. The island build is
+change to a function's body leaves its importers alone.
+
+The island build is
 skipped the same way when nothing in the frontend root (its sources,
 config, lockfile, installed packages, `@source` paths) changed.
-`VUKA_CACHE=off` turns both off. Under `vuka run` the files `web.Frontend`
+`VUKA_CACHE=off` turns both off.
+
+Under `vuka run` the files `web.Frontend`
 serves are left out of the binary (empty in the overlay; it reads them from
 disk in development), so they cost the linker nothing; `-embed` (with
 `-watch`) or `VUKA_EMBED_STUB=off` builds them in.
+
+### Vetting
 
 `vuka vet` checks shape files, decorated hooks, field bindings, deferred
 loaders and typed handler arguments as well as the generated Go. Missing
@@ -156,7 +187,9 @@ beside `vuka` or on `PATH`, else one it builds at its own version
 `-vettool=…` overrides it, and `VUKA_VUKAVET=off` runs go vet's own
 analyzers only.
 
-## eject
+## Ejecting to Go {#eject}
+
+`vuka eject` turns `.vuka` files into Go:
 
 ```sh
 vuka eject                 # the module: gen -inplace
@@ -164,12 +197,13 @@ vuka eject pages/orders.vuka
 vuka eject -rm ./...       # the Go becomes the source
 ```
 
-Writes the Go generated for `.vuka` files beside them, as `gen -inplace`
+It writes the Go generated for `.vuka` files beside them, as `gen -inplace`
 does: for the files named, or the packages (`dir`, `dir/...`; the module by
 default). With `-rm` the Go becomes the source: each `.vuka` file is deleted
 and its Go kept as `orders.go` (`orders_vuka.go` when `orders.go` is taken),
-without the generated-code header or line directives. What's
-left is a plain Go module: `go build`, `go vet` and `go test` take it with no `vuka` command,
+without the generated-code header or line directives.
+
+What's left is a plain Go module: `go build`, `go vet` and `go test` take it with no `vuka` command,
 and it behaves as the `.vuka` version did. Eject the whole module (`./...`)
 so the [link files](#build-run-test-vet-install) and the files embedding
 CSS and assets are written too; they stay generated files.
@@ -179,15 +213,15 @@ from `pages/`, while services are explicitly registered on the app. Use
 `vuka explain` to inspect lowering rather than copying generated rendering
 or registration calls into application source.
 
-## explain
+## Explaining Code and Diagnostics {#explain}
 
-Shows what Vuka makes of a file: each rewritten line beside the Go it becomes,
+`vuka explain` shows what Vuka makes of a file: each rewritten line beside the Go it becomes,
 then the code added after the source (decorator wrappers, statics), each
 labelled with the line it comes from. `-full` prints the whole generated file.
 
 Given a diagnostic's code, it prints that code's page of the
 [catalogue](/errors/): what is wrong, why, and an example before and after
-the fix.
+the fix. A build error names the code to look up:
 
 ```text
 $ vuka build
@@ -203,23 +237,30 @@ For more information about this error, try `vuka explain E0203`.
 $ vuka explain E0203
 ```
 
+### Diagnostic Codes
+
 Every diagnostic of the compiler, `vuka vet`, the editor and the libraries'
 checks at boot has a code: `E` for an error, `W` for a warning. On a terminal
-the frame is coloured (`NO_COLOR` turns it off). `vuka build`, `vet`, `test`,
+the frame is coloured (`NO_COLOR` turns it off).
+
+`vuka build`, `vet`, `test`,
 `run` and `install` take `-diag=json` to print the diagnostics as a JSON
 array instead, each with its code, severity, message, span (file relative to
 the current directory, line, column), related spans, help, suggestion and the
 URL of its page.
 
+## Formatting Files {#fmt}
 
-## fmt
-
-Formats `.vuka` files, as `gofmt` formats Go: it prints the formatted file,
+`vuka fmt` formats `.vuka` files, as `gofmt` formats Go: it prints the formatted file,
 or with `-w` writes it back, `-l` lists the files whose formatting differs, and
-`-d` shows the diff. Paths are files or directories (all `.vuka` files below,
+`-d` shows the diff.
+
+Paths are files or directories (all `.vuka` files below,
 skipping hidden directories, `node_modules`, `vendor` and `build/` modules vuka
 made); no path means the current directory. A file that doesn't parse is
 reported and left alone.
+
+### Formatting Rules
 
 - **Go** comes out exactly as gofmt would print it, alignment included. Vuka's
   own syntax is spaced the same way: `@attr(…)` arguments and static fields'
@@ -241,6 +282,8 @@ reported and left alone.
   text keep their breaks and are re-indented; entities are left as written.
   Each formatted file is checked against the original, and an internal error
   is reported rather than a page that would render differently.
+
+This shows a file before and after formatting:
 
 ```vuka
 // before
@@ -267,31 +310,32 @@ return <section
 </section>
 ```
 
+## The Language Server {#lsp}
 
-## lsp
+`vuka lsp` is the language server. See [Editors](/tools/editors).
 
-The language server. See [Editors](/tools/editors).
+## Checking Versions {#version}
 
-## version
-
-Prints the command's version and the set of vuka, ui and web it expects
+`vuka version` prints the command's version and the set of vuka, ui and web it expects
 (from v0.50.0 one version for all four; see
 [Versions and compatibility](/project/versions)). Inside an app it also lists
 the versions the app's go.mod requires, with any `replace`, and warns when
 they aren't one set or aren't this command's set.
 
-## upgrade
+## Upgrading an App {#upgrade}
 
-Moves an app to a set: the latest when no version is named (fetched with
+`vuka upgrade` moves an app to a set: the latest when no version is named (fetched with
 `GOPROXY=direct`, so a fresh tag counts). It `go get`s vuka, ui and web at that
 version — and, to this command's own set, the orm at the version `vuka new`
 pins, when the app requires an older one — (never `go mod tidy`), then runs `vuka vet ./...` and
-`vuka test ./...` (`-no-test` skips the tests), and prints a summary. `-n`
+`vuka test ./...` (`-no-test` skips the tests), and prints a summary.
+
+`-n`
 (or `-dry-run`) prints the plan and changes nothing. go.mod and go.sum as they
 were are kept in `.vuka/upgrade/`; a failed `go get` puts them back.
 
-## release
+## Releasing {#release}
 
-For maintainers: releases vuka, ui, web, cmd/vuka and cmd/vukavet under one
+For maintainers: `vuka release` releases vuka, ui, web, cmd/vuka and cmd/vukavet under one
 version. A dry
 run unless `-yes`. See [Releasing](/project/releasing).

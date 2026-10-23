@@ -1,5 +1,14 @@
 # Databases
 
+[[toc]]
+
+## Introduction
+
+This page covers the databases themselves: which ones are supported, how you
+connect, how you spread models over several databases with replicas and
+routing, raw SQL, the connection pool, read-only databases, and serving them
+from a web app.
+
 <!-- go:context
 type Product struct {
 	orm.Model[Product]
@@ -18,7 +27,9 @@ var since, cutoff = time.Now().AddDate(0, -1, 0), time.Now().AddDate(-1, 0, 0)
 func tenantOf(ctx context.Context) string { return "main" }
 -->
 
-## Support
+## Supported Databases {#support}
+
+The ORM supports three databases:
 
 | | SQLite | Postgres | MySQL / MariaDB |
 |---|---|---|---|
@@ -31,12 +42,14 @@ func tenantOf(ctx context.Context) string { return "main" }
 | Migration lock | — | advisory lock | `GET_LOCK` |
 | SQL functions | Go functions (`sqlite.Func`) | `CreateFunction` | `CreateFunction` |
 
-SQLite is the development and test database: the same code runs there, with
-searches unindexed. A file-backed SQLite gets a small read pool, and its
-directory is made when missing: `sqlite://data/app.db` opens on a fresh
-checkout.
+> [!NOTE]
+> SQLite is the development and test database: the same code runs there, with
+> searches unindexed.
 
-### MySQL notes
+A file-backed SQLite gets a small read pool, and its directory is made when
+missing: `sqlite://data/app.db` opens on a fresh checkout.
+
+### MySQL Notes {#mysql-notes}
 
 - **Collation.** `Connect` adds `charset=utf8mb4` to a DSN naming neither a
   charset nor a collation: the driver would otherwise greet the server in
@@ -53,6 +66,8 @@ checkout.
 
 ## Connecting
 
+Open a database with one of these calls:
+
 | | |
 |---|---|
 | `orm.ConnectURL(url)` | the dialect from the URL |
@@ -62,8 +77,12 @@ checkout.
 
 A database added this way is used as it is: the program opened it, and
 closes it. To have the ORM open, supervise and close them — with replicas, a
-pool, health checks and a circuit breaker — declare them:
+pool, health checks and a circuit breaker — declare them.
 
+### Declaring Databases
+
+This fragment declares a default database with replicas and pool settings,
+and a read-only second one, routed by a router:
 
 <!-- go:fragment -->
 ```go
@@ -80,6 +99,8 @@ defer dbs.Close(ctx)
 ctx = orm.WithDatabases(ctx, dbs)
 ```
 
+`orm.Declare` takes these options:
+
 | `orm.Declare(name, url, …)` option | |
 |---|---|
 | `orm.AsDefault()` | the default database |
@@ -91,12 +112,16 @@ ctx = orm.WithDatabases(ctx, dbs)
 | `orm.Timeout(d)` | bounds every statement |
 | `orm.SlowQuery(d)` | logs statements slower than `d` |
 
+### Opening the Set
+
 `orm.OpenDatabases(ctx, opts…)` is `orm.NewDatabases(opts…)` then
 `Start(ctx)`; with nothing declared it reads `DATABASE_URL` (as `default`)
 and `DATABASE_URL_<NAME>`, as the `orm` command does. `Start` first runs
 `set.Check()`: a model, a route or a connection handle naming a database the
 set doesn't declare fails it, and so does a relation between models on two
-databases that isn't `CrossDB`. Other options of the set: `orm.Routers(…)`,
+databases that isn't `CrossDB`.
+
+Other options of the set: `orm.Routers(…)`,
 `orm.ReadYourWrites(bool)`, `orm.Logger(l)`, and `orm.OnOpen(fn)` — work
 once the databases are open (migrations, a seed).
 
@@ -104,7 +129,7 @@ once the databases are open (migrations, a seed).
 several apps gives each its own. In a web app, [`ormweb`](#web-integration)
 does all of this.
 
-## Multiple databases
+## Multiple Databases {#multiple-databases}
 
 A model's database comes from, first to last:
 
@@ -117,6 +142,8 @@ A model's database comes from, first to last:
    Mirror: "main"})` — configuration for tables whose models say nothing;
 5. the default.
 
+These models live on other databases, and the function picks one for a single
+query:
 
 ```go
 type Event struct {
@@ -149,7 +176,6 @@ func euEvents(ctx context.Context) (int64, error) {
 An `orm.Router` decides per query; embed `orm.BaseRouter` for the methods you
 don't decide. The first router naming a database wins; `""` abstains:
 
-
 ```go
 type tenants struct{ orm.BaseRouter }
 
@@ -167,7 +193,7 @@ Register with `orm.Routers(…)` or `set.AddRouter(r)`. `AllowRelation` and
 `AllowMigrate` return bools, so they can't abstain: every router must allow
 (`BaseRouter` allows everything).
 
-### Read-your-writes
+### Reading Your Writes {#read-your-writes}
 
 Reads go to the read side — the `Read` database, or a replica — except
 inside a transaction, after a write in the same `orm.Scope(ctx)`, or under
@@ -177,10 +203,9 @@ its reads of `Note` see the write. A scope that wrote a database also sends
 raw reads of it to the primary. `orm.ReadYourWrites(false)` on the set turns
 it off.
 
-### Cross-database relations
+### Cross-Database Relations {#cross-database-relations}
 
 A relation to a model on another database is declared `CrossDB`:
-
 
 ```go
 type Sale struct {
@@ -195,6 +220,8 @@ func (x *Sale) Schema(s *orm.Schema) {
 	s.Field(&x.Product, orm.Rel{CrossDB: true, Related: "sales"})
 }
 ```
+
+How such a relation is read:
 
 Its key is a plain indexed column with no foreign key constraint.
 `PrefetchRelated`, `Load` and `FK.Get` read the related rows from their own
@@ -217,6 +244,8 @@ switch.
 
 ## Raw SQL
 
+When a query is easier in SQL, read its rows into a struct. This one holds
+a day's sales:
 
 ```go
 type DaySale struct {
@@ -225,6 +254,8 @@ type DaySale struct {
 	Note  vuka.Option[string] // NULL → None; a pointer works too
 }
 ```
+
+This fragment reads it, and runs a statement:
 
 <!-- go:fragment -->
 ```go
@@ -242,6 +273,8 @@ if _, err := orm.Exec(ctx, "DELETE FROM sales WHERE day < ?", cutoff, orm.On("an
 posts, err := orm.Objects[Post]().Raw("SELECT * FROM posts WHERE views > ?", 10).All(ctx) // the model's read database
 ```
 
+The raw calls are:
+
 | | |
 |---|---|
 | `orm.Raw[R](ctx, sql, args…)` | rows into structs (or scalars) |
@@ -251,17 +284,17 @@ posts, err := orm.Objects[Post]().Raw("SELECT * FROM posts WHERE views > ?", 10)
 
 Columns fill struct fields by `db` tag, column or name; a column the struct
 has no field for is an error unless `orm.Loose()` is among the arguments.
+
 `?` marks arguments everywhere (written `$1`… on Postgres; `??` is a literal
 `?`), and values are always bound. Without `orm.On(name)` a raw read goes to
 the default database's read side, `Exec` to its primary. `orm.Timeout(d)`
 among the arguments bounds the statement. `Using`, routers, transactions and
 observers apply as to any query.
 
-### Connection handles
+### Connection Handles {#connection-handles}
 
 A struct embedding `orm.Conn`, named for a database, is a handle on it —
-injected by type in a web app:
-
+injected by type in a web app. This handle is for the analytics database:
 
 ```go
 type Analytics struct{ orm.Conn }
@@ -282,7 +315,7 @@ does. `Exec`, `Ping`, `Stats`, `DB` and `Name` are its methods. In Go,
 `orm.ConnFor[Analytics]("analytics")` declares it and returns its
 constructor; `orm.HandleOf[T](set)` makes one.
 
-## Connection pool
+## The Connection Pool {#connection-pool}
 
 Every declared database has a supervisor. Its pool is set with `orm.Pool` or
 with URL parameters (taken off before the driver sees the URL):
@@ -299,11 +332,16 @@ with URL parameters (taken off before the driver sees the URL):
 | `Breaker{Failures, Cooldown}` | `breaker_failures`, `breaker_cooldown` | 5, 5s | the circuit breaker |
 | `StartupWait` | `startup_wait` | 5s | how long `Start` waits for the database; negative doesn't wait |
 
-A zero field takes the default, so `pool_max=0` is 20 connections, not
-unlimited: a burst of requests can't open more connections than the server
-allows. Write `pool_max=-1` (`MaxOpen: -1`) for no cap. `orm.Connect` sets
+> [!WARNING]
+> A zero field takes the default, so `pool_max=0` is 20 connections, not
+> unlimited: a burst of requests can't open more connections than the server
+> allows. Write `pool_max=-1` (`MaxOpen: -1`) for no cap.
+
+`orm.Connect` sets
 the same caps (`orm.DefaultMaxOpen`, `DefaultMaxIdle`,
 `DefaultMaxLifetime`) on the pool it opens.
+
+### How the Pool Behaves
 
 - **States**: `Connecting`, `Up`, `Degraded` (a replica down, or the breaker
   probing), `Down`. A database that doesn't answer within `StartupWait`
@@ -324,7 +362,7 @@ the same caps (`orm.DefaultMaxOpen`, `DefaultMaxIdle`,
 - **Shutdown**: `set.Close(ctx)` (or `Stop`) refuses new statements, waits
   for running ones until ctx's deadline, then closes the pools.
 
-## Read-only databases
+## Read-Only Databases {#read-only-databases}
 
 `orm.ReadOnly()` makes a database read-only twice over. The ORM refuses its
 own writes to it (`Create`, `Save`, `Update`, `Delete`, `orm.Exec`), and
@@ -338,17 +376,20 @@ either:
 | Postgres | `SET default_transaction_read_only = on` |
 | SQLite | `PRAGMA query_only = ON` |
 
-These are settings of the connection, and SQL running on it can change them
-back. The one boundary that holds against SQL you didn't write is the
-database's grants: connect a read-only database as a user allowed to
-`SELECT` and nothing more. A database added with `Add` (opened by the
+> [!WARNING]
+> These are settings of the connection, and SQL running on it can change them
+> back. The one boundary that holds against SQL you didn't write is the
+> database's grants: connect a read-only database as a user allowed to
+> `SELECT` and nothing more.
+
+A database added with `Add` (opened by the
 program, not declared) gets the ORM's refusal alone.
 
-## Web integration
+## Using Databases in a Web App {#web-integration}
 
 `github.com/vuka-lang/orm/v2/ormweb` serves a set of databases in a
-[web](/web/) app. `ormweb.Databases(opts…)` is one `web.Option`:
-
+[web](/web/) app. `ormweb.Databases(opts…)` is one `web.Option`, given to
+`web.New`:
 
 ```go
 func main() {
@@ -363,7 +404,7 @@ func main() {
 }
 ```
 
-It:
+What it does:
 
 - provides `*orm.Databases` as a ready value, so the app's
   [start](/web/dependency-injection#lifecycle) opens it (waiting
@@ -380,6 +421,8 @@ It:
   naming a database the app doesn't declare is a Build error, reported with
   web's own.
 
+Its options and the parts it is made of:
+
 | | |
 |---|---|
 | `.MigrateOnStart(b)` | runs pending migrations as the databases open; by default only in development |
@@ -388,6 +431,8 @@ It:
 | `ormweb.Set(s, opts…)` | serves a set made elsewhere |
 | `ormweb.UsingFrom(fn)` | middleware sending a request's queries to the database `fn` names (a tenant's); `""` leaves them |
 | `ormweb.Middleware(s)`, `ormweb.HealthHandler(s)` (states), `ormweb.DetailedHealthHandler(s)` (the whole report) | the parts, for another router |
+
+### Development and Production
 
 Development is `VUKA_ENV=development` in the program's real environment, read
 before `main` runs: a `.env` file setting it doesn't count, so a file left on

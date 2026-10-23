@@ -1,9 +1,17 @@
-# Testing
+# Testing Components
 
-Test a shape's generated node from a `_test.go` logic file. Run `vuka test`
-so shape compilation happens before the Go tests.
+[[toc]]
 
-Save as `components/greeting.vuka.html`:
+## Introduction
+
+You test a shape's generated node from a `_test.go` logic file. The test
+references the actual generated type, not a handwritten substitute.
+
+Run `vuka test` so shape compilation happens before the Go tests.
+
+## Testing a Shape
+
+Save the shape as `components/greeting.vuka.html`:
 
 ```html
 package components
@@ -12,7 +20,7 @@ type Greeting struct { Name string }
 <p>Hello, {Name}</p>
 ```
 
-Then `components/greeting_test.go`:
+Then render it from `components/greeting_test.go`:
 
 ```go
 package components
@@ -31,24 +39,27 @@ func TestGreeting(t *testing.T) {
 }
 ```
 
-The test references the actual generated type, not a handwritten substitute.
-
-## Stateful components
+## Testing Stateful Components {#stateful-components}
 
 `ui/live/livetest` drives live sessions and applies protocol replies like a
 browser. Test initial HTML, event handlers, validation failures and patches.
 Stable keys should preserve child identity after insertion and reordering.
 
-## JS commands
+## Testing JS Commands {#js-commands}
 
 The reference client can Click and Fire DOM events, inspect visibility,
 classes, attributes and text, and follow pushed handlers. Browser-state
 assignments should update the DOM without a server event unless the attribute
-also calls a server method. Use browser tests for effects the reference client
-does not model, such as focus, scrolling and animations.
+also calls a server method.
 
-## Navigation
+Use browser tests for effects the reference client does not model, such as
+focus, scrolling and animations.
+
+## Testing Navigation {#navigation}
 
 Test navigation and patches separately: check the URL, expected remounts,
-retained state and permission checks on a changed resource. Session verification
-is enabled in tests to catch output that changes without tracked dependencies.
+retained state and permission checks on a changed resource.
+
+> [!NOTE]
+> Session verification is enabled in tests to catch output that changes
+> without tracked dependencies.

@@ -1,10 +1,20 @@
 # Enums
 
-**Go:** a set of named values is a defined type, a `const` block with `iota`,
+[[toc]]
+
+## Introduction
+
+In Go, a set of named values is a defined type, a `const` block with `iota`,
 and the methods around it — `String`, parsing, JSON, the database — written by
 hand.
 
-**Vuka adds** `enum`: the variants, and everything around them, from one line.
+Vuka adds `enum`: the variants, and everything around them, from one line. You
+use one for a fixed set of states or kinds, either plain named values or
+variants that carry their own fields.
+
+## Declaring an Enum
+
+This sample declares a numbered enum and a string enum, then uses them:
 
 ```vuka
 // Status is where an order is.
@@ -25,12 +35,12 @@ r := Role.Parse("clerk")?      // Role.Clerk
 Variants are reached through the enum's name, `Status.Draft`, like
 [statics](/features/statics), and complete in the editor after `Status.`.
 
-
-## Value enums
+## Value Enums
 
 `enum Name { … }` numbers its variants from 0 in the order they are written.
 A type after the name — `string`, or an integer type such as `uint8` — makes it
-an enum of that type; then every variant has a value, or none:
+an enum of that type; then every variant has a value, or none. Here are a
+`uint8` enum with values and a string enum without:
 
 ```vuka
 enum Priority uint8 {
@@ -45,6 +55,8 @@ A string enum's variants without values are their own names. Variants are
 separated by commas or new lines, start with a capital letter, and may have doc
 comments.
 
+### Generated Methods
+
 Every value enum gets:
 
 | | |
@@ -55,7 +67,7 @@ Every value enum gets:
 | `s.Valid()` | whether `s` is one of the variants |
 | `MarshalText`, `UnmarshalText` | JSON and other text formats use the `String` form; an unknown one is an error |
 | `Scan`, `Value` | `database/sql`: stored as the number, or the string enum's value |
-
+### Enums in JSON and the Database
 
 So an enum field needs nothing more to be read from JSON, written to JSON,
 stored by the [ORM](/orm/models) or scanned from a row:
@@ -69,14 +81,15 @@ type Order struct {
 json.Marshal(Order{ID: 7, Status: Status.Paid})   // {"ID":7,"Status":"Paid"}
 ```
 
-
 `Scan` also accepts the variant's name from a text column. A value that isn't
 a variant — `Status(9)`, or `""` in a string enum without an empty variant — is
-an error to marshal or store. Give a string enum an empty variant
-(`None = ""`)
-for a field that may be unset.
+an error to marshal or store.
 
-## Enums with data
+> [!NOTE]
+> Give a string enum an empty variant (`None = ""`) for a field that may be
+> unset.
+
+## Enums With Data
 
 Variants that carry fields make an enum whose values are different shapes:
 
@@ -99,13 +112,13 @@ without fields is a value, `Shape.Unknown`. `Shape.Circle` is also a type:
 `Shape` is an interface that only its variants satisfy, so it has no methods
 of its own: write functions that take a `Shape`, or methods on the variants,
 `func (c Shape.Circle) Diameter() float64`.
+
 Its zero value is `nil`, which is none of the variants.
 
+## Matching on Enums
 
-## match
-
-A `match` over an enum takes its variants as patterns, and fields apart the
-way [struct patterns](/features/match) do:
+A [`match`](/features/match) over an enum takes its variants as patterns, and fields apart the
+way [struct patterns](/features/match#patterns) do:
 
 ```vuka
 func area(s Shape) float64 {
@@ -138,15 +151,15 @@ error at the `match`, in the editor and from `vuka build`, naming what's left:
 orders.vuka:12:2: match on Status isn't exhaustive: missing Status.Sent and Status.Paid; add the missing cases or case _:
 ```
 
-So adding a variant points at every match that has to handle it. `Shape.Rect`
+So adding a variant points at every match that has to handle it.
+
+`Shape.Rect`
 alone (or `Shape.Rect{}`) matches any `Rect`; guarded cases cover nothing, and
 `Shape.Circle{Radius: 0}` covers only that circle.
-
-
-## From Go
+## Using Enums From Go
 
 An enum is plain Go underneath, named the way Go code names enums, so `.go`
-files and other modules use it directly:
+files and other modules use it directly. The table below shows the Go names:
 
 | Vuka | Go |
 |---|---|
@@ -159,5 +172,7 @@ files and other modules use it directly:
 | `Shape.Unknown` | `ShapeUnknown{}` |
 
 An unexported enum's names are unexported too: `enum status` gives
-`statusDraft`, `statusValues` and `parseStatus`. `vuka explain` shows the
+`statusDraft`, `statusValues` and `parseStatus`.
+
+`vuka explain` shows the
 whole expansion.

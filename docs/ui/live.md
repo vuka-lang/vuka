@@ -1,4 +1,8 @@
-# Live sessions
+# Live Sessions
+
+[[toc]]
+
+## Introduction
 
 `github.com/vuka-lang/ui/v2/live` keeps a page's [stateful
 components](/ui/stateful) alive for one connected browser: a session holds
@@ -7,22 +11,28 @@ answers each with what changed. It knows no transport — a WebSocket server
 drives it with the messages of the [live protocol](/reference/live-protocol);
 the [web framework](/web/live) is one such server.
 
+You work with a session directly only when you write a transport.
+Applications using web receive this transport automatically from their
+generated page routes.
+
+## Creating a Session
 
 A transport creates a session with `live.NewSession(ctx, render)`, where
 `render` returns the node produced from a shape. The session exposes Render,
-Event, Info, Navigate, Topics and Close. Applications using web receive this
-transport automatically from their generated page routes.
+Event, Info, Navigate, Topics and Close.
 
 A `live.Patch` holds the changed instances and `Error`, a handler's message.
 Calls are safe from several goroutines and run one at a time; `ctx` is the
 context of every render, the mount hook, handler and `Update`.
 
-## Errors
+## Handling Errors {#errors}
 
 What a handler, the mount hook or `Update` returns, or panics with, and a failed
 render become the text of a reply's `error`. By default that text is the
 error's own, which may say more than a visitor should read — a query, a
-path, a panic's value. A transport serving pages to the public sets
+path, a panic's value.
+
+A transport serving pages to the public sets
 `s.SetErrorText(func(err error) string)`: it decides each error's text and
 can log the error. `live.PublicMessage(err)` finds a `live.PublicError` in
 the chain — an error whose `PublicMessage()` is meant for the visitor, such
@@ -30,12 +40,14 @@ as a form field that doesn't bind, or the web framework's `*web.Error` —
 which such a transport shows while hiding the rest. The [web
 framework](/web/live#errors) does.
 
-## What a reply holds
+## What a Reply Holds {#what-a-reply-holds}
 
 After an event the session renders the page again and compares. In
 **protocol v1** a reply is the HTML of each instance whose own HTML changed
 (children excluded), outermost first, which the browser morphs in place: a
 click in one counter of a hundred sends one counter.
+
+### Render Trees in Protocol v2
 
 In **protocol v2** (`s.RenderTrees()`, or a client joining with `"v":2`)
 each instance renders to a **render tree**: the compiler's
@@ -44,8 +56,9 @@ each instance renders to a **render tree**: the compiler's
 (dynamics), a block's items as a list, another instance as a reference. The
 session keeps a shadow of what the client holds and answers with the
 difference: changed dynamics by index, list items kept, moved by `key`,
-inserted or removed, a branch's new frame, long markup by token patch. A
-one-cell change in a 1000-row table is 89 bytes instead of 122 KB. The
+inserted or removed, a branch's new frame, long markup by token patch.
+
+A one-cell change in a 1000-row table is 89 bytes instead of 122 KB. The
 format is in the [reference](/reference/live-protocol#protocol-v2-render-trees).
 
 [`.templ` files](/ui/templ#on-live-pages) the vuka command compiles record
@@ -54,12 +67,14 @@ nothing but one other frame (a page returning its layout) is that frame, so
 pages sharing a layout key alike, and navigating between them is a change
 inside it.
 
+### Pushed JS Commands
+
 Either version's reply also carries the [JS commands](/ui/js#from-the-server)
 components pushed with `PushJS` while it was made (`Patch.JS`, and
 `s.JS()` for those a mount hook pushed during the join's render), run by the
 browser once the reply is applied.
 
-## Navigation
+## Navigating Without a New Session {#navigation}
 
 A connected page can move to another URL without a new session: the
 transport resolves the URL to a `live.Route` and the session makes its page
@@ -75,21 +90,29 @@ installs the router for pages generated from the folder tree.
 | `Redirect` | with `Render` nil, the URL the browser loads (the URL itself when empty) |
 | `Updates` | for a patch: an instance kept for a tag whose props are a key takes the value in its `Update` method before it renders |
 
+### Patches and Navigations
+
 `s.Navigate(route, patch)` returns what changed, as an event does. As a
 **patch**, the instances the new page renders where the old one did stay
 mounted, their props set from its tags, and `Updates` reach their `Update`
 methods. Otherwise every instance unmounts and the new page's mount. The
 page itself (`c0`) is the same instance either way, so the client gets only
 what changed of its markup — in v2, against statics it already holds.
+
 `Handle` answers the protocol's `navigate` message through the router;
 without one, every navigation is a `redirect`, a full page load.
 
-**The router decides what stays mounted**, not the client asking for a
-patch. A patch whose route has no `Updates` is a navigation: everything
+> [!WARNING]
+> **The router decides what stays mounted**, not the client asking for a
+> patch.
+
+A patch whose route has no `Updates` is a navigation: everything
 mounts afresh. An instance whose tag `Updates` names is kept only when an
 `Update` method of its takes the value; otherwise it mounts afresh, so its
 mount hook sees the new URL. A component that checks in the mount hook whether the
 visitor may see what its props name has to check again in that `Update`.
+
+### Failed Navigations
 
 An error — a mount hook's, an `Update`'s, a render's — fails the navigation:
 `Navigate` returns it, every instance unmounts, and the page takes no events
@@ -97,14 +120,14 @@ until it navigates or joins again; a browser loads the URL itself. A
 `redirect` the router asks for is sent only for a path or an `http` or
 `https` URL (`ui.LoadableURL`); any other is an `error`.
 
-## Change tracking
+## Change Tracking {#change-tracking}
 
 Components whose state is all tracked are skipped when nothing they
 read changed — see [Change tracking](/ui/stateful#change-tracking). Skipping
 is what makes large pages cheap: a thousand row components, one clicked,
 renders one.
 
-## Verification
+## Verification {#verification}
 
 In tests (`testing.Testing()`) and with `VUKA_LIVE_VERIFY=1`, a session
 renders every component it would skip and fails the event with an error
@@ -113,10 +136,11 @@ something else); it also checks that frames sharing a fingerprint render the
 same statics. `VUKA_LIVE_VERIFY=0` turns it off; `live.Verify` is the
 default for new sessions.
 
-## Numbers
+## Performance Numbers {#numbers}
 
 Go benchmarks in ui's `live/bench_test.go`, on an M1 Pro (10 cores),
-verification off; bytes are the JSON of the reply:
+verification off; bytes are the JSON of the reply. The table compares the
+two protocol versions:
 
 | | v1 | v2 |
 |---|---|---|
@@ -128,10 +152,12 @@ verification off; bytes are the JSON of the reply:
 
 A v2 render builds a tree instead of a string, so a component that renders
 again costs about 1.5× the CPU of v1; skipping tracked components is what makes large
-pages cheap, and v2 makes the replies small. 5,000 joined sessions of a
+pages cheap, and v2 makes the replies small.
+
+5,000 joined sessions of a
 page of about 25 instances hold 29 KB per session.
 
-## Known limits
+## Known Limits {#known-limits}
 
 - A stateful component re-renders with its whole page on every event,
   unless its state is all tracked; the reply is still only what

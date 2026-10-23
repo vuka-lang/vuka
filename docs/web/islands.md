@@ -1,11 +1,18 @@
 # Islands
 
+[[toc]]
+
+## Introduction
+
 A page shape renders HTML on the server. An island is a browser component
 mounted into part of that page: its JavaScript loads according to its hydration
-strategy while the rest of the document stays server-rendered. Use an island
-for the interactive part, not as a second way to author the surrounding page.
+strategy while the rest of the document stays server-rendered.
 
-## Import a component
+You reach for an island when part of a page needs a component from a browser
+framework — a chart, a date picker, a rich table. Use it for the interactive
+part, not as a second way to author the surrounding page.
+
+## Importing a Component {#import-a-component}
 
 Import `.vue`, `.tsx`/`.jsx`, `.svelte` or `.ts`/`.js` component files in the
 Go header of a `.vuka.html` shape. The compiler reads their props, generates
@@ -41,11 +48,15 @@ const picked = defineModel<string>('picked')
 </script>
 ```
 
+### Import Rules
+
 An island import may use a package alias, just like a Go import. The path is
 relative to the shape file. Its package clause, imports, struct, hooks and
 methods precede the first markup line; do not place an HTML filename comment
 above the package clause. The imported tag needs no wrapper except when a
 fallback is required.
+
+### Other Frameworks
 
 The following complete shape imports React, Svelte and vanilla components:
 
@@ -69,9 +80,13 @@ type Overview struct {
 </main>
 ```
 
+### Where Props Are Read From
+
 The components must declare the props used on their tags. A wrong type
 (`days="mon"` when Days is `[]string`), an unknown attribute, or a string
 literal outside a declared union is a compile error.
+
+Each framework declares them its own way:
 
 | framework | props read from |
 |---|---|
@@ -84,6 +99,8 @@ literal outside a declared union is a compile error.
 relative path (followed one level).
 
 ### TypeScript to Go
+
+Prop types map to Go like this:
 
 | TypeScript | Go |
 |---|---|
@@ -99,6 +116,8 @@ relative path (followed one level).
 | `(a: A) => void`, a Vue emit | a function prop: a live view method or JS commands |
 | `children`, a default `<slot>` | the tag's children |
 
+### Optional and Unsupported Types
+
 An optional prop (`?`, a default) or a nullable one (`| null`, `| undefined`)
 is a pointer with `omitempty`: left out, the component's own default
 applies; a value written on the tag is passed as it is (the compiler takes
@@ -109,13 +128,14 @@ prop and asking for the explicit form below. Generated types are named after
 the island: `days: { label: string }[]` on `Week` is `[]WeekDays`, an
 interface `Point` is `WeekPoint`.
 
-## Declare the props in Go
+## Declaring Props in Go {#declare-the-props-in-go}
 
 When frontend types are out of reach, declare the island's prop struct in a
 `.go` or `.vuka` **logic file** and register it with `ui.RegisterIsland[T]()`.
 This struct describes the external component; it is not an application render
 struct and does not replace the page's shape file. An explicit prop type wins
-over an inferred import of the same name.
+over an inferred import of the same name. This logic file declares and
+registers a chart's props:
 
 ```go
 // components/chart.go
@@ -135,6 +155,8 @@ type Chart struct {
 
 func init() { ui.RegisterIsland[Chart]() }
 ```
+
+### Finding the Component
 
 A bare registration finds the component first beside the declaring file,
 `<snake>.<ext>` (`sales_chart.tsx` for `SalesChart`), then
@@ -162,11 +184,12 @@ type Revenue struct { sales []components.Point }
 <main><components.Chart series={sales} title="Revenue" client:load /></main>
 ```
 
-## Place it in a page
+## Placing an Island in a Page {#place-it-in-a-page}
 
 A bare component tag mounts the island. Attributes bind its props, and content
 between its tags is its slot or children. A fallback is distinct from those
-children: it is the pre-hydration view.
+children: it is the pre-hydration view. This page gives a chart a
+fallback that holds its height:
 
 ```html
 package pages
@@ -185,7 +208,9 @@ type Report struct { sales []float64 }
 </main>
 ```
 
-### Hydration strategies
+### Hydration Strategies {#hydration-strategies}
+
+A `client:*` directive picks when an island hydrates:
 
 | Directive | When it hydrates |
 |---|---|
@@ -195,13 +220,19 @@ type Report struct { sales []float64 }
 | `client:media={"(max-width: 600px)"}` | When the media query matches |
 | `client:only` | No server render; mount fresh in the browser |
 
-A zero-height host with no visible fallback may never intersect and therefore
-never hydrate under `client:visible`. Give the fallback height or use
-`client:load`. Framework slots do not implicitly become fallback content.
+> [!WARNING]
+> A zero-height host with no visible fallback may never intersect and therefore
+> never hydrate under `client:visible`. Give the fallback height or use
+> `client:load`.
+
+Framework slots do not implicitly become fallback content.
 
 ## Reactivity
 
-### Live props (server → island)
+Props can flow from the server to an island, from the island back to the
+server, or both ways through browser state.
+
+### Live Props (Server to Island) {#live-props-server-island}
 
 On a live page, changed props reach the mounted component through its adapter's
 update operation without remounting or losing local state. Unchanged props do
@@ -226,7 +257,7 @@ The first chart follows sales; the second keeps its initial series. Tracked
 server fields are serialized as their values. An island owns its hydrated DOM;
 the server patches the host's props rather than replacing that DOM.
 
-### Function props (island → server)
+### Function Props (Island to Server) {#function-props-island-server}
 
 A function prop takes a live page method. Calling it in the browser sends its
 first argument as the server handler's payload, checked against the declared
@@ -236,14 +267,18 @@ filled by type. Planner.Book in the first example receives a day string.
 Vue defineEmits produces `on<Emit>` function props. React and Svelte receive
 the callback as a prop. Browser-only callbacks may instead run JS commands;
 when writing browser state from a shape's own event attribute use assignment,
-for example `onClick={open = false}`. Every protected server callback must
-validate its payload and authorize the action.
+for example `onClick={open = false}`.
 
-### State props (two-way)
+> [!WARNING]
+> Every protected server callback must validate its payload and authorize the
+> action.
+
+### State Props (Two-Way) {#state-props-two-way}
 
 A `ui.State[T]` prop shares browser state with an island. It reads the current
 value and follows writes made elsewhere on the page; its own writes update the
-same state and all bindings that observe it.
+same state and all bindings that observe it. Here the page and a `Week` island
+share the `picked` state:
 
 ```html
 package pages
@@ -279,7 +314,7 @@ files. A DataTable declaring rowClick and delete emits can receive
 prop carries one payload, its first argument, rather than several independent
 server arguments.
 
-## Pages backed by a component
+## Pages Backed by a Component {#pages-backed-by-a-component}
 
 An island-only page is an ordinary `.vuka.html` page whose markup is just the
 island tag. The Go header owns the page's state, decorated hooks and server
@@ -335,9 +370,12 @@ Register services with `app.Service(services.NewDB)` and start the app with
 shape is live because of its hooks and handlers; an island with browser-only
 behavior inside a static page does not by itself create a server session.
 
+### The Live Bridge
+
 The component can use normal framework props and emits. The live-page bridge
 also exposes field/method handles through `vuka:live`; this is the behavior of
-the compiler-generated page wrapper, not a manually written render method.
+the compiler-generated page wrapper, not a manually written render method. This
+Vue component reads and calls the page through it:
 
 ```vue
 <script setup lang="ts">
@@ -358,6 +396,8 @@ const live = useLive<Orders>()
 </template>
 ```
 
+### Field and Method Handles
+
 Exported fields are read handles named after their JSON name with the initial
 letter lower-cased (`Q` → live.q). Provided dependencies and unexported state
 remain server-side. `get()` and `value` read a handle; bound fields additionally
@@ -372,6 +412,8 @@ pending/error state, and failures reject the promise with safe status/message
 information. Unexported helpers and loader methods are not callable from the
 browser. Use ordinary framework props outside a live-page wrapper.
 
+### Call Order and Errors
+
 Calls and sets run in order, one at a time; a method waits for preceding
 sets. Errors carry `{status, message, fields}`, including field errors from
 `web.Invalid`. A `web.Redirect` navigates. Writing a read-only field returns
@@ -379,12 +421,16 @@ sets. Errors carry `{status, message, fields}`, including field errors from
 Lifecycle hooks and the reserved `Render`, `Update` and `Info` methods are
 not browser-callable.
 
+### URL Fields and Updates
+
 Fields marked `@ui.URL("name")` read the initial query and update the address
 with `history.replaceState` when they change. Deferred fields remain pending
 until their decorated loader completes. Live calls change the existing server
 instance and deliver new props without remounting. Broadcast subscriptions,
 `Update` and `PushJS` work as on other live views; an `Update` accepting
 `web.URLParams` receives a patched URL and decides what state follows from it.
+
+### The Stateless Transport
 
 The stateless island transport uses signed POSTs instead of a connection.
 Its snapshot is bound to the page, visitor and expiry with `web.LiveKey`;
@@ -394,6 +440,8 @@ OnChange or calls the method, returning freshly signed props. Route guards
 apply to these requests too. This transport behavior does not change shape
 liveness inference: hooks and server event handlers make a shape live.
 
+### The Visitor and Navigation
+
 Every island can read the visitor through `useVuka()`: Vue also exposes
 `$vuka` in templates, React uses the hook, and Svelte exposes a store
 (`$vuka.user`). The value contains `{user: {id}, roles, perms, can(perm)}`
@@ -402,12 +450,16 @@ the same methods on `useVuka()`, perform navigation; `<VukaLink href>` provides
 a link. Navigation unmounts the old page's islands. See
 [island navigation](/web/navigation#from-an-island).
 
-React and Svelte read the same handles:
+### React and Svelte
+
+React and Svelte read the same handles. In React:
 
 ```tsx
 const live = useLive<Orders>()
 <input value={live.q.value} onChange={(e) => live.q.set(e.target.value)} />
 ```
+
+In Svelte:
 
 ```svelte
 <script lang="ts">
@@ -423,7 +475,8 @@ Fields also arrive as ordinary framework props, so Vue can use
 `defineProps<Orders>()`, React can read its props, and Svelte can use `$props()`.
 
 `vuka:live` supports React's `useLive<T>()` and Svelte's `live<T>()` store as well.
-Generated `vuka-live.d.ts` supplies names and types. In the island root:
+Generated `vuka-live.d.ts` supplies names and types. In the island root's
+`tsconfig.json`:
 
 ```json
 { "compilerOptions": { "paths": { "vuka:live": ["./vuka-live"] } } }
@@ -456,7 +509,6 @@ type Filter struct {
 
 type Level struct { Code string `json:"code" validate:"required,len=3"` }
 ```
-
 
 The rules: `required` (not the zero value), `omitempty` (skip the rest when
 it is), `min=n`, `max=n` and `len=n` (a string's characters, a number's
@@ -499,7 +551,7 @@ start.
 A `web.Invalid` returned by a method or by the OnChange hook reaches the
 component the same way.
 
-### Which fields changed
+### Which Fields Changed {#which-fields-changed}
 
 Several field sets within one pause arrive as one update. The decorated
 OnChange hook receives `ui.Changed`; Orders.changed above resets its page when
@@ -508,7 +560,7 @@ name). Has accepts the wire name, handle name or Go name: `Has("Q")` and
 `Has("q")` both recognize Q. Validation runs before applying the set, so a
 failed update does not invoke the hook.
 
-### Deferred fields
+### Deferred Fields {#deferred-fields}
 
 A field marked `@ui.Defer("group")` is absent from the first render and arrives
 when the group's decorated loader finishes. Keep bound and URL-backed fields
@@ -587,7 +639,7 @@ func (o *Overview) loadLists(ctx context.Context) error {
 `value` and `get()` are `OrderStats | undefined`, with `pending` and
 `error`.
 
-## Build
+## Building Islands {#build}
 
 Island components live under the **frontend root** — the directory
 [`web.FrontendRoot`](/web/frontend) names (the one holding `package.json` and
@@ -639,6 +691,8 @@ its own. How they're bundled depends on the framework:
   style out of the box. An `app.css` (`@import "tailwindcss"; @import "@nuxt/ui";`)
   is the CSS entry; the command serves the built island CSS automatically.
 
+### Checking and Shipping
+
 `vuka doctor` lists each island with what builds it — the in-process
 esbuild, the project's Vite, or Node — and what is missing for it.
 
@@ -649,23 +703,24 @@ Vite frontend anything under its root (`vite.config`, `app.css`, shared
 components, `_setup`, `package.json`) and the directories `app.css` names
 with `@source` — not `node_modules`, `dist` or `.d.ts` files.
 
+### Scaffolding a Frontend {#scaffold}
 
-### Scaffold
+Scaffold a new app with islands:
 
 ```sh
 vuka new myapp --islands
 ```
 
-scaffolds the frontend root as a Vite + Nuxt UI project (the config above, the
+The command scaffolds the frontend root as a Vite + Nuxt UI project (the config above, the
 dependencies, an `app.css`, and a sample island) so a Nuxt UI component renders
 immediately.
 
-### An optional per-app setup
+### An Optional Per-App Setup {#an-optional-per-app-setup}
 
 A `_setup.ts` (default export `(app) => {}`) in the frontend root runs once per
 island app — register a Vue plugin, Pinia, or global components there.
 
-## How it works
+## How It Works {#how-it-works}
 
 An island tag renders a self-describing host element the client loader
 hydrates:
@@ -688,9 +743,11 @@ handler or `data-vk-js-onbook` commands), `{"$vk":"state","s":…,"i":…}` a
 state (`"x"`: a browser-state expression). Function calls and emits travel
 back as ordinary live events. A page's deferred fields are left out of
 `data-vk-props` until loaded; `data-vk-defer` lists those still pending
-(`p`) and the failed ones' errors (`e`). See [Live components](/web/live) for the live-view model.
+(`p`) and the failed ones' errors (`e`). See [Live Pages](/web/live) for the live-view model.
 
 ## Limits
+
+Keep these in mind:
 
 - A `.vue` island must sit under the frontend root (so its `vue`/library imports
   resolve); a vanilla `.ts` island may live anywhere.

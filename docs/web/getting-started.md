@@ -1,4 +1,15 @@
-# Getting started
+# Directory Structure
+
+[[toc]]
+
+## Introduction
+
+A web project keeps its pages in a `pages/` tree, its logic in ordinary Go
+or `.vuka` files, and one `main.go` that wires them together. This page
+shows what each file is for, then how to create, run, test and build a
+project.
+
+## Creating a Project
 
 Create a web project and run it:
 
@@ -8,7 +19,9 @@ cd shop
 vuka run -watch .
 ```
 
-## What's where
+## What's Where
+
+Each file in a new project has one job:
 
 - `main.go` constructs the app with `web.New(pages.Routes(), …)`.
 - `pages/index.vuka.html` renders `/`.
@@ -17,7 +30,9 @@ vuka run -watch .
 - `pages/route.go` is generated; edit source files, not this table.
 - Logic and services live in `.go` or `.vuka`, with no markup.
 
-A page is a Go header with exactly one struct followed by markup:
+## The Shape of a Page
+
+A page is a Go header with exactly one struct, followed by markup:
 
 ```html
 package pages
@@ -30,10 +45,12 @@ type Index struct { Name string }
 ```
 
 Exported fields are props, populated from matching path segments or query
-parameters. Unexported fields hold tracked server state; provided types are
-dependencies. Browser state uses `ui.State[T]` and assignments in `on…`.
+parameters. Unexported fields hold tracked server state, and provided types
+are dependencies. Browser state uses `ui.State[T]` and assignments in `on…`.
 
-## Wire the app
+## Wiring the App {#wire-the-app}
+
+In `main.go`, construct the app from the generated routes:
 
 ```go
 // main.go
@@ -53,9 +70,11 @@ func main() {
 
 Use your actual module path in place of `example.com/app`. Register services
 with `app.Service(NewX)` before building or running the app. See
-[typed parameters](/web/parameters) for form and service arguments.
+[Parameters & Validation](/web/parameters) for form and service arguments.
 
-## Build and test
+## Testing and Building {#build-and-test}
+
+Run the tests and build the binary:
 
 ```sh
 vuka test ./...

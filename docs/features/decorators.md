@@ -1,10 +1,18 @@
 # Decorators
 
-**Go:** cross-cutting behaviour (logging, retries, caching, auth) is written into
-each function, or wired with middleware by hand.
+[[toc]]
 
-**Vuka adds** decorators, as easy as Python's. One decorator works on any
-function or method, whatever its signature:
+## Introduction
+
+Cross-cutting behaviour — logging, retries, caching, auth — is otherwise
+written into each function, or wired with middleware by hand. A decorator
+names that behaviour once and applies it with `@name` above a declaration.
+
+One decorator works on any function or method, whatever its signature. Other
+kinds of decorator run once at start-up instead, so a library can register
+routes, commands or jobs from the declarations it decorates.
+
+## Writing a Decorator
 
 <!-- go:context
 type Receipt struct{ ID int }
@@ -15,6 +23,9 @@ type User struct{ Name string }
 
 type Store struct{ users []User }
 -->
+
+This sample declares a `logged` decorator and a `retry` decorator with a
+parameter, then applies them to a function and a method:
 
 ```vuka
 decorator logged(c) {
@@ -42,22 +53,9 @@ func (s *Store) Save(u User) error { … }
 `decorator name(c) { … }` is shorthand for `func name(c *vuka.Call)`; plain Go
 functions of that type work too, in `.vuka` or `.go` files.
 
+## The Call
 
-## Call metadata
-
-`vuka.FuncInfo{Attrs, ParamAttrs}` are what `c.Attr` and `c.ParamAttr`
-read. `Wrap` calls the function through reflection; registering a typed
-adapter for its signature, `vuka.RegisterAdapter`, takes reflection out.
-The vuka command writes one per signature a package's decorators wrap —
-or, in a package written in Go, its `vuka.Wrap` calls (a function, a method
-expression, a function literal) — in `vuka_calls_gen.go` (`vuka gen
--inplace` commits it), an optional
-speed-up the main file never depends on: a call through two decorators is
-about 500ns by reflection, 110ns with the adapter, on an Apple M1 Pro
-(`go test -bench Wrap` in the vuka module). A generic function is always
-called by reflection.
-
-## The call
+A decorator receives a `*vuka.Call`. These are its fields and methods:
 
 | | |
 |---|---|
@@ -78,6 +76,9 @@ var ErrForbidden = errors.New("forbidden")
 func allowed(ctx context.Context, p Perm) bool { return p != "" }
 -->
 
+This `guard` decorator reads a `Perm` attribute from the declaration and
+refuses the call when it isn't allowed:
+
 ```vuka
 decorator guard(c) {
 	var p Perm
@@ -94,20 +95,37 @@ decorator guard(c) {
 func save(ctx context.Context, o Order) error { … }
 ```
 
-
 A decorator with parameters is built once per decorated function, so state it
 keeps — a cache, a counter — isn't shared.
+
+A call decorator reads parameter attributes too:
 
 | | |
 |---|---|
 | `c.ParamAttr(i, &x)` | the [attribute](/features/attributes#parameter-attributes) written before parameter `i` |
 
-## Optional arguments
+## Call Metadata and Adapters
+
+`vuka.FuncInfo{Attrs, ParamAttrs}` are what `c.Attr` and `c.ParamAttr`
+read. `Wrap` calls the function through reflection; registering a typed
+adapter for its signature, `vuka.RegisterAdapter`, takes reflection out.
+
+The vuka command writes one per signature a package's decorators wrap —
+or, in a package written in Go, its `vuka.Wrap` calls (a function, a method
+expression, a function literal) — in `vuka_calls_gen.go` (`vuka gen
+-inplace` commits it), an optional speed-up the main file never depends on.
+
+A call through two decorators is about 500ns by reflection, 110ns with the adapter, on an Apple M1 Pro
+(`go test -bench Wrap` in the vuka module). A generic function is always
+called by reflection.
+
+## Optional Arguments
 
 Many decorators have a sensible default and only sometimes need settings: run
 in a transaction — usually on the default database, now and then read-only or
 on another one. Give the decorator only optional arguments (no parameters, or
-one `...T`) and it is written bare for the default, with arguments otherwise:
+one `...T`) and it is written bare for the default, with arguments otherwise.
+Here `transaction` is used both ways:
 
 <!-- go:context
 type TxOption struct{ db string; readOnly bool }
@@ -133,8 +151,7 @@ Written bare, it is called with no arguments. That holds for every kind:
 call decorators, typed decorators, declarers and type decorators, and for a
 [composed decorator](#composed-decorators) without parameters.
 
-
-## Composed decorators
+## Composed Decorators
 
 When the same call decorators keep appearing together, name the set once:
 
@@ -161,26 +178,28 @@ decorator Audited = @logged @Doc("audited")
 func charge(ctx context.Context, id int) (Receipt, error) { … }
 ```
 
-`@Audited` applies `@logged` and `@Doc("audited")` in order. A composed decorator holds call decorators,
+`@Audited` applies `@logged` and `@Doc("audited")` in order.
+
+A composed decorator holds call decorators,
 declarers, type decorators, typed attributes and other composed decorators; its
 elements go on its line, or one a line in parentheses. One without parameters
 is used bare: `@Audited`.
 
 It is a function returning a `vuka.Bundle`, so another package uses an
 exported one like any decorator — `@audit.Audited` — and what it composes
-may be unexported. Its elements are type-checked where it is declared. A
-[typed decorator](#typed-decorators) can't be composed, since it needs the
+may be unexported. Its elements are type-checked where it is declared.
+
+A [typed decorator](#typed-decorators) can't be composed, since it needs the
 decorated function's type; nor can a decorator compose itself
 (`decorator A = @B`, `decorator B = @A` is an error). Plain Go builds one with
 `vuka.Compose(logged, Doc("audited"))`.
 
-
-## Type-level advice
+## Type-Level Advice
 
 To give every method of a type the same behaviour — log each call to a store,
 retry each call to a flaky client — put the call decorator on the type. It
 wraps every exported method the package's Vuka files declare for the type, on
-`T` or `*T`:
+`T` or `*T`. This sample advises every exported method of `Store`:
 
 ```vuka
 @logged
@@ -198,19 +217,19 @@ func (s *Store) Close() error { … }           // left alone
 
 The type's advice runs outside the method's own decorators, in the order it is
 written; each method gets decorators of its own, as a decorated function does.
+
 Unexported methods aren't advised, nor methods marked `@vuka.NoAdvice`, nor
 methods declared in `.go` files. A composed decorator on a type advises its
 methods with the call decorators it holds, and runs its type decorators on the
 type.
 
-
-## Typed decorators
+## Typed Decorators
 
 For hot paths, a decorator can be `func(F) F` for the function's type: no
 boxing, full types. Vuka picks the form from the decorator's type, and the two
 mix freely.
 
-## Types
+## Type Decorators {#types}
 
 A type decorator runs at start-up with the type: `func Model(t *vuka.Type)` gets
 `t.Name`, `t.Reflect`, `t.Attrs` — and, for a struct, a constructor for
@@ -218,12 +237,13 @@ A type decorator runs at start-up with the type: `func Model(t *vuka.Type)` gets
 (its static `New`), else one Vuka writes taking each injected field.
 In Go, `@Model` on `User` is `Model(vuka.TypeFor[User](NewUser))`.
 
-## Declaration decorators
+## Declaration Decorators
 
 A decorator of type `func(d *vuka.Decl)` — or a call returning one — is a
 **declarer**: it doesn't wrap calls, it runs once at program start with a
 description of the declaration. That is how a library registers routes,
-commands or jobs from the functions it decorates. A small command registry:
+commands or jobs from the functions it decorates. This sample builds a small
+command registry:
 
 ```vuka
 var commands = map[string]*vuka.Decl{}
@@ -251,13 +271,17 @@ run("greet", map[string]string{"name": "ada"})   // -> main.greet [ada] …
 
 Application page routes instead come from the [pages tree](/web/folder-routes).
 
+### Linking Declarer Packages
+
 A declarer only runs if its package is compiled in, and Go compiles only what
 is imported — so the `vuka` command links declarer packages itself. `vuka
 build`, `run`, `test` and `vet` find every package of the module with a
 declarer, a type decorator or a [composed decorator](#composed-decorators) on
 a declaration and give each main package a generated file of blank imports
 (`vuka gen` writes it as `vuka_link_gen.go` for plain go tools). Nothing to
-write, nothing to forget: a declaration package is linked when it is discovered. Test files don't count, and a `//vuka:nolink` line above a
+write, nothing to forget: a declaration package is linked when it is discovered.
+
+Test files don't count, and a `//vuka:nolink` line above a
 package clause opts that package — or, on a main, the whole program — out;
 see [the CLI](/tools/cli#build-run-test-vet-install).
 
@@ -266,7 +290,7 @@ declares itself: one with a `vukaDeclares()` method, unexported, with no
 parameters or results. [ORM models](/orm/models) link this way — `orm.Base`
 has the marker — so a model package nothing imports is still migrated. A
 library whose embeddable type registers its embedders at init marks it the
-same way:
+same way, with an empty method:
 
 ```go
 func (Base[T]) vukaDeclares() {}
@@ -275,6 +299,9 @@ func (Base[T]) vukaDeclares() {}
 Only `.vuka` files are looked at; a `.go` file's embedding doesn't link its
 package.
 
+### The Declaration
+
+A declarer receives a `*vuka.Decl`:
 
 | `*vuka.Decl` | |
 |---|---|
@@ -291,12 +318,15 @@ In Go, `@Command("greet")` on `greet` is
 describes a function or method expression, the attributes those registered
 for it (`vuka.RegisterFunc`).
 
+### When Declarers Run
+
 Declarers run in the package's `init`, after its variables are initialised:
 declarations in source order (files in name order, as Go orders `init`), and a
 declaration's declarers top to bottom. They mix freely with call and typed
-decorators. A declarer needs a concrete function: on a generic function, `init`
-or a type it is an error — a type's decorator takes a `*vuka.Type`.
+decorators.
 
+A declarer needs a concrete function: on a generic function, `init`
+or a type it is an error — a type's decorator takes a `*vuka.Type`.
 
 ## Registries
 
@@ -305,11 +335,11 @@ Application pages use the generated folder route table instead: rendering lives
 in `.vuka.html`, routes in `pages/` and startup in `web.New(pages.Routes(), …)`.
 Service constructors register through `app.Service(NewX)`.
 
-## Files
+## Embedding Files {#files}
 
 A string literal passed where a decorator or a typed attribute takes a
 `vuka.File` names a file of the source tree, relative to the package's
-directory:
+directory. This sample registers a view file for each decorated function:
 
 ```vuka
 var pages = map[string]vuka.File{}
@@ -327,10 +357,11 @@ or below it (all `go:embed` reaches); a missing, absolute or outside path is an
 error on the literal. It is embedded in the binary, and the literal becomes a
 `File` holding `"importpath:views/pet.html"`:
 
-
 | `f.Bytes()` | the content (a `File` Vuka didn't embed, such as `vuka.File("x")`, is read from disk) |
 | `f.Path()`, `f.Pkg()` | `"views/pet.html"`; the package's import path |
 | `templx.Components(f)` | for a `.templ` file, with templ and [ui](/ui/templ): its components in source order: <span v-pre>`[]templx.Component{{Name: "Show", Func: Show, Params: []string{"name"}}}`</span>, `Func` a `func(…) templ.Component` |
+
+### templ Files
 
 A `.templ` file beside the package's files is part of the package (same
 `package` clause) and gives all its components. One in a subdirectory is the
@@ -343,15 +374,18 @@ components; the `File` is then that package's —
 still embedded only from the package's directory or below: a path such as
 `../shared/x.templ` is an error, since `go:embed` can't reach up.
 
-The parameter or field must be `vuka.File` itself; literals elsewhere aren't
-embedded. The web framework's views are files of this kind: see [Views](/web/views).
+> [!WARNING]
+> The parameter or field must be `vuka.File` itself; literals elsewhere aren't
+> embedded.
 
+The web framework's views are files of this kind: see [Views](/web/views).
 
-## Details
+## How Decorated Functions Are Built
 
 A function wrapped by its decorators keeps its name for a wrapper that builds
 the decorated function once, on first call (`vuka.Decorated`); recursion goes
-through the decorators. One only declarers or registries take stays as it is. Methods, `init`,
-overloads, generic functions and `type ( … )` groups can be decorated. In the
-editor, typing `@` lists every decorator in the project, and picking one from
-another package adds the import.
+through the decorators. One only declarers or registries take stays as it is.
+
+Methods, `init`, overloads, generic functions and `type ( … )` groups can be
+decorated. In the editor, typing `@` lists every decorator in the project, and
+picking one from another package adds the import.

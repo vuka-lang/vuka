@@ -1,13 +1,25 @@
 # Attributes
 
-**Go:** metadata lives in struct tags and comments (`//go:generate`, doc text).
+[[toc]]
 
-**Vuka adds** attributes: `@` before a declaration. An attribute is either built
+## Introduction
+
+In Go, metadata lives in struct tags and comments (`//go:generate`, doc text).
+Vuka adds attributes: `@` before a declaration. An attribute is either built
 in, or any Go type — so its arguments are type-checked Go.
+
+You use attributes to attach checked metadata — a route, a permission, a
+deprecation notice — that [decorators](/features/decorators) and libraries read
+back at run time.
+
+## Writing Attributes
 
 <!-- go:context
 type User struct{ Name string }
 -->
+
+This sample puts a built-in `@doc`, a typed `@Route` and a built-in
+`@deprecated` on two functions:
 
 ```vuka
 type Route struct{ Method, Path string }
@@ -20,19 +32,25 @@ func listUsers() []User { … }
 func handler() string { … }
 ```
 
+### Built-in Attributes
+
+Three attributes are built in:
+
 | Built-in | Becomes |
 |---|---|
 | `@doc("…")` | the declaration's doc comment |
 | `@deprecated("…")` | a `Deprecated:` paragraph |
 | `@export("Name")` | a wrapper named `Name`, for Go code to call |
 
+### Typed Attributes
+
 A typed attribute (`@Route{…}`, `@Perm("orders.write")`) is checked by Go: a
 wrong field or type is a compile error on the `@` line.
 
-
-Attributes are readable
-at run time by [decorators](/features/decorators) through `c.Attr(&x)`, and
+Attributes are readable at run time by decorators through `c.Attr(&x)`, and
 from anywhere through [the registry](#reading-attributes-from-a-value).
+
+### Where Attributes Go
 
 An attribute that names a *function* rather than a type is a decorator.
 
@@ -42,19 +60,18 @@ restrict where it goes: see [Targets](#targets).
 
 Struct fields take typed attributes too, after the field:
 `Title string @Char{Max: 200}`. See
-[Field attributes and references](/features/fields).
+[Field Attributes & References](/features/fields).
 
 A field of type `vuka.File` set to a string literal names a file that is
 checked at compile time and embedded: see [Files](/features/decorators#files).
 
-
-## Reading attributes from a value
+## Reading Attributes From a Value
 
 Vuka records, at program start, the typed attributes of every function,
-method and type that has any (a bundle's count), so
-a library holding only a
+method and type that has any (a bundle's count), so a library holding only a
 value — a method value it was handed as a handler, a `reflect.Type` — reads
-what was written on its declaration, without calling it:
+what was written on its declaration, without calling it. This sample reads a
+method's `@Gate` from a method value and through reflection:
 
 ```vuka
 type Gate struct{ Perm string }
@@ -69,6 +86,7 @@ vuka.MethodAttrs(reflect.TypeFor[Board](), "Clear")
 vuka.TypeAttrs(reflect.TypeFor[Board]())
 ```
 
+The lookup functions are these:
 
 | | |
 |---|---|
@@ -77,18 +95,27 @@ vuka.TypeAttrs(reflect.TypeFor[Board]())
 | `vuka.TypeAttrs(t)` | a type's attributes |
 | `attrs.Attr(&x)` | fills `x` with the attribute of its type, as `c.Attr` does |
 
-The lookups are a map read (`FuncOf` caches its answer per function). Not
-recorded: generic functions and types (there is no one function to name),
+The lookups are a map read (`FuncOf` caches its answer per function).
+
+### What Isn't Recorded
+
+Not recorded: generic functions and types (there is no one function to name),
 and method values made by reflection (`reflect.Value.Method`), which name no
-declaration — look those up with `MethodAttrs`. Go code registers a
+declaration — look those up with `MethodAttrs`.
+
+### Registering From Go
+
+Go code registers a
 declaration of its own with `vuka.RegisterFunc(fn, attrs…)` and
 `vuka.RegisterType[T](attrs…)`, what the generated code calls. Its
 `vuka.Call` also lists every attribute: `c.Attrs()`.
 
-## Parameter attributes
+## Parameter Attributes
 
 Parameters take typed attributes too, written before the parameter, for code
-that needs to know something about each argument: which arguments a custom validator should check:
+that needs to know something about each argument: which arguments a custom
+validator should check, for example. This sample marks path, query and body
+parameters:
 
 ```vuka
 type Path string
@@ -107,10 +134,12 @@ parameter; an unnamed parameter takes them too (`func f(@Query("q") string)`).
 They go on top-level functions and methods, not on the receiver, results or
 function literals.
 
+### Reading Parameter Attributes
 
 A [declarer](/features/decorators#declaration-decorators)
 reads them from `d.Params[i].Attrs`, or with `d.Params[i].Attr(&x)`; a call
-decorator with `c.ParamAttr(i, &x)`, `i` indexing `c.Args`:
+decorator with `c.ParamAttr(i, &x)`, `i` indexing `c.Args`. This decorator
+validates every argument marked `@Valid`:
 
 ```vuka
 decorator valid(c) {
@@ -127,12 +156,12 @@ decorator valid(c) {
 }
 ```
 
-
-## Targets
+## Restricting Where an Attribute Goes {#targets}
 
 Some attributes only make sense in one place — a column setting belongs on a
 field, a route's path source on a parameter. The attribute type can say so,
-and writing it anywhere else becomes a compile error:
+and writing it anywhere else becomes a compile error. Declare the targets with
+`@vuka.Targets` on the attribute type:
 
 ```vuka
 @vuka.Targets(vuka.OnField)
@@ -143,10 +172,13 @@ type Path string
 ```
 
 Using it anywhere else is a compile error at the attribute:
-`@Char can't go on a function; Char is for fields`. The targets are
+`@Char can't go on a function; Char is for fields`.
+
+The targets are
 `vuka.OnFunc`, `OnMethod`, `OnType`, `OnField`, `OnParam` and `OnVar` (var
 and const declarations); a type that declares none goes anywhere. They are
 checked in every package using the type: Vuka records them in a method of the
 type, which Go code declares by hand as below.
+
 An attribute written as a call, such as `@Size(3)`, is checked against the
 targets of the type it returns.

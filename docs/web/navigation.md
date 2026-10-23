@@ -1,14 +1,21 @@
 # Navigation
 
+[[toc]]
+
+## Introduction
 
 A list you page through, tabs whose choice belongs in the URL, a list and
-the detail page of each row: moving between them should feel instant. A
-live page can move to another URL over the connection it already has —
-no document reload, no new WebSocket, no layout sent again — while the
-address bar, the back button and links opened in a new tab keep working
-as they do for any site.
+the detail page of each row: moving between them should feel instant.
 
-Inside a shape's markup:
+A live page can move to another URL over the connection it already has. There
+is no document reload, no new WebSocket and no layout sent again, while the
+address bar, the back button and links opened in a new tab keep working as
+they do for any site.
+
+## Linking Between Pages {#links}
+
+You link with `ui.Link`. This markup links to a book's page, and moves the
+list to its second page with `patch`:
 
 ```html
 <nav>
@@ -17,14 +24,13 @@ Inside a shape's markup:
 </nav>
 ```
 
-
-## Links
-
 `ui.Link` renders an ordinary `<a href>`, marked for the runtime
 (`data-vk-link`, or `data-vk-link="patch"`). So it stays a plain link
 wherever the runtime doesn't take it: without JavaScript, on a page that
 isn't live, with a `target` (`_blank`), clicked with a modifier key or the
 middle button (a new tab or window), or to another origin.
+
+The table lists the attributes `ui.Link` takes:
 
 | Attribute | |
 |---|---|
@@ -39,20 +45,26 @@ middle button (a new tab or window), or to another origin.
 A link to the page's own URL with only a `#hash` is the browser's: it
 scrolls, nothing is sent.
 
-## Patch or navigate
+## Patch or Navigate
 
-**Patch** moves to another URL of the page you are on: the next page of a
-list, a filter, a tab. The route runs again for the new URL, and a [Live
-page](/web/live) that takes the URL stays mounted and keeps its state: its
-props are bound from the URL again, and the reply is the usual patch — only
-what changed.
+A move over the connection is one of two kinds. A **patch** moves to another
+URL of the page you are on: the next page of a list, a filter, a tab. A
+**navigate** moves to another page.
+
+On a patch, the route runs again for the new URL, and a
+[Live page](/web/live) that takes the URL stays mounted and keeps its state.
+Its props are bound from the URL again, and the reply is the usual patch:
+only what changed.
+
+### Taking the URL in Update {#taking-the-url-in-update}
 
 A Live page takes the URL with an `Update` overload taking a struct that
 embeds `web.URLParams`. Its fields bind from the new URL the way a Live
 page's props do (the path segment, else the query parameter, of each
-field's name), and `Update` runs before the patch renders:
+field's name), and `Update` runs before the patch renders.
 
-Declare the URL update message in a logic file, separate from the shape:
+Declare the URL update message in a logic file, separate from the shape.
+This one, `models/shelf_params.go`, carries the shelf's page number:
 
 ```go
 // models/shelf_params.go
@@ -66,8 +78,9 @@ type ShelfParams struct {
 }
 ```
 
-Save the page as `pages/books/index.vuka.html`. The Books service and Book
-record live in services and models logic packages:
+Save the page as `pages/books/index.vuka.html`. It lists a page of books,
+links each title to its book, and patches itself to the next page; the
+Books service and Book record live in services and models logic packages:
 
 ```html
 package books
@@ -111,24 +124,25 @@ func (s *Shelf) show(ctx context.Context, page int) error {
 </section>
 ```
 
-
 The mount hook sees the first URL; `Update` sees each patch. Params that don't
 bind (a `page=x`) make the route answer 400, and the browser loads that URL
 as an ordinary page.
 
-### The server decides what stays mounted
+### The Server Decides What Stays Mounted
 
 `patch` on a link (and `Patch`, `PushPatch`) only asks. The page stays
-mounted only when its type has an `Update` taking `web.URLParams`; any other
+mounted only when its type has an `Update` taking `web.URLParams`. Any other
 page **mounts again**, a fresh instance whose mount hook sees the new URL, even
-on the same route — as a navigate does. A browser can send any URL as a
-patch, so this is what keeps a check in the mount hook from being skipped.
+on the same route, as a navigate does.
 
-It follows that **`Update` must repeat every check the mount hook makes** of what
-the URL names. A page showing one order checks in the mount hook that the visitor
-may see it; its `Update` checks the new id the same way:
+> [!WARNING]
+> A browser can send any URL as a patch, so this rule is what keeps a check
+> in the mount hook from being skipped. It follows that **`Update` must
+> repeat every check the mount hook makes** of what the URL names.
 
-The update-message DTO is a logic type:
+A page showing one order checks in the mount hook that the visitor may see
+it; its `Update` checks the new id the same way. The update-message DTO, in
+`models/order_params.go`, is a logic type:
 
 ```go
 // models/order_params.go
@@ -142,7 +156,8 @@ type OrderParams struct {
 }
 ```
 
-In `pages/orders/[id].vuka.html`, both entry paths call the same check:
+In `pages/orders/[id].vuka.html`, both entry paths, the mount hook and
+`Update`, call the same `load` check:
 
 ```html
 package orders
@@ -181,34 +196,39 @@ func (p *OrderPage) load(ctx context.Context, id int) error {
 <h1>Order {order.ID}</h1>
 ```
 
-
 An error `Update` returns fails the patch: nothing of the page stays
-mounted to take events, and the browser loads the URL, so the route answers
-as for any request (here, the mount hook refusing with 403). The same goes for a
-mount hook that refuses on a navigate.
+mounted to take events, and the browser loads the URL. The route then
+answers as for any request (here, the mount hook refusing with 403). The
+same goes for a mount hook that refuses on a navigate.
 
-**Navigate** moves to another page. Its route runs as a page load does —
-middleware, gates, dependencies, its layouts — its components mount on the
-same connection, and the old page's unmount. With [protocol
-v2](/reference/live-protocol#protocol-v2-render-trees) the new page
-arrives as a change to the trees the connection already holds: the
+### Navigating to Another Page {#navigating-to-another-page}
+
+A navigate's route runs as a page load does: middleware, gates,
+dependencies, its layouts. Its components mount on the same connection, and
+the old page's unmount. With
+[protocol v2](/reference/live-protocol#protocol-v2-render-trees) the new
+page arrives as a change to the trees the connection already holds: the
 layout's markup isn't sent again, only the parts that differ.
 
 The [folder layouts](/web/folder-routes#layouts-that-stay) the two pages
-share stay: their `Load` doesn't run again, and their elements, scroll,
-client state, live components and islands are kept — only what is below
-the deepest shared layout is swapped. Guards run on every navigation all
-the same. A layout reading the request's path or query loads and renders
-again each time instead.
+share stay. Their `Load` doesn't run again, and their elements, scroll,
+client state, live components and islands are kept; only what is below the
+deepest shared layout is swapped.
 
-## The current link
+Guards run on every navigation all the same. A layout reading the request's
+path or query loads and renders again each time instead.
+
+## Marking the Current Link {#the-current-link}
 
 A menu in a layout marks the page you are on. Give its links `active`, and
-the runtime marks the one matching the address — `aria-current="page"`,
-and `activeClass` if you give one — as the page loads, after every
-navigation, and on back and forward. The layout reads nothing of the
-request, so it [stays](/web/folder-routes#layouts-that-stay) across
-navigations, its menu following the page:
+the runtime marks the one matching the address with `aria-current="page"`,
+and `activeClass` if you give one. It does so as the page loads, after every
+navigation, and on back and forward.
+
+The layout reads nothing of the request, so it
+[stays](/web/folder-routes#layouts-that-stay) across navigations, its menu
+following the page. This menu marks Home on `/` only, and Orders and
+Settings on their paths and below:
 
 ```html
 <nav>
@@ -221,38 +241,46 @@ navigations, its menu following the page:
 `exact` matches the same path; `prefix` the path or one below it
 (`/orders/7` for `/orders`), so use `exact` for `/`. Style the current link
 with the class, or with `a[aria-current=page]`, which also tells screen
-readers where they are. An ordinary `<a>` takes the same marks as
-attributes: `data-vk-active="prefix"` and `data-vk-active-class="on"`.
+readers where they are.
 
-## Prefetch
+An ordinary `<a>` takes the same marks as attributes:
+`data-vk-active="prefix"` and `data-vk-active-class="on"`.
 
-A link the browser will load as a page — a `ui.Link` on a page without a
-live connection — is fetched ahead when the pointer rests on it for a
+## Prefetching Pages {#prefetch}
+
+A link the browser will load as a page (a `ui.Link` on a page without a
+live connection) is fetched ahead when the pointer rests on it for a
 moment, when it gets the focus, or when a finger touches it, so it opens
-at once. `prefetch="viewport"` fetches it as soon as it scrolls into view,
-for the one link a page is mostly followed by; `prefetch="off"` never
-does. An ordinary `<a>` opts in with `data-vk-prefetch` (or
+at once.
+
+`prefetch="viewport"` fetches it as soon as it scrolls into view, for the
+one link a page is mostly followed by; `prefetch="off"` never does. An
+ordinary `<a>` opts in with `data-vk-prefetch` (or
 `data-vk-prefetch="viewport"`).
 
 Only same-origin links to another page are fetched, with `GET`: never a
 link with `download` or a `target`, another origin, or when the visitor's
 browser asks to save data. The browser keeps the response for the
-navigation and drops it after 30 seconds. The request carries
-`Sec-Purpose: prefetch`; it is the page's ordinary render, so a page's
-`GET` must be safe to run without the visitor seeing it. A live page's
-session doesn't start: what it mounts waits, parked, for the page to open,
-and its connection joins then, without mounting again — its mount hook runs
-once, however the page was reached.
+navigation and drops it after 30 seconds.
+
+> [!WARNING]
+> The request carries `Sec-Purpose: prefetch`, but it is the page's
+> ordinary render, so a page's `GET` must be safe to run without the visitor
+> seeing it.
+
+A live page's session doesn't start on a prefetch: what it mounts waits,
+parked, for the page to open, and its connection joins then, without
+mounting again. Its mount hook runs once, however the page was reached.
 
 A link that moves a live page over its connection isn't fetched: the
 server runs its route when it is followed and sends only what changed below
 the layouts the pages share.
 
-## From the server and from commands
+## Moving the Page from the Server and from Commands {#from-the-server-and-from-commands}
 
-A handler moves the page once its reply is applied:
-
-In a shape header, handlers can call the methods supplied by ui.Live:
+A handler moves the page once its reply is applied. In a shape header,
+handlers can call the methods supplied by ui.Live; here `PushNavigate`
+returns to the shelf and `PushPatch` moves to the next book:
 
 ```html
 package books
@@ -269,23 +297,20 @@ func (p *BookActions) Next() { p.PushPatch("/books/8") }
 </nav>
 ```
 
-
 In a [JS command](/ui/js) chain, `Patch(href)` and `Navigate(href)` do it
-from the browser, after the steps before them:
-
-In a shape's markup:
+from the browser, after the steps before them. This button adds a class to
+itself, then navigates:
 
 ```html
 <button onClick={ui.JS.AddClass(ui.This, "going").Navigate("/books")}>All books</button>
 ```
 
-
-## From an island
+## Moving the Page from an Island {#from-an-island}
 
 A component in an [island](/web/islands) moves the page the same way. On
 a [page backed by a component](/web/islands#pages-backed-by-a-component),
 `useLive()` has `navigate` and `patch`; in any island, `useVuka()` has
-them too:
+them too. This Vue component navigates, patches and renders `VukaLink`s:
 
 ```vue
 <script setup lang="ts">
@@ -310,36 +335,51 @@ const sort = (by: string) => vuka.patch(`/orders?sort=${by}`, { replace: true })
 </template>
 ```
 
-- **`navigate(href, opts?)` and `patch(href, opts?)`** do what a
-  `data-vk-link` click does: over the connection on a live page, joined —
-  the route and its gates run, a patch keeps the page mounted for its
-  `Update` (else it mounts again), the address, scroll and focus follow
-  and `vk:navigate` fires. Without a connection — a stateless page, one
-  still joining or reconnecting — or to another origin, it's a page load.
-  `{ replace: true }` takes the current history entry's place instead of
-  adding one.
-- **The promise** resolves with `{url, patch}` once the move is applied. It
-  rejects for a URL that isn't `http` or `https` (`javascript:`, `data:`…,
-  refused as everywhere else), and when another move takes its place
-  (`AbortError`). A page load leaves the page, so its promise never
-  settles.
-- **`<VukaLink>`** renders an `<a href>` marked `data-vk-link` (`patch`:
-  `="patch"`), so new tabs, modifier clicks and pages without JavaScript
-  treat it as a link. `replace` takes the current entry's place.
-  `activeClass` (default `active`) is added while the address is the
-  link's path or below it (`/orders` for `/orders/7`; `/` only itself);
-  `exact` asks for the same path, and the same query when the link has
-  one. `aria-current="page"` marks the link to the current path. Other
-  attributes and the children pass through (React: `className`). It is in
-  `vuka:live` for Vue, React and Svelte, typed in `vuka-live.d.ts` for the
-  frameworks the islands use.
-- **Islands follow the page**: a navigate unmounts the old page's islands
-  and mounts the new page's — even where the new page's island takes the
-  old one's place in the markup; a patch keeps them, with new props.
-- In a script outside an island, `window.vuka.navigate(href, {patch,
-  replace})` is the same call.
+### The navigate and patch Functions {#the-navigate-and-patch-functions}
 
-## In the browser
+`navigate(href, opts?)` and `patch(href, opts?)` do what a `data-vk-link`
+click does: over the connection on a live page, joined. The route and its
+gates run, a patch keeps the page mounted for its `Update` (else it mounts
+again), the address, scroll and focus follow and `vk:navigate` fires.
+
+Without a connection (a stateless page, one still joining or reconnecting)
+or to another origin, it's a page load. `{ replace: true }` takes the
+current history entry's place instead of adding one.
+
+In a script outside an island, `window.vuka.navigate(href, {patch,
+replace})` is the same call.
+
+### The Returned Promise {#the-returned-promise}
+
+The promise resolves with `{url, patch}` once the move is applied. It
+rejects for a URL that isn't `http` or `https` (`javascript:`, `data:`…,
+refused as everywhere else), and when another move takes its place
+(`AbortError`). A page load leaves the page, so its promise never settles.
+
+### The VukaLink Component {#the-vukalink-component}
+
+`<VukaLink>` renders an `<a href>` marked `data-vk-link` (`patch`:
+`="patch"`), so new tabs, modifier clicks and pages without JavaScript
+treat it as a link. `replace` takes the current entry's place.
+
+`activeClass` (default `active`) is added while the address is the link's
+path or below it (`/orders` for `/orders/7`; `/` only itself). `exact` asks
+for the same path, and the same query when the link has one.
+`aria-current="page"` marks the link to the current path.
+
+Other attributes and the children pass through (React: `className`). It is
+in `vuka:live` for Vue, React and Svelte, typed in `vuka-live.d.ts` for the
+frameworks the islands use.
+
+### Islands Follow the Page {#islands-follow-the-page}
+
+A navigate unmounts the old page's islands and mounts the new page's, even
+where the new page's island takes the old one's place in the markup. A
+patch keeps them, with new props.
+
+## What the Browser Does {#in-the-browser}
+
+A move over the connection keeps the browser's own behaviour in step:
 
 - **The address** changes with `pushState`. Back and forward patch or
   navigate to match: within one page's history entries they patch, across
@@ -352,21 +392,28 @@ const sort = (by: string) => vuka.patch(`/orders?sort=${by}`, { replace: true })
   starts reading the new page.
 - **`<head>`**: the title follows the new page's, and its head elements the
   document lacks — a stylesheet, a script, a meta tag — are added once.
-  Scripts in the new page's body don't run; put a page's scripts in its head.
 - **While in flight** `<html data-vk-navigating>` is set — a CSS hook for a
   progress bar or a dimmed page — and the page sends no events. When a
   navigation completes, `vk:navigate` fires on `window` with
   `detail: {url, patch}`.
 
+> [!NOTE]
+> Scripts in the new page's body don't run; put a page's scripts in its head.
+
+This rule dims the page's `<main>` while a navigation is in flight:
+
 ```css
 html[data-vk-navigating] main { opacity: .6; transition: opacity .2s .1s }
 ```
+
+This listener reports each completed navigation's URL, here to an
+analytics script:
 
 ```js
 addEventListener("vk:navigate", (e) => analytics.page(e.detail.url));
 ```
 
-## When it's a page load
+## When a Link Loads a Page {#when-it-s-a-page-load}
 
 Whatever can't move over the connection is loaded as usual, so a link
 always gets you there:
@@ -378,27 +425,30 @@ always gets you there:
 - a navigation that fails, or gets no reply within 10 seconds, or whose
   connection drops on the way.
 
-Only paths and `http` and `https` URLs are followed. The runtime refuses to
-load a `javascript:`, `data:`, `vbscript:` or any other URL, wherever it
-comes from — a link, a command, a redirect — and the server never sends a
-redirect to one: an app route redirecting to `javascript:` (an open
-redirect fed a crafted URL) answers the navigation with an error, and the
-browser then loads the link's own URL, whose redirect it refuses.
-`ui.JS.Navigate` and `Patch` turn such a URL into
-`about:invalid#TemplFailedSanitizationURL` when the chain is built.
-
 A new page drops the [optimistic pushes](/ui/js#optimistic-updates) still
 waiting for the old one, without running their hooks. A reconnect later
 joins the page the connection moved to: each navigation's reply brings that
 page's join token.
 
-## Testing
+### Unsafe URLs Are Refused {#unsafe-urls-are-refused}
+
+Only paths and `http` and `https` URLs are followed. The runtime refuses to
+load a `javascript:`, `data:`, `vbscript:` or any other URL, wherever it
+comes from: a link, a command, a redirect.
+
+The server never sends a redirect to one. An app route redirecting to
+`javascript:` (an open redirect fed a crafted URL) answers the navigation
+with an error, and the browser then loads the link's own URL, whose
+redirect it refuses. `ui.JS.Navigate` and `Patch` turn such a URL into
+`about:invalid#TemplFailedSanitizationURL` when the chain is built.
+
+## Testing Navigation {#testing}
 
 The browser runtime is tested in Chrome by the
 [`examples/live`](https://github.com/vuka-lang/web/tree/main/examples/live)
-app's `TestBrowserNavigation`. Without a browser, ui's [reference
-client](/ui/testing#navigation) follows links and the patch and navigate
-commands, through a session's router.
+app's `TestBrowserNavigation`. Without a browser, ui's
+[reference client](/ui/testing#navigation) follows links and the patch and
+navigate commands, through a session's router.
 
 The `/books` page of that app is a paged shelf with a page per book: the
 pager patches the shelf, a title navigates to the book, the book's next link

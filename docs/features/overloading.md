@@ -1,9 +1,16 @@
 # Overloading
 
-**Go:** one name, one function — `AreaCircle`, `AreaRect`.
+[[toc]]
 
-**Vuka adds** functions and methods that share a name and differ in their
-parameters:
+## Introduction
+
+In Go, one name means one function — `AreaCircle`, `AreaRect`. Vuka adds
+functions and methods that share a name and differ in their parameters.
+
+You reach for overloading when the same operation applies to several types and
+one name reads better than several.
+
+## Declaring Overloads
 
 <!-- go:context
 type Circle struct{ R float64 }
@@ -12,6 +19,9 @@ type Rect struct{ W, H float64 }
 
 type Counter struct{ n int }
 -->
+
+This sample declares two `area` functions and three `Add` methods, then calls
+them:
 
 ```vuka
 func area(c Circle) float64 { return math.Pi * c.R * c.R }
@@ -25,13 +35,14 @@ area(Circle{R: 1})
 c.Add(2, 3)
 ```
 
+### Choosing an Overload
+
 Each call goes to the overload that best fits its arguments' static types:
 identical types first, then an untyped constant's default type (`scale(2)` picks
 `int`, `scale(2.5)` picks `float64`), then anything assignable. No match, or a
 tie, is an error listing the candidates.
 
-
-## What it becomes
+## What It Becomes
 
 Each overload is named after its parameter types, the way Go names such
 functions, and each call is pointed at one:
@@ -44,16 +55,24 @@ functions, and each call is pointed at one:
 | `func (c *Counter) Add(xs ...int)` | `func (c *Counter) AddInts(xs ...int)` |
 | `area(Circle{R: 1})`, `c.Add(2, 3)` | `areaCircle(Circle{R: 1})`, `c.AddIntInt(2, 3)` |
 
+### How Names Are Built
+
 A parameter's type is written as part of the name: `int` is `Int`,
 `*Shape` `Shape`, `time.Time` `Time`, `[]Order` and `...Order` `Orders`,
 `map[string]int` `MapStringInt`, `any` `Any`; a leading `context.Context`
 is left out when more follows (`Update(ctx, t Typing)` is `UpdateTyping`),
-and an overload taking nothing is `area0`. A name the package already has,
+and an overload taking nothing is `area0`.
+
+A name the package already has,
 or that two overloads would share (`total(o Order)` and `total(o *Order)`),
-gets a number: `totalOrder2`. A live component's `Update` overloads are
+gets a number: `totalOrder2`.
+
+A live component's `Update` overloads are
 the methods the session delivers messages to (`UpdateNewMessage`,
-[Stateful components](/ui/stateful#messages)). Vuka 0.x named overloads
+[Stateful Components](/ui/stateful#messages)). Vuka 0.x named overloads
 `area__Circle`; `ui.IsUpdate` still takes `Update__T`.
+
+## Naming an Overload for Go
 
 To give Go code a name of your own for one overload, use `@export`:
 
@@ -61,6 +80,8 @@ To give Go code a name of your own for one overload, use `@export`:
 @export("RectArea")
 func area(r Rect) float64 { return r.W * r.H }
 ```
+
+## Limitations
 
 An overloaded method can't satisfy an interface method of the plain name, and
 generic functions can't be overloaded yet.

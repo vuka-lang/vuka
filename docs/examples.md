@@ -1,7 +1,14 @@
 # Examples
 
+[[toc]]
+
+## Introduction
+
 Examples follow one file type per job: rendering in `.vuka.html`, logic in
-`.go` or `.vuka`, pages under `pages/` and service constructors registered on the app.
+`.go` or `.vuka`, pages under `pages/` and service constructors registered on
+the app. The small ones below show the shape; the repository holds whole apps.
+
+## Whole Apps {#apps}
 
 Whole apps written this way are in the repository:
 [`examples/folder-routes`](https://github.com/vuka-lang/vuka/tree/main/examples/folder-routes)
@@ -15,9 +22,10 @@ with `go generate` and run with `go run .`) and the apps of
 Each conformance app is written once, in Vuka, and CI checks that it
 answers alike built by `vuka build` and ejected to plain Go.
 
-## Counter
+## A Counter {#counter}
 
-Save as `pages/counter.vuka.html`:
+A live page that counts clicks on the server. Save it as
+`pages/counter.vuka.html`:
 
 ```html
 package pages
@@ -28,7 +36,10 @@ func (p *Counter) Increment() { p.n++ }
 <main><button onClick={Increment}>{n}</button></main>
 ```
 
-## Browser state
+## Browser State {#browser-state}
+
+A component that opens and closes a section in the browser, with no server
+round trip:
 
 ```html
 package components
@@ -42,9 +53,10 @@ type Disclosure struct { open ui.State[bool] }
 </section>
 ```
 
-## Routed application
+## A Routed Application {#routed-application}
 
-See [Web getting started](/web/getting-started) for startup with
-`web.New(pages.Routes(), …)`, [Folder routes](/web/folder-routes) for dynamic
-segments and layouts, and [Dependency injection](/web/dependency-injection)
-for services and typed hooks. See [Testing](/web/testing) before deploying.
+See [Directory Structure](/web/getting-started) for startup with
+`web.New(pages.Routes(), …)`, [Folder Routes](/web/folder-routes) for dynamic
+segments and layouts, and [Dependency Injection](/web/dependency-injection)
+for services and typed hooks. See [Testing Web Apps](/web/testing) before
+deploying.

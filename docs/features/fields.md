@@ -1,13 +1,21 @@
-# Field attributes and references
+# Field Attributes & References
 
-**Go:** a struct field carries metadata only as a string tag
-(`` `json:"title"` ``), read by reflection and never checked; and there is no
+[[toc]]
+
+## Introduction
+
+In Go, a struct field carries metadata only as a string tag
+(`` `json:"title"` ``), read by reflection and never checked. And there is no
 way to name a field as a value — code that filters, sorts or queries by a field
 passes its name as a string (`"Title"`, `"author.name"`), which the compiler
 can't check either.
 
-**Vuka adds** typed attributes on fields, and `Type.Field` as a typed
-reference to a field:
+Vuka adds typed attributes on fields, and `Type.Field` as a typed reference to
+a field. Both are general-purpose — forms, validation, sorting, JSON, in-memory
+filters, query builders — and plain Go underneath. See also the
+[ORM](/orm/models), which declares its models and queries with them.
+
+## Declaring and Referencing Fields
 
 <!-- go:context
 type User struct{ Name string }
@@ -37,6 +45,9 @@ func Default(v any) DefaultValue { return DefaultValue{v} }
 var posts []Post
 -->
 
+This sample declares a `Post` with field attributes, then builds predicates and
+an ordering from field references:
+
 ```vuka
 type Post struct {
 	Timestamps
@@ -51,12 +62,7 @@ byAda := Post.Author.Name.Eq("ada")
 vuka.SortBy(posts, Post.Views.Desc())
 ```
 
-
-Both are general-purpose — forms, validation, sorting, JSON, in-memory
-filters, query builders — and plain Go underneath. See also the
-[ORM](/orm/models), which declares its models and queries with them.
-
-## Field attributes
+## Field Attributes
 
 An attribute goes at the end of its field, after the tag if there is one:
 
@@ -68,17 +74,21 @@ One form only: an attribute before the tag, or on a line of its own inside the
 struct, is an error that shows the right place. Any number may follow a field,
 an embedded field included; `A, B int @X` gives both fields the attribute.
 
+### Attribute Values
+
 An attribute is a Go value, type-checked like a
 [declaration's attribute](/features/attributes): `@T{…}` (a composite literal),
 `@T` (T's zero value), or `@f(…)` (a conversion or any call, such as
-`@Default(0)`). A wrong field or type is a compile error on the attribute. The
-built-ins (`@doc`, `@deprecated`, `@export`) are for declarations, and the
+`@Default(0)`). A wrong field or type is a compile error on the attribute.
+
+The built-ins (`@doc`, `@deprecated`, `@export`) are for declarations, and the
 fields of generic types can't carry attributes.
+
+### Reading Field Attributes
 
 Attributes leave the struct — the Go type is exactly the fields and tags — and
 are recorded at init, for any struct that has them, with no type decorator
-needed:
-
+needed. These functions read them:
 
 | | |
 |---|---|
@@ -93,7 +103,7 @@ Schema-aware libraries record field attributes through their generated metadata.
 For live shapes, declare field attributes and decorated hooks directly in the
 `.vuka.html` header; see [hooks](/ui/stateful#hooks).
 
-## Field references
+## Field References
 
 `Post.Title`, where `Post` is a struct type and `Title` one of its fields, is a
 value: a typed reference to the field. Go has no meaning for it (only
@@ -101,6 +111,7 @@ value: a typed reference to the field. Go has no meaning for it (only
 ambiguity. Statics and method expressions keep theirs; a name that is both a
 field and a static reached through an embedded type is an error.
 
+### Following Relations and Embedded Fields
 
 A reference goes on through the field's type:
 
@@ -110,6 +121,8 @@ A reference goes on through the field's type:
   reach the user's fields (Related wins over the type's own fields);
 - through embedded structs, as Go promotes fields: `Post.Created` from an
   embedded `Timestamps`.
+
+### Reference Types
 
 The reference's type depends on the last field's type, so only the
 predicates that make sense type-check:
@@ -129,19 +142,19 @@ An [ORM model](/orm/queries#conditions) is different: its fields are the typed
 fields `orm generate` writes, so `Post.Title` is `PostFields.Title`, an
 `orm.TextField[string]`, and its conditions are the engine's.
 
-### Predicates and orderings
+### Predicates and Orderings
 
 A predicate is data — a `vuka.Pred[T]` with an `Op` (`vuka.OpEq`,
 `vuka.OpContains`, …), the field's `Path` and the `Value` — combined with
 `vuka.And`, `vuka.Or` and `vuka.Not`. A query builder translates it;
-`p.Match(t)` evaluates it in memory, and `p.String()` writes it:
+`p.Match(t)` evaluates it in memory, and `p.String()` writes it. This sample
+combines three predicates and prints the result:
 
 ```vuka
 q := vuka.Or(vuka.And(Post.Title.Contains("go"), Post.Views.Gt(100)), Post.Home.IsNil())
 fmt.Println(q)          // ((Title contains "go" AND Views > 100) OR Home IS NIL)
 q.Match(post)           // true or false
 ```
-
 
 Because a predicate is typed by `T`, an API taking `vuka.Pred[Post]` rejects
 a predicate on `User` at compile time. A comparison is false when a nil pointer
@@ -154,7 +167,9 @@ slice by them, stably, the first order deciding.
 "Name"]`), `Fields()` (each step's `reflect.StructField`), `Index()`, `Attrs()`
 of the last field, and `Value(root)`.
 
-### What it becomes
+### What It Becomes
+
+A reference such as `Post.Author.Name` compiles to this:
 
 <!-- go:fragment -->
 ```go
@@ -165,7 +180,9 @@ The field by address, the call plain Go writes: the compiler checks the
 fields and the editor's hover, go to definition and rename land on them.
 `RefTo` runs the function once per instantiation, on a value of `Post` made
 for it, and finds the field the address is of; `OrderedRefTo`,
-`StringRefTo`, `CompareRefTo` and `NullableRefTo` are the other kinds. An unknown field is an error
+`StringRefTo`, `CompareRefTo` and `NullableRefTo` are the other kinds.
+
+An unknown field is an error
 with a suggestion (`Post has no field Titel; did you mean Title?`), as is an
 unexported field of another package's type, or a name more than one embedded
 struct supplies.
@@ -175,6 +192,7 @@ reference as the source writes it: `cannot use Post.Views (value of struct type
 vuka.OrderedRef[Post, int]) as int value`, as they quote statics as
 `Post.Limit`.
 
-References to the fields of standard-library types (`http.Cookie.Name`) are
-found only when the package is type-checked for another reason; references
-inside an attribute's arguments aren't lowered.
+> [!NOTE]
+> References to the fields of standard-library types (`http.Cookie.Name`) are
+> found only when the package is type-checked for another reason; references
+> inside an attribute's arguments aren't lowered.

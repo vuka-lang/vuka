@@ -1,5 +1,13 @@
 # Search
 
+[[toc]]
+
+## Introduction
+
+You can search a model's rows by text, by similarity to a misspelt word, or by
+the distance between embedding vectors. Each kind of search is written for the
+database the query runs on.
+
 <!-- go:context
 var (
 	doc  = orm.SearchVector("title", "body")
@@ -10,8 +18,8 @@ var (
 )
 -->
 
-Text search (Django's `contrib.postgres.search`), trigram similarity and
-vector search (pgvector's), each written for the database the query runs on:
+The table shows how text search, trigram similarity and vector search
+(pgvector's) are written on each database:
 
 | | Postgres | MySQL | SQLite |
 |---|---|---|---|
@@ -21,13 +29,14 @@ vector search (pgvector's), each written for the database the query runs on:
 | trigrams | `pg_trgm` (`%`, `similarity`, GIN/GiST) | `LIKE` | `similarity` in Go, unindexed |
 | vectors | pgvector (`<->`, `<=>`, `<#>`, HNSW/IVFFlat) | stored, not searched | distances in Go, unindexed (O(n)) |
 
-So a program developed on SQLite searches the same way on Postgres in
-production — with indexes there.
+> [!NOTE]
+> A program developed on SQLite searches the same way on Postgres in
+> production — with indexes there.
 
-## Declaring
+## Declaring Search Fields {#declaring}
 
-Search attributes on a model's fields declare what migrations make:
-
+Search attributes on a model's fields declare what migrations make. This
+model has a document, a trigram index and an embedding:
 
 ```go
 type Article struct {
@@ -58,21 +67,25 @@ func (Article) Indexes() []orm.Index { return []orm.Index{orm.FullTextIndex("tit
 | `@orm.Dims(n)` | an `orm.Vector`'s dimensions |
 | `@orm.HNSW{Metric, M, EfConstruction}`, `@orm.IVFFlat{Metric, Lists}` | a pgvector index; `Metric` is `orm.L2`, `orm.Cosine` or `orm.IP` |
 
+### Search on SQLite
+
 On SQLite a document becomes an external-content FTS5 table (`articles_fts`)
 over its fields, with triggers keeping it in step; migrations make and drop
 it like an index. An `english` config stems with FTS5's `porter` tokenizer.
 A model with no document is searched by `LIKE` on SQLite, unindexed.
+
+### Indexes as Methods
 
 The same indexes can be written as an `Indexes()` method (`orm.GinIndex("search")`,
 `orm.FullTextIndex(…)`, `orm.HnswIndex("embedding").Ops(orm.Cosine)`,
 `orm.GinIndex("title").Trigram()`) and a `Generated()` method for the
 `TSVector` column.
 
-## Text
+## Full-Text Search {#text}
 
 `orm.SearchVector(fields…)` is a document of fields; `orm.Match` is its
-condition and `orm.SearchRank` its relevance, an expression to order by:
-
+condition and `orm.SearchRank` its relevance, an expression to order by. This
+fragment finds and ranks articles:
 
 <!-- go:fragment -->
 ```go
@@ -80,11 +93,15 @@ doc, q := orm.SearchVector(ArticleFields.Title.Name(), ArticleFields.Body.Name()
 found, err := orm.Objects[Article]().Filter(orm.Match(doc, q)).Order(orm.SearchRank(doc, q).Desc()).All(ctx)
 ```
 
+### Query Syntax
+
 The query is web search syntax: every word must match, `"a phrase"` in order,
 `or` between alternatives, `-word` must not, and `word*` matches words
 starting with it — `go -java "web server" or rust*`. The text is always a
 bound argument; on SQLite it is rewritten into an FTS5 query of quoted
 phrases, never FTS5 syntax of the user's.
+
+The functions are:
 
 | | |
 |---|---|
@@ -93,6 +110,8 @@ phrases, never FTS5 syntax of the user's.
 | `orm.Match(doc, q)` | the condition |
 | `orm.SearchRank(doc, q)` | the rank, an `OrderedExpr[float64]` |
 | `orm.Headline(field, q)` | an excerpt with the words marked |
+
+### Differences Between Databases
 
 Where the databases differ:
 
@@ -107,11 +126,11 @@ Where the databases differ:
   `orm.HighlightAll` map onto `ts_headline`'s options and onto
   `snippet`/`highlight`.
 
-## Trigrams
+## Trigram Similarity {#trigrams}
 
 `orm.Similarity(field, text)` is how alike a field is to a text, from 0 to
-1 — for typos and near matches:
-
+1 — for typos and near matches. This fragment finds titles close to a
+phrase:
 
 <!-- go:fragment -->
 ```go
@@ -119,12 +138,11 @@ like, err := orm.Objects[Article]().Annotate("sim", orm.Similarity(ArticleFields
 	Filter(orm.Q{"sim__gt": 0.3}).OrderBy("-sim").All(ctx)
 ```
 
-## Vectors
+## Vector Search {#vectors}
 
 `orm.Vector` is a `[]float32` column. `orm.L2Distance`, `orm.CosineDistance`
 and `orm.InnerProduct` (negated, as pgvector's `<#>`: smaller is nearer)
 are `OrderedExpr[float64]`s, so they filter and order:
-
 
 <!-- go:fragment -->
 ```go
@@ -133,9 +151,10 @@ near, err := orm.Objects[Article]().Filter(orm.CosineDistance(emb, v).Lt(0.3)).
 	Order(orm.CosineDistance(emb, v).Asc()).All(ctx)
 ```
 
+### Nearest Neighbours
+
 `Nearest` is the k-nearest-neighbour query: ordered by distance, nearest
 first, annotated `distance`:
-
 
 <!-- go:fragment -->
 ```go
@@ -148,24 +167,23 @@ index of that metric serves it. Options: a metric, `orm.K(n)`,
 (`hnsw.ef_search`) and `orm.Probes(n)` (`ivfflat.probes`), the last two set
 with `SET LOCAL` in a transaction of the query's own:
 
-
 <!-- go:fragment -->
 ```go
 top, err = orm.Objects[Article]().Nearest(emb, v, orm.K(10), orm.MaxDistance(0.4), orm.EfSearch(100)).All(ctx)
 ```
 
-MySQL stores vectors but doesn't search them: a `VECTOR(n)` column where the
-server has the type (MySQL 9, MariaDB 11.7), else `VARBINARY(4n)` holding the
-same little-endian float32s, so an upgraded server converts it in place.
-Vector indexes are left out there, and a distance, `Nearest` or `Hybrid`
-fails when the query is written, naming the field.
+> [!WARNING]
+> MySQL stores vectors but doesn't search them: a `VECTOR(n)` column where the
+> server has the type (MySQL 9, MariaDB 11.7), else `VARBINARY(4n)` holding the
+> same little-endian float32s, so an upgraded server converts it in place.
+> Vector indexes are left out there, and a distance, `Nearest` or `Hybrid`
+> fails when the query is written, naming the field.
 
-## Hybrid
+## Hybrid Search {#hybrid}
 
 `Hybrid` ranks rows by a text match and by a vector distance and fuses the
 ranks by reciprocal rank (a row scores `w/(k + rank)` per ranking), annotated
 `rank`, `distance` and `score`, best first. It runs on Postgres and on SQLite:
-
 
 <!-- go:fragment -->
 ```go
