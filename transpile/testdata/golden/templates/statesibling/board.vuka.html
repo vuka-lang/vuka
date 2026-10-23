@@ -1,0 +1,20 @@
+package main
+
+// Board's tracked state is written by methods in board.vuka, beside it.
+type Board struct {
+	ui.Live
+	rows []Row
+	n    int
+	tab  ui.State[string]
+}
+
+func (b *Board) Add(name string) {
+	b.push(name)
+}
+<section>
+  <p>{len(rows)} rows, n: {n}</p>
+  for _, r := range rows {
+    <p>{r.Name}</p>
+  }
+  <button onClick={Add("x")}>add</button>
+</section>

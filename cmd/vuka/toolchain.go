@@ -48,6 +48,7 @@ type goMod struct {
 		Old struct{ Path, Version string }
 		New struct{ Path, Version string }
 	}
+	Tool []struct{ Path string }
 }
 
 func readGoMod(dir string) (*goMod, error) {

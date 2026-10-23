@@ -189,7 +189,7 @@ func isConversion(e *engine, call *ast.CallExpr) bool {
 // attribute's statements, and assignments of states in methods.
 // It returns the spans of the on… attributes holding statements.
 func (e *engine) lowerWrites(f *fileState) []span {
-	if !f.target.has("VukaState") {
+	if !f.target.has("VukaState") && (f.target != nil || !e.statesTarget()) {
 		return nil
 	}
 	if f.writeDone == nil {
@@ -198,6 +198,18 @@ func (e *engine) lowerWrites(f *fileState) []span {
 	attrSpans := e.lowerAttrWrites(f)
 	e.lowerMethodWrites(f, attrSpans)
 	return attrSpans
+}
+
+// statesTarget reports whether a file of the package renders with a target
+// declaring VukaState: a file without JSX of its own — a .vuka file holding
+// a shape's methods — writes states as the shape's file does.
+func (e *engine) statesTarget() bool {
+	for _, f := range e.vuka {
+		if f.target.has("VukaState") {
+			return true
+		}
+	}
+	return false
 }
 
 // lowerAttrWrites lowers each on… attribute holding statements to a chain.

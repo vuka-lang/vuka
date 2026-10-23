@@ -20,6 +20,30 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.0.1 — unreleased
+
+- A shape's methods may live in a `.vuka` file beside its `.vuka.html`
+  file: reads and writes of its tracked server state (`p.rows = v`,
+  `len(p.rows)`, `p.n++`, `p.rows[i].Done = true`) and writes of its
+  `ui.State` fields are lowered there exactly as in the header. In 2.0.0
+  only the header's methods were, so a method beside the shape failed with
+  a Go type error ([E0002](/errors/E0002)) naming `uigen.Assign`. See
+  [where its methods live](/ui/stateful#where-its-methods-live).
+- A `.go` file reading or writing tracked state — which the compiler can't
+  rewrite there — is now [E0155](/errors/E0155), naming the field, the
+  shape file declaring it and the function, and saying to move the method
+  to a `.vuka` file or into the header.
+- `vuka vet` runs [vukavet](/tools/vukavet)'s checks by default. In 2.0.0
+  plain `vuka vet ./...` ran go vet's own analyzers, so vukavet's reports
+  (a live list without keys, [W0102](/errors/W0102), among them) appeared
+  only with `-vettool=$(go tool -n vukavet)`. It now uses the app's `go
+  tool vukavet` when its `go.mod` declares the tool, else a `vukavet`
+  beside `vuka` or on `PATH` of its version, else one it builds at its
+  version into the user's cache, and says on stderr when there is none.
+  `-vettool=…` still overrides it; `VUKA_VUKAVET` names one, or `off` for
+  go vet's own analyzers only. An app that passed `vuka vet` may now see
+  vukavet's warnings.
+
 ## v2.0.0 — 2026-10-23
 
 vuka 2.0 has one way to write each part of a UI: markup lives in

@@ -39,15 +39,31 @@ registers for an app it never sees is left to the boot.
 
 ## A `.vuka` app
 
-The same checks run on the Go a `.vuka` app becomes, with its positions:
+`vuka vet` runs the same checks on the Go a `.vuka` app becomes, with its
+positions:
 
 ```sh
-vuka vet -vettool=$(go tool -n vukavet) ./...
+vuka vet ./...
 ```
 
 ```
 decorated/users.vuka:36: E0401: GET /api/users is declared twice: by ListUsers at users.vuka:32 and by ShowUser at users.vuka:36
 ```
+
+It hands go vet a vukavet as `-vettool`, the first of:
+
+1. `VUKA_VUKAVET`, a path (`off` runs go vet's own analyzers only);
+2. the app's own, `go tool -n vukavet`, when its `go.mod` declares the
+   tool (`go get -tool github.com/vuka-lang/vuka/cmd/vukavet/v2`) — the
+   way to pin it with the app;
+3. a `vukavet` beside the `vuka` command, then one on `PATH`, built at
+   this vuka's version;
+4. one `vuka vet` builds at its own version (`go install …@version`, once,
+   into the user's cache directory).
+
+When none can be found or built, `vuka vet` says so and why on stderr and
+runs go vet's own analyzers. `-vettool=…` replaces the choice:
+`vuka vet -vettool=$(go tool -n vukavet) ./...` still works.
 
 ## Editors
 

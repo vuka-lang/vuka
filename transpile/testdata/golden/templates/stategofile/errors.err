@@ -1,0 +1,2 @@
+board.go:4:4: b.rows is Board's tracked server state, declared in board.vuka.html, which the compiler lowers only in Vuka files: move (*Board).load from this .go file to a .vuka file, or into board.vuka.html's header
+board.go:12:15: b.rows is Board's tracked server state, declared in board.vuka.html, which the compiler lowers only in Vuka files: move size from this .go file to a .vuka file, or into board.vuka.html's header
