@@ -147,6 +147,117 @@ Format Selection (`textDocument/rangeFormatting`) formats only the selected
 lines of a `.vuka` or `.vuka.html` file by [`vuka fmt`](/tools/cli#fmt)'s
 rules; the rest of the file stays as it is. A file that doesn't parse is left
 alone.
+### Telling Shape Names Apart {#shape-tokens}
+
+In a `.vuka.html` file, semantic tokens say what each name in the markup reads,
+so a theme colours them apart:
+
+| Token type | A name that is |
+|---|---|
+| `vukaProp` | a prop: an exported field of the struct |
+| `vukaState` | server state: an unexported field |
+| `vukaBrowserState` | browser state: a `ui.State[T]` field |
+| `vukaEvent` | an event: an exported method an `on…` attribute sends |
+| `vukaComponent` | a component tag: `<components.Card>` |
+| `vukaLocal` | a local a markup statement declares: `for _, r := range rows` |
+
+The field declarations in the header carry the same types with the
+`declaration` modifier. The rest of the Go — calls, types, packages — keeps
+gopls's tokens. The VS Code extension maps each type to a TextMate scope
+(`variable.other.constant` for props, `variable.other.property` for server
+state, `variable.language` for browser state, `entity.name.function` for
+events, `entity.name.type.class` for components), so themes without rules
+for them still colour them apart. To pick colours yourself:
+
+```json
+"editor.semanticTokenColorCustomizations": {
+  "rules": { "vukaBrowserState": "#c586c0", "vukaEvent": { "bold": true } }
+}
+```
+
+Other editors read the types from the server's legend, after gopls's.
+
+### Seeing What a Name Reads {#holes-events}
+
+Hover on a name in a hole or a statement says what it is, its type, and
+where it is set:
+
+- `{stats.Posts}` on `stats`: **server state** `stats Stats` · set in
+  `mount` (@ui.Mount), and on a live shape that the server keeps it
+  between events
+- a prop: set by the tag's attribute (`title` for `Title`), or on a page
+  from the matching `[title]` path segment, else the `title` query parameter
+- browser state: kept in the browser, and the `on…` attributes setting it
+- a local: the statement declaring it, `for _, r := range rows`
+
+Hover on an `on…` attribute says where its handler runs:
+`onClick={Add}` is an **event** · runs on the server · patches the page;
+`onClick={open = !open}` sets browser state in the browser, with no round
+trip; `onClick={ui.JS.Toggle("#menu")}` runs browser commands;
+`onClick={open = false; Save()}` sets browser state, then sends the event.
+
+These come from the file's text, so they keep up while you type, before the
+next build.
+
+### Writing Component Tags {#component-tags}
+
+Inside a component's tag, completion lists the attributes it takes, each
+with its type: a struct's props by their attribute names (`ownerID` for
+`OwnerID`), a function's parameters. Required ones are marked and sort
+first. The rule is the compiler's:
+
+- a struct's props may be left out: an attribute left out is the field's
+  zero value
+- a function's parameters are all required, except a first
+  `context.Context`, `children`, a `ui.Node` (a slot, written
+  `<slot:name>`) and a variadic last one
+
+Hover on the tag name shows what the component is (component, live
+component, function), a link to its file at its declaration, its attributes
+with their types, and its slots.
+
+An attribute the component doesn't take, and a function's parameter left
+out ([E0144](/errors/E0144)), are the compiler's errors, underlined as you
+type.
+
+### Following Routes {#routes}
+
+For the pages under `pages/`, the editor reads the route table the module's
+last build made, the one [`vuka routes`](/web/folder-routes#vuka-routes) prints:
+
+- **A code lens** above each page's struct and each handler: `GET
+  /orgs/{org} · live · layout org.Layout · guard org.Guard`. In VS Code,
+  clicking it opens the **Vuka Routes** output with the route's entry —
+  middleware, guards, layouts, file — and the module's whole table;
+  **Vuka: Show Routes** opens the table from the command palette.
+- **Links**: a `urls.Orgs.Org(7).Edit.Path()` chain and an `href="/orgs/new"`
+  literal naming a page are links to the page's file, and go to definition
+  on them opens the page at its struct — in `.go` files too, for chains.
+- **References** on a page's struct name (or on the file's package clause)
+  list the chains and literal `href`s naming the page, besides gopls's
+  references to the type.
+
+> [!NOTE]
+> A literal `href` matches a route by its pattern: `/orgs/7?tab=x` is
+> `/orgs/{org}`'s page, and `/orgs/new` wins over `/orgs/{org}`.
+
+### Renaming Pages {#renaming-pages}
+
+Renaming or moving a file or folder under `pages/` in the editor's explorer
+renames the `urls` chains naming its pages, before the rename: renaming
+`pages/orgs/new.vuka.html` to `create.vuka.html` makes `urls.Orgs.New` into
+`urls.Orgs.Create` across the module, and renaming the folder `pages/orgs`
+to `pages/teams` makes every `urls.Orgs.…` into `urls.Teams.…`, keeping
+their arguments. The generated `pages/urls` package follows at the next
+build.
+
+> [!WARNING]
+> Literal `href`s and paths in strings aren't rewritten: a rename changes
+> the page's URL. Find them first with references on the page's struct.
+
+A page named by its type — a struct in a `.go` or `.vuka` file — keeps its
+name when its file is renamed; only moving it to another folder changes its
+chain.
 
 ## Installing gopls {#installing-gopls}
 

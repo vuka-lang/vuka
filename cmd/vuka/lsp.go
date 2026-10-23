@@ -508,6 +508,8 @@ type proxy struct {
 
 	tsOnce sync.Once
 	ts     atomic.Pointer[tsServer] // the TypeScript server for script blocks, once started
+
+	sem semState // markup tokens, code lenses and route links (lsp_semantic_html.go, lsp_routes.go)
 }
 
 func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
@@ -722,6 +724,9 @@ func (p *proxy) fromEditor() {
 				p.schedule()
 			}
 			continue
+		case "workspace/willRenameFiles":
+			go p.willRenameFiles(&m)
+			continue
 		case "workspace/didChangeWatchedFiles":
 			_ = p.gopls.write(body)
 			var params struct {
@@ -747,6 +752,9 @@ func (p *proxy) fromEditor() {
 			case m.isRequest():
 				p.vukaRequest(&m, p.real(path))
 			}
+			continue
+		}
+		if strings.HasSuffix(path, ".go") && p.goRouteRequest(&m, path) {
 			continue
 		}
 		if m.Method == "textDocument/completion" && jsxTriggered(m.Params) {
@@ -935,6 +943,7 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 						caps["semanticTokensProvider"] = map[string]any{"legend": legend, "full": true, "range": true}
 					}
 				}
+				p.extendCaps(caps)
 			}
 		}
 	}
@@ -1085,6 +1094,10 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	if p.tsRequest(m, path) {
 		return
 	}
+	done, shapeNote := p.shapeRequest(m, path)
+	if done {
+		return
+	}
 	if !vukaMethods[m.Method] && !semanticTokensMethods[m.Method] {
 		reply(nil)
 		return
@@ -1111,7 +1124,7 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		// tokens remapped onto it would be wrong. Empty is better than garbage,
 		// like the diagnostic gating; the next settled build re-highlights.
 		p.mu.Unlock()
-		reply(emptySemanticTokens())
+		reply(p.markupOnlyTokens(vf))
 		return
 	}
 	var params map[string]any
@@ -1214,6 +1227,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	}
 	if hasPos && m.Method == "textDocument/hover" {
 		vr.note = islandHookNote(p.modRoot, vf.source, vf.text(), offsetOf(vf.text(), srcPos))
+		if shapeNote != "" {
+			vr.note = strings.TrimPrefix(vr.note+"\n\n---\n\n"+shapeNote, "\n\n---\n\n")
+		}
 	}
 	if hasPos && !vr.attr && (m.Method == "textDocument/completion" || m.Method == "textDocument/hover") {
 		vr.spot = staticSpotAt(m.Method, vf.text(), offsetOf(vf.text(), srcPos))
@@ -1234,7 +1250,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		// under the Go extension, that's no answer rather than an error.
 		switch {
 		case vr.method == "textDocument/documentLink":
-			reply["result"] = p.documentLinks(vr.file)
+			reply["result"] = p.withRouteLinks(p.documentLinks(vr.file), vr.file)
 		case vr.method == "textDocument/foldingRange":
 			reply["result"] = foldingRanges(vr.file, nil)
 		case vr.blocks != nil:
@@ -1264,7 +1280,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			}()
 			return
 		case semanticTokensMethods[vr.method]:
-			reply["result"] = emptySemanticTokens()
+			reply["result"] = p.markupOnlyTokens(vr.file)
 		case quietMethods[vr.method]:
 			p.logf("%s: %s", vr.method, m.Error)
 			reply["result"] = nil
@@ -1366,7 +1382,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			v = shapeSymbols(vr.file, v)
 		}
 	case "textDocument/documentLink":
-		v = p.withFileLinks(v, vr.file)
+		v = p.withRouteLinks(p.withFileLinks(v, vr.file), vr.file)
 	case "textDocument/foldingRange":
 		v = foldingRanges(vr.file, v)
 	}

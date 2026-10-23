@@ -284,6 +284,7 @@ func (p *proxy) build() {
 			p.logf("folder routes: %v", err)
 		} else {
 			gens = g
+			p.setRoutes(modRoot, res, g)
 			if err := res.err(); err != nil {
 				p.logf("folder routes: %v", err)
 			}

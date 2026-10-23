@@ -43,6 +43,25 @@ the `github.com/vuka-lang/vuka` package your module requires.
   find classes in shapes (`class="…"`, `class={…}` strings, `…Class` helpers)
   and turn Emmet on in `.vuka.html` files. See [Tailwind
   CSS](/tools/editors#tailwind).
+- **Shape names coloured by what they read.** `vuka lsp` gives the names in
+  a `.vuka.html` file's markup semantic tokens of their own — a prop,
+  server state, browser state, an event, a component tag, a template local —
+  after gopls's in the legend; the VS Code extension maps them to scopes
+  themes colour apart. See [telling shape names apart](/tools/editors#shape-tokens).
+- **Hover on holes and events.** A hole's name says what it reads, its type
+  and where it is set (`set in mount (@ui.Mount)`); an `on…` attribute says
+  whether it runs on the server and patches the page, or runs in the
+  browser. See [seeing what a name reads](/tools/editors#holes-events).
+- **Component tags.** Completion in a component's tag lists its attributes
+  with their types, required ones marked (a function's parameters; a
+  struct's props may be left out); hover on the tag shows them and links
+  its file. See [writing component tags](/tools/editors#component-tags).
+- **Routes in the editor.** A code lens above each page and handler (`GET
+  /orgs/{org} · live · layout org.Layout · guard org.Guard`), `urls` chains
+  and literal `href`s as links and definitions to the page, references on a
+  page listing them, and renaming a page file or folder under `pages/`
+  renaming the `urls` chains naming it. See [following
+  routes](/tools/editors#routes) and [renaming pages](/tools/editors#renaming-pages).
 
 ## v2.2.0 — 2026-10-23
 

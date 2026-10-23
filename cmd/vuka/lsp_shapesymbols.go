@@ -243,18 +243,15 @@ type shapeSplit struct {
 	markup         int // the first top-level element's <
 }
 
-// splitShape finds a shape's header and markup; false when it has no markup
-// or no package clause.
+// splitShape finds a shape's header and markup, the boundary read by
+// shapeBounds (lsp_shapescan.go); false when it has no markup or no package
+// clause.
 func splitShape(src []byte) (shapeSplit, bool) {
-	elems := scanMarkup(src).elems
-	if len(elems) == 0 {
+	_, _, first := shapeBounds(src)
+	if first < 0 {
 		return shapeSplit{}, false
 	}
-	first := elems[0].open.start
-	for _, e := range elems {
-		first = min(first, e.open.start)
-	}
-	head := bytes.TrimRight(src[:bytes.LastIndexByte(src[:first], '\n')+1], " \t\r\n")
+	head := bytes.TrimRight(src[:first], " \t\r\n")
 	pkg := bytes.Index(head, []byte("package "))
 	if pkg < 0 {
 		return shapeSplit{}, false

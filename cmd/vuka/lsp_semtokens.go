@@ -2,7 +2,7 @@ package main
 
 import (
 	"encoding/json"
-	"sort"
+	"strings"
 )
 
 // emptySemanticTokens is a well-formed empty semantic-tokens result.
@@ -16,8 +16,9 @@ type semToken struct{ line, char, length, typ, mods uint32 }
 // length, type, modifiers]; each is decoded to absolute generated coordinates,
 // its place found in the source by the same map hover uses, tokens landing in
 // generated-only or edited text dropped, and the survivors re-encoded as LSP
-// deltas in source coordinates. The legend the editor saw is gopls's own, so the
-// type/modifier indices carry through unchanged.
+// deltas in source coordinates. The legend the editor saw is gopls's own with
+// Vuka's markup types after it, so gopls's indices carry through unchanged; a
+// .vuka.html file's markup tokens (lsp_semantic_html.go) are laid over them.
 func (p *proxy) semanticTokens(vf *vfile, result json.RawMessage) map[string]any {
 	if vf.isTempl() {
 		return emptySemanticTokens()
@@ -26,7 +27,7 @@ func (p *proxy) semanticTokens(vf *vfile, result json.RawMessage) map[string]any
 		Data []uint32 `json:"data"`
 	}
 	if json.Unmarshal(result, &res) != nil || len(res.Data) < 5 {
-		return emptySemanticTokens()
+		return p.markupOnlyTokens(vf)
 	}
 	toks := make([]semToken, 0, len(res.Data)/5)
 	var line, char uint32
@@ -45,24 +46,11 @@ func (p *proxy) semanticTokens(vf *vfile, result json.RawMessage) map[string]any
 			toks = append(toks, semToken{sl, sc, slen, res.Data[i+3], res.Data[i+4]})
 		}
 	}
-	sort.Slice(toks, func(i, j int) bool {
-		if toks[i].line != toks[j].line {
-			return toks[i].line < toks[j].line
-		}
-		return toks[i].char < toks[j].char
-	})
-	data := make([]uint32, 0, len(toks)*5)
-	var pl, pc uint32
-	for _, t := range toks {
-		dLine := t.line - pl
-		dChar := t.char
-		if dLine == 0 {
-			dChar = t.char - pc
-		}
-		data = append(data, dLine, dChar, t.length, t.typ, t.mods)
-		pl, pc = t.line, t.char
+	if strings.HasSuffix(vf.source, ".vuka.html") {
+		// The markup's names, classified from the text, over gopls's.
+		toks = mergeTokens(toks, p.markupTokens(vf.text()))
 	}
-	return map[string]any{"data": data}
+	return encodeTokens(toks)
 }
 
 // tokenSource maps a token at (line, char) spanning length UTF-16 units in the
