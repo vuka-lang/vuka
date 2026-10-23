@@ -190,40 +190,35 @@ func headerDecls(src []byte, from, to int) []headerDecl {
 }
 
 // shapeFile is a .vuka.html file read for a refactor: its shape, imports
-// and header declarations.
+// and Go declarations, in either form (transpile.SplitTemplate finds the
+// boundary). Offsets are the file's own: the script form's Go is read
+// through transpile.HeaderView, the same text with the script's tags as
+// spaces.
 type shapeFile struct {
 	path    string
 	src     []byte
 	shape   *transpile.Shape
+	script  bool // the <script lang="go"> form
 	imports importSection
+	goEnd   int // where its Go ends: the script's </script>, or the markup
 	markup  int // the offset its markup starts at
 	decls   []headerDecl
 }
 
 // readShape reads a .vuka.html file's shape; nil when it has none or its
-// header doesn't parse.
+// Go doesn't parse.
 func readShape(path string, src []byte) *shapeFile {
-	sh, err := transpile.ParseShape(src)
-	if sh == nil || err != nil || sh.Markup < 0 {
+	parts, perr := transpile.SplitTemplate(src)
+	if perr != nil || parts.Markup < 0 {
 		return nil
 	}
-	f := &shapeFile{path: path, src: src, shape: sh, imports: readImports(src)}
-	f.markup = lineOffset(src, sh.Markup)
-	f.decls = headerDecls(src, f.imports.end, f.markup)
-	return f
-}
-
-// lineOffset is where the line (from 0) starts.
-func lineOffset(src []byte, line int) int {
-	off := 0
-	for l := 0; l < line && off < len(src); l++ {
-		i := bytes.IndexByte(src[off:], '\n')
-		if i < 0 {
-			return len(src)
-		}
-		off += i + 1
+	sh, err := transpile.ParseShape(src)
+	if sh == nil || err != nil {
+		return nil
 	}
-	return off
+	f := &shapeFile{path: path, src: src, shape: sh, script: parts.IsScript(), imports: readImports(src), goEnd: parts.GoEnd, markup: parts.Markup}
+	f.decls = headerDecls(transpile.HeaderView(src), f.imports.end, f.goEnd)
+	return f
 }
 
 // methods are the shape's methods in its header.

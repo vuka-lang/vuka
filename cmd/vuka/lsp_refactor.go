@@ -17,6 +17,7 @@ import (
 	"time"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Refactors and quick fixes. vuka lsp adds code actions of its own to
@@ -122,22 +123,33 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 		return false
 	}
 	real := p.real(path)
+	if strings.HasSuffix(path, ".go") && !p.routeGo(path) && !hasShapes(filepath.Dir(real)) {
+		return false
+	}
 	src, ok := p.buffer(real)
 	if !ok {
 		return false
 	}
 	req := actionRequest{path: real, src: src, start: offsetOf(src, params.Range.Start), end: offsetOf(src, params.Range.End),
 		diags: params.Context.Diagnostics, only: params.Context.Only, read: p.readFunc(), uri: p.display}
-	actions := codeActions(req)
-	if len(actions) == 0 {
-		return false
-	}
+	ch := make(chan []any, 1)
 	if isVuka(path) || p.routeGo(path) {
-		pendingActions.Store(string(m.ID), actions)
+		// gopls answers it on the generated Go; vuka's join its answer.
+		pendingActions.Store(string(m.ID), ch)
+		go func() { ch <- codeActions(req) }()
 		return false
 	}
-	// A plain .go file: gopls answers it directly, so ask it here.
+	// A plain .go file: gopls answers it directly, so ask it here, when vuka
+	// has an action of its own for it.
 	go func() {
+		actions := codeActions(req)
+		if len(actions) == 0 {
+			p.mu.Lock()
+			p.goReqs[string(m.ID)] = true
+			p.mu.Unlock()
+			_ = p.gopls.send(m)
+			return
+		}
 		raw, _ := p.ask(m.Method, json.RawMessage(m.Params))
 		var got any
 		_ = json.Unmarshal(raw, &got)
@@ -147,15 +159,46 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 	return true
 }
 
+// actionsWait is how long gopls's answer to a code action request waits
+// for vuka's own actions.
+var actionsWait = 5 * time.Second
+
+// hasShapes reports whether dir holds a .vuka.html file.
+func hasShapes(dir string) bool {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if strings.HasSuffix(e.Name(), ".vuka.html") {
+			return true
+		}
+	}
+	return false
+}
+
 // withRefactors adds the code actions vuka worked out for the editor's
-// request id to gopls's answer v.
+// request id to gopls's answer v; it waits for them, so it runs on a
+// goroutine of its own.
 func withRefactors(v any, id json.RawMessage) any {
 	got, ok := pendingActions.LoadAndDelete(string(id))
 	if !ok {
 		return v
 	}
 	list, _ := v.([]any)
-	return append(list, got.([]any)...)
+	select {
+	case actions := <-got.(chan []any):
+		if len(actions) == 0 {
+			return v
+		}
+		return append(list, actions...)
+	case <-time.After(actionsWait):
+		return v
+	}
+}
+
+// pendingRefactors reports whether vuka works out actions of its own for
+// the editor's request id.
+func pendingRefactors(id json.RawMessage) bool {
+	_, ok := pendingActions.Load(string(id))
+	return ok
 }
 
 // refactorReply takes the editor's answers to the proxy's own requests
@@ -223,7 +266,10 @@ func (p *proxy) readFunc() load.ReadFunc {
 func addRefactorKinds(caps map[string]any) {
 	cap, ok := caps["codeActionProvider"].(map[string]any)
 	if !ok {
-		cap = map[string]any{"resolveProvider": true}
+		if caps["codeActionProvider"] != nil {
+			return // gopls's true: every kind
+		}
+		cap = map[string]any{}
 		caps["codeActionProvider"] = cap
 	}
 	kinds, _ := cap["codeActionKinds"].([]any)
@@ -503,8 +549,10 @@ var (
 	importInGroup = regexp.MustCompile(`^\s*(?:([\w.]+)\s+)?("[^"]*"|` + "`[^`]*`" + `)`)
 )
 
-// readImports reads a file's package clause and imports.
+// readImports reads a file's package clause and imports; a .vuka.html
+// file's in either form, at the file's offsets.
 func readImports(src []byte) importSection {
+	src = transpile.HeaderView(src)
 	var s importSection
 	off, inGroup, groupStart, inComment := 0, false, 0, false
 	for off < len(src) {
@@ -649,9 +697,7 @@ func importEdits(src []byte, drop map[string]bool, add []wantImport) []edit {
 	}
 	switch {
 	case len(s.groups) > 0:
-		closing := s.groups[0][1]
-		at := bytes.LastIndexByte(src[:closing-1], '\n') + 1 // the ) line
-		edits = append(edits, edit{at, at, lines.String()})
+		edits = append(edits, groupInserts(src, s, adds, specLine)...)
 	case len(s.singles) > 0:
 		first := s.singles[0]
 		sp := specOn(s.specs, first[0])
@@ -676,6 +722,48 @@ func importEdits(src []byte, drop map[string]bool, add []wantImport) []edit {
 			text += "import (\n" + lines.String() + ")\n"
 		}
 		edits = append(edits, edit{s.pkgEnd, s.pkgEnd, text})
+	}
+	return edits
+}
+
+// groupInserts adds imports to a file's first import ( … ) as gofmt
+// groups them: each in its place in the run of its kind (the standard
+// library's, or the others'), a run of its own after the last when there
+// is none.
+func groupInserts(src []byte, s importSection, adds []wantImport, specLine func(wantImport) string) []edit {
+	g := s.groups[0]
+	closeLine := bytes.LastIndexByte(src[:g[1]-1], '\n') + 1 // the ) line
+	var in []refImport
+	for _, sp := range s.specs {
+		if sp.start >= g[0] && sp.end <= g[1] {
+			in = append(in, sp)
+		}
+	}
+	var edits []edit
+	for _, a := range adds {
+		at, sep := -1, false
+		lastOfKind := -1
+		for i, sp := range in {
+			if isStd(sp.path) != isStd(a.path) {
+				continue
+			}
+			lastOfKind = i
+			if at < 0 && sp.path > a.path {
+				at = sp.start
+			}
+		}
+		switch {
+		case at >= 0:
+		case lastOfKind >= 0:
+			at = in[lastOfKind].end
+		default:
+			at, sep = closeLine, len(in) > 0
+		}
+		text := "\t" + specLine(a) + "\n"
+		if sep {
+			text = "\n" + text
+		}
+		edits = append(edits, edit{at, at, text})
 	}
 	return edits
 }

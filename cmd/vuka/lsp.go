@@ -660,7 +660,9 @@ func (p *proxy) fromEditor() {
 			continue
 		}
 		if m.isResponse() {
-			_ = p.gopls.write(body)
+			if !p.refactorReply(&m) {
+				_ = p.gopls.write(body)
+			}
 			continue
 		}
 		var doc struct {
@@ -668,6 +670,9 @@ func (p *proxy) fromEditor() {
 		}
 		_ = json.Unmarshal(m.Params, &doc)
 		path := uriToPath(doc.TextDocument.URI)
+		if p.refactorRequest(&m, path) {
+			continue // vuka's own refactors and quick fixes (lsp_refactor.go)
+		}
 
 		switch m.Method {
 		case "initialize":
@@ -932,6 +937,7 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 				caps["linkedEditingRangeProvider"] = true // .vuka tag names
 				caps["foldingRangeProvider"] = true
 				caps["documentRangeFormattingProvider"] = true
+				addRefactorKinds(caps)
 				if caps["documentLinkProvider"] == nil {
 					caps["documentLinkProvider"] = map[string]any{} // vuka.File literals
 				}
@@ -1089,6 +1095,12 @@ func (p *proxy) mentionsVirtual(raw json.RawMessage) bool {
 // generated Go.
 func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	reply := func(result any) {
+		if pendingRefactors(m.ID) {
+			go func() {
+				_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": withRefactors(result, m.ID)})
+			}()
+			return
+		}
 		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": result})
 	}
 	if p.tsRequest(m, path) {
@@ -1254,7 +1266,11 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		case vr.method == "textDocument/foldingRange":
 			reply["result"] = foldingRanges(vr.file, nil)
 		case vr.method == "textDocument/codeAction":
-			reply["result"] = p.withShapeScriptAction(vr.file, nil)
+			go func() {
+				reply["result"] = withRefactors(p.withShapeScriptAction(vr.file, nil), vr.editorID)
+				_ = p.editor.send(reply)
+			}()
+			return
 		case vr.blocks != nil:
 			reply["result"] = map[string]any{"isIncomplete": false, "items": blockItems(*vr.blocks)}
 		case vr.field:
@@ -1388,7 +1404,12 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	case "textDocument/foldingRange":
 		v = foldingRanges(vr.file, v)
 	case "textDocument/codeAction":
-		v = p.withShapeScriptAction(vr.file, v)
+		got := p.withShapeScriptAction(vr.file, v)
+		go func() {
+			reply["result"] = withRefactors(got, vr.editorID)
+			_ = p.editor.send(reply)
+		}()
+		return
 	}
 	reply["result"] = v
 	_ = p.editor.send(reply)

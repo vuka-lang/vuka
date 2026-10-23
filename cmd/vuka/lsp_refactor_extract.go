@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
-	goformat "go/format"
 	"go/token"
 	"go/types"
 	"os"
@@ -14,7 +13,6 @@ import (
 	"strings"
 	"unicode"
 
-	"github.com/vuka-lang/vuka/v2/toolchain/format"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
@@ -109,7 +107,7 @@ type prop struct {
 	from     string // what the tag passes: the name around the selection
 	typ      string
 	children bool
-	uses     []int // offsets in the source, of names len(from) long
+	uses     [][2]int // where the selection reads it: a name, or recv.Name
 	first    int
 }
 
@@ -182,14 +180,32 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 
 	props := map[types.Object]*prop{}
 	var order []*prop
-	add := func(obj types.Object, from, typ string, off int) {
+	add := func(obj types.Object, from, typ string, use [2]int) {
 		pr := props[obj]
 		if pr == nil {
-			pr = &prop{from: from, typ: typ, first: off}
+			pr = &prop{from: from, typ: typ, first: use[0]}
 			props[obj] = pr
 			order = append(order, pr)
 		}
-		pr.uses = append(pr.uses, off)
+		pr.uses = append(pr.uses, use)
+	}
+	// The receiver written out, p.Remove: the selector reads as the bare
+	// name.
+	recvAt := map[*ast.Ident]int{}
+	for _, id := range tp.idents(tf, s, e) {
+		if !recvs[id.obj] {
+			continue
+		}
+		var sel *ast.SelectorExpr
+		for _, x := range sels {
+			if x.X == id.id {
+				sel = x
+			}
+		}
+		if sel == nil {
+			return nil, fmt.Errorf("the selection names the receiver %s, not one of its fields or methods", id.id.Name)
+		}
+		recvAt[sel.Sel] = id.off
 	}
 	fieldTypes := map[string]string{}
 	for _, fl := range f.shape.Fields {
@@ -198,23 +214,30 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 	for _, id := range tp.idents(tf, s, e) {
 		obj := id.obj
 		if recvs[obj] {
-			return nil, fmt.Errorf("the selection names the receiver %s: read the fields bare", id.id.Name)
+			continue
 		}
 		if sel := sels[id.id]; sel != nil {
 			x, _ := sel.X.(*ast.Ident)
 			if x == nil || !recvs[tp.info.Uses[x]] {
 				continue // a selector of something else
 			}
+			use := [2]int{id.off, id.off + len(id.id.Name)}
+			if at, ok := recvAt[id.id]; ok {
+				if string(src[at:use[1]]) != x.Name+"."+id.id.Name {
+					return nil, fmt.Errorf("can't read %s.%s as written", x.Name, id.id.Name)
+				}
+				use[0] = at
+			}
 			switch o := obj.(type) {
 			case *types.Var:
-				if err := readOnly(src, id.off, len(o.Name())); err != nil {
+				if err := readOnly(src, use[0], use[1]-use[0]); err != nil {
 					return nil, err
 				}
-				add(obj, o.Name(), typeText(fieldTypes[o.Name()]), id.off)
+				add(obj, o.Name(), typeText(fieldTypes[o.Name()]), use)
 			case *types.Func:
 				sig := o.Type().(*types.Signature)
 				fn := types.NewSignatureType(nil, nil, nil, sig.Params(), sig.Results(), sig.Variadic())
-				add(obj, o.Name(), types.TypeString(fn, qualify), id.off)
+				add(obj, o.Name(), types.TypeString(fn, qualify), use)
 			}
 			continue
 		}
@@ -236,7 +259,7 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 			switch {
 			case ok && decl >= s && decl < e:
 			case ok:
-				add(obj, o.Name(), types.TypeString(o.Type(), qualify), id.off)
+				add(obj, o.Name(), types.TypeString(o.Type(), qualify), [2]int{id.off, id.off + len(o.Name())})
 			case o.Name() == "ctx":
 			default:
 				return nil, fmt.Errorf("the selection uses %s, which only its place declares", o.Name())
@@ -324,13 +347,14 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 	// The new shape's markup: the selection, its names renamed, dedented.
 	var renames []edit
 	for _, pr := range order {
-		if pr.name == pr.from {
-			continue
-		}
 		for _, u := range pr.uses {
-			renames = append(renames, edit{u - s, u - s + len(pr.from), pr.name})
+			if pr.name == pr.from && u[1]-u[0] == len(pr.from) {
+				continue
+			}
+			renames = append(renames, edit{u[0] - s, u[1] - s, pr.name})
 		}
 	}
+
 	markup := dedent(string(applySpans(src[s:e], renames)), indentBefore(src, s))
 	var fields []string
 	for _, pr := range order {
@@ -341,7 +365,7 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 		imps = append(imps, w)
 	}
 	sortImports(imps)
-	text := shapeFileText(targetPkg, imps, name, fields, markup)
+	text := shapeFileText(newPath, targetPkg, imps, name, fields, markup)
 
 	// The tag in the selection's place.
 	tagName := name
@@ -375,12 +399,12 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 	return change{created(newPath, text), {path: path, old: src, edits: pageEdits}}, nil
 }
 
-// shapeFileText is a shape file: its package clause and imports, a header
-// declaring the struct name with fields, and its markup. Every refactor
-// writing a shape file writes it here.
-func shapeFileText(pkg string, imports []wantImport, name string, fields []string, markup string) string {
+// shapeFileText is a shape file at path in the script form: a
+// <script lang="go"> with its package clause and imports and the struct
+// name with fields, then its markup, formatted as vuka fmt formats it.
+func shapeFileText(path, pkg string, imports []wantImport, name string, fields []string, markup string) string {
 	var b strings.Builder
-	b.WriteString("package " + pkg + "\n\n")
+	b.WriteString("<script lang=\"go\">\npackage " + pkg + "\n\n")
 	switch len(imports) {
 	case 0:
 	case 1:
@@ -403,12 +427,10 @@ func shapeFileText(pkg string, imports []wantImport, name string, fields []strin
 	if len(fields) == 0 {
 		decl = "type " + name + " struct{}\n"
 	}
-	if out, err := goformat.Source([]byte("package p\n\n" + decl)); err == nil {
-		decl = strings.TrimPrefix(string(out), "package p\n\n")
-	}
 	b.WriteString(decl)
+	b.WriteString("</script>\n\n")
 	b.WriteString(strings.TrimRight(markup, "\n") + "\n")
-	if out, err := format.Template([]byte(b.String()), pkg); err == nil {
+	if out, err := formatTemplateFile(path, []byte(b.String()), false); err == nil {
 		return string(out)
 	}
 	return b.String()
@@ -531,7 +553,7 @@ func declaredIn(dir, name string, read load.ReadFunc) bool {
 				if sf.shape.Type == name {
 					return true
 				}
-				to = sf.markup
+				to = sf.goEnd
 			}
 		}
 		for _, d := range headerDecls(src, readImports(src).end, to) {
