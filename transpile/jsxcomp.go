@@ -698,13 +698,13 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 // finishComp writes what a bound component's call needs: its props type, its
 // zero values, and the closure that keeps its expressions in source order.
 func (e *engine) finishComp(f *fileState, c *jsxComp) {
-	if tag, fields := unfilled(c); len(fields) > 0 {
+	if at, fields := unfilled(c); len(fields) > 0 {
 		c.dead = true
 		what := "the required field " + fields[0]
 		if len(fields) > 1 {
 			what = "the required fields " + strings.Join(fields, ", ")
 		}
-		e.errs.add("E0158", f.at(c.el.start), "<%s> leaves out %s", tag, what).help("%s", fillHelp(fields[0]))
+		e.errs.add("E0158", f.at(at.start), "<%s> leaves out %s", at.tag, what).help("%s", fillHelp(fields[0]))
 		return
 	}
 	if c.target.has("VukaState") {

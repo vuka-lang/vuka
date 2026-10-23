@@ -232,20 +232,21 @@ func eachArg(args []*compArg, f func(*compArg)) {
 
 // unfilled is the first tag, the tag itself or one of its repeated slots'
 // elements, leaving out fields its struct requires (vuka:"required"), and
-// those fields; "" when none does.
-func unfilled(c *jsxComp) (string, []string) {
+// those fields; none when none does.
+func unfilled(c *jsxComp) (*jsxElem, []string) {
 	if len(c.unfilled) > 0 {
-		return c.el.tag, c.unfilled
+		return c.el, c.unfilled
 	}
-	tag, fields := "", []string(nil)
+	var at *jsxElem
+	var fields []string
 	eachArg(c.args, func(a *compArg) {
 		for _, el := range a.elems {
-			if tag == "" && len(el.unfilled) > 0 {
-				tag, fields = el.el.tag, el.unfilled
+			if at == nil && len(el.unfilled) > 0 {
+				at, fields = el.el, el.unfilled
 			}
 		}
 	})
-	return tag, fields
+	return at, fields
 }
 
 // fillHelp is how a tag fills a required field: its content for Children,

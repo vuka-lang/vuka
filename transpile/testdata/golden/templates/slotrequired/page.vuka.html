@@ -1,11 +1,12 @@
 <script lang="go">
 package main
 
-// Page leaves out Card's header.
+// Page leaves out Card's header, and a Grid column's cell.
 type Page struct{}
 </script>
 
 <main>
   <Card><slot:header>ok</slot:header>body</Card>
   <Card>body</Card>
+  <Grid><slot:col title="x" /></Grid>
 </main>

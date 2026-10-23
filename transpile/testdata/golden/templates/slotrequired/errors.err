@@ -1,1 +1,2 @@
 page.vuka.html:10:3: <Card> leaves out the required field Header; fill it with <slot:header>…</slot:header>, or set header={…}
+page.vuka.html:11:9: <slot:col> leaves out the required field Cell; fill it with <slot:cell>…</slot:cell>, or set cell={…}
