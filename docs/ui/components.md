@@ -39,7 +39,10 @@ server methods or browser commands. See [Templates](/ui/templates#holes).
 ## Links
 
 `<ui.Link href="/pets">Pets</ui.Link>` participates in live navigation.
-Ordinary `<a>` elements remain full-document links. See [Navigation](/web/navigation).
+Ordinary `<a>` elements remain full-document links. `active="prefix"` (or
+`"exact"`) with `activeClass` marks the link to the current page in the
+browser, the way to mark a layout's menu; `prefetch` tunes fetching its
+page ahead. See [Navigation](/web/navigation).
 
 ## key
 

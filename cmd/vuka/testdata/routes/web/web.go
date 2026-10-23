@@ -1,7 +1,10 @@
 // Package web is a stub of the folder-route API generated code calls.
 package web
 
-import "net/http"
+import (
+	"context"
+	"net/http"
+)
 
 type Middleware = func(http.Handler) http.Handler
 
@@ -53,4 +56,9 @@ func PageRoute() RouteOption        { return option{} }
 func LayoutOf[T any]() RouteOption  { return option{} }
 func Receiver(ctor any) RouteOption { return option{} }
 func GuardOf[T any]() RouteOption   { return option{} }
-func UseOf(mw any) RouteOption      { return option{} }
+func ReloadLayout[T any]() RouteOption {
+	return option{}
+}
+
+func Request(ctx context.Context) *http.Request { return nil }
+func UseOf(mw any) RouteOption                  { return option{} }

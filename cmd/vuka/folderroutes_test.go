@@ -272,7 +272,7 @@ func generatedProblems(src []byte) []string {
 		for _, part := range strings.Split(string(src), sel)[1:] {
 			name := part[:strings.IndexFunc(part, func(r rune) bool { return !(r == '_' || r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z') })]
 			switch sel + name {
-			case "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.UseOf", "web.Option", "web.OptionFunc", "web.App", "web.New":
+			case "web.PageRoute", "web.LayoutOf", "web.Receiver", "web.Rest", "web.GuardOf", "web.ReloadLayout", "web.UseOf", "web.Option", "web.OptionFunc", "web.App", "web.New":
 			default:
 				out = append(out, "names "+sel+name)
 			}

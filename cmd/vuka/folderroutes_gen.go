@@ -233,6 +233,9 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 				opts = append(opts, fmt.Sprintf("%s.GuardOf[%sGuard]()", web, qual(w.dir)))
 			} else {
 				opts = append(opts, fmt.Sprintf("%s.LayoutOf[%s%s]()", web, qual(w.dir), w.dir.layout))
+				if w.dir.reloads {
+					opts = append(opts, fmt.Sprintf("%s.ReloadLayout[%s%s]()", web, qual(w.dir), w.dir.layout))
+				}
 			}
 		}
 		call, fn := "Get", ctor

@@ -48,6 +48,7 @@ func runRoutes(pass *analysis.Pass) (any, error) {
 	recorded := recordedParams(pass)
 	regs := registrations(pass)
 	checkPages(pass, regs)
+	checkLayouts(pass)
 	prefixes := map[*types.TypeName]string{}
 	for _, r := range regs {
 		if r.verb != "Controller" {

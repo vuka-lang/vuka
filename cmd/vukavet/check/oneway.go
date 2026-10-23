@@ -30,7 +30,7 @@ import (
 // lowers to, and what vuka eject leaves.
 
 // generatedOnly are web's names only vuka's generated registration calls.
-var generatedOnly = map[string]bool{"PageRoute": true, "LayoutOf": true, "GuardOf": true, "UseOf": true, "Receiver": true}
+var generatedOnly = map[string]bool{"PageRoute": true, "LayoutOf": true, "GuardOf": true, "ReloadLayout": true, "UseOf": true, "Receiver": true}
 
 // fileOf is the file of pass holding pos.
 func fileOf(pass *analysis.Pass, pos token.Pos) *ast.File {

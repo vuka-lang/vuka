@@ -4,13 +4,21 @@ import (
 	"context"
 
 	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
 )
 
-// Layout frames an organisation's pages.
+// Layout frames an organisation's pages. It reads the request's query,
+// through a function of its package: it loads on every navigation.
 type Layout struct {
 	Org      int
 	Children ui.Node
+	tab      string
 }
 
-func (l *Layout) Load(ctx context.Context) error { return nil }
+func (l *Layout) Load(ctx context.Context) error {
+	l.tab = tabOf(ctx)
+	return nil
+}
+
+func tabOf(ctx context.Context) string { return web.Request(ctx).URL.Query().Get("tab") }
 <section data-org={Org}>{Children}</section>

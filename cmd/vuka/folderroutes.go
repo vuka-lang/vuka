@@ -127,6 +127,7 @@ type routeDir struct {
 	goFiles    []string // its .go files, when it has no Vuka source
 	layout     string   // the type its _layout.vuka.html renders, "" when it has none
 	layoutFile string
+	reloads    bool              // its layout reads the request: it loads on every navigation (web.ReloadLayout)
 	oldLayout  string            // a 1.x layout.vuka.html, for E0715's help
 	bracket    map[string]string // a type declared in a [id] file → its parameter, "[id]"
 	fileOf     map[string]string // a type declared in a .vuka.html file → the file

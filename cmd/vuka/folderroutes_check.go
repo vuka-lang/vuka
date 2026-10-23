@@ -155,6 +155,13 @@ type routeImporter struct {
 	walking   map[string]bool
 	byPath    map[string]*routeDir
 	goVersion string
+	syntax    map[string]checked // a page package's files and uses, by import path
+}
+
+// checked is a page package's syntax as type-checked.
+type checked struct {
+	files []*ast.File
+	uses  map[*ast.Ident]types.Object
 }
 
 func (r *routeImporter) Import(path string) (*types.Package, error) {
@@ -206,8 +213,13 @@ func (r *routeImporter) checkDir(d *routeDir) (*types.Package, error) {
 		}
 	}
 	conf := types.Config{Importer: r, GoVersion: r.goVersion, Error: func(error) {}}
-	pkg, _ := conf.Check(d.importPath, r.fset, files, nil)
+	info := &types.Info{Uses: map[*ast.Ident]types.Object{}}
+	pkg, _ := conf.Check(d.importPath, r.fset, files, info)
 	r.done[d.importPath] = pkg
+	if r.syntax == nil {
+		r.syntax = map[string]checked{}
+	}
+	r.syntax[d.importPath] = checked{files, info.Uses}
 	return pkg, nil
 }
 
@@ -367,6 +379,7 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 	if d.layout != "" {
 		if obj, ok := pkg.Scope().Lookup(d.layout).(*types.TypeName); ok {
 			if c.layout(obj, d) {
+				d.reloads = c.readsRequest(obj, d) != ""
 				in.wraps = append(in.wraps, wrap{d, false})
 				c.carriers = append(c.carriers, carrier{typ: obj.Type(), params: in.params, prefer: prefer, pos: obj.Pos()})
 			} else {
