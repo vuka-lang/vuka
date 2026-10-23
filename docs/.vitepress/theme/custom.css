@@ -59,7 +59,13 @@
   margin-top: 0.75rem;
 }
 
-/* Code */
+/* Code: no ligatures, so != reads as typed */
+.vp-doc code,
+.vp-doc pre {
+  font-variant-ligatures: none;
+  font-feature-settings: 'liga' 0, 'calt' 0;
+}
+
 .vp-doc div[class*='language-'] {
   margin: 1.25rem 0 1.5rem;
 }
