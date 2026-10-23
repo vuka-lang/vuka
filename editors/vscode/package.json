@@ -234,6 +234,74 @@
       {
         "command": "vuka.stopServingTemplFiles",
         "title": "Vuka: Stop templ Using Vuka"
+      },
+      {
+        "command": "vuka.showRoute",
+        "title": "Vuka: Show Routes"
+      }
+    ],
+    "semanticTokenTypes": [
+      {
+        "id": "vukaProp",
+        "superType": "property",
+        "description": "A prop of a shape: an exported field, set by a tag's attribute or a page's URL."
+      },
+      {
+        "id": "vukaState",
+        "superType": "property",
+        "description": "Server state of a shape: an unexported field the server keeps."
+      },
+      {
+        "id": "vukaBrowserState",
+        "superType": "variable",
+        "description": "Browser state of a shape: a ui.State field the browser keeps."
+      },
+      {
+        "id": "vukaEvent",
+        "superType": "method",
+        "description": "An event: a method an on… attribute sends to the server."
+      },
+      {
+        "id": "vukaComponent",
+        "superType": "class",
+        "description": "A component tag."
+      },
+      {
+        "id": "vukaLocal",
+        "superType": "variable",
+        "description": "A local a markup statement declares."
+      }
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "vuka-html",
+        "scopes": {
+          "vukaProp": [
+            "variable.other.constant.property.prop.vuka",
+            "variable.other.constant"
+          ],
+          "vukaState": [
+            "variable.other.property.state.vuka",
+            "variable.other.property"
+          ],
+          "vukaBrowserState": [
+            "variable.language.browser-state.vuka",
+            "variable.language"
+          ],
+          "vukaEvent": [
+            "entity.name.function.event.vuka",
+            "entity.name.function"
+          ],
+          "vukaComponent": [
+            "entity.name.type.class.component.vuka",
+            "entity.name.type.class",
+            "support.class"
+          ],
+          "vukaLocal": [
+            "variable.other.readwrite.local.vuka",
+            "variable.other.readwrite"
+          ]
+        }
       }
     ]
   },
@@ -246,6 +314,6 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs"
   }
 }

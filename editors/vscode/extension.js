@@ -6,6 +6,7 @@ const { execFile, execFileSync } = require('child_process');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 const { markupBefore, tagToClose, closingFor } = require('./shape');
 const toolchain = require('./toolchain');
+const { formatRoute, moduleRoot } = require('./routes');
 
 let client;
 let versionItem;
@@ -340,6 +341,33 @@ function typedCloser(document, position) {
   return before !== null && closingFor(before, after) !== null;
 }
 
+let routesChannel;
+
+// showRoute shows a code lens's routes, then the module's whole table from
+// vuka routes, in the Vuka Routes output.
+function showRoute(...entries) {
+  routesChannel = routesChannel || vscode.window.createOutputChannel('Vuka Routes');
+  routesChannel.clear();
+  for (const e of entries) {
+    routesChannel.appendLine(formatRoute(e));
+    routesChannel.appendLine('');
+  }
+  const editor = vscode.window.activeTextEditor;
+  const folder = vscode.workspace.workspaceFolders && vscode.workspace.workspaceFolders[0];
+  const from = editor ? path.dirname(editor.document.uri.fsPath) : folder && folder.uri.fsPath;
+  const root = from && moduleRoot(from, fs.existsSync);
+  routesChannel.show(true);
+  if (!root) {
+    return;
+  }
+  execFile(vukaPath(), ['routes'], { cwd: root }, (err, stdout, stderr) => {
+    routesChannel.appendLine(`vuka routes (${root})`);
+    routesChannel.appendLine(stdout || '');
+    if (stderr) routesChannel.appendLine(stderr);
+    if (err && !stdout) routesChannel.appendLine(err.message);
+  });
+}
+
 function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('vuka.restartServer', async () => {
@@ -356,6 +384,7 @@ function activate(context) {
     vscode.commands.registerCommand('vuka.stopServingGoFiles', () => disableGoDropIn(context)),
     vscode.commands.registerCommand('vuka.serveTemplFiles', () => enableTemplDropIn(context, false)),
     vscode.commands.registerCommand('vuka.stopServingTemplFiles', () => disableTemplDropIn(context)),
+    vscode.commands.registerCommand('vuka.showRoute', showRoute),
   );
   const config = vscode.workspace.getConfiguration('vuka');
   if (config.get('offerGoDropIn')) {
