@@ -425,3 +425,170 @@ func TestMoveFromGo(t *testing.T) {
 	}
 	vets(t, dir)
 }
+
+const unkeyedPage = `<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+type Index struct {
+	ui.Live
+	items []Item
+	names []string
+}
+</script>
+
+<main>
+  <ul>
+    for _, it := range items {
+      <li>{it.Name}</li>
+    }
+  </ul>
+  <ol>
+    for _, name := range names {
+      <li class="name">{name}</li>
+    }
+  </ol>
+</main>
+`
+
+// TestKeyFix: a live list's item gets a key (W0102): the item's ID, or the
+// index, named when the loop writes it _.
+func TestKeyFix(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	dir := refactorModule(t, map[string]string{"main.go": refactorMain, "pages/item.go": refactorItem, "pages/index.vuka.html": unkeyedPage})
+	path := filepath.Join(dir, "pages/index.vuka.html")
+	for _, c := range []struct{ at, want string }{
+		{"<li>{it.Name}", "<li key={it.ID}>{it.Name}</li>"},
+		{"<li class=\"name\">", "for i, name := range names {\n      <li key={i} class=\"name\">"},
+	} {
+		src := readFile(t, path)
+		at := strings.Index(src, c.at)
+		fix, ok := actionsAt(t, path, at, at)["Give the item a key"]
+		if !ok {
+			t.Fatalf("no key fix at %q", c.at)
+		}
+		applyWorkspace(t, fix.Edit)
+		if got := readFile(t, path); !strings.Contains(got, c.want) {
+			t.Errorf("no %q:\n%s", c.want, got)
+		}
+	}
+	vets(t, dir)
+}
+
+const titledLayout = `<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Layout struct {
+	Children ui.Node
+	title    string
+}
+
+func (l *Layout) Load(ctx context.Context) error {
+	l.title = ui.PageTitle(ctx)
+	return nil
+}
+</script>
+
+<div>
+  <h1>{title}</h1>
+  <main>{Children}</main>
+</div>
+`
+
+const pathLayout = `package pages
+
+import (
+	"context"
+	"strings"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+)
+
+type Layout struct {
+	Children ui.Node
+	path     string
+}
+
+func (l *Layout) Load(ctx context.Context) error {
+	l.path = web.Request(ctx).URL.Path
+	return nil
+}
+<div>
+  <nav>
+    if strings.HasPrefix(path, "/orders") {
+      <a href="/orders" class="tab on">Orders</a>
+    } else {
+      <a href="/orders" class="tab">Orders</a>
+    }
+    <a href="/about">About</a>
+  </nav>
+  <main>{Children}</main>
+</div>
+`
+
+const simplePage = "<script lang=\"go\">\npackage pages\n\ntype Index struct{}\n</script>\n\n<p>Home</p>\n"
+
+// TestLayoutFixes: a layout reading the page's title in Load reads it in
+// its markup, and one marking its current link by the request's path marks
+// it with ui.Link in the browser (W0703); what they read with goes.
+func TestLayoutFixes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	t.Run("title", func(t *testing.T) {
+		dir := refactorModule(t, map[string]string{"main.go": refactorMain, "pages/index.vuka.html": simplePage, "pages/_layout.vuka.html": titledLayout})
+		path := filepath.Join(dir, "pages/_layout.vuka.html")
+		at := strings.Index(titledLayout, "type Layout")
+		fix, ok := actionsAt(t, path, at, at)["Read ui.PageTitle in the markup"]
+		if !ok {
+			t.Fatalf("no fix: %v", actionsAt(t, path, at, at))
+		}
+		applyWorkspace(t, fix.Edit)
+		got := readFile(t, path)
+		want := "<script lang=\"go\">\npackage pages\n\nimport (\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Layout struct {\n\tChildren ui.Node\n}\n</script>\n\n<div>\n  <h1>{ui.PageTitle(ctx)}</h1>"
+		if !strings.HasPrefix(got, want) {
+			t.Errorf("layout:\n%s\nwant:\n%s", got, want)
+		}
+		vets(t, dir)
+	})
+	t.Run("links", func(t *testing.T) {
+		dir := refactorModule(t, map[string]string{"main.go": refactorMain, "pages/index.vuka.html": simplePage, "pages/_layout.vuka.html": pathLayout})
+		path := filepath.Join(dir, "pages/_layout.vuka.html")
+		at := strings.Index(pathLayout, "<a href=\"/about\"")
+		fix, ok := actionsAt(t, path, at, at)["Mark the current link in the browser: ui.Link active=\"prefix\""]
+		if !ok {
+			t.Fatalf("no fix for the lone link")
+		}
+		applyWorkspace(t, fix.Edit)
+		src := readFile(t, path)
+		at = strings.Index(src, "if strings.HasPrefix")
+		fix, ok = actionsAt(t, path, at, at)["Mark the current link in the browser: ui.Link active=\"prefix\""]
+		if !ok {
+			t.Fatalf("no fix for the if")
+		}
+		applyWorkspace(t, fix.Edit)
+		got := readFile(t, path)
+		for _, want := range []string{
+			"    <ui.Link href=\"/orders\" active=\"prefix\" class=\"tab\" activeClass=\"on\">Orders</ui.Link>\n    <ui.Link href=\"/about\" active=\"prefix\">About</ui.Link>",
+			"type Layout struct {\n\tChildren ui.Node\n}\n<div>",
+		} {
+			if !strings.Contains(got, want) {
+				t.Errorf("no %q:\n%s", want, got)
+			}
+		}
+		if strings.Contains(got, "web") || strings.Contains(got, "strings") || strings.Contains(got, "context") {
+			t.Errorf("imports left:\n%s", got)
+		}
+		vets(t, dir)
+	})
+}

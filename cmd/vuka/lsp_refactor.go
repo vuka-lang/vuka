@@ -432,6 +432,10 @@ func resolveData(path string, src []byte, data map[string]any, read load.ReadFun
 	switch stringOf(data["action"]) {
 	case "key":
 		return keyFix(path, src, int(numberOf(data["at"])), read)
+	case "pageRead":
+		return pageReadFix(path, src, stringOf(data["field"]), read)
+	case "activeLink":
+		return activeLinkFix(path, src, int(numberOf(data["at"])), read)
 	}
 	return nil, errors.New("unknown action " + stringOf(data["action"]))
 }
@@ -640,7 +644,10 @@ func defaultImportName(path string) string {
 type wantImport struct{ name, path string }
 
 // importEdits are the edits to src's imports removing the specs at drop
-// (their paths) and adding add, in the fewest lines changed.
+// (their paths) and adding add, in the fewest lines changed: an import
+// ( … ) losing or gaining specs is written again, its runs kept (gofmt's
+// groups: a blank line between them), the new specs each in its place in
+// the run of its kind, the standard library's or the others'.
 func importEdits(src []byte, drop map[string]bool, add []wantImport) []edit {
 	s := readImports(src)
 	have := map[string]bool{}
@@ -654,118 +661,164 @@ func importEdits(src []byte, drop map[string]bool, add []wantImport) []edit {
 			have[a.path] = true
 		}
 	}
-	var edits []edit
-	removed := map[int]bool{}
-	for i, sp := range s.specs {
-		if drop[sp.path] {
-			removed[i] = true
-		}
-	}
 	specLine := func(a wantImport) string {
 		if a.name != "" && a.name != defaultImportName(a.path) {
 			return a.name + " " + strconv.Quote(a.path)
 		}
 		return strconv.Quote(a.path)
 	}
-	// A group emptied goes whole; a single import dropped goes.
-	for _, g := range s.groups {
-		all, any := true, false
-		for i, sp := range s.specs {
+	var edits []edit
+	for gi, g := range s.groups {
+		target := gi == 0 && len(adds) > 0
+		var in []refImport
+		touched := target
+		for _, sp := range s.specs {
 			if sp.start >= g[0] && sp.end <= g[1] {
-				any = true
-				all = all && removed[i]
+				in = append(in, sp)
+				touched = touched || drop[sp.path]
 			}
 		}
-		if any && all && !(len(adds) > 0 && g == s.groups[0]) {
-			edits = append(edits, edit{g[0], g[1], ""})
-			for i, sp := range s.specs {
-				if sp.start >= g[0] && sp.end <= g[1] {
-					delete(removed, i)
-				}
-			}
+		if touched {
+			edits = append(edits, regroup(src, g, in, drop, adds, target, specLine))
 		}
 	}
-	for i := range removed {
-		edits = append(edits, edit{s.specs[i].start, s.specs[i].end, ""})
+	for _, sg := range s.singles {
+		if sp := specOn(s.specs, sg[0]); sp >= 0 && drop[s.specs[sp].path] {
+			edits = append(edits, edit{sg[0], sg[1], ""})
+		}
 	}
-	if len(adds) == 0 {
+	if len(adds) == 0 || len(s.groups) > 0 {
 		return edits
 	}
-	var lines strings.Builder
-	for _, a := range adds {
-		lines.WriteString("\t" + specLine(a) + "\n")
-	}
-	switch {
-	case len(s.groups) > 0:
-		edits = append(edits, groupInserts(src, s, adds, specLine)...)
-	case len(s.singles) > 0:
+	if len(s.singles) > 0 {
+		// The first single import becomes a group with the new ones.
 		first := s.singles[0]
-		sp := specOn(s.specs, first[0])
-		text := "import (\n"
-		if !removed[sp] {
-			text += "\t" + specLine(wantImport{s.specs[sp].name, s.specs[sp].path}) + "\n"
-		}
-		text += lines.String() + ")\n"
-		// the single import's own removal, if any, is replaced by this
+		sp := s.specs[specOn(s.specs, first[0])]
 		var kept []edit
 		for _, e := range edits {
 			if e.start != first[0] {
 				kept = append(kept, e)
 			}
 		}
-		edits = append(kept, edit{first[0], first[1], text})
-	default:
-		text := "\n"
-		if len(adds) == 1 {
-			text += "import " + specLine(adds[0]) + "\n"
-		} else {
-			text += "import (\n" + lines.String() + ")\n"
-		}
-		edits = append(edits, edit{s.pkgEnd, s.pkgEnd, text})
+		line := groupLine{text: "\t" + specLine(wantImport{sp.name, sp.path}) + "\n", path: sp.path, drop: drop[sp.path]}
+		return append(kept, regroupLines(nil, []groupLine{line}, first, adds, true, specLine))
 	}
-	return edits
+	text := "\n"
+	if len(adds) == 1 {
+		text += "import " + specLine(adds[0]) + "\n"
+	} else {
+		var lines strings.Builder
+		for i, a := range adds {
+			if i > 0 && isStd(adds[i-1].path) && !isStd(a.path) {
+				lines.WriteString("\n")
+			}
+			lines.WriteString("\t" + specLine(a) + "\n")
+		}
+		text += "import (\n" + lines.String() + ")\n"
+	}
+	return append(edits, edit{s.pkgEnd, s.pkgEnd, text})
 }
 
-// groupInserts adds imports to a file's first import ( … ) as gofmt
-// groups them: each in its place in the run of its kind (the standard
-// library's, or the others'), a run of its own after the last when there
-// is none.
-func groupInserts(src []byte, s importSection, adds []wantImport, specLine func(wantImport) string) []edit {
-	g := s.groups[0]
-	closeLine := bytes.LastIndexByte(src[:g[1]-1], '\n') + 1 // the ) line
-	var in []refImport
-	for _, sp := range s.specs {
-		if sp.start >= g[0] && sp.end <= g[1] {
-			in = append(in, sp)
+// groupLine is a line inside an import ( … ): a spec, a blank line or a
+// comment.
+type groupLine struct {
+	text string // the line, its newline included
+	path string // its spec's path, "" for none
+	drop bool
+}
+
+// regroup writes the import group g of src again: its specs in drop gone,
+// adds added when it is the target.
+func regroup(src []byte, g [2]int, in []refImport, drop map[string]bool, adds []wantImport, target bool, specLine func(wantImport) string) edit {
+	open := g[0] + bytes.IndexByte(src[g[0]:], '\n') + 1
+	closeAt := bytes.LastIndexByte(src[:g[1]-1], '\n') + 1
+	var lines []groupLine
+	for off := open; off < closeAt; {
+		end := closeAt
+		if i := bytes.IndexByte(src[off:closeAt], '\n'); i >= 0 {
+			end = off + i + 1
+		}
+		gl := groupLine{text: string(src[off:end])}
+		for _, sp := range in {
+			if sp.start == off {
+				gl.path, gl.drop = sp.path, drop[sp.path]
+			}
+		}
+		lines = append(lines, gl)
+		off = end
+	}
+	return regroupLines(src[g[0]:open], lines, g, adds, target, specLine)
+}
+
+// regroupLines is the edit writing the group g as lines, with adds when
+// target; head is its import ( line, nil for a new one.
+func regroupLines(head []byte, lines []groupLine, g [2]int, adds []wantImport, target bool, specLine func(wantImport) string) edit {
+	var kept []groupLine
+	for _, l := range lines {
+		if !l.drop {
+			kept = append(kept, l)
 		}
 	}
-	var edits []edit
-	for _, a := range adds {
-		at, sep := -1, false
-		lastOfKind := -1
-		for i, sp := range in {
-			if isStd(sp.path) != isStd(a.path) {
-				continue
+	if target {
+		for _, a := range adds {
+			at, last := -1, -1
+			for i, l := range kept {
+				if l.path == "" || isStd(l.path) != isStd(a.path) {
+					continue
+				}
+				last = i
+				if at < 0 && l.path > a.path {
+					at = i
+				}
 			}
-			lastOfKind = i
-			if at < 0 && sp.path > a.path {
-				at = sp.start
+			switch {
+			case at >= 0:
+			case last >= 0:
+				at = last + 1
+			case isStd(a.path):
+				at = 0
+				if len(kept) > 0 {
+					kept = append([]groupLine{{text: "\n"}}, kept...)
+				}
+			default:
+				at = len(kept)
+				if len(kept) > 0 {
+					kept = append(kept, groupLine{text: "\n"})
+					at++
+				}
 			}
+			nl := groupLine{text: "\t" + specLine(a) + "\n", path: a.path}
+			kept = append(kept[:at], append([]groupLine{nl}, kept[at:]...)...)
 		}
-		switch {
-		case at >= 0:
-		case lastOfKind >= 0:
-			at = in[lastOfKind].end
-		default:
-			at, sep = closeLine, len(in) > 0
-		}
-		text := "\t" + specLine(a) + "\n"
-		if sep {
-			text = "\n" + text
-		}
-		edits = append(edits, edit{at, at, text})
 	}
-	return edits
+	// No blank line first, last or twice.
+	var out []groupLine
+	specs := 0
+	for _, l := range kept {
+		if strings.TrimSpace(l.text) == "" && (len(out) == 0 || strings.TrimSpace(out[len(out)-1].text) == "") {
+			continue
+		}
+		out = append(out, l)
+		if l.path != "" {
+			specs++
+		}
+	}
+	for len(out) > 0 && strings.TrimSpace(out[len(out)-1].text) == "" {
+		out = out[:len(out)-1]
+	}
+	if specs == 0 {
+		return edit{g[0], g[1], ""}
+	}
+	if head == nil {
+		head = []byte("import (\n")
+	}
+	var b strings.Builder
+	b.Write(head)
+	for _, l := range out {
+		b.WriteString(l.text)
+	}
+	b.WriteString(")\n")
+	return edit{g[0], g[1], b.String()}
 }
 
 func specOn(specs []refImport, start int) int {
