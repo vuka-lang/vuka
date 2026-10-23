@@ -30,6 +30,8 @@ type tagProp struct {
 	required  bool
 	slot      bool // a Node: written as <slot:name>, not an attribute
 	doc       string
+	kind      byte     // how a <slot:x> fills it (slotOf), 0 when none does
+	params    []string // the types of the values a slot's let names
 }
 
 // tagInfo is a component, as its source declares it.
@@ -73,7 +75,11 @@ func (p *proxy) resolveComponent(srcPath string, src []byte, tag string) *tagInf
 			return nil
 		}
 	}
-	return tagComponentIn(dir, name)
+	info := tagComponentIn(dir, name)
+	if info != nil {
+		p.fillSlots(info)
+	}
+	return info
 }
 
 // sourceImports are a .vuka.html or .vuka file's imports.
@@ -122,7 +128,7 @@ func tagComponentIn(dir, name string) *tagInfo {
 				}
 				for _, f := range sh.Fields {
 					if f.Role == transpile.Prop && f.Name != "Children" {
-						info.props = append(info.props, tagProp{attr: info.attrName(f.Name), typ: f.Type, slot: isNodeTypeName(f.Type)})
+						info.props = append(info.props, tagProp{attr: info.attrName(f.Name), typ: f.Type, slot: isNodeTypeName(f.Type), required: requiredTag(f.Tag)})
 					}
 				}
 				return info
@@ -152,7 +158,7 @@ func tagComponentIn(dir, name string) *tagInfo {
 			}
 			for _, f := range fields {
 				if f.name != "Children" && token.IsExported(f.name) {
-					info.props = append(info.props, tagProp{attr: info.attrName(f.name), typ: f.typ, slot: isNodeTypeName(f.typ), doc: f.doc})
+					info.props = append(info.props, tagProp{attr: info.attrName(f.name), typ: f.typ, slot: isNodeTypeName(f.typ), doc: f.doc, required: requiredTag(f.tag)})
 				}
 			}
 			return info
@@ -176,7 +182,7 @@ func (info *tagInfo) attrName(field string) string {
 
 func tagLineOf(src []byte, off int) int { return strings.Count(string(src[:off]), "\n") + 1 }
 
-type tagField struct{ name, typ, doc string }
+type tagField struct{ name, typ, doc, tag string }
 
 // tagStructFields reads the fields of a struct's {…}, field attributes (.vuka's
 // @…) left out.
@@ -205,8 +211,12 @@ func tagStructFields(body string) []tagField {
 	for _, fl := range st.Fields.List {
 		typ := src[fset.Position(fl.Type.Pos()).Offset:fset.Position(fl.Type.End()).Offset]
 		doc := strings.TrimSpace(fl.Doc.Text() + fl.Comment.Text())
+		tag := ""
+		if fl.Tag != nil {
+			tag, _ = strconv.Unquote(fl.Tag.Value)
+		}
 		for _, n := range fl.Names {
-			out = append(out, tagField{n.Name, typ, doc})
+			out = append(out, tagField{n.Name, typ, doc, tag})
 		}
 	}
 	return out
@@ -251,7 +261,7 @@ func tagFuncComponent(dir, name, file string, src []byte, start, open int) *tagI
 		if c := tagPropsStruct(dir, t); c != nil {
 			for _, fl := range c {
 				if token.IsExported(fl.name) && fl.name != "Children" {
-					info.props = append(info.props, tagProp{attr: lowerCamel(fl.name), typ: fl.typ, slot: isNodeTypeName(fl.typ), doc: fl.doc})
+					info.props = append(info.props, tagProp{attr: lowerCamel(fl.name), typ: fl.typ, slot: isNodeTypeName(fl.typ), doc: fl.doc, required: requiredTag(fl.tag)})
 				}
 			}
 			if !params[0].variadic {
@@ -277,7 +287,7 @@ func tagPropsStruct(dir, name string) []tagField {
 	if !token.IsIdentifier(name) {
 		return nil
 	}
-	re := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `\s+struct\s*\{`)
+	re := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `(?:\[[^\]\n]*\])?\s+struct\s*\{`)
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
@@ -318,6 +328,9 @@ func tagParenEnd(src []byte, i int) int {
 // isNodeTypeName reports whether a type is a markup node: ui.Node, vuka.Node,
 // templ.Component.
 func isNodeTypeName(t string) bool {
+	if strings.ContainsAny(t, "([]* ") {
+		return false
+	}
 	t = t[strings.LastIndexByte(t, '.')+1:]
 	return t == "Node" || t == "Component"
 }
@@ -420,8 +433,8 @@ func (info *tagInfo) markdown(tag string) string {
 	}
 	var slots []string
 	for _, pr := range info.props {
-		if pr.slot {
-			slots = append(slots, "`<slot:"+pr.attr+">`")
+		if pr.kind != 0 {
+			slots = append(slots, "`<slot:"+slotName(pr)+">`")
 		}
 	}
 	if len(slots) > 0 {

@@ -6,6 +6,7 @@ import (
 	"go/scanner"
 	"go/token"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
@@ -84,7 +85,8 @@ type ShapeField struct {
 	Name string // the embedded type's name for an embedded field
 	Type string // as written
 	Role FieldRole
-	Line int // from 1
+	Line int    // from 1
+	Tag  string // its struct tag, unquoted: vuka:"required"
 }
 
 var (
@@ -220,6 +222,10 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 			s.Fields = append(s.Fields, ShapeField{Name: name, Type: typ, Role: Embedded, Line: pos(fl.Pos()).Line})
 			continue
 		}
+		tag := ""
+		if fl.Tag != nil {
+			tag, _ = strconv.Unquote(fl.Tag.Value)
+		}
 		for _, n := range fl.Names {
 			role := ServerState
 			switch {
@@ -228,7 +234,7 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 			case n.IsExported():
 				role = Prop
 			}
-			s.Fields = append(s.Fields, ShapeField{Name: n.Name, Type: typ, Role: role, Line: pos(n.Pos()).Line})
+			s.Fields = append(s.Fields, ShapeField{Name: n.Name, Type: typ, Role: role, Line: pos(n.Pos()).Line, Tag: tag})
 			if role == BrowserState {
 				s.Ptr = true
 			}

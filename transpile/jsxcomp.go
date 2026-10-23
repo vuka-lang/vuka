@@ -94,13 +94,13 @@ type compArg struct {
 	wrap  string     // a function the value is passed through: an island's ui.Ptr[T]
 	conv  string     // a conversion of the value: an island's number prop takes any Go number
 
-	slot     bool              // filled by a <slot:x>
-	fn       *types.Signature  // a scoped slot's: its content is the function's body
-	lets     []letVar          // the names the function's parameters take
-	params   []string          // the function's parameter types, written
-	elems    []*slotElem       // a repeated slot's elements, in order
-	sliceTyp string            // their slice's type, written
-	nodeText bool              // a quoted attribute setting a Node: ui.Text("…")
+	slot     bool             // filled by a <slot:x>
+	fn       *types.Signature // a scoped slot's: its content is the function's body
+	lets     []letVar         // the names the function's parameters take
+	params   []string         // the function's parameter types, written
+	elems    []*slotElem      // a repeated slot's elements, in order
+	sliceTyp string           // their slice's type, written
+	nodeText bool             // a quoted attribute setting a Node: ui.Text("…")
 }
 
 // slotElem is one element of a repeated slot: a struct literal of the

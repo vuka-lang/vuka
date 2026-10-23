@@ -59,14 +59,21 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 			return true, ""
 		}
 		if r, ok := s.refAt(off); ok {
-			if r.kind == refComponent {
+			switch {
+			case r.kind == refComponent:
 				return false, p.tagNote(path, src, s, off)
+			case r.kind == refLocal && r.local.slot != "":
+				return false, p.letNote(path, src, r)
 			}
 			return false, s.refDoc(path, r)
 		}
 	case "textDocument/completion":
 		if !html {
 			return false, ""
+		}
+		if items, ok := p.slotCompletion(path, src, off); ok {
+			reply(map[string]any{"isIncomplete": false, "items": items})
+			return true, ""
 		}
 		if items, ok := p.propCompletion(path, src, off); ok {
 			reply(map[string]any{"isIncomplete": false, "items": items})

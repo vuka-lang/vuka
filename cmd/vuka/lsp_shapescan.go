@@ -67,10 +67,13 @@ type shapeMethod struct {
 
 // shapeLocal is a name a markup statement declares.
 type shapeLocal struct {
-	name string
-	off  int // where it is declared
-	end  int // where its scope ends
-	stmt string
+	name  string
+	off   int // where it is declared
+	end   int // where its scope ends
+	stmt  string
+	slot  string // a slot's let: the slot's tag
+	comp  string // and the component tag it is in
+	index int    // the value of the slot's function it names
 }
 
 // shapeRef is a classified name.
@@ -380,6 +383,8 @@ type scope struct {
 func (s *shapeScan) scanMarkup() {
 	src := s.src
 	scopes := []*scope{{}}
+	var comps []string    // the component tags open
+	var slots []slotScope // the slots with a let open
 	lineStart := true
 	for i := s.markup; i < len(src); {
 		c := src[i]
@@ -407,6 +412,33 @@ func (s *shapeScan) scanMarkup() {
 			if !ok || t.name == "" && t.close {
 				i++
 				break
+			}
+			switch {
+			case strings.HasPrefix(t.name, "slot:") && !t.close && !t.self:
+				if sc := s.letScope(t, comps); sc != nil {
+					scopes = append(scopes, sc)
+					slots = append(slots, slotScope{t.name, len(scopes)})
+				}
+			case strings.HasPrefix(t.name, "slot:") && t.close:
+				if n := len(slots); n > 0 && slots[n-1].tag == t.name && len(scopes) >= slots[n-1].depth {
+					for _, sc := range scopes[slots[n-1].depth-1:] {
+						for _, l := range sc.locals {
+							if l.end == 0 {
+								l.end = t.start
+							}
+						}
+					}
+					scopes, slots = scopes[:slots[n-1].depth-1], slots[:n-1]
+				}
+			case isComponentTag(t.name) && !strings.Contains(t.name, ":") && t.close:
+				for k := len(comps) - 1; k >= 0; k-- {
+					if baseName(comps[k]) == baseName(t.name) {
+						comps = comps[:k]
+						break
+					}
+				}
+			case isComponentTag(t.name) && !strings.Contains(t.name, ":") && !t.self:
+				comps = append(comps, t.name)
 			}
 			s.tag(t, scopes)
 			end := t.end
@@ -440,6 +472,42 @@ func (s *shapeScan) scanMarkup() {
 			}
 		}
 	}
+}
+
+// slotScope is a slot with a let, open: its tag and the depth of the scope
+// its let declares.
+type slotScope struct {
+	tag   string
+	depth int
+}
+
+// letScope is the scope of a slot's let={t, i}: the names it declares, for
+// the slot's content. nil without a let.
+func (s *shapeScan) letScope(t jsxTag, comps []string) *scope {
+	for _, a := range t.attrs {
+		if a.name != "let" || !a.expr || a.valEnd <= a.valStart+1 {
+			continue
+		}
+		comp := ""
+		if len(comps) > 0 {
+			comp = comps[len(comps)-1]
+		}
+		sc := &scope{}
+		at := a.valStart + 1
+		text := string(s.src[at : a.valEnd-1])
+		for i, part := range strings.Split(text, ",") {
+			n := strings.TrimSpace(part)
+			if isIdentName(n) && n != "_" {
+				off := at + strings.Index(part, n)
+				l := &shapeLocal{name: n, off: off, stmt: "let={" + strings.TrimSpace(text) + "} of <" + t.name + ">", slot: t.name, comp: comp, index: i}
+				sc.locals = append(sc.locals, l)
+				s.locals = append(s.locals, l)
+			}
+			at += len(part) + 1
+		}
+		return sc
+	}
+	return nil
 }
 
 // statement reads a markup line that is Go: it closes and opens blocks and
