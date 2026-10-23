@@ -4,7 +4,7 @@ layout: home
 hero:
   name: Vuka
   text: Go, with a few things more
-  tagline: Result and Option, the ? operator, pattern matching, enums, overloading, decorators, statics and shape-file components. Vuka transpiles to plain Go and builds with the go command you already have.
+  tagline: Result, the ? operator, match, enums and decorators, plus a web framework where pages are files and the UI stays live. It compiles to plain Go.
   image:
     src: /logo.svg
     alt: Vuka
@@ -13,45 +13,35 @@ hero:
       text: Get started
       link: /guide/getting-started
     - theme: alt
-      text: The language
-      link: /features/result-option
+      text: Your first web app
+      link: /web/
     - theme: alt
       text: GitHub
       link: https://github.com/vuka-lang/vuka
 
 features:
   - title: It is Go
-    details: A .vuka file is Go plus a handful of additions. Every Go function, type and library works as it is — from the standard library, from go get, or from your own .go files.
+    details: A .vuka file is Go plus a handful of additions. Every Go function, type and library works as it is, from the standard library, go get, or your own .go files.
     link: /guide/using-go
     linkText: Using Go code
-  - title: Errors as values, with less ceremony
-    details: Result and Option, ? to pass an error on, and exhaustive match. Go's (T, error) works with all of it.
-  - title: Enums
-    details: "enum Status { Draft, Sent, Paid } — variants with String, Parse, JSON and database methods, or variants carrying data, and a match that must handle every one."
-    link: /features/enums
-    linkText: Enums
-  - title: Decorators
-    details: "decorator logged(c) { … } decorates any function, method or type. Retries, caches, auth guards and dependency injection, in a few lines."
+  - title: Errors as values
+    details: Result and Option, ? to pass an error on, enums with exhaustive match. Go's (T, error) works with all of it.
+    link: /features/result-option
+    linkText: Result and Option
+  - title: Decorators and statics
+    details: "@retry(3) on a function, User.New(\"ada\") on a type: retries, caches, guards and constructors in a few lines, compiled to ordinary Go."
     link: /features/decorators
     linkText: Decorators
-  - title: Statics and Self
-    details: "User.New(\"ada\"), User.Max — statics that belong to a type, and generic bases whose Self is the type embedding them, compiled to ordinary Go."
-    link: /features/statics
-    linkText: Statics and Self
-  - title: Components in shape files
-    details: "UI lives in .vuka.html shape files: one struct, decorated hooks and methods, then markup. Props, tracked server state and browser state share a single authoring form."
+  - title: Pages are files
+    details: Folders under pages/ are your routes, with [id] parameters, (group) folders and layouts that stay put while you navigate. Links between pages are typed.
+    link: /web/folder-routes
+    linkText: Folder routes
+  - title: Live UI without a JS build
+    details: A .vuka.html shape is one struct and its markup. Server state, browser state and Vue or React islands share one form, and events patch the page in place.
     link: /ui/
-    linkText: Shape Files
-  - title: Plain Go comes out
-    details: No runtime magic, no reflection where a type will do. vuka explain shows exactly what each line becomes, and build/ holds a plain Go module any Go tool can build.
-  - title: Full editor support
-    details: vuka lsp puts gopls behind a proxy — completion, hover, go to definition, rename and diagnostics in .vuka files, and Go files that see Vuka code.
-  - title: A web framework
-    details: "Pages come from the pages/ tree, with bracket parameters and shared layouts. Typed handlers receive forms, requests, identities and registered services."
-    link: /web/
-    linkText: Your First Web App
+    linkText: Shape files
   - title: An ORM
-    details: A library in Vuka. Models declared with field attributes — a column's name, type, default and checks in one — custom value types, queries written with field references the compiler checks — Post.Objects.Filter(Post.Title.Contains("Go")) — Result and Option from every terminal, and Go migrations.
+    details: Models declared with field attributes, queries the compiler checks, such as Post.Objects.Filter(Post.Title.Contains("Go")), and migrations written in Go.
     link: /orm/
     linkText: Database
 ---
@@ -66,9 +56,13 @@ vuka new hello && cd hello
 vuka run
 ```
 
+For your editor, install the Vuka extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=vuka-lang.vuka) or [Open VSX](https://open-vsx.org/extension/vuka-lang/vuka). Other editors use `vuka lsp`; see [Editors](/tools/editors).
+
 ## A taste
 
-```vuka
+::: code-group
+
+```vuka [lookup.vuka]
 func lookup(arg string) Result[User] {
 	id := strconv.Atoi(arg)?          // Go's (T, error) works directly
 	u := find(id)?
@@ -91,6 +85,24 @@ case Err(e):
 }
 ```
 
+```html [pages/counter/index.vuka.html]
+package counter
+
+import "github.com/vuka-lang/ui/v2"
+
+type Index struct {
+	ui.Live
+	count int
+}
+
+func (p *Index) Add() { p.count++ }
+<main>
+  <h1>{count}</h1>
+  <button onClick={Add}>Add one</button>
+</main>
+```
+
+:::
 
 ## Built on Go
 
