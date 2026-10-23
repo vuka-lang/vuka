@@ -1,3 +1,4 @@
+<script lang="go">
 package org
 
 import (
@@ -14,4 +15,6 @@ type Index struct {
 func NewIndex() *Index { return &Index{} }
 
 func (*Index) Delete(ctx context.Context) error { return nil }
+</script>
+
 <p>{urls.Orgs.Org(Org).ResetPassword.Path() + urls.Orgs.Org(Org).TeamSettings.Path()}</p>

@@ -1,3 +1,4 @@
+<script lang="go">
 package org
 
 import (
@@ -21,4 +22,6 @@ func (l *Layout) Load(ctx context.Context) error {
 }
 
 func tabOf(ctx context.Context) string { return web.Request(ctx).URL.Query().Get("tab") }
+</script>
+
 <section data-org={Org}>{Children}</section>

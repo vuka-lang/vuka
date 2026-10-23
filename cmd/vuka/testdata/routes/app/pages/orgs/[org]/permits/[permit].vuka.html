@@ -1,3 +1,4 @@
+<script lang="go">
 package permits
 
 import (
@@ -13,4 +14,6 @@ type Permit struct {
 	Org    int
 	Permit codes.Code
 }
+</script>
+
 <p>{urls.Orgs.Org(Org).Permits.Permit(Permit).Path()}</p>

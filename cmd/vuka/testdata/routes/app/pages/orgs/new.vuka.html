@@ -1,3 +1,4 @@
+<script lang="go">
 package orgs
 
 import "context"
@@ -8,4 +9,6 @@ type New struct{}
 func NewNew() *New { return &New{} }
 
 func (*New) Post(ctx context.Context, f Form) error { return nil }
+</script>
+
 <form method="post"><input name="name"/></form>
