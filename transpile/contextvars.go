@@ -279,6 +279,7 @@ func (e *engine) lowerContextVars(f *fileState) {
 		f.fixed = append(f.fixed, edit{start: off, end: off + len(id.Name), text: pre + id.Name + post,
 			segs: []segment{{genLen: len(pre), src: off}, {gen: len(pre), genLen: len(id.Name), src: off, srcLen: len(id.Name), copy: true}, {gen: len(pre) + len(id.Name), genLen: len(post), src: off + len(id.Name)}}})
 		f.spell(pre+id.Name+post, id.Name, off)
+		f.varReads = append(f.varReads, VarRead{Off: off, Name: id.Name, Type: e.display(v.Type), Processor: v.Processor})
 		e.progress = true
 	}
 }
@@ -373,25 +374,37 @@ func (e *engine) templateNames() map[string]bool {
 }
 
 // VarRead is a read of a context processor's variable: its offset in the
-// file as written, and its name.
+// file as written, its name and type, and the processor providing it.
+// Off is -1 for a variable the file may read (Output.Available).
 type VarRead struct {
-	Off  int
-	Name string
+	Off       int
+	Name      string
+	Type      string // as the package spells it: *users.User
+	Processor Processor
 }
 
 // readsOf are f's lowered reads.
 func (f *fileState) readsOf() []VarRead {
-	var out []VarRead
-	for _, ed := range f.fixed {
-		if len(ed.segs) == 3 && strings.Contains(ed.text, ".Var[") && strings.HasSuffix(ed.text, "\")") {
-			name := ed.text[strings.LastIndex(ed.text, "(ctx, \"")+len("(ctx, \"") : len(ed.text)-2]
-			off := ed.start
-			if f.html != nil {
-				off = f.html.toSrc(off)
-			}
-			out = append(out, VarRead{Off: off, Name: name})
+	out := slices.Clone(f.varReads)
+	for i := range out {
+		if f.html != nil {
+			out[i].Off = f.html.toSrc(out[i].Off)
 		}
 	}
 	slices.SortFunc(out, func(a, b VarRead) int { return a.Off - b.Off })
+	return out
+}
+
+// available are the variables every main linking the package in provides.
+func (e *engine) available() []VarRead {
+	if e.ctx == nil {
+		return nil
+	}
+	var out []VarRead
+	for _, n := range e.ctx.sortedNames() {
+		if v, why := e.ctx.lookup(n); why == "" {
+			out = append(out, VarRead{Off: -1, Name: n, Type: e.display(v.Type), Processor: v.Processor})
+		}
+	}
 	return out
 }

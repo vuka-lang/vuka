@@ -679,6 +679,9 @@ type Generated struct {
 	TemplMap any
 	Files    []transpile.FileRef // a .vuka file's vuka.File literals, in From
 	Names    map[string]string   // the package's overloads (transpile.Output.Names)
+	// Vars and Available are the context processors' variables a .vuka
+	// file reads by name and may read (transpile.Output).
+	Vars, Available []transpile.VarRead
 }
 
 // Options configure Transpile.
@@ -929,7 +932,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available})
 		}
 		if res.Calls != nil {
 			// The call adapters: a file of the package's, no source's.
