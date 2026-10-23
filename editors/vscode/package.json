@@ -238,8 +238,20 @@
       {
         "command": "vuka.showRoute",
         "title": "Vuka: Show Routes"
+      },
+      {
+        "command": "vuka.extractComponent",
+        "title": "Vuka: Extract Component"
       }
     ],
+    "menus": {
+      "commandPalette": [
+        {
+          "command": "vuka.extractComponent",
+          "when": "false"
+        }
+      ]
+    },
     "semanticTokenTypes": [
       {
         "id": "vukaProp",
@@ -314,6 +326,6 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs"
   }
 }

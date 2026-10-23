@@ -62,6 +62,18 @@ the `github.com/vuka-lang/vuka` package your module requires.
   page listing them, and renaming a page file or folder under `pages/`
   renaming the `urls` chains naming it. See [following
   routes](/tools/editors#routes) and [renaming pages](/tools/editors#renaming-pages).
+- **Refactoring shapes.** `vuka lsp` extracts a selection of a shape's
+  markup into a component of its own (**Extract component…**): a shape file
+  in the script form, in `_parts/` beside a page or in the shape's package,
+  its props the fields, variables and methods the selection reads, typed by
+  the package's type check, and the tag passing them in the selection's
+  place. **Move to the logic file** moves a shape's methods, one or all but
+  `Title` and its hooks, from its script to the `.vuka` file beside it,
+  imports following. Quick fixes for [W0102](/errors/W0102) (a key from the
+  item's ID-like field or the index), [W0703](/errors/W0703) (the page's
+  title read in the layout's markup; a current link marked with `ui.Link`'s
+  `active`), [E0155](/errors/E0155), [E0142](/errors/E0142) and
+  [E0329](/errors/E0329). See [refactoring](/tools/editors#refactoring).
 
 - **`<script lang="go">` shapes.** A `.vuka.html` file's Go goes in a
   `<script lang="go">`, the file's first element, and its markup follows

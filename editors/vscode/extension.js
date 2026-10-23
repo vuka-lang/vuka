@@ -7,6 +7,7 @@ const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient
 const { markupBefore, tagToClose, closingFor } = require('./shape');
 const toolchain = require('./toolchain');
 const { formatRoute, moduleRoot } = require('./routes');
+const { extractCommand, nameProblem, extractArguments } = require('./refactor');
 
 let client;
 let versionItem;
@@ -368,6 +369,29 @@ function showRoute(...entries) {
   });
 }
 
+// extractComponent runs the language server's Extract component… code
+// action: it asks the new component's name, then the server extracts it
+// and has the editor apply the edit.
+async function extractComponent(arg) {
+  if (!client || !arg) {
+    return;
+  }
+  const name = await vscode.window.showInputBox({
+    title: 'Extract component',
+    prompt: "The new component's name",
+    value: 'Part',
+    validateInput: nameProblem,
+  });
+  if (!name) {
+    return;
+  }
+  try {
+    await client.sendRequest('workspace/executeCommand', { command: extractCommand, arguments: extractArguments(arg, name) });
+  } catch (err) {
+    vscode.window.showErrorMessage(`Vuka: ${err.message}`);
+  }
+}
+
 function activate(context) {
   context.subscriptions.push(
     vscode.commands.registerCommand('vuka.restartServer', async () => {
@@ -385,6 +409,7 @@ function activate(context) {
     vscode.commands.registerCommand('vuka.serveTemplFiles', () => enableTemplDropIn(context, false)),
     vscode.commands.registerCommand('vuka.stopServingTemplFiles', () => disableTemplDropIn(context)),
     vscode.commands.registerCommand('vuka.showRoute', showRoute),
+    vscode.commands.registerCommand(extractCommand, extractComponent),
   );
   const config = vscode.workspace.getConfiguration('vuka');
   if (config.get('offerGoDropIn')) {
