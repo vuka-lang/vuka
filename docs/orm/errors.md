@@ -1,4 +1,12 @@
-# Errors
+# Database Errors
+
+[[toc]]
+
+## Introduction
+
+When a query fails, you usually need to know why: no row, too many, a
+conflict, an invalid value, or a database that didn't answer. The ORM's errors
+carry that as a kind you can test for.
 
 <!-- go:context
 type User struct {
@@ -8,9 +16,11 @@ type User struct {
 	Email string
 }
 -->
-The ORM's errors are `*orm.Error` values with a `Kind`; `errors.Is` matches a
-kind:
 
+## Checking an Error's Kind {#kinds}
+
+The ORM's errors are `*orm.Error` values with a `Kind`; `errors.Is` matches a
+kind. This function turns two kinds into the web app's errors:
 
 ```go
 func findUser(ctx context.Context, email string) (User, error) {
@@ -25,6 +35,8 @@ func findUser(ctx context.Context, email string) (User, error) {
 }
 ```
 
+The kinds are:
+
 | Kind | When |
 |---|---|
 | `orm.NotFound` | `Get`, the engine's `First`, `Refresh`, `Remove`, `RawRow` found no row |
@@ -32,6 +44,10 @@ func findUser(ctx context.Context, email string) (User, error) {
 | `orm.Conflict` | a write broke a unique constraint (`Fields`: the column) |
 | `orm.Invalid` | a write referred to a row that doesn't exist (a foreign key), or a value broke its [field's checks](/orm/fields#validation) (`Fields`: the columns' messages) |
 | `orm.Unavailable` | the database didn't answer in time; a declared database's breaker is open, no connection was free within `Acquire`, or it is closing |
+
+### Reading the Fields
+
+An `Invalid` or `Conflict` error names its fields:
 
 <!-- go:fragment -->
 ```go
@@ -42,12 +58,14 @@ if errors.As(err, &e) && e.Kind == orm.Conflict {
 }
 ```
 
+These values and functions help:
+
 | | |
 |---|---|
 | `orm.ErrNotFound`, `ErrMultipleFound`, `ErrConflict`, `ErrInvalid`, `ErrUnavailable` | the kinds as `error` values, for `errors.Is` |
 | `orm.KindOf(err)` | an error's kind; 0 for one the ORM gives no meaning (a driver's, a bad query) |
 
-
+## Errors in a Web App {#web}
 
 A web app maps the kinds onto statuses where it answers — `NotFound` → 404,
 `Conflict` → 409, `Invalid` → 422, `Unavailable` → 503 — with

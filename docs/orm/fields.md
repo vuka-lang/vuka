@@ -1,8 +1,17 @@
 # Fields
 
-A model's field says what its column is, what a row gets when the field is
-left empty, and what a write may put in it — with attributes after the field:
+[[toc]]
 
+## Introduction
+
+A model's field says what its column is, what a row gets when the field is
+left empty, and what a write may put in it. You say all three with attributes
+after the field, so the table, the defaults and the write checks come from one
+place.
+
+## Declaring Fields
+
+This model declares its columns, defaults and checks with attributes:
 
 ```go
 type Order struct {
@@ -32,7 +41,7 @@ created without one is a draft, and a write giving it `"lost"` is refused
 before it reaches the database. `Email` and `Phone` use an attribute and a
 type of the program's own (below).
 
-## Column attributes
+## Column Attributes {#column-attributes}
 
 `@orm.PK`, `@orm.Char`, `@orm.Int`, `@orm.DateField` and `@orm.Datetime` each
 take these, all optional:
@@ -50,6 +59,10 @@ take these, all optional:
 never NULL, and is unique and indexed already. The bare forms, `@orm.PK` and
 `@orm.Char{Max: 200}`, are what they always were.
 
+### Attribute Settings
+
+Each attribute also has fields of its own:
+
 | Attribute | Its own fields |
 |---|---|
 | `@orm.PK` | `Manual`: an integer key the program sets, not one the database counts (0 is then a key like any). `UUID`: a string key the ORM sets to a random UUID on create when it is empty — `uuid` on Postgres, `CHAR(36)` on MySQL and SQLite |
@@ -57,6 +70,8 @@ never NULL, and is unique and indexed already. The bare forms, `@orm.PK` and
 | `@orm.Int` | `Min`, `Max`: bounds, an integer each, nil for none — `Min: 0` is a bound. `Size`: `orm.Small` (SMALLINT), `orm.Medium` (INTEGER, 32 bits), `orm.Big` (BIGINT), over the Go type's. `Unsigned`: `UNSIGNED` on MySQL, and negative values refused on every database. `Choices`: the values it may take |
 | `@orm.DateField` | a `DATE` column of a `time.Time` field: the day alone. `AutoNow`, `AutoNowAdd`: today on every save, on create. `DefaultNow`: today on create when it is empty, and `DEFAULT CURRENT_DATE` in the table |
 | `@orm.Datetime` | a timestamp of a `time.Time` field. `AutoNow`, `AutoNowAdd`, `DefaultNow` as above, with `CURRENT_TIMESTAMP`. `Precision`: its fractional digits, 1–6 (`DATETIME(n)` on MySQL, `timestamp(n)` on Postgres; 0 leaves the database's, microseconds) — times are cut to it as they are written. `UTC`: written and read in UTC |
+
+### Combining Attributes
 
 The date is `@orm.DateField` because `orm.Date` is the lookup transform.
 
@@ -68,7 +83,7 @@ right, each over the ones before it, and a member left empty never undoes an
 earlier attribute: in `@orm.Column("ref_no") @orm.Char{Max: 20}` the column
 is `ref_no`; in `@orm.Char{Column: "a"} @orm.Column("b")` it is `b`.
 
-## Defaults
+## Default Values {#defaults}
 
 A `Default` (or `@orm.DefaultTo(v)`) is two things at once:
 
@@ -77,6 +92,7 @@ A `Default` (or `@orm.DefaultTo(v)`) is two things at once:
 - the value `Create` (and `BulkCreate`, `GetOrCreate`) gives the field when it
   is left at its zero value.
 
+This fragment shows both at work:
 
 <!-- go:fragment -->
 ```go
@@ -86,9 +102,12 @@ if err := o.Save(ctx); err != nil { // o.Status == "draft", o.Qty == 1, o.Placed
 }
 ```
 
-The zero value is what counts as empty, so a `bool` with `Default: true` is
-always true on create: give it an `Option[bool]` (None is empty) to create it
-false. `@orm.DefaultSQL("…")` is the table's default alone, an expression the
+> [!WARNING]
+> The zero value is what counts as empty, so a `bool` with `Default: true` is
+> always true on create: give it an `Option[bool]` (None is empty) to create it
+> false.
+
+`@orm.DefaultSQL("…")` is the table's default alone, an expression the
 ORM doesn't evaluate. `DefaultNow` is the database's current time in the
 table, and the program's clock (`orm.Clock`) on create.
 
@@ -98,8 +117,7 @@ A write checks each value against its field before it reaches the database:
 `Create`, `BulkCreate` (every row), `GetOrCreate`, `Save`, `UpdateOrCreate`
 and a query's `Update` (each value it sets that isn't an expression). What
 fails is an `orm.Invalid` error naming the columns, the shape a foreign key
-violation has:
-
+violation has. This fragment catches one:
 
 <!-- go:fragment -->
 ```go
@@ -120,17 +138,18 @@ if errors.As(err, &e) {
 | `Int`'s `Min`, `Max`; `Unsigned` | `must be at least n`, `must be at most n` |
 | the type's `Validate()`, an attribute's `Validate(v)` | the error's text |
 
-A NULL (a nil pointer, `None`) passes every check. `Trim` and `Lower` run
-first, so `" Ada@X.org "` is checked, and stored, as `"ada@x.org"`; the row
+> [!NOTE]
+> A NULL (a nil pointer, `None`) passes every check.
+
+`Trim` and `Lower` run first, so `" Ada@X.org "` is checked, and stored, as `"ada@x.org"`; the row
 you passed holds what was written, the stamps of a `UTC` or `Precision`
 field included. A web app answers `Invalid` with a 422 and the fields'
 messages.
 
-## Value types
+## Custom Value Types {#value-types}
 
 A field's type can say how its values reach the database and come back, with
 any of four methods — each optional, each independent of the others:
-
 
 ```go
 type Phone string
@@ -173,12 +192,11 @@ the column follows the type's kind: a `Phone` string is `TEXT`, or a
 `VARCHAR` with `@orm.Char{Max: n}`. `orm.JSON[T]` is such a type, through
 `Scan` and `Value`.
 
-## Your own attributes
+## Custom Attributes {#your-own-attributes}
 
 An attribute is any value with an `Apply(*orm.FieldOptions)` method; written
 after a field, it is applied in its turn like the built-in ones, which are
 written the same way. A `Validate(v any) error` method adds a write check:
-
 
 ```go
 type Email struct{ Unique bool }
@@ -225,6 +243,8 @@ for NULL. `orm.FieldOptions` has every setting the built-ins use:
 Set what the attribute means, and leave the rest: a member left at its zero
 value keeps what an earlier attribute set.
 
+### Deciding Fields at Run Time
+
 What only the running program knows — the columns a legacy table it read at
 start lacks — a model attribute decides as the ORM maps the model: its
 `ApplyModel` sets `ModelConfig.Fields`, a function giving a field its
@@ -233,6 +253,8 @@ reflect.StructField) (orm.FieldOptions, bool)`, false for a field it says
 nothing of), asked once per field before the model's first query.
 `orm.SetFieldOptions` (deprecated) does the same for every model.
 
+### Attribute Targets
+
 The ORM's attribute types declare where they go (`vuka.OnField`; `orm.Meta`
 on the embedded `orm.Base` or the type, `orm.TxOn` and `orm.Retry` on
 functions), so `@orm.Char` above a function is a compile error, and an
@@ -240,11 +262,10 @@ editor completing `@orm.` after a field offers the field attributes.
 In Go a type declares them with a `vukaTargets` method, as `Email` does
 above; it matters only to `.vuka` files using the attribute.
 
-## Field info
+## Reading Field Info {#field-info}
 
 `Fields()` on a model's objects lists its columns as forms, admin pages and
 tools need them:
-
 
 <!-- go:fragment -->
 ```go
@@ -258,7 +279,7 @@ Each `orm.FieldInfo` has the field's `Name`, `Column`, `Type`, `PK`, `Null`,
 `Pattern`, `Default`, `Initial`, `Label`, `Help`, `Comment`, `AutoNow` and
 `AutoNowAdd`.
 
-## In migrations
+## Fields in Migrations {#in-migrations}
 
 <!-- go:context
 import m "github.com/vuka-lang/orm/v2/migration"

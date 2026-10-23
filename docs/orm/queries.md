@@ -1,9 +1,13 @@
 # Queries
 
-`orm.Objects[Post]()`,
-the model's manager, starts an `orm.QuerySet[Post]`: a lazy, immutable
-query. Each method returns a new one; nothing runs until a
-terminal (`All`, `Get`, `Count`, …) takes a context.
+[[toc]]
+
+## Introduction
+
+You read and write rows through QuerySets. `orm.Objects[Post]()`, the model's
+manager, starts an `orm.QuerySet[Post]`: a lazy, immutable query. Each method
+returns a new one, and nothing runs until a terminal (`All`, `Get`, `Count`, …)
+takes a context.
 
 <!-- go:context
 type User struct {
@@ -47,13 +51,16 @@ var (
 )
 -->
 
-The Go samples use `PostFields` (`f`), the typed fields `ormgen` writes
-([Models](/orm/models#plain-go)); every condition is also an engine string,
-`orm.Q{"title__contains": "Go"}`. Terminals return `(T, error)`. Values,
+The samples use `PostFields` (`f`), the typed fields `ormgen` writes
+([Models](/orm/models#plain-go)). Every condition is also an engine string,
+`orm.Q{"title__contains": "Go"}`, and terminals return `(T, error)`. Values,
 aggregates and pagination take the engine's names in Go:
-`orm.Objects[Post]().Annotate("n", orm.Count("id")).Values[Stats]("author__name", "n").All(ctx)`, `orm.Paginate(ctx, qs, r,
-orm.Sortable("views"))`.
+`orm.Objects[Post]().Annotate("n", orm.Count("id")).Values[Stats]("author__name", "n").All(ctx)`,
+`orm.Paginate(ctx, qs, r, orm.Sortable("views"))`.
 
+## Your First Query
+
+This fragment builds a query of recent posts, then reads them and counts them:
 
 <!-- go:fragment -->
 ```go
@@ -71,7 +78,7 @@ if err != nil {
 n, err := recent.Count(ctx) // int64
 ```
 
-## Conditions
+## Filtering Rows {#conditions}
 
 A model's typed field, `PostFields.Title`, is written beside the model by
 `orm generate` (`//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen`). It gives conditions (`orm.Cond`) and orderings:
@@ -83,18 +90,23 @@ A model's typed field, `PostFields.Title`, is written beside the model by
 | strings | those, and `Contains`, `IContains`, `StartsWith`, `IStartsWith`, `EndsWith`, `IEndsWith`, `IExact` |
 | any | `Asc()`, `Desc()` for `OrderBy`; `Name()`, the lookup path; `Expr()`, the column as an [expression](/orm/expressions) |
 
+### Combining Conditions
+
 Fields go on through relations — `PostFields.Author.Name`, `PostFields.Tags.Name` (a
 second hop is a method: `PostFields.Author.Posts().Title`) — and the query joins
 what they cross. Combine conditions with `orm.And`, `orm.Or` and
 `orm.Not`; several in one `Filter` are and-ed; an `orm.Q{"title__icontains":
 "go"}` is a condition too:
 
-
 <!-- go:fragment -->
 ```go
 f := PostFields
 q := orm.Objects[Post]().Filter(orm.Or(f.Views.Gt(100), orm.And(f.Tags.Name.Eq("go"), f.Published.IsNull(false))))
 ```
+
+### Shaping the Query
+
+These methods narrow, order and cut the query:
 
 | | |
 |---|---|
@@ -106,7 +118,9 @@ q := orm.Objects[Post]().Filter(orm.Or(f.Views.Gt(100), orm.And(f.Tags.Name.Eq("
 `orm.Objects[Post](schema)` is the same manager on another schema (a
 tenant's names set).
 
-## Reading
+## Reading Rows {#reading}
+
+A terminal runs the query:
 
 | Terminal | Returns |
 |---|---|
@@ -119,8 +133,9 @@ tenant's names set).
 `orm.Optional(q.First(ctx))` (or of `Get`) is the row as a `vuka.Option[T]`
 and an error: `None` where there is no row, other errors as they are.
 
-`errors.Is` tells the kinds apart:
+### Handling Missing Rows
 
+`errors.Is` tells the kinds apart:
 
 <!-- go:fragment -->
 ```go
@@ -153,13 +168,13 @@ for p, err := range orm.Objects[Post]().Filter(f.Views.Gte(50)).Iter(ctx) {
 }
 ```
 
-## Values and aggregates
+## Values and Aggregates {#values-and-aggregates}
 
 `Values[R](names…)` reads columns, paths and annotations into `R`: a
 struct (its fields matched by name, or by an `orm:"author__name"` path),
 `map[string]any`, `[]any`, or a scalar for one name. An aggregate
-annotation groups by the other names:
-
+annotation groups by the other names. This function reads per-author totals
+into a struct:
 
 ```go
 type Stats struct {
@@ -174,6 +189,8 @@ func authorStats(ctx context.Context) ([]Stats, error) {
 }
 ```
 
+`Aggregate` computes values over the whole query:
+
 <!-- go:fragment -->
 ```go
 totals, err := orm.Objects[Post]().Aggregate(ctx, orm.Count("author").Distinct().As("authors"), orm.Max("views").As("top"))
@@ -183,8 +200,9 @@ if err != nil {
 fmt.Println(totals.Int("authors"), totals.Int("top"))
 ```
 
-`GroupBy` and `Having` group by fields and filter on an aggregate:
+### Grouping
 
+`GroupBy` and `Having` group by fields and filter on an aggregate:
 
 <!-- go:fragment -->
 ```go
@@ -196,11 +214,10 @@ Aggregates are `orm.Count`, `orm.Sum`, `orm.Avg`, `orm.Min`, `orm.Max`, each
 with `.Filter(cond)` (over the matching rows) and `.Distinct()`; see
 [Expressions](/orm/expressions).
 
-## Pagination
+## Paginating Results {#pagination}
 
 `orm.Paginate` reads a page and the total, sorting and searching only by the
 fields you allow:
-
 
 <!-- go:fragment -->
 ```go
@@ -217,7 +234,9 @@ page, err := orm.Paginate(ctx, orm.Objects[Post]().QuerySet, orm.PageFrom(r.URL.
 same by hand. Sizes default to 20, at most 100 (`orm.DefaultSize(n)`,
 `orm.MaxSize(n)`).
 
-## Writing
+## Writing Rows {#writing}
+
+These calls insert, update and delete:
 
 | | |
 |---|---|
@@ -228,6 +247,7 @@ same by hand. Sizes default to 20, at most 100 (`orm.DefaultSize(n)`,
 | `Update(ctx, orm.Set{…})` | update the matching rows; `(int64, error)` |
 | `Delete(ctx)` | delete the matching rows; `(int64, error)` |
 
+This fragment gets or creates a tag, then updates and deletes posts in bulk:
 
 <!-- go:fragment -->
 ```go
@@ -249,16 +269,21 @@ if _, err := posts.Filter(f.Published.IsNull(true)).Delete(ctx); err != nil {
 }
 ```
 
+### Updating With Expressions
+
 `orm.Set` maps columns to values or expressions of the row's own columns,
 computed by the database. A number field's `Add`, `Sub`, `Mul` and `Div`
 are such expressions, typed (`orm.NumExpr`): `f.Views.Add(1).Mul(2)` is
-`(views + 1) * 2`, and `f.Views.Add("x")` doesn't compile. `orm.Objects[Post]().OnChange(fn)` calls `fn` after each
-write to the model's rows, and returns the function that stops it.
+`(views + 1) * 2`, and `f.Views.Add("x")` doesn't compile.
 
-## Relations
+### Watching Writes
+
+`orm.Objects[Post]().OnChange(fn)` calls `fn` after each write to the model's
+rows, and returns the function that stops it.
+
+## Working With Relations {#relations}
 
 A many-to-many's links change through the field or the row:
-
 
 <!-- go:fragment -->
 ```go
@@ -276,11 +301,12 @@ if err := p.Add(ctx, "tags", &db); err != nil { // the same, through the row
 }
 ```
 
+### Eager Loading
+
 Reading a relation row by row is an N+1: one query for the posts, one per
 post for its author. `SelectRelated` joins a foreign key into the query;
 `PrefetchRelated` reads a relation's rows in one more query, for every row
 at once:
-
 
 <!-- go:fragment -->
 ```go
@@ -306,9 +332,9 @@ missed.
 
 ## Raw SQL
 
-`orm.Objects[Post]().Raw(sql, args…)` reads the model's rows from your own SQL;
-`orm.Raw[R]` reads any struct. See [Raw SQL](/orm/databases#raw-sql).
-
+`orm.Objects[Post]().Raw(sql, args…)` reads the model's rows from your own SQL,
+and `orm.Raw[R]` reads any struct. See [Raw SQL](/orm/databases#raw-sql) for
+more:
 
 <!-- go:fragment -->
 ```go

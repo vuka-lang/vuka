@@ -1,4 +1,13 @@
-# Expressions and functions
+# Expressions & Functions
+
+[[toc]]
+
+## Introduction
+
+Expressions let a query compute in SQL: lower-case a title, add two columns,
+bucket rows with `Case`, compare with a subquery, or call a function of your
+own database. You write them in Go, typed, and the ORM writes the SQL for the
+dialect the query runs on.
 
 <!-- go:context
 type User struct {
@@ -25,13 +34,15 @@ func (p *Post) Schema(s *orm.Schema) {
 
 var slug = "hello-go"
 -->
+
+## Writing Expressions {#expressions}
+
 SQL's expressions are the engine's: a field's `Expr()` is its column
 (`orm.F("title")`), and functions, `Case`, `Switch`, `Cast`, `Value` and
 `SQL` take expressions, values or other calls — and typed fields as they
 are, `orm.Lower(PostFields.Title)`. A typed call compares by its
-result's type, so `orm.Length(…).Eq("x")` doesn't compile:
-
-
+result's type, so `orm.Length(…).Eq("x")` doesn't compile. This fragment
+uses a few of them:
 
 <!-- go:fragment -->
 ```go
@@ -46,12 +57,18 @@ if _, err := posts.Filter(f.Slug.Eq(slug)).Update(ctx, orm.Set{"views": f.Views.
 }
 ```
 
+### Arithmetic
+
 A number field (an `orm.NumberField`, what `orm generate` writes for an
 integer or float column) does arithmetic: `Add`, `Sub`, `Mul` and `Div`
 take a value of the field's type and give an `orm.NumExpr`, an
 `OrderedExpr` that goes on (`f.Views.Add(1).Mul(2)`); `orm.Num[int](e)`
 makes one of any expression. `Div` divides as the database does: whole
 numbers for integers on SQLite and Postgres.
+
+### Functions
+
+The `orm` package provides these:
 
 | `orm.` | |
 |---|---|
@@ -66,6 +83,8 @@ numbers for integers on SQLite and Postgres.
 | `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * {1}", PostFields.Likes.Expr(), PostFields.Views.Expr())` |
 | `Where(e, lookup, v)` | a condition on any expression: `orm.Where(orm.SQL("{0} - {1}", views, likes), "gte", 49)` |
 
+### Typed Calls
+
 A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,
 `Asc`, `Desc`, `As`), an `OrderedExpr[R]` (and `Lt`, `Le`, `Gt`, `Ge`,
 `Between`) or a `TextExpr` (and `Contains`, `IContains`, `StartsWith`,
@@ -75,8 +94,8 @@ A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,
 ## Aggregates
 
 `orm.Count(field)`, `orm.Sum`, `orm.Avg`, `orm.Min`, `orm.Max`, each with
-`.Filter(cond)`, `.Distinct()` and `.As(name)`:
-
+`.Filter(cond)`, `.Distinct()` and `.As(name)`. This function counts each author's
+posts, and separately the liked ones:
 
 ```go
 type Stats struct {
@@ -92,10 +111,13 @@ func likedStats(ctx context.Context) ([]Stats, error) {
 }
 ```
 
-See [Values and aggregates](/orm/queries#values-and-aggregates).
+See [Values and Aggregates](/orm/queries#values-and-aggregates).
 
-## Case and Switch
+## Conditional Expressions {#case-and-switch}
 
+`orm.Case` picks a value by the first condition that holds, and `orm.Switch`
+by the value of an expression. The fragment below reads its results into this
+struct:
 
 ```go
 type Heat struct {
@@ -103,6 +125,8 @@ type Heat struct {
 	Heat  string
 }
 ```
+
+Then it annotates each post with its heat and filters on a switch:
 
 <!-- go:fragment -->
 ```go
@@ -131,6 +155,7 @@ if err != nil {
 | `field.InQuery(values)` | `field IN (SELECT …)` |
 | `orm.OuterRef(name)` | inside a subquery: the outer row's column |
 
+The fragment below reads each user's most-viewed post into this struct:
 
 ```go
 type Top struct {
@@ -138,6 +163,8 @@ type Top struct {
 	Top  string
 }
 ```
+
+It also finds users through `Exists` and `InQuery`:
 
 <!-- go:fragment -->
 ```go
@@ -154,7 +181,7 @@ liked := users.Filter(orm.Exists(posts.Filter(orm.Q{"author": orm.OuterRef("id")
 viewed := users.Filter(UserFields.ID.InQuery(posts.Filter(PostFields.Views.Gte(50)).Values[int64]("author")))
 ```
 
-## Custom functions
+## Custom Functions {#custom-functions}
 
 A database function is defined once, with its SQL per dialect, and called
 like a Go function. The constructor picks the result type's comparisons:
@@ -166,6 +193,8 @@ like a Go function. The constructor picks the result type's comparisons:
 | `orm.TextFunc(name, opts…)` | `TextExpr` | those, and `Contains`, `IContains`, `StartsWith`, `EndsWith`, `Like` |
 | `orm.Aggregate[R](name, opts…)` | an aggregate's | as `Func` |
 
+Each constructor takes these options:
+
 | Option | |
 |---|---|
 | `orm.Template(dialect, sql)` | its SQL on a dialect: `{0}`, `{1}` the arguments, `{*}` all; `""` every dialect not named |
@@ -173,6 +202,7 @@ like a Go function. The constructor picks the result type's comparisons:
 | `orm.IsAggregate()` | an aggregate: a condition on it is `HAVING`'s |
 | `.Transform()` | (on a one-argument function) a key step before any lookup: `orm.Q{"name__unaccent__icontains": "jose"}` |
 
+These declarations define an edit-distance function and two more:
 
 ```go
 var (
@@ -191,21 +221,21 @@ field's `Expr()`) or plain values, which are always bound as parameters,
 never written into the SQL. Its comparisons are conditions, its `Asc` and
 `Desc` terms of `Order`, and `Annotate` names it:
 
-
 <!-- go:fragment -->
 ```go
 dist := EditDist(PostFields.Title.Expr(), "go")
 close, err := orm.Objects[Post]().Filter(dist.Le(1), PostFields.Views.Gt(50)).Order(dist.Asc()).All(ctx)
 ```
 
+### Window Functions
+
 `.Over(orm.Window{PartitionBy: []string{"author_id"}, OrderBy: []string{"-views"}})`
 makes a call a window function's (`row_number`, `rank`, or an aggregate over
 a window).
 
-## Custom lookups
+## Custom Lookups {#custom-lookups}
 
-`orm.RegisterLookup` adds a lookup to `orm.Q` keys and `Where`, Django's
-`register_lookup`. Its function writes the condition per dialect from the
+`orm.RegisterLookup` adds a lookup to `orm.Q` keys and `Where`. Its function writes the condition per dialect from the
 left side's SQL and the value (`rhs()` binds it); `false` means no SQL on
 that dialect:
 
@@ -219,6 +249,7 @@ orm.RegisterLookup("unaccent_icontains", func(lhs string, rhs func() string, d o
 }, orm.LookupValue(orm.LikePattern("%", "%")))
 ```
 
+The new lookup then works in any `orm.Q` key:
 
 <!-- go:fragment -->
 ```go
@@ -229,12 +260,11 @@ cafes := orm.Objects[Post]().Filter(orm.Q{"title__unaccent_icontains": "cafe"})
 escapes a literal into a `LIKE` pattern). An unknown lookup fails with a
 suggestion: `unknown lookup "icontain" — did you mean "icontains"?`.
 
-## Go functions on SQLite
+## Go Functions on SQLite {#go-functions-on-sqlite}
 
 `orm/sqlite`'s `Func` registers a Go function as an SQL function on every
 SQLite connection opened after it — register in an `init`, before
 connecting:
-
 
 ```go
 var words = orm.OrderedFunc[int]("words", orm.Arity(1))
@@ -255,7 +285,7 @@ value. They are deterministic unless `sqlite.Volatile()`, and run unindexed;
 scalar functions only. `sqlite.Func` returns the error that `MustFunc`
 panics with.
 
-## SQL functions in a migration
+## SQL Functions in a Migration {#sql-functions-in-a-migration}
 
 Postgres and MySQL run functions written in SQL. Create them in a
 [migration](/orm/migrations) with `migration.CreateFunction` — unapplying

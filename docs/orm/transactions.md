@@ -1,5 +1,13 @@
 # Transactions
 
+[[toc]]
+
+## Introduction
+
+When several writes must succeed or fail together, you run them in a
+transaction. `orm.Transaction(ctx, func(ctx context.Context) error { … })` runs
+a closure in a transaction, and the context inside it is the transaction's.
+
 <!-- go:context
 type Post struct {
 	orm.Model[Post]
@@ -23,9 +31,9 @@ type User struct {
 func sendWelcome(email string) {}
 -->
 
-`orm.Transaction(ctx, func(ctx context.Context) error { … })` runs a closure
-in a transaction, and the context inside it is the transaction's.
+## Running a Transaction {#running}
 
+This function reads and publishes a post inside one transaction:
 
 ```go
 func publish(ctx context.Context, slug string) error {
@@ -40,21 +48,23 @@ func publish(ctx context.Context, slug string) error {
 }
 ```
 
-`orm.Transaction` runs `fn` in a transaction: committed when it
-succeeds, rolled back when it returns an error, or
-panics. The `ctx` it gives `fn` is the transaction's, so the queries
-made with it take part. Nested — a transaction calling another —
-the inner one is a savepoint: its failure rolls back its own part.
+`orm.Transaction` runs `fn` in a transaction: committed when it succeeds,
+rolled back when it returns an error or panics. The `ctx` it gives `fn` is the
+transaction's, so the queries made with it take part.
 
 If the commit itself fails, `orm.Transaction` returns that error.
 
-## Which database
+### Nested Transactions
+
+Nested — a transaction calling another — the inner one is a savepoint: its
+failure rolls back its own part.
+
+## Choosing the Database {#which-database}
 
 A transaction spans one database. It begins on the database of the first
 write inside it — reads before the first write run outside it, on the
 models' write databases — and a write to another database fails. To name the
 database from the start, pass `orm.TxOn`:
-
 
 ```go
 func record(ctx context.Context, e Event) error {
@@ -63,22 +73,23 @@ func record(ctx context.Context, e Event) error {
 }
 ```
 
-See [Multiple databases](/orm/databases#multiple-databases).
+See [Multiple Databases](/orm/databases#multiple-databases).
 
-## Retries
+## Retrying on Conflicts {#retries}
 
 `orm.Retry(n)` runs the transaction again — up to `n` times, with a jittered
 backoff — on a deadlock or serialization failure (Postgres 40001/40P01,
-MySQL 1213/1205, SQLite busy). The function must be safe to run twice, and
-only the outermost transaction retries.
+MySQL 1213/1205, SQLite busy). Only the outermost transaction retries.
 
-## After the commit
+> [!WARNING]
+> The function must be safe to run twice.
+
+## Running Code After the Commit {#after-the-commit}
 
 `orm.OnCommit(ctx, fn)` runs `fn` once the transaction commits — never for a
 rolled back one, nor for a rolled back savepoint's part; outside a
-transaction, at once. The place to send mail or enqueue work only for
+transaction, at once. It is the place to send mail or enqueue work only for
 writes that stay:
-
 
 ```go
 func signUp(ctx context.Context, u User) error {
@@ -91,13 +102,17 @@ func signUp(ctx context.Context, u User) error {
 }
 ```
 
-## The calls
+## Reference {#the-calls}
+
+The calls and options are:
 
 | | |
 |---|---|
 | `orm.Transaction(ctx, fn, opts…)` | `fn` in a transaction; nested, a savepoint (`orm.Atomic` is the same) |
 | `orm.AtomicOn(ctx, db, fn, opts…)` | on a given `*orm.DB` |
 | `orm.TxOn("db")`, `orm.Retry(n)` | the options, as values |
+
+Options follow the function:
 
 <!-- go:fragment -->
 ```go

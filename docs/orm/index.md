@@ -1,25 +1,31 @@
-# ORM
+# Database: Getting Started
 
-[`github.com/vuka-lang/orm/v2`](https://github.com/vuka-lang/orm) is a
-Django-style ORM for Go and Vuka: a model is a plain struct, its manager a
-package-level value, its queries lazy, immutable QuerySets. Each field's
-column — name, type, default, checks — is declared in one attribute beside
-it, and custom value types and attributes plug in the same way. Relations and
-prefetching, aggregates, `Case`/`When`, subqueries, text and vector search,
-raw SQL, several databases with replicas and routing, mirrored writes, and Go
-migration files written by `makemigrations`.
+[[toc]]
 
-Connections are plain `database/sql`.
+## Introduction
 
-**Go:** an ORM names fields as strings — `Where("author_name = ?", x)`,
+[`github.com/vuka-lang/orm/v2`](https://github.com/vuka-lang/orm) is the ORM
+for Go and Vuka. A model is a plain struct, its manager a package-level value,
+and its queries lazy, immutable QuerySets. Connections are plain
+`database/sql`.
+
+Each field's column — name, type, default, checks — is declared in one
+attribute beside it, and custom value types and attributes plug in the same
+way. On top of that you get relations and prefetching, aggregates,
+`Case`/`When`, subqueries, text and vector search, raw SQL, several databases
+with replicas and routing, mirrored writes, and Go migration files written by
+`makemigrations`.
+
+## Checked Fields and Queries
+
+In plain Go, an ORM names fields as strings — `Where("author_name = ?", x)`,
 `Order("-views")` — that the compiler never checks, and a query for one model
 takes conditions written for another.
 
-**Vuka adds** models declared with [field attributes](/features/fields) and
-queries written with [field references](/features/fields#field-references);
-in Go, the same attributes go in a `Schema` method and the references are
-generated:
-
+Vuka declares models with [field attributes](/features/fields) and writes
+queries with [field references](/features/fields#field-references). In Go, the
+same attributes go in a `Schema` method and the references are generated. Here
+is a model declared that way:
 
 ```go
 type Post struct {
@@ -59,6 +65,8 @@ type Tag struct {
 var slug = "hello-go"
 -->
 
+You query it through the generated fields:
+
 <!-- go:fragment -->
 ```go
 f := PostFields // typed fields, written by go generate
@@ -74,29 +82,35 @@ if errors.Is(err, orm.ErrNotFound) { // there is none
 }
 ```
 
-A value outside a field's `Choices`, bounds or length is refused on every
-write with an [`orm.Invalid`](/orm/errors) naming the field, before the
-database sees it.
-A model's `Schema` names each
-field by its address, so a rename is checked by the compiler; `PostFields`,
-written by `//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen`,
-gives typed lookups; `orm.Objects[Post]()` is the model's manager, and without it every query takes `orm.Q{"title__contains":
-"Go"}` strings. Terminals return `(T, error)`.
-Everything is plain Go underneath — the attributes are the model's
-`Schema` method — so Go and Vuka packages share models and databases.
+A model's `Schema` names each field by its address, so a rename is checked
+by the compiler. `PostFields`, written by
+`//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen`, gives typed
+lookups. `orm.Objects[Post]()` is the model's manager; without the generated
+fields, every query takes `orm.Q{"title__contains": "Go"}` strings.
 
-## Install
+Terminals return `(T, error)`. Everything is plain Go underneath — the
+attributes are the model's `Schema` method — so Go and Vuka packages share
+models and databases.
+
+> [!NOTE]
+> A value outside a field's `Choices`, bounds or length is refused on every
+> write with an [`orm.Invalid`](/orm/errors) naming the field, before the
+> database sees it.
+
+## Installation
+
+Add the module to your project:
 
 ```sh
 go get github.com/vuka-lang/orm/v2
 ```
 
-It needs Go 1.27 (it uses generic methods: `q.Values[R](…)`).
+The ORM needs Go 1.27, because it uses generic methods: `q.Values[R](…)`.
 
-## Drivers
+## Choosing a Driver
 
 Drivers are opt-in blank imports, `database/sql` style; the `orm` package
-links none:
+links none. Import the one for your database:
 
 | Import | Driver | Dialect |
 |---|---|---|
@@ -104,8 +118,10 @@ links none:
 | `github.com/vuka-lang/orm/v2/mysql` | go-sql-driver/mysql | `mysql` |
 | `github.com/vuka-lang/orm/v2/sqlite` | pure-Go `glebarez/go-sqlite` | `sqlite` |
 
-## A first program
+## Your First Program {#a-first-program}
 
+This complete program connects to SQLite, creates a table, saves a user and
+queries it back:
 
 ```go
 package main
@@ -164,26 +180,29 @@ func main() {
 ```
 
 `orm.ConnectURL` picks the dialect from the URL — `postgres://…`,
-`mysql://user:pass@tcp(host)/db`, `sqlite:file.db`; `orm.Connect(dialect,
-dsn)` and `orm.Open(sqlDB, dialect)` take it apart. A program with several
-databases, replicas and a supervised pool declares them instead: see
-[Databases](/orm/databases).
+`mysql://user:pass@tcp(host)/db`, `sqlite:file.db`. `orm.Connect(dialect,
+dsn)` and `orm.Open(sqlDB, dialect)` take it apart.
 
-## What's in it
+A program with several databases, replicas and a supervised pool declares
+them instead: see [Databases](/orm/databases).
+
+## Where to Go Next {#what-s-in-it}
+
+The rest of the database guide covers each part in turn:
 
 | | |
 |---|---|
 | [Models](/orm/models) | `orm.Model[T]`, `Schema`, relations, `Option` fields |
 | [Fields](/orm/fields) | column attributes (`PK`, `Char`, `Int`, `Datetime`, …), defaults, write checks, custom value types and attributes |
 | [Queries](/orm/queries) | predicates from field references, `Get`/`First`, writes, relations, prefetching |
-| [Expressions and functions](/orm/expressions) | `orm/fn`, `Case`/`When`, subqueries, custom functions and lookups |
+| [Expressions & Functions](/orm/expressions) | `orm/fn`, `Case`/`When`, subqueries, custom functions and lookups |
 | [Search](/orm/search) | text, trigram, vector and hybrid search on each database |
 | [Transactions](/orm/transactions) | `orm.Transaction`, retries, `OnCommit` |
 | [Migrations](/orm/migrations) | the `orm` command and Go migration files |
 | [Databases](/orm/databases) | dialects, several databases, routing, raw SQL, the connection pool |
 | [Observability](/orm/observability) | observers, N+1 warnings, slow queries, pool statistics |
 | [Errors](/orm/errors) | the error kinds |
-| [Testing](/orm/testing) | `ormtest` |
+| [Database Testing](/orm/testing) | `ormtest` |
 
 The repository's
 [`examples/blog`](https://github.com/vuka-lang/orm/tree/main/examples/blog)

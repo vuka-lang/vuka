@@ -1,4 +1,12 @@
-# Testing
+# Database Testing
+
+[[toc]]
+
+## Introduction
+
+Tests that touch the database should each start from a clean one.
+`github.com/vuka-lang/orm/v2/ormtest` opens a fresh database per test, with
+the models' tables made — in-memory SQLite by default.
 
 <!-- go:context
 type User struct {
@@ -25,9 +33,10 @@ func publish(ctx context.Context, slug string) error { return nil }
 var t *testing.T
 -->
 
-`github.com/vuka-lang/orm/v2/ormtest` opens a fresh database per test, with the
-models' tables made — in-memory SQLite by default:
+## Writing a Test {#writing}
 
+This test opens a database, seeds a user and counts the queries `publish`
+makes:
 
 ```go
 func TestPublish(t *testing.T) {
@@ -45,6 +54,8 @@ func TestPublish(t *testing.T) {
 }
 ```
 
+The helpers are:
+
 | | |
 |---|---|
 | `ormtest.Open(t, models…)` | a context on a fresh database with the models' tables; closed with the test |
@@ -56,7 +67,7 @@ func TestPublish(t *testing.T) {
 
 `orm.Objects[T]()` is a model's manager, as `Open` takes it.
 
-## On a real server
+## Testing on a Real Server {#on-a-real-server}
 
 `ORMTEST_DRIVER=postgres` or `mysql` with `ORMTEST_DSN` runs the same tests
 on a server, each in a schema or database of its own:
@@ -65,8 +76,9 @@ on a server, each in a schema or database of its own:
 ORMTEST_DRIVER=postgres ORMTEST_DSN=postgres://localhost:5432/test?sslmode=disable go test ./...   # vuka test ./... for .vuka packages
 ```
 
-Skip what a database can't do with `ormtest.Driver()`:
+### Skipping by Database
 
+Skip what a database can't do with `ormtest.Driver()`:
 
 <!-- go:fragment -->
 ```go

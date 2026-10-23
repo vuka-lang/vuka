@@ -1,9 +1,16 @@
 # Models
 
+[[toc]]
 
-A model is a struct embedding `orm.Model[T]`. Its fields are its columns, its
-`Schema` method says what the columns are, and `orm.Objects[Post]()` is its
-manager.
+## Introduction
+
+A model is the Go type that stands for a table. You write it as a struct
+embedding `orm.Model[T]`: its fields are its columns, its `Schema` method says
+what the columns are, and `orm.Objects[Post]()` is its manager.
+
+## Defining Models
+
+Here are three models — users, tags and posts — with their `Schema` methods:
 
 
 ```go
@@ -54,14 +61,14 @@ func (p *Post) Schema(s *orm.Schema) {
 ```
 
 Attributes are Go values, not struct tags: `orm.Char{Max: 200}` is a
-composite literal, type-checked, so a wrong setting is a compile error on
-the attribute. `Schema` names each field by its
-address (`&p.Title`), so a renamed field is a compile error too; a field
-with nothing to say isn't listed. The ORM calls `Schema` once, on a zero
-value.
+composite literal, type-checked, so a wrong setting is a compile error on the
+attribute.
 
+`Schema` names each field by its address (`&p.Title`), so a renamed field is a
+compile error too. A field with nothing to say isn't listed. The ORM calls
+`Schema` once, on a zero value.
 
-## orm.Model
+## Row Methods {#orm-model}
 
 `orm.Model[Post]`, embedded by value, gives the rows their methods:
 
@@ -74,8 +81,10 @@ value.
 | `p.Load(ctx, PostFields.Tags, …)` | reads relations into the row |
 | `p.Add(ctx, "tags", rows…)`, `Remove`, `Set` | changes a many-to-many's links |
 
-`orm.Objects[Post]()` is the model's [manager](/orm/queries). A named query
-is a package-level function:
+### Named Queries
+
+`orm.Objects[Post]()` is the model's [manager](/orm/queries). A named query is
+a package-level function returning a QuerySet:
 
 
 ```go
@@ -85,14 +94,16 @@ func PostLive() orm.QuerySet[Post] {
 }
 ```
 
+You call it like any other QuerySet:
+
 <!-- go:fragment -->
 ```go
 n, err := PostLive().Count(ctx)
 ```
 
-## Meta
+## Model Options {#meta}
 
-`s.Model(orm.Meta{…})` in `Schema` describes the model:
+`s.Model(orm.Meta{…})` in `Schema` describes the model as a whole:
 
 | `orm.Meta` field | |
 |---|---|
@@ -104,9 +115,12 @@ n, err := PostLive().Count(ctx)
 | `Mirror` | a database its writes are repeated on |
 | `Unmanaged` | the database's own table: never created or migrated |
 
-A `Meta() orm.Meta` method works too, and wins. `orm.Register[Entry]()` at
-init registers a model at start-up, so `orm.Check` and the migration commands
-know it without `orm generate`:
+A `Meta() orm.Meta` method works too, and wins.
+
+### Registering Models
+
+`orm.Register[Entry]()` at init registers a model at start-up, so `orm.Check`
+and the migration commands know it without `orm generate`:
 
 
 ```go
@@ -121,11 +135,12 @@ func (e *Entry) Schema(s *orm.Schema) { s.Model(orm.Meta{Table: "audit_entries"}
 func init() { orm.Register[Entry]() }
 ```
 
-## Field attributes
+## Field Attributes {#field-attributes}
 
-Attributes say what tags say, and win over them. In Go each
-is the value given to `s.Field` after the field's address: `@orm.Char{Max: n}`
-is `orm.Char{Max: n}`, a bare `@orm.Unique` is `orm.Unique{}`.
+Attributes say what tags say, and win over them. In Go each is the value given
+to `s.Field` after the field's address: `@orm.Char{Max: n}` is
+`orm.Char{Max: n}`, and a bare `@orm.Unique` is `orm.Unique{}`. The table
+lists them in their Vuka spelling:
 
 | Attribute | Column |
 |---|---|
@@ -149,19 +164,26 @@ is `orm.Char{Max: n}`, a bare `@orm.Unique` is `orm.Unique{}`.
 | `@orm.Trigram`, `@orm.FullText{Config}` | [text search](/orm/search) indexes |
 | `@orm.SearchOf{Fields: []string{"title:A", "body:B"}, Config}` | an `orm.TSVector` generated from fields |
 
-[Fields](/orm/fields) has every setting of the column attributes — defaults,
-the checks a write makes, comments and collations — value types of your own,
-and attributes of your own. Any number may follow a field. Column types follow the Go type: integers,
-floats, `bool`, `string`, `time.Time`, `[]byte`; `orm.JSON[T]` (a JSON
-column), `orm.CSV[E]` (a comma-separated list), `orm.Vector`,
-`orm.TSVector`.
+Any number of attributes may follow a field. [Fields](/orm/fields) has every
+setting of the column attributes — defaults, the checks a write makes, comments
+and collations — plus value types and attributes of your own.
+
+### Column Types
+
+Column types follow the Go type: integers, floats, `bool`, `string`,
+`time.Time`, `[]byte`; `orm.JSON[T]` (a JSON column), `orm.CSV[E]` (a
+comma-separated list), `orm.Vector`, `orm.TSVector`.
 
 ## Relations
 
-**`orm.FK[T]`** is a foreign key as one field: the column `<field>_id`, and
-the related row once it is loaded (`SelectRelated`, `PrefetchRelated`,
-`Get`).
+Relations are fields too. A post has an author and a set of tags; the field
+types below hold both the key and, once loaded, the related rows.
 
+### Foreign Keys
+
+`orm.FK[T]` is a foreign key as one field: the column `<field>_id`, and the
+related row once it is loaded (`SelectRelated`, `PrefetchRelated`, `Get`). This
+fragment builds two posts and reads an author:
 
 <!-- go:fragment -->
 ```go
@@ -185,9 +207,11 @@ name := p.Author.Related().Name // nil until loaded
 
 Its JSON is the key.
 
-**`orm.M2M[T]`** is a many-to-many, through a table between
-(`<table>_<field>`, `posts_tags`, or `Rel`'s `Through`):
+### Many-to-Many Relations
 
+`orm.M2M[T]` is a many-to-many, through a table between (`<table>_<field>`,
+`posts_tags`, or `Rel`'s `Through`). This fragment adds, reads, removes and
+replaces a post's tags:
 
 <!-- go:fragment -->
 ```go
@@ -207,11 +231,13 @@ if err := p.Tags.Set(ctx, &golang); err != nil { // its only links
 return p.Tags.Clear(ctx)
 ```
 
-`All`, `Add`, `Remove`,
-`Set`, `Clear` (on a saved row; rows or keys), `Rows` and `Loaded` (what
-`PrefetchRelated` loaded).
+Its methods are `All`, `Add`, `Remove`, `Set`, `Clear` (on a saved row; rows
+or keys), `Rows` and `Loaded` (what `PrefetchRelated` loaded).
 
-A model's typed fields go on through them into the related model: `PostFields.Author.Name`, `PostFields.Tags.Name`.
+A model's typed fields go on through relations into the related model:
+`PostFields.Author.Name`, `PostFields.Tags.Name`.
+
+### Relation Options
 
 `orm.Rel` describes a relation:
 
@@ -224,18 +250,19 @@ A model's typed fields go on through them into the related model: `PostFields.Au
 | `Null` | the key may be NULL |
 | `CrossDB` | the related model is on [another database](/orm/databases#cross-database-relations): no constraint, prefetched rather than joined |
 
-Reverse relations have no field type yet: filter through them with the
-engine's lookups, `orm.Q{"posts__views__gt": 60}`.
+> [!NOTE]
+> Reverse relations have no field type yet: filter through them with the
+> engine's lookups, `orm.Q{"posts__views__gt": 60}`.
 
-## Option fields
+## Nullable Fields {#option-fields}
 
 <!-- go:context
 var ada, golang, tools = User{}, Tag{}, Tag{}
 var p Post
 -->
 
-An `Option[T]` field is a nullable column: `None` is NULL.
-
+An `Option[T]` field is a nullable column: `None` is NULL. You set it and
+filter on its NULLs like this:
 
 <!-- go:fragment -->
 ```go
@@ -250,14 +277,15 @@ A Go model writes a nullable field as a pointer, `Published *time.Time`
 model's `Option[T]` is and what `vuka eject` keeps: the ORM, JSON and an
 island's props read both. `orm generate` writes a row scanner for either.
 
-## Plain Go
+## Models in Plain Go {#plain-go}
 
 A Go model embeds `orm.Model[T]` (the type `orm.Base` stands for in a Vuka
-model) and says in its `Schema` method what a Vuka model says in
-attributes: `s.Model(…)` takes the model's (`orm.Meta`, any
-`orm.ModelAttr`), `s.Field(&p.X, …)` a field's — the same values,
-`@orm.Char{Max: 200}` on `Title` being `s.Field(&p.Title, orm.Char{Max:
-200})`. The statics are plain names:
+model) and says in its `Schema` method what a Vuka model says in attributes.
+`s.Model(…)` takes the model's (`orm.Meta`, any `orm.ModelAttr`), and
+`s.Field(&p.X, …)` a field's — the same values: `@orm.Char{Max: 200}` on
+`Title` is `s.Field(&p.Title, orm.Char{Max: 200})`.
+
+The statics are plain names:
 
 | Vuka | Go |
 |---|---|
@@ -266,6 +294,8 @@ attributes: `s.Model(…)` takes the model's (`orm.Meta`, any
 | `func Post.Live() orm.QuerySet[Post]` | `func PostLive() orm.QuerySet[Post]` |
 | `@orm.Entity` | `orm.Register[T]()` at init; `orm.Check(models…)` takes others |
 
+### Generated Fields
+
 `PostFields` comes from `ormgen` — `//go:generate go run
 github.com/vuka-lang/orm/v2/cmd/ormgen` beside the models — as an
 `orm.Field[V]` (an `orm.TextField[V]` for strings) per column and a field
@@ -273,6 +303,8 @@ per relation (`PostFields.Author.Name`, `PostFields.Tags`). It is a
 convenience: without it every query takes the engine's strings,
 `orm.Q{"name__startswith": "a"}` and `OrderBy("-views")`, and an unknown
 lookup is a runtime error.
+
+### Mixing Go and Vuka Models
 
 The engine is the same, so Go and Vuka models live side by side, share
 databases and relate to each other. `orm.Check()` reports models the ORM

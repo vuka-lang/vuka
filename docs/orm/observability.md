@@ -1,5 +1,13 @@
 # Observability
 
+[[toc]]
+
+## Introduction
+
+Once your program talks to a database, you want to see what it sends: to log
+statements, trace them, count them in tests, catch N+1 queries and slow ones,
+and watch the connection pool. The ORM gives each of these a hook.
+
 <!-- go:context
 type User struct {
 	orm.Model[User]
@@ -16,11 +24,10 @@ type Post struct {
 func logQuery(ctx context.Context, q orm.QueryInfo) {}
 -->
 
-## Observers
+## Observing Statements {#observers}
 
 Every statement passes through observers — the hook for logging, tracing,
-metrics, a debug toolbar, or counting queries in tests:
-
+metrics, a debug toolbar, or counting queries in tests. Add one like this:
 
 <!-- go:fragment -->
 ```go
@@ -32,6 +39,8 @@ defer stop()
 ctx = orm.WithObserver(ctx, logQuery) // one context's statements only
 ```
 
+Each observer receives an `orm.QueryInfo`:
+
 | `orm.QueryInfo` field | |
 |---|---|
 | `SQL`, `Args` | the statement and its arguments |
@@ -41,13 +50,12 @@ ctx = orm.WithObserver(ctx, logQuery) // one context's statements only
 | `Err` | the error |
 | `Refused`, `Model` | a query the ORM refused before sending it (an argument it can't write, a join across databases): `Err` says why; it never reached the database |
 
-## N+1 queries
+## Catching N+1 Queries {#n-1-queries}
 
 `orm.WatchRepeats(ctx, n, warn)` calls `warn` once a context runs the same
 statement `n` times — the N+1 that
 [`SelectRelated` or `PrefetchRelated`](/orm/queries#relations) would read in
-one query:
-
+one query. This fragment warns when a statement repeats five times:
 
 <!-- go:fragment -->
 ```go
@@ -66,15 +74,15 @@ for _, p := range posts {
 }
 ```
 
-Put it on each request's context in development, and on tests' contexts with
-a `warn` that fails the test.
+> [!NOTE]
+> Put it on each request's context in development, and on tests' contexts
+> with a `warn` that fails the test.
 
-## Slow queries
+## Logging Slow Queries {#slow-queries}
 
 `orm.SlowQuery(d)` on a [declared database](/orm/databases#connecting) logs
 each statement slower than `d`, through `orm.Logger(l)` (else
 `slog.Default()`):
-
 
 <!-- go:fragment -->
 ```go
@@ -83,11 +91,10 @@ analytics := orm.Declare("analytics", os.Getenv("ANALYTICS_URL"), orm.SlowQuery(
 
 Slow queries and state changes are all a supervised database logs.
 
-## Pool state
+## Watching the Pool {#pool-state}
 
 `orm.ObserveState(fn)` is told every state change of a declared database or
 replica — `Connecting`, `Up`, `Degraded`, `Down` — for alerts and metrics:
-
 
 <!-- go:fragment -->
 ```go
@@ -96,7 +103,9 @@ stop := orm.ObserveState(func(e orm.StateEvent) {
 })
 ```
 
-## Stats
+## Pool Statistics {#stats}
+
+Read the statistics with:
 
 | | |
 |---|---|
