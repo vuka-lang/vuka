@@ -198,3 +198,184 @@ func TestCompilerFixes(t *testing.T) {
 		t.Errorf("output:\n%s\nwant:\n%s", got, want)
 	}
 }
+
+// The 2.2 compiler fixes, as compilerFixes.
+var compilerFixes22 = map[string]string{
+	"main.go": `package main
+
+import (
+	"context"
+	"fmt"
+	"strings"
+	"time"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+func render(n ui.Node) string {
+	s, err := ui.String(context.Background(), n)
+	if err != nil {
+		panic(err)
+	}
+	return s
+}
+
+func main() {
+	// A string naming a package imports nothing; a selector does.
+	fmt.Println("import", (&Reminder{}).hint(), strings.Contains(render(Stamp{At: time.Date(2026, 1, 2, 0, 0, 0, 0, time.UTC)}), "2026-01-02"))
+
+	// Several tracked fields, and fields of one, assigned at once.
+	s := &Search{}
+	s.Find("pets")
+	s.Unlimit()
+	a := render(s.Render())
+	s.Clear()
+	s.Retire()
+	fmt.Println("multi", strings.Contains(a, "all pets 1 0 -1"), strings.Contains(render(s.Render()), "gone  1 0 -1"))
+
+	// delete, clear and copy change tracked state.
+	c := &Cart{}
+	c.Add("pen")
+	c.Add("ink")
+	c.Clean()
+	c.Remove("pen")
+	d1 := c.Clean()
+	c.Empty()
+	fmt.Println("builtin", d1, c.Clean(), strings.Contains(render(c.Render()), "0 items"))
+
+	// A component's prop takes onClick's statements as browser commands.
+	fmt.Println("click", strings.Count(render(&Panel{}), "data-vk-js"))
+}
+`,
+	"clock.vuka": `package main
+
+import "time"
+
+func now() time.Time { return time.Now() }
+`,
+	"reminder.vuka.html": `package main
+
+// Reminder names no package: "any time." is text.
+type Reminder struct{}
+
+// hint reads like time.Now() in a comment.
+func (r *Reminder) hint() string { return "any time." }
+<p>{hint()}</p>
+`,
+	"stamp.vuka.html": `package main
+
+// Stamp reads a sibling's import through a selector.
+type Stamp struct {
+	At time.Time
+}
+<p>{At.Format(time.DateOnly)}</p>
+`,
+	"query.vuka": `package main
+
+// Query is a search's tracked state.
+type Query struct {
+	Term string
+	Page int
+}
+`,
+	"search.vuka.html": `package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Search assigns several tracked fields at once.
+type Search struct {
+	ui.Live
+	q     Query
+	note  string
+	tags  []string
+	limit int64
+}
+
+func (s *Search) Find(term string) { s.q.Term, s.q.Page = term, 1 }
+
+func (s *Search) Clear() { s.note, s.tags = "", nil }
+
+func (s *Search) Unlimit() { s.note, s.limit = "all", -1 }
+
+func (s *Search) Retire() { s.note, s.q.Term = "gone", "" }
+<p>{note} {q.Term} {q.Page} {len(tags)} {limit}</p>
+`,
+	"cart.vuka.html": `package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Cart changes its tracked map in place.
+type Cart struct {
+	ui.Live
+	items map[string]int
+}
+
+func (c *Cart) Add(name string) {
+	if c.items == nil {
+		c.items = map[string]int{}
+	}
+	c.items[name]++
+}
+
+func (c *Cart) Remove(name string) { delete(c.items, name) }
+
+func (c *Cart) Empty() { clear(c.items) }
+
+// Clean reports whether items changed, and clears the mark.
+func (c *Cart) Clean() bool {
+	d := c.items.AssignDirty()
+	was := *d
+	*d = false
+	return was
+}
+<p>{len(items)} items</p>
+`,
+	"chip.vuka.html": `package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Chip is a button whose click its user decides.
+type Chip struct {
+	Label   string
+	OnClick ui.JSChain
+}
+<button onClick={OnClick}>{Label}</button>
+`,
+	"panel.vuka.html": `package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Panel opens its settings from a chip.
+type Panel struct {
+	manage ui.State[bool]
+}
+<section>
+  <Chip label="Manage" onClick={manage = !manage}/>
+  <ui.Show when={manage}><p>managing</p></ui.Show>
+</section>
+`,
+}
+
+// TestCompilerFixes22 builds and runs compilerFixes22.
+func TestCompilerFixes22(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds and runs a program")
+	}
+	gomod, gosum := testModule(t, "example.com/fixes")
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
+	writeFile(t, filepath.Join(dir, "go.mod"), gomod)
+	writeFile(t, filepath.Join(dir, "go.sum"), gosum)
+	for name, src := range compilerFixes22 {
+		writeFile(t, filepath.Join(dir, name), src)
+	}
+	t.Setenv("GOWORK", "off")
+	t.Chdir(dir)
+	var out, errOut bytes.Buffer
+	if err := runGo("run", []string{"."}, &out, &errOut); err != nil {
+		t.Fatalf("vuka run: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
+	}
+	want := "import any time. true\nmulti true true\nbuiltin true true true\nclick 1\n"
+	if got := out.String(); !strings.HasSuffix(got, want) {
+		t.Errorf("output:\n%s\nwant:\n%s", got, want)
+	}
+}

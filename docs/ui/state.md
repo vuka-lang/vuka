@@ -64,3 +64,45 @@ server call: `onClick={open = false; Save()}`. Inside a live component method,
 A child can accept a `ui.State[T]` field so both shapes observe the same
 browser value. Ordinary exported fields pass props instead. For state and
 function props crossing a frontend boundary, see [Islands](/web/islands).
+
+## Handing a Click to a Child {#click-to-a-child}
+
+An element's `onClick={open = !open}` is a chain of browser commands, a
+`ui.JSChain`. A component's prop of that type takes the same statements, so
+a page can decide what its child's button does and the child forwards it to
+its element:
+
+```html
+// chip.vuka.html
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type Chip struct {
+	Label   string
+	OnClick ui.JSChain
+}
+<button class="chip" onClick={OnClick}>{Label}</button>
+```
+
+```html
+// panel.vuka.html
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type Panel struct {
+	manage ui.State[bool]
+}
+<section>
+  <Chip label="Manage" onClick={manage = !manage}/>
+  <ui.Show when={manage}><p>Managing</p></ui.Show>
+</section>
+```
+
+A prop of type `any` takes them too.
+
+> [!NOTE]
+> A prop of a func type runs Go on the server and can't hold browser
+> commands: statements there are [E0101](/errors/E0101). Declare it
+> `ui.JSChain` to take them.

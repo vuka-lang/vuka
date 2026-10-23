@@ -1,0 +1,25 @@
+package main
+
+// Search assigns several tracked fields, and fields of one, at once.
+type Search struct {
+	ui.Live
+	q     Query
+	note  string
+	tags  []string
+	limit int64
+	owner *Owner
+}
+
+func (s *Search) Find(term string) { s.q.Term, s.q.Page = term, 1 }
+
+func (s *Search) Clear() { s.note, s.tags = "", nil }
+
+func (s *Search) Unlimit() { s.note, s.limit = "all", -1 }
+
+func (s *Search) Retire() { s.note, s.q.Term = "gone", "" }
+
+func (s *Search) Move(p int) (old int) {
+	old, s.q.Page, s.owner = s.q.Page, p, nil
+	return
+}
+<p>{note} {q.Term} {q.Page} {len(tags)} {limit}</p>

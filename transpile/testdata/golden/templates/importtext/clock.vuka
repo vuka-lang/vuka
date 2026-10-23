@@ -1,0 +1,8 @@
+package main
+
+import (
+	"strings"
+	"time"
+)
+
+func since(t time.Time) string { return strings.TrimSpace(time.Since(t).Round(time.Hour).String()) }

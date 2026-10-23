@@ -1,0 +1,8 @@
+package main
+
+// Reminder names no package: "any time." is text, and so is the comment.
+type Reminder struct{}
+
+// hint reads like time.Now() in a comment; it calls nothing.
+func (r *Reminder) hint() string { return "Start it again any time." }
+<p title="strings.Repeat">{hint()}</p>

@@ -1,0 +1,1 @@
+panel.vuka.html:8:24: <Chip>'s onClick is func(): the statements of onClick={…} are browser commands, which it can't hold; declare the prop as ui.JSChain, the value an element's onClick={open = !open} is, and forward it to the element: <button onClick={OnClick}>

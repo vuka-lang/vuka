@@ -230,6 +230,18 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 				if a.write != nil || f.writeDone[a.expr.start] {
 					continue
 				}
+				var prop types.Type
+				if c := el.comp; c != nil {
+					// A component's prop takes the chain as a value.
+					if !c.resolved {
+						continue
+					}
+					for _, arg := range c.args {
+						if arg.attr == a {
+							prop = arg.typ
+						}
+					}
+				}
 				stmts := e.stmtsIn(f, a.expr)
 				if len(stmts) == 0 || e.waitTypes(f, stmts) {
 					continue
@@ -243,6 +255,12 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 					continue
 				}
 				pkg := stepsPackage(e, steps)
+				if prop != nil && !e.takesCommands(prop, pkg) {
+					f.writeDone[a.expr.start] = true
+					e.errs.add("E0101", f.at(a.off), "<%s>'s %s is %s: the statements of %s={…} are browser commands, which it can't hold", el.tag, a.name, e.display(prop), a.name).
+						help("declare the prop as ui.JSChain, the value an element's %s={open = !open} is, and forward it to the element: <button onClick={%s}>", a.name, exportName(a.name))
+					continue
+				}
 				a.write = e.chain(f, e.statePkg(f, pkg), f.genQual(stateGenPath(pkg)), steps)
 				a.write.start, a.write.end = a.expr.start, a.expr.end
 				f.dropEdits(a.expr, a.write.pieces)
@@ -251,6 +269,16 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 		})
 	}
 	return spans
+}
+
+// takesCommands reports whether a value of type t can hold the chain of
+// browser commands statements lower to: the states package's Commands.
+func (e *engine) takesCommands(t types.Type, pkg *types.Package) bool {
+	if pkg == nil {
+		return true
+	}
+	cmds, ok := pkg.Scope().Lookup("Commands").(*types.TypeName)
+	return !ok || types.AssignableTo(cmds.Type(), t)
 }
 
 // waitTypes reports whether a name in stmts has no type yet while the

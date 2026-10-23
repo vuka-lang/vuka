@@ -1,0 +1,8 @@
+package main
+
+// Chip is a button whose click its user decides.
+type Chip struct {
+	Label   string
+	OnClick ui.JSChain
+}
+<button class="chip" onClick={OnClick}>{Label}</button>

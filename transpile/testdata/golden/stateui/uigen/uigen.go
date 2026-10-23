@@ -10,12 +10,17 @@ import (
 	"vukatest.local/stateui"
 )
 
-// Assign is tracked server state: Get, Set, Update.
-type Assign[T any] struct{ v T }
+// Assign is tracked server state: Get, Set, Update; Writes counts the
+// changes, as the real one marks itself changed.
+type Assign[T any] struct {
+	v T
+	n int
+}
 
 func (a *Assign[T]) Get() T             { return a.v }
-func (a *Assign[T]) Set(v T)            { a.v = v }
-func (a *Assign[T]) Update(f func(T) T) { a.v = f(a.v) }
+func (a *Assign[T]) Set(v T)            { a.v, a.n = v, a.n+1 }
+func (a *Assign[T]) Update(f func(T) T) { a.v, a.n = f(a.v), a.n+1 }
+func (a *Assign[T]) Writes() int        { return a.n }
 
 func UseState[T any](initial T) stateui.State[T] { return stateui.GenState("", false, initial) }
 func UsePageState[T any](initial T) stateui.State[T] {

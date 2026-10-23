@@ -1,0 +1,12 @@
+package main
+
+// Panel opens its settings from a chip: the statement is the chip's value.
+type Panel struct {
+	manage ui.State[bool]
+	tab    ui.State[string]
+}
+<section>
+  <Chip label="Manage" onClick={manage = !manage}/>
+  <Chip onClick={tab = "logs"; manage = false} label={tab.Get() + "!"}/>
+  <ui.Show when={manage}><p>managing</p></ui.Show>
+</section>

@@ -107,7 +107,11 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		for _, a := range el.attrs {
 			if a.kind == 'e' {
 				w.gen(q + "Child(")
-				w.keep(a.expr)
+				if a.stmts {
+					w.attrValue(a)
+				} else {
+					w.keep(a.expr)
+				}
 				w.gen("), ")
 			}
 		}

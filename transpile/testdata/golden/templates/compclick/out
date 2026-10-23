@@ -1,0 +1,1 @@
+<section><button class="chip" data-vk-js-click="toggle field manage=false">Manage</button><button class="chip" data-vk-js-click="set field tab= logs; set field manage=false false">!</button><vk-show data-vk-show="field manage=false"><p>managing</p></vk-show></section> <nil>

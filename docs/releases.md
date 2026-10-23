@@ -56,6 +56,23 @@ group](/web/navigation#the-current-group).
   render leaves its `open` as it was; in 2.1.0 the render of a layout that
   stays, on every navigation, closed the menu groups the visitor had
   opened.
+- A `.vuka.html` file imports a sibling file's package only for a real
+  selector (`time.Now()`): a string or a comment naming it, `"any time."`,
+  no longer adds an import the go command reports unused.
+- Assigning several tracked fields at once compiles in every form: fields
+  of a tracked struct (`c.q.Path, c.q.Page = "", 1`), a field beside a
+  field of another (`c.note, c.q.Path = "gone", ""`), and values with no
+  type of their own, `nil` or `-1` into an `int64`, which take their
+  place's type. See [selectors and mutable
+  values](/ui/stateful#selectors-and-mutable-values).
+- `delete(p.items, k)`, `clear(p.items)` and `copy(p.slots, src)` on a
+  tracked field are writes of it, so the session sees the change; in 2.1.0
+  they changed the value unmarked, and the page kept its last render.
+- A component's prop of type `ui.JSChain` (or `any`) takes an `on…`
+  attribute's statements, `<Chip onClick={manage = !manage}/>`, as an
+  element's does, to forward to its button; a prop of a func type is
+  [E0101](/errors/E0101) with the prop to declare. See [handing a click to a
+  child](/ui/state#click-to-a-child).
 
 ## v2.1.0 — 2026-10-23
 

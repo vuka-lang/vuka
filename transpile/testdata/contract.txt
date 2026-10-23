@@ -90,6 +90,7 @@ public github.com/vuka-lang/ui/v2.Fragment
 public github.com/vuka-lang/ui/v2.If
 public github.com/vuka-lang/ui/v2.Island
 public github.com/vuka-lang/ui/v2.JS
+public github.com/vuka-lang/ui/v2.JSChain
 public github.com/vuka-lang/ui/v2.JSON
 public github.com/vuka-lang/ui/v2.Key
 public github.com/vuka-lang/ui/v2.Layout
