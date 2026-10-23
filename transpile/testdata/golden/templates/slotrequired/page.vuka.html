@@ -1,0 +1,11 @@
+<script lang="go">
+package main
+
+// Page leaves out Card's header.
+type Page struct{}
+</script>
+
+<main>
+  <Card><slot:header>ok</slot:header>body</Card>
+  <Card>body</Card>
+</main>

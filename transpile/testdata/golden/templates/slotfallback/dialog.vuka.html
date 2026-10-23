@@ -1,0 +1,26 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Dialog has slots with fallback content, and shows its footer only when
+// the caller fills it.
+type Dialog struct {
+	Title    string
+	Actions  ui.Node
+	Footer   ui.Node
+	Icon     ui.Node
+	Children ui.Node
+}
+</script>
+
+<section>
+  <h2><slot:icon/>{Title}</h2>
+  <slot:children><p>No content.</p></slot:children>
+  <menu>
+    <slot:actions><button>Close</button></slot:actions>
+  </menu>
+  if ui.Has(Footer) {
+    <footer>{Footer}</footer>
+  }
+</section>

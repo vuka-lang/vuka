@@ -1,0 +1,21 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// List renders its items through the caller's Row.
+type List[T any] struct {
+	Items []T
+	Row   func(T, int) ui.Node
+	Empty ui.Node
+}
+</script>
+
+<ul>
+  for i, it := range Items {
+    <li>{Row(it, i)}</li>
+  }
+  if len(Items) == 0 {
+    <li>{Empty}</li>
+  }
+</ul>

@@ -1,0 +1,24 @@
+<script lang="go">
+package main
+
+// Page lists tasks with a scoped slot, its type arguments written and
+// inferred.
+type Page struct{ Tasks []Task }
+</script>
+
+<main>
+  <List[Task] items={Tasks}>
+    <slot:row let={t, i}>
+      <b>{i + 1}.</b>
+      if t.Done {
+        <s>{t.Title}</s>
+      } else {
+        {t.Title}
+      }
+    </slot:row>
+  </List>
+  <List items={Tasks}>
+    <slot:row let={t}><i>{t.Title}</i></slot:row>
+    <slot:empty>nothing</slot:empty>
+  </List>
+</main>

@@ -1,0 +1,19 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Shelf fills ui.Table's Columns, one <slot:column> per column.
+type Shelf struct{ Books []Book }
+</script>
+
+<ui.Table rows={Books} flush>
+  <slot:column header="Title" let={b}>
+    <b>{b.Title}</b>
+  </slot:column>
+  <slot:column align="right" class="num" let={b}>
+    <slot:header><abbr title="Pages">pp.</abbr></slot:header>
+    {b.Pages}
+  </slot:column>
+  <slot:column header="Static">-</slot:column>
+</ui.Table>

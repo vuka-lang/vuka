@@ -475,6 +475,8 @@ func (w *jsxWriter) node(tp *tmpl, n jsxNode, indent string, inline bool) {
 		switch {
 		case n.frag:
 			w.markup(tp, flatten(n.kids), indent, indent, inline)
+		case n.fallback:
+			w.holeIn(tp, "slot", func() { w.fallbackValue(n) })
 		case n.comp != nil:
 			c := n.comp
 			w.holeIn(tp, lowerFirst(exportName(lastName(n.tag))), func() { w.comp(c) })

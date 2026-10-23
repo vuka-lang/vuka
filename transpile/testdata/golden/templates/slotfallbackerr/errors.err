@@ -1,0 +1,2 @@
+panel.vuka.html:14:3: <Panel> has no slot actoins; did you mean <slot:actions>?
+panel.vuka.html:15:3: Panel's Row is func(int) ui.Node: call it where its content goes, {Row(…)}

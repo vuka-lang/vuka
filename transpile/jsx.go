@@ -52,7 +52,8 @@ type jsxTree struct {
 	root       *jsxElem
 	comps      []*jsxComp
 	events     []*jsxEvent
-	done       bool // its edits are in fixed
+	fallbacks  []*jsxElem // a component's own <slot:x>fallback</slot:x>
+	done       bool       // its edits are in fixed
 }
 
 // jsxEvent is an on… attribute with an expression on an element, whose type is
@@ -74,6 +75,20 @@ type jsxElem struct {
 	kids       []jsxNode
 	comp       *jsxComp // for a component's tag
 	asset      bool     // <script lang="ts"> or <style scoped>: the component's, bundled, not markup
+	lets       []letVar // a slot's let={t, i}: the parameters its content takes
+	fallback   bool     // a <slot:x> in the component's own markup: the slot, or its content when unfilled
+	slotField  string   // a fallback's field, once found
+}
+
+// letVar is a name a slot's let declares.
+type letVar struct {
+	name string
+	at   span
+}
+
+// isSlot reports whether an element is a slot a component tag's caller fills.
+func (el *jsxElem) isSlot() bool {
+	return !el.fallback && strings.HasPrefix(el.tag, "slot:")
 }
 
 // isAsset reports whether an element is a component's script or scoped
@@ -146,6 +161,7 @@ type jsxParser struct {
 	matches []*matchStmt
 	cur     *jsxTree
 	goToks  [][]tok // each Go expression's tokens, its JSX read as one
+	inComp  int     // how many component tags the parser is inside
 }
 
 func (p *jsxParser) fail(off int, format string, args ...any) {
@@ -177,7 +193,7 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 			markScope([]jsxNode{t.root}, f.scope)
 		}
 		f.jsx = append(f.jsx, t)
-		if len(t.comps) == 0 && !t.mayBind() && !t.hasBlocks() && !t.callsEvent(f.src) {
+		if len(t.comps) == 0 && len(t.fallbacks) == 0 && !t.mayBind() && !t.hasBlocks() && !t.callsEvent(f.src) {
 			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 		}
@@ -296,7 +312,13 @@ func (p *jsxParser) element(off int) *jsxElem {
 			return el
 		case c == '>':
 			p.checkStyle(el)
+			if comp {
+				p.inComp++
+			}
 			el.kids, i = p.children(i+1, el, 0, false)
+			if comp {
+				p.inComp--
+			}
 			j := p.space(i + 2)
 			name, k := p.name(j)
 			k = p.space(k)
@@ -365,6 +387,10 @@ func (p *jsxParser) element(off int) *jsxElem {
 			case strings.HasPrefix(a.name, "style:") && (comp || a.kind == 'b' || len(a.name) == len("style:")):
 				p.fail(a.off, "%s sets a CSS property of an element: style:--accent={c}", a.name)
 			}
+			if a.name == "let" && strings.HasPrefix(el.tag, "slot:") {
+				el.lets = p.lets(a)
+				continue
+			}
 			if a.kind == 'e' && isEvent(a.name) && isStmts(p.src[a.expr.start:a.expr.end]) {
 				if !p.f.target.has("VukaState") || !comp && !p.f.target.has("On") {
 					p.fail(a.off, "%s={…} holds statements: an on… attribute writes states with them (open = !open) when the markup's target has states", a.name)
@@ -380,6 +406,27 @@ func (p *jsxParser) element(off int) *jsxElem {
 			p.fail(i, "unexpected %q in <%s>", c, el.tag)
 		}
 	}
+}
+
+// lets reads a slot's let={t} or let={t, i}: the names its content gives
+// the values the component passes.
+func (p *jsxParser) lets(a *jsxAttr) []letVar {
+	const want = "let names the values the slot's content takes: let={t}, or let={t, i}"
+	if a.kind != 'e' {
+		p.fail(a.off, "%s", want)
+	}
+	var out []letVar
+	at := a.expr.start
+	for _, part := range strings.Split(string(p.src[a.expr.start:a.expr.end]), ",") {
+		lead := len(part) - len(strings.TrimLeft(part, " \t\r\n"))
+		name := strings.TrimSpace(part)
+		if !token.IsIdentifier(name) {
+			p.fail(a.off, "%s", want)
+		}
+		out = append(out, letVar{name, span{at + lead, at + lead + len(name)}})
+		at += len(part) + 1
+	}
+	return out
 }
 
 // checkStyle refuses style:prop beside a style attribute built of holes.
@@ -425,8 +472,20 @@ func (p *jsxParser) children(i int, el *jsxElem, open int, inMatch bool) ([]jsxN
 				p.fail(i, "expected a tag name after <")
 			}
 			n := p.element(i)
-			if strings.HasPrefix(n.tag, "slot:") && (el == nil || el.comp == nil) {
-				p.fail(i, "<%s> is a component's slot: write it directly inside the component's tag", n.tag)
+			if strings.HasPrefix(n.tag, "slot:") && (el == nil || el.comp == nil && !el.isSlot()) {
+				if p.inComp > 0 || p.f.html == nil || p.f.html.recv == "" {
+					p.fail(i, "<%s> is a component's slot: write it directly inside the component's tag", n.tag)
+				}
+				if len(n.lets) > 0 {
+					p.fail(i, "<%s> is the component's own slot, its content the fallback: let goes on a slot a caller fills", n.tag)
+				}
+				for _, k := range n.kids {
+					if in, ok := k.(*jsxElem); ok && strings.HasPrefix(in.tag, "slot:") {
+						p.fail(in.start, "<%s> is a component's slot: write it directly inside the component's tag", in.tag)
+					}
+				}
+				n.fallback = true
+				p.cur.fallbacks = append(p.cur.fallbacks, n)
 			}
 			kids = append(kids, n)
 			i = n.end
