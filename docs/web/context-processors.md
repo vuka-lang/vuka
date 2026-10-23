@@ -201,6 +201,43 @@ explicitly, and `vuka vet` checks the read against the app's list
 me := web.Var[*users.User](ctx, "me")
 ```
 
+### One Spelling in Vuka Files {#one-spelling}
+
+A vuka file reads what a processor gives through its variable, in
+markup and in Go alike: `perms.Has("x")` rather than `auth.Can(ctx, "x")`,
+`user` rather than `auth.Current(ctx)`, `request.Path` rather than
+`web.Request(ctx).URL.Path`. Markup tracks the variable, and in an event
+or `Mount` it is as current as the call. An event checks its permission
+the same way, or declares it with `@auth.Requires`:
+
+```html
+<script lang="go">
+func (d *Index) Approve(ctx context.Context) error {
+	if !perms.Has("orders.approve") {
+		return web.Forbidden
+	}
+	return nil
+}
+
+@auth.Requires("orders.ship")
+func (d *Index) Ship(ctx context.Context) error { return nil }
+</script>
+
+if perms.Has("orders.approve") {
+  <button onClick={Approve}>Approve</button>
+}
+```
+
+| Where | Read |
+|---|---|
+| `.vuka.html` markup and script, `.vuka` files | `perms.Has("x")`, `user`, `actor`, `request` |
+| plain `.go` packages: services, jobs, libraries | `auth.Can(ctx, "x")`, `auth.Current(ctx)`, `web.Request(ctx)`, or `@auth.Requires` |
+
+`vuka vet` reports the direct calls in vuka files
+([W0402](/errors/W0402)) — saying to list the processor when `main`
+doesn't — and the editor offers the rewrite; from 3.0 it is a compile
+error there.
+
 ### Names a Template Declares {#names-a-template-declares}
 
 A field, a prop or a local named like a variable wins, as in Go's
@@ -358,5 +395,5 @@ semantic token type of their own, `vukaContextVar`. See
 | [E0427](/errors/E0427) | a `web.Var` read the app doesn't give |
 | [E0428](/errors/E0428) | processors' packages and their readers needing each other |
 | [W0401](/errors/W0401) | a name shadowing a variable |
-| [W0402](/errors/W0402) | `web.Request` in markup where `request` would do |
+| [W0402](/errors/W0402) | `auth.Can`, `auth.Current` or `web.Request` where `perms`, `user` or `request` would do |
 | [W0403](/errors/W0403) | a control hidden by a permission its event doesn't check |

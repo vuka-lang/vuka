@@ -167,3 +167,25 @@ func fixCtxVars(m *fixModule) ([]fixChange, error) {
 	}
 	return out, nil
 }
+
+// ctxVarActions are the quick fixes rewriting the direct reads the
+// request's range touches (W0402), as vuka fix ctx-vars does.
+func ctxVarActions(r actionRequest) []any {
+	var out []any
+	for _, fx := range r.ctxFixes {
+		if !r.touches(fx.start, fx.end) {
+			continue
+		}
+		edits := ctxVarEdits(r.src, []edit{fx})
+		if edits == nil {
+			continue
+		}
+		a := codeAction{Title: "Write " + fx.text, Kind: "quickfix", IsPreferred: true,
+			Edit: change{{path: r.path, old: r.src, edits: edits}}.workspaceEdit(r.uri)}
+		if d := r.diag("W0402"); d != nil {
+			a.Diagnostics = []map[string]any{d}
+		}
+		out = append(out, a)
+	}
+	return out
+}
