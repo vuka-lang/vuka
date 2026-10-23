@@ -38,6 +38,7 @@ func newE2E(t *testing.T) *e2e {
 	if out, err := exec.Command("go", "build", "-o", vuka, ".").CombinedOutput(); err != nil {
 		t.Fatalf("building vuka: %v\n%s", err, out)
 	}
+	besideVukavet(t, vuka)
 	return &e2e{t, vuka, dir}
 }
 

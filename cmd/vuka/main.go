@@ -32,6 +32,9 @@ Usage:
 	        island), an orm entity and its migration; vuka add -h for each
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
+	        vet runs vukavet's checks too (the app's go tool vukavet, else one
+	        beside vuka or on PATH, else one it builds; -vettool=… overrides,
+	        VUKA_VUKAVET=off for go vet's own);
 	        an app on github.com/vuka-lang/web/v2 gets its Tailwind CSS (run keeps it
 	        rebuilt, build embeds it; VUKA_TAILWIND=off for none); a Vite project in
 	        frontend/ too (run starts its dev server, build runs vite build first;
@@ -287,6 +290,15 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	}
 	if overlay != "" {
 		goArgs = append(goArgs, "-overlay="+overlay)
+	}
+	if cmd == "vet" && !hasVettool(args) {
+		tool, err := vetTool(root, stderr)
+		if err != nil {
+			return err
+		}
+		if tool != "" {
+			goArgs = append(goArgs, "-vettool="+tool)
+		}
 	}
 	c := exec.Command("go", append(goArgs, args...)...)
 	c.Env = append(os.Environ(), env...)

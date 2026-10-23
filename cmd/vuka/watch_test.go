@@ -544,6 +544,7 @@ func buildVuka(t *testing.T) string {
 	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("building vuka: %v\n%s", err, out)
 	}
+	besideVukavet(t, vuka)
 	return vuka
 }
 
