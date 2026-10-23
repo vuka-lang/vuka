@@ -122,7 +122,9 @@ func ContextVars(c Context, imp types.Importer, self string) (map[string]*Var, E
 			}
 			vars[v.Name] = v
 		}
-		if with != nil {
+		if with != nil && with.Processor.Path == p.Path && with.Processor.Func == p.Func {
+			errs.add("E0421", p.Pos, "%s is listed twice", p.Display()).help("list it once")
+		} else if with != nil {
 			prev := with.Processor
 			errs.add("E0421", p.Pos, "%s and %s both provide %s", prev.Display(), p.Display(), strings.Join(clash, ", ")).
 				help("%s is listed at %s:%d; rename the fields of one result: a template reads each variable by its name, and which one it means can't be told", prev.Display(), prev.Pos.Filename, prev.Pos.Line)
