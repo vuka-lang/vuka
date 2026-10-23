@@ -206,4 +206,4 @@ The rest of the database guide covers each part in turn:
 
 The repository's
 [`examples/blog`](https://github.com/vuka-lang/orm/tree/main/examples/blog)
-is the Vuka layer at work — see [Examples](/examples#blog).
+is the Vuka layer at work.

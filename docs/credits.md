@@ -1,5 +1,12 @@
 # Credits
 
+[[toc]]
+
+## Introduction
+
+Vuka stands on the work of others. This page names the language it is built
+on, the projects whose ideas it borrows, and the libraries it is built with.
+
 ## Go
 
 Vuka is built on [Go](https://go.dev) and would not exist without it. It parses
@@ -10,7 +17,7 @@ support is [gopls](https://go.dev/gopls), Go's language server, behind a proxy.
 Vuka is an independent project. It is not affiliated with or endorsed by Google
 or the Go project. "Go" is a trademark of Google LLC.
 
-## Ideas borrowed
+## Ideas Borrowed {#ideas-borrowed}
 
 - [Dingo](https://github.com/MadAppGang/dingo) — a Go meta-language with Result,
   Option, `?` and pattern matching, and the inspiration for Vuka's start.
@@ -24,7 +31,7 @@ or the Go project. "Go" is a trademark of Google LLC.
 - [Zig](https://ziglang.org) — compile-time evaluation, for what comes next.
 - [React](https://react.dev) — JSX and components as functions.
 
-## Built with
+## Built With {#built-with}
 
 - [templ](https://templ.guide) by Adrian Hesketh and contributors (MIT) — Vuka's
   components render through templ's runtime, and `.templ` files are compiled

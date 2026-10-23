@@ -1,7 +1,16 @@
-# Releasing (maintainers)
+# Releasing
 
-The set — vuka, ui, web, cmd/vuka and cmd/vukavet — is released by one
-command, run in a vuka checkout with the ui and web checkouts beside it:
+[[toc]]
+
+## Introduction
+
+This page is for maintainers. The set — vuka, ui, web, cmd/vuka and
+cmd/vukavet — is released by one command, so every module of a release is
+checked, tagged and published together.
+
+## Running a Release {#running}
+
+Run the command in a vuka checkout with the ui and web checkouts beside it:
 
 ```text
 work/
@@ -9,6 +18,8 @@ work/
   vuka-ui/    github.com/vuka-lang/ui/v2
   vuka-web/   github.com/vuka-lang/web/v2
 ```
+
+A dry run prints the plan; `-yes` carries it out:
 
 ```sh
 cd work/vuka
@@ -18,10 +29,11 @@ vuka release -yes v2.1.0     # does it
 
 `-ui` and `-web` point at checkouts elsewhere.
 
-## Before you run it
+## Before You Run It {#before-you-run-it}
 
 Write the release's section in `docs/releases.md`, headed with the version
-and date, for app authors: what changed, what to do, the required source changes.
+and date, for app authors: what changed, what to do, the required source
+changes. The heading looks like this:
 
 ```md
 ## v2.1.0 — 2026-11-02
@@ -32,7 +44,7 @@ A section marked `unreleased` passes a dry run with a warning and stops
 
 A deprecation or (in a major) a breaking change also needs documented source changes and an
 `upgradeSteps` entry naming it (`cmd/vuka/upgrade.go`), so `vuka upgrade`
-runs it for apps crossing the release:
+runs it for apps crossing the release. An entry looks like this:
 
 <!-- go:context
 type upgradeStep struct {
@@ -71,7 +83,7 @@ Every run, dry or not, checks:
 
 A failed check stops the release before anything changes.
 
-## What it does
+## What It Does {#what-it-does}
 
 In dependency order, so each module requires tags that exist:
 
@@ -90,11 +102,12 @@ In dependency order, so each module requires tags that exist:
    `github.com/vuka-lang/vuka/cmd/vukavet/v2@vX.Y.Z` with `GOPROXY=direct` into
    a temporary directory and check that its `vuka version` reports the set.
 
-The go commands run with `GOPROXY=direct GOSUMDB=off GOWORK=off`, so fresh
-tags resolve at once and a go.work doesn't leak local checkouts into a
-release. It never runs `go mod tidy`.
+> [!NOTE]
+> The go commands run with `GOPROXY=direct GOSUMDB=off GOWORK=off`, so fresh
+> tags resolve at once and a go.work doesn't leak local checkouts into a
+> release. It never runs `go mod tidy`.
 
-## The ORM
+## Releasing the ORM {#the-orm}
 
 `github.com/vuka-lang/orm/v2` has versions of its own and isn't part of
 `vuka release`. It requires vuka and web, so a release of it that should
@@ -113,19 +126,22 @@ upgrade` moves apps to; a release of the set whose scaffolds need a new orm
 sets it in the release's pull request and releases the orm right after the
 set.
 
-## When a step fails
+## When a Step Fails {#when-a-step-fails}
 
-Tags are never moved or deleted. Fix the cause and run the same command
+> [!WARNING]
+> Tags are never moved or deleted.
+
+Fix the cause and run the same command
 again: a module whose tag is already on its branch is skipped, and the
 release carries on with the next. A step that failed after its commit but
 before its tag leaves the repository ahead of `origin/main`; push that commit
 (or reset it) so the checks pass, then rerun.
 
-## The VS Code extension
+## The VS Code Extension {#the-vs-code-extension}
 
 The extension in `editors/vscode` has its own version and is published by the
 `Extension` workflow when a `vscode-vX.Y.Z` tag is pushed (or by hand from the
-Actions tab). The tag must match `version` in its `package.json`.
+Actions tab). The tag must match `version` in its `package.json`:
 
 ```sh
 git tag vscode-v0.5.0 && git push origin vscode-v0.5.0

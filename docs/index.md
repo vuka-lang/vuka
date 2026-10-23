@@ -13,7 +13,7 @@ hero:
       text: Get started
       link: /guide/getting-started
     - theme: alt
-      text: What Vuka adds
+      text: The language
       link: /features/result-option
     - theme: alt
       text: GitHub
@@ -30,8 +30,10 @@ features:
     details: "enum Status { Draft, Sent, Paid } — variants with String, Parse, JSON and database methods, or variants carrying data, and a match that must handle every one."
     link: /features/enums
     linkText: Enums
-  - title: Decorators, the Python way
+  - title: Decorators
     details: "decorator logged(c) { … } decorates any function, method or type. Retries, caches, auth guards and dependency injection, in a few lines."
+    link: /features/decorators
+    linkText: Decorators
   - title: Statics and Self
     details: "User.New(\"ada\"), User.Max — statics that belong to a type, and generic bases whose Self is the type embedding them, compiled to ordinary Go."
     link: /features/statics
@@ -39,7 +41,7 @@ features:
   - title: Components in shape files
     details: "UI lives in .vuka.html shape files: one struct, decorated hooks and methods, then markup. Props, tracked server state and browser state share a single authoring form."
     link: /ui/
-    linkText: UI
+    linkText: Shape Files
   - title: Plain Go comes out
     details: No runtime magic, no reflection where a type will do. vuka explain shows exactly what each line becomes, and build/ holds a plain Go module any Go tool can build.
   - title: Full editor support
@@ -47,11 +49,11 @@ features:
   - title: A web framework
     details: "Pages come from the pages/ tree, with bracket parameters and shared layouts. Typed handlers receive forms, requests, identities and registered services."
     link: /web/
-    linkText: Web
-  - title: A Django-style ORM
+    linkText: Your First Web App
+  - title: An ORM
     details: A library in Vuka. Models declared with field attributes — a column's name, type, default and checks in one — custom value types, queries written with field references the compiler checks — Post.Objects.Filter(Post.Title.Contains("Go")) — Result and Option from every terminal, and Go migrations.
     link: /orm/
-    linkText: ORM
+    linkText: Database
 ---
 
 ## Try it
@@ -88,8 +90,6 @@ case Err(e):
 	fmt.Println("error:", e)
 }
 ```
-
-
 
 
 ## Built on Go
