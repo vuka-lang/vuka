@@ -81,10 +81,30 @@ the `github.com/vuka-lang/vuka` package your module requires.
 - **Scaffolds list the processors.** `vuka new` writes
   `web.ContextProcessors` with the built-in processors into `main`, so
   they are visible and removable.
-- **URL state from events.** `web.Query.Set(ctx, "tab", key)` changes a
-  query parameter from an event as a live patch, keeping the others, and a
-  component's field bound with `@ui.URL("tab")` is two-way, namespaced per
-  instance with `urlKey`. See [navigation](/web/navigation).
+- **URL state on components.** A component's field marked
+  `@ui.URL("tab")` is filled from the page's query as it renders and
+  whenever the URL changes (a patch, back, forward); an event assigning it
+  patches the page's URL, the other parameters kept, in place of the
+  current history entry. A prop the parent passes wins, then the URL, then
+  `@ui.URL("page").Default(1)` or the zero value; a field holding its default
+  leaves the parameter out. A bare `@ui.URL` reads the route's path
+  parameter of the field's name, and `vuka` reports a folder page rendering
+  such a component without that parameter (E0340). See
+  [URL State](/web/url-state).
+- **`urlKey` keeps two components apart.** `<Table urlKey="requests"/>`
+  keeps that instance's parameters as `?requests.page=`; `vukavet`'s new
+  `urlstate` check warns when two components one markup renders keep one
+  parameter (W0307).
+- **`web.Query` from events.** `web.Query.Set(ctx, "status", "open")`,
+  `Del`, `Update(ctx, func(url.Values))` and `Get` edit the live page's
+  query as one patch per event, without a history entry unless given
+  `web.Push`. An `Update` taking `web.URLParams` itself keeps a page mounted
+  while its components follow the URL; a Live page's field marked
+  `@ui.URL("q")` binds `?q`. `ui.JS.PatchReplace` and livetest's `Back`,
+  `Forward` and `History` are new.
+- **URL state in the editor.** `vuka lsp` hovers `@ui.URL` with the
+  parameter, its default and its `urlKey` form, and completes the package's
+  keys inside `@ui.URL("…")`.
 
 ## v2.3.0 — 2026-10-23
 
