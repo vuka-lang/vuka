@@ -2,7 +2,9 @@ package main
 
 import (
 	"encoding/json"
+	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 )
@@ -35,11 +37,11 @@ func TestRouteCodeLens(t *testing.T) {
 	cmd := lenses[0].(map[string]any)["command"].(map[string]any)
 	args := cmd["arguments"].([]any)
 	entry := args[0].(map[string]any)
-	if cmd["command"] != "vuka.showRoute" || entry["file"] != "pages/orgs/new.vuka.html" || entry["line"] != 6 || entry["page"] != "orgs.New" {
+	if cmd["command"] != "vuka.showRoute" || entry["file"] != "pages/orgs/new.vuka.html" || entry["line"] != typeLine(t, app, "pages/orgs/new.vuka.html") || entry["page"] != "orgs.New" {
 		t.Errorf("command %v", cmd)
 	}
-	if r := lenses[0].(map[string]any)["range"].(lspRange); r.Start.Line != 5 {
-		t.Errorf("lens on line %d, want the type's (5)", r.Start.Line)
+	if r := lenses[0].(map[string]any)["range"].(lspRange); int(r.Start.Line) != typeLine(t, app, "pages/orgs/new.vuka.html")-1 {
+		t.Errorf("lens on line %d, want the type's", r.Start.Line)
 	}
 	lenses = p.codeLenses(filepath.Join(app, "pages", "orgs", "[org]", "permits", "[permit].vuka.html"))
 	if len(lenses) != 1 || !strings.Contains(lenses[0].(map[string]any)["command"].(map[string]any)["title"].(string), "· live · layout org.Layout · guard org.Guard") {
@@ -59,10 +61,11 @@ func TestRouteLinks(t *testing.T) {
 		text := string(vf.from[offsetOf(vf.from, r.Start):offsetOf(vf.from, r.End)])
 		targets[text] = m["target"].(string)
 	}
+	// A link lands on the line of the page's type (#L is from 1).
 	want := map[string]string{
-		"/orgs/new":                            "pages/orgs/new.vuka.html#L6",
-		"/orgs/7?tab=x":                        "pages/orgs/%5Borg%5D/index.vuka.html#L10",
-		"urls.Orgs.Org(7).TeamSettings.Path()": "pages/orgs/%5Borg%5D/team-settings.vuka.html#L4",
+		"/orgs/new":                            "pages/orgs/new.vuka.html#L" + strconv.Itoa(typeLine(t, app, "pages/orgs/new.vuka.html")),
+		"/orgs/7?tab=x":                        "pages/orgs/%5Borg%5D/index.vuka.html#L" + strconv.Itoa(typeLine(t, app, "pages/orgs/[org]/index.vuka.html")),
+		"urls.Orgs.Org(7).TeamSettings.Path()": "pages/orgs/%5Borg%5D/team-settings.vuka.html#L" + strconv.Itoa(typeLine(t, app, "pages/orgs/[org]/team-settings.vuka.html")),
 	}
 	for text, suffix := range want {
 		got := targets[text]
@@ -80,7 +83,7 @@ func TestRouteLinks(t *testing.T) {
 	if !ok || !strings.HasSuffix(loc["uri"].(string), "team-settings.vuka.html") {
 		t.Fatalf("definition: %v", loc)
 	}
-	if r := loc["range"].(lspRange); r.Start.Line != 3 || int(r.End.Character-r.Start.Character) != len("TeamSettings") {
+	if r := loc["range"].(lspRange); int(r.Start.Line) != typeLine(t, app, "pages/orgs/[org]/team-settings.vuka.html")-1 || int(r.End.Character-r.Start.Character) != len("TeamSettings") {
 		t.Errorf("definition lands on %v, want the type's name", r)
 	}
 	if _, ok := p.routeTargetAt(path, src, strings.Index(linksPage, "<nav>")); ok {
@@ -177,4 +180,21 @@ func TestPathMatches(t *testing.T) {
 			t.Errorf("pathMatches(%q, %q) = %v", c.pattern, c.lit, got)
 		}
 	}
+}
+
+// typeLine is the line, from 1, the page type of the routes app's file
+// rel is declared on.
+func typeLine(t *testing.T, app, rel string) int {
+	t.Helper()
+	src, err := os.ReadFile(filepath.Join(app, filepath.FromSlash(rel)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for i, l := range strings.Split(string(src), "\n") {
+		if strings.HasPrefix(l, "type ") {
+			return i + 1
+		}
+	}
+	t.Fatalf("%s declares no type", rel)
+	return 0
 }
