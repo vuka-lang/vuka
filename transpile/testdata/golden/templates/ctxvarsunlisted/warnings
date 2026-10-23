@@ -1,0 +1,2 @@
+W0402 edit.vuka:11:49: auth.Can reads the visitor's permissions directly: a vuka file reads perms, auth.Context's variable, which markup tracks and an event sees as current; list auth.Context in main's web.ContextProcessors(…), then write perms.Has("orders.edit")
+W0402 edit.vuka:14:48: web.Request reads the request directly: a vuka file reads request, web.RequestContext's variable, which markup tracks and an event sees as current; write request.Path: vuka fix ctx-vars rewrites it => request.Path

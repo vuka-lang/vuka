@@ -1,0 +1,12 @@
+package orders
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2"
+)
+
+// canEdit reads a permission; its request read keeps web imported.
+func canEdit(ctx context.Context) bool {
+	return perms.Has("orders.edit") && web.Request(ctx).Header.Get("X") == ""
+}

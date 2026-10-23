@@ -1,0 +1,14 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// canEdit reads a permission, and main lists no auth.Context.
+func canEdit(ctx context.Context) bool { return auth.Can(ctx, "orders.edit") }
+
+// path reads the request, which main lists.
+func path(ctx context.Context) string { return web.Request(ctx).URL.Path }
