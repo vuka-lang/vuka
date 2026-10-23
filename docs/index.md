@@ -60,9 +60,9 @@ For your editor, install the Vuka extension from the [VS Code Marketplace](https
 
 ## A taste
 
-::: code-group
+Errors as values, decorators and `match`, in a `.vuka` file:
 
-```vuka [lookup.vuka]
+```vuka
 func lookup(arg string) Result[User] {
 	id := strconv.Atoi(arg)?          // Go's (T, error) works directly
 	u := find(id)?
@@ -85,7 +85,9 @@ case Err(e):
 }
 ```
 
-```html [pages/counter/index.vuka.html]
+A live page, `pages/counter/index.vuka.html`, served at `/counter`. Each click runs `Add` on the server and patches the count in place:
+
+```html
 package counter
 
 import "github.com/vuka-lang/ui/v2"
@@ -101,8 +103,6 @@ func (p *Index) Add() { p.count++ }
   <button onClick={Add}>Add one</button>
 </main>
 ```
-
-:::
 
 ## Built on Go
 
