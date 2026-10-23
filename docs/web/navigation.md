@@ -216,7 +216,10 @@ client state, live components and islands are kept; only what is below the
 deepest shared layout is swapped.
 
 Guards run on every navigation all the same. A layout reading the request's
-path or query loads and renders again each time instead.
+path or query, or the page's title in its `Load`, loads and renders again
+each time instead. Its markup renders for every page either way, so a
+header of the page's [title and breadcrumbs](/web/folder-routes#page-headers)
+follows the page while the layout stays.
 
 ## Marking the Current Link {#the-current-link}
 
@@ -245,6 +248,43 @@ readers where they are.
 
 An ordinary `<a>` takes the same marks as attributes:
 `data-vk-active="prefix"` and `data-vk-active-class="on"`.
+
+### Opening the Current Link's Group {#the-current-group}
+
+A long menu folds its links into groups, `<details>` the visitor opens and
+closes. Mark a group `data-vk-active-within`, and it opens when the
+current link is inside it: as the page loads, the server knowing nothing of
+the path, and when a navigation moves the current link into it. A group
+the visitor opened stays open as they leave it, and one they closed stays
+closed until the current link moves into it again:
+
+```html
+<nav>
+  <details data-vk-active-within>
+    <summary>Orders</summary>
+    <ui.Link href="/orders/open" active="prefix" activeClass="on">Open</ui.Link>
+    <ui.Link href="/orders/shipped" active="prefix" activeClass="on">Shipped</ui.Link>
+  </details>
+  <details data-vk-active-within>
+    <summary>Users</summary>
+    <ui.Link href="/users" active="prefix" activeClass="on">Everyone</ui.Link>
+  </details>
+</nav>
+```
+
+The runtime sets the attribute to `"true"` while the element holds the
+current link and to `""` when it doesn't, on any element, so a rule styles
+the group it is in:
+
+```css
+[data-vk-active-within="true"] > summary { font-weight: 600 }
+```
+
+> [!NOTE]
+> A `<details>` keeps the state the visitor gave it through the page's
+> renders, marked or not: a render that leaves its `open` as it was leaves
+> the group as the visitor set it, and one that changes `open` is the
+> server's.
 
 ## Prefetching Pages {#prefetch}
 

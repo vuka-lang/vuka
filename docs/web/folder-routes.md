@@ -304,12 +304,15 @@ session renders; see [Hooks](/ui/stateful#hooks).
 ### Page Titles {#titles}
 
 A page with `Title() string` names the document. Before the layouts render
-the context carries it, and a layout reads it with `ui.PageTitle(ctx)`.
+the context carries it, and a layout reads it with `ui.PageTitle(ctx)`. A
+page with `Crumbs() []ui.Crumb` gives its breadcrumbs the same way, read
+with `ui.PageCrumbs(ctx)`; see [a header that follows the
+page](#page-headers).
 
-A stateless page's `Title` runs once its fields are bound. A live page's
-runs once its fields are bound and before its mount hook, so a live page
-titles itself from its parameters (`"Permit 2"`) or what its constructor
-set.
+A stateless page's `Title` and `Crumbs` run once its fields are bound, after
+its mount hook. A live page's run once its fields are bound and before its
+mount hook, so a live page titles itself from its parameters (`"Permit 2"`)
+or what its constructor set.
 
 ## Path Parameters
 
@@ -565,8 +568,10 @@ A layout sees only its path parameters, so what it shows can't go stale
 while it stays. A layout whose `Load` or markup reads more of the request —
 `web.Request(ctx)`, its URL or query, a `*http.Request` parameter — loads
 and renders again on every navigation, as every layout did before, and the
-page gets only what changed of it. `vuka` finds such a layout in its
-methods and the functions of its package they call, registers it with
+page gets only what changed of it. So does one whose `Load` reads the
+page's title or breadcrumbs (`ui.PageTitle`, `ui.PageCrumbs`), which would
+otherwise keep the first page's. `vuka` finds such a layout in its methods
+and the functions of its package they call, registers it with
 `web.ReloadLayout`, and [vukavet](/tools/vukavet) warns
 ([W0703](/errors/W0703)).
 
@@ -593,6 +598,73 @@ stays: the navigation is a full page load, as for another document.
 The layout struct and markup belong in the same shape file. A layout type
 without its `_layout.vuka.html` renders nothing and is an error
 ([E0715](/errors/E0715)).
+
+### A Header That Follows the Page {#page-headers}
+
+An admin shell shows the page's title as its heading and a trail of
+breadcrumbs above the page. The shell stays across navigations, and the
+header still follows each page: a layout's markup renders again for every
+page while its `Load` doesn't run, and the page gets only what changed, the
+new heading and crumbs. Read the title and the crumbs in the markup, never
+in `Load`.
+
+The page says what the header shows. `Title() string` names it, and
+`Crumbs() []ui.Crumb` gives the trail to it, each crumb a `Label` and the
+`Href` it links to, `""` for the page itself:
+
+```html
+// pages/admin/(console)/users/index.vuka.html
+package users
+
+import "github.com/vuka-lang/ui/v2"
+
+type Index struct {
+	ui.Live
+}
+
+func (p *Index) Title() string { return "Users" }
+
+func (p *Index) Crumbs() []ui.Crumb {
+	return []ui.Crumb{{Label: "Admin", Href: "/admin"}, {Label: "Users"}}
+}
+<p>Everyone who can sign in.</p>
+```
+
+The shell renders them, `ui.PageTitle(ctx)` and `ui.PageCrumbs(ctx)`, around
+its `Children`:
+
+```html
+// pages/admin/(console)/_layout.vuka.html
+package console
+
+import "github.com/vuka-lang/ui/v2"
+
+type Shell struct {
+	Children ui.Node
+}
+<header>
+  <ol class="crumbs">
+    for _, c := range ui.PageCrumbs(ctx) {
+      if c.Href == "" {
+        <li aria-current="page">{c.Label}</li>
+      } else {
+        <li><a href={c.Href}>{c.Label}</a></li>
+      }
+    }
+  </ol>
+  <h1>{ui.PageTitle(ctx)}</h1>
+</header>
+<main>{Children}</main>
+```
+
+From `/admin/users` to `/admin/orders` the shell's `Load` doesn't run
+again, its menu keeps its scroll and its groups their state, and the
+heading and crumbs are the orders page's.
+
+> [!NOTE]
+> A live component of a layout that stays keeps its instance, and what its
+> mount hook read: a header showing the page's title is the layout's own
+> markup, or a stateless component it renders, not a live component.
 
 ## Route Groups
 

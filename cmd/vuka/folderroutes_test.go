@@ -545,3 +545,26 @@ func TestPageHandlerDeps(t *testing.T) {
 		t.Errorf("vuka routes with an event named Delete: %v\n%s", err, errOut.Bytes())
 	}
 }
+
+// TestLayoutPageReads: a layout reading the page's title in its Load loads
+// on every navigation (web.ReloadLayout); one reading it in its markup,
+// which renders again for each page, stays.
+func TestLayoutPageReads(t *testing.T) {
+	app := routesModule(t, map[string]string{
+		"pages/admin/_layout.vuka.html": "package admin\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\n// Shell stores the title as it loads.\ntype Shell struct {\n\tChildren ui.Node\n\ttitle    string\n}\n\nfunc (l *Shell) Load(ctx context.Context) error {\n\tl.title = heading(ctx)\n\treturn nil\n}\n\nfunc heading(ctx context.Context) string { return ui.PageTitle(ctx) }\n<section><h1>{title}</h1>{Children}</section>\n",
+		"pages/admin/index.vuka.html":   "package admin\n\n// Index is the admin area.\ntype Index struct{}\n<p>admin</p>\n",
+		"pages/shop/_layout.vuka.html":  "package shop\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\n// Shell reads the title as it renders.\ntype Shell struct {\n\tChildren ui.Node\n}\n\nfunc (l *Shell) Load(ctx context.Context) error { return nil }\n\nfunc (l *Shell) Heading(ctx context.Context) string { return ui.PageTitle(ctx) }\n<section><h1>{Heading(ctx)}</h1>{Children}</section>\n",
+		"pages/shop/index.vuka.html":    "package shop\n\n// Index is the shop.\ntype Index struct{}\n<p>shop</p>\n",
+	})
+	var out bytes.Buffer
+	if err := gen([]string{"-inplace"}, &out); err != nil {
+		t.Fatalf("vuka gen -inplace: %v\n%s", err, out.Bytes())
+	}
+	b, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
+	if !strings.Contains(string(b), "web.ReloadLayout[admin.Shell]()") {
+		t.Errorf("the layout reading the title in Load doesn't reload:\n%s", b)
+	}
+	if strings.Contains(string(b), "web.ReloadLayout[shop.Shell]()") {
+		t.Errorf("the layout reading the title in its markup reloads:\n%s", b)
+	}
+}

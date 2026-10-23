@@ -42,7 +42,7 @@ The checks are:
 
 | Check | Reports |
 |---|---|
-| `routes` | generated page routes and API handlers: duplicate paths, invalid signatures, unfillable typed parameters, unsupported results and invalid service constructors; folder layouts reading the request ([W0703](/errors/W0703)) |
+| `routes` | generated page routes and API handlers: duplicate paths, invalid signatures, unfillable typed parameters, unsupported results and invalid service constructors; folder layouts reading the request, or the page's title in their `Load` ([W0703](/errors/W0703)) |
 | `live` | decorated hooks, bound fields, deferred groups, typed handler parameters and tracked server state |
 | `templates` | shape-file fields and markup, ambiguous names, missing keys in live loops and invalid hole values |
 | `schema` | an orm model's `Schema` method: `s.Field` given something other than the address of the receiver's field ([E0501](/errors/E0501)), a nil attribute ([E0502](/errors/E0502)), a field behind a pointer ([E0503](/errors/E0503)) |
