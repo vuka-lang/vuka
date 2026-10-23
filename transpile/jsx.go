@@ -321,6 +321,18 @@ func (p *jsxParser) element(off int) *jsxElem {
 			}
 			j := p.space(i + 2)
 			name, k := p.name(j)
+			if comp && p.at(k) == '[' { // </List[Task]> closes <List[Task]> as </List> does
+				for d := 0; k == j+len(name) || d > 0; k++ {
+					switch p.at(k) {
+					case 0:
+						p.fail(i, "unclosed [ in </%s>", name)
+					case '[':
+						d++
+					case ']':
+						d--
+					}
+				}
+			}
 			k = p.space(k)
 			if name != el.tag || p.at(k) != '>' {
 				found := "</" + name + ">"

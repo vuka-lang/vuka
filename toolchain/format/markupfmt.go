@@ -139,7 +139,7 @@ func scanMarkup(src []byte, offset int) ([]mtok, error) {
 			}
 			name := strings.TrimSpace(string(src[i+2 : j]))
 			s.toks = append(s.toks, mtok{kind: mClose, start: i, end: j + 1, name: name})
-			if n := len(s.stack); n == 0 || s.stack[n-1] != name {
+			if n := len(s.stack); n == 0 || s.stack[n-1] != name && baseTag(s.stack[n-1]) != baseTag(name) {
 				open := "nothing"
 				if n > 0 {
 					open = s.stack[n-1]
@@ -850,4 +850,13 @@ func classSet(a string) string {
 		}
 	}
 	return a
+}
+
+// baseTag is a tag's name without its type arguments: List in List[Task],
+// so </List> and </List[Task]> both close <List[Task]>.
+func baseTag(name string) string {
+	if i := strings.IndexByte(name, '['); i > 0 {
+		return name[:i]
+	}
+	return name
 }

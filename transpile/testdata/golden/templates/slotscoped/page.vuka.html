@@ -16,7 +16,7 @@ type Page struct{ Tasks []Task }
         {t.Title}
       }
     </slot:row>
-  </List>
+  </List[Task]>
   <List items={Tasks}>
     <slot:row let={t}><i>{t.Title}</i></slot:row>
     <slot:empty>nothing</slot:empty>
