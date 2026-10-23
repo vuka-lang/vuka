@@ -959,8 +959,15 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if err := a.create(file, src); err != nil {
 		return err
 	}
+	routes := pagesRoutesEdit(root, mod, filepath.Join(root, pagesDirName))
+	if routes.Src != nil {
+		a.change(filepath.ToSlash(routes.File), routes.Src)
+	}
 	if err := a.commit(w); err != nil {
 		return err
+	}
+	if routes.Hint != "" {
+		fmt.Fprintf(w, "\n%s\n", routes.Hint)
 	}
 	example := strings.NewReplacer("{", "", "}", "").Replace(regexp.MustCompile(`\{[^}]+\}`).ReplaceAllString(path, "1"))
 	fmt.Fprintf(w, "\nRun the app (vuka run -watch .) and open http://localhost:8080%s\n", example)

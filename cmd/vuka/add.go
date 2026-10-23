@@ -55,7 +55,9 @@ Grow an app vuka new made.
              an @ui.Island struct with a prop, a url: field and a method, and
              the component calling it (ui.Live unless --stateless; --module m
              puts the component in web/islands/<m>/). The folder's
-             _layout.vuka.html is its layout.
+             _layout.vuka.html is its layout. When main doesn't pass
+             pages.Routes() to web.New yet, it is added (or, when vuka
+             can't tell where, the line to add is printed).
   entity     an orm model in entities/ (or the module's package; m/Name is
              short for Name --module m), with ID and created/updated times,
              its fields name:type — string, text, int, float, decimal,
@@ -104,6 +106,11 @@ func add(args []string, stdout io.Writer) error {
 	}
 	for _, f := range files {
 		fmt.Fprintln(stdout, "wrote", f)
+	}
+	if exists(root, pagesDirName, args[1]) {
+		if err := servePages(root, modPath, stdout); err != nil {
+			return err
+		}
 	}
 	fmt.Fprintf(stdout, "\nThe app applies the migration when it next starts. Then:\n\n\tvuka test ./modules/%s\n\tvuka run -watch .\n", args[1])
 	return nil

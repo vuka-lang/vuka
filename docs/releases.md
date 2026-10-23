@@ -121,6 +121,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
 - `vuka lsp` no longer exits on a compiler panic: the file gets an
   [E0001](/errors/E0001) diagnostic with the panic's message, the stack goes
   to the server's log, and the server keeps serving.
+- `vuka add page` in an app whose `main` didn't pass `pages.Routes()` to
+  its app yet — one made with templ views or as an API, or any app without
+  a `pages/` tree — wrote the page and left it unserved. It now adds the
+  `pages` import and `pages.Routes()` to the `web.New` of the main that owns
+  `pages/`, in `main.go` or `main.vuka` (into the option list `web.New`
+  spreads, when it spreads one), and leaves a main that passes it already
+  as it is; `vuka add module` does the same when it writes the module's
+  page. When it can't tell which main serves the pages, or can't find the
+  call, it prints the line to add and where. `vuka fix routes` makes the
+  same change, and [W0701](/errors/W0701) points to it.
 - `vuka lsp` drops gopls's `go.mod` diagnostics about `malformed import
   path ".../(admin)"` (and `[id]`) for Go files in route-group and parameter
   folders; those packages are still type-checked through the packages vuka
@@ -593,8 +603,6 @@ the tests.
 
 ### Known issues
 
-- `vuka add page` in an app using templ doesn't add `pages.Routes()` to
-  `main`; add it by hand.
 - `vuka upgrade` doesn't rewrite 1.x import paths; use the recipe above.
 - A hole, `{expr}`, inside `<script>` or `<style>` is written out literally,
   not evaluated. Pass a value to a script through an element's attribute

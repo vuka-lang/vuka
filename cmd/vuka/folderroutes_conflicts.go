@@ -278,7 +278,6 @@ func routesUnserved(root, modPath string, ts routeTrees) []diag.Diagnostic {
 			continue
 		}
 		pagesPath := strconv.Quote(t.pagesPath)
-		importRe := regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+)?\s*` + regexp.QuoteMeta(pagesPath))
 		mains, served := 0, false
 		visit := func(path, name string) error {
 			if served || !(strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".vuka")) || strings.Contains(name, "_test.") {
@@ -289,15 +288,7 @@ func routesUnserved(root, modPath string, ts routeTrees) []diag.Diagnostic {
 				return nil
 			}
 			mains++
-			for _, m := range importRe.FindAllSubmatch(src, -1) {
-				alias := string(m[1])
-				if alias == "" {
-					alias = pagesDirName
-				}
-				if bytes.Contains(src, []byte(alias+".Routes()")) {
-					served = true
-				}
-			}
+			served = passesRoutes(src, t.pagesPath, pagesDirName)
 			return nil
 		}
 		msg := "the pages under pages/ are served by no main package: none passes pages.Routes() to its app"
@@ -316,9 +307,13 @@ func routesUnserved(root, modPath string, ts routeTrees) []diag.Diagnostic {
 			msg = "the pages under " + filepath.ToSlash(relPath(root, t.pages)) + "/ are served by no app: the package main beside them never passes pages.Routes() to it"
 		}
 		if !served {
-			out = append(out, *diag.Warn("W0701", "%s", msg).
-				At(diag.Span{File: filepath.Join(t.pages, routeGoName)}).
-				WithHelp("register them: web.New(pages.Routes(), …), importing %s", pagesPath))
+			d := diag.Warn("W0701", "%s", msg).At(diag.Span{File: filepath.Join(t.pages, routeGoName)})
+			if e := pagesRoutesEdit(root, modPath, t.pages); e.Src != nil {
+				d.WithHelp("vuka fix routes adds it to web.New in %s: web.New(pages.Routes(), …), importing %s", e.File, pagesPath)
+			} else {
+				d.WithHelp("register them: web.New(pages.Routes(), …), importing %s", pagesPath)
+			}
+			out = append(out, *d)
 		}
 	}
 	return out
