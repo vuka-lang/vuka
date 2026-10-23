@@ -3,18 +3,27 @@ package employers
 import (
 	"context"
 
+	"example.com/folder-routes/pages/private_parts"
 	"example.com/folder-routes/pages/urls"
 	"example.com/folder-routes/store"
+	"github.com/vuka-lang/ui/v2"
 	"github.com/vuka-lang/web/v2"
 )
 
 // New is the form adding an employer: GET /employers/new, and its Post
-// method POST /employers/new.
+// method POST /employers/new. It has no constructor: route.go builds it,
+// and its store, an unexported field of a type the app provides, is
+// injected for the page and for its Post.
 type New struct {
 	store *store.Store
+	count int
 }
 
-func NewNew(s *store.Store) *New { return &New{store: s} }
+@ui.Mount
+func (p *New) mount(ctx context.Context) error {
+	p.count = len(p.store.Employers())
+	return nil
+}
 
 func (p *New) Title() string { return "New employer" }
 
@@ -24,6 +33,7 @@ func (p *New) Post(ctx context.Context, form store.EmployerForm) (web.Redirect, 
 }
 <section id="new">
   <h1>New employer</h1>
+  {parts.TallyOf("employers so far", count)}
   <form method="post" action={urls.Employers.New.Path()}>
     <label>Name <input name="name" required/></label>
     <label>City <input name="city" required/></label>

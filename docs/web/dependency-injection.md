@@ -75,6 +75,40 @@ and registered services.
 In a shape, an unexported field of a provided type is injected; other
 unexported fields are tracked server state.
 
+### Dependency Fields {#dependency-fields}
+
+A page under `pages/` declares its dependencies as unexported fields of
+provided types, and needs no constructor for them:
+
+```html
+// pages/users/index.vuka.html
+type Index struct {
+	users *users.Service
+	rows  []users.User
+}
+
+@ui.Mount
+func (p *Index) mount(ctx context.Context) error {
+	p.rows = p.users.List(ctx)
+	return nil
+}
+
+func (p *Index) Post(ctx context.Context, f users.Form) (web.Redirect, error) { … }
+```
+
+`pages/route.go` builds the page with `&Index{}` (or its `NewIndex`, when
+it has one), and web then injects each unexported field whose type the
+app provides — `users` here — before the page's parameters bind and its
+mount hook runs. The same holds for the receiver of the page's `Post`,
+`Put`, `Patch` and `Delete` handlers, for a live page, for a page-backed
+island, and for a folder's layouts and guards. Only fields of provided
+types are touched: `rows` is tracked state, and a `ui.State`, a field the
+compiler tracks, an exported prop or an unexported field of a type nothing
+provides is left as the constructor made it, with no error. A dependency
+field the URL would bind too — named like a path parameter (`users` on
+`/users/{users}`) or tagged `url:` — is [E0419](/errors/E0419) at
+start-up.
+
 ## Registering Services
 
 In `main.go`, register each constructor on the app:

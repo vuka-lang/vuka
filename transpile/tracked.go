@@ -182,7 +182,12 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 		st  ast.Stmt // the statement writing it, nil for a read
 	}
 	var reads, writes []use
+	var lits []litInit
 	ast.Inspect(f.ast, func(n ast.Node) bool {
+		if lit, ok := n.(*ast.CompositeLit); ok && f.lowerable(lit.Pos()) && !inAttr(f.orig(lit.Pos())) {
+			lits = append(lits, e.trackedInits(lit, fields)...)
+			return true
+		}
 		sel, ok := n.(*ast.SelectorExpr)
 		if !ok || !f.lowerable(sel.Pos()) || inAttr(f.orig(sel.Pos())) {
 			return true
@@ -259,6 +264,14 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 	if len(reads) > 0 {
 		return
 	}
+	for _, l := range lits {
+		// Badge{count: 3}: the field's Assign holding the value, set as
+		// the shape's methods set it.
+		v := e.freeName("v", l.val)
+		f.insert(f.orig(l.val.Pos()), "func() ("+v+" "+e.typeTextAuto(f, l.field.Type())+") { "+v+".Set(", 0)
+		f.insert(f.orig(l.val.End()), "); return }()", 0)
+		e.progress = true
+	}
 	multi := map[ast.Stmt]bool{}
 	for _, w := range writes {
 		sel := w.sel
@@ -308,6 +321,64 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 		}
 		e.progress = true
 	}
+}
+
+// shapeName is the name of lit's struct type.
+func shapeName(lit *ast.CompositeLit, info *types.Info) string {
+	t := info.TypeOf(lit)
+	if p, ok := t.Underlying().(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	if n, ok := types.Unalias(t).(*types.Named); ok {
+		return n.Obj().Name()
+	}
+	return "the struct"
+}
+
+// litInit is a composite literal's value for a tracked field.
+type litInit struct {
+	val   ast.Expr
+	field *types.Var
+}
+
+// trackedInits are the values lit gives tracked fields, keyed (Badge{count:
+// 3}) or in order, those not lowered yet: a value already an Assign is
+// left as written.
+func (e *engine) trackedInits(lit *ast.CompositeLit, fields map[*types.Var]*fileState) []litInit {
+	t := e.info.TypeOf(lit)
+	if t == nil {
+		return nil
+	}
+	if p, ok := t.Underlying().(*types.Pointer); ok {
+		t = p.Elem()
+	}
+	st, _ := t.Underlying().(*types.Struct)
+	if st == nil {
+		return nil
+	}
+	var out []litInit
+	for i, el := range lit.Elts {
+		var v *types.Var
+		val := el
+		if kv, ok := el.(*ast.KeyValueExpr); ok {
+			id, _ := kv.Key.(*ast.Ident)
+			if id == nil {
+				continue
+			}
+			v, _ = e.info.Uses[id].(*types.Var)
+			val = kv.Value
+		} else if i < st.NumFields() {
+			v = st.Field(i)
+		}
+		if v == nil || fields[v] == nil {
+			continue
+		}
+		if vt := e.info.TypeOf(val); vt == nil || isAssign(vt) {
+			continue
+		}
+		out = append(out, litInit{val, v})
+	}
+	return out
 }
 
 // pointerMethod reports whether m, a selector chain on the tracked field
@@ -430,9 +501,33 @@ func (e *engine) checkGoTracked() {
 					fn = "(" + types.ExprString(fd.Recv.List[0].Type) + ")." + fn
 				}
 			}
+			where := "this code"
+			if fn != "" {
+				where = fn
+			}
+			report := func(pos token.Pos, what string, shape *fileState) {
+				if strings.HasSuffix(f.name, "_test.go") {
+					// A test reads and writes it as the shape's methods do in
+					// a _test.vuka file.
+					e.errs.add("E0155", e.fset.Position(pos), "%s %s's tracked server state, declared in %s, which the compiler lowers only in Vuka files: move %s from this _test.go file to a _test.vuka file, where it reads and writes the field as written",
+						what, shape.html.shape.Type, shape.name, where).
+						help("rename %s to %s", filepath.Base(f.name), strings.TrimSuffix(filepath.Base(f.name), ".go")+".vuka")
+					return
+				}
+				e.errs.add("E0155", e.fset.Position(pos), "%s %s's tracked server state, declared in %s, which the compiler lowers only in Vuka files: move %s from this .go file to a .vuka file, or into %s's header",
+					what, shape.html.shape.Type, shape.name, where, shape.name)
+			}
 			ast.Inspect(d, func(n ast.Node) bool {
 				if n == nil {
 					return false
+				}
+				if lit, ok := n.(*ast.CompositeLit); ok {
+					// Badge{count: 3}: a Vuka file sets the Assign; Go
+					// can't.
+					for _, l := range e.trackedInits(lit, fields) {
+						report(l.val.Pos(), "the literal "+shapeName(lit, e.info)+"{"+l.field.Name()+": …} sets", fields[l.field])
+					}
+					return true
 				}
 				if p, ok := n.(*ast.SelectorExpr); ok {
 					if s := e.info.Selections[p]; s != nil && s.Kind() == types.MethodVal && isAssign(s.Recv()) {
@@ -453,20 +548,7 @@ func (e *engine) checkGoTracked() {
 				if shape == nil {
 					return true
 				}
-				where := "this code"
-				if fn != "" {
-					where = fn
-				}
-				if strings.HasSuffix(f.name, "_test.go") {
-					// A test reads and writes it as the shape's methods do in
-					// a _test.vuka file.
-					e.errs.add("E0155", e.fset.Position(sel.Sel.Pos()), "%s is %s's tracked server state, declared in %s, which the compiler lowers only in Vuka files: move %s from this _test.go file to a _test.vuka file, where it reads and writes the field as written",
-						types.ExprString(sel), shape.html.shape.Type, shape.name, where).
-						help("rename %s to %s", filepath.Base(f.name), strings.TrimSuffix(filepath.Base(f.name), ".go")+".vuka")
-					return false
-				}
-				e.errs.add("E0155", e.fset.Position(sel.Sel.Pos()), "%s is %s's tracked server state, declared in %s, which the compiler lowers only in Vuka files: move %s from this .go file to a .vuka file, or into %s's header",
-					types.ExprString(sel), shape.html.shape.Type, shape.name, where, shape.name)
+				report(sel.Sel.Pos(), types.ExprString(sel)+" is", shape)
 				return false
 			})
 		}

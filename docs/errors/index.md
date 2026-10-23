@@ -149,6 +149,7 @@ same page in the terminal.
 | [E0416](./E0416) | A .env file doesn't parse |
 | [E0417](./E0417) | A view doesn't fit its template |
 | [E0418](./E0418) | A service or controller that isn't a struct |
+| [E0419](./E0419) | A dependency field the URL binds too |
 | [E0420](./E0420) | A removed way to declare a dependency |
 
 ## Data and the ORM

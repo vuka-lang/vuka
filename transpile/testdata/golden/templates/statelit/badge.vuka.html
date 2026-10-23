@@ -1,0 +1,18 @@
+package main
+
+// Badge's tracked count is set by composite literals.
+type Badge struct {
+	ui.Live
+	Label string
+	count int
+	seen  []string
+}
+
+func (b *Badge) Bump() {
+	b.count++
+}
+
+func (b *Badge) twin() *Badge {
+	return &Badge{Label: b.Label + "²", count: b.count * 2}
+}
+<b>{Label}: {count} ({len(seen)})</b>

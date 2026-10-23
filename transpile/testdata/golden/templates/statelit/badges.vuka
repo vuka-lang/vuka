@@ -1,0 +1,16 @@
+package main
+
+func newBadges() []*Badge {
+	return []*Badge{
+		{Label: "a", count: 1},
+		&Badge{Label: "b", count: 2, seen: []string{"x"}},
+	}
+}
+
+func zero() Badge {
+	return Badge{}
+}
+
+func pill() Pill {
+	return Pill{"p", 7}
+}

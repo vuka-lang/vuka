@@ -245,11 +245,12 @@ type About struct{}
 </section>
 ```
 
-A page with nothing to inject needs no constructor: `route.go` builds it
-with `func() *About { return &About{} }`. A shape's provided dependency
-fields are filled by the generated constructor. An explicit `New<T>`
-constructor can still initialize dependencies and defaults; for a page
-named `New`, that constructor is `NewNew`.
+A page needs no constructor: `route.go` builds it with `func() *About {
+return &About{} }`, and web injects its unexported fields of provided
+types — `store *store.Store` — for the page, its method handlers and its
+mount hook alike ([dependency fields](/web/dependency-injection#dependency-fields)).
+An explicit `New<T>` constructor can still set defaults; for a page named
+`New`, that constructor is `NewNew`.
 
 > [!WARNING]
 > A rendering shape placed under `pages/` declares a route, so shared
@@ -1144,8 +1145,8 @@ DELETE  /api/employers/{employer}               employers.DELETE (endpoint)     
 GET     /app/settings                           app.Settings                     pages/app/settings.vuka.html:23                                  pages.Middleware                             pages.Layout
 GET     /app/{route...}                         app.Shell                        pages/app/[route...].vuka.html:5                          pages.Middleware                             pages.Layout
 GET     /employers                              employers.Index (live)           pages/employers/index.vuka.html:14                               pages.Middleware                             pages.Layout
-GET     /employers/new                          employers.New                    pages/employers/new.vuka.html:15                                 pages.Middleware                             pages.Layout
-POST    /employers/new                          employers.New.Post               pages/employers/new.vuka.html:23                                 pages.Middleware                             pages.Layout
+GET     /employers/new                          employers.New                    pages/employers/new.vuka.html:19                                 pages.Middleware                             pages.Layout
+POST    /employers/new                          employers.New.Post               pages/employers/new.vuka.html:32                                 pages.Middleware                             pages.Layout
 GET     /employers/{employer}                   employer.Index                   pages/employers/[employer]/index.vuka.html:13             pages.Middleware                             pages.Layout, employer.Layout
 GET     /employers/{employer}/edit              employer.Edit                    pages/employers/[employer]/edit.vuka.html:15              pages.Middleware                             pages.Layout, employer.Layout
 POST    /employers/{employer}/edit              employer.Edit.Post               pages/employers/[employer]/edit.vuka.html:32              pages.Middleware                             pages.Layout, employer.Layout
