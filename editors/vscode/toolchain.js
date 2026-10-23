@@ -1,6 +1,6 @@
 // Keep editor requirements explicit: updating the extension does not update
 // the separately installed language server.
-const minimumServerVersion = 'v1.4.0';
+const minimumServerVersion = 'v2.0.0';
 const updateCommand = `go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest`;
 
 function serverVersion(output) {
@@ -9,11 +9,10 @@ function serverVersion(output) {
   return { text: `v${match[1]}.${match[2]}.${match[3]}`, parts: match.slice(1, 4).map(Number) };
 }
 
-function supportsTemplateContext(output) {
+function supportsShapes(output) {
   const version = serverVersion(output);
   if (!version) return undefined;
-  const [major, minor] = version.parts;
-  return major > 1 || (major === 1 && minor >= 4);
+  return version.parts[0] >= 2;
 }
 
-module.exports = { minimumServerVersion, updateCommand, serverVersion, supportsTemplateContext };
+module.exports = { minimumServerVersion, updateCommand, serverVersion, supportsShapes };

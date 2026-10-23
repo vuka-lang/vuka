@@ -62,9 +62,9 @@ false}` turns that off).
 
 ## Templates
 
-Implicit `ctx` in templates requires **Vuka v1.4.0 or newer**. The extension
-uses your separately installed `vuka lsp`; updating the extension alone does
-not update that binary. If `ctx` is reported as undefined, run:
+This extension is for **Vuka 2.0**: it needs a language server of v2.0.0 or
+newer. The extension uses your separately installed `vuka lsp`; updating the
+extension alone does not update that binary. To update it, run:
 
 ```sh
 go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest

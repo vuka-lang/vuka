@@ -276,9 +276,9 @@ function showVersion() {
       return;
     }
     versionItem.text = stdout.trim();
-    const supported = toolchain.supportsTemplateContext(stdout);
+    const supported = toolchain.supportsShapes(stdout);
     versionItem.detail = supported === false
-      ? `${command}: template ctx requires Vuka ${toolchain.minimumServerVersion} or newer. ${toolchain.updateCommand}`
+      ? `${command}: Vuka 2.0 files require the language server ${toolchain.minimumServerVersion} or newer. ${toolchain.updateCommand}`
       : command;
     versionItem.severity = supported === false ? vscode.LanguageStatusSeverity.Warning : vscode.LanguageStatusSeverity.Information;
     if (supported === false) {
@@ -286,7 +286,7 @@ function showVersion() {
       if (!warnedServers.has(key)) {
         warnedServers.add(key);
         vscode.window.showWarningMessage(
-          `Vuka's language server is ${toolchain.serverVersion(stdout).text}. Templates using ctx require ${toolchain.minimumServerVersion} or newer. Update the server, then run Vuka: Restart Language Server.`,
+          `Vuka's language server is ${toolchain.serverVersion(stdout).text}. .vuka.html shapes and pages/ routes require ${toolchain.minimumServerVersion} or newer. Update the server, then run Vuka: Restart Language Server.`,
           'Copy Update Command',
         ).then((choice) => {
           if (choice === 'Copy Update Command') vscode.env.clipboard.writeText(toolchain.updateCommand);

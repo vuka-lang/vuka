@@ -1,6 +1,8 @@
 # Changelog
 
-## 0.6.1
+## 0.7.0
+
+- Require a Vuka v2.0.0 language server and offer `go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest` when an older one is found.
 
 - Highlight Vuka 2.0 `.vuka.html` shapes: Go headers, decorator hooks and field attributes, followed by markup with Go statements and browser-state assignments.
 - Keep method bodies, channel receives, comments and raw strings in the Go header until the top-level markup boundary.
