@@ -11,3 +11,7 @@ func (b *Board) count() int {
 func size(b *Board) int {
 	return len(b.rows)
 }
+
+func fresh() *Board {
+	return &Board{rows: []string{"b"}}
+}
