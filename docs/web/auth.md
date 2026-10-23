@@ -10,7 +10,8 @@ register its services explicitly, and keep the page tree's guards separate
 from presentation.
 
 This page covers the user store, guarding page subtrees, reading the
-identity in handlers, signing in and out, sessions, CSRF and testing.
+identity in handlers and permissions in templates, signing in and out,
+sessions, CSRF and testing.
 
 ## Storing Users {#users}
 
@@ -69,6 +70,42 @@ func (p *Account) mount(ctx context.Context, user auth.User) error {
 
 Save it as `pages/account.vuka.html` within the guarded tree. Keep the
 identity server-side rather than exposing the whole user object as a prop.
+
+## Permissions in Templates {#permissions-in-templates}
+
+With `auth.Context` in `main`'s
+[context processors](/web/context-processors), every template reads two
+variables: `user`, the signed-in identity (`nil` for an anonymous
+visitor), and `perms`, what that visitor may do. `perms.Has` takes the
+same patterns as the gates, `orders.*` and `*` included:
+
+```html
+<header>
+  if user != nil {
+    <span>{user.ID}</span>
+  }
+  if perms.Has("placements.approve") {
+    <button onClick={PreviewSelectedPlacements}>Preview</button>
+  }
+</header>
+```
+
+When an identity's roles or permissions change, it signs out, or it is
+impersonated or revoked, the components showing `user` or `perms` render
+again at the visitor's next event, a layout that stays among them.
+
+> [!WARNING]
+> Showing is not protecting. `perms.Has` decides what the page displays;
+> anyone can still send the event a hidden button sends, or request the
+> page a hidden link names. Check the permission where the work happens:
+> `@auth.Requires("placements.approve")` on the event method or the
+> handler, or `auth.Require(ctx, "placements.approve")` in a guard.
+> `vuka vet` warns about a control shown behind `perms.Has("x")` whose
+> event method checks no `x` ([W0403](/errors/W0403)).
+
+A processor reading the signed-in user never reaches the browser unless
+it is listed as `web.Browser(web.Personal(p))`, and the permission list
+never does ([E0426](/errors/E0426)).
 
 ## Signing In and Out {#signing-in-and-out}
 
