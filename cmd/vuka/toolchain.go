@@ -13,10 +13,10 @@ import (
 // vuka release writes them. vuka new pins the set, and vuka version and vuka
 // upgrade compare an app's go.mod with it.
 const (
-	version     = "v2.1.0"
-	vukaVersion = "v2.1.0"
-	uiVersion   = "v2.1.0"
-	webVersion  = "v2.1.0"
+	version     = "v2.2.0"
+	vukaVersion = "v2.2.0"
+	uiVersion   = "v2.2.0"
+	webVersion  = "v2.2.0"
 )
 
 const firstSetVersion = "v0.50.0"
