@@ -207,7 +207,7 @@ func readShape(path string, src []byte) *shapeFile {
 	if sh == nil || err != nil || sh.Markup < 0 {
 		return nil
 	}
-	f := &shapeFile{path: path, src: src, shape: sh, imports: parseImports(src)}
+	f := &shapeFile{path: path, src: src, shape: sh, imports: readImports(src)}
 	f.markup = lineOffset(src, sh.Markup)
 	f.decls = headerDecls(src, f.imports.end, f.markup)
 	return f
@@ -315,7 +315,7 @@ func moveMethods(f *shapeFile, ds []headerDecl, read load.ReadFunc) (change, err
 func moveDecls(path string, src []byte, imps importSection, cuts []edit, moved [][]byte, to string, read load.ReadFunc) (change, error) {
 	root, modPath, _ := load.ModuleRoot(filepath.Dir(path))
 	pkgName := pathPackageNames(root, modPath)
-	names := map[string]importSpec{}
+	names := map[string]refImport{}
 	for _, sp := range imps.specs {
 		names[sp.localName(pkgName)] = sp
 	}
@@ -327,8 +327,8 @@ func moveDecls(path string, src []byte, imps importSection, cuts []edit, moved [
 		}
 	}
 	sortImports(need)
-	rest := applyEdits(src, cuts)
-	restCode := rest[parseImports(rest).end:]
+	rest := applySpans(src, cuts)
+	restCode := rest[readImports(rest).end:]
 	drop := unusedImports(rest, restCode, pkgName)
 	srcEdits := append(cuts, importEdits(src, drop, nil)...)
 
@@ -342,7 +342,7 @@ func moveDecls(path string, src []byte, imps importSection, cuts []edit, moved [
 		var b strings.Builder
 		b.WriteString("package " + imps.pkg + "\n")
 		if len(need) == 1 {
-			b.WriteString("\nimport " + importLine(need[0]) + "\n")
+			b.WriteString("\nimport " + wantLine(need[0]) + "\n")
 		} else if len(need) > 1 {
 			b.WriteString("\nimport (\n")
 			std := true
@@ -351,7 +351,7 @@ func moveDecls(path string, src []byte, imps importSection, cuts []edit, moved [
 					b.WriteString("\n")
 				}
 				std = isStd(n.path)
-				b.WriteString("\t" + importLine(n) + "\n")
+				b.WriteString("\t" + wantLine(n) + "\n")
 			}
 			b.WriteString(")\n")
 		}
@@ -370,7 +370,7 @@ func moveDecls(path string, src []byte, imps importSection, cuts []edit, moved [
 	return c, nil
 }
 
-func importLine(w wantImport) string {
+func wantLine(w wantImport) string {
 	if w.name != "" {
 		return w.name + " " + strconv.Quote(w.path)
 	}
@@ -434,7 +434,7 @@ func trackedInGo(path string, src []byte, read load.ReadFunc) []trackedUse {
 	if len(shapes) == 0 {
 		return nil
 	}
-	decls := headerDecls(src, parseImports(src).end, len(src))
+	decls := headerDecls(src, readImports(src).end, len(src))
 	var out []trackedUse
 	for _, d := range af.Decls {
 		fd, ok := d.(*ast.FuncDecl)
@@ -545,13 +545,13 @@ func moveGoDecl(path string, src []byte, d headerDecl, to string, read load.Read
 	if prev := bytes.LastIndexByte(src[:max(start-1, 0)], '\n') + 1; start > 0 && strings.TrimSpace(string(src[prev:start])) == "" {
 		start = prev
 	}
-	imps := parseImports(src)
+	imps := readImports(src)
 	c, err := moveDecls(path, src, imps, []edit{{start, d.end, ""}}, [][]byte{src[d.start:d.end]}, to, read)
 	if err != nil {
 		return nil, err
 	}
-	rest := applyEdits(src, []edit{{start, d.end, ""}})
-	if strings.TrimSpace(string(rest[parseImports(rest).end:])) == "" && !bytes.Contains(src[:imps.pkgEnd], []byte("//go:build")) {
+	rest := applySpans(src, []edit{{start, d.end, ""}})
+	if strings.TrimSpace(string(rest[readImports(rest).end:])) == "" && !bytes.Contains(src[:imps.pkgEnd], []byte("//go:build")) {
 		c[0] = fileChange{path: path, remove: true}
 	}
 	return c, nil

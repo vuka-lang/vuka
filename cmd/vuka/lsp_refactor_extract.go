@@ -102,8 +102,6 @@ func wholeElements(src []byte, markup, start, end int) (int, int, bool) {
 	return start, end, i == end && start >= markup
 }
 
-func isSpace(b byte) bool { return b == ' ' || b == '\t' || b == '\n' || b == '\r' }
-
 // prop is a prop of the extracted shape: what it stands for and where the
 // selection reads it.
 type prop struct {
@@ -144,10 +142,10 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 	recvs := tp.renderRecvs(tf, shape)
 	sels := selectorsOf(tf.ast)
 
-	header := map[string]importSpec{} // the header's imports by path
+	header := map[string]refImport{} // the header's imports by path
 	root, modPath := tp.root, tp.modPath
 	pkgName := pathPackageNames(root, modPath)
-	byName := map[string]importSpec{}
+	byName := map[string]refImport{}
 	for _, sp := range f.imports.specs {
 		header[sp.path] = sp
 		byName[sp.localName(pkgName)] = sp
@@ -333,7 +331,7 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 			renames = append(renames, edit{u - s, u - s + len(pr.from), pr.name})
 		}
 	}
-	markup := dedent(string(applyEdits(src[s:e], renames)), indentOf(src, s))
+	markup := dedent(string(applySpans(src[s:e], renames)), indentBefore(src, s))
 	var fields []string
 	for _, pr := range order {
 		fields = append(fields, pr.name+" "+pr.typ)
@@ -366,14 +364,14 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 		tag.WriteString(" />")
 	}
 	pageEdits := []edit{{s, e, tag.String()}}
-	after := applyEdits(src, pageEdits)
-	drop := unusedImports(after, after[parseImports(after).end:], pkgName)
-	var add []wantImport
+	after := applySpans(src, pageEdits)
+	drop := unusedImports(after, after[readImports(after).end:], pkgName)
+	var addImps []wantImport
 	if parts {
 		relParts, _ := filepath.Rel(root, targetDir)
-		add = append(add, wantImport{"", modPath + "/" + load.GoRel(filepath.ToSlash(relParts))})
+		addImps = append(addImps, wantImport{"", modPath + "/" + load.GoRel(filepath.ToSlash(relParts))})
 	}
-	pageEdits = append(pageEdits, importEdits(src, drop, add)...)
+	pageEdits = append(pageEdits, importEdits(src, drop, addImps)...)
 	return change{created(newPath, text), {path: path, old: src, edits: pageEdits}}, nil
 }
 
@@ -386,14 +384,14 @@ func shapeFileText(pkg string, imports []wantImport, name string, fields []strin
 	switch len(imports) {
 	case 0:
 	case 1:
-		b.WriteString("import " + importLine(imports[0]) + "\n\n")
+		b.WriteString("import " + wantLine(imports[0]) + "\n\n")
 	default:
 		b.WriteString("import (\n")
 		for i, w := range imports {
 			if i > 0 && isStd(imports[i-1].path) && !isStd(w.path) {
 				b.WriteString("\n")
 			}
-			b.WriteString("\t" + importLine(w) + "\n")
+			b.WriteString("\t" + wantLine(w) + "\n")
 		}
 		b.WriteString(")\n\n")
 	}
@@ -478,8 +476,8 @@ func namedOf(typ string) string {
 	return ""
 }
 
-// indentOf is the space before off on its line.
-func indentOf(src []byte, off int) string {
+// indentBefore is the space before off on its line.
+func indentBefore(src []byte, off int) string {
 	ls := off
 	for ls > 0 && src[ls-1] != '\n' {
 		ls--
@@ -506,7 +504,7 @@ func dirPackage(dir string, read load.ReadFunc) string {
 			continue
 		}
 		if src, err := read(filepath.Join(dir, n)); err == nil {
-			if s := parseImports(src); s.pkg != "" {
+			if s := readImports(src); s.pkg != "" {
 				return s.pkg
 			}
 		}
@@ -536,7 +534,7 @@ func declaredIn(dir, name string, read load.ReadFunc) bool {
 				to = sf.markup
 			}
 		}
-		for _, d := range headerDecls(src, parseImports(src).end, to) {
+		for _, d := range headerDecls(src, readImports(src).end, to) {
 			if d.recvBase == "" && d.name == name {
 				return true
 			}

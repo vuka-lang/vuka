@@ -294,15 +294,6 @@ func (p *proxy) resolveAction(data map[string]any) map[string]any {
 
 func stringOf(v any) string { s, _ := v.(string); return s }
 
-func slicesContains(list []string, s string) bool {
-	for _, x := range list {
-		if x == s {
-			return true
-		}
-	}
-	return false
-}
-
 // actionRequest is a code action request, as the actions see it.
 type actionRequest struct {
 	path       string
@@ -435,14 +426,14 @@ func (c change) result() map[string][]byte {
 		case f.create:
 			out[f.path] = []byte(f.edits[0].text)
 		default:
-			out[f.path] = applyEdits(f.old, f.edits)
+			out[f.path] = applySpans(f.old, f.edits)
 		}
 	}
 	return out
 }
 
-// applyEdits applies non-overlapping edits to src.
-func applyEdits(src []byte, edits []edit) []byte {
+// applySpans applies non-overlapping edits to src.
+func applySpans(src []byte, edits []edit) []byte {
 	sorted := append([]edit(nil), edits...)
 	sort.SliceStable(sorted, func(i, j int) bool { return sorted[i].start < sorted[j].start })
 	var b bytes.Buffer
@@ -490,7 +481,7 @@ func (c change) workspaceEdit(display func(string) string) map[string]any {
 // The imports of a file (.go, .vuka or .vuka.html): its package clause and
 // the import declarations after it, read line by line.
 
-type importSpec struct {
+type refImport struct {
 	name, path string
 	start, end int // the spec's line, its newline included
 }
@@ -498,7 +489,7 @@ type importSpec struct {
 type importSection struct {
 	pkg      string
 	pkgEnd   int // the end of the package clause's line, its newline included
-	specs    []importSpec
+	specs    []refImport
 	groups   [][2]int // each import ( … ) declaration: its first line's start, its last line's end
 	singles  [][2]int // each import "x" declaration's line
 	end      int      // the end of the last import line; pkgEnd when there are none
@@ -512,8 +503,8 @@ var (
 	importInGroup = regexp.MustCompile(`^\s*(?:([\w.]+)\s+)?("[^"]*"|` + "`[^`]*`" + `)`)
 )
 
-// parseImports reads a file's package clause and imports.
-func parseImports(src []byte) importSection {
+// readImports reads a file's package clause and imports.
+func readImports(src []byte) importSection {
 	var s importSection
 	off, inGroup, groupStart, inComment := 0, false, 0, false
 	for off < len(src) {
@@ -538,7 +529,7 @@ func parseImports(src []byte) importSection {
 				s.end, inGroup = end, false
 			} else if g := importInGroup.FindStringSubmatch(t); g != nil {
 				if path, err := strconv.Unquote(g[2]); err == nil {
-					s.specs = append(s.specs, importSpec{name: g[1], path: path, start: off, end: end})
+					s.specs = append(s.specs, refImport{name: g[1], path: path, start: off, end: end})
 				}
 			}
 		case t == "" || strings.HasPrefix(t, "//") || strings.HasPrefix(t, "/*"):
@@ -554,7 +545,7 @@ func parseImports(src []byte) importSection {
 		case importSingle.MatchString(line):
 			g := importSingle.FindStringSubmatch(line)
 			if path, err := strconv.Unquote(g[2]); err == nil {
-				s.specs = append(s.specs, importSpec{name: g[1], path: path, start: off, end: end})
+				s.specs = append(s.specs, refImport{name: g[1], path: path, start: off, end: end})
 				s.singles = append(s.singles, [2]int{off, end})
 				s.end = end
 			}
@@ -567,7 +558,7 @@ func parseImports(src []byte) importSection {
 }
 
 // localName is the name an import is used by.
-func (i importSpec) localName(pkgName func(string) string) string {
+func (i refImport) localName(pkgName func(string) string) string {
 	if i.name != "" {
 		return i.name
 	}
@@ -603,7 +594,7 @@ type wantImport struct{ name, path string }
 // importEdits are the edits to src's imports removing the specs at drop
 // (their paths) and adding add, in the fewest lines changed.
 func importEdits(src []byte, drop map[string]bool, add []wantImport) []edit {
-	s := parseImports(src)
+	s := readImports(src)
 	have := map[string]bool{}
 	for _, sp := range s.specs {
 		have[sp.path] = true
@@ -689,7 +680,7 @@ func importEdits(src []byte, drop map[string]bool, add []wantImport) []edit {
 	return edits
 }
 
-func specOn(specs []importSpec, start int) int {
+func specOn(specs []refImport, start int) int {
 	for i, sp := range specs {
 		if sp.start == start {
 			return i
@@ -724,7 +715,7 @@ func usedNames(text []byte) map[string]bool {
 // unusedImports are the paths of src's imports text no longer uses, text
 // being src's code outside its import section once a change is applied.
 func unusedImports(src, text []byte, pkgName func(string) string) map[string]bool {
-	s := parseImports(src)
+	s := readImports(src)
 	used := usedNames(text)
 	out := map[string]bool{}
 	for _, sp := range s.specs {
@@ -764,7 +755,7 @@ func pathPackageNames(root, modPath string) func(string) string {
 			if err != nil {
 				continue
 			}
-			if s := parseImports(src); s.pkg != "" {
+			if s := readImports(src); s.pkg != "" {
 				return s.pkg
 			}
 		}
