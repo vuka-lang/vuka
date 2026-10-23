@@ -141,8 +141,20 @@ switch it on and off, followed by a restart of templ's language server. A
 | `vuka.autoCloseTags` | `true` | add a markup closing tag in `.vuka.html` when an opening tag's `>` is typed, and the open element's name after `</` |
 
 Both Vuka languages default to `editor.formatOnSave` and
-`editor.linkedEditing`. Emmet is not enabled automatically because a shape
-contains both Go and markup.
+`editor.linkedEditing`. The extension also sets defaults for other
+extensions:
+
+- [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)
+  reads `.vuka.html` and `.vuka` files as HTML (`tailwindCSS.includeLanguages`)
+  and finds classes in `class="…"`, the strings of `class={…}`, and the
+  strings of Go helpers whose name ends in `Class` or `Classes` — their calls
+  and their bodies (`tailwindCSS.experimental.classRegex`).
+- Emmet expands abbreviations in `.vuka.html` files (`emmet.includeLanguages`).
+  Emmet reads the whole file as HTML, so it can suggest an abbreviation for a
+  word typed in the Go header too; `.vuka` files are left out.
+
+A value you set for one of these settings replaces the extension's: add the
+Vuka entries to your own.
 
 Run **Vuka: Restart Language Server** after reinstalling vuka.
 
@@ -150,7 +162,7 @@ Run **Vuka: Restart Language Server** after reinstalling vuka.
 
 Run `npm ci && npm test`. Tests cover logic grammar snapshots, legacy grammar
 recovery, shape fixtures and expected scopes, Go/markup boundary detection,
-tag editing, route filename associations, snippet expansions and toolchain
-integration. `node test/grammar.test.mjs --update` rewrites logic snapshots;
+tag editing, route filename associations, snippet expansions, toolchain
+integration and the defaults for Tailwind and Emmet. `node test/grammar.test.mjs --update` rewrites logic snapshots;
 `node test/html.test.mjs --update` rewrites shape snapshots. `npm run package`
 builds a local `.vsix`; it does not publish the extension.

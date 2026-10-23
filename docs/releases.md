@@ -20,6 +20,30 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.3.0 — unreleased
+
+- **Shape outline and sticky scroll.** `vuka lsp` gives a `.vuka.html`
+  shape's struct the whole file down to the end of its markup, holding its
+  fields, methods and the markup's elements (`section#todos.list`), so sticky
+  scroll keeps the struct pinned over the markup; the methods the markup
+  compiles to, and symbols that map nowhere, leave the outline. The Go header
+  folds as one. See [keeping the struct in view](/tools/editors#outline).
+- **Format Selection.** `textDocument/rangeFormatting` for `.vuka` and
+  `.vuka.html` files: `vuka fmt`'s changes on the selected lines only.
+- **Markup completion.** Every ARIA attribute with its values and the
+  WAI-ARIA roles; the event handlers each element fires (`onSubmit` on a
+  form, `onClose` on a dialog, playback events on media), each saying the
+  handler forms; `ref`, and the file's refs inside `ui.Ref("…")`. See
+  [completing attributes, events and refs](/tools/editors#attributes-events-refs).
+- **Keyed loops.** In a range loop over items with an `ID`-like field, the
+  first element completes with `key={item.ID}`, and `for` on a markup line
+  offers a keyed loop, so [W0102](/errors/W0102) doesn't come up. See
+  [keying a loop's items](/tools/editors#keying-loops).
+- **VS Code extension 0.8.0.** Defaults that make Tailwind CSS IntelliSense
+  find classes in shapes (`class="…"`, `class={…}` strings, `…Class` helpers)
+  and turn Emmet on in `.vuka.html` files. See [Tailwind
+  CSS](/tools/editors#tailwind).
+
 ## v2.2.0 — 2026-10-23
 
 An admin shell — a menu of links in collapsible groups, a header with the

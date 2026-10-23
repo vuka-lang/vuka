@@ -568,6 +568,12 @@ func attrInfo(tag, attr string) (doc, url string, ok bool) {
 			api = "HTMLElement"
 		case "submit", "reset":
 			api = "HTMLFormElement"
+		case "close", "cancel":
+			api = "HTMLDialogElement"
+		case "play", "pause", "ended", "timeupdate", "volumechange", "loadeddata", "canplay", "seeked":
+			api = "HTMLMediaElement"
+		case "select", "beforetoggle":
+			api = "HTMLElement"
 		}
 		return htmlEventDocs[attr] + " The handler runs on the server (vuka.On).", "https://developer.mozilla.org/docs/Web/API/" + api + "/" + ev + "_event", true
 	case htmlAriaDocs[attr] != "":
@@ -594,7 +600,7 @@ func attrInfo(tag, attr string) (doc, url string, ok bool) {
 		html = attr
 	}
 	switch {
-	case attr == "key":
+	case attr == "key" || attr == "ref":
 		return doc, "", true
 	case attr == "role":
 		return doc, "https://developer.mozilla.org/docs/Web/Accessibility/ARIA/Roles", true
