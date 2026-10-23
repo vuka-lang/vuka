@@ -37,6 +37,22 @@ the `github.com/vuka-lang/vuka` package your module requires.
   type that isn't live, whose attributes would be registered for the type
   at package level (plain value attributes, `orm` models)
   ([#96](https://github.com/vuka-lang/vuka/issues/96)).
+- **Context processors in folder pages.** A page under `pages/` — a route
+  group's `(admin)` and a parameter folder's `[id]` included — reads
+  `request`, `perms` and the app's processors' variables by name: main
+  reaches those packages only through the generated `pages/route.go`,
+  which the discovery now follows, also before `route.go` is first
+  written. Hover and completion work there too
+  ([#94](https://github.com/vuka-lang/vuka/issues/94)).
+- **An app processor importing the app's packages.** A processor whose
+  package imports another package of the module — one with shapes, or
+  one the pages import too — no longer breaks that package's build: a
+  processor's package and its imports don't get its variables (reading
+  them would be an import cycle) and are compiled first. Where
+  processors' packages and their readers still need each other, the new
+  [E0428](/errors/E0428) names the processor and the cycle instead of
+  an unrelated `could not import`
+  ([#95](https://github.com/vuka-lang/vuka/issues/95)).
 
 ## v2.4.0 — 2026-10-23
 

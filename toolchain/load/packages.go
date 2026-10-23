@@ -41,8 +41,13 @@ type Package struct {
 	GoDir string
 	// After are packages transpiled before it, though it doesn't import
 	// them: those of the context processors whose variables it reads by
-	// name. An edge that would be a cycle is left out.
+	// name, unless they import it. One that would still close a cycle is
+	// an error (ProcessorCycle).
 	After []string
+	// Links are packages the package's generated Go imports though its
+	// sources don't: pages/route.go's folder-route page packages, which a
+	// main reaches through pages.Routes(). Contexts follows them.
+	Links []string
 }
 
 // BuildDir is the directory the go command sees p in: GoDir, else Dir.
@@ -533,11 +538,28 @@ func Order(pkgs []*Package) ([]*Package, error) {
 	via := throughGo(pkgs, byPath)
 	var out []*Package
 	state := map[*Package]int{} // 1 visiting, 2 done
-	var visit func(p *Package, stack []string) error
-	visit = func(p *Package, stack []string) error {
+	// frame is a package being ordered, and the processor package whose
+	// variables it reads that the next frame was entered for ("" for an
+	// import).
+	type frame struct{ path, after string }
+	var visit func(p *Package, stack []frame) error
+	visit = func(p *Package, stack []frame) error {
 		switch state[p] {
 		case 1:
-			return fmt.Errorf("import cycle: %s", strings.Join(append(stack, p.ImportPath), " -> "))
+			i := slices.IndexFunc(stack, func(f frame) bool { return f.path == p.ImportPath })
+			var paths []string
+			for _, f := range stack[max(i, 0):] {
+				paths = append(paths, f.path)
+			}
+			paths = append(paths, p.ImportPath)
+			if i >= 0 {
+				for _, f := range stack[i:] {
+					if f.after != "" {
+						return &ProcessorCycle{Package: f.path, Processor: f.after, Stack: paths}
+					}
+				}
+			}
+			return fmt.Errorf("import cycle: %s", strings.Join(paths, " -> "))
 		case 2:
 			return nil
 		}
@@ -550,18 +572,19 @@ func Order(pkgs []*Package) ([]*Package, error) {
 		for _, d := range deps {
 			for _, q := range via(d) {
 				if q != p {
-					if err := visit(q, append(stack, p.ImportPath)); err != nil {
+					if err := visit(q, append(stack, frame{path: p.ImportPath})); err != nil {
 						return err
 					}
 				}
 			}
 		}
-		// The packages of the context processors it reads come first, unless
-		// one imports it.
+		// The packages of the context processors it reads come first. None
+		// imports it (Contexts leaves those out), but one may need it first
+		// through the processors another package reads: a ProcessorCycle.
 		for _, d := range p.After {
 			for _, q := range via(d) {
-				if q != p && state[q] == 0 && !reaches(q, p, via) {
-					if err := visit(q, append(stack, p.ImportPath)); err != nil {
+				if q != p {
+					if err := visit(q, append(stack, frame{path: p.ImportPath, after: d})); err != nil {
 						return err
 					}
 				}
@@ -571,7 +594,7 @@ func Order(pkgs []*Package) ([]*Package, error) {
 		// that is a cycle: the literal may not be a vuka.File at all.
 		for _, d := range p.Embeds {
 			if q := byDir[d]; q != nil && q != p && state[q] == 0 {
-				if err := visit(q, append(stack, p.ImportPath)); err != nil {
+				if err := visit(q, append(stack, frame{path: p.ImportPath})); err != nil {
 					return err
 				}
 			}
@@ -588,28 +611,19 @@ func Order(pkgs []*Package) ([]*Package, error) {
 	return out, nil
 }
 
-// reaches reports whether q imports p, directly or not.
-func reaches(q, p *Package, via func(string) []*Package) bool {
-	seen := map[*Package]bool{}
-	var walk func(x *Package) bool
-	walk = func(x *Package) bool {
-		if x == p {
-			return true
-		}
-		if seen[x] {
-			return false
-		}
-		seen[x] = true
-		for _, imp := range x.Imports {
-			for _, y := range via(imp) {
-				if walk(y) {
-					return true
-				}
-			}
-		}
-		return false
-	}
-	return walk(q)
+// ProcessorCycle is an order Order can't find: Package reads the
+// variables of the context processors of the package Processor by name,
+// so it is transpiled after it, and Processor's package needs Package
+// transpiled first, through the packages of Stack and other packages'
+// processors.
+type ProcessorCycle struct {
+	Package, Processor string
+	Stack              []string // the cycle's packages, its first again last
+}
+
+func (e *ProcessorCycle) Error() string {
+	return fmt.Sprintf("%s reads the variables of %s's context processors by name, and %s needs it transpiled first: %s",
+		e.Package, e.Processor, e.Processor, strings.Join(e.Stack, " -> "))
 }
 
 // throughGo is what importing a path brings of pkgs: the package itself, or
@@ -749,7 +763,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 	}
 	pkgs, err := Order(pkgs)
 	if err != nil {
-		return nil, "", err
+		return nil, "", processorCycleError(err, opts.Contexts)
 	}
 	overlay := filepath.Join(tmp, "overlay.json")
 	replace := map[string]string{}

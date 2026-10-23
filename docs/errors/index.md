@@ -164,6 +164,7 @@ same page in the terminal.
 | [E0425](./E0425) | A list entry that is no context processor |
 | [E0426](./E0426) | Personal values sent to the browser |
 | [E0427](./E0427) | A web.Var read the app doesn't give |
+| [E0428](./E0428) | Context processors that need each other |
 | [W0401](./W0401) | A name shadowing a context processor variable |
 | [W0402](./W0402) | The request read in markup |
 | [W0403](./W0403) | A control hidden by a permission its event doesn't check |

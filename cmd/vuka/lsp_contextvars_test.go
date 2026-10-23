@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 const ctxVarsMain = `package main
@@ -90,4 +91,69 @@ func TestLSPContextVars(t *testing.T) {
 	if !found {
 		t.Errorf("no vukaContextVar token on user: %v", res)
 	}
+}
+
+const ctxPagesMain = `package main
+
+import (
+	"example.com/app/pages"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+func main() { _ = web.New(pages.Routes(), web.ContextProcessors(web.RequestContext, auth.Context)) }
+`
+
+const ctxPagesHome = `<script lang="go">
+package home
+
+// Index is GET /home.
+type Index struct{}
+</script>
+
+<main>
+  if perms.Has("admin") {
+    <p>admin</p>
+  }
+  <p>{request.Path}</p>
+</main>
+`
+
+// TestLSPContextVarsFolderPage: in a folder page's package, which main
+// reaches only through pages/route.go, the variables have their hover and
+// completion, and vuka vet passes.
+func TestLSPContextVarsFolderPage(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	dir := refactorModule(t, map[string]string{"main.go": ctxPagesMain, "pages/home/index.vuka.html": ctxPagesHome})
+	t.Setenv("GOWORK", "off")
+	c := startLSPAt(t, dir, lspOptions{})
+	uri := pathToURI(filepath.Join(dir, "pages", "home", "index.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka-html", "version": 1, "text": ctxPagesHome}})
+	at := func(needle string, delta int) map[string]any {
+		return map[string]any{"textDocument": map[string]any{"uri": uri},
+			"position": positionOf([]byte(ctxPagesHome), strings.Index(ctxPagesHome, needle)+delta)}
+	}
+	// The first build of the module may still be running.
+	var hover []byte
+	for deadline := time.Now().Add(60 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		if hover, _ = json.Marshal(c.call("textDocument/hover", at("{request.Path}", 2))); string(hover) != "null" {
+			break
+		}
+	}
+	if !strings.Contains(string(hover), "var request web.RequestInfo") {
+		t.Errorf("hover on request: %s", hover)
+	}
+	hover, _ = json.Marshal(c.call("textDocument/hover", at("perms.Has", 1)))
+	if !strings.Contains(string(hover), "var perms auth.Perms") {
+		t.Errorf("hover on perms: %s", hover)
+	}
+	got, _ := json.Marshal(c.call("textDocument/completion", at("{request.Path}", 4)))
+	if !strings.Contains(string(got), `"label":"request"`) {
+		t.Errorf("completion of req…: %s", got)
+	}
+	// vuka vet lowers them as the build does.
+	vets(t, dir)
 }

@@ -1,6 +1,8 @@
 package load
 
 import (
+	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -37,11 +39,18 @@ func Contexts(root, modPath string, pkgs []*Package, read ReadFunc) map[string][
 	root = realPath(root)
 	mod := scanModule(root, modPath, read)
 	for _, p := range pkgs {
-		// The packages being transpiled are as their files are now.
-		path := strings.TrimSuffix(p.ImportPath, "_test")
-		if m := mod[path]; m != nil && !strings.HasSuffix(p.ImportPath, "_test") {
-			m.imports = slices.Clone(p.Imports)
+		// The packages being transpiled are as their files are now, and
+		// their generated Go's imports count: pages/route.go, which may not
+		// be on disk yet, links the folder-route page packages in.
+		if strings.HasSuffix(p.ImportPath, "_test") {
+			continue
 		}
+		m := mod[p.ImportPath]
+		if m == nil {
+			m = &modPkg{dir: p.Dir, path: p.ImportPath, name: p.Name}
+			mod[p.ImportPath] = m
+		}
+		m.imports = append(slices.Clone(p.Imports), p.Links...)
 	}
 	var mains []transpile.Context
 	reach := map[string][]int{} // import path → the mains linking it in
@@ -73,10 +82,41 @@ func Contexts(root, modPath string, pkgs []*Package, read ReadFunc) map[string][
 	if len(mains) == 0 {
 		return nil
 	}
+	// A processor whose package imports the package, directly or not,
+	// isn't the package's: reading its variables would be an import
+	// cycle, and transpiling the package can't wait for it.
+	deps := map[string]map[string]bool{}
+	imports := func(from, path string) bool {
+		d, ok := deps[from]
+		if !ok {
+			d = map[string]bool{}
+			var walk func(string)
+			walk = func(x string) {
+				q := mod[x]
+				if q == nil {
+					return
+				}
+				for _, imp := range q.imports {
+					if !d[imp] {
+						d[imp] = true
+						walk(imp)
+					}
+				}
+			}
+			walk(from)
+			deps[from] = d
+		}
+		return d[path]
+	}
 	out := map[string][]transpile.Context{}
 	for _, p := range pkgs {
-		for _, i := range reach[strings.TrimSuffix(p.ImportPath, "_test")] {
-			out[p.ImportPath] = append(out[p.ImportPath], mains[i])
+		path := strings.TrimSuffix(p.ImportPath, "_test")
+		for _, i := range reach[path] {
+			c := mains[i]
+			if slices.ContainsFunc(c.Processors, func(pr transpile.Processor) bool { return imports(pr.Path, path) }) {
+				c.Processors = slices.DeleteFunc(slices.Clone(c.Processors), func(pr transpile.Processor) bool { return imports(pr.Path, path) })
+			}
+			out[p.ImportPath] = append(out[p.ImportPath], c)
 		}
 	}
 	return out
@@ -323,4 +363,28 @@ func processorPaths(cs []transpile.Context) []string {
 	}
 	sort.Strings(out)
 	return out
+}
+
+// processorCycleError is Order's error, a ProcessorCycle as E0428 at the
+// processor's entry in each main listing it.
+func processorCycleError(err error, contexts map[string][]transpile.Context) error {
+	var c *ProcessorCycle
+	if !errors.As(err, &c) {
+		return err
+	}
+	var errs transpile.ErrorList
+	for _, ctx := range contexts[c.Package] {
+		for _, p := range ctx.Processors {
+			if p.Path != c.Processor {
+				continue
+			}
+			errs = append(errs, &transpile.Error{Pos: p.Pos, Code: "E0428",
+				Msg:  fmt.Sprintf("%s reads the variables of %s by name, and %s's package needs it transpiled first", c.Package, p.Display(), p.Display()),
+				Help: fmt.Sprintf("the cycle is %s; a processor's package imports what it needs from packages that read no processor variable by name", strings.Join(c.Stack, " -> "))})
+		}
+	}
+	if len(errs) == 0 {
+		return err
+	}
+	return errs
 }
