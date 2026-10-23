@@ -1,3 +1,4 @@
+<script lang="go">
 package {%.Pkg%}
 
 import "github.com/vuka-lang/ui/v2"
@@ -8,6 +9,8 @@ type {%.Name%} struct {
 	Class    string
 	Children ui.Node
 }
+</script>
+
 <section class={"rounded-2xl p-6 ring-1 ring-slate-900/5 dark:ring-white/10 " + Class}>
   if Title != "" {
     <h2 class="mb-2 text-base font-semibold text-slate-900 dark:text-white">{Title}</h2>

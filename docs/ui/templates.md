@@ -4,13 +4,15 @@
 
 ## Introduction
 
-A `.vuka.html` shape file contains a Go header followed by markup. You write
-your components and pages this way, so the data a view renders and the markup
-that renders it live in one file.
+A `.vuka.html` shape file holds its Go in a `<script lang="go">` element,
+followed by the markup that Go renders. You write your components and pages
+this way, so the data a view renders and the markup that renders it live in
+one file.
 
-The header has the package, imports, exactly one rendering struct, decorated
-hooks and methods. The first line whose first non-space character is `<`
-starts markup. Logic without a view belongs in `.go` or `.vuka` files.
+The script has the package, imports, exactly one rendering struct, decorated
+hooks and methods. Everything after `</script>` is markup, except the
+component's `<style>` and `<script lang="ts">` blocks at the end. Logic
+without a view belongs in `.go` or `.vuka` files.
 
 Errors point to the shape file's own line, not the generated Go.
 
@@ -19,6 +21,7 @@ Errors point to the shape file's own line, not the generated Go.
 Save this as `components/sales.vuka.html`:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -34,6 +37,8 @@ func (s Sales) Total() int {
     for _, amount := range s.Week { n += amount }
     return n
 }
+</script>
+
 <section class="sales">
   <h2>{Title}</h2>
   for _, amount := range Week {
@@ -55,7 +60,7 @@ in static rendering and live render-tree diffing.
 Fields and methods are available by bare name: `{Title}`, `{Total()}`. A field
 or method wins over a package name in a value expression; locals and loop
 variables shadow fields. A tag such as `<Icon/>` resolves the package's
-component type. The receiver named by the header's methods is available too,
+component type. The receiver named by the script's methods is available too,
 so `{s.Title}` makes the choice explicit.
 
 For a field whose name is also a type (`Glyph Glyph`), `{Glyph.Name}` and
@@ -81,6 +86,7 @@ This counter is live, because it declares a mount hook and wires `Increment`
 to a click:
 
 ```html
+<script lang="go">
 package components
 
 import (
@@ -97,37 +103,72 @@ type Counter struct {
 func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
 
 func (c *Counter) Increment() { c.n++ }
+</script>
+
 <button onClick={Increment}>{n}</button>
 ```
 
 No struct is [E0146](/errors/E0146), multiple structs [E0147](/errors/E0147),
-and a header without markup [E0148](/errors/E0148).
+and a script without markup [E0148](/errors/E0148).
 
 A form DTO, record type
 or other non-render data structure goes in an adjacent logic file. Each
 reusable rendering partial becomes its own shape file.
 
 The struct's methods may also live in a `.vuka` file beside the shape: its
-tracked fields read and write there as in the header. A method in a `.go`
+tracked fields read and write there as in the script. A method in a `.go`
 file can't use them ([E0155](/errors/E0155)); see [where its methods
 live](/ui/stateful#where-its-methods-live).
 
 ## Laying Out the File {#the-file}
 
-The package clause matches the directory (external test shapes may use the
-`orders_test` package). Single and grouped imports precede the one struct,
-hooks and ordinary methods. Do not put an HTML filename comment before the
-Go header: it would be the first line starting with `<`.
+The `<script lang="go">` comes first: only blank lines and `<!-- comments -->`
+may precede it, and a file has one ([E0157](/errors/E0157)). Its content is
+unindented Go. The package clause matches the directory (external test
+shapes may use the `orders_test` package). Single and grouped imports precede
+the one struct, hooks and ordinary methods.
+
+The compiler reads the script as Go, so a `</script>` inside a string or a
+comment doesn't end it; a script with no `</script>` is
+[E0156](/errors/E0156). Any other `<script>` — `<script lang="ts">`,
+`<script is:inline>`, a plain one — is markup.
 
 The struct name need not match the filename. A routed page's filename supplies
 its URL; it is not inferred from the struct name. Package-level declarations
 in logic files are available in markup; keep the imports for a complete
-example in its own header. A missing or mismatched package is
+example in its own script. A missing or mismatched package is
 [E0142](/errors/E0142).
 
-`vuka fmt` and editor format-on-save format the header and keep the markup
-readable. Document an exported component on its struct. One file renders one
-shape; there is no second template body after a later function header.
+`vuka fmt` and editor format-on-save format the whole file: the Go as
+gofmt does, the markup indented two spaces a level, and the CSS of its
+`<style>`. See [formatting shape files](/tools/cli#fmt-shapes). Document an exported
+component on its struct. One file renders one shape; there is no second
+template body after a later function header.
+
+### Converting a Header-Form File {#header-form}
+
+Before 2.3, a shape wrote its Go bare above the markup, which started at the
+first line beginning with `<`:
+
+```html
+<!-- card.vuka.html, before 2.3 -->
+package components
+
+type Card struct{ Title string }
+<h2>{Title}</h2>
+```
+
+That form still compiles in 2.x and is removed in 3.0. `vukavet` and the
+editor report it as [W0107](/errors/W0107), with a quick fix. Rewrite every
+file under a directory, and format it, with:
+
+```sh
+vuka fmt -rewrite -w .
+```
+
+A package may mix both forms while you migrate. See
+[converting shapes](/tools/cli#shape-script) for a rewrite that leaves the
+formatting as it is.
 
 ## Writing Holes {#holes}
 
@@ -217,6 +258,7 @@ component tag fills Actions ui.Node. A slot in any other position is an error.
 In `components/admin.vuka.html`, declare both:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -226,6 +268,8 @@ type Admin struct {
     Actions ui.Node
     Children ui.Node
 }
+</script>
+
 <div class="admin">
   <header><h1>{Title}</h1>{Actions}</header>
   <main>{Children}</main>
@@ -235,11 +279,14 @@ type Admin struct {
 The caller, `pages/orders.vuka.html`, fills the slot and the children:
 
 ```html
+<script lang="go">
 package pages
 
 import "example.com/app/components"
 
 type Orders struct { Count int }
+</script>
+
 <components.Admin title="Orders">
   <slot:actions><button>New</button></slot:actions>
   <p>{Count} orders</p>
@@ -255,11 +302,14 @@ repeated live component tags to preserve logical instances across reorderings.
 An imported frontend component is an island tag, with props read from its file:
 
 ```html
+<script lang="go">
 package pages
 
 import Clock "../frontend/clock.tsx"
 
 type WorldClock struct { Zone string }
+</script>
+
 <main><Clock zone={Zone} client:visible /></main>
 ```
 
@@ -273,6 +323,7 @@ script, and a `<style scoped>` its CSS — one of each per shape. This chart
 shape has both:
 
 ```html
+<script lang="go">
 package components
 
 import "example.com/app/models"
@@ -281,6 +332,8 @@ type Chart struct {
     Title string
     Points []models.Point
 }
+</script>
+
 <figure class="chart">
   <figcaption>{Title}</figcaption>
 </figure>
@@ -361,11 +414,14 @@ without storing it on the page or passing it through every component. This
 section shows its markup only to visitors who may view analytics:
 
 ```html
+<script lang="go">
 package dashboard
 
 import "github.com/vuka-lang/web/v2/auth"
 
 type Analytics struct{}
+</script>
+
 <section>
   me := auth.Current(ctx)
   if me != nil && me.Can("view_analytics") {

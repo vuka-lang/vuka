@@ -22,7 +22,6 @@ import (
 	"unicode"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/format"
-	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // The orm a new app requires beside the toolchain set (toolchain.go); vuka
@@ -426,19 +425,8 @@ func formatSource(name string, src []byte, module string) ([]byte, error) {
 	return out, nil
 }
 
-// formatShape formats a .vuka.html file: its Go header as vuka fmt formats
-// a .vuka file, then the whole as vuka fmt formats a template.
-func formatShape(src []byte) ([]byte, error) {
-	if sh, _ := transpile.ParseShape(src); sh != nil {
-		lines := strings.SplitAfter(string(src), "\n")
-		head, err := format.Source([]byte(strings.Join(lines[:sh.Markup], "")))
-		if err != nil {
-			return nil, err
-		}
-		src = slices.Concat(head, []byte(strings.Join(lines[sh.Markup:], "")))
-	}
-	return format.Template(src, "")
-}
+// formatShape formats a .vuka.html file as vuka fmt does.
+func formatShape(src []byte) ([]byte, error) { return format.Template(src, "") }
 
 // groupImports puts a blank line between the groups of the import block:
 // the standard library, other modules, module's own packages.

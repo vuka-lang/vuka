@@ -84,15 +84,24 @@ func TestFmt(t *testing.T) {
 func TestFmtTemplate(t *testing.T) {
 	dir := t.TempDir()
 	os.MkdirAll(filepath.Join(dir, "layouts"), 0o755)
+	os.WriteFile(filepath.Join(dir, "go.mod"), []byte("module example.com/app\n"), 0o644)
+	os.WriteFile(filepath.Join(dir, "vuka.toml"), []byte("[fmt]\nwidth = 40\n"), 0o644)
 	os.WriteFile(filepath.Join(dir, "layouts", "nav.go"), []byte("package layouts\n"), 0o644)
-	os.WriteFile(filepath.Join(dir, "layouts", "nav.vuka.html"), []byte("package layouts\n// Nav is the menu.\n\nfunc Nav()\n\n<nav></nav>\nfunc item()\n<li></li>"), 0o644)
+	os.WriteFile(filepath.Join(dir, "layouts", "nav.vuka.html"), []byte("// Nav is the menu.\ntype Nav struct{ Items []string }\n<nav>\nfor _, i := range Items {\n<a href={i} class=\"link link-muted underline\">{i}</a>\n}\n</nav>"), 0o644)
 	chdir(t, dir)
 	var out, errs bytes.Buffer
-	if err := vukaFmt([]string{"-w", "."}, &out, &errs); err != nil {
+	if err := vukaFmt([]string{"-check", "."}, &out, &errs); err == nil || out.String() != filepath.Join("layouts", "nav.vuka.html")+"\n" {
+		t.Fatalf("-check: %v %q", err, out.String())
+	}
+	if err := vukaFmt([]string{"-w", "-rewrite", "."}, &out, &errs); err != nil {
 		t.Fatal(err, errs.String())
 	}
-	want := "package layouts\n\n// Nav is the menu.\nfunc Nav()\n<nav></nav>\n\nfunc item()\n<li></li>\n"
+	want := "<script lang=\"go\">\npackage layouts\n\n// Nav is the menu.\ntype Nav struct{ Items []string }\n</script>\n\n<nav>\n  for _, i := range Items {\n    <a\n      href={i}\n      class=\"link link-muted underline\"\n    >{i}</a>\n  }\n</nav>\n"
 	if src, _ := os.ReadFile(filepath.Join("layouts", "nav.vuka.html")); string(src) != want {
 		t.Errorf("got\n%s\nwant\n%s", src, want)
+	}
+	out.Reset()
+	if err := vukaFmt([]string{"-check", "."}, &out, &errs); err != nil || out.Len() != 0 {
+		t.Errorf("-check after -w: %v %q", err, out.String())
 	}
 }

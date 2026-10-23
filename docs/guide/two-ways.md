@@ -14,16 +14,16 @@ The table below shows which file type does which job:
 
 | File | Job |
 |---|---|
-| `.vuka.html` | Pages, layouts, components and email markup; one struct in a Go header, then markup |
+| `.vuka.html` | Pages, layouts, components and email markup; one struct in a `<script lang="go">`, then markup |
 | `.go` | Ordinary Go logic, services, models, API handlers and startup |
 | `.vuka` | Logic using Result, Option, match, enums, overloading or decorators |
 
 ## Shape Files
 
-Rendering lives in shape files. The first line starting with `<` separates
-the Go header from markup.
+Rendering lives in shape files. A `<script lang="go">` holds the Go, and the
+markup follows it.
 
-In the header's struct, exported fields are props, unexported fields are
+In the script's struct, exported fields are props, unexported fields are
 server state or dependencies, and `ui.State[T]` is browser state written by
 assignment in event attributes. See [Templates](/ui/templates).
 

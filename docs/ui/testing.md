@@ -14,9 +14,12 @@ Run `vuka test` so shape compilation happens before the Go tests.
 Save the shape as `components/greeting.vuka.html`:
 
 ```html
+<script lang="go">
 package components
 
 type Greeting struct { Name string }
+</script>
+
 <p>Hello, {Name}</p>
 ```
 

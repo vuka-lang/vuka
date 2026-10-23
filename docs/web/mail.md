@@ -15,12 +15,15 @@ holds, and how to test what the app sends.
 Save this as `emails/receipt.vuka.html`:
 
 ```html
+<script lang="go">
 package emails
 
 type Receipt struct {
     OrderID int
     Customer string
 }
+</script>
+
 <main>
   <h1>Order {OrderID}</h1>
   <p>Thank you, {Customer}.</p>

@@ -1,7 +1,18 @@
-// Locate the Go/markup boundary for editing features. Keep lexical state for
-// strings, comments and balanced Go delimiters; a tag-looking raw-string line
-// or a receive expression in a method must never start tag completion.
+// Locate the Go/markup boundary for editing features, as the compiler finds
+// it (transpile.SplitTemplate): in the script form, past the </script> that
+// ends the <script lang="go"> — read as Go, so one in a string or a comment
+// doesn't end it; in the Go-header form, the first line starting with <.
+// Keep lexical state for strings, comments and balanced Go delimiters; a
+// tag-looking raw-string line or a receive expression in a method must never
+// start tag completion.
 function markupStart(text) {
+  const script = scriptEnd(text);
+  if (script !== null) {
+    if (script < 0) return -1;
+    let i = script;
+    while (i < text.length && /\s/.test(text[i])) i++;
+    return i < text.length ? i : -1;
+  }
   let depth = 0;
   let lineStart = true;
   for (let i = 0; i < text.length; i++) {
@@ -28,6 +39,41 @@ function markupStart(text) {
       if (!closed) return -1;
     } else if ('{(['.includes(c)) depth++;
     else if ('})]'.includes(c)) depth = Math.max(0, depth - 1);
+  }
+  return -1;
+}
+
+// scriptEnd is the offset past the </script> ending a script-form file's
+// <script lang="go">, -1 when nothing ends it, null for a file in the
+// Go-header form.
+function scriptEnd(text) {
+  let i = 0;
+  for (;;) {
+    while (i < text.length && /[\s\uFEFF]/.test(text[i])) i++;
+    if (!text.startsWith('<!--', i)) break;
+    const end = text.indexOf('-->', i + 4);
+    if (end < 0) return null;
+    i = end + 3;
+  }
+  const open = /^<script\b([^>]*)>/i.exec(text.slice(i));
+  if (!open || !/(?:^|\s)lang\s*=\s*(?:"go"|'go'|go(?:\s|$))/i.test(open[1])) return null;
+  for (i += open[0].length; i < text.length; i++) {
+    const c = text[i];
+    if (c === '/' && text[i + 1] === '/') {
+      const end = text.indexOf('\n', i + 2);
+      if (end < 0) return -1;
+      i = end;
+    } else if (c === '/' && text[i + 1] === '*') {
+      const end = text.indexOf('*/', i + 2);
+      if (end < 0) return -1;
+      i = end + 1;
+    } else if (c === '"' || c === '`' || c === "'") {
+      while (++i < text.length && text[i] !== c && !(c !== '`' && text[i] === '\n')) {
+        if (text[i] === '\\' && c !== '`') i++;
+      }
+    } else if (c === '<' && /^<\/script\s*>/i.test(text.slice(i, i + 20))) {
+      return i + text.slice(i).indexOf('>') + 1;
+    }
   }
   return -1;
 }

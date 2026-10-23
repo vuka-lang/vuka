@@ -4,9 +4,13 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"go/token"
 	"go/types"
 	"os"
 	"path/filepath"
+	"regexp"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -267,9 +271,19 @@ func (p *proxy) build() {
 	if p.sess != nil {
 		transpileAll = p.sess.Transpile
 	}
-	run := func(pkgs []*load.Package, opts load.Options, module bool) ([]load.Generated, transpile.ErrorList, error) {
+	run := func(pkgs []*load.Package, opts load.Options, module bool) (gens []load.Generated, list transpile.ErrorList, err error) {
+		// A compiler panic is a diagnostic on the package's first file.
+		defer func() {
+			if r := recover(); r != nil {
+				p.logf("panic building: %v\n%s", r, debug.Stack())
+				path := ""
+				if len(pkgs) > 0 && len(pkgs[0].Files) > 0 {
+					path = filepath.Join(pkgs[0].Dir, pkgs[0].Files[0].Name)
+				}
+				gens, list, err = nil, transpile.ErrorList{compilerPanic(path, r)}, nil
+			}
+		}()
 		gens, overlay, err := transpileAll(pkgs, p.tmp, opts)
-		var list transpile.ErrorList
 		if err != nil && !errors.As(err, &list) {
 			if !errors.Is(err, load.ErrStopped) {
 				p.logf("transpile: %v", err)
@@ -648,6 +662,13 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 	vf := p.vfileOf(uriToPath(dp.URI))
 	if vf == nil {
 		p.mu.Unlock()
+		if kept, ok := withoutRouteFolderPaths(dp.Diagnostics); ok {
+			// go.mod's: gopls's tidy check reads route folders' names
+			// ((group), [id]) as import paths; vuka maps those packages.
+			_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
+				"params": map[string]any{"uri": dp.URI, "version": dp.Version, "diagnostics": kept}})
+			return
+		}
 		_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics", "params": params})
 		return
 	}
@@ -729,15 +750,22 @@ func (p *proxy) checkSyntax(path string) {
 
 // syntaxOf is the syntax errors of the editor's text buf of the .vuka file
 // at path, as a build would report them for it.
-func (p *proxy) syntaxOf(path string, buf []byte) *diagSet {
+func (p *proxy) syntaxOf(path string, buf []byte) (d *diagSet) {
+	// A compiler panic is the file's diagnostic, never the server's end.
+	defer func() {
+		if r := recover(); r != nil {
+			p.logf("panic checking %s: %v\n%s", path, r, debug.Stack())
+			d = &diagSet{text: buf, list: []any{lspFromError(lspRange{}, compilerPanic(path, r))}}
+		}
+	}()
 	src, hs := completableAt(path, buf, -1)
 	m := vfile{from: src, cur: buf, hunks: hs}
-	d := &diagSet{text: buf}
+	d = &diagSet{text: buf}
 	var others []transpile.File
 	if strings.HasSuffix(path, ".vuka.html") {
 		others = p.packageSources(path)
 	}
-	for _, e := range p.syntax.check(path, src, others) {
+	for _, e := range syntaxCheck(&p.syntax, path, src, others) {
 		pos := positionOf(buf, m.curOff(e.Pos.Offset))
 		d.list = append(d.list, lspFromError(lspRange{pos, positionOf(buf, m.curOff(e.Pos.Offset+e.Len))}, e))
 	}
@@ -827,4 +855,35 @@ func (o outside) Import(path string) (*types.Package, error) {
 		return nil, errors.New(path + " is a package of this module")
 	}
 	return o.imp.Import(path)
+}
+
+// syntaxCheck is the syntax check syntaxOf runs; a test makes it panic.
+var syntaxCheck = (*syntaxChecker).check
+
+// compilerPanic is a panic of the compiler while it read the file at path,
+// as the file's diagnostic: E0001, the internal compiler error.
+func compilerPanic(path string, r any) *transpile.Error {
+	return &transpile.Error{Code: "E0001", Pos: token.Position{Filename: path, Line: 1, Column: 1},
+		Msg:  fmt.Sprintf("internal error: the compiler failed reading this file (%v)", r),
+		Help: "please report it at https://github.com/vuka-lang/vuka/issues, with the file"}
+}
+
+// routeFolderPath is gopls's complaint about a package in a route folder:
+// pages/(admin) or pages/[id] is no import path, and vuka type-checks it
+// through the package it maps it to (load.RouteMapped).
+var routeFolderPath = regexp.MustCompile(`malformed import path "[^"]*/[(\[][^"/]*[)\]](?:/[^"]*)?"`)
+
+// withoutRouteFolderPaths drops gopls's diagnostics about route folders'
+// import paths; ok is false when there are none to drop.
+func withoutRouteFolderPaths(ds []any) ([]any, bool) {
+	kept := []any{}
+	for _, d := range ds {
+		if m, _ := d.(map[string]any); m != nil {
+			if msg, _ := m["message"].(string); routeFolderPath.MatchString(msg) {
+				continue
+			}
+		}
+		kept = append(kept, d)
+	}
+	return kept, len(kept) != len(ds)
 }

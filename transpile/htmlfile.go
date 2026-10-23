@@ -72,8 +72,11 @@ var (
 )
 
 // ParseTemplateHead reads a template file's package clause and imports;
-// blank lines and // comments may come between them.
-func ParseTemplateHead(src []byte) TemplateHead {
+// blank lines and // comments may come between them. A script-form file's
+// are in its <script lang="go">.
+func ParseTemplateHead(src []byte) TemplateHead { return parseTemplateHead(HeaderView(src)) }
+
+func parseTemplateHead(src []byte) TemplateHead {
 	lines := strings.SplitAfter(string(src), "\n")
 	h := TemplateHead{Line: -1}
 	last, group, i := -1, false, 0
@@ -210,7 +213,7 @@ type TemplateAsset struct {
 // TemplateAssets are the scripts and stylesheets of a template file's
 // markup.
 func TemplateAssets(name string, src []byte) []TemplateAsset {
-	_, _, assets, _ := htmlParts(name, src, nil, "ui.", true)
+	_, _, assets, _ := htmlParts(name, HeaderView(src), nil, "ui.", true)
 	return assets
 }
 
@@ -944,6 +947,7 @@ var headerName = regexp.MustCompile(`^func(?:\s*(\([^)]*\))\s*|\s+)(\w+)`)
 
 // TemplateHeaders are the func lines after a template file's markup.
 func TemplateHeaders(src []byte) []TemplateHeader {
+	src = HeaderView(src)
 	var out []TemplateHeader
 	off, prev := 0, ""
 	top := templatesTop(src)
@@ -964,6 +968,7 @@ func TemplateHeaders(src []byte) []TemplateHeader {
 // clause, the imports, the Go header). The language server compiles a file
 // with an error in its markup so, for the package to type-check.
 func BlankTemplate(src []byte, off int) []byte {
+	src = HeaderView(src)
 	lines := strings.SplitAfter(string(src), "\n")
 	top := templatesTop(src)
 	type span struct{ doc, head, end int } // a template's lines: its doc comment, header, markup up to end

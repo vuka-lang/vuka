@@ -537,6 +537,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}
+	files = e.headerViews(files, opts.Path, len(files))
 	e.detectSelfTarget(files)
 	e.declaredIslands = declaredIslands(files)
 	for _, file := range files {
@@ -631,13 +632,18 @@ func Syntax(file File, opts Options, others ...File) ErrorList {
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}
+	all := e.headerViews(append([]File{file}, others...), opts.Path, 1)
+	if len(errs) > 0 {
+		return errs
+	}
+	file = all[0]
 	f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: true,
 		lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
 	if opts.Path != nil {
 		f.path = opts.Path(file.Name)
 	}
-	e.detectSelfTarget(append([]File{file}, others...))
-	if file.IsTemplate() && !e.template(f, append([]File{file}, others...)) {
+	e.detectSelfTarget(all)
+	if file.IsTemplate() && !e.template(f, all) {
 		return errs
 	}
 	f.scan(&errs)
@@ -649,4 +655,35 @@ func Syntax(file File, opts Options, others ...File) ErrorList {
 	}
 	_ = errs.err() // sorts
 	return errs
+}
+
+// headerViews are files with each template file read as the header form
+// reads it (HeaderView); a template file's script form broken is an error
+// of e when it is one of the first n files.
+func (e *engine) headerViews(files []File, path func(string) string, n int) []File {
+	out := files
+	for i, file := range files {
+		if !file.IsTemplate() {
+			continue
+		}
+		src, script, err := headerView(file.Src)
+		if err != nil {
+			if i < n {
+				err.Pos.Filename = file.Name
+				if path != nil {
+					err.Pos.Filename = path(file.Name)
+				}
+				*e.errs = append(*e.errs, err)
+			}
+			continue
+		}
+		if !script {
+			continue
+		}
+		if len(out) > 0 && &out[0] == &files[0] {
+			out = append([]File(nil), files...)
+		}
+		out[i].Src = src
+	}
+	return out
 }

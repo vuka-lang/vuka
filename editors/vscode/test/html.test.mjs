@@ -135,6 +135,31 @@ for (const needle of ['<-ch', '<div>not markup', '<section>not a boundary']) {
   }
 }
 
+// The script form: the Go is the <script lang="go">'s, the markup follows.
+const script = readFileSync(new URL('./fixtures-html/script.vuka.html', import.meta.url), 'utf8');
+for (const [needle, scope] of [
+  ['The index page', 'comment.block.html'],
+  ['script lang="go"', 'entity.name.tag.html'],
+  ['package pages', 'keyword.other.package.go'],
+  ['Week "', 'entity.name.import.go'],
+  ['type Index', 'keyword'],
+  ['@ui.Mount', 'meta.attribute.vuka'],
+  ['<-ch', 'source.go'],
+  ['</script> in a string', 'string.quoted.double'],
+  ['<div>not markup', 'string.quoted.raw'],
+  ['<aside>not a boundary', 'comment'],
+  ['<main class', 'punctuation.definition.tag'],
+  ['if editing', 'meta.statement.vuka'],
+  ['color: red', 'source.css'],
+  ['const label', 'source.ts'],
+]) expect(script, 'vuka-html', needle, scope);
+for (const needle of ['<main class', 'Read only', '<style scoped>', '<script lang="ts"']) {
+  assert.ok(!scopesAt(script, 'vuka-html', needle).includes('meta.embedded.block.go'), needle);
+}
+for (const needle of ['package pages', 'type Index', '<-ch']) {
+  assert.ok(scopesAt(script, 'vuka-html', needle).includes('meta.embedded.block.go'), needle);
+}
+
 // Every token has a reviewable expected scope, as in the .vuka fixtures.
 // Snapshot creation is explicit: a missing snapshot is a test failure.
 const dir = new URL('./fixtures-html/', import.meta.url);

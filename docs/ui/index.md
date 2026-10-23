@@ -5,7 +5,7 @@
 ## Introduction
 
 You write everything that renders in a `.vuka.html` shape file. A shape file
-pairs a small Go header with the markup it renders, so a component's props,
+pairs a small `<script lang="go">` with the markup it renders, so a component's props,
 state and markup sit together in one place.
 
 Logic without markup belongs in `.go` or `.vuka` files. This page shows the
@@ -13,13 +13,14 @@ layout of a shape file; [Templates](/ui/templates) covers the markup itself.
 
 ## Writing a Shape File
 
-A shape's Go header contains a package clause, imports, exactly one struct,
-hooks and methods. Markup begins on the first line whose first non-space
-character is `<`.
+A shape's `<script lang="go">` comes first and contains a package clause,
+imports, exactly one struct, hooks and methods. The markup follows
+`</script>`.
 
 Save this as `components/greeting.vuka.html`:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -28,6 +29,8 @@ type Greeting struct {
     Name string
     Children ui.Node
 }
+</script>
+
 <section>
   <h1>Hello, {Name}!</h1>
   {Children}

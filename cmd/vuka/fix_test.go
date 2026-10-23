@@ -217,3 +217,36 @@ func TestFixTemplatesPackage(t *testing.T) {
 		t.Fatalf("second run: %v %s", err, out.String())
 	}
 }
+
+// TestFixShapeScript: header-form files are rewritten in the script form,
+// their Go and markup as written; script-form, headerless and broken files stay; a second run
+// has nothing to do.
+func TestFixShapeScript(t *testing.T) {
+	script := "<script lang=\"go\">\npackage pages\n\ntype Done struct{}\n</script>\n\n<p>done</p>\n"
+	dir := module(t, map[string]string{
+		"main.go":                "package main\n\nfunc main() {}\n",
+		"pages/index.vuka.html":  "package pages\n\n// Index is the home page.\ntype Index struct {\n\tTitle string\n}\n<h1>{ Title }</h1>\n",
+		"pages/done.vuka.html":   script,
+		"pages/bare.vuka.html":   "package pages\n\n<p>bare</p>\n",
+		"pages/broken.vuka.html": "package pages\n\ntype Broken struct {\n<p></p>\n",
+	})
+	chdir(t, dir)
+	var out bytes.Buffer
+	if err := fix([]string{"shape-script"}, &out); err != nil {
+		t.Fatal(err)
+	}
+	for path, want := range map[string]string{
+		"pages/index.vuka.html":  "<script lang=\"go\">\npackage pages\n\n// Index is the home page.\ntype Index struct {\n\tTitle string\n}\n</script>\n\n<h1>{ Title }</h1>\n",
+		"pages/done.vuka.html":   script,
+		"pages/bare.vuka.html":   "package pages\n\n<p>bare</p>\n",
+		"pages/broken.vuka.html": "package pages\n\ntype Broken struct {\n<p></p>\n",
+	} {
+		if src, _ := os.ReadFile(path); string(src) != want {
+			t.Errorf("%s:\n%s\nwant\n%s", path, src, want)
+		}
+	}
+	out.Reset()
+	if err := fix([]string{"shape-script"}, &out); err != nil || strings.TrimSpace(out.String()) != "nothing to fix" {
+		t.Fatalf("second run: %v %s", err, out.String())
+	}
+}

@@ -1,3 +1,4 @@
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -11,6 +12,8 @@ type Field struct {
 	Error    string
 	Children ui.Node
 }
+</script>
+
 <div class="space-y-1.5">
   <label for={Name} class="block text-sm font-medium text-slate-700 dark:text-slate-200">{Label}</label>
   {Children}

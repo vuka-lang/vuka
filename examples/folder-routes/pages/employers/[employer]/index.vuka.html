@@ -1,3 +1,4 @@
+<script lang="go">
 package employer
 
 import (
@@ -26,6 +27,8 @@ func (p *Index) Title() string {
 func (p *Index) contract() string {
 	return urls.Files.File(web.Rest(fmt.Sprintf("contracts/%d.txt", p.Employer))).Path()
 }
+</script>
+
 <section id="overview">
   <h2>Permits</h2>
   <ul id="permits">

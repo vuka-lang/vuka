@@ -17,6 +17,7 @@ This component declares three state fields and reads and writes them from its
 buttons:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -26,6 +27,8 @@ type Tabs struct {
     tab ui.State[string]
     count ui.State[int]
 }
+</script>
+
 <section>
   <button onClick={open = !open}>Toggle</button>
   <button onClick={tab = "details"; open = true}>Details</button>
@@ -73,6 +76,7 @@ a page can decide what its child's button does and the child forwards it to
 its element:
 
 ```html
+<script lang="go">
 // chip.vuka.html
 package components
 
@@ -82,10 +86,13 @@ type Chip struct {
 	Label   string
 	OnClick ui.JSChain
 }
+</script>
+
 <button class="chip" onClick={OnClick}>{Label}</button>
 ```
 
 ```html
+<script lang="go">
 // panel.vuka.html
 package components
 
@@ -94,6 +101,8 @@ import "github.com/vuka-lang/ui/v2"
 type Panel struct {
 	manage ui.State[bool]
 }
+</script>
+
 <section>
   <Chip label="Manage" onClick={manage = !manage}/>
   <ui.Show when={manage}><p>Managing</p></ui.Show>

@@ -1,3 +1,4 @@
+<script lang="go">
 package components
 
 import (
@@ -20,4 +21,6 @@ func requestPath(ctx context.Context) string {
 	}
 	return "live"
 }
+</script>
+
 <header><h1>{Title}</h1><small>{requestPath(ctx)}</small></header>

@@ -24,7 +24,7 @@ vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
 vuka explain [-full] file.vuka
 vuka explain E0201
-vuka fmt [-l] [-w] [-d] [paths…]
+vuka fmt [-l] [-w] [-d] [-check] [-rewrite] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
 vuka version
 vuka upgrade [-n] [-no-test] [version]
@@ -251,11 +251,14 @@ URL of its page.
 
 ## Formatting Files {#fmt}
 
-`vuka fmt` formats `.vuka` files, as `gofmt` formats Go: it prints the formatted file,
-or with `-w` writes it back, `-l` lists the files whose formatting differs, and
-`-d` shows the diff.
+`vuka fmt` formats `.vuka` and `.vuka.html` files, as `gofmt` formats Go: it
+prints the formatted file, or with `-w` writes it back, `-l` lists the files
+whose formatting differs, and `-d` shows the diff. `-check` lists them and
+fails when there are any, writing nothing — the flag for CI. `-rewrite`
+writes a shape in the Go-header form in the `<script lang="go">` form before
+formatting it.
 
-Paths are files or directories (all `.vuka` files below,
+Paths are files or directories (all `.vuka` and `.vuka.html` files below,
 skipping hidden directories, `node_modules`, `vendor` and `build/` modules vuka
 made); no path means the current directory. A file that doesn't parse is
 reported and left alone.
@@ -309,6 +312,55 @@ return <section
 	}}
 </section>
 ```
+
+### Formatting Shape Files {#fmt-shapes}
+
+A `.vuka.html` file is formatted whole, in the form it is in:
+
+- **The Go** in its `<script lang="go">` (or its Go header) is formatted as a
+  `.vuka` file, unindented.
+- **The markup** is indented two spaces a level, by its elements and by the
+  blocks of its `if`, `for` and `switch` statements. Statements and the Go
+  in holes are gofmt-formatted (`{a+b}` becomes `{a + b}`). An opening tag
+  that doesn't fit in the width goes one attribute a line, with `>` or `/>`
+  on its own line under the `<`. Void elements and childless components
+  close themselves: `<br>` becomes `<br />`, `<ui.Badge></ui.Badge>`
+  becomes `<ui.Badge />`. Runs of blank lines become one.
+- **Text stays on its lines.** Only whitespace that doesn't render changes:
+  line breaks are re-indented, and what `<pre>`, `<textarea>`, a
+  `<script>` and an inline `<style>` hold is left as written. Each file is
+  checked against the original, and an internal error is reported rather
+  than a page that would render differently.
+- **A component's `<style>`**, after the markup, has its CSS formatted: one
+  selector and one declaration a line, blocks indented two spaces.
+- **Tailwind class order**, when turned on, sorts each static `class="…"`
+  list the way Tailwind orders its rules: classes it doesn't know first, as
+  written, then utilities by the property they set, then those under a
+  variant (`hover:`, `md:`). A `class={…}` hole is never touched.
+
+The project's `vuka.toml`, next to its `go.mod`, sets the width and the
+Tailwind order in its `[fmt]` table. Both are optional:
+
+```toml
+[fmt]
+width = 100      # the column a tag's attributes wrap at
+tailwind = true  # sort class lists in Tailwind's order (off by default)
+```
+
+The editor's format-on-save and range formatting use the same rules and
+the same file.
+
+> [!NOTE]
+> Tailwind ordering is off by default: it reorders every class list of a
+> project the first time it runs, which is a change worth making on purpose.
+
+### Converting Shapes {#shape-script}
+
+`vuka fix shape-script` rewrites every `.vuka.html` file of the module in
+the Go-header form in the `<script lang="go">` form, leaving its Go and
+markup as written; a file it can't read as a shape is left alone and
+reported by the compiler. `vuka fmt -rewrite -w` does the same and formats
+the files.
 
 ## The Language Server {#lsp}
 

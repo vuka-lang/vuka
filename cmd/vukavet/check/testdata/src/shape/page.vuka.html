@@ -1,3 +1,4 @@
+<script lang="go">
 package shape
 
 type Page struct {
@@ -7,6 +8,8 @@ type Page struct {
 func (p Page) Upper() string { return p.Title }
 
 func header() string { return "h" }
+</script>
+
 <div>
   <h1>{Title} {Upper()}</h1>
 </div>

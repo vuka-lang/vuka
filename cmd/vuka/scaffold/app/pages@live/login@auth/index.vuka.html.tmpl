@@ -1,3 +1,4 @@
+<script lang="go">
 package login
 
 import (
@@ -30,6 +31,8 @@ func (p Index) message(ctx context.Context) string {
 	}
 	return auth.LoginError(web.Request(ctx))
 }
+</script>
+
 <layouts.Auth title="Sign in to your account" subtitle={"Welcome back to " + layouts.AppName() + "."}>
   <form method="post" action="/auth/login" class="space-y-5" id="login-form">
     <components.Flash tone="error" message={p.message(ctx)} />

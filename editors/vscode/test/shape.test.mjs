@@ -32,6 +32,12 @@ for (const prefix of [
 }
 assert.equal(markupStart('<-ch\n'), -1);
 assert.equal(markupStart('<main>'), 0);
+// The script form: past the </script> that ends the Go, not one in a string
+// or a comment; a script with no end is all Go.
+const script = readFileSync(new URL('./fixtures-html/script.vuka.html', import.meta.url), 'utf8');
+assert.equal(markupStart(script), script.indexOf('<main class'));
+assert.equal(markupStart('<script lang="go">\npackage p\n// </script>\ns := "</script>"\n'), -1);
+assert.equal(markupStart('<!-- x -->\n<script lang="go">\npackage p\n</script>\n\n<p>'), '<!-- x -->\n<script lang="go">\npackage p\n</script>\n\n'.length);
 assert.equal(markupBefore({ languageId: 'vuka' }, 'return <div>'), null);
 assert.equal(markupBefore({ languageId: 'go' }, '<div>'), null);
 assert.equal(markupBefore({ languageId: 'vuka-html' }, header), null);
@@ -77,7 +83,7 @@ for (const language of ['vuka', 'vuka-html']) {
 }
 for (const name of ['Live page shape', 'Static component shape', 'Folder layout shape', 'Island-only page shape']) {
   const code = expand(htmlSnippets[name].body);
-  assert.match(code, /^package /);
+  assert.match(code, /^<script lang="go">\npackage /);
   assert.equal((code.match(/\btype \w+ struct/g) || []).length, 1, name);
   assert.ok(markupStart(code) > 0, name);
   assert.doesNotMatch(code, /\bRender\(|ui\.(?:UseState|LiveSchema|IslandPage)|@web\.(?:Get|Live|Service)/);

@@ -1,3 +1,4 @@
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -38,4 +39,6 @@ func (in Input) attrs() []ui.Attr {
 		{Name: "required", Value: in.Required}, {Name: "autofocus", Value: in.Autofocus}, {Name: "aria-invalid", Value: in.Invalid}}
 	return append(attrs, in.Attrs...)
 }
+</script>
+
 <input {in.attrs()...} />

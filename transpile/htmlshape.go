@@ -124,7 +124,11 @@ func isShape(lines []string, top int) bool {
 // without an error when it has no Go header (E0152 when compiled), and an
 // error when the header breaks one of its rules.
 func ParseShape(src []byte) (*Shape, *Error) {
-	head := ParseTemplateHead(src)
+	src, _, err := headerView(src)
+	if err != nil {
+		return nil, err
+	}
+	head := parseTemplateHead(src)
 	lines := strings.SplitAfter(string(src), "\n")
 	if !isShape(lines, head.Top) {
 		return nil, nil
@@ -141,11 +145,12 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	skel, hooks, markup := goHeader(src, off[head.Top])
 	if markup < 0 {
 		return nil, &Error{Code: "E0148", Pos: token.Position{Line: head.Top + 1, Column: 1},
-			Msg:  "the template file has Go and no markup: its markup starts at the first line starting with <",
-			Help: "write the struct's markup below its Go, or make the file a .go file"}
+			Msg:  "the template file has Go and no markup",
+			Help: "write the struct's markup below its Go (below </script>), or make the file a .go file"}
 	}
+	// The line the markup starts on, its < indented or not.
 	for i := range lines {
-		if off[i] == markup {
+		if off[i] <= markup && markup < off[i+1] {
 			s.Markup = i
 		}
 	}
@@ -327,7 +332,7 @@ func shapeRecv(x ast.Expr) (ptr bool, name string) {
 // SendsEvent reports whether a template file's markup wires its struct's
 // method name to an on… attribute: sends it as an event.
 func SendsEvent(src []byte, name string) bool {
-	_, _, markup := goHeader(src, 0)
+	_, _, markup := goHeader(HeaderView(src), 0)
 	return markup >= 0 && wiredEvent(string(src[markup:]), []string{name}) != ""
 }
 

@@ -1,3 +1,4 @@
+<script lang="go">
 package {%.Pkg%}
 
 import {%.Name%}Island "{%.Import%}"
@@ -9,6 +10,8 @@ type {%.Name%} struct {
 	Title string
 	Count int
 }
+</script>
+
 <div>
   <{%.Name%}Island title={Title} count={Count} client:load />
 </div>

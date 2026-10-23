@@ -1,0 +1,554 @@
+1:
+  "<!--" text.html.vuka comment.block.html
+  " The index page, in the script form. " text.html.vuka comment.block.html
+  "-->" text.html.vuka comment.block.html
+2:
+  "<" text.html.vuka meta.embedded.block.go punctuation.definition.tag.begin.html
+  "script" text.html.vuka meta.embedded.block.go entity.name.tag.html
+  "lang" text.html.vuka meta.embedded.block.go meta.attribute.lang.html entity.other.attribute-name.html
+  "=" text.html.vuka meta.embedded.block.go meta.attribute.lang.html punctuation.separator.key-value.html
+  "\"" text.html.vuka meta.embedded.block.go meta.attribute.lang.html string.quoted.double.html punctuation.definition.string.begin.html
+  "go" text.html.vuka meta.embedded.block.go meta.attribute.lang.html string.quoted.double.html
+  "\"" text.html.vuka meta.embedded.block.go meta.attribute.lang.html string.quoted.double.html punctuation.definition.string.end.html
+  ">" text.html.vuka meta.embedded.block.go punctuation.definition.tag.end.html
+3:
+  "package" text.html.vuka meta.embedded.block.go source.go keyword.other.package.go
+  "pages" text.html.vuka meta.embedded.block.go source.go entity.name.type.package.go
+4:
+
+5:
+  "import" text.html.vuka meta.embedded.block.go source.go keyword.control.import.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.imports.begin.bracket.round.go
+6:
+  "\"context\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+7:
+  "\"time\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+8:
+  "\"example.com/app/components\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+9:
+  "\"github.com/vuka-lang/ui/v2\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+10:
+  "Week" text.html.vuka meta.embedded.block.go source.go entity.name.import.go
+  "\"./islands/Week.vue\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+11:
+  "Chart" text.html.vuka meta.embedded.block.go source.go entity.name.import.go
+  "\"./islands/Chart.tsx\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+12:
+  "JSX" text.html.vuka meta.embedded.block.go source.go entity.name.import.go
+  "\"./islands/Widget.jsx\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+13:
+  "Panel" text.html.vuka meta.embedded.block.go source.go entity.name.import.go
+  "\"./islands/Panel.svelte\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+14:
+  "Vanilla" text.html.vuka meta.embedded.block.go source.go entity.name.import.go
+  "\"./islands/Vanilla.ts\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+15:
+  "Script" text.html.vuka meta.embedded.block.go source.go entity.name.import.go
+  "\"./islands/Script.js\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.go
+16:
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.imports.end.bracket.round.go
+17:
+
+18:
+  "type" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka keyword.type.go
+  "Index" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.go
+  "struct" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka keyword.struct.go
+  "{" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.begin.bracket.curly.go
+19:
+  "ui" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.package.go
+  "." text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.other.period.go
+  "Live" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.embedded.vuka
+20:
+  "Q" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka variable.other.field.vuka
+  "string" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka storage.type.vuka
+  "@" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "ui.Bind" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "{" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.curly.go
+  "Debounce" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka variable.other.property.go
+  ":" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.other.colon.go
+  "500" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka constant.numeric.decimal.go
+  "*" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka keyword.operator.arithmetic.go
+  "time" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka variable.other.go
+  "." text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.other.period.go
+  "Millisecond" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka variable.other.go
+  "}" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.curly.go
+  "@" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "ui.URL" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "q" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka
+  "\"" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.round.go
+21:
+  "Days" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka variable.other.field.vuka
+  "[" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "]" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "string" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka storage.type.vuka
+  "@" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.decorator.vuka
+  "ui.Defer" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "g" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka
+  "\"" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka meta.attribute.vuka punctuation.definition.end.bracket.round.go
+22:
+  "editing" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka variable.other.field.vuka
+  "ui" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.package.go
+  "." text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.other.period.go
+  "State" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.vuka
+  "[" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "bool" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka storage.type.vuka
+  "]" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.end.bracket.square.go
+23:
+  "tab" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka variable.other.field.vuka
+  "ui" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.package.go
+  "." text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.other.period.go
+  "State" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.vuka
+  "[" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "string" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka storage.type.vuka
+  "]" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.end.bracket.square.go
+24:
+  "open" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka variable.other.field.vuka
+  "ui" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.package.go
+  "." text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.other.period.go
+  "State" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.vuka
+  "[" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "bool" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka storage.type.vuka
+  "]" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.end.bracket.square.go
+25:
+  "rows" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka variable.other.field.vuka
+  "[" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.begin.bracket.square.go
+  "]" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.end.bracket.square.go
+  "Todo" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka entity.name.type.vuka
+26:
+  "}" text.html.vuka meta.embedded.block.go source.go meta.struct.vuka punctuation.definition.end.bracket.curly.go
+27:
+
+28:
+  "@" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka punctuation.definition.decorator.vuka
+  "ui.Mount" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka entity.name.function.decorator.vuka
+29:
+  "func" text.html.vuka meta.embedded.block.go source.go keyword.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "p " text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "*" text.html.vuka meta.embedded.block.go source.go keyword.operator.address.go
+  "Index" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "mount" text.html.vuka meta.embedded.block.go source.go entity.name.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "ctx" text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "context" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  "." text.html.vuka meta.embedded.block.go source.go punctuation.other.period.go
+  "Context" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "error" text.html.vuka meta.embedded.block.go source.go storage.type.error.go
+  "{" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.begin.go
+30:
+  "ch" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  ":=" text.html.vuka meta.embedded.block.go source.go keyword.operator.assignment.go
+  "make" text.html.vuka meta.embedded.block.go source.go entity.name.function.support.builtin.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "chan" text.html.vuka meta.embedded.block.go source.go keyword.channel.go
+  "int" text.html.vuka meta.embedded.block.go source.go storage.type.numeric.go
+  "," text.html.vuka meta.embedded.block.go source.go punctuation.other.comma.go
+  "1" text.html.vuka meta.embedded.block.go source.go constant.numeric.decimal.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+31:
+  "go" text.html.vuka meta.embedded.block.go source.go keyword.control.go
+  "func" text.html.vuka meta.embedded.block.go source.go keyword.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "{" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.begin.go
+  "ch" text.html.vuka meta.embedded.block.go source.go variable.other.go
+  "<-" text.html.vuka meta.embedded.block.go source.go keyword.operator.channel.go
+  "1" text.html.vuka meta.embedded.block.go source.go constant.numeric.decimal.go
+  "}" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.end.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+32:
+  "<-" text.html.vuka meta.embedded.block.go source.go keyword.operator.channel.go
+  "ch" text.html.vuka meta.embedded.block.go source.go variable.other.go
+33:
+  "if" text.html.vuka meta.embedded.block.go source.go keyword.control.go
+  "p" text.html.vuka meta.embedded.block.go source.go variable.other.go
+  "." text.html.vuka meta.embedded.block.go source.go punctuation.other.period.go
+  "Q" text.html.vuka meta.embedded.block.go source.go variable.other.go
+  "<" text.html.vuka meta.embedded.block.go source.go keyword.operator.comparison.go
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "z" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.end.vuka
+  "{" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.begin.go
+34:
+  "p" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  "." text.html.vuka meta.embedded.block.go source.go punctuation.other.period.go
+  "Q" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.embedded.block.go source.go keyword.operator.assignment.go
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "ready" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.end.vuka
+35:
+  "}" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.end.go
+36:
+  "raw" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  ":=" text.html.vuka meta.embedded.block.go source.go keyword.operator.assignment.go
+  "`" text.html.vuka meta.embedded.block.go source.go string.quoted.raw.vuka punctuation.definition.string.begin.vuka
+37:
+  "<div>not markup</div>" text.html.vuka meta.embedded.block.go source.go string.quoted.raw.vuka
+38:
+  "`" text.html.vuka meta.embedded.block.go source.go string.quoted.raw.vuka punctuation.definition.string.end.vuka
+39:
+  "_" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.embedded.block.go source.go keyword.operator.assignment.go
+  "raw" text.html.vuka meta.embedded.block.go source.go variable.other.go
+40:
+  "end" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  ":=" text.html.vuka meta.embedded.block.go source.go keyword.operator.assignment.go
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "</script> in a string" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.end.vuka
+41:
+  "_" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.embedded.block.go source.go keyword.operator.assignment.go
+  "end" text.html.vuka meta.embedded.block.go source.go variable.other.go
+42:
+  "// <aside>not a boundary</aside>" text.html.vuka meta.embedded.block.go source.go comment.line.double-slash.vuka
+43:
+  "/*" text.html.vuka meta.embedded.block.go source.go comment.block.vuka
+44:
+  "<section>not a boundary either</section>" text.html.vuka meta.embedded.block.go source.go comment.block.vuka
+45:
+  "*/" text.html.vuka meta.embedded.block.go source.go comment.block.vuka
+46:
+  "return" text.html.vuka meta.embedded.block.go source.go keyword.control.go
+  "nil" text.html.vuka meta.embedded.block.go source.go constant.language.null.go
+47:
+  "}" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.end.go
+48:
+
+49:
+  "@" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka punctuation.definition.decorator.vuka
+  "ui.OnChange" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka entity.name.function.decorator.vuka
+50:
+  "func" text.html.vuka meta.embedded.block.go source.go keyword.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "p " text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "*" text.html.vuka meta.embedded.block.go source.go keyword.operator.address.go
+  "Index" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "changed" text.html.vuka meta.embedded.block.go source.go entity.name.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "ctx" text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "context" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  "." text.html.vuka meta.embedded.block.go source.go punctuation.other.period.go
+  "Context" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  "," text.html.vuka meta.embedded.block.go source.go punctuation.other.comma.go
+  "c" text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "ui" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  "." text.html.vuka meta.embedded.block.go source.go punctuation.other.period.go
+  "Changed" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "error" text.html.vuka meta.embedded.block.go source.go storage.type.error.go
+  "{" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.begin.go
+51:
+  "return" text.html.vuka meta.embedded.block.go source.go keyword.control.go
+  "nil" text.html.vuka meta.embedded.block.go source.go constant.language.null.go
+52:
+  "}" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.end.go
+53:
+
+54:
+  "@" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka punctuation.definition.decorator.vuka
+  "ui.Loads" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka entity.name.function.decorator.vuka
+  "(" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka punctuation.definition.begin.bracket.round.go
+  "\"" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "g" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka string.quoted.double.vuka
+  "\"" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ")" text.html.vuka meta.embedded.block.go source.go meta.attribute.vuka punctuation.definition.end.bracket.round.go
+55:
+  "func" text.html.vuka meta.embedded.block.go source.go keyword.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "p " text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "*" text.html.vuka meta.embedded.block.go source.go keyword.operator.address.go
+  "Index" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "load" text.html.vuka meta.embedded.block.go source.go entity.name.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "ctx" text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "context" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  "." text.html.vuka meta.embedded.block.go source.go punctuation.other.period.go
+  "Context" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "error" text.html.vuka meta.embedded.block.go source.go storage.type.error.go
+  "{" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.begin.go
+56:
+  "return" text.html.vuka meta.embedded.block.go source.go keyword.control.go
+  "nil" text.html.vuka meta.embedded.block.go source.go constant.language.null.go
+57:
+  "}" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.end.go
+58:
+
+59:
+  "func" text.html.vuka meta.embedded.block.go source.go keyword.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  "p " text.html.vuka meta.embedded.block.go source.go variable.parameter.go
+  "*" text.html.vuka meta.embedded.block.go source.go keyword.operator.address.go
+  "Index" text.html.vuka meta.embedded.block.go source.go entity.name.type.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "Save" text.html.vuka meta.embedded.block.go source.go entity.name.function.go
+  "(" text.html.vuka meta.embedded.block.go source.go punctuation.definition.begin.bracket.round.go
+  ")" text.html.vuka meta.embedded.block.go source.go punctuation.definition.end.bracket.round.go
+  "{" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.begin.go
+60:
+  "p" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  "." text.html.vuka meta.embedded.block.go source.go punctuation.other.period.go
+  "Q" text.html.vuka meta.embedded.block.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.embedded.block.go source.go keyword.operator.assignment.go
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "saved" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka
+  "\"" text.html.vuka meta.embedded.block.go source.go string.quoted.double.vuka punctuation.definition.string.end.vuka
+61:
+  "}" text.html.vuka meta.embedded.block.go source.go punctuation.definition.block.end.go
+62:
+  "</" text.html.vuka meta.embedded.block.go punctuation.definition.tag.begin.html
+  "script" text.html.vuka meta.embedded.block.go entity.name.tag.html
+  ">" text.html.vuka meta.embedded.block.go punctuation.definition.tag.end.html
+63:
+
+64:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "main" text.html.vuka meta.tag.vuka entity.name.tag.html
+  "class:active" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "editing" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "style:color" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "Q" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+65:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "input" text.html.vuka meta.tag.vuka entity.name.tag.html
+  "bind:value" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "Q" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+66:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  "onClick" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "editing" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go keyword.operator.assignment.go
+  "!" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go keyword.operator.logical.go
+  "editing" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "Edit" text.html.vuka
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+67:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  "onClick" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "tab" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go keyword.operator.assignment.go
+  "\"" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "env" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go string.quoted.double.vuka
+  "\"" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go string.quoted.double.vuka punctuation.definition.string.end.vuka
+  ";" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go punctuation.terminator.go
+  "open" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go keyword.operator.assignment.go
+  "false" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go constant.language.boolean.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "Environment" text.html.vuka
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+68:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  "onClick" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "open" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.assignment.go
+  "=" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go keyword.operator.assignment.go
+  "false" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go constant.language.boolean.go
+  ";" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go punctuation.terminator.go
+  "Save" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go entity.name.function.support.go
+  "(" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go punctuation.definition.begin.bracket.round.go
+  ")" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go punctuation.definition.end.bracket.round.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "Save" text.html.vuka
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+69:
+  "if" text.html.vuka meta.statement.vuka keyword.control.go
+  "editing" text.html.vuka meta.statement.vuka variable.other.go
+  "{" text.html.vuka meta.statement.vuka punctuation.definition.block.begin.go
+70:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "p" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "{" text.html.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "Q" text.html.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "p" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+71:
+  "} " text.html.vuka meta.statement.vuka
+  "else" text.html.vuka meta.statement.vuka keyword.control.go
+  "{" text.html.vuka meta.statement.vuka punctuation.definition.block.begin.go
+72:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "p" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "Read only" text.html.vuka
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "p" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+73:
+  "}" text.html.vuka punctuation.definition.block.end.go
+74:
+  "for" text.html.vuka meta.statement.vuka keyword.control.go
+  "_" text.html.vuka meta.statement.vuka variable.other.assignment.go
+  "," text.html.vuka meta.statement.vuka punctuation.other.comma.go
+  "t" text.html.vuka meta.statement.vuka variable.other.assignment.go
+  ":=" text.html.vuka meta.statement.vuka keyword.operator.assignment.go
+  "range" text.html.vuka meta.statement.vuka keyword.control.go
+  "rows" text.html.vuka meta.statement.vuka variable.other.go
+  "{" text.html.vuka meta.statement.vuka punctuation.definition.block.begin.go
+75:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "components.Item" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  "key" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "t" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "." text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go punctuation.other.period.go
+  "ID" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "todo" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "t" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+76:
+  "}" text.html.vuka punctuation.definition.block.end.go
+77:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "Week" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  "days" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "Days" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go variable.other.go
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "client:visible" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+78:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "Chart" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  "client:load" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+79:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "JSX" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  "client:idle" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+80:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "Panel" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  "client:only" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+81:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "Vanilla" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  "client:media" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "=" text.html.vuka meta.tag.vuka
+  "{" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.begin.vuka
+  "\"" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go string.quoted.double.vuka punctuation.definition.string.begin.vuka
+  "(min-width: 800px)" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go string.quoted.double.vuka
+  "\"" text.html.vuka meta.tag.vuka meta.embedded.expression.go source.go string.quoted.double.vuka punctuation.definition.string.end.vuka
+  "}" text.html.vuka meta.tag.vuka meta.embedded.expression.go punctuation.section.embedded.end.vuka
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+82:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "Script" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  "client:load" text.html.vuka meta.tag.vuka entity.other.attribute-name.html
+  "/>" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+83:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "components.Card" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+84:
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "slot:actions" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "<" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "Action" text.html.vuka
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "button" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "slot:actions" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+85:
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "components.Card" text.html.vuka meta.tag.vuka support.class.component.vuka entity.name.tag.component.vuka
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+86:
+  "</" text.html.vuka meta.tag.vuka punctuation.definition.tag.begin.html
+  "main" text.html.vuka meta.tag.vuka entity.name.tag.html
+  ">" text.html.vuka meta.tag.vuka punctuation.definition.tag.end.html
+87:
+  "<" text.html.vuka punctuation.definition.tag.begin.html
+  "style" text.html.vuka entity.name.tag.html
+  " scoped" text.html.vuka
+  ">" text.html.vuka punctuation.definition.tag.end.html
+88:
+  "." text.html.vuka source.css meta.selector.css entity.other.attribute-name.class.css punctuation.definition.entity.css
+  "active" text.html.vuka source.css meta.selector.css entity.other.attribute-name.class.css
+  "{" text.html.vuka source.css meta.property-list.css punctuation.section.property-list.begin.bracket.curly.css
+  "color" text.html.vuka source.css meta.property-list.css meta.property-name.css support.type.property-name.css
+  ":" text.html.vuka source.css meta.property-list.css punctuation.separator.key-value.css
+  "red" text.html.vuka source.css meta.property-list.css meta.property-value.css support.constant.color.w3c-standard-color-name.css
+  ";" text.html.vuka source.css meta.property-list.css punctuation.terminator.rule.css
+  "}" text.html.vuka source.css meta.property-list.css punctuation.section.property-list.end.bracket.curly.css
+89:
+  "</" text.html.vuka punctuation.definition.tag.begin.html
+  "style" text.html.vuka entity.name.tag.html
+  ">" text.html.vuka punctuation.definition.tag.end.html
+90:
+  "<" text.html.vuka punctuation.definition.tag.begin.html
+  "script" text.html.vuka entity.name.tag.html
+  " lang=\"ts\"" text.html.vuka
+  ">" text.html.vuka punctuation.definition.tag.end.html
+91:
+  "const" text.html.vuka source.ts meta.var.expr.ts storage.type.ts
+  "label" text.html.vuka source.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.definition.variable.ts variable.other.constant.ts
+  ":" text.html.vuka source.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.type.annotation.ts keyword.operator.type.annotation.ts
+  "string" text.html.vuka source.ts meta.var.expr.ts meta.var-single-variable.expr.ts meta.type.annotation.ts support.type.primitive.ts
+  "=" text.html.vuka source.ts meta.var.expr.ts keyword.operator.assignment.ts
+  "\"" text.html.vuka source.ts meta.var.expr.ts string.quoted.double.ts punctuation.definition.string.begin.ts
+  "ready" text.html.vuka source.ts meta.var.expr.ts string.quoted.double.ts
+  "\"" text.html.vuka source.ts meta.var.expr.ts string.quoted.double.ts punctuation.definition.string.end.ts
+92:
+  "</" text.html.vuka punctuation.definition.tag.begin.html
+  "script" text.html.vuka entity.name.tag.html
+  ">" text.html.vuka punctuation.definition.tag.end.html
+93:

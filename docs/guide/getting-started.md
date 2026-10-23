@@ -106,9 +106,9 @@ and [gopls](https://go.dev/gopls). See [Editors](/tools/editors).
 
 ## Rendering UI
 
-A web page is a `.vuka.html` shape under `pages/`, with package, imports,
-one struct, decorated hooks and methods above its markup. The first line
-starting with `<` begins markup.
+A web page is a `.vuka.html` shape under `pages/`: package, imports, one
+struct, decorated hooks and methods in its `<script lang="go">`, and below it
+the markup they render.
 
 Pages use `[id]` names and `_layout.vuka.html`, and `main.go` constructs
 `web.New(pages.Routes(), …)`. See [Web getting started](/web/getting-started).

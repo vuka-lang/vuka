@@ -2,6 +2,7 @@ package check
 
 import (
 	"fmt"
+	"os"
 	"strings"
 	"testing"
 
@@ -45,7 +46,7 @@ func TestShape(t *testing.T) {
 	var got collect
 	analysistest.Run(&got, analysistest.TestData(), Templates, "shape")
 	want := []string{
-		"page.vuka.html:11:8: unexpected diagnostic: W0101: Title is Page's field or method and a name of the package; the template reads the field",
+		"page.vuka.html:14:8: unexpected diagnostic: W0101: Title is Page's field or method and a name of the package; the template reads the field",
 	}
 	if len(got) != len(want) {
 		t.Fatalf("got %q", got)
@@ -54,6 +55,29 @@ func TestShape(t *testing.T) {
 		if !strings.Contains(got[i], w) {
 			t.Errorf("got %q, want %q", got[i], w)
 		}
+	}
+}
+
+// TestHeaderForm: a file in the Go-header form is W0107, its fix the script
+// form; one in the script form is not reported.
+func TestHeaderForm(t *testing.T) {
+	var got collect
+	res := analysistest.Run(&got, analysistest.TestData(), Templates, "headerform")
+	if len(got) != 1 || !strings.Contains(got[0], "card.vuka.html:1:1: unexpected diagnostic: W0107: Card's Go is a header above its markup") {
+		t.Fatalf("got %q", got)
+	}
+	d := res[0].Diagnostics[0]
+	f := res[0].Pass.Fset.File(d.Pos)
+	src, _ := os.ReadFile(f.Name())
+	edits := d.SuggestedFixes[0].TextEdits
+	out := string(src)
+	for i := len(edits) - 1; i >= 0; i-- {
+		e := edits[i]
+		out = out[:f.Offset(e.Pos)] + string(e.NewText) + out[f.Offset(e.End):]
+	}
+	want, _ := os.ReadFile(f.Name() + ".fixed")
+	if out != string(want) {
+		t.Errorf("fixed:\n%s\nwant:\n%s", out, want)
 	}
 }
 

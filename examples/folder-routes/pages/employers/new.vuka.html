@@ -1,3 +1,4 @@
+<script lang="go">
 package employers
 
 import (
@@ -31,6 +32,8 @@ func (p *New) Post(ctx context.Context, form store.EmployerForm) (web.Redirect, 
 	e := p.store.AddEmployer(form)
 	return web.Redirect(urls.Employers.Employer(e.ID).Path()), nil
 }
+</script>
+
 <section id="new">
   <h1>New employer</h1>
   {parts.TallyOf("employers so far", count)}

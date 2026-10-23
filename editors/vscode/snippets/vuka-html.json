@@ -6,6 +6,7 @@
     ],
     "description": "One live .vuka.html shape in pages/",
     "body": [
+      "<script lang=\"go\">",
       "package ${1:pages}",
       "",
       "import (",
@@ -26,10 +27,12 @@
       "}",
       "",
       "func (p *$2) Inc() { p.count++ }",
+      "</script>",
+      "",
       "<main>",
-      "\t<output>{count}</output>",
-      "\t<button onClick={Inc}>+</button>",
-      "\t<button onClick={open = !open}>Toggle</button>",
+      "  <output>{count}</output>",
+      "  <button onClick={Inc}>+</button>",
+      "  <button onClick={open = !open}>Toggle</button>",
       "</main>"
     ]
   },
@@ -40,6 +43,7 @@
     ],
     "description": "One static .vuka.html component with props and children",
     "body": [
+      "<script lang=\"go\">",
       "package ${1:components}",
       "",
       "import \"github.com/vuka-lang/ui/v2\"",
@@ -48,10 +52,12 @@
       "\tTitle string",
       "\tChildren ui.Node",
       "}",
+      "</script>",
+      "",
       "<section>",
-      "\t<h2>{Title}</h2>",
-      "\t{Children}",
-      "\t$0",
+      "  <h2>{Title}</h2>",
+      "  {Children}",
+      "  $0",
       "</section>"
     ]
   },
@@ -61,6 +67,7 @@
     ],
     "description": "Save as _layout.vuka.html to wrap this pages/ subtree",
     "body": [
+      "<script lang=\"go\">",
       "package ${1:pages}",
       "",
       "import \"github.com/vuka-lang/ui/v2\"",
@@ -68,12 +75,14 @@
       "type Layout struct {",
       "\tChildren ui.Node",
       "}",
+      "</script>",
+      "",
       "<html lang=\"${2:en}\">",
-      "\t<head><title>{ui.PageTitle(ctx)}</title></head>",
-      "\t<body>",
-      "\t\t{Children}",
-      "\t\t$0",
-      "\t</body>",
+      "  <head><title>{ui.PageTitle(ctx)}</title></head>",
+      "  <body>",
+      "    {Children}",
+      "    $0",
+      "  </body>",
       "</html>"
     ]
   },
@@ -83,6 +92,7 @@
     ],
     "description": "A .vuka.html page whose markup is just an imported island",
     "body": [
+      "<script lang=\"go\">",
       "package ${1:pages}",
       "",
       "import ${2:Week} \"${3:./islands/Week.vue}\"",
@@ -90,6 +100,8 @@
       "type ${4:Index} struct {",
       "\tDays []string",
       "}",
+      "</script>",
+      "",
       "<$2 days={Days} client:${5|load,idle,visible,only|} />",
       "$0"
     ]

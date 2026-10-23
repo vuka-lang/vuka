@@ -419,18 +419,7 @@ var templateStmt = regexp.MustCompile(`^\s*(?:if\s|for\s|for$|switch\b|case\s|de
 // its markup's text: after the header, on no statement's line, outside any
 // {…} and any tag but in a quoted attribute's value.
 func markupText(src []byte) func(int) bool {
-	start := -1
-	for i := 0; i < len(src); {
-		if src[i] == '<' {
-			start = i
-			break
-		}
-		nl := bytes.IndexByte(src[i:], '\n')
-		if nl < 0 {
-			break
-		}
-		i += nl + 1
-	}
+	_, _, start := shapeBounds(src)
 	if start < 0 {
 		return func(int) bool { return false }
 	}

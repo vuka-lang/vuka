@@ -1,3 +1,4 @@
+<script lang="go">
 // Package note is /notes/{id}.
 package note
 
@@ -29,6 +30,8 @@ func (p *NotePage) mount(ctx context.Context) error { return p.show(p.ID) }
 
 // Back navigates to the board.
 func (p *NotePage) Back() { p.PushNavigate("/board?q=" + p.note.Text[:1]) }
+</script>
+
 <article class="note">
   <h2>#{ID} {note.Text}</h2>
   <ul>

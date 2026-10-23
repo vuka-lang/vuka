@@ -19,6 +19,7 @@ live together in one shape file.
 This counter takes a starting value as a prop and keeps its count as state:
 
 ```html
+<script lang="go">
 // counter.vuka.html
 package app
 
@@ -38,6 +39,8 @@ type Counter struct {
 func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
 
 func (c *Counter) Inc() { c.n++ }
+</script>
+
 <div><span>{n}</span><button onClick={Inc}>+</button></div>
 ```
 
@@ -182,6 +185,7 @@ type NewItem struct { Name string `form:"name" validate:"required"` }
 Save the rendering component as `todo.vuka.html` in the same package:
 
 ```html
+<script lang="go">
 package components
 
 import "context"
@@ -197,6 +201,8 @@ func (t *Todo) Add(ctx context.Context, f NewItem) error {
 }
 
 func (t *Todo) SetQuery(q string) { t.query = q }
+</script>
+
 <section>
   <form onSubmit={Add}><input name="name" onInput={SetQuery} /><button>Add</button></form>
   for _, name := range names {
@@ -233,6 +239,7 @@ after the first render), and the rules of package `validate`. This dashboard
 uses each hook and field attribute:
 
 ```html
+<script lang="go">
 // dashboard.vuka.html
 package app
 
@@ -258,6 +265,8 @@ func (d *Dashboard) changed(ctx context.Context, c ui.Changed) error { return ni
 
 @ui.Loads("lists")
 func (d *Dashboard) loadLists(ctx context.Context) error { return nil }
+</script>
+
 <input bind:value={Q} />
 ```
 
@@ -286,6 +295,7 @@ Declare NewMessage and Typing as data types in a logic file. The shape itself
 holds only its one render struct:
 
 ```html
+<script lang="go">
 package components
 
 import (
@@ -305,6 +315,8 @@ func (c *Chat) mount(ctx context.Context) error { c.Subscribe("room:" + c.Room);
 
 func (c *Chat) Update(m NewMessage) { c.log = append(c.log, m.Text) }
 func (c *Chat) Update(ctx context.Context, t Typing) { c.typing = t.Who }
+</script>
+
 <section>
   for _, line := range log {
     <p>{line}</p>
@@ -333,6 +345,7 @@ Props compare by value; a pointer, slice, map, func or interface prop
 In this row, `ID` and `Name` are props and `qty` is tracked state:
 
 ```html
+<script lang="go">
 // row.vuka.html
 package app
 
@@ -346,6 +359,8 @@ type Row struct {
 }
 
 func (r *Row) Inc() { r.qty++ }
+</script>
+
 <tr key={ID}><td>{Name}</td><td>{qty}</td><td><button onClick={Inc}>+</button></td></tr>
 ```
 

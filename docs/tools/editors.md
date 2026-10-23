@@ -50,9 +50,9 @@ it isn't a hook (a hook is declared with `@ui.Mount`, `@ui.OnChange` or
 ### Shape Files {#templates}
 
 `.vuka.html` files are served like `.vuka` files: hover, go to definition,
-completion and rename on the Go header, holes and statements go
+completion and rename on the Go in `<script lang="go">` (or a Go header), holes and statements go
 through the Go they compile to (a bare `{Title}` is the receiver's field, so
-go to definition lands on it in the shape header), and their errors show at
+go to definition lands on it in the shape's script), and their errors show at
 their lines.
 
 VS Code highlights them as HTML with Go in braces and at line
@@ -137,8 +137,8 @@ the file down to the end of its markup, so with sticky scroll
 (`editor.stickyScroll.enabled`) the `type … struct` line stays pinned above the
 markup you scroll through, with the elements around the cursor below it.
 
-The Go header folds as one, from the package clause to the line before the
-markup, beside the folds of its declarations and of the markup's elements and
+The `<script lang="go">` folds as one, from its start tag to `</script>` (in
+the Go-header form, from the package clause to the line before the markup), beside the folds of its declarations and of the markup's elements and
 blocks.
 
 ### Formatting a Selection {#format-selection}
@@ -161,7 +161,7 @@ so a theme colours them apart:
 | `vukaComponent` | a component tag: `<components.Card>` |
 | `vukaLocal` | a local a markup statement declares: `for _, r := range rows` |
 
-The field declarations in the header carry the same types with the
+The field declarations in the script carry the same types with the
 `declaration` modifier. The rest of the Go — calls, types, packages — keeps
 gopls's tokens. The VS Code extension maps each type to a TextMate scope
 (`variable.other.constant` for props, `variable.other.property` for server
@@ -313,9 +313,9 @@ Emmet abbreviations expand in `.vuka.html` files: the extension sets
 out, where markup sits inside Go functions.
 
 > [!WARNING]
-> Emmet reads the whole file as HTML; it can't tell the Go header from the
-> markup. In the header it can suggest an abbreviation for a word that is also
-> a tag name (`map`, `select`) or has a dot (`p.Q`). The header is still Go to
+> Emmet reads the whole file as HTML; it can't tell the Go in
+> `<script lang="go">` from the markup. In the script it can suggest an abbreviation for a word that is also
+> a tag name (`map`, `select`) or has a dot (`p.Q`). The script is still Go to
 > the editor — its comments, brackets and snippets are Go's. To turn Emmet off
 > for shapes, set `"emmet.excludeLanguages": ["vuka-html"]`.
 

@@ -1,3 +1,4 @@
+<script lang="go">
 package users
 
 import "github.com/vuka-lang/ui/v2"
@@ -8,6 +9,8 @@ type Welcome struct {
 	Email   string
 	AppName string
 }
+</script>
+
 <div style={ui.Style{"font-family": "system-ui, sans-serif", "line-height": "1.5"}}>
   <p>Hi {Name},</p>
   <p>An account on {AppName} is ready for you. Sign in with {Email} and the password you were given.</p>

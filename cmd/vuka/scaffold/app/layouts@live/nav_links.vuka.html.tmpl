@@ -1,3 +1,4 @@
+<script lang="go">
 package layouts
 {%- if .Auth%}
 
@@ -29,6 +30,8 @@ type NavLinks struct {
 	Class string
 }
 {%- end%}
+</script>
+
 <nav class={Class} aria-label="Main">
   for _, l := range Links() {
 {%- if .Auth%}

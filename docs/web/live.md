@@ -19,6 +19,7 @@ on [Stateful Components](/ui/stateful).
 Save the counter as `pages/counter.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -35,6 +36,8 @@ type Counter struct {
 func (c *Counter) mount(ctx context.Context) error { c.n = c.Start; return nil }
 
 func (c *Counter) Increment() { c.n++ }
+</script>
+
 <div><output>{n}</output><button onClick={Increment}>+</button></div>
 ```
 
@@ -113,6 +116,7 @@ Keep Stats and NewStats in a services logic package and register the constructor
 with app.Service before starting the app. In `pages/welcome.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -129,6 +133,8 @@ func (p *Welcome) mount(ctx context.Context, stats *services.Stats) error {
     if !web.IsLiveJoin(ctx) { stats.Visit("/welcome") }
     return nil
 }
+</script>
+
 <main><h1>Welcome</h1></main>
 ```
 
@@ -170,6 +176,7 @@ type NewItem struct { Text string `form:"text" validate:"required"` }
 The page declares just its rendering struct, in `pages/todo.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -191,6 +198,8 @@ func (t *Todo) Add(f models.NewItem) error {
 }
 
 func (t *Todo) Filter(q string) { t.filter = q }
+</script>
+
 <section>
   <form onSubmit={Add}>
     <input name="text" autocomplete="off" />
@@ -282,6 +291,7 @@ type ChatForm struct { Text string `form:"text" validate:"required"` }
 Save the shape as `pages/chat/[room].vuka.html`:
 
 ```html
+<script lang="go">
 package chat
 
 import (
@@ -310,6 +320,8 @@ func (c *Chat) Update(j models.Joined) { c.lines = append(c.lines, j.Who+" joine
 func (c *Chat) Send(ctx context.Context, f models.ChatForm) error {
     return web.Broadcast(ctx, "chat:"+c.Room, models.Said{Who: c.name, Text: f.Text})
 }
+</script>
+
 <section>
   for _, line := range lines {
     <p>{line}</p>
@@ -380,6 +392,7 @@ HTTP handler (a page's Post method or an endpoint under pages/api) and receive
 `*http.Request` by type. For example, `pages/upload.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -398,6 +411,8 @@ func (p *Upload) Post(ctx context.Context, r *http.Request, files *services.File
     if err := files.Save(ctx, header.Filename, file); err != nil { return "", err }
     return web.Redirect("/uploads"), nil
 }
+</script>
+
 <form method="post" enctype="multipart/form-data">
   <input type="file" name="attachment" />
   <button>Upload</button>

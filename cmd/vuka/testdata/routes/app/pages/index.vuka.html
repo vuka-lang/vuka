@@ -1,3 +1,4 @@
+<script lang="go">
 package pages
 
 import "example.com/app/pages/urls"
@@ -6,4 +7,6 @@ import "example.com/app/pages/urls"
 type Index struct{}
 
 func NewIndex() *Index { return &Index{} }
+</script>
+
 <p>{urls.Orgs.Path() + urls.Api.Orgs.Path() + urls.Api.Orgs.Org(2).Path() + urls.About.Path() + urls.Files.File("a b/c").Path() + urls.Api.Pets.ID(7).Path()}</p>

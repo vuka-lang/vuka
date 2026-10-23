@@ -14,19 +14,30 @@ import (
 
 	"github.com/vuka-lang/vuka/v2/toolchain/format"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
-// vukaFmt formats .vuka files, as gofmt does .go files: it prints them,
-// writes them back (-w), lists those that differ (-l) or shows the diff (-d).
+// vukaFmt formats .vuka and .vuka.html files, as gofmt does .go files: it
+// prints them, writes them back (-w), lists those that differ (-l), shows
+// the diff (-d), or fails listing them (-check, for CI). -rewrite writes a
+// .vuka.html file in the Go-header form in the <script lang="go"> one
+// first. A .vuka.html file is laid out by the [fmt] table of the project's
+// vuka.toml (width, tailwind).
 func vukaFmt(args []string, stdout, stderr io.Writer) error {
 	fl := flag.NewFlagSet("fmt", flag.ContinueOnError)
 	fl.SetOutput(stderr)
 	list := fl.Bool("l", false, "list files whose formatting differs")
 	write := fl.Bool("w", false, "write the result to the file instead of printing it")
 	diff := fl.Bool("d", false, "print a diff instead of the formatted file")
+	check := fl.Bool("check", false, "list files whose formatting differs and fail if any does; write nothing")
+	rewrite := fl.Bool("rewrite", false, "rewrite .vuka.html files in the Go-header form in the <script lang=\"go\"> form")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
+	if *check {
+		*list, *write, *diff = true, false, false
+	}
+	unformatted := false
 	paths := fl.Args()
 	if len(paths) == 0 {
 		paths = []string{"."}
@@ -43,16 +54,24 @@ func vukaFmt(args []string, stdout, stderr io.Writer) error {
 			continue
 		}
 		for _, file := range files {
-			if err := fmtFile(file, *list, *write, *diff, stdout); err != nil {
+			same, err := fmtFile(file, fmtMode{list: *list, write: *write, diff: *diff, rewrite: *rewrite}, stdout)
+			if err != nil {
 				report(err)
 			}
+			unformatted = unformatted || !same
 		}
 	}
 	if failed {
 		return errors.New("vuka fmt: some files could not be formatted")
 	}
+	if *check && unformatted {
+		return errors.New("vuka fmt: the files listed are not formatted: run vuka fmt -w")
+	}
 	return nil
 }
+
+// fmtMode is what vuka fmt does with a file.
+type fmtMode struct{ list, write, diff, rewrite bool }
 
 // vukaFiles lists the .vuka files at path: the file itself, or those under
 // the directory, skipping hidden directories, node_modules, vendor and build
@@ -88,42 +107,60 @@ func vukaFiles(path string) ([]string, error) {
 	return files, err
 }
 
-func fmtFile(path string, list, write, diff bool, stdout io.Writer) error {
+// fmtFile formats one file as mode says, and reports whether it was
+// formatted already.
+func fmtFile(path string, mode fmtMode, stdout io.Writer) (bool, error) {
 	src, err := os.ReadFile(path)
 	if err != nil {
-		return err
+		return true, err
 	}
-	out, err := format.Source(src)
+	var out []byte
 	if strings.HasSuffix(path, ".vuka.html") {
-		out, err = format.Template(src, format.DirPackage(filepath.Dir(path)))
+		out, err = formatTemplateFile(path, src, mode.rewrite)
+	} else {
+		out, err = format.Source(src)
 	}
 	if err != nil {
-		return fmt.Errorf("%s:%v", path, err)
+		return true, fmt.Errorf("%s:%v", path, err)
 	}
 	same := bytes.Equal(src, out)
-	if list && !same {
+	if mode.list && !same {
 		fmt.Fprintln(stdout, path)
 	}
-	if write && !same {
+	if mode.write && !same {
 		info, err := os.Stat(path)
 		if err != nil {
-			return err
+			return same, err
 		}
 		if err := os.WriteFile(path, out, info.Mode().Perm()); err != nil {
-			return err
+			return same, err
 		}
 	}
-	if diff && !same {
+	if mode.diff && !same {
 		d, err := unifiedDiff(path, src, out)
 		if err != nil {
-			return err
+			return same, err
 		}
 		stdout.Write(d)
 	}
-	if !list && !write && !diff {
+	if !mode.list && !mode.write && !mode.diff {
 		stdout.Write(out)
 	}
-	return nil
+	return same, nil
+}
+
+// formatTemplateFile formats a .vuka.html file by its project's options,
+// rewritten in the script form first when rewrite is set.
+func formatTemplateFile(path string, src []byte, rewrite bool) ([]byte, error) {
+	o, err := format.LoadOptions(filepath.Dir(path))
+	if err != nil {
+		return nil, err
+	}
+	pkg := format.DirPackage(filepath.Dir(path))
+	if rewrite {
+		src, _ = transpile.ToScriptForm(format.TemplatePackage(src, pkg))
+	}
+	return format.TemplateWith(src, pkg, o)
 }
 
 // unifiedDiff runs diff -u over the original and the formatted file.

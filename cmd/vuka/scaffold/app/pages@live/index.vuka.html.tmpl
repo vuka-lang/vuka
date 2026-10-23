@@ -1,3 +1,4 @@
+<script lang="go">
 package pages
 
 import (
@@ -48,6 +49,8 @@ func (d *Dashboard) firstName() string {
 	}
 	return "there"
 }
+</script>
+
 <layouts.App me={d.me} path="/" title={"Welcome back, " + d.firstName()} description={"Here is what's happening in " + layouts.AppName() + "."}>
   <div class="grid gap-4 sm:grid-cols-3">
     <components.Stat label="Users" value={d.people} href="/users" icon="users" />
@@ -63,6 +66,8 @@ type Home struct {
 }
 
 func (h *Home) Title() string { return "Home" }
+</script>
+
 <layouts.App path="/" title={"Welcome to " + layouts.AppName()} description="Your app is running. Here is where it goes next.">
 {%- end%}
   <div class="mt-8 grid gap-4 lg:grid-cols-3">

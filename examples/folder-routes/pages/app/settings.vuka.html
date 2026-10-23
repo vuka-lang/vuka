@@ -1,3 +1,4 @@
+<script lang="go">
 package app
 
 import (
@@ -13,4 +14,6 @@ type Settings struct{}
 func init() { vuka.RegisterType[Settings](NoStore{}) }
 
 func (p *Settings) Title() string { return "App settings" }
+</script>
+
 <section id="settings"><h1>Settings</h1><a id="open" href={urls.App.Route("").Path()}>Open the app</a></section>

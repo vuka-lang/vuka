@@ -88,6 +88,7 @@ case Err(e):
 A live page, `pages/counter/index.vuka.html`, served at `/counter`. Each click runs `Add` on the server and patches the count in place:
 
 ```html
+<script lang="go">
 package counter
 
 import "github.com/vuka-lang/ui/v2"
@@ -98,6 +99,8 @@ type Index struct {
 }
 
 func (p *Index) Add() { p.count++ }
+</script>
+
 <main>
   <h1>{count}</h1>
   <button onClick={Add}>Add one</button>

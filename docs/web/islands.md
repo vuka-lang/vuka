@@ -15,13 +15,14 @@ part, not as a second way to author the surrounding page.
 ## Importing a Component {#import-a-component}
 
 Import `.vue`, `.tsx`/`.jsx`, `.svelte` or `.ts`/`.js` component files in the
-Go header of a `.vuka.html` shape. The compiler reads their props, generates
-the Go types and checks the tag without requiring handwritten props in the
-common case. Keep the one rendering struct in that same header.
+`<script lang="go">` of a `.vuka.html` shape. The compiler reads their props,
+generates the Go types and checks the tag without requiring handwritten props
+in the common case. Keep the one rendering struct in that same script.
 
 Save as `pages/planner.vuka.html` (the Vue component is shown below):
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -36,6 +37,8 @@ type Planner struct {
 }
 
 func (p *Planner) Book(day string) { p.picked = day }
+</script>
+
 <section>
   <Week days={days} booked={booked} picked={picked} onBook={Book} client:load />
 </section>
@@ -61,6 +64,7 @@ fallback is required.
 The following complete shape imports React, Svelte and vanilla components:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -73,6 +77,8 @@ type Overview struct {
     Zone string
     points []float64
 }
+</script>
+
 <main>
   <Clock zone={Zone} client:load />
   <Picker client:idle />
@@ -176,11 +182,14 @@ A `client:*` directive on a tag overrides the default.
 Use the registered type as a tag from a page shape:
 
 ```html
+<script lang="go">
 package pages
 
 import "example.com/app/components"
 
 type Revenue struct { sales []components.Point }
+</script>
+
 <main><components.Chart series={sales} title="Revenue" client:load /></main>
 ```
 
@@ -192,6 +201,7 @@ children: it is the pre-hydration view. This page gives a chart a
 fallback that holds its height:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -200,6 +210,8 @@ import (
 )
 
 type Report struct { sales []float64 }
+</script>
+
 <main>
   <ui.Island>
     <ui.Template fallback><p style="min-height: 12rem">Loading chart…</p></ui.Template>
@@ -239,6 +251,7 @@ update operation without remounting or losing local state. Unchanged props do
 not trigger an update. `once` keeps the values supplied on the first render:
 
 ```html
+<script lang="go">
 package pages
 
 import Chart "../frontend/chart.tsx"
@@ -246,6 +259,8 @@ import Chart "../frontend/chart.tsx"
 type Comparison struct { sales []float64 }
 
 func (p *Comparison) Clear() { p.sales = nil }
+</script>
+
 <section>
   <Chart points={sales} client:load />
   <Chart points={sales} once client:load />
@@ -281,6 +296,7 @@ same state and all bindings that observe it. Here the page and a `Week` island
 share the `picked` state:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -293,6 +309,8 @@ type Selection struct {
     booked []string
     picked ui.State[string]
 }
+</script>
+
 <section>
   <button onClick={picked = "mon"}>Monday</button>
   <b>{picked}</b>
@@ -317,7 +335,7 @@ server arguments.
 ## Pages Backed by a Component {#pages-backed-by-a-component}
 
 An island-only page is an ordinary `.vuka.html` page whose markup is just the
-island tag. The Go header owns the page's state, decorated hooks and server
+island tag. Its `<script lang="go">` owns the page's state, decorated hooks and server
 methods. Its URL comes from its filename under `pages/`; document and shared
 layout come from `_layout.vuka.html`. The generated island-page wrapper is
 compiler output, not another authoring API.
@@ -327,6 +345,7 @@ The order and filter types and database service below live in logic files
 `pages/orders.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -362,6 +381,8 @@ func (o *Orders) load(ctx context.Context) error {
 }
 
 func (o *Orders) Cancel(ctx context.Context, id int64) error { return o.db.Cancel(ctx, id) }
+</script>
+
 <OrdersView q={Q} status={Status} rows={Rows} onCancel={Cancel} client:load />
 ```
 
@@ -567,6 +588,7 @@ when the group's decorated loader finishes. Keep bound and URL-backed fields
 out of deferred groups. In `pages/overview.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -599,6 +621,8 @@ func (o *Overview) loadLists(ctx context.Context) error {
     o.Rows, o.Total = rows, total
     return err
 }
+</script>
+
 <OverviewView q={Q} stats={Stats} rows={Rows} total={Total} client:load />
 ```
 

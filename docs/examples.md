@@ -28,11 +28,14 @@ A live page that counts clicks on the server. Save it as
 `pages/counter.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 type Counter struct { n int }
 
 func (p *Counter) Increment() { p.n++ }
+</script>
+
 <main><button onClick={Increment}>{n}</button></main>
 ```
 
@@ -42,11 +45,14 @@ A component that opens and closes a section in the browser, with no server
 round trip:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
 
 type Disclosure struct { open ui.State[bool] }
+</script>
+
 <section>
   <button onClick={open = !open}>Details</button>
   <p hidden={!open}>More information</p>

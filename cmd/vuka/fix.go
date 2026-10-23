@@ -49,6 +49,7 @@ var fixers = []fixer{
 	{"ui", "move UI code to github.com/vuka-lang/ui/v2 (v0.10.0): vuka.Node → ui.Node, vuka/live → ui/live, …, and import ui where JSX is used", fixUI},
 	{"attributes", "write a live page's field tags (bind:, url:, defer:, validate:) and a model's orm: tags as attributes: @ui.Bind, @ui.URL, @ui.Defer, @validate.…, @orm.Elements{…}, @orm.Column(…), …", fixAttributes},
 	{"ui-structs", "write the ui kit's components as structs: ui.Card(ui.CardProps{…}) → ui.Card{…}, ui.Table(ui.TableProps[T]{…}) → ui.Table[T]{…}", fixUIStructs},
+	{"shape-script", "write each .vuka.html file in the Go-header form in the <script lang=\"go\"> form (2.3): its Go in the script, the markup below", fixShapeScript},
 	{"templates-package", "start each .vuka.html file with its package clause, the package of its directory", fixTemplatesPackage},
 	{"hooks", "mark the methods earlier releases found a live page's hooks by (Mount, Changed, Load<Group>) with @ui.Mount, @ui.OnChange, @ui.Loads", fixHooks},
 	{"db-schema", "rename orm.Schema values to orm.DBSchema (orm.Of[T](orm.Schema{…})): orm.Schema is a model's Schema method's", fixDBSchema},
@@ -450,6 +451,34 @@ func fixTemplatesPackage(m *fixModule) ([]fixChange, error) {
 		rel, _ := filepath.Rel(m.root, path)
 		changes = append(changes, fixChange{
 			what:  fmt.Sprintf("%s: add package %s", rel, pkg),
+			apply: func() error { return os.WriteFile(path, out, 0o644) },
+		})
+		return nil
+	})
+	return changes, err
+}
+
+// fixShapeScript writes the .vuka.html files in the Go-header form in the
+// <script lang="go"> form, their Go and markup as written (vuka fmt
+// -rewrite formats them too). A file in the script form already, or one it
+// can't read as a shape (a broken one), stays.
+func fixShapeScript(m *fixModule) ([]fixChange, error) {
+	var changes []fixChange
+	err := walkModule(m.root, func(path string) error {
+		if !strings.HasSuffix(path, ".vuka.html") {
+			return nil
+		}
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		out, ok := transpile.ToScriptForm(format.TemplatePackage(src, format.DirPackage(filepath.Dir(path))))
+		if !ok {
+			return nil
+		}
+		rel, _ := filepath.Rel(m.root, path)
+		changes = append(changes, fixChange{
+			what:  fmt.Sprintf("%s: the Go header into <script lang=\"go\">", rel),
 			apply: func() error { return os.WriteFile(path, out, 0o644) },
 		})
 		return nil

@@ -13,6 +13,7 @@ file. Exported fields are props; content and named slots are node props.
 This shape declares a notice with a title, a flag and children:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -22,6 +23,8 @@ type Notice struct {
     Important bool
     Children ui.Node
 }
+</script>
+
 <aside class:important={Important}>
   <h2>{Title}</h2>
   {Children}

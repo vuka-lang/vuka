@@ -1,3 +1,4 @@
+<script lang="go">
 package {%.Pkg%}
 {%- if .Live%}
 
@@ -29,6 +30,8 @@ type {%.Type%} struct {
 
 func (p *{%.Type%}) Title() string { return "{%.Title%}" }
 {%- end%}
+</script>
+
 {%- if .Document%}
 <html lang="en">
   <head><title>{Title()}</title></head>

@@ -1,3 +1,4 @@
+<script lang="go">
 package components
 
 // Logo is the app's mark and name.
@@ -5,6 +6,8 @@ type Logo struct {
 	Name  string
 	Class string
 }
+</script>
+
 <span class={cx("inline-flex items-center gap-2.5 font-semibold tracking-tight text-slate-900 dark:text-white", Class)}>
   <img src="/static/logo.svg" alt="" width="32" height="32" class="size-8 rounded-lg shadow-sm" />
   if Name != "" {
