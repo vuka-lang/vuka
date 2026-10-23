@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -14,6 +15,7 @@ import (
 	"unicode"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // Extracting a component: a selection of a shape's markup that is one or
@@ -395,8 +397,59 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 		relParts, _ := filepath.Rel(root, targetDir)
 		addImps = append(addImps, wantImport{"", modPath + "/" + load.GoRel(filepath.ToSlash(relParts))})
 	}
+	// A shape live only because its markup sends an event stays live when
+	// the sends move: it embeds ui.Live, as the compiler would have.
+	if f.shape.Live && !f.shape.EmbedsLive {
+		if sh, _ := transpile.ParseShape(after); sh == nil || !sh.Live {
+			uiName := "ui"
+			if sp, ok := header[uiPath]; ok {
+				uiName = sp.localName(pkgName)
+			} else {
+				addImps = append(addImps, wantImport{"", uiPath})
+			}
+			e, err := embedLive(src, f.shape, uiName)
+			if err != nil {
+				return nil, err
+			}
+			pageEdits = append(pageEdits, e)
+		}
+	}
 	pageEdits = append(pageEdits, importEdits(src, drop, addImps)...)
 	return change{created(newPath, text), {path: path, old: src, edits: pageEdits}}, nil
+}
+
+// uiPath is the import path of package ui.
+const uiPath = "github.com/vuka-lang/ui/v2"
+
+// embedLive is the edit embedding ui.Live (as uiName.Live) first in the
+// shape's struct.
+func embedLive(src []byte, sh *transpile.Shape, uiName string) (edit, error) {
+	ls := lineOffset(src, sh.TypeLine-1)
+	le := ls + bytes.IndexByte(src[ls:], '\n')
+	if le < ls {
+		le = len(src)
+	}
+	line := string(src[ls:le])
+	if strings.HasSuffix(strings.TrimSpace(line), "{") {
+		return edit{le + 1, le + 1, "\t" + uiName + ".Live\n"}, nil
+	}
+	if i := strings.Index(line, "struct{}"); i >= 0 {
+		return edit{ls + i, ls + i + len("struct{}"), "struct {\n\t" + uiName + ".Live\n}"}, nil
+	}
+	return edit{}, errors.New("can't embed ui.Live in " + sh.Type + ": write it, then extract")
+}
+
+// lineOffset is where the line (from 0) starts.
+func lineOffset(src []byte, line int) int {
+	off := 0
+	for l := 0; l < line && off < len(src); l++ {
+		i := bytes.IndexByte(src[off:], '\n')
+		if i < 0 {
+			return len(src)
+		}
+		off += i + 1
+	}
+	return off
 }
 
 // shapeFileText is a shape file at path in the script form: a

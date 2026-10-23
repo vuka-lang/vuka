@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -94,6 +95,57 @@ func vets(t *testing.T, dir string) {
 		})
 		t.Fatalf("vuka vet: %v\n%s%s\n%s", err, out.Bytes(), errOut.Bytes(), files.String())
 	}
+}
+
+// applyWorkspace applies a WorkspaceEdit of document changes to disk, as
+// the editor gets it: through JSON.
+func applyWorkspace(t *testing.T, edit any) {
+	t.Helper()
+	b, _ := json.Marshal(edit)
+	var we struct {
+		DocumentChanges []map[string]any `json:"documentChanges"`
+	}
+	if err := json.Unmarshal(b, &we); err != nil || len(we.DocumentChanges) == 0 {
+		t.Fatalf("not a WorkspaceEdit of document changes: %s", b)
+	}
+	for _, dc := range we.DocumentChanges {
+		switch dc["kind"] {
+		case "create":
+			path := uriToPath(dc["uri"].(string))
+			if _, err := os.Stat(path); err == nil {
+				t.Fatalf("creates %s, which exists", path)
+			}
+			writeFile(t, path, "")
+		case "delete":
+			if err := os.Remove(uriToPath(dc["uri"].(string))); err != nil {
+				t.Fatal(err)
+			}
+		default:
+			path := uriToPath(dc["textDocument"].(map[string]any)["uri"].(string))
+			old, _ := os.ReadFile(path)
+			writeFile(t, path, applyEdits(string(old), dc["edits"].([]any)))
+		}
+	}
+}
+
+// actionsAt are vuka's code actions for the range [from, to) of the
+// file at path, as the editor would get them.
+func actionsAt(t *testing.T, path string, from, to int, diags ...map[string]any) map[string]codeAction {
+	t.Helper()
+	src, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	r := actionRequest{path: path, src: src, start: from, end: to, diags: diags, read: os.ReadFile}
+	out := map[string]codeAction{}
+	for _, a := range codeActions(r) {
+		ca, ok := a.(codeAction)
+		if !ok {
+			t.Fatalf("not a code action: %#v", a)
+		}
+		out[ca.Title] = ca
+	}
+	return out
 }
 
 func readFile(t *testing.T, path string) string {
@@ -221,6 +273,155 @@ func TestExtractRow(t *testing.T) {
 	}
 	if !strings.Contains(page, "<Row Item={it} Remove={Remove} />") || strings.Contains(page, "private_parts") {
 		t.Errorf("page:\n%s", page)
+	}
+	vets(t, dir)
+}
+
+const sendsCounter = `<script lang="go">
+package components
+
+type Counter struct {
+	count int
+}
+
+func (c *Counter) Add() { c.count++ }
+</script>
+
+<div>
+  <p>{count}</p>
+  <button onClick={Add}>Add one</button>
+</div>
+`
+
+// TestExtractSends: outside pages/ the component goes in the same package;
+// a shape live only because the selection sends its event embeds ui.Live,
+// and the event reaches the shape through the method value it passes.
+func TestExtractSends(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	dir := refactorModule(t, map[string]string{"components/counter.vuka.html": sendsCounter})
+	path := filepath.Join(dir, "components/counter.vuka.html")
+	s, e := selection(sendsCounter, "<button", "</button>")
+	c, err := extractComponent(path, []byte(sendsCounter), s, e, "AddButton", os.ReadFile)
+	if err != nil {
+		t.Fatal(err)
+	}
+	apply(t, c)
+	part := readFile(t, filepath.Join(dir, "components/add_button.vuka.html"))
+	page := readFile(t, path)
+	if !strings.Contains(part, "type AddButton struct {\n\tAdd func()\n}") {
+		t.Errorf("part:\n%s", part)
+	}
+	for _, want := range []string{"import \"github.com/vuka-lang/ui/v2\"", "type Counter struct {\n\tui.Live\n\tcount int", "<AddButton Add={Add} />"} {
+		if !strings.Contains(page, want) {
+			t.Errorf("page has no %q:\n%s", want, page)
+		}
+	}
+	vets(t, dir)
+}
+
+const hooksPage = `<script lang="go">
+package pages
+
+import (
+	"context"
+	"strconv"
+	"strings"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Board struct {
+	ui.Live
+	count int
+	note  string
+}
+
+func (b *Board) Title() string { return "Board " + strconv.Itoa(b.count) }
+
+// Mount starts the count.
+@ui.Mount
+func (b *Board) Mount(ctx context.Context) error {
+	b.count = 1
+	return nil
+}
+
+// Add counts one more.
+func (b *Board) Add() { b.count++ }
+
+func (b *Board) Shout() { b.note = strings.ToUpper(b.note) + "!" }
+</script>
+
+<main>
+  <p>{count} {note}</p>
+  <button onClick={Add}>Add</button>
+  <button onClick={Shout}>Shout</button>
+</main>
+`
+
+// TestMoveMethods: the methods of a shape's Go, but Title and its hooks,
+// move to the logic file beside it, created with its package clause and
+// the imports they need; the shape keeps only the imports it still uses.
+// One method moves into a logic file that exists. Both forms.
+func TestMoveMethods(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	header := strings.Replace(strings.Replace(hooksPage, "<script lang=\"go\">\n", "", 1), "</script>\n\n", "", 1)
+	for _, form := range []struct{ name, src string }{{"script", hooksPage}, {"header", header}} {
+		t.Run(form.name, func(t *testing.T) {
+			dir := refactorModule(t, map[string]string{"main.go": refactorMain, "pages/board.vuka.html": form.src})
+			path := filepath.Join(dir, "pages/board.vuka.html")
+			at := strings.Index(form.src, "func (b *Board) Add")
+			acts := actionsAt(t, path, at, at)
+			all, ok := acts["Move the methods of Board to board.vuka"]
+			if !ok || acts["Move Add to board.vuka"].Edit == nil {
+				t.Fatalf("actions: %v", acts)
+			}
+			applyWorkspace(t, all.Edit)
+			shape, logic := readFile(t, path), readFile(t, filepath.Join(dir, "pages/board.vuka"))
+			for _, want := range []string{"func (b *Board) Title()", "@ui.Mount\nfunc (b *Board) Mount", "\"strconv\"", "\"context\""} {
+				if !strings.Contains(shape, want) {
+					t.Errorf("the shape lost %q:\n%s", want, shape)
+				}
+			}
+			if strings.Contains(shape, "Add()") || strings.Contains(shape, "strings") {
+				t.Errorf("the shape kept a moved method or its import:\n%s", shape)
+			}
+			if !strings.HasPrefix(logic, "package pages\n\nimport \"strings\"\n\n// Add counts one more.\nfunc (b *Board) Add()") || !strings.Contains(logic, "func (b *Board) Shout()") {
+				t.Errorf("logic file:\n%s", logic)
+			}
+			vets(t, dir)
+		})
+	}
+}
+
+// TestMoveFromGo: a .go file's method using a shape's tracked state
+// (E0155) moves to the shape's logic file, which exists: appended, its
+// imports joined; the .go file, left empty, goes.
+func TestMoveFromGo(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	goFile := "package pages\n\nimport \"strings\"\n\nfunc (b *Board) Reset() {\n\tb.count = 0\n\tb.note = strings.TrimSpace(b.note)\n}\n"
+	logic := "package pages\n\nimport \"fmt\"\n\nfunc (b *Board) Show() string { return fmt.Sprint(b.count) }\n"
+	dir := refactorModule(t, map[string]string{"main.go": refactorMain, "pages/board.vuka.html": hooksPage, "pages/reset.go": goFile, "pages/board.vuka": logic})
+	path := filepath.Join(dir, "pages/reset.go")
+	at := strings.Index(goFile, "b.count")
+	diag := map[string]any{"code": "E0155", "range": map[string]any{"start": positionOf([]byte(goFile), at), "end": positionOf([]byte(goFile), at+7)}}
+	acts := actionsAt(t, path, at, at, diag)
+	fix, ok := acts["Move Reset to board.vuka"]
+	if !ok || fix.Kind != "quickfix" || len(fix.Diagnostics) != 1 {
+		t.Fatalf("actions: %v", acts)
+	}
+	applyWorkspace(t, fix.Edit)
+	if _, err := os.Stat(path); err == nil {
+		t.Errorf("reset.go is left")
+	}
+	got := readFile(t, filepath.Join(dir, "pages/board.vuka"))
+	if !strings.Contains(got, "import (\n\t\"fmt\"\n\t\"strings\"\n)") || !strings.HasSuffix(got, "func (b *Board) Reset() {\n\tb.count = 0\n\tb.note = strings.TrimSpace(b.note)\n}\n") {
+		t.Errorf("board.vuka:\n%s", got)
 	}
 	vets(t, dir)
 }
