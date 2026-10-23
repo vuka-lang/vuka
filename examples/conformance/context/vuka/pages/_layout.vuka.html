@@ -1,0 +1,25 @@
+<script lang="go">
+package pages
+
+import (
+	"example.com/app/components"
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Layout is every page's: it reads the site's name and the request's path
+// in its markup.
+type Layout struct {
+	Children ui.Node
+}
+</script>
+
+<html lang="en">
+  <head><title>{site}</title></head>
+  <body>
+    <nav data-path={request.Path}>{site} <components.Cart /></nav>
+    for _, m := range messages {
+      <p class={m.Level}>{m.Text}</p>
+    }
+    <main>{Children}</main>
+  </body>
+</html>

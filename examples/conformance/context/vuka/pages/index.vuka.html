@@ -1,0 +1,30 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"example.com/app/shop"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+)
+
+// Index is the shop's front page: GET /. Its event adds to the cart and
+// asks for shop.Context again.
+type Index struct {
+	ui.Live
+	Store *shop.Store
+}
+
+func (p *Index) Add(ctx context.Context) error {
+	p.Store.Add()
+	web.RefreshVars(ctx, "cart")
+	return web.Flash(ctx, "info", "added")
+}
+</script>
+
+<section>
+  <h1>{greeting(ctx)}</h1>
+  <button onClick={Add}>Add to cart</button>
+  <p>{cart} items</p>
+</section>

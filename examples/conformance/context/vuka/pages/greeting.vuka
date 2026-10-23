@@ -1,0 +1,8 @@
+package pages
+
+import "context"
+
+// greeting reads a variable in Go, with its ctx.
+func greeting(ctx context.Context) string {
+	return "Welcome to " + site
+}

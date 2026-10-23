@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 
 	"github.com/vuka-lang/web/v2"
 	"github.com/vuka-lang/web/v2/auth"
@@ -16,7 +17,10 @@ type Orders struct {
 func (o *Orders) Approve(ctx context.Context) error { return nil }
 
 func (o *Orders) Delete(ctx context.Context) error {
-	return auth.Require(ctx, "orders.delete")
+	if !auth.Can(ctx, "orders.delete") {
+		return errors.New("forbidden")
+	}
+	return nil
 }
 <section>
   <p>{web.Request(ctx).URL.Path} {request}</p>

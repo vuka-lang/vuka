@@ -96,7 +96,7 @@ func TestContexts(t *testing.T) {
 				got = string(g.Src)
 			}
 		}
-		for _, want := range []string{`web.Var[*users.User](ctx, "me").Name`, `web.Var[*auth.Identity](ctx, "user") == nil`, `web.Var[web.Request](ctx, "request").Path`} {
+		for _, want := range []string{`web.Var[*users.User](ctx, "me").Name`, `web.Var[*auth.Identity](ctx, "user") == nil`, `web.Var[web.RequestInfo](ctx, "request").Path`} {
 			if !strings.Contains(got, want) {
 				t.Errorf("views' Go has no %s:\n%s", want, got)
 			}

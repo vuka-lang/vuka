@@ -34,7 +34,26 @@ the `github.com/vuka-lang/vuka` package your module requires.
   reads one in Go, `web.WithVars` gives other values below a context,
   `web.RefreshVars` runs a processor again, `web.Auth(p, gates…)` guards
   one, and `web.Browser(p)` (with `web.Personal` for one reading the
-  visitor) lets islands read it. See [context processors](/web/context-processors).
+  visitor) lets islands read it; a `web.NotForBrowser` value such as
+  `auth.Perms` is never sent. See [context processors](/web/context-processors).
+- **Live renders follow the variables.** Each read is recorded against the
+  component rendering it, and a processor's inputs with it
+  (`web.RecordInput`; `web.Request` records the URL, `auth.Current` the
+  identity and its permission version): an event, a broadcast or a
+  navigation renders again only the components whose variables changed,
+  and results carry across a live connection's pages while their inputs
+  hold.
+- **Permissions that change under a live page.** auth keeps a permission
+  version per user, bumped by `Refresh`, sign-out, `auth.Impersonate` /
+  `auth.StopImpersonating` and `RevokeUser`; `auth.Context` gives `user`,
+  `perms` (`Has`, with wildcards) and `actor`, the real user while
+  impersonating.
+- **Flash messages and CSRF tokens.** `web.Flash(ctx, level, text)` (a
+  signed cookie over HTTP, the next render on a live page) feeds
+  `messages`; `web.ValidCSRFToken` checks `csrfToken`.
+- **Testing with variables.** `viewtest.With(vars…)` and
+  `viewtest.Context(ctx, vars…)` (`web/v2/viewtest`) give pages and
+  contexts their own values.
 - **Variables by name in templates.** The compiler reads `main`'s list,
   and a bare name in a shape, its script or a `.vuka` file that names
   nothing else reads the variable, typed: `{me.Name}` is

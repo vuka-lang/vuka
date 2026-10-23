@@ -11,6 +11,8 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
+	"time"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -122,45 +124,19 @@ func scanModule(root, modPath string, read ReadFunc) map[string]*modPkg {
 			if f.IsDir() || strings.Contains(n, "_test.") {
 				continue
 			}
-			var name string
-			var imps []string
-			switch {
-			case strings.HasSuffix(n, ".vuka.html"):
-				src, err := read(filepath.Join(path, n))
-				if err != nil {
-					continue
-				}
-				head := transpile.ParseTemplateHead(src)
-				name = head.Package
-				for _, imp := range head.Imports {
-					imps = append(imps, imp.Path)
-				}
-			case strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka"):
-				if strings.HasSuffix(n, ".go") && isGenerated(entries, n) {
-					continue
-				}
-				src, err := read(filepath.Join(path, n))
-				if err != nil {
-					continue
-				}
-				af, _ := parser.ParseFile(token.NewFileSet(), n, src, parser.ImportsOnly)
-				if af == nil || af.Name == nil {
-					continue
-				}
-				name = af.Name.Name
-				for _, imp := range af.Imports {
-					if p, err := strconv.Unquote(imp.Path.Value); err == nil {
-						imps = append(imps, p)
-					}
-				}
-				if name == "main" {
-					if m == nil {
-						m = &modPkg{dir: path, path: ip, name: name}
-					}
-					m.mainFiles = append(m.mainFiles, filepath.Join(path, n))
-				}
-			default:
+			if strings.HasSuffix(n, ".go") && isGenerated(entries, n) {
 				continue
+			}
+			full := filepath.Join(path, n)
+			name, imps, ok := fileHead(full, n, f, read)
+			if !ok {
+				continue
+			}
+			if name == "main" && !strings.HasSuffix(n, ".vuka.html") {
+				if m == nil {
+					m = &modPkg{dir: path, path: ip, name: name}
+				}
+				m.mainFiles = append(m.mainFiles, full)
 			}
 			if name == "" || strings.HasSuffix(name, "_test") {
 				continue
@@ -179,6 +155,60 @@ func scanModule(root, modPath string, read ReadFunc) map[string]*modPkg {
 		return nil
 	})
 	return mod
+}
+
+// headCache keeps each file's package name and imports while it is
+// unchanged on disk: the language server reads the module on every build.
+var headCache sync.Map // path → fileHeadEntry
+
+type fileHeadEntry struct {
+	mod     time.Time
+	size    int64
+	name    string
+	imports []string
+}
+
+// fileHead is the package name and imports of a .go, .vuka or .vuka.html
+// file; ok is false for another file or one that doesn't read.
+func fileHead(full, n string, e fs.DirEntry, read ReadFunc) (string, []string, bool) {
+	if !strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, ".vuka") && !strings.HasSuffix(n, ".vuka.html") {
+		return "", nil, false
+	}
+	fi, err := e.Info()
+	if err != nil {
+		return "", nil, false
+	}
+	if c, ok := headCache.Load(full); ok {
+		if c := c.(fileHeadEntry); c.mod.Equal(fi.ModTime()) && c.size == fi.Size() {
+			return c.name, c.imports, true
+		}
+	}
+	src, err := read(full)
+	if err != nil {
+		return "", nil, false
+	}
+	var name string
+	var imps []string
+	if strings.HasSuffix(n, ".vuka.html") {
+		head := transpile.ParseTemplateHead(src)
+		name = head.Package
+		for _, imp := range head.Imports {
+			imps = append(imps, imp.Path)
+		}
+	} else {
+		af, _ := parser.ParseFile(token.NewFileSet(), n, src, parser.ImportsOnly)
+		if af == nil || af.Name == nil {
+			return "", nil, false
+		}
+		name = af.Name.Name
+		for _, imp := range af.Imports {
+			if p, err := strconv.Unquote(imp.Path.Value); err == nil {
+				imps = append(imps, p)
+			}
+		}
+	}
+	headCache.Store(full, fileHeadEntry{fi.ModTime(), fi.Size(), name, imps})
+	return name, imps, true
 }
 
 // isGenerated reports whether the .go file name is a Vuka source's output

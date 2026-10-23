@@ -72,11 +72,15 @@ The built-in processors are ordinary processors, written as yours are:
 
 | Processor | Variables |
 |---|---|
-| `web.RequestContext` | `request`: `Path`, `Query`, `Params`, `Name` (the route's handler), `Pattern` |
-| `auth.Context` | `user` (`*auth.Identity`, nil for an anonymous visitor), `perms` (`auth.Perms`, with `Has`) |
-| `web.MessagesContext` | `messages`: what `web.Flash` added, each shown once |
-| `web.CSRFContext` | `csrfToken`: a token for a form posted from another origin |
-| `ui.PageContext` | `page`: `Title`, `Crumbs` of the page being rendered |
+| `web.RequestContext` | `request`: the path, query, parameters and route |
+| `auth.Context` | `user` (`*auth.Identity`, nil for an anonymous visitor), `perms` (`auth.Perms`, with `Has`), `actor` (the real user while impersonating, else nil) |
+| `web.MessagesContext` | `messages` (`[]web.Message`: `Level`, `Text`): what `web.Flash` added, each shown once |
+| `web.CSRFContext` | `csrfToken`: a token for a form posted from another origin, checked with `web.ValidCSRFToken` |
+| `ui.PageContext` | `page` (`ui.PageHeader`): `Title`, `Crumbs` of the page being rendered |
+
+`request` is a `web.RequestInfo`: `Path`, `Query` (`url.Values`), `Params`
+(the path parameters by name), `Name` (the route's handler) and
+`Pattern`.
 
 ## Writing a Processor {#writing}
 
@@ -255,8 +259,10 @@ other := &users.User{ID: "7", Name: "Grace"}
 ctx = web.WithVars(ctx, users.Vars{Me: other})
 ```
 
-In tests, `viewtest.With(users.Vars{Me: u})` does the same for a rendered
-page.
+In tests, `viewtest.With(users.Vars{Me: u})` (package
+`github.com/vuka-lang/web/v2/viewtest`) is an app option doing the same
+for every page, and `viewtest.Context(ctx, users.Vars{Me: u})` for one
+context.
 
 ### Rendering Outside a Request {#outside-a-request}
 

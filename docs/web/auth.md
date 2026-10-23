@@ -99,7 +99,8 @@ again at the visitor's next event, a layout that stays among them.
 > anyone can still send the event a hidden button sends, or request the
 > page a hidden link names. Check the permission where the work happens:
 > `@auth.Requires("placements.approve")` on the event method or the
-> handler, or `auth.Require(ctx, "placements.approve")` in a guard.
+> handler, or `auth.Can(ctx, "placements.approve")` in it or in a guard,
+> answering `web.Forbidden` when it is false.
 > `vuka vet` warns about a control shown behind `perms.Has("x")` whose
 > event method checks no `x` ([W0403](/errors/W0403)).
 

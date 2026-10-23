@@ -151,7 +151,7 @@ func (e *engine) permWarnings(f *fileState, list *ErrorList) {
 			}
 			w := list.add("W0403", f.at(from+m[2]), "%s is shown only with the permission %q, but %s.%s checks none: hiding a control doesn't stop its event being sent", method, perm, f.html.recvType, method)
 			w.Len = m[3] - m[2]
-			w.help("check it where the event runs: @auth.Requires(%q) on %s, or auth.Require(ctx, %q) in it", perm, method, perm)
+			w.help("check it where the event runs: @auth.Requires(%q) on %s, or auth.Can(ctx, %q) in it", perm, method, perm)
 		}
 		return true
 	})
@@ -184,7 +184,7 @@ func (e *engine) permCheck(cond ast.Expr) (string, bool) {
 
 // enforces reports whether typ's method checks perm: @auth.Requires(perm)
 // or @auth.RequiresAny(…, perm, …) on it or on typ, or a call of
-// auth.Require or auth.Can with perm in its body. A pattern (orders.*)
+// auth.Can (or auth.Require) with perm in its body. A pattern (orders.*)
 // covers what it matches.
 func (e *engine) enforces(typ, method, perm string) bool {
 	covers := func(args string) bool {

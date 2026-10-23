@@ -4,7 +4,6 @@ package auth
 
 import (
 	"context"
-	"errors"
 	"path"
 )
 
@@ -36,5 +35,5 @@ func Context(ctx context.Context) (Vars, error) { return Vars{}, nil }
 // Other gives a user too: listed beside Context, the names clash.
 func Other(ctx context.Context) (Vars, error) { return Vars{}, nil }
 
-// Require stands in for auth.Require: an error unless the user has perm.
-func Require(ctx context.Context, perm string) error { return errors.New("forbidden") }
+// Can stands in for auth.Can: whether the user has perm.
+func Can(ctx context.Context, perm string) bool { return false }
