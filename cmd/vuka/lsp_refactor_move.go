@@ -15,11 +15,11 @@ import (
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
-// Moving a shape's methods out of its header, into the logic file beside
-// it: x.vuka.html's into x.vuka, a .vuka file of the same package. The
-// compiler lowers tracked state there as in the header (2.2), so a method
-// reads and writes its fields as written wherever it is. Methods stay in
-// the header that the shape's kind depends on: its decorated hooks, the
+// Moving a shape's methods out of its Go (the <script lang="go">, or the
+// Go-header form's header), into the logic file beside it: x.vuka.html's
+// into x.vuka, a .vuka file of the same package. The compiler lowers
+// tracked state there as in the script (2.2), so a method reads and writes
+// its fields as written wherever it is. Methods stay in the script that the shape's kind depends on: its decorated hooks, the
 // Title a page names itself with, and, for a component that is live only
 // because its markup sends an event, the exported methods the markup
 // sends. The same move takes a method out of a .go file, where tracked

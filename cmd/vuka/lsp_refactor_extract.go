@@ -19,22 +19,26 @@ import (
 )
 
 // Extracting a component: a selection of a shape's markup that is one or
-// more whole elements becomes a shape file of its own, and the selection a
-// tag of it. What the selection reads from around it becomes the new
-// shape's props, exported fields, which the tag passes:
+// more whole elements becomes a shape file of its own, in the script form
+// and formatted as vuka fmt formats it, and the selection a tag of it.
+// What the selection reads from around it becomes the new shape's props,
+// exported fields, which the tag passes:
 //
-//   - a field of the shape: a prop of the field's type, as the header
-//     writes it (Children, a ui.Node, is passed as the tag's content);
+//   - a field of the shape, bare or through the receiver: a prop of the
+//     field's type, as the script writes it (Children, a ui.Node, is
+//     passed as the tag's content);
 //   - a method of the shape, called or passed as a handler (onClick={Sort}):
 //     a prop of the method value's func type, the method passed as a value,
 //     so the call and the handler work as before — on the shape, whose
-//     state the method changes;
+//     state the method changes, and whose event it stays. A shape live only
+//     because the selection sent its events embeds ui.Live, as the
+//     compiler made it before;
 //   - a variable of the markup around it (a loop's item, its index): a prop
 //     of its type.
 //
 // The selection's names are renamed to the props'. A selection writing a
-// field (count++, tab = "x"), taking its address, or naming the receiver
-// can't move: the new shape would change its own copy. In a folder of
+// field (count++, tab = "x") or taking its address can't move: the new
+// shape would change its own copy. In a folder of
 // pages the new shape goes to the private folder _parts beside the page (a
 // package of its own, which the page imports); when the selection needs the
 // page's package (a type, function or variable declared there), it goes in
