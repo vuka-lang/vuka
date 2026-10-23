@@ -183,7 +183,7 @@ func (t *routeTree) registrations(routes []*folderRoute) []byte {
 	qual := func(d *routeDir) string {
 		name := d.name
 		if len(seen[d.name]) > 1 && d.rel != "" {
-			name = strings.NewReplacer("/", "_", "-", "_", ".", "_", "[", "", "]", "").Replace(d.rel)
+			name = strings.NewReplacer("/", "_", "-", "_", ".", "_", "[", "", "]", "", "(", "", ")", "").Replace(d.rel)
 		}
 		if n := im.name(d.importPath, name); n != "" {
 			return n + "."

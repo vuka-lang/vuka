@@ -198,5 +198,8 @@ same page in the terminal.
 | [E0719](./E0719) | A page's struct is declared nowhere |
 | [E0720](./E0720) | A page declared outside pages/ |
 | [E0721](./E0721) | A page whose markup is written in Go |
+| [E0722](./E0722) | Two routes on one URL through a route group |
+| [E0723](./E0723) | A name in parentheses that names no route group |
+| [E0724](./E0724) | The home page outside the root layouts |
 | [W0701](./W0701) | No main package serves the folder routes |
 | [W0702](./W0702) | A hand-written folder-route option |

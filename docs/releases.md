@@ -20,7 +20,44 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.0.1 — unreleased
+## v2.1.0 — unreleased
+
+Folder routes learn three folder conventions, so a page tree can say which
+pages share a shell, which share a document, and which files are no page.
+See [Folder routes](/web/folder-routes#route-groups).
+
+- **Route groups.** A folder in parentheses, `pages/admin/(console)/`, adds
+  no segment to the URL; its `_layout.vuka.html`, guard and middleware apply
+  to the pages inside it alone, nested inside the layouts above it. A
+  sign-in page at `pages/admin/auth/login.vuka.html` is then
+  `/admin/auth/login` outside the admin shell and its guard, beside
+  `pages/admin/(console)/index.vuka.html` at `/admin`. The go command sees a
+  group as `group_console/`; typed URLs leave it out
+  (`urls.Admin.Auth.Login`); `vuka routes` names its layout and guard;
+  `vuka add page /admin/(console)/members` makes a page in it.
+- **Root layouts.** A layout with no layout above it is a root layout, the
+  document of the pages below it: with no `pages/_layout.vuka.html`, each
+  top-level folder or group may have its own, also below a parameter
+  folder (`pages/[lang]/_layout.vuka.html`). Each route's root layout is in
+  `vuka routes -json` (`root`), in web's `RouteInfo.RootLayout`, and on the
+  page as `data-vk-root`; in-app navigation between two roots is a full
+  page load, under one root a patch as before.
+- **Private folders.** A folder of `pages/` named with a leading
+  underscore, `pages/_parts/`, routes nothing: its components and helpers
+  are a package the pages import, by its Go name
+  `example.com/app/pages/private_parts`.
+- New diagnostics: [E0722](/errors/E0722) two routes on one URL told apart
+  only by a group, naming both files; [E0723](/errors/E0723) a name in
+  parentheses that is no group; [E0724](/errors/E0724) the home page
+  outside the top-level groups' root layouts. [E0716](/errors/E0716) covers
+  a `.go` file in a group or beside Vuka source in a private folder.
+- Upgrading: a folder under `pages/` named `(x)` or `_x` meant nothing
+  before and is a group or a private folder now; a private folder holding
+  Vuka source compiles as `private_x`, so its importers name that path.
+  The vuka command of v2.1.0 generates nothing web v2.0.0 lacks; the
+  full-load navigation between root layouts comes with web v2.1.0.
+
+### Fixes
 
 - A shape's methods may live in a `.vuka` file beside its `.vuka.html`
   file: reads and writes of its tracked server state (`p.rows = v`,

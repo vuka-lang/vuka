@@ -144,6 +144,13 @@ func TestAddPage(t *testing.T) {
 	has(t, filepath.Join(dir, "pages/users/stats.vuka.html"), "package users", "type UsersStatsPage struct {\n\tui.Live")
 	mustAdd(t, dir, "page", "/orgs/{org}/edit", "--live")
 	has(t, filepath.Join(dir, "pages/orgs/[org]/edit.vuka.html"), "package org", "type OrgsEditPage struct {\n\tui.Live\n\tOrg   string")
+	// A (group) is a folder of the page's, no part of its URL.
+	if out := mustAdd(t, dir, "page", "/admin/(console)/members", "--stateless"); !strings.Contains(out, "open http://localhost:8080/admin/members") {
+		t.Errorf("a page in a route group: output:\n%s", out)
+	}
+	has(t, filepath.Join(dir, "pages/admin/(console)/members.vuka.html"), "package console", "type AdminMembersPage struct")
+	mustAdd(t, dir, "page", "/(site)", "--stateless", "--name", "Home")
+	has(t, filepath.Join(dir, "pages/(site)/index.vuka.html"), "package site", "type Home struct")
 	for args, msg := range map[string]string{
 		"reports":               "starts with /",
 		"/Reports":              "isn't a path segment",

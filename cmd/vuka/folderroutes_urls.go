@@ -103,11 +103,12 @@ func (n *urlNode) nameTypes(taken map[string]bool) {
 func (t *routeTree) urlsStub() []byte {
 	root := &urlNode{}
 	for _, d := range t.dirs {
-		n := root.at(d.rel)
+		rel := urlRel(d.rel)
+		n := root.at(rel)
 		for _, p := range d.pages {
 			switch name := d.urlName(p); {
 			case load.Bracketed(name):
-				root.at(joinRel(d.rel, name)).index = true
+				root.at(joinRel(rel, name)).index = true
 			case name == "Index":
 				n.index = true
 			case !slices.Contains(n.pages, name):
@@ -115,7 +116,7 @@ func (t *routeTree) urlsStub() []byte {
 			}
 		}
 		for _, f := range d.funcs {
-			root.at(joinRel(d.rel, fileSeg(f.file))).index = true
+			root.at(joinRel(rel, fileSeg(f.file))).index = true
 		}
 	}
 	root.mark()
@@ -228,6 +229,9 @@ func (c *routeChecker) urlTree() *urlNode {
 			what := "the folder " + ch.seg
 			if prev, ok := where[name]; ok || !token.IsIdentifier(name) || !token.IsExported(name) {
 				at := diag.Span{File: filepath.Join(c.t.pages, filepath.FromSlash(ch.rel))}
+				if ch.dir != nil {
+					at.File = ch.dir.dir
+				}
 				if !ok {
 					prev = "a Go identifier"
 				}

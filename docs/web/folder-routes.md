@@ -88,6 +88,9 @@ The generated route table is ordinary Go; applications pass its exported
 | path parameters | a name in brackets: `[id].vuka.html` is `/{id}`, a `[employer]/` folder `{employer}` for everything in it; typed by the field of its name |
 | catch-all | `[path...]`: the rest of the path, slashes included — also a client app's fallback |
 | layouts | `_layout.vuka.html`, around every page below it, composed parent → child; its `Load` fetches what it shows |
+| route groups | a folder in parentheses, `(console)`: no part of the URL; its layout, guard and middleware cover the pages inside it alone |
+| root layouts | a layout with none above it is a page's document; between two of them, navigation is a full page load |
+| private folders | a folder named `_parts`: no routes, a package of components and helpers the pages import |
 | several methods per page | `Post`, `Put`, `Patch`, `Delete` methods on the page's struct answer on its path |
 | JSON endpoints | a file of `GET`, `POST`, `PUT`, `PATCH` and `DELETE` funcs: `api/employers/[employer].vuka` answers on `/api/employers/{employer}` |
 | guards | a `Guard` in `guard.go`, a check over every page, handler and endpoint below it, rendering nothing |
@@ -226,8 +229,9 @@ An explicit `New<T>` constructor can still initialize dependencies and defaults;
 for a page named `New`, that constructor is `NewNew`.
 
 A rendering shape placed under `pages/` declares a route, so shared
-components belong in another package such as `components/`. A misplaced
-shape appears in `vuka routes` and collides with an existing method/path as
+components belong in a [private folder](#private-folders), `pages/_parts/`,
+or in another package such as `components/`. A misplaced shape appears in
+`vuka routes` and collides with an existing method/path as
 [E0701](/errors/E0701). Logic-only types do not become alternative page views.
 
 Each request builds the page with its constructor and binds its exported
@@ -469,6 +473,149 @@ wrapped in the app's `web.LiveLayout`.
 The layout struct and markup belong in the same shape file. A layout type
 without its `_layout.vuka.html` renders nothing and is an error
 ([E0715](/errors/E0715)).
+
+## Route groups
+
+An admin area usually has a shell — its navigation, a header with the
+signed-in user — and a guard that sends anyone else to sign in. The sign-in
+page lives under the same URL prefix, `/admin/auth/login`, yet must not be
+inside that shell or behind that guard: a visitor who isn't signed in has
+to be able to reach it. A route group holds the pages that share the shell.
+A folder whose name is in parentheses, `(console)`, adds no segment to the
+URL, and its `_layout.vuka.html`, `guard.vuka` and middleware apply only to
+the pages inside it:
+
+```text
+pages/
+  _layout.vuka.html                Layout: the document of every page
+  admin/
+    (console)/
+      _layout.vuka.html            Shell: the admin area's navigation
+      guard.vuka                   Guard: a signed-in user, else the sign-in page
+      index.vuka.html              Index — /admin
+      users/index.vuka.html        Index — /admin/users
+      users/[id].vuka.html         User  — /admin/users/{id}
+    auth/
+      login.vuka.html              Login — /admin/auth/login: no shell, no guard
+```
+
+`/admin/users` renders inside `Shell` inside `Layout`; `/admin/auth/login`
+inside `Layout` alone. A group's layout always nests inside the layouts of
+the folders above it — `pages/_layout.vuka.html` still wraps everything —
+and never replaces them. Groups compose with ordinary folders and
+parameters: a group may sit anywhere in the tree, hold parameter folders,
+and hold other groups. Several groups side by side give one segment several
+layouts, each over its own pages, and a group can take a part of a folder's
+pages into a layout while the pages beside it keep out of it.
+
+The guard sends the visitor elsewhere with `web.Redirect`, as any guard
+does, here to a page outside the group:
+
+```go
+// pages/admin/(console)/guard.vuka
+package console
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2"
+)
+
+type Guard struct{}
+
+func (g *Guard) Load(ctx context.Context) error {
+	if _, err := web.Request(ctx).Cookie("session"); err == nil {
+		return nil
+	}
+	return web.Redirect("/admin/auth/login")
+}
+```
+
+A group's name is a Go identifier ([E0723](/errors/E0723)): the go command
+sees the folder as `group_console/`, made on disk beside it as a bracket
+folder's `param_` directory is, its Go in the build's overlay or written
+there by `vuka gen -inplace`. As in a bracket folder, logic files in a group
+are `.vuka` ([E0716](/errors/E0716)). The group is invisible to the URL and
+to [typed URLs](#typed-urls): the pages above are `urls.Admin.Path()`,
+`urls.Admin.Users.ID(7).Path()` and `urls.Admin.Auth.Login.Path()`.
+`vuka routes` names the group's layout and guard on each route below it.
+
+Two routes that resolve to the same URL and method through groups — one
+inside a group and one beside it, or one in each of two groups — are an
+error naming both files ([E0722](/errors/E0722)): a group alone never tells
+two pages apart. `vuka add page /admin/(console)/members` makes a page
+inside a group, at `/admin/members`.
+
+## Root layouts
+
+A layout with no layout above it is a root layout: the document of the
+pages below it. With `pages/_layout.vuka.html` there is one, the site's.
+Without it, each top-level folder or group may bring its own — a
+marketing site and a shop with different documents, different scripts,
+different `<head>`s:
+
+```text
+pages/
+  (site)/
+    _layout.vuka.html            Site: the marketing site's document
+    index.vuka.html              Home  — /
+    about.vuka.html              About — /about
+  (shop)/
+    _layout.vuka.html            Shop: the shop's document
+    cart.vuka.html               Cart  — /cart
+  [lang]/
+    _layout.vuka.html            Doc: the docs' document, <html lang={Lang}>
+    docs.vuka.html               Docs  — /{lang}/docs
+```
+
+A root layout may sit below a parameter folder, as `[lang]` does, and
+binds its parameters as any layout does. When the top-level groups bring
+the root layouts, the home page belongs to one of them
+([E0724](/errors/E0724)).
+
+Each route's root layout is in its registration (the first of its layouts,
+`web.RouteInfo.RootLayout`), in `vuka routes -json` as `root`, and on the
+page as the runtime script's `data-vk-root`. In-app navigation between two
+pages under the same root patches the page in place; between two roots, or
+to a page without one, it is a full page load, so the new document's head
+and scripts are its own.
+
+## Private folders
+
+A page often has parts — a card, a table row, a form section — that belong
+next to it, not in a package across the module. A folder whose name starts
+with an underscore is private: it and everything below it route nothing,
+and its `.vuka.html` and `.vuka` files are an ordinary package the pages
+import. `_layout.vuka.html` is a file, not a folder, and stays the
+layout.
+
+```text
+pages/
+  _parts/
+    card.vuka.html               Card: no route
+  admin/auth/
+    login.vuka.html              Login — /admin/auth/login, framed in a Card
+```
+
+The go command sees a private folder below `pages/` as `private_parts/` —
+`go build ./...` passes over a directory starting with `_` — so the pages
+import it by that name:
+
+```html
+<!-- pages/admin/auth/login.vuka.html -->
+package auth
+
+import "example.com/app/pages/private_parts"
+
+type Login struct{}
+<parts.Card title="Sign in">
+  <form method="post"><button>Sign in</button></form>
+</parts.Card>
+```
+
+As in a group, its logic files are `.vuka`: a `.go` file beside its Vuka
+source would be read by nothing ([E0716](/errors/E0716)). A private folder
+of Go alone is untouched.
 
 ## Several methods on one page
 
@@ -794,10 +941,13 @@ error when the routes are generated, at the file and line that causes it:
 | [E0713](/errors/E0713) | a parameter both a file and a folder |
 | [E0714](/errors/E0714) | a legacy parameter declaration instead of a bracketed segment |
 | [E0715](/errors/E0715) | a layout type without `_layout.vuka.html` |
-| [E0716](/errors/E0716) | a `.go` file in a bracket folder |
+| [E0716](/errors/E0716) | a `.go` file in a bracket folder, a route group or a private folder |
 | [E0717](/errors/E0717) | two `.go` files declaring one method func |
 | [E0718](/errors/E0718) | a vuka 1 `pages_gen.go` or `routes_gen.go`, or a hand-written `pages/route.go` |
 | [E0719](/errors/E0719) | a page template whose struct is declared nowhere |
+| [E0722](/errors/E0722) | two routes on one URL told apart only by a route group |
+| [E0723](/errors/E0723) | a name in parentheses that names no route group |
+| [E0724](/errors/E0724) | the home page outside the top-level groups' root layouts |
 
 Explicit API handlers registered on an app can coexist on distinct paths.
 Page URLs remain declared by the page tree.
@@ -833,7 +983,8 @@ GET     /files/{file...}                        file.Index                      
 
 `vuka build`, `run`, `test`, `vet` and the editor see generated routes through
 an overlay. `vuka gen -inplace` writes each tree's `route.go`,
-`urls/urls_gen.go` and the Go for bracket folders under `param_name/`, so
+`urls/urls_gen.go` and the Go for bracket folders under `param_name/`, route
+groups under `group_name/` and private folders under `private_name/`, so
 ordinary Go tooling can build the result. `-check` fails if generated files
 are stale. Commit or ignore these generated artifacts consistently; edit the
 source tree rather than the generated registrations.

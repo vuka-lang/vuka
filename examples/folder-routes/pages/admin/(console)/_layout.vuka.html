@@ -1,0 +1,17 @@
+package console
+
+import (
+	"example.com/folder-routes/pages/urls"
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Shell is the admin area's shell, in the route group (console): it wraps
+// the pages inside the group, inside the site's document, and adds nothing
+// to their URLs.
+type Shell struct {
+	Children ui.Node
+}
+<section id="console">
+  <nav id="admin"><a href={urls.Admin.Path()}>Dashboard</a></nav>
+  {Children}
+</section>
