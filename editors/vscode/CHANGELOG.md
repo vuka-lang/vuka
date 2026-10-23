@@ -9,6 +9,7 @@
 - Cover the configuration defaults, the class regexes and the header's Go scopes in tests.
 - Declare the Vuka semantic token types of `.vuka.html` markup (`vukaProp`, `vukaState`, `vukaBrowserState`, `vukaEvent`, `vukaComponent`, `vukaLocal`) and the TextMate scopes they fall back to, so themes colour props, server state, browser state, events, components and template locals apart.
 - Run **Vuka: Show Routes** from a page's code lens: the route's entry and the module's `vuka routes` table in the Vuka Routes output.
+- With a Vuka v2.3.0 language server: **Extract component…** on a selection of a shape's markup asks the new component's name (`vuka.extractComponent`, kept out of the command palette); moving a shape's methods to its `.vuka` file and the quick fixes are the server's code actions.
 - With a Vuka v2.3.0 language server: hover on holes and `on…` attributes, component attributes with required ones marked, code lenses above pages, `urls` chains and `href`s as links, and page renames under `pages/` updating `urls` chains (`workspace/willRenameFiles`).
 
 ## 0.7.0

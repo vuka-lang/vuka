@@ -259,6 +259,122 @@ A page named by its type — a struct in a `.go` or `.vuka` file — keeps its
 name when its file is renamed; only moving it to another folder changes its
 chain.
 
+### Refactoring {#refactoring}
+
+A shape grows. Its markup holds a row worth naming, its script more methods
+than the struct can show at a glance. `vuka lsp` adds code actions for both
+beside gopls's, in either form of the file; the files they write are in the
+`<script lang="go">` form, formatted as [`vuka fmt`](/tools/cli#fmt-shapes)
+formats them, and they compile as they are.
+
+#### Extracting a Component {#extract-component}
+
+Select one or more whole elements of a shape's markup and run **Extract
+component…** (`refactor.extract`). VS Code asks the new component's name;
+another editor runs the server's command `vuka.extractComponent` with the
+selection, and the server names it `Part` (`Part2`, …). The selection
+becomes a shape file of its own, and a tag of it takes its place:
+
+```html
+<ul>
+  for _, it := range items {
+    <li key={it.ID}>
+      <span>{it.Name}</span>
+      <button onClick={func() { Remove(it.ID) }}>Remove</button>
+    </li>
+  }
+</ul>
+```
+
+Extracting the `<li>` as `Row` writes `_row.vuka.html`:
+
+```html
+<script lang="go">
+package pages
+
+type Row struct {
+	Item   Item
+	Remove func(id int)
+}
+</script>
+
+<li key={Item.ID}>
+  <span>{Item.Name}</span>
+  <button onClick={func() { Remove(Item.ID) }}>Remove</button>
+</li>
+```
+
+and the loop renders `<Row Item={it} Remove={Remove} />`. What the
+selection reads from around it becomes the new struct's props, typed by
+the package's type check:
+
+- a field of the shape — bare, `count`, or through the receiver, `p.count`:
+  a prop of the field's type, as the script writes it; `Children` is
+  passed as the tag's content
+- a variable of the markup around it, a loop's item or index: a prop of its
+  type, named after the type when the variable's name is short (`it` of
+  type `Item` is `Item`)
+- a method of the shape, called (`{Total()}`) or named as a handler
+  (`onClick={Add}`): a prop of the method's func type, passed the method
+  value, `Add={Add}`. A method value keeps its receiver, so the call and the
+  event still run on the shape and change its state, and the event stays
+  the shape's: a live shape gets it and renders again. A shape that was live
+  only because the selection sent its events embeds `ui.Live`, so it stays
+  live (the compiler made it so before)
+
+A `key` stays on the element it keys, now the new component's first
+element: a struct component's tag takes none.
+
+Where the file goes:
+
+- under `pages/`, in the private folder `_parts` beside the page (created
+  when it isn't there), a package the page imports as
+  `…/pages/…/private_parts` and names by `parts.Row`
+- under `pages/`, when the selection needs the page's own package — a type
+  or function declared there, `Item` above — in the page's folder as
+  `_row.vuka.html`, which routes nothing
+- elsewhere, beside the shape, in its package
+
+The extraction is refused, with the reason, when the selection writes a
+field (`count++`, `tab = "x"`: the new component would change its own copy
+— move the write into a method, which the selection then passes), takes a
+field's address, or reads a variable only its place declares.
+
+#### Moving Methods to the Logic File {#move-methods}
+
+On a method in a shape's script, **Move Add to board.vuka**
+(`refactor.move`) moves it to the logic file beside the shape,
+`board.vuka`, creating it with its package clause; **Move the methods of
+Board to board.vuka** moves them all. The logic file gets the imports the
+methods use, and the shape drops the ones nothing in it uses any more. A
+`.vuka` file lowers tracked state as the script does, so the methods read
+and write the fields as they did.
+
+Moving all leaves in the script what the shape's kind depends on:
+
+- `Title`, which names a page
+- decorated methods: hooks (`@ui.Mount`, `@ui.Loads("…")`) and handlers
+  with attributes
+- on a shape live only because its markup sends events, the methods it
+  sends, which make it live
+
+#### Quick Fixes {#quick-fixes}
+
+Diagnostics with one obvious fix have it as a quick fix:
+
+| Diagnostic | Fix |
+|---|---|
+| [W0102](/errors/W0102), a live list's item without a key | `key={it.ID}` on the item's first element: the item's `ID`, `Id`, `Key`, `UUID`, `Slug`, `Code` or a field ending in `ID`; else the loop's index, named `i` when the loop writes `_` |
+| [W0703](/errors/W0703), a layout reading the page's title in `Load` | the field's reads in the markup become `{ui.PageTitle(ctx)}` (or `ui.PageCrumbs`); the field goes, and `Load` with it when it did nothing else |
+| [W0703](/errors/W0703), a layout marking its current link by the request's path | `if strings.HasPrefix(path, "/orders") { <a … class="tab on"> } else { <a … class="tab"> }` becomes `<ui.Link href="/orders" active="prefix" class="tab" activeClass="on">` (`active="exact"` for `path == "/orders"`), and a lone `<a href="/about">` a `ui.Link` with `active="prefix"`; a field nothing reads any more goes, with the statement setting it |
+| [E0155](/errors/E0155), tracked state in a `.go` file | the method moves to the shape's logic file, as above; a `.go` file left empty goes |
+| [E0142](/errors/E0142), a template file without a package clause | its folder's package clause |
+| [E0329](/errors/E0329), `*ui.Live` | `ui.Live`, embedded by value |
+| [W0107](/errors/W0107), the Go-header form | **Write the Go in &lt;script lang="go"&gt;** |
+
+`vukavet`'s warnings (`W…`) don't need to be on screen: the fixes are
+offered where the file has what they report.
+
 ## Installing gopls {#installing-gopls}
 
 The language server needs gopls. Install it:
