@@ -111,6 +111,36 @@ the `github.com/vuka-lang/vuka` package your module requires.
   (`tailwind = true`, off by default). New flags: `-check` for CI, `-rewrite`
   for the script form. Format-on-save and Format Selection use the same rules.
   See [formatting shape files](/tools/cli#fmt-shapes).
+- **Scoped slots.** A slot field of a func type returning `ui.Node`
+  (`Row func(T, int) ui.Node`) takes `<slot:row let={t, i}>…</slot:row>`:
+  the content is the function's body, `let` names its values with the
+  field's types, generic components included (`<components.List[Task]>`).
+  See [passing values to a slot](/ui/templates#scoped-slots).
+- **Repeated slots.** A slice-of-structs field (`Columns []Column[T]`) takes
+  one element per `<slot:column …>`, in order: attributes set the struct's
+  fields, the content its one func or `ui.Node` field. `ui.Table` and
+  `ui.DataTable` take their columns this way, their Go API unchanged. See
+  [repeating a slot](/ui/templates#repeated-slots).
+- **Slot fallback content.** In a component's own markup,
+  `<slot:actions>…</slot:actions>` renders Actions, or the content when the
+  caller left the slot out (`ui.SlotOr`); `ui.Has(node)` reports whether a
+  slot was filled, false for nil and white space. See [giving a slot
+  fallback content](/ui/templates#fallback).
+- **Required slots.** A field tagged `vuka:"required"` is filled at every
+  tag, else [E0158](/errors/E0158). See [requiring a
+  slot](/ui/templates#required).
+- **Slot errors name the slot.** A slot the component doesn't have suggests
+  the nearest (`did you mean <slot:actions>?`); a `let` on a slot that takes
+  no values, or naming more than it passes, says so.
+- **Slots in the editor.** `<slot:` inside a component's tag completes its
+  slots with their types (scoped and repeated ones with a `let`); a `let`'s
+  names are template locals for the slot's content, coloured as such, and
+  hover on one shows its type. See [writing component
+  tags](/tools/editors#component-tags).
+- **Text for a node.** Quoted text setting a `ui.Node` prop is that text:
+  `<ui.Card title="Members">`.
+- **Closing a generic tag.** `</List[Task]>` closes `<List[Task]>` as
+  `</List>` does, in the compiler and in `vuka fmt`.
 
 ### Fixes
 

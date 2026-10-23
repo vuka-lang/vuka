@@ -12,7 +12,8 @@ import (
 
 // App is the {%if .Auth%}signed-in {%end%}shell: the top bar with the logo, the navigation
 // (Path highlights its link){%if .Auth%} and the user menu{%end%}, then the page's title,
-// its actions and the page itself.
+// its actions (a page's <slot:actions>, left out when it has none) and the
+// page itself.
 type App struct {
 {%- if .Auth%}
 	Me          *auth.Identity
@@ -46,7 +47,9 @@ type App struct {
           <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{Description}</p>
         }
       </div>
-      {Actions}
+      if ui.Has(Actions) {
+        <div class="flex items-center gap-3">{Actions}</div>
+      }
     </div>
     {Children}
   </main>

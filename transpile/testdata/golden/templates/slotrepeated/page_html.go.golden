@@ -10,24 +10,25 @@ import (
 	"github.com/vuka-lang/ui/v2"
 )
 
-// Shelf fills ui.Table's Columns, one <slot:column> per column.
+// Shelf fills ui.Table's Columns, one <slot:column> per column, in a
+// ui.Card whose title is text.
 //
-//line page.vuka.html:7
+//line page.vuka.html:8
 type Shelf struct{ Books []Book }
 
-//line page.vuka.html:10
+//line page.vuka.html:11
 func (s Shelf) View() ui.Node {
-//line page.vuka.html:10
-	return ui.Table[Book]{Rows: s.Books, Flush: true, Columns: []ui.Column[Book]{{Header: ui.Text("Title"), Cell: func(b Book) ui.Node {
-//line page.vuka.html:12
+//line page.vuka.html:11
+	return ui.Card{Title: ui.Text("Books"), Header: ui.HTML(`<button>Add</button>`), Children: ui.Table[Book]{Rows: s.Books, Flush: true, Columns: []ui.Column[Book]{{Header: ui.Text("Title"), Cell: func(b Book) ui.Node {
+//line page.vuka.html:15
 		return ui.HTML(`<b>{b.Title}</b>`, b.Title)
 	}}, {Align: "right", Class: "num", Header: ui.HTML(`<abbr title="Pages">pp.</abbr>`), Cell: func(b Book) ui.Node {
-//line page.vuka.html:16
+//line page.vuka.html:19
 		return ui.HTML(`{b.Pages}`, b.Pages)
 	}}, {Header: ui.Text("Static"), Cell: func(_ Book) ui.Node {
 		return ui.HTML(`-`)
-	}}}}
+	}}}}}
 }
 
-//line page.vuka.html:19
+//line page.vuka.html:23
 func (s Shelf) Render(ctx context.Context, w io.Writer) error { return s.View().Render(ctx, w) }
