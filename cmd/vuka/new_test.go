@@ -237,6 +237,12 @@ func TestRenderFileSets(t *testing.T) {
 		t.Errorf("main.vuka's imports aren't grouped:\n%s", files["main.vuka"])
 	}
 
+	// The context processors every template reads by name are listed in
+	// main, the built-in ones included.
+	if m := string(files["main.vuka"]); !strings.Contains(m, "web.ContextProcessors(\n\t\t\tweb.RequestContext,\n\t\t\tauth.Context,\n\t\t\tweb.MessagesContext,\n\t\t\tweb.CSRFContext,\n\t\t\tui.PageContext,\n\t\t),") {
+		t.Errorf("main.vuka doesn't list the context processors:\n%s", m)
+	}
+
 	has := func(files map[string][]byte, yes []string, no []string) {
 		t.Helper()
 		for _, f := range yes {
@@ -268,6 +274,9 @@ func TestRenderFileSets(t *testing.T) {
 	if strings.Contains(string(noauth["layouts/app.vuka"])+string(noauth["layouts/app.vuka.html"]), "auth") {
 		t.Error("the shell of an app without sign-in mentions auth")
 	}
+	if m := string(noauth["main.vuka"]); !strings.Contains(m, "web.ContextProcessors(") || strings.Contains(m, "auth.Context") {
+		t.Errorf("an app without sign-in lists auth.Context, or no processors:\n%s", m)
+	}
 
 	nodb := render("live", "none", "no", "", "none")
 	has(nodb, []string{"pages/index.vuka.html"}, []string{"migrations/doc.go", "modules/users/model.vuka"})
@@ -280,6 +289,9 @@ func TestRenderFileSets(t *testing.T) {
 		[]string{"pages/index.vuka.html", "layouts/app.vuka", "components/button.vuka.html", "static/logo.svg", "styles/app.css", "pages/users/index.vuka.html"})
 	if !strings.Contains(string(api["main.vuka"]), "web.NoTailwind()") {
 		t.Error("an API has Tailwind")
+	}
+	if strings.Contains(string(api["main.vuka"]), "ContextProcessors") {
+		t.Error("an API without templates lists context processors")
 	}
 
 	templ := render("templ", "sqlite", "yes", "yes", "none")
