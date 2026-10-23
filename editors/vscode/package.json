@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Language support for Vuka 2.0: Go logic and .vuka.html shapes, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls.",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",

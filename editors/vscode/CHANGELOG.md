@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.9.0
 
 - Declare the `vukaContextVar` semantic token type, a context processor's variable read by name (`user`, `request`), and the TextMate scopes it falls back to (Vuka v2.4.0).
 
