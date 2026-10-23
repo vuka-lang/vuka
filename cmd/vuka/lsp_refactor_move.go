@@ -505,16 +505,17 @@ func goFileFixes(r actionRequest) []any {
 	var out []any
 	for _, u := range trackedInGo(r.path, r.src, r.read) {
 		d := u.decl
+		// Offered on the diagnostic, which the build reports at the file on
+		// disk, as the edit reads it: vuka lsp doesn't hold a .go file's
+		// buffer.
 		diag := r.diag("E0155")
-		if !(r.start < d.end && (r.end > d.start || r.start == r.end && r.start >= d.start)) && diag == nil {
+		if diag == nil {
 			continue
 		}
-		if diag != nil {
-			if rg, ok := toRange(diag["range"]); ok {
-				if off := offsetOf(r.src, rg.Start); off < d.start || off >= d.end {
-					continue
-				}
-			}
+		if rg, ok := toRange(diag["range"]); !ok {
+			continue
+		} else if off := offsetOf(r.src, rg.Start); off < d.start || off >= d.end {
+			continue
 		}
 		to := logicPath(u.shape.path)
 		if strings.HasSuffix(r.path, "_test.go") {
@@ -524,10 +525,8 @@ func goFileFixes(r actionRequest) []any {
 		if err != nil {
 			continue
 		}
-		a := codeAction{Title: "Move " + d.name + " to " + filepath.Base(to), Kind: "quickfix", IsPreferred: true, Edit: c.workspaceEdit(r.uri)}
-		if diag != nil {
-			a.Diagnostics = []map[string]any{diag}
-		}
+		a := codeAction{Title: "Move " + d.name + " to " + filepath.Base(to), Kind: "quickfix", IsPreferred: true, Edit: c.workspaceEdit(r.uri),
+			Diagnostics: []map[string]any{diag}}
 		out = append(out, a)
 	}
 	return out
