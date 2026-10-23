@@ -51,8 +51,10 @@ server methods or browser commands. See [Templates](/ui/templates#holes).
 `<ui.Link href="/pets">Pets</ui.Link>` participates in live navigation.
 Ordinary `<a>` elements remain full-document links. `active="prefix"` (or
 `"exact"`) with `activeClass` marks the link to the current page in the
-browser, the way to mark a layout's menu; `prefetch` tunes fetching its
-page ahead. See [Navigation](/web/navigation).
+browser, the way to mark a layout's menu, and a `<details
+data-vk-active-within>` around such links opens on the current page
+([the current group](/web/navigation#the-current-group)); `prefetch` tunes
+fetching its page ahead. See [Navigation](/web/navigation).
 
 ## Keying Repeated Components {#key}
 

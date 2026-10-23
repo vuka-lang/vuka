@@ -79,3 +79,9 @@ func (l *LiveSchema) Field(ptr any, attrs ...FieldAttr)                      {}
 func (l *LiveSchema) Mount(fn func(ctx context.Context) error)               {}
 func (l *LiveSchema) OnChange(fn func(ctx context.Context, c Changed) error) {}
 func (l *LiveSchema) Loads(group string, fn func(ctx context.Context) error) {}
+
+func PageTitle(ctx context.Context) string { return "" }
+
+type Crumb struct{ Label, Href string }
+
+func PageCrumbs(ctx context.Context) []Crumb { return nil }

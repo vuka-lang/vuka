@@ -15,13 +15,22 @@ var requestReads = map[[2]string]bool{
 	{"net/http", "Request"}: true, {"net/url", "URL"}: true, {"net/url", "Values"}: true,
 }
 
+// pageReads are what a layout reads of the page below it: its title and
+// breadcrumbs, the new page's in its markup, the first page's in a Load
+// that runs once.
+var pageReads = map[[2]string]bool{
+	{uiPath, "PageTitle"}: true, {uiPath, "PageCrumbs"}: true,
+}
+
 // checkLayouts reports a folder's layout — the struct of a
 // _layout.vuka.html — reading the request (W0703): web.Request, an
 // *http.Request, a URL or a query, in its methods or the functions and
-// methods of the package they call. vuka registers such a layout with
-// web.ReloadLayout, and it loads and renders again on every navigation,
-// where another persists; a menu marking the current page reads the
-// address in the browser instead (ui.Link's Active).
+// methods of the package they call; or the page's title or breadcrumbs
+// (ui.PageTitle, ui.PageCrumbs) in its Load. vuka registers such a layout
+// with web.ReloadLayout, and it loads and renders again on every
+// navigation, where another persists; a menu marking the current page
+// reads the address in the browser instead (ui.Link's Active), and a
+// header reads the page's title and breadcrumbs in the layout's markup.
 func checkLayouts(pass *analysis.Pass) {
 	for _, f := range pass.Files {
 		if name := filepath.Base(pass.Fset.File(f.Pos()).Name()); name != "private_layout_html.go" {
@@ -41,9 +50,12 @@ func checkLayouts(pass *analysis.Pass) {
 				if obj == nil || !hasChildren(obj) {
 					continue
 				}
-				if what := readsRequest(pass, obj); what != "" {
+				if what := readsRequest(pass, obj, requestReads, false); what != "" {
 					report(pass, ts.Name, "W0703", "mark the current link in the browser: <ui.Link href=\"/orders\" active=\"prefix\">; read only the layout's path parameters, its fields",
 						"%s.%s, a folder's layout, reads %s: it loads and renders again on every navigation, where a layout reading only its path parameters stays as it is", obj.Pkg().Name(), obj.Name(), what)
+				} else if what := readsRequest(pass, obj, pageReads, true); what != "" {
+					report(pass, ts.Name, "W0703", "read the page's title and breadcrumbs in the layout's markup, <h1>{ui.PageTitle(ctx)}</h1>: it renders again for every page while the layout stays; a page gives its breadcrumbs with Crumbs() []ui.Crumb",
+						"%s.%s, a folder's layout, reads %s in Load: it loads again on every navigation, so as not to show the first page's, where a layout reading it in its markup stays as it is", obj.Pkg().Name(), obj.Name(), what)
 				}
 			}
 		}
@@ -72,9 +84,10 @@ func isNode(t types.Type) bool {
 	return named(t, uiPath, "Node")
 }
 
-// readsRequest is what of the request obj's methods read, following the
-// functions and methods of its package they call; "" when nothing.
-func readsRequest(pass *analysis.Pass, obj *types.TypeName) string {
+// readsRequest is what of set obj's methods read — its Load alone when
+// load — following the functions and methods of its package they call; ""
+// when nothing.
+func readsRequest(pass *analysis.Pass, obj *types.TypeName, set map[[2]string]bool, load bool) string {
 	decls := map[types.Object]*ast.FuncDecl{}
 	var roots []*ast.FuncDecl
 	for _, f := range pass.Files {
@@ -88,7 +101,7 @@ func readsRequest(pass *analysis.Pass, obj *types.TypeName) string {
 				decls[o] = fd
 			}
 			if fn, ok := o.(*types.Func); ok {
-				if recv := fn.Type().(*types.Signature).Recv(); recv != nil && named(recv.Type(), obj.Pkg().Path(), obj.Name()) {
+				if recv := fn.Type().(*types.Signature).Recv(); recv != nil && named(recv.Type(), obj.Pkg().Path(), obj.Name()) && (!load || fn.Name() == "Load") {
 					roots = append(roots, fd)
 				}
 			}
@@ -111,7 +124,7 @@ func readsRequest(pass *analysis.Pass, obj *types.TypeName) string {
 			if o == nil || o.Pkg() == nil {
 				return true
 			}
-			if requestReads[[2]string{o.Pkg().Path(), o.Name()}] {
+			if set[[2]string{o.Pkg().Path(), o.Name()}] {
 				switch o.(type) {
 				case *types.TypeName, *types.Func:
 					found = o.Pkg().Name() + "." + o.Name()

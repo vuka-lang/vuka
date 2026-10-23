@@ -72,9 +72,11 @@ func TestHandWrittenSchema(t *testing.T) {
 func TestPages(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Routes, "pages") }
 
 // TestLayoutsReadingTheRequest: a folder's layout reading the request,
-// through a function of its package, is W0703; one that doesn't, nothing.
+// through a function of its package, is W0703, and so is one reading the
+// page's title in its Load; one that doesn't, or reads the title in its
+// markup, nothing.
 func TestLayoutsReadingTheRequest(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Routes, "layouts/crumbs", "layouts/shell")
+	analysistest.Run(t, analysistest.TestData(), Routes, "layouts/crumbs", "layouts/shell", "layouts/titled", "layouts/header")
 }
 
 func TestHandWrittenHTML(t *testing.T) {

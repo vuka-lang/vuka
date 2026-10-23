@@ -12,12 +12,19 @@ var requestReads = map[[2]string]bool{
 	{"net/http", "Request"}: true, {"net/url", "URL"}: true, {"net/url", "Values"}: true,
 }
 
+// pageReads are what a layout reads of the page below it: its title and
+// breadcrumbs. Its markup reads them afresh for each page, its Load only
+// for the page it loads for.
+var pageReads = map[[2]string]bool{
+	{UIPath, "PageTitle"}: true, {UIPath, "PageCrumbs"}: true,
+}
+
 // readsRequest is what of the request a folder's layout reads — web.Request,
 // an *http.Request, a URL or a query, in its methods or the functions and
-// methods of its package they call — "" when it reads none. Such a layout
-// loads again on every navigation (web.ReloadLayout); another persists
-// while the pages below it change, its Load seeing only its path
-// parameters.
+// methods of its package they call; ui.PageTitle or ui.PageCrumbs in its
+// Load or what Load calls — "" when it reads none. Such a layout loads
+// again on every navigation (web.ReloadLayout); another persists while the
+// pages below it change, its Load seeing only its path parameters.
 func (c *routeChecker) readsRequest(obj *types.TypeName, d *routeDir) string {
 	syn, ok := c.r.syntax[d.importPath]
 	if !ok {
@@ -49,42 +56,57 @@ func (c *routeChecker) readsRequest(obj *types.TypeName, d *routeDir) string {
 			}
 		}
 	}
-	seen := map[*ast.FuncDecl]bool{}
-	var found string
-	var visit func(fd *ast.FuncDecl)
-	visit = func(fd *ast.FuncDecl) {
-		if seen[fd] || found != "" {
-			return
-		}
-		seen[fd] = true
-		ast.Inspect(fd, func(n ast.Node) bool {
-			id, ok := n.(*ast.Ident)
-			if !ok || found != "" {
-				return found == ""
+	reads := func(roots []*ast.FuncDecl, set map[[2]string]bool) string {
+		seen := map[*ast.FuncDecl]bool{}
+		var found string
+		var visit func(fd *ast.FuncDecl)
+		visit = func(fd *ast.FuncDecl) {
+			if seen[fd] || found != "" {
+				return
 			}
-			o := syn.uses[id]
-			if o == nil || o.Pkg() == nil {
+			seen[fd] = true
+			ast.Inspect(fd, func(n ast.Node) bool {
+				id, ok := n.(*ast.Ident)
+				if !ok || found != "" {
+					return found == ""
+				}
+				o := syn.uses[id]
+				if o == nil || o.Pkg() == nil {
+					return true
+				}
+				if set[[2]string{o.Pkg().Path(), o.Name()}] {
+					switch o.(type) {
+					case *types.TypeName, *types.Func:
+						found = o.Pkg().Name() + "." + o.Name()
+					}
+					return false
+				}
+				if o.Pkg() == obj.Pkg() {
+					if callee, ok := decls[o]; ok {
+						visit(callee)
+					}
+				}
 				return true
-			}
-			if requestReads[[2]string{o.Pkg().Path(), o.Name()}] {
-				switch o.(type) {
-				case *types.TypeName, *types.Func:
-					found = o.Pkg().Name() + "." + o.Name()
-				}
-				return false
-			}
-			if o.Pkg() == obj.Pkg() {
-				if callee, ok := decls[o]; ok {
-					visit(callee)
-				}
-			}
-			return true
-		})
+			})
+		}
+		for _, fd := range roots {
+			visit(fd)
+		}
+		return found
 	}
+	if found := reads(roots, requestReads); found != "" {
+		return found
+	}
+	var load []*ast.FuncDecl
 	for _, fd := range roots {
-		visit(fd)
+		if fd.Name.Name == "Load" {
+			load = append(load, fd)
+		}
 	}
-	return found
+	if found := reads(load, pageReads); found != "" {
+		return found + " in Load"
+	}
+	return ""
 }
 
 // recvNamed reports whether a receiver's type is name or *name.

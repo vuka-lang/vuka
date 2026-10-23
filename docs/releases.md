@@ -20,6 +20,43 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.2.0 — unreleased
+
+An admin shell — a menu of links in collapsible groups, a header with the
+page's title and breadcrumbs, the page below — stays across navigations
+and follows the page. See [a header that follows the
+page](/web/folder-routes#page-headers) and [the current
+group](/web/navigation#the-current-group).
+
+- **Breadcrumbs from the page.** A page with `Crumbs() []ui.Crumb` gives
+  its trail, each `ui.Crumb` a `Label` and an `Href` (`""` for the page
+  itself), read in a layout with `ui.PageCrumbs(ctx)` as `ui.PageTitle(ctx)`
+  reads its title; web reads it when it reads `Title`, and
+  `ui.WithPageCrumbs` sets it. A layout that stays renders its markup again
+  for every page, so a heading and crumbs read there are the new page's
+  while its `Load` doesn't run again.
+- **The current link's group.** An element marked `data-vk-active-within`
+  is `"true"` while it holds the current link (`ui.Link`'s `active`) and
+  `""` when not; a `<details>` so marked opens when the current link comes
+  inside it, as the page loads and on navigation, and is the visitor's to
+  close.
+- A layout reading the page's title or breadcrumbs in its `Load`, or in
+  what `Load` calls, reloads on every navigation (`web.ReloadLayout`), as
+  one reading the request does; vukavet's [W0703](/errors/W0703) says so
+  and points at reading them in the markup.
+
+> [!NOTE]
+> Upgrading: a layout storing `ui.PageTitle(ctx)` in its `Load` showed the
+> first page's title after 2.1.0's navigations; it now loads on every
+> navigation, and vukavet warns. Move the read to the markup and it stays.
+
+### Fixes
+
+- A `<details>` the visitor opened or closed keeps that state when a
+  render leaves its `open` as it was; in 2.1.0 the render of a layout that
+  stays, on every navigation, closed the menu groups the visitor had
+  opened.
+
 ## v2.1.0 — 2026-10-23
 
 Folder routes learn three folder conventions, so a page tree can say which
