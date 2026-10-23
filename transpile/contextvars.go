@@ -80,14 +80,18 @@ func LowerCamel(name string) string {
 // ContextVars are the variables of c's processors, by name, loaded with
 // imp, and the problems of the list: a processor that isn't one (E0425)
 // and two providing one name (E0421). A processor whose package doesn't
-// load is left out, its own errors explaining it.
-func ContextVars(c Context, imp types.Importer) (map[string]*Var, ErrorList) {
+// load is left out, its own errors explaining it, and so is one of the
+// package self, being transpiled: it reads its own with web.Var.
+func ContextVars(c Context, imp types.Importer, self string) (map[string]*Var, ErrorList) {
 	var errs ErrorList
 	vars := map[string]*Var{}
 	for _, p := range c.Processors {
 		if p.Path == c.Main {
 			errs.add("E0425", p.Pos, "%s is declared in package main: a context processor is declared in a package of its own, which the packages main imports can see", p.Func).
 				help("move it to a package such as users, and list users.%s", p.Func)
+			continue
+		}
+		if p.Path == self {
 			continue
 		}
 		pkg, err := imp.Import(p.Path)
@@ -165,7 +169,7 @@ func (e *engine) loadContexts(cs []Context) {
 	}
 	cv := &ctxVars{names: map[string]bool{}}
 	for _, c := range cs {
-		vars, errs := ContextVars(c, e.imp)
+		vars, errs := ContextVars(c, e.imp, e.importPath)
 		*e.errs = append(*e.errs, errs...)
 		cv.mains = append(cv.mains, c)
 		cv.vars = append(cv.vars, vars)

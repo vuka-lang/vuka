@@ -39,6 +39,10 @@ type Package struct {
 	// folder route's parameter folder, pages/pets/[id], is pages/pets/param_id
 	// (GoDir). The generated files go there; the sources stay in Dir.
 	GoDir string
+	// After are packages transpiled before it, though it doesn't import
+	// them: those of the context processors whose variables it reads by
+	// name. An edge that would be a cycle is left out.
+	After []string
 }
 
 // BuildDir is the directory the go command sees p in: GoDir, else Dir.
@@ -552,6 +556,17 @@ func Order(pkgs []*Package) ([]*Package, error) {
 				}
 			}
 		}
+		// The packages of the context processors it reads come first, unless
+		// one imports it.
+		for _, d := range p.After {
+			for _, q := range via(d) {
+				if q != p && state[q] == 0 && !reaches(q, p, via) {
+					if err := visit(q, append(stack, p.ImportPath)); err != nil {
+						return err
+					}
+				}
+			}
+		}
 		// A .templ file's package the source may name comes first too, unless
 		// that is a cycle: the literal may not be a vuka.File at all.
 		for _, d := range p.Embeds {
@@ -571,6 +586,30 @@ func Order(pkgs []*Package) ([]*Package, error) {
 		}
 	}
 	return out, nil
+}
+
+// reaches reports whether q imports p, directly or not.
+func reaches(q, p *Package, via func(string) []*Package) bool {
+	seen := map[*Package]bool{}
+	var walk func(x *Package) bool
+	walk = func(x *Package) bool {
+		if x == p {
+			return true
+		}
+		if seen[x] {
+			return false
+		}
+		seen[x] = true
+		for _, imp := range x.Imports {
+			for _, y := range via(imp) {
+				if walk(y) {
+					return true
+				}
+			}
+		}
+		return false
+	}
+	return walk(q)
 }
 
 // throughGo is what importing a path brings of pkgs: the package itself, or
@@ -653,6 +692,10 @@ type Options struct {
 	// abandons the run, which returns ErrStopped. A session keeps what the
 	// packages transpiled before it did.
 	Stop func() bool
+	// Contexts are the context processors each package reads by name, by
+	// import path (transpile.Options.Contexts); nil finds them in the
+	// module's package mains (Contexts).
+	Contexts map[string][]transpile.Context
 }
 
 // AfterPackage, when set, is asked after each Vuka package transpiles, with
@@ -686,6 +729,19 @@ type pkgImporter interface {
 // session last transpiled them are taken from it, and imports of the
 // module's own packages are type-checked from source in memory.
 func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]Generated, string, error) {
+	if opts.Contexts == nil && len(pkgs) > 0 {
+		if root, modPath, err := ModuleRoot(pkgs[0].Dir); err == nil {
+			opts.Contexts = Contexts(root, modPath, pkgs, nil)
+		}
+	}
+	for _, p := range pkgs {
+		p.After = nil
+		for _, path := range processorPaths(opts.Contexts[p.ImportPath]) {
+			if path != p.ImportPath {
+				p.After = append(p.After, path)
+			}
+		}
+	}
 	pkgs, err := Order(pkgs)
 	if err != nil {
 		return nil, "", err
@@ -841,6 +897,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			Dir:           p.Dir,
 			ImportPath:    p.ImportPath,
 			Scopes:        opts.Scopes[p.Dir],
+			Contexts:      opts.Contexts[p.ImportPath],
 		}
 		res, err := transpile.Package(p.Files, topts)
 		partial := false
