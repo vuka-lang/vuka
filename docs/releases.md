@@ -78,8 +78,26 @@ See [Folder routes](/web/folder-routes#route-groups).
 - New diagnostics: [E0722](/errors/E0722) two routes on one URL told apart
   only by a group, naming both files; [E0723](/errors/E0723) a name in
   parentheses that is no group; [E0724](/errors/E0724) the home page
-  outside the top-level groups' root layouts. [E0716](/errors/E0716) covers
-  a `.go` file in a group or beside Vuka source in a private folder.
+  outside the top-level groups' root layouts.
+- **Go in route folders.** A `.go` file in a group or a `[id]` folder —
+  logic or `_test.go` — is the folder's package: vuka copies it, with a
+  line directive naming it, where the go command sees the folder
+  (`group_console/`, `param_id/`), for `vuka build`, `run`, `test`, `vet`
+  and `gen`, and `vuka lsp` type-checks it there, its errors and
+  definitions at the real file. So does one beside Vuka source in a private
+  folder. In 2.0.0 each was [E0716](/errors/E0716), which now names only a
+  `.go` file of another package than its folder's, or one named `[id].go`.
+  The Go-name directories are the overlay's alone: vuka no longer makes
+  empty `param_id/`, `group_admin/` or `private_parts/` directories in the
+  source tree (`vuka test` and `vet` make them for their run only), and
+  removes empty ones an older vuka left; `vuka gen -inplace` still writes
+  its files there.
+- **Route files on disk under `vuka run`.** `vuka run` and `vuka run
+  -watch` write `pages/route.go` and `pages/urls/urls_gen.go` to disk
+  when their text changes (the overlay holds the same), so an editor
+  resolves the `pages` and `pages/urls` imports of hand-written code; in
+  2.0.0 they were in the build's overlay alone. They are generated:
+  gitignore them. Nothing else `vuka run` generates is written.
 - Upgrading: a folder under `pages/` named `(x)` or `_x` meant nothing
   before and is a group or a private folder now; a private folder holding
   Vuka source compiles as `private_x`, so its importers name that path.

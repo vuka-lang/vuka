@@ -133,7 +133,9 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		p.edits++
 		p.changed[path] = p.edits
 		p.mu.Unlock()
-		go p.checkSyntax(path)
+		if isVuka(path) {
+			go p.checkSyntax(path)
+		}
 		if strings.HasSuffix(path, ".vuka.html") && strings.Contains(dp.TextDocument.Text, "<script") {
 			go func() {
 				if ts := p.typescript(); ts != nil {
@@ -171,7 +173,9 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		p.edits++
 		p.changed[path] = p.edits
 		p.mu.Unlock()
-		go p.checkSyntax(path)
+		if isVuka(path) {
+			go p.checkSyntax(path)
+		}
 		if ts := p.ts.Load(); ts != nil && strings.HasSuffix(path, ".vuka.html") {
 			go ts.sync(path, buf)
 		}

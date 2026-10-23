@@ -232,6 +232,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err
 	}
+	if cmd == "run" {
+		if _, err := routes.writeFiles(); err != nil {
+			return err
+		}
+	}
 	var linkMsg string
 	if overlay, gens, linkMsg, err = autoLink(root, modPath, tmp, overlay, pkgs, gens); err != nil {
 		return err
@@ -300,6 +305,13 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			goArgs = append(goArgs, "-vettool="+tool)
 		}
 	}
+	if cmd == "test" || cmd == "vet" {
+		done, err := overlayDirs(overlay)
+		defer done()
+		if err != nil {
+			return err
+		}
+	}
 	c := exec.Command("go", append(goArgs, args...)...)
 	c.Env = append(os.Environ(), env...)
 	// The overlay names real paths; run go from the real directory, or in a
@@ -361,6 +373,40 @@ func compilerVersion() string {
 		}
 	}
 	return v
+}
+
+// overlayDirs makes the directories of the overlay's files that aren't on
+// disk — a bracketed, grouped or private folder's Go name, param_id — for
+// the go command's test and vet, which run their tools in a package's
+// directory; done removes those it made, once they hold nothing again.
+func overlayDirs(overlay string) (done func(), err error) {
+	var made []string
+	done = func() {
+		for _, d := range made {
+			if emptyTree(d) {
+				os.RemoveAll(d)
+			}
+		}
+	}
+	ov, err := readOverlay(overlay)
+	if err != nil {
+		return done, err
+	}
+	for target, file := range ov {
+		dir := filepath.Dir(target)
+		if file == "" || fileExists(dir) {
+			continue
+		}
+		top := dir
+		for p := filepath.Dir(top); p != top && !fileExists(p); p = filepath.Dir(p) {
+			top = p
+		}
+		if err := os.MkdirAll(dir, 0o755); err != nil {
+			return done, err
+		}
+		made = append(made, top)
+	}
+	return done, nil
 }
 
 // respeller passes the go command's errors on, with the code they quote in a

@@ -161,6 +161,22 @@ func GoRel(rel string) string {
 	return strings.Join(parts, "/")
 }
 
+// RouteMapped reports whether the directory dir, below root, is in a
+// bracketed folder or a route group, whose .go files the go command can't
+// build where they are: vuka copies them into the folder's GoDir.
+func RouteMapped(root, dir string) bool {
+	rel, err := filepath.Rel(root, dir)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		return false
+	}
+	for _, p := range strings.Split(filepath.ToSlash(rel), "/") {
+		if Bracketed(p) || Grouped(p) {
+			return true
+		}
+	}
+	return false
+}
+
 // GoDir is the directory the go command sees the source directory dir,
 // below root, as: dir itself unless a folder below root is bracketed, a
 // route group, or private below pages/.
@@ -307,6 +323,12 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 			generated[TemplGoName(name)] = true // a `templ generate` output; the fresh one replaces it
 		}
 	}
+	if !hasSource && RouteMapped(root, dir) {
+		// A route folder's Go, which the go command sees in its GoDir.
+		for _, e := range entries {
+			hasSource = hasSource || !e.IsDir() && strings.HasSuffix(e.Name(), ".go") && !generated[e.Name()]
+		}
+	}
 	if !hasSource {
 		return nil, nil
 	}
@@ -435,7 +457,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 	}
 	var pkgs []*Package
 	for _, n := range order {
-		if p := byName[n]; p.hasVuka() || len(p.Templ) > 0 {
+		if p := byName[n]; p.hasVuka() || len(p.Templ) > 0 || p.GoDir != "" && len(p.Files) > 0 {
 			pkgs = append(pkgs, p)
 		}
 	}
@@ -740,6 +762,29 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 				sess.gen[target] = src
 			}
 			return nil
+		}
+		if p.GoDir != "" {
+			// The folder's own .go files: copied where the go command sees
+			// the package, a line directive naming the source, and gone
+			// from the folder it can't build.
+			for _, f := range p.Files {
+				if f.IsVuka() || !strings.HasSuffix(f.Name, ".go") || slices.ContainsFunc(p.Templ, func(t *Templ) bool { return t.GoName == f.Name }) {
+					continue
+				}
+				source := filepath.Join(p.Dir, f.Name)
+				g := Generated{Target: filepath.Join(p.GoDir, f.Name), Source: source, From: f.Src}
+				line := ""
+				if !opts.Bare {
+					line = "//line " + filepath.ToSlash(source) + ":1:1\n"
+				}
+				g.Src = append([]byte(line), f.Src...)
+				g.Map = transpile.CopyMap(len(line), len(f.Src))
+				if err := add(f.Name, g.Src); err != nil {
+					return nil, "", err
+				}
+				replace[source] = ""
+				out = append(out, g)
+			}
 		}
 		if sc := opts.Scopes[p.Dir]; len(sc) > 0 {
 			p.scopeTempl(sc)

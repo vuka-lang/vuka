@@ -4,8 +4,10 @@ import (
 	"bytes"
 	"encoding/json"
 	"io"
+	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -71,15 +73,11 @@ func TestRouteGroups(t *testing.T) {
 	if strings.Contains(out.String(), "Card") || regexp.MustCompile(`(?m)^\w+ +\S*[()_]`).MatchString(out.String()) {
 		t.Errorf("vuka routes routes the private folder or puts the group in a path:\n%s", out.Bytes())
 	}
-	for _, d := range []string{"pages/admin/group_console", "pages/admin/group_console/users", "pages/private_parts"} {
-		if fi, err := os.Stat(filepath.Join(app, d)); err != nil || !fi.IsDir() {
-			t.Errorf("no %s: %v", d, err)
-		}
-	}
 	errOut.Reset()
 	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
 		t.Errorf("vuka vet from the overlay: %v\n%s", err, errOut.Bytes())
 	}
+	noGoDirs(t, app)
 	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
 		t.Fatalf("vuka gen -inplace: %v", err)
 	}
@@ -122,10 +120,8 @@ func TestRouteGroupErrors(t *testing.T) {
 			"E0723", []string{"pages/(admin-area)"}},
 		{"a file named as a group", map[string]string{"pages/admin/(help).vuka.html": page("admin", "Help")},
 			"E0723", []string{"pages/admin/(help).vuka.html:1"}},
-		{"Go in a group", map[string]string{"pages/admin/(console)/settings.go": "package console\n"},
+		{"Go in a group of another package", map[string]string{"pages/admin/(console)/settings.go": "package settings\n"},
 			"E0716", []string{"pages/admin/(console)/settings.go:1"}},
-		{"Go beside Vuka in a private folder", map[string]string{"pages/_parts/util.go": "package parts\n"},
-			"E0716", []string{"pages/_parts/util.go:1"}},
 		{"the home page outside the root layouts", map[string]string{"pages/_layout.vuka.html": "", "pages/(site)/_layout.vuka.html": shell("site"),
 			"pages/(site)/about.vuka.html": page("site", "About"), "pages/index.vuka.html": page("pages", "Home")},
 			"E0724", []string{"pages/index.vuka.html:3"}},
@@ -198,4 +194,88 @@ func TestRootLayouts(t *testing.T) {
 	if want := map[string]string{"/": "site.Site", "/cart": "shop.Shop", "/blog": "blog.Blog", "/{lang}/docs": "lang.Doc"}; !maps.Equal(got, want) {
 		t.Errorf("roots: %v, want %v", got, want)
 	}
+}
+
+// TestGoInRouteFolders: a route group's and a parameter folder's own .go
+// files — logic and tests — are the folder's package, copied where the go
+// command sees it: vuka build, test and vet take them, an error in one is
+// reported at it, and after vuka gen -inplace a plain go build does too.
+func TestGoInRouteFolders(t *testing.T) {
+	app := groupsModule(t, map[string]string{
+		"pages/admin/(console)/stats/index.go":       "package stats\n\nimport (\n\t\"context\"\n\t\"strings\"\n)\n\n// Index is GET /admin/stats.\ntype Index struct{}\n\nfunc (*Index) Get(ctx context.Context) (string, error) { return Count(3), nil }\n\n// Count names n orders.\nfunc Count(n int) string { return strings.Repeat(\"o\", n) }\n",
+		"pages/admin/(console)/stats/index_test.go":  "package stats\n\nimport \"testing\"\n\nfunc TestCount(t *testing.T) {\n\tif Count(2) != \"oo\" {\n\t\tt.Fatal(Count(2))\n\t}\n}\n",
+		"pages/admin/(console)/users/label.go":       "package users\n\nimport \"strconv\"\n\n// Label is a user's label.\nfunc Label(id int) string { return \"user \" + strconv.Itoa(id) }\n",
+		"pages/admin/(console)/users/label_test.go":  "package users\n\nimport \"testing\"\n\nfunc TestLabel(t *testing.T) {\n\tif Label(7) != \"user 7\" {\n\t\tt.Fatal(Label(7))\n\t}\n}\n",
+		"pages/admin/(console)/users/[id].vuka.html": "package users\n\n// User is one user.\ntype User struct {\n\tID int\n}\n<p>{Label(ID)}</p>\n",
+		"pages/orders/[order]/index.vuka.html":       "package order\n\n// Index is one order.\ntype Index struct {\n\tOrder int\n}\n<p>{Total(Order)}</p>\n",
+		"pages/orders/[order]/total.go":              "package order\n\nimport \"strconv\"\n\n// Total is an order's total.\nfunc Total(id int) string { return strconv.Itoa(id * 10) }\n",
+		"pages/orders/[order]/total_test.go":         "package order_test\n\nimport (\n\t\"testing\"\n\n\torder \"example.com/app/pages/orders/param_order\"\n)\n\nfunc TestTotal(t *testing.T) {\n\tif order.Total(2) != \"20\" {\n\t\tt.Fatal(order.Total(2))\n\t}\n}\n",
+		"pages/_parts/util.go":                       "package parts\n\n// Upper is s in capitals.\nfunc Upper(s string) string { return s }\n",
+	})
+	var errOut bytes.Buffer
+	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+		t.Fatalf("vuka vet: %v\n%s", err, errOut.Bytes())
+	}
+	var out bytes.Buffer
+	errOut.Reset()
+	if err := runGo("test", []string{"./pages/..."}, &out, &errOut); err != nil {
+		t.Fatalf("vuka test: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
+	}
+	for _, want := range []string{"ok  \texample.com/app/pages/admin/group_console/stats", "ok  \texample.com/app/pages/admin/group_console/users", "ok  \texample.com/app/pages/orders/param_order"} {
+		if !strings.Contains(out.String(), want) {
+			t.Errorf("vuka test ran no %s:\n%s", want, out.Bytes())
+		}
+	}
+	out.Reset()
+	if err := routesCmd(nil, &out, &errOut); err != nil || !regexp.MustCompile(`GET +/admin/stats +stats\.Index\.Get \(endpoint\) +pages/admin/\(console\)/stats/index\.go:11`).Match(out.Bytes()) {
+		t.Errorf("vuka routes: %v\n%s", err, out.Bytes())
+	}
+
+	errOut.Reset()
+	if err := runGo("build", []string{"-o", os.DevNull, "."}, io.Discard, &errOut); err != nil {
+		t.Fatalf("vuka build: %v\n%s", err, errOut.Bytes())
+	}
+	noGoDirs(t, app)
+
+	// An error in one is reported at the file, by its own path.
+	total := filepath.Join(app, "pages/orders/[order]/total.go")
+	writeFile(t, total, "package order\n\n// Total is an order's total.\nfunc Total(id int) string { return id * 10 }\n")
+	errOut.Reset()
+	if err := runGo("build", []string{"-o", os.DevNull, "."}, io.Discard, &errOut); err == nil || !strings.Contains(errOut.String(), "pages/orders/[order]/total.go:4:") {
+		t.Errorf("vuka build with an error in total.go: %v\n%s", err, errOut.Bytes())
+	}
+	writeFile(t, total, "package order\n\nimport \"strconv\"\n\n// Total is an order's total.\nfunc Total(id int) string { return strconv.Itoa(id * 10) }\n")
+
+	// gen -inplace writes the copies, and a plain go build builds them.
+	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -inplace: %v", err)
+	}
+	for _, f := range []string{"pages/admin/group_console/stats/index.go", "pages/admin/group_console/users/label_test.go", "pages/orders/param_order/total.go", "pages/private_parts/util.go"} {
+		b, err := os.ReadFile(filepath.Join(app, f))
+		if err != nil || !bytes.HasPrefix(b, []byte("//line ")) {
+			t.Errorf("vuka gen -inplace wrote no %s: %v\n%s", f, err, b)
+		}
+	}
+	cmd := exec.Command("go", "build", "-o", os.DevNull, ".")
+	cmd.Dir = app
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("go build after vuka gen -inplace: %v\n%s", err, b)
+	}
+	cmd = exec.Command("go", "test", "./pages/orders/param_order", "./pages/admin/group_console/...")
+	cmd.Dir = app
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Errorf("go test after vuka gen -inplace: %v\n%s", err, b)
+	}
+}
+
+// noGoDirs: the directories the go command sees the route folders in are
+// in the overlay alone: none is under pages/.
+func noGoDirs(t *testing.T, app string) {
+	t.Helper()
+	filepath.WalkDir(filepath.Join(app, "pages"), func(p string, d fs.DirEntry, err error) error {
+		if err == nil && d.IsDir() && regexp.MustCompile(`^(param|group|private)_`).MatchString(d.Name()) {
+			t.Errorf("%s is on disk", p)
+		}
+		return nil
+	})
 }
