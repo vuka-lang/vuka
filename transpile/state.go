@@ -565,7 +565,7 @@ func (e *engine) pendingLowering(f *fileState) bool {
 // once it has.
 func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) bool {
 	at := a.attr
-	if at == nil || at.kind != 'e' || at.bind != nil || at.unfit {
+	if at == nil || at.kind != 'e' || at.bind != nil || at.unfit || at.stmts {
 		return true
 	}
 	x := e.exprAt(f, at.expr)

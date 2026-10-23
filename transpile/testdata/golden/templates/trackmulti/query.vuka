@@ -1,0 +1,7 @@
+package main
+
+// Query is a search's state: one tracked field holding a struct.
+type Query struct {
+	Term string
+	Page int
+}

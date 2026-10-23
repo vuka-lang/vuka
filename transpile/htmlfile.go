@@ -497,10 +497,10 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		imps = append(imps, strings.TrimSuffix(ui, ".")+" "+strconv.Quote(target))
 	}
-	text := goParts(src)
+	roots := selectorRoots(goParts(src))
 	named := map[string]bool{}
 	for _, imp := range packageImports(others) {
-		if !own[imp.name] && imp.name != strings.TrimSuffix(ui, ".") && regexp.MustCompile(`(^|[^\w.])`+regexp.QuoteMeta(imp.name)+`\.`).MatchString(text) {
+		if !own[imp.name] && imp.name != strings.TrimSuffix(ui, ".") && roots[imp.name] {
 			imps = append(imps, imp.name+" "+strconv.Quote(imp.path))
 			named[imp.name] = true
 		}
@@ -669,6 +669,31 @@ func goParts(src []byte) string {
 		i = end
 	}
 	return b.String()
+}
+
+// selectorRoots are the names Go code selects from, the time of
+// time.Now: an identifier before a dot that doesn't follow one. Strings and
+// comments name none.
+func selectorRoots(code string) map[string]bool {
+	roots := map[string]bool{}
+	var s scanner.Scanner
+	fset := token.NewFileSet()
+	s.Init(fset.AddFile("", -1, len(code)), []byte(code), func(token.Position, string) {}, 0)
+	prev, name := token.ILLEGAL, ""
+	for {
+		_, tok, lit := s.Scan()
+		if tok == token.EOF {
+			return roots
+		}
+		if tok == token.PERIOD && name != "" {
+			roots[name] = true
+		}
+		name = ""
+		if tok == token.IDENT && prev != token.PERIOD {
+			name = lit
+		}
+		prev = tok
+	}
 }
 
 var goLine = regexp.MustCompile(`^\s*(func\s|if\s|for\s|switch\s|case\s|default:|} else|[\w, ]+:=)`)

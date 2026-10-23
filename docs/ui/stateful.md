@@ -401,6 +401,37 @@ tracked employer value. Writes such as `p.employer.Addr.City = city`,
 tracked field. A pointer-receiver mutator used as a statement, such as
 `p.employer.Rename(name)`, is tracked as a write too.
 
+Several of them may be assigned at once, as Go assigns them: every value is
+evaluated first, then each place written, and a value with no type of its
+own (`""`, `nil`, `-1`) takes its place's type:
+
+<!-- go:context
+type Query struct {
+	Term string
+	Page int
+}
+
+type Search struct {
+	q     Query
+	note  string
+	tags  []string
+	limit int64
+}
+-->
+
+```go
+// search.vuka — beside search.vuka.html, which declares Search
+package components
+
+func (s *Search) Find(term string) { s.q.Term, s.q.Page = term, 1 }
+
+func (s *Search) Clear() { s.note, s.tags, s.limit = "", nil, -1 }
+```
+
+The builtins that change their first argument in place, `delete(p.items,
+k)`, `clear(p.items)` and `copy(p.slots, src)`, are writes of that field
+when called as a statement, as `p.items[k] = v` is: no copy to assign back.
+
 > [!WARNING]
 > Do not retain an address into tracked state, mutate through an escaped pointer,
 > or call a pointer-receiver mutator inside an expression: the compiler cannot

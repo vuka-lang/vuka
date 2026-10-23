@@ -366,8 +366,8 @@ func (p *jsxParser) element(off int) *jsxElem {
 				p.fail(a.off, "%s sets a CSS property of an element: style:--accent={c}", a.name)
 			}
 			if a.kind == 'e' && isEvent(a.name) && isStmts(p.src[a.expr.start:a.expr.end]) {
-				if comp || !p.f.target.has("On") || !p.f.target.has("VukaState") {
-					p.fail(a.off, "%s={…} holds statements: an element's on… attribute writes states with them (open = !open); a component's %s takes a value", a.name, a.name)
+				if !p.f.target.has("VukaState") || !comp && !p.f.target.has("On") {
+					p.fail(a.off, "%s={…} holds statements: an on… attribute writes states with them (open = !open) when the markup's target has states", a.name)
 				}
 				a.stmts = true
 			}

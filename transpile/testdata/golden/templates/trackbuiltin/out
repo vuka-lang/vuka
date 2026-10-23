@@ -1,0 +1,5 @@
+map[ink:1 pen:2] 3 [a b] 2 <p>1 tags, 2 items, 2 slots</p>
+map[ink:1] 4 [a b] 2 <p>1 tags, 1 items, 2 slots</p>
+map[] 5 [a b] 2 <p>1 tags, 0 items, 2 slots</p>
+map[] 5 [z] 4 <p>1 tags, 0 items, 1 slots</p>
+{map[]} 2

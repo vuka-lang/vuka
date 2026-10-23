@@ -1,0 +1,27 @@
+package main
+
+// Cart changes its tracked map and slice in place, with Go's builtins.
+type Cart struct {
+	ui.Live
+	items map[string]int
+	slots []string
+	meta  Meta
+}
+
+func (c *Cart) Add(name string, n int) {
+	if c.items == nil {
+		c.items = map[string]int{}
+	}
+	c.items[name] += n
+}
+
+func (c *Cart) Remove(name string) { delete(c.items, name) }
+
+func (c *Cart) Empty() { clear(c.items) }
+
+func (c *Cart) Fill(names []string) {
+	c.slots = make([]string, len(names))
+	copy(c.slots, names)
+}
+func (c *Cart) Untag(t string) { delete(c.meta.Tags, t) }
+<p>{len(meta.Tags)} tags, {len(items)} items, {len(slots)} slots</p>

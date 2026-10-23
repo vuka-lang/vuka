@@ -1,0 +1,8 @@
+package main
+
+// Chip takes a Go func for its click, which runs on the server.
+type Chip struct {
+	Label   string
+	OnClick func()
+}
+<button class="chip">{Label}</button>

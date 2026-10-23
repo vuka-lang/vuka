@@ -26,6 +26,8 @@ import (
 //	p.e.Label()                    →  p.e.Get().Label()
 //	p.e.Name = x                   →  p.e.Update(func(e Employer) Employer { e.Name = x; return e })
 //	p.e.Rename(x)  (*Employer)     →  p.e.Update(func(e Employer) Employer { e.Rename(x); return e })
+//	delete(p.m, k)                 →  p.m.Update(func(m map[K]V) map[K]V { delete(m, k); return m })
+//	p.n, p.e.Name = 0, x           →  func(n int, Name string) { p.n.Set(n); p.e.Update(…) }(0, x)
 //
 // A dependency — a pointer, an interface, a func or a chan, which the
 // container injects —, a sync value and a field tagged `vuka:"-"` stay as
@@ -180,6 +182,7 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 		sel *ast.SelectorExpr
 		top ast.Expr // the expression rooted at sel the statement writes or reads
 		st  ast.Stmt // the statement writing it, nil for a read
+		in  bool     // a builtin changing it in place: delete(p.m, k)
 	}
 	var reads, writes []use
 	var lits []litInit
@@ -230,7 +233,7 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 			// a write into it; anywhere else it can't be called.
 			if call, ok := f.parents[m].(*ast.CallExpr); ok && call.Fun == m {
 				if st, ok := f.parents[call].(*ast.ExprStmt); ok {
-					writes = append(writes, use{sel, top, st})
+					writes = append(writes, use{sel: sel, top: top, st: st})
 					return false
 				}
 			}
@@ -241,13 +244,18 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 		case *ast.AssignStmt:
 			for _, l := range p.Lhs {
 				if l == top {
-					writes = append(writes, use{sel, top, p})
+					writes = append(writes, use{sel: sel, top: top, st: p})
 					return false
 				}
 			}
 		case *ast.IncDecStmt:
-			writes = append(writes, use{sel, top, p})
+			writes = append(writes, use{sel: sel, top: top, st: p})
 			return false
+		case *ast.CallExpr:
+			if st, ok := f.parents[p].(*ast.ExprStmt); ok && len(p.Args) > 0 && p.Args[0] == top && e.changesFirst(p) {
+				writes = append(writes, use{sel, top, st, true})
+				return false
+			}
 		case *ast.UnaryExpr:
 			if p.Op == token.AND {
 				e.errs.add("E0150", f.at(f.orig(p.Pos())), "&%s takes the address of server state: a change through it wouldn't be tracked; tag the field `vuka:\"-\"`, or make it a pointer", text(top))
@@ -278,13 +286,28 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 		if f.pendingTry(w.st) {
 			continue
 		}
-		if st, ok := w.st.(*ast.AssignStmt); ok && st.Tok == token.ASSIGN && len(st.Lhs) > 1 && w.top == ast.Expr(sel) {
-			// p.a, p.b = p.b, p.a: the values into temporaries first, as
-			// Go evaluates them, then each assigned, a tracked one by Set.
+		if st, ok := w.st.(*ast.AssignStmt); ok && st.Tok == token.ASSIGN && len(st.Lhs) > 1 {
+			// p.a, p.q.Page = p.b, 1: the values passed to a function
+			// assigning each, a tracked one by Set or Update.
 			if !multi[st] {
 				multi[st] = true
 				e.trackMulti(f, st, fields)
 			}
+			continue
+		}
+		if w.in {
+			// delete(p.m, k): Update, the statement given the value.
+			v := e.freeName(sel.Sel.Name, w.st)
+			elem := types.Unalias(e.info.TypeOf(sel)).(*types.Named).TypeArgs().At(0)
+			t := e.typeTextAuto(f, elem)
+			f.insert(f.orig(w.st.Pos()), f.selText(sel)+".Update(func("+v+" "+t+") "+t+" { ", 0)
+			if f.bareEdit(sel) != nil {
+				f.rewriteSel(sel, func(string) string { return v })
+			} else {
+				f.add(f.orig(sel.Pos()), f.orig(sel.End()), v)
+			}
+			f.insert(f.orig(w.st.End()), "; return "+v+" })", 0)
+			e.progress = true
 			continue
 		}
 		if w.top != ast.Expr(sel) {
@@ -321,6 +344,17 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 		}
 		e.progress = true
 	}
+}
+
+// changesFirst reports whether call is of a builtin changing its first
+// argument in place: delete, clear or copy.
+func (e *engine) changesFirst(call *ast.CallExpr) bool {
+	id, ok := ast.Unparen(call.Fun).(*ast.Ident)
+	if !ok {
+		return false
+	}
+	b, ok := e.info.Uses[id].(*types.Builtin)
+	return ok && (b.Name() == "delete" || b.Name() == "clear" || b.Name() == "copy")
 }
 
 // shapeName is the name of lit's struct type.
@@ -610,37 +644,181 @@ func (f *fileState) pendingTry(st ast.Stmt) bool {
 }
 
 // trackMulti lowers an assignment of several values writing tracked
-// fields: x, y = a, b is __x, __y := a, b; then each assigned.
+// fields, or fields and elements of them: x, p.a, p.q.Page = 1, "", 2 is
+//
+//	func(__x int, __a string, __Page int) { x = __x; p.a.Set(__a); p.q.Update(func(q Q) Q { q.Page = __Page; return q }) }(1, "", 2)
+//
+// The values are evaluated before any is assigned, as Go does, and each
+// converted to its place's type, an untyped constant's or nil's included;
+// every left-hand side stays where it is written.
 func (e *engine) trackMulti(f *fileState, st *ast.AssignStmt, fields map[*types.Var]*fileState) {
-	var vars, sets []string
-	for _, l := range st.Lhs {
-		lt := string(f.src[f.orig(l.Pos()):f.orig(l.End())])
-		if lt == "_" {
-			vars = append(vars, "_")
-			continue
+	var tuple *types.Tuple
+	if len(st.Rhs) == 1 {
+		tuple, _ = e.info.TypeOf(st.Rhs[0]).(*types.Tuple)
+	}
+	var params, names, after []string
+	for i, l := range st.Lhs {
+		var typ types.Type
+		base, suffix := "v", ""
+		sel, top := e.trackedRoot(l, fields)
+		blank := false
+		if id, ok := ast.Unparen(l).(*ast.Ident); ok && id.Name == "_" {
+			blank = true
 		}
-		base, tracked := "v", false
-		switch l := ast.Unparen(l).(type) {
-		case *ast.Ident:
-			base = l.Name
-		case *ast.SelectorExpr:
-			base = l.Sel.Name
-			if s := e.info.Selections[l]; s != nil && s.Kind() == types.FieldVal && fields[s.Obj().(*types.Var)] != nil {
-				tracked, lt = true, f.selText(l)
+		switch {
+		case blank:
+			switch {
+			case tuple != nil && i < tuple.Len():
+				typ = tuple.At(i).Type()
+			case len(st.Rhs) == len(st.Lhs):
+				typ = types.Default(e.info.TypeOf(st.Rhs[i]))
+			}
+		case sel != nil:
+			n, _ := types.Unalias(e.info.TypeOf(sel)).(*types.Named)
+			if n == nil || n.TypeArgs().Len() != 1 {
+				break
+			}
+			elem := n.TypeArgs().At(0)
+			base = sel.Sel.Name
+			if top == ast.Expr(sel) {
+				typ = elem
+				break
+			}
+			typ = e.pathType(elem, sel, top)
+			if s, ok := ast.Unparen(top).(*ast.SelectorExpr); ok {
+				base = s.Sel.Name
+			}
+		default:
+			typ = e.info.TypeOf(l)
+			switch l := ast.Unparen(l).(type) {
+			case *ast.Ident:
+				base = l.Name
+			case *ast.SelectorExpr:
+				base = l.Sel.Name
 			}
 		}
-		v := e.freeName("__"+base, st)
-		for slices.Contains(vars, v) {
-			v += "_"
+		if typ == nil || isInvalid(typ) {
+			e.errs.add("E0150", f.at(f.orig(st.Pos())), "server state in a multiple assignment whose types aren't known: assign each alone")
+			return
 		}
-		vars = append(vars, v)
-		if tracked {
-			sets = append(sets, lt+".Set("+v+")")
+		v := "_"
+		if !blank {
+			v = e.freeName("__"+base, st)
+			for slices.Contains(names, v) {
+				v += "_"
+			}
+		}
+		names = append(names, v)
+		params = append(params, v+" "+e.typeTextAuto(f, typ))
+		switch {
+		case blank:
+			f.add(f.orig(l.Pos()), f.orig(l.End()), "")
+		case sel != nil && top == ast.Expr(sel):
+			suffix = ".Set(" + v + ")"
+		case sel != nil:
+			// A field or an element of it: Update with the value as a variable.
+			n := types.Unalias(e.info.TypeOf(sel)).(*types.Named)
+			t := e.typeTextAuto(f, n.TypeArgs().At(0))
+			x := e.freeName(sel.Sel.Name, st)
+			for slices.Contains(names, x) {
+				x += "_"
+			}
+			f.rewriteSel(sel, func(sel string) string { return sel + ".Update(func(" + x + " " + t + ") " + t + " { " + x })
+			suffix = " = " + v + "; return " + x + " })"
+		default:
+			suffix = " = " + v
+		}
+		after = append(after, suffix)
+	}
+	f.insert(f.orig(st.Pos()), "func("+strings.Join(params, ", ")+") { ", 0)
+	for i, l := range st.Lhs {
+		if i+1 < len(st.Lhs) {
+			f.add(f.orig(l.End()), f.orig(st.Lhs[i+1].Pos()), after[i]+"; ")
 		} else {
-			sets = append(sets, lt+" = "+v)
+			f.add(f.orig(l.End()), f.orig(st.Rhs[0].Pos()), after[i]+" }(")
 		}
 	}
-	f.add(f.orig(st.Pos()), f.orig(st.Rhs[0].Pos()), strings.Join(vars, ", ")+" := ")
-	f.insert(f.orig(st.End()), "; "+strings.Join(sets, "; "), 0)
+	f.insert(f.orig(st.End()), ")", 0)
 	e.progress = true
+}
+
+// trackedRoot is the tracked field l writes, itself or a field or an element
+// of it (p.q, p.q.Page, p.rows[i]), and l; nil when l writes none.
+func (e *engine) trackedRoot(l ast.Expr, fields map[*types.Var]*fileState) (sel *ast.SelectorExpr, top ast.Expr) {
+	for x := l; ; {
+		switch y := x.(type) {
+		case *ast.SelectorExpr:
+			if s := e.info.Selections[y]; s != nil && s.Kind() == types.FieldVal && fields[s.Obj().(*types.Var)] != nil {
+				return y, l
+			}
+			x = y.X
+		case *ast.IndexExpr:
+			x = y.X
+		case *ast.ParenExpr:
+			x = y.X
+		case *ast.StarExpr:
+			x = y.X
+		default:
+			return nil, nil
+		}
+	}
+}
+
+// pathType is the type of top, a field or an element reached from sel,
+// whose value is of type t; nil when it can't be told.
+func (e *engine) pathType(t types.Type, sel *ast.SelectorExpr, top ast.Expr) types.Type {
+	var chain []ast.Expr
+	for x := top; x != ast.Expr(sel); {
+		chain = append([]ast.Expr{x}, chain...)
+		switch y := x.(type) {
+		case *ast.SelectorExpr:
+			x = y.X
+		case *ast.IndexExpr:
+			x = y.X
+		case *ast.ParenExpr:
+			x = y.X
+		case *ast.StarExpr:
+			x = y.X
+		default:
+			return nil
+		}
+	}
+	for _, x := range chain {
+		switch y := x.(type) {
+		case *ast.SelectorExpr:
+			v, ok := lookupField(t, e.pkg, y.Sel.Name)
+			if !ok {
+				return nil
+			}
+			t = v.Type()
+		case *ast.IndexExpr:
+			u := t.Underlying()
+			if p, ok := u.(*types.Pointer); ok {
+				u = p.Elem().Underlying()
+			}
+			switch u := u.(type) {
+			case *types.Slice:
+				t = u.Elem()
+			case *types.Array:
+				t = u.Elem()
+			case *types.Map:
+				t = u.Elem()
+			default:
+				return nil
+			}
+		case *ast.StarExpr:
+			p, ok := t.Underlying().(*types.Pointer)
+			if !ok {
+				return nil
+			}
+			t = p.Elem()
+		}
+	}
+	return t
+}
+
+func lookupField(t types.Type, pkg *types.Package, name string) (*types.Var, bool) {
+	obj, _, _ := types.LookupFieldOrMethod(t, true, pkg, name)
+	v, ok := obj.(*types.Var)
+	return v, ok
 }

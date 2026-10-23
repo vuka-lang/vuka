@@ -1,1 +1,0 @@
-page.vuka.html:6:9: onClick={…} holds statements: an element's on… attribute writes states with them (open = !open); a component's onClick takes a value
