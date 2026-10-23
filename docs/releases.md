@@ -112,6 +112,20 @@ the `github.com/vuka-lang/vuka` package your module requires.
   for the script form. Format-on-save and Format Selection use the same rules.
   See [formatting shape files](/tools/cli#fmt-shapes).
 
+### Fixes
+
+- A shape being written — its struct and no markup yet, or a first tag half
+  typed — crashed the compiler (`index out of range [-1]`), and with it
+  `vuka lsp` on every keystroke until the editor stopped restarting it. It
+  is [E0148](/errors/E0148) now, in both forms.
+- `vuka lsp` no longer exits on a compiler panic: the file gets an
+  [E0001](/errors/E0001) diagnostic with the panic's message, the stack goes
+  to the server's log, and the server keeps serving.
+- `vuka lsp` drops gopls's `go.mod` diagnostics about `malformed import
+  path ".../(admin)"` (and `[id]`) for Go files in route-group and parameter
+  folders; those packages are still type-checked through the packages vuka
+  maps them to.
+
 ## v2.2.0 — 2026-10-23
 
 An admin shell — a menu of links in collapsible groups, a header with the

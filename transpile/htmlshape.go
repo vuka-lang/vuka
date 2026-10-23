@@ -145,11 +145,12 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	skel, hooks, markup := goHeader(src, off[head.Top])
 	if markup < 0 {
 		return nil, &Error{Code: "E0148", Pos: token.Position{Line: head.Top + 1, Column: 1},
-			Msg:  "the template file has Go and no markup: its markup starts at the first line starting with <",
-			Help: "write the struct's markup below its Go, or make the file a .go file"}
+			Msg:  "the template file has Go and no markup",
+			Help: "write the struct's markup below its Go (below </script>), or make the file a .go file"}
 	}
+	// The line the markup starts on, its < indented or not.
 	for i := range lines {
-		if off[i] == markup {
+		if off[i] <= markup && markup < off[i+1] {
 			s.Markup = i
 		}
 	}
