@@ -42,6 +42,7 @@ type engine struct {
 	targetErrs      map[string]error          // imports that didn't load, looking for one
 	selfJSX         bool                      // this package declares VukaJSX: its JSX lowers to itself
 	selfNames       map[string]bool           // its package-level names, for a self-target before type-checking
+	ctx             *ctxVars                  // the context processors' variables (Options.Contexts)
 
 	declared      map[string]bool               // package-level names
 	errFuncs      map[string]bool               // per function: whether ? names its error err
@@ -116,6 +117,7 @@ func (e *engine) run() {
 				e.progress = true
 			}
 			e.resolveBare(f)
+			e.lowerContextVars(f)
 			e.resolveStatics(f)
 			e.resolveFieldRefs(f)
 			e.selfCalls(f)
@@ -152,6 +154,9 @@ func (e *engine) run() {
 		e.checkTargets()
 		e.checkRefs()
 		e.checkGoTracked()
+	}
+	if len(*e.errs) == 0 && e.info != nil {
+		e.undefinedVars()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.report()
@@ -321,7 +326,7 @@ func (e *engine) needsTypes() bool {
 // remove the construct that needed it while what follows still needs types.
 func (e *engine) needsTypesNow() bool {
 	for _, f := range e.vuka {
-		if f.rt != "" || len(f.attrs) > 0 || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || len(e.genericEmbeds) > 0 || e.mayUseStatics(f) || e.mayUseFieldRefs(f) {
+		if f.rt != "" || len(f.attrs) > 0 || f.mayEmbed() || len(f.tries) > 0 || len(f.matches) > 0 || len(f.jsx) > 0 || len(f.statics) > 0 || len(f.staticFuncs) > 0 || len(e.genericEmbeds) > 0 || f.readsVars || e.mayUseStatics(f) || e.mayUseFieldRefs(f) {
 			return true
 		}
 	}

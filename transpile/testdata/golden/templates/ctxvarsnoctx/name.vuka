@@ -1,0 +1,4 @@
+package main
+
+// name reads a variable with no ctx to read it with.
+func name() string { return user.Name }

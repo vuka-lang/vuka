@@ -1,0 +1,3 @@
+example.com/app/main.go:1:1: web.Settings isn't a context processor: it doesn't return (S, error); a context processor is func(ctx context.Context, deps…) (S, error), S a struct whose exported fields are its variables
+example.com/app/main.go:2:1: Context is declared in package main: a context processor is declared in a package of its own, which the packages main imports can see; move it to a package such as users, and list users.Context
+example.com/app/main.go:3:1: web.Missing isn't a context processor: no such function; a context processor is func(ctx context.Context, deps…) (S, error), S a struct whose exported fields are its variables

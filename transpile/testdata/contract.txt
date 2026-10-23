@@ -122,6 +122,9 @@ public github.com/vuka-lang/ui/v2.WithChildren
 public github.com/vuka-lang/web/v2.Rest
 public github.com/vuka-lang/web/v2.Routes
 public github.com/vuka-lang/web/v2.Use
+public github.com/vuka-lang/web/v2.Var
+public github.com/vuka-lang/web/v2/auth.Identity
+public github.com/vuka-lang/web/v2/auth.Perms
 
 generated github.com/vuka-lang/ui/v2.HTML
 generated github.com/vuka-lang/ui/v2.IslandPage

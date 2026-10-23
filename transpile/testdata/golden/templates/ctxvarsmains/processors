@@ -1,0 +1,2 @@
+example.com/app/cmd/web github.com/vuka-lang/web/v2/auth.Context github.com/vuka-lang/web/v2.RequestContext
+example.com/app/cmd/admin github.com/vuka-lang/web/v2.RequestContext

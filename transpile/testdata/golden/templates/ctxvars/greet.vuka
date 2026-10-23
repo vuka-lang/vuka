@@ -1,0 +1,11 @@
+package main
+
+import "context"
+
+// greeting reads a variable in Go: the method's ctx is the one read with.
+func greeting(ctx context.Context) string {
+	if user == nil {
+		return "hello"
+	}
+	return "hello, " + user.Name
+}

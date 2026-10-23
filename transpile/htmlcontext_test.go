@@ -20,7 +20,7 @@ func TestTemplateReadsContext(t *testing.T) {
 		{"variable", "var ctx string\n<p>{ctx}</p>", "", false},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			if got := templateReadsContext([]byte(tc.body), tc.header); got != tc.want {
+			if got := templateReadsContext([]byte(tc.body), tc.header, nil); got != tc.want {
 				t.Fatalf("got %v, want %v", got, tc.want)
 			}
 		})

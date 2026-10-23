@@ -1,0 +1,15 @@
+package main
+
+// Header reads the context processors' variables by name.
+type Header struct{ Title string }
+<header>
+  <h1>{Title}</h1>
+  if user != nil {
+    <span>{user.Name}</span>
+  }
+  <small>{request.Path}</small>
+  if perms.Has("orders.approve") {
+    <button>Approve</button>
+  }
+  <input type="hidden" name="csrf" value={csrfToken} />
+</header>
