@@ -148,3 +148,21 @@ func TestScriptFormGoldens(t *testing.T) {
 		})
 	}
 }
+
+// TestScriptFormPositions: errors in a script-form file are at its own
+// lines and columns: in the Go of the script, and in the markup's holes.
+func TestScriptFormPositions(t *testing.T) {
+	for _, c := range []struct {
+		src       string
+		line, col int
+	}{
+		{"<script lang=\"go\">\npackage main\n\ntype Card struct {\n\tTitle string\n}\n\nfunc (c Card) Upper() string { return c.Title ++ }\n</script>\n\n<p>{Title}</p>\n", 8, 47},
+		{"<script lang=\"go\">\npackage main\n\ntype Card struct {\n\tTitle string\n}\n</script>\n\n<div>\n  <p>{Title +}</p>\n</div>\n", 10, 14},
+	} {
+		errs := transpile.Syntax(transpile.File{Name: "card.vuka.html", Src: []byte(c.src)}, transpile.Options{Importer: load.NewImporter("testdata/golden", "")},
+			transpile.File{Name: "main.go", Src: []byte("package main\n")})
+		if len(errs) == 0 || errs[0].Pos.Line != c.line || errs[0].Pos.Column != c.col {
+			t.Errorf("%q: %v, want %d:%d", c.src, errs, c.line, c.col)
+		}
+	}
+}
