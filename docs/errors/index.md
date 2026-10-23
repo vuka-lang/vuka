@@ -66,8 +66,8 @@ same page in the terminal.
 | [E0153](./E0153) | A second template in a template file |
 | [E0154](./E0154) | An island page that breaks its rules |
 | [E0155](./E0155) | Tracked state used in a .go file |
-| [E0156](./E0156) | A <script lang="go"> with no </script> |
-| [E0157](./E0157) | A <script lang="go"> that is not the file's first element |
+| [E0156](./E0156) | A Go script with no end tag |
+| [E0157](./E0157) | A Go script that is not the file's first element |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
