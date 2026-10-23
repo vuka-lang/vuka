@@ -2,6 +2,7 @@
 
 ## 0.8.0
 
+- Highlight the `<script lang="go">` shape form (Vuka v2.3.0): the script's content as Go, its end the `</script>` outside a Go string or comment, the markup after it; the shape snippets write that form, and closing-tag completion starts after the script. With a Vuka v2.3.0 language server the script folds as one, the whole file formats (`vuka fmt`), and a shape in the Go-header form offers **Write the Go in &lt;script lang="go"&gt;**.
 - Make Tailwind CSS IntelliSense work in shapes: `.vuka.html` and `.vuka` read as HTML, and classes found in `class="…"`, the strings of `class={…}` (concatenations too) and Go helpers named `…Class`/`…Classes`, their calls and bodies.
 - Turn Emmet on in `.vuka.html` files (`emmet.includeLanguages`); `.vuka` files stay without it.
 - With a Vuka v2.3.0 language server: the shape's struct holds its markup in the outline, so sticky scroll keeps it pinned over the markup; the Go header folds as one; Format Selection formats only the selected lines; ARIA attributes, roles and their values, per-element event handlers, `ref` and `ui.Ref("…")` names complete; a loop's first element completes with its `key`.
