@@ -1,6 +1,8 @@
 package main
 
 import (
+	"github.com/vuka-lang/vuka/v2/transpile"
+
 	"bytes"
 	"sort"
 	"strings"
@@ -239,7 +241,7 @@ func markupLine(src []byte) uint32 {
 // shapeSplit is where a shape's Go header and its markup are: the one place
 // that finds the boundary, for the outline, folding and completion.
 type shapeSplit struct {
-	goStart, goEnd int // the Go: from the package clause to the end of its last line
+	goStart, goEnd int // the Go: from the package clause to the end of its last line; the <script lang="go"> element in the script form
 	markup         int // the first top-level element's <
 }
 
@@ -250,6 +252,10 @@ func splitShape(src []byte) (shapeSplit, bool) {
 	_, _, first := shapeBounds(src)
 	if first < 0 {
 		return shapeSplit{}, false
+	}
+	if parts, _ := transpile.SplitTemplate(src); parts.IsScript() {
+		// The script element, its tags too.
+		return shapeSplit{goStart: parts.Script.Open, goEnd: parts.Script.CloseEnd, markup: first}, true
 	}
 	head := bytes.TrimRight(src[:first], " \t\r\n")
 	pkg := bytes.Index(head, []byte("package "))

@@ -156,10 +156,11 @@ func formatTemplateFile(path string, src []byte, rewrite bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
+	pkg := format.DirPackage(filepath.Dir(path))
 	if rewrite {
-		src, _ = transpile.ToScriptForm(src)
+		src, _ = transpile.ToScriptForm(format.TemplatePackage(src, pkg))
 	}
-	return format.TemplateWith(src, format.DirPackage(filepath.Dir(path)), o)
+	return format.TemplateWith(src, pkg, o)
 }
 
 // unifiedDiff runs diff -u over the original and the formatted file.

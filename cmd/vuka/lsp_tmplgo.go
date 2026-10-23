@@ -301,16 +301,11 @@ func mainTemplate(src []byte, off int) bool {
 // shapeMarkup is the offset in a template file of its markup below its Go
 // header, or -1 when it has no header.
 func shapeMarkup(src []byte) int {
-	sh, _ := transpile.ParseShape(src)
-	if sh == nil || sh.Markup < 0 {
+	sh, _, markup := shapeBounds(src)
+	if sh == nil {
 		return -1
 	}
-	lines := strings.SplitAfter(string(src), "\n")
-	off := 0
-	for _, l := range lines[:sh.Markup] {
-		off += len(l)
-	}
-	return off
+	return markup
 }
 
 // receiverAt is the receiver of the method of the generated Go at off: its

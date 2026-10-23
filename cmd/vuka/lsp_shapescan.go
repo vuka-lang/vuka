@@ -152,18 +152,27 @@ func scanShape(src []byte) *shapeScan {
 }
 
 // shapeBounds is where a .vuka.html file's Go header and its markup start,
-// as offsets, and the header's struct; sh is nil for a file with no header
+// as offsets, and the header's struct; sh is nil for a file with no struct
 // (its markup starts at the first line starting with <), markup -1 for none.
 // Every reader of the boundary in vuka lsp goes through it (splitShape in
-// lsp_shapesymbols.go too).
+// lsp_shapesymbols.go too), and it reads the boundary as the compiler does,
+// in the <script lang="go"> form and the Go-header one
+// (transpile.SplitTemplate).
 func shapeBounds(src []byte) (sh *transpile.Shape, header, markup int) {
+	parts, err := transpile.SplitTemplate(src)
+	if err != nil {
+		return nil, -1, -1 // a <script lang="go"> being typed: Go to the end
+	}
 	lines := bytes.SplitAfter(src, []byte("\n"))
 	lineOff := make([]int, len(lines)+1)
 	for i, l := range lines {
 		lineOff[i+1] = lineOff[i] + len(l)
 	}
-	if sh, _ := transpile.ParseShape(src); sh != nil && sh.Markup >= 0 {
-		return sh, lineOff[sh.Header], lineOff[sh.Markup]
+	if sh, _ := transpile.ParseShape(src); sh != nil && parts.Markup >= 0 {
+		return sh, lineOff[sh.Header], parts.Markup
+	}
+	if parts.IsScript() {
+		return nil, -1, parts.Markup
 	}
 	for i, l := range lines {
 		if len(l) > 0 && l[0] == '<' {

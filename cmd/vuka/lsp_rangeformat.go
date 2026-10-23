@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/format"
@@ -36,7 +35,7 @@ func (p *proxy) rangeFormatting(m *rpcMsg, path string) {
 // formatVuka is vuka fmt of a .vuka or .vuka.html file.
 func formatVuka(path string, src []byte) ([]byte, error) {
 	if strings.HasSuffix(path, ".vuka.html") {
-		return format.Template(src, format.DirPackage(filepath.Dir(path)))
+		return formatTemplateFile(path, src, false)
 	}
 	return format.Source(src)
 }

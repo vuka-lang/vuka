@@ -22,7 +22,6 @@ import (
 	"unicode"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/format"
-	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // The orm a new app requires beside the toolchain set (toolchain.go); vuka
