@@ -1,9 +1,23 @@
-# UI
+# Shape Files
 
-Write everything that renders in a `.vuka.html` shape file. Its Go header
-contains a package clause, imports, exactly one struct, hooks and methods.
-Markup begins on the first line whose first non-space character is `<`.
-Logic without markup belongs in `.go` or `.vuka` files.
+[[toc]]
+
+## Introduction
+
+You write everything that renders in a `.vuka.html` shape file. A shape file
+pairs a small Go header with the markup it renders, so a component's props,
+state and markup sit together in one place.
+
+Logic without markup belongs in `.go` or `.vuka` files. This page shows the
+layout of a shape file; [Templates](/ui/templates) covers the markup itself.
+
+## Writing a Shape File
+
+A shape's Go header contains a package clause, imports, exactly one struct,
+hooks and methods. Markup begins on the first line whose first non-space
+character is `<`.
+
+Save this as `components/greeting.vuka.html`:
 
 ```html
 package components
@@ -20,8 +34,12 @@ type Greeting struct {
 </section>
 ```
 
-Save this as `components/greeting.vuka.html`. Use it as a tag in another
-shape file: `<components.Greeting name="Ada"><p>Welcome.</p></components.Greeting>`.
+Use it as a tag in another shape file:
+`<components.Greeting name="Ada"><p>Welcome.</p></components.Greeting>`.
+
+## What the Struct's Fields Mean
+
+The kind of each field decides what it does:
 
 | Field | Meaning |
 |---|---|
@@ -30,11 +48,17 @@ shape file: `<components.Greeting name="Ada"><p>Welcome.</p></components.Greetin
 | `ui.State[T]` | Browser state, read normally and written by assignment in event attributes |
 | `Children ui.Node` | Content between a component's tags |
 
-A component is live when it embeds `ui.Live`, declares a decorated hook,
-or wires a server method to an event. Browser-only commands keep a component static.
+## Static and Live Components
 
-`ui.Node` interoperates with templ. Rendering, live sessions, client state,
-terminal rendering and testing live in the ui module and its subpackages.
+A component is live when it embeds `ui.Live`, declares a decorated hook, or
+wires a server method to an event. Browser-only commands keep a component
+static. See [Stateful Components](/ui/stateful) for live components.
+
+## Where to Go Next
+
+`ui.Node` interoperates with templ (see [templ Interop](/ui/templ)).
+Rendering, live sessions, client state, terminal rendering and testing live in
+the ui module and its subpackages.
 
 Start with [Templates](/ui/templates), [Components](/ui/components),
-[Stateful components](/ui/stateful) and [Client state](/ui/state).
+[Stateful Components](/ui/stateful) and [Client State](/ui/state).

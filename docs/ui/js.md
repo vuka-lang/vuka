@@ -1,7 +1,18 @@
-# JS commands
+# JS Commands
 
-Browser commands perform DOM effects without a server round trip. Write
-commands in the event attributes of a `.vuka.html` shape.
+[[toc]]
+
+## Introduction
+
+Browser commands perform DOM effects without a server round trip. You reach
+for them to show a menu, toggle a class or move focus, where a trip to the
+server would add nothing.
+
+You write commands in the event attributes of a `.vuka.html` shape.
+
+## Writing a Command
+
+This menu button toggles the `#menu` element in the browser:
 
 ```html
 package components
@@ -15,12 +26,15 @@ type Menu struct{}
 </section>
 ```
 
-## Chains
+## Chaining Commands {#chains}
 
 Commands can be chained in order. DOM visibility, classes, focus, attributes,
-scrolling and dispatch operate on the selected elements. Targets may be CSS
-selectors or component-local refs. Prefer refs when several instances render
-the same component.
+scrolling and dispatch operate on the selected elements.
+
+Targets may be CSS selectors or component-local refs. Prefer refs when several
+instances render the same component.
+
+The commands are:
 
 | Command | |
 |---|---|
@@ -47,8 +61,7 @@ the same component.
 | `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s outcome ([below](#optimistic-updates)) |
 | `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
 
-
-### URLs and attributes
+### URLs and Attributes {#urls-and-attributes}
 
 A command can't make the page run script it didn't ship with:
 
@@ -71,8 +84,9 @@ handler attribute or `srcdoc`, or setting a URL attribute to a
 `javascript:`, `data:` or `vbscript:` URL, and loads or navigates to
 nothing but `http` and `https` URLs.
 
+## Choosing Targets and Refs {#targets-and-refs}
 
-## Targets and refs
+A command's target picks the elements it acts on:
 
 | Target | |
 |---|---|
@@ -85,40 +99,46 @@ nothing but `http` and `https` URLs.
 | `ui.Inner(".item")` | its descendants matching a selector |
 | `ui.Sel("#x")`, `"#x"`, `ui.Sel("#x", ".y")` | every element of the document matching a selector, or any of several |
 
-
 A ref belongs to one component instance; prefer refs to global IDs for repeated components.
 
-## Conditions
+## Conditions {#conditions}
 
 Conditions limit a chain to the relevant key, form state or confirmation.
-Commands are browser behavior, not permission checks. Authorize each server action.
 
-## Push
+> [!WARNING]
+> Commands are browser behavior, not permission checks. Authorize each server
+> action.
+
+## Pushing to the Server {#push}
 
 A command chain can push a server handler. For ordinary browser state, use
 assignment: `onClick={open = false; Save()}` closes first and then calls Save.
 The handler receives typed form/request/service parameters, not browser authority.
 
-## Optimistic updates
+## Optimistic Updates {#optimistic-updates}
 
 A predicted UI change can run before the server replies. Keep the authoritative
-write and validation on the server and provide failure behavior. Busy forms
+write and validation on the server and provide failure behavior.
+
+Busy forms
 should prevent accidental repeat submission and restore their state when the
 request finishes.
 
-## From the server
+## Sending Commands From the Server {#from-the-server}
 
 A live handler can send commands through its live instance. DOM-only effects
-are transient; put data that subsequent renders must preserve in tracked server
+are transient. Put data that subsequent renders must preserve in tracked server
 fields or browser-state fields. A fresh document navigation creates a new page.
 
-## Server patches
+## Server Patches {#server-patches}
 
 A patch reconciles server output with the browser. Stable keys preserve logical
-instances. A command-only shape stays static; server handlers or decorated hooks
-make it live. See [Client state](/ui/state) and [Testing](/ui/testing).
+instances.
 
-## Busy forms
+A command-only shape stays static; server handlers or decorated hooks make it
+live. See [Client State](/ui/state) and [Testing Components](/ui/testing).
+
+## Busy Forms {#busy-forms}
 
 `Busy` marks an element while a push or post is in progress. Use a timeout
 and failure handling so a failed request cannot leave the form disabled.

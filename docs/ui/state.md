@@ -1,8 +1,20 @@
-# Client state
+# Client State
 
-A `ui.State[T]` field holds browser state. Read it as an ordinary variable
-in markup and write it by assignment in an `on…` attribute. Browser changes
-need no round trip.
+[[toc]]
+
+## Introduction
+
+A `ui.State[T]` field holds browser state. You reach for it when a value only
+matters in the browser, such as an open panel or a selected tab, because
+browser changes need no round trip to the server.
+
+You read it as an ordinary variable in markup and write it by assignment in
+an `on…` attribute.
+
+## Declaring Browser State
+
+This component declares three state fields and reads and writes them from its
+buttons:
 
 ```html
 package components
@@ -22,24 +34,32 @@ type Tabs struct {
 </section>
 ```
 
-The zero value is the initial value: false, empty string or zero. State
-belongs to each component instance; a package-level `var theme ui.State[string]`
-is shared across that browser page. Put such declarations in a logic file.
+The zero value is the initial value: false, empty string or zero.
 
-## Reading
+### Shared State
+
+State belongs to each component instance. A package-level
+`var theme ui.State[string]` is shared across that browser page. Put such
+declarations in a logic file.
+
+## Reading State {#reading}
 
 Use state in children, attributes, conditions and expressions. A browser-state
-expression remains reactive in the browser. It cannot select a Go branch that
-requires a server execution; use a reactive attribute or `ui.Show` for visibility.
+expression remains reactive in the browser.
 
-## Writing
+It cannot select a Go branch that requires a server execution. Use a reactive
+attribute or `ui.Show` for visibility instead.
 
-Assignments in one event run in order. Combine browser changes with a server
-call: `onClick={open = false; Save()}`. Inside a live component method,
-`p.open = false` sends the browser update. Browser state is not durable storage
-or trusted authorization data.
+## Writing State {#writing}
 
-## Passing to a child
+Assignments in one event run in order. You can combine browser changes with a
+server call: `onClick={open = false; Save()}`. Inside a live component method,
+`p.open = false` sends the browser update.
+
+> [!WARNING]
+> Browser state is not durable storage or trusted authorization data.
+
+## Passing State to a Child {#passing-to-a-child}
 
 A child can accept a `ui.State[T]` field so both shapes observe the same
 browser value. Ordinary exported fields pass props instead. For state and
