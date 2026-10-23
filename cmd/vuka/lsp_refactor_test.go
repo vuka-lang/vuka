@@ -699,3 +699,37 @@ func TestLSPRefactors(t *testing.T) {
 	}
 	vets(t, dir)
 }
+
+// TestSmallFixes: a template file without its package clause gets its
+// directory's (E0142); ui.Live embedded by pointer is embedded by value
+// (E0329).
+func TestSmallFixes(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	noPackage := strings.Replace(sendsCounter, "package components\n\n", "", 1)
+	pointer := strings.Replace(strings.Replace(sendsCounter, "type Counter struct {\n", "type Counter struct {\n\t*ui.Live\n", 1),
+		"package components\n", "package components\n\nimport \"github.com/vuka-lang/ui/v2\"\n", 1)
+	pointer = strings.Replace(pointer, "Counter", "Board", -1)
+	dir := refactorModule(t, map[string]string{"components/counter.vuka.html": noPackage, "components/board.vuka.html": pointer, "components/doc.go": "package components\n"})
+	path := filepath.Join(dir, "components/counter.vuka.html")
+	fix, ok := actionsAt(t, path, 0, 0)["Add package components"]
+	if !ok {
+		t.Fatalf("no package fix")
+	}
+	applyWorkspace(t, fix.Edit)
+	if got := readFile(t, path); got != sendsCounter {
+		t.Errorf("got:\n%s\nwant:\n%s", got, sendsCounter)
+	}
+	path = filepath.Join(dir, "components/board.vuka.html")
+	at := strings.Index(pointer, "*ui.Live")
+	fix, ok = actionsAt(t, path, at, at)["Embed ui.Live by value"]
+	if !ok {
+		t.Fatalf("no ui.Live fix")
+	}
+	applyWorkspace(t, fix.Edit)
+	if got := readFile(t, path); !strings.Contains(got, "type Board struct {\n\tui.Live\n") {
+		t.Errorf("got:\n%s", got)
+	}
+	vets(t, dir)
+}
