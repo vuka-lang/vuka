@@ -282,6 +282,11 @@
         "id": "vukaLocal",
         "superType": "variable",
         "description": "A local a markup statement declares."
+      },
+      {
+        "id": "vukaContextVar",
+        "superType": "variable",
+        "description": "A context processor's variable, read by name: user, request."
       }
     ],
     "semanticTokenScopes": [
@@ -312,6 +317,10 @@
           "vukaLocal": [
             "variable.other.readwrite.local.vuka",
             "variable.other.readwrite"
+          ],
+          "vukaContextVar": [
+            "variable.other.global.vuka",
+            "variable.language"
           ]
         }
       }

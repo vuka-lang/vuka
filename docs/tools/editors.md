@@ -160,6 +160,7 @@ so a theme colours them apart:
 | `vukaEvent` | an event: an exported method an `on…` attribute sends |
 | `vukaComponent` | a component tag: `<components.Card>` |
 | `vukaLocal` | a local a markup statement declares: `for _, r := range rows` |
+| `vukaContextVar` | a [context processor](/web/context-processors)'s variable read by name: `user`, `request` |
 
 The field declarations in the script carry the same types with the
 `declaration` modifier. The rest of the Go — calls, types, packages — keeps

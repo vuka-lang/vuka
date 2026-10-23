@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Declare the `vukaContextVar` semantic token type, a context processor's variable read by name (`user`, `request`), and the TextMate scopes it falls back to (Vuka v2.4.0).
+
 ## 0.8.0
 
 - Highlight the `<script lang="go">` shape form (Vuka v2.3.0): the script's content as Go, its end the `</script>` outside a Go string or comment, the markup after it; the shape snippets write that form, and closing-tag completion starts after the script. With a Vuka v2.3.0 language server the script folds as one, the whole file formats (`vuka fmt`), and a shape in the Go-header form offers **Write the Go in &lt;script lang="go"&gt;**.

@@ -221,6 +221,8 @@ type vfile struct {
 	templ   *templparser.SourceMap // a .templ file's map (templ's own)
 	files   []transpile.FileRef    // a .vuka file's vuka.File literals, in from
 	names   map[string]string      // the package's overloads: Go name → the source's
+	vars    []transpile.VarRead    // the context processors' variables it reads by name
+	avail   []transpile.VarRead    // and those it may read
 	version int
 	probed  int // the version holding the last probe (see probe)
 }
@@ -452,6 +454,8 @@ type vukaRequest struct {
 	note      string      // hover: what to add to gopls's answer (an island page's lifecycle hook)
 	spot      *staticSpot // a possible Type.member use at the cursor (statics, field references)
 	tmpl      *tmplSpot   // completion in a template file's Go
+	varTyped  string      // completion of a bare name: what is typed of it
+	varRange  *lspRange   // and where
 }
 
 type proxy struct {
@@ -1158,6 +1162,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 			reply(h())
 			return
 		}
+		if h := p.contextVarRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			go func() { reply(h()) }()
+			return
+		}
 		if h := p.authoringRequest(m.Method, vf, genPath, off); h != nil {
 			p.mu.Unlock()
 			go func() { reply(h()) }()
@@ -1246,6 +1255,13 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	if hasPos && !vr.attr && (m.Method == "textDocument/completion" || m.Method == "textDocument/hover") {
 		vr.spot = staticSpotAt(m.Method, vf.text(), offsetOf(vf.text(), srcPos))
 	}
+	if hasPos && m.Method == "textDocument/completion" && !vr.attr && len(vf.avail) > 0 {
+		src := vf.text()
+		off := offsetOf(src, srcPos)
+		if start := varPrefix(src, off); start >= 0 {
+			vr.varTyped, vr.varRange = string(src[start:off]), &lspRange{positionOf(src, start), srcPos}
+		}
+	}
 	if hasPos && m.Method == "textDocument/completion" && !vr.attr && vr.blocks == nil && closeTag == nil {
 		vr.tmpl = templateSpot(vf, genPath, offsetOf(vf.text(), srcPos))
 	}
@@ -1299,6 +1315,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			return
 		case semanticTokensMethods[vr.method]:
 			reply["result"] = p.markupOnlyTokens(vr.file)
+		case vr.varRange != nil:
+			reply["result"] = map[string]any{"isIncomplete": false, "items": varItems(vr.file, vr.varTyped, *vr.varRange)}
 		case quietMethods[vr.method]:
 			p.logf("%s: %s", vr.method, m.Error)
 			reply["result"] = nil
@@ -1321,6 +1339,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	switch vr.method {
 	case "textDocument/completion":
 		v = cleanCompletion(v, vr.file.namesOf())
+		if vr.varRange != nil {
+			v = withItems(v, newItems(v, varItems(vr.file, vr.varTyped, *vr.varRange)))
+		}
 		if vr.blocks != nil {
 			v = withBlockItems(v, *vr.blocks)
 		}

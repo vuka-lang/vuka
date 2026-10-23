@@ -63,3 +63,9 @@ func CSRFContext(ctx context.Context) (CSRFVars, error) { return CSRFVars{}, nil
 
 // Settings is a processor that isn't one: it returns no error.
 func Settings(ctx context.Context) RequestVars { return RequestVars{} }
+
+// New stands in for web.New.
+func New(opts ...any) *App { return &App{} }
+
+// ContextProcessors stands in for web.ContextProcessors.
+func ContextProcessors(processors ...any) any { return processors }

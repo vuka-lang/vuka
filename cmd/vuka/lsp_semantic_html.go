@@ -14,7 +14,8 @@ import (
 
 // vukaTokenTypes are the token types vuka lsp adds after gopls's, in refKind
 // order from refProp.
-var vukaTokenTypes = []string{"vukaProp", "vukaState", "vukaBrowserState", "vukaEvent", "vukaComponent", "vukaLocal"}
+// vukaContextVar, last, is a context processor's variable read by name.
+var vukaTokenTypes = []string{"vukaProp", "vukaState", "vukaBrowserState", "vukaEvent", "vukaComponent", "vukaLocal", "vukaContextVar"}
 
 // semState is what the proxy keeps for markup tokens, code lenses and route
 // links.

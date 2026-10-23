@@ -50,6 +50,7 @@ func (p *proxy) semanticTokens(vf *vfile, result json.RawMessage) map[string]any
 		// The markup's names, classified from the text, over gopls's.
 		toks = mergeTokens(toks, p.markupTokens(vf.text()))
 	}
+	toks = mergeTokens(toks, p.varTokens(vf))
 	return encodeTokens(toks)
 }
 
