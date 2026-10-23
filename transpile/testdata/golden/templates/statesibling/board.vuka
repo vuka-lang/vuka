@@ -1,0 +1,19 @@
+package main
+
+func (b *Board) push(name string) {
+	b.rows = append(b.rows, Row{Name: name})
+	b.n += len(b.rows)
+	b.n++
+}
+
+func (b *Board) rename(i int, name string) {
+	b.rows[i].Name = name
+}
+
+func (b *Board) count() int {
+	return len(b.rows)
+}
+
+func (b *Board) Reset() {
+	b.tab = "env"
+}

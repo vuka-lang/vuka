@@ -326,6 +326,35 @@ A click in one row of a thousand renders that row only. Markup must read
 nothing but props, tracked fields and `vuka:"-"` fields that don't change
 its output; [verification](/ui/live#verification) catches one that does.
 
+### Where its methods live
+
+A shape's methods may sit in its header or in a `.vuka` file of the same
+package beside it: the compiler lowers tracked fields' reads and writes in
+both alike, so a larger page keeps its markup and fields in the
+`.vuka.html` file and its logic next to it.
+
+<!-- go:context
+type Rows struct {
+	rows  []string
+	count int
+}
+-->
+
+```go
+// rows.vuka — beside rows.vuka.html, which declares Rows and its fields
+package components
+
+func (r *Rows) load(all []string) {
+	r.rows = all             // a write, as in the header
+	r.count = len(r.rows)    // a read
+}
+```
+
+A `.go` file is plain Go, which the compiler doesn't rewrite: there a
+tracked field is not its declared type, and reading or writing it as one is
+[E0155](/errors/E0155), naming the field and the shape file declaring it.
+Move the method to a `.vuka` file, or into the header.
+
 
 ### Selectors and mutable values
 

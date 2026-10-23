@@ -4,15 +4,14 @@ package note
 import (
 	"context"
 	"fmt"
-	"strings"
 
 	"example.com/app/notes"
 	"github.com/vuka-lang/ui/v2"
-	"github.com/vuka-lang/web/v2"
 )
 
 // NotePage is a note's page: its links patch it to the next note, its
-// form edits the reply, its button navigates back to the board.
+// form edits the reply, its button navigates back to the board. Its
+// methods writing its tracked state live in note.vuka, beside it.
 type NotePage struct {
 	ui.Live
 	ID      int
@@ -27,32 +26,6 @@ func NewNotePage(n *notes.Notes) *NotePage { return &NotePage{notes: n} }
 
 @ui.Mount
 func (p *NotePage) mount(ctx context.Context) error { return p.show(p.ID) }
-
-func (p *NotePage) show(id int) error {
-	n, ok := p.notes.Get(id)
-	if !ok {
-		return web.NotFound
-	}
-	p.ID = id
-	p.note = n
-	return nil
-}
-
-// Update takes a patch to another note.
-func (p *NotePage) Update(q notes.NoteParams) error {
-	p.patches++
-	return p.show(q.ID)
-}
-
-// Send adds a reply.
-func (p *NotePage) Send(ctx context.Context, f ReplyForm) error {
-	if strings.Contains(f.Text, "!") {
-		return web.Invalid{"text": "no shouting"}
-	}
-	p.replies = append(p.replies, f.Text)
-	p.Reply = ""
-	return nil
-}
 
 // Back navigates to the board.
 func (p *NotePage) Back() { p.PushNavigate("/board?q=" + p.note.Text[:1]) }

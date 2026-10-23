@@ -1,0 +1,38 @@
+package note
+
+import (
+	"context"
+	"strings"
+
+	"example.com/app/notes"
+	"github.com/vuka-lang/web/v2"
+)
+
+// The page's logic, beside its shape: its tracked state (note, replies,
+// patches) is read and written here as in the header.
+
+func (p *NotePage) show(id int) error {
+	n, ok := p.notes.Get(id)
+	if !ok {
+		return web.NotFound
+	}
+	p.ID = id
+	p.note = n
+	return nil
+}
+
+// Update takes a patch to another note.
+func (p *NotePage) Update(q notes.NoteParams) error {
+	p.patches++
+	return p.show(q.ID)
+}
+
+// Send adds a reply.
+func (p *NotePage) Send(ctx context.Context, f ReplyForm) error {
+	if strings.Contains(f.Text, "!") {
+		return web.Invalid{"text": "no shouting"}
+	}
+	p.replies = append(p.replies, f.Text)
+	p.Reply = ""
+	return nil
+}

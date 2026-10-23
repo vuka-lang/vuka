@@ -30,31 +30,55 @@ import (
 // they are. Taking a tracked field's address is E0150: a change through it
 // wouldn't be seen.
 
-// lowerTracked lowers f's shape struct's server state: its fields' types in
-// one round, their uses in the rounds after.
+// lowerTracked lowers server state: a shape struct's fields' types in one
+// round, and their uses — in the shape's file and in every other Vuka file
+// of the package, where its methods may live too — in the rounds after.
 func (e *engine) lowerTracked(f *fileState, attrs []span) {
-	h := f.html
-	if h == nil || h.shape == nil || f.target == nil {
-		return
-	}
-	gen := ""
-	if f.target.pkg != nil {
-		gen = stateGenPath(f.target.pkg)
-	} else if f.target.path != "" && !stdPackage(f.target.path) {
-		if p, err := e.imp.Import(f.target.path); err == nil {
-			gen = stateGenPath(p)
+	if h := f.html; h != nil && h.shape != nil && f.target != nil && !f.trackedTypes {
+		gen := ""
+		if f.target.pkg != nil {
+			gen = stateGenPath(f.target.pkg)
+		} else if f.target.path != "" && !stdPackage(f.target.path) {
+			if p, err := e.imp.Import(f.target.path); err == nil {
+				gen = stateGenPath(p)
+			}
+		}
+		if gen != "" {
+			e.trackFields(f, h.shape.Type, gen)
+			return
 		}
 	}
-	if gen == "" {
-		return
+	if fields := e.trackedFields(); len(fields) > 0 {
+		e.trackUses(f, fields, attrs)
 	}
-	if !f.trackedTypes {
-		e.trackFields(f, h.shape.Type, gen)
-		return
+}
+
+// trackedFields is the package's tracked fields whose types are Assigns as
+// checked: those uses can be lowered.
+func (e *engine) trackedFields() map[*types.Var]*fileState {
+	var fields map[*types.Var]*fileState
+	for _, f := range e.vuka {
+		if f.html == nil || f.html.shape == nil || len(f.tracked) == 0 {
+			continue
+		}
+		obj, _ := e.pkg.Scope().Lookup(f.html.shape.Type).(*types.TypeName)
+		if obj == nil {
+			continue
+		}
+		st, _ := obj.Type().Underlying().(*types.Struct)
+		if st == nil {
+			continue
+		}
+		for i := 0; i < st.NumFields(); i++ {
+			if v := st.Field(i); f.tracked[v.Name()] && isAssign(v.Type()) {
+				if fields == nil {
+					fields = map[*types.Var]*fileState{}
+				}
+				fields[v] = f
+			}
+		}
 	}
-	if len(f.tracked) > 0 {
-		e.trackUses(f, h.shape.Type, attrs)
-	}
+	return fields
 }
 
 // trackFields writes the struct's trackable fields' types as Assigns.
@@ -140,21 +164,7 @@ func trackable(t types.Type) bool {
 
 // trackUses writes the tracked fields' uses: reads first, then — in a later
 // round, so no two edits meet — writes.
-func (e *engine) trackUses(f *fileState, name string, attrs []span) {
-	obj, _ := e.pkg.Scope().Lookup(name).(*types.TypeName)
-	if obj == nil {
-		return
-	}
-	st, _ := obj.Type().Underlying().(*types.Struct)
-	if st == nil {
-		return
-	}
-	fields := map[*types.Var]bool{}
-	for i := 0; i < st.NumFields(); i++ {
-		if f.tracked[st.Field(i).Name()] {
-			fields[st.Field(i)] = true
-		}
-	}
+func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs []span) {
 	inAttr := func(off int) bool {
 		for _, s := range attrs {
 			if off >= s.start && off < s.end {
@@ -176,7 +186,7 @@ func (e *engine) trackUses(f *fileState, name string, attrs []span) {
 			return true
 		}
 		s := e.info.Selections[sel]
-		if s == nil || s.Kind() != types.FieldVal || !fields[s.Obj().(*types.Var)] {
+		if s == nil || s.Kind() != types.FieldVal || fields[s.Obj().(*types.Var)] == nil {
 			return true
 		}
 		if p, ok := f.parents[sel].(*ast.SelectorExpr); ok && p.X == sel {
@@ -382,4 +392,60 @@ func (f *fileState) rewriteSel(sel *ast.SelectorExpr, to func(string) string) {
 	}
 	name := sel.Sel.Name
 	f.add(f.orig(sel.Sel.Pos()), f.orig(sel.Sel.End()), strings.TrimPrefix(to(f.selText(sel)), f.selText(sel)[:len(f.selText(sel))-len(name)]))
+}
+
+// checkGoTracked reports a tracked field a .go file reads or writes as its
+// declared type: the compiler lowers those only in Vuka files, so in Go the
+// field is its compiled form, and the use is E0155 rather than the type
+// error it would be. Assign's own methods (p.rows.Get()) still compile.
+func (e *engine) checkGoTracked() {
+	fields := e.trackedFields()
+	if len(fields) == 0 {
+		return
+	}
+	for _, f := range e.files {
+		if f.vuka || f.ast == nil {
+			continue
+		}
+		for _, d := range f.ast.Decls {
+			fn := ""
+			if fd, ok := d.(*ast.FuncDecl); ok {
+				fn = fd.Name.Name
+				if fd.Recv != nil && len(fd.Recv.List) == 1 {
+					fn = "(" + types.ExprString(fd.Recv.List[0].Type) + ")." + fn
+				}
+			}
+			ast.Inspect(d, func(n ast.Node) bool {
+				if n == nil {
+					return false
+				}
+				if p, ok := n.(*ast.SelectorExpr); ok {
+					if s := e.info.Selections[p]; s != nil && s.Kind() == types.MethodVal && isAssign(s.Recv()) {
+						if _, ok := p.X.(*ast.SelectorExpr); ok {
+							return false // p.rows.Get(): Assign's own API
+						}
+					}
+				}
+				sel, ok := n.(*ast.SelectorExpr)
+				if !ok {
+					return true
+				}
+				s := e.info.Selections[sel]
+				if s == nil || s.Kind() != types.FieldVal {
+					return true
+				}
+				shape := fields[s.Obj().(*types.Var)]
+				if shape == nil {
+					return true
+				}
+				where := "this code"
+				if fn != "" {
+					where = fn
+				}
+				e.errs.add("E0155", e.fset.Position(sel.Sel.Pos()), "%s is %s's tracked server state, declared in %s, which the compiler lowers only in Vuka files: move %s from this .go file to a .vuka file, or into %s's header",
+					types.ExprString(sel), shape.html.shape.Type, shape.name, where, shape.name)
+				return false
+			})
+		}
+	}
 }

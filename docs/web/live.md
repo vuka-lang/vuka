@@ -39,8 +39,11 @@ and ui.State assignments do not create a server session by themselves.
 Pages live under pages/, generated route.go registers them, and main passes
 `pages.Routes()` to `web.New`. Exported props bind path and query values;
 unexported provided dependencies are injected and other unexported fields are
-tracked server state. Folder `_layout.vuka.html` files supply the document and
-nested layouts, with middleware and guards from the same tree.
+tracked server state. A page's methods live in its header or in a `.vuka` file
+beside it, which reads and writes that state the same way
+([where its methods live](/ui/stateful#where-its-methods-live)). Folder
+`_layout.vuka.html` files supply the document and nested layouts, with
+middleware and guards from the same tree.
 
 Once mounted, a routed page owns its fields: values changed by handlers, hooks,
 updates and bound fields stay changed. A URL patch rebinds only URL fields

@@ -88,6 +88,11 @@ and a header without markup [E0148](/errors/E0148). A form DTO, record type
 or other non-render data structure goes in an adjacent logic file. Each
 reusable rendering partial becomes its own shape file.
 
+The struct's methods may also live in a `.vuka` file beside the shape: its
+tracked fields read and write there as in the header. A method in a `.go`
+file can't use them ([E0155](/errors/E0155)); see [where its methods
+live](/ui/stateful#where-its-methods-live).
+
 ## The file
 
 The package clause matches the directory (external test shapes may use the

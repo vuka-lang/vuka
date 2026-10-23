@@ -65,6 +65,7 @@ same page in the terminal.
 | [E0152](./E0152) | A template file declares no struct above its markup |
 | [E0153](./E0153) | A second template in a template file |
 | [E0154](./E0154) | An island page that breaks its rules |
+| [E0155](./E0155) | Tracked state used in a .go file |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
