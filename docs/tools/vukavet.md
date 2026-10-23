@@ -1,15 +1,25 @@
 # vukavet
 
+[[toc]]
+
+## Introduction
+
 `vukavet` is `go vet` with vuka's checks. A vuka app written in plain Go
 builds with `go build` and no `vuka` command; what the app would refuse at
 boot, or fail at render, `vukavet` reports from the source, with the same
 codes as the boot, the compiler and `vuka vet` ([`vuka explain
 E0401`](/tools/cli#explain), [the catalogue](/errors/)).
 
+## Running vukavet {#running}
+
+Add it as a tool of your module and hand it to `go vet`:
+
 ```sh
 go get -tool github.com/vuka-lang/vuka/cmd/vukavet/v2
 go vet -vettool=$(go tool -n vukavet) ./...
 ```
+
+It reports each problem with its code and a help line:
 
 ```
 users.go:66:2: E0324: Profile.Bio is deferred, and the group Profile has no loader
@@ -20,11 +30,15 @@ main.go:18:6: E0401: GET /api/users is declared twice: by ListUsers at main.go:1
 	help: give one of them another path or method
 ```
 
+### Running the Checks Alone
+
 `-vettool` replaces vet's analyzers, so `vukavet` runs them too: it is
 `go vet` plus the checks below. Each check is a flag of its own
 (`-routes=false`), and `go tool vukavet ./...` runs it without `go vet`.
 
 ## Checks
+
+The checks are:
 
 | Check | Reports |
 |---|---|
@@ -37,7 +51,7 @@ A check reports only what the source decides: a path built at run time, a
 value of an interface type in a template hole or a route a package
 registers for an app it never sees is left to the boot.
 
-## A `.vuka` app
+## Checking a .vuka App {#a-vuka-app}
 
 `vuka vet` runs the same checks on the Go a `.vuka` app becomes, with its
 positions:
@@ -46,9 +60,13 @@ positions:
 vuka vet ./...
 ```
 
+Its reports point into the `.vuka` source:
+
 ```
 decorated/users.vuka:36: E0401: GET /api/users is declared twice: by ListUsers at users.vuka:32 and by ShowUser at users.vuka:36
 ```
+
+### Which vukavet Runs
 
 It hands go vet a vukavet as `-vettool`, the first of:
 
@@ -65,7 +83,7 @@ When none can be found or built, `vuka vet` says so and why on stderr and
 runs go vet's own analyzers. `-vettool=…` replaces the choice:
 `vuka vet -vettool=$(go tool -n vukavet) ./...` still works.
 
-## Editors
+## In Editors and Linters {#editors}
 
 gopls runs only its own analyzers, so `vukavet`'s reports come from
 `go vet`: run it on save or in CI. In `.vuka` files [the editor](/tools/editors)
