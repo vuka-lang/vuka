@@ -30,19 +30,21 @@ The Tailwind CLI builds the stylesheet (`brew install tailwindcss`, or
 {%- if ne .Frontend "none"%}
 
 `vuka run` also starts the frontend's Vite dev server (it installs the
-dependencies the first time; commit `frontend/package-lock.json` then), and
+dependencies the first time from `frontend/package-lock.json`; adding
+packages needs npm 11 or newer), and
 the app serves the frontend at [/app](http://localhost:8080/app/).
 {%- end%}
 {%- if .Islands%}
 
 The sample Vue island at [/island](http://localhost:8080/island) is built from
-`web/`, a Vite project with Nuxt UI. Install its dependencies once (Node.js
-20+); then `vuka run`/`vuka build` compiles the island through Vite and serves
+`web/`, a Vite project with Nuxt UI. Install its dependencies once from the
+lockfile (Node.js 20+; adding packages needs npm 11 or newer); then `vuka
+run`/`vuka build` compiles the island through Vite and serves
 (or embeds) it. The Nuxt UI component in `web/islands/Counter.vue` resolves and
 styles itself out of the box.
 
 ```sh
-(cd web && npm install)
+(cd web && npm ci)
 ```
 {%- end%}
 

@@ -706,6 +706,9 @@ func (a *adder) install(fr string, f *addFlags, w io.Writer) error {
 		fmt.Fprintf(w, "\n%s isn't installed: install Node.js 20+, then (cd %s && %s)\n", cmd[0], fr, strings.Join(cmd, " "))
 		return nil
 	}
+	if err := checkNPM(cmd, fr+"/", w); err != nil {
+		return fmt.Errorf("%w\n(the files are written; run (cd %s && %s) after upgrading)", err, fr, strings.Join(cmd, " "))
+	}
 	c := exec.Command(cmd[0], cmd[1:]...)
 	c.Dir = dir
 	if err := installTask(w, fr, cmd).Run(c); err != nil {

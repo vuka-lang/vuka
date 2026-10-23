@@ -140,11 +140,11 @@ func TestTailwindSkipsFrontends(t *testing.T) {
 	}
 }
 
-// fakeNPM puts an npm on PATH that prints a lot and, unless it fails,
-// installs a fake vite.
+// fakeNPM puts an npm on PATH (npm 11) that prints a lot and, unless it
+// fails, installs a fake vite.
 func fakeNPM(t *testing.T, fail bool) {
 	bin := t.TempDir()
-	script := "#!/bin/sh\nfor i in 1 2 3 4 5 6 7 8; do echo \"npm noise $i\"; done\n"
+	script := "#!/bin/sh\nif [ \"$1\" = --version ]; then echo 11.6.2; exit 0; fi\nfor i in 1 2 3 4 5 6 7 8; do echo \"npm noise $i\"; done\n"
 	if fail {
 		script += "echo 'npm error E404 not found' >&2\nexit 1\n"
 	} else {

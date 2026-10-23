@@ -34,8 +34,10 @@ const ormVersion = "v2.0.0"
 // scaffoldFS holds the files vuka new and vuka add write. A path segment
 // name@tag1+tag2 is written as name when every tag holds (scaffold.tags);
 // a .tmpl file is a text/template delimited {% %}, and one rendering to
-// nothing but blanks isn't written.
+// nothing but blanks isn't written. Each frontend package.json has its
+// package-lock.json beside it, written by scripts/lockfiles.sh with npm 11.
 //
+//go:generate sh scripts/lockfiles.sh
 //go:embed all:scaffold
 var scaffoldFS embed.FS
 
@@ -639,7 +641,7 @@ func (s *scaffold) summary(w io.Writer) {
 		fmt.Fprintf(w, "\tvuka add module notes   # a model, service, page, migration and test\n")
 	}
 	if s.Islands {
-		fmt.Fprintf(w, "\nThe Vue island at /island is built from web/; install its dependencies\nonce (Node.js 20+), then vuka build bundles it:\n\n\t(cd %s/web && npm install)\n", s.Dir)
+		fmt.Fprintf(w, "\nThe Vue island at /island is built from web/; install its dependencies\nonce (Node.js 20+; npm 11 to add packages), then vuka build bundles it:\n\n\t(cd %s/web && npm ci)\n", s.Dir)
 	}
 }
 

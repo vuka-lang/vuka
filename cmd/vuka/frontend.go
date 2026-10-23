@@ -130,6 +130,9 @@ func prepareFrontend(root, dir string, stderr io.Writer) error {
 			return diag.New("E0602", "frontend: %s isn't installed: the frontend in %s needs Node.js 20+ and its package manager", cmd[0], rel(root, dir)).
 				WithHelp("install Node.js 20+ and %s, or set %s=off to leave the frontend alone", cmd[0], feEnv)
 		}
+		if err := checkNPM(cmd, rel(root, dir)+"/", stderr); err != nil {
+			return err
+		}
 		c := exec.Command(cmd[0], cmd[1:]...)
 		c.Dir = dir
 		if err := installTask(stderr, rel(root, dir), cmd).Run(c); err != nil {

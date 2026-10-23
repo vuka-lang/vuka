@@ -1,6 +1,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"os"
@@ -35,13 +36,20 @@ func doctor(args []string, stdout io.Writer) error {
 		node = strings.TrimSpace(string(v)) + " (" + p + ")"
 	}
 	fmt.Fprintf(w, "node\t%s\n", node)
+	fr := root
+	if pa != nil && pa.frontendRoot != "" {
+		fr = pa.frontendRoot
+	}
+	npmFailing := doctorNPM(w, root, fr)
 	if pa == nil || len(pa.islands) == 0 {
 		fmt.Fprintln(w, "islands\tnone")
-		return w.Flush()
-	}
-	fr := pa.frontendRoot
-	if fr == "" {
-		fr = root
+		if err := w.Flush(); err != nil {
+			return err
+		}
+		if npmFailing {
+			return errors.New("vuka doctor: npm is too old to install the frontend")
+		}
+		return nil
 	}
 	vite := hasViteConfig(fr)
 	where := rel(root, fr)
@@ -68,7 +76,38 @@ func doctor(args []string, stdout io.Writer) error {
 	if problems > 0 {
 		return fmt.Errorf("vuka doctor: %d island(s) can't build", problems)
 	}
+	if npmFailing {
+		return errors.New("vuka doctor: npm is too old to install the frontend")
+	}
 	return nil
+}
+
+// doctorNPM writes npm's line: its version, and when it is older than
+// npmMinMajor what that breaks. It reports whether that fails an install
+// vuka runs: a frontend (the islands' root fr, or the app's Vite project)
+// npm installs without a lockfile.
+func doctorNPM(w io.Writer, root, fr string) bool {
+	p, err := exec.LookPath("npm")
+	if err != nil {
+		return false
+	}
+	v := npmVersion()
+	if !npmTooOld(v) {
+		fmt.Fprintf(w, "npm\t%s (%s)\n", v, p)
+		return false
+	}
+	failing := false
+	for _, dir := range []string{fr, frontendDir(root)} {
+		if dir != "" && fileExists(filepath.Join(dir, "package.json")) && strings.Join(installCommand(dir), " ") == "npm install" {
+			failing = true
+		}
+	}
+	what := "installs from a lockfile (npm ci) work; installing without one, or adding packages, fails"
+	if failing {
+		what = "the frontend has no package-lock.json, and npm 10 fails installing it"
+	}
+	fmt.Fprintf(w, "npm\t%s (%s)\tolder than %d: %s; %s\n", v, p, npmMinMajor, what, npmFix)
+	return failing
 }
 
 // islandMode is what an island builds with, and what is missing for it.
