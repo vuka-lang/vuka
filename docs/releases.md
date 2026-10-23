@@ -72,8 +72,10 @@ the `github.com/vuka-lang/vuka` package your module requires.
   imports following. Quick fixes for [W0102](/errors/W0102) (a key from the
   item's ID-like field or the index), [W0703](/errors/W0703) (the page's
   title read in the layout's markup; a current link marked with `ui.Link`'s
-  `active`), [E0155](/errors/E0155), [E0142](/errors/E0142) and
-  [E0329](/errors/E0329). See [refactoring](/tools/editors#refactoring).
+  `active`), [E0155](/errors/E0155), [E0142](/errors/E0142),
+  [E0329](/errors/E0329) and [W0701](/errors/W0701) (on a `pages/` tree's
+  `route.go`: `pages.Routes()` passed to the owning main's `web.New`, as
+  `vuka fix routes` does). See [refactoring](/tools/editors#refactoring).
 
 - **`<script lang="go">` shapes.** A `.vuka.html` file's Go goes in a
   `<script lang="go">`, the file's first element, and its markup follows

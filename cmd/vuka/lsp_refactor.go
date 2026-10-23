@@ -123,11 +123,12 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 		return false
 	}
 	real := p.real(path)
-	if strings.HasSuffix(path, ".go") && !p.routeGo(path) && !hasShapes(filepath.Dir(real)) {
+	unserved := filepath.Base(path) == routeGoName && hasDiag(params.Context.Diagnostics, "W0701")
+	if strings.HasSuffix(path, ".go") && !p.routeGo(path) && !hasShapes(filepath.Dir(real)) && !unserved {
 		return false
 	}
 	src, ok := p.buffer(real)
-	if !ok {
+	if !ok && !unserved {
 		return false
 	}
 	req := actionRequest{path: real, src: src, start: offsetOf(src, params.Range.Start), end: offsetOf(src, params.Range.End),
@@ -162,6 +163,16 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 // actionsWait is how long gopls's answer to a code action request waits
 // for vuka's own actions.
 var actionsWait = 5 * time.Second
+
+// hasDiag reports whether diags hold one of code.
+func hasDiag(diags []map[string]any, code string) bool {
+	for _, d := range diags {
+		if c, _ := d["code"].(string); c == code {
+			return true
+		}
+	}
+	return false
+}
 
 // hasShapes reports whether dir holds a .vuka.html file.
 func hasShapes(dir string) bool {
@@ -396,6 +407,11 @@ func codeActions(r actionRequest) []any {
 		if r.wants("quickfix") || r.wants("refactor.move") {
 			add(goFileFixes(r)...)
 		}
+		if r.wants("quickfix") {
+			if a := routesFix(r); a != nil {
+				add(*a)
+			}
+		}
 	}
 	return out
 }
@@ -409,6 +425,7 @@ type codeAction struct {
 	IsPreferred bool             `json:"isPreferred,omitempty"`
 	Edit        map[string]any   `json:"edit,omitempty"`
 	Command     map[string]any   `json:"command,omitempty"`
+	Disabled    map[string]any   `json:"disabled,omitempty"`
 	Data        map[string]any   `json:"data,omitempty"`
 }
 
