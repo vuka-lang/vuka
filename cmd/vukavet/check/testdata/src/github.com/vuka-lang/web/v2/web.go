@@ -29,3 +29,6 @@ func (a *App) Controller(prefix string, ctor any, opts ...RouteOption) *App { re
 func (a *App) Service(ctor any) *App                                        { return a }
 
 func PageRoute() RouteOption { return opt{} }
+
+func LayoutOf[T any]() RouteOption     { return opt{} }
+func ReloadLayout[T any]() RouteOption { return opt{} }

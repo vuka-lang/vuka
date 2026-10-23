@@ -470,6 +470,47 @@ socket joins (`Load` runs for each), and the socket's patches re-render the
 page alone. A route with folder layouts takes no `web.Layout` and isn't
 wrapped in the app's `web.LiveLayout`.
 
+### Layouts that stay
+
+A sidebar scrolled halfway down, a menu left open, a live unread counter in
+the header: moving to another page under the same layout keeps them as they
+are. When a live page [navigates](/web/navigation) to another page sharing
+its layouts, the layouts from the outermost down to the first that differs
+stay: their `Load` doesn't run again, and what they render — its elements,
+their scroll, its [client state](/ui/state) and its live components and
+islands — stays in the page. Only what is below the deepest shared layout
+is swapped: the next layout down that differs, and the page. A layout
+differs when it is another one, or when its path parameters have other
+values: from `/employers/7/permits` to `/employers/7/edit` the employer's
+layout stays; to `/employers/8` it loads again for employer 8, and the root
+layout stays above it.
+
+A layout sees only its path parameters, so what it shows can't go stale
+while it stays. A layout whose `Load` or markup reads more of the request —
+`web.Request(ctx)`, its URL or query, a `*http.Request` parameter — loads
+and renders again on every navigation, as every layout did before, and the
+page gets only what changed of it. `vuka` finds such a layout in its
+methods and the functions of its package they call, registers it with
+`web.ReloadLayout`, and [vukavet](/tools/vukavet) warns
+([W0703](/errors/W0703)). The usual reason to read the path is a menu
+marking the current page; mark it [in the browser](/web/navigation#the-current-link)
+instead, and the layout stays:
+
+```html
+<nav>
+  <ui.Link href="/employers" active="prefix" activeClass="current">Employers</ui.Link>
+  <ui.Link href="/reports" active="prefix" activeClass="current">Reports</ui.Link>
+</nav>
+```
+
+Between pages under two different [root layouts](#root-layouts) nothing
+stays: the navigation is a full page load, as for another document.
+
+Guards run on every navigation, before anything renders, whether the
+layouts above the page stay or not. A layout's `Load` that stays doesn't,
+so a check of who may see a folder belongs in a [guard](#guards), never in
+a layout's `Load` alone.
+
 The layout struct and markup belong in the same shape file. A layout type
 without its `_layout.vuka.html` renders nothing and is an error
 ([E0715](/errors/E0715)).
@@ -768,7 +809,10 @@ so `POST /api/employers` with the read key is 403 whatever it sends.
 Guards and layouts load from the root down, and within one folder the
 `Guard` before the layout; the first error stops the request. A layout's
 `Load` is for what it shows; a guard is for a check alone, and fits where
-nothing renders — an API, or pages that keep their own document.
+nothing renders — an API, or pages that keep their own document. A guard
+runs on every request and every in-app navigation, even when the layouts
+around the page [stay](#layouts-that-stay) and their `Load` doesn't: put
+authorization in a guard.
 
 ## Middleware
 

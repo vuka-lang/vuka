@@ -612,7 +612,8 @@ version supports navigation.
 
 A transport may add fields to a navigation's `patch`; the web framework's
 `token` is the new page's join token, which the client uses when it
-reconnects.
+reconnects, and `title` the new page's title, which the client gives the
+document.
 
 **The client.** A runtime takes clicks on `<a data-vk-link>` (bubbling, so
 an element's own commands and handlers run first), unless the event's

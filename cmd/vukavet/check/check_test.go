@@ -71,6 +71,12 @@ func TestHandWrittenSchema(t *testing.T) {
 
 func TestPages(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Routes, "pages") }
 
+// TestLayoutsReadingTheRequest: a folder's layout reading the request,
+// through a function of its package, is W0703; one that doesn't, nothing.
+func TestLayoutsReadingTheRequest(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Routes, "layouts/crumbs", "layouts/shell")
+}
+
 func TestHandWrittenHTML(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), Templates, "htmluse")
 }

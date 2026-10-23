@@ -30,6 +30,9 @@ middle button (a new tab or window), or to another origin.
 |---|---|
 | `href` | where to go |
 | `patch` | the same page with other parameters (below) |
+| `active` | `"exact"` or `"prefix"`: mark the link while it is the current page's ([below](#the-current-link)) |
+| `activeClass` | a class added while it is |
+| `prefetch` | `"off"`: never fetched ahead; `"viewport"`: fetched once in view ([below](#prefetch)) |
 | `id`, `class`, `title`, `target`, `rel` | as on `<a>` |
 | `attrs` | any other attributes, as `[]ui.Attr` |
 
@@ -185,11 +188,65 @@ as for any request (here, the mount hook refusing with 403). The same goes for a
 mount hook that refuses on a navigate.
 
 **Navigate** moves to another page. Its route runs as a page load does —
-middleware, gates, dependencies, its layout — its components mount on the
+middleware, gates, dependencies, its layouts — its components mount on the
 same connection, and the old page's unmount. With [protocol
 v2](/reference/live-protocol#protocol-v2-render-trees) the new page
 arrives as a change to the trees the connection already holds: the
 layout's markup isn't sent again, only the parts that differ.
+
+The [folder layouts](/web/folder-routes#layouts-that-stay) the two pages
+share stay: their `Load` doesn't run again, and their elements, scroll,
+client state, live components and islands are kept — only what is below
+the deepest shared layout is swapped. Guards run on every navigation all
+the same. A layout reading the request's path or query loads and renders
+again each time instead.
+
+## The current link
+
+A menu in a layout marks the page you are on. Give its links `active`, and
+the runtime marks the one matching the address — `aria-current="page"`,
+and `activeClass` if you give one — as the page loads, after every
+navigation, and on back and forward. The layout reads nothing of the
+request, so it [stays](/web/folder-routes#layouts-that-stay) across
+navigations, its menu following the page:
+
+```html
+<nav>
+  <ui.Link href="/" active="exact" activeClass="on">Home</ui.Link>
+  <ui.Link href="/orders" active="prefix" activeClass="on">Orders</ui.Link>
+  <ui.Link href="/settings" active="prefix" activeClass="on">Settings</ui.Link>
+</nav>
+```
+
+`exact` matches the same path; `prefix` the path or one below it
+(`/orders/7` for `/orders`), so use `exact` for `/`. Style the current link
+with the class, or with `a[aria-current=page]`, which also tells screen
+readers where they are. An ordinary `<a>` takes the same marks as
+attributes: `data-vk-active="prefix"` and `data-vk-active-class="on"`.
+
+## Prefetch
+
+A link the browser will load as a page — a `ui.Link` on a page without a
+live connection — is fetched ahead when the pointer rests on it for a
+moment, when it gets the focus, or when a finger touches it, so it opens
+at once. `prefetch="viewport"` fetches it as soon as it scrolls into view,
+for the one link a page is mostly followed by; `prefetch="off"` never
+does. An ordinary `<a>` opts in with `data-vk-prefetch` (or
+`data-vk-prefetch="viewport"`).
+
+Only same-origin links to another page are fetched, with `GET`: never a
+link with `download` or a `target`, another origin, or when the visitor's
+browser asks to save data. The browser keeps the response for the
+navigation and drops it after 30 seconds. The request carries
+`Sec-Purpose: prefetch`; it is the page's ordinary render, so a page's
+`GET` must be safe to run without the visitor seeing it. A live page's
+session doesn't start: what it mounts waits, parked, for the page to open,
+and its connection joins then, without mounting again — its mount hook runs
+once, however the page was reached.
+
+A link that moves a live page over its connection isn't fetched: the
+server runs its route when it is followed and sends only what changed below
+the layouts the pages share.
 
 ## From the server and from commands
 

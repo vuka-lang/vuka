@@ -203,3 +203,4 @@ same page in the terminal.
 | [E0724](./E0724) | The home page outside the root layouts |
 | [W0701](./W0701) | No main package serves the folder routes |
 | [W0702](./W0702) | A hand-written folder-route option |
+| [W0703](./W0703) | A layout reading the request |

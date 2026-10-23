@@ -46,6 +46,35 @@ See [Folder routes](/web/folder-routes#route-groups).
   underscore, `pages/_parts/`, routes nothing: its components and helpers
   are a package the pages import, by its Go name
   `example.com/app/pages/private_parts`.
+- **Layouts that stay.** A live page navigating to another page under the
+  same folder layouts keeps them: from the outermost down to the first
+  that differs (another layout, or other path parameters), a layout's
+  `Load` doesn't run again, and its elements, scroll, client state, live
+  components and islands stay in the page; only what is below the deepest
+  shared layout is swapped. Guards run on every navigation all the same.
+  A layout whose methods read the request — `web.Request`, its URL or
+  query, an `*http.Request` — loads and renders on every navigation as
+  before: `vuka` registers it with the new `web.ReloadLayout`, and
+  vukavet warns ([W0703](/errors/W0703)). See [layouts that
+  stay](/web/folder-routes#layouts-that-stay).
+- **The current link.** `ui.Link`'s `active` (`"exact"` or `"prefix"`)
+  and `activeClass` mark the link matching the address with
+  `aria-current="page"` and the class, in the browser, on load, after
+  every navigation and on back and forward: a layout's menu follows the
+  page without reading the request. See [the current
+  link](/web/navigation#the-current-link).
+- **Prefetch.** A `ui.Link` the browser loads as a page is fetched ahead
+  on hover, focus or touch (`prefetch="viewport"`: once in view;
+  `prefetch="off"`: never), same-origin `GET`s only, none when the visitor
+  saves data, kept 30 seconds. A prefetched live page's session waits
+  parked for the page to open, so its mount hook runs once. See
+  [prefetch](/web/navigation#prefetch).
+- A navigation's reply carries the new page's title, which the runtime
+  sets on the document, and resets the scroll of the page's `<main>` along
+  with the window's.
+- ui: `ui.Keyed(key, node)` scopes the stateful components in a node as an
+  element's `key` does, without markup; `live.Route.Keep` keeps a
+  navigation's instances in place as a patch does.
 - New diagnostics: [E0722](/errors/E0722) two routes on one URL told apart
   only by a group, naming both files; [E0723](/errors/E0723) a name in
   parentheses that is no group; [E0724](/errors/E0724) the home page
@@ -54,8 +83,9 @@ See [Folder routes](/web/folder-routes#route-groups).
 - Upgrading: a folder under `pages/` named `(x)` or `_x` meant nothing
   before and is a group or a private folder now; a private folder holding
   Vuka source compiles as `private_x`, so its importers name that path.
-  The vuka command of v2.1.0 generates nothing web v2.0.0 lacks; the
-  full-load navigation between root layouts comes with web v2.1.0.
+  The vuka command of v2.1.0 needs web v2.1.0: it registers a layout
+  reading the request with `web.ReloadLayout`, and the full-load
+  navigation between root layouts and the layouts that stay come with it.
 
 ### Fixes
 
