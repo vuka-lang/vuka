@@ -165,6 +165,21 @@ See [Folder routes](/web/folder-routes#route-groups).
   `-vettool=…` still overrides it; `VUKA_VUKAVET` names one, or `off` for
   go vet's own analyzers only. An app that passed `vuka vet` may now see
   vukavet's warnings.
+- A folder page's unexported dependency fields are injected: a page
+  `pages/route.go` builds with `&T{}` gets each unexported field of a
+  provided type (`users *users.Service`) set for the page, its mount hook
+  and its `Post`, `Put`, `Patch` and `Delete` handlers, as a page-backed
+  island's are; so do a live folder page and a folder's layouts and
+  guards. In 2.0.0 the field was nil unless the page had a `NewT` taking
+  the dependency. Tracked state, `ui.State` fields, exported props and
+  fields of types nothing provides are left alone; a dependency field the
+  URL would bind too is [E0419](/errors/E0419). See [dependency
+  fields](/web/dependency-injection#dependency-fields). Needs web v2.1.0.
+- A composite literal setting a shape's tracked state, `Badge{count: 0}`
+  or `&Badge{Label: "a", count: n}` (keyed or in order), in a `.vuka`
+  file or a shape's header sets the field's tracked value; in 2.0.0 it
+  was a Go type error naming `uigen.Assign`. In a `.go` file it is
+  [E0155](/errors/E0155), naming the literal and saying where to move it.
 
 ## v2.0.0 — 2026-10-23
 
@@ -409,9 +424,6 @@ the tests.
 
 ### Known issues
 
-- An unexported dependency field of a folder page that isn't an island
-  page is not injected: `pages/route.go` builds the page with `&T{}`.
-  Write a `NewT` taking the dependencies, as in the example above.
 - `vuka add page` in an app using templ doesn't add `pages.Routes()` to
   `main`; add it by hand.
 - `vuka upgrade` doesn't rewrite 1.x import paths; use the recipe above.

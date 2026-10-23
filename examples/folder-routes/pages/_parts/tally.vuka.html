@@ -1,0 +1,9 @@
+package parts
+
+// Tally is a count a page shows. Its count is tracked server state, which
+// TallyOf, in tally.vuka, sets with a composite literal.
+type Tally struct {
+	Noun  string
+	count int
+}
+<p class="tally">{count} {Noun}</p>

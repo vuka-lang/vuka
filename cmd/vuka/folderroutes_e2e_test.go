@@ -28,7 +28,8 @@ import (
 // an endpoint type and a file of method funcs behind a guard: each method
 // answers JSON or a status, and the guard refuses a request before its
 // body is read. Pages without a constructor of their own are built in
-// route.go. Folder middleware wraps everything below its folder, the
+// route.go, their unexported dependency fields injected for the page and
+// its method handlers. Folder middleware wraps everything below its folder, the
 // root's outermost, and short-circuits before the guards; a type's
 // attributes (vuka.RegisterType) reach a stateless page's route. The
 // admin area is a route group, pages/admin/(console): its shell and guard
@@ -164,7 +165,9 @@ func TestFolderRoutesE2E(t *testing.T) {
 
 	page("/employers", "Employers - HR", `<nav id="site"><a href="/employers">Employers</a> <a href="/files/handbook/leave.txt">Handbook</a> <a href="/about">About</a> <a href="/app/settings">App</a></nav>`,
 		`<a href="/employers/1">Acme Logistics</a>`, `<a id="new" href="/employers/new">`, "data-vk-token")
-	page("/employers/new", "New employer - HR", `action="/employers/new"`)
+	// New has no constructor: its store is injected for its mount hook,
+	// and its tally's tracked count set by a literal in a .vuka file.
+	page("/employers/new", "New employer - HR", `action="/employers/new"`, `<p class="tally">2 employers so far</p>`)
 	// The overview links down to its permits, through pages/urls.
 	body := page("/employers/1", "Acme Logistics - HR", `<a href="/employers/1/edit">Edit</a>`,
 		`<a href="/employers/1/permits/2">Residence permit</a>`, `<a id="contract" href="/files/contracts/1.txt">`,
@@ -223,6 +226,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if code, loc, body := do("POST", "/employers/new", url.Values{"name": {"Pwani Tea"}, "city": {"Tanga"}}); code != http.StatusSeeOther || loc != "/employers/3" {
 		t.Errorf("POST /employers/new: %d %q\n%s", code, loc, body)
 	}
+	page("/employers/new", "New employer - HR", `<p class="tally">3 employers so far</p>`)
 	if code, _, _ := do("POST", "/employers/new", url.Values{"name": {""}}); code != http.StatusUnprocessableEntity {
 		t.Errorf("POST /employers/new without a name: %d, want 422", code)
 	}

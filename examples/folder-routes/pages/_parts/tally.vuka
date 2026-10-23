@@ -1,0 +1,6 @@
+package parts
+
+// TallyOf is a tally of n.
+func TallyOf(noun string, n int) *Tally {
+	return &Tally{Noun: noun, count: n}
+}
