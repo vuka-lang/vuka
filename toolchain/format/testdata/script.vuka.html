@@ -1,0 +1,59 @@
+<!-- The board. -->
+<script   lang="go"  >
+package board
+import (
+"context"
+	"github.com/vuka-lang/ui/v2"
+)
+type Board struct{
+	ui.Live
+	rows []string
+	open ui.State[bool]
+	   }
+@ui.Mount
+func (b *Board) mount(ctx context.Context) error { b.rows = []string{"a"}; return nil }
+func (b *Board) Add(text string) { b.rows = append(b.rows, text) }
+</script>
+<main class="mx-auto flex p-4 card">
+<h1 class="text-xl font-bold">Board</h1>
+    if len(rows)==0 {
+<p>No notes.</p>
+} else if len(rows)>9 {
+  <p>Many.</p>
+      } else {
+    n:=len(rows)
+  <p>{ n } notes, {len( rows )*2} halves</p>
+}
+
+
+  for i,r:=range rows {
+  <li key={i}>{r}</li>
+  }
+  switch {
+  case len(rows)>1:
+  <b>more</b>
+  default:
+  <i>one</i>
+  }
+<pre>
+  kept   as
+     written
+</pre>
+<textarea name="t">  also
+  kept</textarea>
+    <input type="text" name="q" placeholder="Search the notes by text" aria-label="Search" value={""} disabled={false}>
+<ui.Badge variant={ui.Success}></ui.Badge>
+<button onClick={Add("x")} class="btn">Add</button>
+<br/>
+</main>
+<style scoped>
+h1,h2   { font-variant-numeric:tabular-nums;color:red }
+@media (min-width:600px){main{padding:2rem}}
+
+/* the list */
+li:hover{ background : url("a b.png") }
+.x{}
+</style>
+<script lang="ts">
+const   kept = {a:1}
+</script>

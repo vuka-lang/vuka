@@ -387,6 +387,7 @@ func (pa *pageAssets) comp(dir, importPath, name, templ string) *assetComp {
 // readTemplates reads the scripts and stylesheets of a template file's
 // templates: each its template's, a stylesheet without scoped the app's.
 func (pa *pageAssets) readTemplates(file string, src []byte) {
+	src = transpile.HeaderView(src)
 	dir := filepath.Dir(file)
 	rel, _ := filepath.Rel(pa.root, file)
 	// The component files its imports name are islands.

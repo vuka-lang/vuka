@@ -1005,6 +1005,7 @@ func (i overlaidInfo) Name() string { return i.name }
 // file has markup of its own (not only partials): about.vuka.html and
 // terms-of-service.vuka.html render About and TermsOfService.
 func templatePage(name string, src []byte) (string, bool) {
+	src = transpile.HeaderView(src)
 	inImports := false
 	for _, line := range strings.Split(string(src), "\n") {
 		l := strings.TrimSpace(line)

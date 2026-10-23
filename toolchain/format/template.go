@@ -2,6 +2,8 @@ package format
 
 import (
 	"bytes"
+	"errors"
+	"fmt"
 	"go/format"
 	"go/parser"
 	"go/token"
@@ -10,86 +12,137 @@ import (
 	"regexp"
 	"strings"
 	"unicode"
+	"unicode/utf8"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
-var (
-	funcHeader = regexp.MustCompile(`^func\s`)
-	rawBlock   = regexp.MustCompile(`^\s*<(script|style)\b`)
-)
+// Template formats a .vuka.html file with the default options; see
+// TemplateWith.
+func Template(src []byte, pkg string) ([]byte, error) { return TemplateWith(src, pkg, Options{}) }
 
-// Template formats a .vuka.html file: its package clause first (pkg's,
-// added when the file has none and pkg isn't ""), the Go of its func
-// headers and of holes on one line written as gofmt writes it, trailing
-// space gone, no runs of blank lines, one blank line before each header (or
-// its doc comment), none between a doc comment and its header or a header
-// and its markup, and one newline at the end. Markup, the Go header above
-// it (a struct on one line stays one), and the content of scripts and
-// styles stay as written.
-func Template(src []byte, pkg string) ([]byte, error) {
+// TemplateWith formats a .vuka.html file, in the form it is in — the
+// <script lang="go"> one or the Go-header one:
+//
+//   - its package clause first (pkg's, added when the file has none and pkg
+//     isn't "");
+//   - its Go as vuka fmt formats a .vuka file, unindented in the script;
+//   - its markup indented two spaces a level — elements, and the blocks of
+//     its Go statements — those statements and the Go of its holes as gofmt
+//     writes them, an opening tag's attributes one a line when it doesn't
+//     fit in o's width, void elements and childless components closing
+//     themselves (<input … />, <ui.Badge />), with no runs of blank lines;
+//   - a top-level <style>'s CSS formatted (CSS), a blank line before it
+//     and before a component's <script>;
+//   - with o.Tailwind, a static class list's utilities in Tailwind's order.
+//
+// It changes only whitespace that doesn't render: text stays on its lines,
+// and what <pre>, <textarea>, <script> and an inline <style> hold stays as
+// written. Formatting a formatted file changes nothing.
+func TemplateWith(src []byte, pkg string, o Options) ([]byte, error) {
+	if !utf8.Valid(src) {
+		return nil, errors.New("not valid UTF-8")
+	}
 	text := strings.ReplaceAll(string(src), "\r\n", "\n")
 	if pkg != "" {
 		text = string(TemplatePackage([]byte(text), pkg))
 	}
-	lines := strings.Split(text, "\n")
-	var out []string
-	raw := ""
-	header, clause, body := false, false, false
-	markup := false // past the Go header: its first line starting with <
-	for _, l := range lines {
-		l = strings.TrimRight(l, " \t")
-		markup = markup || strings.HasPrefix(l, "<")
-		if l == "" && (header || clause) && raw == "" {
-			continue
-		}
-		if clause && l != "" {
-			out = append(out, "")
-		}
-		header, clause = false, false
-		switch {
-		case raw != "":
-			if strings.Contains(l, "</"+raw+">") {
-				raw = ""
-			}
-		case rawBlock.MatchString(l):
-			if m := rawBlock.FindStringSubmatch(l); !strings.Contains(l, "</"+m[1]+">") {
-				raw = m[1]
-			}
-		case funcHeader.MatchString(l):
-			if f, err := format.Source([]byte("package p\n" + l + " {}\n")); err == nil {
-				// gofmt writes a long header's body on lines of its own
-				l = strings.TrimPrefix(string(f), "package p\n\n")
-				l = strings.TrimSuffix(strings.TrimSuffix(l, " {}\n"), " {\n}\n")
-				markup = true // a template's header: its markup follows
-			}
-			for len(out) > 0 && out[len(out)-1] == "" {
-				out = out[:len(out)-1]
-			}
-			doc := len(out)
-			for doc > 0 && strings.HasPrefix(out[doc-1], "//") {
-				doc--
-			}
-			if doc > 0 && out[doc-1] != "" {
-				out = append(out[:doc], append([]string{""}, out[doc:]...)...)
-			}
-			header = true
-		case packageLine.MatchString(l) && !body:
-			clause = true
-		case markup:
-			l = holesFormatted(l)
-		}
-		if l == "" && len(out) > 0 && out[len(out)-1] == "" && raw == "" {
-			continue
-		}
-		body = body || l != "" && !strings.HasPrefix(l, "//")
-		out = append(out, l)
+	b := []byte(text)
+	parts, perr := transpile.SplitTemplate(b)
+	if perr != nil {
+		return nil, fmt.Errorf("%d:%d: %s", perr.Pos.Line, perr.Pos.Column, perr.Msg)
 	}
-	for len(out) > 0 && out[len(out)-1] == "" {
-		out = out[:len(out)-1]
+	var out strings.Builder
+	markupAt := parts.Markup
+	switch {
+	case parts.IsScript():
+		lead := strings.TrimSpace(text[:parts.Script.Open])
+		if lead != "" {
+			out.WriteString(lead + "\n")
+		}
+		goText := text[parts.GoStart:parts.GoEnd]
+		f, err := formatGo(goText, lineOf(text, parts.GoStart)-1)
+		if err != nil {
+			return nil, err
+		}
+		out.WriteString("<script lang=\"go\">\n" + f + "</script>\n")
+		if markupAt >= 0 {
+			out.WriteString("\n")
+		}
+	case markupAt != 0 && strings.TrimSpace(text[:max(markupAt, 0)]) != "" || markupAt < 0:
+		end := markupAt
+		if end < 0 {
+			end = len(text)
+		}
+		f, err := formatGo(text[:end], 0)
+		if err != nil {
+			return nil, err
+		}
+		out.WriteString(f)
+		if sh, _ := transpile.ParseShape(b); sh == nil && markupAt >= 0 {
+			out.WriteString("\n") // a head alone: a blank line before the markup
+		}
 	}
-	return []byte(strings.Join(out, "\n") + "\n"), nil
+	if markupAt >= 0 {
+		m, err := formatTemplateMarkup([]byte(text[markupAt:]), markupAt, o)
+		if err != nil {
+			line := lineOf(text, markupAt)
+			if me, ok := err.(*markupError); ok {
+				line = lineOf(text, me.off)
+			}
+			return nil, fmt.Errorf("%d:1: %v", line, err)
+		}
+		out.WriteString(m)
+	}
+	res := strings.TrimRight(out.String(), "\n") + "\n"
+	return []byte(res), nil
 }
+
+// formatTemplateMarkup lays out a template's markup, checking that it
+// renders what it did.
+func formatTemplateMarkup(src []byte, offset int, o Options) (string, error) {
+	m, err := formatMarkup(src, offset, o, func(css string) (string, error) { return CSS(css) })
+	if err != nil {
+		return "", err
+	}
+	before, err1 := templateSig(src)
+	after, err2 := templateSig([]byte(m))
+	if err1 != nil || err2 != nil || trimSig(before) != trimSig(after) {
+		return "", errors.New("internal error: formatting would change what this markup renders; please report it")
+	}
+	return m, nil
+}
+
+// trimSig drops a signature's leading and trailing line breaks.
+func trimSig(s string) string {
+	for strings.HasPrefix(s, "⏎\x00") {
+		s = strings.TrimPrefix(s, "⏎\x00")
+	}
+	for strings.HasSuffix(s, "⏎\x00") {
+		s = strings.TrimSuffix(s, "⏎\x00")
+	}
+	return s
+}
+
+// formatGo formats a template's Go — a script's content or a Go header —
+// as a .vuka file; its errors' lines are the file's, the Go starting below
+// the line base.
+func formatGo(text string, base int) (string, error) {
+	f, err := Source([]byte(strings.TrimLeft(text, "\n")))
+	if err != nil {
+		lead := strings.Count(text, "\n") - strings.Count(strings.TrimLeft(text, "\n"), "\n")
+		var line, col int
+		var msg string
+		if n, _ := fmt.Sscanf(err.Error(), "%d:%d:", &line, &col); n == 2 {
+			msg = err.Error()[len(fmt.Sprintf("%d:%d:", line, col)):]
+			return "", fmt.Errorf("%d:%d:%s", line+base+lead, col, msg)
+		}
+		return "", err
+	}
+	return string(f), nil
+}
+
+func lineOf(text string, off int) int { return 1 + strings.Count(text[:min(off, len(text))], "\n") }
 
 var packageLine = regexp.MustCompile(`^package\s+\w+`)
 
@@ -99,6 +152,12 @@ var packageLine = regexp.MustCompile(`^package\s+\w+`)
 func TemplatePackage(src []byte, pkg string) []byte {
 	if transpile.ParseTemplateHead(src).Package != "" {
 		return src
+	}
+	if p, err := transpile.SplitTemplate(src); err == nil && p.IsScript() {
+		// In the script, above its Go.
+		at := p.Script.OpenEnd
+		rest := strings.TrimLeft(string(src[at:]), " \t\r\n")
+		return []byte(string(src[:at]) + "\npackage " + pkg + "\n\n" + rest)
 	}
 	text, at := string(src), 0
 	for _, l := range strings.SplitAfter(text, "\n") {

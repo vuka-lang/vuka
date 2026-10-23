@@ -575,6 +575,7 @@ func goSource(file string) ([]byte, bool) {
 	if !strings.HasSuffix(file, ".vuka.html") {
 		return src, true
 	}
+	src = transpile.HeaderView(src)
 	sh, _ := transpile.ParseShape(src)
 	if sh == nil {
 		return nil, false

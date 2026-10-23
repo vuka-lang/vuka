@@ -656,6 +656,7 @@ func islandPageOf(file string) (page, tag string, full []wtok, live bool) {
 	if err != nil {
 		return "", "", nil, false
 	}
+	src = transpile.HeaderView(src)
 	sh, _ := transpile.ParseShape(src)
 	if sh == nil || sh.Live && !sh.EmbedsLive {
 		return "", "", nil, false
