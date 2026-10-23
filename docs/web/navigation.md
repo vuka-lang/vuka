@@ -83,6 +83,7 @@ links each title to its book, and patches itself to the next page; the
 Books service and Book record live in services and models logic packages:
 
 ```html
+<script lang="go">
 package books
 
 import (
@@ -114,6 +115,8 @@ func (s *Shelf) show(ctx context.Context, page int) error {
     s.rows = rows
     return err
 }
+</script>
+
 <section>
   <ol>
     for _, book := range rows {
@@ -160,6 +163,7 @@ In `pages/orders/[id].vuka.html`, both entry paths, the mount hook and
 `Update`, call the same `load` check:
 
 ```html
+<script lang="go">
 package orders
 
 import (
@@ -193,6 +197,8 @@ func (p *OrderPage) load(ctx context.Context, id int) error {
     p.order = order
     return nil
 }
+</script>
+
 <h1>Order {order.ID}</h1>
 ```
 
@@ -323,6 +329,7 @@ handlers can call the methods supplied by ui.Live; here `PushNavigate`
 returns to the shelf and `PushPatch` moves to the next book:
 
 ```html
+<script lang="go">
 package books
 
 import "github.com/vuka-lang/ui/v2"
@@ -331,6 +338,8 @@ type BookActions struct { ui.Live }
 
 func (p *BookActions) Done() { p.PushNavigate("/books") }
 func (p *BookActions) Next() { p.PushPatch("/books/8") }
+</script>
+
 <nav>
   <button onClick={Done}>Done reading</button>
   <button onClick={Next}>Next book</button>

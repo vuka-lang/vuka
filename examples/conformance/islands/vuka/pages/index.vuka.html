@@ -1,3 +1,4 @@
+<script lang="go">
 package pages
 
 import (
@@ -25,6 +26,8 @@ func (d *Dashboard) Add() { d.points = append(d.points, len(d.points)) }
 
 // Zoom takes the range the chart selected.
 func (d *Dashboard) Zoom(r Range) { d.zoom = fmt.Sprintf("%d–%d", r.From, r.To) }
+</script>
+
 <main>
   <button id="add" onClick={Add}>Add</button>
   <Chart title="Sales" points={points} client:visible onSelect={Zoom}/>

@@ -1253,6 +1253,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			reply["result"] = p.withRouteLinks(p.documentLinks(vr.file), vr.file)
 		case vr.method == "textDocument/foldingRange":
 			reply["result"] = foldingRanges(vr.file, nil)
+		case vr.method == "textDocument/codeAction":
+			reply["result"] = p.withShapeScriptAction(vr.file, nil)
 		case vr.blocks != nil:
 			reply["result"] = map[string]any{"isIncomplete": false, "items": blockItems(*vr.blocks)}
 		case vr.field:
@@ -1385,6 +1387,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		v = p.withRouteLinks(p.withFileLinks(v, vr.file), vr.file)
 	case "textDocument/foldingRange":
 		v = foldingRanges(vr.file, v)
+	case "textDocument/codeAction":
+		v = p.withShapeScriptAction(vr.file, v)
 	}
 	reply["result"] = v
 	_ = p.editor.send(reply)

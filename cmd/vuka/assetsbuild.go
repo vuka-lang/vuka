@@ -104,7 +104,16 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 		mf.Global = &manifestEntry{Name: "app", Styles: labels(g.styles), Scripts: labels(g.scripts)}
 	}
 	var inline strings.Builder
+	seenCSS := map[string]bool{} // a global stylesheet two shapes hold is the app's once
 	for _, s := range g.styles {
+		key := s.path
+		if key == "" {
+			key = "\x00" + strings.TrimSpace(s.inline)
+		}
+		if seenCSS[key] {
+			continue
+		}
+		seenCSS[key] = true
 		if s.path != "" {
 			out.css = append(out.css, s.path)
 			data, err := os.ReadFile(s.path)

@@ -234,11 +234,14 @@ are never pages.
 Save this as `pages/about.vuka.html`, a page with nothing to load:
 
 ```html
+<script lang="go">
 // pages/about.vuka.html
 package pages
 
 // About is GET /about, a page with nothing to load.
 type About struct{}
+</script>
+
 <section id="about">
   <h1>About</h1>
   <p>Employers, their permits and the files that go with them.</p>
@@ -273,6 +276,7 @@ it uses it. This edit page, `pages/employers/[employer]/edit.vuka.html`,
 looks its employer up in a method its markup and `Title` call:
 
 ```html
+<script lang="go">
 // pages/employers/[employer]/edit.vuka.html
 package employer
 
@@ -292,6 +296,8 @@ func (p *Edit) employer() store.Employer {
 }
 
 func (p *Edit) Title() string { return "Edit " + p.employer().Name }
+</script>
+
 <form method="post" action={urls.Employers.Employer(Employer).Edit.Path()}>
   <input name="name" value={employer().Name}/>
   <button>Save</button>
@@ -354,6 +360,7 @@ This live page binds two parameters, one of them validated, and answers not
 found from its mount hook when the permit doesn't exist:
 
 ```html
+<script lang="go">
 // pages/employers/[employer]/permits/[permit].vuka.html
 package permits
 
@@ -381,6 +388,8 @@ func (p *Permit) mount(ctx context.Context) error {
 	p.kind = pm.Kind
 	return nil
 }
+</script>
+
 <section id="permit"><h2>{kind}</h2></section>
 ```
 
@@ -437,6 +446,7 @@ Pages beside it still win: a fixed segment beats the catch-all, so
 shell's mount point and script:
 
 ```html
+<script lang="go">
 // pages/app/[route...].vuka.html: Shell, /app/{route...}
 package app
 
@@ -445,6 +455,8 @@ type Shell struct {
 }
 
 func (p *Shell) Title() string { return "App" }
+</script>
+
 <div id="app"></div>
 <script type="module" src="/assets/app.js"></script>
 ```
@@ -464,6 +476,7 @@ Save the site's document as `pages/_layout.vuka.html`; it titles itself
 from the page's title:
 
 ```html
+<script lang="go">
 // pages/_layout.vuka.html
 package pages
 
@@ -478,6 +491,8 @@ type Layout struct {
 }
 
 func (l Layout) Title(ctx context.Context) string { return ui.PageTitle(ctx) + " - HR" }
+</script>
+
 <html lang="en">
 <head><title>{Title(ctx)}</title></head>
 <body>
@@ -510,6 +525,7 @@ This employer layout, `pages/employers/[employer]/_layout.vuka.html`, loads
 the employer, answers not found for an unknown one, and links to its pages:
 
 ```html
+<script lang="go">
 // pages/employers/[employer]/_layout.vuka.html
 package employer
 
@@ -533,6 +549,8 @@ func (l *Layout) Load(ctx context.Context, s *store.Store) error {
 	l.name = e.Name
 	return nil
 }
+</script>
+
 <article>
   <h1>{name}</h1>
   <nav><a href={urls.Employers.Employer(Employer).Path()}>Overview</a> <a href={urls.Employers.Employer(Employer).Edit.Path()}>Edit</a></nav>
@@ -613,6 +631,7 @@ The page says what the header shows. `Title() string` names it, and
 `Href` it links to, `""` for the page itself:
 
 ```html
+<script lang="go">
 // pages/admin/(console)/users/index.vuka.html
 package users
 
@@ -627,6 +646,8 @@ func (p *Index) Title() string { return "Users" }
 func (p *Index) Crumbs() []ui.Crumb {
 	return []ui.Crumb{{Label: "Admin", Href: "/admin"}, {Label: "Users"}}
 }
+</script>
+
 <p>Everyone who can sign in.</p>
 ```
 
@@ -634,6 +655,7 @@ The shell renders them, `ui.PageTitle(ctx)` and `ui.PageCrumbs(ctx)`, around
 its `Children`:
 
 ```html
+<script lang="go">
 // pages/admin/(console)/_layout.vuka.html
 package console
 
@@ -642,6 +664,8 @@ import "github.com/vuka-lang/ui/v2"
 type Shell struct {
 	Children ui.Node
 }
+</script>
+
 <header>
   <ol class="crumbs">
     for _, c := range ui.PageCrumbs(ctx) {
@@ -808,11 +832,14 @@ import it by that name, as `pages/admin/auth/login.vuka.html` does:
 
 ```html
 <!-- pages/admin/auth/login.vuka.html -->
+<script lang="go">
 package auth
 
 import "example.com/app/pages/private_parts"
 
 type Login struct{}
+</script>
+
 <parts.Card title="Sign in">
   <form method="post"><button>Sign in</button></form>
 </parts.Card>
@@ -830,6 +857,7 @@ This edit page saves the form on `Post` and removes the employer on
 `Delete`:
 
 ```html
+<script lang="go">
 // pages/employers/[employer]/edit.vuka.html
 package employer
 
@@ -854,6 +882,8 @@ func (p *Edit) Delete(ctx context.Context) error {
 	p.db.DeleteEmployer(p.Employer)
 	return nil
 }
+</script>
+
 <form method="post" action={urls.Employers.Employer(Employer).Edit.Path()}>…</form>
 ```
 

@@ -63,6 +63,55 @@ the `github.com/vuka-lang/vuka` package your module requires.
   renaming the `urls` chains naming it. See [following
   routes](/tools/editors#routes) and [renaming pages](/tools/editors#renaming-pages).
 
+- **`<script lang="go">` shapes.** A `.vuka.html` file's Go goes in a
+  `<script lang="go">`, the file's first element, and its markup follows
+  `</script>`; the file is HTML to every HTML tool. Before and after:
+
+  ```html
+  package counter
+
+  type Index struct{ count int }
+
+  func (p *Index) Add() { p.count++ }
+  <button onClick={Add}>{count}</button>
+  ```
+
+  ```html
+  <script lang="go">
+  package counter
+
+  type Index struct{ count int }
+
+  func (p *Index) Add() { p.count++ }
+  </script>
+
+  <button onClick={Add}>{count}</button>
+  ```
+
+  The end is found by Go's tokens, so `</script>` in a string or comment
+  doesn't end it ([E0156](/errors/E0156) when nothing does); one script per
+  file, first ([E0157](/errors/E0157)). Diagnostics, `vuka lsp` and source
+  maps keep the file's positions. The header form still compiles in 2.x and
+  is removed in 3.0; `vukavet` reports it ([W0107](/errors/W0107)), the editor
+  offers a code action, and `vuka fix shape-script` or `vuka fmt -rewrite`
+  converts files. Scaffolds, the docs, the ui kit and the examples use the new
+  form. See [laying out the file](/ui/templates#the-file).
+- **`<style>` in a shape.** `<style scoped>` after the markup is scoped to the
+  shape's elements by the `data-vk-s` attribute, an id from the package and
+  the struct's name (`:global(…)` escapes it; slot content keeps the caller's
+  scope); a plain `<style>` is the app's global CSS, bundled once even when
+  two shapes hold the same stylesheet. See [scoped
+  stylesheets](/web/assets#scoped-stylesheets).
+- **`vuka fmt` formats the whole shape.** The Go as gofmt does, the markup
+  indented two spaces a level with its statements and holes gofmt'ed and long
+  tags wrapped an attribute a line, void and childless component tags closed
+  (`<br />`, `<ui.Badge />`), and the CSS of a component's `<style>` —
+  changing only whitespace that doesn't render. `vuka.toml`'s `[fmt]` table
+  sets the `width` (100) and turns on Tailwind class ordering
+  (`tailwind = true`, off by default). New flags: `-check` for CI, `-rewrite`
+  for the script form. Format-on-save and Format Selection use the same rules.
+  See [formatting shape files](/tools/cli#fmt-shapes).
+
 ## v2.2.0 — 2026-10-23
 
 An admin shell — a menu of links in collapsible groups, a header with the

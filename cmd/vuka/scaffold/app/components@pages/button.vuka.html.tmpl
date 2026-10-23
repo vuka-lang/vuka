@@ -1,3 +1,4 @@
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -48,6 +49,8 @@ func (b Button) attrs() []ui.Attr {
 	}
 	return attrs
 }
+</script>
+
 <button {b.attrs()...}>
   <Spinner class="hidden group-aria-busy:block" />
   {Children}

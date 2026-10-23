@@ -28,7 +28,15 @@ func TestOneWayGuides(t *testing.T) {
 		}
 		samples, _ := parsePage(page, string(src))
 		for _, s := range samples {
-			if s.lang != "html" || !strings.HasPrefix(strings.TrimSpace(s.code), "package ") {
+			if s.lang != "html" {
+				continue
+			}
+			code := strings.TrimSpace(s.code)
+			if strings.HasPrefix(code, "package ") {
+				t.Errorf("%s:%d: a shape in the Go-header form: write its Go in <script lang=\"go\"> (vuka fmt -rewrite)", page, s.line)
+				continue
+			}
+			if !strings.HasPrefix(code, `<script lang="go">`) || !strings.Contains(code, "\npackage ") {
 				continue
 			}
 			shape, err := transpile.ParseShape([]byte(s.code))
@@ -37,7 +45,7 @@ func TestOneWayGuides(t *testing.T) {
 				continue
 			}
 			if shape == nil {
-				t.Errorf("%s:%d: complete shape example needs a Go header with one struct", page, s.line)
+				t.Errorf("%s:%d: complete shape example needs a <script lang=\"go\"> with one struct", page, s.line)
 				continue
 			}
 			shapes++

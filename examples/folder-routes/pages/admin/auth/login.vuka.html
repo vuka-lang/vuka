@@ -1,3 +1,4 @@
+<script lang="go">
 package auth
 
 import (
@@ -10,6 +11,8 @@ import (
 type Login struct{}
 
 func (p *Login) Title() string { return "Sign in" }
+</script>
+
 <parts.Card title="Sign in">
   <form id="login" method="post" action={urls.Admin.Auth.Login.Path()}><button>Sign in</button></form>
 </parts.Card>

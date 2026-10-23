@@ -1,9 +1,12 @@
+<script lang="go">
 package components
 
 // Tags is an item's tags, or a dash.
 type Tags struct {
 	Ts []string
 }
+</script>
+
 <>
   if len(Ts) == 0 {
     <p class="tags">—</p>

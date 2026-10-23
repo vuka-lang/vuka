@@ -19,7 +19,8 @@ import (
 // name both a field and a package-level name (W0101) — and the loops that
 // build a live list without keys (W0102, W0103) — and a hand-written use of
 // ui's uigen, the compiler's output (W0105) — and a hand-written ui.HTML,
-// the compiler's output for markup (W0106).
+// the compiler's output for markup (W0106) — and a file whose Go is a
+// header above its markup rather than a <script lang="go"> (W0107).
 var Templates = &analysis.Analyzer{
 	Name: "templates",
 	Doc:  "check ui.HTML's values against its labelled holes",
@@ -31,6 +32,7 @@ func runTemplates(pass *analysis.Pass) (any, error) {
 	info := pass.TypesInfo
 	k := newKinds(pass)
 	html := htmlSources(pass)
+	headerForm(pass, html)
 	bareNames(pass, html)
 	listKeys(pass)
 	handWrittenGen(pass)

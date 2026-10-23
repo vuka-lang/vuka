@@ -73,6 +73,7 @@ same page in the terminal.
 | [W0103](./W0103) | A stateful component in a loop has no key |
 | [W0105](./W0105) | A hand-written use of uigen |
 | [W0106](./W0106) | A hand-written ui.HTML or ui.IslandPage |
+| [W0107](./W0107) | A .vuka.html file in the Go-header form |
 
 ## Decorators and attributes
 

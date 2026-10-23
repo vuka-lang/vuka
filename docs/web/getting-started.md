@@ -32,12 +32,15 @@ Each file in a new project has one job:
 
 ## The Shape of a Page
 
-A page is a Go header with exactly one struct, followed by markup:
+A page is a `<script lang="go">` with exactly one struct, followed by markup:
 
 ```html
+<script lang="go">
 package pages
 
 type Index struct { Name string }
+</script>
+
 <main>
   <h1>Hello, {Name}!</h1>
   <a href="/pets/7">A pet</a>

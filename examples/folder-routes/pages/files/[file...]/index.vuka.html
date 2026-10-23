@@ -1,3 +1,4 @@
+<script lang="go">
 package file
 
 import (
@@ -19,4 +20,6 @@ func (p *Index) text() string {
 	text, _ := p.db.File(string(p.File))
 	return text
 }
+</script>
+
 <pre>{text()}</pre>

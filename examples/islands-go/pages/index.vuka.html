@@ -1,3 +1,4 @@
+<script lang="go">
 package pages
 
 import (
@@ -20,6 +21,8 @@ func (d *Dashboard) mount(ctx context.Context) error {
 
 // Add is the button's event: the chart gets the new point.
 func (d *Dashboard) Add() { d.points = append(d.points, len(d.points)) }
+</script>
+
 <main>
   <button id="add" onClick={Add}>Add</button>
   <Chart title="Sales" points={points} client:load/>

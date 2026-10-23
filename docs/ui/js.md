@@ -15,11 +15,14 @@ You write commands in the event attributes of a `.vuka.html` shape.
 This menu button toggles the `#menu` element in the browser:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
 
 type Menu struct{}
+</script>
+
 <section>
   <button onClick={ui.JS.Toggle("#menu")}>Menu</button>
   <nav id="menu" hidden><a href="/pets">Pets</a></nav>

@@ -5,8 +5,8 @@
 ## Introduction
 
 You keep a component's CSS and browser behavior in its `.vuka.html` shape,
-after the markup. The Go header still comes first and declares exactly one
-struct.
+after the markup. The `<script lang="go">` still comes first and declares
+exactly one struct.
 
 Styles are scoped to the component, and scripts run once per instance. For
 utility classes across the app, see [Tailwind CSS](/web/styling).
@@ -17,11 +17,14 @@ This counter carries a scoped stylesheet and a script whose `update` replays
 an animation on its output:
 
 ```html
+<script lang="go">
 package components
 
 type Counter struct { n int }
 
 func (c *Counter) Increment() { c.n++ }
+</script>
+
 <section>
   <output>{n}</output>
   <button onClick={Increment}>+</button>
@@ -48,9 +51,17 @@ export default component<Counter>((el) => ({
 
 ## Scoped Stylesheets
 
-`<style scoped>` rewrites selectors to the shape's elements. Child
-components carry their own scope, and passed children retain the caller's
-scope. Keyframe names are scoped too.
+`<style scoped>` rewrites selectors to the shape's elements: each element
+its markup writes carries the shape's scope attribute, `data-vk-s`, an id
+derived from the package and the struct's name, so it is the same in every
+build and on every replica. Child components carry their own scope, and
+children passed in a slot keep the caller's scope. Keyframe names are scoped
+too. The attribute is part of the rendered markup, so a live re-render keeps
+it.
+
+A `<style>` without `scoped` is global CSS: it is bundled once into the
+app's stylesheet, however many shapes or pages use the component, and the
+same stylesheet written in two shapes is included once.
 
 `:global(...)` escapes scoping, and `:deep(...)` reaches child content. CSS
 syntax errors report their source file and line.

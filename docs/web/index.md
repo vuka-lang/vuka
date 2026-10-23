@@ -59,11 +59,14 @@ Save this as `pages/_layout.vuka.html`; it wraps every page below that
 folder:
 
 ```html
+<script lang="go">
 package pages
 
 import "github.com/vuka-lang/ui/v2"
 
 type Layout struct { Children ui.Node }
+</script>
+
 <html lang="en">
   <head><title>{ui.PageTitle(ctx)}</title></head>
   <body>{Children}</body>
@@ -75,9 +78,12 @@ type Layout struct { Children ui.Node }
 Save this as `pages/index.vuka.html`, then open `/?name=Ada`:
 
 ```html
+<script lang="go">
 package pages
 
 type Index struct { Name string }
+</script>
+
 <main><h1>Hello, {Name}!</h1></main>
 ```
 

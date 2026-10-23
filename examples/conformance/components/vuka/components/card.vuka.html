@@ -1,3 +1,4 @@
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -11,6 +12,8 @@ type Card struct {
 	Footer   ui.Node
 	Children ui.Node
 }
+</script>
+
 <section class="card" class:wide={Wide} style:--accent={Accent}>
   <h3>{Title}</h3>
   <div class="body">{Children}</div>

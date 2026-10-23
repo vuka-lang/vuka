@@ -1,3 +1,4 @@
+<script lang="go">
 package employer
 
 import (
@@ -36,6 +37,8 @@ func (p *Edit) Delete(ctx context.Context) error {
 	p.db.DeleteEmployer(p.Employer)
 	return nil
 }
+</script>
+
 <form id="edit" method="post" action={urls.Employers.Employer(Employer).Edit.Path()}>
   <label>Name <input name="name" value={employer().Name} required/></label>
   <label>City <input name="city" value={employer().City} required/></label>

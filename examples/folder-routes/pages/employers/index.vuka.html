@@ -1,3 +1,4 @@
+<script lang="go">
 // Package employers is /employers.
 package employers
 
@@ -40,6 +41,8 @@ func (p *Index) label() string {
 	}
 	return "Sort by city"
 }
+</script>
+
 <section id="employers">
   <h1>Employers</h1>
   <button id="sort" onClick={Sort}>{label()}</button>

@@ -1,3 +1,4 @@
+<script lang="go">
 package board
 
 import (
@@ -71,4 +72,6 @@ func (b *Board) Add(ctx context.Context, text string) error {
 
 // Open moves to a note's page.
 func (b *Board) Open(id int) { b.PushNavigate(fmt.Sprint("/notes/", id)) }
+</script>
+
 <Board client:load />

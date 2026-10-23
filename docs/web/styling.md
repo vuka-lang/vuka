@@ -16,9 +16,12 @@ binary for production. You add your own theme in a stylesheet of your own.
 Use utilities directly in a shape:
 
 ```html
+<script lang="go">
 package pages
 
 type Index struct{}
+</script>
+
 <main class="mx-auto max-w-xl p-8">
   <h1 class="text-3xl font-bold">Home</h1>
 </main>

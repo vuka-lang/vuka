@@ -1,3 +1,4 @@
+<script lang="go">
 // Package pages is the directory's pages.
 package pages
 
@@ -27,6 +28,8 @@ func (d *Dashboard) mount(ctx context.Context) error {
 
 // Like is the button's event.
 func (d *Dashboard) Like() { d.likes++ }
+</script>
+
 <main>
   <h1>Users</h1>
   <p>{users} users, {likes} likes</p>

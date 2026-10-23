@@ -219,7 +219,7 @@ func TestFixTemplatesPackage(t *testing.T) {
 }
 
 // TestFixShapeScript: header-form files are rewritten in the script form,
-// formatted; script-form, headerless and broken files stay; a second run
+// their Go and markup as written; script-form, headerless and broken files stay; a second run
 // has nothing to do.
 func TestFixShapeScript(t *testing.T) {
 	script := "<script lang=\"go\">\npackage pages\n\ntype Done struct{}\n</script>\n\n<p>done</p>\n"
@@ -236,7 +236,7 @@ func TestFixShapeScript(t *testing.T) {
 		t.Fatal(err)
 	}
 	for path, want := range map[string]string{
-		"pages/index.vuka.html":  "<script lang=\"go\">\npackage pages\n\n// Index is the home page.\ntype Index struct {\n\tTitle string\n}\n</script>\n\n<h1>{Title}</h1>\n",
+		"pages/index.vuka.html":  "<script lang=\"go\">\npackage pages\n\n// Index is the home page.\ntype Index struct {\n\tTitle string\n}\n</script>\n\n<h1>{ Title }</h1>\n",
 		"pages/done.vuka.html":   script,
 		"pages/bare.vuka.html":   "package pages\n\n<p>bare</p>\n",
 		"pages/broken.vuka.html": "package pages\n\ntype Broken struct {\n<p></p>\n",

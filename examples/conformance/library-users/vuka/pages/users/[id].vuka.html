@@ -1,3 +1,4 @@
+<script lang="go">
 package user
 
 import (
@@ -25,4 +26,6 @@ func (p *Profile) mount(ctx context.Context) error {
 	p.Name = u.Name
 	return err
 }
+</script>
+
 <Profile id={ID} name={Name} client:load />

@@ -4,8 +4,8 @@
 
 ## Introduction
 
-Every application view is a `.vuka.html` shape file: one struct in its Go
-header, and markup starting on the first line that begins with `<`.
+Every application view is a `.vuka.html` shape file: one struct in its
+`<script lang="go">`, and the markup below it.
 
 You use the same form for a reusable component, a page under `pages/` and
 the layout that wraps a folder of pages. This page shows each, and how they
@@ -17,6 +17,7 @@ This component renders a pet's name and whatever its caller passes inside
 it:
 
 ```html
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -25,6 +26,8 @@ type PetCard struct {
     Name string
     Children ui.Node
 }
+</script>
+
 <article>
   <h2>{Name}</h2>
   {Children}

@@ -1,3 +1,4 @@
+<script lang="go">
 package components
 
 import "github.com/vuka-lang/ui/v2"
@@ -11,4 +12,6 @@ type Counter struct {
 
 // Inc counts one.
 func (c *Counter) Inc() { c.n++ }
+</script>
+
 <span class="counter">{Label}: {n} <button onClick={Inc}>+</button></span>

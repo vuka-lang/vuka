@@ -4,8 +4,8 @@
 
 ## Introduction
 
-Vuka renders UI from `.vuka.html` shape files. A shape contains a Go header
-with exactly one struct followed by markup. Logic-only `.go` and `.vuka`
+Vuka renders UI from `.vuka.html` shape files. A shape contains a
+`<script lang="go">` with exactly one struct, followed by markup. Logic-only `.go` and `.vuka`
 files contain services, data types and helpers.
 
 ## Writing a Shape
@@ -13,13 +13,16 @@ files contain services, data types and helpers.
 This shape declares a `Greeting` component with one prop:
 
 ```html
+<script lang="go">
 package components
 
 type Greeting struct { Name string }
+</script>
+
 <section><h1>Hello, {Name}!</h1></section>
 ```
 
-The first line starting with `<` begins markup. Exported fields are props;
+The markup follows `</script>`. Exported fields are props;
 unexported fields hold tracked server state or provided dependencies.
 `ui.State[T]` holds browser state, written by assignments in `on…` attributes.
 

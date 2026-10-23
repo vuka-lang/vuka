@@ -12,11 +12,14 @@ libraries inside a shape without changing its one-struct Go-header form.
 This shape renders a component from an imported templ library:
 
 ```html
+<script lang="go">
 package components
 
 import "example.com/app/legacy"
 
 type Welcome struct { Name string }
+</script>
+
 <section><legacy.Greeting name={Name} /></section>
 ```
 

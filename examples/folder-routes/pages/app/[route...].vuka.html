@@ -1,3 +1,4 @@
+<script lang="go">
 package app
 
 // Shell is the client app's shell, the same for every /app/... URL: the
@@ -7,5 +8,7 @@ type Shell struct {
 }
 
 func (p *Shell) Title() string { return "App" }
+</script>
+
 <div id="app"></div>
 <script is:inline>document.getElementById("app").textContent = "client route: " + location.pathname</script>

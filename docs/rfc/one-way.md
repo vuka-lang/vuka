@@ -65,6 +65,21 @@ below still describes an alternative, this section wins.
    `@web.Service`/`inject:`, E0337–E0338 for by-name and constructor
    hooks).
 
+6. **The shape's Go goes in `<script lang="go">` (recorded for 2.3,
+   2026-10-23).** A `.vuka.html` file holds its Go — package clause,
+   imports, the one struct, hooks, methods — in a `<script lang="go">`, the
+   file's first element, and its markup below `</script>`, with an optional
+   `<style>` / `<style scoped>` and component `<script lang="ts">` at the
+   end. The boundary is the `</script>` found by Go tokens, not the first
+   line starting with `<`, so the file reads as HTML to every HTML tool
+   (Tailwind, Emmet, formatters) while the compiler, gopls and source maps
+   keep the file's own positions (the compiler reads the script with its
+   tags blanked). This form is canonical in 2.x: the docs, scaffolds, ui kit
+   and examples use it. The 2.0 header form (Go bare above the markup)
+   keeps compiling throughout 2.x, a package may mix the two, and
+   `vukavet` reports it as W0107 with a fix; `vuka fix shape-script` and
+   `vuka fmt -rewrite` convert it. The header form is removed in 3.0.
+
 ## 1. Motivation
 
 Today a person building a page in vuka chooses among several equally

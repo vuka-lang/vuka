@@ -46,6 +46,7 @@ Check permissions before writes, including calls from a live page.
 This page shows the signed-in user's ID:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -61,6 +62,8 @@ func (p *Account) mount(ctx context.Context, user auth.User) error {
     p.name = user.ID
     return nil
 }
+</script>
+
 <main><p>Signed in as {name}</p></main>
 ```
 

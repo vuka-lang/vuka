@@ -139,12 +139,20 @@ func scanMarkup(src []byte, offset int) ([]mtok, error) {
 			}
 			name := strings.TrimSpace(string(src[i+2 : j]))
 			s.toks = append(s.toks, mtok{kind: mClose, start: i, end: j + 1, name: name})
-			for k := len(s.stack) - 1; k >= 0; k-- {
-				if s.stack[k] == name {
-					s.stack = s.stack[:k]
-					break
+			if n := len(s.stack); n == 0 || s.stack[n-1] != name {
+				open := "nothing"
+				if n > 0 {
+					open = s.stack[n-1]
+					if strings.HasPrefix(open, "{") {
+						open = "a block, open"
+					} else {
+						open = "<" + open + ">"
+					}
 				}
+				s.fail(i, "</"+name+"> closes "+open)
+				return nil, s.err
 			}
+			s.stack = s.stack[:len(s.stack)-1]
 			i = j + 1
 		case c == '<' && i+1 < len(src) && (isLetter(src[i+1]) || src[i+1] == '>'):
 			t, end := s.openTag(i)
@@ -220,6 +228,14 @@ func scanMarkup(src []byte, offset int) ([]mtok, error) {
 			}
 			s.text(i, j)
 			i = j
+		}
+	}
+	if s.err == nil && len(s.stack) > 0 {
+		open := s.stack[len(s.stack)-1]
+		if strings.HasPrefix(open, "{") {
+			s.fail(len(src), "a block has no }")
+		} else {
+			s.fail(len(src), "<"+open+"> has no </"+open+">")
 		}
 	}
 	return s.toks, s.err

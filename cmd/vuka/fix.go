@@ -459,8 +459,9 @@ func fixTemplatesPackage(m *fixModule) ([]fixChange, error) {
 }
 
 // fixShapeScript writes the .vuka.html files in the Go-header form in the
-// <script lang="go"> form, formatted. A file in the script form already, or
-// one it can't read as a shape (a broken one), stays.
+// <script lang="go"> form, their Go and markup as written (vuka fmt
+// -rewrite formats them too). A file in the script form already, or one it
+// can't read as a shape (a broken one), stays.
 func fixShapeScript(m *fixModule) ([]fixChange, error) {
 	var changes []fixChange
 	err := walkModule(m.root, func(path string) error {
@@ -474,9 +475,6 @@ func fixShapeScript(m *fixModule) ([]fixChange, error) {
 		out, ok := transpile.ToScriptForm(format.TemplatePackage(src, format.DirPackage(filepath.Dir(path))))
 		if !ok {
 			return nil
-		}
-		if f, err := formatTemplateFile(path, out, false); err == nil {
-			out = f
 		}
 		rel, _ := filepath.Rel(m.root, path)
 		changes = append(changes, fixChange{

@@ -81,7 +81,8 @@ A page under `pages/` declares its dependencies as unexported fields of
 provided types, and needs no constructor for them:
 
 ```html
-// pages/users/index.vuka.html
+<!-- pages/users/index.vuka.html -->
+<script lang="go">
 type Index struct {
 	users *users.Service
 	rows  []users.User
@@ -94,6 +95,7 @@ func (p *Index) mount(ctx context.Context) error {
 }
 
 func (p *Index) Post(ctx context.Context, f users.Form) (web.Redirect, error) { … }
+</script>
 ```
 
 `pages/route.go` builds the page with `&Index{}` (or its `NewIndex`, when
@@ -190,6 +192,7 @@ Declare form data in a logic file and the page's single rendering struct in
 its shape. In `pages/index.vuka.html`:
 
 ```html
+<script lang="go">
 package pages
 
 import (
@@ -217,6 +220,8 @@ func (p *Index) Add(ctx context.Context, f models.NewTodo, store *services.Todos
     p.rows = store.All()
     return nil
 }
+</script>
+
 <section>
   <form onSubmit={Add}><input name="text" /><button>Add</button></form>
   for _, row := range rows {

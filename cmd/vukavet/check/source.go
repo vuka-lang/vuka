@@ -22,6 +22,7 @@ type htmlSource struct {
 
 	typ    string // the struct a file in the 2.0 shape renders
 	markup int    // where its markup starts; -1 for a file of templates
+	script bool   // its Go is in a <script lang="go">, not a header above the markup
 }
 
 // htmlSources are the .vuka.html files of the package pass analyses.
@@ -40,6 +41,7 @@ func htmlSources(pass *analysis.Pass) []*htmlSource {
 		f := pass.Fset.AddFile(p, -1, len(b))
 		f.SetLinesForContent(b)
 		h := &htmlSource{path: p, src: string(b), file: f, markup: -1}
+		h.src, h.script = scriptView(h.src)
 		if typ, at, ok := shapeOf(h.src); ok {
 			h.typ, h.markup = typ, at
 		}

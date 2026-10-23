@@ -3,6 +3,7 @@ package main
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/vuka-lang/vuka/v2/toolchain/format"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -282,19 +283,28 @@ func TestLSPBenchmark(t *testing.T) {
 			t.Errorf("no fold %s…%s (%s) in %s", want.from, want.to, fold, f)
 		}
 	}
-	// 6. formatting: kept as written, a messy copy's holes fixed (markup
-	// stays as written), nothing mid-edit
+	// 6. formatting: vuka fmt's layout (the markup two spaces a level),
+	// kept once formatted, a messy copy's holes fixed, nothing mid-edit
 	formatting := func(s string) string {
 		edit(s)
 		return ask("textDocument/formatting", map[string]any{"textDocument": map[string]any{"uri": uri}, "options": map[string]any{"tabSize": 4, "insertSpaces": false}})
 	}
-	if r := formatting(src); r != "[]" && r != "null" {
-		t.Errorf("formatting the benchmark: %s", r)
+	formatted, err := format.Template([]byte(src), "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var edits []any
+	_ = json.Unmarshal([]byte(formatting(src)), &edits)
+	if got := applyEdits(src, edits); got != string(formatted) {
+		t.Errorf("formatting the benchmark:\n%s", got)
+	}
+	if r := formatting(string(formatted)); r != "[]" && r != "null" {
+		t.Errorf("formatting the formatted benchmark: %s", r)
 	}
 	messy := strings.NewReplacer("{p.Name}", "{ p.Name }", `"/pets/%d", p.ID`, `"/pets/%d",p.ID`, "{len(Pets)}", "{len( Pets )}").Replace(src)
-	var edits []any
+	edits = nil
 	_ = json.Unmarshal([]byte(formatting(messy)), &edits)
-	if got := applyEdits(messy, edits); got != src {
+	if got := applyEdits(messy, edits); got != string(formatted) {
 		t.Errorf("formatting a messy copy:\n%s", got)
 	}
 	if r := formatting(strings.Replace(src, "<td>{p.Kind}</td>", "<td>{p.Kind}", 1)); r != "[]" && r != "null" {
