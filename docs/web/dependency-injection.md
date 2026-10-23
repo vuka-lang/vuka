@@ -1,8 +1,12 @@
-# Dependency injection
+# Dependency Injection
+
+[[toc]]
+
+## Introduction
 
 Each app has a container. A service is a struct with a constructor whose
 parameters are its own dependencies, registered in `main` with
-`app.Service(NewX)`; a handler, a hook or another service takes it as a
+`app.Service(NewX)`. A handler, a hook or another service takes it as a
 parameter, by type, and the container builds it once and hands the same
 value to everyone.
 
@@ -16,8 +20,6 @@ func (s *PetStore) All() ([]Pet, error) { return nil, nil }
 
 func (db *DB) Ping(ctx context.Context) error { return nil }
 func (db *DB) Close() error                   { return nil }
-
-type Config struct{ Path string }
 
 func (c Config) Validate() error { return nil }
 
@@ -47,6 +49,35 @@ func (t *Todos) All() []Todo     { return t.rows }
 func (t *Todos) Add(text string) { t.rows = append(t.rows, Todo{text}) }
 -->
 
+## Writing Services
+
+Services use ordinary constructors in `.go` or `.vuka` logic files. A
+constructor's parameters identify its dependencies, and a construction
+failure stops startup. Here `NewGreeter` depends on the `*Config` that
+`NewConfig` builds:
+
+```go
+package services
+
+type Config struct { Prefix string }
+type Greeter struct { config *Config }
+
+func NewConfig() *Config { return &Config{Prefix: "Hello"} }
+func NewGreeter(c *Config) *Greeter { return &Greeter{config: c} }
+func (g *Greeter) Greet(name string) string { return g.config.Prefix + ", " + name }
+```
+
+The app registers both constructors explicitly with `app.Service(NewX)`,
+before Build or Run. Handler and decorated hook parameters are then filled by
+type: the context, a form struct, the HTTP request, the signed-in identity
+and registered services.
+
+In a shape, an unexported field of a provided type is injected; other
+unexported fields are tracked server state.
+
+## Registering Services
+
+In `main.go`, register each constructor on the app:
 
 ```go
 // main.go (service types and constructors live in logic files)
@@ -72,11 +103,13 @@ func main() {
 }
 ```
 
-The rendering page belongs in a `.vuka.html` shape under pages; it receives
-PetStore as a provided field or a typed hook/handler parameter. It does not
-register its own route or service.
+The rendering page belongs in a `.vuka.html` shape under `pages/`. It
+receives `PetStore` as a provided field or a typed hook or handler
+parameter, and it does not register its own route or service.
 
 ## Providers
+
+Three methods put values in the container:
 
 | | |
 |---|---|
@@ -84,7 +117,8 @@ register its own route or service.
 | `app.Provide(value)` | an already constructed configuration or resource value; library options can use `web.Provide(value)` |
 | `app.Controller(prefix, NewC)` | an API controller built by its constructor; page rendering still belongs in the page tree |
 
-A constructor's parameters are injected by type.
+A constructor's parameters are injected by type, and three rules hold for
+every value:
 
 - Every value is a **lazy singleton per app**: built the first time something
   needs it, then shared. Two apps (in tests, say) have their own.
@@ -92,7 +126,7 @@ A constructor's parameters are injected by type.
   constructor returning the interface; there are no named values or groups.
 - A constructor's error fails `app.Start` (and `Run`).
 
-## Parameters, by type
+## Parameters by Type {#parameters-by-type}
 
 Hooks and handlers declare what they need by parameter type, and each
 parameter is filled from the one source its type names. The rule is the same
@@ -163,11 +197,10 @@ not extra independent event payloads. Provided parameters are still checked
 even on methods whose direct payload signature is not an event signature.
 An unfillable parameter is reported with its method, source file, line and type.
 
-## Lifecycle
+## Starting and Stopping Services {#lifecycle}
 
 A provided value with a `Start` or `Stop` method takes part in the app's
 life:
-
 
 ```go
 func (db *DB) Start(ctx context.Context) error { return db.Ping(ctx) }
@@ -190,11 +223,17 @@ started, one implementing `Stop(context.Context) error` (`web.Stopper`)
 stopped. The first failing start ends `Start` with its error; every stop
 runs, and their errors are joined.
 
+### Hooks and Eager Services
+
+These options add hooks and start constructors nothing needs:
+
 | | |
 |---|---|
 | `web.OnStart(fn)`, `web.OnStop(fn)`, `app.OnStart`, `app.OnStop` | hooks, `func(context.Context) error` |
 | `web.Eager(ctors…)`, `app.Eager` | constructors built and started even when nothing needs them |
 
+For example, this app starts its configuration, a migration hook and a
+mailer no route takes:
 
 <!-- go:fragment -->
 ```go
@@ -205,7 +244,7 @@ app := web.New(
 )
 ```
 
-## Build errors
+## Build Errors
 
 `app.Build()` resolves everything and returns all problems at once, each at
 the file and line of the handler or hook, naming the parameter and its type:
@@ -222,17 +261,18 @@ error[E0409]: dependency cycle: *main.A -> *main.B -> *main.A
 A parameter nothing fills ([E0407](/errors/E0407) for a pointer or interface
 nothing provides, [E0405](/errors/E0405) for a type a request or an event
 can't carry), missing providers, cycles and two providers of one type are
-Build errors.
-`Handler`, `Start` and `Run` call `Build` first, so a broken app never
-serves.
+Build errors. `Handler`, `Start` and `Run` call `Build` first, so a broken
+app never serves.
 
-## Options from libraries
+## Options From Libraries
 
 A library hands the app one option that does all it needs: `web.Options`
 groups options (nil ones are skipped), and `web.OptionFunc` runs code against
 the app inside `New`, before `Build`, where every `App` method is open to it.
 `web.Check(fn)` (or `app.Check`) adds a check whose error is one of `Build`'s,
-reported with the routes' and the container's.
+reported with the routes' and the container's. This option provides a
+configuration, registers a service, a middleware, a route and a stop hook,
+and checks the configuration:
 
 ```go
 func CacheOption(cfg Config) web.Option {
@@ -253,6 +293,8 @@ func newApp() *web.App { return web.New(CacheOption(cfg), web.Dev()) }
 
 The ORM's [`ormweb.Databases`](/orm/databases#web-integration) is such an
 option.
+
+## Resolving a Service
 
 `web.Resolve[T](app)` returns the app's `T`, built with its dependencies —
 for `main` and [tests](/web/testing).

@@ -1,7 +1,20 @@
-# Styles and scripts
+# Styles & Scripts
 
-Keep a component's CSS and browser behavior in its `.vuka.html` shape after
-the markup. The Go header still comes first and declares exactly one struct.
+[[toc]]
+
+## Introduction
+
+You keep a component's CSS and browser behavior in its `.vuka.html` shape,
+after the markup. The Go header still comes first and declares exactly one
+struct.
+
+Styles are scoped to the component, and scripts run once per instance. For
+utility classes across the app, see [Tailwind CSS](/web/styling).
+
+## A Component With Style and Script
+
+This counter carries a scoped stylesheet and a script whose `update` replays
+an animation on its output:
 
 ```html
 package components
@@ -33,34 +46,44 @@ export default component<Counter>((el) => ({
 </script>
 ```
 
-## Scoped stylesheets
+## Scoped Stylesheets
 
-`<style scoped>` rewrites selectors to the shape's elements. Child components
-carry their own scope; passed children retain the caller's scope. `:global(...)`
-escapes scoping and `:deep(...)` reaches child content. Keyframe names are
-scoped too. CSS syntax errors report their source file and line.
+`<style scoped>` rewrites selectors to the shape's elements. Child
+components carry their own scope, and passed children retain the caller's
+scope. Keyframe names are scoped too.
 
-Tailwind utilities and `@apply` work with the app stylesheet. Global document
-styles belong in the app stylesheet rather than a reusable component.
+`:global(...)` escapes scoping, and `:deep(...)` reaches child content. CSS
+syntax errors report their source file and line.
+
+### Tailwind in Components
+
+Tailwind utilities and `@apply` work with the app stylesheet. Global
+document styles belong in the app stylesheet rather than a reusable
+component.
 
 ## Scripts
 
 A bundled `<script lang="ts">` runs per component instance. The component
-helper supplies root element, props and context. `update` responds to changed
-props and `destroy` releases resources when the instance leaves. Unexported,
-function and node fields are not JSON props. The generated declarations supply
-TypeScript with the shape's exported data, state and handler types.
+helper supplies the root element, props and context.
+
+`update` responds to changed props, and `destroy` releases resources when
+the instance leaves. Unexported, function and node fields are not JSON
+props. The generated declarations supply TypeScript with the shape's
+exported data, state and handler types.
 
 The context exposes live methods, state handles and navigation. Clean up
-listeners and timers on destroy. Browser behavior cannot replace server validation.
+listeners and timers on destroy.
 
-## Inline scripts
+> [!WARNING]
+> Browser behavior cannot replace server validation.
+
+## Inline Scripts
 
 `<script is:inline>` is emitted directly. Use `{json(value)}` for its
 script-safe JSON hole, never unescaped string concatenation.
 
-## Building
+## Building Assets {#building}
 
-`vuka run` and `vuka build` bundle scripts and scope CSS. Dependencies imported
-by component scripts must be available to the frontend build. For npm frameworks
-and hydration policies, see [Islands](/web/islands).
+`vuka run` and `vuka build` bundle scripts and scope CSS. Dependencies
+imported by component scripts must be available to the frontend build. For
+npm frameworks and hydration policies, see [Islands](/web/islands).

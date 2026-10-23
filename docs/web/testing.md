@@ -1,8 +1,15 @@
-# Testing
+# Testing Web Apps
+
+[[toc]]
+
+## Introduction
 
 An app is an `http.Handler`, so the standard library's `httptest` tests it.
-`web.New(pages.Routes(), …)` receives the generated page table, and each app has its
-own container and singletons — so every test can build a fresh one.
+`web.New(pages.Routes(), …)` receives the generated page table, and each app
+has its own container and singletons, so every test can build a fresh one.
+
+This page covers request tests, testing services directly, mail and crons,
+and live pages in a browser.
 
 <!-- go:context
 type DB struct{}
@@ -18,6 +25,10 @@ type PetStore struct{}
 func (s *PetStore) Add(in NewPet) (Pet, error) { return Pet{}, nil }
 -->
 
+## Testing Requests
+
+This test serves the app with `httptest` and checks that an unknown pet
+answers 404:
 
 ```go
 func TestPets(t *testing.T) {
@@ -37,7 +48,12 @@ func TestPets(t *testing.T) {
 }
 ```
 
-Test files are `_test.go`; `go test ./...` runs them (`go tool vuka test ./...` when the package has `.vuka.html` templates).
+Test files are `_test.go`; `go test ./...` runs them
+(`go tool vuka test ./...` when the package has `.vuka.html` templates).
+
+## Building the App in a Test
+
+These methods and options set up the app a test checks:
 
 | | |
 |---|---|
@@ -48,6 +64,13 @@ Test files are `_test.go`; `go test ./...` runs them (`go tool vuka test ./...` 
 | `web.Only(pkgs…)` | take only the declarations of these packages (import paths; `"main"` for the main package) |
 | `web.NoDotEnv()`, `web.DotEnv(files…)` | which env files a test reads; under `go test`, `.env.test` and `.env` |
 
+See [Dependency Injection](/web/dependency-injection) and
+[Configuration](/web/configuration).
+
+### Testing a Service Directly
+
+`web.Resolve` hands the test a service built with its dependencies, to call
+without a request:
 
 ```go
 func TestStore(t *testing.T) {
@@ -65,21 +88,25 @@ func TestStore(t *testing.T) {
 }
 ```
 
+### Limiting a Test to Some Packages
+
 `web.Only` matters when a test binary links packages that declare routes of
 their own: a library's tests, or an app whose packages each register a few.
 
-## Mail and crons
+## Testing Mail and Crons {#mail-and-crons}
 
 `mailtest.New()` is a Mailer that keeps what the app sends instead of
-sending it, and `mailtest.Last(t, m)` reads it back — see
+sending it, and `mailtest.Last(t, m)` reads it back; see
 [Mail](/web/mail#testing). `crontest.Run(app, name)` runs a cron with its
 dependencies, and `crontest.NewClock` drives the schedule with a virtual
-clock — see [Crons](/web/crons#testing).
+clock; see [Crons](/web/crons#testing).
 
-## Live pages in a browser
+## Testing Live Pages in a Browser {#live-pages-in-a-browser}
 
-[Live components](/web/live) are tested over HTTP for their first render (the
-page carries `data-vk-token=`), and in a browser for their events. web's own
-tests drive a headless Chrome over the DevTools protocol and skip when none
-is found; `VUKA_CHROME` names the binary. See
-[`examples/live/main_test.vuka`](https://github.com/vuka-lang/web/blob/main/examples/live/main_test.vuka) (its Go is what `vuka eject` writes).
+[Live components](/web/live) are tested over HTTP for their first render
+(the page carries `data-vk-token=`), and in a browser for their events.
+
+web's own tests drive a headless Chrome over the DevTools protocol and skip
+when none is found; `VUKA_CHROME` names the binary. See
+[`examples/live/main_test.vuka`](https://github.com/vuka-lang/web/blob/main/examples/live/main_test.vuka)
+(its Go is what `vuka eject` writes).

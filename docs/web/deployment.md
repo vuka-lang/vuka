@@ -1,6 +1,20 @@
-# Routers and deployment
+# Deployment
 
-## Running
+[[toc]]
+
+## Introduction
+
+`vuka build` makes one binary that serves your whole app. This page covers
+how the app runs and shuts down, the environment it reads in production, the
+security headers it sends, and what changes behind a proxy or with several
+replicas.
+
+It ends with the router seam, for when you want another router than the
+standard library's.
+
+## Running the App {#running}
+
+The app serves itself, or hands you an `http.Handler` to serve elsewhere:
 
 | | |
 |---|---|
@@ -9,6 +23,8 @@
 | `app.Handler()` | the app as an `http.Handler`, to serve or mount anywhere; panics when Build fails |
 | `app.Start(ctx)`, `app.Stop(ctx)` | the services' [lifecycle](/web/dependency-injection#lifecycle) without a server, for a `Handler` served elsewhere |
 | `app.Build()` | resolves everything and returns every problem; the others call it |
+
+To serve TLS yourself, start the services, then serve the handler:
 
 <!-- go:fragment -->
 ```go
@@ -21,7 +37,9 @@ srv := &http.Server{Addr: ":8443", Handler: app.Handler()}
 log.Fatal(srv.ListenAndServeTLS("cert.pem", "key.pem"))
 ```
 
-## The environment
+## The Environment
+
+The app reads these variables:
 
 | Variable | |
 |---|---|
@@ -29,24 +47,29 @@ log.Fatal(srv.ListenAndServeTLS("cert.pem", "key.pem"))
 | `VUKA_ENV` | which [env files](/web/configuration#files-and-precedence) are read; `development` shows internal error messages (as `web.Dev()` does) and logs the files read |
 | `VUKA_CHROME` | the Chrome binary for browser tests |
 
-In production, set real environment variables and leave `VUKA_ENV` unset (or
-`production`): internal errors answer "Internal Server Error", never their
-message. `VUKA_ENV` and the other `VUKA_` variables are read from the real
-environment only — an env file can't set them — and a binary started
-outside a Go module reads env files from its working directory alone, never
-from a directory above it.
+In production, set real environment variables and leave `VUKA_ENV` unset
+(or `production`): internal errors answer "Internal Server Error", never
+their message.
 
-Build with **Go 1.27.2 or newer**: earlier releases have standard-library
-security fixes (`net/http`, `crypto/tls` and others) the binary doesn't get
-otherwise.
+`VUKA_ENV` and the other `VUKA_` variables are read from the real
+environment only; an env file can't set them. A binary started outside a Go
+module reads env files from its working directory alone, never from a
+directory above it.
 
-## Security headers
+> [!WARNING]
+> Build with **Go 1.27.2 or newer**: earlier releases have standard-library
+> security fixes (`net/http`, `crypto/tls` and others) the binary doesn't
+> get otherwise.
+
+## Security Headers
 
 Every response carries `X-Content-Type-Options: nosniff`,
 `Referrer-Policy: strict-origin-when-cross-origin`, `X-Frame-Options: DENY`
 and `Content-Security-Policy: frame-ancestors 'none'`, and HTTPS responses
-`Strict-Transport-Security: max-age=31536000` — unless the handler sets
-its own.
+`Strict-Transport-Security: max-age=31536000`, unless the handler sets its
+own.
+
+These options change them:
 
 | Option | |
 |---|---|
@@ -54,7 +77,7 @@ its own.
 | `web.NoSecurityHeaders()` | none: a proxy in front sets them |
 | `web.MaxRequestBody(n)` | the largest request body, 32 MiB by default ([uploads](/web/parameters#the-body)) |
 
-## Behind a proxy
+## Behind a Proxy
 
 A proxy or load balancer in front of the app makes every request come from
 its address. Name it, and only then are its headers believed:
@@ -66,12 +89,15 @@ app := web.New(web.TrustedProxies("10.0.0.0/8", "fd00::/8"))
 ```
 
 From those addresses, `web.ClientIP(r)` is the nearest address in
-`X-Forwarded-For` (else `Forwarded`) that isn't a trusted proxy — entries a
-client added itself further left are ignored — and `X-Forwarded-Proto: https`
-makes a request HTTPS (`web.IsHTTPS(r)`) for HSTS. From any other address,
-those headers are ignored and `web.ClientIP(r)` is the connection's peer.
-[Login throttling](/web/auth#signing-in-and-out) and the
-[live connection caps](/web/live) per client address count by it.
+`X-Forwarded-For` (else `Forwarded`) that isn't a trusted proxy; entries a
+client added itself further left are ignored. `X-Forwarded-Proto: https`
+makes a request HTTPS (`web.IsHTTPS(r)`) for HSTS.
+
+From any other address, those headers are ignored and `web.ClientIP(r)` is
+the connection's peer. [Login throttling](/web/auth#signing-in-and-out) and
+the [live connection caps](/web/live) per client address count by it.
+
+## Building One Binary
 
 `vuka build` makes one binary: views and every
 [`vuka.File`](/features/decorators#files) are embedded, and so is the live
@@ -90,14 +116,16 @@ func main() {
 }
 ```
 
+## Running Several Replicas
+
 Several replicas behind one hostname need a shared `web.LiveKey(key)` for
 [live pages](/web/live#security), and a `web.WithRelay(r)` for broadcasts to
 reach every replica.
 
-## Routers
+## Using Another Router {#routers}
 
 The default router is `net/http`'s `ServeMux` with Go 1.22 patterns
-(`web.NewServeMux()`). Any router plugs in through:
+(`web.NewServeMux()`). Any router plugs in through this interface:
 
 ```go
 type Router interface {
@@ -106,6 +134,8 @@ type Router interface {
 	Param(r *http.Request, name string) string
 }
 ```
+
+Pass yours with `web.WithRouter`:
 
 <!-- go:context
 var myRouter web.Router = web.NewServeMux()
