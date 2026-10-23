@@ -13,8 +13,4 @@ type Post struct {
 	Views int @Char{} Draft bool
 }
 
-type Box[T any] struct {
-	V T @Char{}
-}
-
 func main() {}

@@ -81,8 +81,12 @@ An attribute is a Go value, type-checked like a
 `@T` (T's zero value), or `@f(…)` (a conversion or any call, such as
 `@Default(0)`). A wrong field or type is a compile error on the attribute.
 
-The built-ins (`@doc`, `@deprecated`, `@export`) are for declarations, and the
-fields of generic types can't carry attributes.
+The built-ins (`@doc`, `@deprecated`, `@export`) are for declarations. A
+generic type's fields carry attributes when it is a live component (it embeds
+`ui.Live`, or is a live [shape](/ui/templates)): they are written into its
+`LiveSchema` method, a method of the generic type, so each instantiation has
+its own. Any other generic type's would be recorded for the type at package
+level, which needs its type arguments ([E0206](/errors/E0206)).
 
 ### Reading Field Attributes
 

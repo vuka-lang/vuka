@@ -1,0 +1,16 @@
+package main
+
+import "context"
+
+// Box counts its items when it mounts: one hook, per instantiation.
+type Box[T any] struct {
+	Items []T
+	n     int
+}
+
+@ui.Mount
+func (b *Box[T]) mount(ctx context.Context) error {
+	b.n = len(b.Items)
+	return nil
+}
+<p>{n}</p>

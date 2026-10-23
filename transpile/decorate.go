@@ -307,6 +307,9 @@ func (e *engine) decorate() bool {
 				any = true
 				continue
 			}
+			if a.decl != nil && e.strayHook(f, a) {
+				continue
+			}
 			if a.Param {
 				if a.decl == nil {
 					e.errs.add("E0205", a.Pos, "@%s must be followed by a parameter of a top-level function", a.Name)

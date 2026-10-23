@@ -1,0 +1,51 @@
+<script lang="go">
+package components
+
+import (
+	"context"
+	"fmt"
+)
+
+// Table pages through rows of any type, keeping its page and sort in the
+// URL. Its mount hook counts the rows it was given.
+type Table[T any] struct {
+	Title string
+	Rows  []T
+	page  int    @ui.URL("page").Default(1)
+	sort  string @ui.URL("sort").Default("name")
+	total int
+}
+
+@ui.Mount
+func (t *Table[T]) mount(ctx context.Context) error {
+	t.total = len(t.Rows)
+	return nil
+}
+
+// Next shows the next page.
+func (t *Table[T]) Next() { t.page++ }
+
+// ByDate sorts by date.
+func (t *Table[T]) ByDate() { t.sort = "date" }
+
+func (t *Table[T]) shown() []string {
+	var out []string
+	for i, r := range t.Rows {
+		if i/2 == t.page-1 {
+			out = append(out, fmt.Sprint(r))
+		}
+	}
+	return out
+}
+</script>
+
+<section class="table">
+  <h2>{Title}: {total} rows, page {page}, by {sort}</h2>
+  <ul>
+    for _, r := range shown() {
+      <li key={r}>{r}</li>
+    }
+  </ul>
+  <button onClick={Next}>Next</button>
+  <button onClick={ByDate}>By date</button>
+</section>

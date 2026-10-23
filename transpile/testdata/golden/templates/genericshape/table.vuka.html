@@ -1,0 +1,33 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Table pages through its rows, keeping the page and sort in the URL.
+type Table[T any] struct {
+	Title string
+	Rows  []T
+	Sort  string @ui.URL("sort")
+	page  int    @ui.URL("page").Default(1)
+	shown int
+	label string
+}
+
+@ui.Mount
+func (t *Table[T]) mount(ctx context.Context) error {
+	t.shown = len(t.Rows)
+	return nil
+}
+
+@ui.OnChange
+func (t *Table[T]) changed(ctx context.Context) error {
+	t.label = fmt.Sprint(t.Sort)
+	return nil
+}
+
+func (t *Table[T]) Next() { t.page++ }
+<p onClick={Next}>{Title}: {shown} rows, page {page}, sort {Sort}</p>

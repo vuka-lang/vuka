@@ -15,14 +15,12 @@ import (
 // its field, after the tag if there is one:
 //
 //	Title string `json:"title"` @Char{Max: 200}
-func (f *fileState) fieldAttr(toks []tok, a *Attr, p tok, next int, typeName, tparams string, topLevel bool) string {
+func (f *fileState) fieldAttr(toks []tok, a *Attr, p tok, next int, typeName string, topLevel bool) string {
 	switch {
 	case a.kind != attrTyped && a.kind != attrDecorator:
 		return "@" + a.Name + " is for declarations; a field attribute is a value, such as @Char{Max: 200}"
 	case typeName == "" || !topLevel:
 		return "field attributes go on the fields of a package-level struct type"
-	case tparams != "":
-		return typeName + " is generic; its fields can't carry attributes"
 	case p.tok == token.SEMICOLON || p.tok == token.LBRACE:
 		return "a field attribute goes after its field, on the same line: Title string @Char{Max: 200}"
 	}

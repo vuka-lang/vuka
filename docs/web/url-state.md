@@ -198,7 +198,10 @@ name of its own:
 ```
 
 The first keeps `?requests.page=` and `?requests.sort=`, the second
-`?users.page=`. `urlKey` takes an expression too, `urlKey={name}`.
+`?users.page=`. `urlKey` takes an expression too, `urlKey={name}`. A generic component's
+instances work the same way, `<components.Table[Task] urlKey="tasks" />`
+beside `<components.Table[User] urlKey="users" />`: each instantiation has
+its own fields and hooks.
 [`vukavet`](/tools/vukavet) warns when two components one markup renders
 keep the same parameter ([W0307](/errors/W0307)).
 

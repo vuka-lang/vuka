@@ -28,6 +28,7 @@ type schemaInfo struct {
 	param    *types.Named // its parameter's type: orm.Schema
 	embed    string       // the embedded field carrying the marker
 	recv     string       // the receiver's name
+	targs    string       // a generic type's parameters, as its receiver writes them: [T]
 	hooks    []*Attr      // hook attributes on its methods, in source order
 }
 
@@ -54,7 +55,7 @@ func (e *engine) findSchemas() {
 			for _, sp := range g.Specs {
 				ts := sp.(*ast.TypeSpec)
 				st, ok := ts.Type.(*ast.StructType)
-				if !ok || ts.TypeParams != nil {
+				if !ok {
 					continue
 				}
 				for _, field := range st.Fields.List {
@@ -62,7 +63,10 @@ func (e *engine) findSchemas() {
 						continue
 					}
 					method, param := e.schemaMarker(f, field.Type)
-					if param == nil {
+					// A generic type's schema is a method of it, read per
+					// instantiation: a live component's. A model's registers
+					// its type at package level, which needs type arguments.
+					if param == nil || ts.TypeParams != nil && method != "LiveSchema" {
 						continue
 					}
 					recv := recvs[ts.Name.Name]
@@ -70,12 +74,27 @@ func (e *engine) findSchemas() {
 						recv = strings.ToLower(ts.Name.Name[:1])
 					}
 					e.schemas[ts.Name.Name] = &schemaInfo{typeName: ts.Name.Name, file: f, method: method, param: param,
-						embed: embeddedName(field.Type), recv: recv}
+						embed: embeddedName(field.Type), recv: recv, targs: typeArgs(ts)}
 					break
 				}
 			}
 		}
 	}
+}
+
+// typeArgs is a generic type's parameters as a method's receiver names
+// them, [K, V]; "" for a type that has none.
+func typeArgs(ts *ast.TypeSpec) string {
+	if ts.TypeParams == nil {
+		return ""
+	}
+	var names []string
+	for _, p := range ts.TypeParams.List {
+		for _, n := range p.Names {
+			names = append(names, n.Name)
+		}
+	}
+	return "[" + strings.Join(names, ", ") + "]"
 }
 
 // schemaMarker reads the marker of an embedded field's type, pkg.T or
@@ -104,6 +123,12 @@ func (e *engine) schemaMarker(f *fileState, x ast.Expr) (string, *types.Named) {
 	if !ok {
 		return "", nil
 	}
+	return typeMarker(pkg, tn)
+}
+
+// typeMarker reads the marker of tn, a type of pkg: the method a struct
+// embedding it gets and that method's parameter's type.
+func typeMarker(pkg *types.Package, tn *types.TypeName) (string, *types.Named) {
 	m, ok := pkgMethod(types.NewPointer(tn.Type()), pkg, "vukaSchema")
 	if !ok {
 		return "", nil
@@ -168,6 +193,79 @@ func (e *engine) hookOf(f *fileState, a *Attr) bool {
 	return true
 }
 
+// liveHooks are the hooks a live page's methods declare.
+var liveHooks = map[string]bool{"Mount": true, "OnChange": true, "Loads": true}
+
+// checkGenericFields reports field attributes on a generic struct with no
+// schema method: they would be registered at package level, by
+// vuka.RegisterFields[T], which needs the type's arguments. A live
+// component's are written into its LiveSchema, a method of the generic
+// type, so they need none.
+func (e *engine) checkGenericFields() {
+	for _, f := range e.vuka {
+		for _, a := range f.attrs {
+			if !a.Field || len(a.fieldNames) == 0 || e.schemas[a.structOf] != nil || !f.generic(a.structOf) {
+				continue
+			}
+			e.errs.add("E0206", a.Pos, "%s is generic and not live: its fields' attributes are registered for the type at package level, which needs its type arguments", a.structOf).
+				help("embed ui.Live in %s to keep them in its LiveSchema, or drop its type parameters", a.structOf)
+		}
+	}
+}
+
+// generic reports whether the type name, declared in f, has type
+// parameters.
+func (f *fileState) generic(name string) bool {
+	for _, d := range f.ast.Decls {
+		if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.TYPE {
+			for _, sp := range g.Specs {
+				if ts := sp.(*ast.TypeSpec); ts.Name.Name == name {
+					return ts.TypeParams != nil
+				}
+			}
+		}
+	}
+	return false
+}
+
+// strayHook reports a, an attribute on a method, when it names a hook of
+// a schema its receiver doesn't declare — @ui.Mount on a method of a type
+// that doesn't embed ui.Live — which would otherwise be lowered as a call
+// of a function of the same name (the islands' ui.Mount).
+func (e *engine) strayHook(f *fileState, a *Attr) bool {
+	fd, ok := a.decl.(*ast.FuncDecl)
+	if !ok || fd.Recv == nil || len(fd.Recv.List) == 0 || a.Field || a.Param {
+		return false
+	}
+	pkgName, sel, ok := strings.Cut(a.Name, ".")
+	if !ok || !liveHooks[sel] {
+		return false
+	}
+	pkg := e.importedAs(f, pkgName)
+	if pkg == nil {
+		return false
+	}
+	for _, n := range pkg.Scope().Names() {
+		tn, ok := pkg.Scope().Lookup(n).(*types.TypeName)
+		if !ok || !tn.Exported() {
+			continue
+		}
+		_, param := typeMarker(pkg, tn)
+		if param == nil || param.Obj().Pkg() != pkg {
+			continue
+		}
+		if m, ok := pkgMethod(types.NewPointer(param), pkg, sel); !ok || !m.Exported() {
+			continue
+		}
+		recv := recvBase(fd)
+		e.errs.add("E0130", a.Pos, "@%s is a hook, and %s has no %s for it: %s doesn't embed %s.%s",
+			a.Name, recv, param.Obj().Name(), recv, pkgName, tn.Name()).
+			help("embed %s.%s in %s, or drop the attribute", pkgName, tn.Name(), recv)
+		return true
+	}
+	return false
+}
+
 // checkSchemas reports a schema type that declares its schema method by
 // hand as well as with attributes, and the hook forms of earlier releases
 // on a live page: a method found by its name (E0337) and a hook its
@@ -175,6 +273,7 @@ func (e *engine) hookOf(f *fileState, a *Attr) bool {
 func (e *engine) checkSchemas() {
 	e.checkNamedHooks()
 	e.checkCtorHooks()
+	e.checkGenericFields()
 	for _, f := range e.files {
 		for _, d := range f.ast.Decls {
 			fd, ok := d.(*ast.FuncDecl)
@@ -342,7 +441,7 @@ func (f *fileState) renderSchema(w *genWriter, si *schemaInfo, attrs []*Attr) {
 	if ls := strings.LastIndexByte(string(f.src[:start]), '\n'); ls > 0 && len(attrs) > 0 {
 		head = strings.LastIndexByte(string(f.src[:ls]), '\n') + 1
 	}
-	w.gen("\nfunc ("+si.recv+" *"+si.typeName+") "+si.method+"("+p+" *"+q+si.param.Obj().Name()+") {\n", head)
+	w.gen("\nfunc ("+si.recv+" *"+si.typeName+si.targs+") "+si.method+"("+p+" *"+q+si.param.Obj().Name()+") {\n", head)
 	var model []*Attr
 	byField := map[string][]*Attr{}
 	var order []string

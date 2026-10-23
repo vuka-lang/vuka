@@ -1,0 +1,13 @@
+package main
+
+// Pair isn't live: its fields' attributes would be registered for Pair at
+// package level, which a generic type can't be without its arguments.
+type Pair[K comparable, V any] struct {
+	Key   K
+	Value V
+	Note  string @Label("note")
+}
+
+type Label string
+
+func main() {}

@@ -245,7 +245,7 @@ func (f *fileState) scan(errs *ErrorList) {
 		switch fr := top(); {
 		case depth > 0 && fr.structBody:
 			topLevel := len(frames) == 1 || len(frames) == 2 && frames[0].typeGroup
-			if msg := f.fieldAttr(toks, a, p, next, fr.structOf, fr.tparams, topLevel); msg != "" {
+			if msg := f.fieldAttr(toks, a, p, next, fr.structOf, topLevel); msg != "" {
 				errs.add("E0206", a.Pos, "%s", msg)
 			}
 			i = next - 1

@@ -1,0 +1,9 @@
+error[E0206]: Pair is generic and not live: its fields' attributes are registered for the type at package level, which needs its type arguments
+ --> err_generic_fields.vuka:8:15
+  |
+8 |     Note  string @Label("note")
+  |                  ^^^^^^
+  |
+  = help: embed ui.Live in Pair to keep them in its LiveSchema, or drop its type parameters
+
+For more information about this error, try `vuka explain E0206`.

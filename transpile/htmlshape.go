@@ -484,6 +484,13 @@ func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
 			if j < len(toks) && (toks[j].t == token.LPAREN || toks[j].t == token.LBRACE) && toks[j].off == end(j-1) {
 				last = match(j)
 			}
+			// A call chained on it, @ui.URL("page").Default(1), is part of it.
+			for k := last + 1; k+1 < len(toks) && toks[k].t == token.PERIOD && toks[k].off == end(last) && toks[k+1].t == token.IDENT; k = last + 1 {
+				last = k + 1
+				if n := last + 1; n < len(toks) && (toks[n].t == token.LPAREN || toks[n].t == token.LBRACE) && toks[n].off == end(last) {
+					last = match(n)
+				}
+			}
 			blankRange(t.off, end(last))
 			i = last
 		case t.t == token.FUNC && depth == 0:

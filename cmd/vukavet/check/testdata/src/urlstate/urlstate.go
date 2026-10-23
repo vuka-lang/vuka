@@ -40,3 +40,25 @@ func (r *Report) Render() ui.Node {
 		ui.URLKey("a", &table.Table{}), // want `W0307: Table \(urlKey "a"\) and the Table before it both keep the query parameter a.page` `query parameter a.sort`
 	)
 }
+
+// Grid is generic: each instantiation keeps its fields in the URL.
+type Grid[K comparable, V any] struct { // want Grid:`urlKeys\(page\)`
+	ui.Live
+	Rows map[K]V
+	page int
+}
+
+func (g *Grid[K, V]) LiveSchema(l *ui.LiveSchema) { l.Field(&g.page, ui.URL("page")) }
+func (g *Grid[K, V]) Render() ui.Node             { return nil }
+
+// Grids renders two instantiations: under keys of their own, and without.
+type Grids struct{}
+
+func (g *Grids) Render() ui.Node {
+	return ui.HTML(`…`,
+		ui.URLKey("tasks", &Grid[string, int]{}),
+		ui.URLKey("users", &Grid[int, string]{}),
+		&Grid[string, int]{},
+		&Grid[int, string]{}, // want `W0307: Grid and the Grid before it both keep the query parameter page`
+	)
+}
