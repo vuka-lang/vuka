@@ -124,7 +124,11 @@ func isShape(lines []string, top int) bool {
 // without an error when it has no Go header (E0152 when compiled), and an
 // error when the header breaks one of its rules.
 func ParseShape(src []byte) (*Shape, *Error) {
-	head := ParseTemplateHead(src)
+	src, _, err := headerView(src)
+	if err != nil {
+		return nil, err
+	}
+	head := parseTemplateHead(src)
 	lines := strings.SplitAfter(string(src), "\n")
 	if !isShape(lines, head.Top) {
 		return nil, nil
@@ -327,7 +331,7 @@ func shapeRecv(x ast.Expr) (ptr bool, name string) {
 // SendsEvent reports whether a template file's markup wires its struct's
 // method name to an on… attribute: sends it as an event.
 func SendsEvent(src []byte, name string) bool {
-	_, _, markup := goHeader(src, 0)
+	_, _, markup := goHeader(HeaderView(src), 0)
 	return markup >= 0 && wiredEvent(string(src[markup:]), []string{name}) != ""
 }
 
