@@ -53,6 +53,8 @@ type lspClient struct {
 	resps map[string]chan rpcMsg
 	diags chan map[string]any
 	init  any // initialize's result
+	// applyEdit answers the server's workspace/applyEdit; nil answers null.
+	applyEdit func(params json.RawMessage) any
 }
 
 func (c *lspClient) loop() {
@@ -78,7 +80,11 @@ func (c *lspClient) loop() {
 			_ = json.Unmarshal(m.Params, &p)
 			c.diags <- p
 		case m.isRequest():
-			_ = c.conn.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": nil})
+			var result any
+			if m.Method == "workspace/applyEdit" && c.applyEdit != nil {
+				result = c.applyEdit(m.Params)
+			}
+			_ = c.conn.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": result})
 		}
 	}
 }

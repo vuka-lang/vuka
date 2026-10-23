@@ -266,13 +266,15 @@ func (p *proxy) readFunc() load.ReadFunc {
 func addRefactorKinds(caps map[string]any) {
 	cap, ok := caps["codeActionProvider"].(map[string]any)
 	if !ok {
-		if caps["codeActionProvider"] != nil {
-			return // gopls's true: every kind
-		}
+		// gopls's true is every kind; vuka's actions need resolving too.
 		cap = map[string]any{}
 		caps["codeActionProvider"] = cap
 	}
-	kinds, _ := cap["codeActionKinds"].([]any)
+	kinds, ok := cap["codeActionKinds"].([]any)
+	if !ok {
+		cap["resolveProvider"] = true
+		return
+	}
 	have := map[string]bool{}
 	for _, k := range kinds {
 		if s, ok := k.(string); ok {

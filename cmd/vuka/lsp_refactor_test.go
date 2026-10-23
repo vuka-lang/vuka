@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -591,4 +592,110 @@ func TestLayoutFixes(t *testing.T) {
 		}
 		vets(t, dir)
 	})
+}
+
+const keyedCounter = `<script lang="go">
+package components
+
+type Counter struct {
+	count int
+	names []string
+}
+
+func (c *Counter) Add() { c.count++ }
+</script>
+
+<div>
+  <p>{count}</p>
+  <button onClick={Add}>Add one</button>
+  <ul>
+    for _, n := range names {
+      <li>{n}</li>
+    }
+  </ul>
+</div>
+`
+
+// TestLSPRefactors: vuka lsp offers its actions beside gopls's; Extract
+// component runs vuka.extractComponent, which has the editor apply the
+// edit, and the key fix's edit comes on codeAction/resolve.
+func TestLSPRefactors(t *testing.T) {
+	if _, err := findGopls(""); err != nil {
+		needs(t, "%v", err)
+	}
+	dir, _ := filepath.EvalSymlinks(t.TempDir())
+	mod, sum := testModule(t, "lsptest")
+	path := filepath.Join(dir, "components/counter.vuka.html")
+	for name, src := range map[string]string{"go.mod": mod, "go.sum": sum, "components/counter.vuka.html": keyedCounter} {
+		writeFile(t, filepath.Join(dir, name), src)
+	}
+	t.Setenv("GOWORK", "off")
+	c := startLSPCaps(t, dir, lspOptions{renameCommands: true}, map[string]any{
+		"codeAction": map[string]any{"resolveSupport": map[string]any{"properties": []any{"edit"}},
+			"codeActionLiteralSupport": map[string]any{"codeActionKind": map[string]any{"valueSet": []any{"quickfix", "refactor", "refactor.extract", "refactor.move", "refactor.rewrite", "source"}}}},
+	})
+	c.applyEdit = func(params json.RawMessage) any {
+		var p struct {
+			Edit any `json:"edit"`
+		}
+		_ = json.Unmarshal(params, &p)
+		applyWorkspace(t, p.Edit)
+		return map[string]any{"applied": true}
+	}
+	caps := c.init.(map[string]any)["capabilities"].(map[string]any)
+	if cap, _ := caps["codeActionProvider"].(map[string]any); cap["resolveProvider"] != true || !strings.Contains(fmt.Sprint(cap["codeActionKinds"]), "refactor.move") {
+		t.Errorf("code actions: %v", caps["codeActionProvider"])
+	}
+	uri := pathToURI(path)
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": keyedCounter}})
+	c.waitDiags(uri, func([]any) bool { return true })
+	actions := func(s, e int) map[string]map[string]any {
+		got := c.call("textDocument/codeAction", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"range": lspRange{positionOf([]byte(keyedCounter), s), positionOf([]byte(keyedCounter), e)}, "context": map[string]any{"diagnostics": []any{}}})
+		out := map[string]map[string]any{}
+		list, _ := got.([]any)
+		for _, a := range list {
+			m := a.(map[string]any)
+			out[m["title"].(string)] = m
+		}
+		return out
+	}
+
+	at := strings.Index(keyedCounter, "<li>")
+	key := actions(at, at)["Give the item a key"]
+	if key == nil || key["edit"] != nil || key["data"] == nil {
+		t.Fatalf("the key fix, its edit left for resolve: %v", key)
+	}
+	resolved := c.call("codeAction/resolve", key).(map[string]any)
+	applyWorkspace(t, resolved["edit"])
+	if got := readFile(t, path); !strings.Contains(got, "for i, n := range names {\n      <li key={i}>{n}</li>") {
+		t.Errorf("keyed:\n%s", got)
+	}
+
+	src := readFile(t, path)
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2},
+		"contentChanges": []any{map[string]any{"text": src}}})
+	s, e := selection(src, "<button", "</button>")
+	got := c.call("textDocument/codeAction", map[string]any{"textDocument": map[string]any{"uri": uri},
+		"range": lspRange{positionOf([]byte(src), s), positionOf([]byte(src), e)}, "context": map[string]any{"diagnostics": []any{}}})
+	var extract map[string]any
+	for _, a := range got.([]any) {
+		if m := a.(map[string]any); m["title"] == "Extract component…" {
+			extract = m
+		}
+	}
+	if extract == nil {
+		t.Fatalf("no Extract component…: %v", got)
+	}
+	cmd := extract["command"].(map[string]any)
+	arg := cmd["arguments"].([]any)[0].(map[string]any)
+	arg["name"] = "AddButton"
+	c.call("workspace/executeCommand", map[string]any{"command": cmd["command"], "arguments": []any{arg}})
+	if got := readFile(t, path); !strings.Contains(got, "<AddButton Add={Add} />") || !strings.Contains(got, "ui.Live") {
+		t.Errorf("after extracting:\n%s", got)
+	}
+	if _, err := os.Stat(filepath.Join(dir, "components/add_button.vuka.html")); err != nil {
+		t.Error(err)
+	}
+	vets(t, dir)
 }
