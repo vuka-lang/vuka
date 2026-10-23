@@ -94,6 +94,60 @@ is half-typed. It offers:
   type
 - go to definition, references and rename on the Go inside braces
 
+### Completing Attributes, Events and Refs {#attributes-events-refs}
+
+In a tag, completion offers every ARIA attribute (`aria-pressed`,
+`aria-current`, `aria-level`, `aria-relevant`…) and inside its quotes the
+values it takes (`true` `false` `mixed` for `aria-pressed`; `page` `step`
+`location` `date` `time` for `aria-current`), and the WAI-ARIA roles for
+`role`.
+
+Event handlers are the ones the element fires: `onClick`, `onInput`,
+`onKeyDown` and the pointer, focus and drag events on any element, `onSubmit`
+and `onReset` on a `<form>`, `onClose` and `onCancel` on a `<dialog>`,
+`onToggle` on `<details>`, `<dialog>` and popovers, the playback events on
+`<audio>` and `<video>`. Each item says the handlers Vuka takes: a method
+(`{Save}`), a call (`{Add(2)}`), browser state (`{open = !open}`), a func or
+a `ui.JS(…)` command. The event's name can be written in any case
+(`onkeydown`).
+
+`ref` names an element for [`ui.Ref`](/ui/js#targets-and-refs); inside the
+quotes of `ui.Ref("…")`, completion lists the refs the same file declares.
+
+### Keying a Loop's Items {#keying-loops}
+
+A loop's items need a `key` ([W0102](/errors/W0102)). Typing `for` on a line
+of markup offers a loop whose first element is keyed:
+
+```html
+for _, item := range items {
+  <li key={item.ID}></li>
+}
+```
+
+In a loop you wrote, the first element completes with the key: when the
+item's type has an `ID` field (or `Id`, `Key`, `UUID`, `Slug`, `Code`, or a
+field ending in `ID`), `<l` completes to `<li key={t.ID}`.
+
+### Keeping the Struct in View {#outline}
+
+The outline of a shape is its struct holding its fields, its methods and its
+markup's elements (`section#todos.list`, its children inside). The struct spans
+the file down to the end of its markup, so with sticky scroll
+(`editor.stickyScroll.enabled`) the `type … struct` line stays pinned above the
+markup you scroll through, with the elements around the cursor below it.
+
+The Go header folds as one, from the package clause to the line before the
+markup, beside the folds of its declarations and of the markup's elements and
+blocks.
+
+### Formatting a Selection {#format-selection}
+
+Format Selection (`textDocument/rangeFormatting`) formats only the selected
+lines of a `.vuka` or `.vuka.html` file by [`vuka fmt`](/tools/cli#fmt)'s
+rules; the rest of the file stays as it is. A file that doesn't parse is left
+alone.
+
 ## Installing gopls {#installing-gopls}
 
 The language server needs gopls. Install it:
@@ -114,13 +168,45 @@ type (`>` adds the closing tag, `</` the name of the element still open, inside
 blocks and fragments too), Enter between tags indenting, `{` and quotes pairing
 in markup, and the Vuka icons.
 
+### Tailwind CSS {#tailwind}
+
+With [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)
+installed, class completion, hover, color swatches and linting work in
+`.vuka.html` and `.vuka` files. The Vuka extension sets its defaults:
+`tailwindCSS.includeLanguages` reads both as HTML, and
+`tailwindCSS.experimental.classRegex` finds classes in:
+
+- `class="…"`
+- the strings of `class={…}`: `class={"mt-2 " + extra + " text-sm"}`
+- the strings of a Go function whose name ends in `Class` or `Classes`, where
+  it is called (`tabClass(on, "px-5")`) and in its body:
+
+```go
+func tabClass(on bool, extra string) string {
+    if on {
+        return "bg-blue-600 text-white " + extra
+    }
+    return "text-gray-700"
+}
+```
+
+> [!NOTE]
+> A `tailwindCSS.includeLanguages` or `tailwindCSS.experimental.classRegex`
+> of your own replaces the extension's. Copy the Vuka entries into it from
+> the extension's `package.json` (`contributes.configurationDefaults`).
+
 ### Emmet
 
-VS Code's Emmet isn't turned on for `.vuka` files: Emmet can't tell the markup
-from the Go around it, so it would offer abbreviations for every identifier
-typed in Go code. The markup completion above covers elements and attributes.
-To have Emmet anyway, add `"emmet.includeLanguages": {"vuka": "javascriptreact"}`
-to your settings, and expand abbreviations with Tab.
+Emmet abbreviations expand in `.vuka.html` files: the extension sets
+`"emmet.includeLanguages": {"vuka-html": "html"}`. `.vuka` files are left
+out, where markup sits inside Go functions.
+
+> [!WARNING]
+> Emmet reads the whole file as HTML; it can't tell the Go header from the
+> markup. In the header it can suggest an abbreviation for a word that is also
+> a tag name (`map`, `select`) or has a dot (`p.Q`). The header is still Go to
+> the editor — its comments, brackets and snippets are Go's. To turn Emmet off
+> for shapes, set `"emmet.excludeLanguages": ["vuka-html"]`.
 
 The language status shows `vuka version`; clicking
 it restarts the server.

@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Language support for Vuka 2.0: Go logic and .vuka.html shapes, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls.",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -141,6 +141,32 @@
       "[vuka-html]": {
         "editor.formatOnSave": true,
         "editor.linkedEditing": true
+      },
+      "tailwindCSS.includeLanguages": {
+        "vuka-html": "html",
+        "vuka": "html"
+      },
+      "tailwindCSS.experimental.classRegex": [
+        "\\bclass\\s*=\\s*\"([^\"]*)\"",
+        [
+          "\\bclass\\s*=\\s*\\{((?:[^{}]|\\{[^{}]*\\})*)\\}",
+          "\"((?:[^\"\\\\]|\\\\.)*)\""
+        ],
+        [
+          "\\bclass\\s*=\\s*\\{((?:[^{}]|\\{[^{}]*\\})*)\\}",
+          "`([^`]*)`"
+        ],
+        [
+          "\\b\\w*[cC]lass(?:es|Name)?(?<!\\bclass\\s*=\\s*\\{[^{}]*)\\(((?:[^()]|\\([^()]*\\))*)\\)",
+          "\"((?:[^\"\\\\]|\\\\.)*)\""
+        ],
+        [
+          "\\bfunc\\s+(?:\\([^)]*\\)\\s*)?\\w*[cC]lass(?:es|Name)?\\s*\\([^)]*\\)[^{\\n]*\\{([\\s\\S]*?)\\n\\}",
+          "\"((?:[^\"\\\\]|\\\\.)*)\""
+        ]
+      ],
+      "emmet.includeLanguages": {
+        "vuka-html": "html"
       }
     },
     "configuration": {
@@ -220,6 +246,6 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs"
   }
 }

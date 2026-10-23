@@ -742,6 +742,8 @@ func (p *proxy) fromEditor() {
 			switch {
 			case m.Method == "textDocument/formatting" && isVuka(path):
 				p.formatting(&m, p.real(path))
+			case m.Method == "textDocument/rangeFormatting" && isVuka(path):
+				p.rangeFormatting(&m, p.real(path))
 			case m.isRequest():
 				p.vukaRequest(&m, p.real(path))
 			}
@@ -921,6 +923,7 @@ func (p *proxy) namespaceCommands(m rpcMsg) rpcMsg {
 				caps["documentFormattingProvider"] = true // .vuka files by vuka fmt, .go files by gopls
 				caps["linkedEditingRangeProvider"] = true // .vuka tag names
 				caps["foldingRangeProvider"] = true
+				caps["documentRangeFormattingProvider"] = true
 				if caps["documentLinkProvider"] == nil {
 					caps["documentLinkProvider"] = map[string]any{} // vuka.File literals
 				}
@@ -1128,6 +1131,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		if h := p.fileRequest(m.Method, vf, off); h != nil {
 			p.mu.Unlock()
 			reply(h())
+			return
+		}
+		if h := p.authoringRequest(m.Method, vf, genPath, off); h != nil {
+			p.mu.Unlock()
+			go func() { reply(h()) }()
 			return
 		}
 		if m.Method == "textDocument/completion" && strings.HasSuffix(vf.source, ".vuka.html") && off > 0 && markupText(src)(off-1) {
@@ -1354,6 +1362,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		v = p.withCloseTwins(vr.method, v, vr.file)
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v, vr.file.namesOf())
+		if vr.method == "textDocument/documentSymbol" && isShape(vr.file) {
+			v = shapeSymbols(vr.file, v)
+		}
 	case "textDocument/documentLink":
 		v = p.withFileLinks(v, vr.file)
 	case "textDocument/foldingRange":

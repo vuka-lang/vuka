@@ -265,7 +265,7 @@ func foldingRanges(vf *vfile, goRanges any) []any {
 	for _, l := range starts {
 		out = append(out, map[string]any{"startLine": l, "endLine": folds[l]})
 	}
-	return out
+	return withHeaderFold(vf, out)
 }
 
 // htmlTagAt is the tag whose name holds off, when it names an HTML or SVG element.
