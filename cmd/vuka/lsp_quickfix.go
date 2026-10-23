@@ -31,7 +31,11 @@ import (
 //     browser (active="prefix", or "exact" for a path compared with ==);
 //     a field left unread goes, with what set it;
 //   - E0142, a template file with no package clause: its directory's;
-//   - E0329, ui.Live embedded by pointer: embedded by value.
+//   - E0329, ui.Live embedded by pointer: embedded by value;
+//   - W0701, a pages/ tree no app serves (on its route.go): its Routes()
+//     passed to the web.New of the main that owns it, as vuka fix routes
+//     does (pagesRoutesEdit); disabled, with what to add, when no one main
+//     can be edited.
 //
 // E0155 (tracked state in a .go file) moves the method to the shape's
 // logic file (goFileFixes, lsp_refactor_move.go); W0107 (the Go-header
@@ -732,4 +736,36 @@ func activeLinkFix(path string, src []byte, at int, read load.ReadFunc) (change,
 		return change{{path: path, old: src, edits: edits}}, nil
 	}
 	return nil, errors.New("no link to mark there")
+}
+
+// routesFix is W0701's fix on a pages/ tree's route.go: the owning main's
+// file written again with the tree's Routes() passed to its web.New.
+func routesFix(r actionRequest) *codeAction {
+	d := r.diag("W0701")
+	if d == nil || filepath.Base(r.path) != routeGoName {
+		return nil
+	}
+	root, modPath, err := load.ModuleRoot(filepath.Dir(r.path))
+	if err != nil {
+		return nil
+	}
+	e := pagesRoutesEdit(root, modPath, filepath.Dir(r.path))
+	a := codeAction{Title: "Serve " + filepath.Base(filepath.Dir(r.path)) + "/ from the app: pass its Routes() to web.New", Kind: "quickfix",
+		Diagnostics: []map[string]any{d}}
+	switch {
+	case e.Src != nil && e.File != "":
+		path := filepath.Join(root, filepath.FromSlash(e.File))
+		old, err := r.read(path)
+		if err != nil {
+			return nil
+		}
+		a.Title = "Pass " + filepath.Base(filepath.Dir(r.path)) + ".Routes() to web.New in " + e.File
+		a.IsPreferred = true
+		a.Edit = change{{path: path, old: old, edits: []edit{{0, len(old), string(e.Src)}}}}.workspaceEdit(r.uri)
+	case e.Hint != "":
+		a.Disabled = map[string]any{"reason": e.Hint}
+	default:
+		return nil
+	}
+	return &a
 }

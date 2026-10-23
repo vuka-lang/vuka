@@ -134,7 +134,7 @@ func applyWorkspace(t *testing.T, edit any) {
 func actionsAt(t *testing.T, path string, from, to int, diags ...map[string]any) map[string]codeAction {
 	t.Helper()
 	src, err := os.ReadFile(path)
-	if err != nil {
+	if err != nil && !os.IsNotExist(err) { // a generated route.go is on no disk
 		t.Fatal(err)
 	}
 	r := actionRequest{path: path, src: src, start: from, end: to, diags: diags, read: os.ReadFile}
@@ -732,4 +732,42 @@ func TestSmallFixes(t *testing.T) {
 		t.Errorf("got:\n%s", got)
 	}
 	vets(t, dir)
+}
+
+// TestRoutesFix: on a pages/ tree's route.go, W0701's fix passes its
+// Routes() to the owning main's web.New; with no one main to edit it is
+// disabled, saying what to add.
+func TestRoutesFix(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds a module")
+	}
+	unserved := strings.Replace(refactorMain, "web.New(pages.Routes())", "web.New()", 1)
+	unserved = strings.Replace(unserved, "\t\"example.com/app/pages\"\n", "", 1)
+	dir := refactorModule(t, map[string]string{"main.go": unserved, "pages/index.vuka.html": simplePage})
+	route := filepath.Join(dir, "pages/route.go")
+	diag := map[string]any{"code": "W0701", "range": map[string]any{"start": lspPosition{}, "end": lspPosition{}}}
+	fix, ok := actionsAt(t, route, 0, 0, diag)["Pass pages.Routes() to web.New in main.go"]
+	if !ok || fix.Edit == nil || len(fix.Diagnostics) != 1 {
+		t.Fatalf("actions: %v", actionsAt(t, route, 0, 0, diag))
+	}
+	applyWorkspace(t, fix.Edit)
+	if got := readFile(t, filepath.Join(dir, "main.go")); !strings.Contains(got, "web.New(pages.Routes())") || !strings.Contains(got, "\"example.com/app/pages\"") {
+		t.Errorf("main.go:\n%s", got)
+	}
+	if acts := actionsAt(t, route, 0, 0); len(acts) != 0 {
+		t.Errorf("without the diagnostic: %v", acts)
+	}
+	vets(t, dir)
+
+	// No web.New to edit: the action is disabled, its reason the hint.
+	writeFile(t, filepath.Join(dir, "main.go"), "package main\n\nfunc main() {}\n")
+	disabled := actionsAt(t, route, 0, 0, diag)
+	if len(disabled) != 1 {
+		t.Fatalf("actions: %v", disabled)
+	}
+	for _, a := range disabled {
+		if a.Edit != nil || a.Disabled == nil || !strings.Contains(a.Disabled["reason"].(string), "pages.Routes()") {
+			t.Errorf("not disabled with the hint: %+v", a)
+		}
+	}
 }

@@ -370,6 +370,7 @@ Diagnostics with one obvious fix have it as a quick fix:
 | [E0155](/errors/E0155), tracked state in a `.go` file | the method moves to the shape's logic file, as above; a `.go` file left empty goes |
 | [E0142](/errors/E0142), a template file without a package clause | its folder's package clause |
 | [E0329](/errors/E0329), `*ui.Live` | `ui.Live`, embedded by value |
+| [W0701](/errors/W0701), a `pages/` tree no app serves, on its `route.go` | the tree's `Routes()` passed to the `web.New` of the main that owns it, importing the package, as [`vuka fix routes`](/tools/cli#add-page-routes) does; when no one main can be edited, the action is disabled and says what to add where |
 | [W0107](/errors/W0107), the Go-header form | **Write the Go in &lt;script lang="go"&gt;** |
 
 `vukavet`'s warnings (`W…`) don't need to be on screen: the fixes are
