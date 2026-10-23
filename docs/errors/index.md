@@ -173,6 +173,7 @@ same page in the terminal.
 | [E0607](./E0607) | vite.config doesn't use the vuka plugin |
 | [E0608](./E0608) | TypeScript 7 can't build Vue islands |
 | [E0609](./E0609) | The islands have no frontend build to go into |
+| [E0610](./E0610) | npm is older than 11 |
 
 ## Folder routes
 

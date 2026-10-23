@@ -52,6 +52,15 @@ group](/web/navigation#the-current-group).
 
 ### Fixes
 
+- `vuka new` writes a `package-lock.json` beside each frontend's
+  `package.json` (the Vue, React and Svelte frontends and the islands'
+  `web/`), and the first install runs `npm ci` from it: npm 10, which
+  Node.js 20 and 22 ship, crashed resolving those packages from scratch
+  (`Cannot read properties of null (reading 'edgesOut')`). Before running
+  npm, vuka checks its version: npm 10 installing from a lockfile is a
+  warning, and npm 10 installing without one, or adding packages, stops
+  with [E0610](/errors/E0610) and the fix, `npm install -g npm@11`.
+  `vuka doctor` shows npm's version. pnpm, yarn and bun aren't checked.
 - A `<details>` the visitor opened or closed keeps that state when a
   render leaves its `open` as it was; in 2.1.0 the render of a layout that
   stays, on every navigation, closed the menu groups the visitor had

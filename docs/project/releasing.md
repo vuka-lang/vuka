@@ -107,6 +107,28 @@ In dependency order, so each module requires tags that exist:
 > tags resolve at once and a go.work doesn't leak local checkouts into a
 > release. It never runs `go mod tidy`.
 
+## Scaffold Lockfiles {#scaffold-lockfiles}
+
+Each frontend `package.json` `vuka new` writes has a `package-lock.json`
+beside it in `cmd/vuka/scaffold/app` (the Vue, React and Svelte frontends'
+are templates, for the app's name), so installs run `npm ci` and don't
+resolve the packages from scratch. After changing a scaffold
+`package.json`, regenerate the lockfiles with npm 11 (the script runs it
+with `npx`):
+
+```sh
+cd cmd/vuka
+sh scripts/lockfiles.sh      # or: go generate -run lockfiles .
+```
+
+`TestScaffoldLockfiles` fails while a lockfile's packages differ from its
+`package.json`'s. Regenerate them before a release, too, so new apps start
+on current versions within their ranges.
+
+> [!WARNING]
+> Generate them with npm 11 or newer: npm 10 can't resolve the islands'
+> `web/` set.
+
 ## Releasing the ORM {#the-orm}
 
 `github.com/vuka-lang/orm/v2` has versions of its own and isn't part of

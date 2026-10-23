@@ -7,6 +7,17 @@
 This page gets the `vuka` command onto your machine and runs a first
 program. Vuka needs [Go](https://go.dev/dl/) 1.25 or newer.
 
+An app with a frontend or framework islands (Vue, React, Svelte) also needs
+[Node.js](https://nodejs.org/) 20 or newer and npm 11 or newer (Node.js 24
+and newer ship it; on Node.js 20 or 22, `npm install -g npm@11`).
+
+> [!NOTE]
+> npm 10 fails installing a new app's frontend packages from scratch. The
+> `package-lock.json` that `vuka new` writes lets npm 10 install them with
+> `npm ci`, and vuka warns; adding packages (`vuka add island --react`)
+> needs npm 11, and vuka stops with [E0610](/errors/E0610) until it's there.
+> `vuka doctor` shows the npm it finds.
+
 A Vuka project is an ordinary Go module, so once the command is installed
 you work with the same toolchain, dependencies and editor setup you already
 use for Go.
