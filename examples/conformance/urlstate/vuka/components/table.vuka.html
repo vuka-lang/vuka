@@ -1,0 +1,46 @@
+<script lang="go">
+package components
+
+import (
+	"fmt"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Table pages through rows, keeping its page and sort in the URL.
+type Table struct {
+	ui.Live
+	Title string
+	page  int    @ui.URL("page").Default(1)
+	sort  string @ui.URL("sort").Default("name")
+}
+
+// Next shows the next page.
+func (t *Table) Next() { t.page++ }
+
+// First goes back to the first page.
+func (t *Table) First() { t.page = 1 }
+
+// ByDate sorts by date.
+func (t *Table) ByDate() { t.sort = "date" }
+
+func (t *Table) rows() []string {
+	var out []string
+	for i := range 3 {
+		out = append(out, fmt.Sprintf("%s %d", t.Title, (t.page-1)*3+i+1))
+	}
+	return out
+}
+</script>
+
+<section class="table">
+  <h2>{Title}: page {page}, by {sort}</h2>
+  <ul>
+    for _, r := range rows() {
+      <li key={r}>{r}</li>
+    }
+  </ul>
+  <button onClick={Next}>Next</button>
+  <button onClick={First}>First</button>
+  <button onClick={ByDate}>By date</button>
+</section>

@@ -1157,6 +1157,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 			reply(h())
 			return
 		}
+		if h := p.urlRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if h := p.fileRequest(m.Method, vf, off); h != nil {
 			p.mu.Unlock()
 			reply(h())

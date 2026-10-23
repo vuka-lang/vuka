@@ -46,6 +46,18 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		}
 	}
 	st := t.Underlying().(*types.Struct)
+	var urlKey *jsxAttr
+	if !c.structComp {
+		var rest []*jsxAttr
+		for _, a := range attrs {
+			if a.name == "urlKey" && !hasField(st, "urlKey") && !hasField(st, "URLKey") && !hasField(st, "UrlKey") {
+				urlKey = a
+				continue
+			}
+			rest = append(rest, a)
+		}
+		attrs = rest
+	}
 	kids, off, msg := e.bindFields(c, st, attrs, node, true)
 	if msg != "" {
 		fail("E0106", off, "%s", msg)
@@ -70,6 +82,25 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 			c.key.typ = types.Default(tv.Type)
 			if lit, ok := ast.Unparen(x).(*ast.BasicLit); ok {
 				c.key.typ = types.Default(untypedLit[lit.Kind])
+			}
+		}
+	}
+	if urlKey != nil {
+		if !c.target.has("URLKey") {
+			fail("E0106", urlKey.off, "<%s urlKey>: %s has no URLKey; update it (urlKey needs github.com/vuka-lang/ui/v2 v2.4.0 or later)", el.tag, c.target.path)
+			return
+		}
+		c.urlKey = &compArg{attr: urlKey, typ: types.Typ[types.String]}
+		if urlKey.kind == 'e' {
+			x := e.attrExpr(f, urlKey)
+			tv, ok := e.info.Types[x]
+			if x == nil || !ok || isInvalid(tv.Type) {
+				c.fail = "its urlKey's type is unknown"
+				return
+			}
+			if !types.AssignableTo(tv.Type, types.Typ[types.String]) && !types.AssignableTo(types.Default(tv.Type), types.Typ[types.String]) {
+				fail("E0106", urlKey.off, "<%s>'s urlKey must be a string, the name its URL parameters go under; this is %s", el.tag, e.display(tv.Type))
+				return
 			}
 		}
 	}

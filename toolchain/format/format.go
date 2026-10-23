@@ -654,9 +654,17 @@ func attrAt(src []byte, toks []tok, i int) (*construct, int, error) {
 		}
 	}
 	if j < len(toks) && (toks[j].tok == token.LPAREN || toks[j].tok == token.LBRACE) {
+		call := toks[j].tok == token.LPAREN
 		var ok bool
 		if j, end, ok = matchClose(toks, j); !ok {
 			return nil, 0, errorAt(src, at, "unclosed argument list in attribute")
+		}
+		// a method of the value, called on it: @ui.URL("page").Default(1)
+		for call && j+2 < len(toks) && toks[j].tok == token.PERIOD && toks[j].off == end &&
+			toks[j+1].tok == token.IDENT && toks[j+2].tok == token.LPAREN && toks[j+2].off == toks[j+1].end() {
+			if j, end, ok = matchClose(toks, j+2); !ok {
+				return nil, 0, errorAt(src, at, "unclosed argument list in attribute")
+			}
 		}
 	}
 	return &construct{kind: 'A', start: at, end: end, text: string(src[at:end])}, j, nil

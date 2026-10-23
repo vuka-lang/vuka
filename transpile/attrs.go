@@ -99,9 +99,17 @@ func (f *fileState) parseAttr(toks []tok, i int) (*Attr, int, string) {
 		}
 	}
 	if j < len(toks) && (toks[j].tok == token.LPAREN || toks[j].tok == token.LBRACE) {
+		call := toks[j].tok == token.LPAREN
 		var ok bool
 		if j, end, ok = matchClose(toks, j); !ok {
 			return nil, j, "unclosed argument list in @" + name
+		}
+		// a method of the value, called on it: @ui.URL("page").Default(1)
+		for call && j+2 < len(toks) && toks[j].tok == token.PERIOD && toks[j].off == end &&
+			toks[j+1].tok == token.IDENT && toks[j+2].tok == token.LPAREN && toks[j+2].off == toks[j+1].off+len(toks[j+1].lit) {
+			if j, end, ok = matchClose(toks, j+2); !ok {
+				return nil, j, "unclosed argument list in @" + name
+			}
 		}
 	}
 	a := &Attr{

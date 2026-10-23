@@ -1,0 +1,11 @@
+package main
+
+// Board shows two tables, each keeping its URL parameters under its own
+// name.
+type Board struct {
+	Prefix string
+}
+<main>
+  <Table title="requests" urlKey="requests"/>
+  <Table title="users" sort="name" urlKey={Prefix + "users"} key={1}/>
+</main>

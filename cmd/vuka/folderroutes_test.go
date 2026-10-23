@@ -238,6 +238,9 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0721", "pages/contact.go:12"},
 		{"a template-only page", map[string]string{"pages/terms.vuka.html": "package pages\n\n<p>terms</p>\n"},
 			"E0719", "pages/terms.vuka.html:1"},
+		{"a bare @ui.URL with no such path parameter", map[string]string{"components/order.vuka.html": urlOrder,
+			"pages/report.vuka.html": "package pages\n\nimport \"example.com/app/components\"\n\n// Report shows an order.\ntype Report struct{}\n\n<components.Order/>\n"},
+			"E0340", "pages/report.vuka.html:8"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			routesModule(t, c.files)
@@ -566,5 +569,34 @@ func TestLayoutPageReads(t *testing.T) {
 	}
 	if strings.Contains(string(b), "web.ReloadLayout[shop.Shell]()") {
 		t.Errorf("the layout reading the title in its markup reloads:\n%s", b)
+	}
+}
+
+// urlOrder is a component reading the route's {org} and {id}.
+const urlOrder = "package components\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Order shows the order the path names.\ntype Order struct {\n\tui.Live\n\tid  int64 @ui.URL\n\torg int   @ui.URL\n}\n<p>{org} {id}</p>\n"
+
+// TestBareURLParams: a component binding path parameters renders under a
+// page whose path has them, and one under a page lacking one is E0340
+// with the parameters it has.
+func TestBareURLParams(t *testing.T) {
+	t.Run("has them", func(t *testing.T) { bareURLParams(t, true) })
+	t.Run("lacks one", func(t *testing.T) { bareURLParams(t, false) })
+}
+
+func bareURLParams(t *testing.T, has bool) {
+	var out, errOut bytes.Buffer
+	if has {
+		routesModule(t, map[string]string{"components/order.vuka.html": urlOrder,
+			"pages/orgs/[org]/orders/[id].vuka.html": "package orders\n\nimport \"example.com/app/components\"\n\n// Id shows an order.\ntype Id struct {\n\tOrg int\n\tID  int64\n}\n\n<components.Order/>\n"})
+		if err := routesCmd([]string{"-json"}, &out, &errOut); err != nil {
+			t.Fatalf("%v\n%s", err, errOut.String())
+		}
+		return
+	}
+	routesModule(t, map[string]string{"components/order.vuka.html": urlOrder,
+		"pages/orgs/[org]/orders.vuka.html": "package org\n\nimport \"example.com/app/components\"\n\n// Orders lists them.\ntype Orders struct{ Org int }\n\n<components.Order/>\n"})
+	if err := routesCmd([]string{"-json"}, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0340") ||
+		!strings.Contains(errOut.String(), "Order.id binds the path parameter {id}") || !strings.Contains(errOut.String(), "{org}") {
+		t.Fatalf("%v\n%s", err, errOut.String())
 	}
 }

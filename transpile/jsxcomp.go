@@ -40,6 +40,7 @@ type jsxComp struct {
 	pre        []jsxNode // and the children's statements, run before the slots read them
 	ptrRender  bool      // whose Render takes a pointer: (&T{…}).Render()
 	key        *compArg  // its key attribute
+	urlKey     *compArg  // a stateful component's urlKey attribute: ui.URLKey(urlKey, …)
 	targText   string    // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
 	missing    []string  // the parameters no attribute sets, but those a Node fills
 	unfilled   []string  // the fields tagged vuka:"required" nothing sets
@@ -193,7 +194,7 @@ func (w *jsxWriter) comp(c *jsxComp) {
 			params = append(params, a.name+" "+c.closureTyp[i])
 		}
 		res := q + "Node"
-		if c.stateful && c.key == nil {
+		if c.stateful && c.key == nil && c.urlKey == nil {
 			res = "any"
 		}
 		w.gen("func(" + strings.Join(params, ", ") + ") " + res + " { return ")
@@ -208,6 +209,11 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen(q + "Try(")
 	}
 	if c.stateful {
+		if c.urlKey != nil {
+			w.gen(q + "URLKey(")
+			value(c.urlKey, true)
+			w.gen(", ")
+		}
 		if c.key != nil {
 			w.gen(q + "Key(")
 			value(c.key, true)
@@ -246,6 +252,11 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		w.gen("})")
 	case c.stateful:
 		w.gen("}")
+	}
+	switch {
+	case c.stateful && c.urlKey != nil:
+		w.gen(")")
+	case c.stateful:
 	case c.nodeComp:
 		w.gen("}")
 	case c.structComp && c.ptrRender:
@@ -747,6 +758,7 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 			}
 		}
 		c.inOrder = true
+		in(c.urlKey)
 		in(c.key)
 		for _, a := range c.args {
 			in(a)
@@ -1108,6 +1120,9 @@ func (e *engine) closeOver(f *fileState, c *jsxComp) {
 		typ string
 	}
 	var items []item
+	if k := c.urlKey; k != nil && k.attr.kind == 'e' {
+		items = append(items, item{k, k.attr.expr.start, e.typeTextAuto(f, k.typ)})
+	}
 	if k := c.key; k != nil && k.attr.kind == 'e' {
 		items = append(items, item{k, k.attr.expr.start, e.typeTextAuto(f, k.typ)})
 	}
