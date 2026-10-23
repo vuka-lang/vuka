@@ -5,6 +5,7 @@
   "fileTypes": ["vuka.html"],
   "patterns": [
     { "include": "#go-header" },
+    { "include": "#go-script" },
     { "include": "#markup" }
   ],
   "repository": {
@@ -182,8 +183,27 @@
       "contentName": "source.css",
       "patterns": [{ "include": "source.css" }]
     },
+    "go-script": {
+      "comment": "The shape's Go in its <script lang=\"go\">, the file's first element (2.3).",
+      "begin": "(<)(script)\\b(?=[^>]*\\blang\\s*=\\s*[\"']?go\\b)([^>]*)(>)",
+      "beginCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" },
+        "3": { "patterns": [{ "include": "text.html.basic#attribute" }] },
+        "4": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "end": "(</)(script)\\s*(>)",
+      "endCaptures": {
+        "1": { "name": "punctuation.definition.tag.begin.html" },
+        "2": { "name": "entity.name.tag.html" },
+        "3": { "name": "punctuation.definition.tag.end.html" }
+      },
+      "name": "meta.embedded.block.go",
+      "contentName": "source.go",
+      "patterns": [{ "include": "#package" }, { "include": "#imports" }, { "include": "#go-code" }]
+    },
     "go-header": {
-      "begin": "\\A",
+      "begin": "\\A(?![ \\t]*<)",
       "end": "(?=^[ \\t]*<(?!-))",
       "name": "meta.embedded.block.go",
       "contentName": "source.go",
