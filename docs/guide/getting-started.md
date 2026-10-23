@@ -1,8 +1,19 @@
-# Getting started
+# Installation
 
-Vuka needs [Go](https://go.dev/dl/) 1.25 or newer.
+[[toc]]
 
-## Install
+## Introduction
+
+This page gets the `vuka` command onto your machine and runs a first
+program. Vuka needs [Go](https://go.dev/dl/) 1.25 or newer.
+
+A Vuka project is an ordinary Go module, so once the command is installed
+you work with the same toolchain, dependencies and editor setup you already
+use for Go.
+
+## Installing Vuka
+
+Install the command with your own Go toolchain:
 
 ```sh
 go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
@@ -11,19 +22,17 @@ go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 Installing with your own toolchain matters: Vuka parses Go with the standard
 library of the Go that built it, so it understands the same Go you write.
 
+## Creating a First Project
 
-## A first project
-
-A Vuka project is a Go module:
+A Vuka project is a Go module. Create one:
 
 ```sh
 mkdir hello && cd hello
 go mod init hello
 ```
 
-Save this as `main.vuka`, then `vuka mod tidy` (it adds the Vuka runtime,
+Save this as `main.vuka`, then run `vuka mod tidy` (it adds the Vuka runtime,
 the small package holding `Result` and `Option`) and `vuka run .`:
-
 
 ```vuka
 package main
@@ -55,11 +64,17 @@ func main() {
 }
 ```
 
+The program uses [Result & Option](/features/result-option) and
+[match](/features/match), two of the additions Vuka makes to Go.
+
+### Starting a Web App
 
 For a web app — pages, sign-in, a database with migrations, tests —
 `vuka new shop` makes one that runs; see [Getting started with web](/web/getting-started).
 
-## Everyday commands
+## Everyday Commands
+
+These are the commands you use most; each mirrors a go command:
 
 | | |
 |---|---|
@@ -69,12 +84,11 @@ For a web app — pages, sign-in, a database with migrations, tests —
 | `vuka mod tidy` | `go mod tidy`, seeing `.vuka` imports too |
 | `vuka explain main.vuka` | show what each line becomes in Go |
 
-
 `.vuka` and `.go` files live side by side in the same packages and call each
-other — see [Source files](/guide/two-ways). Dependencies are Go's: `go get` a module and import it from any `.vuka`
-file. See [Using Go code](/guide/using-go).
+other — see [Source Files](/guide/two-ways). Dependencies are Go's: `go get` a
+module and import it from any `.vuka` file. See [Using Go Code](/guide/using-go).
 
-## Editor
+## Setting Up Your Editor
 
 Install the VS Code extension from [`editors/vscode`](https://github.com/vuka-lang/vuka/tree/main/editors/vscode)
 and [gopls](https://go.dev/gopls). See [Editors](/tools/editors).
@@ -83,5 +97,7 @@ and [gopls](https://go.dev/gopls). See [Editors](/tools/editors).
 
 A web page is a `.vuka.html` shape under `pages/`, with package, imports,
 one struct, decorated hooks and methods above its markup. The first line
-starting with `<` begins markup. Pages use `[id]` names and `_layout.vuka.html`;
-`main.go` constructs `web.New(pages.Routes(), …)`. See [Web getting started](/web/getting-started).
+starting with `<` begins markup.
+
+Pages use `[id]` names and `_layout.vuka.html`, and `main.go` constructs
+`web.New(pages.Routes(), …)`. See [Web getting started](/web/getting-started).
