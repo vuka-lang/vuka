@@ -40,6 +40,15 @@ func TestGoldenTemplates(t *testing.T) {
 					os.WriteFile(filepath.Join(run, f.Name), f.Src, 0o644)
 				}
 			}
+			var warns []string
+			for _, o := range res.Files {
+				for _, w := range o.Warnings {
+					warns = append(warns, string(w.Code)+" "+w.Error())
+				}
+			}
+			if len(warns) > 0 {
+				compare(t, filepath.Join(dir, "warnings"), []byte(strings.Join(warns, "\n")+"\n"))
+			}
 			for _, o := range res.Files {
 				compare(t, filepath.Join(dir, o.GoName+".golden"), o.Src)
 				os.WriteFile(filepath.Join(run, o.GoName), o.Src, 0o644)

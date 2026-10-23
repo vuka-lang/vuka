@@ -181,7 +181,7 @@ func (e *engine) loadContexts(cs []Context) {
 }
 
 // lookup is the variable name every main provides with one type, or why
-// it isn't one.
+// it isn't one; nil and "" for a name none provides.
 func (cv *ctxVars) lookup(name string) (*Var, string) {
 	var v *Var
 	var lacking []string
@@ -198,6 +198,9 @@ func (cv *ctxVars) lookup(name string) (*Var, string) {
 		if v == nil {
 			v = w
 		}
+	}
+	if v == nil {
+		return nil, ""
 	}
 	if len(lacking) > 0 {
 		return v, "the web.ContextProcessors of " + strings.Join(lacking, ", ") + " doesn't list " + v.Processor.Display() + ", which provides " + name

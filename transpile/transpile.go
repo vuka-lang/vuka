@@ -114,6 +114,8 @@ type Output struct {
 	// Vars are the context processors' variables the file reads by name;
 	// Available every one it may read.
 	Vars, Available []VarRead
+	// Warnings are what vuka vet reports about the file (W codes).
+	Warnings ErrorList
 }
 
 // FileRef is a vuka.File literal: where it is in the .vuka source (quotes
@@ -590,6 +592,7 @@ func Package(files []File, opts Options) (*Result, error) {
 		f.attach()
 	}
 
+	warns := e.warns
 	res := &Result{}
 	var names map[string]string
 	for _, s := range e.sets {
@@ -603,7 +606,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0, Vars: f.readsOf(), Available: e.available()})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f]})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

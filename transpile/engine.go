@@ -43,6 +43,7 @@ type engine struct {
 	selfJSX         bool                      // this package declares VukaJSX: its JSX lowers to itself
 	selfNames       map[string]bool           // its package-level names, for a self-target before type-checking
 	ctx             *ctxVars                  // the context processors' variables (Options.Contexts)
+	warns           map[*fileState]ErrorList  // and the warnings about them (contextvet.go)
 
 	declared      map[string]bool               // package-level names
 	errFuncs      map[string]bool               // per function: whether ? names its error err
@@ -157,6 +158,7 @@ func (e *engine) run() {
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()
+		e.warns = e.ctxWarnings()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.report()

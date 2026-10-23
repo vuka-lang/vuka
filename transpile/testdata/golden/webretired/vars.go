@@ -3,6 +3,7 @@ package web
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"reflect"
 	"unicode"
 )
@@ -46,11 +47,11 @@ func lowerCamel(name string) string {
 	return string(rs)
 }
 
-// Request is the current request, as web.RequestContext gives it.
-type Request struct{ Path string }
+// RequestInfo is the current request, as web.RequestContext gives it.
+type RequestInfo struct{ Path string }
 
 // RequestVars are web.RequestContext's variables.
-type RequestVars struct{ Request Request }
+type RequestVars struct{ Request RequestInfo }
 
 // RequestContext stands in for the built-in processor.
 func RequestContext(ctx context.Context) (RequestVars, error) { return RequestVars{}, nil }
@@ -69,3 +70,6 @@ func New(opts ...any) *App { return &App{} }
 
 // ContextProcessors stands in for web.ContextProcessors.
 func ContextProcessors(processors ...any) any { return processors }
+
+// Request stands in for web.Request: the request being served.
+func Request(ctx context.Context) *http.Request { return nil }

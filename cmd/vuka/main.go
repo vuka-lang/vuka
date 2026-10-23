@@ -229,6 +229,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 	}
+	if cmd == "vet" {
+		if ds := transpileWarnings(root, gens); len(ds) > 0 {
+			writeDiags(stderr, ds, colorFor(stderr))
+		}
+	}
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err
 	}

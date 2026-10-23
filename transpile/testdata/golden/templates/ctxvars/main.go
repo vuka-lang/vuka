@@ -10,7 +10,7 @@ import (
 )
 
 func main() {
-	ctx := web.WithVars(context.Background(), web.RequestVars{Request: web.Request{Path: "/orders"}})
+	ctx := web.WithVars(context.Background(), web.RequestVars{Request: web.RequestInfo{Path: "/orders"}})
 	ctx = web.WithVars(ctx, web.CSRFVars{CSRFToken: "t0k"})
 	anon := web.WithVars(ctx, auth.Vars{})
 	ada := web.WithVars(ctx, auth.Vars{User: &auth.Identity{ID: "1", Name: "Ada"}, Perms: auth.Perms{"orders.*"}})

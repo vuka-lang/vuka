@@ -27,7 +27,7 @@ func (h Header) View() ui.Node {
 			span = ui.HTML(`<span>{value}</span>`, value)
 		}
 //line header.vuka.html:10
-		value2 := web.Var[web.Request](ctx, "request").Path
+		value2 := web.Var[web.RequestInfo](ctx, "request").Path
 		var button ui.Node
 //line header.vuka.html:11
 		if web.Var[auth.Perms](ctx, "perms").Has("orders.approve") {

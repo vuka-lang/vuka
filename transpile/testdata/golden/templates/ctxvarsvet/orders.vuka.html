@@ -1,0 +1,31 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// Orders shows its controls by the visitor's permissions.
+type Orders struct {
+	ui.Live
+	request string
+}
+
+func (o *Orders) Approve(ctx context.Context) error { return nil }
+
+func (o *Orders) Delete(ctx context.Context) error {
+	return auth.Require(ctx, "orders.delete")
+}
+<section>
+  <p>{web.Request(ctx).URL.Path} {request}</p>
+  user := "local"
+  <b>{user}</b>
+  if perms.Has("orders.approve") {
+    <button onClick={Approve}>Approve</button>
+  }
+  if perms.Has("orders.delete") {
+    <button onClick={Delete}>Delete</button>
+  }
+</section>
