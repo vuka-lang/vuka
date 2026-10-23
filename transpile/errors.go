@@ -19,6 +19,9 @@ type Error struct {
 	Help    string // the fix, when the message doesn't say it
 	Suggest string // did you mean …
 	Len     int    // bytes the problem spans from Pos, 0 for one token
+	// Fix is the source text replacing the Len bytes at Pos, for a
+	// warning with one rewrite (W0402: perms.Has("x") for auth.Can(ctx, "x")).
+	Fix string
 }
 
 func (e *Error) Error() string { return e.Pos.String() + ": " + e.Text() }

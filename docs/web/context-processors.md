@@ -173,7 +173,18 @@ A name a letter or two from a variable's is a typo:
 
 Every package of the module that a package `main` imports, directly or
 through others, reads variables by name: pages, layouts, components,
-modules and live components alike.
+modules and live components alike. The folder pages under `pages/` —
+route groups such as `(admin)` and parameter folders such as `[id]`
+included — count as imported by each main passing `pages.Routes()`, the
+generated `route.go` importing them.
+
+A processor's own package, and every package it imports, reads none of
+its variables by name: the read would import the processor's package
+back, an import cycle. They read the other processors' variables, and
+the explicit `web.Var` where they must. A package reading a processor's
+variables is compiled after the processor's package; when processors'
+packages and their readers need each other that way, no order works and
+[E0428](/errors/E0428) names the processor and the packages between.
 
 A package imported by two mains — `cmd/web` and `cmd/admin`, say — reads a
 name only when every main that lists processors gives it, with one type;
@@ -189,6 +200,43 @@ explicitly, and `vuka vet` checks the read against the app's list
 ```go
 me := web.Var[*users.User](ctx, "me")
 ```
+
+### One Spelling in Vuka Files {#one-spelling}
+
+A vuka file reads what a processor gives through its variable, in
+markup and in Go alike: `perms.Has("x")` rather than `auth.Can(ctx, "x")`,
+`user` rather than `auth.Current(ctx)`, `request.Path` rather than
+`web.Request(ctx).URL.Path`. Markup tracks the variable, and in an event
+or `Mount` it is as current as the call. An event checks its permission
+the same way, or declares it with `@auth.Requires`:
+
+```html
+<script lang="go">
+func (d *Index) Approve(ctx context.Context) error {
+	if !perms.Has("orders.approve") {
+		return web.Forbidden
+	}
+	return nil
+}
+
+@auth.Requires("orders.ship")
+func (d *Index) Ship(ctx context.Context) error { return nil }
+</script>
+
+if perms.Has("orders.approve") {
+  <button onClick={Approve}>Approve</button>
+}
+```
+
+| Where | Read |
+|---|---|
+| `.vuka.html` markup and script, `.vuka` files | `perms.Has("x")`, `user`, `actor`, `request` |
+| plain `.go` packages: services, jobs, libraries | `auth.Can(ctx, "x")`, `auth.Current(ctx)`, `web.Request(ctx)`, or `@auth.Requires` |
+
+`vuka vet` reports the direct calls in vuka files
+([W0402](/errors/W0402)) — saying to list the processor when `main`
+doesn't — and the editor offers the rewrite; from 3.0 it is a compile
+error there.
 
 ### Names a Template Declares {#names-a-template-declares}
 
@@ -345,6 +393,7 @@ semantic token type of their own, `vukaContextVar`. See
 | [E0425](/errors/E0425) | a list entry that is no processor |
 | [E0426](/errors/E0426) | personal values sent to the browser |
 | [E0427](/errors/E0427) | a `web.Var` read the app doesn't give |
+| [E0428](/errors/E0428) | processors' packages and their readers needing each other |
 | [W0401](/errors/W0401) | a name shadowing a variable |
-| [W0402](/errors/W0402) | `web.Request` in markup where `request` would do |
+| [W0402](/errors/W0402) | `auth.Can`, `auth.Current` or `web.Request` where `perms`, `user` or `request` would do |
 | [W0403](/errors/W0403) | a control hidden by a permission its event doesn't check |

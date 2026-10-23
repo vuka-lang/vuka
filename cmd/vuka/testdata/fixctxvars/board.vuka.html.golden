@@ -1,0 +1,41 @@
+<script lang="go">
+package orders
+
+import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Board reads the visitor and the request directly.
+type Board struct {
+	ui.Live
+}
+
+func NewBoard() *Board { return &Board{} }
+
+func (b *Board) Approve(ctx context.Context) error {
+	if !perms.Has("orders.approve") {
+		return errors.New("forbidden")
+	}
+	return nil
+}
+
+func (b *Board) title(ctx context.Context) string {
+	if u := user; u != nil {
+		return u.ID
+	}
+	return request.Params["id"]
+}
+</script>
+
+<section>
+  if perms.Has("orders.approve") {
+    <button onClick={Approve}>Approve</button>
+  }
+  if perms.Has("orders.view") {
+    <p>{request.Path} {len(request.Query)}</p>
+  }
+  <b>{title(ctx)}</b>
+</section>

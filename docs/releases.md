@@ -37,6 +37,34 @@ the `github.com/vuka-lang/vuka` package your module requires.
   type that isn't live, whose attributes would be registered for the type
   at package level (plain value attributes, `orm` models)
   ([#96](https://github.com/vuka-lang/vuka/issues/96)).
+- **Context processors in folder pages.** A page under `pages/` — a route
+  group's `(admin)` and a parameter folder's `[id]` included — reads
+  `request`, `perms` and the app's processors' variables by name: main
+  reaches those packages only through the generated `pages/route.go`,
+  which the discovery now follows, also before `route.go` is first
+  written. Hover and completion work there too
+  ([#94](https://github.com/vuka-lang/vuka/issues/94)).
+- **An app processor importing the app's packages.** A processor whose
+  package imports another package of the module — one with shapes, or
+  one the pages import too — no longer breaks that package's build: a
+  processor's package and its imports don't get its variables (reading
+  them would be an import cycle) and are compiled first. Where
+  processors' packages and their readers still need each other, the new
+  [E0428](/errors/E0428) names the processor and the cycle instead of
+  an unrelated `could not import`
+  ([#95](https://github.com/vuka-lang/vuka/issues/95)).
+- **One spelling for request context in vuka files.** `vuka vet`'s
+  [W0402](/errors/W0402) now reports `auth.Can(ctx, "x")`,
+  `auth.Current(ctx)`, `auth.Current(ctx).Can("x")` and `web.Request(ctx)`
+  (read through what `request` has) in markup and Go of `.vuka` and
+  `.vuka.html` files, where `perms.Has("x")`, `user` and `request` give
+  the same, tracked; when `main` doesn't list `auth.Context` or
+  `web.RequestContext`, it says to. `vuka fix ctx-vars` rewrites them and
+  drops the imports left unused, and the editor offers the same quick
+  fix. [W0403](/errors/W0403) accepts `perms.Has("x")` in the event as its
+  check. Plain `.go` packages keep `auth.Can`; from 3.0 the direct calls
+  are a compile error in vuka files
+  ([#97](https://github.com/vuka-lang/vuka/issues/97)).
 
 ## v2.4.0 — 2026-10-23
 

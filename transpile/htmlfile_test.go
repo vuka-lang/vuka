@@ -43,7 +43,11 @@ func TestGoldenTemplates(t *testing.T) {
 			var warns []string
 			for _, o := range res.Files {
 				for _, w := range o.Warnings {
-					warns = append(warns, string(w.Code)+" "+w.Error())
+					line := string(w.Code) + " " + w.Error()
+					if w.Fix != "" {
+						line += " => " + w.Fix
+					}
+					warns = append(warns, line)
 				}
 			}
 			if len(warns) > 0 {

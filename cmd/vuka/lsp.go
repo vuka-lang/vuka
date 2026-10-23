@@ -223,6 +223,7 @@ type vfile struct {
 	names   map[string]string      // the package's overloads: Go name → the source's
 	vars    []transpile.VarRead    // the context processors' variables it reads by name
 	avail   []transpile.VarRead    // and those it may read
+	fixes   []edit                 // the W0402 rewrites on from (ctxVarFixes)
 	version int
 	probed  int // the version holding the last probe (see probe)
 }

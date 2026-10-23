@@ -1,0 +1,10 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// canEdit reads a permission in a .vuka file.
+func canEdit(ctx context.Context) bool { return auth.Can(ctx, "orders.edit") }

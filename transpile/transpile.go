@@ -207,6 +207,7 @@ type fileState struct {
 	tracked      map[string]bool // those fields
 	writeDone    map[int]bool    // the state writes lowered or refused, by offset (writes.go)
 	readsVars    bool            // the file names a context processor's variable (contextvars.go)
+	readsDirect  bool            // and may read one's value directly: auth.Can (contextvet.go)
 	varReads     []VarRead       // the reads lowered
 
 	done    map[int]bool // src offsets of identifiers already rewritten or reported
@@ -564,6 +565,7 @@ func Package(files []File, opts Options) (*Result, error) {
 			continue
 		}
 		f.readsVars = f.vuka && e.ctx.mayRead(f.src)
+		f.readsDirect = f.vuka && e.ctx != nil && mayReadDirect(f.src)
 		if f.vuka {
 			f.scan(&errs)
 			e.islandImports(f, &errs)

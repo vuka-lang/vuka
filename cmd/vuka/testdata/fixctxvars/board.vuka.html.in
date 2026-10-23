@@ -1,0 +1,43 @@
+<script lang="go">
+package orders
+
+import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// Board reads the visitor and the request directly.
+type Board struct {
+	ui.Live
+}
+
+func NewBoard() *Board { return &Board{} }
+
+func (b *Board) Approve(ctx context.Context) error {
+	if !auth.Can(ctx, "orders.approve") {
+		return errors.New("forbidden")
+	}
+	return nil
+}
+
+func (b *Board) title(ctx context.Context) string {
+	if u := auth.Current(ctx); u != nil {
+		return u.ID
+	}
+	return web.Request(ctx).PathValue("id")
+}
+</script>
+
+<section>
+  if auth.Can(ctx, "orders.approve") {
+    <button onClick={Approve}>Approve</button>
+  }
+  if auth.Current(ctx).Can("orders.view") {
+    <p>{web.Request(ctx).URL.Path} {len(web.Request(ctx).URL.Query())}</p>
+  }
+  <b>{title(ctx)}</b>
+</section>

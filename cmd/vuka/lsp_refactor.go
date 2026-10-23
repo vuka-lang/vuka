@@ -133,6 +133,11 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 	}
 	req := actionRequest{path: real, src: src, start: offsetOf(src, params.Range.Start), end: offsetOf(src, params.Range.End),
 		diags: params.Context.Diagnostics, only: params.Context.Only, read: p.readFunc(), uri: p.display}
+	p.mu.Lock()
+	if vf := p.virtual[p.bySource[real]]; vf != nil && bytes.Equal(vf.from, src) {
+		req.ctxFixes = vf.fixes // the build's rewrites hold for the text as it is
+	}
+	p.mu.Unlock()
 	ch := make(chan []any, 1)
 	if isVuka(path) || p.routeGo(path) {
 		// gopls answers it on the generated Go; vuka's join its answer.
@@ -362,6 +367,7 @@ type actionRequest struct {
 	only       []string
 	read       load.ReadFunc
 	uri        func(string) string // the path the editor knows a file by
+	ctxFixes   []edit              // the file's W0402 rewrites, from its last build
 }
 
 // wants reports whether the request asks for actions of kind.
@@ -402,6 +408,11 @@ func codeActions(r actionRequest) []any {
 		}
 		if r.wants("quickfix") {
 			add(templateFixes(r)...)
+			add(ctxVarActions(r)...)
+		}
+	case strings.HasSuffix(r.path, ".vuka"):
+		if r.wants("quickfix") {
+			add(ctxVarActions(r)...)
 		}
 	case strings.HasSuffix(r.path, ".go"):
 		if r.wants("quickfix") || r.wants("refactor.move") {

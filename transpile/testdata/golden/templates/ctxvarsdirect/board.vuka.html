@@ -1,0 +1,58 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// Board reads the visitor and the request directly, where perms, user
+// and request would do.
+type Board struct {
+	ui.Live
+}
+
+func (b *Board) Approve(ctx context.Context) error {
+	if !auth.Can(ctx, "orders.approve") {
+		return errors.New("forbidden")
+	}
+	return nil
+}
+
+// Ship checks with perms, a pattern covering what its control needs.
+func (b *Board) Ship(ctx context.Context) error {
+	if !perms.Has("orders.*") {
+		return errors.New("forbidden")
+	}
+	return nil
+}
+
+func (b *Board) title(ctx context.Context) string {
+	if u := auth.Current(ctx); u != nil {
+		return u.Name
+	}
+	return web.Request(ctx).PathValue("id")
+}
+
+// held has a local named perms: no rewrite.
+func held(ctx context.Context) bool {
+	perms := 1
+	return perms > 0 && auth.Can(ctx, "orders.hold")
+}
+</script>
+
+<section>
+  if auth.Can(ctx, "orders.approve") {
+    <button onClick={Approve}>Approve</button>
+  }
+  if perms.Has("orders.ship") {
+    <button onClick={Ship}>Ship</button>
+  }
+  if auth.Current(ctx).Can("orders.view") {
+    <p>{web.Request(ctx).URL.Path} {len(web.Request(ctx).URL.Query())} {web.Request(ctx).Header.Get("X")}</p>
+  }
+  <b>{title(ctx)} {held(ctx)}</b>
+</section>

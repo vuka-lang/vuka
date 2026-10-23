@@ -390,6 +390,17 @@ markup as written; a file it can't read as a shape is left alone and
 reported by the compiler. `vuka fmt -rewrite -w` does the same and formats
 the files.
 
+### Processor Variables {#ctx-vars}
+
+`vuka fix ctx-vars` rewrites, in the module's `.vuka` and `.vuka.html`
+files, the reads `vuka vet` reports as [W0402](/errors/W0402):
+`auth.Can(ctx, "x")` and `auth.Current(ctx).Can("x")` become
+`perms.Has("x")`, `auth.Current(ctx)` becomes `user`, and
+`web.Request(ctx).URL.Path`, `.URL.Query()` and `.PathValue("id")` become
+`request.Path`, `request.Query` and `request.Params["id"]`. Imports of
+`web` and `auth` left unused go. A read whose variable `main` doesn't
+list, or whose name a local takes, is left alone.
+
 ## The Language Server {#lsp}
 
 `vuka lsp` is the language server. See [Editors](/tools/editors).

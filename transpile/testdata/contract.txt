@@ -124,6 +124,7 @@ public github.com/vuka-lang/web/v2.Routes
 public github.com/vuka-lang/web/v2.Use
 public github.com/vuka-lang/web/v2.Var
 public github.com/vuka-lang/web/v2/auth.Can
+public github.com/vuka-lang/web/v2/auth.Current
 public github.com/vuka-lang/web/v2/auth.Identity
 public github.com/vuka-lang/web/v2/auth.Perms
 

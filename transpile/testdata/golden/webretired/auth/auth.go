@@ -37,3 +37,9 @@ func Other(ctx context.Context) (Vars, error) { return Vars{}, nil }
 
 // Can stands in for auth.Can: whether the user has perm.
 func Can(ctx context.Context, perm string) bool { return false }
+
+// Current stands in for auth.Current: the signed-in user, nil for none.
+func Current(ctx context.Context) *Identity { return nil }
+
+// Can reports whether the user has perm.
+func (id *Identity) Can(perm string) bool { return false }

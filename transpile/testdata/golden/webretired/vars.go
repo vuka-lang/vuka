@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"unicode"
 )
@@ -48,7 +49,11 @@ func lowerCamel(name string) string {
 }
 
 // RequestInfo is the current request, as web.RequestContext gives it.
-type RequestInfo struct{ Path string }
+type RequestInfo struct {
+	Path   string
+	Query  url.Values
+	Params map[string]string
+}
 
 // RequestVars are web.RequestContext's variables.
 type RequestVars struct{ Request RequestInfo }

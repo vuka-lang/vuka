@@ -732,6 +732,14 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 	rp.Files = slices.DeleteFunc(rp.Files, func(f transpile.File) bool { return f.Name == routeGoName })
 	stub := []byte(routesHeading + "package " + root.name + "\n\nimport \"" + webPath + "\"\n\n// Routes registers the pages under pages/.\nfunc Routes() web.Option { return web.OptionFunc(func(*web.App) {}) }\n")
 	placeholder(rp, stub)
+	// route.go imports the page packages: main reaches them through it
+	// (load.Contexts), though the stub doesn't.
+	rp.Links = nil
+	for _, d := range t.dirs {
+		if d.rel != "" && d.importPath != rp.ImportPath {
+			rp.Links = append(rp.Links, d.importPath)
+		}
+	}
 	routeStubs[pagesDir] = []load.Generated{{Target: filepath.Join(pagesDir, routeGoName), Src: stub}}
 	for _, d := range t.dirs {
 		if !slices.ContainsFunc(d.funcs, func(f methodFunc) bool { return f.goName != f.method }) {

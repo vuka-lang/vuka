@@ -54,6 +54,7 @@ var fixers = []fixer{
 	{"hooks", "mark the methods earlier releases found a live page's hooks by (Mount, Changed, Load<Group>) with @ui.Mount, @ui.OnChange, @ui.Loads", fixHooks},
 	{"db-schema", "rename orm.Schema values to orm.DBSchema (orm.Of[T](orm.Schema{…})): orm.Schema is a model's Schema method's", fixDBSchema},
 	{"routes", "pass each pages/ tree's Routes() to web.New in the package main that owns it, importing it (W0701)", fixRoutes},
+	{"ctx-vars", "read what the context processors give through their variables in vuka files: auth.Can(ctx, \"x\") → perms.Has(\"x\"), auth.Current(ctx) → user, web.Request(ctx).URL.Path → request.Path, … (W0402)", fixCtxVars},
 	{"queries", "write queries made for orm.Query as the Manager's: vuka.Or of fields → orm.Or, fn.Lower → orm.Lower, fn.In → InQuery, an Option First → orm.Optional(…First(ctx)), Objects.Manager() → Objects", fixQueries},
 }
 
