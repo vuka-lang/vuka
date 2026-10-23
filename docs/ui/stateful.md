@@ -234,7 +234,7 @@ with an attribute on the method:
 | `@ui.Loads("group")` | after the first render, loading a group of [deferred fields](/web/islands#deferred-fields) | `func(ctx context.Context) error` |
 
 Fields take attributes too: `@ui.Bind` (the component may set it),
-`@ui.URL("q")` (the page's address keeps it), `@ui.Defer("group")` (loaded
+`@ui.URL("q")` (the page's address keeps it: [URL State](/web/url-state)), `@ui.Defer("group")` (loaded
 after the first render), and the rules of package `validate`. This dashboard
 uses each hook and field attribute:
 

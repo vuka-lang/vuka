@@ -1,0 +1,10 @@
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Pager keeps its page in the URL.
+type Pager struct {
+	ui.Live
+	page int @ui.URL("page")
+}
+<p>{page}</p>

@@ -1,0 +1,15 @@
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Table keeps its page and sort in the URL, and reads its route's {id}.
+type Table struct {
+	ui.Live
+	Title string
+	Sort  string @ui.URL("sort")
+	page  int    @ui.URL("page").Default(1)
+	id    int64  @ui.URL
+}
+
+func (t *Table) Next() { t.page++ }
+<p onClick={Next}>{Title} {id}: page {page}, sort {Sort}</p>

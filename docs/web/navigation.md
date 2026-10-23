@@ -131,6 +131,11 @@ The mount hook sees the first URL; `Update` sees each patch. Params that don't
 bind (a `page=x`) make the route answer 400, and the browser loads that URL
 as an ordinary page.
 
+> [!NOTE]
+> To keep a component's state in the URL — a tab, a table's page — mark
+> its field `@ui.URL("tab")`, or change the query from an event with
+> `web.Query.Set`; see [URL State](/web/url-state).
+
 ### The Server Decides What Stays Mounted
 
 `patch` on a link (and `Patch`, `PushPatch`) only asks. The page stays

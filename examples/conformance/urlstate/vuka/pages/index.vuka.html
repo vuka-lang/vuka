@@ -1,0 +1,33 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"example.com/app/components"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+)
+
+// Index shows two tables and a status filter: GET /.
+type Index struct {
+	ui.Live
+	Status string
+}
+
+// Update keeps the page mounted as its URL changes: its tables fill from
+// the new one.
+func (p *Index) Update(web.URLParams) {}
+
+// Open filters the requests to the open ones, back on their first page.
+func (p *Index) Open(ctx context.Context) {
+	web.Query.Set(ctx, "status", "open")
+	web.Query.Del(ctx, "requests.page")
+}
+</script>
+
+<main>
+  <p>status: {Status} <button onClick={Open}>Open only</button></p>
+  <components.Table title="Requests" urlKey="requests"/>
+  <components.Table title="Users" urlKey="users"/>
+</main>

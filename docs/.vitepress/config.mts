@@ -93,6 +93,7 @@ export default defineConfig({
           { text: 'Client State', link: '/ui/state' },
           { text: 'JS Commands', link: '/ui/js' },
           { text: 'Navigation', link: '/web/navigation' },
+          { text: 'URL State', link: '/web/url-state' },
           { text: 'Tailwind CSS', link: '/web/styling' },
           { text: 'Styles & Scripts', link: '/web/assets' },
           { text: 'Frontends', link: '/web/frontend' },

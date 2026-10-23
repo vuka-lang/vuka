@@ -69,9 +69,20 @@ type (
 	Defer string
 )
 
-func (Bind) Apply(*FieldOptions)  {}
-func (URL) Apply(*FieldOptions)   {}
-func (Defer) Apply(*FieldOptions) {}
+func (Bind) Apply(*FieldOptions) {}
+func (URL) Apply(*FieldOptions)  {}
+
+type URLDefault struct {
+	Name  string
+	Value any
+}
+
+func (URLDefault) Apply(*FieldOptions) {}
+func (u URL) Default(v any) URLDefault { return URLDefault{string(u), v} }
+
+func URLKey(key string, c any) Node { return nil }
+func Key(key any, c Stateful) Node  { return nil }
+func (Defer) Apply(*FieldOptions)   {}
 
 type LiveSchema struct{}
 

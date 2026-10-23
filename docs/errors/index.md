@@ -127,9 +127,11 @@ same page in the terminal.
 | [E0336](./E0336) | A live page hook that doesn't fit |
 | [E0337](./E0337) | A hook found by its name |
 | [E0338](./E0338) | A hook declared by the constructor |
+| [E0340](./E0340) | A path parameter the page doesn't have |
 | [W0301](./W0301) | A live page routed as a stateless one |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |
+| [W0307](./W0307) | Two components keeping one URL parameter |
 
 ## Routes and the web app
 

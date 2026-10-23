@@ -1,0 +1,20 @@
+# urlstate: two tables keeping their page and sort in the URL under keys of
+# their own — read on the first render and as the URL changes, written by
+# their events as patches keeping the other parameters — and a filter the
+# page sets with web.Query.
+GET /?requests.page=2&users.sort=date
+LIVE /?requests.page=2&users.sort=date
+  expect Requests: page 2, by name
+  expect Users: page 1, by date
+  {"type":"event","target":"c3:0","event":"click"}
+  expect Users: page 2, by date
+  {"type":"navigate","url":"/?requests.page=2&users.page=2&users.sort=date","patch":true}
+  {"type":"event","target":"c2:2","event":"click"}
+  {"type":"navigate","url":"/?requests.page=2&requests.sort=date&users.page=2&users.sort=date","patch":true}
+  {"type":"event","target":"c1:0","event":"click"}
+  {"type":"navigate","url":"/?requests.sort=date&status=open&users.page=2&users.sort=date","patch":true}
+  expect status: open
+  expect Requests: page 1, by date
+  {"type":"navigate","url":"/?requests.page=2&users.sort=date","patch":true}
+  expect Requests: page 2, by name
+  expect Users: page 1, by date

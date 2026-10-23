@@ -1,0 +1,16 @@
+// Command urlstate is two tables on one page in Vuka, each keeping its
+// page and sort in the URL under a key of its own, and a filter the page
+// keeps there with web.Query.
+package main
+
+import (
+	"log"
+
+	"example.com/app/pages"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	app := web.New(pages.Routes())
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

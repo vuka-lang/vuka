@@ -46,6 +46,7 @@ The checks are:
 | `live` | decorated hooks, bound fields, deferred groups, typed handler parameters and tracked server state |
 | `templates` | shape-file fields and markup, ambiguous names, missing keys in live loops and invalid hole values |
 | `schema` | an orm model's `Schema` method: `s.Field` given something other than the address of the receiver's field ([E0501](/errors/E0501)), a nil attribute ([E0502](/errors/E0502)), a field behind a pointer ([E0503](/errors/E0503)) |
+| `urlstate` | two components one markup renders keeping the same query parameter without a `urlKey` of their own ([W0307](/errors/W0307)) |
 
 A check reports only what the source decides: a path built at run time, a
 value of an interface type in a template hole or a route a package

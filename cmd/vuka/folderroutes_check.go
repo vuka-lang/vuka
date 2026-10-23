@@ -138,6 +138,7 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 		}
 	}
 	c.typeParams()
+	c.urlParams()
 	c.conflicts()
 	t.info = c.info
 	t.urls = c.urlTree()
