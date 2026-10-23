@@ -525,3 +525,23 @@ func TestBracketFolderGoDirs(t *testing.T) {
 		t.Errorf("vuka vet with the files on disk: %v\n%s", err, errOut.Bytes())
 	}
 }
+
+// TestPageHandlerDeps: a page's method handler takes a provided dependency
+// as a pointer beside the struct its body binds; an event its markup sends
+// can't be named for an HTTP method.
+func TestPageHandlerDeps(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/pets/store.go":        "package pets\n\n// Store keeps the pets.\ntype Store struct{ Names []string }\n\n// PetForm is a new pet.\ntype PetForm struct {\n\tName string `form:\"name\"`\n}\n",
+		"pages/pets/index.vuka.html": "package pets\n\nimport \"context\"\n\n// Index lists the pets.\ntype Index struct{}\n\nfunc (p *Index) Post(ctx context.Context, s *Store, form PetForm) error { return nil }\n<form method=\"post\"><input name=\"name\"/></form>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil || !regexp.MustCompile(`POST +/pets +pets\.Index\.Post`).Match(out.Bytes()) {
+		t.Fatalf("vuka routes: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
+	}
+	writeFile(t, "pages/pets/index.vuka.html", "package pets\n\n// Index lists the pets.\ntype Index struct {\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")
+	out.Reset()
+	errOut.Reset()
+	if err := routesCmd(nil, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0709") || !strings.Contains(errOut.String(), "Index.Delete is the page's DELETE handler, and its markup sends it as an event") {
+		t.Errorf("vuka routes with an event named Delete: %v\n%s", err, errOut.Bytes())
+	}
+}

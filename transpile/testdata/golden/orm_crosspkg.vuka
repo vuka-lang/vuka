@@ -1,0 +1,16 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"vukatest.local/orm/ormusers"
+)
+
+// Another package's model reads as one of this package's: its manager and
+// its typed fields.
+func main() {
+	ctx := context.Background()
+	_, err := ormusers.User.Objects.Get(ctx, ormusers.User.Name.Eq("ada"))
+	fmt.Println(ormusers.User.Objects.Count(), err, ormusers.User.Name.Desc(), ormusers.User.ID.Eq(7))
+}

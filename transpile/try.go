@@ -122,6 +122,33 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 			return
 		}
 		if s.Tok == token.ASSIGN {
+			tracked, wait := e.trackedLhs(f, s)
+			if wait {
+				return // the shape's fields are lowered first
+			}
+			if tracked != nil {
+				// Server state is set once the call succeeded, as
+				// x := f()?; p.x = x would: into temporaries, then
+				// assigned one by one, a tracked field through Set.
+				vars := make([]string, len(values))
+				var sets []string
+				for i, l := range s.Lhs {
+					vars[i] = "__v" + n + "_" + itoa(i+1)
+					lt := string(f.src[f.orig(l.Pos()):f.orig(l.End())])
+					switch {
+					case tracked[i]:
+						sets = append(sets, lt+".Set("+vars[i]+")")
+					case lt == "_":
+						vars[i] = "_"
+					default:
+						sets = append(sets, lt+" = "+vars[i])
+					}
+				}
+				lhs := strings.Join(append(vars, failVar), ", ")
+				f.add(f.orig(s.Pos()), f.orig(s.Rhs[0].Pos()), lhs+" := ")
+				check += "; " + strings.Join(sets, "; ")
+				break
+			}
 			typ := "error"
 			if option {
 				typ = "bool"

@@ -799,6 +799,11 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 					WithHelp("rename the method: Post, Put, Patch and Delete handle those methods on the page's path")
 				continue
 			}
+			if slices.Contains(d.sends[name], m) {
+				c.report(diag.New("E0709", "%s.%s is the page's %s handler, and its markup sends it as an event", name, m, strings.ToUpper(m)), fn.Pos()).
+					WithHelp("rename the event method (Remove, Save, …): Post, Put, Patch and Delete on a page answer those HTTP methods on its path")
+				continue
+			}
 			if !c.handler(name, fn) {
 				continue
 			}
@@ -855,7 +860,7 @@ func (c *routeChecker) methodFunc(mf methodFunc, fn *types.Func) bool {
 			if p.Name() == "" || p.Name() == "_" {
 				return bad("name it: a scalar binds the path parameter or query value of its name", "takes a scalar without a name")
 			}
-		case structParam(t):
+		case structParam(t) && !isPointer(t):
 			if body {
 				return bad("join them in one struct", "takes a second struct to bind from the request")
 			}
@@ -902,7 +907,7 @@ func (c *routeChecker) handler(page string, fn *types.Func) bool {
 		case isContext(t), isNamed(t, "net/http", "Request", true), isNamed(t, "net/http", "ResponseWriter", false):
 		case scalarParam(t):
 			return bad("put it in a struct the handler takes: its fields bind from the form, the query and the path", "takes the scalar %s, which binds by name, and a method's parameters have none", p.Name())
-		case structParam(t):
+		case structParam(t) && !isPointer(t):
 			if body {
 				return bad("join them in one struct", "takes a second struct to bind from the request")
 			}
@@ -963,6 +968,14 @@ func structParam(t types.Type) bool {
 		}
 	}
 	return false
+}
+
+// isPointer reports whether t is a pointer: a pointer to a struct is a
+// provided dependency (a service) or, when nothing provides it, the body;
+// only the container knows which, so it is never a second body here.
+func isPointer(t types.Type) bool {
+	_, ok := t.(*types.Pointer)
+	return ok
 }
 
 func isPtrOrIface(t types.Type) bool {

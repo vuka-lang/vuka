@@ -18,8 +18,12 @@ func (Base[Self]) vukaSchema(interface{ Schema(*Schema) }) {}
 func (Base[Self]) vukaFields()                             {}
 func (Base[Self]) vukaPlain(Model[Self])                   {}
 
-// Model is what plain Go embeds in Base's place.
+// Model is what plain Go embeds in Base's place, with orm's Objects method:
+// plain Go's User{}.Objects().
 type Model[Self any] struct{ Base[Self] }
+
+// Objects is the model's manager.
+func (Model[Self]) Objects(names ...string) *Manager[Self] { return Objects[Self](names...) }
 
 // Save stores the row.
 func (b *Base[Self]) Save(self *Self, ctx context.Context) error {

@@ -324,6 +324,13 @@ func shapeRecv(x ast.Expr) (ptr bool, name string) {
 
 // wiredEvent is the first of the methods events an on… attribute of the
 // markup names, "" when none does.
+// SendsEvent reports whether a template file's markup wires its struct's
+// method name to an on… attribute: sends it as an event.
+func SendsEvent(src []byte, name string) bool {
+	_, _, markup := goHeader(src, 0)
+	return markup >= 0 && wiredEvent(string(src[markup:]), []string{name}) != ""
+}
+
 func wiredEvent(markup string, events []string) string {
 	if len(events) == 0 {
 		return ""

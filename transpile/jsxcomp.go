@@ -37,6 +37,7 @@ type jsxComp struct {
 	structComp bool      // a struct with a Render() Node method: T{…}.Render()
 	nodeComp   bool      // a struct component that is a Node, with its markup its View: T{…}
 	rest       []jsxNode // the children but the slots, when there are slots
+	pre        []jsxNode // and the children's statements, run before the slots read them
 	ptrRender  bool      // whose Render takes a pointer: (&T{…}).Render()
 	key        *compArg  // its key attribute
 	targText   string    // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
@@ -115,6 +116,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		}
 		w.gen(")")
 		return
+	}
+	for _, n := range c.pre {
+		w.block(n.(*jsxBlock))
 	}
 	value := func(a *compArg, named bool) {
 		switch {
@@ -268,12 +272,30 @@ func (e *engine) lowerJSX(f *fileState) {
 			}
 			all = all && c.resolved
 		}
-		if all && e.bindTree(f, t) && !pendingWrites(f, t) {
+		if all && e.bindTree(f, t) && e.bindComps(f, t) && !pendingWrites(f, t) {
 			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 			e.progress = true
 		}
 	}
+}
+
+// bindComps binds the tree's components' attributes reading states — their
+// names' types known only once the markup's bare names are qualified. It
+// reports false while one is unknown.
+func (e *engine) bindComps(f *fileState, t *jsxTree) bool {
+	ok := true
+	for _, c := range t.comps {
+		if c.dead || !c.target.has("VukaState") {
+			continue
+		}
+		for _, a := range c.args {
+			if a != nil && !e.bindArg(f, c, a) && (e.progress || e.pendingLowering(f)) {
+				ok = false
+			}
+		}
+	}
+	return ok
 }
 
 // nodeType is the target's Node.
@@ -489,7 +511,7 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 		}
 		return el.start, msg
 	}
-	c.args, c.rest, c.ctx = nil, nil, nil // a round that left the tag unresolved may have bound them
+	c.args, c.rest, c.pre, c.ctx = nil, nil, nil, nil // a round that left the tag unresolved may have bound them
 	if p := sig.Params(); p.Len() > 0 && isContext(p.At(0).Type()) && c.target.has("Ctx") {
 		rest := make([]*types.Var, p.Len()-1)
 		for i := range rest {
@@ -565,8 +587,8 @@ func (e *engine) bindComp(c *jsxComp, sig *types.Signature, attrs []*jsxAttr, no
 		slotAt[args[i]] = sl.start
 	}
 	if len(slotAt) > 0 {
-		c.rest = rest
-		hasKids = hasContent(rest)
+		c.rest, c.pre = splitStmts(rest)
+		hasKids = hasContent(c.rest)
 	}
 	if hasKids {
 		i := bindName(names, "children")
@@ -1064,7 +1086,18 @@ func bindName(names []string, attr string) int {
 			return i
 		}
 	}
-	return -1
+	// An initialism's field: id is ID, uid UID, ownerId OwnerID — when only
+	// one name is spelt so in any case.
+	found := -1
+	for i, n := range names {
+		if n != "" && n != "_" && strings.EqualFold(n, attr) {
+			if found >= 0 {
+				return -1
+			}
+			found = i
+		}
+	}
+	return found
 }
 
 func unknownAttr(tag, attr, what string, names []string) string {
@@ -1137,4 +1170,19 @@ func (f *fileState) importAs(path, name string) string {
 		f.insert(f.pkgEnd, "; import "+name+" "+strconv.Quote(path), 0)
 	}
 	return name
+}
+
+// splitStmts is a tag's children but its slots without its statements, and
+// those statements: a slot is written before the children, so their
+// statements run before both.
+func splitStmts(rest []jsxNode) (kids, stmts []jsxNode) {
+	kids = rest[:0:0]
+	for _, n := range rest {
+		if b, ok := n.(*jsxBlock); ok && b.stmt {
+			stmts = append(stmts, n)
+			continue
+		}
+		kids = append(kids, n)
+	}
+	return kids, stmts
 }

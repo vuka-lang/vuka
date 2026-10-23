@@ -96,6 +96,7 @@ type jsxAttr struct {
 	val   string // the decoded string
 	expr  span
 	event bool       // an element's event handler: onClick={…}
+	unfit bool       // a component's attribute whose read of states was reported (bindArg)
 	bind  *stateBind // an expression reading states, lowered (state.go)
 	stmts bool       // an event's statements, not an expression: onClick={open = !open; Save()}
 	write *stateBind // those statements as a chain of commands, lowered (writes.go)

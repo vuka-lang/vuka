@@ -560,35 +560,42 @@ func (e *engine) pendingLowering(f *fileState) bool {
 // bindArg lowers a component's attribute reading states, for a prop that
 // is a ui.State or takes any value: a state as it is, an expression of
 // states as a derived one. A prop of another type takes no state.
-func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) {
+// It reports false while a name the attribute reads has no type yet (a
+// field the markup names bare, before it is qualified): it is bound again
+// once it has.
+func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) bool {
 	at := a.attr
-	if at == nil || at.kind != 'e' || at.bind != nil {
-		return
+	if at == nil || at.kind != 'e' || at.bind != nil || at.unfit {
+		return true
 	}
 	x := e.exprAt(f, at.expr)
 	if x == nil || !e.readsState(x) {
-		return
+		return x == nil || !e.unknownTypes(x)
 	}
 	if _, st := stateOf(e.info.TypeOf(x)); st {
-		return
+		return true
 	}
 	if at.name == "key" {
+		at.unfit = true
 		e.errs.add("E0125", f.at(at.off), "<%s>'s key can't read a ui.State", c.el.tag)
-		return
+		return true
 	}
 	_, toState := stateOf(a.typ)
 	_, iface := a.typ.Underlying().(*types.Interface)
 	if !toState && !iface {
+		at.unfit = true
 		e.errs.add("E0125", f.at(at.off), "%s reads a ui.State, and <%s>'s %s takes %s: pass .Get() for the value it renders with, or make the prop a ui.State",
 			f.src[f.orig(x.Pos()):f.orig(x.End())], c.el.tag, at.name, e.display(a.typ))
-		return
+		return true
 	}
 	b, err := e.lowerState(f, x)
 	if err != nil {
+		at.unfit = true
 		e.errs.add("E0124", f.at(err.off), "%s", err.msg)
-		return
+		return true
 	}
 	at.bind = b
+	return true
 }
 
 // bind writes a lowered read.
@@ -850,7 +857,34 @@ func (w *jsxWriter) holeValue(h *jsxHole) {
 		w.bind(h.bind)
 		return
 	}
+	if w.pointerNode(h) {
+		w.gen("&")
+	}
 	w.keep(h.expr)
+}
+
+// pointerNode reports whether a hole holds a value whose pointer is a Node
+// and it isn't — a stateful shape, Card{…}, its View on *Card — and its
+// address can be taken, so the hole renders it rather than printing it. One
+// whose address can't be taken (a call's result) is E0128.
+func (w *jsxWriter) pointerNode(h *jsxHole) bool {
+	e := w.f.eng
+	if !w.final || e.info == nil || h.json {
+		return false
+	}
+	node := e.nodeType(w.f.target)
+	start, end := w.f.cur.fromOrig(h.expr.start), w.f.cur.fromOrigEnd(h.expr.end)
+	t := e.typeAt(w.f, start, end)
+	if node == nil || t == nil || types.IsInterface(t) || types.AssignableTo(t, node) || !types.AssignableTo(types.NewPointer(t), node) {
+		return false
+	}
+	x := e.exprAt(w.f, h.expr)
+	if _, lit := ast.Unparen(x).(*ast.CompositeLit); lit || x != nil && e.info.Types[x].Addressable() {
+		return true
+	}
+	src := string(w.f.src[h.expr.start:h.expr.end])
+	e.errs.add("E0128", w.f.at(h.expr.start), "%s is a %s, which isn't a ui.Node — *%[2]s is: it would print as text; hold it in a variable, x := %[1]s, and write {x}", src, e.display(t))
+	return false
 }
 
 // resolveStatesCall writes a static shape struct's statesCall as its

@@ -386,3 +386,19 @@ func TestLSPOneWay(t *testing.T) {
 		}
 	}
 }
+
+// TestLSPTemplateTextNoImports: completing after a sentence of markup text
+// ending in a package's name (failing to sync.) offers nothing that would
+// import the package: text is no Go.
+func TestLSPTemplateTextNoImports(t *testing.T) {
+	src := "package orders\n\n// Status says the sync state.\ntype Status struct {\n\tFailed bool\n}\n<p>\n  if Failed {\n    The orders are failing to sync.\n  }\n</p>\n"
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "orders/status.vuka.html": src})
+	uri := pathToURI(filepath.Join(dir, "orders", "status.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka", "version": 1, "text": src}})
+	c.waitDiags(uri, func([]any) bool { return true })
+	got := jsonOf(c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+		"position": positionOf([]byte(src), strings.Index(src, "sync.")+len("sync."))}))
+	if strings.Contains(got, "additionalTextEdits") || strings.Contains(got, `"sync`) {
+		t.Errorf("completion in markup text: %.2000s", got)
+	}
+}

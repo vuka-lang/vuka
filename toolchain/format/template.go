@@ -24,8 +24,9 @@ var (
 // headers and of holes on one line written as gofmt writes it, trailing
 // space gone, no runs of blank lines, one blank line before each header (or
 // its doc comment), none between a doc comment and its header or a header
-// and its markup, and one newline at the end. Markup, and the content of
-// scripts and styles, stay as written.
+// and its markup, and one newline at the end. Markup, the Go header above
+// it (a struct on one line stays one), and the content of scripts and
+// styles stay as written.
 func Template(src []byte, pkg string) ([]byte, error) {
 	text := strings.ReplaceAll(string(src), "\r\n", "\n")
 	if pkg != "" {
@@ -35,8 +36,10 @@ func Template(src []byte, pkg string) ([]byte, error) {
 	var out []string
 	raw := ""
 	header, clause, body := false, false, false
+	markup := false // past the Go header: its first line starting with <
 	for _, l := range lines {
 		l = strings.TrimRight(l, " \t")
+		markup = markup || strings.HasPrefix(l, "<")
 		if l == "" && (header || clause) && raw == "" {
 			continue
 		}
@@ -58,6 +61,7 @@ func Template(src []byte, pkg string) ([]byte, error) {
 				// gofmt writes a long header's body on lines of its own
 				l = strings.TrimPrefix(string(f), "package p\n\n")
 				l = strings.TrimSuffix(strings.TrimSuffix(l, " {}\n"), " {\n}\n")
+				markup = true // a template's header: its markup follows
 			}
 			for len(out) > 0 && out[len(out)-1] == "" {
 				out = out[:len(out)-1]
@@ -72,7 +76,7 @@ func Template(src []byte, pkg string) ([]byte, error) {
 			header = true
 		case packageLine.MatchString(l) && !body:
 			clause = true
-		default:
+		case markup:
 			l = holesFormatted(l)
 		}
 		if l == "" && len(out) > 0 && out[len(out)-1] == "" && raw == "" {

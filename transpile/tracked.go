@@ -4,7 +4,9 @@ import (
 	"go/ast"
 	"go/token"
 	"go/types"
+	"path/filepath"
 	"reflect"
+	"slices"
 	"strconv"
 	"strings"
 )
@@ -257,8 +259,21 @@ func (e *engine) trackUses(f *fileState, fields map[*types.Var]*fileState, attrs
 	if len(reads) > 0 {
 		return
 	}
+	multi := map[ast.Stmt]bool{}
 	for _, w := range writes {
 		sel := w.sel
+		if f.pendingTry(w.st) {
+			continue
+		}
+		if st, ok := w.st.(*ast.AssignStmt); ok && st.Tok == token.ASSIGN && len(st.Lhs) > 1 && w.top == ast.Expr(sel) {
+			// p.a, p.b = p.b, p.a: the values into temporaries first, as
+			// Go evaluates them, then each assigned, a tracked one by Set.
+			if !multi[st] {
+				multi[st] = true
+				e.trackMulti(f, st, fields)
+			}
+			continue
+		}
 		if w.top != ast.Expr(sel) {
 			// A write into the value: Update with it as a variable.
 			v := e.freeName(sel.Sel.Name, w.st)
@@ -442,10 +457,108 @@ func (e *engine) checkGoTracked() {
 				if fn != "" {
 					where = fn
 				}
+				if strings.HasSuffix(f.name, "_test.go") {
+					// A test reads and writes it as the shape's methods do in
+					// a _test.vuka file.
+					e.errs.add("E0155", e.fset.Position(sel.Sel.Pos()), "%s is %s's tracked server state, declared in %s, which the compiler lowers only in Vuka files: move %s from this _test.go file to a _test.vuka file, where it reads and writes the field as written",
+						types.ExprString(sel), shape.html.shape.Type, shape.name, where).
+						help("rename %s to %s", filepath.Base(f.name), strings.TrimSuffix(filepath.Base(f.name), ".go")+".vuka")
+					return false
+				}
 				e.errs.add("E0155", e.fset.Position(sel.Sel.Pos()), "%s is %s's tracked server state, declared in %s, which the compiler lowers only in Vuka files: move %s from this .go file to a .vuka file, or into %s's header",
 					types.ExprString(sel), shape.html.shape.Type, shape.name, where, shape.name)
 				return false
 			})
 		}
 	}
+}
+
+// trackedLhs reports which of an assignment's left-hand sides are tracked
+// fields, nil when none is; wait is set while a shape whose field one
+// writes hasn't had its fields' types lowered, so what is tracked isn't
+// known yet.
+func (e *engine) trackedLhs(f *fileState, s *ast.AssignStmt) (tracked []bool, wait bool) {
+	for i, l := range s.Lhs {
+		sel, ok := ast.Unparen(l).(*ast.SelectorExpr)
+		if !ok {
+			continue
+		}
+		sv := e.info.Selections[sel]
+		if sv == nil || sv.Kind() != types.FieldVal {
+			continue
+		}
+		v := sv.Obj().(*types.Var)
+		for _, g := range e.vuka {
+			if g.html == nil || g.html.shape == nil {
+				continue
+			}
+			obj, _ := e.pkg.Scope().Lookup(g.html.shape.Type).(*types.TypeName)
+			if obj == nil {
+				continue
+			}
+			st, _ := obj.Type().Underlying().(*types.Struct)
+			for j := 0; st != nil && j < st.NumFields(); j++ {
+				if st.Field(j) != v {
+					continue
+				}
+				if !g.trackedTypes {
+					return nil, true
+				}
+				if g.tracked[v.Name()] {
+					if tracked == nil {
+						tracked = make([]bool, len(s.Lhs))
+					}
+					tracked[i] = true
+				}
+			}
+		}
+	}
+	return tracked, false
+}
+
+// pendingTry reports whether st ends in a ? not lowered yet: its lowering
+// writes the statement, a tracked field's included.
+func (f *fileState) pendingTry(st ast.Stmt) bool {
+	for _, t := range f.tries {
+		if !t.done && !t.dead && f.cur.fromOrig(t.off) == f.off(st.End()) {
+			return true
+		}
+	}
+	return false
+}
+
+// trackMulti lowers an assignment of several values writing tracked
+// fields: x, y = a, b is __x, __y := a, b; then each assigned.
+func (e *engine) trackMulti(f *fileState, st *ast.AssignStmt, fields map[*types.Var]*fileState) {
+	var vars, sets []string
+	for _, l := range st.Lhs {
+		lt := string(f.src[f.orig(l.Pos()):f.orig(l.End())])
+		if lt == "_" {
+			vars = append(vars, "_")
+			continue
+		}
+		base, tracked := "v", false
+		switch l := ast.Unparen(l).(type) {
+		case *ast.Ident:
+			base = l.Name
+		case *ast.SelectorExpr:
+			base = l.Sel.Name
+			if s := e.info.Selections[l]; s != nil && s.Kind() == types.FieldVal && fields[s.Obj().(*types.Var)] != nil {
+				tracked, lt = true, f.selText(l)
+			}
+		}
+		v := e.freeName("__"+base, st)
+		for slices.Contains(vars, v) {
+			v += "_"
+		}
+		vars = append(vars, v)
+		if tracked {
+			sets = append(sets, lt+".Set("+v+")")
+		} else {
+			sets = append(sets, lt+" = "+v)
+		}
+	}
+	f.add(f.orig(st.Pos()), f.orig(st.Rhs[0].Pos()), strings.Join(vars, ", ")+" := ")
+	f.insert(f.orig(st.End()), "; "+strings.Join(sets, "; "), 0)
+	e.progress = true
 }

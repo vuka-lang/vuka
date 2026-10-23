@@ -262,7 +262,7 @@ func (e *engine) qualify() {
 				continue
 			}
 			off := f.orig(id.Pos())
-			if f.done[off] {
+			if f.done[off] || f.shapeName(off, id.Name) {
 				continue
 			}
 			f.done[off] = true
@@ -270,6 +270,21 @@ func (e *engine) qualify() {
 			e.progress = true
 		}
 	}
+}
+
+// shapeName reports whether name, bare at off in a template file's markup,
+// is its shape's field: a field Result is the shape's, not the runtime's.
+func (f *fileState) shapeName(off int, name string) bool {
+	h := f.html
+	if h == nil || h.shape == nil || h.toSrc(off) < h.markup {
+		return false
+	}
+	for _, fl := range h.shape.Fields {
+		if fl.Name == name {
+			return true
+		}
+	}
+	return false
 }
 
 const runtimeImport = `; import vuka "` + RuntimePath + `"`

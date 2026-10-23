@@ -59,3 +59,11 @@ func check(t *testing.T, src, pkg, want string) {
 		t.Fatalf("not idempotent:\n%s", again)
 	}
 }
+
+// TestTemplateHeaderStructs: the Go header's one-line structs stay as gofmt
+// writes them; only the markup's holes are formatted.
+func TestTemplateHeaderStructs(t *testing.T) {
+	src := "package pets\n\n// Tag is a label.\ntype Tag struct{ Name string }\n\nfunc (t Tag) Upper() string { return t.Name }\n<b>{ Name }</b>\n"
+	want := "package pets\n\n// Tag is a label.\ntype Tag struct{ Name string }\n\nfunc (t Tag) Upper() string { return t.Name }\n<b>{Name}</b>\n"
+	check(t, src, "", want)
+}
