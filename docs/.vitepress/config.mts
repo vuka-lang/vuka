@@ -85,6 +85,7 @@ export default defineConfig({
           { text: 'Middleware', link: '/web/middleware' },
           { text: 'Parameters & Validation', link: '/web/parameters' },
           { text: 'Pages & Layouts', link: '/web/views' },
+          { text: 'Context Processors', link: '/web/context-processors' },
           { text: 'Templates', link: '/ui/templates' },
           { text: 'Components', link: '/ui/components' },
           { text: 'Stateful Components', link: '/ui/stateful' },

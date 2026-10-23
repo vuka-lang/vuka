@@ -1,0 +1,1 @@
+badge.vuka.html:5:5: the web.ContextProcessors of example.com/app/cmd/admin doesn't list auth.Context, which provides user; list the processor in each main the package is linked into, with the same type

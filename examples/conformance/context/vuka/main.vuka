@@ -1,0 +1,20 @@
+// Command context reads its context processors' variables by name: web's
+// request and messages, and shop.Context, which loads the cart.
+package main
+
+import (
+	"log"
+
+	"example.com/app/pages"
+	"example.com/app/shop"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	app := web.New(
+		pages.Routes(),
+		web.Provide(shop.NewStore),
+		web.ContextProcessors(web.RequestContext, web.MessagesContext, shop.Context),
+	)
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

@@ -100,9 +100,15 @@ func TestPages(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Rout
 // page's title in its Load; one that doesn't, or reads the title in its
 // markup, nothing.
 func TestLayoutsReadingTheRequest(t *testing.T) {
-	analysistest.Run(t, analysistest.TestData(), Routes, "layouts/crumbs", "layouts/shell", "layouts/titled", "layouts/header")
+	analysistest.Run(t, analysistest.TestData(), Routes, "layouts/crumbs", "layouts/shell", "layouts/titled", "layouts/header", "layouts/vars")
 }
 
 func TestHandWrittenHTML(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), Templates, "htmluse")
+}
+
+// TestContext: main's list of context processors, as the app's boot
+// checks it, and the web.Var reads of the packages it links in.
+func TestContext(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Context, "ctxapp/cmd/web")
 }

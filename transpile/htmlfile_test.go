@@ -1,6 +1,7 @@
 package transpile_test
 
 import (
+	"go/token"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -28,7 +29,7 @@ func TestGoldenTemplates(t *testing.T) {
 					files = append(files, transpile.File{Name: n, Src: src})
 				}
 			}
-			res, err := transpile.Package(files, transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: dir})
+			res, err := transpile.Package(files, transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: dir, Contexts: caseContexts(t, dir)})
 			if err != nil {
 				compare(t, filepath.Join(dir, "errors.err"), []byte(err.Error()+"\n"))
 				return
@@ -38,6 +39,15 @@ func TestGoldenTemplates(t *testing.T) {
 				if strings.HasSuffix(f.Name, ".go") {
 					os.WriteFile(filepath.Join(run, f.Name), f.Src, 0o644)
 				}
+			}
+			var warns []string
+			for _, o := range res.Files {
+				for _, w := range o.Warnings {
+					warns = append(warns, string(w.Code)+" "+w.Error())
+				}
+			}
+			if len(warns) > 0 {
+				compare(t, filepath.Join(dir, "warnings"), []byte(strings.Join(warns, "\n")+"\n"))
 			}
 			for _, o := range res.Files {
 				compare(t, filepath.Join(dir, o.GoName+".golden"), o.Src)
@@ -64,6 +74,27 @@ func TestGoldenTemplates(t *testing.T) {
 			}
 		})
 	}
+}
+
+// caseContexts are the context processors of a case's mains, from its
+// processors file: a line per main, its import path then each processor,
+// path.Func, its entry on line n of main.go for the nth.
+func caseContexts(t *testing.T, dir string) []transpile.Context {
+	b, err := os.ReadFile(filepath.Join(dir, "processors"))
+	if err != nil {
+		return nil
+	}
+	var out []transpile.Context
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		f := strings.Fields(line)
+		c := transpile.Context{Main: f[0]}
+		for i, p := range f[1:] {
+			dot := strings.LastIndex(p, ".")
+			c.Processors = append(c.Processors, transpile.Processor{Path: p[:dot], Func: p[dot+1:], Pos: token.Position{Filename: f[0] + "/main.go", Line: i + 1, Column: 1}})
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 const blankSrc = `package main

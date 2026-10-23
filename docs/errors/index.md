@@ -155,6 +155,16 @@ same page in the terminal.
 | [E0418](./E0418) | A service or controller that isn't a struct |
 | [E0419](./E0419) | A dependency field the URL binds too |
 | [E0420](./E0420) | A removed way to declare a dependency |
+| [E0421](./E0421) | Two context processors give one variable |
+| [E0422](./E0422) | A variable not every main gives |
+| [E0423](./E0423) | A context processor variable read without a context |
+| [E0424](./E0424) | An undefined name near a context processor variable |
+| [E0425](./E0425) | A list entry that is no context processor |
+| [E0426](./E0426) | Personal values sent to the browser |
+| [E0427](./E0427) | A web.Var read the app doesn't give |
+| [W0401](./W0401) | A name shadowing a context processor variable |
+| [W0402](./W0402) | The request read in markup |
+| [W0403](./W0403) | A control hidden by a permission its event doesn't check |
 
 ## Data and the ORM
 

@@ -301,6 +301,29 @@ func Routes() web.Option {
 	if err := os.WriteFile(filepath.Join(fixture, "route.go"), []byte(route), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	// The app's users package, whose context processor the guide to
+	// context processors lists.
+	users := `package users
+
+import "context"
+
+type User struct {
+	ID   string
+	Name string
+}
+
+type Service struct{}
+
+func (s *Service) ByID(ctx context.Context, id string) (*User, error) { return &User{ID: id}, nil }
+
+type Vars struct{ Me *User }
+
+func Context(ctx context.Context, s *Service) (Vars, error) { return Vars{}, nil }
+`
+	os.MkdirAll(filepath.Join(dir, "exampleapp", "users"), 0o755)
+	if err := os.WriteFile(filepath.Join(dir, "exampleapp", "users", "users.go"), []byte(users), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	sum, _ := os.ReadFile("testdata/gomode/go.sum")
 	os.WriteFile(filepath.Join(dir, "go.mod"), mod, 0o644)

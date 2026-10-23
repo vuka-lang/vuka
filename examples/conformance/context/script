@@ -1,0 +1,10 @@
+# context: context processors — web's request and messages and the app's
+# own, its store from the container — read by name in a layout, a page, a
+# component and a .vuka function; a live event changing what a processor
+# loads and asking for it again, and a flash message.
+GET /
+GET /about?tab=team
+LIVE /
+  {"type":"event","target":"c1:0","event":"click"}
+  {"type":"event","target":"c1:0","event":"click"}
+GET /about

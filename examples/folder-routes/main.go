@@ -15,7 +15,8 @@ import (
 )
 
 func main() {
-	a := web.New(pages.Routes(), web.Provide(store.New), web.WrapRoutes("no-store", noStore))
+	a := web.New(pages.Routes(), web.Provide(store.New), web.WrapRoutes("no-store", noStore),
+		web.ContextProcessors(web.RequestContext)) // request, in every template
 	a.Get("/", func() web.Redirect { return "/employers" })
 	if err := a.Run(""); err != nil {
 		log.Fatal(err)

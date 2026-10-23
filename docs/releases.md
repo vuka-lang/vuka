@@ -20,6 +20,72 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.4.0 — unreleased
+
+- **Context processors.** `web.ContextProcessors(…)` in `main` lists the
+  functions that give every template request-level values: each a plain
+  `func(ctx, deps…) (S, error)`, each exported field of `S` a variable.
+  Built in, and listed the same way: `web.RequestContext` (`request`),
+  `auth.Context` (`user`, `perms`), `web.MessagesContext` (`messages`, with
+  `web.Flash`), `web.CSRFContext` (`csrfToken`), `ui.PageContext` (`page`).
+  A processor runs only when a render reads one of its variables, once per
+  request or live event; reads are tracked, so a staying layout showing
+  `request.Path` updates that spot and stays. `web.Var[T](ctx, "name")`
+  reads one in Go, `web.WithVars` gives other values below a context,
+  `web.RefreshVars` runs a processor again, `web.Auth(p, gates…)` guards
+  one, and `web.Browser(p)` (with `web.Personal` for one reading the
+  visitor) lets islands read it; a `web.NotForBrowser` value such as
+  `auth.Perms` is never sent. See [context processors](/web/context-processors).
+- **Live renders follow the variables.** Each read is recorded against the
+  component rendering it, and a processor's inputs with it
+  (`web.RecordInput`; `web.Request` records the URL, `auth.Current` the
+  identity and its permission version): an event, a broadcast or a
+  navigation renders again only the components whose variables changed,
+  and results carry across a live connection's pages while their inputs
+  hold.
+- **Permissions that change under a live page.** auth keeps a permission
+  version per user, bumped by `Refresh`, sign-out, `auth.Impersonate` /
+  `auth.StopImpersonating` and `RevokeUser`; `auth.Context` gives `user`,
+  `perms` (`Has`, with wildcards) and `actor`, the real user while
+  impersonating.
+- **Flash messages and CSRF tokens.** `web.Flash(ctx, level, text)` (a
+  signed cookie over HTTP, the next render on a live page) feeds
+  `messages`; `web.ValidCSRFToken` checks `csrfToken`.
+- **Testing with variables.** `viewtest.With(vars…)` and
+  `viewtest.Context(ctx, vars…)` (`web/v2/viewtest`) give pages and
+  contexts their own values.
+- **Variables by name in templates.** The compiler reads `main`'s list,
+  and a bare name in a shape, its script or a `.vuka` file that names
+  nothing else reads the variable, typed: `{me.Name}` is
+  `web.Var[*users.User](ctx, "me").Name`. Every package a main imports
+  reads them, and one imported by several mains reads what all give
+  ([E0422](/errors/E0422)); libraries read them with `web.Var`. Errors for
+  a clash ([E0421](/errors/E0421)), a read without a `ctx`
+  ([E0423](/errors/E0423)), a typo with a suggestion
+  ([E0424](/errors/E0424)) and a list entry that is no processor
+  ([E0425](/errors/E0425)).
+- **vet for context processors.** `vuka vet` warns about a field or local
+  shadowing a variable ([W0401](/errors/W0401)), `web.Request(ctx)` in
+  markup where `request` would do ([W0402](/errors/W0402)), a control
+  shown behind `perms.Has("x")` whose event checks no `x`
+  ([W0403](/errors/W0403)) and a variable stored in a staying layout's
+  `Load` ([W0703](/errors/W0703)); vukavet refuses a `web.Browser`
+  processor reading the visitor without `web.Personal`
+  ([E0426](/errors/E0426)) and checks every `web.Var` read the app links in
+  against its list ([E0427](/errors/E0427)).
+- **Context processors in the editor.** `vuka lsp` completes the variables
+  and their fields, hover gives a variable's type and processor (`from
+  users.Context (users/context.go)`), go to definition jumps to the
+  processor and its entry in `web.ContextProcessors`, and variables have a
+  semantic token type of their own, `vukaContextVar`.
+- **Scaffolds list the processors.** `vuka new` writes
+  `web.ContextProcessors` with the built-in processors into `main`, so
+  they are visible and removable.
+- **URL state from events.** `web.Query.Set(ctx, "tab", key)` changes a
+  query parameter from an event as a live patch, keeping the others, and a
+  component's field bound with `@ui.URL("tab")` is two-way, namespaced per
+  instance with `urlKey`. See [navigation](/web/navigation).
+
 ## v2.3.0 — 2026-10-23
 
 - **Shape outline and sticky scroll.** `vuka lsp` gives a `.vuka.html`

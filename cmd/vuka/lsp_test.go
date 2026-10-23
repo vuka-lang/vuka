@@ -160,11 +160,23 @@ func startLSPWith(t *testing.T, files map[string]string) (*lspClient, string, an
 }
 
 func startLSPOpts(t *testing.T, files map[string]string, opts lspOptions) (*lspClient, string, any) {
+	return startLSPMod(t, files, opts, nil)
+}
+
+// startLSPWithMod is startLSPWith, the module's go.mod edited by mod.
+func startLSPWithMod(t *testing.T, files map[string]string, mod func(string) string) (*lspClient, string, any) {
+	return startLSPMod(t, files, lspOptions{renameCommands: true}, mod)
+}
+
+func startLSPMod(t *testing.T, files map[string]string, opts lspOptions, edit func(string) string) (*lspClient, string, any) {
 	if _, err := findGopls(""); err != nil {
 		needs(t, "%v", err)
 	}
 	dir := t.TempDir()
 	mod, sum := testModule(t, "lsptest")
+	if edit != nil {
+		mod = edit(mod)
+	}
 	os.WriteFile(filepath.Join(dir, "go.mod"), []byte(mod), 0o644)
 	os.WriteFile(filepath.Join(dir, "go.sum"), []byte(sum), 0o644)
 	for name, src := range files {

@@ -181,7 +181,7 @@ func (e *engine) template(f *fileState, files []File) bool {
 	if e.selfJSX {
 		q = ""
 	}
-	src, h, err := htmlSource(f.name, f.src, files, q)
+	src, h, err := htmlSource(f.name, f.src, files, q, e.templateNames())
 	if err != nil {
 		line, col := max(err.Pos.Line, 1), max(err.Pos.Column, 1)
 		err.Pos = f.lines.pos(f.path, min(f.lines[min(line, len(f.lines))-1]+col-1, len(f.src)))
@@ -195,8 +195,8 @@ func (e *engine) template(f *fileState, files []File) bool {
 // htmlSource is a template file as the .vuka source it compiles as. others
 // are the package's other files: its package's name and imports come from
 // them.
-func htmlSource(name string, src []byte, others []File, ui string) ([]byte, *htmlFile, *Error) {
-	out, h, _, err := htmlParts(name, src, others, ui, false)
+func htmlSource(name string, src []byte, others []File, ui string, vars map[string]bool) ([]byte, *htmlFile, *Error) {
+	out, h, _, err := htmlParts(name, src, others, ui, false, vars)
 	return out, h, err
 }
 
@@ -213,7 +213,7 @@ type TemplateAsset struct {
 // TemplateAssets are the scripts and stylesheets of a template file's
 // markup.
 func TemplateAssets(name string, src []byte) []TemplateAsset {
-	_, _, assets, _ := htmlParts(name, HeaderView(src), nil, "ui.", true)
+	_, _, assets, _ := htmlParts(name, HeaderView(src), nil, "ui.", true, nil)
 	return assets
 }
 
@@ -297,7 +297,7 @@ func templateDecl(header string) string {
 
 // htmlParts is htmlSource, and the markup's scripts and stylesheets;
 // assetsOnly reads only those.
-func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
+func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool, vars map[string]bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
 	lines := strings.SplitAfter(string(src), "\n")
 	off := make([]int, len(lines)+1)
 	for i, l := range lines {
@@ -446,7 +446,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if live {
 			method = "Render"
 		}
-		opening := openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), ""))
+		opening := openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), "", vars))
 		if !live && shape.hasRole(BrowserState) {
 			// A static struct's states, before its View renders (a live
 			// one's get theirs before it mounts): the engine names the
@@ -543,8 +543,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 }
 
 // templateReadsContext identifies an implicit ctx read in Go expressions,
-// ignoring text, string literals, selectors and explicitly bound contexts.
-func templateReadsContext(src []byte, header string) bool {
+// ignoring text, string literals, selectors and explicitly bound contexts:
+// ctx, or a name of vars, a context processor's variable read with it.
+func templateReadsContext(src []byte, header string, vars map[string]bool) bool {
 	if header != "" {
 		f, _ := parser.ParseFile(token.NewFileSet(), "", "package p\n"+header+" {}", 0)
 		if f != nil {
@@ -579,7 +580,7 @@ func templateReadsContext(src []byte, header string) bool {
 		if tok == token.EOF {
 			return false
 		}
-		if tok == token.IDENT && lit == "ctx" && prev != token.PERIOD {
+		if tok == token.IDENT && (lit == "ctx" || vars[lit]) && prev != token.PERIOD {
 			return true
 		}
 		prev = tok

@@ -20,6 +20,9 @@ import (
 	"github.com/vuka-lang/orm/v2/ormweb"
 	_ "github.com/vuka-lang/orm/v2/{%.DB%}" // the database's driver
 {%- end%}
+{%- if .Pages%}
+	"github.com/vuka-lang/ui/v2"
+{%- end%}
 	"github.com/vuka-lang/web/v2"
 {%- if .Auth%}
 	"github.com/vuka-lang/web/v2/auth"
@@ -90,6 +93,17 @@ func options() []web.Option {
 		pages.Routes(), // the pages under pages/
 {%- end%}
 {%- if .Pages%}
+		// What every template reads by name: request, {%if .Auth%}user, perms, {%end%}messages,
+		// csrfToken, page. Add the app's own processors to the list.
+		web.ContextProcessors(
+			web.RequestContext,
+{%- if .Auth%}
+			auth.Context,
+{%- end%}
+			web.MessagesContext,
+			web.CSRFContext,
+			ui.PageContext,
+		),
 		web.OptionFunc(func(app *web.App) {
 			files, _ := fs.Sub(static, "static")
 			app.Static("/static", files) // the logo, also the favicon

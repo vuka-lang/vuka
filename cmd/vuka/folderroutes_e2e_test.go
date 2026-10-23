@@ -163,7 +163,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 		}
 	}
 
-	page("/employers", "Employers - HR", `<nav id="site"><a href="/employers">Employers</a> <a href="/files/handbook/leave.txt">Handbook</a> <a href="/about">About</a> <a href="/app/settings">App</a></nav>`,
+	page("/employers", "Employers - HR", `<nav id="site" data-path="/employers"><a href="/employers">Employers</a> <a href="/files/handbook/leave.txt">Handbook</a> <a href="/about">About</a> <a href="/app/settings">App</a></nav>`,
 		`<a href="/employers/1">Acme Logistics</a>`, `<a id="new" href="/employers/new">`, "data-vk-token")
 	// New has no constructor: its store is injected for its mount hook,
 	// and its tally's tracked count set by a literal in a .vuka file.
@@ -192,7 +192,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if code, loc, _ := do("GET", "/admin", nil); code != http.StatusSeeOther && code != http.StatusFound || loc != "/admin/auth/login" {
 		t.Errorf("GET /admin without the cookie: %d %q, want a redirect to /admin/auth/login", code, loc)
 	}
-	if login := page("/admin/auth/login", "Sign in - HR", `<nav id="site">`, `<div class="card"><h2>Sign in</h2>`, `<form id="login"`); strings.Contains(login, `id="console"`) {
+	if login := page("/admin/auth/login", "Sign in - HR", `<nav id="site" data-path="/admin/auth/login">`, `<div class="card"><h2>Sign in</h2>`, `<form id="login"`); strings.Contains(login, `id="console"`) {
 		t.Errorf("GET /admin/auth/login is inside the group's shell:\n%s", login)
 	}
 	{

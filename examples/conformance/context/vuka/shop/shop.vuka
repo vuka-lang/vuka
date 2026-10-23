@@ -1,0 +1,36 @@
+// Package shop is the store and its context processor: every template
+// reads site and cart.
+package shop
+
+import (
+	"context"
+	"sync"
+)
+
+// Store is the shop's state.
+type Store struct {
+	mu   sync.Mutex
+	cart int
+}
+
+func NewStore() *Store { return &Store{} }
+
+// Add puts an item in the cart.
+func (s *Store) Add() {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.cart++
+}
+
+// Vars are Context's variables.
+type Vars struct {
+	Site string
+	Cart int
+}
+
+// Context gives the site's name and the cart's size.
+func Context(ctx context.Context, s *Store) (Vars, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	return Vars{Site: "Corner Shop", Cart: s.cart}, nil
+}

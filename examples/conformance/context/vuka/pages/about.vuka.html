@@ -1,0 +1,11 @@
+<script lang="go">
+package pages
+
+// About reads the request's query: GET /about.
+type About struct{}
+</script>
+
+<section id="about">
+  <h1>About {site}</h1>
+  <p>tab {request.Query.Get("tab")}</p>
+</section>

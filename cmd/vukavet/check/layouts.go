@@ -22,6 +22,10 @@ var pageReads = map[[2]string]bool{
 	{uiPath, "PageTitle"}: true, {uiPath, "PageCrumbs"}: true,
 }
 
+// varReads are a context processor's variables, read in a Load that runs
+// once: the first page's would stay.
+var varReads = map[[2]string]bool{{webPath, "Var"}: true}
+
 // checkLayouts reports a folder's layout — the struct of a
 // _layout.vuka.html — reading the request (W0703): web.Request, an
 // *http.Request, a URL or a query, in its methods or the functions and
@@ -53,6 +57,9 @@ func checkLayouts(pass *analysis.Pass) {
 				if what := readsRequest(pass, obj, requestReads, false); what != "" {
 					report(pass, ts.Name, "W0703", "mark the current link in the browser: <ui.Link href=\"/orders\" active=\"prefix\">; read only the layout's path parameters, its fields",
 						"%s.%s, a folder's layout, reads %s: it loads and renders again on every navigation, where a layout reading only its path parameters stays as it is", obj.Pkg().Name(), obj.Name(), what)
+				} else if what := readsRequest(pass, obj, varReads, true); what != "" {
+					report(pass, ts.Name, "W0703", "read the variable in the layout's markup, {request.Path}: only the spots reading it render again, and the layout stays",
+						"%s.%s, a folder's layout, stores a context processor's variable in Load (%s): it loads again on every navigation, so as not to keep the first page's, where a layout reading it in its markup stays as it is", obj.Pkg().Name(), obj.Name(), what)
 				} else if what := readsRequest(pass, obj, pageReads, true); what != "" {
 					report(pass, ts.Name, "W0703", "read the page's title and breadcrumbs in the layout's markup, <h1>{ui.PageTitle(ctx)}</h1>: it renders again for every page while the layout stays; a page gives its breadcrumbs with Crumbs() []ui.Crumb",
 						"%s.%s, a folder's layout, reads %s in Load: it loads again on every navigation, so as not to show the first page's, where a layout reading it in its markup stays as it is", obj.Pkg().Name(), obj.Name(), what)

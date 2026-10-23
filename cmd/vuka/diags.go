@@ -12,6 +12,7 @@ import (
 
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/docs"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
@@ -168,4 +169,19 @@ func offsetAt(text []byte, line, col int) int {
 		off += i + 1
 	}
 	return min(off+max(col-1, 0), len(text))
+}
+
+// transpileWarnings are the warnings the transpiler found in gens' sources,
+// which vuka vet reports: about the context processors' variables a file
+// reads (W0401, W0402, W0403).
+func transpileWarnings(root string, gens []load.Generated) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	for _, g := range gens {
+		for _, w := range g.Warnings {
+			d := w.Diagnostic(root)
+			d.Severity = diag.Warning
+			out = append(out, d)
+		}
+	}
+	return out
 }

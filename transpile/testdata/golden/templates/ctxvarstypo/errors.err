@@ -1,0 +1,2 @@
+badge.vuka.html:5:5: undefined: usr; did you mean user (from auth.Context)?
+badge.vuka.html:5:16: undefined: reqest; did you mean request (from web.RequestContext)?

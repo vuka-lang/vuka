@@ -1,0 +1,1 @@
+name.vuka:4:29: user is a variable of the context processor auth.Context: reading it takes a ctx, and there is none here; take ctx context.Context as the method's first parameter, or read it in the markup

@@ -1,0 +1,1 @@
+example.com/app/main.go:2:1: auth.Context and auth.Other both provide user, perms; auth.Context is listed at example.com/app/main.go:1; rename the fields of one result: a template reads each variable by its name, and which one it means can't be told

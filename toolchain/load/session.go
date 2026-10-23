@@ -414,6 +414,27 @@ func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Op
 	h := sha256.New()
 	fmt.Fprintf(h, "%s %s %s %s %v\n", p.ImportPath, p.Name, p.Dir, registry, opts.Bare)
 	fmt.Fprintf(h, "scopes %v\n", opts.Scopes[p.Dir]) // fmt prints a map sorted
+	for _, c := range opts.Contexts[p.ImportPath] {
+		fmt.Fprintf(h, "context %s\n", c.Main)
+		for _, pr := range c.Processors {
+			fmt.Fprintf(h, "processor %s.%s %s %v %v %v\n", pr.Path, pr.Func, pr.Pos, pr.Browser, pr.Personal, pr.Auth)
+		}
+	}
+	for _, path := range processorPaths(opts.Contexts[p.ImportPath]) {
+		if path == p.ImportPath || !s.inModule(path) {
+			continue
+		}
+		if s.broken[path] {
+			fmt.Fprintf(h, "processor package %s broken\n", path)
+			continue
+		}
+		c, err := s.check(path)
+		if err != nil {
+			s.fail(err)
+			return ""
+		}
+		fmt.Fprintf(h, "processor package %s %s\n", path, c.api)
+	}
 	writePackage(h, p)
 	imports := slices.Clone(p.Imports)
 	slices.Sort(imports)

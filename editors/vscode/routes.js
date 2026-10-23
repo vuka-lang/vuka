@@ -1,7 +1,7 @@
 // The routes a code lens above a page shows: the language server sends each
 // route's `vuka routes -json` entry as the lens's arguments.
 
-const tokenTypes = ['vukaProp', 'vukaState', 'vukaBrowserState', 'vukaEvent', 'vukaComponent', 'vukaLocal'];
+const tokenTypes = ['vukaProp', 'vukaState', 'vukaBrowserState', 'vukaEvent', 'vukaComponent', 'vukaLocal', 'vukaContextVar'];
 
 // formatRoute is one entry as lines of text.
 function formatRoute(e) {
