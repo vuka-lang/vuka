@@ -457,6 +457,17 @@ func replaceWord(s, old, repl string) string {
 	return b.String() + s
 }
 
+// CopyMap is the map of a file copied whole: n bytes after skip bytes the
+// copy begins with (a line directive) map to the source's first n.
+func CopyMap(skip, n int) *SourceMap {
+	m := &SourceMap{}
+	if skip > 0 {
+		m.segs = append(m.segs, segment{gen: 0, src: 0, genLen: skip, srcLen: 0})
+	}
+	m.segs = append(m.segs, segment{gen: skip, src: 0, genLen: n, srcLen: n, copy: true})
+	return m
+}
+
 func (m *SourceMap) add(base int, segs []segment) {
 	for _, s := range segs {
 		s.gen += base

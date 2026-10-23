@@ -168,7 +168,7 @@ func TestFolderRouteErrors(t *testing.T) {
 		{"ambiguous", map[string]string{"pages/orgs/new/[x]/reset_password.vuka.html": "package x\n\ntype ResetPassword struct {\n\tX int\n}\n<p>x</p>\n"},
 			"E0702", "pages/orgs/new/[x]/reset_password.vuka.html:3"},
 		{"below a catch-all", map[string]string{"pages/files/[rest...]/more/index.go": "package more\n"},
-			"E0716", "pages/files/[rest...]/more/index.go:1"},
+			"E0703", "pages/files/[rest...]/more"},
 		{"a folder below a catch-all", map[string]string{"pages/app/[route...]/more/index.vuka.html": "package more\n\ntype Index struct {\n\tRoute string\n}\n<p>x</p>\n"},
 			"E0703", "pages/app/[route...]/more/index.vuka.html:3"},
 		{"a page beside a catch-all's index", map[string]string{"pages/app/[route...]/raw.vuka.html": "package route\n\ntype Raw struct {\n\tRoute string\n}\n<p>x</p>\n"},
@@ -226,7 +226,7 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0714", "pages/orgs/params.go:4"},
 		{"a 1.x Layout", map[string]string{"pages/orgs/layout.go": "package orgs\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Layout wraps nothing now.\ntype Layout struct{ Children ui.Node }\n"},
 			"E0715", "pages/orgs/layout.go:6"},
-		{"Go in a parameter folder", map[string]string{"pages/orgs/[org]/edit.go": "package org\n"},
+		{"Go of another package in a parameter folder", map[string]string{"pages/orgs/[org]/edit.go": "package edit\n"},
 			"E0716", "pages/orgs/[org]/edit.go:1"},
 		{"a method func in two Go files", map[string]string{"pages/api/a.go": "package api\n\nfunc GET() {}\n", "pages/api/b.go": "package api\n\nfunc GET() {}\n"},
 			"E0717", "pages/api/b.go:1"},
@@ -482,10 +482,10 @@ func TestMainPages(t *testing.T) {
 }
 
 // TestBracketFolderGoDirs: a [id] folder's package is seen by the go
-// command in param_id, which vuka makes on disk, empty, its Go in the
-// overlay: vuka test and vet run go vet over it, which needs the
-// directory. One whose [id] folder is gone, holding generated Go alone, is
-// removed.
+// command in param_id, its Go in the overlay; vuka test and vet, whose
+// tools run in a package's directory, make it for the while and remove it,
+// so none is left on disk. One whose [id] folder is gone, holding
+// generated Go alone, is removed.
 func TestBracketFolderGoDirs(t *testing.T) {
 	app := routesModule(t, map[string]string{
 		"main_test.go": "package main\n\nimport (\n\t\"testing\"\n\n\t\"example.com/app/pages\"\n)\n\nfunc TestRoutes(t *testing.T) { _ = pages.Routes() }\n",
@@ -507,11 +507,7 @@ func TestBracketFolderGoDirs(t *testing.T) {
 			t.Errorf("vuka %s ./...: %v\n%s", cmd, err, errOut.Bytes())
 		}
 	}
-	if fi, err := os.Stat(filepath.Join(app, "pages/pets/param_id")); err != nil || !fi.IsDir() {
-		t.Errorf("no pages/pets/param_id: %v", err)
-	} else if entries, _ := os.ReadDir(filepath.Join(app, "pages/pets/param_id")); len(entries) > 0 {
-		t.Errorf("Go written into pages/pets/param_id: %v", entries)
-	}
+	noGoDirs(t, app)
 	if _, err := os.Stat(filepath.Join(app, "pages/old/param_gone")); err == nil {
 		t.Error("the stale pages/old/param_gone is still there")
 	}

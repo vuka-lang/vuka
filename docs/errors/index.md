@@ -192,7 +192,7 @@ same page in the terminal.
 | [E0713](./E0713) | A parameter is both a file and a folder |
 | [E0714](./E0714) | A Params struct makes no parameter folder |
 | [E0715](./E0715) | A Layout type wraps no folder |
-| [E0716](./E0716) | A Go file is in a bracketed folder |
+| [E0716](./E0716) | A Go file the folder's package can't hold |
 | [E0717](./E0717) | Two Go files declare one method func |
 | [E0718](./E0718) | A file is in the way of pages/route.go |
 | [E0719](./E0719) | A page's struct is declared nowhere |

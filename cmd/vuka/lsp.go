@@ -573,6 +573,22 @@ func isVuka(path string) bool {
 	return strings.HasSuffix(path, ".vuka") || strings.HasSuffix(path, ".vuka.html")
 }
 
+// routeGo reports whether path is a .go file in a bracketed folder or a
+// route group, which gopls sees as a copy in the folder's Go name
+// (load.RouteMapped): its requests are answered there, as a .vuka file's.
+func (p *proxy) routeGo(path string) bool {
+	if !strings.HasSuffix(path, ".go") {
+		return false
+	}
+	p.mu.Lock()
+	root := p.modRoot
+	p.mu.Unlock()
+	if root == "" {
+		root = string(filepath.Separator)
+	}
+	return load.RouteMapped(root, filepath.Dir(path))
+}
+
 // moduleFile reports whether path is a go.mod, go.sum or go.work file.
 func moduleFile(path string) bool {
 	switch filepath.Base(path) {
@@ -690,7 +706,7 @@ func (p *proxy) fromEditor() {
 			_ = p.gopls.write(body)
 			return
 		case "textDocument/didOpen", "textDocument/didChange", "textDocument/didClose", "textDocument/didSave":
-			if isVuka(path) {
+			if isVuka(path) || p.routeGo(path) {
 				p.document(m.Method, m.Params, p.real(path))
 				continue
 			}
@@ -722,9 +738,9 @@ func (p *proxy) fromEditor() {
 			}
 			continue
 		}
-		if isVuka(path) {
+		if isVuka(path) || p.routeGo(path) {
 			switch {
-			case m.Method == "textDocument/formatting":
+			case m.Method == "textDocument/formatting" && isVuka(path):
 				p.formatting(&m, p.real(path))
 			case m.isRequest():
 				p.vukaRequest(&m, p.real(path))

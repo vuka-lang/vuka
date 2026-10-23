@@ -357,9 +357,22 @@ No import path can hold a bracket, so the go command builds no `[employer]`
 folder. vuka compiles it: the Go of its `.vuka.html` and `.vuka` files goes
 where the go command sees it, `param_employer/` — in the build's overlay, or on
 disk with `vuka gen -inplace`, so a plain `go build` works after it. The
-folder's logic files are `.vuka` (a `.vuka` file is Go and more): a `.go`
-file there would be read by nothing ([E0716](/errors/E0716)). A guard in a
-bracket folder is `guard.vuka`.
+folder's own `.go` files, logic and `_test.go` alike, go there too: `vuka
+build`, `run`, `test` and `vet` and the editor (through `vuka lsp`) take them
+as the folder's package, and an error or a definition in one points at the
+file in `[employer]/`, not its copy. Every file of the folder is one package
+([E0716](/errors/E0716) names a `.go` file whose package clause says
+otherwise), and a file named for a parameter, `[id].go`, is `[id].vuka`.
+
+The `param_employer/` directory is the overlay's alone: nothing is made in
+your tree for it (`vuka test` and `vuka vet`, whose tools run in a
+package's directory, make it for their run and remove it after), and one
+left over, empty, from an older vuka is removed. After `vuka gen
+-inplace` the copies are on disk in `param_employer/` — generated, so
+gitignore the directory — and a plain `go build .` builds; a plain `go
+list ./...` still matches a bracketed folder holding `.go` files, whose
+name no import path can hold, so name the packages
+(`./pages/orders/param_order`) or use the vuka commands.
 
 ## A client app under one path
 
@@ -532,10 +545,11 @@ func (g *Guard) Load(ctx context.Context) error {
 ```
 
 A group's name is a Go identifier ([E0723](/errors/E0723)): the go command
-sees the folder as `group_console/`, made on disk beside it as a bracket
-folder's `param_` directory is, its Go in the build's overlay or written
-there by `vuka gen -inplace`. As in a bracket folder, logic files in a group
-are `.vuka` ([E0716](/errors/E0716)). The group is invisible to the URL and
+sees the folder as `group_console/`, as it sees a bracket folder as a
+`param_` directory: its Go in the build's overlay, or written there by
+`vuka gen -inplace`. As in a bracket folder, a group's `.go` files
+— logic and tests — are its package, compiled where the go command sees
+it. The group is invisible to the URL and
 to [typed URLs](#typed-urls): the pages above are `urls.Admin.Path()`,
 `urls.Admin.Users.ID(7).Path()` and `urls.Admin.Auth.Login.Path()`.
 `vuka routes` names the group's layout and guard on each route below it.
@@ -613,9 +627,9 @@ type Login struct{}
 </parts.Card>
 ```
 
-As in a group, its logic files are `.vuka`: a `.go` file beside its Vuka
-source would be read by nothing ([E0716](/errors/E0716)). A private folder
-of Go alone is untouched.
+As in a group, a `.go` file beside its Vuka source is compiled with it, in
+`private_parts/`. A private folder of Go alone is untouched: the go command
+builds it where it is, as `pages/_parts`.
 
 ## Several methods on one page
 
@@ -941,7 +955,7 @@ error when the routes are generated, at the file and line that causes it:
 | [E0713](/errors/E0713) | a parameter both a file and a folder |
 | [E0714](/errors/E0714) | a legacy parameter declaration instead of a bracketed segment |
 | [E0715](/errors/E0715) | a layout type without `_layout.vuka.html` |
-| [E0716](/errors/E0716) | a `.go` file in a bracket folder, a route group or a private folder |
+| [E0716](/errors/E0716) | a `.go` file named for a parameter, or of another package than its folder's |
 | [E0717](/errors/E0717) | two `.go` files declaring one method func |
 | [E0718](/errors/E0718) | a vuka 1 `pages_gen.go` or `routes_gen.go`, or a hand-written `pages/route.go` |
 | [E0719](/errors/E0719) | a page template whose struct is declared nowhere |
@@ -982,7 +996,12 @@ GET     /files/{file...}                        file.Index                      
 ## Generated files
 
 `vuka build`, `run`, `test`, `vet` and the editor see generated routes through
-an overlay. `vuka gen -inplace` writes each tree's `route.go`,
+an overlay. `vuka run` (and `vuka run -watch`, on every rebuild) also writes
+the two files hand-written code imports, `pages/route.go` and
+`pages/urls/urls_gen.go`, to disk whenever their text changes, so an editor
+and plain Go tools resolve `pages.Routes` and the typed URLs; they are
+generated, so gitignore them, and the overlay holds the same text. Nothing
+else `vuka run` generates is written. `vuka gen -inplace` writes each tree's `route.go`,
 `urls/urls_gen.go` and the Go for bracket folders under `param_name/`, route
 groups under `group_name/` and private folders under `private_name/`, so
 ordinary Go tooling can build the result. `-check` fails if generated files

@@ -82,3 +82,36 @@ func TestLSPGroupFolder(t *testing.T) {
 		t.Errorf("diagnostics: %s", got)
 	}
 }
+
+// TestLSPGoInRouteFolders: a .go file in a route group or a [id] folder is
+// type-checked with its package, seen by the go command by the folder's Go
+// name: its errors are reported at it, and a definition in another of the
+// folder's .go files lands in that file, not its copy.
+func TestLSPGoInRouteFolders(t *testing.T) {
+	for _, folder := range []string{"(admin)", "[id]"} {
+		t.Run(folder, func(t *testing.T) {
+			label := "package pets\n\n// Label is a pet's label.\nfunc Label() string { return \"rex\" }\n"
+			src := "package pets\n\nfunc Name() string {\n\tvar n int = Label()\n\treturn \"\"\n}\n"
+			c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n",
+				"pages/pets/" + folder + "/label.go": label, "pages/pets/" + folder + "/name.go": src})
+			path := filepath.Join(dir, "pages", "pets", folder, "name.go")
+			uri := pathToURI(path)
+			doc := map[string]any{"uri": uri}
+			c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "go", "version": 1, "text": src}})
+			var got string
+			c.waitDiags(uri, func(ds []any) bool {
+				got = jsonOf(ds)
+				return strings.Contains(got, "cannot use")
+			})
+			if !strings.Contains(got, `"line":3`) || strings.Contains(got, "malformed") || strings.Contains(got, "invalid char") {
+				t.Errorf("diagnostics: %s", got)
+			}
+			v, _ := c.call("textDocument/definition", map[string]any{"textDocument": doc,
+				"position": positionOf([]byte(src), strings.Index(src, "Label()")+2)}).([]any)
+			if len(v) != 1 || v[0].(map[string]any)["uri"] != pathToURI(filepath.Join(dir, "pages", "pets", folder, "label.go")) ||
+				!strings.Contains(jsonOf(v[0].(map[string]any)["range"]), `"line":3`) {
+				t.Errorf("definition of Label: %s", jsonOf(v))
+			}
+		})
+	}
+}

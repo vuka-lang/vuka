@@ -69,7 +69,6 @@ type routeTree struct {
 	pagesPath     string            // its import path
 	main          string            // the directory of the package main beside it; "" for the module's
 	dirs          []*routeDir       // by rel, parents first
-	private       []string          // the private folders below pages/ holding Vuka source, _parts: no routes, packages all the same
 	clashes       []diag.Diagnostic // found in the private folders
 	declared      []declaredRoute   // the routes the module declares itself
 	// registered are the types registered as pages another way, by a
@@ -103,6 +102,40 @@ func (ts routeTrees) files() []load.Generated {
 		}
 	}
 	return out
+}
+
+// writeFiles writes the files the last finish generated that hand-written
+// code imports — each tree's route.go and urls/urls_gen.go — to disk where
+// they differ, so an editor and plain Go tools see the packages vuka run
+// serves; the overlay holds the same text. It returns the files written.
+func (ts routeTrees) writeFiles() ([]string, error) {
+	var wrote []string
+	for _, g := range ts.files() {
+		if old, err := os.ReadFile(g.Target); err == nil && bytes.Equal(old, g.Src) {
+			continue
+		}
+		if err := os.MkdirAll(filepath.Dir(g.Target), 0o755); err != nil {
+			return wrote, err
+		}
+		if err := os.WriteFile(g.Target, g.Src, 0o644); err != nil {
+			return wrote, err
+		}
+		wrote = append(wrote, g.Target)
+	}
+	return wrote, nil
+}
+
+// routeFile reports whether path is one of the files writeFiles writes: a
+// pages/route.go or a pages/urls/urls_gen.go.
+func routeFile(path string) bool {
+	dir := filepath.Dir(path)
+	switch filepath.Base(path) {
+	case routeGoName:
+		return filepath.Base(dir) == pagesDirName
+	case urlsGoName:
+		return filepath.Base(dir) == urlsDirName && filepath.Base(filepath.Dir(dir)) == pagesDirName
+	}
+	return false
 }
 
 // stub readies pkgs for the transpile, for every tree.
@@ -242,8 +275,7 @@ func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
 		// beside [id] that folder's Go name: the generated files vuka gen
 		// -inplace writes.
 		if n := e.Name(); path != base && strings.HasPrefix(n, "_") && !load.IsGoName(path) {
-			t.privateDir(path)
-			return filepath.SkipDir
+			return filepath.SkipDir // no routes; its Vuka source is a package all the same
 		}
 		if n := e.Name(); path != base && (strings.HasPrefix(n, ".") || n == "testdata" || n == "vendor" ||
 			n == "node_modules" || fileExists(filepath.Join(path, "go.mod")) || path == t.urlsDir() || load.IsGoName(path)) {
@@ -256,44 +288,6 @@ func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
 	})
 	t.checkNames()
 	return t
-}
-
-// privateDir records the private folder dir and those below it holding
-// Vuka source: their packages are compiled and imported as any, by their
-// Go names (private_parts for _parts), and route nothing. A .go file beside
-// Vuka source there is E0716: the go command sees the package elsewhere.
-func (t *routeTree) privateDir(dir string) {
-	filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
-		if err != nil || !e.IsDir() {
-			return nil
-		}
-		if n := e.Name(); path != dir && (strings.HasPrefix(n, ".") || n == "testdata" || n == "vendor" || n == "node_modules" ||
-			fileExists(filepath.Join(path, "go.mod")) || load.IsGoName(path)) {
-			return filepath.SkipDir
-		}
-		entries, _ := os.ReadDir(path)
-		var goFiles []string
-		vukaSrc := false
-		for _, f := range entries {
-			n := f.Name()
-			switch {
-			case f.IsDir() || strings.Contains(n, "_test."):
-			case strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".vuka.html") || strings.HasSuffix(n, ".templ"):
-				vukaSrc = true
-			case strings.HasSuffix(n, ".go") && !generatedFor(n, entries):
-				goFiles = append(goFiles, n)
-			}
-		}
-		if !vukaSrc {
-			return nil
-		}
-		t.private = append(t.private, path)
-		for _, n := range goFiles {
-			t.clashes = append(t.clashes, *diag.New("E0716", "%s is Go in a private folder, %s, which the go command can't build", n, filepath.Base(dir)).At(diag.Span{File: filepath.Join(path, n), Line: 1}).
-				WithHelp("write it as %s: the go command sees the folder's package as %s, so vuka compiles it", strings.TrimSuffix(n, ".go")+".vuka", filepath.Base(load.GoDir(t.root, path))))
-		}
-		return nil
-	})
 }
 
 // urlsDir is the directory of the generated package urls.
@@ -352,15 +346,9 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 				WithHelp("make (name) a folder and put the pages in it, or name the file without parentheses"))
 			continue
 		}
-		if strings.HasSuffix(n, ".go") && (inBracket || strings.ContainsAny(n, "[]")) {
-			what := "a parameter folder, " + mappedFolder(rel) + ","
-			if strings.ContainsAny(n, "[]") {
-				what = "a file named for a parameter"
-			} else if load.Grouped(mappedFolder(rel)) {
-				what = "a route group, " + mappedFolder(rel) + ","
-			}
-			d.clashes = append(d.clashes, *diag.New("E0716", "%s is Go in %s which the go command can't build", n, what).At(diag.Span{File: path, Line: 1}).
-				WithHelp("write it as %s: Go names no [x] or (x) file or folder, so vuka compiles it", strings.TrimSuffix(n, ".go")+".vuka"))
+		if strings.HasSuffix(n, ".go") && strings.ContainsAny(n, "[]") {
+			d.clashes = append(d.clashes, *diag.New("E0716", "%s is Go in a file named for a parameter, which the go command can't build", n).At(diag.Span{File: path, Line: 1}).
+				WithHelp("write it as %s: Go names no [x] file, so vuka compiles it", strings.TrimSuffix(n, ".go")+".vuka"))
 			continue
 		}
 		if strings.ContainsAny(seg, "[]") && !validBracket(seg) {
@@ -384,6 +372,11 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 		d.vuka = d.vuka || vukaSrc
 		if d.name == "" {
 			d.name = packageName(n, src)
+		} else if name := packageName(n, src); inBracket && strings.HasSuffix(n, ".go") && name != d.name && name != d.name+"_test" {
+			// Copied into the folder's Go name, it would be a second package there.
+			d.clashes = append(d.clashes, *diag.New("E0716", "%s is package %s, and the folder's other files are package %s", n, name, d.name).At(diag.Span{File: path, Line: 1}).
+				WithHelp("write package %s: the go command sees the folder as %s, one package", d.name, filepath.Base(d.goDir)))
+			continue
 		}
 		if strings.HasSuffix(n, ".vuka.html") {
 			if n == "layout.vuka.html" {
@@ -570,18 +563,6 @@ func bracketName(name string) string {
 // isRest reports whether a bracketed name takes the rest of the path.
 func isRest(name string) bool { return strings.HasSuffix(name, "...]") }
 
-// mappedFolder is the innermost folder of rel whose Go name isn't its own:
-// a parameter folder, [id], or a route group, (admin).
-func mappedFolder(rel string) string {
-	parts := strings.Split(rel, "/")
-	for i := len(parts) - 1; i >= 0; i-- {
-		if load.Bracketed(parts[i]) || load.Grouped(parts[i]) {
-			return parts[i]
-		}
-	}
-	return ""
-}
-
 // validGroup reports whether a folder name is a route group's: a Go
 // identifier in parentheses, (admin).
 func validGroup(name string) bool {
@@ -766,31 +747,18 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 	return pkgs, nil
 }
 
-// goDirs makes the directory the go command sees each bracketed folder's
-// package in, param_id for [id] and group_admin for (admin), as the urls
-// package's is made: empty, its Go only in the overlay (or written there by
-// vuka gen -inplace), so the go command and its tools find the package on
-// disk. A param_ or group_ directory whose source folder is gone, holding
-// nothing but generated Go, is removed.
+// goDirs tidies the directories the go command sees bracketed, grouped and
+// private folders' packages in, param_id for [id], group_admin for (admin),
+// private_parts for _parts: they live in the overlay alone (or on disk where
+// vuka gen -inplace writes them), so one left empty is removed, and so is
+// one whose source folder is gone holding nothing but generated Go.
 func (t *routeTree) goDirs() error {
-	for _, d := range t.dirs {
-		if d.goDir != d.dir {
-			if err := os.MkdirAll(d.goDir, 0o755); err != nil {
-				return err
-			}
-		}
-	}
-	for _, dir := range t.private {
-		if err := os.MkdirAll(load.GoDir(t.root, dir), 0o755); err != nil {
-			return err
-		}
-	}
 	var stale []string
 	filepath.WalkDir(t.pages, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() || !strings.HasPrefix(e.Name(), "param_") && !strings.HasPrefix(e.Name(), "group_") && !strings.HasPrefix(e.Name(), "private_") {
 			return nil
 		}
-		if !load.IsGoName(path) && generatedOnly(path) {
+		if emptyTree(path) || !load.IsGoName(path) && generatedOnly(path) {
 			stale = append(stale, path)
 		}
 		return filepath.SkipDir
@@ -801,6 +769,19 @@ func (t *routeTree) goDirs() error {
 		}
 	}
 	return nil
+}
+
+// emptyTree reports whether dir and the directories below it hold no file.
+func emptyTree(dir string) bool {
+	empty := true
+	filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
+		if err != nil || !e.IsDir() {
+			empty = false
+			return filepath.SkipAll
+		}
+		return nil
+	})
+	return empty
 }
 
 // generatedOnly reports whether the files below dir are all generated Go.

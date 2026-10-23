@@ -337,6 +337,10 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	if _, err := routes.writeFiles(); err != nil {
+		r.err = err
+		return r
+	}
 	var linkMsg string
 	if r.overlay, gens, linkMsg, err = autoLink(s.root, modPath, dir, r.overlay, pkgs, gens); err != nil {
 		r.err = err
@@ -751,8 +755,8 @@ func (w *watcher) skipDir(path, name string) bool {
 // watched reports whether a change to the file at path starts a build.
 func (w *watcher) watched(path string) bool {
 	name := filepath.Base(path)
-	if strings.HasPrefix(name, ".") {
-		return false
+	if strings.HasPrefix(name, ".") || routeFile(path) {
+		return false // a route file is vuka's, written by the build it would start
 	}
 	switch filepath.Ext(name) {
 	case ".vuka", ".go":

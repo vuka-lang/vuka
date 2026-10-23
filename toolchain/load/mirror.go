@@ -80,6 +80,11 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 			name == "go.work" || name == "go.work.sum" || strings.HasPrefix(name, ".") {
 			return nil
 		}
+		if strings.HasSuffix(name, ".go") {
+			if t, err := filepath.Rel(root, filepath.Join(GoDir(root, filepath.Dir(path)), name)); err == nil && t != rel && generated[t] {
+				return nil // a route folder's Go, copied into its GoDir
+			}
+		}
 		if siblingVuka(path) {
 			return nil // an in-place generated file; the fresh one replaces it
 		}

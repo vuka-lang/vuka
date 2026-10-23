@@ -161,7 +161,7 @@ changes the spelling and keeps the machinery. A parameter is a bracketed
 name — a `[id]` file or folder, `[path...]` the catch-all — typed by the
 field of its name on the structs below it (no `Params`, E0714); the go
 command sees a bracketed folder by its Go name, `param_id` (`load.GoDir`), and
-its logic files are `.vuka` (E0716). A layout is `_layout.vuka.html` (a
+its `.go` files are copied there with the generated Go. A layout is `_layout.vuka.html` (a
 `Layout` elsewhere is E0715). A file of method funcs (`GET`, `POST`, …) is
 an endpoint at the file's path; files of one package declaring one method
 func alike are renamed per file (`GET_id`). Everything is registered by
