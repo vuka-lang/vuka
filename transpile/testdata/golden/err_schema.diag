@@ -12,7 +12,7 @@ error[E0130]: @ui.Loads is a hook; write its arguments in parentheses: @ui.Loads
 22 | @ui.Loads{Group: "rows"}
    | ^^^^^^^^^
    |
-   = help: write a hook bare or with its arguments in parentheses: @ui.Mount, @ui.Loads("lists")
+   = help: write a hook bare or with its arguments in parentheses, on a method of a live type: @ui.Mount, @ui.Loads("lists")
 
 Some errors have detailed explanations: E0129, E0130.
 For more information about an error, try `vuka explain E0129`.

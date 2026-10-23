@@ -278,6 +278,39 @@ The signatures in the table are common forms, not positional
 requirements: context, request, signed-in identity, provided services and
 ui.Changed are supplied by type. Hooks return nothing or error.
 
+A generic component declares hooks and field attributes the same way:
+they are written into a method of the generic type, so `Table[Task]` and
+`Table[User]` on one page each mount, and each keep their own `@ui.URL`
+fields (give them distinct [`urlKey`s](/web/url-state#url-key)):
+
+```html
+<script lang="go">
+package components
+
+import "context"
+
+type Table[T any] struct {
+	Rows  []T
+	page  int @ui.URL("page").Default(1)
+	shown int
+}
+
+@ui.Mount
+func (t *Table[T]) mount(ctx context.Context) error {
+	t.shown = len(t.Rows)
+	return nil
+}
+
+func (t *Table[T]) Next() { t.page++ }
+</script>
+
+<p onClick={Next}>{shown} rows, page {page}</p>
+```
+
+A hook attribute on a method of a type that isn't live, one that doesn't
+embed `ui.Live` in a `.vuka` file, is an error ([E0130](/errors/E0130)),
+never a call of the islands' `ui.Mount`.
+
 ### Hook Errors at Startup
 
 An unfillable parameter is a startup error at the method's source location.

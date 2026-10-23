@@ -20,6 +20,24 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.4.1 — unreleased
+
+- **Hooks on generic shapes.** `@ui.Mount`, `@ui.OnChange` and
+  `@ui.Loads("group")` on a method of a generic component compile and run
+  per instantiation: they go into its `LiveSchema`, now written as a method
+  of the generic type (`func (t *Table[T]) LiveSchema(…)`), so `Table[Task]`
+  and `Table[User]` on one page each mount. A hook attribute on a method of
+  a type that isn't live is [E0130](/errors/E0130) instead of being lowered
+  as a call of the islands' `ui.Mount(props)`
+  ([#87](https://github.com/vuka-lang/vuka/issues/87)).
+- **Field attributes on generic components.** `@ui.URL` (with `.Default`),
+  `@ui.Bind`, `@ui.Defer` and the `validate` rules work on a generic live
+  component's fields, each instantiation keeping its own URL parameters
+  under its `urlKey`. [E0206](/errors/E0206) now covers only a generic
+  type that isn't live, whose attributes would be registered for the type
+  at package level (plain value attributes, `orm` models)
+  ([#96](https://github.com/vuka-lang/vuka/issues/96)).
+
 ## v2.4.0 — 2026-10-23
 
 - **Context processors.** `web.ContextProcessors(…)` in `main` lists the

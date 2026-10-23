@@ -67,6 +67,46 @@ func TestParseShape(t *testing.T) {
 	}
 }
 
+// TestParseGenericShape: a generic shape's type arguments, its fields after
+// one whose attribute chains a call (.Default(1)) included, and its hook.
+func TestParseGenericShape(t *testing.T) {
+	src := `package components
+
+import "context"
+
+type Table[K comparable, V any] struct {
+	Rows  map[K]V
+	page  int    @ui.URL("page").Default(1) @ui.Bind{}
+	Sort  string @ui.URL("sort")
+	shown int
+}
+
+@ui.Mount
+func (t *Table[K, V]) mount(ctx context.Context) error { return nil }
+<p>{page}</p>
+`
+	s, err := transpile.ParseShape([]byte(src))
+	if err != nil || s == nil {
+		t.Fatalf("ParseShape: %v, %v", s, err)
+	}
+	var got []string
+	for _, f := range s.Fields {
+		got = append(got, fmt.Sprintf("%s %s: %s @%d", f.Name, f.Type, f.Role, f.Line))
+	}
+	want := []string{
+		"Rows map[K]V: prop @6",
+		"page int: server state @7",
+		"Sort string: prop @8",
+		"shown int: server state @9",
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("fields:\n%s\nwant:\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+	if !s.Generic || s.TypeArgs != "[K, V]" || !s.Live || s.Recv != "t" {
+		t.Errorf("generic %v %q, live %v (%s), recv %q", s.Generic, s.TypeArgs, s.Live, s.LiveWhy, s.Recv)
+	}
+}
+
 // TestShapeLive: what makes a struct live — embedding ui.Live, a hook, an
 // event its markup sends — and what leaves it static.
 func TestShapeLive(t *testing.T) {

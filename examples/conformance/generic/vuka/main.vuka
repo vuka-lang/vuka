@@ -1,0 +1,16 @@
+// Command generic is one generic table shown twice on a page, for tasks
+// and for users: each instantiation mounts and keeps its page and sort in
+// the URL under a key of its own.
+package main
+
+import (
+	"log"
+
+	"example.com/app/pages"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	app := web.New(pages.Routes())
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

@@ -1,0 +1,26 @@
+<script lang="go">
+package pages
+
+import (
+	"example.com/app/components"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+)
+
+// Index shows a table of tasks and one of users: GET /.
+type Index struct {
+	ui.Live
+}
+
+// Update keeps the page mounted as its URL changes: its tables fill from
+// the new one.
+func (p *Index) Update(web.URLParams) {}
+
+func (p *Index) tasks() []Task { return []Task{{"a"}, {"b"}, {"c"}} }
+func (p *Index) users() []User { return []User{{"x@example.com"}} }
+</script>
+
+<main>
+  <components.Table[Task] title="Tasks" rows={tasks()} urlKey="tasks"/>
+  <components.Table[User] title="Users" rows={users()} urlKey="users"/>
+</main>

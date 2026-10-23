@@ -1,0 +1,28 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// List isn't live: it doesn't embed ui.Live, so a hook on its method has
+// no schema to go into.
+type List[T any] struct {
+	Items []T
+	n     int
+}
+
+@ui.Mount
+func (l *List[T]) mount(ctx context.Context) error {
+	l.n = len(l.Items)
+	return nil
+}
+
+// Plain is the same without type parameters.
+type Plain struct{ n int }
+
+@ui.OnChange
+func (p *Plain) changed(ctx context.Context) error { return nil }
+
+func main() { _ = ui.Text("") }

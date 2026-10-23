@@ -38,12 +38,4 @@ error[E0206]: only another attribute or a comment can follow a field attribute
    |
    = help: write value attributes after the field (and its tag), on the same line
 
-error[E0206]: Box is generic; its fields can't carry attributes
-  --> err_field_attrs.vuka:17:6
-   |
-17 |     V T @Char{}
-   |         ^^^^^
-   |
-   = help: write value attributes after the field (and its tag), on the same line
-
 For more information about this error, try `vuka explain E0206`.

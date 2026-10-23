@@ -1,0 +1,11 @@
+package pages
+
+// Task is a row of the first table.
+type Task struct{ Name string }
+
+func (t Task) String() string { return "task " + t.Name }
+
+// User is a row of the second.
+type User struct{ Email string }
+
+func (u User) String() string { return "user " + u.Email }

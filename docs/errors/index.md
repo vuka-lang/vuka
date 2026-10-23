@@ -49,7 +49,7 @@ same page in the terminal.
 | [E0127](./E0127) | ui.HTML isn't given one value per label |
 | [E0128](./E0128) | A value doesn't fit its hole |
 | [E0129](./E0129) | Attributes and a hand-written schema method |
-| [E0130](./E0130) | A hook written as a composite literal |
+| [E0130](./E0130) | A hook attribute that is no hook |
 | [E0131](./E0131) | A function an around decorator can't wrap |
 | [E0132](./E0132) | A value isn't written as its label |
 | [E0141](./E0141) | A template has two scripts or two scoped stylesheets |

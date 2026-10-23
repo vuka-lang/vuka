@@ -1,0 +1,17 @@
+error[E0130]: @ui.Mount is a hook, and List has no LiveSchema for it: List doesn't embed ui.Live
+  --> err_hook_unlive.vuka:16:1
+   |
+16 | @ui.Mount
+   | ^^^^^^^^^
+   |
+   = help: embed ui.Live in List, or drop the attribute
+
+error[E0130]: @ui.OnChange is a hook, and Plain has no LiveSchema for it: Plain doesn't embed ui.Live
+  --> err_hook_unlive.vuka:25:1
+   |
+25 | @ui.OnChange
+   | ^^^^^^^^^^^^
+   |
+   = help: embed ui.Live in Plain, or drop the attribute
+
+For more information about this error, try `vuka explain E0130`.

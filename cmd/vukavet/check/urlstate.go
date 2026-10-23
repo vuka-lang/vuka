@@ -74,7 +74,10 @@ func recvTypeName(info *types.Info, fd *ast.FuncDecl) *types.TypeName {
 	if s, ok := t.(*ast.StarExpr); ok {
 		t = s.X
 	}
-	if ix, ok := t.(*ast.IndexExpr); ok {
+	switch ix := t.(type) {
+	case *ast.IndexExpr:
+		t = ix.X
+	case *ast.IndexListExpr:
 		t = ix.X
 	}
 	id, ok := t.(*ast.Ident)
