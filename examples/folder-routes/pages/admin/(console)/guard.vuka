@@ -1,0 +1,19 @@
+package console
+
+import (
+	"context"
+
+	"example.com/folder-routes/pages/urls"
+	"github.com/vuka-lang/web/v2"
+)
+
+// Guard lets a signed-in user into the pages of the group, and sends
+// anyone else to the sign-in page, which is outside the group.
+type Guard struct{}
+
+func (g *Guard) Load(ctx context.Context) error {
+	if c, err := web.Request(ctx).Cookie("admin"); err == nil && c.Value != "" {
+		return nil
+	}
+	return web.Redirect(urls.Admin.Auth.Login.Path())
+}

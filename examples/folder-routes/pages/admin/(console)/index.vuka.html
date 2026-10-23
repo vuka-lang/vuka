@@ -1,0 +1,8 @@
+package console
+
+// Index is GET /admin, the admin area's dashboard: the group (console) is
+// no part of its path.
+type Index struct{}
+
+func (p *Index) Title() string { return "Admin" }
+<h1>Dashboard</h1>

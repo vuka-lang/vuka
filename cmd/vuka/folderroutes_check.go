@@ -30,6 +30,10 @@ type folderRoute struct {
 	Middleware []string `json:"middleware,omitempty"`
 	Guards     []string `json:"guards,omitempty"`
 	Layouts    []string `json:"layouts,omitempty"`
+	// Root is the route's root layout, the first of Layouts: one with no
+	// layout above it. Pages under one root share a document, and web
+	// navigates between two roots with a full page load.
+	Root string `json:"root,omitempty"`
 
 	dir     *routeDir
 	typ     string   // the page's type; "" for a method func
@@ -37,7 +41,7 @@ type folderRoute struct {
 	handler string   // the method, for a handler or an endpoint
 	fn      string   // a method func's name in its package
 	names   []string // a method func's parameters' names
-	node    string   // the folder of urls it is in, a slash path ([id] for a parameter)
+	node    string   // the folder of urls it is in, a slash path ([id] for a parameter; route groups left out)
 	leaf    string   // its field there, "" when it is the folder's Index
 	mws     []*routeDir
 	wraps   []wrap
@@ -52,6 +56,7 @@ type wrap struct {
 // dirInfo is what the type-checked package of a page directory makes it.
 type dirInfo struct {
 	pkg    *types.Package
+	node   string      // the folder's slash path as the URL sees it, its route groups left out
 	segs   []string    // the URL's segments down to the folder
 	params []string    // the keys of the path parameters down to it, in order
 	rest   bool        // it is a catch-all folder, [path...]
@@ -79,7 +84,8 @@ const (
 )
 
 // pathParam is a path parameter of the tree: a [id] folder, a [id] file, or
-// both (E0713). Its key is its slash path from pages/: orgs/[org].
+// both (E0713). Its key is its slash path from pages/, route groups left
+// out: orgs/[org].
 type pathParam struct {
 	key, name    string
 	rest         bool
@@ -125,6 +131,11 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 	for _, d := range t.dirs {
 		pkg, _ := r.checkDir(d)
 		c.dir(d, pkg)
+	}
+	for _, rt := range res.routes {
+		if len(rt.Layouts) > 0 {
+			rt.Root = rt.Layouts[0]
+		}
 	}
 	c.typeParams()
 	c.conflicts()
@@ -281,7 +292,7 @@ func (c *routeChecker) param(key, elem string, at diag.Span, file bool) string {
 }
 
 func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
-	in := &dirInfo{pkg: pkg}
+	in := &dirInfo{pkg: pkg, node: urlRel(d.rel)}
 	c.info[d] = in
 	if _, pin := c.parentOf(d); pin != nil {
 		in.mws, in.wraps, in.broken = slices.Clone(pin.mws), slices.Clone(pin.wraps), pin.broken
@@ -289,13 +300,18 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 	below := false // below a catch-all folder
 	if d.rel != "" {
 		parts := strings.Split(d.rel, "/")
+		var url []string // the parts the URL sees
 		for i, p := range parts {
+			if load.Grouped(p) {
+				continue
+			}
+			url = append(url, p)
 			if !load.Bracketed(p) {
 				in.segs = append(in.segs, p)
 				continue
 			}
-			key := strings.Join(parts[:i+1], "/")
-			at := diag.Span{File: filepath.Join(c.t.pages, filepath.FromSlash(key))}
+			key := strings.Join(url, "/")
+			at := diag.Span{File: filepath.Join(c.t.pages, filepath.FromSlash(strings.Join(parts[:i+1], "/")))}
 			in.segs = append(in.segs, c.param(key, p, at, false))
 			in.params = append(in.params, key)
 			if isRest(p) && i < len(parts)-1 {
@@ -338,7 +354,7 @@ func (c *routeChecker) dir(d *routeDir, pkg *types.Package) {
 	}
 	prefer := ""
 	if d.rel != "" && load.Bracketed(filepath.Base(d.dir)) {
-		prefer = d.rel
+		prefer = in.node
 	}
 	if obj, ok := pkg.Scope().Lookup("Guard").(*types.TypeName); ok {
 		if c.guard(obj) {
@@ -662,7 +678,7 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 	// at is where a route of a file is: its node in urls, its path and its
 	// parameters; "" seg for the folder's own path.
 	at := func(seg string, span diag.Span, pos token.Pos) (node string, path string, params []string, ok bool) {
-		node, params = d.rel, in.params
+		node, params = in.node, in.params
 		segs := in.segs
 		switch {
 		case seg == "":
@@ -671,11 +687,11 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 				WithHelp("a catch-all folder serves its index alone: move it up a folder")
 			return "", "", nil, false
 		case load.Bracketed(seg):
-			node = joinRel(d.rel, seg)
+			node = joinRel(in.node, seg)
 			segs = append(slices.Clone(segs), c.param(node, seg, span, true))
 			params = append(slices.Clone(params), node)
 		default:
-			node = joinRel(d.rel, seg)
+			node = joinRel(in.node, seg)
 			segs = append(slices.Clone(segs), seg)
 		}
 		return node, "/" + strings.Join(segs, "/"), params, true
@@ -737,7 +753,7 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			continue
 		}
 		if leaf != "" {
-			node = d.rel
+			node = in.node
 		}
 		in.pages = append(in.pages, name)
 		c.carriers = append(c.carriers, carrier{typ: named, params: params, pos: obj.Pos()})

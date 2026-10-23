@@ -7,7 +7,7 @@ const read = (p) => JSON.parse(readFileSync(new URL(p, import.meta.url), 'utf8')
 const pkg = read('../package.json');
 const language = pkg.contributes.languages.find((l) => l.id === 'vuka-html');
 
-for (const file of ['[id].vuka.html', '[path...].vuka.html', '_layout.vuka.html', 'pets/[id]/index.vuka.html']) {
+for (const file of ['[id].vuka.html', '[path...].vuka.html', '_layout.vuka.html', 'pets/[id]/index.vuka.html', '(admin)/_layout.vuka.html', 'admin/(console)/users/[id].vuka.html', '_parts/card.vuka.html']) {
   assert.ok(language.extensions.some((suffix) => file.endsWith(suffix)), file);
 }
 assert.ok(pkg.activationEvents.includes('onLanguage:vuka-html'));

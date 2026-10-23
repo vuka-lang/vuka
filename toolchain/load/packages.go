@@ -50,11 +50,14 @@ func (p *Package) BuildDir() string {
 }
 
 // A folder route names a path parameter with a bracketed folder,
-// pages/pets/[id] or pages/files/[path...], which no import path can hold.
-// The go command sees such a folder, and the folders below it, by its Go
-// name: param_id, param_path. vuka's discovery passes over a folder named
-// so beside its bracketed folder: the generated files vuka gen -inplace
-// writes there are the bracketed folder's.
+// pages/pets/[id] or pages/files/[path...], and a route group with a
+// parenthesized one, pages/(admin), neither of which an import path can
+// hold; a private folder of pages/, pages/_parts, is no route, and the go
+// command's ./... passes over it. The go command sees such a folder, and
+// the folders below it, by its Go name: param_id, param_path, group_admin,
+// private_parts. vuka's discovery passes over a folder named so beside its
+// source folder: the generated files vuka gen -inplace writes there are
+// the source folder's.
 
 // Bracketed reports whether a file or folder name (its extension removed)
 // is a path parameter's: [id], [path...].
@@ -62,27 +65,75 @@ func Bracketed(name string) bool {
 	return len(name) > 2 && name[0] == '[' && name[len(name)-1] == ']'
 }
 
-// GoElem is a folder's name as the go command sees it: [id] is param_id,
-// [path...] param_path; any other name is itself.
-func GoElem(name string) string {
-	if !Bracketed(name) {
-		return name
-	}
-	return goPrefix + strings.TrimSuffix(name[1:len(name)-1], "...")
+// Grouped reports whether a folder name is a route group's: (admin).
+func Grouped(name string) bool {
+	return len(name) > 2 && name[0] == '(' && name[len(name)-1] == ')'
 }
 
-// goPrefix starts a bracketed folder's Go name.
-const goPrefix = "param_"
+// Private reports whether a folder name is a private folder's, below
+// pages/: _parts.
+func Private(name string) bool { return len(name) > 1 && name[0] == '_' }
 
-// IsGoName reports whether the folder dir is the Go name of a bracketed
-// folder beside it: param_id beside [id] or [id...].
-func IsGoName(dir string) bool {
-	name, ok := strings.CutPrefix(filepath.Base(dir), goPrefix)
-	if !ok || name == "" {
-		return false
+// PagesDir is the name of a folder routes' directory: a private folder is
+// one below it.
+const PagesDir = "pages"
+
+// GoElem is a folder's name as the go command sees it: [id] is param_id,
+// [path...] param_path, (admin) group_admin; any other name is itself.
+// A private folder's Go name, private_parts for _parts, is GoRel's: only a
+// folder below pages/ is one.
+func GoElem(name string) string {
+	switch {
+	case Bracketed(name):
+		return goPrefix + strings.TrimSuffix(name[1:len(name)-1], "...")
+	case Grouped(name):
+		return groupPrefix + name[1:len(name)-1]
 	}
+	return name
+}
+
+// The prefixes of the Go names: a bracketed folder's, a route group's and
+// a private folder's.
+const (
+	goPrefix      = "param_"
+	groupPrefix   = "group_"
+	privatePrefix = "private_"
+)
+
+// sourceNames are the folder names whose Go name is elem: [id] and [id...]
+// for param_id, (admin) for group_admin, and below pages/ _parts for
+// private_parts; none for another name.
+func sourceNames(elem string, inPages bool) []string {
+	if name, ok := strings.CutPrefix(elem, goPrefix); ok && name != "" {
+		return []string{"[" + name + "]", "[" + name + "...]"}
+	}
+	if name, ok := strings.CutPrefix(elem, groupPrefix); ok && name != "" {
+		return []string{"(" + name + ")"}
+	}
+	if name, ok := strings.CutPrefix(elem, privatePrefix); ok && name != "" && inPages {
+		return []string{"_" + name}
+	}
+	return nil
+}
+
+// InPages reports whether the directory dir, a path from the module's root
+// (or an absolute path), is below a pages/ directory.
+func InPages(dir string) bool {
+	return slices.Contains(strings.Split(filepath.ToSlash(filepath.Dir(dir)), "/"), PagesDir)
+}
+
+// inPages is InPages for dir below root.
+func inPages(root, dir string) bool {
+	rel, err := filepath.Rel(root, dir)
+	return err == nil && !strings.HasPrefix(rel, "..") && InPages(rel)
+}
+
+// IsGoName reports whether the folder dir is the Go name of a bracketed,
+// parenthesized or private folder beside it: param_id beside [id] or
+// [id...], group_admin beside (admin), private_parts beside _parts.
+func IsGoName(dir string) bool {
 	parent := filepath.Dir(dir)
-	for _, b := range []string{"[" + name + "]", "[" + name + "...]"} {
+	for _, b := range sourceNames(filepath.Base(dir), InPages(dir)) {
 		if fi, err := os.Stat(filepath.Join(parent, b)); err == nil && fi.IsDir() {
 			return true
 		}
@@ -90,54 +141,65 @@ func IsGoName(dir string) bool {
 	return false
 }
 
-// GoRel is a slash-separated path with each element its GoElem.
+// GoRel is a slash-separated path with each element its Go name: GoElem's,
+// and private_parts for a private folder _parts below pages/.
 func GoRel(rel string) string {
-	if !strings.Contains(rel, "[") {
+	if !strings.ContainsAny(rel, "[(_") {
 		return rel
 	}
 	parts := strings.Split(rel, "/")
+	inPages := false
 	for i, p := range parts {
-		parts[i] = GoElem(p)
+		switch {
+		case inPages && Private(p):
+			parts[i] = privatePrefix + p[1:]
+		default:
+			parts[i] = GoElem(p)
+		}
+		inPages = inPages || p == PagesDir
 	}
 	return strings.Join(parts, "/")
 }
 
 // GoDir is the directory the go command sees the source directory dir,
-// below root, as: dir itself unless a folder below root is bracketed.
+// below root, as: dir itself unless a folder below root is bracketed, a
+// route group, or private below pages/.
 func GoDir(root, dir string) string {
 	rel, err := filepath.Rel(root, dir)
-	if err != nil || !strings.Contains(rel, "[") || strings.HasPrefix(rel, "..") {
+	if err != nil || strings.HasPrefix(rel, "..") {
 		return dir
 	}
-	return filepath.Join(root, filepath.FromSlash(GoRel(filepath.ToSlash(rel))))
+	if g := GoRel(filepath.ToSlash(rel)); g != filepath.ToSlash(rel) {
+		return filepath.Join(root, filepath.FromSlash(g))
+	}
+	return dir
 }
 
 // SourceDir is the source directory whose GoDir is goDir, below root, when
-// one of its folders is bracketed and goDir isn't on disk: param_id is
-// [id], or [id...], whichever is there.
+// one of its folders is bracketed, a route group or private and goDir isn't
+// on disk: param_id is [id], or [id...], whichever is there; group_admin is
+// (admin); private_parts is _parts.
 func SourceDir(root, goDir string) (string, bool) {
 	rel, err := filepath.Rel(root, goDir)
-	if err != nil || strings.HasPrefix(rel, "..") || !strings.Contains(rel, goPrefix) {
+	if err != nil || strings.HasPrefix(rel, "..") || !strings.Contains(rel, goPrefix) && !strings.Contains(rel, groupPrefix) && !strings.Contains(rel, privatePrefix) {
 		return "", false
 	}
 	if _, err := os.Stat(goDir); err == nil {
 		return "", false
 	}
-	dir, mapped := root, false
+	dir, found, inPages := root, false, false
 	for _, p := range strings.Split(filepath.ToSlash(rel), "/") {
-		if name, ok := strings.CutPrefix(p, goPrefix); ok && name != "" {
-			if fi, err := os.Stat(filepath.Join(dir, "["+name+"]")); err == nil && fi.IsDir() {
-				dir, mapped = filepath.Join(dir, "["+name+"]"), true
-				continue
-			}
-			if fi, err := os.Stat(filepath.Join(dir, "["+name+"...]")); err == nil && fi.IsDir() {
-				dir, mapped = filepath.Join(dir, "["+name+"...]"), true
-				continue
+		next := filepath.Join(dir, p)
+		for _, b := range sourceNames(p, inPages) {
+			if fi, err := os.Stat(filepath.Join(dir, b)); err == nil && fi.IsDir() {
+				next, found = filepath.Join(dir, b), true
+				break
 			}
 		}
-		dir = filepath.Join(dir, p)
+		inPages = inPages || p == PagesDir
+		dir = next
 	}
-	return dir, mapped
+	return dir, found
 }
 
 // ModuleRoot finds the module enclosing dir.
@@ -214,7 +276,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 		}
 		name := e.Name()
 		if path != dir {
-			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "testdata" || name == "vendor" || name == "node_modules" || IsGoName(path) {
+			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") && !inPages(root, path) || name == "testdata" || name == "vendor" || name == "node_modules" || IsGoName(path) {
 				return filepath.SkipDir
 			}
 			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {

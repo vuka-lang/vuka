@@ -739,9 +739,11 @@ func (w *watcher) relevant(path string, dir bool) bool {
 	return w.watched(path)
 }
 
-// skipDir reports whether the directory at path holds no sources.
+// skipDir reports whether the directory at path holds no sources: a
+// private folder below pages/, _parts, does.
 func (w *watcher) skipDir(path, name string) bool {
-	return path != w.root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
+	rel, _ := filepath.Rel(w.root, path)
+	return path != w.root && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") && !load.InPages(rel) ||
 		name == "node_modules" || name == "testdata" || name == "vendor" || path == filepath.Join(w.root, "build") ||
 		fileExists(filepath.Join(path, "go.mod")) || fileExists(filepath.Join(path, load.Marker)))
 }

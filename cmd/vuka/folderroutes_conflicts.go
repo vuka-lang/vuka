@@ -12,6 +12,7 @@ import (
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // conflicts reports the routes no router can tell apart: parameter folders
@@ -55,6 +56,11 @@ func (c *routeChecker) conflicts() {
 			}
 			ab, ba := patternWithin(pa, pb), patternWithin(pb, pa)
 			switch {
+			case ab && ba && a.dir != nil && b.dir != nil && a.dir != b.dir && (strings.Contains(a.dir.rel, "(") || strings.Contains(b.dir.rel, "(")):
+				fa, fb := relPath(c.t.pages, a.File), relPath(c.t.pages, b.File)
+				c.res.diags = append(c.res.diags, *diag.New("E0722", "pages/%s and pages/%s both serve %s %s: a route group adds nothing to the URL", fb, fa, a.Method, a.Path).
+					At(diag.Span{File: a.File, Line: a.Line}).WithRelated(diag.Span{File: b.File, Line: b.Line}).
+					WithHelp("keep one of them, or move it to a folder that names a segment of its own"))
 			case ab && ba:
 				c.res.diags = append(c.res.diags, *diag.New("E0701", "%s and %s both serve %s %s", b.Page, a.Page, a.Method, a.Path).
 					At(diag.Span{File: a.File, Line: a.Line}).WithRelated(diag.Span{File: b.File, Line: b.Line}).
@@ -66,6 +72,7 @@ func (c *routeChecker) conflicts() {
 			}
 		}
 	}
+	c.rootLayouts()
 	for _, h := range c.t.declared {
 		for _, r := range routes {
 			if h.method != r.Method && !(h.method == "LIVE" && r.Method == "GET") {
@@ -78,6 +85,37 @@ func (c *routeChecker) conflicts() {
 					WithHelp("serve the path one way: remove the declared route, or move the page"))
 			}
 		}
+	}
+}
+
+// rootLayouts reports the home page outside every root layout (E0724): with
+// no pages/_layout.vuka.html, each route group at the top of pages/ may
+// have a layout of its own, its pages' document, and then / is one of
+// theirs.
+func (c *routeChecker) rootLayouts() {
+	if c.t.root0().layout != "" {
+		return
+	}
+	var roots []*routeDir
+	for _, d := range c.t.dirs {
+		if load.Grouped(d.rel) && d.layout != "" {
+			roots = append(roots, d)
+		}
+	}
+	if len(roots) == 0 {
+		return
+	}
+	for _, r := range c.res.routes {
+		if r.Path != "/" || r.Method != "GET" || r.Kind == "handler" || r.Kind == "endpoint" {
+			continue
+		}
+		top, _, _ := strings.Cut(r.dir.rel, "/")
+		if slices.ContainsFunc(roots, func(d *routeDir) bool { return d.rel == top }) {
+			continue
+		}
+		c.res.diags = append(c.res.diags, *diag.New("E0724", "pages/%s is the home page outside the route groups with a root layout, and pages/ has no _layout.vuka.html", filepath.ToSlash(relPath(c.t.pages, r.File))).
+			At(diag.Span{File: r.File, Line: r.Line}).WithRelated(diag.Span{File: filepath.Join(roots[0].dir, roots[0].layoutFile), Line: 1}).
+			WithHelp("move it into one of the groups, pages/%s/%s, or give pages/ a _layout.vuka.html", roots[0].rel, filepath.Base(r.File)))
 	}
 }
 

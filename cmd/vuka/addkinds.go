@@ -811,7 +811,10 @@ type pageSpec struct {
 
 type pageParam struct{ Name, Field string }
 
-var pathSegment = regexp.MustCompile(`^(\{[a-z][A-Za-z0-9]*\}|[a-z0-9][a-z0-9._-]*)$`)
+var (
+	pathSegment  = regexp.MustCompile(`^(\{[a-z][A-Za-z0-9]*\}|[a-z0-9][a-z0-9._-]*)$`)
+	groupSegment = regexp.MustCompile(`^\([A-Za-z_][A-Za-z0-9_]*\)$`) // a route group: a folder, no part of the URL
+)
 
 func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if len(f.pos) != 1 {
@@ -822,14 +825,19 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if !strings.HasPrefix(path, "/") {
 		return fmt.Errorf("vuka add page %s: a page's path starts with /: /%s", path, path)
 	}
-	var words, segs []string // the path's fixed words; its segments as files and folders name them
+	var words, segs, url []string // the path's fixed words; its segments as files and folders name them; as the URL does
 	var params []pageParam
 	for _, seg := range strings.Split(strings.Trim(path, "/"), "/") {
 		if seg == "" && path == "/" {
 			break
 		}
+		if groupSegment.MatchString(seg) {
+			segs = append(segs, seg)
+			continue
+		}
+		url = append(url, seg)
 		if !pathSegment.MatchString(seg) {
-			return fmt.Errorf("vuka add page %s: %q isn't a path segment: lower-case letters, digits, . _ -, or a {param}", path, seg)
+			return fmt.Errorf("vuka add page %s: %q isn't a path segment: lower-case letters, digits, . _ -, a {param}, or a (group)", path, seg)
 		}
 		if p := strings.Trim(seg, "{}"); p != seg {
 			field := camel(p)
@@ -846,6 +854,7 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	if f.bools["live"] && f.bools["stateless"] {
 		return fmt.Errorf("vuka add page %s: --live or --stateless, not both", path)
 	}
+	path = "/" + strings.Join(url, "/") // its URL: the (groups) are folders alone
 	// live unless --stateless; a path with {parameters} only with --live
 	live := !f.bools["stateless"] && (f.bools["live"] || len(params) == 0)
 	island := f.values["island"]
@@ -886,7 +895,7 @@ func addPage(root, mod string, f *addFlags, w io.Writer) error {
 	dir, base := "pages", "index"
 	if len(segs) > 0 {
 		dir, base = "pages/"+strings.Join(segs[:len(segs)-1], "/"), segs[len(segs)-1]
-		if fi, err := os.Stat(filepath.Join(root, "pages", filepath.FromSlash(strings.Join(segs, "/")))); err == nil && fi.IsDir() {
+		if fi, err := os.Stat(filepath.Join(root, "pages", filepath.FromSlash(strings.Join(segs, "/")))); err == nil && fi.IsDir() || groupSegment.MatchString(base) {
 			dir, base = "pages/"+strings.Join(segs, "/"), "index"
 		}
 	}

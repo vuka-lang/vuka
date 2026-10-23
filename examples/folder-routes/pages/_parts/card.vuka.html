@@ -1,0 +1,11 @@
+package parts
+
+import "github.com/vuka-lang/ui/v2"
+
+// Card frames a part of a page. pages/_parts is a private folder: no
+// route, a package the pages import by its Go name, pages/private_parts.
+type Card struct {
+	Title    string
+	Children ui.Node
+}
+<div class="card"><h2>{Title}</h2>{Children}</div>

@@ -1,0 +1,5 @@
+METHOD  PATH               PAGE           FILE                                           MIDDLEWARE  GUARDS         LAYOUTS
+GET     /admin             console.Index  pages/admin/(console)/index.vuka.html:4                    console.Guard  pages.Layout, console.Shell
+GET     /admin/auth/login  auth.Login     pages/admin/auth/login.vuka.html:9                                        pages.Layout
+GET     /admin/users       users.Index    pages/admin/(console)/users/index.vuka.html:6              console.Guard  pages.Layout, console.Shell
+GET     /admin/users/{id}  users.User     pages/admin/(console)/users/[id].vuka.html:4               console.Guard  pages.Layout, console.Shell

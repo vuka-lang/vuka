@@ -1,0 +1,15 @@
+package auth
+
+import (
+	"example.com/folder-routes/pages/private_parts"
+	"example.com/folder-routes/pages/urls"
+)
+
+// Login is GET /admin/auth/login, the admin area's sign-in page: beside the
+// group (console), so its shell and guard are none of this page's.
+type Login struct{}
+
+func (p *Login) Title() string { return "Sign in" }
+<parts.Card title="Sign in">
+  <form id="login" method="post" action={urls.Admin.Auth.Login.Path()}><button>Sign in</button></form>
+</parts.Card>

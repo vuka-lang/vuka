@@ -30,7 +30,11 @@ import (
 // body is read. Pages without a constructor of their own are built in
 // route.go. Folder middleware wraps everything below its folder, the
 // root's outermost, and short-circuits before the guards; a type's
-// attributes (vuka.RegisterType) reach a stateless page's route.
+// attributes (vuka.RegisterType) reach a stateless page's route. The
+// admin area is a route group, pages/admin/(console): its shell and guard
+// wrap its pages alone, at /admin with no segment of the group's, and the
+// sign-in page beside it, /admin/auth/login, has the site's document only,
+// framing itself in a component of the private folder pages/_parts.
 func TestFolderRoutesE2E(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and an app")
@@ -93,7 +97,7 @@ func TestFolderRoutesE2E(t *testing.T) {
 	if err != nil {
 		t.Fatalf("vuka routes: %v\n%s", err, out)
 	}
-	for _, want := range []string{"/employers/new", "/employers/{employer}/edit", "/employers/{employer}/permits/{permit}", "/files/{file...}", "/app/{route...}", "/about", "DELETE", "employer.Layout",
+	for _, want := range []string{"/admin/auth/login", "console.Shell", "console.Guard", "/employers/new", "/employers/{employer}/edit", "/employers/{employer}/permits/{permit}", "/files/{file...}", "/app/{route...}", "/about", "DELETE", "employer.Layout",
 		"/api/employers/{employer}", "employers.GET (endpoint)", "api.Guard", "app.Settings", "permits.Permit (live)", "app.Shell",
 		"MIDDLEWARE", "pages.Middleware", "api.Middleware"} {
 		if !strings.Contains(out, want) {
@@ -179,6 +183,33 @@ func TestFolderRoutesE2E(t *testing.T) {
 	for _, p := range []string{"/app/", "/app/employers/7", "/app/a/b/c"} {
 		page(p, "App - HR", `<div id="app"></div>`)
 	}
+	// The route group: its guard sends a visitor without the cookie to the
+	// sign-in page, which is outside the group and has no shell; with the
+	// cookie, the dashboard is inside the shell inside the document.
+	if code, loc, _ := do("GET", "/admin", nil); code != http.StatusSeeOther && code != http.StatusFound || loc != "/admin/auth/login" {
+		t.Errorf("GET /admin without the cookie: %d %q, want a redirect to /admin/auth/login", code, loc)
+	}
+	if login := page("/admin/auth/login", "Sign in - HR", `<nav id="site">`, `<div class="card"><h2>Sign in</h2>`, `<form id="login"`); strings.Contains(login, `id="console"`) {
+		t.Errorf("GET /admin/auth/login is inside the group's shell:\n%s", login)
+	}
+	{
+		req, _ := http.NewRequest("GET", base+"/admin", nil)
+		req.AddCookie(&http.Cookie{Name: "admin", Value: "1"})
+		res, err := client.Do(req)
+		if err != nil {
+			t.Fatal(err)
+		}
+		b, _ := io.ReadAll(res.Body)
+		res.Body.Close()
+		body := string(b)
+		doc, shell, h1 := strings.Index(body, "<main>"), strings.Index(body, `<section id="console">`), strings.Index(body, "<h1>Dashboard</h1>")
+		if res.StatusCode != http.StatusOK || doc < 0 || shell < doc || h1 < shell || !strings.Contains(body, `<a href="/admin">Dashboard</a>`) {
+			t.Errorf("GET /admin with the cookie: %d, want the dashboard inside the shell inside the document:\n%s", res.StatusCode, body)
+		}
+	}
+	notFound("GET", "/admin/console")
+	notFound("GET", "/(console)")
+	notFound("GET", "/_parts/card")
 	notFound("GET", "/employers/x")
 	notFound("GET", "/employers/99")
 	notFound("GET", "/employers/99/edit")
