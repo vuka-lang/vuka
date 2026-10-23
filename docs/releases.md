@@ -107,6 +107,43 @@ See [Folder routes](/web/folder-routes#route-groups).
 
 ### Fixes
 
+- A page's `Post`, `Put`, `Patch` or `Delete` handler may take a provided
+  dependency as a pointer beside its body struct (`Post(ctx, store
+  *Store, form PetForm)`); 2.0.0 read the pointer as a second body,
+  [E0709](/errors/E0709). A page whose markup sends one of those names as
+  an event is E0709 now, rather than the event being taken as the handler.
+- The constructor Vuka writes for a type whose fields differ only by case
+  (`Greeter`, `greeter`) gives each its own parameter.
+- `p.rows = load()?` on tracked state sets it once the call succeeds, as
+  `rows := load()?; p.rows = rows` would; and `p.a, p.b = p.b, p.a`
+  assigns tracked fields too. Both were [E0150](/errors/E0150).
+- A stateful shape's value in a hole (`{Card{…}}`, `{c}`) renders as the
+  component, by its address; one whose address can't be taken is
+  [E0128](/errors/E0128) instead of text printed with `fmt`.
+- Statements among a component tag's children (`label := …`) run before
+  its `<slot:x>` content, which may read them.
+- A component attribute reading browser state (`<ui.Show when={tab ==
+  "b"}>`) is lowered as an element attribute's is, once the markup's bare
+  names are known; one whose prop can't take a state is
+  [E0125](/errors/E0125), not a Go type error.
+- `vuka lsp` offers no completion in markup text or a quoted attribute's
+  value: a sentence ending in a package's name (`…failing to sync.`) no
+  longer gets Go items whose acceptance imports the package.
+- Another package's model reads as one of this package's:
+  `users.User.Objects` is `orm.Objects[users.User]()` (in 2.0.0 it was a
+  method expression of `orm.Model`'s `Objects`), and `users.User.Name` the
+  typed field.
+- A shape's field named like a built-in (`Result`, `Option`) is the field
+  in its markup.
+- A component attribute names an initialism's field in lowerCamel: `id`
+  for `ID`, `uid` for `UID`.
+- A `{…}` naming a value in a `<style>` is [E0128](/errors/E0128): a
+  stylesheet has no holes, and `style:--x={v}` sets a CSS variable.
+- `vuka fmt` leaves a `.vuka.html` header's one-line struct as gofmt
+  writes it.
+- A `_test.go` file writing a page's tracked state is
+  [E0155](/errors/E0155) naming the `_test.vuka` file to move it to, where
+  the write is lowered.
 - A shape's methods may live in a `.vuka` file beside its `.vuka.html`
   file: reads and writes of its tracked server state (`p.rows = v`,
   `len(p.rows)`, `p.n++`, `p.rows[i].Done = true`) and writes of its

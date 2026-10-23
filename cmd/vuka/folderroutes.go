@@ -160,14 +160,15 @@ type routeDir struct {
 	goFiles    []string // its .go files, when it has no Vuka source
 	layout     string   // the type its _layout.vuka.html renders, "" when it has none
 	layoutFile string
-	reloads    bool              // its layout reads the request: it loads on every navigation (web.ReloadLayout)
-	oldLayout  string            // a 1.x layout.vuka.html, for E0715's help
-	bracket    map[string]string // a type declared in a [id] file → its parameter, "[id]"
-	fileOf     map[string]string // a type declared in a .vuka.html file → the file
-	files      map[string]string // a parameter → a file named for it
-	funcs      []methodFunc      // its method funcs: GET, POST… declared by a file
-	clashes    []diag.Diagnostic // found before the transpile, which they would derail
-	vuka       bool              // it has .vuka, .vuka.html or .templ files
+	reloads    bool                // its layout reads the request: it loads on every navigation (web.ReloadLayout)
+	oldLayout  string              // a 1.x layout.vuka.html, for E0715's help
+	bracket    map[string]string   // a type declared in a [id] file → its parameter, "[id]"
+	fileOf     map[string]string   // a type declared in a .vuka.html file → the file
+	sends      map[string][]string // a .vuka.html type → its Post, Put, Patch or Delete its markup sends as an event
+	files      map[string]string   // a parameter → a file named for it
+	funcs      []methodFunc        // its method funcs: GET, POST… declared by a file
+	clashes    []diag.Diagnostic   // found before the transpile, which they would derail
+	vuka       bool                // it has .vuka, .vuka.html or .templ files
 }
 
 // methodFunc is an endpoint written as a function named for its HTTP
@@ -305,7 +306,7 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 	if rel == "." {
 		rel = ""
 	}
-	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}}
+	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}}
 	if rel != "" {
 		d.importPath += "/" + load.GoRel(rel)
 	}
@@ -404,6 +405,11 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 				if token.IsExported(sh.Type) && !sh.Generic {
 					structs[sh.Type], looks[sh.Type] = true, true
 					d.fileOf[sh.Type] = n
+					for _, m := range handlerMethods {
+						if transpile.SendsEvent(src, m) {
+							d.sends[sh.Type] = append(d.sends[sh.Type], m)
+						}
+					}
 					if load.Bracketed(seg) {
 						d.bracket[sh.Type] = seg
 					}

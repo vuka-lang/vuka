@@ -729,7 +729,7 @@ func (p *proxy) checkSyntax(path string) {
 // syntaxOf is the syntax errors of the editor's text buf of the .vuka file
 // at path, as a build would report them for it.
 func (p *proxy) syntaxOf(path string, buf []byte) *diagSet {
-	src, hs := completable(buf)
+	src, hs := completableAt(path, buf, -1)
 	m := vfile{from: src, cur: buf, hunks: hs}
 	d := &diagSet{text: buf}
 	var others []transpile.File

@@ -1,6 +1,8 @@
 package main
 
 import (
+	"bytes"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
@@ -408,4 +410,64 @@ func blockItems(typed lspRange) []any {
 // withBlockItems adds the block snippets to a completion answer.
 func withBlockItems(v any, typed lspRange) any {
 	return withItems(v, blockItems(typed))
+}
+
+// templateStmt is a line of a template's markup that is a Go statement.
+var templateStmt = regexp.MustCompile(`^\s*(?:if\s|for\s|for$|switch\b|case\s|default:|\}|[A-Za-z_][A-Za-z0-9_]*(?:\s*,\s*[A-Za-z_][A-Za-z0-9_]*)*\s*:?=[^=])`)
+
+// markupText reports, for a template file's src, whether an offset is in
+// its markup's text: after the header, on no statement's line, outside any
+// {…} and any tag but in a quoted attribute's value.
+func markupText(src []byte) func(int) bool {
+	start := -1
+	for i := 0; i < len(src); {
+		if src[i] == '<' {
+			start = i
+			break
+		}
+		nl := bytes.IndexByte(src[i:], '\n')
+		if nl < 0 {
+			break
+		}
+		i += nl + 1
+	}
+	if start < 0 {
+		return func(int) bool { return false }
+	}
+	text := make([]bool, len(src))
+	depth, inTag := 0, false
+	for i := start; i < len(src); i++ {
+		if depth == 0 && !inTag && (i == 0 || src[i-1] == '\n') {
+			le := bytes.IndexByte(src[i:], '\n')
+			if le < 0 {
+				le = len(src) - i
+			}
+			if templateStmt.Match(src[i : i+le]) {
+				i += le // a statement's braces are its own
+				continue
+			}
+		}
+		switch c := src[i]; {
+		case depth > 0 && (c == '"' || c == '\'' || c == '`'):
+			i = skipQuoted(src, i) - 1
+		case c == '{':
+			depth++
+		case c == '}' && depth > 0:
+			depth--
+		case depth == 0 && c == '<':
+			inTag = true
+		case depth == 0 && inTag && c == '>':
+			inTag = false
+		case depth == 0 && inTag && (c == '"' || c == '\''):
+			// A quoted attribute's value is text too.
+			end := skipQuoted(src, i)
+			for j := i + 1; j < end-1; j++ {
+				text[j] = true
+			}
+			i = end - 1
+		case depth == 0 && !inTag:
+			text[i] = true
+		}
+	}
+	return func(off int) bool { return off >= 0 && off < len(src) && text[off] }
 }

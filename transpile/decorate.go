@@ -230,6 +230,10 @@ func paramName(field string, taken map[string]bool) string {
 	if token.IsKeyword(p) || types.Universe.Lookup(p) != nil || taken[p] {
 		p = field
 	}
+	// Fields differing only by case (Greeter, greeter) lower to one name.
+	for base, n := p, 2; taken[p]; n++ {
+		p = base + strconv.Itoa(n)
+	}
 	taken[p] = true
 	return p
 }

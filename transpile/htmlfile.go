@@ -271,6 +271,10 @@ func cutAssets(lines []string, from, to int, decl string) []TemplateAsset {
 	}
 }
 
+// cssHole is a {…} in a stylesheet that is no CSS block: a Go name or call,
+// a hole written where a stylesheet has none.
+var cssHole = regexp.MustCompile(`\{\s*[A-Za-z_][A-Za-z0-9_.]*(?:\([^{}:;]*\))?\s*\}`)
+
 // blank is l with its text spaces: offsets stay those of the file.
 func blank(l string) string {
 	t := strings.TrimRight(l, "\r\n")
@@ -384,6 +388,12 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	seen := map[[2]string]bool{}
 	for _, a := range assets {
 		kind := [2]string{a.Decl, "a script"}
+		if m := cssHole.FindStringIndex(a.Text); !a.Script && m != nil {
+			hole := strings.TrimSpace(a.Text[m[0]+1 : m[1]-1])
+			return nil, nil, nil, &Error{Code: "E0128", Pos: token.Position{Line: a.Line + strings.Count(a.Text[:m[0]], "\n"), Column: 1},
+				Msg:  "a stylesheet has no holes: {" + hole + "} would be CSS text as it is",
+				Help: "set it on an element as a CSS variable, style:--x={" + hole + "}, and read var(--x) in the stylesheet"}
+		}
 		if !a.Script {
 			kind[1] = "a scoped stylesheet"
 			if !a.Scoped {

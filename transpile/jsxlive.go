@@ -279,7 +279,7 @@ func nestName(n []nestStep) string {
 // the children are bound.
 func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node types.Type, stateful bool) (bool, int, string) {
 	el := c.el
-	c.args, c.rest = nil, nil // a round that left the tag unresolved may have bound them
+	c.args, c.rest, c.pre = nil, nil, nil // a round that left the tag unresolved may have bound them
 	fields := e.propFields(c.target, st, stateful)
 	var names []string
 	for _, fl := range fields {
@@ -327,7 +327,8 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		c.args = append(c.args, &compArg{key: fields[i].name + ": ", nodes: append([]jsxNode{}, sl.kids...), at: sl.start, typ: fields[i].typ, nest: fields[i].nest})
 	}
 	if slots > 0 {
-		c.rest = rest
+		c.rest, c.pre = splitStmts(rest)
+		rest = c.rest
 	}
 	if !hasContent(rest) {
 		return slots > 0, 0, ""

@@ -1,0 +1,2 @@
+func(*main.Greeter, *main.Greeter) *main.Pets
+Hello, rex | Hi, tom

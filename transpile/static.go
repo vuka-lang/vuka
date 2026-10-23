@@ -526,6 +526,19 @@ type staticRef struct {
 	getter bool         // obj is a generic function named after the member, called for its value
 }
 
+// mirrors reports whether the method m is the static's own as a method: a
+// getter static's owner declares a method of its name (orm.Model's Objects
+// for orm.Objects[Self]()).
+func (r staticRef) mirrors(m types.Object) bool {
+	fn, ok := m.(*types.Func)
+	if !ok || !r.getter || fn.Name() != r.obj.Name() || fn.Pkg() != r.obj.Pkg() {
+		return false
+	}
+	recv := fn.Type().(*types.Signature).Recv()
+	n := namedOf(recv.Type())
+	return n != nil && n.Origin() == r.owner.Origin()
+}
+
 // findStatic looks for member among t's statics, then those of the types it
 // embeds, nearest first, as Go promotes fields.
 func (e *engine) findStatic(t *types.Named, member string) (staticRef, bool) {
@@ -622,7 +635,14 @@ func isStaticAccessor(obj types.Object) bool {
 func (e *engine) resolveStatics(f *fileState) {
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		sel, ok := n.(*ast.SelectorExpr)
-		if !ok || e.info.Selections[sel] != nil || e.info.Uses[sel.Sel] != nil {
+		if !ok {
+			return true
+		}
+		// A method expression may be a static all the same: another
+		// package's model, compiled, embeds orm.Model, whose Objects method
+		// mirrors the static Objects of the orm.Base it was written with.
+		mexpr := e.info.Selections[sel] != nil && e.info.Selections[sel].Kind() == types.MethodExpr
+		if !mexpr && (e.info.Selections[sel] != nil || e.info.Uses[sel.Sel] != nil) {
 			return true
 		}
 		tv, ok := e.info.Types[sel.X]
@@ -638,10 +658,10 @@ func (e *engine) resolveStatics(f *fileState) {
 			return true
 		}
 		ref, ok := e.findStatic(named, sel.Sel.Name)
-		if !ok {
+		if !ok || mexpr && !ref.mirrors(e.info.Selections[sel].Obj()) {
 			return true
 		}
-		if obj, _, _ := types.LookupFieldOrMethod(named, false, e.pkg, sel.Sel.Name); obj != nil {
+		if obj, _, _ := types.LookupFieldOrMethod(named, false, e.pkg, sel.Sel.Name); obj != nil && !mexpr {
 			if !e.declaredStatic(ref) {
 				return true // a field reference: a Go name of the type's and the field's is no static
 			}

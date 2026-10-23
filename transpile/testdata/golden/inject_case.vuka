@@ -1,0 +1,25 @@
+package main
+
+import (
+	"fmt"
+	"reflect"
+)
+
+// Greeter and greeter differ only by case; the constructor Vuka writes
+// takes a parameter for each.
+type Greeter struct{ hello string }
+
+func (g *Greeter) Greet(name string) string { return g.hello + ", " + name }
+
+func component(t *vuka.Type) { fmt.Println(reflect.TypeOf(t.New)) }
+
+@component
+type Pets struct {
+	Greeter *Greeter
+	greeter *Greeter
+}
+
+func main() {
+	p := Pets.New(&Greeter{hello: "Hello"}, &Greeter{hello: "Hi"})
+	fmt.Println(p.Greeter.Greet("rex"), "|", p.greeter.Greet("tom"))
+}

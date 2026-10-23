@@ -1130,6 +1130,13 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 			reply(h())
 			return
 		}
+		if m.Method == "textDocument/completion" && strings.HasSuffix(vf.source, ".vuka.html") && off > 0 && markupText(src)(off-1) {
+			// Markup text is no Go: nothing completes there, and an item
+			// would import a package for it.
+			p.mu.Unlock()
+			reply(map[string]any{"isIncomplete": false, "items": []any{}})
+			return
+		}
 		if h := markupRequest(m.Method, vf, off); h != nil {
 			p.mu.Unlock()
 			reply(h())
@@ -1631,10 +1638,14 @@ func completable(src []byte) ([]byte, []hunk) { return completableWith(src, nil)
 // editor's cursor at cursor (-1: not known): in a template file, the Go
 // being typed there is completed too (see templateRepairs).
 func completableAt(path string, src []byte, cursor int) ([]byte, []hunk) {
-	if cursor < 0 || !strings.HasSuffix(path, ".vuka.html") {
+	if !strings.HasSuffix(path, ".vuka.html") {
 		return completable(src)
 	}
-	return completableWith(src, templateRepairs(src, cursor))
+	var extra []insert
+	if cursor >= 0 {
+		extra = templateRepairs(src, cursor)
+	}
+	return completableIn(src, extra, true)
 }
 
 // insert is text put into a buffer at an offset.
@@ -1644,14 +1655,27 @@ type insert struct {
 }
 
 func completableWith(src []byte, extra []insert) ([]byte, []hunk) {
+	return completableIn(src, extra, false)
+}
+
+// completableIn is completableWith; in a template file (html) a dot ending
+// a sentence of its markup's text is no selector being typed: text never
+// takes a placeholder, which would make it Go a completion imports for.
+func completableIn(src []byte, extra []insert, html bool) ([]byte, []hunk) {
 	var ins []insert
 	for _, re := range []*regexp.Regexp{unfinishedAttr, unfinishedParamAttr, unfinishedElem} {
 		for _, m := range re.FindAllSubmatchIndex(src, -1) {
 			ins = append(ins, insert{m[3], placeholder + "()"})
 		}
 	}
+	var text func(int) bool
+	if html {
+		text = markupText(src)
+	}
 	for _, at := range danglingDots(src) {
-		ins = append(ins, insert{at, placeholder})
+		if text == nil || !text(at-1) {
+			ins = append(ins, insert{at, placeholder})
+		}
 	}
 	for _, at := range fieldPlaceholders(src) {
 		ins = append(ins, insert{at, placeholder})
