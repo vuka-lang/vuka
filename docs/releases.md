@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.4.1 — unreleased
+## v2.4.1 — 2026-10-24
 
 - **Hooks on generic shapes.** `@ui.Mount`, `@ui.OnChange` and
   `@ui.Loads("group")` on a method of a generic component compile and run
