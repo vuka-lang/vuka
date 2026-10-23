@@ -207,6 +207,7 @@ type propField struct {
 	typ       types.Type
 	nest      []nestStep
 	ambiguous string // the embedded fields it is in twice at the same depth
+	required  bool   // tagged vuka:"required"
 }
 
 // propFields is the fields of st an attribute can set, as Go's selectors see
@@ -238,7 +239,7 @@ func (e *engine) propFields(tg *jsxTarget, st *types.Struct, exported bool) []pr
 					if found[name] == nil {
 						order = append(order, name)
 					}
-					found[name] = append(found[name], propField{name: name, typ: fld.Type(), nest: lv.nest})
+					found[name] = append(found[name], propField{name: name, typ: fld.Type(), nest: lv.nest, required: required(lv.st.Tag(i))})
 				}
 				if !fld.Embedded() {
 					continue
@@ -274,16 +275,20 @@ func nestName(n []nestStep) string {
 	return n[len(n)-1].name
 }
 
-// bindFields binds attributes to a props struct's fields, and the children to
-// its Children field when it has one that takes a Node; it reports whether
-// the children are bound.
+// bindFields binds attributes to a props struct's fields, its <slot:x>
+// children to the fields they fill, and the rest of its children to its
+// Children field when it has one that takes a Node — a repeated slot's
+// element (c.elem) to its one func or Node field; it reports whether the
+// children are bound. The required fields nothing sets are c.unfilled.
 func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node types.Type, stateful bool) (bool, int, string) {
 	el := c.el
-	c.args, c.rest, c.pre = nil, nil, nil // a round that left the tag unresolved may have bound them
+	c.args, c.rest, c.pre, c.unfilled = nil, nil, nil, nil // a round that left the tag unresolved may have bound them
 	fields := e.propFields(c.target, st, stateful)
 	var names []string
+	var typs []types.Type
 	for _, fl := range fields {
 		names = append(names, fl.name)
+		typs = append(typs, fl.typ)
 	}
 	used := map[int]bool{}
 	for _, a := range attrs {
@@ -302,42 +307,73 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			return false, a.off, "<" + el.tag + ">'s field " + fl.name + " is ambiguous: it is in " + fl.ambiguous
 		}
 		used[i] = true
-		c.args = append(c.args, &compArg{key: fl.name + ": ", attr: a, typ: fl.typ, nest: fl.nest})
+		c.args = append(c.args, &compArg{key: fl.name + ": ", attr: a, typ: fl.typ, nest: fl.nest,
+			nodeText: a.kind == 's' && node != nil && types.Identical(fl.typ, node)})
 	}
 	rest := el.kids[:0:0]
 	slots := 0
+	repeated := map[int]*compArg{}
 	for _, k := range el.kids {
 		sl, ok := k.(*jsxElem)
-		if !ok || !strings.HasPrefix(sl.tag, "slot:") {
+		if !ok || !sl.isSlot() {
 			rest = append(rest, k)
 			continue
 		}
-		name := exportName(strings.TrimPrefix(sl.tag, "slot:"))
-		i := bindName(names, name)
+		name := strings.TrimPrefix(sl.tag, "slot:")
+		i, kind := e.slotFor(names, typs, exportName(name), node)
+		if kind == 0 {
+			return false, sl.start, e.noSlot(c, el.tag, name, names, typs, i, node, "field")
+		}
+		prev := repeated[i]
 		switch {
-		case i < 0:
-			return false, sl.start, "<" + el.tag + "> has no slot " + strings.TrimPrefix(sl.tag, "slot:") + ": a slot is a " + c.target.q + "Node field, " + name
-		case used[i]:
+		case used[i] && prev == nil:
 			return false, sl.start, "<" + el.tag + "> sets " + fields[i].name + " twice"
-		case !types.AssignableTo(node, fields[i].typ):
-			return false, sl.start, "<" + el.tag + ">'s slot " + fields[i].name + " is " + e.display(fields[i].typ) + ", not " + c.target.q + "Node"
+		case fields[i].ambiguous != "":
+			return false, sl.start, "<" + el.tag + ">'s field " + fields[i].name + " is ambiguous: it is in " + fields[i].ambiguous
+		}
+		a, off, msg := e.slotArg(c, sl, fields[i].typ, kind, prev, node)
+		if msg != "" {
+			return false, off, msg
+		}
+		if prev == nil {
+			a.key, a.typ, a.nest = fields[i].name+": ", fields[i].typ, fields[i].nest
+			c.args = append(c.args, a)
+			if kind == slotMany {
+				repeated[i] = a
+			}
 		}
 		used[i] = true
 		slots++
-		c.args = append(c.args, &compArg{key: fields[i].name + ": ", nodes: append([]jsxNode{}, sl.kids...), at: sl.start, typ: fields[i].typ, nest: fields[i].nest})
 	}
-	if slots > 0 {
+	content := rest
+	if slots > 0 && !c.elem {
 		c.rest, c.pre = splitStmts(rest)
-		rest = c.rest
+		content = c.rest
 	}
-	if !hasContent(rest) {
-		return slots > 0, 0, ""
-	}
-	if i := bindName(names, "Children"); i >= 0 && !used[i] && fields[i].ambiguous == "" && types.AssignableTo(node, fields[i].typ) {
+	kids := slots > 0
+	switch {
+	case c.elem && (hasContent(content) || len(el.lets) > 0):
+		a, off, msg := e.elemContent(c, fields, used, content, node)
+		if msg != "" {
+			return false, off, msg
+		}
+		c.args = append(c.args, a)
+		kids = true
+	case !hasContent(content):
+	default:
+		i := bindName(names, "Children")
+		if i < 0 || used[i] || fields[i].ambiguous != "" || !types.AssignableTo(node, fields[i].typ) {
+			return false, 0, ""
+		}
 		c.args = append(c.args, &compArg{key: fields[i].name + ": ", kids: true, typ: fields[i].typ, nest: fields[i].nest})
-		return true, 0, ""
+		used[i], kids = true, true
 	}
-	return false, 0, ""
+	for i, fl := range fields {
+		if fl.required && !used[i] {
+			c.unfilled = append(c.unfilled, fl.name)
+		}
+	}
+	return kids, 0, ""
 }
 
 // hasContent reports whether ns are more than white space.

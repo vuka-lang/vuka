@@ -1,0 +1,21 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Frame forwards its Actions to a Dialog: as an attribute, and as a slot
+// whose content is the field itself.
+type Frame struct {
+	Actions ui.Node
+	Footer  ui.Node
+}
+</script>
+
+<div>
+  <Dialog title="A" actions={Actions} />
+  <Dialog title="B">
+    <slot:actions>{Actions}</slot:actions>
+    <slot:footer>{Footer}</slot:footer>
+    body
+  </Dialog>
+</div>

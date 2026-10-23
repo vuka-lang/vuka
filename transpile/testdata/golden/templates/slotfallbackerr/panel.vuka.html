@@ -1,0 +1,16 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Panel's markup names slots it doesn't have.
+type Panel struct {
+	Actions ui.Node
+	Row     func(int) ui.Node
+}
+</script>
+
+<div>
+  <slot:actoins>none</slot:actoins>
+  <slot:row>x</slot:row>
+</div>

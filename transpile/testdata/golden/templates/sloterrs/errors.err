@@ -1,0 +1,4 @@
+page.vuka.html:9:23: <List> has no slot actoins; did you mean <slot:actions>?
+page.vuka.html:10:42: <slot:actions> fills ui.Node, which takes no values: let goes on a slot of a func type, such as Row func(T) ui.Node
+page.vuka.html:11:38: <slot:row> passes one value, string: let={s}
+page.vuka.html:12:23: <List>'s Items is []string, not a slot: a slot is a ui.Node, a func returning one, or a slice of structs

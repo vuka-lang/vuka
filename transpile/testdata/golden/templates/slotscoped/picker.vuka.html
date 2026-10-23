@@ -1,0 +1,22 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Picker is a live component rendering its options through its caller's
+// Option.
+type Picker struct {
+	ui.Live
+	Options []string
+	Option  func(string, bool) ui.Node
+	picked  string
+}
+
+func (p *Picker) Pick(o string) { p.picked = o }
+</script>
+
+<menu>
+  for _, o := range Options {
+    <li key={o}>{Option(o, o == picked)}</li>
+  }
+</menu>

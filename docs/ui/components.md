@@ -6,7 +6,8 @@
 
 Components are the reusable pieces of your pages: a notice, a card, a menu. A
 component is a `.vuka.html` shape with one struct and its markup in the same
-file. Exported fields are props; content and named slots are node props.
+file. Exported fields are props; content and named slots are node props,
+filled with markup by the shape that uses the component.
 
 ## Writing a Component {#writing}
 
@@ -35,6 +36,39 @@ Use it as a tag from another shape:
 `<components.Notice title="Saved" important><p>Your changes are saved.</p></components.Notice>`.
 A bare bool attribute is true. HTML attributes retain HTML names, including
 `class`, `for`, `aria-*` and `data-*`.
+
+## Filling a Component's Slots {#slots}
+
+A `ui.Node` field other than Children is a slot, filled with
+`<slot:name>…</slot:name>` directly inside the tag. A func field returning a
+`ui.Node` is a slot the component passes values to, which the caller names
+with `let`; a slice of structs takes one `<slot:name>` per element:
+
+```html
+<script lang="go">
+package pages
+
+import (
+    "example.com/app/models"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Members struct { People []models.Person }
+</script>
+
+<ui.Card title="Members">
+  <slot:header><button>Invite</button></slot:header>
+  <ui.Table rows={People}>
+    <slot:column header="Name" let={p}>{p.Name}</slot:column>
+    <slot:column header="Email" let={p}><a href={"mailto:" + p.Email}>{p.Email}</a></slot:column>
+  </ui.Table>
+</ui.Card>
+```
+
+Inside the component, `<slot:actions>fallback</slot:actions>` renders the
+slot, or the fallback when the caller left it out; `ui.Has(Actions)` reports
+whether it was filled; `vuka:"required"` on the field makes every tag fill
+it. See [Components and Slots](/ui/templates#components-and-slots).
 
 ## What a Hole Accepts {#nodes}
 
@@ -71,5 +105,7 @@ logical item across renders, preserving its live instance.
 
 The ui kit exposes components as tags, such as `<ui.Card>` and `<ui.Button>`.
 Use their exported fields as attributes, their Children field for content,
-and their named node fields as slots. The kit uses the same node tree and
+and their named node fields as slots. `ui.Table` and `ui.DataTable` take
+their columns as repeated `<slot:column>` slots, or as a `columns={…}` slice
+built in Go. The kit uses the same node tree and
 live protocol as application components; no second rendering syntax is needed.

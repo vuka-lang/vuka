@@ -239,21 +239,32 @@ SVG and MathML names remain elements, including custom-element names with a
 hyphen. Component names and attributes are case-sensitive; an unknown tag is
 [E0143](/errors/E0143), with the nearest matching name when possible.
 
+A generic component takes its type arguments in the tag,
+`<components.List[Task]>`, or infers them from its attributes. Close it as
+`</components.List>` or `</components.List[Task]>`.
+
 ### Setting Props
 
 A struct component's attributes set exported fields. CamelCase mapping turns
 `noPad` into NoPad and `onSelect` into OnSelect. A bare bool attribute is true;
-quoted text is a string and `{expression}` is typed.
+quoted text is a string and `{expression}` is typed. Quoted text setting a
+`ui.Node` field is that text.
 
 HTML elements retain HTML names (`class`, `for`, `data-*`, `aria-*`). Unknown
 component attributes are errors rather than arbitrary DOM attributes. Function props let a parent
 supply a callback. A typed node helper in a logic file can still be called from
 a hole; reusable application markup belongs in its own shape file.
 
-### Filling Children and Slots
+Go visibility applies: an unexported component is local to its package; an
+exported one can be used through an import. Keep stable `key` values on
+repeated live component tags to preserve logical instances across reorderings.
 
-Content fills Children ui.Node. A `<slot:actions>` directly inside the
-component tag fills Actions ui.Node. A slot in any other position is an error.
+### Filling Children and Slots {#slots}
+
+A slot is a field a caller fills with markup. Content between a component's
+tags fills its `Children ui.Node` field. A `<slot:actions>` directly inside
+the tag fills its `Actions ui.Node` field. A slot anywhere else in the
+caller's markup is an error.
 
 In `components/admin.vuka.html`, declare both:
 
@@ -293,9 +304,198 @@ type Orders struct { Count int }
 </components.Admin>
 ```
 
-Go visibility applies: an unexported component is local to its package; an
-exported one can be used through an import. Keep stable `key` values on
-repeated live component tags to preserve logical instances across reorderings.
+A slot the component doesn't have is an error naming the nearest slot it
+does have: `<components.Admin> has no slot actoins; did you mean
+<slot:actions>?`.
+
+### Passing Values to a Slot {#scoped-slots}
+
+A slot field of a func type returning `ui.Node` is a scoped slot: the
+component calls it with values, and the caller's markup for it uses them.
+This list renders each task through its caller's `Row`:
+
+```html
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type List[T any] struct {
+    Items []T
+    Row func(T, int) ui.Node
+}
+</script>
+
+<ul>
+  for i, item := range Items {
+    <li>{Row(item, i)}</li>
+  }
+</ul>
+```
+
+The caller names the values with `let`, in the order the function takes
+them, and its markup reads them:
+
+```html
+<script lang="go">
+package pages
+
+import "example.com/app/components"
+
+type Tasks struct { Open []components.Task }
+</script>
+
+<components.List items={Open}>
+  <slot:row let={t, i}>
+    <b>{i + 1}.</b> {t.Title}
+  </slot:row>
+</components.List>
+```
+
+The slot compiles to `func(t components.Task, i int) ui.Node`, its types
+taken from the field: `List` infers `T` from `items`, or the tag gives it,
+`<components.List[components.Task]>`. A `let` may name fewer values than the
+function takes (`let={t}`), not more.
+
+> [!NOTE]
+> `let` goes only on a slot whose field is a func. On a `ui.Node` slot it is
+> an error, as is a `let` naming more values than the function passes.
+
+### Repeating a Slot {#repeated-slots}
+
+A slot field that is a slice of structs takes one element per slot tag, in
+the order the tags are written. Name the tag in the singular: each
+`<slot:column>` adds a `Column` to `Columns`. The tag's attributes set the
+struct's fields, and its content fills the struct's one func field returning
+`ui.Node`, else its one `ui.Node` field.
+
+The kit's `ui.Table` and `ui.DataTable` declare their columns this way:
+`Columns []ui.Column[T]`, where a `ui.Column[T]` has a `Header ui.Node`, a
+`Cell func(T) ui.Node` and the strings `Align`, `Class` and `Sort`. A table
+writes each column as a slot, its row named by `let`:
+
+```html
+<script lang="go">
+package pages
+
+import (
+    "example.com/app/models"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Books struct { Shelf []models.Book }
+</script>
+
+<ui.Table rows={Shelf}>
+  <slot:column header="Title" let={b}>
+    <b>{b.Title}</b>
+  </slot:column>
+  <slot:column align="right" let={b}>
+    <slot:header><abbr title="Pages">pp.</abbr></slot:header>
+    {b.Pages}
+  </slot:column>
+</ui.Table>
+```
+
+A `<slot:header>` inside a `<slot:column>` fills that element's `Header`
+with markup instead of text.
+
+### Giving a Slot Fallback Content {#fallback}
+
+Inside a component's own markup, the slot's tag stands for the slot, and its
+content is what renders when the caller leaves the slot out:
+
+```html
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type Dialog struct {
+    Title string
+    Actions ui.Node
+    Children ui.Node
+}
+</script>
+
+<section>
+  <h2>{Title}</h2>
+  <slot:children><p>Nothing to show.</p></slot:children>
+  <menu>
+    <slot:actions><button>Close</button></slot:actions>
+  </menu>
+</section>
+```
+
+`<slot:actions />` with no content is `{Actions}`. A slot left out, or filled
+with nothing but white space, shows the fallback.
+
+### Checking Whether a Slot Is Filled {#has}
+
+`ui.Has(Actions)` reports whether the caller filled a slot: false for a slot
+left out and for one holding only white space. Use it to leave out the
+markup around a slot:
+
+```html
+<section>
+  {Children}
+  if ui.Has(Footer) {
+    <footer>{Footer}</footer>
+  }
+</section>
+```
+
+### Requiring a Slot {#required}
+
+Tag a slot field `vuka:"required"` and every tag must fill it. A tag that
+doesn't is [E0158](/errors/E0158):
+
+```html
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type Card struct {
+    Header   ui.Node `vuka:"required"`
+    Children ui.Node `vuka:"required"`
+    Footer   ui.Node
+}
+</script>
+
+<article>
+  <header>{Header}</header>
+  {Children}
+  <slot:footer />
+</article>
+```
+
+The tag works on any prop; a required `Children` needs content between the
+tags.
+
+### Forwarding a Slot {#forwarding}
+
+A component passes a slot it was given to another as an attribute, or as
+that component's slot holding just the field:
+
+```html
+<components.Dialog title="Edit" actions={Actions} />
+
+<components.Dialog title="Edit">
+  <slot:actions>{Actions}</slot:actions>
+</components.Dialog>
+```
+
+Both pass the same node: a slot holding one `ui.Node` adds no wrapper
+around it.
+
+### Where Slot Content Runs {#slot-scope}
+
+Slot content belongs to the shape that writes it, though the component
+renders it. Its holes read the writer's fields, its `onClick={Remove(t.ID)}`
+calls the writer's method, and its browser state is the writer's: a live
+page filling a live child's slot gets its own events and state back, and
+renders again after its event, while the child keeps its own state.
 
 ### Island Tags
 

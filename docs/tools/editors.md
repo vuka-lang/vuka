@@ -216,6 +216,13 @@ Hover on the tag name shows what the component is (component, live
 component, function), a link to its file at its declaration, its attributes
 with their types, and its slots.
 
+Typing `<slot:` inside a component's tag lists its slots with their types:
+a `ui.Node` field, a func field returning one (inserted with a `let` naming
+its values) and a slice of structs (in the singular, `<slot:column>` for
+`Columns`). Fields tagged `vuka:"required"` are marked. The names a `let`
+declares are template locals in the slot's content; hover on one shows the
+value it names and its type.
+
 An attribute the component doesn't take, and a function's parameter left
 out ([E0144](/errors/E0144)), are the compiler's errors, underlined as you
 type.

@@ -1,0 +1,13 @@
+<script lang="go">
+package main
+
+// Page misuses List's slots.
+type Page struct{ Items []string }
+</script>
+
+<main>
+  <List items={Items}><slot:actoins>x</slot:actoins></List>
+  <List items={Items}><slot:actions let={a}>x</slot:actions></List>
+  <List items={Items}><slot:row let={s, i}>{s}</slot:row></List>
+  <List items={Items}><slot:items>x</slot:items></List>
+</main>

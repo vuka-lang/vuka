@@ -1,0 +1,14 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Card requires its header and content.
+type Card struct {
+	Header   ui.Node `vuka:"required"`
+	Children ui.Node `vuka:"required"`
+	Footer   ui.Node
+}
+</script>
+
+<article>{Header}{Children}{Footer}</article>
