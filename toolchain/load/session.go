@@ -115,6 +115,15 @@ func NewSession(root string) (*Session, error) {
 // Root is the directory of the session's module, symlinks resolved.
 func (s *Session) Root() string { return s.root }
 
+// Transpiled is how many packages the last run transpiled, the others
+// being reused; -1 when the run was done again by Transpile.
+func (s *Session) Transpiled() int {
+	if s.ran.fellBack {
+		return -1
+	}
+	return s.ran.transpiled
+}
+
 func (s *Session) reset() {
 	s.key = cacheKey(s.root)
 	s.goVersion = goDirective(s.root)

@@ -327,7 +327,7 @@ func (p *proxy) build() {
 			return
 		}
 		p.apply(first, gens, list, bufs, hunks, edited, seq, false)
-		p.logf("built %d of %d packages in %v", len(first), len(pkgs), time.Since(t0).Round(time.Millisecond))
+		p.logf("built %d of %d packages%s in %v", len(first), len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
 	} else {
 		first = nil
 	}
@@ -350,7 +350,19 @@ func (p *proxy) build() {
 		all[path] = true
 	}
 	p.apply(pkgs, gens, list, bufs, hunks, all, seq, true)
-	p.logf("built the module (%d packages) in %v", len(pkgs), time.Since(t0).Round(time.Millisecond))
+	p.logf("built the module (%d packages%s) in %v", len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
+}
+
+// transpiled says, for the log, how many packages the session's last run
+// transpiled.
+func (p *proxy) transpiled() string {
+	if p.sess == nil {
+		return ""
+	}
+	if n := p.sess.Transpiled(); n >= 0 {
+		return fmt.Sprintf(", %d transpiled", n)
+	}
+	return ", all transpiled"
 }
 
 // changeEnd is where the editor's text was changed from old to cur, in cur:
