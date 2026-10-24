@@ -176,7 +176,8 @@ func mustMap(t *testing.T, raw json.RawMessage) map[string]any {
 }
 
 // The test binary is the gopls of TestLSPGoplsUnanswered when this is set:
-// it answers initialize and shutdown, and nothing else.
+// it answers initialize, shutdown and the proxy's gopls.list_imports, and
+// nothing else.
 const muteGoplsEnv = "VUKA_TEST_MUTE_GOPLS"
 
 func init() {
@@ -186,8 +187,10 @@ func init() {
 	}
 }
 
-// muteGopls reads LSP messages from in, answers initialize and shutdown
-// on out, and appends the method of every other message to the file log.
+// muteGopls reads LSP messages from in, answers initialize, shutdown and
+// gopls.list_imports on out, and appends the method of every other message
+// to the file log, with the document of a didOpen, didChange or didClose
+// and the command of an executeCommand.
 func muteGopls(in io.Reader, out io.Writer, log string) {
 	conn := newRPCConn(in, out)
 	f, _ := os.OpenFile(log, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
@@ -209,6 +212,17 @@ func muteGopls(in io.Reader, out io.Writer, log string) {
 			}}})
 		case "shutdown":
 			_ = conn.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": nil})
+		case "workspace/executeCommand":
+			var cmd struct{ Command string }
+			_ = json.Unmarshal(m.Params, &cmd)
+			f.WriteString(m.Method + " " + cmd.Command + "\n")
+			if cmd.Command == "gopls.list_imports" {
+				_ = conn.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": map[string]any{}})
+			}
+		case "textDocument/didOpen", "textDocument/didChange", "textDocument/didClose":
+			var doc struct{ TextDocument struct{ URI string } }
+			_ = json.Unmarshal(m.Params, &doc)
+			f.WriteString(m.Method + " " + doc.TextDocument.URI + "\n")
 		case "exit":
 			return
 		default:
@@ -298,6 +312,11 @@ func muteGoplsLog(t *testing.T) string {
 // startMutedLSP runs the proxy on the module at dir with the mute gopls,
 // and initializes it.
 func startMutedLSP(t *testing.T, app string) *lspClient {
+	return startMutedLSPLog(t, app, io.Discard)
+}
+
+// startMutedLSPLog is startMutedLSP, the proxy's log written to logw.
+func startMutedLSPLog(t *testing.T, app string, logw io.Writer) *lspClient {
 	exe, err := os.Executable()
 	if err != nil {
 		t.Fatal(err)
@@ -307,7 +326,7 @@ func startMutedLSP(t *testing.T, app string) *lspClient {
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
 	go func() {
-		_ = runLSP(ctx, toProxyR, fromProxyW, io.Discard, exe, lspOptions{})
+		_ = runLSP(ctx, toProxyR, fromProxyW, logw, exe, lspOptions{})
 		close(done)
 	}()
 	t.Cleanup(func() {

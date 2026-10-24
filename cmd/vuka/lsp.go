@@ -226,7 +226,8 @@ type vfile struct {
 	avail   []transpile.VarRead    // and those it may read
 	fixes   []edit                 // the W0402 rewrites on from (ctxVarFixes)
 	version int
-	probed  int // the version holding the last probe (see probe)
+	probed  int  // the version holding the last probe (see probe)
+	pending bool // not sent to gopls yet (lsp_open.go)
 }
 
 // namesOf is the package's overloads, Go name → the source's; nil for no
@@ -497,6 +498,7 @@ type proxy struct {
 	modRoot, modPath string                    // the module, as of the last regenerate
 	staticsPkgs      map[string][]*staticsFile // dependency dir → its parsed Go, for statics
 	importDirs       map[string]string         // import path → package directory
+	opening          opening                   // generated files gopls hasn't been sent (lsp_open.go)
 	started          bool
 	timer            *time.Timer
 	stopped          bool
@@ -1089,9 +1091,14 @@ func (p *proxy) own(path string, open bool, body []byte) {
 	if vf != nil && !open {
 		vf.version, gen = 1, string(vf.gen)
 	}
+	pending := vf != nil && vf.pending
+	if pending {
+		vf.pending = false // gopls gets the editor's buffer, then the proxy's
+		p.dropOpen(path)
+	}
 	p.mu.Unlock()
 	uri := pathToURI(path)
-	if open && vf != nil && !was {
+	if open && vf != nil && !was && !pending {
 		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didClose",
 			"params": map[string]any{"textDocument": map[string]any{"uri": uri}}})
 	}
@@ -1137,6 +1144,14 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		return
 	}
 	p.await(path)
+	p.mu.Lock()
+	gen := p.bySource[path]
+	p.mu.Unlock()
+	if spanning[m.Method] {
+		p.awaitAllOpen(awaitLimit)
+	} else if gen != "" {
+		p.awaitOpen(gen, awaitLimit)
+	}
 	p.view.RLock()
 	defer p.view.RUnlock()
 	p.mu.Lock()
@@ -1574,6 +1589,20 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 
 // ask sends gopls a request of the proxy's own and waits for the answer.
 func (p *proxy) ask(method string, params any) (json.RawMessage, bool) {
+	m, ok := p.askWithin(10*time.Second, method, params)
+	if !ok {
+		return nil, false
+	}
+	if len(m.Error) > 0 {
+		p.logf("%s: %s", method, m.Error)
+		return nil, false
+	}
+	return m.Result, true
+}
+
+// askWithin sends gopls a request of the proxy's own and waits, at most d,
+// for the answer, which may be an error; ok is false when none came.
+func (p *proxy) askWithin(d time.Duration, method string, params any) (m rpcMsg, ok bool) {
 	p.mu.Lock()
 	p.nextID++
 	id := strconv.Quote("vuka-ask:" + strconv.Itoa(p.nextID))
@@ -1583,19 +1612,15 @@ func (p *proxy) ask(method string, params any) (json.RawMessage, bool) {
 	_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": method, "params": params})
 	select {
 	case m := <-ch:
-		if len(m.Error) > 0 {
-			p.logf("%s: %s", method, m.Error)
-			return nil, false
-		}
-		return m.Result, true
-	case <-time.After(10 * time.Second):
+		return m, true
+	case <-time.After(d):
 		p.mu.Lock()
 		if p.asks[id] != nil {
 			delete(p.asks, id)
 			p.cancelGopls(id)
 		}
 		p.mu.Unlock()
-		return nil, false
+		return rpcMsg{}, false
 	}
 }
 
