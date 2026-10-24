@@ -822,7 +822,7 @@ func (w *watcher) scan() []string {
 		if !w.watched(path) {
 			return nil
 		}
-		fi, err := d.Info()
+		fi, err := entryInfo(path, d)
 		if err != nil {
 			return nil
 		}

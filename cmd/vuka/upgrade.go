@@ -278,7 +278,7 @@ func (b *modBackup) rel(name string) string {
 	if err != nil {
 		return filepath.Join(b.dir, name)
 	}
-	return r
+	return filepath.ToSlash(r) // the hint reads alike on every system
 }
 
 func (b *modBackup) restore() error {

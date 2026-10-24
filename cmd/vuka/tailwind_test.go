@@ -123,6 +123,9 @@ func TestTailwindBinary(t *testing.T) {
 // TestDevTailwind runs a stand-in tailwindcss that records its arguments and
 // whether it saw its stdin close, as the real one stops when it does.
 func TestDevTailwind(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("its stand-in tailwindcss is a shell script; TestNewRunWatch runs the real one")
+	}
 	bin, goDir := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(bin, "tailwindcss"), strings.ReplaceAll(`#!/bin/sh
 echo "$@" > BIN/args

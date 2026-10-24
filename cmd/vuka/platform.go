@@ -1,6 +1,7 @@
 package main
 
 import (
+	"io/fs"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -108,4 +109,15 @@ func uriOSPath(goos, p string) string {
 		p = p[1:]
 	}
 	return filepath.Clean(strings.ReplaceAll(p, "/", `\`))
+}
+
+// entryInfo is what a look at the sources sees of the file at path, which d
+// is the directory entry of. Windows' directory listing can say what a file
+// was before its last write (NTFS updates a file's directory entry lazily):
+// the file itself is asked there.
+func entryInfo(path string, d fs.DirEntry) (fs.FileInfo, error) {
+	if runtime.GOOS == "windows" {
+		return os.Lstat(path)
+	}
+	return d.Info()
 }

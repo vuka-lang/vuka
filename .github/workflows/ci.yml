@@ -195,14 +195,14 @@ jobs:
         run: go vet ./...
       # vuka new's app: vuka build, then vuka run -watch swapping in an edit;
       # vuka run -watch on a small app through builds that fail and that
-      # change nothing; the platform's executables, process stops and paths.
+      # change nothing; the platform's executables, process stops, shims,
+      # paths and file watching. The rest of the suite assumes Unix tools
+      # (shell-script stand-ins, Chrome over fds 3 and 4) or the Linux job's.
       - name: vuka build and vuka run -watch
         working-directory: vuka/cmd/vuka
-        run: go test -timeout 30m -v -run '^(TestNewRunWatch|TestRunWatch|TestBuildDWARF|TestInterrupt|TestProcessAlive|TestTailwindStandalone|TestTailwindBinary|TestDevTailwind|TestDevFrontend|TestBinaryID)$' .
-      - name: test
-        if: ${{ !cancelled() }}
-        working-directory: vuka/cmd/vuka
-        run: go test -timeout 30m -short ./...
+        run: >-
+          go test -timeout 30m -v -run
+          '^(TestNewRunWatch|TestRunWatch|TestBuildDWARF|TestBinaryID|TestNoDWARF|TestCutWatch|TestWatcher.*|TestEmbedRoots|TestInterrupt|TestProcessAlive|TestRemoveAll|TestExeSuffix|TestNodeBin|TestFileURIPath|TestTailwindInstallHint|TestTailwindStandalone|TestTailwindBinary|TestDevFrontend|TestBuildFrontend|TestPrefixed|TestInstallCommand|TestFrontendDir)$' .
 
   conformance:
     name: conformance (examples as Vuka and ejected)

@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strings"
 	"sync"
@@ -87,7 +88,18 @@ echo "  VITE v8.0.0  ready in 5 ms"
 while :; do sleep 0.05; done
 `)
 	os.Chmod(filepath.Join(dir, "node_modules", ".bin", "vite"), 0o755)
+	if runtime.GOOS == "windows" {
+		// npm's shim, the one that runs there; it is killed, never asked.
+		writeFile(t, filepath.Join(dir, "node_modules", ".bin", "vite.cmd"), "@echo off\r\n"+
+			"echo run %*>> runs.log\r\n"+
+			"if \"%1\"==\"build\" (\r\n  mkdir dist 2>nul\r\n  echo built> dist\\index.html\r\n  echo vite build done\r\n  exit /b 0\r\n)\r\n"+
+			"echo   VITE v8.0.0  ready in 5 ms\r\n"+
+			"ping -n 120 127.0.0.1 > nul\r\n")
+	}
 }
+
+// crlf is s with Windows' line ends made \n: what a .cmd stand-in wrote.
+func crlf(s []byte) string { return strings.ReplaceAll(string(s), "\r\n", "\n") }
 
 func TestBuildFrontend(t *testing.T) {
 	root := tempModule(t, map[string]string{"go.mod": "module x\n", "frontend/package.json": "{}"})
@@ -100,7 +112,7 @@ func TestBuildFrontend(t *testing.T) {
 	if !strings.Contains(out.String(), "vite: vite build done") {
 		t.Errorf("output: %s", out.String())
 	}
-	if data, _ := os.ReadFile(filepath.Join(root, "frontend", "dist", "index.html")); string(data) != "built\n" {
+	if data, _ := os.ReadFile(filepath.Join(root, "frontend", "dist", "index.html")); crlf(data) != "built\n" {
 		t.Errorf("dist/index.html: %q", data)
 	}
 }
@@ -124,9 +136,17 @@ func TestDevFrontend(t *testing.T) {
 	for !strings.Contains(out.String(), "dev server ready") && time.Now().Before(deadline) {
 		time.Sleep(20 * time.Millisecond)
 	}
+	start := time.Now()
 	stop()
+	if took := time.Since(start); took > 10*time.Second {
+		t.Errorf("stopping Vite took %v", took)
+	}
+	want := "run \nstopped\n"
+	if runtime.GOOS == "windows" {
+		want = "run \n" // the .cmd shim is killed after the grace period
+	}
 	log, _ := os.ReadFile(filepath.Join(dir, "runs.log"))
-	if string(log) != "run \nstopped\n" {
+	if crlf(log) != want || !strings.Contains(out.String(), "dev server ready") {
 		t.Errorf("runs.log: %q; output: %s", log, out.String())
 	}
 	stop() // once
