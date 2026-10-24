@@ -173,6 +173,9 @@ func (k *testClock) next(what string) *testWait {
 // batch whatever the machine's load.
 func TestWatcherEvents(t *testing.T) {
 	ow, err := newOSWatch(nil)
+	if err != nil && runtime.GOOS == "windows" {
+		t.Skip("vuka uses no file events on Windows: it looks every interval (TestWatcher)")
+	}
 	if err != nil {
 		needs(t, "no file events: %v", err)
 	}
