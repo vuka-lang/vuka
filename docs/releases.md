@@ -60,6 +60,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
   warning — so no rewrite — was made. It now transpiles as vet does, and
   names a file it skips because it doesn't compile
   ([#103](https://github.com/vuka-lang/vuka/issues/103)).
+- **The language server always answers.** Semantic tokens, hover,
+  completion and definition on a `.vuka` or `.vuka.html` file no longer
+  wait forever for a busy gopls, such as a shared daemon still loading
+  another workspace. After 15 seconds the editor gets what vuka knows
+  without gopls, such as the markup's own tokens, and gopls is told to
+  cancel. The editor's `$/cancelRequest` now reaches gopls for these
+  requests too. A request sent while a build runs gets the same answer at
+  the deadline instead of waiting for the build. Writes to gopls no longer
+  wait for gopls to read them, so a gopls that stops reading doesn't stop
+  `vuka lsp` answering the editor ([#100](https://github.com/vuka-lang/vuka/issues/100)).
 
 ## v2.5.0 — 2026-10-24
 
