@@ -482,6 +482,8 @@ type proxy struct {
 	vukaReqs         map[string]*vukaRequest   // proxy request id → request on a .vuka file
 	asks             map[string]chan rpcMsg    // proxy request id → the proxy's own question to gopls
 	dropped          map[string]bool           // proxy request ids given up on: gopls's late answer goes nowhere
+	waiting          map[string]*time.Timer    // editor request ids read, not yet handled
+	answeredEarly    map[string]bool           // and those answered while they waited
 	bufs             map[string][]byte         // .vuka path → editor buffer
 	cursors          map[string]int            // .vuka path → where the editor's last change to it ended
 	virtual          map[string]*vfile         // generated path → buffer in gopls
@@ -524,6 +526,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 	p := &proxy{
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{}, dropped: map[string]bool{},
+		waiting: map[string]*time.Timer{}, answeredEarly: map[string]bool{},
 		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
 		shown:       map[string]string{},
@@ -657,21 +660,22 @@ func (p *proxy) display(real string) string {
 }
 
 func (p *proxy) fromEditor() {
-	for {
-		body, err := p.editor.read()
-		if err != nil {
-			return
-		}
-		var m rpcMsg
-		if err := json.Unmarshal(body, &m); err != nil {
-			p.logf("bad message from editor: %v", err)
-			continue
-		}
-		if m.isResponse() {
-			if !p.refactorReply(&m) {
-				_ = p.gopls.write(body)
+	msgs := make(chan editorMsg, 256)
+	go p.readEditor(msgs)
+	for em := range msgs {
+		body, m := em.body, em.m
+		if m.isRequest() {
+			p.mu.Lock()
+			early := p.answeredEarly[string(m.ID)]
+			delete(p.answeredEarly, string(m.ID))
+			if t := p.waiting[string(m.ID)]; t != nil {
+				t.Stop()
+				delete(p.waiting, string(m.ID))
 			}
-			continue
+			p.mu.Unlock()
+			if early {
+				continue
+			}
 		}
 		var doc struct {
 			TextDocument textDocumentID `json:"textDocument"`
@@ -1288,6 +1292,66 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	p.vukaReqs[id] = vr
 	p.mu.Unlock()
 	_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": m.Method, "params": params})
+}
+
+// editorMsg is a message from the editor, read ahead of the loop handling
+// it.
+type editorMsg struct {
+	body []byte
+	m    rpcMsg
+}
+
+// readEditor reads the editor's messages for fromEditor, which can be busy
+// with a build — the first one runs before anything else. Responses go
+// on at once (gopls asks the editor for its configuration meanwhile). A
+// request still waiting for the loop at goplsDeadline is answered then,
+// as one gopls didn't answer, and the loop skips it when it gets there.
+func (p *proxy) readEditor(msgs chan<- editorMsg) {
+	defer close(msgs)
+	for {
+		body, err := p.editor.read()
+		if err != nil {
+			return
+		}
+		var m rpcMsg
+		if err := json.Unmarshal(body, &m); err != nil {
+			p.logf("bad message from editor: %v", err)
+			continue
+		}
+		if m.isResponse() {
+			if !p.refactorReply(&m) {
+				_ = p.gopls.write(body)
+			}
+			continue
+		}
+		if m.isRequest() && m.Method != "initialize" && m.Method != "shutdown" {
+			id, method := string(m.ID), m.Method
+			p.mu.Lock()
+			p.waiting[id] = time.AfterFunc(goplsDeadline, func() {
+				p.mu.Lock()
+				if p.waiting[id] == nil {
+					p.mu.Unlock()
+					return
+				}
+				delete(p.waiting, id)
+				p.answeredEarly[id] = true
+				p.mu.Unlock()
+				p.logf("%s: not reached in %v (a build runs)", method, goplsDeadline)
+				reply := map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id)}
+				switch {
+				case semanticTokensMethods[method]:
+					reply["result"] = map[string]any{"data": []any{}}
+				case quietMethods[method]:
+					reply["result"] = nil
+				default:
+					reply["error"] = map[string]any{"code": -32803, "message": "vuka lsp is busy building"}
+				}
+				_ = p.editor.send(reply)
+			})
+			p.mu.Unlock()
+		}
+		msgs <- editorMsg{body, m}
+	}
 }
 
 // goplsDeadline is how long a .vuka request waits for gopls. A busy gopls

@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // answerDeadline is how long an editor request may wait for the proxy's
@@ -226,34 +228,12 @@ func muteGopls(in io.Reader, out io.Writer, log string) {
 // gopls is told to cancel it, and the editor's own $/cancelRequest of a
 // .vuka request is answered and passed on to gopls by the proxy's id.
 func TestLSPGoplsUnanswered(t *testing.T) {
-	exe, err := os.Executable()
-	if err != nil {
-		t.Fatal(err)
-	}
-	log := filepath.Join(t.TempDir(), "gopls.log")
-	t.Setenv(muteGoplsEnv, log)
+	log := muteGoplsLog(t)
 	defer func(d time.Duration) { goplsDeadline = d }(goplsDeadline)
 	goplsDeadline = 2 * time.Second
 
 	app := routesModule(t, map[string]string{"pages/card.vuka.html": deadlineCard})
-	toProxyR, toProxyW := io.Pipe()
-	fromProxyR, fromProxyW := io.Pipe()
-	ctx, cancel := context.WithCancel(context.Background())
-	done := make(chan struct{})
-	go func() {
-		_ = runLSP(ctx, toProxyR, fromProxyW, io.Discard, exe, lspOptions{})
-		close(done)
-	}()
-	t.Cleanup(func() {
-		cancel()
-		toProxyW.Close()
-		fromProxyR.Close()
-		<-done
-	})
-	c := &lspClient{t: t, conn: newRPCConn(fromProxyR, toProxyW), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100)}
-	go c.loop()
-	c.init = c.call("initialize", map[string]any{"rootUri": pathToURI(app), "capabilities": map[string]any{}})
-	c.notify("initialized", map[string]any{})
+	c := startMutedLSP(t, app)
 	uri := pathToURI(filepath.Join(app, "pages", "card.vuka.html"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 		"uri": uri, "languageId": "vuka-html", "version": 1, "text": deadlineCard}})
@@ -305,4 +285,72 @@ func TestLSPGoplsUnanswered(t *testing.T) {
 func logText(path string) string {
 	b, _ := os.ReadFile(path)
 	return string(b)
+}
+
+// muteGoplsLog makes the proxies the test starts run the mute gopls, and
+// returns the file it logs to.
+func muteGoplsLog(t *testing.T) string {
+	log := filepath.Join(t.TempDir(), "gopls.log")
+	t.Setenv(muteGoplsEnv, log)
+	return log
+}
+
+// startMutedLSP runs the proxy on the module at dir with the mute gopls,
+// and initializes it.
+func startMutedLSP(t *testing.T, app string) *lspClient {
+	exe, err := os.Executable()
+	if err != nil {
+		t.Fatal(err)
+	}
+	toProxyR, toProxyW := io.Pipe()
+	fromProxyR, fromProxyW := io.Pipe()
+	ctx, cancel := context.WithCancel(context.Background())
+	done := make(chan struct{})
+	go func() {
+		_ = runLSP(ctx, toProxyR, fromProxyW, io.Discard, exe, lspOptions{})
+		close(done)
+	}()
+	t.Cleanup(func() {
+		cancel()
+		toProxyW.Close()
+		fromProxyR.Close()
+		<-done
+	})
+	c := &lspClient{t: t, conn: newRPCConn(fromProxyR, toProxyW), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100)}
+	go c.loop()
+	c.init = c.call("initialize", map[string]any{"rootUri": pathToURI(app), "capabilities": map[string]any{}})
+	c.notify("initialized", map[string]any{})
+	return c
+}
+
+// TestLSPAnswersDuringFirstBuild: a request sent while the first build
+// runs — which the proxy finishes before anything else — is answered at
+// the deadline, not when the build ends.
+func TestLSPAnswersDuringFirstBuild(t *testing.T) {
+	muteGoplsLog(t)
+	defer func(d time.Duration) { goplsDeadline = d }(goplsDeadline)
+	goplsDeadline = 2 * time.Second
+	release := make(chan struct{})
+	after := load.AfterPackage
+	load.AfterPackage = func(dir, overlay string, gens []load.Generated) []load.Generated {
+		<-release // a build slowed down by a busy disk
+		return after(dir, overlay, gens)
+	}
+	defer func() { load.AfterPackage = after }()
+	defer close(release)
+
+	app := routesModule(t, map[string]string{"pages/card.vuka.html": deadlineCard})
+	c := startMutedLSP(t, app)
+	uri := pathToURI(filepath.Join(app, "pages", "card.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
+		"uri": uri, "languageId": "vuka-html", "version": 1, "text": deadlineCard}})
+	m := c.callWithin(answerDeadline, "textDocument/semanticTokens/full", map[string]any{"textDocument": map[string]any{"uri": uri}})
+	if len(m.Error) > 0 {
+		t.Errorf("semantic tokens: %s", m.Error)
+	}
+	m = c.callWithin(answerDeadline, "textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri},
+		"position": positionOf([]byte(deadlineCard), strings.Index(deadlineCard, "Title}")+1)})
+	if len(m.Error) > 0 {
+		t.Errorf("hover: %s", m.Error)
+	}
 }
