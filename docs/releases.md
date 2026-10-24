@@ -22,6 +22,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.5.1 — unreleased
 
+- **The language server no longer keeps gopls busy for minutes.** After a
+  build it opened every generated Go file in gopls at once, and gopls
+  loads each file it doesn't know with a `go list` of its own, writing
+  every open buffer to disk first: on a module of a few hundred files
+  that kept gopls at several cores for minutes, and the editor's own
+  file waited behind it. The generated files now reach gopls a package
+  at a time, in dependency order, each package once gopls has loaded the
+  one before, and the packages of the files the editor shows go first.
+  On a module of 46 packages and 489 files gopls used about 3 CPU-minutes
+  instead of 19 and answered in 14 seconds instead of 5 minutes. A build
+  that changes nothing sends gopls nothing, and an edit sends the files it
+  changed ([#108](https://github.com/vuka-lang/vuka/issues/108)).
+- **Builds transpile only what changed while an import doesn't
+  resolve.** An import nothing provides — one being typed — made every
+  later build of `vuka lsp` and `vuka run -watch` transpile the whole
+  module again. Only the packages whose inputs changed are transpiled now,
+  and an edit undone reuses what was transpiled before it
+  ([#109](https://github.com/vuka-lang/vuka/issues/109)).
 - **Cold builds read the module once.** A build on an empty cache read
   each of the module's directories again from every step that looked at it
   (the `build/` mirror once for every file in it), and started a `go list

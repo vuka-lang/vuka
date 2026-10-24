@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime/debug"
+	"slices"
 	"strings"
 	"sync"
 	"time"
@@ -136,6 +137,9 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		delete(p.cursors, path)
 		p.edits++
 		p.changed[path] = p.edits
+		if gen := p.bySource[path]; gen != "" {
+			p.prioritize(gen) // what the editor shows goes to gopls first
+		}
 		p.mu.Unlock()
 		if isVuka(path) {
 			go p.checkSyntax(path)
@@ -323,7 +327,7 @@ func (p *proxy) build() {
 			return
 		}
 		p.apply(first, gens, list, bufs, hunks, edited, seq, false)
-		p.logf("built %d of %d packages in %v", len(first), len(pkgs), time.Since(t0).Round(time.Millisecond))
+		p.logf("built %d of %d packages%s in %v", len(first), len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
 	} else {
 		first = nil
 	}
@@ -346,7 +350,19 @@ func (p *proxy) build() {
 		all[path] = true
 	}
 	p.apply(pkgs, gens, list, bufs, hunks, all, seq, true)
-	p.logf("built the module (%d packages) in %v", len(pkgs), time.Since(t0).Round(time.Millisecond))
+	p.logf("built the module (%d packages%s) in %v", len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
+}
+
+// transpiled says, for the log, how many packages the session's last run
+// transpiled.
+func (p *proxy) transpiled() string {
+	if p.sess == nil {
+		return ""
+	}
+	if n := p.sess.Transpiled(); n >= 0 {
+		return fmt.Sprintf(", %d transpiled", n)
+	}
+	return ", all transpiled"
 }
 
 // changeEnd is where the editor's text was changed from old to cur, in cur:
@@ -467,6 +483,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			want[path] = &kept
 		}
 	}
+	var opens []string
 	for path, vf := range want {
 		old := p.virtual[path]
 		uri := pathToURI(path)
@@ -475,10 +492,10 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			if old != nil {
 				vf.version = old.version
 			}
-		case old == nil:
-			vf.version = 1
-			ops = append(ops, op{"textDocument/didOpen", map[string]any{"textDocument": map[string]any{
-				"uri": uri, "languageId": "go", "version": vf.version, "text": string(vf.gen)}}})
+		case old == nil || old.pending:
+			// Sent with its latest Go, a package at a time (lsp_open.go).
+			vf.version, vf.pending = 1, true
+			opens = append(opens, path)
 		case !bytes.Equal(old.gen, vf.gen):
 			vf.version = old.version + 1
 			ops = append(ops, op{"textDocument/didChange", map[string]any{
@@ -495,7 +512,10 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 		}
 		if all || sources[vf.source] != nil {
 			// Gone: its source is, or no longer generates it.
-			if !p.owned[path] {
+			switch {
+			case vf.pending:
+				p.dropOpen(path)
+			case !p.owned[path]:
 				ops = append(ops, op{"textDocument/didClose", map[string]any{"textDocument": map[string]any{"uri": pathToURI(path)}}})
 			}
 			continue
@@ -506,6 +526,19 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 		virtual[path] = vf
 	}
 	p.virtual = virtual
+	// New files in dependency order: the order the packages were
+	// transpiled in.
+	place := map[string]int{}
+	for i, g := range gens {
+		if _, ok := place[g.Target]; !ok {
+			place[g.Target] = i
+		}
+	}
+	slices.SortFunc(opens, func(a, b string) int { return place[a] - place[b] })
+	p.recordDeps(pkgs)
+	for _, path := range opens {
+		p.queueOpen(path)
+	}
 	p.bySource = map[string]string{}
 	for path, vf := range virtual {
 		if vf.source != "" {
@@ -530,11 +563,11 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 		}
 	}
 	p.built.Broadcast()
-	p.mu.Unlock()
-
 	for _, o := range ops {
 		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": o.method, "params": o.params})
 	}
+	p.sendOpens()
+	p.mu.Unlock()
 	p.view.Unlock()
 	for path := range touched {
 		p.publish(path)

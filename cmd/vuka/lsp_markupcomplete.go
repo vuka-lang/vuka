@@ -353,7 +353,7 @@ func (p *proxy) probeAt(genPath string, gp lspPosition, insert string) []map[str
 	defer p.genMu.Unlock()
 	p.mu.Lock()
 	vf := p.vfileOf(genPath)
-	if vf == nil {
+	if vf == nil || vf.pending {
 		p.mu.Unlock()
 		return nil
 	}
