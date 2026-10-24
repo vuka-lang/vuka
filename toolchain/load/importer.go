@@ -42,6 +42,9 @@ type Importer struct {
 	// volatile, when not nil, records the export data file of each listed
 	// package the cache doesn't hold: those that may change (refresh).
 	volatile map[string]string
+	// unreadable is the first export data the importer couldn't read
+	// because the module's Go is newer than vuka's.
+	unreadable *GoVersionError
 }
 
 func NewImporter(dir, overlay string) *Importer {
@@ -102,11 +105,43 @@ func (im *Importer) Import(path string) (*types.Package, error) {
 	return im.ImportFrom(path, im.Dir, 0)
 }
 
-func (im *Importer) ImportFrom(path, dir string, mode types.ImportMode) (*types.Package, error) {
+func (im *Importer) ImportFrom(path, dir string, mode types.ImportMode) (pkg *types.Package, err error) {
 	if path == "unsafe" {
 		return types.Unsafe, nil
 	}
+	// The standard library's importer panics on export data it can't
+	// decode: that of a newer Go than the one that built vuka.
+	defer func() {
+		if r := recover(); r != nil {
+			pkg, err = nil, im.undecodable(path, r)
+		}
+	}()
 	return im.gc.ImportFrom(path, dir, mode)
+}
+
+// Unreadable is the export data the importer couldn't read because the
+// module's Go is newer than vuka's; nil when there was none.
+func (im *Importer) Unreadable() error {
+	if im == nil || im.unreadable == nil {
+		return nil
+	}
+	return im.unreadable
+}
+
+// undecodable is the error of an import whose export data the importer
+// panicked reading.
+func (im *Importer) undecodable(path string, r any) error {
+	detail := fmt.Sprint(r)
+	if mod, err := ModuleGoVersion(im.Dir); err == nil {
+		if e, ok := CheckGoVersions(vukaGo(), mod).(*GoVersionError); ok {
+			e.Path, e.Detail = path, detail
+			if im.unreadable == nil {
+				im.unreadable = e
+			}
+			return e
+		}
+	}
+	return fmt.Errorf("cannot read the export data of %s (%s): vuka was built with %s; if the go command builds this module with another Go, reinstall vuka with it", path, detail, vukaGo())
 }
 
 // Broken records that the Vuka package path didn't transpile, so importing
