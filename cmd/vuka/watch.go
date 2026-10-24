@@ -302,6 +302,9 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	if r.err = os.MkdirAll(dir, 0o755); r.err != nil {
 		return r
 	}
+	ph := newPhases(s.stderr)
+	defer ph.done()
+	ph.step("scanning the module")
 	_, modPath, err := load.ModuleRoot(s.root)
 	if err != nil {
 		r.err = err
@@ -324,6 +327,7 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 		return r
 	}
 	if len(pkgs) > 0 {
+		ph.step(fmt.Sprintf("transpiling %d %s", len(pkgs), map[bool]string{true: "package", false: "packages"}[len(pkgs) == 1]))
 		transpile := load.Transpile
 		if s.sess != nil {
 			transpile = s.sess.Transpile
@@ -341,6 +345,7 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	ph.step("linking the module's packages")
 	var linkMsg string
 	if r.overlay, gens, linkMsg, err = autoLink(s.root, modPath, dir, r.overlay, pkgs, gens); err != nil {
 		r.err = err
@@ -366,6 +371,7 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	}
 	tTranspile := time.Since(t0)
 	t0 = time.Now()
+	ph.step("compiling")
 	defer func() { traceStep("transpile %v build %v", tTranspile, time.Since(t0)) }()
 	var embeds []string
 	var wg sync.WaitGroup
@@ -787,7 +793,7 @@ func (w *watcher) scan() []string {
 	files := make(map[string]stamp, len(w.files))
 	dirs := make(map[string]uint64, len(w.dirs))
 	var changed []string
-	filepath.WalkDir(w.root, func(path string, d fs.DirEntry, err error) error {
+	load.WalkDir(w.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // gone since its directory was read
 		}

@@ -4,12 +4,13 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 
 	"github.com/evanw/esbuild/pkg/api"
 )
@@ -217,7 +218,7 @@ func scriptMethods(root string, c *assetComp) ([]string, error) {
 	for _, s := range c.scripts {
 		src, label := s.inline, s.label
 		if s.path != "" {
-			data, err := os.ReadFile(s.path)
+			data, err := load.ReadSource(s.path)
 			if err != nil {
 				return nil, err
 			}
@@ -335,7 +336,7 @@ func scriptPushes(c *assetComp) ([]string, error) {
 	for _, s := range c.scripts {
 		src, label, base := s.inline, s.label, s.line
 		if s.path != "" {
-			data, err := os.ReadFile(s.path)
+			data, err := load.ReadSource(s.path)
 			if err != nil {
 				return nil, err
 			}
@@ -431,13 +432,13 @@ func blankComments(src string) string {
 func componentMethods(c *assetComp) []string {
 	re := regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*` + regexp.QuoteMeta(c.name) + `(?:\[[^\]]*\])?\s*\)\s*([A-Z]\w*)\s*(?:\[[^\]]*\])?\(([^)]*)\)`)
 	var out []string
-	entries, _ := os.ReadDir(c.dir)
+	entries, _ := load.ReadDir(c.dir)
 	for _, e := range entries {
 		n := e.Name()
 		if !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_test.go") || strings.HasSuffix(n, "_test.vuka") {
 			continue
 		}
-		src, _ := os.ReadFile(filepath.Join(c.dir, n))
+		src, _ := load.ReadSource(filepath.Join(c.dir, n))
 		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
 			if name := m[1]; name != "Render" && name != "View" && name != "Update" && !isUpdateMethod(name, m[2]) && !slices.Contains(out, name) {
 				out = append(out, name)

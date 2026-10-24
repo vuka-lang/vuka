@@ -32,8 +32,8 @@ func cacheFor(root string) *exportCache {
 		return c.(*exportCache)
 	}
 	c := &exportCache{m: map[string]string{}}
-	if dir, err := os.UserCacheDir(); err == nil {
-		c.file = filepath.Join(dir, "vuka", "exports", key+".json")
+	if dir, ok := CacheDir(); ok {
+		c.file = filepath.Join(dir, "exports", key+".json")
 		if data, err := os.ReadFile(c.file); err == nil {
 			_ = json.Unmarshal(data, &c.m)
 		}

@@ -57,7 +57,8 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 		want[rel] = relativeLines(g.Src, filepath.Dir(g.Source), filepath.Dir(filepath.Join(out, rel)))
 		generated[rel] = true
 	}
-	err := filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	siblings := map[string]map[string]bool{}
+	err := WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -71,7 +72,7 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 				strings.HasPrefix(name, "."), strings.HasPrefix(name, "_"), name == "node_modules":
 				return filepath.SkipDir
 			}
-			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+			if hasGoMod(path) {
 				return filepath.SkipDir // a nested module isn't part of this one
 			}
 			return nil
@@ -85,7 +86,7 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 				return nil // a route folder's Go, copied into its GoDir
 			}
 		}
-		if siblingVuka(path) {
+		if siblingVuka(siblings, path) {
 			return nil // an in-place generated file; the fresh one replaces it
 		}
 		data, err := os.ReadFile(path)
@@ -170,19 +171,21 @@ func Mirror(root, out string, gens []Generated, dryRun bool) (MirrorResult, erro
 }
 
 // siblingVuka reports whether path is the generated file of a .vuka file
-// beside it.
-func siblingVuka(path string) bool {
+// beside it. byDir keeps each directory's generated names.
+func siblingVuka(byDir map[string]map[string]bool, path string) bool {
 	dir, name := filepath.Split(path)
-	entries, err := os.ReadDir(dir)
-	if err != nil {
-		return false
-	}
-	for _, e := range entries {
-		if (strings.HasSuffix(e.Name(), ".vuka") || strings.HasSuffix(e.Name(), ".vuka.html")) && transpile.GoName(e.Name()) == name {
-			return true
+	gen, ok := byDir[dir]
+	if !ok {
+		gen = map[string]bool{}
+		entries, _ := ReadDir(dir)
+		for _, e := range entries {
+			if strings.HasSuffix(e.Name(), ".vuka") || strings.HasSuffix(e.Name(), ".vuka.html") {
+				gen[transpile.GoName(e.Name())] = true
+			}
 		}
+		byDir[dir] = gen
 	}
-	return false
+	return gen[name]
 }
 
 var replacePath = regexp.MustCompile(`(=>\s*)(\.\.?/[^\s]*|\.\.?)(\s|$)`)

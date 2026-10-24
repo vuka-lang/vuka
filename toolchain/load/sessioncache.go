@@ -34,18 +34,35 @@ var CompilerVersion = "dev"
 // cacheVersion is the format of the entries.
 const cacheVersion = "1"
 
-// UseCache makes the session keep its work on disk, in dir (the user's
-// cache directory when ""). Off when VUKA_CACHE=off.
+// CacheDir is the directory vuka keeps its caches in: VUKA_CACHE when it
+// names a directory, else vuka in the user's cache directory. ok is false
+// when VUKA_CACHE=off, or there is no such directory.
+func CacheDir() (dir string, ok bool) {
+	switch v := os.Getenv("VUKA_CACHE"); {
+	case strings.EqualFold(v, "off"):
+		return "", false
+	case v != "":
+		if abs, err := filepath.Abs(v); err == nil {
+			return abs, true
+		}
+		return "", false
+	}
+	d, err := os.UserCacheDir()
+	if err != nil {
+		return "", false
+	}
+	return filepath.Join(d, "vuka"), true
+}
+
+// UseCache makes the session keep its work on disk, in dir (CacheDir's
+// transpile when ""). Off when VUKA_CACHE=off.
 func (s *Session) UseCache(dir string) {
-	if strings.EqualFold(os.Getenv("VUKA_CACHE"), "off") {
+	base, ok := CacheDir()
+	if !ok {
 		return
 	}
 	if dir == "" {
-		d, err := os.UserCacheDir()
-		if err != nil {
-			return
-		}
-		dir = filepath.Join(d, "vuka", "transpile")
+		dir = filepath.Join(base, "transpile")
 	}
 	s.cacheBase = dir
 }

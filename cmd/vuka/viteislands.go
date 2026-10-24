@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+
 	"github.com/vuka-lang/vuka/v2/diag"
 )
 
@@ -245,7 +247,7 @@ func buildViteIslands(root, frontendRoot string, islands []*islandComp, dev bool
 
 	// Register every emitted JS and CSS file under its own basename, so the
 	// relative imports between chunks resolve under /_vuka/i/.
-	entriesDir, err := os.ReadDir(outDir)
+	entriesDir, err := load.ReadDir(outDir)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("vite islands: %w", err)
 	}

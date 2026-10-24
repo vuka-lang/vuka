@@ -286,7 +286,7 @@ func compileAssets(pa *pageAssets, dev bool, warn io.Writer) (*compiled, error) 
 	if len(errs) > 0 {
 		return nil, errors.Join(errs...)
 	}
-	entries, _ := os.ReadDir(dir)
+	entries, _ := load.ReadDir(dir)
 	for _, en := range entries {
 		if f := filepath.Join(dir, en.Name()); !written[f] {
 			os.Remove(f)
@@ -391,7 +391,7 @@ func markupNames(c *assetComp) (words, tags []string) {
 		src, _ := os.ReadFile(c.templ)
 		text.WriteString(templBody(string(src), c.name))
 	} else {
-		entries, _ := os.ReadDir(c.dir)
+		entries, _ := load.ReadDir(c.dir)
 		for _, e := range entries {
 			if n := e.Name(); strings.HasSuffix(n, ".vuka") && !strings.HasSuffix(n, "_test.vuka") {
 				src, _ := os.ReadFile(filepath.Join(c.dir, n))
@@ -665,7 +665,7 @@ func (d *devAssets) compile() {
 		keep[b.name] = true
 		writeIfChanged(filepath.Join(dir, "c", b.name), b.js)
 	}
-	entries, _ := os.ReadDir(filepath.Join(dir, "c"))
+	entries, _ := load.ReadDir(filepath.Join(dir, "c"))
 	for _, e := range entries {
 		if !keep[e.Name()] {
 			os.Remove(filepath.Join(dir, "c", e.Name()))
@@ -676,7 +676,7 @@ func (d *devAssets) compile() {
 		ikeep[ib.name] = true
 		writeIfChanged(filepath.Join(dir, "i", ib.name), ib.js)
 	}
-	ient, _ := os.ReadDir(filepath.Join(dir, "i"))
+	ient, _ := load.ReadDir(filepath.Join(dir, "i"))
 	for _, e := range ient {
 		if !ikeep[e.Name()] {
 			os.Remove(filepath.Join(dir, "i", e.Name()))
@@ -796,7 +796,7 @@ func moduleAssets(root string) (*pageAssets, error) {
 // goTypeName is c's type as reflect spells it: main.Counter in a main
 // package, else its import path and name.
 func goTypeName(c *assetComp) string {
-	entries, _ := os.ReadDir(c.dir)
+	entries, _ := load.ReadDir(c.dir)
 	for _, e := range entries {
 		if n := e.Name(); strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, "_test.go") {
 			src, _ := os.ReadFile(filepath.Join(c.dir, n))

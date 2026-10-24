@@ -4,10 +4,10 @@ import (
 	"errors"
 	"fmt"
 	"go/ast"
+	"go/build"
 	"go/parser"
 	"go/token"
 	"io/fs"
-	"os"
 	"path/filepath"
 	"slices"
 	"sort"
@@ -34,10 +34,14 @@ type modPkg struct {
 // buffer); nil reads the disk.
 func Contexts(root, modPath string, pkgs []*Package, read ReadFunc) map[string][]transpile.Context {
 	if read == nil {
-		read = os.ReadFile
+		read = ReadSource
 	}
-	root = realPath(root)
-	mod := scanModule(root, modPath, read)
+	return contexts(scanModule(realPath(root), modPath, read), pkgs, read)
+}
+
+// contexts is Contexts for the module's packages mod, which it adds pkgs
+// to.
+func contexts(mod map[string]*modPkg, pkgs []*Package, read ReadFunc) map[string][]transpile.Context {
 	for _, p := range pkgs {
 		// The packages being transpiled are as their files are now, and
 		// their generated Go's imports count: pages/route.go, which may not
@@ -136,7 +140,7 @@ func sortedPkgs(mod map[string]*modPkg) []*modPkg {
 // names and imports of their files, Go, Vuka and template.
 func scanModule(root, modPath string, read ReadFunc) map[string]*modPkg {
 	mod := map[string]*modPkg{}
-	filepath.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
+	WalkDir(root, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
 			return nil
 		}
@@ -145,11 +149,11 @@ func scanModule(root, modPath string, read ReadFunc) map[string]*modPkg {
 			if strings.HasPrefix(n, ".") || strings.HasPrefix(n, "_") && !inPages(root, path) || n == "testdata" || n == "vendor" || n == "node_modules" || IsGoName(path) {
 				return filepath.SkipDir
 			}
-			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+			if hasGoMod(path) {
 				return filepath.SkipDir
 			}
 		}
-		entries, err := os.ReadDir(path)
+		entries, err := ReadDir(path)
 		if err != nil {
 			return nil
 		}
@@ -387,4 +391,63 @@ func processorCycleError(err error, contexts map[string][]transpile.Context) err
 		return err
 	}
 	return errs
+}
+
+// moduleImports are the imports, outside the module, of the module's
+// packages that paths reach through the module: the session type-checks
+// those packages from source, so their imports are looked up as surely as
+// the Vuka packages' own. Asked of the go command with the rest, they cost
+// nothing more; asked one by one as type-checking reaches them, each is a
+// go command reading every package it depends on. seen are the paths
+// already asked for; it gets these.
+func moduleImports(mod map[string]*modPkg, modPath string, paths []string, seen map[string]bool) []string {
+	inModule := func(path string) bool { return path == modPath || strings.HasPrefix(path, modPath+"/") }
+	var out []string
+	visited := map[string]bool{}
+	var visit func(path string)
+	visit = func(path string) {
+		m := mod[path]
+		if m == nil || visited[path] {
+			return
+		}
+		visited[path] = true
+		for _, imp := range m.imports {
+			switch {
+			case inModule(imp):
+				visit(imp)
+			case !seen[imp] && imp != "C" && imp != "unsafe" && !build.IsLocalImport(imp):
+				seen[imp] = true
+				out = append(out, imp)
+			}
+		}
+	}
+	for _, p := range paths {
+		if modPath != "" && inModule(p) {
+			visit(p)
+		}
+	}
+	sort.Strings(out)
+	return out
+}
+
+// uiStatePath is the package ui's State lowers to (ui.VukaState), which
+// generated code imports though no source does.
+const uiStatePath = UIPath + "/uigen"
+
+// generatedImports are what generated code may import that no source
+// does: the runtime, and ui's state package when the run imports ui. They
+// are asked of the go command only alongside imports it is asked about
+// anyway.
+func generatedImports(modPath string, seen map[string]bool) []string {
+	var out []string
+	if modPath != transpile.RuntimePath && !seen[transpile.RuntimePath] {
+		out = append(out, transpile.RuntimePath)
+	}
+	for path := range seen {
+		if (path == UIPath || strings.HasPrefix(path, UIPath+"/")) && !seen[uiStatePath] && modPath != UIPath {
+			out = append(out, uiStatePath)
+			break
+		}
+	}
+	return out
 }

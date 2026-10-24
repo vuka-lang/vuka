@@ -10,6 +10,8 @@ import (
 	"regexp"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // Development builds without the frontend's build in them. Under vuka run
@@ -41,7 +43,7 @@ func frontendEmbeds(root string) []string {
 				continue
 			}
 			dir := filepath.Join(filepath.Dir(p), filepath.FromSlash(f.root))
-			filepath.WalkDir(dir, func(q string, d fs.DirEntry, err error) error {
+			load.WalkDir(dir, func(q string, d fs.DirEntry, err error) error {
 				if err == nil && d.Type().IsRegular() && !seen[q] {
 					seen[q] = true
 					files = append(files, q)
@@ -91,7 +93,7 @@ func frontendCalls(src []byte) []frontendCall {
 // declared in the package in dir.
 func embedPatterns(dir, name string) []string {
 	re := regexp.MustCompile(`(?m)((?:^[ \t]*//go:embed[^\n]*\n(?:[ \t]*//[^\n]*\n)*)+)[ \t]*var[ \t]+` + regexp.QuoteMeta(name) + `[ \t]+embed\.FS`)
-	entries, _ := os.ReadDir(dir)
+	entries, _ := load.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka")) || strings.HasSuffix(n, "_vuka.go") {

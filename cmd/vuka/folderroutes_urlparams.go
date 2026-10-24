@@ -4,10 +4,11 @@ import (
 	"go/ast"
 	"go/build"
 	"go/types"
-	"os"
 	"path/filepath"
 	"regexp"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 
 	"github.com/vuka-lang/vuka/v2/diag"
 )
@@ -144,14 +145,14 @@ func (c *routeChecker) bareURLFields(tn *types.TypeName) []string {
 	if dir == "" {
 		return nil
 	}
-	entries, _ := os.ReadDir(dir)
+	entries, _ := load.ReadDir(dir)
 	decl := regexp.MustCompile(`\btype\s+` + regexp.QuoteMeta(tn.Name()) + `\s+struct\s*\{`)
 	for _, e := range entries {
 		n := e.Name()
 		if !strings.HasSuffix(n, ".vuka") && !strings.HasSuffix(n, ".vuka.html") {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(dir, n))
+		src, err := load.ReadSource(filepath.Join(dir, n))
 		if err != nil {
 			continue
 		}

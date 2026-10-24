@@ -82,7 +82,7 @@ func buildIslands(args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 	}
-	entries, _ := os.ReadDir(filepath.Join(dir, "i"))
+	entries, _ := load.ReadDir(filepath.Join(dir, "i"))
 	for _, e := range entries {
 		if !keep[e.Name()] {
 			os.Remove(filepath.Join(dir, "i", e.Name()))

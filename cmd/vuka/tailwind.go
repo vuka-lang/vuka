@@ -109,7 +109,7 @@ func tailwindFor(root string) (*tailwind, error) {
 // walkSources calls fn for each file of the module at root, as walkModule
 // does, leaving out _ directories, testdata and examples too.
 func walkSources(root string, fn func(path, name string) error) error {
-	return filepath.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
+	return load.WalkDir(root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
@@ -192,7 +192,7 @@ func listPackages(root, overlay string) (goPackages, error) {
 func componentDirs(dirs []string) []string {
 	var out []string
 	for _, dir := range dirs {
-		entries, _ := os.ReadDir(dir)
+		entries, _ := load.ReadDir(dir)
 		if slices.ContainsFunc(entries, func(e fs.DirEntry) bool {
 			n := e.Name()
 			return strings.HasSuffix(n, ".templ") || strings.HasSuffix(n, ".vuka") && !strings.HasSuffix(n, "_test.vuka")

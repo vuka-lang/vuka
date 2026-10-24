@@ -345,7 +345,7 @@ func findFrontendRoot(root string) string {
 		if ext != ".go" && ext != ".vuka" || strings.HasSuffix(name, "_test"+ext) {
 			return nil
 		}
-		src, err := os.ReadFile(p)
+		src, err := load.ReadSource(p)
 		if err != nil || !strings.Contains(string(src), `"`+webPath+`"`) {
 			return nil
 		}
@@ -628,8 +628,8 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 			framework: islandFramework(p),
 			imported:  true,
 		}
-		if src, err := os.ReadFile(abs); err == nil {
-			if c, err := tsprops.Read(filepath.ToSlash(abs), src, func(q string) ([]byte, error) { return os.ReadFile(filepath.FromSlash(q)) }); err == nil {
+		if src, err := load.ReadSource(abs); err == nil {
+			if c, err := tsprops.Read(filepath.ToSlash(abs), src, func(q string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(q)) }); err == nil {
 				for _, pr := range c.Props {
 					ic.props = append(ic.props, islandProp{name: pr.Name, ts: pr.Type.String(), optional: pr.Optional})
 				}
@@ -652,7 +652,7 @@ func islandPageOf(file string) (page, tag string, full []wtok, live bool) {
 	if !strings.HasSuffix(file, ".vuka.html") {
 		return "", "", nil, false
 	}
-	src, err := os.ReadFile(file)
+	src, err := load.ReadSource(file)
 	if err != nil {
 		return "", "", nil, false
 	}

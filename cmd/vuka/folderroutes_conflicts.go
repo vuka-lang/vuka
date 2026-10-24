@@ -4,7 +4,6 @@ import (
 	"bufio"
 	"bytes"
 	"maps"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -206,7 +205,7 @@ func declaredRoutes(root string, registered map[string]bool) []declaredRoute {
 			strings.HasSuffix(name, "_gen.go") || strings.HasSuffix(name, "_vuka.go") || strings.HasSuffix(name, "_html.go") || strings.HasSuffix(name, "_templ.go") {
 			return nil
 		}
-		src, err := os.ReadFile(path)
+		src, err := load.ReadSource(path)
 		if err != nil || !bytes.Contains(src, []byte(`"`+webPath+`"`)) || bytes.HasPrefix(src, []byte(routesHeading)) {
 			return nil // pages/route.go is the folder routes'
 		}
@@ -253,7 +252,7 @@ func onMethod(src []byte, i int) bool {
 
 // goDirectiveOf is the go directive of the go.mod at root ("1.25.0").
 func goDirectiveOf(root string) string {
-	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	data, err := load.ReadSource(filepath.Join(root, "go.mod"))
 	if err != nil {
 		return ""
 	}
@@ -283,7 +282,7 @@ func routesUnserved(root, modPath string, ts routeTrees) []diag.Diagnostic {
 			if served || !(strings.HasSuffix(name, ".go") || strings.HasSuffix(name, ".vuka")) || strings.Contains(name, "_test.") {
 				return nil
 			}
-			src, err := os.ReadFile(path)
+			src, err := load.ReadSource(path)
 			if err != nil || !mainPkg.Match(src) {
 				return nil
 			}
@@ -298,7 +297,7 @@ func routesUnserved(root, modPath string, ts routeTrees) []diag.Diagnostic {
 				continue
 			}
 		} else {
-			entries, _ := os.ReadDir(t.main)
+			entries, _ := load.ReadDir(t.main)
 			for _, e := range entries {
 				if !e.IsDir() {
 					visit(filepath.Join(t.main, e.Name()), e.Name())

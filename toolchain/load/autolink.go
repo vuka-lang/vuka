@@ -156,7 +156,7 @@ type mainPkg struct {
 // and LinkGoName aside) says package main.
 func mainPackages(root string) ([]mainPkg, error) {
 	var out []mainPkg
-	err := filepath.WalkDir(root, func(path string, e os.DirEntry, err error) error {
+	err := WalkDir(root, func(path string, e os.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}
@@ -167,7 +167,7 @@ func mainPackages(root string) ([]mainPkg, error) {
 		if path != root {
 			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") ||
 				name == "testdata" || name == "vendor" || name == "node_modules" ||
-				fileExists(filepath.Join(path, "go.mod")) || fileExists(filepath.Join(path, Marker)) {
+				hasGoMod(path) || fileExists(filepath.Join(path, Marker)) {
 				return filepath.SkipDir
 			}
 		}
@@ -182,7 +182,7 @@ func mainPackages(root string) ([]mainPkg, error) {
 // mainIn reports whether dir holds a main package, and whether any of its
 // files opts out with //vuka:nolink.
 func mainIn(dir string) (mainPkg, bool) {
-	entries, err := os.ReadDir(dir)
+	entries, err := ReadDir(dir)
 	if err != nil {
 		return mainPkg{}, false
 	}

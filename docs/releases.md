@@ -20,6 +20,23 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.5.1 — unreleased
+
+- **Cold builds read the module once.** A build on an empty cache read
+  each of the module's directories again from every step that looked at it
+  (the `build/` mirror once for every file in it), and started a `go list
+  -export -deps` for each import that type-checking reached and the first
+  `go list` hadn't covered: those of the module's plain Go packages, the
+  runtime, ui's state package and component files named by relative path.
+  Each `go list` reads every package the import depends on. On a busy disk
+  that made a first build take minutes. A build now reads each directory
+  once, one `go list` covers every import, a relative path is never asked
+  of the go command, and the orm tool's binary is found once a process
+  instead of `go tool orm` (or `go run`) being run for each package of
+  models. `VUKA_CACHE=<dir>` puts vuka's caches in that directory, and
+  `vuka run -watch` names a step of a rebuild that takes more than three
+  seconds.
+
 ## v2.5.0 — 2026-10-24
 
 - **Hooks on generic shapes.** `@ui.Mount`, `@ui.OnChange` and

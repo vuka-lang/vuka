@@ -196,7 +196,16 @@ change to a function's body leaves its importers alone.
 The island build is
 skipped the same way when nothing in the frontend root (its sources,
 config, lockfile, installed packages, `@source` paths) changed.
-`VUKA_CACHE=off` turns both off.
+`VUKA_CACHE=off` turns both off; `VUKA_CACHE=<dir>` keeps the caches
+(transpiled packages, export data, island builds) in that directory instead
+of the user's cache directory.
+
+A build reads each directory of the module once, however many of its steps
+look at it, and asks the go command for the export data of everything the
+module imports with one `go list`, not one per import. Under `vuka run
+-watch` a step of a rebuild that takes more than three seconds is named
+while it runs (`● transpiling 35 packages… (3s so far)`) and timed when it
+ends.
 
 Under `vuka run` the files `web.Frontend`
 serves are left out of the binary (empty in the overlay; it reads them from

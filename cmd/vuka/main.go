@@ -470,9 +470,9 @@ func sameFile(a, b string) bool {
 	if filepath.Clean(a) == filepath.Clean(b) {
 		return true
 	}
-	ra, err1 := filepath.EvalSymlinks(a)
-	rb, err2 := filepath.EvalSymlinks(b)
-	return err1 == nil && err2 == nil && ra == rb
+	ra, ok1 := load.RealPath(a)
+	rb, ok2 := load.RealPath(b)
+	return ok1 && ok2 && ra == rb
 }
 
 // gen writes the build/ module: the module with each .vuka file replaced by
@@ -654,7 +654,7 @@ func inPattern(dir, pattern string) bool {
 }
 
 func realPathOf(p string) string {
-	if r, err := filepath.EvalSymlinks(p); err == nil {
+	if r, ok := load.RealPath(p); ok {
 		return r
 	}
 	// A path not on disk, a [id] folder's Go directory: its parent's.

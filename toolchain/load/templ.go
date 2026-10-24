@@ -112,7 +112,7 @@ var requireLine = regexp.MustCompile(`(?m)^\s*(?:require\s+)?(\S+)\s+(v\S+)`)
 
 // requires reports whether the go.mod in root requires each of paths.
 func requires(root string, paths ...string) bool {
-	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	data, err := readGoMod(root)
 	if err != nil {
 		return false
 	}
@@ -151,7 +151,7 @@ func TemplTrees(root string) bool {
 	if !TemplActive(root) || TemplInstrument == nil {
 		return false
 	}
-	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	data, err := readGoMod(root)
 	if err != nil {
 		return false
 	}

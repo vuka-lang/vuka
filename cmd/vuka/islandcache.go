@@ -13,6 +13,8 @@ import (
 	"regexp"
 	"sort"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // The island build's cache: a Vite build of the framework islands is
@@ -25,15 +27,12 @@ import (
 
 // islandCacheFile is the cache of the frontend root's last build.
 func islandCacheFile(frontendRoot string) string {
-	if strings.EqualFold(os.Getenv("VUKA_CACHE"), "off") {
-		return ""
-	}
-	d, err := os.UserCacheDir()
-	if err != nil {
+	d, ok := load.CacheDir()
+	if !ok {
 		return ""
 	}
 	h := sha256.Sum256([]byte(frontendRoot))
-	return filepath.Join(d, "vuka", "islands", hex.EncodeToString(h[:12])+".gob")
+	return filepath.Join(d, "islands", hex.EncodeToString(h[:12])+".gob")
 }
 
 type islandCache struct {
@@ -88,7 +87,7 @@ func islandInputs(frontendRoot string, islands []*islandComp, dev bool) string {
 // hashTree hashes the files under root (or root, a file), leaving out
 // installed packages, build output and hidden directories.
 func hashTree(h io.Writer, root string) {
-	filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+	load.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			fmt.Fprintf(h, "missing %s\n", p)
 			return nil
@@ -123,7 +122,7 @@ var cssSourceRe = regexp.MustCompile(`@source\s+(?:not\s+)?["']([^"']+)["']`)
 // @source, outside the root.
 func cssSources(frontendRoot string) []string {
 	var out []string
-	filepath.WalkDir(frontendRoot, func(p string, d fs.DirEntry, err error) error {
+	load.WalkDir(frontendRoot, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil
 		}

@@ -100,7 +100,7 @@ var assetFuncs = map[string]bool{"Style": true, "Script": true, "CSS": true, "JS
 // findAssets reads the asset options of the module at root. Nil when it
 // declares none.
 func findAssets(root, modPath string) (*pageAssets, error) {
-	if mod, err := os.ReadFile(filepath.Join(root, "go.mod")); err != nil || !twRequire.Match(mod) {
+	if mod, err := load.ReadSource(filepath.Join(root, "go.mod")); err != nil || !twRequire.Match(mod) {
 		return nil, nil
 	}
 	pa := &pageAssets{root: root, modPath: modPath, global: &assetComp{}}
@@ -109,7 +109,7 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 	err := walkSources(root, func(p, name string) error {
 		ext := filepath.Ext(name)
 		if strings.HasSuffix(name, ".vuka.html") {
-			src, err := os.ReadFile(p)
+			src, err := load.ReadSource(p)
 			if err != nil {
 				return err
 			}
@@ -119,7 +119,7 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 		if ext != ".vuka" && ext != ".go" || strings.HasSuffix(name, "_test"+ext) || strings.HasSuffix(name, "_gen.go") {
 			return nil
 		}
-		src, err := os.ReadFile(p)
+		src, err := load.ReadSource(p)
 		if err != nil {
 			return err
 		}
@@ -478,10 +478,10 @@ func (pa *pageAssets) layoutComp(dir string, imports map[string]string, toks []w
 	default:
 		return nil, "the layout must be a named function (counterPage, views.Shell): styles and scripts belong to its markup"
 	}
-	entries, _ := os.ReadDir(pkgDir)
+	entries, _ := load.ReadDir(pkgDir)
 	funcDecl := regexp.MustCompile(`(?m)^func\s+` + regexp.QuoteMeta(name) + `\s*[\[(]`)
 	for _, e := range entries {
-		src, err := os.ReadFile(filepath.Join(pkgDir, e.Name()))
+		src, err := load.ReadSource(filepath.Join(pkgDir, e.Name()))
 		switch {
 		case err != nil:
 		case strings.HasSuffix(e.Name(), ".templ") && declaresTempl(src, name):
@@ -602,7 +602,7 @@ func expandAssets(dir, pattern string, exts []string) ([]string, error) {
 		base, segs = filepath.Join(base, segs[0]), segs[1:]
 	}
 	var out []string
-	filepath.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
+	load.WalkDir(base, func(p string, d fs.DirEntry, err error) error {
 		if err != nil || d.IsDir() {
 			if d != nil && d.IsDir() && p != base && (strings.HasPrefix(d.Name(), ".") || d.Name() == "node_modules") {
 				return filepath.SkipDir
@@ -647,7 +647,7 @@ func globMatch(pat, segs []string) bool {
 // its kind in the directory it names.
 func notFound(dir, pattern string, exts []string, what string) error {
 	sub := filepath.Join(dir, filepath.FromSlash(path.Dir(pattern)))
-	entries, _ := os.ReadDir(sub)
+	entries, _ := load.ReadDir(sub)
 	var names []string
 	for _, e := range entries {
 		if !e.IsDir() && slices.Contains(exts, filepath.Ext(e.Name())) {
