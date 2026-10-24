@@ -67,9 +67,6 @@ Node.js installed for Windows. A few things work differently there:
 - The running app is asked to stop with a Ctrl+Break event, which a Go
   program receives as `os.Interrupt`: handle `os.Interrupt` to shut down
   gracefully. It gets two seconds before it is stopped.
-- Keep Git from rewriting line endings in a project (`git config
-  core.autocrlf false`), so `vuka fmt` and the generated files compare as
-  they are committed.
 
 ## Creating a First Project
 
