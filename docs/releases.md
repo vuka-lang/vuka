@@ -43,12 +43,15 @@ the `github.com/vuka-lang/vuka` package your module requires.
   asked to stop with a `CTRL_BREAK_EVENT` (`os.Interrupt` in Go), as
   Windows has no SIGTERM, in a process group of its own, so a swap stops
   it alone; it is killed with what it started when it doesn't stop within
-  two seconds. Vite, Tailwind and typescript-language-server installed
+  two seconds. Its look for changes asks each file for its size and time,
+  as Windows' directory listing can still show a file as it was before a
+  save, which left the save unseen. Vite, Tailwind and typescript-language-server installed
   with npm run through their `.cmd` shims, the standalone Tailwind CLI is
   found on PATH under its released name (`tailwindcss-windows-x64.exe`),
   the hint for installing Tailwind fits the system (`brew` on macOS only),
   and the language server's file URIs carry drive letters
-  (`file:///C:/…`). CI now builds and runs a new app on Windows
+  (`file:///C:/…`). `vuka routes` prints its files' paths with slashes on
+  every system. CI now builds and runs a new app on Windows
   ([#115](https://github.com/vuka-lang/vuka/issues/115)).
 - **The language server no longer keeps gopls busy for minutes.** After a
   build it opened every generated Go file in gopls at once, and gopls
