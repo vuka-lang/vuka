@@ -35,7 +35,31 @@ the `github.com/vuka-lang/vuka` package your module requires.
   instead of `go tool orm` (or `go run`) being run for each package of
   models. `VUKA_CACHE=<dir>` puts vuka's caches in that directory, and
   `vuka run -watch` names a step of a rebuild that takes more than three
-  seconds.
+  seconds ([#104](https://github.com/vuka-lang/vuka/issues/104)).
+- **A test file no longer hides a processor variable.** A `_test.go`
+  declaration of a folder-page package named like a context processor's
+  variable (`func page(…)`, `request`, `user`) made the package's
+  templates read it instead of the variable, so the package stopped
+  compiling — `undefined: page` — once the test file was there. The
+  compiler now decides what a name means from the package's non-test
+  files: a template reads the variable, in the test build too, and a test
+  file may declare the name ([#101](https://github.com/vuka-lang/vuka/issues/101)).
+- **`vuka test ./...` and `vuka vet ./...` in route folders.** A vuka
+  command tidying the Go-name directories of route groups and `[id]`
+  folders (`group_admin`, `param_id`) removed the ones a running `vuka
+  test` or `vuka vet` had made — the editor's language server does on
+  every build — so the go command failed with `chdir …/group_admin: no such
+  file or directory`. Each run now marks the directories it uses, and
+  they stay until no running vuka has them marked. A route folder's own
+  path is a package pattern too: `vuka test './pages/(admin)'`
+  ([#102](https://github.com/vuka-lang/vuka/issues/102)).
+- **`vuka fix ctx-vars` finds what `vuka vet` reports.** In a folder page
+  the fixer reported "nothing to fix" where vet reported W0402: it
+  transpiled the module without the folder routes' stubs, so a page
+  package wasn't linked to the main listing the processors, and no
+  warning — so no rewrite — was made. It now transpiles as vet does, and
+  names a file it skips because it doesn't compile
+  ([#103](https://github.com/vuka-lang/vuka/issues/103)).
 
 ## v2.5.0 — 2026-10-24
 
