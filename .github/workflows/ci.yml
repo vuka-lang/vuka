@@ -134,6 +134,75 @@ jobs:
         working-directory: vuka/cmd/vuka
         run: go test -timeout 45m -skip '^TestConformance$' ./...
 
+  windows:
+    name: cmd/vuka on Windows (tests, vuka build, run --watch)
+    runs-on: windows-latest
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
+    env:
+      VUKA_UI: ${{ github.workspace }}\vuka-ui
+      VUKA_WEB: ${{ github.workspace }}\vuka-web
+      VUKA_ORM: ${{ github.workspace }}\vuka-orm
+      VUKA_NEW_REPLACE: github.com/vuka-lang/vuka/v2=${{ github.workspace }}\vuka,github.com/vuka-lang/ui/v2=${{ github.workspace }}\vuka-ui,github.com/vuka-lang/web/v2=${{ github.workspace }}\vuka-web,github.com/vuka-lang/orm/v2=${{ github.workspace }}\vuka-orm
+    steps:
+      # The sources as committed: goldens and generated files compare bytes.
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          path: vuka
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/ui
+          path: vuka-ui
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/web
+          path: vuka-web
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          repository: vuka-lang/orm
+          path: vuka-orm
+      - name: The ui, web and orm branches of this change, if any
+        env:
+          BRANCH: ${{ github.head_ref || github.ref_name }}
+        run: |
+          for r in vuka-ui vuka-web vuka-orm; do
+            git -C $r fetch --depth=1 origin "$BRANCH" && git -C $r checkout FETCH_HEAD || true
+          done
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: |
+            vuka/cmd/vuka/go.sum
+            vuka-ui/go.sum
+            vuka-web/go.sum
+            vuka-orm/go.sum
+      # The standalone CLI under its released name, as a Windows user gets it:
+      # vuka finds it on PATH without a rename.
+      - name: Tailwind
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin"
+          curl -fsSL -o "$RUNNER_TEMP/bin/tailwindcss-windows-x64.exe" \
+            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-windows-x64.exe"
+          cygpath -w "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+      - name: The command builds with this repository's compiler and the ui checkout
+        working-directory: vuka/cmd/vuka
+        run: go mod edit -replace github.com/vuka-lang/vuka/v2=../.. -replace github.com/vuka-lang/ui/v2=../../../vuka-ui
+      - name: vet
+        working-directory: vuka/cmd/vuka
+        run: go vet ./...
+      - name: test
+        working-directory: vuka/cmd/vuka
+        run: go test -timeout 30m -short ./...
+      # vuka new's app: vuka build, then vuka run -watch swapping in an edit;
+      # vuka run -watch on a small app through builds that fail and that
+      # change nothing; the platform's executables, process stops and paths.
+      - name: vuka build and vuka run -watch
+        working-directory: vuka/cmd/vuka
+        run: go test -timeout 30m -v -run '^(TestNewRunWatch|TestRunWatch|TestBuildDWARF|TestInterrupt|TestProcessAlive|TestTailwindStandalone|TestTailwindBinary|TestDevTailwind|TestDevFrontend|TestBinaryID)$' .
+
   conformance:
     name: conformance (examples as Vuka and ejected)
     runs-on: ubuntu-24.04
