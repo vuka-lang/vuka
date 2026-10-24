@@ -18,6 +18,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/vuka-lang/vuka/v2/diag"
@@ -396,7 +397,7 @@ func compilerVersion() string {
 // vuka from removing it as empty (routeTree.goDirs) until done removes the
 // mark and then each directory left empty.
 func overlayDirs(overlay string) (done func(), err error) {
-	mark := inUseMark + strconv.Itoa(os.Getpid())
+	mark := inUseMark + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(markSeq.Add(1), 10)
 	var marked []string
 	made := map[string]bool{}
 	done = func() {
@@ -498,8 +499,11 @@ func goPatterns(root string, args []string) []string {
 }
 
 // inUseMark starts the name of the file marking a Go-name directory as
-// used by a running vuka; the process ID follows.
+// used by a running vuka; the process ID and a count of the process's
+// marks follow.
 const inUseMark = ".vuka-inuse-"
+
+var markSeq atomic.Int64
 
 // goNamed reports whether dir is, or is below, the Go name of a bracketed,
 // grouped or private folder: a directory vuka makes for the go command.
@@ -519,7 +523,8 @@ func clearStaleMarks(dir string) {
 		if err != nil || e.IsDir() {
 			return nil
 		}
-		if pid, ok := strings.CutPrefix(e.Name(), inUseMark); ok {
+		if rest, ok := strings.CutPrefix(e.Name(), inUseMark); ok {
+			pid, _, _ := strings.Cut(rest, "-")
 			if n, err := strconv.Atoi(pid); err != nil || !processAlive(n) {
 				os.Remove(path)
 			}
