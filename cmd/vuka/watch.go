@@ -62,7 +62,7 @@ Build flags are go build's; run 'go help run' for them.
 const (
 	watchInterval = 200 * time.Millisecond // between two looks at the sources
 	watchQuiet    = 150 * time.Millisecond // a change waits for this long a calm before it builds
-	stopGrace     = 2 * time.Second        // an app's time to stop on SIGTERM before SIGKILL
+	stopGrace     = 2 * time.Second        // an app's time to stop on SIGTERM (Windows: CTRL_BREAK_EVENT) before it is killed
 	liveKeyEnv    = "VUKA_DEV_LIVE_KEY"    // web signs live pages' tokens with it in development
 	// devDirEnv names the run's session directory, which says the app runs
 	// under vuka run (web turns on its development toolbar). With -watch it
@@ -164,7 +164,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(tmp)
+	defer removeAll(tmp)
 	env := append(os.Environ(), "PWD="+dir, devDirEnv+"="+tmp)
 	if os.Getenv(liveKeyEnv) == "" {
 		// One key for the session: a live page rendered by one build rejoins the next.
@@ -292,7 +292,7 @@ type buildResult struct {
 	pa      *pageAssets // the styles and scripts the sources declare
 }
 
-func (r *buildResult) discard() { os.RemoveAll(r.dir) }
+func (r *buildResult) discard() { removeAll(r.dir) }
 
 // build transpiles the module and builds the program into tmp/<n>/, and asks
 // go list, alongside, for what its packages embed.
@@ -378,7 +378,8 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	wg.Add(1)
 	go func() { defer wg.Done(); embeds = embedRoots(ctx, s.root, r.overlay) }()
 	defer wg.Wait()
-	args := append([]string{"build", "-o", filepath.Join(dir, "app")}, s.flags...)
+	bin := exe(filepath.Join(dir, "app")) // app.exe on Windows, which runs no file without it
+	args := append([]string{"build", "-o", bin}, s.flags...)
 	if r.overlay != "" {
 		args = append(args, "-overlay="+r.overlay)
 	}
@@ -399,7 +400,7 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	if r.err != nil {
 		return r
 	}
-	r.bin = filepath.Join(dir, "app")
+	r.bin = bin
 	r.sum, r.err = binaryID(r.bin)
 	return r
 }
@@ -476,7 +477,7 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 	traceStep("prewarm %v", time.Since(t0))
 	if s.app != nil {
 		s.app.stop(syscall.SIGTERM, stopGrace, nil)
-		os.RemoveAll(filepath.Dir(s.app.bin))
+		removeAll(filepath.Dir(s.app.bin)) // on Windows, once the exited app's binary is let go
 		s.app = nil
 	}
 	s.app = s.start(r)
@@ -597,6 +598,7 @@ func (s *supervisor) start(r *buildResult) *app {
 	c := exec.Command(r.bin, s.prog...)
 	c.Dir, c.Env = s.dir, s.env
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, s.stdout, s.stderr
+	appGroup(c)
 	if err := c.Start(); err != nil {
 		fmt.Fprintln(s.stderr, "vuka:", err)
 		r.discard()
@@ -614,24 +616,35 @@ func (s *supervisor) start(r *buildResult) *app {
 	return a
 }
 
-// stop signals the app and waits for it to exit, killing it after grace (with
-// none, as long as it takes) or on another signal from more.
+// stop signals the app (on Windows, any signal is a CTRL_BREAK_EVENT: see
+// interrupt) and waits for it to exit, killing it after grace (with none, as
+// long as it takes), on another signal from more, or at once when it can't
+// be signalled.
 func (a *app) stop(sig os.Signal, grace time.Duration, more <-chan os.Signal) {
 	if a == nil {
 		return
 	}
-	a.cmd.Process.Signal(sig)
 	var timeout <-chan time.Time
 	if grace > 0 {
 		timeout = time.After(grace)
 	}
+	if err := interrupt(a.cmd, sig); err != nil {
+		select {
+		case <-a.done: // gone already
+			return
+		default:
+		}
+		killTree(a.cmd)
+		<-a.done
+		return
+	}
 	select {
 	case <-a.done:
 	case <-timeout:
-		a.cmd.Process.Kill()
+		killTree(a.cmd)
 		<-a.done
 	case <-more:
-		a.cmd.Process.Kill()
+		killTree(a.cmd)
 		<-a.done
 	}
 }
@@ -809,7 +822,7 @@ func (w *watcher) scan() []string {
 		if !w.watched(path) {
 			return nil
 		}
-		fi, err := d.Info()
+		fi, err := entryInfo(path, d)
 		if err != nil {
 			return nil
 		}

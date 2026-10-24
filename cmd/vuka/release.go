@@ -498,7 +498,7 @@ func releaseTestEnv(root string, cmd, ui, web *releaseRepo, checkouts map[string
 		return env, cleanup, err
 	}
 	cleanup = func() { os.RemoveAll(bin) }
-	vuka := filepath.Join(bin, "vuka")
+	vuka := exe(filepath.Join(bin, "vuka"))
 	err = withReplaces(cmd.modDir, setReplaces(cmd, checkouts), env, func() error {
 		return run(cmd.modDir, env, "go", "build", "-o", vuka, ".")
 	})
@@ -607,7 +607,7 @@ func verifyInstall(v string) error {
 			return err
 		}
 	}
-	out, err := output(bin, nil, filepath.Join(bin, "vuka"), "version")
+	out, err := output(bin, nil, exe(filepath.Join(bin, "vuka")), "version")
 	if err != nil {
 		return err
 	}

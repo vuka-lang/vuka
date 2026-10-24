@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -109,6 +110,10 @@ func TestTailwindBinary(t *testing.T) {
 	for _, dir := range []string{"frontend", "."} {
 		bin := filepath.Join(root, dir, "node_modules", ".bin", "tailwindcss")
 		writeFile(t, bin, "#!/bin/sh\n")
+		if runtime.GOOS == "windows" {
+			bin += ".cmd" // npm's shim, the one that runs there
+			writeFile(t, bin, "@node tailwindcss %*\n")
+		}
 		if got, err := tailwindBinary(root); err != nil || got != bin {
 			t.Errorf("%s: %q %v, want %s", dir, got, err, bin)
 		}
@@ -118,6 +123,9 @@ func TestTailwindBinary(t *testing.T) {
 // TestDevTailwind runs a stand-in tailwindcss that records its arguments and
 // whether it saw its stdin close, as the real one stops when it does.
 func TestDevTailwind(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("its stand-in tailwindcss is a shell script; TestNewRunWatch runs the real one")
+	}
 	bin, goDir := t.TempDir(), t.TempDir()
 	writeFile(t, filepath.Join(bin, "tailwindcss"), strings.ReplaceAll(`#!/bin/sh
 echo "$@" > BIN/args

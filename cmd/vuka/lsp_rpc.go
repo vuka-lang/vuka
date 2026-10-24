@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"io"
 	"net/url"
-	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -213,10 +213,10 @@ func uriToPath(uri string) string {
 	if err != nil || u.Scheme != "file" {
 		return ""
 	}
-	return filepath.Clean(filepath.FromSlash(u.Path))
+	return uriOSPath(runtime.GOOS, u.Path)
 }
 
 // pathToURI is uriToPath's inverse.
 func pathToURI(path string) string {
-	return (&url.URL{Scheme: "file", Path: filepath.ToSlash(path)}).String()
+	return (&url.URL{Scheme: "file", Path: fileURIPath(runtime.GOOS, path)}).String()
 }

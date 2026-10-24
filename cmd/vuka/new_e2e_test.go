@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"fmt"
 	"io"
 	"net"
 	"net/http"
@@ -34,7 +35,7 @@ func newE2E(t *testing.T) *e2e {
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
 		dir = real
 	}
-	vuka := filepath.Join(dir, "vuka")
+	vuka := exe(filepath.Join(dir, "vuka"))
 	if out, err := exec.Command("go", "build", "-o", vuka, ".").CombinedOutput(); err != nil {
 		t.Fatalf("building vuka: %v\n%s", err, out)
 	}
@@ -108,7 +109,9 @@ func serve(t *testing.T, dir, bin string) (base string, stop func()) {
 			return
 		}
 		stopped = true
-		cmd.Process.Signal(syscall.SIGTERM)
+		if cmd.Process.Signal(syscall.SIGTERM) != nil { // Windows: no signals
+			cmd.Process.Kill()
+		}
 		cmd.Wait()
 		<-done
 	}
@@ -162,7 +165,7 @@ func TestNewEndToEnd(t *testing.T) {
 	if _, err := exec.LookPath("tailwindcss"); err != nil {
 		needs(t, "no Tailwind CLI: vuka build needs it")
 	}
-	bin := filepath.Join(dir, "shop")
+	bin := exe(filepath.Join(dir, "shop"))
 	e.run(dir, nil, "vuka", "build", "-o", bin, ".")
 	base, stop := serve(t, dir, bin)
 
@@ -301,6 +304,66 @@ func browserCheck(t *testing.T, base, password string) {
 	p.wait(`location.pathname === "/login"`)
 	p.goTo(base + "/")
 	p.wait(`location.pathname === "/login" && location.search === "?next=%2F"`)
+}
+
+// TestNewRunWatch: the default app builds into a binary that serves, and
+// under vuka run -watch an edit to a page swaps in a build serving it; the
+// app stops with vuka. Windows' CI job runs it, for what differs there: the
+// binaries' .exe, stopping the app with CTRL_BREAK_EVENT, Tailwind's CLI.
+func TestNewRunWatch(t *testing.T) {
+	e := newE2E(t)
+	dir := e.new("shop")
+	if _, err := tailwindBinary(dir); err != nil {
+		needs(t, "no Tailwind CLI: vuka build needs it")
+	}
+	bin := exe(filepath.Join(dir, "shop"))
+	e.run(dir, nil, "vuka", "build", "-o", bin, ".")
+	base, stop := serve(t, dir, bin)
+	res, err := http.Get(base + "/login")
+	if err != nil || res.StatusCode != 200 {
+		t.Fatalf("the built app's login page: %v %v", res, err)
+	}
+	res.Body.Close()
+	stop()
+
+	env := []string{"GOWORK=off", "PATH=" + filepath.Dir(e.vuka) + string(os.PathListSeparator) + os.Getenv("PATH"), twEnv + "=on", "VUKA_FRONTEND=off"}
+	r := startWatch(t, e.vuka, dir, env)
+	login := func() (int, string) {
+		res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/login", r.port))
+		if err != nil {
+			return 0, ""
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return res.StatusCode, string(b)
+	}
+	waitFor := func(text string) {
+		t.Helper()
+		for end := time.Now().Add(5 * time.Minute); ; time.Sleep(200 * time.Millisecond) {
+			if code, body := login(); code == 200 && strings.Contains(body, text) {
+				return
+			}
+			if time.Now().After(end) {
+				t.Fatalf("no login page saying %q; output:\n%s", text, r.log.String())
+			}
+		}
+	}
+	waitFor("Sign in to your account")
+	page := filepath.Join(dir, "pages", "login", "index.vuka.html")
+	src, err := os.ReadFile(page)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writeFile(t, page, strings.Replace(string(src), "Sign in to your account", "Sign in to the edited app", 1))
+	waitFor("Sign in to the edited app")
+	r.waitLog("● rebuilt in ", 1)
+	r.stop()
+	if out := r.log.String(); strings.Contains(out, "executable file not found") || strings.Contains(out, "Tailwind isn't installed") {
+		t.Errorf("vuka run -watch:\n%s", out)
+	}
+	if code, _ := login(); code != 0 {
+		t.Errorf("the app answers (%d) after vuka stopped", code)
+	}
 }
 
 // The other kinds compile, and their tests pass: PostgreSQL (the tests run

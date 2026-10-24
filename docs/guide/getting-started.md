@@ -18,6 +18,13 @@ and newer ship it; on Node.js 20 or 22, `npm install -g npm@11`).
 > needs npm 11, and vuka stops with [E0610](/errors/E0610) until it's there.
 > `vuka doctor` shows the npm it finds.
 
+An app with pages is styled with [Tailwind](/web/styling), whose CLI vuka
+runs: `brew install tailwindcss` on macOS; elsewhere `npm i -D
+@tailwindcss/cli` in the app, or the standalone binary for your system from
+[Tailwind's releases](https://github.com/tailwindlabs/tailwindcss/releases)
+(`tailwindcss-linux-x64`, `tailwindcss-windows-x64.exe`) on your PATH, under
+that name or as `tailwindcss`.
+
 A Vuka project is an ordinary Go module, so once the command is installed
 you work with the same toolchain, dependencies and editor setup you already
 use for Go.
@@ -49,6 +56,17 @@ $env:GOTOOLCHAIN="go1.27.2"; go install github.com/vuka-lang/vuka/cmd/vuka/v2@la
 
 Install `github.com/vuka-lang/vuka/cmd/vukavet/v2` the same way if you use it.
 `vuka version` prints the Go that built vuka and the Go that builds the app.
+
+### On Windows
+
+Vuka runs in PowerShell or the Command Prompt, with Go and, for a frontend,
+Node.js installed for Windows. A few things work differently there:
+
+- `vuka run -watch` looks for changed files every 200ms; Windows' file
+  events aren't used yet.
+- The running app is asked to stop with a Ctrl+Break event, which a Go
+  program receives as `os.Interrupt`: handle `os.Interrupt` to shut down
+  gracefully. It gets two seconds before it is stopped.
 
 ## Creating a First Project
 

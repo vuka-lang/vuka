@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"text/tabwriter"
@@ -39,7 +40,7 @@ func routesCmd(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	for _, r := range res.routes {
-		r.File = relPath(root, r.File)
+		r.File = filepath.ToSlash(relPath(root, r.File)) // the same on every system
 	}
 	res.diags = append(res.diags, routesUnserved(root, modPath, routes)...)
 	res.routes = sortedRoutes(res.routes)

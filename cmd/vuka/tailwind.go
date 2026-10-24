@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -34,10 +35,12 @@ const (
 	twEnv       = "VUKA_TAILWIND"     // off: no Tailwind
 	twCSSEnv    = "VUKA_TAILWIND_CSS" // web reads the development stylesheet's path from it
 	twGoName    = "vuka_tailwind_gen.go"
-	twInstall   = "Tailwind isn't installed: brew install tailwindcss (or npm i -D @tailwindcss/cli)"
 	twCacheDir  = ".vuka/tailwind"
 	twEntryName = "input.css"
 )
+
+// twInstall says the Tailwind CLI isn't there, and how to install it here.
+var twInstall = tailwindInstallHint(runtime.GOOS, runtime.GOARCH)
 
 var (
 	twNoOption   = regexp.MustCompile(`\bweb\.NoTailwind\(\)`)
@@ -132,14 +135,18 @@ func walkSources(root string, fn func(path, name string) error) error {
 	})
 }
 
-// tailwindBinary finds the Tailwind CLI: tailwindcss on PATH, else the npm
-// package's in the module or its frontend/ directory.
+// tailwindBinary finds the Tailwind CLI: tailwindcss on PATH (tailwindcss.exe
+// on Windows), or the standalone binary under its released name
+// (tailwindcss-windows-x64.exe…), else the npm package's in the module or
+// its frontend/ directory (tailwindcss.cmd on Windows).
 func tailwindBinary(root string) (string, error) {
-	if p, err := exec.LookPath("tailwindcss"); err == nil {
-		return p, nil
+	for _, name := range []string{"tailwindcss", strings.TrimSuffix(standaloneTailwind(runtime.GOOS, runtime.GOARCH), exeSuffix())} {
+		if p, err := exec.LookPath(name); err == nil {
+			return p, nil
+		}
 	}
 	for _, dir := range []string{root, filepath.Join(root, "frontend")} {
-		p := filepath.Join(dir, "node_modules", ".bin", "tailwindcss")
+		p := nodeBin(dir, "tailwindcss")
 		if fi, err := os.Stat(p); err == nil && !fi.IsDir() {
 			return p, nil
 		}
@@ -333,7 +340,7 @@ func devTailwind(root, overlay string, stderr io.Writer, assets *devAssets) (str
 		select {
 		case <-done:
 		case <-time.After(2 * time.Second):
-			c.Process.Kill()
+			killTree(c)
 			<-done
 		}
 	})
