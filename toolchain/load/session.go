@@ -56,7 +56,7 @@ type Session struct {
 	key           string    // cacheKey(root) the session's state was built under
 	imp           *Importer // the standard library's and dependencies' export data
 	checked       map[string]*checkedPkg
-	outs          map[string]*pkgOut
+	outs          map[string][]*pkgOut // import path → what runs generated for it, the latest first (keepOuts)
 
 	// One run's state.
 	gen     map[string][]byte      // generated file → its Go, as the overlay has it
@@ -121,7 +121,7 @@ func (s *Session) reset() {
 	s.imp = newCachedImporter(s.root, "")
 	s.imp.volatile = map[string]string{}
 	s.checked = map[string]*checkedPkg{}
-	s.outs = map[string]*pkgOut{}
+	s.outs = map[string][]*pkgOut{}
 }
 
 // Transpile is Transpile, for the session's module: pkgs as Discover found
@@ -480,17 +480,28 @@ func writeFile(h hash.Hash, name string, src []byte) {
 	h.Write(src)
 }
 
-// reuse returns the files the last run generated for p, when its inputs
-// are as they were then.
+// keepOuts is how many of a package's outputs a session keeps, by input
+// key: an edit undone, or a package transpiled with the edited packages
+// alone and then with the whole module, finds its earlier output.
+const keepOuts = 4
+
+// reuse returns the files a run generated for p from the inputs key names,
+// when a recent run did.
 func (s *Session) reuse(p *Package, key string) ([]Generated, bool) {
-	o := s.outs[p.ImportPath]
-	if o == nil || o.key != key {
-		if d := s.loadOut(p.ImportPath); d != nil {
-			o = d
-			s.outs[p.ImportPath] = d
+	var o *pkgOut
+	for _, x := range s.outs[p.ImportPath] {
+		if x.key == key {
+			o = x
+			break
 		}
 	}
-	if o == nil || o.key != key || o.stats != fileStats(o.gens) {
+	if o == nil {
+		if d := s.loadOut(p.ImportPath); d != nil && d.key == key {
+			o = d
+			s.keep(p.ImportPath, d)
+		}
+	}
+	if o == nil || o.stats != fileStats(o.gens) {
 		return nil, false
 	}
 	s.ran.reused++
@@ -500,8 +511,14 @@ func (s *Session) reuse(p *Package, key string) ([]Generated, bool) {
 func (s *Session) store(p *Package, key string, gens []Generated) {
 	s.ran.transpiled++
 	o := &pkgOut{key: key, gens: slices.Clone(gens), stats: fileStats(gens)}
-	s.outs[p.ImportPath] = o
+	s.keep(p.ImportPath, o)
 	s.saveOut(p.ImportPath, o)
+}
+
+// keep records o as path's latest output.
+func (s *Session) keep(path string, o *pkgOut) {
+	outs := slices.DeleteFunc(slices.Clone(s.outs[path]), func(x *pkgOut) bool { return x.key == o.key })
+	s.outs[path] = append([]*pkgOut{o}, outs[:min(len(outs), keepOuts-1)]...)
 }
 
 // fileStats says whether each file the vuka.File literals of gens name

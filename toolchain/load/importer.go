@@ -144,15 +144,18 @@ func (im *Importer) lookup(path string) (io.ReadCloser, error) {
 
 // refresh lists again the packages whose export data may have changed since
 // they were listed (volatile), and reports whether all of them are as they
-// were. Types already imported stay valid only when they are.
+// were: the same export data, or, for one that had none, none still, for the
+// same reason (an import the go command can't resolve, a dependency that
+// doesn't compile). Types already imported stay valid only when they are.
 func (im *Importer) refresh() bool {
 	if len(im.volatile) == 0 {
 		return true
 	}
 	old := make(map[string]string, len(im.volatile))
+	oldErrs := make(map[string]string, len(im.volatile))
 	paths := make([]string, 0, len(im.volatile))
 	for path, file := range im.volatile {
-		old[path] = file
+		old[path], oldErrs[path] = file, im.errs[path]
 		paths = append(paths, path)
 		delete(im.exports, path)
 		delete(im.errs, path)
@@ -161,7 +164,7 @@ func (im *Importer) refresh() bool {
 		return false
 	}
 	for path, file := range old {
-		if file == "" || im.exports[path] != file {
+		if im.exports[path] != file || file == "" && im.errs[path] != oldErrs[path] {
 			return false
 		}
 	}

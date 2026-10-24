@@ -242,9 +242,11 @@ func TestSession(t *testing.T) {
 	if s.ran.fellBack || s.ran.transpiled != 2 {
 		t.Errorf("a new file: %+v", s.ran)
 	}
+	// Removed again, the module is as it was before: what that run made is
+	// reused.
 	os.Remove(filepath.Join(root, "lib", "more.vuka"))
 	sessionRun(t, s, root)
-	if s.ran.fellBack || s.ran.transpiled != 2 {
+	if s.ran.fellBack || s.ran.transpiled != 0 || s.ran.reused != 2 {
 		t.Errorf("a file removed: %+v", s.ran)
 	}
 
@@ -253,6 +255,38 @@ func TestSession(t *testing.T) {
 	sessionRun(t, s, root)
 	if s.ran.fellBack || s.ran.transpiled != 2 {
 		t.Errorf("after go.mod changed: %+v", s.ran)
+	}
+}
+
+// TestSessionRebuilds: run after run, as the language server builds, only
+// the packages whose inputs changed are transpiled again — while another
+// package has an import nothing provides, and when an edit is undone.
+func TestSessionRebuilds(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := sessionModule(t)
+	write(t, filepath.Join(root, "leaf", "leaf.vuka"), "package leaf\n\nimport \"example.com/app/nowhere\"\n\nfunc F() int { return nowhere.N }\n")
+	s, err := NewSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sessionRun(t, s, root); s.ran.fellBack || s.ran.transpiled != 3 {
+		t.Fatalf("first run: %+v", s.ran)
+	}
+	for i := range 2 {
+		if sessionRun(t, s, root); s.ran.fellBack || s.ran.transpiled != 0 || s.ran.reused != 3 {
+			t.Errorf("unchanged, run %d: %+v", i+2, s.ran)
+		}
+	}
+	lib := filepath.Join(root, "lib", "lib.vuka")
+	edit(t, lib, "return 1 }", "return 2 }")
+	if sessionRun(t, s, root); s.ran.fellBack || s.ran.transpiled != 1 || s.ran.reused != 2 {
+		t.Errorf("one file edited: %+v", s.ran)
+	}
+	edit(t, lib, "return 2 }", "return 1 }")
+	if sessionRun(t, s, root); s.ran.fellBack || s.ran.transpiled != 0 || s.ran.reused != 3 {
+		t.Errorf("the edit undone: %+v", s.ran)
 	}
 }
 
