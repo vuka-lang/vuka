@@ -787,7 +787,7 @@ func (w *watcher) scan() []string {
 	files := make(map[string]stamp, len(w.files))
 	dirs := make(map[string]uint64, len(w.dirs))
 	var changed []string
-	filepath.WalkDir(w.root, func(path string, d fs.DirEntry, err error) error {
+	load.WalkDir(w.root, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			return nil // gone since its directory was read
 		}

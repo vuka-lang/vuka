@@ -20,6 +20,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -234,7 +235,7 @@ func ModuleRoot(dir string) (root, modPath string, err error) {
 		return "", "", err
 	}
 	for d := dir; ; d = filepath.Dir(d) {
-		if data, err := os.ReadFile(filepath.Join(d, "go.mod")); err == nil {
+		if data, err := readGoMod(d); err == nil {
 			sc := bufio.NewScanner(bytes.NewReader(data))
 			for sc.Scan() {
 				if f := strings.Fields(sc.Text()); len(f) >= 2 && f[0] == "module" {
@@ -261,7 +262,7 @@ type ReadFunc func(path string) ([]byte, error)
 // recursive), in a module rooted at root. A nil read reads the disk.
 func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Package, error) {
 	if read == nil {
-		read = os.ReadFile
+		read = ReadSource
 	}
 	// The go command matches overlay paths against real paths, so a module
 	// reached through a symlink (macOS's /var is /private/var) is resolved.
@@ -283,7 +284,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 		}
 		for _, p := range found {
 			for _, e := range p.Embeds {
-				if _, err := os.Stat(filepath.Join(e, "go.mod")); err != nil {
+				if !hasGoMod(e) {
 					if err := visit(e); err != nil {
 						return err
 					}
@@ -295,7 +296,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 	if !recursive {
 		return pkgs, visit(dir)
 	}
-	err := filepath.WalkDir(dir, func(path string, e os.DirEntry, err error) error {
+	err := WalkDir(dir, func(path string, e os.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
 			return err
 		}
@@ -304,7 +305,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 			if strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") && !inPages(root, path) || name == "testdata" || name == "vendor" || name == "node_modules" || IsGoName(path) {
 				return filepath.SkipDir
 			}
-			if _, err := os.Stat(filepath.Join(path, "go.mod")); err == nil {
+			if hasGoMod(path) {
 				return filepath.SkipDir
 			}
 		}
@@ -314,7 +315,7 @@ func Discover(root, modPath, dir string, recursive bool, read ReadFunc) ([]*Pack
 }
 
 func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Package, error) {
-	entries, err := os.ReadDir(dir)
+	entries, err := ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -651,7 +652,7 @@ func throughGo(pkgs []*Package, byPath map[string]*Package) func(string) []*Pack
 		}
 		dir := filepath.Join(root, filepath.FromSlash(rel))
 		for d := dir; d != root && len(d) > len(root); d = filepath.Dir(d) {
-			if _, err := os.Stat(filepath.Join(d, "go.mod")); err == nil {
+			if hasGoMod(d) {
 				return nil
 			}
 		}
@@ -748,9 +749,17 @@ type pkgImporter interface {
 // session last transpiled them are taken from it, and imports of the
 // module's own packages are type-checked from source in memory.
 func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]Generated, string, error) {
-	if opts.Contexts == nil && len(pkgs) > 0 {
-		if root, modPath, err := ModuleRoot(pkgs[0].Dir); err == nil {
-			opts.Contexts = Contexts(root, modPath, pkgs, nil)
+	// The module's packages, read once: for the context processors, and
+	// for the imports of the module's own Go packages, which type-checking
+	// asks for too.
+	var mod map[string]*modPkg
+	modPath := ""
+	if len(pkgs) > 0 {
+		if root, mp, err := ModuleRoot(pkgs[0].Dir); err == nil {
+			mod, modPath = scanModule(realPath(root), mp, ReadSource), mp
+			if opts.Contexts == nil {
+				opts.Contexts = contexts(mod, pkgs, ReadSource)
+			}
 		}
 	}
 	for _, p := range pkgs {
@@ -789,6 +798,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			}
 		}
 	}
+	imports = append(imports, prefetchMore(mod, modPath, seen)...)
 	var imp pkgImporter
 	switch {
 	case sess != nil:
@@ -1067,7 +1077,7 @@ func TemplFinder(pkgs []*Package) func(string) (transpile.TemplFile, error) {
 
 // goPackage is the package of a Go file in dir other than name, or "".
 func goPackage(dir, name string) string {
-	entries, _ := os.ReadDir(dir)
+	entries, _ := ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") || strings.HasSuffix(n, "_templ.go") {
@@ -1091,12 +1101,29 @@ func writeOverlay(path string, replace map[string]string) error {
 	return os.WriteFile(path, data, 0o644)
 }
 
+// realPath is p with symlinks resolved, p when it doesn't resolve. Paths
+// resolved are kept: a build asks for the same few many times, and each
+// resolution stats every element of the path.
 func realPath(p string) string {
-	if r, err := filepath.EvalSymlinks(p); err == nil {
-		return r
-	}
-	return p
+	r, _ := RealPath(p)
+	return r
 }
+
+// RealPath is filepath.EvalSymlinks, remembered; ok is false (and the path
+// p) when p doesn't resolve.
+func RealPath(p string) (string, bool) {
+	if r, ok := realPaths.Load(p); ok {
+		return r.(string), true
+	}
+	r, err := filepath.EvalSymlinks(p)
+	if err != nil {
+		return p, false
+	}
+	realPaths.Store(p, r)
+	return r, true
+}
+
+var realPaths sync.Map // path → its real path
 
 var (
 	rootFailure = regexp.MustCompile(`^(\S+) doesn't compile: `)

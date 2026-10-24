@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path"
 	"path/filepath"
 	"reflect"
@@ -14,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/transpile"
@@ -52,7 +53,7 @@ func checkIslandSource(root string, ic *islandComp, src []byte) []diag.Diagnosti
 	file := labelSpan(ic.label).File
 	if src == nil {
 		var err error
-		if src, err = os.ReadFile(filepath.Join(root, filepath.FromSlash(file))); err != nil {
+		if src, err = load.ReadSource(filepath.Join(root, filepath.FromSlash(file))); err != nil {
 			return nil
 		}
 	}
@@ -271,13 +272,13 @@ var anyMethodRe = regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*
 func sourceMethods(root, relDir, name string) map[string]sourceMethod {
 	out := map[string]sourceMethod{}
 	dir := filepath.Join(root, filepath.FromSlash(relDir))
-	entries, _ := os.ReadDir(dir)
+	entries, _ := load.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.Contains(n, "_test.") || strings.HasSuffix(n, "_vuka.go") {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(dir, n))
+		src, err := load.ReadSource(filepath.Join(dir, n))
 		if err != nil {
 			continue
 		}
@@ -348,7 +349,7 @@ func hookLoaders(root, relDir string) map[string]bool {
 	out := map[string]bool{}
 	files, _ := filepath.Glob(filepath.Join(root, filepath.FromSlash(relDir), "*.vuka"))
 	for _, f := range files {
-		if src, err := os.ReadFile(f); err == nil {
+		if src, err := load.ReadSource(f); err == nil {
 			attrGroups(src, loadsAttr, out)
 		}
 	}

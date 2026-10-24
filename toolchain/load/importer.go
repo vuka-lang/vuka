@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"go/build"
 	"go/importer"
 	"go/token"
 	"go/types"
@@ -68,7 +69,7 @@ func NewModuleImporter(root string) *Importer { return newCachedImporter(root, "
 func (im *Importer) Prefetch(paths []string) error {
 	var missing []string
 	for _, p := range paths {
-		if _, ok := im.exports[p]; ok || p == "unsafe" || p == "C" {
+		if _, ok := im.exports[p]; ok || p == "unsafe" || p == "C" || build.IsLocalImport(p) {
 			continue
 		}
 		if im.cache != nil {
@@ -103,6 +104,11 @@ func (im *Importer) Broken(path string) { im.broken[path] = true }
 func (im *Importer) lookup(path string) (io.ReadCloser, error) {
 	if im.broken[path] {
 		return nil, fmt.Errorf("%s has errors", path)
+	}
+	if build.IsLocalImport(path) {
+		// A component file (../web/islands/Chart.vue), which no go
+		// command need be asked about.
+		return nil, fmt.Errorf("%s is not a package", path)
 	}
 	if _, ok := im.exports[path]; !ok && im.cache != nil {
 		if file, ok := im.cache.get(path); ok {

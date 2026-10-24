@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"go/token"
-	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // vuka-component.d.ts types the scripts of templates: the module
@@ -175,14 +176,14 @@ func stripPtr(t []wtok) []wtok {
 // declares: its props, and its ui.State fields (name as ctx.state takes it,
 // the type argument).
 func componentFields(dir, name string) ([]islandProp, [][2]string) {
-	entries, _ := os.ReadDir(dir)
+	entries, _ := load.ReadDir(dir)
 	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `\s+struct\s*\{`)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_test.go") {
 			continue
 		}
-		src, err := os.ReadFile(filepath.Join(dir, n))
+		src, err := load.ReadSource(filepath.Join(dir, n))
 		if err != nil {
 			continue
 		}

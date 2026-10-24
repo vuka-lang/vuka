@@ -2,11 +2,12 @@ package main
 
 import (
 	"go/token"
-	"os"
 	"path/filepath"
 	"reflect"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -66,7 +67,7 @@ func (r *tsTypes) pkg(dir string) *goPkg {
 	}
 	p := &goPkg{dir: dir, name: filepath.Base(dir), decls: map[string]*goDecl{}}
 	r.pkgs[dir] = p
-	entries, _ := os.ReadDir(dir)
+	entries, _ := load.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || strings.Contains(n, "_test.") || strings.HasSuffix(n, "_vuka.go") || strings.HasSuffix(n, "_html.go") {
@@ -568,7 +569,7 @@ func goSource(file string) ([]byte, bool) {
 	if !strings.HasSuffix(file, ".go") && !strings.HasSuffix(file, ".vuka") && !strings.HasSuffix(file, ".vuka.html") {
 		return nil, false
 	}
-	src, err := os.ReadFile(file)
+	src, err := load.ReadSource(file)
 	if err != nil {
 		return nil, false
 	}

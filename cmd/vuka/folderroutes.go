@@ -111,7 +111,7 @@ func (ts routeTrees) files() []load.Generated {
 func (ts routeTrees) writeFiles() ([]string, error) {
 	var wrote []string
 	for _, g := range ts.files() {
-		if old, err := os.ReadFile(g.Target); err == nil && bytes.Equal(old, g.Src) {
+		if old, err := load.ReadSource(g.Target); err == nil && bytes.Equal(old, g.Src) {
 			continue
 		}
 		if err := os.MkdirAll(filepath.Dir(g.Target), 0o755); err != nil {
@@ -226,7 +226,7 @@ func scanRoutes(root, modPath string, read load.ReadFunc) routeTrees {
 // pages/ directory, root itself not included.
 func mainDirs(root string, read load.ReadFunc) []string {
 	var out []string
-	filepath.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
+	load.WalkDir(root, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() || path == root {
 			return nil
 		}
@@ -237,7 +237,7 @@ func mainDirs(root string, read load.ReadFunc) []string {
 		if fi, err := os.Stat(filepath.Join(path, pagesDirName)); err != nil || !fi.IsDir() {
 			return nil
 		}
-		entries, _ := os.ReadDir(path)
+		entries, _ := load.ReadDir(path)
 		for _, f := range entries {
 			n := f.Name()
 			if f.IsDir() || strings.Contains(n, "_test.") || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka")) {
@@ -269,7 +269,7 @@ func scanRouteTree(root, modPath, main string, read load.ReadFunc) *routeTree {
 	rel, _ := filepath.Rel(root, base)
 	t := &routeTree{root: root, modPath: modPath, pages: base, pagesPath: modPath + "/" + filepath.ToSlash(rel), main: main, registered: map[string]bool{}}
 	t.declared = declaredRoutes(dir, t.registered)
-	filepath.WalkDir(base, func(path string, e fs.DirEntry, err error) error {
+	load.WalkDir(base, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
 			return nil
 		}
@@ -297,7 +297,7 @@ func (t *routeTree) urlsDir() string { return filepath.Join(t.pages, urlsDirName
 
 func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 	root, registered := t.root, t.registered
-	entries, err := os.ReadDir(dir)
+	entries, err := load.ReadDir(dir)
 	if err != nil {
 		return nil
 	}
@@ -694,7 +694,7 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 			p.GoDir = goDir
 		}
 		for _, n := range goFiles {
-			src, err := os.ReadFile(filepath.Join(dir, n))
+			src, err := load.ReadSource(filepath.Join(dir, n))
 			if err != nil {
 				continue
 			}
@@ -769,7 +769,7 @@ func (t *routeTree) stub(pkgs []*load.Package) ([]*load.Package, error) {
 // one whose source folder is gone holding nothing but generated Go.
 func (t *routeTree) goDirs() error {
 	var stale []string
-	filepath.WalkDir(t.pages, func(path string, e fs.DirEntry, err error) error {
+	load.WalkDir(t.pages, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() || !strings.HasPrefix(e.Name(), "param_") && !strings.HasPrefix(e.Name(), "group_") && !strings.HasPrefix(e.Name(), "private_") {
 			return nil
 		}
@@ -789,7 +789,7 @@ func (t *routeTree) goDirs() error {
 // emptyTree reports whether dir and the directories below it hold no file.
 func emptyTree(dir string) bool {
 	empty := true
-	filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
+	load.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !e.IsDir() {
 			empty = false
 			return filepath.SkipAll
@@ -802,11 +802,11 @@ func emptyTree(dir string) bool {
 // generatedOnly reports whether the files below dir are all generated Go.
 func generatedOnly(dir string) bool {
 	only := true
-	filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
+	load.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
 		if err != nil || !only || e.IsDir() {
 			return err
 		}
-		src, err := os.ReadFile(path)
+		src, err := load.ReadSource(path)
 		first, _, _ := bytes.Cut(src, []byte("\n"))
 		if err != nil || !strings.HasSuffix(path, ".go") || !generatedHeader.Match(first) {
 			only = false
@@ -926,7 +926,7 @@ func readOverlay(path string) (map[string]string, error) {
 	if path == "" {
 		return ov.Replace, nil
 	}
-	data, err := os.ReadFile(path)
+	data, err := load.ReadSource(path)
 	if err != nil {
 		return nil, err
 	}
@@ -944,7 +944,7 @@ func readOverlay(path string) (map[string]string, error) {
 func overlayContext(ov map[string]string) *build.Context {
 	ctx := build.Default
 	ctx.ReadDir = func(dir string) ([]fs.FileInfo, error) {
-		entries, err := os.ReadDir(dir)
+		entries, err := load.ReadDir(dir)
 		if err != nil && (!errors.Is(err, fs.ErrNotExist) || !slices.ContainsFunc(slices.Collect(maps.Keys(ov)), func(t string) bool { return filepath.Dir(t) == dir })) {
 			return nil, err
 		}

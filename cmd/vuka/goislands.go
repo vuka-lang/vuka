@@ -5,7 +5,6 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
-	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -40,14 +39,14 @@ func (g *goPkgs) pkg(dir string) []*goFile {
 		return fs
 	}
 	var fs []*goFile
-	entries, _ := os.ReadDir(dir)
+	entries, _ := load.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
 		if e.IsDir() || !strings.HasSuffix(n, ".go") || strings.HasSuffix(n, "_test.go") {
 			continue
 		}
 		p := filepath.Join(dir, n)
-		if src, err := os.ReadFile(p); err == nil {
+		if src, err := load.ReadSource(p); err == nil {
 			if f, err := parser.ParseFile(g.fset, p, src, parser.SkipObjectResolution); err == nil {
 				fs = append(fs, &goFile{p, src, f})
 			}

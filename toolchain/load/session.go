@@ -189,7 +189,7 @@ func (s *Session) dirOf(path string) (string, bool) {
 		return "", false
 	}
 	for d := dir; d != s.root && len(d) > len(s.root); d = filepath.Dir(d) {
-		if fileExists(filepath.Join(d, "go.mod")) {
+		if hasGoMod(d) {
 			return "", false
 		}
 	}
@@ -345,7 +345,7 @@ func (s *Session) read(path string) ([]byte, error) {
 func (s *Session) buildContext() *build.Context {
 	ctx := build.Default
 	ctx.ReadDir = func(dir string) ([]fs.FileInfo, error) {
-		entries, err := os.ReadDir(dir)
+		entries, err := ReadDir(dir)
 		if err != nil && (!errors.Is(err, fs.ErrNotExist) || !s.generates(dir)) {
 			return nil, err
 		}
@@ -545,7 +545,7 @@ func writeAPI(h hash.Hash, pkg *types.Package) {
 // goDirective is the go version the go.mod at root declares, as go/types
 // takes it ("go1.23"); "" when it declares none.
 func goDirective(root string) string {
-	data, err := os.ReadFile(filepath.Join(root, "go.mod"))
+	data, err := readGoMod(root)
 	if err != nil {
 		return ""
 	}
