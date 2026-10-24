@@ -22,6 +22,20 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.5.1 — unreleased
 
+- **A module built by a newer Go than vuka's is an error, not a panic.**
+  vuka reads the export data of a module's imports with the importer of
+  the Go that built it, and the go command writes that data in the format
+  of the Go that builds the module, which its go.mod's `go` or `toolchain`
+  line (or `GOTOOLCHAIN`) may make newer. Go changes the format even in
+  point releases (go1.27.2 writes data go1.27.1 can't read), and vuka
+  panicked reading it. Now `vuka build`, `run`, `run -watch`, `test` and
+  `vet` stop before transpiling when the module's Go is newer than vuka's,
+  `vuka lsp` shows it as a diagnostic, and either names both Gos and the
+  command that reinstalls vuka (and vukavet) with the module's:
+  `GOTOOLCHAIN=go1.27.2 go install github.com/vuka-lang/vuka/cmd/vuka/v2@…`.
+  `vuka version` prints the Go that built vuka and, inside a module, the
+  Go that builds it, with the same warning when that is newer
+  ([#114](https://github.com/vuka-lang/vuka/issues/114)).
 - **The language server no longer keeps gopls busy for minutes.** After a
   build it opened every generated Go file in gopls at once, and gopls
   loads each file it doesn't know with a `go list` of its own, writing

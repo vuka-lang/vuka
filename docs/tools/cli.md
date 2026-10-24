@@ -418,7 +418,9 @@ list, or whose name a local takes, is left alone.
 
 `vuka version` prints the command's version and the set of vuka, ui and web it expects
 (from v0.50.0 one version for all four; see
-[Versions and compatibility](/project/versions)). Inside an app it also lists
+[Versions and compatibility](/project/versions)), and the Go that built it. Inside a
+module it prints the Go that builds the module, warning when that is newer than vuka's
+(reinstall vuka with it: `GOTOOLCHAIN=<that go> go install …`). Inside an app it also lists
 the versions the app's go.mod requires, with any `replace`, and warns when
 they aren't one set or aren't this command's set.
 

@@ -32,6 +32,23 @@ go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 
 Installing with your own toolchain matters: Vuka parses Go with the standard
 library of the Go that built it, so it understands the same Go you write.
+It also reads what the go command compiles of your imports, which only a Go
+at least as new as the one building your app can read. When an app's go.mod
+asks for a newer Go (its `go` or `toolchain` line), vuka says so and stops;
+reinstall it with that Go, here go1.27.2:
+
+```sh
+GOTOOLCHAIN=go1.27.2 go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
+```
+
+In PowerShell:
+
+```powershell
+$env:GOTOOLCHAIN="go1.27.2"; go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
+```
+
+Install `github.com/vuka-lang/vuka/cmd/vukavet/v2` the same way if you use it.
+`vuka version` prints the Go that built vuka and the Go that builds the app.
 
 ## Creating a First Project
 
