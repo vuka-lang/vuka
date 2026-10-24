@@ -43,6 +43,18 @@ jobs:
         run: go vet ./... && go test ./...
       - name: transpile benchmark
         run: go test -run '^$' -bench BenchmarkGoldens -benchtime 10x -benchmem ./transpile
+      - name: go install @main builds the commands
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GOWORK: "off"
+          GOFLAGS: -mod=readonly
+        run: |
+          for m in cmd/vuka cmd/vukavet; do
+            (cd "$m" && go build -o /dev/null .) || {
+              echo "::error::$m doesn't build against the vuka/v2 its go.mod requires, so 'go install …/$m/v2@main' fails: run 'go get github.com/vuka-lang/vuka/v2@$(git rev-parse HEAD)' in $m and push"
+              exit 1
+            }
+          done
 
   cmd:
     name: cmd/vuka (e2e — Vite, Chrome, gopls, templ)
