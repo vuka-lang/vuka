@@ -13,6 +13,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 
@@ -115,7 +116,7 @@ func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, err
 		return 0, err
 	}
 	defer os.RemoveAll(tmp)
-	m.gens, _, m.genErr = load.Transpile(m.pkgs, tmp, load.Options{Bare: true})
+	m.gens, _, m.genErr = load.Transpile(routedPackages(root, modPath, m.pkgs), tmp, load.Options{Bare: true})
 
 	n := 0
 	for _, f := range fixers {
@@ -139,6 +140,24 @@ func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, err
 		}
 	}
 	return n, nil
+}
+
+// routedPackages are pkgs as vuka build and vet transpile them: with the
+// folder routes' stubs, whose links bring a page package under a main's
+// context processors. The fixers keep pkgs as found on disk, so the stubs
+// go on copies. Routes that don't stub (a clash vet reports) leave pkgs.
+func routedPackages(root, modPath string, pkgs []*load.Package) []*load.Package {
+	cp := make([]*load.Package, len(pkgs))
+	for i, p := range pkgs {
+		q := *p
+		q.Files = slices.Clip(p.Files)
+		cp[i] = &q
+	}
+	out, err := scanRoutes(root, modPath, nil).stub(cp)
+	if err != nil {
+		return pkgs
+	}
+	return out
 }
 
 var requireRuntime = regexp.MustCompile(`(?m)^\s*(?:require\s+)?` + regexp.QuoteMeta(transpile.RuntimePath) + `\s+(v\S+)`)
