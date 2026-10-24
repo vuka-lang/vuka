@@ -756,6 +756,10 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 	modPath := ""
 	if len(pkgs) > 0 {
 		if root, mp, err := ModuleRoot(pkgs[0].Dir); err == nil {
+			// A newer Go than vuka's writes export data vuka may not read.
+			if err := CheckGoVersion(realPath(root)); err != nil {
+				return nil, "", err
+			}
 			mod, modPath = scanModule(realPath(root), mp, ReadSource), mp
 			if opts.Contexts == nil {
 				opts.Contexts = contexts(mod, pkgs, ReadSource)
@@ -934,6 +938,9 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			Contexts:      opts.Contexts[p.ImportPath],
 		}
 		res, err := transpile.Package(p.Files, topts)
+		if e := unreadable(imp); e != nil {
+			return nil, "", e // not the type errors of each import it fails
+		}
 		partial := false
 		if err != nil {
 			var list transpile.ErrorList
@@ -999,6 +1006,18 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		return out, overlay, onceEach(errs)
 	}
 	return out, overlay, nil
+}
+
+// unreadable is the export data imp couldn't read because the module's Go
+// is newer than vuka's; nil when there was none.
+func unreadable(imp pkgImporter) error {
+	switch im := imp.(type) {
+	case *Importer:
+		return im.Unreadable()
+	case *Session:
+		return im.imp.Unreadable()
+	}
+	return nil
 }
 
 // transpileWithout transpiles p without what has errors, those of list and

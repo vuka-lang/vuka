@@ -136,7 +136,7 @@ func (s *Session) reset() {
 // Transpile is Transpile, for the session's module: pkgs as Discover found
 // them this time.
 func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, error) {
-	if s.imp == nil || cacheKey(s.root) != s.key || !s.imp.refresh() {
+	if s.imp == nil || s.imp.unreadable != nil || cacheKey(s.root) != s.key || !s.imp.refresh() {
 		s.reset()
 	}
 	defer s.imp.cache.save()
@@ -149,6 +149,11 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 		return nil, "", err
 	}
 	var list transpile.ErrorList
+	var goVersion *GoVersionError
+	if errors.As(err, &goVersion) {
+		s.gen, s.now, s.walking = nil, nil, nil
+		return nil, "", err // a run without the session reads the same export data
+	}
 	if s.failed == nil && err != nil && !errors.As(err, &list) {
 		s.failed = err
 	}

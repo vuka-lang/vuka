@@ -9,9 +9,17 @@ import (
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
-// versionCmd prints this command's toolchain set and, inside an app, the
-// set's versions its go.mod requires, warning when they aren't one set or
-// not the set this command expects.
+// vukaGoVersion is the Go that built this vuka, and moduleGoVersion the Go
+// that builds the module at root.
+var (
+	vukaGoVersion   = load.VukaGoVersion
+	moduleGoVersion = load.ModuleGoVersion
+)
+
+// versionCmd prints this command's toolchain set and the Go that built it
+// and, inside a module, the Go that builds the module, warning when that
+// is newer, and, inside an app, the set's versions its go.mod requires,
+// warning when they aren't one set or not the set this command expects.
 func versionCmd(args []string, stdout, stderr io.Writer) error {
 	if len(args) > 0 {
 		return fmt.Errorf("usage: vuka version")
@@ -22,8 +30,19 @@ func versionCmd(args []string, stdout, stderr io.Writer) error {
 	} else {
 		fmt.Fprintf(stdout, "vuka %s (vuka %s, ui %s, web %s)\n", version, vukaVersion, uiVersion, webVersion)
 	}
+	vukaGo := vukaGoVersion()
+	fmt.Fprintf(stdout, "built with %s\n", vukaGo)
 	root, modPath, err := load.ModuleRoot(".")
-	if err != nil || modPath == vukaModPath || modPath == cmdModPath || slices.Contains(setModules, modPath) {
+	if err != nil {
+		return nil
+	}
+	if modGo, err := moduleGoVersion(root); err == nil {
+		fmt.Fprintf(stdout, "%s builds with %s\n", modPath, modGo)
+		if err := load.CheckGoVersions(vukaGo, modGo); err != nil {
+			fmt.Fprintf(stderr, "warning: %v\n", err)
+		}
+	}
+	if modPath == vukaModPath || modPath == cmdModPath || slices.Contains(setModules, modPath) {
 		return nil
 	}
 	m, err := readGoMod(root)

@@ -7,6 +7,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
@@ -59,5 +60,32 @@ func TestRouteFolderTidy(t *testing.T) {
 	}
 	if _, ok := withoutRouteFolderPaths(ds[2:]); ok {
 		t.Error("dropped one about something else")
+	}
+}
+
+// TestGoVersionDiagnostics: a module built by a newer Go than vuka's is a
+// diagnostic on each open file, or on the first file when none is open.
+func TestGoVersionDiagnostics(t *testing.T) {
+	e := &load.GoVersionError{Vuka: "go1.25.3", Module: "go1.27.1"}
+	pkgs := []*load.Package{
+		{Dir: "/app", Files: []transpile.File{{Name: "main.go"}, {Name: "main.vuka"}}},
+		{Dir: "/app/views", Files: []transpile.File{{Name: "page.vuka.html"}}},
+	}
+	files := func(list transpile.ErrorList) []string {
+		var out []string
+		for _, d := range list {
+			if !strings.Contains(d.Msg, "built with go1.25.3, but this module builds with go1.27.1") {
+				t.Errorf("message %q", d.Msg)
+			}
+			out = append(out, d.Pos.Filename)
+		}
+		return out
+	}
+	if got := files(goVersionDiagnostics(pkgs, nil, e)); strings.Join(got, " ") != "/app/main.vuka" {
+		t.Errorf("none open: %v", got)
+	}
+	bufs := map[string][]byte{"/app/views/page.vuka.html": nil}
+	if got := files(goVersionDiagnostics(pkgs, bufs, e)); strings.Join(got, " ") != "/app/views/page.vuka.html" {
+		t.Errorf("one open: %v", got)
 	}
 }
