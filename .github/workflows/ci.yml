@@ -193,15 +193,16 @@ jobs:
       - name: vet
         working-directory: vuka/cmd/vuka
         run: go vet ./...
-      - name: test
-        working-directory: vuka/cmd/vuka
-        run: go test -timeout 30m -short ./...
       # vuka new's app: vuka build, then vuka run -watch swapping in an edit;
       # vuka run -watch on a small app through builds that fail and that
       # change nothing; the platform's executables, process stops and paths.
       - name: vuka build and vuka run -watch
         working-directory: vuka/cmd/vuka
         run: go test -timeout 30m -v -run '^(TestNewRunWatch|TestRunWatch|TestBuildDWARF|TestInterrupt|TestProcessAlive|TestTailwindStandalone|TestTailwindBinary|TestDevTailwind|TestDevFrontend|TestBinaryID)$' .
+      - name: test
+        if: ${{ !cancelled() }}
+        working-directory: vuka/cmd/vuka
+        run: go test -timeout 30m -short ./...
 
   conformance:
     name: conformance (examples as Vuka and ejected)
