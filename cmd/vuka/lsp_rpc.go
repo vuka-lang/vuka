@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 )
 
 // rpcConn is one side of an LSP stream: JSON-RPC 2.0 messages framed by a
@@ -21,6 +22,65 @@ type rpcConn struct {
 
 	mu              sync.Mutex
 	onRead, onWrite func([]byte) []byte // rewrite message bodies, when set
+
+	// A queued conn's writes return at once; one goroutine writes them in
+	// order (see queued).
+	qmu     sync.Mutex
+	qcond   *sync.Cond
+	pending [][]byte
+	writing bool
+}
+
+// queued makes c's writes return without waiting for the other side to
+// read them: gopls, busy loading a workspace, stops reading for minutes,
+// and the proxy must still answer the editor meanwhile.
+func (c *rpcConn) queued() *rpcConn {
+	c.qcond = sync.NewCond(&c.qmu)
+	go func() {
+		c.qmu.Lock()
+		for {
+			for len(c.pending) == 0 {
+				c.qcond.Wait()
+			}
+			body := c.pending[0]
+			c.pending = c.pending[1:]
+			c.writing = true
+			c.qmu.Unlock()
+			err := c.writeNow(body)
+			c.qmu.Lock()
+			c.writing = false
+			c.qcond.Broadcast()
+			if err != nil {
+				c.pending = nil
+				c.qcond = nil // writes from now on are dropped
+				c.qmu.Unlock()
+				return
+			}
+		}
+	}()
+	return c
+}
+
+// flush waits, at most d, until a queued conn has written what it was
+// given.
+func (c *rpcConn) flush(d time.Duration) {
+	c.qmu.Lock()
+	defer c.qmu.Unlock()
+	if c.qcond == nil {
+		return
+	}
+	cond := c.qcond
+	expired := false
+	t := time.AfterFunc(d, func() {
+		c.qmu.Lock()
+		expired = true
+		cond.Broadcast()
+		c.qmu.Unlock()
+	})
+	defer t.Stop()
+	for (len(c.pending) > 0 || c.writing) && !expired && c.qcond != nil {
+		cond.Wait()
+	}
 }
 
 // rewriting installs body rewrites for messages read and written.
@@ -74,6 +134,18 @@ func (c *rpcConn) write(body []byte) error {
 	if f != nil {
 		body = f(body)
 	}
+	c.qmu.Lock()
+	if c.qcond != nil {
+		c.pending = append(c.pending, body)
+		c.qcond.Signal()
+		c.qmu.Unlock()
+		return nil
+	}
+	c.qmu.Unlock()
+	return c.writeNow(body)
+}
+
+func (c *rpcConn) writeNow(body []byte) error {
 	c.wmu.Lock()
 	defer c.wmu.Unlock()
 	if _, err := fmt.Fprintf(c.w, "Content-Length: %d\r\n\r\n", len(body)); err != nil {

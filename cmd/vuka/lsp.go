@@ -117,7 +117,7 @@ func serveLSP(gopls, logFile string, opts lspOptions) error {
 		defer f.Close()
 		logw = f
 	}
-	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM)
+	ctx, stop := signal.NotifyContext(context.Background(), os.Interrupt, syscall.SIGTERM, syscall.SIGHUP)
 	defer stop()
 	return runLSP(ctx, os.Stdin, os.Stdout, logw, gopls, opts)
 }
@@ -186,7 +186,7 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 	}
 	defer os.RemoveAll(tmp)
 
-	p := newProxy(newRPCConn(in, out), newRPCConn(cout, cin), logw, tmp)
+	p := newProxy(newRPCConn(in, out), newRPCConn(cout, cin).queued(), logw, tmp)
 	p.renameCommands, p.dropIn = opts.renameCommands, opts.dropIn
 	goplsDone, editorDone := make(chan struct{}), make(chan struct{})
 	go func() { p.fromGopls(); close(goplsDone) }()
@@ -197,6 +197,7 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 	case <-ctx.Done():
 	}
 	p.stop()
+	p.gopls.flush(time.Second) // the editor's shutdown and exit, if it sent them
 	_ = cin.Close()
 	exited := make(chan error, 1)
 	go func() { exited <- child.Wait() }()
@@ -457,6 +458,7 @@ type vukaRequest struct {
 	tmpl      *tmplSpot   // completion in a template file's Go
 	varTyped  string      // completion of a bare name: what is typed of it
 	varRange  *lspRange   // and where
+	timer     *time.Timer // answers it without gopls at goplsDeadline
 }
 
 type proxy struct {
@@ -479,6 +481,7 @@ type proxy struct {
 	goReqs           map[string]bool           // editor requests on Go files
 	vukaReqs         map[string]*vukaRequest   // proxy request id → request on a .vuka file
 	asks             map[string]chan rpcMsg    // proxy request id → the proxy's own question to gopls
+	dropped          map[string]bool           // proxy request ids given up on: gopls's late answer goes nowhere
 	bufs             map[string][]byte         // .vuka path → editor buffer
 	cursors          map[string]int            // .vuka path → where the editor's last change to it ended
 	virtual          map[string]*vfile         // generated path → buffer in gopls
@@ -520,7 +523,7 @@ type proxy struct {
 func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 	p := &proxy{
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
-		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{},
+		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{}, dropped: map[string]bool{},
 		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
 		shown:       map[string]string{},
@@ -714,6 +717,10 @@ func (p *proxy) fromEditor() {
 			p.mu.Unlock()
 			p.builds() // the first, before anything else reaches gopls
 			continue
+		case "$/cancelRequest":
+			if p.cancelVuka(m.Params) {
+				continue
+			}
 		case "exit":
 			_ = p.gopls.write(body)
 			return
@@ -812,10 +819,16 @@ func (p *proxy) fromGopls() {
 			delete(p.vukaReqs, id)
 			goReq := p.goReqs[id]
 			delete(p.goReqs, id)
+			dropped := p.dropped[id]
+			delete(p.dropped, id)
 			p.mu.Unlock()
 			if vr != nil {
+				vr.timer.Stop()
 				p.answer(vr, &m)
 				continue
+			}
+			if dropped {
+				continue // answered already, without gopls
 			}
 			if goReq && len(m.Error) == 0 && p.mentionsVirtual(m.Result) {
 				m.Result = p.rewriteJSON(m.Result, nil)
@@ -1271,9 +1284,62 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	if hasPos && m.Method == "textDocument/completion" && !vr.attr && vr.blocks == nil && closeTag == nil {
 		vr.tmpl = templateSpot(vf, genPath, offsetOf(vf.text(), srcPos))
 	}
+	vr.timer = time.AfterFunc(goplsDeadline, func() { p.expire(id) })
 	p.vukaReqs[id] = vr
 	p.mu.Unlock()
 	_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": m.Method, "params": params})
+}
+
+// goplsDeadline is how long a .vuka request waits for gopls. A busy gopls
+// (a shared daemon loading another workspace) can take minutes; the editor
+// gets what vuka knows without it instead — the markup's own semantic
+// tokens, no hover — rather than nothing at all.
+var goplsDeadline = 15 * time.Second
+
+// expire answers the .vuka request id without gopls, if gopls hasn't.
+func (p *proxy) expire(id string) {
+	p.mu.Lock()
+	vr := p.vukaReqs[id]
+	if vr == nil {
+		p.mu.Unlock()
+		return
+	}
+	delete(p.vukaReqs, id)
+	p.cancelGopls(id)
+	p.mu.Unlock()
+	p.logf("%s: no answer from gopls in %v", vr.method, goplsDeadline)
+	p.answer(vr, &rpcMsg{Error: json.RawMessage(`{"code":-32803,"message":"gopls didn't answer in time"}`)})
+}
+
+// cancelVuka takes the editor's $/cancelRequest of a .vuka request: gopls
+// knows it by the proxy's id. It reports whether the request was one.
+func (p *proxy) cancelVuka(params json.RawMessage) bool {
+	var cp struct {
+		ID json.RawMessage `json:"id"`
+	}
+	if json.Unmarshal(params, &cp) != nil || len(cp.ID) == 0 {
+		return false
+	}
+	p.mu.Lock()
+	for id, vr := range p.vukaReqs {
+		if bytes.Equal(vr.editorID, cp.ID) {
+			delete(p.vukaReqs, id)
+			vr.timer.Stop()
+			p.cancelGopls(id)
+			p.mu.Unlock()
+			_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": vr.editorID, "error": map[string]any{"code": -32800, "message": "cancelled"}})
+			return true
+		}
+	}
+	p.mu.Unlock()
+	return false
+}
+
+// cancelGopls tells gopls the proxy no longer wants its answer to id, and
+// drops that answer when it comes. p.mu is held.
+func (p *proxy) cancelGopls(id string) {
+	p.dropped[id] = true
+	go p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": "$/cancelRequest", "params": map[string]any{"id": json.RawMessage(id)}})
 }
 
 // answer hands gopls's answer to a .vuka request back, mapped onto the source.
@@ -1460,7 +1526,10 @@ func (p *proxy) ask(method string, params any) (json.RawMessage, bool) {
 		return m.Result, true
 	case <-time.After(10 * time.Second):
 		p.mu.Lock()
-		delete(p.asks, id)
+		if p.asks[id] != nil {
+			delete(p.asks, id)
+			p.cancelGopls(id)
+		}
 		p.mu.Unlock()
 		return nil, false
 	}
