@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -109,6 +110,10 @@ func TestTailwindBinary(t *testing.T) {
 	for _, dir := range []string{"frontend", "."} {
 		bin := filepath.Join(root, dir, "node_modules", ".bin", "tailwindcss")
 		writeFile(t, bin, "#!/bin/sh\n")
+		if runtime.GOOS == "windows" {
+			bin += ".cmd" // npm's shim, the one that runs there
+			writeFile(t, bin, "@node tailwindcss %*\n")
+		}
 		if got, err := tailwindBinary(root); err != nil || got != bin {
 			t.Errorf("%s: %q %v, want %s", dir, got, err, bin)
 		}

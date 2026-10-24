@@ -14,7 +14,6 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
-	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -531,20 +530,6 @@ func clearStaleMarks(dir string) {
 		}
 		return nil
 	})
-}
-
-// processAlive reports whether the process pid is running. Windows finds
-// no process that has exited.
-func processAlive(pid int) bool {
-	p, err := os.FindProcess(pid)
-	if err != nil {
-		return false
-	}
-	defer p.Release()
-	if runtime.GOOS == "windows" {
-		return true
-	}
-	return !errors.Is(p.Signal(syscall.Signal(0)), os.ErrProcessDone)
 }
 
 // respeller passes the go command's errors on, with the code they quote in a

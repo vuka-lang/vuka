@@ -63,7 +63,7 @@ func findTSLS(dirs ...string) string {
 		if d == "" {
 			continue
 		}
-		if p := filepath.Join(d, "node_modules", ".bin", "typescript-language-server"); fileExists(p) {
+		if p := nodeBin(d, "typescript-language-server"); fileExists(p) {
 			return p
 		}
 	}
@@ -102,7 +102,7 @@ func (p *proxy) typescript() *tsServer {
 				"publishDiagnostics": map[string]any{},
 			}}}); !ok {
 			p.logf("typescript-language-server didn't initialize")
-			cmd.Process.Kill()
+			killTree(cmd)
 			return
 		}
 		_ = ts.conn.send(map[string]any{"jsonrpc": "2.0", "method": "initialized", "params": map[string]any{}})
@@ -113,7 +113,7 @@ func (p *proxy) typescript() *tsServer {
 
 func (ts *tsServer) stop() {
 	if ts != nil && ts.cmd.Process != nil {
-		ts.cmd.Process.Kill()
+		killTree(ts.cmd)
 		ts.cmd.Wait()
 	}
 }

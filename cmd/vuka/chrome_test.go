@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"runtime"
 	"strings"
-	"syscall"
 	"testing"
 	"time"
 )
@@ -43,6 +43,9 @@ func chromeBinary() string {
 
 func launchChrome(t *testing.T) *chrome {
 	t.Helper()
+	if runtime.GOOS == "windows" {
+		t.Skip("Chrome is driven through fds 3 and 4 (--remote-debugging-pipe), which Windows doesn't pass on")
+	}
 	bin := chromeBinary()
 	if bin == "" {
 		needs(t, "no Chrome (set VUKA_CHROME)")
@@ -59,7 +62,7 @@ func launchChrome(t *testing.T) *chrome {
 		"--no-first-run", "--no-default-browser-check", "--disable-gpu", "--hide-scrollbars", "--disable-extensions",
 		"--password-store=basic", "--use-mock-keychain", "about:blank")
 	cmd.ExtraFiles = []*os.File{cmdR, resW}
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} // its helpers with it, to end them all
+	ownGroup(cmd) // its helpers with it, to end them all
 	if err := cmd.Start(); err != nil {
 		needs(t, "starting Chrome: %v", err)
 	}
@@ -78,11 +81,7 @@ func launchChrome(t *testing.T) *chrome {
 		}
 		// Its helpers may outlive it a moment, writing to the profile the
 		// test's temporary directory removes next: they end first.
-		pgid := cmd.Process.Pid
-		syscall.Kill(-pgid, syscall.SIGKILL)
-		for end := time.Now().Add(10 * time.Second); syscall.Kill(-pgid, 0) == nil && time.Now().Before(end); {
-			time.Sleep(10 * time.Millisecond)
-		}
+		endGroup(cmd.Process.Pid)
 	})
 	return c
 }

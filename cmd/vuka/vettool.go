@@ -8,7 +8,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"runtime/debug"
 	"strings"
 
@@ -164,13 +163,6 @@ func vukavetVersion(p string) (string, bool) {
 func selfDevel() bool {
 	bi, ok := debug.ReadBuildInfo()
 	return ok && (bi.Main.Version == "(devel)" || bi.Main.Version == "")
-}
-
-func exeSuffix() string {
-	if runtime.GOOS == "windows" {
-		return ".exe"
-	}
-	return ""
 }
 
 // withoutModFlag is env with -mod=… taken out of GOFLAGS: go install

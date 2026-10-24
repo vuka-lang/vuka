@@ -5,6 +5,7 @@ import (
 	"context"
 	"debug/elf"
 	"debug/macho"
+	"debug/pe"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"slices"
 	"strconv"
 	"strings"
@@ -536,7 +538,7 @@ type watchRun struct {
 // buildVuka builds the vuka command for a test.
 func buildVuka(t *testing.T) string {
 	t.Helper()
-	vuka := filepath.Join(t.TempDir(), "vuka")
+	vuka := exe(filepath.Join(t.TempDir(), "vuka"))
 	c := exec.Command("go", "build", "-o", vuka, ".")
 	if w := os.Getenv("VUKA_TEST_GOWORK"); w != "" {
 		c.Env = append(os.Environ(), "GOWORK="+w) // a vuka the released modules can't build yet
@@ -560,12 +562,13 @@ func startWatch(t *testing.T, vuka, root string, env []string, args ...string) *
 	cmd.Env = append(append(os.Environ(), fmt.Sprint("PORT=", port), twEnv+"=off"), env...)
 	pr, pw := io.Pipe()
 	cmd.Stdout, cmd.Stderr = pw, pw
+	appGroup(cmd) // on Windows, its own group, for interrupt's CTRL_BREAK_EVENT
 	if err := cmd.Start(); err != nil {
 		t.Fatal(err)
 	}
 	t.Cleanup(func() {
 		// SIGTERM first: vuka stops the app, which holds the output pipe.
-		cmd.Process.Signal(syscall.SIGTERM)
+		interrupt(cmd, syscall.SIGTERM)
 		done := make(chan struct{})
 		go func() { cmd.Wait(); close(done) }()
 		select {
@@ -639,10 +642,13 @@ func (r *watchRun) edit(old, new string) {
 	writeFile(r.t, path, strings.Replace(string(src), old, new, 1))
 }
 
-// stop sends vuka SIGTERM and waits for it to exit.
+// stop sends vuka SIGTERM (on Windows, CTRL_BREAK_EVENT) and waits for it
+// to exit.
 func (r *watchRun) stop() {
 	r.t.Helper()
-	r.cmd.Process.Signal(syscall.SIGTERM)
+	if err := interrupt(r.cmd, syscall.SIGTERM); err != nil {
+		r.t.Fatalf("stopping vuka run -watch: %v", err)
+	}
 	done := make(chan error, 1)
 	go func() { done <- r.cmd.Wait() }()
 	select {
@@ -655,7 +661,7 @@ func (r *watchRun) stop() {
 	}
 }
 
-func alive(pid int) bool { return syscall.Kill(pid, 0) == nil }
+func alive(pid int) bool { return processAlive(pid) }
 
 // TestRunWatch runs vuka run -watch on a small app and edits it: a change
 // swaps in a new process, a broken build leaves the old one answering, a
@@ -734,6 +740,9 @@ func TestRunWatchCancel(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds the vuka command and runs the go command")
 	}
+	if runtime.GOOS == "windows" {
+		t.Skip("its stand-in go command is a shell script")
+	}
 	t.Setenv("GOWORK", "off")
 	vuka := buildVuka(t)
 	goCmd, err := exec.LookPath("go")
@@ -801,6 +810,9 @@ func TestBuildDWARF(t *testing.T) {
 		if r.err != nil {
 			t.Fatalf("build: %v\n%s", r.err, r.out)
 		}
+		if filepath.Base(r.bin) != "app"+exeSuffix() { // without .exe, Windows runs no binary
+			t.Errorf("the binary is %s, want app%s", r.bin, exeSuffix())
+		}
 		has, err := hasDWARF(r.bin)
 		if err != nil {
 			t.Skip(err)
@@ -820,7 +832,11 @@ func hasDWARF(bin string) (bool, error) {
 		defer f.Close()
 		return f.Section(".debug_info") != nil || f.Section(".zdebug_info") != nil, nil
 	}
-	return false, errors.New("neither Mach-O nor ELF")
+	if f, err := pe.Open(bin); err == nil {
+		defer f.Close()
+		return f.Section(".debug_info") != nil || f.Section(".zdebug_info") != nil, nil
+	}
+	return false, errors.New("neither Mach-O, ELF nor PE")
 }
 
 func TestNoDWARF(t *testing.T) {

@@ -118,7 +118,7 @@ func installTask(w io.Writer, dir string, cmd []string) progress.Task {
 }
 
 func viteBinary(dir string) string {
-	return filepath.Join(dir, "node_modules", ".bin", "vite")
+	return nodeBin(dir, "vite")
 }
 
 // prepareFrontend installs the dependencies when Vite isn't installed and
@@ -217,7 +217,7 @@ func buildFrontend(root string, stderr io.Writer) error {
 
 // devFrontend starts the frontend's Vite dev server for vuka run, in the
 // background, and returns a function stopping it (SIGTERM, then SIGKILL
-// after 2s), which waits for it to exit so the plugin removes its hot file.
+// after 2s; on Windows CTRL_BREAK_EVENT, then the process tree killed), which waits for it to exit so the plugin removes its hot file.
 func devFrontend(root string, stderr io.Writer) func() {
 	dir := frontendDir(root)
 	if dir == "" {
@@ -259,10 +259,14 @@ func devFrontend(root string, stderr io.Writer) func() {
 		if c == nil {
 			return
 		}
-		terminate(c)
+		grace := time.After(2 * time.Second)
+		if terminate(c) != nil {
+			grace = nil // no way to ask (on Windows, no console): killed now
+			kill(c)
+		}
 		select {
 		case <-d:
-		case <-time.After(2 * time.Second):
+		case <-grace:
 			kill(c)
 			<-d
 		}
