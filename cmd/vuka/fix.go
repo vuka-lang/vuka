@@ -40,6 +40,8 @@ type fixModule struct {
 	pkgs          []*load.Package
 	gens          []load.Generated
 	genErr        error
+	// notes are what a fixer left alone and why, printed after the changes.
+	notes []string
 }
 
 var fixers = []fixer{
@@ -90,8 +92,9 @@ func fix(args []string, stdout io.Writer) error {
 		}
 		selected[name] = true
 	}
-	n, err := applyFixers(selected, *dry, stdout)
-	if err == nil && n == 0 {
+	var said bytes.Buffer
+	n, err := applyFixers(selected, *dry, io.MultiWriter(stdout, &said))
+	if err == nil && n == 0 && said.Len() == 0 {
 		fmt.Fprintln(stdout, "nothing to fix")
 	}
 	return err
@@ -138,6 +141,10 @@ func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, err
 			}
 			fmt.Fprintf(stdout, "%s: %s\n", f.name, c.what)
 		}
+		for _, note := range m.notes {
+			fmt.Fprintf(stdout, "%s: %s\n", f.name, note)
+		}
+		m.notes = nil
 	}
 	return n, nil
 }

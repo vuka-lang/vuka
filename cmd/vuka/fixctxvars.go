@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/token"
@@ -145,6 +146,7 @@ func fixCtxVars(m *fixModule) ([]fixChange, error) {
 		}
 	}
 	sort.Strings(files)
+	m.notes = append(m.notes, ctxVarsSkipped(m)...)
 	var out []fixChange
 	for _, file := range files {
 		fixes := ctxVarFixes(byFile[file])
@@ -166,6 +168,38 @@ func fixCtxVars(m *fixModule) ([]fixChange, error) {
 		}})
 	}
 	return out, nil
+}
+
+// ctxVarsSkipped says which vuka files that may read directly didn't
+// compile: their warnings, and so their rewrites, are unknown.
+func ctxVarsSkipped(m *fixModule) []string {
+	var list transpile.ErrorList
+	if !errors.As(m.genErr, &list) {
+		if m.genErr != nil {
+			return []string{fmt.Sprintf("the module doesn't compile, so its reads may not all be found: %v", m.genErr)}
+		}
+		return nil
+	}
+	var out []string
+	seen := map[string]bool{}
+	for _, e := range list {
+		file := e.Pos.Filename
+		if seen[file] || !isVuka(file) {
+			continue
+		}
+		seen[file] = true
+		src, err := os.ReadFile(file)
+		if err != nil || !bytes.Contains(src, []byte("Can(")) && !bytes.Contains(src, []byte("Current(")) && !bytes.Contains(src, []byte("Request(")) {
+			continue
+		}
+		rel, err := filepath.Rel(m.root, file)
+		if err != nil || !filepath.IsAbs(file) {
+			rel = file
+		}
+		out = append(out, fmt.Sprintf("skipped %s: it doesn't compile (vuka vet shows why), so its reads aren't known", filepath.ToSlash(rel)))
+	}
+	sort.Strings(out)
+	return out
 }
 
 // ctxVarActions are the quick fixes rewriting the direct reads the
