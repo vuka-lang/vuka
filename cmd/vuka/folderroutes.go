@@ -773,6 +773,7 @@ func (t *routeTree) goDirs() error {
 		if err != nil || !e.IsDir() || !strings.HasPrefix(e.Name(), "param_") && !strings.HasPrefix(e.Name(), "group_") && !strings.HasPrefix(e.Name(), "private_") {
 			return nil
 		}
+		clearStaleMarks(path)
 		if emptyTree(path) || !load.IsGoName(path) && generatedOnly(path) {
 			stale = append(stale, path)
 		}

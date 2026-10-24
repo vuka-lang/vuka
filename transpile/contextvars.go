@@ -257,7 +257,10 @@ func (e *engine) lowerContextVars(f *fileState) {
 		return
 	}
 	for _, id := range f.ast.Unresolved {
-		if !cv.names[id.Name] || e.info.Uses[id] != nil || e.info.Defs[id] != nil || !f.lowerable(id.Pos()) {
+		if !cv.names[id.Name] || e.info.Defs[id] != nil || !f.lowerable(id.Pos()) {
+			continue
+		}
+		if obj := e.info.Uses[id]; obj != nil && !e.testOnly(f, obj) {
 			continue
 		}
 		off := f.orig(id.Pos())
@@ -287,6 +290,24 @@ func (e *engine) lowerContextVars(f *fileState) {
 		f.varReads = append(f.varReads, VarRead{Off: off, Name: id.Name, Type: e.display(v.Type), Processor: v.Processor})
 		e.progress = true
 	}
+}
+
+// testOnly reports whether obj, which a name of f resolves to, is a
+// package-level declaration of a test file f isn't one of: the package's
+// build without its tests has no such name, so f's name means what it
+// would there — a processor variable — in the test build too.
+func (e *engine) testOnly(f *fileState, obj types.Object) bool {
+	if isTestFile(f.name) || obj.Parent() == nil || obj.Parent() != e.pkg.Scope() {
+		return false
+	}
+	d := e.fileOf(obj.Pos())
+	return d != nil && isTestFile(d.name)
+}
+
+// isTestFile reports whether a file of the package is in its test build
+// alone.
+func isTestFile(name string) bool {
+	return strings.HasSuffix(name, "_test.go") || strings.HasSuffix(name, "_test.vuka")
 }
 
 // fieldKey reports whether id is a struct literal's field name.

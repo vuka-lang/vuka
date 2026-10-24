@@ -157,7 +157,7 @@ func deref(t types.Type) types.Type {
 // package-level name, or in the markup a field or method of its receiver.
 func (e *engine) shadows(f *fileState, name string, pos token.Pos) bool {
 	if sc := e.pkg.Scope().Innermost(pos); sc != nil {
-		if _, obj := sc.LookupParent(name, pos); obj != nil {
+		if _, obj := sc.LookupParent(name, pos); obj != nil && !e.testOnly(f, obj) {
 			return true
 		}
 	}

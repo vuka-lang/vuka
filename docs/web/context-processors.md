@@ -246,6 +246,11 @@ own to a component that otherwise shows the variable. `vuka vet` says so
 ([W0401](/errors/W0401)), so a field named `user` by accident doesn't hide
 the signed-in user unnoticed.
 
+A declaration in a `_test.go` file is the exception: the package's build
+without its tests doesn't have it, so a template of the package reads the
+variable even in the test build, where a test declaring `func page(…)`
+or `var user …` is free to.
+
 ## Reading a Variable in Go {#reading-a-variable-in-go}
 
 Go code reads a variable with `web.Var`, naming its type:

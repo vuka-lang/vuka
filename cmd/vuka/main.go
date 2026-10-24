@@ -7,13 +7,18 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"io/fs"
+	"maps"
 	"os"
 	"os/exec"
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime"
 	"slices"
+	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 
 	"github.com/vuka-lang/vuka/v2/diag"
@@ -317,6 +322,9 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			return err
 		}
 	}
+	if cmd != "run" {
+		args = goPatterns(root, args)
+	}
 	c := exec.Command("go", append(goArgs, args...)...)
 	c.Env = append(os.Environ(), env...)
 	// The overlay names real paths; run go from the real directory, or in a
@@ -383,13 +391,24 @@ func compilerVersion() string {
 // overlayDirs makes the directories of the overlay's files that aren't on
 // disk — a bracketed, grouped or private folder's Go name, param_id — for
 // the go command's test and vet, which run their tools in a package's
-// directory; done removes those it made, once they hold nothing again.
+// directory. Another vuka may be using the same directories (the editor's
+// language server, a second vuka test): each one this run needs gets a
+// mark of its own, a hidden file naming the process, which keeps another
+// vuka from removing it as empty (routeTree.goDirs) until done removes the
+// mark and then each directory left empty.
 func overlayDirs(overlay string) (done func(), err error) {
-	var made []string
+	mark := inUseMark + strconv.Itoa(os.Getpid()) + "-" + strconv.FormatInt(markSeq.Add(1), 10)
+	var marked []string
+	made := map[string]bool{}
 	done = func() {
-		for _, d := range made {
-			if emptyTree(d) {
-				os.RemoveAll(d)
+		for _, d := range marked {
+			os.Remove(filepath.Join(d, mark))
+			// os.Remove leaves a directory holding anything: files, or
+			// another vuka's mark.
+			for p := d; made[p] || goNamed(p); p = filepath.Dir(p) {
+				if os.Remove(p) != nil {
+					break
+				}
 			}
 		}
 	}
@@ -397,21 +416,135 @@ func overlayDirs(overlay string) (done func(), err error) {
 	if err != nil {
 		return done, err
 	}
+	dirs := map[string]bool{}
 	for target, file := range ov {
-		dir := filepath.Dir(target)
-		if file == "" || fileExists(dir) {
+		if file != "" {
+			dirs[filepath.Dir(target)] = true
+		}
+	}
+	for _, dir := range slices.Sorted(maps.Keys(dirs)) {
+		if fileExists(dir) && !goNamed(dir) {
 			continue
 		}
-		top := dir
-		for p := filepath.Dir(top); p != top && !fileExists(p); p = filepath.Dir(p) {
-			top = p
+		for p := dir; !fileExists(p); p = filepath.Dir(p) {
+			made[p] = true
 		}
-		if err := os.MkdirAll(dir, 0o755); err != nil {
-			return done, err
+		// Another vuka's done may remove the directory between the two
+		// steps: make it again.
+		for try := 0; ; try++ {
+			if err := os.MkdirAll(dir, 0o755); err != nil {
+				return done, err
+			}
+			err := os.WriteFile(filepath.Join(dir, mark), nil, 0o644)
+			if err == nil {
+				break
+			}
+			if !errors.Is(err, fs.ErrNotExist) || try == 10 {
+				return done, err
+			}
 		}
-		made = append(made, top)
+		marked = append(marked, dir)
 	}
 	return done, nil
+}
+
+// goPatterns are args with each package pattern naming a folder the go
+// command sees by its Go name — ./pages/(admin), ./pages/items/[id]/... —
+// written with it: ./pages/group_admin, ./pages/items/param_id/....
+func goPatterns(root string, args []string) []string {
+	root = realPathOf(root)
+	out := slices.Clone(args)
+	for i, a := range args {
+		if !strings.HasPrefix(a, ".") && !filepath.IsAbs(a) || !strings.ContainsAny(a, "[(_") {
+			continue
+		}
+		dir, rest := a, ""
+		if d, ok := strings.CutSuffix(a, "/..."); ok {
+			dir, rest = d, "/..."
+		}
+		abs, err := filepath.Abs(dir)
+		if err != nil {
+			continue
+		}
+		if real, err := filepath.EvalSymlinks(abs); err == nil {
+			abs = real
+		}
+		if fi, err := os.Stat(abs); err != nil || !fi.IsDir() {
+			continue
+		}
+		g := load.GoDir(root, abs)
+		if g == abs {
+			continue
+		}
+		if !filepath.IsAbs(dir) {
+			wd, err := os.Getwd()
+			if err != nil {
+				continue
+			}
+			if real, err := filepath.EvalSymlinks(wd); err == nil {
+				wd = real
+			}
+			rel, err := filepath.Rel(wd, g)
+			if err != nil {
+				continue
+			}
+			g = rel
+			if !strings.HasPrefix(g, ".") {
+				g = "." + string(filepath.Separator) + g
+			}
+		}
+		out[i] = filepath.ToSlash(g) + rest
+	}
+	return out
+}
+
+// inUseMark starts the name of the file marking a Go-name directory as
+// used by a running vuka; the process ID and a count of the process's
+// marks follow.
+const inUseMark = ".vuka-inuse-"
+
+var markSeq atomic.Int64
+
+// goNamed reports whether dir is, or is below, the Go name of a bracketed,
+// grouped or private folder: a directory vuka makes for the go command.
+func goNamed(dir string) bool {
+	for p := dir; p != filepath.Dir(p); p = filepath.Dir(p) {
+		if load.IsGoName(p) {
+			return true
+		}
+	}
+	return false
+}
+
+// clearStaleMarks removes the marks below dir of vuka processes that have
+// exited, so the directories they marked can be tidied.
+func clearStaleMarks(dir string) {
+	filepath.WalkDir(dir, func(path string, e fs.DirEntry, err error) error {
+		if err != nil || e.IsDir() {
+			return nil
+		}
+		if rest, ok := strings.CutPrefix(e.Name(), inUseMark); ok {
+			pid, _, _ := strings.Cut(rest, "-")
+			if n, err := strconv.Atoi(pid); err != nil || !processAlive(n) {
+				os.Remove(path)
+			}
+		}
+		return nil
+	})
+}
+
+// processAlive reports whether the process pid is running. Windows finds
+// no process that has exited.
+func processAlive(pid int) bool {
+	p, err := os.FindProcess(pid)
+	if err != nil {
+		return false
+	}
+	defer p.Release()
+	if runtime.GOOS == "windows" {
+		return true
+	}
+	return !errors.Is(p.Signal(syscall.Signal(0)), os.ErrProcessDone)
 }
 
 // respeller passes the go command's errors on, with the code they quote in a
