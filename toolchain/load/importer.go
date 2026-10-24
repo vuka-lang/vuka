@@ -20,6 +20,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"strings"
+	"sync/atomic"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -66,7 +67,21 @@ func NewModuleImporter(root string) *Importer { return newCachedImporter(root, "
 // Prefetch looks up the export data of paths, and everything they depend
 // on, with one go command: the imports of all the module's Vuka packages,
 // asked once rather than package by package.
-func (im *Importer) Prefetch(paths []string) error {
+func (im *Importer) Prefetch(paths []string) error { return im.prefetch(paths, nil) }
+
+// prefetch is Prefetch, asking the go command about more too when it asks
+// about any of paths: what the run may look up later, which costs nothing
+// more in the same go command and a go command each when asked one by one.
+func (im *Importer) prefetch(paths, more []string) error {
+	missing := im.missing(paths)
+	if len(missing) == 0 {
+		return nil
+	}
+	return im.list(append(missing, im.missing(more)...)...)
+}
+
+// missing are the paths whose export data the importer hasn't.
+func (im *Importer) missing(paths []string) []string {
 	var missing []string
 	for _, p := range paths {
 		if _, ok := im.exports[p]; ok || p == "unsafe" || p == "C" || build.IsLocalImport(p) {
@@ -80,10 +95,7 @@ func (im *Importer) Prefetch(paths []string) error {
 		}
 		missing = append(missing, p)
 	}
-	if len(missing) == 0 {
-		return nil
-	}
-	return im.list(missing...)
+	return missing
 }
 
 func (im *Importer) Import(path string) (*types.Package, error) {
@@ -166,6 +178,9 @@ func (im *Importer) OverlayChanged() {
 	clear(im.stale)
 }
 
+// goLists counts the go list commands importers run, for tests.
+var goLists atomic.Int64
+
 type goModule struct {
 	Path, Version string
 	Main          bool
@@ -180,6 +195,7 @@ type goError struct {
 // list records export data for paths and everything they depend on. With
 // -e, packages that compile get their export data even when others don't.
 func (im *Importer) list(paths ...string) error {
+	goLists.Add(1)
 	args := []string{"list", "-e", "-export", "-deps", "-json=ImportPath,Export,Error,DepsErrors,Standard,Module"}
 	if im.Overlay != "" {
 		args = append(args, "-overlay="+im.Overlay)

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -10,6 +12,8 @@ import (
 	"path/filepath"
 	"regexp"
 	"sort"
+	"strings"
+	"sync"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
@@ -65,10 +69,7 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	if !used {
 		return nil, nil
 	}
-	args := []string{"run", ormModule + "/cmd/orm"}
-	if bytes.Contains(mod, []byte("tool "+ormModule+"/cmd/orm")) {
-		args = []string{"tool", "orm"}
-	}
+	name, args := ormCommand(root, mod)
 	args = append(args, "generate", "--missing")
 	if tests {
 		args = append(args, "--tests")
@@ -77,10 +78,14 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 		args = append(args, "--overlay", overlay)
 	}
 	var out, errOut bytes.Buffer
-	c := exec.Command("go", append(args, dir)...)
+	c := exec.Command(name, append(args, dir)...)
 	c.Dir, c.Stdout, c.Stderr = root, &out, &errOut
 	if err := c.Run(); err != nil {
-		return nil, fmt.Errorf("go %s: %v\n%s", args[0], err, bytes.TrimSpace(errOut.Bytes()))
+		what := "orm"
+		if name == "go" {
+			what = "go " + args[0]
+		}
+		return nil, fmt.Errorf("%s: %v\n%s", what, err, bytes.TrimSpace(errOut.Bytes()))
 	}
 	var files map[string]string
 	if err := json.Unmarshal(out.Bytes(), &files); err != nil {
@@ -123,4 +128,55 @@ func packageTypedFields(dir, overlay string, gens []load.Generated) []load.Gener
 		}
 	}
 	return out
+}
+
+// ormTools are the orm tool binaries found, by module root, go.mod and
+// go.sum: a build runs the tool once for each package of models, and each
+// go tool orm (or go run) checks the tool's whole build again first —
+// seconds each on a busy machine.
+var ormTools sync.Map // key → binary path
+
+// ormCommand is how to run the module's orm tool: the binary go tool (or
+// go build) made of it, found once a process, else go tool orm or go run.
+func ormCommand(root string, mod []byte) (string, []string) {
+	tool := bytes.Contains(mod, []byte("tool "+ormModule+"/cmd/orm"))
+	fallback := []string{"run", ormModule + "/cmd/orm"}
+	if tool {
+		fallback = []string{"tool", "orm"}
+	}
+	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
+	h := sha256.New()
+	fmt.Fprintf(h, "%s\n%s\n%s\n%s\n", root, mod, sum, os.Getenv("GOFLAGS"))
+	key := hex.EncodeToString(h.Sum(nil))
+	if bin, ok := ormTools.Load(key); ok {
+		if _, err := os.Stat(bin.(string)); err == nil {
+			return bin.(string), nil
+		}
+	}
+	var bin string
+	if tool {
+		c := exec.Command("go", "tool", "-n", "orm")
+		c.Dir = root
+		out, err := c.Output()
+		if err != nil {
+			return "go", fallback
+		}
+		bin = strings.TrimSpace(string(out))
+	} else {
+		dir, ok := load.CacheDir()
+		if !ok {
+			return "go", fallback
+		}
+		bin = filepath.Join(dir, "orm", key[:24], "orm"+exeSuffix())
+		c := exec.Command("go", "build", "-o", bin, ormModule+"/cmd/orm")
+		c.Dir = root
+		if err := c.Run(); err != nil {
+			return "go", fallback
+		}
+	}
+	if _, err := os.Stat(bin); err != nil || !filepath.IsAbs(bin) {
+		return "go", fallback
+	}
+	ormTools.Store(key, bin)
+	return bin, nil
 }

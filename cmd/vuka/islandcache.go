@@ -27,15 +27,12 @@ import (
 
 // islandCacheFile is the cache of the frontend root's last build.
 func islandCacheFile(frontendRoot string) string {
-	if strings.EqualFold(os.Getenv("VUKA_CACHE"), "off") {
-		return ""
-	}
-	d, err := os.UserCacheDir()
-	if err != nil {
+	d, ok := load.CacheDir()
+	if !ok {
 		return ""
 	}
 	h := sha256.Sum256([]byte(frontendRoot))
-	return filepath.Join(d, "vuka", "islands", hex.EncodeToString(h[:12])+".gob")
+	return filepath.Join(d, "islands", hex.EncodeToString(h[:12])+".gob")
 }
 
 type islandCache struct {

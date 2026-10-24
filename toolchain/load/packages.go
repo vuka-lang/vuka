@@ -798,12 +798,17 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			}
 		}
 	}
-	imports = append(imports, prefetchMore(mod, modPath, seen)...)
+	var roots []string
+	for _, p := range pkgs {
+		roots = append(roots, p.Imports...)
+	}
+	imports = append(imports, moduleImports(mod, modPath, roots, seen)...)
+	more := generatedImports(modPath, seen)
 	var imp pkgImporter
 	switch {
 	case sess != nil:
 		imp = sess
-		_ = sess.imp.Prefetch(imports)
+		_ = sess.imp.prefetch(imports, more)
 	case len(pkgs) > 0:
 		root, _, err := ModuleRoot(pkgs[0].Dir)
 		if err != nil {
@@ -811,7 +816,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		}
 		im := newCachedImporter(root, overlay)
 		defer im.cache.save()
-		_ = im.Prefetch(imports) // a failure shows up where the import is used
+		_ = im.prefetch(imports, more) // a failure shows up where the import is used
 		imp = im
 	}
 	flush := func() error {

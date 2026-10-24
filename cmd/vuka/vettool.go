@@ -11,6 +11,8 @@ import (
 	"runtime"
 	"runtime/debug"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // vukavetEnv names the vukavet vuka vet runs; off runs go vet's own
@@ -85,11 +87,15 @@ func vetTool(root string, stderr io.Writer) (string, error) {
 			stale = append(stale, p+" is "+v)
 		}
 	}
-	dir, err := os.UserCacheDir()
-	if err != nil {
-		return "", noVukavet(stderr, stale, "no user cache directory to build it into: "+err.Error())
+	dir, ok := load.CacheDir()
+	if !ok {
+		d, err := os.UserCacheDir()
+		if err != nil {
+			return "", noVukavet(stderr, stale, "no user cache directory to build it into: "+err.Error())
+		}
+		dir = filepath.Join(d, "vuka")
 	}
-	dir = filepath.Join(dir, "vuka", "vukavet", version)
+	dir = filepath.Join(dir, "vukavet", version)
 	built := filepath.Join(dir, "vukavet"+exeSuffix())
 	if _, err := os.Stat(built); err == nil {
 		return built, nil
