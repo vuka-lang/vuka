@@ -226,6 +226,34 @@ func TestVersionCmd(t *testing.T) {
 	}
 }
 
+// TestVersionCmdGo: vuka version names the Go that built it and the Go that
+// builds the module, warning when the module's is newer.
+func TestVersionCmdGo(t *testing.T) {
+	setApp(t, version, version, version, nil)
+	oldVuka, oldModule := vukaGoVersion, moduleGoVersion
+	t.Cleanup(func() { vukaGoVersion, moduleGoVersion = oldVuka, oldModule })
+	vukaGoVersion = func() string { return "go1.25.3" }
+	for _, c := range []struct{ module, warning string }{
+		{"go1.25.3", ""},
+		{"go1.27.1", "vuka was built with go1.25.3, but this module builds with go1.27.1"},
+	} {
+		moduleGoVersion = func(string) (string, error) { return c.module, nil }
+		var out, errb bytes.Buffer
+		if err := versionCmd(nil, &out, &errb); err != nil {
+			t.Fatal(err)
+		}
+		if !strings.Contains(out.String(), "\nbuilt with go1.25.3\n") || !strings.Contains(out.String(), " builds with "+c.module+"\n") {
+			t.Errorf("module %s:\n%s", c.module, out.String())
+		}
+		switch {
+		case c.warning == "" && errb.Len() > 0:
+			t.Errorf("module %s: warned %q", c.module, errb.String())
+		case c.warning != "" && (!strings.Contains(errb.String(), c.warning) || !strings.Contains(errb.String(), "GOTOOLCHAIN=go1.27.1 go install github.com/vuka-lang/vuka/cmd/vuka/v2@")):
+			t.Errorf("module %s: warning %q", c.module, errb.String())
+		}
+	}
+}
+
 func TestOneSet(t *testing.T) {
 	for _, c := range []struct {
 		vs   map[string]string

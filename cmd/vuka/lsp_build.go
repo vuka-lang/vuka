@@ -288,6 +288,11 @@ func (p *proxy) build() {
 			}
 		}()
 		gens, overlay, err := transpileAll(pkgs, p.tmp, opts)
+		var goVersion *load.GoVersionError
+		if errors.As(err, &goVersion) {
+			p.logf("transpile: %v", err)
+			return nil, goVersionDiagnostics(pkgs, bufs, goVersion), nil
+		}
 		if err != nil && !errors.As(err, &list) {
 			if !errors.Is(err, load.ErrStopped) {
 				p.logf("transpile: %v", err)
@@ -899,6 +904,35 @@ func compilerPanic(path string, r any) *transpile.Error {
 	return &transpile.Error{Code: "E0001", Pos: token.Position{Filename: path, Line: 1, Column: 1},
 		Msg:  fmt.Sprintf("internal error: the compiler failed reading this file (%v)", r),
 		Help: "please report it at https://github.com/vuka-lang/vuka/issues, with the file"}
+}
+
+// goVersionDiagnostics puts e, a module built by a newer Go than vuka's,
+// on each of pkgs' files the editor has open, or on the first file when
+// it has none open.
+func goVersionDiagnostics(pkgs []*load.Package, bufs map[string][]byte, e *load.GoVersionError) transpile.ErrorList {
+	var list transpile.ErrorList
+	add := func(path string) {
+		list = append(list, &transpile.Error{Pos: token.Position{Filename: path, Line: 1, Column: 1}, Msg: e.Error()})
+	}
+	first := ""
+	for _, pkg := range pkgs {
+		for _, f := range pkg.Files {
+			path := filepath.Join(pkg.Dir, f.Name)
+			if !f.IsVuka() {
+				continue
+			}
+			if first == "" {
+				first = path
+			}
+			if _, open := bufs[path]; open {
+				add(path)
+			}
+		}
+	}
+	if len(list) == 0 && first != "" {
+		add(first)
+	}
+	return list
 }
 
 // routeFolderPath is gopls's complaint about a package in a route folder:
