@@ -493,6 +493,7 @@ type proxy struct {
 	vukaDiags        map[string]*diagSet       // .vuka path → the last build's transpiler errors
 	syntaxDiags      map[string]*diagSet       // .vuka path → its syntax errors, as the editor has it now
 	goDiags          map[string]*diagSet       // .vuka path → gopls diagnostics mapped from its Go
+	goHeld           map[string]heldDiags      // generated path → gopls's diagnostics of it, kept back while its source was edited
 	shown            map[string]string         // real path → the path the editor uses for it
 	decos            []projectDecorator        // the module's decorators, as of the last regenerate
 	modRoot, modPath string                    // the module, as of the last regenerate

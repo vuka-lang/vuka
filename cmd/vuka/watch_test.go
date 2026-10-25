@@ -666,6 +666,61 @@ func (r *watchRun) stop() {
 
 func alive(pid int) bool { return processAlive(pid) }
 
+// stateAtMessage is a supervisor's stderr that records the build state
+// as each message is written.
+type stateAtMessage struct {
+	dir  string
+	seen []string // each message, then the state as it was written
+}
+
+func (w *stateAtMessage) Write(b []byte) (int, error) {
+	st, _ := os.ReadFile(filepath.Join(w.dir, buildStateFile))
+	w.seen = append(w.seen, strings.TrimSpace(string(b))+" | "+string(st))
+	return len(b), nil
+}
+
+// TestBuildStateBeforeMessage: the state of a finished build is written
+// before the message saying how it went, so what reads the message (a test,
+// the toolbar's next look) reads the state too, and the state of a build
+// before its app starts.
+func TestBuildStateBeforeMessage(t *testing.T) {
+	dir := t.TempDir()
+	w := &stateAtMessage{dir: dir}
+	s := &supervisor{tmp: dir, stderr: w}
+	s.setState(buildState{State: "building", Since: time.Now()})
+	s.finish(&buildResult{dir: filepath.Join(dir, "1"), out: []byte("main.vuka:11: mismatched types\n"), err: errors.New("exit status 1")}, time.Now())
+	s.app = &app{sum: "a"}
+	s.setState(buildState{State: "building", Since: time.Now()})
+	s.finish(&buildResult{dir: filepath.Join(dir, "2"), sum: "a"}, time.Now())
+	want := []string{`● build failed; waiting for a change | {"state":"failed"`, `● unchanged | {"state":"ok"`}
+	for _, want := range want {
+		if !slices.ContainsFunc(w.seen, func(s string) bool { return strings.HasPrefix(s, want) }) {
+			t.Errorf("no %q in %q", want, w.seen)
+		}
+	}
+}
+
+// TestBuildStateWhileRead: the state is written while the app has the
+// file open, as it reads it: on Windows a rename onto an open file fails
+// until it is closed.
+func TestBuildStateWhileRead(t *testing.T) {
+	dir := t.TempDir()
+	s := &supervisor{tmp: dir, stderr: io.Discard}
+	s.setState(buildState{State: "building", Since: time.Now()})
+	f, err := os.Open(filepath.Join(dir, buildStateFile))
+	if err != nil {
+		t.Fatal(err)
+	}
+	done := make(chan struct{})
+	go func() { s.setState(buildState{State: "failed", At: time.Now()}); close(done) }()
+	time.Sleep(100 * time.Millisecond)
+	f.Close()
+	<-done
+	if b, _ := os.ReadFile(filepath.Join(dir, buildStateFile)); !strings.Contains(string(b), `"failed"`) {
+		t.Errorf("the state: %s", b)
+	}
+}
+
 // TestRunWatch runs vuka run -watch on a small app and edits it: a change
 // swaps in a new process, a broken build leaves the old one answering, a
 // comment changes nothing, and SIGTERM stops it all.

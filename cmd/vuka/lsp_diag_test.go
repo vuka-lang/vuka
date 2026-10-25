@@ -1,10 +1,12 @@
 package main
 
 import (
-	"github.com/vuka-lang/vuka/v2/diag"
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
+
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // TestLSPDiagnosticCodes: the editor's diagnostics carry their code, a link
@@ -62,6 +64,26 @@ func TestLSPBracketFolder(t *testing.T) {
 	if !strings.Contains(got, `"line":3`) || strings.Contains(got, "malformed") || strings.Contains(got, "invalid char") {
 		t.Errorf("diagnostics: %s", got)
 	}
+}
+
+// TestLSPDiagnosticsDuringEdit: gopls's diagnostics of a generated file
+// that arrive while the editor's buffer of its source is newer than the
+// build are shown once a build of the buffer leaves the file's Go as it
+// was: gopls doesn't send the same diagnostics again.
+func TestLSPDiagnosticsDuringEdit(t *testing.T) {
+	src := "package item\n\nfunc Name() string {\n\tvar n int = \"x\"\n\treturn \"\"\n}\n"
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "views/[id]/item.vuka": src})
+	waitFor(t, func() bool { return strings.Contains(c.log.String(), "built the module") })
+	// gopls is sent the generated Go; while it diagnoses it, the editor
+	// opens the source and keeps changing it, back to what it was.
+	uri := pathToURI(filepath.Join(dir, "views", "[id]", "item.vuka"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka", "version": 1, "text": src}})
+	for v, end := 2, time.Now().Add(3*time.Second); time.Now().Before(end); v++ {
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": v},
+			"contentChanges": []any{map[string]any{"text": src}}})
+		time.Sleep(10 * time.Millisecond)
+	}
+	c.waitDiags(uri, func(ds []any) bool { return strings.Contains(jsonOf(ds), "cannot use") })
 }
 
 // TestLSPGroupFolder: a route group's package, (admin), is seen by the go

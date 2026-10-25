@@ -202,7 +202,7 @@ jobs:
         working-directory: vuka/cmd/vuka
         run: >-
           go test -timeout 30m -v -run
-          '^(TestNewRunWatch|TestRunWatch|TestRunWatchReuse|TestReuseKey|TestReuseTrim|TestParseModFile|TestCutFresh|TestBuildDWARF|TestBinaryID|TestNoDWARF|TestCutWatch|TestWatcher.*|TestEmbedRoots|TestInterrupt|TestProcessAlive|TestRemoveAll|TestExeSuffix|TestNodeBin|TestFileURIPath|TestTailwindInstallHint|TestTailwindStandalone|TestTailwindBinary|TestDevFrontend|TestBuildFrontend|TestPrefixed|TestInstallCommand|TestFrontendDir)$' .
+          '^(TestNewRunWatch|TestRunWatch|TestBuildState.*|TestRunWatchReuse|TestReuseKey|TestReuseTrim|TestParseModFile|TestCutFresh|TestBuildDWARF|TestBinaryID|TestNoDWARF|TestCutWatch|TestWatcher.*|TestEmbedRoots|TestInterrupt|TestProcessAlive|TestRemoveAll|TestExeSuffix|TestNodeBin|TestFileURIPath|TestTailwindInstallHint|TestTailwindStandalone|TestTailwindBinary|TestDevFrontend|TestBuildFrontend|TestPrefixed|TestInstallCommand|TestFrontendDir)$' .
 
   conformance:
     name: conformance (examples as Vuka and ejected)

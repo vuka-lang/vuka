@@ -567,6 +567,23 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			touched[path] = true
 		}
 	}
+	// gopls's diagnostics held back while a buffer was newer than its
+	// build stand once a build of it left the file's Go as it was: gopls
+	// sends nothing more for the same Go.
+	for path, h := range p.goHeld {
+		vf := p.virtual[path]
+		if vf == nil || h.version != 0 && h.version != vf.version {
+			delete(p.goHeld, path) // gopls has a new version to diagnose
+			continue
+		}
+		if _, open := p.bufs[vf.source]; open && p.changed[vf.source] > p.done[vf.source] {
+			continue
+		}
+		delete(p.goHeld, path)
+		p.takeGoDiags(vf, h.list)
+		touched[vf.source] = true
+		p.logf("%s: gopls's diagnostics of it, held while the editor's text was newer, stand: the build left its Go as it was", vf.source)
+	}
 	p.built.Broadcast()
 	for _, o := range ops {
 		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": o.method, "params": o.params})
@@ -721,17 +738,41 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 	// since moved past: the Go it checked still holds mid-edit placeholders, so
 	// one edit scatters errors across the file that clear a moment later. Keep
 	// the last good diagnostics until a build of the current buffer settles.
+	path := uriToPath(dp.URI)
+	delete(p.goHeld, path) // gopls's latest supersedes them
 	if dp.Version != 0 && dp.Version != vf.version {
 		p.mu.Unlock()
 		return
 	}
 	if _, open := p.bufs[vf.source]; open && p.changed[vf.source] > p.done[vf.source] {
+		// gopls publishes a file's diagnostics again only when they
+		// change: if the build of the newer buffer leaves this Go as it
+		// is, these are the diagnostics of what it builds (apply).
+		if p.goHeld == nil {
+			p.goHeld = map[string]heldDiags{}
+		}
+		p.goHeld[path] = heldDiags{version: dp.Version, list: dp.Diagnostics}
 		p.mu.Unlock()
 		return
 	}
+	p.takeGoDiags(vf, dp.Diagnostics)
+	p.mu.Unlock()
+	p.publish(vf.source)
+}
+
+// heldDiags is what gopls published for a generated file, of its version,
+// while the editor's buffer of the file's source was newer than the build.
+type heldDiags struct {
+	version int
+	list    []any
+}
+
+// takeGoDiags maps gopls's diagnostics of the generated file vf onto its
+// source, as the diagnostics to show there. p.mu is held.
+func (p *proxy) takeGoDiags(vf *vfile, diagnostics []any) {
 	lines := uint32(bytes.Count(vf.gen, []byte("\n")))
 	var mapped []any
-	for _, d := range dp.Diagnostics {
+	for _, d := range diagnostics {
 		obj, ok := d.(map[string]any)
 		if !ok {
 			continue
@@ -755,8 +796,6 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		mapped = append(mapped, obj)
 	}
 	p.goDiags[vf.source] = &diagSet{text: vf.text(), list: mapped}
-	p.mu.Unlock()
-	p.publish(vf.source)
 }
 
 // checkSyntax checks the .vuka buffer at path for syntax errors and shows

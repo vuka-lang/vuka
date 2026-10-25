@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"io"
 	"os"
 	"os/exec"
@@ -55,6 +56,8 @@ type lspClient struct {
 	init  any // initialize's result
 	// applyEdit answers the server's workspace/applyEdit; nil answers null.
 	applyEdit func(params json.RawMessage) any
+	log       *syncBuffer // what the proxy and gopls logged; nil for none
+	published []string    // each publication's uri and diagnostics, as received
 }
 
 func (c *lspClient) loop() {
@@ -132,6 +135,8 @@ func (c *lspClient) waitDiagsAt(uri string, version int, ok func([]any) bool) []
 	for {
 		select {
 		case p := <-c.diags:
+			b, _ := json.Marshal(p["diagnostics"])
+			c.published = append(c.published, fmt.Sprintf("%v (version %v): %s", p["uri"], p["version"], b))
 			if p["uri"] != uri {
 				continue
 			}
@@ -145,10 +150,24 @@ func (c *lspClient) waitDiagsAt(uri string, version int, ok func([]any) bool) []
 			last = ds
 		case <-deadline:
 			b, _ := json.Marshal(last)
-			c.t.Fatalf("no matching diagnostics for %s; the last: %s", uri, b)
+			c.t.Fatalf("no matching diagnostics for %s; the last: %s\n%s", uri, b, c.why())
 			return nil
 		}
 	}
+}
+
+// why is what a diagnostics wait that timed out saw: every publication
+// received, and the proxy's and gopls's log.
+func (c *lspClient) why() string {
+	var b strings.Builder
+	b.WriteString("publications received:\n")
+	for _, p := range c.published {
+		fmt.Fprintf(&b, "\t%s\n", p)
+	}
+	if c.log != nil {
+		fmt.Fprintf(&b, "the proxy's log:\n%s", c.log.String())
+	}
+	return b.String()
 }
 
 func startLSP(t *testing.T) (*lspClient, string, any) {
@@ -212,8 +231,9 @@ func startLSPCaps(t *testing.T, dir string, opts lspOptions, caps map[string]any
 	fromProxyR, fromProxyW := io.Pipe()
 	ctx, cancel := context.WithCancel(context.Background())
 	done := make(chan struct{})
+	logw := &syncBuffer{}
 	go func() {
-		_ = runLSP(ctx, toProxyR, fromProxyW, io.Discard, gopls, opts)
+		_ = runLSP(ctx, toProxyR, fromProxyW, logw, gopls, opts)
 		close(done)
 	}()
 	t.Cleanup(func() {
@@ -222,7 +242,7 @@ func startLSPCaps(t *testing.T, dir string, opts lspOptions, caps map[string]any
 		fromProxyR.Close()
 		<-done
 	})
-	c := &lspClient{t: t, conn: newRPCConn(fromProxyR, toProxyW), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100)}
+	c := &lspClient{t: t, conn: newRPCConn(fromProxyR, toProxyW), resps: map[string]chan rpcMsg{}, diags: make(chan map[string]any, 100), log: logw}
 	go c.loop()
 	c.init = c.call("initialize", map[string]any{"rootUri": pathToURI(dir),
 		// gopls gates semantic tokens behind this setting, as the editor enables it.
