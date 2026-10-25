@@ -117,7 +117,7 @@ func TestVueIslands(t *testing.T) {
 	}
 
 	// assetsGo embeds every chunk via web.RegisterIsland.
-	g := string(assetsGo(out))
+	g := string(assetsGo(out, false))
 	for name := range byName {
 		if !strings.Contains(g, "RegisterIsland(\""+name+"\"") {
 			t.Errorf("assetsGo: no RegisterIsland for %q", name)

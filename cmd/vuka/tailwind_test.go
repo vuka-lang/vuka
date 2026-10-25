@@ -294,6 +294,21 @@ func TestBuildTailwind(t *testing.T) {
 	if !strings.Contains(hdr.Get("Cache-Control"), "immutable") || strings.Contains(css, "\n  ") {
 		t.Errorf("not immutable or not minified: %v", hdr)
 	}
+	// The binary sends the brotli vuka build made, which is the stylesheet.
+	if gen, _ := os.ReadFile(filepath.Join(root, "build", twGoName)); !bytes.Contains(gen, []byte(`RegisterEncoded("/_vuka/app.css", "br"`)) {
+		t.Errorf("build/%s registers no encoding of the stylesheet", twGoName)
+	}
+	req, _ := http.NewRequest("GET", fmt.Sprintf("http://127.0.0.1:%d%s", port, href), nil)
+	req.Header.Set("Accept-Encoding", "br")
+	res, err := http.DefaultTransport.RoundTrip(req)
+	if err != nil {
+		t.Fatal(err)
+	}
+	encodedCSS, _ := io.ReadAll(res.Body)
+	res.Body.Close()
+	if res.Header.Get("Content-Encoding") != "br" || string(unbrotli(t, encodedCSS)) != css || res.Header.Get("Content-Length") != fmt.Sprint(len(encodedCSS)) {
+		t.Errorf("the stylesheet in brotli: %v, %d bytes for %d", res.Header, len(encodedCSS), len(css))
+	}
 
 	// vuka gen -inplace writes the file, for plain go build.
 	if err := gen([]string{"-inplace"}, io.Discard); err != nil {

@@ -81,6 +81,13 @@ func buildIslands(args []string, stdout, stderr io.Writer) error {
 		if err := writeIfChanged(filepath.Join(dir, "i", ib.name), ib.js); err != nil {
 			return err
 		}
+		names, err := writeEncoded(filepath.Join(dir, "i", ib.name), ib.js)
+		if err != nil {
+			return err
+		}
+		for _, n := range names {
+			keep[n] = true
+		}
 	}
 	entries, _ := load.ReadDir(filepath.Join(dir, "i"))
 	for _, e := range entries {
