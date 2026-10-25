@@ -22,6 +22,25 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.5.1 — unreleased
 
+- **`vuka run -watch` starts at once when nothing changed.** Each start
+  transpiled the module and ran go build and the linker before the app
+  answered, a few seconds on a mid-size app (more on a cold cache or a busy
+  disk) even when nothing had changed since the last run. A good build's
+  binary is now kept in vuka's cache under a key hashing everything the
+  build reads (the sources, `go.mod`/`go.sum`/`go.work`, modules replaced
+  by directory, embedded files, flags, the go command's environment, the
+  module's Go and vuka), and a start whose sources match a kept build runs
+  it before transpiling, printing `● reusing the last build (no changes)`.
+  The build runs all the same in the background: one that comes out
+  different is swapped in, with a warning naming the side whose inputs the
+  key missed. The last three builds of a module are kept, so a branch
+  switched back and forth hits too. On an app of 13 transpiled packages
+  the app ran about 0.1 s after `vuka run -watch` started and answered in
+  0.6–1.0 s (half a second of it the app's own start) instead of 4.2–6.7 s;
+  on a busy machine it answered in 1.0–1.8 s instead of 9–11 s. A start with
+  changes costs what it did. `-fresh` or
+  `VUKA_REUSE=off` builds first; `vuka build` always builds
+  ([#118](https://github.com/vuka-lang/vuka/issues/118)).
 - **A module built by a newer Go than vuka's is an error, not a panic.**
   vuka reads the export data of a module's imports with the importer of
   the Go that built it, and the go command writes that data in the format

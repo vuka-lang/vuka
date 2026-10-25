@@ -32,7 +32,7 @@ import (
 // one running; a build that comes out byte-identical restarts nothing.
 // Tailwind's watcher runs once, across the restarts.
 
-const runUsage = `usage: vuka run [-watch [-debug]] [build flags] [package] [arguments...]
+const runUsage = `usage: vuka run [-watch [-debug] [-fresh]] [build flags] [package] [arguments...]
 
 Run transpiles the module's .vuka files into an overlay and runs the
 package with go run. An app on github.com/vuka-lang/web/v2 gets its Tailwind
@@ -49,9 +49,17 @@ CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
 	change while a build runs stops it and builds anew. Only the packages a
 	change reaches are transpiled again.
 
+	A start with nothing changed since a build of an earlier run (the
+	sources, go.mod, go.sum, embedded files, flags, Go and vuka) runs that
+	build at once, kept in vuka's cache, and builds in the background all
+	the same: a build that comes out different is swapped in.
+
   -debug, --debug
 	with -watch, keep the debug information (DWARF) watch builds leave out
 	to link faster: for delve.
+  -fresh, --fresh
+	with -watch, build before the app starts, even when an earlier run's
+	build would do (VUKA_REUSE=off does the same)
   -embed, --embed
 	with -watch, build in the files web.Frontend serves (it reads them from
 	disk under vuka run; VUKA_EMBED_STUB=off does the same)
@@ -145,6 +153,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	flags, debug := cutDebug(flags)
+	flags, fresh := cutFresh(flags)
 	flags, stub := stubbing(flags)
 	if !slices.ContainsFunc(flags, func(f string) bool { return strings.HasPrefix(strings.TrimLeft(f, "-"), "buildvcs") }) {
 		flags = append(flags, "-buildvcs=false") // as go run: no VCS stamp, which would also tell builds apart
@@ -176,7 +185,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	defer assets.close()
 	env = append(env, assetsEnv+"="+assets.dir())
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
-		w: newWatcher(root), exits: make(chan *app, 4), assets: assets, stub: stub}
+		w: newWatcher(root), exits: make(chan *app, 4), assets: assets, stub: stub, reuse: newReuseCache(root, fresh)}
 	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
 		s.sess.UseCache("")
 	}
@@ -189,13 +198,31 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 
 	s.w.scan() // the sources as the first build sees them
 	s.setState(buildState{State: "building", Since: time.Now()})
-	first := s.build(ctx, 1)
+	// A kept build of an earlier run whose key the sources have starts at
+	// once, before vuka transpiles; the build runs all the same.
+	var kept *keptBuild
+	started := false
+	if s.reuse != nil {
+		t0 := time.Now()
+		kept, _ = s.reuse.lookup(s)
+		traceStep("reuse key %v (hit %v)", time.Since(t0), kept != nil)
+		if css, ok := predictCSS(root); kept != nil && ok {
+			s.env = append(s.env, twCSSEnv+"="+css)
+			started = s.startKept(kept)
+		}
+	}
+	first := s.prepare(ctx, 1)
+	if kept == nil {
+		s.compile(ctx, first)
+	}
 	overlay := first.overlay
 	if first.err != nil {
 		overlay = "" // finish removes it
 	}
 	if first.err == nil {
+		t0 := time.Now()
 		s.assets.set(first.pa)
+		traceStep("assets %v", time.Since(t0))
 	}
 	css, stopTailwind := devTailwind(root, overlay, stderr, s.assets)
 	defer stopTailwind()
@@ -215,6 +242,12 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		changed     time.Time          // when the change the next build answers was seen: rebuilt in counts from it
 		n           = 1
 	)
+	verify := func(r *buildResult) {
+		building = true
+		var bctx context.Context
+		bctx, cancelBuild = context.WithCancel(ctx)
+		go func() { s.compile(bctx, r); builds <- r }()
+	}
 	startBuild := func() {
 		n++
 		building = true
@@ -223,7 +256,19 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		bctx, cancelBuild = context.WithCancel(ctx)
 		go func(n int) { builds <- s.build(bctx, n) }(n)
 	}
-	s.finish(first, time.Time{})
+	if kept != nil && !started && first.err == nil {
+		started = s.startKept(kept) // once the stylesheet is known
+	}
+	if started && first.err == nil {
+		// One that comes out different is swapped in.
+		first.verify, first.keptOverlay = true, kept.Overlay
+		verify(first)
+	} else {
+		if kept != nil {
+			s.compile(ctx, first)
+		}
+		s.finish(first, time.Time{})
+	}
 	for {
 		select {
 		case first := <-sig:
@@ -278,7 +323,9 @@ type supervisor struct {
 	app            *app          // the running build; nil when none runs
 	exits          chan *app     // each app, once it has exited
 	assets         *devAssets
-	linked         string // the last build's auto-link message, said once per change
+	linked         string      // the last build's auto-link message, said once per change
+	reuse          *reuseCache // the builds kept for later runs; nil for none
+	reusedSum      string      // the binaryID of the kept build this run started with
 }
 
 type buildResult struct {
@@ -290,6 +337,15 @@ type buildResult struct {
 	err     error
 	embeds  []string
 	pa      *pageAssets // the styles and scripts the sources declare
+
+	started     time.Time // when it began reading the sources
+	ph          *phases
+	tTranspile  time.Duration
+	key         string   // reuseCache.key before go build, with keyRoots embedded; "" for none
+	keyRoots    []string //
+	verify      bool     // the build of a run that started with a kept build
+	keptOverlay string   // that kept build's overlayHash
+	gens        []load.Generated
 }
 
 func (r *buildResult) discard() { removeAll(r.dir) }
@@ -297,13 +353,27 @@ func (r *buildResult) discard() { removeAll(r.dir) }
 // build transpiles the module and builds the program into tmp/<n>/, and asks
 // go list, alongside, for what its packages embed.
 func (s *supervisor) build(ctx context.Context, n int) *buildResult {
+	r := s.prepare(ctx, n)
+	s.compile(ctx, r)
+	return r
+}
+
+// prepare transpiles the module into tmp/<n>/: the overlay go build is
+// given.
+func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	dir := filepath.Join(s.tmp, fmt.Sprint(n))
-	r := &buildResult{dir: dir}
+	r := &buildResult{dir: dir, started: time.Now(), ph: newPhases(s.stderr)}
 	if r.err = os.MkdirAll(dir, 0o755); r.err != nil {
 		return r
 	}
-	ph := newPhases(s.stderr)
-	defer ph.done()
+	if s.reuse != nil {
+		// Before the build reads the sources: store hashes them again after.
+		if r.keyRoots = s.w.embedRoots(); r.keyRoots == nil {
+			r.keyRoots = s.reuse.lastRoots()
+		}
+		r.key, _, _ = s.reuse.key(s, r.keyRoots)
+	}
+	ph := r.ph
 	ph.step("scanning the module")
 	_, modPath, err := load.ModuleRoot(s.root)
 	if err != nil {
@@ -366,13 +436,27 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 			return r
 		}
 	}
-	if r.err = ctx.Err(); r.err != nil {
-		return r
+	r.err = ctx.Err()
+	r.tTranspile = time.Since(t0)
+	r.gens = gens
+	return r
+}
+
+// compile builds the program a prepared build transpiled, and asks go
+// list, alongside, for what its packages embed.
+func (s *supervisor) compile(ctx context.Context, r *buildResult) {
+	ph := r.ph
+	defer ph.done()
+	if r.err != nil {
+		return
 	}
-	tTranspile := time.Since(t0)
-	t0 = time.Now()
+	if r.err = ctx.Err(); r.err != nil {
+		return
+	}
+	dir := r.dir
+	t0 := time.Now()
 	ph.step("compiling")
-	defer func() { traceStep("transpile %v build %v", tTranspile, time.Since(t0)) }()
+	defer func() { traceStep("transpile %v build %v", r.tTranspile, time.Since(t0)) }()
 	var embeds []string
 	var wg sync.WaitGroup
 	wg.Add(1)
@@ -390,7 +474,7 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	c.Cancel = func() error { return c.Process.Signal(os.Interrupt) }
 	c.WaitDelay = 5 * time.Second
 	var out bytes.Buffer
-	resp := &respeller{w: &out, dir: s.dir, gens: gens}
+	resp := &respeller{w: &out, dir: s.dir, gens: r.gens}
 	c.Stdout, c.Stderr = resp, resp
 	r.err = c.Run()
 	resp.flush()
@@ -398,11 +482,29 @@ func (s *supervisor) build(ctx context.Context, n int) *buildResult {
 	wg.Wait()
 	r.embeds = embeds
 	if r.err != nil {
-		return r
+		return
 	}
 	r.bin = bin
 	r.sum, r.err = binaryID(r.bin)
-	return r
+}
+
+// startKept starts a build an earlier run kept, from a link to it in tmp/0/.
+func (s *supervisor) startKept(e *keptBuild) bool {
+	dir := filepath.Join(s.tmp, "0")
+	bin := exe(filepath.Join(dir, "app"))
+	if os.MkdirAll(dir, 0o755) != nil || linkOrCopy(e.bin(), bin) != nil {
+		return false
+	}
+	r := &buildResult{dir: dir, bin: bin, sum: e.Sum, embeds: e.Roots}
+	s.w.setEmbeds(e.Roots)
+	fmt.Fprintln(s.stderr, "● reusing the last build (no changes)")
+	traceStep("start")
+	if s.app = s.start(r); s.app == nil {
+		return false
+	}
+	s.reusedSum = e.Sum
+	s.setState(buildState{State: "ok", At: time.Now()})
+	return true
 }
 
 // binaryID tells builds of different programs apart: the content part of
@@ -466,9 +568,27 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 	if s.assets != nil {
 		s.assets.set(r.pa)
 	}
-	if s.app != nil && s.app.sum == r.sum {
+	if r.verify {
+		if r.sum == s.reusedSum {
+			// The kept build is this one.
+			traceStep("the kept build verified")
+			if s.reuse != nil {
+				s.reuse.store(s, r)
+			}
+			os.Remove(r.bin) // its overlay stays: Tailwind may be listing the packages with it
+			return
+		}
+		missed := "go build's"
+		if overlayHash(r.overlay) != r.keptOverlay {
+			missed = "vuka's transpiler's"
+		}
+		fmt.Fprintf(s.stderr, "● warning: the reused build was out of date: one of %s inputs changed that the reuse key doesn't cover (please report it); swapping in the new build\n", missed)
+	} else if s.app != nil && s.app.sum == r.sum {
 		fmt.Fprintln(s.stderr, "● unchanged")
 		s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
+		if s.reuse != nil {
+			s.reuse.store(s, r)
+		}
 		r.discard()
 		return
 	}
@@ -482,6 +602,9 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 	}
 	s.app = s.start(r)
 	s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
+	if s.app != nil && s.reuse != nil {
+		s.reuse.store(s, r)
+	}
 	if !changed.IsZero() && s.app != nil {
 		fmt.Fprintf(s.stderr, "● rebuilt in %.1fs\n", time.Since(changed).Seconds())
 	}
@@ -730,6 +853,14 @@ var osSafetyNet = time.Second
 
 func newWatcher(root string) *watcher {
 	return &watcher{root: root, kick: make(chan struct{}, 1), after: time.After, poll: strings.EqualFold(os.Getenv(watchEnv), "poll")}
+}
+
+// embedRoots are what the app embeds, as the last build's go list said; nil
+// before one has.
+func (w *watcher) embedRoots() []string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return slices.Clone(w.embeds)
 }
 
 func (w *watcher) setEmbeds(roots []string) {
