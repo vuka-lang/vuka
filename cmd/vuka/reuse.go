@@ -287,12 +287,15 @@ func linkOrCopy(src, dst string) error {
 }
 
 // goBuildExt are the extensions of the files go build reads in a
-// package's directory, and the sources vuka transpiles into them.
+// package's directory (default.pgo too), and those vuka transpiles into Go.
 var goBuildExt = map[string]bool{
 	".go": true, ".s": true, ".S": true, ".sx": true, ".c": true, ".cc": true, ".cpp": true, ".cxx": true,
 	".h": true, ".hh": true, ".hpp": true, ".hxx": true, ".m": true, ".f": true, ".F": true, ".for": true,
-	".f90": true, ".syso": true, ".swig": true, ".swigcxx": true,
+	".f90": true, ".syso": true, ".swig": true, ".swigcxx": true, ".pgo": true,
 	".vuka": true, ".templ": true,
+	// island components a .vuka file imports, and the files their props'
+	// types come from (tsprops)
+	".vue": true, ".tsx": true, ".jsx": true, ".svelte": true, ".ts": true, ".mts": true, ".js": true, ".mjs": true,
 }
 
 // key hashes what a build reads, the files under roots being what it
@@ -419,10 +422,10 @@ func (c *reuseCache) rel(root, path string) string {
 	return filepath.ToSlash(path)
 }
 
-// hashTree hashes a module directory's Go sources: its go.mod and go.sum,
-// and each file of a type go build or vuka reads, but tests, in its
-// directories but hidden ones, node_modules, testdata, build/ and nested
-// modules'.
+// hashTree hashes a module directory's sources: its go.mod, go.sum and
+// vendor/modules.txt, and each file of a type go build or vuka reads but
+// tests, in its directories but hidden ones, node_modules, testdata,
+// build/ and nested modules'.
 func (c *reuseCache) hashTree(tree string, hashFile func(kind, path string, fi fs.FileInfo) error) error {
 	return load.WalkDir(tree, func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -441,7 +444,8 @@ func (c *reuseCache) hashTree(tree string, hashFile func(kind, path string, fi f
 		}
 		ext := filepath.Ext(name)
 		switch {
-		case path == filepath.Join(tree, "go.mod") || path == filepath.Join(tree, "go.sum"):
+		case path == filepath.Join(tree, "go.mod") || path == filepath.Join(tree, "go.sum") ||
+			path == filepath.Join(tree, "vendor", "modules.txt"):
 		case !goBuildExt[ext] || strings.HasPrefix(name, ".") || strings.HasSuffix(name, "_test"+ext):
 			if !strings.HasSuffix(name, ".vuka.html") {
 				return nil

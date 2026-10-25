@@ -197,7 +197,8 @@ information watch builds leave out, for delve.
 **A start with nothing changed runs the last build at once.** Each good
 build's binary is kept in vuka's cache directory (`vuka/run`, or
 `VUKA_CACHE`), under a key hashing everything the build reads: the module's
-sources (and those of modules a `replace` or `go.work` points at),
+sources (Go, `.vuka`, `.templ`, the island components `.vuka` files import;
+and those of modules a `replace` or `go.work` points at),
 `go.mod`, `go.sum` and `go.work`, the embedded files (by name only for the
 `web.Frontend` files the build stubs), the build flags, the go command's
 environment (`GOOS`, `GOARCH`, `GOFLAGS`, `CGO_*`, its `go env -w`
