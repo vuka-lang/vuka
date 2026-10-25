@@ -57,8 +57,12 @@ type keptBuild struct {
 	Sum   string   `json:"sum"`   // binaryID
 	Roots []string `json:"roots"` // what the build's packages embed (embedRoots)
 	Size  int64    `json:"size"`
-	dir   string
-	used  time.Time
+	// Overlay hashes what vuka transpiled for it: a kept build found out
+	// of date says whether the transpiler's inputs or go build's were
+	// missed.
+	Overlay string `json:"overlay"`
+	dir     string
+	used    time.Time
 }
 
 // newReuseCache is the cache of the module at root; nil when reuse is off
@@ -164,13 +168,13 @@ func (c *reuseCache) trim() {
 
 // lookup returns the kept build whose key the sources have now, and that
 // key.
-func (c *reuseCache) lookup(s *supervisor, r *buildResult) (*keptBuild, string) {
+func (c *reuseCache) lookup(s *supervisor) (*keptBuild, string) {
 	keys := map[string]string{}
 	for _, e := range c.entries() {
 		rk := strings.Join(e.Roots, "\x00")
 		k, ok := keys[rk]
 		if !ok {
-			k, _, _ = c.key(s, r, e.Roots)
+			k, _, _ = c.key(s, e.Roots)
 			keys[rk] = k
 		}
 		if k != "" && k == e.Key {
@@ -206,7 +210,7 @@ func (c *reuseCache) store(s *supervisor, r *buildResult) {
 	if roots == nil {
 		return // go list failed: what the binary embeds is unknown
 	}
-	key, newest, err := c.key(s, r, roots)
+	key, newest, err := c.key(s, roots)
 	if err != nil {
 		return
 	}
@@ -242,7 +246,7 @@ func (c *reuseCache) store(s *supervisor, r *buildResult) {
 	if linkOrCopy(r.bin, exe(filepath.Join(tmp, "app"))) != nil {
 		return
 	}
-	data, _ := json.Marshal(keptBuild{Key: key, Sum: r.sum, Roots: roots, Size: fi.Size()})
+	data, _ := json.Marshal(keptBuild{Key: key, Sum: r.sum, Roots: roots, Size: fi.Size(), Overlay: overlayHash(r.overlay)})
 	if os.WriteFile(filepath.Join(tmp, reuseEntry), data, 0o644) != nil {
 		return
 	}
@@ -286,10 +290,15 @@ var goBuildExt = map[string]bool{
 	".vuka": true, ".templ": true,
 }
 
-// key hashes what the build of r reads, with the files under roots as
-// what it embeds; newest is the latest modification time of the files it
-// hashed. "" when one can't be read.
-func (c *reuseCache) key(s *supervisor, r *buildResult, roots []string) (key string, newest time.Time, err error) {
+// key hashes what a build reads, the files under roots being what it
+// embeds: the sources vuka transpiles and go build compiles, as the
+// watcher sees them, those of modules the build reads from directories,
+// the embedded files (but those stubbed: their names), the build's flags
+// and environment, the Go and the vuka; newest is the latest modification
+// time of the files it hashed. It reads what the transpiled overlay is
+// made from, so a start computes it without transpiling. "" when a file
+// can't be read.
+func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time.Time, err error) {
 	h := sha256.New()
 	fmt.Fprintf(h, "vuka run -watch %s\n%s\n%s/%s\n", reuseFormat, load.CompilerVersion, runtime.GOOS, runtime.GOARCH)
 	// The go command, and the Go it runs for the module.
@@ -298,7 +307,7 @@ func (c *reuseCache) key(s *supervisor, r *buildResult, roots []string) (key str
 			fmt.Fprintf(h, "go %s %d %d\n", goBin, fi.Size(), fi.ModTime().UnixNano())
 		}
 	}
-	goVersion, err := load.ModuleGoVersion(s.root)
+	goVersion, err := moduleGoVersion(s.root)
 	if err != nil {
 		return "", newest, err
 	}
@@ -321,33 +330,16 @@ func (c *reuseCache) key(s *supervisor, r *buildResult, roots []string) (key str
 		fmt.Fprintf(h, "goenv %d %x\n", len(data), sha256.Sum256(data))
 	}
 	fmt.Fprintf(h, "dir %q\nflags %q\npkg %q\nstub %v\n", s.dir, s.flags, s.pkg, s.stub)
-	// The overlay: what vuka transpiled, and the embedded files it stubs.
-	replaced := map[string]bool{}
-	if r.overlay != "" {
-		data, err := os.ReadFile(r.overlay)
-		if err != nil {
-			return "", newest, err
-		}
-		var ov struct{ Replace map[string]string }
-		if err := json.Unmarshal(data, &ov); err != nil {
-			return "", newest, err
-		}
-		for _, from := range slices.Sorted(maps.Keys(ov.Replace)) {
-			replaced[filepath.Clean(from)] = true
-			to := ov.Replace[from]
-			sum := "-"
-			if to != "" {
-				b, err := os.ReadFile(to)
-				if err != nil {
-					return "", newest, err
-				}
-				sum = fmt.Sprintf("%x", sha256.Sum256(b))
-			}
-			fmt.Fprintf(h, "overlay %q %s\n", c.rel(s.root, from), sum)
+	// The embedded files the build stubs: only their names count.
+	stubbed := map[string]bool{}
+	if s.stub {
+		for _, f := range frontendEmbeds(s.root) {
+			stubbed[filepath.Clean(f)] = true
 		}
 	}
 	hashFile := func(kind, path string, fi fs.FileInfo) error {
-		if replaced[path] {
+		if stubbed[path] {
+			fmt.Fprintf(h, "%s %q stub\n", kind, c.rel(s.root, path))
 			return nil
 		}
 		sum, err := c.fileHash(path, fi)
@@ -599,4 +591,42 @@ func parseModFile(file string) (uses, replaces []string) {
 		}
 	}
 	return uses, replaces
+}
+
+// overlayHash hashes an overlay's files: what they replace, and with what.
+func overlayHash(overlay string) string {
+	h := sha256.New()
+	if overlay != "" {
+		data, err := os.ReadFile(overlay)
+		var ov struct{ Replace map[string]string }
+		if err != nil || json.Unmarshal(data, &ov) != nil {
+			return ""
+		}
+		for _, from := range slices.Sorted(maps.Keys(ov.Replace)) {
+			sum := "-"
+			if to := ov.Replace[from]; to != "" {
+				b, err := os.ReadFile(to)
+				if err != nil {
+					return ""
+				}
+				sum = fmt.Sprintf("%x", sha256.Sum256(b))
+			}
+			fmt.Fprintf(h, "%q %s\n", from, sum)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))
+}
+
+// predictCSS is the stylesheet the app is told of (devTailwind's) when it
+// can be told without the transpiled sources: Tailwind's output, when the
+// module uses Tailwind and its CLI is installed.
+func predictCSS(root string) (string, bool) {
+	tw, err := tailwindFor(root)
+	if err != nil || tw == nil {
+		return "", false // the pages' own stylesheets, if they declare any: known once transpiled
+	}
+	if _, err := tailwindBinary(root); err != nil {
+		return "", false
+	}
+	return filepath.Join(root, filepath.FromSlash(twCacheDir), "app.css"), true
 }

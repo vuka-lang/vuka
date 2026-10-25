@@ -15,6 +15,11 @@ import (
 // pretend vuka: the tests vet with the analyzers they are tested with,
 // never one fetched from the network.
 func TestMain(m *testing.M) {
+	// A vuka run -watch of a test keeps no build for a later run, unless the
+	// test asks for it (TestRunWatchReuse, with its own VUKA_CACHE).
+	if os.Getenv(reuseEnv) == "" {
+		os.Setenv(reuseEnv, "off")
+	}
 	vukaExecutable = func() (string, error) {
 		dir, err := checkoutVukavet()
 		return filepath.Join(dir, "vuka"), err

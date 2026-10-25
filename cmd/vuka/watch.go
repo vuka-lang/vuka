@@ -198,14 +198,20 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 
 	s.w.scan() // the sources as the first build sees them
 	s.setState(buildState{State: "building", Since: time.Now()})
-	first := s.prepare(ctx, 1)
+	// A kept build of an earlier run whose key the sources have starts at
+	// once, before vuka transpiles; the build runs all the same.
 	var kept *keptBuild
-	if first.err == nil && s.reuse != nil {
-		if kept, first.key = s.reuse.lookup(s, first); kept != nil {
-			first.keyRoots = kept.Roots
-			traceStep("reuse key %v", time.Since(first.started))
+	started := false
+	if s.reuse != nil {
+		t0 := time.Now()
+		kept, _ = s.reuse.lookup(s)
+		traceStep("reuse key %v (hit %v)", time.Since(t0), kept != nil)
+		if css, ok := predictCSS(root); kept != nil && ok {
+			s.env = append(s.env, twCSSEnv+"="+css)
+			started = s.startKept(kept)
 		}
 	}
+	first := s.prepare(ctx, 1)
 	if kept == nil {
 		s.compile(ctx, first)
 	}
@@ -214,7 +220,9 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		overlay = "" // finish removes it
 	}
 	if first.err == nil {
+		t0 := time.Now()
 		s.assets.set(first.pa)
+		traceStep("assets %v", time.Since(t0))
 	}
 	css, stopTailwind := devTailwind(root, overlay, stderr, s.assets)
 	defer stopTailwind()
@@ -248,10 +256,12 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 		bctx, cancelBuild = context.WithCancel(ctx)
 		go func(n int) { builds <- s.build(bctx, n) }(n)
 	}
-	if kept != nil && s.startKept(kept) {
-		// The build runs all the same: one that comes out different is
-		// swapped in.
-		first.verify = true
+	if kept != nil && !started && first.err == nil {
+		started = s.startKept(kept) // once the stylesheet is known
+	}
+	if started && first.err == nil {
+		// One that comes out different is swapped in.
+		first.verify, first.keptOverlay = true, kept.Overlay
 		verify(first)
 	} else {
 		if kept != nil {
@@ -328,13 +338,14 @@ type buildResult struct {
 	embeds  []string
 	pa      *pageAssets // the styles and scripts the sources declare
 
-	started    time.Time // when it began reading the sources
-	ph         *phases
-	tTranspile time.Duration
-	key        string   // reuseCache.key before go build, with keyRoots embedded; "" for none
-	keyRoots   []string //
-	verify     bool     // the build of a run that started with a kept build
-	gens       []load.Generated
+	started     time.Time // when it began reading the sources
+	ph          *phases
+	tTranspile  time.Duration
+	key         string   // reuseCache.key before go build, with keyRoots embedded; "" for none
+	keyRoots    []string //
+	verify      bool     // the build of a run that started with a kept build
+	keptOverlay string   // that kept build's overlayHash
+	gens        []load.Generated
 }
 
 func (r *buildResult) discard() { removeAll(r.dir) }
@@ -354,6 +365,13 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	r := &buildResult{dir: dir, started: time.Now(), ph: newPhases(s.stderr)}
 	if r.err = os.MkdirAll(dir, 0o755); r.err != nil {
 		return r
+	}
+	if s.reuse != nil {
+		// Before the build reads the sources: store hashes them again after.
+		if r.keyRoots = s.w.embedRoots(); r.keyRoots == nil {
+			r.keyRoots = s.reuse.lastRoots()
+		}
+		r.key, _, _ = s.reuse.key(s, r.keyRoots)
 	}
 	ph := r.ph
 	ph.step("scanning the module")
@@ -435,13 +453,6 @@ func (s *supervisor) compile(ctx context.Context, r *buildResult) {
 	if r.err = ctx.Err(); r.err != nil {
 		return
 	}
-	if s.reuse != nil && r.key == "" {
-		// Before go build reads the sources: store hashes them again after.
-		if r.keyRoots = s.w.embedRoots(); r.keyRoots == nil {
-			r.keyRoots = s.reuse.lastRoots()
-		}
-		r.key, _, _ = s.reuse.key(s, r, r.keyRoots)
-	}
 	dir := r.dir
 	t0 := time.Now()
 	ph.step("compiling")
@@ -487,6 +498,7 @@ func (s *supervisor) startKept(e *keptBuild) bool {
 	r := &buildResult{dir: dir, bin: bin, sum: e.Sum, embeds: e.Roots}
 	s.w.setEmbeds(e.Roots)
 	fmt.Fprintln(s.stderr, "● reusing the last build (no changes)")
+	traceStep("start")
 	if s.app = s.start(r); s.app == nil {
 		return false
 	}
@@ -566,7 +578,11 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 			os.Remove(r.bin) // its overlay stays: Tailwind may be listing the packages with it
 			return
 		}
-		fmt.Fprintln(s.stderr, "● warning: the reused build was out of date: an input of the build changed that vuka's reuse doesn't look at (please report it); swapping in the new build")
+		missed := "go build's"
+		if overlayHash(r.overlay) != r.keptOverlay {
+			missed = "vuka's transpiler's"
+		}
+		fmt.Fprintf(s.stderr, "● warning: the reused build was out of date: one of %s inputs changed that the reuse key doesn't cover (please report it); swapping in the new build\n", missed)
 	} else if s.app != nil && s.app.sum == r.sum {
 		fmt.Fprintln(s.stderr, "● unchanged")
 		s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
