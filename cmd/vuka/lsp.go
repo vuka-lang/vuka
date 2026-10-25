@@ -493,6 +493,7 @@ type proxy struct {
 	vukaDiags        map[string]*diagSet       // .vuka path → the last build's transpiler errors
 	syntaxDiags      map[string]*diagSet       // .vuka path → its syntax errors, as the editor has it now
 	goDiags          map[string]*diagSet       // .vuka path → gopls diagnostics mapped from its Go
+	goHeld           map[string]heldDiags      // generated path → gopls's diagnostics of it, kept back while its source was edited
 	shown            map[string]string         // real path → the path the editor uses for it
 	decos            []projectDecorator        // the module's decorators, as of the last regenerate
 	modRoot, modPath string                    // the module, as of the last regenerate
@@ -531,6 +532,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		waiting: map[string]*time.Timer{}, answeredEarly: map[string]bool{},
 		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
+		goHeld:      map[string]heldDiags{},
 		shown:       map[string]string{},
 		staticsPkgs: map[string][]*staticsFile{}, importDirs: map[string]string{},
 		changed: map[string]int{}, done: map[string]int{},
