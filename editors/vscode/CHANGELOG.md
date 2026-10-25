@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.9.2
+
+- Find the `vuka` binary without building a shell command from the `vuka.path` setting: a workspace setting could run shell code when the extension started.
+- `vuka.path` and `vuka.goplsPath` can be set only in user or remote settings when a workspace isn't trusted (restricted in untrusted workspaces).
+
 ## 0.9.1
 
 - Declare the `vukaContextVar` semantic token type, a context processor's variable read by name (`user`, `request`), and the TextMate scopes it falls back to (Vuka v2.4.0).
