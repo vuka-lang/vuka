@@ -1,9 +1,11 @@
 package transpile_test
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 
@@ -121,5 +123,84 @@ func TestVukaIslandRootImport(t *testing.T) {
 	}
 	if got := string(res.Files[0].Src); !strings.Contains(got, `RegisterIsland[Picker]("@/islands/Picker.vue")`) {
 		t.Fatalf("registration: %s", got)
+	}
+}
+
+// Adoption can mix old relative spellings with @/ in the same package.
+func TestIslandImportSpellings(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "pages")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, name := range []string{"Form.vue", "Other.vue"} {
+		if err := os.WriteFile(filepath.Join(root, name), []byte(`<script setup lang="ts">defineProps<{ title: string }>()</script>`), 0644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	shape := func(name, path string) transpile.File {
+		return transpile.File{Name: name + ".vuka.html", Src: []byte(fmt.Sprintf("package pages\nimport Form %q\nimport ui \"vukatest.local/stateui\"\ntype %s struct{}\n<main><Form title=\"ok\" /></main>\n", path, name))}
+	}
+	opts := transpile.Options{Dir: dir, ModuleRoot: root, Importer: load.NewImporter("testdata/golden", "")}
+	for _, paths := range [][2]string{{"../Form.vue", "@/Form.vue"}, {"@/Form.vue", "../Form.vue"}} {
+		res, err := transpile.Package([]transpile.File{shape("First", paths[0]), shape("Second", paths[1])}, opts)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var code string
+		for _, file := range res.Files {
+			code += string(file.Src)
+		}
+		if strings.Count(code, "type Form struct") != 1 {
+			t.Fatalf("expected one shared props type: %s", code)
+		}
+	}
+	_, err := transpile.Package([]transpile.File{shape("First", "../Form.vue"), shape("Second", "@/Other.vue")}, opts)
+	if list, ok := err.(transpile.ErrorList); !ok || len(list) == 0 || list[0].Code != "E0302" {
+		t.Fatalf("distinct targets: %v", err)
+	}
+}
+
+// All import forms use the same missing-file diagnostic, at the original
+// import string, with an Offset usable by partial template recovery.
+func TestIslandImportMissingPositions(t *testing.T) {
+	root := t.TempDir()
+	dir := filepath.Join(root, "pages")
+	if err := os.MkdirAll(dir, 0755); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range []string{"../Missing.vue", "@/Missing.vue"} {
+		for _, kind := range []string{"wrapped", "island-only", "declared", "script-wrapped", "script-island-only"} {
+			t.Run(path+kind, func(t *testing.T) {
+				header := fmt.Sprintf("package pages\nimport ui \"vukatest.local/stateui\"\nimport Form %q\n", path)
+				name, src := "page.vuka.html", header+"type Page struct{ Title string }\n<main><Form title={Title} /></main>\n"
+				if strings.HasSuffix(kind, "island-only") {
+					src = header + "type Page struct{ Title string }\n<Form title={Title} />\n"
+				}
+				if kind == "declared" {
+					name, src = "page.vuka", header+"@ui.Island\ntype Form struct{ Title string }\n"
+				}
+				if strings.HasPrefix(kind, "script-") {
+					at := strings.Index(src, "\n<")
+					src = "<script lang=\"go\">\n" + src[:at] + "\n</script>" + src[at:]
+				}
+				_, err := transpile.Package([]transpile.File{{Name: name, Src: []byte(src)}}, transpile.Options{Dir: dir, ModuleRoot: root, Importer: load.NewImporter("testdata/golden", "")})
+				list, ok := err.(transpile.ErrorList)
+				if !ok || len(list) == 0 || list[0].Code != "E0303" {
+					t.Fatalf("missing: %v", err)
+				}
+				e := list[0]
+				wantOffset := strings.Index(src, strconv.Quote(path))
+				wantLine := strings.Count(src[:wantOffset], "\n") + 1
+				if e.Pos.Offset != wantOffset || e.Pos.Line != wantLine || e.Pos.Column != 13 {
+					t.Fatalf("position: %+v, want offset %d at %d:13", e.Pos, wantOffset, wantLine)
+				}
+				target := filepath.Join(root, "Missing.vue")
+				want := fmt.Sprintf("can't read island component %s: %s doesn't exist", path, target)
+				if e.Msg != want || strings.Count(e.Msg, target) != 1 {
+					t.Fatalf("message: %s, want %s", e.Msg, want)
+				}
+			})
+		}
 	}
 }

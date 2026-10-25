@@ -56,7 +56,8 @@ const picked = defineModel<string>('picked')
 An island import may use a package alias, just like a Go import. The path is
 relative to the shape file when it starts with `./` or `../`. Use `@/` to
 import from the main module root (the directory holding `go.mod`), so a page
-can move between folders without changing its component imports. For example, `pages/admin/users/edit.vuka.html`:
+can move between folders without changing its component imports. For
+example, `pages/admin/users/edit.vuka.html`:
 
 ```html
 <script lang="go">
@@ -72,12 +73,17 @@ type Edit struct{}
 
 The rule applies to `.vuka.html` and `.vuka` imports. `@/` requires a known
 main module root; paths escaping it, such as `@/../Form.vue`, are rejected.
-It does not read `tsconfig.json` path mappings.
+The root check is lexical: a symlink inside the module that points outside
+it is followed. The resolver does not read `tsconfig.json` path mappings.
 
-Its package clause, imports, struct, hooks and
-methods precede the first markup line; do not place an HTML filename comment
-above the package clause. The imported tag needs no wrapper except when a
+The shape's package clause, imports, struct, hooks and methods precede the
+first markup line; do not place an HTML filename comment above the package
+clause. The imported tag needs no wrapper except when a
 fallback is required.
+
+The watch reuse key hashes component files in the module's source tree. It
+excludes `build/`, `testdata/`, `node_modules/`, hidden directories and
+symlink targets outside that walk, for both relative and `@/` imports.
 
 ### Other Frameworks
 

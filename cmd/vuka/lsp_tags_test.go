@@ -138,3 +138,20 @@ func TestRootIslandTag(t *testing.T) {
 		t.Fatalf("hover: %s", h)
 	}
 }
+
+func TestRootIslandTagBeforeBuildAndNestedModule(t *testing.T) {
+	p, root := tagsModule(t)
+	nested := filepath.Join(root, "nested")
+	writeFile(t, filepath.Join(nested, "go.mod"), "module example.com/nested\ngo 1.25.0\n")
+	file := filepath.Join(nested, "web", "Form.vue")
+	writeFile(t, file, `<script setup lang="ts">defineProps<{ nested: boolean }>()</script>`)
+	page := filepath.Join(nested, "pages", "edit.vuka.html")
+	writeFile(t, page, "package pages\nimport Form \"@/web/Form.vue\"\ntype Edit struct{}\n<Form />\n")
+	for _, workspaceRoot := range []string{"", root} {
+		p.modRoot = workspaceRoot
+		info := p.resolveComponent(page, []byte(mustRead(t, page)), "Form")
+		if info == nil || info.file != file || !strings.Contains(info.markdown("Form"), "nested") {
+			t.Fatalf("workspace root %q: %+v", workspaceRoot, info)
+		}
+	}
+}

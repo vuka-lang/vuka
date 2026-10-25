@@ -1,16 +1,13 @@
 <script lang="go">
 package pages
 
-import Badge "@/islands/Badge.ts"
+import Summary "@/islands/Summary.ts"
 
-// About is a page that isn't live, with an island in it.
-type About struct{}
+// About is backed only by the imported island, including after eject.
+type About struct {
+	Label string `json:"label"`
+	Count int `json:"count"`
+}
 </script>
 
-<html>
-  <head><title>About</title></head>
-  <body>
-    <h1>About</h1>
-    <Badge label="islands" count={2} client:idle/>
-  </body>
-</html>
+<Summary label={Label} count={Count} client:idle />

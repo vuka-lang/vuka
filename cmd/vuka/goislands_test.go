@@ -179,3 +179,15 @@ func TestGoIslandErrors(t *testing.T) {
 		t.Errorf("no web.Frontend: %v", err)
 	}
 }
+
+func TestGoIslandRootDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	for _, path := range []string{"@/../Nope.vue", "@/web/Nope.vue"} {
+		ic := &islandComp{name: "Form", src: path, label: "main.go:1"}
+		ic.locateArg(root, root, "main.go")
+		d := ic.diagnostic()
+		if d == nil || d.Code != "E0303" || !strings.Contains(d.Message, path) {
+			t.Fatalf("%s: %+v", path, d)
+		}
+	}
+}

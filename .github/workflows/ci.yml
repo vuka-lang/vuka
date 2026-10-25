@@ -198,6 +198,9 @@ jobs:
       # change nothing; the platform's executables, process stops, shims,
       # paths and file watching. The rest of the suite assumes Unix tools
       # (shell-script stand-ins, Chrome over fds 3 and 4) or the Linux job's.
+      - name: Module-root island paths on Windows
+        working-directory: vuka
+        run: go test -run '^TestResolveIslandPath$' ./toolchain/tsprops
       - name: vuka build and vuka run -watch
         working-directory: vuka/cmd/vuka
         run: >-

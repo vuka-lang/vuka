@@ -321,8 +321,13 @@ func (ic *islandComp) locateArg(root, dir, typeRel string) {
 	}
 	abs, err := tsprops.ResolveIslandPath(root, dir, cp)
 	if err != nil {
-		ic.problem, ic.problemCode = err.Error(), "E0303"
+		ic.problem, ic.problemCode = "can't read island component "+cp+": "+err.Error(), "E0303"
 		return
+	}
+	if strings.HasPrefix(cp, "@/") {
+		if _, _, err := tsprops.ReadIslandComponent(root, dir, cp, load.ReadSource); err != nil {
+			ic.problem, ic.problemCode = err.Error(), "E0303"
+		}
 	}
 	relSrc, _ := filepath.Rel(root, abs)
 	if !strings.HasPrefix(cp, ".") && !strings.HasPrefix(cp, "@/") && !filepath.IsAbs(cp) {

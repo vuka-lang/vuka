@@ -66,7 +66,8 @@ func (p *proxy) resolveComponent(srcPath string, src []byte, tag string) *tagInf
 			if im.Name != name || !tsprops.IsComponent(im.Path) {
 				continue
 			}
-			file, err := tsprops.ResolveIslandPath(p.modRoot, dir, im.Path)
+			root, _, _ := load.ModuleRoot(dir)
+			file, err := tsprops.ResolveIslandPath(root, dir, im.Path)
 			if err != nil {
 				return nil
 			}
@@ -74,7 +75,7 @@ func (p *proxy) resolveComponent(srcPath string, src []byte, tag string) *tagInf
 			if err != nil {
 				return nil
 			}
-			comp, err := tsprops.Read(filepath.ToSlash(file), data, func(p string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(p)) })
+			comp, err := tsprops.Read(filepath.ToSlash(file), data, func(file string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(file)) })
 			if err != nil {
 				return nil
 			}

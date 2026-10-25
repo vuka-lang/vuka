@@ -2,6 +2,7 @@ package tsprops
 
 import (
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -31,6 +32,13 @@ func TestResolveIslandPath(t *testing.T) {
 				t.Fatalf("got %q, %v; want %q", got, err, tc.want)
 			}
 		})
+	}
+	if runtime.GOOS == "windows" {
+		for _, path := range []string{"@/islands/CON.vue", "@/aux.tsx", "@/islands/a:b.vue"} {
+			if _, err := ResolveIslandPath(root, dir, path); err == nil || !strings.Contains(err.Error(), "invalid component path") {
+				t.Errorf("%s: %v", path, err)
+			}
+		}
 	}
 	for _, p := range []string{"@/Form.vue", "@/Form.tsx", "@/Form.svelte", "@/Form.ts"} {
 		if !IsComponent(p) {
