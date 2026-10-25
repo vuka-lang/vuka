@@ -532,7 +532,6 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		waiting: map[string]*time.Timer{}, answeredEarly: map[string]bool{},
 		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
-		goHeld:      map[string]heldDiags{},
 		shown:       map[string]string{},
 		staticsPkgs: map[string][]*staticsFile{}, importDirs: map[string]string{},
 		changed: map[string]int{}, done: map[string]int{},

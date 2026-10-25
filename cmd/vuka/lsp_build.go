@@ -748,6 +748,9 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 		// gopls publishes a file's diagnostics again only when they
 		// change: if the build of the newer buffer leaves this Go as it
 		// is, these are the diagnostics of what it builds (apply).
+		if p.goHeld == nil {
+			p.goHeld = map[string]heldDiags{}
+		}
 		p.goHeld[path] = heldDiags{version: dp.Version, list: dp.Diagnostics}
 		p.mu.Unlock()
 		return
