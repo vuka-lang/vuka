@@ -27,7 +27,7 @@ function findTool(name) {
   try {
     const found = win
       ? execFileSync('where', [name], { encoding: 'utf8' }).split(/\r?\n/)[0].trim()
-      : execFileSync(process.env.SHELL || '/bin/sh', ['-lc', `command -v ${name}`], { encoding: 'utf8' }).trim();
+      : execFileSync(process.env.SHELL || '/bin/sh', ['-lc', 'command -v -- "$1"', 'sh', name], { encoding: 'utf8' }).trim();
     if (found && path.isAbsolute(found)) {
       return found;
     }

@@ -7,7 +7,13 @@ interface Chart {
 
 export default island<Chart>((el, props, ctx) => {
   const draw = (p: Chart) => {
-    el.innerHTML = `<b class="title">${p.title}</b> <span class="points">${p.points.join(',')}</span>`
+    const title = document.createElement('b')
+    title.className = 'title'
+    title.textContent = p.title
+    const points = document.createElement('span')
+    points.className = 'points'
+    points.textContent = p.points.join(',')
+    el.replaceChildren(title, ' ', points)
   }
   draw(props)
   el.addEventListener('dblclick', () => ctx.emit('select', { from: 0, to: props.points.length - 1 }))
