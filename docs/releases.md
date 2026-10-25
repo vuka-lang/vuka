@@ -138,6 +138,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the deadline instead of waiting for the build. Writes to gopls no longer
   wait for gopls to read them, so a gopls that stops reading doesn't stop
   `vuka lsp` answering the editor ([#100](https://github.com/vuka-lang/vuka/issues/100)).
+- **The toolbar no longer says “building…” after a build is done.**
+  `vuka run -watch` wrote the build's state, which the development
+  toolbar reads, after printing how the build went, and wrote a good
+  build's state after starting its app, so the app's first look could find
+  the last state. On Windows the state wasn't written at all when the app
+  (or a virus scanner) had the file open as vuka replaced it, so the
+  toolbar could stay on “building…” after the build had failed or
+  finished. The state is now written before the message and before the
+  app starts, and on Windows the replacement is tried again until the file
+  is let go ([#93](https://github.com/vuka-lang/vuka/issues/93)).
+- **An opened file's type errors no longer go missing.** gopls's
+  diagnostics of a file's Go that arrived while the editor's text of the
+  file was newer than the last build were dropped, and gopls doesn't send
+  the same diagnostics twice: when the build of the newer text left the
+  Go as it was (opening a file, or an edit undone), the file showed no
+  errors until the next edit that changed its Go. They are now kept and
+  shown once that build is done
+  ([#93](https://github.com/vuka-lang/vuka/issues/93)).
 
 ## v2.5.0 — 2026-10-24
 
