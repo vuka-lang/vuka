@@ -462,6 +462,31 @@ Each is an option with a default; 0 lifts it.
 | `web.LiveMaxConnsPerPage(n)` | the sockets opened with one page token; 4. One beyond is refused with 429 |
 | `web.LiveCheckEvery(d)` | how often the app's `LiveCheck`s run on each joined page; 30s; 0 for never |
 | `web.LiveAdopt(d)` | how long after a page's GET its join may adopt the session the render mounted, so the mount hook runs once per view; 10s. At most 1024 pages wait at a time, oldest dropped first; `web.LiveAdopt(0)` mounts fresh on every join |
+| `web.LiveCompression(m)` | how sockets compress messages (permessage-deflate, negotiated with each client): `web.NoContextTakeover` (the default), `web.ContextTakeover` or `web.Off`. See [Compression](#compression) |
+
+### Compression {#compression}
+
+Live sockets compress their messages with permessage-deflate (RFC 7692),
+which every current browser negotiates when the socket opens; a client that
+doesn't offer it gets messages as they are. Messages under 256 bytes are
+sent as they are, since deflate wouldn't save anything on them. Live traffic
+is repetitive HTML, so it compresses well. On a session of a 200-row list
+page (join, 100 page turns, a navigation), 3.3 MB of messages took 245 KB on
+the wire.
+
+| Mode | On the wire (that session) | Server memory per open socket, 1,000 sockets |
+|---|---|---|
+| `web.NoContextTakeover` (default) | 245 KB | +2 KB |
+| `web.ContextTakeover` | 239 KB | +805 KB (8 GB at 10,000 sockets) |
+| `web.Off` | 3.3 MB | — |
+
+The memory figures are on top of what an uncompressed socket holds, which
+was 85 KB with this page's state. `NoContextTakeover` compresses each
+message on its own, with a compressor borrowed from a pool for the write.
+`ContextTakeover` keeps each socket's compressor and window between
+messages: that saves a little more, but each open socket holds the
+compressor's 800 KB. Use `web.Off` when a proxy in front of the app
+compresses WebSocket traffic itself.
 
 ### Checking Open Pages
 

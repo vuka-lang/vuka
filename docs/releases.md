@@ -168,6 +168,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   Paths are the ones `vuka routes` prints: `[id]` folders as `{id}`, route
   groups left out. A `.go` file outside the pages keeps gopls's answers
   as they are ([#123](https://github.com/vuka-lang/vuka/issues/123)).
+- **`web.LiveCompression` sets how live sockets compress.** Live sockets
+  already negotiated permessage-deflate without context takeover, so
+  browsers got compressed messages. That behaviour is now an option,
+  documented with its numbers: `web.NoContextTakeover` (the default),
+  `web.ContextTakeover` and `web.Off`. Messages under 256 bytes are no
+  longer compressed (the threshold was 512). On a session of a 200-row live
+  list page, 3.3 MB of messages took 245 KB on the wire. Context takeover
+  saved 2% more but held about 800 KB per open socket (8 GB at
+  `web.LiveMaxConns`' 10,000, against 2 KB without it), so the default
+  stays. The framework's Go test clients now negotiate compression as
+  browsers do ([#127](https://github.com/vuka-lang/vuka/issues/127)).
 
 ## v2.5.0 — 2026-10-24
 
