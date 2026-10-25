@@ -113,6 +113,14 @@ func (p *proxy) codeLenses(path string) []any {
 		}
 		byLine[r.Line] = append(byLine[r.Line], r)
 	}
+	if !strings.HasSuffix(path, ".vuka.html") {
+		for line, group := range typeLenses(p.sourceText(path), p.dirRoutes(path)) {
+			if byLine[line] == nil {
+				lines = append(lines, line)
+				byLine[line] = group
+			}
+		}
+	}
 	slices.Sort(lines)
 	out := []any{}
 	for _, line := range lines {

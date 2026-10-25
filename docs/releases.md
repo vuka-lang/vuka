@@ -156,6 +156,18 @@ the `github.com/vuka-lang/vuka` package your module requires.
   errors until the next edit that changed its Go. They are now kept and
   shown once that build is done
   ([#93](https://github.com/vuka-lang/vuka/issues/93)).
+- **Routes in a page package's Go.** When `vuka lsp` serves `.go` files
+  (as VS Code's gopls through `go.alternateTools.gopls`) and `.vuka` files
+  of a folder-route package, a hover on a page's or an endpoint's type name
+  adds below gopls's hover the routes it serves (`POST /auth/logout` ·
+  endpoint `logout.Index.Post`) with its guards, layouts and middleware; on
+  a handler's or an endpoint's method (`Post`, `Get`, `Delete`…) the route
+  it serves; on a live page's event method the page it is an event of. The
+  route code lens is above handler and endpoint methods, and an endpoint's
+  type gets one with all its methods (`GET, POST /api/orgs · endpoint`).
+  Paths are the ones `vuka routes` prints: `[id]` folders as `{id}`, route
+  groups left out. A `.go` file outside the pages keeps gopls's answers
+  as they are ([#123](https://github.com/vuka-lang/vuka/issues/123)).
 
 ## v2.5.0 — 2026-10-24
 

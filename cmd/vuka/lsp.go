@@ -480,6 +480,7 @@ type proxy struct {
 	root             string
 	nextID           int
 	goReqs           map[string]bool           // editor requests on Go files
+	goAfter          map[string]func(any) any  // and what to add to gopls's answer to them
 	vukaReqs         map[string]*vukaRequest   // proxy request id → request on a .vuka file
 	asks             map[string]chan rpcMsg    // proxy request id → the proxy's own question to gopls
 	dropped          map[string]bool           // proxy request ids given up on: gopls's late answer goes nowhere
@@ -786,6 +787,9 @@ func (p *proxy) fromEditor() {
 			continue
 		}
 		if m.isRequest() {
+			if strings.HasSuffix(path, ".go") {
+				p.goRouteAfter(&m, path)
+			}
 			p.mu.Lock()
 			p.goReqs[string(m.ID)] = true
 			p.mu.Unlock()
@@ -826,6 +830,8 @@ func (p *proxy) fromGopls() {
 			delete(p.vukaReqs, id)
 			goReq := p.goReqs[id]
 			delete(p.goReqs, id)
+			after := p.goAfter[id]
+			delete(p.goAfter, id)
 			dropped := p.dropped[id]
 			delete(p.dropped, id)
 			p.mu.Unlock()
@@ -836,6 +842,9 @@ func (p *proxy) fromGopls() {
 			}
 			if dropped {
 				continue // answered already, without gopls
+			}
+			if withGoAfter(&m, after) {
+				body, _ = json.Marshal(&m)
 			}
 			if goReq && len(m.Error) == 0 && p.mentionsVirtual(m.Result) {
 				m.Result = p.rewriteJSON(m.Result, nil)
