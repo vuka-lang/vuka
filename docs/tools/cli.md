@@ -182,7 +182,11 @@ is imported in `main.vuka`.
 `vuka build`, `run`, `test`, `vet` and `install` are the go command's, with every `.vuka` file in the module transpiled into an
 overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
-packages are passed to go as they are.
+packages are passed to go as they are. `vuka build` precompresses what the
+binary serves as it is: the stylesheet, the components' scripts and the
+island chunks are embedded with their brotli and gzip, and `vite build` and
+`vuka build-islands` write a `.br` and a `.gz` beside the files of a
+frontend's build ([Compression and Caching](/web/deployment#compression)).
 
 ### Running While You Edit {#run-watch}
 

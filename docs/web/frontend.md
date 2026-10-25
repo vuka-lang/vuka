@@ -96,6 +96,12 @@ every new build has new names. Everything else, `index.html` included, is
 revalidated: the browser asks each time and gets `304 Not Modified` while
 nothing changed.
 
+Files are compressed for browsers that take it. `vite build` (through the
+plugin) writes a `.br` and a `.gz` beside each script, stylesheet and other
+compressible file of 1 KB or more, and the app sends the one the browser
+takes as it is, with its own `ETag`; a file without one is compressed once
+and kept. See [Compression and Caching](/web/deployment#compression).
+
 ### Serving Under a Prefix {#under-a-prefix}
 
 Pass `web.FrontendAt` to serve a frontend below a path:

@@ -95,6 +95,9 @@ script-safe JSON hole, never unescaped string concatenation.
 
 ## Building Assets {#building}
 
-`vuka run` and `vuka build` bundle scripts and scope CSS. Dependencies
+`vuka run` and `vuka build` bundle scripts and scope CSS. `vuka build` also
+embeds each stylesheet, script and island chunk's brotli and gzip with it,
+so the binary sends them compressed with no work while it runs
+([Compression and Caching](/web/deployment#compression)). Dependencies
 imported by component scripts must be available to the frontend build. For
 npm frameworks and hydration policies, see [Islands](/web/islands).

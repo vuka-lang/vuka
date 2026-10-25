@@ -23,7 +23,9 @@ The method, path and status; the route's pattern
 (`GET /pets/{id}`); the handler that answered, with its file and line; the
 arguments it was called with and where each came from — path, query, body
 or a dependency (fields named like a password, token or secret hidden); and
-the request's and response's headers, with cookies and credentials hidden.
+the request's and response's headers, with cookies and credentials hidden;
+and the response's size as written and as sent (`268.1 kB → 4611 B br (2%)`)
+when it was [compressed](/web/deployment#compression).
 With [`web/auth`](/web/auth), who the request came from and which gate let
 it through or refused it.
 
