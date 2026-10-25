@@ -34,9 +34,11 @@ the `github.com/vuka-lang/vuka` package your module requires.
   The build runs all the same in the background: one that comes out
   different is swapped in, with a warning naming the side whose inputs the
   key missed. The last three builds of a module are kept, so a branch
-  switched back and forth hits too. On a module of 13 transpiled packages
-  the app answered 0.6 s after `vuka run -watch` started instead of
-  4.5–6.7 s; a start with changes costs what it did. `-fresh` or
+  switched back and forth hits too. On an app of 13 transpiled packages
+  the app ran 0.04–0.3 s after `vuka run -watch` started, and answered in
+  0.6–1.0 s (half a second of it the app's own start) instead of 4.2–6.7 s;
+  9–11 s on a busy machine, against 1.0–1.8 s. A start with changes costs
+  what it did. `-fresh` or
   `VUKA_REUSE=off` builds first; `vuka build` always builds
   ([#118](https://github.com/vuka-lang/vuka/issues/118)).
 - **A module built by a newer Go than vuka's is an error, not a panic.**
