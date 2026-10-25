@@ -175,12 +175,14 @@
         "vuka.path": {
           "type": "string",
           "default": "vuka",
-          "description": "The vuka binary (install: go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest)."
+          "description": "The vuka binary (install: go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest).",
+          "scope": "machine-overridable"
         },
         "vuka.goplsPath": {
           "type": "string",
           "default": "",
-          "description": "The gopls binary vuka lsp runs. Empty: gopls on PATH, then $GOBIN, then $GOPATH/bin."
+          "description": "The gopls binary vuka lsp runs. Empty: gopls on PATH, then $GOBIN, then $GOPATH/bin.",
+          "scope": "machine-overridable"
         },
         "vuka.trace.server": {
           "type": "string",
@@ -336,5 +338,15 @@
   "scripts": {
     "package": "vsce package",
     "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs"
+  },
+  "capabilities": {
+    "untrustedWorkspaces": {
+      "supported": "limited",
+      "description": "In an untrusted workspace the Vuka language server only runs from your user settings: the workspace's vuka.path and vuka.goplsPath are ignored.",
+      "restrictedConfigurations": [
+        "vuka.path",
+        "vuka.goplsPath"
+      ]
+    }
   }
 }
