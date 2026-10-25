@@ -20,6 +20,7 @@ func FuzzPackage(f *testing.F) {
 		src, _ := os.ReadFile(p)
 		f.Add(src)
 	}
+	f.Add([]byte("package A\nenum s{A)\nenum A{A00{},A)\nfunc A(){match 0{case A:0}}\n"))
 	imp := load.NewImporter(dir, "")
 	f.Fuzz(func(t *testing.T, src []byte) {
 		res, err := transpile.Package([]transpile.File{{Name: "f.vuka", Src: src}},
