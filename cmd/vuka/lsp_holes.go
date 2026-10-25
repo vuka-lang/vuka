@@ -43,7 +43,7 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 	switch m.Method {
 	case "textDocument/hover":
 		if !html {
-			return false, ""
+			return false, p.routeNote(path, src, off)
 		}
 		s := scanShape(src)
 		if e, ok := s.eventAt(off); ok && off <= e.attr.end {
@@ -67,6 +67,7 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 			}
 			return false, s.refDoc(path, r)
 		}
+		return false, p.routeNote(path, src, off)
 	case "textDocument/completion":
 		if !html {
 			return false, ""

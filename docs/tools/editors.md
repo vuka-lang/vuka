@@ -233,11 +233,28 @@ type.
 For the pages under `pages/`, the editor reads the route table the module's
 last build made, the one [`vuka routes`](/web/folder-routes#vuka-routes) prints:
 
-- **A code lens** above each page's struct and each handler: `GET
+- **A code lens** above each page's struct and each handler or endpoint
+  method, in `.vuka.html`, `.vuka` and `.go` files alike: `GET
   /orgs/{org} · live · layout org.Layout · guard org.Guard`. In VS Code,
   clicking it opens the **Vuka Routes** output with the route's entry —
   middleware, guards, layouts, file — and the module's whole table;
   **Vuka: Show Routes** opens the table from the command palette.
+- **A hover** on a page's or an endpoint's struct name says the routes it
+  serves, with the guards, layouts and middleware around them; on a
+  handler's or an endpoint's method (`Post`, `Get`, `Delete`…), the route
+  it serves; on a live page's event method, the page it is an event of. In
+  `.go` and `.vuka` files the route goes below gopls's own hover:
+
+  ```text
+  route POST /auth/logout · endpoint logout.Index.Post
+  layout pages.Layout · middleware pages.Middleware
+  ```
+
+  An endpoint's struct gets a lens of its methods' routes too, `GET, POST
+  /api/orgs · endpoint`. The paths are the ones `vuka routes` prints:
+  `pages/users/[id]` is `/users/{id}`, and a route group such as
+  `(admin)` is left out. A `.go` file of no folder-route package keeps
+  gopls's hover and lenses as they are.
 - **Links**: a `urls.Orgs.Org(7).Edit.Path()` chain and an `href="/orgs/new"`
   literal naming a page are links to the page's file, and go to definition
   on them opens the page at its struct — in `.go` files too, for chains.
