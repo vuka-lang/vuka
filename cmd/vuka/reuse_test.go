@@ -180,6 +180,9 @@ func TestReuseTrim(t *testing.T) {
 	os.Chtimes(stale, now.Add(-2*time.Hour), now.Add(-2*time.Hour))
 	writing := filepath.Join(c.dir, ".tmp-2")
 	writeFile(t, filepath.Join(writing, "app"), "half")
+	broken := filepath.Join(c.dir, "half-removed")
+	writeFile(t, filepath.Join(broken, "app"), "bin")
+	os.Chtimes(broken, now.Add(-2*time.Hour), now.Add(-2*time.Hour))
 
 	names := func() []string {
 		var out []string
@@ -191,6 +194,9 @@ func TestReuseTrim(t *testing.T) {
 	c.trim()
 	if got := names(); !slices.Equal(got, []string{"e0", "e1", "e2"}) {
 		t.Errorf("after a trim: %q, want the 3 used last", got)
+	}
+	if fileExists(broken) {
+		t.Error("an entry half removed an hour ago is left")
 	}
 	if fileExists(stale) || !fileExists(writing) {
 		t.Errorf("a stopped write is left (%v), or one in progress removed (%v)", fileExists(stale), !fileExists(writing))

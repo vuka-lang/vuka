@@ -144,14 +144,19 @@ func (c *reuseCache) entries() []*keptBuild {
 func (e *keptBuild) bin() string { return exe(filepath.Join(e.dir, "app")) }
 
 // trim keeps the reuseKeep builds used last, together at most
-// reuseMaxBytes, and removes the rest and what a stopped write left.
+// reuseMaxBytes, and removes the rest, and what a write or a removal that
+// stopped left an hour ago.
 func (c *reuseCache) trim() {
 	des, _ := os.ReadDir(c.dir)
 	for _, de := range des {
-		if strings.HasPrefix(de.Name(), ".tmp-") {
-			if fi, err := de.Info(); err == nil && time.Since(fi.ModTime()) > time.Hour {
-				os.RemoveAll(filepath.Join(c.dir, de.Name()))
-			}
+		// A write that stopped, or an entry half removed (on Windows, its
+		// binary running).
+		dir := filepath.Join(c.dir, de.Name())
+		if !strings.HasPrefix(de.Name(), ".tmp-") && fileExists(filepath.Join(dir, reuseEntry)) {
+			continue
+		}
+		if fi, err := de.Info(); err == nil && time.Since(fi.ModTime()) > time.Hour {
+			os.RemoveAll(dir)
 		}
 	}
 	var size int64

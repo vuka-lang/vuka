@@ -16,7 +16,7 @@ These are the subcommands and their flags:
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
 vuka build|run|test|vet|install [go flags] [packages]
-vuka run -watch [-debug] [go flags] [package] [args]
+vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
 vuka build-islands [-watch]
 vuka gen [-check] [-o build]
@@ -183,6 +183,40 @@ is imported in `main.vuka`.
 overlay (`go … -overlay`): nothing is written among your sources. `vuka build`
 also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are.
+
+### Running While You Edit {#run-watch}
+
+`vuka run -watch` builds the app, runs it, and rebuilds it when a source
+changes: `.vuka`, `.vuka.html`, `.templ` and `.go` files (not tests),
+`go.mod`, `go.sum` and the files the app embeds. The running version keeps
+serving while the next one compiles, and is swapped out only once the new
+build is green; a build that fails prints its errors and leaves it running,
+and one that comes out the same restarts nothing. `-debug` keeps the debug
+information watch builds leave out, for delve.
+
+**A start with nothing changed runs the last build at once.** Each good
+build's binary is kept in vuka's cache directory (`vuka/run`, or
+`VUKA_CACHE`), under a key hashing everything the build reads: the module's
+sources (and those of modules a `replace` or `go.work` points at),
+`go.mod`, `go.sum` and `go.work`, the embedded files (by name only for the
+`web.Frontend` files the build stubs), the build flags, the go command's
+environment (`GOOS`, `GOARCH`, `GOFLAGS`, `CGO_*`, its `go env -w`
+settings), the module's Go and this vuka. When the next `vuka run -watch`
+finds a build under the key its sources have now, it starts that build
+before transpiling anything and prints
+
+```text
+● reusing the last build (no changes)
+```
+
+It then builds as usual, in the background. A build that comes out the same
+leaves the app running; one that comes out different, from an input the key
+doesn't cover, is swapped in with a warning saying whether the transpiler's
+or go build's inputs were missed. The last three builds of a module are
+kept (at most 2 GB together), so switching branches back and forth reuses
+too, and modules not run for two weeks are dropped. `-fresh` builds before
+the app starts as before; `VUKA_REUSE=off` turns reuse off. `vuka build`
+always builds.
 
 ### Incremental Transpiling
 
