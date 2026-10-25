@@ -77,6 +77,58 @@ These options change them:
 | `web.NoSecurityHeaders()` | none: a proxy in front sets them |
 | `web.MaxRequestBody(n)` | the largest request body, 32 MiB by default ([uploads](/web/parameters#the-body)) |
 
+## Compression and Caching {#compression}
+
+Responses are compressed when the browser takes it: brotli, else gzip, with
+`Vary: Accept-Encoding`. On a 200-row list page of a `vuka new` app, 268 KB
+of HTML goes out as 4.6 KB of brotli (7.7 KB of gzip), for about a
+millisecond of the server's time; `/_vuka/live.js` goes from 79 KB to 23 KB
+and the app's stylesheet from 25 KB to 4.5 KB. Live sockets compress their
+messages too ([live pages](/web/live#compression)).
+
+What handlers write (pages, JSON, endpoints) is compressed as it goes out.
+These are sent as they are:
+
+- bodies under 1 KB;
+- types already compressed: images, video, audio, archives, `woff`/`woff2`;
+- a `Range` request, a `HEAD`, and `1xx`, `204`, `206` and `304` answers;
+- a response the handler encoded itself (it set `Content-Encoding`), or
+  marked `Cache-Control: no-transform`;
+- event streams and WebSocket upgrades, which the compression never wraps.
+
+A handler that flushes (`http.Flusher`) sends what it wrote so far,
+compressed: a streamed page reaches the browser as it is flushed. An
+encoded response's `ETag` becomes weak (`W/"…"`) and still matches the
+browser's next `If-None-Match`.
+
+The live runtime, the stylesheet, the components' scripts and the island
+chunks are sent in an encoding made once: `vuka build` embeds their brotli
+and gzip with them, and the app makes one the first time it is asked for
+what wasn't. Each encoding has its own `ETag`, so a browser revalidating
+gets a `304` for the one it holds.
+
+| Option | |
+|---|---|
+| `web.Compression(level)` | how hard what handlers write is compressed: `web.BestSpeed` (1) to `web.BestCompression` (11), brotli's quality (gzip's level is the same, up to 9). `web.DefaultCompression` is 5 |
+| `web.Compression(web.Off)` | no compression: a proxy in front compresses |
+
+Compression is on under `vuka run` too, so what you measure while you work
+is what the binary sends. The [toolbar](/web/toolbar#request) shows each
+request's size as written and on the wire.
+
+### Static Files {#static-files}
+
+`app.Static(prefix, fsys)` sends each file with an `ETag` (a hash of its
+content) and, when the file system has times (`os.DirFS`), `Last-Modified`;
+a browser revalidating gets a `304`. A file whose name carries a content hash
+(`app.3f9a1c2b.css`, `index-BkL2x9aQ.js`) is cached for good
+(`public, max-age=31536000, immutable`); every other one is kept and
+revalidated each time (`public, max-age=0, must-revalidate`), unless the
+handler's middleware set its own `Cache-Control`. A compressible file is
+sent in the encoding the browser takes: the `.br` or `.gz` beside it in
+`fsys` when there is one (`app.css.br`), else one the app makes the first
+time and keeps.
+
 ## Behind a Proxy
 
 A proxy or load balancer in front of the app makes every request come from

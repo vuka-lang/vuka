@@ -179,6 +179,31 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `web.LiveMaxConns`' 10,000, against 2 KB without it), so the default
   stays. The framework's Go test clients now negotiate compression as
   browsers do ([#127](https://github.com/vuka-lang/vuka/issues/127)).
+- **Responses are compressed, and static files revalidate.** Pages,
+  JSON and assets went out uncompressed, and `app.Static` files with no
+  `ETag`, `Last-Modified` or `Cache-Control`, so browsers fetched them again
+  on every page. Responses now go out in brotli, else gzip, when the browser
+  takes it, with `Vary: Accept-Encoding`: a 200-row list page of a
+  `vuka new` app takes 4.6 KB on the wire instead of 268 KB (7.7 KB in
+  gzip), `/_vuka/live.js` 23 KB instead of 79 KB, `app.css` 4.5 KB instead
+  of 25 KB. What handlers write is compressed as it goes out (brotli quality
+  5, about a millisecond on that page), a flush sending what was written so
+  far; bodies under 1 KB, images and other compressed types, `Range`, `HEAD`,
+  `204`/`206`/`304`, a handler's own encoding, `no-transform`, event streams
+  and WebSocket upgrades are sent as they are. `vuka build` embeds the
+  stylesheet's, the components' scripts' and the island chunks' brotli and
+  gzip (`web.RegisterEncoded`), the Vite plugin and `vuka build-islands`
+  write a `.br` and a `.gz` beside a frontend's files, and each encoding has
+  its own `ETag`. `app.Static` files get a content `ETag`, `Last-Modified`
+  when the file system has times, a `304` on revalidation, and
+  `public, max-age=0, must-revalidate` (cached for good when the name
+  carries a hash); the `.br` or `.gz` beside a file is sent when there is
+  one. Island chunks and modules under `vuka run` now have an `ETag` too,
+  so a reload revalidates them instead of downloading them again.
+  `web.Compression(level)` sets how hard, `web.Compression(web.Off)` turns
+  it off behind a proxy that compresses; it is on under `vuka run` as well,
+  and the toolbar's Request panel shows the bytes sent
+  ([#126](https://github.com/vuka-lang/vuka/issues/126)).
 
 ## v2.5.0 — 2026-10-24
 
