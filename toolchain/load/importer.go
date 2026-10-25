@@ -87,7 +87,7 @@ func (im *Importer) prefetch(paths, more []string) error {
 func (im *Importer) missing(paths []string) []string {
 	var missing []string
 	for _, p := range paths {
-		if _, ok := im.exports[p]; ok || p == "unsafe" || p == "C" || build.IsLocalImport(p) {
+		if _, ok := im.exports[p]; ok || p == "unsafe" || p == "C" || build.IsLocalImport(p) || strings.HasPrefix(p, "@/") {
 			continue
 		}
 		if im.cache != nil {
@@ -152,7 +152,7 @@ func (im *Importer) lookup(path string) (io.ReadCloser, error) {
 	if im.broken[path] {
 		return nil, fmt.Errorf("%s has errors", path)
 	}
-	if build.IsLocalImport(path) {
+	if build.IsLocalImport(path) || strings.HasPrefix(path, "@/") {
 		// A component file (../web/islands/Chart.vue), which no go
 		// command need be asked about.
 		return nil, fmt.Errorf("%s is not a package", path)

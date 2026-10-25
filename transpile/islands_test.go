@@ -46,3 +46,80 @@ func TestIslandPropTypeErrors(t *testing.T) {
 		}
 	}
 }
+
+func TestIslandRootImport(t *testing.T) {
+	root, err := filepath.Abs("testdata/islandroot")
+	if err != nil {
+		t.Fatal(err)
+	}
+	dir := filepath.Join(root, "pages", "(admin)", "users", "[id]")
+	src, err := os.ReadFile(filepath.Join(dir, "x.vuka.html"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	compile := func(root string, src []byte) (*transpile.Result, error) {
+		return transpile.Package([]transpile.File{{Name: "x.vuka.html", Src: src}}, transpile.Options{
+			Dir: dir, ModuleRoot: root, Importer: load.NewImporter("testdata/golden", ""),
+		})
+	}
+	res, err := compile(root, src)
+	if err != nil {
+		t.Fatal(err)
+	}
+	compare(t, "testdata/islandroot/x.golden", res.Files[0].Src)
+	for _, tc := range []struct{ name, root, path, want string }{
+		{"missing", root, "@/web/islands/Missing.vue", filepath.Join(root, "web", "islands", "Missing.vue")},
+		{"escape", root, "@/../Form.vue", "escapes the module root"},
+		{"unknown", "", "@/web/islands/Form.vue", "main module root is unknown"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			text := []byte(strings.ReplaceAll(string(src), "@/web/islands/Form.vue", tc.path))
+			_, err := compile(tc.root, text)
+			if err == nil || !strings.Contains(err.Error(), tc.want) || !strings.Contains(err.Error(), tc.path) {
+				t.Fatalf("got %v; want %s and %s", err, tc.want, tc.path)
+			}
+			list, ok := err.(transpile.ErrorList)
+			if !ok || len(list) == 0 || list[0].Code != "E0303" {
+				t.Fatalf("want E0303: %v", err)
+			}
+		})
+	}
+	t.Run("island-only", func(t *testing.T) {
+		page := []byte(strings.ReplaceAll(strings.ReplaceAll(string(src), "type Edit struct{}", "type Edit struct{ Title string }"), `<main><Form title="Edit" count={2} client:load /></main>`, `<Form title={Title} client:load />`))
+		if _, err := compile(root, page); err != nil {
+			t.Fatal(err)
+		}
+		for _, path := range []string{"@/../Form.vue", "@/web/islands/Missing.vue"} {
+			_, err := compile(root, []byte(strings.ReplaceAll(string(page), "@/web/islands/Form.vue", path)))
+			if err == nil || !strings.Contains(err.Error(), path) {
+				t.Fatalf("invalid island-only import: %v", err)
+			}
+		}
+		if _, err := compile("", page); err == nil || !strings.Contains(err.Error(), "main module root is unknown") {
+			t.Fatalf("unknown island-only root: %v", err)
+		}
+	})
+	// The generated contract must include props imported relative to the Vue file.
+	if got := string(res.Files[0].Src); !strings.Contains(got, "Title string") || !strings.Contains(got, "Count *float64") {
+		t.Fatalf("missing props: %s", got)
+	}
+}
+
+func TestVukaIslandRootImport(t *testing.T) {
+	root, err := filepath.Abs("testdata/golden")
+	if err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(filepath.Join(root, "islands_import.vuka"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	src = []byte(strings.ReplaceAll(string(src), "./islands/Picker.vue", "@/islands/Picker.vue"))
+	res, err := transpile.Package([]transpile.File{{Name: "root.vuka", Src: src}}, transpile.Options{Dir: t.TempDir(), ModuleRoot: root, Importer: load.NewImporter(root, "")})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := string(res.Files[0].Src); !strings.Contains(got, `RegisterIsland[Picker]("@/islands/Picker.vue")`) {
+		t.Fatalf("registration: %s", got)
+	}
+}

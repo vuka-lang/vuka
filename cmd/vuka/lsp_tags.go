@@ -13,6 +13,8 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/tsprops"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
@@ -59,6 +61,30 @@ func (p *proxy) resolveComponent(srcPath string, src []byte, tag string) *tagInf
 		return nil
 	}
 	dir := filepath.Dir(srcPath)
+	if qual == "" {
+		for _, im := range sourceImports(srcPath, src) {
+			if im.Name != name || !tsprops.IsComponent(im.Path) {
+				continue
+			}
+			file, err := tsprops.ResolveIslandPath(p.modRoot, dir, im.Path)
+			if err != nil {
+				return nil
+			}
+			data, err := load.ReadSource(file)
+			if err != nil {
+				return nil
+			}
+			comp, err := tsprops.Read(filepath.ToSlash(file), data, func(p string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(p)) })
+			if err != nil {
+				return nil
+			}
+			info := &tagInfo{name: name, kind: "island", file: file, line: 1}
+			for _, pr := range comp.Props {
+				info.props = append(info.props, tagProp{attr: pr.Name, typ: pr.Type.String(), required: !pr.Optional})
+			}
+			return info
+		}
+	}
 	if qual != "" {
 		dir = ""
 		for _, im := range sourceImports(srcPath, src) {

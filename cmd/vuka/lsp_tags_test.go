@@ -121,3 +121,20 @@ func TestTagHover(t *testing.T) {
 		t.Errorf("Badge hover %q", md)
 	}
 }
+
+func TestRootIslandTag(t *testing.T) {
+	p, root := tagsModule(t)
+	file := filepath.Join(root, "web", "islands", "Form.vue")
+	writeFile(t, file, `<script setup lang="ts">defineProps<{ title: string; count?: number }>()</script>`)
+	src := []byte("package users\nimport Form \"@/web/islands/Form.vue\"\ntype Edit struct{}\n<main><Form title=\"Edit\" /></main>\n")
+	info := p.resolveComponent(filepath.Join(root, "pages", "admin", "users", "edit.vuka.html"), src, "Form")
+	if info == nil {
+		t.Fatal("no island tag")
+	}
+	if info.file != file {
+		t.Fatalf("definition: %s, want %s", info.file, file)
+	}
+	if h := info.markdown("Form"); !strings.Contains(h, "title") || !strings.Contains(h, "number") {
+		t.Fatalf("hover: %s", h)
+	}
+}

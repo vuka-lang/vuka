@@ -52,6 +52,8 @@ type Options struct {
 	// Dir is the package's directory, where vuka.File literals are looked up.
 	// Empty skips the check that they exist.
 	Dir string
+	// ModuleRoot is the main module directory for @/ island imports.
+	ModuleRoot string
 	// ImportPath is the package's import path, for vuka.Decl and vuka.File.
 	// Empty uses the package name.
 	ImportPath string
@@ -547,7 +549,7 @@ func (f *fileState) emit(bare bool, extra string, extraSegs []segment) ([]byte, 
 // the package (read for type information, never rewritten).
 func Package(files []File, opts Options) (*Result, error) {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}
@@ -646,7 +648,7 @@ func Package(files []File, opts Options) (*Result, error) {
 // clause, imports and the type of its main template come from them.
 func Syntax(file File, opts Options, others ...File) ErrorList {
 	var errs ErrorList
-	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, importPath: opts.ImportPath, scopes: opts.Scopes}
+	e := &engine{imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, scopes: opts.Scopes}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}

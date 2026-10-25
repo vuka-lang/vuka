@@ -906,11 +906,16 @@ func (c *syntaxChecker) check(path string, src []byte, others []transpile.File) 
 	if c.imp == nil || c.root != root || !bytes.Equal(gomod, c.gomod) {
 		c.imp, c.root, c.modPath, c.gomod = load.NewModuleImporter(root), root, modPath, gomod
 	}
+	moduleRoot := ""
+	if modPath != "" {
+		moduleRoot = root
+	}
 	errs := transpile.Syntax(transpile.File{Name: filepath.Base(path), Src: src}, transpile.Options{
-		Importer: outside{c.imp, modPath},
-		Path:     func(name string) string { return filepath.Join(dir, name) },
-		Bare:     true,
-		Dir:      dir,
+		Importer:   outside{c.imp, modPath},
+		Path:       func(name string) string { return filepath.Join(dir, name) },
+		Bare:       true,
+		Dir:        dir,
+		ModuleRoot: moduleRoot,
 	}, others...)
 	kept := errs[:0]
 	for _, e := range errs {

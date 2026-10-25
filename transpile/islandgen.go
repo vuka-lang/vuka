@@ -147,18 +147,21 @@ func (e *engine) islandImport(f *fileState, toks []tok, im *islandImport, errs *
 	}
 	e.islands[im.name] = im
 	im.gen = !e.declaredIslands[im.name]
-	if !im.gen {
+	if !im.gen && !strings.HasPrefix(im.path, "@/") {
 		return // the @ui.Island struct is the contract
 	}
-	if e.dir == "" {
-		errs.add("E0303", f.at(im.off), "can't read %s: the package's directory is unknown", im.path)
-		return
-	}
-	file := filepath.Join(e.dir, filepath.FromSlash(im.path))
-	src, err := readFileFn(file)
+	file, err := tsprops.ResolveIslandPath(e.moduleRoot, e.dir, im.path)
 	if err != nil {
 		errs.add("E0303", f.at(im.off), "can't read island component %s: %v", im.path, err)
 		return
+	}
+	src, err := readFileFn(file)
+	if err != nil {
+		errs.add("E0303", f.at(im.off), "can't read island component %s (resolved to %s): %v", im.path, file, err)
+		return
+	}
+	if !im.gen {
+		return // the declared struct supplies props, but the target must exist
 	}
 	comp, err := tsprops.Read(filepath.ToSlash(file), src, func(p string) ([]byte, error) { return readFileFn(filepath.FromSlash(p)) })
 	if err != nil {

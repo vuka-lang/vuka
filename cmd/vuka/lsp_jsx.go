@@ -1016,6 +1016,23 @@ func (p *proxy) jsxRequest(method string, params map[string]any, vf *vfile, genP
 			return func() any { return map[string]any{"isIncomplete": false, "items": []any{}} }
 		}
 	case "textDocument/hover", "textDocument/definition", "textDocument/declaration":
+		for i := 0; i < len(src); i++ {
+			if src[i] != '<' || !tagAt(src, i) {
+				continue
+			}
+			tag, ok := readTag(src, i)
+			if !ok || off < tag.nameStart || off > tag.nameEnd {
+				continue
+			}
+			info := p.resolveComponent(vf.source, src, tag.name)
+			if info == nil || info.kind != "island" {
+				break
+			}
+			if method == "textDocument/hover" {
+				return func() any { return markdownHover(info.markdown(tag.name), src, tag.nameStart, tag.nameEnd) }
+			}
+			return func() any { return []any{map[string]any{"uri": pathToURI(p.display(info.file)), "range": lspRange{}}} }
+		}
 		tag, a, ok := attrAt(src, off)
 		if !ok {
 			return nil

@@ -11,6 +11,7 @@ import (
 
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/toolchain/tsprops"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
@@ -318,9 +319,13 @@ func (ic *islandComp) locateArg(root, dir, typeRel string) {
 		ic.infer, ic.module = true, islandModule(typeRel)
 		return
 	}
-	abs := filepath.Join(dir, filepath.FromSlash(cp))
+	abs, err := tsprops.ResolveIslandPath(root, dir, cp)
+	if err != nil {
+		ic.problem, ic.problemCode = err.Error(), "E0303"
+		return
+	}
 	relSrc, _ := filepath.Rel(root, abs)
-	if !strings.HasPrefix(cp, ".") && !filepath.IsAbs(cp) {
+	if !strings.HasPrefix(cp, ".") && !strings.HasPrefix(cp, "@/") && !filepath.IsAbs(cp) {
 		ic.bare = cp
 	}
 	ic.src, ic.rel, ic.framework = abs, filepath.ToSlash(relSrc), islandFramework(cp)

@@ -22,6 +22,7 @@ import (
 	"strings"
 	"sync"
 
+	"github.com/vuka-lang/vuka/v2/toolchain/tsprops"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
@@ -427,7 +428,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 			}
 		}
 		for _, imp := range f.Imports {
-			if path, err := strconv.Unquote(imp.Path.Value); err == nil {
+			if path, err := strconv.Unquote(imp.Path.Value); err == nil && !tsprops.IsComponent(path) {
 				p.Imports = append(p.Imports, path)
 			}
 		}
@@ -459,7 +460,7 @@ func readDir(root, modPath, dir string, read ReadFunc, templ, live bool) ([]*Pac
 			}
 			p.Files = append(p.Files, h)
 			for _, imp := range head.Imports {
-				if !strings.HasPrefix(imp.Path, ".") {
+				if !strings.HasPrefix(imp.Path, ".") && !tsprops.IsComponent(imp.Path) {
 					p.Imports = append(p.Imports, imp.Path) // a component file (./chart.vue) is no package
 				}
 			}
@@ -754,12 +755,14 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 	// asks for too.
 	var mod map[string]*modPkg
 	modPath := ""
+	moduleRoot := ""
 	if len(pkgs) > 0 {
 		if root, mp, err := ModuleRoot(pkgs[0].Dir); err == nil {
 			// A newer Go than vuka's writes export data vuka may not read.
 			if err := CheckGoVersion(realPath(root)); err != nil {
 				return nil, "", err
 			}
+			moduleRoot = root
 			mod, modPath = scanModule(realPath(root), mp, ReadSource), mp
 			if opts.Contexts == nil {
 				opts.Contexts = contexts(mod, pkgs, ReadSource)
@@ -933,6 +936,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			Path:          func(name string) string { return filepath.Join(p.Dir, name) },
 			Bare:          opts.Bare,
 			Dir:           p.Dir,
+			ModuleRoot:    moduleRoot,
 			ImportPath:    p.ImportPath,
 			Scopes:        opts.Scopes[p.Dir],
 			Contexts:      opts.Contexts[p.ImportPath],

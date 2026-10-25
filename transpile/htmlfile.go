@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/scanner"
@@ -11,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"unicode"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/tsprops"
 )
 
 // A .vuka.html file is one struct and its markup: a Go header declaring the
@@ -177,6 +180,24 @@ func componentName(file string) string {
 // template makes the template file f the .vuka source it compiles as, or
 // reports why it can't. files are the package's.
 func (e *engine) template(f *fileState, files []File) bool {
+	// Island-only pages lower their import to a decorator before islandImports
+	// runs, so validate module-root targets while the original import is present.
+	for _, im := range ParseTemplateHead(f.src).Imports {
+		if !strings.HasPrefix(im.Path, "@/") || !tsprops.IsComponent(im.Path) {
+			continue
+		}
+		file, err := tsprops.ResolveIslandPath(e.moduleRoot, e.dir, im.Path)
+		if err == nil {
+			if _, readErr := readFileFn(file); readErr != nil {
+				err = fmt.Errorf("resolved to %s: %w", file, readErr)
+			}
+		}
+		if err != nil {
+			e.errs.add("E0303", token.Position{Filename: f.path, Line: im.Line + 1, Column: 1}, "can't read island component %s: %v", im.Path, err)
+			return false
+		}
+	}
+
 	q := "ui."
 	if e.selfJSX {
 		q = ""

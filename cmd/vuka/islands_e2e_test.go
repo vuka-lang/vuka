@@ -44,7 +44,7 @@ import (
 
 	RCounter "../islands/RCounter.tsx"
 	SCounter "../islands/SCounter.svelte"
-	VCounter "../islands/VCounter.vue"
+	VCounter "@/islands/VCounter.vue"
 )
 
 type Page struct {

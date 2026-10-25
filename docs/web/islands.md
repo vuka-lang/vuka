@@ -54,7 +54,27 @@ const picked = defineModel<string>('picked')
 ### Import Rules
 
 An island import may use a package alias, just like a Go import. The path is
-relative to the shape file. Its package clause, imports, struct, hooks and
+relative to the shape file when it starts with `./` or `../`. Use `@/` to
+import from the main module root (the directory holding `go.mod`), so a page
+can move between folders without changing its component imports. For example, `pages/admin/users/edit.vuka.html`:
+
+```html
+<script lang="go">
+package users
+
+import Form "@/web/islands/Form.vue"
+
+type Edit struct{}
+</script>
+
+<main><Form title="Edit user" client:load /></main>
+```
+
+The rule applies to `.vuka.html` and `.vuka` imports. `@/` requires a known
+main module root; paths escaping it, such as `@/../Form.vue`, are rejected.
+It does not read `tsconfig.json` path mappings.
+
+Its package clause, imports, struct, hooks and
 methods precede the first markup line; do not place an HTML filename comment
 above the package clause. The imported tag needs no wrapper except when a
 fallback is required.

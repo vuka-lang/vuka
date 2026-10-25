@@ -618,7 +618,11 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 		if err != nil || !tsprops.IsComponent(p) {
 			continue
 		}
-		abs := filepath.Join(dir, filepath.FromSlash(p))
+		abs, err := tsprops.ResolveIslandPath(pa.root, dir, p)
+		if err != nil {
+			continue
+		} // the compiler reports E0303 at the import
+
 		relSrc, _ := filepath.Rel(pa.root, abs)
 		ic := &islandComp{
 			name:      toks[i-1].lit,

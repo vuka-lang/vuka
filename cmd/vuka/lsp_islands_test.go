@@ -184,3 +184,24 @@ func containsAll(s string, subs []string) bool {
 	}
 	return true
 }
+
+func TestLSPRootIslandImport(t *testing.T) {
+	src := strings.ReplaceAll(islandLSPSource, "./islands/Picker.vue", "@/web/islands/Picker.vue")
+	c, dir, _ := startLSPWith(t, map[string]string{
+		"main.go":                          "package main\nfunc main() {}\n",
+		"pages/admin/users/page.vuka.html": src,
+		"web/islands/Picker.vue":           islandLSPVue,
+	})
+	uri := pathToURI(filepath.Join(dir, "pages/admin/users/page.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": src}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	at := func(needle string, delta int) map[string]any {
+		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(src), strings.Index(src, needle)+delta)}
+	}
+	if d := jsonOf(c.call("textDocument/definition", at("<Picker", 2))); !strings.Contains(d, pathToURI(filepath.Join(dir, "web/islands/Picker.vue"))) {
+		t.Fatalf("definition: %s", d)
+	}
+	if h := jsonOf(c.call("textDocument/hover", at("<Picker", 2))); !strings.Contains(h, "title") || !strings.Contains(h, "weeks") {
+		t.Fatalf("hover: %s", h)
+	}
+}
