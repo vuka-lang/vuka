@@ -326,7 +326,8 @@ func TestNewRunWatch(t *testing.T) {
 	res.Body.Close()
 	stop()
 
-	env := []string{"GOWORK=off", "PATH=" + filepath.Dir(e.vuka) + string(os.PathListSeparator) + os.Getenv("PATH"), twEnv + "=on", "VUKA_FRONTEND=off"}
+	env := []string{"GOWORK=off", "PATH=" + filepath.Dir(e.vuka) + string(os.PathListSeparator) + os.Getenv("PATH"), twEnv + "=on", "VUKA_FRONTEND=off",
+		reuseEnv + "=on", "VUKA_CACHE=" + t.TempDir()}
 	r := startWatch(t, e.vuka, dir, env)
 	login := func() (int, string) {
 		res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/login", r.port))
@@ -363,6 +364,17 @@ func TestNewRunWatch(t *testing.T) {
 	}
 	if code, _ := login(); code != 0 {
 		t.Errorf("the app answers (%d) after vuka stopped", code)
+	}
+
+	// Started again with nothing changed, it runs the build the last run
+	// kept, and builds alongside.
+	r = startWatch(t, e.vuka, dir, append(env, traceEnv+"=1"))
+	waitFor("Sign in to the edited app")
+	r.waitLog("● reusing the last build (no changes)", 1)
+	r.waitLog("the kept build verified", 1)
+	r.stop()
+	if out := r.log.String(); strings.Contains(out, "warning: the reused build") {
+		t.Errorf("the reused build was out of date:\n%s", out)
 	}
 }
 
