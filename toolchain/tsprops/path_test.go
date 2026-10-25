@@ -34,8 +34,16 @@ func TestResolveIslandPath(t *testing.T) {
 		})
 	}
 	if runtime.GOOS == "windows" {
-		for _, path := range []string{"@/islands/CON.vue", "@/aux.tsx", "@/islands/a:b.vue"} {
+		for _, path := range []string{"@/islands/CON", "@/AUX", "@/islands/a:b.vue"} {
 			if _, err := ResolveIslandPath(root, dir, path); err == nil || !strings.Contains(err.Error(), "invalid component path") {
+				t.Errorf("%s: %v", path, err)
+			}
+		}
+		// Windows 11 permits device names with extensions; older Windows
+		// versions reject them. When rejected, the error must describe validity,
+		// rather than claiming the path escaped the module.
+		for _, path := range []string{"@/islands/CON.vue", "@/aux.tsx"} {
+			if _, err := ResolveIslandPath(root, dir, path); err != nil && !strings.Contains(err.Error(), "invalid component path") {
 				t.Errorf("%s: %v", path, err)
 			}
 		}
