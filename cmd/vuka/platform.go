@@ -62,6 +62,21 @@ func removeAll(path string) error {
 	return err
 }
 
+// rename is os.Rename, on Windows tried again for a while: a rename onto
+// a file another process has open (an app reading it, a virus scanner)
+// fails there until it is closed.
+func rename(from, to string) error {
+	err := os.Rename(from, to)
+	if runtime.GOOS != "windows" {
+		return err
+	}
+	for wait := 10 * time.Millisecond; err != nil && wait < 2*time.Second; wait *= 2 {
+		time.Sleep(wait)
+		err = os.Rename(from, to)
+	}
+	return err
+}
+
 // standaloneTailwind is the name Tailwind's standalone CLI is released
 // under for the system: tailwindcss-windows-x64.exe, tailwindcss-macos-arm64…
 func standaloneTailwind(goos, goarch string) string {

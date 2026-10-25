@@ -499,11 +499,10 @@ func (s *supervisor) startKept(e *keptBuild) bool {
 	s.w.setEmbeds(e.Roots)
 	fmt.Fprintln(s.stderr, "● reusing the last build (no changes)")
 	traceStep("start")
-	if s.app = s.start(r); s.app == nil {
+	if !s.startApp(r, buildState{State: "ok", At: time.Now()}) {
 		return false
 	}
 	s.reusedSum = e.Sum
-	s.setState(buildState{State: "ok", At: time.Now()})
 	return true
 }
 
@@ -548,20 +547,17 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		s.w.setEmbeds(r.embeds)
 	}
 	if r.err != nil {
-		s.stderr.Write(r.out)
-		if len(r.out) == 0 || !isExit(r.err) {
-			fmt.Fprintln(s.stderr, r.err)
-		}
-		if s.app != nil {
-			fmt.Fprintln(s.stderr, "● build failed; the last good build keeps running")
-		} else {
-			fmt.Fprintln(s.stderr, "● build failed; waiting for a change")
-		}
 		out := string(r.out)
 		if len(r.out) == 0 || !isExit(r.err) {
 			out += r.err.Error() + "\n"
 		}
 		s.setState(buildState{State: "failed", At: time.Now(), Output: out})
+		io.WriteString(s.stderr, out)
+		if s.app != nil {
+			fmt.Fprintln(s.stderr, "● build failed; the last good build keeps running")
+		} else {
+			fmt.Fprintln(s.stderr, "● build failed; waiting for a change")
+		}
 		r.discard()
 		return
 	}
@@ -584,8 +580,8 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		}
 		fmt.Fprintf(s.stderr, "● warning: the reused build was out of date: one of %s inputs changed that the reuse key doesn't cover (please report it); swapping in the new build\n", missed)
 	} else if s.app != nil && s.app.sum == r.sum {
-		fmt.Fprintln(s.stderr, "● unchanged")
 		s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
+		fmt.Fprintln(s.stderr, "● unchanged")
 		if s.reuse != nil {
 			s.reuse.store(s, r)
 		}
@@ -600,8 +596,7 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		removeAll(filepath.Dir(s.app.bin)) // on Windows, once the exited app's binary is let go
 		s.app = nil
 	}
-	s.app = s.start(r)
-	s.setState(buildState{State: "ok", At: time.Now(), Took: took(changed)})
+	s.startApp(r, buildState{State: "ok", At: time.Now(), Took: took(changed)})
 	if s.app != nil && s.reuse != nil {
 		s.reuse.store(s, r)
 	}
@@ -682,12 +677,17 @@ func took(since time.Time) float64 {
 }
 
 // setState writes the build state into the session directory, whole: a
-// reader never sees half of it.
+// reader never sees half of it. It is written before the message saying
+// it: what reads the message may then read the state.
 func (s *supervisor) setState(st buildState) {
 	b, _ := json.Marshal(st)
 	tmp := filepath.Join(s.tmp, buildStateFile+".tmp")
-	if os.WriteFile(tmp, b, 0o644) == nil {
-		os.Rename(tmp, filepath.Join(s.tmp, buildStateFile))
+	err := os.WriteFile(tmp, b, 0o644)
+	if err == nil {
+		err = rename(tmp, filepath.Join(s.tmp, buildStateFile))
+	}
+	if err != nil {
+		fmt.Fprintf(s.stderr, "● the build state isn't written (the toolbar shows the last one): %v\n", err)
 	}
 }
 
@@ -717,7 +717,19 @@ type app struct {
 	err  error
 }
 
-func (s *supervisor) start(r *buildResult) *app {
+// startApp runs the build r as the app, the state st written before: the
+// app's first request may read it. It reports whether the app started.
+func (s *supervisor) startApp(r *buildResult, st buildState) bool {
+	s.setState(st)
+	var err error
+	if s.app, err = s.start(r); err != nil {
+		s.setState(buildState{State: "failed", At: time.Now(), Output: err.Error() + "\n"})
+		return false
+	}
+	return true
+}
+
+func (s *supervisor) start(r *buildResult) (*app, error) {
 	c := exec.Command(r.bin, s.prog...)
 	c.Dir, c.Env = s.dir, s.env
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, s.stdout, s.stderr
@@ -725,7 +737,7 @@ func (s *supervisor) start(r *buildResult) *app {
 	if err := c.Start(); err != nil {
 		fmt.Fprintln(s.stderr, "vuka:", err)
 		r.discard()
-		return nil
+		return nil, err
 	}
 	a := &app{bin: r.bin, sum: r.sum, cmd: c, done: make(chan struct{})}
 	go func() {
@@ -736,7 +748,7 @@ func (s *supervisor) start(r *buildResult) *app {
 		default:
 		}
 	}()
-	return a
+	return a, nil
 }
 
 // stop signals the app (on Windows, any signal is a CTRL_BREAK_EVENT: see
