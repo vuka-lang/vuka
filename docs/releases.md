@@ -40,6 +40,20 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `live: no handler "c3:75": views.Table[…] (c3): its last render has 75`,
   or that the component was unmounted.
 
+- **Live errors keep their detail out of the browser in production.** Since
+  the change above, that reason — Go type names with their packages,
+  instance ids and handler counts — reached every visitor's browser. Outside
+  development the reply is now the short form, `live: no handler "c3:75"`,
+  and the full reason goes to the log with the session, the page, the
+  handler and the component. The same holds for an event payload that
+  doesn't parse (`live: click event payload doesn't parse`, not the JSON
+  decoder's message naming Go types), a value whose `UnmarshalText` fails,
+  and a handler taking a type a field can't bind. In development
+  (`vuka run`, `web.Dev()`, `VUKA_ENV=development`) the browser's console and
+  the toolbar get the full text, as before. ui's no-handler error is a
+  `*live.NoHandlerError` (`Target`, `Component`) whose `PublicMessage` is the
+  short form.
+
 - **`vuka run -watch` starts at once when nothing changed.** Each start
   transpiled the module and ran go build and the linker before the app
   answered, a few seconds on a mid-size app (more on a cold cache or a busy

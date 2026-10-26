@@ -226,14 +226,22 @@ What the browser reads of an error follows what an HTTP route answers:
   form field that doesn't bind (`"x" isn't a whole number`);
 - an event a [gate](/web/auth) refuses: `unauthorized` or `forbidden`, the
   gates' own `*web.Error`s;
+- an event naming a handler the page no longer has — a stale tab, a
+  component unmounted since — the short form `live: no handler "c3:75"`,
+  without whose handler it was;
 - for any other error a handler, the mount hook or `Update` returns, or a panic,
-  `Internal Server Error`. The error itself goes to the log (`slog`, at
-  error level), with the page's URL and the handler, so a database error
-  or a file path never reaches the visitor.
+  `Internal Server Error`.
+
+What the browser doesn't get of an error goes to the log (`slog`, at error
+level) in full, with the session, the page's URL, the handler and, for a
+missing handler, the component — `live: no handler "c3:75": views.Table[…]
+(c3): its last render has 75` — so a database error, a file path or a Go
+type name never reaches the visitor.
 
 > [!NOTE]
-> In development (`web.Dev()`, `VUKA_ENV=development`) the browser gets every
-> error's own text, as an HTTP error page shows it.
+> In development (`vuka run`, `web.Dev()`, `VUKA_ENV=development`) the browser
+> gets every error's full text, as an HTTP error page shows it: the browser's
+> console and the toolbar's Live panel show it.
 
 ## How Patches Apply {#patches}
 
