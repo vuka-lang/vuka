@@ -20,6 +20,23 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.6.1 — unreleased
+
+- **`vuka lsp` answers every request in time while gopls is slow.** A
+  completion in markup asks gopls about a scratch copy of the generated Go,
+  and held the generated Go for its whole question; while typing, those
+  questions queued, and the build of the edit queued behind them for as
+  long as a busy gopls (a shared daemon serving another workspace) took to
+  answer them. Each request on the edited file then waited for that build
+  on the server's main loop, one after another, so a hover stayed on
+  "Loading…" and a save's formatting ran on until the file was closed. A
+  build now goes first (a completion's question to gopls gives way and the
+  completion goes without it), a request waits for the build of an edit
+  only once, a cancelled request is answered at once, and a request nothing
+  has answered by the deadline is answered with nothing to show (formatting
+  with no edits) rather than left waiting; an answer coming after that is
+  dropped (#149).
+
 ## v2.6.0 — 2026-10-26
 
 - **Commands pushed from a hook reach their handlers.** A Push step in a

@@ -42,8 +42,11 @@ import (
 const buildDelay = 50 * time.Millisecond
 
 // awaitLimit bounds how long a request waits for its file's build; past it,
-// the request is answered from the last generation.
-const awaitLimit = 3 * time.Second
+// the request is answered from the last generation, and so are the requests
+// after it until the file changes again: they run on the main loop, one
+// after another, and each waiting its own awaitLimit for the same build
+// held up everything behind them.
+var awaitLimit = 3 * time.Second
 
 // schedule builds after a short quiet period.
 func (p *proxy) schedule() {
@@ -101,7 +104,8 @@ func (p *proxy) builds() {
 
 // await waits until the build of the editor's last change to the .vuka file
 // at path has transpiled it, starting that build now when it waits for the
-// quiet period. It waits at most awaitLimit.
+// quiet period. It waits at most awaitLimit, once per change: not at all
+// when a request waited that long for the same change.
 func (p *proxy) await(path string) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
@@ -109,6 +113,9 @@ func (p *proxy) await(path string) {
 		return
 	}
 	p.kickLocked()
+	if p.gaveUp[path] == p.changed[path] {
+		return
+	}
 	expired := false
 	t := time.AfterFunc(awaitLimit, func() {
 		p.mu.Lock()
@@ -119,6 +126,12 @@ func (p *proxy) await(path string) {
 	defer t.Stop()
 	for p.changed[path] > p.done[path] && !p.stopped && !expired {
 		p.built.Wait()
+	}
+	if expired && p.changed[path] > p.done[path] {
+		if p.gaveUp == nil {
+			p.gaveUp = map[string]int{}
+		}
+		p.gaveUp[path] = p.changed[path]
 	}
 }
 
@@ -193,6 +206,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		delete(p.cursors, path)
 		delete(p.changed, path)
 		delete(p.done, path)
+		delete(p.gaveUp, path)
 		delete(p.syntaxDiags, path)
 		p.mu.Unlock()
 	}
