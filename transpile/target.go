@@ -29,6 +29,8 @@ import (
 //	          writes.go, tracked.go); its State's own API is Get and Set
 //	          Ref(name string) — ref="name" attributes name elements, and each
 //	          Ref("name") in a function with JSX must name one of its elements
+//	          Must[T](T, error) T — a call in markup returning (T, error) is
+//	          its T, the error failing the render (unwrap.go)
 //
 // A .vuka file renders its JSX with the one target it imports.
 const JSXVersion = 3

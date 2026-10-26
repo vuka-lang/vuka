@@ -1,0 +1,29 @@
+package main
+
+import "fmt"
+
+// Page lists the store's users.
+type Page struct {
+	Store Store
+}
+<section class={Store.Class()}>
+  <h1 title="{Store.Title()} page">{Store.Title()}</h1>
+  <Badge label={Store.Title()}/>
+  <p>{len(Store.Users())} {Store.Self().Title()}, {fmt.Sprint(Store.Count())}</p>
+  if Store.Admin() {
+    <p>admin</p>
+  } else if !Store.Admin() {
+    <p>member</p>
+  }
+  switch Store.Count() {
+  case 0:
+    <p>none</p>
+  default:
+    <p>some</p>
+  }
+  for _, u := range Store.Users() {
+    <a href="/users/{u.ID}">{u.Name}</a>
+  }
+  users, err := Store.Users()
+  <p>{len(users)} {err}</p>
+</section>

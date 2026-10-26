@@ -108,6 +108,7 @@ public github.com/vuka-lang/ui/v2.ModelSelected
 public github.com/vuka-lang/ui/v2.ModelSpec
 public github.com/vuka-lang/ui/v2.ModelText
 public github.com/vuka-lang/ui/v2.Mount
+public github.com/vuka-lang/ui/v2.Must
 public github.com/vuka-lang/ui/v2.Node
 public github.com/vuka-lang/ui/v2.On
 public github.com/vuka-lang/ui/v2.Once

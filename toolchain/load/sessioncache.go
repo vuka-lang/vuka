@@ -98,6 +98,7 @@ type diskGen struct {
 	Names          map[string]string
 	Vars, Avail    []transpile.VarRead
 	Warnings       transpile.ErrorList
+	Unwrapped      []transpile.Unwrap
 }
 
 func (s *Session) loadOut(path string) *pkgOut {
@@ -116,7 +117,7 @@ func (s *Session) loadOut(path string) *pkgOut {
 	o := &pkgOut{key: d.Key, stats: d.Stats}
 	for _, g := range d.Gens {
 		o.gens = append(o.gens, Generated{Target: g.Target, Source: g.Source, Src: g.Src, From: g.From, Map: g.Map,
-			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Available: g.Avail, Warnings: g.Warnings})
+			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Available: g.Avail, Warnings: g.Warnings, Unwrapped: g.Unwrapped})
 	}
 	return o
 }
@@ -132,7 +133,7 @@ func (s *Session) saveOut(path string, o *pkgOut) {
 			return // templ's own source map: the language server's, never cached
 		}
 		d.Gens = append(d.Gens, diskGen{Target: g.Target, Source: g.Source, Src: g.Src, From: g.From, Map: g.Map,
-			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Avail: g.Available, Warnings: g.Warnings})
+			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Avail: g.Available, Warnings: g.Warnings, Unwrapped: g.Unwrapped})
 	}
 	var buf bytes.Buffer
 	if gob.NewEncoder(&buf).Encode(d) != nil {

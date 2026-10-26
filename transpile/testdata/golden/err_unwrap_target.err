@@ -1,0 +1,1 @@
+err_unwrap_target.vuka:11:13: u.Names() returns ([]string, error), and golden/reftarget has no Must to unwrap it with; call a method returning one value, or set a field in Load or Mount and show the field

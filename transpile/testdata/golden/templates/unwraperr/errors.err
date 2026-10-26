@@ -1,0 +1,3 @@
+page.vuka.html:8:7: Store.Find("ann") returns (User, bool); markup takes one value, unwrapping only a call returning (T, error); call a method returning one value, or set a field in Load or Mount and show the field
+page.vuka.html:9:13: Store.Page() returns ([]User, int, error); markup takes one value, unwrapping only a call returning (T, error); call a method returning one value, or set a field in Load or Mount and show the field
+page.vuka.html:10:7: Store.Save() returns only an error, which markup can't show; call it in Load, Mount or an event handler, and show a field it sets

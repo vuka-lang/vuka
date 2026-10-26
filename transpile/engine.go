@@ -110,6 +110,18 @@ func (e *engine) run() {
 			e.progress = true
 			continue
 		}
+		unwrapped, nerrs := false, len(*e.errs)
+		for _, f := range e.vuka {
+			unwrapped = e.unwrapCalls(f) || unwrapped
+		}
+		if len(*e.errs) > nerrs {
+			break
+		}
+		if unwrapped {
+			// The markup's calls type-check unwrapped before anything is
+			// decided from them.
+			continue
+		}
 		for _, f := range e.vuka {
 			embedded := e.embedFiles(f)
 			e.classify(f)
