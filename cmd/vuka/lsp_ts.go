@@ -6,11 +6,13 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
@@ -40,6 +42,7 @@ type tsServer struct {
 	pending map[string]chan rpcMsg
 	docs    map[string]*tsDoc    // virtual path → its script
 	typesAt map[string]time.Time // package dir → when its types were last written
+	locs    map[string][]dtsLoc  // a types file → the Go methods its lines declare
 }
 
 // tsDoc is a script as the server has it.
@@ -177,7 +180,7 @@ func (p *proxy) typescript() *tsServer {
 			p.logf("typescript-language-server didn't start")
 			return
 		}
-		ts := &tsServer{p: p, conn: newRPCConn(out, in), cmd: cmd, pending: map[string]chan rpcMsg{}, docs: map[string]*tsDoc{}, typesAt: map[string]time.Time{}}
+		ts := &tsServer{p: p, conn: newRPCConn(out, in), cmd: cmd, pending: map[string]chan rpcMsg{}, docs: map[string]*tsDoc{}, typesAt: map[string]time.Time{}, locs: map[string][]dtsLoc{}}
 		go ts.loop()
 		if _, ok := ts.call("initialize", map[string]any{"processId": os.Getpid(), "rootUri": pathToURI(root),
 			"initializationOptions": o.tsserverOptions(root, frontend),
@@ -293,7 +296,11 @@ func (ts *tsServer) types(dir string) string {
 			}
 		}
 	}
-	if dts := componentDTS(root, modPath, comps); dts != nil {
+	dts, locs := componentDTSLocs(root, modPath, comps)
+	ts.mu.Lock()
+	ts.locs[path] = locs
+	ts.mu.Unlock()
+	if dts != nil {
 		os.MkdirAll(filepath.Dir(path), 0o755)
 		writeIfChanged(filepath.Join(root, ".vuka", ".gitignore"), []byte("*\n"))
 		writeIfChanged(path, dts)
@@ -411,6 +418,9 @@ func (p *proxy) tsRequest(m *rpcMsg, path string) bool {
 			}
 			var v any
 			_ = json.Unmarshal(res.Result, &v)
+			if m.Method == "textDocument/definition" {
+				v = ts.toGo(v)
+			}
 			reply(ts.toTemplate(v, virtual, d, true))
 			return
 		}
@@ -514,3 +524,110 @@ func (ts *tsServer) diagsFor(path string) []any {
 	}
 	return out
 }
+
+// toGo maps the locations of a definition answer that are a live method's
+// declaration in the types file onto the Go method: live.reorder(…) goes
+// to func (p *Index) Reorder.
+func (ts *tsServer) toGo(v any) any {
+	switch x := v.(type) {
+	case []any:
+		for i := range x {
+			x[i] = ts.toGo(x[i])
+		}
+	case map[string]any:
+		key, rangeKey := "uri", "range"
+		if _, ok := x["targetUri"]; ok {
+			key, rangeKey = "targetUri", "targetRange"
+		}
+		u, _ := x[key].(string)
+		r, ok := toRange(x[rangeKey])
+		if u == "" || !ok {
+			return v
+		}
+		ts.mu.Lock()
+		locs := ts.locs[uriToPath(u)]
+		ts.mu.Unlock()
+		for _, l := range locs {
+			if l.line != int(r.Start.Line) {
+				continue
+			}
+			at := ts.goMethodRange(l)
+			x[key] = pathToURI(ts.p.display(l.file))
+			x[rangeKey] = at
+			if _, ok := x["targetSelectionRange"]; ok {
+				x["targetSelectionRange"] = at
+			}
+		}
+	}
+	return v
+}
+
+// goMethodRange is where the name of l's method is on its line.
+func (ts *tsServer) goMethodRange(l dtsLoc) lspRange {
+	line := uint32(l.at - 1)
+	src, err := load.ReadSource(l.file)
+	if err == nil {
+		lines := strings.Split(string(src), "\n")
+		if int(line) < len(lines) {
+			if i := wordIn([]byte(lines[line]), l.name); i >= 0 {
+				return lspRange{lspPosition{Line: line, Character: uint32(i)}, lspPosition{Line: line, Character: uint32(i + len(l.name))}}
+			}
+		}
+	}
+	return lspRange{lspPosition{Line: line}, lspPosition{Line: line}}
+}
+
+// scriptTypeArg is the type a script is of: component<Index>, page<Index>.
+var scriptTypeArg = regexp.MustCompile(`\b(?:component|page)<\s*(\w+)\s*>`)
+
+// scriptCallsAt are the places the scripts of a package call the method
+// whose declaration's name is at off in vf — live.reorder(…) for
+// func (p *Index) Reorder — as locations; nil elsewhere. p.mu is held.
+func (p *proxy) scriptCallsAt(vf *vfile, off int) []any {
+	src := vf.text()
+	start := off
+	for start > 0 && isIdentByte(src[start-1]) {
+		start--
+	}
+	ls := bytes0LineStart(src, start)
+	m := methodDeclAt.FindSubmatch(src[ls:])
+	if m == nil || ls+len(m[0])-len(m[2]) != start {
+		return nil
+	}
+	typ, name := string(m[1]), string(m[2])
+	call := regexp.MustCompile(`\blive\.` + regexp.QuoteMeta(strings.ToLower(name[:1])+name[1:]) + `\s*\(`)
+	files, _ := filepath.Glob(filepath.Join(filepath.Dir(vf.source), "*.vuka.html"))
+	var out []any
+	for _, f := range files {
+		text, open := p.bufs[f]
+		if !open {
+			text, _ = os.ReadFile(f)
+		}
+		for _, a := range transpile.TemplateAssets(f, text) {
+			t := a.Decl
+			if m := scriptTypeArg.FindStringSubmatch(a.Text); m != nil {
+				t = m[1]
+			}
+			if !a.Script || t != typ {
+				continue
+			}
+			for _, c := range call.FindAllStringIndex(a.Text, -1) {
+				at := c[0] + len("live.")
+				pos := positionOf([]byte(a.Text), at)
+				pos.Line += uint32(a.Line - 1)
+				end := pos
+				end.Character += uint32(len(name))
+				shown := f
+				if s, ok := p.shown[f]; ok {
+					shown = s
+				}
+				out = append(out, map[string]any{"uri": pathToURI(shown), "range": lspRange{pos, end}})
+			}
+		}
+	}
+	return out
+}
+
+// methodDeclAt is a method declaration at the start of a line: its
+// receiver's type and its name.
+var methodDeclAt = regexp.MustCompile(`^func\s*\(\s*\w*\s*\*?\s*(\w+)(?:\[[^\]]*\])?\s*\)\s*([A-Z]\w*)`)

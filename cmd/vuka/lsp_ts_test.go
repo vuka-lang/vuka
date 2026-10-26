@@ -250,3 +250,29 @@ func TestLSPScriptNames(t *testing.T) {
 		t.Errorf("hover on live.reorder lacks its Go doc: %s", hover)
 	}
 }
+
+// TestLSPScriptDefinition: go to definition on live.reorder in a page's
+// script lands on func (b *Board) Reorder in the shape's Go, and the
+// references of that method include the script's call.
+func TestLSPScriptDefinition(t *testing.T) {
+	cli, lib := tsFixture(t)
+	t.Setenv("VUKA_TSLS", "")
+	opts := lspOptions{renameCommands: true, ts: tsOptions{server: cli, tsserver: lib}}
+	c, dir, _ := startLSPOpts(t, map[string]string{"board.vuka.html": lspTSPage}, opts)
+	uri := pathToURI(filepath.Join(dir, "board.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": lspTSPage}})
+	at := func(needle string, delta int) map[string]any {
+		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(lspTSPage), strings.Index(lspTSPage, needle)+delta),
+			"context": map[string]any{"includeDeclaration": true}}
+	}
+	decl := positionOf([]byte(lspTSPage), strings.Index(lspTSPage, "Reorder(ids"))
+	def, _ := json.Marshal(c.call("textDocument/definition", at("live.reorder", 6)))
+	if !strings.Contains(string(def), "board.vuka.html") || !strings.Contains(string(def), `"line":`+itoaTest(decl.Line)) || strings.Contains(string(def), componentDTSName) {
+		t.Errorf("definition of live.reorder isn't func (b *Board) Reorder (line %d): %s", decl.Line, def)
+	}
+	call := positionOf([]byte(lspTSPage), strings.Index(lspTSPage, "live.reorder")+len("live."))
+	refs, _ := json.Marshal(c.call("textDocument/references", at("Reorder(ids", 2)))
+	if !strings.Contains(string(refs), `{"character":`+itoaTest(call.Character)+`,"line":`+itoaTest(call.Line)+`}`) {
+		t.Errorf("references of Reorder lack the script's live.reorder at %v: %s", call, refs)
+	}
+}

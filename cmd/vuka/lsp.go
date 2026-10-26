@@ -465,6 +465,7 @@ type vukaRequest struct {
 	varTyped  string      // completion of a bare name: what is typed of it
 	varRange  *lspRange   // and where
 	timer     *time.Timer // answers it without gopls at goplsDeadline
+	scripts   []any       // references: the scripts' calls of the method at the cursor (live.reorder)
 }
 
 type proxy struct {
@@ -1276,6 +1277,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf, closeTag: closeTag,
 		attr: m.Method == "textDocument/completion" && afterAt(vf.text(), srcPos)}
 	vr.field = vr.attr && fieldAttrSpot(vf.text(), offsetOf(vf.text(), srcPos))
+	if m.Method == "textDocument/references" && hasPos {
+		vr.scripts = p.scriptCallsAt(vf, offsetOf(vf.text(), srcPos))
+	}
 	if m.Method == "textDocument/completion" && !strings.HasSuffix(vf.source, ".vuka.html") {
 		if s, ok := blockSpot(vf.text(), offsetOf(vf.text(), srcPos)); ok {
 			vr.blocks = &lspRange{positionOf(vf.text(), s), srcPos}
@@ -1582,6 +1586,10 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		}
 	case "textDocument/rename", "textDocument/references", "textDocument/documentHighlight":
 		v = p.withCloseTwins(vr.method, v, vr.file)
+		if len(vr.scripts) > 0 {
+			list, _ := v.([]any)
+			v = append(list, vr.scripts...)
+		}
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v, vr.file.namesOf())
 		if vr.method == "textDocument/documentSymbol" && isShape(vr.file) {
