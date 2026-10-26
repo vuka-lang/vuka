@@ -223,6 +223,11 @@ func (e *engine) checkModels(f *fileState, t *jsxTree) {
 				continue
 			}
 			names := fieldNames(tv.Type)
+			for _, n := range names {
+				if len(sel.Sel.Name) < len(n) && strings.EqualFold(n[:len(sel.Sel.Name)], sel.Sel.Name) {
+					return // a name being typed: Go's own error says it at a build, and an editor completes it
+				}
+			}
 			what := attrName(a)
 			msg := "%s={%s}: %s has no field %s"
 			args := []any{what, strings.TrimSpace(string(f.src[a.expr.start:a.expr.end])), e.display(derefPtr(tv.Type)), sel.Sel.Name}
