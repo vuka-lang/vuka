@@ -59,10 +59,10 @@ const state = (el) => (name) => {
     get: () => states() ? states().read(x) : r.i,
     set: (v) => { if (r.x === undefined && states()) states().write(r, v); },
     // A script can mount before the live runtime keeps the states: its
-    // watch starts once it does.
+    // watch starts once it does, waiting up to 5s.
     watch: (fn) => {
-      let off = null, done = false;
-      const arm = () => { if (done) return; if (states()) off = states().watch(x, fn, el); else setTimeout(arm, 20); };
+      let off = null, done = false, tries = 0;
+      const arm = () => { if (done) return; if (states()) off = states().watch(x, fn, el); else if (++tries < 250) setTimeout(arm, 20); };
       arm();
       return () => { done = true; if (off) off(); };
     },
