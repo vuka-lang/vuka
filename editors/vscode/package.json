@@ -184,6 +184,12 @@
           "description": "The gopls binary vuka lsp runs. Empty: gopls on PATH, then $GOBIN, then $GOPATH/bin.",
           "scope": "machine-overridable"
         },
+        "vuka.typescript.server": {
+          "type": "string",
+          "default": "",
+          "description": "The typescript-language-server for <script lang=\"ts\"> blocks: an executable, or a .js/.mjs file run with VS Code's Node. Empty: the one bundled with the extension, with VS Code's TypeScript unless the module has its own.",
+          "scope": "machine-overridable"
+        },
         "vuka.trace.server": {
           "type": "string",
           "enum": [
@@ -329,23 +335,26 @@
     ]
   },
   "dependencies": {
+    "typescript-language-server": "5.0.1",
     "vscode-languageclient": "^9.0.1"
   },
   "devDependencies": {
     "@vscode/vsce": "^3.2.1",
-    "shiki": "^2.5.0"
+    "shiki": "^2.5.0",
+    "typescript": "6.0.3"
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs && node test/typescript.test.mjs"
   },
   "capabilities": {
     "untrustedWorkspaces": {
       "supported": "limited",
-      "description": "In an untrusted workspace the Vuka language server only runs from your user settings: the workspace's vuka.path and vuka.goplsPath are ignored.",
+      "description": "In an untrusted workspace the Vuka language server only runs from your user settings: the workspace's vuka.path, vuka.goplsPath and vuka.typescript.server are ignored.",
       "restrictedConfigurations": [
         "vuka.path",
-        "vuka.goplsPath"
+        "vuka.goplsPath",
+        "vuka.typescript.server"
       ]
     }
   }

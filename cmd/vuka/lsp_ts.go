@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -14,8 +15,8 @@ import (
 )
 
 // Script blocks of .vuka.html files go to a TypeScript language server
-// (typescript-language-server: $VUKA_TSLS, PATH, or the module's or its
-// frontend's node_modules/.bin), started on the first question about one.
+// (typescript-language-server: -tsls, $VUKA_TSLS, PATH, or the module's or
+// its frontend's node_modules/.bin), started on the first question about one.
 // Each script is a virtual file beside its template, x.vuka.html.<n>.ts, its
 // text the script's after a line referencing .vuka/vuka-component.d.ts: the
 // types of its component, ctx and live. Hover, completion, signature help
@@ -48,9 +49,83 @@ type tsDoc struct {
 	text    string
 	version int
 	diags   []any
+	ready   chan struct{} // closed by its first diagnostics: the server has its project
 }
 
 const tsPrelude = 1 // the reference line before a script's text
+
+// tsOptions are vuka lsp's -tsls, -tsls-node and -tsserver: the
+// TypeScript server an editor hands it (the VS Code extension its bundled
+// one, run by VS Code's own Node, with VS Code's TypeScript).
+type tsOptions struct {
+	server   string // typescript-language-server: an executable, or a .js/.mjs/.cjs file run by node
+	node     string // the Node running a JS server; "" for node on PATH
+	tsserver string // tsserver.js, or a typescript lib directory: the TypeScript when the module has none
+}
+
+// withEnv is o with $VUKA_TSLS, $VUKA_TSLS_NODE and $VUKA_TSSERVER for what
+// its flags leave unset.
+func (o tsOptions) withEnv() tsOptions {
+	for _, f := range []struct {
+		v   *string
+		env string
+	}{{&o.server, "VUKA_TSLS"}, {&o.node, "VUKA_TSLS_NODE"}, {&o.tsserver, "VUKA_TSSERVER"}} {
+		if *f.v == "" {
+			*f.v = os.Getenv(f.env)
+		}
+	}
+	return o
+}
+
+// isJS reports whether path is a script Node runs, not an executable.
+func isJS(path string) bool {
+	switch strings.ToLower(filepath.Ext(path)) {
+	case ".js", ".mjs", ".cjs":
+		return true
+	}
+	return false
+}
+
+// tsCommand is the command running the server at bin: bin itself, or a
+// JavaScript file run by node — an Electron binary (VS Code's) as Node,
+// through ELECTRON_RUN_AS_NODE, which plain Node ignores.
+func (o tsOptions) tsCommand(bin string) (*exec.Cmd, error) {
+	if !isJS(bin) {
+		return exec.Command(bin, "--stdio"), nil
+	}
+	node := o.node
+	if node == "" {
+		p, err := exec.LookPath("node")
+		if err != nil {
+			return nil, fmt.Errorf("%s needs Node: none on PATH, and no -tsls-node", bin)
+		}
+		node = p
+	}
+	cmd := exec.Command(node, bin, "--stdio")
+	cmd.Env = append(os.Environ(), "ELECTRON_RUN_AS_NODE=1")
+	return cmd, nil
+}
+
+// tsserverOptions are the initialization options choosing the server's
+// TypeScript: a module's own — its root's node_modules, which the server
+// finds itself, else its frontend's — and o.tsserver when it has none.
+func (o tsOptions) tsserverOptions(root, frontend string) map[string]any {
+	ts := map[string]any{}
+	if !moduleHasTS(root) && frontend != "" && moduleHasTS(frontend) {
+		ts["path"] = filepath.Join(frontend, "node_modules", "typescript", "lib")
+	}
+	if o.tsserver != "" {
+		ts["fallbackPath"] = o.tsserver
+	}
+	if len(ts) == 0 {
+		return nil
+	}
+	return map[string]any{"tsserver": ts}
+}
+
+func moduleHasTS(dir string) bool {
+	return dir != "" && fileExists(filepath.Join(dir, "node_modules", "typescript", "lib", "tsserver.js"))
+}
 
 func findTSLS(dirs ...string) string {
 	if p := os.Getenv("VUKA_TSLS"); p != "" {
@@ -80,12 +155,21 @@ func (p *proxy) typescript() *tsServer {
 			root = p.root
 		}
 		p.mu.Unlock()
-		bin := findTSLS(root, cachedFrontendRoot(root))
+		frontend := cachedFrontendRoot(root)
+		o := p.tsOpts.withEnv()
+		bin := o.server
+		if bin == "" {
+			bin = findTSLS(root, frontend)
+		}
 		if bin == "" {
 			p.logf("no typescript-language-server: script blocks get no TypeScript help")
 			return
 		}
-		cmd := exec.Command(bin, "--stdio")
+		cmd, err := o.tsCommand(bin)
+		if err != nil {
+			p.logf("typescript-language-server: %v", err)
+			return
+		}
 		cmd.Dir = root
 		in, err1 := cmd.StdinPipe()
 		out, err2 := cmd.StdoutPipe()
@@ -96,6 +180,7 @@ func (p *proxy) typescript() *tsServer {
 		ts := &tsServer{p: p, conn: newRPCConn(out, in), cmd: cmd, pending: map[string]chan rpcMsg{}, docs: map[string]*tsDoc{}, typesAt: map[string]time.Time{}}
 		go ts.loop()
 		if _, ok := ts.call("initialize", map[string]any{"processId": os.Getpid(), "rootUri": pathToURI(root),
+			"initializationOptions": o.tsserverOptions(root, frontend),
 			"capabilities": map[string]any{"textDocument": map[string]any{
 				"hover":              map[string]any{"contentFormat": []string{"markdown", "plaintext"}},
 				"completion":         map[string]any{"completionItem": map[string]any{"snippetSupport": true}},
@@ -235,7 +320,7 @@ func (ts *tsServer) sync(path string, src []byte) map[string]*tsDoc {
 		d := ts.docs[virtual]
 		switch {
 		case d == nil:
-			d = &tsDoc{html: path, first: a.Line - 1, text: text, version: 1}
+			d = &tsDoc{html: path, first: a.Line - 1, text: text, version: 1, ready: make(chan struct{})}
 			ts.docs[virtual] = d
 			ts.mu.Unlock()
 			_ = ts.conn.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": map[string]any{
@@ -309,6 +394,13 @@ func (p *proxy) tsRequest(m *rpcMsg, path string) bool {
 			lines := uint32(strings.Count(d.text, "\n")) - tsPrelude
 			if pos.Line < uint32(d.first) || pos.Line > uint32(d.first)+lines {
 				continue
+			}
+			// A script just opened is answered once the server has loaded
+			// its project, which it says with its first diagnostics: asked
+			// before, it answers with nothing.
+			select {
+			case <-d.ready:
+			case <-time.After(10 * time.Second):
 			}
 			params["textDocument"] = map[string]any{"uri": pathToURI(virtual)}
 			params["position"] = lspPosition{Line: pos.Line - uint32(d.first) + tsPrelude, Character: pos.Character}
@@ -396,6 +488,11 @@ func (ts *tsServer) diagnostics(params json.RawMessage) {
 		out = append(out, m)
 	}
 	d.diags = out
+	select {
+	case <-d.ready:
+	default:
+		close(d.ready)
+	}
 	html := d.html
 	ts.mu.Unlock()
 	ts.p.publish(html)

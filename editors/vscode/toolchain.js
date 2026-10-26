@@ -15,4 +15,13 @@ function supportsShapes(output) {
   return version.parts[0] >= 2;
 }
 
-module.exports = { minimumServerVersion, updateCommand, serverVersion, supportsShapes };
+// supportsTSFlags reports whether vuka lsp takes -tsls, -tsls-node and
+// -tsserver (v2.5.1); false when the version can't be read.
+function supportsTSFlags(output) {
+  const version = serverVersion(output);
+  if (!version) return false;
+  const [a, b, c] = version.parts;
+  return a > 2 || (a === 2 && (b > 5 || (b === 5 && c >= 1)));
+}
+
+module.exports = { minimumServerVersion, updateCommand, serverVersion, supportsShapes, supportsTSFlags };

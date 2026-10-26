@@ -6,6 +6,7 @@ const { execFile, execFileSync } = require('child_process');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 const { markupBefore, tagToClose, closingFor } = require('./shape');
 const toolchain = require('./toolchain');
+const typescript = require('./typescript');
 const { formatRoute, moduleRoot } = require('./routes');
 const { extractCommand, nameProblem, extractArguments } = require('./refactor');
 
@@ -42,6 +43,21 @@ function findTool(name) {
   return undefined;
 }
 
+let extensionPath;
+
+// typescriptLauncher is the TypeScript server for script blocks: the
+// bundled one with VS Code's Node and TypeScript, or vuka.typescript.server.
+function typescriptLauncher(config) {
+  const builtin = vscode.extensions.getExtension('vscode.typescript-language-features');
+  return typescript.launcher({
+    setting: config.get('typescript.server'),
+    extensionPath,
+    execPath: process.execPath,
+    appRoot: vscode.env.appRoot,
+    builtinExtensionPath: builtin && builtin.extensionPath,
+  });
+}
+
 function start() {
   const config = vscode.workspace.getConfiguration('vuka');
   const args = ['lsp'];
@@ -53,10 +69,20 @@ function start() {
     args.push('-shared=false');
   }
   const command = vukaPath();
+  const ts = typescriptLauncher(config);
+  if (ts) {
+    let version = '';
+    try {
+      version = execFileSync(command, ['version'], { encoding: 'utf8', timeout: 5000 });
+    } catch (_) {}
+    if (toolchain.supportsTSFlags(version)) {
+      args.push(...typescript.lspArgs(ts));
+    }
+  }
   client = new LanguageClient(
     'vuka',
     'Vuka',
-    { command, args },
+    { command, args, options: { env: { ...process.env, ...typescript.lspEnv(ts) } } },
     {
       documentSelector: [{ scheme: 'file', language: 'vuka' }, { scheme: 'file', language: 'vuka-html' }],
       // Like the Go extension: the log is there when wanted, never in the way.
@@ -393,6 +419,7 @@ async function extractComponent(arg) {
 }
 
 function activate(context) {
+  extensionPath = context.extensionPath;
   context.subscriptions.push(
     vscode.commands.registerCommand('vuka.restartServer', async () => {
       if (client) {
