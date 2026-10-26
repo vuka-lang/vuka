@@ -1,0 +1,31 @@
+<script lang="go">
+package main
+
+// Panel is a component with a script and a scoped stylesheet whose markup
+// fills another component's slots, one holding a component: its elements
+// are marked, its slots aren't.
+type Panel struct {
+	Title string
+	Rows  []Row
+}
+</script>
+
+<section>
+  <h3>{Title}</h3>
+  <Table rows={Rows}>
+    <slot:column key="name" label="Name" let={r}>
+      <a href={"#" + r.Name}>{r.Name}</a>
+    </slot:column>
+    <slot:caption>{Title}</slot:caption>
+    <slot:empty><p>none yet</p></slot:empty>
+  </Table>
+</section>
+
+<script lang="ts">
+import { component } from 'vuka:component'
+export default component<Panel>((el, props) => { el.title = props.Title })
+</script>
+
+<style scoped>
+a { color: red }
+</style>
