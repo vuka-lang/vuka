@@ -1,0 +1,14 @@
+<script lang="go">
+package pages
+
+import Summary "@/islands/Summary.ts"
+
+// Summary is a page backed only by an island an @/ import provides,
+// including after eject.
+type SummaryPage struct {
+	Label string `json:"label"`
+	Count int    `json:"count"`
+}
+</script>
+
+<Summary label={Label} count={Count} client:idle />
