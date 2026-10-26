@@ -38,7 +38,15 @@ can log the error. `live.PublicMessage(err)` finds a `live.PublicError` in
 the chain — an error whose `PublicMessage()` is meant for the visitor, such
 as a form field that doesn't bind, or the web framework's `*web.Error` —
 which such a transport shows while hiding the rest. The [web
-framework](/web/live#errors) does.
+framework](/web/live#errors) does, and shows the full text in development.
+
+The session's own errors keep their detail out of `PublicMessage()`. An
+event naming no handler is a `*live.NoHandlerError` (its `Target` and
+`Component`): its public message is `live: no handler "c3:75"`, its
+`Error()` says whose handler it was and why it's gone, naming the
+component's Go type. A payload that doesn't parse is public as
+`live: click event payload doesn't parse`, the decoder's message (Go type
+names) in `Error()` only.
 
 ## What a Reply Holds {#what-a-reply-holds}
 

@@ -95,7 +95,7 @@ Each message type means:
 | `event` | `target` is the handler's id from its `data-vk-on-…`; `event` the DOM event; `value` the element's value (a checkbox's `checked` as `"true"`/`"false"`); `key` a keyboard event's key; `form` a submit's fields (`FormData`, each name to its values) |
 | `render` | `html` replaces the page container's content |
 | `patch` | for each update, the element whose `data-vk-id` is `id` is morphed into `html`; `id` `"c0"` is the page itself: its `html` replaces the container's content. The morph matches `data-vk-key` among siblings, so keyed rows move instead of being rewritten. `error`, when set, is a handler's message, for the page to show |
-| `error` | the message failed (an unknown handler, a render error); the session goes on |
+| `error` | the message failed (an unknown handler, a render error); the session goes on. Its text is the transport's to decide ([errors](/ui/live#errors)): the web framework sends an unknown handler as `live: no handler "c9:0"`, whose handler it was going to the log, and the full reason in development |
 | `navigate` | move the page to `url`, a patch when `patch` is true; the reply is a `patch` or a `redirect` ([navigation](#navigation)) |
 | `redirect` | load `url` as an ordinary page load |
 
