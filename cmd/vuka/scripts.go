@@ -34,7 +34,15 @@ import (
 const componentModule = `
 const attr = (el, a) => { try { return JSON.parse(el.getAttribute(a) || "{}"); } catch { return {}; } };
 const read = (el) => attr(el, "data-vk-p");
+// A query object, patch({ q: "x", page: null }), is the current URL with
+// those parameters set (null, undefined or "" removes one).
+const query = (q) => {
+  const u = new URL(location.href);
+  for (const [k, v] of Object.entries(q)) v === null || v === undefined || v === "" ? u.searchParams.delete(k) : u.searchParams.set(k, String(v));
+  return u.pathname + u.search + u.hash;
+};
 const go = (href, patch, opts) => {
+  if (href && typeof href === "object") href = query(href);
   if (window.vuka && window.vuka.navigate) return window.vuka.navigate(href, { ...(opts || {}), patch });
   const u = new URL(String(href), location.href);
   if (u.protocol !== "http:" && u.protocol !== "https:") return Promise.reject(new Error("vuka: refused to load a URL that isn't http or https"));

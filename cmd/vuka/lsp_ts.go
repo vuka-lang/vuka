@@ -289,7 +289,7 @@ func (ts *tsServer) types(dir string) string {
 		}
 		for _, a := range transpile.TemplateAssets(f, src) {
 			if a.Script && a.Decl != "" {
-				comps = append(comps, &assetComp{dir: dir, name: a.Decl, scripts: []assetSrc{{inline: a.Text}}})
+				comps = append(comps, &assetComp{dir: dir, name: a.Decl, scripts: []assetSrc{{inline: a.Text}}, markup: []string{f}})
 			}
 		}
 	}

@@ -132,7 +132,8 @@ type Index struct {
 	open ui.State[bool]
 }
 
-func (p *Index) Bump() {}
+// Bump counts, and tells the script.
+func (p *Index) Bump() { p.PushEvent("bumped", map[string]int{"n": 1}) }
 
 type Card struct{ Title string }
 `), 0o644)
@@ -148,7 +149,7 @@ export default component<Index>((el, props, ctx) => {
 	el.title = props.Q
 	ctx.live.bump()
 	ctx.state("open").set(!ctx.state("open").get())
-	ctx.on("bumped", (p) => { ctx.ref("box")?.focus() })
+	ctx.on("bumped", (p) => { el.title = p.n.toFixed() })
 	ctx.patch("?q=x")
 	return { update(next) { el.title = next.Q }, destroy() {} }
 })

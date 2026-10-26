@@ -155,6 +155,8 @@ func TestPageScriptE2E(t *testing.T) {
 	p.eval(`window.__ctx.patch("?q=b")`)
 	p.wait(`document.querySelector("#q").textContent === "b"`)
 	p.wait(`window.__updates.join() === "b"`)
+	p.eval(`window.__ctx.patch({ q: "c" })`)
+	p.wait(`location.search === "?q=c" && window.__updates.join() === "b,c"`)
 	if m := p.eval(`window.__mounts`); m != float64(1) {
 		t.Errorf("mounted %v times: the patch kept the page", m)
 	}
