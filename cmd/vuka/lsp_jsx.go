@@ -816,7 +816,10 @@ func (p *proxy) isIsland(genPath, tag string) bool {
 // a generated file, where it sees the file's imports and its package; the file
 // is put back after.
 func (p *proxy) probe(genPath, before, after string) []map[string]any {
-	p.genMu.Lock()
+	yield, ok := p.genMu.lockProbe(probeLockWait)
+	if !ok {
+		return nil // a build or another probe has the generated Go
+	}
 	defer p.genMu.Unlock()
 	p.mu.Lock()
 	vf := p.vfileOf(genPath) // never an editor-owned buffer
@@ -837,7 +840,7 @@ func (p *proxy) probe(genPath, before, after string) []map[string]any {
 			"textDocument": map[string]any{"uri": uri, "version": version}, "contentChanges": []any{map[string]any{"text": s}}}})
 	}
 	change(v-1, text)
-	res, ok := p.ask("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos})
+	res, ok := p.askUntil(probeAskLimit, yield, "textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos})
 	change(v, gen)
 	if !ok {
 		return nil

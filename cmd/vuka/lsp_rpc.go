@@ -22,6 +22,7 @@ type rpcConn struct {
 
 	mu              sync.Mutex
 	onRead, onWrite func([]byte) []byte // rewrite message bodies, when set
+	drop            func([]byte) bool   // reports whether a message is not to be written, when set
 
 	// A queued conn's writes return at once; one goroutine writes them in
 	// order (see queued).
@@ -90,6 +91,14 @@ func (c *rpcConn) rewriting(onRead, onWrite func([]byte) []byte) {
 	c.mu.Unlock()
 }
 
+// dropping installs a check of the messages written: those it reports are
+// not written.
+func (c *rpcConn) dropping(f func([]byte) bool) {
+	c.mu.Lock()
+	c.drop = f
+	c.mu.Unlock()
+}
+
 func newRPCConn(r io.Reader, w io.Writer) *rpcConn {
 	return &rpcConn{r: bufio.NewReaderSize(r, 1<<16), w: w}
 }
@@ -128,6 +137,17 @@ func (c *rpcConn) read() ([]byte, error) {
 }
 
 func (c *rpcConn) write(body []byte) error {
+	c.mu.Lock()
+	drop := c.drop
+	c.mu.Unlock()
+	if drop != nil && drop(body) {
+		return nil
+	}
+	return c.writeChecked(body)
+}
+
+// writeChecked writes body past the drop check.
+func (c *rpcConn) writeChecked(body []byte) error {
 	c.mu.Lock()
 	f := c.onWrite
 	c.mu.Unlock()

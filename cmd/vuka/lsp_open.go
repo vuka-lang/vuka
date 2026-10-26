@@ -47,6 +47,7 @@ type opening struct {
 	started time.Time
 	count   int // files sent since the queue was last empty
 	pkgs    int
+	gaveUp  *vfile // the pending file a request stopped waiting for (awaitOpen)
 }
 
 // queueOpen records that the generated file at path, in p.virtual and
@@ -227,13 +228,15 @@ func (p *proxy) prioritize(path string) {
 
 // awaitOpen waits, at most limit, until gopls has been sent the generated
 // file at path, putting its package first.
+// Once a request has waited the limit for a file, the requests after it
+// don't wait for the same one (see awaitLimit).
 func (p *proxy) awaitOpen(path string, limit time.Duration) {
 	deadline := time.After(limit)
 	p.mu.Lock()
 	p.prioritize(path)
 	for {
 		vf := p.virtual[path]
-		if vf == nil || !vf.pending || p.stopped {
+		if vf == nil || !vf.pending || p.stopped || p.opening.gaveUp == vf {
 			p.mu.Unlock()
 			return
 		}
@@ -242,6 +245,9 @@ func (p *proxy) awaitOpen(path string, limit time.Duration) {
 		select {
 		case <-sent:
 		case <-deadline:
+			p.mu.Lock()
+			p.opening.gaveUp = p.virtual[path]
+			p.mu.Unlock()
 			return
 		}
 		p.mu.Lock()
