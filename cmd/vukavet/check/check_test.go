@@ -115,3 +115,5 @@ func TestHandWrittenHTML(t *testing.T) {
 func TestContext(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), Context, "ctxapp/cmd/web")
 }
+
+func TestForms(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Forms, "forms") }

@@ -96,3 +96,9 @@ func PageTitle(ctx context.Context) string { return "" }
 type Crumb struct{ Label, Href string }
 
 func PageCrumbs(ctx context.Context) []Crumb { return nil }
+
+type FormState struct{ st *int }
+
+func (s *FormState) Valid() bool { return true }
+
+type Option struct{ Value, Label string }
