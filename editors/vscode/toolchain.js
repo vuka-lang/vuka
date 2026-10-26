@@ -16,7 +16,7 @@ function supportsShapes(output) {
 }
 
 // supportsTSFlags reports whether vuka lsp takes -tsls, -tsls-node and
-// -tsserver (v2.5.1); false when the version can't be read.
+// -tsserver (v2.6.0); false when the version can't be read.
 function supportsTSFlags(output) {
   const version = serverVersion(output);
   if (!version) return false;
