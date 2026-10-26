@@ -22,6 +22,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.5.1 — unreleased
 
+- **Commands pushed from a hook reach their handlers.** A Push step in a
+  command a component pushed with `PushJS` — from its `@ui.Mount` hook, an
+  event or an Update method — took the next id in the handler list of the
+  component's last render, and the component's next render numbered that
+  list afresh. A render between the push and the event it sends lost the
+  handler: the join adopting the session the page's HTTP render mounted
+  renders every component again, and so does another component's event or
+  a message. A data table whose mount hook pushed
+  `ui.JS.Push(d.startCount)` to start an async count got
+  `live: no handler "c3:75"` on every page load, and the count never
+  started until something else ran it. Pushed commands' handlers now have
+  ids of their own (`c3:0p`, `c3:1p`, …), kept per component across its
+  renders for its last 64 pushes, so they work whenever the browser sends
+  them, generic components included, and never name another handler. An
+  event naming no handler says whose it would have been and why it's gone:
+  `live: no handler "c3:75": views.Table[…] (c3): its last render has 75`,
+  or that the component was unmounted.
+
 - **`vuka run -watch` starts at once when nothing changed.** Each start
   transpiled the module and ran go build and the linker before the app
   answered, a few seconds on a mid-size app (more on a cold cache or a busy
