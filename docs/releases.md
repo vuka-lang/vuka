@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.6.0 — 2026-10-26
+## v2.7.0 — unreleased
 
 - **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
   exported fields are what a submit binds, its `validate:` tags and
@@ -78,6 +78,8 @@ the `github.com/vuka-lang/vuka` package your module requires.
   "pa@").Blur(&p.Page.Form.Email)`, `p.Expect(field).Error("validate.email")`,
   `p.Submit()`, `p.ExpectRedirect("/welcome")`, over the page's connection
   or, with `viewtest.Plain()`, as a plain post.
+
+## v2.6.0 — 2026-10-26
 
 - **Commands pushed from a hook reach their handlers.** A Push step in a
   command a component pushed with `PushJS` — from its `@ui.Mount` hook, an
