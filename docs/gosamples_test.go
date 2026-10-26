@@ -424,7 +424,7 @@ var defaultImports = map[string]string{
 	"validate": "github.com/vuka-lang/ui/v2/validate", "term": "github.com/vuka-lang/ui/v2/term", "templx": "github.com/vuka-lang/ui/v2/templx",
 	"web": "github.com/vuka-lang/web/v2", "auth": "github.com/vuka-lang/web/v2/auth", "authtest": "github.com/vuka-lang/web/v2/auth/authtest",
 	"cron": "github.com/vuka-lang/web/v2/cron", "crontest": "github.com/vuka-lang/web/v2/crontest",
-	"mail": "github.com/vuka-lang/web/v2/mail", "mailtest": "github.com/vuka-lang/web/v2/mail/mailtest",
+	"mail": "github.com/vuka-lang/web/v2/mail", "mailtest": "github.com/vuka-lang/web/v2/mail/mailtest", "graphql": "github.com/vuka-lang/web/v2/graphql",
 	"orm": "github.com/vuka-lang/orm/v2", "fn": "github.com/vuka-lang/orm/v2/fn", "migration": "github.com/vuka-lang/orm/v2/migration",
 	"ormtest": "github.com/vuka-lang/orm/v2/ormtest", "ormweb": "github.com/vuka-lang/orm/v2/ormweb",
 	"sqlite": "github.com/vuka-lang/orm/v2/sqlite", "postgres": "github.com/vuka-lang/orm/v2/postgres", "mysql": "github.com/vuka-lang/orm/v2/mysql",

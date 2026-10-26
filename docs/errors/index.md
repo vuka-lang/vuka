@@ -228,3 +228,15 @@ same page in the terminal.
 | [W0701](./W0701) | No main package serves the folder routes |
 | [W0702](./W0702) | A hand-written folder-route option |
 | [W0703](./W0703) | A layout reading the request |
+
+## GraphQL
+
+| Code | |
+|---|---|
+| [E0801](./E0801) | web.GraphQL has nothing to serve |
+| [E0802](./E0802) | A Go type the GraphQL schema can't use |
+| [E0803](./E0803) | Two declarations take one GraphQL name |
+| [E0804](./E0804) | A GraphQL name starting with __ |
+| [E0805](./E0805) | A GraphQL declaration that doesn't fit |
+| [E0806](./E0806) | A GraphQL subscription |
+| [E0807](./E0807) | A GraphQL schema the specification refuses |

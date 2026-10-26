@@ -19,6 +19,7 @@ vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
 vuka build-islands [-watch]
+vuka graphql schema [-check file] [-o file] [package]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
@@ -290,6 +291,21 @@ Rendering remains authored in shape files. Page registrations are generated
 from `pages/`, while services are explicitly registered on the app. Use
 `vuka explain` to inspect lowering rather than copying generated rendering
 or registration calls into application source.
+
+## Printing the GraphQL Schema {#graphql}
+
+`vuka graphql schema` prints the SDL of the schema the app serves with
+[`web.GraphQL`](/web/graphql): it builds the main package (the current
+directory's, or the one named) and runs it until the schema is built,
+serving nothing.
+
+```sh
+vuka graphql schema                        # print it
+vuka graphql schema -o schema.graphql      # write it
+vuka graphql schema -check schema.graphql  # compare; exit 1 on a breaking change
+```
+
+See [The Schema Command](/web/graphql#schema-command).
 
 ## Explaining Code and Diagnostics {#explain}
 

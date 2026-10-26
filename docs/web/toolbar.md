@@ -177,6 +177,10 @@ panels. Every response of a development app carries the id of its record in
 an `X-Vuka-Toolbar` header, which is how the page finds them — and how you
 can find a request's record from the network tab.
 
+A [GraphQL](/web/graphql) request is one of these calls: its Request panel
+names the operation (`query Pets in 1.2ms`) and lists each error with its
+path and code, beside its statements and timeline.
+
 ## While vuka run -watch Rebuilds {#while-vuka-run-watch-rebuilds}
 
 With [`vuka run -watch`](/tools/cli#build-run-test-vet-install) the old build keeps answering
