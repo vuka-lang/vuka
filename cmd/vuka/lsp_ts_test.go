@@ -276,3 +276,35 @@ func TestLSPScriptDefinition(t *testing.T) {
 		t.Errorf("references of Reorder lack the script's live.reorder at %v: %s", call, refs)
 	}
 }
+
+// TestLSPScriptImports: an import's specifier completes with vuka:component
+// and the module's npm dependencies; a statement's start offers the
+// listener snippet that cleans up after itself.
+func TestLSPScriptImports(t *testing.T) {
+	cli, lib := tsFixture(t)
+	t.Setenv("VUKA_TSLS", "")
+	src := strings.Replace(lspTSPage, "import { page } from 'vuka:component'", "import { page } from 'vuka:component'\nimport Sortable from 'so'", 1)
+	src = strings.Replace(src, "  live.reorder([1])\n", "  live.reorder([1])\n  lis\n", 1)
+	opts := lspOptions{renameCommands: true, ts: tsOptions{server: cli, tsserver: lib}}
+	c, dir, _ := startLSPOpts(t, map[string]string{"board.vuka.html": src,
+		"package.json": `{"dependencies": {"sortablejs": "1.15.0"}, "devDependencies": {"@types/sortablejs": "1.15.0", "chart.js": "4.0.0"}}`}, opts)
+	uri := pathToURI(filepath.Join(dir, "board.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": src}})
+	ask := func(needle string, delta int) string {
+		got, _ := json.Marshal(c.call("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri},
+			"position": positionOf([]byte(src), strings.Index(src, needle)+delta)}))
+		return string(got)
+	}
+	got := ask("from 'so'", 8)
+	for _, want := range []string{`"label":"sortablejs"`, `"label":"chart.js"`, `"label":"vuka:component"`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("import specifier completion lacks %s: %.800s", want, got)
+		}
+	}
+	if strings.Contains(got, `"label":"@types/sortablejs"`) {
+		t.Errorf("an @types package completes: %.800s", got)
+	}
+	if got := ask("  lis\n", 5); !strings.Contains(got, `"label":"listen"`) || !strings.Contains(got, "removeEventListener") {
+		t.Errorf("no listener snippet: %.800s", got)
+	}
+}

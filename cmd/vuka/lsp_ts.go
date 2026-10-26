@@ -7,6 +7,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"sync"
@@ -418,8 +419,11 @@ func (p *proxy) tsRequest(m *rpcMsg, path string) bool {
 			}
 			var v any
 			_ = json.Unmarshal(res.Result, &v)
-			if m.Method == "textDocument/definition" {
+			switch m.Method {
+			case "textDocument/definition":
 				v = ts.toGo(v)
+			case "textDocument/completion":
+				v = ts.withScriptItems(v, d, params["position"].(lspPosition))
 			}
 			reply(ts.toTemplate(v, virtual, d, true))
 			return
@@ -631,3 +635,104 @@ func (p *proxy) scriptCallsAt(vf *vfile, off int) []any {
 // methodDeclAt is a method declaration at the start of a line: its
 // receiver's type and its name.
 var methodDeclAt = regexp.MustCompile(`^func\s*\(\s*\w*\s*\*?\s*(\w+)(?:\[[^\]]*\])?\s*\)\s*([A-Z]\w*)`)
+
+// importSpecTyped is an import's module specifier being typed: from '…, or
+// import('….
+var importSpecTyped = regexp.MustCompile(`(?:\bfrom\s*|\bimport\s*\(?\s*)['"]([^'"]*)$`)
+
+// scriptStatementStart is a line holding nothing but a word being typed.
+var scriptStatementStart = regexp.MustCompile(`^\s*\w*$`)
+
+// withScriptItems adds vuka's own items to the server's completion in a
+// script, at pos in its virtual file: in an import's specifier
+// vuka:component and the packages the module's (or its frontend's)
+// package.json depends on; at a statement's start a snippet listening for
+// an event, removed when the instance leaves.
+func (ts *tsServer) withScriptItems(v any, d *tsDoc, pos lspPosition) any {
+	lines := strings.Split(d.text, "\n")
+	if int(pos.Line) >= len(lines) || int(pos.Character) > len(lines[pos.Line]) {
+		return v
+	}
+	before := lines[pos.Line][:pos.Character]
+	var items []any
+	if m := importSpecTyped.FindStringSubmatch(before); m != nil {
+		typed := lspRange{lspPosition{pos.Line, pos.Character - uint32(len(m[1]))}, pos}
+		for _, name := range ts.importNames() {
+			items = append(items, map[string]any{"label": name, "kind": 9, "sortText": "0" + name,
+				"textEdit": map[string]any{"range": typed, "newText": name}})
+		}
+	} else if scriptStatementStart.MatchString(before) {
+		items = append(items, map[string]any{"label": "listen", "kind": 15, "insertTextFormat": 2,
+			"detail":        "addEventListener, removed on destroy",
+			"documentation": "An event listener the instance removes when it leaves the page: the hooks' destroy returns it.",
+			"insertText":    "const ${1:onKey} = (e: ${2:KeyboardEvent}) => {\n\t$0\n}\n${3:window}.addEventListener('${4:keydown}', $1)\nreturn { destroy() { $3.removeEventListener('$4', $1) } }"})
+	}
+	if len(items) == 0 {
+		return v
+	}
+	b, _ := json.Marshal(items)
+	var extra []any
+	json.Unmarshal(b, &extra)
+	switch x := v.(type) {
+	case map[string]any:
+		list, _ := x["items"].([]any)
+		x["items"] = mergeItems(list, extra)
+		return x
+	case []any:
+		return mergeItems(x, extra)
+	}
+	return map[string]any{"isIncomplete": false, "items": extra}
+}
+
+// mergeItems is list with the extra items whose labels it lacks.
+func mergeItems(list, extra []any) []any {
+	have := map[string]bool{}
+	for _, it := range list {
+		if m, ok := it.(map[string]any); ok {
+			if l, ok := m["label"].(string); ok {
+				have[l] = true
+			}
+		}
+	}
+	for _, it := range extra {
+		if l, _ := it.(map[string]any)["label"].(string); !have[l] {
+			list = append(list, it)
+		}
+	}
+	return list
+}
+
+// importNames are the specifiers a shape's script imports from: vuka's
+// module, and the dependencies of the module's and its frontend's
+// package.json.
+func (ts *tsServer) importNames() []string {
+	ts.p.mu.Lock()
+	root := ts.p.modRoot
+	if root == "" {
+		root = ts.p.root
+	}
+	ts.p.mu.Unlock()
+	out := []string{"vuka:component"}
+	for _, dir := range []string{root, cachedFrontendRoot(root)} {
+		if dir == "" {
+			continue
+		}
+		b, err := os.ReadFile(filepath.Join(dir, "package.json"))
+		if err != nil {
+			continue
+		}
+		var pkg struct{ Dependencies, DevDependencies map[string]string }
+		if json.Unmarshal(b, &pkg) != nil {
+			continue
+		}
+		for _, deps := range []map[string]string{pkg.Dependencies, pkg.DevDependencies} {
+			for name := range deps {
+				if !slices.Contains(out, name) && !strings.HasPrefix(name, "@types/") {
+					out = append(out, name)
+				}
+			}
+		}
+	}
+	slices.Sort(out[1:])
+	return out
+}
