@@ -1,0 +1,61 @@
+package main
+
+import (
+	"context"
+
+	"example.com/app/shop"
+	"github.com/vuka-lang/ui/v2/forms"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+// NewPet is what adding a pet takes: a form, as an HTML page would submit
+// it.
+type NewPet struct {
+	Name  string `validate:"required,max=12"`
+	Kind  shop.Kind
+	Price float64 `validate:"min=1"`
+	Tag   *string
+}
+
+// CleanName refuses a name the shop has already.
+func (p *NewPet) CleanName(ctx context.Context, store *shop.Store) error {
+	if store.Named(p.Name) {
+		return forms.Errorf("A pet is called %s already", p.Name)
+	}
+	return nil
+}
+
+// Pets lists the shop's pets of a kind, at most first.
+@graphql.Query
+func Pets(ctx context.Context, kind *shop.Kind, first int, store *shop.Store) ([]shop.Pet, error) {
+	k := shop.Kind("")
+	if kind != nil {
+		k = *kind
+	}
+	return store.Pets(k, first), nil
+}
+
+// FindPet is the pet with an id.
+@graphql.Query("pet")
+func FindPet(id int64, store *shop.Store) (*shop.Pet, error) {
+	if p := store.Pet(id); p != nil {
+		return p, nil
+	}
+	return nil, web.NotFound
+}
+
+@graphql.Query
+func Broken(ctx context.Context) (int, error) { return 0, shop.ErrBroken }
+
+@graphql.Mutation
+@graphql.Arg("in", "pet")
+func AddPet(ctx context.Context, in NewPet, store *shop.Store) (shop.Pet, error) {
+	return store.Add(shop.Pet{Name: in.Name, Kind: in.Kind, Price: in.Price, Tag: in.Tag}), nil
+}
+
+// RemovePet is for staff only.
+@graphql.Mutation
+@auth.Requires("pets.remove")
+func RemovePet(ctx context.Context, id int64) (bool, error) { return true, nil }
