@@ -81,7 +81,7 @@ func (f *fileState) enumAt(toks []tok, i int) (*enumDecl, int, string) {
 	}
 	d.lbrace = toks[j].off
 	end, _, ok := matchClose(toks, j)
-	if !ok {
+	if !ok || toks[end-1].tok != token.RBRACE {
 		return nil, i, "unclosed enum " + d.name
 	}
 	last := end - 1
@@ -112,7 +112,7 @@ func (f *fileState) enumAt(toks []tok, i int) (*enumDecl, int, string) {
 		switch {
 		case k < last && toks[k].tok == token.LBRACE:
 			next, _, ok := matchClose(toks, k)
-			if !ok || next > last {
+			if !ok || next > last || toks[next-1].tok != token.RBRACE {
 				return nil, k, "unclosed fields of " + d.name + "." + v.name
 			}
 			v.fields, d.sum = true, true
