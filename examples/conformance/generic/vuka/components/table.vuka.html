@@ -4,21 +4,33 @@ package components
 import (
 	"context"
 	"fmt"
+
+	"github.com/vuka-lang/ui/v2"
 )
 
 // Table pages through rows of any type, keeping its page and sort in the
-// URL. Its mount hook counts the rows it was given.
+// URL. Its mount hook counts the rows it was given, and pushes a command
+// starting a count its markup never names, as a table counting rows
+// asynchronously does.
 type Table[T any] struct {
-	Title string
-	Rows  []T
-	page  int    @ui.URL("page").Default(1)
-	sort  string @ui.URL("sort").Default("name")
-	total int
+	ui.Live
+	Title   string
+	Rows    []T
+	page    int    @ui.URL("page").Default(1)
+	sort    string @ui.URL("sort").Default("name")
+	total   int
+	counted int
 }
 
 @ui.Mount
 func (t *Table[T]) mount(ctx context.Context) error {
 	t.total = len(t.Rows)
+	t.PushJS(ui.JS.Push(t.startCount))
+	return nil
+}
+
+func (t *Table[T]) startCount(ctx context.Context) error {
+	t.counted = len(t.Rows)
 	return nil
 }
 
@@ -41,6 +53,7 @@ func (t *Table[T]) shown() []string {
 
 <section class="table">
   <h2>{Title}: {total} rows, page {page}, by {sort}</h2>
+  <p>counted {counted}</p>
   <ul>
     for _, r := range shown() {
       <li key={r}>{r}</li>

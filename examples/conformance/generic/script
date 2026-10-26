@@ -1,12 +1,19 @@
 # generic: one generic table instantiated for tasks and for users on one
 # page — each mounts (its row count) and keeps its page and sort in the URL
 # under its own key, read on the first render and as the URL changes, and
-# written by its events as patches keeping the other's parameters.
+# written by its events as patches keeping the other's parameters. The
+# commands each mount hook pushed (a count to start) reach their handlers
+# though the join rendered the tables again after the GET's render.
 GET /?tasks.page=2&users.sort=date
 LIVE /?tasks.page=2&users.sort=date
   expect Tasks: 3 rows, page 2, by name
   expect task c
   expect Users: 1 rows, page 1, by date
+  expect counted 0
+  {"type":"event","target":"c2:0p","event":"push"}
+  expect counted 3
+  {"type":"event","target":"c3:0p","event":"push"}
+  expect counted 1
   {"type":"event","target":"c2:0","event":"click"}
   expect Tasks: 3 rows, page 3, by name
   {"type":"navigate","url":"/?tasks.page=3&users.sort=date","patch":true}

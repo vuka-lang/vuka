@@ -437,8 +437,13 @@ it has one (a JSON string as is, anything else as its JSON text: `3`,
 `true`, `{"a":1}`), else *this*'s value.
 
 `h` is a handler id of the same
-render, counted with the `data-vk-on-…` ids of its instance. A push without
-`h` (rendered without a session) does nothing.
+render, counted with the `data-vk-on-…` ids of its instance. A push in a
+command the server pushed (a `js` entry, below) has an id of its own
+instead, `c3:0p`, `c3:1p`, …: its number among the instance's pushes,
+which stays valid across the instance's renders until 64 later pushes
+have replaced it, so a render between the push and its event — the join
+after an HTTP render, another event, a message — leaves it working. A push
+without `h` (rendered without a session) does nothing.
 
 ### Commands Pushed by the Server {#commands-pushed-by-the-server}
 
