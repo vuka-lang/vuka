@@ -153,6 +153,7 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 			p.mu.Lock()
 			p.goReqs[string(m.ID)] = true
 			p.mu.Unlock()
+			p.untrack(m.ID)
 			_ = p.gopls.send(m)
 			return
 		}

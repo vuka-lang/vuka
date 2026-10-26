@@ -473,7 +473,7 @@ type proxy struct {
 	log           io.Writer
 	tmp           string
 
-	genMu sync.Mutex
+	genMu genLock
 	// view is held to read the generated files and ask gopls about them
 	// (shared), or to change them and tell gopls (alone): a request never
 	// reaches gopls mapped onto a generation gopls hasn't been sent yet.
@@ -490,8 +490,7 @@ type proxy struct {
 	vukaReqs         map[string]*vukaRequest   // proxy request id → request on a .vuka file
 	asks             map[string]chan rpcMsg    // proxy request id → the proxy's own question to gopls
 	dropped          map[string]bool           // proxy request ids given up on: gopls's late answer goes nowhere
-	waiting          map[string]*time.Timer    // editor request ids read, not yet handled
-	answeredEarly    map[string]bool           // and those answered while they waited
+	replies          replies                   // the editor's requests not answered yet (lsp_answers.go)
 	bufs             map[string][]byte         // .vuka path → editor buffer
 	cursors          map[string]int            // .vuka path → where the editor's last change to it ended
 	virtual          map[string]*vfile         // generated path → buffer in gopls
@@ -523,6 +522,7 @@ type proxy struct {
 	edits    int            // the editor's changes to .vuka buffers so far
 	changed  map[string]int // .vuka path → edits when its buffer last changed
 	done     map[string]int // .vuka path → edits as of the build that last transpiled its buffer
+	gaveUp   map[string]int // .vuka path → the edits count a request stopped waiting for (await)
 	snapped  int            // edits when the last build took the buffers
 	syntax   syntaxChecker
 
@@ -537,7 +537,6 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 	p := &proxy{
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{}, dropped: map[string]bool{},
-		waiting: map[string]*time.Timer{}, answeredEarly: map[string]bool{},
 		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
 		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
 		shown:       map[string]string{},
@@ -545,6 +544,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		changed: map[string]int{}, done: map[string]int{},
 	}
 	p.built = sync.NewCond(&p.mu)
+	editor.dropping(p.dropReply)
 	return p
 }
 
@@ -675,18 +675,8 @@ func (p *proxy) fromEditor() {
 	go p.readEditor(msgs)
 	for em := range msgs {
 		body, m := em.body, em.m
-		if m.isRequest() {
-			p.mu.Lock()
-			early := p.answeredEarly[string(m.ID)]
-			delete(p.answeredEarly, string(m.ID))
-			if t := p.waiting[string(m.ID)]; t != nil {
-				t.Stop()
-				delete(p.waiting, string(m.ID))
-			}
-			p.mu.Unlock()
-			if early {
-				continue
-			}
+		if m.isRequest() && !p.reach(m.ID) {
+			continue // answered while it waited
 		}
 		var doc struct {
 			TextDocument textDocumentID `json:"textDocument"`
@@ -723,6 +713,7 @@ func (p *proxy) fromEditor() {
 			p.mu.Lock()
 			p.goReqs[string(m.ID)] = true
 			p.mu.Unlock()
+			p.untrack(m.ID)
 			_ = p.gopls.send(&m)
 			continue
 		case "initialized":
@@ -800,6 +791,7 @@ func (p *proxy) fromEditor() {
 			p.mu.Lock()
 			p.goReqs[string(m.ID)] = true
 			p.mu.Unlock()
+			p.untrack(m.ID)
 		}
 		_ = p.gopls.write(body)
 	}
@@ -1338,9 +1330,9 @@ type editorMsg struct {
 
 // readEditor reads the editor's messages for fromEditor, which can be busy
 // with a build — the first one runs before anything else. Responses go
-// on at once (gopls asks the editor for its configuration meanwhile). A
-// request still waiting for the loop at goplsDeadline is answered then,
-// as one gopls didn't answer, and the loop skips it when it gets there.
+// on at once (gopls asks the editor for its configuration meanwhile).
+// Requests are tracked until answered, and a cancelled one is answered at
+// once (lsp_answers.go).
 func (p *proxy) readEditor(msgs chan<- editorMsg) {
 	defer close(msgs)
 	for {
@@ -1359,31 +1351,11 @@ func (p *proxy) readEditor(msgs chan<- editorMsg) {
 			}
 			continue
 		}
-		if m.isRequest() && m.Method != "initialize" && m.Method != "shutdown" {
-			id, method := string(m.ID), m.Method
-			p.mu.Lock()
-			p.waiting[id] = time.AfterFunc(goplsDeadline, func() {
-				p.mu.Lock()
-				if p.waiting[id] == nil {
-					p.mu.Unlock()
-					return
-				}
-				delete(p.waiting, id)
-				p.answeredEarly[id] = true
-				p.mu.Unlock()
-				p.logf("%s: not reached in %v (a build runs)", method, goplsDeadline)
-				reply := map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id)}
-				switch {
-				case semanticTokensMethods[method]:
-					reply["result"] = map[string]any{"data": []any{}}
-				case quietMethods[method]:
-					reply["result"] = nil
-				default:
-					reply["error"] = map[string]any{"code": -32803, "message": "vuka lsp is busy building"}
-				}
-				_ = p.editor.send(reply)
-			})
-			p.mu.Unlock()
+		switch {
+		case m.isRequest():
+			p.track(&m)
+		case m.Method == "$/cancelRequest":
+			p.cancelled(m.Params)
 		}
 		msgs <- editorMsg{body, m}
 	}
@@ -1613,7 +1585,12 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 
 // ask sends gopls a request of the proxy's own and waits for the answer.
 func (p *proxy) ask(method string, params any) (json.RawMessage, bool) {
-	m, ok := p.askWithin(10*time.Second, method, params)
+	return p.askUntil(10*time.Second, nil, method, params)
+}
+
+// askUntil is ask waiting at most d, and no longer once stop is closed.
+func (p *proxy) askUntil(d time.Duration, stop <-chan struct{}, method string, params any) (json.RawMessage, bool) {
+	m, ok := p.askWithinStop(d, stop, method, params)
 	if !ok {
 		return nil, false
 	}
@@ -1627,6 +1604,11 @@ func (p *proxy) ask(method string, params any) (json.RawMessage, bool) {
 // askWithin sends gopls a request of the proxy's own and waits, at most d,
 // for the answer, which may be an error; ok is false when none came.
 func (p *proxy) askWithin(d time.Duration, method string, params any) (m rpcMsg, ok bool) {
+	return p.askWithinStop(d, nil, method, params)
+}
+
+// askWithinStop is askWithin giving up early once stop is closed.
+func (p *proxy) askWithinStop(d time.Duration, stop <-chan struct{}, method string, params any) (m rpcMsg, ok bool) {
 	p.mu.Lock()
 	p.nextID++
 	id := strconv.Quote("vuka-ask:" + strconv.Itoa(p.nextID))
@@ -1634,18 +1616,21 @@ func (p *proxy) askWithin(d time.Duration, method string, params any) (m rpcMsg,
 	p.asks[id] = ch
 	p.mu.Unlock()
 	_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "id": json.RawMessage(id), "method": method, "params": params})
+	t := time.NewTimer(d)
+	defer t.Stop()
 	select {
 	case m := <-ch:
 		return m, true
-	case <-time.After(d):
-		p.mu.Lock()
-		if p.asks[id] != nil {
-			delete(p.asks, id)
-			p.cancelGopls(id)
-		}
-		p.mu.Unlock()
-		return rpcMsg{}, false
+	case <-t.C:
+	case <-stop:
 	}
+	p.mu.Lock()
+	if p.asks[id] != nil {
+		delete(p.asks, id)
+		p.cancelGopls(id)
+	}
+	p.mu.Unlock()
+	return rpcMsg{}, false
 }
 
 // jsxTriggered reports whether a completion was triggered by a character vuka

@@ -355,11 +355,11 @@ func TestLSPAnswersDuringFirstBuild(t *testing.T) {
 		<-release // a build slowed down by a busy disk
 		return after(dir, overlay, gens)
 	}
-	defer func() { load.AfterPackage = after }()
-	defer close(release)
+	t.Cleanup(func() { load.AfterPackage = after }) // once the proxy has stopped
 
 	app := routesModule(t, map[string]string{"pages/card.vuka.html": deadlineCard})
 	c := startMutedLSP(t, app)
+	t.Cleanup(func() { close(release) }) // before it stops
 	uri := pathToURI(filepath.Join(app, "pages", "card.vuka.html"))
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{
 		"uri": uri, "languageId": "vuka-html", "version": 1, "text": deadlineCard}})

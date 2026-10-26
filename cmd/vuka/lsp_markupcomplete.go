@@ -349,7 +349,10 @@ func (p *proxy) loopKey(vf *vfile, genPath string, loop loopAt) string {
 // probeAt asks gopls to complete code typed into the generated Go at gp; the
 // file is put back after.
 func (p *proxy) probeAt(genPath string, gp lspPosition, insert string) []map[string]any {
-	p.genMu.Lock()
+	yield, ok := p.genMu.lockProbe(probeLockWait)
+	if !ok {
+		return nil // a build or another probe has the generated Go
+	}
 	defer p.genMu.Unlock()
 	p.mu.Lock()
 	vf := p.vfileOf(genPath)
@@ -371,7 +374,7 @@ func (p *proxy) probeAt(genPath string, gp lspPosition, insert string) []map[str
 			"textDocument": map[string]any{"uri": uri, "version": version}, "contentChanges": []any{map[string]any{"text": s}}}})
 	}
 	change(v-1, text)
-	res, ok := p.ask("textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos})
+	res, ok := p.askUntil(probeAskLimit, yield, "textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos})
 	change(v, gen)
 	if !ok {
 		return nil
