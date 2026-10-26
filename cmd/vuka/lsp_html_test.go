@@ -326,7 +326,7 @@ type Sales struct{ Title string }
 	const badge = `package main
 
 type ContextBadge struct{}
-<i>{ctx.Err()}</i>
+<i>{ctx.Err() != nil}</i>
 `
 	c, dir, _ := startLSPWith(t, map[string]string{"sales.go": source, "sales.vuka.html": template, "badge.vuka.html": badge})
 	for name, text := range map[string]string{"sales.vuka.html": template, "badge.vuka.html": badge} {
