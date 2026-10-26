@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Language support for Vuka 2.0: Go logic and .vuka.html shapes, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls.",
-  "version": "0.9.2",
+  "version": "0.10.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -66,8 +66,8 @@
         ],
         "configuration": "./language-configuration.json",
         "icon": {
-          "light": "./images/file-icon.svg",
-          "dark": "./images/file-icon.svg"
+          "light": "./images/html-file-icon.svg",
+          "dark": "./images/html-file-icon.svg"
         }
       },
       {
