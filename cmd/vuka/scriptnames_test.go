@@ -1,11 +1,16 @@
 package main
 
 import (
+	"bytes"
+	"io"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"strings"
 	"testing"
+
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 const namesIndex = `<script lang="go">
@@ -190,5 +195,111 @@ func TestVetScripts(t *testing.T) {
 	slices.Sort(want)
 	if strings.Join(got, "\n") != strings.Join(want, "\n") {
 		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+}
+
+// guideModules are the npm packages docs/ui/scripts.md imports, as much
+// of their types as its examples use.
+const guideModules = `declare module 'sortablejs' {
+	const Sortable: { create(el: HTMLElement, opts: { onEnd?: () => void }): { destroy(): void } }
+	export default Sortable
+}
+declare module 'chart.js/auto' {
+	export class Chart {
+		constructor(canvas: HTMLCanvasElement, config: { type: string; data: { labels: unknown[]; datasets: { label: string; data: number[] }[] } })
+		data: { labels?: unknown[]; datasets: { data: unknown[] }[] }
+		update(): void
+		destroy(): void
+	}
+}
+`
+
+// TestScriptsGuide: each complete shape of the Component Scripts guide
+// (docs/ui/scripts.md) parses, its script type-checks against the types
+// vuka generates for it, and vuka vet finds nothing wrong with the names
+// it uses.
+func TestScriptsGuide(t *testing.T) {
+	guide, err := os.ReadFile("../../docs/ui/scripts.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	fences := regexp.MustCompile("(?s)```html\n(.*?)```").FindAllStringSubmatch(string(guide), -1)
+	checked := 0
+	for i, f := range fences {
+		code := f[1]
+		if !strings.Contains(code, `<script lang="ts">`) || !strings.Contains(code, `<script lang="go">`) {
+			continue
+		}
+		sh, perr := transpile.ParseShape([]byte(code))
+		if perr != nil || sh == nil {
+			t.Errorf("example %d: %v", i, perr)
+			continue
+		}
+		pkg := regexp.MustCompile(`(?m)^package (\w+)`).FindStringSubmatch(code)[1]
+		files := map[string]string{"go.mod": webMod, "main.go": "package main\n\nfunc main() {}\n"}
+		file := pkg + "/" + strings.ToLower(sh.Type) + ".vuka.html"
+		if pkg == "pages" {
+			file = "pages/index.vuka.html"
+		}
+		files[file] = code
+		files[pkg+"/card.go"] = "package " + pkg + "\n\ntype Card struct {\n\tID    int\n\tTitle string\n}\n"
+		files[pkg+"/point.go"] = "package " + pkg + "\n\ntype Point struct {\n\tLabel string\n\tValue float64\n}\n"
+		root := tempModule(t, files)
+		pa, err := findAssets(root, "example.com/app")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if ds := vetScripts(root, "example.com/app", pa); len(ds) > 0 {
+			t.Errorf("example %d (%s): vuka vet: %v", i, sh.Type, ds)
+		}
+		dir := filepath.Join(root, ".vuka")
+		os.MkdirAll(dir, 0o755)
+		os.WriteFile(filepath.Join(dir, componentDTSName), componentDTS(root, "example.com/app", pa.comps), 0o644)
+		os.WriteFile(filepath.Join(dir, "modules.d.ts"), []byte(guideModules), 0o644)
+		script := code[strings.Index(code, `<script lang="ts">`)+len(`<script lang="ts">`):]
+		script = script[:strings.Index(script, "</script>")]
+		if out := tscCheck(t, dir, "/// <reference path=\"./modules.d.ts\" />\n"+script); out != "" {
+			t.Errorf("example %d (%s) doesn't type-check:\n%s", i, sh.Type, out)
+		}
+		checked++
+	}
+	if checked < 6 {
+		t.Errorf("only %d examples checked", checked)
+	}
+}
+
+// TestScriptsGuideVets: the Go and markup of each example of the
+// Component Scripts guide compile: vuka vet passes on it in an app.
+func TestScriptsGuideVets(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	guide, err := os.ReadFile("../../docs/ui/scripts.md")
+	if err != nil {
+		t.Fatal(err)
+	}
+	here, _ := os.Getwd()
+	t.Cleanup(func() { os.Chdir(here) })
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	for i, f := range regexp.MustCompile("(?s)```html\n(.*?)```").FindAllStringSubmatch(string(guide), -1) {
+		code := f[1]
+		if !strings.Contains(code, `<script lang="ts">`) || !strings.Contains(code, `<script lang="go">`) {
+			continue
+		}
+		pkg := regexp.MustCompile(`(?m)^package (\w+)`).FindStringSubmatch(code)[1]
+		files := map[string]string{"main.go": "package main\n\nimport _ \"example.com/app/" + pkg + "\"\n\nfunc main() {}\n", pkg + "/x.vuka.html": code}
+		if pkg == "pages" {
+			files = map[string]string{"main.go": pagesMain, "pages/index.vuka.html": code}
+		}
+		files[pkg+"/card.go"] = "package " + pkg + "\n\ntype Card struct {\n\tID    int\n\tTitle string\n}\n"
+		files[pkg+"/point.go"] = "package " + pkg + "\n\ntype Point struct {\n\tLabel string\n\tValue float64\n}\n"
+		os.Chdir(here)
+		root := assetsModule(t, files)
+		os.Chdir(root)
+		var stderr bytes.Buffer
+		if err := runGo("vet", []string{"./..."}, io.Discard, &stderr); err != nil {
+			t.Errorf("example %d: vuka vet: %v\n%s", i, err, stderr.String())
+		}
 	}
 }

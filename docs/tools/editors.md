@@ -58,13 +58,32 @@ their lines.
 VS Code highlights them as HTML with Go in braces and at line
 starts, TypeScript in `<script lang="ts">` and CSS in `<style>`, Zed reads the markup as HTML.
 
-A template's `<script lang="ts">` is TypeScript with its component's
-types (`component<Chart>`: `props`, `ctx.live`, `ctx.state`): completion,
-hover, signature help, go to definition and errors come from
-[typescript-language-server](https://github.com/typescript-language-server/typescript-language-server),
-which `vuka lsp` starts when one is on `PATH`, in the module's or its
-frontend's `node_modules/.bin`, or named by `$VUKA_TSLS`
-(`npm i -D typescript typescript-language-server`).
+### Scripts {#scripts}
+
+A shape's `<script lang="ts">` is TypeScript with its component's types
+(`component<Chart>`: `props`, `ctx.live`, `ctx.state`, `ctx.ref`, `ctx.on`,
+`ctx.emit`, `navigate` and `patch`, the names completed from the shape's
+markup and Go): completion, hover (a live method's Go doc), signature help
+and errors in the `.vuka.html`, at their lines. Go to definition on
+`ctx.live.reorder` opens `func (p *Index) Reorder`, and that method's
+references list the scripts calling it. In a script `listen` completes an
+event listener removed on `destroy`, and an import's specifier completes
+`vuka:component` and the module's npm packages.
+
+`vuka lsp` gives each script to a
+[typescript-language-server](https://github.com/typescript-language-server/typescript-language-server):
+
+| | |
+|---|---|
+| `-tsls path` (`$VUKA_TSLS`) | the server: its executable, or its `lib/cli.mjs` run by Node; else one on `PATH`, else in the module's or its frontend's `node_modules/.bin` |
+| `-tsls-node path` (`$VUKA_TSLS_NODE`) | the Node running a `.js`/`.mjs` server, `node` on `PATH` by default; an Electron binary runs as Node |
+| `-tsserver path` (`$VUKA_TSSERVER`) | the TypeScript (`tsserver.js` or its `lib` directory) used when the module has no `typescript` of its own |
+
+VS Code's extension passes all three: the server it bundles, VS Code's own
+Node and the TypeScript inside VS Code, so scripts need nothing installed
+(`vuka.typescript.server` names another server). In another editor, install
+one (`npm i -g typescript typescript-language-server`, or as the module's
+dev dependencies) or pass `-tsls`. See [Component Scripts](/ui/scripts).
 
 ### Editing Markup {#markup}
 

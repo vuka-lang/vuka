@@ -236,6 +236,40 @@ the `github.com/vuka-lang/vuka` package your module requires.
   it off behind a proxy that compresses; it is on under `vuka run` as well,
   and the toolbar's Request panel shows the bytes sent
   ([#126](https://github.com/vuka-lang/vuka/issues/126)).
+- **A page's script is a component script.** `component<T>` works on a
+  page shape with the same `ctx` as a component's: `ctx.live`,
+  `ctx.state`, `ctx.ref`, `ctx.on` (the page's `PushEvent`), `navigate` and
+  `patch`, and `update(next)` when a patch that keeps the page mounted
+  changes its props. `page<T>((el, live, ctx) => …)` stays as its alias,
+  `ctx` its new third argument; two-argument scripts keep working. Fixes
+  found on the way: a script calling `ctx.state` mounted on the wrong
+  element, as its states were written over the root's scope (they are
+  `data-vk-st` now); a live shape's script couldn't push its methods
+  (`live: … takes no push named Reorder`); a shape whose struct is in its
+  `<script lang="go">` got no props or methods in the script's types; and
+  `ctx.state(…).watch` missed changes when the script mounted before the
+  live runtime.
+- **TypeScript in shape scripts works out of the box in VS Code.** The
+  extension bundles `typescript-language-server` and runs it with VS
+  Code's Node and the TypeScript inside VS Code (the module's own
+  `typescript` wins), on macOS, Linux and Windows. `vuka lsp` takes it as
+  `-tsls`, `-tsls-node` and `-tsserver` (`VUKA_TSLS`, `VUKA_TSLS_NODE`,
+  `VUKA_TSSERVER`), so other editors can point at one too.
+- **The names a script passes as strings are typed.** `ctx.ref` completes
+  the markup's `ref="…"` names, each its element's DOM type; `ctx.on` the
+  events the Go's `PushEvent` calls send, with their payloads' types;
+  `ctx.emit` the `on…` attributes of a component's root (a type error on a
+  page, which has no parent); `navigate` the app's folder routes; and
+  `patch({ q: "x" })`, a new form of `patch`, a page's `@ui.URL` keys. A
+  live method's hover shows its Go doc, go to definition on
+  `ctx.live.reorder` opens `func (p *Index) Reorder`, and the method's
+  references list the scripts calling it. In a script, `listen` completes
+  an event listener removed on `destroy`, and an import's specifier
+  `vuka:component` and the module's npm packages. `vuka vet` reports a ref,
+  state or event a shape lacks, and `ctx.emit` in a page
+  ([W0308](/errors/W0308)). A guide, [Component Scripts](/ui/scripts),
+  covers when to write a script, the whole `ctx` and worked examples
+  ([#138](https://github.com/vuka-lang/vuka/issues/138)).
 
 - **A template with a script or a scoped stylesheet can fill a
   component's slots.** Either makes the template a scoped component, and

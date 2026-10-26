@@ -554,31 +554,31 @@ figcaption { font-weight: bold }
 
 ### The Component Script
 
-The script runs once per instance: `el` is its root — the markup's
-element, or, when the markup starts with a component's tag or a slot, a
-`<vk-c style="display:contents">` around it — `props` the struct's
-data fields as JSON (`ui.Node`, func and unexported fields are not sent),
-`update` runs when a live re-render changes them, `destroy` when the
-instance leaves the page.
+The script runs once per instance, for a page or a component alike:
+`el` is its root — the markup's element, or, when the markup starts with
+a component's tag or a slot, a `<vk-c style="display:contents">` around
+it — `props` the struct's data fields as JSON (`ui.Node`, func and
+unexported fields are not sent), `update` runs when a re-render changes
+them, `destroy` when the instance leaves the page. `ctx.live.reorder(ids)`
+calls the Go method `Reorder`, `ctx.state("open")` is a `ui.State` field's
+handle, `ctx.ref("box")` the element with `ref="box"`, `ctx.on(event, fn)`
+hears the Go's `PushEvent`, and `ctx.navigate` / `ctx.patch` move the page.
+`page<T>((el, live, ctx) => …)` is the same, with `ctx.live` second.
 
-`ctx.live` calls the component's exported
-methods (`ctx.live.reorder(ids)` is `Reorder`), `ctx.state("open")` is a
-`ui.State` field's handle — `get()`, `set(v)`, `watch(fn)` — and
-`ctx.navigate(href)` / `ctx.patch(href)` move the page.
-
-A live page's
-script can use `page<Orders>((el, live) => …)`: `live.q` is the
-field `Q`'s handle (`get()`, `set(v)` for a field marked `@ui.Bind`), `live.reorder`
-a method.
+[Component Scripts](/ui/scripts) is the guide: when a script is the right
+tool, the whole `ctx`, worked examples, npm packages and troubleshooting.
 
 ### Script Types
 
 The types come from the Go struct: `component<Chart>` knows `props.Title`,
-`ctx.live`'s methods and `ctx.state`'s names. The `vuka` command writes
-them to `.vuka/vuka-component.d.ts`, and `vuka lsp` gives each script to a
-TypeScript language server with them — completion, hover, definition and
-errors in the `.vuka.html` — when `typescript-language-server` is on PATH
-or in `node_modules/.bin` (`$VUKA_TSLS` names one).
+`ctx.live`'s methods (with their Go doc), `ctx.state`'s names, the refs of
+the markup, the events the Go pushes and the app's routes. The `vuka`
+command writes them to `.vuka/vuka-component.d.ts`, and `vuka lsp` gives
+each script to a TypeScript language server with them — completion, hover,
+definition (from `ctx.live.reorder` to the Go method) and errors in the
+`.vuka.html`. In VS Code it needs nothing installed; other editors name a
+server ([Editors](/tools/editors#scripts)). `vuka vet` checks the names a
+script passes as strings ([W0308](/errors/W0308)).
 
 ### Bundling and Scoping
 
