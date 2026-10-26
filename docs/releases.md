@@ -255,6 +255,15 @@ the `github.com/vuka-lang/vuka` package your module requires.
   scope: the root the script mounts on, once
   ([#135](https://github.com/vuka-lang/vuka/issues/135)).
 
+- **Island imports can start at the module root.**
+  `import Form "@/web/islands/Form.vue"` names the file from the directory
+  holding `go.mod`, so a page deep in `pages/(admin)/users/[id]/` needs no
+  `../../../..`, and moving it doesn't break the import. Relative paths
+  work as before, and both spellings of one file are the same island.
+  A missing file is E0303 with the written path and the file it resolved
+  to; a path that leaves the module root (`@/../x.vue`) is refused
+  ([#111](https://github.com/vuka-lang/vuka/issues/111)).
+
 ## v2.5.0 — 2026-10-24
 
 - **Hooks on generic shapes.** `@ui.Mount`, `@ui.OnChange` and

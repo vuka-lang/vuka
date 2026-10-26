@@ -618,7 +618,7 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 		if err != nil || !tsprops.IsComponent(p) {
 			continue
 		}
-		abs := filepath.Join(dir, filepath.FromSlash(p))
+		abs, src, readErr := tsprops.ReadIslandComponent(pa.root, dir, p, load.ReadSource)
 		relSrc, _ := filepath.Rel(pa.root, abs)
 		ic := &islandComp{
 			name:      toks[i-1].lit,
@@ -628,7 +628,10 @@ func (pa *pageAssets) readIslandImports(file, rel string, line func(int) int, to
 			framework: islandFramework(p),
 			imported:  true,
 		}
-		if src, err := load.ReadSource(abs); err == nil {
+		if readErr != nil {
+			ic.problem, ic.problemCode = readErr.Error(), "E0303"
+		}
+		if readErr == nil {
 			if c, err := tsprops.Read(filepath.ToSlash(abs), src, func(q string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(q)) }); err == nil {
 				for _, pr := range c.Props {
 					ic.props = append(ic.props, islandProp{name: pr.Name, ts: pr.Type.String(), optional: pr.Optional})

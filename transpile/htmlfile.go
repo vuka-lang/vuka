@@ -29,9 +29,10 @@ func (f File) IsTemplate() bool { return strings.HasSuffix(f.Name, ".vuka.html")
 
 // htmlFile is what a template file's compilation needs to know about it.
 type htmlFile struct {
-	recv     string // the markup's receiver: s
-	recvType string // and its type: Sales
-	start    int    // where the markup is
+	island   *islandPage // island-only page before its import lowers to a decorator
+	recv     string      // the markup's receiver: s
+	recvType string      // and its type: Sales
+	start    int         // where the markup is
 	end      int
 	src      []byte      // the file as written
 	ins      []insertion // what its compiled text inserts, in order
@@ -187,6 +188,21 @@ func (e *engine) template(f *fileState, files []File) bool {
 		err.Pos = f.lines.pos(f.path, min(f.lines[min(line, len(f.lines))-1]+col-1, len(f.src)))
 		*e.errs = append(*e.errs, err)
 		return false
+	}
+	if h.island != nil {
+		im := h.island.imp
+		// HeaderView keeps offsets in the original shape, including script wrappers.
+		for _, tok := range scanTokens(HeaderView(f.src)) {
+			if tok.tok != token.STRING || f.at(tok.off).Line != im.Line+1 {
+				continue
+			}
+			if path, _ := strconv.Unquote(tok.lit); path == im.Path {
+				if _, _, ok := e.readIslandComponent(f, path, tok.off, e.errs); !ok {
+					return false
+				}
+				break
+			}
+		}
 	}
 	f.src, f.html, f.lines = src, h, newLineIndex(src)
 	return true
@@ -414,6 +430,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	if isl, err := islandOnly(shape, head, lines, first, firstEnd); err != nil {
 		return nil, nil, nil, err
 	} else if isl != nil {
+		h.island = isl
 		lines[isl.imp.Line] = blank(lines[isl.imp.Line])
 		for i := first; i < firstEnd; i++ {
 			lines[i] = blank(lines[i])

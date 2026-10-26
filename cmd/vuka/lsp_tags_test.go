@@ -121,3 +121,37 @@ func TestTagHover(t *testing.T) {
 		t.Errorf("Badge hover %q", md)
 	}
 }
+
+func TestRootIslandTag(t *testing.T) {
+	p, root := tagsModule(t)
+	file := filepath.Join(root, "web", "islands", "Form.vue")
+	writeFile(t, file, `<script setup lang="ts">defineProps<{ title: string; count?: number }>()</script>`)
+	src := []byte("package users\nimport Form \"@/web/islands/Form.vue\"\ntype Edit struct{}\n<main><Form title=\"Edit\" /></main>\n")
+	info := p.resolveComponent(filepath.Join(root, "pages", "admin", "users", "edit.vuka.html"), src, "Form")
+	if info == nil {
+		t.Fatal("no island tag")
+	}
+	if info.file != file {
+		t.Fatalf("definition: %s, want %s", info.file, file)
+	}
+	if h := info.markdown("Form"); !strings.Contains(h, "title") || !strings.Contains(h, "number") {
+		t.Fatalf("hover: %s", h)
+	}
+}
+
+func TestRootIslandTagBeforeBuildAndNestedModule(t *testing.T) {
+	p, root := tagsModule(t)
+	nested := filepath.Join(root, "nested")
+	writeFile(t, filepath.Join(nested, "go.mod"), "module example.com/nested\ngo 1.25.0\n")
+	file := filepath.Join(nested, "web", "Form.vue")
+	writeFile(t, file, `<script setup lang="ts">defineProps<{ nested: boolean }>()</script>`)
+	page := filepath.Join(nested, "pages", "edit.vuka.html")
+	writeFile(t, page, "package pages\nimport Form \"@/web/Form.vue\"\ntype Edit struct{}\n<Form />\n")
+	for _, workspaceRoot := range []string{"", root} {
+		p.modRoot = workspaceRoot
+		info := p.resolveComponent(page, []byte(mustRead(t, page)), "Form")
+		if info == nil || info.file != file || !strings.Contains(info.markdown("Form"), "nested") {
+			t.Fatalf("workspace root %q: %+v", workspaceRoot, info)
+		}
+	}
+}

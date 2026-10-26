@@ -1,8 +1,10 @@
 # islands: script islands bundled without Node — one in a live page, its
 # props following the page and its emit reaching the page's method, one in
-# a page that isn't live; the loader's manifest and the bundles compared.
+# a page that isn't live, one a page backed only by an @/ import; the
+# loader's manifest and the bundles compared.
 LIVE /
   {"type":"event","target":"c1:0","event":"click"}
   {"type":"event","target":"c1:1","event":"select","data":{"from":1,"to":3}}
   {"type":"event","target":"c1:0","event":"click"}
 GET /about
+GET /summary

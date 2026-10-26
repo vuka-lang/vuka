@@ -41,6 +41,7 @@ import (
 type islandImport struct {
 	name  string // the island's Go type name
 	path  string // as written
+	file  string // resolved absolute filename
 	off   int    // the import string's offset
 	start int    // the import spec's (or single import declaration's) span
 	end   int
@@ -134,13 +135,29 @@ func (e *engine) islandImports(f *fileState, errs *ErrorList) {
 	}
 }
 
+// readIslandComponent is the common existence check for imported islands,
+// including island-only pages before their imports lower to decorators.
+func (e *engine) readIslandComponent(f *fileState, path string, off int, errs *ErrorList) (string, []byte, bool) {
+	file, src, err := tsprops.ReadIslandComponent(e.moduleRoot, e.dir, path, readFileFn)
+	if err != nil {
+		errs.add("E0303", f.at(off), "%s", err)
+		return file, nil, false
+	}
+	return file, src, true
+}
+
 // islandImport reads one imported component and generates its type.
 func (e *engine) islandImport(f *fileState, toks []tok, im *islandImport, errs *ErrorList) {
 	if e.islands == nil {
 		e.islands = map[string]*islandImport{}
 	}
+	file, src, ok := e.readIslandComponent(f, im.path, im.off, errs)
+	if !ok {
+		return
+	}
+	im.file, _ = filepath.Abs(file)
 	if prev := e.islands[im.name]; prev != nil {
-		if prev.path != im.path {
+		if prev.file != im.file {
 			errs.add("E0302", f.at(im.off), "island %s is imported from %s and from %s", im.name, prev.path, im.path)
 		}
 		return
@@ -148,17 +165,7 @@ func (e *engine) islandImport(f *fileState, toks []tok, im *islandImport, errs *
 	e.islands[im.name] = im
 	im.gen = !e.declaredIslands[im.name]
 	if !im.gen {
-		return // the @ui.Island struct is the contract
-	}
-	if e.dir == "" {
-		errs.add("E0303", f.at(im.off), "can't read %s: the package's directory is unknown", im.path)
-		return
-	}
-	file := filepath.Join(e.dir, filepath.FromSlash(im.path))
-	src, err := readFileFn(file)
-	if err != nil {
-		errs.add("E0303", f.at(im.off), "can't read island component %s: %v", im.path, err)
-		return
+		return // the declared struct supplies props, but the target must exist
 	}
 	comp, err := tsprops.Read(filepath.ToSlash(file), src, func(p string) ([]byte, error) { return readFileFn(filepath.FromSlash(p)) })
 	if err != nil {

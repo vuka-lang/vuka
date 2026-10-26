@@ -126,7 +126,10 @@ func TestImporterLocalPath(t *testing.T) {
 	if _, err := im.Import("../web/islands/Chart.vue"); err == nil {
 		t.Fatal("imported a component file")
 	}
-	if err := im.Prefetch([]string{"./Chart.vue"}); err != nil {
+	if _, err := im.Import("@/web/Chart.vue"); err == nil {
+		t.Fatal("imported a module-root component file")
+	}
+	if err := im.Prefetch([]string{"./Chart.vue", "@/web/Chart.vue"}); err != nil {
 		t.Fatal(err)
 	}
 	if got := goLists.Load() - lists; got != 0 {

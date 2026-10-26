@@ -179,3 +179,19 @@ func TestGoIslandErrors(t *testing.T) {
 		t.Errorf("no web.Frontend: %v", err)
 	}
 }
+
+func TestGoIslandRootDiagnostics(t *testing.T) {
+	root := t.TempDir()
+	for _, c := range []struct{ path, code, msg string }{
+		{"@/../Nope.vue", "E0303", "@/../Nope.vue: path escapes the module root"},
+		{"@/web/Nope.vue", "E0310", "component web/Nope.vue not found"},
+		{"./web/Nope.vue", "E0310", "component web/Nope.vue not found"},
+	} {
+		ic := &islandComp{name: "Form", src: c.path, label: "main.go:1"}
+		ic.locateArg(root, root, "main.go")
+		d := ic.diagnostic()
+		if d == nil || string(d.Code) != c.code || !strings.Contains(d.Message, c.msg) {
+			t.Errorf("%s: %+v", c.path, d)
+		}
+	}
+}

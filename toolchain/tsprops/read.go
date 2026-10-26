@@ -57,7 +57,7 @@ func FrameworkOf(file string) string {
 func IsComponent(p string) bool {
 	switch strings.ToLower(path.Ext(p)) {
 	case ".vue", ".tsx", ".jsx", ".svelte", ".ts", ".js", ".mts", ".mjs":
-		return strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../")
+		return strings.HasPrefix(p, "./") || strings.HasPrefix(p, "../") || strings.HasPrefix(p, "@/")
 	}
 	return false
 }
