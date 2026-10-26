@@ -1,3 +1,4 @@
 test/**
 node_modules/.cache/**
 *.vsix
+node_modules/typescript-language-server/lib/*.map

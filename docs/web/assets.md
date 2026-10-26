@@ -82,8 +82,9 @@ the instance leaves. Unexported, function and node fields are not JSON
 props. The generated declarations supply TypeScript with the shape's
 exported data, state and handler types.
 
-The context exposes live methods, state handles and navigation. Clean up
-listeners and timers on destroy.
+The context exposes live methods, state handles, refs, the events the Go
+pushes and navigation. Clean up listeners and timers on destroy. See
+[Component Scripts](/ui/scripts) for the whole `ctx` and worked examples.
 
 > [!WARNING]
 > Browser behavior cannot replace server validation.

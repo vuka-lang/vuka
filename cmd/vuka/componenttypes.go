@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"slices"
+	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
@@ -29,6 +30,22 @@ var stateField = regexp.MustCompile(`(?m)^\s*(\w+(?:\s*,\s*\w+)*)\s+(?:\w+\.)?St
 // componentDTS is vuka-component.d.ts for the components comps whose
 // templates have a script, nil when none has.
 func componentDTS(root, modPath string, comps []*assetComp) []byte {
+	dts, _ := componentDTSLocs(root, modPath, comps)
+	return dts
+}
+
+// dtsLoc is where a line of vuka-component.d.ts comes from: the Go method a
+// live.<method> member declares.
+type dtsLoc struct {
+	line int // the d.ts line, from 0
+	file string
+	at   int // its line there, from 1
+	typ  string
+	name string // the Go method
+}
+
+// componentDTSLocs is componentDTS, and the places in Go of its methods.
+func componentDTSLocs(root, modPath string, comps []*assetComp) ([]byte, []dtsLoc) {
 	var scripted []*assetComp
 	var dirs []string
 	for _, c := range comps {
@@ -41,16 +58,19 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 		}
 	}
 	if len(scripted) == 0 {
-		return nil
+		return nil, nil
 	}
 	slices.SortFunc(scripted, func(a, b *assetComp) int { return strings.Compare(a.name, b.name) })
 	il := readIslandLive(root, modPath, dirs)
 	r := il.types
+	pages := scriptPages(root, modPath)
 	type comp struct {
 		c      *assetComp
 		props  []islandProp
 		states [][2]string
 		scope  *tsScope
+		page   bool
+		names  scriptNames
 	}
 	var cs []comp
 	for _, c := range scripted {
@@ -59,8 +79,12 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 			continue
 		}
 		r.claim(d, c.name)
-		x := comp{c: c, scope: d.scope(nil)}
+		x := comp{c: c, scope: d.scope(nil), page: c.page || pages[c.dir+"\x00"+c.name] || routeDecorated(c.dir, c.name)}
 		x.props, x.states = componentFields(c.dir, c.name)
+		if markup, ok := markupOf(c.markup, c.name); ok {
+			x.names.readMarkupNames(markup)
+		}
+		x.names.readGoNames(r, c.dir, c.name)
 		cs = append(cs, x)
 	}
 	var b strings.Builder
@@ -69,8 +93,12 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 	b.WriteString("// a live page's: export default page<Orders>((el, live) => …).\n\n")
 	b.WriteString("declare module \"vuka:component\" {\n")
 	var globals []string
+	var locs []dtsLoc
 	for _, x := range cs {
 		fmt.Fprintf(&b, "export interface %s {\n", x.c.name)
+		if x.page {
+			b.WriteString("\treadonly __page?: true;\n")
+		}
 		for _, p := range x.props {
 			if p.value {
 				fmt.Fprintf(&b, "\t%s\n", fieldTS(tsField{p.name, r.ts(stripPtr(p.typ), x.scope), p.optional}))
@@ -84,6 +112,10 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 					full, _ := scanFile("", []byte(p[1]))
 					args[i] = p[0] + ": " + r.ts(dropNewlineSemis(full), m.scope)
 				}
+				if m.doc != "" {
+					fmt.Fprintf(&b, "\t\t/** %s */\n", jsDoc(m.doc, "\t\t"))
+				}
+				locs = append(locs, dtsLoc{line: strings.Count(b.String(), "\n"), file: m.file, at: m.line, typ: x.c.name, name: m.goName})
 				fmt.Fprintf(&b, "\t\t%s(%s): Promise<void>;\n", m.name, strings.Join(args, ", "))
 			}
 			b.WriteString("\t};\n")
@@ -107,6 +139,7 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 			}
 			b.WriteString("\t};\n")
 		}
+		x.names.write(&b, r, x.page)
 		b.WriteString("}\n")
 		globals = append(globals, x.c.name)
 	}
@@ -122,15 +155,88 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 		}
 		b.WriteString("}\n")
 	}
+	routes := routePatterns(root, modPath)
+	b.WriteString("/** The app's pages, from its folder routes: navigate completes them, and takes any other URL too. */\n")
+	if len(routes) == 0 {
+		b.WriteString("export type Route = never;\n")
+	} else {
+		quoted := make([]string, len(routes))
+		for i, r := range routes {
+			if strings.Contains(r, "${") {
+				quoted[i] = "`" + r + "`"
+			} else {
+				quoted[i] = strconv.Quote(r)
+			}
+		}
+		fmt.Fprintf(&b, "export type Route = %s;\n", strings.Join(quoted, " | "))
+	}
 	b.WriteString(componentModuleDTS)
 	b.WriteString("}\n\n")
 	for _, n := range globals {
 		fmt.Fprintf(&b, "type %s = import(\"vuka:component\").%s;\n", n, n)
 	}
-	return []byte(b.String())
+	return []byte(b.String()), locs
 }
 
-const componentModuleDTS = `type Phantom = "__methods" | "__fields" | "__states";
+// jsDoc is a Go doc comment as a JSDoc comment's text.
+func jsDoc(doc, indent string) string {
+	doc = strings.ReplaceAll(doc, "*/", "*\\/")
+	return strings.ReplaceAll(doc, "\n", "\n"+indent+" * ")
+}
+
+// write declares n's names as phantom members of a component's interface:
+// __refs (each ref's element type), __events (PushEvent's payloads),
+// __emits and a page's __url keys. A list the markup or the Go can't
+// spell whole takes any name.
+func (n *scriptNames) write(b *strings.Builder, r *tsTypes, page bool) {
+	if n.markup {
+		b.WriteString("\treadonly __refs?: {\n")
+		for _, ref := range n.refs {
+			fmt.Fprintf(b, "\t\t%s: %s;\n", tsKey(ref.name), refElement(ref.tag))
+		}
+		if n.dynamicRefs {
+			b.WriteString("\t\t[name: string]: HTMLElement;\n")
+		}
+		b.WriteString("\t};\n")
+		if !page {
+			b.WriteString("\treadonly __emits?: {\n")
+			for _, e := range n.emits {
+				fmt.Fprintf(b, "\t\t%s: unknown;\n", tsKey(e))
+			}
+			b.WriteString("\t};\n")
+		}
+	}
+	b.WriteString("\treadonly __events?: {\n")
+	for _, e := range n.events {
+		ts := e.ts
+		if e.payload != nil {
+			ts = r.ts(e.payload, e.scope)
+		}
+		fmt.Fprintf(b, "\t\t%s: %s;\n", tsKey(e.name), ts)
+	}
+	if n.dynamicEvts {
+		b.WriteString("\t\t[event: string]: any;\n")
+	}
+	b.WriteString("\t};\n")
+	if page {
+		b.WriteString("\treadonly __url?: {\n")
+		for _, k := range n.urlKeys {
+			fmt.Fprintf(b, "\t\t%s: true;\n", tsKey(k))
+		}
+		b.WriteString("\t};\n")
+	}
+}
+
+// refElement is the DOM type of a ref's element: HTMLInputElement for an
+// <input>, HTMLElement for a component's tag.
+func refElement(tag string) string {
+	if strings.ContainsAny(tag, ".:") || tag != strings.ToLower(tag) {
+		return "HTMLElement"
+	}
+	return "TagElement<" + strconv.Quote(tag) + ">"
+}
+
+const componentModuleDTS = `type Phantom = "__methods" | "__fields" | "__states" | "__page" | "__refs" | "__events" | "__emits" | "__url";
 /** The props a component's script reads: its struct's data fields, as ui.Props sends them. */
 export type Props<T> = Omit<T, Phantom>;
 export interface LiveError { status?: number; message: string; fields?: Record<string, string>; }
@@ -139,31 +245,90 @@ export interface LiveField<V> { get(): V; readonly value: V; }
 /** A bind: field the script also sets: set(v) is sent to the page, validated there. */
 export interface LiveBound<V> { get(): V; readonly value: V; set(v: V): Promise<void>; }
 export interface Navigated { url: string; patch: boolean; }
+/** A URL navigate takes: one of the app's pages (completed), or any other. */
+export type Href = Route | (string & {});
+type Member<T, K extends string, D> = K extends keyof T ? NonNullable<T[K & keyof T]> : D;
+type URLKeys<T> = Member<T, "__url", Record<string, true>>;
+/** Query parameters patch sets on the current URL: a page's @ui.URL keys; null removes one. */
+export type Query<T> = { [K in keyof URLKeys<T>]?: string | number | boolean | null };
 /** navigate moves to another page, patch stays on this one (Update, else Mount again); replace takes the current history entry's place. */
-export interface Navigation {
-	navigate(href: string, opts?: { replace?: boolean }): Promise<Navigated>;
+export interface Navigation<T = {}> {
+	navigate(href: Href, opts?: { replace?: boolean }): Promise<Navigated>;
 	patch(href: string, opts?: { replace?: boolean }): Promise<Navigated>;
+	/** patch({ q: "shoes" }): the current URL with these query parameters set. */
+	patch(query: Query<T>, opts?: { replace?: boolean }): Promise<Navigated>;
 }
 /** The instance's live connection: its exported methods, its fields' handles, navigate and patch. */
-export type Live<T> = (T extends { readonly __methods?: infer M } ? NonNullable<M> : {}) &
-	(T extends { readonly __fields?: infer F } ? NonNullable<F> : {}) & Navigation;
-type States<T> = T extends { readonly __states?: infer S } ? NonNullable<S> : {};
+export type Live<T> = Member<T, "__methods", {}> & Member<T, "__fields", {}> & Navigation<T>;
+type States<T> = Member<T, "__states", {}>;
+type TagElement<K extends string> = K extends keyof HTMLElementTagNameMap ? HTMLElementTagNameMap[K] : K extends keyof SVGElementTagNameMap ? SVGElementTagNameMap[K] : HTMLElement;
+type Refs<T> = Member<T, "__refs", Record<string, HTMLElement>>;
+type Events<T> = Member<T, "__events", Record<string, any>>;
+type Emits<T> = Member<T, "__emits", Record<string, unknown>>;
 /** A ui.State of the component: its value, kept by the browser; set writes it (not a derived state's). */
 export interface StateHandle<V> { get(): V; set(v: V): void; watch(fn: (v: V) => void): () => void; }
-export interface Ctx<T> extends Navigation {
+/** What a page's script and a component's share: its live connection, states, refs, the events its Go pushes, navigation. */
+export interface PageCtx<T> extends Navigation<T> {
+	/** The instance's exported Go methods (live.reorder(ids) calls Reorder) and its fields' handles. */
 	live: Live<T>;
+	/** A ui.State field's handle, by its name with a lower-case first letter (or its json name). */
 	state<K extends keyof States<T>>(name: K): StateHandle<States<T>[K]>;
 	push(method: string, payload?: unknown): Promise<unknown>;
-	emit(name: string, payload?: unknown): Promise<unknown>;
-	on(event: string, fn: (payload: any) => void): void;
-	ref(name: string): HTMLElement | null;
+	/** Runs fn with the payload of each PushEvent(event, payload) the instance's Go code sends. */
+	on<K extends keyof Events<T> & string>(event: K, fn: (payload: Events<T>[K]) => void): void;
+	/** The element of the instance's markup with ref="name", null when none renders. */
+	ref<K extends keyof Refs<T> & string>(name: K): Refs<T>[K] | null;
 }
+/** A component's ctx: a page's, and emit: the handler of an on… attribute of its root, which its parent's tag gives. */
+export interface ComponentCtx<T> extends PageCtx<T> {
+	emit<K extends keyof Emits<T> & string>(name: K, payload?: Emits<T>[K]): Promise<unknown>;
+}
+/** The ctx of T's script: a page has no parent, so no emit. */
+export type Ctx<T> = "__page" extends keyof T ? PageCtx<T> : ComponentCtx<T>;
 export interface Hooks<P> { update?(next: P): void; destroy?(): void; }
-/** A component's script: fn runs once per instance; update on a re-render with changed props; destroy when it leaves. */
+/** A component's or a page's script: fn runs once per instance; update on a re-render with changed props (a page's: on a patch that keeps it mounted); destroy when it leaves. */
 export function component<T>(fn: (el: HTMLElement, props: Props<T>, ctx: Ctx<T>) => Hooks<Props<T>> | void): unknown;
-/** A live page's script: fn runs once on mount; destroy on navigating away. */
-export function page<T>(fn: (el: HTMLElement, live: Live<T>) => { destroy?(): void } | void): unknown;
+/** A page's script, component<T> with live first: fn(el, ctx.live, ctx). */
+export function page<T>(fn: (el: HTMLElement, live: Live<T>, ctx: Ctx<T>) => Hooks<Props<T>> | void): unknown;
 `
+
+// scriptPages are the pages of the module's folder routes, by their
+// package's directory and their name (dir + "\x00" + name).
+func scriptPages(root, modPath string) map[string]bool {
+	out := map[string]bool{}
+	for _, t := range scanRoutes(root, modPath, nil) {
+		for _, d := range t.dirs {
+			for _, p := range d.pages {
+				out[d.dir+"\x00"+p] = true
+			}
+		}
+	}
+	return out
+}
+
+// routeDecorated reports whether a source of the package in dir routes the
+// type name itself: @web.Live, @web.Get… above its declaration.
+func routeDecorated(dir, name string) bool {
+	entries, _ := load.ReadDir(dir)
+	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `\b`)
+	for _, e := range entries {
+		if e.IsDir() || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		src, ok := goSource(filepath.Join(dir, e.Name()))
+		if !ok {
+			continue
+		}
+		for _, m := range decl.FindAllIndex(src, -1) {
+			for _, a := range attrsAbove(src, m[0]) {
+				if routeAttr.MatchString(a) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 
 func stripPtr(t []wtok) []wtok {
 	if len(t) > 0 && t[0].tok == token.MUL {
@@ -180,11 +345,11 @@ func componentFields(dir, name string) ([]islandProp, [][2]string) {
 	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `\s+struct\s*\{`)
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_test.go") {
+		if e.IsDir() || strings.HasSuffix(n, "_test.go") {
 			continue
 		}
-		src, err := load.ReadSource(filepath.Join(dir, n))
-		if err != nil {
+		src, ok := goSource(filepath.Join(dir, n))
+		if !ok {
 			continue
 		}
 		loc := decl.FindIndex(src)

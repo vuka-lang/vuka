@@ -25,6 +25,10 @@ type liveMethod struct {
 	name   string      // the wire name: the Go name, first letter lower-cased
 	params [][2]string // each parameter's name and Go type, context.Context left out
 	scope  *tsScope    // where its parameters' types are read
+	doc    string      // its doc comment, without the slashes
+	goName string
+	file   string // where it's declared, and its line (from 1)
+	line   int
 }
 
 var lifecycleMethods = map[string]bool{"Render": true, "Update": true, "Info": true,
@@ -58,7 +62,11 @@ func readIslandLive(root, modPath string, dirs []string) *islandLive {
 			full, _ := scanFile(n, src)
 			scope := &tsScope{pkg: pkg, imports: fileImports(dropNewlineSemis(full))}
 			hooks := hookMethods(string(src))
-			for _, m := range methodRe.FindAllStringSubmatch(string(src), -1) {
+			for _, at := range methodRe.FindAllStringSubmatchIndex(string(src), -1) {
+				m := make([]string, len(at)/2)
+				for i := range m {
+					m[i] = string(src[at[2*i]:at[2*i+1]])
+				}
 				if lifecycleMethods[m[2]] || m[2] == "LiveSchema" || hooks[m[1]+"."+m[2]] || isUpdateName(m[2], goParams(m[3])) {
 					continue
 				}
@@ -66,7 +74,8 @@ func readIslandLive(root, modPath string, dirs []string) *islandLive {
 				if res != "" && res != "error" {
 					continue
 				}
-				lm := liveMethod{name: strings.ToLower(m[2][:1]) + m[2][1:], scope: scope}
+				lm := liveMethod{name: strings.ToLower(m[2][:1]) + m[2][1:], scope: scope, goName: m[2], doc: docAbove(src, at[0]),
+					file: filepath.Join(dir, n), line: strings.Count(string(src[:at[0]]), "\n") + 1}
 				for _, p := range goParams(m[3]) {
 					if p[1] != "context.Context" {
 						lm.params = append(lm.params, p)
@@ -87,6 +96,28 @@ var (
 	// or @ui.Loads(…): its receiver type and name.
 	hookDecoRe = regexp.MustCompile(`(?m)^@\w+\.(?:Mount|OnChange|Loads)\b[^\n]*\n(?:@[^\n]*\n)*func\s*\(\s*\w*\s*\*?\s*(\w+)\s*\)\s*(\w+)`)
 )
+
+// docAbove is the doc comment of the declaration at off: the // lines
+// right above it, attributes (@ui.Mount) between them and it skipped.
+func docAbove(src []byte, off int) string {
+	var lines []string
+	end := off
+	for end > 0 {
+		start := strings.LastIndexByte(string(src[:end-1]), '\n') + 1
+		line := strings.TrimSpace(string(src[start : end-1]))
+		switch {
+		case strings.HasPrefix(line, "@") && len(lines) == 0:
+		case strings.HasPrefix(line, "//"):
+			lines = append(lines, strings.TrimPrefix(strings.TrimPrefix(line, "//"), " "))
+		default:
+			end = 0
+			continue
+		}
+		end = start
+	}
+	slices.Reverse(lines)
+	return strings.TrimSpace(strings.Join(lines, "\n"))
+}
 
 // hookMethods are the methods a file makes hooks — given to l.Mount,
 // l.OnChange or l.Loads in a LiveSchema, or marked @ui.Mount, @ui.OnChange

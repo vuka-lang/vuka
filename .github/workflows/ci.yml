@@ -207,6 +207,49 @@ jobs:
           go test -timeout 30m -v -run
           '^(TestNewRunWatch|TestRunWatch|TestBuildState.*|TestRunWatchReuse|TestReuseKey|TestReuseTrim|TestParseModFile|TestCutFresh|TestBuildDWARF|TestBinaryID|TestNoDWARF|TestCutWatch|TestWatcher.*|TestEmbedRoots|TestInterrupt|TestProcessAlive|TestRemoveAll|TestExeSuffix|TestNodeBin|TestFileURIPath|TestTailwindInstallHint|TestTailwindStandalone|TestTailwindBinary|TestDevFrontend|TestBuildFrontend|TestPrefixed|TestInstallCommand|TestFrontendDir)$' .
 
+  extension:
+    name: editors/vscode on ${{ matrix.os }} (tests, bundled TypeScript server)
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest]
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - run: git config --global core.autocrlf false
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ env.GO_VERSION }}
+          cache-dependency-path: cmd/vuka/go.sum
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: editors/vscode/package-lock.json
+      # vuka lsp from this repository, and gopls; no typescript-language-server
+      # on PATH: the test runs the bundled one with this Node.
+      - name: vuka and gopls
+        run: |
+          go install golang.org/x/tools/gopls@${GOPLS_VERSION}
+          cd cmd/vuka
+          go mod edit -replace github.com/vuka-lang/vuka/v2=../..
+          go build -o "$RUNNER_TEMP/vuka$(go env GOEXE)" .
+          echo "VUKA_BIN=$RUNNER_TEMP/vuka$(go env GOEXE)" >> "$GITHUB_ENV"
+      - run: npm ci
+        working-directory: editors/vscode
+      - run: npm test
+        working-directory: editors/vscode
+      - name: The VSIX bundles the server
+        working-directory: editors/vscode
+        run: |
+          npx vsce ls | tee files.txt
+          grep -qx 'node_modules/typescript-language-server/lib/cli.mjs' files.txt
+          ! grep -q 'cli.mjs.map' files.txt
+
   conformance:
     name: conformance (examples as Vuka and ejected)
     runs-on: ubuntu-24.04

@@ -39,6 +39,10 @@ func lsp(args []string) error {
 	goplsFlag := fs.String("gopls", "", "gopls binary (default: gopls on PATH, then $GOBIN, then $GOPATH/bin)")
 	logFile := fs.String("log", "", "append a log to this file")
 	shared := fs.Bool("shared", true, "use gopls's shared daemon (-remote=auto), so every editor session shares one gopls")
+	var ts tsOptions
+	fs.StringVar(&ts.server, "tsls", "", "typescript-language-server for <script lang=\"ts\"> blocks: its executable, or its lib/cli.mjs run with -tsls-node (default: $VUKA_TSLS, PATH, node_modules/.bin)")
+	fs.StringVar(&ts.node, "tsls-node", "", "the Node that runs a .js/.mjs -tsls (default: $VUKA_TSLS_NODE, then node on PATH); an Electron binary runs as Node")
+	fs.StringVar(&ts.tsserver, "tsserver", "", "the TypeScript (tsserver.js or its lib directory) used when the module has none of its own (default: $VUKA_TSSERVER)")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
@@ -50,7 +54,7 @@ func lsp(args []string) error {
 	if *shared {
 		goplsArgs = append(goplsArgs, "-remote=auto")
 	}
-	return serveLSP(gopls, *logFile, lspOptions{goplsArgs: goplsArgs, renameCommands: true})
+	return serveLSP(gopls, *logFile, lspOptions{goplsArgs: goplsArgs, renameCommands: true, ts: ts})
 }
 
 // asGopls runs vuka as a drop-in gopls, when invoked under that name (the
@@ -127,6 +131,7 @@ type lspOptions struct {
 	goplsArgs      []string // before serve, e.g. -remote=auto
 	renameCommands bool     // namespace gopls's commands (vuka.gopls.*) for a second client
 	dropIn         bool     // serving as gopls: .templ files are templ's language server's
+	ts             tsOptions
 }
 
 func findGopls(flagPath string) (string, error) {
@@ -187,7 +192,7 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 	defer os.RemoveAll(tmp)
 
 	p := newProxy(newRPCConn(in, out), newRPCConn(cout, cin).queued(), logw, tmp)
-	p.renameCommands, p.dropIn = opts.renameCommands, opts.dropIn
+	p.renameCommands, p.dropIn, p.tsOpts = opts.renameCommands, opts.dropIn, opts.ts
 	goplsDone, editorDone := make(chan struct{}), make(chan struct{})
 	go func() { p.fromGopls(); close(goplsDone) }()
 	go func() { p.fromEditor(); close(editorDone) }()
@@ -460,6 +465,7 @@ type vukaRequest struct {
 	varTyped  string      // completion of a bare name: what is typed of it
 	varRange  *lspRange   // and where
 	timer     *time.Timer // answers it without gopls at goplsDeadline
+	scripts   []any       // references: the scripts' calls of the method at the cursor (live.reorder)
 }
 
 type proxy struct {
@@ -520,6 +526,7 @@ type proxy struct {
 	snapped  int            // edits when the last build took the buffers
 	syntax   syntaxChecker
 
+	tsOpts tsOptions
 	tsOnce sync.Once
 	ts     atomic.Pointer[tsServer] // the TypeScript server for script blocks, once started
 
@@ -1270,6 +1277,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf, closeTag: closeTag,
 		attr: m.Method == "textDocument/completion" && afterAt(vf.text(), srcPos)}
 	vr.field = vr.attr && fieldAttrSpot(vf.text(), offsetOf(vf.text(), srcPos))
+	if m.Method == "textDocument/references" && hasPos {
+		vr.scripts = p.scriptCallsAt(vf, offsetOf(vf.text(), srcPos))
+	}
 	if m.Method == "textDocument/completion" && !strings.HasSuffix(vf.source, ".vuka.html") {
 		if s, ok := blockSpot(vf.text(), offsetOf(vf.text(), srcPos)); ok {
 			vr.blocks = &lspRange{positionOf(vf.text(), s), srcPos}
@@ -1576,6 +1586,10 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		}
 	case "textDocument/rename", "textDocument/references", "textDocument/documentHighlight":
 		v = p.withCloseTwins(vr.method, v, vr.file)
+		if len(vr.scripts) > 0 {
+			list, _ := v.([]any)
+			v = append(list, vr.scripts...)
+		}
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v, vr.file.namesOf())
 		if vr.method == "textDocument/documentSymbol" && isShape(vr.file) {

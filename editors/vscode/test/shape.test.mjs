@@ -88,6 +88,15 @@ for (const name of ['Live page shape', 'Static component shape', 'Folder layout 
   assert.ok(markupStart(code) > 0, name);
   assert.doesNotMatch(code, /\bRender\(|ui\.(?:UseState|LiveSchema|IslandPage)|@web\.(?:Get|Live|Service)/);
 }
+// The script snippets write one script after the markup: component<T>,
+// with its cleanup.
+for (const name of ['Page script', 'Component script', 'Event listener with cleanup']) {
+  const code = expand(htmlSnippets[name].body);
+  assert.match(code, /^<script lang="ts">\nimport \{ component \} from 'vuka:component'\n\nexport default component<\w+>\(\(el, props, ctx\) => \{\n/, name);
+  assert.match(code, /destroy\(\)/, name);
+  assert.match(code, /\n\}\)\n<\/script>$/, name);
+}
+assert.match(expand(htmlSnippets['Event listener with cleanup'].body), /addEventListener\('keydown', onKey\)[\s\S]*removeEventListener\('keydown', onKey\)/);
 const hook = expand(htmlSnippets['Mount hook'].body);
 assert.match(hook, /^@ui.Mount\nfunc \(p \*Index\) mount/);
 const api = expand(logicSnippets['API endpoint'].body);

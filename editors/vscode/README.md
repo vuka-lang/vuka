@@ -39,8 +39,14 @@ them, [Vuka](https://github.com/vuka-lang/vuka)'s additions to Go in `.vuka` fil
 - Closing tags added as you type an opening tag's `>` and the open element's name after `</`
   (`vuka.autoCloseTags`), inside blocks and fragments and after another tag on the line; Enter between tags
   indents; `{` and quotes pair in markup
+- TypeScript in a shape's `<script lang="ts">` with nothing to install: a bundled
+  typescript-language-server run with VS Code's Node and TypeScript gives completion
+  (`ctx.live`, `ctx.state`, `ctx.ref`, `ctx.on`, routes, all typed from the Go), hover with
+  the Go doc, errors at their lines and go to definition from `ctx.live.reorder` to the Go
+  method; `vuka.typescript.server` names another server
 - Vuka HTML snippets: `livepage` / `live`, `component`, `layout` (save as
-  `_layout.vuka.html`), `islandpage`, `mount`, and `forrows`
+  `_layout.vuka.html`), `islandpage`, `mount`, `forrows`, and the scripts
+  `pagescript`, `componentscript` and `listenscript`
 - Vuka logic snippets: `api` / `endpoint` (GET/POST functions under `pages/api/`),
   `webmain` (`web.New(pages.Routes())` and `app.Service`), `match`, `model`,
   `decorator`, `decoratorp`, `tx`, `static`, and `sfunc`

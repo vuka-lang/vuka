@@ -255,7 +255,9 @@ disk in development), so they cost the linker nothing; `-embed` (with
 
 `vuka vet` checks shape files, decorated hooks, field bindings, deferred
 loaders and typed handler arguments as well as the generated Go. Missing
-loaders, unfillable parameters and invalid markup are reported at source locations.
+loaders, unfillable parameters and invalid markup are reported at source locations,
+and so is a shape's script naming a ref, state or event the shape doesn't
+have ([W0308](/errors/W0308)).
 It runs [vukavet](/tools/vukavet)'s checks too, as go vet's `-vettool`: the
 app's `go tool vukavet` when its `go.mod` declares it, else a `vukavet`
 beside `vuka` or on `PATH`, else one it builds at its own version

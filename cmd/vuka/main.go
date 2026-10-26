@@ -207,6 +207,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		var ds []diag.Diagnostic
 		if pa != nil {
 			ds = vetIslands(root, modPath, pa)
+			ds = append(ds, vetScripts(root, modPath, pa)...)
 		}
 		ds = append(ds, routesUnserved(root, modPath, scanRoutes(root, modPath, nil))...)
 		if ds = append(ds, vetLivePages(root, pkgs)...); len(ds) > 0 {

@@ -92,6 +92,7 @@ export default defineConfig({
           { text: 'Live Pages', link: '/web/live' },
           { text: 'Client State', link: '/ui/state' },
           { text: 'JS Commands', link: '/ui/js' },
+          { text: 'Component Scripts', link: '/ui/scripts' },
           { text: 'Navigation', link: '/web/navigation' },
           { text: 'URL State', link: '/web/url-state' },
           { text: 'Tailwind CSS', link: '/web/styling' },

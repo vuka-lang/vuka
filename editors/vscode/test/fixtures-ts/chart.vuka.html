@@ -1,0 +1,18 @@
+<script lang="go">
+package main
+
+// Chart is a component with a script.
+type Chart struct {
+	Title string
+}
+</script>
+
+<figure>{Title}</figure>
+
+<script lang="ts">
+import { component } from 'vuka:component'
+export default component<Chart>((el, props, ctx) => {
+  ctx.navigate('/')
+  return { update(next) { el.title = next.Title } }
+})
+</script>

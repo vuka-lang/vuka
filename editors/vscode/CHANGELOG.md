@@ -1,5 +1,10 @@
 # Changelog
 
+## Unreleased
+
+- TypeScript in `<script lang="ts">` blocks works out of the box: the extension bundles `typescript-language-server`, runs it with VS Code's own Node and gives it the TypeScript that ships with VS Code (the module's own `typescript` wins when it has one). Completion, hover, signature help, go to definition and errors in a shape's script need nothing installed, on macOS, Linux and Windows. `vuka.typescript.server` names another server. Needs the Vuka v2.5.1 language server for its flags; an older one gets the server through `VUKA_TSLS`.
+- Snippets for a shape's script: **Page script** and **Component script** (`component<T>` with `update` and `destroy`) and **Event listener with cleanup**. With the Vuka v2.5.1 language server, inside a script `listen` completes the same listener, and an import's specifier completes `vuka:component` and the packages the module's `package.json` depends on.
+
 ## 0.9.2
 
 - Find the `vuka` binary without building a shell command from the `vuka.path` setting: a workspace setting could run shell code when the extension started.

@@ -546,7 +546,7 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 		tp.b.WriteString(" data-vk-p=")
 		w.holeIn(tp, "props", func() { w.gen(props) })
 		if states != "" {
-			tp.b.WriteString(" data-vk-s=")
+			tp.b.WriteString(" data-vk-st=")
 			w.holeIn(tp, "states", func() { w.gen(states) })
 		}
 	}

@@ -129,5 +129,68 @@
       "\t<${3:li} key={$1.${4:ID}}>$0</$3>",
       "}"
     ]
+  },
+  "Page script": {
+    "prefix": [
+      "pagescript",
+      "script"
+    ],
+    "description": "A page's <script lang=\"ts\"> after its markup: component<T> with ctx.live, ctx.state, ctx.ref, ctx.on and patch",
+    "body": [
+      "<script lang=\"ts\">",
+      "import { component } from 'vuka:component'",
+      "",
+      "export default component<${1:Index}>((el, props, ctx) => {",
+      "\t$0",
+      "\treturn {",
+      "\t\tupdate(next) {},",
+      "\t\tdestroy() {},",
+      "\t}",
+      "})",
+      "</script>"
+    ]
+  },
+  "Component script": {
+    "prefix": [
+      "componentscript",
+      "script"
+    ],
+    "description": "A component's <script lang=\"ts\"> after its markup: runs once per instance, update on new props, destroy when it leaves",
+    "body": [
+      "<script lang=\"ts\">",
+      "import { component } from 'vuka:component'",
+      "",
+      "export default component<${1:Chart}>((el, props, ctx) => {",
+      "\t$0",
+      "\treturn {",
+      "\t\tupdate(next) {",
+      "\t\t\t",
+      "\t\t},",
+      "\t\tdestroy() {",
+      "\t\t\t",
+      "\t\t},",
+      "\t}",
+      "})",
+      "</script>"
+    ]
+  },
+  "Event listener with cleanup": {
+    "prefix": [
+      "listenscript"
+    ],
+    "description": "A <script lang=\"ts\"> listening for an event while the instance is on the page (inside a script, vuka lsp completes listen)",
+    "body": [
+      "<script lang=\"ts\">",
+      "import { component } from 'vuka:component'",
+      "",
+      "export default component<${1:Index}>((el, props, ctx) => {",
+      "\tconst ${2:onKey} = (e: ${3:KeyboardEvent}) => {",
+      "\t\t$0",
+      "\t}",
+      "\t${4:window}.addEventListener('${5:keydown}', $2)",
+      "\treturn { destroy() { $4.removeEventListener('$5', $2) } }",
+      "})",
+      "</script>"
+    ]
   }
 }

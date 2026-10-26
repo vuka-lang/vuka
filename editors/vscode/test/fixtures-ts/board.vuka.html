@@ -1,0 +1,21 @@
+<script lang="go">
+package main
+
+// Board is a page whose script calls its methods.
+type Board struct {
+	Q string
+}
+
+// Reorder puts the cards in the order of ids.
+func (b *Board) Reorder(ids []int) {}
+</script>
+
+<main><input ref="box" /></main>
+
+<script lang="ts">
+import { component } from 'vuka:component'
+export default component<Board>((el, props, ctx) => {
+  const live = ctx.live
+  live.reorder([1])
+})
+</script>
