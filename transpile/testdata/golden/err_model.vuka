@@ -1,0 +1,11 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+type Join struct{ Name string }
+
+func (j *Join) View() ui.Node {
+	return <div model={j.Name}>{j.Name}</div>
+}
+
+func main() {}

@@ -1,0 +1,9 @@
+error[E0101]: model goes on <input>, <textarea> or <select>, not <div>
+ --> err_model.vuka:8:14
+  |
+8 |     return <div model={j.Name}>{j.Name}</div>
+  |                 ^^^^^
+  |
+  = help: close each element, and put Go expressions in { }
+
+For more information about this error, try `vuka explain E0101`.

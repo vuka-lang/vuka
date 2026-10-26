@@ -20,7 +20,64 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.6.1 — unreleased
+## v2.7.0 — unreleased
+
+- **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
+  exported fields are what a submit binds, its `validate:` tags and
+  `Clean<Field>`/`Clean` methods (dependencies injected) check it, and
+  `<ui.Form for={Form} onSubmit={Save}/>` renders it — every field and a
+  submit button, or the markup you write with `<ui.Field for>`,
+  `<ui.Error for>`, `<ui.Fieldset>`, `<ui.Summary>` and `model={Form.Email}`
+  on a control. `Save` runs only once every check passed, with the checked
+  value. See [Forms](/ui/forms).
+
+- **Errors show when the visitor is ready for them.** The server decides,
+  from the fields the runtime says were used: a field's error shows once
+  the visitor leaves it filled, or types in it while it shows one; an empty
+  required field only on submit; letters where a number goes, and a
+  fixed-length field at its length, at once. Every error is a
+  `forms.Error{Path, Rule, Params, Key}`, its message plain wording ("Enter
+  your email address", "Name must be 80 characters or less") through
+  `forms.Text`, `msg:` tags overriding one.
+
+- **Accessible markup by default.** Label, hint, error, control;
+  `aria-describedby` linking hint and error, `aria-invalid` only once the
+  error shows, a visually hidden "Error:"; "(optional)" on optional fields
+  (`ui.Config{MarkRequired}` marks required ones instead); `type`,
+  `inputmode` and `autocomplete` inferred; a password show/hide toggle;
+  forms `novalidate`. A failed submit shows an error summary, "There is a
+  problem", links to each field, focus on it and "Error: " before the
+  page's title.
+
+- **`model` and `for` name a form's fields in markup.** `model` on an
+  `<input>`, `<textarea>` or `<select>` (with `.lazy`, `.raw`, `.number`)
+  writes the control's name, id, value, type and ARIA links; `for` on a
+  label is the field's id. A misspelt field is
+  [E0159](/errors/E0159), naming the field meant. vukavet reports a
+  `Clean<Field>` or `<Field>Choices` naming no field
+  ([W0309](/errors/W0309)), a placeholder without a label
+  ([W0310](/errors/W0310)) and a database model embedded in a form
+  ([W0311](/errors/W0311)).
+
+- **A live page's forms work without script.** The form posts to the page,
+  which answers 422 with the errors and the summary, or 303 where `Save`
+  sent the visitor. A field the post leaves out is empty only if the form
+  rendered it (an unticked checkbox), from a signed list of the fields it
+  rendered. Each render carries an idempotency key: a submit sent again —
+  the back button, a retry — gets the first one's outcome instead of
+  running `Save` twice (`web.FormStore` keeps the keys elsewhere than
+  memory). A live handler returning `web.Redirect` moves the page.
+
+- **CSRF protection is always on.** net/http's `CrossOriginProtection`
+  guards every app (`web.CSRF` adds trusted origins, `web.CSRFBypass` lets
+  routes such as webhooks through). An unsafe request that says nothing of
+  where it comes from (no `Sec-Fetch-Site`, no `Origin`) and carries a
+  session cookie needs a CSRF token, which every `<ui.Form>` carries.
+
+- **`viewtest.Mount` tests a page's form.** `p.Fill(&p.Page.Form.Email,
+  "pa@").Blur(&p.Page.Form.Email)`, `p.Expect(field).Error("validate.email")`,
+  `p.Submit()`, `p.ExpectRedirect("/welcome")`, over the page's connection
+  or, with `viewtest.Plain()`, as a plain post.
 
 - **`vuka lsp` answers every request in time while gopls is slow.** A
   completion in markup asks gopls about a scratch copy of the generated Go,

@@ -211,6 +211,12 @@ func (t *Todo) Filter(q string) { t.filter = q }
 
 ### Forms and Clicks
 
+A form a page binds, checks and renders from a Go struct — its fields'
+errors shown as the visitor uses them, its submit handler run only once it
+passes, working without script too — is a [struct form](/ui/forms):
+`<ui.Form for={Form} onSubmit={Save}/>`. The rest of this section is about
+plain `<form onSubmit>` handlers.
+
 Submits are `preventDefault`ed; so are clicks on links and on buttons of a
 form without a submit handler. A form whose submit handler succeeds is reset
 to what the server rendered; one whose handler returns an error keeps what

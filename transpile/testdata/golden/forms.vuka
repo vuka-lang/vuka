@@ -1,0 +1,44 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+type Signup struct {
+	ui.FormState
+	Email string
+	Bio   string
+	Plan  string
+	Size  string
+}
+
+type Join struct {
+	Form Signup
+	ID   int
+	for_ string
+}
+
+func (j *Join) View() ui.Node {
+	return <ui.Form for={j.Form} key={j.ID}>
+		<label for={j.Form.Email}>Email</label>
+		<label for={j.for_}>Plain</label>
+		<input model.lazy={j.Form.Email} class="input"/>
+		<ui.Field for={j.Form.Bio} label="Bio"/>
+		<textarea model.raw={j.Form.Bio}></textarea>
+		<select model={j.Form.Plan}></select>
+		<select model={j.Form.Size}>
+			<option value="s">Small</option>
+			<option value="l">Large</option>
+		</select>
+		<input type="radio" model={j.Form.Plan} value="pro"/>
+	</ui.Form>
+}
+
+func main() {
+	j := &Join{Form: Signup{Email: "pa@example.com", Bio: "hi", Plan: "pro", Size: "l"}, ID: 7, for_: "plain"}
+	out, err := ui.String(context.Background(), j.View())
+	fmt.Println(out, err)
+}

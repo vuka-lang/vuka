@@ -116,6 +116,9 @@ type jsxAttr struct {
 	stmts bool       // an event's statements, not an expression: onClick={open = !open; Save()}
 	write *stateBind // those statements as a chain of commands, lowered (writes.go)
 	parts []attrPart // kind 'p': a template's text with holes, href="/o/{o.ID}"
+	model bool       // model={Form.Email} on a field (forms.go), its modifiers in mods
+	mods  string
+	ref   bool // a field reference, lowered to ui.For or ui.ModelID: for={Form.Email}
 }
 
 // attrPart is a piece of an attribute's text: text, or a hole's expression.
@@ -399,6 +402,7 @@ func (p *jsxParser) element(off int) *jsxElem {
 			case strings.HasPrefix(a.name, "style:") && (comp || a.kind == 'b' || len(a.name) == len("style:")):
 				p.fail(a.off, "%s sets a CSS property of an element: style:--accent={c}", a.name)
 			}
+			p.formAttr(el, a, comp)
 			if a.name == "let" && strings.HasPrefix(el.tag, "slot:") {
 				el.lets = p.lets(a)
 				continue
@@ -966,6 +970,7 @@ type jsxWriter struct {
 	inBlock bool     // writing a block's body
 	ran     []string // the template's statements written so far
 	names   map[string]bool
+	sel     *jsxAttr // the model of the <select> whose options are being written
 }
 
 func (w *jsxWriter) gen(s string) { w.out.p = append(w.out.p, jsxPiece{text: s, keep: span{-1, -1}}) }
@@ -1077,6 +1082,10 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 			w.gen("func() { ")
 			w.keep(a.expr)
 			w.gen(" }")
+			return
+		}
+		if a.ref && w.addressable(a) {
+			w.modelCall("For", "", a)
 			return
 		}
 		if a.event && w.voidCall(a) {

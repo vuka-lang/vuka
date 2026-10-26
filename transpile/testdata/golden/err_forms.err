@@ -1,0 +1,3 @@
+err_forms.vuka:15:22: for={j.Form.Emial}: Signup has no field Emial; did you mean Email?; write for={…Email}
+err_forms.vuka:16:24: model={j.Form.Nmae}: Signup has no field Nmae; did you mean Name?; write model={…Name}
+err_forms.vuka:17:25: for={j.Form.Phone}: Signup has no field Phone; its fields are Email, Name
