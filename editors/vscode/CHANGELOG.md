@@ -1,7 +1,8 @@
 # Changelog
 
-## Unreleased
+## 0.10.0
 
+- `.vuka.html` files show an HTML icon in the explorer and on tabs; `.vuka` files keep the Vuka icon.
 - TypeScript in `<script lang="ts">` blocks works out of the box: the extension bundles `typescript-language-server`, runs it with VS Code's own Node and gives it the TypeScript that ships with VS Code (the module's own `typescript` wins when it has one). Completion, hover, signature help, go to definition and errors in a shape's script need nothing installed, on macOS, Linux and Windows. `vuka.typescript.server` names another server. Needs the Vuka v2.6.0 language server for its flags; an older one gets the server through `VUKA_TSLS`.
 - Snippets for a shape's script: **Page script** and **Component script** (`component<T>` with `update` and `destroy`) and **Event listener with cleanup**. With the Vuka v2.6.0 language server, inside a script `listen` completes the same listener, and an import's specifier completes `vuka:component` and the packages the module's `package.json` depends on.
 
