@@ -15,7 +15,8 @@ import (
 // TestGoldenTemplates transpiles each package of testdata/golden/templates —
 // .go, .vuka and .vuka.html files — comparing each generated file with
 // name.golden (x_html.go.golden) or the errors with errors.err, and runs
-// it against out when there is one.
+// it against out when there is one. A scopes file names its scoped
+// declarations, a line each: the name, then its scope id.
 func TestGoldenTemplates(t *testing.T) {
 	dirs, _ := filepath.Glob("testdata/golden/templates/*")
 	for _, dir := range dirs {
@@ -29,7 +30,7 @@ func TestGoldenTemplates(t *testing.T) {
 					files = append(files, transpile.File{Name: n, Src: src})
 				}
 			}
-			res, err := transpile.Package(files, transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: dir, Contexts: caseContexts(t, dir)})
+			res, err := transpile.Package(files, transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: dir, Contexts: caseContexts(t, dir), Scopes: caseScopes(dir)})
 			if err != nil {
 				compare(t, filepath.Join(dir, "errors.err"), []byte(err.Error()+"\n"))
 				return
@@ -78,6 +79,21 @@ func TestGoldenTemplates(t *testing.T) {
 			}
 		})
 	}
+}
+
+// caseScopes are a case's scoped declarations, from its scopes file.
+func caseScopes(dir string) map[string]string {
+	b, err := os.ReadFile(filepath.Join(dir, "scopes"))
+	if err != nil {
+		return nil
+	}
+	out := map[string]string{}
+	for _, line := range strings.Split(strings.TrimSpace(string(b)), "\n") {
+		if f := strings.Fields(line); len(f) == 2 {
+			out[f[0]] = f[1]
+		}
+	}
+	return out
 }
 
 // caseContexts are the context processors of a case's mains, from its

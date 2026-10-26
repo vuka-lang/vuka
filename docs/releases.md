@@ -223,6 +223,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
   and the toolbar's Request panel shows the bytes sent
   ([#126](https://github.com/vuka-lang/vuka/issues/126)).
 
+- **A template with a script or a scoped stylesheet can fill a
+  component's slots.** Either makes the template a scoped component, and
+  every element its markup writes got the scope's `data-vk-s` — the
+  `<slot:…>` elements too, which render nothing. A page filling a table's
+  repeated slot failed to build with
+  `error[E0106]: <slot:column> has no attribute data-vk-s; its fields are Key, Label, Cell`
+  (a single slot: `<slot:caption> takes no attributes`). Slots are no
+  longer marked; the elements of their content are, with the scope of the
+  template that wrote them. And a script's props went on the markup's first
+  tag even when it was a component's: `<components.Table rows={rows}>`
+  failed with `<components.Table> has no attribute data-vk-p`, and
+  `<components.Table[Row] rows={rows}>` with
+  `error[E0101]: unexpected '[' in <components.Table>`. When the markup
+  starts with a component's tag or a slot, a
+  `<vk-c style="display:contents">` around it carries the props and the
+  scope: the root the script mounts on, once
+  ([#135](https://github.com/vuka-lang/vuka/issues/135)).
+
 ## v2.5.0 — 2026-10-24
 
 - **Hooks on generic shapes.** `@ui.Mount`, `@ui.OnChange` and

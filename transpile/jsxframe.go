@@ -3,6 +3,7 @@ package transpile
 import (
 	"go/token"
 	"slices"
+	"strings"
 )
 
 // declName is the declaration a top-level func at toks[i] belongs to, for
@@ -49,12 +50,14 @@ const scopeAttr = "data-vk-s"
 
 // markScope adds scope's attribute to every element of ns written in the
 // source: elements in blocks and in a component tag's children too, but
-// not the tags of components, whose markup is their own.
+// not the tags of components, whose markup is their own, nor a <slot:x> —
+// a slot a component's tag fills, or a component's own fallback — which
+// renders no element: the elements of its content are marked.
 func markScope(ns []jsxNode, scope string) {
 	for _, n := range ns {
 		switch n := n.(type) {
 		case *jsxElem:
-			if !n.frag && n.comp == nil && !slices.ContainsFunc(n.attrs, func(a *jsxAttr) bool { return a.name == scopeAttr }) {
+			if !n.frag && n.comp == nil && !strings.HasPrefix(n.tag, "slot:") && !slices.ContainsFunc(n.attrs, func(a *jsxAttr) bool { return a.name == scopeAttr }) {
 				n.attrs = append(n.attrs, &jsxAttr{name: scopeAttr, off: n.tagEnd, kind: 's', val: scope})
 			}
 			markScope(n.kids, scope)

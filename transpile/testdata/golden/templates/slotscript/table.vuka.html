@@ -1,0 +1,33 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Table is a generic table: a repeated column slot, a caption slot, and an
+// empty slot with fallback content.
+type Table[T any] struct {
+	Rows    []T
+	Columns []Column[T]
+	Caption ui.Node
+	Empty   ui.Node
+}
+</script>
+
+<table>
+  <caption>{Caption}</caption>
+  <tr>
+    for _, c := range Columns {
+      <th data-key={c.Key}>{c.Label}</th>
+    }
+  </tr>
+  for _, r := range Rows {
+    <tr>
+      for _, c := range Columns {
+        <td>{c.Cell(r)}</td>
+      }
+    </tr>
+  }
+  if len(Rows) == 0 {
+    <tr><td><slot:empty><i>no rows</i></slot:empty></td></tr>
+  }
+</table>

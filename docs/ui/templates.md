@@ -554,7 +554,9 @@ figcaption { font-weight: bold }
 
 ### The Component Script
 
-The script runs once per instance: `el` is its root, `props` the struct's
+The script runs once per instance: `el` is its root — the markup's
+element, or, when the markup starts with a component's tag or a slot, a
+`<vk-c style="display:contents">` around it — `props` the struct's
 data fields as JSON (`ui.Node`, func and unexported fields are not sent),
 `update` runs when a live re-render changes them, `destroy` when the
 instance leaves the page.

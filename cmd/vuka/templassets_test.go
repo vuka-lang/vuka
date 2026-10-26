@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/base64"
 	"fmt"
 	"io"
 	"net"
@@ -109,6 +110,169 @@ figcaption { color: rgb(1, 2, 3) }
 	mod := regexp.MustCompile(`/_vuka/c/` + id + `\.[0-9a-f]+\.js`).FindString(js)
 	if body := get(mod); mod == "" || !strings.Contains(body, "data-vk-p") || !strings.Contains(body, "dataset.points") {
 		t.Errorf("module %q:\n%s", mod, body)
+	}
+}
+
+// TestTemplateAssetsSlots: a live page whose markup is a component's tag
+// filling its slots — repeated, single and left to their fallback — with a
+// script and a scoped stylesheet builds; the slots' content is marked with
+// the page's scope and the slots themselves render nothing; the props the
+// script reads are on a <vk-c> around the markup, holding every element of
+// the page's scope, so the script mounts once there and runs.
+func TestTemplateAssetsSlots(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	if _, err := exec.LookPath("tailwindcss"); err != nil {
+		needs(t, "no tailwindcss on PATH")
+	}
+	node, err := exec.LookPath("node")
+	if err != nil {
+		needs(t, "no node")
+	}
+	root := assetsModule(t, map[string]string{
+		"main.go": `package main
+
+import (
+	"example.com/app/pages"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() { web.New(pages.Routes()).Run("") }
+`,
+		"components/column.go": `package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Column is one of a Table's columns.
+type Column[T any] struct {
+	Key   string
+	Label string
+	Cell  func(T) ui.Node
+}
+`,
+		"components/table.vuka.html": `package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Table is a generic table.
+type Table[T any] struct {
+	Rows    []T
+	Columns []Column[T]
+	Caption ui.Node
+	Empty   ui.Node
+}
+<table>
+  <caption>{Caption}</caption>
+  for _, r := range Rows {
+    <tr>
+      for _, c := range Columns {
+        <td data-key={c.Key}>{c.Cell(r)}</td>
+      }
+    </tr>
+  }
+  if len(Rows) == 0 {
+    <tr><td><slot:empty>no rows</slot:empty></td></tr>
+  }
+</table>
+`,
+		"pages/row.go": `package pages
+
+// Row is a row.
+type Row struct{ Name string }
+`,
+		"pages/index.vuka.html": `<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"example.com/app/components"
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Index is GET /.
+type Index struct {
+	ui.Live
+	Rows []Row
+}
+
+@ui.Mount
+func (p *Index) mount(ctx context.Context) error {
+	p.Rows = []Row{{"a"}, {"b"}}
+	return nil
+}
+</script>
+
+<components.Table[Row] rows={Rows}>
+  <slot:column key="name" label="Name" let={r}><b>{r.Name}</b></slot:column>
+  <slot:caption><em>Rows</em></slot:caption>
+</components.Table>
+
+<script lang="ts">
+import { page } from 'vuka:component'
+export default page<Index>((el, live) => { el.dataset.rows = String(live.rows.get().length) })
+</script>
+
+<style scoped>
+b { color: rgb(1, 2, 3) }
+</style>
+`,
+	})
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Setenv(twEnv, "")
+	t.Chdir(root)
+	app := filepath.Join(t.TempDir(), "app")
+	var stderr bytes.Buffer
+	if err := runGo("build", []string{"-o", app, "."}, io.Discard, &stderr); err != nil {
+		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
+	}
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	port := ln.Addr().(*net.TCPAddr).Port
+	ln.Close()
+	cmd := exec.Command(app)
+	cmd.Env = append(os.Environ(), fmt.Sprint("PORT=", port), twCSSEnv+"=", assetsEnv+"=")
+	if err := cmd.Start(); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { cmd.Process.Kill(); cmd.Wait() })
+	get := func(path string) string {
+		var res *http.Response
+		waitFor(t, func() bool {
+			var err error
+			res, err = http.Get(fmt.Sprintf("http://127.0.0.1:%d%s", port, path))
+			return err == nil
+		})
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return string(b)
+	}
+	page := get("/")
+	id := scopeID("example.com/app/pages", "Index")
+	mark := ` data-vk-s="` + id + `"`
+	open := regexp.MustCompile(`<vk-c style="display:contents;" data-vk-p="([^"]*)"` + mark + `[^>]*>`).FindStringSubmatchIndex(page)
+	if open == nil || strings.Contains(page, "slot:") || !strings.Contains(page, "<b"+mark+">a</b>") || !strings.Contains(page, "<em"+mark+">Rows</em>") {
+		t.Fatalf("the page's elements: %s", page)
+	}
+	if first := strings.Index(page, mark); first < open[0] || first > open[1] || strings.LastIndex(page, mark) > strings.LastIndex(page, "</vk-c>") {
+		t.Errorf("an element of the page's scope outside its <vk-c>: %s", page)
+	}
+	css := get(regexp.MustCompile(`/_vuka/app\.css\?v=[^"]+`).FindString(page))
+	if !regexp.MustCompile(`b\[data-vk-s="?` + id + `"?\]\{color:#010203\}`).MatchString(css) {
+		t.Errorf("app.css lacks the scoped rule:\n%s", css)
+	}
+	js := get(regexp.MustCompile(`/_vuka/c/loader\.js\?v=[^"]+`).FindString(page))
+	mod := get(regexp.MustCompile(`/_vuka/c/` + id + `\.[0-9a-f]+\.js`).FindString(js))
+	props := strings.NewReplacer("&#34;", `"`, "&amp;", "&").Replace(page[open[2]:open[3]])
+	prog := `const m = await import("data:text/javascript;base64," + process.argv[1]);
+const el = { dataset: {}, getAttribute: (a) => a === "data-vk-p" ? process.argv[2] : null };
+for (const h of m.default) h.mounted(el, { push() {} });
+console.log(el.dataset.rows);
+`
+	out, err := exec.Command(node, "--input-type=module", "-e", prog, base64.StdEncoding.EncodeToString([]byte(mod)), props).CombinedOutput()
+	if err != nil || strings.TrimSpace(string(out)) != "2" {
+		t.Errorf("the page's script: %v\n%s\nmodule:\n%s", err, out, mod)
 	}
 }
 

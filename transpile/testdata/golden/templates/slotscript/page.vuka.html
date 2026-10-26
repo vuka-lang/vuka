@@ -1,0 +1,19 @@
+<script lang="go">
+package main
+
+// Page's markup is a generic table filling its repeated and single slots,
+// leaving the fallback one, with a script: its props go on a <vk-c>
+// around the markup, the table being no element of the page's own.
+type Page struct{ Rows []Row }
+</script>
+
+<Table[Row] rows={Rows}>
+  <slot:column key="name" label="Name" let={r}><b>{r.Name}</b></slot:column>
+  <slot:column key="n" label="N" let={r}><Badge n={r.N}/></slot:column>
+  <slot:caption><em>Rows</em></slot:caption>
+</Table>
+
+<script lang="ts">
+import { component } from 'vuka:component'
+export default component<Page>((el) => { el.dataset.ready = "1" })
+</script>

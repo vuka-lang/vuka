@@ -463,13 +463,6 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		open = "\n\n" + open // after the header's last declaration
 		add(off[first], open)
-		for _, a := range assets {
-			if a.Decl == typ && a.Script {
-				// A component script reads its props from its root.
-				add(propsAt(lines, off, first, firstEnd), scriptAttrs(ui, recv, a.Text))
-				break
-			}
-		}
 		// The markup's function ends after its last line.
 		last := first
 		for i := first + 1; i < firstEnd; i++ {
@@ -478,6 +471,26 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			}
 		}
 		end := contentEnd(last)
+		for _, a := range assets {
+			if a.Decl == typ && a.Script {
+				// A component script reads its props from its root: the
+				// first element, or, when the markup starts with a
+				// component's tag or a slot, which render no element of
+				// its own, a <vk-c> around the markup.
+				at, tag := propsAt(lines, off, first, firstEnd)
+				if !isComponent(tag) && !strings.HasPrefix(tag, "slot:") {
+					add(at, scriptAttrs(ui, recv, a.Text))
+					break
+				}
+				wrap := "<vk-c style=\"display:contents\"" + scriptAttrs(ui, recv, a.Text) + ">"
+				if t := strings.TrimSpace(lines[first]); !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "{") {
+					wrap += "\n"
+				}
+				add(off[first], wrap)
+				add(end, "</vk-c>")
+				break
+			}
+		}
 		add(end, closeBody)
 		if !live {
 			// A static struct's View is its markup; the struct is a ui.Node,
@@ -633,15 +646,15 @@ func scriptAttrs(ui, v, script string) string {
 	return out
 }
 
-// propsAt is where data-vk-p goes: after the first element's tag name in
-// lines[from:to].
-func propsAt(lines []string, off []int, from, to int) int {
+// propsAt is where data-vk-p goes: after the first tag's name in
+// lines[from:to], and that name.
+func propsAt(lines []string, off []int, from, to int) (int, string) {
 	for i := from; i < to; i++ {
 		if loc := firstTag.FindStringIndex(lines[i]); loc != nil {
-			return off[i] + loc[1]
+			return off[i] + loc[1], lines[i][loc[0]+1 : loc[1]]
 		}
 	}
-	return off[from]
+	return off[from], ""
 }
 
 var firstTag = regexp.MustCompile(`<[A-Za-z][\w.:-]*`)

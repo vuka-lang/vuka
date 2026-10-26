@@ -1,0 +1,16 @@
+<script lang="go">
+package main
+
+// Styled's markup is the table too, with a scoped stylesheet and no
+// script: the elements of the slots' content are marked, no <vk-c>.
+type Styled struct{ Rows []Row }
+</script>
+
+<Table[Row] rows={Rows}>
+  <slot:column key="name" label="Name" let={r}><b>{r.Name}</b></slot:column>
+  <slot:caption>Styled</slot:caption>
+</Table>
+
+<style scoped>
+b { font-weight: 600 }
+</style>
