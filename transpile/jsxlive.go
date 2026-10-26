@@ -71,6 +71,14 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		if a.name != "key" {
 			continue
 		}
+		if c.structComp {
+			if fl := keyField(e.propFields(c.target, st, true)); fl != nil {
+				// a struct component with a Key field takes the key as it:
+				// <ui.Form for={row.Form} key={row.ID}>, the form's identity
+				c.args = append(c.args, &compArg{key: fl.name + ": ", attr: a, typ: fl.typ, nest: fl.nest})
+				continue
+			}
+		}
 		c.key = &compArg{attr: a, typ: types.Typ[types.String]}
 		if a.kind == 'e' {
 			x := e.attrExpr(f, a)
@@ -239,6 +247,7 @@ type propField struct {
 	nest      []nestStep
 	ambiguous string // the embedded fields it is in twice at the same depth
 	required  bool   // tagged vuka:"required"
+	pkg       *types.Package
 }
 
 // propFields is the fields of st an attribute can set, as Go's selectors see
@@ -270,7 +279,7 @@ func (e *engine) propFields(tg *jsxTarget, st *types.Struct, exported bool) []pr
 					if found[name] == nil {
 						order = append(order, name)
 					}
-					found[name] = append(found[name], propField{name: name, typ: fld.Type(), nest: lv.nest, required: required(lv.st.Tag(i))})
+					found[name] = append(found[name], propField{name: name, typ: fld.Type(), nest: lv.nest, required: required(lv.st.Tag(i)), pkg: fld.Pkg()})
 				}
 				if !fld.Embedded() {
 					continue
@@ -340,6 +349,9 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		used[i] = true
 		c.args = append(c.args, &compArg{key: fl.name + ": ", attr: a, typ: fl.typ, nest: fl.nest,
 			nodeText: a.kind == 's' && node != nil && types.Identical(fl.typ, node)})
+		if fl.name == "For" && a.kind == 'e' && fl.pkg != nil && c.target.pkg != nil && fl.pkg.Path() == c.target.pkg.Path() && isAny(fl.typ) {
+			a.ref = true // a form component's for={Form.Email}: a reference (forms.go)
+		}
 	}
 	rest := el.kids[:0:0]
 	slots := 0
@@ -490,4 +502,15 @@ func (e *engine) handlerProblem(t types.Type) string {
 		return ""
 	}
 	return "takes a function; this is " + e.display(t)
+}
+
+// keyField is a props struct's Key field, which a struct component's key
+// attribute sets.
+func keyField(fields []propField) *propField {
+	for i := range fields {
+		if fields[i].name == "Key" && fields[i].ambiguous == "" {
+			return &fields[i]
+		}
+	}
+	return nil
 }

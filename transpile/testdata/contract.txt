@@ -86,6 +86,10 @@ public github.com/vuka-lang/ui/v2.Emit
 public github.com/vuka-lang/ui/v2.ErrorBoundary
 public github.com/vuka-lang/ui/v2.Event
 public github.com/vuka-lang/ui/v2.Fallback
+public github.com/vuka-lang/ui/v2.Field
+public github.com/vuka-lang/ui/v2.For
+public github.com/vuka-lang/ui/v2.Form
+public github.com/vuka-lang/ui/v2.FormState
 public github.com/vuka-lang/ui/v2.Fragment
 public github.com/vuka-lang/ui/v2.If
 public github.com/vuka-lang/ui/v2.Island
@@ -97,6 +101,12 @@ public github.com/vuka-lang/ui/v2.Layout
 public github.com/vuka-lang/ui/v2.Live
 public github.com/vuka-lang/ui/v2.Load
 public github.com/vuka-lang/ui/v2.Media
+public github.com/vuka-lang/ui/v2.Model
+public github.com/vuka-lang/ui/v2.ModelID
+public github.com/vuka-lang/ui/v2.ModelOptions
+public github.com/vuka-lang/ui/v2.ModelSelected
+public github.com/vuka-lang/ui/v2.ModelSpec
+public github.com/vuka-lang/ui/v2.ModelText
 public github.com/vuka-lang/ui/v2.Mount
 public github.com/vuka-lang/ui/v2.Node
 public github.com/vuka-lang/ui/v2.On

@@ -1,0 +1,21 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+type Signup struct {
+	ui.FormState
+	Email string
+	Name  string
+}
+
+type Join struct{ Form Signup }
+
+func (j *Join) View() ui.Node {
+	return <ui.Form for={j.Form}>
+		<label for={j.Form.Emial}>Email</label>
+		<input model={j.Form.Nmae}/>
+		<ui.Field for={j.Form.Phone}/>
+	</ui.Form>
+}
+
+func main() {}

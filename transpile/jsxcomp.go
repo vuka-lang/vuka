@@ -334,6 +334,7 @@ func (e *engine) lowerJSX(f *fileState) {
 			all = all && c.resolved
 		}
 		if all && e.bindTree(f, t) && e.bindComps(f, t) && !pendingWrites(f, t) && e.checkFallbacks(f, t) {
+			e.checkModels(f, t)
 			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 			e.progress = true

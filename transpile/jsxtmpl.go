@@ -571,6 +571,23 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 			tp.b.WriteString("...}")
 			continue
 		}
+		if a.model {
+			tp.b.WriteString(" {")
+			tp.label(w.value(tp, "model", func() {
+				w.gen(w.q + "Model(")
+				w.modelSpec(el, a)
+				w.gen(", ")
+				w.refArgs(a)
+				w.gen(")")
+			}))
+			tp.b.WriteString("...}")
+			continue
+		}
+		if a.ref && el.comp == nil && w.addressable(a) {
+			tp.b.WriteString(" for=")
+			w.holeIn(tp, "value", func() { w.modelCall("ModelID", "", a) })
+			continue
+		}
 		if a.kind == 'r' {
 			l := w.value(tp, "attrs", func() { w.keep(a.expr) })
 			tp.b.WriteString(" {")
@@ -598,11 +615,38 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 			tp.b.WriteString(`"`)
 		}
 	}
+	if sel := w.sel; el.tag == "option" && sel != nil && attrNamed(el, "selected") == nil {
+		if v := attrNamed(el, "value"); v != nil && v.kind != 'p' {
+			tp.b.WriteString(" selected=")
+			w.holeIn(tp, "value", func() {
+				w.gen(w.q + "ModelSelected(")
+				w.attrValue(v)
+				w.gen(", ")
+				w.refArgs(sel)
+				w.gen(")")
+			})
+		}
+	}
+	if m := modelOf(el); m != nil && !hasElems(kids) && (el.tag == "textarea" || el.tag == "select") {
+		tp.b.WriteString(">")
+		if el.tag == "textarea" {
+			w.holeIn(tp, "text", func() { w.modelCall("ModelText", "", m) })
+		} else {
+			w.holeIn(tp, "options", func() { w.modelCall("ModelOptions", "", m) })
+		}
+		tp.b.WriteString("</" + el.tag + ">")
+		return
+	}
 	if len(kids) == 0 {
 		tp.b.WriteString("/>")
 		return
 	}
 	tp.b.WriteString(">")
+	if el.tag == "select" {
+		saved := w.sel
+		w.sel = modelOf(el)
+		defer func() { w.sel = saved }()
+	}
 	switch el.tag {
 	case "script", "style":
 		for _, k := range kids {

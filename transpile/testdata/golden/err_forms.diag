@@ -1,0 +1,25 @@
+error[E0159]: for={j.Form.Emial}: Signup has no field Emial; did you mean Email?
+  --> err_forms.vuka:15:22
+   |
+15 |         <label for={j.Form.Emial}>Email</label>
+   |                            ^^^^^
+   |
+   = help: write for={…Email}
+
+error[E0159]: model={j.Form.Nmae}: Signup has no field Nmae; did you mean Name?
+  --> err_forms.vuka:16:24
+   |
+16 |         <input model={j.Form.Nmae}/>
+   |                              ^^^^
+   |
+   = help: write model={…Name}
+
+error[E0159]: for={j.Form.Phone}: Signup has no field Phone
+  --> err_forms.vuka:17:25
+   |
+17 |         <ui.Field for={j.Form.Phone}/>
+   |                               ^^^^^
+   |
+   = help: its fields are Email, Name
+
+For more information about this error, try `vuka explain E0159`.
