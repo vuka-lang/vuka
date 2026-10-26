@@ -132,6 +132,7 @@ same page in the terminal.
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |
 | [W0307](./W0307) | Two components keeping one URL parameter |
+| [W0308](./W0308) | A script names a ref, state or event its shape lacks |
 
 ## Routes and the web app
 

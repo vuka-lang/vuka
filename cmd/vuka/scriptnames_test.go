@@ -3,6 +3,7 @@ package main
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -144,5 +145,50 @@ export const b = component<Card>((el, props, ctx) => {
 		if !strings.Contains(out, want) {
 			t.Errorf("tsc doesn't flag %s:\n%s", want, out)
 		}
+	}
+}
+
+// TestVetScripts: vuka vet warns (W0308) on a script naming a ref, state
+// or event its shape doesn't have, and on ctx.emit in a page's script, at
+// the name's line and column, with the name it likely meant.
+func TestVetScripts(t *testing.T) {
+	page := strings.Replace(namesIndex, "export default component<Index>((el, props, ctx) => {})", `export default component<Index>((el, props, c) => {
+  c.ref("search")
+  c.ref("serch")
+  c.state("open")
+  c.state("shut")
+  c.on("saved", () => {})
+  c.on("sved", () => {})
+  c.emit("picked")
+})`, 1)
+	root := tempModule(t, map[string]string{"go.mod": webMod,
+		"main.go":                   "package main\n\nfunc main() {}\n",
+		"pages/index.vuka.html":     page,
+		"pages/point.go":            "package pages\n\ntype Point struct{ X, Y int }\n",
+		"components/card.vuka.html": strings.Replace(namesCard, "(el, props, ctx) => {}", "(el, props, ctx) => { ctx.emit('picked'); ctx.emit('pick') }", 1),
+	})
+	pa, err := findAssets(root, "example.com/app")
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, d := range vetScripts(root, "example.com/app", pa) {
+		got = append(got, d.Span.String()+": "+d.Message+" ("+d.Help+")")
+	}
+	line := func(file, src, needle string) string {
+		return file + ":" + itoaTest(uint32(strings.Count(src[:strings.Index(src, needle)], "\n")+1))
+	}
+	cardSrc, _ := os.ReadFile(filepath.Join(root, "components", "card.vuka.html"))
+	want := []string{
+		line("components/card.vuka.html", string(cardSrc), "ctx.emit('pick')") + ":" + itoaTest(uint32(strings.Index(string(cardSrc), "ctx.emit('pick')")-strings.LastIndex(string(cardSrc)[:strings.Index(string(cardSrc), "ctx.emit('pick')")], "\n")+len("ctx.emit('"))) + `: ctx.emit("pick"): the root of Card's markup has no on… attribute for "pick" (did you mean "picked"?)`,
+		line("pages/index.vuka.html", page, `c.ref("serch")`) + `:10: ctx.ref("serch"): no element of Index's markup has ref="serch" (did you mean "search"?)`,
+		line("pages/index.vuka.html", page, `c.state("shut")`) + `:12: ctx.state("shut"): Index has no ui.State field "shut" (declare the field: shut ui.State[T])`,
+		line("pages/index.vuka.html", page, `c.on("sved"`) + `:9: ctx.on("sved"): no method of Index calls PushEvent("sved", …) (did you mean "saved"?)`,
+		line("pages/index.vuka.html", page, `c.emit("picked")`) + `:11: Index is a page: ctx.emit("picked") has no parent to reach (call the page's own method, ctx.live.picked(…), or push its event from Go)`,
+	}
+	slices.Sort(got)
+	slices.Sort(want)
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
 	}
 }
