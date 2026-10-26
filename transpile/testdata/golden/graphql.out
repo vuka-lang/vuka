@@ -1,0 +1,27 @@
+value Status(7): [BEHIND use ACTIVE]
+package main
+query Pets(first: Int, status: Status (enum), store <- *main.Store): [Pet!]! "Pets lists the shop's pets."
+query FindPet(id: Int, store <- *main.Store): Pet ""
+query Count(store <- *main.Store): Int! ""
+mutation AddPet(in: NewPet (input), store <- *main.Store): Pet ""
+enum Status
+  StatusActive = Active
+  StatusPastDue = PastDue
+  StatusLate = Status(7)
+type Pet
+  ID: ID!
+  Name: String!
+  Tag: String
+  Born: DateTime!
+  Status: Status (enum)!
+  Tricks: [String!]
+  Owner: Owner
+  Updated: DateTime!
+  Age(limit: Int): Int!
+  Nickname: String
+type Owner
+  Name: String!
+input NewPet
+  Name: String
+  Tag: String
+  Kinds: [Status (enum)]
