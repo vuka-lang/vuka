@@ -22,13 +22,14 @@ import (
 // bundled, and packages from node_modules; vuka:component is componentModule.
 
 // componentModule is vuka:component, what a template's script imports:
-// component(fn) and page(fn) make the loader's hooks of a function run once
-// per instance — fn(el, props, ctx) for a component, its props the
+// component(fn) makes the loader's hooks of a function run once per
+// instance of a component or a page — fn(el, props, ctx), its props the
 // data-vk-p its root carries (ui.Props), update(next) when a patch changes
-// them; fn(el, live) for a live page — and destroy() when it leaves.
+// them — and destroy() when it leaves; page(fn) is the same as
+// fn(el, ctx.live, ctx).
 // ctx.live and live call the instance's exported Go methods: live.reorder(ids)
 // is Reorder; live.q is the field Q's handle, get() and set(v) (a bind:
-// field); ctx.state(name) a ui.State's, from the root's data-vk-s
+// field); ctx.state(name) a ui.State's, from the root's data-vk-st
 // (ui.States); navigate and patch move the page.
 const componentModule = `
 const attr = (el, a) => { try { return JSON.parse(el.getAttribute(a) || "{}"); } catch { return {}; } };
@@ -41,14 +42,22 @@ const go = (href, patch, opts) => {
   return new Promise(() => {});
 };
 const nav = { navigate: (href, opts) => go(href, false, opts), patch: (href, opts) => go(href, true, opts) };
+const states = () => window.vuka && window.vuka.states;
 const state = (el) => (name) => {
-  const r = attr(el, "data-vk-s")[name], st = window.vuka && window.vuka.states;
+  const r = attr(el, "data-vk-st")[name];
   if (!r) throw new Error("vuka: no state " + name);
   const x = r.x !== undefined ? r.x : r;
   return {
-    get: () => st ? st.read(x) : r.i,
-    set: (v) => { if (r.x === undefined && st) st.write(r, v); },
-    watch: (fn) => st ? st.watch(x, fn, el) : () => {},
+    get: () => states() ? states().read(x) : r.i,
+    set: (v) => { if (r.x === undefined && states()) states().write(r, v); },
+    // A script can mount before the live runtime keeps the states: its
+    // watch starts once it does.
+    watch: (fn) => {
+      let off = null, done = false;
+      const arm = () => { if (done) return; if (states()) off = states().watch(x, fn, el); else setTimeout(arm, 20); };
+      arm();
+      return () => { done = true; if (off) off(); };
+    },
   };
 };
 const key = (p, k) => k in p ? k : k[0].toUpperCase() + k.slice(1) in p ? k[0].toUpperCase() + k.slice(1) : "";
@@ -70,8 +79,9 @@ function hooks(start) {
     destroyed(el) { const i = insts.get(el); insts.delete(el); if (i && i.h.destroy) i.h.destroy(); },
   };
 }
-export const component = (fn) => hooks((el, ctx) => fn(el, read(el), { live: live(el, ctx), state: state(el), ...nav, push: ctx.push, emit: ctx.emit, on: ctx.on, ref: ctx.ref }));
-export const page = (fn) => hooks((el, ctx) => fn(el, live(el, ctx)));
+const context = (el, ctx) => ({ live: live(el, ctx), state: state(el), ...nav, push: ctx.push, emit: ctx.emit, on: ctx.on, ref: ctx.ref });
+export const component = (fn) => hooks((el, ctx) => fn(el, read(el), context(el, ctx)));
+export const page = (fn) => hooks((el, ctx) => { const c = context(el, ctx); return fn(el, c.live, c); });
 `
 
 // hookNames are the hooks the loader runs, not methods ui.JS.Call reaches.
@@ -435,10 +445,13 @@ func componentMethods(c *assetComp) []string {
 	entries, _ := load.ReadDir(c.dir)
 	for _, e := range entries {
 		n := e.Name()
-		if !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_test.go") || strings.HasSuffix(n, "_test.vuka") {
+		if e.IsDir() || strings.HasSuffix(n, "_test.go") || strings.HasSuffix(n, "_test.vuka") {
 			continue
 		}
-		src, _ := load.ReadSource(filepath.Join(c.dir, n))
+		src, ok := goSource(filepath.Join(c.dir, n))
+		if !ok {
+			continue
+		}
 		for _, m := range re.FindAllStringSubmatch(string(src), -1) {
 			if name := m[1]; name != "Render" && name != "View" && name != "Update" && !isUpdateMethod(name, m[2]) && !slices.Contains(out, name) {
 				out = append(out, name)

@@ -654,11 +654,12 @@ func (h *htmlFile) toSrc(off int) int {
 }
 
 // scriptAttrs are the attributes a component script reads on its root:
-// its props, and its states when it calls ctx.state.
+// its props, and its states when it calls ctx.state (data-vk-st: data-vk-s
+// is its scope, which the component loader finds the instance by).
 func scriptAttrs(ui, v, script string) string {
 	out := " data-vk-p={" + ui + "Props(" + v + ")}"
 	if strings.Contains(script, ".state(") {
-		out += " data-vk-s={" + ui + "States(" + v + ")}"
+		out += " data-vk-st={" + ui + "States(" + v + ")}"
 	}
 	return out
 }

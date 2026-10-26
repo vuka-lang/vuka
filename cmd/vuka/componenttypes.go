@@ -46,11 +46,13 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 	slices.SortFunc(scripted, func(a, b *assetComp) int { return strings.Compare(a.name, b.name) })
 	il := readIslandLive(root, modPath, dirs)
 	r := il.types
+	pages := scriptPages(root, modPath)
 	type comp struct {
 		c      *assetComp
 		props  []islandProp
 		states [][2]string
 		scope  *tsScope
+		page   bool
 	}
 	var cs []comp
 	for _, c := range scripted {
@@ -59,7 +61,7 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 			continue
 		}
 		r.claim(d, c.name)
-		x := comp{c: c, scope: d.scope(nil)}
+		x := comp{c: c, scope: d.scope(nil), page: c.page || pages[c.dir+"\x00"+c.name] || routeDecorated(c.dir, c.name)}
 		x.props, x.states = componentFields(c.dir, c.name)
 		cs = append(cs, x)
 	}
@@ -71,6 +73,9 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 	var globals []string
 	for _, x := range cs {
 		fmt.Fprintf(&b, "export interface %s {\n", x.c.name)
+		if x.page {
+			b.WriteString("\treadonly __page?: true;\n")
+		}
 		for _, p := range x.props {
 			if p.value {
 				fmt.Fprintf(&b, "\t%s\n", fieldTS(tsField{p.name, r.ts(stripPtr(p.typ), x.scope), p.optional}))
@@ -130,7 +135,7 @@ func componentDTS(root, modPath string, comps []*assetComp) []byte {
 	return []byte(b.String())
 }
 
-const componentModuleDTS = `type Phantom = "__methods" | "__fields" | "__states";
+const componentModuleDTS = `type Phantom = "__methods" | "__fields" | "__states" | "__page";
 /** The props a component's script reads: its struct's data fields, as ui.Props sends them. */
 export type Props<T> = Omit<T, Phantom>;
 export interface LiveError { status?: number; message: string; fields?: Record<string, string>; }
@@ -150,20 +155,68 @@ export type Live<T> = (T extends { readonly __methods?: infer M } ? NonNullable<
 type States<T> = T extends { readonly __states?: infer S } ? NonNullable<S> : {};
 /** A ui.State of the component: its value, kept by the browser; set writes it (not a derived state's). */
 export interface StateHandle<V> { get(): V; set(v: V): void; watch(fn: (v: V) => void): () => void; }
-export interface Ctx<T> extends Navigation {
+/** What a page's script and a component's share: its live connection, states, refs, the events its Go pushes, navigation. */
+export interface PageCtx<T> extends Navigation {
+	/** The instance's exported Go methods (live.reorder(ids) calls Reorder) and its fields' handles. */
 	live: Live<T>;
+	/** A ui.State field's handle, by its name with a lower-case first letter (or its json name). */
 	state<K extends keyof States<T>>(name: K): StateHandle<States<T>[K]>;
 	push(method: string, payload?: unknown): Promise<unknown>;
-	emit(name: string, payload?: unknown): Promise<unknown>;
+	/** Runs fn with the payload of each PushEvent(event, payload) the instance's Go code sends. */
 	on(event: string, fn: (payload: any) => void): void;
+	/** The element of the instance's markup with ref="name", null when none renders. */
 	ref(name: string): HTMLElement | null;
 }
+/** A component's ctx: a page's, and emit, the events its parent's tag listens for (on<Event>). */
+export interface ComponentCtx<T> extends PageCtx<T> {
+	emit(name: string, payload?: unknown): Promise<unknown>;
+}
+/** The ctx of T's script: a page has no parent, so no emit. */
+export type Ctx<T> = "__page" extends keyof T ? PageCtx<T> : ComponentCtx<T>;
 export interface Hooks<P> { update?(next: P): void; destroy?(): void; }
-/** A component's script: fn runs once per instance; update on a re-render with changed props; destroy when it leaves. */
+/** A component's or a page's script: fn runs once per instance; update on a re-render with changed props (a page's: on a patch that keeps it mounted); destroy when it leaves. */
 export function component<T>(fn: (el: HTMLElement, props: Props<T>, ctx: Ctx<T>) => Hooks<Props<T>> | void): unknown;
-/** A live page's script: fn runs once on mount; destroy on navigating away. */
-export function page<T>(fn: (el: HTMLElement, live: Live<T>) => { destroy?(): void } | void): unknown;
+/** A page's script, component<T> with live first: fn(el, ctx.live, ctx). */
+export function page<T>(fn: (el: HTMLElement, live: Live<T>, ctx: Ctx<T>) => Hooks<Props<T>> | void): unknown;
 `
+
+// scriptPages are the pages of the module's folder routes, by their
+// package's directory and their name (dir + "\x00" + name).
+func scriptPages(root, modPath string) map[string]bool {
+	out := map[string]bool{}
+	for _, t := range scanRoutes(root, modPath, nil) {
+		for _, d := range t.dirs {
+			for _, p := range d.pages {
+				out[d.dir+"\x00"+p] = true
+			}
+		}
+	}
+	return out
+}
+
+// routeDecorated reports whether a source of the package in dir routes the
+// type name itself: @web.Live, @web.Get… above its declaration.
+func routeDecorated(dir, name string) bool {
+	entries, _ := load.ReadDir(dir)
+	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `\b`)
+	for _, e := range entries {
+		if e.IsDir() || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		src, ok := goSource(filepath.Join(dir, e.Name()))
+		if !ok {
+			continue
+		}
+		for _, m := range decl.FindAllIndex(src, -1) {
+			for _, a := range attrsAbove(src, m[0]) {
+				if routeAttr.MatchString(a) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
 
 func stripPtr(t []wtok) []wtok {
 	if len(t) > 0 && t[0].tok == token.MUL {
@@ -180,11 +233,11 @@ func componentFields(dir, name string) ([]islandProp, [][2]string) {
 	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `\s+struct\s*\{`)
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() || !(strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go")) || strings.HasSuffix(n, "_test.go") {
+		if e.IsDir() || strings.HasSuffix(n, "_test.go") {
 			continue
 		}
-		src, err := load.ReadSource(filepath.Join(dir, n))
-		if err != nil {
+		src, ok := goSource(filepath.Join(dir, n))
+		if !ok {
 			continue
 		}
 		loc := decl.FindIndex(src)

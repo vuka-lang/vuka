@@ -48,7 +48,8 @@ type assetComp struct {
 	id                    string
 	templ                 string   // the .templ file declaring it, for a templ component
 	markup                []string // the .vuka.html files holding its templates
-	live                  bool     // a live component (@web.Live), whose methods its scripts may push
+	live                  bool     // a live component (@web.Live, a live shape), whose methods its scripts may push
+	page                  bool     // a page registered by @web.Live
 	styles, scripts       []assetSrc
 }
 
@@ -318,7 +319,7 @@ func (pa *pageAssets) readFile(file string, src []byte) []error {
 				continue
 			}
 			comp = pa.comp(dir, pa.importPathOf(dir), name, "")
-			comp.live = true
+			comp.live, comp.page = true, true
 		case (owner.fn == "Layout" || owner.fn == "LiveLayout") && c.arg > 0 && len(owner.args) > 0:
 			var err string
 			comp, err = pa.layoutComp(dir, imports, toks, owner.args[0])
@@ -397,6 +398,7 @@ func (pa *pageAssets) readTemplates(file string, src []byte) {
 	}
 	full, line := scanFile(file, append(src[:top:top], "\nfunc"...)) // the imports end at a declaration
 	pa.readIslandImports(file, filepath.ToSlash(rel), line, dropNewlineSemis(full))
+	shape, _ := transpile.ParseShape(src)
 	for _, a := range transpile.TemplateAssets(filepath.Base(file), src) {
 		s := assetSrc{inline: a.Text, label: fmt.Sprintf("%s:%d", rel, a.Line), line: a.Line - 1, dir: dir}
 		switch {
@@ -405,6 +407,10 @@ func (pa *pageAssets) readTemplates(file string, src []byte) {
 		case a.Script:
 			c := pa.comp(dir, pa.importPathOf(dir), a.Decl, "")
 			c.scripts = append(c.scripts, s)
+			// A live shape's script pushes its methods (live.reorder).
+			if shape != nil && shape.Type == a.Decl && shape.Live {
+				c.live = true
+			}
 			c.markup = append(c.markup, file)
 		default:
 			c := pa.comp(dir, pa.importPathOf(dir), a.Decl, "")

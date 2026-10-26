@@ -96,3 +96,71 @@ func TestScriptLivePushes(t *testing.T) {
 		t.Fatalf("pushes %v %v", got, err)
 	}
 }
+
+// tscCheck type-checks script, a file beside the d.ts in dir, and returns
+// tsc's complaints; the test skips without tsc.
+func tscCheck(t *testing.T, dir, script string) string {
+	t.Helper()
+	tsc := os.Getenv("VUKA_TSC")
+	if nm := fixtureModules("VUKA_TS_NM", "islands"); tsc == "" && nm != "" {
+		tsc = filepath.Join(nm, ".bin", "tsc")
+	}
+	if tsc == "" {
+		if tsc, _ = exec.LookPath("tsc"); tsc == "" {
+			t.Skip("no tsc ($VUKA_TSC, or npm ci --prefix testdata/node/islands)")
+		}
+	}
+	os.WriteFile(filepath.Join(dir, "s.ts"), []byte(`/// <reference path="./`+componentDTSName+`" />
+`+script), 0o644)
+	out, _ := exec.Command(tsc, "--noEmit", "--strict", "--lib", "es2020,dom", "--target", "es2020", "--moduleResolution", "bundler", "--module", "esnext", filepath.Join(dir, "s.ts")).CombinedOutput()
+	return string(out)
+}
+
+// TestComponentDTSPage: a page's script is a component script —
+// component<T> with props, ctx.state, ctx.ref, ctx.on, ctx.live — and
+// page<T> its alias, (el, live, ctx); a page has no parent, so ctx.emit is
+// a type error there and not on a component.
+func TestComponentDTSPage(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "index.go"), []byte(`package views
+
+import "github.com/vuka-lang/ui/v2"
+
+type Index struct {
+	ui.Live
+	Q    string
+	open ui.State[bool]
+}
+
+func (p *Index) Bump() {}
+
+type Card struct{ Title string }
+`), 0o644)
+	page := &assetComp{dir: dir, name: "Index", page: true, scripts: []assetSrc{{inline: "x"}}}
+	card := &assetComp{dir: dir, name: "Card", scripts: []assetSrc{{inline: "x"}}}
+	dts := string(componentDTS(dir, "", []*assetComp{page, card}))
+	if !strings.Contains(dts, "readonly __page?: true;") || strings.Count(dts, "__page?: true") != 1 {
+		t.Fatalf("Index isn't the one page:\n%s", dts)
+	}
+	os.WriteFile(filepath.Join(dir, componentDTSName), []byte(dts), 0o644)
+	if out := tscCheck(t, dir, `import { component, page } from 'vuka:component'
+export default component<Index>((el, props, ctx) => {
+	el.title = props.Q
+	ctx.live.bump()
+	ctx.state("open").set(!ctx.state("open").get())
+	ctx.on("bumped", (p) => { ctx.ref("box")?.focus() })
+	ctx.patch("?q=x")
+	return { update(next) { el.title = next.Q }, destroy() {} }
+})
+export const p2 = page<Index>((el, live) => { live.bump() })
+export const p3 = page<Index>((el, live, ctx) => { ctx.state("open").get(); return { update(next) { next.Q } } })
+export const c = component<Card>((el, props, ctx) => { ctx.emit("picked", props.Title) })
+`); out != "" {
+		t.Errorf("a correct script doesn't type-check:\n%s", out)
+	}
+	if out := tscCheck(t, dir, `import { component } from 'vuka:component'
+export default component<Index>((el, props, ctx) => { ctx.emit("x") })
+`); !strings.Contains(out, "emit") {
+		t.Errorf("ctx.emit on a page type-checks:\n%s", out)
+	}
+}
