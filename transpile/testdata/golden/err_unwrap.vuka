@@ -1,0 +1,24 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+type User struct{ Name string }
+
+type Users struct{}
+
+func (Users) Find(name string) (User, bool) { return User{name}, true }
+func (Users) Page(n int) ([]User, int, error) { return nil, 0, nil }
+func (Users) Save() error                      { return nil }
+
+// Card's markup calls what it can't unwrap.
+func Card(u Users) ui.Node {
+	return <section>
+		<p>{u.Find("ann")}</p>
+		{for _, x := range u.Page(1) {
+			<i>{x.Name}</i>
+		}}
+		<p title={u.Save()}>saved</p>
+	</section>
+}
+
+func main() {}

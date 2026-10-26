@@ -1,0 +1,11 @@
+# unwrap: calls in markup returning (T, error) — in a hole, an attribute,
+# a component's prop, a for's range, an if's and a switch's condition —
+# each its T; one failing fails the page as a Mount error does: a 500
+# without the error's text, a *web.Error's status and message, and on a
+# live page's re-render the message a failing event gets.
+GET /
+GET /?down=1
+GET /?missing=1
+GET /board
+LIVE /board
+  {"type":"event","target":"c1:0","event":"click"}

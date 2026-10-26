@@ -1,0 +1,15 @@
+// Command unwrap shows users through calls returning (T, error), in a
+// page's markup and in a live page's.
+package main
+
+import (
+	"log"
+
+	"example.com/app/pages"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	app := web.New(pages.Routes())
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}

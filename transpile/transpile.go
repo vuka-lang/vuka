@@ -118,6 +118,9 @@ type Output struct {
 	Vars, Available []VarRead
 	// Warnings are what vuka vet reports about the file (W codes).
 	Warnings ErrorList
+	// Unwrapped are the calls in its markup returning (T, error), each
+	// its T there.
+	Unwrapped []Unwrap
 }
 
 // FileRef is a vuka.File literal: where it is in the .vuka source (quotes
@@ -212,14 +215,16 @@ type fileState struct {
 	readsDirect  bool            // and may read one's value directly: auth.Can (contextvet.go)
 	varReads     []VarRead       // the reads lowered
 
-	done    map[int]bool // src offsets of identifiers already rewritten or reported
-	rt      string       // the name the runtime is imported as; "" until needed
-	target  *jsxTarget   // what its JSX lowers to; nil until its first JSX
-	scope   string       // the scope id of the declaration being scanned (Options.Scopes)
-	declOff int          // the top-level declaration being scanned: where it starts
-	eng     *engine
-	pkgEnd  int // offset just after the package clause's name
-	dotImps bool
+	done      map[int]bool  // src offsets of identifiers already rewritten or reported
+	unwrapped map[span]bool // the markup's calls unwrapped or reported, by src span (unwrap.go)
+	unwraps   []Unwrap      // the calls unwrapped
+	rt        string        // the name the runtime is imported as; "" until needed
+	target    *jsxTarget    // what its JSX lowers to; nil until its first JSX
+	scope     string        // the scope id of the declaration being scanned (Options.Scopes)
+	declOff   int           // the top-level declaration being scanned: where it starts
+	eng       *engine
+	pkgEnd    int // offset just after the package clause's name
+	dotImps   bool
 
 	decorated map[int]string // declaration offset → the decorated function's name
 	wrapped   bool           // an around decorator's wrap of a body changed this round
@@ -610,7 +615,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f]})
+		res.Files = append(res.Files, Output{Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf()})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

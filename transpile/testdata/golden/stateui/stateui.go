@@ -468,3 +468,11 @@ func classText(v any) any {
 	sort.Strings(on)
 	return strings.Join(on, " ")
 }
+
+// Must is a (T, error) call in markup: its T, or a panic with the error.
+func Must[T any](v T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return v
+}

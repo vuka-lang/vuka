@@ -187,6 +187,39 @@ Holes accept Go expressions; their required type depends on their place:
 
 <span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment.
 
+### Calls Returning an Error {#calls-returning-an-error}
+
+A call returning `(T, error)` is its `T` wherever markup takes one value: a
+hole, an attribute, a component's prop, a `for`'s range, an `if`'s or a
+`switch`'s condition. The generated Go wraps it in `ui.Must`:
+
+```html
+<ul class={Store.ListClass()}>
+  for _, u := range Store.Users() {
+    <li>{u.Name}</li>
+  }
+</ul>
+```
+
+When the error isn't nil the render fails as a `Load` or `Mount` error
+does: the page answers with the status of a `*web.Error`, else 500; the
+error goes to the log, and its text to the browser only in development;
+nothing the render wrote is sent. On a live page's re-render the browser
+gets the error message a failing event gets. Each call runs once each time
+its place is evaluated, as written: two holes calling `Store.Users()` call
+it twice.
+
+A call passing its results on keeps them, as in Go —
+`{fmt.Sprint(Store.Users())}` — and so does a statement:
+`users, err := Store.Users()`, then `if err != nil { … }`. A call returning
+anything else where markup takes one value — `(User, bool)`, three results,
+or only an `error` shown as a value — is [E0160](/errors/E0160).
+
+> [!WARNING]
+> A call in markup runs on every render, each re-render of a live page
+> included: every event, every patch. A query belongs in `Load` or the
+> page's `@ui.Mount`, run once into a field the markup reads.
+
 ## Go Statements in Markup {#statements}
 
 A Go statement at the start of a line, with markup for its body, controls what
@@ -640,7 +673,8 @@ The context is not a component prop and is not sent to the browser.
 ### Keeping Rendering Cheap and Safe
 
 Keep rendering free of writes and expensive database work: fetch data in
-the mount hook, loaders or handlers. Context-sensitive live output is rendered
+the mount hook, loaders or handlers. A [call in markup](#calls-returning-an-error)
+runs on every render, each live re-render included. Context-sensitive live output is rendered
 again even when its props and tracked fields have not changed. This avoids
 reusing output after a context-dependent permission or locale changes;
 it does not refresh an application's authentication store by itself.

@@ -79,6 +79,21 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `p.Submit()`, `p.ExpectRedirect("/welcome")`, over the page's connection
   or, with `viewtest.Plain()`, as a plain post.
 
+- **Markup unwraps `(T, error)` calls.** A call returning `(T, error)` in
+  a hole, an attribute, a component's prop, a `for`'s range or an `if`'s
+  or a `switch`'s condition is its `T`: `<span>{Store.Users()}</span>`
+  compiles to `ui.Must(s.Store.Users())`, and an error fails the render as
+  a `Load` or `Mount` error does — the page's status from a `*web.Error`,
+  else 500, the error in the log, its text in the browser only in
+  development, no partial HTML; on a live re-render, the error message a
+  failing event gets. `ui.Must` panics to leave the markup and every
+  render ui and web run stops the panic (`ui.Catch`). A call markup can't
+  take — `(T, bool)`, three results, an error alone shown as a value — is
+  [E0160](/errors/E0160) instead of Go's "multiple-value in single-value
+  context", and hover on an unwrapped call shows its `T`. A call in markup
+  runs on every render, each live re-render included: load queries once,
+  in `Load` or `@ui.Mount` (#151).
+
 - **`vuka lsp` answers every request in time while gopls is slow.** A
   completion in markup asks gopls about a scratch copy of the generated Go,
   and held the generated Go for its whole question; while typing, those

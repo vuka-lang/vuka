@@ -1,0 +1,14 @@
+package main
+
+import "golden/reftarget"
+
+type Users struct{}
+
+func (Users) Names() ([]string, error) { return nil, nil }
+
+// List's target has no Must: its (T, error) call can't be unwrapped.
+func List(u Users) reftarget.Node {
+	return <p>{u.Names()}</p>
+}
+
+func main() {}
