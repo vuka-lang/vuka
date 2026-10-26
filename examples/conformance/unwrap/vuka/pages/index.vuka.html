@@ -1,0 +1,38 @@
+<script lang="go">
+package pages
+
+import (
+	"example.com/app/components"
+	"example.com/app/store"
+)
+
+// Index lists the store's users: GET /; ?down=1 takes the store down,
+// ?missing=1 makes it answer web.NotFound.
+type Index struct {
+	Down    string
+	Missing string
+}
+
+func (p *Index) db() store.Store {
+	return store.Store{Down: p.Down != "", Missing: p.Missing != ""}
+}
+</script>
+
+<section class={db().Class()}>
+  <h1>{db().Title()}</h1>
+  <components.Badge label={db().Title()}/>
+  if db().Open() {
+    <p>sign-ups open</p>
+  }
+  switch db().Count() {
+  case 0:
+    <p>no users</p>
+  default:
+    <p>{db().Count()} users</p>
+  }
+  <ul>
+    for _, u := range db().Users() {
+      <li id="user-{u.ID}">{u.Name}</li>
+    }
+  </ul>
+</section>

@@ -1,0 +1,30 @@
+<script lang="go">
+package pages
+
+import (
+	"github.com/vuka-lang/ui/v2"
+
+	"example.com/app/store"
+)
+
+// Board lists the users live: GET /board; Break takes its store down, and
+// its next render fails.
+type Board struct {
+	ui.Live
+	down bool
+}
+
+// Break takes the store down.
+func (b *Board) Break() { b.down = true }
+
+func (b *Board) users() ([]store.User, error) { return store.Store{Down: b.down}.Users() }
+</script>
+
+<main>
+  <button onClick={Break}>Break</button>
+  <ul>
+    for _, u := range users() {
+      <li key={u.ID}>{u.Name}</li>
+    }
+  </ul>
+</main>

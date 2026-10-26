@@ -1,0 +1,52 @@
+// Package store is a store of users that can be down, or have none.
+package store
+
+import (
+	"errors"
+
+	"github.com/vuka-lang/web/v2"
+)
+
+// User is a user.
+type User struct {
+	ID   int
+	Name string
+}
+
+// Store answers with its users unless it is Down, or Missing them.
+type Store struct {
+	Down, Missing bool
+}
+
+func (s Store) err() error {
+	switch {
+	case s.Down:
+		return errors.New("store: dial tcp 10.0.0.7:5432: connection refused")
+	case s.Missing:
+		return web.NotFound
+	}
+	return nil
+}
+
+// Users are its users.
+func (s Store) Users() ([]User, error) {
+	if err := s.err(); err != nil {
+		return nil, err
+	}
+	return []User{{1, "Ann"}, {2, "Bob"}}, nil
+}
+
+// Title is its heading.
+func (s Store) Title() (string, error) { return "Users", s.err() }
+
+// Class is its list's class.
+func (s Store) Class() (string, error) { return "users", s.err() }
+
+// Open reports whether it takes sign-ups.
+func (s Store) Open() (bool, error) { return true, s.err() }
+
+// Count is how many users it has.
+func (s Store) Count() (int, error) {
+	us, err := s.Users()
+	return len(us), err
+}
