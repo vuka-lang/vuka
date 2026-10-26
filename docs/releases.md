@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.5.1 — unreleased
+## v2.6.0 — 2026-10-26
 
 - **Commands pushed from a hook reach their handlers.** A Push step in a
   command a component pushed with `PushJS` — from its `@ui.Mount` hook, an

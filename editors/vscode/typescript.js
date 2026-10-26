@@ -41,7 +41,7 @@ function launcher({ setting, extensionPath, execPath, appRoot, builtinExtensionP
   };
 }
 
-// lspArgs are vuka lsp's flags for l (vuka 2.5.1 and newer).
+// lspArgs are vuka lsp's flags for l (vuka 2.6.0 and newer).
 function lspArgs(l) {
   if (!l) return [];
   const args = ['-tsls', l.server];
