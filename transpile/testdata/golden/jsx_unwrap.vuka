@@ -1,0 +1,50 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	ui "vukatest.local/stateui"
+)
+
+type Order struct {
+	ID  int
+	Ref string
+}
+
+type Orders struct{ down bool }
+
+func (o Orders) List() ([]Order, error) {
+	if o.down {
+		return nil, errors.New("orders: store down")
+	}
+	return []Order{{1, "A-1"}, {2, "B-2"}}, nil
+}
+
+func (o Orders) Total() (int, error) { return 2, nil }
+
+// Recent's markup calls List and Total, each returning (T, error): each is
+// its T, an error failing the render.
+func Recent(o Orders) ui.Node {
+	return <section data-total={o.Total()}>
+		{for _, x := range o.List() {
+			<a href={fmt.Sprint("/orders/", x.ID)}>{x.Ref}</a>
+		}}
+		<p>{o.Total()} orders</p>
+	</section>
+}
+
+func main() {
+	s, err := ui.String(context.Background(), Recent(Orders{}))
+	fmt.Println(s, err)
+	fmt.Println(func() (err error) {
+		defer func() {
+			if r := recover(); r != nil {
+				err = fmt.Errorf("render failed: %v", r)
+			}
+		}()
+		Recent(Orders{down: true})
+		return nil
+	}())
+}

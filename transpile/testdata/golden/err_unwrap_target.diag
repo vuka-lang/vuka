@@ -1,0 +1,9 @@
+error[E0160]: u.Names() returns ([]string, error), and golden/reftarget has no Must to unwrap it with
+  --> err_unwrap_target.vuka:11:13
+   |
+11 |     return <p>{u.Names()}</p>
+   |                ^^^^^^^^^
+   |
+   = help: call a method returning one value, or set a field in Load or Mount and show the field
+
+For more information about this error, try `vuka explain E0160`.

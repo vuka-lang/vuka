@@ -229,6 +229,7 @@ type vfile struct {
 	names   map[string]string      // the package's overloads: Go name → the source's
 	vars    []transpile.VarRead    // the context processors' variables it reads by name
 	avail   []transpile.VarRead    // and those it may read
+	unwraps []transpile.Unwrap     // the calls in its markup returning (T, error)
 	fixes   []edit                 // the W0402 rewrites on from (ctxVarFixes)
 	version int
 	probed  int  // the version holding the last probe (see probe)
@@ -1298,6 +1299,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	}
 	if hasPos && m.Method == "textDocument/hover" {
 		vr.note = islandHookNote(p.modRoot, vf.source, vf.text(), offsetOf(vf.text(), srcPos))
+		if u, ok := vf.unwrapAt(offsetOf(vf.text(), srcPos)); ok {
+			vr.note = strings.TrimPrefix(vr.note+"\n\n---\n\n"+unwrapNote(u), "\n\n---\n\n")
+		}
 		if shapeNote != "" {
 			vr.note = strings.TrimPrefix(vr.note+"\n\n---\n\n"+shapeNote, "\n\n---\n\n")
 		}

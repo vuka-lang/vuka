@@ -1,0 +1,3 @@
+err_unwrap.vuka:16:7: u.Find("ann") returns (User, bool); markup takes one value, unwrapping only a call returning (T, error); call a method returning one value, or set a field in Load or Mount and show the field
+err_unwrap.vuka:17:22: u.Page(1) returns ([]User, int, error); markup takes one value, unwrapping only a call returning (T, error); call a method returning one value, or set a field in Load or Mount and show the field
+err_unwrap.vuka:20:13: u.Save() returns only an error, which markup can't show; call it in Load, Mount or an event handler, and show a field it sets

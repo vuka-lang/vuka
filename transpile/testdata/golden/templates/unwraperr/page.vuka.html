@@ -1,0 +1,11 @@
+package main
+
+// Page shows what markup can't unwrap.
+type Page struct {
+	Store Store
+}
+<section>
+  <p>{Store.Find("ann")}</p>
+  <p title={Store.Page()}>x</p>
+  <p>{Store.Save()}</p>
+</section>

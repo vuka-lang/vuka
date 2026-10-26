@@ -700,6 +700,9 @@ type Generated struct {
 	Vars, Available []transpile.VarRead
 	// Warnings are what vuka vet reports about the file.
 	Warnings transpile.ErrorList
+	// Unwrapped are the calls in its markup returning (T, error)
+	// (transpile.Output.Unwrapped).
+	Unwrapped []transpile.Unwrap
 }
 
 // Options configure Transpile.
@@ -974,7 +977,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped})
 		}
 		if res.Calls != nil {
 			// The call adapters: a file of the package's, no source's.

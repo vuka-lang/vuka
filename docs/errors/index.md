@@ -70,6 +70,7 @@ same page in the terminal.
 | [E0157](./E0157) | A Go script that is not the file's first element |
 | [E0158](./E0158) | A tag leaves out a required field |
 | [E0159](./E0159) | A model or for attribute names a field the form lacks |
+| [E0160](./E0160) | A call in markup returns values markup can't take |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
