@@ -186,6 +186,9 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	env = append(env, assetsEnv+"="+assets.dir())
 	s := &supervisor{root: root, dir: dir, tmp: tmp, flags: flags, pkg: pkg, prog: prog, env: env, stdout: stdout, stderr: stderr,
 		w: newWatcher(root), exits: make(chan *app, 4), assets: assets, stub: stub, reuse: newReuseCache(root, fresh)}
+	if f, ok := stderr.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
+		s.tty = true
+	}
 	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
 		s.sess.UseCache("")
 	}
@@ -326,6 +329,8 @@ type supervisor struct {
 	linked         string      // the last build's auto-link message, said once per change
 	reuse          *reuseCache // the builds kept for later runs; nil for none
 	reusedSum      string      // the binaryID of the kept build this run started with
+	tty            bool        // stderr is a terminal: a failed build's errors replace the last one's
+	failedShown    bool        // the last build's errors are on the screen
 }
 
 type buildResult struct {
@@ -403,7 +408,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 			transpile = s.sess.Transpile
 		}
 		if gens, r.overlay, err = transpile(pkgs, dir, loadOptions(r.pa)); err != nil {
-			r.err = err
+			r.err, r.gens = err, gens // the report checks the packages that transpiled
 			return r
 		}
 	}
@@ -547,20 +552,28 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 		s.w.setEmbeds(r.embeds)
 	}
 	if r.err != nil {
-		out := string(r.out)
-		if len(r.out) == 0 || !isExit(r.err) {
-			out += r.err.Error() + "\n"
+		plain, shown := s.failure(r)
+		s.setState(buildState{State: "failed", At: time.Now(), Output: plain})
+		at := ""
+		if s.tty {
+			// The errors of this build replace the last one's on the screen.
+			io.WriteString(s.stderr, clearScreen)
+			at = " at " + time.Now().Format("15:04:05")
 		}
-		s.setState(buildState{State: "failed", At: time.Now(), Output: out})
-		io.WriteString(s.stderr, out)
+		s.failedShown = true
+		io.WriteString(s.stderr, shown)
 		if s.app != nil {
-			fmt.Fprintln(s.stderr, "● build failed; the last good build keeps running")
+			fmt.Fprintf(s.stderr, "● build failed%s; the last good build keeps running\n", at)
 		} else {
-			fmt.Fprintln(s.stderr, "● build failed; waiting for a change")
+			fmt.Fprintf(s.stderr, "● build failed%s; waiting for a change\n", at)
 		}
 		r.discard()
 		return
 	}
+	if s.failedShown && s.tty {
+		io.WriteString(s.stderr, clearScreen) // the errors are gone
+	}
+	s.failedShown = false
 	if s.assets != nil {
 		s.assets.set(r.pa)
 	}
@@ -603,6 +616,36 @@ func (s *supervisor) finish(r *buildResult, changed time.Time) {
 	if !changed.IsZero() && s.app != nil {
 		fmt.Fprintf(s.stderr, "● rebuilt in %.1fs\n", time.Since(changed).Seconds())
 	}
+}
+
+// clearScreen moves the cursor home and clears the screen.
+const clearScreen = "\x1b[H\x1b[2J"
+
+// failure is what a failed build says: plain for the toolbar, and as the
+// terminal shows it. The errors of the module's packages are reported at
+// their source (buildReport); anything else as the build said it.
+func (s *supervisor) failure(r *buildResult) (plain, shown string) {
+	_, modPath, _ := load.ModuleRoot(s.root)
+	in := buildInput{root: s.root, modPath: modPath, overlay: r.overlay, gens: r.gens}
+	var rep *buildReport
+	if len(r.out) == 0 || !isExit(r.err) {
+		rep = transpileReport(in, r.err)
+	} else {
+		rep = goReport(in, r.out)
+	}
+	if rep == nil || rep.empty() {
+		out := string(r.out)
+		if len(r.out) == 0 || !isExit(r.err) {
+			out += r.err.Error() + "\n"
+		}
+		return out, out
+	}
+	o := reportOptions{verbose: slices.Contains(s.flags, "-v")}
+	plain = reportText(rep, o)
+	if o.color = colorFor(s.stderr); o.color {
+		return plain, reportText(rep, o)
+	}
+	return plain, plain
 }
 
 // cutDebug reports whether flags ask for -debug, and returns them without it.

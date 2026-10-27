@@ -14,8 +14,10 @@ import (
 // Options says how Render prints.
 type Options struct {
 	Color   bool
-	NoFrame bool   // the location only, no code frame
-	Root    string // absolute spans under it are shown relative to it
+	NoFrame bool // the location only, no code frame
+	// NoFooter leaves out the lines naming the codes vuka explain explains.
+	NoFooter bool
+	Root     string // absolute spans under it are shown relative to it
 	// Source is a file's text for its code frame (nil: read from disk; a
 	// relative file is read relative to Root).
 	Source func(file string) ([]byte, bool)
@@ -35,36 +37,54 @@ func ColorFor(f *os.File) bool {
 }
 
 // Render prints the diagnostics, each as a code frame, then which codes
-// `vuka explain` explains.
+// `vuka explain` explains (unless NoFooter).
 func Render(w io.Writer, ds []Diagnostic, o Options) error {
 	var b bytes.Buffer
-	codes := map[Code]bool{}
 	for i := range ds {
 		if i > 0 {
 			b.WriteByte('\n')
 		}
 		render(&b, &ds[i], o)
+	}
+	if !o.NoFooter && !o.NoFrame {
+		footer(&b, ds, o)
+	}
+	_, err := w.Write(b.Bytes())
+	return err
+}
+
+// Footer prints which of the diagnostics' codes `vuka explain` explains, as
+// Render does after them: nothing when they have no code.
+func Footer(w io.Writer, ds []Diagnostic, o Options) error {
+	var b bytes.Buffer
+	footer(&b, ds, o)
+	_, err := w.Write(b.Bytes())
+	return err
+}
+
+func footer(b *bytes.Buffer, ds []Diagnostic, o Options) {
+	codes := map[Code]bool{}
+	for i := range ds {
 		if ds[i].Code != "" {
 			codes[ds[i].Code] = true
 		}
 	}
-	if len(codes) > 0 && !o.NoFrame {
-		list := make([]string, 0, len(codes))
-		for c := range codes {
-			list = append(list, string(c))
-		}
-		sort.Strings(list)
-		p := painter(o.Color)
-		b.WriteByte('\n')
-		if len(list) > 1 {
-			fmt.Fprintf(&b, "%s %s.\n", p(bold, "Some errors have detailed explanations:"), strings.Join(list, ", "))
-			fmt.Fprintf(&b, "%s\n", p(bold, "For more information about an error, try `vuka explain "+list[0]+"`."))
-		} else {
-			fmt.Fprintf(&b, "%s\n", p(bold, "For more information about this error, try `vuka explain "+list[0]+"`."))
-		}
+	if len(codes) == 0 {
+		return
 	}
-	_, err := w.Write(b.Bytes())
-	return err
+	list := make([]string, 0, len(codes))
+	for c := range codes {
+		list = append(list, string(c))
+	}
+	sort.Strings(list)
+	p := painter(o.Color)
+	b.WriteByte('\n')
+	if len(list) > 1 {
+		fmt.Fprintf(b, "%s %s.\n", p(bold, "Some errors have detailed explanations:"), strings.Join(list, ", "))
+		fmt.Fprintf(b, "%s\n", p(bold, "For more information about an error, try `vuka explain "+list[0]+"`."))
+	} else {
+		fmt.Fprintf(b, "%s\n", p(bold, "For more information about this error, try `vuka explain "+list[0]+"`."))
+	}
 }
 
 const (
