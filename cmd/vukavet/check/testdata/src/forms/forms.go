@@ -16,6 +16,8 @@ type Signup struct {
 	Name    string `label:"Full name" placeholder:"Ada Lovelace"`
 	Email   string `placeholder:"name@example.com"` // want `W0310: Signup.Email has a placeholder and no label`
 	Country int
+	City    int `depends:"Country"`
+	Town    int `depends:"Contry"` // want `W0313: Signup.Town depends on Contry, which isn't a field of Signup`
 	Address Address
 	note    string
 }
@@ -30,7 +32,9 @@ func (f *Signup) Clean(ctx context.Context) error { return nil }
 
 func (f *Signup) CountryChoices() []ui.Option { return nil }
 
-func (f *Signup) CityChoices() []ui.Option { return nil } // want `W0309: Signup.CityChoices names no field of Signup`
+func (f *Signup) CityChoices() []ui.Option { return nil }
+
+func (f *Signup) TwonChoices() []ui.Option { return nil } // want `W0309: Signup.TwonChoices names no field of Signup`
 
 type User struct {
 	orm.Model[User]

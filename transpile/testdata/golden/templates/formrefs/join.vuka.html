@@ -1,0 +1,18 @@
+<script lang="go">
+package main
+
+import ui "vukatest.local/stateui"
+
+// Join names its form's fields by bare paths: each lowers to pointers
+// through the receiver, the template's argument as the hole's text.
+type Join struct {
+	ui.Live
+	Form Signup
+}
+</script>
+
+<ui.Form for={Form}>
+  <label for={Form.Email}>Email</label>
+  <input model={Form.Email}/>
+  <ui.Field for={Form.Address.City}/>
+</ui.Form>

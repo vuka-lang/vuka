@@ -12,14 +12,24 @@ import (
 // Forms checks struct forms (a struct embedding ui.FormState) as the form
 // reads them: a Clean<Field> or <Field>Choices method naming no field of
 // the form, which never runs (W0309); a field with a placeholder and no
-// label, a placeholder standing in for one (W0310); and a database model
+// label, a placeholder standing in for one (W0310); a database model
 // embedded in the form, which makes every column of it something a submit
-// may set (W0311).
+// may set (W0311); and a depends: tag naming no field of the form (W0313).
+// With -forms.attrs it also notes, on each field, the constraint
+// attributes its control leaves out of its rules, and why (W0312): what
+// the browser would check differently from the server.
 var Forms = &analysis.Analyzer{
 	Name: "forms",
-	Doc:  "check struct forms: their Clean and Choices methods, placeholders and embedded models",
+	Doc:  "check struct forms: their Clean and Choices methods, placeholders, embedded models and depends: tags",
 	URL:  docsURL,
 	Run:  runForms,
+}
+
+// formAttrs is -forms.attrs: note the constraint attributes left out.
+var formAttrs bool
+
+func init() {
+	Forms.Flags.BoolVar(&formAttrs, "attrs", false, "note the constraint attributes each form field's control leaves out, and why (W0312)")
 }
 
 func runForms(pass *analysis.Pass) (any, error) {
@@ -90,7 +100,7 @@ func checkForm(pass *analysis.Pass, tn *types.TypeName, st *types.Struct) {
 		tag := reflect.StructTag(st.Tag(i))
 		if f.Embedded() {
 			if model := embeddedModel(f.Type()); model != "" {
-				report(pass, at(pass, f, span{f.Pos(), f.Pos()}), "W0311", "declare the fields the form edits in the form, and copy them to the model in the submit handler",
+				report(pass, at(pass, f, span{f.Pos(), f.Pos()}), "W0311", "declare the fields the form edits in the form, and copy them to the model in the submit handler (Load and Apply), or edit the model with ui.FormOf[T](\"Name\", …), naming its fields",
 					"%s embeds %s, a database model: a submit may set every column of it", form, model)
 			}
 			continue
@@ -101,6 +111,25 @@ func checkForm(pass *analysis.Pass, tn *types.TypeName, st *types.Struct) {
 		if tag.Get("placeholder") != "" && tag.Get("label") == "" {
 			report(pass, at(pass, f, span{f.Pos(), f.Pos()}), "W0310", `give it a label: label:"…"; a placeholder goes as the visitor types, and is no label`,
 				"%s.%s has a placeholder and no label", form, f.Name())
+		}
+		for _, d := range strings.FieldsFunc(tag.Get("depends"), func(c rune) bool { return c == ',' || c == ' ' }) {
+			if !known[strings.ReplaceAll(d, ".", "")] {
+				names := make([]string, 0, len(known))
+				for k := range known {
+					names = append(names, k)
+				}
+				sort.Strings(names)
+				help := "name the field its choices follow: depends:\"Country\""
+				if s := nearest(d, names); s != "" {
+					help = "write depends:\"" + s + "\""
+				}
+				report(pass, at(pass, f, span{f.Pos(), f.Pos()}), "W0313", help, "%s.%s depends on %s, which isn't a field of %s", form, f.Name(), d, form)
+			}
+		}
+		if formAttrs {
+			for _, skip := range skippedAttrs(f.Type(), tag) {
+				report(pass, at(pass, f, span{f.Pos(), f.Pos()}), "W0312", skip.help, "%s.%s's control has no %s: %s", form, f.Name(), skip.attr, skip.why)
+			}
 		}
 	}
 }
@@ -181,6 +210,37 @@ func methodNames(kind string, fields []string) []string {
 	out := make([]string, len(fields))
 	for i, f := range fields {
 		out[i] = methodName(kind, f)
+	}
+	return out
+}
+
+// skipped is a constraint attribute a field's control leaves out.
+type skipped struct{ attr, why, help string }
+
+// skippedAttrs are the constraint attributes a field's control leaves out
+// of its validate: rules, as package ui renders it: minlength and maxlength
+// on text other than digits (input:"numeric"), the browser counting UTF-16
+// units where Go counts characters; required unless the app asks for it.
+// (pattern is never written: no rule makes one.)
+func skippedAttrs(t types.Type, tag reflect.StructTag) []skipped {
+	var out []skipped
+	text := false
+	if b, ok := deref(t).Underlying().(*types.Basic); ok && b.Info()&types.IsString != 0 {
+		text = !named(t, "time", "Time")
+	}
+	for _, part := range strings.Split(tag.Get("validate"), ",") {
+		name, _, _ := strings.Cut(strings.TrimSpace(part), "=")
+		switch name {
+		case "min", "max", "len":
+			if text && tag.Get("input") != "numeric" {
+				attr := map[string]string{"min": "minlength", "max": "maxlength", "len": "minlength or maxlength"}[name]
+				out = append(out, skipped{attr, "the browser counts UTF-16 units and Go characters, which differ for an emoji; the server checks " + strings.TrimSpace(part),
+					`the server checks it; a field of digits (input:"numeric") gets the attributes`})
+			}
+		case "required":
+			out = append(out, skipped{"required", "the browser takes spaces for a value, where the binder trims them; the label says the field is needed",
+				"ui.Configure(ui.Config{RequiredAttr: true}) writes it"})
+		}
 	}
 	return out
 }
