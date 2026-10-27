@@ -117,3 +117,9 @@ func TestContext(t *testing.T) {
 }
 
 func TestForms(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Forms, "forms") }
+
+func TestFormAttrs(t *testing.T) {
+	formAttrs = true
+	defer func() { formAttrs = false }()
+	analysistest.Run(t, analysistest.TestData(), Forms, "formattrs")
+}

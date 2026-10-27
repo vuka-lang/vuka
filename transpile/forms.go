@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"regexp"
 	"strconv"
@@ -87,7 +88,7 @@ func (w *jsxWriter) refArgs(a *jsxAttr) {
 	start := a.expr.start + lead
 	chain := strings.TrimSpace(text)
 	w.gen("&")
-	w.keep(a.expr)
+	w.copy(a.expr)
 	var dots []int // the dots outside brackets: rows[i].Form's one
 	depth := 0
 	for i := 0; i < len(chain); i++ {
@@ -104,7 +105,7 @@ func (w *jsxWriter) refArgs(a *jsxAttr) {
 	}
 	for i := len(dots) - 1; i >= 0; i-- {
 		w.gen(", &")
-		w.keep(span{start, start + dots[i]})
+		w.copy(span{start, start + dots[i]})
 	}
 	if h := w.f.html; h != nil && h.recv != "" {
 		first := chain
@@ -322,4 +323,75 @@ func (e *engine) chainAt(f *fileState, a *jsxAttr) ast.Expr {
 		return true
 	})
 	return best
+}
+
+// checkFormOf reports a ui.FormOf[T]("Name", …) naming a field T doesn't
+// have, with the one it most likely meant: the names are the form's
+// allow-list, written as strings, so Go's own type-check can't see them.
+func (e *engine) checkFormOf() {
+	for _, f := range e.vuka {
+		if f.ast == nil {
+			continue
+		}
+		ast.Inspect(f.ast, func(n ast.Node) bool {
+			call, ok := n.(*ast.CallExpr)
+			if !ok {
+				return true
+			}
+			idx, ok := ast.Unparen(call.Fun).(*ast.IndexExpr)
+			if !ok {
+				return true
+			}
+			sel, ok := ast.Unparen(idx.X).(*ast.SelectorExpr)
+			if !ok || sel.Sel.Name != "FormOf" {
+				return true
+			}
+			fn, ok := e.info.Uses[sel.Sel].(*types.Func)
+			tv, typed := e.info.Types[idx.Index]
+			if !ok || !typed || fn.Pkg() == nil || fn.Pkg().Path() != DefaultJSXTarget && (f.target == nil || fn.Pkg().Path() != f.target.path) {
+				return true
+			}
+			for _, a := range call.Args {
+				lit, ok := ast.Unparen(a).(*ast.BasicLit)
+				if !ok || lit.Kind != token.STRING {
+					continue
+				}
+				name, err := strconv.Unquote(lit.Value)
+				if err != nil {
+					continue
+				}
+				if missing, at, owner, names := missingField(tv.Type, name); missing != "" {
+					pos := f.pos(f.off(lit.Pos()) + 1 + at)
+					model, in := e.display(derefPtr(tv.Type)), e.display(derefPtr(owner))
+					if s := closestName(missing, names); s != "" {
+						e.errs.add("E0161", pos, "ui.FormOf[%s]: %s has no field %s; did you mean %s?", model, in, missing, s).help("name the field as it is declared: %q", name[:at]+s)
+					} else {
+						e.errs.add("E0161", pos, "ui.FormOf[%s]: %s has no field %s", model, in, missing).help("its fields are %s", strings.Join(names, ", "))
+					}
+				}
+			}
+			return true
+		})
+	}
+}
+
+// missingField is the first name of a Go path ("Address.City") that its
+// struct has no exported field of, its offset in the path, the struct, and
+// its field names; "" when every one is there.
+func missingField(t types.Type, path string) (string, int, types.Type, []string) {
+	at := 0
+	for _, name := range strings.Split(path, ".") {
+		names := fieldNames(t)
+		if len(names) == 0 {
+			return "", 0, nil, nil // not a struct the compiler sees into
+		}
+		obj, _, _ := types.LookupFieldOrMethod(t, true, nil, name)
+		v, ok := obj.(*types.Var)
+		if !ok || !v.IsField() || !v.Exported() {
+			return name, at, t, names
+		}
+		t = v.Type()
+		at += len(name) + 1
+	}
+	return "", 0, nil, nil
 }

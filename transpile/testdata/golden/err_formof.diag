@@ -1,0 +1,25 @@
+error[E0161]: ui.FormOf[User]: User has no field Emial; did you mean Email?
+  --> err_formof.vuka:17:36
+   |
+17 |     e.Form = ui.FormOf[User]("Name", "Emial", "Address.Town", "Phone")
+   |                                       ^^^^^
+   |
+   = help: name the field as it is declared: "Email"
+
+error[E0161]: ui.FormOf[User]: Address has no field Town
+  --> err_formof.vuka:17:53
+   |
+17 |     e.Form = ui.FormOf[User]("Name", "Emial", "Address.Town", "Phone")
+   |                                                        ^^^^
+   |
+   = help: its fields are City
+
+error[E0161]: ui.FormOf[User]: User has no field Phone
+  --> err_formof.vuka:17:61
+   |
+17 |     e.Form = ui.FormOf[User]("Name", "Emial", "Address.Town", "Phone")
+   |                                                                ^^^^^
+   |
+   = help: its fields are ID, Name, Email, Address
+
+For more information about this error, try `vuka explain E0161`.

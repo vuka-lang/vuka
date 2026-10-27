@@ -44,7 +44,7 @@ type gqlOp struct {
 // their types' (one file's trailer), and each enum constant's attributes
 // (its own file's). It reports whether it wrote anything.
 func (e *engine) graphql() bool {
-	g := &gqlGen{e: e, seen: map[string]bool{}, typeNames: map[string]string{}, docs: e.gqlDocs()}
+	g := &gqlGen{e: e, seen: map[string]bool{}, typeNames: map[string]string{}, docs: e.gqlDocs(), listed: map[string]bool{}, methods: map[string][]*types.Func{}}
 	wrote := g.constAttrs()
 	var ops []gqlOp
 	for _, f := range e.vuka {
@@ -82,10 +82,14 @@ func (e *engine) graphql() bool {
 			ops = append(ops, gqlOp{f: f, a: a, fd: fd, name: name, mutation: kind == "Mutation"})
 		}
 	}
-	if len(ops) == 0 {
+	if len(ops) == 0 && len(e.loaders) == 0 {
 		return wrote
 	}
-	g.f, g.off = ops[0].f, ops[0].a.start
+	if len(ops) > 0 {
+		g.f, g.off = ops[0].f, ops[0].a.start
+	} else {
+		g.f, g.off = e.loaders[0].f, e.loaders[0].a.start
+	}
 	g.gq = g.pkgName(GraphQLPath)
 	if g.gq == "" {
 		return wrote
@@ -97,17 +101,29 @@ func (e *engine) graphql() bool {
 			opTexts = append(opTexts, t)
 		}
 	}
+	loaderTexts, _ := g.loaderDefs()
 	if len(*e.errs) > 0 {
 		return wrote
 	}
+	g.perParent()
+	e.gqlWarns = g.warns
 	q := g.gq + "."
 	var b strings.Builder
 	b.WriteString("\nfunc init() {\n\t" + q + "Register(" + q + "Package{\n\t\tPath: " + strconv.Quote(e.importPathOr()) + ",\n")
-	b.WriteString("\t\tOperations: []" + q + "Operation{\n")
-	for _, t := range opTexts {
-		b.WriteString(indent(t, 3) + ",\n")
+	if len(opTexts) > 0 {
+		b.WriteString("\t\tOperations: []" + q + "Operation{\n")
+		for _, t := range opTexts {
+			b.WriteString(indent(t, 3) + ",\n")
+		}
+		b.WriteString("\t\t},\n")
 	}
-	b.WriteString("\t\t},\n")
+	if len(loaderTexts) > 0 {
+		b.WriteString("\t\tLoaders: []" + q + "LoaderDef{\n")
+		for _, t := range loaderTexts {
+			b.WriteString(indent(t, 3) + ",\n")
+		}
+		b.WriteString("\t\t},\n")
+	}
 	if len(g.bindings) > 0 {
 		b.WriteString("\t\tTypes: []" + q + "Binding{\n")
 		for _, t := range g.bindings {
@@ -174,8 +190,12 @@ type gqlGen struct {
 	docs      map[types.Object]string
 	ctxName   string
 	refName   string
-	pos       token.Position // the operation being written, for errors
-	via       string         // how it reaches the type being written
+	pos       token.Position  // the operation being written, for errors
+	via       string          // how it reaches the type being written
+	lists     int             // lists around the type being written
+	listed    map[string]bool // types a list reaches, by Go type
+	methods   map[string][]*types.Func
+	warns     map[*fileState]ErrorList
 }
 
 // pkgName is the name package path goes by in g.f, imported when it
@@ -407,11 +427,12 @@ func (g *gqlGen) idable(t types.Type) bool {
 }
 
 // isID decides whether a value named name of type t is an ID: forced by
-// an override (id: @graphql.AsID, graphql:",id"; asInt: @graphql.AsInt,
-// graphql:",int"), else when name names an id and t is an integer type.
-func (g *gqlGen) isID(name string, t types.Type, id, asInt bool) bool {
+// an override (id: @graphql.AsID, graphql:",id"; keep: @graphql.AsInt,
+// @graphql.AsString, graphql:",int", graphql:",string"), else when name
+// names an id and t is an integer or a string type.
+func (g *gqlGen) isID(name string, t types.Type, id, keep bool) bool {
 	switch {
-	case asInt:
+	case keep:
 		return false
 	case id:
 		if !g.idable(t) {
@@ -420,7 +441,7 @@ func (g *gqlGen) isID(name string, t types.Type, id, asInt bool) bool {
 		}
 		return true
 	}
-	return idName(name) && g.intLike(t)
+	return idName(name) && g.idable(t)
 }
 
 // checkOpNames reports two operations of the package named alike, and
@@ -501,6 +522,7 @@ func (g *gqlGen) operation(op gqlOp) (string, bool) {
 	if !ok {
 		return "", false
 	}
+	g.unbounded(op.fd.Name.Pos(), op.name, sig)
 	if len(params) > 0 {
 		b.WriteString("\tParams: []" + q + "Param{" + strings.Join(params, ", ") + "},\n")
 	}
@@ -520,7 +542,7 @@ func (g *gqlGen) params(sig *types.Signature, what string, attrs map[string][]st
 	for _, n := range attrs["AsID"] {
 		ids[n] = true
 	}
-	for _, n := range attrs["AsInt"] {
+	for _, n := range append(attrs["AsInt"], attrs["AsString"]...) {
 		ints[n] = true
 	}
 	defer func() {
@@ -531,7 +553,7 @@ func (g *gqlGen) params(sig *types.Signature, what string, attrs map[string][]st
 		for _, set := range []struct {
 			attr string
 			m    map[string]bool
-		}{{"AsID", ids}, {"AsInt", ints}} {
+		}{{"AsID", ids}, {"AsInt or AsString", ints}} {
 			for _, n := range slices.Sorted(maps.Keys(set.m)) {
 				if slices.Contains(names, n) {
 					continue
@@ -559,6 +581,9 @@ func (g *gqlGen) params(sig *types.Signature, what string, attrs map[string][]st
 			args = append(args, "ctx")
 		case g.dependency(t):
 			params = append(params, "{Name: "+strconv.Quote(name)+", Dep: "+g.reflect()+".TypeFor["+g.typ(t)+"]()}")
+			args = append(args, q+"Get["+g.typ(t)+"](c, "+idx+")")
+		case isPage(t):
+			params = append(params, "{Name: "+strconv.Quote(name)+", Type: "+q+"PageArgs}")
 			args = append(args, q+"Get["+g.typ(t)+"](c, "+idx+")")
 		default:
 			if name == "" || name == "_" {
@@ -640,7 +665,7 @@ func (g *gqlGen) leafPointer(t types.Type) bool {
 // an interface, or a pointer to anything but a scalar or an enum (a
 // service, *http.Request).
 func (g *gqlGen) dependency(t types.Type) bool {
-	if types.IsInterface(t) {
+	if types.IsInterface(t) || loaderType(t) {
 		return true
 	}
 	p, ok := t.(*types.Pointer)
@@ -834,6 +859,8 @@ func (g *gqlGen) outNullable(t types.Type, id bool) (string, bool) {
 	}
 	switch u := t.Underlying().(type) {
 	case *types.Slice:
+		g.lists++
+		defer func() { g.lists-- }()
 		el := u.Elem()
 		var inner string
 		ok := false
@@ -859,6 +886,9 @@ func (g *gqlGen) outNullable(t types.Type, id bool) (string, bool) {
 		if n == nil {
 			g.unsupported(t, "an unnamed struct; declare it as a type")
 			return "", false
+		}
+		if g.lists > 0 {
+			g.listed[g.typ(t)] = true
 		}
 		g.structBinding(t)
 		return g.gq + ".ObjectOf[" + g.typ(t) + "]()", true
@@ -986,9 +1016,10 @@ func gqlFields(st *types.Struct) []*types.Var {
 	return out
 }
 
-// fieldTag is a struct field's graphql:"name,id,omitempty,int" tag, found
-// through the structs embedding it.
-func fieldTag(st *types.Struct, fv *types.Var) (name string, id, omit, asInt bool) {
+// fieldTag is a struct field's graphql:"name,id,omitempty,int,string,noload"
+// tag, found through the structs embedding it: asInt is set by int and
+// string, which keep an id-named field an Int or a String.
+func fieldTag(st *types.Struct, fv *types.Var) (name string, id, omit, asInt, noload bool) {
 	var tag string
 	var find func(st *types.Struct) bool
 	find = func(st *types.Struct) bool {
@@ -1015,11 +1046,13 @@ func fieldTag(st *types.Struct, fv *types.Var) (name string, id, omit, asInt boo
 			id = true
 		case "omitempty":
 			omit = true
-		case "int":
+		case "int", "string":
 			asInt = true
+		case "noload":
+			noload = true
 		}
 	}
-	return name, id, omit, asInt
+	return name, id, omit, asInt, noload
 }
 
 // methodNames are methods never taken as fields: the ones Go's standard
@@ -1071,8 +1104,29 @@ func (g *gqlGen) structBinding(t types.Type) {
 	}
 	samePkg := n.Obj().Pkg() == g.e.pkg
 	for _, fv := range gqlFields(st) {
-		name, id, omit, asInt := fieldTag(st, fv)
+		name, id, omit, asInt, noload := fieldTag(st, fv)
 		g.via = tt + "." + fv.Name()
+		if rel, ok := g.relation(t, fv, r, noload); ok {
+			if rel == "" {
+				continue
+			}
+			wire := name
+			if wire == "" {
+				wire = lowerCamel(fv.Name())
+			}
+			if taken(wire, fv.Name()) {
+				continue
+			}
+			m := "{Go: " + strconv.Quote(fv.Name())
+			if name != "" {
+				m += ", Name: " + strconv.Quote(name)
+			}
+			if d := g.docs[fv]; d != "" {
+				m += ", Doc: " + strconv.Quote(d)
+			}
+			members = append(members, m+", "+rel+"}")
+			continue
+		}
 		id = g.isID(fv.Name(), fv.Type(), id, asInt)
 		wire := name
 		if wire == "" {
@@ -1160,6 +1214,8 @@ func (g *gqlGen) structBinding(t types.Type) {
 		if !ok {
 			continue
 		}
+		g.methods[tt] = append(g.methods[tt], fn)
+		g.unbounded(fn.Pos(), tt+"."+fn.Name(), sig)
 		m := "{Go: " + strconv.Quote(fn.Name())
 		if d := g.docs[fn]; d != "" {
 			m += ", Doc: " + strconv.Quote(d)
@@ -1274,7 +1330,7 @@ func (g *gqlGen) inputBinding(t types.Type) {
 	var members []string
 	names := map[string]string{}
 	for _, fv := range gqlFields(st) {
-		name, id, _, asInt := fieldTag(st, fv)
+		name, id, _, asInt, _ := fieldTag(st, fv)
 		g.via = tt + "." + fv.Name()
 		wire := name
 		if wire == "" {

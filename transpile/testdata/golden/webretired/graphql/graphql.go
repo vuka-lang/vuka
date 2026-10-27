@@ -27,9 +27,66 @@ func Arg(param, name string) ArgName { return ArgName{param, name} }
 
 type IDParams []string
 type IntParams []string
+type StringParams []string
 
-func AsID(params ...string) vuka.Bundle  { return vuka.Compose(IDParams(params)) }
-func AsInt(params ...string) vuka.Bundle { return vuka.Compose(IntParams(params)) }
+func AsID(params ...string) vuka.Bundle     { return vuka.Compose(IDParams(params)) }
+func AsInt(params ...string) vuka.Bundle    { return vuka.Compose(IntParams(params)) }
+func AsString(params ...string) vuka.Bundle { return vuka.Compose(StringParams(params)) }
+
+type Loader struct{ Chunk int }
+
+// LoaderOf calls its function with each key at once.
+type LoaderOf[K comparable, V any] struct {
+	name  string
+	fetch func(context.Context, []K) (map[K]V, error)
+}
+
+func NewLoader[K comparable, V any](name string, fetch func(context.Context, []K) (map[K]V, error), opts ...Loader) *LoaderOf[K, V] {
+	return &LoaderOf[K, V]{name, fetch}
+}
+
+func (l *LoaderOf[K, V]) Load(ctx context.Context, key K) (V, error) {
+	m, err := l.fetch(ctx, []K{key})
+	return m[key], err
+}
+
+type LoaderDef struct {
+	Go     string
+	Type   reflect.Type
+	Params []Param
+	New    func(c *Call) any
+}
+
+func Related[P any](ctx context.Context, parent *P, field string, load func(ctx context.Context, parents []*P, field string) error) error {
+	return load(ctx, []*P{parent}, field)
+}
+
+type Page struct {
+	First  *int
+	After  *string
+	Last   *int
+	Before *string
+}
+
+var PageArgs TypeDef = named{"Page"}
+
+type Connection[T any] struct {
+	Edges    []Edge[T]
+	PageInfo PageInfo
+	count    func(ctx context.Context) (int64, error)
+}
+
+func (c Connection[T]) TotalCount(ctx context.Context) (int, error) { return len(c.Edges), nil }
+
+type Edge[T any] struct {
+	Cursor string
+	Node   T
+}
+
+type PageInfo struct {
+	HasNextPage, HasPreviousPage bool
+	StartCursor, EndCursor       *string
+}
 
 type TypeDef interface{ String() string }
 
@@ -185,6 +242,7 @@ type Package struct {
 	Path       string
 	Operations []Operation
 	Types      []Binding
+	Loaders    []LoaderDef
 }
 
 var pkgs []Package
@@ -225,6 +283,9 @@ func Describe() {
 				kind = "mutation"
 			}
 			fmt.Printf("%s %s%s: %s %q\n", kind, op.Go, params(op.Params), op.Type, op.Doc)
+		}
+		for _, l := range p.Loaders {
+			fmt.Printf("loader %s%s: %T\n", l.Go, params(l.Params), l.New(&Call{args: make([]any, len(l.Params))}))
 		}
 		for _, t := range p.Types {
 			for _, l := range t.describe() {

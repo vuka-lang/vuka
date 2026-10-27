@@ -1,0 +1,1 @@
+<form data-for="{Join.Form}" data-key="&lt;nil&gt;"><label for="id:Signup.Email">Email</label><input data-model="Signup.Email tag=input"><p>field {Address.City} </p></form> <nil>

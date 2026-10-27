@@ -1,0 +1,88 @@
+package main
+
+import (
+	"context"
+	"fmt"
+
+	"github.com/vuka-lang/web/v2/graphql"
+	"vukatest.local/orm"
+)
+
+type Store struct{}
+
+// Customer buys orders.
+type Customer struct {
+	orm.Base
+	ID   int64
+	Name string
+}
+
+// Order is a customer's order.
+type Order struct {
+	orm.Base
+	ID       int64
+	Customer orm.FK[Customer]
+	Tags     orm.M2M[Tag]
+	TrackingID string                    // an id by its name: ID
+	Code     string    `graphql:",string"` // kept a String
+	Lines    []Line    // a Go model's rows: through the relation
+	Owner    *Customer `graphql:",noload"`
+}
+
+type Tag struct {
+	orm.Base
+	ID   int64
+	Name string
+}
+
+type Line struct {
+	orm.Base
+	ID      int64
+	OrderID int64
+}
+
+// OrdersByCustomer is every customer's orders.
+@graphql.Loader{Chunk: 500}
+func OrdersByCustomer(ctx context.Context, ids []int64, store *Store) (map[int64][]Order, error) {
+	out := map[int64][]Order{}
+	for _, id := range ids {
+		out[id] = []Order{{ID: id * 10, Customer: orm.FKID[Customer](id)}}
+	}
+	return out, nil
+}
+
+@graphql.Loader
+func Names(_ context.Context, keys []int64) (map[int64]string, error) { return nil, nil }
+
+// Orders are the customer's orders.
+func (c *Customer) Orders(ctx context.Context, orders OrdersByCustomer) ([]Order, error) {
+	return orders.Load(ctx, c.ID)
+}
+
+// Recent queries orders itself: once per customer of a list.
+func (c *Customer) Recent(ctx context.Context) ([]Order, error) {
+	_, err := orm.Objects[Order]().Get(ctx)
+	return nil, err
+}
+
+// Customers pages the customers.
+@graphql.Query
+func Customers(ctx context.Context, page graphql.Page) (graphql.Connection[Customer], error) {
+	return graphql.Connection[Customer]{}, nil
+}
+
+// Everyone has no limit.
+@graphql.Query
+@graphql.AsString("trackingID")
+func Everyone(ctx context.Context, trackingID string, orderID string) ([]Customer, error) { return nil, nil }
+
+// The stand-in for package graphql prints what it is given to register.
+func main() {
+	ctx := context.Background()
+	o := Order{Customer: orm.FKID[Customer](int64(7))}
+	_ = graphql.Related(ctx, &o, "Customer", orm.LoadRelation[Order])
+	fmt.Println("loaded:", o.Customer.Loaded())
+	l := NewOrdersByCustomer(&Store{})
+	os, _ := l.Load(ctx, 3)
+	fmt.Println(os[0].ID)
+}

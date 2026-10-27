@@ -1,0 +1,2 @@
+err_graphql_loadertypes.vuka:11:1: @graphql.Loader: OtherKeys takes keys of int and returns map[string]string; return the values by the keys the function is given: map[K]V for keys []K
+err_graphql_loadertypes.vuka:14:1: @graphql.Loader: ValueDep's parameter n is int, which isn't a dependency; a loader takes the context, its keys and what the app provides: pointers and interfaces
