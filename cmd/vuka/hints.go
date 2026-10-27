@@ -404,7 +404,8 @@ func firstField(t types.Type) string {
 	return ""
 }
 
-// isModel reports whether t is an orm model: a struct embedding orm.Base.
+// isModel reports whether t is an orm model: a struct embedding orm.Base,
+// which a Vuka model's Go writes orm.Model[T].
 func isModel(t types.Type) bool {
 	st, ok := t.Underlying().(*types.Struct)
 	if !ok {
@@ -418,7 +419,7 @@ func isModel(t types.Type) bool {
 		if p, ok := ft.(*types.Pointer); ok {
 			ft = types.Unalias(p.Elem())
 		}
-		if n, ok := ft.(*types.Named); ok && n.Obj().Pkg() != nil && strings.HasPrefix(n.Obj().Pkg().Path(), ormModule) && n.Obj().Name() == "Base" {
+		if n, ok := ft.(*types.Named); ok && n.Obj().Pkg() != nil && strings.HasPrefix(n.Obj().Pkg().Path(), ormModule) && (n.Obj().Name() == "Base" || n.Obj().Name() == "Model") {
 			return true
 		}
 	}

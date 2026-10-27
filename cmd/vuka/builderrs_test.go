@@ -364,3 +364,118 @@ func Count() int { return 0 }
 		})
 	}
 }
+
+// ormDir is the orm checkout the tests build against ($VUKA_ORM, else
+// ../vuka-orm), skipping without one that has orm.Base.
+func ormDir(t *testing.T) string {
+	t.Helper()
+	dir := os.Getenv("VUKA_ORM")
+	if dir == "" {
+		repo, _ := filepath.Abs("../..")
+		dir = filepath.Join(filepath.Dir(repo), "vuka-orm")
+	}
+	if src, _ := os.ReadFile(filepath.Join(dir, "vuka_base.go")); !bytes.Contains(src, []byte("type Base[")) {
+		needs(t, "the build reports need github.com/vuka-lang/orm/v2 with orm.Base at %s (or $VUKA_ORM)", dir)
+	}
+	return dir
+}
+
+// TestBuildReportTypedFields: a package failing doesn't keep the orm from
+// generating the typed fields of another package's models, so the package
+// reading them builds and the one error is shown; when the models' own
+// package fails, the package reading their fields is counted with the
+// files that couldn't build.
+func TestBuildReportTypedFields(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	orm := ormDir(t)
+	files := func() map[string]string {
+		return map[string]string{
+			"main.go": "package main\n\nimport (\n\t\"example.com/app/pages\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nfunc main() { web.New(pages.Routes()).Run(\"\") }\n",
+			"entities/user.vuka": `package entities
+
+import (
+	"time"
+
+	"github.com/vuka-lang/orm/v2"
+)
+
+type User struct {
+	orm.Base @orm.Meta{Table: "users"}
+	ID      int64  @orm.PK
+	Email   string @orm.Char{Max: 120}
+	Active  bool
+	Expires time.Time
+}
+`,
+			"modules/accounts/service.vuka": `package accounts
+
+import (
+	"context"
+	"time"
+
+	"github.com/vuka-lang/orm/v2"
+
+	"example.com/app/entities"
+)
+
+func Find(ctx context.Context, email string) (entities.User, error) {
+	return orm.Objects[entities.User]().Filter(entities.UserFields.Email.IExact(email)).Get(ctx)
+}
+
+func Expire(ctx context.Context, email string) error {
+	expires := time.Now()
+	_, err := orm.Objects[entities.User]().Filter(entities.UserFields.Email.IExact(email)).
+		Update(ctx, orm.Set{entities.UserFields.Active.Name(): false, entities.UserFields.Expires.Name(): expires})
+	return err
+}
+`,
+			"components/card.vuka.html": "<script lang=\"go\">\npackage components\n\ntype Card struct {\n\tTitle string\n}\n</script>\n\n<div>{Title}</div>\n",
+			"pages/index.vuka.html": `<script lang="go">
+package pages
+
+import (
+	"example.com/app/components"
+	"example.com/app/modules/accounts"
+)
+
+var _ = accounts.Find
+
+type Index struct{}
+</script>
+
+<section><components.Card Title="x"/></section>
+`,
+		}
+	}
+	for _, c := range []struct{ name, file, src string }{
+		{"other", "components/card.vuka.html", "<script lang=\"go\">\npackage components\n\ntype Card struct {\n\tTitle string\n}\n\ntype Row struct {\n\tID int\n}\n</script>\n\n<div>{Title}</div>\n"},
+		{"models", "entities/broken.vuka", "package entities\n\nfunc broken( {\n}\n"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			fs := files()
+			fs[c.file] = c.src
+			root := localModule(t, webCheckout(t), fs)
+			withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
+			t.Setenv("GOWORK", "off")
+			t.Setenv("GOFLAGS", "-mod=mod")
+			t.Chdir(root)
+			var stderr bytes.Buffer
+			if runGo("build", []string{"-v", "-o", filepath.Join(t.TempDir(), "app"), "."}, io.Discard, &stderr) == nil {
+				t.Fatal("the build passed")
+			}
+			out := stderr.String()
+			out = out[strings.Index(out, "error["):]
+			golden(t, "typedfields-"+c.name+".golden", out)
+			if n := strings.Count(out, "error["); n != 1 {
+				t.Errorf("%d error blocks, want 1:\n%s", n, out)
+			}
+			for _, bad := range []string{"UserFields", "declared and not used", "isn't a model"} {
+				if strings.Contains(out, bad) {
+					t.Errorf("the report says %q:\n%s", bad, out)
+				}
+			}
+		})
+	}
+}

@@ -20,6 +20,39 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.9.0 — unreleased
+
+- **A broken or missing import is one error.** An `import` with no path
+  (a leftover `import`, `import orm`, a path missing its closing quote, an
+  `import (` without its `)`) is one E0003 at the `import`, its help naming
+  the imports the file's code needs (`add the path: import
+  "github.com/vuka-lang/orm/v2" (the file uses orm)`), rather than an error
+  at the next declaration and more where the parser lost track. A file
+  that doesn't parse is read a top-level declaration at a time, so a broken
+  declaration is one error and the ones after it are checked as written.
+
+- **Packages importing a broken one are counted, not reported.** What a
+  package can't do with the types of a package that doesn't compile (a
+  field of an embedded type it can't find, a GraphQL result `invalid type`,
+  a variable whose only use is in such code "declared and not used") is no
+  longer its own error: the build counts its files in the summary line
+  ("2 files couldn't build because of it", `-v` lists them).
+
+- **One E0215 a missing package a file.** The attributes of a package a
+  file doesn't import are one error at the first (`@orm.Meta, @orm.PK and 1
+  more: this file imports no package named orm`), the others its related
+  positions, in the terminal and the editor; its help resolves the import
+  as a Go error's does.
+
+- **A failing package no longer stops the orm's typed fields.** A package
+  of models has its typed fields (`UserFields`) generated as it transpiles,
+  so the packages reading them build whatever fails elsewhere: an error in
+  one `.vuka.html` file was reported with every typed-field use of an
+  unrelated package as `undefined: entities.UserFields`. The note of an
+  undefined `XFields` no longer calls a Vuka model "not a model" (its Go
+  embeds `orm.Model[T]`), and says when the build stopped before the orm
+  wrote them.
+
 ## v2.8.0 — 2026-10-27
 
 ### Upgrading

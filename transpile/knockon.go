@@ -19,21 +19,7 @@ import (
 
 // brokenPaths are the import paths of the package's imports that didn't
 // load this round.
-func (e *engine) brokenPaths() map[string]bool {
-	var out map[string]bool
-	for _, te := range e.typeErrs {
-		rest, ok := strings.CutPrefix(te.Msg, "could not import ")
-		if !ok {
-			continue
-		}
-		path, _, _ := strings.Cut(rest, " ")
-		if out == nil {
-			out = map[string]bool{}
-		}
-		out[path] = true
-	}
-	return out
-}
+func (e *engine) brokenPaths() map[string]bool { return BrokenImports(e.typeErrs) }
 
 // invalidThrough reports whether t is, or is made of, an invalid type, in
 // a package with an import that didn't load (broken): a knock-on of it.
@@ -100,32 +86,59 @@ func invalidThrough(t types.Type, broken map[string]bool) bool {
 }
 
 // knockOnErr reports whether the type error te is a knock-on of an import
-// that didn't load: about an expression whose type is invalid through it.
+// that didn't load.
 func (e *engine) knockOnErr(te types.Error, broken map[string]bool) bool {
-	if len(broken) == 0 || strings.HasPrefix(te.Msg, "could not import ") || e.info == nil {
+	f := e.fileOf(te.Pos)
+	if f == nil {
+		return false
+	}
+	return KnockOn(e.info, f.ast, te, broken)
+}
+
+// KnockOn reports whether the type error te in the file f, type-checked
+// into info, is a knock-on of the imports that didn't load (broken, by
+// path): about an expression whose type is invalid through one, or a
+// variable declared and not used whose uses are in such code.
+func KnockOn(info *types.Info, f *ast.File, te types.Error, broken map[string]bool) bool {
+	if len(broken) == 0 || strings.HasPrefix(te.Msg, "could not import ") || info == nil || f == nil {
 		return false
 	}
 	if strings.Contains(te.Msg, "invalid type") {
 		return true
 	}
-	f := e.fileOf(te.Pos)
-	if f == nil || f.ast == nil {
-		return false
-	}
 	var path []ast.Node
-	ast.Inspect(f.ast, func(n ast.Node) bool {
+	ast.Inspect(f, func(n ast.Node) bool {
 		if n == nil || te.Pos < n.Pos() || te.Pos > n.End() {
 			return false
 		}
 		path = append(path, n)
 		return true
 	})
+	if name, ok := strings.CutPrefix(te.Msg, "declared and not used: "); ok {
+		// Go counts no use in an expression it couldn't type: the
+		// variable named again in its function is used there.
+		for i := len(path) - 1; i >= 0; i-- {
+			fn, ok := path[i].(*ast.FuncDecl)
+			if !ok || fn.Body == nil {
+				continue
+			}
+			used := false
+			ast.Inspect(fn.Body, func(n ast.Node) bool {
+				if id, ok := n.(*ast.Ident); ok && id.Name == name && id.Pos() != te.Pos && info.Defs[id] == nil {
+					used = true
+				}
+				return !used
+			})
+			return used
+		}
+		return false
+	}
 	typeOf := func(x ast.Expr) types.Type {
-		if tv, ok := e.info.Types[x]; ok {
+		if tv, ok := info.Types[x]; ok {
 			return tv.Type
 		}
 		if id, ok := x.(*ast.Ident); ok {
-			if o := e.info.Uses[id]; o != nil {
+			if o := info.Uses[id]; o != nil {
 				return o.Type()
 			}
 		}
@@ -157,6 +170,23 @@ func (e *engine) knockOnErr(te types.Error, broken map[string]bool) bool {
 		}
 	}
 	return false
+}
+
+// BrokenImports are the import paths the errors say couldn't be imported.
+func BrokenImports(errs []types.Error) map[string]bool {
+	var out map[string]bool
+	for _, te := range errs {
+		rest, ok := strings.CutPrefix(te.Msg, "could not import ")
+		if !ok {
+			continue
+		}
+		path, _, _ := strings.Cut(rest, " ")
+		if out == nil {
+			out = map[string]bool{}
+		}
+		out[path] = true
+	}
+	return out
 }
 
 // foldKnockOns drops the knock-on errors, reporting for each import that

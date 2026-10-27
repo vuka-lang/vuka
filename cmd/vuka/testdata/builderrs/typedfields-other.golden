@@ -1,0 +1,14 @@
+error[E0147]: the template file declares Card and Row: a .vuka.html file renders one struct
+ --> components/card.vuka.html:8:6
+  |
+8 | type Row struct {
+  |      ^^^
+  |
+  = help: move Row to its own .vuka.html file, or to a .go file when it has no markup
+
+For more information about this error, try `vuka explain E0147`.
+
+the page that couldn't build because of it:
+  pages/index.vuka.html:5:2: imports example.com/app/components
+
+1 error in 1 package · 1 page couldn't build because of it
