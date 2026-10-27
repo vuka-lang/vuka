@@ -1,0 +1,34 @@
+error[E0805]: @graphql.Loader: NoKeys takes no keys; a loader is func Name(ctx context.Context, keys []K, deps…) (map[K]V, error)
+  --> err_graphql_loader.vuka:11:1
+   |
+11 | @graphql.Loader
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: the function is given the keys a request's fields ask for, and returns their values by key
+
+error[E0805]: @graphql.Loader: NotASlice takes int for its keys, not a slice; a loader is func Name(ctx context.Context, keys []K, deps…) (map[K]V, error)
+  --> err_graphql_loader.vuka:14:1
+   |
+14 | @graphql.Loader
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: the function is given the keys a request's fields ask for, and returns their values by key
+
+error[E0805]: @graphql.Loader: NoMap returns []string, error; a loader is func Name(ctx context.Context, keys []K, deps…) (map[K]V, error)
+  --> err_graphql_loader.vuka:17:1
+   |
+17 | @graphql.Loader
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: the function is given the keys a request's fields ask for, and returns their values by key
+
+error[E0803]: @graphql.Loader on Taken writes NewTaken, which the package declares already
+  --> err_graphql_loader.vuka:20:1
+   |
+20 | @graphql.Loader
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: rename Taken, or the other NewTaken
+
+Some errors have detailed explanations: E0803, E0805.
+For more information about an error, try `vuka explain E0803`.

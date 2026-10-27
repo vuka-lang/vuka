@@ -182,6 +182,17 @@ public github.com/vuka-lang/web/v2/graphql.Struct
 public github.com/vuka-lang/web/v2/graphql.TextScalar
 public github.com/vuka-lang/web/v2/graphql.Type
 public github.com/vuka-lang/web/v2/graphql.Value
+public github.com/vuka-lang/web/v2/graphql.AsString
+public github.com/vuka-lang/web/v2/graphql.Connection
+public github.com/vuka-lang/web/v2/graphql.Edge
+public github.com/vuka-lang/web/v2/graphql.Loader
+public github.com/vuka-lang/web/v2/graphql.LoaderDef
+public github.com/vuka-lang/web/v2/graphql.LoaderOf
+public github.com/vuka-lang/web/v2/graphql.NewLoader
+public github.com/vuka-lang/web/v2/graphql.Page
+public github.com/vuka-lang/web/v2/graphql.PageArgs
+public github.com/vuka-lang/web/v2/graphql.PageInfo
+public github.com/vuka-lang/web/v2/graphql.Related
 public github.com/vuka-lang/web/v2/auth.Can
 public github.com/vuka-lang/web/v2/auth.Current
 public github.com/vuka-lang/web/v2/auth.Identity
@@ -227,6 +238,10 @@ public github.com/vuka-lang/orm/v2.PK
 public github.com/vuka-lang/orm/v2.Schema
 public github.com/vuka-lang/orm/v2.Transaction
 public github.com/vuka-lang/orm/v2.TxOn
+public github.com/vuka-lang/orm/v2.FK
+public github.com/vuka-lang/orm/v2.FKID
+public github.com/vuka-lang/orm/v2.LoadRelation
+public github.com/vuka-lang/orm/v2.M2M
 
 # Kept from step 3, made public: what has no schema method to go in.
 # RegisterFields is the field attributes of a struct embedding neither

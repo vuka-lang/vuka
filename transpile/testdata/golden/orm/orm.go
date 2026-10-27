@@ -191,3 +191,54 @@ func Transaction(ctx context.Context, fn func(ctx context.Context) error, opts .
 	fmt.Printf("tx on %q: %v\n", t.db, err)
 	return err
 }
+
+// FK is a foreign key to a T: its key, and the row once loaded.
+type FK[T any] struct {
+	key any
+	row *T
+}
+
+func (FK[T]) relTarget() reflect.Type { return reflect.TypeFor[T]() }
+func (FK[T]) relMany() bool           { return false }
+func (f FK[T]) Related() *T           { return f.row }
+func (f FK[T]) Loaded() bool          { return f.row != nil }
+func (f FK[T]) IsSet() bool           { return f.key != nil || f.row != nil }
+
+// FKOf is an FK to a row.
+func FKOf[T any](row *T) FK[T] { return FK[T]{row: row} }
+
+// FKID is an FK to a key: its row "loads" as a zero T.
+func FKID[T any](key any) FK[T] { return FK[T]{key: key} }
+
+// M2M is a many-to-many to T.
+type M2M[T any] struct {
+	rows   []T
+	loaded bool
+}
+
+func (M2M[T]) relTarget() reflect.Type { return reflect.TypeFor[T]() }
+func (M2M[T]) relMany() bool           { return true }
+func (m M2M[T]) Rows() []T             { return m.rows }
+func (m M2M[T]) Loaded() bool          { return m.loaded }
+
+// LoadRelation loads relation into rows: an FK set by key gets a zero row,
+// an M2M is marked loaded. It prints what it loads.
+func LoadRelation[T any](ctx context.Context, rows []*T, relation string) error {
+	fmt.Printf("load %s of %d %s\n", relation, len(rows), reflect.TypeFor[T]().Name())
+	for _, r := range rows {
+		f := reflect.ValueOf(r).Elem().FieldByName(relation)
+		switch x := f.Addr().Interface().(type) {
+		case interface{ load() }:
+			x.load()
+		}
+	}
+	return nil
+}
+
+func (f *FK[T]) load() {
+	if f.key != nil && f.row == nil {
+		f.row = new(T)
+	}
+}
+
+func (m *M2M[T]) load() { m.loaded = true }

@@ -1,0 +1,75 @@
+// Package store is the shop's orders, in a database: orm models whose
+// relations GraphQL loads a level at a time, a loader, and a connection.
+package store
+
+import (
+	"context"
+
+	"github.com/vuka-lang/orm/v2"
+	_ "github.com/vuka-lang/orm/v2/sqlite"
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+// Customer buys orders.
+type Customer struct {
+	orm.Base
+	ID   int64
+	Name string @orm.Char{Max: 50}
+}
+
+// Order is a customer's order.
+type Order struct {
+	orm.Base         @orm.Meta{Table: "orders", Ordering: []string{"id"}}
+	ID       int64
+	Customer orm.FK[Customer] @orm.Rel{Related: "orders"}
+	Total    float64
+}
+
+// DB is the shop's database, opened in memory and seeded.
+type DB struct{}
+
+func NewDB() (*DB, error) {
+	ctx := context.Background()
+	db := orm.ConnectURL("sqlite::memory:")?
+	orm.AddDatabase("main", db, orm.AsDefault())
+	orm.CreateTables(ctx, Customer.Objects, Order.Objects)?
+	for _, name := range []string{"Ada", "Grace", "Edsger"} {
+		c := Customer{Name: name}
+		c.Save(ctx)?
+	}
+	for i, total := range []float64{12.5, 40, 7, 99.9, 3.25} {
+		o := Order{Customer: orm.FKID[Customer](int64(i%3 + 1)), Total: total}
+		o.Save(ctx)?
+	}
+	return &DB{}, nil
+}
+
+// OrdersOf is each customer's orders, in one query for every customer a
+// level of the query reaches.
+@graphql.Loader
+func OrdersOf(ctx context.Context, customerIDs []int64, db *DB) (map[int64][]Order, error) {
+	rows := Order.Objects.Filter(orm.Q{"customer__in": customerIDs}).All(ctx)?
+	out := map[int64][]Order{}
+	for _, o := range rows {
+		out[o.Customer.ID()] = append(out[o.Customer.ID()], o)
+	}
+	return out, nil
+}
+
+// Orders are the customer's orders, at most first.
+func (c Customer) Orders(ctx context.Context, first int, orders OrdersOf) ([]Order, error) {
+	all := orders.Load(ctx, c.ID)?
+	return all[:min(first, len(all))], nil
+}
+
+// Customers are the shop's customers, at most first.
+@graphql.Query
+func Customers(ctx context.Context, first int, db *DB) ([]Customer, error) {
+	return Customer.Objects.OrderBy("id").Limit(first).All(ctx)
+}
+
+// Orders pages the shop's orders.
+@graphql.Query
+func Orders(ctx context.Context, page graphql.Page, db *DB) (graphql.Connection[Order], error) {
+	return graphql.Paginate(ctx, Order.Objects, page)
+}

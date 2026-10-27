@@ -1,0 +1,2 @@
+err_attrimport.vuka:5:1: @graphql.Query: this file imports no package named graphql; add the import: import "github.com/vuka-lang/web/v2/graphql"
+err_attrimport.vuka:8:1: @billing.Metered: this file imports no package named billing; import the package billing names
