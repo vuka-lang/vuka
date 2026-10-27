@@ -486,7 +486,7 @@ type checker struct {
 	in        buildInput
 	ov        map[string]string
 	ctx       *build.Context
-	gens      map[string]*load.Generated // by real target path
+	gens      map[string]*load.Generated   // by real target path
 	knock     map[string][]diag.Diagnostic // by package: its imports that don't compile
 	im        *load.Importer
 	goVersion string
