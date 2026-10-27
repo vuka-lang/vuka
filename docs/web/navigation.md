@@ -12,6 +12,11 @@ is no document reload, no new WebSocket and no layout sent again, while the
 address bar, the back button and links opened in a new tab keep working as
 they do for any site.
 
+A page that isn't live moves in place too, over HTTP: the browser fetches
+the next page and patches it into the document, so the layout's elements,
+what was typed and the scroll of what stays are kept
+([below](#pages-that-arent-live)).
+
 ## Linking Between Pages {#links}
 
 You link with `ui.Link`. This markup links to a book's page, and moves the
@@ -26,9 +31,9 @@ list to its second page with `patch`:
 
 `ui.Link` renders an ordinary `<a href>`, marked for the runtime
 (`data-vk-link`, or `data-vk-link="patch"`). So it stays a plain link
-wherever the runtime doesn't take it: without JavaScript, on a page that
-isn't live, with a `target` (`_blank`), clicked with a modifier key or the
-middle button (a new tab or window), or to another origin.
+wherever the runtime doesn't take it: without JavaScript, with a `target`
+(`_blank`), clicked with a modifier key or the middle button (a new tab or
+window), to another origin, or marked `reload`.
 
 The table lists the attributes `ui.Link` takes:
 
@@ -36,6 +41,7 @@ The table lists the attributes `ui.Link` takes:
 |---|---|
 | `href` | where to go |
 | `patch` | the same page with other parameters (below) |
+| `reload` | always a page load: the browser opens the page as a new document ([below](#opting-out)) |
 | `active` | `"exact"` or `"prefix"`: mark the link while it is the current page's ([below](#the-current-link)) |
 | `activeClass` | a class added while it is |
 | `prefetch` | `"off"`: never fetched ahead; `"viewport"`: fetched once in view ([below](#prefetch)) |
@@ -297,12 +303,106 @@ the group it is in:
 > the group as the visitor set it, and one that changes `open` is the
 > server's.
 
+## Pages That Aren't Live {#pages-that-arent-live}
+
+A page with no live parts has no connection, and it doesn't need one to
+move in place. A click on a `ui.Link` there is fetched, not loaded: the
+runtime asks for the URL with a `Vk-Navigate` header, the route runs as it
+does for a page load, and the reply is the new page's HTML, which the
+runtime patches into `<body>`.
+
+The server keeps nothing between the two requests, so any replica answers
+either, and each navigation does the work of a page load: the guards,
+every layout's `Load` (none is skipped, so a menu reading the request, a
+flash message or the signed-in user is always current) and the page. What
+it saves is the document: no new stylesheet, script or font to parse, and
+DOM that didn't change isn't touched.
+
+The patch works like a live page's:
+
+- **What stays.** Elements the new page renders as the old one did stay
+  the same elements: a field's focus and what was typed in it, an open
+  `<details>`, and an element marked `data-vk-ignore` with an `id`.
+- **Islands and component scripts** mount and unmount with the markup. An
+  island whose host the new page renders in the same place, with the same
+  name, stays mounted and gets the new props; one the new page doesn't
+  render unmounts, and the new page's mount.
+- **The browser** follows as it does [over a connection](#in-the-browser):
+  the address and history, `<head>` merged, scroll to the top or the
+  `#hash`, focus on `[autofocus]` or `<main>`, `data-vk-navigating` while
+  the request is in flight and `vk:navigate` once it is applied. A `patch`
+  link keeps scroll and focus. Back and forward fetch the entry's page and
+  put the scroll back where it was (the runtime restores it, with
+  `history.scrollRestoration` set to `manual`).
+
+A live page reached this way connects: the reply carries its join token,
+and the session its render started is the one the connection joins, so
+its mount hook runs once. From a live page, a link moves over the
+connection as before, to a live page or one that isn't.
+
+Navigation replies vary on `Vk-Navigate` and are `Cache-Control: private`
+with an `ETag` (a live page's, which carry a one-time token, are
+`no-store`). A request without the header is answered exactly as before:
+a first visit, a refresh and a crawler get the whole page.
+
+### When It Loads the Page Instead {#over-http-fallbacks}
+
+What can't be patched is loaded as an ordinary page, for `GET`s only:
+
+- **Another document:** the page is under another
+  [root layout](/web/folder-routes#root-layouts), or the
+  app was deployed again since the page loaded (its build changed).
+- **Not a page:** the route answers with a redirect to another origin, a
+  file, JSON, or HTML the app wrote itself. A redirect within the app is
+  followed, and the page it lands on is patched in. An error page under
+  the same root layout is patched in place, without a second request; the
+  built-in error page has no layout, so it is patched only into a page
+  under none.
+- **Scripts of its own:** a page whose `<body>` holds a `<script>` that
+  would run as the page loads (inline or `src`, not a data block such as
+  `type="application/json"`). Scripts in a patched body don't run, so the
+  page loads as before and its scripts run. Put a page's scripts in its
+  `<head>`, where they are added once, or in a
+  [component's script](/web/assets#scripts), which mounts with its markup.
+- **The network:** no reply within 10 seconds, or the request fails.
+
+Another click while a navigation is in flight aborts it and starts the
+next.
+
+### Opting Out {#opting-out}
+
+A link marked `reload` (or an `<a>` with `data-vk-reload`) is always the
+browser's, and so is every link to a page marked `@web.FullLoad`:
+
+```html
+<ui.Link href="/report" reload>Report</ui.Link>
+```
+
+```html
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/web/v2"
+
+// Report loads as a new document, whatever links to it.
+@web.FullLoad
+type Report struct{}
+</script>
+
+<h1>Report</h1>
+```
+
+From Go, `web.FullLoad()` is a route option, and
+`vuka.RegisterType[Report](web.FullLoad())` puts it on a page type.
+
 ## Prefetching Pages {#prefetch}
 
 A link the browser will load as a page (a `ui.Link` on a page without a
 live connection) is fetched ahead when the pointer rests on it for a
 moment, when it gets the focus, or when a finger touches it, so it opens
-at once.
+at once. On a page that isn't live the runtime fetches the navigation's
+reply itself, at most three at a time, and a click within 30 seconds uses
+it instead of asking again.
 
 `prefetch="viewport"` fetches it as soon as it scrolls into view, for the
 one link a page is mostly followed by; `prefetch="off"` never does. An
@@ -475,9 +575,11 @@ always gets you there:
 - a URL whose route doesn't answer with a page — a redirect (the browser
   follows its `Location`), an error page, JSON, a file;
 - another origin;
-- a page that isn't connected (still joining, or reconnecting);
+- a live page that isn't connected (still joining, or reconnecting);
 - a navigation that fails, or gets no reply within 10 seconds, or whose
   connection drops on the way.
+
+A page that isn't live loads in [the cases above](#over-http-fallbacks).
 
 A new page drops the [optimistic pushes](/ui/js#optimistic-updates) still
 waiting for the old one, without running their hooks. A reconnect later

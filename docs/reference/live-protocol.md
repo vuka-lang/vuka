@@ -64,7 +64,8 @@ The HTML a session renders carries these attributes:
 | `data-vk-id="c2"` | an instance's root element (the page is `c0`, the container); a render that isn't one element is wrapped in `<vk-c data-vk-id="…" style="display:contents">` |
 | `data-vk-key="…"` | an element's or instance's `key`, for pairing siblings in a morph |
 | `data-vk-on-<event>="c2:0"` | a handler for the DOM event `<event>` (`click`, `keydown`, `submit`, …): the instance's id and the handler's index in its render |
-| `data-vk-link`, `data-vk-link="patch"` | on an `<a href>`: a link the runtime follows over the connection ([navigation](#navigation)) |
+| `data-vk-link`, `data-vk-link="patch"` | on an `<a href>`: a link the runtime follows over the connection, or over HTTP on a page without one ([navigation](#navigation)) |
+| `data-vk-reload` | on such a link: the browser's to load, never followed in place |
 
 A runtime listens, delegated, for each event type a `data-vk-on-<event>`
 names, sends the nearest such element's handler id, and `preventDefault`s a
@@ -740,8 +741,47 @@ the position kept in the entry's state.
 Focus, after a navigate: the
 `[autofocus]` element, else `<main>`, else the first element with
 `data-vk-id`, given `tabindex="-1"` when it isn't focusable.
+From the first move in place, `history.scrollRestoration` is `manual`.
 
 A whole-document
 `c0` sets `document.title` and adds the `<head>` children the document lacks
 (compared by their markup; a script is recreated so that it runs). A
 navigate drops the optimistic pushes still waiting, without their hooks.
+
+### Over HTTP {#over-http}
+
+A page with no connection (its script has no `data-vk-token`) follows the
+same links, commands and history entries over HTTP, when its script names
+the build that rendered it (`data-vk-build-id`, which the web framework
+writes). The client sends
+
+```text
+GET /books/7
+Vk-Navigate: <the build id>
+```
+
+and the server runs the route as for a page load. Its answer:
+
+| | |
+|---|---|
+| `Vk-Page: <root>` and the page's HTML | the page: `<root>` is the root layout's id, as the page's script names it in `data-vk-root`, `-` for none; status 200, or an error page's (404, 500) |
+| `Vk-Live: <token>` with it | the page is live: the join token its render's session is parked under |
+| `204` and `Vk-Reload: <why>` | the page must load as a document: `build` (another build than the one named), `route` (`web.FullLoad`), `scripts` (its `<body>` holds a `<script>` that runs as it loads) |
+| anything else | a redirect elsewhere, a file, JSON, a page without `Vk-Page`: not a page to patch |
+
+Navigation replies carry `Vary: Vk-Navigate` and `Cache-Control: private`
+(`private, no-store` with a token), and an `ETag` (none with a token);
+`If-None-Match` answers `304`. A request without `Vk-Navigate` is answered
+as always. Nothing in the request is trusted for authorization or
+rendering: the header only picks the format.
+
+The client patches the reply's `<body>` into the document's (the morph of
+a `c0` patch, `<head>` merged) when it carries `Vk-Page` naming the page's
+own root and is `text/html`, whatever its status, then follows as after a
+`patch` reply: address, scroll, focus, `vk:navigate`; with `Vk-Live` it
+then connects with the token and joins. A redirect the fetch followed
+within the origin is applied at its final URL. Anything else, a network
+failure, or no reply in 10s loads the URL as a document; another move
+aborts the request in flight. Hovering, focusing or touching such a link
+fetches the reply ahead (the same request with `Purpose: prefetch`, at
+most three at a time), and a click within 30s uses it.

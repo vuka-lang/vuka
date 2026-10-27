@@ -1,0 +1,19 @@
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+// Counter is a live page under the same layout: a navigation to it joins.
+type Counter struct {
+	ui.Live
+	n int
+}
+
+// Inc counts a click.
+func (c *Counter) Inc() { c.n++ }
+</script>
+
+<section id="counter">
+  <p>count {n}</p>
+  <button onClick={Inc}>+</button>
+</section>

@@ -85,6 +85,31 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `@graphql.Subscription` is reserved for a later version
   ([E0806](/errors/E0806)).
 
+- **Pages that aren't live move in place.** A `ui.Link` on a page without a
+  live connection is fetched with a `Vk-Navigate` header instead of
+  loaded: the route runs as for a page load (guards, every layout's
+  `Load`, the page) and the runtime patches the new page into `<body>`,
+  keeping what didn't change — a field's focus and what was typed,
+  `data-vk-ignore`, islands the new page renders in the same place — with
+  the head merged, scroll, focus and `vk:navigate` as over a connection,
+  and back and forward fetching their pages. A live page reached so
+  joins, its mount hook run once. Another root layout, another build, a
+  body with scripts of its own, a reply that isn't a page, a network
+  failure or no reply in 10s load the page as before. Prefetch fetches the
+  navigation's reply, three at a time, and the toolbar shows each
+  navigation as the page. A request without the header is answered as
+  ever. See [Pages that aren't live](/web/navigation#pages-that-arent-live).
+
+- **`reload` and `@web.FullLoad`** keep a link, or every link to a page,
+  the browser's: `<ui.Link href="/report" reload>` (`data-vk-reload` on an
+  `<a>`), and `@web.FullLoad` on a page type or `web.FullLoad()` on a
+  route.
+
+- **Pages with links load the runtime.** A page whose only runtime need
+  is a `ui.Link` now gets the runtime's script (cached for good), so its
+  links move in place; every runtime script names the build that rendered
+  it (`data-vk-build-id`).
+
 - **Build errors say what is wrong, once.** A failed `vuka build`, `run`,
   `run -watch` or `vet` shows the errors of the packages that fail
   themselves, lower packages first, each at the `.vuka` or `.vuka.html`
