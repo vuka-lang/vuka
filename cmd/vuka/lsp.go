@@ -453,20 +453,22 @@ type vukaRequest struct {
 	editorID  json.RawMessage
 	method    string
 	file      *vfile
-	attr      bool        // completion after @, on an attribute or decorator
-	field     bool        // and the attribute is a struct field's
-	typed     lspRange    // there: what was typed after the last dot
-	full      lspRange    // and after the @
-	qualifier string      // the package typed before the dot, if any
-	closeTag  *lspRange   // asked on a closing tag's name, sent to its opening tag's
-	blocks    *lspRange   // completion after a markup child's {: the word typed, for block snippets
-	note      string      // hover: what to add to gopls's answer (an island page's lifecycle hook)
-	spot      *staticSpot // a possible Type.member use at the cursor (statics, field references)
-	tmpl      *tmplSpot   // completion in a template file's Go
-	varTyped  string      // completion of a bare name: what is typed of it
-	varRange  *lspRange   // and where
-	timer     *time.Timer // answers it without gopls at goplsDeadline
-	scripts   []any       // references: the scripts' calls of the method at the cursor (live.reorder)
+	attr      bool         // completion after @, on an attribute or decorator
+	field     bool         // and the attribute is a struct field's
+	typed     lspRange     // there: what was typed after the last dot
+	full      lspRange     // and after the @
+	qualifier string       // the package typed before the dot, if any
+	closeTag  *lspRange    // asked on a closing tag's name, sent to its opening tag's
+	blocks    *lspRange    // completion after a markup child's {: the word typed, for block snippets
+	note      string       // hover: what to add to gopls's answer (an island page's lifecycle hook)
+	spot      *staticSpot  // a possible Type.member use at the cursor (statics, field references)
+	tmpl      *tmplSpot    // completion in a template file's Go
+	varTyped  string       // completion of a bare name: what is typed of it
+	varRange  *lspRange    // and where
+	timer     *time.Timer  // answers it without gopls at goplsDeadline
+	scripts   []any        // references: the scripts' calls of the method at the cursor (live.reorder)
+	prop      *lspPosition // references on a shape's prop: its declaration in the generated Go
+	propURI   string       // and the generated file's uri
 }
 
 type proxy struct {
@@ -1272,6 +1274,7 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	vr.field = vr.attr && fieldAttrSpot(vf.text(), offsetOf(vf.text(), srcPos))
 	if m.Method == "textDocument/references" && hasPos {
 		vr.scripts = p.scriptCallsAt(vf, offsetOf(vf.text(), srcPos))
+		vr.prop, vr.propURI = propDeclAt(vf, offsetOf(vf.text(), srcPos)), pathToURI(genPath)
 	}
 	if m.Method == "textDocument/completion" && !strings.HasSuffix(vf.source, ".vuka.html") {
 		if s, ok := blockSpot(vf.text(), offsetOf(vf.text(), srcPos)); ok {
@@ -1561,10 +1564,21 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			}
 		}
 	case "textDocument/rename", "textDocument/references", "textDocument/documentHighlight":
+		if vr.method == "textDocument/documentHighlight" {
+			v = withRanges(v)
+		}
 		v = p.withCloseTwins(vr.method, v, vr.file)
 		if len(vr.scripts) > 0 {
 			list, _ := v.([]any)
 			v = append(list, vr.scripts...)
+		}
+		if vr.prop != nil {
+			list, _ := v.([]any)
+			go func() {
+				reply["result"] = withLocations(list, p.fieldTagRefs(vr.propURI, *vr.prop, vr.file)...)
+				_ = p.editor.send(reply)
+			}()
+			return
 		}
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v, vr.file.namesOf())

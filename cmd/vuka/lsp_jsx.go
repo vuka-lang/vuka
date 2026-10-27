@@ -1019,12 +1019,26 @@ func (p *proxy) jsxRequest(method string, params map[string]any, vf *vfile, genP
 		if ch, _ := ctx["triggerCharacter"].(string); jsxTriggers[ch] {
 			return func() any { return map[string]any{"isIncomplete": false, "items": []any{}} }
 		}
+	case "textDocument/references":
+		tag, a, ok := attrAt(src, off)
+		if !ok || off > a.end {
+			return nil
+		}
+		return func() any {
+			uri, r, ok := p.attrTarget(vf, genPath, tag, a.name)
+			if !ok {
+				return nil
+			}
+			return p.propRefs(uri, r.Start, params["context"], vf)
+		}
 	case "textDocument/hover", "textDocument/definition", "textDocument/declaration":
 		if i := bytes.LastIndexByte(src[:min(off+1, len(src))], '<'); i >= 0 {
 			tag, ok := readTag(src, i)
 			if ok && off >= tag.nameStart && off <= tag.nameEnd {
-				info := p.resolveComponent(vf.source, src, tag.name)
-				if info != nil && info.kind == "island" {
+				// p.mu is held: only an island, an unqualified name, is
+				// answered here, from the files alone; a package's
+				// component is gopls's (resolveComponent takes p.mu).
+				if info, _ := resolveIsland(vf.source, src, tag.name); info != nil {
 					if method == "textDocument/hover" {
 						return func() any { return markdownHover(info.markdown(tag.name), src, tag.nameStart, tag.nameEnd) }
 					}
