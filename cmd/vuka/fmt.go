@@ -21,8 +21,9 @@ import (
 // prints them, writes them back (-w), lists those that differ (-l), shows
 // the diff (-d), or fails listing them (-check, for CI). -rewrite writes a
 // .vuka.html file in the Go-header form in the <script lang="go"> one
-// first. A .vuka.html file is laid out by the [fmt] table of the project's
-// vuka.toml (width, tailwind).
+// first. -imports organizes each file's imports first, as goimports does
+// (organize.go). A .vuka.html file is laid out by the [fmt] table of the
+// project's vuka.toml (width, tailwind).
 func vukaFmt(args []string, stdout, stderr io.Writer) error {
 	fl := flag.NewFlagSet("fmt", flag.ContinueOnError)
 	fl.SetOutput(stderr)
@@ -31,6 +32,7 @@ func vukaFmt(args []string, stdout, stderr io.Writer) error {
 	diff := fl.Bool("d", false, "print a diff instead of the formatted file")
 	check := fl.Bool("check", false, "list files whose formatting differs and fail if any does; write nothing")
 	rewrite := fl.Bool("rewrite", false, "rewrite .vuka.html files in the Go-header form in the <script lang=\"go\"> form")
+	imports := fl.Bool("imports", false, "organize imports: remove unused ones, add missing ones, group them as goimports does")
 	if err := fl.Parse(args); err != nil {
 		return err
 	}
@@ -54,7 +56,7 @@ func vukaFmt(args []string, stdout, stderr io.Writer) error {
 			continue
 		}
 		for _, file := range files {
-			same, err := fmtFile(file, fmtMode{list: *list, write: *write, diff: *diff, rewrite: *rewrite}, stdout)
+			same, err := fmtFile(file, fmtMode{list: *list, write: *write, diff: *diff, rewrite: *rewrite, imports: *imports}, stdout)
 			if err != nil {
 				report(err)
 			}
@@ -71,7 +73,7 @@ func vukaFmt(args []string, stdout, stderr io.Writer) error {
 }
 
 // fmtMode is what vuka fmt does with a file.
-type fmtMode struct{ list, write, diff, rewrite bool }
+type fmtMode struct{ list, write, diff, rewrite, imports bool }
 
 // vukaFiles lists the .vuka files at path: the file itself, or those under
 // the directory, skipping hidden directories, node_modules, vendor and build
@@ -115,10 +117,20 @@ func fmtFile(path string, mode fmtMode, stdout io.Writer) (bool, error) {
 		return true, err
 	}
 	var out []byte
+	in := src
+	if mode.imports {
+		o, err := organizeImports(path, src, os.ReadFile, func() map[string]bool { return moduleVars(path) })
+		if err != nil {
+			return true, fmt.Errorf("%s: organizing imports: %v", path, err)
+		}
+		if e := o.edit; e != nil {
+			in = append(append(append([]byte(nil), src[:e.start]...), e.text...), src[e.end:]...)
+		}
+	}
 	if strings.HasSuffix(path, ".vuka.html") {
-		out, err = formatTemplateFile(path, src, mode.rewrite)
+		out, err = formatTemplateFile(path, in, mode.rewrite)
 	} else {
-		out, err = format.Source(src)
+		out, err = format.Source(in)
 	}
 	if err != nil {
 		return true, fmt.Errorf("%s:%v", path, err)
@@ -147,6 +159,45 @@ func fmtFile(path string, mode fmtMode, stdout io.Writer) (bool, error) {
 		stdout.Write(out)
 	}
 	return same, nil
+}
+
+// modVars holds each module's context processors' variables, by its root,
+// as vuka fmt -imports learns them.
+var modVars = map[string]map[string]bool{}
+
+// moduleVars are the names of the context processors' variables the
+// packages of the module holding path may read, which transpiling it
+// finds; nil when it doesn't transpile.
+func moduleVars(path string) map[string]bool {
+	root, modPath, err := load.ModuleRoot(filepath.Dir(path))
+	if err != nil {
+		return nil
+	}
+	if v, ok := modVars[root]; ok {
+		return v
+	}
+	modVars[root] = nil
+	pkgs, err := load.Discover(root, modPath, root, true, nil)
+	if err != nil {
+		return nil
+	}
+	tmp, err := os.MkdirTemp("", "vuka-fmt-")
+	if err != nil {
+		return nil
+	}
+	defer os.RemoveAll(tmp)
+	gens, _, _ := load.Transpile(pkgs, tmp, load.Options{Bare: true})
+	if len(gens) == 0 {
+		return nil
+	}
+	vars := map[string]bool{}
+	for _, g := range gens {
+		for _, v := range append(g.Available, g.Vars...) {
+			vars[v.Name] = true
+		}
+	}
+	modVars[root] = vars
+	return vars
 }
 
 // formatTemplateFile formats a .vuka.html file by its project's options,

@@ -1590,7 +1590,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	case "textDocument/foldingRange":
 		v = foldingRanges(vr.file, v)
 	case "textDocument/codeAction":
-		got := p.withShapeScriptAction(vr.file, v)
+		got := p.withShapeScriptAction(vr.file, withoutGoplsOrganize(v))
 		go func() {
 			reply["result"] = withRefactors(got, vr.editorID)
 			_ = p.editor.send(reply)

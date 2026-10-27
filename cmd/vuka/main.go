@@ -80,10 +80,11 @@ Usage:
 	        -diag=json print diagnostics as JSON)
 	vuka fix [-n] [fixer…]
 	        apply the fixers (all by default); -n only says what would change
-	vuka fmt [-l] [-w] [-d] [paths…]
+	vuka fmt [-l] [-w] [-d] [-imports] [paths…]
 	        format .vuka files (the current directory by default), as gofmt
 	        does Go: print them, write them back (-w), list those that
-	        differ (-l) or show the diff (-d)
+	        differ (-l) or show the diff (-d); -imports organizes their
+	        imports first, as goimports does
 	vuka lsp [-gopls path] [-log file] [-shared=false]
 	        language server for .vuka files (gopls behind a proxy), over stdio;
 	        run as gopls (a link named gopls) it is a drop-in gopls for .go files too

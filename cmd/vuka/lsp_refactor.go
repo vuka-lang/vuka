@@ -41,7 +41,7 @@ const cmdExtract = "vuka.extractComponent"
 
 // refactorKinds are the kinds of the code actions vuka adds, advertised
 // with gopls's.
-var refactorKinds = []string{"quickfix", "refactor.extract", "refactor.move", "refactor.rewrite"}
+var refactorKinds = []string{"quickfix", "refactor.extract", "refactor.move", "refactor.rewrite", kindOrganize}
 
 var (
 	// pendingActions holds the code actions vuka worked out for a request on a
@@ -132,12 +132,17 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 		return false
 	}
 	req := actionRequest{path: real, src: src, start: offsetOf(src, params.Range.Start), end: offsetOf(src, params.Range.End),
-		diags: params.Context.Diagnostics, only: params.Context.Only, read: p.readFunc(), uri: p.display}
+		diags: params.Context.Diagnostics, only: params.Context.Only, read: p.readFunc(), uri: p.display, ctxVars: p.contextVarNames}
 	p.mu.Lock()
 	if vf := p.virtual[p.bySource[real]]; vf != nil && bytes.Equal(vf.from, src) {
 		req.ctxFixes = vf.fixes // the build's rewrites hold for the text as it is
 	}
 	p.mu.Unlock()
+	if isVuka(path) && organizeOnly(req.only) {
+		// Organizing imports, as on save: vuka's alone, answered at once.
+		go func() { _ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": m.ID, "result": codeActions(req)}) }()
+		return true
+	}
 	ch := make(chan []any, 1)
 	if isVuka(path) || p.routeGo(path) {
 		// gopls answers it on the generated Go; vuka's join its answer.
@@ -367,8 +372,9 @@ type actionRequest struct {
 	diags      []map[string]any
 	only       []string
 	read       load.ReadFunc
-	uri        func(string) string // the path the editor knows a file by
-	ctxFixes   []edit              // the file's W0402 rewrites, from its last build
+	uri        func(string) string    // the path the editor knows a file by
+	ctxFixes   []edit                 // the file's W0402 rewrites, from its last build
+	ctxVars    func() map[string]bool // the context processors' variables files may read (organize.go)
 }
 
 // wants reports whether the request asks for actions of kind.
@@ -410,10 +416,18 @@ func codeActions(r actionRequest) []any {
 		if r.wants("quickfix") {
 			add(templateFixes(r)...)
 			add(ctxVarActions(r)...)
+			add(importFixes(r)...)
+		}
+		if r.wants(kindOrganize) {
+			add(organizeActions(r)...)
 		}
 	case strings.HasSuffix(r.path, ".vuka"):
 		if r.wants("quickfix") {
 			add(ctxVarActions(r)...)
+			add(importFixes(r)...)
+		}
+		if r.wants(kindOrganize) {
+			add(organizeActions(r)...)
 		}
 	case strings.HasSuffix(r.path, ".go"):
 		if r.wants("quickfix") || r.wants("refactor.move") {
