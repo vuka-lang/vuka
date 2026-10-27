@@ -187,7 +187,9 @@ With [`vuka run -watch`](/tools/cli#build-run-test-vet-install) the old build ke
 while the next one compiles, so the page in front of you can be older than
 your code. The handle says so: `building… 1.2s` while the next build
 compiles, and `build failed` when it didn't — the drawer then shows the
-compiler's output above the panels, `.vuka` file and line included. The
+build's errors above the panels, as [`vuka build` prints
+them](/tools/cli#build-errors): each at its `.vuka` file, line and column,
+with the code and a caret, and in one line the pages that fail with it. The
 build that keeps answering is the last good one, until a save compiles.
 
 ### Asset and Island Builds

@@ -85,6 +85,21 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `@graphql.Subscription` is reserved for a later version
   ([E0806](/errors/E0806)).
 
+- **Build errors say what is wrong, once.** A failed `vuka build`, `run`,
+  `run -watch` or `vet` shows the errors of the packages that fail
+  themselves, lower packages first, each at the `.vuka` or `.vuka.html`
+  line and column you wrote (never a generated line) with a code frame;
+  the files that fail only because they import one are counted in one
+  line (`-v` lists them). Every error is shown, ten a package and then how
+  many more (`vuka vet` shows them all). The common Go errors come with a
+  hint when their cause is certain: the signature of a call given the wrong
+  number of arguments and, in markup, the request's `ctx` it leaves out; an
+  attribute or a package used without its import, named; an orm model's
+  typed fields that weren't generated; a url the folder routes don't have.
+  Under `run -watch` on a terminal each build's errors replace the last
+  one's; the toolbar's build panel and the editor show the same. See
+  [When a Build Fails](/tools/cli#build-errors).
+
 ## v2.7.0 — unreleased
 
 - **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
