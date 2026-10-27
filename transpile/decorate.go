@@ -134,19 +134,6 @@ func (e *engine) retiredDecorator(f *fileState, a *Attr) bool {
 	return ok
 }
 
-// attrPackages are the packages whose attributes Vuka code writes most, by
-// the name they go by: an attribute naming one the file doesn't import is
-// told the import to add.
-var attrPackages = map[string]string{
-	"graphql": "github.com/vuka-lang/web/v2/graphql",
-	"web":     "github.com/vuka-lang/web/v2",
-	"auth":    "github.com/vuka-lang/web/v2/auth",
-	"cron":    "github.com/vuka-lang/web/v2/cron",
-	"ui":      "github.com/vuka-lang/ui/v2",
-	"forms":   "github.com/vuka-lang/ui/v2/forms",
-	"orm":     "github.com/vuka-lang/orm/v2",
-}
-
 // unimportedAttr reports a qualified attribute whose package the file
 // doesn't import (E0215): @graphql.Query without the graphql import, which
 // Go would only call undefined.
@@ -163,8 +150,8 @@ func (e *engine) unimportedAttr(f *fileState, a *Attr) bool {
 		}
 	}
 	d := e.errs.add("E0215", a.Pos, "@%s: this file imports no package named %s", a.Name, pkg)
-	if path, ok := attrPackages[pkg]; ok {
-		d.help("add the import: import %q", path)
+	if k, ok := ToolchainPackages[pkg]; ok && pkg != "vuka" {
+		d.help("add the import: import %q", k[0])
 	} else {
 		d.help("import the package %s names", pkg)
 	}
