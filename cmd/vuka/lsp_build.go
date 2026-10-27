@@ -18,6 +18,7 @@ import (
 
 	templparser "github.com/a-h/templ/parser/v2"
 
+	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -447,7 +448,15 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			diags[e.Pos.Filename] = d
 		}
 		pos := positionOf(text, off)
-		d.list = append(d.list, lspFromError(lspRange{pos, positionOf(text, off+e.Len)}, e))
+		r := lspRange{pos, positionOf(text, off+e.Len)}
+		if e.Code == "E0005" {
+			// The error at an import names the package's error at its source.
+			dg := e.Diagnostic("")
+			dg.Message, dg.Related = mapGoPositions(dg.Message, gens, p.modRoot)
+			d.list = append(d.list, lspFrom(r, dg))
+			continue
+		}
+		d.list = append(d.list, lspFromError(r, e))
 	}
 	// Which of them are syntax errors, that the editor's next change may
 	// have mended: the file's own syntax check says so.
@@ -803,13 +812,31 @@ func (p *proxy) takeGoDiags(vf *vfile, diagnostics []any) {
 			if strings.Contains(msg, placeholder) {
 				continue
 			}
-			obj["message"] = importHint(demangle(vf.m.Message(int(r.Start.Line)+1, msg), vf.names), p.modRoot, p.modPath)
+			obj["message"], r = p.goplsHint(vf, r, msg)
+			obj["range"] = r
 		}
 		delete(obj, "relatedInformation")
 		delete(obj, "data")
 		mapped = append(mapped, obj)
 	}
 	p.goDiags[vf.source] = &diagSet{text: vf.text(), list: mapped}
+}
+
+// goplsHint is gopls's message msg of the error at r in vf's source as vuka
+// reports it (goHints), and the range it is about.
+func (p *proxy) goplsHint(vf *vfile, r lspRange, msg string) (string, lspRange) {
+	text := vf.text()
+	from, to := offsetOf(text, r.Start), offsetOf(text, r.End)
+	h := goHints(hintInput{msg: msg, file: vf.source, src: text, from: from, to: to, markup: inMarkup(vf.source, text, from),
+		names: vf.names, respell: func(m string) string { return vf.m.Message(int(r.Start.Line)+1, m) }, modRoot: p.modRoot, modPath: p.modPath})
+	if h.span[1] > h.span[0] {
+		r = lspRange{positionOf(text, h.span[0]), positionOf(text, h.span[1])}
+	}
+	d := diag.Diagnostic{Message: h.msg, Help: h.help, Span: diag.Span{Label: h.label}}
+	if h.note != "" {
+		d.Message += "\nnote: " + h.note
+	}
+	return importHint(lspMessage(d), p.modRoot, p.modPath), r
 }
 
 // checkSyntax checks the .vuka buffer at path for syntax errors and shows

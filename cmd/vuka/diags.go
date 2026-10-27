@@ -136,15 +136,25 @@ func colorFor(w io.Writer) bool {
 // lspFrom is a diagnostic for the editor: its code linking to its page,
 // its message followed by what to do.
 func lspFrom(r lspRange, d diag.Diagnostic) lspDiagnostic {
-	d = docs.Fill([]diag.Diagnostic{d})[0]
-	msg := d.Message
-	if d.Help != "" {
-		msg += "\nhelp: " + d.Help
+	if d.Code != "E0002" {
+		d = docs.Fill([]diag.Diagnostic{d})[0]
 	}
-	if d.Suggest != "" {
-		msg += "\nhelp: did you mean " + d.Suggest + "?"
+	ld := lspDiagnostic{Range: r, Severity: 1, Source: "vuka", Message: lspMessage(d)}
+	for _, s := range d.Related {
+		if s.File == "" || s.Line == 0 {
+			continue
+		}
+		var at lspRange
+		if text, err := os.ReadFile(s.File); err == nil {
+			at.Start = positionOf(text, offsetAt(text, s.Line, max(s.Col, 1)))
+			at.End = at.Start
+		}
+		label := s.Label
+		if label == "" {
+			label = "the error"
+		}
+		ld.RelatedInformation = append(ld.RelatedInformation, lspRelated{Location: lspLocation{URI: pathToURI(s.File), Range: at}, Message: label})
 	}
-	ld := lspDiagnostic{Range: r, Severity: 1, Source: "vuka", Message: msg}
 	if d.Severity == diag.Warning {
 		ld.Severity = 2
 	}
@@ -152,6 +162,25 @@ func lspFrom(r lspRange, d diag.Diagnostic) lspDiagnostic {
 		ld.Code, ld.CodeDescription = string(d.Code), &lspCodeDesc{Href: d.Code.URL()}
 	}
 	return ld
+}
+
+// lspMessage is a diagnostic as the editor shows it: the message, what
+// its span shows, its notes and what to do, a line each.
+func lspMessage(d diag.Diagnostic) string {
+	msg, more, _ := strings.Cut(d.Message, "\n")
+	if d.Span.Label != "" {
+		msg += "\n" + d.Span.Label
+	}
+	if more != "" {
+		msg += "\n" + more
+	}
+	if d.Help != "" {
+		msg += "\nhelp: " + d.Help
+	}
+	if d.Suggest != "" {
+		msg += "\nhelp: did you mean " + d.Suggest + "?"
+	}
+	return msg
 }
 
 func lspFromError(r lspRange, e *transpile.Error) lspDiagnostic {

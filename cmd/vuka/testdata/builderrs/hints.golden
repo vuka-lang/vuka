@@ -1,0 +1,47 @@
+error[E0002]: "os" imported and not used
+ --> main.vuka:6
+  |
+6 |     "os"
+  |     ^^^^
+  |
+  = help: delete the import, or use the package
+
+error[E0002]: undefined: graphql
+  --> main.vuka:13:1
+   |
+13 | @graphql.Query
+   | ^^^^^^^^^^^^^^ graphql isn't imported
+   |
+   = help: import "github.com/vuka-lang/web/v2/graphql" for @graphql.Query
+
+error[E0002]: declared and not used: ctx
+  --> main.vuka:17:2
+   |
+17 |     ctx := context.Background()
+   |     ^^^
+
+error[E0002]: not enough arguments in call to get
+  --> main.vuka:18:14
+   |
+18 |     fmt.Println(get(1), strings.ToUpper("x"), web.Version)
+   |                 ^^^^^^ get takes (ctx context.Context, id int)
+   |
+   = help: pass ctx: get(ctx, 1)
+
+error[E0002]: undefined: strings
+  --> main.vuka:18:22
+   |
+18 |     fmt.Println(get(1), strings.ToUpper("x"), web.Version)
+   |                         ^^^^^^^ strings isn't imported
+   |
+   = help: import "strings"
+
+error[E0002]: undefined: web
+  --> main.vuka:18:44
+   |
+18 |     fmt.Println(get(1), strings.ToUpper("x"), web.Version)
+   |                                               ^^^ web isn't imported
+   |
+   = help: import "github.com/vuka-lang/web/v2"
+
+6 errors in 1 package
