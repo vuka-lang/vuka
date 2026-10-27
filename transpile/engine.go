@@ -554,6 +554,9 @@ func (e *engine) brokenImport() bool {
 	return false
 }
 
+// ImportFailure is importFailure, for the vuka command's reports.
+func ImportFailure(msg string) string { return importFailure(msg) }
+
 // importFailure unwraps go/types' "could not import P (why)" when why
 // already names P, as the load importer's explanations do.
 func importFailure(msg string) string {

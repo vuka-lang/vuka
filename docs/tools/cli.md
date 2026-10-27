@@ -328,6 +328,16 @@ beside `vuka` or on `PATH`, else one it builds at its own version
 `-vettool=…` overrides it, and `VUKA_VUKAVET=off` runs go vet's own
 analyzers only.
 
+**`vuka vet` reports what it was asked about.** Given directories
+(`vuka vet ./entities/`, `./modules/...`), it transpiles the whole module, as
+a build does, but reports only the warnings of those packages, and the
+errors of those packages and of the module's packages they import, through
+Go packages and Vuka packages alike — the errors that stop them building.
+Another package's errors don't fail it; one line counts them (`(1 error in
+packages not asked about, nor imported by them: vuka vet ./... lists it)`).
+`vuka vet ./...`, no packages, or packages named by import path report the
+whole module.
+
 ## Ejecting to Go {#eject}
 
 `vuka eject` turns `.vuka` files into Go:
@@ -374,6 +384,9 @@ See [The Schema Command](/web/graphql#schema-command).
 `vuka explain` shows what Vuka makes of a file: each rewritten line beside the Go it becomes,
 then the code added after the source (decorator wrappers, statics), each
 labelled with the line it comes from. `-full` prints the whole generated file.
+It transpiles the file's package and what that imports of the module (Go
+packages too), as the build does, so an error elsewhere in the module
+doesn't stop it.
 
 Given a diagnostic's code, it prints that code's page of the
 [catalogue](/errors/): what is wrong, why, and an example before and after

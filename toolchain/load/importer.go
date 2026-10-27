@@ -36,6 +36,8 @@ type Importer struct {
 	errs    map[string]string
 	mods    map[string]*goModule // import path → its module, as go list reported it
 	stale   map[string]bool      // main-module packages that failed: listed again once the overlay changes
+	root    string               // the main module's directory
+	modPath string               // the main module's path; "" when Dir is in none
 	broken  map[string]bool      // Vuka packages that didn't transpile
 	gc      types.ImporterFrom
 	cache   *exportCache // packages outside the main module, across runs; nil for none
@@ -51,7 +53,17 @@ func NewImporter(dir, overlay string) *Importer {
 	im := &Importer{Dir: dir, Overlay: overlay, exports: map[string]string{}, errs: map[string]string{},
 		mods: map[string]*goModule{}, stale: map[string]bool{}, broken: map[string]bool{}}
 	im.gc = importer.ForCompiler(token.NewFileSet(), "gc", im.lookup).(types.ImporterFrom)
+	if root, mp, err := ModuleRoot(dir); err == nil {
+		im.root, im.modPath = root, mp
+	}
 	return im
+}
+
+// inMain reports whether path names a package of the main module: one the
+// overlay may give Go files it hasn't now, like a package of only .vuka
+// files, which the go command calls "not in std" until it has.
+func (im *Importer) inMain(path string) bool {
+	return im.modPath != "" && (path == im.modPath || strings.HasPrefix(path, im.modPath+"/"))
 }
 
 // newCachedImporter is an importer for the module at root that remembers the
@@ -269,13 +281,19 @@ func (im *Importer) list(paths ...string) error {
 		}
 		im.exports[p.ImportPath] = p.Export
 		im.mods[p.ImportPath] = p.Module
+		delete(im.errs, p.ImportPath) // what an earlier listing said of it is no longer news
 		if p.Error == nil && p.Export == "" && compile[p.ImportPath] != "" {
 			p.Error = &goError{Err: compile[p.ImportPath]}
 		}
 		switch {
 		case p.Error != nil || len(p.DepsErrors) > 0 || p.Export == "":
 			failed = append(failed, p)
-			if p.Module != nil && p.Module.Main {
+			// A package of the module that failed may compile once the
+			// overlay has more: a Go package importing a Vuka package not
+			// transpiled yet, or that Vuka package itself, which the go
+			// command finds in no module (no Go files) until the overlay
+			// has its Go.
+			if p.Module != nil && p.Module.Main || p.Module == nil && im.inMain(p.ImportPath) {
 				im.stale[p.ImportPath] = true
 			}
 		case im.cache != nil && (p.Standard || p.Module != nil && !p.Module.Main && (p.Module.Replace == nil || p.Module.Replace.Version != "")):
@@ -311,8 +329,9 @@ func (im *Importer) failure(path string, own *goError, deps []*goError) string {
 	}
 	culprit, detail, compiled := im.explain(e)
 	if !compiled && e == own {
-		return e.Err // what the go command says about the import itself
+		return im.notFound(e.Err) // what the go command says about the import itself
 	}
+	detail = im.notFound(detail)
 	if culprit == "" {
 		culprit = path
 	}
@@ -365,6 +384,51 @@ func (im *Importer) explain(e *goError) (culprit, detail string, compiled bool) 
 		detail = im.absPos(e.Pos) + ": " + e.Err
 	}
 	return culprit, detail, false
+}
+
+// notInStd matches the go command's error for an import path it finds in
+// no module of the build: the standard library's, it supposes.
+var notInStd = regexp.MustCompile(`package (\S+) is not in std \([^)]*\)`)
+
+// notFound says, in place of the go command's "not in std" for a path of
+// the main module, what is wrong: no such folder, or one without Go —
+// a package of only .vuka files whose Go this build hasn't.
+func (im *Importer) notFound(msg string) string {
+	return notInStd.ReplaceAllStringFunc(msg, func(m string) string {
+		path := notInStd.FindStringSubmatch(m)[1]
+		if !im.inMain(path) || im.root == "" {
+			return m
+		}
+		rel := strings.TrimPrefix(strings.TrimPrefix(path, im.modPath), "/")
+		dir := filepath.Join(im.root, filepath.FromSlash(rel))
+		show := rel + "/"
+		if rel == "" {
+			show = "the module's root"
+		}
+		switch {
+		case !isDir(dir):
+			return fmt.Sprintf("%s isn't a package of module %s: %s doesn't exist", path, im.modPath, show)
+		case hasVukaFiles(dir):
+			return fmt.Sprintf("%s has only .vuka files, and this build has no Go for them", path)
+		}
+		return fmt.Sprintf("%s isn't a package of module %s: %s has no Go files", path, im.modPath, show)
+	})
+}
+
+func isDir(path string) bool {
+	fi, err := os.Stat(path)
+	return err == nil && fi.IsDir()
+}
+
+// hasVukaFiles reports whether dir holds .vuka or .vuka.html files.
+func hasVukaFiles(dir string) bool {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if n := e.Name(); !e.IsDir() && (strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".vuka.html")) {
+			return true
+		}
+	}
+	return false
 }
 
 // absPos makes the file of a "file:line:col: …" line absolute; the go

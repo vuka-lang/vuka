@@ -209,14 +209,16 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	var vetFailed bool
+	var scope *vetScope // nil: the whole module's report
 	if cmd == "vet" {
+		scope = newVetScope(root, modPath, pkgs, args)
 		var ds []diag.Diagnostic
 		if pa != nil {
 			ds = vetIslands(root, modPath, pa)
 			ds = append(ds, vetScripts(root, modPath, pa)...)
 		}
 		ds = append(ds, routesUnserved(root, modPath, scanRoutes(root, modPath, nil))...)
-		if ds = append(ds, vetLivePages(root, pkgs)...); len(ds) > 0 {
+		if ds = scope.warnings(append(ds, vetLivePages(root, pkgs)...)); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
 				vetFailed = vetFailed || d.Severity == diag.Error
@@ -238,11 +240,21 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	ro := reportOptions{color: colorFor(stderr), verbose: slices.Contains(args, "-v"), all: cmd == "vet"}
 	if len(pkgs) > 0 {
 		if gens, overlay, err = cachedTranspile(root)(pkgs, tmp, loadOptions(pa)); err != nil {
-			return failedBuild(stderr, transpileReport(buildInput{root, modPath, overlay, gens}, err), err, ro)
+			in := buildInput{root, modPath, overlay, gens}
+			rep := transpileReport(in, err)
+			left := scope.report(rep, in)
+			if scope == nil || rep == nil || !rep.empty() {
+				err = failedBuild(stderr, rep, err, ro)
+				writeLeftOut(stderr, left)
+				return err
+			}
+			// Only packages it wasn't asked about fail: the asked ones,
+			// transpiled, are vetted.
+			writeLeftOut(stderr, left)
 		}
 	}
 	if cmd == "vet" {
-		if ds := transpileWarnings(root, gens); len(ds) > 0 {
+		if ds := scope.warnings(transpileWarnings(root, gens)); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 		}
 	}
