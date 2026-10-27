@@ -134,6 +134,54 @@ func (e *engine) retiredDecorator(f *fileState, a *Attr) bool {
 	return ok
 }
 
+// attrPackages are the packages whose attributes Vuka code writes most, by
+// the name they go by: an attribute naming one the file doesn't import is
+// told the import to add.
+var attrPackages = map[string]string{
+	"graphql": "github.com/vuka-lang/web/v2/graphql",
+	"web":     "github.com/vuka-lang/web/v2",
+	"auth":    "github.com/vuka-lang/web/v2/auth",
+	"cron":    "github.com/vuka-lang/web/v2/cron",
+	"ui":      "github.com/vuka-lang/ui/v2",
+	"forms":   "github.com/vuka-lang/ui/v2/forms",
+	"orm":     "github.com/vuka-lang/orm/v2",
+}
+
+// unimportedAttr reports a qualified attribute whose package the file
+// doesn't import (E0215): @graphql.Query without the graphql import, which
+// Go would only call undefined.
+func (e *engine) unimportedAttr(f *fileState, a *Attr) bool {
+	pkg, _, ok := strings.Cut(a.Name, ".")
+	if !ok || pkg == "vuka" || e.declared[pkg] || e.importedAs(f, pkg) != nil {
+		return false
+	}
+	for _, imp := range f.ast.Imports {
+		// An import going by that name that doesn't load: Go says why.
+		path, _ := strconv.Unquote(imp.Path.Value)
+		if imp.Name != nil && imp.Name.Name == pkg || imp.Name == nil && importName(path) == pkg {
+			return false
+		}
+	}
+	d := e.errs.add("E0215", a.Pos, "@%s: this file imports no package named %s", a.Name, pkg)
+	if path, ok := attrPackages[pkg]; ok {
+		d.help("add the import: import %q", path)
+	} else {
+		d.help("import the package %s names", pkg)
+	}
+	return true
+}
+
+// importName is the name an import path's package goes by, guessed from
+// the path: its last element, a major version's (/v2) skipped.
+func importName(path string) string {
+	parts := strings.Split(path, "/")
+	last := parts[len(parts)-1]
+	if len(parts) > 1 && len(last) > 1 && last[0] == 'v' && strings.Trim(last[1:], "0123456789") == "" {
+		last = parts[len(parts)-2]
+	}
+	return strings.TrimPrefix(last, "go-")
+}
+
 // pageVerbs are web's route decorators, which declare a page on a type.
 var pageVerbs = map[string]bool{"Get": true, "Post": true, "Put": true, "Patch": true, "Delete": true, "Handle": true}
 
@@ -296,7 +344,7 @@ func (e *engine) decorate() bool {
 		groups := map[ast.Decl][]*Attr{}
 		var order []ast.Decl
 		for _, a := range f.attrs {
-			if e.retiredDecorator(f, a) || e.pageDecorator(f, a) {
+			if e.unimportedAttr(f, a) || e.retiredDecorator(f, a) || e.pageDecorator(f, a) {
 				continue
 			}
 			if f.rt == "" && strings.HasPrefix(a.Name, "vuka.") && e.isRuntimeName(f, a.Name, a.Name[len("vuka."):]) {

@@ -1,0 +1,4 @@
+err_graphql_loader.vuka:11:1: @graphql.Loader: NoKeys takes no keys; a loader is func Name(ctx context.Context, keys []K, deps…) (map[K]V, error); the function is given the keys a request's fields ask for, and returns their values by key
+err_graphql_loader.vuka:14:1: @graphql.Loader: NotASlice takes int for its keys, not a slice; a loader is func Name(ctx context.Context, keys []K, deps…) (map[K]V, error); the function is given the keys a request's fields ask for, and returns their values by key
+err_graphql_loader.vuka:17:1: @graphql.Loader: NoMap returns []string, error; a loader is func Name(ctx context.Context, keys []K, deps…) (map[K]V, error); the function is given the keys a request's fields ask for, and returns their values by key
+err_graphql_loader.vuka:20:1: @graphql.Loader on Taken writes NewTaken, which the package declares already; rename Taken, or the other NewTaken

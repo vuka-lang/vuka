@@ -1,0 +1,39 @@
+package main
+query Customers(page: Page): Connection[main.Customer]! "Customers pages the customers."
+query Everyone(trackingID: String, orderID: ID): [Customer!]! "Everyone has no limit."
+loader OrdersByCustomer(store <- *main.Store): main.OrdersByCustomer
+loader Names: main.Names
+type Connection[main.Customer]
+  Edges: [Edge[main.Customer]!]!
+  PageInfo: PageInfo!
+  TotalCount: Int!
+type Edge[main.Customer]
+  Cursor: String!
+  Node: Customer!
+type Customer
+  ID: ID!
+  Name: String!
+  Orders(orders <- main.OrdersByCustomer): [Order!]!
+  Recent: [Order!]!
+type Order
+  ID: ID!
+  Customer: Customer
+  Tags: [Tag!]!
+  TrackingID: ID!
+  Code: String!
+  Lines: [Line!]!
+  Owner: Customer
+type Tag
+  ID: ID!
+  Name: String!
+type Line
+  ID: ID!
+  OrderID: ID!
+type PageInfo
+  HasNextPage: Boolean!
+  HasPreviousPage: Boolean!
+  StartCursor: String
+  EndCursor: String
+load Customer of 1 Order
+loaded: true
+30

@@ -1,0 +1,17 @@
+error[E0215]: @graphql.Query: this file imports no package named graphql
+ --> err_attrimport.vuka:5:1
+  |
+5 | @graphql.Query
+  | ^^^^^^^^^^^^^^
+  |
+  = help: add the import: import "github.com/vuka-lang/web/v2/graphql"
+
+error[E0215]: @billing.Metered: this file imports no package named billing
+ --> err_attrimport.vuka:8:1
+  |
+8 | @billing.Metered
+  | ^^^^^^^^^^^^^^^^
+  |
+  = help: import the package billing names
+
+For more information about this error, try `vuka explain E0215`.

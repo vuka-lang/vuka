@@ -96,6 +96,7 @@ same page in the terminal.
 | [E0212](./E0212) | Decorated init |
 | [E0213](./E0213) | A declarer can't take this declaration |
 | [E0214](./E0214) | Bad @export |
+| [E0215](./E0215) | An attribute of a package the file doesn't import |
 
 ## Islands and live pages
 
@@ -241,3 +242,5 @@ same page in the terminal.
 | [E0805](./E0805) | A GraphQL declaration that doesn't fit |
 | [E0806](./E0806) | A GraphQL subscription |
 | [E0807](./E0807) | A GraphQL schema the specification refuses |
+| [W0801](./W0801) | A GraphQL field querying once per parent |
+| [W0802](./W0802) | A GraphQL list without a limit |

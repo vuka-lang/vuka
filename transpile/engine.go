@@ -69,7 +69,9 @@ type engine struct {
 	typeErrs []types.Error
 	progress bool
 
-	graphqlDone bool // the GraphQL registrations are written (graphql.go)
+	graphqlDone bool         // the GraphQL registrations are written (graphql.go)
+	loaders     []*gqlLoader // the package's @graphql.Loader functions (graphqlloader.go)
+	gqlWarns    map[*fileState]ErrorList
 }
 
 func (e *engine) run() {
@@ -180,6 +182,12 @@ func (e *engine) run() {
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()
 		e.warns = e.ctxWarnings()
+		for f, ws := range e.gqlWarns {
+			if e.warns == nil {
+				e.warns = map[*fileState]ErrorList{}
+			}
+			e.warns[f] = append(e.warns[f], ws...)
+		}
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.report()
@@ -268,6 +276,9 @@ func (e *engine) prepare() {
 	e.inferSelf()
 	e.findSchemas()
 	if e.decorate() || len(e.sets) > 0 {
+		e.progress = true
+	}
+	if e.gqlLoaders() {
 		e.progress = true
 	}
 	e.checkSchemas()

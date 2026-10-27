@@ -1,0 +1,28 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+type DB struct{}
+
+@graphql.Loader
+func NoKeys(ctx context.Context) (map[int]string, error) { return nil, nil }
+
+@graphql.Loader
+func NotASlice(ctx context.Context, id int) (map[int]string, error) { return nil, nil }
+
+@graphql.Loader
+func NoMap(ctx context.Context, ids []int) ([]string, error) { return nil, nil }
+
+@graphql.Loader
+func Taken(ctx context.Context, ids []int) (map[int]string, error) { return nil, nil }
+
+func NewTaken() {}
+
+@graphql.Query
+func Ok(ctx context.Context, db *DB) (int, error) { return 0, nil }
+
+func main() {}

@@ -1,0 +1,17 @@
+error[E0805]: @graphql.Loader: OtherKeys takes keys of int and returns map[string]string
+  --> err_graphql_loadertypes.vuka:11:1
+   |
+11 | @graphql.Loader
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: return the values by the keys the function is given: map[K]V for keys []K
+
+error[E0805]: @graphql.Loader: ValueDep's parameter n is int, which isn't a dependency
+  --> err_graphql_loadertypes.vuka:14:1
+   |
+14 | @graphql.Loader
+   | ^^^^^^^^^^^^^^^
+   |
+   = help: a loader takes the context, its keys and what the app provides: pointers and interfaces
+
+For more information about this error, try `vuka explain E0805`.
