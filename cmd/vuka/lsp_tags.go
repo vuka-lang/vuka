@@ -62,27 +62,7 @@ func (p *proxy) resolveComponent(srcPath string, src []byte, tag string) *tagInf
 	}
 	dir := filepath.Dir(srcPath)
 	if qual == "" {
-		for _, im := range sourceImports(srcPath, src) {
-			if im.Name != name || !tsprops.IsComponent(im.Path) {
-				continue
-			}
-			root, _, _ := load.ModuleRoot(dir)
-			file, err := tsprops.ResolveIslandPath(root, dir, im.Path)
-			if err != nil {
-				return nil
-			}
-			data, err := load.ReadSource(file)
-			if err != nil {
-				return nil
-			}
-			comp, err := tsprops.Read(filepath.ToSlash(file), data, func(file string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(file)) })
-			if err != nil {
-				return nil
-			}
-			info := &tagInfo{name: name, kind: "island", file: file, line: 1}
-			for _, pr := range comp.Props {
-				info.props = append(info.props, tagProp{attr: pr.Name, typ: pr.Type.String(), required: !pr.Optional})
-			}
+		if info, ok := resolveIsland(srcPath, src, name); ok {
 			return info
 		}
 	}
@@ -107,6 +87,38 @@ func (p *proxy) resolveComponent(srcPath string, src []byte, tag string) *tagInf
 		p.fillSlots(info)
 	}
 	return info
+}
+
+// resolveIsland finds the island an unqualified tag name names: a
+// component file the file at srcPath imports by that name, nil when the
+// file can't be read; false when it imports none by that name. It reads
+// files only, never the proxy's state, so it may run with p.mu held.
+func resolveIsland(srcPath string, src []byte, name string) (*tagInfo, bool) {
+	dir := filepath.Dir(srcPath)
+	for _, im := range sourceImports(srcPath, src) {
+		if im.Name != name || !tsprops.IsComponent(im.Path) {
+			continue
+		}
+		root, _, _ := load.ModuleRoot(dir)
+		file, err := tsprops.ResolveIslandPath(root, dir, im.Path)
+		if err != nil {
+			return nil, true
+		}
+		data, err := load.ReadSource(file)
+		if err != nil {
+			return nil, true
+		}
+		comp, err := tsprops.Read(filepath.ToSlash(file), data, func(file string) ([]byte, error) { return load.ReadSource(filepath.FromSlash(file)) })
+		if err != nil {
+			return nil, true
+		}
+		info := &tagInfo{name: name, kind: "island", file: file, line: 1}
+		for _, pr := range comp.Props {
+			info.props = append(info.props, tagProp{attr: pr.Name, typ: pr.Type.String(), required: !pr.Optional})
+		}
+		return info, true
+	}
+	return nil, false
 }
 
 // sourceImports are a .vuka.html or .vuka file's imports.

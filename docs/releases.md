@@ -306,6 +306,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
   with no edits) rather than left waiting; an answer coming after that is
   dropped (#149).
 
+- **Go to definition between components answers at once.** Since v2.6.0,
+  hover, definition or declaration on a tag naming another package's
+  component (`<components.PasswordField>`, `<layouts.Applicant>`) stopped
+  `vuka lsp` for good: the check for an island read the package's
+  directory under a lock the request already held. Every later request
+  then waited for its deadline and got nothing — definition and peek on
+  "Loading…", hovers that never came back, a save's formatting running on
+  — until the editor was restarted. On an app with 35 shapes, each
+  definition, type definition, references, hover and highlight on a
+  component's tag, a prop's attribute and in the component's file now
+  answers in milliseconds (the first after opening a file in about 3
+  seconds, its build) instead of 15. Definition on a tag lands on the
+  component's type in its `.vuka.html`, on an attribute on the prop's
+  field; references of a component, or of a prop from its attribute or
+  from the component's own file, list the tags and attributes using it in
+  other packages' markup, and highlights no longer include entries
+  without a place.
+
 ## v2.6.0 — 2026-10-26
 
 - **Commands pushed from a hook reach their handlers.** A Push step in a
