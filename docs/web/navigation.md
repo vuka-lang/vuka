@@ -369,6 +369,35 @@ What can't be patched is loaded as an ordinary page, for `GET`s only:
 Another click while a navigation is in flight aborts it and starts the
 next.
 
+### Why a Link Loaded the Whole Page {#why-it-loaded}
+
+Under `vuka run` the app says why, so a link that never moves in place
+doesn't go unnoticed. The terminal prints one line per cause, the first
+time it happens:
+
+```text
+WARN web: navigation to /auth/register loads in full: its body runs a script of its own: <script src="/static/theme.js">; move it into <head>, make it a component script, or mark the link reload
+```
+
+The browser's console says the same, once per cause per page load
+(`vuka: navigation to /auth/register loads in full (scripts): …`), and
+the [toolbar](/web/toolbar)'s record of the navigation shows
+`full load: scripts` with the detail. The causes and their fixes:
+
+| Reason | Why | Fix |
+| --- | --- | --- |
+| `scripts` | the page's `<body>` runs a script; the line names the first tag | move it into `<head>`, make it a [component's script](/web/assets#scripts), or mark the link `reload` |
+| `route` | the route is `@web.FullLoad` | none needed: it asks for it |
+| `build` | the app was rebuilt since the page loaded | none: expected after a rebuild (the terminal logs it at debug, the console at info) |
+| `another root layout` | the page, or an error page, is under another root layout | expected; an error page patches only into a page under the same root layout |
+| `not a page`, `another origin` | the reply is a file, JSON, HTML the app wrote itself, or a redirect elsewhere | expected; mark the link `reload` to skip the request |
+| `timeout`, `network` | no reply in 10 seconds, or the request failed | look at the route's time in the toolbar |
+
+The terminal knows the server's reasons (`scripts`, `route`, `build`); the
+others are the browser's, in the console. A production app says nothing:
+no log line, no `Vk-Reload-Detail` header (the reply's text of the
+reason), nothing in the console.
+
 ### Opting Out {#opting-out}
 
 A link marked `reload` (or an `<a>` with `data-vk-reload`) is always the
