@@ -1,0 +1,1 @@
+page.vuka.html:11:1: @ui.Defer is for stateless pages; Page is live (it embeds ui.Live): a live page loads in its @ui.Mount hook and pushes with Update; drop the attribute and load Stats in @ui.Mount into a field the markup reads

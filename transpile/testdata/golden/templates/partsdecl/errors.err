@@ -1,0 +1,4 @@
+page.vuka.html:8:1: @ui.Defer: Page.Count is func() int; a deferred method takes a context.Context and returns (T, error); func (p *Page) Count(ctx context.Context) (T, error)
+page.vuka.html:12:1: Total has @ui.Defer and @ui.Defer("lists"): one says when it runs; keep one
+service.vuka:9:1: @ui.Defer goes on a page's or component's method: load is a function; make it a method of the page whose markup shows it, or drop @ui.Defer
+service.vuka:12:1: @ui.Defer goes on a page's or component's method: Stats is a method of main.Service, which no template renders; put it on a method of the page whose markup shows it, calling Service.Stats, or drop @ui.Defer

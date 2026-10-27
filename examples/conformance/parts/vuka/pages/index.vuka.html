@@ -1,0 +1,49 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"example.com/app/store"
+)
+
+// Index is the account's home: GET /. Its figures, lists, inbox and alerts
+// are deferred: the page answers at once, each part streaming after it.
+type Index struct {
+	store store.Store
+}
+
+@ui.Defer
+func (p *Index) Figures(ctx context.Context) (store.Figures, error) { return p.store.Figures(ctx) }
+
+@ui.Defer("lists")
+func (p *Index) Recent(ctx context.Context) ([]string, error) { return p.store.Recent(ctx) }
+
+@ui.Defer("lists")
+func (p *Index) Tags(ctx context.Context) ([]string, error) { return p.store.Tags(ctx) }
+
+@ui.Defer
+func (p *Index) Inbox(ctx context.Context) (int, error) { return p.store.Inbox(ctx) }
+
+@ui.Defer
+func (p *Index) Alerts(ctx context.Context) (int, error) { return p.store.Alerts(ctx) }
+</script>
+
+<html lang="en">
+  <head><title>Applications</title></head>
+  <body>
+    <h1>My applications</h1>
+    <p class="figures">{Figures(ctx).Open} open · {Figures(ctx).Shortlisted} shortlisted</p>
+    <ui.Fallback for={Figures}><span class="skeleton">…</span></ui.Fallback>
+    <ul class="recent">
+      for _, r := range Recent(ctx) {
+        <li>{r}</li>
+      }
+    </ul>
+    <p class="tags">{len(Tags(ctx))} tags</p>
+    <p class="inbox">{Inbox(ctx)} unread</p>
+    <p class="alerts">{Alerts(ctx)} alerts</p>
+    <ui.Fallback for={Alerts} error><p class="alerts">Alerts are unavailable.</p></ui.Fallback>
+    <ui.Link href="/ingo">In Go</ui.Link>
+  </body>
+</html>

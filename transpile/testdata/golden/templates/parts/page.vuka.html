@@ -1,0 +1,28 @@
+package main
+
+import "context"
+
+// Page shows a store's figures, its slow parts deferred.
+type Page struct {
+	Store Store
+}
+
+@ui.Defer
+func (p *Page) Stats(ctx context.Context) (Figures, error) { return p.Store.Stats(ctx) }
+
+@ui.Defer("lists")
+func (p *Page) Recent(ctx context.Context) ([]string, error) { return p.Store.Recent(ctx) }
+<section class="apps">
+  <h2>My applications</h2>
+  <p class="figures" title="{Stats(ctx).Open} open">{Stats(ctx).Open} open · {Stats(ctx).Shortlisted} shortlisted</p>
+  <ui.Fallback for={Stats}><span class="skeleton">…</span></ui.Fallback>
+  <ul class="recent">
+    for _, r := range Recent(ctx) {
+      <li>{r}</li>
+    }
+  </ul>
+  <ui.Fallback for={Recent} error><p role="alert">no recent</p></ui.Fallback>
+  if Stats(ctx).Open > 0 {
+    <b>{Stats(ctx).Open} waiting · {len(Recent(ctx))}</b>
+  }
+</section>
