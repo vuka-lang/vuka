@@ -71,6 +71,7 @@ same page in the terminal.
 | [E0158](./E0158) | A tag leaves out a required field |
 | [E0159](./E0159) | A model or for attribute names a field the form lacks |
 | [E0160](./E0160) | A call in markup returns values markup can't take |
+| [E0161](./E0161) | ui.FormOf names a field the model lacks |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
@@ -139,6 +140,8 @@ same page in the terminal.
 | [W0309](./W0309) | A form method names no field of the form |
 | [W0310](./W0310) | A form field has a placeholder and no label |
 | [W0311](./W0311) | A form embeds a database model |
+| [W0312](./W0312) | A form field's control leaves out a constraint attribute |
+| [W0313](./W0313) | A depends tag names a field the form lacks |
 
 ## Routes and the web app
 
