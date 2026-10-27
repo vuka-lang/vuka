@@ -45,6 +45,8 @@ type engine struct {
 	selfNames       map[string]bool           // its package-level names, for a self-target before type-checking
 	ctx             *ctxVars                  // the context processors' variables (Options.Contexts)
 	warns           map[*fileState]ErrorList  // and the warnings about them (contextvet.go)
+	srcs            []File                    // the package's files, as read
+	importPaths     map[string]string         // pathFor's answers, by file and name
 
 	declared      map[string]bool               // package-level names
 	errFuncs      map[string]bool               // per function: whether ? names its error err
@@ -488,9 +490,10 @@ func (e *engine) report() {
 		maps.Copy(reported, re.hide)
 	}
 	shown := 0
+	brokenPaths := e.brokenPaths()
 	for _, te := range e.typeErrs {
 		broken := strings.HasPrefix(te.Msg, "could not import ")
-		if shown >= 5 && !broken || reported[e.typeErrPos(te)] || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") ||
+		if shown >= 5 && !broken || reported[e.typeErrPos(te)] || e.mentionsOverload(te.Msg) || strings.Contains(te.Msg, "declared and not used") || e.knockOnErr(te, brokenPaths) ||
 			strings.Contains(te.Msg, "cannot infer T") || strings.Contains(te.Msg, completionPlaceholder) || e.typedFieldsMissing(te.Msg) {
 			continue
 		}

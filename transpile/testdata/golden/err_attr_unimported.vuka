@@ -1,0 +1,15 @@
+package main
+
+import "context"
+
+type Post struct {
+	ID    int64  @orm.PK
+	Title string @orm.Char{Max: 80}
+	Body  string @orm.Text
+	Slug  string @orm.Char{Max: 20}
+}
+
+@graphql.Query
+func Posts(ctx context.Context) ([]Post, error) { return nil, nil }
+
+func main() {}

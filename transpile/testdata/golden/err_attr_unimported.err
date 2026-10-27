@@ -1,0 +1,2 @@
+err_attr_unimported.vuka:6:15: @orm.PK, @orm.Char and 1 more: this file imports no package named orm; add the import: import "github.com/vuka-lang/orm/v2"
+err_attr_unimported.vuka:12:1: @graphql.Query: this file imports no package named graphql; add the import: import "github.com/vuka-lang/web/v2/graphql"

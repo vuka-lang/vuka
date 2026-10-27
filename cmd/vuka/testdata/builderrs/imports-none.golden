@@ -1,0 +1,19 @@
+error[E0215]: @graphql.Query and @graphql.Mutation: this file imports no package named graphql
+  --> entities/user.vuka:16:1
+   |
+16 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+  ::: entities/user.vuka:19:1
+   |
+19 | @graphql.Mutation
+   | -----------------
+  ::: entities/user.vuka:22:1
+   |
+22 | @graphql.Query
+   | --------------
+   |
+   = help: add the import: import "github.com/vuka-lang/web/v2/graphql"
+
+For more information about this error, try `vuka explain E0215`.
+
+1 error in 1 package · 2 files couldn't build because of it

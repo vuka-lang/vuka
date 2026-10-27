@@ -95,7 +95,7 @@ func (r *buildReport) write(w io.Writer, o reportOptions) {
 	// Go's own type errors need no explaining; what vuka's codes mean does.
 	diag.Footer(&b, slices.DeleteFunc(slices.Clone(shown), func(d diag.Diagnostic) bool { return d.Code == "E0002" }), ro)
 	if o.verbose && len(r.importers) > 0 {
-		fmt.Fprintf(&b, "\nthe %s that couldn't build because of them:\n", importerNoun(r.importers, wd, true))
+		fmt.Fprintf(&b, "\nthe %s that couldn't build because of %s:\n", importerNoun(r.importers, wd, len(importerFiles(r.importers)) != 1), countWord(r.errs(), "it", "them"))
 		for _, d := range relDiags(slices.Clone(r.importers), wd) {
 			fmt.Fprintf(&b, "  %s: imports %s\n", d.Span, culpritOf(d.Message))
 		}

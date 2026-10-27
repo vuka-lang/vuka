@@ -1,0 +1,15 @@
+error[E0003]: import has no path
+ --> entities/user.vuka:3:1
+  |
+3 | import
+  | ^^^^^^
+  |
+  = help: add the paths: import ("time"; "strings") (the file uses time and strings)
+
+For more information about this error, try `vuka explain E0003`.
+
+the files that couldn't build because of it:
+  api/users.vuka:8:2: imports example.com/app/entities
+  store/customer.vuka:3:8: imports example.com/app/entities
+
+1 error in 1 package · 2 files couldn't build because of it
