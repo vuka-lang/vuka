@@ -2,13 +2,9 @@ package transpile
 
 import (
 	"bytes"
-	"go/build"
 	"go/parser"
 	"go/scanner"
 	"go/token"
-	"os"
-	"path/filepath"
-	"regexp"
 	"slices"
 	"strconv"
 	"strings"
@@ -360,81 +356,24 @@ func (e *engine) declaredName(name string) bool {
 	return e.selfNames[name] || e.declared[name]
 }
 
-// knownPackages are the import paths of the packages of the vuka toolchain
-// set, by the name they go by, each with the module that holds it.
-var knownPackages = map[string][2]string{
-	"web":     {"github.com/vuka-lang/web/v2", "github.com/vuka-lang/web/v2"},
-	"graphql": {"github.com/vuka-lang/web/v2/graphql", "github.com/vuka-lang/web/v2"},
-	"auth":    {"github.com/vuka-lang/web/v2/auth", "github.com/vuka-lang/web/v2"},
-	"mail":    {"github.com/vuka-lang/web/v2/mail", "github.com/vuka-lang/web/v2"},
-	"cron":    {"github.com/vuka-lang/web/v2/cron", "github.com/vuka-lang/web/v2"},
-	"ui":      {"github.com/vuka-lang/ui/v2", "github.com/vuka-lang/ui/v2"},
-	"forms":   {"github.com/vuka-lang/ui/v2/forms", "github.com/vuka-lang/ui/v2"},
-	"orm":     {"github.com/vuka-lang/orm/v2", "github.com/vuka-lang/orm/v2"},
-}
-
-// pathFor is the one package named name the file f can mean: one the
-// package's other files import by that name, else the standard library's,
-// else a toolchain package of a module go.mod requires; "" when none or
-// several.
+// pathFor is the one package named name the file f can mean, as
+// ImportScope finds it from the package's other files and the module; ""
+// when none or several.
 func (e *engine) pathFor(f *fileState, name string) string {
 	key := f.name + " " + name
 	if p, ok := e.importPaths[key]; ok {
 		return p
 	}
-	p := e.findImport(f, name)
+	scope := ImportScope{ModuleRoot: e.moduleRoot}
+	for _, src := range e.srcs {
+		if src.Name != f.name {
+			scope.Others = append(scope.Others, src.Src)
+		}
+	}
+	p := scope.ImportFor(name)
 	if e.importPaths == nil {
 		e.importPaths = map[string]string{}
 	}
 	e.importPaths[key] = p
 	return p
-}
-
-func (e *engine) findImport(f *fileState, name string) string {
-	var found []string
-	for _, src := range e.srcs {
-		if src.Name == f.name {
-			continue
-		}
-		af, _ := parser.ParseFile(token.NewFileSet(), "", src.Src, parser.ImportsOnly)
-		if af == nil {
-			continue
-		}
-		for _, imp := range af.Imports {
-			p, _ := strconv.Unquote(imp.Path.Value)
-			local := importName(p)
-			if imp.Name != nil {
-				local = imp.Name.Name
-			}
-			if local == name && !slices.Contains(found, p) {
-				found = append(found, p)
-			}
-		}
-	}
-	switch {
-	case len(found) == 1:
-		return found[0]
-	case len(found) > 1:
-		return ""
-	}
-	if bp, err := build.Default.Import(name, "", 0); err == nil && bp.Goroot && bp.Name == name {
-		return name
-	}
-	if k, ok := knownPackages[name]; ok && e.requires(k[1]) {
-		return k[0]
-	}
-	return ""
-}
-
-// requires reports whether the module's go.mod requires mod, or is it;
-// true when the module isn't known.
-func (e *engine) requires(mod string) bool {
-	if e.moduleRoot == "" {
-		return true
-	}
-	b, err := os.ReadFile(filepath.Join(e.moduleRoot, "go.mod"))
-	if err != nil {
-		return true
-	}
-	return regexp.MustCompile(`(?m)^\s*(?:module\s+|require\s+)?` + regexp.QuoteMeta(mod) + `(?:\s+v|\s*$)`).Match(b)
 }

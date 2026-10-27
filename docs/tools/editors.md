@@ -420,6 +420,52 @@ Diagnostics with one obvious fix have it as a quick fix:
 `vukavet`'s warnings (`W…`) don't need to be on screen: the fixes are
 offered where the file has what they report.
 
+### Organizing Imports {#organize-imports}
+
+**Organize Imports** (`source.organizeImports`) does for a `.vuka` or
+`.vuka.html` file what `goimports` does for Go, on the file's own import
+section — the script's in a shape:
+
+- an import nothing in the file uses goes. Uses are the file's Go, its
+  markup's holes and attributes (`{strings.ToUpper(name)}`,
+  `href={urls.Root.Path()}`), component tags (`<components.Logo>`) and
+  attributes (`@orm.PK`, `@graphql.Query`). Blank (`_`) and dot imports
+  stay, and so does an import used only by code that doesn't type-check yet;
+  a file whose code doesn't parse is left as it is;
+- a package the file uses without an import comes in when only one package
+  can be meant: one the package's other files import by that name, else the
+  standard library's, the toolchain's (`graphql`, `orm`, `ui`, … when
+  `go.mod` requires their module), the module's own (`entities`,
+  `components`, `layouts`, the generated `urls`), else those of the modules
+  `go.mod` requires. When several can be meant (`rand`), none comes in, and
+  the error about the name offers each as a quick fix;
+- the imports are sorted in groups, a blank line between: the standard
+  library, other modules, the module's own. One import is written
+  `import "x"`, several as a block; the comments on them stay with them.
+
+```go
+// Before
+import (
+	"example.com/shop/components"
+	"fmt"
+	"github.com/vuka-lang/orm/v2"
+)
+
+// After: fmt unused, strings used in the markup
+import (
+	"strings"
+
+	"github.com/vuka-lang/orm/v2"
+
+	"example.com/shop/components"
+)
+```
+
+The edit is the import section alone, one undo step, and organizing again
+changes nothing. VS Code runs it when a file is saved, before formatting it;
+the `vuka.organizeImportsOnSave` setting turns that off. On the command line,
+[`vuka fmt -imports`](/tools/cli#fmt) does the same.
+
 ## Installing gopls {#installing-gopls}
 
 The language server needs gopls. Install it:
@@ -529,3 +575,30 @@ the language server for `.vuka` and `.vuka.html` files, highlighting of
 Run `vuka lsp` over stdio for the `vuka` file type. For Go files, point the
 editor's gopls at a link named `gopls` to `vuka`; for `.templ` files, run
 `templ lsp` with that link first on `PATH`.
+
+To organize imports on save, ask the server for the
+`source.organizeImports` code action before formatting:
+
+- **Neovim** (0.10+), as for gopls:
+
+  ```lua
+  vim.api.nvim_create_autocmd("BufWritePre", {
+    pattern = { "*.vuka", "*.vuka.html" },
+    callback = function()
+      local params = vim.lsp.util.make_range_params(0, "utf-16")
+      params.context = { only = { "source.organizeImports" }, diagnostics = {} }
+      local res = vim.lsp.buf_request_sync(0, "textDocument/codeAction", params, 1500)
+      for _, r in pairs(res or {}) do
+        for _, a in pairs(r.result or {}) do
+          if a.edit then vim.lsp.util.apply_workspace_edit(a.edit, "utf-16") end
+        end
+      end
+      vim.lsp.buf.format({ async = false })
+    end,
+  })
+  ```
+- **Zed**: in the language's settings, `"code_actions_on_format":
+  { "source.organizeImports": true }` with `"format_on_save": "on"`.
+- **JetBrains IDEs**: the IDE's LSP client has no hook for it on save; a
+  File Watcher on `*.vuka` and `*.vuka.html` running `vuka fmt -w -imports
+  $FilePath$` does the same.
