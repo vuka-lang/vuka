@@ -176,6 +176,7 @@ func (e *engine) run() {
 		e.checkTargets()
 		e.checkRefs()
 		e.checkGoTracked()
+		e.checkFormOf()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()

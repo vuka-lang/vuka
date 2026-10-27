@@ -108,3 +108,11 @@ func (f Form) View() Node {
 }
 
 func (f Form) Render(ctx context.Context, w io.Writer) error { return f.View().Render(ctx, w) }
+
+// ModelForm and FormOf are a form over a model's named fields.
+type ModelForm[T any] struct {
+	FormState
+	Value T
+}
+
+func FormOf[T any](fields ...string) *ModelForm[T] { return &ModelForm[T]{} }
