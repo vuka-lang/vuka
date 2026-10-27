@@ -106,12 +106,11 @@ the `github.com/vuka-lang/vuka` package your module requires.
   route.
 
 - **`vuka run` says why a link loaded the whole page.** A navigation that
-  falls back to a page load prints its reason once in the terminal — for a
-  body with a script of its own, the tag: `navigation to /auth/register
-  loads in full: its body runs a script of its own: <script
-  src="/static/theme.js">; move it into <head>, …` — and in the browser's
-  console, and the toolbar's record of the navigation shows `full load:
-  <reason>`. Production stays silent. See
+  falls back to a page load prints its reason once in the terminal (for a
+  body with a script of its own, the tag, such as
+  `<script src="/static/theme.js">`, and the fixes) and in the browser's
+  console, and the toolbar's record of the navigation shows
+  `full load: scripts`. Production stays silent. See
   [Why a link loaded the whole page](/web/navigation#why-it-loaded).
 
 - **Pages with links load the runtime.** A page whose only runtime need

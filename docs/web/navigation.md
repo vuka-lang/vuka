@@ -379,10 +379,10 @@ time it happens:
 WARN web: navigation to /auth/register loads in full: its body runs a script of its own: <script src="/static/theme.js">; move it into <head>, make it a component script, or mark the link reload
 ```
 
-The browser's console says the same (`vuka: navigation to /auth/register
-loads in full (scripts): …`), once per cause per page load, and the
-[toolbar](/web/toolbar)'s record of the navigation shows `full load:
-scripts` with the detail. The causes and their fixes:
+The browser's console says the same, once per cause per page load
+(`vuka: navigation to /auth/register loads in full (scripts): …`), and
+the [toolbar](/web/toolbar)'s record of the navigation shows
+`full load: scripts` with the detail. The causes and their fixes:
 
 | Reason | Why | Fix |
 | --- | --- | --- |
