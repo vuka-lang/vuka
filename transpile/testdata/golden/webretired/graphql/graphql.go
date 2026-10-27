@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"reflect"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2"
 )
 
 type Query string
@@ -22,6 +24,12 @@ type Deprecated string
 type ArgName struct{ Param, Name string }
 
 func Arg(param, name string) ArgName { return ArgName{param, name} }
+
+type IDParams []string
+type IntParams []string
+
+func AsID(params ...string) vuka.Bundle  { return vuka.Compose(IDParams(params)) }
+func AsInt(params ...string) vuka.Bundle { return vuka.Compose(IntParams(params)) }
 
 type TypeDef interface{ String() string }
 

@@ -42,6 +42,8 @@ type Pet struct {
 	Secret string `graphql:"-"`
 	price  int
 	Audit
+	OwnerID int64 // an id by its name: ID
+	VisitID int   `graphql:",int"` // a count, though its name ends in ID
 }
 
 // Audit is when a record changed.
@@ -55,7 +57,7 @@ type Store struct{ pets []Pet }
 
 // Age is how old the pet is, in whole years at most limit.
 //
-//line graphql.vuka:44
+//line graphql.vuka:46
 func (p *Pet) Age(ctx context.Context, limit *int) (int, error) { return 3, nil }
 
 // Nickname is the pet's tag, if any.
@@ -67,19 +69,22 @@ func (p Pet) String() string { return p.Name }
 
 // NewPet is what adding a pet takes.
 type NewPet struct {
-	Name  string `validate:"required"`
-	Tag   *string
-	Kinds []Status
+	Name    string `validate:"required"`
+	Tag     *string
+	Kinds   []Status
+	OwnerID int64
+	Ref     string `graphql:",id"`
+	ChipID  int    `graphql:",int"`
 }
 
 // Pets lists the shop's pets.
 //
-//line graphql.vuka:62
+//line graphql.vuka:67
 func Pets(ctx context.Context, first int, status *Status, store *Store) ([]Pet, error) {
 	return store.pets[:min(first, len(store.pets))], nil
 }
 
-//line graphql.vuka:67
+//line graphql.vuka:72
 func FindPet(id int64, store *Store) *Pet {
 	for i := range store.pets {
 		if store.pets[i].ID == id {
@@ -89,10 +94,15 @@ func FindPet(id int64, store *Store) *Pet {
 	return nil
 }
 
-//line graphql.vuka:77
+// owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int.
+//
+//line graphql.vuka:85
+func owned(ownerIDs []int64, ref int, lastID int, store *Store) []Pet { return nil }
+
+//line graphql.vuka:88
 func Count(store *Store) vuka.Result[int] { return vuka.Ok(len(store.pets)) }
 
-//line graphql.vuka:80
+//line graphql.vuka:91
 func AddPet(ctx context.Context, in NewPet, store *Store) (*Pet, error) {
 	if in.Name == "" {
 		return nil, errors.New("no name")
@@ -113,19 +123,22 @@ var _ = graphql.Deprecated("use ACTIVE")
 //line graphql.vuka:19
 var _ = graphql.Type("Animal")
 
-//line graphql.vuka:43
+//line graphql.vuka:45
 var _ = graphql.Field("years")
 
-//line graphql.vuka:61
+//line graphql.vuka:66
 var _ graphql.Query
 
-//line graphql.vuka:66
+//line graphql.vuka:71
 var _ = graphql.Query("pet")
 
-//line graphql.vuka:76
+//line graphql.vuka:82
 var _ graphql.Query
 
-//line graphql.vuka:79
+//line graphql.vuka:87
+var _ graphql.Query
+
+//line graphql.vuka:90
 var _ graphql.Mutation
 
 // StatusValues returns every Status, in the order they are declared.
@@ -242,10 +255,19 @@ func init() {
 			},
 			{
 				Go: "FindPet", Func: FindPet,
-				Params: []graphql.Param{{Name: "id", Type: graphql.IntOf[int64]()}, {Name: "store", Dep: reflect.TypeFor[*Store]()}},
+				Params: []graphql.Param{{Name: "id", Type: graphql.IntIDOf[int64]()}, {Name: "store", Dep: reflect.TypeFor[*Store]()}},
 				Type:   graphql.ObjectOf[Pet](),
 				Resolve: func(ctx context.Context, c *graphql.Call) (any, error) {
 					return FindPet(graphql.Get[int64](c, 0), graphql.Get[*Store](c, 1)), nil
+				},
+			},
+			{
+				Go: "Owned", Func: Owned,
+				Doc:    "Owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int.",
+				Params: []graphql.Param{{Name: "ownerIDs", Type: graphql.ListOf[int64](graphql.IntIDOf[int64]())}, {Name: "ref", Type: graphql.IntIDOf[int]()}, {Name: "lastID", Type: graphql.Int}, {Name: "store", Dep: reflect.TypeFor[*Store]()}},
+				Type:   &graphql.NonNull{Of: graphql.ListOf[Pet](&graphql.NonNull{Of: graphql.ObjectOf[Pet]()})},
+				Resolve: func(ctx context.Context, c *graphql.Call) (any, error) {
+					return Owned(graphql.Get[[]int64](c, 0), graphql.Get[int](c, 1), graphql.Get[int](c, 2), graphql.Get[*Store](c, 3)), nil
 				},
 			},
 			{
@@ -280,6 +302,8 @@ func init() {
 				{Go: "Tricks", Type: graphql.ListOf[string](&graphql.NonNull{Of: graphql.String}), Get: func(p *Pet) any { return graphql.OmitEmpty(p.Tricks) }},
 				{Go: "Owner", Type: graphql.ObjectOf[Owner](), Get: func(p *Pet) any { return p.Owner }},
 				{Go: "Updated", Name: "changedAt", Type: &graphql.NonNull{Of: graphql.DateTime}, Get: func(p *Pet) any { return p.Updated }},
+				{Go: "OwnerID", Type: &graphql.NonNull{Of: graphql.IntIDOf[int64]()}, Get: func(p *Pet) any { return p.OwnerID }},
+				{Go: "VisitID", Type: &graphql.NonNull{Of: graphql.Int}, Get: func(p *Pet) any { return p.VisitID }},
 				{Go: "Age", Doc: "Age is how old the pet is, in whole years at most limit.", Type: &graphql.NonNull{Of: graphql.Int},
 					Params: []graphql.Param{{Name: "ctx"}, {Name: "limit", Type: graphql.Int}},
 					Resolve: func(ctx context.Context, p *Pet, c *graphql.Call) (any, error) {
@@ -297,6 +321,9 @@ func init() {
 				{Go: "Name", Type: graphql.String, Set: func(f *NewPet, v any) { f.Name = graphql.As[string](v) }},
 				{Go: "Tag", Type: graphql.String, Set: func(f *NewPet, v any) { f.Tag = graphql.Ptr[string](v) }},
 				{Go: "Kinds", Type: graphql.ListOf[Status](graphql.EnumOf[Status]()), Set: func(f *NewPet, v any) { f.Kinds = graphql.As[[]Status](v) }},
+				{Go: "OwnerID", Type: graphql.IntIDOf[int64](), Set: func(f *NewPet, v any) { f.OwnerID = graphql.As[int64](v) }},
+				{Go: "Ref", Type: graphql.ID, Set: func(f *NewPet, v any) { f.Ref = graphql.As[string](v) }},
+				{Go: "ChipID", Type: graphql.Int, Set: func(f *NewPet, v any) { f.ChipID = graphql.As[int](v) }},
 			}},
 		},
 	})
@@ -305,14 +332,40 @@ func init() {
 func init() {
 //line graphql.vuka:19
 	vuka.RegisterType[Pet]([]any{graphql.Type("Animal")}...)
-//line graphql.vuka:43
+//line graphql.vuka:45
 	vuka.RegisterFunc((*Pet).Age, []any{graphql.Field("years")}...)
-//line graphql.vuka:61
-	vuka.RegisterFunc(Pets, []any{*new(graphql.Query)}...)
 //line graphql.vuka:66
+	vuka.RegisterFunc(Pets, []any{*new(graphql.Query)}...)
+//line graphql.vuka:71
 	vuka.RegisterFunc(FindPet, []any{graphql.Query("pet")}...)
-//line graphql.vuka:76
+//line graphql.vuka:82
+	vuka.RegisterFunc(Owned, append(append([]any{*new(graphql.Query)}, ownedDecB0.Attrs()...), ownedDecB1.Attrs()...)...)
+//line graphql.vuka:87
 	vuka.RegisterFunc(Count, []any{*new(graphql.Query)}...)
-//line graphql.vuka:79
+//line graphql.vuka:90
 	vuka.RegisterFunc(AddPet, []any{*new(graphql.Mutation)}...)
+}
+
+//line graphql.vuka:83
+var ownedDecB0 = graphql.AsID("ref")
+
+//line graphql.vuka:84
+var ownedDecB1 = graphql.AsInt("lastID")
+
+var ownedDec vuka.Decorated[func([]int64, int, int, *Store) []Pet]
+
+// Owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int.
+//
+//line graphql.vuka:85
+func Owned(ownerIDs []int64, ref int, lastID int, store *Store) []Pet {
+	return ownedDec.Get(func() func([]int64, int, int, *Store) []Pet {
+//line graphql.vuka:82
+		return vuka.Wrap(owned, vuka.FuncInfo{Name: "main.Owned", Attrs: append(append([]any{*new(graphql.Query)}, ownedDecB0.Attrs()...), ownedDecB1.Attrs()...)}, append(ownedDecB0.Calls(), ownedDecB1.Calls()...)...)
+	})(ownerIDs, ref, lastID, store)
+}
+
+func init() {
+	ownedDecl := vuka.DeclOf(Owned, vuka.Param{Name: "ownerIDs"}, vuka.Param{Name: "ref"}, vuka.Param{Name: "lastID"}, vuka.Param{Name: "store"})
+	ownedDecB0.Declare(ownedDecl)
+	ownedDecB1.Declare(ownedDecl)
 }

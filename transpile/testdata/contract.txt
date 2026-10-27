@@ -135,6 +135,8 @@ public github.com/vuka-lang/web/v2.Routes
 public github.com/vuka-lang/web/v2.Use
 public github.com/vuka-lang/web/v2.Var
 public github.com/vuka-lang/web/v2/graphql.Arg
+public github.com/vuka-lang/web/v2/graphql.AsID
+public github.com/vuka-lang/web/v2/graphql.AsInt
 public github.com/vuka-lang/web/v2/graphql.As
 public github.com/vuka-lang/web/v2/graphql.Binding
 public github.com/vuka-lang/web/v2/graphql.Boolean

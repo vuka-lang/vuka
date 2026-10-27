@@ -5,6 +5,7 @@ import (
 	"go/build"
 	"go/token"
 	"go/types"
+	"maps"
 	"reflect"
 	"slices"
 	"sort"
@@ -290,10 +291,24 @@ func (g *gqlGen) doc(obj types.Object) string {
 }
 
 // attrsOn are the graphql attributes written on a declaration of the
-// package: type name (recv "") or method name of type recv. name → its
-// string argument.
-func (g *gqlGen) attrsOn(recv, name string) map[string]string {
+// package: type name (recv "", fn false), function name (recv "", fn true)
+// or method name of type recv. name → its string argument.
+func (g *gqlGen) attrsOn(recv, name string, fn bool) map[string]string {
 	out := map[string]string{}
+	for kind, args := range g.attrArgs(recv, name, fn) {
+		if len(args) > 0 {
+			out[kind] = args[0]
+		} else {
+			out[kind] = ""
+		}
+	}
+	return out
+}
+
+// attrArgs are the string arguments of every graphql attribute written on
+// a declaration (as attrsOn names it), by attribute.
+func (g *gqlGen) attrArgs(recv, name string, fn bool) map[string][]string {
+	out := map[string][]string{}
 	for _, f := range g.e.vuka {
 		for _, a := range f.attrs {
 			kind := g.e.gqlAttr(f, a)
@@ -303,20 +318,109 @@ func (g *gqlGen) attrsOn(recv, name string) map[string]string {
 			match := false
 			switch d := f.declOf(a).(type) {
 			case *ast.FuncDecl:
-				match = recv != "" && d.Recv != nil && recvBase(d) == recv && srcIdent(f.src, f.orig(d.Name.Pos())) == name
+				same := srcIdent(f.src, f.orig(d.Name.Pos())) == name
+				if recv != "" {
+					match = same && d.Recv != nil && recvBase(d) == recv
+				} else {
+					match = same && fn && d.Recv == nil
+				}
 			case *ast.GenDecl:
 				if len(d.Specs) == 1 {
 					ts, ok := d.Specs[0].(*ast.TypeSpec)
-					match = ok && recv == "" && ts.Name.Name == name
+					match = ok && recv == "" && !fn && ts.Name.Name == name
 				}
 			}
 			if match {
-				v, _ := stringArg(a.Args)
-				out[kind] = v
+				out[kind] = append(out[kind], stringArgs(a.Args)...)
 			}
 		}
 	}
 	return out
+}
+
+// stringArgs are the string literals among an attribute's arguments:
+// ("id", "ownerID") is id and ownerID.
+func stringArgs(args string) []string {
+	var out []string
+	for _, sp := range splitArgs(args) {
+		if v, err := strconv.Unquote(strings.TrimSpace(args[sp[0]:sp[1]])); err == nil {
+			out = append(out, v)
+		}
+	}
+	return out
+}
+
+// idName reports whether a Go name names an id, or ids: id, ID, ids, IDs,
+// or one ending in ID, Id, IDs or Ids (UserID, ownerId, tagIDs).
+func idName(n string) bool {
+	switch n {
+	case "id", "ID", "Id", "ids", "IDs", "Ids":
+		return true
+	}
+	for _, suf := range []string{"ID", "Id", "IDs", "Ids"} {
+		if len(n) > len(suf) && strings.HasSuffix(n, suf) {
+			return true
+		}
+	}
+	return false
+}
+
+// intLike reports whether t (a pointer's or a slice's element) is a plain
+// integer type: no enum, no type writing itself as text — what an id's name
+// makes an ID.
+func (g *gqlGen) intLike(t types.Type) bool {
+	for {
+		switch u := t.(type) {
+		case *types.Pointer:
+			t = u.Elem()
+			continue
+		}
+		if s, ok := t.Underlying().(*types.Slice); ok && named(t) == nil {
+			t = s.Elem()
+			continue
+		}
+		break
+	}
+	b, ok := t.Underlying().(*types.Basic)
+	return ok && b.Info()&types.IsInteger != 0 && g.enumConsts(t) == nil && !isTextual(t) && !isDuration(t)
+}
+
+// idable reports whether t can be an ID: a string or integer type, or a
+// slice of one.
+func (g *gqlGen) idable(t types.Type) bool {
+	if g.intLike(t) {
+		return true
+	}
+	for {
+		if p, ok := t.(*types.Pointer); ok {
+			t = p.Elem()
+			continue
+		}
+		if s, ok := t.Underlying().(*types.Slice); ok && named(t) == nil {
+			t = s.Elem()
+			continue
+		}
+		break
+	}
+	b, ok := t.Underlying().(*types.Basic)
+	return ok && b.Info()&types.IsString != 0 && g.enumConsts(t) == nil && !isTextual(t)
+}
+
+// isID decides whether a value named name of type t is an ID: forced by
+// an override (id: @graphql.AsID, graphql:",id"; asInt: @graphql.AsInt,
+// graphql:",int"), else when name names an id and t is an integer type.
+func (g *gqlGen) isID(name string, t types.Type, id, asInt bool) bool {
+	switch {
+	case asInt:
+		return false
+	case id:
+		if !g.idable(t) {
+			g.fail("E0805", "only strings and integers are IDs", "%s is %s, which can't be an ID", g.via, g.typ(t))
+			return false
+		}
+		return true
+	}
+	return idName(name) && g.intLike(t)
 }
 
 // checkOpNames reports two operations of the package named alike, and
@@ -389,7 +493,7 @@ func (g *gqlGen) operation(op gqlOp) (string, bool) {
 		}
 	}
 	b.WriteString(",\n")
-	params, args, ok := g.params(sig, op.name)
+	params, args, ok := g.params(sig, op.name, g.attrArgs("", op.name, true))
 	if !ok {
 		return "", false
 	}
@@ -409,9 +513,37 @@ func (g *gqlGen) operation(op gqlOp) (string, bool) {
 // params are the Param literals of sig's parameters, and the arguments a
 // resolver calls its function with: the context, each argument's value
 // (graphql.Get), each dependency's.
-func (g *gqlGen) params(sig *types.Signature, what string) (params, args []string, ok bool) {
+func (g *gqlGen) params(sig *types.Signature, what string, attrs map[string][]string) (params, args []string, ok bool) {
 	q := g.gq + "."
 	ok = true
+	ids, ints := map[string]bool{}, map[string]bool{}
+	for _, n := range attrs["AsID"] {
+		ids[n] = true
+	}
+	for _, n := range attrs["AsInt"] {
+		ints[n] = true
+	}
+	defer func() {
+		var names []string
+		for i := 0; i < sig.Params().Len(); i++ {
+			names = append(names, sig.Params().At(i).Name())
+		}
+		for _, set := range []struct {
+			attr string
+			m    map[string]bool
+		}{{"AsID", ids}, {"AsInt", ints}} {
+			for _, n := range slices.Sorted(maps.Keys(set.m)) {
+				if slices.Contains(names, n) {
+					continue
+				}
+				e := g.e.errs.add("E0805", g.pos, "%s: @graphql.%s(%q) names no parameter of it", what, set.attr, n)
+				if s := closestName(n, names); s != "" {
+					e.suggest(s)
+				}
+				ok = false
+			}
+		}
+	}()
 	if sig.Variadic() {
 		g.fail("E0805", "take a slice instead", "%s is variadic: a GraphQL field's arguments are named values", what)
 		return nil, nil, false
@@ -439,7 +571,7 @@ func (g *gqlGen) params(sig *types.Signature, what string) (params, args []strin
 			if pt, isPtr := t.(*types.Pointer); isPtr {
 				elem, ptr = pt.Elem(), true
 			}
-			in, good := g.inType(elem)
+			in, good := g.inType(elem, g.isID(name, elem, ids[name], ints[name]))
 			if !good {
 				ok = false
 				continue
@@ -477,7 +609,7 @@ func (g *gqlGen) result(sig *types.Signature, call, what string) (typ, stmt stri
 		return bad()
 	}
 	g.via = what + "'s result"
-	typ, ok = g.outType(t, false)
+	typ, ok = g.outType(t, false, false)
 	if !ok {
 		return "", "", false
 	}
@@ -674,16 +806,16 @@ func (g *gqlGen) nonNull(x string) string { return "&" + g.gq + ".NonNull{Of: " 
 
 // outType is the GraphQL type of a result or field of Go type t: non-null
 // unless t is a pointer, or nullable is set (omitempty).
-func (g *gqlGen) outType(t types.Type, nullable bool) (string, bool) {
+func (g *gqlGen) outType(t types.Type, nullable, id bool) (string, bool) {
 	if p, ok := t.(*types.Pointer); ok {
 		switch p.Elem().Underlying().(type) {
 		case *types.Pointer, *types.Slice:
 			g.unsupported(t, "a pointer to a pointer or a slice; use the slice itself, a nil slice is an empty list")
 			return "", false
 		}
-		return g.outNullable(p.Elem(), false)
+		return g.outNullable(p.Elem(), id)
 	}
-	x, ok := g.outNullable(t, false)
+	x, ok := g.outNullable(t, id)
 	if !ok || nullable {
 		return x, ok
 	}
@@ -716,7 +848,7 @@ func (g *gqlGen) outNullable(t types.Type, id bool) (string, bool) {
 				g.unsupported(t, "bytes have no GraphQL type; give the field a string")
 				return "", false
 			}
-			inner, ok = g.outType(el, false)
+			inner, ok = g.outType(el, false, id)
 		}
 		if !ok {
 			return "", false
@@ -737,10 +869,11 @@ func (g *gqlGen) outNullable(t types.Type, id bool) (string, bool) {
 
 // inType is the GraphQL type of an argument or input field of Go type t
 // (a pointer's element): always nullable, null and absent giving t's zero
-// value (nil for a pointer).
-func (g *gqlGen) inType(t types.Type) (string, bool) {
+// value (nil for a pointer); id makes a string or an integer (a list's
+// elements) an ID.
+func (g *gqlGen) inType(t types.Type, id bool) (string, bool) {
 	if g.isLeaf(t) {
-		x, ok := g.leaf(t, false)
+		x, ok := g.leaf(t, id)
 		if !ok {
 			g.unsupported(t, "")
 		}
@@ -753,7 +886,7 @@ func (g *gqlGen) inType(t types.Type) (string, bool) {
 			g.unsupported(t, "a list of pointers; use []"+g.typ(el.(*types.Pointer).Elem()))
 			return "", false
 		}
-		inner, ok := g.inType(el)
+		inner, ok := g.inType(el, id)
 		if !ok {
 			return "", false
 		}
@@ -807,7 +940,7 @@ func typeNameOf(t types.Type) string {
 // counts; one another package writes is checked when the app builds.
 func (g *gqlGen) claim(name, what string, t types.Type) {
 	if n := named(t); n != nil && n.Obj().Pkg() == g.e.pkg {
-		attrs := g.attrsOn("", n.Obj().Name())
+		attrs := g.attrsOn("", n.Obj().Name(), false)
 		if v := attrs["Type"]; v != "" {
 			name = v
 		}
@@ -853,9 +986,9 @@ func gqlFields(st *types.Struct) []*types.Var {
 	return out
 }
 
-// fieldTag is a struct field's graphql:"name,id,omitempty" tag, found
+// fieldTag is a struct field's graphql:"name,id,omitempty,int" tag, found
 // through the structs embedding it.
-func fieldTag(st *types.Struct, fv *types.Var) (name string, id, omit bool) {
+func fieldTag(st *types.Struct, fv *types.Var) (name string, id, omit, asInt bool) {
 	var tag string
 	var find func(st *types.Struct) bool
 	find = func(st *types.Struct) bool {
@@ -882,9 +1015,11 @@ func fieldTag(st *types.Struct, fv *types.Var) (name string, id, omit bool) {
 			id = true
 		case "omitempty":
 			omit = true
+		case "int":
+			asInt = true
 		}
 	}
-	return name, id, omit
+	return name, id, omit, asInt
 }
 
 // methodNames are methods never taken as fields: the ones Go's standard
@@ -936,8 +1071,9 @@ func (g *gqlGen) structBinding(t types.Type) {
 	}
 	samePkg := n.Obj().Pkg() == g.e.pkg
 	for _, fv := range gqlFields(st) {
-		name, id, omit := fieldTag(st, fv)
+		name, id, omit, asInt := fieldTag(st, fv)
 		g.via = tt + "." + fv.Name()
+		id = g.isID(fv.Name(), fv.Type(), id, asInt)
 		wire := name
 		if wire == "" {
 			wire = lowerCamel(fv.Name())
@@ -958,7 +1094,7 @@ func (g *gqlGen) structBinding(t types.Type) {
 			typ, ok = g.outNullable(ft.(*types.Pointer).Elem(), id)
 			get = q + "Deref(" + get + ")"
 		case isPointer(ft):
-			typ, ok = g.outType(ft, false)
+			typ, ok = g.outType(ft, false, id)
 		default:
 			typ, ok = g.outNullable(ft, id)
 			if ok && !omit {
@@ -993,7 +1129,7 @@ func (g *gqlGen) structBinding(t types.Type) {
 		}
 		attrs := map[string]string{}
 		if samePkg {
-			attrs = g.attrsOn(n.Obj().Name(), fn.Name())
+			attrs = g.attrsOn(n.Obj().Name(), fn.Name(), false)
 		}
 		_, marked := attrs["Field"]
 		sig := fn.Type().(*types.Signature)
@@ -1012,7 +1148,11 @@ func (g *gqlGen) structBinding(t types.Type) {
 		if taken(wire, fn.Name()+"()") {
 			continue
 		}
-		params, args, ok := g.params(sig, tt+"."+fn.Name())
+		var pattrs map[string][]string
+		if samePkg {
+			pattrs = g.attrArgs(n.Obj().Name(), fn.Name(), false)
+		}
+		params, args, ok := g.params(sig, tt+"."+fn.Name(), pattrs)
 		if !ok {
 			continue
 		}
@@ -1134,7 +1274,7 @@ func (g *gqlGen) inputBinding(t types.Type) {
 	var members []string
 	names := map[string]string{}
 	for _, fv := range gqlFields(st) {
-		name, _, _ := fieldTag(st, fv)
+		name, id, _, asInt := fieldTag(st, fv)
 		g.via = tt + "." + fv.Name()
 		wire := name
 		if wire == "" {
@@ -1150,7 +1290,7 @@ func (g *gqlGen) inputBinding(t types.Type) {
 		if p, isPtr := ft.(*types.Pointer); isPtr {
 			elem, ptr = p.Elem(), true
 		}
-		typ, ok := g.inType(elem)
+		typ, ok := g.inType(elem, g.isID(fv.Name(), elem, id, asInt))
 		if !ok {
 			continue
 		}

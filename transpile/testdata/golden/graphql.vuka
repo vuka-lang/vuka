@@ -28,6 +28,8 @@ type Pet struct {
 	Secret string `graphql:"-"`
 	price  int
 	Audit
+	OwnerID int64              // an id by its name: ID
+	VisitID int  `graphql:",int"` // a count, though its name ends in ID
 }
 
 // Audit is when a record changed.
@@ -55,6 +57,9 @@ type NewPet struct {
 	Name  string `validate:"required"`
 	Tag   *string
 	Kinds []Status
+	OwnerID int64
+	Ref     string `graphql:",id"`
+	ChipID  int    `graphql:",int"`
 }
 
 // Pets lists the shop's pets.
@@ -72,6 +77,12 @@ func FindPet(id int64, store *Store) *Pet {
 	}
 	return nil
 }
+
+// Owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int.
+@graphql.Query
+@graphql.AsID("ref")
+@graphql.AsInt("lastID")
+func Owned(ownerIDs []int64, ref int, lastID int, store *Store) []Pet { return nil }
 
 @graphql.Query
 func Count(store *Store) vuka.Result[int] { return vuka.Ok(len(store.pets)) }

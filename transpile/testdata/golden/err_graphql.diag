@@ -54,5 +54,22 @@ error[E0806]: @graphql.Subscription isn't served yet: subscriptions come in a la
    |
    = help: serve the data as a @graphql.Query for now, or push it to live pages with web.Broadcast
 
+error[E0805]: Heavy's parameter weight is float64, which can't be an ID
+  --> err_graphql.vuka:37:1
+   |
+37 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: only strings and integers are IDs
+
+error[E0805]: Heavy: @graphql.AsID("ownr") names no parameter of it
+  --> err_graphql.vuka:37:1
+   |
+37 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: an operation is a function returning a value, or a value and an error, from named parameters
+   = help: did you mean owner?
+
 Some errors have detailed explanations: E0802, E0803, E0804, E0805, E0806.
 For more information about an error, try `vuka explain E0802`.
