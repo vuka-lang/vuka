@@ -1,0 +1,10 @@
+package main
+
+import "context"
+
+// Card's methods have value receivers.
+type Card struct{ N int }
+
+@ui.Defer
+func (c Card) Count(ctx context.Context) (int, error) { return c.N, nil }
+<b>{Count(ctx)}</b>

@@ -105,6 +105,6 @@ type Option struct{ Value, Label string }
 
 type PartFallback struct{ Pending, Error Node }
 
-func Part[V any](m func(context.Context) (V, error), fallback Node, render func(V) Node) Node {
+func Part[R, V any](recv R, m func(R, context.Context) (V, error), fallback Node, render func(V) Node) Node {
 	return nil
 }

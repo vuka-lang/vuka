@@ -25,8 +25,9 @@ the `github.com/vuka-lang/vuka` package your module requires.
 - **Parts of stateless pages: `@ui.Defer` on a method.** A page that isn't
   live shows itself at once and fills in its slow parts afterwards, in the
   same response. A method of a page or component marked `@ui.Defer` (or
-  `@ui.Defer("group")`) runs after the page's first bytes are sent; the
-  element whose markup calls it is its part, sent once the method returns
+  `@ui.Defer("group")`) starts as the render meets its part and doesn't hold
+  the page back; the element whose markup calls it is its part, sent after
+  the page once the method returns
   — a group's together — and moved into place by a one-line script. The
   status, guards and layouts' `Load` are decided first; the response is
   flushed through compression with `X-Accel-Buffering: no`; navigation over
@@ -41,7 +42,8 @@ the `github.com/vuka-lang/vuka` package your module requires.
   unaffected.
 
 - **Parts in Go: `ui.Part`.** Markup written in Go spells a part out with
-  `ui.Part(p.Stats, fallback, func(s Stats) ui.Node { … })`, the method
+  `ui.Part(p, (*Index).Stats, fallback, func(s Stats) ui.Node { … })` — the
+  receiver and the method expression, keying one call per request — the method
   registered with `vuka.RegisterFunc((*Index).Stats, ui.Defer(""))`;
   `ui.PartFallback` gives it an error fallback. `ui.Textf` formats text.
 

@@ -39,20 +39,20 @@ func (p *Figures) Alerts(ctx context.Context) (int, error) { return p.store.Aler
 func (p *Figures) View() ui.Node {
 	return ui.El("section", []ui.Attr{{Name: "class", Value: "panel"}},
 		ui.El("h2", nil, ui.Text("My applications, in Go")),
-		ui.Part(p.Counts, ui.El("span", []ui.Attr{{Name: "class", Value: "skeleton"}}, ui.Text("…")), func(f store.Figures) ui.Node {
+		ui.Part(p, (*Figures).Counts, ui.El("span", []ui.Attr{{Name: "class", Value: "skeleton"}}, ui.Text("…")), func(f store.Figures) ui.Node {
 			return ui.El("p", []ui.Attr{{Name: "class", Value: "figures"}}, ui.Textf("%d open · %d shortlisted", f.Open, f.Shortlisted))
 		}),
-		ui.Part(p.Recent, nil, func(rs []string) ui.Node {
+		ui.Part(p, (*Figures).Recent, nil, func(rs []string) ui.Node {
 			var lis []ui.Node
 			for _, r := range rs {
 				lis = append(lis, ui.El("li", nil, ui.Text(r)))
 			}
 			return ui.El("ul", []ui.Attr{{Name: "class", Value: "recent"}}, lis...)
 		}),
-		ui.Part(p.Tags, nil, func(ts []string) ui.Node {
+		ui.Part(p, (*Figures).Tags, nil, func(ts []string) ui.Node {
 			return ui.El("p", []ui.Attr{{Name: "class", Value: "tags"}}, ui.Textf("%d tags", len(ts)))
 		}),
-		ui.Part(p.Alerts, ui.PartFallback{Error: ui.El("p", []ui.Attr{{Name: "class", Value: "alerts"}}, ui.Text("Alerts are unavailable."))}, func(n int) ui.Node {
+		ui.Part(p, (*Figures).Alerts, ui.PartFallback{Error: ui.El("p", []ui.Attr{{Name: "class", Value: "alerts"}}, ui.Text("Alerts are unavailable."))}, func(n int) ui.Node {
 			return ui.El("p", []ui.Attr{{Name: "class", Value: "alerts"}}, ui.Textf("%d alerts", n))
 		}),
 	)

@@ -50,8 +50,11 @@ func (p *Index) Stats(ctx context.Context) (applications.Stats, error) {
 The page answers before `Stats` returns: the heading at once, the `<p>`
 empty until the figures arrive. Then the `<p>` with its figures replaces it.
 
-A deferred method takes a `context.Context` and returns `(T, error)`. Its
-context is the request's: it is canceled when the visitor goes away.
+A deferred method takes a `context.Context` and returns `(T, error)`. It
+starts as soon as the page's render meets its part, beside the rest of the
+render, and its context is the request's: it is canceled when the visitor
+goes away. Its result never changes the page's status: that is sent
+before any part.
 
 ### What a Part Is
 
@@ -151,9 +154,11 @@ shows the same.
 Everything that isn't deferred runs first: guards, every layout's `Load`,
 the page's other methods. So the status and the headers are decided before
 anything is sent, and a redirect, a 404 or a sign-in still answers as it
-does for any page. Then the page is sent up to its `</body>` and flushed,
-compressed or not. Its deferred methods run, and each part is appended as
-it arrives: a `<template data-vk-part>` holding its markup, and a one-line
+does for any page. Each deferred method starts as the render meets its
+part, so it runs while the rest of the page renders. Then the page is sent
+up to its `</body>` and flushed, compressed or not, and each part is
+appended as its method returns — a group's together, in the order the page
+shows them: a `<template data-vk-part>` holding its markup, and a one-line
 script moving it into its place. `</body></html>` ends the response.
 
 A navigation over HTTP (a `ui.Link` on a page that isn't live) reads the
@@ -182,9 +187,10 @@ its data in `@ui.Mount` and pushes changes with `Update`.
 ## Parts Written in Go {#in-go}
 
 A component written in Go registers its deferred methods with
-`vuka.RegisterFunc`, and spells each part out with `ui.Part`: the method,
-the fallback, and a function rendering the method's result. `ui.Part` is
-the one place the method may be named:
+`vuka.RegisterFunc`, and spells each part out with `ui.Part`: the value
+the method is called on, the method expression, the fallback, and a
+function rendering the method's result. `ui.Part` is the one place the
+method may be named:
 
 <!-- go:context
 type Stats struct{ Open, Shortlisted int }
@@ -216,7 +222,7 @@ func (p *Panel) Stats(ctx context.Context) (Stats, error) { return p.apps.Stats(
 func (p *Panel) View() ui.Node {
 	return ui.El("section", nil,
 		ui.El("h2", nil, ui.Text("My applications")),
-		ui.Part(p.Stats, ui.El("span", []ui.Attr{{Name: "class", Value: "skeleton"}}), func(s Stats) ui.Node {
+		ui.Part(p, (*Panel).Stats, ui.El("span", []ui.Attr{{Name: "class", Value: "skeleton"}}), func(s Stats) ui.Node {
 			return ui.El("p", nil, ui.Textf("%d open · %d shortlisted", s.Open, s.Shortlisted))
 		}),
 	)
@@ -226,6 +232,9 @@ func (p *Panel) Render(ctx context.Context, w io.Writer) error { return p.View()
 ```
 
 `ui.Defer("")` is the bare `@ui.Defer`; `ui.Defer("lists")` names a group.
+Parts naming the same method of the same receiver share one call: the
+same pointer, or equal values for a value receiver (`ui.Part(c,
+Card.Count, …)`).
 A nil fallback is an empty `<span aria-busy="true">`.
 `ui.PartFallback{Pending: …, Error: …}` gives a part an error fallback too.
 

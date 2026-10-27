@@ -24,7 +24,7 @@ import (
 //
 // is
 //
-//	ui.Part(p.Stats, ui.HTML(`<span class="skeleton"/>`), func(stats Stats) ui.Node {
+//	ui.Part(p, (*Index).Stats, ui.HTML(`<span class="skeleton"/>`), func(stats Stats) ui.Node {
 //		return ui.HTML(`<p>{stats.Open} open</p>`, stats.Open)
 //	})
 //
@@ -43,6 +43,8 @@ type deferMethod struct {
 	attrFile *fileState
 	param    string // the name its value has in the part's function
 	typ      string // its T, as the file spells it
+	expr     string // its method expression: (*Index).Stats, Index.Stats
+	recv     string // the value the markup calls it on: p, or *p for a value receiver's
 	fallback *jsxElem
 	failed   *jsxElem // its <ui.Fallback for={M} error>
 	parts    int
@@ -394,6 +396,12 @@ func (e *engine) findParts(f *fileState) bool {
 		if m.obj != nil {
 			m.param = e.partParam(f, m)
 			m.typ = e.typeTextAuto(f, m.result)
+			m.expr, m.recv = h.recvType+h.shape.TypeArgs+"."+m.name, h.recv
+			if _, ptr := m.obj.Type().(*types.Signature).Recv().Type().(*types.Pointer); ptr {
+				m.expr = "(*" + h.recvType + h.shape.TypeArgs + ")." + m.name
+			} else if h.shape.Ptr {
+				m.recv = "*" + h.recv
+			}
 		}
 	}
 	for _, c := range calls {
@@ -625,7 +633,7 @@ func (e *engine) qualifiedName(t string) string {
 // part writes el as its part: ui.Part of its i-th method, the parts of the
 // next inside, then the element.
 //
-//	ui.Part(p.Stats, fallback, func(stats Stats) ui.Node { … return ui.HTML(`<p>…</p>`, …) })
+//	ui.Part(p, (*Index).Stats, fallback, func(stats Stats) ui.Node { … return ui.HTML(`<p>…</p>`, …) })
 func (w *jsxWriter) part(el *jsxElem, i int) {
 	if i == len(el.parts) {
 		saved := el.parts
@@ -636,7 +644,7 @@ func (w *jsxWriter) part(el *jsxElem, i int) {
 	}
 	m := el.parts[i].m
 	q := w.q
-	w.gen(q + "Part(" + w.f.html.recv + "." + m.name + ", ")
+	w.gen(q + "Part(" + m.recv + ", " + m.expr + ", ")
 	w.partFallback(el, m)
 	w.gen(", func(" + m.param + " " + m.typ + ") " + q + "Node {\n")
 	sink, ran := w.sink, w.ran

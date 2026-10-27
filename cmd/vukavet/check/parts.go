@@ -110,10 +110,10 @@ func runParts(pass *analysis.Pass) (any, error) {
 	// The parts naming them.
 	inspect(func(n ast.Node, stack []ast.Node) {
 		call, ok := n.(*ast.CallExpr)
-		if !ok || funcOf(info, call, uiPath) != "Part" || len(call.Args) == 0 {
+		if !ok || funcOf(info, call, uiPath) != "Part" || len(call.Args) < 2 {
 			return
 		}
-		id, fn := methodRef(info, call.Args[0])
+		id, fn := methodRef(info, call.Args[1])
 		d := byFn[fn]
 		if d == nil {
 			return
@@ -133,7 +133,7 @@ func runParts(pass *analysis.Pass) (any, error) {
 			if in != nil {
 				where = in.Name() + "'s method"
 			}
-			report(pass, call.Args[0], "E0349", "render "+d.recv.Name()+"'s part in "+d.recv.Name()+"'s own Render, or give "+orName(in, "this")+" a deferred method of its own",
+			report(pass, call.Args[1], "E0349", "render "+d.recv.Name()+"'s part in "+d.recv.Name()+"'s own Render, or give "+orName(in, "this")+" a deferred method of its own",
 				"ui.Part names %s.%s in %s: a part is its own page's or component's", d.recv.Name(), d.fn.Name(), where)
 			return
 		}
@@ -152,7 +152,7 @@ func runParts(pass *analysis.Pass) (any, error) {
 	}
 	for _, d := range order {
 		if !d.named {
-			report(pass, d.reg.Args[0], "E0342", "render it with ui.Part(p."+d.fn.Name()+", fallback, func(v T) ui.Node { … }), or drop ui.Defer",
+			report(pass, d.reg.Args[0], "E0342", "render it with ui.Part(p, (*"+d.recv.Name()+")."+d.fn.Name()+", fallback, func(v T) ui.Node { … }), or drop ui.Defer",
 				"ui.Defer: no ui.Part of %s names %s, so there is no part to defer", d.recv.Name(), d.fn.Name())
 		}
 	}
