@@ -85,7 +85,8 @@ func TestGoHints(t *testing.T) {
 
 // TestBuildHints: the hints of errors the build's own type check finds,
 // which knows the types: a signature's parameter names, the ctx in scope,
-// the imports of the package's other files.
+// the imports of the package's other files. (An attribute's missing import
+// stops the transpile first, as E0215.)
 func TestBuildHints(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
@@ -100,11 +101,6 @@ import (
 )
 
 func get(ctx context.Context, id int) string { return "" }
-
-type Q struct{}
-
-@graphql.Query
-func (q *Q) Users() []string { return nil }
 
 func main() {
 	ctx := context.Background()
