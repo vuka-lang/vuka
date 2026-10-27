@@ -24,6 +24,12 @@ type User struct{ Name, Email string }
 
 func (u *Users) Get(ctx context.Context, id int64) (User, error) { return User{}, nil }
 func (u *Users) Rename(ctx context.Context, id int64, name, email string) error { return nil }
+func (u *Users) Update(ctx context.Context, user User) error { return nil }
+
+type Geo struct{}
+
+func (g *Geo) Countries(ctx context.Context) ([]ui.Option, error) { return nil, nil }
+func (g *Geo) Cities(ctx context.Context, country string) ([]ui.Option, error) { return nil, nil }
 -->
 
 ## Declaring a Form {#declaring}
@@ -83,14 +89,15 @@ Each field's tags say how it is checked and shown:
 | `msg:` | a rule's message: `msg:"required=Accept the terms to continue"` |
 | `trim:"-"` | keep leading and trailing whitespace |
 | `form:` | the field's name in the form and its paths (`form:"email"`); `-` leaves it out |
+| `depends:` | the field its choices follow (`depends:"Country"`); see [Choices](#choices) |
 
 Three kinds of methods add to the tags. Their dependencies are injected, as
 an event handler's are:
 
 - `Clean<Field>(ctx, deps…) error` checks one field once its rules passed;
 - `Clean(ctx, deps…) error` checks the form as a whole, after every field;
-- `<Field>Choices(ctx, deps…) []ui.Option` gives a select's or radio
-  group's options.
+- `<Field>Choices(ctx, deps…) ([]ui.Option, error)` gives a select's or
+  radio group's options (see [Choices](#choices)).
 
 `forms.Live(ctx)` is true for checks run while the visitor types or leaves
 a field. A check that is slow, or touches the outside world, returns nil
@@ -152,8 +159,10 @@ state; `Form.SetError(&Form.Email, msg)` gives a field an error from your
 own code. A field is named by a pointer to it, so renaming one is a compile
 error rather than a silent miss.
 
-A form's fields are the page's own, so the form belongs to a routed page (a
-shape under `pages/`, or one served with `web.Live`).
+A form belongs to a routed page (a shape under `pages/`, or one served with
+`web.Live`), or to a stateful component on one. A component's form is its
+own: its parent's render sets the component's other props again, never its
+form, so what the visitor typed and the errors they see stay.
 
 ## Writing the Markup {#markup}
 
@@ -186,6 +195,12 @@ writes the control's `name`, `id`, `value`, `type`, `inputmode`,
   renders a struct field's fields under its label.
 - `<ui.Summary/>` puts the error summary somewhere other than the top of the
   form.
+- `<ui.Choices for={Form.Plan}/>` is a field's radios (or, for a slice, its
+  checkboxes), each with its label, from its `<Field>Choices`, for a field
+  you lay out yourself; a `<select model>` with no options gets them the
+  same way.
+- `<ui.Field for={Form.Email} ok/>` shows a tick once the visitor used the
+  field and it passes every check. Ticks are off by default.
 
 A misspelt field is a compile error naming the one it most likely meant:
 `model={Form.Emial}: Signup has no field Emial; did you mean Email?`
@@ -234,7 +249,9 @@ An error from `Clean<Field>` stays until that field changes, one from
 never thrown away.
 
 `<ui.Form validate="submit">` checks only on submit, for a page asking one
-question at a time; `validate="off"` doesn't check, leaving it to `Save`.
+question at a time. `validate="off"` runs no checks at all — no rules, no
+`Clean` methods, not even on submit — so `Save` runs with whatever was sent
+and must check it itself.
 
 ## Errors and Messages {#errors}
 
@@ -252,19 +269,22 @@ Messages are plain instructions, saying what to do:
 | `email` | "Enter an email address in the correct format, like name@example.com" |
 | a number that isn't one | "Enter a number" |
 
-`msg:"rule=…"` replaces one for a field, and a `forms.Messages` catalogue,
-put in a request's context with `forms.WithCatalogue`, replaces them
-app-wide. `forms.Errorf` writes the message of a Clean method's error.
+`msg:"rule=…"` replaces one for a field, `forms.Errorf` writes the message
+of a Clean method's error, and an app's catalogue changes any message, in
+any language: see [Messages and Translations](#messages).
 
 After a failed submit, the summary at the top of the form says "There is a
 problem" and links each error to its field, in the same words. The browser
 moves focus to it, and the page's title starts with "Error: ". An error
 that shows when the visitor leaves a field never moves focus.
 
-## Editing a Record {#editing}
+## Editing Records {#editing}
 
-A form editing a record starts from the record's values, set when the page
-mounts, and its submit handler writes them back:
+A form editing a record starts from the record's values and writes the
+form's back. `Form.Load(record)` copies the fields the form and the record
+share — the same Go name, the same kind of value — and makes them the
+values the form compares with; `f.Apply(&record)` writes the form's fields
+back, and only the ones it declares:
 
 ```go
 package account
@@ -295,6 +315,7 @@ type Edit struct {
     ui.Live
     ID   int64 // the route's [id]
     Form account.ProfileForm
+    user account.User
 }
 
 @ui.Mount
@@ -303,24 +324,257 @@ func (e *Edit) load(ctx context.Context, users *account.Users) error {
     if err != nil {
         return err
     }
-    e.Form.Name, e.Form.Email = u.Name, u.Email
+    e.user = u
+    e.Form.Load(u)
     return nil
 }
 
 func (e *Edit) Save(ctx context.Context, f account.ProfileForm, users *account.Users) error {
-    if err := users.Rename(ctx, e.ID, f.Name, f.Email); err != nil {
+    u := e.user
+    f.Apply(&u) // Name and Email; the record's other fields stay as loaded
+    if err := users.Update(ctx, u); err != nil {
         return err
     }
     return web.Redirect("/users")
 }
 </script>
 
-<ui.Form for={Form} onSubmit={Save} submitLabel="Save changes"/>
+<ui.Form for={Form} onSubmit={Save} submitLabel="Save changes" confirmLeave/>
 ```
 
-The record's id is the page's, from its URL; the form holds only what the
-visitor may change. `Form.Changed(&Form.Email)` reports whether a field
-differs from what the form first showed.
+- A field takes the record's field when both hold the same kind of value:
+  text, whole numbers, fractions, true or false, lists of them, times. A
+  pointer stands for its value, and `Apply` sets a pointer to nil for an
+  empty field. An `int` is never copied into a `string`.
+- `Apply` writes only the fields the form rendered, and returns their Go
+  names — the columns to save.
+- The record's id is the page's, from its URL; the form holds only what the
+  visitor may change.
+
+`ui.FormOf[T]("Name", "Email")` is a form over a model's fields without a
+struct of its own: the fields named, in that order, with the model's tags.
+There is no "every field": a column added to the model later isn't a
+submit's to set until the form names it, and a name the model doesn't have
+is a compile error ([E0161](/errors/E0161)). Markup names the fields
+through `Value`:
+
+```html
+<script lang="go">
+package edit
+
+import (
+    "context"
+
+    "example.com/app/account"
+    "github.com/vuka-lang/ui/v2"
+    "github.com/vuka-lang/web/v2"
+)
+
+type Edit struct {
+    ui.Live
+    ID   int64
+    Form *ui.ModelForm[account.User]
+}
+
+@ui.Mount
+func (e *Edit) load(ctx context.Context, users *account.Users) error {
+    u, err := users.Get(ctx, e.ID)
+    if err != nil {
+        return err
+    }
+    e.Form = ui.FormOf[account.User]("Name", "Email")
+    e.Form.Load(u)
+    return nil
+}
+
+func (e *Edit) Save(ctx context.Context, f *ui.ModelForm[account.User], users *account.Users) error {
+    u, err := users.Get(ctx, e.ID)
+    if err != nil {
+        return err
+    }
+    if err := users.Update(ctx, *f.Apply(&u)); err != nil {
+        return err
+    }
+    return web.Redirect("/users")
+}
+</script>
+
+<ui.Form for={Form} onSubmit={Save}>
+  <ui.Field for={Form.Value.Name}/>
+  <ui.Field for={Form.Value.Email}/>
+  <button>Save changes</button>
+</ui.Form>
+```
+
+Embedding a database model in a form instead makes every column of it a
+field a submit may set; `vuka vet` warns about it ([W0311](/errors/W0311)).
+
+## Choices {#choices}
+
+A field with a `<Field>Choices` method is a choice: a `<select>`, or radios
+with `input:"radio"`, or a checkbox per choice for a slice. The method's
+dependencies are injected, and it reads the form's current values, so one
+field's choices can follow another's:
+
+```go
+package places
+
+import (
+    "context"
+
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Address struct {
+    ui.FormState
+    Country string `validate:"required"`
+    City    string `validate:"required" depends:"Country"`
+}
+
+func (f *Address) CountryChoices(ctx context.Context, geo *Geo) ([]ui.Option, error) {
+    return geo.Countries(ctx)
+}
+
+func (f *Address) CityChoices(ctx context.Context, geo *Geo) ([]ui.Option, error) {
+    return geo.Cities(ctx, f.Country)
+}
+```
+
+- On a live page, choosing a country renders the form again: the city's
+  choices follow, and a city that isn't among them any more is cleared. An
+  empty required city shows its error on submit, not before.
+- A submitted value that isn't among the field's choices is an error
+  ("Select city from the list"), so a post can't choose what the form never
+  offered.
+- `depends:"Country"` names the field the choices follow. Without script,
+  that field gets an Update button, inside `<noscript>`: it sends the form,
+  which renders again with the new choices, and saves nothing (a plain post
+  answers 200).
+- A field's `Choices` method runs once per change, however often the
+  render reads it. `vuka vet` warns about a `depends:` naming no field
+  ([W0313](/errors/W0313)).
+
+## Browser Checks {#browser-checks}
+
+Forms are `novalidate`: the server's messages are the ones a visitor reads.
+A control carries a constraint attribute only where the browser decides
+exactly as the server does:
+
+| Attribute | Written |
+|---|---|
+| `minlength`, `maxlength` | on a field of digits (`input:"numeric"`), whose characters count the same in the browser (UTF-16 units) and in Go (characters) |
+| `min`, `max` | on a `type="number"` input |
+| `required` | with `ui.Config{RequiredAttr: true}`; the browser takes spaces for a value, where the server trims them |
+| `pattern` | never: the browser's regular expressions aren't Go's |
+
+`vukavet -forms.attrs` notes each attribute a field's control leaves out,
+and why ([W0312](/errors/W0312)).
+
+`ui.Configure(ui.Config{BrowserChecks: true})` adds a check before a submit
+sent without a live connection — the socket down, or a page without live
+parts. Each control carries the rules the browser can decide as the server
+does (`required`, `len`, `min`, `max`, `email`, `oneof`), in the server's
+order, with the server's messages; a submit breaking one shows the errors
+and the summary at once, as the server's 422 would, and isn't sent. A value
+the browser can't judge the same way, such as letters in a field of digits,
+is left to the server, which checks every submit that goes. It's off by
+default because the messages then ride in the page's markup.
+
+## Messages and Translations {#messages}
+
+Every message comes from a key: a rule's (`validate.required`,
+`validate.max.string`), a key your code names in a `msg:` tag, `SetError`,
+`Fail` or `forms.Errorf`, or the form components' own words
+(`form.problem` for "There is a problem", `form.optional`, `form.save`).
+`forms.DefaultMessages()` lists the default English wording.
+
+An app's catalogue overrides any of them, and translates them by the
+request's language:
+
+```go
+package app
+
+import (
+    "github.com/vuka-lang/ui/v2"
+    "github.com/vuka-lang/ui/v2/forms"
+)
+
+func configureForms() {
+    ui.Configure(ui.Config{Messages: forms.Translations{
+        "en": forms.Messages{
+            "signup.email.taken": "That email address is already registered",
+        },
+        "sw": forms.Messages{
+            "validate.required":   "Weka {label}",
+            "validate.max.string": "{Label} isizidi herufi {n}",
+            "form.problem":        "Kuna tatizo",
+            "form.optional":       "(si lazima)",
+            "signup.email.taken":  "Barua pepe hii imeshasajiliwa",
+            "Full name":           "Jina kamili",
+        },
+    }})
+}
+```
+
+- The language is the request's `Accept-Language`, the first it lists that
+  the catalogue has (`pt-BR` falling back to `pt`), else English. A
+  middleware choosing another — a signed-in visitor's setting — puts it in
+  the request's context with `forms.WithLocale` first.
+- A label, hint, legend or placeholder is translated by its text:
+  `"Full name": "Jina kamili"`. Messages put the translated label in
+  `{label}` (in a sentence) and `{Label}` (starting one).
+- `{n, plural, one {# character} other {# characters}}` chooses its words
+  by the number's plural category in the message's language — one and
+  other for English, one, few and many for Russian or Polish, one form for
+  Japanese — `#` being the number; `=0 {…}` chooses an exact value.
+  `forms.SetPlural` adds a language's rule.
+- `forms.Messages{…}` alone is one language's catalogue; a request's own,
+  put in its context with `forms.WithCatalogue`, comes before the app's.
+
+## State {#state}
+
+A form knows how it stands against the values it was loaded with:
+
+| | |
+|---|---|
+| `Form.Dirty()` | some field differs from the values loaded (`Load`), or first rendered |
+| `Form.Changed(&Form.Email)` | that field does |
+| `Form.Touched(&Form.Email)` | the visitor used it |
+| `Form.Submitting()` | its submit handler is running |
+| `Form.Saved()` | the last submit succeeded, in the last 2 seconds |
+| `Form.Reset()` | puts the loaded values back and clears the errors |
+
+A successful submit makes its values the ones the form compares with, so
+it isn't dirty after it. `Load` and `Reset` make every field take the
+server's value, the one being typed in too; otherwise what the visitor
+typed stands, and a focused field is never overwritten.
+
+```html
+<ui.Form for={Form} onSubmit={Save}>
+  <ui.Field for={Form.Name}/>
+  <ui.Field for={Form.Email} ok/>
+  <button>Save</button>
+  if Form.Dirty() {
+    <button type="button" onClick={Discard}>Discard changes</button>
+  }
+  if Form.Saved() {
+    <p role="status">Saved</p>
+  }
+</ui.Form>
+```
+
+`Discard` is a method calling `e.Form.Reset()`. On a live page "Saved" goes
+by itself once the 2 seconds are up.
+
+## Unsaved Changes {#unsaved}
+
+`<ui.Form confirmLeave>` asks before the visitor leaves the page while the
+form has changes not saved: values differing from the ones it was loaded
+with, or typed and not sent yet. Closing the tab or reloading shows the
+browser's question; a link or a navigation on a live page asks "You have
+changes that are not saved. Leave this page?" (`form.leave`, translatable).
+Submitting the form leaves without asking. Without script there is no
+question.
 
 ## Several Forms on a Page {#several}
 
@@ -361,7 +615,7 @@ control:
   true})` marks required fields "(required)" instead.
 - Forms are `novalidate`: the browser's own messages never show, and the
   server's are the ones read. Attributes the browser would check differently
-  from the server (`pattern`, `minlength`, `maxlength`) aren't written;
+  from the server aren't written ([Browser Checks](#browser-checks));
   `ui.Config{RequiredAttr: true}` adds `required` to required fields.
 
 ## Without JavaScript {#no-js}
@@ -382,7 +636,8 @@ the form rendered it.
 ## Submits, Retries and CSRF {#submit}
 
 While a submit is on its way the form is `aria-busy`, its button showing
-the busy state while staying enabled, and a second submit is dropped.
+the busy state while staying enabled and clickable, and a second submit is
+dropped by the runtime.
 `<ui.Form submit="abort">` sends the second and ignores the first's reply;
 `submit="allow"` sends every one. A change waiting to be sent goes before
 the submit, and a reply to a change can't arrive after the submit's.

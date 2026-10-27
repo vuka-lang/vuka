@@ -85,6 +85,51 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `@graphql.Subscription` is reserved for a later version
   ([E0806](/errors/E0806)).
 
+- **Editing records.** `Form.Load(record)` copies the fields a record
+  shares with the form and makes them its baseline; `f.Apply(&record)`
+  writes back the fields the form declares and rendered, returning their
+  names. `ui.FormOf[T]("Name", "Email")` is a form over a model's named
+  fields, with its tags — no "every field"; a name the model lacks is a
+  compile error ([E0161](/errors/E0161)). See
+  [Editing Records](/ui/forms#editing).
+
+- **Choices that follow each other.** `<Field>Choices` reads the form's
+  current values, so a city's choices follow its country: on a live page a
+  value no longer among them is cleared, and a submitted value that isn't
+  one is an error. `depends:"Country"` gives the parent an Update button
+  for browsers without script ([W0313](/errors/W0313)). `<ui.Choices
+  for={Form.Plan}/>` renders a field's radios or checkboxes. See
+  [Choices](/ui/forms#choices).
+
+- **Browser checks that agree with the server.** Controls carry only the
+  constraint attributes the browser decides as Go does: `minlength` and
+  `maxlength` on fields of digits, `min` and `max` on number inputs,
+  `required` with `ui.Config{RequiredAttr}`, never `pattern`;
+  `vukavet -forms.attrs` says what's left out and why
+  ([W0312](/errors/W0312)). `ui.Config{BrowserChecks: true}` checks a
+  submit sent without a connection in the browser first, with the server's
+  messages. See [Browser Checks](/ui/forms#browser-checks).
+
+- **Messages in the visitor's language.** `ui.Config{Messages}` takes the
+  app's catalogue: `forms.Messages`, or `forms.Translations` by language,
+  chosen from the request's `Accept-Language` (`forms.WithLocale` to choose
+  another). Labels, hints and the form's own words translate; plural forms
+  (`{n, plural, one {# character} other {# characters}}`) follow each
+  language's rules. See [Messages and Translations](/ui/forms#messages).
+
+- **Form state.** `Form.Dirty()`, `Form.Changed(&Form.X)` against the
+  loaded values, `Form.Reset()`, and `Form.Saved()` for the 2 seconds after
+  a successful submit; `Load` and `Reset` make the browser's fields take the
+  server's values. `<ui.Form confirmLeave>` asks before the visitor leaves
+  unsaved changes. `<ui.Field ok>` shows a tick on a valid field. See
+  [State](/ui/forms#state).
+
+- **Fixes to forms.** A busy form's submit button takes clicks again (the
+  runtime drops the repeated submit; the kit's `pointer-events: none` is
+  gone). A stateful component's form keeps what the visitor typed when its
+  parent renders again. `validate="off"` is documented as what it is: no
+  checks at all.
+
 ## v2.7.0 — unreleased
 
 - **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
