@@ -5,11 +5,14 @@
 # transport's answers over GET and POST.
 POST /graphql json {"query":"{ pets(first: 10) { id name kind tag born price tricks age(at: \"2026-01-31\") owner { name email } } }"}
 POST /graphql json {"query":"query Cats($k: Kind) { pets(kind: $k, first: 5) { ...Brief } } fragment Brief on Pet { id name }","variables":{"k":"CAT"}}
-POST /graphql json {"query":"{ a: pet(id: 1) { name } b: pet(id: 3) { name __typename } missing: pet(id: 9) { name } }"}
+POST /graphql json {"query":"{ a: pet(id: 1) { name ownerID } b: pet(id: \"3\") { name __typename } missing: pet(id: 9) { name } }"}
 POST /graphql json {"query":"{ pets(first: 1) { age(at: \"tomorrow\") } broken }"}
 POST /graphql json {"query":"mutation { addPet(pet: {name: \"\", price: 0}) { id } }"}
 POST /graphql json {"query":"mutation Add($p: NewPet) { addPet(pet: $p) { id name kind price tag } }","variables":{"p":{"name":"Rex","kind":"DOG","price":10}}}
 POST /graphql json {"query":"mutation Add($p: NewPet) { addPet(pet: $p) { id name kind price tag } }","variables":{"p":{"name":"Bolt","kind":"DOG","price":10,"tag":"fast"}}}
+POST /graphql json {"query":"mutation Adopt($o: ID) { addPet(pet: {name: \"Fido\", price: 5, ownerID: $o}) { id ownerID owner { name } } }","variables":{"o":"1"}}
+POST /graphql json {"query":"{ pet(id: \"one\") { name } }"}
+POST /graphql json {"query":"query($id: ID) { pet(id: $id) { name } }","variables":{"id":"x1"}}
 POST /graphql json {"query":"mutation { removePet(id: 1) }"}
 POST /graphql json {"query":"{ pets(first: 1) { nope } }"}
 POST /graphql json {"query":"{ pets(first: 1) { owner { name } } pet(id: 1) { owner { name } } }"}

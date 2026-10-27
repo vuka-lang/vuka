@@ -33,6 +33,13 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `graphql:",id"` an `ID`, text-marshalling types custom scalars, enums and
   typed constants enums. See [GraphQL](/web/graphql).
 
+- **IDs round-trip.** An integer argument, input field or object field
+  named `id`, or ending in `ID` or `Id` (`OwnerID`, `userId`), is an `ID`:
+  written as `"7"`, read back as `"7"` or `7`, the resolver getting the Go
+  integer. `@graphql.AsID("param")` and `graphql:",id"` force an `ID`,
+  `@graphql.AsInt("param")` and `graphql:",int"` keep an `Int`. See
+  [IDs](/web/graphql#ids).
+
 - **Names from Go, overrides where you need them.** Lower camel fields and
   operations, Go type names, SCREAMING_SNAKE enum values without their
   type's name; `@graphql.Query("…")`, `@graphql.Type`, `@graphql.Input`,

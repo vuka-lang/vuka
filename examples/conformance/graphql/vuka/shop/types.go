@@ -18,7 +18,7 @@ type Pet struct {
 	Born    time.Time
 	Price   float64
 	Tricks  []string `graphql:",omitempty"`
-	OwnerID int64    `graphql:"-"`
+	OwnerID int64
 	notes   string
 }
 

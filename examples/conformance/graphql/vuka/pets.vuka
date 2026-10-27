@@ -15,8 +15,9 @@ import (
 type NewPet struct {
 	Name  string `validate:"required,max=12"`
 	Kind  shop.Kind
-	Price float64 `validate:"min=1"`
-	Tag   *string
+	Price   float64 `validate:"min=1"`
+	Tag     *string
+	OwnerID int64
 }
 
 // CleanName refuses a name the shop has already.
@@ -52,7 +53,7 @@ func Broken(ctx context.Context) (int, error) { return 0, shop.ErrBroken }
 @graphql.Mutation
 @graphql.Arg("in", "pet")
 func AddPet(ctx context.Context, in NewPet, store *shop.Store) (shop.Pet, error) {
-	return store.Add(shop.Pet{Name: in.Name, Kind: in.Kind, Price: in.Price, Tag: in.Tag}), nil
+	return store.Add(shop.Pet{Name: in.Name, Kind: in.Kind, Price: in.Price, Tag: in.Tag, OwnerID: in.OwnerID}), nil
 }
 
 // RemovePet is for staff only.

@@ -123,7 +123,7 @@ fields and methods, and theirs — becomes a type of the schema:
 | an embedded struct | its fields, in its place, as Go promotes them |
 | a method | a field with arguments (see [Field Methods](#field-methods)) |
 | `string`, `bool`, `float64`, the integer types | `String`, `Boolean`, `Float`, `Int` |
-| a field tagged `graphql:",id"` (a string or an integer) | `ID` |
+| an integer named `id`, or ending in `ID` or `Id` (`OwnerID`, `userId`, `tagIDs`); a field tagged `graphql:",id"` (a string or an integer) | `ID` (see [IDs](#ids)) |
 | `time.Time` | `DateTime`, written in RFC 3339 |
 | a type with `MarshalText` and `UnmarshalText` | a custom scalar named after the type |
 | a vuka `enum`, or a type with constants | an enum, its values the constants |
@@ -137,7 +137,7 @@ leaves out, or gives null, is its type's zero value — nil for a pointer,
 which tells "not given" from zero.
 
 Integers are `Int`, which GraphQL limits to 32 bits; a larger value is an
-error at its field. Use `ID` for identifiers. A map, a channel, a function,
+error at its field; identifiers are `ID`s ([IDs](#ids)). A map, a channel, a function,
 an unnamed struct and `time.Duration` have no GraphQL type: an operation
 reaching one is a compile error ([E0802](/errors/E0802)) naming the path to
 it. Tag such a field `graphql:"-"`.
@@ -225,6 +225,39 @@ Every name has a default from Go and an override for a specific wire name:
 | Argument | the Go parameter's name | `@graphql.Arg("after", "cursor")` on the function or method; a tag on an input struct's field |
 | Enum value | the constant's name in SCREAMING_SNAKE case, its type's name dropped: `StatusPastDue` is `PAST_DUE` | `@graphql.Value("BEHIND")` on the constant |
 | Generic instantiation | its type arguments' names first: `Page[User]` is `UserPage` | `@graphql.Type` on a named instantiation |
+
+### IDs {#ids}
+
+An id travels as an `ID`: written as a string, `"7"`, and read back as the
+string or the integer, `"7"` or `7`, so a client sends back exactly what it
+received. An integer argument, input field or object field is an `ID` when
+its Go name says it is an id: `id`, `ID`, or a name ending in `ID` or `Id`
+(and their plurals for a slice, `tagIDs`). Its resolver gets the Go integer;
+a value that isn't a whole number in range is refused, as a variable's or
+an argument's value of the wrong type. Overrides go both ways:
+
+| | Force `ID` | Keep `Int` |
+|---|---|---|
+| a parameter | `@graphql.AsID("owner")` on the function or method | `@graphql.AsInt("lastSeenID")` |
+| a struct field (input or output) | `graphql:",id"` | `graphql:",int"` |
+
+```vuka
+// pet(id: ID): the id a query gave, sent back.
+@graphql.Query("pet")
+func FindPet(id int64, store *Store) (*Pet, error) { … }
+
+// owned(owner: ID, minVisitID: Int)
+@graphql.Query
+@graphql.AsID("owner")
+@graphql.AsInt("minVisitID")
+func Owned(owner int64, minVisitID int, store *Store) ([]Pet, error) { … }
+
+type Visit struct {
+	ID       int64                    // ID!
+	PetID    int64                    // ID!
+	ClinicID int   `graphql:",int"`   // Int!: a clinic's number, not a reference
+}
+```
 
 `graphql.Naming{Fields: graphql.SnakeCase}` names every field and argument
 without a written name in snake case (`created_at`); a written name always
