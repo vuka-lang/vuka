@@ -72,6 +72,7 @@ type engine struct {
 	progress bool
 
 	graphqlDone bool         // the GraphQL registrations are written (graphql.go)
+	straysDone  bool         // timing attributes off a page's or component's methods are reported (parts.go)
 	loaders     []*gqlLoader // the package's @graphql.Loader functions (graphqlloader.go)
 	gqlWarns    map[*fileState]ErrorList
 }
@@ -116,7 +117,24 @@ func (e *engine) run() {
 			e.progress = true
 			continue
 		}
-		unwrapped, nerrs := false, len(*e.errs)
+		nerrs := len(*e.errs)
+		if !e.straysDone {
+			e.straysDone = true
+			e.strayTimings()
+		}
+		parted := false
+		for _, f := range e.vuka {
+			parted = e.findParts(f) || parted
+		}
+		if len(*e.errs) > nerrs {
+			break
+		}
+		if parted {
+			// The markup's deferred calls are their parts' parameters
+			// before anything is decided from the markup's types.
+			continue
+		}
+		unwrapped := false
 		for _, f := range e.vuka {
 			unwrapped = e.unwrapCalls(f) || unwrapped
 		}

@@ -216,6 +216,7 @@ type fileState struct {
 	varReads     []VarRead       // the reads lowered
 
 	done      map[int]bool  // src offsets of identifiers already rewritten or reported
+	partsDone bool          // its parts are decided (parts.go)
 	unwrapped map[span]bool // the markup's calls unwrapped or reported, by src span (unwrap.go)
 	unwraps   []Unwrap      // the calls unwrapped
 	rt        string        // the name the runtime is imported as; "" until needed

@@ -15,6 +15,7 @@ func TestTemplates(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), Templates, "templates")
 }
 func TestSchema(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Schema, "schema") }
+func TestParts(t *testing.T)  { analysistest.Run(t, analysistest.TestData(), Parts, "parts") }
 func TestURLState(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), URLState, "urlstate", "urlstate/table")
 }

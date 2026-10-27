@@ -634,13 +634,77 @@ statements it ran; every loader batch with its keys. The SQL panel names
 the field (or loader) behind each statement, and an N+1 the field
 repeating it.
 
-The **GraphiQL** panel runs queries against the app: an editor completing
-fields and arguments from the schema (Ctrl+Space; Ctrl+Enter runs),
-variables, and the result. Each run is a call of the list, its record's
-GraphQL panel the run's trace ("Show its trace"). A browser opening the
-endpoint itself in development (`http://localhost:8080/graphql`) gets a
-page whose toolbar opens on it, for an app serving no page of its own.
-Neither exists outside development.
+The **GraphiQL** panel runs queries against the app, in an editor that
+knows its schema (read by introspection, once per page, and again when the
+app rebuilds):
+
+- **Completion at the cursor**, as you type and on Ctrl+Space: the fields
+  of the type at the cursor (in nested selections, fragments and inline
+  fragments on interfaces and unions), arguments with their types and
+  required ones marked, enum values, an input object's fields inside its
+  `{ }`, the operation's variables of the type wanted (`$`), directives,
+  fragment names, `on` and the operation keywords. Each item shows its type
+  and description; matching is fuzzy (`usr` finds `user` and `users`); the
+  arrow keys move, Enter or Tab accepts, Esc closes. A field with required
+  arguments comes with `()` and the cursor inside, offering them; an object
+  field with `{ }` on lines of its own.
+- **Highlighting** of keywords, fields, aliases, arguments, types,
+  variables, strings, numbers, enum values, directives and comments;
+  matching brackets; brackets and quotes closed as they open; indentation
+  kept and deepened after `{`; Ctrl/Cmd+/ comments lines in or out.
+- **The app's own checks as you type**: the endpoint's parser, validation,
+  limits and variable coercion run on each pause (nothing executes, nothing
+  is recorded), their errors underlined where they are and listed under the
+  editor — click one to go there, and an unknown name's "Did you mean"
+  becomes a button putting it right.
+- **Hover** on a field, argument, type, enum value, directive or variable
+  shows its type and description; Ctrl/Cmd+click opens it in the docs.
+- **Formatting**: the Format button, Shift+Ctrl/Cmd+P or Shift+Alt+F
+  formats the document — or only the definitions the selection touches —
+  in the canonical style: two-space indentation, a field a line, arguments,
+  variables, input objects and lists on one line while it fits in 80
+  columns and one a line past that; comments and blank lines kept, strings
+  and block strings unchanged. Formatting twice changes nothing, the cursor
+  stays on its token, and Ctrl/Cmd+Z undoes it in one step. The variables
+  and headers are formatted with it (or alone, from their editors), and a
+  document that doesn't parse says where.
+- **Variables and headers**, JSON editors of their own: highlighted, their
+  syntax checked as you type, the variables completing the operation's
+  declared variables (with their input types), an input object's fields and
+  enum values, and the app's coercion errors marked on the value at fault.
+- **Running**: Ctrl/Cmd+Enter runs the operation at the cursor (a document
+  may hold several; the picker beside Run chooses another), with the
+  headers given. The result is highlighted JSON whose objects and lists
+  fold; above it the status, the time and the size, and the errors with
+  their paths and locations (click one to go there). Each run is a call of
+  the list, its record's GraphQL panel the run's trace ("Show its trace").
+  "Copy as curl" copies the request.
+- **Tabs and history**: documents are tabs, kept with their variables and
+  headers in the browser's storage for the app, and the queries run are its
+  history, a click away from a tab of their own.
+- **The explorer** (the Explorer button): **Operations** lists every field
+  of Query, Mutation and Subscription, with their counts, a filter, and
+  each one's arguments, type and description; Insert puts a ready-to-run
+  operation at the cursor, New tab in a tab of its own — the keyword, a
+  name, a variable for each argument (`$id: ID!`) wired to it, and a
+  selection of the field's scalars (and its objects' `id`), the cursor on
+  that selection and the required variables in the variables. The panel
+  can't run a subscription, and says so. **Docs** walks the schema from its
+  roots — types, fields with their arguments, descriptions and
+  deprecations, input fields, enum values, possible types — with a search
+  across types and fields; `+` beside a field inserts it at the cursor.
+- **Full screen**: the Full screen button, or Shift+Ctrl/Cmd+F, gives the
+  panel the whole window and back, keeping the editors as they were; Esc
+  leaves it. The choice is remembered for the app.
+
+![The GraphiQL panel](/toolbar-graphiql.png)
+
+A browser opening the endpoint itself in development
+(`http://localhost:8080/graphql`) gets a page whose toolbar opens on the
+panel, for an app serving no page of its own. None of it exists outside
+development: the editor's script is part of the toolbar, which a production
+app doesn't serve, and the toolbar loads it only when the panel first
+shows.
 
 ## The Generated Go {#the-generated-go}
 

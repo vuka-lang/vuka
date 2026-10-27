@@ -1,0 +1,13 @@
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+@ui.Defer
+func load(ctx context.Context) (int, error) { return 1, nil }
+
+@ui.Defer
+func (s *Service) Stats(ctx context.Context) (int, error) { return 1, nil }
