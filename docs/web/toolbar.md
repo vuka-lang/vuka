@@ -40,6 +40,9 @@ statement: read those rows in one query instead
 ORM). A statement that failed, or that the ORM refused before sending it, is
 red with its error.
 
+A statement a GraphQL field or loader ran says which (`from
+users.3.orders`), and an N+1 names the field repeating it.
+
 ### Timeline
 
 Where the time went, as bars against the request: the app's
@@ -79,6 +82,21 @@ run is a record of its own, listed under *Cron runs* at the top: open it
 for its statements, timeline, logs and error, as for a request.
 
 ![A cron's run](/toolbar-crons.png)
+
+### GraphQL
+
+For a [GraphQL](/web/graphql) request, the fields that resolved through a
+resolver of their own, by path, with when each started, how long it took
+and the statements it ran, and each loader batch with its keys: where a
+query's time went, and which fields still query once per parent. See
+[GraphQL in the toolbar](/web/graphql#toolbar).
+
+### GraphiQL
+
+In an app serving `web.GraphQL`, a panel running queries against it: an
+editor completing fields and arguments from the schema, variables and the
+result, each run a call of the list with its trace. It stays as you move
+between records.
 
 ### Mail
 
@@ -193,7 +211,9 @@ With [`vuka run -watch`](/tools/cli#build-run-test-vet-install) the old build ke
 while the next one compiles, so the page in front of you can be older than
 your code. The handle says so: `building… 1.2s` while the next build
 compiles, and `build failed` when it didn't — the drawer then shows the
-compiler's output above the panels, `.vuka` file and line included. The
+build's errors above the panels, as [`vuka build` prints
+them](/tools/cli#build-errors): each at its `.vuka` file, line and column,
+with the code and a caret, and in one line the pages that fail with it. The
 build that keeps answering is the last good one, until a save compiles.
 
 ### Asset and Island Builds

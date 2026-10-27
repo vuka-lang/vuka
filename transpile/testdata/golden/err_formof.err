@@ -1,0 +1,3 @@
+err_formof.vuka:17:36: ui.FormOf[User]: User has no field Emial; did you mean Email?; name the field as it is declared: "Email"
+err_formof.vuka:17:53: ui.FormOf[User]: Address has no field Town; its fields are City
+err_formof.vuka:17:61: ui.FormOf[User]: User has no field Phone; its fields are ID, Name, Email, Address

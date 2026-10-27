@@ -1,0 +1,63 @@
+error[E0002]: undefined: missingA
+ --> lots/lots.vuka:4:6
+  |
+4 |     _ = missingA
+  |         ^^^^^^^^
+
+error[E0002]: undefined: missingB
+ --> lots/lots.vuka:5:6
+  |
+5 |     _ = missingB
+  |         ^^^^^^^^
+
+error[E0002]: undefined: missingC
+ --> lots/lots.vuka:6:6
+  |
+6 |     _ = missingC
+  |         ^^^^^^^^
+
+error[E0002]: undefined: missingD
+ --> lots/lots.vuka:7:6
+  |
+7 |     _ = missingD
+  |         ^^^^^^^^
+
+error[E0002]: undefined: missingE
+ --> lots/lots.vuka:8:6
+  |
+8 |     _ = missingE
+  |         ^^^^^^^^
+
+error[E0002]: undefined: missingF
+ --> lots/lots.vuka:9:6
+  |
+9 |     _ = missingF
+  |         ^^^^^^^^
+
+error[E0002]: undefined: missingG
+  --> lots/lots.vuka:10:6
+   |
+10 |     _ = missingG
+   |         ^^^^^^^^
+
+error[E0002]: undefined: missingH
+  --> lots/lots.vuka:11:6
+   |
+11 |     _ = missingH
+   |         ^^^^^^^^
+
+error[E0002]: undefined: missingI
+  --> lots/lots.vuka:12:6
+   |
+12 |     _ = missingI
+   |         ^^^^^^^^
+
+error[E0002]: undefined: missingJ
+  --> lots/lots.vuka:13:6
+   |
+13 |     _ = missingJ
+   |         ^^^^^^^^
+
+and 2 more errors in example.com/app/lots — `vuka vet` lists all
+
+12 errors in 1 package

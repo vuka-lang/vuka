@@ -67,6 +67,11 @@ func newCachedImporter(root, overlay string) *Importer {
 // data across runs and processes.
 func NewModuleImporter(root string) *Importer { return newCachedImporter(root, "") }
 
+// NewOverlayImporter is an importer for the module at root seeing the
+// overlay's files, that remembers the standard library's and dependencies'
+// export data across runs.
+func NewOverlayImporter(root, overlay string) *Importer { return newCachedImporter(root, overlay) }
+
 // Prefetch looks up the export data of paths, and everything they depend
 // on, with one go command: the imports of all the module's Vuka packages,
 // asked once rather than package by package.
@@ -328,20 +333,27 @@ func (im *Importer) explain(e *goError) (culprit, detail string, compiled bool) 
 	if rest, ok := strings.CutPrefix(e.Err, "# "); ok {
 		head, body, _ := strings.Cut(rest, "\n")
 		culprit, _, _ = strings.Cut(head, " ")
+		// An error's own lines after its first (have/want) are indented.
 		var lines []string
-		for _, l := range strings.Split(strings.TrimSpace(body), "\n") {
-			if l = strings.TrimSpace(l); l != "" && !strings.HasPrefix(l, "note: ") {
-				lines = append(lines, im.absPos(l))
+		capped := false
+		for _, l := range strings.Split(strings.TrimRight(body, "\n"), "\n") {
+			switch t := strings.TrimSpace(l); {
+			case t == "" || strings.HasPrefix(t, "note: ") || strings.HasPrefix(l, "\t") || strings.HasPrefix(l, " "):
+			case strings.HasSuffix(t, "too many errors"):
+				capped = true
+			default:
+				lines = append(lines, im.absPos(t))
 			}
 		}
 		if len(lines) == 0 {
 			return culprit, strings.TrimSpace(body), true
 		}
 		detail = lines[0]
-		if n := len(lines) - 1; n > 0 && !strings.HasSuffix(lines[n], "too many errors") {
+		switch n := len(lines) - 1; {
+		case capped:
+			detail += fmt.Sprintf(" (and at least %d more)", n)
+		case n > 0:
 			detail += fmt.Sprintf(" (and %d more)", n)
-		} else if n > 0 {
-			detail += " (and more)"
 		}
 		return culprit, detail, true
 	}

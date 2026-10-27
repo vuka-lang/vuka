@@ -1,0 +1,11 @@
+package main
+
+import "context"
+
+@graphql.Query
+func Pets(ctx context.Context) ([]string, error) { return nil, nil }
+
+@billing.Metered
+func Charge(ctx context.Context) error { return nil }
+
+func main() {}

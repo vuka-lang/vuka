@@ -1,0 +1,20 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+type DB struct{}
+
+@graphql.Loader
+func OtherKeys(ctx context.Context, ids []int) (map[string]string, error) { return nil, nil }
+
+@graphql.Loader
+func ValueDep(ctx context.Context, ids []int, n int) (map[int]string, error) { return nil, nil }
+
+@graphql.Query
+func Ok(ctx context.Context, db *DB) (int, error) { return 0, nil }
+
+func main() {}

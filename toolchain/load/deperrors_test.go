@@ -120,6 +120,11 @@ func TestFailureMessages(t *testing.T) {
 		{"example.com/web", nil, []*goError{{ImportStack: []string{"example.com/web"}, Pos: "/m/web@v0.3.0/live.go:20:2", Err: "no required module provides package github.com/vuka-lang/vuka/v2/live"}},
 			"example.com/web doesn't compile: /m/web@v0.3.0/live.go:20:2: no required module provides package github.com/vuka-lang/vuka/v2/live; web v0.3.0 was built for an older Vuka; upgrade it (go get example.com/web@latest)"},
 		{"nope", &goError{Err: `no required module provides package "nope"`}, nil, `no required module provides package "nope"`},
+		// An error's have and want lines are of that error.
+		{"example.com/app/views", &goError{Err: "# example.com/app/views\nv.go:1:2: not enough arguments in call to f\n\thave ()\n\twant (int)\n"}, nil,
+			"example.com/app/views doesn't compile: /w/app/v.go:1:2: not enough arguments in call to f"},
+		{"example.com/app/views", &goError{Err: "# example.com/app/views\nv.go:1:2: undefined: a\nv.go:2:2: undefined: b\n\thave ()\nv.go:3:2: too many errors\n"}, nil,
+			"example.com/app/views doesn't compile: /w/app/v.go:1:2: undefined: a (and at least 1 more)"},
 	} {
 		if got := im.failure(c.path, c.own, c.deps); got != c.want {
 			t.Errorf("%s:\ngot  %s\nwant %s", c.path, got, c.want)

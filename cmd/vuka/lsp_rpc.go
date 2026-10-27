@@ -217,6 +217,19 @@ type lspDiagnostic struct {
 	CodeDescription *lspCodeDesc `json:"codeDescription,omitempty"`
 	Source          string       `json:"source,omitempty"`
 	Message         string       `json:"message"`
+	// RelatedInformation is the places the message names: the errors of a
+	// package an import fails for.
+	RelatedInformation []lspRelated `json:"relatedInformation,omitempty"`
+}
+
+type lspRelated struct {
+	Location lspLocation `json:"location"`
+	Message  string      `json:"message"`
+}
+
+type lspLocation struct {
+	URI   string   `json:"uri"`
+	Range lspRange `json:"range"`
 }
 
 type lspCodeDesc struct {

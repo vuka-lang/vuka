@@ -1,6 +1,7 @@
 import { readFileSync } from 'node:fs'
 import { defineConfig } from 'vitepress'
 import container from 'markdown-it-container'
+import { writeLLMs } from './llms'
 
 const vuka = JSON.parse(readFileSync(new URL('../../editors/vscode/syntaxes/vuka.tmLanguage.json', import.meta.url), 'utf8'))
 
@@ -11,6 +12,7 @@ export default defineConfig({
   lastUpdated: true,
   cleanUrls: true,
   srcExclude: ['design/**', 'rfc/**'], // design notes and RFCs live in the repository, not on the site
+  buildEnd: writeLLMs,
   head: [
     ['link', { rel: 'icon', type: 'image/svg+xml', href: '/logo.svg' }],
     ['link', { rel: 'preconnect', href: 'https://fonts.googleapis.com' }],
@@ -62,6 +64,7 @@ export default defineConfig({
           { text: 'Configuration', link: '/web/configuration' },
           { text: 'Deployment', link: '/web/deployment' },
           { text: 'Examples', link: '/examples' },
+          { text: 'LLMs & AI Assistants', link: '/guide/llms' },
         ],
       },
       {

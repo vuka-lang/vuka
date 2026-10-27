@@ -235,9 +235,10 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	}
 	var gens []load.Generated
 	var overlay string
+	ro := reportOptions{color: colorFor(stderr), verbose: slices.Contains(args, "-v"), all: cmd == "vet"}
 	if len(pkgs) > 0 {
 		if gens, overlay, err = cachedTranspile(root)(pkgs, tmp, loadOptions(pa)); err != nil {
-			return err
+			return failedBuild(stderr, transpileReport(buildInput{root, modPath, overlay, gens}, err), err, ro)
 		}
 	}
 	if cmd == "vet" {
@@ -343,6 +344,13 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	}
 	r := &respeller{w: stderr, dir: c.Dir, gens: gens}
 	c.Stdin, c.Stdout, c.Stderr = os.Stdin, stdout, r
+	// The compile errors of the module's packages are reported at their
+	// source once the go command is done; go test's stay in its output.
+	var blocks *blockWriter
+	if cmd != "test" {
+		blocks = &blockWriter{next: r, respell: r.respell}
+		c.Stderr = blocks
+	}
 	if cmd == "run" {
 		// A signal stops what vuka started beside the program and goes on to
 		// the go command; vuka waits for it to exit.
@@ -361,6 +369,10 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		}
 	} else {
 		err = c.Run()
+	}
+	if blocks != nil {
+		blocks.flush()
+		blocks.report(stderr, err, buildInput{root, modPath, overlay, gens}, ro)
 	}
 	r.flush()
 	if err == nil && vetFailed {
