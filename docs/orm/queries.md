@@ -234,6 +234,15 @@ page, err := orm.Paginate(ctx, orm.Objects[Post]().QuerySet, orm.PageFrom(r.URL.
 same by hand. Sizes default to 20, at most 100 (`orm.DefaultSize(n)`,
 `orm.MaxSize(n)`).
 
+`qs.CursorPage(ctx, after, before, first, last)` reads a page by cursor
+instead — the first rows after a row's cursor, or the last before one —
+returning the rows, each row's opaque cursor and whether rows go on past
+the page. Its cursors are keyset cursors when the query orders by the
+model's own non-null columns (the primary key added to break ties), so a
+page costs the same however deep, and positions otherwise; a cursor of
+another ordering is `orm.ErrCursor`. It is what a GraphQL connection pages
+with ([Pagination](/web/graphql#pagination)).
+
 ## Writing Rows {#writing}
 
 These calls insert, update and delete:
@@ -327,6 +336,9 @@ goTags := orm.Objects[Post]().PrefetchRelated(orm.Prefetch("tags", orm.Objects[T
 
 `orm.Prefetch(path, query)` prefetches only the rows of `query`.
 `p.Load(ctx, PostFields.Tags)` loads a relation into one row.
+`orm.LoadRelated(ctx, posts, "author", "tags")` loads relations into rows
+read already (a slice of pointers to them), one query per relation for all
+of them: what a GraphQL field holding a relation resolves through.
 [`orm.WatchRepeats`](/orm/observability#n-1-queries) finds the N+1s you
 missed.
 

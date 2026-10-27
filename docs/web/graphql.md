@@ -25,6 +25,11 @@ Go:
 // shop/types.go
 package shop
 
+import (
+	"context"
+	"time"
+)
+
 // Pet is an animal for sale.
 type Pet struct {
 	ID    int64 `graphql:",id"`
@@ -51,6 +56,13 @@ Operations are functions in a `.vuka` file, marked with an attribute:
 ```vuka
 // shop/pets.vuka
 package shop
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2/auth"
+	"github.com/vuka-lang/web/v2/graphql"
+)
 
 // Pets lists the pets of a kind, at most first.
 @graphql.Query
@@ -123,7 +135,7 @@ fields and methods, and theirs — becomes a type of the schema:
 | an embedded struct | its fields, in its place, as Go promotes them |
 | a method | a field with arguments (see [Field Methods](#field-methods)) |
 | `string`, `bool`, `float64`, the integer types | `String`, `Boolean`, `Float`, `Int` |
-| an integer named `id`, or ending in `ID` or `Id` (`OwnerID`, `userId`, `tagIDs`); a field tagged `graphql:",id"` (a string or an integer) | `ID` (see [IDs](#ids)) |
+| an integer or a string named `id`, or ending in `ID` or `Id` (`OwnerID`, `userId`, `tagIDs`); a field tagged `graphql:",id"` | `ID` (see [IDs](#ids)) |
 | `time.Time` | `DateTime`, written in RFC 3339 |
 | a type with `MarshalText` and `UnmarshalText` | a custom scalar named after the type |
 | a vuka `enum`, or a type with constants | an enum, its values the constants |
@@ -186,6 +198,11 @@ hand.
 Decorators stack top down, one per line, above the function:
 
 ```vuka
+import (
+	"github.com/vuka-lang/web/v2/auth"
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
 @graphql.Mutation("addPet")
 @graphql.Arg("in", "pet")
 @auth.Requires("pets.add")
@@ -230,18 +247,20 @@ Every name has a default from Go and an override for a specific wire name:
 
 An id travels as an `ID`: written as a string, `"7"`, and read back as the
 string or the integer, `"7"` or `7`, so a client sends back exactly what it
-received. An integer argument, input field or object field is an `ID` when
-its Go name says it is an id: `id`, `ID`, or a name ending in `ID` or `Id`
-(and their plurals for a slice, `tagIDs`). Its resolver gets the Go integer;
+received. An integer or string argument, input field or object field is an
+`ID` when its Go name says it is an id: `id`, `ID`, or a name ending in `ID`
+or `Id` (and their plurals for a slice, `tagIDs`). Its resolver gets the Go integer;
 a value that isn't a whole number in range is refused, as a variable's or
 an argument's value of the wrong type. Overrides go both ways:
 
 | | Force `ID` | Keep `Int` |
 |---|---|---|
-| a parameter | `@graphql.AsID("owner")` on the function or method | `@graphql.AsInt("lastSeenID")` |
-| a struct field (input or output) | `graphql:",id"` | `graphql:",int"` |
+| a parameter | `@graphql.AsID("owner")` on the function or method | `@graphql.AsInt("lastSeenID")`, `@graphql.AsString("trackingID")` |
+| a struct field (input or output) | `graphql:",id"` | `graphql:",int"`, `graphql:",string"` |
 
 ```vuka
+import "github.com/vuka-lang/web/v2/graphql"
+
 // pet(id: ID): the id a query gave, sent back.
 @graphql.Query("pet")
 func FindPet(id int64, store *Store) (*Pet, error) { … }
@@ -333,6 +352,8 @@ public by default (`auth.Config{PublicByDefault: true}`). A field without
 one is open to whoever may run its operation.
 
 ```vuka
+import "github.com/vuka-lang/web/v2/auth"
+
 type User struct {
 	Name  string
 	Email string @auth.Requires("users.email")
@@ -348,6 +369,189 @@ the permission. The route itself stays open, so one request may mix public
 and gated fields. A gate in an app without `auth.Module` fails its build
 ([E0404](/errors/E0404)).
 
+## Loaders {#loaders}
+
+A field method resolves once for each object it is a field of, so a list
+of a hundred users whose `orders` field queries the database runs a hundred
+queries: an N+1. A loader turns them into one. It is a function from keys
+to values, marked `@graphql.Loader`:
+
+```vuka
+// shop/orders.vuka
+package shop
+
+import (
+	"context"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+// OrdersByUser is each user's orders.
+@graphql.Loader
+func OrdersByUser(ctx context.Context, userIDs []int64, db *DB) (map[int64][]Order, error) {
+	rows := Order.Objects.Filter(orm.Q{"user__in": userIDs}).All(ctx)?
+	out := map[int64][]Order{}
+	for _, o := range rows {
+		out[o.User.ID()] = append(out[o.User.ID()], o)
+	}
+	return out, nil
+}
+
+// Orders are the user's orders.
+func (u User) Orders(ctx context.Context, orders OrdersByUser) ([]Order, error) {
+	return orders.Load(ctx, u.ID)
+}
+```
+
+`OrdersByUser` is then a type — the loader — and the field method takes it
+as a dependency, as it takes a service. A request makes one of each loader
+type its fields and operations take, with the function's dependencies, the
+first time one does. What it does with the keys:
+
+- **One call a level.** A key asked for waits until every field that can
+  ask for one is waiting too, then the function is called once with every
+  key asked for meanwhile: `users { orders { … } }` runs the users' query
+  and one orders query, however many users. Its keys come in the order of
+  the fields asking for them in the response.
+- **Kept for the request.** A key loaded once — by another field, at
+  another level — is answered from what was loaded.
+- **Missing keys.** A key the map leaves out loads as the value type's zero
+  value: nil for a pointer or a slice (an empty list), `""` for a string.
+- **Chunks.** More than 1000 keys are split into calls of 1000;
+  `@graphql.Loader{Chunk: 200}` sets the size.
+- **Errors.** The function's error is each waiting field's, at its own
+  path; a panic is an internal error, as a resolver's is.
+
+`orders.LoadMany(ctx, ids)` loads several keys together, in their order.
+Outside GraphQL a loader is made with its constructor, `NewOrdersByUser(db)`
+(the compiler writes it beside the type): a live page's `Mount` or a route
+can use one, where there is no level to wait for — `Load` calls the
+function for its key at once, `LoadMany` for its keys together — and a
+loader keeps what it loads for as long as you keep it.
+
+In Go the function keeps its body as `fetchOrdersByUser`, and the type is
+
+```vuka
+type OrdersByUser struct {
+	*graphql.LoaderOf[int64, []Order]
+}
+```
+
+listed in the package's registration (`graphql.LoaderDef`). A loader's
+function takes the context, a slice of keys of a comparable type, and
+dependencies (pointers and interfaces), and returns a map from those keys
+and an error ([E0805](/errors/E0805) otherwise).
+
+`vuka vet` warns about a field method of a type a list reaches that queries
+the orm itself, without a loader ([W0801](/errors/W0801)).
+
+## Relations {#relations}
+
+A field of an orm model holding a relation needs no loader of yours: it
+loads through one already. The relation is loaded into every object of a
+level that needs it at once (`orm.LoadRelation`), one `IN (…)` query per
+level, and its rows are the field's value:
+
+| The model's field | The GraphQL field |
+|---|---|
+| `Author orm.FK[User]` | `author: User`, null when the key isn't set |
+| `Tags orm.M2M[Tag]` | `tags: [Tag!]!` |
+| a Go model's `Author *User` (a foreign key) | `author: User` |
+| a Go model's `Books []Book` (rows held by many) | `books: [Book!]!` |
+
+```vuka
+type Post struct {
+	orm.Base
+	ID     int64
+	Author orm.FK[User] @orm.Rel{Related: "posts"}
+	Tags   orm.M2M[Tag]
+	Title  string
+}
+```
+
+`{ posts(first: 50) { title author { name } tags { name } } }` runs three
+queries: the posts, their authors, their tags. A relation the query loaded
+itself (`SelectRelated`, `PrefetchRelated`) is used as it is. A field tagged
+`graphql:",noload"` reads only that: null or an empty list when the query
+didn't load it.
+
+Reverse relations — the posts of a user — have no field type on a Vuka
+model: give the user a field method taking a loader, as above.
+`orm.LoadRelated(ctx, rows, "author", "tags")` loads relations into rows
+read already, in Go code of your own.
+
+## Pagination {#pagination}
+
+A list too long for one response is a connection: a page of edges, each a
+node and its cursor, and what lies around the page. Return a
+`graphql.Connection[T]` and take a `graphql.Page`:
+
+```vuka
+import "github.com/vuka-lang/web/v2/graphql"
+
+// Users pages the users, by name.
+@graphql.Query
+func Users(ctx context.Context, page graphql.Page) (graphql.Connection[User], error) {
+	return graphql.Paginate(ctx, User.Objects.OrderBy("name"), page)
+}
+```
+
+```graphql
+type Query {
+  users(first: Int, after: String, last: Int, before: String): UserConnection!
+}
+
+type UserConnection {
+  edges: [UserEdge!]!
+  pageInfo: PageInfo!
+  totalCount: Int!
+}
+
+type UserEdge {
+  cursor: String!
+  node: User!
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  hasPreviousPage: Boolean!
+  startCursor: String
+  endCursor: String
+}
+```
+
+A client reads forwards with `first` and `after` (the last page's
+`endCursor`), backwards with `last` and `before`. Neither reads the first
+10 (`graphql.DefaultPageSize`); more than 100 (`graphql.MaxPageSize`), a
+negative size, `first` and `last` together, or a cursor of another list are
+the client's errors (`BAD_USER_INPUT`). `totalCount` counts the list only
+when a query asks for it. `hasPreviousPage`, reading forwards, is whether
+the page starts after a cursor, and `hasNextPage`, reading backwards,
+whether it ends before one: neither is a query of its own.
+
+`graphql.Paginate` takes an orm query set (or anything with its
+`CursorPage` and `Count`). Its cursors are opaque, and work by the query's
+ordering — `Meta`'s `Ordering` when it sets none:
+
+- **Keyset cursors** when the ordering is the model's own non-null columns:
+  the primary key is added as the last column unless one of them is unique
+  (a query without an ordering pages by the primary key), and a page is the
+  rows past the cursor's values in that order — `WHERE (name, id) > (…)`,
+  written out — so rows written meanwhile don't shift it, and it costs the
+  same on page 1 and page 1000.
+- **Offset cursors** otherwise — an ordering by an expression, an
+  annotation, a related model's field or a nullable column: a cursor is the
+  row's position in the result (`LIMIT … OFFSET …`).
+
+A cursor made for another ordering is refused. `graphql.Slice(rows)` pages
+a slice in memory. In the query's complexity a connection's edges count as
+many as its `first` or `last` asks for.
+
+`vuka vet` warns about an operation or field method returning a list
+without a `first`, `last` or `limit` argument or a page
+([W0802](/errors/W0802)).
+
 ## Limits {#limits}
 
 Every request is measured before anything runs, and refused with an error
@@ -356,7 +560,7 @@ naming the limit when it goes over one. The limits are on by default:
 | `graphql.Limits` | Default | |
 |---|---|---|
 | `Depth` | 10 | how deeply selections nest |
-| `Complexity` | 1000 | each field costs 1; a list field's subtree is multiplied by its `first`, `last` or `limit` argument, else by `DefaultListSize` |
+| `Complexity` | 1000 | each field costs 1; a list field's subtree is multiplied by its `first`, `last` or `limit` argument, else by `DefaultListSize`; a connection's edges by the connection's `first` or `last` |
 | `DefaultListSize` | 10 | |
 | `Aliases` | 30 | aliased fields in a document |
 | `Fields` | 500 | field selections in a document |
@@ -419,9 +623,24 @@ required argument added.
 BREAKING Field Pet.price changed type from Float! to Float.
 ```
 
+## In the Toolbar {#toolbar}
+
 In development each GraphQL request a page sends is a call in the
 [toolbar](/web/toolbar#every-call-the-page-makes)'s list: its operation and
-timing, its errors with their paths, its statements and timeline.
+timing, its errors with their paths, its statements and timeline, and a
+**GraphQL** panel — every field that resolved through a resolver of its
+own, with its path, when it started and how long it took, and how many
+statements it ran; every loader batch with its keys. The SQL panel names
+the field (or loader) behind each statement, and an N+1 the field
+repeating it.
+
+The **GraphiQL** panel runs queries against the app: an editor completing
+fields and arguments from the schema (Ctrl+Space; Ctrl+Enter runs),
+variables, and the result. Each run is a call of the list, its record's
+GraphQL panel the run's trace ("Show its trace"). A browser opening the
+endpoint itself in development (`http://localhost:8080/graphql`) gets a
+page whose toolbar opens on it, for an app serving no page of its own.
+Neither exists outside development.
 
 ## The Generated Go {#the-generated-go}
 

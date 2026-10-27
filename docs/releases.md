@@ -85,6 +85,55 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `@graphql.Subscription` is reserved for a later version
   ([E0806](/errors/E0806)).
 
+- **Loaders.** `@graphql.Loader` on `func OrdersByUser(ctx, userIDs []int64,
+  deps…) (map[int64][]Order, error)` makes `OrdersByUser` a loader type,
+  which field methods and operations take as a dependency and `Load` or
+  `LoadMany` from. A request gathers every key its fields ask for and calls
+  the function once each field that can ask is waiting — a level of the
+  query in one call, 1000 keys a call (`@graphql.Loader{Chunk: n}`) — keeps
+  the values for the request, gives a missing key the zero value, and fails
+  each waiting field at its own path with the function's error.
+  `NewOrdersByUser(deps…)` makes one outside GraphQL. See
+  [Loaders](/web/graphql#loaders).
+
+- **orm relations load a level at a time.** A field of an orm model holding
+  a relation — `orm.FK[T]`, `orm.M2M[T]`, a Go model's `*T` or `[]T` —
+  resolves through `orm.LoadRelation`: one `IN (…)` query for the whole
+  level, no code; `graphql:",noload"` reads only what the query loaded
+  itself. `orm.LoadRelated(ctx, rows, relations…)` loads relations into
+  rows read already. See [Relations](/web/graphql#relations).
+
+- **Pagination.** `graphql.Connection[T]` (`UserConnection`, `UserEdge`,
+  `pageInfo`, a lazy `totalCount`) and `graphql.Paginate(ctx, querySet,
+  page)`, a `graphql.Page` parameter being the arguments `first`, `after`,
+  `last` and `before`. A query set pages by keyset cursors on its ordering
+  (`QuerySet.CursorPage`), by offset when its ordering isn't one of the
+  model's own non-null columns; a connection's page size counts in the
+  query's complexity. See [Pagination](/web/graphql#pagination).
+
+- **The toolbar's GraphQL panels.** Each GraphQL request's record has a
+  GraphQL panel: every field resolved, with its path, its time and the
+  statements it ran, and every loader batch with its keys; the SQL panel
+  names the field running each statement, and an N+1 the field repeating
+  it. A GraphiQL panel runs queries against the app, completing fields and
+  arguments from the schema; a browser opening the endpoint in development
+  gets it. See [GraphQL in the toolbar](/web/graphql#toolbar).
+
+- **`vuka vet` for GraphQL.** A field method of a type a list reaches
+  querying the orm itself ([W0801](/errors/W0801)), and an operation or
+  field method returning a list without a limit or a page
+  ([W0802](/errors/W0802)).
+
+- **Schema change: string ids are `ID`s.** A string field, argument or input
+  field named as an id (`ID`, `trackingID`) is an `ID` now, as integers
+  named so are; `graphql:",string"` or `@graphql.AsString("param")` keeps
+  a `String`. `vuka graphql schema -check` reports the change.
+
+- **An attribute's missing import is named.** `@graphql.Query` (or
+  `@web.Get`, `@auth.Required`, `@orm.Char`…) in a file not importing its
+  package is [E0215](/errors/E0215), with the import to add, rather than
+  Go's `undefined: graphql`.
+
 ## v2.7.0 — unreleased
 
 - **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
