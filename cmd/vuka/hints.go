@@ -2,15 +2,15 @@ package main
 
 import (
 	"go/ast"
-	"go/build"
 	"go/token"
 	"go/types"
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // What vuka adds to a Go error whose cause it is certain of: the signature
@@ -276,48 +276,21 @@ func (in hintInput) identEnd() int {
 	return j
 }
 
-// frameworkPackages are the import paths of the packages of the vuka
-// toolchain set, by name, each in the module that holds it.
-var frameworkPackages = map[string][2]string{
-	"web":     {"github.com/vuka-lang/web/v2", "github.com/vuka-lang/web/v2"},
-	"graphql": {"github.com/vuka-lang/web/v2/graphql", "github.com/vuka-lang/web/v2"},
-	"auth":    {"github.com/vuka-lang/web/v2/auth", "github.com/vuka-lang/web/v2"},
-	"mail":    {"github.com/vuka-lang/web/v2/mail", "github.com/vuka-lang/web/v2"},
-	"cron":    {"github.com/vuka-lang/web/v2/cron", "github.com/vuka-lang/web/v2"},
-	"ui":      {"github.com/vuka-lang/ui/v2", "github.com/vuka-lang/ui/v2"},
-	"orm":     {ormModule, ormModule},
-	"vuka":    {"github.com/vuka-lang/vuka/v2", "github.com/vuka-lang/vuka/v2"},
-}
-
-// importFor is the one package named name the error's file can mean: one
-// the package's other files import by that name, else the standard
-// library's, else a vuka package of a module go.mod requires; "" when none
-// or several.
+// importFor is the one package named name the error's file can mean, as
+// transpile.ImportScope finds it: one the package's files import by that
+// name, else the standard library's, the toolchain's, the module's own or
+// its requirements'; "" when none or several.
 func (in hintInput) importFor(name string) string {
+	scope := transpile.ImportScope{ModuleRoot: in.modRoot, ModulePath: in.modPath}
 	if t := in.types; t != nil {
-		var found []string
 		for _, f := range t.files {
 			for _, s := range f.ast.Imports {
 				p, _ := strconv.Unquote(s.Path.Value)
-				if importName(f.ast, p) == name && !slices.Contains(found, p) {
-					found = append(found, p)
-				}
+				scope.Imports = append(scope.Imports, [2]string{importName(f.ast, p), p})
 			}
 		}
-		if len(found) == 1 {
-			return found[0]
-		}
-		if len(found) > 1 {
-			return ""
-		}
 	}
-	if bp, err := build.Default.Import(name, "", 0); err == nil && bp.Goroot && bp.Name == name {
-		return name
-	}
-	if fw, ok := frameworkPackages[name]; ok && in.requires(fw[1]) {
-		return fw[0]
-	}
-	return ""
+	return scope.ImportFor(name)
 }
 
 // requires reports whether the module's go.mod requires mod, or is it.

@@ -9,6 +9,7 @@ const toolchain = require('./toolchain');
 const typescript = require('./typescript');
 const { formatRoute, moduleRoot } = require('./routes');
 const { extractCommand, nameProblem, extractArguments } = require('./refactor');
+const { organizeMiddleware } = require('./organize');
 
 let client;
 let versionItem;
@@ -93,6 +94,9 @@ function start() {
       middleware: {
         provideCompletionItem: (document, position, context, token, next) =>
           typedCloser(document, position) ? [] : next(document, position, context, token),
+        provideCodeActions: organizeMiddleware(() =>
+          vscode.workspace.getConfiguration('vuka').get('organizeImportsOnSave', true),
+        ),
       },
     },
   );

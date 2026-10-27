@@ -25,7 +25,7 @@ vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
 vuka explain [-full] file.vuka
 vuka explain E0201
-vuka fmt [-l] [-w] [-d] [-check] [-rewrite] [paths…]
+vuka fmt [-l] [-w] [-d] [-check] [-rewrite] [-imports] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
 vuka version
 vuka upgrade [-n] [-no-test] [version]
@@ -426,6 +426,14 @@ whose formatting differs, and `-d` shows the diff. `-check` lists them and
 fails when there are any, writing nothing — the flag for CI. `-rewrite`
 writes a shape in the Go-header form in the `<script lang="go">` form before
 formatting it.
+
+`-imports` organizes each file's imports before formatting it, as
+`goimports` does Go's — what [the editor does on save](/tools/editors#organize-imports):
+imports nothing in the file uses go, a package the file uses without an
+import comes in when only one package can be meant, and the imports are
+grouped. `vuka fmt -l -imports` lists the files it would change, `vuka fmt
+-w -imports ./...` changes them, and `vuka fmt -check -imports` fails CI on
+any.
 
 Paths are files or directories (all `.vuka` and `.vuka.html` files below,
 skipping hidden directories, `node_modules`, `vendor` and `build/` modules vuka

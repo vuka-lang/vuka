@@ -64,7 +64,9 @@ go install golang.org/x/tools/gopls@latest
 The extension runs `vuka lsp`, which runs gopls and keeps the Go generated from
 your `.vuka` files open in it, so nothing is written to your tree. `.vuka`
 files are formatted by `vuka fmt` on save (`"[vuka]": {"editor.formatOnSave":
-false}` turns that off).
+false}` turns that off), their imports organized first — unused ones
+removed, missing ones added, grouped as goimports groups them
+(`vuka.organizeImportsOnSave`).
 
 ## Templates
 
@@ -145,9 +147,10 @@ switch it on and off, followed by a restart of templ's language server. A
 | `vuka.offerGoDropIn` | `true` | offer to serve Go files through Vuka |
 | `vuka.offerTemplDropIn` | `true` | offer to let templ's language server use Vuka as its gopls |
 | `vuka.autoCloseTags` | `true` | add a markup closing tag in `.vuka.html` when an opening tag's `>` is typed, and the open element's name after `</` |
+| `vuka.organizeImportsOnSave` | `true` | organize a file's imports on save, before formatting it (Organize Imports works either way) |
 
-Both Vuka languages default to `editor.formatOnSave` and
-`editor.linkedEditing`. The extension also sets defaults for other
+Both Vuka languages default to `editor.formatOnSave`,
+`editor.codeActionsOnSave` organizing imports, and `editor.linkedEditing`. The extension also sets defaults for other
 extensions:
 
 - [Tailwind CSS IntelliSense](https://marketplace.visualstudio.com/items?itemName=bradlc.vscode-tailwindcss)

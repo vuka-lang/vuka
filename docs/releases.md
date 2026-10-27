@@ -85,6 +85,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
   Development only: the editor is a script of the toolbar's, loaded when
   the panel first shows. See [GraphQL in the toolbar](/web/graphql#toolbar).
 
+- **Organize imports** for `.vuka` and `.vuka.html` files: `vuka lsp`
+  answers `source.organizeImports` — imports nothing in the file uses go
+  (uses in markup, component tags and attributes count), a package used
+  without an import comes in when only one package can be meant (several
+  are each a quick fix on the error), and the imports are grouped as
+  `goimports` groups them. The VS Code extension (0.11.0) runs it on save,
+  before formatting (`vuka.organizeImportsOnSave`); `vuka fmt -imports`
+  does it from the command line, `-l` listing what it would change. See
+  [Organizing Imports](/tools/editors#organize-imports).
+
 ### Build Errors
 
 - **A broken or missing import is one error.** An `import` with no path
