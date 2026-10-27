@@ -174,10 +174,10 @@ func (c CategoryCount) Label() string {
 
 // TestVetScope: vuka vet of a package reports that package's errors and
 // those of what it imports, never another package's: a page's error is
-// left out of vuka vet ./entities/, which passes, and the error of
-// entities is what vuka vet ./modules/accounts/ shows.
+// left out of vuka vet ./entities/, which passes and counts it, and
+// vuka vet ./... reports it.
 func TestVetScope(t *testing.T) {
-	brokenPage := "<script lang=\"go\">\npackage pages\n\nimport (\n\t\"example.com/app/components\"\n\t\"example.com/app/modules/accounts\"\n)\n\nvar _ = accounts.Count\n\ntype Index struct{}\n\nfunc (Index) N() int { return \"x\" }\n</script>\n\n<section><components.Card Title=\"x\"/></section>\n"
+	brokenPage := "<script lang=\"go\">\npackage pages\n\nimport (\n\t\"example.com/app/components\"\n\t\"example.com/app/modules/accounts\"\n)\n\nvar _ = accounts.Count\n\ntype Index struct{}\n\nfunc helper() {} @doc(\"Lists\")\n</script>\n\n<section><components.Card Title=\"x\"/></section>\n"
 	goImportsApp(t, map[string]string{"pages/index.vuka.html": brokenPage})
 	var stderr bytes.Buffer
 	if err := runGo("vet", []string{"./entities/"}, io.Discard, &stderr); err != nil {

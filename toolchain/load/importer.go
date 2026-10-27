@@ -329,7 +329,14 @@ func (im *Importer) failure(path string, own *goError, deps []*goError) string {
 	}
 	culprit, detail, compiled := im.explain(e)
 	if !compiled && e == own {
-		return im.notFound(e.Err) // what the go command says about the import itself
+		// What the go command says about the import itself, unless the
+		// path is the main module's and the module has no Go for it: then
+		// the folder says, whatever the go command tried to find it
+		// elsewhere (a proxy that didn't answer, a module that isn't).
+		if msg := im.mainMissing(path); msg != "" {
+			return msg
+		}
+		return im.notFound(e.Err)
 	}
 	detail = im.notFound(detail)
 	if culprit == "" {
@@ -386,38 +393,81 @@ func (im *Importer) explain(e *goError) (culprit, detail string, compiled bool) 
 	return culprit, detail, false
 }
 
-// notInStd matches the go command's error for an import path it finds in
-// no module of the build: the standard library's, it supposes.
-var notInStd = regexp.MustCompile(`package (\S+) is not in std \([^)]*\)`)
+// notInModule matches the go command's errors for an import path it finds
+// in no module of the build: the standard library's, it supposes, when the
+// path's first element has no dot; else no module provides it, whatever it
+// tried to find one.
+var notInModule = regexp.MustCompile(`(?m)package (\S+) is not in std \([^)]*\)|cannot find module providing package (\S+?)(?::.*)?$`)
 
-// notFound says, in place of the go command's "not in std" for a path of
-// the main module, what is wrong: no such folder, or one without Go —
-// a package of only .vuka files whose Go this build hasn't.
+// notFound says, in place of the go command's "not in std" or "cannot find
+// module providing package" for a path of the main module, what is wrong:
+// no such folder, or one without Go — a package of only .vuka files whose
+// Go this build hasn't.
 func (im *Importer) notFound(msg string) string {
-	return notInStd.ReplaceAllStringFunc(msg, func(m string) string {
-		path := notInStd.FindStringSubmatch(m)[1]
-		if !im.inMain(path) || im.root == "" {
-			return m
+	return notInModule.ReplaceAllStringFunc(msg, func(m string) string {
+		sub := notInModule.FindStringSubmatch(m)
+		if why := im.mainMissing(sub[1] + sub[2]); why != "" {
+			return why
 		}
-		rel := strings.TrimPrefix(strings.TrimPrefix(path, im.modPath), "/")
-		dir := filepath.Join(im.root, filepath.FromSlash(rel))
-		show := rel + "/"
-		if rel == "" {
-			show = "the module's root"
-		}
-		switch {
-		case !isDir(dir):
-			return fmt.Sprintf("%s isn't a package of module %s: %s doesn't exist", path, im.modPath, show)
-		case hasVukaFiles(dir):
-			return fmt.Sprintf("%s has only .vuka files, and this build has no Go for them", path)
-		}
-		return fmt.Sprintf("%s isn't a package of module %s: %s has no Go files", path, im.modPath, show)
+		return m
 	})
+}
+
+// mainMissing says why path, a package of the main module, has no Go in
+// this build: no such folder, a folder of only .vuka files whose Go the
+// build hasn't, or one with no Go files at all. "" when path isn't the
+// main module's, or its folder has Go files.
+func (im *Importer) mainMissing(path string) string {
+	if !im.inMain(path) || im.root == "" {
+		return ""
+	}
+	rel := strings.TrimPrefix(strings.TrimPrefix(path, im.modPath), "/")
+	dir := filepath.Join(im.root, filepath.FromSlash(rel))
+	show := rel + "/"
+	if rel == "" {
+		show = "the module's root"
+	}
+	switch {
+	case !isDir(dir):
+		return fmt.Sprintf("%s isn't a package of module %s: %s doesn't exist", path, im.modPath, show)
+	case hasGoFiles(dir) || im.overlayHasGo(dir):
+		return ""
+	case hasVukaFiles(dir):
+		return fmt.Sprintf("%s has only .vuka files, and this build has no Go for them", path)
+	}
+	return fmt.Sprintf("%s isn't a package of module %s: %s has no Go files", path, im.modPath, show)
 }
 
 func isDir(path string) bool {
 	fi, err := os.Stat(path)
 	return err == nil && fi.IsDir()
+}
+
+// overlayHasGo reports whether the overlay puts a Go file in dir.
+func (im *Importer) overlayHasGo(dir string) bool {
+	data, err := os.ReadFile(im.Overlay)
+	if im.Overlay == "" || err != nil {
+		return false
+	}
+	var ov struct{ Replace map[string]string }
+	json.Unmarshal(data, &ov)
+	for f := range ov.Replace {
+		if strings.HasSuffix(f, ".go") && filepath.Dir(f) == dir {
+			return true
+		}
+	}
+	return false
+}
+
+// hasGoFiles reports whether dir holds Go files other than tests.
+func hasGoFiles(dir string) bool {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if n := e.Name(); !e.IsDir() && strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, "_test.go") {
+			return true
+		}
+	}
+	return false
 }
 
 // hasVukaFiles reports whether dir holds .vuka or .vuka.html files.

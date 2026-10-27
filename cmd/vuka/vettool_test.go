@@ -48,7 +48,7 @@ func checkoutVukavet() (string, error) {
 		}
 		vukavetDir = dir
 		c := exec.Command("go", "build", "-o", filepath.Join(dir, "vukavet"+exeSuffix()), ".")
-		c.Dir = "../vukavet"
+		c.Dir = filepath.Join(testDir, "..", "vukavet")
 		c.Env = append(withoutModFlag(os.Environ()), "GOWORK=off")
 		if out, err := c.CombinedOutput(); err != nil {
 			vukavetErr = errors.New("go build vukavet: " + err.Error() + "\n" + string(out))
