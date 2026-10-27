@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.8.0 — 2026-10-27
+## v2.9.0 — unreleased
 
 - **Parts of stateless pages: `@ui.Defer` on a method.** A page that isn't
   live shows itself at once and fills in its slow parts afterwards, in the
@@ -56,6 +56,8 @@ the `github.com/vuka-lang/vuka` package your module requires.
   span of its request in the development toolbar, with its time, its
   statements and its error. In a test, a page's parts render in place;
   `viewtest.Pending()` renders the page as it first shows.
+
+## v2.8.0 — 2026-10-27
 
 ### Upgrading
 
