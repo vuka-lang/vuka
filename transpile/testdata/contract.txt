@@ -113,6 +113,8 @@ public github.com/vuka-lang/ui/v2.Node
 public github.com/vuka-lang/ui/v2.On
 public github.com/vuka-lang/ui/v2.Once
 public github.com/vuka-lang/ui/v2.PageLayout
+public github.com/vuka-lang/ui/v2.Part
+public github.com/vuka-lang/ui/v2.PartFallback
 public github.com/vuka-lang/ui/v2.Props
 public github.com/vuka-lang/ui/v2.Ptr
 public github.com/vuka-lang/ui/v2.RegisterIsland

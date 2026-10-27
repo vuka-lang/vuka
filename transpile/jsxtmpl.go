@@ -116,9 +116,13 @@ func (w *jsxWriter) piece(ns []jsxNode) {
 				return
 			}
 		case *jsxElem:
+			if len(n.parts) > 0 && n.partFB == nil {
+				w.part(n, 0)
+				return
+			}
 			// A function component is its call; a keyed stateful one, in a
 			// block, ui.Key: a list's components take the list's place.
-			if c := n.comp; c != nil && c.resolved && !c.island && (!c.stateful || c.key != nil && w.inBlock) {
+			if c := n.comp; n.partFB == nil && c != nil && c.resolved && !c.island && (!c.stateful || c.key != nil && w.inBlock) {
 				w.comp(c)
 				return
 			}
@@ -391,7 +395,7 @@ func (w *jsxWriter) varName(base string) string {
 //
 // line is the indent of the line they start on, child their lines'.
 func (w *jsxWriter) markup(tp *tmpl, ns []jsxNode, line, child string, inline bool) {
-	ns = withoutAssets(ns)
+	ns = w.withoutFallbacks(withoutAssets(ns))
 	breaks := !inline && layout(ns)
 	at := line
 	if breaks {
@@ -475,6 +479,8 @@ func (w *jsxWriter) node(tp *tmpl, n jsxNode, indent string, inline bool) {
 		switch {
 		case n.frag:
 			w.markup(tp, flatten(n.kids), indent, indent, inline)
+		case len(n.parts) > 0:
+			w.holeIn(tp, "part", func() { w.part(n, 0) })
 		case n.fallback:
 			w.holeIn(tp, "slot", func() { w.fallbackValue(n) })
 		case n.comp != nil:

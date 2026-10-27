@@ -1,0 +1,9 @@
+# parts: a page whose slow methods are deferred (@ui.Defer) answers at
+# once with each part's fallback, then streams the parts as their methods
+# return: a group's together, a failing one's error fallback, or a short
+# message. A component written in Go (ui.Part, vuka.RegisterFunc) streams
+# its parts alike, and a navigation over HTTP reads the same stream.
+GET /
+NAV /
+GET /ingo
+NAV /ingo
