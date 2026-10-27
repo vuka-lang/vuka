@@ -22,6 +22,8 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.9.0 — unreleased
 
+### Parts of Stateless Pages
+
 - **Parts of stateless pages: `@ui.Defer` on a method.** A page that isn't
   live shows itself at once and fills in its slow parts afterwards, in the
   same response. A method of a page or component marked `@ui.Defer` (or
@@ -58,6 +60,30 @@ the `github.com/vuka-lang/vuka` package your module requires.
   span of its request in the development toolbar, with its time, its
   statements and its error. In a test, a page's parts render in place;
   `viewtest.Pending()` renders the page as it first shows.
+
+### Tools
+
+- **The toolbar's GraphiQL panel is an editor.** Completion opens at the
+  cursor as you type: fields of the type there (fragments and inline
+  fragments on interfaces and unions included), arguments with their types
+  and required marks, enum values, input objects' fields, the operation's
+  variables, directives and fragments, matched fuzzily; a field with
+  required arguments comes with `()`, an object field with `{ }`. The
+  query is highlighted and checked as you type by the app's own parser,
+  validation and limits — errors underlined in place, "Did you mean" one
+  click away — and hover shows a field's or type's type and description.
+  Format (Shift+Ctrl/Cmd+P, Shift+Alt+F) prints the document, or the
+  definitions selected, in the canonical style, idempotently, as one undo
+  step, the variables' JSON with it. The variables and headers are JSON
+  editors that complete and check against the operation's variables;
+  Ctrl/Cmd+Enter runs the operation at the cursor, the result foldable with
+  its status, time and errors' paths, and "Copy as curl" copies it. An
+  explorer lists the schema's queries, mutations and subscriptions —
+  inserting a ready-to-run operation for one, at the cursor or in a new
+  tab — and its types, searchable; documents are tabs, the queries run a
+  history, and the panel goes full screen (Shift+Ctrl/Cmd+F, Esc back).
+  Development only: the editor is a script of the toolbar's, loaded when
+  the panel first shows. See [GraphQL in the toolbar](/web/graphql#toolbar).
 
 ## v2.8.0 — 2026-10-27
 
