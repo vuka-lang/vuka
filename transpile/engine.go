@@ -68,6 +68,8 @@ type engine struct {
 	info     *types.Info
 	typeErrs []types.Error
 	progress bool
+
+	graphqlDone bool // the GraphQL registrations are written (graphql.go)
 }
 
 func (e *engine) run() {
@@ -156,6 +158,12 @@ func (e *engine) run() {
 					e.lowerMatch(f, m)
 				}
 			}
+		}
+		if len(*e.errs) == 0 && !e.progress && !e.graphqlDone {
+			// Everything else is lowered: the GraphQL registrations, type-checked
+			// in one more round.
+			e.graphqlDone = true
+			e.progress = e.graphql()
 		}
 		if len(*e.errs) > 0 || !e.progress {
 			break

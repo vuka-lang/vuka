@@ -1,0 +1,75 @@
+error[E0802]: User.Meta is map[string]string: GraphQL has no type for it
+  --> err_graphql.vuka:19:1
+   |
+19 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
+
+error[E0803]: Users and People are both query users
+  --> err_graphql.vuka:22:1
+   |
+22 | @graphql.Query("users")
+   | ^^^^^^^^^^^^^^
+   |
+   = help: name one with @graphql.Query("…")
+
+error[E0803]: two types take the GraphQL name "User": object User and object Person
+  --> err_graphql.vuka:22:1
+   |
+22 | @graphql.Query("users")
+   | ^^^^^^^^^^^^^^
+   |
+   = help: rename one with @graphql.Type("…") on its type, or @graphql.Input("…") for an input
+
+error[E0804]: the operation name "__secret" starts with __, which the GraphQL specification reserves for introspection
+  --> err_graphql.vuka:25:1
+   |
+25 | @graphql.Query("__secret")
+   | ^^^^^^^^^^^^^^
+   |
+   = help: name it with @graphql.Query("…")
+
+error[E0805]: Save is variadic: a GraphQL field's arguments are named values
+  --> err_graphql.vuka:28:1
+   |
+28 | @graphql.Mutation
+   | ^^^^^^^^^^^^^^^^^
+   |
+   = help: take a slice instead
+
+error[E0805]: @graphql.Query goes on a function, not a method: an operation has no receiver
+  --> err_graphql.vuka:31:1
+   |
+31 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: declare a function taking what the method's receiver held as a dependency: func Size(ctx context.Context, …)
+
+error[E0806]: @graphql.Subscription isn't served yet: subscriptions come in a later version
+  --> err_graphql.vuka:34:1
+   |
+34 | @graphql.Subscription
+   | ^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: serve the data as a @graphql.Query for now, or push it to live pages with web.Broadcast
+
+error[E0805]: Heavy's parameter weight is float64, which can't be an ID
+  --> err_graphql.vuka:37:1
+   |
+37 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: only strings and integers are IDs
+
+error[E0805]: Heavy: @graphql.AsID("ownr") names no parameter of it
+  --> err_graphql.vuka:37:1
+   |
+37 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: an operation is a function returning a value, or a value and an error, from named parameters
+   = help: did you mean owner?
+
+Some errors have detailed explanations: E0802, E0803, E0804, E0805, E0806.
+For more information about an error, try `vuka explain E0802`.

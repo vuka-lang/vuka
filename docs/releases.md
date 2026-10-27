@@ -20,6 +20,71 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.8.0 — unreleased
+
+- **GraphQL from Go.** Types are structs, fields their exported fields and
+  methods, operations functions marked `@graphql.Query` or
+  `@graphql.Mutation`, and `web.GraphQL("/graphql")` serves them. The
+  compiler generates the schema and a resolver for every field — readable
+  Go calling your functions and reading your fields, no reflection when a
+  request resolves — appended to the package's Go and kept by `vuka eject`.
+  Methods take arguments and dependencies as handlers do; pointers and
+  `graphql:",omitempty"` are nullable; `time.Time` is `DateTime`,
+  `graphql:",id"` an `ID`, text-marshalling types custom scalars, enums and
+  typed constants enums. See [GraphQL](/web/graphql).
+
+- **IDs round-trip.** An integer argument, input field or object field
+  named `id`, or ending in `ID` or `Id` (`OwnerID`, `userId`), is an `ID`:
+  written as `"7"`, read back as `"7"` or `7`, the resolver getting the Go
+  integer. `@graphql.AsID("param")` and `graphql:",id"` force an `ID`,
+  `@graphql.AsInt("param")` and `graphql:",int"` keep an `Int`. See
+  [IDs](/web/graphql#ids).
+
+- **Names from Go, overrides where you need them.** Lower camel fields and
+  operations, Go type names, SCREAMING_SNAKE enum values without their
+  type's name; `@graphql.Query("…")`, `@graphql.Type`, `@graphql.Input`,
+  `@graphql.Field`, `@graphql.Arg`, `@graphql.Value`, a `graphql:"name"`
+  tag, and `graphql.Naming{Fields: graphql.SnakeCase}` for the app.
+  `@graphql.Deprecated("…")` deprecates without renaming. Two declarations
+  taking one name are an error naming both ([E0803](/errors/E0803)); a
+  `__` name is refused ([E0804](/errors/E0804)).
+
+- **Inputs are forms.** A struct argument is checked as the form it is —
+  `validate:` tags, `Clean<Field>`, `Clean`, dependencies injected — before
+  the operation runs, each error a GraphQL error whose `extensions` carry
+  `code: "INVALID_INPUT"`, the field's `path`, the `rule` and the message
+  `key`. `ui.CheckForm` runs a form's checks once, for code outside a page.
+
+- **Gates and errors as routes have them.** `@auth.Required`,
+  `@auth.Requires` and the app's deny-by-default rule gate operations, and
+  fields (a struct field's attribute or a method's decorator); a refused
+  field is null with `UNAUTHENTICATED` or `FORBIDDEN` at its path. A
+  `*web.Error` or a form's error is shown as is, anything else as
+  "internal error" with the full text in the log (shown in development).
+  `web.GuardCalls` is how a library gates them.
+
+- **An engine of its own.** `github.com/vuka-lang/web/v2/graphql` parses,
+  validates (every rule of the specification), coerces and executes
+  documents — fragments, variables, directives, aliases, null propagation,
+  introspection — with no dependencies, backed by a conformance suite. Query
+  fields at one level resolve concurrently, mutations in order. Documents
+  are cached by hash. Limits are on by default: depth 10, complexity 1000
+  (lists multiplied by `first`/`last`/`limit`), aliases, fields, size and a
+  10s timeout (`graphql.Limits`). Introspection is on in development only
+  (`graphql.Introspection(true)`). The transport is GraphQL over HTTP: GET
+  and POST, `application/graphql-response+json` and `application/json`,
+  with its status codes.
+
+- **`vuka graphql schema`** prints the schema's SDL; `-check
+  schema.graphql` fails CI on a breaking change: a type, field, argument or
+  enum value removed or renamed, a type changed, an input made non-null, an
+  output made nullable. In development each GraphQL request is a call in
+  the toolbar, with its operation, errors, statements and timeline.
+
+- New diagnostic codes for GraphQL: [E0801](/errors/E0801)–[E0807](/errors/E0807).
+  `@graphql.Subscription` is reserved for a later version
+  ([E0806](/errors/E0806)).
+
 ## v2.7.0 — unreleased
 
 - **Struct forms.** A form is a Go struct embedding `ui.FormState`: its

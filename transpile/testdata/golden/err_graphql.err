@@ -1,0 +1,9 @@
+err_graphql.vuka:19:1: User.Meta is map[string]string: GraphQL has no type for it; leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
+err_graphql.vuka:22:1: Users and People are both query users; name one with @graphql.Query("…")
+err_graphql.vuka:22:1: two types take the GraphQL name "User": object User and object Person; rename one with @graphql.Type("…") on its type, or @graphql.Input("…") for an input
+err_graphql.vuka:25:1: the operation name "__secret" starts with __, which the GraphQL specification reserves for introspection; name it with @graphql.Query("…")
+err_graphql.vuka:28:1: Save is variadic: a GraphQL field's arguments are named values; take a slice instead
+err_graphql.vuka:31:1: @graphql.Query goes on a function, not a method: an operation has no receiver; declare a function taking what the method's receiver held as a dependency: func Size(ctx context.Context, …)
+err_graphql.vuka:34:1: @graphql.Subscription isn't served yet: subscriptions come in a later version; serve the data as a @graphql.Query for now, or push it to live pages with web.Broadcast
+err_graphql.vuka:37:1: Heavy's parameter weight is float64, which can't be an ID; only strings and integers are IDs
+err_graphql.vuka:37:1: Heavy: @graphql.AsID("ownr") names no parameter of it; did you mean owner?

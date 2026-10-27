@@ -36,6 +36,7 @@ var Areas = map[string]string{
 	"05": "Data and the ORM",
 	"06": "Frontend and toolchain",
 	"07": "Folder routes",
+	"08": "GraphQL",
 }
 
 // Errors is every entry, by code.

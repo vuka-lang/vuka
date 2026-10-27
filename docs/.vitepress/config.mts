@@ -91,6 +91,7 @@ export default defineConfig({
           { text: 'Stateful Components', link: '/ui/stateful' },
           { text: 'Live Pages', link: '/web/live' },
           { text: 'Forms', link: '/ui/forms' },
+          { text: 'GraphQL', link: '/web/graphql' },
           { text: 'Client State', link: '/ui/state' },
           { text: 'JS Commands', link: '/ui/js' },
           { text: 'Component Scripts', link: '/ui/scripts' },

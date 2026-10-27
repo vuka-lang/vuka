@@ -1,0 +1,100 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"time"
+
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+// Status is where an account is.
+enum Status { Active, PastDue }
+
+@graphql.Value("BEHIND")
+@graphql.Deprecated("use ACTIVE")
+const StatusLate Status = 7
+
+// Pet is an animal in the shop.
+@graphql.Type("Animal")
+type Pet struct {
+	ID     int64 `graphql:",id"`
+	Name   string
+	Tag    *string
+	Born   time.Time
+	Status Status
+	Tricks []string `graphql:",omitempty"`
+	Owner  *Owner
+	Secret string `graphql:"-"`
+	price  int
+	Audit
+	OwnerID int64              // an id by its name: ID
+	VisitID int  `graphql:",int"` // a count, though its name ends in ID
+}
+
+// Audit is when a record changed.
+type Audit struct {
+	Updated time.Time `graphql:"changedAt"`
+}
+
+type Owner struct{ Name string }
+
+type Store struct{ pets []Pet }
+
+// Age is how old the pet is, in whole years at most limit.
+@graphql.Field("years")
+func (p *Pet) Age(ctx context.Context, limit *int) (int, error) { return 3, nil }
+
+// Nickname is the pet's tag, if any.
+func (p Pet) Nickname() *string { return p.Tag }
+
+func (p *Pet) Save(ctx context.Context) error { return nil }
+
+func (p Pet) String() string { return p.Name }
+
+// NewPet is what adding a pet takes.
+type NewPet struct {
+	Name  string `validate:"required"`
+	Tag   *string
+	Kinds []Status
+	OwnerID int64
+	Ref     string `graphql:",id"`
+	ChipID  int    `graphql:",int"`
+}
+
+// Pets lists the shop's pets.
+@graphql.Query
+func Pets(ctx context.Context, first int, status *Status, store *Store) ([]Pet, error) {
+	return store.pets[:min(first, len(store.pets))], nil
+}
+
+@graphql.Query("pet")
+func FindPet(id int64, store *Store) *Pet {
+	for i := range store.pets {
+		if store.pets[i].ID == id {
+			return &store.pets[i]
+		}
+	}
+	return nil
+}
+
+// Owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int.
+@graphql.Query
+@graphql.AsID("ref")
+@graphql.AsInt("lastID")
+func Owned(ownerIDs []int64, ref int, lastID int, store *Store) []Pet { return nil }
+
+@graphql.Query
+func Count(store *Store) vuka.Result[int] { return vuka.Ok(len(store.pets)) }
+
+@graphql.Mutation
+func AddPet(ctx context.Context, in NewPet, store *Store) (*Pet, error) {
+	if in.Name == "" {
+		return nil, errors.New("no name")
+	}
+	store.pets = append(store.pets, Pet{ID: int64(len(store.pets) + 1), Name: in.Name, Tag: in.Tag})
+	return &store.pets[len(store.pets)-1], nil
+}
+
+// The stand-in for package graphql prints what it is given to register.
+func main() {}

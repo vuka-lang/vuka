@@ -51,6 +51,10 @@ Usage:
 	        list the folder routes, the pages and endpoints under pages/:
 	        method, path, type, file:line and the middleware, guards and
 	        layouts over each
+	vuka graphql schema [-check file] [-o file] [package]
+	        print the GraphQL schema the app serves (web.GraphQL) as SDL;
+	        -check compares it with a committed one and fails on a change
+	        that breaks clients
 	vuka build-islands [-watch]
 	        build the islands a module registers (in Go or Vuka) into its
 	        frontend's build, for //go:embed: //go:generate go tool vuka
@@ -129,6 +133,8 @@ func main() {
 		err = gen(os.Args[2:], os.Stdout)
 	case "routes":
 		err = routesCmd(os.Args[2:], os.Stdout, os.Stderr)
+	case "graphql":
+		err = graphqlCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "build-islands":
 		err = buildIslands(os.Args[2:], os.Stdout, os.Stderr)
 	case "eject":

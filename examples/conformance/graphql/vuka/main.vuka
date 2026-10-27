@@ -1,0 +1,31 @@
+// Command graphql is a pet shop's GraphQL API over plain Go types: queries,
+// a mutation taking a form, gates, errors and the limits.
+package main
+
+import (
+	"context"
+	"log"
+
+	"example.com/app/shop"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+func main() {
+	app := web.New(
+		auth.Module(auth.Config{Users: noUsers{}, PublicByDefault: true}),
+		web.GraphQL("/graphql", graphql.Limits{Depth: 4}),
+	)
+	app.Service(shop.NewStore)
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}
+
+// noUsers is a user store without users: every request is anonymous.
+type noUsers struct{}
+
+func (noUsers) FindLogin(ctx context.Context, login string) (*auth.Identity, string, error) {
+	return nil, "", nil
+}
+
+func (noUsers) Load(ctx context.Context, id string) (*auth.Identity, error) { return nil, nil }
