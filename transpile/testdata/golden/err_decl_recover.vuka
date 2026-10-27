@@ -1,0 +1,14 @@
+package main
+
+func broken( {
+	return
+}
+
+type Post struct {
+	ID    int64
+	Title string
+}
+
+var x = 1 +
+
+func main() {}

@@ -1,0 +1,29 @@
+error[E0215]: @orm.PK, @orm.Char and 1 more: this file imports no package named orm
+ --> err_attr_unimported.vuka:6:15
+  |
+6 |     ID    int64  @orm.PK
+  |                  ^^^^^^^
+ ::: err_attr_unimported.vuka:7:15
+  |
+7 |     Title string @orm.Char{Max: 80}
+  |                  ---------
+ ::: err_attr_unimported.vuka:8:15
+  |
+8 |     Body  string @orm.Text
+  |                  ---------
+ ::: err_attr_unimported.vuka:9:15
+  |
+9 |     Slug  string @orm.Char{Max: 20}
+  |                  ---------
+  |
+  = help: add the import: import "github.com/vuka-lang/orm/v2"
+
+error[E0215]: @graphql.Query: this file imports no package named graphql
+  --> err_attr_unimported.vuka:12:1
+   |
+12 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: add the import: import "github.com/vuka-lang/web/v2/graphql"
+
+For more information about this error, try `vuka explain E0215`.

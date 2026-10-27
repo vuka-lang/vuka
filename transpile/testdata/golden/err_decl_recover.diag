@@ -1,0 +1,17 @@
+error[E0003]: expected ')', found '{'
+ --> err_decl_recover.vuka:3:14
+  |
+3 | func broken( {
+  |              ^
+  |
+  = help: fix the syntax at the position shown
+
+error[E0003]: expected operand, found the end of the declaration
+  --> err_decl_recover.vuka:12:12
+   |
+12 | var x = 1 +
+   |            ^
+   |
+   = help: fix the syntax at the position shown
+
+For more information about this error, try `vuka explain E0003`.

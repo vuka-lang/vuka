@@ -1,0 +1,2 @@
+err_decl_recover.vuka:3:14: expected ')', found '{'
+err_decl_recover.vuka:12:12: expected operand, found the end of the declaration

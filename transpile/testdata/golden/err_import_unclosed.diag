@@ -1,0 +1,9 @@
+error[E0003]: import ( has no closing )
+ --> err_import_unclosed.vuka:3:1
+  |
+3 | import (
+  | ^^^^^^
+  |
+  = help: close the block: add ")" after its last import
+
+For more information about this error, try `vuka explain E0003`.

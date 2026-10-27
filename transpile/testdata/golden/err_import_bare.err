@@ -1,0 +1,1 @@
+err_import_bare.vuka:3:1: import has no path; add the paths: import ("github.com/vuka-lang/orm/v2"; "fmt") (the file uses orm and fmt)

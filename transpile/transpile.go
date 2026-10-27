@@ -12,7 +12,6 @@ import (
 	"go/ast"
 	"go/importer"
 	"go/parser"
-	"go/scanner"
 	"go/token"
 	"go/types"
 	"path/filepath"
@@ -188,6 +187,7 @@ type fileState struct {
 	lines      lineIndex
 
 	attrs       []*Attr
+	unimported  map[string]*unimported // E0215, by the package name
 	bundles     []*bundleDecl
 	tries       []*try
 	matches     []*matchStmt
@@ -422,13 +422,7 @@ func (f *fileState) build() {
 func (f *fileState) parse(fset *token.FileSet, errs *ErrorList) bool {
 	file, err := parser.ParseFile(fset, f.path, f.text, parser.ParseComments)
 	if err != nil {
-		if list, ok := err.(scanner.ErrorList); ok {
-			for _, e := range list {
-				errs.add("E0003", f.pos(e.Pos.Offset), "%s", e.Msg)
-			}
-		} else {
-			errs.add("E0003", f.at(0), "%v", err)
-		}
+		f.syntaxErrors(err, errs)
 		return false
 	}
 	f.ast, f.tf = file, fset.File(file.Pos())
@@ -569,6 +563,7 @@ func Package(files []File, opts Options) (*Result, error) {
 	}
 	e.loadContexts(opts.Contexts)
 	files = e.headerViews(files, opts.Path, len(files))
+	e.srcs = files
 	e.detectSelfTarget(files)
 	e.declaredIslands = declaredIslands(files)
 	for _, file := range files {
@@ -599,6 +594,7 @@ func Package(files []File, opts Options) (*Result, error) {
 		return &Result{}, nil
 	}
 	e.run()
+	e.foldKnockOns()
 	if err := errs.err(); err != nil {
 		return nil, err
 	}
@@ -670,7 +666,7 @@ func Syntax(file File, opts Options, others ...File) ErrorList {
 	if len(errs) > 0 {
 		return errs
 	}
-	file = all[0]
+	file, e.srcs = all[0], all
 	f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: true,
 		lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
 	if opts.Path != nil {

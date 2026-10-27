@@ -1,0 +1,11 @@
+error[E0003]: expected ')', found '{'
+ --> entities/broken.vuka:3:14
+  |
+3 | func broken( {
+  |              ^
+  |
+  = help: fix the syntax at the position shown
+
+For more information about this error, try `vuka explain E0003`.
+
+1 error in 1 package
