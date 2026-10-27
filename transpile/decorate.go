@@ -149,13 +149,45 @@ func (e *engine) unimportedAttr(f *fileState, a *Attr) bool {
 			return false
 		}
 	}
-	d := e.errs.add("E0215", a.Pos, "@%s: this file imports no package named %s", a.Name, pkg)
-	if k, ok := ToolchainPackages[pkg]; ok && pkg != "vuka" {
-		d.help("add the import: import %q", k[0])
-	} else {
-		d.help("import the package %s names", pkg)
+	u := f.unimported[pkg]
+	if u == nil {
+		u = &unimported{err: e.errs.add("E0215", a.Pos, "")}
+		if path := e.pathFor(f, pkg); path != "" {
+			u.err.help("add the import: import %q", path)
+		} else {
+			u.err.help("import the package %s names", pkg)
+		}
+		if f.unimported == nil {
+			f.unimported = map[string]*unimported{}
+		}
+		f.unimported[pkg] = u
+	} else if !slices.Contains(u.err.Related, a.Pos) && u.err.Pos != a.Pos {
+		u.err.Related = append(u.err.Related, a.Pos)
 	}
+	if !slices.Contains(u.names, "@"+a.Name) {
+		u.names = append(u.names, "@"+a.Name)
+	}
+	u.err.Msg = attrList(u.names) + ": this file imports no package named " + pkg
 	return true
+}
+
+// unimported is the E0215 of a package a file doesn't import: one for all
+// its attributes there.
+type unimported struct {
+	err   *Error
+	names []string // the attributes, as written, each once
+}
+
+// attrList names the attributes: "@orm.Meta", "@orm.Meta and @orm.PK",
+// "@orm.Meta, @orm.PK and 2 more".
+func attrList(names []string) string {
+	switch len(names) {
+	case 1:
+		return names[0]
+	case 2:
+		return names[0] + " and " + names[1]
+	}
+	return names[0] + ", " + names[1] + " and " + strconv.Itoa(len(names)-2) + " more"
 }
 
 // importName is the name an import path's package goes by, guessed from

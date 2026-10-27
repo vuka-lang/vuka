@@ -22,6 +22,7 @@ import (
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/docs"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // A failed build says what is wrong once: the errors of the packages that
@@ -95,7 +96,7 @@ func (r *buildReport) write(w io.Writer, o reportOptions) {
 	// Go's own type errors need no explaining; what vuka's codes mean does.
 	diag.Footer(&b, slices.DeleteFunc(slices.Clone(shown), func(d diag.Diagnostic) bool { return d.Code == "E0002" }), ro)
 	if o.verbose && len(r.importers) > 0 {
-		fmt.Fprintf(&b, "\nthe %s that couldn't build because of them:\n", importerNoun(r.importers, wd, true))
+		fmt.Fprintf(&b, "\nthe %s that couldn't build because of %s:\n", importerNoun(r.importers, wd, len(importerFiles(r.importers)) != 1), countWord(r.errs(), "it", "them"))
 		for _, d := range relDiags(slices.Clone(r.importers), wd) {
 			fmt.Fprintf(&b, "  %s: imports %s\n", d.Span, culpritOf(d.Message))
 		}
@@ -240,7 +241,15 @@ func transpileReport(in buildInput, err error) *buildReport {
 		}
 		byPkg[path] = append(byPkg[path], d)
 	}
+	// A package failing only for its imports that don't compile (their
+	// types invalid in it) is counted with the files importing it, once
+	// what it imports is reported.
+	onlyImports := map[string][]diag.Diagnostic{}
 	for _, c := range culprits {
+		if len(own[c]) > 0 && !slices.ContainsFunc(own[c], func(d diag.Diagnostic) bool { return d.Code != "E0005" }) {
+			onlyImports[c] = own[c]
+			continue
+		}
 		for _, d := range own[c] {
 			add(c, d)
 		}
@@ -253,6 +262,21 @@ func transpileReport(in buildInput, err error) *buildReport {
 	reported := map[string]bool{} // the packages whose own errors are shown
 	for path := range byPkg {
 		reported[path] = true
+	}
+	for _, c := range culprits {
+		ds := onlyImports[c]
+		if len(ds) == 0 {
+			continue
+		}
+		if slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return reported[culpritOf(d.Message)] }) {
+			r.importers = append(r.importers, ds...)
+			reported[c] = true
+			continue
+		}
+		for _, d := range ds {
+			add(c, d)
+		}
+		reported[c] = true
 	}
 	kept := map[string]bool{}
 	for _, d := range ds {
@@ -273,7 +297,39 @@ func transpileReport(in buildInput, err error) *buildReport {
 	for _, path := range in.depOrder(order) {
 		r.groups = append(r.groups, errGroup{path: path, diags: byPkg[path]})
 	}
+	r.stoppedBefore()
 	return r
+}
+
+// stoppedBefore says, of a model's typed fields a failed transpile left
+// ungenerated, why: the build stopped at another package's error before
+// the orm wrote them.
+func (r *buildReport) stoppedBefore() {
+	const missed = " wasn't generated for this build"
+	var cause *diag.Diagnostic
+	for i := range r.groups {
+		for j := range r.groups[i].diags {
+			if d := &r.groups[i].diags[j]; cause == nil && !strings.Contains(d.Message, missed) && d.Code != "E0005" {
+				cause = d
+			}
+		}
+	}
+	if cause == nil {
+		return
+	}
+	at := fmt.Sprintf("%s:%d", filepath.ToSlash(cause.Span.File), cause.Span.Line)
+	if rel, err := filepath.Rel(workDir(), cause.Span.File); err == nil && filepath.IsAbs(cause.Span.File) && !strings.HasPrefix(rel, "..") {
+		at = fmt.Sprintf("%s:%d", filepath.ToSlash(rel), cause.Span.Line)
+	}
+	for i := range r.groups {
+		for j := range r.groups[i].diags {
+			d := &r.groups[i].diags[j]
+			if strings.Contains(d.Message, missed) {
+				d.Message = strings.Replace(d.Message, missed, " wasn't generated: the build stopped at the error at "+at+" before the orm wrote it", 1)
+				d.Help = ""
+			}
+		}
+	}
 }
 
 // inModule reports whether path is a package of the main module.
@@ -407,7 +463,7 @@ func (in buildInput) check(paths []string) map[string][]diag.Diagnostic {
 	if err != nil {
 		return out
 	}
-	c := &checker{in: in, ov: ov, ctx: overlayContext(ov), gens: map[string]*load.Generated{}}
+	c := &checker{in: in, ov: ov, ctx: overlayContext(ov), gens: map[string]*load.Generated{}, knock: map[string][]diag.Diagnostic{}}
 	for i := range in.gens {
 		c.gens[realPathOf(in.gens[i].Target)] = &in.gens[i]
 	}
@@ -419,6 +475,9 @@ func (in buildInput) check(paths []string) map[string][]diag.Diagnostic {
 	}
 	for _, p := range paths {
 		out[p] = c.pkg(p)
+		if len(out[p]) == 0 && len(c.knock[p]) > 0 {
+			out[p] = c.knock[p] // only its imports: the E0005s say so
+		}
 	}
 	return out
 }
@@ -427,7 +486,8 @@ type checker struct {
 	in        buildInput
 	ov        map[string]string
 	ctx       *build.Context
-	gens      map[string]*load.Generated // by real target path
+	gens      map[string]*load.Generated   // by real target path
+	knock     map[string][]diag.Diagnostic // by package: its imports that don't compile
 	im        *load.Importer
 	goVersion string
 }
@@ -497,10 +557,8 @@ func (c *checker) pkg(path string) []diag.Diagnostic {
 			}
 		}}
 	pkg, _ := conf.Check(path, fset, asts, info)
+	broken := transpile.BrokenImports(errs)
 	for _, te := range errs {
-		if strings.HasPrefix(te.Msg, "could not import ") {
-			continue // the package it names has its own errors
-		}
 		var cf *checkedFile
 		for _, f := range files {
 			if f.ast.FileStart <= te.Pos && te.Pos <= f.ast.FileEnd {
@@ -508,6 +566,17 @@ func (c *checker) pkg(path string) []diag.Diagnostic {
 			}
 		}
 		if cf == nil {
+			continue
+		}
+		if rest, ok := strings.CutPrefix(te.Msg, "could not import "); ok {
+			// The package it names has its own errors; what this one
+			// can't do with its types is said by them.
+			imp, _, _ := strings.Cut(rest, " ")
+			sp := c.toSource(fset, cf, te.Pos, token.NoPos)
+			c.knock[path] = append(c.knock[path], diag.Diagnostic{Code: "E0005", Message: imp + " has errors", Span: diag.Span{File: sp.file, Line: sp.line, Col: sp.col}})
+			continue
+		}
+		if transpile.KnockOn(info, cf.ast, te, broken) {
 			continue
 		}
 		ds = append(ds, c.diagnostic(fset, files, cf, te.Pos, te.Msg, info, pkg))

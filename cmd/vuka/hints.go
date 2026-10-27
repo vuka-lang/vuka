@@ -7,7 +7,6 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
-	"slices"
 	"strconv"
 	"strings"
 
@@ -277,29 +276,21 @@ func (in hintInput) identEnd() int {
 	return j
 }
 
-// importFor is the one package named name the error's file can mean: one
-// the package's files import by that name, else the one
-// transpile.ImportScope finds (the standard library's, the toolchain's,
-// the module's own and its requirements'); "" when none or several.
+// importFor is the one package named name the error's file can mean, as
+// transpile.ImportScope finds it: one the package's files import by that
+// name, else the standard library's, the toolchain's, the module's own or
+// its requirements'; "" when none or several.
 func (in hintInput) importFor(name string) string {
+	scope := transpile.ImportScope{ModuleRoot: in.modRoot, ModulePath: in.modPath}
 	if t := in.types; t != nil {
-		var found []string
 		for _, f := range t.files {
 			for _, s := range f.ast.Imports {
 				p, _ := strconv.Unquote(s.Path.Value)
-				if importName(f.ast, p) == name && !slices.Contains(found, p) {
-					found = append(found, p)
-				}
+				scope.Imports = append(scope.Imports, [2]string{importName(f.ast, p), p})
 			}
 		}
-		if len(found) == 1 {
-			return found[0]
-		}
-		if len(found) > 1 {
-			return ""
-		}
 	}
-	return transpile.ImportScope{ModuleRoot: in.modRoot, ModulePath: in.modPath}.ImportFor(name)
+	return scope.ImportFor(name)
 }
 
 // requires reports whether the module's go.mod requires mod, or is it.
@@ -386,7 +377,8 @@ func firstField(t types.Type) string {
 	return ""
 }
 
-// isModel reports whether t is an orm model: a struct embedding orm.Base.
+// isModel reports whether t is an orm model: a struct embedding orm.Base,
+// which a Vuka model's Go writes orm.Model[T].
 func isModel(t types.Type) bool {
 	st, ok := t.Underlying().(*types.Struct)
 	if !ok {
@@ -400,7 +392,7 @@ func isModel(t types.Type) bool {
 		if p, ok := ft.(*types.Pointer); ok {
 			ft = types.Unalias(p.Elem())
 		}
-		if n, ok := ft.(*types.Named); ok && n.Obj().Pkg() != nil && strings.HasPrefix(n.Obj().Pkg().Path(), ormModule) && n.Obj().Name() == "Base" {
+		if n, ok := ft.(*types.Named); ok && n.Obj().Pkg() != nil && strings.HasPrefix(n.Obj().Pkg().Path(), ormModule) && (n.Obj().Name() == "Base" || n.Obj().Name() == "Model") {
 			return true
 		}
 	}

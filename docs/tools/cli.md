@@ -218,6 +218,13 @@ error[E0002]: undefined: entities.UserFields
 2 errors in 2 packages · 3 pages couldn't build because of them
 ```
 
+What a package can't do with the types of one that doesn't compile — a
+field of an embedded type it can't find, a GraphQL result of an invalid
+type, a variable whose only use is in such code — isn't its own error: its
+files are counted with the others in the last line. A file that doesn't
+parse has one error a broken declaration, and an `import` without a path
+one error at the `import`, naming the imports the file's code needs.
+
 The packages lower in the import graph come first: fixing them often
 clears the rest. Every error of a package is shown, up to ten, and then
 how many more there are; `vuka vet` shows them all. A Go error whose cause

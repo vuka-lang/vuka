@@ -94,9 +94,13 @@ query's time went, and which fields still query once per parent. See
 ### GraphiQL
 
 In an app serving `web.GraphQL`, a panel running queries against it: an
-editor completing fields and arguments from the schema, variables and the
-result, each run a call of the list with its trace. It stays as you move
-between records.
+editor completing at the cursor from the schema, highlighting, checked by
+the app's own engine as you type, with hover, formatting (Format,
+Shift+Ctrl/Cmd+P), variables and headers, tabs and a history, an explorer
+of the schema's operations and types, and full screen (Shift+Ctrl/Cmd+F).
+Ctrl/Cmd+Enter runs; each run is a call of the list with its trace. It
+stays as you move between records, caret and scroll with it. See
+[GraphQL in the toolbar](/web/graphql#toolbar) for all it does.
 
 ### Mail
 

@@ -1,0 +1,9 @@
+error[E0003]: import has no path
+ --> err_import_bare.vuka:3:1
+  |
+3 | import
+  | ^^^^^^
+  |
+  = help: add the paths: import ("github.com/vuka-lang/orm/v2"; "fmt") (the file uses orm and fmt)
+
+For more information about this error, try `vuka explain E0003`.

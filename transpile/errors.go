@@ -22,6 +22,11 @@ type Error struct {
 	// Fix is the source text replacing the Len bytes at Pos, for a
 	// warning with one rewrite (W0402: perms.Has("x") for auth.Can(ctx, "x")).
 	Fix string
+	// Related are the other places the error is about (the other uses of
+	// a package a file doesn't import).
+	Related []token.Position
+
+	knockOn bool // a knock-on of an import that didn't load (knockon.go)
 }
 
 func (e *Error) Error() string { return e.Pos.String() + ": " + e.Text() }
@@ -50,7 +55,17 @@ func (e *Error) Diagnostic(root string) diag.Diagnostic {
 	if e.Len > 0 && sp.Col > 0 {
 		sp.EndCol = sp.Col + e.Len
 	}
-	return diag.Diagnostic{Code: e.Code, Message: e.Msg, Span: sp, Help: e.Help, Suggest: e.Suggest}
+	d := diag.Diagnostic{Code: e.Code, Message: e.Msg, Span: sp, Help: e.Help, Suggest: e.Suggest}
+	for _, r := range e.Related {
+		rf := r.Filename
+		if root != "" && filepath.IsAbs(rf) {
+			if rel, err := filepath.Rel(root, rf); err == nil && !strings.HasPrefix(rel, "..") {
+				rf = filepath.ToSlash(rel)
+			}
+		}
+		d.Related = append(d.Related, diag.Span{File: rf, Line: r.Line, Col: r.Column})
+	}
+	return d
 }
 
 func (e *Error) help(format string, args ...any) *Error {

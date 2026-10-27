@@ -1,0 +1,11 @@
+package main
+
+import
+
+type Post struct {
+	orm.Base `table:"posts"`
+	ID       int64
+	Title    string
+}
+
+func main() { fmt.Println(Post{}.Title) }

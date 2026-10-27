@@ -1,0 +1,14 @@
+package main
+
+import "context"
+
+// Page declares deferred methods that can't be.
+type Page struct{}
+
+@ui.Defer
+func (p *Page) Count() int { return 1 }
+
+@ui.Defer
+@ui.Defer("lists")
+func (p *Page) Total(ctx context.Context) (int, error) { return 1, nil }
+<p>{Count()} {Total(ctx)}</p>

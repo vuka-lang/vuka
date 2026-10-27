@@ -824,6 +824,9 @@ func (g *gqlGen) unsupported(t types.Type, why string) {
 		why = "GraphQL has no type for it"
 	}
 	g.fail("E0802", "leave a struct field out with a graphql:\"-\" tag; give the value a struct, a slice, a scalar or an enum type", "%s is %s: %s", g.via, g.typ(t), why)
+	if invalidThrough(t, g.e.brokenPaths()) {
+		(*g.e.errs)[len(*g.e.errs)-1].knockOn = true
+	}
 }
 
 // nonNull is "&graphql.NonNull{Of: x}".

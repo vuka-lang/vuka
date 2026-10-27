@@ -30,6 +30,32 @@ func TestLSPDiagnosticCodes(t *testing.T) {
 	}
 }
 
+// TestLSPUnimportedGrouped: the attributes of a package the file doesn't
+// import are one diagnostic, at the first, the others its related
+// information.
+func TestLSPUnimportedGrouped(t *testing.T) {
+	src := "package main\n\n@shop.Tracked\nfunc a() {}\n\n@shop.Logged\nfunc b() {}\n\n@shop.Tracked\nfunc c() {}\n\nfunc main() {}\n"
+	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": src})
+	uri := pathToURI(filepath.Join(dir, "main.vuka"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka", "version": 1, "text": src}})
+	var got string
+	c.waitDiags(uri, func(ds []any) bool {
+		got = jsonOf(ds)
+		return strings.Contains(got, "E0215")
+	})
+	if n := strings.Count(got, `"code":"E0215"`); n != 1 {
+		t.Errorf("%d E0215 diagnostics, want 1: %s", n, got)
+	}
+	for _, want := range []string{`"message":"@shop.Tracked and @shop.Logged: this file imports no package named shop`,
+		`"range":{"end":{"character":0,"line":2},"start":{"character":0,"line":2}}`,
+		`"relatedInformation":[{"location":{"range":{"end":{"character":0,"line":5},"start":{"character":0,"line":5}}`,
+		`{"location":{"range":{"end":{"character":0,"line":8},"start":{"character":0,"line":8}}`} {
+		if !strings.Contains(got, want) {
+			t.Errorf("diagnostics lack %s: %s", want, got)
+		}
+	}
+}
+
 func TestLSPIslandVet(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{"detail.vuka": vetPage, "islands/Detail.vue": "<template><p/></template>"})
 	uri := pathToURI(filepath.Join(dir, "detail.vuka"))

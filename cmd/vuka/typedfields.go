@@ -111,13 +111,14 @@ func init() {
 
 // packageTypedFields is what orm generate would write for a Vuka package
 // just transpiled whose Go reads typed fields (User.Email is
-// UserFields.Email): the packages importing it are type-checked with them.
+// UserFields.Email) or declares models: the packages importing it are
+// type-checked with them, whether or not a package after it fails.
 func packageTypedFields(dir, overlay string, gens []load.Generated) []load.Generated {
 	root, _, err := load.ModuleRoot(dir)
 	if err != nil {
 		return nil
 	}
-	missing, err := ormMissingIn(root, dir, overlay, gens, false, false)
+	missing, err := ormMissingIn(root, dir, overlay, gens, false, declaresModels(gens))
 	if err != nil {
 		return nil // the build's own pass says so
 	}
@@ -128,6 +129,20 @@ func packageTypedFields(dir, overlay string, gens []load.Generated) []load.Gener
 		}
 	}
 	return out
+}
+
+// modelEmbed matches a struct embedding the orm's model base, as
+// transpiled Go writes it: orm.Model[User], or orm.Base.
+var modelEmbed = regexp.MustCompile(`(?m)^\s+\w+\.(?:Model\[\w+\]|Base)\s*(?:$|//|\x60)`)
+
+// declaresModels reports whether gens, a package's Go, declare orm models.
+func declaresModels(gens []load.Generated) bool {
+	for _, g := range gens {
+		if bytes.Contains(g.Src, []byte(`"`+ormModule+`"`)) && modelEmbed.Match(g.Src) {
+			return true
+		}
+	}
+	return false
 }
 
 // ormTools are the orm tool binaries found, by module root, go.mod and

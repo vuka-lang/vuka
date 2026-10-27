@@ -1,0 +1,27 @@
+package main
+
+import "context"
+
+// Page calls its deferred methods where no part can take them.
+type Page struct{}
+
+@ui.Defer
+func (p *Page) Title(ctx context.Context) (string, error) { return "t", nil }
+
+@ui.Defer
+func (p *Page) Count(ctx context.Context) (int, error) { return 1, nil }
+
+@ui.Defer
+func (p *Page) Unused(ctx context.Context) (int, error) { return 1, nil }
+
+@ui.Defer
+func (p *Page) Stats(ctx context.Context) (int, error) { return 1, nil }
+
+func (p *Page) Summary(ctx context.Context) string {
+	n, _ := p.Stats(ctx)
+	return string(rune('0' + n))
+}
+<Badge label={Title(ctx)}/>
+{Count(ctx)}
+<p>{Stats(ctx)}</p>
+<ui.Fallback for={Stat}>…</ui.Fallback>

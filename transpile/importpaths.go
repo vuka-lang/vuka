@@ -23,12 +23,15 @@ type ImportScope struct {
 	ModuleRoot, ModulePath string
 	// Others are the sources of the package's other files.
 	Others [][]byte
+	// Imports are other files' imports, as [name, path], when their
+	// sources aren't at hand.
+	Imports [][2]string
 }
 
-// ToolchainPackages are the import paths of the packages of the vuka
+// toolchainPackages are the import paths of the packages of the vuka
 // toolchain set, by the name they go by, each with the module that holds
 // it.
-var ToolchainPackages = map[string][2]string{
+var toolchainPackages = map[string][2]string{
 	"web":     {"github.com/vuka-lang/web/v2", "github.com/vuka-lang/web/v2"},
 	"graphql": {"github.com/vuka-lang/web/v2/graphql", "github.com/vuka-lang/web/v2"},
 	"auth":    {"github.com/vuka-lang/web/v2/auth", "github.com/vuka-lang/web/v2"},
@@ -64,11 +67,13 @@ func (s ImportScope) Candidates(name string) []string {
 			found = append(found, p)
 		}
 	}
+	imports := s.Imports
 	for _, src := range s.Others {
-		for _, imp := range importsOf(src) {
-			if imp[0] == name {
-				addTo(imp[1])
-			}
+		imports = append(imports, importsOf(src)...)
+	}
+	for _, imp := range imports {
+		if imp[0] == name {
+			addTo(imp[1])
 		}
 	}
 	if len(found) > 0 {
@@ -79,7 +84,10 @@ func (s ImportScope) Candidates(name string) []string {
 		addTo(p)
 	}
 	mod := s.goMod()
-	if k, ok := ToolchainPackages[name]; ok && (mod == nil || mod.requires(k[1])) {
+	if mod != nil && s.ModulePath == "" {
+		s.ModulePath = mod.path
+	}
+	if k, ok := toolchainPackages[name]; ok && (mod == nil || mod.requires(k[1])) {
 		addTo(k[0])
 	}
 	if s.ModuleRoot != "" {
@@ -284,6 +292,7 @@ func dirPackage(dir string) string {
 
 // goModFile is what Candidates reads of a go.mod.
 type goModFile struct {
+	path   string // its module's
 	text   string
 	direct []modDir // the modules it requires directly, where they are
 }
@@ -304,6 +313,9 @@ func (s ImportScope) goMod() *goModFile {
 		return nil
 	}
 	m := &goModFile{text: string(b)}
+	if f := modLines(m.text, "module"); len(f) > 0 && len(f[0]) > 0 {
+		m.path = strings.Trim(f[0][0], `"`)
+	}
 	replaced := map[string]string{}
 	for _, f := range modLines(m.text, "replace") {
 		if i := slices.Index(f, "=>"); i > 0 && i+1 < len(f) {

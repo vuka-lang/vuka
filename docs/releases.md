@@ -22,6 +22,69 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.9.0 — unreleased
 
+### Parts of Stateless Pages
+
+- **Parts of stateless pages: `@ui.Defer` on a method.** A page that isn't
+  live shows itself at once and fills in its slow parts afterwards, in the
+  same response. A method of a page or component marked `@ui.Defer` (or
+  `@ui.Defer("group")`) starts as the render meets its part and doesn't hold
+  the page back; the element whose markup calls it is its part, sent after
+  the page once the method returns
+  — a group's together — and moved into place by a one-line script. The
+  status, guards and layouts' `Load` are decided first; the response is
+  flushed through compression with `X-Accel-Buffering: no`; navigation over
+  HTTP reads the same stream; the visitor leaving cancels the methods
+  still running. See [Parts of a Page](/web/parts).
+
+- **Fallbacks and failing parts.** `<ui.Fallback for={Stats}>` is what a
+  part shows until it arrives, `<ui.Fallback for={Stats} error>` what it
+  shows when its method fails; without one, the part's element is there
+  empty with `aria-busy="true"`, and a failing part shows a short message
+  with `role="alert"`. A failure is logged and the rest of the page is
+  unaffected.
+
+- **Parts in Go: `ui.Part`.** Markup written in Go spells a part out with
+  `ui.Part(p, (*Index).Stats, fallback, func(s Stats) ui.Node { … })` — the
+  receiver and the method expression, keying one call per request — the method
+  registered with `vuka.RegisterFunc((*Index).Stats, ui.Defer(""))`;
+  `ui.PartFallback` gives it an error fallback. `ui.Textf` formats text.
+
+- **Where a timing attribute may go.** On a method of a page or component
+  that its own markup calls, taking a context and returning `(T, error)`,
+  once, on a page that isn't live: anything else is a build error
+  ([E0341](/errors/E0341)–[E0350](/errors/E0350)), in `vukavet` for Go
+  (its new `parts` check), and a start-up failure for a misregistered
+  method.
+
+- **Parts in the toolbar and in tests.** Each deferred method is a `part`
+  span of its request in the development toolbar, with its time, its
+  statements and its error. In a test, a page's parts render in place;
+  `viewtest.Pending()` renders the page as it first shows.
+
+### Tools
+
+- **The toolbar's GraphiQL panel is an editor.** Completion opens at the
+  cursor as you type: fields of the type there (fragments and inline
+  fragments on interfaces and unions included), arguments with their types
+  and required marks, enum values, input objects' fields, the operation's
+  variables, directives and fragments, matched fuzzily; a field with
+  required arguments comes with `()`, an object field with `{ }`. The
+  query is highlighted and checked as you type by the app's own parser,
+  validation and limits — errors underlined in place, "Did you mean" one
+  click away — and hover shows a field's or type's type and description.
+  Format (Shift+Ctrl/Cmd+P, Shift+Alt+F) prints the document, or the
+  definitions selected, in the canonical style, idempotently, as one undo
+  step, the variables' JSON with it. The variables and headers are JSON
+  editors that complete and check against the operation's variables;
+  Ctrl/Cmd+Enter runs the operation at the cursor, the result foldable with
+  its status, time and errors' paths, and "Copy as curl" copies it. An
+  explorer lists the schema's queries, mutations and subscriptions —
+  inserting a ready-to-run operation for one, at the cursor or in a new
+  tab — and its types, searchable; documents are tabs, the queries run a
+  history, and the panel goes full screen (Shift+Ctrl/Cmd+F, Esc back).
+  Development only: the editor is a script of the toolbar's, loaded when
+  the panel first shows. See [GraphQL in the toolbar](/web/graphql#toolbar).
+
 - **Organize imports** for `.vuka` and `.vuka.html` files: `vuka lsp`
   answers `source.organizeImports` — imports nothing in the file uses go
   (uses in markup, component tags and attributes count), a package used
@@ -31,6 +94,39 @@ the `github.com/vuka-lang/vuka` package your module requires.
   before formatting (`vuka.organizeImportsOnSave`); `vuka fmt -imports`
   does it from the command line, `-l` listing what it would change. See
   [Organizing Imports](/tools/editors#organize-imports).
+
+### Build Errors
+
+- **A broken or missing import is one error.** An `import` with no path
+  (a leftover `import`, `import orm`, a path missing its closing quote, an
+  `import (` without its `)`) is one E0003 at the `import`, its help naming
+  the imports the file's code needs (`add the path: import
+  "github.com/vuka-lang/orm/v2" (the file uses orm)`), rather than an error
+  at the next declaration and more where the parser lost track. A file
+  that doesn't parse is read a top-level declaration at a time, so a broken
+  declaration is one error and the ones after it are checked as written.
+
+- **Packages importing a broken one are counted, not reported.** What a
+  package can't do with the types of a package that doesn't compile (a
+  field of an embedded type it can't find, a GraphQL result `invalid type`,
+  a variable whose only use is in such code "declared and not used") is no
+  longer its own error: the build counts its files in the summary line
+  ("2 files couldn't build because of it", `-v` lists them).
+
+- **One E0215 a missing package a file.** The attributes of a package a
+  file doesn't import are one error at the first (`@orm.Meta, @orm.PK and 1
+  more: this file imports no package named orm`), the others its related
+  positions, in the terminal and the editor; its help resolves the import
+  as a Go error's does.
+
+- **A failing package no longer stops the orm's typed fields.** A package
+  of models has its typed fields (`UserFields`) generated as it transpiles,
+  so the packages reading them build whatever fails elsewhere: an error in
+  one `.vuka.html` file was reported with every typed-field use of an
+  unrelated package as `undefined: entities.UserFields`. The note of an
+  undefined `XFields` no longer calls a Vuka model "not a model" (its Go
+  embeds `orm.Model[T]`), and says when the build stopped before the orm
+  wrote them.
 
 ## v2.8.0 — 2026-10-27
 
