@@ -22,6 +22,127 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.8.0 — unreleased
 
+### Upgrading
+
+Two changes can reach an app that upgrades without touching its code, and
+GraphQL's orm relations need the orm at v2.1.0, which `vuka upgrade` moves
+an app to (`vuka new` starts there):
+
+- **Schema change: string ids are `ID`s.** A string field, argument or input
+  field named as an id (`ID`, `trackingID`) is an `ID` now, as integers
+  named so are; `graphql:",string"` or `@graphql.AsString("param")` keeps
+  a `String`. `vuka graphql schema -check` reports the change.
+
+- **CSRF protection is always on.** net/http's `CrossOriginProtection`
+  guards every app (`web.CSRF` adds trusted origins, `web.CSRFBypass` lets
+  routes such as webhooks through). An unsafe request that says nothing of
+  where it comes from (no `Sec-Fetch-Site`, no `Origin`) and carries a
+  session cookie needs a CSRF token, which every `<ui.Form>` carries.
+
+### Forms
+
+A form is a Go struct: declared once, checked on the server, rendered accessibly, and edited, translated and tracked without client code. See [Forms](/ui/forms).
+
+- **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
+  exported fields are what a submit binds, its `validate:` tags and
+  `Clean<Field>`/`Clean` methods (dependencies injected) check it, and
+  `<ui.Form for={Form} onSubmit={Save}/>` renders it — every field and a
+  submit button, or the markup you write with `<ui.Field for>`,
+  `<ui.Error for>`, `<ui.Fieldset>`, `<ui.Summary>` and `model={Form.Email}`
+  on a control. `Save` runs only once every check passed, with the checked
+  value. See [Forms](/ui/forms).
+
+- **Errors show when the visitor is ready for them.** The server decides,
+  from the fields the runtime says were used: a field's error shows once
+  the visitor leaves it filled, or types in it while it shows one; an empty
+  required field only on submit; letters where a number goes, and a
+  fixed-length field at its length, at once. Every error is a
+  `forms.Error{Path, Rule, Params, Key}`, its message plain wording ("Enter
+  your email address", "Name must be 80 characters or less") through
+  `forms.Text`, `msg:` tags overriding one.
+
+- **Accessible markup by default.** Label, hint, error, control;
+  `aria-describedby` linking hint and error, `aria-invalid` only once the
+  error shows, a visually hidden "Error:"; "(optional)" on optional fields
+  (`ui.Config{MarkRequired}` marks required ones instead); `type`,
+  `inputmode` and `autocomplete` inferred; a password show/hide toggle;
+  forms `novalidate`. A failed submit shows an error summary, "There is a
+  problem", links to each field, focus on it and "Error: " before the
+  page's title.
+
+- **`model` and `for` name a form's fields in markup.** `model` on an
+  `<input>`, `<textarea>` or `<select>` (with `.lazy`, `.raw`, `.number`)
+  writes the control's name, id, value, type and ARIA links; `for` on a
+  label is the field's id. A misspelt field is
+  [E0159](/errors/E0159), naming the field meant. vukavet reports a
+  `Clean<Field>` or `<Field>Choices` naming no field
+  ([W0309](/errors/W0309)), a placeholder without a label
+  ([W0310](/errors/W0310)) and a database model embedded in a form
+  ([W0311](/errors/W0311)).
+
+- **A live page's forms work without script.** The form posts to the page,
+  which answers 422 with the errors and the summary, or 303 where `Save`
+  sent the visitor. A field the post leaves out is empty only if the form
+  rendered it (an unticked checkbox), from a signed list of the fields it
+  rendered. Each render carries an idempotency key: a submit sent again —
+  the back button, a retry — gets the first one's outcome instead of
+  running `Save` twice (`web.FormStore` keeps the keys elsewhere than
+  memory). A live handler returning `web.Redirect` moves the page.
+
+- **Editing records.** `Form.Load(record)` copies the fields a record
+  shares with the form and makes them its baseline; `f.Apply(&record)`
+  writes back the fields the form declares and rendered, returning their
+  names. `ui.FormOf[T]("Name", "Email")` is a form over a model's named
+  fields, with its tags — no "every field"; a name the model lacks is a
+  compile error ([E0161](/errors/E0161)). See
+  [Editing Records](/ui/forms#editing).
+
+- **Choices that follow each other.** `<Field>Choices` reads the form's
+  current values, so a city's choices follow its country: on a live page a
+  value no longer among them is cleared, and a submitted value that isn't
+  one is an error. `depends:"Country"` gives the parent an Update button
+  for browsers without script ([W0313](/errors/W0313)). `<ui.Choices
+  for={Form.Plan}/>` renders a field's radios or checkboxes. See
+  [Choices](/ui/forms#choices).
+
+- **Browser checks that agree with the server.** Controls carry only the
+  constraint attributes the browser decides as Go does: `minlength` and
+  `maxlength` on fields of digits, `min` and `max` on number inputs,
+  `required` with `ui.Config{RequiredAttr}`, never `pattern`;
+  `vukavet -forms.attrs` says what's left out and why
+  ([W0312](/errors/W0312)). `ui.Config{BrowserChecks: true}` checks a
+  submit sent without a connection in the browser first, with the server's
+  messages. See [Browser Checks](/ui/forms#browser-checks).
+
+- **Messages in the visitor's language.** `ui.Config{Messages}` takes the
+  app's catalogue: `forms.Messages`, or `forms.Translations` by language,
+  chosen from the request's `Accept-Language` (`forms.WithLocale` to choose
+  another). Labels, hints and the form's own words translate; plural forms
+  (`{n, plural, one {# character} other {# characters}}`) follow each
+  language's rules. See [Messages and Translations](/ui/forms#messages).
+
+- **Form state.** `Form.Dirty()`, `Form.Changed(&Form.X)` against the
+  loaded values, `Form.Reset()`, and `Form.Saved()` for the 2 seconds after
+  a successful submit; `Load` and `Reset` make the browser's fields take the
+  server's values. `<ui.Form confirmLeave>` asks before the visitor leaves
+  unsaved changes. `<ui.Field ok>` shows a tick on a valid field. See
+  [State](/ui/forms#state).
+
+- **Fixes to forms.** A busy form's submit button takes clicks again (the
+  runtime drops the repeated submit; the kit's `pointer-events: none` is
+  gone). A stateful component's form keeps what the visitor typed when its
+  parent renders again. `validate="off"` is documented as what it is: no
+  checks at all.
+
+- **`viewtest.Mount` tests a page's form.** `p.Fill(&p.Page.Form.Email,
+  "pa@").Blur(&p.Page.Form.Email)`, `p.Expect(field).Error("validate.email")`,
+  `p.Submit()`, `p.ExpectRedirect("/welcome")`, over the page's connection
+  or, with `viewtest.Plain()`, as a plain post.
+
+### GraphQL
+
+A GraphQL API from Go types and functions, with the schema and resolvers generated. See [GraphQL](/web/graphql).
+
 - **GraphQL from Go.** Types are structs, fields their exported fields and
   methods, operations functions marked `@graphql.Query` or
   `@graphql.Mutation`, and `web.GraphQL("/graphql")` serves them. The
@@ -85,54 +206,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `@graphql.Subscription` is reserved for a later version
   ([E0806](/errors/E0806)).
 
-- **Pages that aren't live move in place.** A `ui.Link` on a page without a
-  live connection is fetched with a `Vk-Navigate` header instead of
-  loaded: the route runs as for a page load (guards, every layout's
-  `Load`, the page) and the runtime patches the new page into `<body>`,
-  keeping what didn't change — a field's focus and what was typed,
-  `data-vk-ignore`, islands the new page renders in the same place — with
-  the head merged, scroll, focus and `vk:navigate` as over a connection,
-  and back and forward fetching their pages. A live page reached so
-  joins, its mount hook run once. Another root layout, another build, a
-  body with scripts of its own, a reply that isn't a page, a network
-  failure or no reply in 10s load the page as before. Prefetch fetches the
-  navigation's reply, three at a time, and the toolbar shows each
-  navigation as the page. A request without the header is answered as
-  ever. See [Pages that aren't live](/web/navigation#pages-that-arent-live).
-
-- **`reload` and `@web.FullLoad`** keep a link, or every link to a page,
-  the browser's: `<ui.Link href="/report" reload>` (`data-vk-reload` on an
-  `<a>`), and `@web.FullLoad` on a page type or `web.FullLoad()` on a
-  route.
-
-- **`vuka run` says why a link loaded the whole page.** A navigation that
-  falls back to a page load prints its reason once in the terminal (for a
-  body with a script of its own, the tag, such as
-  `<script src="/static/theme.js">`, and the fixes) and in the browser's
-  console, and the toolbar's record of the navigation shows
-  `full load: scripts`. Production stays silent. See
-  [Why a link loaded the whole page](/web/navigation#why-it-loaded).
-
-- **Pages with links load the runtime.** A page whose only runtime need
-  is a `ui.Link` now gets the runtime's script (cached for good), so its
-  links move in place; every runtime script names the build that rendered
-  it (`data-vk-build-id`).
-
-- **Build errors say what is wrong, once.** A failed `vuka build`, `run`,
-  `run -watch` or `vet` shows the errors of the packages that fail
-  themselves, lower packages first, each at the `.vuka` or `.vuka.html`
-  line and column you wrote (never a generated line) with a code frame;
-  the files that fail only because they import one are counted in one
-  line (`-v` lists them). Every error is shown, ten a package and then how
-  many more (`vuka vet` shows them all). The common Go errors come with a
-  hint when their cause is certain: the signature of a call given the wrong
-  number of arguments and, in markup, the request's `ctx` it leaves out; an
-  attribute or a package used without its import, named; an orm model's
-  typed fields that weren't generated; a url the folder routes don't have.
-  Under `run -watch` on a terminal each build's errors replace the last
-  one's; the toolbar's build panel and the editor show the same. See
-  [When a Build Fails](/tools/cli#build-errors).
-
 - **Loaders.** `@graphql.Loader` on `func OrdersByUser(ctx, userIDs []int64,
   deps…) (map[int64][]Order, error)` makes `OrdersByUser` a loader type,
   which field methods and operations take as a dependency and `Load` or
@@ -172,117 +245,49 @@ the `github.com/vuka-lang/vuka` package your module requires.
   field method returning a list without a limit or a page
   ([W0802](/errors/W0802)).
 
-- **Schema change: string ids are `ID`s.** A string field, argument or input
-  field named as an id (`ID`, `trackingID`) is an `ID` now, as integers
-  named so are; `graphql:",string"` or `@graphql.AsString("param")` keeps
-  a `String`. `vuka graphql schema -check` reports the change.
-
 - **An attribute's missing import is named.** `@graphql.Query` (or
   `@web.Get`, `@auth.Required`, `@orm.Char`…) in a file not importing its
   package is [E0215](/errors/E0215), with the import to add, rather than
   Go's `undefined: graphql`.
 
-- **Editing records.** `Form.Load(record)` copies the fields a record
-  shares with the form and makes them its baseline; `f.Apply(&record)`
-  writes back the fields the form declares and rendered, returning their
-  names. `ui.FormOf[T]("Name", "Email")` is a form over a model's named
-  fields, with its tags — no "every field"; a name the model lacks is a
-  compile error ([E0161](/errors/E0161)). See
-  [Editing Records](/ui/forms#editing).
+### Navigation
 
-- **Choices that follow each other.** `<Field>Choices` reads the form's
-  current values, so a city's choices follow its country: on a live page a
-  value no longer among them is cleared, and a submitted value that isn't
-  one is an error. `depends:"Country"` gives the parent an Update button
-  for browsers without script ([W0313](/errors/W0313)). `<ui.Choices
-  for={Form.Plan}/>` renders a field's radios or checkboxes. See
-  [Choices](/ui/forms#choices).
+Pages that aren't live move in place over HTTP, as live pages do over their connection. See [Navigation](/web/navigation).
 
-- **Browser checks that agree with the server.** Controls carry only the
-  constraint attributes the browser decides as Go does: `minlength` and
-  `maxlength` on fields of digits, `min` and `max` on number inputs,
-  `required` with `ui.Config{RequiredAttr}`, never `pattern`;
-  `vukavet -forms.attrs` says what's left out and why
-  ([W0312](/errors/W0312)). `ui.Config{BrowserChecks: true}` checks a
-  submit sent without a connection in the browser first, with the server's
-  messages. See [Browser Checks](/ui/forms#browser-checks).
+- **Pages that aren't live move in place.** A `ui.Link` on a page without a
+  live connection is fetched with a `Vk-Navigate` header instead of
+  loaded: the route runs as for a page load (guards, every layout's
+  `Load`, the page) and the runtime patches the new page into `<body>`,
+  keeping what didn't change — a field's focus and what was typed,
+  `data-vk-ignore`, islands the new page renders in the same place — with
+  the head merged, scroll, focus and `vk:navigate` as over a connection,
+  and back and forward fetching their pages. A live page reached so
+  joins, its mount hook run once. Another root layout, another build, a
+  body with scripts of its own, a reply that isn't a page, a network
+  failure or no reply in 10s load the page as before. Prefetch fetches the
+  navigation's reply, three at a time, and the toolbar shows each
+  navigation as the page. A request without the header is answered as
+  ever. See [Pages that aren't live](/web/navigation#pages-that-arent-live).
 
-- **Messages in the visitor's language.** `ui.Config{Messages}` takes the
-  app's catalogue: `forms.Messages`, or `forms.Translations` by language,
-  chosen from the request's `Accept-Language` (`forms.WithLocale` to choose
-  another). Labels, hints and the form's own words translate; plural forms
-  (`{n, plural, one {# character} other {# characters}}`) follow each
-  language's rules. See [Messages and Translations](/ui/forms#messages).
+- **`reload` and `@web.FullLoad`** keep a link, or every link to a page,
+  the browser's: `<ui.Link href="/report" reload>` (`data-vk-reload` on an
+  `<a>`), and `@web.FullLoad` on a page type or `web.FullLoad()` on a
+  route.
 
-- **Form state.** `Form.Dirty()`, `Form.Changed(&Form.X)` against the
-  loaded values, `Form.Reset()`, and `Form.Saved()` for the 2 seconds after
-  a successful submit; `Load` and `Reset` make the browser's fields take the
-  server's values. `<ui.Form confirmLeave>` asks before the visitor leaves
-  unsaved changes. `<ui.Field ok>` shows a tick on a valid field. See
-  [State](/ui/forms#state).
+- **`vuka run` says why a link loaded the whole page.** A navigation that
+  falls back to a page load prints its reason once in the terminal (for a
+  body with a script of its own, the tag, such as
+  `<script src="/static/theme.js">`, and the fixes) and in the browser's
+  console, and the toolbar's record of the navigation shows
+  `full load: scripts`. Production stays silent. See
+  [Why a link loaded the whole page](/web/navigation#why-it-loaded).
 
-- **Fixes to forms.** A busy form's submit button takes clicks again (the
-  runtime drops the repeated submit; the kit's `pointer-events: none` is
-  gone). A stateful component's form keeps what the visitor typed when its
-  parent renders again. `validate="off"` is documented as what it is: no
-  checks at all.
+- **Pages with links load the runtime.** A page whose only runtime need
+  is a `ui.Link` now gets the runtime's script (cached for good), so its
+  links move in place; every runtime script names the build that rendered
+  it (`data-vk-build-id`).
 
-- **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
-  exported fields are what a submit binds, its `validate:` tags and
-  `Clean<Field>`/`Clean` methods (dependencies injected) check it, and
-  `<ui.Form for={Form} onSubmit={Save}/>` renders it — every field and a
-  submit button, or the markup you write with `<ui.Field for>`,
-  `<ui.Error for>`, `<ui.Fieldset>`, `<ui.Summary>` and `model={Form.Email}`
-  on a control. `Save` runs only once every check passed, with the checked
-  value. See [Forms](/ui/forms).
-
-- **Errors show when the visitor is ready for them.** The server decides,
-  from the fields the runtime says were used: a field's error shows once
-  the visitor leaves it filled, or types in it while it shows one; an empty
-  required field only on submit; letters where a number goes, and a
-  fixed-length field at its length, at once. Every error is a
-  `forms.Error{Path, Rule, Params, Key}`, its message plain wording ("Enter
-  your email address", "Name must be 80 characters or less") through
-  `forms.Text`, `msg:` tags overriding one.
-
-- **Accessible markup by default.** Label, hint, error, control;
-  `aria-describedby` linking hint and error, `aria-invalid` only once the
-  error shows, a visually hidden "Error:"; "(optional)" on optional fields
-  (`ui.Config{MarkRequired}` marks required ones instead); `type`,
-  `inputmode` and `autocomplete` inferred; a password show/hide toggle;
-  forms `novalidate`. A failed submit shows an error summary, "There is a
-  problem", links to each field, focus on it and "Error: " before the
-  page's title.
-
-- **`model` and `for` name a form's fields in markup.** `model` on an
-  `<input>`, `<textarea>` or `<select>` (with `.lazy`, `.raw`, `.number`)
-  writes the control's name, id, value, type and ARIA links; `for` on a
-  label is the field's id. A misspelt field is
-  [E0159](/errors/E0159), naming the field meant. vukavet reports a
-  `Clean<Field>` or `<Field>Choices` naming no field
-  ([W0309](/errors/W0309)), a placeholder without a label
-  ([W0310](/errors/W0310)) and a database model embedded in a form
-  ([W0311](/errors/W0311)).
-
-- **A live page's forms work without script.** The form posts to the page,
-  which answers 422 with the errors and the summary, or 303 where `Save`
-  sent the visitor. A field the post leaves out is empty only if the form
-  rendered it (an unticked checkbox), from a signed list of the fields it
-  rendered. Each render carries an idempotency key: a submit sent again —
-  the back button, a retry — gets the first one's outcome instead of
-  running `Save` twice (`web.FormStore` keeps the keys elsewhere than
-  memory). A live handler returning `web.Redirect` moves the page.
-
-- **CSRF protection is always on.** net/http's `CrossOriginProtection`
-  guards every app (`web.CSRF` adds trusted origins, `web.CSRFBypass` lets
-  routes such as webhooks through). An unsafe request that says nothing of
-  where it comes from (no `Sec-Fetch-Site`, no `Origin`) and carries a
-  session cookie needs a CSRF token, which every `<ui.Form>` carries.
-
-- **`viewtest.Mount` tests a page's form.** `p.Fill(&p.Page.Form.Email,
-  "pa@").Blur(&p.Page.Form.Email)`, `p.Expect(field).Error("validate.email")`,
-  `p.Submit()`, `p.ExpectRedirect("/welcome")`, over the page's connection
-  or, with `viewtest.Plain()`, as a plain post.
+### Templates and tools
 
 - **Markup unwraps `(T, error)` calls.** A call returning `(T, error)` in
   a hole, an attribute, a component's prop, a `for`'s range or an `if`'s
@@ -298,6 +303,21 @@ the `github.com/vuka-lang/vuka` package your module requires.
   context", and hover on an unwrapped call shows its `T`. A call in markup
   runs on every render, each live re-render included: load queries once,
   in `Load` or `@ui.Mount` (#151).
+
+- **Build errors say what is wrong, once.** A failed `vuka build`, `run`,
+  `run -watch` or `vet` shows the errors of the packages that fail
+  themselves, lower packages first, each at the `.vuka` or `.vuka.html`
+  line and column you wrote (never a generated line) with a code frame;
+  the files that fail only because they import one are counted in one
+  line (`-v` lists them). Every error is shown, ten a package and then how
+  many more (`vuka vet` shows them all). The common Go errors come with a
+  hint when their cause is certain: the signature of a call given the wrong
+  number of arguments and, in markup, the request's `ctx` it leaves out; an
+  attribute or a package used without its import, named; an orm model's
+  typed fields that weren't generated; a url the folder routes don't have.
+  Under `run -watch` on a terminal each build's errors replace the last
+  one's; the toolbar's build panel and the editor show the same. See
+  [When a Build Fails](/tools/cli#build-errors).
 
 - **`vuka lsp` answers every request in time while gopls is slow.** A
   completion in markup asks gopls about a scratch copy of the generated Go,
