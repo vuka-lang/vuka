@@ -20,6 +20,18 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.9.0 — unreleased
+
+- **Organize imports** for `.vuka` and `.vuka.html` files: `vuka lsp`
+  answers `source.organizeImports` — imports nothing in the file uses go
+  (uses in markup, component tags and attributes count), a package used
+  without an import comes in when only one package can be meant (several
+  are each a quick fix on the error), and the imports are grouped as
+  `goimports` groups them. The VS Code extension (0.11.0) runs it on save,
+  before formatting (`vuka.organizeImportsOnSave`); `vuka fmt -imports`
+  does it from the command line, `-l` listing what it would change. See
+  [Organizing Imports](/tools/editors#organize-imports).
+
 ## v2.8.0 — 2026-10-27
 
 ### Upgrading
