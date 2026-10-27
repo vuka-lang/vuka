@@ -146,3 +146,19 @@ func golden(t *testing.T, path string, got []byte) {
 		t.Errorf("%s differs:\ngot:\n%s\nwant:\n%s", path, got, want)
 	}
 }
+
+// TestNoFooter: Render without the explain lines, which Footer writes.
+func TestNoFooter(t *testing.T) {
+	ds := samples()
+	var whole, body, foot bytes.Buffer
+	Render(&whole, ds, Options{Source: sources})
+	Render(&body, ds, Options{Source: sources, NoFooter: true})
+	Footer(&foot, ds, Options{})
+	if strings.Contains(body.String(), "vuka explain") || !strings.Contains(foot.String(), "vuka explain") || body.String()+foot.String() != whole.String() {
+		t.Errorf("body:\n%s\nfooter:\n%s\nwhole:\n%s", body.String(), foot.String(), whole.String())
+	}
+	foot.Reset()
+	if Footer(&foot, []Diagnostic{{Message: "no code"}}, Options{}); foot.Len() != 0 {
+		t.Errorf("a footer for no code: %q", foot.String())
+	}
+}
