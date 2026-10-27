@@ -179,8 +179,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
   parent renders again. `validate="off"` is documented as what it is: no
   checks at all.
 
-## v2.7.0 — unreleased
-
 - **Struct forms.** A form is a Go struct embedding `ui.FormState`: its
   exported fields are what a submit binds, its `validate:` tags and
   `Clean<Field>`/`Clean` methods (dependencies injected) check it, and
