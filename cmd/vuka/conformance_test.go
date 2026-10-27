@@ -369,11 +369,14 @@ func hasDir(root, rel string) bool {
 // socket sends.
 type confStep struct {
 	method, path, ctype, body string
+	stale                     bool     // a NAV naming another build than the app's
 	live                      []string // a live page's: JSON to send, or "wait" for a message the server sends unasked
 }
 
 // readScript reads an app's script: lines "GET path", "POST path [json|form
-// body]" and "LIVE path", the messages a live page sends indented under it
+// body]", "NAV path [stale]" (a GET with Vk-Navigate naming the build the
+// last page named, or another: the runtime's navigation of a page that
+// isn't live) and "LIVE path", the messages a live page sends indented under it
 // (JSON; "wait" for a message the server sends of itself; "expect text" for
 // text the page must hold by then, in every run). # starts a comment.
 func readScript(t *testing.T, path string) []confStep {
@@ -400,8 +403,10 @@ func readScript(t *testing.T, path string) []confStep {
 		f := strings.SplitN(line, " ", 4)
 		st := confStep{method: f[0]}
 		switch {
-		case len(f) == 2 && (f[0] == "GET" || f[0] == "POST" || f[0] == "LIVE"):
+		case len(f) == 2 && (f[0] == "GET" || f[0] == "POST" || f[0] == "LIVE" || f[0] == "NAV"):
 			st.path = f[1]
+		case len(f) == 3 && f[0] == "NAV" && f[2] == "stale":
+			st.path, st.stale = f[1], true
 		case len(f) == 4 && f[0] == "POST" && (f[2] == "json" || f[2] == "form"):
 			st.path, st.ctype, st.body = f[1], map[string]string{"json": "application/json", "form": "application/x-www-form-urlencoded"}[f[2]], f[3]
 		default:
@@ -418,6 +423,9 @@ var (
 	// manifest is the loader's: the components and islands it imports.
 	manifest = regexp.MustCompile(`const info = .*;`)
 )
+
+// buildID is the build a page's runtime names, which a navigation sends.
+var buildID = regexp.MustCompile(`data-vk-build-id="([^"]+)"`)
 
 // volatile is what differs between two processes answering alike: a live
 // page's join token, a navigation's next one, cookies' values.
@@ -481,6 +489,7 @@ func (r *confRun) play(t *testing.T, steps []confStep) (transcript, trees []stri
 			assets(b)
 		}
 	}
+	build := "" // the build the last page named (data-vk-build-id)
 	do := func(st confStep) []byte {
 		t.Helper()
 		var req *http.Request
@@ -488,6 +497,15 @@ func (r *confRun) play(t *testing.T, steps []confStep) (transcript, trees []stri
 		case "POST":
 			req, _ = http.NewRequest("POST", base+st.path, strings.NewReader(st.body))
 			req.Header.Set("Content-Type", st.ctype)
+		case "NAV":
+			req, _ = http.NewRequest("GET", base+st.path, nil)
+			if build == "" {
+				t.Fatalf("%s: NAV %s: no page named its build before", r.name, st.path)
+			}
+			req.Header.Set("Vk-Navigate", build)
+			if st.stale {
+				req.Header.Set("Vk-Navigate", "stale")
+			}
 		default:
 			req, _ = http.NewRequest("GET", base+st.path, nil)
 		}
@@ -497,6 +515,9 @@ func (r *confRun) play(t *testing.T, steps []confStep) (transcript, trees []stri
 		}
 		body, _ := io.ReadAll(res.Body)
 		res.Body.Close()
+		if m := buildID.FindSubmatch(body); m != nil {
+			build = string(m[1])
+		}
 		transcript = append(transcript, st.method+" "+st.path+"\n"+response(res, body)+sql())
 		assets(body)
 		return body
@@ -648,6 +669,9 @@ func response(res *http.Response, body []byte) string {
 				name, rest, _ := strings.Cut(v, "=")
 				_, attrs, _ := strings.Cut(rest, ";")
 				v = name + "=…;" + attrs
+			}
+			if k == "Vk-Live" { // a live page's join token, as a navigation over HTTP brings it
+				v = "…"
 			}
 			fmt.Fprintf(&b, "%s: %s\n", k, v)
 		}

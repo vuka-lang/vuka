@@ -1,0 +1,29 @@
+<script lang="go">
+// Package items is /items/{id}.
+package items
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+)
+
+// Item is an item's page: only item 1 exists, any other is a 404, an
+// error page the browser patches in place of the page it leaves.
+type Item struct {
+	ID int
+}
+
+@ui.Mount
+func (p *Item) mount(ctx context.Context) error {
+	if p.ID != 1 {
+		return web.NotFound
+	}
+	return nil
+}
+</script>
+
+<section id="item">
+  <h1>Item {ID}</h1>
+</section>

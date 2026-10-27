@@ -167,6 +167,12 @@ and forward buttons — keeps the toolbar on the page you're looking at
   parameters the Request panel shows, without a new entry.
 - Back and forward select the page's entry again while the app keeps it.
 
+A page that isn't live moves [over HTTP](/web/navigation#pages-that-arent-live)
+the same way: the handle says where to while the request is in flight,
+then selects the request's own record as the page, with its panels; a
+live page reached so carries on in that record, its socket's messages in
+its Live panel.
+
 ![After a navigation from Home to the counter](/toolbar-live-navigate.png)
 
 ## Every Call the Page Makes

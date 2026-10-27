@@ -1,0 +1,28 @@
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+// Layout is every page's document: a search field and the links between
+// the pages, which the runtime follows in place.
+type Layout struct {
+	Children ui.Node
+}
+</script>
+
+<html lang="en">
+  <head><title>Shop</title></head>
+  <body>
+    <header>
+      <input id="q" name="q"/>
+      <nav>
+        <ui.Link href="/" active="exact">Home</ui.Link>
+        <ui.Link href="/about" active="exact">About</ui.Link>
+        <ui.Link href="/counter">Counter</ui.Link>
+        <ui.Link href="/report">Report</ui.Link>
+        <ui.Link href="/report" reload>Report, as a new document</ui.Link>
+      </nav>
+    </header>
+    <main>{Children}</main>
+  </body>
+</html>

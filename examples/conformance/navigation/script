@@ -1,0 +1,20 @@
+# navigation: pages that aren't live and a live one under one layout,
+# moved between in place over HTTP — a GET with Vk-Navigate naming the
+# build answers with the page and Vk-Page naming its root layout, a live
+# page with its join token in Vk-Live; a page marked @web.FullLoad, and a
+# navigation naming another build, answer Vk-Reload; an error page is one
+# under no root layout, a URL no route serves no page at all. Then the live page over its socket, navigating to
+# a page that isn't live.
+GET /
+NAV /about
+NAV /counter
+NAV /report
+NAV /items/1
+NAV /items/2
+NAV /missing
+NAV /about stale
+LIVE /counter
+  {"type":"event","target":"c1:0","event":"click"}
+  expect count 1
+  {"type":"navigate","url":"/about"}
+  expect About the shop
