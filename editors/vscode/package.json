@@ -2,7 +2,7 @@
   "name": "vuka",
   "displayName": "Vuka",
   "description": "Language support for Vuka 2.0: Go logic and .vuka.html shapes, live pages and islands. Completion, navigation, rename, diagnostics and formatting through gopls.",
-  "version": "0.10.0",
+  "version": "0.11.0",
   "publisher": "vuka-lang",
   "license": "MIT",
   "icon": "images/icon.png",
@@ -135,10 +135,16 @@
     ],
     "configurationDefaults": {
       "[vuka]": {
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
         "editor.formatOnSave": true,
         "editor.linkedEditing": true
       },
       "[vuka-html]": {
+        "editor.codeActionsOnSave": {
+          "source.organizeImports": "explicit"
+        },
         "editor.formatOnSave": true,
         "editor.linkedEditing": true
       },
@@ -219,6 +225,11 @@
           "type": "boolean",
           "default": true,
           "description": "Add a closing tag when an opening tag in .vuka.html markup is finished by typing >, and the open element's name after </."
+        },
+        "vuka.organizeImportsOnSave": {
+          "type": "boolean",
+          "default": true,
+          "description": "Organize a .vuka or .vuka.html file's imports when it is saved, before it is formatted: remove the unused ones, add the missing ones, group them as goimports does. Organize Imports (Shift+Alt+O) works either way."
         }
       }
     },
@@ -345,7 +356,7 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs && node test/typescript.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs && node test/organize.test.mjs && node test/typescript.test.mjs"
   },
   "capabilities": {
     "untrustedWorkspaces": {

@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.11.0
+
+- Organize a `.vuka` or `.vuka.html` file's imports when it is saved, before it is formatted: the imports nothing in the file uses go, a package the file uses without an import comes in when only one package can be meant, and the imports are grouped as goimports groups them (`editor.codeActionsOnSave` with `source.organizeImports`, contributed for both languages). `vuka.organizeImportsOnSave` turns it off; **Organize Imports** (Shift+Alt+O) works either way. A save waits at most 1.5 seconds for it, then saves without it. Needs the Vuka v2.9.0 language server.
+
 ## 0.10.0
 
 - `.vuka.html` files show an HTML icon in the explorer and on tabs; `.vuka` files keep the Vuka icon.
