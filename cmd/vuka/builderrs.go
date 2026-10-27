@@ -278,6 +278,31 @@ func transpileReport(in buildInput, err error) *buildReport {
 		}
 		reported[c] = true
 	}
+	// A package whose errors are all at imports of reported packages is
+	// reported through them: an import of it is one more importer, all the
+	// way up the chain (a Go package importing a broken Vuka package, the
+	// Vuka packages importing that Go package, the pages importing them).
+	through := map[string][]string{} // package → the culprits of its import errors
+	alone := map[string]bool{}       // packages with an import error naming no culprit
+	for _, d := range ds {
+		if d.Code != "E0005" || d.Severity == diag.Warning {
+			continue
+		}
+		p := in.pkgOf(d.Span.File)
+		if c := culpritOf(d.Message); c != "" {
+			through[p] = append(through[p], c)
+		} else {
+			alone[p] = true
+		}
+	}
+	for changed := true; changed; {
+		changed = false
+		for p, cs := range through {
+			if !reported[p] && !alone[p] && !slices.ContainsFunc(cs, func(c string) bool { return !reported[c] }) {
+				reported[p], changed = true, true
+			}
+		}
+	}
 	kept := map[string]bool{}
 	for _, d := range ds {
 		if d.Code != "E0005" || d.Severity == diag.Warning {
@@ -569,10 +594,21 @@ func (c *checker) pkg(path string) []diag.Diagnostic {
 			continue
 		}
 		if rest, ok := strings.CutPrefix(te.Msg, "could not import "); ok {
-			// The package it names has its own errors; what this one
-			// can't do with its types is said by them.
 			imp, _, _ := strings.Cut(rest, " ")
 			sp := c.toSource(fset, cf, te.Pos, token.NoPos)
+			if why := transpile.ImportFailure(te.Msg); culpritOf(why) == "" {
+				// No package's errors explain it: the import itself is
+				// the error (a path no module has, a folder of the
+				// module without the package), at the file importing it.
+				help := "fix the import path"
+				if strings.Contains(why, "has only .vuka files") {
+					help = "build with the vuka command (vuka build, run, test), which generates their Go; for plain go tools, write it beside them with vuka gen -inplace"
+				}
+				ds = append(ds, diag.Diagnostic{Code: "E0005", Message: why, Help: help, Span: diag.Span{File: sp.file, Line: sp.line, Col: sp.col}})
+				continue
+			}
+			// The package it names has its own errors; what this one
+			// can't do with its types is said by them.
 			c.knock[path] = append(c.knock[path], diag.Diagnostic{Code: "E0005", Message: imp + " has errors", Span: diag.Span{File: sp.file, Line: sp.line, Col: sp.col}})
 			continue
 		}

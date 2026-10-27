@@ -8,6 +8,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"slices"
 	"sort"
 	"strings"
 
@@ -49,10 +50,13 @@ func explain(args []string, stdout io.Writer) error {
 	return nil
 }
 
-// generate transpiles the module and returns path's generated Go, bare: no
-// header or line directives, so its lines are the source's lines. One run
-// transpiles everything, exactly as the build does — the file's Go is taken
-// from it, never regenerated, so explain can't disagree with the build.
+// generate transpiles the file's package and returns path's generated Go,
+// bare: no header or line directives, so its lines are the source's lines.
+// The package is transpiled with what it imports, through the module's Go
+// packages too, exactly as the build does — the file's Go is taken from
+// that run, never regenerated, so explain can't disagree with the build —
+// and the errors it reports are the package's, or those of what it imports
+// that stop it, never another package's.
 func generate(path string) (load.Generated, error) {
 	root, modPath, err := load.ModuleRoot(filepath.Dir(path))
 	if err != nil {
@@ -61,6 +65,15 @@ func generate(path string) (load.Generated, error) {
 	pkgs, err := load.Discover(root, modPath, root, true, nil)
 	if err != nil {
 		return load.Generated{}, err
+	}
+	var own []*load.Package
+	for _, p := range pkgs {
+		if realPathOf(p.Dir) == realPathOf(filepath.Dir(path)) && slices.ContainsFunc(p.Files, func(f transpile.File) bool { return f.Name == filepath.Base(path) }) {
+			own = append(own, p)
+		}
+	}
+	if len(own) > 0 {
+		pkgs = load.Closure(pkgs, own)
 	}
 	tmp, err := os.MkdirTemp("", "vuka-")
 	if err != nil {

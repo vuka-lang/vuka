@@ -58,6 +58,38 @@ each Vuka declaration:
 | overload `area(c Circle)` | `areaCircle` (named after its parameters' types) — or the name you give with `@export("Area")` |
 | `Result[T]`, `Ok`, `Err` | `vuka.Result[T]`, `vuka.Ok`, `vuka.Err` from `github.com/vuka-lang/vuka/v2` |
 
+### Go Packages Importing Vuka Packages {#go-imports-vuka}
+
+A plain Go package can import a package of only `.vuka` files — a package
+of orm models, say — and use its types, functions and generated names
+(`entities.Category`, `entities.CategoryFields.Name`):
+
+```text
+// dtos/advert.go
+package dtos
+
+import "example.com/app/entities" // entities has only .vuka files
+
+type CategoryCount struct {
+	Category entities.Category
+	Count    int
+}
+```
+
+`vuka build`, `run`, `test` and `vet` transpile the Vuka package before the
+go command compiles its Go importers, and the Vuka packages and pages
+importing that Go package in turn build as usual. The editor type-checks
+the `.go` file against the Vuka package's Go too.
+
+The go command alone has no Go for such a package: `go build` says the path
+is "not in std". Build with the `vuka` command, or write the Go beside the
+sources with `vuka gen -inplace` for plain `go` tools. When the build can't
+use the import, it says why at the import: a path no folder of the module
+has (`example.com/app/entitis isn't a package of module example.com/app:
+entitis/ doesn't exist`), or a folder of only `.vuka` files with no Go for
+this build. An error in the Go file is reported in that file, once; the
+Vuka packages and pages importing it are counted in the summary line.
+
 ## Publishing a Library
 
 Other modules `go get` your repository, not `build/`. To publish a Vuka library

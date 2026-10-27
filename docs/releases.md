@@ -128,6 +128,20 @@ the `github.com/vuka-lang/vuka` package your module requires.
   embeds `orm.Model[T]`), and says when the build stopped before the orm
   wrote them.
 
+- **Plain Go can import a package of only `.vuka` files.** A `.go` file
+  importing a Vuka package (a package of orm models imported by a package
+  of DTOs) builds, runs, tests and vets under the `vuka` command, and
+  type-checks in the editor, in a plain Go package and in one with `.vuka`
+  files of its own; the Vuka packages and pages importing that Go package
+  build as before. An error in the Go file is reported there, once, its
+  importers counted, and an import the build can't use says why at the
+  import — no folder of that path in the module, or a folder of only
+  `.vuka` files with no Go for this build — instead of the go command's
+  "package … is not in std". `vuka vet ./dir/` reports that package's
+  warnings and the errors of it and what it imports, counting the rest;
+  `vuka explain` transpiles the file's package and its imports only.
+  ([Go Packages Importing Vuka Packages](/guide/go-interop#go-imports-vuka))
+
 ## v2.8.0 — 2026-10-27
 
 ### Upgrading

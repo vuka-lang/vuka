@@ -53,7 +53,7 @@ func TestConformance(t *testing.T) {
 	t.Setenv("GOFLAGS", "")
 	vet := filepath.Join(t.TempDir(), "vukavet")
 	build := exec.Command("go", "build", "-o", vet, ".")
-	build.Dir = "../vukavet"
+	build.Dir = filepath.Join(testDir, "..", "vukavet")
 	if out, err := build.CombinedOutput(); err != nil {
 		t.Fatalf("go build vukavet: %v\n%s", err, out)
 	}

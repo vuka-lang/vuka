@@ -244,4 +244,6 @@ wg.Wait()
 
 Go code calls functions and types declared in `.vuka` files directly. A few
 Vuka-only constructs have generated Go names — see
-[Working With Go](/guide/go-interop#calling-vuka-from-go).
+[Working With Go](/guide/go-interop#calling-vuka-from-go). A Go package
+can import a package of only `.vuka` files as well; see
+[Go Packages Importing Vuka Packages](/guide/go-interop#go-imports-vuka).
