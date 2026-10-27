@@ -2,7 +2,9 @@
 # methods with arguments and dependencies, enums, DateTime, IDs, nulls —
 # queries with variables, aliases and fragments, a mutation taking a form
 # (its rules and Clean method), gates, masked errors, limits, and the
-# transport's answers over GET and POST.
+# transport's answers over GET and POST; orm models whose relation and
+# loader read a level of the query in one statement each, and a connection
+# paged by keyset cursors.
 POST /graphql json {"query":"{ pets(first: 10) { id name kind tag born price tricks age(at: \"2026-01-31\") owner { name email } } }"}
 POST /graphql json {"query":"query Cats($k: Kind) { pets(kind: $k, first: 5) { ...Brief } } fragment Brief on Pet { id name }","variables":{"k":"CAT"}}
 POST /graphql json {"query":"{ a: pet(id: 1) { name ownerID } b: pet(id: \"3\") { name __typename } missing: pet(id: 9) { name } }"}
@@ -16,6 +18,11 @@ POST /graphql json {"query":"query($id: ID) { pet(id: $id) { name } }","variable
 POST /graphql json {"query":"mutation { removePet(id: 1) }"}
 POST /graphql json {"query":"{ pets(first: 1) { nope } }"}
 POST /graphql json {"query":"{ pets(first: 1) { owner { name } } pet(id: 1) { owner { name } } }"}
+POST /graphql json {"query":"{ customers(first: 3) { name orders(first: 5) { id total } } }"}
+POST /graphql json {"query":"{ orders(first: 2) { edges { cursor node { id total customer { name } } } pageInfo { hasNextPage hasPreviousPage endCursor } totalCount } }"}
+POST /graphql json {"query":"query($c: String) { orders(first: 2, after: $c) { edges { node { id customer { name orders(first: 1) { id } } } } pageInfo { hasNextPage hasPreviousPage } } }","variables":{"c":"eyJ0IjoyMzMzMDEwOTQxLCJrIjpbMl19"}}
+POST /graphql json {"query":"{ orders(last: 2) { edges { node { id } } pageInfo { hasNextPage hasPreviousPage startCursor } } }"}
+POST /graphql json {"query":"{ orders(first: 1, after: \"nope\") { totalCount } }"}
 POST /graphql json {"query":"{ __schema { types { name } } }"}
 POST /graphql json {"query":"{ pets(first: 1 { name } }"}
 POST /graphql json {"query":"{ pets(first: \"two\") { name } }"}

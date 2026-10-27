@@ -185,11 +185,15 @@ func (e *engine) gqlLoader(f *fileState, a *Attr) *gqlLoader {
 	f.loaderGen.gen(b.String(), a.start)
 	off := f.orig(fd.Name.Pos())
 	f.add(off, off+len(name), l.fetch)
+	if f.renamed == nil {
+		f.renamed = map[int]string{}
+	}
+	f.renamed[off] = l.fetch // its attributes are the function's, under its name in Go
 	for _, at := range f.attrs {
 		if at.declOff == a.declOff {
 			for i := range at.regs {
-				if !at.regs[i].typ && at.regs[i].name == name {
-					at.regs[i].name = l.fetch // its attributes are the function's, under its name in Go
+				if !at.regs[i].typ && at.regs[i].off == off {
+					at.regs[i].name = l.fetch
 				}
 			}
 		}

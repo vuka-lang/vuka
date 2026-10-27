@@ -275,10 +275,12 @@ func (e *engine) prepare() {
 	e.declareStates()
 	e.inferSelf()
 	e.findSchemas()
-	if e.decorate() || len(e.sets) > 0 {
+	if e.gqlLoaders() {
+		// Before the decorators: their registry names the loader's function
+		// by its name in Go.
 		e.progress = true
 	}
-	if e.gqlLoaders() {
+	if e.decorate() || len(e.sets) > 0 {
 		e.progress = true
 	}
 	e.checkSchemas()

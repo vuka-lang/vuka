@@ -242,6 +242,7 @@ type fileState struct {
 	fieldGen       genWriter           // the field attributes' registrations
 	graphqlGen     genWriter           // the package's GraphQL registrations (graphql.go)
 	loaderGen      genWriter           // its @graphql.Loader types (graphqlloader.go)
+	renamed        map[int]string      // functions Go names otherwise, by their names' src offsets: a loader's
 	fieldsOn       bool                // field attributes are registered: from the first round on
 	scannedImports map[string]string   // import path → name, for the enums' methods
 	spellings      []spelling          // rewritten expressions, for messages
@@ -467,6 +468,9 @@ func (f *fileState) attach() {
 					if d.Type.TypeParams == nil && (d.Recv == nil || !genericRecv(d)) {
 						r := regDecl{off: f.orig(d.Name.Pos()), name: d.Name.Name}
 						r.name = srcIdent(f.src, r.off)
+						if n, ok := f.renamed[r.off]; ok {
+							r.name = n
+						}
 						if d.Recv != nil && len(d.Recv.List) > 0 {
 							t := d.Recv.List[0].Type
 							r.recv, r.recvBase = string(f.src[f.orig(t.Pos()):f.orig(t.End())]), recvBase(d)
