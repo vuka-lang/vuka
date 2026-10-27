@@ -47,6 +47,7 @@ The checks are:
 | `templates` | shape-file fields and markup, ambiguous names, missing keys in live loops and invalid hole values |
 | `schema` | an orm model's `Schema` method: `s.Field` given something other than the address of the receiver's field ([E0501](/errors/E0501)), a nil attribute ([E0502](/errors/E0502)), a field behind a pointer ([E0503](/errors/E0503)) |
 | `urlstate` | two components one markup renders keeping the same query parameter without a `urlKey` of their own ([W0307](/errors/W0307)) |
+| `parts` | methods registered with `ui.Defer`: on a page's or component's method ([E0341](/errors/E0341)) taking a context and returning `(T, error)` ([E0347](/errors/E0347)), once ([E0345](/errors/E0345)), of a page that isn't live ([E0346](/errors/E0346)), named by a `ui.Part` of their own type ([E0342](/errors/E0342), [E0349](/errors/E0349)) and never called from Go ([E0343](/errors/E0343)) |
 
 A check reports only what the source decides: a path built at run time, a
 value of an interface type in a template hole or a route a package

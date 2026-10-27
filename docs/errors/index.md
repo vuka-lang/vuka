@@ -132,6 +132,16 @@ same page in the terminal.
 | [E0337](./E0337) | A hook found by its name |
 | [E0338](./E0338) | A hook declared by the constructor |
 | [E0340](./E0340) | A path parameter the page doesn't have |
+| [E0341](./E0341) | A timing attribute off a page's or component's method |
+| [E0342](./E0342) | A deferred method no markup calls |
+| [E0343](./E0343) | A deferred method called from Go |
+| [E0344](./E0344) | A deferred method's result passed to a component |
+| [E0345](./E0345) | Two timing attributes on one method |
+| [E0346](./E0346) | A deferred method on a live page |
+| [E0347](./E0347) | A deferred method of the wrong shape |
+| [E0348](./E0348) | A fallback that stands in for no part |
+| [E0349](./E0349) | A part naming another type's method |
+| [E0350](./E0350) | A deferred call in no element |
 | [W0301](./W0301) | A live page routed as a stateless one |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |

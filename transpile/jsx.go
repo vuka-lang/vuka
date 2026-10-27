@@ -73,11 +73,13 @@ type jsxElem struct {
 	frag       bool
 	attrs      []*jsxAttr
 	kids       []jsxNode
-	comp       *jsxComp // for a component's tag
-	asset      bool     // <script lang="ts"> or <style scoped>: the component's, bundled, not markup
-	lets       []letVar // a slot's let={t, i}: the parameters its content takes
-	fallback   bool     // a <slot:x> in the component's own markup: the slot, or its content when unfilled
-	slotField  string   // a fallback's field, once found
+	comp       *jsxComp     // for a component's tag
+	asset      bool         // <script lang="ts"> or <style scoped>: the component's, bundled, not markup
+	lets       []letVar     // a slot's let={t, i}: the parameters its content takes
+	fallback   bool         // a <slot:x> in the component's own markup: the slot, or its content when unfilled
+	slotField  string       // a fallback's field, once found
+	parts      []*partUse   // the deferred methods its part waits for (parts.go)
+	partFB     *deferMethod // a <ui.Fallback for={M}>: the method it stands in for
 }
 
 // letVar is a name a slot's let declares.

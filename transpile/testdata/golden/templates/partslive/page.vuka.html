@@ -1,0 +1,15 @@
+package main
+
+import "context"
+
+// Page is live: it loads in its hooks.
+type Page struct {
+	ui.Live
+	n int
+}
+
+@ui.Defer
+func (p *Page) Stats(ctx context.Context) (int, error) { return 1, nil }
+
+func (p *Page) Inc() { p.n++ }
+<p>{Stats(ctx)} <button onClick={Inc}>+</button></p>

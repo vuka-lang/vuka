@@ -102,3 +102,9 @@ type FormState struct{ st *int }
 func (s *FormState) Valid() bool { return true }
 
 type Option struct{ Value, Label string }
+
+type PartFallback struct{ Pending, Error Node }
+
+func Part[R, V any](recv R, m func(R, context.Context) (V, error), fallback Node, render func(V) Node) Node {
+	return nil
+}

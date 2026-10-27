@@ -402,6 +402,14 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		c.resolved = true
 		return
 	}
+	if c.el.isFallbackFor(f) && attrNamed(c.el, "for") != nil && f.html != nil {
+		// A part's fallback (parts.go), once the parts are decided: one
+		// standing for no deferred method is reported there.
+		if f.partsDone {
+			c.consumed, c.resolved, c.dead = true, true, true
+		}
+		return
+	}
 	el := c.el
 	expr := e.compExpr(f, c)
 	if expr == nil {

@@ -1,0 +1,13 @@
+package main
+
+import "context"
+
+// Page has a pointer method, so its markup's receiver is a pointer; its
+// deferred method has a value receiver.
+type Page struct{ N int }
+
+func (p *Page) title() string { return "Page" }
+
+@ui.Defer
+func (p Page) Count(ctx context.Context) (int, error) { return p.N, nil }
+<p title={title()}>{Count(ctx)}</p>
