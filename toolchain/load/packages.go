@@ -711,6 +711,10 @@ type Generated struct {
 // Options configure Transpile.
 type Options struct {
 	Bare bool // no header or line directives (the language server maps positions itself)
+	// Tolerant keeps a module package with type errors importable, partially
+	// type-checked: the language server, where an error anywhere must not
+	// stop the rest of the module's requests.
+	Tolerant bool
 	// Scopes names each package's scoped declarations, by its directory
 	// (transpile.Options.Scopes); a .templ file declaring one is compiled
 	// again with its elements marked.

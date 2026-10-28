@@ -342,7 +342,7 @@ func (p *proxy) build() {
 	}
 	first := load.Closure(pkgs, roots)
 	if len(first) > 0 && len(first) < len(pkgs) {
-		gens, list, err := run(first, load.Options{Bare: true}, false)
+		gens, list, err := run(first, load.Options{Bare: true, Tolerant: true}, false)
 		if err != nil {
 			return
 		}
@@ -354,7 +354,7 @@ func (p *proxy) build() {
 
 	// Then the module. Once the edited packages are done, it gives way to
 	// newer edits.
-	opts := load.Options{Bare: true}
+	opts := load.Options{Bare: true, Tolerant: true}
 	if first != nil || len(edited) == 0 {
 		opts.Stop = p.preempt.Load
 	}

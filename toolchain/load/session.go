@@ -147,7 +147,7 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 	defer s.imp.cache.save()
 	s.pruneCache()
 	s.gen, s.now, s.broken, s.failed, s.walking = map[string][]byte{}, map[string]*checkedPkg{}, map[string]bool{}, nil, map[string]bool{}
-	s.tolerant = opts.Bare
+	s.tolerant = opts.Tolerant
 	s.ran = runStats{}
 	gens, overlay, err := transpileRun(pkgs, tmp, opts, s)
 	if errors.Is(err, ErrStopped) {
