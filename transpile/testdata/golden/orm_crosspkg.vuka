@@ -12,5 +12,5 @@ import (
 func main() {
 	ctx := context.Background()
 	_, err := ormusers.User.Objects.Get(ctx, ormusers.User.Name.Eq("ada"))
-	fmt.Println(ormusers.User.Objects.Count(), err, ormusers.User.Name.Desc(), ormusers.User.ID.Eq(7))
+	fmt.Println(ormusers.User.Objects.Count(), err, ormusers.User.Name.Desc(), ormusers.User.ID.Eq(7), ormusers.User.Category.Name.Eq("shop"))
 }

@@ -3,6 +3,8 @@ package main
 import (
 	"bytes"
 	"io"
+	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -14,6 +16,10 @@ import (
 // of .vuka.html components; a Vuka package (accounts) embeds a model and
 // imports dtos, and the page imports both.
 func goImportsApp(t *testing.T, edit map[string]string) string {
+	return goImportsAppVersion(t, edit, "")
+}
+
+func goImportsAppVersion(t *testing.T, edit map[string]string, version string) string {
 	t.Helper()
 	if testing.Short() {
 		t.Skip("runs the go command")
@@ -35,9 +41,11 @@ type User struct {
 	orm.Base @orm.Meta{Table: "users"}
 	ID    int64  @orm.PK
 	Email string @orm.Char{Max: 120}
+ Category *Category
 }
 
 func NameLookup() string { return Category.Name.Name() }
+func UserCategoryLookup() string { return User.Category.Name.Name() }
 `,
 		"dtos/advert.go": `package dtos
 
@@ -105,8 +113,20 @@ type Index struct{}
 			files[name] = src
 		}
 	}
-	root := localModule(t, webCheckout(t), ormColumnFixtures(orm, files))
-	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
+	if version == "" {
+		files = ormColumnFixtures(orm, files)
+	}
+	root := localModule(t, webCheckout(t), files)
+	if version == "" {
+		withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
+	} else {
+		cmd := exec.Command("go", "mod", "edit", "-require=github.com/vuka-lang/orm/v2@"+version)
+		cmd.Dir = root
+		cmd.Env = append(os.Environ(), "GOWORK=off")
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("pin published orm: %v\n%s", err, out)
+		}
+	}
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
 	t.Chdir(root)
@@ -130,6 +150,34 @@ func TestGoImportsVuka(t *testing.T) {
 	}
 	if _, err := generate(filepath.Join(root, "entities", "models.vuka")); err != nil {
 		t.Errorf("explain entities/models.vuka: %v", err)
+	}
+}
+
+// TestPublishedORMCompatibility keeps the published generator in CI alongside
+// the new checkout. Build and eject must both select its legacy root name.
+func TestPublishedORMCompatibility(t *testing.T) {
+	root := goImportsAppVersion(t, nil, "v2.1.0")
+	var stderr bytes.Buffer
+	if err := runGo("build", []string{"-o", filepath.Join(t.TempDir(), "app"), "."}, io.Discard, &stderr); err != nil {
+		t.Fatalf("published orm build: %v\n%s", err, stderr.String())
+	}
+	if err := eject([]string{"-rm", "./..."}, io.Discard); err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(filepath.Join(root, "entities", "models.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !bytes.Contains(src, []byte("UserFields.Category.Name.Name()")) {
+		t.Fatalf("legacy relation lookup missing:\n%s", src)
+	}
+	cmd := exec.Command("go", "test", "./...")
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("ejected published orm: %v\n%s", err, out)
+	}
+	cmd = exec.Command("go", "list", "-m", "-f", "{{.Version}} {{if .Replace}}replaced{{end}}", "github.com/vuka-lang/orm/v2")
+	if out, err := cmd.CombinedOutput(); err != nil || strings.TrimSpace(string(out)) != "v2.1.0" {
+		t.Fatalf("published ORM selection: %v %s", err, out)
 	}
 }
 

@@ -132,7 +132,7 @@ Then it annotates each post with its heat and filters on a switch:
 ```go
 f, posts := PostColumns, orm.Objects[Post]()
 heat := orm.Case(orm.When(f.Views.Gte(100), "hot"), orm.When(f.Views.Gte(20), "warm")).Else("cold")
-score := orm.Switch(f.Author.Name.Expr()).Case("ada", 1).Case("bob", 2).Else(0)
+score := orm.Switch(f.Author().Name.Expr()).Case("ada", 1).Case("bob", 2).Else(0)
 
 hs, err := posts.Annotate("heat", heat).Values[Heat]("title", "heat").All(ctx)
 if err != nil {

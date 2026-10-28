@@ -577,17 +577,22 @@ func (e *engine) typedFields(f *fileState, base ast.Expr, names []*ast.Ident, ts
 			suffix = "Columns"
 		}
 	}
-	f.insert(f.orig(base.End()), suffix, 0)
-	gen := types.ExprString(base) + suffix + "." + names[0].Name
-	for i := 1; i < len(names); i++ {
-		if modelRel(ts[i]) {
-			f.insert(f.orig(names[i].End()), "()", 0)
+	relationsAreMethods := suffix == "Columns"
+	if n, ok := derefType(e.info.Types[base].Type).(*types.Named); ok && n.Obj().Pkg() != nil {
+		if root, ok := n.Obj().Pkg().Scope().Lookup(n.Obj().Name() + suffix).(*types.Var); ok {
+			_, relationsAreMethods = types.Unalias(root.Type()).(*types.Named)
 		}
-		gen += "." + names[i].Name
-		if modelRel(ts[i]) {
+	}
+	f.insert(f.orig(base.End()), suffix, 0)
+	gen := types.ExprString(base) + suffix
+	for i, name := range names {
+		gen += "." + name.Name
+		if (i > 0 || relationsAreMethods) && modelRel(ts[i]) {
+			f.insert(f.orig(name.End()), "()", 0)
 			gen += "()"
 		}
 	}
+
 	f.spell(gen, e.refName(base, names), f.orig(base.Pos()))
 	e.progress = true
 }

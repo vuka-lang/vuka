@@ -66,7 +66,7 @@ This fragment builds a query of recent posts, then reads them and counts them:
 ```go
 f := PostColumns
 recent := orm.Objects[Post]().
-	Filter(f.Title.Contains("Go"), f.Author.Name.Eq("ada")).
+	Filter(f.Title.Contains("Go"), f.Author().Name.Eq("ada")).
 	Exclude(f.Published.IsNull(true)).
 	OrderBy(f.Views.Desc(), f.ID.Asc()).
 	Limit(10)
@@ -92,8 +92,8 @@ A model's typed field, `PostColumns.Title`, is written beside the model by
 
 ### Combining Conditions
 
-Fields go on through relations — `PostColumns.Author.Name`, `PostColumns.Tags.Name` (a
-second hop is a method: `PostColumns.Author.Posts().Title`) — and the query joins
+Fields go on through relations — `PostColumns.Author().Name`, `PostColumns.Tags().Name` (all
+relation hops are methods: `PostColumns.Author().Posts().Title`) — and the query joins
 what they cross. Combine conditions with `orm.And`, `orm.Or` and
 `orm.Not`; several in one `Filter` are and-ed; an `orm.Q{"title__icontains":
 "go"}` is a condition too:
@@ -101,7 +101,7 @@ what they cross. Combine conditions with `orm.And`, `orm.Or` and
 <!-- go:fragment -->
 ```go
 f := PostColumns
-q := orm.Objects[Post]().Filter(orm.Or(f.Views.Gt(100), orm.And(f.Tags.Name.Eq("go"), f.Published.IsNull(false))))
+q := orm.Objects[Post]().Filter(orm.Or(f.Views.Gt(100), orm.And(f.Tags().Name.Eq("go"), f.Published.IsNull(false))))
 ```
 
 ### Shaping the Query
@@ -185,7 +185,7 @@ type Stats struct {
 
 func authorStats(ctx context.Context) ([]Stats, error) {
 	return orm.Objects[Post]().Annotate("posts", orm.Count("id")).Annotate("total", orm.Sum("views")).
-		OrderBy(PostColumns.Author.Name.Asc()).Values[Stats]("author__name", "posts", "total").All(ctx)
+		OrderBy(PostColumns.Author().Name.Asc()).Values[Stats]("author__name", "posts", "total").All(ctx)
 }
 ```
 
@@ -206,7 +206,7 @@ fmt.Println(totals.Int("authors"), totals.Int("top"))
 
 <!-- go:fragment -->
 ```go
-prolific, err := orm.Objects[Post]().Annotate("n", orm.Count("id")).GroupBy(PostColumns.Author.String()).
+prolific, err := orm.Objects[Post]().Annotate("n", orm.Count("id")).GroupBy(PostColumns.Author().String()).
 	Having(orm.Q{"n__gt": 1}).Values[int64]("n").All(ctx)
 ```
 
@@ -270,7 +270,7 @@ f, posts := PostColumns, orm.Objects[Post]()
 if _, err := posts.Filter(f.Views.Lt(5)).Update(ctx, orm.Set{"status": "archived"}); err != nil {
 	return err
 }
-if _, err := posts.Filter(f.Tags.Name.Eq("go")).Update(ctx, orm.Set{"views": f.Views.Add(1)}); err != nil {
+if _, err := posts.Filter(f.Tags().Name.Eq("go")).Update(ctx, orm.Set{"views": f.Views.Add(1)}); err != nil {
 	return err
 }
 if _, err := posts.Filter(f.Published.IsNull(true)).Delete(ctx); err != nil {
@@ -321,8 +321,8 @@ at once:
 ```go
 f := PostColumns
 posts, err := orm.Objects[Post]().
-	SelectRelated(f.Author.String()). // JOIN users
-	PrefetchRelated(f.Tags).          // one query for every post's tags
+	SelectRelated(f.Author().String()). // JOIN users
+	PrefetchRelated(f.Tags()).          // one query for every post's tags
 	All(ctx)
 if err != nil {
 	return err
@@ -335,7 +335,7 @@ goTags := orm.Objects[Post]().PrefetchRelated(orm.Prefetch("tags", orm.Objects[T
 ```
 
 `orm.Prefetch(path, query)` prefetches only the rows of `query`.
-`p.Load(ctx, PostColumns.Tags)` loads a relation into one row.
+`p.Load(ctx, PostColumns.Tags())` loads a relation into one row.
 `orm.LoadRelated(ctx, posts, "author", "tags")` loads relations into rows
 read already (a slice of pointers to them), one query per relation for all
 of them: what a GraphQL field holding a relation resolves through.
@@ -387,7 +387,7 @@ func (p ProductFields) OnSale() orm.Cond {
 }
 func CategoryCounts(ctx context.Context) ([]CategoryCount, error) {
     c := CategoryColumns
-    products := c.Shelves.Products()
+    products := c.Shelves().Products()
     return orm.Objects[Category]().
         Annotate("on_sale_count", products.Where(products.OnSale()).Count()).
         OrderBy(c.Name.Asc()).
@@ -436,7 +436,7 @@ A typed annotation handle keeps its name with its expression:
 
 <!-- go:fragment -->
 ```go
-products := CategoryColumns.Shelves.Products()
+products := CategoryColumns.Shelves().Products()
 n := orm.Annotation[int64]("on_sale_count", products.Where(products.OnSale()).Count())
 q := orm.Objects[Category]().Annotate(n).Filter(n.Gt(0)).Order(n.Desc())
 query, args, err := q.Values[CategoryCount]("id", "name", "on_sale_count").SQL(ctx)

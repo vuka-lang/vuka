@@ -70,7 +70,7 @@ You query it through the generated fields:
 <!-- go:fragment -->
 ```go
 f := PostColumns // typed fields, written by go generate
-posts, err := orm.Objects[Post]().Filter(f.Title.Contains("Go"), f.Author.Name.Eq("ada")).
+posts, err := orm.Objects[Post]().Filter(f.Title.Contains("Go"), f.Author().Name.Eq("ada")).
 	OrderBy(f.Views.Desc()).All(ctx) // []Post
 if err != nil {
 	return err

@@ -80,7 +80,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: vuka-lang/orm
-          ref: 38bb629d5674d8127d93ff6aeb41642eccf3e264
+          ref: a4bf0843ce9fcfdbc88b73018c5e77a474f20f37
           path: vuka-orm
       # A change made together with ui's, web's or orm's has a branch of the
       # same name there.
@@ -164,7 +164,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: vuka-lang/orm
-          ref: 38bb629d5674d8127d93ff6aeb41642eccf3e264
+          ref: a4bf0843ce9fcfdbc88b73018c5e77a474f20f37
           path: vuka-orm
       - name: The ui, web and orm branches of this change, if any
         env:
@@ -275,7 +275,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: vuka-lang/orm
-          ref: 38bb629d5674d8127d93ff6aeb41642eccf3e264
+          ref: a4bf0843ce9fcfdbc88b73018c5e77a474f20f37
           path: vuka-orm
       - name: The ui, web and orm branches of this change, if any
         env:

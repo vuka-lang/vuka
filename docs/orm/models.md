@@ -78,7 +78,7 @@ compile error too. A field with nothing to say isn't listed. The ORM calls
 | `p.SaveFields(ctx, PostColumns.Title, …)` | updates only those columns (or names: `"title"`) |
 | `p.Refresh(ctx)` | reads the row again |
 | `p.Delete(ctx)` | deletes it |
-| `p.Load(ctx, PostColumns.Tags, …)` | reads relations into the row |
+| `p.Load(ctx, PostColumns.Tags(), …)` | reads relations into the row |
 | `p.Add(ctx, "tags", rows…)`, `Remove`, `Set` | changes a many-to-many's links |
 
 ### Named Queries
@@ -235,7 +235,7 @@ Its methods are `All`, `Add`, `Remove`, `Set`, `Clear` (on a saved row; rows
 or keys), `Rows` and `Loaded` (what `PrefetchRelated` loaded).
 
 A model's typed fields go on through relations into the related model:
-`PostColumns.Author.Name`, `PostColumns.Tags.Name`.
+`PostColumns.Author().Name`, `PostColumns.Tags().Name`.
 
 ### Relation Options
 
@@ -251,10 +251,10 @@ A model's typed fields go on through relations into the related model:
 | `CrossDB` | the related model is on [another database](/orm/databases#cross-database-relations): no constraint, prefetched rather than joined |
 
 A foreign key tagged `orm:"related:posts"` (or `@orm.Related("posts")`
-in Vuka) generates `UserColumns.Posts`, a typed path to `PostFields`.
+in Vuka) generates `UserColumns.Posts()`, a typed path to `PostFields`.
 Many-to-many relations generate their named inverse too. Generation reports
-both declarations when inverse names clash. Nested relations use methods:
-`CategoryColumns.Shelves.Products().SaleEnds`.
+both declarations when inverse names clash. Columns are fields and every relation hop is a method:
+`CategoryColumns.Shelves().Products().SaleEnds`.
 
 ### Conditions on Models
 
@@ -267,7 +267,7 @@ func (p PostFields) Popular() orm.Cond {
 }
 ```
 
-Use `PostColumns.Popular()` at the root or `UserColumns.Posts.Popular()`
+Use `PostColumns.Popular()` at the root or `UserColumns.Posts().Popular()`
 through a relation. `And`, `Or`, and `Not` combine conditions. A relation's
 `Where` accepts conditions made from its own path and applies them inside
 the aggregate, preserving parents with no matching rows.
@@ -316,8 +316,8 @@ The statics are plain names:
 
 `PostColumns` comes from `ormgen` — `//go:generate go run
 github.com/vuka-lang/orm/v2/cmd/ormgen` beside the models — as an
-`orm.Field[V]` (an `orm.TextField[V]` for strings) per column and a field
-per relation (`PostColumns.Author.Name`, `PostColumns.Tags`). `PostFields` is
+`orm.Field[V]` (an `orm.TextField[V]` for strings) per column and a method
+per relation (`PostColumns.Author().Name`, `PostColumns.Tags()`). `PostFields` is
 the receiver type; `PostPath` remains an alias. Regenerate fields after
 upgrading and rename Go lookup values from `PostFields` to `PostColumns`.
 It is a
@@ -333,3 +333,8 @@ can't map — a `Schema` given something other than the address of one of the
 receiver's fields among them; [`vukavet`](/tools/vukavet) finds those in
 the source. `orm:` struct tags and `orm.SetFieldOptions(fn)` still work,
 deprecated for `Schema`.
+
+Vuka field sugar keeps its source form, `Post.Author.Name`; the compiler
+lowerings are `PostColumns.Author().Name` with the new ORM and
+`PostFields.Author.Name` with older generators, selected from the app's
+ORM API and generated roots. Eject and gen make the same choice.

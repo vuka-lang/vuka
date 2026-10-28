@@ -524,7 +524,7 @@ rows, err := matching(q).Limit(50).All(ctx)
   unknown lookup is still a runtime error with a did-you-mean.
 - `<Model>Fields` is the one naming rule; it needs no pluralisation and
   can't collide with the model type.
-- Row methods (`Save`, `SaveFields(ctx, f.Title)`, `Load(ctx, f.Tags)`,
+- Row methods (`Save`, `SaveFields(ctx, f.Title)`, `Load(ctx, f.Tags())`,
   `Add/Remove/Set`), `Values`, `Annotate`, `GroupBy`/`Having`, subqueries,
   `Raw` and transactions are unchanged; `@orm.Transaction` is
   `orm.Transaction(ctx, func(ctx context.Context) error { … })`.
