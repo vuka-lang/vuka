@@ -1,6 +1,6 @@
 module github.com/vuka-lang/vuka/cmd/vuka/v2
 
-go 1.27
+go 1.27.3
 
 require (
 	github.com/a-h/parse v0.0.0-20250122154542-74294addb73e
@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/vuka-lang/orm/v2 v2.1.1-0.20261028121434-953b0cf6bd47 // indirect
+	github.com/vuka-lang/orm/v2 v2.1.1-0.20261028123059-0baf7c839495 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )
