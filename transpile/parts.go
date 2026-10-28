@@ -772,7 +772,11 @@ func (w *jsxWriter) part(el *jsxElem, i int) {
 		w.put(stmts)
 		w.gen("return ")
 		w.put(body)
-		w.gen("\n})")
+		w.gen("\n}")
+		if m.group != "" {
+			w.gen(", " + strconv.Quote(m.group))
+		}
+		w.gen(")")
 		return
 	}
 	w.gen(q + "Part(" + m.recv + ", " + m.expr + ", ")

@@ -152,7 +152,7 @@ func (e *engine) suspenseBindings(f *fileState, el *jsxElem) {
 	var names []string
 	for _, st := range stmts {
 		s := st.b.heads[0]
-		if s.start >= el.start || st.el != nil && (el.start < st.el.start || el.end > st.el.end) {
+		if s.start >= el.start || !sameBindingScope(f, st.b, el) || st.el != nil && (el.start < st.el.start || el.end > st.el.end) {
 			continue
 		}
 		as := e.stmtAssign(f, s)
@@ -225,4 +225,44 @@ func (e *engine) suspenseBindings(f *fileState, el *jsxElem) {
 			f.susWarnings.add("W0351", f.at(a.expr.start), "Suspense waits for %s but shows nothing from it", name)
 		}
 	}
+}
+
+// sameBindingScope checks lexical control-flow scopes as well as elements.
+func sameBindingScope(f *fileState, decl *jsxBlock, target *jsxElem) bool {
+	type branch struct {
+		block *jsxBlock
+		index int
+	}
+	var declared, used []branch
+	var walk func([]jsxNode, []branch)
+	walk = func(ns []jsxNode, path []branch) {
+		for _, node := range ns {
+			switch n := node.(type) {
+			case *jsxElem:
+				if n == target {
+					used = append([]branch{}, path...)
+				}
+				walk(n.kids, path)
+			case *jsxBlock:
+				if n == decl {
+					declared = append([]branch{}, path...)
+				}
+				for i, body := range append(append([][]jsxNode{}, n.bodies...), n.cases...) {
+					walk(body, append(append([]branch{}, path...), branch{n, i}))
+				}
+			}
+		}
+	}
+	for _, tree := range f.jsx {
+		walk([]jsxNode{tree.root}, nil)
+	}
+	if len(declared) > len(used) {
+		return false
+	}
+	for i, key := range declared {
+		if used[i] != key {
+			return false
+		}
+	}
+	return true
 }

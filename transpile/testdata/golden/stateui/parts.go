@@ -61,7 +61,7 @@ func LazyValue[T any](ctx context.Context, run func(context.Context) (T, error))
 	}
 	return v
 }
-func LazyPart(fallback, failed Node, body func(context.Context) Node) Node {
+func LazyPart(fallback, failed Node, body func(context.Context) Node, group ...string) Node {
 	if f, ok := fallback.(PartFallback); ok {
 		fallback, failed = f.Pending, f.Error
 	}

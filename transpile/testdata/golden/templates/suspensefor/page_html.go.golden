@@ -32,18 +32,29 @@ func (p *Page) View() ui.Node {
 		})
 //line page.vuka.html:11
 		stats := sync.OnceValue(func() Stats { return ui.Must(p.Store.Stats(ctx)) })
-		suspense := ui.Suspense(ui.HTML(`<b>loading</b>`), nil, func(ctx context.Context) ui.Node {
+		part := ui.LazyPart(ui.HTML(`<i>More categories…</i>`), nil, func(ctx context.Context) ui.Node {
+			return ui.Suspense(ui.HTML(`<b>loading</b>`), nil, func(ctx context.Context) ui.Node {
+				value := len(categories())
 //line page.vuka.html:14
-			return ui.HTML(`<h3>{len(categories())} categories · {stats().Open} open</h3>`, len(categories()), stats().Open)
+				open := stats().Open
+				another := sync.OnceValue(func() []Category {
+//line page.vuka.html:15
+					return ui.LazyValue(ctx, func(ctx context.Context) ([]Category, error) { return p.GetCategories(ctx) })
+				})
+				return ui.HTML(`
+<h3>{value} categories · {open} open</h3>
+<p>{len(another())} more</p>`, value, open, len(another()))
+			})
 		})
 //line page.vuka.html:9
 		return ui.HTML(`
 <main>
-  {suspense}
-</main>`, suspense)
+  {part}
+</main>`, part)
 	})
 }
 
+//line page.vuka.html:19
 func (p *Page) Render(ctx context.Context, w io.Writer) error { return p.View().Render(ctx, w) }
 
 //line page.vuka.html:7
