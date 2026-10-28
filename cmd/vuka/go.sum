@@ -11,6 +11,8 @@ github.com/google/go-cmp v0.6.0/go.mod h1:17dUlkBOakJ0+DkrSSNjCkIjxS6bF9zb3elmeN
 github.com/google/go-cmp v0.7.0 h1:wk8382ETsv4JYUZwIsn6YpYiWiBsYLSJiTsyBybVuN8=
 github.com/vuka-lang/orm/v2 v2.1.1-0.20261028113415-a4bf0843ce9f h1:5ElanKb9F14Ns5CJZjhVZrYhcqT0MGZ8GY7kglunjpU=
 github.com/vuka-lang/orm/v2 v2.1.1-0.20261028113415-a4bf0843ce9f/go.mod h1:ErxkeO1L+7kAWuDbNxLhLsrCNpGt8L1QG6PZa8W5j14=
+github.com/vuka-lang/orm/v2 v2.1.1-0.20261028121434-953b0cf6bd47 h1:jTHc+8z2mkAralyY35ySJBceVnJGQzVtm71MPxAbZvU=
+github.com/vuka-lang/orm/v2 v2.1.1-0.20261028121434-953b0cf6bd47/go.mod h1:ErxkeO1L+7kAWuDbNxLhLsrCNpGt8L1QG6PZa8W5j14=
 github.com/vuka-lang/ui/v2 v2.5.0 h1:pidhD/CJspXjeD62CNDVbCB5i3OaL3XuL0uwM84kVN4=
 github.com/vuka-lang/ui/v2 v2.5.0/go.mod h1:xoRdX5EmVujKEZObsbHE9S3l72ZGSUaL6F8nKTgmlrA=
 github.com/vuka-lang/ui/v2 v2.6.0 h1:3GoTDjcWAMA7K9YnJhODd+XyckWY83k+fV33k9ERNBE=

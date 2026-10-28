@@ -14,7 +14,7 @@ require (
 )
 
 require (
-	github.com/vuka-lang/orm/v2 v2.1.1-0.20261028113415-a4bf0843ce9f // indirect
+	github.com/vuka-lang/orm/v2 v2.1.1-0.20261028121434-953b0cf6bd47 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )

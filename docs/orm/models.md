@@ -241,16 +241,40 @@ A model's typed fields go on through relations into the related model:
 
 `orm.Rel` describes a relation:
 
-| `orm.Rel` field | |
-|---|---|
-| `OnDelete` | what deleting the related row does: `orm.Cascade`, `orm.SetNull`, `orm.Restrict` |
-| `Related` | the inverse's name on the related model (`"posts"`: `User`'s posts, for `orm.Q{"posts__views__gt": 60}`) |
-| `Column` | the foreign key's column |
-| `Through` | a many-to-many's table between |
-| `Null` | the key may be NULL |
-| `CrossDB` | the related model is on [another database](/orm/databases#cross-database-relations): no constraint, prefetched rather than joined |
+| `orm.Rel` field | How it works | Example |
+|---|---|---|
+| `OnDelete` | When the target row is deleted, `orm.Cascade` deletes referring rows, `orm.SetNull` clears their keys, and `orm.Restrict` prevents deletion while references remain. Use `Null: true` with `SetNull`. | `@orm.Rel{OnDelete: orm.SetNull, Null: true}` keeps a shelf after its category is deleted. |
+| `Related` | Names the inverse on the target model for string lookups, prefetching and generated typed paths. It must not clash with a target column or another inverse. | `Shelf.Category` with `@orm.Rel{Related: "shelves"}` creates `CategoryColumns.Shelves()` and the `"shelves"` lookup. |
+| `Column` | Overrides the foreign key's database column; `Category` otherwise uses `category_id`. | `@orm.Rel{Column: "category_ref"}` stores the category key in `category_ref`. |
+| `Through` | Names an M2M join table; the default is `<owner table>_<field name>`. | `Product.Tags` with `@orm.Rel{Through: "product_tags"}` uses `product_tags`. |
+| `Null` | Allows the foreign key column to hold SQL NULL, so an `orm.FK` may be unset. | `@orm.Rel{Null: true}` allows a shelf without a category. |
+| `CrossDB` | The target is on [another database](/orm/databases#cross-database-relations). Omits the foreign key constraint; use `PrefetchRelated` to read rows. Joins, `SelectRelated`, and filtering or ordering through it are unavailable; filtering its local key still works. | `@orm.Rel{CrossDB: true}` marks a warehouse relation stored on another database. |
 
-A foreign key tagged `orm:"related:posts"` (or `@orm.Related("posts")`
+Options can be combined on one relation:
+
+```vuka
+type Shelf struct {
+    orm.Base @orm.Meta{Table: "shelves"}
+    ID int64 @orm.PK
+    Category orm.FK[Category] @orm.Rel{Related: "shelves", Column: "category_ref", OnDelete: orm.SetNull, Null: true}
+}
+```
+
+Here `shelves.category_ref` holds the category key and may be NULL.
+Deleting a category clears that key while keeping its shelves.
+`CategoryColumns.Shelves()` reaches the inverse; for example,
+`CategoryColumns.Shelves().Count()` counts a category's shelves.
+
+An M2M relation uses `Through` for its join table and `Related` for its inverse:
+
+```vuka
+Tags orm.M2M[Tag] @orm.Rel{Through: "product_tags", Related: "products"}
+```
+
+On `Product`, this uses `product_tags` for links and generates
+`TagColumns.Products()` for the inverse.
+
+A foreign key tagged `orm:"related:posts"` (or `@orm.Rel{Related: "posts"}`
 in Vuka) generates `UserColumns.Posts()`, a typed path to `PostFields`.
 Many-to-many relations generate their named inverse too. Generation reports
 both declarations when inverse names clash. Columns are fields and every relation hop is a method:
