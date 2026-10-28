@@ -51,7 +51,7 @@ const go = (href, patch, opts) => {
 };
 const nav = { navigate: (href, opts) => go(href, false, opts), patch: (href, opts) => go(href, true, opts) };
 const states = () => window.vuka && window.vuka.states;
-const state = (el) => (name) => {
+const stateOf = (el) => (name) => {
   const r = attr(el, "data-vk-st")[name];
   if (!r) throw new Error("vuka: no state " + name);
   const x = r.x !== undefined ? r.x : r;
@@ -76,10 +76,29 @@ const live = (el, ctx) => new Proxy({}, { get: (_, k) => {
   if (f) return { get: () => read(el)[f], get value() { return read(el)[f]; }, set: (v) => ctx.push("_set", { [f]: v }) };
   return (...a) => ctx.push(k[0].toUpperCase() + k.slice(1), a.length > 1 ? a : a[0]);
 } });
+let current = null;
+const setup = (name) => {
+  if (!current && __VUKA_SCRIPT_DEV__) throw new Error(name + "() called outside a component's setup; call it at the top and keep the element");
+  return current;
+};
+export const ref = (name) => setup("ref").ref(name);
+ref.all = (name) => setup("ref.all").ref.all(name);
+export const state = (name) => setup("state").state(name);
+export const listen = (...args) => setup("listen").listen(...args);
+export const onDestroy = (fn) => setup("onDestroy").onDestroy(fn);
+export const on = (...args) => setup("on").on(...args);
+export const emit = (...args) => setup("emit").emit(...args);
+export const navigate = (...args) => setup("navigate").navigate(...args);
+export const patch = (...args) => setup("patch").patch(...args);
 function hooks(start) {
   const insts = new WeakMap();
   return {
-    mounted(el, ctx) { insts.set(el, { props: el.getAttribute("data-vk-p"), h: start(el, ctx) || {} }); },
+    mounted(el, ctx) {
+      const before = current;
+      current = context(el, ctx);
+      try { insts.set(el, { props: el.getAttribute("data-vk-p"), h: start(el, ctx) || {} }); }
+      finally { current = before; }
+    },
     updated(el) {
       const i = insts.get(el), p = el.getAttribute("data-vk-p");
       if (i && p !== i.props) { i.props = p; if (i.h.update) i.h.update(read(el)); }
@@ -87,7 +106,7 @@ function hooks(start) {
     destroyed(el) { const i = insts.get(el); insts.delete(el); if (i && i.h.destroy) i.h.destroy(); },
   };
 }
-const context = (el, ctx) => ({ live: live(el, ctx), state: state(el), ...nav, push: ctx.push, emit: ctx.emit, on: ctx.on, ref: ctx.ref });
+const context = (el, ctx) => ({ live: live(el, ctx), state: stateOf(el), ...nav, push: ctx.push, emit: ctx.emit, on: ctx.on, ref: ctx.ref, listen: ctx.listen, onDestroy: ctx.onDestroy });
 export const component = (fn) => hooks((el, ctx) => fn(el, read(el), context(el, ctx)));
 export const page = (fn) => hooks((el, ctx) => { const c = context(el, ctx); return fn(el, c.live, c); });
 `
@@ -135,6 +154,7 @@ func bundleScripts(root string, c *assetComp, dev bool) (*bundle, error) {
 		LogLevel:      api.LogLevelSilent,
 		Charset:       api.CharsetUTF8,
 		Plugins:       []api.Plugin{sourcesPlugin(c)},
+		Define:        map[string]string{"__VUKA_SCRIPT_DEV__": strconv.FormatBool(dev)},
 	}
 	if dev {
 		opts.Sourcemap = api.SourceMapInline
@@ -467,4 +487,70 @@ func componentMethods(c *assetComp) []string {
 		}
 	}
 	return out
+}
+
+// setupScript gives the TypeScript server the setup helpers of this shape.
+func setupScript(text, shape string) string {
+	if shape == "" {
+		return text
+	}
+	code := blankComments(text)
+	var out strings.Builder
+	last := 0
+	for i := 0; i < len(code); {
+		if code[i] == '\'' || code[i] == '"' || code[i] == '`' {
+			q := code[i]
+			i++
+			for i < len(code) {
+				if code[i] == '\\' {
+					i += 2
+					continue
+				}
+				if code[i] == q {
+					i++
+					break
+				}
+				i++
+			}
+			continue
+		}
+		if !isIdentByte(code[i]) {
+			i++
+			continue
+		}
+		start := i
+		for i < len(code) && isIdentByte(code[i]) {
+			i++
+		}
+		word := code[start:i]
+		if word != "from" && word != "import" {
+			continue
+		}
+		j := i
+		for j < len(code) && strings.ContainsRune(" \t\r\n", rune(code[j])) {
+			j++
+		}
+		if j >= len(code) || (code[j] != '\'' && code[j] != '"') {
+			continue
+		}
+		q := code[j]
+		end := j + 1
+		for end < len(code) && code[end] != q {
+			if code[end] == '\\' {
+				end++
+			}
+			end++
+		}
+		if end >= len(code) {
+			break
+		}
+		if code[j+1:end] == "vuka:component" {
+			out.WriteString(text[last : j+1])
+			out.WriteString("vuka:component/" + shape)
+			last = end
+		}
+		i = end + 1
+	}
+	out.WriteString(text[last:])
+	return out.String()
 }

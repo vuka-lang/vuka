@@ -308,3 +308,42 @@ func TestLSPScriptImports(t *testing.T) {
 		t.Errorf("no listener snippet: %.800s", got)
 	}
 }
+
+func TestLSPScriptSetupRefs(t *testing.T) {
+	cli, lib := tsFixture(t)
+	src := strings.Replace(namesIndex, `<canvas ref="chart"></canvas>`, `if Q != "" { <canvas ref="chart"></canvas> }
+ for _, x := range Q { <input ref="item" value={x}/> }`, 1)
+	src = strings.Replace(src, "import { component }", "import { component, ref, listen }", 1)
+	src = strings.Replace(src, "export default component<Index>((el, props, ctx) => {})", `export default component<Index>(() => {
+ const search = ref("search")
+ const checks = ref.all("item")
+ checks.watch(xs => xs.forEach(x => { x.checked = true }))
+ listen(search, 'input', e => { const event: Event = e })
+ ref("serch")
+ ref("item")
+ const chart: HTMLCanvasElement = ref("chart")
+})`, 1)
+	c, dir, _ := startLSPOpts(t, map[string]string{
+		"pages/index.vuka.html": src,
+		"pages/point.go":        "package pages\n\ntype Point struct{X,Y int}\n",
+	}, lspOptions{ts: tsOptions{server: cli, tsserver: lib}})
+	uri := pathToURI(filepath.Join(dir, "pages/index.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": src}})
+	c.waitDiags(uri, func(ds []any) bool {
+		b, _ := json.Marshal(ds)
+		return strings.Contains(string(b), "Did you mean") && strings.Contains(string(b), "ref.all") && strings.Contains(string(b), "null")
+	})
+	at := func(needle string, delta int) map[string]any {
+		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(src), strings.Index(src, needle)+delta)}
+	}
+	b, _ := json.Marshal(c.call("textDocument/hover", at("const search", len("const se"))))
+	if !strings.Contains(string(b), "HTMLInputElement") || strings.Contains(string(b), "| null") {
+		t.Fatalf("required ref hover: %s", b)
+	}
+	b, _ = json.Marshal(c.call("textDocument/completion", at(`ref("search")`, len(`ref("`))))
+	for _, name := range []string{"search", "chart"} {
+		if !strings.Contains(string(b), `"label":"`+name+`"`) {
+			t.Errorf("ref completion lacks %s: %s", name, b)
+		}
+	}
+}

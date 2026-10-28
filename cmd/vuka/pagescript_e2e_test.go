@@ -104,8 +104,9 @@ func TestPageScriptE2E(t *testing.T) {
 		needs(t, "no Chrome (set VUKA_CHROME)")
 	}
 	root := assetsModule(t, map[string]string{"main.go": pagesMain,
-		"pages/index.vuka.html": pageScriptPage,
-		"pages/old.vuka.html":   pageScriptOld,
+		"pages/index.vuka.html":  pageScriptPage,
+		"pages/old.vuka.html":    pageScriptOld,
+		"pages/alerts.vuka.html": scriptRefPage,
 	})
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
@@ -115,8 +116,8 @@ func TestPageScriptE2E(t *testing.T) {
 	if err := runGo("build", []string{"-o", app, "."}, io.Discard, &stderr); err != nil {
 		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
 	}
-	if dts, _ := os.ReadFile(filepath.Join(root, ".vuka", componentDTSName)); strings.Count(string(dts), "readonly __page?: true;") != 2 {
-		t.Errorf("Index and Old aren't pages in the types:\n%s", dts)
+	if dts, _ := os.ReadFile(filepath.Join(root, ".vuka", componentDTSName)); strings.Count(string(dts), "readonly __page?: true;") != 3 {
+		t.Errorf("Index, Old and Alerts aren't pages in the types:\n%s", dts)
 	}
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	port := ln.Addr().(*net.TCPAddr).Port
@@ -164,7 +165,87 @@ func TestPageScriptE2E(t *testing.T) {
 	old.wait(`window.__live && window.__q === ""`)
 	old.eval(`window.__shout()`)
 	old.wait(`document.querySelector("#q").textContent === "!"`)
+
+	alerts := c.open(base+"/alerts", 800, 600)
+	alerts.wait(`window.__alertRefs && window.vuka`)
+	alerts.click("#open")
+	alerts.wait(`document.querySelector('#dialog').open`)
+	alerts.click("#check0")
+	alerts.wait(`document.querySelector('#count').textContent === '1 selected'`)
+	alerts.fill("#search", "1")
+	alerts.click("#add")
+	alerts.wait(`window.__alertRefs.checks().length === 3`)
+	alerts.wait(`document.querySelectorAll('label:not([hidden])').length === 1`)
+	if kept := alerts.eval(`window.__alertRefs.dialog === document.querySelector('#dialog')`); kept != true {
+		t.Error("patch replaced the kept dialog ref")
+	}
+	alerts.click("#clear")
+	alerts.wait(`document.querySelectorAll('label:not([hidden])').length === 3`)
+	alerts.click("#leave")
+	alerts.wait(`location.pathname === '/' && window.__alertsDestroyed === 1`)
+	if clean := alerts.eval(`(() => { const before = window.__alertChanges; window.__alertRefs.form.dispatchEvent(new Event('change')); return before === window.__alertChanges && !window.__alertRefs.dialog.open })()`); clean != true {
+		t.Error("navigation left a listener or open dialog")
+	}
 	if t.Failed() {
 		t.Logf("logs:\n%s", logs.Bytes())
 	}
 }
+
+const scriptRefPage = `<script lang="go">
+package pages
+
+import (
+ "fmt"
+ "github.com/vuka-lang/ui/v2"
+)
+
+type Alerts struct { ui.Live; N int }
+func (p *Alerts) Add() { p.N++ }
+</script>
+<main>
+ <button ref="open" id="open">Open alerts</button>
+ <dialog ref="dialog" id="dialog">
+  <input ref="search" id="search" type="search"/>
+  <form ref="form">
+   for i := range N+2 {
+    <label><input ref="category" id={fmt.Sprint("check",i)} type="checkbox" value={fmt.Sprint(i)}/><span>Category {i}</span></label>
+   }
+  </form>
+  <span ref="count" id="count">0 selected</span>
+  <button ref="submit" id="submit" disabled>Subscribe</button>
+  <button ref="clear" id="clear">Clear search</button>
+  <button ref="close" id="close">Close</button>
+  <button id="add" onClick={Add}>Add category</button>
+  <ui.Link id="leave" href="/">Leave</ui.Link>
+ </dialog>
+</main>
+<script lang="ts">
+import { component, ref, listen, onDestroy } from 'vuka:component'
+export default component<Alerts>(() => {
+ const dialog = ref('dialog')
+ const search = ref('search')
+ const form = ref('form')
+ const count = ref('count')
+ const submit = ref('submit')
+ const checks = ref.all('category')
+ const w = window as any
+ w.__alertRefs = { dialog, form, checks }
+ const update = () => {
+  const n = checks().filter(c => c.checked).length
+  count.textContent = n + ' selected'
+  submit.disabled = n === 0
+  w.__alertChanges = (w.__alertChanges || 0) + 1
+ }
+ const filter = () => {
+  for (const c of checks()) c.closest('label')!.hidden = !c.value.includes(search.value)
+ }
+ listen(ref('open'), 'click', () => dialog.showModal())
+ listen(ref('close'), 'click', () => dialog.close())
+ listen(ref('clear'), 'click', () => { search.value = ''; filter() })
+ listen(search, 'input', filter)
+ listen(form, 'change', update)
+ checks.watch(() => { filter(); update() })
+ onDestroy(() => { dialog.close(); w.__alertsDestroyed = (w.__alertsDestroyed || 0) + 1 })
+})
+</script>
+`

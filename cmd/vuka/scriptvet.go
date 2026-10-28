@@ -70,6 +70,30 @@ func vetScripts(root, modPath string, pa *pageAssets) []diag.Diagnostic {
 			if s.path != "" {
 				span = diag.Span{File: s.label}
 			}
+			for local, kind := range setupAliases(src) {
+				call := regexp.MustCompile(`\b` + regexp.QuoteMeta(local) + `(\.all)?\(\s*(['"])([^'"\n]*)['"]`)
+				for _, m := range call.FindAllStringSubmatchIndex(code, -1) {
+					if m[0] > 0 && code[m[0]-1] == '.' {
+						continue
+					}
+					name := code[m[6]:m[7]]
+					at := span
+					at.Line = base + strings.Count(src[:m[6]], "\n") + 1
+					at.Col = m[6] - strings.LastIndexByte(src[:m[6]], '\n')
+					at.EndCol = at.Col + len(name)
+					if d := scriptNameDiag(c.name, kind, name, lists[kind], page, n); d != nil {
+						d.Message = strings.Replace(d.Message, "ctx."+kind, local, 1)
+						out = append(out, *d.At(at))
+					} else if kind == "ref" && m[2] < 0 {
+						for _, r := range n.refs {
+							if r.name == name && r.loop {
+								out = append(out, *diag.Warn("W0308", "%s(%q) names a ref inside a for; use %s.all(%q)", local, name, local, name).At(at))
+								break
+							}
+						}
+					}
+				}
+			}
 			for _, m := range scriptCall.FindAllStringSubmatchIndex(code, -1) {
 				if code[m[2]:m[3]] != ctx {
 					continue
@@ -117,4 +141,28 @@ func scriptNameDiag(typ, kind, name string, have []string, page bool, n scriptNa
 		return d.WithHelp("push it from a method: c.PushEvent(%q, payload)", name)
 	}
 	return d.WithHelp("put on%s={…} on the component's root element", strings.ToUpper(name[:min(1, len(name))])+name[min(1, len(name)):])
+}
+
+var setupImport = regexp.MustCompile(`(?s)\bimport\s*\{([^}]*)\}\s*from\s*['"]vuka:component(?:/[^'"]+)?['"]`)
+
+func setupAliases(src string) map[string]string {
+	out := map[string]string{}
+	for _, m := range setupImport.FindAllStringSubmatch(blankComments(src), -1) {
+		for _, part := range strings.Split(m[1], ",") {
+			words := strings.Fields(part)
+			if len(words) == 0 {
+				continue
+			}
+			kind := words[0]
+			if kind != "ref" && kind != "state" && kind != "on" && kind != "emit" {
+				continue
+			}
+			local := kind
+			if len(words) == 3 && words[1] == "as" {
+				local = words[2]
+			}
+			out[local] = kind
+		}
+	}
+	return out
 }

@@ -48,6 +48,7 @@ type tsServer struct {
 
 // tsDoc is a script as the server has it.
 type tsDoc struct {
+	refs    []scriptRef
 	html    string
 	first   int // the template file's line (0-based) the script's text starts on
 	text    string
@@ -323,18 +324,22 @@ func (ts *tsServer) sync(path string, src []byte) map[string]*tsDoc {
 		}
 		virtual := path + "." + strconv.Itoa(n) + ".ts"
 		n++
-		text := prelude + a.Text
+		text := prelude + setupScript(a.Text, a.Decl)
+		var names scriptNames
+		if markup, ok := markupOf([]string{path}, a.Decl); ok {
+			names.readMarkupNames(markup)
+		}
 		ts.mu.Lock()
 		d := ts.docs[virtual]
 		switch {
 		case d == nil:
-			d = &tsDoc{html: path, first: a.Line - 1, text: text, version: 1, ready: make(chan struct{})}
+			d = &tsDoc{refs: names.refs, html: path, first: a.Line - 1, text: text, version: 1, ready: make(chan struct{})}
 			ts.docs[virtual] = d
 			ts.mu.Unlock()
 			_ = ts.conn.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didOpen", "params": map[string]any{
 				"textDocument": map[string]any{"uri": pathToURI(virtual), "languageId": "typescript", "version": 1, "text": text}}})
 		case d.text != text:
-			d.text, d.first = text, a.Line-1
+			d.text, d.first, d.refs = text, a.Line-1, names.refs
 			d.version++
 			v := d.version
 			ts.mu.Unlock()
@@ -342,7 +347,7 @@ func (ts *tsServer) sync(path string, src []byte) map[string]*tsDoc {
 				"textDocument":   map[string]any{"uri": pathToURI(virtual), "version": v},
 				"contentChanges": []any{map[string]any{"text": text}}}})
 		default:
-			d.first = a.Line - 1
+			d.first, d.refs = a.Line-1, names.refs
 			ts.mu.Unlock()
 		}
 		out[virtual] = d
@@ -493,6 +498,11 @@ func (ts *tsServer) diagnostics(params json.RawMessage) {
 		r, rok := toRange(m["range"])
 		if !ok || !rok || r.Start.Line < tsPrelude {
 			continue
+		}
+		if note := setupRefNote(d.text, d.refs, offsetOf([]byte(d.text), r.Start)); note != "" {
+			if message, ok := m["message"].(string); ok {
+				m["message"] = message + " " + note
+			}
 		}
 		m["range"] = lspRange{ts.line(r.Start, d), ts.line(r.End, d)}
 		if m["source"] == nil {
