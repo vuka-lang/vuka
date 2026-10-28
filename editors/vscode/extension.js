@@ -86,6 +86,7 @@ function start() {
     { command, args, options: { env: { ...process.env, ...typescript.lspEnv(ts) } } },
     {
       documentSelector: [{ scheme: 'file', language: 'vuka' }, { scheme: 'file', language: 'vuka-html' }],
+      initializationOptions: { vuka: { implicitContextHints: config.get('inlayHints.implicitContext', true) } },
       // Like the Go extension: the log is there when wanted, never in the way.
       revealOutputChannelOn: RevealOutputChannelOn.Never,
       synchronize: {

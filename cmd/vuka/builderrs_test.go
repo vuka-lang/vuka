@@ -57,7 +57,7 @@ func (s *Service) Find(ctx context.Context, email string) (*entities.User, error
 	return &entities.User{Email: email}, nil
 }
 `,
-		"layouts/links.go": "package layouts\n\nimport \"context\"\n\ntype Links struct{}\n\nfunc (Links) HomePath(ctx context.Context) string { return \"/\" }\n\nvar a Links\n\nfunc Home() string { return a.HomePath(context.Background()) }\n",
+		"layouts/links.go": "package layouts\n\ntype Links struct{}\n\nfunc (Links) HomePath(page int) string { return \"/\" }\n\nvar a Links\n\nfunc Home() string { return a.HomePath(0) }\n",
 		"layouts/main.vuka.html": `<script lang="go">
 package layouts
 

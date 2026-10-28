@@ -270,6 +270,12 @@ func (e *engine) resolveCalls(f *fileState) {
 	if len(e.sets) == 0 {
 		return
 	}
+	markup := map[*ast.CallExpr]bool{}
+	if f.html != nil && f.partsDone {
+		for _, c := range e.markupCalls(f) {
+			markup[c] = true
+		}
+	}
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		call, ok := n.(*ast.CallExpr)
 		if !ok {
@@ -280,23 +286,72 @@ func (e *engine) resolveCalls(f *fileState) {
 			return true
 		}
 		off := f.orig(id.Pos())
-		if f.done[off] || !f.lowerable(id.Pos()) {
+		if f.done[overDone(off)] || !f.lowerable(id.Pos()) {
 			return true
 		}
 		args, ok := e.args(call)
 		if !ok {
 			return true
 		}
-		f.done[off] = true
 		o, msg := e.pick(set, args, call.Ellipsis.IsValid())
+		withCtx := false
+		if o == nil && markup[call] && !f.html.ownCtx {
+			// In markup, an overload taking the render's ctx first.
+			if c := ctxParam(set); c != nil {
+				if o2, msg2 := e.pick(set, append([]arg{{t: c}}, args...), call.Ellipsis.IsValid()); o2 != nil || !strings.HasPrefix(msg2, "no overload") {
+					o, msg, withCtx = o2, msg2, o2 != nil
+				}
+			}
+		}
+		if withCtx && !f.html.contextual {
+			if e.forceCtx == nil {
+				e.forceCtx = map[string]bool{}
+			}
+			e.forceCtx[f.name], e.recompile = true, true
+			return false
+		}
+		f.done[overDone(off)] = true
+		if withCtx {
+			e.insertCtx(f, call)
+		}
 		if msg != "" {
 			e.errs.add("E0121", f.nodePos(call.Pos()), "%s", msg)
 			return true
 		}
-		f.add(off, off+len(id.Name), o.mangled)
+		f.rename(off, id.Name, o.mangled)
 		e.progress = true
 		return true
 	})
+}
+
+// rename writes the name at off as to: into the rewrite qualifying it
+// with a template's receiver, when there is one.
+func (f *fileState) rename(off int, name, to string) {
+	for i, ed := range f.fixed {
+		if ed.start == off && ed.end == off+len(name) && len(ed.segs) == 2 && strings.HasSuffix(ed.text, name) {
+			q := strings.TrimSuffix(ed.text, name)
+			f.fixed[i].text = q + to
+			f.fixed[i].segs = []segment{ed.segs[0], {gen: len(q), genLen: len(to), src: off, srcLen: len(name)}}
+			return
+		}
+	}
+	f.add(off, off+len(name), to)
+}
+
+// overDone is the key in fileState.done of a call resolved to an overload
+// at off: apart from the name's own, which a template's receiver may
+// qualify.
+func overDone(off int) int { return -off - 1 }
+
+// ctxParam is the context.Context an overload of set takes first, if one
+// does.
+func ctxParam(set *overloadSet) types.Type {
+	for _, o := range set.list {
+		if o.sig != nil && o.sig.Params().Len() > 0 && isContext(o.sig.Params().At(0).Type()) {
+			return o.sig.Params().At(0).Type()
+		}
+	}
+	return nil
 }
 
 // target finds the overload set a call's function expression names, if it is an
@@ -501,7 +556,7 @@ func (e *engine) unresolvedOverloads() bool {
 			return true
 		})
 		report := func(set *overloadSet, id *ast.Ident) {
-			if f.done[f.orig(id.Pos())] {
+			if f.done[overDone(f.orig(id.Pos()))] {
 				return
 			}
 			if calls[id] {

@@ -1,0 +1,2 @@
+page.vuka.html:8:11: Categories needs a *CategoryService: markup can't pass services; take it in NewIndex, keep it in a field of Index, and pass the field
+page.vuka.html:9:7: Format's second argument (a string) is missing: markup supplies only ctx

@@ -1,0 +1,18 @@
+package main
+
+import (
+	"context"
+	"fmt"
+)
+
+type Name string
+
+func (n Name) String() string { return string(n) }
+
+// Page's Show takes a ctx in both overloads, neither fitting better.
+type Page struct{ N Name }
+
+func (p Page) Show(ctx context.Context, v fmt.Stringer) string { return v.String() }
+
+func (p Page) Show(ctx context.Context, v any) string { return "any" }
+<p>{Show(N)}</p>

@@ -1,5 +1,5 @@
-page.vuka.html:14:1: @ui.Defer: Page's markup never calls Unused, so there is no part to defer; show it in the markup, <span>{Unused(ctx)}</span>, or drop @ui.Defer
+page.vuka.html:14:1: @ui.Defer: Page's markup never calls Unused, so there is no part to defer; show it in the markup, <span>{Unused()}</span>, or drop @ui.Defer
 page.vuka.html:21:12: @ui.Defer: Stats is called from Go (page.vuka.html:21), where its result is needed now; call it from the markup only; drop @ui.Defer to call it here, or move what reads it into the markup
 page.vuka.html:24:15: @ui.Defer: Title's result goes to <Badge label=…>; defer it in Badge instead; give Badge a deferred method of its own, or drop @ui.Defer
-page.vuka.html:25:2: @ui.Defer: Count's call in Page's markup is in no element, which would be its part; put it inside an element: <span>{Count(ctx)}</span>
+page.vuka.html:25:2: @ui.Defer: Count's call in Page's markup is in no element, which would be its part; put it inside an element: <span>{Count()}</span>
 page.vuka.html:27:19: <ui.Fallback for={Stat}>: Page has no deferred method Stat; did you mean Stats?

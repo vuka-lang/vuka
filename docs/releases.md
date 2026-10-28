@@ -22,6 +22,52 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.10.0 — unreleased
 
+### Markup Calls
+
+- **`ctx` is passed for you in markup.** A call in a template's markup whose
+  function takes a `context.Context` first, written one argument short,
+  gets the render's `ctx`: `{GetCategories()}` is
+  `GetCategories(ctx)`, `range Adverts(page)` is `range Adverts(ctx,
+  page)`. Holes, attributes, props, blocks' headers and statements;
+  methods and functions, variadic and generic. Only a call that doesn't
+  compile as written: an explicit `ctx` is left as it is, Go code passes
+  its own, method values aren't calls, and of overloads the one matching
+  as written wins. The generated Go has the real call. See
+  [The Render's Context](/ui/templates#implicit-ctx).
+- **A call short of anything else says what it needs** (E0162):
+  `GetCategories needs a *settings.CategoryService: markup can't pass
+  services; take it in NewIndex`.
+- **`:=` unwraps `(T, error)`** as holes do: `categories :=
+  GetCategories()` is a `[]Category`, an error failing the render where the
+  name is first shown; `categories, err := GetCategories()` keeps both.
+- **Bindings are lazy and scoped.** A binding of one name to the app's code
+  runs at the render's first read of the name, once, and never when no
+  read renders (a branch not taken); a name used after the element its
+  statement is in is E0163. See [Bindings](/ui/templates#bindings).
+- **A deferred method's binding is its element's part.** `categories :=
+  GetCategories()` on a `@ui.Defer` method makes the element holding the
+  statement the part; `<ui.Fallback for={categories}>` names the binding;
+  an unused binding never starts its method. See
+  [Parts of a Page](/web/parts#bindings).
+- **`<ui.Suspense>` boundaries.** The page's choice of a region that
+  streams as one: everything inside renders after the shell, every call
+  with it whether deferred or not, and is revealed at once when all of it
+  the render reaches has returned; `<slot:fallback>` and `<slot:error>` are
+  its own; nested boundaries reveal outer first. `ui.Suspense(fallback,
+  errorNode, body)` in Go. See [Boundaries](/web/parts#suspense).
+- **Selective boundaries:** `<ui.Suspense for={categories, stats}>` waits
+  for the named bindings, including ones declared above it. Unlisted
+  deferred bindings keep their own parts. The compiler checks names and
+  boundary ownership (E0352), and warns about a listed binding the boundary
+  never shows (W0351).
+- **Editor.** Hover on a call given ctx says the page supplies it; an inlay
+  hint shows the `ctx` (VS Code: `vuka.inlayHints.implicitContext`; other
+  editors: `initializationOptions` `{"vuka": {"implicitContextHints":
+  false}}` turns it off). Definition and references work through these
+  calls and lazy bindings.
+
+### Component Scripts
+
 - **Setup helpers for component scripts.** `ref` is typed from the markup,
   including nullable conditional refs. Loop refs use `ref.all` for live
   reads and notifications after patches. `listen` and `onDestroy` clean

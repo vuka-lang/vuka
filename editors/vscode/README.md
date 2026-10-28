@@ -148,6 +148,7 @@ switch it on and off, followed by a restart of templ's language server. A
 | `vuka.offerTemplDropIn` | `true` | offer to let templ's language server use Vuka as its gopls |
 | `vuka.autoCloseTags` | `true` | add a markup closing tag in `.vuka.html` when an opening tag's `>` is typed, and the open element's name after `</` |
 | `vuka.organizeImportsOnSave` | `true` | organize a file's imports on save, before formatting it (Organize Imports works either way) |
+| `vuka.inlayHints.implicitContext` | `true` | show `ctx` where a call in `.vuka.html` markup gets the render's context without writing it (on the server's next start) |
 
 Both Vuka languages default to `editor.formatOnSave`,
 `editor.codeActionsOnSave` organizing imports, and `editor.linkedEditing`. The extension also sets defaults for other
