@@ -385,11 +385,11 @@ func (e *engine) shortCall(f *fileState, c *ast.CallExpr, sig *types.Signature, 
 	var err *Error
 	if serviceLike(p.Type()) {
 		ctor := "New" + f.html.recvType
-		err = e.errs.add("E0162", at, "%s needs a %s: markup can't pass services; take it in %s", name, t, ctor).
+		err = e.errs.add("E0162", at, "%s needs a %s: markup can't pass services", name, t).
 			help("take the %s in %s, keep it in a field of %s, and pass the field", t, ctor, f.html.recvType)
 	} else {
-		err = e.errs.add("E0162", at, "%s needs a %s as its argument %d", name, t, i+1-ctxShift(sig)).
-			help("pass it: markup passes only the render's ctx itself")
+		err = e.errs.add("E0162", at, "%s's argument %d (%s) is missing", name, i+1-ctxShift(sig), t).
+			help("pass it: markup supplies only ctx")
 	}
 	if !strings.Contains(text, "\n") {
 		err.Len = len(text)
