@@ -107,3 +107,21 @@ func TestLSPMarkupCallsDefinition(t *testing.T) {
 		t.Errorf("definition of categories: %s, want its statement at %s", got, want)
 	}
 }
+
+func TestLSPMarkupBindingReferences(t *testing.T) {
+	c, uri := openCalls(t)
+	at := strings.Index(callsPage, "{len(categories)}") + len("{len(cat")
+	var got string
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		v := c.call("textDocument/references", map[string]any{
+			"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(callsPage), at),
+			"context": map[string]any{"includeDeclaration": true},
+		})
+		b, _ := json.Marshal(v)
+		got = string(b)
+		if strings.Count(got, "page.vuka.html") >= 2 {
+			return
+		}
+	}
+	t.Fatalf("binding declaration and rendered use not found: %s", got)
+}

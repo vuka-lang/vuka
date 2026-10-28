@@ -55,6 +55,11 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the render reaches has returned; `<slot:fallback>` and `<slot:error>` are
   its own; nested boundaries reveal outer first. `ui.Suspense(fallback,
   errorNode, body)` in Go. See [Boundaries](/web/parts#suspense).
+- **Selective boundaries:** `<ui.Suspense for={categories, stats}>` waits
+  for the named bindings, including ones declared above it. Unlisted
+  deferred bindings keep their own parts. The compiler checks names and
+  boundary ownership (E0352), and warns about a listed binding the boundary
+  never shows (W0351).
 - **Editor.** Hover on a call given ctx says the page supplies it; an inlay
   hint shows the `ctx` (VS Code: `vuka.inlayHints.implicitContext`; other
   editors: `initializationOptions` `{"vuka": {"implicitContextHints":
