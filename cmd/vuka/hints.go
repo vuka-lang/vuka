@@ -233,7 +233,11 @@ func (in hintInput) undefined(h *hint, name string) {
 		}
 		member, qual = name, ""
 	}
-	if model, ok := strings.CutSuffix(member, "Fields"); ok && model != "" {
+	model, generated := strings.CutSuffix(member, "Columns")
+	if !generated {
+		model, generated = strings.CutSuffix(member, "Fields")
+	}
+	if generated && model != "" {
 		in.typedFields(h, qual, member, model)
 		return
 	}

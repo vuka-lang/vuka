@@ -17,6 +17,6 @@ import (
 //line orm_crosspkg.vuka:12
 func main() {
 	ctx := context.Background()
-	_, err := orm.Objects[ormusers.User]().Get(ctx, ormusers.UserFields.Name.Eq("ada"))
-	fmt.Println(orm.Objects[ormusers.User]().Count(), err, ormusers.UserFields.Name.Desc(), ormusers.UserFields.ID.Eq(7))
+	_, err := orm.Objects[ormusers.User]().Get(ctx, ormusers.UserColumns.Name.Eq("ada"))
+	fmt.Println(orm.Objects[ormusers.User]().Count(), err, ormusers.UserColumns.Name.Desc(), ormusers.UserColumns.ID.Eq(7))
 }

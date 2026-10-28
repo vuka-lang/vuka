@@ -490,9 +490,9 @@ spelling of the two model statics `.vuka` offers:
 | `.vuka` | Go |
 |---|---|
 | `Post.Objects` | `orm.Objects[Post]()` |
-| `Post.Slug` (typed column) | `PostFields.Slug` |
+| `Post.Slug` (typed column) | `PostColumns.Slug` |
 | `func Post.Live() orm.QuerySet[Post]` (a named query) | `func PostLive() orm.QuerySet[Post]` |
-| `p := Post.Objects.Get(ctx, Post.Slug.Eq(slug))?` | `p, err := orm.Objects[Post]().Get(ctx, PostFields.Slug.Eq(slug))` + `if err != nil { return err }` |
+| `p := Post.Objects.Get(ctx, Post.Slug.Eq(slug))?` | `p, err := orm.Objects[Post]().Get(ctx, PostColumns.Slug.Eq(slug))` + `if err != nil { return err }` |
 
 `orm.Objects[Post]()` is the model's own manager, the one `orm.For[Post]()`
 declares (or one made from its Meta): `For` takes options and makes a
@@ -816,7 +816,7 @@ attributes and its methods' hooks (`@ui.Mount` on `mount` is
 embeds (`func (Base[Self]) vukaPlain(Model[Self])` names it), unless the
 code names the field `Base`. The two types say which method they want with a
 marker method, `vukaSchema(interface{ Schema(*orm.Schema) })`, so the
-transpiler names no package. `Post.Slug` is `PostFields.Slug`,
+transpiler names no package. `Post.Slug` is `PostColumns.Slug`,
 `Post.Objects` is `orm.Objects[Post]()`, a static `func Post.Live()` is
 `PostLive()` and any static `TypeMember` (`userCount` unexported). An
 around decorator — `func(ctx, func(ctx) error, opts…) error`, like
@@ -853,7 +853,7 @@ types as a person names such functions — `area(c Circle)` is `areaCircle`,
 struct with no typed fields is the field by address,
 `vuka.StringRefTo(func(p *Post) *string { return &p.Author.Related().Name })`
 (`RefOf` with index paths deprecated); the orm's number fields take
-arithmetic (`orm.Set{"views": PostFields.Views.Add(1)}`) and `SaveFields`
+arithmetic (`orm.Set{"views": PostColumns.Views.Add(1)}`) and `SaveFields`
 typed fields. The contract file has no pending entries: everything
 generated code calls is public API.
 

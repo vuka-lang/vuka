@@ -20,6 +20,12 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.10.0 — unreleased
+
+- ORM reverse paths, relation counts and value aggregates, model conditions,
+  portable dates, typed annotations, strict projections, and query SQL inspection.
+  Generated receivers are `ProductFields`; root lookups are `ProductColumns`.
+
 ## v2.9.0 — 2026-10-28
 
 ### Parts of Stateless Pages

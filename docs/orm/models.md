@@ -75,10 +75,10 @@ compile error too. A field with nothing to say isn't listed. The ORM calls
 | | |
 |---|---|
 | `p.Save(ctx)` | inserts a new row (its key filled in), updates a saved one |
-| `p.SaveFields(ctx, PostFields.Title, …)` | updates only those columns (or names: `"title"`) |
+| `p.SaveFields(ctx, PostColumns.Title, …)` | updates only those columns (or names: `"title"`) |
 | `p.Refresh(ctx)` | reads the row again |
 | `p.Delete(ctx)` | deletes it |
-| `p.Load(ctx, PostFields.Tags, …)` | reads relations into the row |
+| `p.Load(ctx, PostColumns.Tags, …)` | reads relations into the row |
 | `p.Add(ctx, "tags", rows…)`, `Remove`, `Set` | changes a many-to-many's links |
 
 ### Named Queries
@@ -90,7 +90,7 @@ a package-level function returning a QuerySet:
 ```go
 // PostLive is the published posts.
 func PostLive() orm.QuerySet[Post] {
-	return orm.Objects[Post]().Filter(PostFields.Published.IsNull(false))
+	return orm.Objects[Post]().Filter(PostColumns.Published.IsNull(false))
 }
 ```
 
@@ -235,7 +235,7 @@ Its methods are `All`, `Add`, `Remove`, `Set`, `Clear` (on a saved row; rows
 or keys), `Rows` and `Loaded` (what `PrefetchRelated` loaded).
 
 A model's typed fields go on through relations into the related model:
-`PostFields.Author.Name`, `PostFields.Tags.Name`.
+`PostColumns.Author.Name`, `PostColumns.Tags.Name`.
 
 ### Relation Options
 
@@ -250,9 +250,27 @@ A model's typed fields go on through relations into the related model:
 | `Null` | the key may be NULL |
 | `CrossDB` | the related model is on [another database](/orm/databases#cross-database-relations): no constraint, prefetched rather than joined |
 
-> [!NOTE]
-> Reverse relations have no field type yet: filter through them with the
-> engine's lookups, `orm.Q{"posts__views__gt": 60}`.
+A foreign key tagged `orm:"related:posts"` (or `@orm.Related("posts")`
+in Vuka) generates `UserColumns.Posts`, a typed path to `PostFields`.
+Many-to-many relations generate their named inverse too. Generation reports
+both declarations when inverse names clash. Nested relations use methods:
+`CategoryColumns.Shelves.Products().SaleEnds`.
+
+### Conditions on Models
+
+`ProductFields` is the generated receiver type; `ProductColumns` is the root
+lookup value. A relation carries the same type with a different prefix:
+
+```go
+func (p PostFields) Popular() orm.Cond {
+    return p.Views.Gte(100)
+}
+```
+
+Use `PostColumns.Popular()` at the root or `UserColumns.Posts.Popular()`
+through a relation. `And`, `Or`, and `Not` combine conditions. A relation's
+`Where` accepts conditions made from its own path and applies them inside
+the aggregate, preserving parents with no matching rows.
 
 ## Nullable Fields {#option-fields}
 
@@ -267,7 +285,7 @@ filter on its NULLs like this:
 <!-- go:fragment -->
 ```go
 p.Published = vuka.Some(time.Now())
-drafts, err := orm.Objects[Post]().Filter(PostFields.Published.IsNull(true)).All(ctx)
+drafts, err := orm.Objects[Post]().Filter(PostColumns.Published.IsNull(true)).All(ctx)
 ```
 
 Its typed field is an `orm.Field[V]` with `IsNull` for its NULLs.
@@ -290,16 +308,19 @@ The statics are plain names:
 | Vuka | Go |
 |---|---|
 | `Post.Objects` | `orm.Objects[Post]()`; `orm.For[Post](opts…)` for a manager with options |
-| `Post.Title` (a field reference) | `PostFields.Title`, written by `ormgen` |
+| `Post.Title` (a field reference) | `PostColumns.Title`, written by `ormgen` |
 | `func Post.Live() orm.QuerySet[Post]` | `func PostLive() orm.QuerySet[Post]` |
 | `@orm.Entity` | `orm.Register[T]()` at init; `orm.Check(models…)` takes others |
 
 ### Generated Fields
 
-`PostFields` comes from `ormgen` — `//go:generate go run
+`PostColumns` comes from `ormgen` — `//go:generate go run
 github.com/vuka-lang/orm/v2/cmd/ormgen` beside the models — as an
 `orm.Field[V]` (an `orm.TextField[V]` for strings) per column and a field
-per relation (`PostFields.Author.Name`, `PostFields.Tags`). It is a
+per relation (`PostColumns.Author.Name`, `PostColumns.Tags`). `PostFields` is
+the receiver type; `PostPath` remains an alias. Regenerate fields after
+upgrading and rename Go lookup values from `PostFields` to `PostColumns`.
+It is a
 convenience: without it every query takes the engine's strings,
 `orm.Q{"name__startswith": "a"}` and `OrderBy("-views")`, and an unknown
 lookup is a runtime error.

@@ -568,8 +568,17 @@ func (e *engine) mayUseFieldRefs(f *fileState) bool {
 // PostFields.Slug, Post.Author.Email PostFields.Author.Email; a relation
 // beyond the first is reached by a method, PostFields.Author.Posts().Title.
 func (e *engine) typedFields(f *fileState, base ast.Expr, names []*ast.Ident, ts []types.Type) {
-	f.insert(f.orig(base.End()), "Fields", 0)
-	gen := types.ExprString(base) + "Fields." + names[0].Name
+	suffix := "Fields"
+	if columnsRuntime(e.info.Types[base].Type, map[types.Type]bool{}) {
+		suffix = "Columns"
+	}
+	if n, ok := derefType(e.info.Types[base].Type).(*types.Named); ok && n.Obj().Pkg() != nil {
+		if _, ok := n.Obj().Pkg().Scope().Lookup(n.Obj().Name() + "Columns").(*types.Var); ok {
+			suffix = "Columns"
+		}
+	}
+	f.insert(f.orig(base.End()), suffix, 0)
+	gen := types.ExprString(base) + suffix + "." + names[0].Name
 	for i := 1; i < len(names); i++ {
 		if modelRel(ts[i]) {
 			f.insert(f.orig(names[i].End()), "()", 0)
@@ -625,4 +634,29 @@ func hasMarker(t types.Type, name string) bool {
 		return false
 	}
 	return walk(t)
+}
+
+// columnsRuntime recognizes the ORM generation API before the first generated
+// file exists, so a clean build selects the same root name as ormgen.
+func columnsRuntime(t types.Type, seen map[types.Type]bool) bool {
+	if t == nil || seen[t] {
+		return false
+	}
+	seen[t] = true
+	if p, ok := t.(*types.Pointer); ok {
+		return columnsRuntime(p.Elem(), seen)
+	}
+	if n, ok := t.(*types.Named); ok {
+		if p := n.Obj().Pkg(); p != nil && p.Path() == "github.com/vuka-lang/orm/v2" && p.Scope().Lookup("ModelAnnotation") != nil {
+			return true
+		}
+	}
+	if st, ok := t.Underlying().(*types.Struct); ok {
+		for i := range st.NumFields() {
+			if st.Field(i).Anonymous() && columnsRuntime(st.Field(i).Type(), seen) {
+				return true
+			}
+		}
+	}
+	return false
 }

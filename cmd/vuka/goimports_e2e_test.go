@@ -36,6 +36,8 @@ type User struct {
 	ID    int64  @orm.PK
 	Email string @orm.Char{Max: 120}
 }
+
+func NameLookup() string { return Category.Name.Name() }
 `,
 		"dtos/advert.go": `package dtos
 
@@ -103,7 +105,7 @@ type Index struct{}
 			files[name] = src
 		}
 	}
-	root := localModule(t, webCheckout(t), files)
+	root := localModule(t, webCheckout(t), ormColumnFixtures(orm, files))
 	withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
 	t.Setenv("GOWORK", "off")
 	t.Setenv("GOFLAGS", "-mod=mod")
@@ -147,7 +149,11 @@ func TestGoImportsVukaErrors(t *testing.T) {
 			}
 			out := stderr.String()
 			out = out[strings.Index(out, "error["):]
-			golden(t, "goimports-"+c.name+".golden", out)
+			name := "goimports-" + c.name + ".golden"
+			if c.name == "missing" && strings.Contains(out, "entities.CategoryColumns") {
+				name = "goimports-missing-columns.golden"
+			}
+			golden(t, name, out)
 			if !strings.Contains(out, c.want) || strings.Contains(out, "not in std") || strings.Contains(out, "accounts") {
 				t.Errorf("the report:\n%s", out)
 			}

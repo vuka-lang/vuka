@@ -11,8 +11,11 @@ type User struct {
 	Name string
 }
 
-// UserFields is what orm generate writes.
-var UserFields = struct {
+// UserFields is the generated receiver type.
+type UserFields struct {
 	ID   orm.Field[int64]
 	Name orm.Field[string]
-}{orm.Field[int64]{"id"}, orm.Field[string]{"name"}}
+}
+
+// UserColumns is the generated root lookup value.
+var UserColumns = UserFields{orm.Field[int64]{"id"}, orm.Field[string]{"name"}}

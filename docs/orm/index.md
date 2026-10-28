@@ -69,7 +69,7 @@ You query it through the generated fields:
 
 <!-- go:fragment -->
 ```go
-f := PostFields // typed fields, written by go generate
+f := PostColumns // typed fields, written by go generate
 posts, err := orm.Objects[Post]().Filter(f.Title.Contains("Go"), f.Author.Name.Eq("ada")).
 	OrderBy(f.Views.Desc()).All(ctx) // []Post
 if err != nil {
@@ -83,7 +83,7 @@ if errors.Is(err, orm.ErrNotFound) { // there is none
 ```
 
 A model's `Schema` names each field by its address, so a rename is checked
-by the compiler. `PostFields`, written by
+by the compiler. `PostColumns`, written by
 `//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen`, gives typed
 lookups. `orm.Objects[Post]()` is the model's manager; without the generated
 fields, every query takes `orm.Q{"title__contains": "Go"}` strings.
@@ -164,7 +164,7 @@ func run(ctx context.Context) error {
 		return err
 	}
 
-	users, err := orm.Objects[User]().Filter(UserFields.Name.StartsWith("a")).OrderBy(UserFields.Name.Asc()).All(ctx)
+	users, err := orm.Objects[User]().Filter(UserColumns.Name.StartsWith("a")).OrderBy(UserColumns.Name.Asc()).All(ctx)
 	if err != nil {
 		return err
 	}
