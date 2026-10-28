@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.12.0
 
 - A call in `.vuka.html` markup that gets the render's `ctx` without writing it shows an inlay hint, `ctx`, where it goes, and its hover says the page supplies it. `vuka.inlayHints.implicitContext` turns the hint off. Needs the Vuka v2.10.0 language server.
 
