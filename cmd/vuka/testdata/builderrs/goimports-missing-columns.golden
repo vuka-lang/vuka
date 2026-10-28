@@ -1,0 +1,27 @@
+error[E0005]: example.com/app/entitis isn't a package of module example.com/app: entitis/ doesn't exist
+ --> dtos/advert.go:3:8
+  |
+3 | import "example.com/app/entitis"
+  |        ^
+  |
+  = help: fix the import path
+
+error[E0002]: undefined: entities
+ --> dtos/advert.go:6:11
+  |
+6 |     Category entities.Category
+  |              ^^^^^^^^ entities isn't imported
+  |
+  = help: import "example.com/app/entities"
+
+error[E0002]: undefined: entities
+  --> dtos/advert.go:10:35
+   |
+10 | func NameColumn() string { return entities.CategoryColumns.Name.Name() }
+   |                                   ^^^^^^^^ entities isn't imported
+   |
+   = help: import "example.com/app/entities"
+
+For more information about this error, try `vuka explain E0005`.
+
+3 errors in 1 package · 1 page couldn't build because of them

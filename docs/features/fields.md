@@ -143,7 +143,7 @@ predicates that make sense type-check:
 `Post.Author.Name` is a `vuka.StringRef[Post, string]`.
 
 An [ORM model](/orm/queries#conditions) is different: its fields are the typed
-fields `orm generate` writes, so `Post.Title` is `PostFields.Title`, an
+fields `orm generate` writes, so `Post.Title` is `PostColumns.Title`, an
 `orm.TextField[string]`, and its conditions are the engine's.
 
 ### Predicates and Orderings

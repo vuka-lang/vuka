@@ -24,7 +24,7 @@ kind. This function turns two kinds into the web app's errors:
 
 ```go
 func findUser(ctx context.Context, email string) (User, error) {
-	u, err := orm.Objects[User]().Get(ctx, UserFields.Email.Eq(email))
+	u, err := orm.Objects[User]().Get(ctx, UserColumns.Email.Eq(email))
 	switch {
 	case errors.Is(err, orm.ErrNotFound):
 		return u, web.NotFound

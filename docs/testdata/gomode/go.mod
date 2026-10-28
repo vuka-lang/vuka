@@ -21,7 +21,7 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/vuka-lang/orm/v2 v2.0.0-20261022222343-c6cde4eff531 // indirect
+	github.com/vuka-lang/orm/v2 v2.1.1-0.20261028123059-0baf7c839495 // indirect
 	github.com/vuka-lang/ui/v2 v2.6.1-0.20261027125847-6d354a871722 // indirect
 	github.com/vuka-lang/vuka/v2 v2.6.0 // indirect
 	github.com/vuka-lang/web/v2 v2.6.1-0.20261027125921-0438a206aa6f // indirect

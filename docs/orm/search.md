@@ -89,7 +89,7 @@ fragment finds and ranks articles:
 
 <!-- go:fragment -->
 ```go
-doc, q := orm.SearchVector(ArticleFields.Title.Name(), ArticleFields.Body.Name()), orm.SearchQuery("go command")
+doc, q := orm.SearchVector(ArticleColumns.Title.Name(), ArticleColumns.Body.Name()), orm.SearchQuery("go command")
 found, err := orm.Objects[Article]().Filter(orm.Match(doc, q)).Order(orm.SearchRank(doc, q).Desc()).All(ctx)
 ```
 
@@ -134,7 +134,7 @@ phrase:
 
 <!-- go:fragment -->
 ```go
-like, err := orm.Objects[Article]().Annotate("sim", orm.Similarity(ArticleFields.Title.Name(), "go tools")).
+like, err := orm.Objects[Article]().Annotate("sim", orm.Similarity(ArticleColumns.Title.Name(), "go tools")).
 	Filter(orm.Q{"sim__gt": 0.3}).OrderBy("-sim").All(ctx)
 ```
 
@@ -146,7 +146,7 @@ are `OrderedExpr[float64]`s, so they filter and order:
 
 <!-- go:fragment -->
 ```go
-v, emb := orm.Vector{0.9, 0.1, 0}, ArticleFields.Embedding.Name()
+v, emb := orm.Vector{0.9, 0.1, 0}, ArticleColumns.Embedding.Name()
 near, err := orm.Objects[Article]().Filter(orm.CosineDistance(emb, v).Lt(0.3)).
 	Order(orm.CosineDistance(emb, v).Asc()).All(ctx)
 ```

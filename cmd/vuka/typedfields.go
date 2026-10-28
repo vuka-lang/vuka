@@ -22,7 +22,7 @@ const ormModule = "github.com/vuka-lang/orm/v2"
 
 // typedFieldsUse matches generated code reading a model's typed fields:
 // PostFields.Title.
-var typedFieldsUse = regexp.MustCompile(`\b[A-Za-z_]\w*Fields\.[A-Z]`)
+var typedFieldsUse = regexp.MustCompile(`\b[A-Za-z_]\w*(?:Fields|Columns)\.[A-Z]`)
 
 // typedFields adds what orm generate writes and the tree lacks — a model's
 // typed fields (PostFields, in post_gen.go beside post.vuka) and its

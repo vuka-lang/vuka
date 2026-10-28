@@ -3,8 +3,8 @@ layout: home
 
 hero:
   name: Vuka
-  text: Go, with a few things more
-  tagline: Result, the ? operator, match, enums and decorators, plus a web framework where pages are files and the UI stays live. It compiles to plain Go.
+  text: Build full-stack web apps in Go. Without the JavaScript complexity.
+  tagline: Vuka adds typed routing, reactive UI, and expressive language features to Go, while compiling your app to plain Go.
   image:
     src: /logo.svg
     alt: Vuka

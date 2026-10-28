@@ -45,6 +45,7 @@ type fixModule struct {
 }
 
 var fixers = []fixer{
+	{"orm-fields", "rename generated XFields values to XColumns, make relation hops methods, and rename the model annotation interface", fixORMFields},
 	{"runtime", "require the Vuka runtime version this vuka generates code for", fixRuntime},
 	{"static-names", "write statics as Type.Member in .vuka files, not by their Go names (User_Table)", fixStaticNames},
 	{"orphans", "remove files vuka gen -inplace wrote for .vuka files that are gone", fixOrphans},

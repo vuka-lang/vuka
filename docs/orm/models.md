@@ -75,10 +75,10 @@ compile error too. A field with nothing to say isn't listed. The ORM calls
 | | |
 |---|---|
 | `p.Save(ctx)` | inserts a new row (its key filled in), updates a saved one |
-| `p.SaveFields(ctx, PostFields.Title, …)` | updates only those columns (or names: `"title"`) |
+| `p.SaveFields(ctx, PostColumns.Title, …)` | updates only those columns (or names: `"title"`) |
 | `p.Refresh(ctx)` | reads the row again |
 | `p.Delete(ctx)` | deletes it |
-| `p.Load(ctx, PostFields.Tags, …)` | reads relations into the row |
+| `p.Load(ctx, PostColumns.Tags(), …)` | reads relations into the row |
 | `p.Add(ctx, "tags", rows…)`, `Remove`, `Set` | changes a many-to-many's links |
 
 ### Named Queries
@@ -90,7 +90,7 @@ a package-level function returning a QuerySet:
 ```go
 // PostLive is the published posts.
 func PostLive() orm.QuerySet[Post] {
-	return orm.Objects[Post]().Filter(PostFields.Published.IsNull(false))
+	return orm.Objects[Post]().Filter(PostColumns.Published.IsNull(false))
 }
 ```
 
@@ -235,24 +235,66 @@ Its methods are `All`, `Add`, `Remove`, `Set`, `Clear` (on a saved row; rows
 or keys), `Rows` and `Loaded` (what `PrefetchRelated` loaded).
 
 A model's typed fields go on through relations into the related model:
-`PostFields.Author.Name`, `PostFields.Tags.Name`.
+`PostColumns.Author().Name`, `PostColumns.Tags().Name`.
 
 ### Relation Options
 
 `orm.Rel` describes a relation:
 
-| `orm.Rel` field | |
-|---|---|
-| `OnDelete` | what deleting the related row does: `orm.Cascade`, `orm.SetNull`, `orm.Restrict` |
-| `Related` | the inverse's name on the related model (`"posts"`: `User`'s posts, for `orm.Q{"posts__views__gt": 60}`) |
-| `Column` | the foreign key's column |
-| `Through` | a many-to-many's table between |
-| `Null` | the key may be NULL |
-| `CrossDB` | the related model is on [another database](/orm/databases#cross-database-relations): no constraint, prefetched rather than joined |
+| `orm.Rel` field | How it works | Example |
+|---|---|---|
+| `OnDelete` | When the target row is deleted, `orm.Cascade` deletes referring rows, `orm.SetNull` clears their keys, and `orm.Restrict` prevents deletion while references remain. Use `Null: true` with `SetNull`. | `@orm.Rel{OnDelete: orm.SetNull, Null: true}` keeps a shelf after its category is deleted. |
+| `Related` | Names the inverse on the target model for string lookups, prefetching and generated typed paths. It must not clash with a target column or another inverse. | `Shelf.Category` with `@orm.Rel{Related: "shelves"}` creates `CategoryColumns.Shelves()` and the `"shelves"` lookup. |
+| `Column` | Overrides the foreign key's database column; `Category` otherwise uses `category_id`. | `@orm.Rel{Column: "category_ref"}` stores the category key in `category_ref`. |
+| `Through` | Names an M2M join table; the default is `<owner table>_<field name>`. | `Product.Tags` with `@orm.Rel{Through: "product_tags"}` uses `product_tags`. |
+| `Null` | Allows the foreign key column to hold SQL NULL, so an `orm.FK` may be unset. | `@orm.Rel{Null: true}` allows a shelf without a category. |
+| `CrossDB` | The target is on [another database](/orm/databases#cross-database-relations). Omits the foreign key constraint; use `PrefetchRelated` to read rows. Joins, `SelectRelated`, and filtering or ordering through it are unavailable; filtering its local key still works. | `@orm.Rel{CrossDB: true}` marks a warehouse relation stored on another database. |
 
-> [!NOTE]
-> Reverse relations have no field type yet: filter through them with the
-> engine's lookups, `orm.Q{"posts__views__gt": 60}`.
+Options can be combined on one relation:
+
+```vuka
+type Shelf struct {
+    orm.Base @orm.Meta{Table: "shelves"}
+    ID int64 @orm.PK
+    Category orm.FK[Category] @orm.Rel{Related: "shelves", Column: "category_ref", OnDelete: orm.SetNull, Null: true}
+}
+```
+
+Here `shelves.category_ref` holds the category key and may be NULL.
+Deleting a category clears that key while keeping its shelves.
+`CategoryColumns.Shelves()` reaches the inverse; for example,
+`CategoryColumns.Shelves().Count()` counts a category's shelves.
+
+An M2M relation uses `Through` for its join table and `Related` for its inverse:
+
+```vuka
+Tags orm.M2M[Tag] @orm.Rel{Through: "product_tags", Related: "products"}
+```
+
+On `Product`, this uses `product_tags` for links and generates
+`TagColumns.Products()` for the inverse.
+
+A foreign key tagged `orm:"related:posts"` (or `@orm.Rel{Related: "posts"}`
+in Vuka) generates `UserColumns.Posts()`, a typed path to `PostFields`.
+Many-to-many relations generate their named inverse too. Generation reports
+both declarations when inverse names clash. Columns are fields and every relation hop is a method:
+`CategoryColumns.Shelves().Products().SaleEnds`.
+
+### Conditions on Models
+
+`ProductFields` is the generated receiver type; `ProductColumns` is the root
+lookup value. A relation carries the same type with a different prefix:
+
+```go
+func (p PostFields) Popular() orm.Cond {
+    return p.Views.Gte(100)
+}
+```
+
+Use `PostColumns.Popular()` at the root or `UserColumns.Posts().Popular()`
+through a relation. `And`, `Or`, and `Not` combine conditions. A relation's
+`Where` accepts conditions made from its own path and applies them inside
+the aggregate, preserving parents with no matching rows.
 
 ## Nullable Fields {#option-fields}
 
@@ -267,7 +309,7 @@ filter on its NULLs like this:
 <!-- go:fragment -->
 ```go
 p.Published = vuka.Some(time.Now())
-drafts, err := orm.Objects[Post]().Filter(PostFields.Published.IsNull(true)).All(ctx)
+drafts, err := orm.Objects[Post]().Filter(PostColumns.Published.IsNull(true)).All(ctx)
 ```
 
 Its typed field is an `orm.Field[V]` with `IsNull` for its NULLs.
@@ -290,16 +332,19 @@ The statics are plain names:
 | Vuka | Go |
 |---|---|
 | `Post.Objects` | `orm.Objects[Post]()`; `orm.For[Post](opts…)` for a manager with options |
-| `Post.Title` (a field reference) | `PostFields.Title`, written by `ormgen` |
+| `Post.Title` (a field reference) | `PostColumns.Title`, written by `ormgen` |
 | `func Post.Live() orm.QuerySet[Post]` | `func PostLive() orm.QuerySet[Post]` |
 | `@orm.Entity` | `orm.Register[T]()` at init; `orm.Check(models…)` takes others |
 
 ### Generated Fields
 
-`PostFields` comes from `ormgen` — `//go:generate go run
+`PostColumns` comes from `ormgen` — `//go:generate go run
 github.com/vuka-lang/orm/v2/cmd/ormgen` beside the models — as an
-`orm.Field[V]` (an `orm.TextField[V]` for strings) per column and a field
-per relation (`PostFields.Author.Name`, `PostFields.Tags`). It is a
+`orm.Field[V]` (an `orm.TextField[V]` for strings) per column and a method
+per relation (`PostColumns.Author().Name`, `PostColumns.Tags()`). `PostFields` is
+the receiver type; `PostPath` remains an alias. Regenerate fields after
+upgrading and rename Go lookup values from `PostFields` to `PostColumns`.
+It is a
 convenience: without it every query takes the engine's strings,
 `orm.Q{"name__startswith": "a"}` and `OrderBy("-views")`, and an unknown
 lookup is a runtime error.
@@ -312,3 +357,8 @@ can't map — a `Schema` given something other than the address of one of the
 receiver's fields among them; [`vukavet`](/tools/vukavet) finds those in
 the source. `orm:` struct tags and `orm.SetFieldOptions(fn)` still work,
 deprecated for `Schema`.
+
+Vuka field sugar keeps its source form, `Post.Author.Name`; the compiler
+lowerings are `PostColumns.Author().Name` with the new ORM and
+`PostFields.Author.Name` with older generators, selected from the app's
+ORM API and generated roots. Eject and gen make the same choice.

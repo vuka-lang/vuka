@@ -76,10 +76,13 @@ export function mount(Component, el, props, ctx) {
 }
 
 // release unmounts the app on el, and forgets it even when its unmount
-// fails (its DOM changed under it): a stale vnode left on the host would
-// make the next app's mount patch against it.
+// fails (its DOM changed under it, as when a navigation already removed
+// the nodes it teleported): a stale vnode left on the host would make the
+// next app's mount patch against it. The failure is tolerated quietly,
+// like the other adapters': debug keeps the trace without alarming every
+// console on a routine navigation.
 function release(el) {
-  if (el.__vue_app__) { try { el.__vue_app__.unmount() } catch (err) { console.error('vuka: unmounting a Vue app:', err) } }
+  if (el.__vue_app__) { try { el.__vue_app__.unmount() } catch (err) { console.debug('vuka: unmounting a Vue app:', err) } }
   if (el._vnode || el.__vue_app__) { el._vnode = null; delete el.__vue_app__; el.textContent = '' }
 }
 `

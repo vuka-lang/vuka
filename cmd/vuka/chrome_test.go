@@ -169,6 +169,15 @@ func (p *tab) goTo(url string) {
 // eval is the value of a JavaScript expression (awaited when a promise).
 func (p *tab) eval(expr string) any {
 	p.c.t.Helper()
+	v, err := p.tryEval(expr)
+	if err != nil {
+		p.c.t.Fatal(err)
+	}
+	return v
+}
+
+// tryEval is eval returning the failure instead of ending the test.
+func (p *tab) tryEval(expr string) (any, error) {
 	var r struct {
 		Result struct {
 			Value any `json:"value"`
@@ -181,24 +190,28 @@ func (p *tab) eval(expr string) any {
 		} `json:"exceptionDetails"`
 	}
 	if err := p.c.call(p.session, "Runtime.evaluate", map[string]any{"expression": expr, "returnByValue": true, "awaitPromise": true}, &r); err != nil {
-		p.c.t.Fatal(err)
+		return nil, err
 	}
 	if r.ExceptionDetails != nil {
-		p.c.t.Fatalf("%s: %s %s", expr, r.ExceptionDetails.Text, r.ExceptionDetails.Exception.Description)
+		return nil, fmt.Errorf("%s: %s %s", expr, r.ExceptionDetails.Text, r.ExceptionDetails.Exception.Description)
 	}
-	return r.Result.Value
+	return r.Result.Value, nil
 }
 
-// wait polls a JavaScript condition for up to 10 seconds.
+// wait polls a JavaScript condition for up to 10 seconds. A navigation can
+// destroy the execution context between polls; its evaluation failure means
+// "not yet", like a false condition.
 func (p *tab) wait(cond string) {
 	p.c.t.Helper()
 	deadline := time.Now().Add(10 * time.Second)
 	for {
-		if v, _ := p.eval("!!(" + cond + ")").(bool); v {
+		v, err := p.tryEval("!!(" + cond + ")")
+		if b, _ := v.(bool); err == nil && b {
 			return
 		}
 		if time.Now().After(deadline) {
-			p.c.t.Fatalf("timed out waiting for %s on %v", cond, p.eval("location.href"))
+			href, _ := p.tryEval("location.href")
+			p.c.t.Fatalf("timed out waiting for %s on %v", cond, href)
 		}
 		time.Sleep(50 * time.Millisecond)
 	}
