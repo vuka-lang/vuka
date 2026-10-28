@@ -40,13 +40,13 @@ var slug = "hello-go"
 SQL's expressions are the engine's: a field's `Expr()` is its column
 (`orm.F("title")`), and functions, `Case`, `Switch`, `Cast`, `Value` and
 `SQL` take expressions, values or other calls — and typed fields as they
-are, `orm.Lower(PostFields.Title)`. A typed call compares by its
+are, `orm.Lower(PostColumns.Title)`. A typed call compares by its
 result's type, so `orm.Length(…).Eq("x")` doesn't compile. This fragment
 uses a few of them:
 
 <!-- go:fragment -->
 ```go
-f, posts := PostFields, orm.Objects[Post]()
+f, posts := PostColumns, orm.Objects[Post]()
 title := f.Title.Expr()
 named := posts.Filter(orm.Lower(title).Eq("go tooling"))
 liked := posts.Filter(orm.Q{"likes__gt": f.Views.Div(2)}) // likes > views / 2
@@ -80,7 +80,7 @@ The `orm` package provides these:
 | `Date` | the date as `YYYY-MM-DD` text |
 | `Coalesce(e, rest…)` | the first that isn't NULL |
 | `Cast(e, orm.AsText)` | a cast |
-| `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * {1}", PostFields.Likes.Expr(), PostFields.Views.Expr())` |
+| `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * {1}", PostColumns.Likes.Expr(), PostColumns.Views.Expr())` |
 | `Where(e, lookup, v)` | a condition on any expression: `orm.Where(orm.SQL("{0} - {1}", views, likes), "gte", 49)` |
 
 ### Typed Calls
@@ -106,7 +106,7 @@ type Stats struct {
 
 func likedStats(ctx context.Context) ([]Stats, error) {
 	return orm.Objects[Post]().Annotate("posts", orm.Count("id")).
-		Annotate("liked", orm.Count("id").Filter(PostFields.Likes.Gte(5))).
+		Annotate("liked", orm.Count("id").Filter(PostColumns.Likes.Gte(5))).
 		Values[Stats]("author__name", "posts", "liked").All(ctx)
 }
 ```
@@ -130,9 +130,9 @@ Then it annotates each post with its heat and filters on a switch:
 
 <!-- go:fragment -->
 ```go
-f, posts := PostFields, orm.Objects[Post]()
+f, posts := PostColumns, orm.Objects[Post]()
 heat := orm.Case(orm.When(f.Views.Gte(100), "hot"), orm.When(f.Views.Gte(20), "warm")).Else("cold")
-score := orm.Switch(f.Author.Name.Expr()).Case("ada", 1).Case("bob", 2).Else(0)
+score := orm.Switch(f.Author().Name.Expr()).Case("ada", 1).Case("bob", 2).Else(0)
 
 hs, err := posts.Annotate("heat", heat).Values[Heat]("title", "heat").All(ctx)
 if err != nil {
@@ -170,15 +170,15 @@ It also finds users through `Exists` and `InQuery`:
 ```go
 posts, users := orm.Objects[Post](), orm.Objects[User]()
 // each user's most-viewed post
-latest := posts.Filter(orm.Q{"author": orm.OuterRef("id")}).OrderBy(PostFields.Views.Desc()).Limit(1).Values[string]("title")
+latest := posts.Filter(orm.Q{"author": orm.OuterRef("id")}).OrderBy(PostColumns.Views.Desc()).Limit(1).Values[string]("title")
 
 tops, err := users.Annotate("top", orm.Subquery(latest)).Values[Top]("name", "top").All(ctx)
 if err != nil {
 	return err
 }
 
-liked := users.Filter(orm.Exists(posts.Filter(orm.Q{"author": orm.OuterRef("id")}, PostFields.Likes.Gte(20))))
-viewed := users.Filter(UserFields.ID.InQuery(posts.Filter(PostFields.Views.Gte(50)).Values[int64]("author")))
+liked := users.Filter(orm.Exists(posts.Filter(orm.Q{"author": orm.OuterRef("id")}, PostColumns.Likes.Gte(20))))
+viewed := users.Filter(UserColumns.ID.InQuery(posts.Filter(PostColumns.Views.Gte(50)).Values[int64]("author")))
 ```
 
 ## Custom Functions {#custom-functions}
@@ -223,8 +223,8 @@ never written into the SQL. Its comparisons are conditions, its `Asc` and
 
 <!-- go:fragment -->
 ```go
-dist := EditDist(PostFields.Title.Expr(), "go")
-close, err := orm.Objects[Post]().Filter(dist.Le(1), PostFields.Views.Gt(50)).Order(dist.Asc()).All(ctx)
+dist := EditDist(PostColumns.Title.Expr(), "go")
+close, err := orm.Objects[Post]().Filter(dist.Le(1), PostColumns.Views.Gt(50)).Order(dist.Asc()).All(ctx)
 ```
 
 ### Window Functions
@@ -275,7 +275,7 @@ func init() {
 }
 
 func longPosts(ctx context.Context) ([]Post, error) {
-	return orm.Objects[Post]().Filter(words(PostFields.Body.Expr()).Ge(5)).All(ctx)
+	return orm.Objects[Post]().Filter(words(PostColumns.Body.Expr()).Ge(5)).All(ctx)
 }
 ```
 
@@ -309,3 +309,27 @@ var initials = m.CreateFunction{
 It is `IMMUTABLE` / `DETERMINISTIC` unless `Volatile`; `Language` picks a
 Postgres language (`plpgsql`). Extension functions (`levenshtein`,
 `unaccent`) come with `m.CreateExtension{Name: "fuzzystrmatch"}`.
+
+
+## Portable Dates
+
+Date expressions compose in Go and compile for the connection's dialect.
+Generated timestamp lookups are `orm.TimeField` values; the `orm.DateField`
+model attribute still describes a DATE column.
+
+| Expression | MySQL | Postgres | SQLite |
+|---|---|---|---|
+| `orm.Today()` | `CURDATE()` | `CURRENT_DATE` | `date('now')` |
+| `orm.Now()` | `NOW()` | `now()` | `datetime('now')` |
+| `orm.Today().AddDays(-3)` | `DATE_SUB(CURDATE(), INTERVAL 3 DAY)` | `CURRENT_DATE + -3` | `date(date('now'), '-3 day')` |
+| `orm.Today().AddMonths(2)` | `DATE_ADD(CURDATE(), INTERVAL 2 MONTH)` | `CURRENT_DATE + interval '2 month'` | `date(date('now'), '+2 month')` |
+| `orm.Now().Add(time.Second)` | `DATE_ADD(NOW(), INTERVAL 1 SECOND)` | `now() + interval '1 second'` | `datetime(datetime('now'), '+1 second')` |
+| `orm.Date(f)` | `DATE(f)` | `(f)::date` | `DATE(f)` |
+| `f.Between(a, b)` | `f BETWEEN a AND b` | same | same |
+
+`AddDays`, `AddMonths`, and `Add(time.Duration)` work on generated timestamp
+fields and on `Date(f)`. Durations retain fractional seconds.
+`TodayIn(loc)` computes the wall date using `orm.Clock` in Go and binds its
+`YYYY-MM-DD` value, independently of the connection's timezone. A nil
+location uses UTC. `Date.Of`, `Date.Def`, and the date lookup transform
+remain available.

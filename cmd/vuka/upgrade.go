@@ -27,6 +27,7 @@ type upgradeStep struct {
 }
 
 var upgradeSteps = []upgradeStep{
+	{"v2.10.0", []string{"orm-fields"}, "ORM lookup roots are XColumns, relation hops are methods, and the model-term interface is ModelAnnotation[T]"},
 	{"v1.0.0", []string{"attributes", "hooks", "ui-structs", "queries"}, "struct tags and loaders found by name become attributes; the ui kit's components are struct literals; queries are the model's Manager's"},
 }
 

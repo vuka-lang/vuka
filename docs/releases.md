@@ -75,6 +75,26 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `navigate` and `patch` also have setup forms. Existing `ctx` and returned
   lifecycle hooks keep working. See [Component Scripts](/ui/scripts#setup).
 
+### ORM
+
+- Typed reverse paths, relation counts and value aggregates, model conditions,
+  portable dates, typed annotations, strict projections, and query SQL inspection.
+  Generated receivers are `ProductFields`; root lookups are `ProductColumns`.
+
+### Upgrading
+
+- `vuka upgrade` runs `vuka fix orm-fields`: generated `XFields` root values
+  become `XColumns`, the old `orm.Annotation[T]` interface becomes
+  `orm.ModelAnnotation[T]`, and relation hops become methods at every level
+  (`CategoryColumns.Shelves().Products()`). Columns stay fields. Receivers
+  such as `func (p ProductFields) OnSale()` keep their names.
+- A named reverse relation must not share a name with a real column or
+  another reverse relation on that model. The CRUD example's `Author.Posts`
+  counter and `Related: "posts"` genuinely clashed; its relation is now
+  `authored_posts`. Generation names both declarations and asks for a
+  distinct `Related` name.
+
+
 ## v2.9.0 — 2026-10-28
 
 ### Parts of Stateless Pages

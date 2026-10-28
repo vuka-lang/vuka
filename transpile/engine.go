@@ -578,6 +578,9 @@ func (e *engine) typedFieldsMissing(msg string) bool {
 		return false
 	}
 	model, ok := strings.CutSuffix(name, "Fields")
+	if !ok {
+		model, ok = strings.CutSuffix(name, "Columns")
+	}
 	if !ok || e.pkg == nil {
 		return false
 	}

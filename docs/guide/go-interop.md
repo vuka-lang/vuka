@@ -54,7 +54,7 @@ each Vuka declaration:
 | `User.New(…)` (the static constructor) | `NewUser(…)` |
 | `User.Find(…)` (another static method) | `UserFind(…)` |
 | `Post.Objects` (a model's manager, a static of `orm.Base`) | `orm.Objects[Post]()` |
-| `Post.Title` (a model's field reference) | `PostFields.Title` (written by `orm generate`) |
+| `Post.Title` (a model's field reference) | `PostColumns.Title` (written by `orm generate`) |
 | overload `area(c Circle)` | `areaCircle` (named after its parameters' types) — or the name you give with `@export("Area")` |
 | `Result[T]`, `Ok`, `Err` | `vuka.Result[T]`, `vuka.Ok`, `vuka.Err` from `github.com/vuka-lang/vuka/v2` |
 

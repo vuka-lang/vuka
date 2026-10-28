@@ -59,12 +59,13 @@ type Session struct {
 	outs          map[string][]*pkgOut // import path → what runs generated for it, the latest first (keepOuts)
 
 	// One run's state.
-	gen     map[string][]byte      // generated file → its Go, as the overlay has it
-	now     map[string]*checkedPkg // the module's packages checked this run
-	broken  map[string]bool        // Vuka packages that didn't transpile
-	failed  error                  // why the session gave up on this run; nil when it didn't
-	walking map[string]bool        // packages being checked, for cycles
-	ran     runStats
+	gen      map[string][]byte      // generated file → its Go, as the overlay has it
+	now      map[string]*checkedPkg // the module's packages checked this run
+	broken   map[string]bool        // Vuka packages that didn't transpile
+	failed   error                  // why the session gave up on this run; nil when it didn't
+	walking  map[string]bool        // packages being checked, for cycles
+	tolerant bool                   // the language server: a package with type errors still imports
+	ran      runStats
 
 	cacheBase string // the disk cache's directory (UseCache); "" for none
 	pruned    bool
@@ -87,6 +88,10 @@ type checkedPkg struct {
 	path, dir string
 	names     []string
 	srcs      [][]byte
+
+	// Checked with type errors (a tolerant run), or importing a package
+	// that was: usable to keep editing against, never cached as an API.
+	partial bool
 }
 
 // pkgOut is what a run generated for a package.
@@ -142,6 +147,7 @@ func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Genera
 	defer s.imp.cache.save()
 	s.pruneCache()
 	s.gen, s.now, s.broken, s.failed, s.walking = map[string][]byte{}, map[string]*checkedPkg{}, map[string]bool{}, nil, map[string]bool{}
+	s.tolerant = opts.Tolerant
 	s.ran = runStats{}
 	gens, overlay, err := transpileRun(pkgs, tmp, opts, s)
 	if errors.Is(err, ErrStopped) {
@@ -307,6 +313,14 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 	if err := s.typeCheck(c); err != nil {
 		return nil, err
 	}
+	for _, imp := range imports {
+		c.partial = c.partial || imp.partial
+	}
+	if c.partial {
+		// This run only: checked again, and cached, once it compiles.
+		s.now[path] = c
+		return c, nil
+	}
 	api := sha256.New()
 	writeAPI(api, c.pkg)
 	for _, c := range imports {
@@ -340,7 +354,14 @@ func (s *Session) typeCheck(c *checkedPkg) error {
 	s.ran.checked++
 	pkg, _ := conf.Check(c.path, fset, files, nil)
 	if typeErr != nil {
-		return fmt.Errorf("%s doesn't compile: %w", c.path, typeErr)
+		if !s.tolerant || pkg == nil {
+			return fmt.Errorf("%s doesn't compile: %w", c.path, typeErr)
+		}
+		// The language server: a package with type errors still has its
+		// declarations, so the packages importing it keep transpiling — an
+		// error anywhere must not freeze completions everywhere else. The
+		// error itself is the package's own diagnostic.
+		c.partial = true
 	}
 	c.pkg = pkg
 	return nil

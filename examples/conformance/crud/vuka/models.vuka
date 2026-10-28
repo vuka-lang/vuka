@@ -17,7 +17,7 @@ type Author struct {
 type Post struct {
 	orm.Base                    @orm.Meta{Table: "posts", Ordering: []string{"id"}}
 	ID        int64          `json:"id"`
-	Author    orm.FK[Author] `json:"author"`    @orm.Rel{Related: "posts"}
+	Author    orm.FK[Author] `json:"author"`    @orm.Rel{Related: "authored_posts"}
 	Title     string         `json:"title"`     @orm.Char{Max: 200}
 	Views     int            `json:"views"`
 	Published bool           `json:"published"`

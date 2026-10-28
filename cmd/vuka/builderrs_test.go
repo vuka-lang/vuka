@@ -454,7 +454,7 @@ type Index struct{}
 		{"models", "entities/broken.vuka", "package entities\n\nfunc broken( {\n}\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
-			fs := files()
+			fs := ormColumnFixtures(orm, files())
 			fs[c.file] = c.src
 			root := localModule(t, webCheckout(t), fs)
 			withModule(t, root, "github.com/vuka-lang/orm/v2", orm)
@@ -478,4 +478,18 @@ type Index struct{}
 			}
 		})
 	}
+}
+
+// ormColumnFixtures keeps these integration fixtures useful with both ORM
+// generations: CI may use main while a coordinated change uses VUKA_ORM.
+func ormColumnFixtures(dir string, files map[string]string) map[string]string {
+	api, _ := os.ReadFile(filepath.Join(dir, "vuka_term.go"))
+	if !bytes.Contains(api, []byte("type ModelAnnotation[")) {
+		return files
+	}
+	names := strings.NewReplacer("entities.UserFields", "entities.UserColumns", "entities.CategoryFields", "entities.CategoryColumns")
+	for path, src := range files {
+		files[path] = names.Replace(src)
+	}
+	return files
 }

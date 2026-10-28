@@ -38,7 +38,7 @@ This function reads and publishes a post inside one transaction:
 ```go
 func publish(ctx context.Context, slug string) error {
 	return orm.Transaction(ctx, func(ctx context.Context) error {
-		p, err := orm.Objects[Post]().Get(ctx, PostFields.Slug.Eq(slug))
+		p, err := orm.Objects[Post]().Get(ctx, PostColumns.Slug.Eq(slug))
 		if err != nil {
 			return err
 		}

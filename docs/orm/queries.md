@@ -40,7 +40,7 @@ func (p *Post) Schema(s *orm.Schema) {
 }
 
 func PostLive() orm.QuerySet[Post] {
-	return orm.Objects[Post]().Filter(PostFields.Published.IsNull(false))
+	return orm.Objects[Post]().Filter(PostColumns.Published.IsNull(false))
 }
 
 var (
@@ -51,7 +51,7 @@ var (
 )
 -->
 
-The samples use `PostFields` (`f`), the typed fields `ormgen` writes
+The samples use `PostColumns` (`f`), the typed fields `ormgen` writes
 ([Models](/orm/models#plain-go)). Every condition is also an engine string,
 `orm.Q{"title__contains": "Go"}`, and terminals return `(T, error)`. Values,
 aggregates and pagination take the engine's names in Go:
@@ -64,9 +64,9 @@ This fragment builds a query of recent posts, then reads them and counts them:
 
 <!-- go:fragment -->
 ```go
-f := PostFields
+f := PostColumns
 recent := orm.Objects[Post]().
-	Filter(f.Title.Contains("Go"), f.Author.Name.Eq("ada")).
+	Filter(f.Title.Contains("Go"), f.Author().Name.Eq("ada")).
 	Exclude(f.Published.IsNull(true)).
 	OrderBy(f.Views.Desc(), f.ID.Asc()).
 	Limit(10)
@@ -80,7 +80,7 @@ n, err := recent.Count(ctx) // int64
 
 ## Filtering Rows {#conditions}
 
-A model's typed field, `PostFields.Title`, is written beside the model by
+A model's typed field, `PostColumns.Title`, is written beside the model by
 `orm generate` (`//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen`). It gives conditions (`orm.Cond`) and orderings:
 
 | Field | Conditions |
@@ -92,16 +92,16 @@ A model's typed field, `PostFields.Title`, is written beside the model by
 
 ### Combining Conditions
 
-Fields go on through relations — `PostFields.Author.Name`, `PostFields.Tags.Name` (a
-second hop is a method: `PostFields.Author.Posts().Title`) — and the query joins
+Fields go on through relations — `PostColumns.Author().Name`, `PostColumns.Tags().Name` (all
+relation hops are methods: `PostColumns.Author().Posts().Title`) — and the query joins
 what they cross. Combine conditions with `orm.And`, `orm.Or` and
 `orm.Not`; several in one `Filter` are and-ed; an `orm.Q{"title__icontains":
 "go"}` is a condition too:
 
 <!-- go:fragment -->
 ```go
-f := PostFields
-q := orm.Objects[Post]().Filter(orm.Or(f.Views.Gt(100), orm.And(f.Tags.Name.Eq("go"), f.Published.IsNull(false))))
+f := PostColumns
+q := orm.Objects[Post]().Filter(orm.Or(f.Views.Gt(100), orm.And(f.Tags().Name.Eq("go"), f.Published.IsNull(false))))
 ```
 
 ### Shaping the Query
@@ -111,7 +111,7 @@ These methods narrow, order and cut the query:
 | | |
 |---|---|
 | `Filter(conds…)`, `Exclude(conds…)` | rows matching, not matching |
-| `OrderBy(``PostFields.Views.Desc()``, …)`, `Order(terms…)` | the order (names, or [expressions](/orm/expressions)' `Asc`/`Desc`); the model's `Meta.Ordering` otherwise |
+| `OrderBy(``PostColumns.Views.Desc()``, …)`, `Order(terms…)` | the order (names, or [expressions](/orm/expressions)' `Asc`/`Desc`); the model's `Meta.Ordering` otherwise |
 | `Limit(n)`, `Offset(n)`, `Distinct()` | |
 | `Unfiltered()` | without the conditions so far |
 
@@ -139,7 +139,7 @@ and an error: `None` where there is no row, other errors as they are.
 
 <!-- go:fragment -->
 ```go
-f := PostFields
+f := PostColumns
 p, err := orm.Objects[Post]().Get(ctx, f.Slug.Eq(slug))
 switch {
 case errors.Is(err, orm.ErrNotFound):
@@ -185,7 +185,7 @@ type Stats struct {
 
 func authorStats(ctx context.Context) ([]Stats, error) {
 	return orm.Objects[Post]().Annotate("posts", orm.Count("id")).Annotate("total", orm.Sum("views")).
-		OrderBy(PostFields.Author.Name.Asc()).Values[Stats]("author__name", "posts", "total").All(ctx)
+		OrderBy(PostColumns.Author().Name.Asc()).Values[Stats]("author__name", "posts", "total").All(ctx)
 }
 ```
 
@@ -206,7 +206,7 @@ fmt.Println(totals.Int("authors"), totals.Int("top"))
 
 <!-- go:fragment -->
 ```go
-prolific, err := orm.Objects[Post]().Annotate("n", orm.Count("id")).GroupBy(PostFields.Author.String()).
+prolific, err := orm.Objects[Post]().Annotate("n", orm.Count("id")).GroupBy(PostColumns.Author().String()).
 	Having(orm.Q{"n__gt": 1}).Values[int64]("n").All(ctx)
 ```
 
@@ -221,7 +221,7 @@ fields you allow:
 
 <!-- go:fragment -->
 ```go
-f := PostFields
+f := PostColumns
 page, err := orm.Paginate(ctx, orm.Objects[Post]().QuerySet, orm.PageFrom(r.URL.Query()),
 	orm.Sortable(f.Views.Name(), f.Published.Name()),
 	orm.Searchable(f.Title.Name()),
@@ -266,11 +266,11 @@ if err != nil {
 }
 fmt.Println(golang.ID, created)
 
-f, posts := PostFields, orm.Objects[Post]()
+f, posts := PostColumns, orm.Objects[Post]()
 if _, err := posts.Filter(f.Views.Lt(5)).Update(ctx, orm.Set{"status": "archived"}); err != nil {
 	return err
 }
-if _, err := posts.Filter(f.Tags.Name.Eq("go")).Update(ctx, orm.Set{"views": f.Views.Add(1)}); err != nil {
+if _, err := posts.Filter(f.Tags().Name.Eq("go")).Update(ctx, orm.Set{"views": f.Views.Add(1)}); err != nil {
 	return err
 }
 if _, err := posts.Filter(f.Published.IsNull(true)).Delete(ctx); err != nil {
@@ -319,10 +319,10 @@ at once:
 
 <!-- go:fragment -->
 ```go
-f := PostFields
+f := PostColumns
 posts, err := orm.Objects[Post]().
-	SelectRelated(f.Author.String()). // JOIN users
-	PrefetchRelated(f.Tags).          // one query for every post's tags
+	SelectRelated(f.Author().String()). // JOIN users
+	PrefetchRelated(f.Tags()).          // one query for every post's tags
 	All(ctx)
 if err != nil {
 	return err
@@ -331,11 +331,11 @@ for _, p := range posts {
 	fmt.Println(p.Author.Related().Name, len(p.Tags.Rows()))
 }
 
-goTags := orm.Objects[Post]().PrefetchRelated(orm.Prefetch("tags", orm.Objects[Tag]().Filter(TagFields.Name.Eq("go"))))
+goTags := orm.Objects[Post]().PrefetchRelated(orm.Prefetch("tags", orm.Objects[Tag]().Filter(TagColumns.Name.Eq("go"))))
 ```
 
 `orm.Prefetch(path, query)` prefetches only the rows of `query`.
-`p.Load(ctx, PostFields.Tags)` loads a relation into one row.
+`p.Load(ctx, PostColumns.Tags())` loads a relation into one row.
 `orm.LoadRelated(ctx, posts, "author", "tags")` loads relations into rows
 read already (a slice of pointers to them), one query per relation for all
 of them: what a GraphQL field holding a relation resolves through.
@@ -352,3 +352,101 @@ more:
 ```go
 popular, err := orm.Objects[Post]().Raw("SELECT * FROM posts WHERE views > ?", 100).All(ctx)
 ```
+
+
+## Related Counts and Model Conditions
+
+This query keeps every category, including categories with no products on sale.
+Reverse paths come from the foreign keys' `related` tags:
+
+```go
+type Category struct {
+    orm.Model[Category]
+    ID int64
+    Name string
+}
+type Shelf struct {
+    orm.Model[Shelf]
+    ID int64
+    Category orm.FK[Category] `orm:"related:shelves"`
+}
+type Product struct {
+    orm.Model[Product]
+    ID int64
+    Shelf orm.FK[Shelf] `orm:"related:products"`
+    Status int
+    SaleEnds time.Time
+}
+type CategoryCount struct {
+    ID int64
+    Name string
+    OnSaleCount int64 `db:"on_sale_count"`
+}
+func (p ProductFields) OnSale() orm.Cond {
+    return orm.And(p.Status.Between(2, 3), p.SaleEnds.Gte(orm.Today().AddDays(-3)))
+}
+func CategoryCounts(ctx context.Context) ([]CategoryCount, error) {
+    c := CategoryColumns
+    products := c.Shelves().Products()
+    return orm.Objects[Category]().
+        Annotate("on_sale_count", products.Where(products.OnSale()).Count()).
+        OrderBy(c.Name.Asc()).
+        Values[CategoryCount]("id", "name", "on_sale_count").All(ctx)
+}
+```
+
+MySQL uses `CASE WHEN`; Postgres uses `FILTER`. Aliases are shortened here:
+
+::: code-group
+```sql [MySQL]
+SELECT c.id, c.name,
+       COUNT(DISTINCT CASE WHEN p.status BETWEEN ? AND ?
+           AND p.sale_ends >= DATE_SUB(CURDATE(), INTERVAL 3 DAY)
+           THEN p.id END) AS on_sale_count
+FROM categories c
+LEFT JOIN shelves s ON s.category_id = c.id
+LEFT JOIN products p ON p.shelf_id = s.id
+GROUP BY c.id, c.name
+ORDER BY c.name
+```
+```sql [Postgres]
+SELECT c.id, c.name,
+       COUNT(DISTINCT p.id) FILTER (WHERE p.status BETWEEN $1 AND $2
+           AND p.sale_ends >= CURRENT_DATE - 3) AS on_sale_count
+FROM categories c
+LEFT JOIN shelves s ON s.category_id = c.id
+LEFT JOIN products p ON p.shelf_id = s.id
+GROUP BY c.id, c.name
+ORDER BY c.name
+```
+:::
+
+Both bind `2, 3`. SQLite uses `CASE WHEN` and `date(date('now'), '-3 day')`.
+`Count` counts distinct target primary keys. `CountRows` counts raw joined
+rows, including the empty row of a LEFT JOIN. `Exists` uses a correlated
+`EXISTS` query. Relation `Where` narrows the aggregate; query `Filter`
+narrows parent rows.
+
+`Sum(field)`, `Avg(field)`, `Min(field)`, and `Max(field)` aggregate each
+related primary key once. With two or more relation aggregates, each gets
+its own correlated subquery, so one relation cannot multiply another's
+rows. Value aggregates deduplicate primary keys in their own subquery.
+
+A typed annotation handle keeps its name with its expression:
+
+<!-- go:fragment -->
+```go
+products := CategoryColumns.Shelves().Products()
+n := orm.Annotation[int64]("on_sale_count", products.Where(products.OnSale()).Count())
+q := orm.Objects[Category]().Annotate(n).Filter(n.Gt(0)).Order(n.Desc())
+query, args, err := q.Values[CategoryCount]("id", "name", "on_sale_count").SQL(ctx)
+_, _, _ = query, args, err
+```
+
+`orm.Ref[int64]("on_sale_count")` refers to an existing annotation. Filters
+on aggregate annotations become `HAVING`. Unknown annotation names report
+spelling suggestions. `SQL(ctx)` builds SQL and arguments for the context's
+database without executing it. `Values` checks both directions: every
+selected column needs a destination field, and every destination field
+needs a selected column. The existing model-term annotation interface is
+now named `orm.ModelAnnotation[T]`.

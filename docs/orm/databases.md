@@ -227,7 +227,7 @@ Its key is a plain indexed column with no foreign key constraint.
 `PrefetchRelated`, `Load` and `FK.Get` read the related rows from their own
 database, in batches by key, and filtering by the key reads the column. A
 query that would join it — a filter, an ordering or `SelectRelated` through
-it (`SaleFields.Product.Name.Eq(…)`) — is refused before it is sent, naming the
+it (`SaleColumns.Product.Name.Eq(…)`) — is refused before it is sent, naming the
 relation. Without `CrossDB`, a relation between models on two databases
 fails `Check`, naming both.
 
