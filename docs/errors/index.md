@@ -72,6 +72,8 @@ same page in the terminal.
 | [E0159](./E0159) | A model or for attribute names a field the form lacks |
 | [E0160](./E0160) | A call in markup returns values markup can't take |
 | [E0161](./E0161) | ui.FormOf names a field the model lacks |
+| [E0162](./E0162) | A call in markup is short of an argument |
+| [E0163](./E0163) | A statement's name used after its element |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |
@@ -142,6 +144,7 @@ same page in the terminal.
 | [E0348](./E0348) | A fallback that stands in for no part |
 | [E0349](./E0349) | A part naming another type's method |
 | [E0350](./E0350) | A deferred call in no element |
+| [E0351](./E0351) | A boundary's markup is misplaced |
 | [W0301](./W0301) | A live page routed as a stateless one |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |

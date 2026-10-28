@@ -226,6 +226,11 @@
           "default": true,
           "description": "Add a closing tag when an opening tag in .vuka.html markup is finished by typing >, and the open element's name after </."
         },
+        "vuka.inlayHints.implicitContext": {
+          "type": "boolean",
+          "default": true,
+          "description": "Show an inlay hint, ctx, where a call in .vuka.html markup gets the render's context without writing it. Takes effect when the server restarts."
+        },
         "vuka.organizeImportsOnSave": {
           "type": "boolean",
           "default": true,

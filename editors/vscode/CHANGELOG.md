@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- A call in `.vuka.html` markup that gets the render's `ctx` without writing it shows an inlay hint, `ctx`, where it goes, and its hover says the page supplies it. `vuka.inlayHints.implicitContext` turns the hint off. Needs the Vuka v2.10.0 language server.
+
 ## 0.11.0
 
 - Organize a `.vuka` or `.vuka.html` file's imports when it is saved, before it is formatted: the imports nothing in the file uses go, a package the file uses without an import comes in when only one package can be meant, and the imports are grouped as goimports groups them (`editor.codeActionsOnSave` with `source.organizeImports`, contributed for both languages). `vuka.organizeImportsOnSave` turns it off; **Organize Imports** (Shift+Alt+O) works either way. A save waits at most 1.5 seconds for it, then saves without it. Needs the Vuka v2.9.0 language server.

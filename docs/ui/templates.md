@@ -209,8 +209,10 @@ gets the error message a failing event gets. Each call runs once each time
 its place is evaluated, as written: two holes calling `Store.Users()` call
 it twice.
 
-A call passing its results on keeps them, as in Go —
-`{fmt.Sprint(Store.Users())}` — and so does a statement:
+A statement binding one name to such a call unwraps it the same way:
+`users := Store.Users()` is a `[]User`, an error failing the render where
+`users` is first shown. A call passing its results on keeps them, as in Go —
+`{fmt.Sprint(Store.Users())}` — and so does a statement binding both:
 `users, err := Store.Users()`, then `if err != nil { … }`. A call returning
 anything else where markup takes one value — `(User, bool)`, three results,
 or only an `error` shown as a value — is [E0160](/errors/E0160).
@@ -219,6 +221,37 @@ or only an `error` shown as a value — is [E0160](/errors/E0160).
 > A call in markup runs on every render, each re-render of a live page
 > included: every event, every patch. A query belongs in `Load` or the
 > page's `@ui.Mount`, run once into a field the markup reads.
+
+### The Render's Context {#implicit-ctx}
+
+A call in markup whose function takes a `context.Context` first gets the
+render's `ctx` when it's written without one: the context markup already
+has, as it has `user` and `perms`.
+
+```html
+<p>{len(GetCategories())} categories</p>     <!-- GetCategories(ctx) -->
+for _, a := range Adverts(page) {             <!-- Adverts(ctx, page) -->
+  <li>{a.Title}</li>
+}
+<p>{Format(user.Joined)}</p>                  <!-- as written: Format takes no context -->
+```
+
+It applies to the calls of holes, attributes, component props, blocks'
+headers and statements — methods and functions, variadic and generic — and
+only to a call that doesn't compile as written: one argument short, its
+first parameter a `context.Context`. `GetCategories(ctx)` written out is
+left as it is. Go code — a `.vuka` file, a template's header or
+`<script lang="go">` — passes its contexts itself, and a method value that
+isn't called, `for={GetCategories}`, is no call. Of overloads, the one the
+call matches as written wins (`GetCategories()` over `GetCategories(ctx)`);
+when none does and more than one matches with the ctx, the call is
+ambiguous, [E0121](/errors/E0121).
+
+Only the context is passed: a call still short of an argument is
+[E0162](/errors/E0162). A service belongs to the page, taken by its
+constructor and kept in a field the markup reads. The generated Go has the
+real call, `p.GetCategories(ctx)`; hover in the editor says the page
+supplies the ctx, and an inlay hint shows it.
 
 ## Go Statements in Markup {#statements}
 
@@ -261,6 +294,40 @@ place, not the value after the statements below it:
   <p>{x}</p>   <!-- 2 -->
 </section>
 ```
+
+### Bindings {#bindings}
+
+A statement's names are its element's: from the statement to the end of
+the element it is in (the whole markup for one at its top level). A name
+used after its element is [E0163](/errors/E0163).
+
+A statement binding one name to a call of the app's code is lazy: the call
+runs where the render first reads the name, once, and the result is reused.
+A binding no rendered markup reads never runs — one used only in a branch
+not taken, or not at all:
+
+```html
+<section>
+  categories := GetCategories()   <!-- runs at the first {…} reading it -->
+  stats := Stats()                <!-- never runs: no use renders -->
+  <h3>{len(categories)} categories</h3>
+  for _, c := range categories {
+    <label>{c.Name}</label>
+  }
+  if false {
+    <p>{stats.Open} open</p>
+  }
+</section>
+```
+
+The `(T, error)` unwrap applies at that first read, where the value would
+have appeared. The generated Go is
+`categories := sync.OnceValue(func() []Category { return ui.Must(p.GetCategories(ctx)) })`,
+each read `categories()`. A binding the markup assigns again (`x = 2`), or
+takes the address of, runs at its statement, as do a binding of several
+names and one of standard-library calls only (`n := len(xs)`). A deferred
+method's binding is its element's part: see
+[Parts of a Page](/web/parts#bindings).
 
 ## Components and Slots {#components-and-slots}
 
