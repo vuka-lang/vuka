@@ -168,6 +168,10 @@ func TestEjectORM(t *testing.T) {
 		`orm.Optional(orm.Objects[Note]().Filter(orm.Or(NoteFields.Title.Eq(title), orm.Lower(NoteFields.Title).Eq(strings.ToLower(title)))).First(ctx))`,
 		`orm.Of[Note](orm.DBSchema{})`,
 	} {
+		api, _ := os.ReadFile(filepath.Join(orm, "vuka_term.go"))
+		if bytes.Contains(api, []byte("type ModelAnnotation[")) {
+			want = strings.ReplaceAll(want, "NoteFields", "NoteColumns")
+		}
 		if !bytes.Contains(src, []byte(want)) {
 			t.Errorf("no %s in the ejected main.go:\n%s", want, src)
 		}
