@@ -4,6 +4,7 @@ import (
 	"go/ast"
 	"go/types"
 	"slices"
+	"strconv"
 	"strings"
 )
 
@@ -260,7 +261,9 @@ func (e *engine) implicitCtx(f *fileState) bool {
 			changed = true
 		case short:
 			f.ctxDone[key] = true
-			e.shortCall(f, c, sig, len(args))
+			if !e.incompleteCalls {
+				e.shortCall(f, c, sig, len(args))
+			}
 		}
 	}
 	if changed {
@@ -385,11 +388,14 @@ func (e *engine) shortCall(f *fileState, c *ast.CallExpr, sig *types.Signature, 
 	var err *Error
 	if serviceLike(p.Type()) {
 		ctor := "New" + f.html.recvType
-		err = e.errs.add("E0162", at, "%s needs a %s: markup can't pass services; take it in %s", name, t, ctor).
-			help("take the %s in %s, keep it in a field of %s, and pass the field", t, ctor, f.html.recvType)
+		err = e.errs.add("E0162", at, "%s needs a %s: markup can't pass services", name, t).
+			help("take it in %s, keep it in a field of %s, and pass the field", ctor, f.html.recvType)
 	} else {
-		err = e.errs.add("E0162", at, "%s needs a %s as its argument %d", name, t, i+1-ctxShift(sig)).
-			help("pass it: markup passes only the render's ctx itself")
+		article := "a"
+		if strings.HasPrefix(t, "int") || strings.HasPrefix(t, "error") || strings.HasPrefix(t, "interface") {
+			article = "an"
+		}
+		err = e.errs.add("E0162", at, "%s's %s argument (%s %s) is missing: markup supplies only ctx", name, argumentOrdinal(i+1-ctxShift(sig)), article, t)
 	}
 	if !strings.Contains(text, "\n") {
 		err.Len = len(text)
@@ -454,4 +460,23 @@ func (f *fileState) implicitOf() []ImplicitCtx {
 func (f *fileState) writtenFunc(n ast.Node) bool {
 	at := f.orig(n.Pos())
 	return at+4 <= len(f.src) && string(f.src[at:at+4]) == "func"
+}
+
+func argumentOrdinal(n int) string {
+	words := []string{"first", "second", "third", "fourth", "fifth", "sixth", "seventh", "eighth", "ninth", "tenth"}
+	if n > 0 && n <= len(words) {
+		return words[n-1]
+	}
+	suffix := "th"
+	if n%100 < 11 || n%100 > 13 {
+		switch n % 10 {
+		case 1:
+			suffix = "st"
+		case 2:
+			suffix = "nd"
+		case 3:
+			suffix = "rd"
+		}
+	}
+	return strconv.Itoa(n) + suffix
 }

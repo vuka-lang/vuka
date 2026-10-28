@@ -961,7 +961,17 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			if opts.Bare {
 				// The language server: the package's other files still
 				// type-check without those with errors.
-				res = transpileWithout(p, topts, list)
+				for _, d := range list {
+					if d.Code == "E0162" {
+						recovery := topts
+						recovery.IncompleteCalls = true
+						res, _ = transpile.Package(p.Files, recovery)
+						break
+					}
+				}
+				if res == nil {
+					res = transpileWithout(p, topts, list)
+				}
 			}
 			if res == nil {
 				imp.Broken(p.ImportPath)

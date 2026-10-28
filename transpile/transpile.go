@@ -37,6 +37,10 @@ func (f File) IsVuka() bool { return strings.HasSuffix(f.Name, ".vuka") || f.IsT
 
 // Options configure Package.
 type Options struct {
+	// IncompleteCalls preserves calls missing arguments for editor recovery.
+	// Run without it first to obtain the normal missing-argument diagnostics.
+	IncompleteCalls bool
+
 	// Importer resolves imports when a package has to be type-checked
 	// (overloads, ?, match, Result and Option). Nil uses go/importer's source
 	// importer.
@@ -581,7 +585,7 @@ func Package(files []File, opts Options) (*Result, error) {
 // render's ctx; again names more that need it, when it compiled nothing.
 func compile(files []File, opts Options, force map[string]bool) (*Result, map[string]bool, error) {
 	var errs ErrorList
-	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes}
+	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}

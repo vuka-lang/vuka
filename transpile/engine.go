@@ -29,6 +29,7 @@ type engine struct {
 	imp             types.Importer
 	errs            *ErrorList
 	bare            bool
+	incompleteCalls bool
 	moduleRoot      string
 	dir             string
 	importPath      string

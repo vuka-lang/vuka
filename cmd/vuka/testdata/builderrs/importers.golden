@@ -4,13 +4,13 @@ error[E0002]: undefined: entities.UserFields
 14 |     _ = entities.UserFields
    |         ^^^^^^^^^^^^^^^^^^^
 
-error[E0162]: HomePath needs a int as its argument 1
+error[E0162]: HomePath's first argument (an int) is missing: markup supplies only ctx
   --> layouts/main.vuka.html:16:14
    |
 16 |     <a href={a.HomePath()}>Home</a>
    |              ^^^^^^^^^^^^
    |
-   = help: pass it: markup passes only the render's ctx itself
+   = help: take the service in the page's constructor, keep it in a field, and pass the field
 
 For more information about this error, try `vuka explain E0162`.
 
