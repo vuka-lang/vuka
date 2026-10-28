@@ -756,7 +756,7 @@ func (e *engine) inferSelf() {
 			}
 			for _, imp := range f.ast.Imports {
 				path := strings.Trim(imp.Path.Value, `"`)
-				if isStd(path) {
+				if e.stdImport(path) {
 					continue // Go's own packages have no Self types
 				}
 				pkg, err := e.imp.Import(path)
@@ -817,7 +817,7 @@ func (e *engine) inferSelf() {
 					case *ast.SelectorExpr:
 						// Another package's type may bring statics, unless it is
 						// Go's own.
-						if id, ok := x.X.(*ast.Ident); ok && !isStd(importPath(f, id.Name)) {
+						if id, ok := x.X.(*ast.Ident); ok && !e.stdImport(importPath(f, id.Name)) {
 							e.genericEmbeds[ts.Name.Name] = true
 						}
 					}
@@ -947,7 +947,7 @@ func (e *engine) mayUseStatics(f *fileState) bool {
 	nonStd := map[string]bool{}
 	for _, imp := range f.ast.Imports {
 		path := strings.Trim(imp.Path.Value, `"`)
-		if isStd(path) {
+		if e.stdImport(path) {
 			continue
 		}
 		name := ImportName(path)
@@ -989,6 +989,17 @@ func (e *engine) mayUseStatics(f *fileState) bool {
 // has no dot.
 func isStd(path string) bool {
 	return !strings.Contains(strings.SplitN(path, "/", 2)[0], ".")
+}
+
+// stdImport is isStd knowing the package being built: a module named without
+// a dot (a local module like "app") is not the standard library, and its own
+// packages share the building package's first path element.
+func (e *engine) stdImport(path string) bool {
+	if !isStd(path) {
+		return false
+	}
+	root := strings.SplitN(e.importPath, "/", 2)[0]
+	return root == "" || (path != root && !strings.HasPrefix(path, root+"/"))
 }
 
 // memberNames are the package's Type.field and Type.method names.
