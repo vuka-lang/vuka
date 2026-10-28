@@ -20,6 +20,8 @@ github.com/vuka-lang/ui/v2 v2.9.0 h1:GHI4VWhilsnS5HvlIb5LflTRx42ZC2zOXOF/FPfDPMI
 github.com/vuka-lang/ui/v2 v2.9.0/go.mod h1:ApbY0LEpNlPzPuhbLvwmOfQHD5JJMYT4cvD5XXbmwFQ=
 github.com/vuka-lang/ui/v2 v2.9.1-0.20261028044238-36a4568a1d99 h1:nw5n+2IhVzZcnDF6s83+U3r6OPEiOEJJTriAJ6DeZsk=
 github.com/vuka-lang/ui/v2 v2.9.1-0.20261028044238-36a4568a1d99/go.mod h1:ApbY0LEpNlPzPuhbLvwmOfQHD5JJMYT4cvD5XXbmwFQ=
+github.com/vuka-lang/ui/v2 v2.9.1-0.20261028062735-137582a205e9 h1:hkWrSIlp0E/F1d43WiCmuBACe8ruaHb62eV3mW8z38s=
+github.com/vuka-lang/ui/v2 v2.9.1-0.20261028062735-137582a205e9/go.mod h1:ApbY0LEpNlPzPuhbLvwmOfQHD5JJMYT4cvD5XXbmwFQ=
 github.com/vuka-lang/vuka/v2 v2.5.1-0.20261024103159-d7701ae71012 h1:EW9BTtWffW5qqRELddK4ryfeH/J8Kjd66DJXRO8a0uM=
 github.com/vuka-lang/vuka/v2 v2.5.1-0.20261024103159-d7701ae71012/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.5.1-0.20261026025647-0bc7c0123034 h1:zokTB7FlS43gtdK5yAyRVrrTRn8HM0GnPHCfn2jWziY=
@@ -72,6 +74,10 @@ github.com/vuka-lang/vuka/v2 v2.9.0 h1:1Q95PZTWJ7G1oqcdTrjPbcpH/z/VJYKCLfPcHWlRR
 github.com/vuka-lang/vuka/v2 v2.9.0/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.9.1-0.20261028060944-77600fdb2b59 h1:ddioQS9EviH9jX790GBvAkX5fsDWRPn1Fi9tR3LgR+k=
 github.com/vuka-lang/vuka/v2 v2.9.1-0.20261028060944-77600fdb2b59/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.9.1-0.20261028062609-928079e93660 h1:xtExRECrFKSDSJ7nR1oCIh/awORYFMbBdKslIEgZ7RU=
+github.com/vuka-lang/vuka/v2 v2.9.1-0.20261028062609-928079e93660/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.9.1-0.20261028062834-36a9490d65d8 h1:EUeavjfup2ltBpKISkQj+9oIabk9Lz/NxULOaGT0m94=
+github.com/vuka-lang/vuka/v2 v2.9.1-0.20261028062834-36a9490d65d8/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 golang.org/x/sys v0.0.0-20220715151400-c0bba94af5f8/go.mod h1:oPkhp1MJrh7nUepCBck5+mAzfO9JrbApNNgaTdGDITg=
