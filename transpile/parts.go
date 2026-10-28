@@ -268,9 +268,13 @@ func (e *engine) findParts(f *fileState) bool {
 					}
 				}
 				if n.isSuspense(f) {
+					savedBoundary := boundary
+					if attrNamed(n, "for") != nil {
+						boundary = -1
+					}
 					boundary++
 					walk(n.kids, n)
-					boundary--
+					boundary = savedBoundary
 					continue
 				}
 				walk(n.kids, n)
@@ -278,6 +282,10 @@ func (e *engine) findParts(f *fileState) bool {
 				in(e.exprAt(f, n.expr), use)
 			case *jsxBlock:
 				if n.stmt {
+					if f.susBindings[n.heads[0].start] != nil {
+						headCalls(n.heads[0], func(m *deferMethod, c *ast.CallExpr) { m.called = true; allowed[nameOff(c)] = true })
+						continue
+					}
 					if b := e.deferBinding(f, n.heads[0], methodOf); b != nil && boundary > 0 {
 						b.m.called = true
 						allowed[nameOff(b.call)] = true

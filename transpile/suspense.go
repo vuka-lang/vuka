@@ -1,6 +1,10 @@
 package transpile
 
-import "strings"
+import (
+	"go/ast"
+	"go/token"
+	"strings"
+)
 
 // <ui.Suspense> is a boundary of a stateless page: what its markup reaches
 // renders after the page's first bytes, every call in it with it, and is
@@ -51,7 +55,10 @@ func suspenseSlots(el *jsxElem) (fallback, failed *jsxElem, body []jsxNode) {
 // suspenseErrors reports a boundary's other slots: E0351.
 func (e *engine) suspenseErrors(f *fileState, el *jsxElem) {
 	for _, a := range el.attrs {
-		e.errs.add("E0351", f.at(a.off), "<%s> takes no attributes: its <slot:fallback> and <slot:error> are its fallbacks", el.tag).
+		if a.name == "for" && a.kind == 'e' {
+			continue
+		}
+		e.errs.add("E0351", f.at(a.off), "<%s> takes only for={bindings}: its <slot:fallback> and <slot:error> are its fallbacks", el.tag).
 			help("drop %s", a.name)
 	}
 	seen := map[string]bool{}
@@ -109,6 +116,7 @@ func (e *engine) checkSuspense(f *fileState) {
 			case *jsxElem:
 				if n.isSuspense(f) {
 					e.suspenseErrors(f, n)
+					e.suspenseBindings(f, n)
 				}
 				walk(n.kids)
 			case *jsxBlock:
@@ -123,5 +131,78 @@ func (e *engine) checkSuspense(f *fileState) {
 	}
 	for _, t := range f.jsx {
 		walk([]jsxNode{t.root})
+	}
+}
+
+// suspenseBindings resolves for={a, b} against preceding markup bindings.
+func (e *engine) suspenseBindings(f *fileState, el *jsxElem) {
+	a := attrNamed(el, "for")
+	if a == nil || a.kind != 'e' {
+		return
+	}
+	if f.susBindings == nil {
+		f.susBindings = map[int]*jsxElem{}
+	}
+	stmts := e.markupStmts(f)
+	type binding struct {
+		st markupStmt
+		id *ast.Ident
+	}
+	bindings := map[string]binding{}
+	var names []string
+	for _, st := range stmts {
+		s := st.b.heads[0]
+		if s.start >= el.start || st.el != nil && (el.start < st.el.start || el.end > st.el.end) {
+			continue
+		}
+		as := e.stmtAssign(f, s)
+		if as == nil || as.Tok != token.DEFINE {
+			continue
+		}
+		for _, l := range as.Lhs {
+			id, ok := l.(*ast.Ident)
+			if !ok || id.Name == "_" {
+				continue
+			}
+			if _, exists := bindings[id.Name]; !exists {
+				names = append(names, id.Name)
+			}
+			bindings[id.Name] = binding{st, id}
+		}
+	}
+	text := string(f.src[a.expr.start:a.expr.end])
+	seen := map[string]bool{}
+	for _, raw := range strings.Split(text, ",") {
+		name := strings.TrimSpace(raw)
+		b, ok := bindings[name]
+		if !ok {
+			err := e.errs.add("E0352", f.at(a.expr.start), "<%s for={%s}>: %s is not a binding in scope", el.tag, text, name)
+			if near := closestName(name, names); near != "" {
+				err.Suggest = near
+			}
+			err.help("name a preceding := binding in the same enclosing element")
+			continue
+		}
+		if seen[name] {
+			continue
+		}
+		seen[name] = true
+		at := b.st.b.heads[0].start
+		if previous := f.susBindings[at]; previous != nil && previous != el {
+			e.errs.add("E0352", f.at(a.expr.start), "%s is listed in two Suspense boundaries", name).help("list a binding in only one boundary")
+			continue
+		}
+		f.susBindings[at] = el
+		used := false
+		for _, u := range e.usesOf(f, e.info.Defs[b.id], name) {
+			off := f.orig(u.Pos())
+			if off > el.tagEnd && off < el.end {
+				used = true
+				break
+			}
+		}
+		if !used {
+			f.susWarnings.add("W0351", f.at(a.expr.start), "Suspense waits for %s but shows nothing from it", name)
+		}
 	}
 }

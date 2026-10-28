@@ -1,0 +1,16 @@
+package main
+
+import "context"
+
+type Page struct { Store Store; More bool }
+
+@ui.Defer
+func (p *Page) GetCategories(ctx context.Context) ([]Category, error) { return p.Store.Categories(ctx) }
+<main>
+  categories := GetCategories()
+  stats := Store.Stats()
+  <ui.Suspense for={categories, stats}>
+    <slot:fallback><b>loading</b></slot:fallback>
+    <h3>{len(categories)} categories · {stats.Open} open</h3>
+  </ui.Suspense>
+</main>

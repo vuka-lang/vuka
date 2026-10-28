@@ -234,6 +234,15 @@ func (e *engine) run() {
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()
 		e.warns = e.ctxWarnings()
+		for _, f := range e.vuka {
+			if len(f.susWarnings) == 0 {
+				continue
+			}
+			if e.warns == nil {
+				e.warns = map[*fileState]ErrorList{}
+			}
+			e.warns[f] = append(e.warns[f], f.susWarnings...)
+		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {
 				e.warns = map[*fileState]ErrorList{}

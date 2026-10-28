@@ -27,12 +27,14 @@ func (p *Index) Inbox(ctx context.Context) (int, error) { return p.store.Inbox(c
 
 @ui.Defer
 func (p *Index) Alerts(ctx context.Context) (int, error) { return p.store.Alerts(ctx) }
+func (p *Index) Title() string { return "My applications" }
 </script>
 
 <html lang="en">
   <head><title>Applications</title></head>
   <body>
-    <h1>My applications</h1>
+    heading := Title()
+    <h1>{heading}</h1>
     <p class="figures">{Figures(ctx).Open} open · {Figures(ctx).Shortlisted} shortlisted</p>
     <ui.Fallback for={Figures}><span class="skeleton">…</span></ui.Fallback>
     <ul class="recent">
@@ -41,7 +43,15 @@ func (p *Index) Alerts(ctx context.Context) (int, error) { return p.store.Alerts
       }
     </ul>
     <p class="tags">{len(Tags(ctx))} tags</p>
-    <p class="inbox">{Inbox(ctx)} unread</p>
+    <section>
+      inbox := Inbox()
+      <ui.Fallback for={inbox}><span>Loading inbox…</span></ui.Fallback>
+      <p class="inbox">{inbox} unread</p>
+    </section>
+    <ui.Suspense>
+      <slot:fallback><span>Loading summary…</span></slot:fallback>
+      <p class="summary">{Title()}</p>
+    </ui.Suspense>
     <p class="alerts">{Alerts(ctx)} alerts</p>
     <ui.Fallback for={Alerts} error><p class="alerts">Alerts are unavailable.</p></ui.Fallback>
     <ui.Link href="/ingo">In Go</ui.Link>

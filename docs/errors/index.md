@@ -145,6 +145,7 @@ same page in the terminal.
 | [E0349](./E0349) | A part naming another type's method |
 | [E0350](./E0350) | A deferred call in no element |
 | [E0351](./E0351) | A boundary's markup is misplaced |
+| [E0352](./E0352) | A Suspense wait list names an unavailable binding |
 | [W0301](./W0301) | A live page routed as a stateless one |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |
@@ -155,6 +156,7 @@ same page in the terminal.
 | [W0311](./W0311) | A form embeds a database model |
 | [W0312](./W0312) | A form field's control leaves out a constraint attribute |
 | [W0313](./W0313) | A depends tag names a field the form lacks |
+| [W0351](./W0351) | A Suspense wait list names a binding it never shows |
 
 ## Routes and the web app
 

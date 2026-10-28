@@ -385,3 +385,27 @@ own markup calls directly. Everything else is an error at the attribute:
 | [E0349](/errors/E0349) | in Go, a `ui.Part` naming another type's method |
 | [E0350](/errors/E0350) | a deferred call in no element, which would be its part |
 | [E0351](/errors/E0351) | a `<ui.Suspense>` with an attribute, or a slot but `<slot:fallback>` and `<slot:error>` |
+
+### Waiting for named bindings
+
+Use `for={a, b}` to choose the bindings a boundary waits for. Declare them
+above the boundary; they remain available after it.
+
+```html
+categories := GetCategories()
+stats := CategoryStats()
+<ui.Suspense for={categories, stats}>
+  <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
+  <h3>{len(categories)} categories · {stats.Open} open</h3>
+</ui.Suspense>
+```
+
+The listed bindings run at their first rendered use, even when their
+methods have no `@ui.Defer`. An unused binding never delays the reveal.
+Unlisted deferred work inside keeps its own part and fallback; ordinary
+calls render inline with the boundary. A binding depending on a listed
+binding is ready before the markup using it can reveal.
+
+A name must be a preceding binding in scope, and may appear in only one
+boundary's list ([E0352](/errors/E0352)). A listed binding never read in the
+boundary produces [W0351](/errors/W0351).
