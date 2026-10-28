@@ -703,6 +703,9 @@ type Generated struct {
 	// Unwrapped are the calls in its markup returning (T, error)
 	// (transpile.Output.Unwrapped).
 	Unwrapped []transpile.Unwrap
+	// Implicit are the calls in its markup given the render's ctx
+	// (transpile.Output.Implicit).
+	Implicit []transpile.ImplicitCtx
 }
 
 // Options configure Transpile.
@@ -958,7 +961,17 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			if opts.Bare {
 				// The language server: the package's other files still
 				// type-check without those with errors.
-				res = transpileWithout(p, topts, list)
+				for _, d := range list {
+					if d.Code == "E0162" {
+						recovery := topts
+						recovery.IncompleteCalls = true
+						res, _ = transpile.Package(p.Files, recovery)
+						break
+					}
+				}
+				if res == nil {
+					res = transpileWithout(p, topts, list)
+				}
 			}
 			if res == nil {
 				imp.Broken(p.ImportPath)
@@ -977,7 +990,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped, Implicit: f.Implicit})
 		}
 		if res.Calls != nil {
 			// The call adapters: a file of the package's, no source's.

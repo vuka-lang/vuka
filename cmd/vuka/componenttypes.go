@@ -172,6 +172,19 @@ func componentDTSLocs(root, modPath string, comps []*assetComp) ([]byte, []dtsLo
 	}
 	b.WriteString(componentModuleDTS)
 	b.WriteString("}\n\n")
+	for _, x := range cs {
+		fmt.Fprintf(&b, "declare module %q {\nexport * from \"vuka:component\";\n", "vuka:component/"+x.c.name)
+		base := "import(\"vuka:component\")"
+		shape := base + "." + x.c.name
+		fmt.Fprintf(&b, "export const ref: %s.SetupRef<%s>;\n", base, shape)
+		for _, name := range []string{"state", "on", "emit", "navigate", "patch"} {
+			if name == "emit" && x.page {
+				continue
+			}
+			fmt.Fprintf(&b, "export const %s: %s.Ctx<%s>[%q];\n", name, base, shape, name)
+		}
+		b.WriteString("}\n")
+	}
 	for _, n := range globals {
 		fmt.Fprintf(&b, "type %s = import(\"vuka:component\").%s;\n", n, n)
 	}
@@ -198,6 +211,24 @@ func (n *scriptNames) write(b *strings.Builder, r *tsTypes, page bool) {
 			b.WriteString("\t\t[name: string]: HTMLElement;\n")
 		}
 		b.WriteString("\t};\n")
+		for _, loop := range []bool{false, true} {
+			member := "__setupRefs"
+			if loop {
+				member = "__loopRefs"
+			}
+			fmt.Fprintf(b, "\treadonly %s?: {\n", member)
+			for _, ref := range n.refs {
+				if ref.loop != loop {
+					continue
+				}
+				typ := refElement(ref.tag)
+				if ref.conditional && !loop {
+					typ += " | null"
+				}
+				fmt.Fprintf(b, "\t\t%s: %s;\n", tsKey(ref.name), typ)
+			}
+			b.WriteString("\t};\n")
+		}
 		if !page {
 			b.WriteString("\treadonly __emits?: {\n")
 			for _, e := range n.emits {
@@ -236,7 +267,7 @@ func refElement(tag string) string {
 	return "TagElement<" + strconv.Quote(tag) + ">"
 }
 
-const componentModuleDTS = `type Phantom = "__methods" | "__fields" | "__states" | "__page" | "__refs" | "__events" | "__emits" | "__url";
+const componentModuleDTS = `type Phantom = "__methods" | "__fields" | "__states" | "__page" | "__refs" | "__events" | "__emits" | "__url" | "__setupRefs" | "__loopRefs";
 /** The props a component's script reads: its struct's data fields, as ui.Props sends them. */
 export type Props<T> = Omit<T, Phantom>;
 export interface LiveError { status?: number; message: string; fields?: Record<string, string>; }
@@ -266,6 +297,21 @@ type Refs<T> = Member<T, "__refs", Record<string, HTMLElement>>;
 type Events<T> = Member<T, "__events", Record<string, any>>;
 type Emits<T> = Member<T, "__emits", Record<string, unknown>>;
 /** A ui.State of the component: its value, kept by the browser; set writes it (not a derived state's). */
+export interface RefSet<E> { (): E[]; watch(fn: (elements: E[]) => void): () => void; }
+export interface SetupRef<T> {
+ <K extends keyof Member<T, "__loopRefs", {}> & string>(name: K & { readonly "Use ref.all() for a ref inside a for": never }): never;
+ <K extends keyof Member<T, "__setupRefs", {}> & string>(name: K): Member<T, "__setupRefs", {}>[K];
+ all<K extends keyof Member<T, "__loopRefs", {}> & string>(name: K): RefSet<Member<T, "__loopRefs", {}>[K]>;
+}
+export function listen<K extends keyof HTMLElementEventMap>(target: EventTarget, type: K, fn: (event: HTMLElementEventMap[K]) => void, options?: boolean | AddEventListenerOptions): () => void;
+export function onDestroy(fn: () => void): void;
+/** Setup helpers are specialized to the shape in its template's script. */
+export const ref: SetupRef<{}>;
+export function state(name: never): StateHandle<never>;
+export function on(name: never, fn: (payload: never) => void): void;
+export function emit(name: never, payload?: unknown): Promise<unknown>;
+export const navigate: Navigation["navigate"];
+export const patch: Navigation["patch"];
 export interface StateHandle<V> { get(): V; set(v: V): void; watch(fn: (v: V) => void): () => void; }
 /** What a page's script and a component's share: its live connection, states, refs, the events its Go pushes, navigation. */
 export interface PageCtx<T> extends Navigation<T> {

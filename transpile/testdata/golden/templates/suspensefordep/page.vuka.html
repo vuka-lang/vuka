@@ -1,0 +1,10 @@
+package main
+
+type Page struct { Store Store; More bool }
+<main>
+ categories := Store.Categories()
+ count := CategoryCount(categories)
+ <ui.Suspense for={categories}>
+  <p>{count} categories</p>
+ </ui.Suspense>
+</main>

@@ -50,6 +50,9 @@ func (p *Index) Stats(ctx context.Context) (applications.Stats, error) {
 The page answers before `Stats` returns: the heading at once, the `<p>`
 empty until the figures arrive. Then the `<p>` with its figures replaces it.
 
+The markup may write `Stats()`: a call in markup gets the render's `ctx`
+when it doesn't pass one ([The Render's Context](/ui/templates#implicit-ctx)).
+
 A deferred method takes a `context.Context` and returns `(T, error)`. It
 starts as soon as the page's render meets its part, beside the rest of the
 render, and its context is the request's: it is canceled when the visitor
@@ -81,6 +84,30 @@ two deferred methods arrives when both have returned.
 Keep a deferred call inside the smallest element that shows it: a `for`
 header or an `if` condition directly inside `<main>` makes all of `<main>`
 the part.
+
+### Binding a Result {#bindings}
+
+A statement binding a deferred method's result makes the element it is in
+the part: everything that uses the name is inside it.
+
+```html
+<section>
+  categories := GetCategories()
+  <ui.Fallback for={categories}><ui.Skeleton lines={3}/></ui.Fallback>
+  <h3>{len(categories)} categories</h3>
+  for _, c := range categories {
+    <label>{c.Name}</label>
+  }
+</section>
+```
+
+The `<section>` is the part, `categories` its method's result.
+`<ui.Fallback for={categories}>` names the binding, so two bindings of one
+method in two elements each have their fallback; `for={GetCategories}`
+stays the fallback of the method's other parts. Like any binding, it is
+lazy: a binding nothing renders a use of is dropped, and its method never
+starts. A use after the element, or the name passed to a child component's
+prop, is [E0344](/errors/E0344).
 
 ### Groups
 
@@ -183,6 +210,89 @@ A page that holds a live component, and a page rendered for a form posted
 without script, render their parts in place: the methods run before the
 page is sent. `@ui.Defer` is for pages that aren't live; a live page loads
 its data in `@ui.Mount` and pushes changes with `Update`.
+
+## Boundaries: `<ui.Suspense>` {#suspense}
+
+A part is an element and the deferred methods it calls. A boundary is the
+page's choice instead: everything inside `<ui.Suspense>` renders after the
+page's first bytes, and is sent at once when all of what the render reaches
+inside it has returned — one reveal, not piece by piece.
+
+```html
+<ui.Suspense>
+  <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
+  <slot:error><p role="alert">Couldn't load categories.</p></slot:error>
+
+  categories := GetCategories()
+  stats := CategoryStats()
+  <h3>{len(categories)} categories · {stats.Open} open</h3>
+  for _, c := range categories {
+    <label>{c.Name}</label>
+  }
+</ui.Suspense>
+```
+
+- **Every call inside streams.** A method needn't be `@ui.Defer`: inside a
+  boundary every call runs after the page's shell, with the boundary.
+  A deferred method inside is called where it's shown, its part the
+  boundary's.
+- **Bindings stay lazy.** A binding the render doesn't reach — in a branch
+  not taken — doesn't run, and doesn't hold the reveal.
+- **Errors are local.** `<slot:error>` shows when anything inside fails,
+  else the short `role="alert"` message; the rest of the page, and other
+  boundaries, are unaffected.
+- **Nesting.** An outer boundary reveals when its own work is done; one
+  inside it is sent after it, as it returns.
+- **Outside any boundary** the rule above stays: a deferred call's element,
+  or a deferred binding's, is its own part.
+
+A boundary arrives as a part does: in the same stream, through the same
+`<template>` and script, with the same behaviour without JavaScript and
+under a Content-Security-Policy, and over an HTTP navigation. In the
+toolbar it is a span named `Suspense`, the deferred methods it called
+inside it. Where parts don't stream — a live page, a fragment, a test —
+the boundary renders in place, `<slot:error>` in its place when it fails.
+
+In Go a boundary is `ui.Suspense(fallback, errorNode, func(ctx
+context.Context) ui.Node { … })`, its body the function: what it calls runs
+when the boundary does.
+
+### Choosing {#choosing}
+
+- **`@ui.Defer`** is the method's author saying it's slow: wherever a page
+  shows it, its element streams in. Use it on a method every page should
+  stream.
+- **`<ui.Suspense>`** is the page's choice: a region of the page that
+  streams as one, whatever its methods say — for content that reads
+  together (a panel's figures and its list), or a slow method that isn't
+  deferred.
+- **`<ui.Fallback for={…}>`** is the shorthand for one part's placeholder:
+  a deferred method's parts, or one binding's.
+
+### Waiting for named bindings
+
+Use `for={a, b}` to choose the bindings a boundary waits for. Declare them
+above the boundary; they remain available after it.
+
+```html
+categories := GetCategories()
+stats := CategoryStats()
+<ui.Suspense for={categories, stats}>
+  <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
+  <h3>{len(categories)} categories · {stats.Open} open</h3>
+</ui.Suspense>
+```
+
+The listed bindings run at their first rendered use, even when their
+methods have no `@ui.Defer`. An unused binding never delays the reveal.
+Unlisted deferred work inside keeps its own part and fallback; ordinary
+calls render inline with the boundary. A binding depending on a listed
+binding is ready before the markup using it can reveal.
+
+A name must be a preceding binding in scope, and may appear in only one
+boundary's list ([E0352](/errors/E0352)). A listed binding never read in the
+boundary produces [W0351](/errors/W0351).
+
 
 ## Parts Written in Go {#in-go}
 
@@ -291,11 +401,12 @@ own markup calls directly. Everything else is an error at the attribute:
 |---|---|
 | [E0341](/errors/E0341) | `@ui.Defer` on a function, or on a method of a type no template renders |
 | [E0342](/errors/E0342) | the struct's markup never calls the method (in Go: no `ui.Part` names it) |
-| [E0343](/errors/E0343) | the method is called from Go: another method, a hook, a handler, a template statement |
-| [E0344](/errors/E0344) | its result goes to a child component's prop: defer it in the child |
+| [E0343](/errors/E0343) | the method is called from Go: another method, a hook, a handler, a template statement other than a binding |
+| [E0344](/errors/E0344) | its result goes to a child component's prop: defer it in the child; a binding of it is used outside its element |
 | [E0345](/errors/E0345) | two timing attributes on one method |
 | [E0346](/errors/E0346) | `@ui.Defer` on a live page's method |
 | [E0347](/errors/E0347) | the method doesn't take a `context.Context` and return `(T, error)` |
 | [E0348](/errors/E0348) | a `<ui.Fallback>` naming no deferred method, or calling one |
 | [E0349](/errors/E0349) | in Go, a `ui.Part` naming another type's method |
 | [E0350](/errors/E0350) | a deferred call in no element, which would be its part |
+| [E0351](/errors/E0351) | a `<ui.Suspense>` with an unsupported attribute, or a slot other than `<slot:fallback>` and `<slot:error>` |

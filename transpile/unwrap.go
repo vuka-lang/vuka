@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
 	"slices"
 	"strings"
@@ -15,8 +16,9 @@ import (
 // That holds wherever markup takes one value — a hole, an attribute, a
 // component's prop, a for's range, an if's or a switch's condition —
 // and nowhere else: a call passing its results on to another,
-// fmt.Sprint(s.Users()), keeps them, and so do a template's statements,
-// users, err := s.Users(). Any other call with more than one result
+// fmt.Sprint(s.Users()), keeps them, and so does a template's statement
+// binding them both, users, err := s.Users(); one binding a name to each
+// value, users := s.Users(), unwraps them. Any other call with more than one result
 // there, or with only an error shown as a value, is E0160.
 
 // unwrapCalls wraps the markup's (T, error) calls in Must and reports the
@@ -59,7 +61,7 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 			out = append(out, markupValue{x, shown})
 		}
 	}
-	var heads []span
+	var heads, stmts []span
 	var walk func(ns []jsxNode)
 	walk = func(ns []jsxNode) {
 		for _, n := range ns {
@@ -82,7 +84,10 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 					add(n.expr, true)
 				}
 			case *jsxBlock:
-				if n.m == nil && !n.stmt {
+				switch {
+				case n.stmt:
+					stmts = append(stmts, n.heads...)
+				case n.m == nil:
 					heads = append(heads, n.heads...)
 				}
 				for _, b := range n.bodies {
@@ -97,22 +102,33 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 	for _, t := range f.jsx {
 		walk([]jsxNode{t.root})
 	}
-	if len(heads) == 0 {
+	if len(heads) == 0 && len(stmts) == 0 {
 		return out
 	}
-	// The conditions, ranges and switch tags of the blocks' headers.
-	in := func(n ast.Node) bool {
+	// The conditions, ranges and switch tags of the blocks' headers, and
+	// the values a statement binds one name each to.
+	within := func(n ast.Node, spans []span) bool {
 		at := f.orig(n.Pos())
-		for _, h := range heads {
+		for _, h := range spans {
 			if at >= h.start && at < h.end {
 				return true
 			}
 		}
 		return false
 	}
+	in := func(n ast.Node) bool { return within(n, heads) }
 	ast.Inspect(f.ast, func(n ast.Node) bool {
 		var xs []ast.Expr
 		switch n := n.(type) {
+		case *ast.FuncLit:
+			return !f.writtenFunc(n) || !within(n, stmts) // a statement's function literal is Go's
+		case *ast.AssignStmt:
+			if n.Tok == token.DEFINE && len(n.Lhs) == len(n.Rhs) && within(n.Rhs[0], stmts) {
+				for _, x := range n.Rhs {
+					out = append(out, markupValue{x, false})
+				}
+			}
+			return true
 		case *ast.IfStmt:
 			xs = []ast.Expr{n.Cond}
 		case *ast.ForStmt:

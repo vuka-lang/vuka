@@ -1,0 +1,10 @@
+package main
+
+type Page struct { Store Store; More bool }
+<main>
+ if More {
+  stats := Store.Stats()
+  <p>{stats.Open}</p>
+ }
+ <ui.Suspense for={stats}><b>unavailable here</b></ui.Suspense>
+</main>

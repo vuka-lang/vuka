@@ -1,0 +1,1 @@
+page.vuka.html:9:20: <ui.Suspense for={stats}>: stats is not a binding in scope; name a preceding := binding in the same enclosing element

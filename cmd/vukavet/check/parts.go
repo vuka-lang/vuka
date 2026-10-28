@@ -93,7 +93,7 @@ func runParts(pass *analysis.Pass) (any, error) {
 		case embedsLiveType(recv.Type()):
 			report(pass, call.Args[0], "E0346", "drop ui.Defer and load "+fn.Name()+" in the page's mount hook into a field it renders",
 				"ui.Defer is for stateless pages; %s is live: a live page loads in its mount hook and pushes with Update", recv.Name())
-		case sig.Params().Len() != 1 || !named(sig.Params().At(0).Type(), "context", "Context") || sig.Results().Len() != 2 || !isError(sig.Results().At(1).Type()):
+		case sig.Params().Len() < 1 || !named(sig.Params().At(0).Type(), "context", "Context") || sig.Results().Len() != 2 || !isError(sig.Results().At(1).Type()):
 			report(pass, call.Args[0], "E0347", "func (p *"+recv.Name()+") "+fn.Name()+"(ctx context.Context) (T, error)",
 				"ui.Defer: %s is %s; a deferred method takes a context.Context and returns (T, error)", name, types.TypeString(sig, types.RelativeTo(pass.Pkg)))
 		default:
@@ -138,6 +138,35 @@ func runParts(pass *analysis.Pass) (any, error) {
 			return
 		}
 		d.named = true
+	})
+
+	// Lazy bindings and boundaries name their deferred methods through calls
+	// in a callback, rather than through a method expression.
+	inspect(func(n ast.Node, stack []ast.Node) {
+		call, ok := n.(*ast.CallExpr)
+		if !ok {
+			return
+		}
+		id, fn := methodRef(info, call.Fun)
+		d := byFn[fn]
+		if d == nil {
+			return
+		}
+		boundary := false
+		var in *types.TypeName
+		for _, parent := range stack {
+			if c, ok := parent.(*ast.CallExpr); ok {
+				name := funcOf(info, c, uiPath)
+				boundary = boundary || name == "LazyValue" || name == "Suspense"
+			}
+			if fd, ok := parent.(*ast.FuncDecl); ok && fd.Recv != nil {
+				in = recvTypeName(info, fd)
+			}
+		}
+		if boundary && in == d.recv {
+			allowed[id] = true
+			d.named = true
+		}
 	})
 	// Every other use is Go needing the result now.
 	for id, o := range info.Uses {

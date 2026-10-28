@@ -29,6 +29,7 @@ type engine struct {
 	imp             types.Importer
 	errs            *ErrorList
 	bare            bool
+	incompleteCalls bool
 	moduleRoot      string
 	dir             string
 	importPath      string
@@ -75,6 +76,9 @@ type engine struct {
 	straysDone  bool         // timing attributes off a page's or component's methods are reported (parts.go)
 	loaders     []*gqlLoader // the package's @graphql.Loader functions (graphqlloader.go)
 	gqlWarns    map[*fileState]ErrorList
+
+	forceCtx  map[string]bool // template files whose markup gets the render's ctx (implicit.go)
+	recompile bool            // one more does: the package compiles again
 }
 
 func (e *engine) run() {
@@ -134,6 +138,20 @@ func (e *engine) run() {
 			// before anything is decided from the markup's types.
 			continue
 		}
+		implicit := false
+		for _, f := range e.vuka {
+			implicit = e.implicitCtx(f) || implicit
+		}
+		if e.recompile {
+			return
+		}
+		if len(*e.errs) > nerrs {
+			break
+		}
+		if implicit {
+			// The calls given ctx type-check with it before they unwrap.
+			continue
+		}
 		unwrapped := false
 		for _, f := range e.vuka {
 			unwrapped = e.unwrapCalls(f) || unwrapped
@@ -146,6 +164,16 @@ func (e *engine) run() {
 			// decided from them.
 			continue
 		}
+		bound := false
+		for _, f := range e.vuka {
+			bound = e.bindings(f) || bound
+		}
+		if len(*e.errs) > nerrs {
+			break
+		}
+		if bound {
+			continue
+		}
 		for _, f := range e.vuka {
 			embedded := e.embedFiles(f)
 			e.classify(f)
@@ -154,6 +182,7 @@ func (e *engine) run() {
 				e.render(f)
 				e.progress = true
 			}
+			f.qualified = false
 			e.resolveBare(f)
 			e.lowerContextVars(f)
 			e.resolveStatics(f)
@@ -181,6 +210,9 @@ func (e *engine) run() {
 				}
 			}
 		}
+		if e.recompile {
+			return
+		}
 		if len(*e.errs) == 0 && !e.progress && !e.graphqlDone {
 			// Everything else is lowered: the GraphQL registrations, type-checked
 			// in one more round.
@@ -203,6 +235,15 @@ func (e *engine) run() {
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()
 		e.warns = e.ctxWarnings()
+		for _, f := range e.vuka {
+			if len(f.susWarnings) == 0 {
+				continue
+			}
+			if e.warns == nil {
+				e.warns = map[*fileState]ErrorList{}
+			}
+			e.warns[f] = append(e.warns[f], f.susWarnings...)
+		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {
 				e.warns = map[*fileState]ErrorList{}

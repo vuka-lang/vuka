@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/vuka-lang/ui/v2"
 )
@@ -36,7 +37,7 @@ func (pa Page) View() ui.Node {
 	total22 := total
 //line page.vuka.html:19
 	n2 := c.n
-	k := c.next()
+	k := sync.OnceValue(func() int { return c.next() })
 //line page.vuka.html:5
 	return ui.HTML(`
 <main>
@@ -45,7 +46,7 @@ func (pa Page) View() ui.Node {
   <ul>{lis}</ul>
   <p>{total22}</p>
   <p>{n2}</p>
-  <p>{c.n} {k}</p>
+  <p>{c.n} {k()}</p>
 </main>`,
 		x2,
 		x22,
@@ -53,7 +54,7 @@ func (pa Page) View() ui.Node {
 		total22,
 		n2,
 		c.n,
-		k,
+		k(),
 	)
 }
 

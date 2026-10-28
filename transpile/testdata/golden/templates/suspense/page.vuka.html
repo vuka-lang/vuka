@@ -1,0 +1,29 @@
+package main
+
+import "context"
+
+// Page has boundaries: what each reaches reveals together.
+type Page struct {
+	Store Store
+	More  bool
+}
+
+@ui.Defer
+func (p *Page) GetCategories(ctx context.Context) ([]Category, error) { return p.Store.Categories(ctx) }
+<main>
+  <ui.Suspense>
+    <slot:fallback><span class="skeleton">…</span></slot:fallback>
+    <slot:error><p role="alert">Couldn't load categories.</p></slot:error>
+    categories := GetCategories()
+    stats := Store.Stats()
+    <h3>{len(categories)} categories · {stats.Open} open</h3>
+    if More {
+      broken := Store.Broken()
+      <p>{broken}</p>
+    }
+    <ui.Suspense>
+      <slot:error><p role="alert">no count</p></slot:error>
+      <b>{Store.Broken()}</b>
+    </ui.Suspense>
+  </ui.Suspense>
+</main>

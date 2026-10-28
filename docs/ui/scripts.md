@@ -48,13 +48,14 @@ type Clock struct {
 <time ref="now">…</time>
 
 <script lang="ts">
-import { component } from 'vuka:component'
+import { component, ref, onDestroy } from 'vuka:component'
 
 export default component<Clock>((el, props, ctx) => {
-  const now = ctx.ref('now')!
+  const now = ref('now')
   const tick = () => { now.textContent = new Date().toLocaleTimeString('en-GB', { timeZone: props.Zone }) }
   tick()
   let timer = setInterval(tick, 1000)
+  onDestroy(() => clearInterval(timer))
   return {
     update(next) {
       clearInterval(timer)
@@ -62,7 +63,6 @@ export default component<Clock>((el, props, ctx) => {
       tick()
       timer = setInterval(tick, 1000)
     },
-    destroy() { clearInterval(timer) },
   }
 })
 </script>
@@ -76,10 +76,10 @@ The function runs once for each instance, when it appears on the page:
 - `ctx` reaches the instance: [the table below](#ctx).
 
 It may return hooks: `update(next)` runs when a re-render changes the
-props, `destroy()` when the instance leaves the page. Undo in `destroy`
-everything the function started — listeners on `window` or `document`,
-timers, observers, a library's instance — or each visit leaves another one
-running.
+props, `destroy()` when the instance leaves the page. Use `listen` for
+listeners and `onDestroy` for timers, observers and library instances;
+they clean up when the instance leaves, including in-place navigation.
+A returned `destroy()` keeps working too.
 
 `page<T>((el, live, ctx) => …)` is the same as `component<T>`, with
 `ctx.live` as its second argument; older page scripts written
@@ -91,6 +91,62 @@ running.
 > mounted (the page has an `Update` taking `web.URLParams`); without one, a
 > patch mounts the page again: `destroy`, then the function, with the new
 > props.
+
+## Setup Helpers {#setup}
+
+Import the helpers from `vuka:component` and call them while the setup
+function runs:
+
+| Helper | Result |
+|---|---|
+| `ref('search')` | the element, typed from its tag; `null` only inside an `if`, `switch` branch or slot |
+| `ref.all('category')` | a function returning the current loop elements; `.watch(fn)` runs when the set changes after a patch |
+| `state('open')` | the state's `get`, `set` and `watch` handle |
+| `listen(target, type, fn, options?)` | a listener removed on destruction; returns a function to remove it early |
+| `onDestroy(fn)` | cleanup when the instance leaves |
+| `on`, `emit`, `navigate`, `patch` | the corresponding `ctx` operation during setup |
+
+Keep elements and handles in variables for callbacks. A helper called in
+a timer or after `await` throws in development: `ref() called outside a
+component's setup; call it at the top and keep the element`. The `ctx`
+forms remain available for operations performed later.
+
+A loop ref uses `ref.all`, because its elements can be added or removed:
+
+```html
+<script lang="go">
+package components
+
+type Alerts struct { Categories []string }
+</script>
+
+<form ref="form">
+  for _, name := range Categories {
+    <label><input ref="category" type="checkbox" value={name} />{name}</label>
+  }
+  <span ref="count">0 selected</span>
+</form>
+
+<script lang="ts">
+import { component, ref, listen } from 'vuka:component'
+
+export default component<Alerts>(() => {
+  const checks = ref.all('category')
+  const count = ref('count')
+  const update = () => {
+    count.textContent = `${checks().filter(c => c.checked).length} selected`
+  }
+  listen(ref('form'), 'change', update)
+  checks.watch(update)
+})
+</script>
+```
+
+Here `category` belongs to an `<input ref="category" type="checkbox">`
+inside a `for`, and `count` and `form` always render. Calling
+`ref('category')` is a type error pointing to `ref.all('category')`.
+Unknown names include a suggested spelling. Save the collection function,
+not `checks()` at setup, to read the elements after later patches.
 
 ## The ctx Reference {#ctx}
 
@@ -175,17 +231,17 @@ func (p *Index) Reorder(ids []int) error {
 
 <script lang="ts">
 import Sortable from 'sortablejs'
-import { component } from 'vuka:component'
+import { component, ref, onDestroy } from 'vuka:component'
 
 export default component<Index>((el, props, ctx) => {
-  const list = ctx.ref('list')!
+  const list = ref('list')
   const sortable = Sortable.create(list, {
     onEnd: () => {
       const ids = [...list.children].map((li) => Number((li as HTMLElement).dataset.id))
       ctx.live.reorder(ids).catch((err) => alert(err.message))
     },
   })
-  return { destroy() { sortable.destroy() } }
+  onDestroy(() => sortable.destroy())
 })
 </script>
 ```
@@ -219,21 +275,21 @@ func (p *Index) Compose() { p.drafts++ }
 </main>
 
 <script lang="ts">
-import { component } from 'vuka:component'
+import { component, ref, listen } from 'vuka:component'
 
 export default component<Index>((el, props, ctx) => {
+  const search = ref('search')
   const onKey = (e: KeyboardEvent) => {
     const t = e.target as HTMLElement
     if (e.metaKey || e.ctrlKey || e.altKey || t.closest('input, textarea, select, [contenteditable]')) return
     if (e.key === '/') {
       e.preventDefault()
-      ctx.ref('search')?.focus()
+      search.focus()
     } else if (e.key === 'n') {
       ctx.live.compose()
     }
   }
-  document.addEventListener('keydown', onKey)
-  return { destroy() { document.removeEventListener('keydown', onKey) } }
+  listen(document, 'keydown', onKey)
 })
 </script>
 ```
@@ -263,23 +319,23 @@ type Sales struct {
 
 <script lang="ts">
 import { Chart } from 'chart.js/auto'
-import { component } from 'vuka:component'
+import { component, ref, onDestroy } from 'vuka:component'
 
 export default component<Sales>((el, props, ctx) => {
-  const chart = new Chart(ctx.ref('canvas')!, {
+  const chart = new Chart(ref('canvas'), {
     type: 'line',
     data: {
       labels: props.Points.map((p) => p.Label),
       datasets: [{ label: props.Title, data: props.Points.map((p) => p.Value) }],
     },
   })
+  onDestroy(() => chart.destroy())
   return {
     update(next) {
       chart.data.labels = next.Points.map((p) => p.Label)
       chart.data.datasets[0].data = next.Points.map((p) => p.Value)
       chart.update()
     },
-    destroy() { chart.destroy() },
   }
 })
 </script>
@@ -289,7 +345,7 @@ export default component<Sales>((el, props, ctx) => {
 
 Adding a task clears the field and puts the cursor back in it, once the
 server has kept the task. The Go method says so with `PushEvent`, and the
-script hears it with `ctx.on`:
+script hears it with `on`:
 
 ```html
 <script lang="go">
@@ -331,11 +387,11 @@ func (t *Tasks) Add() {
 </form>
 
 <script lang="ts">
-import { component } from 'vuka:component'
+import { component, ref, on } from 'vuka:component'
 
 export default component<Tasks>((el, props, ctx) => {
-  ctx.on('added', (p) => {
-    const input = ctx.ref('title')
+  const input = ref('title')
+  on('added', (p) => {
     if (input) {
       input.value = ''
       input.focus()
@@ -381,13 +437,13 @@ func (s *Status) Refresh(ctx context.Context) error {
 <p>{depth} queued, checked at {checked.Format("15:04:05")}</p>
 
 <script lang="ts">
-import { component } from 'vuka:component'
+import { component, onDestroy } from 'vuka:component'
 
 export default component<Status>((el, props, ctx) => {
   const timer = setInterval(() => {
     if (document.visibilityState === 'visible') ctx.live.refresh().catch(() => {})
   }, 30_000)
-  return { destroy() { clearInterval(timer) } }
+  onDestroy(() => clearInterval(timer))
 })
 </script>
 ```
@@ -428,25 +484,21 @@ func (p *Index) Update(web.URLParams) {}
 </main>
 
 <script lang="ts">
-import { component } from 'vuka:component'
+import { component, ref, state, listen, onDestroy } from 'vuka:component'
 
 export default component<Index>((el, props, ctx) => {
-  const input = ctx.ref('q')!
+  const input = ref('q')
   let wait: ReturnType<typeof setTimeout> | undefined
   const onInput = () => {
     clearTimeout(wait)
     wait = setTimeout(() => ctx.patch({ q: input.value }, { replace: true }), 300)
   }
-  input.addEventListener('input', onInput)
-  const stop = ctx.state('compact').watch((on) => el.classList.toggle('compact', on))
+  listen(input, 'input', onInput)
+  const stop = state('compact').watch((on) => el.classList.toggle('compact', on))
+  onDestroy(() => { clearTimeout(wait); stop() })
   return {
     update(next) {
       if (document.activeElement !== input) input.value = next.Q // back and forward
-    },
-    destroy() {
-      clearTimeout(wait)
-      input.removeEventListener('input', onInput)
-      stop()
     },
   }
 })
@@ -509,7 +561,7 @@ misspelt ref or event ([W0308](/errors/W0308)).
   name built at run time — isn't allowed; call it through `live.` or
   `ctx.live.`.
 - **A listener or timer runs twice after navigating back**: the script
-  didn't undo it in `destroy`.
+  didn't register it with `listen` or clean it up with `onDestroy` (or `destroy`).
 - **`ctx.emit` is a type error in a page's script**: a page has no
   parent tag to emit to; call its own method instead.
 - **`update` never runs on a page**: the patch mounts the page again;

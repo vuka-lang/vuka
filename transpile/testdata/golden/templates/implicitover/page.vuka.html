@@ -1,0 +1,15 @@
+package main
+
+import "context"
+
+// Page has overloads: an exact match wins, else the one taking ctx.
+type Page struct{}
+
+func (p Page) Label() string { return "plain" }
+
+func (p Page) Label(ctx context.Context) string { return "with ctx" }
+
+func (p Page) Count(ctx context.Context, n int) int { return n }
+
+func (p Page) Count(s string) int { return len(s) }
+<p>{Label()} · {Label(ctx)} · {Count(3)} · {Count("ab")}</p>

@@ -217,23 +217,24 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 
 // vfile is the generated Go of one .vuka or .templ file, open in gopls.
 type vfile struct {
-	source  string // the .vuka or .templ path
-	from    []byte // the source text it was generated from
-	cur     []byte // the editor's text, when it differs from from
-	hunks   []hunk // where cur and from differ
-	stale   bool   // cur was edited since from: the hunks are a diff
-	gen     []byte
-	m       *transpile.SourceMap   // a .vuka file's map
-	templ   *templparser.SourceMap // a .templ file's map (templ's own)
-	files   []transpile.FileRef    // a .vuka file's vuka.File literals, in from
-	names   map[string]string      // the package's overloads: Go name → the source's
-	vars    []transpile.VarRead    // the context processors' variables it reads by name
-	avail   []transpile.VarRead    // and those it may read
-	unwraps []transpile.Unwrap     // the calls in its markup returning (T, error)
-	fixes   []edit                 // the W0402 rewrites on from (ctxVarFixes)
-	version int
-	probed  int  // the version holding the last probe (see probe)
-	pending bool // not sent to gopls yet (lsp_open.go)
+	source   string // the .vuka or .templ path
+	from     []byte // the source text it was generated from
+	cur      []byte // the editor's text, when it differs from from
+	hunks    []hunk // where cur and from differ
+	stale    bool   // cur was edited since from: the hunks are a diff
+	gen      []byte
+	m        *transpile.SourceMap    // a .vuka file's map
+	templ    *templparser.SourceMap  // a .templ file's map (templ's own)
+	files    []transpile.FileRef     // a .vuka file's vuka.File literals, in from
+	names    map[string]string       // the package's overloads: Go name → the source's
+	vars     []transpile.VarRead     // the context processors' variables it reads by name
+	avail    []transpile.VarRead     // and those it may read
+	unwraps  []transpile.Unwrap      // the calls in its markup returning (T, error)
+	implicit []transpile.ImplicitCtx // the calls in its markup given the render's ctx
+	fixes    []edit                  // the W0402 rewrites on from (ctxVarFixes)
+	version  int
+	probed   int  // the version holding the last probe (see probe)
+	pending  bool // not sent to gopls yet (lsp_open.go)
 }
 
 // namesOf is the package's overloads, Go name → the source's; nil for no
@@ -484,6 +485,7 @@ type proxy struct {
 
 	mu               sync.Mutex
 	initID           string // the editor's initialize request
+	noCtxHints       bool   // initializationOptions.vuka.implicitContextHints is false
 	renameCommands   bool
 	dropIn           bool
 	root             string
@@ -869,11 +871,23 @@ func (p *proxy) fromGopls() {
 	}
 }
 
+// ctxHintsOn reports whether inlay hints show the ctx markup's calls get
+// (initializationOptions {"vuka": {"implicitContextHints": false}} turns
+// them off).
+func (p *proxy) ctxHintsOn() bool {
+	p.mu.Lock()
+	defer p.mu.Unlock()
+	return !p.noCtxHints
+}
+
 // realRoots resolves symlinks in the workspace folders of initialize params.
 func realRoots(raw json.RawMessage) json.RawMessage {
 	var params map[string]any
 	if json.Unmarshal(raw, &params) != nil {
 		return raw
+	}
+	if o, ok := params["initializationOptions"].(map[string]any); ok {
+		delete(o, "vuka") // vuka's own options, not gopls's settings
 	}
 	fix := func(uri string) string {
 		if path := uriToPath(uri); path != "" {
@@ -1034,6 +1048,11 @@ func addTrigger(result any, ch string) {
 
 func (p *proxy) initialize(params json.RawMessage) {
 	var ip struct {
+		Options struct {
+			Vuka struct {
+				ImplicitContextHints *bool `json:"implicitContextHints"`
+			} `json:"vuka"`
+		} `json:"initializationOptions"`
 		RootURI          string `json:"rootUri"`
 		RootPath         string `json:"rootPath"`
 		WorkspaceFolders []struct {
@@ -1053,6 +1072,7 @@ func (p *proxy) initialize(params json.RawMessage) {
 	}
 	p.mu.Lock()
 	p.root = root
+	p.noCtxHints = ip.Options.Vuka.ImplicitContextHints != nil && !*ip.Options.Vuka.ImplicitContextHints
 	p.mu.Unlock()
 	p.logf("root %s", root)
 
@@ -1305,6 +1325,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		if u, ok := vf.unwrapAt(offsetOf(vf.text(), srcPos)); ok {
 			vr.note = strings.TrimPrefix(vr.note+"\n\n---\n\n"+unwrapNote(u), "\n\n---\n\n")
 		}
+		if _, ok := vf.implicitAt(offsetOf(vf.text(), srcPos)); ok {
+			vr.note = strings.TrimPrefix(vr.note+"\n\n---\n\n"+implicitNote, "\n\n---\n\n")
+		}
 		if shapeNote != "" {
 			vr.note = strings.TrimPrefix(vr.note+"\n\n---\n\n"+shapeNote, "\n\n---\n\n")
 		}
@@ -1431,6 +1454,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			reply["result"] = p.withRouteLinks(p.documentLinks(vr.file), vr.file)
 		case vr.method == "textDocument/foldingRange":
 			reply["result"] = foldingRanges(vr.file, nil)
+		case vr.method == "textDocument/inlayHint" && p.ctxHintsOn() && vr.file != nil:
+			reply["result"] = withImplicitHints(nil, vr.file)
 		case vr.method == "textDocument/codeAction":
 			go func() {
 				reply["result"] = withRefactors(p.withShapeScriptAction(vr.file, nil), vr.editorID)
@@ -1582,6 +1607,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		}
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
 		v = demangleStrings(v, vr.file.namesOf())
+		if vr.method == "textDocument/inlayHint" && p.ctxHintsOn() && vr.file != nil {
+			v = withImplicitHints(v, vr.file)
+		}
 		if vr.method == "textDocument/documentSymbol" && isShape(vr.file) {
 			v = shapeSymbols(vr.file, v)
 		}

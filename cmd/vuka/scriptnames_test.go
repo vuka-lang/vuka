@@ -258,7 +258,7 @@ func TestScriptsGuide(t *testing.T) {
 		os.WriteFile(filepath.Join(dir, "modules.d.ts"), []byte(guideModules), 0o644)
 		script := code[strings.Index(code, `<script lang="ts">`)+len(`<script lang="ts">`):]
 		script = script[:strings.Index(script, "</script>")]
-		if out := tscCheck(t, dir, "/// <reference path=\"./modules.d.ts\" />\n"+script); out != "" {
+		if out := tscCheck(t, dir, "/// <reference path=\"./modules.d.ts\" />\n"+setupScript(script, sh.Type)); out != "" {
 			t.Errorf("example %d (%s) doesn't type-check:\n%s", i, sh.Type, out)
 		}
 		checked++
@@ -301,5 +301,40 @@ func TestScriptsGuideVets(t *testing.T) {
 		if err := runGo("vet", []string{"./..."}, io.Discard, &stderr); err != nil {
 			t.Errorf("example %d: vuka vet: %v\n%s", i, err, stderr.String())
 		}
+	}
+}
+
+func TestSetupRefTypes(t *testing.T) {
+	root := t.TempDir()
+	src := strings.Replace(namesIndex, `<canvas ref="chart"></canvas>`, `if Q != "" { <canvas ref="chart"></canvas> }
+ for _, x := range Q { <input ref="item" value={x}/> }`, 1)
+	file := filepath.Join(root, "index.vuka.html")
+	os.WriteFile(filepath.Join(root, "go.mod"), []byte("module example.com/shop\ngo 1.25\n"), 0o644)
+	os.WriteFile(file, []byte(src), 0o644)
+	c := &assetComp{dir: root, name: "Index", markup: []string{file}, scripts: []assetSrc{{inline: "export default {}"}}}
+	os.WriteFile(filepath.Join(root, componentDTSName), componentDTS(root, "example.com/shop", []*assetComp{c}), 0o644)
+	good := `import { component, ref, listen } from 'vuka:component'
+ export default component<Index>(() => {
+ const search: HTMLInputElement = ref('search');
+ const chart: HTMLCanvasElement | null = ref('chart');
+ const items = ref.all('item');
+ const first: HTMLInputElement | undefined = items()[0];
+ items.watch((xs) => xs.forEach(x => x.checked = true));
+ listen(search, 'input', (e) => { const event: Event = e; });
+ });`
+	if out := tscCheck(t, root, setupScript(good, "Index")); out != "" {
+		t.Fatal(out)
+	}
+	bad := strings.Replace(good, "ref('search')", "ref('item')", 1)
+	if out := tscCheck(t, root, setupScript(bad, "Index")); out == "" {
+		t.Fatal("ref on a loop accepted")
+	}
+	bad = strings.Replace(good, "ref('search')", "ref('serch')", 1)
+	if out := tscCheck(t, root, setupScript(bad, "Index")); out == "" {
+		t.Fatal("unknown ref accepted")
+	}
+	bad = strings.Replace(good, "HTMLCanvasElement | null", "HTMLCanvasElement", 1)
+	if out := tscCheck(t, root, setupScript(bad, "Index")); out == "" {
+		t.Fatal("conditional ref is nonnull")
 	}
 }

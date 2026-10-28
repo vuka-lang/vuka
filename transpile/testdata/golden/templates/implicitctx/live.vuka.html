@@ -1,0 +1,10 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+// Live is live, its markup naming no ctx.
+type Live struct {
+	ui.Live
+	Store Store
+}
+<p>{Store.Count()} {len(Store.Categories())}</p>

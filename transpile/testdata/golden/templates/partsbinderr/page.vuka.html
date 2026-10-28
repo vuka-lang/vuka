@@ -1,0 +1,20 @@
+package main
+
+import "context"
+
+// Page uses a deferred binding outside its element, and passes it to a
+// component.
+type Page struct {
+	Store Store
+}
+
+@ui.Defer
+func (p *Page) GetCategories(ctx context.Context) ([]Category, error) { return p.Store.Categories(ctx) }
+<main>
+  <section>
+    categories := GetCategories()
+    <h3>{len(categories)}</h3>
+    <Count n={len(categories)}/>
+  </section>
+  <p>{len(categories)}</p>
+</main>

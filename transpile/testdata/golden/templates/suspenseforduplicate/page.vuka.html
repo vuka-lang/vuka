@@ -1,0 +1,8 @@
+package main
+
+type Page struct { Store Store; More bool }
+<main>
+ stats := Store.Stats()
+ <ui.Suspense for={stats}><b>{stats.Open}</b></ui.Suspense>
+ <ui.Suspense for={stats}><b>{stats.Open}</b></ui.Suspense>
+</main>
