@@ -51,8 +51,12 @@ type deferMethod struct {
 	called   bool // the markup calls it, a part or not
 }
 
-// partUse is a deferred method an element's part waits for.
-type partUse struct{ m *deferMethod }
+// partUse is a deferred method an element's part waits for: its
+// fallbacks a binding's own, when a <ui.Fallback> names the binding.
+type partUse struct {
+	m                *deferMethod
+	fallback, failed *jsxElem
+}
 
 // timingAttrs are the attributes saying when a method of a page or
 // component runs; Defer is phase 1's, the others phase 2's (none yet).
@@ -206,17 +210,18 @@ func (e *engine) findParts(f *fileState) bool {
 		})
 	}
 	var fallbacks []*jsxElem
+	var bound []*partBinding
 	var walk func(ns []jsxNode, el *jsxElem)
 	walk = func(ns []jsxNode, el *jsxElem) {
 		use := func(m *deferMethod, c *ast.CallExpr) {
 			m.called = true
 			if el == nil || el.frag {
 				e.errs.add("E0350", f.at(f.orig(c.Pos())), "@%s: %s's call in %s's markup is in no element, which would be its part", m.attr.Name, m.name, h.recvType).
-					help("put it inside an element: <span>{%s(ctx)}</span>", m.name)
+					help("put it inside an element: <span>{%s()}</span>", m.name)
 				return
 			}
 			if !el.hasPart(m) {
-				el.parts = append(el.parts, &partUse{m})
+				el.parts = append(el.parts, &partUse{m: m})
 			}
 			calls = append(calls, call{m: m, start: f.orig(c.Pos()), end: f.orig(c.End()), ident: nameOff(c)})
 			allowed[nameOff(c)] = true
@@ -257,10 +262,17 @@ func (e *engine) findParts(f *fileState) bool {
 				in(e.exprAt(f, n.expr), use)
 			case *jsxBlock:
 				if n.stmt {
+					if b := e.deferBinding(f, n.heads[0], methodOf); b != nil {
+						b.el = el
+						bound = append(bound, b)
+						b.m.called = true
+						allowed[nameOff(b.call)] = true
+						continue
+					}
 					headCalls(n.heads[0], func(m *deferMethod, c *ast.CallExpr) {
 						m.called = true
 						e.errs.add("E0343", f.at(f.orig(c.Pos())), "@%s: %s is called in a template's statement, Go that runs as the page renders; call it in an element's markup", m.attr.Name, m.name).
-							help("show it in a hole, <span>{%s(ctx)}</span>, or drop @%s", m.name, m.attr.Name)
+							help("show it in a hole, <span>{%s()}</span>, or drop @%s", m.name, m.attr.Name)
 					})
 					continue
 				}
@@ -281,6 +293,13 @@ func (e *engine) findParts(f *fileState) bool {
 	for _, t := range f.jsx {
 		if h.toSrc(t.start) >= h.markup {
 			walk([]jsxNode{t.root}, nil)
+		}
+	}
+	// A deferred method's bindings: each one's element is its part, holding
+	// every use of the name.
+	for _, b := range bound {
+		if e.bindPart(f, b) {
+			calls = append(calls, call{m: b.m, start: f.orig(b.call.Pos()), end: f.orig(b.call.End()), ident: nameOff(b.call)})
 		}
 	}
 	// An element inside another's part of the same method has its value
@@ -339,6 +358,22 @@ func (e *engine) findParts(f *fileState) bool {
 		}
 		text := strings.TrimSpace(string(f.src[forAttr.expr.start:forAttr.expr.end]))
 		text = strings.TrimPrefix(text, h.recv+".")
+		if b := bindingNamed(bound, text, fb); b != nil {
+			// for={categories}: the binding's own part.
+			slot := &b.use.fallback
+			if isErr {
+				slot = &b.use.failed
+			}
+			if *slot != nil {
+				e.errs.add("E0348", f.at(fb.start), "%s has a second <%s for={%s}%s>", h.recvType, fb.tag, text, map[bool]string{true: " error"}[isErr]).help("keep one: it stands in for %s's part", text)
+				continue
+			}
+			*slot, fb.partFB = fb, b.m
+			if fb.comp != nil {
+				fb.comp.consumed, fb.comp.resolved = true, true
+			}
+			continue
+		}
 		var m *deferMethod
 		for _, d := range methods {
 			if d.name == text && d.obj != nil {
@@ -383,7 +418,7 @@ func (e *engine) findParts(f *fileState) bool {
 	for _, m := range methods {
 		if m.obj != nil && !m.called && byObj[m.obj] != nil {
 			e.errs.add("E0342", m.attr.Pos, "@%s: %s's markup never calls %s, so there is no part to defer", m.attr.Name, h.recvType, m.name).
-				help("show it in the markup, <span>{%s(ctx)}</span>, or drop @%s", m.name, m.attr.Name)
+				help("show it in the markup, <span>{%s()}</span>, or drop @%s", m.name, m.attr.Name)
 		}
 	}
 	e.goCalls(byObj, allowed)
@@ -645,7 +680,7 @@ func (w *jsxWriter) part(el *jsxElem, i int) {
 	m := el.parts[i].m
 	q := w.q
 	w.gen(q + "Part(" + m.recv + ", " + m.expr + ", ")
-	w.partFallback(el, m)
+	w.partFallback(el, el.parts[i])
 	w.gen(", func(" + m.param + " " + m.typ + ") " + q + "Node {\n")
 	sink, ran := w.sink, w.ran
 	w.sink, w.ran = &stream{}, nil
@@ -658,29 +693,34 @@ func (w *jsxWriter) part(el *jsxElem, i int) {
 	w.gen("\n})")
 }
 
-// partFallback writes what el's part shows while m runs, and when it
-// fails: its <ui.Fallback>s', else el empty, marked aria-busy.
-func (w *jsxWriter) partFallback(el *jsxElem, m *deferMethod) {
+// partFallback writes what el's part shows while its method runs, and
+// when it fails: its binding's <ui.Fallback>s', else the method's, else
+// el empty, marked aria-busy.
+func (w *jsxWriter) partFallback(el *jsxElem, pu *partUse) {
 	q := w.q
+	fallback, failed := pu.m.fallback, pu.m.failed
+	if pu.fallback != nil || pu.failed != nil {
+		fallback, failed = pu.fallback, pu.failed
+	}
 	pending := func() {
 		switch {
-		case m.fallback != nil && len(m.fallback.kids) > 0:
-			w.piece(m.fallback.kids)
-		case m.fallback != nil, el.comp != nil:
+		case fallback != nil && len(fallback.kids) > 0:
+			w.piece(fallback.kids)
+		case fallback != nil, el.comp != nil:
 			w.gen("nil")
 		default:
 			w.gen(q + "HTML(" + rawString(busyElement(el)) + ")")
 		}
 	}
-	if m.failed == nil {
+	if failed == nil {
 		pending()
 		return
 	}
 	w.gen(q + "PartFallback{Pending: ")
 	pending()
 	w.gen(", Error: ")
-	if len(m.failed.kids) > 0 {
-		w.piece(m.failed.kids)
+	if len(failed.kids) > 0 {
+		w.piece(failed.kids)
 	} else {
 		w.gen("nil")
 	}
@@ -796,4 +836,144 @@ func (e *engine) strayFallbacks(f *fileState) {
 	for _, t := range f.jsx {
 		walk([]jsxNode{t.root})
 	}
+}
+
+// partBinding is a statement of the markup binding a name to a deferred
+// method's result: categories := GetCategories().
+type partBinding struct {
+	m    *deferMethod
+	call *ast.CallExpr
+	id   *ast.Ident
+	stmt span
+	el   *jsxElem // the element it is in, its part
+	use  *partUse
+}
+
+// deferBinding is the statement at s when it binds a name to a deferred
+// method's result, or nil.
+func (e *engine) deferBinding(f *fileState, s span, methodOf func(*ast.CallExpr) *deferMethod) *partBinding {
+	as := e.stmtAssign(f, s)
+	if as == nil || as.Tok != token.DEFINE || len(as.Lhs) != 1 || len(as.Rhs) != 1 {
+		return nil
+	}
+	id, ok := as.Lhs[0].(*ast.Ident)
+	c, isCall := ast.Unparen(as.Rhs[0]).(*ast.CallExpr)
+	if !ok || !isCall {
+		return nil
+	}
+	m := methodOf(c)
+	if m == nil && len(c.Args) == 1 {
+		// Unwrapped already: Must(GetCategories(ctx)).
+		if inner, ok := ast.Unparen(c.Args[0]).(*ast.CallExpr); ok && f.unwrapped[span{f.orig(inner.Pos()), f.orig(inner.End())}] {
+			c, m = inner, methodOf(inner)
+		}
+	}
+	if m == nil {
+		return nil
+	}
+	return &partBinding{m: m, call: c, id: id, stmt: s}
+}
+
+// bindPart makes a deferred binding's element its part, reporting whether
+// the markup uses the name: a binding no markup reads is dropped, its
+// method never called. A use outside the element, or in a component's
+// prop inside it, is E0344.
+func (e *engine) bindPart(f *fileState, b *partBinding) bool {
+	m := b.m
+	if b.el == nil || b.el.frag {
+		e.errs.add("E0350", f.at(b.stmt.start), "@%s: %s binds %s's result in no element, which would be its part", m.attr.Name, b.id.Name, m.name).
+			help("put the statement inside the element showing %s", b.id.Name)
+		return false
+	}
+	uses := e.usesOf(f, e.info.Defs[b.id], b.id.Name)
+	if len(uses) == 0 {
+		kept := f.fixed[:0]
+		for _, ed := range f.fixed {
+			if ed.start < b.stmt.start || ed.end > b.stmt.end || ed.own != nil {
+				kept = append(kept, ed)
+			}
+		}
+		f.fixed = append(kept, edit{start: b.stmt.start, end: b.stmt.end})
+		return false
+	}
+	var props []span
+	var tags []string
+	var walk func(ns []jsxNode)
+	walk = func(ns []jsxNode) {
+		for _, n := range ns {
+			switch n := n.(type) {
+			case *jsxElem:
+				if n.comp != nil && !n.isFallbackFor(f) {
+					for _, a := range n.attrs {
+						switch a.kind {
+						case 'e', 'r':
+							props, tags = append(props, a.expr), append(tags, n.tag+" "+a.name)
+						case 'p':
+							for _, p := range a.parts {
+								props, tags = append(props, p.expr), append(tags, n.tag+" "+a.name)
+							}
+						}
+					}
+				}
+				walk(n.kids)
+			case *jsxBlock:
+				for _, x := range n.bodies {
+					walk(x)
+				}
+				for _, x := range n.cases {
+					walk(x)
+				}
+			}
+		}
+	}
+	walk(b.el.kids)
+	ok := true
+	for _, u := range uses {
+		off := f.orig(u.Pos())
+		if off < b.el.start || off >= b.el.end {
+			err := e.errs.add("E0344", f.at(off), "@%s: %s is %s's result, whose part is the <%s> it is bound in; it is used outside it", m.attr.Name, b.id.Name, m.name, b.el.tag).
+				help("use %s inside the <%s>, or bind it in an element holding every use", b.id.Name, b.el.tag)
+			err.Len, ok = len(b.id.Name), false
+			continue
+		}
+		for i, p := range props {
+			if off >= p.start && off < p.end {
+				tag, attr, _ := strings.Cut(tags[i], " ")
+				err := e.errs.add("E0344", f.at(off), "@%s: %s's result goes to <%s %s=…>; defer it in %s instead", m.attr.Name, m.name, tag, attr, lastName(tag)).
+					help("give %s a deferred method of its own, or drop @%s", lastName(tag), m.attr.Name)
+				err.Len, ok = len(b.id.Name), false
+			}
+		}
+	}
+	if !ok {
+		return false
+	}
+	for _, p := range b.el.parts {
+		if p.m == m {
+			b.use = p
+		}
+	}
+	if b.use == nil {
+		b.use = &partUse{m: m}
+		b.el.parts = append(b.el.parts, b.use)
+	}
+	return true
+}
+
+// bindingNamed is the deferred binding a fallback's for={name} names: the
+// one named so whose element holds the fallback, else the only one.
+func bindingNamed(bound []*partBinding, name string, fb *jsxElem) *partBinding {
+	var named []*partBinding
+	for _, b := range bound {
+		if b.id.Name == name && b.use != nil {
+			if b.el != nil && fb.start >= b.el.start && fb.end <= b.el.end {
+				return b
+			}
+			named = append(named, b)
+		}
+	}
+	if len(named) == 1 {
+		return named[0]
+	}
+	return nil
 }

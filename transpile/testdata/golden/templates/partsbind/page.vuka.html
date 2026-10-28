@@ -1,0 +1,31 @@
+package main
+
+import "context"
+
+// Page binds its deferred methods' results: each binding's element is its
+// part.
+type Page struct {
+	Store Store
+}
+
+@ui.Defer
+func (p *Page) GetCategories(ctx context.Context) ([]Category, error) { return p.Store.Categories(ctx) }
+
+@ui.Defer
+func (p *Page) Unused(ctx context.Context) (int, error) { return p.Store.Unused(ctx) }
+<main>
+  <section class="list">
+    categories := GetCategories()
+    <ui.Fallback for={categories}><span class="skeleton">…</span></ui.Fallback>
+    <h3>{len(categories)} categories</h3>
+    for _, c := range categories {
+      <b>{c.Name}</b>
+    }
+  </section>
+  <aside>
+    top := GetCategories()
+    unused := Unused()
+    <ui.Fallback for={top}><span class="skeleton">top…</span></ui.Fallback>
+    <p>{top[0].Name}</p>
+  </aside>
+</main>

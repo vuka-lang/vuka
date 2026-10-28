@@ -29,16 +29,18 @@ func (f File) IsTemplate() bool { return strings.HasSuffix(f.Name, ".vuka.html")
 
 // htmlFile is what a template file's compilation needs to know about it.
 type htmlFile struct {
-	island   *islandPage // island-only page before its import lowers to a decorator
-	recv     string      // the markup's receiver: s
-	recvType string      // and its type: Sales
-	start    int         // where the markup is
-	end      int
-	src      []byte      // the file as written
-	ins      []insertion // what its compiled text inserts, in order
-	lines    lineIndex   // src's
-	shape    *Shape      // the struct it declares (htmlshape.go)
-	markup   int         // where its markup starts in src: what is above is its Go header
+	island     *islandPage // island-only page before its import lowers to a decorator
+	recv       string      // the markup's receiver: s
+	recvType   string      // and its type: Sales
+	start      int         // where the markup is
+	end        int
+	src        []byte      // the file as written
+	ins        []insertion // what its compiled text inserts, in order
+	lines      lineIndex   // src's
+	shape      *Shape      // the struct it declares (htmlshape.go)
+	markup     int         // where its markup starts in src: what is above is its Go header
+	contextual bool        // the markup's function has the render's ctx
+	ownCtx     bool        // the markup declares a ctx of its own
 }
 
 var funcLine = regexp.MustCompile(`^func\s`)
@@ -182,7 +184,7 @@ func (e *engine) template(f *fileState, files []File) bool {
 	if e.selfJSX {
 		q = ""
 	}
-	src, h, err := htmlSource(f.name, f.src, files, q, e.templateNames())
+	src, h, _, err := htmlParts(f.name, f.src, files, q, false, e.templateNames(), e.forceCtx[f.name])
 	if err != nil {
 		line, col := max(err.Pos.Line, 1), max(err.Pos.Column, 1)
 		err.Pos = f.lines.pos(f.path, min(f.lines[min(line, len(f.lines))-1]+col-1, len(f.src)))
@@ -212,7 +214,7 @@ func (e *engine) template(f *fileState, files []File) bool {
 // are the package's other files: its package's name and imports come from
 // them.
 func htmlSource(name string, src []byte, others []File, ui string, vars map[string]bool) ([]byte, *htmlFile, *Error) {
-	out, h, _, err := htmlParts(name, src, others, ui, false, vars)
+	out, h, _, err := htmlParts(name, src, others, ui, false, vars, false)
 	return out, h, err
 }
 
@@ -229,7 +231,7 @@ type TemplateAsset struct {
 // TemplateAssets are the scripts and stylesheets of a template file's
 // markup.
 func TemplateAssets(name string, src []byte) []TemplateAsset {
-	_, _, assets, _ := htmlParts(name, HeaderView(src), nil, "ui.", true, nil)
+	_, _, assets, _ := htmlParts(name, HeaderView(src), nil, "ui.", true, nil, false)
 	return assets
 }
 
@@ -312,8 +314,9 @@ func templateDecl(header string) string {
 }
 
 // htmlParts is htmlSource, and the markup's scripts and stylesheets;
-// assetsOnly reads only those.
-func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool, vars map[string]bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
+// assetsOnly reads only those. withCtx gives the markup the render's ctx
+// though it names none: a call in it takes ctx implicitly (implicit.go).
+func htmlParts(name string, src []byte, others []File, ui string, assetsOnly bool, vars map[string]bool, withCtx bool) ([]byte, *htmlFile, []TemplateAsset, *Error) {
 	lines := strings.SplitAfter(string(src), "\n")
 	off := make([]int, len(lines)+1)
 	for i, l := range lines {
@@ -463,7 +466,10 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		if live {
 			method = "Render"
 		}
-		opening := openBody(templateReadsContext([]byte(strings.Join(lines[first:firstEnd], "")), "", vars))
+		markupText := []byte(strings.Join(lines[first:firstEnd], ""))
+		h.ownCtx = ownCtx.Match(markupText)
+		opening := openBody(withCtx && !h.ownCtx || templateReadsContext(markupText, "", vars))
+		h.contextual = contextual
 		if !live && shape.hasRole(BrowserState) {
 			// A static struct's states, before its View renders (a live
 			// one's get theirs before it mounts): the engine names the
@@ -572,6 +578,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	return []byte(b.String()), h, assets, nil
 }
 
+// ownCtx matches markup declaring a ctx of its own.
+var ownCtx = regexp.MustCompile(`(?m)^\s*(?:ctx\s*:=|var\s+ctx\b)`)
+
 // templateReadsContext identifies an implicit ctx read in Go expressions,
 // ignoring text, string literals, selectors and explicitly bound contexts:
 // ctx, or a name of vars, a context processor's variable read with it.
@@ -598,7 +607,7 @@ func templateReadsContext(src []byte, header string, vars map[string]bool) bool 
 		}
 	}
 	body := goParts(src)
-	if regexp.MustCompile(`(?m)^\s*(?:ctx\s*:=|var\s+ctx\b)`).Match(src) {
+	if ownCtx.Match(src) {
 		return false
 	}
 	var scan scanner.Scanner
@@ -908,8 +917,8 @@ func (e *engine) bareIdent(f *fileState, id *ast.Ident, recv types.Type, value b
 			return
 		}
 	}
-	if o, _, _ := types.LookupFieldOrMethod(recv, true, e.pkg, id.Name); o == nil {
-		return
+	if o, _, _ := types.LookupFieldOrMethod(recv, true, e.pkg, id.Name); o == nil && e.methods[f.html.recvType+"."+id.Name] == nil {
+		return // neither its field or method, nor its overloaded method
 	}
 	f.done[off] = true
 	// Title is s.Title, the name still mapping to itself.

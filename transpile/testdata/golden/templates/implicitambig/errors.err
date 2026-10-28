@@ -1,0 +1,3 @@
+page.vuka.html:18:5: call of Page.Show with (context.Context, Name) is ambiguous
+	(ctx context.Context, v fmt.Stringer) string at page.vuka.html:15:15
+	(ctx context.Context, v any) string at page.vuka.html:17:15

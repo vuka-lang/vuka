@@ -1,0 +1,23 @@
+package main
+
+import "context"
+
+// Page calls methods and functions taking a ctx first without one.
+type Page struct {
+	Store Store
+	Tags  []string
+}
+
+func (p Page) Title(ctx context.Context) string { return "Shop" }
+
+func (p Page) Explicit(ctx context.Context) string { return "explicit" }
+<section title={Title()}>
+  <h1>{Upper(Title())}</h1>
+  <p>{Store.Count()} · {Explicit(ctx)} · {Join(", ")} · {Join(", ", "x", "y")}</p>
+  for _, c := range Store.Categories() {
+    <b>{c.Name}</b>
+  }
+  if Store.Count() > 1 {
+    <i>{First(Tags)}</i>
+  }
+</section>

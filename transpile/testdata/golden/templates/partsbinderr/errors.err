@@ -1,0 +1,2 @@
+page.vuka.html:17:19: @ui.Defer: GetCategories's result goes to <Count n=…>; defer it in Count instead; give Count a deferred method of its own, or drop @ui.Defer
+page.vuka.html:19:11: @ui.Defer: categories is GetCategories's result, whose part is the <section> it is bound in; it is used outside it; use categories inside the <section>, or bind it in an element holding every use

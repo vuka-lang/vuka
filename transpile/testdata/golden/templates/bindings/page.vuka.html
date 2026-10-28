@@ -1,0 +1,25 @@
+package main
+
+// Page binds its store's results: each runs at its first rendered use, once.
+type Page struct {
+	Store Store
+	Fail  bool
+}
+<section>
+  categories := Store.Categories()
+  unused := Store.Unused()
+  hidden := Store.Hidden()
+  broken := Store.Broken()
+  all, err := Store.Categories()
+  <h3>{len(categories)} categories</h3>
+  for _, c := range categories {
+    <b>{c.Name}</b>
+  }
+  if false {
+    <i>{hidden}</i>
+  }
+  if Fail {
+    <em>{broken}</em>
+  }
+  <p>{len(all)} {err}</p>
+</section>
