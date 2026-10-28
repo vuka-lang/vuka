@@ -98,6 +98,10 @@ func (e *engine) findParts(f *fileState) bool {
 	if obj == nil {
 		return false
 	}
+	if !f.susChecked {
+		f.susChecked = true
+		e.checkSuspense(f)
+	}
 	methods := e.deferredOf(h.recvType)
 	if len(methods) == 0 {
 		f.partsDone = true
@@ -211,10 +215,16 @@ func (e *engine) findParts(f *fileState) bool {
 	}
 	var fallbacks []*jsxElem
 	var bound []*partBinding
+	boundary := 0 // the <ui.Suspense>s walk is in
 	var walk func(ns []jsxNode, el *jsxElem)
 	walk = func(ns []jsxNode, el *jsxElem) {
 		use := func(m *deferMethod, c *ast.CallExpr) {
 			m.called = true
+			if boundary > 0 {
+				// Inside a <ui.Suspense>, which is its part: a call.
+				allowed[nameOff(c)] = true
+				return
+			}
 			if el == nil || el.frag {
 				e.errs.add("E0350", f.at(f.orig(c.Pos())), "@%s: %s's call in %s's markup is in no element, which would be its part", m.attr.Name, m.name, h.recvType).
 					help("put it inside an element: <span>{%s()}</span>", m.name)
@@ -257,16 +267,32 @@ func (e *engine) findParts(f *fileState) bool {
 						})
 					}
 				}
+				if n.isSuspense(f) {
+					boundary++
+					walk(n.kids, n)
+					boundary--
+					continue
+				}
 				walk(n.kids, n)
 			case *jsxHole:
 				in(e.exprAt(f, n.expr), use)
 			case *jsxBlock:
 				if n.stmt {
-					if b := e.deferBinding(f, n.heads[0], methodOf); b != nil {
+					if b := e.deferBinding(f, n.heads[0], methodOf); b != nil && boundary > 0 {
+						b.m.called = true
+						allowed[nameOff(b.call)] = true
+						continue
+					} else if b != nil {
 						b.el = el
 						bound = append(bound, b)
 						b.m.called = true
 						allowed[nameOff(b.call)] = true
+						continue
+					}
+					if boundary > 0 {
+						headCalls(n.heads[0], func(m *deferMethod, c *ast.CallExpr) {
+							m.called, allowed[nameOff(c)] = true, true
+						})
 						continue
 					}
 					headCalls(n.heads[0], func(m *deferMethod, c *ast.CallExpr) {

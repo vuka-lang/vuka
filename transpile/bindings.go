@@ -77,7 +77,9 @@ func (e *engine) stmtAssign(f *fileState, s span) *ast.AssignStmt {
 		if !ok || f.off(as.Pos()) >= f.body {
 			return true
 		}
-		if at := f.orig(as.Pos()); at == s.start {
+		// Its value's position: a statement's own may map to where a
+		// block Vuka writes starts.
+		if at := f.orig(as.Rhs[0].Pos()); at >= s.start && at < s.end && f.orig(as.Pos()) <= at {
 			out = as
 			return false
 		}

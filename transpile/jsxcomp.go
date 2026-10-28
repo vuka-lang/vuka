@@ -322,6 +322,11 @@ func (w *jsxWriter) fieldArgs(args []*compArg, value func(*compArg, bool)) {
 // lowerJSX resolves the components whose functions' types are known; a tree
 // whose components are all resolved takes its final edits.
 func (e *engine) lowerJSX(f *fileState) {
+	if f.html != nil && f.qualified {
+		// The markup's calls are decided on its names qualified first
+		// (implicit.go, unwrap.go, bindings.go).
+		return
+	}
 	for _, t := range f.jsx {
 		if t.done {
 			continue
@@ -399,6 +404,10 @@ func (e *engine) compExpr(f *fileState, c *jsxComp) ast.Expr {
 
 func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	if c.consumed { // a <ui.Island> absorbed this tag; the wrapper emits it
+		c.resolved = true
+		return
+	}
+	if c.el.isSuspense(f) { // a boundary (suspense.go)
 		c.resolved = true
 		return
 	}

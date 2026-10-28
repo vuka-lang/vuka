@@ -181,6 +181,7 @@ func (e *engine) run() {
 				e.render(f)
 				e.progress = true
 			}
+			f.qualified = false
 			e.resolveBare(f)
 			e.lowerContextVars(f)
 			e.resolveStatics(f)

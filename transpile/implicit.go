@@ -108,15 +108,29 @@ func (e *engine) markupRoots(f *fileState) []ast.Node {
 	// function literal written in one.
 	userLit := func(n ast.Node) bool {
 		for p := f.parents[n]; p != nil; p = f.parents[p] {
-			if _, ok := p.(*ast.FuncLit); ok && inRest(f.orig(p.Pos())) {
+			if _, ok := p.(*ast.FuncLit); ok && f.writtenFunc(p) && inRest(f.orig(p.Pos())) {
 				return true
 			}
 		}
 		return false
 	}
 	ast.Inspect(f.ast, func(n ast.Node) bool {
+		if n == nil || f.off(n.Pos()) >= f.body {
+			return true
+		}
+		if x, ok := n.(ast.Expr); ok {
+			// An expression a copy of a hole holds, the copy exprAt
+			// doesn't find: the outermost in a span.
+			if inRest(f.orig(x.Pos())) && !userLit(x) {
+				if p := f.parents[x]; p == nil || !inRest(f.orig(p.Pos())) {
+					out = append(out, x)
+					return false
+				}
+			}
+			return true
+		}
 		st, ok := n.(ast.Stmt)
-		if !ok || f.off(n.Pos()) >= f.body || !inRest(f.orig(st.Pos())) || userLit(st) {
+		if !ok || !inRest(f.orig(st.Pos())) || userLit(st) {
 			return true
 		}
 		var xs []ast.Node
@@ -433,4 +447,11 @@ func (f *fileState) implicitOf() []ImplicitCtx {
 		}
 	}
 	return out
+}
+
+// writtenFunc reports whether the function literal n is the source's: not
+// one Vuka writes, a part's or a boundary's.
+func (f *fileState) writtenFunc(n ast.Node) bool {
+	at := f.orig(n.Pos())
+	return at+4 <= len(f.src) && string(f.src[at:at+4]) == "func"
 }

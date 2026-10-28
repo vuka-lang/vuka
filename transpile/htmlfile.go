@@ -468,6 +468,8 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		markupText := []byte(strings.Join(lines[first:firstEnd], ""))
 		h.ownCtx = ownCtx.Match(markupText)
+		// A boundary's body takes a ctx: the markup has one.
+		withCtx = withCtx || strings.Contains(string(markupText), "<"+ui+"Suspense")
 		opening := openBody(withCtx && !h.ownCtx || templateReadsContext(markupText, "", vars))
 		h.contextual = contextual
 		if !live && shape.hasRole(BrowserState) {
@@ -921,6 +923,7 @@ func (e *engine) bareIdent(f *fileState, id *ast.Ident, recv types.Type, value b
 		return // neither its field or method, nor its overloaded method
 	}
 	f.done[off] = true
+	f.qualified = true
 	// Title is s.Title, the name still mapping to itself.
 	q := f.html.recv + "."
 	f.fixed = append(f.fixed, edit{start: off, end: off + len(id.Name), text: q + id.Name,

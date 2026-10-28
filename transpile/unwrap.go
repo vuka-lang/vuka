@@ -121,9 +121,9 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 		var xs []ast.Expr
 		switch n := n.(type) {
 		case *ast.FuncLit:
-			return !within(n, stmts) // a statement's function literal is Go's
+			return !f.writtenFunc(n) || !within(n, stmts) // a statement's function literal is Go's
 		case *ast.AssignStmt:
-			if n.Tok == token.DEFINE && len(n.Lhs) == len(n.Rhs) && within(n, stmts) {
+			if n.Tok == token.DEFINE && len(n.Lhs) == len(n.Rhs) && within(n.Rhs[0], stmts) {
 				for _, x := range n.Rhs {
 					out = append(out, markupValue{x, false})
 				}
