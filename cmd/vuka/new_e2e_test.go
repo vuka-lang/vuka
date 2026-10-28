@@ -276,7 +276,7 @@ func browserCheck(t *testing.T, base, password string) {
 	p.dark(false)
 	p.fill("input[name=password]", password)
 	p.click("#login-form button[type=submit]")
-	p.wait(`location.pathname === "/" && document.documentElement.dataset.vkState === "connected"`)
+	p.wait(`location.pathname === "/" && document.documentElement?.dataset.vkState === "connected"`)
 	if h := p.text("h1"); h != "Welcome back, Admin" {
 		t.Errorf("the dashboard: %q", h)
 	}
