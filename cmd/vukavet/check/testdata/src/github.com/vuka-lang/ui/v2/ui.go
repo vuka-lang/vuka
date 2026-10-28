@@ -108,3 +108,9 @@ type PartFallback struct{ Pending, Error Node }
 func Part[R, V any](recv R, m func(R, context.Context) (V, error), fallback Node, render func(V) Node) Node {
 	return nil
 }
+
+func LazyValue[T any](ctx context.Context, run func(context.Context) (T, error)) T {
+	v, _ := run(ctx)
+	return v
+}
+func LazyPart(fallback, failed Node, body func(context.Context) Node) Node { return nil }

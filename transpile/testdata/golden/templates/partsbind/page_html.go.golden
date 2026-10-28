@@ -6,6 +6,7 @@ package main
 import (
 	"context"
 	"io"
+	"sync"
 
 	"github.com/vuka-lang/vuka/v2"
 	ui "vukatest.local/stateui"
@@ -27,36 +28,55 @@ func (p *Page) Unused(ctx context.Context) (int, error) { return p.Store.Unused(
 
 //line page.vuka.html:16
 func (p *Page) View() ui.Node {
-	part := ui.Part(p, (*Page).GetCategories, ui.HTML(`<span class="skeleton">…</span>`), func(getCategories []Category) ui.Node {
-		categories := getCategories
+	part := ui.LazyPart(ui.HTML(`<span class="skeleton">…</span>`), nil, func(ctx context.Context) ui.Node {
+		categories := sync.OnceValue(func() []Category {
+//line page.vuka.html:18
+			return ui.LazyValue(ctx, func(ctx context.Context) ([]Category, error) { return p.GetCategories(ctx) })
+		})
 		var bs []ui.Node
-//line page.vuka.html:21
-		for _, c := range categories {
+		for _, c := range categories() {
 			bs = append(bs, ui.HTML(`<b>{c.Name}</b>`, c.Name))
 		}
 		return ui.HTML(`
 <section class="list">
-  <h3>{len(categories)} categories</h3>
+  <h3>{len(categories())} categories</h3>
   {bs}
-</section>`, len(categories), bs)
+</section>`, len(categories()), bs)
 	})
-	part2 := ui.Part(p, (*Page).GetCategories, ui.HTML(`<span class="skeleton">top…</span>`), func(getCategories []Category) ui.Node {
+	part2 := ui.LazyPart(ui.HTML(`<span class="skeleton">top…</span>`), nil, func(ctx context.Context) ui.Node {
 //line page.vuka.html:26
-		top := getCategories
+		top := sync.OnceValue(func() []Category {
+//line page.vuka.html:26
+			return ui.LazyValue(ctx, func(ctx context.Context) ([]Category, error) { return p.GetCategories(ctx) })
+		})
 		return ui.HTML(`
 <aside>
-  <p>{top[0].Name}</p>
-</aside>`, top[0].Name)
+  <p>{top()[0].Name}</p>
+</aside>`, top()[0].Name)
+	})
+	part3 := ui.LazyPart(ui.HTML(`<section class="hidden" aria-busy="true"/>`), nil, func(ctx context.Context) ui.Node {
+//line page.vuka.html:32
+		hidden := sync.OnceValue(func() int { return ui.LazyValue(ctx, func(ctx context.Context) (int, error) { return p.Unused(ctx) }) })
+		var i ui.Node
+//line page.vuka.html:33
+		if false {
+			i = ui.HTML(`<i>{hidden()}</i>`, hidden())
+		}
+		return ui.HTML(`
+<section class="hidden">
+  {i}
+</section>`, i)
 	})
 //line page.vuka.html:16
 	return ui.HTML(`
 <main>
   {part}
   {part2}
-</main>`, part, part2)
+  {part3}
+</main>`, part, part2, part3)
 }
 
-//line page.vuka.html:31
+//line page.vuka.html:37
 func (p *Page) Render(ctx context.Context, w io.Writer) error { return p.View().Render(ctx, w) }
 
 //line page.vuka.html:11

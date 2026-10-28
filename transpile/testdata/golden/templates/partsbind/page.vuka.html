@@ -28,4 +28,10 @@ func (p *Page) Unused(ctx context.Context) (int, error) { return p.Store.Unused(
     <ui.Fallback for={top}><span class="skeleton">top…</span></ui.Fallback>
     <p>{top[0].Name}</p>
   </aside>
+  <section class="hidden">
+    hidden := Unused()
+    if false {
+      <i>{hidden}</i>
+    }
+  </section>
 </main>

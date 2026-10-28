@@ -53,3 +53,17 @@ func Suspense(fallback, error Node, body func(ctx context.Context) Node) Node {
 		return ui.RawHTML(s)
 	})
 }
+
+func LazyValue[T any](ctx context.Context, run func(context.Context) (T, error)) T {
+	v, err := run(ctx)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+func LazyPart(fallback, failed Node, body func(context.Context) Node) Node {
+	if f, ok := fallback.(PartFallback); ok {
+		fallback, failed = f.Pending, f.Error
+	}
+	return Suspense(fallback, failed, body)
+}

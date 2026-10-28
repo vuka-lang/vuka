@@ -26,7 +26,11 @@ func (p *Page) GetCategories(ctx context.Context) ([]Category, error) { return p
 func (p *Page) View() ui.Node {
 //line page.vuka.html:9
 	return ui.Ctx(func(ctx context.Context) ui.Node {
-		categories := sync.OnceValue(func() []Category { return ui.Must(p.GetCategories(ctx)) })
+		categories := sync.OnceValue(func() []Category {
+//line page.vuka.html:10
+			return ui.LazyValue(ctx, func(ctx context.Context) ([]Category, error) { return p.GetCategories(ctx) })
+		})
+//line page.vuka.html:11
 		stats := sync.OnceValue(func() Stats { return ui.Must(p.Store.Stats(ctx)) })
 		suspense := ui.Suspense(ui.HTML(`<b>loading</b>`), nil, func(ctx context.Context) ui.Node {
 //line page.vuka.html:14

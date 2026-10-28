@@ -217,24 +217,24 @@ func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, go
 
 // vfile is the generated Go of one .vuka or .templ file, open in gopls.
 type vfile struct {
-	source  string // the .vuka or .templ path
-	from    []byte // the source text it was generated from
-	cur     []byte // the editor's text, when it differs from from
-	hunks   []hunk // where cur and from differ
-	stale   bool   // cur was edited since from: the hunks are a diff
-	gen     []byte
-	m       *transpile.SourceMap   // a .vuka file's map
-	templ   *templparser.SourceMap // a .templ file's map (templ's own)
-	files   []transpile.FileRef    // a .vuka file's vuka.File literals, in from
-	names   map[string]string      // the package's overloads: Go name → the source's
-	vars    []transpile.VarRead    // the context processors' variables it reads by name
-	avail   []transpile.VarRead    // and those it may read
-	unwraps []transpile.Unwrap     // the calls in its markup returning (T, error)
+	source   string // the .vuka or .templ path
+	from     []byte // the source text it was generated from
+	cur      []byte // the editor's text, when it differs from from
+	hunks    []hunk // where cur and from differ
+	stale    bool   // cur was edited since from: the hunks are a diff
+	gen      []byte
+	m        *transpile.SourceMap    // a .vuka file's map
+	templ    *templparser.SourceMap  // a .templ file's map (templ's own)
+	files    []transpile.FileRef     // a .vuka file's vuka.File literals, in from
+	names    map[string]string       // the package's overloads: Go name → the source's
+	vars     []transpile.VarRead     // the context processors' variables it reads by name
+	avail    []transpile.VarRead     // and those it may read
+	unwraps  []transpile.Unwrap      // the calls in its markup returning (T, error)
 	implicit []transpile.ImplicitCtx // the calls in its markup given the render's ctx
-	fixes   []edit                 // the W0402 rewrites on from (ctxVarFixes)
-	version int
-	probed  int  // the version holding the last probe (see probe)
-	pending bool // not sent to gopls yet (lsp_open.go)
+	fixes    []edit                  // the W0402 rewrites on from (ctxVarFixes)
+	version  int
+	probed   int  // the version holding the last probe (see probe)
+	pending  bool // not sent to gopls yet (lsp_open.go)
 }
 
 // namesOf is the package's overloads, Go name → the source's; nil for no

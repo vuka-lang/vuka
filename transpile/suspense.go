@@ -193,15 +193,35 @@ func (e *engine) suspenseBindings(f *fileState, el *jsxElem) {
 			continue
 		}
 		f.susBindings[at] = el
-		used := false
-		for _, u := range e.usesOf(f, e.info.Defs[b.id], name) {
-			off := f.orig(u.Pos())
-			if off > el.tagEnd && off < el.end {
-				used = true
-				break
+		visited := map[*ast.Ident]bool{}
+		var usedInside func(*ast.Ident) bool
+		usedInside = func(id *ast.Ident) bool {
+			if visited[id] {
+				return false
 			}
+			visited[id] = true
+			for _, u := range e.usesOf(f, e.info.Defs[id], id.Name) {
+				off := f.orig(u.Pos())
+				if off > el.tagEnd && off < el.end {
+					return true
+				}
+				for _, st := range stmts {
+					head := st.b.heads[0]
+					if off < head.start || off >= head.end {
+						continue
+					}
+					if as := e.stmtAssign(f, head); as != nil {
+						for _, lhs := range as.Lhs {
+							if dependent, ok := lhs.(*ast.Ident); ok && usedInside(dependent) {
+								return true
+							}
+						}
+					}
+				}
+			}
+			return false
 		}
-		if !used {
+		if !usedInside(b.id) {
 			f.susWarnings.add("W0351", f.at(a.expr.start), "Suspense waits for %s but shows nothing from it", name)
 		}
 	}

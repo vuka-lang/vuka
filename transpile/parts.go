@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"go/ast"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"maps"
@@ -55,6 +56,7 @@ type deferMethod struct {
 // fallbacks a binding's own, when a <ui.Fallback> names the binding.
 type partUse struct {
 	m                *deferMethod
+	binding          bool
 	fallback, failed *jsxElem
 }
 
@@ -135,7 +137,7 @@ func (e *engine) findParts(f *fileState) bool {
 		case h.shape.Live:
 			e.errs.add("E0346", at, "@%s is for stateless pages; %s is live (%s): a live page loads in its @ui.Mount hook and pushes with Update", m.attr.Name, h.recvType, h.shape.LiveWhy).
 				help("drop the attribute and load %s in @ui.Mount into a field the markup reads", m.name)
-		case sig.Params().Len() != 1 || !isContext(sig.Params().At(0).Type()) || res.Len() != 2 || !types.Identical(res.At(1).Type(), errorType):
+		case sig.Params().Len() < 1 || !isContext(sig.Params().At(0).Type()) || res.Len() != 2 || !types.Identical(res.At(1).Type(), errorType):
 			e.errs.add("E0347", at, "@%s: %s.%s is %s; a deferred method takes a context.Context and returns (T, error)", m.attr.Name, h.recvType, m.name, e.display(sig)).
 				help("func (%s *%s) %s(ctx context.Context) (T, error)", or(h.recv, "p"), h.recvType, m.name)
 		case !f.target.has("Part"):
@@ -153,6 +155,7 @@ func (e *engine) findParts(f *fileState) bool {
 		m          *deferMethod
 		start, end int // the call
 		ident      int // its method name's offset
+		binding    bool
 	}
 	var calls []call
 	allowed := map[int]bool{} // offsets of the method names the markup may name
@@ -283,6 +286,11 @@ func (e *engine) findParts(f *fileState) bool {
 			case *jsxBlock:
 				if n.stmt {
 					if f.susBindings[n.heads[0].start] != nil {
+						if b := e.deferBinding(f, n.heads[0], methodOf); b != nil {
+							b.el = el
+							b.listed = true
+							bound = append(bound, b)
+						}
 						headCalls(n.heads[0], func(m *deferMethod, c *ast.CallExpr) { m.called = true; allowed[nameOff(c)] = true })
 						continue
 					}
@@ -332,8 +340,17 @@ func (e *engine) findParts(f *fileState) bool {
 	// A deferred method's bindings: each one's element is its part, holding
 	// every use of the name.
 	for _, b := range bound {
-		if e.bindPart(f, b) {
-			calls = append(calls, call{m: b.m, start: f.orig(b.call.Pos()), end: f.orig(b.call.End()), ident: nameOff(b.call)})
+		if b.listed || e.bindPart(f, b) {
+			if f.bindDone == nil {
+				f.bindDone = map[int]bool{}
+			}
+			f.bindDone[b.stmt.start] = true
+			f.lazies = append(f.lazies, f.orig(b.id.Pos()))
+			for _, u := range e.usesOf(f, e.info.Defs[b.id], b.id.Name) {
+				end := f.orig(u.End())
+				f.add(end-1, end, string(f.src[end-1:end])+"()")
+			}
+			calls = append(calls, call{m: b.m, start: f.orig(b.call.Pos()), end: f.orig(b.call.End()), ident: nameOff(b.call), binding: true})
 		}
 	}
 	// An element inside another's part of the same method has its value
@@ -348,9 +365,11 @@ func (e *engine) findParts(f *fileState) bool {
 					kept := n.parts[:0]
 					inner = maps.Clone(in)
 					for _, p := range n.parts {
-						if !in[p.m] {
+						if p.binding || !in[p.m] {
 							kept = append(kept, p)
-							inner[p.m] = true
+							if !p.binding {
+								inner[p.m] = true
+							}
 							p.m.parts++
 						}
 					}
@@ -474,6 +493,34 @@ func (e *engine) findParts(f *fileState) bool {
 		}
 	}
 	for _, c := range calls {
+		if c.binding {
+			raw := string(f.src[c.start:c.end])
+			lp := strings.IndexByte(raw, '(')
+			if lp >= 0 {
+				if !strings.Contains(raw[:lp], ".") {
+					f.insert(c.start, h.recv+".", -2)
+				}
+				if expr, err := parser.ParseExpr(raw); err == nil {
+					if call, ok := expr.(*ast.CallExpr); ok && len(call.Args)+1 == c.m.obj.Type().(*types.Signature).Params().Len() {
+						arg := "ctx"
+						if len(call.Args) > 0 {
+							arg += ", "
+						}
+						f.insert(c.start+lp+1, arg, -2)
+						f.implicit = append(f.implicit, ImplicitCtx{Off: c.start, Lparen: c.start + lp, Args: len(call.Args) > 0})
+					}
+				}
+			}
+			q := f.target.q
+			f.insert(c.start, f.syncName()+".OnceValue(func() "+c.m.typ+" { return "+q+"LazyValue(ctx, func(ctx context.Context) ("+c.m.typ+", error) { return ", -3)
+			f.add(c.end-1, c.end, string(f.src[c.end-1:c.end])+" }) })")
+			if f.unwrapped == nil {
+				f.unwrapped = map[span]bool{}
+			}
+			f.unwrapped[span{c.start, c.end}] = true
+			f.done[c.ident] = true
+			continue
+		}
 		kept := f.fixed[:0]
 		for _, ed := range f.fixed {
 			if ed.start >= c.start && ed.end <= c.end && ed.own == nil {
@@ -713,6 +760,21 @@ func (w *jsxWriter) part(el *jsxElem, i int) {
 	}
 	m := el.parts[i].m
 	q := w.q
+	if el.parts[i].binding {
+		w.gen(q + "LazyPart(")
+		w.partFallback(el, el.parts[i])
+		w.gen(", nil, func(ctx context.Context) " + q + "Node {\n")
+		sink, ran := w.sink, w.ran
+		w.sink, w.ran = &stream{}, nil
+		body := w.expr(func() { w.part(el, i+1) })
+		stmts := w.sink.p
+		w.sink, w.ran = sink, ran
+		w.put(stmts)
+		w.gen("return ")
+		w.put(body)
+		w.gen("\n})")
+		return
+	}
 	w.gen(q + "Part(" + m.recv + ", " + m.expr + ", ")
 	w.partFallback(el, el.parts[i])
 	w.gen(", func(" + m.param + " " + m.typ + ") " + q + "Node {\n")
@@ -875,12 +937,13 @@ func (e *engine) strayFallbacks(f *fileState) {
 // partBinding is a statement of the markup binding a name to a deferred
 // method's result: categories := GetCategories().
 type partBinding struct {
-	m    *deferMethod
-	call *ast.CallExpr
-	id   *ast.Ident
-	stmt span
-	el   *jsxElem // the element it is in, its part
-	use  *partUse
+	listed bool
+	m      *deferMethod
+	call   *ast.CallExpr
+	id     *ast.Ident
+	stmt   span
+	el     *jsxElem // the element it is in, its part
+	use    *partUse
 }
 
 // deferBinding is the statement at s when it binds a name to a deferred
@@ -982,13 +1045,8 @@ func (e *engine) bindPart(f *fileState, b *partBinding) bool {
 	if !ok {
 		return false
 	}
-	for _, p := range b.el.parts {
-		if p.m == m {
-			b.use = p
-		}
-	}
 	if b.use == nil {
-		b.use = &partUse{m: m}
+		b.use = &partUse{m: m, binding: true}
 		b.el.parts = append(b.el.parts, b.use)
 	}
 	return true

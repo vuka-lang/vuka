@@ -49,3 +49,15 @@ func init() {
 	vuka.RegisterFunc(load, ui.Defer(""))                          // want `E0341: ui.Defer goes on a page's or component's method: load is a function`
 	vuka.RegisterFunc((*Live).Stats, []any{ui.Defer("")}...)       // want `E0346: ui.Defer is for stateless pages; Live is live`
 }
+
+// Bound loads only when its lazy binding is read by its element.
+type Bound struct{}
+
+func (p *Bound) Load(ctx context.Context, name string) (string, error) { return name, nil }
+func (p *Bound) Render(ctx context.Context, w io.Writer) error {
+	return ui.LazyPart(nil, nil, func(ctx context.Context) ui.Node {
+		_ = ui.LazyValue(ctx, func(ctx context.Context) (string, error) { return p.Load(ctx, "users") })
+		return nil
+	}).Render(ctx, w)
+}
+func init() { vuka.RegisterFunc((*Bound).Load, ui.Defer("")) }

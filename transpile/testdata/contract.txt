@@ -128,6 +128,8 @@ public github.com/vuka-lang/ui/v2.States
 public github.com/vuka-lang/ui/v2.Strategy
 public github.com/vuka-lang/ui/v2.String
 public github.com/vuka-lang/ui/v2.Suspense
+public github.com/vuka-lang/ui/v2.LazyPart
+public github.com/vuka-lang/ui/v2.LazyValue
 public github.com/vuka-lang/ui/v2.Template
 public github.com/vuka-lang/ui/v2.Try
 public github.com/vuka-lang/ui/v2.URL

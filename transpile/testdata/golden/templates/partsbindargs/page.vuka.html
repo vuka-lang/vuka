@@ -1,0 +1,23 @@
+package main
+
+import "context"
+
+type Page struct { Calls *[]string }
+
+@ui.Defer
+func (p *Page) Label(ctx context.Context, name string) (string, error) {
+ *p.Calls = append(*p.Calls,name)
+ return name,nil
+}
+<main>
+ <section>
+  first := Label("a")
+  <ui.Fallback for={first}><i>first</i></ui.Fallback>
+  <p>{first} {first}</p>
+ </section>
+ <aside>
+  second := Label("b")
+  <ui.Fallback for={second}><i>second</i></ui.Fallback>
+  <p>{second}</p>
+ </aside>
+</main>
