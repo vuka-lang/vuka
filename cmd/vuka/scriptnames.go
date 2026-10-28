@@ -32,7 +32,10 @@ type scriptNames struct {
 	urlKeys     []string
 }
 
-type scriptRef struct{ name, tag string }
+type scriptRef struct {
+	name, tag         string
+	conditional, loop bool
+}
 
 type scriptEvent struct {
 	name    string
@@ -166,6 +169,7 @@ func skipBraces(s string, i int) int {
 // readMarkupNames fills n's refs and emits from markup.
 func (n *scriptNames) readMarkupNames(markup string) {
 	n.markup = true
+	positions := transpile.TemplateRefs(markup)
 	tags := startTags(markup)
 	for k, t := range tags {
 		for _, a := range t.attrs {
@@ -176,8 +180,15 @@ func (n *scriptNames) readMarkupNames(markup string) {
 					n.dynamicRefs = true
 					continue
 				}
+				conditional, loop := false, false
+				for _, r := range positions {
+					if r.Name == name {
+						conditional = conditional || r.Conditional
+						loop = loop || r.Loop
+					}
+				}
 				if !slices.ContainsFunc(n.refs, func(r scriptRef) bool { return r.name == name }) {
-					n.refs = append(n.refs, scriptRef{name, t.name})
+					n.refs = append(n.refs, scriptRef{name: name, tag: t.name, conditional: conditional, loop: loop})
 				}
 			case k == 0 && len(a[0]) > 2 && strings.HasPrefix(a[0], "on") && isUpperByte(a[0][2]):
 				// The root's on… attribute: data-vk-on-<event>, which
@@ -357,4 +368,34 @@ func routePatterns(root, modPath string) []string {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// setupRefNote adds a shape-specific spelling or collection hint to a ref error.
+func setupRefNote(text string, refs []scriptRef, off int) string {
+	for local, kind := range setupAliases(text) {
+		if kind != "ref" {
+			continue
+		}
+		call := regexp.MustCompile(`\b` + regexp.QuoteMeta(local) + `(\.all)?\(\s*(['"])([^'"\n]*)['"]`)
+		for _, m := range call.FindAllStringSubmatchIndex(blankComments(text), -1) {
+			if m[0] > 0 && text[m[0]-1] == '.' || off < m[0] || off >= m[1] {
+				continue
+			}
+			name := text[m[6]:m[7]]
+			var names []string
+			for _, r := range refs {
+				names = append(names, r.name)
+				if r.name == name {
+					if r.loop && m[2] < 0 {
+						return "Use " + local + ".all('" + name + "') for a ref inside a for."
+					}
+					return ""
+				}
+			}
+			if near := closest(name, names); near != "" {
+				return "Did you mean " + strconv.Quote(near) + "?"
+			}
+		}
+	}
+	return ""
 }
