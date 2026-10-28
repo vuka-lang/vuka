@@ -20,6 +20,15 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.10.0 — unreleased
+
+- **Setup helpers for component scripts.** `ref` is typed from the markup,
+  including nullable conditional refs. Loop refs use `ref.all` for live
+  reads and notifications after patches. `listen` and `onDestroy` clean
+  up with the instance, including navigation away; `state`, `on`, `emit`,
+  `navigate` and `patch` also have setup forms. Existing `ctx` and returned
+  lifecycle hooks keep working. See [Component Scripts](/ui/scripts#setup).
+
 ## v2.9.0 — 2026-10-28
 
 ### Parts of Stateless Pages
