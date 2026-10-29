@@ -16,6 +16,8 @@ github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029063801-cb881f55c818 h1:zsu1nUA1Td
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029063801-cb881f55c818/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029073925-8ba597307921 h1:eZ08t/3Na/ZpNzrPNQwVlmBWH9UNWL/RY2ea81WF8Ew=
 github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029073925-8ba597307921/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
+github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029132626-e955dc6f401b h1:gOVg588H9TGLcjTPSP8Cgzc0/MOTgazzJnh7TBfPLAE=
+github.com/vuka-lang/vuka/v2 v2.10.1-0.20261029132626-e955dc6f401b/go.mod h1:rH7t5WrQ8buhdC6tJV7hCjf24XguTCEikr86umiXU+w=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=
