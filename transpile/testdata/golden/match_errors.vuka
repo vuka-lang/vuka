@@ -1,0 +1,142 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"io/fs"
+)
+
+var ErrNotFound = errors.New("not found")
+
+type User struct{ Name string }
+
+type ValidationError struct{ Field string }
+
+func (e *ValidationError) Error() string { return "invalid " + e.Field }
+
+type RateLimited struct{}
+
+func (e *RateLimited) Error() string { return "rate limited" }
+
+var calls []string
+
+func findUser(email string) (*User, error) {
+	calls = append(calls, "find "+email)
+	switch email {
+	case "missing":
+		return nil, fmt.Errorf("finding %s: %w", email, ErrNotFound)
+	case "bad":
+		return nil, fmt.Errorf("finding user: %w", &ValidationError{Field: "email"})
+	case "slow":
+		return nil, fmt.Errorf("finding user: %w", &RateLimited{})
+	case "gone":
+		return nil, fs.ErrNotExist
+	case "other":
+		return nil, errors.New("boom")
+	}
+	return &User{Name: email}, nil
+}
+
+// login is the shape most code has: a value, sentinels, a type, the rest.
+func login(email string) string {
+	match findUser(email) {
+	case Ok(u):
+		return "hello " + u.Name
+	case Err(ErrNotFound):
+		return "unknown email"
+	case Err(fs.ErrNotExist):
+		return "gone"
+	case Err(&ValidationError{Field: f}):
+		return "invalid " + f
+	case Err(&RateLimited{}):
+		return "slow down"
+	case Err(e):
+		return "error: " + e.Error()
+	}
+}
+
+// greet tests two sentinels in one case.
+func greet(email string) string {
+	match findUser(email) {
+	case Ok(user):
+		return "hi " + user.Name
+	case Err(ErrNotFound), Err(fs.ErrNotExist):
+		return "nobody"
+	case Err(&RateLimited{}):
+		return "later"
+	case Err(err):
+		return err.Error()
+	}
+}
+
+// kind has no guards or nested bindings: a switch.
+func kind(email string) string {
+	match findUser(email) {
+	case Ok(user):
+		return user.Name
+	case Err(ErrNotFound):
+		return "missing"
+	case Err(err):
+		return err.Error()
+	}
+}
+
+// reason matches an error value: a sentinel through its wraps.
+func reason(err error) string {
+	match err {
+	case nil:
+		return "none"
+	case ErrNotFound:
+		return "not found"
+	case &ValidationError{Field: f}:
+		return "field " + f
+	case _:
+		return "other"
+	}
+}
+
+// exists names the value after its type: no case binds it.
+func exists(email string) bool {
+	match findUser(email) {
+	case Ok(_):
+		return true
+	case Err(_):
+		return false
+	}
+}
+
+// count uses a guard and a name another case uses for something else.
+func count(email string, user int) string {
+	match findUser(email) {
+	case Ok(u) if u.Name == "admin":
+		return "admin"
+	case Ok(_):
+		return fmt.Sprint("user ", user)
+	case Err(err) if errors.Is(err, ErrNotFound):
+		return "none"
+	case Err(_):
+		return "error"
+	}
+}
+
+// label's Ok case reads a user of its own: the value takes the next name.
+func label(email string, user string) string {
+	match findUser(email) {
+	case Ok(&User{Name: "ann"}):
+		return "ann for " + user
+	case Ok(_):
+		return "found for " + user
+	case Err(_):
+		return "none for " + user
+	}
+}
+
+func main() {
+	for _, email := range []string{"ann", "missing", "bad", "slow", "gone", "other"} {
+		fmt.Println(login(email), "|", greet(email), "|", exists(email), "|", count(email, 7))
+	}
+	fmt.Println(count("admin", 0), label("ann", "bob"), label("missing", "bob"))
+	fmt.Println(kind("ann"), kind("missing"), kind("other"))
+	fmt.Println(reason(nil), reason(fmt.Errorf("x: %w", ErrNotFound)), reason(fmt.Errorf("y: %w", &ValidationError{Field: "name"})), reason(errors.New("z")))
+	fmt.Println(len(calls))
+}

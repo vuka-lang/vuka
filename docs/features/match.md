@@ -49,6 +49,83 @@ case Err(e):
 }
 ```
 
+## Matching Errors
+
+<!-- go:context
+var ErrNotFound = errors.New("not found")
+
+type ValidationError struct{ Field string }
+
+func (e *ValidationError) Error() string { return "invalid " + e.Field }
+
+func findUser(email string) (*User, error) { return nil, ErrNotFound }
+-->
+
+`match` takes a call returning `(T, error)` as it takes a Result, and its
+`Err` patterns test the error the way Go does, through every error it
+wraps:
+
+```vuka
+func login(email string) string {
+	match findUser(email) {
+	case Ok(u):
+		return "hello " + u.Name
+	case Err(ErrNotFound):
+		return "unknown email"
+	case Err(&ValidationError{Field: f}):
+		return "invalid " + f
+	case Err(e):
+		return e.Error()
+	}
+}
+```
+
+- `Err(ErrNotFound)`, `Err(fs.ErrNotExist)`: a sentinel, tested with
+  `errors.Is` — so an error wrapped with `fmt.Errorf("…: %w", err)` (or
+  `?("…")`) still matches. A bare name in a pattern against an error is a
+  sentinel when it names a package-level variable of type `error`.
+- `Err(&ValidationError{Field: f})`: an error type, found in the chain with
+  `errors.As`; its fields are patterns as in any struct pattern.
+- `Err(e)`: any error, bound to `e`.
+
+The same holds for a `match` on an `error` value itself: `case ErrNotFound:`
+is `errors.Is`, `case &ValidationError{}:` is `errors.As`, and `case nil:`
+compares.
+
+The call runs once. The match above is the Go you would write:
+
+```go
+func login(email string) string {
+	if u, err := findUser(email); err == nil {
+		return "hello " + u.Name
+	} else if errors.Is(err, ErrNotFound) {
+		return "unknown email"
+	} else if f, ok := func() (f string, ok bool) {
+		var p1 *ValidationError
+		if !errors.As(err, &p1) {
+			return
+		}
+		if !(p1 != nil) {
+			return
+		}
+		f = p1.Field
+		ok = true
+		return
+	}(); ok {
+		return "invalid " + f
+	} else if e := err; err != nil {
+		return e.Error()
+	} else {
+		panic("vuka: no case matched")
+	}
+}
+```
+
+The value is named after what a case's `Ok` binds it to, else its type
+(`*User` is `user`) or the call, and the error is `err`; a name a case uses
+for something else, or one in scope, takes the next (`v`, `err2`). A call
+returning anything other than `(T, error)` is an error.
+
 ## Patterns
 
 The table below lists every pattern a case can use:
@@ -57,10 +134,10 @@ The table below lists every pattern a case can use:
 |---|---|
 | `_`, `default` | anything |
 | `x` | anything, bound to `x` (a constant's name compares instead) |
-| `0`, `"a"`, `Max`, `pkg.Const`, `true` | an equal value |
+| `0`, `"a"`, `Max`, `pkg.Const`, `true` | an equal value; against an error, `errors.Is` |
 | `^x` | the current value of the variable `x` (pinned, not bound) |
 | `Ok(p)`, `Err(p)`, `Some(p)`, `None` | a Result or Option, then `p` inside |
-| `T{F: p, …}`, `&T{…}` | a struct's fields; against an interface, a type test too |
+| `T{F: p, …}`, `&T{…}` | a struct's fields; against an interface, a type test too (against an error, `errors.As`) |
 | `Status.Draft`, `Shape.Circle{Radius: p}` | an [enum](/features/enums)'s variant |
 | `1, 2, 3` | any of them |
 
@@ -107,4 +184,7 @@ value of their own, so `Some(1)` leaves `Some(_)` missing.
 An `if`/`else if` chain that tests each pattern in turn with the Result's and
 Option's own methods (`IsOk`, `Value`, `Err`, `IsSome`), bodies where you
 wrote them, ending in `panic("vuka: no case matched")` — which exhaustiveness
-makes unreachable.
+makes unreachable. A match whose cases have no guards and simple patterns is
+a `switch`. On a `(T, error)` call the tests are `err == nil`, `errors.Is`
+and `errors.As` on the call's own variables (see
+[Matching Errors](#matching-errors)).

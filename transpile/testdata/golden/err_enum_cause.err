@@ -1,0 +1,1 @@
+err_enum_cause.vuka:5:2: SyncError.Conflict has 2 fields of type error, Local and Remote: which is its cause?; declare func (s SyncError.Conflict) Unwrap() error returning the cause

@@ -314,6 +314,9 @@ func (e *engine) prepare() {
 	if e.lowerVariantMethods() {
 		e.progress = true
 	}
+	if e.lowerEnumCauses() {
+		e.progress = true
+	}
 	if len(*e.errs) > nerrs {
 		return
 	}

@@ -1,0 +1,11 @@
+package main
+
+enum SyncError {
+	Offline
+	Conflict{Local, Remote error}
+}
+
+func (SyncError.Offline) Error() string  { return "offline" }
+func (SyncError.Conflict) Error() string { return "conflict" }
+
+func main() {}
