@@ -1,0 +1,58 @@
+package main
+
+import (
+	"encoding/json"
+	"errors"
+	"fmt"
+)
+
+// PasswordError is why a password change was refused.
+enum PasswordError {
+	CurrentRequired
+	Mismatch
+	ChangeFailed
+}
+
+func (PasswordError.CurrentRequired) Error() string { return "Current password is required" }
+func (PasswordError.Mismatch) Error() string        { return "Passwords do not match" }
+func (PasswordError.ChangeFailed) Error() string    { return "Failed to change password. Please try again." }
+
+func change(current, next, again string) error {
+	switch {
+	case current == "":
+		return PasswordError.CurrentRequired
+	case next != again:
+		return PasswordError.Mismatch
+	case next == "fail":
+		return PasswordError.ChangeFailed
+	}
+	return nil
+}
+
+type Reply struct {
+	Reason PasswordError `json:"reason"`
+}
+
+func main() {
+	err := change("", "a", "a")
+	fmt.Println(err)
+	fmt.Println(errors.Is(err, PasswordError.CurrentRequired), errors.Is(err, PasswordError.Mismatch))
+	err = change("old", "a", "b")
+	fmt.Println(err, errors.Is(err, PasswordError.Mismatch))
+	var pe PasswordError
+	if errors.As(change("old", "fail", "fail"), &pe) {
+		fmt.Println(pe.String(), pe.Error())
+	}
+	b, _ := json.Marshal(Reply{Reason: PasswordError.Mismatch})
+	fmt.Println(string(b))
+	var r Reply
+	_ = json.Unmarshal(b, &r)
+	fmt.Println(r.Reason == PasswordError.Mismatch, r.Reason.Error())
+	v, _ := PasswordError.ChangeFailed.Value()
+	fmt.Println(v)
+	var scanned PasswordError
+	_ = scanned.Scan(int64(1))
+	fmt.Println(scanned.Error())
+	defer func() { fmt.Println("recovered:", recover()) }()
+	_ = PasswordError(9).Error()
+}

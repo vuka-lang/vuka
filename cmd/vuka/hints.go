@@ -72,8 +72,64 @@ func goHints(in hintInput) hint {
 		h.help = "delete the import, or use the package"
 	case strings.Contains(first, " has no field or method "):
 		in.noField(&h, first)
+	case strings.HasSuffix(first, " (constant) is not a type"):
+		in.variantType(&h, first)
 	}
 	return h
+}
+
+var variantNotType = regexp.MustCompile(`^(\w+)\.(\w+) \(constant\) is not a type$`)
+
+// variantType explains a value enum's variant written as a type, the
+// receiver of a method above all: the variants are values.
+func (in hintInput) variantType(h *hint, first string) {
+	m := variantNotType.FindStringSubmatch(first)
+	if m == nil {
+		return
+	}
+	enum, variant := m[1], m[2]
+	if t := in.types; t != nil {
+		if !isValueEnum(t, enum) {
+			return
+		}
+	} else if r := enum[0]; r < 'A' || r > 'Z' {
+		return // maybe a package's constant: pkg.Name
+	}
+	method := ""
+	if in.src != nil && in.from >= 0 && in.from <= len(in.src) {
+		start := strings.LastIndexByte(string(in.src[:in.from]), '\n') + 1
+		end := len(in.src)
+		if i := strings.IndexByte(string(in.src[in.from:]), '\n'); i >= 0 {
+			end = in.from + i
+		}
+		recv := regexp.MustCompile(`func\s*\(\s*(?:\w+\s+)?\*?\s*` + regexp.QuoteMeta(enum+"."+variant) + `\s*\)\s*(\w+)`)
+		if mm := recv.FindStringSubmatch(string(in.src[start:end])); mm != nil {
+			method = mm[1]
+		}
+	}
+	if method != "" {
+		h.msg = enum + " is a value enum: its variants are values, not types. Write one " + method + "() on " + enum + ", or give a variant fields to make it an enum with data."
+		return
+	}
+	h.msg = enum + " is a value enum: its variants are values, not types. Use " + enum + " as the type, or give a variant fields to make it an enum with data."
+}
+
+// isValueEnum reports whether name is a value enum of the package: a
+// defined integer or string type with a func <name>Values.
+func isValueEnum(t *typeFacts, name string) bool {
+	if t.pkg == nil {
+		return false
+	}
+	tn, ok := t.pkg.Scope().Lookup(name).(*types.TypeName)
+	if !ok {
+		return false
+	}
+	b, ok := tn.Type().Underlying().(*types.Basic)
+	if !ok || b.Info()&(types.IsInteger|types.IsString) == 0 {
+		return false
+	}
+	_, ok = t.pkg.Scope().Lookup(name + "Values").(*types.Func)
+	return ok
 }
 
 var unusedImport = regexp.MustCompile(`^"[^"]+" imported (as \w+ )?and not used$`)

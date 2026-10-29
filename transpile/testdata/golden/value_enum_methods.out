@@ -1,0 +1,9 @@
+Current password is required
+true false
+Passwords do not match true
+ChangeFailed Failed to change password. Please try again.
+{"reason":"Mismatch"}
+true Passwords do not match
+2
+Passwords do not match
+recovered: vuka: PasswordError.Error called on an invalid PasswordError: PasswordError(9)

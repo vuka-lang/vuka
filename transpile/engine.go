@@ -308,6 +308,13 @@ func (e *engine) prepare() {
 			}
 		}
 	}
+	nerrs := len(*e.errs)
+	if e.lowerVariantMethods() {
+		e.progress = true
+	}
+	if len(*e.errs) > nerrs {
+		return
+	}
 	e.sets = findOverloads(e.vuka, e.files, e.errs)
 	e.funcs, e.methods, e.mnames = map[string]*overloadSet{}, map[string]*overloadSet{}, map[string]bool{}
 	for key, s := range e.sets {

@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"io"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
@@ -263,5 +265,107 @@ func TestExplainEnums(t *testing.T) {
 		if !strings.Contains(out.String(), want) {
 			t.Errorf("explanation lacks %q:\n%s", want, out.String())
 		}
+	}
+}
+
+const enumMethodsPkg = `package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+// PaymentError is why a payment was refused.
+enum PaymentError {
+	Declined
+	Expired
+	Unavailable
+}
+
+func (PaymentError.Declined) Error() string { return "the card was declined" }
+func (e PaymentError.Expired) Error() string { return "the card has expired (" + e.String() + ")" }
+
+// Error is the message of the errors without their own.
+func (e PaymentError) Error() string { return "payments are unavailable" }
+
+func pay(card string) error {
+	switch card {
+	case "declined":
+		return PaymentError.Declined
+	case "old":
+		return PaymentError.Expired
+	case "down":
+		return PaymentError.Unavailable
+	}
+	return nil
+}
+
+func main() {
+	for _, card := range []string{"declined", "old", "down"} {
+		err := pay(card)
+		fmt.Println(err, errors.Is(err, PaymentError.Expired))
+	}
+	fmt.Println(PaymentError(7).Error())
+}
+`
+
+// TestEjectValueEnumMethods: ejected, a value enum's variant methods are
+// functions and the enum's one method switches between them, readable Go
+// that go build and go vet take and that prints what vuka's build printed.
+func TestEjectValueEnumMethods(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := t.TempDir()
+	gomod, gosum := testModule(t, "example.com/app")
+	writeFile(t, filepath.Join(root, "go.mod"), gomod)
+	writeFile(t, filepath.Join(root, "go.sum"), gosum)
+	writeFile(t, filepath.Join(root, "payments", "main.vuka"), enumMethodsPkg)
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Chdir(root)
+	bin := t.TempDir()
+	var stderr bytes.Buffer
+	if err := runGo("build", []string{"-o", filepath.Join(bin, "vuka-built"), "./payments"}, io.Discard, &stderr); err != nil {
+		t.Fatalf("vuka build: %v\n%s", err, stderr.Bytes())
+	}
+	want, err := exec.Command(filepath.Join(bin, "vuka-built")).CombinedOutput()
+	if err != nil {
+		t.Fatalf("%v\n%s", err, want)
+	}
+	if !strings.Contains(string(want), "the card has expired (Expired) true") || !strings.Contains(string(want), "payments are unavailable\n") {
+		t.Fatalf("vuka's build printed:\n%s", want)
+	}
+	var out bytes.Buffer
+	if err := eject([]string{"-rm", "./..."}, &out); err != nil {
+		t.Fatal(err)
+	}
+	src, err := os.ReadFile(filepath.Join("payments", "main.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, s := range []string{
+		"func paymentErrorDeclinedError() string { return \"the card was declined\" }",
+		"func paymentErrorExpiredError(e PaymentError) string {",
+		"// defaultPaymentErrorError is the message of the errors without their own.\nfunc defaultPaymentErrorError(e PaymentError) string {",
+		"// Error calls the Error of p's variant: PaymentError.Declined, PaymentError.Expired, and the default on PaymentError for the others.\n" +
+			"func (p PaymentError) Error() string {\n\tswitch p {\n\tcase PaymentErrorDeclined:\n\t\treturn paymentErrorDeclinedError()\n" +
+			"\tcase PaymentErrorExpired:\n\t\treturn paymentErrorExpiredError(p)\n\t}\n\treturn defaultPaymentErrorError(p)\n}\n",
+	} {
+		if !strings.Contains(string(src), s) {
+			t.Errorf("the ejected Go lacks\n%s\n---\n%s", s, src)
+		}
+	}
+	if bytes.Contains(src, []byte("//line ")) {
+		t.Errorf("the ejected Go has line directives:\n%s", src)
+	}
+	for _, args := range [][]string{{"build", "-o", filepath.Join(bin, "go-built"), "./payments"}, {"vet", "./..."}} {
+		if out, err := exec.Command("go", args...).CombinedOutput(); err != nil {
+			t.Fatalf("go %s after vuka eject -rm: %v\n%s", args[0], err, out)
+		}
+	}
+	got, err := exec.Command(filepath.Join(bin, "go-built")).CombinedOutput()
+	if err != nil || !bytes.Equal(got, want) {
+		t.Errorf("built with go build: %v\n%s\nwant:\n%s", err, got, want)
 	}
 }

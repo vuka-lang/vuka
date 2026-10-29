@@ -1,0 +1,18 @@
+package main
+
+enum OrderState {
+	Placed
+	Paid
+	Shipped
+}
+
+func (OrderState.Placed) Next() OrderState     { return OrderState.Paid }
+func (OrderState.Paid) Next() (OrderState, bool) { return OrderState.Shipped, true }
+func (OrderState.Shipped) Next() OrderState    { return OrderState.Shipped }
+
+func (OrderState.Placed) Fee(total int) int { return 0 }
+func (OrderState.Paid) Fee(total int) int   { return total / 100 }
+func (OrderState.Paid) Fee(total int) int   { return total / 50 }
+func (s OrderState) Fee(total float64) int  { return 0 }
+
+func main() {}

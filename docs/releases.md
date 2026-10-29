@@ -20,6 +20,26 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.11.0 — unreleased
+
+### Enums
+
+- **Methods on a value enum's variants.** `func (PasswordError.Mismatch)
+  Error() string` works on a value enum as on an enum with data: the
+  methods of one name become one method on the enum that switches on the
+  value and calls each variant's, so the enum satisfies `error` and other
+  interfaces while it stays a number for JSON, the database and `match`.
+  Every variant declares the method, or the enum declares a default for the
+  rest (and for a value that is no variant, which otherwise panics); the
+  declarations share one signature, take value receivers, and can't be a
+  generated method (`String`, `Valid`, …). New codes: E0164 (missing
+  variants), E0165 (signatures that differ), E0166 (a pointer receiver),
+  E0167 (a generated method). Hover on a variant's method names the method
+  it is part of, and definition from a call offers every declaration.
+- A value enum's variant written as a type, which Go reports as
+  `(constant) is not a type`, now says the variants are values and what to
+  write instead.
+
 ## v2.10.0 — 2026-10-28
 
 ### Markup Calls

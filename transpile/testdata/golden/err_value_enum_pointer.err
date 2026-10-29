@@ -1,0 +1,2 @@
+err_value_enum_pointer.vuka:8:9: PaymentStatus.Pending.Retry has a pointer receiver: PaymentStatus is a value enum, its variants are constants; write the receiver PaymentStatus.Pending
+err_value_enum_pointer.vuka:12:9: PaymentStatus.Final is declared on PaymentStatus's variants, so its default on PaymentStatus takes a value receiver, not *PaymentStatus

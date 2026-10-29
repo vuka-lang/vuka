@@ -1,0 +1,3 @@
+err_value_enum_signature.vuka:10:24: OrderState.Paid.Next is Next() (OrderState, bool), but OrderState.Placed.Next at err_value_enum_signature.vuka:9:26 is Next() OrderState: every variant's Next has one signature
+err_value_enum_signature.vuka:15:24: OrderState.Paid.Fee is declared twice: here and at err_value_enum_signature.vuka:14:24
+err_value_enum_signature.vuka:16:21: OrderState.Fee is Fee(float64) int, but OrderState.Placed.Fee at err_value_enum_signature.vuka:13:26 is Fee(int) int: the default on OrderState has the variants' signature

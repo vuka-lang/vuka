@@ -1,0 +1,2 @@
+err_value_enum_missing.vuka:9:38: PasswordError.Error has no method for Mismatch, ChangeFailed: add them, or a default on PasswordError; declare func (p PasswordError) Error() string for the variants without their own
+err_value_enum_missing.vuka:11:21: PasswordError has no variant Expired; PasswordError's variants are CurrentRequired, Mismatch, ChangeFailed

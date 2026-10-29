@@ -74,6 +74,10 @@ same page in the terminal.
 | [E0161](./E0161) | ui.FormOf names a field the model lacks |
 | [E0162](./E0162) | A call in markup is short of an argument |
 | [E0163](./E0163) | A statement's name used after its element |
+| [E0164](./E0164) | A variant method missing variants |
+| [E0165](./E0165) | Variant methods that disagree |
+| [E0166](./E0166) | A pointer receiver on a value enum's variant |
+| [E0167](./E0167) | A variant method every value enum generates |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A stateful component in a loop has no key |

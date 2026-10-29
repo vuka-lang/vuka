@@ -1,0 +1,63 @@
+package main
+
+import (
+	"encoding/json"
+	"fmt"
+	"strings"
+)
+
+// Role is a user's role, stored as its value.
+enum Role string {
+	Admin = "admin"
+	Staff = "staff"
+	Guest = "guest"
+}
+
+// Label is how the role reads in a page's heading.
+func (Role.Admin) Label() string { return "Administrator" }
+
+// Label for staff names the team.
+func (r Role.Staff) Label() string { return "Staff (" + string(r) + ")" }
+
+// Label is the role's value, capitalised, for the roles without their own.
+func (r Role) Label() string { return strings.ToUpper(string(r)[:1]) + string(r)[1:] }
+
+// Can reports whether the role may do action; it differs for every role.
+func (Role.Admin) Can(action string, more ...string) bool { return true }
+func (Role.Staff) Can(action string, more ...string) bool { return action != "delete" && len(more) == 0 }
+func (Role.Guest) Can(action string, more ...string) bool { return action == "read" }
+
+// Priority orders the orders queue.
+enum Priority uint8 {
+	Low = 1
+	Normal = 2
+	Urgent = 9
+}
+
+func (Priority.Urgent) Notify(log *[]string) { *log = append(*log, "page the on-call") }
+func (p Priority) Notify(log *[]string)       { *log = append(*log, "queue "+p.String()) }
+
+type User struct {
+	Name string `json:"name"`
+	Role Role   `json:"role"`
+}
+
+func main() {
+	for _, r := range Role.Values() {
+		fmt.Println(r, r.Label(), r.Can("delete"), r.Can("read"), r.Can("read", "twice"))
+	}
+	fmt.Println(Role("owner").Label())
+	b, _ := json.Marshal(User{Name: "ada", Role: Role.Staff})
+	fmt.Println(string(b))
+	var u User
+	_ = json.Unmarshal([]byte(`{"name":"bo","role":"admin"}`), &u)
+	fmt.Println(u.Role.Label())
+	var log []string
+	for _, p := range Priority.Values() {
+		p.Notify(&log)
+	}
+	Priority(4).Notify(&log)
+	fmt.Println(strings.Join(log, "; "))
+	defer func() { fmt.Println("recovered:", recover()) }()
+	Role("owner").Can("read")
+}
