@@ -1,0 +1,17 @@
+error[E0166]: PaymentStatus.Pending.Retry has a pointer receiver: PaymentStatus is a value enum, its variants are constants; write the receiver PaymentStatus.Pending
+ --> err_value_enum_pointer.vuka:8:9
+  |
+8 | func (s *PaymentStatus.Pending) Retry() bool { return true }
+  |         ^
+  |
+  = help: write a value receiver: func (PaymentStatus.Pending) Retry() bool
+
+error[E0166]: PaymentStatus.Final is declared on PaymentStatus's variants, so its default on PaymentStatus takes a value receiver, not *PaymentStatus
+  --> err_value_enum_pointer.vuka:12:9
+   |
+12 | func (s *PaymentStatus) Final() bool      { return true }
+   |         ^
+   |
+   = help: write a value receiver: func (PaymentStatus.Pending) Retry() bool
+
+For more information about this error, try `vuka explain E0166`.

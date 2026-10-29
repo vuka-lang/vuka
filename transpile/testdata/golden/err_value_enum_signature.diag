@@ -1,0 +1,37 @@
+error[E0165]: OrderState.Paid.Next is Next() (OrderState, bool), but OrderState.Placed.Next at err_value_enum_signature.vuka:9:26 is Next() OrderState: every variant's Next has one signature
+  --> err_value_enum_signature.vuka:10:24
+   |
+10 | func (OrderState.Paid) Next() (OrderState, bool) { return OrderState.Shipped, true }
+   |                        ^^^^
+  ::: err_value_enum_signature.vuka:9:26
+   |
+ 9 | func (OrderState.Placed) Next() OrderState     { return OrderState.Paid }
+   |                          ----
+   |
+   = help: give every variant's method, and the default, one signature
+
+error[E0165]: OrderState.Paid.Fee is declared twice: here and at err_value_enum_signature.vuka:14:24
+  --> err_value_enum_signature.vuka:15:24
+   |
+15 | func (OrderState.Paid) Fee(total int) int   { return total / 50 }
+   |                        ^^^
+  ::: err_value_enum_signature.vuka:14:24
+   |
+14 | func (OrderState.Paid) Fee(total int) int   { return total / 100 }
+   |                        ---
+   |
+   = help: give every variant's method, and the default, one signature
+
+error[E0165]: OrderState.Fee is Fee(float64) int, but OrderState.Placed.Fee at err_value_enum_signature.vuka:13:26 is Fee(int) int: the default on OrderState has the variants' signature
+  --> err_value_enum_signature.vuka:16:21
+   |
+16 | func (s OrderState) Fee(total float64) int  { return 0 }
+   |                     ^^^
+  ::: err_value_enum_signature.vuka:13:26
+   |
+13 | func (OrderState.Placed) Fee(total int) int { return 0 }
+   |                          ---
+   |
+   = help: give every variant's method, and the default, one signature
+
+For more information about this error, try `vuka explain E0165`.

@@ -1,0 +1,11 @@
+package main
+
+enum PaymentStatus {
+	Pending
+	Settled
+}
+
+func (PaymentStatus.Pending) String() string { return "waiting for the bank" }
+func (PaymentStatus.Settled) String() string { return "paid" }
+
+func main() {}

@@ -706,6 +706,9 @@ type Generated struct {
 	// Implicit are the calls in its markup given the render's ctx
 	// (transpile.Output.Implicit).
 	Implicit []transpile.ImplicitCtx
+	// VariantMethods are its methods on value-enum variants
+	// (transpile.Output.VariantMethods).
+	VariantMethods []transpile.VariantMethod
 }
 
 // Options configure Transpile.
@@ -1000,7 +1003,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped, Implicit: f.Implicit})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped, Implicit: f.Implicit, VariantMethods: f.VariantMethods})
 		}
 		if res.Calls != nil {
 			// The call adapters: a file of the package's, no source's.

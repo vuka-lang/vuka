@@ -1,0 +1,8 @@
+admin Administrator true true true
+staff Staff (staff) false true false
+guest Guest false true true
+Owner
+{"name":"ada","role":"staff"}
+Administrator
+queue Low; queue Normal; page the on-call; queue Priority(4)
+recovered: vuka: Role.Can called on an invalid Role: "owner"

@@ -1,0 +1,17 @@
+error[E0164]: PasswordError.Error has no method for Mismatch, ChangeFailed: add them, or a default on PasswordError
+ --> err_value_enum_missing.vuka:9:38
+  |
+9 | func (PasswordError.CurrentRequired) Error() string { return "Current password is required" }
+  |                                      ^^^^^
+  |
+  = help: declare func (p PasswordError) Error() string for the variants without their own
+
+error[E0164]: PasswordError has no variant Expired
+  --> err_value_enum_missing.vuka:11:21
+   |
+11 | func (PasswordError.Expired) Error() string { return "expired" }
+   |                     ^^^^^^^
+   |
+   = help: PasswordError's variants are CurrentRequired, Mismatch, ChangeFailed
+
+For more information about this error, try `vuka explain E0164`.

@@ -1,0 +1,17 @@
+error[E0167]: PaymentStatus.Pending can't declare String: every value enum generates PaymentStatus.String
+ --> err_value_enum_string.vuka:8:30
+  |
+8 | func (PaymentStatus.Pending) String() string { return "waiting for the bank" }
+  |                              ^^^^^^
+  |
+  = help: remove it; PaymentStatus.String returns the variant's name; for another text, declare a method of another name (Label, Message)
+
+error[E0167]: PaymentStatus.Settled can't declare String: every value enum generates PaymentStatus.String
+ --> err_value_enum_string.vuka:9:30
+  |
+9 | func (PaymentStatus.Settled) String() string { return "paid" }
+  |                              ^^^^^^
+  |
+  = help: remove it; PaymentStatus.String returns the variant's name; for another text, declare a method of another name (Label, Message)
+
+For more information about this error, try `vuka explain E0167`.
