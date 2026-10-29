@@ -129,6 +129,9 @@ sent in the encoding the browser takes: the `.br` or `.gz` beside it in
 `fsys` when there is one (`app.css.br`), else one the app makes the first
 time and keeps.
 
+Link the files with [`web.Asset`](/web/static-files): `vuka build` names
+them by their content, so they are cached for good.
+
 ## Behind a Proxy
 
 A proxy or load balancer in front of the app makes every request come from

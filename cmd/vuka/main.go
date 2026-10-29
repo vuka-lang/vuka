@@ -228,6 +228,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			ds = append(ds, vetScripts(root, modPath, pa)...)
 		}
 		ds = append(ds, routesUnserved(root, modPath, scanRoutes(root, modPath, nil))...)
+		ds = append(ds, staticDiags(root, true)...)
 		if ds = scope.warnings(append(ds, vetLivePages(root, pkgs)...)); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
@@ -269,6 +270,14 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		}
 	} else if ds := buildWarnings(transpileWarnings(root, gens)); len(ds) > 0 {
 		writeDiags(stderr, ds, colorFor(stderr))
+	}
+	if cmd == "build" || cmd == "install" {
+		if ds := staticDiags(root, false); len(ds) > 0 {
+			writeDiags(stderr, ds, colorFor(stderr))
+			if slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return d.Severity == diag.Error }) {
+				return errors.New("a web.Asset path names no static file")
+			}
+		}
 	}
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err
