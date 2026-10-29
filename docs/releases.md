@@ -54,6 +54,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   without `-f`: `vuka ui add` prints the difference. The `[ui]` table in
   `vuka.toml` records where they go. See
   [UI Components (Vendored)](/ui/vendored).
+- **A registry for `vuka ui`, and a page per component.** `vuka ui add`
+  fetches components from vuka's registry at the version of the command,
+  checking each file's sha256 against the index, so they match the
+  libraries the app builds against; `--offline`, or a fetch that fails,
+  uses the copy built in. `--registry` or `[ui] registry` reads another
+  one (an `https://` URL or a directory) in the same format. Dependencies
+  resolve transitively, and a component needing a newer `ui` or `web` than
+  `go.mod` requires says which `go get` to run. `vuka ui diff` shows how
+  the app's copies differ from the registry's. Each component has a page
+  under [Components](/ui/components/): props, usage, both themes, and its
+  `.vuka.html` beside the Go `vuka eject` makes of it.
 
 ### Markup Calls
 

@@ -14,7 +14,7 @@ func TestOneWayGuides(t *testing.T) {
 	forbidden := []string{"ui.HTML(", "ui.UseState", "ui.UsePageState", "LiveSchema", "@web.Get", "@web.Live", "@web.Service", "web.Routes.", "web.Params", "inject:", "vuka fix"}
 	shapes := 0
 	for _, page := range docPages(t) {
-		if !strings.HasPrefix(page, "ui/") && !strings.HasPrefix(page, "web/") {
+		if !strings.HasPrefix(page, "ui/") && !strings.HasPrefix(page, "web/") || generatedUIPage(page) {
 			continue
 		}
 		src, err := os.ReadFile(page)

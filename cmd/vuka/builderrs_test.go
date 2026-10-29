@@ -116,7 +116,7 @@ var testDir, _ = os.Getwd()
 func golden(t *testing.T, name, got string) {
 	t.Helper()
 	path := filepath.Join(testDir, "testdata", "builderrs", name)
-	if *updateFixUI {
+	if *updateFiles {
 		os.MkdirAll(filepath.Dir(path), 0o755)
 		if err := os.WriteFile(path, []byte(got), 0o644); err != nil {
 			t.Fatal(err)

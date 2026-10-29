@@ -187,7 +187,7 @@ func TestGoSamples(t *testing.T) {
 		var vet []sample
 		for _, s := range samples {
 			shown := !s.inVuka
-			if !shown || strings.HasPrefix(page, "errors/") {
+			if !shown || strings.HasPrefix(page, "errors/") || generatedUIPage(page) {
 				continue
 			}
 			if s.lang == "go" || s.lang == "html" && s.inGo {
@@ -225,6 +225,11 @@ func TestGoSamples(t *testing.T) {
 	}
 	vetSamples(t, all)
 }
+
+// generatedUIPage reports whether page is a vendored component's page,
+// written by cmd/vuka's TestUIDocs: its Go is the component as vuka eject
+// writes it, one file of a package the conformance example builds.
+func generatedUIPage(page string) bool { return strings.HasPrefix(page, "ui/components/") }
 
 // checkContainers rejects the retired preference containers in published guides.
 func checkContainers(t *testing.T, page, text string, samples []sample, cs []container) {

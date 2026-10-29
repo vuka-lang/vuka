@@ -34,10 +34,11 @@ Usage:
 	        grow the app: a module (model, service, page, migration, test), a
 	        service, a component, an island, a page (live, or backed by an
 	        island), an orm entity and its migration; vuka add -h for each
-	vuka ui init|add|list … [-f] [--dry-run]
+	vuka ui init|add|diff|list … [-f] [--dry-run] [--registry url|dir] [--offline]
 	        components that are the app's own source: init writes the design
 	        tokens into its stylesheet and components/ui/cn.go, add writes
-	        components (button, card, dialog, tabs…) beside it; vuka ui -h
+	        components (button, card, dialog, tabs…) beside it from the
+	        registry, diff shows how the app's differ from it; vuka ui -h
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        vet runs vukavet's checks too (the app's go tool vukavet, else one
