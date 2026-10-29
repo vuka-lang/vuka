@@ -41,6 +41,19 @@ the `github.com/vuka-lang/vuka` package your module requires.
   Vuka extension's server already does from the editor's text: a second
   copy, from disk, stood until a save. See
   [Match Statements](/tools/editors#match).
+- **A quicker language server on big files and modules.** Positions map
+  through an index of each buffer's lines: semantic tokens on a 2000-line
+  file take 4ms where they took 258ms, and hovers, diagnostics and edits
+  map the same way. A build sends a file's diagnostics only when they
+  changed or to answer an edit of it, where every build sent them again for
+  every file with errors and every open buffer. A build reads each file once, and a file's
+  decorators and a `.templ` file's Go again only when its text changed;
+  gopls's messages are checked for generated files in microseconds where
+  a module of 1000 took 16ms each. A `.vuka.html` file's scripts reach the
+  TypeScript server in order, the editor's last text last: two quick edits
+  could leave it with the older one. The VS Code extension finds `vuka`
+  and reads `vuka version` once, in the background, where it ran a login
+  shell up to three times and `vuka version` twice while the editor waited.
 
 ### ORM
 

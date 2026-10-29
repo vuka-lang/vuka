@@ -63,8 +63,9 @@ func (f *vfile) tokenSource(line, char, length uint32) (uint32, uint32, uint32, 
 	if f.m == nil {
 		return 0, 0, 0, false
 	}
-	start := offsetOf(f.gen, lspPosition{Line: line, Character: char})
-	end := offsetOf(f.gen, lspPosition{Line: line, Character: char + length})
+	gen := f.lines(f.gen)
+	start := gen.offset(lspPosition{Line: line, Character: char})
+	end := gen.offset(lspPosition{Line: line, Character: char + length})
 	if end <= start {
 		return 0, 0, 0, false
 	}
@@ -79,8 +80,9 @@ func (f *vfile) tokenSource(line, char, length uint32) (uint32, uint32, uint32, 
 	if f.goneAt(s) || f.goneAt(l) {
 		return 0, 0, 0, false
 	}
-	sp := positionOf(f.text(), f.curOff(s))
-	ep := positionOf(f.text(), f.curOff(l+1))
+	text := f.textLines()
+	sp := text.position(f.curOff(s))
+	ep := text.position(f.curOff(l + 1))
 	if ep.Line != sp.Line || ep.Character <= sp.Character {
 		return 0, 0, 0, false
 	}
