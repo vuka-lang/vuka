@@ -146,3 +146,30 @@ func TestIndexedVFile(t *testing.T) {
 		}
 	}
 }
+
+// TestMentionsVirtual: a message names a generated file by its URI, alone
+// or followed by a position, and an owned one is the editor's.
+func TestMentionsVirtual(t *testing.T) {
+	gen := filepath.FromSlash("/m/pages/[id]/page_vuka.go")
+	owned := filepath.FromSlash("/m/x_templ.go")
+	p := &proxy{virtual: map[string]*vfile{gen: {}, owned: {}}, owned: map[string]bool{owned: true}}
+	for raw, want := range map[string]bool{
+		`{"uri":"` + pathToURI(gen) + `"}`:                           true,
+		`{"message":"see ` + pathToURI(gen) + `:12:3 for it"}`:       true,
+		`{"uri":"` + pathToURI(gen) + `#L12"}`:                       true,
+		`{"uri":"` + pathToURI(owned) + `"}`:                         false,
+		`{"uri":"` + pathToURI(filepath.FromSlash("/m/a.go")) + `"}`: false,
+		`{"uri":"file:///m/pages/page_vuka.go"}`:                     false,
+		`[]`:                                                         false,
+	} {
+		if got := p.mentionsVirtual(json.RawMessage(raw)); got != want {
+			t.Errorf("%s: %v, want %v", raw, got, want)
+		}
+	}
+	p.mu.Lock()
+	p.virtual, p.virtualURIs = map[string]*vfile{}, nil
+	p.mu.Unlock()
+	if p.mentionsVirtual(json.RawMessage(`{"uri":"` + pathToURI(gen) + `"}`)) {
+		t.Error("a file gone from virtual is still named")
+	}
+}

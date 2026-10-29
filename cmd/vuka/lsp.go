@@ -512,6 +512,7 @@ type proxy struct {
 	cursors          map[string]int            // .vuka path → where the editor's last change to it ended
 	virtual          map[string]*vfile         // generated path → buffer in gopls
 	owned            map[string]bool           // Go paths the editor has open itself; its text wins
+	virtualURIs      map[string]bool           // the URIs of virtual's paths not owned; nil until mentionsVirtual makes it
 	bySource         map[string]string         // .vuka path → generated path
 	vukaDiags        map[string]*diagSet       // .vuka path → the last build's transpiler errors
 	vukaWarns        map[string]*diagSet       // .vuka path → the last build's warnings shown in the editor (buildWarnings)
@@ -1127,6 +1128,7 @@ func (p *proxy) own(path string, open bool, body []byte) {
 	defer p.genMu.Unlock()
 	p.mu.Lock()
 	vf, was := p.virtual[path], p.owned[path]
+	p.virtualURIs = nil
 	if open {
 		p.owned[path] = true
 	} else {
@@ -1154,15 +1156,55 @@ func (p *proxy) own(path string, open bool, body []byte) {
 	}
 }
 
+// mentionsVirtual reports whether a message of gopls's names a generated
+// file: it reads each file:// URI in it once, and looks it up.
 func (p *proxy) mentionsVirtual(raw json.RawMessage) bool {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	for path := range p.virtual {
-		if !p.owned[path] && bytes.Contains(raw, []byte(pathToURI(path))) {
+	if p.virtualURIs == nil {
+		p.virtualURIs = make(map[string]bool, len(p.virtual))
+		for path := range p.virtual {
+			if !p.owned[path] {
+				p.virtualURIs[pathToURI(path)] = true
+			}
+		}
+	}
+	if len(p.virtualURIs) == 0 {
+		return false
+	}
+	for rest := []byte(raw); ; {
+		i := bytes.Index(rest, []byte("file://"))
+		if i < 0 {
+			return false
+		}
+		rest = rest[i:]
+		end := bytes.IndexAny(rest, "\"\\ \t\r\n")
+		if end < 0 {
+			end = len(rest)
+		}
+		if namesURI(p.virtualURIs, rest[:end]) {
+			return true
+		}
+		rest = rest[end:]
+	}
+}
+
+// namesURI reports whether the text s, from a file:// URI on, is one of
+// uris or begins with one, as file:///x_vuka.go:12:3 or …#L12 do.
+func namesURI(uris map[string]bool, s []byte) bool {
+	if uris[string(s)] {
+		return true
+	}
+	for j := 0; ; {
+		k := bytes.Index(s[j:], []byte(".go"))
+		if k < 0 {
+			return false
+		}
+		j += k + len(".go")
+		if uris[string(s[:j])] {
 			return true
 		}
 	}
-	return false
 }
 
 // vukaRequest asks gopls the editor's question at the matching place in the

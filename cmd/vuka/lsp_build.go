@@ -580,7 +580,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	for path, vf := range want {
 		virtual[path] = vf
 	}
-	p.virtual = virtual
+	p.virtual, p.virtualURIs = virtual, nil
 	// New files in dependency order: the order the packages were
 	// transpiled in.
 	place := map[string]int{}
