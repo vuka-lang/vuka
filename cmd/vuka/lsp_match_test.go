@@ -8,7 +8,6 @@ import (
 	"time"
 )
 
-
 // matchSession is the proxy on a module holding src as main.vuka, opened.
 type matchSession struct {
 	t   *testing.T

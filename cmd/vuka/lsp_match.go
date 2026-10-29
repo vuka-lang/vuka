@@ -44,8 +44,9 @@ func matchCtorDoc(c transpile.MatchCtor) string {
 	return doc + "matches no value."
 }
 
-// casePrefix is a pattern begun after case, up to the cursor.
-var casePrefix = regexp.MustCompile(`(?:^|\n)[ \t]*case[ \t]+([\w.]*)$`)
+// casePrefix is a pattern begun after case, up to the cursor: after a
+// dot, gopls completes the selector (an enum's variants).
+var casePrefix = regexp.MustCompile(`(?:^|\n)[ \t]*case[ \t]+(\w*)$`)
 
 // matchRequest answers hover on a pattern's Ok, Err, Some or None and
 // completion after case in a match; nil when off is on neither. p.mu
