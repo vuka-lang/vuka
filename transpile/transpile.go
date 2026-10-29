@@ -249,6 +249,7 @@ type fileState struct {
 	lazies      []int         // the names bound lazily, by offset
 	qualified   bool          // this round qualified bare names of its markup (resolveBare)
 	susBindings map[int]*jsxElem
+	partStmts   map[int]bool // statements binding a deferred method inside a <ui.Suspense>, by offset (parts.go)
 	susWarnings ErrorList
 	ambigWarns  ErrorList  // markup calls both fits compile for (W0108, implicit.go)
 	susChecked  bool       // its <ui.Suspense>s are checked (suspense.go)

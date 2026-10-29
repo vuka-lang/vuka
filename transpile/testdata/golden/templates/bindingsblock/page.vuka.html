@@ -1,0 +1,16 @@
+package main
+
+import "context"
+
+// Page uses a statement's name after the element declaring it: the name is
+// the template's, as in a Go block, and still computed once, lazily.
+type Page struct{ Store Store }
+
+func (p Page) Link(ctx context.Context) (ResetLink, error) { return p.Store.Link(ctx) }
+<div class="header">
+  link := Link()
+  if link.Problem == "" { <p>Choose a new password for {link.Email}</p> }
+</div>
+<div class="body">
+  if link.Problem != "" { <div role="alert">{link.Problem}</div> }
+</div>

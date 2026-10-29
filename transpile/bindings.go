@@ -9,8 +9,12 @@ import (
 )
 
 // A template's statement binding names, categories := GetCategories(),
-// binds them for the rest of its element: a name used after the element
-// is E0163. A statement binding one name to one value is lazy: the value
+// binds them as a Go statement does: to the end of the block it is in (an
+// if, for or switch body, or the whole markup). A part's bindings are their
+// element's: one of a deferred method in a <ui.Suspense>, and one listed in
+// a <ui.Suspense for={…}>; such a name used after the element is E0163 (a
+// deferred method's binding elsewhere is its element's part: parts.go,
+// E0344). A statement binding one name to one value is lazy: the value
 // is computed where the render first reads the name, once, and never when
 // no read renders —
 //
@@ -19,11 +23,13 @@ import (
 //
 // unless the markup writes the name, or takes its address.
 
-// markupStmt is a statement of a template's markup, and the element it
-// is in: nil for the markup's top level.
+// markupStmt is a statement of a template's markup, the element it is in
+// (nil for the markup's top level), and the header of the block whose body
+// it is in, if, for, switch or match (zero at the markup's top level).
 type markupStmt struct {
-	b  *jsxBlock
-	el *jsxElem
+	b     *jsxBlock
+	el    *jsxElem
+	block span
 }
 
 // markupStmts are f's markup's statements.
@@ -33,8 +39,8 @@ func (e *engine) markupStmts(f *fileState) []markupStmt {
 		return nil
 	}
 	var out []markupStmt
-	var walk func(ns []jsxNode, el *jsxElem)
-	walk = func(ns []jsxNode, el *jsxElem) {
+	var walk func(ns []jsxNode, el *jsxElem, block span)
+	walk = func(ns []jsxNode, el *jsxElem, block span) {
 		for _, n := range ns {
 			switch n := n.(type) {
 			case *jsxElem:
@@ -42,24 +48,24 @@ func (e *engine) markupStmts(f *fileState) []markupStmt {
 				if !n.frag {
 					inner = n
 				}
-				walk(n.kids, inner)
+				walk(n.kids, inner, block)
 			case *jsxBlock:
 				if n.stmt {
-					out = append(out, markupStmt{n, el})
+					out = append(out, markupStmt{n, el, block})
 					continue
 				}
-				for _, b := range n.bodies {
-					walk(b, el)
+				for i, b := range n.bodies {
+					walk(b, el, n.heads[min(i, len(n.heads)-1)])
 				}
-				for _, c := range n.cases {
-					walk(c, el)
+				for i, c := range n.cases {
+					walk(c, el, n.heads[min(i+1, len(n.heads)-1)])
 				}
 			}
 		}
 	}
 	for _, t := range f.jsx {
 		if h.toSrc(t.start) >= h.markup {
-			walk([]jsxNode{t.root}, nil)
+			walk([]jsxNode{t.root}, nil, span{})
 		}
 	}
 	return out
@@ -150,7 +156,11 @@ func (e *engine) bindings(f *fileState) bool {
 		f.bindDone[at] = true
 		nerrs := len(*e.errs)
 		for id, us := range uses {
-			e.bindingScope(f, st, id, us)
+			if f.susBindings[at] != nil || f.partStmts[at] {
+				e.bindingScope(f, st, id, us)
+			} else {
+				e.blockScope(f, st, id, us)
+			}
 		}
 		if len(*e.errs) > nerrs {
 			continue
@@ -167,11 +177,15 @@ func (e *engine) bindings(f *fileState) bool {
 	return changed
 }
 
-// bindingScope reports the uses of a statement's name after the element
-// it is in: E0163.
+// bindingScope reports the uses of a part's binding after the element it
+// is in: E0163.
 func (e *engine) bindingScope(f *fileState, st markupStmt, id *ast.Ident, uses []*ast.Ident) {
 	if st.el == nil {
 		return
+	}
+	why := "a deferred method's binding in a <ui.Suspense>"
+	if f.susBindings[st.b.heads[0].start] != nil {
+		why = "a binding listed in <ui.Suspense for={…}>"
 	}
 	decl := f.orig(id.Pos())
 	for _, u := range uses {
@@ -180,8 +194,36 @@ func (e *engine) bindingScope(f *fileState, st markupStmt, id *ast.Ident, uses [
 			continue
 		}
 		at := f.at(decl)
-		err := e.errs.add("E0163", f.at(off), "%s is declared in <%s> at line %d, and used after it", id.Name, st.el.tag, at.Line).
-			help("a statement's names are its element's: move the statement up, into an element holding both")
+		err := e.errs.add("E0163", f.at(off), "%s is declared in <%s> at line %d, and used after it; %s is its element's", id.Name, st.el.tag, at.Line, why).
+			help("use %s inside the <%s>, or move the statement up, into an element holding every use", id.Name, st.el.tag)
+		err.Len = len(id.Name)
+	}
+}
+
+// blockScope reports the uses of a statement's name after the block whose
+// body it is in, which Go reports undefined: E0163.
+func (e *engine) blockScope(f *fileState, st markupStmt, id *ast.Ident, uses []*ast.Ident) {
+	if st.block.end <= st.block.start || e.pkg == nil {
+		return
+	}
+	if e.pkg.Scope().Lookup(id.Name) != nil || types.Universe.Lookup(id.Name) != nil {
+		return
+	}
+	if obj, ok := e.pkg.Scope().Lookup(f.html.recvType).(*types.TypeName); ok {
+		if o, _, _ := types.LookupFieldOrMethod(types.NewPointer(obj.Type()), true, e.pkg, id.Name); o != nil {
+			return // the struct's, once qualified
+		}
+	}
+	decl := f.orig(id.Pos())
+	kw, _, _ := strings.Cut(strings.TrimSpace(string(f.src[st.block.start:st.block.end])), " ")
+	for _, u := range uses {
+		off := f.orig(u.Pos())
+		if off < decl || e.info.Uses[u] != nil {
+			continue
+		}
+		at := f.at(decl)
+		err := e.errs.add("E0163", f.at(off), "%s is declared in the %s's body at line %d, and used after it", id.Name, kw, at.Line).
+			help("a statement's names are its block's, as in Go: move the statement up, before the %s", kw)
 		err.Len = len(id.Name)
 	}
 }

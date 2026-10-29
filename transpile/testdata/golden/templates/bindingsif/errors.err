@@ -1,0 +1,1 @@
+page.vuka.html:13:12: n is declared in the if's body at line 9, and used after it; a statement's names are its block's, as in Go: move the statement up, before the if
