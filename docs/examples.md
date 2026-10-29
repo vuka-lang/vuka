@@ -18,7 +18,8 @@ Whole apps written this way are in the repository:
 (a Vue island in a live page and a page backed by its component, built
 with `go generate` and run with `go run .`) and the apps of
 [`examples/conformance`](https://github.com/vuka-lang/vuka/tree/main/examples/conformance)
-— `library-users`, `crud`, `live`, `components`, `islands`, `islands-vue`.
+— `library-users`, `crud`, `live`, `components`, `islands`, `islands-vue`,
+`uikit` (the components `vuka ui add` writes).
 Each conformance app is written once, in Vuka, and CI checks that it
 answers alike built by `vuka build` and ejected to plain Go.
 

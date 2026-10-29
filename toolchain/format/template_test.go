@@ -107,13 +107,13 @@ func TestTailwind(t *testing.T) {
 }
 
 func TestParseOptions(t *testing.T) {
-	o, err := ParseOptions("vuka.toml", []byte("# formatting\n[fmt]\nwidth = 120 # columns\ntailwind = true\n"))
+	o, err := ParseOptions("vuka.toml", []byte("# formatting\n[fmt]\nwidth = 120 # columns\ntailwind = true\n\n[ui]\nstyle = \"default\"\ncomponents = \"components/ui\"\n"))
 	if err != nil || o.Width != 120 || !o.Tailwind {
 		t.Fatalf("%+v %v", o, err)
 	}
 	for _, c := range []struct{ src, want string }{
 		{"[fmt]\nwidht = 1\n", "vuka.toml:2: unknown key widht in [fmt]; did you mean width?"},
-		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt]"},
+		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt] and [ui]"},
 		{"width = 90\n", "vuka.toml:1: width is outside a table: write it under [fmt]"},
 		{"[fmt]\ntailwind = yes\n", "vuka.toml:2: tailwind is true or false"},
 	} {

@@ -1,0 +1,60 @@
+<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// AlertVariant is an Alert's look.
+type AlertVariant string
+
+const (
+	AlertDefault     AlertVariant = ""
+	AlertDestructive AlertVariant = "destructive"
+)
+
+// Alert is a callout: an icon, a title and the message under it.
+//
+//	<design.Alert variant={design.AlertDestructive} title="Payment failed">
+//	  Your card was declined.
+//	</design.Alert>
+type Alert struct {
+	Variant AlertVariant
+	Title   string
+	// Icon is an optional icon before the title, such as an <svg>.
+	Icon ui.Node
+	// Class is added to the alert's classes, winning over them (see cn).
+	Class    string
+	Attrs    []ui.Attr
+	Children ui.Node
+}
+
+const alertBase = "relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm " +
+	"has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current"
+
+var alertVariant = map[AlertVariant]string{
+	AlertDefault:     "bg-card text-card-foreground",
+	AlertDestructive: "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90",
+}
+
+// alertVariants are the classes of an alert of variant v; an unknown one is
+// the default.
+func alertVariants(v AlertVariant) string {
+	variant, ok := alertVariant[v]
+	if !ok {
+		variant = alertVariant[AlertDefault]
+	}
+	return cn(alertBase, variant)
+}
+</script>
+
+<div role="alert" class={cn(alertVariants(Variant), Class)} {Attrs...}>
+  {Icon}
+  if Title != "" {
+    <div class="col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight">{Title}</div>
+  }
+  if ui.Has(Children) {
+    <div
+      data-slot="alert-description"
+      class="col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&_p]:leading-relaxed"
+    >{Children}</div>
+  }
+</div>

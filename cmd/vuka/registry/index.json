@@ -1,0 +1,71 @@
+{
+  "name": "vuka",
+  "package": "design",
+  "styles": {
+    "default": "styles/default.css"
+  },
+  "items": [
+    {
+      "name": "cn",
+      "description": "cn, the class merge every component uses, and its tests",
+      "tier": 0,
+      "files": ["ui/cn.go", "ui/cn_test.go"]
+    },
+    {
+      "name": "button",
+      "description": "a button: six variants, four sizes, a ui.JS chain or a live handler on click",
+      "tier": 1,
+      "files": ["ui/button.vuka.html"],
+      "deps": ["cn"]
+    },
+    {
+      "name": "badge",
+      "description": "a small label: a status or a count",
+      "tier": 1,
+      "files": ["ui/badge.vuka.html"],
+      "deps": ["cn"]
+    },
+    {
+      "name": "card",
+      "description": "a panel with a title, a description, an action, its content and a footer",
+      "tier": 1,
+      "files": ["ui/card.vuka.html"],
+      "deps": ["cn"]
+    },
+    {
+      "name": "alert",
+      "description": "a callout with an icon, a title and a message",
+      "tier": 1,
+      "files": ["ui/alert.vuka.html"],
+      "deps": ["cn"]
+    },
+    {
+      "name": "input",
+      "description": "a text field",
+      "tier": 1,
+      "files": ["ui/input.vuka.html"],
+      "deps": ["cn"]
+    },
+    {
+      "name": "label",
+      "description": "a form field's label",
+      "tier": 1,
+      "files": ["ui/label.vuka.html"],
+      "deps": ["cn"]
+    },
+    {
+      "name": "tabs",
+      "description": "panels shown one at a time, the tab shown kept on the server",
+      "tier": 2,
+      "files": ["ui/tabs.vuka.html", "ui/tabs.go"],
+      "deps": ["cn"]
+    },
+    {
+      "name": "dialog",
+      "description": "a <dialog> over the page, opened and closed by JS commands",
+      "tier": 1,
+      "files": ["ui/dialog.vuka.html"],
+      "deps": ["button", "cn"]
+    }
+  ]
+}

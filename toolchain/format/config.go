@@ -57,8 +57,8 @@ func LoadOptions(dir string) (Options, error) {
 }
 
 // ParseOptions reads vuka.toml's [fmt] table; file names it in errors. The
-// file holds tables of key = value lines and # comments; [fmt] is the one
-// table vuka reads, and a key it doesn't know is an error.
+// file holds tables of key = value lines and # comments: [fmt], read here,
+// where a key it doesn't know is an error, and [ui], which vuka ui reads.
 func ParseOptions(file string, src []byte) (Options, error) {
 	var o Options
 	table := ""
@@ -75,9 +75,12 @@ func ParseOptions(file string, src []byte) (Options, error) {
 				return o, at("a table's name ends with ]")
 			}
 			table = strings.TrimSpace(l[1 : len(l)-1])
-			if table != "fmt" {
-				return o, at("unknown table [%s]: vuka.toml has [fmt]", table)
+			if table != "fmt" && table != "ui" {
+				return o, at("unknown table [%s]: vuka.toml has [fmt] and [ui]", table)
 			}
+			continue
+		}
+		if table == "ui" {
 			continue
 		}
 		key, value, ok := strings.Cut(l, "=")
