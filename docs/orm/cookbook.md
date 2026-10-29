@@ -1254,6 +1254,85 @@ func publishWithTags(ctx context.Context, p *Post, tags []*Tag) error {
 Every query using the `ctx` the function gets is in the transaction; an
 error rolls all of it back. See [Transactions](/orm/transactions).
 
+## Performance {#performance}
+
+### Why Is This Query Slow? {#slow-query}
+
+Ask the database for its plan, the same statement with the same arguments:
+
+::: code-group
+```vuka [Vuka]
+func explainTopPublished(ctx context.Context) error {
+	top := Post.Objects.Filter(Post.Status.Eq("published")).OrderBy(Post.Views.Desc()).Limit(20)
+	text, args := top.SQL(ctx)?
+	fmt.Println(text, args)
+	fmt.Println(top.Explain(ctx)?)
+	return nil
+}
+```
+```go [Generated Go]
+func explainTopPublished(ctx context.Context) error {
+	top := orm.Objects[Post]().Filter(PostColumns.Status.Eq("published")).OrderBy(PostColumns.Views.Desc()).Limit(20)
+	text, args, err := top.SQL(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(text, args)
+	plan, err := top.Explain(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(plan)
+	return nil
+}
+```
+:::
+
+```
+SCAN posts
+USE TEMP B-TREE FOR ORDER BY
+```
+
+`SCAN posts` reads every post to find the published ones, then sorts them.
+On Postgres, `top.Explain(ctx, orm.Analyze())` runs the query and says where
+the time went (abridged):
+
+```
+Limit  (cost=403.32..403.37 rows=20 width=28) (actual time=0.894..0.896 rows=20 loops=1)
+  ->  Sort  (cost=403.32..403.82 rows=200 width=28) (actual time=0.894..0.895 rows=20 loops=1)
+        Sort Key: views DESC
+        Sort Method: top-N heapsort  Memory: 27kB
+        ->  Seq Scan on posts  (cost=0.00..398.00 rows=200 width=28) (actual time=0.004..0.879 rows=200 loops=1)
+              Filter: (status = 'published'::text)
+              Rows Removed by Filter: 19800
+```
+
+`Rows Removed by Filter: 19800` is the cost: 20,000 rows read for 200. An
+index on the filtered column fixes it — `@orm.Char{Max: 20, Default:
+"draft", Index: true}` on `Status`, then `orm makemigrations` and `orm
+migrate` ([Migrations](/orm/migrations)). Explained again, the query
+searches the index:
+
+```
+SEARCH posts USING INDEX idx_posts_status (status=?)
+USE TEMP B-TREE FOR ORDER BY
+```
+
+and on Postgres reads only the 200 published rows (abridged):
+
+```
+Limit  (cost=36.87..36.92 rows=20 width=28) (actual time=0.075..0.076 rows=20 loops=1)
+  ->  Sort  (cost=36.87..37.37 rows=200 width=28) (actual time=0.075..0.075 rows=20 loops=1)
+        Sort Key: views DESC
+        ->  Index Scan using idx_posts_status on posts  (cost=0.29..31.55 rows=200 width=28) (actual time=0.007..0.061 rows=200 loops=1)
+              Index Cond: (status = 'published'::text)
+```
+
+A count, an update or a delete is explained the same way, through its
+statement: `q.CountSQL(ctx)?.Explain(ctx)?`. `orm.Format(orm.PlanJSON)`
+gives the plan as JSON for a tool to read. See [Seeing the
+SQL](/orm/queries#seeing-the-sql).
+
 ## Escaping to SQL {#raw-sql}
 
 ::: code-group

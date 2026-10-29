@@ -6,9 +6,12 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"reflect"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"sync"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -84,8 +87,77 @@ const UIPath = "github.com/vuka-lang/ui/v2"
 var TemplInstrument func(goSrc []byte) ([]byte, error)
 
 // compileTempl compiles one .templ file with TemplCompiler, and instruments
-// it when live.
+// it when live. A file compiled before with the same text and options, by
+// the same compiler and instrumenter, isn't compiled again: a build reads
+// every .templ file of the module, and the language server builds on every
+// pause in typing.
 func compileTempl(path, name string, src []byte, live bool, scopes map[string]string) *Templ {
+	key := templKey{name: name, live: live, scopes: scopeKey(scopes),
+		compiler: reflect.ValueOf(TemplCompiler).Pointer(), instrument: reflect.ValueOf(TemplInstrument).Pointer()}
+	templs.Lock()
+	if templs.files == nil {
+		templs.files = map[string]templEntry{}
+	}
+	c, ok := templs.files[path]
+	templs.Unlock()
+	if ok && c.key == key && bytes.Equal(c.src, src) {
+		return c.t.copyFor(src)
+	}
+	t := compileTemplNow(path, name, src, live, scopes)
+	templs.Lock()
+	templs.files[path] = templEntry{key, slices.Clone(src), t.copyFor(nil)}
+	templs.Unlock()
+	return t
+}
+
+// templs are the last compilation of each .templ file (compileTempl).
+var templs struct {
+	sync.Mutex
+	files map[string]templEntry // path → its last compilation
+}
+
+type templEntry struct {
+	key templKey
+	src []byte // the text compiled
+	t   *Templ
+}
+
+// templKey is what a .templ file's compilation depends on.
+type templKey struct {
+	name                 string
+	live                 bool
+	scopes               string
+	compiler, instrument uintptr // TemplCompiler's and TemplInstrument's code
+}
+
+// scopeKey is scopes as one string, in order.
+func scopeKey(scopes map[string]string) string {
+	keys := make([]string, 0, len(scopes))
+	for k := range scopes {
+		keys = append(keys, k)
+	}
+	slices.Sort(keys)
+	var b strings.Builder
+	for _, k := range keys {
+		b.WriteString(k + "\x00" + scopes[k] + "\x00")
+	}
+	return b.String()
+}
+
+// copyFor is a copy of t for the text src, sharing nothing a caller may
+// change.
+func (t *Templ) copyFor(src []byte) *Templ {
+	c := *t
+	c.Src, c.Go, c.Live = src, slices.Clone(t.Go), slices.Clone(t.Live)
+	if t.Err != nil {
+		e := *t.Err
+		c.Err = &e
+	}
+	return &c
+}
+
+// compileTemplNow is compileTempl without the cache.
+func compileTemplNow(path, name string, src []byte, live bool, scopes map[string]string) *Templ {
 	t := &Templ{Name: name, Src: src, GoName: TemplGoName(name), live: live}
 	t.Go, t.Map, t.Err = TemplCompiler(path, name, src, scopes)
 	if t.Err == nil && live && TemplInstrument != nil {

@@ -155,13 +155,14 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 			p.prioritize(gen) // what the editor shows goes to gopls first
 		}
 		p.mu.Unlock()
+		p.forgetSent(path)
 		if isVuka(path) {
 			go p.checkSyntax(path)
 		}
 		if strings.HasSuffix(path, ".vuka.html") && strings.Contains(dp.TextDocument.Text, "<script") {
 			go func() {
 				if ts := p.typescript(); ts != nil {
-					ts.sync(path, []byte(dp.TextDocument.Text))
+					ts.syncLatest(path)
 				}
 			}()
 		}
@@ -199,7 +200,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 			go p.checkSyntax(path)
 		}
 		if ts := p.ts.Load(); ts != nil && strings.HasSuffix(path, ".vuka.html") {
-			go ts.sync(path, buf)
+			ts.syncLatest(path)
 		}
 	case "textDocument/didClose":
 		p.mu.Lock()
@@ -210,6 +211,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		delete(p.gaveUp, path)
 		delete(p.syntaxDiags, path)
 		p.mu.Unlock()
+		p.forgetSent(path)
 	}
 	p.schedule()
 }
@@ -257,14 +259,7 @@ func (p *proxy) build() {
 		modRoot = r // the paths the editor's buffers are kept by
 	}
 	hunks := map[string][]hunk{}
-	read := func(path string) ([]byte, error) {
-		if b, ok := bufs[path]; ok {
-			src, hs := completableAt(path, b, cursors[path])
-			hunks[path] = hs
-			return src, nil
-		}
-		return os.ReadFile(path)
-	}
+	read := buildReader(bufs, cursors, hunks)
 	t0 := time.Now()
 	pkgs, err := load.Discover(modRoot, modPath, modRoot, true, read)
 	if err != nil {
@@ -373,6 +368,29 @@ func (p *proxy) build() {
 	p.logf("built the module (%d packages%s) in %v", len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
 }
 
+// buildReader is how a build reads the module's files: the editor's
+// buffers, each made completable once (discovery, folder routes and the
+// decorators all read it), with the hunks between the two put in hunks;
+// other files from disk, through load.ReadSource.
+func buildReader(bufs map[string][]byte, cursors map[string]int, hunks map[string][]hunk) load.ReadFunc {
+	var mu sync.Mutex
+	made := map[string][]byte{}
+	return func(path string) ([]byte, error) {
+		b, ok := bufs[path]
+		if !ok {
+			return load.ReadSource(path)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		src, ok := made[path]
+		if !ok {
+			src, hunks[path] = completableAt(path, b, cursors[path])
+			made[path] = src
+		}
+		return slices.Clone(src), nil
+	}
+}
+
 // transpiled says, for the log, how many packages the session's last run
 // transpiled.
 func (p *proxy) transpiled() string {
@@ -448,8 +466,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			d = &diagSet{text: text}
 			diags[e.Pos.Filename] = d
 		}
-		pos := positionOf(text, off)
-		r := lspRange{pos, positionOf(text, off+e.Len)}
+		r := lspRange{d.at(off), d.at(off + e.Len)}
 		if e.Code == "E0005" {
 			// The error at an import names the package's error at its source.
 			dg := e.Diagnostic("")
@@ -482,7 +499,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			}
 			dg := w.Diagnostic("")
 			dg.Severity = diag.Warning
-			d.list = append(d.list, lspFrom(lspRange{positionOf(text, off), positionOf(text, off+w.Len)}, dg))
+			d.list = append(d.list, lspFrom(lspRange{d.at(off), d.at(off + w.Len)}, dg))
 		}
 	}
 	// Which of them are syntax errors, that the editor's next change may
@@ -506,6 +523,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	for _, g := range gens {
 		tm, _ := g.TemplMap.(*templparser.SourceMap)
 		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, matches: g.Matches, implicit: g.Implicit, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings), ambig: ambigFixes(g.Warnings)}
+		vf.index()
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])
 		}
@@ -580,7 +598,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	for path, vf := range want {
 		virtual[path] = vf
 	}
-	p.virtual = virtual
+	p.virtual, p.virtualURIs = virtual, nil
 	// New files in dependency order: the order the packages were
 	// transpiled in.
 	place := map[string]int{}
@@ -600,27 +618,29 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			p.bySource[vf.source] = path
 		}
 	}
+	// The files whose diagnostics the build changed are published again;
+	// those it left as they were aren't.
 	touched := map[string]bool{}
-	for path := range p.vukaDiags {
-		if all || sources[path] != nil {
-			touched[path] = true
-			delete(p.vukaDiags, path)
+	update := func(held, now map[string]*diagSet) {
+		had := map[string]bool{}
+		for path, old := range held {
+			if all || sources[path] != nil {
+				had[path] = true
+				if !sameDiags(old, now[path]) {
+					touched[path] = true
+				}
+				delete(held, path)
+			}
+		}
+		for path, d := range now {
+			if !had[path] {
+				touched[path] = true
+			}
+			held[path] = d
 		}
 	}
-	for path, d := range diags {
-		touched[path] = true
-		p.vukaDiags[path] = d
-	}
-	for path := range p.vukaWarns {
-		if all || sources[path] != nil {
-			touched[path] = true
-			delete(p.vukaWarns, path)
-		}
-	}
-	for path, d := range warns {
-		touched[path] = true
-		p.vukaWarns[path] = d
-	}
+	update(p.vukaDiags, diags)
+	update(p.vukaWarns, warns)
 	for path := range paths {
 		if p.done[path] < seq {
 			p.done[path] = seq
@@ -661,7 +681,20 @@ type diagSet struct {
 	text   []byte
 	list   []any // lspDiagnostic or gopls's map
 	syntax []int // the transpiler's: those that are syntax errors
+
+	lines *lineIndex // text's, made on first use
 }
+
+// textLines is the line index of d.text.
+func (d *diagSet) textLines() *lineIndex {
+	if d.lines == nil || !sameBytes(d.lines.buf, d.text) {
+		d.lines = newLineIndex(d.text)
+	}
+	return d.lines
+}
+
+// at is the LSP position of the offset off in d.text.
+func (d *diagSet) at(off int) lspPosition { return d.textLines().position(off) }
 
 // in is the diagnostics moved onto the text cur, with or without the
 // syntax errors.
@@ -677,9 +710,11 @@ func (d *diagSet) in(cur []byte, syntax bool) []any {
 	}
 	same := cur == nil || bytes.Equal(cur, d.text)
 	var m vfile
+	var from, to *lineIndex
 	if !same {
 		m = vfile{from: d.text}
 		m.withText(cur, nil)
+		from, to = d.textLines(), newLineIndex(cur)
 	}
 	out := []any{}
 	for i, x := range d.list {
@@ -691,8 +726,8 @@ func (d *diagSet) in(cur []byte, syntax bool) []any {
 			continue
 		}
 		move := func(r lspRange) lspRange {
-			s, e := m.curOff(offsetOf(d.text, r.Start)), m.curOff(offsetOf(d.text, r.End))
-			return lspRange{positionOf(cur, s), positionOf(cur, max(s, e))}
+			s, e := m.curOff(from.offset(r.Start)), m.curOff(from.offset(r.End))
+			return lspRange{to.position(s), to.position(max(s, e))}
 		}
 		switch x := x.(type) {
 		case lspDiagnostic:
@@ -710,6 +745,20 @@ func (d *diagSet) in(cur []byte, syntax bool) []any {
 		}
 	}
 	return out
+}
+
+// sameDiags reports whether a and b are the same diagnostics of the same
+// text.
+func sameDiags(a, b *diagSet) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if !bytes.Equal(a.text, b.text) || !slices.Equal(a.syntax, b.syntax) || len(a.list) != len(b.list) {
+		return false
+	}
+	x, err1 := json.Marshal(a.list)
+	y, err2 := json.Marshal(b.list)
+	return err1 == nil && err2 == nil && bytes.Equal(x, y)
 }
 
 func equalDiag(a, b any) bool {
@@ -768,9 +817,36 @@ func (p *proxy) publish(path string) {
 		ds = []any{}
 	}
 	b, _ := json.Marshal(ds)
+	edit := p.changed[path]
 	p.mu.Unlock()
+	uri := pathToURI(p.display(path))
+	if last, ok := p.sent[uri]; ok && last.diags == string(b) && last.edit == edit {
+		return // the editor shows these already, of the text it has
+	}
+	if p.sent == nil {
+		p.sent = map[string]sentDiags{}
+	}
+	p.sent[uri] = sentDiags{string(b), edit}
 	_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
-		"params": map[string]any{"uri": pathToURI(p.display(path)), "diagnostics": json.RawMessage(b)}})
+		"params": map[string]any{"uri": uri, "diagnostics": json.RawMessage(b)}})
+}
+
+// sentDiags is what publish last sent for a file: the diagnostics, and the
+// editor's last change to the file then. Each change of the editor's is
+// answered with the file's diagnostics, the same or not; a build that
+// leaves a file as it was sends nothing.
+type sentDiags struct {
+	diags string
+	edit  int
+}
+
+// forgetSent drops what was last published for the file at path: the
+// editor opening or closing it is told its diagnostics again.
+func (p *proxy) forgetSent(path string) {
+	uri := pathToURI(p.display(path))
+	p.pubMu.Lock()
+	delete(p.sent, uri)
+	p.pubMu.Unlock()
 }
 
 // goplsDiagnostics routes gopls's diagnostics: a generated file's onto its
@@ -932,8 +1008,8 @@ func (p *proxy) syntaxOf(path string, buf []byte) (d *diagSet) {
 		others = p.packageSources(path)
 	}
 	for _, e := range syntaxCheck(&p.syntax, path, src, others) {
-		pos := positionOf(buf, m.curOff(e.Pos.Offset))
-		d.list = append(d.list, lspFromError(lspRange{pos, positionOf(buf, m.curOff(e.Pos.Offset+e.Len))}, e))
+		r := lspRange{d.at(m.curOff(e.Pos.Offset)), d.at(m.curOff(e.Pos.Offset + e.Len))}
+		d.list = append(d.list, lspFromError(r, e))
 	}
 	return d
 }

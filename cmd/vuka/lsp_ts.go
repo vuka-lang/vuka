@@ -41,9 +41,11 @@ type tsServer struct {
 	mu      sync.Mutex
 	next    int
 	pending map[string]chan rpcMsg
-	docs    map[string]*tsDoc    // virtual path → its script
-	typesAt map[string]time.Time // package dir → when its types were last written
-	locs    map[string][]dtsLoc  // a types file → the Go methods its lines declare
+	docs    map[string]*tsDoc      // virtual path → its script
+	typesAt map[string]time.Time   // package dir → when its types were last written
+	locs    map[string][]dtsLoc    // a types file → the Go methods its lines declare
+	syncs   map[string]bool        // template path → its syncLatest worker runs; true: the text changed since it took it
+	files   map[string]*sync.Mutex // template path → held while sync gives the server its scripts
 }
 
 // tsDoc is a script as the server has it.
@@ -310,9 +312,56 @@ func (ts *tsServer) types(dir string) string {
 	return path
 }
 
+// syncLatest gives the server the scripts of the template file at path as
+// the editor has it, in the background: one worker a file, which takes the
+// editor's text when it gets to it, so edits made meanwhile coalesce and
+// the server never gets an older text after a newer one.
+func (ts *tsServer) syncLatest(path string) {
+	ts.mu.Lock()
+	if ts.syncs == nil {
+		ts.syncs = map[string]bool{}
+	}
+	_, running := ts.syncs[path]
+	ts.syncs[path] = true
+	ts.mu.Unlock()
+	if running {
+		return // its worker takes this text too
+	}
+	go func() {
+		for {
+			ts.mu.Lock()
+			if !ts.syncs[path] {
+				delete(ts.syncs, path)
+				ts.mu.Unlock()
+				return
+			}
+			ts.syncs[path] = false
+			ts.mu.Unlock()
+			ts.p.mu.Lock()
+			src, open := ts.p.bufs[path]
+			ts.p.mu.Unlock()
+			if open {
+				ts.sync(path, src)
+			}
+		}
+	}()
+}
+
 // sync gives the server the scripts of the template file at path as they
-// are, and returns them by virtual path.
+// are, and returns them by virtual path. A file's syncs run one at a time.
 func (ts *tsServer) sync(path string, src []byte) map[string]*tsDoc {
+	ts.mu.Lock()
+	if ts.files == nil {
+		ts.files = map[string]*sync.Mutex{}
+	}
+	file := ts.files[path]
+	if file == nil {
+		file = &sync.Mutex{}
+		ts.files[path] = file
+	}
+	ts.mu.Unlock()
+	file.Lock()
+	defer file.Unlock()
 	dts := ts.types(filepath.Dir(path))
 	assets := transpile.TemplateAssets(path, src)
 	prelude := "/// <reference path=" + strconv.Quote(filepath.ToSlash(dts)) + " />\n"

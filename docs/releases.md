@@ -65,6 +65,33 @@ the `github.com/vuka-lang/vuka` package your module requires.
   Vuka extension's server already does from the editor's text: a second
   copy, from disk, stood until a save. See
   [Match Statements](/tools/editors#match).
+- **A quicker language server on big files and modules.** Positions map
+  through an index of each buffer's lines: semantic tokens on a 2000-line
+  file take 4ms where they took 258ms, and hovers, diagnostics and edits
+  map the same way. A build sends a file's diagnostics only when they
+  changed or to answer an edit of it, where every build sent them again for
+  every file with errors and every open buffer. A build reads each file once, and a file's
+  decorators and a `.templ` file's Go again only when its text changed;
+  gopls's messages are checked for generated files in microseconds where
+  a module of 1000 took 16ms each. A `.vuka.html` file's scripts reach the
+  TypeScript server in order, the editor's last text last: two quick edits
+  could leave it with the older one. The VS Code extension finds `vuka`
+  and reads `vuka version` once, in the background, where it ran a login
+  shell up to three times and `vuka version` twice while the editor waited.
+
+### ORM
+
+- **Seeing the SQL, and the database's plan.** Each terminal has a
+  `…SQL` that builds its statement without running it — `CountSQL`,
+  `ExistsSQL`, `AggregateSQL`, `UpdateSQL`, `DeleteSQL`, beside the query's
+  own `SQL` — as an `orm.Statement` whose arguments stay out of its text.
+  `Explain(ctx)` asks the database for its plan of the same statement, on a
+  query or any Statement; `orm.Analyze()` runs it to measure (inside a
+  transaction that is always rolled back, so explaining an update or a
+  delete changes nothing) and `orm.Format(orm.PlanJSON)` gives the plan as
+  JSON, on Postgres, MySQL and SQLite as each supports them. See [Seeing
+  the SQL](/orm/queries#seeing-the-sql) and [Why Is This Query
+  Slow?](/orm/cookbook#slow-query).
 
 ### Docs
 

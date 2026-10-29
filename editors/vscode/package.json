@@ -361,7 +361,7 @@
   },
   "scripts": {
     "package": "vsce package",
-    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs && node test/organize.test.mjs && node test/typescript.test.mjs"
+    "test": "node test/grammar.test.mjs && node test/jsx.test.mjs && node test/html.test.mjs && node test/toolchain.test.mjs && node test/shape.test.mjs && node test/editors.test.mjs && node test/routes.test.mjs && node test/refactor.test.mjs && node test/organize.test.mjs && node test/typescript.test.mjs && node test/resolve.test.mjs"
   },
   "capabilities": {
     "untrustedWorkspaces": {
