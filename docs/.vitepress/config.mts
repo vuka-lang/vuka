@@ -145,6 +145,7 @@ export default defineConfig({
           { text: 'Models', link: '/orm/models' },
           { text: 'Fields', link: '/orm/fields' },
           { text: 'Queries', link: '/orm/queries' },
+          { text: 'Common Queries', link: '/orm/cookbook' },
           { text: 'Expressions & Functions', link: '/orm/expressions' },
           { text: 'Search', link: '/orm/search' },
           { text: 'Transactions', link: '/orm/transactions' },

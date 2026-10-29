@@ -21,8 +21,14 @@ func TestOneWayGuides(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		// The Go a sample becomes may hold what a guide's own code mustn't.
+		authored := string(src)
+		pairs, _ := generatedPairs(page, authored)
+		for _, p := range pairs {
+			authored = strings.Replace(authored, p.gen.code, "", 1)
+		}
 		for _, old := range forbidden {
-			if strings.Contains(string(src), old) {
+			if strings.Contains(authored, old) {
 				t.Errorf("%s: retired authoring form %q", page, old)
 			}
 		}
