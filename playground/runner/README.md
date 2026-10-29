@@ -106,7 +106,7 @@ third-party-cookie blocking can defeat — use hosts in production.
 
 Sizing: a run holds up to 256 MB and a CPU while building at 1 GB and 2
 CPUs, so `RUNNER_SESSIONS=20` wants about 8 GB of memory and 4–8 CPUs; the
-image is about 2 GB on disk.
+image is about 2.5 GB (2.48 GB in CI).
 
 The docs enable Run when built with `VITE_VUKA_RUNNER=https://<api host>`.
 
