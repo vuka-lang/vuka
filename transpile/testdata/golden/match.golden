@@ -39,8 +39,8 @@ func describe(r vuka.Result[int]) string {
 		if !(m1.IsErr()) {
 			return
 		}
-		p1, p1ok := m1.Err().(*NotFound)
-		if !p1ok {
+		var p1 *NotFound
+		if !errors.As(m1.Err(), &p1) {
 			return
 		}
 		if !(p1 != nil) {
@@ -130,7 +130,7 @@ func opt(o vuka.Option[string], want string) string {
 func grade(n int) string {
 	if m4 := n; false {
 		panic(m4)
-	} else if (m4 == 1) || (m4 == 2) || (m4 == 3) {
+	} else if m4 == 1 || m4 == 2 || m4 == 3 {
 //line match.vuka:64
 		return "low"
 	} else if m4 == Max {

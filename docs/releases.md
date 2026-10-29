@@ -82,6 +82,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `(constant) is not a type`, now says the variants are values and what to
   write instead.
 
+### Errors
+
+- **Error enums with a cause.** A variant of an enum with data whose one
+  field of type `error` is its cause gets a generated `Unwrap() error`
+  returning it, so `errors.Is(err, sql.ErrNoRows)` sees through
+  `RegisterError.Database{Err: …}`; a variant's own `Unwrap` wins, and two
+  `error` fields without one is the new E0175. Callers take the enum out
+  with `var e RegisterError; errors.As(err, &e)` and `match e`. See
+  [Errors With a Cause](/features/enums#errors-with-a-cause).
+- **`match` on errors.** `match findUser(email) { case Ok(u): … }` takes a
+  call returning `(T, error)` directly — the call runs once and the Go is
+  `if u, err := findUser(email); err == nil {` (or a `switch`), the value
+  named after the `Ok` binding, its type or the call. Against an error,
+  `Err(ErrNotFound)` and `Err(pkg.ErrX)` are `errors.Is` and
+  `Err(&ValidationError{Field: f})` is `errors.As`, through the wrap chain;
+  likewise in a `match` on an `error` value. Exhaustiveness is unchanged.
+  See [Matching Errors](/features/match#matching-errors).
+
 ### Docs
 
 - **A [playground](/playground) on the docs site.** Edit a project's
@@ -100,6 +118,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   time, memory, processes and disk, and serves each program from an origin
   of its own. New examples: a form on a live page, and the ORM models on a
   page backed by SQLite.
+
+### Upgrading
+
+- **Error patterns follow the wrap chain.** In a `match`, an error pattern
+  that named a type, `Err(&NotFound{…})`, was a type assertion and missed a
+  wrapped error; it is `errors.As` now. A value, `Err(io.EOF)` or `case
+  io.EOF:` on an `error`, was `==` and is `errors.Is`. A bare name in an
+  error pattern that names a package-level `error` variable,
+  `Err(ErrNotFound)`, bound a new variable of that name (matching any
+  error); it is the sentinel now — rename a binding that meant to shadow
+  one.
 
 ## v2.10.0 — 2026-10-28
 
