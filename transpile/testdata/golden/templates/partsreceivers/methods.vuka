@@ -1,0 +1,19 @@
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+@ui.Defer
+func (p *PtrPage) Count(ctx context.Context) (int, error) { return p.Store.Count(ctx) }
+
+@ui.Defer
+func (p *PtrPage) Items(ctx context.Context) ([]string, error) { return p.Store.Items(ctx) }
+
+@ui.Defer
+func (p ValPage) Count(ctx context.Context) (int, error) { return p.Store.Count(ctx) }
+
+@ui.Defer
+func (p ValPage) Items(ctx context.Context) ([]string, error) { return p.Store.Items(ctx) }

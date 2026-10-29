@@ -1,11 +1,24 @@
 package main
 
-// Page uses a statement's name after the element declaring it.
+import "context"
+
+// Page uses its parts' bindings after the elements declaring them: a
+// deferred method's in a boundary, and one a boundary lists.
 type Page struct{ Store Store }
+
+@ui.Defer
+func (p *Page) Total(ctx context.Context) (int, error) { return p.Store.Count(), nil }
 <main>
-  <section>
-    n := Store.Count()
-    <p>{n}</p>
-  </section>
-  <footer>{n} in all</footer>
+  <ui.Suspense>
+    <section>
+      n := Total()
+      <p>{n}</p>
+    </section>
+    <footer>{n} in all</footer>
+  </ui.Suspense>
+  <div>
+    m := Store.Count()
+    <ui.Suspense for={m}><p>{m}</p></ui.Suspense>
+  </div>
+  <footer>{m} in all</footer>
 </main>

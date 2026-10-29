@@ -1,0 +1,14 @@
+package main
+
+// Page uses a name bound in an if's body after the if: Go's scope.
+type Page struct {
+	Store Store
+	More  bool
+}
+<main>
+  if More {
+    n := Store.Count()
+    <p>{n}</p>
+  }
+  <footer>{n} in all</footer>
+</main>

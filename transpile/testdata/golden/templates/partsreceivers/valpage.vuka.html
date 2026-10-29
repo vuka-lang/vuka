@@ -1,0 +1,15 @@
+package main
+
+// ValPage's deferred methods have value receivers.
+type ValPage struct{ Store Store }
+<main>
+  <p>{Count()}</p>
+  <section>
+    items := Items()
+    <b>{len(items)}</b>
+  </section>
+  <ui.Suspense>
+    more := Items()
+    <i>{len(more)} {Count()}</i>
+  </ui.Suspense>
+</main>

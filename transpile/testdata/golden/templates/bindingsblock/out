@@ -1,0 +1,4 @@
+<div class="header"><p>Choose a new password for ada@example.com</p></div><div class="body"></div> <nil>
+calls: 1
+<div class="header"></div><div class="body"><div role="alert">expired</div></div> <nil>
+calls: 1

@@ -1,1 +1,2 @@
-page.vuka.html:10:12: n is declared in <section> at line 7, and used after it; a statement's names are its element's: move the statement up, into an element holding both
+page.vuka.html:17:14: n is declared in <section> at line 14, and used after it; a deferred method's binding in a <ui.Suspense> is its element's; use n inside the <section>, or move the statement up, into an element holding every use
+page.vuka.html:23:12: m is declared in <div> at line 20, and used after it; a binding listed in <ui.Suspense for={…}> is its element's; use m inside the <div>, or move the statement up, into an element holding every use

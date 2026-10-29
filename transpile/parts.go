@@ -45,7 +45,7 @@ type deferMethod struct {
 	param    string // the name its value has in the part's function
 	typ      string // its T, as the file spells it
 	expr     string // its method expression: (*Index).Stats, Index.Stats
-	recv     string // the value the markup calls it on: p, or *p for a value receiver's
+	recv     string // the value the markup calls it on: p, *p for a value receiver's, &p for a pointer's on a value
 	fallback *jsxElem
 	failed   *jsxElem // its <ui.Fallback for={M} error>
 	parts    int
@@ -218,6 +218,7 @@ func (e *engine) findParts(f *fileState) bool {
 	}
 	var fallbacks []*jsxElem
 	var bound []*partBinding
+	var inBoundary []call // calls in a <ui.Suspense>'s markup
 	boundary := 0 // the <ui.Suspense>s walk is in
 	var walk func(ns []jsxNode, el *jsxElem)
 	walk = func(ns []jsxNode, el *jsxElem) {
@@ -226,6 +227,7 @@ func (e *engine) findParts(f *fileState) bool {
 			if boundary > 0 {
 				// Inside a <ui.Suspense>, which is its part: a call.
 				allowed[nameOff(c)] = true
+				inBoundary = append(inBoundary, call{m: m, start: f.orig(c.Pos()), end: f.orig(c.End()), ident: nameOff(c)})
 				return
 			}
 			if el == nil || el.frag {
@@ -295,6 +297,10 @@ func (e *engine) findParts(f *fileState) bool {
 						continue
 					}
 					if b := e.deferBinding(f, n.heads[0], methodOf); b != nil && boundary > 0 {
+						if f.partStmts == nil {
+							f.partStmts = map[int]bool{}
+						}
+						f.partStmts[n.heads[0].start] = true
 						b.m.called = true
 						allowed[nameOff(b.call)] = true
 						continue
@@ -487,10 +493,32 @@ func (e *engine) findParts(f *fileState) bool {
 			m.expr, m.recv = h.recvType+h.shape.TypeArgs+"."+m.name, h.recv
 			if _, ptr := m.obj.Type().(*types.Signature).Recv().Type().(*types.Pointer); ptr {
 				m.expr = "(*" + h.recvType + h.shape.TypeArgs + ")." + m.name
+				if !h.shape.Ptr {
+					// The markup's receiver is a value, its method's a
+					// pointer (declared in another file): its address, one
+					// for every part of the render.
+					m.recv = "&" + h.recv
+				}
 			} else if h.shape.Ptr {
 				m.recv = "*" + h.recv
 			}
 		}
+	}
+	// A call in a boundary is its T where markup takes one value, unwrapped
+	// before it is given its ctx.
+	for _, c := range inBoundary {
+		sp := span{c.start, c.end}
+		if f.unwrapped[sp] || !f.target.has("Must") || c.end <= c.start || f.src[c.end-1] != ')' {
+			continue
+		}
+		if f.unwrapped == nil {
+			f.unwrapped = map[span]bool{}
+		}
+		f.unwrapped[sp] = true
+		lp := c.start + strings.IndexByte(string(f.src[c.start:c.end]), '(')
+		f.unwraps = append(f.unwraps, Unwrap{Off: c.start, Lparen: lp, End: c.end, Type: e.display(c.m.result)})
+		f.insert(c.start, f.target.q+"Must(", -1)
+		f.insert(c.end-1, ")", -1)
 	}
 	for _, c := range calls {
 		if c.binding {
