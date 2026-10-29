@@ -1606,6 +1606,135 @@ func (l LatestPosts) Render(ctx context.Context, w io.Writer) error { return l.V
 
 A failing query fails the render, as an error from any call in markup does.
 
+## Seeing the SQL {#seeing-the-sql}
+
+A query is built for the context's database without running it. `SQL`
+gives a query's text and arguments, and each terminal has its own
+`…SQL` taking the same arguments: `CountSQL`, `ExistsSQL`, `AggregateSQL`,
+`UpdateSQL` and `DeleteSQL` return the `orm.Statement` that `Count`,
+`Exists`, `Aggregate`, `Update` and `Delete` would run, refused as they
+would refuse it:
+
+::: code-group
+```vuka [Vuka]
+func showSQL(ctx context.Context) error {
+	popular := Post.Objects.Filter(Post.Title.IContains("go"), Post.Views.Gte(100))
+	text, args := popular.OrderBy(Post.Views.Desc()).Limit(10).SQL(ctx)?
+	fmt.Println(text, args)
+	count := popular.CountSQL(ctx)?
+	fmt.Println(count)
+	feature := popular.UpdateSQL(ctx, orm.Set{"status": "featured"})?
+	fmt.Println(feature.Text, feature.Args)
+	return nil
+}
+```
+```go [Generated Go]
+func showSQL(ctx context.Context) error {
+	popular := orm.Objects[Post]().Filter(PostColumns.Title.IContains("go"), PostColumns.Views.Gte(100))
+	text, args, err := popular.OrderBy(PostColumns.Views.Desc()).Limit(10).SQL(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(text, args)
+	count, err := popular.CountSQL(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(count)
+	feature, err := popular.UpdateSQL(ctx, orm.Set{"status": "featured"})
+	if err != nil {
+		return err
+	}
+	fmt.Println(feature.Text, feature.Args)
+	return nil
+}
+```
+:::
+
+```sql
+SELECT COUNT(*) FROM posts WHERE LOWER(posts.title) LIKE LOWER(?) ESCAPE '!' AND posts.views >= ?
+-- args: '%go%', 100
+```
+
+A `Statement` is its `Text` and its `Args`, kept apart: the arguments are
+bound to the placeholders when the statement runs, never written into the
+text. Printed, a Statement shows them in a comment after it, for reading.
+
+`Explain` asks the database how it would run the query — which indexes it
+uses, what it scans and sorts — sending the same statement with the same
+arguments. A query has `Explain`, and so has every `Statement`:
+
+::: code-group
+```vuka [Vuka]
+func explainTop(ctx context.Context) error {
+	top := Post.Objects.Filter(Post.Status.Eq("published")).OrderBy(Post.Views.Desc()).Limit(20)
+	fmt.Println(top.Explain(ctx)?)
+	measured := top.Explain(ctx, orm.Analyze(), orm.Format(orm.PlanJSON))?
+	fmt.Println(string(measured.JSON))
+	return nil
+}
+
+func explainPurge(ctx context.Context) error {
+	purge := Post.Objects.Filter(Post.Status.Eq("archived")).DeleteSQL(ctx)?
+	fmt.Println(purge.Explain(ctx, orm.Analyze())?)
+	return nil
+}
+```
+```go [Generated Go]
+func explainTop(ctx context.Context) error {
+	top := orm.Objects[Post]().Filter(PostColumns.Status.Eq("published")).OrderBy(PostColumns.Views.Desc()).Limit(20)
+	plan, err := top.Explain(ctx)
+	if err != nil {
+		return err
+	}
+	fmt.Println(plan)
+	measured, err := top.Explain(ctx, orm.Analyze(), orm.Format(orm.PlanJSON))
+	if err != nil {
+		return err
+	}
+	fmt.Println(string(measured.JSON))
+	return nil
+}
+
+func explainPurge(ctx context.Context) error {
+	purge, err := orm.Objects[Post]().Filter(PostColumns.Status.Eq("archived")).DeleteSQL(ctx)
+	if err != nil {
+		return err
+	}
+	plan, err := purge.Explain(ctx, orm.Analyze())
+	if err != nil {
+		return err
+	}
+	fmt.Println(plan)
+	return nil
+}
+```
+:::
+
+```
+SCAN posts
+USE TEMP B-TREE FOR ORDER BY
+```
+
+An `orm.Plan` holds the plan as the database writes it in `Text` (what it
+prints as), and in `JSON` with `orm.Format(orm.PlanJSON)`. `orm.Analyze()`
+runs the statement and reports what it did — rows read and time taken at
+each step — inside a transaction that is always rolled back, so explaining an
+`UpdateSQL` or `DeleteSQL` with it changes nothing. What each database
+gives:
+
+| Database | `Explain(ctx)` | `orm.Analyze()` | `orm.Format(orm.PlanJSON)` |
+|---|---|---|---|
+| Postgres | `EXPLAIN` | `EXPLAIN (ANALYZE, BUFFERS)` | `FORMAT JSON` |
+| MySQL | `EXPLAIN`, as a table | `EXPLAIN ANALYZE` of a `SELECT`, as text | `FORMAT=JSON` |
+| SQLite | `EXPLAIN QUERY PLAN`, as a tree | — | the plan's rows as JSON |
+
+An option a database lacks is an error saying what it gives instead:
+SQLite has no `Analyze`, and MySQL analyzes a `SELECT` only, so
+`explainPurge` measures its `DELETE` on Postgres.
+[Why Is This Query Slow?](/orm/cookbook#slow-query) reads a plan and fixes
+what it shows.
+
 ## Raw SQL {#raw-sql}
 
 When a query is easier in SQL, `orm.Raw[R]` reads its rows into a struct (by

@@ -42,6 +42,20 @@ the `github.com/vuka-lang/vuka` package your module requires.
   copy, from disk, stood until a save. See
   [Match Statements](/tools/editors#match).
 
+### ORM
+
+- **Seeing the SQL, and the database's plan.** Each terminal has a
+  `…SQL` that builds its statement without running it — `CountSQL`,
+  `ExistsSQL`, `AggregateSQL`, `UpdateSQL`, `DeleteSQL`, beside the query's
+  own `SQL` — as an `orm.Statement` whose arguments stay out of its text.
+  `Explain(ctx)` asks the database for its plan of the same statement, on a
+  query or any Statement; `orm.Analyze()` runs it to measure (inside a
+  transaction that is always rolled back, so explaining an update or a
+  delete changes nothing) and `orm.Format(orm.PlanJSON)` gives the plan as
+  JSON, on Postgres, MySQL and SQLite as each supports them. See [Seeing
+  the SQL](/orm/queries#seeing-the-sql) and [Why Is This Query
+  Slow?](/orm/cookbook#slow-query).
+
 ### Docs
 
 - **Vuka samples beside their Go.** The guides to `?`, `match`, enums,
