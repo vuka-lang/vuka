@@ -551,6 +551,7 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				item(label, 9, detail, label, 1, "2"+label)
 			}
 		}
+		items = append(items, unimportedTagItems(vf, spot, typed)...)
 		if spot.qual == "" {
 			for i, t := range htmlElemNames {
 				e := htmlElements[t]

@@ -399,3 +399,43 @@ func escapeModPath(path string) (string, bool) {
 	}
 	return filepath.FromSlash(b.String()), true
 }
+
+// ImportablePackage is a package a file can import: the name its files declare,
+// its import path and its directory.
+type ImportablePackage struct {
+	Name, Path, Dir string
+	Own             bool // the file's module's
+}
+
+// Packages are the packages of the file's module and those of the modules
+// go.mod requires directly whose path is one of mods, sorted by path.
+func (s ImportScope) Packages(mods ...string) []ImportablePackage {
+	var out []ImportablePackage
+	add := func(dir, path string, own bool) {
+		for name, paths := range modulePackages(dir, path, own) {
+			for _, p := range paths {
+				d := filepath.Join(dir, filepath.FromSlash(strings.TrimPrefix(strings.TrimPrefix(p, path), "/")))
+				if hasGoFiles(d) {
+					out = append(out, ImportablePackage{Name: name, Path: p, Dir: d, Own: own})
+				}
+			}
+		}
+	}
+	mod := s.goMod()
+	if s.ModuleRoot != "" {
+		path := s.ModulePath
+		if path == "" && mod != nil {
+			path = mod.path
+		}
+		add(s.ModuleRoot, path, true)
+	}
+	if mod != nil {
+		for _, r := range mod.direct {
+			if slices.Contains(mods, r.path) {
+				add(r.dir, r.path, false)
+			}
+		}
+	}
+	slices.SortFunc(out, func(a, b ImportablePackage) int { return strings.Compare(a.Path, b.Path) })
+	return out
+}
