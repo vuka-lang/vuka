@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.11.0 — unreleased
+## v2.11.0 — 2026-10-29
 
 ### Static Files
 
@@ -209,6 +209,9 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `Err(ErrNotFound)`, bound a new variable of that name (matching any
   error); it is the sentinel now — rename a binding that meant to shadow
   one.
+- **`web.Asset` is a function now.** The type `web.Style`, `web.Script`,
+  `web.CSS` and `web.JS` return was named `web.Asset`; it is `web.PageAsset`.
+  Calls to those functions are unchanged; code that names the type renames it.
 
 ## v2.10.0 — 2026-10-28
 
