@@ -48,6 +48,8 @@ func (f *fake) Start(_ context.Context, bin, data string, env []string, out io.W
 	stop := func() { once.Do(func() { ln.Close(); close(p.Done) }) }
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("X-Frame-Options", "DENY")
+		w.Header().Set("Content-Security-Policy", "default-src 'self'; frame-ancestors 'none'")
 		fmt.Fprintf(w, "hello %s host=%s", r.URL.Path, r.Host)
 	})
 	mux.HandleFunc("/go", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/there", http.StatusFound) })
@@ -158,9 +160,12 @@ func TestRunAndProxy(t *testing.T) {
 	if !strings.Contains(res.BuildLog, "compiling") {
 		t.Errorf("build log %q", res.BuildLog)
 	}
-	code, body, _ := get(t, hs, res.URL, "/pets?x=1")
+	code, body, h := get(t, hs, res.URL, "/pets?x=1")
 	if code != 200 || body != "hello /pets host="+res.Session+".run.test" {
 		t.Errorf("proxied: %d %q", code, body)
+	}
+	if h.Get("X-Frame-Options") != "" || h.Get("Content-Security-Policy") != "default-src 'self'; frame-ancestors https://docs.example" {
+		t.Errorf("framing headers %q %q", h.Get("X-Frame-Options"), h.Get("Content-Security-Policy"))
 	}
 	code, body, _ = get(t, hs, "http://"+newID()+".run.test/", "/")
 	if code != 404 || !strings.Contains(body, "stopped") {

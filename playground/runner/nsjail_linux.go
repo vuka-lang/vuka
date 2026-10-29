@@ -87,7 +87,7 @@ func delegateCgroups(root string) error {
 // seccompPolicy refuses what neither go build nor a web program needs.
 const seccompPolicy = `POLICY play {
 	ERRNO(1) {
-		ptrace, process_vm_readv, process_vm_writev, mount, umount2, pivot_root,
+		ptrace, process_vm_readv, process_vm_writev, mount, umount, pivot_root,
 		swapon, swapoff, reboot, kexec_load, init_module, finit_module, delete_module,
 		bpf, perf_event_open, keyctl, add_key, request_key, unshare, setns, acct,
 		settimeofday, clock_settime, adjtimex, syslog, iopl, ioperm, open_by_handle_at,

@@ -6,7 +6,7 @@ import { Compartment, EditorState } from '@codemirror/state'
 import { EditorView } from '@codemirror/view'
 import { lintGutter, setDiagnostics, type Diagnostic as LintDiagnostic } from '@codemirror/lint'
 import { goLanguage, highlighting, language } from './languages'
-import { wasmRunner, type Diagnostic, type Runner, type Transpiled } from './runner'
+import { remoteRunner, wasmRunner, type Diagnostic, type Ran, type Runner, type Transpiled } from './runner'
 import { decodeProject, encodeProject, type Project } from './share'
 import exampleList from '../../../playground/examples.json'
 
@@ -30,6 +30,18 @@ const status = ref('Loading the compiler…')
 const failure = ref('')
 const shared = ref(false)
 const sourceEl = ref<HTMLElement>()
+
+// Run is there when the docs were built with a runner service's URL.
+const runnerURL: string = import.meta.env.VITE_VUKA_RUNNER ?? ''
+const canRun = !!runnerURL
+const view = ref<'go' | 'run'>('go')
+const building = ref(false)
+const ran = shallowRef<Ran | null>(null)
+const runLog = ref<string[]>([])
+const runPath = ref('/')
+const frameKey = ref(0)
+const frameSrc = computed(() => (ran.value?.url ? ran.value.url + runPath.value.replace(/^\/+/, '') : ''))
+const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad/.test(navigator.platform)
 const goEl = ref<HTMLElement>()
 
 const paths = computed(() => Object.keys(files).sort(order))
@@ -215,6 +227,60 @@ async function format() {
   }
 }
 
+let runAbort: AbortController | undefined
+
+function stopRun() {
+  runAbort?.abort()
+  runAbort = undefined
+  if (ran.value?.session) runner?.stop?.(ran.value.session)
+  ran.value = null
+}
+
+// run builds the project on the runner and shows the program; a run before
+// it is stopped first.
+async function run() {
+  if (!runner?.run || building.value) return
+  stopRun()
+  view.value = 'run'
+  runLog.value = []
+  building.value = true
+  const ctl = new AbortController()
+  runAbort = ctl
+  const push = (line: string) => {
+    if (runAbort === ctl) runLog.value = [...runLog.value, line].slice(-500)
+  }
+  try {
+    const res = await runner.run({ ...files }, { log: push, output: push, exit: (st) => push(`· the program ${st}`) }, ctl.signal)
+    if (runAbort !== ctl) return
+    ran.value = res
+    if (res.diagnostics?.length) {
+      diagnostics.value = res.diagnostics
+      lint()
+    }
+    for (const line of (res.output ?? '').trimEnd().split('\n')) if (line) push(line)
+    if (res.error) push(res.error)
+    else if (res.url) status.value = 'Running'
+    runPath.value = '/'
+    frameKey.value++
+  } catch (err) {
+    if (runAbort === ctl) push((err as Error).message)
+  } finally {
+    if (runAbort === ctl) building.value = false
+  }
+}
+
+function runKey(e: KeyboardEvent) {
+  if (canRun && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+    e.preventDefault()
+    e.stopPropagation()
+    run()
+  }
+}
+
+function stopOnLeave() {
+  if (ran.value?.session) runner?.stop?.(ran.value.session)
+}
+
 async function share() {
   const hash = await encodeProject({ files: { ...files }, open: current.value })
   history.replaceState(null, '', '#' + hash)
@@ -296,12 +362,20 @@ onMounted(async () => {
     }),
   })
   runner = wasmRunner(withBase('/playground/'))
+  if (canRun) {
+    runner = remoteRunner(runner, runnerURL)
+    addEventListener('keydown', runKey, true)
+    addEventListener('pagehide', stopOnLeave)
+  }
   if (!(await fromHash())) load(example(chosen.value))
   addEventListener('hashchange', fromHash)
 })
 
 onBeforeUnmount(() => {
   removeEventListener('hashchange', fromHash)
+  removeEventListener('keydown', runKey, true)
+  removeEventListener('pagehide', stopOnLeave)
+  stopRun()
   clearTimeout(timer)
   runner?.dispose()
   source?.destroy()
@@ -318,6 +392,9 @@ onBeforeUnmount(() => {
           <option v-for="e in exampleList" :key="e.name" :value="e.name">{{ e.title }}</option>
         </select>
       </label>
+      <button v-if="canRun" type="button" class="pg-button pg-run" :disabled="building" :title="`Run (${isMac ? '⌘' : 'Ctrl'}+Enter)`" data-testid="run-button" @click="run">
+        {{ building ? 'Building…' : 'Run' }}
+      </button>
       <button type="button" class="pg-button" @click="format">Format</button>
       <button type="button" class="pg-button" @click="share">{{ shared ? 'Link copied' : 'Share' }}</button>
       <span class="pg-status" data-testid="status">{{ status }}</span>
@@ -335,10 +412,37 @@ onBeforeUnmount(() => {
         <div ref="sourceEl" class="pg-editor" data-testid="source"></div>
       </section>
       <section class="pg-pane">
-        <div class="pg-tabs">
-          <span class="pg-label">Generated Go<template v-if="goStale"> · last good, the package has errors</template></span>
+        <div class="pg-tabs" :role="canRun ? 'tablist' : undefined">
+          <template v-if="canRun">
+            <span class="pg-tab" :class="{ active: view === 'go' }">
+              <button type="button" role="tab" :aria-selected="view === 'go'" @click="view = 'go'">Generated Go</button>
+            </span>
+            <span class="pg-tab" :class="{ active: view === 'run' }">
+              <button type="button" role="tab" :aria-selected="view === 'run'" data-testid="run-tab" @click="view = 'run'">Program</button>
+            </span>
+            <span v-if="view === 'go' && goStale" class="pg-label">last good, the package has errors</span>
+          </template>
+          <span v-else class="pg-label">Generated Go<template v-if="goStale"> · last good, the package has errors</template></span>
         </div>
-        <div ref="goEl" class="pg-editor pg-go" :class="{ stale: goStale }" data-testid="go"></div>
+        <div v-show="view === 'go'" ref="goEl" class="pg-editor pg-go" :class="{ stale: goStale }" data-testid="go"></div>
+        <div v-if="canRun" v-show="view === 'run'" class="pg-editor pg-program" data-testid="program">
+          <form v-if="ran?.url" class="pg-url" @submit.prevent="frameKey++">
+            <input v-model="runPath" aria-label="Path" spellcheck="false" autocomplete="off" data-testid="path" />
+            <button type="submit" class="pg-button" title="Reload" aria-label="Reload">↻</button>
+            <a class="pg-button" :href="frameSrc" target="_blank" rel="noopener">Open ↗</a>
+          </form>
+          <iframe
+            v-if="ran?.url"
+            :key="frameKey"
+            :src="frameSrc"
+            class="pg-frame"
+            sandbox="allow-scripts allow-forms allow-same-origin"
+            title="The running program"
+            data-testid="frame"
+          ></iframe>
+          <p v-else-if="!building && !runLog.length" class="pg-none pg-hint">Run builds the project on a server and shows the program here.</p>
+          <pre v-if="runLog.length" class="pg-log" :class="{ alone: !ran?.url }" data-testid="log">{{ runLog.join('\n') }}</pre>
+        </div>
       </section>
     </div>
     <section class="pg-diags" data-testid="diagnostics">
@@ -418,6 +522,22 @@ onBeforeUnmount(() => {
 
 .pg-button:hover {
   border-color: var(--vp-c-brand-1);
+}
+
+.pg-run {
+  border-color: var(--vp-c-brand-1);
+  background: var(--vp-c-brand-1);
+  color: var(--vp-c-white);
+  font-weight: 600;
+}
+
+.pg-run:hover {
+  background: var(--vp-c-brand-2);
+}
+
+.pg-run:disabled {
+  opacity: 0.7;
+  cursor: progress;
 }
 
 .pg-status {
@@ -545,6 +665,67 @@ onBeforeUnmount(() => {
   border-left-color: var(--vp-c-text-1);
 }
 
+.pg-program {
+  display: flex;
+  flex-direction: column;
+  background: var(--vp-c-bg);
+}
+
+.pg-url {
+  display: flex;
+  gap: 6px;
+  padding: 6px 8px;
+  border-bottom: 1px solid var(--vp-c-divider);
+}
+
+.pg-url input {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+  font-family: var(--vp-font-family-mono);
+  font-size: 13px;
+  padding: 4px 8px;
+}
+
+.pg-url a.pg-button {
+  text-decoration: none;
+}
+
+.pg-frame {
+  flex: 1;
+  width: 100%;
+  border: 0;
+  background: #fff;
+}
+
+.pg-log {
+  flex: 0 0 auto;
+  max-height: 30%;
+  margin: 0;
+  overflow: auto;
+  border-top: 1px solid var(--vp-c-divider);
+  padding: 8px 12px;
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-2);
+  font-family: var(--vp-font-family-mono);
+  font-size: 12px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+.pg-log.alone {
+  flex: 1;
+  max-height: none;
+  border-top: 0;
+}
+
+.pg-hint {
+  padding: 16px;
+}
+
 .pg-go.stale .cm-content {
   opacity: 0.55;
 }
@@ -626,6 +807,21 @@ onBeforeUnmount(() => {
 .pg-help {
   flex-basis: 100%;
   color: var(--vp-c-text-2);
+}
+
+.pg-notes {
+  max-width: 1440px;
+  margin: 0 auto;
+  padding: 0 24px 48px;
+  color: var(--vp-c-text-2);
+  font-size: 14px;
+}
+
+.pg-notes h2 {
+  margin: 0 0 8px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--vp-c-text-1);
 }
 
 .pg-none {

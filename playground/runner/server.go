@@ -518,6 +518,7 @@ func (s *server) newProxy(ss *session) *httputil.ReverseProxy {
 			pr.SetXForwarded()
 		},
 		ModifyResponse: func(resp *http.Response) error {
+			s.frameable(resp.Header)
 			prefix, _ := resp.Request.Context().Value(prefixKey{}).(string)
 			if loc := resp.Header.Get("Location"); prefix != "" && strings.HasPrefix(loc, "/") && !strings.HasPrefix(loc, "//") {
 				resp.Header.Set("Location", prefix+loc)
@@ -528,6 +529,28 @@ func (s *server) newProxy(ss *session) *httputil.ReverseProxy {
 			http.Error(w, "the program didn't answer: "+err.Error(), http.StatusBadGateway)
 		},
 		ErrorLog: log.New(io.Discard, "", 0),
+	}
+}
+
+// frameable lets the docs frame a program's pages, which a program's own
+// headers (web's defaults among them) forbid.
+func (s *server) frameable(h http.Header) {
+	h.Del("X-Frame-Options")
+	ancestors := "frame-ancestors " + strings.Join(s.cfg.allowOrigins, " ")
+	csp := h.Values("Content-Security-Policy")
+	if len(csp) == 0 {
+		h.Set("Content-Security-Policy", ancestors)
+		return
+	}
+	h.Del("Content-Security-Policy")
+	for _, policy := range csp {
+		var keep []string
+		for _, d := range strings.Split(policy, ";") {
+			if d = strings.TrimSpace(d); d != "" && !strings.HasPrefix(strings.ToLower(d), "frame-ancestors") {
+				keep = append(keep, d)
+			}
+		}
+		h.Add("Content-Security-Policy", strings.Join(append(keep, ancestors), "; "))
 	}
 }
 

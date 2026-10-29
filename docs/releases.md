@@ -81,6 +81,14 @@ the `github.com/vuka-lang/vuka` package your module requires.
   page, as WebAssembly, with the types of std, ui, web and orm; examples
   start from a live counter, a component with props, a page with markup
   calls and `@ui.Defer`, an enum and ORM models.
+- **Run in the playground.** Run (Ctrl/⌘+Enter) builds the project on a
+  runner service and shows the program beside the editor — its pages, live
+  events over the page's connection and its output — with the build's log
+  as it happens. The runner, `playground/runner`, builds and runs each
+  project in nsjail with no network, its own SQLite file and limits on
+  time, memory, processes and disk, and serves each program from an origin
+  of its own. New examples: a form on a live page, and the ORM models on a
+  page backed by SQLite.
 
 ## v2.10.0 — 2026-10-28
 
