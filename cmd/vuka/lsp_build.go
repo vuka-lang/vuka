@@ -162,7 +162,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		if strings.HasSuffix(path, ".vuka.html") && strings.Contains(dp.TextDocument.Text, "<script") {
 			go func() {
 				if ts := p.typescript(); ts != nil {
-					ts.sync(path, []byte(dp.TextDocument.Text))
+					ts.syncLatest(path)
 				}
 			}()
 		}
@@ -200,7 +200,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 			go p.checkSyntax(path)
 		}
 		if ts := p.ts.Load(); ts != nil && strings.HasSuffix(path, ".vuka.html") {
-			go ts.sync(path, buf)
+			ts.syncLatest(path)
 		}
 	case "textDocument/didClose":
 		p.mu.Lock()

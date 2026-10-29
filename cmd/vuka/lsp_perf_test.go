@@ -227,3 +227,69 @@ func TestLSPPublishOnce(t *testing.T) {
 	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": thirdURI, "languageId": "vuka", "version": 2, "text": third}})
 	c.waitDiags(thirdURI, func([]any) bool { return true })
 }
+
+// TestTSSyncLatest: edits made faster than the TypeScript server is synced
+// reach it in order, ending with the editor's last text, and coalesce.
+func TestTSSyncLatest(t *testing.T) {
+	root := t.TempDir()
+	path := filepath.Join(root, "page.vuka.html")
+	p := &proxy{root: root, bufs: map[string][]byte{}}
+	out := &lockedBuffer{}
+	ts := &tsServer{p: p, conn: newRPCConn(strings.NewReader(""), out), docs: map[string]*tsDoc{}, typesAt: map[string]time.Time{}, locs: map[string][]dtsLoc{}}
+	text := func(i int) []byte {
+		return []byte(fmt.Sprintf("package main\n\n<div></div>\n\n<script lang=\"ts\">\nconst n = %d\n</script>\n", i))
+	}
+	const edits = 300
+	for i := 0; i < edits; i++ {
+		p.mu.Lock()
+		p.bufs[path] = text(i)
+		p.mu.Unlock()
+		ts.syncLatest(path)
+	}
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(5 * time.Millisecond) {
+		ts.mu.Lock()
+		_, running := ts.syncs[path]
+		ts.mu.Unlock()
+		if !running {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the worker didn't finish")
+		}
+	}
+	in := newRPCConn(strings.NewReader(out.String()), nil)
+	version, last, n := 0, "", 0
+	for {
+		body, err := in.read()
+		if err != nil {
+			break
+		}
+		var m struct {
+			Params struct {
+				TextDocument struct {
+					Version int    `json:"version"`
+					Text    string `json:"text"`
+				} `json:"textDocument"`
+				ContentChanges []struct {
+					Text string `json:"text"`
+				} `json:"contentChanges"`
+			} `json:"params"`
+		}
+		_ = json.Unmarshal(body, &m)
+		v, txt := m.Params.TextDocument.Version, m.Params.TextDocument.Text
+		if len(m.Params.ContentChanges) > 0 {
+			txt = m.Params.ContentChanges[0].Text
+		}
+		if v <= version {
+			t.Fatalf("version %d after %d", v, version)
+		}
+		version, last, n = v, txt, n+1
+	}
+	if want := fmt.Sprintf("const n = %d\n", edits-1); !strings.Contains(last, want) {
+		t.Fatalf("the server's last text has no %q: %q", want, last)
+	}
+	if n >= edits {
+		t.Errorf("%d edits sent %d times: none coalesced", edits, n)
+	}
+	t.Logf("%d edits, %d messages", edits, n)
+}
