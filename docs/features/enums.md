@@ -463,7 +463,7 @@ A match must cover every variant, or have a `case _:`. One that doesn't is an
 error at the `match`, in the editor and from `vuka build`, naming what's left:
 
 ```text
-orders.vuka:12:2: match on Status isn't exhaustive: missing Status.Sent and Status.Paid; add the missing cases or case _:
+orders.vuka:12:2: match on Status isn't exhaustive: missing Status.Sent and Status.Paid; add case Status.Sent: …, case Status.Paid: …, or case _:
 ```
 
 So adding a variant points at every match that has to handle it.

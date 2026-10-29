@@ -139,6 +139,8 @@ type Output struct {
 	// VariantMethods are its methods on value-enum variants, each lowered
 	// to a function the enum's one method of the name calls.
 	VariantMethods []VariantMethod
+	// Matches are its match statements.
+	Matches []Match
 }
 
 // FileRef is a vuka.File literal: where it is in the .vuka source (quotes
@@ -243,6 +245,7 @@ type fileState struct {
 	partsDone   bool          // its parts are decided (parts.go)
 	unwrapped   map[span]bool // the markup's calls unwrapped or reported, by src span (unwrap.go)
 	unwraps     []Unwrap      // the calls unwrapped
+	matchInfos  []Match       // the match statements lowered
 	ctxDone     map[span]bool // the markup's calls given ctx or left as they are (implicit.go)
 	implicit    []ImplicitCtx // the calls given ctx
 	bindDone    map[int]bool  // the markup's statements checked, by offset (bindings.go)
@@ -368,6 +371,10 @@ func (f *fileState) nodeText(n ast.Node) string {
 }
 
 func (f *fileState) add(start, end int, text string) {
+	if strings.Contains(text, "\x01") {
+		f.fixed = append(f.fixed, markedEdit(start, end, text))
+		return
+	}
 	f.fixed = append(f.fixed, edit{start: start, end: end, text: text})
 }
 
@@ -671,7 +678,7 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Implicit: f.implicitOf(), Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0 || f.graphqlGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf(), VariantMethods: f.variantMethodsOf()})
+		res.Files = append(res.Files, Output{Implicit: f.implicitOf(), Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0 || f.graphqlGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf(), VariantMethods: f.variantMethodsOf(), Matches: f.matchesOf()})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

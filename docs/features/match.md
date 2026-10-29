@@ -201,8 +201,19 @@ case that takes anything — and a case after one that matches everything is an
 error. Both are reported before Go sees the code:
 
 ```text
-main.vuka:4:2: match on Result[int] isn't exhaustive: missing Err(_); add the missing cases or case _:
+main.vuka:4:2: match on Result[int] isn't exhaustive: missing Err(_); add case Err(e): …, or case _:
 ```
+
+On a call returning `(T, error)` the message names it so: `match on (User,
+error) isn't exhaustive`. In the editor the error is on the `match` and its
+subject as you type, and its quick fix **Add missing cases** writes them at
+the end of the match: a missing `Err(_)` returns the error when the function
+can (`return nil, "", e`, or `return Err(e)` from one returning a Result);
+any other case gets a `// TODO` to fill in, which doesn't compile in a
+function with results until it returns. A misspelt pattern — `Error(…)` for
+`Err(…)`, `ok(u)`, `none`, a variant that doesn't exist — is an error on the
+name with the right spelling as its quick fix, and completion after `case`
+offers the patterns that fit the subject.
 
 ### Coverage Inside Patterns
 

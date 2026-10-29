@@ -1,5 +1,5 @@
-err_enum_match.vuka:12:2: match on Status isn't exhaustive: missing Status.Sent, Status.Paid, Status.Cancelled, Status.Refunded and Status.Lost; add the missing cases or case _:
-err_enum_match.vuka:19:2: match on Shape isn't exhaustive: missing Shape.Circle and Shape.Empty; add the missing cases or case _:
+err_enum_match.vuka:12:2: match on Status isn't exhaustive: missing Status.Sent, Status.Paid, Status.Cancelled, Status.Refunded and Status.Lost; add case Status.Sent: …, case Status.Paid: …, case Status.Cancelled: …, …, or case _:
+err_enum_match.vuka:19:2: match on Shape isn't exhaustive: missing Shape.Circle and Shape.Empty; add case Shape.Circle{}: …, case Shape.Empty: …, or case _:
 err_enum_match.vuka:33:2: unreachable case: earlier cases match everything it does
-err_enum_match.vuka:39:2: match on Shape isn't exhaustive: missing Shape.Empty; add the missing cases or case _:
+err_enum_match.vuka:39:2: match on Shape isn't exhaustive: missing Shape.Empty; add case Shape.Empty: …, or case _:
 err_enum_match.vuka:48:12: Shape.Circle holds data: write Shape.Circle{…}

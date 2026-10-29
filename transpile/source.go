@@ -163,6 +163,39 @@ func (es edits) applyRange(src []byte, lo, hi int, after func(off int) string) (
 	return b.Bytes(), segs
 }
 
+// markedEdit replaces src[start:end] with text, in which a name written
+// \x01<offset>\x02name is the source's name at offset: copied from there,
+// so the name the Go declares maps exactly onto the one the source wrote.
+func markedEdit(start, end int, text string) edit {
+	var b strings.Builder
+	var segs []segment
+	plain := func(s string) {
+		if s != "" {
+			segs = append(segs, segment{gen: b.Len(), src: start, genLen: len(s), srcLen: end - start})
+			b.WriteString(s)
+		}
+	}
+	for {
+		i := strings.IndexByte(text, '\x01')
+		if i < 0 {
+			plain(text)
+			break
+		}
+		plain(text[:i])
+		j := strings.IndexByte(text[i:], '\x02') + i
+		off, _ := strconv.Atoi(text[i+1 : j])
+		k := j + 1
+		for k < len(text) && (text[k] == '_' || '0' <= text[k] && text[k] <= '9' || 'a' <= text[k] && text[k] <= 'z' || 'A' <= text[k] && text[k] <= 'Z' || text[k] >= 0x80) {
+			k++
+		}
+		name := text[j+1 : k]
+		segs = append(segs, segment{gen: b.Len(), src: off, genLen: len(name), srcLen: len(name), copy: true, moved: true})
+		b.WriteString(name)
+		text = text[k:]
+	}
+	return edit{start: start, end: end, text: b.String(), segs: segs}
+}
+
 // toOrig maps an offset in the applied text back to src. An offset inside a
 // replacement maps to the start of what it replaced.
 func (es edits) toOrig(off int) int {
@@ -317,6 +350,7 @@ type segment struct {
 	gen, src       int
 	genLen, srcLen int
 	copy           bool
+	moved          bool // a copy out of the source's order (markedEdit)
 }
 
 // SourceMap relates offsets in a generated Go file to offsets in its .vuka
@@ -510,6 +544,13 @@ func (m *SourceMap) ToSource(gen int) (src int, exact, ok bool) {
 		return s.src + gen - s.gen, true, true
 	}
 	return s.src, false, s.srcLen > 0 || s.genLen > 0
+}
+
+// moved reports whether the generated offset gen is in a name copied out
+// of the source's order.
+func (m *SourceMap) moved(gen int) bool {
+	i := sort.Search(len(m.segs), func(i int) bool { return m.segs[i].gen+m.segs[i].genLen > gen })
+	return i < len(m.segs) && gen >= m.segs[i].gen && m.segs[i].moved
 }
 
 // ToGenerated maps a source offset to the generated file. exact is false when

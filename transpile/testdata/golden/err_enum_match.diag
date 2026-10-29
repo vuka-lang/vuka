@@ -1,18 +1,18 @@
-error[E0113]: match on Status isn't exhaustive: missing Status.Sent, Status.Paid, Status.Cancelled, Status.Refunded and Status.Lost; add the missing cases or case _:
+error[E0113]: match on Status isn't exhaustive: missing Status.Sent, Status.Paid, Status.Cancelled, Status.Refunded and Status.Lost
   --> err_enum_match.vuka:12:2
    |
 12 |     match s {
-   |     ^^^^^
+   |     ^^^^^^^
    |
-   = help: add the missing cases, or case _:
+   = help: add case Status.Sent: …, case Status.Paid: …, case Status.Cancelled: …, …, or case _:
 
-error[E0113]: match on Shape isn't exhaustive: missing Shape.Circle and Shape.Empty; add the missing cases or case _:
+error[E0113]: match on Shape isn't exhaustive: missing Shape.Circle and Shape.Empty
   --> err_enum_match.vuka:19:2
    |
 19 |     match s {
-   |     ^^^^^
+   |     ^^^^^^^
    |
-   = help: add the missing cases, or case _:
+   = help: add case Shape.Circle{}: …, case Shape.Empty: …, or case _:
 
 error[E0114]: unreachable case: earlier cases match everything it does
   --> err_enum_match.vuka:33:2
@@ -22,13 +22,13 @@ error[E0114]: unreachable case: earlier cases match everything it does
    |
    = help: remove the case, or move it before the cases that cover it
 
-error[E0113]: match on Shape isn't exhaustive: missing Shape.Empty; add the missing cases or case _:
+error[E0113]: match on Shape isn't exhaustive: missing Shape.Empty
   --> err_enum_match.vuka:39:2
    |
 39 |     match s {
-   |     ^^^^^
+   |     ^^^^^^^
    |
-   = help: add the missing cases, or case _:
+   = help: add case Shape.Empty: …, or case _:
 
 error[E0119]: Shape.Circle holds data: write Shape.Circle{…}
   --> err_enum_match.vuka:48:12
