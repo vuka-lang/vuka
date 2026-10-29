@@ -151,7 +151,7 @@ func (e *engine) renames(files []*tidyFile) map[string]string {
 		})
 	}
 	sort.Strings(old)
-	out := e.localNames(old)
+	out := e.localNames(byOrdinal(old))
 	for _, n := range out {
 		taken[n] = true
 	}
@@ -187,6 +187,26 @@ var localName = []struct {
 	re   *regexp.Regexp
 	name string
 }{{regexp.MustCompile(`^__e\d+$`), "err"}, {regexp.MustCompile(`^__ok\d+$`), "ok"}, {regexp.MustCompile(`^__v\d+_1$`), "v"}}
+
+// byOrdinal is names with the variables a lowering named after what they
+// hold (__h3_user) in the order it declared them, so the first takes the
+// name and a later one the fallback.
+func byOrdinal(names []string) []string {
+	out := slices.Clone(names)
+	n := func(s string) int {
+		if m := hintName.FindStringSubmatch(s); m != nil {
+			v, _ := strconv.Atoi(strings.TrimPrefix(strings.SplitN(s, "_", 4)[2], "h"))
+			return v
+		}
+		return 0
+	}
+	sort.SliceStable(out, func(i, j int) bool { return n(out[i]) < n(out[j]) })
+	return out
+}
+
+// hintName is a lowering's variable named after what it holds
+// (tmpName): __h3_user is user, else v, v2, ….
+var hintName = regexp.MustCompile(`^__h\d+_(\w+)$`)
 
 // localNames renames the locals of old a lowering declares as localName
 // says, wherever go/types shows the new name captures and shadows nothing:
@@ -235,7 +255,21 @@ func (e *engine) localNames(old []string) map[string]string {
 		}
 		return found
 	}
+	// visible reports whether v is in scope at p: past the end of the
+	// statement declaring it, so its name may also name what that
+	// statement calls (exists, err := exists(ctx)).
+	visible := func(v *types.Var, p token.Pos) bool {
+		inner := e.pkg.Scope().Innermost(p)
+		if inner == nil {
+			return p > v.Pos()
+		}
+		_, obj := inner.LookupParent(v.Name(), p)
+		return obj == v
+	}
 	safe := func(v *types.Var, n string) bool {
+		if token.IsKeyword(n) {
+			return false
+		}
 		s := v.Parent()
 		if s.Lookup(n) != nil || slices.ContainsFunc(renamed[n], func(w *types.Var) bool { return w.Parent() == s }) {
 			return false
@@ -246,7 +280,7 @@ func (e *engine) localNames(old []string) map[string]string {
 			}
 		}
 		for _, id := range byName[n] {
-			if obj := e.info.Uses[id]; obj != nil && obj.Parent() != nil && s.Contains(id.Pos()) && id.Pos() > v.Pos() && encloses(obj.Parent(), s) {
+			if obj := e.info.Uses[id]; obj != nil && obj.Parent() != nil && s.Contains(id.Pos()) && visible(v, id.Pos()) && encloses(obj.Parent(), s) {
 				return false
 			}
 		}
@@ -260,23 +294,32 @@ func (e *engine) localNames(old []string) map[string]string {
 		return true
 	}
 	for _, name := range old {
-		n := ""
+		var cands []string
 		for _, l := range localName {
 			if l.re.MatchString(name) {
-				n = l.name
+				cands = []string{l.name}
+			}
+		}
+		if m := hintName.FindStringSubmatch(name); m != nil {
+			cands = []string{m[1], "v"}
+			for i := 2; i < 10; i++ {
+				cands = append(cands, "v"+itoa(i))
 			}
 		}
 		vs := vars[name]
-		if n == "" || len(vs) == 0 {
+		if len(vs) == 0 {
 			continue
 		}
-		ok := true
-		for _, v := range vs {
-			ok = ok && safe(v, n)
-		}
-		if ok {
-			renamed[n] = append(renamed[n], vs...)
-			out[name] = n
+		for _, n := range cands {
+			ok := true
+			for _, v := range vs {
+				ok = ok && safe(v, n)
+			}
+			if ok {
+				renamed[n] = append(renamed[n], vs...)
+				out[name] = n
+				break
+			}
 		}
 	}
 	return out

@@ -11,14 +11,19 @@ func TestParseCompile(t *testing.T) {
 	if err != nil || !c.NoImplicitCtx {
 		t.Fatalf("%+v %v", c, err)
 	}
-	if c, err := ParseCompile("vuka.toml", []byte("[compile]\nimplicit_ctx = true\n")); err != nil || c.NoImplicitCtx {
+	if c, err := ParseCompile("vuka.toml", []byte("[compile]\nimplicit_ctx = true\n")); err != nil || c.NoImplicitCtx || c.WrapErrors {
 		t.Fatalf("implicit_ctx = true: %+v %v", c, err)
+	}
+	if c, err := ParseCompile("vuka.toml", []byte("[vet]\nwrap_errors = true\n")); err != nil || !c.WrapErrors {
+		t.Fatalf("wrap_errors = true: %+v %v", c, err)
 	}
 	for _, c := range []struct{ src, want string }{
 		{"[compile]\nimplicit = false\n", "vuka.toml:2: unknown key implicit in [compile]: it has implicit_ctx"},
 		{"[compile]\nimplicit_ctx = off\n", "vuka.toml:2: implicit_ctx is true or false"},
-		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt], [compile] and [ui]"},
+		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt], [compile], [ui] and [vet]"},
 		{"implicit_ctx = false\n", "vuka.toml:1: implicit_ctx is outside a table: write it under [compile]"},
+		{"[vet]\nwrapcheck = true\n", "vuka.toml:2: unknown key wrapcheck in [vet]: it has wrap_errors"},
+		{"[vet]\nwrap_errors = yes\n", "vuka.toml:2: wrap_errors is true or false"},
 	} {
 		if _, err := ParseCompile("vuka.toml", []byte(c.src)); err == nil || err.Error() != c.want {
 			t.Errorf("%q: %v", c.src, err)

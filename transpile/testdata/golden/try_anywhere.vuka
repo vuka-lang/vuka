@@ -1,0 +1,221 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strings"
+)
+
+type User struct {
+	ID     int
+	Active bool
+}
+
+type Post struct{ Title string }
+
+type Status int
+
+var ErrNotFound = errors.New("not found")
+
+var calls []string
+
+func call(name string) { calls = append(calls, name) }
+
+func exists(email string) (bool, error) {
+	call("exists " + email)
+	if email == "" {
+		return false, ErrNotFound
+	}
+	return strings.HasSuffix(email, "@taken.com"), nil
+}
+
+func price(item string) (int, error) {
+	call("price " + item)
+	if item == "" {
+		return 0, ErrNotFound
+	}
+	return len(item), nil
+}
+
+func qty(n int) (int, error) {
+	call("qty")
+	return n, nil
+}
+
+func hasPerm(u *User, perm string) (bool, error) {
+	call("hasPerm " + perm)
+	if perm == "" {
+		return false, ErrNotFound
+	}
+	return u.ID == 1, nil
+}
+
+func GetUser(id int) (*User, error) {
+	call(fmt.Sprint("GetUser ", id))
+	if id == 0 {
+		return nil, ErrNotFound
+	}
+	return &User{ID: id, Active: true}, nil
+}
+
+func listPosts(n int) ([]Post, error) {
+	call("listPosts")
+	return make([]Post, n), nil
+}
+
+func status(id int) (Status, error) {
+	call("status")
+	return Status(id % 3), nil
+}
+
+func g() int {
+	call("g")
+	return 2
+}
+
+// Register checks the email in an if's condition.
+func Register(email string) (string, error) {
+	if exists(email)? {
+		return "taken", nil
+	}
+	return "ok", nil
+}
+
+func total(item string, n int) (int, error) {
+	t := price(item)? * qty(n)?
+	return t, nil
+}
+
+func ordered(item string) (bool, error) {
+	return g() > price(item)?, nil
+}
+
+// guard drops the else: the branch before returns.
+func guard(u *User, id int) (string, error) {
+	if u.Active {
+		return "active", nil
+	} else if GetUser(id)?.Active {
+		return "loaded", nil
+	}
+	return "none", nil
+}
+
+// branches keeps the else: the branch before falls through.
+func branches(n int) (string, error) {
+	s := ""
+	if n > 5 {
+		s = "big"
+	} else if exists("x@taken.com")? {
+		s = "taken"
+	}
+	return s, nil
+}
+
+func allow(u *User) (bool, error) {
+	allowed := false
+	if u != nil && u.Active && hasPerm(u, "posts.edit")? {
+		allowed = true
+	}
+	return allowed, nil
+}
+
+func allowElse(u *User) (string, error) {
+	if u != nil && hasPerm(u, "posts.edit")? {
+		return "yes", nil
+	} else {
+		return "no", nil
+	}
+}
+
+func either(u *User) (bool, error) {
+	ok := u == nil || hasPerm(u, "posts.view")?
+	return ok, nil
+}
+
+func count(n int) (int, error) {
+	seen := 0
+	for i := 0; next(i, n)?; i++ {
+		if i%2 == 1 {
+			continue
+		}
+		seen++
+	}
+	return seen, nil
+}
+
+func next(i, n int) (bool, error) {
+	call(fmt.Sprint("next ", i))
+	return i < n, nil
+}
+
+func titles(n int) (int, error) {
+	k := 0
+	for range listPosts(n)? {
+		k++
+	}
+	return k, nil
+}
+
+func describe(id int) (string, error) {
+	switch status(id)? {
+	case 0:
+		return "draft", nil
+	case 1:
+		return "sent", nil
+	}
+	return "paid", nil
+}
+
+func initMoved(id int) (bool, error) {
+	if u := GetUser(id)?; u.Active {
+		return true, nil
+	}
+	return false, nil
+}
+
+func load(id int) (*User, error) { return GetUser(id) }
+
+func render(u *User) (string, error) {
+	call("render")
+	return fmt.Sprint("user ", u.ID), nil
+}
+
+func send(page string) error {
+	call("send " + page)
+	return nil
+}
+
+func chain(id int) error {
+	send(render(load(id)?)?)?
+	return nil
+}
+
+func run(name string, f func() (any, error)) {
+	calls = nil
+	v, err := f()
+	fmt.Println(name, v, err, calls)
+}
+
+func main() {
+	run("register", func() (any, error) { return Register("a@taken.com") })
+	run("register err", func() (any, error) { return Register("") })
+	run("total", func() (any, error) { return total("abc", 2) })
+	run("total err", func() (any, error) { return total("", 2) })
+	run("ordered", func() (any, error) { return ordered("x") })
+	run("guard", func() (any, error) { return guard(&User{}, 3) })
+	run("guard active", func() (any, error) { return guard(&User{Active: true}, 0) })
+	run("branches", func() (any, error) { return branches(1) })
+	run("branches big", func() (any, error) { return branches(9) })
+	run("allow", func() (any, error) { return allow(&User{ID: 1, Active: true}) })
+	run("allow inactive", func() (any, error) { return allow(&User{ID: 1}) })
+	run("allow else", func() (any, error) { return allowElse(nil) })
+	run("either nil", func() (any, error) { return either(nil) })
+	run("either", func() (any, error) { return either(&User{ID: 2}) })
+	run("count", func() (any, error) { return count(5) })
+	run("titles", func() (any, error) { return titles(3) })
+	run("describe", func() (any, error) { return describe(4) })
+	run("init", func() (any, error) { return initMoved(7) })
+	run("init err", func() (any, error) { return initMoved(0) })
+	run("chain", func() (any, error) { return nil, chain(5) })
+	run("chain err", func() (any, error) { return nil, chain(0) })
+}

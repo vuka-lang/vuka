@@ -21,6 +21,8 @@ type edit struct {
 	segs       []segment // a copy holding other rewrites: where its text came from
 	n          int       // a copy's length in src
 	drop       bool      // a copy left out: its text is nothing
+	stay       bool      // removes source moved elsewhere: never part of a copy
+	excl       bool      // a copy moved out of where a name now stands: an insertion at its start is before that name, not in the copy
 }
 
 type edits []edit
@@ -70,6 +72,9 @@ func (es edits) nest(src []byte) edits {
 		for i, e := range out {
 			// A rewrite another copy of this tree took is this one's too; one a
 			// nested tree's copy took is in that copy.
+			if e.stay || c.excl && e.start == a && e.end == a {
+				continue
+			}
 			if i != ci && (e.own == nil || e.own != c.own) && a <= e.start && e.end <= b && e.start < b && (!gone[i] || by[i] == c.own) {
 				inner = append(inner, e)
 				gone[i], by[i] = true, c.own
@@ -84,6 +89,17 @@ func (es edits) nest(src []byte) edits {
 	for _, ci := range copies {
 		if c := &out[ci]; c.drop {
 			c.text, c.segs = "", []segment{}
+		}
+	}
+	// What is left inside source moved elsewhere goes with it.
+	for i, s := range out {
+		if !s.stay || gone[i] {
+			continue
+		}
+		for j, e := range out {
+			if j != i && !gone[j] && s.start <= e.start && e.end <= s.end && e.start < s.end && !(e.start == e.end && e.start == s.start) {
+				gone[j] = true
+			}
 		}
 	}
 	kept := out[:0]
@@ -197,7 +213,7 @@ func (es edits) fromOrig(off int) int {
 			if e.n > 0 {
 				n = e.n
 			}
-			if a <= off && off <= a+n {
+			if a <= off && off <= a+n && !(e.excl && off == a) {
 				return e.start + delta + e.genOf(off)
 			}
 		}

@@ -27,3 +27,60 @@ func e() error {
 	_ = x
 	return nil
 }
+
+func g(n int) (int, error) {
+	switch n {
+	case strconv.Atoi("1")?:
+		return 1, nil
+	}
+	return 0, nil
+}
+
+func h(ch chan int) error {
+	select {
+	case ch <- strconv.Atoi("1")?:
+	}
+	return nil
+}
+
+func i() error {
+	for j := 0; j < 3; j = strconv.Atoi("1")? {
+	}
+	return nil
+}
+
+func j(s string) error {
+	if s != "" && check(s)? {
+	}
+	return nil
+}
+
+func check(s string) error { return nil }
+
+func k(a, b bool) error {
+	if a || b && strconv.ParseBool("x")? {
+	}
+	return nil
+}
+
+func l(s string) error {
+	x := strconv.Atoi(s)?()
+	_ = x
+	return nil
+}
+
+func m(s string) error {
+	x := strconv.Atoi(s)?(42)
+	_ = x
+	return nil
+}
+
+enum Failure {
+	Bad{Code int}
+}
+
+func n(s string) error {
+	x := strconv.Atoi(s)?(Failure.Bad)
+	_ = x
+	return nil
+}

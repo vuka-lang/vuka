@@ -1,0 +1,18 @@
+handle paid ship <nil> []
+handle cancel <nil> [expired 20]
+handle err  bad [expired -1]
+reuse false <nil> [expired 3 expired 3]
+scoped 9 <nil> []
+scoped err 0 strconv.Atoi: parsing "x": invalid syntax []
+chained less <nil> []
+either paid done <nil> []
+either open <nil> [expired 1]
+labeled 3 <nil> [atLeast 3 atLeast 2 atLeast 1]
+describe int 3 <nil> [kind]
+describe err  bad [kind]
+pick many <nil> []
+matched word hi <nil> []
+matched empty empty <nil> []
+matched err  bad []
+Some(user ann!) None
+Ok(6) Err(bad)
