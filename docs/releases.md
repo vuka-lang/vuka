@@ -178,6 +178,27 @@ the `github.com/vuka-lang/vuka` package your module requires.
   of its own. New examples: a form on a live page, and the ORM models on a
   page backed by SQLite.
 
+### Fixes
+
+- **Bindings keep v2.9.0's scope.** A markup statement's names are visible
+  from the statement to the end of the Go block it is in — an `if`, `for`
+  or `switch` body, or the whole template — as on v2.9.0, not only to the
+  end of its element; `link := Link()` in a header `<div>` is readable in
+  the body's. The binding is still lazy. A part's bindings keep their
+  element's scope: a deferred method's binding (its element is the part,
+  E0344) and one listed in `<ui.Suspense for={…}>`, or bound to a deferred
+  method inside a boundary, used after its element is
+  [E0163](/errors/E0163), which also names a binding used after the `if`
+  or `for` body it is in. See [Bindings](/ui/templates#bindings).
+- **`@ui.Defer` on a pointer-receiver method of a page whose markup's
+  receiver is a value** — the method declared in another file, the page
+  built by `NewIndex(...) *Index` — builds: the part is called on the
+  page's address (`ui.Part(&p, (*Index).GetCategories, …)`), so the
+  render's parts of one method still share one call.
+- **A deferred method called in a hole inside `<ui.Suspense>`**,
+  `<i>{Count()}</i>`, is unwrapped to its `T` as elsewhere in markup; it
+  was left as `(T, error)` and failed to build.
+
 ### Upgrading
 
 - **Error patterns follow the wrap chain.** In a `match`, an error pattern

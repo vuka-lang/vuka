@@ -219,7 +219,7 @@ func (e *engine) findParts(f *fileState) bool {
 	var fallbacks []*jsxElem
 	var bound []*partBinding
 	var inBoundary []call // calls in a <ui.Suspense>'s markup
-	boundary := 0 // the <ui.Suspense>s walk is in
+	boundary := 0         // the <ui.Suspense>s walk is in
 	var walk func(ns []jsxNode, el *jsxElem)
 	walk = func(ns []jsxNode, el *jsxElem) {
 		use := func(m *deferMethod, c *ast.CallExpr) {

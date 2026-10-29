@@ -73,7 +73,7 @@ same page in the terminal.
 | [E0160](./E0160) | A call in markup returns values markup can't take |
 | [E0161](./E0161) | ui.FormOf names a field the model lacks |
 | [E0162](./E0162) | A call in markup is short of an argument |
-| [E0163](./E0163) | A statement's name used after its element |
+| [E0163](./E0163) | A statement's name used outside its scope |
 | [E0164](./E0164) | A variant method missing variants |
 | [E0165](./E0165) | Variant methods that disagree |
 | [E0166](./E0166) | A pointer receiver on a value enum's variant |

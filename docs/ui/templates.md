@@ -359,9 +359,25 @@ place, not the value after the statements below it:
 
 ### Bindings {#bindings}
 
-A statement's names are its element's: from the statement to the end of
-the element it is in (the whole markup for one at its top level). A name
-used after its element is [E0163](/errors/E0163).
+A statement's names are visible as a Go statement's are: from the
+statement to the end of the block it is in — an `if`, `for` or `switch`
+body, or the whole markup — whatever elements come between:
+
+```html
+<div class="header">
+  link := Link()
+  if link.Problem == "" { <p>Choose a new password for {link.Email}</p> }
+</div>
+<div class="body">
+  if link.Problem != "" { <div role="alert">{link.Problem}</div> }
+</div>
+```
+
+A name used after the `if` or `for` body binding it is
+[E0163](/errors/E0163). A part's bindings are their element's: a deferred
+method's binding, whose element is its part, and a binding listed in
+`<ui.Suspense for={…}>` (or bound to a deferred method inside a boundary)
+can't be used after the element holding the statement.
 
 A statement binding one name to a call of the app's code is lazy: the call
 runs where the render first reads the name, once, and the result is reused.
