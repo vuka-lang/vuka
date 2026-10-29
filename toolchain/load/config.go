@@ -9,12 +9,12 @@ import (
 )
 
 // ConfigFile is a project's settings, next to its go.mod: the [fmt] table
-// vuka fmt lays files out by (toolchain/format) and the [compile] table
-// the compiler reads.
+// vuka fmt lays files out by (toolchain/format), the [compile] table
+// the compiler reads, and the [ui] table vuka ui reads.
 const ConfigFile = "vuka.toml"
 
 // ConfigTables are the tables vuka.toml may hold.
-var ConfigTables = []string{"fmt", "compile"}
+var ConfigTables = []string{"fmt", "compile", "ui"}
 
 // Compile are a module's compiler settings, vuka.toml's [compile] table:
 //
@@ -118,7 +118,7 @@ func ParseConfig(file string, src []byte, table string, set func(key, value stri
 				known = known || in == t
 			}
 			if !known {
-				return at("unknown table [%s]: vuka.toml has [fmt] and [compile]", in)
+				return at("unknown table [%s]: vuka.toml has [fmt], [compile] and [ui]", in)
 			}
 			continue
 		}

@@ -1,0 +1,49 @@
+<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// BadgeVariant is a Badge's look.
+type BadgeVariant string
+
+const (
+	BadgeDefault     BadgeVariant = "" // the primary colour
+	BadgeSecondary   BadgeVariant = "secondary"
+	BadgeDestructive BadgeVariant = "destructive"
+	BadgeOutline     BadgeVariant = "outline"
+)
+
+// Badge is a small label, a status or a count:
+//
+//	<design.Badge variant={design.BadgeSecondary}>Draft</design.Badge>
+type Badge struct {
+	Variant BadgeVariant
+	// Class is added to the badge's classes, winning over them (see cn).
+	Class    string
+	Attrs    []ui.Attr
+	Children ui.Node
+}
+
+const badgeBase = "inline-flex w-fit shrink-0 items-center justify-center gap-1 overflow-hidden whitespace-nowrap rounded-md border px-2 py-0.5 " +
+	"text-xs font-medium transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
+	"[&>svg]:pointer-events-none [&>svg]:size-3"
+
+var badgeVariant = map[BadgeVariant]string{
+	BadgeDefault:     "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+	BadgeSecondary:   "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+	BadgeDestructive: "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90",
+	BadgeOutline:     "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+}
+
+// badgeVariants are the classes of a badge of variant v; an unknown one is
+// the default.
+func badgeVariants(v BadgeVariant) string {
+	variant, ok := badgeVariant[v]
+	if !ok {
+		variant = badgeVariant[BadgeDefault]
+	}
+	return cn(badgeBase, variant)
+}
+</script>
+
+<span class={cn(badgeVariants(Variant), Class)} {Attrs...}>{Children}</span>

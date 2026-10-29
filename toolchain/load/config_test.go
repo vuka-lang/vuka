@@ -17,7 +17,7 @@ func TestParseCompile(t *testing.T) {
 	for _, c := range []struct{ src, want string }{
 		{"[compile]\nimplicit = false\n", "vuka.toml:2: unknown key implicit in [compile]: it has implicit_ctx"},
 		{"[compile]\nimplicit_ctx = off\n", "vuka.toml:2: implicit_ctx is true or false"},
-		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt] and [compile]"},
+		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt], [compile] and [ui]"},
 		{"implicit_ctx = false\n", "vuka.toml:1: implicit_ctx is outside a table: write it under [compile]"},
 	} {
 		if _, err := ParseCompile("vuka.toml", []byte(c.src)); err == nil || err.Error() != c.want {

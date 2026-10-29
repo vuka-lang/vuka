@@ -22,6 +22,22 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.11.0 — unreleased
 
+### UI Components
+
+- **`vuka ui init` and `vuka ui add`: components that are the app's own
+  source.** `vuka ui add button card dialog` writes the components into
+  `components/ui/` as `.vuka.html` files to change as you like, drawn with
+  Tailwind utilities over design tokens `vuka ui init` puts in the app's
+  stylesheet (shadcn's token names, so its themes paste in; light, dark by
+  preference or `data-theme`). Button, Badge, Card, Alert, Input, Label,
+  Tabs (its tab server state over the live connection) and Dialog (a
+  `<dialog>` driven by JS commands: focus, Escape, backdrop); a component
+  brings those it uses, and `cn.go` merges classes so a `class` wins over a
+  component's defaults. A file the app has changed is never overwritten
+  without `-f`: `vuka ui add` prints the difference. The `[ui]` table in
+  `vuka.toml` records where they go. See
+  [UI Components (Vendored)](/ui/vendored).
+
 ### Markup Calls
 
 - **Implicit ctx is reviewable.** A markup call that compiles both as

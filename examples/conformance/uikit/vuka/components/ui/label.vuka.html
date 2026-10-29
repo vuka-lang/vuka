@@ -1,0 +1,30 @@
+<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// Label names a form field, For its id:
+//
+//	<design.Label for="email">Email</design.Label>
+type Label struct {
+	For string
+	// Class is added to the label's classes, winning over them (see cn).
+	Class    string
+	Attrs    []ui.Attr
+	Children ui.Node
+}
+
+// target is the for attribute, none without one.
+func (l Label) target() any {
+	if l.For == "" {
+		return nil
+	}
+	return l.For
+}
+</script>
+
+<label
+  for={l.target()}
+  class={cn("flex items-center gap-2 text-sm leading-none font-medium select-none peer-disabled:cursor-not-allowed peer-disabled:opacity-50", l.Class)}
+  {l.Attrs...}
+>{l.Children}</label>

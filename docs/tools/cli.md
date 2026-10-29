@@ -15,6 +15,9 @@ These are the subcommands and their flags:
 ```text
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
+vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name]
+vuka ui add [-f] [--dry-run] <component…>
+vuka ui list
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
@@ -177,6 +180,16 @@ declaration or file that exists (`--force` overwrites it), and a module that
 doesn't; `--dry-run` lists what it would write and changes nothing. Files
 are formatted as `vuka fmt` formats them, and a package nothing imports yet
 is imported in `main.vuka`.
+
+## Vendored UI Components {#ui}
+
+`vuka ui init` writes design tokens into the app's stylesheet,
+`components/ui/cn.go` and a `[ui]` table in `vuka.toml`; `vuka ui add
+button card dialog` writes those components (and what they use) into
+`components/ui/` as the app's own `.vuka.html` files. Neither overwrites a
+file of the app's without `-f`: `vuka ui add` prints the difference instead.
+`vuka ui list` lists the components. See
+[UI Components (Vendored)](/ui/vendored).
 
 ## Building, Running and Testing {#build-run-test-vet-install}
 
@@ -519,7 +532,8 @@ A `.vuka.html` file is formatted whole, in the form it is in:
   variant (`hover:`, `md:`). A `class={…}` hole is never touched.
 
 The project's `vuka.toml`, next to its `go.mod`, sets the width and the
-Tailwind order in its `[fmt]` table. Both are optional:
+Tailwind order in its `[fmt]` table (its `[ui]` table is
+[vuka ui's](/ui/vendored#init)). Both are optional:
 
 ```toml
 [fmt]
