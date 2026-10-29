@@ -46,6 +46,7 @@ The checks are:
 | `live` | decorated hooks, bound fields, deferred groups, typed handler parameters and tracked server state |
 | `templates` | shape-file fields and markup, ambiguous names, missing keys in live loops and invalid hole values |
 | `schema` | an orm model's `Schema` method: `s.Field` given something other than the address of the receiver's field ([E0501](/errors/E0501)), a nil attribute ([E0502](/errors/E0502)), a field behind a pointer ([E0503](/errors/E0503)) |
+| `queries` | orm queries combining tables: a field of a model the query doesn't join, or joins after the `Join` naming it ([E0504](/errors/E0504)); `Values` columns that don't fit the struct they fill by position ([E0505](/errors/E0505)); a SQL fragment's template that isn't a constant, or whose `?` and `{n}` don't match its arguments ([E0506](/errors/E0506)); a `Count` a later join can repeat ([W0501](/errors/W0501)); a join read as the model's rows ([W0502](/errors/W0502)) |
 | `urlstate` | two components one markup renders keeping the same query parameter without a `urlKey` of their own ([W0307](/errors/W0307)) |
 | `parts` | methods registered with `ui.Defer`: on a page's or component's method ([E0341](/errors/E0341)) taking a context and returning `(T, error)` ([E0347](/errors/E0347)), once ([E0345](/errors/E0345)), of a page that isn't live ([E0346](/errors/E0346)), named by a `ui.Part` of their own type ([E0342](/errors/E0342), [E0349](/errors/E0349)) and never called from Go ([E0343](/errors/E0343)) |
 

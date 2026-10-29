@@ -496,8 +496,11 @@ type AuthorPosts struct {
 }
 
 func postsPerAuthor(ctx context.Context) ([]AuthorPosts, error) {
-	return Author.Objects.Annotate("posts", Author.Posts.Count()).
-		OrderBy(Author.Name.Asc()).Values[AuthorPosts]("name", "posts").All(ctx)
+	return Author.Objects.
+		Join(Post.On(Post.Author.Eq(Author.ID)), orm.Left).
+		OrderBy(Author.Name).
+		Values[AuthorPosts](Author.Name, orm.Count(Post.ID)).
+		All(ctx)
 }
 ```
 ```go [Generated Go]
@@ -507,19 +510,80 @@ type AuthorPosts struct {
 }
 
 func postsPerAuthor(ctx context.Context) ([]AuthorPosts, error) {
-	return orm.Objects[Author]().Annotate("posts", AuthorColumns.Posts().Count()).
-		OrderBy(AuthorColumns.Name.Asc()).Values[AuthorPosts]("name", "posts").All(ctx)
+	return orm.Objects[Author]().
+		Join(PostColumns.On(PostColumns.Author().Eq(AuthorColumns.ID)), orm.Left).
+		OrderBy(AuthorColumns.Name).
+		Values[AuthorPosts](AuthorColumns.Name, orm.Count(PostColumns.ID)).
+		All(ctx)
 }
 ```
 :::
 
 ```sql
-SELECT authors.name, (COUNT(DISTINCT posts.id)) AS posts FROM authors
+SELECT authors.name, COUNT(posts.id) FROM authors
 LEFT JOIN posts ON posts.author_id = authors.id
-GROUP BY authors.id, 1 ORDER BY authors.name ASC
+GROUP BY 1 ORDER BY authors.name ASC
 ```
 
-Authors with no posts are there with 0: the join is a `LEFT JOIN`.
+Authors with no posts are there with 0: the join is a `LEFT JOIN`, and
+`COUNT(posts.id)` skips its NULLs. `Values` fills `AuthorPosts` by position;
+the aggregate groups the rows by the other column.
+
+### Published Posts per Author, in the Last 30 Days {#count-per-group-filtered}
+
+::: code-group
+```vuka [Vuka]
+type RecentPosts struct {
+	ID    int64
+	Name  string
+	Posts int64
+}
+
+func recentPosts(ctx context.Context) ([]RecentPosts, error) {
+	return Author.Objects.
+		Join(Post.On(
+			Post.Author.Eq(Author.ID),
+			Post.Status.In("published", "pinned"),
+			Post.Published.Gte(orm.Today().AddDays(-30)),
+		), orm.Left).
+		OrderBy(Author.Name).
+		Values[RecentPosts](Author.ID, Author.Name, orm.Count(Post.ID)).
+		All(ctx)
+}
+```
+```go [Generated Go]
+type RecentPosts struct {
+	ID    int64
+	Name  string
+	Posts int64
+}
+
+func recentPosts(ctx context.Context) ([]RecentPosts, error) {
+	return orm.Objects[Author]().
+		Join(PostColumns.On(
+			PostColumns.Author().Eq(AuthorColumns.ID),
+			PostColumns.Status.In("published", "pinned"),
+			PostColumns.Published.Gte(orm.Today().AddDays(-30)),
+		), orm.Left).
+		OrderBy(AuthorColumns.Name).
+		Values[RecentPosts](AuthorColumns.ID, AuthorColumns.Name, orm.Count(PostColumns.ID)).
+		All(ctx)
+}
+```
+:::
+
+```sql
+SELECT authors.id, authors.name, COUNT(posts.id) FROM authors
+LEFT JOIN posts ON (posts.author_id = authors.id AND posts.status IN (?, ?)
+  AND posts.published >= date(date('now'), '-30 day'))
+GROUP BY 1, 2 ORDER BY authors.name ASC
+```
+
+The conditions go in the join's `ON`, so an author with nothing recent keeps
+a row and counts 0; a `Filter` would drop them. `orm.Today()` is the
+database's date, so the app's and the database's time zones can't disagree.
+Through a link table, a second `Join` and `orm.Count(…, orm.Distinct)` when
+the joins can repeat a row: see [Combining Tables](/orm/queries#joins).
 
 ### Annotate Each Row With a Related Count, and Filter on It {#annotate-count}
 

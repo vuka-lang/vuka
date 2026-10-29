@@ -1114,6 +1114,169 @@ GROUP BY 1
 ```
 :::
 
+## Combining Tables: Join {#joins}
+
+A query that reads from several tables joins them and says which columns it
+wants. `Join(Post.On(conds…), orm.Left)` adds the posts table, its rows
+matching where the conditions hold; `orm.Left` keeps an author with no match,
+its post columns NULL (without it the join is an inner one, and keeps only
+authors with a match). The joined model's fields then go wherever the
+queried model's do. `Values[R](columns…)` fills `R`'s fields in order, and an
+aggregate among the columns groups the rows by the others:
+
+::: code-group
+```vuka [Vuka]
+type AuthorCount struct {
+	ID    int64
+	Name  string
+	Posts int64
+}
+
+func recentPerAuthor(ctx context.Context) ([]AuthorCount, error) {
+	return Author.Objects.
+		Join(Post.On(
+			Post.Author.Eq(Author.ID),
+			Post.Status.Eq("published"),
+			Post.Published.Gte(orm.Today().AddDays(-30)),
+		), orm.Left).
+		OrderBy(Author.Name).
+		Values[AuthorCount](Author.ID, Author.Name, orm.Count(Post.ID)).
+		All(ctx)
+}
+```
+```go [Generated Go]
+import orm "github.com/vuka-lang/orm/v2"
+
+type AuthorCount struct {
+	ID    int64
+	Name  string
+	Posts int64
+}
+
+func recentPerAuthor(ctx context.Context) ([]AuthorCount, error) {
+	return orm.Objects[Author]().
+		Join(PostColumns.On(
+			PostColumns.Author().Eq(AuthorColumns.ID),
+			PostColumns.Status.Eq("published"),
+			PostColumns.Published.Gte(orm.Today().AddDays(-30)),
+		), orm.Left).
+		OrderBy(AuthorColumns.Name).
+		Values[AuthorCount](AuthorColumns.ID, AuthorColumns.Name, orm.Count(PostColumns.ID)).
+		All(ctx)
+}
+```
+:::
+
+```sql
+SELECT authors.id, authors.name, COUNT(posts.id) FROM authors
+LEFT JOIN posts ON (posts.author_id = authors.id AND posts.status = ?
+  AND posts.published >= date(date('now'), '-30 day'))
+GROUP BY 1, 2 ORDER BY authors.name ASC
+```
+
+The conditions are in the join's `ON`, not a `Filter`: an author whose posts
+are all older keeps a row, and `orm.Count(Post.ID)` — SQL's `COUNT`, which
+skips NULLs — gives them 0. A `Filter` on a post field would drop them.
+`Post.Author.Eq(Author.ID)` compares the foreign key with the author's id;
+`EqCol` compares any two columns of the same type, `Post.Title.EqCol(Tag.Name)`.
+
+`orm.Count`, `orm.Sum`, `orm.Avg`, `orm.Min` and `orm.Max` take a field of
+the query or of a joined model, or an expression. When a later join repeats
+the rows you count, count each value once with `orm.Distinct`:
+
+::: code-group
+```vuka [Vuka]
+type AuthorActivity struct {
+	Name     string
+	Posts    int64
+	Comments int64
+}
+
+func authorActivity(ctx context.Context) ([]AuthorActivity, error) {
+	return Author.Objects.
+		Join(Post.On(Post.Author.Eq(Author.ID)), orm.Left).
+		Join(Comment.On(Comment.Post.Eq(Post.ID)), orm.Left).
+		OrderBy(Author.Name).
+		Values[AuthorActivity](Author.Name, orm.Count(Post.ID, orm.Distinct), orm.Count(Comment.ID)).
+		All(ctx)
+}
+```
+```go [Generated Go]
+import orm "github.com/vuka-lang/orm/v2"
+
+type AuthorActivity struct {
+	Name     string
+	Posts    int64
+	Comments int64
+}
+
+func authorActivity(ctx context.Context) ([]AuthorActivity, error) {
+	return orm.Objects[Author]().
+		Join(PostColumns.On(PostColumns.Author().Eq(AuthorColumns.ID)), orm.Left).
+		Join(CommentColumns.On(CommentColumns.Post().Eq(PostColumns.ID)), orm.Left).
+		OrderBy(AuthorColumns.Name).
+		Values[AuthorActivity](AuthorColumns.Name, orm.Count(PostColumns.ID, orm.Distinct), orm.Count(CommentColumns.ID)).
+		All(ctx)
+}
+```
+:::
+
+A post with three comments is three joined rows: `COUNT(DISTINCT posts.id)`
+counts it once. `vuka vet` warns about a `Count` that a later join can repeat.
+
+A relation of the queried model joins by its foreign key, `Join(Author.Posts,
+orm.Left)`, and `.On(…)` adds conditions to that join. A table joined twice
+takes a name of its own with `As`; its fields are read through the value it
+returns:
+
+::: code-group
+```vuka [Vuka]
+type TitlePair struct {
+	First  string
+	Second string
+}
+
+func sameTitlePairs(ctx context.Context) ([]TitlePair, error) {
+	other := Post.As("other")
+	return Post.Objects.
+		Join(other.On(other.Title.EqCol(Post.Title), orm.SQLOf[bool]("{0} < {1}", Post.ID, other.ID))).
+		OrderBy(Post.ID).
+		Values[TitlePair](Post.Slug, other.Slug).
+		All(ctx)
+}
+
+func authorsWithPosts(ctx context.Context) ([]string, error) {
+	return Author.Objects.Join(Author.Posts).Distinct().OrderBy(Author.Name).Values[string](Author.Name).All(ctx)
+}
+```
+```go [Generated Go]
+import orm "github.com/vuka-lang/orm/v2"
+
+type TitlePair struct {
+	First  string
+	Second string
+}
+
+func sameTitlePairs(ctx context.Context) ([]TitlePair, error) {
+	other := PostColumns.As("other")
+	return orm.Objects[Post]().
+		Join(other.On(other.Title.EqCol(PostColumns.Title), orm.SQLOf[bool]("{0} < {1}", PostColumns.ID, other.ID))).
+		OrderBy(PostColumns.ID).
+		Values[TitlePair](PostColumns.Slug, other.Slug).
+		All(ctx)
+}
+
+func authorsWithPosts(ctx context.Context) ([]string, error) {
+	return orm.Objects[Author]().Join(AuthorColumns.Posts()).Distinct().OrderBy(AuthorColumns.Name).Values[string](AuthorColumns.Name).All(ctx)
+}
+```
+:::
+
+A joined model's field is only valid after its `Join`: naming `Post.Title` in
+a query of authors that doesn't join posts fails with "Post isn't joined", and
+`vuka vet` reports it where you wrote it. `All` without `Values` still reads
+the queried model, a row per match: read a join with `Values`.
+
 ## Selecting Columns: Values {#values}
 
 `Values[R](names…)` reads only the columns you name, into `R`:
@@ -1165,7 +1328,9 @@ ORDER BY posts.views DESC
 ```
 
 The check goes both ways: a name with no field to hold it, or a struct field
-with no name selected, is an error naming it. `Values` queries take
+with no name selected, is an error naming it. Given fields rather than names —
+`Values[PostLine](Post.Title, Post.Author.Name, Post.Views)` — `Values` fills
+`R` by position, as [joins](#joins) do. `Values` queries take
 `Filter`, `Exclude`, `OrderBy`, `Limit`, `Distinct` and `Iter` like any
 other.
 
@@ -1605,6 +1770,67 @@ func (l LatestPosts) Render(ctx context.Context, w io.Writer) error { return l.V
 :::
 
 A failing query fails the render, as an error from any call in markup does.
+
+## Raw SQL in a Query {#raw-sql-fragments}
+
+For what the built-ins don't say — a database's own function, a collation, a
+custom order — `orm.SQLOf[T](template, args…)` is a fragment of SQL of type
+`T` that goes where typed expressions go. `?` binds the next argument as a
+parameter; `{0}`, `{1}` write the arguments they number as SQL: a field as
+its quoted column (of the query or a joined model), an aggregate, another
+fragment. `orm.SQLOf[bool]` is a condition, for `On`, `Filter` and
+`Exclude`. `orm.SQLFor[T]` gives one template per database, and `.For(orm.MySQL)`
+marks a fragment as one database's, so another fails naming it rather than
+with a syntax error:
+
+::: code-group
+```vuka [Vuka]
+func longTitles(ctx context.Context) ([]string, error) {
+	return Post.Objects.
+		Filter(orm.SQLOf[bool]("LENGTH({0}) > ?", Post.Title, 40)).
+		OrderBy(orm.SQLOf[int]("CASE {0} WHEN 'published' THEN 0 ELSE 1 END", Post.Status), Post.Title).
+		Values[string](Post.Title).
+		All(ctx)
+}
+
+var weekAgo = orm.SQLFor[time.Time](orm.Dialects{
+	orm.MySQL:    "DATE_SUB(CURDATE(), INTERVAL ? DAY)",
+	orm.Postgres: "CURRENT_DATE - CAST(? AS INTEGER)",
+	orm.SQLite:   "date('now', '-' || ? || ' day')",
+}, 7)
+
+func thisWeek(ctx context.Context) ([]Post, error) {
+	return Post.Objects.Filter(Post.Published.Gte(weekAgo)).All(ctx)
+}
+```
+```go [Generated Go]
+import orm "github.com/vuka-lang/orm/v2"
+
+func longTitles(ctx context.Context) ([]string, error) {
+	return orm.Objects[Post]().
+		Filter(orm.SQLOf[bool]("LENGTH({0}) > ?", PostColumns.Title, 40)).
+		OrderBy(orm.SQLOf[int]("CASE {0} WHEN 'published' THEN 0 ELSE 1 END", PostColumns.Status), PostColumns.Title).
+		Values[string](PostColumns.Title).
+		All(ctx)
+}
+
+var weekAgo = orm.SQLFor[time.Time](orm.Dialects{
+	orm.MySQL:    "DATE_SUB(CURDATE(), INTERVAL ? DAY)",
+	orm.Postgres: "CURRENT_DATE - CAST(? AS INTEGER)",
+	orm.SQLite:   "date('now', '-' || ? || ' day')",
+}, 7)
+
+func thisWeek(ctx context.Context) ([]Post, error) {
+	return orm.Objects[Post]().Filter(PostColumns.Published.Gte(weekAgo)).All(ctx)
+}
+```
+:::
+
+The template is a constant: values only reach the database through `?`, and
+`vuka vet` reports a template built with `+`, `fmt.Sprintf` or a variable,
+a count of `?` and `{n}` that doesn't match the arguments, and a field in
+`{n}` of a model the query doesn't join. The built-ins stay the portable
+choice — `orm.Today().AddDays(-7)` is "a week ago" on every database.
 
 ## Seeing the SQL {#seeing-the-sql}
 

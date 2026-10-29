@@ -212,6 +212,11 @@ same page in the terminal.
 | [E0501](./E0501) | A Schema field isn't the model's |
 | [E0502](./E0502) | A nil Schema attribute |
 | [E0503](./E0503) | A Schema field behind a pointer |
+| [E0504](./E0504) | A field of a model the query doesn't join |
+| [E0505](./E0505) | Values columns that don't fit the struct |
+| [E0506](./E0506) | A SQL fragment's template or arguments |
+| [W0501](./W0501) | A Count a later join can repeat |
+| [W0502](./W0502) | A join read as the model's rows |
 
 ## Frontend and toolchain
 
