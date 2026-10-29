@@ -2,8 +2,6 @@ package main
 
 import (
 	"bytes"
-	"embed"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -19,18 +17,14 @@ import (
 )
 
 // vuka ui: components written into the app as its own source, drawn with
-// Tailwind utilities over design tokens in its stylesheet. The registry
-// (registry/index.json and the files it names) is embedded; each entry is
-// a name, its files, the entries it needs and its behaviour's tier, the
-// shape a registry served over the network keeps too.
-
-//go:embed registry
-var registryFS embed.FS
+// Tailwind utilities over design tokens in its stylesheet, from a registry
+// (uiregistry.go).
 
 const uiUsage = `Usage:
 
 	vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name]
 	vuka ui add [-f] [--dry-run] <component…>
+	vuka ui diff [component…]
 	vuka ui list
 
 Components that are the app's own source: vuka ui add writes each one into
@@ -46,8 +40,17 @@ utilities over design tokens in the app's stylesheet.
   add    writes the components named, and those they use, into the
          components directory. A file the app has already is left as it
          is: when it differs, add prints the difference and stops, unless
-         -f, which overwrites it.
+         -f, which overwrites it. A component needing newer vuka libraries
+         than the app's go.mod requires says which go get to run.
+  diff   prints how the app's copies of the components named (all it has
+         when none are) differ from the registry's; vuka ui add -f takes
+         the registry's.
   list   lists the components.
+
+The registry is vuka's own, fetched at the version of this vuka, or the
+copy built into it with --offline or when the fetch fails. --registry
+(or registry in vuka.toml's [ui]) names another: an https:// URL or a
+directory holding an index.json.
 
 --dry-run says what init or add would write, writing nothing.
 `
@@ -58,54 +61,70 @@ func uiCmd(args []string, stdout io.Writer) error {
 		fmt.Fprint(stdout, uiUsage)
 		return nil
 	}
-	reg, err := loadRegistry()
-	if err != nil {
-		return err
-	}
 	sub := args[0]
 	f, err := parseUIFlags(sub, args[1:])
 	if err != nil {
 		return err
+	}
+	if !slices.Contains([]string{"init", "add", "diff", "list"}, sub) {
+		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add, diff and list", sub, suggest(sub, []string{"init", "add", "diff", "list"}, ""))
+	}
+	root, modPath, err := load.ModuleRoot(".")
+	if err != nil && sub != "list" {
+		return err
+	}
+	var cfg uiConfig
+	if root != "" {
+		if cfg, _, err = readUIConfig(root); err != nil {
+			return err
+		}
 	}
 	switch sub {
 	case "list":
 		if len(f.pos) > 0 {
 			return errors.New("usage: vuka ui list")
 		}
+		reg, err := openRegistry(f, cfg, root)
+		if err != nil {
+			return err
+		}
 		reg.list(stdout)
 		return nil
-	case "init", "add":
-	default:
-		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add and list", sub, suggest(sub, []string{"init", "add", "list"}, ""))
-	}
-	root, modPath, err := load.ModuleRoot(".")
-	if err != nil {
-		return err
-	}
-	if sub == "init" {
+	case "init":
 		if len(f.pos) > 0 {
 			return fmt.Errorf("vuka ui init takes no arguments (vuka ui add %s adds components)", strings.Join(f.pos, " "))
 		}
-		return uiInit(root, modPath, reg, f, stdout)
+		return uiInit(root, modPath, f, stdout)
+	case "diff":
+		return uiDiff(root, f, stdout)
 	}
 	if len(f.pos) == 0 {
 		return errors.New("usage: vuka ui add [-f] [--dry-run] <component…> (vuka ui list lists them)")
 	}
-	return uiAdd(root, modPath, reg, f, stdout)
+	return uiAdd(root, modPath, f, stdout)
 }
 
 // uiFlags are a vuka ui command's arguments.
 type uiFlags struct {
-	pos            []string
-	force, dryRun  bool
-	css, dir, pkg  string
-	style          string
-	setDir, setPkg bool
+	pos             []string
+	force, dryRun   bool
+	offline         bool
+	css, dir, pkg   string
+	style, registry string
+	setDir, setPkg  bool
 }
 
 func parseUIFlags(sub string, args []string) (*uiFlags, error) {
 	f := &uiFlags{}
-	values := map[string]*string{"css": &f.css, "dir": &f.dir, "package": &f.pkg, "style": &f.style}
+	values := map[string]*string{"registry": &f.registry}
+	bools := map[string]*bool{"offline": &f.offline}
+	switch sub {
+	case "init":
+		values["css"], values["dir"], values["package"], values["style"] = &f.css, &f.dir, &f.pkg, &f.style
+		bools["f"], bools["force"], bools["dry-run"] = &f.force, &f.force, &f.dryRun
+	case "add":
+		bools["f"], bools["force"], bools["dry-run"] = &f.force, &f.force, &f.dryRun
+	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
 		if !strings.HasPrefix(a, "-") || a == "-" {
@@ -114,11 +133,9 @@ func parseUIFlags(sub string, args []string) (*uiFlags, error) {
 		}
 		name, value, hasValue := strings.Cut(strings.TrimLeft(a, "-"), "=")
 		switch {
-		case (name == "f" || name == "force") && !hasValue:
-			f.force = true
-		case name == "dry-run" && !hasValue:
-			f.dryRun = true
-		case values[name] != nil && sub == "init":
+		case bools[name] != nil && !hasValue:
+			*bools[name] = true
+		case values[name] != nil:
 			if !hasValue {
 				if i+1 >= len(args) {
 					return nil, fmt.Errorf("vuka ui %s: --%s needs a value", sub, name)
@@ -130,111 +147,20 @@ func parseUIFlags(sub string, args []string) (*uiFlags, error) {
 			f.setDir = f.setDir || name == "dir"
 			f.setPkg = f.setPkg || name == "package"
 		default:
-			names := []string{"force", "dry-run"}
-			if sub == "init" {
-				names = append(names, "css", "dir", "package", "style")
+			var names []string
+			for n := range bools {
+				if n != "f" {
+					names = append(names, n)
+				}
 			}
+			for n := range values {
+				names = append(names, n)
+			}
+			slices.Sort(names)
 			return nil, fmt.Errorf("vuka ui %s: no flag %s%s", sub, a, suggest(name, names, "--"))
 		}
 	}
 	return f, nil
-}
-
-// registry is the index of the components vuka ui writes.
-type registry struct {
-	Name    string            `json:"name"`
-	Package string            `json:"package"` // the package clause the files are written with
-	Styles  map[string]string `json:"styles"`  // a style's name → its tokens' stylesheet
-	Items   []registryItem    `json:"items"`
-}
-
-// registryItem is a component: its files (paths in the registry, written
-// under the components directory without their first element), the items
-// it uses, and its tier — 0 a helper, 1 HTML and JS commands in the
-// browser, 2 state on the server over the live connection, 3 an island.
-type registryItem struct {
-	Name        string   `json:"name"`
-	Description string   `json:"description"`
-	Tier        int      `json:"tier"`
-	Files       []string `json:"files"`
-	Deps        []string `json:"deps"`
-}
-
-func loadRegistry() (*registry, error) {
-	b, err := registryFS.ReadFile("registry/index.json")
-	if err != nil {
-		return nil, err
-	}
-	var r registry
-	if err := json.Unmarshal(b, &r); err != nil {
-		return nil, fmt.Errorf("vuka ui: the registry's index: %v", err)
-	}
-	return &r, nil
-}
-
-func (r *registry) item(name string) *registryItem {
-	for i := range r.Items {
-		if r.Items[i].Name == name {
-			return &r.Items[i]
-		}
-	}
-	return nil
-}
-
-// components are the names of the items vuka ui add takes, the helpers
-// left out.
-func (r *registry) components() []string {
-	var out []string
-	for _, it := range r.Items {
-		if it.Tier > 0 {
-			out = append(out, it.Name)
-		}
-	}
-	slices.Sort(out)
-	return out
-}
-
-func (r *registry) list(w io.Writer) {
-	tiers := []string{"", "browser", "live", "island"}
-	for _, n := range r.components() {
-		it := r.item(n)
-		fmt.Fprintf(w, "%-8s %-8s %s\n", it.Name, tiers[it.Tier], it.Description)
-	}
-}
-
-// resolve is the items names asks for and those they use, each after the
-// ones it uses.
-func (r *registry) resolve(names []string) ([]*registryItem, error) {
-	var out []*registryItem
-	seen := map[string]bool{}
-	var visit func(name, from string) error
-	visit = func(name, from string) error {
-		if seen[name] {
-			return nil
-		}
-		it := r.item(name)
-		if it == nil {
-			if from != "" {
-				return fmt.Errorf("vuka ui: the registry's %s uses %s, which it hasn't", from, name)
-			}
-			return fmt.Errorf("vuka ui add: no component %q%s; the components are %s", name,
-				suggest(name, r.components(), ""), strings.Join(r.components(), ", "))
-		}
-		seen[name] = true
-		for _, d := range it.Deps {
-			if err := visit(d, name); err != nil {
-				return err
-			}
-		}
-		out = append(out, it)
-		return nil
-	}
-	for _, n := range names {
-		if err := visit(strings.ToLower(n), ""); err != nil {
-			return nil, err
-		}
-	}
-	return out, nil
 }
 
 // uiConfig is vuka.toml's [ui] table: where vuka ui writes.
@@ -243,9 +169,12 @@ type uiConfig struct {
 	Dir     string // the components' directory, relative to the module
 	Package string // their package's name
 	CSS     string // the stylesheet holding the tokens, relative to the module
+	// Registry is the registry vuka ui reads: an https:// URL, or a
+	// directory relative to the module; vuka's own when empty.
+	Registry string
 }
 
-var uiKeys = []string{"style", "components", "package", "css"}
+var uiKeys = []string{"style", "components", "package", "css", "registry"}
 
 // readUIConfig reads the [ui] table of the vuka.toml at root; ok is false
 // when there is none.
@@ -286,6 +215,8 @@ func readUIConfig(root string) (c uiConfig, ok bool, err error) {
 			c.Package = s
 		case "css":
 			c.CSS = s
+		case "registry":
+			c.Registry = s
 		default:
 			return c, ok, fmt.Errorf("%s: unknown key %s in [ui]%s; its keys are %s", at, key, suggest(key, uiKeys, ""), strings.Join(uiKeys, ", "))
 		}
@@ -314,7 +245,11 @@ func stripComment(l string) string {
 
 // table is the [ui] table c is.
 func (c uiConfig) table() string {
-	return fmt.Sprintf("[ui]\nstyle = %q\ncomponents = %q\npackage = %q\ncss = %q\n", c.Style, c.Dir, c.Package, c.CSS)
+	t := fmt.Sprintf("[ui]\nstyle = %q\ncomponents = %q\npackage = %q\ncss = %q\n", c.Style, c.Dir, c.Package, c.CSS)
+	if c.Registry != "" {
+		t += fmt.Sprintf("registry = %q\n", c.Registry)
+	}
+	return t
 }
 
 var goPackageName = regexp.MustCompile(`^[a-z][a-z0-9]*$`)
@@ -332,13 +267,25 @@ var (
 )
 
 // uiInit is vuka ui init.
-func uiInit(root, modPath string, reg *registry, f *uiFlags, w io.Writer) error {
+func uiInit(root, modPath string, f *uiFlags, w io.Writer) error {
 	cfg, had, err := readUIConfig(root)
 	if err != nil {
 		return err
 	}
+	if f.registry != "" {
+		cfg.Registry = f.registry
+		if src, err := parseRegistry(f.registry, ""); err == nil && src.dir != "" {
+			if rel, err := filepath.Rel(root, src.dir); err == nil {
+				cfg.Registry = filepath.ToSlash(rel)
+			}
+		}
+	}
+	reg, err := openRegistry(f, cfg, root)
+	if err != nil {
+		return err
+	}
 	if !had {
-		cfg = uiConfig{Style: "default", Dir: "components/ui", Package: reg.Package}
+		cfg = uiConfig{Style: "default", Dir: "components/ui", Package: reg.Package, Registry: cfg.Registry}
 	}
 	if f.style != "" {
 		cfg.Style = f.style
@@ -352,7 +299,7 @@ func uiInit(root, modPath string, reg *registry, f *uiFlags, w io.Writer) error 
 	if f.css != "" {
 		cfg.CSS = filepath.ToSlash(filepath.Clean(f.css))
 	}
-	if reg.Styles[cfg.Style] == "" {
+	if _, ok := reg.Styles[cfg.Style]; !ok {
 		return fmt.Errorf("vuka ui init: no style %q; the styles are %s", cfg.Style, strings.Join(slices.Sorted(mapKeys(reg.Styles)), ", "))
 	}
 	if !goPackageName.MatchString(cfg.Package) || cfg.Package == "ui" {
@@ -364,10 +311,20 @@ func uiInit(root, modPath string, reg *registry, f *uiFlags, w io.Writer) error 
 	if cfg.CSS == "" {
 		cfg.CSS = stylesheet(root)
 	}
+	cn, err := reg.resolve("add", []string{"cn"})
+	if err != nil {
+		return err
+	}
+	if _, err := reg.fetch(cn, cfg.Style); err != nil {
+		return err
+	}
 	out := &uiWriter{root: root, dryRun: f.dryRun}
+	if reg.note != "" {
+		out.note("%s", reg.note)
+	}
 
 	// The tokens.
-	tokens, err := registryFS.ReadFile("registry/" + reg.Styles[cfg.Style])
+	tokens, err := reg.file(reg.Styles[cfg.Style])
 	if err != nil {
 		return err
 	}
@@ -396,7 +353,7 @@ func uiInit(root, modPath string, reg *registry, f *uiFlags, w io.Writer) error 
 	}
 
 	// cn.go.
-	if err := addItems(out, reg, cfg, []string{"cn"}, f.force, false); err != nil {
+	if _, err := addItems(out, reg, cfg, []string{"cn"}, f.force, false); err != nil {
 		return err
 	}
 
@@ -487,7 +444,7 @@ func replaceUITable(toml, table []byte) []byte {
 	return []byte(out.String())
 }
 
-func mapKeys(m map[string]string) func(func(string) bool) {
+func mapKeys[V any](m map[string]V) func(func(string) bool) {
 	return func(yield func(string) bool) {
 		for k := range m {
 			if !yield(k) {
@@ -498,7 +455,7 @@ func mapKeys(m map[string]string) func(func(string) bool) {
 }
 
 // uiAdd is vuka ui add.
-func uiAdd(root, modPath string, reg *registry, f *uiFlags, w io.Writer) error {
+func uiAdd(root, modPath string, f *uiFlags, w io.Writer) error {
 	cfg, ok, err := readUIConfig(root)
 	if err != nil {
 		return err
@@ -506,8 +463,26 @@ func uiAdd(root, modPath string, reg *registry, f *uiFlags, w io.Writer) error {
 	if !ok {
 		return errors.New("vuka ui add: vuka.toml has no [ui]: run vuka ui init first, which writes the design tokens the components are drawn with")
 	}
+	reg, err := openRegistry(f, cfg, root)
+	if err != nil {
+		return err
+	}
+	items, err := reg.resolve("add", f.pos)
+	if err != nil {
+		return err
+	}
+	if _, err := reg.fetch(items); err != nil {
+		return err
+	}
 	out := &uiWriter{root: root, dryRun: f.dryRun}
-	if err := addItems(out, reg, cfg, f.pos, f.force, true); err != nil {
+	if reg.note != "" {
+		out.note("%s", reg.note)
+	}
+	writing, err := addItems(out, reg, cfg, f.pos, f.force, true)
+	if err != nil {
+		return err
+	}
+	if err := checkRequires(root, writing); err != nil {
 		return err
 	}
 	if err := out.commit(w); err != nil {
@@ -547,42 +522,145 @@ var uiExample = map[string]string{
 // use, on out. A file the app has that differs from the registry's is a
 // difference printed for an item asked for when explicit (refused unless
 // force, which overwrites it), and kept as the app's otherwise.
-func addItems(out *uiWriter, reg *registry, cfg uiConfig, names []string, force, explicit bool) error {
-	items, err := reg.resolve(names)
+func addItems(out *uiWriter, reg *registry, cfg uiConfig, names []string, force, explicit bool) (writing []*registryItem, err error) {
+	items, err := reg.resolve("add", names)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	asked := map[string]bool{}
 	for _, n := range names {
 		asked[strings.ToLower(n)] = explicit
 	}
 	for _, it := range items {
+		writes := false
 		for _, file := range it.Files {
-			src, err := registryFS.ReadFile("registry/" + file)
-			if err != nil {
-				return err
-			}
-			src = withPackage(src, reg.Package, cfg.Package)
-			_, name, _ := strings.Cut(file, "/")
-			rel := path.Join(cfg.Dir, name)
-			have, err := os.ReadFile(filepath.Join(out.root, filepath.FromSlash(rel)))
+			src, rel, have, err := appFile(out.root, reg, cfg, file)
 			switch {
-			case errors.Is(err, os.ErrNotExist):
-				out.write(rel, src, "")
 			case err != nil:
-				return err
+				return nil, err
+			case have == nil:
+				out.write(rel, src, "")
+				writes = true
 			case bytes.Equal(have, src):
 				if asked[it.Name] {
 					out.note("%s is up to date", rel)
 				}
 			case asked[it.Name] && force:
 				out.write(rel, src, "")
+				writes = true
 			case asked[it.Name]:
 				out.differs(rel, have, src)
 			default:
-				out.note("%s is yours, differing from the registry's (vuka ui add %s shows how)", rel, it.Name)
+				out.note("%s is yours, differing from the registry's (vuka ui diff %s shows how)", rel, it.Name)
 			}
 		}
+		if writes {
+			writing = append(writing, it)
+		}
+	}
+	return writing, nil
+}
+
+// appFile is a registry file as the app gets it (its package clause the
+// app's), where it goes, and the app's copy (nil when it has none).
+func appFile(root string, reg *registry, cfg uiConfig, file registryFile) (src []byte, rel string, have []byte, err error) {
+	src, err = reg.file(file)
+	if err != nil {
+		return nil, "", nil, err
+	}
+	src = withPackage(src, reg.Package, cfg.Package)
+	_, name, _ := strings.Cut(file.Path, "/")
+	rel = path.Join(cfg.Dir, name)
+	have, err = os.ReadFile(filepath.Join(root, filepath.FromSlash(rel)))
+	switch {
+	case errors.Is(err, os.ErrNotExist):
+		return src, rel, nil, nil
+	case err != nil:
+		return nil, "", nil, err
+	case have == nil:
+		have = []byte{}
+	}
+	return src, rel, have, nil
+}
+
+// uiDiff is vuka ui diff.
+func uiDiff(root string, f *uiFlags, w io.Writer) error {
+	cfg, ok, err := readUIConfig(root)
+	if err != nil {
+		return err
+	}
+	if !ok {
+		return errors.New("vuka ui diff: vuka.toml has no [ui]: run vuka ui init first")
+	}
+	reg, err := openRegistry(f, cfg, root)
+	if err != nil {
+		return err
+	}
+	var items []*registryItem
+	for _, n := range f.pos {
+		it := reg.item(strings.ToLower(n))
+		if it == nil {
+			return fmt.Errorf("vuka ui diff: no component %q%s; the components are %s", n,
+				suggest(n, reg.components(), ""), strings.Join(reg.components(), ", "))
+		}
+		items = append(items, it)
+	}
+	if len(f.pos) == 0 {
+		for i := range reg.Items {
+			it := &reg.Items[i]
+			for _, file := range it.Files {
+				_, name, _ := strings.Cut(file.Path, "/")
+				if exists(root, filepath.FromSlash(path.Join(cfg.Dir, name))) {
+					items = append(items, it)
+					break
+				}
+			}
+		}
+	}
+	if items, err = reg.fetch(items); err != nil {
+		return err
+	}
+	if reg.note != "" {
+		fmt.Fprintln(w, reg.note)
+	}
+	var diffs bytes.Buffer
+	var differ, same []string
+	for _, it := range items {
+		changed := false
+		for _, file := range it.Files {
+			src, rel, have, err := appFile(root, reg, cfg, file)
+			switch {
+			case err != nil:
+				return err
+			case have == nil:
+				fmt.Fprintf(w, "%s: the app hasn't %s\n", it.Name, rel)
+				changed = true
+			case !bytes.Equal(have, src):
+				diffs.Write(unifiedText(rel, have, src))
+				changed = true
+			}
+		}
+		if changed {
+			differ = append(differ, it.Name)
+		} else {
+			same = append(same, it.Name)
+		}
+	}
+	w.Write(diffs.Bytes())
+	switch {
+	case len(items) == 0:
+		fmt.Fprintf(w, "%s has none of the registry's components\n", cfg.Dir)
+	case len(differ) == 0:
+		fmt.Fprintf(w, "%s: the same as the registry's\n", strings.Join(same, ", "))
+	default:
+		if diffs.Len() > 0 {
+			fmt.Fprintln(w)
+		}
+		fmt.Fprintf(w, "vuka ui add -f %s takes the registry's", strings.Join(differ, " "))
+		if len(same) > 0 {
+			fmt.Fprintf(w, "; %s: the same as the registry's", strings.Join(same, ", "))
+		}
+		fmt.Fprintln(w)
 	}
 	return nil
 }

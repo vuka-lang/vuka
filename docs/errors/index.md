@@ -199,9 +199,11 @@ same page in the terminal.
 | [E0426](./E0426) | Personal values sent to the browser |
 | [E0427](./E0427) | A web.Var read the app doesn't give |
 | [E0428](./E0428) | Context processors that need each other |
+| [E0429](./E0429) | A web.Asset path that names no static file |
 | [W0401](./W0401) | A name shadowing a context processor variable |
 | [W0402](./W0402) | A direct read where a processor variable would do |
 | [W0403](./W0403) | A control hidden by a permission its event doesn't check |
+| [W0404](./W0404) | A static file linked by hand |
 
 ## Data and the ORM
 

@@ -17,6 +17,7 @@ vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
 vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name]
 vuka ui add [-f] [--dry-run] <component…>
+vuka ui diff [component…]
 vuka ui list
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
@@ -188,7 +189,10 @@ is imported in `main.vuka`.
 button card dialog` writes those components (and what they use) into
 `components/ui/` as the app's own `.vuka.html` files. Neither overwrites a
 file of the app's without `-f`: `vuka ui add` prints the difference instead.
-`vuka ui list` lists the components. See
+`vuka ui diff` shows how the app's copies differ from the registry's, and
+`vuka ui list` lists the components. They read vuka's registry at the
+version of the command (`--offline`: the copy built into it), or the one
+`--registry` or `[ui] registry` names. See
 [UI Components (Vendored)](/ui/vendored).
 
 ## Building, Running and Testing {#build-run-test-vet-install}
@@ -583,6 +587,15 @@ files, the reads `vuka vet` reports as [W0402](/errors/W0402):
 `request.Path`, `request.Query` and `request.Params["id"]`. Imports of
 `web` and `auth` left unused go. A read whose variable `main` doesn't
 list, or whose name a local takes, is left alone.
+
+### Static Paths {#static-paths}
+
+`vuka fix static-paths` links the files `app.Static` serves with
+[`web.Asset`](/web/static-files) in the module's `.vuka` and `.vuka.html`
+markup: `src="/static/logo.png"` becomes
+`src={web.Asset("/static/logo.png")}` in `src`, `href`, `srcset`, `poster`
+and `data`, importing `web` where a file doesn't ([W0404](/errors/W0404)).
+It runs only when named: `vuka fix` alone leaves the links as they are.
 
 ## The Language Server {#lsp}
 

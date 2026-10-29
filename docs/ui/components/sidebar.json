@@ -1,0 +1,34 @@
+[
+  {
+    "link": "/ui/components/alert",
+    "text": "Alert"
+  },
+  {
+    "link": "/ui/components/badge",
+    "text": "Badge"
+  },
+  {
+    "link": "/ui/components/button",
+    "text": "Button"
+  },
+  {
+    "link": "/ui/components/card",
+    "text": "Card"
+  },
+  {
+    "link": "/ui/components/dialog",
+    "text": "Dialog"
+  },
+  {
+    "link": "/ui/components/input",
+    "text": "Input"
+  },
+  {
+    "link": "/ui/components/label",
+    "text": "Label"
+  },
+  {
+    "link": "/ui/components/tabs",
+    "text": "Tabs"
+  }
+]

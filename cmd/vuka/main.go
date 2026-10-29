@@ -34,10 +34,11 @@ Usage:
 	        grow the app: a module (model, service, page, migration, test), a
 	        service, a component, an island, a page (live, or backed by an
 	        island), an orm entity and its migration; vuka add -h for each
-	vuka ui init|add|list … [-f] [--dry-run]
+	vuka ui init|add|diff|list … [-f] [--dry-run] [--registry url|dir] [--offline]
 	        components that are the app's own source: init writes the design
 	        tokens into its stylesheet and components/ui/cn.go, add writes
-	        components (button, card, dialog, tabs…) beside it; vuka ui -h
+	        components (button, card, dialog, tabs…) beside it from the
+	        registry, diff shows how the app's differ from it; vuka ui -h
 	vuka build|run|test|vet|install [go flags] [packages]
 	        transpile the module's .vuka files into an overlay and run the go command;
 	        vet runs vukavet's checks too (the app's go tool vukavet, else one
@@ -227,6 +228,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 			ds = append(ds, vetScripts(root, modPath, pa)...)
 		}
 		ds = append(ds, routesUnserved(root, modPath, scanRoutes(root, modPath, nil))...)
+		ds = append(ds, staticDiags(root, true)...)
 		if ds = scope.warnings(append(ds, vetLivePages(root, pkgs)...)); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
@@ -268,6 +270,14 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		}
 	} else if ds := buildWarnings(transpileWarnings(root, gens)); len(ds) > 0 {
 		writeDiags(stderr, ds, colorFor(stderr))
+	}
+	if cmd == "build" || cmd == "install" {
+		if ds := staticDiags(root, false); len(ds) > 0 {
+			writeDiags(stderr, ds, colorFor(stderr))
+			if slices.ContainsFunc(ds, func(d diag.Diagnostic) bool { return d.Severity == diag.Error }) {
+				return errors.New("a web.Asset path names no static file")
+			}
+		}
 	}
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err

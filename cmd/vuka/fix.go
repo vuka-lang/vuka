@@ -59,6 +59,7 @@ var fixers = []fixer{
 	{"db-schema", "rename orm.Schema values to orm.DBSchema (orm.Of[T](orm.Schema{…})): orm.Schema is a model's Schema method's", fixDBSchema},
 	{"routes", "pass each pages/ tree's Routes() to web.New in the package main that owns it, importing it (W0701)", fixRoutes},
 	{"ctx-vars", "read what the context processors give through their variables in vuka files: auth.Can(ctx, \"x\") → perms.Has(\"x\"), auth.Current(ctx) → user, web.Request(ctx).URL.Path → request.Path, … (W0402)", fixCtxVars},
+	{"static-paths", "link the files app.Static serves with web.Asset in markup: src=\"/static/logo.png\" → src={web.Asset(\"/static/logo.png\")}, cached for good (W0404); run only when named", fixStaticPaths},
 	{"queries", "write queries made for orm.Query as the Manager's: vuka.Or of fields → orm.Or, fn.Lower → orm.Lower, fn.In → InQuery, an Option First → orm.Optional(…First(ctx)), Objects.Manager() → Objects", fixQueries},
 }
 
@@ -101,6 +102,9 @@ func fix(args []string, stdout io.Writer) error {
 	return err
 }
 
+// namedOnly are the fixers vuka fix runs only when named.
+var namedOnly = map[string]bool{"static-paths": true}
+
 // applyFixers runs the selected fixers (all when none is) over the module
 // in the current directory, reporting each change; it returns their number.
 func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, error) {
@@ -124,7 +128,7 @@ func applyFixers(selected map[string]bool, dry bool, stdout io.Writer) (int, err
 
 	n := 0
 	for _, f := range fixers {
-		if len(selected) > 0 && !selected[f.name] {
+		if len(selected) > 0 && !selected[f.name] || len(selected) == 0 && namedOnly[f.name] {
 			continue
 		}
 		changes, err := f.find(m)

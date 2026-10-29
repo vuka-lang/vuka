@@ -89,7 +89,7 @@ func TestTailwindEntry(t *testing.T) {
 		}
 		got, _ := os.ReadFile(entry)
 		for _, want := range []string{imp, fmt.Sprintf("@source %q;", root+"/**/*.{vuka,templ,html,go}"),
-			fmt.Sprintf("@source not %q;", root+"/**/{"+twGoName+","+assetsGoName+"}"),
+			fmt.Sprintf("@source not %q;", root+"/**/{"+twGoName+","+assetsGoName+","+staticGoName+"}"),
 			fmt.Sprintf("@source %q;", lib("a")+"/*.{vuka,templ,go}"), fmt.Sprintf("@source %q;", lib("c")+"/*.{vuka,templ,go}")} {
 			if !strings.Contains(string(got), want+"\n") {
 				t.Errorf("the entry lacks %s:\n%s", want, got)

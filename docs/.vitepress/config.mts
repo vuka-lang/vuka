@@ -4,6 +4,8 @@ import container from 'markdown-it-container'
 import { writeLLMs } from './llms'
 
 const vuka = JSON.parse(readFileSync(new URL('../../editors/vscode/syntaxes/vuka.tmLanguage.json', import.meta.url), 'utf8'))
+const vukaHTML = JSON.parse(readFileSync(new URL('../../editors/vscode/syntaxes/vuka-html.tmLanguage.json', import.meta.url), 'utf8'))
+const uiComponents = JSON.parse(readFileSync(new URL('../ui/components/sidebar.json', import.meta.url), 'utf8'))
 
 export default defineConfig({
   title: 'Vuka',
@@ -28,7 +30,7 @@ export default defineConfig({
         md.use(container, name, { render: () => '' })
       }
     },
-    languages: ['go', { ...vuka, name: 'vuka', embeddedLangs: ['go'] }],
+    languages: ['go', 'html', 'css', 'typescript', { ...vuka, name: 'vuka', embeddedLangs: ['go'] }, { ...vukaHTML, name: 'vuka-html', embeddedLangs: ['vuka', 'go', 'html', 'css', 'typescript'] }],
   },
   themeConfig: {
     logo: '/logo.svg',
@@ -94,6 +96,7 @@ export default defineConfig({
           { text: 'Templates', link: '/ui/templates' },
           { text: 'Components', link: '/ui/components' },
           { text: 'UI Components (Vendored)', link: '/ui/vendored' },
+          { text: 'Vendored Components', link: '/ui/components/', collapsed: true, items: uiComponents },
           { text: 'Stateful Components', link: '/ui/stateful' },
           { text: 'Live Pages', link: '/web/live' },
           { text: 'Forms', link: '/ui/forms' },
@@ -105,6 +108,7 @@ export default defineConfig({
           { text: 'URL State', link: '/web/url-state' },
           { text: 'Tailwind CSS', link: '/web/styling' },
           { text: 'Styles & Scripts', link: '/web/assets' },
+          { text: 'Static Files', link: '/web/static-files' },
           { text: 'Frontends', link: '/web/frontend' },
           { text: 'Islands', link: '/web/islands' },
         ],

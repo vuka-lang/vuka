@@ -22,6 +22,23 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.11.0 — unreleased
 
+### Static Files
+
+- **`web.Asset`: static file links checked at build time and cached for
+  good.** `<img src={web.Asset("/static/images/logo.png")} />` links a file
+  an `app.Static` mount of an embedded directory serves. `vuka build` hashes
+  the mounts' files, so the link is `/static/images/logo.3f9a1c2b.png`,
+  served `immutable` (the plain name still works), and `url(…)`s in the
+  served stylesheets and the Tailwind CSS name the hashed files. `vuka build`
+  and `vuka vet` check each literal path, with the nearest file as a
+  suggestion ([E0429](/errors/E0429)); `vuka vet` warns on paths written by
+  hand in markup ([W0404](/errors/W0404)), which the editor's quick fix and
+  `vuka fix static-paths` rewrite. `web.AssetURL(ctx, path)` is the absolute
+  URL, for emails, with `web.BaseURL` where there is no request. The editor
+  completes the paths and shows a file's size and an image's dimensions.
+  web's page asset type (`web.Style`'s) is now `web.PageAsset`. See
+  [Static Files](/web/static-files).
+
 ### UI Components
 
 - **`vuka ui init` and `vuka ui add`: components that are the app's own
@@ -37,6 +54,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   without `-f`: `vuka ui add` prints the difference. The `[ui]` table in
   `vuka.toml` records where they go. See
   [UI Components (Vendored)](/ui/vendored).
+- **A registry for `vuka ui`, and a page per component.** `vuka ui add`
+  fetches components from vuka's registry at the version of the command,
+  checking each file's sha256 against the index, so they match the
+  libraries the app builds against; `--offline`, or a fetch that fails,
+  uses the copy built in. `--registry` or `[ui] registry` reads another
+  one (an `https://` URL or a directory) in the same format. Dependencies
+  resolve transitively, and a component needing a newer `ui` or `web` than
+  `go.mod` requires says which `go get` to run. `vuka ui diff` shows how
+  the app's copies differ from the registry's. Each component has a page
+  under [Components](/ui/components/): props, usage, both themes, and its
+  `.vuka.html` beside the Go `vuka eject` makes of it.
 
 ### Markup Calls
 
@@ -119,6 +147,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   ([W0110](/errors/W0110)); `vuka.toml`'s new `[vet]` table turns on
   `wrap_errors = true`, a warning on a bare `?` passing on another
   package's error ([W0111](/errors/W0111)).
+
+### Tools
+
+- **Component tags import their package.** In markup, `<des` offers the
+  module's component packages the file doesn't import yet, and the ui
+  kit's, by the name they declare (`design` for `components/ui`); accepting
+  one writes `design.` and lists its components, each with its first props
+  and doc, and the component accepted adds `import design
+  "example.com/shop/components/ui"` to the file's imports — into its group,
+  never twice, and to a file with none. See
+  [Writing Component Tags](/tools/editors#component-tags).
 
 ### Docs
 

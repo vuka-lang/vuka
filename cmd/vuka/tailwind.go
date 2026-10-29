@@ -236,7 +236,7 @@ func (tw *tailwind) writeEntry(deps, css []string) (string, error) {
 	fmt.Fprintf(&b, "@source %q;\n", filepath.ToSlash(tw.root)+"/**/*.{vuka,templ,html,go}")
 	// The stylesheet and the assets generated last time are output, not
 	// sources: their CSS would add classes to the next build.
-	fmt.Fprintf(&b, "@source not %q;\n", filepath.ToSlash(tw.root)+"/**/{"+twGoName+","+assetsGoName+"}")
+	fmt.Fprintf(&b, "@source not %q;\n", filepath.ToSlash(tw.root)+"/**/{"+twGoName+","+assetsGoName+","+staticGoName+"}")
 	for _, d := range deps {
 		fmt.Fprintf(&b, "@source %q;\n", filepath.ToSlash(d)+"/*.{vuka,templ,go}")
 	}
@@ -391,18 +391,36 @@ func plainCSS(root string, assets *devAssets) string {
 // stylesheets, as they are. Warnings (selectors matching nothing) go to warn.
 func buildTailwind(root, overlay string, pa *pageAssets, warn io.Writer) ([]load.Generated, error) {
 	tw, err := tailwindFor(root)
-	if err != nil || tw == nil && pa.empty() {
+	if err != nil {
 		return nil, err
 	}
+	mounts := findStaticMounts(root)
+	static := slices.ContainsFunc(mounts, staticMount.embedded)
+	if tw == nil && pa.empty() && !static {
+		return nil, nil
+	}
 	pkgs, err := listPackages(root, overlay)
-	if err != nil || len(pkgs.mains) == 0 || !hasRegisterCSS(pkgs.web) {
-		return nil, err // a web without RegisterCSS predates Tailwind support
+	if err != nil || len(pkgs.mains) == 0 {
+		return nil, err
+	}
+	var gens []load.Generated
+	var manifest map[string]string
+	if static && hasWebFunc(pkgs.web, "RegisterStatic") {
+		if manifest, err = staticManifest(mounts); err != nil {
+			return nil, fmt.Errorf("hashing the static files: %w", err)
+		}
+		src := staticGo(manifest)
+		for _, dir := range pkgs.mains {
+			gens = append(gens, load.Generated{Target: filepath.Join(dir, staticGoName), Src: src})
+		}
+	}
+	if tw == nil && pa.empty() || !hasRegisterCSS(pkgs.web) {
+		return gens, nil // a web without RegisterCSS predates Tailwind support
 	}
 	comp, err := compileAssets(pa, false, warn)
 	if err != nil {
 		return nil, err
 	}
-	var gens []load.Generated
 	if !pa.empty() && hasWebFunc(pkgs.web, "RegisterAssets") {
 		src := assetsGo(comp, hasWebFunc(pkgs.web, "RegisterEncoded"))
 		for _, dir := range pkgs.mains {
@@ -437,6 +455,7 @@ func buildTailwind(root, overlay string, pa *pageAssets, warn io.Writer) ([]load
 			return nil, err
 		}
 	}
+	css = rewriteCSSURLs(css, webPrefix+"app.css", manifest)
 	calls, consts := "", ""
 	if hasWebFunc(pkgs.web, "RegisterEncoded") {
 		calls, consts = encodedGo(webPrefix+"app.css", "vukaTailwindCSS", css)
