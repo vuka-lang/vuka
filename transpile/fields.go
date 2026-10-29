@@ -347,6 +347,11 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 			if i > 0 && obj == nil && (typed || e.isRefMethod(refKind(fieldT), id.Name)) {
 				break
 			}
+			if i == 0 && obj == nil && typed && modelMethods[id.Name] {
+				f.done[at] = true
+				e.typedFields(f, base, nil, nil)
+				return false
+			}
 			fail(sel, id.Pos(), "%s", e.noField(cur, obj, index, id.Name))
 			return false
 		}
@@ -387,6 +392,12 @@ func (e *engine) resolveFieldRefs(f *fileState) {
 		return false
 	})
 }
+
+// modelMethods are the methods of a model's typed fields that name the
+// model's table rather than a field: Product.On(…) is ProductColumns.On(…),
+// the table joined where the conditions hold, and User.As("editor") the
+// table under another name.
+var modelMethods = map[string]bool{"On": true, "As": true}
 
 // refErrs are a file's field references that name no field, as of this
 // round, and the positions where Go's own errors about them are hidden.

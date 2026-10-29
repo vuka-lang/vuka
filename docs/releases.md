@@ -22,6 +22,30 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.12.0 — unreleased
 
+### ORM
+
+- **Queries that combine tables read like the SQL.** `Join(Product.On(conds…),
+  orm.Left)` adds a table where its conditions hold (`orm.Inner` by default),
+  `Join(Category.Links, orm.Left)` joins a relation by its foreign key, and
+  `Values[R](Category.ID, Category.Name, orm.Count(Product.ID))` fills `R`'s
+  fields by position, an aggregate grouping by the other columns. Aggregates
+  are functions taking typed fields — `orm.Count`, `Sum`, `Avg`, `Min`, `Max`
+  — with `orm.Distinct` as an option; `OrderBy(Category.Name)` (ascending,
+  `.Desc()`), `GroupBy`, `SelectRelated` and `PrefetchRelated` take typed
+  fields; `Product.As("other")` joins a table twice; `EqCol` compares two
+  columns. `orm.SQLOf[T](template, args…)` is a typed SQL fragment (`?` binds,
+  `{n}` writes a column or expression; `orm.SQLOf[bool]` is a condition),
+  `orm.SQLFor[T]` one per database. In Vuka, `Product.On(…)` and
+  `Product.As(…)` are the model's typed fields' (`ProductColumns.On(…)`). See
+  [Combining Tables](/orm/queries#joins) and [Raw SQL in a
+  Query](/orm/queries#raw-sql-fragments).
+- **vukavet checks them.** A field of a model the query doesn't join
+  ([E0504](/errors/E0504)), `Values` columns that don't fit their struct
+  ([E0505](/errors/E0505)), a SQL fragment's template built at run time or
+  its `?`/`{n}` against its arguments ([E0506](/errors/E0506)); warnings for
+  a `Count` a later join can repeat ([W0501](/errors/W0501)) and a join read
+  as the model's rows ([W0502](/errors/W0502)).
+
 ### Editor
 
 - **`match` in the editor.** A match's bindings map onto their patterns:
