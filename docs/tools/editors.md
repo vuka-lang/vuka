@@ -247,6 +247,19 @@ An attribute the component doesn't take, and a function's parameter left
 out ([E0144](/errors/E0144)), are the compiler's errors, underlined as you
 type.
 
+A package the file doesn't import yet completes too. After `<`, the
+module's packages that declare components (a `.vuka.html` struct, a struct
+with a `View` or `Render` method, a function returning a `ui.Node`) and
+the ui kit's are offered by the name they declare, the module's first;
+accepting `design` writes `design.` and lists its components. The one you
+accept adds the import to the file's `<script lang="go">` (or a `.vuka`
+file's imports), aliased when the name isn't the directory's, as in
+`import design "example.com/shop/components/ui"`, the name the `[ui]`
+table's `package` gives. The import goes into its group, sorted, as
+[organizing imports](#organize-imports) writes them. In Go — a hole, an
+attribute's value, the script — gopls offers the unimported package the
+same way, `.vuka.html`-only packages included.
+
 ### Following Routes {#routes}
 
 For the pages under `pages/`, the editor reads the route table the module's
