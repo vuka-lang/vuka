@@ -19,6 +19,7 @@ function run(file, args, options) {
 // createResolver makes a resolver; the options replace what it runs and
 // reads, for tests.
 function createResolver({ exec = run, exists = fs.existsSync, env = process.env, platform = process.platform, homedir = os.homedir() } = {}) {
+  const p = platform === 'win32' ? path.win32 : path.posix;
   const tools = new Map(); // name → Promise<absolute path | undefined>
   const versions = new Map(); // command → Promise<`vuka version`'s output, '' when it fails>
 
@@ -30,15 +31,15 @@ function createResolver({ exec = run, exists = fs.existsSync, env = process.env,
       const out = win
         ? (await exec('where', [name], {})).split(/\r?\n/)[0].trim()
         : (await exec(env.SHELL || '/bin/sh', ['-lc', 'command -v -- "$1"', 'sh', name], {})).trim();
-      if (out && path.isAbsolute(out)) {
+      if (out && p.isAbsolute(out)) {
         return out;
       }
     } catch (_) {}
     const exe = win ? name + '.exe' : name;
-    const candidates = [env.GOBIN, path.join(env.GOPATH || path.join(homedir, 'go'), 'bin'), path.join(homedir, 'go', 'bin')];
+    const candidates = [env.GOBIN, p.join(env.GOPATH || p.join(homedir, 'go'), 'bin'), p.join(homedir, 'go', 'bin')];
     for (const dir of candidates) {
-      if (dir && exists(path.join(dir, exe))) {
-        return path.join(dir, exe);
+      if (dir && exists(p.join(dir, exe))) {
+        return p.join(dir, exe);
       }
     }
     return undefined;
@@ -56,7 +57,7 @@ function createResolver({ exec = run, exists = fs.existsSync, env = process.env,
   // an absolute path as it is, else where findTool finds it, else the name.
   async function command(configured, name) {
     const want = configured || name;
-    if (path.isAbsolute(want)) {
+    if (p.isAbsolute(want)) {
       return want;
     }
     return (await findTool(want)) || want;
