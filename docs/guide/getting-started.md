@@ -25,6 +25,11 @@ runs: `brew install tailwindcss` on macOS; elsewhere `npm i -D
 (`tailwindcss-linux-x64`, `tailwindcss-windows-x64.exe`) on your PATH, under
 that name or as `tailwindcss`.
 
+> [!TIP]
+> To try Vuka before installing anything, open the
+> [playground](/playground): it shows the Go a `.vuka` or `.vuka.html`
+> file becomes as you type, with the errors `vuka build` would report.
+
 A Vuka project is an ordinary Go module, so once the command is installed
 you work with the same toolchain, dependencies and editor setup you already
 use for Go.

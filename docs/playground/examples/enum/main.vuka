@@ -1,0 +1,20 @@
+// Command play prints an order's journey through its states.
+package main
+
+import (
+	"fmt"
+
+	"example.com/play/orders"
+)
+
+func main() {
+	for _, s := range orders.Status.Values() {
+		fmt.Println(s, "→", s.Next(), s.Label())
+	}
+	match orders.Status.Parse("Paid") {
+	case Ok(s):
+		fmt.Println(s == orders.Status.Paid)
+	case Err(e):
+		fmt.Println(e)
+	}
+}

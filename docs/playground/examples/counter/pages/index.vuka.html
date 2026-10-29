@@ -1,0 +1,28 @@
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+// Index is the page at /. It is live: its events change it in place, over
+// the page's connection.
+type Index struct {
+	ui.Live
+	count int
+}
+
+func (p *Index) Title() string { return "Counter" }
+
+// Inc is an event: the button's onClick sends it.
+func (p *Index) Inc() { p.count++ }
+
+// Reset is another.
+func (p *Index) Reset() { p.count = 0 }
+</script>
+
+<main class="mx-auto max-w-md px-4 py-16">
+  <h1 class="text-2xl font-semibold">{Title()}</h1>
+  <button type="button" onClick={Inc}>Clicked {count} times</button>
+  if count > 0 {
+    <button type="button" onClick={Reset}>Reset</button>
+  }
+</main>

@@ -1,0 +1,28 @@
+<script lang="go">
+package pages
+
+import "example.com/play/components"
+
+// Index is the page at /: every pet, a card each.
+type Index struct {
+	pets []Pet
+}
+
+func NewIndex() *Index {
+	return &Index{pets: []Pet{
+		{Name: "Rex", Species: "dog", Age: 3},
+		{Name: "Tom", Species: "cat", Age: 1},
+	}}
+}
+
+func (p *Index) Title() string { return "Pets" }
+</script>
+
+<main class="mx-auto max-w-2xl space-y-4 px-4 py-16">
+  <h1 class="text-2xl font-semibold">{Title()}</h1>
+  for _, pet := range pets {
+    <components.Card title={pet.Name} tag={pet.Species}>
+      <p>{pet.Age} years old</p>
+    </components.Card>
+  }
+</main>

@@ -38,6 +38,7 @@ export default defineConfig({
       { text: 'Web', link: '/web/' },
       { text: 'ORM', link: '/orm/' },
       { text: 'Errors', link: '/errors/' },
+      { text: 'Playground', link: '/playground' },
       { text: 'Releases', link: '/releases' },
     ],
     outline: { level: [2, 3], label: 'On this page' },

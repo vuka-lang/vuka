@@ -1,0 +1,17 @@
+// Command play serves posts stored with the ORM.
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/orm/v2/ormweb"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	db := orm.NewDatabases() // DATABASE_URL
+	if err := web.New(ormweb.Set(db).MigrateOnStart(true)).Run(""); err != nil {
+		log.Fatal(err)
+	}
+}

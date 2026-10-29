@@ -1,0 +1,56 @@
+// Package posts is the blog's posts and their authors.
+package posts
+
+import (
+	"context"
+	"time"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/vuka/v2"
+)
+
+type Author struct {
+	orm.Model[Author]
+	ID    int64
+	Name  string
+	Email string
+}
+
+func (a *Author) Schema(s *orm.Schema) {
+	s.Field(&a.Name, orm.Char{Max: 100})
+	s.Field(&a.Email, orm.Char{Max: 200, Unique: true})
+}
+
+type Post struct {
+	orm.Model[Post]
+	ID        int64
+	Title     string
+	Slug      string
+	Body      string
+	Author    orm.FK[Author]
+	Published vuka.Option[time.Time]
+	Views     int
+}
+
+func (p *Post) Schema(s *orm.Schema) {
+	s.Model(orm.Meta{Table: "posts", Ordering: []string{"-published"}})
+	s.Field(&p.Title, orm.Char{Max: 200})
+	s.Field(&p.Slug, orm.Slug{Unique: true})
+	s.Field(&p.Body, orm.LongText{})
+	s.Field(&p.Author, orm.Rel{OnDelete: orm.Cascade, Related: "posts"})
+	s.Field(&p.Published, orm.Index{})
+	s.Field(&p.Views, orm.DefaultTo(0))
+}
+
+// Popular is the posts read more than n times.
+func Popular(n int) orm.QuerySet[Post] {
+	return orm.Objects[Post]().Filter(orm.Q{"views__gt": n})
+}
+
+// Publish saves a new post by author, published now.
+func Publish(ctx context.Context, author *Author, title, body string) (*Post, error) {
+	p := &Post{Title: title, Body: body, Published: vuka.Some(time.Now())}
+	p.Author.Set(author)
+	p.Save(ctx)?
+	return p, nil
+}

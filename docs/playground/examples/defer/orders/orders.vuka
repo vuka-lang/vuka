@@ -1,0 +1,34 @@
+// Package orders is the shop's orders.
+package orders
+
+import (
+	"context"
+	"time"
+)
+
+type Order struct {
+	ID       int64
+	Customer string
+	Total    float64
+}
+
+// Summary is the day's figures.
+type Summary struct {
+	Count   int
+	Revenue float64
+}
+
+// Recent is the latest orders.
+func Recent(ctx context.Context) ([]Order, error) {
+	return []Order{{ID: 1, Customer: "Amina", Total: 42.5}, {ID: 2, Customer: "Juma", Total: 18}}, nil
+}
+
+// Summarize takes a while: it reads every order of the day.
+func Summarize(ctx context.Context) (Summary, error) {
+	select {
+	case <-time.After(time.Second):
+		return Summary{Count: 2, Revenue: 60.5}, nil
+	case <-ctx.Done():
+		return Summary{}, ctx.Err()
+	}
+}

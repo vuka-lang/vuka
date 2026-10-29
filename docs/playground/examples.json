@@ -1,0 +1,7 @@
+[
+  { "name": "counter", "title": "Counter: a live page", "open": "pages/index.vuka.html" },
+  { "name": "props", "title": "A component with props", "open": "components/card.vuka.html" },
+  { "name": "defer", "title": "Markup calls and @ui.Defer", "open": "pages/index.vuka.html" },
+  { "name": "enum", "title": "An enum and match", "open": "orders/status.vuka" },
+  { "name": "orm", "title": "ORM models", "open": "posts/post.vuka" }
+]
