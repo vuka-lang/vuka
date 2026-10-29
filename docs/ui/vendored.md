@@ -93,8 +93,8 @@ A file the app has already is never overwritten without being asked:
 - one a component uses that differs (your edited `button.vuka.html` when you
   add the dialog): yours is kept, and said so.
 
-So `vuka ui add button` is also how to see where your button has moved
-away from the registry's. `--dry-run` shows what would be written and the
+`vuka ui diff` shows the same differences without adding anything
+([Keeping Up](#diff)). `--dry-run` shows what would be written and the
 differences, writing nothing.
 
 ## Using Them {#using}
@@ -168,7 +168,7 @@ that either way, so a theme switch is one attribute:
 
 How a component behaves decides where its code runs:
 
-| Tier | Where it runs | M1 components |
+| Tier | Where it runs | Components |
 |---|---|---|
 | 1. The browser | HTML and [JS commands](/ui/js), no round trip, no framework script | Button, Badge, Card, Alert, Input, Label, Dialog |
 | 2. The server | state on the server over the [live connection](/ui/live) | Tabs |
@@ -180,157 +180,73 @@ first state.
 
 ## The Components {#components}
 
-### Button
+Each component has a page with its props, examples, screenshots in both
+themes, and its source beside the Go it ejects to:
 
-```html
-<design.Button on={Save}>Save</design.Button>
-<design.Button variant={design.ButtonOutline} size={design.SizeSm}>Cancel</design.Button>
-<design.Button variant={design.ButtonGhost} size={design.SizeIcon} attrs={closeLabel}><svg>…</svg></design.Button>
-<design.Button type="submit" disabled={busy}>Send</design.Button>
+| Component | Runs | |
+|---|---|---|
+| [Alert](/ui/components/alert) | in the browser | a callout with an icon, a title and a message |
+| [Badge](/ui/components/badge) | in the browser | a small label: a status or a count |
+| [Button](/ui/components/button) | in the browser | six variants, four sizes, a `ui.JS` chain or a live handler on click |
+| [Card](/ui/components/card) | in the browser | a panel with a title, a description, an action, its content and a footer |
+| [Dialog](/ui/components/dialog) | in the browser | a `<dialog>` over the page, opened and closed by JS commands |
+| [Input](/ui/components/input) | in the browser | a text field |
+| [Label](/ui/components/label) | in the browser | a form field's label |
+| [Tabs](/ui/components/tabs) | on the server | panels shown one at a time, the tab shown kept on the server |
+
+## The Registry {#registry}
+
+`vuka ui add` reads the components from a registry: an `index.json` naming
+each component's files (with their sha256), the components it uses and
+the versions of `ui` and `web` it needs, beside the files themselves.
+
+By default it is Vuka's own, fetched from its repository at the version of
+your `vuka` command, so the components match the libraries your app builds
+against. Every file is checked against the digest in the index. Without a
+network, `--offline` uses the copy built into the command; a fetch that
+fails falls back to it too, and says so:
+
+```text
+couldn't fetch the registry (GET https://raw.githubusercontent.com/vuka-lang/vuka/v2.11.0/cmd/vuka/registry/index.json: 404 Not Found): used the copy built into vuka
+wrote components/ui/badge.vuka.html
 ```
 
-| Prop | |
-|---|---|
-| `Variant` | `ButtonDefault`, `ButtonDestructive`, `ButtonOutline`, `ButtonSecondary`, `ButtonGhost`, `ButtonLink` (or the string: `variant="outline"`) |
-| `Size` | `SizeDefault`, `SizeSm`, `SizeLg`, `SizeIcon` |
-| `On` | what a click does: a live handler, or a `ui.JS` chain |
-| `Type` | `"button"` (the default), `"submit"`, `"reset"` |
-| `Disabled`, `ID`, `Class`, `Attrs`, `Children` | |
+A component that needs a newer library than your `go.mod` requires writes
+nothing and says what to run:
 
-The classes live in two Go maps in the file, `buttonVariant` and
-`buttonSize`, joined by `buttonVariants(v, s)`: a new variant is a constant
-and a map entry.
+```text
+vuka ui add: tabs needs github.com/vuka-lang/ui/v2 v2.12.0 or newer; the app requires v2.10.0. Upgrade first, then add again:
 
-### Badge
-
-```html
-<design.Badge>New</design.Badge>
-<design.Badge variant={design.BadgeDestructive}>Failed</design.Badge>
+	go get github.com/vuka-lang/ui/v2@v2.12.0
 ```
 
-`Variant` is `BadgeDefault`, `BadgeSecondary`, `BadgeDestructive` or
-`BadgeOutline`; `Class`, `Attrs`, `Children`.
+A registry of your own, a company's design system, say, has the same
+format: serve the directory over HTTPS or keep it in the repository, and
+name it with `--registry`, or once for the app in `vuka.toml`:
 
-### Card
-
-```html
-<design.Card title="Team" description="Who can see this project.">
-  <slot:action><design.Button size={design.SizeSm}>Invite</design.Button></slot:action>
-  <p>Three members.</p>
-  <slot:footer>Updated today</slot:footer>
-</design.Card>
+```toml
+[ui]
+registry = "https://design.example.com/registry"   # or a directory, relative to the module
 ```
 
-`Title`, `Description`, the `Action` slot beside them, the content, and
-the `Footer` slot; each part is left out when empty. `Class`, `Attrs`.
+## Keeping Up {#diff}
 
-### Alert
+The components are yours, so nothing updates them. `vuka ui diff` shows
+where yours and the registry's differ, for every component the app has or
+the ones named:
 
-```html
-<design.Alert title="Heads up">The site is read-only tonight.</design.Alert>
-<design.Alert variant={design.AlertDestructive} title="Payment failed">
-  Your card was declined.
-</design.Alert>
+```text
+--- components/ui/button.vuka.html
++++ components/ui/button.vuka.html (vuka ui add)
+@@ -48,7 +48,7 @@
+-const buttonBase = "inline-flex … rounded-full text-sm font-semibold …"
++const buttonBase = "inline-flex … rounded-md text-sm font-medium …"
+
+vuka ui add -f button takes the registry's; cn, dialog: the same as the registry's
 ```
 
-`Variant` is `AlertDefault` or `AlertDestructive`; `Title`, an optional
-`Icon` (an `<svg>`), the message as its content. It renders `role="alert"`.
-
-### Input and Label
-
-```html
-<design.Label for="email">Email</design.Label>
-<design.Input id="email" name="email" type="email" required invalid={err != ""} />
-```
-
-Input takes `ID`, `Name`, `Type` (`"text"` by default), `Value`,
-`Placeholder`, `Autocomplete`, `Required`, `Disabled`, and `Invalid`, which
-sets `aria-invalid` and draws the field in the destructive colour. Label
-takes `For` and its content. Both take `Class` and `Attrs`.
-
-### Tabs
-
-```html
-<design.Tabs id="plan" default="monthly">
-  <slot:tab value="monthly" label="Monthly"><p>Billed every month.</p></slot:tab>
-  <slot:tab value="yearly" label="Yearly"><p>Billed once a year.</p></slot:tab>
-  <slot:tab value="lifetime" label="Lifetime" disabled><p>Not offered.</p></slot:tab>
-</design.Tabs>
-```
-
-A [stateful component](/ui/stateful): the tab shown is its own state on the
-server, so a click switches it over the live connection and the rest of the
-page keeps its state. `ID` prefixes its elements' ids (one per Tabs on a
-page); `Default` is the tab shown first. Each `<slot:tab>` is a `Tab` —
-`Value`, `Label`, `Disabled` and its panel, the slot's content (the type is
-in `tabs.go`, beside the component). The markup is `role="tablist"`,
-`role="tab"` buttons with `aria-selected` and `aria-controls`, and the
-`role="tabpanel"` labelled by its tab.
-
-### Dialog
-
-```html
-<design.Button variant="outline" on={design.OpenDialog("share")}>Share…</design.Button>
-
-<design.Dialog id="share" title="Share the project" description="Anyone with the link can view it.">
-  <design.Input id="link" value={link} />
-  <slot:footer>
-    <design.Button on={design.CloseDialog("share")}>Done</design.Button>
-  </slot:footer>
-</design.Dialog>
-```
-
-A `<dialog>` element over a backdrop, opened and closed by JS commands in
-the browser: `OpenDialog(id)` remembers what had the focus, opens it and
-focuses its first control (one marked `autofocus` first); Escape, a click on
-the backdrop, its close button and `CloseDialog(id)` close it and give the
-focus back. A live render while it is open keeps it open.
-
-A live page's handlers drive it with the same commands, through
-`PushJS`, and `OnClose` tells the page when the visitor closed it:
-
-```html
-<script lang="go">
-package projects
-
-import (
-	"github.com/vuka-lang/ui/v2"
-
-	design "example.com/shop/components/ui"
-)
-
-// Project is a project's page.
-type Project struct {
-	ui.Live
-	deleted bool
-}
-
-// AskDelete opens the confirmation.
-func (p *Project) AskDelete() { p.PushJS(design.OpenDialog("delete")) }
-
-// Delete deletes the project and closes it.
-func (p *Project) Delete() {
-	p.deleted = true
-	p.PushJS(design.CloseDialog("delete"))
-}
-
-// Kept hears that the visitor closed it.
-func (p *Project) Kept() {}
-</script>
-
-<div>
-  <design.Button variant={design.ButtonDestructive} on={AskDelete}>Delete…</design.Button>
-  <design.Dialog id="delete" title="Delete the project?" description="This can't be undone." onClose={Kept}>
-    <slot:footer>
-      <design.Button variant={design.ButtonDestructive} on={Delete}>Delete</design.Button>
-    </slot:footer>
-  </design.Dialog>
-</div>
-```
-
-`ID` is required and unique on the page; `Title`, `Description`, the
-content, a `Footer` slot, `Open` (rendered open as the page loads),
-`OnClose`, and `Class` for its panel.
+`vuka ui add -f button` takes the registry's copy; or bring the lines you
+want over by hand.
 
 ## cn: Merging Classes {#cn}
 

@@ -38,7 +38,7 @@ func TestFixCtxVars(t *testing.T) {
 		name := strings.TrimSuffix(filepath.Base(c), ".in")
 		got := readFile(t, filepath.Join(dir, "orders", name))
 		golden := strings.TrimSuffix(c, ".in") + ".golden"
-		if *updateFixUI {
+		if *updateFiles {
 			os.WriteFile(golden, []byte(got), 0o644)
 			continue
 		}

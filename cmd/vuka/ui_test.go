@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"io/fs"
 	"maps"
 	"os"
@@ -30,12 +31,15 @@ func mustUI(t *testing.T, dir string, args ...string) string {
 	return out
 }
 
+// uiGoMod is an app's go.mod requiring the ui library the components use.
+const uiGoMod = "module example.com/shop\n\ngo 1.25\n\nrequire github.com/vuka-lang/ui/v2 v2.10.0\n"
+
 // uiApp is a module like vuka new's: a stylesheet with a theme of its own
 // and a vuka.toml with formatting options.
 func uiApp(t *testing.T) string {
 	t.Helper()
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/shop\n\ngo 1.25\n")
+	writeFile(t, filepath.Join(dir, "go.mod"), uiGoMod)
 	writeFile(t, filepath.Join(dir, "styles/app.css"), "@import \"tailwindcss\";\n\n/* The theme. */\n@theme {\n  --color-brand-500: #e8662c;\n}\n")
 	writeFile(t, filepath.Join(dir, "vuka.toml"), "[fmt]\ntailwind = true\n")
 	return dir
@@ -121,7 +125,7 @@ func TestUIInitOptions(t *testing.T) {
 	// No stylesheet: styles/app.css, importing Tailwind; another directory
 	// and package.
 	dir := t.TempDir()
-	writeFile(t, filepath.Join(dir, "go.mod"), "module example.com/shop\n\ngo 1.25\n")
+	writeFile(t, filepath.Join(dir, "go.mod"), uiGoMod)
 	mustUI(t, dir, "init", "--dir", "internal/kit", "--package=kit")
 	if css := read(t, filepath.Join(dir, "styles/app.css")); !strings.HasPrefix(css, "@import \"tailwindcss\";\n\n/* vuka ui: the design tokens") {
 		t.Errorf("the new stylesheet:\n%s", css)
@@ -206,7 +210,7 @@ func TestUIAdd(t *testing.T) {
 	}
 	// The dialog uses the button: the app's, kept.
 	out = mustUI(t, dir, "add", "dialog")
-	if !strings.Contains(out, "components/ui/button.vuka.html is yours, differing from the registry's (vuka ui add button shows how)\n") || read(t, button) != mine {
+	if !strings.Contains(out, "components/ui/button.vuka.html is yours, differing from the registry's (vuka ui diff button shows how)\n") || read(t, button) != mine {
 		t.Errorf("add dialog over a changed button:\n%s", out)
 	}
 	out = mustUI(t, dir, "add", "--dry-run", "button", "badge")
@@ -241,49 +245,73 @@ func TestUIAdd(t *testing.T) {
 	}
 }
 
-// The registry's index and files agree: each file is listed once and
-// exists, each dependency is an entry, each file is in the package the
-// index says, and the conformance example's components are the registry's.
+// The registry's index and files agree: each file is listed once, exists
+// and has the digest the index says (go test -run TestUIRegistry -update
+// writes them), each dependency is an entry, each file is in the package
+// the index says, and the conformance example's components are the
+// registry's.
 func TestUIRegistry(t *testing.T) {
-	reg, err := loadRegistry()
+	reg, err := readRegistry(regSource{})
 	if err != nil {
 		t.Fatal(err)
 	}
-	listed := map[string]bool{}
-	for _, it := range reg.Items {
-		if it.Name != strings.ToLower(it.Name) || it.Tier < 0 || it.Tier > 3 || len(it.Files) == 0 {
-			t.Errorf("entry %+v", it)
+	stale := false
+	digest := func(f *registryFile) []byte {
+		src, err := registryFS.ReadFile("registry/" + f.Path)
+		if err != nil {
+			t.Error(err)
+			return nil
 		}
-		if _, err := reg.resolve([]string{it.Name}); err != nil {
+		if sum := sha256Hex(src); sum != f.SHA256 {
+			if !*updateFiles {
+				t.Errorf("%s: the index's sha256 is %s, the file's %s: go test -run TestUIRegistry -update", f.Path, f.SHA256, sum)
+			}
+			f.SHA256, stale = sum, true
+		}
+		return src
+	}
+	listed := map[string]bool{}
+	for i := range reg.Items {
+		it := &reg.Items[i]
+		if it.Title == "" || it.Description == "" {
+			t.Errorf("%s: needs a title and a description", it.Name)
+		}
+		if _, err := reg.resolve("add", []string{it.Name}); err != nil {
 			t.Error(err)
 		}
-		for _, f := range it.Files {
-			if listed[f] {
-				t.Errorf("%s is listed twice", f)
+		for j := range it.Files {
+			f := &it.Files[j]
+			if listed[f.Path] {
+				t.Errorf("%s is listed twice", f.Path)
 			}
-			listed[f] = true
-			src, err := registryFS.ReadFile("registry/" + f)
-			if err != nil {
-				t.Error(err)
-				continue
-			}
-			if !bytes.Contains(src, []byte("\npackage "+reg.Package+"\n")) && !bytes.HasPrefix(src, []byte("package "+reg.Package+"\n")) {
-				t.Errorf("%s isn't in package %s", f, reg.Package)
+			listed[f.Path] = true
+			src := digest(f)
+			if src != nil && !bytes.Contains(src, []byte("\npackage "+reg.Package+"\n")) && !bytes.HasPrefix(src, []byte("package "+reg.Package+"\n")) {
+				t.Errorf("%s isn't in package %s", f.Path, reg.Package)
 			}
 		}
 		if it.Tier > 0 && uiExample[it.Name] == "" {
 			t.Errorf("no example of %s for vuka ui add to print", it.Name)
 		}
 	}
+	for name, s := range reg.Styles {
+		digest(&s)
+		reg.Styles[name] = s
+	}
+	if stale && *updateFiles {
+		var b bytes.Buffer
+		enc := json.NewEncoder(&b)
+		enc.SetEscapeHTML(false)
+		enc.SetIndent("", "  ")
+		if err := enc.Encode(reg); err != nil {
+			t.Fatal(err)
+		}
+		writeFile(t, "registry/index.json", b.String())
+	}
 	files, _ := fs.Glob(registryFS, "registry/ui/*")
 	for _, f := range files {
 		if !listed[strings.TrimPrefix(f, "registry/")] {
 			t.Errorf("%s isn't in the index", f)
-		}
-	}
-	for _, s := range reg.Styles {
-		if _, err := registryFS.ReadFile("registry/" + s); err != nil {
-			t.Error(err)
 		}
 	}
 	example := "../../examples/conformance/uikit/vuka/components/ui"
