@@ -1,0 +1,8 @@
+package pages
+
+// Pet is one of the shop's pets.
+type Pet struct {
+	Name    string
+	Species string
+	Age     int
+}

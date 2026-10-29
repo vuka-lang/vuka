@@ -38,6 +38,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `vuka.toml` records where they go. See
   [UI Components (Vendored)](/ui/vendored).
 
+### Docs
+
+- **A [playground](/playground) on the docs site.** Edit a project's
+  `.vuka`, `.vuka.html` and `.go` files in the browser and see the Go each
+  becomes, with the diagnostics `vuka build` and `vet` report — in the
+  editor and in a list, each code linking to its page — `vuka fmt` on a
+  button, and the project in a link to share. The compiler runs in the
+  page, as WebAssembly, with the types of std, ui, web and orm; examples
+  start from a live counter, a component with props, a page with markup
+  calls and `@ui.Defer`, an enum and ORM models.
+
 ## v2.10.0 — 2026-10-28
 
 ### Markup Calls

@@ -1,0 +1,30 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"example.com/play/orders"
+)
+
+// Index is the page at /. It is sent at once; Summary's part follows when
+// it returns.
+type Index struct{}
+
+func (p *Index) Title() string { return "Orders" }
+
+@ui.Defer
+func (p *Index) Summary(ctx context.Context) (orders.Summary, error) {
+	return orders.Summarize(ctx)
+}
+</script>
+
+<main class="mx-auto max-w-2xl px-4 py-16">
+  <h1 class="text-2xl font-semibold">{Title()}</h1>
+  <p>{Summary().Count} orders · {Summary().Revenue} today</p>
+  <ul>
+    for _, o := range orders.Recent() {
+      <li>#{o.ID} {o.Customer}: {o.Total}</li>
+    }
+  </ul>
+</main>

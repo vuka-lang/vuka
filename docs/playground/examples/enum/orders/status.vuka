@@ -1,0 +1,31 @@
+// Package orders is the shop's orders.
+package orders
+
+// Status is where an order is.
+enum Status { Draft, Sent, Paid, Shipped }
+
+// Next is the state after s; Shipped is the last.
+func (s Status) Next() Status {
+	match s {
+	case Status.Draft:
+		return Status.Sent
+	case Status.Sent:
+		return Status.Paid
+	case Status.Paid, Status.Shipped:
+		return Status.Shipped
+	}
+}
+
+// Label is what a customer reads.
+func (s Status) Label() string {
+	match s {
+	case Status.Draft:
+		return "being written"
+	case Status.Sent:
+		return "awaiting payment"
+	case Status.Paid:
+		return "paid"
+	case Status.Shipped:
+		return "on its way"
+	}
+}

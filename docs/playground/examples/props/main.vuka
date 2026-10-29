@@ -1,0 +1,16 @@
+// Command play lists pets, each in a Card from components/.
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/web/v2"
+
+	"example.com/play/pages"
+)
+
+func main() {
+	if err := web.New(pages.Routes()).Run(""); err != nil {
+		log.Fatal(err)
+	}
+}

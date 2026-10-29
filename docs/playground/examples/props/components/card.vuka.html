@@ -1,0 +1,21 @@
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Card is a component: <components.Card title="…">…</components.Card>.
+// Its exported fields are its props, Children what the tag holds.
+type Card struct {
+	Title    string
+	Tag      string
+	Children ui.Node
+}
+</script>
+
+<section class="rounded-2xl p-6 ring-1 ring-slate-900/5">
+  <h2 class="text-base font-semibold">{Title}</h2>
+  if Tag != "" {
+    <span class="rounded-full bg-slate-100 px-2 text-xs">{Tag}</span>
+  }
+  {Children}
+</section>

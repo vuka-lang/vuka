@@ -3,9 +3,9 @@ name: Docs
 on:
   push:
     branches: [main]
-    paths: ["docs/**", "editors/vscode/syntaxes/**", ".github/workflows/docs.yml"]
+    paths: ["docs/**", "editors/vscode/syntaxes/**", "cmd/vuka-wasm/**", "transpile/**", "toolchain/**", "diag/**", ".github/workflows/docs.yml"]
   pull_request:
-    paths: ["docs/**", "editors/vscode/syntaxes/**", ".github/workflows/docs.yml"]
+    paths: ["docs/**", "editors/vscode/syntaxes/**", "cmd/vuka-wasm/**", "transpile/**", "toolchain/**", "diag/**", ".github/workflows/docs.yml"]
   workflow_dispatch:
 
 permissions:
@@ -30,8 +30,25 @@ jobs:
           node-version: 22
           cache: npm
           cache-dependency-path: docs/package-lock.json
+      - uses: actions/setup-go@v7
+        with:
+          go-version: stable
+          cache-dependency-path: docs/testdata/gomode/go.sum
       - run: npm ci
       - run: npm run build
+      - name: playground in Chrome
+        env:
+          SHOTS: ${{ runner.temp }}/playground
+        run: |
+          npx vitepress preview --port 4173 &
+          for i in $(seq 60); do curl -fs -o /dev/null http://localhost:4173/playground && break; sleep 1; done
+          node playground/check.mjs http://localhost:4173/playground
+      - uses: actions/upload-artifact@v5
+        if: always()
+        with:
+          name: playground-screenshots
+          path: ${{ runner.temp }}/playground
+          if-no-files-found: ignore
 
   # The site is served from vuka-lang.github.io, whose workflow builds these
   # docs. This repository's Pages only forwards the old /vuka/... addresses.
