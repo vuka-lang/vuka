@@ -1,0 +1,9 @@
+.git
+**/node_modules
+docs/.vitepress/dist
+docs/.vitepress/cache
+docs/public/playground/vuka.wasm
+docs/public/playground/types.bin
+build
+examples/*/build
+*.test

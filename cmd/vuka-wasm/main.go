@@ -35,6 +35,7 @@ var libraries = []string{
 	"github.com/vuka-lang/orm/v2/fn",
 	"github.com/vuka-lang/orm/v2/migration",
 	"github.com/vuka-lang/orm/v2/ormweb",
+	"github.com/vuka-lang/orm/v2/sqlite",
 }
 
 // std are the standard packages the snapshot holds: those apps and the

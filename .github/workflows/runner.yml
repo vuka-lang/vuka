@@ -1,0 +1,60 @@
+name: Playground runner
+
+on:
+  push:
+    paths: ["playground/runner/**", "docs/testdata/gomode/**", "docs/playground/examples/**", "cmd/vuka/**", "transpile/**", "toolchain/**", ".github/workflows/runner.yml"]
+  pull_request:
+    paths: ["playground/runner/**", "docs/testdata/gomode/**", "docs/playground/examples/**", "cmd/vuka/**", "transpile/**", "toolchain/**", ".github/workflows/runner.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: runner-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  api:
+    name: API (local sandbox)
+    runs-on: ubuntu-24.04
+    defaults:
+      run:
+        working-directory: playground/runner
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+          cache-dependency-path: playground/runner/go.mod
+      - run: test -z "$(gofmt -l .)"
+      - run: go vet ./...
+      - run: go test -race -count=1 ./...
+
+  sandbox:
+    name: Image and nsjail sandbox
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - name: Build the image
+        run: docker build -f playground/runner/Dockerfile -t vuka-runner .
+      - name: Image size
+        run: docker image ls vuka-runner --format '{{.Repository}} {{.Size}}' | tee -a "$GITHUB_STEP_SUMMARY"
+      - name: Sandbox tests
+        run: |
+          docker run --rm --privileged --cgroupns=private \
+            -v "$PWD/playground/runner:/src" -w /src -e RUNNER_NSJAIL_TEST=1 \
+            vuka-runner go test -count=1 -v -run 'Nsjail' ./...
+      - name: The image serves a run
+        run: |
+          docker run -d --name runner --privileged --cgroupns=private -p 8090:8090 vuka-runner
+          for i in $(seq 30); do curl -fs localhost:8090/healthz && break; sleep 1; done
+          jq -n --rawfile m docs/playground/examples/counter/main.vuka --rawfile p docs/playground/examples/counter/pages/index.vuka.html \
+            '{files: {"main.vuka": $m, "pages/index.vuka.html": $p}}' > run.json
+          curl -fsS -H 'Content-Type: application/json' --data @run.json localhost:8090/run | tee out.json
+          session=$(jq -r .session out.json)
+          test -n "$session" && test "$session" != null
+          curl -fsS -H "Host: $session.run.localhost:8090" localhost:8090/ | grep -q 'Clicked'
+      - if: failure()
+        run: docker logs runner || true

@@ -1,0 +1,10 @@
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+// Draft is a post to publish.
+type Draft struct {
+	ui.FormState
+	Title string `validate:"required,max=200"`
+	Body  string `input:"textarea" validate:"required"`
+}

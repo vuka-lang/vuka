@@ -1,0 +1,10 @@
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+// Entry is what a visitor signs the guestbook with.
+type Entry struct {
+	ui.FormState
+	Name    string `validate:"required,max=40"`
+	Message string `input:"textarea" validate:"required,max=200"`
+}

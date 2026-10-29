@@ -1,0 +1,51 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+
+	"example.com/play/posts"
+)
+
+// Index is the page at /: the posts, newest first, and a form for another.
+type Index struct {
+	ui.Live
+	Form Draft
+	list []posts.Post
+}
+
+func (p *Index) Title() string { return "Posts" }
+
+@ui.Mount
+func (p *Index) load(ctx context.Context) error {
+	all, err := posts.Latest(ctx)
+	p.list = all
+	return err
+}
+
+// Publish saves the draft as a post by the playground's author.
+func (p *Index) Publish(ctx context.Context, d Draft) error {
+	author, err := posts.Guest(ctx)
+	if err != nil {
+		return err
+	}
+	if _, err := posts.Publish(ctx, author, d.Title, d.Body); err != nil {
+		return err
+	}
+	p.Form = Draft{}
+	return p.load(ctx)
+}
+</script>
+
+<main class="mx-auto max-w-xl space-y-6 px-4 py-16">
+  <h1 class="text-2xl font-semibold">{Title()}</h1>
+  <ui.Form for={Form} onSubmit={Publish} submitLabel="Publish" />
+  for _, post := range list {
+    <article class="space-y-1">
+      <h2 class="text-lg font-medium">{post.Title}</h2>
+      <p>{post.Body}</p>
+    </article>
+  }
+</main>

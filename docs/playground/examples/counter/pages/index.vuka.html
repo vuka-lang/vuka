@@ -20,9 +20,9 @@ func (p *Index) Reset() { p.count = 0 }
 </script>
 
 <main class="mx-auto max-w-md px-4 py-16">
-  <h1 class="text-2xl font-semibold">{Title()}</h1>
-  <button type="button" onClick={Inc}>Clicked {count} times</button>
+  <h1 class="mb-4 text-2xl font-semibold">{Title()}</h1>
+  <button type="button" class="rounded-md bg-orange-600 px-3 py-1.5 text-white" onClick={Inc}>Clicked {count} times</button>
   if count > 0 {
-    <button type="button" onClick={Reset}>Reset</button>
+    <button type="button" class="ml-2 rounded-md border px-3 py-1.5" onClick={Reset}>Reset</button>
   }
 </main>
