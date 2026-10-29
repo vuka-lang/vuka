@@ -333,27 +333,28 @@ func (pc *patCtx) showCtor(c ctorInfo, t types.Type, args []string) string {
 	return c.name
 }
 
-// exhaustive explains what the unguarded cases rows leave out of t, or is "".
-func (pc *patCtx) exhaustive(rows [][]*space, t types.Type) string {
+// exhaustive explains what the unguarded cases rows leave out of t, or is
+// "", and lists the patterns of the cases that would cover it.
+func (pc *patCtx) exhaustive(rows [][]*space, t types.Type) (string, []string) {
 	ws := pc.missing(rows, []types.Type{t})
 	if len(ws) == 0 {
-		return ""
+		return "", nil
 	}
 	if ctors(t) == nil || ws[0][0] == "_" {
-		return "only a case that matches anything covers every value"
+		return "only a case that matches anything covers every value", []string{"_"}
 	}
-	var miss []string
-	for i, w := range ws {
-		if i == 4 && enumOf(t) == nil {
-			miss = append(miss, "…")
-			break
-		}
-		miss = append(miss, w[0])
+	var all []string
+	for _, w := range ws {
+		all = append(all, w[0])
+	}
+	miss := all
+	if len(all) > 4 && enumOf(t) == nil {
+		miss = append(all[:4:4], "…")
 	}
 	if n := len(miss); n > 2 && enumOf(t) != nil {
-		return "missing " + strings.Join(miss[:n-1], ", ") + " and " + miss[n-1]
+		return "missing " + strings.Join(miss[:n-1], ", ") + " and " + miss[n-1], all
 	}
-	return "missing " + strings.Join(miss, " and ")
+	return "missing " + strings.Join(miss, " and "), all
 }
 
 // anyCtor reports whether a row's first column names a constructor.

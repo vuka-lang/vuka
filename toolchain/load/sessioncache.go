@@ -32,7 +32,7 @@ import (
 var CompilerVersion = "dev"
 
 // cacheVersion is the format of the entries.
-const cacheVersion = "1"
+const cacheVersion = "2"
 
 // CacheDir is the directory vuka keeps its caches in: VUKA_CACHE when it
 // names a directory, else vuka in the user's cache directory. ok is false
@@ -101,6 +101,7 @@ type diskGen struct {
 	Unwrapped      []transpile.Unwrap
 	Implicit       []transpile.ImplicitCtx
 	VariantMethods []transpile.VariantMethod
+	Matches        []transpile.Match
 }
 
 func (s *Session) loadOut(path string) *pkgOut {
@@ -119,7 +120,7 @@ func (s *Session) loadOut(path string) *pkgOut {
 	o := &pkgOut{key: d.Key, stats: d.Stats}
 	for _, g := range d.Gens {
 		o.gens = append(o.gens, Generated{Target: g.Target, Source: g.Source, Src: g.Src, From: g.From, Map: g.Map,
-			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Available: g.Avail, Warnings: g.Warnings, Unwrapped: g.Unwrapped, Implicit: g.Implicit, VariantMethods: g.VariantMethods})
+			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Available: g.Avail, Warnings: g.Warnings, Unwrapped: g.Unwrapped, Implicit: g.Implicit, VariantMethods: g.VariantMethods, Matches: g.Matches})
 	}
 	return o
 }
@@ -135,7 +136,7 @@ func (s *Session) saveOut(path string, o *pkgOut) {
 			return // templ's own source map: the language server's, never cached
 		}
 		d.Gens = append(d.Gens, diskGen{Target: g.Target, Source: g.Source, Src: g.Src, From: g.From, Map: g.Map,
-			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Avail: g.Available, Warnings: g.Warnings, Unwrapped: g.Unwrapped, Implicit: g.Implicit, VariantMethods: g.VariantMethods})
+			Body: g.Body, Declares: g.Declares, Files: g.Files, Names: g.Names, Vars: g.Vars, Avail: g.Available, Warnings: g.Warnings, Unwrapped: g.Unwrapped, Implicit: g.Implicit, VariantMethods: g.VariantMethods, Matches: g.Matches})
 	}
 	var buf bytes.Buffer
 	if gob.NewEncoder(&buf).Encode(d) != nil {

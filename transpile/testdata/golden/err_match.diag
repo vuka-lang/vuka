@@ -1,18 +1,18 @@
-error[E0113]: match on Result[int] isn't exhaustive: missing Err(_); add the missing cases or case _:
+error[E0113]: match on Result[int] isn't exhaustive: missing Err(_)
  --> err_match.vuka:4:2
   |
 4 |     match r {
-  |     ^^^^^
+  |     ^^^^^^^
   |
-  = help: add the missing cases, or case _:
+  = help: add case Err(e): …, or case _:
 
-error[E0113]: match on int isn't exhaustive: only a case that matches anything covers every value; add the missing cases or case _:
+error[E0113]: match on int isn't exhaustive: only a case that matches anything covers every value
   --> err_match.vuka:12:2
    |
 12 |     match n {
-   |     ^^^^^
+   |     ^^^^^^^
    |
-   = help: add the missing cases, or case _:
+   = help: add case _:
 
 error[E0114]: unreachable case: an earlier case matches everything
   --> err_match.vuka:22:2

@@ -25,6 +25,9 @@ type Error struct {
 	// Related are the other places the error is about (the other uses of
 	// a package a file doesn't import).
 	Related []token.Position
+	// Edits fix it, as the action FixTitle: offsets in Pos's file.
+	Edits    []Edit
+	FixTitle string
 
 	knockOn bool // a knock-on of an import that didn't load (knockon.go)
 }
@@ -66,6 +69,12 @@ func (e *Error) Diagnostic(root string) diag.Diagnostic {
 		d.Related = append(d.Related, diag.Span{File: rf, Line: r.Line, Col: r.Column})
 	}
 	return d
+}
+
+// Edit replaces the bytes from Off to End of a file with Text.
+type Edit struct {
+	Off, End int
+	Text     string
 }
 
 func (e *Error) help(format string, args ...any) *Error {

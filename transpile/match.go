@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"errors"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -73,6 +74,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 	}
 	pc := &patCtx{e: e, f: f, scope: scope, pos: head.Pos()}
 	v := "__m" + itoa(m.n)
+	pc.top, pc.of = v, e.display(t)
 	// A call returning (T, error) is matched as the Result it is, its value
 	// and error named in the match's init.
 	var tuple *matchTuple
@@ -89,6 +91,11 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		t = res
 		tuple = e.tupleNames(f, m, pc, subj, tup.At(0).Type())
 	}
+	defer func() {
+		if m.done {
+			f.matchInfos = append(f.matchInfos, Match{LBrace: m.lbrace, RBrace: m.rbrace, Subject: pc.of, Cases: pc.snippets(t, tuple), Ctors: pc.ctorsSeen})
+		}
+	}()
 
 	type header struct {
 		pre, post string // around the guard; post alone when there is none
@@ -117,7 +124,19 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 				return
 			}
 			cp := &compiled{}
+			pc.base = sp.start
 			if err := pc.compile(cp, x, v, t); err != nil {
+				var pe *patErr
+				if errors.As(err, &pe) {
+					m.dead = true
+					er := e.errs.add("E0112", f.at(pe.off), "%s", pe.msg)
+					er.Len = pe.n
+					if pe.fix != "" {
+						er.Suggest, er.FixTitle = pe.fix, "Change to "+pe.fix
+						er.Edits = []Edit{{f.srcOff(pe.off), f.srcOff(pe.off + pe.n), pe.fix}}
+					}
+					return
+				}
 				fail("E0112", sp.start, "%v", err)
 				return
 			}
@@ -217,8 +236,8 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 			heads = append(heads, header{post: pre + post, bare: init == ""})
 		}
 	}
-	if missing := pc.exhaustive(rows, t); missing != "" {
-		fail("E0113", m.start, "match on %s isn't exhaustive: %s; add the missing cases or case _:", e.display(t), missing)
+	if missing, cases := pc.exhaustive(rows, t); missing != "" {
+		e.notExhaustive(f, m, pc, head, t, missing, cases)
 		return
 	}
 
@@ -338,6 +357,18 @@ func (e *engine) pendingTry(f *fileState, head ast.Node) *try {
 type binding struct {
 	name, expr string
 	typ        types.Type
+	off        int // the name's offset in the source, -1 for none
+}
+
+// decl is b's name where the lowered match declares it, marked so that
+// the generated name maps onto the pattern's (markedEdit).
+func (b binding) decl() string { return declMark(b.name, b.off) }
+
+func declMark(name string, off int) string {
+	if off < 0 {
+		return name
+	}
+	return "\x01" + itoa(off) + "\x02" + name
 }
 
 // compiled is a pattern turned into steps, in order: tests, bindings, and type
@@ -377,6 +408,91 @@ type patCtx struct {
 	scope *types.Scope
 	pos   token.Pos
 	errs  string // the name f imports errors as, once a pattern needs it
+	base  int    // the source offset of the pattern being compiled
+	top   string // the match's own value
+	of    string // the subject's type as the source has it: (T, error) for a call returning one
+
+	ctorsSeen []MatchCtor
+}
+
+// patErr is a pattern's error at a name in it, and the name it should be.
+type patErr struct {
+	off, n   int
+	msg, fix string
+}
+
+func (p *patErr) Error() string { return p.msg }
+
+// typo is the error of the name id, which should be fix.
+func (pc *patCtx) typo(id *ast.Ident, msg, fix string) error {
+	return &patErr{off: pc.base + int(id.Pos()) - 1, n: len(id.Name), msg: msg, fix: fix}
+}
+
+// seen records a pattern's Ok, Err, Some or None at id, matching a t.
+func (pc *patCtx) seen(id *ast.Ident, s string, t, binds types.Type) {
+	of := pc.e.display(t)
+	if s == pc.top {
+		of = pc.of
+	}
+	c := MatchCtor{Off: pc.base + int(id.Pos()) - 1, Name: id.Name, Of: of}
+	c.End = c.Off + len(id.Name)
+	if binds != nil {
+		c.Binds = pc.e.display(binds)
+	}
+	pc.ctorsSeen = append(pc.ctorsSeen, c)
+}
+
+// ctorTypo is what a bare capitalized name in a pattern against t was
+// likely meant to be, a constructor of t: None, Err(_), Shape.Circle.
+func (pc *patCtx) ctorTypo(name string, t types.Type) string {
+	if name == "" || !unicode.IsUpper([]rune(name)[0]) && !strings.EqualFold(name, "None") {
+		return ""
+	}
+	switch kind, _ := runtimeType(t); kind {
+	case "Option":
+		if closestName(name, []string{"None"}) != "" {
+			return "None"
+		}
+		if closestName(name, []string{"Some"}) != "" {
+			return "Some(_)"
+		}
+	case "Result":
+		if s := closestName(name, []string{"Ok", "Err"}); s != "" {
+			return s + "(_)"
+		}
+	}
+	if info := enumOf(t); info != nil {
+		var names []string
+		for _, v := range info.variants {
+			names = append(names, v.name)
+		}
+		if s := closestName(name, names); s != "" {
+			return pc.e.display(t) + "." + s
+		}
+	}
+	return ""
+}
+
+// variantTypo is the error of Enum.Name naming no variant of the enum, or
+// nil when x isn't one.
+func (pc *patCtx) variantTypo(x *ast.SelectorExpr) error {
+	T, err := pc.typeExpr(x.X)
+	if err != nil {
+		return nil
+	}
+	info := enumOf(T)
+	if info == nil || info.byName(x.Sel.Name) != nil {
+		return nil
+	}
+	var names []string
+	for _, v := range info.variants {
+		names = append(names, v.name)
+	}
+	enum := types.ExprString(x.X)
+	if s := closestName(x.Sel.Name, names); s != "" {
+		return pc.typo(x.Sel, enum+" has no variant "+x.Sel.Name, s)
+	}
+	return pc.typo(x.Sel, enum+" has no variant "+x.Sel.Name+"; its variants are "+strings.Join(names, ", "), "")
 }
 
 // errorsPkg is the name f imports errors as, importing it on first use.
@@ -437,16 +553,20 @@ func (pc *patCtx) compile(c *compiled, x ast.Expr, s string, t types.Type) error
 		switch {
 		case x.Name == "_":
 		case x.Name == "None" && kind == "Option":
+			pc.seen(x, s, t, nil)
 			c.test(s + ".IsNone()")
 		case pc.isValue(x.Name), pc.errValue(x.Name, t):
 			c.test(pc.equals(s, x.Name, t))
 		default:
+			if fix := pc.ctorTypo(x.Name, t); fix != "" && pc.lookup(x.Name) == nil {
+				return pc.typo(x, x.Name+" isn't a pattern", fix)
+			}
 			for _, b := range c.binds {
 				if b.name == x.Name {
 					return fmt.Errorf("%s is bound twice in one pattern", x.Name)
 				}
 			}
-			b := binding{x.Name, s, t}
+			b := binding{x.Name, s, t, pc.base + int(x.Pos()) - 1}
 			c.binds = append(c.binds, b)
 			c.steps = append(c.steps, patStep{bind: &b})
 		}
@@ -461,6 +581,9 @@ func (pc *patCtx) compile(c *compiled, x ast.Expr, s string, t types.Type) error
 			}
 			c.test(pc.equals(s, text, t))
 			return nil
+		}
+		if err := pc.variantTypo(x); err != nil {
+			return err
 		}
 		c.test(pc.equals(s, types.ExprString(x), t))
 		return nil
@@ -489,6 +612,9 @@ func (pc *patCtx) compile(c *compiled, x ast.Expr, s string, t types.Type) error
 		}
 		want := map[string]string{"Ok": "Result", "Err": "Result", "Some": "Option"}[id.Name]
 		if want == "" {
+			if fix := closestName(id.Name, []string{"Ok", "Err", "Some"}); fix != "" {
+				return pc.typo(id, id.Name+"(…) isn't a pattern", fix)
+			}
 			break
 		}
 		if kind != want {
@@ -496,12 +622,15 @@ func (pc *patCtx) compile(c *compiled, x ast.Expr, s string, t types.Type) error
 		}
 		switch id.Name {
 		case "Ok":
+			pc.seen(id, s, t, arg)
 			c.test(s + ".IsOk()")
 			return pc.compile(c, x.Args[0], s+".Value()", arg)
 		case "Err":
+			pc.seen(id, s, t, errorType)
 			c.test(s + ".IsErr()")
 			return pc.compile(c, x.Args[0], s+".Err()", errorType)
 		default:
+			pc.seen(id, s, t, arg)
 			c.test(s + ".IsSome()")
 			return pc.compile(c, x.Args[0], s+".Value()", arg)
 		}
@@ -519,6 +648,11 @@ func (pc *patCtx) structPat(c *compiled, lit *ast.CompositeLit, ptr bool, s stri
 	}
 	T, err := pc.typeExpr(lit.Type)
 	if err != nil {
+		if sel, ok := lit.Type.(*ast.SelectorExpr); ok {
+			if err := pc.variantTypo(sel); err != nil {
+				return err
+			}
+		}
 		return err
 	}
 	want := T
@@ -624,7 +758,7 @@ func (pc *patCtx) condition(c *compiled) (init, cond, msg string) {
 		if len(c.binds) > 0 {
 			var names, exprs []string
 			for _, b := range c.binds {
-				names = append(names, b.name)
+				names = append(names, b.decl())
 				exprs = append(exprs, b.expr)
 			}
 			init = strings.Join(names, ", ") + " := " + strings.Join(exprs, ", ") + "; "
@@ -638,7 +772,7 @@ func (pc *patCtx) condition(c *compiled) (init, cond, msg string) {
 			return "", "", msg
 		}
 		results = append(results, b.name+" "+text)
-		names = append(names, b.name)
+		names = append(names, b.decl())
 	}
 	var body strings.Builder
 	for i, s := range c.steps {
@@ -718,8 +852,9 @@ func (pc *patCtx) constOf(x ast.Expr) *types.Const {
 //	case Ok(user):                  case err == nil:
 //	case Err(orm.ErrNotFound):      case errors.Is(err, orm.ErrNotFound):
 type matchTuple struct {
-	val, err string
-	bound    bool // a case binds the value by its name
+	val, err       string
+	bound          bool // a case binds the value by its name
+	valOff, errOff int  // where the first case binding them by their names names them, else -1
 }
 
 // resultOf is the runtime's Result[t].
@@ -818,7 +953,7 @@ func (e *engine) tupleNames(f *fileState, m *matchStmt, pc *patCtx, subj ast.Exp
 		}
 	}
 	cands = append(cands, typeVarName(T), calleeVarName(subj), "v")
-	return &matchTuple{val: pick(okBind, errName, cands...), err: errName}
+	return &matchTuple{val: pick(okBind, errName, cands...), err: errName, valOff: -1, errOff: -1}
 }
 
 // rewrite points a pattern compiled against the Result v at the tuple's
@@ -867,6 +1002,12 @@ func (mt *matchTuple) rewrite(c *compiled, v string, rt func() string) {
 	for _, b := range c.binds {
 		b.expr = r.Replace(b.expr)
 		if b.expr == b.name && !c.complex {
+			switch {
+			case b.name == mt.val && mt.valOff < 0:
+				mt.valOff = b.off
+			case b.name == mt.err && mt.errOff < 0:
+				mt.errOff = b.off
+			}
 			continue
 		}
 		binds = append(binds, b)
@@ -892,10 +1033,14 @@ func (mt *matchTuple) lhs(texts []string, errUsed bool) string {
 	if !valUsed && !errUsed {
 		return ""
 	}
-	if !valUsed {
+	if valUsed {
+		val = declMark(val, mt.valOff)
+	} else {
 		val = "_"
 	}
-	if !errUsed {
+	if errUsed {
+		err = declMark(err, mt.errOff)
+	} else {
 		err = "_"
 	}
 	return val + ", " + err

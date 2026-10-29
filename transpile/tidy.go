@@ -574,6 +574,7 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 	type mapping struct {
 		src, line int // in the .vuka file; line 0 for none
 		exact     bool
+		moved     bool // a name copied out of its place: no guide to its line
 	}
 	before := walk(file)
 	mapped := make([]mapping, len(before))
@@ -583,7 +584,7 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 			if t.f.html != nil {
 				line = t.f.html.lines.pos("", t.f.html.toSrc(off)).Line
 			}
-			mapped[i] = mapping{off, line, exact}
+			mapped[i] = mapping{off, line, exact, t.m.moved(tf.Offset(n.pos))}
 		}
 	}
 
@@ -626,7 +627,7 @@ func (t *tidyFile) tidy(renames map[string]string) ([]byte, []segment, bool) {
 		l := otf.PositionFor(n.pos, false).Line
 		li := &info[l]
 		col := off - otf.Offset(otf.LineStart(l)) + 1
-		if mapped[i].exact && (li.src == 0 || col < li.col) {
+		if mapped[i].exact && !mapped[i].moved && (li.src == 0 || col < li.col) {
 			li.col, li.src = col, mapped[i].line
 		}
 		li.doc = li.doc || n.doc
