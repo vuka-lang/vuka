@@ -192,9 +192,10 @@ The rest of the database guide covers each part in turn:
 
 | | |
 |---|---|
-| [Models](/orm/models) | `orm.Model[T]`, `Schema`, relations, `Option` fields |
+| [Models](/orm/models) | fields and their column types, relationships, model options, methods and hooks, embedding, enums |
 | [Fields](/orm/fields) | column attributes (`PK`, `Char`, `Int`, `Datetime`, …), defaults, write checks, custom value types and attributes |
-| [Queries](/orm/queries) | predicates from field references, `Get`/`First`, writes, relations, prefetching |
+| [Queries](/orm/queries) | creating, reading, filtering through relations either way, aggregating, updating and deleting |
+| [Common Queries](/orm/cookbook) | short recipes: a row or 404, latest N, pages, counts per group, rows with no related rows, upserts, soft deletes |
 | [Expressions & Functions](/orm/expressions) | `orm/fn`, `Case`/`When`, subqueries, custom functions and lookups |
 | [Search](/orm/search) | text, trigram, vector and hybrid search on each database |
 | [Transactions](/orm/transactions) | `orm.Transaction`, retries, `OnCommit` |

@@ -30,6 +30,16 @@ Each file in a new project has one job:
 - `pages/route.go` is generated; edit source files, not this table.
 - Logic and services live in `.go` or `.vuka`, with no markup.
 
+As the app grows it gains:
+
+- `static/`, images and fonts an `app.Static` mount serves, linked with
+  [`web.Asset`](/web/static-files).
+- `components/ui/`, the [UI components](/ui/vendored) `vuka ui add` writes,
+  drawn over design tokens in the app's [Tailwind](/web/styling)
+  stylesheet.
+- `vuka.toml`, next to `go.mod`: the [project's settings](/reference/vuka-toml)
+  for `vuka fmt`, the compiler, `vuka vet` and `vuka ui`.
+
 ## The Shape of a Page
 
 A page is a `<script lang="go">` with exactly one struct, followed by markup:

@@ -102,6 +102,21 @@ app := web.New(web.Tailwind("assets/site.css"))
 Classes in component libraries you use (packages shipping `.vuka` or
 `.templ` components, like [ui](/ui/)) are found too.
 
+### Images and Fonts in the Stylesheet
+
+A `url(…)` naming a file an `app.Static` mount serves,
+`url(/static/fonts/inter.woff2)`, names the file's content-hashed copy in
+the stylesheet `vuka build` makes, so the font is cached for good and a new
+one reaches every browser on deploy. See
+[Static Files](/web/static-files#stylesheets).
+
+### Design Tokens
+
+`vuka ui init` adds design tokens to this stylesheet — `--primary`,
+`--border`, `--radius` and the rest, light and dark — that the
+[vendored UI components](/ui/vendored) are drawn with, as utilities such as
+`bg-primary` and `text-muted-foreground`. See [Theming](/ui/vendored#theming).
+
 ## Which Pages Get It
 
 Every full page gets the stylesheet: one with `</head>` (or else
