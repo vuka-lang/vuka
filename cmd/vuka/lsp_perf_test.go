@@ -7,6 +7,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -172,4 +173,57 @@ func TestMentionsVirtual(t *testing.T) {
 	if p.mentionsVirtual(json.RawMessage(`{"uri":"` + pathToURI(gen) + `"}`)) {
 		t.Error("a file gone from virtual is still named")
 	}
+}
+
+// TestLSPPublishOnce: a build that leaves a file's diagnostics as they were
+// doesn't publish them again: neither a file the editor hasn't opened nor
+// one it has open and doesn't edit. The edited file hears back once an
+// edit at least.
+func TestLSPPublishOnce(t *testing.T) {
+	broken := strings.Replace(matchSource, "\tcase Err(e):\n\t\treturn nil, \"\", e\n", "", 1)
+	other := "package main\n\nfunc helper() int { return 1 }\n"
+	third := "package lib\n\n// Third is three.\nfunc Third() int { return 3 }\n"
+	c, dir, _ := startLSPWith(t, map[string]string{"main.vuka": broken, "other.vuka": other, "lib/lib.vuka": third})
+	mainURI := pathToURI(filepath.Join(dir, "main.vuka"))
+	otherURI := pathToURI(filepath.Join(dir, "other.vuka"))
+	thirdURI := pathToURI(filepath.Join(dir, "lib", "lib.vuka"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": otherURI, "languageId": "vuka", "version": 1, "text": other}})
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": thirdURI, "languageId": "vuka", "version": 1, "text": third}})
+	c.waitDiags(mainURI, func(ds []any) bool { return strings.Contains(jsonOf(ds), `"code":"E0113"`) })
+	builds := func() int { return strings.Count(c.log.String(), "built the module") }
+	// settle waits for the next build of the module, and counts the
+	// publications that follow it for each file.
+	settle := func() map[any]int {
+		t.Helper()
+		n := builds()
+		for deadline := time.Now().Add(20 * time.Second); builds() == n && time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		}
+		time.Sleep(time.Second)
+		count := map[any]int{}
+		for {
+			select {
+			case p := <-c.diags:
+				count[p["uri"]]++
+				continue
+			default:
+			}
+			return count
+		}
+	}
+	settle()
+	for i := 2; i <= 4; i++ {
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": otherURI, "version": i},
+			"contentChanges": []any{map[string]any{"text": other + fmt.Sprintf("\n// edit %d\n", i)}}})
+		n := settle()
+		if n[mainURI] > 0 || n[thirdURI] > 0 {
+			t.Fatalf("edit %d: published again: %v", i, n)
+		}
+		if n[otherURI] == 0 {
+			t.Fatalf("edit %d: the edited file heard nothing", i)
+		}
+	}
+	// Closed and opened again, a file is told its diagnostics.
+	c.notify("textDocument/didClose", map[string]any{"textDocument": map[string]any{"uri": thirdURI}})
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": thirdURI, "languageId": "vuka", "version": 2, "text": third}})
+	c.waitDiags(thirdURI, func([]any) bool { return true })
 }

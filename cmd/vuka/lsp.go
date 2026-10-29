@@ -530,19 +530,20 @@ type proxy struct {
 	stopped          bool
 
 	// Builds: one runs at a time, on its own goroutine; see build.
-	buildMu  sync.Mutex     // held by the build that runs
-	pubMu    sync.Mutex     // held while diagnostics are worked out and sent
-	synMu    sync.Mutex     // held while a buffer's syntax is checked
-	sess     *load.Session  // what the module's last builds transpiled; nil before the first
-	building bool           // a build runs
-	again    bool           // and another is wanted once it ends
-	preempt  atomic.Bool    // the build that runs should leave the rest of the module for later
-	built    *sync.Cond     // on mu: a build finished a stage
-	edits    int            // the editor's changes to .vuka buffers so far
-	changed  map[string]int // .vuka path → edits when its buffer last changed
-	done     map[string]int // .vuka path → edits as of the build that last transpiled its buffer
-	gaveUp   map[string]int // .vuka path → the edits count a request stopped waiting for (await)
-	snapped  int            // edits when the last build took the buffers
+	buildMu  sync.Mutex           // held by the build that runs
+	pubMu    sync.Mutex           // held while diagnostics are worked out and sent
+	sent     map[string]sentDiags // URI → the diagnostics last published for it (pubMu)
+	synMu    sync.Mutex           // held while a buffer's syntax is checked
+	sess     *load.Session        // what the module's last builds transpiled; nil before the first
+	building bool                 // a build runs
+	again    bool                 // and another is wanted once it ends
+	preempt  atomic.Bool          // the build that runs should leave the rest of the module for later
+	built    *sync.Cond           // on mu: a build finished a stage
+	edits    int                  // the editor's changes to .vuka buffers so far
+	changed  map[string]int       // .vuka path → edits when its buffer last changed
+	done     map[string]int       // .vuka path → edits as of the build that last transpiled its buffer
+	gaveUp   map[string]int       // .vuka path → the edits count a request stopped waiting for (await)
+	snapped  int                  // edits when the last build took the buffers
 	syntax   syntaxChecker
 
 	tsOpts tsOptions

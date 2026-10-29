@@ -155,6 +155,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 			p.prioritize(gen) // what the editor shows goes to gopls first
 		}
 		p.mu.Unlock()
+		p.forgetSent(path)
 		if isVuka(path) {
 			go p.checkSyntax(path)
 		}
@@ -210,6 +211,7 @@ func (p *proxy) document(method string, params json.RawMessage, path string) {
 		delete(p.gaveUp, path)
 		delete(p.syntaxDiags, path)
 		p.mu.Unlock()
+		p.forgetSent(path)
 	}
 	p.schedule()
 }
@@ -600,27 +602,29 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			p.bySource[vf.source] = path
 		}
 	}
+	// The files whose diagnostics the build changed are published again;
+	// those it left as they were aren't.
 	touched := map[string]bool{}
-	for path := range p.vukaDiags {
-		if all || sources[path] != nil {
-			touched[path] = true
-			delete(p.vukaDiags, path)
+	update := func(held, now map[string]*diagSet) {
+		had := map[string]bool{}
+		for path, old := range held {
+			if all || sources[path] != nil {
+				had[path] = true
+				if !sameDiags(old, now[path]) {
+					touched[path] = true
+				}
+				delete(held, path)
+			}
+		}
+		for path, d := range now {
+			if !had[path] {
+				touched[path] = true
+			}
+			held[path] = d
 		}
 	}
-	for path, d := range diags {
-		touched[path] = true
-		p.vukaDiags[path] = d
-	}
-	for path := range p.vukaWarns {
-		if all || sources[path] != nil {
-			touched[path] = true
-			delete(p.vukaWarns, path)
-		}
-	}
-	for path, d := range warns {
-		touched[path] = true
-		p.vukaWarns[path] = d
-	}
+	update(p.vukaDiags, diags)
+	update(p.vukaWarns, warns)
 	for path := range paths {
 		if p.done[path] < seq {
 			p.done[path] = seq
@@ -727,6 +731,20 @@ func (d *diagSet) in(cur []byte, syntax bool) []any {
 	return out
 }
 
+// sameDiags reports whether a and b are the same diagnostics of the same
+// text.
+func sameDiags(a, b *diagSet) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	if !bytes.Equal(a.text, b.text) || !slices.Equal(a.syntax, b.syntax) || len(a.list) != len(b.list) {
+		return false
+	}
+	x, err1 := json.Marshal(a.list)
+	y, err2 := json.Marshal(b.list)
+	return err1 == nil && err2 == nil && bytes.Equal(x, y)
+}
+
 func equalDiag(a, b any) bool {
 	x, ok1 := a.(lspDiagnostic)
 	y, ok2 := b.(lspDiagnostic)
@@ -783,9 +801,36 @@ func (p *proxy) publish(path string) {
 		ds = []any{}
 	}
 	b, _ := json.Marshal(ds)
+	edit := p.changed[path]
 	p.mu.Unlock()
+	uri := pathToURI(p.display(path))
+	if last, ok := p.sent[uri]; ok && last.diags == string(b) && last.edit == edit {
+		return // the editor shows these already, of the text it has
+	}
+	if p.sent == nil {
+		p.sent = map[string]sentDiags{}
+	}
+	p.sent[uri] = sentDiags{string(b), edit}
 	_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/publishDiagnostics",
-		"params": map[string]any{"uri": pathToURI(p.display(path)), "diagnostics": json.RawMessage(b)}})
+		"params": map[string]any{"uri": uri, "diagnostics": json.RawMessage(b)}})
+}
+
+// sentDiags is what publish last sent for a file: the diagnostics, and the
+// editor's last change to the file then. Each change of the editor's is
+// answered with the file's diagnostics, the same or not; a build that
+// leaves a file as it was sends nothing.
+type sentDiags struct {
+	diags string
+	edit  int
+}
+
+// forgetSent drops what was last published for the file at path: the
+// editor opening or closing it is told its diagnostics again.
+func (p *proxy) forgetSent(path string) {
+	uri := pathToURI(p.display(path))
+	p.pubMu.Lock()
+	delete(p.sent, uri)
+	p.pubMu.Unlock()
 }
 
 // goplsDiagnostics routes gopls's diagnostics: a generated file's onto its
