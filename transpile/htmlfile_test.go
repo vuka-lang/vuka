@@ -14,9 +14,10 @@ import (
 
 // TestGoldenTemplates transpiles each package of testdata/golden/templates —
 // .go, .vuka and .vuka.html files — comparing each generated file with
-// name.golden (x_html.go.golden) or the errors with errors.err, and runs
-// it against out when there is one. A scopes file names its scoped
-// declarations, a line each: the name, then its scope id.
+// name.golden (x_html.go.golden) or the errors with errors.err, its
+// warnings with warnings, and runs it against out when there is one. A
+// vuka.toml sets the compiler's settings ([compile]). A scopes file names
+// its scoped declarations, a line each: the name, then its scope id.
 func TestGoldenTemplates(t *testing.T) {
 	dirs, _ := filepath.Glob("testdata/golden/templates/*")
 	for _, dir := range dirs {
@@ -30,7 +31,11 @@ func TestGoldenTemplates(t *testing.T) {
 					files = append(files, transpile.File{Name: n, Src: src})
 				}
 			}
-			res, err := transpile.Package(files, transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: dir, Contexts: caseContexts(t, dir), Scopes: caseScopes(dir)})
+			cc, err := load.LoadCompile(dir)
+			if err != nil {
+				t.Fatal(err)
+			}
+			res, err := transpile.Package(files, transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: dir, Contexts: caseContexts(t, dir), Scopes: caseScopes(dir), NoImplicitCtx: cc.NoImplicitCtx})
 			if err != nil {
 				compare(t, filepath.Join(dir, "errors.err"), []byte(err.Error()+"\n"))
 				return
@@ -53,6 +58,8 @@ func TestGoldenTemplates(t *testing.T) {
 			}
 			if len(warns) > 0 {
 				compare(t, filepath.Join(dir, "warnings"), []byte(strings.Join(warns, "\n")+"\n"))
+			} else if _, err := os.Stat(filepath.Join(dir, "warnings")); err == nil && !*update {
+				t.Errorf("no warnings, but %s has a warnings file", dir)
 			}
 			for _, o := range res.Files {
 				compare(t, filepath.Join(dir, o.GoName+".golden"), o.Src)

@@ -85,6 +85,11 @@ type Options struct {
 	// web.Var[T](ctx, "name"). Empty for a package no main of its module
 	// imports, a library's.
 	Contexts []Context
+	// NoImplicitCtx turns the render's implicit ctx off: a call in markup
+	// one context.Context short is E0162, as any other short call, and
+	// authority is written in the source. vuka.toml's [compile] table sets
+	// it for a module (implicit_ctx = false).
+	NoImplicitCtx bool
 }
 
 // TemplFile is a .templ file of another package: its import path and the Go
@@ -233,6 +238,7 @@ type fileState struct {
 	qualified   bool          // this round qualified bare names of its markup (resolveBare)
 	susBindings map[int]*jsxElem
 	susWarnings ErrorList
+	ambigWarns  ErrorList  // markup calls both fits compile for (W0108, implicit.go)
 	susChecked  bool       // its <ui.Suspense>s are checked (suspense.go)
 	rt          string     // the name the runtime is imported as; "" until needed
 	target      *jsxTarget // what its JSX lowers to; nil until its first JSX
@@ -585,7 +591,7 @@ func Package(files []File, opts Options) (*Result, error) {
 // render's ctx; again names more that need it, when it compiled nothing.
 func compile(files []File, opts Options, force map[string]bool) (*Result, map[string]bool, error) {
 	var errs ErrorList
-	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes}
+	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes, noImplicit: opts.NoImplicitCtx}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}

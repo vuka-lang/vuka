@@ -445,9 +445,10 @@ func (g genInfo) Sys() any           { return nil }
 // inputKey is what transpiling p depends on: its sources, the API of the
 // module's packages it imports, the .templ packages its vuka.File literals
 // may name, and the options. "" when the session gives up on the run.
-func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Options) string {
+func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Options, cc Compile) string {
 	h := sha256.New()
 	fmt.Fprintf(h, "%s %s %s %s %v\n", p.ImportPath, p.Name, p.Dir, registry, opts.Bare)
+	fmt.Fprintf(h, "compile %+v\n", cc)
 	fmt.Fprintf(h, "scopes %v\n", opts.Scopes[p.Dir]) // fmt prints a map sorted
 	for _, c := range opts.Contexts[p.ImportPath] {
 		fmt.Fprintf(h, "context %s\n", c.Main)

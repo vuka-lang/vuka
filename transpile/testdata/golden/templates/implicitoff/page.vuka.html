@@ -1,0 +1,12 @@
+package main
+
+import "context"
+
+// With implicit ctx off a call one ctx short is E0162.
+type Page struct{}
+
+func (p Page) Items(ctx context.Context) string { return "items" }
+
+func (p Page) Format(ctx context.Context, n int, unit string) string { return "" }
+<p>{Items()} · {Items(ctx)}</p>
+<p>{Format(3)}</p>

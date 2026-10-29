@@ -20,6 +20,23 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.11.0 — unreleased
+
+### Markup Calls
+
+- **Implicit ctx is reviewable.** A markup call that compiles both as
+  written and with the render's ctx — overloads `Items()` and
+  `Items(ctx)` — is [W0108](/errors/W0108), in `vuka vet`, `vuka build`
+  and the editor, whose quick fixes write `Items(ctx)` or
+  `Items(/*vuka:noctx*/)`, the marker keeping a call without the ctx; an
+  overload added or removed later can no longer change silently which one
+  a page calls. `vuka explain file.vuka.html` lists the calls given the
+  ctx and prints the file's Go, and `vuka.toml`'s `[compile]
+  implicit_ctx = false` turns implicit ctx off for a module, a call one
+  ctx short being [E0162](/errors/E0162) — see
+  [Reviewing Authority in Markup](/ui/templates#reviewing-authority).
+  `vuka fmt` keeps a comment in a hole.
+
 ## v2.10.0 — 2026-10-28
 
 ### Markup Calls

@@ -23,7 +23,7 @@ vuka graphql schema [-check file] [-o file] [package]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
-vuka explain [-full] file.vuka
+vuka explain [-full] file.vuka | file.vuka.html
 vuka explain E0201
 vuka fmt [-l] [-w] [-d] [-check] [-rewrite] [-imports] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
@@ -384,6 +384,9 @@ See [The Schema Command](/web/graphql#schema-command).
 `vuka explain` shows what Vuka makes of a file: each rewritten line beside the Go it becomes,
 then the code added after the source (decorator wrappers, statics), each
 labelled with the line it comes from. `-full` prints the whole generated file.
+A `.vuka.html` file's Go is printed whole, formatted, after the calls of its
+markup given the render's ctx (see
+[Reviewing Authority in Markup](/ui/templates#reviewing-authority)).
 It transpiles the file's package and what that imports of the module (Go
 packages too), as the build does, so an error elsewhere in the module
 doesn't stop it.
@@ -525,7 +528,15 @@ tailwind = true  # sort class lists in Tailwind's order (off by default)
 ```
 
 The editor's format-on-save and range formatting use the same rules and
-the same file.
+the same file. Its `[compile]` table is the compiler's: `implicit_ctx =
+false` turns the render's [implicit ctx](/ui/templates#reviewing-authority)
+off for the module, so a markup call passes a `context.Context` only when
+it writes one.
+
+```toml
+[compile]
+implicit_ctx = false  # markup calls get no implicit ctx (default true)
+```
 
 > [!NOTE]
 > Tailwind ordering is off by default: it reorders every class list of a
