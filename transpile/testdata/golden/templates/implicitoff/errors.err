@@ -1,0 +1,2 @@
+page.vuka.html:11:5: Items's first argument (a context.Context) is missing; write ctx explicitly (implicit ctx is off in this module)
+page.vuka.html:12:5: Format's first argument (a context.Context) is missing; write ctx explicitly (implicit ctx is off in this module)

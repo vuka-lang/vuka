@@ -140,6 +140,13 @@ A processor reading the signed-in user never reaches the browser unless
 it is listed as `web.Browser(web.Personal(p))`, and the permission list
 never does ([E0426](/errors/E0426)).
 
+A call in markup taking a `context.Context` first gets the render's,
+which carries the signed-in user, without writing it: `{Salaries()}` runs
+as `Salaries(ctx)`. To review what markup can reach as the user, read the
+Go it compiles to (`vuka explain page.vuka.html`), or turn implicit ctx off
+for a module so every use is written out — see
+[Reviewing Authority in Markup](/ui/templates#reviewing-authority).
+
 ## Signing In and Out {#signing-in-and-out}
 
 Login form DTOs belong in logic files. A login handler validates input,
