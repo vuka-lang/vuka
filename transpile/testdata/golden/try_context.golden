@@ -153,3 +153,8 @@ func (RegisterErrorEmailTaken) isRegisterError() {}
 
 //line try_context.vuka:13
 func (RegisterErrorDatabase) isRegisterError() {}
+
+// Unwrap returns the cause of r.
+//
+//line try_context.vuka:15
+func (r RegisterErrorDatabase) Unwrap() error { return r.Err }
