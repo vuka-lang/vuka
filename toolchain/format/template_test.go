@@ -107,18 +107,40 @@ func TestTailwind(t *testing.T) {
 }
 
 func TestParseOptions(t *testing.T) {
-	o, err := ParseOptions("vuka.toml", []byte("# formatting\n[fmt]\nwidth = 120 # columns\ntailwind = true\n"))
+	o, err := ParseOptions("vuka.toml", []byte("# formatting\n[fmt]\nwidth = 120 # columns\ntailwind = true\n\n[ui]\nstyle = \"default\"\ncomponents = \"components/ui\"\n"))
 	if err != nil || o.Width != 120 || !o.Tailwind {
 		t.Fatalf("%+v %v", o, err)
 	}
 	for _, c := range []struct{ src, want string }{
 		{"[fmt]\nwidht = 1\n", "vuka.toml:2: unknown key widht in [fmt]; did you mean width?"},
-		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt]"},
+		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt], [compile] and [ui]"},
 		{"width = 90\n", "vuka.toml:1: width is outside a table: write it under [fmt]"},
 		{"[fmt]\ntailwind = yes\n", "vuka.toml:2: tailwind is true or false"},
 	} {
 		if _, err := ParseOptions("vuka.toml", []byte(c.src)); err == nil || err.Error() != c.want {
 			t.Errorf("%q: %v", c.src, err)
+		}
+	}
+}
+
+// TestParseOptionsCompile: vuka fmt leaves the compiler's [compile] table
+// to it.
+func TestParseOptionsCompile(t *testing.T) {
+	o, err := ParseOptions("vuka.toml", []byte("[compile]\nimplicit_ctx = false\n\n[fmt]\nwidth = 90\n"))
+	if err != nil || o.Width != 90 {
+		t.Fatalf("%+v %v", o, err)
+	}
+}
+
+// TestHoleComment: a hole holding a comment keeps it — the marker a markup
+// call takes no implicit ctx by — where other holes are gofmt'd.
+func TestHoleComment(t *testing.T) {
+	for in, want := range map[string]string{
+		"<p>{Items(/*vuka:noctx*/)} {a+b}</p>": "<p>{Items(/*vuka:noctx*/)} {a + b}</p>",
+		"<p>{Badge(/*vuka:noctx*/ 3)}</p>":     "<p>{Badge(/*vuka:noctx*/ 3)}</p>",
+	} {
+		if got := holesFormatted(in); got != want {
+			t.Errorf("%s: %s, want %s", in, got, want)
 		}
 	}
 }

@@ -213,8 +213,8 @@ func DirPackage(dir string) string {
 var packageOf = regexp.MustCompile(`(?m)^package\s+(\w+)`)
 
 // holesFormatted is a line with each hole's Go as gofmt writes an
-// expression: {a+b} is {a + b}. A hole spanning lines, or not an
-// expression, stays.
+// expression: {a+b} is {a + b}. A hole spanning lines, not an
+// expression, or holding a comment, stays.
 func holesFormatted(l string) string {
 	var b bytes.Buffer
 	for i := 0; i < len(l); i++ {
@@ -235,7 +235,7 @@ func holesFormatted(l string) string {
 		expr := strings.TrimSpace(l[i+1 : end])
 		spread := strings.HasSuffix(expr, "...")
 		expr = strings.TrimSuffix(expr, "...")
-		if x, err := parser.ParseExpr(expr); err == nil {
+		if x, err := parser.ParseExpr(expr); err == nil && !hasComment(expr) {
 			var f bytes.Buffer
 			if format.Node(&f, token.NewFileSet(), x) == nil && !bytes.Contains(f.Bytes(), []byte("\n")) {
 				expr = f.String()
@@ -248,6 +248,17 @@ func holesFormatted(l string) string {
 		i = end
 	}
 	return b.String()
+}
+
+// hasComment reports whether the Go expr holds a comment, which printing
+// its syntax tree would drop: Items(/*vuka:noctx*/).
+func hasComment(expr string) bool {
+	for _, t := range scanTokens([]byte(expr), 0) {
+		if t.tok == token.COMMENT {
+			return true
+		}
+	}
+	return false
 }
 
 // closeBrace is the } closing the Go at l[i:], past brackets and literals.

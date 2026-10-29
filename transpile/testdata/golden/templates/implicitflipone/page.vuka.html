@@ -1,0 +1,13 @@
+package main
+
+import "context"
+
+// Page's Items takes the render's ctx: the markup's Items() gets it.
+type Page struct{}
+
+func (p Page) Items(ctx context.Context) string { return "items for the request" }
+
+func (p Page) Badge(ctx context.Context, n int) string { return "badge" }
+
+func (p Page) Badge(s string) string { return s }
+<p>{Items()} · {Badge(3)} · {Badge("new")}</p>

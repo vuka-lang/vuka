@@ -1,0 +1,11 @@
+package main
+
+import "context"
+
+// With implicit ctx off an overloaded call one ctx short is E0162 too.
+type Page struct{}
+
+func (p Page) Label(ctx context.Context) string { return "with ctx" }
+
+func (p Page) Label(s string) string { return s }
+<p>{Label()} · {Label("x")}</p>

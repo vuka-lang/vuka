@@ -304,11 +304,22 @@ func (e *engine) resolveCalls(f *fileState) {
 		}
 		o, msg := e.pick(set, args, call.Ellipsis.IsValid())
 		withCtx := false
-		if o == nil && markup[call] && !f.html.ownCtx {
+		if markup[call] && !f.html.ownCtx {
 			// In markup, an overload taking the render's ctx first.
+			noCtx := e.noImplicit || f.saysNoCtx(call)
 			if c := ctxParam(set); c != nil {
-				if o2, msg2 := e.pick(set, append([]arg{{t: c}}, args...), call.Ellipsis.IsValid()); o2 != nil || !strings.HasPrefix(msg2, "no overload") {
+				o2, msg2 := e.pick(set, append([]arg{{t: c}}, args...), call.Ellipsis.IsValid())
+				switch {
+				case o == nil && noCtx && o2 != nil:
+					f.done[overDone(off)] = true
+					if !e.incompleteCalls {
+						e.ctxMissing(f, call, c)
+					}
+					return true
+				case o == nil && !noCtx && (o2 != nil || !strings.HasPrefix(msg2, "no overload")):
 					o, msg, withCtx = o2, msg2, o2 != nil
+				case o != nil && !noCtx && o2 != nil && o2 != o:
+					e.ambiguousCtx(f, call)
 				}
 			}
 		}

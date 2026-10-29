@@ -84,6 +84,7 @@ same page in the terminal.
 | [W0105](./W0105) | A hand-written use of uigen |
 | [W0106](./W0106) | A hand-written ui.HTML or ui.IslandPage |
 | [W0107](./W0107) | A .vuka.html file in the Go-header form |
+| [W0108](./W0108) | A markup call fits both with and without the render's ctx |
 
 ## Decorators and attributes
 

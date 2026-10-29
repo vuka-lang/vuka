@@ -1,0 +1,14 @@
+package main
+
+import "context"
+
+// A call marked /*vuka:noctx*/ gets no implicit ctx: with only Items(ctx)
+// declared it is short of it.
+type Page struct{}
+
+func (p Page) Items(ctx context.Context) string { return "items" }
+
+func (p Page) Label(ctx context.Context) string { return "with ctx" }
+
+func (p Page) Label(s string) string { return s }
+<p>{Label(/*vuka:noctx*/)}</p>

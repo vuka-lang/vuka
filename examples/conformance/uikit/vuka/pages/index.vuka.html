@@ -1,0 +1,106 @@
+<script lang="go">
+package pages
+
+import (
+	"github.com/vuka-lang/ui/v2"
+
+	design "example.com/app/components/ui"
+)
+
+// Settings is a settings page using every component: GET /.
+type Settings struct {
+	ui.Live
+	saves   int
+	asked   int
+	deleted bool
+}
+
+// Save counts a save.
+func (s *Settings) Save() { s.saves++ }
+
+// AskDelete opens the delete dialog from the server: the same commands as
+// a click on a button with design.OpenDialog.
+func (s *Settings) AskDelete() {
+	s.asked++
+	s.PushJS(design.OpenDialog("delete"))
+}
+
+// Delete deletes, closing the dialog.
+func (s *Settings) Delete() {
+	s.deleted = true
+	s.PushJS(design.CloseDialog("delete"))
+}
+
+// Dismissed hears that the visitor closed the dialog: Escape, the
+// backdrop or its close button.
+func (s *Settings) Dismissed() { s.asked = 0 }
+
+// Title is the page's.
+func (s *Settings) Title() string { return "Settings" }
+</script>
+
+<main class="mx-auto grid max-w-2xl gap-6 bg-background p-8 text-foreground">
+  <div class="flex flex-wrap items-center gap-2">
+    <design.Button id="save" on={Save}>Save</design.Button>
+    <design.Button id="ask-delete" variant={design.ButtonDestructive} on={AskDelete}>Delete…</design.Button>
+    <design.Button variant="outline" size={design.SizeSm}>Outline</design.Button>
+    <design.Button variant={design.ButtonSecondary} size={design.SizeLg}>Secondary</design.Button>
+    <design.Button variant={design.ButtonGhost}>Ghost</design.Button>
+    <design.Button variant={design.ButtonLink} class="px-0">Link</design.Button>
+    <design.Button disabled type="submit">Disabled</design.Button>
+  </div>
+  <div class="flex flex-wrap gap-2">
+    <design.Badge>{saves} saved</design.Badge>
+    <design.Badge variant={design.BadgeSecondary}>asked {asked}</design.Badge>
+    <design.Badge variant={design.BadgeSecondary}>Draft</design.Badge>
+    <design.Badge variant={design.BadgeDestructive}>Failed</design.Badge>
+    <design.Badge variant={design.BadgeOutline} class="rounded-full">Outline</design.Badge>
+  </div>
+  if deleted {
+    <design.Alert variant={design.AlertDestructive} title="The project is deleted">It is gone for good.</design.Alert>
+  } else {
+    <design.Alert title="Heads up">These components are the app's own source.</design.Alert>
+  }
+  <design.Card title="Profile" description="What others see.">
+    <slot:action><design.Badge variant={design.BadgeOutline}>Public</design.Badge></slot:action>
+    <form class="grid gap-3">
+      <design.Label for="name">Name</design.Label>
+      <design.Input id="name" name="name" placeholder="Ada Lovelace" autocomplete="name" required />
+      <design.Label for="email">Email</design.Label>
+      <design.Input id="email" name="email" type="email" value="ada@" invalid />
+    </form>
+    <slot:footer>
+      <design.Button id="open-share" variant="outline" on={design.OpenDialog("share")}>Share…</design.Button>
+    </slot:footer>
+  </design.Card>
+  <design.Tabs id="plan" default="monthly">
+    <slot:tab value="monthly" label="Monthly"><p>Billed every month.</p></slot:tab>
+    <slot:tab value="yearly" label="Yearly"><p>Billed once a year, two months free.</p></slot:tab>
+    <slot:tab value="lifetime" label="Lifetime" disabled><p>Not offered.</p></slot:tab>
+  </design.Tabs>
+  <design.Dialog
+    id="share"
+    title="Share the project"
+    description="Anyone with the link can view it."
+  >
+    <design.Input
+      id="link"
+      value="https://example.com/p/1"
+      attrs={[]ui.Attr{{Name: "readonly", Value: true}}}
+    />
+    <slot:footer>
+      <design.Button variant="outline" on={design.CloseDialog("share")}>Done</design.Button>
+    </slot:footer>
+  </design.Dialog>
+  <design.Dialog
+    id="delete"
+    title="Delete the project?"
+    description="This can't be undone."
+    onClose={Dismissed}
+  >
+    <slot:footer>
+      <design.Button variant="outline" on={design.CloseDialog("delete").Push(Dismissed)}>Cancel</design.Button>
+      <design.Button id="confirm-delete" variant={design.ButtonDestructive} on={Delete}>Delete</design.Button>
+    </slot:footer>
+  </design.Dialog>
+</main>

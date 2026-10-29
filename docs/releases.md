@@ -22,6 +22,37 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.11.0 — unreleased
 
+### UI Components
+
+- **`vuka ui init` and `vuka ui add`: components that are the app's own
+  source.** `vuka ui add button card dialog` writes the components into
+  `components/ui/` as `.vuka.html` files to change as you like, drawn with
+  Tailwind utilities over design tokens `vuka ui init` puts in the app's
+  stylesheet (shadcn's token names, so its themes paste in; light, dark by
+  preference or `data-theme`). Button, Badge, Card, Alert, Input, Label,
+  Tabs (its tab server state over the live connection) and Dialog (a
+  `<dialog>` driven by JS commands: focus, Escape, backdrop); a component
+  brings those it uses, and `cn.go` merges classes so a `class` wins over a
+  component's defaults. A file the app has changed is never overwritten
+  without `-f`: `vuka ui add` prints the difference. The `[ui]` table in
+  `vuka.toml` records where they go. See
+  [UI Components (Vendored)](/ui/vendored).
+
+### Markup Calls
+
+- **Implicit ctx is reviewable.** A markup call that compiles both as
+  written and with the render's ctx — overloads `Items()` and
+  `Items(ctx)` — is [W0108](/errors/W0108), in `vuka vet`, `vuka build`
+  and the editor, whose quick fixes write `Items(ctx)` or
+  `Items(/*vuka:noctx*/)`, the marker keeping a call without the ctx; an
+  overload added or removed later can no longer change silently which one
+  a page calls. `vuka explain file.vuka.html` lists the calls given the
+  ctx and prints the file's Go, and `vuka.toml`'s `[compile]
+  implicit_ctx = false` turns implicit ctx off for a module, a call one
+  ctx short being [E0162](/errors/E0162) — see
+  [Reviewing Authority in Markup](/ui/templates#reviewing-authority).
+  `vuka fmt` keeps a comment in a hole.
+
 ### Enums
 
 - **Methods on a value enum's variants.** `func (PasswordError.Mismatch)

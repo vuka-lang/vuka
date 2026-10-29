@@ -232,6 +232,7 @@ type vfile struct {
 	unwraps  []transpile.Unwrap        // the calls in its markup returning (T, error)
 	implicit []transpile.ImplicitCtx   // the calls in its markup given the render's ctx
 	fixes    []edit                    // the W0402 rewrites on from (ctxVarFixes)
+	ambig    []edit                    // the W0108 calls on from, each with its ctx written (ambigFixes)
 	variants []transpile.VariantMethod // its methods on value-enum variants, in from
 	version  int
 	probed   int  // the version holding the last probe (see probe)
@@ -504,6 +505,7 @@ type proxy struct {
 	owned            map[string]bool           // Go paths the editor has open itself; its text wins
 	bySource         map[string]string         // .vuka path → generated path
 	vukaDiags        map[string]*diagSet       // .vuka path → the last build's transpiler errors
+	vukaWarns        map[string]*diagSet       // .vuka path → the last build's warnings shown in the editor (buildWarnings)
 	syntaxDiags      map[string]*diagSet       // .vuka path → its syntax errors, as the editor has it now
 	goDiags          map[string]*diagSet       // .vuka path → gopls diagnostics mapped from its Go
 	goHeld           map[string]heldDiags      // generated path → gopls's diagnostics of it, kept back while its source was edited
@@ -545,7 +547,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{}, dropped: map[string]bool{},
 		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
-		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
+		vukaDiags: map[string]*diagSet{}, vukaWarns: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
 		shown:       map[string]string{},
 		staticsPkgs: map[string][]*staticsFile{}, importDirs: map[string]string{},
 		changed: map[string]int{}, done: map[string]int{},

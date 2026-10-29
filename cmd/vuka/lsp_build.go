@@ -458,6 +458,32 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 		}
 		d.list = append(d.list, lspFromError(r, e))
 	}
+	// The warnings the editor shows (shownEverywhere), in the text it has.
+	warns := map[string]*diagSet{}
+	for _, g := range gens {
+		src, ok := sources[g.Source]
+		if !ok {
+			continue
+		}
+		for _, w := range g.Warnings {
+			if !shownEverywhere(w.Code) {
+				continue
+			}
+			text, off := src, w.Pos.Offset
+			if b, ok := bufs[g.Source]; ok {
+				m := vfile{from: src, cur: b, hunks: hunks[g.Source]}
+				text, off = b, m.curOff(off)
+			}
+			d := warns[g.Source]
+			if d == nil {
+				d = &diagSet{text: text}
+				warns[g.Source] = d
+			}
+			dg := w.Diagnostic("")
+			dg.Severity = diag.Warning
+			d.list = append(d.list, lspFrom(lspRange{positionOf(text, off), positionOf(text, off+w.Len)}, dg))
+		}
+	}
 	// Which of them are syntax errors, that the editor's next change may
 	// have mended: the file's own syntax check says so.
 	for path, d := range diags {
@@ -478,7 +504,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	want := map[string]*vfile{}
 	for _, g := range gens {
 		tm, _ := g.TemplMap.(*templparser.SourceMap)
-		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, implicit: g.Implicit, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings)}
+		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, implicit: g.Implicit, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings), ambig: ambigFixes(g.Warnings)}
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])
 		}
@@ -583,6 +609,16 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	for path, d := range diags {
 		touched[path] = true
 		p.vukaDiags[path] = d
+	}
+	for path := range p.vukaWarns {
+		if all || sources[path] != nil {
+			touched[path] = true
+			delete(p.vukaWarns, path)
+		}
+	}
+	for path, d := range warns {
+		touched[path] = true
+		p.vukaWarns[path] = d
 	}
 	for path := range paths {
 		if p.done[path] < seq {
@@ -711,6 +747,7 @@ func (p *proxy) publish(path string) {
 	if len(ds) == 0 {
 		ds = p.goDiags[path].in(cur, true)
 	}
+	ds = append(ds, p.vukaWarns[path].in(cur, true)...)
 	if open && !bytes.Equal(cur, islandText) {
 		island = nil
 	}
