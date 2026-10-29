@@ -417,6 +417,7 @@ func codeActions(r actionRequest) []any {
 		}
 		if r.wants("quickfix") {
 			add(templateFixes(r)...)
+			add(diagFixes(r)...)
 			add(ambigCtxActions(r)...)
 			add(staticPathActions(r)...)
 			add(ctxVarActions(r)...)
@@ -427,6 +428,7 @@ func codeActions(r actionRequest) []any {
 		}
 	case strings.HasSuffix(r.path, ".vuka"):
 		if r.wants("quickfix") {
+			add(diagFixes(r)...)
 			add(staticPathActions(r)...)
 			add(ctxVarActions(r)...)
 			add(importFixes(r)...)

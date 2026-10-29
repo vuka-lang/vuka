@@ -230,6 +230,7 @@ type vfile struct {
 	vars     []transpile.VarRead       // the context processors' variables it reads by name
 	avail    []transpile.VarRead       // and those it may read
 	unwraps  []transpile.Unwrap        // the calls in its markup returning (T, error)
+	matches  []transpile.Match         // its match statements
 	implicit []transpile.ImplicitCtx   // the calls in its markup given the render's ctx
 	fixes    []edit                    // the W0402 rewrites on from (ctxVarFixes)
 	ambig    []edit                    // the W0108 calls on from, each with its ctx written (ambigFixes)
@@ -1246,6 +1247,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 			go func() { reply(h()) }()
 			return
 		}
+		if h := p.matchRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if h := p.variantMethodRequest(m.Method, vf, off); h != nil {
 			p.mu.Unlock()
 			reply(h())
@@ -1625,6 +1631,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			return
 		}
 	case "textDocument/signatureHelp", "textDocument/documentSymbol", "textDocument/inlayHint":
+		if vr.method == "textDocument/inlayHint" {
+			v = hintsInSource(v, vr.file)
+		}
 		v = demangleStrings(v, vr.file.namesOf())
 		if vr.method == "textDocument/inlayHint" && p.ctxHintsOn() && vr.file != nil {
 			v = withImplicitHints(v, vr.file)

@@ -220,6 +220,8 @@ type lspDiagnostic struct {
 	// RelatedInformation is the places the message names: the errors of a
 	// package an import fails for.
 	RelatedInformation []lspRelated `json:"relatedInformation,omitempty"`
+	// Data carries the fix of the error, for a quick fix (diagFixes).
+	Data map[string]any `json:"data,omitempty"`
 }
 
 type lspRelated struct {

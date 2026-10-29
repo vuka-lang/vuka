@@ -223,6 +223,12 @@ func startLSPAt(t *testing.T, dir string, opts lspOptions) *lspClient {
 // startLSPCaps is startLSPAt for an editor with the text document
 // capabilities caps besides semantic tokens.
 func startLSPCaps(t *testing.T, dir string, opts lspOptions, caps map[string]any) *lspClient {
+	return startLSPInit(t, dir, opts, caps, nil)
+}
+
+// startLSPInit is startLSPCaps with gopls settings init besides semantic
+// tokens.
+func startLSPInit(t *testing.T, dir string, opts lspOptions, caps, init map[string]any) *lspClient {
 	gopls, err := findGopls("")
 	if err != nil {
 		needs(t, "%v", err)
@@ -246,7 +252,7 @@ func startLSPCaps(t *testing.T, dir string, opts lspOptions, caps map[string]any
 	go c.loop()
 	c.init = c.call("initialize", map[string]any{"rootUri": pathToURI(dir),
 		// gopls gates semantic tokens behind this setting, as the editor enables it.
-		"initializationOptions": map[string]any{"semanticTokens": true, "ui.semanticTokens": true},
+		"initializationOptions": withCaps(init, map[string]any{"semanticTokens": true, "ui.semanticTokens": true}),
 		"capabilities": map[string]any{
 			"textDocument": withCaps(caps, map[string]any{"semanticTokens": map[string]any{
 				"requests": map[string]any{"full": true, "range": true},

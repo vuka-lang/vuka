@@ -438,9 +438,10 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			continue
 		}
 		text, off := src, e.Pos.Offset
+		curOff := func(o int) int { return o }
 		if b, ok := bufs[e.Pos.Filename]; ok && !strings.HasSuffix(e.Pos.Filename, ".templ") {
 			m := vfile{from: src, cur: b, hunks: hunks[e.Pos.Filename]}
-			text, off = b, m.curOff(off)
+			text, off, curOff = b, m.curOff(off), m.curOff
 		}
 		d := diags[e.Pos.Filename]
 		if d == nil {
@@ -456,7 +457,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			d.list = append(d.list, lspFrom(r, dg))
 			continue
 		}
-		d.list = append(d.list, lspFromError(r, e))
+		d.list = append(d.list, diagnosticFix(lspFromError(r, e), e, text, curOff))
 	}
 	// The warnings the editor shows (shownEverywhere), in the text it has.
 	warns := map[string]*diagSet{}
@@ -504,7 +505,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	want := map[string]*vfile{}
 	for _, g := range gens {
 		tm, _ := g.TemplMap.(*templparser.SourceMap)
-		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, implicit: g.Implicit, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings), ambig: ambigFixes(g.Warnings)}
+		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, matches: g.Matches, implicit: g.Implicit, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings), ambig: ambigFixes(g.Warnings)}
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])
 		}
@@ -731,6 +732,12 @@ func (p *proxy) publish(path string) {
 	islandText, opened := p.bufs[path]
 	root := p.modRoot
 	p.mu.Unlock()
+	if p.dropIn && isVuka(path) && !opened {
+		// Serving as gopls, beside the editor's own vuka server, which
+		// reports on the file from its buffer: this one would from disk,
+		// a second set, stale until a save.
+		return
+	}
 	if !opened {
 		islandText, _ = os.ReadFile(path)
 	}
