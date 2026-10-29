@@ -1,0 +1,9 @@
+package main
+
+func lookup(k string) (int, bool) { return 0, false }
+
+func main() {
+	match lookup("a") {
+	case _:
+	}
+}

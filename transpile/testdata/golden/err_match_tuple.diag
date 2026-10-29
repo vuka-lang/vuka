@@ -1,0 +1,9 @@
+error[E0112]: match takes one value or a call returning (T, error), not (int, bool)
+ --> err_match_tuple.vuka:6:8
+  |
+6 |     match lookup("a") {
+  |           ^^^^^^
+  |
+  = help: match patterns of the subject's type
+
+For more information about this error, try `vuka explain E0112`.

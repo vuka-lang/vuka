@@ -220,6 +220,65 @@ interface, or `match` on the variants.
 The editor's hover on a variant's method says which method it is part of,
 and definition from a call such as `err.Error()` offers each declaration.
 
+## Errors With a Cause
+
+An enum whose variants implement `error` is a set of errors a caller can
+tell apart. A variant's field of type `error` is its cause, the error it
+wraps:
+
+```vuka
+enum RegisterError {
+	EmailTaken
+	WeakPassword{Reason string}
+	Database{Err error}
+}
+
+func (RegisterError.EmailTaken) Error() string     { return "email already registered" }
+func (e RegisterError.WeakPassword) Error() string { return "weak password: " + e.Reason }
+func (e RegisterError.Database) Error() string     { return "database: " + e.Err.Error() }
+```
+
+`RegisterError.Database` gets a generated `Unwrap() error` returning `Err`,
+so `errors.Is(err, sql.ErrNoRows)` and `errors.As` see through it; the
+other variants have none:
+
+<!-- go:context
+type RegisterErrorDatabase struct{ Err error }
+-->
+
+```go
+// Unwrap returns the cause of r.
+func (r RegisterErrorDatabase) Unwrap() error { return r.Err }
+```
+
+A variant declaring its own `Unwrap` keeps it. One with two fields of type
+`error` and no `Unwrap` of its own is [E0175](/errors/E0175): declare
+`Unwrap` to say which field is the cause.
+
+Callers test a variant without fields with `errors.Is`, since it is a
+value, and take the enum out of an error with `errors.As` on the enum's
+type, then `match` it:
+
+```vuka
+if errors.Is(err, RegisterError.EmailTaken) {
+	return "taken"
+}
+var e RegisterError
+if errors.As(err, &e) {
+	match e {
+	case RegisterError.WeakPassword{Reason: r}:
+		return "weak: " + r
+	case _:
+		return e.Error()
+	}
+}
+```
+
+`errors.As` targets the enum, not a variant: any of its variants in the
+chain is found. A `match` on an error does the same with the variant's type
+as its pattern, `case Err(RegisterError.Database{Err: cause}):` (see
+[Matching Errors](/features/match#matching-errors)).
+
 ## Matching on Enums
 
 A [`match`](/features/match) over an enum takes its variants as patterns, and fields apart the

@@ -9,6 +9,7 @@ import (
 	"regexp"
 	"slices"
 	"strings"
+	"unicode"
 
 	"github.com/vuka-lang/vuka/v2/diag"
 )
@@ -66,9 +67,26 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 	}
 	pc := &patCtx{e: e, f: f, scope: scope, pos: head.Pos()}
 	v := "__m" + itoa(m.n)
+	// A call returning (T, error) is matched as the Result it is, its value
+	// and error named in the match's init.
+	var tuple *matchTuple
+	if tup, ok := t.(*types.Tuple); ok {
+		if tup.Len() != 2 || !types.Identical(tup.At(1).Type(), errorType) {
+			fail("E0112", m.subj.start, "match takes one value or a call returning (T, error), not %s", e.display(tup))
+			return
+		}
+		res, msg := e.resultOf(tup.At(0).Type())
+		if msg != "" {
+			m.fail = msg
+			return
+		}
+		t = res
+		tuple = e.tupleNames(f, m, pc, subj, tup.At(0).Type())
+	}
 
 	type header struct {
 		pre, post string // around the guard; post alone when there is none
+		bare      bool   // no init: the condition alone
 	}
 	var heads []header
 	// A match whose cases have no guards and simple patterns is a switch:
@@ -96,6 +114,9 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 			if err := pc.compile(cp, x, v, t); err != nil {
 				fail("E0112", sp.start, "%v", err)
 				return
+			}
+			if tuple != nil {
+				tuple.rewrite(cp, v, f.runtime)
 			}
 			alts, spaces = append(alts, cp), append(spaces, pc.space(x, t))
 		}
@@ -163,7 +184,11 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 					return
 				}
 				if !a.complex {
-					ors = append(ors, "("+a.tests()+")")
+					if t := a.tests(); strings.Contains(t, " && ") || strings.Contains(t, " || ") {
+						ors = append(ors, "("+t+")")
+					} else {
+						ors = append(ors, t)
+					}
 					continue
 				}
 				_, cond, msg := pc.condition(a)
@@ -181,9 +206,9 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 			post += " " + strings.Join(uses, " ")
 		}
 		if c.guard.start >= 0 {
-			heads = append(heads, header{pre: pre + " && (", post: ")" + post})
+			heads = append(heads, header{pre: pre + " && (", post: ")" + post, bare: init == ""})
 		} else {
-			heads = append(heads, header{post: pre + post})
+			heads = append(heads, header{post: pre + post, bare: init == ""})
 		}
 	}
 	if missing := pc.exhaustive(rows, t); missing != "" {
@@ -191,6 +216,37 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		return
 	}
 
+	if tuple != nil {
+		var texts []string
+		for _, a := range arms {
+			texts = append(texts, a.cond, a.binds)
+		}
+		for _, h := range heads {
+			texts = append(texts, h.pre, h.post)
+		}
+		lhs := tuple.lhs(texts, !simple)
+		if simple {
+			if lhs == "" {
+				f.add(m.start, m.subj.start, "switch ")
+			} else {
+				f.add(m.start, m.subj.start, "switch "+lhs+" := ")
+			}
+			f.add(m.subj.end, m.lbrace+1, "; {")
+		} else {
+			f.add(m.start, m.subj.start, "if "+lhs+" := ")
+			if h := &heads[0]; h.bare {
+				// The first case's condition follows the init.
+				f.add(m.subj.end, m.lbrace+1, "; ")
+				if m.cases[0].guard.start >= 0 {
+					h.pre = strings.TrimPrefix(h.pre, "} else if ")
+				} else {
+					h.post = strings.TrimPrefix(h.post, "} else if ")
+				}
+			} else {
+				f.add(m.subj.end, m.lbrace+1, "; false { panic("+tuple.err+")")
+			}
+		}
+	}
 	if simple {
 		subj := string(f.src[m.subj.start:m.subj.end])
 		// The subject keeps its place: its own rewrites are there.
@@ -207,9 +263,11 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 				arms[i].binds = strings.ReplaceAll(arms[i].binds, v, subj)
 			}
 		}
-		if !values && token.IsIdentifier(subj) {
+		switch {
+		case tuple != nil:
+		case !values && token.IsIdentifier(subj):
 			f.add(m.start, m.lbrace+1, "switch {")
-		} else {
+		default:
 			f.add(m.start, m.subj.start, pre)
 			f.add(m.subj.end, m.lbrace+1, post)
 		}
@@ -230,8 +288,10 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		e.progress = true
 		return
 	}
-	f.add(m.start, m.subj.start, "if "+v+" := ")
-	f.add(m.subj.end, m.lbrace+1, "; false { panic("+v+")")
+	if tuple == nil {
+		f.add(m.start, m.subj.start, "if "+v+" := ")
+		f.add(m.subj.end, m.lbrace+1, "; false { panic("+v+")")
+	}
 	for i, c := range m.cases {
 		h := heads[i]
 		if c.guard.start >= 0 {
@@ -287,6 +347,7 @@ type patStep struct {
 	test   string
 	bind   *binding
 	assert [3]string // temp, from, type
+	as     bool      // assert with errors.As, through the error's chain
 }
 
 func (c *compiled) test(cond string) { c.steps = append(c.steps, patStep{test: cond}) }
@@ -309,6 +370,41 @@ type patCtx struct {
 	f     *fileState
 	scope *types.Scope
 	pos   token.Pos
+	errs  string // the name f imports errors as, once a pattern needs it
+}
+
+// errorsPkg is the name f imports errors as, importing it on first use.
+func (pc *patCtx) errorsPkg() string {
+	if pc.errs == "" {
+		missing := ""
+		pc.errs = pc.e.qualifier(pc.f, &missing)(types.NewPackage("errors", "errors"))
+		if missing != "" {
+			pc.errs = pc.f.importAs("errors", "__errors")
+		}
+	}
+	return pc.errs
+}
+
+// errorLike reports whether t is error, or an interface holding only errors:
+// its patterns test the error's chain, with errors.Is and errors.As.
+func errorLike(t types.Type) bool {
+	return types.IsInterface(t) && types.Implements(t, errorType.Underlying().(*types.Interface))
+}
+
+// errValue reports whether a bare name in a pattern against an error is a
+// package-level error variable, a sentinel: a value to test with errors.Is
+// rather than a variable to bind.
+func (pc *patCtx) errValue(name string, t types.Type) bool {
+	v, ok := pc.lookup(name).(*types.Var)
+	return ok && errorLike(t) && v.Parent() == pc.e.pkg.Scope() && types.AssignableTo(v.Type(), errorType)
+}
+
+// equals is the test of s against a value: errors.Is against an error.
+func (pc *patCtx) equals(s, val string, t types.Type) string {
+	if errorLike(t) && val != "nil" {
+		return pc.errorsPkg() + ".Is(" + s + ", " + val + ")"
+	}
+	return s + " == " + val
 }
 
 func (pc *patCtx) lookup(name string) types.Object {
@@ -336,8 +432,8 @@ func (pc *patCtx) compile(c *compiled, x ast.Expr, s string, t types.Type) error
 		case x.Name == "_":
 		case x.Name == "None" && kind == "Option":
 			c.test(s + ".IsNone()")
-		case pc.isValue(x.Name):
-			c.test(s + " == " + x.Name)
+		case pc.isValue(x.Name), pc.errValue(x.Name, t):
+			c.test(pc.equals(s, x.Name, t))
 		default:
 			for _, b := range c.binds {
 				if b.name == x.Name {
@@ -357,16 +453,16 @@ func (pc *patCtx) compile(c *compiled, x ast.Expr, s string, t types.Type) error
 			if _, isType := obj.(*types.TypeName); isType {
 				return pc.structPat(c, &ast.CompositeLit{Type: x}, false, s, t)
 			}
-			c.test(s + " == " + text)
+			c.test(pc.equals(s, text, t))
 			return nil
 		}
-		c.test(s + " == " + types.ExprString(x))
+		c.test(pc.equals(s, types.ExprString(x), t))
 		return nil
 	case *ast.UnaryExpr:
 		switch x.Op {
 		case token.XOR:
 			if id, ok := x.X.(*ast.Ident); ok {
-				c.test(s + " == " + id.Name)
+				c.test(pc.equals(s, id.Name, t))
 				return nil
 			}
 			return fmt.Errorf("^ pins a variable: ^name")
@@ -444,9 +540,14 @@ func (pc *patCtx) structPat(c *compiled, lit *ast.CompositeLit, ptr bool, s stri
 		if msg != "" {
 			return fmt.Errorf("%s", msg)
 		}
+		if errorLike(t) && len(lit.Elts) == 0 {
+			// Err(&NotFound{}): is there one in the chain.
+			c.test(pc.errorsPkg() + ".As(" + s + ", new(" + text + "))")
+			break
+		}
 		c.temps++
 		cur = "__p" + itoa(c.temps)
-		c.steps = append(c.steps, patStep{assert: [3]string{cur, s, text}})
+		c.steps = append(c.steps, patStep{assert: [3]string{cur, s, text}, as: errorLike(t)})
 		c.complex = true
 		if ptr {
 			c.test(cur + " != nil")
@@ -548,7 +649,14 @@ func (pc *patCtx) condition(c *compiled) (init, cond, msg string) {
 					val = tmp
 				}
 			}
-			body.WriteString(val + ", " + tmp + "ok := " + from + ".(" + typ + "); if !" + tmp + "ok { return }; ")
+			switch {
+			case s.as && val == "_":
+				body.WriteString("if !" + pc.errorsPkg() + ".As(" + from + ", new(" + typ + ")) { return }; ")
+			case s.as:
+				body.WriteString("var " + tmp + " " + typ + "; if !" + pc.errorsPkg() + ".As(" + from + ", &" + tmp + ") { return }; ")
+			default:
+				body.WriteString(val + ", " + tmp + "ok := " + from + ".(" + typ + "); if !" + tmp + "ok { return }; ")
+			}
 		}
 	}
 	fn := "func() (" + strings.Join(append(results, "__ok bool"), ", ") + ") { " + body.String() + "__ok = true; return }()"
@@ -596,3 +704,272 @@ func (pc *patCtx) constOf(x ast.Expr) *types.Const {
 	}
 	return nil
 }
+
+// matchTuple names the value and error of a match on a call returning
+// (T, error):
+//
+//	match users.First(ctx) {        switch user, err := users.First(ctx); {
+//	case Ok(user):                  case err == nil:
+//	case Err(orm.ErrNotFound):      case errors.Is(err, orm.ErrNotFound):
+type matchTuple struct {
+	val, err string
+	bound    bool // a case binds the value by its name
+}
+
+// resultOf is the runtime's Result[t].
+func (e *engine) resultOf(t types.Type) (types.Type, string) {
+	pkg, err := e.imp.Import(RuntimePath)
+	if err != nil {
+		return nil, "the runtime doesn't import: " + err.Error()
+	}
+	tn, ok := pkg.Scope().Lookup("Result").(*types.TypeName)
+	if !ok {
+		return nil, "the runtime has no Result"
+	}
+	res, err := types.Instantiate(nil, tn.Type(), []types.Type{t}, false)
+	if err != nil {
+		return nil, err.Error()
+	}
+	return res, ""
+}
+
+// tupleNames chooses the names: the value is the name a case's Ok binds it
+// to, else named after its type or the call; the error is err. A name
+// another case uses for something else, or a pattern names, gets the next
+// candidate.
+func (e *engine) tupleNames(f *fileState, m *matchStmt, pc *patCtx, subj ast.Expr, T types.Type) *matchTuple {
+	n := len(m.cases)
+	texts := make([]string, n)
+	okBind, errBind := make([]string, n), make([]string, n)
+	for i, c := range m.cases {
+		end := m.rbrace
+		if i+1 < n {
+			end = m.cases[i+1].start
+		}
+		texts[i] = string(f.src[c.start:end])
+		if len(c.pats) != 1 {
+			continue
+		}
+		x, err := parser.ParseExpr(string(f.src[c.pats[0].start:c.pats[0].end]))
+		if err != nil {
+			continue
+		}
+		call, ok := x.(*ast.CallExpr)
+		if !ok || len(call.Args) != 1 {
+			continue
+		}
+		fn, ok1 := call.Fun.(*ast.Ident)
+		id, ok2 := call.Args[0].(*ast.Ident)
+		if !ok1 || !ok2 || id.Name == "_" {
+			continue
+		}
+		if obj := e.pkg.Scope().Lookup(id.Name); obj != nil {
+			if _, isVar := obj.(*types.TypeName); !isVar {
+				continue // a constant or a sentinel, not a binding
+			}
+		}
+		switch fn.Name {
+		case "Ok":
+			okBind[i] = id.Name
+		case "Err":
+			errBind[i] = id.Name
+		}
+	}
+	reserved := map[string]bool{"errors": true, "vuka": true, f.rt: true}
+	free := func(name string, binds []string, other string) bool {
+		if name == other || reserved[name] || !token.IsIdentifier(name) || types.Universe.Lookup(name) != nil {
+			return false
+		}
+		re := regexp.MustCompile(`(^|[^.\w])` + regexp.QuoteMeta(name) + `\b`)
+		for i := range texts {
+			if binds[i] != name && re.MatchString(texts[i]) {
+				return false
+			}
+		}
+		return true
+	}
+	bound := func(name string, binds []string) bool { return slices.Contains(binds, name) }
+	pick := func(binds []string, other string, cands ...string) string {
+		for _, c := range cands {
+			// A name of its own shadows nothing in scope.
+			if c != "" && free(c, binds, other) && (bound(c, binds) || pc.lookup(c) == nil) {
+				return c
+			}
+		}
+		base := cands[len(cands)-1]
+		for i := 2; ; i++ {
+			if c := base + itoa(i); free(c, binds, other) && pc.lookup(c) == nil {
+				return c
+			}
+		}
+	}
+	errName := pick(errBind, "", "err")
+	var cands []string
+	for i, b := range okBind {
+		if b != "" && len(regexp.MustCompile(`(^|[^.\w])`+regexp.QuoteMeta(b)+`\b`).FindAllString(texts[i], 2)) > 1 {
+			cands = append(cands, b)
+			break
+		}
+	}
+	cands = append(cands, typeVarName(T), calleeVarName(subj), "v")
+	return &matchTuple{val: pick(okBind, errName, cands...), err: errName}
+}
+
+// rewrite points a pattern compiled against the Result v at the tuple's
+// names, dropping the bindings that are those names.
+func (mt *matchTuple) rewrite(c *compiled, v string, rt func() string) {
+	parts := strings.NewReplacer(v+".IsOk()", mt.err+" == nil", v+".IsErr()", mt.err+" != nil",
+		v+".Value()", mt.val, v+".Err()", mt.err)
+	re := regexp.MustCompile(regexp.QuoteMeta(v) + `\b`)
+	r := replacerFunc(func(s string) string {
+		s = parts.Replace(s)
+		if re.MatchString(s) {
+			// The whole Result: case r: binds it.
+			s = re.ReplaceAllLiteralString(s, rt()+".Of("+mt.val+", "+mt.err+")")
+		}
+		return s
+	})
+	var steps []patStep
+	for _, s := range c.steps {
+		s.test = r.Replace(s.test)
+		s.assert[1] = r.Replace(s.assert[1])
+		if s.bind != nil {
+			b := *s.bind
+			b.expr = r.Replace(b.expr)
+			if b.expr == b.name && !c.complex {
+				mt.bound = mt.bound || b.name == mt.val
+				continue
+			}
+			s.bind = &b
+		}
+		steps = append(steps, s)
+	}
+	// errors.Is and errors.As are false for a nil error: err != nil before
+	// one says nothing.
+	isNil := mt.err + " != nil"
+	chain := func(s patStep) bool {
+		return s.as && s.assert[1] == mt.err || strings.Contains(s.test, ".Is("+mt.err+", ") || strings.Contains(s.test, ".As("+mt.err+", ")
+	}
+	c.steps = steps[:0:0]
+	for i, s := range steps {
+		if s.test == isNil && i+1 < len(steps) && chain(steps[i+1]) {
+			continue
+		}
+		c.steps = append(c.steps, s)
+	}
+	var binds []binding
+	for _, b := range c.binds {
+		b.expr = r.Replace(b.expr)
+		if b.expr == b.name && !c.complex {
+			continue
+		}
+		binds = append(binds, b)
+	}
+	c.binds = binds
+}
+
+// lhs is the left side of the match's init: the names the lowered cases
+// use, _ for one they don't; "" when they use neither.
+func (mt *matchTuple) lhs(texts []string, errUsed bool) string {
+	use := func(name string) bool {
+		re := regexp.MustCompile(`(^|[^.\w])` + regexp.QuoteMeta(name) + `\b`)
+		for _, t := range texts {
+			if re.MatchString(t) {
+				return true
+			}
+		}
+		return false
+	}
+	val, err := mt.val, mt.err
+	valUsed := mt.bound || use(val)
+	errUsed = errUsed || use(err)
+	if !valUsed && !errUsed {
+		return ""
+	}
+	if !valUsed {
+		val = "_"
+	}
+	if !errUsed {
+		err = "_"
+	}
+	return val + ", " + err
+}
+
+// typeVarName is a variable's name after its type: User, *User → user;
+// []Post → posts. "" for an unnamed type.
+func typeVarName(t types.Type) string {
+	t = types.Unalias(t)
+	if p, ok := t.(*types.Pointer); ok {
+		t = types.Unalias(p.Elem())
+	}
+	plural := ""
+	if s, ok := t.(*types.Slice); ok {
+		t, plural = types.Unalias(s.Elem()), "s"
+		if p, ok := t.(*types.Pointer); ok {
+			t = types.Unalias(p.Elem())
+		}
+	}
+	n, ok := t.(*types.Named)
+	if !ok {
+		return ""
+	}
+	name := goLower(n.Obj().Name()) + plural
+	if token.IsKeyword(name) {
+		return ""
+	}
+	return name
+}
+
+// calleeVarName is a variable's name after the call producing it: Exists →
+// exists; GetUser → user.
+func calleeVarName(x ast.Expr) string {
+	call, ok := ast.Unparen(x).(*ast.CallExpr)
+	if !ok {
+		return ""
+	}
+	fn := ast.Unparen(call.Fun)
+	switch f := fn.(type) {
+	case *ast.IndexExpr:
+		fn = f.X
+	case *ast.IndexListExpr:
+		fn = f.X
+	}
+	var name string
+	switch f := fn.(type) {
+	case *ast.Ident:
+		name = f.Name
+	case *ast.SelectorExpr:
+		name = f.Sel.Name
+	default:
+		return ""
+	}
+	if rest, ok := strings.CutPrefix(name, "Get"); ok && rest != "" && unicode.IsUpper([]rune(rest)[0]) {
+		name = rest
+	}
+	name = goLower(name)
+	if token.IsKeyword(name) {
+		return ""
+	}
+	return name
+}
+
+// goLower lowers a name's leading capitals as Go spells a variable: User →
+// user, URLPath → urlPath, ID → id.
+func goLower(name string) string {
+	r := []rune(name)
+	i := 0
+	for i < len(r) && unicode.IsUpper(r[i]) {
+		i++
+	}
+	if i > 1 && i < len(r) {
+		i--
+	}
+	for j := range i {
+		r[j] = unicode.ToLower(r[j])
+	}
+	return string(r)
+}
+
+type replacerFunc func(string) string
+
+func (r replacerFunc) Replace(s string) string { return r(s) }

@@ -1,0 +1,52 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+var ErrConflict = errors.New("conflict")
+
+enum RegisterError {
+	EmailTaken
+	WeakPassword{Reason string}
+	Database{Err error}
+}
+
+func (RegisterError.EmailTaken) Error() string     { return "email already registered" }
+func (e RegisterError.WeakPassword) Error() string { return "weak password: " + e.Reason }
+func (e RegisterError.Database) Error() string     { return "database: " + e.Err.Error() }
+
+func register(email string) error {
+	switch email {
+	case "taken":
+		return RegisterError.EmailTaken
+	case "weak":
+		return RegisterError.WeakPassword{Reason: "too short"}
+	case "conflict":
+		return fmt.Errorf("registering %s: %w", email, RegisterError.Database{Err: ErrConflict})
+	}
+	return nil
+}
+
+func explain(err error) string {
+	var e RegisterError
+	if !errors.As(err, &e) {
+		return "ok"
+	}
+	match e {
+	case RegisterError.EmailTaken:
+		return "taken"
+	case RegisterError.WeakPassword{Reason: r}:
+		return "weak: " + r
+	case RegisterError.Database{Err: cause}:
+		return "database: " + cause.Error()
+	}
+}
+
+func main() {
+	for _, email := range []string{"taken", "weak", "conflict", "ok"} {
+		err := register(email)
+		fmt.Println(explain(err), errors.Is(err, ErrConflict), errors.Is(err, RegisterError.EmailTaken))
+	}
+}
