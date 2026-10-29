@@ -24,7 +24,7 @@ func TestFixUIStructs(t *testing.T) {
 				got = "// " + strings.Join(what, "\n// ") + "\n\n" + string(out)
 			}
 			golden := strings.TrimSuffix(path, ".in") + ".golden"
-			if *updateFixUI {
+			if *updateFiles {
 				os.WriteFile(golden, []byte(got), 0o644)
 				return
 			}

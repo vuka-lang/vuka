@@ -15,7 +15,9 @@ import (
 // opens, closes on Escape, the backdrop and its close button, giving the
 // focus back each time, a dialog the server owns closes through its
 // handler, and tabs switch over the live connection. With VUKA_SHOTS set,
-// it saves screenshots there.
+// it saves screenshots there: the page's, and each component's in both
+// themes, which docs/public/ui/components keeps for the components' pages
+// (cp $VUKA_SHOTS/*-light.png $VUKA_SHOTS/*-dark.png docs/public/ui/components).
 func TestUIComponentsE2E(t *testing.T) {
 	e := newE2E(t)
 	dir := e.new("kit", "--db=none", "--auth=no", "--mail=no")
@@ -57,6 +59,25 @@ func TestUIComponentsE2E(t *testing.T) {
 			p.screenshot(filepath.Join(shots, name+".png"))
 		}
 	}
+	// Each component's part of the page, by its name in the registry.
+	parts := map[string]string{
+		"button": `document.querySelector("#save").parentElement`,
+		"badge":  `document.querySelector("main > div:nth-of-type(2)")`,
+		"alert":  `document.querySelector("main [role=alert]")`,
+		"card":   `document.querySelector("#name").closest("main > *")`,
+		"input":  `document.querySelector("#name").closest("form")`,
+		"label":  `document.querySelector("#name").closest("form")`,
+		"tabs":   `document.querySelector("[role=tablist]").closest("main > *")`,
+	}
+	shotParts := func(p *tab, theme string) {
+		if shots == "" {
+			return
+		}
+		p.eval(`new Promise((r) => setTimeout(r, 250))`)
+		for name, el := range parts {
+			p.screenshotOf(el, filepath.Join(shots, name+"-"+theme+".png"), 16)
+		}
+	}
 	ch := launchChrome(t)
 	p := ch.open(base+"/kit", 1280, 1100)
 	p.wait(`document.documentElement.dataset.vkState === "connected"`)
@@ -71,12 +92,14 @@ func TestUIComponentsE2E(t *testing.T) {
 		t.Errorf("the light background: %v", light)
 	}
 	shot(p, "ui-light")
+	shotParts(p, "light")
 	p.eval(`document.documentElement.dataset.theme = "dark"`)
 	dark := p.eval(bg)
 	if dark == light || p.eval(primary) == lightPrimary {
 		t.Errorf("data-theme=dark: the background is %v, the primary %v, as in the light theme", dark, p.eval(primary))
 	}
 	shot(p, "ui-dark")
+	shotParts(p, "dark")
 	p.eval(`delete document.documentElement.dataset.theme`)
 	p.dark(true)
 	if got := p.eval(bg); got != dark {
@@ -110,8 +133,15 @@ func TestUIComponentsE2E(t *testing.T) {
 	}
 	open()
 	shot(p, "ui-dialog")
+	panel := `document.querySelector("#share > div:last-child")`
+	if shots != "" {
+		p.screenshotOf(panel, filepath.Join(shots, "dialog-light.png"), 24)
+	}
 	p.eval(`document.documentElement.dataset.theme = "dark"`)
 	shot(p, "ui-dialog-dark")
+	if shots != "" {
+		p.screenshotOf(panel, filepath.Join(shots, "dialog-dark.png"), 24)
+	}
 	p.eval(`delete document.documentElement.dataset.theme`)
 	p.do("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27})
 	p.do("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27})

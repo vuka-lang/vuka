@@ -146,3 +146,56 @@
 .VPSidebarItem.level-0 {
   padding-bottom: 12px;
 }
+
+/* Vendored components' pages: the screenshots in both themes, and the
+   source beside its ejected Go on wide screens (tabs on narrow ones) */
+.vk-ui-shots {
+  display: grid;
+  gap: 12px;
+  margin: 16px 0;
+}
+
+.vk-ui-shots img {
+  width: 100%;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 8px;
+}
+
+@media (min-width: 640px) {
+  .vk-ui-shots {
+    grid-template-columns: 1fr 1fr;
+    align-items: start;
+  }
+}
+
+@media (min-width: 1280px) {
+  .vk-ui-component .VPDoc:not(.has-aside) .content-container,
+  .vk-ui-component .VPDoc:not(.has-aside) .container {
+    max-width: 1180px;
+  }
+
+  .vk-ui-source .vp-code-group .tabs {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .vk-ui-source .vp-code-group .tabs label {
+    pointer-events: none;
+    color: var(--vp-code-tab-active-text-color);
+  }
+
+  .vk-ui-source .vp-code-group .tabs label::after {
+    display: none;
+  }
+
+  .vk-ui-source .vp-code-group .blocks {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 2px;
+  }
+
+  .vk-ui-source .vp-code-group .blocks > div[class*='language-'] {
+    display: block;
+    margin-top: 0;
+  }
+}

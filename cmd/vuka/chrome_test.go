@@ -249,6 +249,30 @@ func (p *tab) dark(on bool) {
 }
 
 // screenshot writes a PNG of the viewport to path.
+// screenshotOf saves a picture of the element the JS expression el is,
+// with pad pixels around it, at twice the page's scale.
+func (p *tab) screenshotOf(el, path string, pad float64) {
+	p.c.t.Helper()
+	box, ok := p.eval(`(() => { const r = (` + el + `).getBoundingClientRect(); return [r.x + scrollX, r.y + scrollY, r.width, r.height] })()`).([]any)
+	if !ok || len(box) != 4 {
+		p.c.t.Fatalf("no box for %s: %v", el, box)
+	}
+	n := func(i int) float64 { f, _ := box[i].(float64); return f }
+	x, y := max(0, n(0)-pad), max(0, n(1)-pad)
+	clip := map[string]any{"x": x, "y": y, "width": n(0) + n(2) + pad - x, "height": n(1) + n(3) + pad - y, "scale": 2}
+	var r struct{ Data string }
+	if err := p.c.call(p.session, "Page.captureScreenshot", map[string]any{"format": "png", "clip": clip, "captureBeyondViewport": true}, &r); err != nil {
+		p.c.t.Fatal(err)
+	}
+	b, err := base64.StdEncoding.DecodeString(r.Data)
+	if err != nil {
+		p.c.t.Fatal(err)
+	}
+	if err := os.WriteFile(path, b, 0o644); err != nil {
+		p.c.t.Fatal(err)
+	}
+}
+
 func (p *tab) screenshot(path string) {
 	p.c.t.Helper()
 	var r struct{ Data string }

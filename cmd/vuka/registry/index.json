@@ -1,71 +1,178 @@
 {
+  "schema": 1,
   "name": "vuka",
   "package": "design",
   "styles": {
-    "default": "styles/default.css"
+    "default": {
+      "path": "styles/default.css",
+      "sha256": "fbe025f74709b31251a49e31f4fde72e3f757bc3c2b64313749632ca39203098"
+    }
   },
   "items": [
     {
       "name": "cn",
+      "title": "cn",
       "description": "cn, the class merge every component uses, and its tests",
       "tier": 0,
-      "files": ["ui/cn.go", "ui/cn_test.go"]
+      "files": [
+        {
+          "path": "ui/cn.go",
+          "sha256": "28b37b5fefb39b0af559792ce011c5cc4a5aaf2e01e07ddbfe858bdf6804554d"
+        },
+        {
+          "path": "ui/cn_test.go",
+          "sha256": "129d079fdc52037c38501a6eb50834f9bf049a4eeb3669f5b19475dcbceed00a"
+        }
+      ]
     },
     {
       "name": "button",
+      "title": "Button",
       "description": "a button: six variants, four sizes, a ui.JS chain or a live handler on click",
       "tier": 1,
-      "files": ["ui/button.vuka.html"],
-      "deps": ["cn"]
+      "files": [
+        {
+          "path": "ui/button.vuka.html",
+          "sha256": "8aca0ced2bf365d4c25c0039389dd70f0d892a9626a4c51c562d9f2f8c658346"
+        }
+      ],
+      "deps": [
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     },
     {
       "name": "badge",
+      "title": "Badge",
       "description": "a small label: a status or a count",
       "tier": 1,
-      "files": ["ui/badge.vuka.html"],
-      "deps": ["cn"]
+      "files": [
+        {
+          "path": "ui/badge.vuka.html",
+          "sha256": "790ae45138bcbfc2dea61d5966e5cc4e33d994d2258188376fb2aec9bfd3c4bd"
+        }
+      ],
+      "deps": [
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     },
     {
       "name": "card",
+      "title": "Card",
       "description": "a panel with a title, a description, an action, its content and a footer",
       "tier": 1,
-      "files": ["ui/card.vuka.html"],
-      "deps": ["cn"]
+      "files": [
+        {
+          "path": "ui/card.vuka.html",
+          "sha256": "196c72fb9b2d6ae9f4818b41a8dbcc5e4ab089082b88e2414021c5f42fe1cb60"
+        }
+      ],
+      "deps": [
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     },
     {
       "name": "alert",
+      "title": "Alert",
       "description": "a callout with an icon, a title and a message",
       "tier": 1,
-      "files": ["ui/alert.vuka.html"],
-      "deps": ["cn"]
+      "files": [
+        {
+          "path": "ui/alert.vuka.html",
+          "sha256": "56fbf6cbf931428f90d3533dae421ccf646878b48076a49f889dca5484692753"
+        }
+      ],
+      "deps": [
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     },
     {
       "name": "input",
+      "title": "Input",
       "description": "a text field",
       "tier": 1,
-      "files": ["ui/input.vuka.html"],
-      "deps": ["cn"]
+      "files": [
+        {
+          "path": "ui/input.vuka.html",
+          "sha256": "1e0ff706bc4c92fbc1d4bea9e25a73314708aaa819bce1b942d605e654a40283"
+        }
+      ],
+      "deps": [
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     },
     {
       "name": "label",
+      "title": "Label",
       "description": "a form field's label",
       "tier": 1,
-      "files": ["ui/label.vuka.html"],
-      "deps": ["cn"]
+      "files": [
+        {
+          "path": "ui/label.vuka.html",
+          "sha256": "a54eae43438554a515ddcd60aba81252ea1e34444e93867126331a0f7ddb7133"
+        }
+      ],
+      "deps": [
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     },
     {
       "name": "tabs",
+      "title": "Tabs",
       "description": "panels shown one at a time, the tab shown kept on the server",
       "tier": 2,
-      "files": ["ui/tabs.vuka.html", "ui/tabs.go"],
-      "deps": ["cn"]
+      "files": [
+        {
+          "path": "ui/tabs.vuka.html",
+          "sha256": "ebcae254172eee41479afb89e8844a21fd95aabf35c9524f0f7c6b50ef88a2d3"
+        },
+        {
+          "path": "ui/tabs.go",
+          "sha256": "0432808a15b82e3a9db33e7a2a02a3b60d7d58b65dac544ef45fcf0cf78ea9f9"
+        }
+      ],
+      "deps": [
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     },
     {
       "name": "dialog",
+      "title": "Dialog",
       "description": "a <dialog> over the page, opened and closed by JS commands",
       "tier": 1,
-      "files": ["ui/dialog.vuka.html"],
-      "deps": ["button", "cn"]
+      "files": [
+        {
+          "path": "ui/dialog.vuka.html",
+          "sha256": "b52a5decc13d612ffc1cdc89ae813545a7bfa49f2d2dfbd66660c61d9ef5026f"
+        }
+      ],
+      "deps": [
+        "button",
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
     }
   ]
 }
