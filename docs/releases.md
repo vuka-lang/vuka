@@ -35,6 +35,18 @@ the `github.com/vuka-lang/vuka` package your module requires.
   doctor`, and `vuka ui`'s `--registry` and `--offline`.
 - The lazy-bindings sample in [Templates](/ui/templates#bindings) put HTML
   comments after markup statements, which doesn't parse; it builds now.
+- **The ORM's queries, models and a page of common queries, in Vuka.**
+  [Queries](/orm/queries) goes from creating rows to filtering through
+  relations in both directions (foreign keys back to their rows, one-to-one,
+  many-to-many from either side, conditions on several related rows),
+  comparing fields, aggregates and annotations, updates with expressions,
+  eager loading and raw SQL; [Models](/orm/models) covers every field type
+  with its column per database, relationships, model options, methods,
+  hooks, embedding and enums; [Common Queries](/orm/cookbook) is short
+  recipes, from a row or 404 to per-month counts, upserts and soft deletes.
+  Each sample is Vuka beside the Go it compiles to: the docs tests eject a
+  page marked `<!-- vuka:package -->` with the repository's vuka command, vet
+  the Go, and check every Generated Go tab against it.
 
 ## v2.11.0 — 2026-10-29
 

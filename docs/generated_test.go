@@ -1,8 +1,11 @@
 package docs
 
 import (
+	"bytes"
+	"flag"
 	"fmt"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"strings"
@@ -124,6 +127,9 @@ func TestGeneratedGo(t *testing.T) {
 		b, err := os.ReadFile(page)
 		if err != nil {
 			t.Fatal(err)
+		}
+		if packagePage.MatchString(string(b)) {
+			continue // TestGeneratedPackages
 		}
 		ps, err := generatedPairs(page, string(b))
 		if err != nil {
@@ -261,4 +267,185 @@ func addDefaultImports(src string) string {
 	}
 	loc := packageClause.FindStringIndex(src)
 	return src[:loc[1]] + "\n\n" + strings.Join(imports, "\n") + "\n" + src[loc[1]:]
+}
+
+// A page marked <!-- vuka:package --> is one package rather than a sample
+// per group: its vuka:context blocks (Vuka) and every Vuka sample, each a
+// file, go through the repository's own vuka command — vuka eject, which
+// also writes what orm generate does for the package's models — and go vet
+// checks the Go. A Generated Go tab is then an excerpt of its sample's
+// ejected file. The ORM's pages are written this way: their samples share
+// the models a page declares once.
+const vukaPackageMark = "<!-- vuka:package -->"
+
+// packagePage matches a page with the mark on a line of its own.
+var packagePage = regexp.MustCompile(`(?m)^` + regexp.QuoteMeta(vukaPackageMark) + `\s*$`)
+
+var ejectedOut = flag.String("vuka.out", "", "copy each package-mode Vuka sample's ejected Go into this directory")
+
+// packageFile is a file of a package-mode page: a context block or a Vuka
+// sample, and the Generated Go tab shown for it.
+type packageFile struct {
+	name, code string
+	line       int
+	gen        *sample
+}
+
+func TestGeneratedPackages(t *testing.T) {
+	type page struct {
+		name  string
+		files []packageFile
+	}
+	var pages []page
+	for _, p := range docPages(t) {
+		b, err := os.ReadFile(p)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if text := string(b); packagePage.MatchString(text) {
+			files, err := packageFiles(p, text)
+			if err != nil {
+				t.Error(err)
+			}
+			pages = append(pages, page{p, files})
+		}
+	}
+	if len(pages) == 0 {
+		return
+	}
+	if testing.Short() {
+		t.Skip("builds the vuka command")
+	}
+	if _, err := exec.LookPath("go"); err != nil {
+		t.Skip("no go command")
+	}
+	root, _ := filepath.Abs("..")
+	dir := t.TempDir()
+	vukaCmd := buildVuka(t, root, dir)
+	mod := filepath.Join(dir, "mod")
+	os.MkdirAll(mod, 0o755)
+	gomod, err := os.ReadFile("testdata/gomode/go.mod")
+	if err != nil {
+		t.Fatal(err)
+	}
+	gomod = bytes.Replace(gomod, []byte("=> ../../.."), []byte("=> "+root), 1)
+	os.WriteFile(filepath.Join(mod, "go.mod"), gomod, 0o644)
+	sum, _ := os.ReadFile("testdata/gomode/go.sum")
+	os.WriteFile(filepath.Join(mod, "go.sum"), sum, 0o644)
+	pkgDir := func(i int) string { return fmt.Sprintf("v%02d", i) }
+	for i, p := range pages {
+		os.MkdirAll(filepath.Join(mod, pkgDir(i)), 0o755)
+		for _, f := range p.files {
+			os.WriteFile(filepath.Join(mod, pkgDir(i), f.name), []byte(packageSource(f)), 0o644)
+		}
+	}
+	// Errors name the page and the sample's first line rather than the file.
+	where := func(out []byte) string {
+		s := string(out)
+		for i, p := range pages {
+			for _, f := range p.files {
+				s = strings.ReplaceAll(s, pkgDir(i)+"/"+ejectedName(f.name), fmt.Sprintf("%s (Go of the sample at line %d) ", p.name, f.line))
+				s = strings.ReplaceAll(s, pkgDir(i)+"/"+f.name, fmt.Sprintf("%s (the sample at line %d) ", p.name, f.line))
+			}
+		}
+		return s
+	}
+	env := append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=readonly")
+	for _, args := range [][]string{{vukaCmd, "eject", "./..."}, {"go", "vet", "-unreachable=false", "./..."}} {
+		cmd := exec.Command(args[0], args[1:]...)
+		cmd.Dir, cmd.Env = mod, env
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("%s %s: %v\n%s", filepath.Base(args[0]), args[1], err, where(out))
+		}
+	}
+	for i, p := range pages {
+		for _, f := range p.files {
+			out, err := os.ReadFile(filepath.Join(mod, pkgDir(i), ejectedName(f.name)))
+			if err != nil {
+				t.Errorf("%s:%d: no Go ejected: %v", p.name, f.line, err)
+				continue
+			}
+			if *ejectedOut != "" {
+				os.MkdirAll(*ejectedOut, 0o755)
+				name := fmt.Sprintf("%s-%d.go", strings.ReplaceAll(strings.TrimSuffix(p.name, ".md"), "/", "-"), f.line)
+				os.WriteFile(filepath.Join(*ejectedOut, name), out, 0o644)
+			}
+			if f.gen == nil {
+				continue
+			}
+			if missing, ok := excerptOf(f.gen.code, string(out)); !ok {
+				t.Errorf("%s:%d: the Generated Go isn't what vuka writes: %q is not in its output, in order. The output:\n%s", p.name, f.gen.line, missing, stripLineDirectives(string(out)))
+			}
+		}
+	}
+}
+
+// packageFiles are a package-mode page's context blocks and Vuka samples
+// (vuka fences, and html fences opening with <script lang="go">), each
+// sample with the Generated Go tab of its code group.
+func packageFiles(page, text string) ([]packageFile, error) {
+	var files []packageFile
+	lines := strings.Split(text, "\n")
+	for i := 0; i < len(lines); i++ {
+		if strings.TrimSpace(lines[i]) != vukaContextMark {
+			continue
+		}
+		start := i + 2
+		var code []string
+		for i++; i < len(lines) && strings.TrimSpace(lines[i]) != "-->"; i++ {
+			code = append(code, lines[i])
+		}
+		files = append(files, packageFile{name: fmt.Sprintf("c%04d.vuka", start), code: strings.Join(code, "\n"), line: start})
+	}
+	pairs, err := generatedPairs(page, text)
+	gens := map[int]*sample{}
+	for i := range pairs {
+		gens[pairs[i].vuka.line] = &pairs[i].gen
+	}
+	samples, _ := parsePage(page, text)
+	for _, s := range samples {
+		shape := (s.lang == "html" || s.lang == "vuka-html") && strings.HasPrefix(strings.TrimSpace(s.code), `<script lang="go">`)
+		if s.lang != "vuka" && !shape {
+			continue
+		}
+		f := packageFile{name: fmt.Sprintf("s%04d.vuka", s.line), code: s.code, line: s.line, gen: gens[s.line]}
+		if shape {
+			f.name += ".html"
+		}
+		files = append(files, f)
+	}
+	return files, err
+}
+
+// packageSource is a file of a package-mode page: package blog, and the
+// default imports it names, unless it has a package clause of its own.
+func packageSource(f packageFile) string {
+	if packageClause.MatchString(f.code) {
+		return f.code
+	}
+	return addDefaultImports("package blog\n\n" + f.code + "\n")
+}
+
+// ejectedName is the file vuka eject writes a sample's Go to.
+func ejectedName(name string) string {
+	if base, ok := strings.CutSuffix(name, ".vuka.html"); ok {
+		return base + "_html.go"
+	}
+	return strings.TrimSuffix(name, ".vuka") + "_vuka.go"
+}
+
+// buildVuka builds the repository's vuka command (its own module) against
+// this checkout of the libraries it compiles with.
+func buildVuka(t *testing.T, root, dir string) string {
+	t.Helper()
+	work := filepath.Join(dir, "go.work")
+	os.WriteFile(work, []byte(fmt.Sprintf("go 1.27.3\n\nuse (\n\t%s\n\t%s\n)\n", root, filepath.Join(root, "cmd", "vuka"))), 0o644)
+	bin := filepath.Join(dir, "vuka")
+	cmd := exec.Command("go", "build", "-o", bin, ".")
+	cmd.Dir = filepath.Join(root, "cmd", "vuka")
+	cmd.Env = append(os.Environ(), "GOWORK="+work)
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("building vuka: %v\n%s", err, out)
+	}
+	return bin
 }
