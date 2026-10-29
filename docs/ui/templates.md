@@ -250,10 +250,66 @@ ambiguous, [E0121](/errors/E0121). A call both ways fit is
 `GetCategories(/*vuka:noctx*/)` for the overload without, so that adding or
 removing an overload can't change which one the page calls.
 
+A page whose methods read the database takes the context in each, and
+its markup doesn't write it:
+
+<!-- vuka:context
+type Category struct{ Name string }
+
+type Advert struct{ Title string }
+-->
+
+::: code-group
+
+```vuka-html [Vuka]
+<script lang="go">
+package pages
+
+import "context"
+
+type Index struct {
+	Page int
+}
+
+func (p Index) Categories(ctx context.Context) ([]Category, error) { return nil, nil }
+
+func (p Index) Adverts(ctx context.Context, page int) []Advert { return nil }
+</script>
+
+<section>
+  <p>{len(Categories())} categories</p>
+  <ul>
+    for _, a := range Adverts(Page) {
+      <li>{a.Title}</li>
+    }
+  </ul>
+</section>
+```
+
+```go [Generated Go]
+func (p Index) View() ui.Node {
+	return ui.Ctx(func(ctx context.Context) ui.Node {
+		var lis []ui.Node
+		for _, a := range p.Adverts(ctx, p.Page) {
+			lis = append(lis, ui.HTML(`<li>{a.Title}</li>`, a.Title))
+		}
+		return ui.HTML(`
+<section>
+  <p>{len(ui.Must(p.Categories(ctx)))} categories</p>
+  <ul>{lis}</ul>
+</section>`, len(ui.Must(p.Categories(ctx))), lis)
+	})
+}
+
+// …
+```
+
+:::
+
 Only the context is passed: a call still short of an argument is
 [E0162](/errors/E0162). A service belongs to the page, taken by its
 constructor and kept in a field the markup reads. The generated Go has the
-real call, `p.GetCategories(ctx)`; hover in the editor says the page
+real call, `p.Categories(ctx)`; hover in the editor says the page
 supplies the ctx, and an inlay hint shows it.
 
 ### Reviewing Authority in Markup {#reviewing-authority}
@@ -294,7 +350,8 @@ changes, so the list `vuka explain` prints is where to see it: a component
 with calls listed there renders with the request's context.
 
 A module that wants every use of the context written in the source turns
-implicit ctx off in its `vuka.toml`, next to `go.mod`:
+implicit ctx off in its [`vuka.toml`](/reference/vuka-toml#compile), next to
+`go.mod`:
 
 ```toml
 [compile]
@@ -382,26 +439,75 @@ can't be used after the element holding the statement.
 A statement binding one name to a call of the app's code is lazy: the call
 runs where the render first reads the name, once, and the result is reused.
 A binding no rendered markup reads never runs — one used only in a branch
-not taken, or not at all:
+not taken, or not at all. Below, `GetCategories` runs once however many
+times the markup reads it, and `GetStats` only when `ShowStats` is true:
 
-```html
+<!-- vuka:context
+type Category struct{ Name string }
+
+type Stats struct{ Open int }
+-->
+
+::: code-group
+
+```vuka-html [Vuka]
+<script lang="go">
+package pages
+
+import "context"
+
+type Index struct {
+	ShowStats bool
+}
+
+func (p Index) GetCategories(ctx context.Context) ([]Category, error) { return nil, nil }
+
+func (p Index) GetStats(ctx context.Context) Stats { return Stats{} }
+</script>
+
 <section>
-  categories := GetCategories()   <!-- runs at the first {…} reading it -->
-  stats := Stats()                <!-- never runs: no use renders -->
+  categories := GetCategories()
+  stats := GetStats()
   <h3>{len(categories)} categories</h3>
   for _, c := range categories {
     <label>{c.Name}</label>
   }
-  if false {
+  if ShowStats {
     <p>{stats.Open} open</p>
   }
 </section>
 ```
 
+```go [Generated Go]
+func (p Index) View() ui.Node {
+	return ui.Ctx(func(ctx context.Context) ui.Node {
+		categories := sync.OnceValue(func() []Category { return ui.Must(p.GetCategories(ctx)) })
+		stats := sync.OnceValue(func() Stats { return p.GetStats(ctx) })
+		var labels []ui.Node
+		for _, c := range categories() {
+			labels = append(labels, ui.HTML(`<label>{c.Name}</label>`, c.Name))
+		}
+		var p2 ui.Node
+		if p.ShowStats {
+			p2 = ui.HTML(`<p>{stats().Open} open</p>`, stats().Open)
+		}
+		return ui.HTML(`
+<section>
+  <h3>{len(categories())} categories</h3>
+  {labels}
+  {p2}
+</section>`, len(categories()), labels, p2)
+	})
+}
+
+// …
+```
+
+:::
+
 The `(T, error)` unwrap applies at that first read, where the value would
-have appeared. The generated Go is
-`categories := sync.OnceValue(func() []Category { return ui.Must(p.GetCategories(ctx)) })`,
-each read `categories()`. A binding the markup assigns again (`x = 2`), or
+have appeared. In the generated Go each binding is a `sync.OnceValue`, and
+each read calls it: `categories()`. A binding the markup assigns again (`x = 2`), or
 takes the address of, runs at its statement, as do a binding of several
 names and one of standard-library calls only (`n := len(xs)`). A deferred
 method's binding is its element's part: see

@@ -8,6 +8,7 @@ import (
 	"go/importer"
 	"go/parser"
 	"go/token"
+	"go/types"
 	"io"
 	"io/fs"
 	"os"
@@ -184,10 +185,11 @@ func TestGoSamples(t *testing.T) {
 		}
 		samples, containers := parsePage(page, string(b))
 		checkContainers(t, page, string(b), samples, containers)
+		excerpts := generatedGoLines(page, string(b))
 		var vet []sample
 		for _, s := range samples {
 			shown := !s.inVuka
-			if !shown || strings.HasPrefix(page, "errors/") || generatedUIPage(page) {
+			if !shown || strings.HasPrefix(page, "errors/") || generatedUIPage(page) || excerpts[s.line] {
 				continue
 			}
 			if s.lang == "go" || s.lang == "html" && s.inGo {
@@ -740,7 +742,13 @@ func withImports(name string, src []byte, imports map[string]string, declared ma
 // transpileFixture resolves the same pinned libraries as the Go sample module.
 func transpileFixture(t *testing.T, dir, name, code string) (*transpile.Result, error) {
 	t.Helper()
-	imp := importer.ForCompiler(token.NewFileSet(), "gc", func(path string) (io.ReadCloser, error) {
+	return transpile.Package([]transpile.File{{Name: name, Src: []byte(code)}}, transpile.Options{Importer: exportImporter(dir)})
+}
+
+// exportImporter imports packages by the export data go list builds in the
+// module at dir.
+func exportImporter(dir string) types.Importer {
+	return importer.ForCompiler(token.NewFileSet(), "gc", func(path string) (io.ReadCloser, error) {
 		cmd := exec.Command("go", "list", "-export", "-f", "{{.Export}}", path)
 		cmd.Dir = dir
 		cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=readonly")
@@ -750,5 +758,4 @@ func transpileFixture(t *testing.T, dir, name, code string) (*transpile.Result, 
 		}
 		return os.Open(strings.TrimSpace(string(out)))
 	})
-	return transpile.Package([]transpile.File{{Name: name, Src: []byte(code)}}, transpile.Options{Importer: imp})
 }

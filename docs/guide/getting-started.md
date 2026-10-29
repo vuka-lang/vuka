@@ -152,3 +152,20 @@ the markup they render.
 
 Pages use `[id]` names and `_layout.vuka.html`, and `main.go` constructs
 `web.New(pages.Routes(), …)`. See [Web getting started](/web/getting-started).
+
+## Where to Go Next {#next}
+
+- **The language:** [Result & Option](/features/result-option), [the `?`
+  operator](/features/try) — with context, `?("loading user %d", id)`, and in
+  `main` and tests — [`match`](/features/match), including
+  [matching errors](/features/match#matching-errors) from a `(T, error)`
+  call, and [enums](/features/enums), with
+  [methods on variants](/features/enums#methods-on-variants) and
+  [errors with a cause](/features/enums#errors-with-a-cause).
+- **Web apps:** [Your First Web App](/web/), [Templates](/ui/templates) and
+  [the render's context](/ui/templates#implicit-ctx) in markup calls,
+  [Static Files](/web/static-files) linked with `web.Asset`, and
+  [UI components](/ui/vendored) `vuka ui add` writes into the app.
+- **Tools:** [the `vuka` command](/tools/cli), [Editors](/tools/editors),
+  the project's [`vuka.toml`](/reference/vuka-toml), and the
+  [diagnostic codes](/errors/).

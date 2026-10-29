@@ -9,7 +9,8 @@ after the markup. The `<script lang="go">` still comes first and declares
 exactly one struct.
 
 Styles are scoped to the component, and scripts run once per instance. For
-utility classes across the app, see [Tailwind CSS](/web/styling).
+utility classes across the app, see [Tailwind CSS](/web/styling); for
+images, fonts and files served as they are, [Static Files](/web/static-files).
 
 ## A Component With Style and Script
 

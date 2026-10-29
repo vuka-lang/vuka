@@ -61,15 +61,57 @@ func parseID(arg string) (int, error) {
 }
 ```
 
-With `?`, each fallible call is one line:
+With `?`, each fallible call is one line — on Go's `(T, error)` and on a
+`Result` alike:
 
-```vuka
+<!-- vuka:context
+type User struct {
+	ID   int
+	Name string
+}
+
+var users = map[int]User{}
+
+func find(id int) vuka.Result[User] {
+	u, ok := users[id]
+	if !ok {
+		return vuka.Err[User](fmt.Errorf("user %d not found", id))
+	}
+	return vuka.Ok(u)
+}
+
+var ErrEmailTaken = errors.New("email taken")
+
+func exists(ctx context.Context, email string) (bool, error) { return false, nil }
+
+func create(ctx context.Context, email string) error { return nil }
+-->
+
+::: code-group
+
+```vuka [Vuka]
 func lookup(arg string) Result[User] {
-	id := strconv.Atoi(arg)?          // Go's (T, error) works directly
-	u := find(id)?                    // so does a Result
+	id := strconv.Atoi(arg)?
+	u := find(id)?
 	return Ok(u)
 }
 ```
+
+```go [Generated Go]
+func lookup(arg string) vuka.Result[User] {
+	id, err := strconv.Atoi(arg)
+	if err != nil {
+		return vuka.Err[User](err)
+	}
+	u, err := find(id).Get()
+	if err != nil {
+		return vuka.Err[User](err)
+	}
+	return vuka.Ok[User](u)
+}
+```
+
+:::
 
 ## Where ? Works
 
@@ -111,7 +153,9 @@ before it are called into variables first, `&&` and `||` still skip their
 right side, an `else if` is tested only when the branches before it weren't
 taken.
 
-```vuka
+::: code-group
+
+```vuka [Vuka]
 func register(ctx context.Context, email string) error {
 	if exists(ctx, email)? {
 		return ErrEmailTaken
@@ -120,9 +164,7 @@ func register(ctx context.Context, email string) error {
 }
 ```
 
-is
-
-```go
+```go [Generated Go]
 func register(ctx context.Context, email string) error {
 	exists, err := exists(ctx, email)
 	if err != nil {
@@ -134,6 +176,8 @@ func register(ctx context.Context, email string) error {
 	return create(ctx, email)
 }
 ```
+
+:::
 
 | Written | Becomes |
 |---|---|
@@ -172,7 +216,9 @@ is evaluated only on failure.
 | `f()?(RegisterError.Database)` | `RegisterError.Database{Err: err}`, a variant whose only field is an `error` |
 | `opt?(ErrNoUser)`, an `Option` | `ErrNoUser` (a message: `errors.New("…")`) |
 
-```vuka
+::: code-group
+
+```vuka [Vuka]
 func signUp(ctx context.Context, email string) error {
 	if exists(ctx, email)?("checking email") {
 		return ErrEmailTaken
@@ -182,9 +228,29 @@ func signUp(ctx context.Context, email string) error {
 }
 ```
 
+```go [Generated Go]
+func signUp(ctx context.Context, email string) error {
+	exists, err := exists(ctx, email)
+	if err != nil {
+		return fmt.Errorf("checking email: %w", err)
+	}
+	if exists {
+		return ErrEmailTaken
+	}
+	if err := create(ctx, email); err != nil {
+		return fmt.Errorf("creating %s: %w", email, err)
+	}
+	return nil
+}
+```
+
+:::
+
 The errors stay chained: `errors.Is(err, sql.ErrNoRows)` still finds the
-error a context wraps. A module can have `vuka vet` ask for context on every
-`?` passing on another package's error ([W0111](/errors/W0111)):
+error a context wraps, and a [`match`](/features/match#matching-errors) where
+the error is handled still tells it apart. A module can have `vuka vet` ask
+for context on every `?` passing on another package's error
+([W0111](/errors/W0111)), in its [`vuka.toml`](/reference/vuka-toml#vet):
 
 ```toml
 [vet]
@@ -197,7 +263,21 @@ In `main`, a `?` exits the program: the body runs as a function returning
 an error, so deferred calls run first, then `main` prints `error: …` to
 standard error and exits with status 1.
 
-```vuka
+<!-- vuka:context
+type DB struct{}
+
+func (*DB) Close() error { return nil }
+
+func openDB() (*DB, error) { return &DB{}, nil }
+
+func serve(db *DB) error { return nil }
+-->
+
+::: code-group
+
+```vuka [Vuka]
+package main
+
 func main() {
 	db := openDB()?
 	defer db.Close()
@@ -205,9 +285,7 @@ func main() {
 }
 ```
 
-is
-
-```go
+```go [Generated Go]
 func main() {
 	if err := main_(); err != nil {
 		fmt.Fprintln(os.Stderr, "error:", err)
@@ -228,14 +306,46 @@ func main_() error {
 }
 ```
 
+:::
+
 In a function taking a `*testing.T`, `*testing.B` or `testing.TB` that
 returns no error, a `?` fails the test: `t.Helper(); t.Fatal(err)`.
 
-```vuka
+<!-- vuka:context
+type Accounts struct{}
+
+func (*Accounts) Exists(ctx context.Context, email string) (bool, error) { return false, nil }
+
+func newAccounts(t testing.TB) (*Accounts, error) { return &Accounts{}, nil }
+-->
+
+::: code-group
+
+```vuka [Vuka]
 func TestRegister(t *testing.T) {
 	a := newAccounts(t)?
-	if a.Exists(ctx, "a@example.com")? {
+	if a.Exists(t.Context(), "a@example.com")? {
 		t.Fatal("registered before signing up")
 	}
 }
 ```
+
+```go [Generated Go]
+func TestRegister(t *testing.T) {
+	a, err := newAccounts(t)
+	if err != nil {
+		t.Helper()
+		t.Fatal(err)
+	}
+	exists, err := a.Exists(t.Context(), "a@example.com")
+	if err != nil {
+		t.Helper()
+		t.Fatal(err)
+	}
+	if exists {
+		t.Fatal("registered before signing up")
+	}
+}
+```
+
+:::
