@@ -56,6 +56,53 @@ success to the visitor.
 > [!WARNING]
 > Avoid putting tokens in logs.
 
+## Images in Emails {#images}
+
+A mail client fetches an email's images from the app, so they need
+absolute URLs. `web.AssetURL` gives one for a file an `app.Static` mount
+serves, content-hashed and cached for good like a page's
+[`web.Asset`](/web/static-files):
+
+::: code-group
+
+```vuka-html [Vuka]
+<script lang="go">
+package emails
+
+import "github.com/vuka-lang/web/v2"
+
+type Receipt struct {
+    OrderID int
+}
+</script>
+
+<main>
+  <img src={web.AssetURL("/static/images/logo.png")} alt="Shop" width="120" />
+  <h1>Order {OrderID}</h1>
+</main>
+```
+
+```go [Generated Go]
+func (r Receipt) View() ui.Node {
+	return ui.Ctx(func(ctx context.Context) ui.Node {
+		return ui.HTML(`
+<main>
+  <img src={web.AssetURL(ctx, "/static/images/logo.png")} alt="Shop" width="120"/>
+  <h1>Order {r.OrderID}</h1>
+</main>`, web.AssetURL(ctx, "/static/images/logo.png"), r.OrderID)
+	})
+}
+
+// …
+```
+
+:::
+
+Rendered with the request's context (`ui.String(ctx, …)` in a handler), the
+URL takes the request's scheme and host. A cron or a job has no request, so
+the app names its public URL with `web.BaseURL("https://shop.example.com")`;
+see [Absolute URLs for Emails](/web/static-files#absolute-urls-for-emails).
+
 ## Sending Later
 
 Queue slow delivery outside a latency-sensitive request where appropriate.

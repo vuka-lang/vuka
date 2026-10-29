@@ -14,7 +14,7 @@ is covered.
 
 ## Matching a Value
 
-<!-- go:context
+<!-- vuka:context
 type User struct {
 	ID   int
 	Name string
@@ -36,27 +36,71 @@ func lookup(arg string) vuka.Result[User] {
 This sample matches the Result of a lookup, taking apart a specific error type
 and using a guard for another:
 
-```vuka
-match lookup(arg) {
-case Ok(u):
-	fmt.Println(u.Name)
-case Err(&NotFound{ID: id}):
-	fmt.Println("missing user", id)
-case Err(e) if errors.Is(e, strconv.ErrSyntax):
-	fmt.Println("not a number:", arg)
-case Err(e):
-	fmt.Println("error:", e)
+::: code-group
+
+```vuka [Vuka]
+func show(arg string) {
+	match lookup(arg) {
+	case Ok(u):
+		fmt.Println(u.Name)
+	case Err(&NotFound{ID: id}):
+		fmt.Println("missing user", id)
+	case Err(e) if errors.Is(e, strconv.ErrSyntax):
+		fmt.Println("not a number:", arg)
+	case Err(e):
+		fmt.Println("error:", e)
+	}
 }
 ```
 
+```go [Generated Go]
+func show(arg string) {
+	if m1 := lookup(arg); false {
+		panic(m1)
+	} else if u := m1.Value(); m1.IsOk() {
+		fmt.Println(u.Name)
+	} else if id, ok := func() (id int, ok bool) {
+		if !(m1.IsErr()) {
+			return
+		}
+		var p1 *NotFound
+		if !errors.As(m1.Err(), &p1) {
+			return
+		}
+		if !(p1 != nil) {
+			return
+		}
+		id = p1.ID
+		ok = true
+		return
+	}(); ok {
+		fmt.Println("missing user", id)
+	} else if e := m1.Err(); m1.IsErr() && (errors.Is(e, strconv.ErrSyntax)) {
+		_ = e
+		fmt.Println("not a number:", arg)
+	} else if e := m1.Err(); m1.IsErr() {
+		fmt.Println("error:", e)
+	} else {
+		panic("vuka: no case matched")
+	}
+}
+```
+
+:::
+
 ## Matching Errors
 
-<!-- go:context
+<!-- vuka:context
 var ErrNotFound = errors.New("not found")
 
 type ValidationError struct{ Field string }
 
 func (e *ValidationError) Error() string { return "invalid " + e.Field }
+
+type User struct {
+	ID   int
+	Name string
+}
 
 func findUser(email string) (*User, error) { return nil, ErrNotFound }
 -->
@@ -65,7 +109,9 @@ func findUser(email string) (*User, error) { return nil, ErrNotFound }
 `Err` patterns test the error the way Go does, through every error it
 wraps:
 
-```vuka
+::: code-group
+
+```vuka [Vuka]
 func login(email string) string {
 	match findUser(email) {
 	case Ok(u):
@@ -80,21 +126,7 @@ func login(email string) string {
 }
 ```
 
-- `Err(ErrNotFound)`, `Err(fs.ErrNotExist)`: a sentinel, tested with
-  `errors.Is` — so an error wrapped with `fmt.Errorf("…: %w", err)` (or
-  `?("…")`) still matches. A bare name in a pattern against an error is a
-  sentinel when it names a package-level variable of type `error`.
-- `Err(&ValidationError{Field: f})`: an error type, found in the chain with
-  `errors.As`; its fields are patterns as in any struct pattern.
-- `Err(e)`: any error, bound to `e`.
-
-The same holds for a `match` on an `error` value itself: `case ErrNotFound:`
-is `errors.Is`, `case &ValidationError{}:` is `errors.As`, and `case nil:`
-compares.
-
-The call runs once. The match above is the Go you would write:
-
-```go
+```go [Generated Go]
 func login(email string) string {
 	if u, err := findUser(email); err == nil {
 		return "hello " + u.Name
@@ -120,6 +152,22 @@ func login(email string) string {
 	}
 }
 ```
+
+:::
+
+The call runs once, in the `if` that tests the first case, its value and error that `if`'s own variables.
+
+- `Err(ErrNotFound)`, `Err(fs.ErrNotExist)`: a sentinel, tested with
+  `errors.Is` — so an error wrapped with `fmt.Errorf("…: %w", err)` (or
+  `?("…")`) still matches. A bare name in a pattern against an error is a
+  sentinel when it names a package-level variable of type `error`.
+- `Err(&ValidationError{Field: f})`: an error type, found in the chain with
+  `errors.As`; its fields are patterns as in any struct pattern.
+- `Err(e)`: any error, bound to `e`.
+
+The same holds for a `match` on an `error` value itself: `case ErrNotFound:`
+is `errors.Is`, `case &ValidationError{}:` is `errors.As`, and `case nil:`
+compares.
 
 The value is named after what a case's `Ok` binds it to, else its type
 (`*User` is `user`) or the call, and the error is `err`; a name a case uses

@@ -47,7 +47,8 @@ It writes three things:
 - **`components/ui/cn.go`**, the class helper every component uses, and its
   tests.
 - **A `[ui]` table in `vuka.toml`**, next to `go.mod` and its `[fmt]`
-  table, recording where the components go:
+  table, recording where the components go
+  ([every key](/reference/vuka-toml#ui)):
 
 ```toml
 [ui]

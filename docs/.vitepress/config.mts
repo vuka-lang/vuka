@@ -65,6 +65,7 @@ export default defineConfig({
           { text: 'Your First Web App', link: '/web/' },
           { text: 'Directory Structure', link: '/web/getting-started' },
           { text: 'Configuration', link: '/web/configuration' },
+          { text: 'Project Settings (vuka.toml)', link: '/reference/vuka-toml' },
           { text: 'Deployment', link: '/web/deployment' },
           { text: 'Examples', link: '/examples' },
           { text: 'LLMs & AI Assistants', link: '/guide/llms' },
@@ -185,6 +186,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Errors', link: '/errors/' },
+          { text: 'vuka.toml', link: '/reference/vuka-toml' },
           { text: 'Live Protocol', link: '/reference/live-protocol' },
         ],
       },
