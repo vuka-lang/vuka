@@ -238,6 +238,8 @@ type vfile struct {
 	version  int
 	probed   int  // the version holding the last probe (see probe)
 	pending  bool // not sent to gopls yet (lsp_open.go)
+
+	genLines, fromLines, curLines *lineIndex // line starts of gen, from and cur (index)
 }
 
 // namesOf is the package's overloads, Go name → the source's; nil for no
@@ -265,11 +267,14 @@ type hunk struct{ cur, curEnd, from, fromEnd int }
 // withText sets the editor's text cur, and the hunks between it and from:
 // the given ones, or else a diff of the two, which leaves f stale.
 func (f *vfile) withText(cur []byte, hunks []hunk) {
-	f.cur, f.hunks, f.stale = nil, nil, false
+	f.cur, f.hunks, f.stale, f.curLines = nil, nil, false, nil
 	if cur == nil || bytes.Equal(cur, f.from) {
 		return
 	}
 	f.cur, f.hunks = cur, hunks
+	if f.fromLines != nil {
+		f.curLines = newLineIndex(cur) // f is indexed: so is its text
+	}
 	if hunks == nil {
 		f.hunks, f.stale = diffHunks(f.from, cur), true
 	}
@@ -340,14 +345,14 @@ func (f *vfile) isTempl() bool { return f.m == nil }
 func (f *vfile) toGen(pos lspPosition) lspPosition {
 	if f.m == nil {
 		if f.templ != nil {
-			line, col := byteCol(f.from, pos)
+			line, col := byteCol(f.lines(f.from), pos)
 			if g, ok := f.templ.TargetPositionFromSource(line, col); ok {
-				return atByteCol(f.gen, g.Line, g.Col)
+				return atByteCol(f.lines(f.gen), g.Line, g.Col)
 			}
 		}
 		return pos
 	}
-	o := f.fromOff(offsetOf(f.text(), pos))
+	o := f.fromOff(f.textLines().offset(pos))
 	g, _ := f.m.ToGenerated(o)
 	// At a name's first byte, the name: not text Vuka wrote before it (a
 	// bare field's receiver).
@@ -356,7 +361,7 @@ func (f *vfile) toGen(pos lspPosition) lspPosition {
 			g = next - 1
 		}
 	}
-	return positionOf(f.gen, g)
+	return f.lines(f.gen).position(g)
 }
 
 // toSource maps a range in the generated Go to the source file. In a .templ
@@ -374,12 +379,14 @@ func (f *vfile) toSource(r lspRange, exact bool) (lspRange, bool) {
 	if exact && s == e && r.Start != r.End {
 		return r, false // a name Vuka wrote: the receiver type of a method it generates
 	}
-	return lspRange{positionOf(f.text(), f.curOff(s)), positionOf(f.text(), f.curOff(e))}, true
+	text := f.textLines()
+	return lspRange{text.position(f.curOff(s)), text.position(f.curOff(e))}, true
 }
 
 // fromRange is a range in the generated Go as offsets in the text it came from.
 func (f *vfile) fromRange(r lspRange) (s, e int, ok bool) {
-	gs, ge := offsetOf(f.gen, r.Start), offsetOf(f.gen, r.End)
+	gen := f.lines(f.gen)
+	gs, ge := gen.offset(r.Start), gen.offset(r.End)
 	s, _, ok1 := f.m.ToSource(gs)
 	e, _, ok2 := f.m.ToSource(ge)
 	if ge > gs && (!ok2 || e < s) {
@@ -421,34 +428,35 @@ func (f *vfile) templSource(r lspRange) (lspRange, bool) {
 	if f.templ == nil {
 		return r, false
 	}
-	line, col := byteCol(f.gen, r.Start)
+	gen, src := f.lines(f.gen), f.lines(f.from)
+	line, col := byteCol(gen, r.Start)
 	start, ok := f.templ.SourcePositionFromTarget(line, col)
 	if !ok {
 		sym, ok := f.templ.SymbolSourceRangeFromTarget(line, col)
 		if !ok {
 			return r, false
 		}
-		return lspRange{atByteCol(f.from, sym.From.Line, sym.From.Col), atByteCol(f.from, sym.To.Line, sym.To.Col)}, true
+		return lspRange{atByteCol(src, sym.From.Line, sym.From.Col), atByteCol(src, sym.To.Line, sym.To.Col)}, true
 	}
 	// Expressions are copied verbatim, so a one-line range keeps its width.
-	from := lineStart(f.from, start.Line) + int(start.Col)
+	from := src.lineStart(start.Line) + int(start.Col)
 	to := from
 	if r.End.Line == r.Start.Line {
-		if endLine, endCol := byteCol(f.gen, r.End); endLine == line && endCol > col {
+		if endLine, endCol := byteCol(gen, r.End); endLine == line && endCol > col {
 			to += int(endCol - col)
 		}
 	}
-	return lspRange{positionOf(f.from, from), positionOf(f.from, to)}, true
+	return lspRange{src.position(from), src.position(to)}, true
 }
 
-// byteCol is an LSP position's line and byte column.
-func byteCol(buf []byte, pos lspPosition) (line, col uint32) {
-	return pos.Line, uint32(offsetOf(buf, pos) - lineStart(buf, pos.Line))
+// byteCol is an LSP position's line and byte column in x's buffer.
+func byteCol(x *lineIndex, pos lspPosition) (line, col uint32) {
+	return pos.Line, uint32(x.offset(pos) - x.lineStart(pos.Line))
 }
 
-// atByteCol is the LSP position of a line and byte column.
-func atByteCol(buf []byte, line, col uint32) lspPosition {
-	return positionOf(buf, lineStart(buf, line)+int(col))
+// atByteCol is the LSP position of a line and byte column in x's buffer.
+func atByteCol(x *lineIndex, line, col uint32) lspPosition {
+	return x.position(x.lineStart(line) + int(col))
 }
 
 func lineStart(buf []byte, line uint32) int { return offsetOf(buf, lspPosition{Line: line}) }

@@ -448,8 +448,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			d = &diagSet{text: text}
 			diags[e.Pos.Filename] = d
 		}
-		pos := positionOf(text, off)
-		r := lspRange{pos, positionOf(text, off+e.Len)}
+		r := lspRange{d.at(off), d.at(off + e.Len)}
 		if e.Code == "E0005" {
 			// The error at an import names the package's error at its source.
 			dg := e.Diagnostic("")
@@ -482,7 +481,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			}
 			dg := w.Diagnostic("")
 			dg.Severity = diag.Warning
-			d.list = append(d.list, lspFrom(lspRange{positionOf(text, off), positionOf(text, off+w.Len)}, dg))
+			d.list = append(d.list, lspFrom(lspRange{d.at(off), d.at(off + w.Len)}, dg))
 		}
 	}
 	// Which of them are syntax errors, that the editor's next change may
@@ -506,6 +505,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	for _, g := range gens {
 		tm, _ := g.TemplMap.(*templparser.SourceMap)
 		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, matches: g.Matches, implicit: g.Implicit, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings), ambig: ambigFixes(g.Warnings)}
+		vf.index()
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])
 		}
@@ -661,7 +661,20 @@ type diagSet struct {
 	text   []byte
 	list   []any // lspDiagnostic or gopls's map
 	syntax []int // the transpiler's: those that are syntax errors
+
+	lines *lineIndex // text's, made on first use
 }
+
+// textLines is the line index of d.text.
+func (d *diagSet) textLines() *lineIndex {
+	if d.lines == nil || !sameBytes(d.lines.buf, d.text) {
+		d.lines = newLineIndex(d.text)
+	}
+	return d.lines
+}
+
+// at is the LSP position of the offset off in d.text.
+func (d *diagSet) at(off int) lspPosition { return d.textLines().position(off) }
 
 // in is the diagnostics moved onto the text cur, with or without the
 // syntax errors.
@@ -677,9 +690,11 @@ func (d *diagSet) in(cur []byte, syntax bool) []any {
 	}
 	same := cur == nil || bytes.Equal(cur, d.text)
 	var m vfile
+	var from, to *lineIndex
 	if !same {
 		m = vfile{from: d.text}
 		m.withText(cur, nil)
+		from, to = d.textLines(), newLineIndex(cur)
 	}
 	out := []any{}
 	for i, x := range d.list {
@@ -691,8 +706,8 @@ func (d *diagSet) in(cur []byte, syntax bool) []any {
 			continue
 		}
 		move := func(r lspRange) lspRange {
-			s, e := m.curOff(offsetOf(d.text, r.Start)), m.curOff(offsetOf(d.text, r.End))
-			return lspRange{positionOf(cur, s), positionOf(cur, max(s, e))}
+			s, e := m.curOff(from.offset(r.Start)), m.curOff(from.offset(r.End))
+			return lspRange{to.position(s), to.position(max(s, e))}
 		}
 		switch x := x.(type) {
 		case lspDiagnostic:
@@ -932,8 +947,8 @@ func (p *proxy) syntaxOf(path string, buf []byte) (d *diagSet) {
 		others = p.packageSources(path)
 	}
 	for _, e := range syntaxCheck(&p.syntax, path, src, others) {
-		pos := positionOf(buf, m.curOff(e.Pos.Offset))
-		d.list = append(d.list, lspFromError(lspRange{pos, positionOf(buf, m.curOff(e.Pos.Offset+e.Len))}, e))
+		r := lspRange{d.at(m.curOff(e.Pos.Offset)), d.at(m.curOff(e.Pos.Offset + e.Len))}
+		d.list = append(d.list, lspFromError(r, e))
 	}
 	return d
 }
