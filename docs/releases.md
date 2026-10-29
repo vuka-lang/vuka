@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.12.0 — unreleased
+## v2.12.0 — 2026-10-30
 
 ### ORM
 
@@ -45,7 +45,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
   its `?`/`{n}` against its arguments ([E0506](/errors/E0506)); warnings for
   a `Count` a later join can repeat ([W0501](/errors/W0501)) and a join read
   as the model's rows ([W0502](/errors/W0502)).
-
 - **Seeing the SQL, and the database's plan.** Each terminal has a
   `…SQL` that builds its statement without running it — `CountSQL`,
   `ExistsSQL`, `AggregateSQL`, `UpdateSQL`, `DeleteSQL`, beside the query's
@@ -132,6 +131,15 @@ the `github.com/vuka-lang/vuka` package your module requires.
   page marked `<!-- vuka:package -->` with the repository's vuka command, vet
   the Go, and check every Generated Go tab against it.
 
+### Upgrading
+
+- **The ORM changes above come from `github.com/vuka-lang/orm/v2` at its
+  main branch** until its next tag; `vuka new` still writes orm v2.1.0. To
+  use them now: `go get github.com/vuka-lang/orm/v2@main`.
+- **`OrderBy`, `GroupBy`, `SelectRelated` and `Values` take `...any`** so
+  they accept typed fields. String arguments work as before; spreading a
+  `[]string` into them (`OrderBy(names...)`) no longer compiles — convert it
+  to `[]any` first. `orm.Orderings` returns `[]any`.
 
 ## v2.11.0 — 2026-10-29
 
