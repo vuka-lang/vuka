@@ -1,0 +1,15 @@
+# uikit: the components vuka ui add writes, in a live page — buttons with
+# live handlers and JS commands, badges, alerts, a card with its slots,
+# labels and inputs, tabs whose tab is server state, a dialog opened by a
+# button's JS commands and one its page's handlers open and close (PushJS),
+# its OnClose hearing Escape.
+GET /
+LIVE /
+  {"type":"event","target":"c1:0","event":"click"}
+  {"type":"event","target":"c1:0","event":"click"}
+  {"type":"event","target":"c2:1","event":"click"}
+  {"type":"event","target":"c1:1","event":"click"}
+  {"type":"event","target":"c1:2","event":"keydown","key":"Escape"}
+  {"type":"event","target":"c2:0","event":"click"}
+  {"type":"event","target":"c1:1","event":"click"}
+  {"type":"event","target":"c1:5","event":"click"}

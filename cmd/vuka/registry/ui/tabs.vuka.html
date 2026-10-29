@@ -1,0 +1,101 @@
+<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// Tabs shows one panel at a time, a tab list above them. The tab shown is
+// state on the server: a click switches it over the page's live
+// connection, and the page's other state stays as it is.
+//
+//	<design.Tabs id="settings" default="account">
+//	  <slot:tab value="account" label="Account">…</slot:tab>
+//	  <slot:tab value="password" label="Password">…</slot:tab>
+//	</design.Tabs>
+//
+// Rendered without a live connection (a page that isn't live), it shows
+// the Default tab.
+type Tabs struct {
+	ui.Live
+	// ID prefixes the tabs' and the panels' ids; "tabs" by default. Give
+	// each Tabs on a page its own.
+	ID string
+	// Default is the Value of the tab shown first; the first tab's by
+	// default.
+	Default string
+	// Tabs are the tabs, a <slot:tab> each, in order.
+	Tabs []Tab
+	// Class is added to the root's classes, winning over them (see cn).
+	Class string
+
+	active string
+}
+
+// Select shows the tab whose Value is v.
+func (t *Tabs) Select(v string) { t.active = v }
+
+// current is the Value of the tab shown.
+func (t *Tabs) current() string {
+	switch {
+	case t.active != "":
+		return t.active
+	case t.Default != "":
+		return t.Default
+	case len(t.Tabs) > 0:
+		return t.Tabs[0].Value
+	}
+	return ""
+}
+
+func (t *Tabs) id(tab Tab, part string) string {
+	id := t.ID
+	if id == "" {
+		id = "tabs"
+	}
+	return id + "-" + part + "-" + tab.Value
+}
+
+// selected is a tab's aria-selected.
+func (t *Tabs) selected(tab Tab) string {
+	if tab.Value == t.current() {
+		return "true"
+	}
+	return "false"
+}
+
+const tabsList = "inline-flex h-9 w-fit items-center justify-center rounded-lg bg-muted p-[3px] text-muted-foreground"
+
+const tabsTrigger = "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-center gap-1.5 whitespace-nowrap rounded-md border border-transparent px-2 py-1 " +
+	"text-sm font-medium text-foreground transition-[color,box-shadow] disabled:pointer-events-none disabled:opacity-50 " +
+	"focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:outline-1 focus-visible:outline-ring " +
+	"aria-selected:bg-background aria-selected:shadow-sm"
+</script>
+
+<div class={cn("flex flex-col gap-2", t.Class)}>
+  <div role="tablist" class={tabsList}>
+    for _, tab := range t.Tabs {
+      <button
+        key={tab.Value}
+        type="button"
+        role="tab"
+        id={t.id(tab, "tab")}
+        aria-controls={t.id(tab, "panel")}
+        aria-selected={t.selected(tab)}
+        disabled={tab.Disabled}
+        class={tabsTrigger}
+        onClick={Select(tab.Value)}
+      >{tab.Label}</button>
+    }
+  </div>
+  for _, tab := range t.Tabs {
+    if tab.Value == t.current() {
+      <div
+        key={tab.Value}
+        role="tabpanel"
+        id={t.id(tab, "panel")}
+        aria-labelledby={t.id(tab, "tab")}
+        tabindex="0"
+        class="flex-1 outline-none"
+      >{tab.Panel}</div>
+    }
+  }
+</div>

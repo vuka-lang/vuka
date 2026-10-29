@@ -38,6 +38,11 @@ or the Go project. "Go" is a trademark of Google LLC.
   with templ's own parser and generator. templ's language server, which proxies
   gopls, was also the model for Vuka's.
 
+- [shadcn/ui](https://ui.shadcn.com) by shadcn (MIT) — the components
+  `vuka ui add` writes take their classes and their design tokens' names
+  from it, so its themes paste in.
+- [Lucide](https://lucide.dev) (ISC) — the dialog's close icon.
+
 ## License
 
 Vuka is released under the [MIT License](https://github.com/vuka-lang/vuka/blob/main/LICENSE).

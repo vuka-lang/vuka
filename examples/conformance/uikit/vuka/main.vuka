@@ -1,0 +1,15 @@
+// Command uikit is a page drawn with the components vuka ui add writes into
+// an app: components/ui, the app's own source, in the design package.
+package main
+
+import (
+	"log"
+
+	"example.com/app/pages"
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	app := web.New(pages.Routes())
+	log.Fatal(app.Run(":" + web.Env("PORT", "8080")))
+}
