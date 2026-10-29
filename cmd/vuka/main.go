@@ -77,8 +77,10 @@ Usage:
 	vuka mod tidy|why|vendor|graph|… [args]
 	        go mod, seeing the imports of .vuka files too (plain go mod tidy
 	        drops requirements only Vuka code uses)
-	vuka explain [-full] file.vuka
-	        show each Vuka construct in file beside the Go it becomes
+	vuka explain [-full] file.vuka | file.vuka.html
+	        show each Vuka construct in file beside the Go it becomes; a
+	        .vuka.html file's Go whole, after the calls of its markup given
+	        the render's ctx
 	vuka explain E0201
 	        explain a diagnostic's code, with an example (vuka build/vet
 	        -diag=json print diagnostics as JSON)
@@ -264,6 +266,8 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		if ds := scope.warnings(transpileWarnings(root, gens)); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 		}
+	} else if ds := buildWarnings(transpileWarnings(root, gens)); len(ds) > 0 {
+		writeDiags(stderr, ds, colorFor(stderr))
 	}
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err

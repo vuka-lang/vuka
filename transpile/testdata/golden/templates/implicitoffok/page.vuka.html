@@ -1,0 +1,12 @@
+package main
+
+import "context"
+
+// With implicit ctx off a call means what it says: Items() is the
+// zero-argument one, with no warning.
+type Page struct{}
+
+func (p Page) Items() string { return "every item" }
+
+func (p Page) Items(ctx context.Context) string { return "items for the request" }
+<p>{Items()} · {Items(ctx)}</p>

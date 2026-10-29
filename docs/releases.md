@@ -38,6 +38,39 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `vuka.toml` records where they go. See
   [UI Components (Vendored)](/ui/vendored).
 
+### Markup Calls
+
+- **Implicit ctx is reviewable.** A markup call that compiles both as
+  written and with the render's ctx — overloads `Items()` and
+  `Items(ctx)` — is [W0108](/errors/W0108), in `vuka vet`, `vuka build`
+  and the editor, whose quick fixes write `Items(ctx)` or
+  `Items(/*vuka:noctx*/)`, the marker keeping a call without the ctx; an
+  overload added or removed later can no longer change silently which one
+  a page calls. `vuka explain file.vuka.html` lists the calls given the
+  ctx and prints the file's Go, and `vuka.toml`'s `[compile]
+  implicit_ctx = false` turns implicit ctx off for a module, a call one
+  ctx short being [E0162](/errors/E0162) — see
+  [Reviewing Authority in Markup](/ui/templates#reviewing-authority).
+  `vuka fmt` keeps a comment in a hole.
+
+### Enums
+
+- **Methods on a value enum's variants.** `func (PasswordError.Mismatch)
+  Error() string` works on a value enum as on an enum with data: the
+  methods of one name become one method on the enum that switches on the
+  value and calls each variant's, so the enum satisfies `error` and other
+  interfaces while it stays a number for JSON, the database and `match`.
+  Every variant declares the method, or the enum declares a default for the
+  rest (and for a value that is no variant, which otherwise panics); the
+  declarations share one signature, take value receivers, and can't be a
+  generated method (`String`, `Valid`, …). New codes: E0164 (missing
+  variants), E0165 (signatures that differ), E0166 (a pointer receiver),
+  E0167 (a generated method). Hover on a variant's method names the method
+  it is part of, and definition from a call offers every declaration.
+- A value enum's variant written as a type, which Go reports as
+  `(constant) is not a type`, now says the variants are values and what to
+  write instead.
+
 ### Docs
 
 - **A [playground](/playground) on the docs site.** Edit a project's

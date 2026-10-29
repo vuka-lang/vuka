@@ -1,0 +1,2 @@
+err_value_enum_string.vuka:8:30: PaymentStatus.Pending can't declare String: every value enum generates PaymentStatus.String; remove it; PaymentStatus.String returns the variant's name; for another text, declare a method of another name (Label, Message)
+err_value_enum_string.vuka:9:30: PaymentStatus.Settled can't declare String: every value enum generates PaymentStatus.String; remove it; PaymentStatus.String returns the variant's name; for another text, declare a method of another name (Label, Message)

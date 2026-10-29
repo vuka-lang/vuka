@@ -1,0 +1,19 @@
+package main
+
+import "context"
+
+// Page is implicitflipone with a zero-argument Items added later: the
+// markup's Items() now compiles as written, and says which it means.
+type Page struct{}
+
+func (p Page) Items() string { return "every item" }
+
+func (p Page) Items(ctx context.Context) string { return "items for the request" }
+
+func (p Page) Badge(ctx context.Context, n int) string { return "badge" }
+
+func (p Page) Badge(n int) string { return "plain badge" }
+
+func (p Page) Badge(s string) string { return s }
+<p>{Items()} · {Items(ctx)} · {Items(/*vuka:noctx*/)}</p>
+<p>{Badge(3)} · {Badge(ctx, 3)} · {Badge(/*vuka:noctx*/ 3)} · {Badge("new")}</p>

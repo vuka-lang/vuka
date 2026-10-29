@@ -115,6 +115,111 @@ of its own: write functions that take a `Shape`, or methods on the variants,
 
 Its zero value is `nil`, which is none of the variants.
 
+## Methods on Variants
+
+A method can be declared on a variant, on either kind of enum. Each variant
+answers in its own words, and the enum, which has the method on every
+variant, satisfies interfaces such as `error`:
+
+```vuka
+// PasswordError is why a password change was refused.
+enum PasswordError {
+	CurrentRequired
+	Mismatch
+	ChangeFailed
+}
+
+func (PasswordError.CurrentRequired) Error() string { return "Current password is required" }
+func (PasswordError.Mismatch) Error() string        { return "Passwords do not match" }
+func (PasswordError.ChangeFailed) Error() string    { return "Failed to change password. Please try again." }
+
+func change(current, next, again string) error {
+	if current == "" {
+		return PasswordError.CurrentRequired
+	}
+	if next != again {
+		return PasswordError.Mismatch
+	}
+	return nil
+}
+```
+
+`PasswordError.Mismatch` is an `error`, and `errors.Is(err,
+PasswordError.Mismatch)` works, since the values compare. The enum stays a
+number: JSON, the database and `match` see it as before.
+
+On a value enum the variants are values, not types, so the methods of one
+name become one method on the enum that switches on the value; `vuka eject`
+writes it out as Go:
+
+<!-- go:context
+type PasswordError int
+
+const (
+	PasswordErrorCurrentRequired PasswordError = iota
+	PasswordErrorMismatch
+	PasswordErrorChangeFailed
+)
+
+func (p PasswordError) String() string { return "" }
+func passwordErrorCurrentRequiredError() string { return "" }
+func passwordErrorMismatchError() string { return "" }
+func passwordErrorChangeFailedError() string { return "" }
+-->
+
+```go
+func (p PasswordError) Error() string {
+	switch p {
+	case PasswordErrorCurrentRequired:
+		return passwordErrorCurrentRequiredError()
+	case PasswordErrorMismatch:
+		return passwordErrorMismatchError()
+	case PasswordErrorChangeFailed:
+		return passwordErrorChangeFailedError()
+	}
+	panic("vuka: PasswordError.Error called on an invalid PasswordError: " + p.String())
+}
+```
+
+The rules follow from that one method:
+
+- **Every variant, or a default.** A method declared on some variants needs
+  the rest too, or a default declared on the enum itself, which answers for
+  the variants without their own and for a value that is no variant
+  (`PasswordError(9)`); without a default, such a value panics.
+- **One signature.** Every variant's method of a name, and the default,
+  take and return the same types.
+- **A receiver name gives the value:** in `func (e PasswordError.Mismatch)
+  Error() string`, `e` is the enum value, always `PasswordError.Mismatch`.
+- **Value receivers.** The variants are constants, so a pointer receiver is
+  an error.
+- **Not the generated methods.** `String`, `Valid`, `MarshalText`,
+  `UnmarshalText`, `Scan` and `Value` are generated for every value enum; a
+  variant declaring one is an error. For another text per variant, name the
+  method differently: `Label`, `Message`.
+
+```vuka
+enum Role string {
+	Admin = "admin"
+	Staff = "staff"
+	Guest = "guest"
+}
+
+func (Role.Admin) Label() string { return "Administrator" }
+
+// Label is the role's value, for the roles without their own.
+func (r Role) Label() string { return string(r) }
+```
+
+On an enum with data each variant is a type, so its methods are that
+type's: `func (c Shape.Circle) Diameter() float64` is a method of
+`Shape.Circle` alone, and nothing has to declare it on every variant. To
+call a method on any `Shape`, declare it on every variant and put it in an
+interface, or `match` on the variants.
+
+The editor's hover on a variant's method says which method it is part of,
+and definition from a call such as `err.Error()` offers each declaration.
+
 ## Matching on Enums
 
 A [`match`](/features/match) over an enum takes its variants as patterns, and fields apart the

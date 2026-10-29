@@ -1,0 +1,1 @@
+W0108 page.vuka.html:15:5: Label() compiles as written while Label(ctx) also fits; write ctx to say which you mean: Label(ctx), or Label(/*vuka:noctx*/) for the one without => Label(ctx)

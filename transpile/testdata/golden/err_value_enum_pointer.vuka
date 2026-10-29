@@ -1,0 +1,14 @@
+package main
+
+enum PaymentStatus {
+	Pending
+	Settled
+}
+
+func (s *PaymentStatus.Pending) Retry() bool { return true }
+func (PaymentStatus.Settled) Retry() bool    { return false }
+
+func (PaymentStatus.Pending) Final() bool { return false }
+func (s *PaymentStatus) Final() bool      { return true }
+
+func main() {}

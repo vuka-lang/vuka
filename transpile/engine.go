@@ -77,8 +77,9 @@ type engine struct {
 	loaders     []*gqlLoader // the package's @graphql.Loader functions (graphqlloader.go)
 	gqlWarns    map[*fileState]ErrorList
 
-	forceCtx  map[string]bool // template files whose markup gets the render's ctx (implicit.go)
-	recompile bool            // one more does: the package compiles again
+	forceCtx   map[string]bool // template files whose markup gets the render's ctx (implicit.go)
+	noImplicit bool            // markup gets no implicit ctx (Options.NoImplicitCtx)
+	recompile  bool            // one more does: the package compiles again
 }
 
 func (e *engine) run() {
@@ -236,13 +237,14 @@ func (e *engine) run() {
 		e.undefinedVars()
 		e.warns = e.ctxWarnings()
 		for _, f := range e.vuka {
-			if len(f.susWarnings) == 0 {
+			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 {
 				continue
 			}
 			if e.warns == nil {
 				e.warns = map[*fileState]ErrorList{}
 			}
 			e.warns[f] = append(e.warns[f], f.susWarnings...)
+			e.warns[f] = append(e.warns[f], f.ambigWarns...)
 		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {
@@ -307,6 +309,13 @@ func (e *engine) prepare() {
 				}
 			}
 		}
+	}
+	nerrs := len(*e.errs)
+	if e.lowerVariantMethods() {
+		e.progress = true
+	}
+	if len(*e.errs) > nerrs {
+		return
 	}
 	e.sets = findOverloads(e.vuka, e.files, e.errs)
 	e.funcs, e.methods, e.mnames = map[string]*overloadSet{}, map[string]*overloadSet{}, map[string]bool{}

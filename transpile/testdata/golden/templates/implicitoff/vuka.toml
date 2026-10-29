@@ -1,0 +1,2 @@
+[compile]
+implicit_ctx = false # authority is written in the source

@@ -1,0 +1,13 @@
+package main
+
+enum PasswordError {
+	CurrentRequired
+	Mismatch
+	ChangeFailed
+}
+
+func (PasswordError.CurrentRequired) Error() string { return "Current password is required" }
+
+func (PasswordError.Expired) Error() string { return "expired" }
+
+func main() {}

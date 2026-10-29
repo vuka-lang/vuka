@@ -250,6 +250,12 @@ func (e *engine) implicitCtx(f *fileState) bool {
 			if h.ownCtx {
 				continue // its ctx is the markup's own
 			}
+			if e.noImplicit || f.saysNoCtx(c) {
+				if !e.incompleteCalls {
+					e.ctxMissing(f, c, sig.Params().At(0).Type())
+				}
+				continue
+			}
 			if !h.contextual {
 				if e.forceCtx == nil {
 					e.forceCtx = map[string]bool{}
@@ -261,7 +267,11 @@ func (e *engine) implicitCtx(f *fileState) bool {
 			changed = true
 		case short:
 			f.ctxDone[key] = true
-			if !e.incompleteCalls {
+			switch {
+			case e.incompleteCalls:
+			case ctxShift(sig) == 1 && !h.ownCtx && (e.noImplicit || f.saysNoCtx(c)):
+				e.ctxMissing(f, c, sig.Params().At(0).Type())
+			default:
 				e.shortCall(f, c, sig, len(args))
 			}
 		}
@@ -401,6 +411,61 @@ func (e *engine) shortCall(f *fileState, c *ast.CallExpr, sig *types.Signature, 
 		err.Len = len(text)
 	}
 	_ = nargs
+}
+
+// NoCtxMarker, first between a markup call's parentheses, says the call
+// takes no implicit ctx: Items(/*vuka:noctx*/) is the Items taking
+// nothing, never Items(ctx).
+const NoCtxMarker = "/*vuka:noctx*/"
+
+// saysNoCtx reports whether c writes NoCtxMarker before its arguments.
+func (f *fileState) saysNoCtx(c *ast.CallExpr) bool {
+	from, to := f.orig(c.Lparen)+1, f.orig(c.Rparen)
+	if len(c.Args) > 0 {
+		to = f.orig(c.Args[0].Pos())
+	}
+	if from <= 0 || to > len(f.src) || from > to {
+		return false
+	}
+	return strings.Contains(string(f.src[from:to]), NoCtxMarker)
+}
+
+// ctxMissing reports a call in markup short of the context.Context t it
+// takes first, which markup doesn't pass: implicit ctx is off in the
+// module, or the call says NoCtxMarker (E0162).
+func (e *engine) ctxMissing(f *fileState, c *ast.CallExpr, t types.Type) {
+	text := string(f.src[f.orig(c.Pos()):f.orig(c.End())])
+	err := e.errs.add("E0162", f.at(f.orig(c.Pos())), "%s's first argument (a %s) is missing", calledName(c), e.display(t))
+	if e.noImplicit {
+		err.help("write ctx explicitly (implicit ctx is off in this module)")
+	} else {
+		err.help("write ctx explicitly, or drop %s", NoCtxMarker)
+	}
+	if !strings.Contains(text, "\n") {
+		err.Len = len(text)
+	}
+}
+
+// ambiguousCtx warns of a call in markup that compiles as written and
+// with the render's ctx first, each calling another overload (W0108): a
+// later overload, or one gone, would change which one it calls with no
+// change to the template.
+func (e *engine) ambiguousCtx(f *fileState, c *ast.CallExpr) {
+	start, lp := f.orig(c.Pos()), f.orig(c.Lparen)
+	text := string(f.src[start:f.orig(c.End())])
+	if lp < start || lp-start >= len(text) {
+		return
+	}
+	ctx, marker := "ctx", NoCtxMarker
+	if len(c.Args) > 0 {
+		ctx, marker = "ctx, ", NoCtxMarker+" "
+	}
+	at := lp - start + 1
+	withCtx := text[:at] + ctx + text[at:]
+	marked := text[:at] + marker + text[at:]
+	w := f.ambigWarns.add("W0108", f.at(start), "%s compiles as written while %s also fits", oneLine(text), oneLine(withCtx)).
+		help("write ctx to say which you mean: %s, or %s for the one without", oneLine(withCtx), oneLine(marked))
+	w.Len, w.Fix = len(text), withCtx
 }
 
 func ctxShift(sig *types.Signature) int {

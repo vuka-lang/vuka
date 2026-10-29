@@ -1,0 +1,2 @@
+W0108 page.vuka.html:18:5: Items() compiles as written while Items(ctx) also fits; write ctx to say which you mean: Items(ctx), or Items(/*vuka:noctx*/) for the one without => Items(ctx)
+W0108 page.vuka.html:19:5: Badge(3) compiles as written while Badge(ctx, 3) also fits; write ctx to say which you mean: Badge(ctx, 3), or Badge(/*vuka:noctx*/ 3) for the one without => Badge(ctx, 3)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"flag"
 	"fmt"
+	"go/format"
 	"io"
 	"os"
 	"path/filepath"
@@ -18,7 +19,8 @@ import (
 
 // explain shows what Vuka makes of a file: each rewritten line beside the Go
 // it became, then the code Vuka adds after the source, each labelled with the
-// line it comes from.
+// line it comes from. A .vuka.html file's Go is printed whole, after the
+// calls of its markup given the render's ctx.
 func explain(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("explain", flag.ContinueOnError)
 	full := fs.Bool("full", false, "print the whole generated Go file")
@@ -28,8 +30,9 @@ func explain(args []string, stdout io.Writer) error {
 	if fs.NArg() == 1 && codeArg.MatchString(fs.Arg(0)) {
 		return explainCode(fs.Arg(0), stdout)
 	}
-	if fs.NArg() != 1 || !strings.HasSuffix(fs.Arg(0), ".vuka") {
-		return errors.New("usage: vuka explain [-full] file.vuka | vuka explain E0201")
+	html := fs.NArg() == 1 && strings.HasSuffix(fs.Arg(0), ".vuka.html")
+	if fs.NArg() != 1 || !strings.HasSuffix(fs.Arg(0), ".vuka") && !html {
+		return errors.New("usage: vuka explain [-full] file.vuka | file.vuka.html | vuka explain E0201")
 	}
 	path, err := filepath.Abs(fs.Arg(0))
 	if err != nil {
@@ -40,6 +43,15 @@ func explain(args []string, stdout io.Writer) error {
 	}
 	out, err := generate(path)
 	if err != nil {
+		return err
+	}
+	if html {
+		writeImplicit(stdout, filepath.Base(path), out)
+		src := out.Src
+		if b, err := format.Source(src); err == nil {
+			src = b
+		}
+		_, err := stdout.Write(src)
 		return err
 	}
 	if *full {
@@ -90,6 +102,30 @@ func generate(path string) (load.Generated, error) {
 		}
 	}
 	return load.Generated{}, fmt.Errorf("%s isn't in a package of this module", path)
+}
+
+// writeImplicit lists the calls of a .vuka.html file's markup given the
+// render's ctx, which its markup doesn't write: where each is and the call
+// it becomes. Its Go, printed after, has every call as it runs.
+func writeImplicit(w io.Writer, name string, out load.Generated) {
+	if len(out.Implicit) == 0 {
+		fmt.Fprintf(w, "// %s: no call in its markup is given the render's ctx.\n\n", name)
+		return
+	}
+	fmt.Fprintf(w, "// %s: the calls in its markup given the render's ctx (implicit ctx):\n", name)
+	for _, c := range out.Implicit {
+		if c.Off < 0 || c.Lparen < c.Off || c.Lparen >= len(out.From) {
+			continue
+		}
+		line := bytes.Count(out.From[:c.Off], []byte("\n")) + 1
+		col := c.Off - bytes.LastIndexByte(out.From[:c.Off], '\n')
+		args := ""
+		if c.Args {
+			args = ", …"
+		}
+		fmt.Fprintf(w, "//\t%s:%d:%d\t%s(ctx%s)\n", name, line, col, strings.TrimSpace(string(out.From[c.Off:c.Lparen])), args)
+	}
+	fmt.Fprintln(w)
 }
 
 type explained struct {

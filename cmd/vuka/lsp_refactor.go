@@ -136,6 +136,7 @@ func (p *proxy) refactorRequest(m *rpcMsg, path string) bool {
 	p.mu.Lock()
 	if vf := p.virtual[p.bySource[real]]; vf != nil && bytes.Equal(vf.from, src) {
 		req.ctxFixes = vf.fixes // the build's rewrites hold for the text as it is
+		req.ambig = vf.ambig
 	}
 	p.mu.Unlock()
 	if isVuka(path) && organizeOnly(req.only) {
@@ -374,6 +375,7 @@ type actionRequest struct {
 	read       load.ReadFunc
 	uri        func(string) string    // the path the editor knows a file by
 	ctxFixes   []edit                 // the file's W0402 rewrites, from its last build
+	ambig      []edit                 // the file's W0108 calls, each with its ctx written, from its last build
 	ctxVars    func() map[string]bool // the context processors' variables files may read (organize.go)
 }
 
@@ -415,6 +417,7 @@ func codeActions(r actionRequest) []any {
 		}
 		if r.wants("quickfix") {
 			add(templateFixes(r)...)
+			add(ambigCtxActions(r)...)
 			add(ctxVarActions(r)...)
 			add(importFixes(r)...)
 		}

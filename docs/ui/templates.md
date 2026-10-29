@@ -245,13 +245,75 @@ left as it is. Go code — a `.vuka` file, a template's header or
 isn't called, `for={GetCategories}`, is no call. Of overloads, the one the
 call matches as written wins (`GetCategories()` over `GetCategories(ctx)`);
 when none does and more than one matches with the ctx, the call is
-ambiguous, [E0121](/errors/E0121).
+ambiguous, [E0121](/errors/E0121). A call both ways fit is
+[W0108](/errors/W0108): write `GetCategories(ctx)`, or
+`GetCategories(/*vuka:noctx*/)` for the overload without, so that adding or
+removing an overload can't change which one the page calls.
 
 Only the context is passed: a call still short of an argument is
 [E0162](/errors/E0162). A service belongs to the page, taken by its
 constructor and kept in a field the markup reads. The generated Go has the
 real call, `p.GetCategories(ctx)`; hover in the editor says the page
 supplies the ctx, and an inlay hint shows it.
+
+### Reviewing Authority in Markup {#reviewing-authority}
+
+The render's `ctx` carries the request: the signed-in user, what the
+context processors read, the request's deadline, and through them the
+data a call may read. A call in markup that takes it shows none of that in
+the source — `{len(Salaries())}` reads like a call with no arguments — so a
+review that searches the source for `ctx` misses it.
+
+To review what a template's markup can reach, read the Go it compiles to,
+which has every call as it runs, its ctx written out:
+
+```sh
+vuka explain views/payroll.vuka.html   # the calls given the ctx, then the file's Go
+vuka gen                               # build/: the module with Go in place of Vuka
+grep -rn '(ctx' build/views/
+vuka eject views/                      # the Go beside the sources (x_html.go), to diff or commit
+```
+
+`vuka explain` on a `.vuka.html` file lists the calls of its markup given
+the ctx before its Go:
+
+```text
+// payroll.vuka.html: the calls in its markup given the render's ctx (implicit ctx):
+//	payroll.vuka.html:12:13	Salaries(ctx)
+
+…
+func (p Payroll) View() ui.Node {
+	return ui.Ctx(func(ctx context.Context) ui.Node {
+		… <p>{len(p.Salaries(ctx))} people</p> …
+```
+
+A component whose markup writes no `ctx` renders without one; when a call
+in its markup needs one, the component is compiled to take the render's
+context, its `View` wrapped in `ui.Ctx` as above. Nothing at its callers
+changes, so the list `vuka explain` prints is where to see it: a component
+with calls listed there renders with the request's context.
+
+A module that wants every use of the context written in the source turns
+implicit ctx off in its `vuka.toml`, next to `go.mod`:
+
+```toml
+[compile]
+implicit_ctx = false   # markup passes no ctx: write it (default true)
+```
+
+A call one `context.Context` short is then [E0162](/errors/E0162), "write
+ctx explicitly (implicit ctx is off in this module)", as any other short
+call, and `{len(Salaries(ctx))}` says in the source what it passes. One
+call can say it too, with the setting on: `Items(/*vuka:noctx*/)` takes no
+implicit ctx.
+
+What a call does with the ctx is the function's, implicit or not: one may
+keep it past the response, in a goroutine or a cache, as it could with an
+explicit `ctx`. What it returns renders like any expression — a hole, an
+attribute, a component's or an island's props — escaped as always, and
+visible to the browser where a hole is; return only what the page may
+show. The ctx itself never reaches the page: it isn't a value markup can
+render or an island prop can carry.
 
 ## Go Statements in Markup {#statements}
 

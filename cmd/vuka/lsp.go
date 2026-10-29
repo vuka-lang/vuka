@@ -223,15 +223,17 @@ type vfile struct {
 	hunks    []hunk // where cur and from differ
 	stale    bool   // cur was edited since from: the hunks are a diff
 	gen      []byte
-	m        *transpile.SourceMap    // a .vuka file's map
-	templ    *templparser.SourceMap  // a .templ file's map (templ's own)
-	files    []transpile.FileRef     // a .vuka file's vuka.File literals, in from
-	names    map[string]string       // the package's overloads: Go name → the source's
-	vars     []transpile.VarRead     // the context processors' variables it reads by name
-	avail    []transpile.VarRead     // and those it may read
-	unwraps  []transpile.Unwrap      // the calls in its markup returning (T, error)
-	implicit []transpile.ImplicitCtx // the calls in its markup given the render's ctx
-	fixes    []edit                  // the W0402 rewrites on from (ctxVarFixes)
+	m        *transpile.SourceMap      // a .vuka file's map
+	templ    *templparser.SourceMap    // a .templ file's map (templ's own)
+	files    []transpile.FileRef       // a .vuka file's vuka.File literals, in from
+	names    map[string]string         // the package's overloads: Go name → the source's
+	vars     []transpile.VarRead       // the context processors' variables it reads by name
+	avail    []transpile.VarRead       // and those it may read
+	unwraps  []transpile.Unwrap        // the calls in its markup returning (T, error)
+	implicit []transpile.ImplicitCtx   // the calls in its markup given the render's ctx
+	fixes    []edit                    // the W0402 rewrites on from (ctxVarFixes)
+	ambig    []edit                    // the W0108 calls on from, each with its ctx written (ambigFixes)
+	variants []transpile.VariantMethod // its methods on value-enum variants, in from
 	version  int
 	probed   int  // the version holding the last probe (see probe)
 	pending  bool // not sent to gopls yet (lsp_open.go)
@@ -469,6 +471,7 @@ type vukaRequest struct {
 	timer     *time.Timer  // answers it without gopls at goplsDeadline
 	scripts   []any        // references: the scripts' calls of the method at the cursor (live.reorder)
 	prop      *lspPosition // references on a shape's prop: its declaration in the generated Go
+	off       int          // definition: the offset asked at, in file's text
 	propURI   string       // and the generated file's uri
 }
 
@@ -502,6 +505,7 @@ type proxy struct {
 	owned            map[string]bool           // Go paths the editor has open itself; its text wins
 	bySource         map[string]string         // .vuka path → generated path
 	vukaDiags        map[string]*diagSet       // .vuka path → the last build's transpiler errors
+	vukaWarns        map[string]*diagSet       // .vuka path → the last build's warnings shown in the editor (buildWarnings)
 	syntaxDiags      map[string]*diagSet       // .vuka path → its syntax errors, as the editor has it now
 	goDiags          map[string]*diagSet       // .vuka path → gopls diagnostics mapped from its Go
 	goHeld           map[string]heldDiags      // generated path → gopls's diagnostics of it, kept back while its source was edited
@@ -543,7 +547,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		editor: editor, gopls: gopls, log: log, tmp: tmp,
 		goReqs: map[string]bool{}, vukaReqs: map[string]*vukaRequest{}, asks: map[string]chan rpcMsg{}, dropped: map[string]bool{},
 		bufs: map[string][]byte{}, cursors: map[string]int{}, virtual: map[string]*vfile{}, bySource: map[string]string{}, owned: map[string]bool{},
-		vukaDiags: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
+		vukaDiags: map[string]*diagSet{}, vukaWarns: map[string]*diagSet{}, syntaxDiags: map[string]*diagSet{}, goDiags: map[string]*diagSet{},
 		shown:       map[string]string{},
 		staticsPkgs: map[string][]*staticsFile{}, importDirs: map[string]string{},
 		changed: map[string]int{}, done: map[string]int{},
@@ -1237,6 +1241,11 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 			go func() { reply(h()) }()
 			return
 		}
+		if h := p.variantMethodRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if h := p.authoringRequest(m.Method, vf, genPath, off); h != nil {
 			p.mu.Unlock()
 			go func() { reply(h()) }()
@@ -1292,6 +1301,9 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	vr := &vukaRequest{editorID: m.ID, method: m.Method, file: vf, closeTag: closeTag,
 		attr: m.Method == "textDocument/completion" && afterAt(vf.text(), srcPos)}
 	vr.field = vr.attr && fieldAttrSpot(vf.text(), offsetOf(vf.text(), srcPos))
+	if hasPos {
+		vr.off = offsetOf(vf.text(), srcPos)
+	}
 	if m.Method == "textDocument/references" && hasPos {
 		vr.scripts = p.scriptCallsAt(vf, offsetOf(vf.text(), srcPos))
 		vr.prop, vr.propURI = propDeclAt(vf, offsetOf(vf.text(), srcPos)), pathToURI(genPath)
@@ -1580,6 +1592,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			}()
 			return
 		}
+	case "textDocument/definition", "textDocument/declaration":
+		v = p.withVariantDecls(v, vr.file, vr.off)
 	case "textDocument/prepareRename":
 		if vr.closeTag != nil {
 			if r, ok := v.(map[string]any); ok && r["range"] != nil {
