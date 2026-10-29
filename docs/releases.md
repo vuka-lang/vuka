@@ -100,6 +100,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   likewise in a `match` on an `error` value. Exhaustiveness is unchanged.
   See [Matching Errors](/features/match#matching-errors).
 
+### Tools
+
+- **Component tags import their package.** In markup, `<des` offers the
+  module's component packages the file doesn't import yet, and the ui
+  kit's, by the name they declare (`design` for `components/ui`); accepting
+  one writes `design.` and lists its components, each with its first props
+  and doc, and the component accepted adds `import design
+  "example.com/shop/components/ui"` to the file's imports — into its group,
+  never twice, and to a file with none. See
+  [Writing Component Tags](/tools/editors#component-tags).
+
 ### Docs
 
 - **A [playground](/playground) on the docs site.** Edit a project's
