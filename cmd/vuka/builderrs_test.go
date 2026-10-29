@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"os"
 	"path/filepath"
@@ -204,6 +205,86 @@ func TestBuildReportGo(t *testing.T) {
 	runGo("vet", []string{"./..."}, io.Discard, &stderr)
 	if out := stderr.String(); strings.Count(out, "error[E0002]") != 12 || !strings.Contains(out, "12 errors in 1 package") || strings.Contains(out, "vuka vet lists all") {
 		t.Errorf("vuka vet:\n%s", out)
+	}
+}
+
+// TestBuildReportFollows: a .vuka file that doesn't transpile leaves the
+// names it declares undefined in its package's Go files; its error comes
+// first, those that follow from it are one note under it and counted in
+// the summary, and a Go error of their own is still listed.
+func TestBuildReportFollows(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	var uses strings.Builder
+	for i := range 9 {
+		fmt.Fprintf(&uses, "\t_ = Next(%d)\n", i)
+	}
+	files := map[string]string{
+		"main.go": "package main\n\nimport (\n\t_ \"example.com/app/api\"\n\t\"example.com/app/users\"\n)\n\nfunc main() { users.Run() }\n",
+		"users/service.vuka": `package users
+
+type Account struct {
+	ID    int64
+	Email string
+}
+
+type ChangePassword struct{ Old, New string }
+
+const Limit = 3
+
+func Next(id int64) int64 { return id + 1 }
+
+func (p *Post) Title() string { return "" }
+
+func status(r Result[int]) int {
+	match r {
+	case Ok(n):
+		return n
+	}
+	return 0
+}
+`,
+		"users/orders.vuka": "package users\n\nfunc Orders() int { return 0 }\n",
+		"users/gate.go":     "package users\n\nfunc Gate(a *Account) bool { return a.ID > 0 && Next(a.ID) > Limit }\n\nfunc Change(c ChangePassword) string { return c.New }\n",
+		"users/public.go":   "package users\n\ntype Post struct{}\n\nfunc Run() {\n\t_ = Gate(nil)\n\t_ = Orders()\n\t_ = (&Post{}).Title()\n" + uses.String() + "\t_ = missingPosts\n}\n",
+		"mid/mid.go":        "package mid\n\nimport \"example.com/app/users\"\n\nfunc N() (int, error) { return users.Orders(), nil }\n",
+		"api/api.vuka":      "package api\n\nimport \"example.com/app/mid\"\n\nfunc Count() (int, error) {\n\tn := mid.N()?\n\treturn n, nil\n}\n",
+	}
+	files["go.mod"], files["go.sum"] = testModule(t, "example.com/app")
+	root := tempModule(t, files)
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Chdir(root)
+	var stderr bytes.Buffer
+	if runGo("build", []string{"-o", filepath.Join(t.TempDir(), "app"), "."}, io.Discard, &stderr) == nil {
+		t.Fatal("the build passed")
+	}
+	out := stderr.String()
+	golden(t, "follows.golden", out)
+	const note = "= note: 15 more errors in example.com/app/users follow from this (gate.go, public.go use names orders.vuka and service.vuka declare)\n"
+	switch {
+	case !strings.HasPrefix(out, "error[E0113]"):
+		t.Errorf("the transpile's error isn't first:\n%s", out)
+	case strings.Count(out, "error[") != 2 || !strings.Contains(out, "error[E0002]: undefined: missingPosts"):
+		t.Errorf("want the E0113 and the Go error of public.go's own:\n%s", out)
+	case !strings.Contains(out, note):
+		t.Errorf("no note of what follows:\n%s", out)
+	case strings.Contains(out, "more errors in example.com/app/users —"):
+		t.Errorf("the cap counts what follows:\n%s", out)
+	case !strings.HasSuffix(out, "17 errors in 1 package (15 follow from 1) · 1 file couldn't build because of them\n"):
+		t.Errorf("the summary:\n%s", out)
+	}
+	stderr.Reset()
+	runGo("vet", []string{"./..."}, io.Discard, &stderr)
+	if v := stderr.String(); !strings.HasPrefix(v, "error[E0113]") || !strings.Contains(v, note) || strings.Count(v, "error[") != 2 {
+		t.Errorf("vuka vet:\n%s", v)
+	}
+	s := &supervisor{root: root, dir: root, tmp: t.TempDir(), pkg: []string{"."}, flags: []string{"-buildvcs=false"}, env: os.Environ(), stderr: &stderr}
+	stderr.Reset()
+	s.finish(s.build(context.Background(), 1), time.Time{})
+	if want := out + "● build failed; waiting for a change\n"; !strings.HasSuffix(stderr.String(), want) {
+		t.Errorf("run -watch says:\n%s\nwant:\n%s", stderr.String(), want)
 	}
 }
 

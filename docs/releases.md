@@ -69,6 +69,21 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the SQL](/orm/queries#seeing-the-sql) and [Why Is This Query
   Slow?](/orm/cookbook#slow-query).
 
+### Tools
+
+- **A build's root error first.** When a `.vuka` file doesn't transpile,
+  its package's Go files can't compile without the names it declares.
+  `vuka build`, `run`, `run -watch`, `vet`, `test` and `install` listed those
+  `undefined: Account` errors first and the `.vuka` file's error last — past
+  the ten a package `vuka run` shows. The transpiler's errors now come before
+  Go's, each by file and line, and the Go errors that only use a name a
+  dropped `.vuka` file declares (`undefined: X`, a method it declares on a Go
+  type) are one note under its error: `15 more errors in example.com/app/users
+  follow from this (gate.go, public.go use names service.vuka declares)`. The
+  cap counts only listed errors, and the summary says how many follow
+  (`17 errors in 1 package (15 follow from 1)`). A Go error naming anything
+  else is still listed.
+
 ### Docs
 
 - **Vuka samples beside their Go.** The guides to `?`, `match`, enums,

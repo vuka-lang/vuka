@@ -39,8 +39,10 @@ type buildReport struct {
 
 // errGroup is the errors of one package.
 type errGroup struct {
-	path  string
-	diags []diag.Diagnostic
+	path   string
+	diags  []diag.Diagnostic
+	follow int // errors not listed: they follow from one of diags
+	roots  int // the diags they follow from
 }
 
 // maxErrors is how many errors of a package vuka build and run show; vuka
@@ -58,9 +60,18 @@ type reportOptions struct {
 func (r *buildReport) errs() int {
 	n := 0
 	for _, g := range r.groups {
-		n += len(g.diags)
+		n += len(g.diags) + g.follow
 	}
 	return n
+}
+
+// follows is how many of the report's errors follow from others, and from
+// how many.
+func (r *buildReport) follows() (n, roots int) {
+	for _, g := range r.groups {
+		n, roots = n+g.follow, roots+g.roots
+	}
+	return n, roots
 }
 
 func (r *buildReport) empty() bool { return len(r.groups) == 0 && len(r.raw) == 0 }
@@ -129,6 +140,9 @@ func (r *buildReport) summary(wd string) string {
 		return ""
 	}
 	s := fmt.Sprintf("%d %s in %d %s", n, countWord(n, "error", "errors"), len(r.groups), countWord(len(r.groups), "package", "packages"))
+	if f, roots := r.follows(); f > 0 {
+		s += fmt.Sprintf(" (%d follow from %d)", f, roots)
+	}
 	if files := len(importerFiles(r.importers)); files > 0 {
 		s += fmt.Sprintf(" · %d %s couldn't build because of %s", files, importerNoun(r.importers, wd, files != 1), countWord(n, "it", "them"))
 	}
@@ -232,8 +246,9 @@ func transpileReport(in buildInput, err error) *buildReport {
 			culprits = append(culprits, c)
 		}
 	}
-	own := in.check(culprits)
+	own, follow := in.check(culprits, in.dropped(ds))
 	byPkg := map[string][]diag.Diagnostic{}
+	goErrs := map[string]int{} // how many of byPkg's are Go's, after Vuka's
 	var order []string
 	add := func(path string, d diag.Diagnostic) {
 		if _, ok := byPkg[path]; !ok {
@@ -250,14 +265,20 @@ func transpileReport(in buildInput, err error) *buildReport {
 			onlyImports[c] = own[c]
 			continue
 		}
-		for _, d := range own[c] {
-			add(c, d)
+		if len(own[c]) > 0 {
+			goErrs[c] = len(own[c])
+			byPkg[c], order = nil, append(order, c)
 		}
 	}
 	for _, d := range ds {
 		if d.Code != "E0005" || d.Severity == diag.Warning {
 			add(in.pkgOf(d.Span.File), d)
 		}
+	}
+	// The transpile's own errors come first: a package's Go errors may be
+	// what its missing output leaves undefined.
+	for c, n := range goErrs {
+		byPkg[c] = append(byPkg[c], own[c][:n]...)
 	}
 	reported := map[string]bool{} // the packages whose own errors are shown
 	for path := range byPkg {
@@ -320,10 +341,127 @@ func transpileReport(in buildInput, err error) *buildReport {
 		}
 	}
 	for _, path := range in.depOrder(order) {
-		r.groups = append(r.groups, errGroup{path: path, diags: byPkg[path]})
+		g := errGroup{path: path, diags: byPkg[path]}
+		n := len(g.diags) - goErrs[path]
+		sortPos(g.diags[:n])
+		g.collapse(follow[path], n)
+		r.groups = append(r.groups, g)
 	}
 	r.stoppedBefore()
 	return r
+}
+
+// sortPos sorts ds by file and line.
+func sortPos(ds []diag.Diagnostic) {
+	slices.SortStableFunc(ds, func(a, b diag.Diagnostic) int {
+		switch {
+		case a.Span.File != b.Span.File:
+			return strings.Compare(a.Span.File, b.Span.File)
+		case a.Span.Line != b.Span.Line:
+			return a.Span.Line - b.Span.Line
+		}
+		return a.Span.Col - b.Span.Col
+	})
+}
+
+// followed is a Go error of a file using a name a .vuka file declares
+// whose output the build doesn't have.
+type followed struct {
+	d    diag.Diagnostic
+	from string // the .vuka file
+}
+
+// collapse puts the errors that follow from the group's first roots (its
+// transpile's errors) in a note of the error of the file they follow from,
+// or of the first root when that file has none.
+func (g *errGroup) collapse(fs []followed, roots int) {
+	if len(fs) == 0 {
+		return
+	}
+	if roots == 0 {
+		for _, f := range fs {
+			g.diags = append(g.diags, f.d)
+		}
+		sortPos(g.diags)
+		return
+	}
+	type note struct {
+		files, froms []string
+		n            int
+	}
+	var at []int // the roots with notes, in order
+	notes := map[int]*note{}
+	for _, f := range fs {
+		root := max(0, slices.IndexFunc(g.diags[:roots], func(d diag.Diagnostic) bool { return sameFile(d.Span.File, f.from) }))
+		nt := notes[root]
+		if nt == nil {
+			nt = &note{}
+			notes[root], at = nt, append(at, root)
+		}
+		nt.n++
+		if b := filepath.Base(f.d.Span.File); !slices.Contains(nt.files, b) {
+			nt.files = append(nt.files, b)
+		}
+		if b := filepath.Base(f.from); !slices.Contains(nt.froms, b) {
+			nt.froms = append(nt.froms, b)
+		}
+	}
+	for _, root := range at {
+		nt := notes[root]
+		slices.Sort(nt.files)
+		slices.Sort(nt.froms)
+		froms := strings.Join(nt.froms, ", ")
+		if k := len(nt.froms); k > 1 {
+			froms = strings.Join(nt.froms[:k-1], ", ") + " and " + nt.froms[k-1]
+		}
+		g.diags[root].Message += fmt.Sprintf("\n%d more %s in %s %s from this (%s %s names %s %s)",
+			nt.n, countWord(nt.n, "error", "errors"), g.path, countWord(nt.n, "follows", "follow"),
+			strings.Join(nt.files, ", "), countWord(len(nt.files), "uses", "use"), froms, countWord(len(nt.froms), "declares", "declare"))
+		g.follow += nt.n
+		g.roots++
+	}
+}
+
+// dropped is, by package, the names declared by the .vuka files of the
+// packages ds has a transpile error in that the build has no output of,
+// each with the file declaring it.
+func (in buildInput) dropped(ds []diag.Diagnostic) map[string]map[string]string {
+	out := map[string]map[string]string{}
+	have := map[string]bool{}
+	for _, g := range in.gens {
+		if g.Source != "" {
+			have[realPathOf(g.Source)] = true
+		}
+	}
+	done := map[string]bool{}
+	for _, d := range ds {
+		dir := filepath.Dir(d.Span.File)
+		if d.Severity == diag.Warning || d.Code == "E0005" || !isVuka(d.Span.File) || done[dir] {
+			continue
+		}
+		done[dir] = true
+		path := in.pkgOf(d.Span.File)
+		entries, _ := os.ReadDir(dir)
+		for _, e := range entries {
+			file := filepath.Join(dir, e.Name())
+			if e.IsDir() || !isVuka(file) || have[realPathOf(file)] {
+				continue
+			}
+			src, err := os.ReadFile(file)
+			if err != nil {
+				continue
+			}
+			for _, name := range transpile.Declared(e.Name(), src) {
+				if out[path] == nil {
+					out[path] = map[string]string{}
+				}
+				if _, ok := out[path][name]; !ok {
+					out[path][name] = file
+				}
+			}
+		}
+	}
+	return out
 }
 
 // stoppedBefore says, of a model's typed fields a failed transpile left
@@ -446,7 +584,7 @@ func blocksReport(in buildInput, blocks []goBlock, rest []string) *buildReport {
 			paths = append(paths, b.path)
 		}
 	}
-	own := in.check(paths)
+	own, _ := in.check(paths, nil)
 	var order []string
 	for _, b := range blocks {
 		if len(own[b.path]) > 0 {
@@ -479,16 +617,16 @@ var (
 // check type-checks the module's packages paths as the build's overlay has
 // them, and returns their errors at the source each was written in, with
 // what vuka can tell about them; a package that checks clean has none.
-func (in buildInput) check(paths []string) map[string][]diag.Diagnostic {
+func (in buildInput) check(paths []string, missing map[string]map[string]string) (map[string][]diag.Diagnostic, map[string][]followed) {
 	out := map[string][]diag.Diagnostic{}
 	if len(paths) == 0 {
-		return out
+		return out, nil
 	}
 	ov, err := readOverlay(in.overlay)
 	if err != nil {
-		return out
+		return out, nil
 	}
-	c := &checker{in: in, ov: ov, ctx: overlayContext(ov), gens: map[string]*load.Generated{}, knock: map[string][]diag.Diagnostic{}}
+	c := &checker{in: in, ov: ov, ctx: overlayContext(ov), gens: map[string]*load.Generated{}, knock: map[string][]diag.Diagnostic{}, missing: missing, follow: map[string][]followed{}}
 	for i := range in.gens {
 		c.gens[realPathOf(in.gens[i].Target)] = &in.gens[i]
 	}
@@ -504,7 +642,7 @@ func (in buildInput) check(paths []string) map[string][]diag.Diagnostic {
 			out[p] = c.knock[p] // only its imports: the E0005s say so
 		}
 	}
-	return out
+	return out, c.follow
 }
 
 type checker struct {
@@ -515,6 +653,28 @@ type checker struct {
 	knock     map[string][]diag.Diagnostic // by package: its imports that don't compile
 	im        *load.Importer
 	goVersion string
+	missing   map[string]map[string]string // by package: names whose declaring .vuka file has no output
+	follow    map[string][]followed        // by package: the errors using them
+}
+
+// noMethod matches go/types' message of a selector a type lacks.
+var noMethod = regexp.MustCompile(`^\S+ undefined \(type \*?(\w+)(?:\[[^\]]*\])? has no field or method (\w+)`)
+
+// followsFrom is the .vuka file declaring the name whose absence the type
+// error msg of the package path is about, "" when no such file's output is
+// missing.
+func (c *checker) followsFrom(path, msg string) string {
+	names := c.missing[path]
+	if names == nil {
+		return ""
+	}
+	if n, ok := strings.CutPrefix(msg, "undefined: "); ok {
+		return names[n]
+	}
+	if m := noMethod.FindStringSubmatch(msg); m != nil {
+		return names[m[1]+"."+m[2]]
+	}
+	return ""
 }
 
 // checkedFile is a file of a package being checked.
@@ -613,6 +773,10 @@ func (c *checker) pkg(path string) []diag.Diagnostic {
 			continue
 		}
 		if transpile.KnockOn(info, cf.ast, te, broken) {
+			continue
+		}
+		if from := c.followsFrom(path, te.Msg); from != "" {
+			c.follow[path] = append(c.follow[path], followed{c.diagnostic(fset, files, cf, te.Pos, te.Msg, info, pkg), from})
 			continue
 		}
 		ds = append(ds, c.diagnostic(fset, files, cf, te.Pos, te.Msg, info, pkg))
