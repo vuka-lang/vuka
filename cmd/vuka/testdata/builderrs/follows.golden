@@ -1,0 +1,18 @@
+error[E0113]: match on Result[int] isn't exhaustive: missing Err(_)
+  --> users/service.vuka:17:2
+   |
+17 |     match r {
+   |     ^^^^^^^
+   |
+   = note: 15 more errors in example.com/app/users follow from this (gate.go, public.go use names orders.vuka and service.vuka declare)
+   = help: add case Err(e): …, or case _:
+
+error[E0002]: undefined: missingPosts
+  --> users/public.go:18:6
+   |
+18 |     _ = missingPosts
+   |         ^^^^^^^^^^^^
+
+For more information about this error, try `vuka explain E0113`.
+
+17 errors in 1 package (15 follow from 1) · 1 file couldn't build because of them

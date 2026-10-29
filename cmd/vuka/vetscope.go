@@ -141,7 +141,7 @@ func (s *vetScope) report(r *buildReport, in buildInput) int {
 		if s.deps[g.path] || slices.ContainsFunc(g.diags, s.asks) {
 			return false
 		}
-		left += len(g.diags)
+		left += len(g.diags) + g.follow
 		return true
 	})
 	r.importers = slices.DeleteFunc(r.importers, func(d diag.Diagnostic) bool { return !s.asks(d) })
