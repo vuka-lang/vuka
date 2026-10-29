@@ -101,6 +101,8 @@ func (pc *patCtx) space(x ast.Expr, t types.Type) *space {
 				}
 			}
 			return &space{ctor: "=" + x.Name}
+		case pc.errValue(x.Name, t):
+			return &space{ctor: "=" + x.Name}
 		}
 		return anything
 	case *ast.CallExpr:

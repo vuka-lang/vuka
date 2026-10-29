@@ -1,0 +1,27 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+func parse(s string) (int, error) {
+	if s == "" {
+		return 0, errors.New("empty")
+	}
+	return len(s), nil
+}
+
+// show binds the whole result: a vuka.Result of the call's values.
+func show(s string) string {
+	match parse(s) {
+	case Ok(0):
+		return "zero"
+	case r:
+		return r.String()
+	}
+}
+
+func main() {
+	fmt.Println(show("abc"), show(""))
+}
