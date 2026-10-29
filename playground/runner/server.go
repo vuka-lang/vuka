@@ -440,10 +440,16 @@ func (s *server) sessionURL(id string) string {
 
 const sessionCookie = "vkrun"
 
-// servePath serves the run origin's /s/<id>/… by session. A path without
-// the prefix (an absolute link the program wrote) goes to the session its
-// page's Referer or the cookie names.
+// servePath serves the run origin's /s/<id>/… by session, its HTML and CSS
+// rewritten for the prefix (pathmode.go). A path without the prefix that
+// slipped past the rewriting goes to the session its page's Referer or the
+// cookie names, when either does: a page load is redirected under the
+// prefix, anything else served as if it had it.
 func (s *server) servePath(w http.ResponseWriter, r *http.Request) {
+	if r.URL.Path == shimPath {
+		serveShim(w)
+		return
+	}
 	if rest, ok := strings.CutPrefix(r.URL.Path, "/s/"); ok {
 		id, tail, _ := strings.Cut(rest, "/")
 		if validID(id) {
@@ -457,19 +463,29 @@ func (s *server) servePath(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
+	id := ""
 	if ref, err := url.Parse(r.Referer()); err == nil && strings.EqualFold(ref.Host, r.Host) {
 		if rest, ok := strings.CutPrefix(ref.Path, "/s/"); ok {
-			if id, _, _ := strings.Cut(rest, "/"); validID(id) {
-				s.serveSession(w, r, id, "")
-				return
+			if rid, _, _ := strings.Cut(rest, "/"); validID(rid) {
+				id = rid
 			}
 		}
 	}
-	if c, err := r.Cookie(sessionCookie); err == nil && validID(c.Value) {
-		s.serveSession(w, r, c.Value, "")
+	if c, err := r.Cookie(sessionCookie); id == "" && err == nil && validID(c.Value) {
+		id = c.Value
+	}
+	if id == "" {
+		http.NotFound(w, r)
 		return
 	}
-	http.NotFound(w, r)
+	prefix := "/s/" + id
+	if r.Method == http.MethodGet && r.Header.Get("Upgrade") == "" &&
+		(r.Header.Get("Sec-Fetch-Dest") == "document" || r.Header.Get("Sec-Fetch-Dest") == "iframe") {
+		http.Redirect(w, r, prefix+r.URL.RequestURI(), http.StatusFound)
+		return
+	}
+	r.URL.Path, r.URL.RawPath = prefix+r.URL.Path, ""
+	s.serveSession(w, r, id, prefix)
 }
 
 func sameSite(scheme string) http.SameSite {
@@ -514,16 +530,20 @@ func (s *server) newProxy(ss *session) *httputil.ReverseProxy {
 			if prefix, _ := pr.In.Context().Value(prefixKey{}).(string); prefix != "" {
 				pr.Out.URL.Path = "/" + strings.TrimPrefix(strings.TrimPrefix(pr.In.URL.Path, prefix), "/")
 				pr.Out.URL.RawPath = ""
+				pr.Out.Header.Del("Accept-Encoding") // the HTML and CSS are rewritten
 			}
 			pr.SetXForwarded()
 		},
 		ModifyResponse: func(resp *http.Response) error {
 			s.frameable(resp.Header)
 			prefix, _ := resp.Request.Context().Value(prefixKey{}).(string)
-			if loc := resp.Header.Get("Location"); prefix != "" && strings.HasPrefix(loc, "/") && !strings.HasPrefix(loc, "//") {
-				resp.Header.Set("Location", prefix+loc)
+			if prefix == "" {
+				return nil
 			}
-			return nil
+			if loc := resp.Header.Get("Location"); strings.HasPrefix(loc, "/") && !strings.HasPrefix(loc, "//") {
+				resp.Header.Set("Location", prefixURL(prefix, loc))
+			}
+			return rewriteBody(resp, prefix)
 		},
 		ErrorHandler: func(w http.ResponseWriter, r *http.Request, err error) {
 			http.Error(w, "the program didn't answer: "+err.Error(), http.StatusBadGateway)

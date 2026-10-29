@@ -53,6 +53,16 @@ func (f *fake) Start(_ context.Context, bin, data string, env []string, out io.W
 		fmt.Fprintf(w, "hello %s host=%s", r.URL.Path, r.Host)
 	})
 	mux.HandleFunc("/go", func(w http.ResponseWriter, r *http.Request) { http.Redirect(w, r, "/there", http.StatusFound) })
+	mux.HandleFunc("/page", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/html; charset=utf-8")
+		fmt.Fprintf(w, `<!DOCTYPE html><html><head><title>x</title><link rel="stylesheet" href="/_vuka/app.css?v=1"></head>`+
+			`<body><a href="/pets">pets</a><a href="//cdn.example/x">cdn</a><img srcset="/a.png 1x, /b.png 2x">`+
+			`<form action="/save"></form><div style="background:url('/bg.png')"></div><script src="/_vuka/live.js" defer></script></body></html>`)
+	})
+	mux.HandleFunc("/_vuka/app.css", func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "text/css")
+		io.WriteString(w, `@import "/base.css"; h1{font-size:24px;background:url(/img.png)} i{background:url("https://x.example/a.png")}`)
+	})
 	mux.HandleFunc("/exit", func(w http.ResponseWriter, r *http.Request) { go stop() })
 	mux.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
 		if r.Header.Get("Upgrade") != "websocket" {
@@ -215,6 +225,47 @@ func TestPathMode(t *testing.T) {
 	}
 	if code, _, h := get(t, hs, res.URL, "/s/"+res.Session+"/go"); code != 302 || h.Get("Location") != "/s/"+res.Session+"/there" {
 		t.Errorf("redirect %d %q", code, h.Get("Location"))
+	}
+}
+
+// TestPathModeAssets: root-absolute URLs in a program's HTML and CSS reach
+// its session under /s/<id>/ with neither a cookie nor a Referer, and host
+// mode passes them as the program wrote them.
+func TestPathModeAssets(t *testing.T) {
+	_, hs := testServer(t, &fake{}, func(c *config) { c.runOrigin = "http://run.test" })
+	res := decode(t, post(t, hs, counter, nil))
+	p := "/s/" + res.Session
+	code, body, h := get(t, hs, res.URL, p+"/page")
+	if code != 200 || h.Get("Content-Length") != fmt.Sprint(len(body)) {
+		t.Fatalf("page %d %s (length %s)", code, body, h.Get("Content-Length"))
+	}
+	for _, want := range []string{
+		`<head><script src="` + shimPath + `" data-prefix="` + p + `"></script><title>`,
+		`href="` + p + `/_vuka/app.css?v=1"`, `href="` + p + `/pets"`, `href="//cdn.example/x"`,
+		`srcset="` + p + `/a.png 1x, ` + p + `/b.png 2x"`, `action="` + p + `/save"`,
+		`url('` + p + `/bg.png')`, `src="` + p + `/_vuka/live.js"`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Errorf("the page lacks %s:\n%s", want, body)
+		}
+	}
+	// The stylesheet, asked for as the browser would: no cookie, no Referer.
+	code, body, _ = get(t, hs, res.URL, p+"/_vuka/app.css?v=1")
+	if code != 200 || !strings.Contains(body, `@import "`+p+`/base.css"`) || !strings.Contains(body, `url(`+p+`/img.png)`) ||
+		!strings.Contains(body, `url("https://x.example/a.png")`) {
+		t.Errorf("stylesheet %d %s", code, body)
+	}
+	if code, body, _ := get(t, hs, res.URL, shimPath); code != 200 || !strings.Contains(body, "data-prefix") {
+		t.Errorf("shim %d", code)
+	}
+	if code, _, _ := get(t, hs, res.URL, "/_vuka/app.css"); code != 404 {
+		t.Errorf("an unprefixed asset with nothing naming its session: %d", code)
+	}
+
+	_, hs = testServer(t, &fake{}, nil)
+	res = decode(t, post(t, hs, counter, nil))
+	if _, body, _ := get(t, hs, res.URL, "/page"); !strings.Contains(body, `href="/_vuka/app.css?v=1"`) || strings.Contains(body, shimPath) {
+		t.Errorf("host mode rewrote the page: %s", body)
 	}
 }
 

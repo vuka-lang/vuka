@@ -1,7 +1,9 @@
 // Checks Run in Chrome against a runner (RUNNER, default
-// http://localhost:8090): the counter runs in the iframe, a click counts
-// over its websocket, an edit run again replaces it. Screenshots go to
-// SHOTS when it is set.
+// http://localhost:8090): the counter runs in the iframe with its
+// stylesheet applied, a click counts over its websocket, an edit run again
+// replaces it. Third-party cookies are blocked, so a runner serving
+// programs at /s/<id>/ (RUNNER_RUN_ORIGIN=http://run.localhost:8090) is
+// checked without them. Screenshots go to SHOTS when it is set.
 //
 //	RUNNER_SANDBOX=local RUNNER_UNSAFE_LOCAL=1 go run ./playground/runner &
 //	VITE_VUKA_RUNNER=http://localhost:8090 npx vitepress dev &
@@ -18,7 +20,7 @@ const chrome =
 if (!chrome) throw new Error('no Chrome: set CHROME')
 if (shots) mkdirSync(shots, { recursive: true })
 
-const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox'] })
+const browser = await puppeteer.launch({ executablePath: chrome, headless: true, args: ['--no-sandbox', '--test-third-party-cookie-phaseout'] })
 const fail = (msg) => {
   throw new Error(msg)
 }
@@ -50,11 +52,33 @@ async function program(page, text, not) {
   fail(`no program shows ${JSON.stringify(text)} (frames ${page.frames().map((f) => f.url())}); log:\n${log}`)
 }
 
+// styled fails unless the program's Tailwind stylesheet applied: the h1 is
+// text-2xl, the button padded.
+async function styled(frame) {
+  try {
+    await frame.waitForFunction(
+      () => {
+        const h1 = document.querySelector('h1'), b = document.querySelector('button')
+        return h1 && b && getComputedStyle(h1).fontSize === '24px' && getComputedStyle(b).paddingLeft === '12px'
+      },
+      { timeout: 10000 },
+    )
+  } catch {
+    const got = await frame.evaluate(() => {
+      const h1 = document.querySelector('h1'), b = document.querySelector('button')
+      return { url: location.href, h1: h1 && getComputedStyle(h1).fontSize, button: b && getComputedStyle(b).paddingLeft, sheets: [...document.styleSheets].map((s) => s.href) }
+    })
+    fail(`the program's stylesheet didn't apply: ${JSON.stringify(got)}`)
+  }
+}
+
 const sessions = async () => (await (await fetch(api + '/healthz')).json()).sessions
 
 const page = await open('light')
 await page.click('[data-testid=run-button]')
 let frame = await program(page, 'Clicked 0 times')
+await styled(frame)
+console.log('program at', frame.url())
 if (shots) await page.screenshot({ path: `${shots}/run-light.png` })
 
 await frame.click('button')
@@ -74,6 +98,7 @@ await page.keyboard.down(mod)
 await page.keyboard.press('Enter')
 await page.keyboard.up(mod)
 frame = await program(page, 'Edited and run again', first)
+await styled(frame)
 if (frame.url() === first) fail('the run again serves from the first session')
 if ((await frame.evaluate(() => document.body.innerText)).includes('Clicked 2 times')) fail('the new run kept the old state')
 for (let i = 0; i < 40 && (await sessions()) !== 1; i++) await new Promise((r) => setTimeout(r, 250))
@@ -81,7 +106,7 @@ if ((await sessions()) !== 1) fail(`the runner holds ${await sessions()} session
 
 const dark = await open('dark')
 await dark.click('[data-testid=run-button]')
-await program(dark, 'Clicked 0 times')
+await styled(await program(dark, 'Clicked 0 times'))
 if (shots) await dark.screenshot({ path: `${shots}/run-dark.png` })
 
 for (const p of [page, dark]) if (p.errors.length) fail(`page errors: ${p.errors.join('; ')}`)

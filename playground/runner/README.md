@@ -100,9 +100,16 @@ API's: the iframe's `sandbox="allow-scripts allow-forms allow-same-origin"`
 keeps a program's scripts in that origin. The runner strips a program's
 `X-Frame-Options` and replaces its `frame-ancestors` with the docs' origins.
 Per-session hosts (`*.run…`) keep one program's cookies and storage from
-another's; with `/s/<session>/` paths they share one origin, and a page's
-absolute links reach its session through the Referer or a cookie, which
-third-party-cookie blocking can defeat — use hosts in production.
+another's — use them in production. With `/s/<session>/` paths programs
+share one origin, and the runner keeps a program's root-absolute URLs
+(`/_vuka/app.css`, `/pets`) inside its session without cookies: it
+rewrites them in the HTML and CSS it proxies (`href`, `src`, `action`,
+`srcset`, `url()`, `@import`), and each page first loads `/_vkrun/path.js`,
+which prefixes the URLs the page's scripts build (fetch, XMLHttpRequest,
+WebSocket, EventSource, history) and those on links and forms a live patch
+brings. A URL built some other way (a dynamic `import()`, `location.assign`
+to a path the server sent) falls back to the page's Referer; a page load
+reaching the runner that way is redirected under its prefix.
 
 Sizing: a run holds up to 256 MB and a CPU while building at 1 GB and 2
 CPUs, so `RUNNER_SESSIONS=20` wants about 8 GB of memory and 4–8 CPUs; the
@@ -116,7 +123,7 @@ The docs enable Run when built with `VITE_VUKA_RUNNER=https://<api host>`.
 cd playground/runner
 RUNNER_SANDBOX=local RUNNER_UNSAFE_LOCAL=1 RUNNER_ADDR=127.0.0.1:8090 go run .   # vuka on PATH
 cd ../../docs && VITE_VUKA_RUNNER=http://localhost:8090 npx vitepress dev
-node playground/run-check.mjs http://localhost:5173/playground                  # Chrome check
+node playground/run-check.mjs http://localhost:5173/playground                  # Chrome check (with RUNNER_RUN_ORIGIN=http://run.localhost:8090: path mode)
 go test ./...                                                                    # API, with a fake sandbox
 RUNNER_LOCAL_TEST=1 go test -run Local ./...                                     # a real build, local sandbox
 ```
