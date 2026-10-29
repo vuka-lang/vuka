@@ -370,7 +370,9 @@ func (s *server) run(ctx context.Context, files map[string]string, ds []Diagnost
 	err := s.sb.Build(bctx, src, lw)
 	cancel()
 	lw.flush()
-	res.Diagnostics = buildDiagnostics(buf.Bytes())
+	if ds := buildDiagnostics(buf.Bytes()); ds != nil {
+		res.Diagnostics = ds
+	}
 	res.BuildLog = plainLog(buf.Bytes())
 	if err != nil {
 		res.Error = "the build failed"

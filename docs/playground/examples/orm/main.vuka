@@ -1,4 +1,5 @@
-// Command play serves posts stored with the ORM.
+// Command play serves posts stored with the ORM in the SQLite file
+// DATABASE_URL names, its tables made when it opens.
 package main
 
 import (
@@ -6,12 +7,16 @@ import (
 
 	"github.com/vuka-lang/orm/v2"
 	"github.com/vuka-lang/orm/v2/ormweb"
+	_ "github.com/vuka-lang/orm/v2/sqlite"
 	"github.com/vuka-lang/web/v2"
+
+	"example.com/play/pages"
+	"example.com/play/posts"
 )
 
 func main() {
-	db := orm.NewDatabases() // DATABASE_URL
-	if err := web.New(ormweb.Set(db).MigrateOnStart(true)).Run(""); err != nil {
+	db := orm.NewDatabases(orm.OnOpen(posts.CreateTables))
+	if err := web.New(ormweb.Set(db), pages.Routes()).Run(""); err != nil {
 		log.Fatal(err)
 	}
 }

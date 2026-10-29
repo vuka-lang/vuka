@@ -54,3 +54,20 @@ func Publish(ctx context.Context, author *Author, title, body string) (*Post, er
 	p.Save(ctx)?
 	return p, nil
 }
+
+// Latest is every post, newest first.
+func Latest(ctx context.Context) ([]Post, error) {
+	return orm.Objects[Post]().All(ctx)
+}
+
+// Guest is the author of the posts the playground publishes.
+func Guest(ctx context.Context) (*Author, error) {
+	a, _, err := orm.Objects[Author]().GetOrCreate(ctx, orm.Q{"email": "guest@example.com"}, orm.Defaults{"name": "Guest"})
+	return &a, err
+}
+
+// CreateTables makes the tables the posts are in, for a database without
+// them: the playground's starts empty.
+func CreateTables(ctx context.Context, dbs *orm.Databases) error {
+	return orm.CreateTables(orm.WithDatabases(ctx, dbs), orm.Objects[Author](), orm.Objects[Post]())
+}

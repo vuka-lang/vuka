@@ -1,0 +1,35 @@
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Index is the page at /: the form, then every entry so far.
+type Index struct {
+	ui.Live
+	Form    Entry
+	entries []Entry
+}
+
+func (p *Index) Title() string { return "Guestbook" }
+
+// Sign runs once the entry passed its rules.
+func (p *Index) Sign(ctx context.Context, e Entry) error {
+	p.entries = append([]Entry{e}, p.entries...)
+	p.Form = Entry{}
+	return nil
+}
+</script>
+
+<main class="mx-auto max-w-md space-y-6 px-4 py-16">
+  <h1 class="text-2xl font-semibold">{Title()}</h1>
+  <ui.Form for={Form} onSubmit={Sign} submitLabel="Sign" />
+  <ul class="space-y-2">
+    for _, e := range entries {
+      <li><strong>{e.Name}</strong>: {e.Message}</li>
+    }
+  </ul>
+</main>
