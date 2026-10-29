@@ -65,6 +65,7 @@ func runMain(t *testing.T, j *nsjail, tmpl *template, src string, d time.Duratio
 		t.Fatal(err)
 	}
 	var log bytes.Buffer
+	built := time.Now()
 	if err := j.Build(context.Background(), srcDir, &log); err != nil {
 		t.Fatalf("build: %v\n%s", err, log.String())
 	}
@@ -80,6 +81,7 @@ func runMain(t *testing.T, j *nsjail, tmpl *template, src string, d time.Duratio
 		p.Stop()
 		t.Fatalf("still running after %s:\n%s", d, out.String())
 	}
+	t.Logf("built in %s, ran %s, %s:\n%s", start.Sub(built), time.Since(start), p.Exit(), out.String())
 	return out.String(), p.Exit(), time.Since(start)
 }
 
@@ -227,17 +229,17 @@ func main() {
 func TestNsjailBadImport(t *testing.T) {
 	j, tmpl := jail(t, nil)
 	dir := t.TempDir()
-	tmpl.write(dir, map[string]string{"main.go": "package main\n\nimport _ \"github.com/google/uuid\"\n\nfunc main() {}\n"})
+	tmpl.write(dir, map[string]string{"main.go": "package main\n\nimport _ \"github.com/pkg/errors\"\n\nfunc main() {}\n"})
 	var log bytes.Buffer
 	start := time.Now()
 	err := j.Build(context.Background(), dir, &log)
 	if err == nil || time.Since(start) > 30*time.Second {
 		t.Fatalf("build: %v after %s\n%s", err, time.Since(start), log.String())
 	}
-	if !strings.Contains(log.String(), "github.com/google/uuid") {
+	if !strings.Contains(log.String(), "github.com/pkg/errors") {
 		t.Errorf("log:\n%s", log.String())
 	}
-	if ds, _ := checkFiles(map[string]string{"main.go": "package main\n\nimport _ \"github.com/google/uuid\"\n"}); len(ds) != 1 {
+	if ds, _ := checkFiles(map[string]string{"main.go": "package main\n\nimport _ \"github.com/pkg/errors\"\n"}); len(ds) != 1 {
 		t.Errorf("diagnostics %v", ds)
 	}
 }
