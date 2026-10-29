@@ -1,0 +1,54 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+// LoginError is why a password change was refused: every variant is an
+// error, the same method on each.
+enum LoginError {
+	CurrentRequired
+	CurrentIncorrect{AttemptsLeft int}
+	Policy{Err error}
+}
+
+func (e LoginError.CurrentRequired) Error() string { return "the current password is required" }
+func (e LoginError.CurrentIncorrect) Error() string {
+	return fmt.Sprintf("the current password is incorrect (%d attempts left)", e.AttemptsLeft)
+}
+func (e LoginError.Policy) Error() string { return "policy: " + e.Err.Error() }
+func (e LoginError.Policy) Unwrap() error { return e.Err }
+
+func change(current string) error {
+	switch current {
+	case "":
+		return LoginError.CurrentRequired
+	case "bad":
+		return LoginError.CurrentIncorrect{AttemptsLeft: 2}
+	case "weak":
+		return LoginError.Policy{Err: errors.New("too short")}
+	}
+	return nil
+}
+
+func message(err error) string {
+	var le LoginError
+	if !errors.As(err, &le) {
+		return "the password could not be changed"
+	}
+	match le {
+	case LoginError.CurrentIncorrect{AttemptsLeft: n}:
+		return fmt.Sprintf("wrong password, %d tries left", n)
+	case _:
+		return err.Error()
+	}
+}
+
+func main() {
+	fmt.Println(message(change("")))
+	fmt.Println(message(change("bad")))
+	fmt.Println(message(change("weak")))
+	fmt.Println(errors.Is(change(""), LoginError.CurrentRequired))
+	fmt.Println(message(errors.New("boom")))
+}

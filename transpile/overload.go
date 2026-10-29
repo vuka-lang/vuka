@@ -51,6 +51,15 @@ func recvBase(fd *ast.FuncDecl) string {
 			t = x.X
 		case *ast.Ident:
 			return x.Name
+		case *ast.SelectorExpr:
+			// An enum variant's method, func (c Shape.Circle) …: its
+			// receiver is the variant's generated type, so same-named
+			// methods on different variants are different types' methods,
+			// never overloads of one another.
+			if id, ok := x.X.(*ast.Ident); ok {
+				return id.Name + x.Sel.Name
+			}
+			return ""
 		default:
 			return ""
 		}
