@@ -20,6 +20,28 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.12.0 — unreleased
+
+### Editor
+
+- **`match` in the editor.** A match's bindings map onto their patterns:
+  hover, completion after `u.`, definition, references, rename, semantic
+  tokens and inlay hints work on `u` in `case Ok(u):` and its uses, for
+  guards, struct and enum patterns, `Some(x)` and `case r:`, and an error at
+  a use lands on the name. Hover on `Ok`, `Err`, `Some` or `None` says what it
+  matches (`Ok` of `(User, error)`), and completion after `case` offers the
+  patterns that fit the subject. A misspelt pattern — `Error(…)` for
+  `Err(…)`, `ok(u)`, `none`, `Shape.Circel{…}` — is
+  [E0112](/errors/E0112) on the name with a did-you-mean and a quick fix.
+  [E0113](/errors/E0113) says what's missing (`match on (User, error) isn't
+  exhaustive: missing Err(_)`) on the match and its subject, its help names
+  the cases to add, and its quick fix **Add missing cases** adds them, a
+  missing `Err(_)` returning the error. Serving the Go extension as gopls,
+  `vuka lsp` no longer reports on `.vuka` files it wasn't given, which the
+  Vuka extension's server already does from the editor's text: a second
+  copy, from disk, stood until a save. See
+  [Match Statements](/tools/editors#match).
+
 ## v2.11.0 — 2026-10-29
 
 ### Static Files

@@ -47,6 +47,20 @@ named `Mount`, `Changed` or `Load<Group>` that no hook attribute marks says
 it isn't a hook (a hook is declared with `@ui.Mount`, `@ui.OnChange` or
 `@ui.Loads`), and names the attribute.
 
+### Match Statements {#match}
+
+A [`match`](/features/match)'s bindings are variables like any other: hover
+on `u` in `case Ok(u):` or at a use shows its type (`var u User`),
+completion after `u.` lists its fields and methods, definition goes to the
+name in the pattern, references and rename take the pattern's name and every
+use, and inlay hints show the type after the name. This holds for guards,
+struct and enum patterns (`case Shape.Circle{Radius: r}:`), `Some(x)` and a
+binding of the whole value (`case r:`). Hover on `Ok`, `Err`, `Some` or `None`
+says what it matches: `Ok` of `(User, error)` on a call returning one.
+Completion after `case` offers the patterns that fit the subject; a misspelt
+one (`Error(…)`) and a match that misses a case are errors as you type, each
+with a quick fix.
+
 ### Shape Files {#templates}
 
 `.vuka.html` files are served like `.vuka` files: hover, go to definition,
