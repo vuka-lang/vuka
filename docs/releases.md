@@ -20,6 +20,22 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.12.0 — unreleased
+
+### Docs
+
+- **Vuka samples beside their Go.** The guides to `?`, `match`, enums,
+  templates' implicit ctx and bindings, static files, mail and
+  [vuka.toml](/reference/vuka-toml) show each example in a code group: the
+  Vuka, and the Go the transpiler makes of it. `go test ./docs` transpiles
+  every such sample and checks the Go shown is in the output, so the two
+  can't drift apart.
+- A [vuka.toml reference](/reference/vuka-toml) lists every table and key;
+  the CLI reference lists `vuka routes`, `vuka fix` and its fixers, `vuka
+  doctor`, and `vuka ui`'s `--registry` and `--offline`.
+- The lazy-bindings sample in [Templates](/ui/templates#bindings) put HTML
+  comments after markup statements, which doesn't parse; it builds now.
+
 ## v2.11.0 — 2026-10-29
 
 ### Static Files

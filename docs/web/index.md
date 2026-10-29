@@ -97,6 +97,7 @@ signed-in user and services. See [Dependency Injection](/web/dependency-injectio
 
 [Folder Routes](/web/folder-routes), [Live Pages](/web/live),
 [Authentication](/web/auth), [Styles & Scripts](/web/assets),
+[Static Files](/web/static-files), [UI Components](/ui/vendored),
 [Islands](/web/islands), [Mail](/web/mail), [Crons](/web/crons),
 [Testing Web Apps](/web/testing) and [Deployment](/web/deployment) all share
 the same app and container.

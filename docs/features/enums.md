@@ -55,6 +55,10 @@ A string enum's variants without values are their own names. Variants are
 separated by commas or new lines, start with a capital letter, and may have doc
 comments.
 
+A value enum's variants are values, not types: `func ship(s Status.Sent)`
+is an error saying so. Take the enum, `s Status`, and compare or `match` the
+value.
+
 ### Generated Methods
 
 Every value enum gets:
@@ -121,7 +125,9 @@ A method can be declared on a variant, on either kind of enum. Each variant
 answers in its own words, and the enum, which has the method on every
 variant, satisfies interfaces such as `error`:
 
-```vuka
+::: code-group
+
+```vuka [Vuka]
 // PasswordError is why a password change was refused.
 enum PasswordError {
 	CurrentRequired
@@ -144,15 +150,7 @@ func change(current, next, again string) error {
 }
 ```
 
-`PasswordError.Mismatch` is an `error`, and `errors.Is(err,
-PasswordError.Mismatch)` works, since the values compare. The enum stays a
-number: JSON, the database and `match` see it as before.
-
-On a value enum the variants are values, not types, so the methods of one
-name become one method on the enum that switches on the value; `vuka eject`
-writes it out as Go:
-
-<!-- go:context
+```go [Generated Go]
 type PasswordError int
 
 const (
@@ -161,13 +159,12 @@ const (
 	PasswordErrorChangeFailed
 )
 
-func (p PasswordError) String() string { return "" }
-func passwordErrorCurrentRequiredError() string { return "" }
-func passwordErrorMismatchError() string { return "" }
-func passwordErrorChangeFailedError() string { return "" }
--->
+func passwordErrorCurrentRequiredError() string { return "Current password is required" }
+func passwordErrorMismatchError() string        { return "Passwords do not match" }
+func passwordErrorChangeFailedError() string    { return "Failed to change password. Please try again." }
 
-```go
+// …
+
 func (p PasswordError) Error() string {
 	switch p {
 	case PasswordErrorCurrentRequired:
@@ -181,21 +178,33 @@ func (p PasswordError) Error() string {
 }
 ```
 
+:::
+
+`PasswordError.Mismatch` is an `error`, and `errors.Is(err,
+PasswordError.Mismatch)` works, since the values compare. The enum stays a
+number: JSON, the database and `match` see it as before.
+
+On a value enum the variants are values, not types, so the methods of one
+name become one method on the enum that switches on the value, as the Go
+tab shows: each variant's body is a function of its own, and the enum's
+`Error` calls the one for its value.
+
 The rules follow from that one method:
 
 - **Every variant, or a default.** A method declared on some variants needs
   the rest too, or a default declared on the enum itself, which answers for
   the variants without their own and for a value that is no variant
-  (`PasswordError(9)`); without a default, such a value panics.
+  (`PasswordError(9)`); without a default, such a value panics. A variant
+  left without the method and no default is [E0164](/errors/E0164).
 - **One signature.** Every variant's method of a name, and the default,
-  take and return the same types.
+  take and return the same types ([E0165](/errors/E0165)).
 - **A receiver name gives the value:** in `func (e PasswordError.Mismatch)
   Error() string`, `e` is the enum value, always `PasswordError.Mismatch`.
 - **Value receivers.** The variants are constants, so a pointer receiver is
-  an error.
+  an error ([E0166](/errors/E0166)).
 - **Not the generated methods.** `String`, `Valid`, `MarshalText`,
   `UnmarshalText`, `Scan` and `Value` are generated for every value enum; a
-  variant declaring one is an error. For another text per variant, name the
+  variant declaring one is [E0167](/errors/E0167). For another text per variant, name the
   method differently: `Label`, `Message`.
 
 ```vuka
@@ -226,7 +235,9 @@ An enum whose variants implement `error` is a set of errors a caller can
 tell apart. A variant's field of type `error` is its cause, the error it
 wraps:
 
-```vuka
+::: code-group
+
+```vuka [Vuka]
 enum RegisterError {
 	EmailTaken
 	WeakPassword{Reason string}
@@ -238,18 +249,33 @@ func (e RegisterError.WeakPassword) Error() string { return "weak password: " + 
 func (e RegisterError.Database) Error() string     { return "database: " + e.Err.Error() }
 ```
 
-`RegisterError.Database` gets a generated `Unwrap() error` returning `Err`,
-so `errors.Is(err, sql.ErrNoRows)` and `errors.As` see through it; the
-other variants have none:
+```go [Generated Go]
+type RegisterError interface{ isRegisterError() }
+type (
+	RegisterErrorEmailTaken struct{}
+	RegisterErrorWeakPassword struct{ Reason string }
+	RegisterErrorDatabase     struct{ Err error }
+)
 
-<!-- go:context
-type RegisterErrorDatabase struct{ Err error }
--->
+func (RegisterErrorEmailTaken) Error() string     { return "email already registered" }
+func (e RegisterErrorWeakPassword) Error() string { return "weak password: " + e.Reason }
+func (e RegisterErrorDatabase) Error() string     { return "database: " + e.Err.Error() }
 
-```go
+func (RegisterErrorEmailTaken) isRegisterError() {}
+
+func (RegisterErrorWeakPassword) isRegisterError() {}
+
+func (RegisterErrorDatabase) isRegisterError() {}
+
 // Unwrap returns the cause of r.
 func (r RegisterErrorDatabase) Unwrap() error { return r.Err }
 ```
+
+:::
+
+`RegisterError.Database` gets a generated `Unwrap() error` returning `Err`,
+so `errors.Is(err, sql.ErrNoRows)` and `errors.As` see through it; the
+other variants have none.
 
 A variant declaring its own `Unwrap` keeps it. One with two fields of type
 `error` and no `Unwrap` of its own is [E0175](/errors/E0175): declare
@@ -259,20 +285,68 @@ Callers test a variant without fields with `errors.Is`, since it is a
 value, and take the enum out of an error with `errors.As` on the enum's
 type, then `match` it:
 
-```vuka
-if errors.Is(err, RegisterError.EmailTaken) {
-	return "taken"
-}
-var e RegisterError
-if errors.As(err, &e) {
-	match e {
-	case RegisterError.WeakPassword{Reason: r}:
-		return "weak: " + r
-	case _:
-		return e.Error()
+::: code-group
+
+```vuka [Vuka]
+func message(err error) string {
+	if errors.Is(err, RegisterError.EmailTaken) {
+		return "taken"
 	}
+	var e RegisterError
+	if errors.As(err, &e) {
+		match e {
+		case RegisterError.WeakPassword{Reason: r}:
+			return "weak: " + r
+		case _:
+			return e.Error()
+		}
+	}
+	return "try again later"
 }
+
+enum RegisterError {
+	EmailTaken
+	WeakPassword{Reason string}
+	Database{Err error}
+}
+
+func (RegisterError.EmailTaken) Error() string     { return "email already registered" }
+func (e RegisterError.WeakPassword) Error() string { return "weak password: " + e.Reason }
+func (e RegisterError.Database) Error() string     { return "database: " + e.Err.Error() }
 ```
+
+```go [Generated Go]
+func message(err error) string {
+	if errors.Is(err, RegisterErrorEmailTaken{}) {
+		return "taken"
+	}
+	var e RegisterError
+	if errors.As(err, &e) {
+		if m1 := e; false {
+			panic(m1)
+		} else if r, ok := func() (r string, ok bool) {
+			p1, p1ok := m1.(RegisterErrorWeakPassword)
+			if !p1ok {
+				return
+			}
+			r = p1.Reason
+			ok = true
+			return
+		}(); ok {
+			return "weak: " + r
+		} else if true {
+			return e.Error()
+		} else {
+			panic("vuka: no case matched")
+		}
+	}
+	return "try again later"
+}
+
+// …
+```
+
+:::
 
 `errors.As` targets the enum, not a variant: any of its variants in the
 chain is found. A `match` on an error does the same with the variant's type
@@ -284,7 +358,17 @@ as its pattern, `case Err(RegisterError.Database{Err: cause}):` (see
 A [`match`](/features/match) over an enum takes its variants as patterns, and fields apart the
 way [struct patterns](/features/match#patterns) do:
 
-```vuka
+::: code-group
+
+```vuka [Vuka]
+enum Shape {
+	Circle{Radius float64}
+	Rect{W, H float64}
+	Unknown
+}
+
+enum Status { Draft, Sent, Paid }
+
 func area(s Shape) float64 {
 	match s {
 	case Shape.Circle{Radius: r}:
@@ -307,6 +391,73 @@ func label(s Status) string {
 	}
 }
 ```
+
+```go [Generated Go]
+func area(s Shape) float64 {
+	if m1 := s; false {
+		panic(m1)
+	} else if r, ok := func() (r float64, ok bool) {
+		p1, p1ok := m1.(ShapeCircle)
+		if !p1ok {
+			return
+		}
+		r = p1.Radius
+		ok = true
+		return
+	}(); ok {
+		return math.Pi * r * r
+	} else if w, h, ok := func() (w float64, h float64, ok bool) {
+		p1, p1ok := m1.(ShapeRect)
+		if !p1ok {
+			return
+		}
+		w = p1.W
+		h = p1.H
+		ok = true
+		return
+	}(); ok && (w == h) {
+		_ = h
+		return w * w
+	} else if w, h, ok := func() (w float64, h float64, ok bool) {
+		p1, p1ok := m1.(ShapeRect)
+		if !p1ok {
+			return
+		}
+		w = p1.W
+		h = p1.H
+		ok = true
+		return
+	}(); ok {
+		return w * h
+	} else if func() (ok bool) {
+		_, p1ok := m1.(ShapeUnknown)
+		if !p1ok {
+			return
+		}
+		ok = true
+		return
+	}() {
+		return 0
+	} else {
+		panic("vuka: no case matched")
+	}
+}
+
+func label(s Status) string {
+	switch s {
+	case StatusDraft:
+		return "draft"
+	case StatusSent, StatusPaid:
+		return "out"
+	default:
+		panic("vuka: no case matched")
+	}
+}
+
+// …
+```
+
+:::
 
 A match must cover every variant, or have a `case _:`. One that doesn't is an
 error at the `match`, in the editor and from `vuka build`, naming what's left:

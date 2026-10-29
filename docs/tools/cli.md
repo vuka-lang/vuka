@@ -15,20 +15,23 @@ These are the subcommands and their flags:
 ```text
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
-vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name]
-vuka ui add [-f] [--dry-run] <component…>
-vuka ui diff [component…]
-vuka ui list
+vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name] [--registry r] [--offline]
+vuka ui add [-f] [--dry-run] [--registry r] [--offline] <component…>
+vuka ui diff [--registry r] [--offline] [component…]
+vuka ui list [--registry r] [--offline]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
 vuka build-islands [-watch]
 vuka graphql schema [-check file] [-o file] [package]
+vuka routes [-json]
 vuka gen [-check] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
 vuka explain [-full] file.vuka | file.vuka.html
 vuka explain E0201
+vuka fix [-n] [fixer…]
+vuka doctor [dir]
 vuka fmt [-l] [-w] [-d] [-check] [-rewrite] [-imports] [paths…]
 vuka lsp [-gopls path] [-log file] [-shared=false]
 vuka version
@@ -535,9 +538,9 @@ A `.vuka.html` file is formatted whole, in the form it is in:
   written, then utilities by the property they set, then those under a
   variant (`hover:`, `md:`). A `class={…}` hole is never touched.
 
-The project's `vuka.toml`, next to its `go.mod`, sets the width and the
-Tailwind order in its `[fmt]` table (its `[ui]` table is
-[vuka ui's](/ui/vendored#init)). Both are optional:
+The project's [`vuka.toml`](/reference/vuka-toml), next to its `go.mod`,
+sets the width and the Tailwind order in its `[fmt]` table. Both are
+optional:
 
 ```toml
 [fmt]
@@ -546,24 +549,8 @@ tailwind = true  # sort class lists in Tailwind's order (off by default)
 ```
 
 The editor's format-on-save and range formatting use the same rules and
-the same file. Its `[compile]` table is the compiler's: `implicit_ctx =
-false` turns the render's [implicit ctx](/ui/templates#reviewing-authority)
-off for the module, so a markup call passes a `context.Context` only when
-it writes one.
-
-```toml
-[compile]
-implicit_ctx = false  # markup calls get no implicit ctx (default true)
-```
-
-Its `[vet]` table holds the opt-in checks of `vuka vet`: `wrap_errors =
-true` warns on a bare `?` passing on another package's error
-([W0111](/errors/W0111)).
-
-```toml
-[vet]
-wrap_errors = true  # ask for ?("…") on calls into other packages (default false)
-```
+the same file. The file's other tables — `[compile]`, `[vet]` and `[ui]` —
+are listed with every key in [vuka.toml](/reference/vuka-toml).
 
 > [!NOTE]
 > Tailwind ordering is off by default: it reorders every class list of a
@@ -596,6 +583,39 @@ markup: `src="/static/logo.png"` becomes
 `src={web.Asset("/static/logo.png")}` in `src`, `href`, `srcset`, `poster`
 and `data`, importing `web` where a file doesn't ([W0404](/errors/W0404)).
 It runs only when named: `vuka fix` alone leaves the links as they are.
+
+## Applying Fixes {#fix}
+
+`vuka fix` rewrites the module's source for a change a release made, or to
+a form `vuka vet` asks for. With no names it applies every fixer but
+`static-paths`; named, only those. `-n` says what would change and writes
+nothing. `vuka upgrade` runs the fixers of the releases it crosses.
+
+```sh
+vuka fix -n                  # what every fixer would change
+vuka fix static-paths        # link the static files with web.Asset
+vuka fix routes ctx-vars     # two fixers
+```
+
+| Fixer | What it does |
+|---|---|
+| `static-paths` | `src="/static/logo.png"` → `src={web.Asset("/static/logo.png")}` ([Static Paths](#static-paths), [W0404](/errors/W0404)); only when named |
+| `ctx-vars` | context processors' reads as their variables ([Processor Variables](#ctx-vars), [W0402](/errors/W0402)) |
+| `routes` | a `pages/` tree's `Routes()` passed to `web.New` ([Serving the Pages](#add-page-routes), [W0701](/errors/W0701)) |
+| `shape-script` | Go-header shapes in the `<script lang="go">` form ([Converting Shapes](#shape-script)) |
+| `templates-package` | a package clause at the start of each `.vuka.html` file |
+| `hooks` | a live page's hook methods marked `@ui.Mount`, `@ui.OnChange`, `@ui.Loads` |
+| `attributes` | field tags (`bind:`, `url:`, `orm:`, …) written as attributes |
+| `orm-fields`, `queries`, `db-schema` | ORM renames between releases (see [Release Notes](/releases)) |
+| `ui-structs`, `ui`, `attr-of`, `static-names`, `runtime`, `orphans` | older releases' moves and renames |
+
+`vuka fix -h` lists every fixer with a line on what it rewrites.
+
+## Checking the Setup {#doctor}
+
+`vuka doctor` lists the module's islands with what builds each — the
+in-process esbuild, the project's Vite, or Node — and what is missing for
+one to build, such as the npm version ([Islands](/web/islands#build)).
 
 ## The Language Server {#lsp}
 
