@@ -2,7 +2,7 @@ const vscode = require('vscode');
 const fs = require('fs');
 const os = require('os');
 const path = require('path');
-const { execFile, execFileSync } = require('child_process');
+const { execFile } = require('child_process');
 const { LanguageClient, RevealOutputChannelOn } = require('vscode-languageclient/node');
 const { markupBefore, tagToClose, closingFor } = require('./shape');
 const toolchain = require('./toolchain');
@@ -10,38 +10,18 @@ const typescript = require('./typescript');
 const { formatRoute, moduleRoot } = require('./routes');
 const { extractCommand, nameProblem, extractArguments } = require('./refactor');
 const { organizeMiddleware } = require('./organize');
+const { createResolver } = require('./resolve');
 
 let client;
 let versionItem;
 const warnedServers = new Set();
 
+const tools = createResolver();
+
 // vukaPath is the vuka binary, as an absolute path when it can be found:
 // VS Code started from the Dock has a short PATH, without ~/go/bin.
 function vukaPath() {
-  const configured = vscode.workspace.getConfiguration('vuka').get('path') || 'vuka';
-  return path.isAbsolute(configured) ? configured : findTool(configured) || configured;
-}
-
-// findTool is a command's absolute path: on the login shell's PATH, else in
-// $GOBIN, $GOPATH/bin or ~/go/bin; undefined when it's nowhere.
-function findTool(name) {
-  const win = process.platform === 'win32';
-  try {
-    const found = win
-      ? execFileSync('where', [name], { encoding: 'utf8' }).split(/\r?\n/)[0].trim()
-      : execFileSync(process.env.SHELL || '/bin/sh', ['-lc', 'command -v -- "$1"', 'sh', name], { encoding: 'utf8' }).trim();
-    if (found && path.isAbsolute(found)) {
-      return found;
-    }
-  } catch (_) {}
-  const exe = win ? name + '.exe' : name;
-  const candidates = [process.env.GOBIN, path.join(process.env.GOPATH || path.join(os.homedir(), 'go'), 'bin'), path.join(os.homedir(), 'go', 'bin')];
-  for (const dir of candidates) {
-    if (dir && fs.existsSync(path.join(dir, exe))) {
-      return path.join(dir, exe);
-    }
-  }
-  return undefined;
+  return tools.command(vscode.workspace.getConfiguration('vuka').get('path'), 'vuka');
 }
 
 let extensionPath;
@@ -59,7 +39,7 @@ function typescriptLauncher(config) {
   });
 }
 
-function start() {
+async function start() {
   const config = vscode.workspace.getConfiguration('vuka');
   const args = ['lsp'];
   const gopls = config.get('goplsPath');
@@ -69,16 +49,10 @@ function start() {
   if (!config.get('sharedGopls')) {
     args.push('-shared=false');
   }
-  const command = vukaPath();
+  const command = await vukaPath();
   const ts = typescriptLauncher(config);
-  if (ts) {
-    let version = '';
-    try {
-      version = execFileSync(command, ['version'], { encoding: 'utf8', timeout: 5000 });
-    } catch (_) {}
-    if (toolchain.supportsTSFlags(version)) {
-      args.push(...typescript.lspArgs(ts));
-    }
+  if (ts && toolchain.supportsTSFlags(await tools.version(command))) {
+    args.push(...typescript.lspArgs(ts));
   }
   client = new LanguageClient(
     'vuka',
@@ -112,9 +86,9 @@ function start() {
 // goplsLink is a link named gopls to vuka, which run under that name is a
 // drop-in gopls that also knows .vuka files. Windows gets a hard link (or a
 // copy) named gopls.exe, refreshed while no gopls runs from it.
-function goplsLink(context) {
+async function goplsLink(context) {
   const dir = binDir(context);
-  const target = vukaPath();
+  const target = await vukaPath();
   if (!path.isAbsolute(target)) {
     return undefined;
   }
@@ -146,7 +120,7 @@ async function enableGoDropIn(context, ask) {
   if (process.platform === 'win32' || !vscode.extensions.getExtension('golang.go')) {
     return;
   }
-  const link = goplsLink(context);
+  const link = await goplsLink(context);
   if (!link) {
     return;
   }
@@ -249,8 +223,8 @@ async function enableTemplDropIn(context, ask) {
     }
     return;
   }
-  const templ = findTool('templ');
-  const link = goplsLink(context);
+  const templ = await tools.findTool('templ');
+  const link = await goplsLink(context);
   if (!templ || !link) {
     if (!ask) {
       vscode.window.showErrorMessage(templ ? 'Vuka: vuka not found (vuka.path).' : 'Vuka: templ not found; install it with: go install github.com/a-h/templ/cmd/templ@latest');
@@ -298,11 +272,11 @@ function showVersion() {
     versionItem.name = 'Vuka';
     versionItem.command = { title: 'Restart', command: 'vuka.restartServer' };
   }
-  const command = vukaPath();
   versionItem.text = 'vuka';
   versionItem.detail = '';
-  execFile(command, ['version'], { timeout: 5000 }, (err, stdout) => {
-    if (err) {
+  return vukaPath().then(async (command) => {
+    const stdout = await tools.version(command);
+    if (!stdout) {
       versionItem.text = 'vuka not found';
       versionItem.detail = `${command}: install with go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest`;
       versionItem.severity = vscode.LanguageStatusSeverity.Error;
@@ -392,12 +366,14 @@ function showRoute(...entries) {
   if (!root) {
     return;
   }
-  execFile(vukaPath(), ['routes'], { cwd: root }, (err, stdout, stderr) => {
-    routesChannel.appendLine(`vuka routes (${root})`);
-    routesChannel.appendLine(stdout || '');
-    if (stderr) routesChannel.appendLine(stderr);
-    if (err && !stdout) routesChannel.appendLine(err.message);
-  });
+  vukaPath().then((command) =>
+    execFile(command, ['routes'], { cwd: root }, (err, stdout, stderr) => {
+      routesChannel.appendLine(`vuka routes (${root})`);
+      routesChannel.appendLine(stdout || '');
+      if (stderr) routesChannel.appendLine(stderr);
+      if (err && !stdout) routesChannel.appendLine(err.message);
+    }),
+  );
 }
 
 // extractComponent runs the language server's Extract component… code
@@ -432,6 +408,7 @@ function activate(context) {
         await client.stop().catch(() => {});
         client = undefined;
       }
+      tools.reset(); // vuka may have been installed or updated
       showVersion();
       await start();
     }),
@@ -450,6 +427,13 @@ function activate(context) {
   if (config.get('offerTemplDropIn')) {
     enableTemplDropIn(context, true).catch(() => {});
   }
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeConfiguration((e) => {
+      if (e.affectsConfiguration('vuka.path')) {
+        tools.reset();
+      }
+    }),
+  );
   showVersion();
   context.subscriptions.push(versionItem);
   return start();

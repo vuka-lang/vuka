@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Starting is quicker and never holds up the editor: the extension finds `vuka` with one login shell and reads `vuka version` once, in the background, where it ran the shell two or three times and `vuka version` twice, once while the editor waited. Both are kept until `vuka.path` changes or **Vuka: Restart Language Server** runs.
+
 ## 0.12.0
 
 - A call in `.vuka.html` markup that gets the render's `ctx` without writing it shows an inlay hint, `ctx`, where it goes, and its hover says the page supplies it. `vuka.inlayHints.implicitContext` turns the hint off. Needs the Vuka v2.10.0 language server.
