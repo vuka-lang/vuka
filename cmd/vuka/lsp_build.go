@@ -735,6 +735,7 @@ func (p *proxy) publish(path string) {
 		islandText, _ = os.ReadFile(path)
 	}
 	island := islandDiags(root, path, islandText)
+	static := staticEditorDiags(root, path, islandText)
 	p.mu.Lock()
 	cur, open := p.bufs[path]
 	fresh := !open || p.changed[path] <= p.done[path]
@@ -752,6 +753,9 @@ func (p *proxy) publish(path string) {
 		island = nil
 	}
 	ds = append(ds, island...)
+	if !open || bytes.Equal(cur, islandText) {
+		ds = append(ds, static...)
+	}
 	ds = append(ds, p.ts.Load().diagsFor(path)...)
 	if ds == nil {
 		ds = []any{}

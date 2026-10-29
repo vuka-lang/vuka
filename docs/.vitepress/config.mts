@@ -105,6 +105,7 @@ export default defineConfig({
           { text: 'URL State', link: '/web/url-state' },
           { text: 'Tailwind CSS', link: '/web/styling' },
           { text: 'Styles & Scripts', link: '/web/assets' },
+          { text: 'Static Files', link: '/web/static-files' },
           { text: 'Frontends', link: '/web/frontend' },
           { text: 'Islands', link: '/web/islands' },
         ],

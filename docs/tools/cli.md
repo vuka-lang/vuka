@@ -575,6 +575,15 @@ files, the reads `vuka vet` reports as [W0402](/errors/W0402):
 `web` and `auth` left unused go. A read whose variable `main` doesn't
 list, or whose name a local takes, is left alone.
 
+### Static Paths {#static-paths}
+
+`vuka fix static-paths` links the files `app.Static` serves with
+[`web.Asset`](/web/static-files) in the module's `.vuka` and `.vuka.html`
+markup: `src="/static/logo.png"` becomes
+`src={web.Asset("/static/logo.png")}` in `src`, `href`, `srcset`, `poster`
+and `data`, importing `web` where a file doesn't ([W0404](/errors/W0404)).
+It runs only when named: `vuka fix` alone leaves the links as they are.
+
 ## The Language Server {#lsp}
 
 `vuka lsp` is the language server. See [Editors](/tools/editors).
