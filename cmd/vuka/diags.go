@@ -200,9 +200,28 @@ func offsetAt(text []byte, line, col int) int {
 	return min(off+max(col-1, 0), len(text))
 }
 
+// buildWarnings are the warnings of ds the other go commands report too,
+// not only vuka vet (shownEverywhere).
+func buildWarnings(ds []diag.Diagnostic) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	for _, d := range ds {
+		if shownEverywhere(d.Code) {
+			out = append(out, d)
+		}
+	}
+	return out
+}
+
+// shownEverywhere reports whether a transpiler warning is shown by vuka
+// build, run, test and install and in the editor, as well as by vuka vet:
+// a markup call whose target an overload added or removed would change
+// (W0108).
+func shownEverywhere(code diag.Code) bool { return code == "W0108" }
+
 // transpileWarnings are the warnings the transpiler found in gens' sources,
 // which vuka vet reports: about the context processors' variables a file
-// reads (W0401, W0402, W0403).
+// reads (W0401, W0402, W0403), a Suspense wait list (W0351), a markup call
+// both with and without the render's ctx fits (W0108).
 func transpileWarnings(root string, gens []load.Generated) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	for _, g := range gens {
