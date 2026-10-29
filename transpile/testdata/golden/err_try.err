@@ -1,4 +1,11 @@
 err_try.vuka:6:24: ? passes the error on, so the function must return an error last, or a Result
-err_try.vuka:11:26: ? must end a statement: x := f()?, return f()?, or f()?
-err_try.vuka:17:27: ? can't be used in an if, for or switch header; give it its own statement
-err_try.vuka:26:10: ? on an Option needs the function to return an Option
+err_try.vuka:11:26: ? needs (T, error), error, a Result or an Option; strconv.Itoa(1) is string
+err_try.vuka:26:10: ? on an Option needs the function to return an Option; write opt?(err) to say which error None is
+err_try.vuka:33:24: ? can't be in a case: cases are evaluated one by one, until one matches; pull it into a statement before the switch, or use if/else
+err_try.vuka:41:30: ? can't be in a select case; pull it into a statement before the select
+err_try.vuka:47:42: ? can't be in a for loop's post statement; move it into the loop's body
+err_try.vuka:53:24: ? on an error yields no value: give it a statement of its own, f()?
+err_try.vuka:61:37: this ? is on the right of more than one && or ||: give it a statement of its own
+err_try.vuka:67:22: ?() needs what to say on failure: ?("…"), ?(ErrX), ?(wrap) or ?(Enum.Variant)
+err_try.vuka:73:22: ?(…) takes a message, a func(error) error, an error or an error enum's variant; 42 is untyped int
+err_try.vuka:83:22: Failure.Bad converts an error in ?(…) when its only field is an error: Failure.Bad{Err error}

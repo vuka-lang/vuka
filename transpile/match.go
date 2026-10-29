@@ -49,6 +49,12 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		m.fail = "it waits for the ? at " + f.at(t.off).String() + ", whose operand's type is unknown"
 		return
 	}
+	for _, t := range f.tries {
+		if (t.fresh || !t.done && !t.dead) && t.off >= m.subj.start && t.off < m.subj.end {
+			m.fail = "it waits for the ? in its subject"
+			return
+		}
+	}
 	subj := head.Init.(*ast.AssignStmt).Rhs[0]
 	tv, ok := e.info.Types[subj]
 	if !ok || isInvalid(tv.Type) {

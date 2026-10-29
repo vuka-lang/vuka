@@ -1,0 +1,98 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+var ErrUnavailable = errors.New("unavailable")
+
+var ErrNoUser = errors.New("no user")
+
+enum RegisterError {
+	EmailTaken
+	Database{Err error}
+}
+
+func (RegisterError.EmailTaken) Error() string { return "email taken" }
+func (e RegisterError.Database) Error() string { return "database: " + e.Err.Error() }
+
+var evaluated []string
+
+func wrap(err error) error { return fmt.Errorf("wrapped: %w", err) }
+
+func label(s string) string {
+	evaluated = append(evaluated, s)
+	return s
+}
+
+func format(s string) (int, error) {
+	n := strconv.Atoi(s)?("parsing %q for %s", s, label("format"))
+	return n, nil
+}
+
+func message(s string) (int, error) {
+	return strconv.Atoi(s)?("parsing") * 2, nil
+}
+
+func mapped(s string) (int, error) {
+	return strconv.Atoi(s)?(wrap) + 1, nil
+}
+
+func sentinel(s string) error {
+	strconv.Atoi(s)?(ErrUnavailable)
+	return nil
+}
+
+func variant(s string) error {
+	strconv.Atoi(s)?(RegisterError.Database)
+	return nil
+}
+
+func first(xs []int) Option[int] {
+	if len(xs) == 0 {
+		return None
+	}
+	return Some(xs[0])
+}
+
+func noneErr(xs []int) (int, error) {
+	x := first(xs)?(ErrNoUser)
+	return x, nil
+}
+
+func noneVariant(xs []int) (int, error) {
+	return first(xs)?(RegisterError.EmailTaken) * 2, nil
+}
+
+func noneMessage(xs []int) (int, error) {
+	if first(xs)?("no first element") > 3 {
+		return 1, nil
+	}
+	return 0, nil
+}
+
+func result(r Result[int]) (int, error) {
+	return r?("reading the result") + 1, nil
+}
+
+func main() {
+	fmt.Println(format("7"))
+	fmt.Println(evaluated)
+	fmt.Println(format("x"))
+	fmt.Println(evaluated)
+	fmt.Println(message("x"))
+	fmt.Println(mapped("x"))
+	err := sentinel("x")
+	var numErr *strconv.NumError
+	fmt.Println(err, errors.Is(err, ErrUnavailable), errors.As(err, &numErr))
+	err = variant("x")
+	var db RegisterError.Database
+	fmt.Println(err, errors.As(err, &db))
+	fmt.Println(noneErr(nil))
+	fmt.Println(noneVariant(nil))
+	fmt.Println(noneMessage(nil))
+	fmt.Println(noneMessage([]int{5}))
+	fmt.Println(result(Err[int](ErrUnavailable)))
+}

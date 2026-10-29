@@ -9,21 +9,28 @@ import (
 )
 
 // ConfigFile is a project's settings, next to its go.mod: the [fmt] table
-// vuka fmt lays files out by (toolchain/format), the [compile] table
-// the compiler reads, and the [ui] table vuka ui reads.
+// vuka fmt lays files out by (toolchain/format), the [compile] and [vet]
+// tables the compiler reads, and the [ui] table vuka ui reads.
 const ConfigFile = "vuka.toml"
 
 // ConfigTables are the tables vuka.toml may hold.
-var ConfigTables = []string{"fmt", "compile", "ui"}
+var ConfigTables = []string{"fmt", "compile", "ui", "vet"}
 
-// Compile are a module's compiler settings, vuka.toml's [compile] table:
+// Compile are a module's compiler settings, vuka.toml's [compile] and
+// [vet] tables:
 //
 //	[compile]
 //	implicit_ctx = false  # a call in markup gets no implicit ctx (default true)
+//
+//	[vet]
+//	wrap_errors = true    # warn on a bare ? on a call into another package (default false)
 type Compile struct {
 	// NoImplicitCtx is implicit_ctx = false: a call in markup one
 	// context.Context short is E0162 (transpile.Options.NoImplicitCtx).
 	NoImplicitCtx bool
+	// WrapErrors is [vet] wrap_errors = true: a bare ? on a call into
+	// another package is W0111 (transpile.Options.WrapErrors).
+	WrapErrors bool
 }
 
 // LoadCompile reads the compiler settings of the module holding dir: the
@@ -76,7 +83,8 @@ func (m compileSettings) of(dir string) (Compile, error) {
 	return c, nil
 }
 
-// ParseCompile reads vuka.toml's [compile] table; file names it in errors.
+// ParseCompile reads vuka.toml's [compile] and [vet] tables; file names
+// it in errors.
 func ParseCompile(file string, src []byte) (Compile, error) {
 	var c Compile
 	err := ParseConfig(file, src, "compile", func(key, value string, at func(string, ...any) error) error {
@@ -90,6 +98,21 @@ func ParseCompile(file string, src []byte) (Compile, error) {
 			return nil
 		}
 		return at("unknown key %s in [compile]: it has implicit_ctx", key)
+	})
+	if err != nil {
+		return c, err
+	}
+	err = ParseConfig(file, src, "vet", func(key, value string, at func(string, ...any) error) error {
+		switch key {
+		case "wrap_errors":
+			b, err := strconv.ParseBool(value)
+			if err != nil || value != "true" && value != "false" {
+				return at("wrap_errors is true or false")
+			}
+			c.WrapErrors = b
+			return nil
+		}
+		return at("unknown key %s in [vet]: it has wrap_errors", key)
 	})
 	return c, err
 }
@@ -118,7 +141,7 @@ func ParseConfig(file string, src []byte, table string, set func(key, value stri
 				known = known || in == t
 			}
 			if !known {
-				return at("unknown table [%s]: vuka.toml has [fmt], [compile] and [ui]", in)
+				return at("unknown table [%s]: vuka.toml has [fmt], [compile], [ui] and [vet]", in)
 			}
 			continue
 		}

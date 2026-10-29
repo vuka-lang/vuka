@@ -6,4 +6,4 @@ err_jsx_components.vuka:40:3: <Raw> takes no children
 err_jsx_components.vuka:41:3: <Plain> returns int, which isn't ui.Node (missing method Render)
 err_jsx_components.vuka:42:3: <Layout> takes no children: add a children ui.Node parameter
 err_jsx_components.vuka:43:3: <Card> takes no children: add a Children ui.Node field to Props
-err_jsx_components.vuka:48:28: ? must end a statement: x := f()?, return f()?, or f()?
+err_jsx_components.vuka:48:28: ? can't be in markup: call it in a statement before the markup, x := f()?, and write {x}

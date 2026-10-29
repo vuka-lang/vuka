@@ -1,0 +1,177 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+type Order struct {
+	ID   int
+	Paid bool
+}
+
+var ErrBad = errors.New("bad")
+
+var calls []string
+
+func call(s string) { calls = append(calls, s) }
+
+func expired(o Order) (bool, error) {
+	call(fmt.Sprint("expired ", o.ID))
+	if o.ID < 0 {
+		return false, ErrBad
+	}
+	return o.ID > 10, nil
+}
+
+func ship(o Order) string   { return "ship" }
+func cancel(o Order) string { return "cancel" }
+func remind(o Order) string { return "remind" }
+
+// handle keeps the guard clause flat: the else is dropped.
+func handle(o Order) (string, error) {
+	if o.Paid {
+		return ship(o), nil
+	} else if expired(o)? {
+		return cancel(o), nil
+	}
+	return remind(o), nil
+}
+
+// reuse names the value v: expired is called again later.
+func reuse(o Order) (string, error) {
+	if expired(o)? {
+		return "late", nil
+	}
+	again, _ := expired(o)
+	return fmt.Sprint(again), nil
+}
+
+// scoped moves an init that clashes with a later name into a block.
+func scoped(s string) (int, error) {
+	if n := strconv.Atoi(s)?; n > 5 {
+		return n, nil
+	}
+	n := 1
+	return n, nil
+}
+
+// chained keeps the init: the else if needs it in scope.
+func chained(o Order, s string) (string, error) {
+	if n := len(s); n > 3 {
+		return "long", nil
+	} else if strconv.Atoi(s)? > n {
+		return "more", nil
+	}
+	return "less", nil
+}
+
+func either(o Order) (string, error) {
+	if o.Paid || expired(o)? {
+		return "done", nil
+	} else {
+		return "open", nil
+	}
+}
+
+func atLeast(n int) (bool, error) {
+	call(fmt.Sprint("atLeast ", n))
+	return n >= 2, nil
+}
+
+// labeled: continue runs the post statement, the label stays on the loop.
+func labeled(rows [][]int) (int, error) {
+	sum := 0
+outer:
+	for i := 0; atLeast(len(rows)-i)? && i < 10; i++ {
+		for _, x := range rows[i] {
+			if x < 0 {
+				continue outer
+			}
+			sum += x
+		}
+	}
+	return sum, nil
+}
+
+func kind(s string) (any, error) {
+	call("kind")
+	if s == "" {
+		return nil, ErrBad
+	}
+	return len(s), nil
+}
+
+func describe(s string) (string, error) {
+	switch v := kind(s)?.(type) {
+	case int:
+		return fmt.Sprint("int ", v), nil
+	}
+	return "other", nil
+}
+
+func pick(s string) (string, error) {
+	switch n := strconv.Atoi(s)?; {
+	case n > 1:
+		return "many", nil
+	}
+	return "few", nil
+}
+
+func lookup(m map[int]Option[string], id int) Option[string] {
+	return Some("user " + m[id]? + "!")
+}
+
+func parsed(r Result[int]) Result[int] {
+	if r? > 1 {
+		return Ok(r? * 2)
+	}
+	return Ok(0)
+}
+
+func firstWord(s string) (Option[string], error) {
+	if s == "!" {
+		return None[string](), ErrBad
+	}
+	if s == "" {
+		return None[string](), nil
+	}
+	return Some(s), nil
+}
+
+func matched(s string) (string, error) {
+	match firstWord(s)? {
+	case Some(w):
+		return "word " + w, nil
+	case None:
+		return "empty", nil
+	}
+}
+
+func run(name string, f func() (any, error)) {
+	calls = nil
+	v, err := f()
+	fmt.Println(name, v, err, calls)
+}
+
+func main() {
+	run("handle paid", func() (any, error) { return handle(Order{Paid: true}) })
+	run("handle", func() (any, error) { return handle(Order{ID: 20}) })
+	run("handle err", func() (any, error) { return handle(Order{ID: -1}) })
+	run("reuse", func() (any, error) { return reuse(Order{ID: 3}) })
+	run("scoped", func() (any, error) { return scoped("9") })
+	run("scoped err", func() (any, error) { return scoped("x") })
+	run("chained", func() (any, error) { return chained(Order{}, "1") })
+	run("either paid", func() (any, error) { return either(Order{Paid: true}) })
+	run("either", func() (any, error) { return either(Order{ID: 1}) })
+	run("labeled", func() (any, error) { return labeled([][]int{{1, 2}, {-1, 5}, {3}}) })
+	run("describe", func() (any, error) { return describe("abc") })
+	run("describe err", func() (any, error) { return describe("") })
+	run("pick", func() (any, error) { return pick("3") })
+	run("matched", func() (any, error) { return matched("hi") })
+	run("matched empty", func() (any, error) { return matched("") })
+	run("matched err", func() (any, error) { return matched("!") })
+	fmt.Println(lookup(map[int]Option[string]{1: Some("ann")}, 1), lookup(nil, 2))
+	fmt.Println(parsed(Ok(3)), parsed(Err[int](ErrBad)))
+}

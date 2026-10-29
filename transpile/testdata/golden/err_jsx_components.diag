@@ -62,13 +62,13 @@ error[E0106]: <Card> takes no children: add a Children ui.Node field to Props
    |
    = help: pass the attributes the component's parameters or fields declare
 
-error[E0110]: ? must end a statement: x := f()?, return f()?, or f()?
+error[E0110]: ? can't be in markup: call it in a statement before the markup, x := f()?, and write {x}
   --> err_jsx_components.vuka:48:28
    |
 48 |     return <p>{strconv.Atoi(s)?}</p>, nil
    |                               ^
    |
-   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
 
 Some errors have detailed explanations: E0106, E0110.
 For more information about an error, try `vuka explain E0106`.

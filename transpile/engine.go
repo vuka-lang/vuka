@@ -80,6 +80,7 @@ type engine struct {
 	forceCtx   map[string]bool // template files whose markup gets the render's ctx (implicit.go)
 	noImplicit bool            // markup gets no implicit ctx (Options.NoImplicitCtx)
 	recompile  bool            // one more does: the package compiles again
+	wrapErrors bool            // vet a bare ? on a call into another package (Options.WrapErrors)
 }
 
 func (e *engine) run() {
@@ -113,6 +114,7 @@ func (e *engine) run() {
 		}
 		e.resolveSelfTargets()
 		for _, f := range e.vuka {
+			f.touched = nil
 			for _, t := range f.tries {
 				t.fresh = false
 			}
@@ -195,6 +197,9 @@ func (e *engine) run() {
 			e.lowerTracked(f, e.lowerWrites(f))
 			e.lowerJSX(f)
 			e.checkEvents(f)
+			if !f.wrapped {
+				e.vetTries(f)
+			}
 			for _, t := range f.tries {
 				// A body an around decorator wrapped this round is type-checked
 				// again first: its returns are the function literal's.
@@ -237,7 +242,7 @@ func (e *engine) run() {
 		e.undefinedVars()
 		e.warns = e.ctxWarnings()
 		for _, f := range e.vuka {
-			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 {
+			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 {
 				continue
 			}
 			if e.warns == nil {
@@ -245,6 +250,7 @@ func (e *engine) run() {
 			}
 			e.warns[f] = append(e.warns[f], f.susWarnings...)
 			e.warns[f] = append(e.warns[f], f.ambigWarns...)
+			e.warns[f] = append(e.warns[f], f.tryWarns...)
 		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {

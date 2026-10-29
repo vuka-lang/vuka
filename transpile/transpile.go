@@ -90,6 +90,10 @@ type Options struct {
 	// authority is written in the source. vuka.toml's [compile] table sets
 	// it for a module (implicit_ctx = false).
 	NoImplicitCtx bool
+	// WrapErrors makes vet warn on a bare ? on a call into another
+	// package, asking for context: ?("…"). vuka.toml's [vet] table sets it
+	// for a module (wrap_errors = true).
+	WrapErrors bool
 }
 
 // TemplFile is a .templ file of another package: its import path and the Go
@@ -205,6 +209,11 @@ type fileState struct {
 	unimported  map[string]*unimported // E0215, by the package name
 	bundles     []*bundleDecl
 	tries       []*try
+	touched     []span // this round: the statements a ? rewrote, in src offsets
+	seq         int    // orders the text lowerings insert at one offset
+	mainDone    bool   // its main runs through main_ (a ? in main)
+	tryWarns    ErrorList
+	tryVetDone  bool
 	matches     []*matchStmt
 	jsx         []*jsxTree
 	jsxReported bool // E0151 is reported: markup outside a .vuka.html file's markup
@@ -418,7 +427,7 @@ func (f *fileState) build() {
 	cur := append(edits(nil), f.bodyEdits()...)
 	for _, t := range f.tries {
 		if !t.done {
-			cur = append(cur, edit{start: t.off, end: t.off + 1})
+			cur = append(cur, edit{start: t.off, end: t.end()})
 		}
 	}
 	for _, m := range f.matches {
@@ -595,7 +604,7 @@ func Package(files []File, opts Options) (*Result, error) {
 // render's ctx; again names more that need it, when it compiled nothing.
 func compile(files []File, opts Options, force map[string]bool) (*Result, map[string]bool, error) {
 	var errs ErrorList
-	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes, noImplicit: opts.NoImplicitCtx}
+	e := &engine{forceCtx: maps.Clone(force), imp: opts.Importer, errs: &errs, bare: opts.Bare, incompleteCalls: opts.IncompleteCalls, dir: opts.Dir, moduleRoot: opts.ModuleRoot, importPath: opts.ImportPath, templ: opts.Templ, templRegistry: opts.TemplRegistry, scopes: opts.Scopes, noImplicit: opts.NoImplicitCtx, wrapErrors: opts.WrapErrors}
 	if e.imp == nil {
 		e.imp = importer.ForCompiler(token.NewFileSet(), "source", nil)
 	}

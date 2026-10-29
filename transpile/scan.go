@@ -67,16 +67,26 @@ func trivia(t tok) bool { return t.tok == token.COMMENT || t.tok == token.SEMICO
 
 type span struct{ start, end int }
 
-// try is a ? that ends a statement: x := f()?, return f()?, f()?.
+// try is a ?: x := f()?, return f()?, f()?, or one inside an expression,
+// with what ?(…) says on failure.
 type try struct {
-	off  int // offset of the ?
-	n    int // ordinal in the file, for temporaries
+	off  int  // offset of the ?
+	args span // the parentheses of ?(…); start < 0 when bare
+	n    int  // ordinal in the file, for temporaries
 	done bool
 	dead bool   // reported as an error
 	fail string // why the last round couldn't lower it
 	// fresh is set in the round that lowered it: that round's types still
 	// see the operand, not what ? unwraps it to.
 	fresh bool
+}
+
+// end is the offset just after the ? and its arguments.
+func (t *try) end() int {
+	if t.args.start >= 0 {
+		return t.args.end + 1
+	}
+	return t.off + 1
 }
 
 type matchCase struct {
@@ -319,7 +329,13 @@ func (f *fileState) bodyConstruct(toks []tok, i int, p tok, depth int, errs *Err
 			errs.add("E0110", f.at(t.off), "unexpected ?: it goes right after the expression it unwraps, as in f()?")
 			return true
 		}
-		f.tries = append(f.tries, &try{off: t.off, n: len(f.tries) + 1})
+		tr := &try{off: t.off, args: span{-1, -1}, n: len(f.tries) + 1}
+		if i+1 < len(toks) && toks[i+1].tok == token.LPAREN && toks[i+1].off == t.off+1 {
+			if _, end, ok := matchClose(toks, i+1); ok {
+				tr.args = span{toks[i+1].off, end - 1}
+			}
+		}
+		f.tries = append(f.tries, tr)
 		return true
 	case t.tok == token.IDENT && t.lit == "match" && depth > 0 && (p.tok == token.SEMICOLON || p.tok == token.LBRACE || p.tok == token.COLON):
 		if m, msg := f.matchAt(toks, i); m != nil {

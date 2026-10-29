@@ -1,0 +1,27 @@
+package main
+
+import (
+	"fmt"
+	"os"
+	"strconv"
+)
+
+func count() (int, error) {
+	n := os.Getenv("COUNT")
+	if n == "" {
+		n = "2"
+	}
+	return strconv.Atoi(n)
+}
+
+// main prints the count; a bad COUNT exits with its error after the
+// deferred line.
+func main() {
+	defer fmt.Println("deferred")
+	if len(os.Args) > 1 {
+		return
+	}
+	for i := range count()? {
+		fmt.Println("line", i)
+	}
+}
