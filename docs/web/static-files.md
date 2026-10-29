@@ -94,11 +94,8 @@ new name too.
 
 `vuka vet` warns on a path written by hand in a `src`, `href`, `srcset`,
 `poster` or `data` attribute under a mount ([W0404](/errors/W0404)). The
-editor's quick fix rewrites one; `vuka fix static-paths` rewrites a module:
-
-```sh
-vuka fix static-paths
-```
+editor's quick fix rewrites one; the [`static-paths` fixer](/tools/cli#static-paths)
+rewrites a module:
 
 ```html
 <!-- before -->
