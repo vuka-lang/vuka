@@ -113,7 +113,7 @@ func TestParseOptions(t *testing.T) {
 	}
 	for _, c := range []struct{ src, want string }{
 		{"[fmt]\nwidht = 1\n", "vuka.toml:2: unknown key widht in [fmt]; did you mean width?"},
-		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt], [compile] and [ui]"},
+		{"[build]\n", "vuka.toml:1: unknown table [build]: vuka.toml has [fmt], [compile], [ui] and [vet]"},
 		{"width = 90\n", "vuka.toml:1: width is outside a table: write it under [fmt]"},
 		{"[fmt]\ntailwind = yes\n", "vuka.toml:2: tailwind is true or false"},
 	} {

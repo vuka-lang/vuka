@@ -959,6 +959,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 			Scopes:        opts.Scopes[p.Dir],
 			Contexts:      opts.Contexts[p.ImportPath],
 			NoImplicitCtx: cc.NoImplicitCtx,
+			WrapErrors:    cc.WrapErrors,
 		}
 		res, err := transpile.Package(p.Files, topts)
 		if e := unreadable(imp); e != nil {

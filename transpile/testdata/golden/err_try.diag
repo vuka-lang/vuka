@@ -4,30 +4,86 @@ error[E0110]: ? passes the error on, so the function must return an error last, 
 6 |     n := strconv.Atoi("1")?
   |                           ^
   |
-  = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+  = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
 
-error[E0110]: ? must end a statement: x := f()?, return f()?, or f()?
+error[E0110]: ? needs (T, error), error, a Result or an Option; strconv.Itoa(1) is string
   --> err_try.vuka:11:26
    |
 11 |     x := len(strconv.Itoa(1)?)
    |                             ^
    |
-   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
 
-error[E0110]: ? can't be used in an if, for or switch header; give it its own statement
-  --> err_try.vuka:17:27
-   |
-17 |     if n := strconv.Atoi("1")?; n > 0 {
-   |                              ^
-   |
-   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
-
-error[E0110]: ? on an Option needs the function to return an Option
+error[E0110]: ? on an Option needs the function to return an Option; write opt?(err) to say which error None is
   --> err_try.vuka:26:10
    |
 26 |     x := d()?
    |             ^
    |
-   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: ? can't be in a case: cases are evaluated one by one, until one matches; pull it into a statement before the switch, or use if/else
+  --> err_try.vuka:33:24
+   |
+33 |     case strconv.Atoi("1")?:
+   |                           ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: ? can't be in a select case; pull it into a statement before the select
+  --> err_try.vuka:41:30
+   |
+41 |     case ch <- strconv.Atoi("1")?:
+   |                                 ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: ? can't be in a for loop's post statement; move it into the loop's body
+  --> err_try.vuka:47:42
+   |
+47 |     for j := 0; j < 3; j = strconv.Atoi("1")? {
+   |                                             ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: ? on an error yields no value: give it a statement of its own, f()?
+  --> err_try.vuka:53:24
+   |
+53 |     if s != "" && check(s)? {
+   |                           ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: this ? is on the right of more than one && or ||: give it a statement of its own
+  --> err_try.vuka:61:37
+   |
+61 |     if a || b && strconv.ParseBool("x")? {
+   |                                        ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: ?() needs what to say on failure: ?("…"), ?(ErrX), ?(wrap) or ?(Enum.Variant)
+  --> err_try.vuka:67:22
+   |
+67 |     x := strconv.Atoi(s)?()
+   |                         ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: ?(…) takes a message, a func(error) error, an error or an error enum's variant; 42 is untyped int
+  --> err_try.vuka:73:22
+   |
+73 |     x := strconv.Atoi(s)?(42)
+   |                         ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
+
+error[E0110]: Failure.Bad converts an error in ?(…) when its only field is an error: Failure.Bad{Err error}
+  --> err_try.vuka:83:22
+   |
+83 |     x := strconv.Atoi(s)?(Failure.Bad)
+   |                         ^
+   |
+   = help: put ? right after the expression it unwraps, in a function returning an error, Result or Option, or in main or a test
 
 For more information about this error, try `vuka explain E0110`.

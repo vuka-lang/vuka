@@ -1,0 +1,44 @@
+package main
+
+import (
+	"errors"
+	"strconv"
+	"testing"
+)
+
+type Accounts struct{ users map[string]bool }
+
+var ErrNoAccounts = errors.New("no accounts")
+
+func newAccounts(t *testing.T) (*Accounts, error) {
+	return &Accounts{users: map[string]bool{}}, nil
+}
+
+func (a *Accounts) Exists(email string) (bool, error) { return a.users[email], nil }
+
+// mustAtoi fails the test or benchmark that calls it.
+func mustAtoi(tb testing.TB, s string) int {
+	return strconv.Atoi(s)?("parsing %q", s)
+}
+
+func TestRegister(t *testing.T) {
+	a := newAccounts(t)?
+	if a.Exists("a@example.com")? {
+		t.Fatal("registered before signing up")
+	}
+	t.Run("parse", func(t *testing.T) {
+		strconv.Atoi("2")?
+	})
+}
+
+func BenchmarkParse(b *testing.B) {
+	for range b.N {
+		_ = mustAtoi(b, "3")
+	}
+}
+
+func lookup(m map[string]Option[int], t *testing.T) int {
+	return m["a"]?(ErrNoAccounts)
+}
+
+func main() {}

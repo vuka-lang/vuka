@@ -556,6 +556,15 @@ it writes one.
 implicit_ctx = false  # markup calls get no implicit ctx (default true)
 ```
 
+Its `[vet]` table holds the opt-in checks of `vuka vet`: `wrap_errors =
+true` warns on a bare `?` passing on another package's error
+([W0111](/errors/W0111)).
+
+```toml
+[vet]
+wrap_errors = true  # ask for ?("…") on calls into other packages (default false)
+```
+
 > [!NOTE]
 > Tailwind ordering is off by default: it reorders every class list of a
 > project the first time it runs, which is a change worth making on purpose.

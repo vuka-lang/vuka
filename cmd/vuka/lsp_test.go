@@ -482,7 +482,7 @@ func twice(`, 1)
 			"contentChanges": []any{map[string]any{"text": lspSource + "// base\n"}}})
 		c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
 		src := strings.Replace(lspSource+"// base\n", "type Circle", "var top = 1\n\ntype Circle", 1)
-		src = strings.Replace(src, "func main() {\n", "func main() {\n\tif find(1)? > 0 {\n\t}\n", 1)
+		src = strings.Replace(src, "func main() {\n", "func main() {\n\tswitch {\n\tcase find(1)? > 0:\n\t}\n", 1)
 		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 6},
 			"contentChanges": []any{map[string]any{"text": src}}})
 		c.waitDiags(uri, func(ds []any) bool {

@@ -7,86 +7,61 @@ import (
 	"strings"
 )
 
-// lowerTry rewrites a statement ending in ?. The operand stays where it is; the
-// statement gains an error variable and an early return after it:
+// lowerTry rewrites a ?. One ending a statement keeps its operand where it
+// is; the statement gains an error variable and an early return after it:
 //
 //	u := load(id)?   →   u, __e1 := load(id); if __e1 != nil { return nil, __e1 }
 //
-// The operand may be Go's (T…, error) or error, a Result (unwrapped with Get),
-// or an Option (in a function that returns an Option).
+// One inside an expression moves its operand into statements before the
+// statement holding it (tryexpr.go). The operand may be Go's (T…, error)
+// or error, a Result (unwrapped with Get), or an Option (in a function
+// that returns an Option, or with ?(err) saying which error None is).
 func (e *engine) lowerTry(f *fileState, t *try) {
 	at := f.cur.fromOrig(t.off)
-	var stmt ast.Stmt
-	ast.Inspect(f.ast, func(n ast.Node) bool {
-		if s, ok := n.(ast.Stmt); ok && f.off(s.End()) == at {
-			stmt = s
-		}
-		return n == nil || f.off(n.Pos()) <= at
-	})
 	fail := func(msg string) {
 		t.dead = true
 		e.errs.add("E0110", f.at(t.off), "%s", msg)
 	}
+	op := f.tryOperand(at)
+	if op == nil {
+		fail("? goes right after the expression it unwraps, as in f()?")
+		return
+	}
+	stmt := f.stmtOf(op)
 	if stmt == nil {
-		fail("? must end a statement: x := f()?, return f()?, or f()?")
+		fail("? needs an enclosing function")
 		return
 	}
-	switch f.parents[stmt].(type) {
-	case *ast.BlockStmt, *ast.CaseClause, *ast.CommClause:
-	default:
-		fail("? can't be used in an if, for or switch header; give it its own statement")
+	top := f.topStmt(stmt)
+	sp := span{f.orig(top.Pos()), f.origEnd(top.End())}
+	if f.isTouched(sp) {
+		t.fail = "another ? in its statement is lowered first"
 		return
 	}
-
-	var operand ast.Expr
-	switch s := stmt.(type) {
-	case *ast.AssignStmt:
-		if len(s.Rhs) == 1 && (s.Tok == token.DEFINE || s.Tok == token.ASSIGN) {
-			operand = s.Rhs[0]
-		}
-	case *ast.ReturnStmt:
-		if len(s.Results) == 1 {
-			operand = s.Results[0]
-		}
-	case *ast.ExprStmt:
-		operand = s.X
-	case *ast.DeclStmt:
-		if g, ok := s.Decl.(*ast.GenDecl); ok && g.Tok == token.VAR && len(g.Specs) == 1 {
-			if v := g.Specs[0].(*ast.ValueSpec); len(v.Values) == 1 && v.Type == nil {
-				operand = v.Values[0]
-			}
+	for _, o := range f.tries {
+		if o.off < t.off && !o.done && !o.dead && o.off >= sp.start && o.off < sp.end {
+			t.fail = "it waits for the ? at " + f.at(o.off).String()
+			return
 		}
 	}
-	if operand == nil || f.off(operand.End()) != at {
-		fail("? must end a statement: x := f()?, return f()?, or f()?")
+	if e.lowerMain(f, stmt) {
+		f.touch(sp)
 		return
 	}
-	tv, ok := e.info.Types[operand]
+	tv, ok := e.info.Types[op]
 	if !ok || isInvalid(tv.Type) {
 		t.fail = "the operand's type is unknown"
 		return
 	}
-
-	// What the operand holds and how it fails.
-	var values []types.Type
-	suffix, option := "", false
-	switch kind, arg := runtimeType(tv.Type); {
-	case kind == "Result":
-		values, suffix = []types.Type{arg}, ".Get()"
-	case kind == "Option":
-		values, suffix, option = []types.Type{arg}, ".Get()", true
-	case types.Identical(tv.Type, errorType):
-	default:
-		tup, ok := tv.Type.(*types.Tuple)
-		if !ok || tup.Len() < 2 || !types.Identical(tup.At(tup.Len()-1).Type(), errorType) {
-			fail("? needs (T, error), error, a Result or an Option; " + types.ExprString(operand) + " is " + e.display(tv.Type))
-			return
-		}
-		for i := 0; i < tup.Len()-1; i++ {
-			values = append(values, tup.At(i).Type())
-		}
+	k, msg := e.tryKindOf(op, tv.Type)
+	if msg != "" {
+		fail(msg)
+		return
 	}
-
+	if !f.wholeStmt(stmt, op) {
+		e.lowerTryIn(f, t, op, stmt, k, sp)
+		return
+	}
 	sig, _ := e.enclosingFunc(f, stmt)
 	if sig == nil {
 		fail("? needs an enclosing function")
@@ -94,7 +69,7 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	}
 	n := itoa(t.n)
 	failVar, cond := "__e"+n, "__e"+n+" != nil"
-	if option {
+	if k.option {
 		failVar, cond = "__ok"+n, "!__ok"+n
 	}
 	plain := false // err, as Go names it: in an if's init, or beside new variables
@@ -104,16 +79,20 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	case *ast.ExprStmt, *ast.ReturnStmt:
 		plain = true
 	}
-	if plain = plain && !option && e.errFree(f, stmt); plain {
+	if plain = plain && !k.option && e.errFree(f, stmt); plain {
 		failVar, cond = "err", "err != nil"
 	}
-	ret, msg := e.failReturn(f, sig, option, failVar)
+	ret, msg := e.failBranch(f, t, stmt, k, failVar)
 	if msg != "" {
 		fail(msg)
 		return
 	}
-	check := "; if " + cond + " { " + ret + " }"
-	end := t.off + 1
+	check := &gtext{}
+	check.s("; if " + cond + " { ")
+	check.add(ret)
+	check.s(" }")
+	end := t.end()
+	values := k.values
 
 	switch s := stmt.(type) {
 	case *ast.AssignStmt:
@@ -146,11 +125,11 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 				}
 				lhs := strings.Join(append(vars, failVar), ", ")
 				f.add(f.orig(s.Pos()), f.orig(s.Rhs[0].Pos()), lhs+" := ")
-				check += "; " + strings.Join(sets, "; ")
+				check.s("; " + strings.Join(sets, "; "))
 				break
 			}
 			typ := "error"
-			if option {
+			if k.option {
 				typ = "bool"
 			}
 			f.insert(f.orig(s.Pos()), "var "+failVar+" "+typ+"; ", 0)
@@ -166,7 +145,10 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 	case *ast.ExprStmt:
 		if plain {
 			f.insert(f.orig(s.Pos()), "if "+strings.Repeat("_, ", len(values))+"err := ", 0)
-			check = "; err != nil { " + ret + " }"
+			check = &gtext{}
+			check.s("; err != nil { ")
+			check.add(ret)
+			check.s(" }")
 			break
 		}
 		f.insert(f.orig(s.Pos()), strings.Repeat("_, ", len(values))+failVar+" := ", 0)
@@ -175,7 +157,7 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 		for i := range vars {
 			vars[i] = "__v" + n + "_" + itoa(i+1)
 		}
-		ok, msg := e.successReturn(f, sig, option, vars)
+		ok, msg := e.successReturn(f, sig, k.option, vars)
 		if msg != "" {
 			fail(msg)
 			return
@@ -183,12 +165,184 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 		lhs := strings.Join(append(vars, failVar), ", ")
 		start := f.orig(s.Pos())
 		f.add(start, start+len("return"), lhs+" :=")
-		check += "; " + ok
+		check.s("; " + ok)
 	}
-	f.add(t.off, t.off+1, suffix)
-	f.insert(end, check, 3)
+	f.add(t.off, end, k.suffix)
+	f.put(check, end, t.off, t, 3)
+	f.touch(sp)
 	t.done, t.fresh = true, true
 	e.progress = true
+}
+
+// tryKind is what a ? operand holds and how it fails.
+type tryKind struct {
+	values []types.Type // what ? yields
+	suffix string       // written after the operand: .Get() for a Result or an Option
+	option bool         // None fails, not an error
+}
+
+func (e *engine) tryKindOf(op ast.Expr, t types.Type) (tryKind, string) {
+	switch kind, arg := runtimeType(t); {
+	case kind == "Result":
+		return tryKind{values: []types.Type{arg}, suffix: ".Get()"}, ""
+	case kind == "Option":
+		return tryKind{values: []types.Type{arg}, suffix: ".Get()", option: true}, ""
+	case types.Identical(t, errorType):
+		return tryKind{}, ""
+	}
+	tup, ok := t.(*types.Tuple)
+	if !ok || tup.Len() < 2 || !types.Identical(tup.At(tup.Len()-1).Type(), errorType) {
+		return tryKind{}, "? needs (T, error), error, a Result or an Option; " + types.ExprString(op) + " is " + e.display(t)
+	}
+	var k tryKind
+	for i := 0; i < tup.Len()-1; i++ {
+		k.values = append(k.values, tup.At(i).Type())
+	}
+	return k, ""
+}
+
+// wholeStmt reports whether op is all of stmt's value, as a statement
+// ending in ? has it: x := op, x = op, var x = op, return op, op.
+func (f *fileState) wholeStmt(stmt ast.Stmt, op ast.Expr) bool {
+	switch f.parents[stmt].(type) {
+	case *ast.BlockStmt, *ast.LabeledStmt:
+	case *ast.CaseClause:
+		if c := f.parents[stmt].(*ast.CaseClause); !inList(c.Body, stmt) {
+			return false
+		}
+	case *ast.CommClause:
+		if c := f.parents[stmt].(*ast.CommClause); !inList(c.Body, stmt) {
+			return false
+		}
+	default:
+		return false
+	}
+	var operand ast.Expr
+	switch s := stmt.(type) {
+	case *ast.AssignStmt:
+		if len(s.Rhs) == 1 && (s.Tok == token.DEFINE || s.Tok == token.ASSIGN) {
+			operand = s.Rhs[0]
+		}
+	case *ast.ReturnStmt:
+		if len(s.Results) == 1 {
+			operand = s.Results[0]
+		}
+	case *ast.ExprStmt:
+		operand = s.X
+	case *ast.DeclStmt:
+		if g, ok := s.Decl.(*ast.GenDecl); ok && g.Tok == token.VAR && len(g.Specs) == 1 {
+			if v := g.Specs[0].(*ast.ValueSpec); len(v.Values) == 1 && v.Type == nil {
+				operand = v.Values[0]
+			}
+		}
+	}
+	return operand == op
+}
+
+func inList(list []ast.Stmt, s ast.Stmt) bool {
+	for _, x := range list {
+		if x == s {
+			return true
+		}
+	}
+	return false
+}
+
+// tryOperand is what the ? at at unwraps: the expression ending there that
+// a postfix operator binds, as Rust's ? does — calls, selectors, indexes,
+// parentheses, not a binary or unary expression around them.
+func (f *fileState) tryOperand(at int) ast.Expr {
+	var inner ast.Expr
+	ast.Inspect(f.ast, func(n ast.Node) bool {
+		if n == nil || f.off(n.Pos()) > at || f.off(n.End()) < at {
+			return false
+		}
+		if x, ok := n.(ast.Expr); ok && f.off(x.End()) == at && f.off(x.Pos()) < at {
+			inner = x
+		}
+		return true
+	})
+	if inner == nil {
+		return nil
+	}
+	for {
+		p, ok := f.parents[inner].(ast.Expr)
+		if !ok || f.off(p.End()) != at {
+			return inner
+		}
+		switch p.(type) {
+		case *ast.CallExpr, *ast.SelectorExpr, *ast.IndexExpr, *ast.IndexListExpr, *ast.SliceExpr, *ast.TypeAssertExpr, *ast.ParenExpr, *ast.CompositeLit:
+			inner = p
+		default:
+			return inner
+		}
+	}
+}
+
+// stmtOf is the innermost statement holding n.
+func (f *fileState) stmtOf(n ast.Node) ast.Stmt {
+	for p := f.parents[n]; p != nil; p = f.parents[p] {
+		switch p := p.(type) {
+		case *ast.FuncDecl:
+			return nil
+		case ast.Stmt:
+			return p
+		}
+	}
+	return nil
+}
+
+// topStmt is the statement a lowering of a ? in s may rewrite: s, or the
+// if-else chain and label it is part of.
+func (f *fileState) topStmt(s ast.Stmt) ast.Stmt {
+	for {
+		switch p := f.parents[s].(type) {
+		case *ast.IfStmt:
+			if p.Else == s || p.Init == s {
+				s = p
+				continue
+			}
+		case *ast.ForStmt:
+			if p.Init == s || p.Post == s {
+				s = p
+				continue
+			}
+		case *ast.SwitchStmt:
+			if p.Init == s {
+				s = p
+				continue
+			}
+		case *ast.TypeSwitchStmt:
+			if p.Init == s || p.Assign == s {
+				s = p
+				continue
+			}
+		case *ast.LabeledStmt:
+			s = p
+			continue
+		}
+		return s
+	}
+}
+
+func (f *fileState) touch(sp span) { f.touched = append(f.touched, sp) }
+
+func (f *fileState) isTouched(sp span) bool {
+	for _, t := range f.touched {
+		if t.start < sp.end && sp.start < t.end {
+			return true
+		}
+	}
+	return false
+}
+
+// origEnd is the src offset just after the node ending at p.
+func (f *fileState) origEnd(p token.Pos) int {
+	off := f.off(p)
+	if off == 0 || off > f.body {
+		return f.orig(p)
+	}
+	return f.cur.toOrig(off-1) + 1
 }
 
 // errFree reports whether the function holding stmt names nothing err in
@@ -223,41 +377,42 @@ func (e *engine) errFree(f *fileState, stmt ast.Stmt) bool {
 	return free
 }
 
-// failReturn is the statement that hands the failure to the caller.
-func (e *engine) failReturn(f *fileState, sig *types.Signature, option bool, failVar string) (string, string) {
+// failReturn is the statement that hands fe, the failure, to the caller.
+func (e *engine) failReturn(f *fileState, sig *types.Signature, fe *gtext) (*gtext, string) {
 	res := sig.Results()
 	n := res.Len()
-	if option {
-		if kind, arg := runtimeType(single(res)); kind == "Option" {
-			s, msg := e.typeText(f, arg)
-			return "return " + f.runtime() + ".None[" + s + "]()", msg
-		}
-		return "", "? on an Option needs the function to return an Option"
-	}
+	g := &gtext{}
 	if n > 0 && types.Identical(res.At(n-1).Type(), errorType) {
-		parts := make([]string, 0, n)
+		g.s("return ")
 		for i := 0; i < n-1; i++ {
 			z, msg := e.zero(f, res.At(i).Type())
 			if msg != "" {
-				return "", msg
+				return nil, msg
 			}
-			parts = append(parts, z)
+			g.s(z + ", ")
 		}
-		return "return " + strings.Join(append(parts, failVar), ", "), ""
+		g.add(fe)
+		return g, ""
 	}
 	if kind, arg := runtimeType(single(res)); kind == "Result" {
 		s, msg := e.typeText(f, arg)
-		return "return " + f.runtime() + ".Err[" + s + "](" + failVar + ")", msg
+		g.s("return " + f.runtime() + ".Err[" + s + "](")
+		g.add(fe)
+		g.s(")")
+		return g, msg
 	}
-	return "", "? passes the error on, so the function must return an error last, or a Result"
+	return nil, "? passes the error on, so the function must return an error last, or a Result"
 }
 
 // successReturn is what `return x?` returns when x succeeded.
 func (e *engine) successReturn(f *fileState, sig *types.Signature, option bool, vars []string) (string, string) {
 	res := sig.Results()
 	n := res.Len()
-	if !option && n == len(vars)+1 && types.Identical(res.At(n-1).Type(), errorType) {
+	if n == len(vars)+1 && types.Identical(res.At(n-1).Type(), errorType) {
 		return "return " + strings.Join(append(vars, "nil"), ", "), ""
+	}
+	if n == len(vars) && testParam(sig) != "" {
+		return "return " + strings.Join(vars, ", "), "" // a test helper: failing fails the test
 	}
 	if kind, arg := runtimeType(single(res)); kind != "" && len(vars) == 1 && (kind == "Option") == option {
 		s, msg := e.typeText(f, arg)
@@ -275,4 +430,68 @@ func single(t *types.Tuple) types.Type {
 		return nil
 	}
 	return t.At(0).Type()
+}
+
+// gtext is generated text: made-up pieces and copies of the source.
+type gtext struct{ parts []gpart }
+
+type gpart struct {
+	text     string
+	from, to int // a copy of src[from:to]
+	copy     bool
+	excl     bool // see edit.excl
+	own      any  // when not nil, the copy's owner, else put's
+}
+
+func (g *gtext) s(text string) { g.parts = append(g.parts, gpart{text: text}) }
+
+func (g *gtext) c(from, to int) {
+	if to > from {
+		g.parts = append(g.parts, gpart{from: from, to: to, copy: true})
+	}
+}
+
+// cx is a copy moved out of where a name now stands.
+func (g *gtext) cx(from, to int) {
+	if to > from {
+		g.parts = append(g.parts, gpart{from: from, to: to, copy: true, excl: true})
+	}
+}
+
+// co is a copy owned by own.
+func (g *gtext) co(from, to int, own any) {
+	if to > from {
+		g.parts = append(g.parts, gpart{from: from, to: to, copy: true, own: own})
+	}
+}
+
+func (g *gtext) add(o *gtext) {
+	if o != nil {
+		g.parts = append(g.parts, o.parts...)
+	}
+}
+
+// put inserts g at src offset off, its made-up text attributed to src: a
+// copy is the source with the rewrites inside it applied.
+func (f *fileState) put(g *gtext, off, src int, own any, prio int) {
+	for _, p := range g.parts {
+		if p.copy {
+			o := own
+			if p.own != nil {
+				o = p.own
+			}
+			f.fixed = append(f.fixed, edit{start: off, end: off, text: string(f.src[p.from:p.to]), src: p.from + 1, copy: true, own: o, excl: p.excl, prio: prio})
+			continue
+		}
+		if p.text != "" {
+			f.fixed = append(f.fixed, edit{start: off, end: off, text: p.text, src: src + 1, own: own, prio: prio})
+		}
+	}
+}
+
+// nextPrio orders an insertion after every earlier lowering's at the same
+// offset, and before the statement-level ones (prio 0 and up).
+func (f *fileState) nextPrio() int {
+	f.seq++
+	return -1_000_000 + f.seq
 }

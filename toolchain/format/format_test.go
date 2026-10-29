@@ -43,6 +43,8 @@ func TestConstructs(t *testing.T) {
 			"package p\n\nfunc f() { _ = Post.Author.Name.Eq(\"ada\") }\n"},
 		{"try", "package p\n\nfunc f() error {\n\tx:=g()?\n\tg()?\n\treturn h(x)?\n}\n",
 			"package p\n\nfunc f() error {\n\tx := g()?\n\tg()?\n\treturn h(x)?\n}\n"},
+		{"try in expressions, with context", "package p\n\nfunc f() error {\n\tif g()?( \"checking %d\",1 ) {\n\t}\n\tx:=a()?*b()?(wrap)\n\tfor next()? {\n\t}\n\treturn h(x)?(ErrX)\n}\n",
+			"package p\n\nfunc f() error {\n\tif g()?(\"checking %d\", 1) {\n\t}\n\tx := a()? * b()?(wrap)\n\tfor next()? {\n\t}\n\treturn h(x)?(ErrX)\n}\n"},
 		{"match", "package p\n\nfunc f(r Result[int]) {\n\tmatch r {\n\tcase Ok(n) if n>1: g()\n\tcase Ok(^m), Err(_):\n\t\tg()\n\t}\n\tswitch {\n\t}\n}\n",
 			"package p\n\nfunc f(r Result[int]) {\n\tmatch r {\n\tcase Ok(n) if n > 1:\n\t\tg()\n\tcase Ok(^m), Err(_):\n\t\tg()\n\t}\n\tswitch {\n\t}\n}\n"},
 		{"overloads", "package p\n\nfunc area(c Circle) float64 {return 1}\nfunc area(r Rect) float64 {return 2}\n",
