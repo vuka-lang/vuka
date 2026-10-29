@@ -71,6 +71,37 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `(constant) is not a type`, now says the variants are values and what to
   write instead.
 
+### The ? Operator
+
+- **`?` anywhere in an expression.** In an `if`, `for` or `switch` header,
+  inside a larger expression, nested in another call:
+  `if users.Exists(ctx, email)? {`, `total := price(item)? * qty(cart)?`,
+  `for rows.Next(ctx)? {`. The call moves into a statement before the
+  expression, in Go's order of evaluation — calls before it into variables
+  first, `&&` and `||` skipping their right side, an `else if` tested only
+  after the branches before it — and the Go is what a person writes:
+  values named after their type or the function (`exists`, `user`,
+  `posts`), the error `err`, guard clauses kept flat, a nested `if` for
+  `a && f()?`, `v` only where a name would clash. A `case`, a `select`
+  case, a `for` post statement and markup stay [E0110](/errors/E0110),
+  with messages saying what to write.
+- **`?(…)` adds context.** `f()?("loading user %d", id)` returns
+  `fmt.Errorf("loading user %d: %w", id, err)`; `?(wrap)` a `func(error)
+  error`'s result, `?(ErrUnavailable)` both errors (`%w: %w`),
+  `?(RegisterError.Database)` the enum variant whose only field is an
+  `error`, and `opt?(ErrNoUser)` turns an Option's `None` into that error.
+  The argument is evaluated only on failure. See
+  [Adding Context](/features/try#adding-context).
+- **`?` in `main` and tests.** In `main` the body runs as `main_() error`,
+  so deferred calls run before the program prints `error: …` and exits
+  with status 1; in a function taking a `*testing.T`, `*testing.B` or
+  `testing.TB` a `?` fails the test (`t.Helper(); t.Fatal(err)`).
+- `vuka vet` warns about more than one `?` in an expression
+  ([W0109](/errors/W0109)) and a `?` on the right of `&&` or `||`
+  ([W0110](/errors/W0110)); `vuka.toml`'s new `[vet]` table turns on
+  `wrap_errors = true`, a warning on a bare `?` passing on another
+  package's error ([W0111](/errors/W0111)).
+
 ### Docs
 
 - **A [playground](/playground) on the docs site.** Edit a project's

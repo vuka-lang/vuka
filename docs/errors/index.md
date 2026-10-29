@@ -85,6 +85,9 @@ same page in the terminal.
 | [W0106](./W0106) | A hand-written ui.HTML or ui.IslandPage |
 | [W0107](./W0107) | A .vuka.html file in the Go-header form |
 | [W0108](./W0108) | A markup call fits both with and without the render's ctx |
+| [W0109](./W0109) | More than one ? in one expression |
+| [W0110](./W0110) | A ? on the right of && or || |
+| [W0111](./W0111) | A bare ? on a call into another package |
 
 ## Decorators and attributes
 
