@@ -259,14 +259,7 @@ func (p *proxy) build() {
 		modRoot = r // the paths the editor's buffers are kept by
 	}
 	hunks := map[string][]hunk{}
-	read := func(path string) ([]byte, error) {
-		if b, ok := bufs[path]; ok {
-			src, hs := completableAt(path, b, cursors[path])
-			hunks[path] = hs
-			return src, nil
-		}
-		return os.ReadFile(path)
-	}
+	read := buildReader(bufs, cursors, hunks)
 	t0 := time.Now()
 	pkgs, err := load.Discover(modRoot, modPath, modRoot, true, read)
 	if err != nil {
@@ -373,6 +366,29 @@ func (p *proxy) build() {
 	}
 	p.apply(pkgs, gens, list, bufs, hunks, all, seq, true)
 	p.logf("built the module (%d packages%s) in %v", len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
+}
+
+// buildReader is how a build reads the module's files: the editor's
+// buffers, each made completable once (discovery, folder routes and the
+// decorators all read it), with the hunks between the two put in hunks;
+// other files from disk, through load.ReadSource.
+func buildReader(bufs map[string][]byte, cursors map[string]int, hunks map[string][]hunk) load.ReadFunc {
+	var mu sync.Mutex
+	made := map[string][]byte{}
+	return func(path string) ([]byte, error) {
+		b, ok := bufs[path]
+		if !ok {
+			return load.ReadSource(path)
+		}
+		mu.Lock()
+		defer mu.Unlock()
+		src, ok := made[path]
+		if !ok {
+			src, hunks[path] = completableAt(path, b, cursors[path])
+			made[path] = src
+		}
+		return slices.Clone(src), nil
+	}
 }
 
 // transpiled says, for the log, how many packages the session's last run
