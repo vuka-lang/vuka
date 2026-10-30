@@ -24,7 +24,7 @@ require (
 	github.com/vuka-lang/orm/v2 v2.2.1-0.20261029231446-6027ea66b367 // indirect
 	github.com/vuka-lang/ui/v2 v2.13.1-0.20261030185706-c24404712fbd // indirect
 	github.com/vuka-lang/vuka/v2 v2.13.0 // indirect
-	github.com/vuka-lang/web/v2 v2.13.1-0.20261030190445-7c867b9a63a5 // indirect
+	github.com/vuka-lang/web/v2 v2.13.1-0.20261030194429-46da02648926 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect

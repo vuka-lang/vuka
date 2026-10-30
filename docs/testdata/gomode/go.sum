@@ -128,6 +128,8 @@ github.com/vuka-lang/web/v2 v2.13.1-0.20261030164144-8b4c2633bb73 h1:zCxa6s6LlSg
 github.com/vuka-lang/web/v2 v2.13.1-0.20261030164144-8b4c2633bb73/go.mod h1:NGV1J8t6TibcxEEr3Y9P7k3sDAuG4uU5frRbsi8hGQA=
 github.com/vuka-lang/web/v2 v2.13.1-0.20261030190445-7c867b9a63a5 h1:OYoEPKbdjBmt2AB3qutGZh9hRbygt0e++RXjV+MfKQg=
 github.com/vuka-lang/web/v2 v2.13.1-0.20261030190445-7c867b9a63a5/go.mod h1:+yBKSEl+uld6NCq8KO4UWTzt2xJZxAHPuYsUue1yJmA=
+github.com/vuka-lang/web/v2 v2.13.1-0.20261030194429-46da02648926 h1:0Z4gX8QdLeaLmmDDWQIj2Sr48cY6GEe0/GNTsFJCYO4=
+github.com/vuka-lang/web/v2 v2.13.1-0.20261030194429-46da02648926/go.mod h1:+yBKSEl+uld6NCq8KO4UWTzt2xJZxAHPuYsUue1yJmA=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
 golang.org/x/crypto v0.55.0/go.mod h1:uq0V9dE/fzQuJtbnL+2EhWOE63vo164FY8xqEnV9xis=
 golang.org/x/mod v0.42.0 h1:ICeL3t2L30ljSPHHxDnR4fqVcBt/zR2zJAb9juavmQg=
