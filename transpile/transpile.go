@@ -255,6 +255,7 @@ type fileState struct {
 	partStmts   map[int]bool // statements binding a deferred method inside a <ui.Suspense>, by offset (parts.go)
 	susWarnings ErrorList
 	ambigWarns  ErrorList  // markup calls both fits compile for (W0108, implicit.go)
+	attrWarns   ErrorList  // on… handlers in a templ.Attributes nothing binds (W0112, jsxlive.go)
 	susChecked  bool       // its <ui.Suspense>s are checked (suspense.go)
 	rt          string     // the name the runtime is imported as; "" until needed
 	target      *jsxTarget // what its JSX lowers to; nil until its first JSX

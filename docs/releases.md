@@ -20,6 +20,32 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.13.0 — unreleased
+
+### UI
+
+- **templ component libraries work on live pages.** Components from a
+  library like templUI or shadcn-templ keep their elements through server
+  updates: the random ids they give elements without one are named after
+  their place on the page (`id-c1-2`), the same in the HTTP render, the join
+  and every patch; a dialog, popover or listbox the library's script moves
+  to `<body>` is patched where it is — one copy, still open, its server
+  values current — and never put back; and attributes and children a script
+  changed (`aria-expanded`, `data-open`, a select's shown value) stay the
+  script's until the server renders something else there. No
+  `data-vk-ignore` wrapper. ([templ libraries](/ui/templ#libraries-on-live-pages),
+  [#219](https://github.com/vuka-lang/vuka/issues/219))
+- **Any HTML attribute on a library component.** `aria-label`, `data-*`,
+  `role` and the other attributes that aren't a props field go into its
+  `Attributes templ.Attributes` field, merged with `attributes={…}`; a near
+  miss of a field's name stays E0106. `onClick={…}` (any `on…`) binds the
+  live event, also inside `attributes={templ.Attributes{…}}`, and a handler
+  in a `templ.Attributes` nothing binds is the new warning W0112 rather than
+  silently dropped. A tag between a component's tags reads `ctx` as the
+  context it renders in, so `attributes={dialog.Trigger(ctx)}` triggers the
+  Dialog around it. The editor completes `id`, `class`, `attributes`, `on…`,
+  `aria-*` and `data-` on such a tag. ([#219](https://github.com/vuka-lang/vuka/issues/219))
+
 ## v2.12.1 — unreleased
 
 ### Fixes

@@ -973,6 +973,7 @@ type jsxWriter struct {
 	ran     []string // the template's statements written so far
 	names   map[string]bool
 	sel     *jsxAttr // the model of the <select> whose options are being written
+	inCtx   int      // writing children in ui.Ctx: a hole reading ctx is read there, not captured
 }
 
 func (w *jsxWriter) gen(s string) { w.out.p = append(w.out.p, jsxPiece{text: s, keep: span{-1, -1}}) }
