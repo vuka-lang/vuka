@@ -429,7 +429,27 @@ var buildID = regexp.MustCompile(`data-vk-build-id="([^"]+)"`)
 
 // volatile is what differs between two processes answering alike: a live
 // page's join token, a navigation's next one, cookies' values.
-var volatile = regexp.MustCompile(`data-vk-(?:token|sig|session)="[^"]*"|,?"token":"[^"]*"`)
+var volatile = regexp.MustCompile(`data-vk-(?:token|sig|session|parts)="[^"]*"|,?"token":"[^"]*"`)
+
+var (
+	// partMark is a deferred part's place in a page.
+	partMark = regexp.MustCompile(`<!--vk-part:([^>]+?)-->`)
+	// partsToken is the token a page's parts are parked under.
+	partsToken = regexp.MustCompile(`data-vk-parts="([^"]*)"`)
+	// partReply is one part of the reply to the runtime's request for a
+	// page's parts.
+	partReply = regexp.MustCompile(`(?s)<template data-vk-part="[^"]+">.*?</template><!--vk-parts:[^>]+-->`)
+)
+
+// partsOf is the reply to the runtime's request for a page's parts as a
+// transcript shows it: its parts sorted, for they arrive as their methods
+// return.
+func partsOf(body []byte) []byte {
+	parts := partReply.FindAll(body, -1)
+	slices.SortFunc(parts, bytes.Compare)
+	rest := partReply.ReplaceAll(body, nil)
+	return append(bytes.Join(parts, []byte("\n")), rest...)
+}
 
 // play runs the app and its script: the transcript, and the live render
 // trees apart.
@@ -520,6 +540,27 @@ func (r *confRun) play(t *testing.T, steps []confStep) (transcript, trees []stri
 		}
 		transcript = append(transcript, st.method+" "+st.path+"\n"+response(res, body)+sql())
 		assets(body)
+		if ids := partMark.FindAllSubmatch(body, -1); len(ids) > 0 && res.StatusCode == http.StatusOK {
+			// the runtime's request for the page's parts, once it has loaded
+			var names []string
+			for _, m := range ids {
+				names = append(names, string(m[1]))
+			}
+			preq, _ := http.NewRequest("GET", base+st.path, nil)
+			preq.Header.Set("Vk-Parts", strings.Join(names, " "))
+			tok := res.Header.Get("Vk-Parts-Token")
+			if m := partsToken.FindSubmatch(body); m != nil {
+				tok = string(m[1])
+			}
+			preq.Header.Set("Vk-Parts-Token", tok)
+			pres, err := http.DefaultTransport.RoundTrip(preq)
+			if err != nil {
+				t.Fatalf("PARTS %s: %v", st.path, err)
+			}
+			pbody, _ := io.ReadAll(pres.Body)
+			pres.Body.Close()
+			transcript = append(transcript, "PARTS "+st.path+"\n"+response(pres, partsOf(pbody))+sql())
+		}
 		return body
 	}
 	sql()
@@ -670,7 +711,7 @@ func response(res *http.Response, body []byte) string {
 				_, attrs, _ := strings.Cut(rest, ";")
 				v = name + "=…;" + attrs
 			}
-			if k == "Vk-Live" { // a live page's join token, as a navigation over HTTP brings it
+			if k == "Vk-Live" || k == "Vk-Parts-Token" { // a live page's join token, its parts' token, as a navigation over HTTP brings them
 				v = "…"
 			}
 			fmt.Fprintf(&b, "%s: %s\n", k, v)
