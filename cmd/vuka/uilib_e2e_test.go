@@ -77,7 +77,8 @@ type Plain struct {
 // diff and list see them. vuka build bundles the scripts with no
 // hand-written mount or script tag: in Chrome the page that shows the
 // dialog loads them, and the dialog and select work on the live page
-// through server updates; a page with only the button loads none. The
+// through server updates, the select's while it's open and while it
+// plays its closing animation; a page with only the button loads none. The
 // theme's dark follows the visitor's preference.
 func TestUILibraryE2E(t *testing.T) {
 	e := newE2E(t)
@@ -202,16 +203,42 @@ style = "assets/css/style.css"
 	}
 	p.click("[data-dialog-close]")
 	p.wait(`document.querySelector("[data-dialog-portal]").hidden`)
+	// The select's script puts a backdrop beside the list's positioner in
+	// the portal and focus guards where the list was declared; an update
+	// leaves them where they are, while the list is open and while it
+	// plays its closing animation, and the select opens again.
+	selectOpen := `(() => {
+		const ls = document.querySelectorAll("[role=listbox]"), pos = ls[0].parentElement, portal = pos.parentElement;
+		return ls.length === 1 && portal.parentNode === document.body && !portal.hidden && ls[0].checkVisibility() &&
+			document.querySelectorAll("[data-select-backdrop]").length === 1 && pos.previousElementSibling.matches("[data-select-backdrop]") &&
+			document.querySelectorAll("[data-focus-guard]").length === 2;
+	})()`
 	p.click("[data-select-trigger]")
-	p.wait(`!document.querySelector("[data-select-portal]").hidden`)
+	p.wait(selectOpen)
+	p.click("#bump")
+	p.wait(`document.querySelector("#n").textContent === "4"`)
+	if ok := p.eval(selectOpen); ok != true {
+		t.Fatalf("an update closed the open select: %v", p.eval(`document.body.innerHTML`))
+	}
 	p.click(`[role=option][data-value="b"]`)
 	p.wait(`document.querySelector("[data-select-value]").textContent === "Pears"`)
 	p.click("#bump")
-	p.wait(`document.querySelector("#n").textContent === "4"`)
+	p.wait(`document.querySelector("#n").textContent === "5"`)
+	if ok := p.eval(`!!document.querySelector("[data-ending-style]")`); ok != true {
+		t.Fatalf("no closing animation runs after the update (it came too late, or replaced the closing list): %v", p.eval(`document.body.innerHTML`))
+	}
+	p.wait(`document.querySelector("[data-select-portal]").hidden && !document.querySelector("[data-ending-style], [data-select-backdrop], [data-focus-guard]")`)
 	if ok := p.eval(`document.querySelector("[data-select-value]").textContent === "Pears" && document.querySelector("input[name=fruit]").value === "b" &&
 		document.querySelectorAll("[role=listbox]").length === 1`); ok != true {
 		t.Fatalf("the select's choice didn't outlive the update: %v", p.eval(`document.body.innerHTML`))
 	}
+	p.click("[data-select-trigger]")
+	p.wait(selectOpen)
+	if ok := p.eval(`document.querySelector('[role=option][data-value="b"]').getAttribute("aria-selected") === "true"`); ok != true {
+		t.Errorf("the reopened select lost the choice: %v", p.eval(`document.querySelector("[role=listbox]").outerHTML`))
+	}
+	p.click(`[role=option][data-value="a"]`)
+	p.wait(`document.querySelector("[data-select-value]").textContent === "Apples" && document.querySelector("input[name=fruit]").value === "a"`)
 	if after := p.eval(ids); after != before {
 		t.Errorf("library ids changed across patches:\n%v\n%v", before, after)
 	}
@@ -318,14 +345,25 @@ func TestUIShadcnTemplE2E(t *testing.T) {
 	}
 	p.do("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27})
 	p.wait(`!document.querySelector("[role=dialog]").checkVisibility()`)
+	// Updates while the list is open and while it plays its closing
+	// animation leave the backdrop and focus guards its script added.
 	p.click("[data-slot=select-trigger]")
 	p.wait(`document.querySelector("[role=listbox]").checkVisibility()`)
-	p.click(`[role=option][data-templ-value="chairs"]`)
-	p.wait(`document.querySelector("input[name=category]").value === "chairs"`)
-	// The list closes with a transition; the update comes once it's closed.
-	p.wait(`!document.querySelector("[role=listbox]").checkVisibility() && !document.querySelector("[data-ending-style]")`)
 	p.click("#bump")
 	p.wait(`document.querySelector("#stock").textContent === "4"`)
+	if ok := p.eval(`document.querySelectorAll("[role=listbox]").length === 1 && document.querySelector("[role=listbox]").checkVisibility()`); ok != true {
+		t.Fatalf("an update closed the open select: %v", p.eval(`document.body.innerHTML`))
+	}
+	p.eval(`(() => {
+		document.addEventListener("vk:patched", () => { window.patchedClosing = !!document.querySelector("[data-ending-style]"); }, { once: true });
+		document.querySelector('[role=option][data-templ-value="chairs"]').click();
+		document.querySelector("#bump").click();
+	})()`)
+	p.wait(`document.querySelector("#stock").textContent === "5"`)
+	if ok := p.eval(`window.patchedClosing`); ok != true {
+		t.Fatalf("the update didn't come during the closing animation")
+	}
+	p.wait(`!document.querySelector("[role=listbox]").checkVisibility() && !document.querySelector("[data-ending-style]")`)
 	if ok := p.eval(`document.querySelector("[data-slot=select-value]").textContent.trim() === "chairs" &&
 		document.querySelector("input[name=category]").value === "chairs" && document.querySelectorAll("[role=dialog]").length === 1`); ok != true {
 		t.Fatalf("the select's choice didn't outlive the update: %v", p.eval(`document.body.innerHTML`))

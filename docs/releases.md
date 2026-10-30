@@ -32,7 +32,11 @@ the `github.com/vuka-lang/vuka` package your module requires.
   to `<body>` is patched where it is — one copy, still open, its server
   values current — and never put back; and attributes and children a script
   changed (`aria-expanded`, `data-open`, a select's shown value) stay the
-  script's until the server renders something else there. No
+  script's until the server renders something else there. Elements a
+  script adds beside the server's — a select's backdrop and focus guards —
+  stay where it put them, so an update while a select is open or playing
+  its closing animation no longer leaves it unable to open again
+  ([#225](https://github.com/vuka-lang/vuka/issues/225)). No
   `data-vk-ignore` wrapper. ([templ libraries](/ui/templ#libraries-on-live-pages),
   [#219](https://github.com/vuka-lang/vuka/issues/219))
 - **Any HTML attribute on a library component.** `aria-label`, `data-*`,
