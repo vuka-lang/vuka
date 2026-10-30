@@ -79,17 +79,17 @@ func Customers(ctx context.Context, page graphql.Page) (graphql.Connection[Custo
 	return graphql.Connection[Customer]{}, nil
 }
 
-// everyone has no limit.
+// Everyone has no limit.
 //
-//line graphql_loaders.vuka:77
-func everyone(ctx context.Context, trackingID string, orderID string) ([]Customer, error) {
-//line graphql_loaders.vuka:77
+//line graphql_loaders.vuka:76
+func Everyone(ctx context.Context, trackingID string, orderID *string) ([]Customer, error) {
+//line graphql_loaders.vuka:76
 	return nil, nil
 }
 
 // The stand-in for package graphql prints what it is given to register.
 //
-//line graphql_loaders.vuka:80
+//line graphql_loaders.vuka:79
 func main() {
 	ctx := context.Background()
 	o := Order{Customer: orm.FKID[Customer](int64(7))}
@@ -111,6 +111,9 @@ var _ graphql.Query
 
 //line graphql_loaders.vuka:75
 var _ graphql.Query
+
+//line graphql_loaders.vuka:76
+var _ = graphql.AsString()
 
 // OrdersByCustomer loads fetchOrdersByCustomer's values by key (@graphql.Loader): the keys
 // a request's fields ask for meanwhile load in one call of it.
@@ -158,10 +161,10 @@ func init() {
 			{
 				Go: "Everyone", Func: Everyone,
 				Doc:    "Everyone has no limit.",
-				Params: []graphql.Param{{Name: "ctx"}, {Name: "trackingID", Type: graphql.String}, {Name: "orderID", Type: graphql.ID}},
+				Params: []graphql.Param{{Name: "ctx"}, {Name: "trackingID", Type: &graphql.NonNull{Of: graphql.String}}, {Name: "orderID", Type: graphql.ID}},
 				Type:   &graphql.NonNull{Of: graphql.ListOf[Customer](&graphql.NonNull{Of: graphql.ObjectOf[Customer]()})},
 				Resolve: func(ctx context.Context, c *graphql.Call) (any, error) {
-					return Everyone(ctx, graphql.Get[string](c, 1), graphql.Get[string](c, 2))
+					return Everyone(ctx, graphql.Get[string](c, 1), graphql.GetPtr[string](c, 2))
 				},
 			},
 		},
@@ -263,24 +266,5 @@ func init() {
 //line graphql_loaders.vuka:69
 	vuka.RegisterFunc(Customers, []any{*new(graphql.Query)}...)
 //line graphql_loaders.vuka:75
-	vuka.RegisterFunc(Everyone, append([]any{*new(graphql.Query)}, everyoneDecB0.Attrs()...)...)
-}
-
-//line graphql_loaders.vuka:76
-var everyoneDecB0 = graphql.AsString("trackingID")
-
-var everyoneDec vuka.Decorated[func(context.Context, string, string) ([]Customer, error)]
-
-// Everyone has no limit.
-//
-//line graphql_loaders.vuka:77
-func Everyone(ctx context.Context, trackingID string, orderID string) ([]Customer, error) {
-	return everyoneDec.Get(func() func(context.Context, string, string) ([]Customer, error) {
-//line graphql_loaders.vuka:75
-		return vuka.Wrap(everyone, vuka.FuncInfo{Name: "main.Everyone", Attrs: append([]any{*new(graphql.Query)}, everyoneDecB0.Attrs()...)}, everyoneDecB0.Calls()...)
-	})(ctx, trackingID, orderID)
-}
-
-func init() {
-	everyoneDecB0.Declare(vuka.DeclOf(Everyone, vuka.Param{Name: "ctx"}, vuka.Param{Name: "trackingID"}, vuka.Param{Name: "orderID"}))
+	vuka.RegisterFunc(Everyone, []any{*new(graphql.Query)}...)
 }

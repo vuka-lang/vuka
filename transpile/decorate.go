@@ -380,6 +380,8 @@ func (e *engine) decorate() bool {
 			if a.Param {
 				if a.decl == nil {
 					e.errs.add("E0205", a.Pos, "@%s must be followed by a parameter of a top-level function", a.Name)
+				} else if a.bare && !e.namesType(f, a.Name) && e.bareArgAttr(f, a) {
+					a.called = true // @graphql.AsInt before a parameter: graphql.AsInt()
 				} else if a.bare && !e.namesType(f, a.Name) {
 					e.errs.add("E0205", a.Pos, "@%s is a function, not a value; a parameter attribute is a value, such as @Body or @Path(\"id\")", a.Name)
 				}

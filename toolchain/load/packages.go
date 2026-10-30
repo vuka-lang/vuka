@@ -711,6 +711,9 @@ type Generated struct {
 	VariantMethods []transpile.VariantMethod
 	// Matches are its match statements (transpile.Output.Matches).
 	Matches []transpile.Match
+	// GraphQLArgs are its non-null GraphQL arguments
+	// (transpile.Output.GraphQLArgs).
+	GraphQLArgs []transpile.GraphQLArg
 }
 
 // Options configure Transpile.
@@ -1006,7 +1009,7 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 					from = in.Src
 				}
 			}
-			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped, Implicit: f.Implicit, VariantMethods: f.VariantMethods, Matches: f.Matches})
+			out = append(out, Generated{Target: target, Source: filepath.Join(p.Dir, f.Name), Src: f.Src, From: from, Map: f.Map, Body: f.Body, Files: f.Files, Names: f.Names, Declares: f.Declares, Vars: f.Vars, Available: f.Available, Warnings: f.Warnings, Unwrapped: f.Unwrapped, Implicit: f.Implicit, VariantMethods: f.VariantMethods, Matches: f.Matches, GraphQLArgs: f.GraphQLArgs})
 		}
 		if res.Calls != nil {
 			// The call adapters: a file of the package's, no source's.

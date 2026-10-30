@@ -60,6 +60,8 @@ var fixers = []fixer{
 	{"routes", "pass each pages/ tree's Routes() to web.New in the package main that owns it, importing it (W0701)", fixRoutes},
 	{"ctx-vars", "read what the context processors give through their variables in vuka files: auth.Can(ctx, \"x\") → perms.Has(\"x\"), auth.Current(ctx) → user, web.Request(ctx).URL.Path → request.Path, … (W0402)", fixCtxVars},
 	{"static-paths", "link the files app.Static serves with web.Asset in markup: src=\"/static/logo.png\" → src={web.Asset(\"/static/logo.png\")}, cached for good (W0404); run only when named", fixStaticPaths},
+	{"graphql-params", "write a GraphQL argument's attribute before its parameter: @graphql.AsInt(\"lastID\") above a function → func F(@graphql.AsInt lastID int) (W0803)", fixGraphQLParams},
+	{"graphql-args", "list the GraphQL arguments 2.14 makes required (a parameter of a value type is Int!), to make pointers of those a client may leave out; changes nothing; run only when named", fixGraphQLArgs},
 	{"queries", "write queries made for orm.Query as the Manager's: vuka.Or of fields → orm.Or, fn.Lower → orm.Lower, fn.In → InQuery, an Option First → orm.Optional(…First(ctx)), Objects.Manager() → Objects", fixQueries},
 }
 
@@ -103,7 +105,7 @@ func fix(args []string, stdout io.Writer) error {
 }
 
 // namedOnly are the fixers vuka fix runs only when named.
-var namedOnly = map[string]bool{"static-paths": true}
+var namedOnly = map[string]bool{"static-paths": true, "graphql-args": true}
 
 // applyFixers runs the selected fixers (all when none is) over the module
 // in the current directory, reporting each change; it returns their number.

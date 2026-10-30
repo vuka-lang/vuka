@@ -73,8 +73,7 @@ func Customers(ctx context.Context, page graphql.Page) (graphql.Connection[Custo
 
 // Everyone has no limit.
 @graphql.Query
-@graphql.AsString("trackingID")
-func Everyone(ctx context.Context, trackingID string, orderID string) ([]Customer, error) { return nil, nil }
+func Everyone(ctx context.Context, @graphql.AsString trackingID string, orderID *string) ([]Customer, error) { return nil, nil }
 
 // The stand-in for package graphql prints what it is given to register.
 func main() {
