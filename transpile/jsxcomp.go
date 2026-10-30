@@ -107,7 +107,8 @@ type compArg struct {
 	nodeText bool             // a quoted attribute setting a Node: ui.Text("…")
 
 	templAttrs bool       // the props' Attributes: ui.TemplAttrs(ctx, its value, extra…)
-	extra      []*compArg // the tag's attributes that aren't fields, for TemplAttrs
+	uiAttrs    bool       // the props' Attrs ([]ui.Attr): its value with extra appended
+	extra      []*compArg // the tag's attributes that aren't fields, for TemplAttrs or Attrs
 }
 
 // slotElem is one element of a repeated slot: a struct literal of the
@@ -171,6 +172,28 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("}")
 			}
 			w.gen(")")
+		case a.uiAttrs:
+			if named && a.name != "" || a.attr != nil {
+				w.gen("append(")
+				if named && a.name != "" {
+					w.gen(a.name)
+				} else {
+					w.attrValue(a.attr)
+				}
+				w.gen(", ")
+			} else {
+				w.gen("[]" + q + "Attr{")
+			}
+			for _, x := range a.extra {
+				w.gen(q + "Attr{Name: " + strconv.Quote(x.attr.name) + ", Value: ")
+				value(x, false)
+				w.gen("}, ")
+			}
+			if named && a.name != "" || a.attr != nil {
+				w.gen(")")
+			} else {
+				w.gen("}")
+			}
 		case named && a.name != "":
 			w.gen(a.name)
 		case a.nodeText:

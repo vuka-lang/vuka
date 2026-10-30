@@ -76,6 +76,33 @@ func (f *Signup) CleanEmail(ctx context.Context, users *Users) error {
 }
 ```
 
+A page's own form may also be declared in the page's file, beside the
+page's struct: a struct embedding `ui.FormState` is data, never the struct
+the markup renders.
+
+```html
+<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+type Contact struct {
+    Form Message
+}
+
+type Message struct {
+    ui.FormState
+    Email string `validate:"required,email"`
+    Text  string `input:"textarea" validate:"required,max=2000"`
+}
+</script>
+
+<ui.Form for={Form}/>
+```
+
+Any other second struct goes in a `.go` file beside the page
+([E0147](/errors/E0147)).
+
 Each field's tags say how it is checked and shown:
 
 | Tag | |
@@ -86,7 +113,7 @@ Each field's tags say how it is checked and shown:
 | `input:` | the control: `textarea`, `radio`, `select`, `password`, `new-password`, `one-time-code`, `numeric`, `tel`, `date`, … |
 | `autocomplete:` | the `autocomplete` value, when the one inferred from the name and type isn't right |
 | `placeholder:` | an example value; never a label |
-| `msg:` | a rule's message: `msg:"required=Accept the terms to continue"` |
+| `msg:` | a rule's message: `msg:"required=Accept the terms to continue"`; several, `rule=message` separated by commas (see [Errors](#errors)) |
 | `trim:"-"` | keep leading and trailing whitespace |
 | `form:` | the field's name in the form and its paths (`form:"email"`); `-` leaves it out |
 | `depends:` | the field its choices follow (`depends:"Country"`); see [Choices](#choices) |
@@ -141,6 +168,11 @@ func (j *Join) Save(ctx context.Context, f account.Signup, users *account.Users)
   <ui.Form for={Form} onSubmit={Save} submitLabel="Create account"/>
 </main>
 ```
+
+`<ui.Form>` passes the attributes that aren't its own to the `<form>`
+element: `<ui.Form for={Form} autocomplete="off" data-step="2"
+aria-label="Create an account">`. (`class` and `id` are its fields, and
+land there too.)
 
 `Save` runs only when every rule and Clean method passed, with `f` the
 checked value. What it returns decides what the visitor sees next:
@@ -210,6 +242,48 @@ writes the control's `name`, `id`, `value`, `type`, `inputmode`,
   same way.
 - `<ui.Field for={Form.Email} ok/>` shows a tick once the visitor used the
   field and it passes every check. Ticks are off by default.
+
+An app that styles its controls through components of its own gives the
+field to the component: a component whose props have a field `Model
+ui.FieldRef` takes `model={Form.Email}`, and gives it to its control with
+`model={Model}`, so the control gets its name, id, value, type and ARIA
+links as one written in the page would:
+
+```html
+<!-- components/text_field.vuka.html -->
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// TextField is the app's text field: a label, the error, the control.
+type TextField struct {
+    Model ui.FieldRef
+    Label string
+    Attrs []ui.Attr
+}
+</script>
+
+<div class="field" {Attrs...}>
+  <label class="field-label" for={ui.ModelID(Model)}>{Label}</label>
+  <ui.Error for={Model}/>
+  <input model={Model} class="field-input"/>
+</div>
+```
+
+```html
+<ui.Form for={Form} onSubmit={Save}>
+  <components.TextField model={Form.Email} label="Email"/>
+  <components.TextField model={Form.Name} label="Full name" data-hint="as on your ID"/>
+  <button>Create account</button>
+</ui.Form>
+```
+
+The compiler checks the field as it does on a control, and refuses
+`model` on a component whose props have no `Model ui.FieldRef`; a modifier
+(`model.lazy`) goes on the component's control. A component with an `Attrs
+[]ui.Attr` field takes the tag's other HTML attributes there, as
+`data-hint` above.
 
 A misspelt field is a compile error naming the one it most likely meant:
 `model={Form.Emial}: Signup has no field Emial; did you mean Email?`
@@ -281,6 +355,20 @@ Messages are plain instructions, saying what to do:
 `msg:"rule=…"` replaces one for a field, `forms.Errorf` writes the message
 of a Clean method's error, and an app's catalogue changes any message, in
 any language: see [Messages and Translations](#messages).
+
+A `msg:` tag holds one message per rule, `rule=message`, separated by
+commas. A message may hold commas of its own: a comma ends a message only
+when the next rule's `name=` follows it.
+
+```go
+type Applicant struct {
+    ui.FormState
+    Name string `validate:"required,max=80" msg:"required=Enter your name, as on your ID,max=Shorten your name, to 80 letters or fewer"`
+}
+```
+
+Write `\,` for a comma that a `name=` follows in a message's own text,
+and `\\` for a backslash.
 
 After a failed submit, the summary at the top of the form says "There is a
 problem" and links each error to its field, in the same words. The browser
@@ -785,3 +873,9 @@ by its path (`"email"`); filling one the form doesn't render fails the test.
 `Error` takes the message's key or its text. The page runs over its
 connection; `viewtest.Plain()` posts the form as a browser without script
 does, and `p.Status()` is the post's 422 or 303.
+
+A form whose `Save` signs in (`auth.Login`, `auth.SignIn`) is tested
+through the app with `authtest.As`: the identity it gives a request keeps
+the request's response, so the sign-in sets its session cookie there, as it
+does for a visitor. `authtest.As(nil)` posts as an anonymous visitor; the
+response's `Set-Cookie` holds the new session.

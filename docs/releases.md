@@ -43,6 +43,25 @@ the `github.com/vuka-lang/vuka` package your module requires.
   script the form posts as before (303, or 422 with the page). A page with
   anything else live keeps sending its form over its connection
   (behaviour change: such a page with only a form used to connect).
+- **`<ui.Form>` passes other attributes to its `<form>`**
+  ([#231](https://github.com/vuka-lang/vuka/issues/231), item 4):
+  `<ui.Form for={Form} autocomplete="off" data-step="2">`. Generally, a
+  component whose props have an `Attrs []ui.Attr` field now takes the tag's
+  HTML attributes that aren't its fields there (`ui.Button`, `ui.Field`
+  and an app's own components alike); a misspelt field is still an error.
+- **`model` on an app's own components**
+  ([#231](https://github.com/vuka-lang/vuka/issues/231), item 7). A
+  component whose props have a field `Model ui.FieldRef` takes
+  `model={Form.Email}`, checked as on a control, and gives it to its
+  control with `model={Model}` (`ui.For` takes a `FieldRef`, so
+  `ui.ModelID(Model)` and `<ui.Error for={Model}/>` work in it). A
+  component without one refuses `model` with an error saying what it needs;
+  modifiers go on the component's control.
+- **A page's form may be declared beside the page's struct**
+  ([#231](https://github.com/vuka-lang/vuka/issues/231), item 6): a struct
+  embedding `ui.FormState` in a `.vuka.html` file's Go is data, not a
+  second template. Any other second struct is still E0147, now reported as
+  such for a `pages/` page too (it read "E0719 … declared nowhere").
 - **The summary keeps its place** while it doesn't show: an empty, hidden
   `<div id="<form>-summary-at">` at the form's top, and
   `<div id="<form>-summary-slot">` where a `<ui.Summary/>` is.
@@ -78,6 +97,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the fields. The form's `Error` alert is keyed the same way
   (`<div id="…-error" class="vk-form__error">`). The `<div
   class="contents"><ui.Summary/></div>` workaround can go.
+- **A comma can be in a `msg:` message**
+  ([#231](https://github.com/vuka-lang/vuka/issues/231), item 3): a comma
+  ends a message only when the next rule's `name=` follows it, so
+  `msg:"required=Enter your name, as on your ID"` is one message; `\,`
+  and `\\` escape a comma and a backslash.
+- **A handler that signs in can be tested with `authtest.As`**
+  ([#231](https://github.com/vuka-lang/vuka/issues/231), item 5):
+  `auth.WithIdentity` keeps the request's response, so `auth.SignIn`
+  sets its cookie instead of failing with "needs an HTTP request's
+  response".
 - **`Form.Fail`'s message shows once**
   ([#231](https://github.com/vuka-lang/vuka/issues/231), item 2). `return
   f.Form.Fail(msg)` added the message to the form's failures, and the

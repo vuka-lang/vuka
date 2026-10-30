@@ -1087,7 +1087,7 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 			w.gen(" }")
 			return
 		}
-		if a.ref && w.addressable(a) {
+		if a.ref && (w.addressable(a) || a.name == "model") { // a component's model is always a reference: its field is a ui.FieldRef
 			w.modelCall("For", "", a)
 			return
 		}

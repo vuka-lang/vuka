@@ -182,6 +182,19 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 		at := fset.Position(p)
 		return token.Position{Line: at.Line, Column: at.Column}
 	}
+	if len(structs) > 1 {
+		// A form the page holds (a struct embedding ui.FormState) may be
+		// declared beside it: it is data, never the struct the markup renders.
+		var rendered []*ast.TypeSpec
+		for _, ts := range structs {
+			if !embedsFormState(ts.Type.(*ast.StructType), f) {
+				rendered = append(rendered, ts)
+			}
+		}
+		if len(rendered) == 1 {
+			structs = rendered
+		}
+	}
 	switch {
 	case len(structs) == 0:
 		if err != nil {
@@ -195,7 +208,7 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 		return nil, &Error{Code: "E0147", Pos: pos(second.Name.Pos()), Len: len(second.Name.Name),
 			Msg: "the template file declares " + structs[0].Name.Name + " and " + second.Name.Name +
 				": a .vuka.html file renders one struct",
-			Help: "move " + second.Name.Name + " to its own .vuka.html file, or to a .go file when it has no markup"}
+			Help: "move " + second.Name.Name + " to its own .vuka.html file, or to a .go file beside this one when it has no markup (a form, a struct embedding ui.FormState, may stay)"}
 	}
 	// A syntax error past the struct is the compiler's to report, at its
 	// place, as for any .vuka source.
@@ -546,3 +559,39 @@ func (s *Shape) hasRole(r FieldRole) bool {
 // statesCall stands, in a static shape struct's View, for the gen package's
 // States until the engine knows which package that is.
 const statesCall = "vukaStates__"
+
+// embedsFormState reports whether st embeds ui.FormState (the ui package
+// by its import in f, or FormState unqualified, as the ui package's own
+// files write it).
+func embedsFormState(st *ast.StructType, f *ast.File) bool {
+	for _, fl := range st.Fields.List {
+		if len(fl.Names) > 0 {
+			continue
+		}
+		switch t := fl.Type.(type) {
+		case *ast.Ident:
+			if t.Name == "FormState" {
+				return true
+			}
+		case *ast.SelectorExpr:
+			if x, ok := t.X.(*ast.Ident); ok && t.Sel.Name == "FormState" && importsUIAs(f, x.Name) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+// importsUIAs reports whether f imports the ui package as name.
+func importsUIAs(f *ast.File, name string) bool {
+	for _, im := range f.Imports {
+		path, _ := strconv.Unquote(im.Path.Value)
+		if path != DefaultJSXTarget {
+			continue
+		}
+		if im.Name == nil && name == "ui" || im.Name != nil && im.Name.Name == name {
+			return true
+		}
+	}
+	return false
+}

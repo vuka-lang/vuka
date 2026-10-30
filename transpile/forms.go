@@ -39,9 +39,18 @@ func (p *jsxParser) formAttr(el *jsxElem, a *jsxAttr, comp bool) {
 		text = strings.TrimSpace(string(p.src[a.expr.start:a.expr.end]))
 	}
 	if a.name == "model" || strings.HasPrefix(a.name, "model.") {
+		if comp {
+			// a component whose props have a Model ui.FieldRef field takes
+			// it (bindFields checks), and spreads it on its control
+			switch {
+			case a.name != "model":
+				p.fail(a.off, "%s on a component: a component takes model={Form.Email} and its control the modifiers (<input model.lazy={Model}/>)", a.name)
+			case a.kind != 'e' || !chainRe.MatchString(text):
+				p.fail(a.off, "model takes a field of a form: model={Form.Email}")
+			}
+			return
+		}
 		switch {
-		case comp:
-			p.fail(a.off, "model is a control's: <input model={Form.Email}/>; a form component takes for={Form.Email}")
 		case el.tag != "input" && el.tag != "textarea" && el.tag != "select":
 			p.fail(a.off, "model goes on <input>, <textarea> or <select>, not <%s>", el.tag)
 		case a.kind != 'e' || !chainRe.MatchString(text):
@@ -248,7 +257,7 @@ func (e *engine) checkModels(f *fileState, t *jsxTree) {
 			switch n := n.(type) {
 			case *jsxElem:
 				for _, a := range n.attrs {
-					if a.model || a.ref || n.comp != nil && a.name == "for" && a.kind == 'e' {
+					if a.model || a.ref || n.comp != nil && (a.name == "for" || a.name == "model") && a.kind == 'e' {
 						check(n, a)
 					}
 				}
@@ -267,7 +276,7 @@ func (e *engine) checkModels(f *fileState, t *jsxTree) {
 }
 
 func attrName(a *jsxAttr) string {
-	if a.model {
+	if a.model || a.name == "model" {
 		return "model"
 	}
 	return "for"

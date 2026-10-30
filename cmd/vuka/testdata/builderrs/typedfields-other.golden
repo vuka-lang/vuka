@@ -4,7 +4,7 @@ error[E0147]: the template file declares Card and Row: a .vuka.html file renders
 8 | type Row struct {
   |      ^^^
   |
-  = help: move Row to its own .vuka.html file, or to a .go file when it has no markup
+  = help: move Row to its own .vuka.html file, or to a .go file beside this one when it has no markup (a form, a struct embedding ui.FormState, may stay)
 
 For more information about this error, try `vuka explain E0147`.
 
