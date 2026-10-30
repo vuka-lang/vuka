@@ -16,6 +16,9 @@ func TestDanglingDots(t *testing.T) {
 		"s := strings.\n\tToUpper(x)":         nil,
 		"\tv := ui.JS.\n\t\tIf(c).\n\tx := 1": {21},
 		"a := b.c.\n\tif ok {":                {9},
+		"\treturn q.\n\t\tJoin(t.On(\n\t\t\ta,\n\t\t), k).\n\t\tAll(ctx)": nil,
+		"\treturn q.\n\t\tV[R](\n\t\t\ta,\n\t\t).\n\t\tAll(ctx)":          nil,
+		"\tx := t.On(\n\t\ta,\n\t).\n\ty := 1":                            {20},
 	} {
 		if got := danglingDots([]byte(src)); !slices.Equal(got, want) {
 			t.Errorf("danglingDots(%q) = %v, want %v", src, got, want)

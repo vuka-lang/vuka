@@ -282,7 +282,7 @@ func danglingDots(src []byte) []int {
 // continuesOnNextLine reports whether the line ending at off is a chain the
 // next line goes on with (ui.JS.⏎ If(…)): that line starts with a name that
 // isn't a keyword, indented deeper, or as deep when this line goes on a chain
-// itself.
+// itself — read from the line opening the brackets it closes (Join(⏎ …⏎ ).).
 func continuesOnNextLine(src []byte, off int) bool {
 	nl := off
 	for nl < len(src) && (src[nl] == ' ' || src[nl] == '\t' || src[nl] == '\r') {
@@ -297,7 +297,7 @@ func continuesOnNextLine(src []byte, off int) bool {
 		i++
 	}
 	next, cur := i-nl-1, indentOf(src[start:off])
-	if next < cur || next == cur && !endsWithDot(src[:start]) || i == len(src) || !isLetter(src[i]) && src[i] != '_' {
+	if next < cur || next == cur && !endsWithDot(src[:openingLine(src, start, off)]) || i == len(src) || !isLetter(src[i]) && src[i] != '_' {
 		return false
 	}
 	j := i
@@ -305,6 +305,38 @@ func continuesOnNextLine(src []byte, off int) bool {
 		j++
 	}
 	return !token.Lookup(string(src[i:j])).IsKeyword()
+}
+
+// openingLine is the start of the line opening the brackets the line from
+// start to off closes, start when it closes none.
+func openingLine(src []byte, start, off int) int {
+	for {
+		depth, need := 0, 0
+		for _, c := range src[start:off] {
+			switch c {
+			case '(', '[', '{':
+				depth++
+			case ')', ']', '}':
+				if depth--; depth < -need {
+					need = -depth
+				}
+			}
+		}
+		i := start - 1
+		for ; i >= 0 && need > 0; i-- {
+			switch src[i] {
+			case ')', ']', '}':
+				need++
+			case '(', '[', '{':
+				need--
+			}
+		}
+		if need > 0 || i+1 == start {
+			return start
+		}
+		s := bytes.LastIndexByte(src[:i+1], '\n') + 1
+		start, off = s, bytes.IndexByte(src[s:], '\n')+s
+	}
 }
 
 func endsWithDot(src []byte) bool {
