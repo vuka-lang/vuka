@@ -72,10 +72,11 @@ func TestTailwindFor(t *testing.T) {
 
 func TestTailwindEntry(t *testing.T) {
 	root := tempModule(t, map[string]string{"go.mod": webMod, "app.css": `@import "tailwindcss";`,
-		"lib/a/button.vuka": "package a", "lib/b/b.go": "package b", "lib/c/card.templ": "package c", "lib/d/d_test.vuka": "package d"})
+		"lib/a/button.vuka": "package a", "lib/b/b.go": "package b", "lib/c/card.templ": "package c", "lib/d/d_test.vuka": "package d",
+		"lib/e/badge.vuka.html": "<span></span>"})
 	lib := func(d string) string { return filepath.Join(root, "lib", d) }
-	deps := componentDirs([]string{lib("a"), lib("b"), lib("c"), lib("d"), lib("a")})
-	if want := []string{lib("a"), lib("c")}; fmt.Sprint(deps) != fmt.Sprint(want) {
+	deps := componentDirs([]string{lib("a"), lib("b"), lib("c"), lib("d"), lib("e"), lib("a")})
+	if want := []string{lib("a"), lib("c"), lib("e")}; fmt.Sprint(deps) != fmt.Sprint(want) {
 		t.Errorf("componentDirs: %v, want %v", deps, want)
 	}
 	for _, sheet := range []string{filepath.Join(root, "app.css"), ""} {

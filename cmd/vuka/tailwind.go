@@ -193,16 +193,16 @@ func listPackages(root, overlay string) (goPackages, error) {
 	return res, nil
 }
 
-// componentDirs are the directories in dirs holding .vuka or .templ files:
-// the packages of component libraries the app links, whose class names the
-// stylesheet needs.
+// componentDirs are the directories in dirs holding .vuka, .vuka.html or
+// .templ files: the packages of component libraries the app links, whose
+// class names the stylesheet needs.
 func componentDirs(dirs []string) []string {
 	var out []string
 	for _, dir := range dirs {
 		entries, _ := load.ReadDir(dir)
 		if slices.ContainsFunc(entries, func(e fs.DirEntry) bool {
 			n := e.Name()
-			return strings.HasSuffix(n, ".templ") || strings.HasSuffix(n, ".vuka") && !strings.HasSuffix(n, "_test.vuka")
+			return strings.HasSuffix(n, ".templ") || strings.HasSuffix(n, ".vuka.html") || strings.HasSuffix(n, ".vuka") && !strings.HasSuffix(n, "_test.vuka")
 		}) {
 			out = append(out, dir)
 		}

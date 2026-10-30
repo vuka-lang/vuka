@@ -157,6 +157,11 @@ the look, change the values in the block `vuka ui init` wrote:
 The token names are shadcn's, so a theme made for it pastes in: its `:root`
 values over these, and its `.dark` values into both dark blocks.
 
+The skeletons' tokens are there too: `--skeleton` (the `muted` token by
+default), `--skeleton-highlight` (the wave's highlight) and
+`--skeleton-duration`. A stylesheet `vuka ui init` wrote before the
+skeleton existed lacks them: `vuka ui init -f` writes the block again.
+
 The theme is light by default and dark when the visitor prefers it
 (`prefers-color-scheme`); `data-theme` on the `<html>` element overrides
 that either way, so a theme switch is one attribute:
@@ -171,7 +176,7 @@ How a component behaves decides where its code runs:
 
 | Tier | Where it runs | Components |
 |---|---|---|
-| 1. The browser | HTML and [JS commands](/ui/js), no round trip, no framework script | Button, Badge, Card, Alert, Input, Label, Dialog |
+| 1. The browser | HTML and [JS commands](/ui/js), no round trip, no framework script | Button, Badge, Card, Alert, Input, Label, Dialog, Skeleton |
 | 2. The server | state on the server over the [live connection](/ui/live) | Tabs |
 | 3. An island | a client component through the [islands](/web/islands) adapters | later: a combobox, a date picker |
 
@@ -193,6 +198,7 @@ themes, and its source beside the Go it ejects to:
 | [Dialog](/ui/components/dialog) | in the browser | a `<dialog>` over the page, opened and closed by JS commands |
 | [Input](/ui/components/input) | in the browser | a text field |
 | [Label](/ui/components/label) | in the browser | a form field's label |
+| [Skeleton](/ui/components/skeleton) | in the browser | placeholder bones while content loads, or a component drawn as bones |
 | [Tabs](/ui/components/tabs) | on the server | panels shown one at a time, the tab shown kept on the server |
 
 ## The Registry {#registry}

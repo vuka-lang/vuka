@@ -90,7 +90,24 @@ the part.
 A statement binding a deferred method's result makes the element it is in
 the part: everything that uses the name is inside it.
 
-```html
+<!-- vuka:context
+type Category struct{ Name string }
+-->
+
+::: code-group
+
+```vuka-html [Vuka]
+<script lang="go">
+package pages
+
+import "context"
+
+type Index struct{}
+
+@ui.Defer
+func (p Index) GetCategories(ctx context.Context) ([]Category, error) { return nil, nil }
+</script>
+
 <section>
   categories := GetCategories()
   <ui.Fallback for={categories}><ui.Skeleton lines={3}/></ui.Fallback>
@@ -100,6 +117,19 @@ the part: everything that uses the name is inside it.
   }
 </section>
 ```
+
+```go [Generated Go]
+func (p Index) View() ui.Node {
+	return ui.LazyPart(ui.Skeleton{Lines: 3}, nil, func(ctx context.Context) ui.Node {
+		categories := sync.OnceValue(func() []Category {
+			return ui.LazyValue(ctx, func(ctx context.Context) ([]Category, error) { return p.GetCategories(ctx) })
+		})
+		…
+	})
+}
+```
+
+:::
 
 The `<section>` is the part, `categories` its method's result.
 `<ui.Fallback for={categories}>` names the binding, so two bindings of one
@@ -218,7 +248,27 @@ page's choice instead: everything inside `<ui.Suspense>` renders after the
 page's first bytes, and is sent at once when all of what the render reaches
 inside it has returned — one reveal, not piece by piece.
 
-```html
+<!-- vuka:context
+type Category struct{ Name string }
+
+type Stats struct{ Open int }
+-->
+
+::: code-group
+
+```vuka-html [Vuka]
+<script lang="go">
+package pages
+
+import "context"
+
+type Index struct{}
+
+func (p Index) GetCategories(ctx context.Context) ([]Category, error) { return nil, nil }
+
+func (p Index) CategoryStats(ctx context.Context) (Stats, error) { return Stats{}, nil }
+</script>
+
 <ui.Suspense>
   <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
   <slot:error><p role="alert">Couldn't load categories.</p></slot:error>
@@ -231,6 +281,20 @@ inside it has returned — one reveal, not piece by piece.
   }
 </ui.Suspense>
 ```
+
+```go [Generated Go]
+func (p Index) View() ui.Node {
+	return ui.Ctx(func(ctx context.Context) ui.Node {
+		return ui.Suspense(ui.Skeleton{Lines: 3}, ui.HTML(`<p role="alert">Couldn't load categories.</p>`), func(ctx context.Context) ui.Node {
+			categories := sync.OnceValue(func() []Category { return ui.Must(p.GetCategories(ctx)) })
+			stats := sync.OnceValue(func() Stats { return ui.Must(p.CategoryStats(ctx)) })
+			…
+		})
+	})
+}
+```
+
+:::
 
 - **Every call inside streams.** A method needn't be `@ui.Defer`: inside a
   boundary every call runs after the page's shell, with the boundary.
@@ -274,14 +338,40 @@ when the boundary does.
 Use `for={a, b}` to choose the bindings a boundary waits for. Declare them
 above the boundary; they remain available after it.
 
-```html
-categories := GetCategories()
-stats := CategoryStats()
-<ui.Suspense for={categories, stats}>
-  <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
-  <h3>{len(categories)} categories · {stats.Open} open</h3>
-</ui.Suspense>
+::: code-group
+
+```vuka-html [Vuka]
+<script lang="go">
+package pages
+
+import "context"
+
+type Index struct{}
+
+func (p Index) GetCategories(ctx context.Context) ([]Category, error) { return nil, nil }
+
+func (p Index) CategoryStats(ctx context.Context) (Stats, error) { return Stats{}, nil }
+</script>
+
+<section>
+  categories := GetCategories()
+  stats := CategoryStats()
+  <ui.Suspense for={categories, stats}>
+    <slot:fallback><ui.Skeleton lines={3}/></slot:fallback>
+    <h3>{len(categories)} categories · {stats.Open} open</h3>
+  </ui.Suspense>
+</section>
 ```
+
+```go [Generated Go]
+		categories := sync.OnceValue(func() []Category { return ui.Must(p.GetCategories(ctx)) })
+		stats := sync.OnceValue(func() Stats { return ui.Must(p.CategoryStats(ctx)) })
+		suspense := ui.Suspense(ui.Skeleton{Lines: 3}, nil, func(ctx context.Context) ui.Node {
+			return ui.HTML(`<h3>{len(categories())} categories · {stats().Open} open</h3>`, len(categories()), stats().Open)
+		})
+```
+
+:::
 
 The listed bindings run at their first rendered use, even when their
 methods have no `@ui.Defer`. An unused binding never delays the reveal.

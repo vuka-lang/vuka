@@ -28,6 +28,10 @@
     "text": "Label"
   },
   {
+    "link": "/ui/components/skeleton",
+    "text": "Skeleton"
+  },
+  {
     "link": "/ui/components/tabs",
     "text": "Tabs"
   }

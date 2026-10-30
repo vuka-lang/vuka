@@ -22,6 +22,27 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.12.1 — unreleased
 
+### UI Components
+
+- **Skeletons.** `ui.Skeleton`, the placeholder `docs/web/parts.md` and
+  `ui.Suspense` showed but ui didn't have, is a muted, pulsing bone, or
+  `lines={3}` lines of text, hidden from assistive technology — the
+  fallback of a deferred part or a `<ui.Suspense>` with no setup. `vuka ui
+  add skeleton` writes the full one: `design.Skeleton` (rectangular,
+  rounded, circular and text bones, `Lines`, pulse/wave/none; with
+  children and `Loading` it hides them under a bone of their exact size, so
+  nothing moves when the data arrives) and `design.SkeletonOf`, which draws
+  a real component given placeholder data (`design.Words`, `design.Chars`)
+  as bones — text as bars, media and controls as blocks, borders and
+  spacing kept, tuned with `data-skeleton="keep|ignore|replace|unite"`.
+  `vuka ui init` writes `--skeleton`, `--skeleton-highlight` and
+  `--skeleton-duration`, and the wave sweeps every bone on screen as one;
+  nothing moves under `prefers-reduced-motion`; `-f` adds them to an
+  existing app. Tailwind now scans the dependencies shipping `.vuka.html`
+  components too, so their classes reach the stylesheet. The parts docs'
+  samples are checked by the docs tests.
+  ([#217](https://github.com/vuka-lang/vuka/issues/217))
+
 ### Fixes
 
 - **The editor no longer reports `undefined` and `unreachable code` in a
