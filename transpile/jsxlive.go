@@ -333,13 +333,28 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		typs = append(typs, fl.typ)
 	}
 	used := map[int]bool{}
-	attrsAt := -1
+	attrsAt, uiAttrs := -1, false
 	if !stateful && !c.elem && c.target.has("TemplAttrs") {
 		attrsAt = templAttrsField(fields)
+	}
+	if attrsAt < 0 && !c.elem && c.target != nil {
+		// a struct whose Attrs field is a []ui.Attr takes the tag's other
+		// HTML attributes there (<ui.Form autocomplete="off">)
+		if attrsAt = uiAttrsField(fields, c.target.path); attrsAt >= 0 {
+			uiAttrs = true
+		}
 	}
 	var extra []*compArg
 	for _, a := range attrs {
 		i := bindName(names, a.name)
+		if a.name == "model" && a.kind == 'e' && c.target != nil {
+			// model={Form.Email} on a component: its Model field, a
+			// ui.FieldRef its markup spreads on its control
+			if i < 0 || !isNamed(fields[i].typ, c.target.path, "FieldRef") {
+				return false, a.off, "<" + el.tag + "> takes no model: a component takes model={Form.Email} when its props have a field Model ui.FieldRef, which its markup gives its control (<input model={Model}/>)"
+			}
+			a.ref = true
+		}
 		if i < 0 {
 			if stateful && hasField(st, a.name) {
 				return false, a.off, "<" + el.tag + "> has no attribute " + a.name + ": unexported fields are its state; its props are its exported fields"
@@ -350,6 +365,9 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 				}
 				extra = append(extra, &compArg{attr: a, typ: types.Universe.Lookup("any").Type()})
 				continue
+			}
+			if attrsAt >= 0 && uiAttrs {
+				return false, a.off, unknownAttr(el.tag, a.name, "fields", names) + ` (an HTML attribute of that name: attrs={[]ui.Attr{{Name: "` + a.name + `", Value: …}}})`
 			}
 			if attrsAt >= 0 {
 				return false, a.off, unknownAttr(el.tag, a.name, "fields", names) + ` (an HTML attribute of that name: attributes={templ.Attributes{"` + a.name + `": …}})`
@@ -382,7 +400,10 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			c.args = append(c.args, base)
 			used[attrsAt] = true
 		}
-		if base != nil {
+		switch {
+		case base != nil && uiAttrs:
+			base.uiAttrs, base.extra = len(extra) > 0, extra
+		case base != nil:
 			base.templAttrs, base.extra = true, extra
 			c.ctxWrap = true
 		}
@@ -456,6 +477,20 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 // templAttrsField is the props' Attributes field taking templ.Attributes,
 // where a tag's attributes that aren't fields go (templUI's, shadcn-templ's
 // props), or -1.
+// uiAttrsField is the index of a props struct's Attrs field when it is a
+// []Attr of the JSX target (ui.Attr), -1 when it has none.
+func uiAttrsField(fields []propField, target string) int {
+	for i, fl := range fields {
+		if fl.name != "Attrs" || fl.ambiguous != "" {
+			continue
+		}
+		if sl, ok := types.Unalias(fl.typ).(*types.Slice); ok && isNamed(sl.Elem(), target, "Attr") {
+			return i
+		}
+	}
+	return -1
+}
+
 func templAttrsField(fields []propField) int {
 	for i, fl := range fields {
 		if fl.name == "Attributes" && fl.ambiguous == "" && isNamed(fl.typ, templPath, "Attributes") {
