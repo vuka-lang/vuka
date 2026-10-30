@@ -70,6 +70,26 @@ These are the functions and methods that move between the two:
 Option has the same shape: `Some`, `None`, `o.Get()` (Go's comma-ok),
 `IsSome`, `IsNone`, `Unwrap`, `UnwrapOr`, `vuka.FromPtr`, `vuka.MapOption`.
 
+### Option in JSON and GraphQL {#option-json}
+
+An `Option` is its value in JSON, or `null` for None, both ways; `IsZero`
+reports None, so a field tagged `json:",omitzero"` leaves a None out:
+
+```vuka
+type Product struct {
+	Name       string
+	SKU        Option[string]    `json:"sku"`
+	ReleasedAt Option[time.Time] `json:"releasedAt,omitzero"`
+}
+// Product{Name: "kettle", SKU: Some("K-1")} is {"Name":"kettle","sku":"K-1"}
+```
+
+A value cached or sent as JSON keeps its optional fields as they are. In a
+GraphQL schema an `Option[T]` is a nullable `T` — as a field, a result, an
+argument, an input field or a list's item (see
+[Nullability](/web/graphql#nullability)) — so an ORM model's optional
+columns serve as they are, with no pointers to convert to.
+
 ## What It Becomes
 
 The `find` function above compiles to this Go:
