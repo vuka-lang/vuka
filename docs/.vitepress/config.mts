@@ -134,6 +134,7 @@ export default defineConfig({
         collapsed: false,
         items: [
           { text: 'Authentication', link: '/web/auth' },
+          { text: 'CORS & Token APIs', link: '/web/cross-origin' },
           { text: 'Guards', link: '/web/folder-routes#guards' },
           { text: 'Security Headers', link: '/web/deployment#security-headers' },
         ],

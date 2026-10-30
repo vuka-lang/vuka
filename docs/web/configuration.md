@@ -4,9 +4,10 @@
 
 ## Introduction
 
-Configuration comes from environment variables. `web.New()` first reads
-`.env` files into the process environment, so every constructor, `Start`
-method and option sees their values through `os.Getenv` or `web.Env`.
+Configuration comes from environment variables. The `.env` files are read
+into the process environment when the program starts, before `main` runs,
+so every option passed to `web.New`, constructor and `Start` method sees
+their values through `os.Getenv` or `web.Env`.
 
 You keep one machine's settings in `.env` files during development, and set
 real environment variables in production.
@@ -69,8 +70,43 @@ These options change which files are read:
 |---|---|
 | `web.DotEnv(files…)` | replaces the list (first wins) |
 | `web.NoDotEnv()` | reads none |
-| `web.LoadEnv(files…)` | loads them now, before `web.New` — for options built from the environment; New reading the same files afterwards changes nothing |
+| `web.LoadEnv(files…)` | loads them now, before `web.New` — for options built from another list; New reading the same files afterwards changes nothing |
 | `web.Require(keys…)` | fails Build when any is unset |
+
+## When Files Are Read {#when}
+
+The default files are read as the web package starts, before the packages
+that import it and before `main`, so an option built from the environment
+sees them:
+
+```go
+package main
+
+import (
+	"log"
+
+	"github.com/vuka-lang/web/v2"
+)
+
+func main() {
+	app := web.New(
+		web.TrustedProxies(web.Env[[]string]("TRUSTED_PROXIES")...), // .env has already been read
+	)
+	log.Fatal(app.Run(""))
+}
+```
+
+`web.DotEnv`, `web.NoDotEnv` and `web.LoadEnv` with another list take back
+what that first reading set before reading their own files, so they read
+exactly the files they name, as before. (Options built before `web.New`
+saw the default files' values.) An app that still calls `web.LoadEnv()`
+first is unaffected: the files are read once.
+
+> [!WARNING]
+> A package-level variable read from the environment
+> (`var key = os.Getenv("SECRET_KEY")`) in a package that doesn't import
+> web may be initialised before the files are read. Read the environment
+> in a function: a constructor, `main`, or the code building an option.
 
 ## Env File Syntax {#syntax}
 
