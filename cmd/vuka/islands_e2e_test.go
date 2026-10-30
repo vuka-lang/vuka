@@ -153,7 +153,17 @@ func TestIslandsE2E(t *testing.T) {
 	waitFor(t, func() bool { res, err := http.Get(url); return err == nil && res.Body.Close() == nil })
 
 	ch := launchChrome(t)
-	p := ch.open(url, 900, 700)
+	p := ch.openChecked(url, 900, 700)
+	// A failed wait stops the test: what the page and the app had then is
+	// reported here (#244).
+	t.Cleanup(func() {
+		if !t.Failed() {
+			return
+		}
+		mounts, _ := p.tryEval(`JSON.stringify(window.__mounts || null)`)
+		html, _ := p.tryEval(`document.documentElement.outerHTML`)
+		t.Logf("mounts: %v\npage:\n%v\napp log:\n%s", mounts, html, logs.String())
+	})
 	labels := []string{"vue", "react", "svelte"}
 	all := func(sel, want string) {
 		t.Helper()
@@ -191,8 +201,5 @@ func TestIslandsE2E(t *testing.T) {
 		if n := p.eval(fmt.Sprintf(`window.__mounts[%q]`, l)); n != float64(1) {
 			t.Errorf("%s mounted %v times", l, n)
 		}
-	}
-	if t.Failed() {
-		t.Logf("app log:\n%s", logs.String())
 	}
 }

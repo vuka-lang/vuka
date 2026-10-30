@@ -622,7 +622,7 @@ func TestIslandPagesE2E(t *testing.T) {
 	ch := launchChrome(t)
 	for _, path := range []string{"/live", "/static", "/react", "/svelte"} {
 		t.Run(path, func(t *testing.T) {
-			p := ch.open(base+path+"?q=A", 900, 700)
+			p := ch.openChecked(base+path+"?q=A", 900, 700)
 			if path == "/live" || path == "/react" {
 				p.wait(`document.documentElement.getAttribute("data-vk-state") === "connected"`)
 			}
@@ -669,7 +669,7 @@ func TestIslandPagesE2E(t *testing.T) {
 	// another page over the connection (the document stays: a marker on
 	// window survives), its island mounting and the old one leaving.
 	t.Run("navigation", func(t *testing.T) {
-		p := ch.open(base+"/nav?q=a", 900, 700)
+		p := ch.openChecked(base+"/nav?q=a", 900, 700)
 		connected := `document.documentElement.getAttribute("data-vk-state") === "connected"`
 		p.wait(connected)
 		p.wait(`(document.querySelector("#n .q") || {}).textContent === "a"`)
@@ -739,7 +739,7 @@ func TestIslandPagesE2E(t *testing.T) {
 	}
 	for _, path := range []string{"/find", "/rfind", "/sfind"} {
 		t.Run(path, func(t *testing.T) {
-			p := ch.open(base+path+"?q=A", 900, 700)
+			p := ch.openChecked(base+path+"?q=A", 900, 700)
 			p.wait(`document.documentElement.getAttribute("data-vk-state") === "connected"`)
 			p.wait(`(document.querySelector("#f .rows") || {}).textContent === "Ada,Alan"`)
 			if v := p.eval(`document.querySelector("#f .q").value`); v != "A" {
@@ -774,7 +774,7 @@ func TestIslandPagesE2E(t *testing.T) {
 	// still has live.
 	for _, path := range []string{"/only"} {
 		t.Run(path, func(t *testing.T) {
-			p := ch.open(base+path, 900, 700)
+			p := ch.openChecked(base+path, 900, 700)
 			p.wait(`document.documentElement.getAttribute("data-vk-state") === "connected"`)
 			p.wait(`(document.querySelector("#o .rows") || {}).textContent === "Ada,Alan,Grace,Guido"`)
 			p.eval(`(() => { const el = document.querySelector("#o .q"); el.focus(); Object.getOwnPropertyDescriptor(HTMLInputElement.prototype, "value").set.call(el, "Gr"); el.dispatchEvent(new Event("input", {bubbles: true})); })()`)
@@ -799,7 +799,7 @@ func TestIslandPagesE2E(t *testing.T) {
 	// failing loader is its field's error.
 	for _, path := range []string{"/dash"} {
 		t.Run(path, func(t *testing.T) {
-			p := ch.open(base+path, 900, 700)
+			p := ch.openChecked(base+path, 900, 700)
 			p.wait(`(document.querySelector("#d h1") || {}).textContent === "Dashboard"`)
 			if got := p.eval(`[window.__mounted.pending, window.__mounted.value]`); fmt.Sprint(got) != "[true true]" {
 				t.Errorf("at mount (pending, undefined): %v", got)
