@@ -224,6 +224,7 @@ func eachArg(args []*compArg, f func(*compArg)) {
 			continue
 		}
 		f(a)
+		eachArg(a.extra, f)
 		for _, el := range a.elems {
 			eachArg(el.args, f)
 		}

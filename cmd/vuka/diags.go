@@ -215,13 +215,14 @@ func buildWarnings(ds []diag.Diagnostic) []diag.Diagnostic {
 // shownEverywhere reports whether a transpiler warning is shown by vuka
 // build, run, test and install and in the editor, as well as by vuka vet:
 // a markup call whose target an overload added or removed would change
-// (W0108).
-func shownEverywhere(code diag.Code) bool { return code == "W0108" }
+// (W0108), an on… handler a component would drop (W0112).
+func shownEverywhere(code diag.Code) bool { return code == "W0108" || code == "W0112" }
 
 // transpileWarnings are the warnings the transpiler found in gens' sources,
 // which vuka vet reports: about the context processors' variables a file
 // reads (W0401, W0402, W0403), a Suspense wait list (W0351), a markup call
-// both with and without the render's ctx fits (W0108).
+// both with and without the render's ctx fits (W0108), an on… handler in a
+// templ.Attributes nothing binds (W0112).
 func transpileWarnings(root string, gens []load.Generated) []diag.Diagnostic {
 	var out []diag.Diagnostic
 	for _, g := range gens {

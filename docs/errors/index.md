@@ -89,6 +89,7 @@ same page in the terminal.
 | [W0109](./W0109) | More than one ? in one expression |
 | [W0110](./W0110) | A ? on the right of && or || |
 | [W0111](./W0111) | A bare ? on a call into another package |
+| [W0112](./W0112) | An on… handler in templ.Attributes binds no event |
 
 ## Decorators and attributes
 

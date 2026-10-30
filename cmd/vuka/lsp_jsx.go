@@ -600,6 +600,7 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 		for _, a := range spot.tag.attrs {
 			if off < a.start || off > a.end {
 				used[strings.ToLower(a.name[:1])+a.name[1:]] = true
+				used[strings.ToLower(a.name)] = true
 			}
 		}
 		if !isComponentTag(spot.tag.name) {
@@ -657,8 +658,10 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			}
 			break
 		}
+		html := false
 		for i, a := range p.componentAttrs(genPath, spot.tag.name) {
-			if used[strings.ToLower(a.name[:1])+a.name[1:]] {
+			html = html || a.name == "attributes" && a.typ == "templ.Attributes"
+			if used[strings.ToLower(a.name)] {
 				continue
 			}
 			text := a.name + "={$1}"
@@ -669,6 +672,20 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 				text = a.name + `="$1"`
 			}
 			item(a.name, 5, a.typ, text, 2, fmt.Sprintf("%02d", i))
+		}
+		if html {
+			// props with an Attributes field take the other HTML attributes too
+			for i, a := range htmlEventNames {
+				if !used[strings.ToLower(a)] {
+					item(a, 23, "event handler", a+"={$1}", 2, fmt.Sprintf("2%03d", i))
+				}
+			}
+			for i, a := range htmlAriaNames {
+				if !used[a] {
+					item(a, 5, "", a+`="$1"`, 2, fmt.Sprintf("3%03d", i))
+				}
+			}
+			item("data-", 5, "custom data attribute", `data-${1:name}="$2"`, 2, "4")
 		}
 	case "value":
 		for i, v := range attrValues(spot.tag.name, spot.attr) {
@@ -750,7 +767,7 @@ func (p *proxy) componentAttrs(genPath, tag string) []compAttr {
 			label, _ := it["label"].(string)
 			if kind, _ := it["kind"].(float64); kind == 5 && label != "Children" && !strings.Contains(label, ".") { // not a deep completion
 				detail, _ := it["detail"].(string)
-				out = append(out, compAttr{strings.ToLower(label[:1]) + label[1:], detail})
+				out = append(out, compAttr{attrSpelling(label), detail})
 			}
 		}
 		if len(out) > 0 {
@@ -766,6 +783,23 @@ func (p *proxy) componentAttrs(genPath, tag string) []compAttr {
 		}
 	}
 	return out
+}
+
+// attrSpelling is how an attribute setting a field is written: its first
+// word in lower case, an initialism whole — id for ID, url for URL,
+// urlPath for URLPath, label for Label.
+func attrSpelling(field string) string {
+	n := 0
+	for n < len(field) && field[n] >= 'A' && field[n] <= 'Z' {
+		n++
+	}
+	switch {
+	case n == len(field):
+		return strings.ToLower(field)
+	case n > 1:
+		n--
+	}
+	return strings.ToLower(field[:n]) + field[n:]
 }
 
 // structAttrs are the attributes of a component that is a struct, and what
@@ -807,7 +841,7 @@ func (p *proxy) structAttrs(genPath, tag string) ([]compAttr, string) {
 		kind = "island"
 	}
 	for i := range out {
-		out[i].name = strings.ToLower(out[i].name[:1]) + out[i].name[1:]
+		out[i].name = attrSpelling(out[i].name)
 	}
 	if out == nil {
 		out = []compAttr{}

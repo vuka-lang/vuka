@@ -2,7 +2,9 @@ package transpile
 
 import (
 	"go/ast"
+	"go/token"
 	"go/types"
+	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/diag"
@@ -322,7 +324,7 @@ func nestName(n []nestStep) string {
 // children are bound. The required fields nothing sets are c.unfilled.
 func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node types.Type, stateful bool) (bool, int, string) {
 	el := c.el
-	c.args, c.rest, c.pre, c.unfilled = nil, nil, nil, nil // a round that left the tag unresolved may have bound them
+	c.args, c.rest, c.pre, c.unfilled, c.ctxWrap = nil, nil, nil, nil, false // a round that left the tag unresolved may have bound them
 	fields := e.propFields(c.target, st, stateful)
 	var names []string
 	var typs []types.Type
@@ -331,11 +333,26 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		typs = append(typs, fl.typ)
 	}
 	used := map[int]bool{}
+	attrsAt := -1
+	if !stateful && !c.elem && c.target.has("TemplAttrs") {
+		attrsAt = templAttrsField(fields)
+	}
+	var extra []*compArg
 	for _, a := range attrs {
 		i := bindName(names, a.name)
 		if i < 0 {
 			if stateful && hasField(st, a.name) {
 				return false, a.off, "<" + el.tag + "> has no attribute " + a.name + ": unexported fields are its state; its props are its exported fields"
+			}
+			if attrsAt >= 0 && htmlAttr(a.name, names) {
+				if a.kind == 'e' && isEvent(a.name) && !a.stmts {
+					a.event = true
+				}
+				extra = append(extra, &compArg{attr: a, typ: types.Universe.Lookup("any").Type()})
+				continue
+			}
+			if attrsAt >= 0 {
+				return false, a.off, unknownAttr(el.tag, a.name, "fields", names) + ` (an HTML attribute of that name: attributes={templ.Attributes{"` + a.name + `": …}})`
 			}
 			return false, a.off, unknownAttr(el.tag, a.name, "fields", names)
 		}
@@ -351,6 +368,23 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			nodeText: a.kind == 's' && node != nil && types.Identical(fl.typ, node)})
 		if fl.name == "For" && a.kind == 'e' && fl.pkg != nil && c.target.pkg != nil && fl.pkg.Path() == c.target.pkg.Path() && isAny(fl.typ) {
 			a.ref = true // a form component's for={Form.Email}: a reference (forms.go)
+		}
+	}
+	if attrsAt >= 0 {
+		var base *compArg
+		for _, a := range c.args {
+			if a.key == fields[attrsAt].name+": " && len(a.nest) == len(fields[attrsAt].nest) {
+				base = a
+			}
+		}
+		if base == nil && len(extra) > 0 {
+			base = &compArg{key: fields[attrsAt].name + ": ", typ: fields[attrsAt].typ, nest: fields[attrsAt].nest}
+			c.args = append(c.args, base)
+			used[attrsAt] = true
+		}
+		if base != nil {
+			base.templAttrs, base.extra = true, extra
+			c.ctxWrap = true
 		}
 	}
 	rest := el.kids[:0:0]
@@ -417,6 +451,108 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 		}
 	}
 	return kids, 0, ""
+}
+
+// templAttrsField is the props' Attributes field taking templ.Attributes,
+// where a tag's attributes that aren't fields go (templUI's, shadcn-templ's
+// props), or -1.
+func templAttrsField(fields []propField) int {
+	for i, fl := range fields {
+		if fl.name == "Attributes" && fl.ambiguous == "" && isNamed(fl.typ, templPath, "Attributes") {
+			return i
+		}
+	}
+	return -1
+}
+
+// droppedHandlers warns of an on… handler in a templ.Attributes literal of
+// a component tag's attribute that no ui.TemplAttrs binds: templ renders no
+// function, so the event would do nothing (W0112).
+func (e *engine) droppedHandlers(f *fileState) {
+	if f.attrWarns != nil {
+		return
+	}
+	f.attrWarns = ErrorList{}
+	for _, t := range f.jsx {
+		for _, c := range t.comps {
+			if !c.resolved || c.dead {
+				continue
+			}
+			bound := map[*jsxAttr]bool{}
+			eachArg(c.args, func(a *compArg) {
+				if a.templAttrs && a.attr != nil {
+					bound[a.attr] = true
+				}
+			})
+			for _, a := range c.el.attrs {
+				if a.kind != 'e' || a.stmts || bound[a] {
+					continue
+				}
+				x := e.attrExpr(f, a)
+				if x == nil {
+					continue
+				}
+				ast.Inspect(x, func(n ast.Node) bool {
+					lit, ok := n.(*ast.CompositeLit)
+					if !ok || !isNamed(e.info.TypeOf(lit), templPath, "Attributes") {
+						return true
+					}
+					for _, el := range lit.Elts {
+						kv, ok := el.(*ast.KeyValueExpr)
+						if !ok {
+							continue
+						}
+						k, ok := kv.Key.(*ast.BasicLit)
+						if !ok || k.Kind != token.STRING {
+							continue
+						}
+						name, _ := strconv.Unquote(k.Value)
+						if !isEvent(name) {
+							continue
+						}
+						vt := e.info.TypeOf(kv.Value)
+						if vt == nil {
+							continue
+						}
+						if _, fn := vt.Underlying().(*types.Signature); fn {
+							w := f.attrWarns.add("W0112", f.at(f.orig(kv.Pos())), "%s in templ.Attributes binds no event: templ renders no function, so <%s> drops it", name, c.el.tag)
+							if c.target.has("TemplAttrs") {
+								w.help("set it on the tag, %s={…}, on a component whose props have an Attributes templ.Attributes field", name)
+							} else {
+								w.help("update github.com/vuka-lang/ui, whose TemplAttrs binds it, or wrap the component in an element with %s={…}", name)
+							}
+						}
+					}
+					return true
+				})
+			}
+		}
+	}
+}
+
+// htmlAttr reports whether an attribute that isn't one of the props' fields
+// is an HTML attribute for their Attributes: an event, a name with a dash or
+// colon (aria-label, data-x, hx-get), a global attribute, or any name not a
+// near miss of a field's, which stays the error it likely is.
+func htmlAttr(name string, fields []string) bool {
+	if strings.HasPrefix(name, "bind:") || strings.HasPrefix(name, "class:") || strings.HasPrefix(name, "style:") {
+		return false
+	}
+	if isEvent(name) || strings.ContainsAny(name, "-:.") || globalAttrs[strings.ToLower(name)] {
+		return true
+	}
+	return closestName(name, fields) == ""
+}
+
+var globalAttrs = map[string]bool{
+	"role": true, "title": true, "tabindex": true, "hidden": true, "lang": true, "dir": true, "style": true,
+	"draggable": true, "autofocus": true, "accesskey": true, "contenteditable": true, "spellcheck": true,
+	"translate": true, "inert": true, "popover": true, "popovertarget": true, "popovertargetaction": true,
+	"slot": true, "part": true, "is": true, "nonce": true, "enterkeyhint": true, "inputmode": true,
+	"name": true, "value": true, "type": true, "placeholder": true, "autocomplete": true, "rel": true,
+	"download": true, "for": true, "form": true, "alt": true, "src": true, "width": true, "height": true,
+	"min": true, "max": true, "step": true, "pattern": true, "required": true, "readonly": true,
+	"checked": true, "selected": true, "multiple": true, "disabled": true, "href": true, "target": true,
 }
 
 // hasContent reports whether ns are more than white space.

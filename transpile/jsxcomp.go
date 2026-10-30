@@ -30,6 +30,9 @@ type jsxComp struct {
 	withKids   bool       // children go through the target's WithChildren
 	ctx        types.Type // the context.Context a function component takes first: the call is in the target's Ctx
 	ctxText    string     // its type's text
+	ctxWrap    bool       // the call is in ui.Ctx: its expressions read the context it renders in
+	ctxWrapTyp string     // context.Context's text, for it
+	kidsCtx    bool       // its children read ctx: they are in ui.Ctx, reading the context it renders them in
 	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
@@ -102,6 +105,9 @@ type compArg struct {
 	elems    []*slotElem      // a repeated slot's elements, in order
 	sliceTyp string           // their slice's type, written
 	nodeText bool             // a quoted attribute setting a Node: ui.Text("…")
+
+	templAttrs bool       // the props' Attributes: ui.TemplAttrs(ctx, its value, extra…)
+	extra      []*compArg // the tag's attributes that aren't fields, for TemplAttrs
 }
 
 // slotElem is one element of a repeated slot: a struct literal of the
@@ -149,6 +155,22 @@ func (w *jsxWriter) comp(c *jsxComp) {
 	var value func(a *compArg, named bool)
 	value = func(a *compArg, named bool) {
 		switch {
+		case a.templAttrs:
+			w.gen(q + "TemplAttrs(ctx, ")
+			switch {
+			case named && a.name != "":
+				w.gen(a.name)
+			case a.attr != nil:
+				w.attrValue(a.attr)
+			default:
+				w.gen("nil")
+			}
+			for _, x := range a.extra {
+				w.gen(", " + q + "Attr{Name: " + strconv.Quote(x.attr.name) + ", Value: ")
+				value(x, false)
+				w.gen("}")
+			}
+			w.gen(")")
 		case named && a.name != "":
 			w.gen(a.name)
 		case a.nodeText:
@@ -171,10 +193,20 @@ func (w *jsxWriter) comp(c *jsxComp) {
 				w.gen("}, ")
 			}
 			w.gen("}")
-		case a.kids && c.rest != nil:
-			w.piece(c.rest)
 		case a.kids:
-			w.piece(el.kids)
+			if c.kidsCtx {
+				w.gen(q + "Ctx(func(ctx " + c.ctxWrapTyp + ") " + q + "Node { return ")
+				w.inCtx++
+				defer func() { w.inCtx-- }()
+			}
+			if c.rest != nil {
+				w.piece(c.rest)
+			} else {
+				w.piece(el.kids)
+			}
+			if c.kidsCtx {
+				w.gen(" })")
+			}
 		case a.nodes != nil:
 			w.piece(a.nodes)
 		default:
@@ -187,6 +219,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		if c.closure != nil {
 			kidsArg = c.closure[len(c.closure)-1]
 		}
+	}
+	if c.ctxWrap {
+		w.gen(q + "Ctx(func(ctx " + c.ctxWrapTyp + ") " + q + "Node { return ")
 	}
 	if c.closure != nil {
 		var params []string
@@ -286,6 +321,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 			w.gen(", ")
 		}
 		w.gen(")")
+	}
+	if c.ctxWrap {
+		w.gen(" })")
 	}
 }
 
@@ -797,11 +835,121 @@ func (e *engine) finishComp(f *fileState, c *jsxComp) {
 	if c.ctx != nil {
 		c.ctxText = e.typeTextAuto(f, c.ctx)
 	}
+	if !c.ctxWrap && !c.stateful && !c.structComp && e.readsRenderCtx(f, c) {
+		c.ctxWrap = true
+	}
+	if c.withKids || c.propsTyp != nil {
+		kids := c.el.kids
+		if c.rest != nil {
+			kids = c.rest
+		}
+		c.kidsCtx = !c.stateful && e.kidsReadCtx(f, kids)
+	}
+	if c.ctxWrap || c.kidsCtx {
+		if t := ctxParamType(c.target); t != nil {
+			c.ctxWrapTyp = e.typeTextAuto(f, t)
+		} else {
+			c.ctxWrap, c.kidsCtx = false, false
+		}
+	}
 	if !c.inOrder || c.ctx != nil {
 		e.closeOver(f, c)
 	}
 	c.resolved = true
 	e.progress = true
+}
+
+// ctxParamType is context.Context, as the target's Ctx takes it.
+func ctxParamType(t *jsxTarget) types.Type {
+	if t == nil || t.pkg == nil {
+		return nil
+	}
+	fn, _ := t.pkg.Scope().Lookup("Ctx").(*types.Func)
+	if fn == nil || fn.Signature().Params().Len() != 1 {
+		return nil
+	}
+	build, _ := fn.Signature().Params().At(0).Type().Underlying().(*types.Signature)
+	if build == nil || build.Params().Len() != 1 || !isContext(build.Params().At(0).Type()) {
+		return nil
+	}
+	return build.Params().At(0).Type()
+}
+
+// readsRenderCtx reports whether a tag's attribute expressions read the
+// render's ctx: inside another component's children that is the context
+// the tag renders in there (a templ component's, holding what it put in
+// it), once the call is in ui.Ctx.
+func (e *engine) readsRenderCtx(f *fileState, c *jsxComp) bool {
+	if f.html == nil || f.html.ownCtx {
+		return false
+	}
+	for _, a := range c.el.attrs {
+		if a.kind == 'e' && !a.stmts && e.readsCtx(e.attrExpr(f, a)) {
+			return true
+		}
+	}
+	return false
+}
+
+// kidsReadCtx reports whether a component's children, but the component
+// tags among them, read the render's ctx: in ui.Ctx they read the context
+// the component renders its children in.
+func (e *engine) kidsReadCtx(f *fileState, kids []jsxNode) bool {
+	if f.html == nil || f.html.ownCtx {
+		return false
+	}
+	for _, n := range kids {
+		switch n := n.(type) {
+		case *jsxElem:
+			if n.comp != nil {
+				continue
+			}
+			for _, a := range n.attrs {
+				switch {
+				case a.kind == 'e' && !a.stmts && e.readsCtx(e.exprAt(f, a.expr)):
+					return true
+				case a.kind == 'p':
+					for _, pt := range a.parts {
+						if pt.expr.end > 0 && e.readsCtx(e.exprAt(f, pt.expr)) {
+							return true
+						}
+					}
+				}
+			}
+			if e.kidsReadCtx(f, n.kids) {
+				return true
+			}
+		case *jsxHole:
+			if e.readsCtx(e.exprAt(f, n.expr)) {
+				return true
+			}
+		case *jsxBlock:
+			for _, b := range append(n.bodies, n.cases...) {
+				if e.kidsReadCtx(f, b) {
+					return true
+				}
+			}
+		}
+	}
+	return false
+}
+
+// readsCtx reports whether x reads a context.Context named ctx declared
+// outside it.
+func (e *engine) readsCtx(x ast.Expr) bool {
+	if x == nil {
+		return false
+	}
+	reads := false
+	ast.Inspect(x, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == "ctx" {
+			if v, ok := e.info.Uses[id].(*types.Var); ok && isContext(v.Type()) && (v.Pos() < x.Pos() || v.Pos() >= x.End()) {
+				reads = true
+			}
+		}
+		return !reads
+	})
+	return reads
 }
 
 // attrExpr is an attribute's expression in this round's syntax tree.

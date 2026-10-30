@@ -214,8 +214,9 @@ func (w *jsxWriter) value(tp *tmpl, base string, write func()) string {
 		case !seen:
 			tp.hole(label, func() { w.put(ps) })
 			return label
-		case w.final && !strings.Contains(label, "("):
-			// The value is the first's: what this one keeps is dropped.
+		case w.final && (!strings.Contains(label, "(") || w.inCtx > 0 && goIdents(label)["ctx"]):
+			// The value is the first's: what this one keeps is dropped. A
+			// call reading the context children render in stays with them.
 			w.drop(ps)
 			return label
 		case !w.final:
@@ -250,7 +251,7 @@ func (w *jsxWriter) capture(tp *tmpl, n, at int, stmts []string) {
 	var decls []jsxPiece
 	for i := range tp.args[:n] {
 		a := &tp.args[i]
-		if constLabel(a.label) || !changes(stmts, a.label) {
+		if constLabel(a.label) || !changes(stmts, a.label) || w.inCtx > 0 && goIdents(a.label)["ctx"] {
 			continue
 		}
 		name := w.varName(labelBase(a.label))
