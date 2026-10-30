@@ -425,7 +425,7 @@ func (r *tsTypes) structFields(t []wtok, open int, s *tsScope, seen map[*goDecl]
 				fl = fl[:n-1]
 			}
 			jname, opts, _ := strings.Cut(reflect.StructTag(tag).Get("json"), ",")
-			if jname == "-" && opts == "" {
+			if jname == "-" && opts == "" || secretTag(tag) {
 				continue
 			}
 			omit := strings.Contains(","+opts+",", ",omitempty,") || strings.Contains(","+opts+",", ",omitzero,")
@@ -475,6 +475,9 @@ func (r *tsTypes) structFields(t []wtok, open int, s *tsScope, seen map[*goDecl]
 				wire := nm
 				if jname != "" {
 					wire = jname
+				}
+				if r.isForm(typ, s) {
+					continue // a form is never a prop (ui.Props)
 				}
 				opt := omit || len(typ) > 0 && typ[0].tok == token.MUL
 				cands = append(cands, cand{tsField{wire, r.ts(typ, s), opt}, depth, jname != ""})
@@ -583,4 +586,52 @@ func goSource(file string) ([]byte, bool) {
 	}
 	lines := strings.SplitAfter(string(src), "\n")
 	return []byte(strings.Join(lines[:min(sh.Markup, len(lines))], "")), true
+}
+
+// isForm reports whether the type expression t, read in s, is a form — a
+// struct embedding ui.FormState, a ui.ModelForm, or a pointer to one — whose
+// values ui.Props leaves out of a script's props.
+func (r *tsTypes) isForm(t []wtok, s *tsScope) bool {
+	return r.isFormSeen(t, s, map[*goDecl]bool{})
+}
+
+func (r *tsTypes) isFormSeen(t []wtok, s *tsScope, seen map[*goDecl]bool) bool {
+	for len(t) > 0 && t[0].tok == token.MUL {
+		t = t[1:]
+	}
+	if len(t) == 0 || t[0].tok != token.IDENT {
+		return false
+	}
+	qual, name := "", t[0].lit
+	if len(t) >= 3 && t[1].tok == token.PERIOD && t[2].tok == token.IDENT {
+		qual, name = name, t[2].lit
+	}
+	if qual != "" && s.imports[qual] == UIPath && (name == "FormState" || name == "ModelForm") {
+		return true
+	}
+	d := r.lookup(s, qual, name)
+	if d == nil || seen[d] || !d.isStruct() {
+		return false
+	}
+	seen[d] = true
+	for _, fl := range structBodyFields(d.toks, d.start+1) {
+		fl, _ = cutAttrs(fl)
+		if n := len(fl); n > 0 && fl[n-1].tok == token.STRING {
+			fl = fl[:n-1]
+		}
+		if names, typ := splitNamesType(fl); len(names) == 0 && r.isFormSeen(typ, d.scope(nil), seen) {
+			return true
+		}
+	}
+	return false
+}
+
+// secretTag reports whether a struct tag marks a password or one-time code,
+// which ui.Props leaves out of a script's props.
+func secretTag(tag string) bool {
+	switch reflect.StructTag(tag).Get("input") {
+	case "password", "new-password", "current-password", "one-time-code":
+		return true
+	}
+	return false
 }

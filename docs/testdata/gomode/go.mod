@@ -22,9 +22,9 @@ require (
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
 	github.com/vuka-lang/orm/v2 v2.2.1-0.20261029231446-6027ea66b367 // indirect
-	github.com/vuka-lang/ui/v2 v2.12.1-0.20261030131955-f23e852169b1 // indirect
-	github.com/vuka-lang/vuka/v2 v2.12.0 // indirect
-	github.com/vuka-lang/web/v2 v2.12.1-0.20261030132337-385cb3ef4308 // indirect
+	github.com/vuka-lang/ui/v2 v2.13.1-0.20261030164105-22925dabcb34 // indirect
+	github.com/vuka-lang/vuka/v2 v2.13.0 // indirect
+	github.com/vuka-lang/web/v2 v2.13.1-0.20261030164144-8b4c2633bb73 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
