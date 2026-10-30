@@ -1,0 +1,38 @@
+package button
+
+import "example.com/widgets/utils"
+
+type Variant string
+
+const (
+	VariantDefault Variant = "default"
+	VariantOutline Variant = "outline"
+)
+
+type Props struct {
+	ID         string
+	Class      string
+	Variant    Variant
+	Attributes templ.Attributes
+}
+
+templ Button(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.Variant == "" {
+		{{ p.Variant = VariantDefault }}
+	}
+	<button
+		type="button"
+		if p.ID != "" {
+			id={ p.ID }
+		}
+		class={ utils.CN("wd-button", "wd-button-"+string(p.Variant), p.Class) }
+		data-variant={ string(p.Variant) }
+		{ p.Attributes... }
+	>
+		{ children... }
+	</button>
+}

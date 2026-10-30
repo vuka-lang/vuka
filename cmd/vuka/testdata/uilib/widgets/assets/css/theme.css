@@ -1,0 +1,35 @@
+/* The library's site's stylesheet: its theme among other things. */
+@import "tailwindcss";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: var(--font-sans);
+  --color-background: var(--background);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-surface: var(--surface);
+  --radius-2xl: calc(var(--radius) * 1.8);
+}
+
+:root {
+  --font-sans: "Site Font";
+  --radius: 0.5rem;
+  --background: oklch(0.99 0 0);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.1 0 0);
+  --surface: oklch(0.96 0.01 250);
+}
+
+.dark {
+  --background: oklch(0.1 0 0);
+  --popover: oklch(0.2 0 0);
+  --popover-foreground: oklch(0.98 0 0);
+  --surface: oklch(0.25 0.02 250);
+}
+
+@layer base {
+  body {
+    @apply bg-background;
+  }
+}

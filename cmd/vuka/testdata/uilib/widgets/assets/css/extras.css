@@ -1,0 +1,8 @@
+/* What the components' classes need beside Tailwind. */
+@custom-variant dark (&:is(.dark *));
+
+@custom-variant data-open {
+  &:where([data-open]) {
+    @slot;
+  }
+}

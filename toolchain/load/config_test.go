@@ -17,6 +17,10 @@ func TestParseCompile(t *testing.T) {
 	if c, err := ParseCompile("vuka.toml", []byte("[vet]\nwrap_errors = true\n")); err != nil || !c.WrapErrors {
 		t.Fatalf("wrap_errors = true: %+v %v", c, err)
 	}
+	// vuka ui's sub-tables.
+	if _, err := ParseCompile("vuka.toml", []byte("[ui.sources]\ndialog = \"shadcn-templ@v2.0.0\"\n\n[ui.libraries.widgets]\nscripts = [\"shared\"]\n\n[compile]\nimplicit_ctx = true\n")); err != nil {
+		t.Fatalf("[ui.sources]: %v", err)
+	}
 	for _, c := range []struct{ src, want string }{
 		{"[compile]\nimplicit = false\n", "vuka.toml:2: unknown key implicit in [compile]: it has implicit_ctx"},
 		{"[compile]\nimplicit_ctx = off\n", "vuka.toml:2: implicit_ctx is true or false"},

@@ -16,9 +16,9 @@ These are the subcommands and their flags:
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
 vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name] [--registry r] [--offline]
-vuka ui add [-f] [--dry-run] [--registry r] [--offline] <component…>
-vuka ui diff [--registry r] [--offline] [component…]
-vuka ui list [--registry r] [--offline]
+vuka ui add [-f] [--dry-run] [--registry r] [--offline] <component… | library/component…>
+vuka ui diff [--registry r] [--offline] [component… | library/component…]
+vuka ui list [--registry r] [--offline] [library]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
@@ -196,7 +196,12 @@ file of the app's without `-f`: `vuka ui add` prints the difference instead.
 `vuka ui list` lists the components. They read vuka's registry at the
 version of the command (`--offline`: the copy built into it), or the one
 `--registry` or `[ui] registry` names. See
-[UI Components (Vendored)](/ui/vendored).
+[UI Components (Vendored)](/ui/vendored). `vuka ui add shadcn-templ/dialog`
+writes a templ component library's component the same way, from the
+library's Go module: its package under `components/ui/`, the packages it
+imports, its scripts (bundled by `vuka build` and `vuka run -watch`) and the
+library's theme, with its source recorded in `[ui.sources]`
+([From a templ Component Library](/ui/vendored#libraries)).
 
 ## Building, Running and Testing {#build-run-test-vet-install}
 

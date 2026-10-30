@@ -51,6 +51,12 @@ type assetComp struct {
 	live                  bool     // a live component (@web.Live, a live shape), whose methods its scripts may push
 	page                  bool     // a page registered by @web.Live
 	styles, scripts       []assetSrc
+	// marks are other components of the module whose markup carries the
+	// scope, by directory: a library's whose script it is (libraryScripts).
+	marks map[string][]string
+	// classic: its scripts run as the page's own <script> tags would, a
+	// library's (classicBundle).
+	classic bool
 }
 
 // assetSrc is a stylesheet or script: a file, or inline source.
@@ -88,6 +94,14 @@ func (pa *pageAssets) scopes() map[string]map[string]string {
 			out[c.dir] = map[string]string{}
 		}
 		out[c.dir][c.name] = c.id
+		for dir, names := range c.marks {
+			if out[dir] == nil {
+				out[dir] = map[string]string{}
+			}
+			for _, n := range names {
+				out[dir][n] = c.id
+			}
+		}
 	}
 	return out
 }
@@ -146,6 +160,9 @@ func findAssets(root, modPath string) (*pageAssets, error) {
 		return nil, errors.Join(errs...)
 	}
 	pa.islands = dedupeIslands(pa.islands)
+	if err := pa.libraryScripts(); err != nil {
+		return nil, err
+	}
 	if pa.empty() {
 		return nil, nil
 	}
