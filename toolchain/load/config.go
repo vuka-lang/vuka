@@ -13,7 +13,8 @@ import (
 // tables the compiler reads, and the [ui] table vuka ui reads.
 const ConfigFile = "vuka.toml"
 
-// ConfigTables are the tables vuka.toml may hold.
+// ConfigTables are the tables vuka.toml may hold; [ui] has sub-tables
+// too ([ui.sources], [ui.libraries.<name>]), which vuka ui reads.
 var ConfigTables = []string{"fmt", "compile", "ui", "vet"}
 
 // Compile are a module's compiler settings, vuka.toml's [compile] and
@@ -136,7 +137,7 @@ func ParseConfig(file string, src []byte, table string, set func(key, value stri
 				return at("a table's name ends with ]")
 			}
 			in = strings.TrimSpace(l[1 : len(l)-1])
-			known := false
+			known := strings.HasPrefix(in, "ui.")
 			for _, t := range ConfigTables {
 				known = known || in == t
 			}

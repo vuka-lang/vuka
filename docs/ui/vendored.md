@@ -255,6 +255,110 @@ vuka ui add -f button takes the registry's; cn, dialog: the same as the registry
 `vuka ui add -f button` takes the registry's copy; or bring the lines you
 want over by hand.
 
+## From a templ Component Library {#libraries}
+
+`vuka ui add` also writes components of a templ component library —
+shadcn-templ and libraries like it, a Go package of `.templ` files per
+component — into the app, as its own source. A library's component is
+named `library/name`:
+
+```sh
+vuka ui add shadcn-templ/dialog shadcn-templ/select shadcn-templ/button
+```
+
+```text
+wrote components/ui/dialog/dialog.templ
+wrote components/ui/dialog/dialog.js
+wrote components/ui/button/button.templ
+wrote components/ui/icon/icon.go
+wrote components/ui/utils/shadcn-templ.go
+wrote components/ui/select/select.js
+wrote components/ui/select/select.templ
+wrote components/ui/baseui/portal.js
+…
+wrote styles/tw-animate.css
+wrote styles/shadcn-tailwind.css
+wrote styles/shadcn-templ.css: shadcn-templ's theme and styles
+wrote styles/app.css: imports shadcn-templ.css
+wrote pages/_layout.vuka.html: the document's colours from the tokens (bg-background, text-foreground)
+wrote vuka.toml: [ui.sources]
+go get github.com/Oudwins/tailwind-merge-go@v0.2.2
+
+Use a library's components as tags, importing each package:
+
+	import "example.com/shop/components/ui/dialog"
+	import "example.com/shop/components/ui/select"
+	import "example.com/shop/components/ui/button"
+```
+
+One command does all of it, in an app `vuka new` made (an app without
+`[ui]` gets `vuka ui init` first):
+
+- **The packages.** Each component is its own package under
+  `components/ui` (`components/ui/dialog`), with the packages of the library
+  it imports (the dialog's close button is a `button.Button`, its icon an
+  `icon`, its classes joined by `utils`), their imports changed to the
+  app's. vuka compiles the `.templ` files itself, so the library's generated
+  `_templ.go` files, its tests and its minified scripts are left out.
+- **Go's requirements.** The modules the components import — templ,
+  tailwind-merge-go — become direct requirements of the app's `go.mod`
+  (`go get`), templ at the version vuka builds with.
+- **The scripts.** A component's script (`dialog.js`) and the scripts the
+  library's components share (`baseui`, `floatingui`) are bundled into one
+  module by `vuka build` and `vuka run -watch`, and loaded by the pages that
+  show one of its components with a script: no script tag, no static
+  mount, nothing generated on disk for `//go:embed` to need. A page with
+  only a button loads none.
+- **The theme.** `styles/shadcn-templ.css`, imported by the app's
+  stylesheet, holds the library's theme tokens the app's
+  ([design tokens](#theming)) don't define — sidebar and chart colours, the
+  larger radii — and the styles of the classes the app's components of it
+  use. Dark follows the visitor's preference, or `data-theme`, as the
+  tokens do: the library's `.dark` class variant isn't taken. `vuka ui add`
+  writes the file again as components are added; change the tokens in
+  `styles/app.css`. The document of a layout `vuka new` wrote is drawn
+  with the tokens' `bg-background` and `text-foreground`, so the page and
+  the library's components follow one theme.
+- **Where each came from.** `vuka.toml` records it:
+
+```toml
+[ui.sources]
+baseui = "shadcn-templ@v2.0.0-beta.16"
+button = "shadcn-templ@v2.0.0-beta.16"
+dialog = "shadcn-templ@v2.0.0-beta.16"
+…
+```
+
+The components are then used as their library documents them, on static
+and live pages alike ([templ Component Libraries](/ui/templ#component-libraries)).
+`vuka ui diff` compares each with its library at the version it came from
+(`vuka ui diff shadcn-templ/dialog` for one); `vuka ui add -f
+shadcn-templ/dialog` takes the library's again. `vuka ui list` lists the
+app's sources with vuka's components, and `vuka ui list shadcn-templ` the
+library's components.
+
+### Other Libraries {#other-libraries}
+
+vuka reads a library from its Go module, at a version, the way `go get`
+finds it: where its components, shared scripts and theme are in the module
+is vuka's own description of the library, not a registry format of the
+library's. vuka knows shadcn-templ; `vuka.toml` describes another, or
+changes the version of one it knows:
+
+```toml
+[ui.libraries.acme]
+module = "github.com/acme/templ-ui"
+version = "v1.4.0"
+components = "components"              # a package per component (the default)
+scripts = ["shared"]                   # script directories its components share, bundled first
+theme = "assets/css/theme.css"         # its :root, .dark and @theme inline tokens
+css = ["assets/css/animations.css"]    # stylesheets its classes need, copied beside the app's
+style = "assets/css/style.css"         # rules for its components' own classes
+```
+
+`dir = "../acme-ui"` in place of `module` and `version` reads a library
+being written beside the app.
+
 ## cn: Merging Classes {#cn}
 
 `cn(...)` in `components/ui/cn.go` joins class lists, a later class winning

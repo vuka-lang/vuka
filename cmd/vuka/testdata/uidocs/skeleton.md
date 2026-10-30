@@ -48,8 +48,10 @@ layout and can't drift from it:
 ```
 
 The stylesheet `vuka ui init` writes does the drawing: text becomes bars as
-long as the text, line by line; images, icons, videos, canvases, buttons and
-inputs become blocks of their size; borders and spacing stay. Every box is
+long as the text, line by line; text in a shape of its own, an element
+holding only text with a `bg-` or `rounded` class (a count badge, a pill,
+initials in a circle), becomes that shape; images, icons, videos, canvases,
+buttons and inputs become blocks of their size; borders and spacing stay. Every box is
 the real component's. `design.Words(n)` and `design.Chars(n)` make
 placeholder text of a length that reads right. The copy is `inert` and
 `aria-hidden`; the wrapper is a busy status with `label=` for screen

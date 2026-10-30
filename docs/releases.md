@@ -72,6 +72,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
   Dialog around it. The editor completes `id`, `class`, `attributes`, `on…`,
   `aria-*` and `data-` on such a tag. ([#219](https://github.com/vuka-lang/vuka/issues/219))
 
+- **`vuka ui add` from a templ component library.** `vuka ui add
+  shadcn-templ/dialog shadcn-templ/select shadcn-templ/button` writes each
+  component's package into `components/ui` with the library's packages it
+  imports (imports changed to the app's), `go get`s the modules they
+  import as direct requirements (templ at the version vuka builds with),
+  and records the source per component in `vuka.toml`'s `[ui.sources]`.
+  The library's scripts are bundled by `vuka build` and `vuka run -watch`
+  and load on the pages that show a component with one — no static mount,
+  no script tag, nothing generated for `//go:embed` to need. Its theme
+  tokens the app lacks and the styles of the classes its components use go
+  into `styles/shadcn-templ.css`, dark following the visitor's preference
+  as vuka's tokens do, and a layout `vuka new` wrote is drawn with the
+  tokens' colours. `vuka ui diff` and `vuka ui list` cover them; an app
+  without `[ui]` gets `vuka ui init` first. vuka reads the library's Go
+  module at a version, from its own description of where things are in it
+  (`[ui.libraries.<name>]` describes another library). ([From a templ
+  Component Library](/ui/vendored#libraries), [#219](https://github.com/vuka-lang/vuka/issues/219))
+
 ## v2.12.1 — unreleased
 
 ### UI Components
@@ -94,6 +112,10 @@ the `github.com/vuka-lang/vuka` package your module requires.
   components too, so their classes reach the stylesheet. The parts docs'
   samples are checked by the docs tests.
   ([#217](https://github.com/vuka-lang/vuka/issues/217))
+- **Skeleton badges.** In a `SkeletonOf`, an element holding only text
+  with a `bg-` or `rounded` class (a count badge, a pill) is drawn as one
+  bone of its own shape, no longer a bar inside its coloured box. Run
+  `vuka ui init -f` to update an app's stylesheet.
 
 ### Fixes
 

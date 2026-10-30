@@ -1,0 +1,75 @@
+package selectbox
+
+import (
+	"context"
+
+	"example.com/widgets/utils"
+)
+
+type selectKey struct{}
+
+type selectState struct{ id, value string }
+
+func selectOf(ctx context.Context) selectState {
+	s, _ := ctx.Value(selectKey{}).(selectState)
+	return s
+}
+
+type Props struct {
+	ID    string
+	Name  string
+	Value string
+}
+
+templ Select(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.ID == "" {
+		{{ p.ID = utils.RandomID() }}
+	}
+	{{ ctx = context.WithValue(ctx, selectKey{}, selectState{id: p.ID, value: p.Value}) }}
+	{ children... }
+	<input type="hidden" id={ p.ID + "-input" } name={ p.Name } value={ p.Value }/>
+}
+
+templ Trigger() {
+	{{ s := selectOf(ctx) }}
+	<button type="button" class="wd-select-trigger" id={ s.id + "-trigger" } data-select-trigger={ s.id } aria-expanded="false" aria-controls={ s.id + "-list" }>
+		<span data-select-value>{ s.value }</span>
+	</button>
+}
+
+templ Content() {
+	{{ s := selectOf(ctx) }}
+	<div data-select-home>
+		<div data-select-portal hidden>
+			<ul role="listbox" id={ s.id + "-list" }>
+				{ children... }
+			</ul>
+		</div>
+	</div>
+}
+
+type ItemProps struct {
+	Value string
+}
+
+templ Item(props ...ItemProps) {
+	{{ var p ItemProps }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	{{ s := selectOf(ctx) }}
+	<li role="option" data-value={ p.Value } aria-selected={ boolText(p.Value == s.value) }>
+		{ children... }
+	</li>
+}
+
+func boolText(b bool) string {
+	if b {
+		return "true"
+	}
+	return "false"
+}

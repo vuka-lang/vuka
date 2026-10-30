@@ -26,7 +26,7 @@ func vetScripts(root, modPath string, pa *pageAssets) []diag.Diagnostic {
 	var pages map[string]bool
 	r := newTSTypes(root, modPath)
 	for _, c := range pa.comps {
-		if c.name == "" || len(c.scripts) == 0 {
+		if c.name == "" || len(c.scripts) == 0 || c.classic {
 			continue
 		}
 		markup, ok := markupOf(c.markup, c.name)

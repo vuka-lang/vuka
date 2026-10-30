@@ -38,7 +38,8 @@ The file is tables of `key = value` lines and `#` comments. Booleans are
 `true` or `false`, numbers are bare, and the `[ui]` table's values are
 quoted strings.
 
-It is strict: a table other than `[fmt]`, `[compile]`, `[vet]` and `[ui]`,
+It is strict: a table other than `[fmt]`, `[compile]`, `[vet]`, `[ui]` and
+`[ui]`'s own (`[ui.sources]`, `[ui.libraries.<name>]`),
 a key a table doesn't have, a key outside a table and a value of the wrong
 kind are errors naming the file and line, often with the nearest key:
 
@@ -157,7 +158,8 @@ A `?` on a call into the same package passes the error on as it is. See
 ## [ui] {#ui}
 
 Where [`vuka ui`](/ui/vendored) writes the app's components. `vuka ui init`
-writes the table; `vuka ui add` and `vuka ui diff` refuse to run without it.
+writes the table; `vuka ui add` and `vuka ui diff` refuse to run without it
+(`vuka ui add library/name` runs `vuka ui init` first).
 
 | Key | Default | |
 |---|---|---|
@@ -174,3 +176,33 @@ for that run. See [The Registry](/ui/vendored#registry).
 The editor reads the table too: completing a component tag offers the
 components' package by its `package` name and imports it under that name
 ([Writing Component Tags](/tools/editors#component-tags)).
+
+## [ui.sources] {#ui-sources}
+
+Where each directory of the components directory came from, written by
+`vuka ui add library/name`: the directory's name, and the library and the
+version of its module it was read at. `vuka ui diff` compares each with
+that version.
+
+```toml
+[ui.sources]
+button = "shadcn-templ@v2.0.0-beta.16"
+dialog = "shadcn-templ@v2.0.0-beta.16"
+```
+
+## [ui.libraries.&lt;name&gt;] {#ui-libraries}
+
+A templ component library `vuka ui add <name>/<component>` reads, or a
+change to one vuka knows (`shadcn-templ`): where its parts are in its Go
+module. See [Other Libraries](/ui/vendored#other-libraries).
+
+| Key | Default | |
+|---|---|---|
+| `module` | (required, or `dir`) | the library's Go module: `github.com/acme/templ-ui` |
+| `version` | (required with `module`) | the version `vuka ui add` reads: `v1.4.0` |
+| `dir` | | a directory holding the module's source in place of `module` and `version`, relative to the app's module |
+| `components` | `"components"` | the module's directory holding a package per component |
+| `scripts` | | directories of `components` holding scripts the components share, bundled before theirs: `["shared"]` |
+| `theme` | | a stylesheet whose `:root`, `.dark` and `@theme inline` tokens the app gets the ones it lacks of |
+| `css` | | stylesheets the components' classes need, copied beside the app's and imported: `["assets/css/animations.css"]` |
+| `style` | | a stylesheet styling the components' own classes; the app gets the rules for the classes its components use |

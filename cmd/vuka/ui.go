@@ -23,9 +23,9 @@ import (
 const uiUsage = `Usage:
 
 	vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name]
-	vuka ui add [-f] [--dry-run] <component…>
-	vuka ui diff [component…]
-	vuka ui list
+	vuka ui add [-f] [--dry-run] <component…> <library>/<component…>
+	vuka ui diff [component…] [<library>/<component…>]
+	vuka ui list [library]
 
 Components that are the app's own source: vuka ui add writes each one into
 the app, a .vuka.html file you change as you like, drawn with Tailwind
@@ -45,12 +45,22 @@ utilities over design tokens in the app's stylesheet.
   diff   prints how the app's copies of the components named (all it has
          when none are) differ from the registry's; vuka ui add -f takes
          the registry's.
-  list   lists the components.
+  list   lists the components; with a library's name, that library's.
 
 The registry is vuka's own, fetched at the version of this vuka, or the
 copy built into it with --offline or when the fetch fails. --registry
 (or registry in vuka.toml's [ui]) names another: an https:// URL or a
 directory holding an index.json.
+
+A templ component library's component is library/name: vuka ui add
+shadcn-templ/dialog writes its package into the components directory
+(components/ui/dialog), with the packages of the library it imports, its
+scripts (bundled and loaded on the pages that show it) and the library's
+theme (styles/shadcn-templ.css, imported by the app's stylesheet), reads
+the library's Go module at the version vuka knows (or vuka.toml's
+[ui.libraries.<name>] says), go gets the modules the components import,
+and records where each came from in vuka.toml's [ui.sources]. Run in an
+app without [ui], it runs vuka ui init first.
 
 --dry-run says what init or add would write, writing nothing.
 `
@@ -81,14 +91,20 @@ func uiCmd(args []string, stdout io.Writer) error {
 	}
 	switch sub {
 	case "list":
-		if len(f.pos) > 0 {
-			return errors.New("usage: vuka ui list")
+		if len(f.pos) > 1 {
+			return errors.New("usage: vuka ui list [library]")
+		}
+		if len(f.pos) == 1 {
+			return libList(root, strings.ToLower(f.pos[0]), stdout)
 		}
 		reg, err := openRegistry(f, cfg, root)
 		if err != nil {
 			return err
 		}
 		reg.list(stdout)
+		if root != "" {
+			return listSources(root, stdout)
+		}
 		return nil
 	case "init":
 		if len(f.pos) > 0 {
@@ -112,6 +128,7 @@ type uiFlags struct {
 	css, dir, pkg   string
 	style, registry string
 	setDir, setPkg  bool
+	within          bool // init run by add, which says what to do next
 }
 
 func parseUIFlags(sub string, args []string) (*uiFlags, error) {
@@ -380,7 +397,7 @@ func uiInit(root, modPath string, f *uiFlags, w io.Writer) error {
 	if err := out.commit(w); err != nil {
 		return err
 	}
-	if !f.dryRun && len(out.files) > 0 {
+	if !f.dryRun && !f.within && len(out.files) > 0 {
 		fmt.Fprintf(w, "\nAdd components with vuka ui add (vuka ui list lists them), then use them as tags:\n\n\timport %s %q\n\n\t<%s.Button>Save</%s.Button>\n",
 			cfg.Package, modPath+"/"+cfg.Dir, cfg.Package, cfg.Package)
 	}
@@ -456,37 +473,67 @@ func mapKeys[V any](m map[string]V) func(func(string) bool) {
 
 // uiAdd is vuka ui add.
 func uiAdd(root, modPath string, f *uiFlags, w io.Writer) error {
+	own, libs, err := splitLibArgs(f.pos)
+	if err != nil {
+		return err
+	}
 	cfg, ok, err := readUIConfig(root)
 	if err != nil {
 		return err
 	}
-	if !ok {
+	if !ok && len(own) > 0 {
 		return errors.New("vuka ui add: vuka.toml has no [ui]: run vuka ui init first, which writes the design tokens the components are drawn with")
 	}
-	reg, err := openRegistry(f, cfg, root)
-	if err != nil {
-		return err
-	}
-	items, err := reg.resolve("add", f.pos)
-	if err != nil {
-		return err
-	}
-	if _, err := reg.fetch(items); err != nil {
-		return err
+	if !ok {
+		// A library's components need the tokens and [ui] too: init first.
+		fmt.Fprintln(w, "vuka.toml has no [ui]: vuka ui init")
+		if err := uiInit(root, modPath, &uiFlags{dryRun: f.dryRun, offline: f.offline, registry: f.registry, within: true}, w); err != nil {
+			return err
+		}
+		fmt.Fprintln(w)
+		if cfg, ok, err = readUIConfig(root); err != nil {
+			return err
+		} else if !ok {
+			cfg = uiConfig{Style: "default", Dir: "components/ui", Package: "design", CSS: stylesheet(root)}
+		}
 	}
 	out := &uiWriter{root: root, dryRun: f.dryRun}
-	if reg.note != "" {
-		out.note("%s", reg.note)
+	var writing []*registryItem
+	if len(own) > 0 {
+		reg, err := openRegistry(f, cfg, root)
+		if err != nil {
+			return err
+		}
+		items, err := reg.resolve("add", own)
+		if err != nil {
+			return err
+		}
+		if _, err := reg.fetch(items); err != nil {
+			return err
+		}
+		if reg.note != "" {
+			out.note("%s", reg.note)
+		}
+		if writing, err = addItems(out, reg, cfg, own, f.force, true); err != nil {
+			return err
+		}
 	}
-	writing, err := addItems(out, reg, cfg, f.pos, f.force, true)
-	if err != nil {
-		return err
+	var gets map[string]string
+	if len(libs) > 0 {
+		if gets, err = libAdd(out, cfg, modPath, libs, f.force); err != nil {
+			return err
+		}
 	}
 	if err := checkRequires(root, writing); err != nil {
 		return err
 	}
 	if err := out.commit(w); err != nil {
 		return err
+	}
+	if !f.dryRun && len(out.differ) == 0 {
+		if err := getModules(root, gets, w); err != nil {
+			return err
+		}
 	}
 	switch {
 	case len(out.differ) == 0 || f.dryRun:
@@ -496,10 +543,18 @@ func uiAdd(root, modPath string, f *uiFlags, w io.Writer) error {
 		return fmt.Errorf("vuka ui add: %s differ from the registry's (the differences are above); -f overwrites them", strings.Join(out.differ, ", "))
 	}
 	if !f.dryRun && len(out.files) > 0 {
-		fmt.Fprintf(w, "\nUse them as tags (import %s %q):\n\n", cfg.Package, modPath+"/"+cfg.Dir)
-		for _, n := range f.pos {
-			if ex := uiExample[strings.ToLower(n)]; ex != "" {
-				fmt.Fprintf(w, "\t%s\n", strings.ReplaceAll(ex, "design.", cfg.Package+"."))
+		if len(own) > 0 {
+			fmt.Fprintf(w, "\nUse them as tags (import %s %q):\n\n", cfg.Package, modPath+"/"+cfg.Dir)
+			for _, n := range own {
+				if ex := uiExample[strings.ToLower(n)]; ex != "" {
+					fmt.Fprintf(w, "\t%s\n", strings.ReplaceAll(ex, "design.", cfg.Package+"."))
+				}
+			}
+		}
+		if len(libs) > 0 {
+			fmt.Fprintf(w, "\nUse a library's components as tags, importing each package:\n\n")
+			for _, a := range libs {
+				fmt.Fprintf(w, "\timport %q\n", modPath+"/"+cfg.Dir+"/"+a.name)
 			}
 		}
 	}
@@ -593,12 +648,27 @@ func uiDiff(root string, f *uiFlags, w io.Writer) error {
 	if !ok {
 		return errors.New("vuka ui diff: vuka.toml has no [ui]: run vuka ui init first")
 	}
+	own, libs, err := splitLibArgs(f.pos)
+	if err != nil {
+		return err
+	}
+	_, modPath, err := load.ModuleRoot(root)
+	if err != nil {
+		return err
+	}
+	libDiffer, libSame, err := libDiff(root, modPath, cfg, libs, len(f.pos) == 0, w)
+	if err != nil {
+		return err
+	}
+	if len(own) == 0 && len(libs) > 0 {
+		return reportLibDiff(libDiffer, libSame, w)
+	}
 	reg, err := openRegistry(f, cfg, root)
 	if err != nil {
 		return err
 	}
 	var items []*registryItem
-	for _, n := range f.pos {
+	for _, n := range own {
 		it := reg.item(strings.ToLower(n))
 		if it == nil {
 			return fmt.Errorf("vuka ui diff: no component %q%s; the components are %s", n,
@@ -606,7 +676,7 @@ func uiDiff(root string, f *uiFlags, w io.Writer) error {
 		}
 		items = append(items, it)
 	}
-	if len(f.pos) == 0 {
+	if len(own) == 0 {
 		for i := range reg.Items {
 			it := &reg.Items[i]
 			for _, file := range it.Files {
@@ -648,6 +718,11 @@ func uiDiff(root string, f *uiFlags, w io.Writer) error {
 		}
 	}
 	w.Write(diffs.Bytes())
+	if len(libDiffer)+len(libSame) > 0 {
+		if err := reportLibDiff(libDiffer, libSame, w); err != nil || len(items) == 0 {
+			return err
+		}
+	}
 	switch {
 	case len(items) == 0:
 		fmt.Fprintf(w, "%s has none of the registry's components\n", cfg.Dir)
@@ -660,6 +735,21 @@ func uiDiff(root string, f *uiFlags, w io.Writer) error {
 		fmt.Fprintf(w, "vuka ui add -f %s takes the registry's", strings.Join(differ, " "))
 		if len(same) > 0 {
 			fmt.Fprintf(w, "; %s: the same as the registry's", strings.Join(same, ", "))
+		}
+		fmt.Fprintln(w)
+	}
+	return nil
+}
+
+// reportLibDiff says which of a library's components differ.
+func reportLibDiff(differ, same []string, w io.Writer) error {
+	switch {
+	case len(differ) == 0:
+		fmt.Fprintf(w, "%s: the same as their libraries'\n", strings.Join(same, ", "))
+	default:
+		fmt.Fprintf(w, "\nvuka ui add -f %s takes the libraries'", strings.Join(differ, " "))
+		if len(same) > 0 {
+			fmt.Fprintf(w, "; %s: the same as their libraries'", strings.Join(same, ", "))
 		}
 		fmt.Fprintln(w)
 	}

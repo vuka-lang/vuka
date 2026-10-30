@@ -45,7 +45,9 @@ A templ component library — templUI, shadcn-templ and the like — gives each
 component a props struct, `func Button(props ...ButtonProps)`, and its tag's
 attributes set the fields: `variant`, `size`, `id` and `class` are
 `Variant`, `Size`, `ID` and `Class`. This live page uses a dialog and a
-button from one, vendored into the app under `components/ui`:
+button from one, written into the app under `components/ui` by `vuka ui
+add shadcn-templ/dialog shadcn-templ/button` with their scripts and theme
+([From a templ Component Library](/ui/vendored#libraries)):
 
 ```html
 <script lang="go">

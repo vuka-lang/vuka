@@ -1,0 +1,18 @@
+/* The look of the components' classes. */
+.style-plain {
+  .wd-button {
+    @apply inline-flex items-center rounded-2xl px-3 py-1;
+  }
+
+  .wd-button-outline {
+    @apply border border-surface;
+  }
+
+  .wd-dialog {
+    @apply rounded-2xl p-4 shadow-lg;
+  }
+
+  .wd-unused {
+    @apply text-red-500;
+  }
+}
