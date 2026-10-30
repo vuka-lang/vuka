@@ -55,6 +55,7 @@ type Attr struct {
 	declOff    int    // offset of the annotated declaration's keyword in src
 	value      string // the string argument of a built-in
 	bare       bool   // written @name or @name[T]: a type or a decorator, decided by what it names
+	called     bool   // a bare parameter attribute naming a function called with no arguments (@graphql.AsInt)
 	decl       ast.Decl
 	paramOff   int       // a parameter attribute's parameter: the offset of its name, or type when unnamed
 	structOf   string    // a field attribute's struct type
@@ -220,6 +221,9 @@ func (a *Attr) replacement(src []byte) string {
 // attribute, split around the point where its source text begins.
 func (a *Attr) check(src []byte) (prefix, expr string) {
 	expr = string(src[a.nameStart:a.end])
+	if a.called {
+		return "var _ = ", expr
+	}
 	if strings.HasSuffix(expr, "}") || strings.HasSuffix(expr, ")") {
 		return "var _ = ", expr
 	}

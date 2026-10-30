@@ -218,6 +218,11 @@ func buildWarnings(ds []diag.Diagnostic) []diag.Diagnostic {
 // (W0108), an on… handler a component would drop (W0112).
 func shownEverywhere(code diag.Code) bool { return code == "W0108" || code == "W0112" }
 
+// shownInEditor reports whether the editor shows a transpiler warning:
+// those shownEverywhere, and a GraphQL argument's attribute above its
+// declaration (W0803), whose quick fix moves it before the parameter.
+func shownInEditor(code diag.Code) bool { return shownEverywhere(code) || code == "W0803" }
+
 // transpileWarnings are the warnings the transpiler found in gens' sources,
 // which vuka vet reports: about the context processors' variables a file
 // reads (W0401, W0402, W0403), a Suspense wait list (W0351), a markup call

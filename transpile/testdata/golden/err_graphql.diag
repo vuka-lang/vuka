@@ -63,13 +63,69 @@ error[E0805]: Heavy's parameter weight is float64, which can't be an ID
    = help: only strings and integers are IDs
 
 error[E0805]: Heavy: @graphql.AsID("ownr") names no parameter of it
-  --> err_graphql.vuka:37:1
+  --> err_graphql.vuka:38:1
    |
-37 | @graphql.Query
-   | ^^^^^^^^^^^^^^
+38 | @graphql.AsID("ownr", "weight")
+   | ^^^^^^^^^^^^^
    |
    = help: an operation is a function returning a value, or a value and an error, from named parameters
    = help: did you mean owner?
+
+error[E0805]: Named: before a parameter, @graphql.AsInt names no parameter: it is about the one it precedes
+  --> err_graphql.vuka:42:12
+   |
+42 | func Named(@graphql.AsInt("lastID") lastID int, @graphql.Arg("a", "b") after *string) int { return 0 }
+   |            ^^^^^^^^^^^^^^
+   |
+   = help: write @graphql.AsInt lastID
+
+error[E0805]: Named: before a parameter, @graphql.Arg takes the argument's name only
+  --> err_graphql.vuka:42:49
+   |
+42 | func Named(@graphql.AsInt("lastID") lastID int, @graphql.Arg("a", "b") after *string) int { return 0 }
+   |                                                 ^^^^^^^^^^^^
+   |
+   = help: give the argument's name: @graphql.Arg("cursor") after
+
+error[E0805]: Served: @graphql.AsID is before board, which isn't an argument (the context, a dependency or a page)
+  --> err_graphql.vuka:45:34
+   |
+45 | func Served(ctx context.Context, @graphql.AsID board *Board) int { return 0 }
+   |                                  ^^^^^^^^^^^^^
+   |
+   = help: put it before an argument's parameter, or remove it
+
+error[E0805]: Twice: lastID is marked twice, by @graphql.AsInt before it and @graphql.AsInt("lastID") above
+  --> err_graphql.vuka:48:1
+   |
+48 | @graphql.AsInt("lastID")
+   | ^^^^^^^^^^^^^^
+   |
+   = help: remove the one above Twice
+
+error[E0805]: Twice: @graphql.Arg("cursor") above a declaration takes a parameter and its argument's name
+  --> err_graphql.vuka:49:1
+   |
+49 | @graphql.Arg("cursor")
+   | ^^^^^^^^^^^^
+   |
+   = help: write it before the parameter: func Twice(@graphql.Arg("cursor") after *string)
+
+error[E0802]: Deep's result is **int: nullable twice; one pointer or one vuka.Option makes it nullable
+  --> err_graphql.vuka:52:1
+   |
+52 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
+
+error[E0802]: Twofold's parameter n is vuka.Option[*int]: nullable twice; one pointer or one vuka.Option makes it nullable
+  --> err_graphql.vuka:55:1
+   |
+55 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
 
 Some errors have detailed explanations: E0802, E0803, E0804, E0805, E0806.
 For more information about an error, try `vuka explain E0802`.

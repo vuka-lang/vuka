@@ -1,0 +1,20 @@
+package main
+query Products(filter: Filter (input), query as q: String, first: Int, store <- *main.Store): [ProductInfo!]! "Products searches the products: no filter is every product."
+query Latest(store <- *main.Store): ProductInfo "Latest is None when nothing is released."
+query Codes(codes: [Int]!): [Int] ""
+input Filter
+  Name: String
+  MaxPrice: Float
+  Codes: [Int]
+type ProductInfo
+  SKU: String
+  Description: String
+  ReleasedAt: DateTime
+  OwnerID: ID
+  ShelfID: Int
+  Size: Size
+  Scores: [Int]!
+  Tags: [String!]
+type Size
+  W: Int!
+  H: Int!

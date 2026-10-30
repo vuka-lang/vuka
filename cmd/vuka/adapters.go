@@ -78,11 +78,10 @@ export function mount(Component, el, props, ctx) {
 // release unmounts the app on el, and forgets it even when its unmount
 // fails (its DOM changed under it, as when a navigation already removed
 // the nodes it teleported): a stale vnode left on the host would make the
-// next app's mount patch against it. The failure is tolerated quietly,
-// like the other adapters': debug keeps the trace without alarming every
-// console on a routine navigation.
+// next app's mount patch against it. The failure is logged as an error, as
+// the other adapters' are: a quiet one hid #239 from the e2e tests.
 function release(el) {
-  if (el.__vue_app__) { try { el.__vue_app__.unmount() } catch (err) { console.debug('vuka: unmounting a Vue app:', err) } }
+  if (el.__vue_app__) { try { el.__vue_app__.unmount() } catch (err) { console.error('vuka: unmounting a Vue app:', err) } }
   if (el._vnode || el.__vue_app__) { el._vnode = null; delete el.__vue_app__; el.textContent = '' }
 }
 `
@@ -126,7 +125,7 @@ export function mount(Component, el, props, ctx) {
   render()
   return {
     update: (next) => { cur = { ...(next || {}) }; render() },
-    unmount: () => { try { root.unmount() } catch (_) {} },
+    unmount: () => { try { root.unmount() } catch (err) { console.error('vuka: unmounting a React root:', err) } },
   }
 }
 `
@@ -171,7 +170,7 @@ export function mount(Component, el, props, ctx) {
   const inst = smount(Component, { target: el, props: p, context })
   return {
     update: (next) => { for (const [k, v] of Object.entries(next || {})) { if (!(k in p)) define(k); values.set(k, v) } },
-    unmount: () => { try { sunmount(inst) } catch (_) {} },
+    unmount: () => { try { sunmount(inst) } catch (err) { console.error('vuka: unmounting a Svelte component:', err) } },
   }
 }
 `

@@ -1,7 +1,9 @@
 name: Playground runner
 
+# Branches run it from their pull request; main on push.
 on:
   push:
+    branches: [main]
     paths: ["playground/runner/**", "docs/testdata/gomode/**", "docs/playground/examples/**", "cmd/vuka/**", "transpile/**", "toolchain/**", ".github/workflows/runner.yml"]
   pull_request:
     paths: ["playground/runner/**", "docs/testdata/gomode/**", "docs/playground/examples/**", "cmd/vuka/**", "transpile/**", "toolchain/**", ".github/workflows/runner.yml"]

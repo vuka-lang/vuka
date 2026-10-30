@@ -22,6 +22,84 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.14.0 — unreleased
 
+### GraphQL
+
+- **A GraphQL argument's Go type says whether it is required**
+  (behaviour change). A parameter of a value type is a non-null argument —
+  `categoryId int` is `categoryId: Int!`, `in NewPet` is `in: NewPet!`,
+  `ids []int64` is `ids: [ID!]!` — and a pointer an optional one, `first
+  *int` is `first: Int`, as a field's type already said for its result. A
+  request leaving out a required argument, or giving it null, is refused
+  before anything runs (`GRAPHQL_VALIDATION_FAILED`). Earlier releases made
+  every argument nullable and gave a value parameter its zero value.
+  ([Nullability](/web/graphql#nullability), [#228](https://github.com/vuka-lang/vuka/issues/228))
+- **Nullable lists and lists of nullable items.** A pointer to a slice is a
+  nullable list, `*[]Product` is `[Product!]` (nil is null, an empty slice
+  `[]`), and a slice of pointers a list of nullable items, of scalars too:
+  `[]*int` is `[Int]!`, `*[]*int` is `[Int]`, as results, fields and
+  arguments; an input field `[]*int` tells a null item from a zero one.
+  Both were compile errors ([E0802](/errors/E0802)). The runtime's
+  `graphql.ListOfPtr` lists a slice of pointers.
+- **An argument's attributes go before its parameter**: `func Orders(ctx
+  context.Context, @graphql.Arg("cursor") after *string, @graphql.AsInt
+  shelfID int)`. `@graphql.AsID`, `@graphql.AsInt` and `@graphql.AsString`
+  take no names there, `@graphql.Arg` only the argument's
+  (`graphql.Param.Arg` in the generated Go). The form above the function,
+  naming the parameters, still works; `vuka vet` and the editor warn about
+  it ([W0803](/errors/W0803)), with a quick fix, and `vuka fix
+  graphql-params` moves them all. A function carrying only these
+  attributes is no longer wrapped as a decorated one.
+  ([Arguments](/web/graphql#arguments))
+
+- **`Option[T]` is a nullable `T` in GraphQL and JSON**
+  ([#233](https://github.com/vuka-lang/vuka/issues/233)). As a field,
+  result, argument, input field or list item, `Option[string]` is `String`
+  and `[]Option[int]` is `[Int]`: None is null, and an input left out or
+  null binds None. `Option[NewPet]` is an optional input object. The tags
+  and the ID rule apply to the value it holds; the runtime adds
+  `graphql.OptionValue`, `GetOption`, `AsOption` and `ListOfOption`.
+  ([Nullability](/web/graphql#nullability))
+
+### Language
+
+- **An `Option` is its value or `null` in JSON** (fix): `MarshalJSON` and
+  `UnmarshalJSON` write and read the value or `null`, and `IsZero` lets
+  `omitzero` leave a None out. An `Option` used to encode as `{}` and
+  decode as None, losing its value. ([Option in JSON](/features/result-option#option-json))
+
+### Web
+
+- **CORS for a route prefix: `web.CORS(prefix, web.CORSConfig{…})`**
+  (vuka#235). Preflights under the prefix are answered `204` before
+  routing, middleware, gates and the cross-origin check; every answer
+  there carries `Vary: Origin`, and a listed origin's
+  `Access-Control-Allow-Origin` (exact matching, `web.AnyOrigin` for any).
+  Defaults: `GET, HEAD, POST`, `Content-Type` (and `Authorization` under a
+  token-only prefix), a 5-minute `MaxAge`. `web.AnyHeader` answers with the
+  headers a preflight asks for, `Authorization` included, which a literal
+  `*` doesn't cover. `Credentials` lets the listed origins send cookies,
+  and their requests through the cross-origin check under the prefix.
+  Build refuses what can't work ([E0430](/errors/E0430)): no origins, an
+  origin with a path, a wildcard or `null` origin, `Credentials` with
+  `web.AnyOrigin`. See [CORS and Token APIs](/web/cross-origin).
+- **Token-only routes: `web.TokenOnly(prefix)`** (vuka#235). Under the
+  prefix the `Cookie` header is taken off before any middleware reads it
+  and `Set-Cookie` is dropped from the answers, so a session can't ride
+  along, and with that the cross-origin check is off there: another
+  origin's script may sign in or call the API with its bearer token. The
+  two are one declaration: the check is never off for a request that
+  still carries cookies. A bad prefix is [E0431](/errors/E0431).
+- **`.env` files are read when the program starts** (behaviour change,
+  vuka#235), as the web package is initialised, before `main` builds the
+  options passed to `web.New`: an option built from the environment
+  (`auth.Config{…}` with a key from `os.Getenv`) sees them without a
+  `web.LoadEnv()` call first. Apps calling it keep working: the files are
+  read once. `web.DotEnv`, `web.NoDotEnv` and `web.LoadEnv` with another
+  list take back what the first reading set before reading their own
+  files. A package that reads the environment at its own initialisation
+  without importing web may still run first: read it in a function. See
+  [When Files Are Read](/web/configuration#when).
+
 ### Forms
 
 - **Forms on pages that aren't live check and submit over HTTP**
@@ -46,6 +124,28 @@ the `github.com/vuka-lang/vuka` package your module requires.
 - **The summary keeps its place** while it doesn't show: an empty, hidden
   `<div id="<form>-summary-at">` at the form's top, and
   `<div id="<form>-summary-slot">` where a `<ui.Summary/>` is.
+
+### Upgrading
+
+- **A page route answers a POST that doesn't name a form with 405**
+  ([#232](https://github.com/vuka-lang/vuka/issues/232)), before its
+  handler runs. A page that handles its own POST at its path must take it
+  as a form (a struct form, which the route now accepts) or move it to a
+  separate route.
+- **`Option` fields encode as their values in JSON.** JSON written by
+  earlier releases holds `{}` for each `Option`, which decodes as None, as
+  it did; anything comparing encoded JSON sees the values now.
+- **Arguments of a value type become required.** The schema of an app with
+  one changes (`first: Int` → `first: Int!`), and a client leaving one out
+  gets a validation error where it got the zero value. `vuka upgrade` (or
+  `vuka fix graphql-args`) lists each such argument with its file and line,
+  changing nothing: make a pointer of each a client may leave out (`first
+  *int`, read with a nil check). `vuka graphql schema -check
+  schema.graphql` reports each as "an argument made non-null". Input
+  objects' fields are unchanged: always nullable.
+- **`graphql.Arg` takes `(name string, more ...string)`**: one name before
+  a parameter, the parameter and the name above a function. Calls with two
+  strings compile as before.
 
 ## v2.13.1 — unreleased
 
@@ -82,6 +182,26 @@ the `github.com/vuka-lang/vuka` package your module requires.
   ([#231](https://github.com/vuka-lang/vuka/issues/231), item 2). `return
   f.Form.Fail(msg)` added the message to the form's failures, and the
   submit added the error it returned again: the summary listed it twice.
+
+### Web
+
+- **Content an island teleports to the body goes when the island
+  unmounts** (fixes #239). An island that mounted before the live runtime
+  started — a Vue component with `<Teleport to="body">` on a fast page
+  load — had its teleported elements kept by the runtime, but not the
+  empty text nodes Vue keeps around them, so the first patch of the page
+  took those out; Vue's unmount then failed and left the teleported
+  content in the body after a navigation. Everything a script put in the
+  body before the runtime ran is now kept, text nodes too.
+- **An island that mounts before the live runtime starts follows its
+  state props** (fixes #244). On a fast page load an island's modules can
+  load before the runtime has run; the island then got a state prop's
+  initial value but never its changes — a state set by the page's `Mount`
+  left it showing the initial value for good. When the runtime starts,
+  each island already mounted now reads its state props again and follows
+  them, and a state it set before then reaches the page. Before the runtime
+  runs, a prop bound to a field of a struct state gets that field's
+  initial value, not the whole struct.
 
 ## v2.13.0 — 2026-10-30
 

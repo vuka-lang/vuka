@@ -151,6 +151,33 @@ func (c *chrome) open(url string, width, height int) *tab {
 	return p
 }
 
+// consoleErrors records what a page logs with console.error, and its
+// uncaught errors and rejections, in window.__consoleErrors.
+const consoleErrors = `window.__consoleErrors = [];
+{ const f = console.error; console.error = (...a) => { window.__consoleErrors.push(a.map(String).join(" ")); f.apply(console, a) } }
+addEventListener("error", (e) => window.__consoleErrors.push("uncaught " + e.message));
+addEventListener("unhandledrejection", (e) => window.__consoleErrors.push("unhandled rejection " + e.reason));`
+
+// openChecked is open for a page that must log no error: what it logs with
+// console.error, and its uncaught errors, fail the test when it ends. An
+// island adapter logs a failed mount or unmount so.
+func (c *chrome) openChecked(url string, width, height int) *tab {
+	c.t.Helper()
+	p := c.open("about:blank", width, height)
+	p.do("Page.enable", map[string]any{})
+	p.do("Page.addScriptToEvaluateOnNewDocument", map[string]any{"source": consoleErrors})
+	p.goTo(url)
+	t := c.t
+	t.Cleanup(func() {
+		if errs, _ := p.tryEval(`window.__consoleErrors`); errs != nil {
+			if l, _ := errs.([]any); len(l) > 0 {
+				t.Errorf("the page at %s logged errors:\n%v", url, l)
+			}
+		}
+	})
+	return p
+}
+
 func (p *tab) do(method string, params any) {
 	p.c.t.Helper()
 	if err := p.c.call(p.session, method, params, nil); err != nil {

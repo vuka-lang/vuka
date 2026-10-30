@@ -143,6 +143,7 @@ public github.com/vuka-lang/web/v2/graphql.Arg
 public github.com/vuka-lang/web/v2/graphql.AsID
 public github.com/vuka-lang/web/v2/graphql.AsInt
 public github.com/vuka-lang/web/v2/graphql.As
+public github.com/vuka-lang/web/v2/graphql.AsOption
 public github.com/vuka-lang/web/v2/graphql.Binding
 public github.com/vuka-lang/web/v2/graphql.Boolean
 public github.com/vuka-lang/web/v2/graphql.BooleanOf
@@ -158,6 +159,7 @@ public github.com/vuka-lang/web/v2/graphql.Float
 public github.com/vuka-lang/web/v2/graphql.FloatOf
 public github.com/vuka-lang/web/v2/graphql.FormInput
 public github.com/vuka-lang/web/v2/graphql.Get
+public github.com/vuka-lang/web/v2/graphql.GetOption
 public github.com/vuka-lang/web/v2/graphql.GetPtr
 public github.com/vuka-lang/web/v2/graphql.ID
 public github.com/vuka-lang/web/v2/graphql.IDOf
@@ -168,12 +170,15 @@ public github.com/vuka-lang/web/v2/graphql.Int
 public github.com/vuka-lang/web/v2/graphql.IntIDOf
 public github.com/vuka-lang/web/v2/graphql.IntOf
 public github.com/vuka-lang/web/v2/graphql.ListOf
+public github.com/vuka-lang/web/v2/graphql.ListOfOption
+public github.com/vuka-lang/web/v2/graphql.ListOfPtr
 public github.com/vuka-lang/web/v2/graphql.Member
 public github.com/vuka-lang/web/v2/graphql.Mutation
 public github.com/vuka-lang/web/v2/graphql.NonNull
 public github.com/vuka-lang/web/v2/graphql.ObjectOf
 public github.com/vuka-lang/web/v2/graphql.OmitEmpty
 public github.com/vuka-lang/web/v2/graphql.OmitZero
+public github.com/vuka-lang/web/v2/graphql.OptionValue
 public github.com/vuka-lang/web/v2/graphql.Operation
 public github.com/vuka-lang/web/v2/graphql.Package
 public github.com/vuka-lang/web/v2/graphql.Param
