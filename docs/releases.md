@@ -20,6 +20,51 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.14.0 — unreleased
+
+### GraphQL
+
+- **A GraphQL argument's Go type says whether it is required**
+  (behaviour change). A parameter of a value type is a non-null argument —
+  `categoryId int` is `categoryId: Int!`, `in NewPet` is `in: NewPet!`,
+  `ids []int64` is `ids: [ID!]!` — and a pointer an optional one, `first
+  *int` is `first: Int`, as a field's type already said for its result. A
+  request leaving out a required argument, or giving it null, is refused
+  before anything runs (`GRAPHQL_VALIDATION_FAILED`). Earlier releases made
+  every argument nullable and gave a value parameter its zero value.
+  ([Nullability](/web/graphql#nullability), [#228](https://github.com/vuka-lang/vuka/issues/228))
+- **Nullable lists and lists of nullable items.** A pointer to a slice is a
+  nullable list, `*[]Product` is `[Product!]` (nil is null, an empty slice
+  `[]`), and a slice of pointers a list of nullable items, of scalars too:
+  `[]*int` is `[Int]!`, `*[]*int` is `[Int]`, as results, fields and
+  arguments; an input field `[]*int` tells a null item from a zero one.
+  Both were compile errors ([E0802](/errors/E0802)). The runtime's
+  `graphql.ListOfPtr` lists a slice of pointers.
+- **An argument's attributes go before its parameter**: `func Orders(ctx
+  context.Context, @graphql.Arg("cursor") after *string, @graphql.AsInt
+  shelfID int)`. `@graphql.AsID`, `@graphql.AsInt` and `@graphql.AsString`
+  take no names there, `@graphql.Arg` only the argument's
+  (`graphql.Param.Arg` in the generated Go). The form above the function,
+  naming the parameters, still works; `vuka vet` and the editor warn about
+  it ([W0803](/errors/W0803)), with a quick fix, and `vuka fix
+  graphql-params` moves them all. A function carrying only these
+  attributes is no longer wrapped as a decorated one.
+  ([Arguments](/web/graphql#arguments))
+
+### Upgrading
+
+- **Arguments of a value type become required.** The schema of an app with
+  one changes (`first: Int` → `first: Int!`), and a client leaving one out
+  gets a validation error where it got the zero value. `vuka upgrade` (or
+  `vuka fix graphql-args`) lists each such argument with its file and line,
+  changing nothing: make a pointer of each a client may leave out (`first
+  *int`, read with a nil check). `vuka graphql schema -check
+  schema.graphql` reports each as "an argument made non-null". Input
+  objects' fields are unchanged: always nullable.
+- **`graphql.Arg` takes `(name string, more ...string)`**: one name before
+  a parameter, the parameter and the name above a function. Calls with two
+  strings compile as before.
+
 ## v2.13.0 — 2026-10-30
 
 ### Web

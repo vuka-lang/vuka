@@ -51,8 +51,7 @@ func FindPet(id int64, store *shop.Store) (*shop.Pet, error) {
 func Broken(ctx context.Context) (int, error) { return 0, shop.ErrBroken }
 
 @graphql.Mutation
-@graphql.Arg("in", "pet")
-func AddPet(ctx context.Context, in NewPet, store *shop.Store) (shop.Pet, error) {
+func AddPet(ctx context.Context, @graphql.Arg("pet") in NewPet, store *shop.Store) (shop.Pet, error) {
 	return store.Add(shop.Pet{Name: in.Name, Kind: in.Kind, Price: in.Price, Tag: in.Tag, OwnerID: in.OwnerID}), nil
 }
 

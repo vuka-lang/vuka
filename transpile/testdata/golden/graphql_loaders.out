@@ -1,6 +1,6 @@
 package main
 query Customers(page: Page): Connection[main.Customer]! "Customers pages the customers."
-query Everyone(trackingID: String, orderID: ID): [Customer!]! "Everyone has no limit."
+query Everyone(trackingID: String!, orderID: ID): [Customer!]! "Everyone has no limit."
 loader OrdersByCustomer(store <- *main.Store): main.OrdersByCustomer
 loader Names: main.Names
 type Connection[main.Customer]

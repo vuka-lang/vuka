@@ -168,6 +168,7 @@ public github.com/vuka-lang/web/v2/graphql.Int
 public github.com/vuka-lang/web/v2/graphql.IntIDOf
 public github.com/vuka-lang/web/v2/graphql.IntOf
 public github.com/vuka-lang/web/v2/graphql.ListOf
+public github.com/vuka-lang/web/v2/graphql.ListOfPtr
 public github.com/vuka-lang/web/v2/graphql.Member
 public github.com/vuka-lang/web/v2/graphql.Mutation
 public github.com/vuka-lang/web/v2/graphql.NonNull

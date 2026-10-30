@@ -593,7 +593,7 @@ It runs only when named: `vuka fix` alone leaves the links as they are.
 
 `vuka fix` rewrites the module's source for a change a release made, or to
 a form `vuka vet` asks for. With no names it applies every fixer but
-`static-paths`; named, only those. `-n` says what would change and writes
+`static-paths` and `graphql-args`; named, only those. `-n` says what would change and writes
 nothing. `vuka upgrade` runs the fixers of the releases it crosses.
 
 ```sh
@@ -605,6 +605,8 @@ vuka fix routes ctx-vars     # two fixers
 | Fixer | What it does |
 |---|---|
 | `static-paths` | `src="/static/logo.png"` → `src={web.Asset("/static/logo.png")}` ([Static Paths](#static-paths), [W0404](/errors/W0404)); only when named |
+| `graphql-params` | a GraphQL argument's attribute written before its parameter: `@graphql.AsInt("lastID")` above a function → `@graphql.AsInt lastID int` ([Arguments](/web/graphql#arguments), [W0803](/errors/W0803)) |
+| `graphql-args` | lists the GraphQL arguments of a value type, required since v2.14.0, to make pointers of those a client may leave out; changes nothing; only when named ([Nullability](/web/graphql#nullability)) |
 | `ctx-vars` | context processors' reads as their variables ([Processor Variables](#ctx-vars), [W0402](/errors/W0402)) |
 | `routes` | a `pages/` tree's `Routes()` passed to `web.New` ([Serving the Pages](#add-page-routes), [W0701](/errors/W0701)) |
 | `shape-script` | Go-header shapes in the `<script lang="go">` form ([Converting Shapes](#shape-script)) |

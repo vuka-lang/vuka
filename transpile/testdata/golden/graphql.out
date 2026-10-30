@@ -1,10 +1,13 @@
 value Status(7): [BEHIND use ACTIVE]
 package main
-query Pets(first: Int, status: Status (enum), store <- *main.Store): [Pet!]! "Pets lists the shop's pets."
-query FindPet(id: ID, store <- *main.Store): Pet ""
-query Owned(ownerIDs: [ID], ref: ID, lastID: Int, store <- *main.Store): [Pet!]! "Owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int."
+query Pets(first: Int!, status: Status (enum), store <- *main.Store): [Pet!]! "Pets lists the shop's pets."
+query FindPet(id: ID!, store <- *main.Store): Pet ""
+query Owned(ownerIDs: [ID!]!, ref: ID!, lastID: Int, store <- *main.Store): [Pet!]! "Owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int."
+query Shelf(n as shelf: Int, tagIDs as tags: [ID]): [Pet!] "Shelf is null when the shop is closed."
+query Maybe(categoryId: Int!, names: [String!]!): [Pet] "Maybe has a null for each pet not found."
+query Codes(codes: [Int]!): [Int]! ""
 query Count(store <- *main.Store): Int! ""
-mutation AddPet(in: NewPet (input), store <- *main.Store): Pet ""
+mutation AddPet(in: NewPet (input)!, store <- *main.Store): Pet ""
 enum Status
   StatusActive = Active
   StatusPastDue = PastDue
@@ -20,6 +23,8 @@ type Pet
   Updated: DateTime!
   OwnerID: ID!
   VisitID: Int!
+  Chips: [Int]
+  Scores: [Float]!
   Age(limit: Int): Int!
   Nickname: String
 type Owner
@@ -31,3 +36,4 @@ input NewPet
   OwnerID: ID
   Ref: ID
   ChipID: Int
+  Marks: [Int]

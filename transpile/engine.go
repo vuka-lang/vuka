@@ -76,6 +76,7 @@ type engine struct {
 	straysDone  bool         // timing attributes off a page's or component's methods are reported (parts.go)
 	loaders     []*gqlLoader // the package's @graphql.Loader functions (graphqlloader.go)
 	gqlWarns    map[*fileState]ErrorList
+	gqlArgs     map[*fileState][]GraphQLArg // the non-null arguments, by the file declaring their function (graphql.go)
 
 	forceCtx   map[string]bool // template files whose markup gets the render's ctx (implicit.go)
 	noImplicit bool            // markup gets no implicit ctx (Options.NoImplicitCtx)
