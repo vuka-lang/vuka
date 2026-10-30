@@ -20,7 +20,22 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.14.0 — unreleased
+## v2.14.0 — 2026-10-31
+
+### Security
+
+- **A form's values are no longer written into a page's props**
+  ([#229](https://github.com/vuka-lang/vuka/issues/229)). A page or
+  component with a script of its own writes its exported fields on its
+  root as `data-vk-p`, in the page's HTML and in every live patch; a form
+  is an exported field, so what the visitor typed — passwords included —
+  was in both. Now a form (a field embedding `ui.FormState`, or a
+  `ui.FormOf`) is never a prop, nor is a field tagged `input:"password"`,
+  `"new-password"`, `"current-password"` or `"one-time-code"`, at any depth
+  of a prop's type; island props leave the same fields out. The generated
+  script types (`.vuka/vuka-component.d.ts`) drop them too. A script reads
+  a form's values from its fields. Upgrade if a page holding a form has a
+  `<script lang="ts">`.
 
 ### GraphQL
 
@@ -99,6 +114,23 @@ the `github.com/vuka-lang/vuka` package your module requires.
   files. A package that reads the environment at its own initialisation
   without importing web may still run first: read it in a function. See
   [When Files Are Read](/web/configuration#when).
+- **Content an island teleports to the body goes when the island
+  unmounts** (fixes #239). An island that mounted before the live runtime
+  started — a Vue component with `<Teleport to="body">` on a fast page
+  load — had its teleported elements kept by the runtime, but not the
+  empty text nodes Vue keeps around them, so the first patch of the page
+  took those out; Vue's unmount then failed and left the teleported
+  content in the body after a navigation. Everything a script put in the
+  body before the runtime ran is now kept, text nodes too.
+- **An island that mounts before the live runtime starts follows its
+  state props** (fixes #244). On a fast page load an island's modules can
+  load before the runtime has run; the island then got a state prop's
+  initial value but never its changes — a state set by the page's `Mount`
+  left it showing the initial value for good. When the runtime starts,
+  each island already mounted now reads its state props again and follows
+  them, and a state it set before then reaches the page. Before the runtime
+  runs, a prop bound to a field of a struct state gets that field's
+  initial value, not the whole struct.
 
 ### Forms
 
@@ -144,45 +176,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `<div id="<form>-summary-at">` at the form's top, and
   `<div id="<form>-summary-slot">` where a `<ui.Summary/>` is.
 
-### Upgrading
-
-- **A page route answers a POST that doesn't name a form with 405**
-  ([#232](https://github.com/vuka-lang/vuka/issues/232)), before its
-  handler runs. A page that handles its own POST at its path must take it
-  as a form (a struct form, which the route now accepts) or move it to a
-  separate route.
-- **`Option` fields encode as their values in JSON.** JSON written by
-  earlier releases holds `{}` for each `Option`, which decodes as None, as
-  it did; anything comparing encoded JSON sees the values now.
-- **Arguments of a value type become required.** The schema of an app with
-  one changes (`first: Int` → `first: Int!`), and a client leaving one out
-  gets a validation error where it got the zero value. `vuka upgrade` (or
-  `vuka fix graphql-args`) lists each such argument with its file and line,
-  changing nothing: make a pointer of each a client may leave out (`first
-  *int`, read with a nil check). `vuka graphql schema -check
-  schema.graphql` reports each as "an argument made non-null". Input
-  objects' fields are unchanged: always nullable.
-- **`graphql.Arg` takes `(name string, more ...string)`**: one name before
-  a parameter, the parameter and the name above a function. Calls with two
-  strings compile as before.
-
-## v2.13.1 — unreleased
-
-### Security
-
-- **A form's values are no longer written into a page's props**
-  ([#229](https://github.com/vuka-lang/vuka/issues/229)). A page or
-  component with a script of its own writes its exported fields on its
-  root as `data-vk-p`, in the page's HTML and in every live patch; a form
-  is an exported field, so what the visitor typed — passwords included —
-  was in both. Now a form (a field embedding `ui.FormState`, or a
-  `ui.FormOf`) is never a prop, nor is a field tagged `input:"password"`,
-  `"new-password"`, `"current-password"` or `"one-time-code"`, at any depth
-  of a prop's type; island props leave the same fields out. The generated
-  script types (`.vuka/vuka-component.d.ts`) drop them too. A script reads
-  a form's values from its fields. Upgrade if a page holding a form has a
-  `<script lang="ts">`.
-
 ### Fixes
 
 - **The error summary appearing no longer shifts typed values into the
@@ -212,25 +205,27 @@ the `github.com/vuka-lang/vuka` package your module requires.
   f.Form.Fail(msg)` added the message to the form's failures, and the
   submit added the error it returned again: the summary listed it twice.
 
-### Web
+### Upgrading
 
-- **Content an island teleports to the body goes when the island
-  unmounts** (fixes #239). An island that mounted before the live runtime
-  started — a Vue component with `<Teleport to="body">` on a fast page
-  load — had its teleported elements kept by the runtime, but not the
-  empty text nodes Vue keeps around them, so the first patch of the page
-  took those out; Vue's unmount then failed and left the teleported
-  content in the body after a navigation. Everything a script put in the
-  body before the runtime ran is now kept, text nodes too.
-- **An island that mounts before the live runtime starts follows its
-  state props** (fixes #244). On a fast page load an island's modules can
-  load before the runtime has run; the island then got a state prop's
-  initial value but never its changes — a state set by the page's `Mount`
-  left it showing the initial value for good. When the runtime starts,
-  each island already mounted now reads its state props again and follows
-  them, and a state it set before then reaches the page. Before the runtime
-  runs, a prop bound to a field of a struct state gets that field's
-  initial value, not the whole struct.
+- **A page route answers a POST that doesn't name a form with 405**
+  ([#232](https://github.com/vuka-lang/vuka/issues/232)), before its
+  handler runs. A page that handles its own POST at its path must take it
+  as a form (a struct form, which the route now accepts) or move it to a
+  separate route.
+- **`Option` fields encode as their values in JSON.** JSON written by
+  earlier releases holds `{}` for each `Option`, which decodes as None, as
+  it did; anything comparing encoded JSON sees the values now.
+- **Arguments of a value type become required.** The schema of an app with
+  one changes (`first: Int` → `first: Int!`), and a client leaving one out
+  gets a validation error where it got the zero value. `vuka upgrade` (or
+  `vuka fix graphql-args`) lists each such argument with its file and line,
+  changing nothing: make a pointer of each a client may leave out (`first
+  *int`, read with a nil check). `vuka graphql schema -check
+  schema.graphql` reports each as "an argument made non-null". Input
+  objects' fields are unchanged: always nullable.
+- **`graphql.Arg` takes `(name string, more ...string)`**: one name before
+  a parameter, the parameter and the name above a function. Calls with two
+  strings compile as before.
 
 ## v2.13.0 — 2026-10-30
 
