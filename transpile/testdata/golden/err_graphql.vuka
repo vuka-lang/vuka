@@ -52,4 +52,7 @@ func Twice(@graphql.AsInt lastID int) int { return 0 }
 @graphql.Query
 func Deep() **int { return nil }
 
+@graphql.Query
+func Twofold(n Option[*int]) Option[*string] { return None }
+
 func main() {}

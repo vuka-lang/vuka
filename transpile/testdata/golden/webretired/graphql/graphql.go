@@ -127,6 +127,23 @@ func InputOf[T any]() TypeDef                 { return named{reflect.TypeFor[T](
 func EnumOf[T comparable]() TypeDef           { return named{reflect.TypeFor[T]().Name() + " (enum)"} }
 func ListOf[E any](of TypeDef) *List          { return &List{of} }
 func ListOfPtr[E any](of TypeDef) *List       { return &List{of} }
+func ListOfOption[E any](of TypeDef) *List    { return &List{of} }
+
+func OptionValue[T any](o vuka.Option[T]) any {
+	if v, ok := o.Get(); ok {
+		return v
+	}
+	return nil
+}
+
+func GetOption[T any](c *Call, i int) vuka.Option[T] { return AsOption[T](c.args[i]) }
+
+func AsOption[T any](v any) vuka.Option[T] {
+	if v == nil {
+		return vuka.None[T]()
+	}
+	return vuka.Some(As[T](v))
+}
 
 type Param struct {
 	Name string

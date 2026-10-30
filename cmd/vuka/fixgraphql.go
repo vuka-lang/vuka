@@ -57,8 +57,8 @@ func fixGraphQLParams(m *fixModule) ([]fixChange, error) {
 // parameter first int is first: Int!, where earlier releases made it Int
 // and gave a request leaving it out the zero value. Whether a client may
 // leave one out is the app's to say, so the fixer changes nothing: it lists
-// each such argument, to be made a pointer (first *int) where it should
-// stay optional.
+// each such argument, to be made a pointer or an Option (first *int, first
+// Option[int]) where it should stay optional.
 func fixGraphQLArgs(m *fixModule) ([]fixChange, error) {
 	var args []transpile.GraphQLArg
 	for _, g := range m.gens {
@@ -83,8 +83,8 @@ func fixGraphQLArgs(m *fixModule) ([]fixChange, error) {
 		if err != nil {
 			rel = a.Pos.Filename
 		}
-		m.notes = append(m.notes, fmt.Sprintf("%s:%d: %s's argument %s (%s) is required: a request must give it; make it *%s if it may be left out",
-			filepath.ToSlash(rel), a.Pos.Line, a.Field, a.Param, a.Type, a.Type))
+		m.notes = append(m.notes, fmt.Sprintf("%s:%d: %s's argument %s (%s) is required: a request must give it; make it *%s or Option[%s] if it may be left out",
+			filepath.ToSlash(rel), a.Pos.Line, a.Field, a.Param, a.Type, a.Type, a.Type))
 	}
 	if len(args) > 0 {
 		m.notes = append(m.notes, fmt.Sprintf("%d argument(s) listed; nothing changed", len(args)))

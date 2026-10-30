@@ -140,7 +140,7 @@ fields and methods, and theirs — becomes a type of the schema:
 | a type with `MarshalText` and `UnmarshalText` | a custom scalar named after the type |
 | a vuka `enum`, or a type with constants | an enum, its values the constants |
 | a slice | a list |
-| a pointer | nullable (see [Nullability](#nullability)) |
+| a pointer, a `vuka.Option[T]` | nullable (see [Nullability](#nullability)) |
 
 Integers are `Int`, which GraphQL limits to 32 bits; a larger value is an
 error at its field; identifiers are `ID`s ([IDs](#ids)). A map, a channel, a function,
@@ -150,19 +150,20 @@ it. Tag such a field `graphql:"-"`.
 
 ### Nullability {#nullability}
 
-A Go value is never nil, so a value is non-null; a pointer may be, so a
-pointer is nullable. The rule is the same for a result, a field and an
-argument, and for a list and its items:
+A Go value is never nil, so a value is non-null; a pointer may be, and an
+`Option` may be None, so they are nullable. The rule is the same for a
+result, a field and an argument, and for a list and its items:
 
 | Go | A result or field | An argument |
 |---|---|---|
 | `int` | `Int!` | `Int!`: the request must give it |
-| `*int` | `Int` | `Int`: nil when the request leaves it out or gives null |
+| `*int`, `Option[int]` | `Int`: nil or None is null | `Int`: nil or None when the request leaves it out or gives null |
 | `[]Product` | `[Product!]!` | `[Product!]!` |
 | `[]*Product` | `[Product]!`: a nil element is a null item | `[Product]!` |
 | `*[]Product` | `[Product!]`: nil is null, an empty slice `[]` | `[Product!]` |
-| `*[]*int` | `[Int]` | `[Int]` |
+| `*[]*int`, `Option[[]Option[int]]` | `[Int]` | `[Int]` |
 | `NewPet`, an input struct | | `NewPet!` |
+| `Option[NewPet]` | | `NewPet`: None when left out or null |
 
 ```vuka
 // Products are null while the shop is closed: the client tells "closed"
@@ -177,17 +178,24 @@ func ProductsByCategory(ctx context.Context, @graphql.AsInt categoryId int, stor
 // productsByCategory(categoryId: Int!): [Product]
 
 type Product struct {
-	Name  string
-	Codes *[]*int // codes: [Int]
+	Name     string
+	Codes    *[]*int           // codes: [Int]
+	SKU      Option[string]    // sku: String
+	Released Option[time.Time] // released: DateTime
 }
 ```
+
+`Option` reads best where the value comes from Vuka code or an ORM
+model's optional column, which are `Option`s already; the tags
+(`graphql:"name"`, `,int`, `,id`) and the [ID](#ids) rule apply to the
+value it holds.
 
 A nullable result's resolver failing gives null at its field, the error
 beside it; a non-null one's null moves up to the nearest nullable field
 (see [Inputs and Errors](#inputs)). A request leaving out a non-null
 argument, or giving it null, is refused before anything runs
 (`GRAPHQL_VALIDATION_FAILED`), as the specification has it; make the
-parameter a pointer for one a client may leave out.
+parameter a pointer or an `Option` for one a client may leave out.
 
 Two exceptions:
 
@@ -199,8 +207,9 @@ Two exceptions:
   item from a zero one. Required fields are the form's to check, with a
   `validate:"required"` tag (see [Inputs and Errors](#inputs)).
 
-A pointer to a struct is a [dependency](#field-methods), not an argument,
-so an argument of an input type is always non-null.
+A pointer to a struct is a [dependency](#field-methods), not an argument:
+an optional input object is an `Option[NewPet]`, still checked as a form
+when given.
 
 ### Field Methods {#field-methods}
 
@@ -211,7 +220,7 @@ error (or a `vuka.Result[T]`), from parameters that are
 - the context, `context.Context`;
 - arguments: scalars, enums, input structs and slices of them, named by
   the parameter's name; a value is required, a pointer to a scalar or a
-  slice optional ([Nullability](#nullability));
+  slice, or an `Option`, optional ([Nullability](#nullability));
 - dependencies: pointers and interfaces, filled by the app's container as
   a handler's are (see [Dependency Injection](/web/dependency-injection)).
 

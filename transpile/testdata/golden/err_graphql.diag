@@ -111,10 +111,18 @@ error[E0805]: Twice: @graphql.Arg("cursor") above a declaration takes a paramete
    |
    = help: write it before the parameter: func Twice(@graphql.Arg("cursor") after *string)
 
-error[E0802]: Deep's result is **int: a pointer to a pointer; one pointer makes it nullable
+error[E0802]: Deep's result is **int: nullable twice; one pointer or one vuka.Option makes it nullable
   --> err_graphql.vuka:52:1
    |
 52 | @graphql.Query
+   | ^^^^^^^^^^^^^^
+   |
+   = help: leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
+
+error[E0802]: Twofold's parameter n is vuka.Option[*int]: nullable twice; one pointer or one vuka.Option makes it nullable
+  --> err_graphql.vuka:55:1
+   |
+55 | @graphql.Query
    | ^^^^^^^^^^^^^^
    |
    = help: leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
