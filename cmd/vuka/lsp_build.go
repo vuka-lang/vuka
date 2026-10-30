@@ -476,7 +476,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 		}
 		d.list = append(d.list, diagnosticFix(lspFromError(r, e), e, text, curOff))
 	}
-	// The warnings the editor shows (shownEverywhere), in the text it has.
+	// The warnings the editor shows (shownInEditor), in the text it has.
 	warns := map[string]*diagSet{}
 	for _, g := range gens {
 		src, ok := sources[g.Source]
@@ -484,13 +484,14 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			continue
 		}
 		for _, w := range g.Warnings {
-			if !shownEverywhere(w.Code) {
+			if !shownInEditor(w.Code) {
 				continue
 			}
 			text, off := src, w.Pos.Offset
+			curOff := func(o int) int { return o }
 			if b, ok := bufs[g.Source]; ok {
 				m := vfile{from: src, cur: b, hunks: hunks[g.Source]}
-				text, off = b, m.curOff(off)
+				text, off, curOff = b, m.curOff(off), m.curOff
 			}
 			d := warns[g.Source]
 			if d == nil {
@@ -499,7 +500,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 			}
 			dg := w.Diagnostic("")
 			dg.Severity = diag.Warning
-			d.list = append(d.list, lspFrom(lspRange{d.at(off), d.at(off + w.Len)}, dg))
+			d.list = append(d.list, diagnosticFix(lspFrom(lspRange{d.at(off), d.at(off + w.Len)}, dg), w, text, curOff))
 		}
 	}
 	// Which of them are syntax errors, that the editor's next change may

@@ -5,7 +5,6 @@ import (
 	"go/build"
 	"go/token"
 	"go/types"
-	"maps"
 	"reflect"
 	"slices"
 	"sort"
@@ -106,7 +105,7 @@ func (e *engine) graphql() bool {
 		return wrote
 	}
 	g.perParent()
-	e.gqlWarns = g.warns
+	e.gqlWarns, e.gqlArgs = g.warns, g.args
 	q := g.gq + "."
 	var b strings.Builder
 	b.WriteString("\nfunc init() {\n\t" + q + "Register(" + q + "Package{\n\t\tPath: " + strconv.Quote(e.importPathOr()) + ",\n")
@@ -196,6 +195,7 @@ type gqlGen struct {
 	listed    map[string]bool // types a list reaches, by Go type
 	methods   map[string][]*types.Func
 	warns     map[*fileState]ErrorList
+	args      map[*fileState][]GraphQLArg
 }
 
 // pkgName is the name package path goes by in g.f, imported when it
@@ -390,9 +390,8 @@ func idName(n string) bool {
 // makes an ID.
 func (g *gqlGen) intLike(t types.Type) bool {
 	for {
-		switch u := t.(type) {
-		case *types.Pointer:
-			t = u.Elem()
+		if el := nullableOf(t); el != nil {
+			t = el
 			continue
 		}
 		if s, ok := t.Underlying().(*types.Slice); ok && named(t) == nil {
@@ -412,8 +411,8 @@ func (g *gqlGen) idable(t types.Type) bool {
 		return true
 	}
 	for {
-		if p, ok := t.(*types.Pointer); ok {
-			t = p.Elem()
+		if el := nullableOf(t); el != nil {
+			t = el
 			continue
 		}
 		if s, ok := t.Underlying().(*types.Slice); ok && named(t) == nil {
@@ -514,7 +513,7 @@ func (g *gqlGen) operation(op gqlOp) (string, bool) {
 		}
 	}
 	b.WriteString(",\n")
-	params, args, ok := g.params(sig, op.name, g.attrArgs("", op.name, true))
+	params, args, ok := g.params(sig, op.name, g.argAttrs("", op.name, true))
 	if !ok {
 		return "", false
 	}
@@ -532,44 +531,271 @@ func (g *gqlGen) operation(op gqlOp) (string, bool) {
 	return b.String(), true
 }
 
-// params are the Param literals of sig's parameters, and the arguments a
-// resolver calls its function with: the context, each argument's value
-// (graphql.Get), each dependency's.
-func (g *gqlGen) params(sig *types.Signature, what string, attrs map[string][]string) (params, args []string, ok bool) {
-	q := g.gq + "."
-	ok = true
-	ids, ints := map[string]bool{}, map[string]bool{}
-	for _, n := range attrs["AsID"] {
-		ids[n] = true
-	}
-	for _, n := range append(attrs["AsInt"], attrs["AsString"]...) {
-		ints[n] = true
-	}
-	defer func() {
-		var names []string
-		for i := 0; i < sig.Params().Len(); i++ {
-			names = append(names, sig.Params().At(i).Name())
-		}
-		for _, set := range []struct {
-			attr string
-			m    map[string]bool
-		}{{"AsID", ids}, {"AsInt or AsString", ints}} {
-			for _, n := range slices.Sorted(maps.Keys(set.m)) {
-				if slices.Contains(names, n) {
+// gqlArgAttr is a graphql attribute naming how a function's or method's
+// parameters are arguments — AsID, AsInt, AsString, Arg — before a
+// parameter (param its name) or, the older form, above the declaration.
+type gqlArgAttr struct {
+	f     *fileState
+	a     *Attr
+	kind  string
+	args  []string      // its string arguments
+	param string        // a parameter attribute's parameter
+	fd    *ast.FuncDecl // the declaration, in this round's syntax tree
+}
+
+// argAttrs are the AsID, AsInt, AsString and Arg attributes of a
+// declaration of the package (as attrsOn names it), above it and before its
+// parameters.
+func (g *gqlGen) argAttrs(recv, name string, fn bool) []gqlArgAttr {
+	var out []gqlArgAttr
+	for _, f := range g.e.vuka {
+		for _, a := range f.attrs {
+			kind := g.e.gqlAttr(f, a)
+			switch kind {
+			case "AsID", "AsInt", "AsString", "Arg":
+			default:
+				continue
+			}
+			var fd *ast.FuncDecl
+			if a.Param {
+				fd = f.paramDecl(a)
+			} else {
+				fd, _ = f.declOf(a).(*ast.FuncDecl)
+			}
+			if fd == nil || srcIdent(f.src, f.orig(fd.Name.Pos())) != name {
+				continue
+			}
+			if recv != "" && (fd.Recv == nil || recvBase(fd) != recv) || recv == "" && (!fn || fd.Recv != nil) {
+				continue
+			}
+			x := gqlArgAttr{f: f, a: a, kind: kind, args: stringArgs(a.Args), fd: fd}
+			if a.Param {
+				if x.param = paramNameAt(fd, a.ParamIndex); x.param == "" {
 					continue
 				}
-				e := g.e.errs.add("E0805", g.pos, "%s: @graphql.%s(%q) names no parameter of it", what, set.attr, n)
+			}
+			out = append(out, x)
+		}
+	}
+	return out
+}
+
+// bareArgAttr reports whether a, a parameter attribute naming a function,
+// is one of graphql's taking the parameter it precedes for its name —
+// @graphql.AsID, @graphql.AsInt, @graphql.AsString — which a bare name
+// calls with none.
+func (e *engine) bareArgAttr(f *fileState, a *Attr) bool {
+	switch e.gqlAttr(f, a) {
+	case "AsID", "AsInt", "AsString":
+		return true
+	}
+	return false
+}
+
+// paramDecl is the function a parameter attribute's parameter is of, in
+// this round's syntax tree.
+func (f *fileState) paramDecl(a *Attr) *ast.FuncDecl {
+	off := f.cur.fromOrig(a.declOff)
+	for _, d := range f.ast.Decls {
+		if fd, ok := d.(*ast.FuncDecl); ok && f.off(fd.Type.Func) == off {
+			return fd
+		}
+	}
+	return nil
+}
+
+// paramNameAt is the name of fd's parameter i, the receiver excluded; "" for
+// an unnamed one.
+func paramNameAt(fd *ast.FuncDecl, i int) string {
+	n := 0
+	for _, field := range fd.Type.Params.List {
+		if len(field.Names) == 0 {
+			if n == i {
+				return ""
+			}
+			n++
+		}
+		for _, id := range field.Names {
+			if n == i {
+				return id.Name
+			}
+			n++
+		}
+	}
+	return ""
+}
+
+// paramAt is the offset in f's source of fd's parameter named name.
+func (f *fileState) paramAt(fd *ast.FuncDecl, name string) int {
+	for _, field := range fd.Type.Params.List {
+		for _, id := range field.Names {
+			if id.Name == name {
+				return f.orig(id.Pos())
+			}
+		}
+	}
+	return -1
+}
+
+// argOpts are how a declaration's parameters are arguments, by parameter:
+// forced IDs, kept Ints and Strings, written names.
+type argOpts struct {
+	ids, ints map[string]bool
+	names     map[string]string
+}
+
+// argOptions reads at for sig's parameters, reporting the misuses: a
+// parameter attribute naming parameters, or on a parameter that is no
+// argument; an attribute above naming no parameter, or one also written
+// before it. An attribute above that could go before its parameters is a
+// warning (W0803) with that fix.
+func (g *gqlGen) argOptions(sig *types.Signature, what string, at []gqlArgAttr) (argOpts, bool) {
+	o := argOpts{ids: map[string]bool{}, ints: map[string]bool{}, names: map[string]string{}}
+	ok := true
+	var names []string
+	isArg := map[string]bool{}
+	for i := 0; i < sig.Params().Len(); i++ {
+		p := sig.Params().At(i)
+		names = append(names, p.Name())
+		t := p.Type()
+		isArg[p.Name()] = !isContext(t) && !g.dependency(t) && !isPage(t)
+	}
+	before := map[string]bool{} // kind + " " + param, written before the parameter
+	set := func(kind, param, name string) {
+		switch kind {
+		case "AsID":
+			o.ids[param] = true
+		case "AsInt", "AsString":
+			o.ints[param] = true
+		case "Arg":
+			o.names[param] = name
+		}
+	}
+	for _, x := range at {
+		if x.param == "" {
+			continue
+		}
+		fail := func(help, format string, args ...any) {
+			e := g.e.errs.add("E0805", x.a.Pos, format, args...)
+			e.help("%s", help)
+			ok = false
+		}
+		switch {
+		case x.kind == "Arg" && len(x.args) != 1:
+			fail("give the argument's name: @graphql.Arg(\"cursor\") "+x.param, "%s: before a parameter, @graphql.Arg takes the argument's name only", what)
+		case x.kind != "Arg" && x.a.Args != "" && x.a.Args != "()":
+			fail("write @graphql."+x.kind+" "+x.param, "%s: before a parameter, @graphql.%s names no parameter: it is about the one it precedes", what, x.kind)
+		case !isArg[x.param]:
+			fail("put it before an argument's parameter, or remove it", "%s: @graphql.%s is before %s, which isn't an argument (the context, a dependency or a page)", what, x.kind, x.param)
+		default:
+			key := map[string]string{"AsInt": "AsString"}[x.kind]
+			if key == "" {
+				key = x.kind
+			}
+			before[key+" "+x.param] = true
+			arg := ""
+			if len(x.args) > 0 {
+				arg = x.args[0]
+			}
+			set(x.kind, x.param, arg)
+		}
+	}
+	for _, x := range at {
+		if x.param != "" {
+			continue
+		}
+		key := map[string]string{"AsInt": "AsString"}[x.kind]
+		if key == "" {
+			key = x.kind
+		}
+		named := x.args
+		if x.kind == "Arg" {
+			if len(x.args) != 2 {
+				e := g.e.errs.add("E0805", x.a.Pos, "%s: @graphql.Arg(%s) above a declaration takes a parameter and its argument's name", what, strings.Join(quoteAll(x.args), ", "))
+				e.help("write it before the parameter: func %s(@graphql.Arg(\"cursor\") after *string)", lastName(what))
+				ok = false
+				continue
+			}
+			named = x.args[:1]
+		}
+		good := true
+		for _, n := range named {
+			if !slices.Contains(names, n) {
+				e := g.e.errs.add("E0805", x.a.Pos, "%s: @graphql.%s(%q) names no parameter of it", what, x.kind, n)
 				if s := closestName(n, names); s != "" {
 					e.suggest(s)
 				}
-				ok = false
+				ok, good = false, false
+				continue
+			}
+			if before[key+" "+n] {
+				e := g.e.errs.add("E0805", x.a.Pos, "%s: %s is marked twice, by @graphql.%s before it and @graphql.%s(%s) above", what, n, x.kind, x.kind, strings.Join(quoteAll(x.args), ", "))
+				e.help("remove the one above %s", lastName(what))
+				ok, good = false, false
+				continue
+			}
+			if x.kind != "Arg" { // the runtime reads an Arg above from the declaration's attributes
+				set(x.kind, n, "")
 			}
 		}
-	}()
+		if good && len(named) > 0 {
+			g.moveArgAttr(x, named, what)
+		}
+	}
+	return o, ok
+}
+
+// moveArgAttr warns about an attribute above a declaration naming its
+// parameters (W0803), with the fix writing it before each of them.
+func (g *gqlGen) moveArgAttr(x gqlArgAttr, params []string, what string) {
+	f, a := x.f, x.a
+	text := "@" + a.Name
+	if x.kind == "Arg" {
+		text += "(" + strconv.Quote(x.args[1]) + ")"
+	}
+	start, end := a.start, a.end
+	for start > 0 && (f.src[start-1] == ' ' || f.src[start-1] == '\t') {
+		start--
+	}
+	if start == 0 || f.src[start-1] == '\n' {
+		for end < len(f.src) && (f.src[end] == ' ' || f.src[end] == '\t') {
+			end++
+		}
+		if end < len(f.src) && f.src[end] == '\n' {
+			end++
+		}
+	} else {
+		start = a.start
+	}
+	edits := []Edit{{f.srcOff(start), f.srcOff(end), ""}}
+	for _, n := range params {
+		off := f.paramAt(x.fd, n)
+		if off < 0 {
+			return
+		}
+		edits = append(edits, Edit{f.srcOff(off), f.srcOff(off), text + " "})
+	}
+	if g.warns == nil {
+		g.warns = map[*fileState]ErrorList{}
+	}
+	l := g.warns[f]
+	w := l.add("W0803", a.Pos, "%s: write @%s%s before the parameter it is about", what, a.Name, a.Args)
+	w.help("func %s(…%s %s …)", lastName(what), text, params[0])
+	w.Len, w.Edits, w.FixTitle = a.end-a.start, edits, "Write "+text+" before the parameter"
+	g.warns[f] = l
+}
+
+// params are the Param literals of sig's parameters, and the arguments a
+// resolver calls its function with: the context, each argument's value
+// (graphql.Get), each dependency's. An argument is non-null unless its Go
+// type is a pointer.
+func (g *gqlGen) params(sig *types.Signature, what string, at []gqlArgAttr) (params, args []string, ok bool) {
+	q := g.gq + "."
 	if sig.Variadic() {
 		g.fail("E0805", "take a slice instead", "%s is variadic: a GraphQL field's arguments are named values", what)
 		return nil, nil, false
 	}
+	o, ok := g.argOptions(sig, what, at)
 	for i := 0; i < sig.Params().Len(); i++ {
 		p := sig.Params().At(i)
 		t := p.Type()
@@ -592,17 +818,39 @@ func (g *gqlGen) params(sig *types.Signature, what string, attrs map[string][]st
 				continue
 			}
 			g.via = what + "'s parameter " + name
-			elem, ptr := t, false
+			elem, ptr, opt := t, false, false
 			if pt, isPtr := t.(*types.Pointer); isPtr {
 				elem, ptr = pt.Elem(), true
+			} else if el := optionOf(t); el != nil {
+				elem, opt = el, true
+				if nullableOf(el) != nil {
+					g.unsupported(t, "nullable twice; one pointer or one vuka.Option makes it nullable")
+					ok = false
+					continue
+				}
 			}
-			in, good := g.inType(elem, g.isID(name, elem, ids[name], ints[name]))
+			in, good := g.inType(elem, g.isID(name, elem, o.ids[name], o.ints[name]), true)
 			if !good {
 				ok = false
 				continue
 			}
-			params = append(params, "{Name: "+strconv.Quote(name)+", Type: "+in+"}")
-			if ptr {
+			if !ptr && !opt {
+				in = g.nonNull(in)
+				if f := g.e.fileOf(p.Pos()); f != nil && f.vuka {
+					if g.args == nil {
+						g.args = map[*fileState][]GraphQLArg{}
+					}
+					g.args[f] = append(g.args[f], GraphQLArg{Pos: f.nodePos(p.Pos()), Field: what, Param: name, Type: g.typ(t)})
+				}
+			}
+			lit := "{Name: " + strconv.Quote(name)
+			if n := o.names[name]; n != "" {
+				lit += ", Arg: " + strconv.Quote(n)
+			}
+			params = append(params, lit+", Type: "+in+"}")
+			if opt {
+				args = append(args, q+"GetOption["+g.typ(elem)+"](c, "+idx+")")
+			} else if ptr {
 				args = append(args, q+"GetPtr["+g.typ(elem)+"](c, "+idx+")")
 			} else {
 				args = append(args, q+"Get["+g.typ(t)+"](c, "+idx+")")
@@ -639,19 +887,58 @@ func (g *gqlGen) result(sig *types.Signature, call, what string) (typ, stmt stri
 		return "", "", false
 	}
 	q := g.gq + "."
-	deref := g.leafPointer(t)
+	deref := ""
+	switch {
+	case g.derefs(t):
+		deref = q + "Deref"
+	case isOption(t):
+		deref = q + "OptionValue"
+	}
 	twoResults := res == nil || res.Len() == 2
 	switch {
-	case deref && twoResults:
-		stmt = "v, err := " + call + "\nreturn " + q + "Deref(v), err"
-	case deref:
-		stmt = "return " + q + "Deref(" + call + "), nil"
+	case deref != "" && twoResults:
+		stmt = "v, err := " + call + "\nreturn " + deref + "(v), err"
+	case deref != "":
+		stmt = "return " + deref + "(" + call + "), nil"
 	case twoResults:
 		stmt = "return " + call
 	default:
 		stmt = "return " + call + ", nil"
 	}
 	return typ, stmt, true
+}
+
+// optionOf is T of a vuka.Option[T], nil for another type.
+func optionOf(t types.Type) types.Type {
+	if kind, arg := runtimeType(t); kind == "Option" {
+		return arg
+	}
+	return nil
+}
+
+func isOption(t types.Type) bool { return optionOf(t) != nil }
+
+// nullableOf is what t, a pointer or a vuka.Option, may hold; nil for
+// another type.
+func nullableOf(t types.Type) types.Type {
+	if p, ok := t.(*types.Pointer); ok {
+		return p.Elem()
+	}
+	return optionOf(t)
+}
+
+// derefs reports whether a resolver gives a value of type t dereferenced
+// (nil for nil): a pointer to a scalar, an enum or a slice.
+func (g *gqlGen) derefs(t types.Type) bool { return g.leafPointer(t) || sliceRef(t) }
+
+// sliceRef reports whether t is a pointer to a slice: a nullable list.
+func sliceRef(t types.Type) bool {
+	p, ok := t.(*types.Pointer)
+	if !ok {
+		return false
+	}
+	_, ok = p.Elem().Underlying().(*types.Slice)
+	return ok
 }
 
 // leafPointer reports whether t is a pointer to a scalar or an enum, whose
@@ -662,14 +949,14 @@ func (g *gqlGen) leafPointer(t types.Type) bool {
 }
 
 // dependency reports whether a parameter of type t is filled by the app:
-// an interface, or a pointer to anything but a scalar or an enum (a
-// service, *http.Request).
+// an interface, or a pointer to anything but a scalar, an enum or a slice
+// of arguments (a service, *http.Request).
 func (g *gqlGen) dependency(t types.Type) bool {
 	if types.IsInterface(t) || loaderType(t) {
 		return true
 	}
 	p, ok := t.(*types.Pointer)
-	return ok && !g.isLeaf(p.Elem())
+	return ok && !g.isLeaf(p.Elem()) && !(sliceRef(t) && g.inFits(p.Elem(), 0))
 }
 
 // named is t's named type, alias resolved; nil for an unnamed type.
@@ -833,15 +1120,15 @@ func (g *gqlGen) unsupported(t types.Type, why string) {
 func (g *gqlGen) nonNull(x string) string { return "&" + g.gq + ".NonNull{Of: " + x + "}" }
 
 // outType is the GraphQL type of a result or field of Go type t: non-null
-// unless t is a pointer, or nullable is set (omitempty).
+// unless t is a pointer (a pointer to a slice is a nullable list), or
+// nullable is set (omitempty).
 func (g *gqlGen) outType(t types.Type, nullable, id bool) (string, bool) {
-	if p, ok := t.(*types.Pointer); ok {
-		switch p.Elem().Underlying().(type) {
-		case *types.Pointer, *types.Slice:
-			g.unsupported(t, "a pointer to a pointer or a slice; use the slice itself, a nil slice is an empty list")
+	if el := nullableOf(t); el != nil {
+		if nullableOf(el) != nil {
+			g.unsupported(t, "nullable twice; one pointer or one vuka.Option makes it nullable")
 			return "", false
 		}
-		return g.outNullable(p.Elem(), id)
+		return g.outNullable(el, id)
 	}
 	x, ok := g.outNullable(t, id)
 	if !ok || nullable {
@@ -867,10 +1154,21 @@ func (g *gqlGen) outNullable(t types.Type, id bool) (string, bool) {
 		el := u.Elem()
 		var inner string
 		ok := false
-		if p, isPtr := el.(*types.Pointer); isPtr {
-			if g.isLeaf(p.Elem()) {
-				g.unsupported(t, "a list of pointers to "+g.typ(p.Elem())+"; use []"+g.typ(p.Elem()))
+		if o := optionOf(el); o != nil {
+			// []Option[int] is [Int]: a None element is a null item.
+			if inner, ok = g.outType(el, false, id); !ok {
 				return "", false
+			}
+			return g.gq + ".ListOfOption[" + g.typ(o) + "](" + inner + ")", true
+		}
+		if p, isPtr := el.(*types.Pointer); isPtr {
+			if _, isStruct := p.Elem().Underlying().(*types.Struct); !isStruct || g.isLeaf(p.Elem()) {
+				// []*int is [Int], []*[]T a list of nullable lists: a nil
+				// element is a null item.
+				if inner, ok = g.outType(el, false, id); !ok {
+					return "", false
+				}
+				return g.gq + ".ListOfPtr[" + g.typ(p.Elem()) + "](" + inner + ")", true
 			}
 			inner, ok = g.outNullable(p.Elem(), false)
 		} else {
@@ -900,11 +1198,14 @@ func (g *gqlGen) outNullable(t types.Type, id bool) (string, bool) {
 	return "", false
 }
 
-// inType is the GraphQL type of an argument or input field of Go type t
-// (a pointer's element): always nullable, null and absent giving t's zero
-// value (nil for a pointer); id makes a string or an integer (a list's
-// elements) an ID.
-func (g *gqlGen) inType(t types.Type, id bool) (string, bool) {
+// inType is the nullable GraphQL type of an argument or input field of Go
+// type t (a pointer's element); id makes a string or an integer (a list's
+// elements) an ID. An argument (arg) is non-null unless its Go type is a
+// pointer, and so are its list's items (params wraps the argument
+// itself); an input field is nullable, and so are its list's items. A list
+// of pointers has nullable items either way, a nil element for a null one.
+// A null or absent nullable value gives the zero value (nil for a pointer).
+func (g *gqlGen) inType(t types.Type, id, arg bool) (string, bool) {
 	if g.isLeaf(t) {
 		x, ok := g.leaf(t, id)
 		if !ok {
@@ -915,13 +1216,34 @@ func (g *gqlGen) inType(t types.Type, id bool) (string, bool) {
 	switch u := t.Underlying().(type) {
 	case *types.Slice:
 		el := u.Elem()
-		if _, isPtr := el.(*types.Pointer); isPtr {
-			g.unsupported(t, "a list of pointers; use []"+g.typ(el.(*types.Pointer).Elem()))
-			return "", false
+		if o := optionOf(el); o != nil {
+			if nullableOf(o) != nil {
+				g.unsupported(t, "a list of items nullable twice; one pointer or one vuka.Option makes an item nullable")
+				return "", false
+			}
+			inner, ok := g.inType(o, id, arg)
+			if !ok {
+				return "", false
+			}
+			return g.gq + ".ListOfOption[" + g.typ(o) + "](" + inner + ")", true
 		}
-		inner, ok := g.inType(el, id)
+		if p, isPtr := el.(*types.Pointer); isPtr {
+			if nullableOf(p.Elem()) != nil {
+				g.unsupported(t, "a list of items nullable twice; one pointer or one vuka.Option makes an item nullable")
+				return "", false
+			}
+			inner, ok := g.inType(p.Elem(), id, arg)
+			if !ok {
+				return "", false
+			}
+			return g.gq + ".ListOfPtr[" + g.typ(p.Elem()) + "](" + inner + ")", true
+		}
+		inner, ok := g.inType(el, id, arg)
 		if !ok {
 			return "", false
+		}
+		if arg {
+			inner = g.nonNull(inner)
 		}
 		return g.gq + ".ListOf[" + g.typ(el) + "](" + inner + ")", true
 	case *types.Struct:
@@ -1147,9 +1469,12 @@ func (g *gqlGen) structBinding(t types.Type) {
 		var ok bool
 		get := r + "." + fv.Name()
 		switch {
-		case g.leafPointer(ft):
+		case g.derefs(ft):
 			typ, ok = g.outNullable(ft.(*types.Pointer).Elem(), id)
 			get = q + "Deref(" + get + ")"
+		case isOption(ft):
+			typ, ok = g.outType(ft, false, id)
+			get = q + "OptionValue(" + get + ")"
 		case isPointer(ft):
 			typ, ok = g.outType(ft, false, id)
 		default:
@@ -1205,9 +1530,9 @@ func (g *gqlGen) structBinding(t types.Type) {
 		if taken(wire, fn.Name()+"()") {
 			continue
 		}
-		var pattrs map[string][]string
+		var pattrs []gqlArgAttr
 		if samePkg {
-			pattrs = g.attrArgs(n.Obj().Name(), fn.Name(), false)
+			pattrs = g.argAttrs(n.Obj().Name(), fn.Name(), false)
 		}
 		params, args, ok := g.params(sig, tt+"."+fn.Name(), pattrs)
 		if !ok {
@@ -1283,8 +1608,8 @@ func (g *gqlGen) outFits(t types.Type, depth int) bool {
 	if kind, arg := runtimeType(t); kind == "Result" {
 		t = arg
 	}
-	if p, ok := t.(*types.Pointer); ok {
-		t = p.Elem()
+	if el := nullableOf(t); el != nil {
+		t = el
 	}
 	if g.isLeaf(t) {
 		return true
@@ -1302,8 +1627,8 @@ func (g *gqlGen) inFits(t types.Type, depth int) bool {
 	if depth > 4 {
 		return false
 	}
-	if p, ok := t.(*types.Pointer); ok {
-		t = p.Elem()
+	if el := nullableOf(t); el != nil {
+		t = el
 	}
 	if g.isLeaf(t) {
 		return true
@@ -1345,17 +1670,26 @@ func (g *gqlGen) inputBinding(t types.Type) {
 		}
 		names[wire] = fv.Name()
 		ft := fv.Type()
-		elem, ptr := ft, false
+		elem, ptr, opt := ft, false, false
 		if p, isPtr := ft.(*types.Pointer); isPtr {
 			elem, ptr = p.Elem(), true
+		} else if el := optionOf(ft); el != nil {
+			elem, opt = el, true
 		}
-		typ, ok := g.inType(elem, g.isID(fv.Name(), elem, id, asInt))
+		if (ptr || opt) && nullableOf(elem) != nil {
+			g.unsupported(ft, "nullable twice; one pointer or one vuka.Option makes it nullable")
+			continue
+		}
+		typ, ok := g.inType(elem, g.isID(fv.Name(), elem, id, asInt), false)
 		if !ok {
 			continue
 		}
 		set := q + "As[" + g.typ(ft) + "](v)"
-		if ptr {
+		switch {
+		case ptr:
 			set = q + "Ptr[" + g.typ(elem) + "](v)"
+		case opt:
+			set = q + "AsOption[" + g.typ(elem) + "](v)"
 		}
 		m := "{Go: " + strconv.Quote(fv.Name())
 		if name != "" {

@@ -175,6 +175,12 @@ permission changes. See [Live Pages](/web/live).
 Cookie-authenticated form actions need CSRF protection. A WebSocket join and
 its events also require the transport's origin and token checks.
 
+A JSON API called from other origins with bearer tokens is declared
+token-only instead: `web.TokenOnly("/api/")` ignores cookies under the
+prefix and turns the cross-origin check off there, together, and
+`web.CORS` answers the browsers' preflights. See
+[CORS and Token APIs](/web/cross-origin).
+
 > [!WARNING]
 > Preserve those checks behind reverse proxies; do not replace them with a
 > hidden form field whose value the server never verifies.

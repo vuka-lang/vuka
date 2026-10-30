@@ -46,6 +46,10 @@ For an API outside the folder tree, the ordinary `app.Get`, `app.Post` and
 other HTTP registration methods remain available in Go. Keep page rendering in
 shape files and page routes in the tree.
 
+An API called from other origins (a mobile app, a shop on another domain)
+is declared with `web.TokenOnly` and `web.CORS`: see
+[CORS and Token APIs](/web/cross-origin).
+
 ## Forms That Fail
 
 A validation failure carries field errors and status 422. Your handler should

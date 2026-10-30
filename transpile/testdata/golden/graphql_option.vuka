@@ -1,0 +1,47 @@
+package main
+
+import (
+	"context"
+	"time"
+
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+// ProductInfo is what the API tells of a product.
+type ProductInfo struct {
+	SKU         Option[string]
+	Description Option[string]
+	ReleasedAt  Option[time.Time]
+	OwnerID     Option[int64]                     // an id by its name: ID
+	ShelfID     Option[int]    `graphql:",int"`   // a number, though its name ends in ID
+	Size        Option[Size]   `graphql:"dimensions"`
+	Scores      []Option[int]
+	Tags        Option[[]string]
+}
+
+type Size struct{ W, H int }
+
+// Filter narrows a search.
+type Filter struct {
+	Name     Option[string]
+	MaxPrice Option[float64]
+	Codes    []Option[int]
+}
+
+type Store struct{}
+
+// Products searches the products: no filter is every product.
+@graphql.Query
+func Products(ctx context.Context, filter Option[Filter], @graphql.Arg("q") query Option[string], first *int, store *Store) ([]ProductInfo, error) {
+	return nil, nil
+}
+
+// Latest is None when nothing is released.
+@graphql.Query
+func Latest(store *Store) Option[ProductInfo] { return None }
+
+@graphql.Query
+func Codes(codes []Option[int]) Option[[]Option[int]] { return Some(codes) }
+
+// The stand-in for package graphql prints what it is given to register.
+func main() {}

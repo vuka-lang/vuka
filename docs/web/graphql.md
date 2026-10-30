@@ -88,11 +88,11 @@ The schema it serves, as `vuka graphql schema` prints it:
 ```graphql
 type Query {
   """Pets lists the pets of a kind, at most first."""
-  pets(kind: Kind, first: Int): [Pet!]!
+  pets(kind: Kind, first: Int!): [Pet!]!
 }
 
 type Mutation {
-  addPet(in: NewPet): Pet
+  addPet(in: NewPet!): Pet
 }
 
 """Pet is an animal for sale."""
@@ -103,7 +103,7 @@ type Pet {
   tag: String
   born: DateTime!
   """Age is the pet's age in whole years at a date."""
-  age(at: String): Int!
+  age(at: String!): Int!
 }
 
 enum Kind {
@@ -140,19 +140,76 @@ fields and methods, and theirs — becomes a type of the schema:
 | a type with `MarshalText` and `UnmarshalText` | a custom scalar named after the type |
 | a vuka `enum`, or a type with constants | an enum, its values the constants |
 | a slice | a list |
-| a pointer | nullable |
-
-Outputs are non-null unless they are pointers or tagged
-`graphql:",omitempty"` (which gives null for a zero value or an empty
-list). Inputs are always nullable: an argument or input field the request
-leaves out, or gives null, is its type's zero value — nil for a pointer,
-which tells "not given" from zero.
+| a pointer, a `vuka.Option[T]` | nullable (see [Nullability](#nullability)) |
 
 Integers are `Int`, which GraphQL limits to 32 bits; a larger value is an
 error at its field; identifiers are `ID`s ([IDs](#ids)). A map, a channel, a function,
 an unnamed struct and `time.Duration` have no GraphQL type: an operation
 reaching one is a compile error ([E0802](/errors/E0802)) naming the path to
 it. Tag such a field `graphql:"-"`.
+
+### Nullability {#nullability}
+
+A Go value is never nil, so a value is non-null; a pointer may be, and an
+`Option` may be None, so they are nullable. The rule is the same for a
+result, a field and an argument, and for a list and its items:
+
+| Go | A result or field | An argument |
+|---|---|---|
+| `int` | `Int!` | `Int!`: the request must give it |
+| `*int`, `Option[int]` | `Int`: nil or None is null | `Int`: nil or None when the request leaves it out or gives null |
+| `[]Product` | `[Product!]!` | `[Product!]!` |
+| `[]*Product` | `[Product]!`: a nil element is a null item | `[Product]!` |
+| `*[]Product` | `[Product!]`: nil is null, an empty slice `[]` | `[Product!]` |
+| `*[]*int`, `Option[[]Option[int]]` | `[Int]` | `[Int]` |
+| `NewPet`, an input struct | | `NewPet!` |
+| `Option[NewPet]` | | `NewPet`: None when left out or null |
+
+```vuka
+// Products are null while the shop is closed: the client tells "closed"
+// from "nothing in stock".
+@graphql.Query
+func Products(ctx context.Context, store *Store) (*[]Product, error) { … } // [Product!]
+
+// ProductsByCategory are a category's products, a null for each one it no
+// longer sells.
+@graphql.Query
+func ProductsByCategory(ctx context.Context, @graphql.AsInt categoryId int, store *Store) (*[]*Product, error) { … }
+// productsByCategory(categoryId: Int!): [Product]
+
+type Product struct {
+	Name     string
+	Codes    *[]*int           // codes: [Int]
+	SKU      Option[string]    // sku: String
+	Released Option[time.Time] // released: DateTime
+}
+```
+
+`Option` reads best where the value comes from Vuka code or an ORM
+model's optional column, which are `Option`s already; the tags
+(`graphql:"name"`, `,int`, `,id`) and the [ID](#ids) rule apply to the
+value it holds.
+
+A nullable result's resolver failing gives null at its field, the error
+beside it; a non-null one's null moves up to the nearest nullable field
+(see [Inputs and Errors](#inputs)). A request leaving out a non-null
+argument, or giving it null, is refused before anything runs
+(`GRAPHQL_VALIDATION_FAILED`), as the specification has it; make the
+parameter a pointer or an `Option` for one a client may leave out.
+
+Two exceptions:
+
+- An output field tagged `graphql:",omitempty"` is nullable, and null for
+  a zero value or an empty list.
+- An input struct's fields are always nullable — a field the request
+  leaves out, or gives null, is its type's zero value (nil for a pointer) —
+  and so are the items of their lists: a slice of pointers tells a null
+  item from a zero one. Required fields are the form's to check, with a
+  `validate:"required"` tag (see [Inputs and Errors](#inputs)).
+
+A pointer to a struct is a [dependency](#field-methods), not an argument:
+an optional input object is an `Option[NewPet]`, still checked as a form
+when given.
 
 ### Field Methods {#field-methods}
 
@@ -162,7 +219,8 @@ error (or a `vuka.Result[T]`), from parameters that are
 
 - the context, `context.Context`;
 - arguments: scalars, enums, input structs and slices of them, named by
-  the parameter's name; a pointer to a scalar is optional;
+  the parameter's name; a value is required, a pointer to a scalar or a
+  slice, or an `Option`, optional ([Nullability](#nullability));
 - dependencies: pointers and interfaces, filled by the app's container as
   a handler's are (see [Dependency Injection](/web/dependency-injection)).
 
@@ -171,7 +229,7 @@ error (or a `vuka.Result[T]`), from parameters that are
 func (u User) Orders(ctx context.Context, first int, db *DB) ([]Order, error) { … }
 ```
 
-is `orders(first: Int): [Order!]!` on `User`. Methods that don't fit —
+is `orders(first: Int!): [Order!]!` on `User`. Methods that don't fit —
 `Save(ctx) error`, `String() string`, `MarshalText`, `Clean` — aren't
 fields; `@graphql.Field` on one says it is, and makes a signature that
 doesn't fit an error.
@@ -204,10 +262,12 @@ import (
 )
 
 @graphql.Mutation("addPet")
-@graphql.Arg("in", "pet")
 @auth.Requires("pets.add")
-func CreatePet(ctx context.Context, in NewPet, store *Store) (*Pet, error) { … }
+func CreatePet(ctx context.Context, @graphql.Arg("pet") in NewPet, store *Store) (*Pet, error) { … }
 ```
+
+An argument's own attributes go before its parameter (see
+[Arguments](#arguments)).
 
 `@graphql.Subscription` comes in a later version and is an error for now
 ([E0806](/errors/E0806)).
@@ -239,7 +299,7 @@ Every name has a default from Go and an override for a specific wire name:
 | Input type | the struct's name | `@graphql.Input("CreateUserInput")` on the type |
 | Field from a struct field | lower camel: `CreatedAt` is `createdAt` | a `graphql:"joinedOn"` tag |
 | Field from a method | lower camel: `FullName` is `fullName` | `@graphql.Field("displayName")` on the method |
-| Argument | the Go parameter's name | `@graphql.Arg("after", "cursor")` on the function or method; a tag on an input struct's field |
+| Argument | the Go parameter's name | `@graphql.Arg("cursor")` before the parameter; a tag on an input struct's field |
 | Enum value | the constant's name in SCREAMING_SNAKE case, its type's name dropped: `StatusPastDue` is `PAST_DUE` | `@graphql.Value("BEHIND")` on the constant |
 | Generic instantiation | its type arguments' names first: `Page[User]` is `UserPage` | `@graphql.Type` on a named instantiation |
 
@@ -255,21 +315,19 @@ an argument's value of the wrong type. Overrides go both ways:
 
 | | Force `ID` | Keep `Int` |
 |---|---|---|
-| a parameter | `@graphql.AsID("owner")` on the function or method | `@graphql.AsInt("lastSeenID")`, `@graphql.AsString("trackingID")` |
+| a parameter | `@graphql.AsID` before it | `@graphql.AsInt`, `@graphql.AsString` before it |
 | a struct field (input or output) | `graphql:",id"` | `graphql:",int"`, `graphql:",string"` |
 
 ```vuka
 import "github.com/vuka-lang/web/v2/graphql"
 
-// pet(id: ID): the id a query gave, sent back.
+// pet(id: ID!): the id a query gave, sent back.
 @graphql.Query("pet")
 func FindPet(id int64, store *Store) (*Pet, error) { … }
 
-// owned(owner: ID, minVisitID: Int)
+// owned(owner: ID!, minVisitID: Int)
 @graphql.Query
-@graphql.AsID("owner")
-@graphql.AsInt("minVisitID")
-func Owned(owner int64, minVisitID int, store *Store) ([]Pet, error) { … }
+func Owned(@graphql.AsID owner int64, @graphql.AsInt minVisitID *int, store *Store) ([]Pet, error) { … }
 
 type Visit struct {
 	ID       int64                    // ID!
@@ -277,6 +335,33 @@ type Visit struct {
 	ClinicID int   `graphql:",int"`   // Int!: a clinic's number, not a reference
 }
 ```
+
+### Arguments {#arguments}
+
+What concerns one argument is written before its parameter, as a
+[parameter attribute](/features/attributes#parameter-attributes):
+
+| | |
+|---|---|
+| `@graphql.Arg("cursor")` | the argument's name, which `graphql.Naming` doesn't change |
+| `@graphql.AsID` | an `ID`, whatever its name |
+| `@graphql.AsInt`, `@graphql.AsString` | an `Int` or a `String`, though its name ends in `ID` |
+
+```vuka
+// orders(cursor: String, shelfID: Int!): the orders after a cursor.
+@graphql.Query
+func Orders(ctx context.Context, @graphql.Arg("cursor") after *string, @graphql.AsInt shelfID int, store *Store) ([]Order, error) { … }
+```
+
+Several may precede one parameter. Whether an argument is required is its
+Go type's to say ([Nullability](#nullability)).
+
+Earlier releases wrote these above the function, naming the parameters —
+`@graphql.AsInt("shelfID")`, `@graphql.Arg("after", "cursor")`. That form
+still works, and `vuka vet` warns about it ([W0803](/errors/W0803)); `vuka
+fix graphql-params` (or the editor's quick fix) writes each one before its
+parameter. Writing both for one parameter is an error
+([E0805](/errors/E0805)).
 
 `graphql.Naming{Fields: graphql.SnakeCase}` names every field and argument
 without a written name in snake case (`created_at`); a written name always
@@ -718,7 +803,7 @@ func init() {
 		Operations: []graphql.Operation{{
 			Go: "Pets", Func: Pets,
 			Doc:    "Pets lists the pets of a kind, at most first.",
-			Params: []graphql.Param{{Name: "ctx"}, {Name: "kind", Type: graphql.EnumOf[Kind]()}, {Name: "first", Type: graphql.Int}, {Name: "store", Dep: reflect.TypeFor[*Store]()}},
+			Params: []graphql.Param{{Name: "ctx"}, {Name: "kind", Type: graphql.EnumOf[Kind]()}, {Name: "first", Type: &graphql.NonNull{Of: graphql.Int}}, {Name: "store", Dep: reflect.TypeFor[*Store]()}},
 			Type:   &graphql.NonNull{Of: graphql.ListOf[Pet](&graphql.NonNull{Of: graphql.ObjectOf[Pet]()})},
 			Resolve: func(ctx context.Context, c *graphql.Call) (any, error) {
 				return Pets(ctx, graphql.GetPtr[Kind](c, 1), graphql.Get[int](c, 2), graphql.Get[*Store](c, 3))

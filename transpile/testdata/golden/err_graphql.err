@@ -6,4 +6,11 @@ err_graphql.vuka:28:1: Save is variadic: a GraphQL field's arguments are named v
 err_graphql.vuka:31:1: @graphql.Query goes on a function, not a method: an operation has no receiver; declare a function taking what the method's receiver held as a dependency: func Size(ctx context.Context, …)
 err_graphql.vuka:34:1: @graphql.Subscription isn't served yet: subscriptions come in a later version; serve the data as a @graphql.Query for now, or push it to live pages with web.Broadcast
 err_graphql.vuka:37:1: Heavy's parameter weight is float64, which can't be an ID; only strings and integers are IDs
-err_graphql.vuka:37:1: Heavy: @graphql.AsID("ownr") names no parameter of it; did you mean owner?
+err_graphql.vuka:38:1: Heavy: @graphql.AsID("ownr") names no parameter of it; did you mean owner?
+err_graphql.vuka:42:12: Named: before a parameter, @graphql.AsInt names no parameter: it is about the one it precedes; write @graphql.AsInt lastID
+err_graphql.vuka:42:49: Named: before a parameter, @graphql.Arg takes the argument's name only; give the argument's name: @graphql.Arg("cursor") after
+err_graphql.vuka:45:34: Served: @graphql.AsID is before board, which isn't an argument (the context, a dependency or a page); put it before an argument's parameter, or remove it
+err_graphql.vuka:48:1: Twice: lastID is marked twice, by @graphql.AsInt before it and @graphql.AsInt("lastID") above; remove the one above Twice
+err_graphql.vuka:49:1: Twice: @graphql.Arg("cursor") above a declaration takes a parameter and its argument's name; write it before the parameter: func Twice(@graphql.Arg("cursor") after *string)
+err_graphql.vuka:52:1: Deep's result is **int: nullable twice; one pointer or one vuka.Option makes it nullable; leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
+err_graphql.vuka:55:1: Twofold's parameter n is vuka.Option[*int]: nullable twice; one pointer or one vuka.Option makes it nullable; leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
