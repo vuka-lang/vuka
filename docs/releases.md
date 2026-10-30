@@ -32,6 +32,15 @@ the `github.com/vuka-lang/vuka` package your module requires.
   took those out; Vue's unmount then failed and left the teleported
   content in the body after a navigation. Everything a script put in the
   body before the runtime ran is now kept, text nodes too.
+- **An island that mounts before the live runtime starts follows its
+  state props** (fixes #244). On a fast page load an island's modules can
+  load before the runtime has run; the island then got a state prop's
+  initial value but never its changes — a state set by the page's `Mount`
+  left it showing the initial value for good. When the runtime starts,
+  each island already mounted now reads its state props again and follows
+  them, and a state it set before then reaches the page. Before the runtime
+  runs, a prop bound to a field of a struct state gets that field's
+  initial value, not the whole struct.
 
 ## v2.13.0 — 2026-10-30
 
