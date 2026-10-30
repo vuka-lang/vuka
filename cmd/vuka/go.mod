@@ -8,13 +8,13 @@ require (
 	github.com/andybalholm/brotli v1.2.7
 	github.com/evanw/esbuild v0.28.2
 	github.com/vuka-lang/ui/v2 v2.12.1-0.20261030094901-e68352c68795
-	github.com/vuka-lang/vuka/v2 v2.12.1-0.20261030083051-7ff849d16295
+	github.com/vuka-lang/vuka/v2 v2.12.1-0.20261030121843-3b37bd8bab95
+	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/tools v0.52.0
 )
 
 require (
 	github.com/google/go-cmp v0.7.0 // indirect
-	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )

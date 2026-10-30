@@ -1,0 +1,48 @@
+package dialog
+
+import (
+	"context"
+
+	"example.com/widgets/components/button"
+	"example.com/widgets/utils"
+)
+
+type dialogKey struct{}
+
+type Props struct {
+	ID string
+}
+
+// Dialog holds a trigger and its content; the content goes to the body
+// while open.
+templ Dialog(props ...Props) {
+	{{ var p Props }}
+	if len(props) > 0 {
+		{{ p = props[0] }}
+	}
+	if p.ID == "" {
+		{{ p.ID = utils.RandomID() }}
+	}
+	{{ ctx = context.WithValue(ctx, dialogKey{}, p.ID) }}
+	{ children... }
+}
+
+// Trigger is the attributes that make an element open the Dialog around it.
+func Trigger(ctx context.Context) templ.Attributes {
+	id, _ := ctx.Value(dialogKey{}).(string)
+	return templ.Attributes{"data-dialog-trigger": id, "aria-haspopup": "dialog", "aria-expanded": "false"}
+}
+
+templ Content() {
+	{{ id, _ := ctx.Value(dialogKey{}).(string) }}
+	<div data-dialog-home>
+		<div data-dialog-portal hidden>
+			<div id={ id } role="dialog" class="wd-dialog bg-popover text-popover-foreground">
+				{ children... }
+				@button.Button(button.Props{Variant: button.VariantOutline, Attributes: templ.Attributes{"data-dialog-close": true}}) {
+					Close
+				}
+			</div>
+		</div>
+	</div>
+}

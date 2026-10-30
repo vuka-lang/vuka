@@ -4,6 +4,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"os"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -128,6 +129,9 @@ func bundleScripts(root string, c *assetComp, dev bool) (*bundle, error) {
 	if len(c.scripts) == 0 {
 		return nil, nil
 	}
+	if c.classic {
+		return classicBundle(root, c, dev)
+	}
 	methods, err := scriptMethods(root, c)
 	if err != nil {
 		return nil, err
@@ -175,6 +179,39 @@ func bundleScripts(root string, c *assetComp, dev bool) (*bundle, error) {
 		id = "app"
 	}
 	return &bundle{name: id + "." + hex.EncodeToString(sum[:4]) + ".js", js: js, methods: methods, pushes: pushes}, nil
+}
+
+// classicBundle is a module of scripts written to run as the page's own
+// <script> tags, a templ component library's: their text one after the
+// other, as the library's own bundle is, each minified on its own for a
+// build (its top-level names kept, which the scripts may share). Nothing
+// of theirs is imported or exported, so code written for a module system
+// or none (a UMD build) takes the global path.
+func classicBundle(root string, c *assetComp, dev bool) (*bundle, error) {
+	var js []byte
+	for _, s := range c.scripts {
+		src, err := os.ReadFile(s.path)
+		if err != nil {
+			return nil, err
+		}
+		if !dev {
+			res := api.Transform(string(src), api.TransformOptions{
+				Sourcefile: s.label, Loader: api.LoaderJS, Target: api.ES2020, Charset: api.CharsetUTF8,
+				MinifyWhitespace: true, MinifySyntax: true, MinifyIdentifiers: true, LegalComments: api.LegalCommentsInline,
+			})
+			if len(res.Errors) > 0 {
+				return nil, esbuildError(root, c, res.Errors)
+			}
+			src = res.Code
+		}
+		js = fmt.Appendf(js, "// %s\n", s.label)
+		js = append(js, src...)
+		if len(src) > 0 && src[len(src)-1] != '\n' {
+			js = append(js, '\n')
+		}
+	}
+	sum := sha256.Sum256(js)
+	return &bundle{name: c.id + "." + hex.EncodeToString(sum[:4]) + ".js", js: js}, nil
 }
 
 // sourcesPlugin resolves the entry's imports to c's scripts, inline ones
