@@ -123,6 +123,12 @@ Library components work on a live page through every server update:
   declares it, updated in place — its server values current while it is
   open — and never put back; the page holds one of it. It goes when the
   server stops rendering it.
+- **What a script added stays where it put it.** Elements a script adds
+  beside the server's — a select's backdrop next to its list, the focus
+  guards around where the list was declared — are left in place, and the
+  server's elements are matched past them, so the elements the script
+  holds are the ones updated, while the overlay is open and while it
+  plays its closing animation.
 - **What the browser changed stays.** An attribute a script set (`open`,
   `aria-expanded`, `data-open`, a position) and the children it changed (a
   select's shown value) keep the script's version while the server renders
