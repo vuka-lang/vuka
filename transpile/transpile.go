@@ -293,6 +293,7 @@ type fileState struct {
 	islandGen      genWriter           // imported islands' props types
 	fieldGen       genWriter           // the field attributes' registrations
 	graphqlGen     genWriter           // the package's GraphQL registrations (graphql.go)
+	optionsGen     genWriter           // the methods its Options commands name, registered (options.go)
 	loaderGen      genWriter           // its @graphql.Loader types (graphqlloader.go)
 	renamed        map[int]string      // functions Go names otherwise, by their names' src offsets: a loader's
 	fieldsOn       bool                // field attributes are registered: from the first round on
@@ -427,7 +428,7 @@ func (f *fileState) makeTrailer(bare bool) {
 		w.gen("\n", a.end)
 	}
 	f.renderStatics()
-	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0 || f.islandGen.len() > 0 || f.graphqlGen.len() > 0 || f.loaderGen.len() > 0 || f.fieldsOn) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
+	if (f.deco.len() > 0 || f.static.len() > 0 || f.enumGen.len() > 0 || f.islandGen.len() > 0 || f.graphqlGen.len() > 0 || f.loaderGen.len() > 0 || f.optionsGen.len() > 0 || f.fieldsOn) && w.len() == 0 && len(f.src) > 0 && f.src[len(f.src)-1] != '\n' {
 		w.gen("\n", len(f.src))
 	}
 	w.append(&f.enumGen)
@@ -437,6 +438,7 @@ func (f *fileState) makeTrailer(bare bool) {
 	f.renderFieldAttrs()
 	w.append(&f.fieldGen)
 	w.append(&f.graphqlGen)
+	w.append(&f.optionsGen)
 	f.decoBase = w.len()
 	w.append(&f.deco)
 	f.trailer, f.tsegs = w.String(), w.segs

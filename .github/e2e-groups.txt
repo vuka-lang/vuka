@@ -343,6 +343,9 @@ TestRunWatchIslandFailure
 TestRunWatchIslandImport
 # islandwatch_test.go
 TestDevAssetsWatchFrontend
+# options248_test.go
+TestOptions248
+TestOptions248Errors
 # reuse_test.go
 TestCutFresh
 TestParseModFile

@@ -1,0 +1,33 @@
+package main
+
+import (
+	"context"
+
+	"vukatest.local/opttarget"
+)
+
+type Item struct{ ID int }
+
+type Shop struct{}
+
+func (s *Shop) CitiesOf(ctx context.Context, country string) []opttarget.Option { return nil }
+func (s *Shop) Count(n int) []opttarget.Option                                  { return nil }
+func (s *Shop) Pick(item Item) []opttarget.Option                               { return nil }
+func (s *Shop) Name() string                                                    { return "" }
+func (s *Shop) Late(country string, ctx context.Context) []opttarget.Option     { return nil }
+
+func (s *Shop) Render() opttarget.Node {
+	load := func(string) []opttarget.Option { return nil }
+	return <div>
+		<select onChange={opttarget.JS.Options(opttarget.This, load, "tz")} />
+		<select onChange={opttarget.JS.Options(opttarget.This, s.CitiesOf)} />
+		<select onChange={opttarget.JS.Options(opttarget.This, s.CitiesOf, "tz", "ke")} />
+		<select onChange={opttarget.JS.Options(opttarget.This, s.Count, 3.5)} />
+		<select onChange={opttarget.JS.Options(opttarget.This, s.Pick, opttarget.This.Value())} />
+		<select onChange={opttarget.JS.Options(opttarget.This, s.Count, opttarget.This.Checked())} />
+		<select onChange={opttarget.JS.Options(opttarget.This, s.Name)} />
+		<select onChange={opttarget.JS.Options(opttarget.This, s.Late, "tz")} />
+	</div>
+}
+
+func main() {}

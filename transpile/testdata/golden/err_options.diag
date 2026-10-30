@@ -1,0 +1,65 @@
+error[E0168]: ui.JS.Options takes a method of the page or of a component (p.CitiesOf), and load isn't one
+  --> err_options.vuka:22:58
+   |
+22 |         <select onChange={opttarget.JS.Options(opttarget.This, load, "tz")} />
+   |                                                                ^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+error[E0168]: CitiesOf takes 1 argument (country string) and the command passes 0: its arguments fill the parameters that aren't pointers or interfaces, in order
+  --> err_options.vuka:23:21
+   |
+23 |         <select onChange={opttarget.JS.Options(opttarget.This, s.CitiesOf)} />
+   |                           ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+error[E0168]: CitiesOf takes 1 argument (country string) and the command passes 2: its arguments fill the parameters that aren't pointers or interfaces, in order
+  --> err_options.vuka:24:21
+   |
+24 |         <select onChange={opttarget.JS.Options(opttarget.This, s.CitiesOf, "tz", "ke")} />
+   |                           ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+error[E0168]: 3.5 is float64, which Count's 1st parameter, n int, can't take
+  --> err_options.vuka:25:67
+   |
+25 |         <select onChange={opttarget.JS.Options(opttarget.This, s.Count, 3.5)} />
+   |                                                                         ^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+error[E0168]: opttarget.This.Value() is an element's value, a string, and Pick's 1st parameter, item Item, takes no string
+  --> err_options.vuka:26:66
+   |
+26 |         <select onChange={opttarget.JS.Options(opttarget.This, s.Pick, opttarget.This.Value())} />
+   |                                                                        ^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+error[E0168]: opttarget.This.Checked() is read from an element (a bool, or an attribute's text), and Count's 1st parameter, n int, takes neither
+  --> err_options.vuka:27:67
+   |
+27 |         <select onChange={opttarget.JS.Options(opttarget.This, s.Count, opttarget.This.Checked())} />
+   |                                                                         ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+error[E0168]: Name returns (string): a method loading options returns []ui.Option or []ui.OptionGroup, and maybe an error
+  --> err_options.vuka:28:58
+   |
+28 |         <select onChange={opttarget.JS.Options(opttarget.This, s.Name)} />
+   |                                                                ^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+error[E0168]: Late takes a context.Context after other parameters: put it first
+  --> err_options.vuka:29:58
+   |
+29 |         <select onChange={opttarget.JS.Options(opttarget.This, s.Late, "tz")} />
+   |                                                                ^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
+
+For more information about this error, try `vuka explain E0168`.

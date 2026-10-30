@@ -537,9 +537,11 @@ func (f *Address) CityChoices(ctx context.Context, geo *Geo) ([]ui.Option, error
 }
 ```
 
-- On a live page, choosing a country renders the form again: the city's
-  choices follow, and a city that isn't among them any more is cleared. An
-  empty required city shows its error on submit, not before.
+- Choosing a country updates the city's choices, and a city that isn't
+  among them any more is cleared. On a live page the form renders again; on
+  [one that isn't](#http) the form's check carries the new choices, which
+  the runtime puts in the city's select. An empty required city shows its
+  error on submit, not before.
 - A submitted value that isn't among the field's choices is an error
   ("Select city from the list"), so a post can't choose what the form never
   offered.
@@ -789,11 +791,17 @@ func (p *SignIn) Save(ctx context.Context, f account.Credentials) error {
   the form's values, the fields the visitor used, the fields it rendered
   (signed), its submit key and CSRF token, as a post without script does.
 
+- **Dependent choices.** A check answers the choices of the fields that
+  depend on others (`depends:`) too, computed from the values sent, and
+  the runtime puts them in those fields' selects: the options replaced
+  (the placeholder kept), the value kept while it is still offered, else
+  cleared. So [choices](#choices) following another field work the same
+  with or without a connection. For a select outside a struct form,
+  [`ui.JS.Options`](/ui/js#options) loads its options from a method of the
+  page.
+
 A page with anything else live — a stateful component, an `onClick`
 handler — is live as a whole, and its form goes over its connection.
-Dependent choices (`depends:`) follow their field only on a live page; on
-one that isn't, the form's values are checked but its choices stay as
-rendered.
 
 ## Without JavaScript {#no-js}
 

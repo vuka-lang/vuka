@@ -58,10 +58,11 @@ The commands are:
 | `Busy(t?, ui.Timeout(d)?)` | mark an element busy while a post or push is under way ([busy forms](#busy-forms)) |
 | `Copy(t)`, `CopyText(s)` | the clipboard: an element's value or text, or a string |
 | `ScrollTo(t)` | scroll the element into view |
-| `SetValue(t, v)` | set a field's value (a checkbox's `"true"`), firing `input` and `change` |
+| `SetValue(t, v)` | set a field's value — a string, a bool for a checkbox, or a read of another field (`ui.Sel("#x").Value()`) — firing `input` and `change` ([below](#set-value)) |
+| `Options(t, method, args...)` | load a select's options from a method of the page over HTTP ([below](#options)) |
 | `SetText(t, text)` | set the element's text, replacing its content |
 | `Call(name, args...)` | call a JavaScript function of the page ([scripts](/web/assets#scripts)) |
-| `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s outcome ([below](#optimistic-updates)) |
+| `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s or `Options`' outcome ([below](#optimistic-updates)) |
 | `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
 
 ### URLs and Attributes {#urls-and-attributes}
@@ -117,6 +118,96 @@ Conditions limit a chain to the relevant key, form state or confirmation.
 A command chain can push a server handler. For ordinary browser state, use
 assignment: `onClick={open = false; Save()}` closes first and then calls Save.
 The handler receives typed form/request/service parameters, not browser authority.
+
+## Loading Options {#options}
+
+`Options(target, method, args…)` fills a select from a method of the page,
+or of a component on it — a city list following the country — with no
+connection: the runtime asks the page's own URL over HTTP, so it works on
+a page that isn't live as on one that is.
+
+```html
+<script lang="go">
+package pages
+
+import (
+    "context"
+
+    "example.com/app/geo"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Checkout struct{}
+
+func (p *Checkout) CitiesOf(ctx context.Context, country string, g *geo.Geo) ([]ui.Option, error) {
+    return g.Cities(ctx, country)
+}
+</script>
+
+<form method="post">
+  <select id="country" name="country" onChange={ui.JS.Options(ui.Sel("#city"), CitiesOf, ui.This.Value())}>
+    <option value="">Choose a country</option>
+    <option value="tz">Tanzania</option>
+    <option value="ke">Kenya</option>
+  </select>
+  <select id="city" name="city">
+    <option value="">Choose a city</option>
+  </select>
+</form>
+```
+
+- **The method** returns `[]ui.Option`, or `[]ui.OptionGroup` for
+  `<optgroup>`s, and maybe an error. It takes a `context.Context` first if
+  it needs one, then the command's arguments — the parameters that aren't
+  pointers or interfaces, in order — then its dependencies, pointers and
+  interfaces the app injects. An argument is a Go value, or a read made
+  when the step runs: an element's value, `ui.This.Value()` (a string,
+  parsed for a number), or `ui.Sel("#gift").Checked()` (a bool).
+- **No annotation.** The compiler registers each method an `Options`
+  command names, and checks the command's arguments against it
+  ([E0168](/errors/E0168)). Only those methods can be called this way, and
+  only from the page that renders the command: the command carries the
+  method's reference signed for the page's route.
+- **What runs.** The call is a GET of the page's URL. The app's middleware
+  and the route's run (who the visitor is), then the page's guards, then
+  the method — not the page's `Load`, nor its layouts'. The method runs on
+  a fresh page, its path and query fields bound, or a fresh component: not
+  on what the page rendered, so it takes what it needs as arguments and
+  dependencies. A component's method is called on the page that renders
+  it, under that page's guards.
+- **The reply** replaces the select's options; a leading option whose
+  value is `""` (a placeholder) stays. The value stays when it is still
+  offered, else it is cleared; then the select fires `change`, so a select
+  loading another's options from its own chains on, and a script enhancing
+  the select sees its new options. On a live page the options stay as the
+  page re-renders, while the server renders the ones it did.
+- **Failures** — the method's error, a guard refusing, no reply within
+  `Timeout` (10s) — run the chain's `OnError`; without one the error is
+  logged (and a `vk:error` event fired) and the options stay as they were.
+  `OnSuccess` runs once they are in place. A later load of the same select
+  wins over an earlier one still on its way.
+
+```html
+<select name="country" onChange={ui.JS.Debounce(100*time.Millisecond).Options(ui.Ref("city"), CitiesOf, ui.This.Value()).OnError(ui.JS.Show(ui.Ref("cities-error")))}>…</select>
+<select ref="city" name="city"></select>
+<p ref="cities-error" hidden>Couldn't load the cities.</p>
+```
+
+A struct form's dependent fields (`depends:` and `<Field>Choices`) need
+no command: their choices follow on their own
+([choices](/ui/forms#choices)).
+
+## Setting Values {#set-value}
+
+`SetValue(target, value)` sets a field's value and fires `input` and
+`change` on it, so its own `on…` attributes and the form's checks run. The
+value is a string, a bool for a checkbox, or a read of another field, made
+when the step runs. A select takes the option of that value; a checkbox is
+checked by `true`, or by a read of another's `Checked()`.
+
+```html
+<input id="same" type="checkbox" onChange={ui.JS.If(ui.This.Checked()).SetValue(ui.Sel("#ship-city"), ui.Sel("#bill-city").Value()).SetValue(ui.Sel("#ship-country"), ui.Sel("#bill-country").Value()).End()} />
+```
 
 ## Optimistic Updates {#optimistic-updates}
 
