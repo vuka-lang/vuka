@@ -1,7 +1,11 @@
 name: CI
 
+# A branch's pushes run nothing: its pull request runs CI once. main and
+# tags run on push.
 on:
   push:
+    branches: [main]
+    tags: ["**"]
   pull_request:
   workflow_dispatch:
 
@@ -56,10 +60,31 @@ jobs:
             }
           done
 
-  cmd:
-    name: cmd/vuka (e2e — Vite, Chrome, gopls, templ)
+  # cmd/vuka's tests as an app meets them (Chrome, Vite, gopls, templ),
+  # one job per group of .github/e2e-groups.txt, so a failure names its area.
+  # citest retries the tests of .github/flaky.txt once, visibly.
+  e2e:
+    name: cmd/vuka ${{ matrix.group }} (${{ matrix.what }})
     runs-on: ubuntu-24.04
-    timeout-minutes: 60
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - group: browser
+            what: Chrome — islands, live pages, templ and ui libraries, GraphQL
+          - group: lsp
+            what: vuka lsp over gopls and templ
+          - group: lsp-latency
+            what: vuka lsp under load
+          - group: build-watch
+            what: vuka build, run -watch
+          - group: new-upgrade
+            what: vuka new, add, upgrade, release
+          - group: conformance
+            what: examples as Vuka and ejected
+          - group: rest
+            what: every other test
     env:
       VUKA_UI: ${{ github.workspace }}/vuka-ui
       VUKA_WEB: ${{ github.workspace }}/vuka-web
@@ -102,25 +127,43 @@ jobs:
       - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: vuka/cmd/vuka/testdata/node/*/package-lock.json
       - id: chrome
         uses: browser-actions/setup-chrome@48ad923757ca74d66703209fe939badbdf80f2f4 # v2.2.0
         with:
           chrome-version: stable
+      # gopls, templ and tailwindcss at the pinned versions, and the e2e
+      # node_modules for their lockfiles: built or fetched once, then cached.
+      - id: tools
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.local/vuka-tools
+          key: tools-${{ runner.os }}-${{ env.GO_VERSION }}-gopls-${{ env.GOPLS_VERSION }}-templ-${{ env.TEMPL_VERSION }}-tailwind-${{ env.TAILWIND_VERSION }}
+      - id: node-modules
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            vuka/cmd/vuka/testdata/node/vite/node_modules
+            vuka/cmd/vuka/testdata/node/islands/node_modules
+          key: e2e-node-${{ runner.os }}-node22-${{ hashFiles('vuka/cmd/vuka/testdata/node/*/package-lock.json') }}
       - name: Tools
+        env:
+          CACHED: ${{ steps.tools.outputs.cache-hit }}
         run: |
           # Ubuntu 24.04 keeps unprivileged user namespaces from Chrome's sandbox.
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           echo "VUKA_CHROME=${{ steps.chrome.outputs.chrome-path }}" >> "$GITHUB_ENV"
-          go install golang.org/x/tools/gopls@${GOPLS_VERSION}
-          go install github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o "$HOME/.local/bin/tailwindcss" \
-            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64"
-          chmod +x "$HOME/.local/bin/tailwindcss"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
+          bin="$HOME/.local/vuka-tools"
+          if [ "$CACHED" != true ]; then
+            mkdir -p "$bin"
+            GOBIN="$bin" go install golang.org/x/tools/gopls@${GOPLS_VERSION}
+            GOBIN="$bin" go install github.com/a-h/templ/cmd/templ@${TEMPL_VERSION}
+            curl -fsSL -o "$bin/tailwindcss" \
+              "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64"
+            chmod +x "$bin/tailwindcss"
+          fi
+          echo "$bin" >> "$GITHUB_PATH"
       - name: The e2e node_modules
+        if: steps.node-modules.outputs.cache-hit != 'true'
         working-directory: vuka/cmd/vuka
         run: |
           npm ci --prefix testdata/node/vite --no-audit --no-fund
@@ -128,12 +171,18 @@ jobs:
       - name: The command builds with this repository's compiler and the ui checkout
         working-directory: vuka/cmd/vuka
         run: go mod edit -replace github.com/vuka-lang/vuka/v2=../.. -replace github.com/vuka-lang/ui/v2=../../../vuka-ui
-      - name: vet
+      - name: citest
+        run: go build -C vuka -o "$RUNNER_TEMP/citest" ./.github/scripts/citest
+      - name: vet, and every test in exactly one group
+        if: matrix.group == 'rest'
         working-directory: vuka/cmd/vuka
-        run: go vet ./...
+        run: go vet ./... && "$RUNNER_TEMP/citest" check -- ./...
       - name: test
         working-directory: vuka/cmd/vuka
-        run: go test -timeout 45m -skip '^TestConformance$' ./...
+        run: >-
+          "$RUNNER_TEMP/citest" run -group ${{ matrix.group }}
+          -title "cmd/vuka ${{ matrix.group }}"
+          -- -timeout 25m ./...
 
   windows:
     name: cmd/vuka on Windows (tests, vuka build, run --watch)
@@ -206,7 +255,9 @@ jobs:
       - name: vuka build and vuka run -watch
         working-directory: vuka/cmd/vuka
         run: >-
-          go test -timeout 30m -v -run
+          go build -C ../.. -o "$RUNNER_TEMP/citest.exe" ./.github/scripts/citest &&
+          "$RUNNER_TEMP/citest.exe" run -title "cmd/vuka on Windows" --
+          -timeout 30m -run
           '^(TestNewRunWatch|TestRunWatch|TestBuildState.*|TestRunWatchReuse|TestReuseKey|TestReuseTrim|TestParseModFile|TestCutFresh|TestBuildDWARF|TestBinaryID|TestNoDWARF|TestCutWatch|TestWatcher.*|TestEmbedRoots|TestInterrupt|TestProcessAlive|TestRemoveAll|TestExeSuffix|TestNodeBin|TestFileURIPath|TestTailwindInstallHint|TestTailwindStandalone|TestTailwindBinary|TestDevFrontend|TestBuildFrontend|TestPrefixed|TestInstallCommand|TestFrontendDir)$' .
 
   extension:
@@ -251,68 +302,6 @@ jobs:
           npx vsce ls | tee files.txt
           grep -qx 'node_modules/typescript-language-server/lib/cli.mjs' files.txt
           ! grep -q 'cli.mjs.map' files.txt
-
-  conformance:
-    name: conformance (examples as Vuka and ejected)
-    runs-on: ubuntu-24.04
-    timeout-minutes: 25
-    env:
-      VUKA_UI: ${{ github.workspace }}/vuka-ui
-      VUKA_WEB: ${{ github.workspace }}/vuka-web
-      VUKA_ORM: ${{ github.workspace }}/vuka-orm
-    steps:
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          path: vuka
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: vuka-lang/ui
-          path: vuka-ui
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: vuka-lang/web
-          path: vuka-web
-      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          repository: vuka-lang/orm
-          ref: 0baf7c839495ce48095ad8292876a4b679850f3a
-          path: vuka-orm
-      - name: The ui, web and orm branches of this change, if any
-        env:
-          BRANCH: ${{ github.head_ref || github.ref_name }}
-        run: |
-          for r in vuka-ui vuka-web vuka-orm; do
-            git -C $r fetch --depth=1 origin "$BRANCH" && git -C $r checkout FETCH_HEAD || true
-          done
-      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version: ${{ env.GO_VERSION }}
-          cache-dependency-path: |
-            vuka/cmd/vuka/go.sum
-            vuka-ui/go.sum
-            vuka-web/go.sum
-            vuka-orm/go.sum
-      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: 22
-          cache: npm
-          cache-dependency-path: vuka/cmd/vuka/testdata/node/islands/package-lock.json
-      - name: Tailwind
-        run: |
-          mkdir -p "$HOME/.local/bin"
-          curl -fsSL -o "$HOME/.local/bin/tailwindcss" \
-            "https://github.com/tailwindlabs/tailwindcss/releases/download/${TAILWIND_VERSION}/tailwindcss-linux-x64"
-          chmod +x "$HOME/.local/bin/tailwindcss"
-          echo "$HOME/.local/bin" >> "$GITHUB_PATH"
-      - name: The islands' node_modules
-        working-directory: vuka/cmd/vuka
-        run: npm ci --prefix testdata/node/islands --no-audit --no-fund
-      - name: The command builds with this repository's compiler and the ui checkout
-        working-directory: vuka/cmd/vuka
-        run: go mod edit -replace github.com/vuka-lang/vuka/v2=../.. -replace github.com/vuka-lang/ui/v2=../../../vuka-ui
-      - name: test
-        working-directory: vuka/cmd/vuka
-        run: go test -timeout 20m -run '^TestConformance$' .
 
   fuzz:
     name: fuzz ${{ matrix.fuzz }}

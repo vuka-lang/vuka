@@ -65,6 +65,49 @@ the `github.com/vuka-lang/vuka` package your module requires.
   a parameter, the parameter and the name above a function. Calls with two
   strings compile as before.
 
+## v2.13.1 — unreleased
+
+### Security
+
+- **A form's values are no longer written into a page's props**
+  ([#229](https://github.com/vuka-lang/vuka/issues/229)). A page or
+  component with a script of its own writes its exported fields on its
+  root as `data-vk-p`, in the page's HTML and in every live patch; a form
+  is an exported field, so what the visitor typed — passwords included —
+  was in both. Now a form (a field embedding `ui.FormState`, or a
+  `ui.FormOf`) is never a prop, nor is a field tagged `input:"password"`,
+  `"new-password"`, `"current-password"` or `"one-time-code"`, at any depth
+  of a prop's type; island props leave the same fields out. The generated
+  script types (`.vuka/vuka-component.d.ts`) drop them too. A script reads
+  a form's values from its fields. Upgrade if a page holding a form has a
+  `<script lang="ts">`.
+
+### Fixes
+
+- **The error summary appearing no longer shifts typed values into the
+  next field** ([#230](https://github.com/vuka-lang/vuka/issues/230)). After
+  a failed submit the summary is inserted at the top of the form; the live
+  morph paired it with the first field's element by position, and every
+  field after it moved down by one — a signup's "Password" then held what
+  was typed in "Confirm password". The morph now matches an element with an
+  id (or `data-vk-id`) only by it and one without only with one without, so
+  an element appearing or going with an id leaves its neighbours in place,
+  whether the summary is the form's own or a `<ui.Summary/>` placed among
+  the fields. The form's `Error` alert is keyed the same way
+  (`<div id="…-error" class="vk-form__error">`). The `<div
+  class="contents"><ui.Summary/></div>` workaround can go.
+
+### Web
+
+- **Content an island teleports to the body goes when the island
+  unmounts** (fixes #239). An island that mounted before the live runtime
+  started — a Vue component with `<Teleport to="body">` on a fast page
+  load — had its teleported elements kept by the runtime, but not the
+  empty text nodes Vue keeps around them, so the first patch of the page
+  took those out; Vue's unmount then failed and left the teleported
+  content in the body after a navigation. Everything a script put in the
+  body before the runtime ran is now kept, text nodes too.
+
 ## v2.13.0 — 2026-10-30
 
 ### Web
