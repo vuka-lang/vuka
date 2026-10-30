@@ -68,6 +68,10 @@ the `github.com/vuka-lang/vuka` package your module requires.
   components too, so their classes reach the stylesheet. The parts docs'
   samples are checked by the docs tests.
   ([#217](https://github.com/vuka-lang/vuka/issues/217))
+- **Skeleton badges.** In a `SkeletonOf`, an element holding only text
+  with a `bg-` or `rounded` class (a count badge, a pill) is drawn as one
+  bone of its own shape, no longer a bar inside its coloured box. Run
+  `vuka ui init -f` to update an app's stylesheet.
 
 ### Fixes
 

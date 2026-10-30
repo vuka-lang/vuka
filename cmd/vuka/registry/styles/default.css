@@ -112,7 +112,8 @@
 /* Skeletons: a bone pulses or carries a wave, a highlight positioned on
    the viewport so every bone on screen sweeps as one; nothing moves under
    prefers-reduced-motion. SkeletonOf draws its copy of a component as
-   bones: text as bars as long as the text, media and controls as blocks,
+   bones: text as bars as long as the text, text in a shape of its own
+   (a badge) as that shape, media and controls as blocks,
    borders and spacing kept; data-skeleton="keep", "ignore", "replace" and
    "unite" on an element of it change how that element is drawn. */
 @keyframes skeleton-pulse {
@@ -187,6 +188,13 @@
     border-color: transparent;
     background-color: var(--skeleton);
   }
+  /* Text in a shape of its own, a background or rounded corners (a badge,
+     a pill, initials in a circle): the shape is the bone. */
+  & :is([class^="bg-"], [class*=" bg-"], [class^="rounded"], [class*=" rounded"]):not(:has(*), [data-skeleton], [data-skeleton] *) {
+    border-color: transparent;
+    background-color: var(--skeleton);
+    text-decoration: none;
+  }
   & [data-skeleton="unite"] {
     background-color: var(--skeleton);
     background-clip: content-box;
@@ -200,7 +208,7 @@
   &[data-skeleton-of="wave"] * {
     animation: skeleton-text var(--skeleton-duration) ease-in-out infinite;
   }
-  &[data-skeleton-of="wave"] :is(img, svg, video, canvas, iframe, button, input, select, textarea, progress, meter, [role="button"], [data-skeleton="replace"], [data-skeleton="unite"]):not([data-skeleton="keep"], [data-skeleton="keep"] *) {
+  &[data-skeleton-of="wave"] :is(img, svg, video, canvas, iframe, button, input, select, textarea, progress, meter, [role="button"], [data-skeleton="replace"], [data-skeleton="unite"], :is([class^="bg-"], [class*=" bg-"], [class^="rounded"], [class*=" rounded"]):not(:has(*), [data-skeleton], [data-skeleton] *)):not([data-skeleton="keep"], [data-skeleton="keep"] *) {
     background-image: linear-gradient(90deg, transparent, var(--skeleton-highlight), transparent);
     background-size: 50vw 100%;
     background-repeat: no-repeat;
