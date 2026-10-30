@@ -20,6 +20,18 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.12.1 — unreleased
+
+### Fixes
+
+- **The editor no longer reports `undefined` and `unreachable code` in a
+  method chain after a multi-line argument list.** A line closing one and
+  going on with a dot (`), orm.Left).` after `Join(Product.On(` and its
+  conditions) was read as a selector still being typed, so the language
+  server ended the statement there and the chain's next call
+  (`OrderBy(…)`) became one of its own. The LSP's Go for complete code is
+  the build's again. ([#215](https://github.com/vuka-lang/vuka/issues/215))
+
 ## v2.12.0 — 2026-10-30
 
 ### ORM
