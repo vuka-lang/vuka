@@ -79,7 +79,7 @@ func Products(ctx context.Context, @graphql.AsInt categoryId int, @graphql.Arg("
 		t.Fatalf("vuka fix graphql-args: %v\n%s", err, out.String())
 	}
 	for _, line := range []string{
-		"graphql-args: shop/ops.vuka:17: Products's argument categoryId (int) is required: a request must give it; make it *int if it may be left out",
+		"graphql-args: shop/ops.vuka:17: Products's argument categoryId (int) is required: a request must give it; make it *int or Option[int] if it may be left out",
 		"graphql-args: shop/ops.vuka:17: Products's argument first (int) is required",
 		"graphql-args: 2 argument(s) listed; nothing changed",
 	} {

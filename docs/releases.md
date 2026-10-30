@@ -51,6 +51,22 @@ the `github.com/vuka-lang/vuka` package your module requires.
   attributes is no longer wrapped as a decorated one.
   ([Arguments](/web/graphql#arguments))
 
+- **`Option[T]` is a nullable `T` in GraphQL and JSON**
+  ([#233](https://github.com/vuka-lang/vuka/issues/233)). As a field,
+  result, argument, input field or list item, `Option[string]` is `String`
+  and `[]Option[int]` is `[Int]`: None is null, and an input left out or
+  null binds None. `Option[NewPet]` is an optional input object. The tags
+  and the ID rule apply to the value it holds; the runtime adds
+  `graphql.OptionValue`, `GetOption`, `AsOption` and `ListOfOption`.
+  ([Nullability](/web/graphql#nullability))
+
+### Language
+
+- **An `Option` is its value or `null` in JSON** (fix): `MarshalJSON` and
+  `UnmarshalJSON` write and read the value or `null`, and `IsZero` lets
+  `omitzero` leave a None out. An `Option` used to encode as `{}` and
+  decode as None, losing its value. ([Option in JSON](/features/result-option#option-json))
+
 ### Web
 
 - **CORS for a route prefix: `web.CORS(prefix, web.CORSConfig{…})`**
@@ -86,6 +102,9 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ### Upgrading
 
+- **`Option` fields encode as their values in JSON.** JSON written by
+  earlier releases holds `{}` for each `Option`, which decodes as None, as
+  it did; anything comparing encoded JSON sees the values now.
 - **Arguments of a value type become required.** The schema of an app with
   one changes (`first: Int` → `first: Int!`), and a client leaving one out
   gets a validation error where it got the zero value. `vuka upgrade` (or

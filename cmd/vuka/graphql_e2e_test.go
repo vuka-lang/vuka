@@ -168,9 +168,26 @@ const shopOps = `package shop
 
 import (
 	"context"
+	"time"
 
 	"github.com/vuka-lang/web/v2/graphql"
 )
+
+// Details are what the API tells of a product, each maybe unknown.
+type Details struct {
+	SKU      Option[string]
+	Released Option[time.Time]
+	Scores   []Option[int]
+}
+
+// ProductDetails are a product's details, null for an unknown product.
+@graphql.Query
+func ProductDetails(ctx context.Context, @graphql.AsInt productId Option[int]) (Option[Details], error) {
+	if id, ok := productId.Get(); ok && id == 1 {
+		return Some(Details{SKU: Some("K-1"), Released: Some(time.Date(2026, 10, 30, 9, 30, 0, 0, time.UTC)), Scores: []Option[int]{Some(1), None, Some(3)}}), nil
+	}
+	return None, nil
+}
 
 // Products are every product, or null while the shop is closed.
 @graphql.Query
@@ -202,9 +219,10 @@ func Count(ctx context.Context, @graphql.Arg("of") codes []*int, first *int) (in
 `
 
 // TestGraphQLNullability: the compiler's schema for nullable list results
-// (*[]*T is [T]), lists of nullable scalars ([]*int is [Int]) and
-// arguments required by their Go type (int is Int!, *int is Int), and the
-// app answering with null lists, null items and validation errors.
+// (*[]*T is [T]), lists of nullable scalars ([]*int is [Int]), arguments
+// required by their Go type (int is Int!, *int is Int) and Options (None is
+// null), and the app answering with null lists, null items, None and Some,
+// and validation errors.
 func TestGraphQLNullability(t *testing.T) {
 	repo, _ := filepath.Abs("../..")
 	web := os.Getenv("VUKA_WEB")
@@ -230,6 +248,8 @@ func TestGraphQLNullability(t *testing.T) {
 		t.Fatalf("vuka graphql schema: %v\n%s", err, stderr.Bytes())
 	}
 	want := `type Query {
+  """ProductDetails are a product's details, null for an unknown product."""
+  productDetails(productId: Int): Details
   """Products are every product, or null while the shop is closed."""
   products(open: Boolean): [Product]
   """
@@ -239,6 +259,16 @@ func TestGraphQLNullability(t *testing.T) {
   productsByCategory(categoryId: Int!): [Product]
   """Count counts the codes given, nulls apart."""
   count(of: [Int]!, first: Int): Int!
+}
+
+"""A date and time, in RFC 3339: 2026-10-26T09:30:00Z."""
+scalar DateTime @specifiedBy(url: "https://scalars.graphql.org/andimarek/date-time")
+
+"""Details are what the API tells of a product, each maybe unknown."""
+type Details {
+  sku: String
+  released: DateTime
+  scores: [Int]!
 }
 
 type Product {
@@ -284,6 +314,8 @@ type Product {
 		{`{ productsByCategory(categoryId: 2) { id } }`, `{"data":{"productsByCategory":[]}}`},
 		{`{ productsByCategory(categoryId: 3) { id } }`, `{"data":{"productsByCategory":null}}`},
 		{`{ count(of: [1, null, 3]) }`, `{"data":{"count":2}}`},
+		{`{ productDetails { sku } }`, `{"data":{"productDetails":null}}`},
+		{`{ productDetails(productId: 1) { sku released scores } }`, `{"data":{"productDetails":{"sku":"K-1","released":"2026-10-30T09:30:00Z","scores":[1,null,3]}}}`},
 	} {
 		if got := post(c.query); got != c.want {
 			t.Errorf("%s:\n got %s\nwant %s", c.query, got, c.want)

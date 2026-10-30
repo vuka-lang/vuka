@@ -12,4 +12,5 @@ err_graphql.vuka:42:49: Named: before a parameter, @graphql.Arg takes the argume
 err_graphql.vuka:45:34: Served: @graphql.AsID is before board, which isn't an argument (the context, a dependency or a page); put it before an argument's parameter, or remove it
 err_graphql.vuka:48:1: Twice: lastID is marked twice, by @graphql.AsInt before it and @graphql.AsInt("lastID") above; remove the one above Twice
 err_graphql.vuka:49:1: Twice: @graphql.Arg("cursor") above a declaration takes a parameter and its argument's name; write it before the parameter: func Twice(@graphql.Arg("cursor") after *string)
-err_graphql.vuka:52:1: Deep's result is **int: a pointer to a pointer; one pointer makes it nullable; leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
+err_graphql.vuka:52:1: Deep's result is **int: nullable twice; one pointer or one vuka.Option makes it nullable; leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type
+err_graphql.vuka:55:1: Twofold's parameter n is vuka.Option[*int]: nullable twice; one pointer or one vuka.Option makes it nullable; leave a struct field out with a graphql:"-" tag; give the value a struct, a slice, a scalar or an enum type

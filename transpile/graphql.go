@@ -390,9 +390,8 @@ func idName(n string) bool {
 // makes an ID.
 func (g *gqlGen) intLike(t types.Type) bool {
 	for {
-		switch u := t.(type) {
-		case *types.Pointer:
-			t = u.Elem()
+		if el := nullableOf(t); el != nil {
+			t = el
 			continue
 		}
 		if s, ok := t.Underlying().(*types.Slice); ok && named(t) == nil {
@@ -412,8 +411,8 @@ func (g *gqlGen) idable(t types.Type) bool {
 		return true
 	}
 	for {
-		if p, ok := t.(*types.Pointer); ok {
-			t = p.Elem()
+		if el := nullableOf(t); el != nil {
+			t = el
 			continue
 		}
 		if s, ok := t.Underlying().(*types.Slice); ok && named(t) == nil {
@@ -819,16 +818,23 @@ func (g *gqlGen) params(sig *types.Signature, what string, at []gqlArgAttr) (par
 				continue
 			}
 			g.via = what + "'s parameter " + name
-			elem, ptr := t, false
+			elem, ptr, opt := t, false, false
 			if pt, isPtr := t.(*types.Pointer); isPtr {
 				elem, ptr = pt.Elem(), true
+			} else if el := optionOf(t); el != nil {
+				elem, opt = el, true
+				if nullableOf(el) != nil {
+					g.unsupported(t, "nullable twice; one pointer or one vuka.Option makes it nullable")
+					ok = false
+					continue
+				}
 			}
 			in, good := g.inType(elem, g.isID(name, elem, o.ids[name], o.ints[name]), true)
 			if !good {
 				ok = false
 				continue
 			}
-			if !ptr {
+			if !ptr && !opt {
 				in = g.nonNull(in)
 				if f := g.e.fileOf(p.Pos()); f != nil && f.vuka {
 					if g.args == nil {
@@ -842,7 +848,9 @@ func (g *gqlGen) params(sig *types.Signature, what string, at []gqlArgAttr) (par
 				lit += ", Arg: " + strconv.Quote(n)
 			}
 			params = append(params, lit+", Type: "+in+"}")
-			if ptr {
+			if opt {
+				args = append(args, q+"GetOption["+g.typ(elem)+"](c, "+idx+")")
+			} else if ptr {
 				args = append(args, q+"GetPtr["+g.typ(elem)+"](c, "+idx+")")
 			} else {
 				args = append(args, q+"Get["+g.typ(t)+"](c, "+idx+")")
@@ -879,19 +887,44 @@ func (g *gqlGen) result(sig *types.Signature, call, what string) (typ, stmt stri
 		return "", "", false
 	}
 	q := g.gq + "."
-	deref := g.derefs(t)
+	deref := ""
+	switch {
+	case g.derefs(t):
+		deref = q + "Deref"
+	case isOption(t):
+		deref = q + "OptionValue"
+	}
 	twoResults := res == nil || res.Len() == 2
 	switch {
-	case deref && twoResults:
-		stmt = "v, err := " + call + "\nreturn " + q + "Deref(v), err"
-	case deref:
-		stmt = "return " + q + "Deref(" + call + "), nil"
+	case deref != "" && twoResults:
+		stmt = "v, err := " + call + "\nreturn " + deref + "(v), err"
+	case deref != "":
+		stmt = "return " + deref + "(" + call + "), nil"
 	case twoResults:
 		stmt = "return " + call
 	default:
 		stmt = "return " + call + ", nil"
 	}
 	return typ, stmt, true
+}
+
+// optionOf is T of a vuka.Option[T], nil for another type.
+func optionOf(t types.Type) types.Type {
+	if kind, arg := runtimeType(t); kind == "Option" {
+		return arg
+	}
+	return nil
+}
+
+func isOption(t types.Type) bool { return optionOf(t) != nil }
+
+// nullableOf is what t, a pointer or a vuka.Option, may hold; nil for
+// another type.
+func nullableOf(t types.Type) types.Type {
+	if p, ok := t.(*types.Pointer); ok {
+		return p.Elem()
+	}
+	return optionOf(t)
 }
 
 // derefs reports whether a resolver gives a value of type t dereferenced
@@ -1090,12 +1123,12 @@ func (g *gqlGen) nonNull(x string) string { return "&" + g.gq + ".NonNull{Of: " 
 // unless t is a pointer (a pointer to a slice is a nullable list), or
 // nullable is set (omitempty).
 func (g *gqlGen) outType(t types.Type, nullable, id bool) (string, bool) {
-	if p, ok := t.(*types.Pointer); ok {
-		if _, ok := p.Elem().Underlying().(*types.Pointer); ok {
-			g.unsupported(t, "a pointer to a pointer; one pointer makes it nullable")
+	if el := nullableOf(t); el != nil {
+		if nullableOf(el) != nil {
+			g.unsupported(t, "nullable twice; one pointer or one vuka.Option makes it nullable")
 			return "", false
 		}
-		return g.outNullable(p.Elem(), id)
+		return g.outNullable(el, id)
 	}
 	x, ok := g.outNullable(t, id)
 	if !ok || nullable {
@@ -1121,6 +1154,13 @@ func (g *gqlGen) outNullable(t types.Type, id bool) (string, bool) {
 		el := u.Elem()
 		var inner string
 		ok := false
+		if o := optionOf(el); o != nil {
+			// []Option[int] is [Int]: a None element is a null item.
+			if inner, ok = g.outType(el, false, id); !ok {
+				return "", false
+			}
+			return g.gq + ".ListOfOption[" + g.typ(o) + "](" + inner + ")", true
+		}
 		if p, isPtr := el.(*types.Pointer); isPtr {
 			if _, isStruct := p.Elem().Underlying().(*types.Struct); !isStruct || g.isLeaf(p.Elem()) {
 				// []*int is [Int], []*[]T a list of nullable lists: a nil
@@ -1176,9 +1216,20 @@ func (g *gqlGen) inType(t types.Type, id, arg bool) (string, bool) {
 	switch u := t.Underlying().(type) {
 	case *types.Slice:
 		el := u.Elem()
+		if o := optionOf(el); o != nil {
+			if nullableOf(o) != nil {
+				g.unsupported(t, "a list of items nullable twice; one pointer or one vuka.Option makes an item nullable")
+				return "", false
+			}
+			inner, ok := g.inType(o, id, arg)
+			if !ok {
+				return "", false
+			}
+			return g.gq + ".ListOfOption[" + g.typ(o) + "](" + inner + ")", true
+		}
 		if p, isPtr := el.(*types.Pointer); isPtr {
-			if isPointer(p.Elem()) {
-				g.unsupported(t, "a list of pointers to pointers; one pointer makes an item nullable")
+			if nullableOf(p.Elem()) != nil {
+				g.unsupported(t, "a list of items nullable twice; one pointer or one vuka.Option makes an item nullable")
 				return "", false
 			}
 			inner, ok := g.inType(p.Elem(), id, arg)
@@ -1421,6 +1472,9 @@ func (g *gqlGen) structBinding(t types.Type) {
 		case g.derefs(ft):
 			typ, ok = g.outNullable(ft.(*types.Pointer).Elem(), id)
 			get = q + "Deref(" + get + ")"
+		case isOption(ft):
+			typ, ok = g.outType(ft, false, id)
+			get = q + "OptionValue(" + get + ")"
 		case isPointer(ft):
 			typ, ok = g.outType(ft, false, id)
 		default:
@@ -1554,8 +1608,8 @@ func (g *gqlGen) outFits(t types.Type, depth int) bool {
 	if kind, arg := runtimeType(t); kind == "Result" {
 		t = arg
 	}
-	if p, ok := t.(*types.Pointer); ok {
-		t = p.Elem()
+	if el := nullableOf(t); el != nil {
+		t = el
 	}
 	if g.isLeaf(t) {
 		return true
@@ -1573,8 +1627,8 @@ func (g *gqlGen) inFits(t types.Type, depth int) bool {
 	if depth > 4 {
 		return false
 	}
-	if p, ok := t.(*types.Pointer); ok {
-		t = p.Elem()
+	if el := nullableOf(t); el != nil {
+		t = el
 	}
 	if g.isLeaf(t) {
 		return true
@@ -1616,17 +1670,26 @@ func (g *gqlGen) inputBinding(t types.Type) {
 		}
 		names[wire] = fv.Name()
 		ft := fv.Type()
-		elem, ptr := ft, false
+		elem, ptr, opt := ft, false, false
 		if p, isPtr := ft.(*types.Pointer); isPtr {
 			elem, ptr = p.Elem(), true
+		} else if el := optionOf(ft); el != nil {
+			elem, opt = el, true
+		}
+		if (ptr || opt) && nullableOf(elem) != nil {
+			g.unsupported(ft, "nullable twice; one pointer or one vuka.Option makes it nullable")
+			continue
 		}
 		typ, ok := g.inType(elem, g.isID(fv.Name(), elem, id, asInt), false)
 		if !ok {
 			continue
 		}
 		set := q + "As[" + g.typ(ft) + "](v)"
-		if ptr {
+		switch {
+		case ptr:
 			set = q + "Ptr[" + g.typ(elem) + "](v)"
+		case opt:
+			set = q + "AsOption[" + g.typ(elem) + "](v)"
 		}
 		m := "{Go: " + strconv.Quote(fv.Name())
 		if name != "" {

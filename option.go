@@ -1,6 +1,10 @@
 package vuka
 
-import "fmt"
+import (
+	"bytes"
+	"encoding/json"
+	"fmt"
+)
 
 // Option is a value that may be absent. The zero Option is None.
 type Option[T any] struct {
@@ -54,6 +58,32 @@ func (o Option[T]) String() string {
 	}
 	return fmt.Sprintf("Some(%v)", o.value)
 }
+
+// MarshalJSON writes the value, or null for None.
+func (o Option[T]) MarshalJSON() ([]byte, error) {
+	if !o.ok {
+		return []byte("null"), nil
+	}
+	return json.Marshal(o.value)
+}
+
+// UnmarshalJSON reads a value as Some, and null as None.
+func (o *Option[T]) UnmarshalJSON(b []byte) error {
+	if bytes.Equal(bytes.TrimSpace(b), []byte("null")) {
+		*o = Option[T]{}
+		return nil
+	}
+	var v T
+	if err := json.Unmarshal(b, &v); err != nil {
+		return err
+	}
+	*o = Option[T]{value: v, ok: true}
+	return nil
+}
+
+// IsZero reports whether o is None: a field tagged json:",omitzero" leaves
+// a None out.
+func (o Option[T]) IsZero() bool { return !o.ok }
 
 // MapOption applies f to a present value.
 func MapOption[T, U any](o Option[T], f func(T) U) Option[U] {
