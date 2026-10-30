@@ -45,9 +45,11 @@ templ Content() {
 	{{ s := selectOf(ctx) }}
 	<div data-select-home>
 		<div data-select-portal hidden>
-			<ul role="listbox" id={ s.id + "-list" }>
-				{ children... }
-			</ul>
+			<div data-select-positioner hidden>
+				<ul role="listbox" id={ s.id + "-list" }>
+					{ children... }
+				</ul>
+			</div>
 		</div>
 	</div>
 }
