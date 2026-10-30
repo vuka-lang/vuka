@@ -20,6 +20,19 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.13.1 — unreleased
+
+### Web
+
+- **Content an island teleports to the body goes when the island
+  unmounts** (fixes #239). An island that mounted before the live runtime
+  started — a Vue component with `<Teleport to="body">` on a fast page
+  load — had its teleported elements kept by the runtime, but not the
+  empty text nodes Vue keeps around them, so the first patch of the page
+  took those out; Vue's unmount then failed and left the teleported
+  content in the body after a navigation. Everything a script put in the
+  body before the runtime ran is now kept, text nodes too.
+
 ## v2.13.0 — 2026-10-30
 
 ### Web
