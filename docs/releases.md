@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.13.0 — unreleased
+## v2.13.0 — 2026-10-30
 
 ### Web
 
@@ -93,11 +93,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
   module at a version, from its own description of where things are in it
   (`[ui.libraries.<name>]` describes another library). ([From a templ
   Component Library](/ui/vendored#libraries), [#219](https://github.com/vuka-lang/vuka/issues/219))
-
-## v2.12.1 — unreleased
-
-### UI Components
-
 - **Skeletons.** `ui.Skeleton`, the placeholder `docs/web/parts.md` and
   `ui.Suspense` showed but ui didn't have, is a muted, pulsing bone, or
   `lines={3}` lines of text, hidden from assistive technology — the
@@ -130,6 +125,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
   server ended the statement there and the chain's next call
   (`OrderBy(…)`) became one of its own. The LSP's Go for complete code is
   the build's again. ([#215](https://github.com/vuka-lang/vuka/issues/215))
+- **The editor's language server no longer exits on a definition with no
+  answer.** gopls answers "go to definition" with `null` mid-edit or with a
+  broken import; the server read that answer unchecked, panicked and, after
+  five restarts in three minutes, the editor stopped starting it. A panic
+  handling any one answer now gives that request an empty answer and is
+  logged. ([#227](https://github.com/vuka-lang/vuka/pull/227))
 
 ## v2.12.0 — 2026-10-30
 
