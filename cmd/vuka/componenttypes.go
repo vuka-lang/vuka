@@ -81,6 +81,7 @@ func componentDTSLocs(root, modPath string, comps []*assetComp) ([]byte, []dtsLo
 		r.claim(d, c.name)
 		x := comp{c: c, scope: d.scope(nil), page: c.page || pages[c.dir+"\x00"+c.name] || routeDecorated(c.dir, c.name)}
 		x.props, x.states = componentFields(c.dir, c.name)
+		x.props = slices.DeleteFunc(x.props, func(p islandProp) bool { return r.isForm(p.typ, x.scope) }) // a form is never a prop (ui.Props)
 		if markup, ok := markupOf(c.markup, c.name); ok {
 			x.names.readMarkupNames(markup)
 		}

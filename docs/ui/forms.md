@@ -164,6 +164,14 @@ A form belongs to a routed page (a shape under `pages/`, or one served with
 own: its parent's render sets the component's other props again, never its
 form, so what the visitor typed and the errors they see stay.
 
+A form's values stay on the server and in its fields: a page or component
+with a script of its own doesn't hand its form to the script as a prop,
+and a field tagged `input:"password"`, `"new-password"`,
+`"current-password"` or `"one-time-code"` is never a prop wherever it is,
+so what a visitor types is never written into the page's HTML or a live
+patch. A script reads a value from its field
+(`el.querySelector('[name=email]').value`). See [Scripts](/ui/scripts).
+
 ## Writing the Markup {#markup}
 
 To lay the form out yourself, give `<ui.Form>` children. `model` on a
@@ -194,7 +202,8 @@ writes the control's `name`, `id`, `value`, `type`, `inputmode`,
 - `<ui.Fieldset legend="…">` groups fields; `<ui.Fieldset for={Form.Address}/>`
   renders a struct field's fields under its label.
 - `<ui.Summary/>` puts the error summary somewhere other than the top of the
-  form.
+  form: among the fields, or inside an element of your own. The summary
+  appearing or going never moves what was typed into another field.
 - `<ui.Choices for={Form.Plan}/>` is a field's radios (or, for a slice, its
   checkboxes), each with its label, from its `<Field>Choices`, for a field
   you lay out yourself; a `<select model>` with no options gets them the

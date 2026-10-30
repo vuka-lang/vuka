@@ -141,6 +141,18 @@ type Output struct {
 	VariantMethods []VariantMethod
 	// Matches are its match statements.
 	Matches []Match
+	// GraphQLArgs are the non-null arguments of the GraphQL operations
+	// and field methods it declares: parameters of a value type.
+	GraphQLArgs []GraphQLArg
+}
+
+// GraphQLArg is a GraphQL argument a parameter of a value type makes
+// non-null (Int!): what earlier releases made nullable.
+type GraphQLArg struct {
+	Pos   token.Position // the parameter
+	Field string         // its operation or field method: Pets, User.Orders
+	Param string
+	Type  string // its Go type, as the file writes it
 }
 
 // FileRef is a vuka.File literal: where it is in the .vuka source (quotes
@@ -409,6 +421,9 @@ func (f *fileState) makeTrailer(bare bool) {
 			w.gen(lineDirective(p), a.start)
 		}
 		f.copySrc(&w, expr, a.nameStart)
+		if a.called {
+			w.gen("()", a.end)
+		}
 		w.gen("\n", a.end)
 	}
 	f.renderStatics()
@@ -679,7 +694,7 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Implicit: f.implicitOf(), Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0 || f.graphqlGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf(), VariantMethods: f.variantMethodsOf(), Matches: f.matchesOf()})
+		res.Files = append(res.Files, Output{Implicit: f.implicitOf(), Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0 || f.graphqlGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf(), VariantMethods: f.variantMethodsOf(), Matches: f.matchesOf(), GraphQLArgs: e.gqlArgs[f]})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

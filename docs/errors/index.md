@@ -281,3 +281,4 @@ same page in the terminal.
 | [E0807](./E0807) | A GraphQL schema the specification refuses |
 | [W0801](./W0801) | A GraphQL field querying once per parent |
 | [W0802](./W0802) | A GraphQL list without a limit |
+| [W0803](./W0803) | A GraphQL argument's attribute above its function |

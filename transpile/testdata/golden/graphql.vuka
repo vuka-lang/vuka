@@ -30,6 +30,8 @@ type Pet struct {
 	Audit
 	OwnerID int64              // an id by its name: ID
 	VisitID int  `graphql:",int"` // a count, though its name ends in ID
+	Chips   *[]*int // [Int]: null, or a list with null items
+	Scores  []*float64
 }
 
 // Audit is when a record changed.
@@ -60,6 +62,7 @@ type NewPet struct {
 	OwnerID int64
 	Ref     string `graphql:",id"`
 	ChipID  int    `graphql:",int"`
+	Marks   []*int
 }
 
 // Pets lists the shop's pets.
@@ -80,9 +83,20 @@ func FindPet(id int64, store *Store) *Pet {
 
 // Owned are the pets of owners: ownerIDs and ref are IDs, lastID an Int.
 @graphql.Query
-@graphql.AsID("ref")
-@graphql.AsInt("lastID")
-func Owned(ownerIDs []int64, ref int, lastID int, store *Store) []Pet { return nil }
+func Owned(ownerIDs []int64, @graphql.AsID ref int, @graphql.AsInt lastID *int, store *Store) []Pet { return nil }
+
+// Shelf is null when the shop is closed.
+@graphql.Query
+func Shelf(ctx context.Context, @graphql.Arg("shelf") n *int, @graphql.Arg("tags") @graphql.AsID tagIDs *[]*int64) (*[]Pet, error) {
+	return nil, nil
+}
+
+// Maybe has a null for each pet not found.
+@graphql.Query
+func Maybe(@graphql.AsInt categoryId int, names []string) *[]*Pet { return nil }
+
+@graphql.Query
+func Codes(codes []*int) []*int { return codes }
 
 @graphql.Query
 func Count(store *Store) vuka.Result[int] { return vuka.Ok(len(store.pets)) }

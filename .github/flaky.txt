@@ -1,0 +1,9 @@
+# Known-flaky tests. When a CI test step's only failures are tests listed
+# here, .github/scripts/citest runs exactly those once more, and the job
+# summary names each with its first failure's message. Anything else fails
+# at once.
+#
+# One per line: the test (or Test/subtest), then its issue. An entry is
+# there to be fixed: remove it with the fix.
+
+TestRunWatchAutoLink https://github.com/vuka-lang/vuka/issues/245

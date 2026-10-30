@@ -38,4 +38,18 @@ func Ticks(ctx context.Context) (<-chan int, error) { return nil, nil }
 @graphql.AsID("ownr", "weight")
 func Heavy(owner int64, weight float64) int { return 0 }
 
+@graphql.Query
+func Named(@graphql.AsInt("lastID") lastID int, @graphql.Arg("a", "b") after *string) int { return 0 }
+
+@graphql.Query
+func Served(ctx context.Context, @graphql.AsID board *Board) int { return 0 }
+
+@graphql.Query
+@graphql.AsInt("lastID")
+@graphql.Arg("cursor")
+func Twice(@graphql.AsInt lastID int) int { return 0 }
+
+@graphql.Query
+func Deep() **int { return nil }
+
 func main() {}

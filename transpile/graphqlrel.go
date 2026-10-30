@@ -196,6 +196,9 @@ func returnsList(t types.Type) bool {
 	if kind, arg := runtimeType(t); kind == "Result" {
 		t = arg
 	}
+	if p, ok := t.(*types.Pointer); ok {
+		t = p.Elem()
+	}
 	_, ok := t.Underlying().(*types.Slice)
 	return ok && named(t) == nil
 }

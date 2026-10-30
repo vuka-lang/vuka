@@ -23,7 +23,12 @@ type Deprecated string
 
 type ArgName struct{ Param, Name string }
 
-func Arg(param, name string) ArgName { return ArgName{param, name} }
+func Arg(name string, more ...string) vuka.Bundle {
+	if len(more) == 0 {
+		return vuka.Compose(ArgName{Name: name})
+	}
+	return vuka.Compose(ArgName{name, more[0]})
+}
 
 type IDParams []string
 type IntParams []string
@@ -121,9 +126,11 @@ func ObjectOf[T any]() TypeDef                { return named{reflect.TypeFor[T](
 func InputOf[T any]() TypeDef                 { return named{reflect.TypeFor[T]().Name() + " (input)"} }
 func EnumOf[T comparable]() TypeDef           { return named{reflect.TypeFor[T]().Name() + " (enum)"} }
 func ListOf[E any](of TypeDef) *List          { return &List{of} }
+func ListOfPtr[E any](of TypeDef) *List       { return &List{of} }
 
 type Param struct {
 	Name string
+	Arg  string
 	Type TypeDef
 	Dep  reflect.Type
 }
@@ -263,6 +270,8 @@ func params(ps []Param) string {
 		switch {
 		case p.Dep != nil:
 			out = append(out, p.Name+" <- "+p.Dep.String())
+		case p.Type != nil && p.Arg != "":
+			out = append(out, p.Name+" as "+p.Arg+": "+p.Type.String())
 		case p.Type != nil:
 			out = append(out, p.Name+": "+p.Type.String())
 		}

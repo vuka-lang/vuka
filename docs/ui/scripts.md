@@ -72,7 +72,12 @@ The function runs once for each instance, when it appears on the page:
 
 - `el` is the instance's root element, the first element of its markup.
 - `props` are the struct's exported data fields as JSON (a `ui.Node`, a
-  func and unexported fields stay on the server).
+  func and unexported fields stay on the server). Secrets stay there too: a
+  form (a field embedding `ui.FormState`, or a `ui.FormOf`) and any field
+  tagged `input:"password"`, `"new-password"`, `"current-password"` or
+  `"one-time-code"`, at any depth, are never props, so nothing a visitor
+  types into a form is written into the page's HTML or a live patch. A
+  script reads a form's values from its fields (`el.querySelector('[name=email]')`).
 - `ctx` reaches the instance: [the table below](#ctx).
 
 It may return hooks: `update(next)` runs when a re-render changes the

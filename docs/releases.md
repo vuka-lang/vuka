@@ -22,6 +22,35 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.14.0 — unreleased
 
+### GraphQL
+
+- **A GraphQL argument's Go type says whether it is required**
+  (behaviour change). A parameter of a value type is a non-null argument —
+  `categoryId int` is `categoryId: Int!`, `in NewPet` is `in: NewPet!`,
+  `ids []int64` is `ids: [ID!]!` — and a pointer an optional one, `first
+  *int` is `first: Int`, as a field's type already said for its result. A
+  request leaving out a required argument, or giving it null, is refused
+  before anything runs (`GRAPHQL_VALIDATION_FAILED`). Earlier releases made
+  every argument nullable and gave a value parameter its zero value.
+  ([Nullability](/web/graphql#nullability), [#228](https://github.com/vuka-lang/vuka/issues/228))
+- **Nullable lists and lists of nullable items.** A pointer to a slice is a
+  nullable list, `*[]Product` is `[Product!]` (nil is null, an empty slice
+  `[]`), and a slice of pointers a list of nullable items, of scalars too:
+  `[]*int` is `[Int]!`, `*[]*int` is `[Int]`, as results, fields and
+  arguments; an input field `[]*int` tells a null item from a zero one.
+  Both were compile errors ([E0802](/errors/E0802)). The runtime's
+  `graphql.ListOfPtr` lists a slice of pointers.
+- **An argument's attributes go before its parameter**: `func Orders(ctx
+  context.Context, @graphql.Arg("cursor") after *string, @graphql.AsInt
+  shelfID int)`. `@graphql.AsID`, `@graphql.AsInt` and `@graphql.AsString`
+  take no names there, `@graphql.Arg` only the argument's
+  (`graphql.Param.Arg` in the generated Go). The form above the function,
+  naming the parameters, still works; `vuka vet` and the editor warn about
+  it ([W0803](/errors/W0803)), with a quick fix, and `vuka fix
+  graphql-params` moves them all. A function carrying only these
+  attributes is no longer wrapped as a decorated one.
+  ([Arguments](/web/graphql#arguments))
+
 ### Web
 
 - **CORS for a route prefix: `web.CORS(prefix, web.CORSConfig{…})`**
@@ -54,6 +83,72 @@ the `github.com/vuka-lang/vuka` package your module requires.
   files. A package that reads the environment at its own initialisation
   without importing web may still run first: read it in a function. See
   [When Files Are Read](/web/configuration#when).
+
+### Upgrading
+
+- **Arguments of a value type become required.** The schema of an app with
+  one changes (`first: Int` → `first: Int!`), and a client leaving one out
+  gets a validation error where it got the zero value. `vuka upgrade` (or
+  `vuka fix graphql-args`) lists each such argument with its file and line,
+  changing nothing: make a pointer of each a client may leave out (`first
+  *int`, read with a nil check). `vuka graphql schema -check
+  schema.graphql` reports each as "an argument made non-null". Input
+  objects' fields are unchanged: always nullable.
+- **`graphql.Arg` takes `(name string, more ...string)`**: one name before
+  a parameter, the parameter and the name above a function. Calls with two
+  strings compile as before.
+
+## v2.13.1 — unreleased
+
+### Security
+
+- **A form's values are no longer written into a page's props**
+  ([#229](https://github.com/vuka-lang/vuka/issues/229)). A page or
+  component with a script of its own writes its exported fields on its
+  root as `data-vk-p`, in the page's HTML and in every live patch; a form
+  is an exported field, so what the visitor typed — passwords included —
+  was in both. Now a form (a field embedding `ui.FormState`, or a
+  `ui.FormOf`) is never a prop, nor is a field tagged `input:"password"`,
+  `"new-password"`, `"current-password"` or `"one-time-code"`, at any depth
+  of a prop's type; island props leave the same fields out. The generated
+  script types (`.vuka/vuka-component.d.ts`) drop them too. A script reads
+  a form's values from its fields. Upgrade if a page holding a form has a
+  `<script lang="ts">`.
+
+### Fixes
+
+- **The error summary appearing no longer shifts typed values into the
+  next field** ([#230](https://github.com/vuka-lang/vuka/issues/230)). After
+  a failed submit the summary is inserted at the top of the form; the live
+  morph paired it with the first field's element by position, and every
+  field after it moved down by one — a signup's "Password" then held what
+  was typed in "Confirm password". The morph now matches an element with an
+  id (or `data-vk-id`) only by it and one without only with one without, so
+  an element appearing or going with an id leaves its neighbours in place,
+  whether the summary is the form's own or a `<ui.Summary/>` placed among
+  the fields. The form's `Error` alert is keyed the same way
+  (`<div id="…-error" class="vk-form__error">`). The `<div
+  class="contents"><ui.Summary/></div>` workaround can go.
+
+### Web
+
+- **Content an island teleports to the body goes when the island
+  unmounts** (fixes #239). An island that mounted before the live runtime
+  started — a Vue component with `<Teleport to="body">` on a fast page
+  load — had its teleported elements kept by the runtime, but not the
+  empty text nodes Vue keeps around them, so the first patch of the page
+  took those out; Vue's unmount then failed and left the teleported
+  content in the body after a navigation. Everything a script put in the
+  body before the runtime ran is now kept, text nodes too.
+- **An island that mounts before the live runtime starts follows its
+  state props** (fixes #244). On a fast page load an island's modules can
+  load before the runtime has run; the island then got a state prop's
+  initial value but never its changes — a state set by the page's `Mount`
+  left it showing the initial value for good. When the runtime starts,
+  each island already mounted now reads its state props again and follows
+  them, and a state it set before then reaches the page. Before the runtime
+  runs, a prop bound to a field of a struct state gets that field's
+  initial value, not the whole struct.
 
 ## v2.13.0 — 2026-10-30
 

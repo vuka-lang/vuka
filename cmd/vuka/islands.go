@@ -890,8 +890,8 @@ func fieldProps(toks []wtok) []islandProp {
 	if len(names) == 1 {
 		jsonName, skip = jsonTagName(tag)
 	}
-	if skip {
-		return nil
+	if skip || secretTag(tag) {
+		return nil // a password or one-time code is never a prop (ui.Props)
 	}
 	b, bound := reflect.StructTag(tag).Lookup("bind")
 	bound = bound && b != "-" || fa.bind
