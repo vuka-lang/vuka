@@ -12,8 +12,9 @@ shows nothing until then.
 A page that isn't live can show itself at once and fill in its slow parts
 afterwards, with no client code and no live connection. You mark the slow
 method `@ui.Defer`; the markup that calls it is its **part**. The page is
-sent with a stand-in for each part, and each part follows in the same
-response as soon as its method returns.
+sent whole with a stand-in for each part — the browser has loaded it while
+the slow methods still run — and each part follows as soon as its method
+returns.
 
 ## Deferring a Method
 
@@ -55,9 +56,12 @@ when it doesn't pass one ([The Render's Context](/ui/templates#implicit-ctx)).
 
 A deferred method takes a `context.Context` and returns `(T, error)`. It
 starts as soon as the page's render meets its part, beside the rest of the
-render, and its context is the request's: it is canceled when the visitor
-goes away. Its result never changes the page's status: that is sent
-before any part.
+render. Its context has the request's values — who the visitor is, the
+request itself — but outlives the page's response: it is canceled when the
+visitor goes away from the page, or when no one comes for its parts
+([How a Part Arrives](#arrives)). Its result never changes the page's
+status: that is sent before any part, and so are the page's headers and
+cookies — a deferred method doesn't set them.
 
 ### What a Part Is
 
@@ -206,35 +210,67 @@ request's method and path, and the development toolbar shows it.
 A part's markup failing to render (a `(T, error)` call in it failing)
 shows the same.
 
-## How a Part Arrives
+## How a Part Arrives {#arrives}
 
 Everything that isn't deferred runs first: guards, every layout's `Load`,
 the page's other methods. So the status and the headers are decided before
 anything is sent, and a redirect, a 404 or a sign-in still answers as it
 does for any page. Each deferred method starts as the render meets its
 part, so it runs while the rest of the page renders. Then the page is sent
-up to its `</body>` and flushed, compressed or not, and each part is
-appended as its method returns — a group's together, in the order the page
-shows them: a `<template data-vk-part>` holding its markup, and a one-line
-script moving it into its place. `</body></html>` ends the response.
+whole, each part's fallback in its place, and its response ends: the
+browser has loaded the page — its `load` event fired, no spinner on the
+tab — while the slow methods still run on the server.
 
-A navigation over HTTP (a `ui.Link` on a page that isn't live) reads the
-same stream: the runtime shows the page as soon as it has arrived, and
-moves each part in as it follows. Leaving the page stops the parts still
-coming.
+Once the page has loaded, the runtime asks for its parts: a request of its
+own to the page's URL. Each part is sent as its method returns — a group's
+together, in the order the page shows them — and moved into its place. A
+part that is ready before the request arrives is sent at once.
 
-The response sets `X-Accel-Buffering: no`, so nginx sends it as it is
-written. A proxy that buffers responses anyway delivers the page whole:
-correct, only not early.
+That request runs nothing of the page again. The page's response leaves its
+parts on the server under a one-time token, bound to the page's URL and to
+the visitor — who is signed in, and the session cookie — and the request
+for the parts presents it. The app's middleware runs, so the server knows
+who is asking; the parts go to the visitor the page was rendered for, once.
+Nothing of the page travels through the browser: a component's parts are
+rendered with the props its page gave it, in the page's request.
+
+The parts wait for that request for 30 seconds. When it doesn't come — the
+token used, its time run out, another server answering it, the server
+restarted since — the request renders the page again for its parts: guards,
+every layout's `Load` and the page's methods run as for a page load, with
+the request's own cookies, and only the parts the page shows that visitor
+are sent. So a page's parts arrive wherever the request lands, and the
+common case runs everything once. `web.PartsWindow(d)` changes the wait;
+`web.PartsWindow(0)` keeps no parts on the server: their methods run on
+the request for them, after the page has loaded. A server keeps at most
+1024 pages' parts at once, dropping the oldest, whose request then renders
+the page again.
+
+A navigation over HTTP (a `ui.Link` on a page that isn't live) works the
+same way: the runtime shows the page as soon as it has arrived, then asks
+for its parts. Leaving the page stops the parts still coming, and cancels
+their methods.
+
+The parts' response is never cached (`Cache-Control: no-store`), and the
+page and it vary by the request for parts (`Vary: Vk-Parts`); a page left
+without its own `Cache-Control` is marked `private`. Both are compressed,
+the parts flushed as they are written, with `X-Accel-Buffering: no`, so
+nginx sends each part as it is ready. A proxy that buffers responses
+anyway delivers the parts together: correct, only not early.
+
+A part whose page has changed since it was sent — the request that renders
+the page again no longer meets it — shows the short `role="alert"` message,
+as does every part when the request fails or isn't answered with parts (a
+sign-in page, an error). In a list, give each item a `key`: its parts are
+then matched by their key, not by their place in the list.
 
 > [!WARNING]
-> A part's content arrives in a `<template>`, which a browser shows only
-> through script. A crawler or a visitor without JavaScript sees its
-> fallback. Don't defer what they must see: a page's main content, its
-> title, what a search engine indexes.
+> A part's content arrives after the page, through script. A crawler or a
+> visitor without JavaScript sees its fallback. Don't defer what they must
+> see: a page's main content, its title, what a search engine indexes.
 
-A page whose Content-Security-Policy refuses inline scripts gets its parts
-moved in when the runtime script loads, at the end of the response.
+The parts need no inline script: a page whose Content-Security-Policy
+refuses inline scripts gets them as any page does.
 
 A page that holds a live component, and a page rendered for a form posted
 without script, render their parts in place: the methods run before the
@@ -244,9 +280,9 @@ its data in `@ui.Mount` and pushes changes with `Update`.
 ## Boundaries: `<ui.Suspense>` {#suspense}
 
 A part is an element and the deferred methods it calls. A boundary is the
-page's choice instead: everything inside `<ui.Suspense>` renders after the
-page's first bytes, and is sent at once when all of what the render reaches
-inside it has returned — one reveal, not piece by piece.
+page's choice instead: everything inside `<ui.Suspense>` renders beside the
+page, after its shell, and is sent at once when all of what the render
+reaches inside it has returned — one reveal, not piece by piece.
 
 <!-- vuka:context
 type Category struct{ Name string }
@@ -310,9 +346,9 @@ func (p Index) View() ui.Node {
 - **Outside any boundary** the rule above stays: a deferred call's element,
   or a deferred binding's, is its own part.
 
-A boundary arrives as a part does: in the same stream, through the same
-`<template>` and script, with the same behaviour without JavaScript and
-under a Content-Security-Policy, and over an HTTP navigation. In the
+A boundary arrives as a part does: after the page, in the request for its
+parts, with the same behaviour without JavaScript and under a
+Content-Security-Policy, and over an HTTP navigation. In the
 toolbar it is a span named `Suspense`, the deferred methods it called
 inside it. Where parts don't stream — a live page, a fragment, a test —
 the boundary renders in place, `<slot:error>` in its place when it fails.

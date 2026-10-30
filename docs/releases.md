@@ -22,6 +22,32 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.13.0 — unreleased
 
+### Web
+
+- **A page with deferred parts loads at once; its parts follow in a
+  request of their own** (behaviour change). A page's `@ui.Defer` methods
+  (and `@ui.Defer("group")`, `ui.Defer("")` in Go, `<ui.Suspense>`
+  boundaries) still start as its render meets their parts, but the page
+  is now sent whole and its response ends: the browser's `load` fires, the
+  tab stops spinning, a reload no longer looks slow while a part's method
+  runs. The runtime then asks for the page's parts and moves each in as it
+  returns, a group's together, as before. That request runs nothing of the
+  page again: the parts wait on the server under a one-time token bound to
+  the page's URL and its visitor, for 30 seconds (`web.PartsWindow`); after
+  that, or on another server, the request renders the page again — guards,
+  layouts' `Load`, the page's methods — and sends the parts it shows. The
+  parts' response is `Cache-Control: no-store`, the page `Vary: Vk-Parts`
+  (and `private` when it set no `Cache-Control`); no inline script is sent,
+  so a strict Content-Security-Policy needs nothing. Markup, fallbacks,
+  errors, groups, ui.Link navigation and the no-JavaScript fallback are
+  unchanged; a part's method keeps the request's values, but its context
+  ends when the visitor leaves the page rather than with the page's
+  response. Parts' ids now name their place and method
+  (`vk-p1-x8lq`); in a list, items with a `key` keep their parts' ids.
+  `ui.Parts.StreamParts` and `PartsOptions.Want` write a page's parts on
+  their own; `ui.PartsScript` and `Parts.Stream` are deprecated.
+  ([parts](/web/parts#arrives), [#222](https://github.com/vuka-lang/vuka/issues/222))
+
 ### UI
 
 - **templ component libraries work on live pages.** Components from a
