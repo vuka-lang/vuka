@@ -20,6 +20,33 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.14.0 — unreleased
+
+### Forms
+
+- **Forms on pages that aren't live check and submit over HTTP**
+  ([#232](https://github.com/vuka-lang/vuka/issues/232)). A page whose only
+  live part is a struct form no longer opens a connection: the runtime
+  posts the form to its page with fetch as the visitor leaves a field or
+  fixes one showing an error (checks only, `Save` never runs), and on
+  submit. The page answers JSON — the form's errors, or where `Save` sent
+  the visitor — and the runtime puts the errors in place (each field's
+  error, `aria-invalid`, the summary) without re-rendering a field, so
+  typed values, focus and caret are never touched, and follows a
+  successful submit as a link does. The reply is a real response, so
+  `auth.Login` and `auth.SignIn` work from a form's `Save` — a sign-in or
+  change-password form needs no hand-written HTTP form any more
+  ([#231](https://github.com/vuka-lang/vuka/issues/231), item 1). No state
+  is kept between requests. Every page route — a `pages/` page, a GET
+  handler returning a `ui.Node` — now takes a POST at its path naming a
+  form; any other POST is still 405, before its handler runs. Without
+  script the form posts as before (303, or 422 with the page). A page with
+  anything else live keeps sending its form over its connection
+  (behaviour change: such a page with only a form used to connect).
+- **The summary keeps its place** while it doesn't show: an empty, hidden
+  `<div id="<form>-summary-at">` at the form's top, and
+  `<div id="<form>-summary-slot">` where a `<ui.Summary/>` is.
+
 ## v2.13.1 — unreleased
 
 ### Security
@@ -51,6 +78,10 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the fields. The form's `Error` alert is keyed the same way
   (`<div id="…-error" class="vk-form__error">`). The `<div
   class="contents"><ui.Summary/></div>` workaround can go.
+- **`Form.Fail`'s message shows once**
+  ([#231](https://github.com/vuka-lang/vuka/issues/231), item 2). `return
+  f.Form.Fail(msg)` added the message to the form's failures, and the
+  submit added the error it returned again: the summary listed it twice.
 
 ## v2.13.0 — 2026-10-30
 

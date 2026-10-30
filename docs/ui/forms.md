@@ -627,6 +627,86 @@ control:
   from the server aren't written ([Browser Checks](#browser-checks));
   `ui.Config{RequiredAttr: true}` adds `required` to required fields.
 
+## Forms on Pages That Aren't Live {#http}
+
+A page needs no `ui.Live` for its form to check as the visitor types. On a
+page whose only live part is a struct form — a sign-in page, a contact
+form — the form makes no connection: the runtime posts it to its page
+over HTTP, at the same moments a live page sends it, and puts what the
+page answers in place.
+
+```go
+// account/credentials.go
+package account
+
+import "github.com/vuka-lang/ui/v2"
+
+type Credentials struct {
+    ui.FormState
+    Email    string `validate:"required,email"`
+    Password string `input:"current-password" validate:"required"`
+}
+```
+
+```html
+<script lang="go">
+package pages
+
+import (
+    "context"
+    "errors"
+
+    "example.com/app/account"
+    "github.com/vuka-lang/web/v2"
+    "github.com/vuka-lang/web/v2/auth"
+)
+
+type SignIn struct {
+    Form account.Credentials
+}
+
+func (p *SignIn) Save(ctx context.Context, f account.Credentials) error {
+    if _, err := auth.Login(ctx, f.Email, f.Password); err != nil {
+        if errors.Is(err, auth.ErrInvalidLogin) {
+            return p.Form.Fail("Wrong email or password")
+        }
+        return err
+    }
+    return web.Redirect("/account")
+}
+</script>
+
+<main>
+  <h1>Sign in</h1>
+  <ui.Form for={Form} onSubmit={Save} submitLabel="Sign in"/>
+</main>
+```
+
+- **Checks.** Leaving a field with something in it, typing in a field
+  that shows an error, or picking a choice sends the form's values with a
+  check flag. The page runs the rules and `Clean` methods with
+  `forms.Live(ctx)` true, as a live page does, and answers with the form's
+  errors — never `Save`.
+- **Errors in place.** The runtime adds, changes or removes each field's
+  error, its `aria-invalid` and `aria-describedby`, and the summary, in the
+  summary's place (the form's top, or where a `<ui.Summary/>` is). The
+  fields themselves are never re-rendered, so what was typed, the focused
+  field and the caret stay as they are.
+- **Submit.** The form is sent as a plain post is. When it fails, its
+  errors and the summary show and the title starts "Error: "; when `Save`
+  succeeds the page moves to where it sent the visitor, as a link does.
+  The reply is a real HTTP response, so `Save` can set cookies:
+  `auth.Login` and `auth.SignIn` work from it.
+- **No state** is kept on the server between requests: each one carries
+  the form's values, the fields the visitor used, the fields it rendered
+  (signed), its submit key and CSRF token, as a post without script does.
+
+A page with anything else live — a stateful component, an `onClick`
+handler — is live as a whole, and its form goes over its connection.
+Dependent choices (`depends:`) follow their field only on a live page; on
+one that isn't, the form's values are checked but its choices stay as
+rendered.
+
 ## Without JavaScript {#no-js}
 
 A page with a form works without script. The form posts to the page
