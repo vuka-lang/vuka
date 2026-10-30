@@ -1,0 +1,51 @@
+<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// SkeletonOf draws its children — a real component given placeholder data
+// — as bones, so the placeholder is the component's own layout:
+//
+//	<design.SkeletonOf repeat={3} class="grid gap-4">
+//	  <PostCard post={Post{Title: design.Words(6), Author: design.Chars(12)}}/>
+//	</design.SkeletonOf>
+//
+// The stylesheet vuka ui init writes does it: text becomes bars as long as
+// the text, images, icons, videos, canvases, buttons and inputs blocks of
+// their size, and borders and spacing stay, so the bones sit exactly where
+// the content will. The copy is inert and hidden from assistive
+// technology; the wrapper is a busy status with Label for screen readers.
+//
+// An element of the real markup may say how it is drawn with
+// data-skeleton: "keep" draws it as it is, "ignore" leaves its space
+// empty, "replace" makes it one bone of its size, and "unite" one bone of
+// its content box, its border and padding kept.
+type SkeletonOf struct {
+	// Repeat draws the children that many times; once by default.
+	Repeat    int
+	Animation SkeletonAnimation
+	// Label is what a screen reader hears; "Loading…" by default.
+	Label string
+	// Class is added to the wrapper's classes, winning over them (see cn):
+	// a grid or a gap for Repeat.
+	Class    string
+	Attrs    []ui.Attr
+	Children ui.Node
+}
+
+// copies are the children, Repeat times.
+func (s SkeletonOf) copies() []ui.Node {
+	out := make([]ui.Node, max(s.Repeat, 1))
+	for i := range out {
+		out[i] = s.Children
+	}
+	return out
+}
+</script>
+
+<div role="status" aria-busy="true" class={cn("relative", s.Class)} {s.Attrs...}>
+  <span class="sr-only">{skeletonLabel(s.Label)}</span>
+  <div class="contents" data-skeleton-of={s.Animation.value()} inert aria-hidden="true">
+    {s.copies()}
+  </div>
+</div>

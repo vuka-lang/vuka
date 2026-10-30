@@ -508,14 +508,15 @@ func uiAdd(root, modPath string, f *uiFlags, w io.Writer) error {
 
 // uiExample is a line using each component, printed once it's added.
 var uiExample = map[string]string{
-	"button": `<design.Button variant={design.ButtonOutline} on={p.Save}>Save</design.Button>`,
-	"badge":  `<design.Badge variant={design.BadgeSecondary}>Draft</design.Badge>`,
-	"card":   `<design.Card title="Team" description="Who can see this.">…</design.Card>`,
-	"alert":  `<design.Alert title="Heads up">…</design.Alert>`,
-	"input":  `<design.Input id="email" name="email" type="email" />`,
-	"label":  `<design.Label for="email">Email</design.Label>`,
-	"tabs":   `<design.Tabs default="a"><slot:tab value="a" label="A">…</slot:tab></design.Tabs>`,
-	"dialog": `<design.Button on={design.OpenDialog("confirm")}>Open</design.Button> <design.Dialog id="confirm" title="Sure?">…</design.Dialog>`,
+	"button":   `<design.Button variant={design.ButtonOutline} on={p.Save}>Save</design.Button>`,
+	"badge":    `<design.Badge variant={design.BadgeSecondary}>Draft</design.Badge>`,
+	"card":     `<design.Card title="Team" description="Who can see this.">…</design.Card>`,
+	"alert":    `<design.Alert title="Heads up">…</design.Alert>`,
+	"input":    `<design.Input id="email" name="email" type="email" />`,
+	"label":    `<design.Label for="email">Email</design.Label>`,
+	"tabs":     `<design.Tabs default="a"><slot:tab value="a" label="A">…</slot:tab></design.Tabs>`,
+	"dialog":   `<design.Button on={design.OpenDialog("confirm")}>Open</design.Button> <design.Dialog id="confirm" title="Sure?">…</design.Dialog>`,
+	"skeleton": `<design.Skeleton lines={3}/> <design.SkeletonOf repeat={3}><PostRow post={placeholder}/></design.SkeletonOf>`,
 }
 
 // addItems queues the files of the items names asks for, and of those they

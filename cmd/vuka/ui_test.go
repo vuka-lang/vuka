@@ -232,8 +232,8 @@ func TestUIAdd(t *testing.T) {
 
 	// Unknown names.
 	for args, msg := range map[string]string{
-		"add buton":    `vuka ui add: no component "buton" (did you mean button?); the components are alert, badge, button, card, dialog, input, label, tabs`,
-		"add carousel": `vuka ui add: no component "carousel"; the components are alert, badge, button, card, dialog, input, label, tabs`,
+		"add buton":    `vuka ui add: no component "buton" (did you mean button?); the components are alert, badge, button, card, dialog, input, label, skeleton, tabs`,
+		"add carousel": `vuka ui add: no component "carousel"; the components are alert, badge, button, card, dialog, input, label, skeleton, tabs`,
 		"add":          "usage: vuka ui add",
 	} {
 		if _, err := runUI(t, dir, strings.Fields(args)...); err == nil || !strings.Contains(err.Error(), msg) {

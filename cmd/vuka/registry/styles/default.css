@@ -21,6 +21,8 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-skeleton: var(--skeleton);
+  --color-skeleton-highlight: var(--skeleton-highlight);
   --radius-sm: calc(var(--radius) - 4px);
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
@@ -47,6 +49,9 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  --skeleton: var(--muted);
+  --skeleton-highlight: oklch(1 0 0);
+  --skeleton-duration: 2s;
 }
 
 /* Dark: the visitor's preference, unless the page says data-theme="light". */
@@ -70,6 +75,7 @@
     --border: oklch(1 0 0 / 10%);
     --input: oklch(1 0 0 / 15%);
     --ring: oklch(0.556 0 0);
+    --skeleton-highlight: oklch(0.371 0 0);
   }
 }
 
@@ -93,6 +99,7 @@
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
   --ring: oklch(0.556 0 0);
+  --skeleton-highlight: oklch(0.371 0 0);
 }
 
 @layer base {
@@ -100,6 +107,113 @@
   ::before,
   ::after {
     border-color: var(--color-border);
+  }
+}
+/* Skeletons: a bone pulses or carries a wave, a highlight positioned on
+   the viewport so every bone on screen sweeps as one; nothing moves under
+   prefers-reduced-motion. SkeletonOf draws its copy of a component as
+   bones: text as bars as long as the text, media and controls as blocks,
+   borders and spacing kept; data-skeleton="keep", "ignore", "replace" and
+   "unite" on an element of it change how that element is drawn. */
+@keyframes skeleton-pulse {
+  50% {
+    opacity: 0.5;
+  }
+}
+
+@keyframes skeleton-wave {
+  from {
+    background-position: -50vw 0;
+  }
+  to {
+    background-position: 100vw 0;
+  }
+}
+
+@keyframes skeleton-text {
+  50% {
+    text-decoration-color: var(--skeleton-highlight);
+  }
+}
+
+@utility skeleton-pulse {
+  animation: skeleton-pulse var(--skeleton-duration) ease-in-out infinite;
+  @media (prefers-reduced-motion: reduce) {
+    animation: none;
+  }
+}
+
+@utility skeleton-wave {
+  background-image: linear-gradient(90deg, transparent, var(--skeleton-highlight), transparent);
+  background-size: 50vw 100%;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+  animation: skeleton-wave var(--skeleton-duration) linear infinite;
+  @media (prefers-reduced-motion: reduce) {
+    background-image: none;
+    animation: none;
+  }
+}
+
+[data-skeleton-of] {
+  & :not([data-skeleton="keep"], [data-skeleton="keep"] *, :has([data-skeleton="keep"])) {
+    color: transparent;
+    caret-color: transparent;
+  }
+  & ::placeholder {
+    color: transparent;
+  }
+  /* Text: elements holding only text and inline elements. */
+  & :not(img, svg, video, canvas, iframe, button, input, select, textarea, progress, meter, [role="button"], [data-skeleton],
+      [data-skeleton] *, :has([data-skeleton="keep"]),
+      :has(> :not(a, abbr, b, bdi, bdo, br, button, canvas, cite, code, data, dfn, em, i, iframe, img, input, kbd, label, mark,
+        q, s, samp, select, small, span, strong, sub, sup, svg, textarea, time, u, var, video, wbr))) {
+    text-decoration: underline var(--skeleton) 0.8em;
+    text-underline-offset: -0.65em;
+    text-decoration-skip-ink: none;
+  }
+  & :is(img, svg, video, canvas, iframe, button, input, select, textarea, progress, meter, [role="button"]):not([data-skeleton], [data-skeleton] *) {
+    border-color: transparent;
+    background-color: var(--skeleton);
+    object-position: -100vw 0;
+  }
+  & :is(svg, button, [role="button"]):not([data-skeleton], [data-skeleton] *) * {
+    visibility: hidden;
+  }
+  & [data-skeleton="ignore"] {
+    visibility: hidden;
+  }
+  & [data-skeleton="replace"] {
+    border-color: transparent;
+    background-color: var(--skeleton);
+  }
+  & [data-skeleton="unite"] {
+    background-color: var(--skeleton);
+    background-clip: content-box;
+  }
+  & :is([data-skeleton="replace"], [data-skeleton="unite"]) * {
+    visibility: hidden;
+  }
+  &[data-skeleton-of="pulse"] > * {
+    animation: skeleton-pulse var(--skeleton-duration) ease-in-out infinite;
+  }
+  &[data-skeleton-of="wave"] * {
+    animation: skeleton-text var(--skeleton-duration) ease-in-out infinite;
+  }
+  &[data-skeleton-of="wave"] :is(img, svg, video, canvas, iframe, button, input, select, textarea, progress, meter, [role="button"], [data-skeleton="replace"], [data-skeleton="unite"]):not([data-skeleton="keep"], [data-skeleton="keep"] *) {
+    background-image: linear-gradient(90deg, transparent, var(--skeleton-highlight), transparent);
+    background-size: 50vw 100%;
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+    animation: skeleton-wave var(--skeleton-duration) linear infinite;
+    @media (prefers-reduced-motion: reduce) {
+      background-image: none;
+    }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    & * {
+      animation: none !important;
+    }
   }
 }
 /* vuka ui: end of the design tokens */

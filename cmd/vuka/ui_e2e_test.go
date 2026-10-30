@@ -1,9 +1,11 @@
 package main
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -14,7 +16,10 @@ import (
 // tokens in both themes (data-theme and prefers-color-scheme), a dialog
 // opens, closes on Escape, the backdrop and its close button, giving the
 // focus back each time, a dialog the server owns closes through its
-// handler, and tabs switch over the live connection. With VUKA_SHOTS set,
+// handler, and tabs switch over the live connection; SkeletonOf's copy of a
+// component has the component's boxes, drawn as bones as its annotations
+// say, a Skeleton wrapping a button keeps its box as Loading toggles, and
+// nothing moves under prefers-reduced-motion. With VUKA_SHOTS set,
 // it saves screenshots there: the page's, and each component's in both
 // themes, which docs/public/ui/components keeps for the components' pages
 // (cp $VUKA_SHOTS/*-light.png $VUKA_SHOTS/*-dark.png docs/public/ui/components).
@@ -25,7 +30,7 @@ func TestUIComponentsE2E(t *testing.T) {
 	if !strings.Contains(out, "wrote styles/app.css: the design tokens") {
 		t.Fatalf("vuka ui init:\n%s", out)
 	}
-	e.run(dir, nil, "vuka", "ui", "add", "button", "badge", "card", "alert", "input", "label", "tabs", "dialog")
+	e.run(dir, nil, "vuka", "ui", "add", "button", "badge", "card", "alert", "input", "label", "tabs", "dialog", "skeleton")
 	page, err := os.ReadFile("../../examples/conformance/uikit/vuka/pages/index.vuka.html")
 	if err != nil {
 		t.Fatal(err)
@@ -33,6 +38,7 @@ func TestUIComponentsE2E(t *testing.T) {
 	src := strings.Replace(string(page), "package pages\n", "package kit\n", 1)
 	src = strings.Replace(src, `"example.com/app/components/ui"`, `"example.com/kit/components/ui"`, 1)
 	writeFile(t, filepath.Join(dir, "pages/kit/index.vuka.html"), src)
+	writeFile(t, filepath.Join(dir, "pages/kit/parts/index.vuka.html"), partsPage)
 	// The document draws with the tokens too, so the whole page follows the
 	// theme.
 	layout := filepath.Join(dir, "pages/_layout.vuka.html")
@@ -61,19 +67,21 @@ func TestUIComponentsE2E(t *testing.T) {
 	}
 	// Each component's part of the page, by its name in the registry.
 	parts := map[string]string{
-		"button": `document.querySelector("#save").parentElement`,
-		"badge":  `document.querySelector("main > div:nth-of-type(2)")`,
-		"alert":  `document.querySelector("main [role=alert]")`,
-		"card":   `document.querySelector("#name").closest("main > *")`,
-		"input":  `document.querySelector("#name").closest("form")`,
-		"label":  `document.querySelector("#name").closest("form")`,
-		"tabs":   `document.querySelector("[role=tablist]").closest("main > *")`,
+		"button":   `document.querySelector("#save").parentElement`,
+		"badge":    `document.querySelector("main > div:nth-of-type(2)")`,
+		"alert":    `document.querySelector("main [role=alert]")`,
+		"card":     `document.querySelector("#name").closest("main > *")`,
+		"input":    `document.querySelector("#name").closest("form")`,
+		"label":    `document.querySelector("#name").closest("form")`,
+		"tabs":     `document.querySelector("[role=tablist]").closest("main > *")`,
+		"skeleton": `document.querySelector("#skeletons")`,
 	}
 	shotParts := func(p *tab, theme string) {
 		if shots == "" {
 			return
 		}
 		p.eval(`new Promise((r) => setTimeout(r, 250))`)
+		p.eval(`document.getAnimations().filter((a) => a.animationName?.startsWith("skeleton")).forEach((a) => { a.pause(); a.currentTime = 0 })`)
 		for name, el := range parts {
 			p.screenshotOf(el, filepath.Join(shots, name+"-"+theme+".png"), 16)
 		}
@@ -202,4 +210,132 @@ func TestUIComponentsE2E(t *testing.T) {
 		t.Errorf("the panel is labelled by %v", got)
 	}
 	shot(p, "ui-tabs")
+
+	// SkeletonOf: its copy of the card has the card's boxes, every one;
+	// its text is bars, its badge (replace) a bone, its kept label as it
+	// is, its ignored dot hidden, its united tag a bone inside its border,
+	// its button and icon blocks.
+	boxes := `JSON.stringify([document.querySelector("#post > *"), document.querySelector("#post-skeleton [data-skeleton-of] > *")].map((root) => {
+		const o = root.getBoundingClientRect()
+		return [root, ...root.querySelectorAll("*")].map((e) => {
+			const r = e.getBoundingClientRect()
+			return [e.tagName, r.x - o.x, r.y - o.y, r.width, r.height].map((v) => typeof v === "number" ? Math.round(v * 2) / 2 : v).join(" ")
+		})
+	}))`
+	var pair [2][]string
+	if err := json.Unmarshal([]byte(p.eval(boxes).(string)), &pair); err != nil {
+		t.Fatal(err)
+	}
+	if len(pair[0]) < 10 || !slices.Equal(pair[0], pair[1]) {
+		t.Errorf("SkeletonOf's boxes aren't the card's:\n card     %q\n skeleton %q", pair[0], pair[1])
+	}
+	drawn := p.eval(`(() => {
+		const copy = document.querySelector("#post-skeleton [data-skeleton-of]"), s = (sel) => getComputedStyle(copy.querySelector(sel))
+		const bone = getComputedStyle(document.querySelector("#skeletons .bg-skeleton")).backgroundColor
+		return {
+			text: s("p").textDecorationLine + " " + s("p").color,
+			replace: s("[data-skeleton=replace]").backgroundColor === bone,
+			keep: s("[data-skeleton=keep]").color === getComputedStyle(document.querySelector("#post [data-skeleton=keep]")).color,
+			ignore: s("[data-skeleton=ignore]").visibility,
+			unite: s("[data-skeleton=unite]").backgroundClip + " " + (s("[data-skeleton=unite]").backgroundColor === bone),
+			button: s("button").backgroundColor === bone && s("button svg").visibility === "hidden",
+			status: [copy.parentElement.getAttribute("role"), copy.parentElement.getAttribute("aria-busy"), copy.inert, copy.getAttribute("aria-hidden"), copy.parentElement.textContent.includes("Loading the post")].join(" "),
+		}
+	})()`).(map[string]any)
+	for k, want := range map[string]any{"text": "underline rgba(0, 0, 0, 0)", "replace": true, "keep": true, "ignore": "hidden", "unite": "content-box true", "button": true, "status": "status true true true true"} {
+		if drawn[k] != want {
+			t.Errorf("SkeletonOf's copy, %s: %v, want %v", k, drawn[k], want)
+		}
+	}
+
+	// A Skeleton wrapping a button: loading, the button is laid out but
+	// hidden under a bone of its box; loaded, it shows in the same box, and
+	// nothing around it moves.
+	around := `JSON.stringify(["#publish-wrap", "#publish", "#after-publish", "#toggle-loading"].map((s) => { const r = document.querySelector(s).getBoundingClientRect(); return [r.x, r.y, r.width, r.height] }))`
+	loading := p.eval(around)
+	if got := p.eval(`[document.querySelector("#publish-wrap").getAttribute("aria-busy"), getComputedStyle(document.querySelector("#publish")).visibility, JSON.stringify(document.querySelector("#publish-wrap > [aria-hidden]").getBoundingClientRect()) === JSON.stringify(document.querySelector("#publish").getBoundingClientRect())].join(" ")`); got != "true hidden true" {
+		t.Errorf("the loading skeleton (aria-busy, the button's visibility, the bone has its box): %v", got)
+	}
+	p.click("#toggle-loading")
+	p.wait(`!document.querySelector("#publish-wrap").hasAttribute("aria-busy") && getComputedStyle(document.querySelector("#publish")).visibility === "visible"`)
+	if got := p.eval(around); got != loading {
+		t.Errorf("Loading moved the layout: %v loading, %v loaded", loading, got)
+	}
+	p.click("#toggle-loading")
+	p.wait(`document.querySelector("#publish-wrap").getAttribute("aria-busy") === "true"`)
+
+	// Animation: pulse and wave, and none at all under prefers-reduced-motion.
+	motion := `[...document.querySelectorAll("#skeletons .skeleton-pulse, #skeletons .skeleton-wave, #post-skeleton [data-skeleton-of] > *")].map((e) => getComputedStyle(e).animationName).join(" ")`
+	if got := p.eval(motion).(string); !strings.Contains(got, "skeleton-pulse") || !strings.Contains(got, "skeleton-wave") || strings.Contains(got, "none") {
+		t.Errorf("the skeletons' animations: %q", got)
+	}
+	p.do("Emulation.setEmulatedMedia", map[string]any{"features": []map[string]string{{"name": "prefers-reduced-motion", "value": "reduce"}}})
+	if got := strings.Fields(p.eval(motion).(string)); len(got) == 0 || slices.ContainsFunc(got, func(a string) bool { return a != "none" }) {
+		t.Errorf("the skeletons' animations under prefers-reduced-motion: %q", got)
+	}
+	p.dark(false)
+
+	// The fallbacks of a page that isn't live while its slow parts load: a
+	// deferred method's (ui.Skeleton) and a boundary's (design.Skeleton).
+	p.do("Page.navigate", map[string]any{"url": base + "/kit/parts"})
+	p.wait(`document.querySelector("#parts .vk-skeleton") && document.querySelector("#parts .bg-skeleton")`)
+	if got := p.eval(`(() => { const s = getComputedStyle(document.querySelector("#parts .vk-skeleton")); return [s.animationName, s.backgroundColor !== "rgba(0, 0, 0, 0)", s.height !== "0px"].join(" ") })()`); got != "pulse true true" {
+		t.Errorf("ui.Skeleton, a part's fallback (animation, background, height): %v", got)
+	}
+	if shots != "" {
+		p.eval(`document.getAnimations().forEach((a) => { a.pause(); a.currentTime = 0 })`)
+		p.screenshotOf(`document.querySelector("#parts")`, filepath.Join(shots, "skeleton-parts-light.png"), 0)
+		p.eval(`document.documentElement.dataset.theme = "dark"`)
+		p.screenshotOf(`document.querySelector("#parts")`, filepath.Join(shots, "skeleton-parts-dark.png"), 0)
+	}
 }
+
+// partsPage is a page whose parts take a minute: their fallbacks show.
+const partsPage = `<script lang="go">
+package parts
+
+import (
+	"context"
+	"time"
+
+	design "example.com/kit/components/ui"
+)
+
+// Index is GET /kit/parts.
+type Index struct{}
+
+func slow(ctx context.Context) error {
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-time.After(time.Minute):
+		return nil
+	}
+}
+
+@ui.Defer
+func (p Index) Posts(ctx context.Context) ([]string, error) { return []string{"Shipping notes"}, slow(ctx) }
+
+func (p Index) Readers(ctx context.Context) (int, error) { return 12, slow(ctx) }
+</script>
+
+<main id="parts" class="mx-auto grid max-w-md gap-6 bg-background p-8 text-foreground">
+  <section class="grid gap-3">
+    <h2 class="font-semibold">Recent posts</h2>
+    <ul>
+      for _, t := range Posts() {
+        <li>{t}</li>
+      }
+    </ul>
+    <ui.Fallback for={Posts}><ui.Skeleton lines={3} class="text-muted-foreground"/></ui.Fallback>
+  </section>
+  <section class="grid gap-3">
+    <h2 class="font-semibold">Readers</h2>
+    <ui.Suspense>
+      <slot:fallback><design.Skeleton lines={2}/></slot:fallback>
+      readers := Readers()
+      <p>{readers} readers this week</p>
+    </ui.Suspense>
+  </section>
+</main>
+`

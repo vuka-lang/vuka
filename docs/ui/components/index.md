@@ -20,4 +20,5 @@ starting, theming and updating them.
 | [Dialog](/ui/components/dialog) | in the browser | A &lt;dialog&gt; over the page, opened and closed by JS commands. |
 | [Input](/ui/components/input) | in the browser | A text field. |
 | [Label](/ui/components/label) | in the browser | A form field's label. |
+| [Skeleton](/ui/components/skeleton) | in the browser | Placeholder bones while content loads: shapes, lines of text, a wrapper around the real content, and a component drawn as bones. |
 | [Tabs](/ui/components/tabs) | on the server | Panels shown one at a time, the tab shown kept on the server. |

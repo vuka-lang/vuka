@@ -5,7 +5,7 @@
   "styles": {
     "default": {
       "path": "styles/default.css",
-      "sha256": "fbe025f74709b31251a49e31f4fde72e3f757bc3c2b64313749632ca39203098"
+      "sha256": "24bebc3c85e2ae0dbb4701e3420e145d4c0d898dce81865a661ec0f855c723b8"
     }
   },
   "items": [
@@ -168,6 +168,32 @@
       ],
       "deps": [
         "button",
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.10.0"
+      }
+    },
+    {
+      "name": "skeleton",
+      "title": "Skeleton",
+      "description": "placeholder bones while content loads: shapes, lines of text, a wrapper around the real content, and a component drawn as bones",
+      "tier": 1,
+      "files": [
+        {
+          "path": "ui/skeleton.vuka.html",
+          "sha256": "43d47312b46690c93cde614feac781b17d3cdf2b67bda2d0efa36c42f0599739"
+        },
+        {
+          "path": "ui/skeleton_of.vuka.html",
+          "sha256": "e8b5c5fa246f95b5f8e52487079f9579c16fda0dcd4507466f93deb815fa443d"
+        },
+        {
+          "path": "ui/skeleton.go",
+          "sha256": "afae2f89b95070d8131b4e4f1e669da8f13b7c38a0417fea81000a191cf2a476"
+        }
+      ],
+      "deps": [
         "cn"
       ],
       "requires": {

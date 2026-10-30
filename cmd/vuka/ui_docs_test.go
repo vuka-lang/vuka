@@ -34,7 +34,7 @@ func TestUIDocs(t *testing.T) {
 	}
 	here, _ := os.Getwd()
 	docs, public := filepath.Join(here, uiDocs), filepath.Join(here, "../../docs/public/ui/components")
-	ejected := ejectRegistry(t, reg)
+	_, ejected := ejectRegistry(t, reg)
 	want := map[string]string{}
 	var side []map[string]string
 	var index strings.Builder
@@ -91,8 +91,10 @@ var tierNames = []string{"", "in the browser", "on the server", "as an island"}
 
 // ejectRegistry is the Go vuka eject writes for each of the registry's
 // .vuka.html files, by the file's name: the files built against the ui
-// checkout ($VUKA_UI, else vuka-ui beside this repository).
-func ejectRegistry(t *testing.T, reg *registry) map[string][]byte {
+// checkout ($VUKA_UI, else vuka-ui beside this repository), written in
+// the module at dir (the working directory) beside the components, in
+// components/ui.
+func ejectRegistry(t *testing.T, reg *registry) (dir string, _ map[string][]byte) {
 	t.Helper()
 	repo, _ := filepath.Abs("../..")
 	ui := os.Getenv("VUKA_UI")
@@ -103,7 +105,7 @@ func ejectRegistry(t *testing.T, reg *registry) map[string][]byte {
 		needs(t, "no checkout of github.com/vuka-lang/ui at %s; set VUKA_UI", ui)
 	}
 	ui, _ = filepath.Abs(ui)
-	dir, _ := filepath.EvalSymlinks(t.TempDir())
+	dir, _ = filepath.EvalSymlinks(t.TempDir())
 	writeFile(t, filepath.Join(dir, "go.mod"), fmt.Sprintf("module example.com/app\n\ngo 1.25\n\nrequire (\n\t%s v2.0.0\n\t%s v2.0.0\n)\n\nreplace %s => %s\n\nreplace %s => %s\n",
 		uiModPath, vukaModPath, uiModPath, ui, vukaModPath, repo))
 	var sums []byte
@@ -127,11 +129,16 @@ func ejectRegistry(t *testing.T, reg *registry) map[string][]byte {
 	}
 	out := map[string][]byte{}
 	for _, g := range gens {
+		target := g.Target
+		if !filepath.IsAbs(target) {
+			target = filepath.Join(dir, target)
+		}
+		writeFile(t, target, string(g.Src))
 		if strings.HasSuffix(g.Source, ".vuka.html") {
 			out[filepath.Base(g.Source)] = ejected(g.Src)
 		}
 	}
-	return out
+	return dir, out
 }
 
 func uiDocsHead(title, desc string) string {

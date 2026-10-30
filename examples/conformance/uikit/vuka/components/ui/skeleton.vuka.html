@@ -1,0 +1,135 @@
+<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// SkeletonVariant is a Skeleton's shape.
+type SkeletonVariant string
+
+const (
+	SkeletonRectangular SkeletonVariant = ""         // square corners
+	SkeletonRounded     SkeletonVariant = "rounded"  // rounded corners
+	SkeletonCircular    SkeletonVariant = "circular" // a circle, size-10 unless Class sizes it
+	SkeletonText        SkeletonVariant = "text"     // a line of text: 1em tall at the line's height
+)
+
+// Skeleton is a placeholder bone, the shape of content still loading:
+//
+//	<design.Skeleton variant={design.SkeletonCircular} class="size-12"/>
+//	<design.Skeleton lines={3}/>
+//
+// With children it wraps the real content: while Loading the children are
+// laid out but hidden, under a bone of their exact size, and when it isn't
+// they show in the same box, so nothing moves when the data arrives:
+//
+//	<design.Skeleton loading={p.Saving} variant={design.SkeletonRounded}>
+//	  <design.Button>Publish</design.Button>
+//	</design.Skeleton>
+type Skeleton struct {
+	Variant SkeletonVariant
+	// Lines stacks that many lines of text, the last one shorter.
+	Lines     int
+	Animation SkeletonAnimation
+	// Loading hides the children under the bone; without children it is
+	// ignored.
+	Loading bool
+	// Label is what a screen reader hears while Loading; "Loading…" by
+	// default.
+	Label string
+	// Class is added to the bone's classes (with children or Lines, the
+	// wrapper's), winning over them (see cn).
+	Class    string
+	Attrs    []ui.Attr
+	Children ui.Node
+}
+
+var skeletonShape = map[SkeletonVariant]string{
+	SkeletonRectangular: "h-4 w-full",
+	SkeletonRounded:     "h-4 w-full rounded-md",
+	SkeletonCircular:    "size-10 rounded-full",
+	SkeletonText:        "my-[calc((1lh-1em)/2)] h-[1em] w-full rounded-sm",
+}
+
+// over is the shape of the bone over children, filling their box.
+var skeletonOver = map[SkeletonVariant]string{
+	SkeletonRectangular: "inset-0",
+	SkeletonRounded:     "inset-0 rounded-md",
+	SkeletonCircular:    "inset-0 rounded-full",
+	SkeletonText:        "inset-x-0 inset-y-[calc((1lh-1em)/2)] rounded-sm",
+}
+
+func (s Skeleton) bone(shape string) string {
+	return cn("block bg-skeleton", shape, s.Animation.class())
+}
+
+// wraps reports whether the skeleton wraps real content.
+func (s Skeleton) wraps() bool { return ui.Has(s.Children) }
+
+func (s Skeleton) classes() string {
+	switch {
+	case s.wraps():
+		return cn("relative w-fit", s.Class)
+	case s.Lines > 0:
+		return cn("flex flex-col", s.Class)
+	}
+	shape, ok := skeletonShape[s.Variant]
+	if !ok {
+		shape = skeletonShape[SkeletonRectangular]
+	}
+	return cn(s.bone(shape), s.Class)
+}
+
+// line is the classes of line i, the last of several shorter.
+func (s Skeleton) line(i int) string {
+	c := s.bone(skeletonShape[SkeletonText])
+	if s.Lines > 1 && i == s.Lines-1 {
+		c = cn(c, "w-4/5")
+	}
+	return c
+}
+
+func (s Skeleton) over() string {
+	shape, ok := skeletonOver[s.Variant]
+	if !ok {
+		shape = skeletonOver[SkeletonRectangular]
+	}
+	return cn(s.bone(shape), "absolute")
+}
+
+// content is the classes of the children's wrapper, laid out as if it
+// weren't there, its children hidden while Loading.
+func (s Skeleton) content() string {
+	if s.Loading {
+		return "contents invisible"
+	}
+	return "contents"
+}
+
+// a11y are the root's attributes for assistive technology: a bone is
+// hidden; a wrapper loading is a status, busy.
+func (s Skeleton) a11y() []ui.Attr {
+	switch {
+	case !s.wraps():
+		return []ui.Attr{{Name: "aria-hidden", Value: "true"}}
+	case s.Loading:
+		return []ui.Attr{{Name: "role", Value: "status"}, {Name: "aria-busy", Value: "true"}}
+	}
+	return nil
+}
+</script>
+
+<div class={s.classes()} {s.a11y()...} {s.Attrs...}>
+  if s.wraps() {
+    if s.Loading {
+      <span class="sr-only">{skeletonLabel(s.Label)}</span>
+    }
+    <div class={s.content()} inert={s.Loading}>{s.Children}</div>
+    if s.Loading {
+      <div aria-hidden="true" class={s.over()}></div>
+    }
+  } else {
+    for i := range s.Lines {
+      <div class={s.line(i)}></div>
+    }
+  }
+</div>
