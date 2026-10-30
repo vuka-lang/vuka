@@ -6,5 +6,4 @@
 # One per line: the test (or Test/subtest), then its issue. An entry is
 # there to be fixed: remove it with the fix.
 
-TestIslandsE2E https://github.com/vuka-lang/vuka/issues/244
 TestRunWatchAutoLink https://github.com/vuka-lang/vuka/issues/245
