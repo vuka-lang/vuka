@@ -7,8 +7,8 @@ require (
 	github.com/a-h/templ v0.3.1020
 	github.com/andybalholm/brotli v1.2.7
 	github.com/evanw/esbuild v0.28.2
-	github.com/vuka-lang/ui/v2 v2.13.0
-	github.com/vuka-lang/vuka/v2 v2.13.1-0.20261030170938-9a30382b412a
+	github.com/vuka-lang/ui/v2 v2.13.1-0.20261030185706-c24404712fbd
+	github.com/vuka-lang/vuka/v2 v2.13.1-0.20261030194608-14d15aa7a4c9
 	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/tools v0.52.0

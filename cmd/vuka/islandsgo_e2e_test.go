@@ -80,12 +80,12 @@ func TestIslandsGoE2E(t *testing.T) {
 				t.Logf("app log:\n%s", logs)
 			}
 		})
-		p := ch.open(base+"/", 900, 700)
+		p := ch.openChecked(base+"/", 900, 700)
 		p.wait(`document.documentElement.getAttribute("data-vk-state") === "connected"`)
 		p.wait(`(document.querySelector("#chart .title") || {}).textContent === "Sales"`)
 		p.click("#add")
 		p.wait(`document.querySelector("#chart .points").textContent === "3,1,4,3"`)
-		p = ch.open(base+"/users/2", 900, 700)
+		p = ch.openChecked(base+"/users/2", 900, 700)
 		p.wait(`(document.querySelector("#profile .name") || {}).textContent === "Grace"`)
 		if id := p.text("#profile .id"); id != "2" {
 			t.Errorf("profile id %q", id)

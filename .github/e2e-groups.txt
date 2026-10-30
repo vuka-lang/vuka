@@ -1,0 +1,424 @@
+# The cmd/vuka test groups: one CI job each (ci.yml's e2e matrix and the
+# conformance job), so a failure names the area that broke.
+#
+# [group] starts a group; each line under it is a regular expression for
+# whole top-level test names (anchored: TestLSP.* for a prefix). The rest
+# group runs every test no other group names, so a new test runs before it
+# is placed. `go run ./.github/scripts/citest check` (run in CI) fails when
+# a test is in two groups, a line names no test, or a group has no job.
+
+[browser]
+# Chrome and Vite: islands (Vue, React, Svelte, Go), live pages, templ and ui libraries, slots, page scripts, the GraphQL app
+# contextvars_e2e_test.go
+TestContextProcessorsE2E
+TestContextProcessorsFolderPagesE2E
+# graphql_e2e_test.go
+TestGraphQLSchema
+# islandlive_test.go
+TestLiveDTSDeferred
+TestLiveDTSForms
+TestLiveDTSHandles
+TestLiveDTSParamTypes
+TestLiveDTSTypeChecks
+TestVukaLinkActive
+TestVukaLinkTypes
+# islandnav_e2e_test.go
+TestIslandNavigateE2E
+# islandpages_e2e_test.go
+TestIslandPagesE2E
+# islands_e2e_test.go
+TestIslandsE2E
+# islandsgo_e2e_test.go
+TestIslandsGoE2E
+# pagescript_e2e_test.go
+TestPageScriptE2E
+# scriptislands_test.go
+TestDoctor
+TestReactIslandNoNode
+TestScriptIsland
+# slots_e2e_test.go
+TestSlotsE2E
+# templlib_e2e_test.go
+TestTemplLibraryAttrs
+TestTemplLibraryE2E
+# ui_e2e_test.go
+TestUIComponentsE2E
+# uilib_e2e_test.go
+TestUILibraryE2E
+TestUIShadcnTemplE2E
+# viteislands_test.go
+TestDevAssetsViteRebuild
+TestHasViteConfig
+TestViteIslandManifest
+TestViteIslandsE2E
+# vueislands_test.go
+TestVueIslands
+
+[lsp]
+# vuka lsp over gopls and templ: completion, hover, diagnostics, refactors, imports
+# fixctxvars_test.go
+TestLSPCtxVarsFix
+# hints_test.go
+TestLSPGoplsHint
+# islandopts_test.go
+TestLSPIslandRouteAdvice
+# lsp_ambigctx_test.go
+TestLSPAmbiguousCtx
+# lsp_attrs_test.go
+TestLSPParamAttrs
+# lsp_authoring_test.go
+TestLSPMarkupAuthoringCompletion
+TestLSPShapeOutline
+TestLSPShapeRangeFormatting
+# lsp_autoimport_test.go
+TestInsertGrouped
+TestLSPComponentAutoImport
+TestLSPGoUnimportedComponentPackage
+TestUnimportedComponentNoImports
+TestUnimportedComponentPackages
+TestUnimportedComponentVuka
+# lsp_brokenimport_test.go
+TestLSPCompletionBrokenImport
+TestLSPCompletionErrorsSameFile
+# lsp_chainjoin_test.go
+TestCompletableChainAfterArgs
+TestLSPChainAfterMultilineArgs
+# lsp_componentnav_test.go
+TestJSXRequestUnlocked
+TestLSPComponentNavigation
+# lsp_contextvars_test.go
+TestLSPContextVars
+TestLSPContextVarsFolderPage
+# lsp_crosspkg_test.go
+TestLSPCrossPkgStaticChain
+# lsp_diag_test.go
+TestLSPBracketFolder
+TestLSPDiagnosticCodes
+TestLSPDiagnosticsDuringEdit
+TestLSPGoInRouteFolders
+TestLSPGroupFolder
+TestLSPIslandVet
+TestLSPUnimportedGrouped
+# lsp_diff_test.go
+TestDiffHunks
+# lsp_dotless_test.go
+TestLSPDotlessModuleStatics
+# lsp_dots_test.go
+TestDanglingDots
+TestTemplateTextDots
+# lsp_drift_test.go
+TestLSPDriftCompletion
+TestLSPDriftDiagnostic
+TestLSPDriftHover
+# lsp_enums_test.go
+TestLSPEnums
+TestLSPValueEnumMethods
+# lsp_fieldattrs_test.go
+TestLSPFieldAttrs
+# lsp_files_test.go
+TestLSPFileLinks
+# lsp_forms_test.go
+TestLSPModel
+# lsp_generic_test.go
+TestGenericShapeEditor
+TestLSPGenericShape
+# lsp_genmethod_test.go
+TestLSPGenericMethodChainHover
+# lsp_goimports_test.go
+TestLSPGoImportsVuka
+# lsp_goroutes_test.go
+TestGoRouteHover
+TestGoRouteLens
+TestLSPGoRoutes
+# lsp_html_test.go
+TestLSPAfterPackage
+TestLSPOneWay
+TestLSPTemplate
+TestLSPTemplateContext
+TestLSPTemplateHTML
+TestLSPTemplatePackage
+TestLSPTemplateTextNoImports
+# lsp_imports_edge_test.go
+TestAddImportsConsolidatesLoneImports
+TestAddImportsConsolidatesWithAlias
+TestAddImportsIntoExistingBlock
+TestAddImportsWithDecoratorNoBlock
+# lsp_imports_group_test.go
+TestLSPConsolidatesImportsOnCompletion
+# lsp_islands_test.go
+TestLSPIslandDecorators
+TestLSPIslandImport
+TestLSPRootIslandImport
+# lsp_jsx_test.go
+TestCompletable
+TestLSPComponents
+# lsp_markup_test.go
+TestBlockSpot
+TestCompletionSpotValue
+TestHTMLData
+TestLinkedEditing
+TestMarkupFolds
+TestUnclosedAt
+# lsp_markupcalls_test.go
+TestLSPImplicitCtxHints
+TestLSPImplicitCtxHover
+TestLSPMarkupBindingReferences
+TestLSPMarkupCallsDefinition
+# lsp_match_test.go
+TestLSPDropInVukaDiagnostics
+TestLSPMatchBindings
+TestLSPMatchCaseCompletion
+TestLSPMatchCtorHover
+TestLSPMatchExhaustive
+TestLSPMatchExhaustiveStays
+TestLSPMatchInlayHints
+TestLSPMatchMembers
+TestLSPMatchPatternTypo
+# lsp_open_test.go
+TestLSPOpensPackages
+# lsp_organize_test.go
+TestLSPOrganizeImports
+# lsp_panic_test.go
+TestGoVersionDiagnostics
+TestRouteFolderTidy
+TestSyntaxMidEdit
+TestSyntaxPanic
+# lsp_refactor_test.go
+TestExtractComponent
+TestExtractRow
+TestExtractSends
+TestKeyFix
+TestLSPRefactors
+TestLayoutFixes
+TestMoveFromGo
+TestMoveMethods
+TestRoutesFix
+TestSmallFixes
+# lsp_routes_test.go
+TestPathMatches
+TestRouteCodeLens
+TestRouteLinks
+TestRouteReferences
+TestWillRenamePages
+# lsp_scan_bench_test.go
+TestBuildReader
+TestDecoratorScanCache
+# lsp_semantic_html_test.go
+TestLowerCamel
+TestShapeHover
+TestShapeLegend
+TestShapeTokens
+# lsp_semantics_e2e_test.go
+TestLSPShapeSemantics
+# lsp_semtokens_test.go
+TestLSPSemanticTokensEndToEnd
+TestSemanticTokensTransform
+# lsp_shapescript_test.go
+TestShapeBoundsForms
+TestShapeScriptAction
+# lsp_slots_test.go
+TestLSPLetHover
+TestLSPSlotDiagnostics
+TestLetScope
+TestRequiredProp
+TestSlotCompletion
+# lsp_stalediag_test.go
+TestLSPFreshDiagnosticsPublished
+TestLSPStaleDiagnosticsSuppressed
+TestLSPStaleVersionDiagnosticsDropped
+# lsp_static_test.go
+TestLSPStaticAssets
+# lsp_staticchain_test.go
+TestLSPStaticChainCompletion
+TestLSPStaticChainDiagnostic
+TestLSPStaticChainHover
+# lsp_statics_test.go
+TestLSPStatics
+TestStaticSpot
+# lsp_tags_test.go
+TestPropCompletion
+TestRootIslandTag
+TestRootIslandTagBeforeBuildAndNestedModule
+TestTagHover
+# lsp_templlib_test.go
+TestLSPTemplLibrary
+# lsp_test.go
+TestDropIn
+TestGoplsPassthrough
+TestGoplsSubcommand
+TestImportHint
+TestLSP
+TestLSPFieldRefs
+TestLSPFormatting
+TestLSPProjectDecorators
+# lsp_tmplgo_test.go
+TestLSPTemplateGoCompletion
+TestLSPTemplateGoDiagnostics
+TestLSPTemplateGoImports
+TestLSPTemplateGoSignature
+TestTemplateImportEdits
+TestTemplateRepairs
+# lsp_try_test.go
+TestLSPTryInExpression
+# lsp_ts_test.go
+TestLSPScript
+TestLSPScriptDefinition
+TestLSPScriptImports
+TestLSPScriptLauncher
+TestLSPScriptNames
+TestLSPScriptSetupRefs
+TestTSOptions
+# lsp_unwrap_test.go
+TestLSPUnwrapDiagnostic
+TestLSPUnwrapHover
+# lsp_urlstate_test.go
+TestURLAttrs
+TestURLKeyCompletion
+# lsp_variantmethods_test.go
+TestVariantDeclsNoAnswer
+# templ_test.go
+TestLSPTempl
+
+[lsp-latency]
+# vuka lsp under load: latency, deadlines, answers during builds, benchmarks as tests
+# lsp_answers_test.go
+TestLSPCancelAnsweredAtOnce
+TestLSPRequestsDontWaitTwice
+TestProbeYieldsToBuild
+TestReplyAtDeadline
+# lsp_bench_test.go
+TestLSPBenchmark
+TestLSPLatency
+# lsp_build_test.go
+TestLSPDependents
+TestLSPSyntaxFirst
+# lsp_deadline_test.go
+TestLSPAnswersDuringFirstBuild
+TestLSPAnswersShapes
+TestLSPGoplsUnanswered
+# lsp_perf_test.go
+TestIndexedVFile
+TestLSPPublishOnce
+TestLineIndex
+TestMentionsVirtual
+TestTSSyncLatest
+
+[build-watch]
+# vuka build and vuka run -watch: rebuilds, auto-linking, reuse, route files, build errors
+# autolink_embed_test.go
+TestAutoLinkEmbedsDeclaring
+# autolink_test.go
+TestAutoLinkBuild
+TestRunWatchAutoLink
+# builderrs_test.go
+TestBlockWriter
+TestBuildReport
+TestBuildReportFollows
+TestBuildReportGo
+TestBuildReportImports
+TestBuildReportTypedFields
+TestDepOrder
+TestWatchFailureOnTerminal
+# embedstub_test.go
+TestFrontendEmbeds
+# enums_e2e_test.go
+TestEjectValueEnumMethods
+TestEnums
+TestExplainEnums
+# folderroutes_e2e_test.go
+TestFolderRoutesE2E
+# goimports_e2e_test.go
+TestGoImportsVuka
+TestGoImportsVukaErrors
+TestPublishedORMCompatibility
+TestVetScope
+TestVetScopeCause
+# halfeject_test.go
+TestBuildHalfEjected
+TestBuildUnexportedModel
+TestEjectModels
+TestEjectModelsFailure
+# islandwatch_e2e_test.go
+TestRunWatchIslandFailure
+TestRunWatchIslandImport
+# islandwatch_test.go
+TestDevAssetsWatchFrontend
+# reuse_test.go
+TestCutFresh
+TestParseModFile
+TestReuseKey
+TestReuseTrim
+TestRunWatchReuse
+# routefiles_test.go
+TestRunWatchWritesRouteFiles
+TestRunWritesRouteFiles
+# testbuilds_e2e_test.go
+TestFixCtxVarsFolderPage
+TestGoPatterns
+TestOverlayDirsShared
+TestTestAndVetRouteFolders
+# watch_test.go
+TestBinaryID
+TestBuildDWARF
+TestBuildStateBeforeMessage
+TestBuildStateWhileRead
+TestCutWatch
+TestEmbedRoots
+TestNoDWARF
+TestRunWatch
+TestRunWatchCancel
+TestWatcher
+TestWatcherCalm
+TestWatcherDebounce
+TestWatcherEvents
+TestWatcherLook
+
+[new-upgrade]
+# vuka new (every variant, end to end), add, upgrade, release
+# addkinds_e2e_test.go
+TestAddIslandsEndToEnd
+TestAddKindsEndToEnd
+# new_e2e_test.go
+TestNewEndToEnd
+TestNewRunWatch
+TestNewVariants
+# new_test.go
+TestAnswerDefaults
+TestAnswerScripted
+TestDisplayName
+TestNewPassword
+TestParseNewArgs
+TestPromptKeys
+TestPromptLines
+TestRenderFileSets
+TestRenderIslands
+TestTagged
+TestTargetAndForce
+# npm_test.go
+TestCheckNPM
+TestNPMMajor
+TestPrepareFrontendOldNPM
+TestScaffoldLockfiles
+# release_test.go
+TestRelease
+TestReleaseChecks
+TestReleaseDryRun
+TestSetToolchain
+# upgrade_test.go
+TestOneSet
+TestStepsBetween
+TestUpgrade
+TestUpgradeDryRun
+TestUpgradeFailingTests
+TestUpgradeLatest
+TestUpgradeORM
+TestUpgradeRefuses
+TestVersionCmd
+TestVersionCmdGo
+
+[conformance]
+# the examples as Vuka and ejected (their own job)
+TestConformance
+
+[rest]
+# every other test

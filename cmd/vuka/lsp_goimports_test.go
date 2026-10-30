@@ -26,14 +26,14 @@ func TestLSPGoImportsVuka(t *testing.T) {
 			c, dir, _ := startLSPWith(t, files)
 			uri := pathToURI(filepath.Join(dir, tc.file))
 			c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "go", "version": 1, "text": src}})
-			var got string
+			// gopls may report on the file before the proxy's first build
+			// hands it the generated entities package — "could not import"
+			// until then — so the wait is for the file's own error alone;
+			// one that never comes times out with the last diagnostics.
 			c.waitDiags(uri, func(ds []any) bool {
-				got = jsonOf(ds)
-				return strings.Contains(got, "cannot use") || strings.Contains(got, "could not import") || strings.Contains(got, "not in std")
+				got := jsonOf(ds)
+				return strings.Count(got, `"message"`) == 1 && strings.Contains(got, "cannot use") && strings.Contains(got, `"line":10`)
 			})
-			if strings.Count(got, `"message"`) != 1 || !strings.Contains(got, `"line":10`) {
-				t.Errorf("diagnostics: %s", got)
-			}
 		})
 	}
 }

@@ -165,3 +165,48 @@ export default component<Index>((el, props, ctx) => { ctx.emit("x") })
 		t.Errorf("ctx.emit on a page type-checks:\n%s", out)
 	}
 }
+
+// A page's form and its password fields aren't props: ui.Props leaves them
+// out, so its script's type has neither (vuka#229).
+func TestComponentDTSNoSecrets(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "join.go"), []byte(`package views
+
+import "github.com/vuka-lang/ui/v2"
+
+type Signup struct {
+	ui.FormState
+	Email    string
+	Password string `+"`input:\"new-password\"`"+`
+}
+
+type Wrapped struct{ Signup }
+
+type Card struct {
+	Holder string
+	PIN    string `+"`input:\"password\"`"+`
+}
+
+type Join struct {
+	ui.Live
+	Title  string
+	Form   Signup
+	Again  *Wrapped
+	Model  *ui.ModelForm[Card]
+	Card   Card
+	Secret string `+"`input:\"current-password\"`"+`
+}
+`), 0o644)
+	c := &assetComp{dir: dir, name: "Join", scripts: []assetSrc{{inline: "x"}}}
+	dts := string(componentDTS(dir, "", []*assetComp{c}))
+	for _, want := range []string{"Title: string;", "Card: Card;", "Holder: string;"} {
+		if !strings.Contains(dts, want) {
+			t.Errorf("no %q in\n%s", want, dts)
+		}
+	}
+	for _, bad := range []string{"Form", "Again", "Model", "PIN", "Secret", "Password"} {
+		if strings.Contains(dts, bad+":") || strings.Contains(dts, bad+"?:") {
+			t.Errorf("%s is typed as a prop:\n%s", bad, dts)
+		}
+	}
+}
