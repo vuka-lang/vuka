@@ -150,6 +150,8 @@ github.com/vuka-lang/web/v2 v2.13.1-0.20261030194429-46da02648926 h1:0Z4gX8QdLea
 github.com/vuka-lang/web/v2 v2.13.1-0.20261030194429-46da02648926/go.mod h1:+yBKSEl+uld6NCq8KO4UWTzt2xJZxAHPuYsUue1yJmA=
 github.com/vuka-lang/web/v2 v2.13.1-0.20261030201600-978abc3f0252 h1:0jfPFvJ8/Mwny00z5MA2CqfTios2wXhaKYcDhv0shBA=
 github.com/vuka-lang/web/v2 v2.13.1-0.20261030201600-978abc3f0252/go.mod h1:opHv433QsvRjHfn2hxFjn3X+WEKunCW6JF0ho5BE8MA=
+github.com/vuka-lang/web/v2 v2.13.1-0.20261030211650-0a2c4c88ae3c h1:mPCAkwa5oaLC1RIE8WbkfAz8B9TTdZIcYFWt5cj5oA0=
+github.com/vuka-lang/web/v2 v2.13.1-0.20261030211650-0a2c4c88ae3c/go.mod h1:eOQ4v0SDZ2ACYM6JiRyvILEPQYRuGELTcHkrlStm2zc=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 github.com/yuin/goldmark v1.4.13/go.mod h1:6yULJ656Px+3vBD8DxQVa3kxgyrAnzto9xy5taEt/CY=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=
