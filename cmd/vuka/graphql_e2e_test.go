@@ -2,7 +2,10 @@ package main
 
 import (
 	"bytes"
+	"encoding/json"
 	"errors"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -49,7 +52,7 @@ import (
 
 // Pets lists the pets.
 @graphql.Query
-func Pets(ctx context.Context, first int, store *Store) ([]Pet, error) { return store.pets, nil }
+func Pets(ctx context.Context, first *int, store *Store) ([]Pet, error) { return store.pets, nil }
 `
 
 // TestGraphQLSchema: vuka graphql schema prints the schema the app builds —
@@ -126,4 +129,169 @@ func exitedWith(err error) bool {
 	var exit *exec.ExitError
 	var st exitStatus
 	return errors.As(err, &exit) || errors.As(err, &st)
+}
+
+const shopMain = `package main
+
+import (
+	"example.com/app/shop"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+func main() {
+	app := web.New(web.GraphQL("/graphql", graphql.Introspection(true)))
+	app.Service(shop.NewStore)
+	app.Run("")
+}
+`
+
+const shopTypes = `package shop
+
+type Product struct {
+	ID    int64
+	Name  string
+	Codes *[]*int // [Int]: null, or codes some of which are null
+}
+
+type Store struct{ byCategory map[int]*[]*Product }
+
+func intp(n int) *int { return &n }
+
+func NewStore() *Store {
+	kettle := &Product{ID: 1, Name: "kettle", Codes: &[]*int{intp(10), nil, intp(2)}}
+	return &Store{byCategory: map[int]*[]*Product{1: {kettle, nil}, 2: {}}}
+}
+`
+
+const shopOps = `package shop
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+// Products are every product, or null while the shop is closed.
+@graphql.Query
+func Products(ctx context.Context, open *bool, store *Store) (*[]*Product, error) {
+	if open != nil && !*open {
+		return nil, nil
+	}
+	return &[]*Product{{ID: 2, Name: "mug"}}, nil
+}
+
+// ProductsByCategory are a category's products: null for a category the
+// shop doesn't have, a null for each product it no longer sells.
+@graphql.Query
+func ProductsByCategory(ctx context.Context, @graphql.AsInt categoryId int, store *Store) (*[]*Product, error) {
+	return store.byCategory[categoryId], nil
+}
+
+// Count counts the codes given, nulls apart.
+@graphql.Query
+func Count(ctx context.Context, @graphql.Arg("of") codes []*int, first *int) (int, error) {
+	n := 0
+	for _, c := range codes {
+		if c != nil {
+			n++
+		}
+	}
+	return n, nil
+}
+`
+
+// TestGraphQLNullability: the compiler's schema for nullable list results
+// (*[]*T is [T]), lists of nullable scalars ([]*int is [Int]) and
+// arguments required by their Go type (int is Int!, *int is Int), and the
+// app answering with null lists, null items and validation errors.
+func TestGraphQLNullability(t *testing.T) {
+	repo, _ := filepath.Abs("../..")
+	web := os.Getenv("VUKA_WEB")
+	if web == "" {
+		web = filepath.Join(filepath.Dir(repo), "vuka-web")
+	}
+	if bind, _ := os.ReadFile(filepath.Join(web, "graphql", "bind.go")); !bytes.Contains(bind, []byte("func ListOfPtr[")) {
+		needs(t, "github.com/vuka-lang/web/v2 at %s has no graphql.ListOfPtr; set VUKA_WEB (and VUKA_UI)", web)
+	}
+	root := localModule(t, web, map[string]string{
+		"main.go":       shopMain,
+		"shop/types.go": shopTypes,
+		"shop/ops.vuka": shopOps,
+	})
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	for _, k := range []string{graphqlSchemaEnv, graphqlCheckEnv, "VUKA_TAILWIND", "VUKA_FRONTEND"} {
+		t.Setenv(k, "")
+	}
+	t.Chdir(root)
+	var stdout, stderr bytes.Buffer
+	if err := graphqlCmd([]string{"schema"}, &stdout, &stderr); err != nil {
+		t.Fatalf("vuka graphql schema: %v\n%s", err, stderr.Bytes())
+	}
+	want := `type Query {
+  """Products are every product, or null while the shop is closed."""
+  products(open: Boolean): [Product]
+  """
+  ProductsByCategory are a category's products: null for a category the
+  shop doesn't have, a null for each product it no longer sells.
+  """
+  productsByCategory(categoryId: Int!): [Product]
+  """Count counts the codes given, nulls apart."""
+  count(of: [Int]!, first: Int): Int!
+}
+
+type Product {
+  id: ID!
+  name: String!
+  codes: [Int]
+}
+`
+	if got := stdout.String(); got != want {
+		t.Fatalf("schema:\n%s\nwant:\n%s", got, want)
+	}
+
+	if err := gen([]string{"-inplace", "./..."}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -inplace: %v", err)
+	}
+	app := filepath.Join(t.TempDir(), "app")
+	if out, err := exec.Command("go", "build", "-o", app, ".").CombinedOutput(); err != nil {
+		t.Fatalf("go build: %v\n%s", err, out)
+	}
+	os.Unsetenv(graphqlSchemaEnv) // set, the app prints its schema and exits
+	os.Unsetenv(graphqlCheckEnv)
+	base, logs := runApp(t, app, root, "VUKA_DEV=", "VUKA_ENV=")
+	t.Cleanup(func() {
+		if t.Failed() {
+			t.Logf("app log:\n%s", logs)
+		}
+	})
+	post := func(query string) string {
+		t.Helper()
+		body, _ := json.Marshal(map[string]any{"query": query})
+		res, err := http.Post(base+"/graphql", "application/json", bytes.NewReader(body))
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer res.Body.Close()
+		b, _ := io.ReadAll(res.Body)
+		return string(b)
+	}
+	for _, c := range []struct{ query, want string }{
+		{`{ products(open: false) { name } }`, `{"data":{"products":null}}`},
+		{`{ products { name codes } }`, `{"data":{"products":[{"name":"mug","codes":null}]}}`},
+		{`{ productsByCategory(categoryId: 1) { id codes } }`, `{"data":{"productsByCategory":[{"id":"1","codes":[10,null,2]},null]}}`},
+		{`{ productsByCategory(categoryId: 2) { id } }`, `{"data":{"productsByCategory":[]}}`},
+		{`{ productsByCategory(categoryId: 3) { id } }`, `{"data":{"productsByCategory":null}}`},
+		{`{ count(of: [1, null, 3]) }`, `{"data":{"count":2}}`},
+	} {
+		if got := post(c.query); got != c.want {
+			t.Errorf("%s:\n got %s\nwant %s", c.query, got, c.want)
+		}
+	}
+	for _, q := range []string{`{ productsByCategory { id } }`, `{ productsByCategory(categoryId: null) { id } }`, `{ count }`} {
+		if got := post(q); !strings.Contains(got, "GRAPHQL_VALIDATION_FAILED") || strings.Contains(got, `"data"`) {
+			t.Errorf("%s: %s", q, got)
+		}
+	}
 }
