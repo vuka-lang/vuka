@@ -13,6 +13,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"runtime/debug"
 	"slices"
 	"sort"
 	"strconv"
@@ -1519,6 +1520,14 @@ func (p *proxy) cancelGopls(id string) {
 
 // answer hands gopls's answer to a .vuka request back, mapped onto the source.
 func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
+	// A panic mapping one answer is that request's empty answer, never the
+	// server's end.
+	defer func() {
+		if r := recover(); r != nil {
+			p.logf("panic answering %s: %v\n%s", vr.method, r, debug.Stack())
+			_ = p.editor.send(map[string]any{"jsonrpc": "2.0", "id": vr.editorID, "result": nil})
+		}
+	}()
 	reply := map[string]any{"jsonrpc": "2.0", "id": vr.editorID}
 	if len(m.Error) > 0 {
 		// gopls can't answer mid-edit or with a broken import; like gopls

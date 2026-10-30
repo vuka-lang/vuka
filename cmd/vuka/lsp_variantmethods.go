@@ -57,7 +57,8 @@ func variantMethodDoc(vm transpile.VariantMethod, header string) string {
 // of one enum and name lower to with every declaration of the method;
 // asked on a declaration's own name (origin, off), the answer is kept.
 func (p *proxy) withVariantDecls(v any, origin *vfile, off int) any {
-	list, single := v.([]any), false
+	list, _ := v.([]any)
+	single := false
 	if m, ok := v.(map[string]any); ok {
 		list, single = []any{m}, true
 	}
