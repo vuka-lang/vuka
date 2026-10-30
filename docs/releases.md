@@ -20,6 +20,41 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.14.0 — unreleased
+
+### Web
+
+- **CORS for a route prefix: `web.CORS(prefix, web.CORSConfig{…})`**
+  (vuka#235). Preflights under the prefix are answered `204` before
+  routing, middleware, gates and the cross-origin check; every answer
+  there carries `Vary: Origin`, and a listed origin's
+  `Access-Control-Allow-Origin` (exact matching, `web.AnyOrigin` for any).
+  Defaults: `GET, HEAD, POST`, `Content-Type` (and `Authorization` under a
+  token-only prefix), a 5-minute `MaxAge`. `web.AnyHeader` answers with the
+  headers a preflight asks for, `Authorization` included, which a literal
+  `*` doesn't cover. `Credentials` lets the listed origins send cookies,
+  and their requests through the cross-origin check under the prefix.
+  Build refuses what can't work ([E0430](/errors/E0430)): no origins, an
+  origin with a path, a wildcard or `null` origin, `Credentials` with
+  `web.AnyOrigin`. See [CORS and Token APIs](/web/cross-origin).
+- **Token-only routes: `web.TokenOnly(prefix)`** (vuka#235). Under the
+  prefix the `Cookie` header is taken off before any middleware reads it
+  and `Set-Cookie` is dropped from the answers, so a session can't ride
+  along, and with that the cross-origin check is off there: another
+  origin's script may sign in or call the API with its bearer token. The
+  two are one declaration: the check is never off for a request that
+  still carries cookies. A bad prefix is [E0431](/errors/E0431).
+- **`.env` files are read when the program starts** (behaviour change,
+  vuka#235), as the web package is initialised, before `main` builds the
+  options passed to `web.New`: an option built from the environment
+  (`auth.Config{…}` with a key from `os.Getenv`) sees them without a
+  `web.LoadEnv()` call first. Apps calling it keep working: the files are
+  read once. `web.DotEnv`, `web.NoDotEnv` and `web.LoadEnv` with another
+  list take back what the first reading set before reading their own
+  files. A package that reads the environment at its own initialisation
+  without importing web may still run first: read it in a function. See
+  [When Files Are Read](/web/configuration#when).
+
 ## v2.13.0 — 2026-10-30
 
 ### Web
