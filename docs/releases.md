@@ -20,6 +20,18 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.15.1 — unreleased
+
+### Build reports
+
+- **A Go file the parser gave up on is reported, not a panic**
+  ([#259](https://github.com/vuka-lang/vuka/issues/259)). `vuka build`, `vet`,
+  `test` and `run` crashed with a nil dereference while reporting a failed
+  transpile when a package in the report had a broken package clause or too
+  many syntax errors, hand-written or generated. The crash hid both that error
+  and the one that failed the build. The file now gets a normal diagnostic with
+  the parser's message.
+
 ## v2.15.0 — 2026-10-31
 
 ### JS commands

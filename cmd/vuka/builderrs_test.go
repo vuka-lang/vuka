@@ -13,6 +13,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
 // webCheckout is the web checkout the tests build against ($VUKA_WEB, else
@@ -573,4 +575,96 @@ func ormColumnFixtures(dir string, files map[string]string) map[string]string {
 		files[path] = names.Replace(src)
 	}
 	return files
+}
+
+// manySyntaxErrors is Go the parser gives up on after its limit of errors.
+var manySyntaxErrors = "package links\n\n" + strings.Repeat("var x = T{: 1}\n", 20)
+
+// TestCheckParserGaveUp: a file the parser gave up on, whose ast.File has no
+// position, is a diagnostic with the parser's message, hand-written or
+// generated, with a source or without.
+func TestCheckParserGaveUp(t *testing.T) {
+	const pkg = "example.com/app/links"
+	for _, c := range []struct {
+		name, src, want string
+		generated       bool
+		source          string
+	}{
+		{name: "a broken package clause", src: "packge links\n", want: "expected 'package'"},
+		{name: "an empty file", src: "", want: "expected 'package'"},
+		{name: "too many errors", src: manySyntaxErrors, want: "expected operand"},
+		{name: "generated, a broken package clause", src: "packge links\n", want: "expected 'package'", generated: true},
+		{name: "generated, too many errors", src: manySyntaxErrors, want: "expected operand", generated: true},
+		{name: "generated from a source", src: manySyntaxErrors, want: "expected operand", generated: true, source: "links.vuka"},
+		{name: "one error", src: "package links\n\nvar x = T{: 1}\n", want: "expected operand"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			root, _ := filepath.EvalSymlinks(t.TempDir())
+			writeFile(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.24\n")
+			target := filepath.Join(root, "links", "links.go")
+			in := buildInput{root: root, modPath: "example.com/app"}
+			if c.generated {
+				writeFile(t, filepath.Join(root, "links", "doc.go"), "package links\n")
+				tmp := filepath.Join(t.TempDir(), "links_gen.go")
+				writeFile(t, tmp, c.src)
+				target = filepath.Join(root, "links", "links_gen.go")
+				data, _ := json.Marshal(struct{ Replace map[string]string }{map[string]string{target: tmp}})
+				in.overlay = filepath.Join(t.TempDir(), "overlay.json")
+				writeFile(t, in.overlay, string(data))
+				g := load.Generated{Target: target, Src: []byte(c.src)}
+				if c.source != "" {
+					g.Source, g.From = filepath.Join(root, "links", c.source), []byte("package links\n")
+				}
+				in.gens = []load.Generated{g}
+			} else {
+				writeFile(t, target, c.src)
+			}
+			own, _ := in.check([]string{pkg}, nil)
+			if len(own[pkg]) == 0 || !strings.Contains(own[pkg][0].Message, c.want) {
+				t.Fatalf("want %q, got %+v", c.want, own[pkg])
+			}
+			if got := own[pkg][0].Span; got.File != target || got.Line == 0 {
+				t.Errorf("at %+v, want %s", got, target)
+			}
+		})
+	}
+}
+
+// TestBuildReportParserGaveUp: with a package the parser gives up on, every
+// command reports it instead of panicking.
+func TestBuildReportParserGaveUp(t *testing.T) {
+	const page = "package pages\n\nimport \"example.com/app/links\"\n\n// Links is a page using the package.\ntype Links struct{}\n\n<a href={links.Home()}>{missing}</a>\n"
+	for _, c := range []struct {
+		name, file, src, want string
+	}{
+		{"a broken package clause", "links/links.go", "packge links\n", "expected 'package'"},
+		{"too many errors", "links/links.go", manySyntaxErrors, "expected"},
+		{"a Go file of a page's package", "pages/helper.go", strings.Replace(manySyntaxErrors, "package links", "package pages", 1), "expected"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			routesModule(t, map[string]string{
+				"main.go":               "package main\n\nimport (\n\t\"example.com/app/pages\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nfunc main() { web.New(pages.Routes()) }\n",
+				"links/links.go":        "package links\n\nfunc Home() string { return \"/\" }\n",
+				"pages/links.vuka.html": page,
+				c.file:                  c.src,
+			})
+			for _, cmd := range []string{"vet", "build", "test"} {
+				var errOut bytes.Buffer
+				if err := runGo(cmd, []string{"./..."}, io.Discard, &errOut); err == nil {
+					t.Errorf("vuka %s passed", cmd)
+				}
+				if got := errOut.String(); !strings.Contains(got, c.want) {
+					t.Errorf("vuka %s says:\n%s", cmd, got)
+				}
+			}
+			// The route table needs the packages of pages/ alone.
+			var errOut bytes.Buffer
+			err := routesCmd(nil, io.Discard, &errOut)
+			if inPages := strings.HasPrefix(c.file, "pages/"); inPages != (err != nil) {
+				t.Errorf("vuka routes: %v", err)
+			} else if inPages && !strings.Contains(err.Error()+errOut.String(), c.want) {
+				t.Errorf("vuka routes says:\n%s%s", err, errOut.Bytes())
+			}
+		})
+	}
 }

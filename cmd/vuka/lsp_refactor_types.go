@@ -78,8 +78,8 @@ func loadTyped(path string, read load.ReadFunc) (*typedPkg, error) {
 		}
 		generated[filepath.Base(g.Target)] = true
 		f, err := parser.ParseFile(tp.fset, g.Target, g.Src, parser.SkipObjectResolution)
-		if f == nil {
-			return nil, err
+		if f == nil || !f.Pos().IsValid() {
+			return nil, err // the parser gave up on it: no token.File to map through
 		}
 		files = append(files, f)
 		if g.Source != "" && g.Map != nil {

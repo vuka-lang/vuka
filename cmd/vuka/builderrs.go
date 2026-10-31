@@ -708,11 +708,16 @@ func (c *checker) pkg(path string) []diag.Diagnostic {
 		} else {
 			src, _ = os.ReadFile(full)
 		}
+		base := fset.Base()
 		f, err := parser.ParseFile(fset, full, src, parser.ParseComments|parser.SkipObjectResolution)
 		var list scanner.ErrorList
-		if errors.As(err, &list) && f != nil {
+		if errors.As(err, &list) {
+			// A file the parser gave up on (its package clause broken, or too
+			// many errors) is an empty ast.File with no position, so its
+			// token.File comes from the file set.
+			tf := fset.File(token.Pos(base))
 			for _, e := range list {
-				p := fset.File(f.Pos()).Pos(e.Pos.Offset)
+				p := tf.Pos(e.Pos.Offset)
 				ds = append(ds, c.diagnostic(fset, files, cf, p, e.Msg, nil, nil))
 			}
 		}
