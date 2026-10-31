@@ -3,6 +3,7 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"fmt"
 	"maps"
 	"path/filepath"
 	"regexp"
@@ -63,7 +64,7 @@ func (c *routeChecker) conflicts() {
 			case ab && ba:
 				c.res.diags = append(c.res.diags, *diag.New("E0701", "%s and %s both serve %s %s", b.Page, a.Page, a.Method, a.Path).
 					At(diag.Span{File: a.File, Line: a.Line}).WithRelated(diag.Span{File: b.File, Line: b.Line}).
-					WithHelp("rename one of them, or move it to another folder"))
+					WithHelp("%s", conflictHelp(a, b)))
 			case !ab && !ba:
 				c.res.diags = append(c.res.diags, *diag.New("E0702", "%s %s and %s match the same paths, neither more specific", a.Method, a.Path, b.Path).
 					At(diag.Span{File: a.File, Line: a.Line}).WithRelated(diag.Span{File: b.File, Line: b.Line}).
@@ -85,6 +86,18 @@ func (c *routeChecker) conflicts() {
 			}
 		}
 	}
+}
+
+// conflictHelp is what to do about two routes on one method and path: a
+// method func beside a page takes the page's path from its file's name.
+func conflictHelp(a, b *folderRoute) string {
+	if a.fn == "" {
+		a, b = b, a
+	}
+	if a.fn == "" || b.typ == "" {
+		return "rename one of them, or move it to another folder"
+	}
+	return fmt.Sprintf("%s in %s answers %s as %s does: remove it, or move it to a file named for another path", a.Method, filepath.Base(a.File), a.Path, b.Page)
 }
 
 // rootLayouts reports the home page outside every root layout (E0724): with
