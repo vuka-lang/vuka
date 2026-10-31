@@ -1,0 +1,2 @@
+push main.(*Orders).Details 2; into #details push main.(*Orders).Details 1; into #posts push main.(*Orders).Price 4; into #price push main.(*Orders).Total 1; into #total push main.(*Orders).Lookup 2; into form push main.(*Orders).Check 2 push main.(*Orders).Remove 1 push main.(*Orders).When 0; into #when
+push main.(*Feed).Older 2; into #posts push main.(*Feed).Bump (not registered) 1; into #n push main.(*Feed).Render.func1 (not registered) 0

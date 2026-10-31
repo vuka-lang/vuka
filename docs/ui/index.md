@@ -54,7 +54,8 @@ The kind of each field decides what it does:
 ## Static and Live Components
 
 A component is live when it embeds `ui.Live`, declares a decorated hook, or
-wires a server method to an event. Browser-only commands keep a component
+wires a server method to an event, other than as a [`Push`](/ui/js#push) step's
+handler, which a page that isn't live calls over HTTP. Browser-only commands keep a component
 static. See [Stateful Components](/ui/stateful) for live components.
 
 ## Where to Go Next

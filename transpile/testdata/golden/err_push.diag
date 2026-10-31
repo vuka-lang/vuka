@@ -1,0 +1,89 @@
+error[E0168]: Save returns no result to put Into a target: Into takes what a handler returns besides an error
+  --> err_push.vuka:24:20
+   |
+24 |         <button onClick={opttarget.JS.Push(s.Save).Into(opttarget.Sel("#x"))} />
+   |                          ^^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: Two takes two structs, A and B: a pushed method takes one struct at most, the form it is sent
+  --> err_push.vuka:25:38
+   |
+25 |         <button onClick={opttarget.JS.Push(s.Two, A{}, B{})} />
+   |                                            ^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: Price takes 2 arguments (sku string, qty int) and the step passes 1: its arguments fill the parameters that aren't pointers or interfaces, in order
+  --> err_push.vuka:26:20
+   |
+26 |         <button onClick={opttarget.JS.Push(s.Price, "a")} />
+   |                          ^^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: "two" is string, which Price's 2nd parameter, qty int, can't take
+  --> err_push.vuka:27:52
+   |
+27 |         <button onClick={opttarget.JS.Push(s.Price, "a", "two")} />
+   |                                                          ^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: opttarget.This.Checked() is read from an element (a bool, or an attribute's text), and Price's 2nd parameter, qty int, takes neither
+  --> err_push.vuka:28:52
+   |
+28 |         <button onClick={opttarget.JS.Push(s.Price, "a", opttarget.This.Checked())} />
+   |                                                          ^^^^^^^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: Ch takes a chan int, which no argument can be
+  --> err_push.vuka:29:38
+   |
+29 |         <button onClick={opttarget.JS.Push(s.Ch)} />
+   |                                            ^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: Many returns (string, int, error): a pushed method returns nothing, an error, or one result and maybe an error
+  --> err_push.vuka:30:38
+   |
+30 |         <button onClick={opttarget.JS.Push(s.Many)} />
+   |                                            ^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: Weird returns map[string]int: a pushed method returns nothing, an error, or a result — []ui.Option, []ui.OptionGroup, a ui.Node, a string, number, bool or time.Time, a struct, ui.Commands — and maybe an error
+  --> err_push.vuka:31:38
+   |
+31 |         <button onClick={opttarget.JS.Push(s.Weird)} />
+   |                                            ^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: opttarget.Append() goes in Into, after the push: ui.JS.Push(…).Into(target, opttarget.Append())
+  --> err_push.vuka:32:55
+   |
+32 |         <button onClick={opttarget.JS.Push(s.Price, "a", 1, opttarget.Append())} />
+   |                                                             ^^^^^^^^^^^^^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: 3 is int, which Total's 2nd parameter, coupon string, can't take
+  --> err_push.vuka:33:47
+   |
+33 |         <button onClick={opttarget.JS.Push(s.Total, 3)} />
+   |                                                     ^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+error[E0168]: ui.JS.Push takes a method of the page or of a component (p.CitiesOf), and func(int) {} isn't one
+  --> err_push.vuka:34:38
+   |
+34 |         <button onClick={opttarget.JS.Push(func(int) {}, opttarget.Read())} />
+   |                                            ^^^^
+   |
+   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) (ui.Node, error), as p.M
+
+For more information about this error, try `vuka explain E0168`.

@@ -49,7 +49,8 @@ The commands are:
 | `PushFocus(t?)`, `PopFocus()` | remember an element (default: the focused one); focus it again later |
 | `Dispatch(t, event, opts...)` | a `CustomEvent`; `ui.Detail(v)`, `ui.NoBubble()` |
 | `Exec(t, attr)` | run the commands held in the element's attribute `attr`; point it only at attributes your own markup fills with commands, never at one holding user data |
-| `Push(handler, opts...)` | call a handler on the server; `ui.Value(v)` passes `v` instead of the element's value; `ui.Timeout(d)`, `ui.KeepOnError()` |
+| `Push(handler, args...)` | call a handler on the server — on a live page's instance over its socket, else on a fresh copy of the page over HTTP — with its arguments in order (Go values, element reads); options `ui.Read()`, `ui.Cache(d)`, `ui.Value(v)`, `ui.Timeout(d)`, `ui.KeepOnError()` ([below](#push)) |
+| `Into(t, opts...)` | put the last `Push`'s result into `t` instead of the element itself; `ui.Append()`, `ui.Prepend()` add markup instead of replacing it ([below](#results)) |
 | `Debounce(d)`, `Throttle(d)` | the steps after it run debounced or throttled |
 | `Key(keys...)` | stop unless a key press is one of `keys` (`"Enter"`, `"Escape"`) |
 | `Confirm(msg)` | stop unless the user confirms |
@@ -59,10 +60,10 @@ The commands are:
 | `Copy(t)`, `CopyText(s)` | the clipboard: an element's value or text, or a string |
 | `ScrollTo(t)` | scroll the element into view |
 | `SetValue(t, v)` | set a field's value — a string, a bool for a checkbox, or a read of another field (`ui.Sel("#x").Value()`) — firing `input` and `change` ([below](#set-value)) |
-| `Options(t, method, args...)` | load a select's options from a method of the page over HTTP ([below](#options)) |
-| `SetText(t, text)` | set the element's text, replacing its content |
+| `Options(t, method, args...)` | load a select's options from a method of the page: `Push(method, args..., ui.Read()).Into(t)` ([below](#options)) |
+| `SetText(t, text)` | set the element's text, replacing its content: a string, or a read (`ui.LoadError` in an `OnError`) |
 | `Call(name, args...)` | call a JavaScript function of the page ([scripts](/web/assets#scripts)) |
-| `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s or `Options`' outcome ([below](#optimistic-updates)) |
+| `OnError(chain)`, `OnSuccess(chain)`, `Timeout(d)` | the last `Push`'s outcome; `ui.LoadError` reads a failure's message ([below](#push-errors)) |
 | `Patch(href)`, `Navigate(href)` | move a live page to another URL over its connection: the same page with other parameters, or another page ([navigation](/web/navigation)); `href` a path or an `http`/`https` URL ([below](#urls-and-attributes)) |
 
 ### URLs and Attributes {#urls-and-attributes}
@@ -115,87 +116,174 @@ Conditions limit a chain to the relevant key, form state or confirmation.
 
 ## Pushing to the Server {#push}
 
-A command chain can push a server handler. For ordinary browser state, use
-assignment: `onClick={open = false; Save()}` closes first and then calls Save.
-The handler receives typed form/request/service parameters, not browser authority.
+`Push(handler, args…)` calls a method of the page, or of a component on
+it, on the server. For ordinary browser state, use assignment:
+`onClick={open = false; Save()}` closes first and then calls Save. Where
+the handler runs follows from the page:
 
-## Loading Options {#options}
+| | A live page or stateful component | A page or component that isn't live |
+|---|---|---|
+| Runs on | its instance, over the page's socket | a fresh copy of the page, over HTTP to the page's own URL |
+| State | reads and changes its fields; the page renders again and is patched | none kept: path and query fields bound, services injected |
+| Request | the socket; with `ui.Read()`, an HTTP GET instead | a `POST` carrying the CSRF token; a `GET` with `ui.Read()` |
+| Checks | the live session's | the app's middleware and the page's guards, not its `Load` |
 
-`Options(target, method, args…)` fills a select from a method of the page,
-or of a component on it — a city list following the country — with no
-connection: the runtime asks the page's own URL over HTTP, so it works on
-a page that isn't live as on one that is.
+Over HTTP, only methods a step names can be called, and only from the page
+that renders the step: the compiler registers each one, with no
+annotation, and the step carries its reference signed for the page's
+route. A call a browser says is cross-site is refused. A reply is never
+cached unless the step says so with `ui.Cache(d)`. A component without
+state on a live page pushes over that page's socket, its props as rendered.
+
+### Arguments {#push-arguments}
+
+The handler takes a `context.Context` first if it needs one; its pointer
+and interface parameters are dependencies the app injects. Every other
+parameter takes the next argument, in order:
+
+- a Go value from the render: `o.ID`, `item.SKU`;
+- a read the browser makes when the event fires: `ui.This.Value()`,
+  `ui.Sel("[name=coupon]").Value()`, `ui.This.Checked()`, `ui.Sel(…).Attr(n)`.
+  A read's text converts to the parameter's type (`"3"` to an `int`,
+  `"true"` to a `bool`); one that won't fails the push and runs its
+  `OnError`;
+- `ui.Value(x)`, as the first argument.
+
+Options — `ui.Read()`, `ui.Cache(d)`, `ui.Timeout(d)`, `ui.KeepOnError()` —
+are told apart by their type, so they may go anywhere among the arguments.
+A handler taking one value, given none, gets the element's value.
+
+```vuka
+func (p *Shop) Price(ctx context.Context, sku string, qty int, coupon string, prices *Prices) (string, error)
+```
 
 ```html
-<script lang="go">
-package pages
+<input name="qty" onInput={ui.JS.Push(Price, item.SKU, ui.This.Value(), ui.Sel("[name=coupon]").Value(), ui.Read()).Into("#price")} />
+```
 
-import (
-    "context"
+**A struct parameter** — at most one, the handler's payload — given no
+argument takes the fields of the form the element is in, bound by their
+form names (a `form:` tag, else the field's name) and checked against its
+`validate:` tags, as an `onSubmit` handler's form is. Arguments after it
+fill the parameters that follow.
 
-    "example.com/app/geo"
-    "github.com/vuka-lang/ui/v2"
-)
+```vuka
+type Quote struct{ SKU string; Qty int; Coupon string }
 
-type Checkout struct{}
+func (p *Shop) Quote(ctx context.Context, q Quote, prices *Prices) (string, error)
+```
 
-func (p *Checkout) CitiesOf(ctx context.Context, country string, g *geo.Geo) ([]ui.Option, error) {
-    return g.Cities(ctx, country)
-}
-</script>
-
-<form method="post">
-  <select id="country" name="country" onChange={ui.JS.Options(ui.Sel("#city"), CitiesOf, ui.This.Value())}>
-    <option value="">Choose a country</option>
-    <option value="tz">Tanzania</option>
-    <option value="ke">Kenya</option>
-  </select>
-  <select id="city" name="city">
-    <option value="">Choose a city</option>
-  </select>
+```html
+<form>
+  <input type="hidden" name="sku" value={item.SKU} />
+  <input name="qty" onInput={ui.JS.Push(Quote, ui.Read()).Into("#price")} />
+  <input name="coupon" />
 </form>
 ```
 
-- **The method** returns `[]ui.Option`, or `[]ui.OptionGroup` for
-  `<optgroup>`s, and maybe an error. It takes a `context.Context` first if
-  it needs one, then the command's arguments — the parameters that aren't
-  pointers or interfaces, in order — then its dependencies, pointers and
-  interfaces the app injects. An argument is a Go value, or a read made
-  when the step runs: an element's value, `ui.This.Value()` (a string,
-  parsed for a number), or `ui.Sel("#gift").Checked()` (a bool).
-- **No annotation.** The compiler registers each method an `Options`
-  command names, and checks the command's arguments against it
-  ([E0168](/errors/E0168)). Only those methods can be called this way, and
-  only from the page that renders the command: the command carries the
-  method's reference signed for the page's route.
-- **What runs.** The call is a GET of the page's URL. The app's middleware
-  and the route's run (who the visitor is), then the page's guards, then
-  the method — not the page's `Load`, nor its layouts'. The method runs on
-  a fresh page, its path and query fields bound, or a fresh component: not
-  on what the page rendered, so it takes what it needs as arguments and
-  dependencies. A component's method is called on the page that renders
-  it, under that page's guards.
-- **The reply** replaces the select's options; a leading option whose
-  value is `""` (a placeholder) stays. The value stays when it is still
-  offered, else it is cleared; then the select fires `change`, so a select
-  loading another's options from its own chains on, and a script enhancing
-  the select sees its new options. On a live page the options stay as the
-  page re-renders, while the server renders the ones it did.
-- **Failures** — the method's error, a guard refusing, no reply within
-  `Timeout` (10s) — run the chain's `OnError`; without one the error is
-  logged (and a `vk:error` event fired) and the options stay as they were.
-  `OnSuccess` runs once they are in place. A later load of the same select
-  wins over an earlier one still on its way.
+The compiler checks the count, each Go value's type, and that each read
+converts to its parameter ([E0168](/errors/E0168)).
 
-```html
-<select name="country" onChange={ui.JS.Debounce(100*time.Millisecond).Options(ui.Ref("city"), CitiesOf, ui.This.Value()).OnError(ui.JS.Show(ui.Ref("cities-error")))}>…</select>
-<select ref="city" name="city"></select>
-<p ref="cities-error" hidden>Couldn't load the cities.</p>
+### Results {#results}
+
+What the handler returns besides an error goes `Into` a target — the
+element the event is on, unless `.Into(target)` names another:
+
+| The handler returns | The target |
+|---|---|
+| nothing, an `error` | nothing: an event (on a page that isn't live, it runs over HTTP) |
+| `[]ui.Option`, `[]ui.OptionGroup` | a select's options are replaced; the value stays while still offered, else it is cleared; `change` fires |
+| `ui.Node` | its content becomes the markup, morphed in place (focus and typing kept); `ui.Append()` / `ui.Prepend()` add it instead |
+| a `string`, number, `bool`, `time.Time` | a field's value is set, firing `input` and `change`; any other element gets it as its text |
+| a struct | each field fills the control of its form name inside the target; a field with no control is skipped, and an `Option[T]` left `None` leaves its control alone |
+| `ui.Commands` | the commands run |
+
+`Into` on a handler with no result is an error. A later push into a
+target wins over an earlier one still on its way.
+
+```vuka
+func (p *Contact) RegionsOf(ctx context.Context, country int64, places *Places) ([]ui.Option, error)
+func (p *Signup) Lookup(ctx context.Context, postcode string, geo *Geo) (Place, error) // Place{City, Region}
+func (p *Orders) Details(ctx context.Context, id int64, orders *Store) (ui.Node, error)
+func (p *Alerts) Unsubscribe(ctx context.Context, category int64, alerts *Store) (ui.Node, error)
+func (p *Feed) Older(ctx context.Context, before int64, posts *Posts) (ui.Node, error)
+func (p *Join) CheckName(ctx context.Context, name string, users *Users) (ui.Commands, error)
 ```
 
-A struct form's dependent fields (`depends:` and `<Field>Choices`) need
-no command: their choices follow on their own
-([choices](/ui/forms#choices)).
+```html
+<!-- dependent select -->
+<select name="country" onChange={ui.JS.Push(RegionsOf, ui.This.Value(), ui.Read()).Into("#region")}>…</select>
+
+<!-- a lookup filling several fields -->
+<input name="postcode" onChange={ui.JS.Push(Lookup, ui.This.Value(), ui.Read()).Into(ui.Closest("form"))} />
+
+<!-- a row's details, then a dialog -->
+<button onClick={ui.JS.Push(Details, ui.Value(o.ID), ui.Read()).Into("#details").OnSuccess(design.OpenDialog("details"))}>View</button>
+
+<!-- a write on a page that isn't live, rendering one list again -->
+<button onClick={ui.JS.Push(Unsubscribe, ui.Value(a.CategoryID)).Into("#alerts")}>Remove</button>
+
+<!-- load more -->
+<button onClick={ui.JS.Push(Older, ui.Value(last.ID), ui.Read()).Into("#posts", ui.Append())}>Load more</button>
+
+<!-- commands the server decides -->
+<input name="username" onInput={ui.JS.Debounce(300*time.Millisecond).Push(CheckName, ui.This.Value(), ui.Read())} />
+```
+
+On a live page, what a push put in a place — markup, a value, text,
+options — stays as the page renders again, until the server renders that
+place differently.
+
+### Reads {#push-reads}
+
+`ui.Read()` makes a push a read: an HTTP GET to the page's URL, on a fresh
+copy of the page. Without it a push on a page that isn't live is a `POST`
+carrying the CSRF token, which the app checks as it checks a form post —
+always safe for a handler that writes. On a live page a read goes over
+HTTP instead of the socket, so a heavy lookup doesn't hold up the page's
+events, and it leaves the page's state alone. `ui.Cache(d)` lets the
+browser keep a read's reply for `d`, for the same call with the same
+arguments.
+
+A read must not write: the compiler warns when a read names a method
+calling the ORM's `Save`, `Create` or `Delete` ([W0114](/errors/W0114)),
+and when a handler on a page that isn't live assigns to the page's fields,
+whose copy is thrown away ([W0113](/errors/W0113)).
+
+### Failures {#push-errors}
+
+A push fails when its handler returns an error, a guard refuses it, a read
+doesn't convert, or no reply comes within `Timeout` (10s). Its predictions
+are taken back and its `OnError` runs; `ui.LoadError` reads the failure's
+message there. Without an `OnError` the error is logged and a `vk:error`
+event fired. `OnSuccess` runs once the result is in place.
+
+```html
+<button onClick={ui.JS.Push(Details, ui.Value(o.ID), ui.Read()).Into("#details").OnError(ui.JS.SetText("#details-error", ui.LoadError))}>View</button>
+<p id="details-error"></p>
+```
+
+## Loading Options {#options}
+
+`Options(target, method, args…)` is shorthand for
+`Push(method, args…, ui.Read()).Into(target)`: a select's options from a
+method returning `[]ui.Option` or `[]ui.OptionGroup` (for `<optgroup>`s),
+read over HTTP on a page that isn't live as on one that is.
+
+```html
+<select id="country" name="country" onChange={ui.JS.Options(ui.Sel("#city"), CitiesOf, ui.This.Value())}>
+  <option value="">Choose a country</option>
+  <option value="tz">Tanzania</option>
+  <option value="ke">Kenya</option>
+</select>
+<select id="city" name="city">
+  <option value="">Choose a city</option>
+</select>
+```
+
+A leading option whose value is `""` (a placeholder) stays. A struct
+form's dependent fields (`depends:` and `<Field>Choices`) need no command:
+their choices follow on their own ([choices](/ui/forms#choices)).
 
 ## Setting Values {#set-value}
 
@@ -229,8 +317,9 @@ fields or browser-state fields. A fresh document navigation creates a new page.
 A patch reconciles server output with the browser. Stable keys preserve logical
 instances.
 
-A command-only shape stays static; server handlers or decorated hooks make it
-live. See [Client State](/ui/state) and [Testing Components](/ui/testing).
+A command-only shape stays static, as does one whose only server calls are
+[`Push`](#push) steps of methods; other server handlers or decorated hooks make
+it live. See [Client State](/ui/state) and [Testing Components](/ui/testing).
 
 ## Busy Forms {#busy-forms}
 

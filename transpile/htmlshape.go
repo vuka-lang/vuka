@@ -45,7 +45,9 @@ type Shape struct {
 
 	// Live is whether the struct is a live component: it embeds ui.Live,
 	// declares a hook, or has an exported method the markup wires to an
-	// on… attribute. LiveWhy says which, for messages.
+	// on… attribute other than as a Push or Options step's handler, which
+	// a page that isn't live calls over HTTP. LiveWhy says which, for
+	// messages.
 	Live       bool
 	LiveWhy    string
 	EmbedsLive bool
@@ -369,11 +371,57 @@ func wiredEvent(markup string, events []string) string {
 		if end < 0 {
 			continue
 		}
-		if m := name.FindStringSubmatch(markup[loc[1]:end]); m != nil {
+		if m := name.FindStringSubmatch(maskPushSteps(markup[loc[1]:end])); m != nil {
 			return m[1]
 		}
 	}
 	return ""
+}
+
+var pushStep = regexp.MustCompile(`\.(?:Push|Options)\(`)
+
+// maskPushSteps is an on… attribute's expression without its Push and
+// Options steps' arguments: a method a step names doesn't make its page
+// live, the step reaches it over HTTP on a page that isn't. A closure among
+// them does, running only on a live instance.
+func maskPushSteps(hole string) string {
+	for from := 0; ; {
+		loc := pushStep.FindStringIndex(hole[from:])
+		if loc == nil {
+			return hole
+		}
+		open := from + loc[1]
+		if strings.Contains(closeParen(hole, open), "func(") {
+			from = open
+			continue
+		}
+		end := open + len(closeParen(hole, open))
+		hole = hole[:open] + hole[end:]
+		from = open
+	}
+}
+
+// closeParen is s from i up to the paren closing the one before i.
+func closeParen(s string, i int) string {
+	depth := 0
+	for j := i; j < len(s); j++ {
+		switch c := s[j]; c {
+		case '"', '\'', '`':
+			for j++; j < len(s) && s[j] != c; j++ {
+				if s[j] == '\\' && c != '`' {
+					j++
+				}
+			}
+		case '(':
+			depth++
+		case ')':
+			if depth == 0 {
+				return s[i:j]
+			}
+			depth--
+		}
+	}
+	return s[i:]
 }
 
 // goHeader reads the header's Go, starting at the offset from, up to the

@@ -82,6 +82,15 @@ components pushed with `PushJS` while it was made (`Patch.JS`, and
 `s.JS()` for those a mount hook pushed during the join's render), run by the
 browser once the reply is applied.
 
+### Push Results {#push-results}
+
+An event from a [Push step](/ui/js#push) may carry the step's arguments
+(`ui.Event.Args`) and, when a struct takes them, the enclosing form's fields.
+What the handler returns besides an error comes back as the reply's
+`result` (`Patch.Result`), for the browser to put
+[`Into` its target](/ui/js#results) once the reply is applied. What it
+puts there stays until the server renders that place differently.
+
 ## Navigating Without a New Session {#navigation}
 
 A connected page can move to another URL without a new session: the

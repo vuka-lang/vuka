@@ -24,20 +24,41 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ### JS commands
 
+- **`ui.JS.Push` is one verb: stateful or stateless, with its result put
+  `Into` a target** ([#252](https://github.com/vuka-lang/vuka/issues/252)).
+  On a live page a push runs on the instance over its socket; on a page
+  that isn't live it now runs on a fresh copy of the page over HTTP, a
+  `POST` carrying the CSRF token, instead of doing nothing. `ui.Read()`
+  makes it a `GET`, on a live page too, and `ui.Cache(d)` lets the browser
+  keep the reply. Arguments are positional: Go values and element reads
+  (`ui.This.Value()`), a read's text converted to the parameter's type,
+  options told apart by type; one struct parameter given no argument takes
+  the enclosing form's fields. A handler may return `[]ui.Option`,
+  `[]ui.OptionGroup`, a `ui.Node` (with `ui.Append()`, `ui.Prepend()`), a
+  scalar, a struct filling form controls, or `ui.Commands`, applied
+  `.Into(target)`; on a live page it stays until the server renders that
+  place differently. `ui.LoadError` reads a failure's message in
+  `OnError`. No annotation: the compiler registers each method a page calls
+  over HTTP and checks the step ([E0168](/errors/E0168)); only those methods
+  can be called, and only from the page rendering the step (its reference
+  is signed for the page's route). The page's guards and the app's
+  middleware run, not its `Load`. New warnings: [W0113](/errors/W0113), a
+  handler assigning the fields of a copy that is thrown away;
+  [W0114](/errors/W0114), a read naming a method that writes. See
+  [Pushing to the Server](/ui/js#push).
+
+
+  **Upgrade note:** a `.vuka.html` page or component whose only server call
+  was a `Push` or `Options` step of a method used to go live for it; it now
+  stays static and calls the method over HTTP on a fresh copy. If the method
+  relies on the page's fields between events, W0113 points at it: embed
+  `ui.Live`, as `onClick={Method}` or a hook still does for you.
 - **`ui.JS.Options` loads a select's options from a page method**
-  ([#248](https://github.com/vuka-lang/vuka/issues/248)).
-  `Options(target, method, args…)` calls a method of the page, or of a
-  component on it, over HTTP on the page's own URL — no connection, so a
-  city list follows the country on a page that isn't live too. No
-  annotation: the compiler registers each method an `Options` command names
-  and checks the command's arguments against its parameters
-  ([E0168](/errors/E0168)); only those methods can be called, and only
-  from the page rendering the command (its reference is signed for the
-  page's route). The page's guards and the app's middleware run, not its
-  `Load`; the method's dependencies are injected. The runtime replaces the
-  options (a placeholder kept, `ui.OptionGroup`s as `<optgroup>`s), keeps
-  the value while it is offered, else clears it, and fires `change`;
-  failures go to `OnError`. See [Loading Options](/ui/js#options).
+  ([#248](https://github.com/vuka-lang/vuka/issues/248)), as shorthand for
+  `Push(method, args…, ui.Read()).Into(target)`: a placeholder is kept, a
+  `ui.OptionGroup` is an `<optgroup>`, the value stays while it is offered,
+  else it is cleared, and `change` fires. See
+  [Loading Options](/ui/js#options).
 - **`SetValue` takes reads** of other fields — `ui.Sel("#bill-city").Value()`,
   `ui.This.Checked()` — and bools, besides strings, and chooses a select's
   option of that value ([Setting Values](/ui/js#set-value)).

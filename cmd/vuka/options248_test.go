@@ -34,7 +34,7 @@ func (host) FormStore() ui.FormStore          { return nil }
 
 func main() {
 	ctx := ui.WithPageURL(ui.WithFormHost(context.Background(), host{}), &url.URL{Path: "/checkout"}, nil)
-	s, err := ui.String(ctx, (&Checkout{}).Render())
+	s, err := ui.String(ctx, &Checkout{})
 	if err != nil {
 		panic(err)
 	}
@@ -107,8 +107,8 @@ func TestOptions248(t *testing.T) {
 	if err := runGo("run", []string{"."}, &out, &errOut); err != nil {
 		t.Fatalf("vuka run: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
 	}
-	want := `Checkout.CitiesOf [{"$read":{"value":true}}] [{"value":"tz-dar","label":"Dar es Salaam"}]
-TownPicker.Towns ["north"] [{"group":"tz","options":[{"value":"t1","label":"Town"}]}]
+	want := `Checkout.CitiesOf [{"$read":{"value":true}}] {"options":[{"value":"tz-dar","label":"Dar es Salaam"}]}
+TownPicker.Towns ["north"] {"options":[{"group":"tz","options":[{"value":"t1","label":"Town"}]}]}
 `
 	if got := out.String(); got != want {
 		t.Errorf("got\n%s\nwant\n%s", got, want)
@@ -122,8 +122,8 @@ func TestOptions248Errors(t *testing.T) {
 		t.Skip("builds a program")
 	}
 	for _, c := range []struct{ name, file, old, new, want string }{
-		{"no argument", "checkout.vuka.html", `CitiesOf, ui.This.Value())`, `CitiesOf)`,
-			"CitiesOf takes 1 argument (country string) and the command passes 0"},
+		{"an argument too many", "checkout.vuka.html", `CitiesOf, ui.This.Value())`, `CitiesOf, ui.This.Value(), "x")`,
+			"CitiesOf takes 1 argument (country string) and the step passes 2"},
 		{"not a method", "checkout.vuka.html", `CitiesOf, ui.This.Value())`, `func(string) []ui.Option { return nil }, ui.This.Value())`,
 			"ui.JS.Options takes a method of the page or of a component"},
 		{"a value of another type", "town_picker.vuka.html", `Options(Towns, "north")`, `Options(Towns, 7)`,

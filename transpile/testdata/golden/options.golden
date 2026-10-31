@@ -37,6 +37,6 @@ func main() {
 }
 
 func init() {
-	opttarget.RegisterOptions((*Checkout).CitiesOf)
-	opttarget.RegisterOptions(Checkout.Sizes)
+	opttarget.RegisterPush((*Checkout).CitiesOf)
+	opttarget.RegisterPush(Checkout.Sizes)
 }

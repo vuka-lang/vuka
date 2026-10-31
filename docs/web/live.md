@@ -44,7 +44,9 @@ func (c *Counter) Increment() { c.n++ }
 ## How a Page Becomes Live {#how-a-page-becomes-live}
 
 A shape becomes live when it embeds ui.Live, declares a decorated hook or
-wires a server method in an event attribute. A static page containing a live
+wires a server method in an event attribute (other than as a
+[`Push`](/ui/js#push) or `Options` step's handler, called over HTTP on a page
+that isn't live). A static page containing a live
 child participates in the live transport as well. Browser-only JS commands
 and ui.State assignments do not create a server session by themselves.
 

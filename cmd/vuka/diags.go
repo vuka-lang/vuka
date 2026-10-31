@@ -215,8 +215,11 @@ func buildWarnings(ds []diag.Diagnostic) []diag.Diagnostic {
 // shownEverywhere reports whether a transpiler warning is shown by vuka
 // build, run, test and install and in the editor, as well as by vuka vet:
 // a markup call whose target an overload added or removed would change
-// (W0108), an on… handler a component would drop (W0112).
-func shownEverywhere(code diag.Code) bool { return code == "W0108" || code == "W0112" }
+// (W0108), an on… handler a component would drop (W0112), a pushed write
+// that is lost (W0113), a read that writes (W0114).
+func shownEverywhere(code diag.Code) bool {
+	return code == "W0108" || code == "W0112" || code == "W0113" || code == "W0114"
+}
 
 // shownInEditor reports whether the editor shows a transpiler warning:
 // those shownEverywhere, and a GraphQL argument's attribute above its

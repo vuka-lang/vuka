@@ -444,7 +444,26 @@ instead, `c3:0p`, `c3:1p`, …: its number among the instance's pushes,
 which stays valid across the instance's renders until 64 later pushes
 have replaced it, so a render between the push and its event — the join
 after an HTTP render, another event, a message — leaves it working. A push
-without `h` (rendered without a session) does nothing.
+with neither `h` nor `m` (rendered without a session, naming no method the
+compiler registered) does nothing.
+
+A step passing arguments carries them as `args`, Go values and reads
+(`{"$read":…}`) made when it runs; the event sends them as `args` in place
+of `value`. `form: true` sends the enclosing form's fields, for a struct
+parameter. A step whose handler returns a result has `result: true`, and
+may have `into` (a target) and `mode` (`append`, `prepend`); the event's
+reply carries it as `result`, one of `{"options":[…]}`, `{"html":"…"}`,
+`{"value":"…"}`, `{"fields":{…}}`, `{"js":[…]}`, applied to the targets after
+the patch, unless a later push has claimed them.
+
+`["push",{"m":"<id>.<signature>",…}]` is a call over HTTP, of a page that
+isn't live or of a read (`read: true`): the page's own URL with the header
+`Vk-Push: <m>`, the arguments in `_vk_args` and the form's fields in
+`_vk_form`, as JSON. A read is a `GET` with them in the query; any other is a
+`POST` with them in a urlencoded body and `X-CSRF-Token` set to the step's
+`csrf`. A read's reference is `<id>.r<seconds>.<signature>`, the seconds its
+`ui.Cache`, when it has one. The page answers the result as above (`{}` for
+none), `{"redirect":url}`, or `{"error":{…}}` with the error's status.
 
 ### Commands Pushed by the Server {#commands-pushed-by-the-server}
 

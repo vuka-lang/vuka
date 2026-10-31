@@ -797,7 +797,8 @@ func (p *SignIn) Save(ctx context.Context, f account.Credentials) error {
   (the placeholder kept), the value kept while it is still offered, else
   cleared. So [choices](#choices) following another field work the same
   with or without a connection. For a select outside a struct form,
-  [`ui.JS.Options`](/ui/js#options) loads its options from a method of the
+  [`ui.JS.Push`](/ui/js#results) with `.Into` (or its shorthand
+  [`ui.JS.Options`](/ui/js#options)) loads its options from a method of the
   page.
 
 A page with anything else live — a stateful component, an `onClick`
