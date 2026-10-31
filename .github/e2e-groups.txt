@@ -346,6 +346,9 @@ TestDevAssetsWatchFrontend
 # options248_test.go
 TestOptions248
 TestOptions248Errors
+TestPush252
+TestPush252Errors
+TestPush252Warnings
 # reuse_test.go
 TestCutFresh
 TestParseModFile
