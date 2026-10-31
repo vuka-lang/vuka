@@ -19,6 +19,7 @@ import (
 	"strings"
 	"sync/atomic"
 	"syscall"
+	"time"
 
 	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
@@ -132,6 +133,7 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "build", "run", "test", "vet", "install":
+		go trimCaches(time.Now())
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
 	case "new":
 		err = newProject(os.Args[2:], os.Stdin, os.Stdout)
@@ -150,6 +152,7 @@ func main() {
 	case "eject":
 		err = eject(os.Args[2:], os.Stdout)
 	case "lsp":
+		go trimCaches(time.Now())
 		err = lsp(os.Args[2:])
 	case "mod":
 		err = mod(os.Args[2:])

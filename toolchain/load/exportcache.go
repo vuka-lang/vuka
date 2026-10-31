@@ -9,6 +9,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"sync"
+	"time"
 )
 
 // exportCache remembers where the go command put the export data of packages
@@ -36,6 +37,8 @@ func cacheFor(root string) *exportCache {
 		c.file = filepath.Join(dir, "exports", key+".json")
 		if data, err := os.ReadFile(c.file); err == nil {
 			_ = json.Unmarshal(data, &c.m)
+			now := time.Now() // vuka's cache trim drops what isn't used
+			os.Chtimes(c.file, now, now)
 		}
 	}
 	actual, _ := exportCaches.LoadOrStore(key, c)
@@ -109,11 +112,6 @@ func (c *exportCache) save() {
 	if err != nil {
 		return
 	}
-	if err := os.MkdirAll(filepath.Dir(c.file), 0o755); err != nil {
-		return
-	}
-	tmp := c.file + ".tmp"
-	if os.WriteFile(tmp, data, 0o644) == nil && os.Rename(tmp, c.file) == nil {
-		c.dirty = false
-	}
+	writeEntry(c.file, data)
+	c.dirty = false
 }
