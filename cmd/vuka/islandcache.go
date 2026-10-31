@@ -162,6 +162,7 @@ func cachedViteIslands(root, frontendRoot string, islands []*islandComp, dev boo
 	if data, err := os.ReadFile(file); err == nil {
 		var c islandCache
 		if gob.NewDecoder(bytes.NewReader(data)).Decode(&c) == nil && c.Key == key {
+			markCacheUsed(file)
 			bundles := make([]*islandBundle, len(c.Bundles))
 			for i, b := range c.Bundles {
 				bundles[i] = &islandBundle{name: b.Name, js: b.JS}

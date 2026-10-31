@@ -11,6 +11,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
@@ -182,10 +183,16 @@ func ormCommand(root string, mod []byte) (string, []string) {
 		if !ok {
 			return "go", fallback
 		}
-		bin = filepath.Join(dir, "orm", key[:24], "orm"+exeSuffix())
-		c := exec.Command("go", "build", "-o", bin, ormModule+"/cmd/orm")
-		c.Dir = root
-		if err := c.Run(); err != nil {
+		toolKey, err := ormToolKey(root)
+		if err != nil {
+			return "go", fallback
+		}
+		bin, err = cachedOrmTool(filepath.Join(dir, "orm"), toolKey, func(out string) error {
+			c := exec.Command("go", "build", "-o", out, ormModule+"/cmd/orm")
+			c.Dir = root
+			return c.Run()
+		})
+		if err != nil {
 			return "go", fallback
 		}
 	}
@@ -193,5 +200,104 @@ func ormCommand(root string, mod []byte) (string, []string) {
 		return "go", fallback
 	}
 	ormTools.Store(key, bin)
+	return bin, nil
+}
+
+// ormToolKey names the orm tool root's module builds, by what decides its
+// bytes: the go command's target and the modules its packages come from.
+// Those are named by version, so every project and temp copy on the same
+// versions shares one binary; a module a replace or go.work points at a
+// directory is hashed by its packages' files.
+func ormToolKey(root string) (string, error) {
+	c := exec.Command("go", "env", "GOVERSION", "GOOS", "GOARCH", "GOEXPERIMENT", "CGO_ENABLED", "GOARM64", "GOAMD64", "GOFLAGS")
+	c.Dir = root
+	env, err := c.Output()
+	if err != nil {
+		return "", err
+	}
+	lines := strings.Split(strings.TrimSuffix(string(env), "\n"), "\n")
+	flags := strings.Fields(lines[len(lines)-1])
+	flags = slices.DeleteFunc(flags, func(f string) bool { return strings.HasPrefix(f, "-p=") })
+	h := sha256.New()
+	fmt.Fprintf(h, "1\n%s\n%s\n", strings.Join(lines[:len(lines)-1], "\n"), strings.Join(flags, " "))
+
+	c = exec.Command("go", "list", "-deps", "-json=ImportPath,Dir,GoFiles,CgoFiles,EmbedFiles,Module", ormModule+"/cmd/orm")
+	c.Dir = root
+	out, err := c.Output()
+	if err != nil {
+		return "", err
+	}
+	seen := map[string]bool{}
+	for dec := json.NewDecoder(bytes.NewReader(out)); ; {
+		var p ormToolPackage
+		if err := dec.Decode(&p); err == io.EOF {
+			break
+		} else if err != nil {
+			return "", err
+		}
+		if p.Module == nil {
+			continue // the standard library: the Go version
+		}
+		if p.Module.Main || p.Module.Replace != nil && p.Module.Replace.Version == "" {
+			fmt.Fprintf(h, "package %s\n", p.ImportPath)
+			for _, f := range slices.Concat(p.GoFiles, p.CgoFiles, p.EmbedFiles) {
+				hashFile(h, filepath.Join(p.Dir, f))
+			}
+			continue
+		}
+		if !seen[p.Module.Path] {
+			seen[p.Module.Path] = true
+			fmt.Fprintf(h, "module %s %s", p.Module.Path, p.Module.Version)
+			if r := p.Module.Replace; r != nil {
+				fmt.Fprintf(h, " => %s %s", r.Path, r.Version)
+			}
+			fmt.Fprintln(h)
+		}
+	}
+	return hex.EncodeToString(h.Sum(nil))[:24], nil
+}
+
+type ormToolPackage struct {
+	ImportPath, Dir               string
+	GoFiles, CgoFiles, EmbedFiles []string
+	Module                        *struct {
+		Path, Version string
+		Main          bool
+		Replace       *struct{ Path, Version string }
+	}
+}
+
+// cachedOrmTool is base/key's binary, built once: build writes it to a
+// temporary path and a rename puts it in place, so another process, or one
+// interrupted here, sees the whole binary or none. Two building at once
+// both succeed; the last rename wins, and the binaries are the same.
+func cachedOrmTool(base, key string, build func(out string) error) (string, error) {
+	dir := filepath.Join(base, key)
+	bin := filepath.Join(dir, "orm"+exeSuffix())
+	if _, err := os.Stat(bin); err == nil {
+		markCacheUsed(dir)
+		return bin, nil
+	}
+	if err := os.MkdirAll(base, 0o755); err != nil {
+		return "", err
+	}
+	tmp, err := os.MkdirTemp(base, cacheTmpPrefix)
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmp)
+	out := filepath.Join(tmp, filepath.Base(bin))
+	if err := build(out); err != nil {
+		return "", err
+	}
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return "", err
+	}
+	if err := os.Rename(out, bin); err != nil {
+		// Windows won't replace a running binary: one is already there.
+		if _, serr := os.Stat(bin); serr != nil {
+			return "", err
+		}
+	}
 	return bin, nil
 }

@@ -327,6 +327,15 @@ config, lockfile, installed packages, `@source` paths) changed.
 (transpiled packages, export data, island builds) in that directory instead
 of the user's cache directory.
 
+**The caches stay bounded on their own.** At most once a day a build trims
+them in the background: anything unused for two weeks goes, the orm tool
+keeps its eight latest binaries, and transpiled packages keep to 2 GB, with
+the entries used longest ago going first. A trim never fails a build, and
+leaves anything used in the last hour alone. The orm tool is shared: every
+project on the same orm and Go versions runs one binary, whatever its path
+(or built from the files themselves, when a `replace` or `go.work` points at
+a directory), and a build that finds it skips building it.
+
 A build reads each directory of the module once, however many of its steps
 look at it, and asks the go command for the export data of everything the
 module imports with one `go list`, not one per import. Under `vuka run
