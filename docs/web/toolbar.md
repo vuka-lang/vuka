@@ -271,3 +271,14 @@ renders for the browser to show does
 The app keeps its latest 100 requests (and 200 messages per live page, with
 their frames up to 1 MB) in memory, and the toolbar fetches them from `/_vuka/toolbar/`. A record that
 has dropped out says so.
+
+A page hears of a new build, stylesheet or component module over one
+WebSocket, `/_vuka/dev`, however many of those it uses, so any number of
+tabs can stay open: a WebSocket doesn't count against the browser's six
+HTTP/1.1 connections per host, as an event stream would. The socket comes back
+by itself when the app restarts, and the page gets the current values. It
+takes only pages of the app's own origin, so a development server reached
+through a proxy has to pass on the `Host` header, and
+[`LiveOrigins`](/web/live) doesn't widen it. A production app has no such
+socket. `GET /_vuka/toolbar/build` answers the build's state once, as JSON, for
+a script of your own.
