@@ -35,7 +35,7 @@ func (host) FormStore() ui.FormStore          { return nil }
 
 func main() {
 	ctx := ui.WithPageURL(ui.WithFormHost(context.Background(), host{}), &url.URL{Path: "/orders"}, nil)
-	s, err := ui.String(ctx, (&Orders{}).Render())
+	s, err := ui.String(ctx, &Orders{})
 	if err != nil {
 		panic(err)
 	}

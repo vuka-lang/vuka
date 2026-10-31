@@ -9,7 +9,9 @@ events with Go methods. You reach for one when a part of a page has to change
 in response to the visitor, such as a counter, a form or a chat.
 
 A `.vuka.html` shape is live when it embeds `ui.Live`, declares a decorated
-hook, or wires a server handler in markup. Its exported fields are props,
+hook, or wires a server handler in markup (other than as a
+[`Push`](/ui/js#push) step's handler, which a page that isn't live calls over
+HTTP). Its exported fields are props,
 unexported fields are tracked server state (or provided dependencies), and
 `ui.State[T]` fields are browser state. The struct, hooks, methods and markup
 live together in one shape file.

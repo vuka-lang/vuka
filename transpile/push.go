@@ -503,6 +503,15 @@ func (e *engine) lostWrites(f *fileState, h ast.Expr, m *types.Func) {
 			}
 		case *ast.IncDecStmt:
 			written(s.X)
+		case *ast.CallExpr:
+			// a template file's unexported field, lowered: p.seen.Set(id)
+			if sel, ok := ast.Unparen(s.Fun).(*ast.SelectorExpr); ok && (sel.Sel.Name == "Set" || sel.Sel.Name == "Update") {
+				if t := e.info.TypeOf(sel.X); t != nil {
+					if n, ok := types.Unalias(t).(*types.Named); ok && n.Obj().Name() == "Assign" {
+						written(sel.X)
+					}
+				}
+			}
 		}
 		return field == ""
 	})

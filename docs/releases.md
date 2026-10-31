@@ -46,6 +46,13 @@ the `github.com/vuka-lang/vuka` package your module requires.
   handler assigning the fields of a copy that is thrown away;
   [W0114](/errors/W0114), a read naming a method that writes. See
   [Pushing to the Server](/ui/js#push).
+
+
+  **Upgrade note:** a `.vuka.html` page or component whose only server call
+  was a `Push` or `Options` step of a method used to go live for it; it now
+  stays static and calls the method over HTTP on a fresh copy. If the method
+  relies on the page's fields between events, W0113 points at it: embed
+  `ui.Live`, as `onClick={Method}` or a hook still does for you.
 - **`ui.JS.Options` loads a select's options from a page method**
   ([#248](https://github.com/vuka-lang/vuka/issues/248)), as shorthand for
   `Push(method, args…, ui.Read()).Into(target)`: a placeholder is kept, a

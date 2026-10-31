@@ -34,7 +34,7 @@ func (host) FormStore() ui.FormStore          { return nil }
 
 func main() {
 	ctx := ui.WithPageURL(ui.WithFormHost(context.Background(), host{}), &url.URL{Path: "/checkout"}, nil)
-	s, err := ui.String(ctx, (&Checkout{}).Render())
+	s, err := ui.String(ctx, &Checkout{})
 	if err != nil {
 		panic(err)
 	}

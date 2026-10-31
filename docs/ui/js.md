@@ -317,8 +317,9 @@ fields or browser-state fields. A fresh document navigation creates a new page.
 A patch reconciles server output with the browser. Stable keys preserve logical
 instances.
 
-A command-only shape stays static; server handlers or decorated hooks make it
-live. See [Client State](/ui/state) and [Testing Components](/ui/testing).
+A command-only shape stays static, as does one whose only server calls are
+[`Push`](#push) steps of methods; other server handlers or decorated hooks make
+it live. See [Client State](/ui/state) and [Testing Components](/ui/testing).
 
 ## Busy Forms {#busy-forms}
 

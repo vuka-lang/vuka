@@ -79,7 +79,9 @@ provided dependencies, and ui.State[T] fields are browser state.
 
 A shape is live if it embeds ui.Live, declares a decorated hook or wires a
 server method to an event. A command-only event remains browser-side and does
-not make the shape live. The compiler supplies the appropriate rendering
+not make the shape live, and neither does a method named by a
+[`Push`](/ui/js#push) or `Options` step, which a page that isn't live calls over
+HTTP. The compiler supplies the appropriate rendering
 interface.
 
 This counter is live, because it declares a mount hook and wires `Increment`
