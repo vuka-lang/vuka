@@ -51,8 +51,10 @@ the `github.com/vuka-lang/vuka` package your module requires.
   **Upgrade note:** a `.vuka.html` page or component whose only server call
   was a `Push` or `Options` step of a method used to go live for it; it now
   stays static and calls the method over HTTP on a fresh copy. If the method
-  relies on the page's fields between events, W0113 points at it: embed
-  `ui.Live`, as `onClick={Method}` or a hook still does for you.
+  relies on the page's fields between events, embed `ui.Live`, as
+  `onClick={Method}` or a hook still does for you. W0113 points at a method
+  assigning those fields; a method only reading them gets no warning and
+  sees their zero values, so check those by hand.
 - **`ui.JS.Options` loads a select's options from a page method**
   ([#248](https://github.com/vuka-lang/vuka/issues/248)), as shorthand for
   `Push(method, args…, ui.Read()).Into(target)`: a placeholder is kept, a
@@ -80,6 +82,11 @@ the `github.com/vuka-lang/vuka` package your module requires.
   call with no result or only an error is now the handler, as a call with
   no result already was, and a `ctx` it names is the event's context, not
   the finished render's. An error value given to an event is E0107.
+- **A blocked submit keeps its errors**
+  ([web#59](https://github.com/vuka-lang/web/issues/59)). On an HTTP form with
+  browser checks, a field's check sent as the visitor clicked submit could
+  answer after the browser had blocked that submit, and its reply removed
+  the errors and the summary. Such a reply is now ignored.
 
 ## v2.14.0 — 2026-10-31
 
