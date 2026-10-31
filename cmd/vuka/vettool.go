@@ -97,14 +97,27 @@ func vetTool(root string, stderr io.Writer) (string, error) {
 	dir = filepath.Join(dir, "vukavet", version)
 	built := filepath.Join(dir, "vukavet"+exeSuffix())
 	if _, err := os.Stat(built); err == nil {
+		markCacheUsed(dir)
 		return built, nil
 	}
 	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return "", noVukavet(stderr, stale, err.Error())
 	}
 	fmt.Fprintf(stderr, "vuka vet: building vukavet %s (once, into %s)\n", version, dir)
-	if out, err := installVukavet(dir, version); err != nil {
+	// Installed beside its place and renamed in, so another vuka vet, or one
+	// interrupted here, finds the whole binary or none.
+	tmp, err := os.MkdirTemp(dir, cacheTmpPrefix)
+	if err != nil {
+		return "", noVukavet(stderr, stale, err.Error())
+	}
+	defer os.RemoveAll(tmp)
+	if out, err := installVukavet(tmp, version); err != nil {
 		return "", noVukavet(stderr, stale, fmt.Sprintf("go install %s@%s: %v\n%s", vukavetModPath, version, err, bytes.TrimSpace(out)))
+	}
+	if err := os.Rename(filepath.Join(tmp, filepath.Base(built)), built); err != nil {
+		if _, serr := os.Stat(built); serr != nil {
+			return "", noVukavet(stderr, stale, err.Error())
+		}
 	}
 	return built, nil
 }

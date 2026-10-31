@@ -910,6 +910,12 @@ A JSON API is files of functions named for their HTTP method: `GET`,
 `search.vuka` `/search`. Put them under `pages/api/` and the API sits
 beside the pages, with typed links, parameters and guards like theirs.
 
+An `index.vuka` declaring `GET` makes its folder's `Path()` in `urls` the
+endpoint's path, as an index page does. An `index.vuka.html` already answers
+`GET` on that path, so a `GET` beside it is [E0701](/errors/E0701); `POST` and
+the others are fine, and an `index.vuka` with no such function is just the
+page's Go.
+
 This file answers `GET` and `DELETE` on `/api/employers/{employer}`:
 
 ```go

@@ -282,6 +282,9 @@ func joinRel(rel, name string) string {
 	if rel == "" {
 		return name
 	}
+	if name == "" {
+		return rel
+	}
 	return rel + "/" + name
 }
 
