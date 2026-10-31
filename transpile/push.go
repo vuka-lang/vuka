@@ -439,9 +439,14 @@ func formStruct(t types.Type) bool {
 	return ms.Lookup(nil, "UnmarshalText") == nil
 }
 
-// statefulType reports whether n is a live page or stateful component: its
-// pointer implements the target's Stateful.
+// statefulType reports whether n is a live page or stateful component: it
+// embeds the target's Live, or its pointer implements the target's Stateful.
 func (e *engine) statefulType(f *fileState, n *types.Named) bool {
+	if obj, _, _ := types.LookupFieldOrMethod(n, true, nil, "Live"); obj != nil {
+		if v, ok := obj.(*types.Var); ok && v.Embedded() && declaredBy(f.target, v.Type()) {
+			return true
+		}
+	}
 	iface, _ := e.targetObj(f.target, "Stateful").(*types.TypeName)
 	if iface == nil {
 		return false
