@@ -20,6 +20,31 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.15.1 — unreleased
+
+### Development
+
+- **Any number of tabs of a development app works**
+  ([#254](https://github.com/vuka-lang/vuka/issues/254)). Each tab held up to
+  three event streams open (`/_vuka/c/events`, `/_vuka/app-css`,
+  `/_vuka/toolbar/build`), so 2-3 tabs used up the browser's six HTTP/1.1
+  connections per host and every later request queued: page loads, images,
+  fetches. A tab now holds one WebSocket, `/_vuka/dev`, which doesn't count
+  against that limit, for the component modules, the stylesheet and the build
+  state. It reconnects with backoff when the app restarts and refuses pages of
+  other origins, `LiveOrigins` included. `/_vuka/c/events` and `/_vuka/app-css`
+  are gone; `GET /_vuka/toolbar/build` now always answers JSON, whatever the
+  `Accept` header. A production app holds none of this. A development server
+  behind a proxy has to pass on the `Host` header for the tooling to connect.
+
+### Components and islands
+
+- **A module that fails to load is tried again.** A component's or island's
+  module that didn't arrive, as during a restart or a network failure, is tried
+  up to five more times over about 8 seconds under a `?vk-retry=N` URL, since a
+  browser keeps a failed import's answer. This applies in production too. A
+  module that arrived and threw isn't tried again.
+
 ## v2.15.0 — 2026-10-31
 
 ### JS commands
