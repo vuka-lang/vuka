@@ -7,6 +7,7 @@ import (
 	"go/parser"
 	"go/scanner"
 	"go/token"
+	"go/types"
 	"html"
 	"strconv"
 	"strings"
@@ -1091,9 +1092,18 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 			w.modelCall("For", "", a)
 			return
 		}
-		if a.event && w.voidCall(a) {
-			// onClick={p.Cancel(o.ID)}: the call is the handler.
-			w.gen("func() { ")
+		if call, ok := w.handlerCall(a); ok {
+			// onClick={p.Cancel(ctx, o.ID)}: the call is the handler, and the
+			// ctx it names is the event's.
+			params := ""
+			if mentionsCtx(call) {
+				params = "ctx context.Context"
+			}
+			if w.f.eng.info.Types[call].IsVoid() {
+				w.gen("func(" + params + ") { ")
+			} else {
+				w.gen("func(" + params + ") error { return ")
+			}
 			w.keep(a.expr)
 			w.gen(" }")
 			return
@@ -1102,15 +1112,34 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 	}
 }
 
-// voidCall reports whether an event's expression is a call with no result:
-// the handler runs it.
-func (w *jsxWriter) voidCall(a *jsxAttr) bool {
+// handlerCall is an event's expression when it is a call the handler runs:
+// one with no result or only an error.
+func (w *jsxWriter) handlerCall(a *jsxAttr) (*ast.CallExpr, bool) {
 	e := w.f.eng
-	if e.info == nil {
-		return false
+	if !a.event || e.info == nil {
+		return nil, false
 	}
 	x, ok := ast.Unparen(e.attrExpr(w.f, a)).(*ast.CallExpr)
-	return ok && e.info.Types[x].IsVoid()
+	return x, ok && isHandlerCall(e.info.Types[x])
+}
+
+// isHandlerCall reports whether a call's result makes it an event's
+// handler rather than the value of one: no result, or only an error.
+func isHandlerCall(tv types.TypeAndValue) bool {
+	return tv.IsVoid() || tv.Type != nil && types.Identical(tv.Type, errorType)
+}
+
+// mentionsCtx reports whether x names ctx: an event's handler call that
+// does takes the event's context.
+func mentionsCtx(x ast.Expr) bool {
+	found := false
+	ast.Inspect(x, func(n ast.Node) bool {
+		if id, ok := n.(*ast.Ident); ok && id.Name == "ctx" {
+			found = true
+		}
+		return !found
+	})
+	return found
 }
 
 // lineStmt reports whether a template's Go statement starts at i: the first
