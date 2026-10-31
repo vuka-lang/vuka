@@ -73,6 +73,7 @@ type engine struct {
 	progress bool
 
 	graphqlDone bool         // the GraphQL registrations are written (graphql.go)
+	optionsDone bool         // the methods Options commands name are registered (options.go)
 	straysDone  bool         // timing attributes off a page's or component's methods are reported (parts.go)
 	loaders     []*gqlLoader // the package's @graphql.Loader functions (graphqlloader.go)
 	gqlWarns    map[*fileState]ErrorList
@@ -219,6 +220,12 @@ func (e *engine) run() {
 		}
 		if e.recompile {
 			return
+		}
+		if len(*e.errs) == 0 && !e.progress && !e.optionsDone {
+			// Everything is lowered: the methods the markup's Options
+			// commands name, registered and type-checked in one more round.
+			e.optionsDone = true
+			e.progress = e.registerOptions()
 		}
 		if len(*e.errs) == 0 && !e.progress && !e.graphqlDone {
 			// Everything else is lowered: the GraphQL registrations, type-checked

@@ -22,6 +22,34 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.0 — unreleased
 
+### JS commands
+
+- **`ui.JS.Options` loads a select's options from a page method**
+  ([#248](https://github.com/vuka-lang/vuka/issues/248)).
+  `Options(target, method, args…)` calls a method of the page, or of a
+  component on it, over HTTP on the page's own URL — no connection, so a
+  city list follows the country on a page that isn't live too. No
+  annotation: the compiler registers each method an `Options` command names
+  and checks the command's arguments against its parameters
+  ([E0168](/errors/E0168)); only those methods can be called, and only
+  from the page rendering the command (its reference is signed for the
+  page's route). The page's guards and the app's middleware run, not its
+  `Load`; the method's dependencies are injected. The runtime replaces the
+  options (a placeholder kept, `ui.OptionGroup`s as `<optgroup>`s), keeps
+  the value while it is offered, else clears it, and fires `change`;
+  failures go to `OnError`. See [Loading Options](/ui/js#options).
+- **`SetValue` takes reads** of other fields — `ui.Sel("#bill-city").Value()`,
+  `ui.This.Checked()` — and bools, besides strings, and chooses a select's
+  option of that value ([Setting Values](/ui/js#set-value)).
+
+### Forms
+
+- **Dependent choices over HTTP.** On a page that isn't live, a form's
+  check now carries the choices of the fields depending on others
+  (`depends:`), and the runtime puts them in their selects: `depends:` and
+  `<Field>Choices` work the same with or without a connection
+  ([forms](/ui/forms#http)). `ui.FormReport` gains `Choices`.
+
 ### Fixes
 
 - **An event's call returning an error runs on the event, not as the page
