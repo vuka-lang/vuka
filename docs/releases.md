@@ -20,6 +20,21 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.15.1 — unreleased
+
+### Build cache
+
+- **vuka's cache directory stays bounded**
+  ([#255](https://github.com/vuka-lang/vuka/issues/255)). The orm tool is
+  now one binary per orm, dependency and Go version instead of one per
+  project path and `go.mod`, so a project's temp copies stop adding 8 MB
+  each, and a build that finds the binary skips `go build`. At most once a
+  day a build trims the cache in the background: anything unused for two
+  weeks goes, the orm tool keeps eight binaries, and transpiled packages
+  keep to 2 GB. Binaries and export data are renamed into place, so an
+  interrupted or concurrent vuka can't leave a partial one. Binaries under
+  the old keys go at the first trim.
+
 ## v2.15.0 — 2026-10-31
 
 ### JS commands
