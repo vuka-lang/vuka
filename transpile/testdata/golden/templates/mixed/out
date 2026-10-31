@@ -1,1 +1,1 @@
-<main><h1>Counters</h1><div class="counter"><b class="badge">count</b><span>5</span><button>+</button><button>+2</button></div></main> <nil>
+<main><h1>Counters</h1><div class="counter"><b class="badge">count</b><span>5</span><button>+</button><button>+2</button><button>0</button></div></main> <nil> resets: 0

@@ -50,6 +50,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
   `<Field>Choices` work the same with or without a connection
   ([forms](/ui/forms#http)). `ui.FormReport` gains `Choices`.
 
+### Fixes
+
+- **An event's call returning an error runs on the event, not as the page
+  renders.** `onClick={p.Remove(ctx, item.ID)}`, with `Remove` returning an
+  error, was evaluated while the page rendered and its error taken for the
+  handler, so the call ran on every render and the click did nothing. A
+  call with no result or only an error is now the handler, as a call with
+  no result already was, and a `ctx` it names is the event's context, not
+  the finished render's. An error value given to an event is E0107.
+
 ## v2.14.0 — 2026-10-31
 
 ### Security

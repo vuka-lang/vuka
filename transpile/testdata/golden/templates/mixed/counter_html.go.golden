@@ -4,13 +4,15 @@
 package main
 
 import (
+	"context"
+
 	"github.com/vuka-lang/ui/v2"
 	"github.com/vuka-lang/ui/v2/uigen"
 )
 
 // Counter is a live component.
 //
-//line counter.vuka.html:6
+//line counter.vuka.html:10
 type Counter struct {
 	ui.Live
 	Start int
@@ -22,14 +24,29 @@ func (c *Counter) Inc() { c.n.Set(c.n.Get() + 1) }
 // Add is an event taking an argument: onClick={Add(2)}.
 func (c *Counter) Add(n int) { c.n.Set(c.n.Get() + (n)) }
 
-//line counter.vuka.html:16
+// resets counts the Reset events run.
+var resets int
+
+// Reset is an event taking the event's context and failing with an error:
+// onClick={Reset(ctx, 0)} runs on the click, never as the counter renders.
+func (c *Counter) Reset(ctx context.Context, to int) error {
+	resets++
+	c.n.Set(to)
+	return ctx.Err()
+}
+
+//line counter.vuka.html:31
 func (c *Counter) Render() ui.Node {
-//line counter.vuka.html:16
-	return ui.HTML(`
+//line counter.vuka.html:31
+	return ui.Ctx(func(ctx context.Context) ui.Node {
+//line counter.vuka.html:31
+		return ui.HTML(`
 <div class="counter">
   {Badge{Label: "count"}}
   <span>{c.Start + c.n.Get()}</span>
   <button onClick={c.Inc}>+</button>
   <button onClick={func() { c.Add(2) }}>+2</button>
-</div>`, Badge{Label: "count"}, c.Start+c.n.Get(), c.Inc, func() { c.Add(2) })
+  <button onClick={func(ctx context.Context) error { return c.Reset(ctx, 0) }}>0</button>
+</div>`, Badge{Label: "count"}, c.Start+c.n.Get(), c.Inc, func() { c.Add(2) }, func(ctx context.Context) error { return c.Reset(ctx, 0) })
+	})
 }

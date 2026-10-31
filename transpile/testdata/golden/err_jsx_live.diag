@@ -70,5 +70,13 @@ error[E0107]: onClick on <button> takes a function; this is string
    |
    = help: pass a function (a live view method or JS commands) of the shape the event calls
 
+error[E0107]: onClick on <button> takes a function; this is an error value (a call returning only an error is the handler itself: onClick={Save(ctx)})
+  --> err_jsx_live.vuka:68:11
+   |
+68 |         <button onClick={errFailed}>e</button>
+   |                 ^^^^^^^
+   |
+   = help: pass a function (a live view method or JS commands) of the shape the event calls
+
 Some errors have detailed explanations: E0106, E0107.
 For more information about an error, try `vuka explain E0106`.
