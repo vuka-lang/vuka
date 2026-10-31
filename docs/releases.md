@@ -20,6 +20,20 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.15.1 — unreleased
+
+### Folder routes
+
+- **An endpoint in a folder's `index.vuka` no longer breaks the package
+  `urls`** ([#258](https://github.com/vuka-lang/vuka/issues/258)). Below
+  `pages/`, it made the stub of `urls` the pages are transpiled with invalid
+  Go. A build with nothing else wrong passed, but any error in a page importing
+  `urls` was reported as `urls_gen.go: syntax error: unexpected :`, in a file
+  you didn't write. The endpoint serves the folder's path and the folder's
+  `Path()` is that path, with or without a parameter or route group in the
+  folder's path. `GET` beside an `index.vuka.html` is still
+  [E0701](/errors/E0701), whose help now names the function and the page.
+
 ## v2.15.0 — 2026-10-31
 
 ### JS commands

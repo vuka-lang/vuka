@@ -4,6 +4,8 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"go/parser"
+	"go/token"
 	"io"
 	"io/fs"
 	"os"
@@ -161,6 +163,8 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0701", "pages/orgs/new/index.vuka.html:3"},
 		{"a method func and a method on one path", map[string]string{"pages/api/orgs/index.vuka": "package orgs\n\nimport \"context\"\n\nfunc GET(ctx context.Context) error { return nil }\n"},
 			"E0701", "pages/api/orgs/index.vuka:5"},
+		{"an index.vuka's GET beside its page", map[string]string{"pages/orgs/index.vuka": "package orgs\n\nimport \"context\"\n\nfunc GET(ctx context.Context) error { return nil }\n"},
+			"E0701", "pages/orgs/index.vuka:5"},
 		{"parameter folders side by side", map[string]string{"pages/orgs/[other]/index.vuka.html": "package other\n\ntype Index struct {\n\tOther int\n}\n<p>x</p>\n"},
 			"E0702", "pages/orgs/[other]"},
 		{"parameter files side by side", map[string]string{"pages/api/pets/[name].vuka": "package pets\n\nimport \"context\"\n\nfunc PUT(ctx context.Context, name string) error { return nil }\n"},
@@ -253,10 +257,97 @@ func TestFolderRouteErrors(t *testing.T) {
 			if !strings.Contains(got, c.code) || !strings.Contains(got, c.at) {
 				t.Errorf("want %s at %s:\n%s", c.code, c.at, got)
 			}
+			if c.name == "an index.vuka's GET beside its page" && !strings.Contains(got, "GET in index.vuka answers /orgs as orgs.Index does") {
+				t.Errorf("E0701's help:\n%s", got)
+			}
 			if c.code == "E0721" && !strings.Contains(got, "Contact is a page whose markup is written in Go: a page is a .vuka.html file") {
 				t.Errorf("E0721's message:\n%s", got)
 			}
 		})
+	}
+}
+
+// TestIndexEndpoints: an endpoint in a folder's index file serves the
+// folder's path, and is its Path in urls, in the stub the pages are
+// transpiled with as in the real file.
+func TestIndexEndpoints(t *testing.T) {
+	endpoint := func(pkg, method, params string) string {
+		return "package " + pkg + "\n\nimport \"context\"\n\nfunc " + method + "(ctx context.Context" + params + ") error { return nil }\n"
+	}
+	files := map[string]string{
+		"pages/admin/auth/index.vuka":      endpoint("auth", "GET", ""),
+		"pages/admin/auth/logout.vuka":     endpoint("auth", "POST", ""),
+		"pages/admin/auth/login.vuka.html": "package auth\n\nimport \"example.com/app/pages/urls\"\n\n// Login signs in.\ntype Login struct{}\n\n<a href={urls.Admin.Auth.Path()}>back</a>\n",
+		"pages/notes/[note]/index.vuka":    endpoint("note", "DELETE", ", note int"),
+		"pages/reports/index.go":           endpoint("reports", "GET", ""),
+		"pages/shop/(staff)/index.vuka":    endpoint("staff", "GET", ""),
+		// A page's other methods, and a companion file with no method func.
+		"pages/orgs/index.vuka":      endpoint("orgs", "POST", ""),
+		"pages/help/index.vuka.html": "package help\n\n// Index is the help page.\ntype Index struct{}\n\n<p>{title()}</p>\n",
+		"pages/help/index.vuka":      "package help\n\nfunc title() string { return \"Help\" }\n",
+		"main.go":                    "package main\n\nimport (\n\t\"example.com/app/pages\"\n\t\"github.com/vuka-lang/web/v2\"\n)\n\nfunc main() { web.New(pages.Routes()) }\n",
+		"links/links.go":             "package links\n",
+		"links/links_test.go": `package links
+
+import (
+	"testing"
+
+	"example.com/app/pages/urls"
+)
+
+func TestPaths(t *testing.T) {
+	for got, want := range map[string]string{
+		urls.Admin.Auth.Path():        "/admin/auth",
+		urls.Admin.Auth.Login.Path():  "/admin/auth/login",
+		urls.Admin.Auth.Logout.Path(): "/admin/auth/logout",
+		urls.Notes.Note(7).Path():     "/notes/7",
+		urls.Reports.Path():           "/reports",
+		urls.Shop.Path():              "/shop",
+		urls.Orgs.Path():              "/orgs",
+		urls.Help.Path():              "/help",
+	} {
+		if got != want {
+			t.Errorf("%s, want %s", got, want)
+		}
+	}
+}
+`,
+	}
+	app := routesModule(t, files)
+	stub := scanRoutes(app, "example.com/app", nil)[0].urlsStub()
+	if _, err := parser.ParseFile(token.NewFileSet(), urlsGoName, stub, 0); err != nil {
+		t.Fatalf("the stub of urls: %v\n%s", err, stub)
+	}
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	for _, want := range []string{
+		`GET +/admin/auth +auth\.GET \(endpoint\)`, `POST +/admin/auth/logout `, `DELETE +/notes/\{note\} `, `GET +/reports `, `GET +/shop `,
+		`GET +/orgs +orgs\.Index`, `POST +/orgs +orgs\.POST \(endpoint\)`, `GET +/help +help\.Index `,
+	} {
+		if !regexp.MustCompile(want).Match(out.Bytes()) {
+			t.Errorf("no route %s in:\n%s", want, out.Bytes())
+		}
+	}
+	if strings.Contains(out.String(), "help.GET") {
+		t.Errorf("a companion file with no method func is a route:\n%s", out.Bytes())
+	}
+	errOut.Reset()
+	if err := runGo("test", []string{"./links"}, io.Discard, &errOut); err != nil {
+		t.Fatalf("vuka test: %v\n%s", err, errOut.Bytes())
+	}
+
+	// A page's own error is reported as its own, not as the stub's.
+	writeFile(t, filepath.Join(app, "pages/admin/auth/login.vuka.html"), "package auth\n\nimport \"example.com/app/pages/urls\"\n\n// Login signs in.\ntype Login struct{}\n\n<a href={urls.Admin.Auth.Path()}>{missing}</a>\n")
+	for _, cmd := range []string{"build", "vet"} {
+		errOut.Reset()
+		if err := runGo(cmd, []string{"."}, io.Discard, &errOut); err == nil {
+			t.Fatalf("vuka %s passed", cmd)
+		}
+		if got := errOut.String(); !strings.Contains(got, "undefined: missing") || strings.Contains(got, urlsGoName) {
+			t.Errorf("vuka %s says:\n%s", cmd, got)
+		}
 	}
 }
 
