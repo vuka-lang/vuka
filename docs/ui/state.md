@@ -56,8 +56,9 @@ attribute or `ui.Show` for visibility instead.
 ## Writing State {#writing}
 
 Assignments in one event run in order. You can combine browser changes with a
-server call: `onClick={open = false; Save()}`. Inside a live component method,
-`p.open = false` sends the browser update.
+server call: `onClick={open = false; Save()}`, a [push](/ui/js#push) that runs
+on the live instance, or over HTTP on a page that isn't live. Inside a live
+component method, `p.open = false` sends the browser update.
 
 > [!WARNING]
 > Browser state is not durable storage or trusted authorization data.
