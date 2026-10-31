@@ -1,6 +1,10 @@
 package main
 
-import "github.com/vuka-lang/ui/v2"
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
 
 // Counter is a live component.
 type Counter struct {
@@ -13,9 +17,21 @@ func (c *Counter) Inc() { c.n++ }
 
 // Add is an event taking an argument: onClick={Add(2)}.
 func (c *Counter) Add(n int) { c.n += n }
+
+// resets counts the Reset events run.
+var resets int
+
+// Reset is an event taking the event's context and failing with an error:
+// onClick={Reset(ctx, 0)} runs on the click, never as the counter renders.
+func (c *Counter) Reset(ctx context.Context, to int) error {
+	resets++
+	c.n = to
+	return ctx.Err()
+}
 <div class="counter">
   <Badge label="count" />
   <span>{Start + n}</span>
   <button onClick={Inc}>+</button>
   <button onClick={Add(2)}>+2</button>
+  <button onClick={Reset(ctx, 0)}>0</button>
 </div>

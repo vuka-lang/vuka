@@ -65,10 +65,13 @@ func page() ui.Node {
 		<NotLive />
 		<button onClick={"go()"}>c</button>
 		<button onClick={nil}>d</button>
+		<button onClick={errFailed}>e</button>
 	</>
 }
 
 func main() {}
+
+var errFailed error
 
 type NotLive struct{ Start int }
 

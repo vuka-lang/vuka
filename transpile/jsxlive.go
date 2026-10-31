@@ -652,7 +652,7 @@ func (e *engine) checkEvents(f *fileState) {
 				continue
 			}
 			ev.checked = true
-			if _, call := ast.Unparen(x).(*ast.CallExpr); call && tv.IsVoid() {
+			if _, call := ast.Unparen(x).(*ast.CallExpr); call && isHandlerCall(tv) {
 				continue // the call is the handler
 			}
 			if msg := e.handlerProblem(tv.Type); msg != "" {
@@ -668,6 +668,9 @@ func (e *engine) handlerProblem(t types.Type) string {
 	}
 	if _, ok := t.Underlying().(*types.Signature); ok {
 		return ""
+	}
+	if types.Identical(t, errorType) {
+		return "takes a function; this is an error value (a call returning only an error is the handler itself: onClick={Save(ctx)})"
 	}
 	if types.NewMethodSet(t).Len() > 0 || types.NewMethodSet(types.NewPointer(t)).Len() > 0 {
 		return ""
