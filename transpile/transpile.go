@@ -268,6 +268,7 @@ type fileState struct {
 	susWarnings ErrorList
 	ambigWarns  ErrorList  // markup calls both fits compile for (W0108, implicit.go)
 	attrWarns   ErrorList  // on… handlers in a templ.Attributes nothing binds (W0112, jsxlive.go)
+	pushWarns   ErrorList  // pushes losing their writes, reads that write (W0113, W0114, push.go)
 	susChecked  bool       // its <ui.Suspense>s are checked (suspense.go)
 	rt          string     // the name the runtime is imported as; "" until needed
 	target      *jsxTarget // what its JSX lowers to; nil until its first JSX
@@ -293,7 +294,7 @@ type fileState struct {
 	islandGen      genWriter           // imported islands' props types
 	fieldGen       genWriter           // the field attributes' registrations
 	graphqlGen     genWriter           // the package's GraphQL registrations (graphql.go)
-	optionsGen     genWriter           // the methods its Options commands name, registered (options.go)
+	optionsGen     genWriter           // the methods its Push and Options steps name, registered (push.go)
 	loaderGen      genWriter           // its @graphql.Loader types (graphqlloader.go)
 	renamed        map[int]string      // functions Go names otherwise, by their names' src offsets: a loader's
 	fieldsOn       bool                // field attributes are registered: from the first round on

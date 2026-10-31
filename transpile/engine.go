@@ -73,7 +73,7 @@ type engine struct {
 	progress bool
 
 	graphqlDone bool         // the GraphQL registrations are written (graphql.go)
-	optionsDone bool         // the methods Options commands name are registered (options.go)
+	optionsDone bool         // the methods Push and Options steps name are registered (push.go)
 	straysDone  bool         // timing attributes off a page's or component's methods are reported (parts.go)
 	loaders     []*gqlLoader // the package's @graphql.Loader functions (graphqlloader.go)
 	gqlWarns    map[*fileState]ErrorList
@@ -222,10 +222,10 @@ func (e *engine) run() {
 			return
 		}
 		if len(*e.errs) == 0 && !e.progress && !e.optionsDone {
-			// Everything is lowered: the methods the markup's Options
-			// commands name, registered and type-checked in one more round.
+			// Everything is lowered: the methods the markup's Push and Options
+			// steps name, registered and type-checked in one more round.
 			e.optionsDone = true
-			e.progress = e.registerOptions()
+			e.progress = e.registerPushes()
 		}
 		if len(*e.errs) == 0 && !e.progress && !e.graphqlDone {
 			// Everything else is lowered: the GraphQL registrations, type-checked
@@ -251,7 +251,7 @@ func (e *engine) run() {
 		e.warns = e.ctxWarnings()
 		for _, f := range e.vuka {
 			e.droppedHandlers(f)
-			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 {
+			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 && len(f.pushWarns) == 0 {
 				continue
 			}
 			if e.warns == nil {
@@ -261,6 +261,7 @@ func (e *engine) run() {
 			e.warns[f] = append(e.warns[f], f.ambigWarns...)
 			e.warns[f] = append(e.warns[f], f.tryWarns...)
 			e.warns[f] = append(e.warns[f], f.attrWarns...)
+			e.warns[f] = append(e.warns[f], f.pushWarns...)
 		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {

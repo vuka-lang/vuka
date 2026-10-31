@@ -1,0 +1,65 @@
+package main
+
+import (
+	"context"
+	"fmt"
+	"time"
+
+	"vukatest.local/opttarget"
+)
+
+type Orders struct{}
+
+type Quote struct {
+	SKU string
+	Qty int
+}
+
+type Place struct{ City, Region string }
+
+// Orders isn't live: each method a Push step names is registered, once,
+// whatever it returns.
+func (p *Orders) Details(ctx context.Context, id int64, orders *Orders) (opttarget.Node, error) {
+	return nil, nil
+}
+func (p *Orders) Price(sku string, qty int, coupon string) (string, error) { return "", nil }
+func (p *Orders) Total(ctx context.Context, q Quote) (int, error)        { return 0, nil }
+func (p *Orders) Lookup(postcode string) (Place, error)                   { return Place{}, nil }
+func (p *Orders) Check(name string) opttarget.Commands                    { return opttarget.JS }
+func (p *Orders) Remove(id int64) error                                   { return nil }
+func (p *Orders) When() time.Time                                         { return time.Time{} }
+
+func (p *Orders) Render() opttarget.Node {
+	return <div>
+		<button onClick={opttarget.JS.Push(p.Details, opttarget.Value(int64(7)), opttarget.Read()).Into(opttarget.Sel("#details"))}>View</button>
+		<button onClick={opttarget.JS.Push(p.Details, int64(7)).Into(opttarget.Sel("#posts"), opttarget.Append())}>More</button>
+		<input name="qty" onInput={opttarget.JS.Push(p.Price, "tea", opttarget.This.Value(), opttarget.Read(), opttarget.Sel("[name=coupon]").Value()).Into(opttarget.Sel("#price"))} />
+		<button onClick={opttarget.JS.Push(p.Total, opttarget.Cache(time.Minute)).Into(opttarget.Sel("#total"))}>Total</button>
+		<input name="postcode" onChange={opttarget.JS.On(opttarget.This).Push(p.Lookup, opttarget.This.Value(), opttarget.Read()).Into(opttarget.Sel("form"))} />
+		<input name="username" onInput={opttarget.JS.Push(p.Check, opttarget.This.Value(), opttarget.Read())} />
+		<button onClick={opttarget.JS.Push(p.Remove, opttarget.Value("3"))}>Remove</button>
+		<button onClick={opttarget.JS.Push(p.When).Into(opttarget.Sel("#when"))}>When</button>
+	</div>
+}
+
+// Feed is live: its pushes go over its socket, but for a read.
+type Feed struct {
+	opttarget.Live
+	n int
+}
+
+func (p *Feed) Older(before int) opttarget.Node { return nil }
+func (p *Feed) Bump(by int) (string, error)     { p.n += by; return "", nil }
+
+func (p *Feed) Render() opttarget.Node {
+	return <div>
+		<button onClick={opttarget.JS.Push(p.Older, 5, opttarget.Read()).Into(opttarget.Sel("#posts"), opttarget.Append())}>Older</button>
+		<button onClick={opttarget.JS.Push(p.Bump, 1).Into(opttarget.Sel("#n"))}>Bump</button>
+		<button onClick={opttarget.JS.Push(func() {})}>Nothing</button>
+	</div>
+}
+
+func main() {
+	fmt.Println((&Orders{}).Render())
+	fmt.Println((&Feed{}).Render())
+}

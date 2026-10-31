@@ -1,0 +1,38 @@
+package main
+
+import (
+	"context"
+
+	"vukatest.local/opttarget"
+)
+
+type A struct{ X int }
+type B struct{ Y int }
+
+type Shop struct{}
+
+func (s *Shop) Save() error                       { return nil }
+func (s *Shop) Two(a A, b B) error                { return nil }
+func (s *Shop) Price(sku string, qty int) string  { return "" }
+func (s *Shop) Ch(c chan int) error               { return nil }
+func (s *Shop) Many() (string, int, error)        { return "", 0, nil }
+func (s *Shop) Weird() map[string]int             { return nil }
+func (s *Shop) Total(ctx context.Context, a A, coupon string) int { return 0 }
+
+func (s *Shop) Render() opttarget.Node {
+	return <div>
+		<button onClick={opttarget.JS.Push(s.Save).Into(opttarget.Sel("#x"))} />
+		<button onClick={opttarget.JS.Push(s.Two, A{}, B{})} />
+		<button onClick={opttarget.JS.Push(s.Price, "a")} />
+		<button onClick={opttarget.JS.Push(s.Price, "a", "two")} />
+		<button onClick={opttarget.JS.Push(s.Price, "a", opttarget.This.Checked())} />
+		<button onClick={opttarget.JS.Push(s.Ch)} />
+		<button onClick={opttarget.JS.Push(s.Many)} />
+		<button onClick={opttarget.JS.Push(s.Weird)} />
+		<button onClick={opttarget.JS.Push(s.Price, "a", 1, opttarget.Append())} />
+		<button onClick={opttarget.JS.Push(s.Total, 3)} />
+		<button onClick={opttarget.JS.Push(func(int) {}, opttarget.Read())} />
+	</div>
+}
+
+func main() {}

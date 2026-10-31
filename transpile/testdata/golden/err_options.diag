@@ -6,15 +6,7 @@ error[E0168]: ui.JS.Options takes a method of the page or of a component (p.Citi
    |
    = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
 
-error[E0168]: CitiesOf takes 1 argument (country string) and the command passes 0: its arguments fill the parameters that aren't pointers or interfaces, in order
-  --> err_options.vuka:23:21
-   |
-23 |         <select onChange={opttarget.JS.Options(opttarget.This, s.CitiesOf)} />
-   |                           ^^^^^^^^^^^^^^^^^^^^
-   |
-   = help: pass a method of the page or of a component, func (p *Page) M(ctx context.Context, args…, deps…) ([]ui.Option, error), as p.M
-
-error[E0168]: CitiesOf takes 1 argument (country string) and the command passes 2: its arguments fill the parameters that aren't pointers or interfaces, in order
+error[E0168]: CitiesOf takes 1 argument (country string) and the step passes 2: its arguments fill the parameters that aren't pointers or interfaces, in order
   --> err_options.vuka:24:21
    |
 24 |         <select onChange={opttarget.JS.Options(opttarget.This, s.CitiesOf, "tz", "ke")} />
