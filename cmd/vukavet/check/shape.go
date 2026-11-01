@@ -22,7 +22,6 @@ import (
 // script's tags blanked, its offsets the file's.
 
 var (
-	shapeFirst  = regexp.MustCompile(`^(?:type|var|const)\b|^@[A-Za-z_]`)
 	shapeStruct = regexp.MustCompile(`(?m)^type\s+(\w+)(?:\[[^\]]*\])?\s+struct\b`)
 	shapeForm   = regexp.MustCompile(`(?m)^\s*(?:\w+\.)?FormState\b`)
 )
@@ -50,7 +49,7 @@ func shapeOf(name, src string) (typ string, markup int, ok bool) {
 		}
 		off += len(l)
 	}
-	if top < 0 || !shapeFirst.MatchString(lines[top]) && !structBeforeMarkup(lines[top:]) {
+	if top < 0 {
 		return "", 0, false
 	}
 	text := []byte(src[off:])
@@ -111,18 +110,6 @@ func renderedOf(name, header string) string {
 		}
 	}
 	return typ
-}
-
-func structBeforeMarkup(lines []string) bool {
-	for _, l := range lines {
-		if strings.HasPrefix(strings.TrimSpace(l), "<") {
-			return false
-		}
-		if shapeStruct.MatchString(l) {
-			return true
-		}
-	}
-	return false
 }
 
 var (

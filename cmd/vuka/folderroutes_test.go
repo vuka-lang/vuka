@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"io"
@@ -499,6 +500,26 @@ func TestHelperStructsNoMatch(t *testing.T) {
 	got := errOut.String()
 	if !strings.Contains(got, "E0147") || !strings.Contains(got, "index.vuka.html renders the struct Index") || strings.Contains(got, "E0719") || !strings.Contains(got, "pages/shop/index.vuka.html:8") {
 		t.Errorf("want E0147 naming Index:\n%s", got)
+	}
+}
+
+// TestScriptVukaVet: vuka vet reads a script's .vuka as it reads a .vuka
+// file's: its analyzers, go vet's among them, report at the place in the
+// .vuka.html file, and a page whose script uses ?, match and enums is checked
+// like any other.
+func TestScriptVukaVet(t *testing.T) {
+	const page = "<script lang=\"go\">\npackage shop\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nenum Kind { Cat, Dog }\n\nfunc wait(c chan int) {\n\t<-c\n}\n\nfunc parse(s string) Result[int] {\n\tn := strconv.Atoi(s)?\n\tfmt.Printf(\"%d\", s)\n\treturn Ok(n)\n}\n\nfunc name(k Kind) string {\n\tmatch k {\n\tcase Kind.Cat:\n\t\treturn \"cat\"\n\tcase Kind.Dog:\n\t\treturn \"dog\"\n\t}\n}\n\ntype Index struct{}\n\nfunc (p Index) Label() string { return name(Kind.Dog) + strconv.Itoa(parse(\"1\").UnwrapOr(0)) }\n</script>\n\n<p>{Label()}</p>\n"
+	routesModule(t, map[string]string{"pages/shop/index.vuka.html": page})
+	var errOut bytes.Buffer
+	if err := runGo("vet", []string{"./pages/shop/"}, io.Discard, &errOut); err == nil {
+		t.Fatalf("vuka vet passed:\n%s", errOut.Bytes())
+	}
+	line := strings.Count(page[:strings.Index(page, "fmt.Printf")], "\n") + 1
+	if at := fmt.Sprintf("index.vuka.html:%d:", line); !strings.Contains(errOut.String(), at) || !strings.Contains(errOut.String(), "Printf") {
+		t.Errorf("want Printf's format at %s:\n%s", at, errOut.Bytes())
+	}
+	if strings.Contains(errOut.String(), "E0") {
+		t.Errorf("a compile error:\n%s", errOut.Bytes())
 	}
 }
 

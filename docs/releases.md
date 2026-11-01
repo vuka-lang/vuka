@@ -42,6 +42,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
   never "declared nowhere" ([#132](https://github.com/vuka-lang/vuka/issues/132)).
   `transpile.ParseShapeFile` takes the file's name; `ParseShape`, which has none,
   reports E0147 for several structs.
+- **Everything `.vuka` allows works in `<script lang="go">`**
+  ([#270](https://github.com/vuka-lang/vuka/issues/270)). The script already
+  compiled as `.vuka`, for `?`, match, Result and Option. What read it for its
+  struct stopped short on some of the rest. These now work above or beside the
+  struct: payload enums, decorator declarations and aliases, static fields,
+  `func T.New`, a line of Go starting with `<` (a receive, a raw string), and a
+  `type (…)` group after a func. Errors, `vuka vet`, `vuka fmt` and the language
+  server report at the place in the `.vuka.html` file. Markup in a script is
+  [E0151](/errors/E0151) at its tag, never the page "declared nowhere", and a
+  script reported broken (E0151, E0156, E0157) no longer adds E0142.
 
 ### Build reports
 

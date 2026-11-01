@@ -1,0 +1,153 @@
+<!-- every part of .vuka in a script: helpers first, the struct below them -->
+<script lang="go">
+package main
+
+import (
+	"errors"
+	"fmt"
+	"strconv"
+)
+
+// wait reads a channel on a line of its own, above the struct.
+func wait(c chan int) int {
+	<-c
+	return 1
+}
+
+// sample has a line starting with < in a raw string, above the struct.
+func sample() string {
+	return `
+<not markup>
+`
+}
+
+enum Kind { Cat, Dog }
+
+enum Role string {
+	Admin = "admin"
+	Clerk = "clerk"
+}
+
+enum Shape {
+	Circle{Radius float64}
+	Rect{W, H float64}
+	Unknown
+}
+
+decorator traced(c) {
+	calls++
+	c.Next()
+}
+
+decorator counted(by int)(c) {
+	calls += by
+	c.Next()
+}
+
+decorator Audited = @traced @counted(2)
+
+var calls int
+
+type Tag struct{ Name string }
+
+@Tag{"parse"}
+@traced
+func parse(s string) Result[int] {
+	n := strconv.Atoi(s)?
+	if n < 0 {
+		return Err(errors.New("negative"))
+	}
+	return Ok(n)
+}
+
+@Audited
+func twice(s string) Result[int] {
+	return Ok(parse(s)? * 2)
+}
+
+func first(xs []string) Option[string] {
+	if len(xs) == 0 {
+		return None
+	}
+	return Some(xs[0])
+}
+
+func area(n int) int    { return n }
+func area(s string) int { return len(s) }
+
+func describe(k Kind) string {
+	match k {
+	case Kind.Cat:
+		return "cat"
+	case Kind.Dog:
+		return "dog"
+	}
+}
+
+func size(s Shape) float64 {
+	match s {
+	case Shape.Circle{Radius: r}:
+		return r
+	case Shape.Rect{W: w, H: h}:
+		return w * h
+	case Shape.Unknown:
+		return 0
+	}
+}
+
+// Pet is a helper with statics and attributes on its fields.
+type Pet struct {
+	Name string
+	Age  int
+
+	static Table = "pets"
+	static count int
+	static const Max = 2
+	static Limits = []int{
+		1,
+		2,
+	}
+}
+
+func Pet.New(name string) *Pet {
+	Pet.count++
+	return &Pet{Name: name}
+}
+
+type Pets struct {
+	Names []string
+
+	static Title = "Pets"
+}
+
+func (p Pets) Lines() []string {
+	var out []string
+	match parse("3") {
+	case Ok(v):
+		out = append(out, strconv.Itoa(v))
+	case Err(e):
+		out = append(out, e.Error())
+	}
+	match parse("x") {
+	case Ok(v):
+		out = append(out, strconv.Itoa(v))
+	case Err(e) if errors.Is(e, strconv.ErrSyntax):
+		out = append(out, "syntax")
+	case Err(e):
+		out = append(out, e.Error())
+	}
+	out = append(out, strconv.Itoa(twice("4").UnwrapOr(0)))
+	out = append(out, first(p.Names).UnwrapOr("none"), first(nil).UnwrapOr("none"))
+	out = append(out, describe(Kind.Dog), fmt.Sprint(Kind.Values()), Role.Admin.String())
+	out = append(out, strconv.Itoa(area(1)+area("ab")), fmt.Sprint(size(Shape.Rect{W: 2, H: 3})))
+	pet := Pet.New("rex")
+	out = append(out, pet.Name, Pet.Table, strconv.Itoa(Pet.Max+len(Pet.Limits)), Pets.Title, strconv.Itoa(calls))
+	return out
+}
+</script>
+
+<ul>
+  for _, l := range Lines() {
+    <li>{l}</li>
+  }
+</ul>
