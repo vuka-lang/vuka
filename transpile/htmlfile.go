@@ -456,6 +456,10 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			recv, h.recv = shape.Recv, shape.Recv
 		}
 		targs := shape.TypeArgs
+		// A struct live by its hooks or events is a live component.
+		if shape.Live && !shape.EmbedsLive {
+			add(shape.open, ui+"Live; ")
+		}
 		// A stateful component's markup is its Render, a struct
 		// component's its View.
 		method := "View"

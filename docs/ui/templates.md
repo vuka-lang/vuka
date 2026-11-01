@@ -85,7 +85,7 @@ HTTP. The compiler supplies the appropriate rendering
 interface.
 
 Embed `ui.Live` in every live shape: a struct live any other way gets
-[W0115](/errors/W0115), and `vuka fix explicit-live` adds it.
+[E0169](/errors/E0169), and `vuka fix explicit-live` adds it.
 
 This counter is live, because it declares a mount hook and wires `Increment`
 to a click:

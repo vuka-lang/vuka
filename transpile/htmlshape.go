@@ -280,14 +280,10 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	case s.EmbedsLive:
 		s.Live, s.LiveWhy = true, "it embeds ui.Live"
 	case len(hooks) > 0:
-		return nil, &Error{Code: "E0169", Pos: pos(ts.Name.Pos()), Len: len(ts.Name.Name),
-			Msg:  s.Type + " declares the hook " + hooks[0] + ", which needs a live connection",
-			Help: "embed ui.Live in " + s.Type}
+		s.Live, s.LiveWhy = true, "it declares the hook "+hooks[0]
 	default:
 		if m := wiredEvent(string(src[markup:]), events); m != "" {
-			return nil, &Error{Code: "E0169", Pos: pos(ts.Name.Pos()), Len: len(ts.Name.Name),
-				Msg:  s.Type + "'s markup sends the event " + m + ", which needs a live connection",
-				Help: "embed ui.Live in " + s.Type + ", or make it a form's unexported handler to post over HTTP"}
+			s.Live, s.LiveWhy = true, "the markup sends the event "+m
 		}
 	}
 	if s.Live {
@@ -296,16 +292,15 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	return s, nil
 }
 
-// implicitLive is W0115 for a shape live by anything but embedding ui.Live.
-func (f *fileState) implicitLive() ErrorList {
+// implicitLive is E0169 for a shape needing a live connection without
+// embedding ui.Live.
+func (e *engine) implicitLive(f *fileState) {
 	h := f.html
 	if h == nil || h.shape == nil || !h.shape.Live || h.shape.EmbedsLive {
-		return nil
+		return
 	}
-	var l ErrorList
-	l.add("W0115", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s is live because %s, and nothing in the struct says so: a socket and server memory for each visitor", h.shape.Type, h.shape.LiveWhy).
+	e.errs.add("E0169", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s needs a live connection because %s", h.shape.Type, h.shape.LiveWhy).
 		help("embed ui.Live in %s (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP", h.shape.Type)
-	return l
 }
 
 // EmbedLive adds ui.Live to the struct of src, a .vuka.html file live by

@@ -726,7 +726,7 @@ over HTTP, at the same moments a live page sends it, and puts what the
 page answers in place.
 
 The submit handler must be unexported: an exported one, `onSubmit={Save}`,
-makes the page live ([W0115](/errors/W0115)).
+makes the page live ([E0169](/errors/E0169)).
 
 ```go
 // account/credentials.go
