@@ -1265,13 +1265,13 @@ GET     /files/{file...}                        file.Index                      
 
 ## Generated Files
 
-`vuka build`, `run`, `test`, `vet` and the editor see generated routes
-through an overlay. `vuka run` (and `vuka run -watch`, on every rebuild)
-also writes the two files hand-written code imports, `pages/route.go` and
-`pages/urls/urls_gen.go`, to disk whenever their text changes, so an editor
-and plain Go tools resolve `pages.Routes` and the typed URLs. They are
+`vuka build`, `run`, `test`, `vet`, `install` and the editor see generated
+routes through an overlay. The first five (and `vuka run -watch`, on every
+rebuild) also write the two files hand-written code imports, `pages/route.go`
+and `pages/urls/urls_gen.go`, to disk whenever their text changes, so an
+editor and plain Go tools resolve `pages.Routes` and the typed URLs. They are
 generated, so gitignore them, and the overlay holds the same text. Nothing
-else `vuka run` generates is written.
+else these commands generate is written.
 
 `vuka gen -inplace` writes each tree's `route.go`, `urls/urls_gen.go` and
 the Go for bracket folders under `param_name/`, route groups under

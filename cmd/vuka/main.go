@@ -285,10 +285,10 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err
 	}
-	if cmd == "run" {
-		if _, err := routes.writeFiles(); err != nil {
-			return err
-		}
+	// Hand-written code imports them, so an editor and plain go tools need
+	// them current whichever command ran last.
+	if _, err := routes.writeFiles(); err != nil {
+		return err
 	}
 	var linkMsg string
 	if overlay, gens, linkMsg, err = autoLink(root, modPath, tmp, overlay, pkgs, gens); err != nil {

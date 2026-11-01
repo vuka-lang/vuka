@@ -691,3 +691,21 @@ func bareURLParams(t *testing.T, has bool) {
 		t.Fatalf("%v\n%s", err, errOut.String())
 	}
 }
+
+// TestCommandsWriteRouteFiles: each command leaves pages/route.go and the
+// typed URLs current on disk, for an editor and plain Go tools.
+func TestCommandsWriteRouteFiles(t *testing.T) {
+	for _, cmd := range [][]string{{"vet", "./..."}, {"test", "./..."}, {"build", "-o", os.DevNull, "."}} {
+		t.Run(cmd[0], func(t *testing.T) {
+			app := routesModule(t, map[string]string{"pages/index.vuka.html": "<p>home</p>\n"})
+			if err := runGo(cmd[0], cmd[1:], io.Discard, io.Discard); err != nil {
+				t.Logf("vuka %s: %v", cmd[0], err) // no main to build: the files come first
+			}
+			for _, f := range routeFiles {
+				if _, err := os.Stat(filepath.Join(app, f)); err != nil {
+					t.Errorf("after vuka %s: %v", cmd[0], err)
+				}
+			}
+		})
+	}
+}
