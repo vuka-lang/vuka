@@ -20,6 +20,16 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.15.2 — unreleased
+
+### Folder routes
+
+- **Every command keeps `pages/route.go` current**
+  ([#269](https://github.com/vuka-lang/vuka/issues/269)). Only `vuka run`
+  wrote it and `pages/urls/urls_gen.go`, so after `vuka build`, `test` or
+  `vet` an editor and plain Go tools saw old routes, or none on a fresh
+  checkout. All of them write the two files now, when their text changes.
+
 ## v2.15.1 — unreleased
 
 ### Build reports
