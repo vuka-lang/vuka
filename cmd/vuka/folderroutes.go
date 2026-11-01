@@ -413,7 +413,7 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 					structs[sh.Type], looks[sh.Type] = true, true
 					d.fileOf[sh.Type] = n
 					for _, m := range handlerMethods {
-						if transpile.SendsEvent(src, m) {
+						if transpile.SendsEvent(src, m) || transpile.PushesMethod(src, m) {
 							d.sends[sh.Type] = append(d.sends[sh.Type], m)
 						}
 					}

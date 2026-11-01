@@ -796,6 +796,10 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 			r.Kind = "live"
 		}
 		c.res.routes = append(c.res.routes, r)
+		if sel := ms.Lookup(nil, "Load"); sel != nil && len(sel.Index()) == 1 && !c.called(d, sel.Obj()) {
+			c.report(diag.Warn("W0704", "%s.Load never runs: a page has no Load, only layouts and guards do", name), sel.Obj().Pos()).
+				WithHelp("use a guard or the folder's _layout for what guards the page, or a @ui.Mount hook on a live page; on a page that isn't live, load in the markup")
+		}
 		for _, fn := range methods {
 			m := fn.Name()
 			if m == "Get" {
@@ -889,6 +893,16 @@ func buildsPtr(ctor *types.Func, t *types.Named) bool {
 	}
 	p, ok := res.At(0).Type().(*types.Pointer)
 	return ok && types.Identical(p.Elem(), t)
+}
+
+// called reports whether code in d's package uses obj.
+func (c *routeChecker) called(d *routeDir, obj types.Object) bool {
+	for _, used := range c.r.syntax[d.importPath].uses {
+		if used == obj {
+			return true
+		}
+	}
+	return false
 }
 
 // handler checks a method handler's signature against what web binds: a

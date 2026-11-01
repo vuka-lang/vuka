@@ -217,6 +217,8 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0710", "pages/api/middleware.go:9"},
 		{"a Get method", map[string]string{"pages/orgs/get.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Get(ctx context.Context) error { return nil }\n"},
 			"E0709", "pages/orgs/get.go:5"},
+		{"a pushed Delete", map[string]string{"pages/orgs/remove.vuka.html": "package orgs\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Remove struct{}\n\nfunc (p *Remove) Delete(ctx context.Context, id int) error { return nil }\n\n<button onClick={ui.JS.Push(p.Delete, ui.Value(7))}>x</button>\n"},
+			"E0709", "pages/orgs/remove.vuka.html:11"},
 		{"a scalar handler parameter", map[string]string{"pages/orgs/put.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Put(ctx context.Context, name string) error { return nil }\n"},
 			"E0709", "pages/orgs/put.go:5"},
 		{"a parameter nothing binds", map[string]string{"pages/orgs/[org]/team-settings.vuka.html": "", "pages/orgs/[org]/_layout.vuka.html": "package org\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Layout struct {\n\tChildren ui.Node\n}\n<section>{Children}</section>\n",
@@ -689,5 +691,24 @@ func bareURLParams(t *testing.T, has bool) {
 	if err := routesCmd([]string{"-json"}, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0340") ||
 		!strings.Contains(errOut.String(), "Order.id binds the path parameter {id}") || !strings.Contains(errOut.String(), "{org}") {
 		t.Fatalf("%v\n%s", err, errOut.String())
+	}
+}
+
+// TestPageLoadNeverRuns: W0704 for a page's Load nothing calls, not for one
+// its own code does.
+func TestPageLoadNeverRuns(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/unused.vuka.html": "package pages\n\nimport \"context\"\n\ntype Unused struct{ msg string }\n\nfunc (p *Unused) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\n\n<p>{msg}</p>\n",
+		"pages/used.vuka.html":   "package pages\n\nimport \"context\"\n\ntype Used struct{ msg string }\n\nfunc (p *Used) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\nfunc (p *Used) Reset(ctx context.Context) error { return p.Load(ctx) }\n\n<button onClick={Reset}>{msg}</button>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	if !strings.Contains(errOut.String(), "W0704") || !strings.Contains(errOut.String(), "Unused.Load") {
+		t.Errorf("no W0704:\n%s", errOut.Bytes())
+	}
+	if strings.Contains(errOut.String(), "Used.Load") {
+		t.Errorf("W0704 for a Load the page calls:\n%s", errOut.Bytes())
 	}
 }
