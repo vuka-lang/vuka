@@ -98,12 +98,68 @@ func (e *engine) stmtAssign(f *fileState, s span) *ast.AssignStmt {
 // those naming nothing too, which Go reports undefined outside its scope.
 func (e *engine) usesOf(f *fileState, obj types.Object, name string) []*ast.Ident {
 	var out []*ast.Ident
-	for _, id := range e.markupIdents(f) {
+	add := func(id *ast.Ident) {
 		if id.Name != name || e.info.Defs[id] != nil {
-			continue
+			return
 		}
 		if o := e.info.Uses[id]; o == obj || o == nil {
 			out = append(out, id)
+		}
+	}
+	for _, id := range e.markupIdents(f) {
+		add(id)
+	}
+	for _, id := range e.eventIdents(f) {
+		add(id)
+	}
+	return out
+}
+
+// eventIdents are the names read in f's markup's event attributes, which
+// markupIdents leaves out: a binding read there is read like any other.
+func (e *engine) eventIdents(f *fileState) []*ast.Ident {
+	var out []*ast.Ident
+	var walk func(ns []jsxNode)
+	walk = func(ns []jsxNode) {
+		for _, n := range ns {
+			switch n := n.(type) {
+			case *jsxElem:
+				for _, a := range n.attrs {
+					if !a.event || a.stmts || a.kind != 'e' {
+						continue
+					}
+					if x := e.exprAt(f, a.expr); x != nil {
+						ast.Inspect(x, func(n ast.Node) bool {
+							switch n := n.(type) {
+							case *ast.SelectorExpr:
+								ast.Inspect(n.X, func(m ast.Node) bool {
+									if id, ok := m.(*ast.Ident); ok {
+										out = append(out, id)
+									}
+									return true
+								})
+								return false
+							case *ast.Ident:
+								out = append(out, n)
+							}
+							return true
+						})
+					}
+				}
+				walk(n.kids)
+			case *jsxBlock:
+				for _, b := range n.bodies {
+					walk(b)
+				}
+				for _, c := range n.cases {
+					walk(c)
+				}
+			}
+		}
+	}
+	for _, t := range f.jsx {
+		if f.html.toSrc(t.start) >= f.html.markup {
+			walk([]jsxNode{t.root})
 		}
 	}
 	return out

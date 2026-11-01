@@ -22,6 +22,14 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Templates
+
+- **A markup local can be read in an event attribute**
+  ([#268](https://github.com/vuka-lang/vuka/issues/268)). `at := p.calc()`
+  followed by `onClick={jump(at-1)}` failed with `mismatched types func() int
+  and untyped int`, while `disabled={at == 1}` beside it compiled. Event
+  attributes read a lazy binding like any other attribute now.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
