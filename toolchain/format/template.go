@@ -79,7 +79,8 @@ func TemplateWith(src []byte, pkg string, o Options) ([]byte, error) {
 			return nil, err
 		}
 		out.WriteString(f)
-		if sh, _ := transpile.ParseShape(b); sh == nil && markupAt >= 0 {
+		// The file's name doesn't matter here: E0147 is a file with a struct.
+		if sh, err := transpile.ParseShape(b); sh == nil && markupAt >= 0 && (err == nil || err.Code != "E0147") {
 			out.WriteString("\n") // a head alone: a blank line before the markup
 		}
 	}

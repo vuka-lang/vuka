@@ -408,13 +408,18 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 			}
 			// A file in the 2.0 shape declares the struct it renders: a
 			// page as a .go file's would be.
-			sh, serr := transpile.ParseShape(src)
-			if serr != nil && serr.Code == "E0147" {
-				// two structs: the compiler's error says which and where
-				// the second goes, not that the page's is declared nowhere
-				d.clashes = append(d.clashes, *diag.New("E0147", "%s: %s", n, serr.Msg).
+			sh, serr := transpile.ParseShapeFile(n, src)
+			if serr != nil {
+				// two structs, or Go that doesn't parse: the compiler's error
+				// says which and where, not that the page's is declared nowhere
+				d.clashes = append(d.clashes, *diag.New(serr.Code, "%s: %s", n, serr.Msg).
 					At(diag.Span{File: path, Line: serr.Pos.Line, Col: serr.Pos.Column}).WithHelp("%s", serr.Help))
 				continue
+			}
+			if sh != nil {
+				for _, h := range sh.Helpers {
+					types[h] = true // a helper is a type of the package, never a page
+				}
 			}
 			switch {
 			case n == "_layout.vuka.html":

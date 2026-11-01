@@ -68,7 +68,7 @@ func tokenAt(t *testing.T, toks []semToken, src, needle string, nth int) (semTok
 // field's declaration with the declaration modifier, after gopls's legend.
 func TestShapeTokens(t *testing.T) {
 	const base, decl = 30, 1
-	toks := shapeTokens(scanShape([]byte(semShape)), base, decl)
+	toks := shapeTokens(scanShape("", []byte(semShape)), base, decl)
 	typ := func(k refKind) uint32 { return base + uint32(k-refProp) }
 	for _, c := range []struct {
 		needle string
@@ -130,7 +130,7 @@ func TestShapeLegend(t *testing.T) {
 
 	// Merged over gopls's tokens, a markup token wins where they overlap.
 	vf := &vfile{source: "/m/pages/board.vuka.html", from: []byte(semShape)}
-	mk := p.markupTokens(vf.text())
+	mk := p.markupTokens(vf.source, vf.text())
 	tk, _ := tokenAt(t, mk, semShape, "stats.Posts", 1)
 	gopls := []semToken{{tk.line, tk.char, 5, 8, 0}, {tk.line, tk.char + 6, 5, 9, 0}}
 	merged := mergeTokens(gopls, mk)
@@ -151,7 +151,7 @@ func TestShapeLegend(t *testing.T) {
 // TestShapeHover: holes say what they read and where it's set; on…
 // attributes where their handler runs.
 func TestShapeHover(t *testing.T) {
-	s := scanShape([]byte(semShape))
+	s := scanShape("", []byte(semShape))
 	hover := func(needle string, delta int) string {
 		t.Helper()
 		h := shapeHover("/m/pages/board.vuka.html", s, strings.Index(semShape, needle)+delta)
@@ -183,7 +183,7 @@ func TestShapeHover(t *testing.T) {
 		}
 	}
 	compSrc := strings.Replace(semShape, "package pages", "package components", 1)
-	if h := shapeHover("/m/components/board.vuka.html", scanShape([]byte(compSrc)), strings.Index(compSrc, "Title} {")); h == nil ||
+	if h := shapeHover("/m/components/board.vuka.html", scanShape("", []byte(compSrc)), strings.Index(compSrc, "Title} {")); h == nil ||
 		!strings.Contains(h.(map[string]any)["contents"].(map[string]any)["value"].(string), "set by the `title` attribute of a `<Board>` tag") {
 		t.Errorf("a component's prop: %v", h)
 	}

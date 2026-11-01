@@ -28,6 +28,31 @@ the `github.com/vuka-lang/vuka` package your module requires.
   It replaces `vuka build-islands`, which still works and says it's deprecated.
   Change `//go:generate go tool vuka build-islands` when convenient.
 
+### Source files
+
+- **A `.vuka.html` file can declare helper structs**
+  ([#270](https://github.com/vuka-lang/vuka/issues/270)). A file declaring several
+  structs renders the one named after it: `orders.vuka.html` renders `Orders`,
+  `order-row.vuka.html` and `order_row.vuka.html` `OrderRow`, `[id].vuka.html`
+  `Id` or `ID` (case and separators don't count). The others are types of the
+  package and nothing more, so a struct no longer needs a `.go` file beside the
+  page just because it has no markup. A file declaring one struct behaves as it
+  did: `pages/index.vuka.html` can keep rendering `Home`. Several structs and none
+  so named is still [E0147](/errors/E0147), which now names the struct expected,
+  never "declared nowhere" ([#132](https://github.com/vuka-lang/vuka/issues/132)).
+  `transpile.ParseShapeFile` takes the file's name; `ParseShape`, which has none,
+  reports E0147 for several structs.
+- **Everything `.vuka` allows works in `<script lang="go">`**
+  ([#270](https://github.com/vuka-lang/vuka/issues/270)). The script already
+  compiled as `.vuka`, for `?`, match, Result and Option. What read it for its
+  struct stopped short on some of the rest. These now work above or beside the
+  struct: payload enums, decorator declarations and aliases, static fields,
+  `func T.New`, a line of Go starting with `<` (a receive, a raw string), and a
+  `type (…)` group after a func. Errors, `vuka vet`, `vuka fmt` and the language
+  server report at the place in the `.vuka.html` file. Markup in a script is
+  [E0151](/errors/E0151) at its tag, never the page "declared nowhere", and a
+  script reported broken (E0151, E0156, E0157) no longer adds E0142.
+
 ### Diagnostics
 
 - **W0113 no longer fires on state a live page embeds**

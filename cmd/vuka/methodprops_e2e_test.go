@@ -284,3 +284,82 @@ func TestMethodPropsE2E(t *testing.T) {
 		t.Errorf("got:\n%s\nwant:\n%s", out, mpWant)
 	}
 }
+
+// TestMethodPropsHelpers: a tag records a func prop's method and receiver for
+// a method of a helper declared in the page's own script, as for the page's.
+func TestMethodPropsHelpers(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	repo, _ := filepath.Abs("../..")
+	ui := os.Getenv("VUKA_UI")
+	if ui == "" {
+		ui = filepath.Join(filepath.Dir(repo), "vuka-ui")
+	}
+	if b, err := os.ReadFile(filepath.Join(ui, "methodprops.go")); err != nil || !strings.Contains(string(b), "func MethodProps") {
+		needs(t, "the ui checkout (%s) has no MethodProps", ui)
+	}
+	uiSum, _ := os.ReadFile(filepath.Join(ui, "go.sum"))
+	ownSum, _ := os.ReadFile("go.sum")
+	root := tempModule(t, map[string]string{
+		"go.mod": "module example.com/app\n\ngo 1.25.0\n\nrequire (\n\tgithub.com/vuka-lang/ui/v2 v2.0.0\n\tgithub.com/vuka-lang/vuka/v2 " + transpile.RuntimeVersion +
+			"\n)\n\nreplace github.com/vuka-lang/ui/v2 => " + ui + "\n\nreplace github.com/vuka-lang/vuka/v2 => " + repo + "\n",
+		"go.sum":  string(uiSum) + string(ownSum),
+		"main.go": "package main\n\nfunc main() {}\n",
+		"row.vuka.html": `<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+type Row struct {
+	ui.Live
+	OnCancel func()
+}
+</script>
+<button onClick={OnCancel}>x</button>
+`,
+		"orders.vuka.html": `<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+type Line struct{ n int }
+
+func (l *Line) Close() { l.n++ }
+
+type Orders struct {
+	ui.Live
+	Line *Line
+}
+
+func (p *Orders) Cancel() {}
+</script>
+<div>
+  <Row onCancel={Cancel}/>
+  <Row onCancel={Line.Close}/>
+</div>
+`,
+	})
+	out := filepath.Join(t.TempDir(), "gen")
+	cmd := exec.Command(buildVuka(t), "gen", "-o", out)
+	cmd.Dir = root
+	cmd.Env = append(os.Environ(), "GOWORK=off", "GOFLAGS=-mod=mod", "VUKA_TAILWIND=off", "VUKA_FRONTEND=off")
+	if b, err := cmd.CombinedOutput(); err != nil {
+		t.Fatalf("%v\n%s", err, b)
+	}
+	src, err := os.ReadFile(filepath.Join(out, "orders_html.go"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{`ui.Method("OnCancel", p, "Cancel")`, `ui.Method("OnCancel", p.Line, "Close")`} {
+		if !strings.Contains(string(src), want) {
+			t.Errorf("no %s in:\n%s", want, src)
+		}
+	}
+	build := exec.Command("go", "build", "./...")
+	build.Dir = out
+	build.Env = cmd.Env
+	if b, err := build.CombinedOutput(); err != nil {
+		t.Errorf("the generated Go doesn't build: %v\n%s", err, b)
+	}
+}

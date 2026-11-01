@@ -9,8 +9,8 @@ followed by the markup that Go renders. You write your components and pages
 this way, so the data a view renders and the markup that renders it live in
 one file.
 
-The script has the package, imports, exactly one rendering struct, decorated
-hooks and methods. Everything after `</script>` is markup, except the
+The script has the package, imports, the struct the file renders, any helper
+structs, decorated hooks and methods. Everything after `</script>` is markup, except the
 component's `<style>` and `<script lang="ts">` blocks at the end. Logic
 without a view belongs in `.go` or `.vuka` files.
 
@@ -113,11 +113,15 @@ func (c *Counter) Increment() { c.n++ }
 <button onClick={Increment}>{n}</button>
 ```
 
-No struct is [E0146](/errors/E0146), multiple structs [E0147](/errors/E0147),
-and a script without markup [E0148](/errors/E0148).
+No struct is [E0146](/errors/E0146), and a script without markup
+[E0148](/errors/E0148).
 
-A form DTO, record type
-or other non-render data structure goes in an adjacent logic file. Each
+A script can declare helper structs: a form DTO, a record type or other data
+the file's struct uses. When a file declares several structs, its markup renders
+the one named after the file (`orders.vuka.html` renders `Orders`,
+`order-row.vuka.html` `OrderRow`, `[id].vuka.html` `Id`); none so named is
+[E0147](/errors/E0147). A file declaring one struct renders it, whatever it is
+called. Helpers and their methods aren't components, routes or live. Each
 reusable rendering partial becomes its own shape file.
 
 The struct's methods may also live in a `.vuka` file beside the shape: its
@@ -131,7 +135,7 @@ The `<script lang="go">` comes first: only blank lines and `<!-- comments -->`
 may precede it, and a file has one ([E0157](/errors/E0157)). Its content is
 unindented Go. The package clause matches the directory (external test
 shapes may use the `orders_test` package). Single and grouped imports precede
-the one struct, hooks and ordinary methods.
+the struct, hooks and ordinary methods.
 
 The compiler reads the script as Go, so a `</script>` inside a string or a
 comment doesn't end it; a script with no `</script>` is

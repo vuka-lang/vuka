@@ -104,7 +104,7 @@ func TestPropCompletion(t *testing.T) {
 func TestTagHover(t *testing.T) {
 	p, root := tagsModule(t)
 	page := filepath.Join(root, "pages", "index.vuka.html")
-	s := scanShape([]byte(tagsPage))
+	s := scanShape("", []byte(tagsPage))
 	h := p.tagHover(page, []byte(tagsPage), s, strings.Index(tagsPage, "Card"))
 	if h == nil {
 		t.Fatal("no hover on <components.Card>")

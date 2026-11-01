@@ -5,7 +5,7 @@
 ## Introduction
 
 Vuka renders UI from `.vuka.html` shape files. A shape contains a
-`<script lang="go">` with exactly one struct, followed by markup. Logic-only `.go` and `.vuka`
+`<script lang="go">` with the struct it renders, followed by markup. Logic-only `.go` and `.vuka`
 files contain services, data types and helpers.
 
 ## Writing a Shape

@@ -6,14 +6,17 @@ import (
 	"go/scanner"
 	"go/token"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
+	"unicode"
 )
 
 // A .vuka.html file is Go above markup: its package clause and imports, then
-// a header of Go — one struct, the decorated hooks and methods of it, other
-// helpers — up to the first line starting with <, then the markup that
-// struct renders:
+// a header of Go — the struct its markup renders, the decorated hooks and
+// methods of it, other helpers — up to the first line starting with <, then
+// the markup that struct renders. A file declaring several structs renders
+// the one named after it; the others are helpers, as in a .go file:
 //
 //	package pages
 //
@@ -42,6 +45,7 @@ type Shape struct {
 	Recv     string // the receiver its methods name, "" when none does
 	Ptr      bool   // a method has a pointer receiver
 	Fields   []ShapeField
+	Helpers  []string // the file's other structs: they are data, not components
 
 	// Live is whether the struct is a live component: it embeds ui.Live,
 	// declares a hook, or has an exported method the markup wires to an
@@ -93,7 +97,7 @@ type ShapeField struct {
 
 var (
 	shapeStart = regexp.MustCompile(`^(?:type|var|const)\b|^@[A-Za-z_]`)
-	shapeType  = regexp.MustCompile(`^type\s+\w+(?:\[[^\]]*\])?\s+struct\b`)
+	shapeType  = regexp.MustCompile(`^type\s+\w+(?:\[[^\]]*\])?\s+struct\b|^type\s*\(`)
 	hookName   = regexp.MustCompile(`^@\s*\w+\s*\.\s*(Mount|OnChange|Loads)\b`)
 	eventAttr  = regexp.MustCompile(`\bon[A-Z]\w*=\{`)
 )
@@ -101,33 +105,41 @@ var (
 // isShape reports whether the template file's lines, its head ending at top,
 // have a Go header: the first line after the imports that isn't blank or a
 // comment starts a declaration (type, var, const) or a decorator, or a struct
-// type is declared before the first line starting with <. A file without one
-// starts with markup, a statement or a func header: E0152.
+// type is declared before the markup, read as goHeader reads it: a line of Go
+// starting with <, a receive or a raw string's, doesn't start it. A file
+// without one starts with markup, a statement or a func header: E0152.
 func isShape(lines []string, top int) bool {
-	first := true
 	for i := top; i < len(lines); i++ {
 		t := strings.TrimSpace(lines[i])
 		if t == "" || strings.HasPrefix(t, "//") {
 			continue
 		}
-		if first && shapeStart.MatchString(lines[i]) {
+		if shapeStart.MatchString(lines[i]) {
 			return true
 		}
-		first = false
-		if strings.HasPrefix(t, "<") {
-			return false
-		}
-		if shapeType.MatchString(lines[i]) {
+		break
+	}
+	text := strings.Join(lines[min(top, len(lines)):], "")
+	_, _, markup := goHeader([]byte(text), 0)
+	if markup >= 0 {
+		text = text[:markup]
+	}
+	for _, l := range strings.SplitAfter(text, "\n") {
+		if shapeType.MatchString(l) {
 			return true
 		}
 	}
 	return false
 }
 
-// ParseShape reads src, a template file, as its Go header and markup: nil
-// without an error when it has no Go header (E0152 when compiled), and an
-// error when the header breaks one of its rules.
-func ParseShape(src []byte) (*Shape, *Error) {
+// ParseShape is ParseShapeFile for a file whose name isn't known: a file
+// declaring several structs doesn't say which it renders, E0147.
+func ParseShape(src []byte) (*Shape, *Error) { return ParseShapeFile("", src) }
+
+// ParseShapeFile reads src, the template file name, as its Go header and
+// markup: nil without an error when it has no Go header (E0152 when
+// compiled), and an error when the header breaks one of its rules.
+func ParseShapeFile(name string, src []byte) (*Shape, *Error) {
 	src, _, err := headerView(src)
 	if err != nil {
 		return nil, err
@@ -137,10 +149,10 @@ func ParseShape(src []byte) (*Shape, *Error) {
 	if !isShape(lines, head.Top) {
 		return nil, nil
 	}
-	return parseShape(src, lines, head)
+	return parseShape(name, src, lines, head)
 }
 
-func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) {
+func parseShape(name string, src []byte, lines []string, head TemplateHead) (*Shape, *Error) {
 	off := make([]int, len(lines)+1)
 	for i, l := range lines {
 		off[i+1] = off[i] + len(l)
@@ -162,7 +174,9 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	// Go, at the file's own offsets.
 	text := string(src[:off[head.Top]]) + skel
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "", text, parser.ParseComments)
+	// AllErrors: what .vuka allows and the skeleton keeps isn't Go, and any
+	// amount of it mustn't stop the parser short of a struct.
+	f, err := parser.ParseFile(fset, "", text, parser.ParseComments|parser.AllErrors)
 	if f == nil {
 		return nil, shapeSyntax(err)
 	}
@@ -184,37 +198,23 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 		at := fset.Position(p)
 		return token.Position{Line: at.Line, Column: at.Column}
 	}
-	if len(structs) > 1 {
-		// A form the page holds (a struct embedding ui.FormState) may be
-		// declared beside it: it is data, never the struct the markup renders.
-		var rendered []*ast.TypeSpec
-		for _, ts := range structs {
-			if !embedsFormState(ts.Type.(*ast.StructType), f) {
-				rendered = append(rendered, ts)
-			}
-		}
-		if len(rendered) == 1 {
-			structs = rendered
-		}
-	}
-	switch {
-	case len(structs) == 0:
+	if len(structs) == 0 {
 		if err != nil {
 			return nil, shapeSyntax(err)
 		}
 		return nil, &Error{Code: "E0146", Pos: token.Position{Line: head.Top + 1, Column: 1},
 			Msg:  "the template file's Go declares no struct: a .vuka.html file renders one struct, declared above its markup",
 			Help: "declare it: type Page struct { … }"}
-	case len(structs) > 1:
-		second := structs[1]
-		return nil, &Error{Code: "E0147", Pos: pos(second.Name.Pos()), Len: len(second.Name.Name),
-			Msg: "the template file declares " + structs[0].Name.Name + " and " + second.Name.Name +
-				": a .vuka.html file renders one struct",
-			Help: "move " + second.Name.Name + " to its own .vuka.html file, or to a .go file beside this one when it has no markup (a form, a struct embedding ui.FormState, may stay)"}
 	}
+	ts, helpers, rerr := renderedStruct(name, structs, f)
+	if rerr != nil {
+		rerr.Pos = pos(rerr.at)
+		rerr.Len = rerr.length
+		return nil, rerr.Error
+	}
+	s.Helpers = helpers
 	// A syntax error past the struct is the compiler's to report, at its
 	// place, as for any .vuka source.
-	ts := structs[0]
 	st := ts.Type.(*ast.StructType)
 	s.Type, s.TypeLine, s.Generic = ts.Name.Name, pos(ts.Name.Pos()).Line, ts.TypeParams != nil
 	if s.Generic {
@@ -256,6 +256,7 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 		}
 	}
 	var events []string
+	hook := ownHook(hooks, f, fset, helpers)
 	for _, d := range f.Decls {
 		fd, ok := d.(*ast.FuncDecl)
 		if !ok || fd.Recv == nil || len(fd.Recv.List) != 1 {
@@ -279,8 +280,8 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	switch {
 	case s.EmbedsLive:
 		s.Live, s.LiveWhy = true, "it embeds ui.Live"
-	case len(hooks) > 0:
-		s.Live, s.LiveWhy = true, "it declares the hook "+hooks[0]
+	case hook != "":
+		s.Live, s.LiveWhy = true, "it declares the hook "+hook
 	default:
 		if m := wiredEvent(string(src[markup:]), events); m != "" {
 			s.Live, s.LiveWhy = true, "the markup sends the event "+m
@@ -290,6 +291,136 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 		s.Ptr = true
 	}
 	return s, nil
+}
+
+// ownHook is the first hook decorating anything but a helper's method: a
+// helper is data, and its hooks don't make the file's struct live.
+func ownHook(hooks []headerHook, f *ast.File, fset *token.FileSet, helpers []string) string {
+next:
+	for _, h := range hooks {
+		for _, d := range f.Decls {
+			fd, ok := d.(*ast.FuncDecl)
+			if !ok || fset.Position(fd.Pos()).Offset < h.off {
+				continue
+			}
+			if fd.Recv != nil && len(fd.Recv.List) == 1 {
+				if _, base := shapeRecv(fd.Recv.List[0].Type); slices.Contains(helpers, base) {
+					continue next
+				}
+			}
+			break
+		}
+		return h.name
+	}
+	return ""
+}
+
+// shapeError is an error at a struct's name.
+type shapeError struct {
+	*Error
+	at     token.Pos
+	length int
+}
+
+// renderedStruct is which of a template file's structs its markup renders,
+// and the others, the file's helpers: the only struct; else, a form set
+// aside (a struct embedding ui.FormState is data) and type aliases too, the
+// only one left; else the one named after the file. name is the file's name,
+// "" when it isn't known.
+func renderedStruct(name string, structs []*ast.TypeSpec, f *ast.File) (*ast.TypeSpec, []string, *shapeError) {
+	if len(structs) == 1 {
+		return structs[0], nil, nil
+	}
+	var rendered []*ast.TypeSpec
+	for _, ts := range structs {
+		if ts.Assign == token.NoPos && !embedsFormState(ts.Type.(*ast.StructType), f) {
+			rendered = append(rendered, ts)
+		}
+	}
+	var pick *ast.TypeSpec
+	switch {
+	case len(rendered) == 1:
+		pick = rendered[0]
+	case len(rendered) == 0:
+		rendered = structs
+		fallthrough
+	default:
+		var named []*ast.TypeSpec
+		for _, ts := range rendered {
+			if name != "" && shapeNameKey(ts.Name.Name) == shapeNameKey(fileStem(name)) {
+				named = append(named, ts)
+			}
+		}
+		if len(named) != 1 {
+			return nil, nil, twoStructs(name, rendered, named)
+		}
+		pick = named[0]
+	}
+	var helpers []string
+	for _, ts := range structs {
+		if ts != pick {
+			helpers = append(helpers, ts.Name.Name)
+		}
+	}
+	return pick, helpers, nil
+}
+
+// twoStructs is E0147, at the struct the file doesn't explain.
+func twoStructs(name string, structs, named []*ast.TypeSpec) *shapeError {
+	second := structs[1]
+	names := make([]string, len(structs))
+	for i, ts := range structs {
+		names[i] = ts.Name.Name
+	}
+	list := strings.Join(names[:len(names)-1], ", ") + " and " + names[len(names)-1]
+	e := &Error{Code: "E0147"}
+	switch {
+	case name == "":
+		e.Msg = "the template file declares " + list + ": a .vuka.html file renders one struct"
+		e.Help = "move " + second.Name.Name + " to its own .vuka.html file, or to a .go file beside this one when it has no markup (a form, a struct embedding ui.FormState, may stay)"
+	case len(named) > 1:
+		second = named[1]
+		e.Msg = "the template file declares " + named[0].Name.Name + " and " + second.Name.Name + ", and both are named after " + fileBase(name) + ": it renders the one struct named after it"
+		e.Help = "rename " + second.Name.Name
+	default:
+		want := ShapeTypeName(name)
+		e.Msg = "the template file declares " + list + ", and none is named after it: " + fileBase(name) + " renders the struct " + want
+		e.Help = "name the struct its markup renders " + want + "; the others stay as helpers. A struct with markup of its own goes in its own .vuka.html file"
+		if !token.IsIdentifier(want) {
+			e.Msg = "the template file declares " + list + ", and no struct can be named after " + fileBase(name)
+			e.Help = "keep one struct in this file, moving the others to a .go file, or give the file a name a struct can take"
+		}
+	}
+	return &shapeError{Error: e, at: second.Name.Pos(), length: len(second.Name.Name)}
+}
+
+// ShapeTypeName is the name of the struct a template file renders when it
+// declares several: orders.vuka.html renders Orders, order-row.vuka.html and
+// order_row.vuka.html OrderRow, _layout.vuka.html Layout, [id].vuka.html Id
+// and [path...].vuka.html Path. Case and separators don't count when it is
+// compared with the file's structs, so ID and orderRow match too.
+func ShapeTypeName(file string) string { return componentName(fileBase(file)) }
+
+// fileBase is the file's name without its directory.
+func fileBase(file string) string {
+	return file[strings.LastIndexAny(file, `/\`)+1:]
+}
+
+// fileStem is the file's base name without .vuka.html.
+func fileStem(file string) string {
+	return strings.TrimSuffix(fileBase(file), ".vuka.html")
+}
+
+// shapeNameKey is a name with case and separators gone, as a file's name and
+// a struct's are compared.
+func shapeNameKey(name string) string {
+	var b strings.Builder
+	for _, r := range name {
+		if unicode.IsLetter(r) || unicode.IsDigit(r) {
+			b.WriteRune(unicode.ToLower(r))
+		}
+	}
+	return b.String()
 }
 
 // implicitLive is W0115 for a shape live by anything but embedding ui.Live.
@@ -304,11 +435,16 @@ func (f *fileState) implicitLive() ErrorList {
 	return l
 }
 
-// EmbedLive adds ui.Live to the struct of src, a .vuka.html file live by
-// anything else, with the import it needs. It returns the new source and why
-// the struct was live; nil when there is nothing to do.
-func EmbedLive(src []byte) (out []byte, why string) {
-	s, err := ParseShape(src)
+// EmbedLive is EmbedLiveFile for a file whose name isn't known: one declaring
+// several structs doesn't say which it renders, so nothing is done.
+func EmbedLive(src []byte) (out []byte, why string) { return EmbedLiveFile("", src) }
+
+// EmbedLiveFile adds ui.Live to the struct the .vuka.html file renders,
+// when that struct is live by anything else, with the import it
+// needs; its helpers stay as they are. It returns the new source and why the
+// struct was live; nil when there is nothing to do.
+func EmbedLiveFile(file string, src []byte) (out []byte, why string) {
+	s, err := ParseShapeFile(file, src)
 	if err != nil || s == nil || !s.Live || s.EmbedsLive {
 		return nil, ""
 	}
@@ -491,10 +627,11 @@ func closeParen(s string, i int) string {
 // goHeader reads the header's Go, starting at the offset from, up to the
 // first line starting with < outside any brace, paren or bracket. It
 // returns the header as a skeleton Go parses — the same length, its lines
-// kept, with decorators, field attributes and function bodies written as
-// spaces (they are .vuka: @, ?, match) —, the hooks its decorators name, and
+// kept, with what is .vuka and not Go written as spaces (attributes and
+// decorators, function bodies with their ?s and matches, enums, decorator
+// declarations, static fields, the type of func T.New) —, the hooks its decorators name, and
 // the offset its markup starts at, -1 when nothing starts it.
-func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
+func goHeader(src []byte, from int) (skel string, hooks []headerHook, markup int) {
 	markup = -1
 	text := src[from:]
 	out := []byte(string(text))
@@ -528,6 +665,7 @@ func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
 		lit string
 	}
 	var toks []tok
+	lineEnd := map[int]bool{} // the tokens a line's automatic semicolon follows
 	depth := 0
 	for {
 		p, t, lit := sc.Scan()
@@ -552,6 +690,9 @@ func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
 			depth--
 		}
 		if t == token.SEMICOLON && lit == "\n" {
+			if len(toks) > 0 {
+				lineEnd[len(toks)-1] = true
+			}
 			continue
 		}
 		toks = append(toks, tok{t, o, lit})
@@ -581,11 +722,71 @@ func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
 		}
 		return t.off + len(t.t.String())
 	}
+	// declEnd is the index of the token closing the first {…} from toks[i],
+	// the parens and brackets before it skipped.
+	declEnd := func(i int) int {
+		for j := i; j < len(toks); j++ {
+			switch toks[j].t {
+			case token.LPAREN, token.LBRACK:
+				j = match(j)
+			case token.LBRACE:
+				return match(j)
+			}
+		}
+		return len(toks) - 1
+	}
+	// fieldEnd is the index of the last token of the field starting at toks[i].
+	fieldEnd := func(i int) int {
+		for j := i; j < len(toks); j++ {
+			switch toks[j].t {
+			case token.LBRACE, token.LPAREN, token.LBRACK:
+				j = match(j)
+			case token.SEMICOLON:
+				return j - 1
+			case token.RBRACE:
+				return j - 1
+			}
+			if lineEnd[j] {
+				return j
+			}
+		}
+		return len(toks) - 1
+	}
 	depth = 0
 	inFunc := false
 	for i := 0; i < len(toks); i++ {
 		t := toks[i]
+		next := func(n int) token.Token {
+			if i+n < len(toks) {
+				return toks[i+n].t
+			}
+			return token.EOF
+		}
 		switch {
+		case t.t == token.IDENT && depth == 0 && lineStart(t.off) && next(1) == token.IDENT && (t.lit == "enum" || t.lit == "decorator"):
+			// An enum, a decorator: enum Kind {…}, decorator d(c) {…},
+			// decorator D = @a @b.
+			last := declEnd(i)
+			if next(2) == token.ASSIGN {
+				for last = i + 2; last < len(toks)-1 && !lineEnd[last]; last++ {
+				}
+			}
+			blankRange(t.off, end(last))
+			i = last
+		case t.t == token.IDENT && depth > 0 && t.lit == "static" && (lineStart(t.off) || toks[i-1].t == token.SEMICOLON || toks[i-1].t == token.LBRACE) && (next(1) == token.IDENT || next(1) == token.CONST):
+			// A static field, its value with it: it is no field of the struct.
+			last := fieldEnd(i)
+			blankRange(t.off, end(last))
+			i = last
+		case t.t == token.FUNC && depth == 0 && next(1) == token.IDENT && (next(2) == token.PERIOD || next(2) == token.LBRACK && i+2 < len(toks) && match(i+2)+1 < len(toks) && toks[match(i+2)+1].t == token.PERIOD):
+			// func T.New(…) is a function New to the skeleton.
+			dot := i + 2
+			if toks[dot].t == token.LBRACK {
+				dot = match(dot) + 1
+			}
+			blankRange(toks[i+1].off, end(dot))
+			inFunc = true
+			i = dot
 		case t.t == token.ILLEGAL && t.lit == "@":
 			// A decorator or a field attribute: @pkg.Name, then (…) or {…}.
 			j := i + 1
@@ -602,7 +803,7 @@ func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
 					}
 				}
 				if hookName.MatchString(name.String()) {
-					hooks = append(hooks, name.String())
+					hooks = append(hooks, headerHook{name.String(), from + t.off})
 				}
 			}
 			last := j - 1
@@ -637,6 +838,12 @@ func goHeader(src []byte, from int) (skel string, hooks []string, markup int) {
 		}
 	}
 	return string(out), hooks, markup
+}
+
+// headerHook is a hook's decorator in a header: its name and where it is.
+type headerHook struct {
+	name string
+	off  int
 }
 
 // templatesTop is the line, from 0, a template file's markup starts on: past

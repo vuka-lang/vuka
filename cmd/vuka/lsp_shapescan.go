@@ -113,7 +113,7 @@ var (
 )
 
 // scanShape reads src, a .vuka.html file.
-func scanShape(src []byte) *shapeScan {
+func scanShape(file string, src []byte) *shapeScan {
 	s := &shapeScan{src: src, markup: -1, fields: map[string]*shapeField{}, methods: map[string]*shapeMethod{},
 		setters: map[string][]string{}, wired: map[string]bool{}}
 	lines := bytes.SplitAfter(src, []byte("\n"))
@@ -121,7 +121,7 @@ func scanShape(src []byte) *shapeScan {
 	for i, l := range lines {
 		lineOff[i+1] = lineOff[i] + len(l)
 	}
-	sh, header, markup := shapeBounds(src)
+	sh, header, markup := shapeBoundsFile(file, src)
 	s.markup = markup
 	if sh != nil {
 		s.shape = sh
@@ -161,7 +161,15 @@ func scanShape(src []byte) *shapeScan {
 // lsp_shapesymbols.go too), and it reads the boundary as the compiler does,
 // in the <script lang="go"> form and the Go-header one
 // (transpile.SplitTemplate).
+//
+// A file declaring several structs renders the one named after it, so sh
+// takes the file's name (shapeBoundsFile); shapeBounds, for what only needs
+// the boundary, has no sh for such a file.
 func shapeBounds(src []byte) (sh *transpile.Shape, header, markup int) {
+	return shapeBoundsFile("", src)
+}
+
+func shapeBoundsFile(file string, src []byte) (sh *transpile.Shape, header, markup int) {
 	parts, err := transpile.SplitTemplate(src)
 	if err != nil {
 		return nil, -1, -1 // a <script lang="go"> being typed: Go to the end
@@ -171,7 +179,7 @@ func shapeBounds(src []byte) (sh *transpile.Shape, header, markup int) {
 	for i, l := range lines {
 		lineOff[i+1] = lineOff[i] + len(l)
 	}
-	if sh, _ := transpile.ParseShape(src); sh != nil && parts.Markup >= 0 {
+	if sh, _ := transpile.ParseShapeFile(file, src); sh != nil && parts.Markup >= 0 {
 		return sh, lineOff[sh.Header], parts.Markup
 	}
 	if parts.IsScript() {

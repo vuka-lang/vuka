@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -355,6 +356,7 @@ func TestLSPOneWay(t *testing.T) {
 		"header.vuka.html":   "package main\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Header struct{ Title string }\n\nfunc (h Header) Badge() ui.Node { return <b>{h.Title}</b> }\n<h1>{Title}</h1>\n",
 		"nostruct.vuka.html": "package main\n\n<p>no struct</p>\n",
 		"two.vuka.html":      "package main\n\ntype Two struct{ N int }\n<p>{N}</p>\n\nfunc item(n int)\n<li>{n}</li>\n",
+		"script.vuka.html":   "<script lang=\"go\">\npackage main\n\nvar tag =\n\t<b>x</b>\n\ntype Script struct{}\n</script>\n\n<p/>\n",
 	}
 	c, dir, _ := startLSPWith(t, files)
 	for _, tc := range []struct{ file, code, at string }{
@@ -362,6 +364,7 @@ func TestLSPOneWay(t *testing.T) {
 		{"header.vuka.html", "E0151", "<b>{h.Title}"},
 		{"nostruct.vuka.html", "E0152", "<p>no struct"},
 		{"two.vuka.html", "E0153", "func item"},
+		{"script.vuka.html", "E0151", "<b>x"},
 	} {
 		src := files[tc.file]
 		uri := pathToURI(filepath.Join(dir, tc.file))
@@ -384,6 +387,89 @@ func TestLSPOneWay(t *testing.T) {
 		if !found || len(ds) != 1 {
 			t.Errorf("%s: want only %s at %v: %s", tc.file, tc.code, want, jsonOf(ds))
 		}
+	}
+}
+
+// TestLSPScriptVuka: .vuka's own syntax in a script: no false errors, hover
+// and definition on what is written there, and Vuka's and Go's errors at their
+// place in the .vuka.html file.
+func TestLSPScriptVuka(t *testing.T) {
+	const ok = `<script lang="go">
+package main
+
+import "strconv"
+
+enum Kind { Cat, Dog }
+
+func parse(s string) Result[int] {
+	n := strconv.Atoi(s)?
+	return Ok(n)
+}
+
+func describe(k Kind) string {
+	match k {
+	case Kind.Cat:
+		return "cat"
+	case Kind.Dog:
+		return "dog"
+	}
+}
+
+type row struct{ n int }
+
+func (r row) value() Option[int] { return Some(r.n) }
+
+type Page struct{}
+
+func (p Page) Total() int {
+	v := parse("3").UnwrapOr(0)
+	return v + row{1}.value().UnwrapOr(0) + len(describe(Kind.Dog))
+}
+</script>
+
+<p>{Total()}</p>
+`
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "page.vuka.html": ok})
+	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": ok}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	at := func(needle string) map[string]any {
+		return map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(ok), strings.Index(ok, needle))}
+	}
+	if h, _ := json.Marshal(c.call("textDocument/hover", at("parse(\"3\")"))); !strings.Contains(string(h), "parse") {
+		t.Errorf("hover on parse: %s", h)
+	}
+	if h, _ := json.Marshal(c.call("textDocument/hover", at("Atoi"))); !strings.Contains(string(h), "Atoi") {
+		t.Errorf("hover on Atoi: %s", h)
+	}
+	def, _ := json.Marshal(c.call("textDocument/definition", at("describe(Kind.Dog)")))
+	want := positionOf([]byte(ok), strings.Index(ok, "describe(k Kind)"))
+	if !strings.Contains(string(def), "page.vuka.html") || !strings.Contains(string(def), fmt.Sprintf(`"line":%d`, want.Line)) {
+		t.Errorf("definition of describe: %s, want line %d", def, want.Line)
+	}
+	if fm, _ := json.Marshal(c.call("textDocument/formatting", map[string]any{"textDocument": map[string]any{"uri": uri}, "options": map[string]any{"tabSize": 4, "insertSpaces": false}})); strings.Contains(string(fm), "error") {
+		t.Errorf("formatting: %s", fm)
+	}
+
+	for _, tc := range []struct{ broken, at string }{
+		{strings.Replace(ok, "return Ok(n)", "return Ok(m)", 1), "m)"},
+		{strings.Replace(ok, "n := strconv.Atoi(s)?", "n := strconv.Atoi(s)?\n\tvar unused int", 1), "unused"},
+		{strings.Replace(ok, "case Kind.Dog:\n\t\treturn \"dog\"\n", "", 1), "match k"},
+		{strings.Replace(ok, "func parse(s string) Result[int] {", "func parse(s string) int {", 1), "?\n"},
+	} {
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2}, "contentChanges": []any{map[string]any{"text": tc.broken}}})
+		wantAt := positionOf([]byte(tc.broken), strings.Index(tc.broken, tc.at))
+		c.waitDiags(uri, func(ds []any) bool {
+			for _, d := range ds {
+				m, _ := d.(map[string]any)
+				if r, ok := toRange(m["range"]); ok && r.Start == wantAt {
+					return true
+				}
+			}
+			return false
+		})
+		c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 3}, "contentChanges": []any{map[string]any{"text": ok}}})
+		c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
 	}
 }
 

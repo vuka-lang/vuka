@@ -1,0 +1,38 @@
+<script lang="go">
+package main
+
+import "fmt"
+
+// Row is data, declared before the struct the file renders.
+type Row struct {
+	Name string
+	Qty  int
+}
+
+func (r Row) Label() string { return fmt.Sprintf("%d %s", r.Qty, r.Name) }
+
+func (r Row) Total() int { return r.Qty }
+
+type Orders struct {
+	Title string
+	Rows  []Row
+}
+
+func (p Orders) Total() int {
+	n := 0
+	for _, r := range p.Rows {
+		n += r.Total()
+	}
+	return n
+}
+
+type totals struct{ n int }
+</script>
+
+<section>
+  <h1>{Title}</h1>
+  for _, r := range Rows {
+    <OrderRow Label={r.Label()}/>
+  }
+  <p>{Total()}</p>
+</section>
