@@ -16,7 +16,6 @@ Several things are named `Live`:
 | Name | What it is |
 |---|---|
 | `ui.Live` | What a struct embeds to be live |
-| `@web.Live(path)` | Routes a live page, as a decorator |
 | `App.Live(path, page)` | Routes a live page, as a call; `pages/route.go` uses it |
 | `ui/live` | This package, the sessions a transport drives |
 
