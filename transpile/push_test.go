@@ -67,7 +67,7 @@ func main() {}
 	}
 	joined := strings.Join(got, "\n")
 	for _, w := range []string{
-		"W0113 feed.vuka:29:38: Seen assigns p.seen, but a page that isn't live pushes it over HTTP to a fresh copy of the page, which is thrown away: the change is lost",
+		"W0113 feed.vuka:29:38: Seen assigns p.seen, but on a page that isn't live a push runs over HTTP on a fresh copy of the page, which is thrown away: the change is lost",
 		"W0114 feed.vuka:31:38: Publish calls Save, but the push is a read (ui.Read)",
 	} {
 		if !strings.Contains(joined, w) {
@@ -76,5 +76,100 @@ func main() {}
 	}
 	if len(got) != 2 {
 		t.Errorf("%d warnings, want 2:\n%s", len(got), joined)
+	}
+}
+
+// A binding read in an event attribute is lazy there too.
+func TestLazyBindingInEvent(t *testing.T) {
+	const src = `package main
+
+import "github.com/vuka-lang/ui/v2"
+
+func jump(n int) ui.Commands { return ui.JS.Push(func(int) {}, n) }
+
+type Page struct{ n int }
+
+func (p *Page) calc() int { return p.n + 5 }
+
+<div>
+  at := p.calc()
+  <button disabled={at == 1} onClick={jump(at-1)}>x</button>
+</div>
+`
+	res, err := transpile.Package([]transpile.File{{Name: "page.vuka.html", Src: []byte(src)}},
+		transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: "testdata/golden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range res.Files {
+		if strings.Contains(string(o.Src), "jump(at()-1)") {
+			return
+		}
+	}
+	t.Errorf("the event attribute's binding isn't read as at():\n%s", res.Files[0].Src)
+}
+
+// A method of state a live type embeds runs on the live page's state, however
+// a component reaches it: no W0113. State nothing live embeds still warns.
+func TestPushEmbeddedState(t *testing.T) {
+	const src = `package main
+
+import (
+	"context"
+	"vukatest.local/opttarget"
+)
+
+type orderState struct{ off map[string]bool }
+
+func (s *orderState) Toggle(ctx context.Context, key string) error {
+	s.off[key] = !s.off[key]
+	return nil
+}
+
+type loose struct{ n int }
+
+func (l *loose) Bump(ctx context.Context) error {
+	l.n++
+	return nil
+}
+
+type Tab struct {
+	opttarget.Live
+	orderState
+}
+
+func (p *Tab) Render() opttarget.Node { return <div /> }
+
+type Row struct {
+	State *orderState
+	L     *loose
+}
+
+func (x Row) Render() opttarget.Node {
+	return <div>
+		<input onClick={opttarget.JS.Push(x.State.Toggle, "a")} />
+		<input onClick={opttarget.JS.Push(x.L.Bump)} />
+	</div>
+}
+
+func main() {}
+`
+	res, err := transpile.Package([]transpile.File{{Name: "row.vuka", Src: []byte(src)}},
+		transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: "testdata/golden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	var got []string
+	for _, o := range res.Files {
+		for _, w := range o.Warnings {
+			got = append(got, string(w.Code)+" "+w.Error())
+		}
+	}
+	joined := strings.Join(got, "\n")
+	if strings.Contains(joined, "Toggle") {
+		t.Errorf("W0113 for state a live type embeds:\n%s", joined)
+	}
+	if !strings.Contains(joined, "Bump assigns l.n") {
+		t.Errorf("no W0113 for state nothing live embeds:\n%s", joined)
 	}
 }

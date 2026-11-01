@@ -1,4 +1,4 @@
-error[E0106]: <NoRender> isn't a stateful component: *NoRender doesn't implement ui.Stateful (missing method Render)
+error[E0106]: <NoRender> isn't a live component: *NoRender doesn't implement ui.Stateful (missing method Render)
   --> err_jsx_live.vuka:51:3
    |
 51 |         <NoRender />
@@ -6,7 +6,7 @@ error[E0106]: <NoRender> isn't a stateful component: *NoRender doesn't implement
    |
    = help: pass the attributes the component's parameters or fields declare
 
-error[E0106]: <BadRender> isn't a stateful component: *BadRender doesn't implement ui.Stateful (wrong type for method Render: has func(ctx context.Context) ui.Node, wants func() ui.Node)
+error[E0106]: <BadRender> isn't a live component: *BadRender doesn't implement ui.Stateful (wrong type for method Render: has func(ctx context.Context) ui.Node, wants func() ui.Node)
   --> err_jsx_live.vuka:52:3
    |
 52 |         <BadRender />

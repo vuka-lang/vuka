@@ -9,6 +9,7 @@ import (
 	"os/signal"
 	"path"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -17,14 +18,14 @@ import (
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 )
 
-const buildIslandsUsage = `usage: vuka build-islands [-watch]
+const buildIslandsUsage = `usage: vuka build -islands [-watch]
 
 Builds the module's islands — the types ui.RegisterIsland, a route's
 ui.Island option or @ui.Island registers — from the source alone, into the
 .vuka directory of the frontend's build (web.Frontend's root), where
 //go:embed picks them up and the app serves them from:
 
-	//go:generate go tool vuka build-islands
+	//go:generate go tool vuka build -islands
 
 Run it after the frontend's own build (vite build empties its dist). It
 writes islands.d.ts and vuka-live.d.ts, the components' types, beside
@@ -33,6 +34,28 @@ them in the frontend's folder.
 -watch keeps them built in .vuka/assets, for web.Dev under go run, until
 its input closes.
 `
+
+// cutIslands is args without -islands, when cmd is build and they hold it: a
+// build of the islands alone. -watch is the islands build's own flag.
+func cutIslands(cmd string, args []string) ([]string, bool) {
+	if cmd != "build" {
+		return args, false
+	}
+	for i, a := range args {
+		if a == "-islands" || a == "--islands" {
+			return slices.Delete(slices.Clone(args), i, i+1), true
+		}
+	}
+	return args, false
+}
+
+// deprecateBuildIslands says what to run instead, except under -watch: that
+// is web.Dev starting it, whose user didn't type it.
+func deprecateBuildIslands(args []string, stderr io.Writer) {
+	if !slices.Contains(args, "-watch") && !slices.Contains(args, "--watch") {
+		fmt.Fprintln(stderr, "vuka: build-islands is deprecated: use vuka build -islands")
+	}
+}
 
 func buildIslands(args []string, stdout, stderr io.Writer) error {
 	fs := flag.NewFlagSet("build-islands", flag.ContinueOnError)

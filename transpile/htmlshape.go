@@ -292,6 +292,53 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	return s, nil
 }
 
+// implicitLive is W0115 for a shape live by anything but embedding ui.Live.
+func (f *fileState) implicitLive() ErrorList {
+	h := f.html
+	if h == nil || h.shape == nil || !h.shape.Live || h.shape.EmbedsLive {
+		return nil
+	}
+	var l ErrorList
+	l.add("W0115", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s is live because %s, and nothing in the struct says so: a socket and server memory for each visitor", h.shape.Type, h.shape.LiveWhy).
+		help("embed ui.Live in %s (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP", h.shape.Type)
+	return l
+}
+
+// EmbedLive adds ui.Live to the struct of src, a .vuka.html file live by
+// anything else, with the import it needs. It returns the new source and why
+// the struct was live; nil when there is nothing to do.
+func EmbedLive(src []byte) (out []byte, why string) {
+	s, err := ParseShape(src)
+	if err != nil || s == nil || !s.Live || s.EmbedsLive {
+		return nil, ""
+	}
+	name := "ui"
+	text := string(src)
+	var imp string
+	if m := uiImport.FindStringSubmatch(text); m != nil {
+		if m[1] != "" {
+			name = strings.TrimSpace(m[1])
+		}
+	} else if at := uiPackageClause.FindStringIndex(text); at != nil {
+		imp = "\n\nimport \"" + uiImportPath + "\""
+		out = append(append(out, src[:at[1]]...), imp...)
+		src = append(out[:len(out):len(out)], src[at[1]:]...)
+		out, s.open = nil, s.open+len(imp)
+	}
+	field := "\n\t" + name + ".Live"
+	if s.open < len(src) && src[s.open] != '\n' {
+		field += "\n"
+	}
+	return append(append(append(out, src[:s.open]...), field...), src[s.open:]...), s.LiveWhy
+}
+
+const uiImportPath = "github.com/vuka-lang/ui/v2"
+
+var (
+	uiImport        = regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+\s+)?"` + regexp.QuoteMeta(uiImportPath) + `"`)
+	uiPackageClause = regexp.MustCompile(`(?m)^package\s+\w+[ \t]*$`)
+)
+
 // shapeSyntax is the error of a header that doesn't parse.
 func shapeSyntax(err error) *Error {
 	e := &Error{Code: "E0003", Pos: token.Position{Line: 1, Column: 1}, Msg: "the template file's Go doesn't parse"}

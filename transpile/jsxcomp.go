@@ -36,18 +36,19 @@ type jsxComp struct {
 	inOrder    bool       // its expressions are in the call's order
 	closure    []*compArg // when bound out of order: the arguments taken by a function literal, in source order
 	closureTyp []string
-	stateful   bool      // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
-	structComp bool      // a struct with a Render() Node method: T{…}.Render()
-	nodeComp   bool      // a struct component that is a Node, with its markup its View: T{…}
-	rest       []jsxNode // the children but the slots, when there are slots
-	pre        []jsxNode // and the children's statements, run before the slots read them
-	ptrRender  bool      // whose Render takes a pointer: (&T{…}).Render()
-	key        *compArg  // its key attribute
-	urlKey     *compArg  // a stateful component's urlKey attribute: ui.URLKey(urlKey, …)
-	targText   string    // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
-	missing    []string  // the parameters no attribute sets, but those a Node fills
-	unfilled   []string  // the fields tagged vuka:"required" nothing sets
-	elem       bool      // a repeated slot's element: its struct's fields bound like a tag's
+	stateful   bool          // a struct whose pointer is the target's Stateful: ui.Component(site, key, &T{…})
+	structComp bool          // a struct with a Render() Node method: T{…}.Render()
+	nodeComp   bool          // a struct component that is a Node, with its markup its View: T{…}
+	rest       []jsxNode     // the children but the slots, when there are slots
+	pre        []jsxNode     // and the children's statements, run before the slots read them
+	ptrRender  bool          // whose Render takes a pointer: (&T{…}).Render()
+	key        *compArg      // its key attribute
+	urlKey     *compArg      // a stateful component's urlKey attribute: ui.URLKey(urlKey, …)
+	targText   string        // inferred type arguments for a generic stateful literal, e.g. "[int]"; "" otherwise
+	missing    []string      // the parameters no attribute sets, but those a Node fills
+	unfilled   []string      // the fields tagged vuka:"required" nothing sets
+	elem       bool          // a repeated slot's element: its struct's fields bound like a tag's
+	methods    []*methodProp // a stateful tag's func props set to method values
 
 	// UI islands (Phase 1): a <ui.Island> wrapper lowered to ui.Mount.
 	island                        bool      // this comp is a <ui.Island> wrapper
@@ -277,6 +278,9 @@ func (w *jsxWriter) comp(c *jsxComp) {
 			value(c.key, true)
 			w.gen(", ")
 		}
+		if len(c.methods) > 0 {
+			w.gen(q + "MethodProps(")
+		}
 		w.gen("&")
 		if c.key != nil {
 			w.copy(tag) // ui.Key(key, &T{…}) writes the key before the tag
@@ -305,11 +309,12 @@ func (w *jsxWriter) comp(c *jsxComp) {
 		}
 	}
 	w.fieldArgs(c.args, value)
-	switch {
-	case c.stateful && c.key != nil:
-		w.gen("})")
-	case c.stateful:
+	if c.stateful {
 		w.gen("}")
+		w.methodProps(c)
+	}
+	if c.stateful && c.key != nil {
+		w.gen(")")
 	}
 	switch {
 	case c.stateful && c.urlKey != nil:
@@ -401,6 +406,9 @@ func (e *engine) lowerJSX(f *fileState) {
 		}
 		if all && e.bindTree(f, t) && e.bindComps(f, t) && !pendingWrites(f, t) && e.checkFallbacks(f, t) {
 			e.checkModels(f, t)
+			for _, c := range t.comps {
+				e.findMethodProps(f, c)
+			}
 			f.fixed = append(f.fixed, f.jsxEdits(t, true)...)
 			t.done = true
 			e.progress = true

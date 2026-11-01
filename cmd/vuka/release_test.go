@@ -19,6 +19,7 @@ const (
 	vukaVersion = "v1.5.0"
 	uiVersion   = "v1.5.0"
 	webVersion  = "v1.5.0"
+	ormVersion  = "v1.2.0"
 )
 
 func main() {
@@ -34,9 +35,9 @@ func main() {
 // remotes, which git reaches in place of https://github.com/vuka-lang/…, and
 // a module cache of their own, so a release runs without the network.
 type releaseFixture struct {
-	t             *testing.T
-	remotes       string
-	vuka, ui, web string
+	t                  *testing.T
+	remotes            string
+	vuka, ui, web, orm string
 }
 
 func newReleaseFixture(t *testing.T, notes string) *releaseFixture {
@@ -81,6 +82,10 @@ func newReleaseFixture(t *testing.T, notes string) *releaseFixture {
 		"go.mod": "module github.com/vuka-lang/web/v2\n\ngo 1.23\n",
 		"web.go": "package web\n",
 	}, "v1.5.0")
+	f.orm = f.repo(work, "vuka-orm", "orm", map[string]string{
+		"go.mod": "module github.com/vuka-lang/orm/v2\n\ngo 1.23\n",
+		"orm.go": "package orm\n",
+	}, "v1.2.0")
 	return f
 }
 
@@ -201,6 +206,7 @@ func TestRelease(t *testing.T) {
 		f.vuka: "cmd/vuka/v2.0.0\ncmd/vukavet/v2.0.0\nv2.0.0",
 		f.ui:   "v2.0.0",
 		f.web:  "v2.0.0",
+		f.orm:  "v2.0.0",
 	} {
 		if got := f.git(filepath.Join(f.remotes, filepath.Base(remoteName(dir))), "tag", "-l", "*v2.0.0"); got != want {
 			t.Errorf("%s remote tags %q, want %q", dir, got, want)
@@ -214,11 +220,17 @@ func TestRelease(t *testing.T) {
 		t.Errorf("cmd/vukavet/v2.0.0 is on %s, cmd/vuka/v2.0.0 on %s", vet, cmd)
 	}
 	tc := readTest(t, filepath.Join(f.vuka, "cmd", "vuka", "toolchain.go"))
-	if strings.Count(tc, `"v2.0.0"`) != 4 {
+	if strings.Count(tc, `"v2.0.0"`) != 5 {
 		t.Errorf("toolchain.go:\n%s", tc)
 	}
 	if !strings.Contains(out, "released the v2.0.0 set") {
 		t.Errorf("output:\n%s", out)
+	}
+	if msg := f.git(f.orm, "log", "-1", "--format=%s"); msg != "orm v2.0.0: require vuka, web v2.0.0" {
+		t.Errorf("orm's commit %q", msg)
+	}
+	if orm, cmd := f.git(f.orm, "log", "-1", "--format=%ct", "v2.0.0"), f.git(f.vuka, "log", "-1", "--format=%ct", "cmd/vuka/v2.0.0"); orm < cmd {
+		t.Errorf("orm tagged at %s, before the command at %s", orm, cmd)
 	}
 	if msg := f.git(f.web, "log", "-1", "--format=%s"); msg != "web v2.0.0: require vuka, ui v2.0.0" {
 		t.Errorf("web's commit %q", msg)
@@ -242,6 +254,8 @@ func remoteName(clone string) string {
 		return "ui"
 	case "vuka-web":
 		return "web"
+	case "vuka-orm":
+		return "orm"
 	}
 	return "vuka"
 }
@@ -252,7 +266,7 @@ func TestSetToolchain(t *testing.T) {
 	if err := setToolchain(p, "v2.0.0"); err != nil {
 		t.Fatal(err)
 	}
-	if got := readTest(t, p); strings.Count(got, `"v2.0.0"`) != 4 || strings.Contains(got, "v1.5.0") {
+	if got := readTest(t, p); strings.Count(got, `"v2.0.0"`) != 5 || strings.Contains(got, "v1.5.0") {
 		t.Errorf("toolchain.go:\n%s", got)
 	}
 	writeFile(t, p, "package main\n\nconst version = \"v1\"\n")

@@ -1,7 +1,7 @@
 err_jsx_components.vuka:36:13: <UserCard> has no attribute usr; did you mean user?
 err_jsx_components.vuka:37:22: <UserCard> has no attribute colour; its parameters are user, admin
 err_jsx_components.vuka:38:10: <Panel> has no attribute titel; did you mean Title?
-err_jsx_components.vuka:39:3: <Counter> isn't a stateful component: *Counter doesn't implement ui.Stateful (missing method Render)
+err_jsx_components.vuka:39:3: <Counter> isn't a live component: *Counter doesn't implement ui.Stateful (missing method Render)
 err_jsx_components.vuka:40:3: <Raw> takes no children
 err_jsx_components.vuka:41:3: <Plain> returns int, which isn't ui.Node (missing method Render)
 err_jsx_components.vuka:42:3: <Layout> takes no children: add a children ui.Node parameter

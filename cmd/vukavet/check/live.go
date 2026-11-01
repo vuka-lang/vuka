@@ -102,7 +102,7 @@ func (l *liveCheck) page(n *types.Named, r registration, island, live bool) {
 		if island && embed == nil {
 			l.report(at(pass, n.Obj(), r.at), "E0330", "embed ui.Live, or route it with Get (a stateless page)", "%s is a page backed by its island under Live, which is live, and it doesn't embed ui.Live", name)
 		} else {
-			l.report(at(pass, n.Obj(), r.at), "E0329", "embed ui.Live in a struct with a Render() ui.Node method", "%s is not a stateful component", name)
+			l.report(at(pass, n.Obj(), r.at), "E0329", "embed ui.Live in a struct with a Render() ui.Node method", "%s is not a live component", name)
 		}
 		return
 	}

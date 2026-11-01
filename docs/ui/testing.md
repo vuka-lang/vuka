@@ -42,7 +42,7 @@ func TestGreeting(t *testing.T) {
 }
 ```
 
-## Testing Stateful Components {#stateful-components}
+## Testing Live Components {#stateful-components}
 
 `ui/live/livetest` drives live sessions and applies protocol replies like a
 browser. Test initial HTML, event handlers, validation failures and patches.

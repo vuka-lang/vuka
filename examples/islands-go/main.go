@@ -15,7 +15,7 @@ import (
 )
 
 //go:generate go tool vuka gen -inplace
-//go:generate go tool vuka build-islands
+//go:generate go tool vuka build -islands
 
 //go:embed all:web/dist
 var dist embed.FS
