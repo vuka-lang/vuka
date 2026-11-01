@@ -308,7 +308,7 @@ func (e *engine) implicitLive(f *fileState) {
 // the struct was live; nil when there is nothing to do.
 func EmbedLive(src []byte) (out []byte, why string) {
 	s, err := ParseShape(src)
-	if err != nil || !s.Live || s.EmbedsLive {
+	if err != nil || s == nil || !s.Live || s.EmbedsLive {
 		return nil, ""
 	}
 	name := "ui"
