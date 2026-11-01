@@ -22,6 +22,14 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Documentation
+
+- **"Live" everywhere**
+  ([#267](https://github.com/vuka-lang/vuka/issues/267)). The docs and messages
+  said live, stateful and stateless for the same two ideas. They now say live
+  and not live. Go API names such as `ui.Stateful` and the `/ui/stateful` page's
+  URL are unchanged.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**

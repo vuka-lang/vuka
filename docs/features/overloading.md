@@ -69,7 +69,7 @@ gets a number: `totalOrder2`.
 
 A live component's `Update` overloads are
 the methods the session delivers messages to (`UpdateNewMessage`,
-[Stateful Components](/ui/stateful#messages)). Vuka 0.x named overloads
+[Live Components](/ui/stateful#messages)). Vuka 0.x named overloads
 `area__Circle`; `ui.IsUpdate` still takes `Update__T`.
 
 ## Naming an Overload for Go

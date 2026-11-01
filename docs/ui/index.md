@@ -56,7 +56,7 @@ The kind of each field decides what it does:
 A component is live when it embeds `ui.Live`, declares a decorated hook, or
 wires a server method to an event, other than as a [`Push`](/ui/js#push) step's
 handler, which a page that isn't live calls over HTTP. Browser-only commands keep a component
-static. See [Stateful Components](/ui/stateful) for live components.
+static. See [Live Components](/ui/stateful) for live components.
 
 ## Where to Go Next
 
@@ -65,4 +65,4 @@ Rendering, live sessions, client state, terminal rendering and testing live in
 the ui module and its subpackages.
 
 Start with [Templates](/ui/templates), [Components](/ui/components),
-[Stateful Components](/ui/stateful) and [Client State](/ui/state).
+[Live Components](/ui/stateful) and [Client State](/ui/state).
