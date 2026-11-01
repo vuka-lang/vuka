@@ -93,6 +93,7 @@ same page in the terminal.
 | [W0112](./W0112) | An on… handler in templ.Attributes binds no event |
 | [W0113](./W0113) | A pushed method assigning the fields of a page that is not live |
 | [W0114](./W0114) | A read naming a method that writes |
+| [E0165](./E0165) | A struct needing a live connection without ui.Live |
 | [W0115](./W0115) | A struct live without saying so |
 
 ## Decorators and attributes

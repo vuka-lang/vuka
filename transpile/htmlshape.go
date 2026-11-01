@@ -280,10 +280,14 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	case s.EmbedsLive:
 		s.Live, s.LiveWhy = true, "it embeds ui.Live"
 	case len(hooks) > 0:
-		s.Live, s.LiveWhy = true, "it declares the hook "+hooks[0]
+		return nil, &Error{Code: "E0165", Pos: pos(ts.Name.Pos()), Len: len(ts.Name.Name),
+			Msg:  s.Type + " declares the hook " + hooks[0] + ", which needs a live connection",
+			Help: "embed ui.Live in " + s.Type}
 	default:
 		if m := wiredEvent(string(src[markup:]), events); m != "" {
-			s.Live, s.LiveWhy = true, "the markup sends the event "+m
+			return nil, &Error{Code: "E0165", Pos: pos(ts.Name.Pos()), Len: len(ts.Name.Name),
+				Msg:  s.Type + "'s markup sends the event " + m + ", which needs a live connection",
+				Help: "embed ui.Live in " + s.Type + ", or make it a form's unexported handler to post over HTTP"}
 		}
 	}
 	if s.Live {
