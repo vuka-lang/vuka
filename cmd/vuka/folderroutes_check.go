@@ -678,6 +678,10 @@ func (c *routeChecker) isLive(t types.Type) bool {
 // methods on its path, in the order they register.
 var handlerMethods = []string{"Post", "Put", "Patch", "Delete"}
 
+// renameHandler is the help for a method a page's markup sends or pushes
+// under a name that also answers an HTTP method.
+const renameHandler = "rename the method (Remove, Save, …): Post, Put, Patch and Delete on a page answer those HTTP methods on its path"
+
 // pages finds a folder's pages, their method handlers and its method funcs.
 func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 	scope := in.pkg.Scope()
@@ -812,8 +816,16 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 					WithHelp("rename the event method (Remove, Save, …): Post, Put, Patch and Delete on a page answer those HTTP methods on its path")
 				continue
 			}
+			pushed := slices.Contains(d.pushes[name], m)
 			if !c.handler(name, fn) {
+				if pushed {
+					c.res.diags[len(c.res.diags)-1].Help = renameHandler
+				}
 				continue
+			}
+			if pushed {
+				c.report(diag.Warn("W0705", "%s.%s is the page's %s handler, and its markup pushes it: it answers HTTP %[3]s on the page's path as well", name, m, strings.ToUpper(m)), fn.Pos()).
+					WithHelp(renameHandler)
 			}
 			hp := c.r.fset.Position(fn.Pos())
 			c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(m), Path: path, Page: r.Page + "." + m, Kind: "handler",

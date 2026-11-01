@@ -20,19 +20,6 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.15.2 — unreleased
-
-### Folder routes
-
-- **A page's `Load` that never runs is reported, and a pushed handler method
-  is refused** ([#266](https://github.com/vuka-lang/vuka/issues/266)). A plain
-  page's `Load` silently did nothing: layouts and guards have one, pages don't.
-  It's now [W0704](/errors/W0704), unless your own code calls it. A `Push` or
-  `Options` step naming a page's `Post`, `Put`, `Patch` or `Delete` added that
-  HTTP route without saying so, or failed with a message about its parameters.
-  It's now [E0709](/errors/E0709), telling you to rename the method, so an app
-  with one gets a new build error.
-
 ## v2.15.1 — unreleased
 
 ### Build reports
@@ -46,6 +33,14 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the parser's message.
 
 ### Folder routes
+
+- **A page's `Load` that never runs, and a pushed handler method, are reported**
+  ([#266](https://github.com/vuka-lang/vuka/issues/266)). A plain page's `Load`
+  silently did nothing: layouts and guards have one, pages don't. It's now
+  [W0704](/errors/W0704), unless your own code calls it. A `Push` or `Options`
+  step naming a page's `Post`, `Put`, `Patch` or `Delete` added that HTTP route
+  without saying so. It's now [W0705](/errors/W0705), and when the method's
+  parameters don't fit a handler, [E0709](/errors/E0709) tells you to rename it.
 
 - **An endpoint in a folder's `index.vuka` no longer breaks the package
   `urls`** ([#258](https://github.com/vuka-lang/vuka/issues/258)). Below

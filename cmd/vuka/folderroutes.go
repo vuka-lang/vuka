@@ -165,6 +165,7 @@ type routeDir struct {
 	bracket    map[string]string   // a type declared in a [id] file → its parameter, "[id]"
 	fileOf     map[string]string   // a type declared in a .vuka.html file → the file
 	sends      map[string][]string // a .vuka.html type → its Post, Put, Patch or Delete its markup sends as an event
+	pushes     map[string][]string // the same, for those a Push or Options step names
 	files      map[string]string   // a parameter → a file named for it
 	funcs      []methodFunc        // its method funcs: GET, POST… declared by a file
 	clashes    []diag.Diagnostic   // found before the transpile, which they would derail
@@ -306,7 +307,7 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 	if rel == "." {
 		rel = ""
 	}
-	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}}
+	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}, pushes: map[string][]string{}}
 	if rel != "" {
 		d.importPath += "/" + load.GoRel(rel)
 	}
@@ -413,8 +414,11 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 					structs[sh.Type], looks[sh.Type] = true, true
 					d.fileOf[sh.Type] = n
 					for _, m := range handlerMethods {
-						if transpile.SendsEvent(src, m) || transpile.PushesMethod(src, m) {
+						if transpile.SendsEvent(src, m) {
 							d.sends[sh.Type] = append(d.sends[sh.Type], m)
+						}
+						if transpile.PushesMethod(src, m) {
+							d.pushes[sh.Type] = append(d.pushes[sh.Type], m)
 						}
 					}
 					if load.Bracketed(seg) {
