@@ -22,6 +22,21 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Breaking
+
+This release breaks the compatibility promise on purpose, for the changes listed
+here.
+
+- **A pushed handler method is an error**
+  ([#266](https://github.com/vuka-lang/vuka/issues/266)). A `Push` or `Options`
+  step naming a page's `Post`, `Put`, `Patch` or `Delete` also gave the page that
+  HTTP route, without the signed step a push carries. It's now
+  [E0709](/errors/E0709).
+
+  **What to do:** rename the method (`Remove`, `Save`, …) and its uses. There's
+  nothing for `vuka upgrade` to rewrite, because only you know whether the route
+  was meant. If it was, keep the method and push another method that calls it.
+
 ### Live pages
 
 - **A handler's id goes by its nearest `key`**
@@ -34,7 +49,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
   don't count the keyed rows. Nothing changes in an app, unless a test of its
   hard-codes such a row's id: read it from the page (`livetest`'s `Attr`).
   [Known Limits](/ui/live#known-limits) says what duplicate keys do.
-
 ### Command line
 
 - **`vuka build -islands`** ([#271](https://github.com/vuka-lang/vuka/issues/271)).
@@ -144,8 +158,7 @@ the `github.com/vuka-lang/vuka` package your module requires.
   silently did nothing: layouts and guards have one, pages don't. It's now
   [W0704](/errors/W0704), unless your own code calls it. A `Push` or `Options`
   step naming a page's `Post`, `Put`, `Patch` or `Delete` added that HTTP route
-  without saying so. It's now [W0705](/errors/W0705), and when the method's
-  parameters don't fit a handler, [E0709](/errors/E0709) tells you to rename it.
+  without saying so. It no longer builds: see [Breaking](#breaking).
 
 - **Every command keeps `pages/route.go` current**
   ([#269](https://github.com/vuka-lang/vuka/issues/269)). Only `vuka run`

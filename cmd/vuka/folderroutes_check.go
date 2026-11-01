@@ -824,8 +824,9 @@ func (c *routeChecker) pages(d *routeDir, in *dirInfo) {
 				continue
 			}
 			if pushed {
-				c.report(diag.Warn("W0705", "%s.%s is the page's %s handler, and its markup pushes it: it answers HTTP %[3]s on the page's path as well", name, m, strings.ToUpper(m)), fn.Pos()).
+				c.report(diag.New("E0709", "%s.%s is the page's %s handler, and its markup pushes it: it answers HTTP %[3]s on the page's path as well", name, m, strings.ToUpper(m)), fn.Pos()).
 					WithHelp(renameHandler)
+				continue
 			}
 			hp := c.r.fset.Position(fn.Pos())
 			c.res.routes = append(c.res.routes, &folderRoute{Method: strings.ToUpper(m), Path: path, Page: r.Page + "." + m, Kind: "handler",

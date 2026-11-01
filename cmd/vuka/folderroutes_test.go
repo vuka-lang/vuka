@@ -785,21 +785,14 @@ func TestPageLoadNeverRuns(t *testing.T) {
 	}
 }
 
-// TestPushedHandlerMethod: W0705 for a Push naming the page's Delete, and
-// the route stays.
+// TestPushedHandlerMethod: E0709 for a Push naming the page's Delete.
 func TestPushedHandlerMethod(t *testing.T) {
 	routesModule(t, map[string]string{
 		"pages/gone.vuka.html": "package pages\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Gone struct{}\n\nfunc (p *Gone) Delete(ctx context.Context) error { return nil }\n\n<button onClick={ui.JS.Push(p.Delete)}>x</button>\n",
 	})
 	var out, errOut bytes.Buffer
-	if err := routesCmd(nil, &out, &errOut); err != nil {
-		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
-	}
-	if !strings.Contains(errOut.String(), "W0705") {
-		t.Errorf("no W0705:\n%s", errOut.Bytes())
-	}
-	if !strings.Contains(out.String(), "DELETE") {
-		t.Errorf("the route is gone:\n%s", out.Bytes())
+	if err := routesCmd(nil, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0709") {
+		t.Errorf("no E0709: %v\n%s", err, errOut.Bytes())
 	}
 }
 
