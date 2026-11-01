@@ -61,10 +61,11 @@ Usage:
 	        print the GraphQL schema the app serves (web.GraphQL) as SDL;
 	        -check compares it with a committed one and fails on a change
 	        that breaks clients
-	vuka build-islands [-watch]
-	        build the islands a module registers (in Go or Vuka) into its
-	        frontend's build, for //go:embed: //go:generate go tool vuka
-	        build-islands; -watch keeps them built for web.Dev
+	vuka build -islands [-watch]
+	        build only the islands a module registers (in Go or Vuka) into its
+	        frontend's build, for //go:embed: //go:generate go tool vuka build
+	        -islands; -watch keeps them built for web.Dev. vuka build-islands
+	        is the deprecated name
 	vuka gen [-check] [-o build]
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
@@ -133,6 +134,10 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "build", "run", "test", "vet", "install":
+		if args, ok := cutIslands(cmd, os.Args[2:]); ok {
+			err = buildIslands(args, os.Stdout, os.Stderr)
+			break
+		}
 		go trimCaches(time.Now())
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
 	case "new":
@@ -148,6 +153,7 @@ func main() {
 	case "graphql":
 		err = graphqlCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "build-islands":
+		deprecateBuildIslands(os.Args[2:], os.Stderr)
 		err = buildIslands(os.Args[2:], os.Stdout, os.Stderr)
 	case "eject":
 		err = eject(os.Args[2:], os.Stdout)

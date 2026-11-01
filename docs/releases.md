@@ -22,6 +22,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Command line
+
+- **`vuka build -islands`** ([#271](https://github.com/vuka-lang/vuka/issues/271)).
+  It replaces `vuka build-islands`, which still works and says it's deprecated.
+  Change `//go:generate go tool vuka build-islands` when convenient.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
