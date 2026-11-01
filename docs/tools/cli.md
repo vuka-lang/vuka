@@ -22,7 +22,7 @@ vuka ui list [--registry r] [--offline] [library]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
-vuka build-islands [-watch]
+vuka build -islands [-watch]
 vuka graphql schema [-check file] [-o file] [package]
 vuka routes [-json]
 vuka gen [-check] [-o build]
@@ -124,7 +124,7 @@ The other kinds add one piece each:
 | | |
 |---|---|
 | `vuka add service Mailer [--module notes]` | a service in `services/` (or `modules/notes/`; `notes/Mailer` is the same) with its constructor `NewMailer` and a test, registered in `main.vuka`'s `services` with `app.Service(notes.NewMailer)`: pages, routes and hooks take a `*notes.Mailer` parameter |
-| `vuka add component StatCard [--module m]` | a stateless component, in `components/` or the module: the struct of its props in `stat_card.vuka`, its markup in `stat_card.vuka.html` |
+| `vuka add component StatCard [--module m]` | a component that isn't live, in `components/` or the module: the struct of its props in `stat_card.vuka`, its markup in `stat_card.vuka.html` |
 | `vuka add island Chart [--module m] [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`; `web/islands/<m>/` with `--module`), its props typed for an import, and `components/chart.vuka` with `chart.vuka.html` (or in `modules/<m>/`) — a `Chart` component placing it, so pages write `<components.Chart title="Sales" count={3} />`; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
 | `vuka add page /reports` | a one-struct `.vuka.html` page under `pages/`; use `[id]` names for parameters and `_layout.vuka.html` for shared layout. When the app's `main` doesn't pass `pages.Routes()` yet (an app with templ views, an API, or none of `pages/` so far), it adds the import and the option to `web.New` — see [serving the pages](#add-page-routes) |
 | `vuka add page /board --island Board` | a page shape under `pages/` that imports its frontend component; layouts use `_layout.vuka.html`, hooks use decorators |
@@ -211,7 +211,7 @@ also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are. `vuka build` precompresses what the
 binary serves as it is: the stylesheet, the components' scripts and the
 island chunks are embedded with their brotli and gzip, and `vite build` and
-`vuka build-islands` write a `.br` and a `.gz` beside the files of a
+`vuka build -islands` write a `.br` and a `.gz` beside the files of a
 frontend's build ([Compression and Caching](/web/deployment#compression)).
 
 ### When a Build Fails {#build-errors}

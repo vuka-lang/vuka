@@ -108,17 +108,20 @@ func TestFolderRoutes(t *testing.T) {
 		t.Errorf("vuka vet with the files on disk: %v\n%s", err, errOut.Bytes())
 	}
 
-	// A new page, and the files on disk stale: the overlay has the fresh
-	// ones, and gen -check says they are stale.
+	// A new page, and the files on disk stale: gen -check says so, and the
+	// overlay has the fresh ones.
 	writeFile(t, filepath.Join(app, "pages/orgs/[org]/edit.vuka.html"), editPage)
 	writeFile(t, filepath.Join(app, "pages/orgs/[org]/index.vuka.html"), strings.Replace(orgIndex, "ResetPassword.Path()", "Edit.Path()", 1))
+	out.Reset()
+	if err := gen([]string{"-inplace", "-check"}, &out); err == nil || !strings.Contains(out.String(), "stale: pages/urls/urls_gen.go") {
+		t.Errorf("vuka gen -inplace -check with a new page: %v\n%s", err, out.Bytes())
+	}
 	errOut.Reset()
 	if err := runGo("build", []string{"-o", os.DevNull, "."}, io.Discard, &errOut); err != nil {
 		t.Errorf("vuka build with a new page: %v\n%s", err, errOut.Bytes())
 	}
-	out.Reset()
-	if err := gen([]string{"-inplace", "-check"}, &out); err == nil || !strings.Contains(out.String(), "stale: pages/urls/urls_gen.go") {
-		t.Errorf("vuka gen -inplace -check with a new page: %v\n%s", err, out.Bytes())
+	if b, _ := os.ReadFile(filepath.Join(app, "pages/urls/urls_gen.go")); !strings.Contains(string(b), "Edit") {
+		t.Errorf("vuka build left urls_gen.go stale:\n%s", b)
 	}
 
 	// With nothing on disk, the overlay alone builds it.
@@ -217,6 +220,8 @@ func TestFolderRouteErrors(t *testing.T) {
 			"E0710", "pages/api/middleware.go:9"},
 		{"a Get method", map[string]string{"pages/orgs/get.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Get(ctx context.Context) error { return nil }\n"},
 			"E0709", "pages/orgs/get.go:5"},
+		{"a pushed Delete", map[string]string{"pages/orgs/remove.vuka.html": "package orgs\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Remove struct{}\n\nfunc (p *Remove) Delete(ctx context.Context, id int) error { return nil }\n\n<button onClick={ui.JS.Push(p.Delete, ui.Value(7))}>x</button>\n"},
+			"E0709", "pages/orgs/remove.vuka.html:11"},
 		{"a scalar handler parameter", map[string]string{"pages/orgs/put.go": "package orgs\n\nimport \"context\"\n\nfunc (*New) Put(ctx context.Context, name string) error { return nil }\n"},
 			"E0709", "pages/orgs/put.go:5"},
 		{"a parameter nothing binds", map[string]string{"pages/orgs/[org]/team-settings.vuka.html": "", "pages/orgs/[org]/_layout.vuka.html": "package org\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Layout struct {\n\tChildren ui.Node\n}\n<section>{Children}</section>\n",
@@ -689,5 +694,89 @@ func bareURLParams(t *testing.T, has bool) {
 	if err := routesCmd([]string{"-json"}, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0340") ||
 		!strings.Contains(errOut.String(), "Order.id binds the path parameter {id}") || !strings.Contains(errOut.String(), "{org}") {
 		t.Fatalf("%v\n%s", err, errOut.String())
+	}
+}
+
+// TestPageLoadNeverRuns: W0704 for a page's Load nothing calls, not for one
+// its own code does.
+func TestPageLoadNeverRuns(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/unused.vuka.html": "package pages\n\nimport \"context\"\n\ntype Unused struct{ msg string }\n\nfunc (p *Unused) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\n\n<p>{msg}</p>\n",
+		"pages/used.vuka.html":   "package pages\n\nimport \"context\"\n\ntype Used struct{ msg string }\n\nfunc (p *Used) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\nfunc (p *Used) Reset(ctx context.Context) error { return p.Load(ctx) }\n\n<button onClick={Reset}>{msg}</button>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	if !strings.Contains(errOut.String(), "W0704") || !strings.Contains(errOut.String(), "Unused.Load") {
+		t.Errorf("no W0704:\n%s", errOut.Bytes())
+	}
+	if strings.Contains(errOut.String(), "Used.Load") {
+		t.Errorf("W0704 for a Load the page calls:\n%s", errOut.Bytes())
+	}
+}
+
+// TestPushedHandlerMethod: W0705 for a Push naming the page's Delete, and
+// the route stays.
+func TestPushedHandlerMethod(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/gone.vuka.html": "package pages\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Gone struct{}\n\nfunc (p *Gone) Delete(ctx context.Context) error { return nil }\n\n<button onClick={ui.JS.Push(p.Delete)}>x</button>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	if !strings.Contains(errOut.String(), "W0705") {
+		t.Errorf("no W0705:\n%s", errOut.Bytes())
+	}
+	if !strings.Contains(out.String(), "DELETE") {
+		t.Errorf("the route is gone:\n%s", out.Bytes())
+	}
+}
+
+// TestCommandsWriteRouteFiles: each command leaves pages/route.go and the
+// typed URLs current on disk, for an editor and plain Go tools.
+func TestCommandsWriteRouteFiles(t *testing.T) {
+	for _, cmd := range [][]string{{"vet", "./..."}, {"test", "./..."}, {"build", "-o", os.DevNull, "."}} {
+		t.Run(cmd[0], func(t *testing.T) {
+			app := routesModule(t, map[string]string{"pages/about.vuka.html": "package pages\n\ntype About struct{}\n\n<p>about</p>\n"})
+			if err := runGo(cmd[0], cmd[1:], io.Discard, io.Discard); err != nil {
+				t.Logf("vuka %s: %v", cmd[0], err) // no main to build: the files come first
+			}
+			for _, f := range routeFiles {
+				if _, err := os.Stat(filepath.Join(app, f)); err != nil {
+					t.Errorf("after vuka %s: %v", cmd[0], err)
+				}
+			}
+		})
+	}
+}
+
+// TestTrackedRouteFilesStay: a route file git tracks is the app's to update
+// with vuka gen -inplace, and its -check still reports it after a build.
+func TestTrackedRouteFilesStay(t *testing.T) {
+	const page = "package pages\n\ntype About struct{}\n\n<p>about</p>\n"
+	app := routesModule(t, map[string]string{"pages/about.vuka.html": page})
+	if err := gen([]string{"-inplace"}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -inplace: %v", err)
+	}
+	for _, args := range [][]string{{"init", "-q"}, {"add", "pages/route.go", "pages/urls/urls_gen.go"}} {
+		c := exec.Command("git", args...)
+		c.Dir = app
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v\n%s", args, err, out)
+		}
+	}
+	before, _ := os.ReadFile(filepath.Join(app, "pages/route.go"))
+	writeFile(t, filepath.Join(app, "pages/team.vuka.html"), strings.ReplaceAll(page, "About", "Team"))
+	if err := runGo("vet", []string{"./..."}, io.Discard, io.Discard); err != nil {
+		t.Logf("vuka vet: %v", err)
+	}
+	if after, _ := os.ReadFile(filepath.Join(app, "pages/route.go")); string(after) != string(before) {
+		t.Errorf("vuka vet rewrote a tracked route.go:\n%s", after)
+	}
+	var out bytes.Buffer
+	if err := gen([]string{"-inplace", "-check"}, &out); err == nil {
+		t.Errorf("vuka gen -inplace -check passed with a stale tracked route.go:\n%s", out.Bytes())
 	}
 }

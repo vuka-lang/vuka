@@ -45,9 +45,10 @@ warning: example.com/shop is not one vuka set (vuka v2.0.0, ui v2.0.0, web v2.1.
 ### The ORM's Versions
 
 `vuka new` writes a go.mod pinned to its own set. The ORM,
-`github.com/vuka-lang/orm/v2`, has versions of its own; v1.0.0 of the set and
-orm v1.0.0 were released together, and `vuka new` pins the orm its scaffolds
-are written against.
+`github.com/vuka-lang/orm/v2`, is released with the set under the same version,
+tagged right after it, since it requires vuka and web. Versions up to v2.15.0
+had their own numbering, so an app on an older one moves to the set's version
+on its next `vuka upgrade`.
 
 ## Upgrading
 

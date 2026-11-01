@@ -121,7 +121,7 @@ it, on the server. For ordinary browser state, use assignment:
 `onClick={open = false; Save()}` closes first and then calls Save. Where
 the handler runs follows from the page:
 
-| | A live page or stateful component | A page or component that isn't live |
+| | A live page or live component | A page or component that isn't live |
 |---|---|---|
 | Runs on | its instance, over the page's socket | a fresh copy of the page, over HTTP to the page's own URL |
 | State | reads and changes its fields; the page renders again and is patched | none kept: path and query fields bound, services injected |

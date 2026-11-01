@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -109,8 +110,28 @@ func (ts routeTrees) files() []load.Generated {
 // they differ, so an editor and plain Go tools see the packages vuka run
 // serves; the overlay holds the same text. It returns the files written.
 func (ts routeTrees) writeFiles() ([]string, error) {
+	return ts.write(func(string) bool { return false })
+}
+
+// writeUntracked is writeFiles for a command that isn't serving the app: it
+// leaves a file git tracks, whose staleness vuka gen -inplace -check is there
+// to report.
+func (ts routeTrees) writeUntracked() ([]string, error) {
+	return ts.write(gitTracked)
+}
+
+func gitTracked(path string) bool {
+	c := exec.Command("git", "ls-files", "--error-unmatch", "--", filepath.Base(path))
+	c.Dir = filepath.Dir(path)
+	return c.Run() == nil
+}
+
+func (ts routeTrees) write(skip func(path string) bool) ([]string, error) {
 	var wrote []string
 	for _, g := range ts.files() {
+		if skip(g.Target) {
+			continue
+		}
 		if old, err := load.ReadSource(g.Target); err == nil && bytes.Equal(old, g.Src) {
 			continue
 		}
@@ -165,6 +186,7 @@ type routeDir struct {
 	bracket    map[string]string   // a type declared in a [id] file → its parameter, "[id]"
 	fileOf     map[string]string   // a type declared in a .vuka.html file → the file
 	sends      map[string][]string // a .vuka.html type → its Post, Put, Patch or Delete its markup sends as an event
+	pushes     map[string][]string // the same, for those a Push or Options step names
 	files      map[string]string   // a parameter → a file named for it
 	funcs      []methodFunc        // its method funcs: GET, POST… declared by a file
 	clashes    []diag.Diagnostic   // found before the transpile, which they would derail
@@ -306,7 +328,7 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 	if rel == "." {
 		rel = ""
 	}
-	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}}
+	d := &routeDir{dir: dir, rel: rel, goDir: load.GoDir(root, dir), importPath: t.pagesPath, bracket: map[string]string{}, fileOf: map[string]string{}, files: map[string]string{}, sends: map[string][]string{}, pushes: map[string][]string{}}
 	if rel != "" {
 		d.importPath += "/" + load.GoRel(rel)
 	}
@@ -415,6 +437,9 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 					for _, m := range handlerMethods {
 						if transpile.SendsEvent(src, m) {
 							d.sends[sh.Type] = append(d.sends[sh.Type], m)
+						}
+						if transpile.PushesMethod(src, m) {
+							d.pushes[sh.Type] = append(d.pushes[sh.Type], m)
 						}
 					}
 					if load.Bracketed(seg) {

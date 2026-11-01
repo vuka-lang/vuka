@@ -48,6 +48,7 @@ func release(args []string, stdout, stderr io.Writer) error {
 	security := fs.Bool("security", false, "a security fix: may follow the last patch release within the week")
 	uiDir := fs.String("ui", "", "the ui checkout (default: vuka-ui beside the vuka checkout)")
 	webDir := fs.String("web", "", "the web checkout (default: vuka-web beside the vuka checkout)")
+	ormDir := fs.String("orm", "", "the orm checkout (default: vuka-orm beside the vuka checkout)")
 	remote := fs.String("remote", "origin", "the remote to push to")
 	branch := fs.String("branch", "main", "the branch releases are cut from")
 	proxyWait := fs.Duration("proxy-wait", 10*time.Minute, "how long to wait for proxy.golang.org to serve the set (0: don't ask it)")
@@ -88,12 +89,16 @@ func release(args []string, stdout, stderr io.Writer) error {
 	if *webDir == "" {
 		*webDir = filepath.Join(filepath.Dir(root), "vuka-web")
 	}
+	if *ormDir == "" {
+		*ormDir = filepath.Join(filepath.Dir(root), "vuka-orm")
+	}
 	vuka := &releaseRepo{name: "vuka", dir: root, module: vukaModPath, modDir: root}
 	ui := &releaseRepo{name: "ui", dir: *uiDir, module: uiModPath, modDir: *uiDir}
 	web := &releaseRepo{name: "web", dir: *webDir, module: webModPath, modDir: *webDir}
 	cmd := &releaseRepo{name: "cmd/vuka", dir: root, module: cmdModPath, tagPrefix: "cmd/vuka/", modDir: filepath.Join(root, "cmd", "vuka")}
 	vet := &releaseRepo{name: "cmd/vukavet", dir: root, module: vukavetModPath, tagPrefix: "cmd/vukavet/", modDir: filepath.Join(root, "cmd", "vukavet")}
-	repos := []*releaseRepo{vuka, ui, web, cmd, vet}
+	orm := &releaseRepo{name: "orm", dir: *ormDir, module: ormModule, modDir: *ormDir}
+	repos := []*releaseRepo{vuka, ui, web, cmd, vet, orm}
 
 	fmt.Fprintf(stdout, "release the %s set\n\nchecks:\n", v)
 	var problems []string
@@ -159,7 +164,7 @@ func release(args []string, stdout, stderr io.Writer) error {
 		cleanup()
 	}
 
-	steps := releaseSteps(v, vuka, ui, web, cmd, vet, *remote, *branch, *proxyWait, stdout)
+	steps := releaseSteps(v, vuka, ui, web, cmd, vet, orm, *remote, *branch, *proxyWait, stdout)
 	fmt.Fprintln(stdout, "\nplan:")
 	for i, s := range steps {
 		fmt.Fprintf(stdout, "  %d. %s\n", i+1, s.what)
@@ -182,7 +187,7 @@ func release(args []string, stdout, stderr io.Writer) error {
 	return nil
 }
 
-func releaseSteps(v string, vuka, ui, web, cmd, vet *releaseRepo, remote, branch string, proxyWait time.Duration, stdout io.Writer) []releaseStep {
+func releaseSteps(v string, vuka, ui, web, cmd, vet, orm *releaseRepo, remote, branch string, proxyWait time.Duration, stdout io.Writer) []releaseStep {
 	var steps []releaseStep
 	tagPush := func(r *releaseRepo) {
 		steps = append(steps,
@@ -250,9 +255,15 @@ func releaseSteps(v string, vuka, ui, web, cmd, vet *releaseRepo, remote, branch
 				return run(vet.dir, nil, "git", "push", remote, "refs/tags/"+vet.tag(v))
 			}})
 	}
+	if !orm.released {
+		// After the set, whose tags it requires. New apps pin it only once
+		// the release is done, so the command naming it first is harmless.
+		bump(orm, []string{vukaModPath, webModPath}, nil)
+		tagPush(orm)
+	}
 	if proxyWait > 0 {
 		steps = append(steps, releaseStep{"wait (up to " + proxyWait.String() + ") for proxy.golang.org to serve the set", func() error {
-			for _, m := range []string{vukaModPath, uiModPath, webModPath, cmdModPath, vukavetModPath} {
+			for _, m := range []string{vukaModPath, uiModPath, webModPath, cmdModPath, vukavetModPath, ormModule} {
 				if err := waitProxy(m, v, proxyWait); err != nil {
 					fmt.Fprintf(stdout, "   warning: %v (GOPROXY=direct installs it meanwhile)\n", err)
 				}
@@ -296,7 +307,7 @@ func checkMajor(v string) error {
 	if major != "0" && major != "1" {
 		want = "/v" + major
 	}
-	for _, m := range []string{vukaModPath, uiModPath, webModPath, cmdModPath, vukavetModPath} {
+	for _, m := range []string{vukaModPath, uiModPath, webModPath, cmdModPath, vukavetModPath, ormModule} {
 		if have := pathMajor(m); have != want {
 			if want == "" {
 				return fmt.Errorf("%s is a v%s version, but the set's modules are %s (%s)", v, major, strings.TrimPrefix(have, "/"), m)
@@ -549,15 +560,15 @@ func withReplaces(dir string, replace map[string]string, env []string, fn func()
 	return fn()
 }
 
-var toolchainConst = regexp.MustCompile(`(?m)^(\s*(?:version|vukaVersion|uiVersion|webVersion)\s*=\s*)"[^"]*"`)
+var toolchainConst = regexp.MustCompile(`(?m)^(\s*(?:version|vukaVersion|uiVersion|webVersion|ormVersion)\s*=\s*)"[^"]*"`)
 
 func checkToolchain(path string) error {
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	if n := len(toolchainConst.FindAll(src, -1)); n != 4 {
-		return fmt.Errorf("%s: found %d of the 4 version constants", path, n)
+	if n := len(toolchainConst.FindAll(src, -1)); n != 5 {
+		return fmt.Errorf("%s: found %d of the 5 version constants", path, n)
 	}
 	return nil
 }

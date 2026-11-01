@@ -22,12 +22,67 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Command line
+
+- **`vuka build -islands`** ([#271](https://github.com/vuka-lang/vuka/issues/271)).
+  It replaces `vuka build-islands`, which still works and says it's deprecated.
+  Change `//go:generate go tool vuka build-islands` when convenient.
+
+### Diagnostics
+
+- **W0113 no longer fires on state a live page embeds**
+  ([#262](https://github.com/vuka-lang/vuka/issues/262)). A component holding a
+  pointer to a type a live page embeds runs that type's methods on the page's
+  own state, over its socket, so nothing is lost. The compiler only recognised
+  methods promoted through embedding. The message now also says "on a page that
+  isn't live" as a condition, since the compiler can't see which page renders a
+  component.
+
+### Templates
+
+- **A markup local can be read in an event attribute**
+  ([#268](https://github.com/vuka-lang/vuka/issues/268)). `at := p.calc()`
+  followed by `onClick={jump(at-1)}` failed with `mismatched types func() int
+  and untyped int`, while `disabled={at == 1}` beside it compiled. Event
+  attributes read a lazy binding like any other attribute now.
+
 ### Live pages
 
 - **`ui.Live` is the only way to be live**
   ([#264](https://github.com/vuka-lang/vuka/issues/264)). A hook or an exported
   method sent as an event without it is [E0169](/errors/E0169). `vuka fix
   explicit-live` embeds it, and `vuka upgrade` runs that.
+
+### Documentation
+
+- **One table for what fields and methods mean**
+  ([#265](https://github.com/vuka-lang/vuka/issues/265)). `docs/ui/index.md`
+  now lists every kind of field and method and what decides it, including the
+  ones that make a struct live and the names vuka gives meaning to.
+
+- **"Live" everywhere**
+  ([#267](https://github.com/vuka-lang/vuka/issues/267)). The docs and messages
+  said live, stateful and stateless for the same two ideas. They now say live
+  and not live. Go API names such as `ui.Stateful` and the `/ui/stateful` page's
+  URL are unchanged.
+
+### Frontends
+
+- **Apps from `vuka new --islands` answer unknown paths with a 404**
+  ([#273](https://github.com/vuka-lang/vuka/issues/273)). The stub
+  `web/dist/index.html`, there so `go:embed` has a file, counted as a
+  single-page app's shell, so every unknown path was a 200 with a blank page.
+  `web.Frontend` now treats that exact stub as no page, with no change to the
+  app, and you can drop a `web.FrontendAt` added to work around it. A real
+  `index.html` keeps its fallback.
+
+### Maintainers
+
+- **The orm is released with the set**
+  ([#272](https://github.com/vuka-lang/vuka/issues/272)). `vuka release` tags
+  `github.com/vuka-lang/orm/v2` right after the set, under the same version,
+  and keeps `ormVersion` in step. An app on an older orm moves to it on its next
+  `vuka upgrade`, as it does when a new orm comes out today.
 
 ### Build reports
 
@@ -40,6 +95,22 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the parser's message.
 
 ### Folder routes
+
+- **A page's `Load` that never runs, and a pushed handler method, are reported**
+  ([#266](https://github.com/vuka-lang/vuka/issues/266)). A plain page's `Load`
+  silently did nothing: layouts and guards have one, pages don't. It's now
+  [W0704](/errors/W0704), unless your own code calls it. A `Push` or `Options`
+  step naming a page's `Post`, `Put`, `Patch` or `Delete` added that HTTP route
+  without saying so. It's now [W0705](/errors/W0705), and when the method's
+  parameters don't fit a handler, [E0709](/errors/E0709) tells you to rename it.
+
+- **Every command keeps `pages/route.go` current**
+  ([#269](https://github.com/vuka-lang/vuka/issues/269)). Only `vuka run`
+  wrote it and `pages/urls/urls_gen.go`, so after `vuka build`, `test` or
+  `vet` an editor and plain Go tools saw old routes, or none on a fresh
+  checkout. All of them write the two files now, when their text changes,
+  unless git tracks them: a committed file stays for `vuka gen -inplace`, and
+  `vuka gen -inplace -check` still reports it as stale.
 
 - **An endpoint in a folder's `index.vuka` no longer breaks the package
   `urls`** ([#258](https://github.com/vuka-lang/vuka/issues/258)). Below
@@ -65,6 +136,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the old keys go at the first trim.
 
 ### Development
+
+- **`vuka build -h` is help, not a build**
+  ([#263](https://github.com/vuka-lang/vuka/issues/263)). `build`, `test`,
+  `vet` and `install` transpiled the module and built its islands before
+  printing the go command's usage, and failed outside a module. A help flag
+  is now answered first, as `run`'s already was.
 
 - **Any number of tabs of a development app works**
   ([#254](https://github.com/vuka-lang/vuka/issues/254)). Each tab held up to

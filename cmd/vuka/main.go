@@ -61,10 +61,11 @@ Usage:
 	        print the GraphQL schema the app serves (web.GraphQL) as SDL;
 	        -check compares it with a committed one and fails on a change
 	        that breaks clients
-	vuka build-islands [-watch]
-	        build the islands a module registers (in Go or Vuka) into its
-	        frontend's build, for //go:embed: //go:generate go tool vuka
-	        build-islands; -watch keeps them built for web.Dev
+	vuka build -islands [-watch]
+	        build only the islands a module registers (in Go or Vuka) into its
+	        frontend's build, for //go:embed: //go:generate go tool vuka build
+	        -islands; -watch keeps them built for web.Dev. vuka build-islands
+	        is the deprecated name
 	vuka gen [-check] [-o build]
 	        write build/: the module with Go in place of Vuka, for plain go tools
 	vuka gen -inplace [-check] [dir | dir/...]
@@ -133,6 +134,10 @@ func main() {
 	cmd := os.Args[1]
 	switch cmd {
 	case "build", "run", "test", "vet", "install":
+		if args, ok := cutIslands(cmd, os.Args[2:]); ok {
+			err = buildIslands(args, os.Stdout, os.Stderr)
+			break
+		}
 		go trimCaches(time.Now())
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
 	case "new":
@@ -148,6 +153,7 @@ func main() {
 	case "graphql":
 		err = graphqlCmd(os.Args[2:], os.Stdout, os.Stderr)
 	case "build-islands":
+		deprecateBuildIslands(os.Args[2:], os.Stderr)
 		err = buildIslands(os.Args[2:], os.Stdout, os.Stderr)
 	case "eject":
 		err = eject(os.Args[2:], os.Stdout)
@@ -195,16 +201,30 @@ type exitStatus int
 
 func (s exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(s)) }
 
+// goCmdUsage is what vuka <cmd> -h prints, before any work is done.
+func goCmdUsage(cmd string) string {
+	if cmd == "run" {
+		return runUsage
+	}
+	return fmt.Sprintf(`usage: vuka %[1]s [go flags] [packages]
+
+Transpiles the module's Vuka sources into an overlay and runs go %[1]s with
+it. The flags and packages are the go command's: go help %[1]s.
+
+vuka -h lists what vuka adds to it.
+`, cmd)
+}
+
 // runGo transpiles every Vuka package in the current module and runs
 // `go <cmd> -overlay=…` so the generated files exist only for the compiler.
 // vuka build also brings the build/ module up to date.
 func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	args = cutDiagFlag(args)
+	if len(args) > 0 && slices.Contains([]string{"-h", "-help", "--help"}, args[0]) {
+		fmt.Fprint(stdout, goCmdUsage(cmd))
+		return nil
+	}
 	if cmd == "run" {
-		if len(args) > 0 && slices.Contains([]string{"-h", "-help", "--help"}, args[0]) {
-			fmt.Fprint(stdout, runUsage)
-			return nil
-		}
 		if args, watch := cutWatch(args); watch {
 			return runWatch(args, stdout, stderr)
 		}
@@ -285,10 +305,14 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	if gens, overlay, err = routes.apply(gens, overlay, tmp); err != nil {
 		return err
 	}
+	// Hand-written code imports them, so an editor and plain go tools need
+	// them current whichever command ran last.
+	write := routes.writeUntracked
 	if cmd == "run" {
-		if _, err := routes.writeFiles(); err != nil {
-			return err
-		}
+		write = routes.writeFiles
+	}
+	if _, err := write(); err != nil {
+		return err
 	}
 	var linkMsg string
 	if overlay, gens, linkMsg, err = autoLink(root, modPath, tmp, overlay, pkgs, gens); err != nil {

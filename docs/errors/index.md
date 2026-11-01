@@ -83,7 +83,7 @@ same page in the terminal.
 | [E0175](./E0175) | An enum variant with two causes |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
-| [W0103](./W0103) | A stateful component in a loop has no key |
+| [W0103](./W0103) | A live component in a loop has no key |
 | [W0105](./W0105) | A hand-written use of uigen |
 | [W0106](./W0106) | A hand-written ui.HTML or ui.IslandPage |
 | [W0107](./W0107) | A .vuka.html file in the Go-header form |
@@ -160,7 +160,7 @@ same page in the terminal.
 | [E0350](./E0350) | A deferred call in no element |
 | [E0351](./E0351) | A boundary's markup is misplaced |
 | [E0352](./E0352) | A Suspense wait list names an unavailable binding |
-| [W0301](./W0301) | A live page routed as a stateless one |
+| [W0301](./W0301) | A live page routed as one that isn't live |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |
 | [W0307](./W0307) | Two components keeping one URL parameter |
@@ -271,6 +271,8 @@ same page in the terminal.
 | [W0701](./W0701) | No main package serves the folder routes |
 | [W0702](./W0702) | A hand-written folder-route option |
 | [W0703](./W0703) | A layout reading the request |
+| [W0704](./W0704) | A page's Load that never runs |
+| [W0705](./W0705) | A pushed method that also answers an HTTP method |
 
 ## GraphQL
 

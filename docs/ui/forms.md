@@ -192,7 +192,7 @@ own code. A field is named by a pointer to it, so renaming one is a compile
 error rather than a silent miss.
 
 A form belongs to a routed page (a shape under `pages/`, or one served with
-`web.Live`), or to a stateful component on one. A component's form is its
+`web.Live`), or to a live component on one. A component's form is its
 own: its parent's render sets the component's other props again, never its
 form, so what the visitor typed and the errors they see stay.
 
@@ -804,7 +804,7 @@ func (p *SignIn) save(ctx context.Context, f account.Credentials) error {
   [`ui.JS.Options`](/ui/js#options)) loads its options from a method of the
   page.
 
-A page with anything else live — a stateful component, an `onClick`
+A page with anything else live — a live component, an `onClick`
 handler — is live as a whole, and its form goes over its connection.
 
 ## Without JavaScript {#no-js}

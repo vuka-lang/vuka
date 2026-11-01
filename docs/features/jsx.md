@@ -43,5 +43,5 @@ rendering component lives in its own shape file.
 
 The compiler emits ordinary Go rendering code and render-tree metadata.
 You author the shape, not the generated calls. See [Templates](/ui/templates),
-[Stateful Components](/ui/stateful), [Client State](/ui/state) and
+[Live Components](/ui/stateful), [Client State](/ui/state) and
 [Folder Routes](/web/folder-routes).
