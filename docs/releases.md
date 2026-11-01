@@ -65,6 +65,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
   now lists every kind of field and method and what decides it, including the
   ones that make a struct live and the names vuka gives meaning to.
 
+- **"Live" everywhere**
+  ([#267](https://github.com/vuka-lang/vuka/issues/267)). The docs and messages
+  said live, stateful and stateless for the same two ideas. They now say live
+  and not live. Go API names such as `ui.Stateful` and the `/ui/stateful` page's
+  URL are unchanged.
+
 ### Frontends
 
 - **Apps from `vuka new --islands` answer unknown paths with a 404**

@@ -124,7 +124,7 @@ The other kinds add one piece each:
 | | |
 |---|---|
 | `vuka add service Mailer [--module notes]` | a service in `services/` (or `modules/notes/`; `notes/Mailer` is the same) with its constructor `NewMailer` and a test, registered in `main.vuka`'s `services` with `app.Service(notes.NewMailer)`: pages, routes and hooks take a `*notes.Mailer` parameter |
-| `vuka add component StatCard [--module m]` | a stateless component, in `components/` or the module: the struct of its props in `stat_card.vuka`, its markup in `stat_card.vuka.html` |
+| `vuka add component StatCard [--module m]` | a component that isn't live, in `components/` or the module: the struct of its props in `stat_card.vuka`, its markup in `stat_card.vuka.html` |
 | `vuka add island Chart [--module m] [--vue\|--react\|--svelte] [--dir d]` | `web/islands/Chart.vue` (`.tsx`, `.svelte`; `web/islands/<m>/` with `--module`), its props typed for an import, and `components/chart.vuka` with `chart.vuka.html` (or in `modules/<m>/`) — a `Chart` component placing it, so pages write `<components.Chart title="Sales" count={3} />`; the framework's packages and Vite plugin are added when missing and installed, showing it is under way (`--no-install` prints the command instead) |
 | `vuka add page /reports` | a one-struct `.vuka.html` page under `pages/`; use `[id]` names for parameters and `_layout.vuka.html` for shared layout. When the app's `main` doesn't pass `pages.Routes()` yet (an app with templ views, an API, or none of `pages/` so far), it adds the import and the option to `web.New` — see [serving the pages](#add-page-routes) |
 | `vuka add page /board --island Board` | a page shape under `pages/` that imports its frontend component; layouts use `_layout.vuka.html`, hooks use decorators |

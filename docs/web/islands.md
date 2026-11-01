@@ -479,7 +479,7 @@ instance and deliver new props without remounting. Broadcast subscriptions,
 
 ### The Stateless Transport
 
-The stateless island transport uses signed POSTs instead of a connection.
+The island transport for pages that aren't live uses signed POSTs instead of a connection.
 Its snapshot is bound to the page, visitor and expiry with `web.LiveKey`;
 altered snapshots and cross-origin calls are refused. The server reconstructs
 the instance, injects dependencies, runs Mount, then applies the set and
@@ -543,7 +543,7 @@ child of its surrounding shape; it does not install a separate page layout.
 
 `validate:` tags on a method's input structs, and the `validate` attributes of
 a page's bound fields, are checked on the server before anything runs,
-live and stateless alike:
+live or not:
 
 ```go
 // models/filter.go
@@ -661,7 +661,7 @@ func (o *Overview) loadLists(ctx context.Context) error {
   group on its own goroutine, and each group's fields reach the component
   as an update when its loader returns — the fast ones don't wait for the
   slow. Their context ends when the visitor leaves the page or the
-  connection closes. On a stateless page the component, once mounted,
+  connection closes. On a page that isn't live the component, once mounted,
   posts one load (signed and gated as its calls are); the server runs
   the mount hook and the loaders, concurrently, and answers with every group at
   once. Calls the component makes meanwhile wait for it.
