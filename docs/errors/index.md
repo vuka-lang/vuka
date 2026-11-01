@@ -79,6 +79,7 @@ same page in the terminal.
 | [E0166](./E0166) | A pointer receiver on a value enum's variant |
 | [E0167](./E0167) | A variant method every value enum generates |
 | [E0168](./E0168) | A Push or Options step that cannot call its handler |
+| [E0169](./E0169) | A struct needing a live connection without ui.Live |
 | [E0175](./E0175) | An enum variant with two causes |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
@@ -93,7 +94,6 @@ same page in the terminal.
 | [W0112](./W0112) | An on… handler in templ.Attributes binds no event |
 | [W0113](./W0113) | A pushed method assigning the fields of a page that is not live |
 | [W0114](./W0114) | A read naming a method that writes |
-| [W0115](./W0115) | A struct live without saying so |
 
 ## Decorators and attributes
 

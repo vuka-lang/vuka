@@ -281,7 +281,10 @@ func TestExtractRow(t *testing.T) {
 const sendsCounter = `<script lang="go">
 package components
 
+import "github.com/vuka-lang/ui/v2"
+
 type Counter struct {
+	ui.Live
 	count int
 }
 
@@ -597,7 +600,10 @@ func TestLayoutFixes(t *testing.T) {
 const keyedCounter = `<script lang="go">
 package components
 
+import "github.com/vuka-lang/ui/v2"
+
 type Counter struct {
+	ui.Live
 	count int
 	names []string
 }
@@ -708,8 +714,7 @@ func TestSmallFixes(t *testing.T) {
 		t.Skip("builds a module")
 	}
 	noPackage := strings.Replace(sendsCounter, "package components\n\n", "", 1)
-	pointer := strings.Replace(strings.Replace(sendsCounter, "type Counter struct {\n", "type Counter struct {\n\t*ui.Live\n", 1),
-		"package components\n", "package components\n\nimport \"github.com/vuka-lang/ui/v2\"\n", 1)
+	pointer := strings.Replace(sendsCounter, "\tui.Live\n", "\t*ui.Live\n", 1)
 	pointer = strings.Replace(pointer, "Counter", "Board", -1)
 	dir := refactorModule(t, map[string]string{"components/counter.vuka.html": noPackage, "components/board.vuka.html": pointer, "components/doc.go": "package components\n"})
 	path := filepath.Join(dir, "components/counter.vuka.html")

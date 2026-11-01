@@ -9,6 +9,7 @@ import (
 
 // Table pages through its rows, keeping the page and sort in the URL.
 type Table[T any] struct {
+	ui.Live
 	Title string
 	Rows  []T
 	Sort  string @ui.URL("sort")

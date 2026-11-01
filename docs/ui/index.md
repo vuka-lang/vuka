@@ -56,10 +56,11 @@ A struct's methods work the same way:
 
 | Method | Meaning |
 |---|---|
-| Exported, sent from an event attribute | An event: the browser can call it, and the struct is live |
+| Exported, sent from an event attribute | An event: the browser can call it, and the struct must embed `ui.Live` ([E0169](/errors/E0169)) |
+| Named by a struct form's `onSubmit` | The form's handler, exported or not: over HTTP unless the page embeds `ui.Live` |
 | Exported, not sent from markup | An ordinary Go method, unless its name means something below |
-| Unexported | Not callable from the browser, except as a form's handler or a [`Push`](/ui/js#push) step, over HTTP on a page that isn't live |
-| Decorated, such as `@ui.Mount` | A hook, unexported, run by vuka; the struct is live |
+| Unexported | Not callable from the browser, except as a form's handler or a [`Push`](/ui/js#push) step |
+| Decorated, such as `@ui.Mount` | A hook, unexported, run by vuka; the struct must embed `ui.Live` |
 | `Title`, `Crumbs` | The page's title and breadcrumbs |
 | `Post`, `Put`, `Patch`, `Delete` | On a page, [answer those HTTP methods](/web/folder-routes#several-methods-on-one-page) on its path |
 | `Load` | On a layout or guard, runs before the page. On a page it never runs |
@@ -69,10 +70,10 @@ provided type is a prop, set by the parent or by the page's constructor.
 
 ## Static and Live Components
 
-A component is live when it embeds `ui.Live`, declares a decorated hook, or
-wires a server method to an event, other than as a [`Push`](/ui/js#push) step's
-handler, which a page that isn't live calls over HTTP. Browser-only commands keep a component
-static. See [Live Components](/ui/stateful) for live components.
+A component is live when it embeds `ui.Live`. It must if it declares a decorated
+hook or wires a server method to an event, other than as a
+[`Push`](/ui/js#push) step's handler or a struct form's `onSubmit`, which a page
+that isn't live calls over HTTP. Browser-only commands keep a component static. See [Live Components](/ui/stateful) for live components.
 
 ## Where to Go Next
 

@@ -1,9 +1,14 @@
 package main
 
-import "context"
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
 
 // Box counts its items when it mounts: one hook, per instantiation.
 type Box[T any] struct {
+	ui.Live
 	Items []T
 	n     int
 }

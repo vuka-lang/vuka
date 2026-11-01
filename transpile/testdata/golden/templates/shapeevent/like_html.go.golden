@@ -11,17 +11,16 @@ import (
 // Like has an event its markup sends, so it is live: the compiler embeds
 // ui.Live.
 //
-//line like.vuka.html:5
+//line like.vuka.html:7
 type Like struct {
-//line like.vuka.html:5
 	ui.Live
 	n uigen.Assign[int]
 }
 
 func (l *Like) Add() { l.n.Set(l.n.Get() + 1) }
 
-//line like.vuka.html:10
+//line like.vuka.html:13
 func (l *Like) Render() ui.Node {
-//line like.vuka.html:10
+//line like.vuka.html:13
 	return ui.HTML(`<button onClick={l.Add}>♥ {l.n.Get()}</button>`, l.Add, l.n.Get())
 }

@@ -124,6 +124,15 @@ func TestShapeLive(t *testing.T) {
 		{"read method", "type P struct{ n int }\n\nfunc (p P) Label() string { return \"\" }\n<p>{Label()}</p>", ""},
 		{"js commands", "type P struct{ n int }\n<button onClick={ui.JS.Toggle(ui.Ref(\"m\"))}/>", ""},
 		{"unexported handler", "type P struct{ n int }\n\nfunc (p *P) inc() {}\n<button onClick={inc}/>", ""},
+		{"struct form, exported handler", "type P struct{ Form F }\n\nfunc (p *P) Save() {}\n<ui.Form for={Form} onSubmit={Save}/>", ""},
+		{"struct form, selector", "type P struct{ Form F }\n\nfunc (p *P) Save() {}\n<main>\n<ui.Form submitLabel=\"a>b\" onSubmit={p.Save} for={p.Form}/>\n</main>", ""},
+		{"struct form, its onChange", "type P struct{ Form F }\n\nfunc (p *P) Check() {}\n<ui.Form for={Form} onChange={Check}/>", "the markup sends the event Check"},
+		{"struct form, a closure", "type P struct{ Form F }\n\nfunc (p *P) Save() {}\n<ui.Form for={Form} onSubmit={func() { p.Save() }}/>", "the markup sends the event Save"},
+		{"form without for", "type P struct{ n int }\n\nfunc (p *P) Save() {}\n<ui.Form onSubmit={Save}/>", "the markup sends the event Save"},
+		{"plain form", "type P struct{ n int }\n\nfunc (p *P) Save() {}\n<form onSubmit={Save}/>", "the markup sends the event Save"},
+		{"struct form and a click", "type P struct{ Form F }\n\nfunc (p *P) Save() {}\nfunc (p *P) Inc() {}\n<div><ui.Form for={Form} onSubmit={Save}/><button onClick={Inc}/></div>", "the markup sends the event Inc"},
+		{"another package's Form", "type P struct{ Form F }\n\nfunc (p *P) Save() {}\n<forms.Form for={Form} onSubmit={Save}/>", "the markup sends the event Save"},
+		{"a named ui", "import u \"github.com/vuka-lang/ui/v2\"\n\ntype P struct{ Form F }\n\nfunc (p *P) Save() {}\n<u.Form for={Form} onSubmit={Save}/>", ""},
 		{"other decorator", "type P struct{ n int }\n\n@audited\nfunc (p *P) Inc() {}\n<p/>", ""},
 	} {
 		t.Run(c.name, func(t *testing.T) {

@@ -1,1 +1,0 @@
-W0115 like.vuka.html:5:1: Like is live because the markup sends the event Add, and nothing in the struct says so: a socket and server memory for each visitor; embed ui.Live in Like (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP

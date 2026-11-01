@@ -12,26 +12,25 @@ import (
 
 // Counter counts clicks.
 //
-//line counter.vuka.html:6
+//line counter.vuka.html:10
 type Counter struct {
-//line counter.vuka.html:6
 	ui.Live
 	Start int               // a prop
 	n     uigen.Assign[int] // state the server keeps
 }
 
-//line counter.vuka.html:12
+//line counter.vuka.html:17
 func (c *Counter) mount(ctx context.Context) error { c.n.Set(c.Start); return nil }
 
 func (c *Counter) Inc() { c.n.Set(c.n.Get() + 1) }
 
-//line counter.vuka.html:15
+//line counter.vuka.html:20
 func (c *Counter) Render() ui.Node {
-//line counter.vuka.html:15
+//line counter.vuka.html:20
 	return ui.HTML(`<button onClick={c.Inc}>{c.n.Get()}</button>`, c.Inc, c.n.Get())
 }
 
-//line counter.vuka.html:6
+//line counter.vuka.html:10
 func (c *Counter) LiveSchema(l *ui.LiveSchema) {
 	l.Mount(c.mount)
 }

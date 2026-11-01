@@ -37,6 +37,20 @@ here.
   nothing for `vuka upgrade` to rewrite, because only you know whether the route
   was meant. If it was, keep the method and push another method that calls it.
 
+- **`ui.Live` is the only way to be live**
+  ([#264](https://github.com/vuka-lang/vuka/issues/264)). A rename could add a
+  socket and server memory per visitor with nothing in the file showing it. A
+  hook, or an exported method sent as an event, without `ui.Live` no longer
+  builds: it's [E0169](/errors/E0169).
+
+  **What to do:** run `vuka fix explicit-live`, which `vuka upgrade` runs too.
+  It embeds `ui.Live` in each such struct, and those pages behave as before.
+
+  **What changes at run time:** a page live only because of an exported
+  `onSubmit` on `<ui.Form for={…}>` now posts over HTTP like an unexported one,
+  so the fix leaves it alone and it opens no socket. Its handler can't keep
+  changes to the page's fields any more; if yours relies on that, embed `ui.Live`.
+
 ### Live pages
 
 - **A handler's id goes by its nearest `key`**
@@ -97,18 +111,6 @@ here.
   followed by `onClick={jump(at-1)}` failed with `mismatched types func() int
   and untyped int`, while `disabled={at == 1}` beside it compiled. Event
   attributes read a lazy binding like any other attribute now.
-
-### Live pages
-
-- **A struct live without saying so gets a warning**
-  ([#264](https://github.com/vuka-lang/vuka/issues/264)). A hook or an exported
-  method sent as an event makes a struct live, so a rename can add a socket and
-  server memory per visitor with nothing in the file showing it.
-  [W0115](/errors/W0115) reports each one, and `vuka fix explicit-live` embeds
-  `ui.Live` in them; `vuka upgrade` runs it. Nothing changes at run time. A
-  future major will make `ui.Live` the only way to be live. The forms docs said
-  a page with an exported `onSubmit` handler made no connection; it does, and
-  they now show an unexported handler.
 
 ### Documentation
 

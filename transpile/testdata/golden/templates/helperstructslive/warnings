@@ -1,1 +1,0 @@
-W0115 loud.vuka.html:9:1: Loud is live because the markup sends the event Inc, and nothing in the struct says so: a socket and server memory for each visitor; embed ui.Live in Loud (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP

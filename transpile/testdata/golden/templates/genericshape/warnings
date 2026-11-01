@@ -1,2 +1,0 @@
-W0115 box.vuka.html:6:1: Box is live because it declares the hook @ui.Mount, and nothing in the struct says so: a socket and server memory for each visitor; embed ui.Live in Box (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP
-W0115 table.vuka.html:11:1: Table is live because it declares the hook @ui.Mount, and nothing in the struct says so: a socket and server memory for each visitor; embed ui.Live in Table (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP

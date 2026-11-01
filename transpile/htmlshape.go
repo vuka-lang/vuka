@@ -283,7 +283,7 @@ func parseShape(name string, src []byte, lines []string, head TemplateHead) (*Sh
 	case hook != "":
 		s.Live, s.LiveWhy = true, "it declares the hook "+hook
 	default:
-		if m := wiredEvent(string(src[markup:]), events); m != "" {
+		if m := wiredEvent(maskFormSubmits(string(src[markup:]), uiName(text)), events); m != "" {
 			s.Live, s.LiveWhy = true, "the markup sends the event "+m
 		}
 	}
@@ -423,16 +423,15 @@ func shapeNameKey(name string) string {
 	return b.String()
 }
 
-// implicitLive is W0115 for a shape live by anything but embedding ui.Live.
-func (f *fileState) implicitLive() ErrorList {
+// implicitLive is E0169 for a shape needing a live connection without
+// embedding ui.Live. h.shape is the struct the file renders, never a helper.
+func (e *engine) implicitLive(f *fileState) {
 	h := f.html
 	if h == nil || h.shape == nil || !h.shape.Live || h.shape.EmbedsLive {
-		return nil
+		return
 	}
-	var l ErrorList
-	l.add("W0115", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s is live because %s, and nothing in the struct says so: a socket and server memory for each visitor", h.shape.Type, h.shape.LiveWhy).
-		help("embed ui.Live in %s (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP", h.shape.Type)
-	return l
+	e.errs.add("E0169", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s needs a live connection because %s", h.shape.Type, h.shape.LiveWhy).
+		help("embed ui.Live in %s (vuka fix explicit-live)", h.shape.Type)
 }
 
 // EmbedLive is EmbedLiveFile for a file whose name isn't known: one declaring
@@ -448,24 +447,51 @@ func EmbedLiveFile(file string, src []byte) (out []byte, why string) {
 	if err != nil || s == nil || !s.Live || s.EmbedsLive {
 		return nil, ""
 	}
-	name := "ui"
-	text := string(src)
-	var imp string
-	if m := uiImport.FindStringSubmatch(text); m != nil {
-		if m[1] != "" {
-			name = strings.TrimSpace(m[1])
-		}
-	} else if at := uiPackageClause.FindStringIndex(text); at != nil {
-		imp = "\n\nimport \"" + uiImportPath + "\""
-		out = append(append(out, src[:at[1]]...), imp...)
-		src = append(out[:len(out):len(out)], src[at[1]:]...)
-		out, s.open = nil, s.open+len(imp)
+	name := uiName(string(src))
+	head, tail := string(src[:s.open]), string(src[s.open:])
+	if !uiImport.MatchString(string(src)) {
+		head = addUIImport(head)
+	}
+	if strings.HasSuffix(head, "struct{") {
+		head = strings.TrimSuffix(head, "{") + " {"
 	}
 	field := "\n\t" + name + ".Live"
-	if s.open < len(src) && src[s.open] != '\n' {
-		field += "\n"
+	if tail != "" && tail[0] != '\n' {
+		// All on one line: struct{} or struct{ n int }.
+		line, rest, _ := strings.Cut(tail, "\n")
+		fields := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), "}"))
+		if fields != "" {
+			field += "\n\t" + fields
+		}
+		tail = "\n}\n" + rest
 	}
-	return append(append(append(out, src[:s.open]...), field...), src[s.open:]...), s.LiveWhy
+	return []byte(head + field + tail), s.LiveWhy
+}
+
+// addUIImport adds ui to the imports of head, a file's text up to its struct:
+// to its import block, or to its one import, making that a block.
+func addUIImport(head string) string {
+	spec := "\t\"" + uiImportPath + "\"\n"
+	if at := importBlock.FindStringIndex(head); at != nil {
+		if end := strings.Index(head[at[1]:], ")"); end >= 0 {
+			return head[:at[1]+end] + spec + head[at[1]+end:]
+		}
+	}
+	if at := loneImport.FindStringSubmatchIndex(head); at != nil {
+		return head[:at[0]] + "import (\n\t" + head[at[2]:at[3]] + "\n" + spec + ")" + head[at[1]:]
+	}
+	if at := uiPackageClause.FindStringIndex(head); at != nil {
+		return head[:at[1]] + "\n\nimport \"" + uiImportPath + "\"" + head[at[1]:]
+	}
+	return head
+}
+
+// uiName is what a file calls the ui package.
+func uiName(text string) string {
+	if m := uiImport.FindStringSubmatch(text); m != nil && m[1] != "" {
+		return strings.TrimSpace(m[1])
+	}
+	return "ui"
 }
 
 const uiImportPath = "github.com/vuka-lang/ui/v2"
@@ -473,6 +499,8 @@ const uiImportPath = "github.com/vuka-lang/ui/v2"
 var (
 	uiImport        = regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+\s+)?"` + regexp.QuoteMeta(uiImportPath) + `"`)
 	uiPackageClause = regexp.MustCompile(`(?m)^package\s+\w+[ \t]*$`)
+	importBlock     = regexp.MustCompile(`(?m)^import\s*\(`)
+	loneImport      = regexp.MustCompile(`(?m)^import\s+((?:\w+\s+)?"[^"]*")[ \t]*$`)
 )
 
 // shapeSyntax is the error of a header that doesn't parse.
@@ -576,6 +604,58 @@ func wiredEvent(markup string, events []string) string {
 		}
 	}
 	return ""
+}
+
+var (
+	formSubmit = regexp.MustCompile(`\bonSubmit=\{\s*(?:\w+\.)?\w+\s*\}`)
+	formFor    = regexp.MustCompile(`\bfor=\{`)
+)
+
+// maskFormSubmits is markup without the onSubmit naming a method on each
+// <ui.Form for={…}>: a struct form posts over HTTP on a page that isn't live,
+// whatever its handler's name, so its handler doesn't make the page live.
+func maskFormSubmits(markup, ui string) string {
+	open := "<" + ui + ".Form"
+	for from := 0; ; {
+		at := strings.Index(markup[from:], open)
+		if at < 0 {
+			return markup
+		}
+		start := from + at
+		from = start + len(open)
+		if from < len(markup) && (markup[from] == '_' || markup[from] >= '0' && markup[from] <= '9' || markup[from] >= 'a' && markup[from] <= 'z' || markup[from] >= 'A' && markup[from] <= 'Z') {
+			continue // <ui.FormField
+		}
+		end := openTagEnd(markup, from)
+		tag := markup[start:end]
+		if !formFor.MatchString(tag) {
+			continue
+		}
+		markup = markup[:start] + formSubmit.ReplaceAllStringFunc(tag, func(m string) string {
+			return strings.Repeat(" ", len(m))
+		}) + markup[end:]
+	}
+}
+
+// openTagEnd is where the open tag whose attributes start at i ends, holes and
+// quoted values skipped; len(s) when it doesn't.
+func openTagEnd(s string, i int) int {
+	for ; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '"', '\'':
+			for i++; i < len(s) && s[i] != c; i++ {
+			}
+		case '{':
+			end := holeEnd(s, i+1)
+			if end < 0 {
+				return len(s)
+			}
+			i = end
+		case '>':
+			return i + 1
+		}
+	}
+	return len(s)
 }
 
 var pushStep = regexp.MustCompile(`\.(?:Push|Options)\(`)

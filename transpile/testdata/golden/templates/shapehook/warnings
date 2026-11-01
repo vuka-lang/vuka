@@ -1,1 +1,0 @@
-W0115 counter.vuka.html:10:1: Counter is live because it declares the hook @ui.Mount, and nothing in the struct says so: a socket and server memory for each visitor; embed ui.Live in Counter (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP

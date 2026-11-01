@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -269,4 +270,14 @@ func TestOneSet(t *testing.T) {
 			t.Errorf("oneSet(%v) = %v", c.vs, ok)
 		}
 	}
+}
+
+// Crossing v2.16.0 embeds ui.Live, which E0169 now requires.
+func TestUpgradeExplicitLive(t *testing.T) {
+	for _, s := range stepsBetween("v2.15.0", "v2.16.0") {
+		if slices.Contains(s.fixers, "explicit-live") {
+			return
+		}
+	}
+	t.Error("no explicit-live step between v2.15.0 and v2.16.0")
 }

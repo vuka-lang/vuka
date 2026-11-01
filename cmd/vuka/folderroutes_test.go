@@ -434,7 +434,7 @@ func TestFolderRoutesRegistered(t *testing.T) {
 func TestShapePages(t *testing.T) {
 	app := routesModule(t, map[string]string{
 		"pages/about.vuka.html":   "package pages\n\n// Info is declared above its markup.\ntype Info struct {\n\tVersion string\n}\n\nfunc (p *Info) Title() string { return \"About\" }\n<article><h1>About {Version}</h1></article>\n",
-		"pages/counter.vuka.html": "package pages\n\n// Counter is live: its markup sends Inc.\ntype Counter struct {\n\tn int\n}\n\nfunc (p *Counter) Inc() { p.n++ }\n<button onClick={Inc}>{n}</button>\n",
+		"pages/counter.vuka.html": "package pages\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Counter is live: its markup sends Inc.\ntype Counter struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Counter) Inc() { p.n++ }\n<button onClick={Inc}>{n}</button>\n",
 	})
 	var out, errOut bytes.Buffer
 	if err := routesCmd(nil, &out, &errOut); err != nil {
@@ -706,7 +706,7 @@ func TestPageHandlerDeps(t *testing.T) {
 	if err := routesCmd(nil, &out, &errOut); err != nil || !regexp.MustCompile(`POST +/pets +pets\.Index\.Post`).Match(out.Bytes()) {
 		t.Fatalf("vuka routes: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
 	}
-	writeFile(t, "pages/pets/index.vuka.html", "package pets\n\n// Index lists the pets.\ntype Index struct {\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")
+	writeFile(t, "pages/pets/index.vuka.html", "package pets\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Index lists the pets.\ntype Index struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")
 	out.Reset()
 	errOut.Reset()
 	if err := routesCmd(nil, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0709") || !strings.Contains(errOut.String(), "Index.Delete is the page's DELETE handler, and its markup sends it as an event") {
@@ -771,7 +771,7 @@ func bareURLParams(t *testing.T, has bool) {
 func TestPageLoadNeverRuns(t *testing.T) {
 	routesModule(t, map[string]string{
 		"pages/unused.vuka.html": "package pages\n\nimport \"context\"\n\ntype Unused struct{ msg string }\n\nfunc (p *Unused) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\n\n<p>{msg}</p>\n",
-		"pages/used.vuka.html":   "package pages\n\nimport \"context\"\n\ntype Used struct{ msg string }\n\nfunc (p *Used) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\nfunc (p *Used) Reset(ctx context.Context) error { return p.Load(ctx) }\n\n<button onClick={Reset}>{msg}</button>\n",
+		"pages/used.vuka.html":   "package pages\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Used struct {\n\tui.Live\n\tmsg string\n}\n\nfunc (p *Used) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\nfunc (p *Used) Reset(ctx context.Context) error { return p.Load(ctx) }\n\n<button onClick={Reset}>{msg}</button>\n",
 	})
 	var out, errOut bytes.Buffer
 	if err := routesCmd(nil, &out, &errOut); err != nil {

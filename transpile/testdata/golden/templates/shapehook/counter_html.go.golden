@@ -14,19 +14,18 @@ import (
 //
 //line counter.vuka.html:10
 type Counter struct {
-//line counter.vuka.html:10
 	ui.Live
 	Start int
 	n     uigen.Assign[int]
 }
 
-//line counter.vuka.html:16
+//line counter.vuka.html:17
 func (c *Counter) mount(ctx context.Context) error {
 	c.n.Set(c.Start)
 	return nil
 }
 
-//line counter.vuka.html:20
+//line counter.vuka.html:21
 func (c *Counter) Render() ui.Node { return ui.HTML(`<p>{c.n.Get()}</p>`, c.n.Get()) }
 
 //line counter.vuka.html:10
