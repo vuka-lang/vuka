@@ -1,0 +1,3 @@
+page.vuka.html:11:22: ? passes the error on, so the function must return an error last, or a Result
+page.vuka.html:16:2: match on Kind isn't exhaustive: missing Kind.Dog; add case Kind.Dog: …, or case _:
+page.vuka.html:24:8: ? needs (T, error), error, a Result or an Option; y is int

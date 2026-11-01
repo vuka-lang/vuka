@@ -97,7 +97,7 @@ type ShapeField struct {
 
 var (
 	shapeStart = regexp.MustCompile(`^(?:type|var|const)\b|^@[A-Za-z_]`)
-	shapeType  = regexp.MustCompile(`^type\s+\w+(?:\[[^\]]*\])?\s+struct\b`)
+	shapeType  = regexp.MustCompile(`^type\s+\w+(?:\[[^\]]*\])?\s+struct\b|^type\s*\(`)
 	hookName   = regexp.MustCompile(`^@\s*\w+\s*\.\s*(Mount|OnChange|Loads)\b`)
 	eventAttr  = regexp.MustCompile(`\bon[A-Z]\w*=\{`)
 )
@@ -105,23 +105,27 @@ var (
 // isShape reports whether the template file's lines, its head ending at top,
 // have a Go header: the first line after the imports that isn't blank or a
 // comment starts a declaration (type, var, const) or a decorator, or a struct
-// type is declared before the first line starting with <. A file without one
-// starts with markup, a statement or a func header: E0152.
+// type is declared before the markup, read as goHeader reads it: a line of Go
+// starting with <, a receive or a raw string's, doesn't start it. A file
+// without one starts with markup, a statement or a func header: E0152.
 func isShape(lines []string, top int) bool {
-	first := true
 	for i := top; i < len(lines); i++ {
 		t := strings.TrimSpace(lines[i])
 		if t == "" || strings.HasPrefix(t, "//") {
 			continue
 		}
-		if first && shapeStart.MatchString(lines[i]) {
+		if shapeStart.MatchString(lines[i]) {
 			return true
 		}
-		first = false
-		if strings.HasPrefix(t, "<") {
-			return false
-		}
-		if shapeType.MatchString(lines[i]) {
+		break
+	}
+	text := strings.Join(lines[min(top, len(lines)):], "")
+	_, _, markup := goHeader([]byte(text), 0)
+	if markup >= 0 {
+		text = text[:markup]
+	}
+	for _, l := range strings.SplitAfter(text, "\n") {
+		if shapeType.MatchString(l) {
 			return true
 		}
 	}
@@ -170,7 +174,9 @@ func parseShape(name string, src []byte, lines []string, head TemplateHead) (*Sh
 	// Go, at the file's own offsets.
 	text := string(src[:off[head.Top]]) + skel
 	fset := token.NewFileSet()
-	f, err := parser.ParseFile(fset, "", text, parser.ParseComments)
+	// AllErrors: what .vuka allows and the skeleton keeps isn't Go, and any
+	// amount of it mustn't stop the parser short of a struct.
+	f, err := parser.ParseFile(fset, "", text, parser.ParseComments|parser.AllErrors)
 	if f == nil {
 		return nil, shapeSyntax(err)
 	}
@@ -569,8 +575,9 @@ func closeParen(s string, i int) string {
 // goHeader reads the header's Go, starting at the offset from, up to the
 // first line starting with < outside any brace, paren or bracket. It
 // returns the header as a skeleton Go parses — the same length, its lines
-// kept, with decorators, field attributes and function bodies written as
-// spaces (they are .vuka: @, ?, match) —, the hooks its decorators name, and
+// kept, with what is .vuka and not Go written as spaces (attributes and
+// decorators, function bodies with their ?s and matches, enums, decorator
+// declarations, static fields, the type of func T.New) —, the hooks its decorators name, and
 // the offset its markup starts at, -1 when nothing starts it.
 func goHeader(src []byte, from int) (skel string, hooks []headerHook, markup int) {
 	markup = -1
@@ -606,6 +613,7 @@ func goHeader(src []byte, from int) (skel string, hooks []headerHook, markup int
 		lit string
 	}
 	var toks []tok
+	lineEnd := map[int]bool{} // the tokens a line's automatic semicolon follows
 	depth := 0
 	for {
 		p, t, lit := sc.Scan()
@@ -630,6 +638,9 @@ func goHeader(src []byte, from int) (skel string, hooks []headerHook, markup int
 			depth--
 		}
 		if t == token.SEMICOLON && lit == "\n" {
+			if len(toks) > 0 {
+				lineEnd[len(toks)-1] = true
+			}
 			continue
 		}
 		toks = append(toks, tok{t, o, lit})
@@ -659,11 +670,71 @@ func goHeader(src []byte, from int) (skel string, hooks []headerHook, markup int
 		}
 		return t.off + len(t.t.String())
 	}
+	// declEnd is the index of the token closing the first {…} from toks[i],
+	// the parens and brackets before it skipped.
+	declEnd := func(i int) int {
+		for j := i; j < len(toks); j++ {
+			switch toks[j].t {
+			case token.LPAREN, token.LBRACK:
+				j = match(j)
+			case token.LBRACE:
+				return match(j)
+			}
+		}
+		return len(toks) - 1
+	}
+	// fieldEnd is the index of the last token of the field starting at toks[i].
+	fieldEnd := func(i int) int {
+		for j := i; j < len(toks); j++ {
+			switch toks[j].t {
+			case token.LBRACE, token.LPAREN, token.LBRACK:
+				j = match(j)
+			case token.SEMICOLON:
+				return j - 1
+			case token.RBRACE:
+				return j - 1
+			}
+			if lineEnd[j] {
+				return j
+			}
+		}
+		return len(toks) - 1
+	}
 	depth = 0
 	inFunc := false
 	for i := 0; i < len(toks); i++ {
 		t := toks[i]
+		next := func(n int) token.Token {
+			if i+n < len(toks) {
+				return toks[i+n].t
+			}
+			return token.EOF
+		}
 		switch {
+		case t.t == token.IDENT && depth == 0 && lineStart(t.off) && next(1) == token.IDENT && (t.lit == "enum" || t.lit == "decorator"):
+			// An enum, a decorator: enum Kind {…}, decorator d(c) {…},
+			// decorator D = @a @b.
+			last := declEnd(i)
+			if next(2) == token.ASSIGN {
+				for last = i + 2; last < len(toks)-1 && !lineEnd[last]; last++ {
+				}
+			}
+			blankRange(t.off, end(last))
+			i = last
+		case t.t == token.IDENT && depth > 0 && t.lit == "static" && (lineStart(t.off) || toks[i-1].t == token.SEMICOLON || toks[i-1].t == token.LBRACE) && (next(1) == token.IDENT || next(1) == token.CONST):
+			// A static field, its value with it: it is no field of the struct.
+			last := fieldEnd(i)
+			blankRange(t.off, end(last))
+			i = last
+		case t.t == token.FUNC && depth == 0 && next(1) == token.IDENT && (next(2) == token.PERIOD || next(2) == token.LBRACK && i+2 < len(toks) && match(i+2)+1 < len(toks) && toks[match(i+2)+1].t == token.PERIOD):
+			// func T.New(…) is a function New to the skeleton.
+			dot := i + 2
+			if toks[dot].t == token.LBRACK {
+				dot = match(dot) + 1
+			}
+			blankRange(toks[i+1].off, end(dot))
+			inFunc = true
+			i = dot
 		case t.t == token.ILLEGAL && t.lit == "@":
 			// A decorator or a field attribute: @pkg.Name, then (…) or {…}.
 			j := i + 1
