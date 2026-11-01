@@ -107,6 +107,9 @@ contract. A deprecated name keeps working, with a `vuka vet` warning naming
 its replacement; a breaking change waits for a major version, with a
 documented source change and a before/after example.
 
+v2.16.0 is an exception: its [release notes](/releases) list each breaking
+change and what to do about it.
+
 [The Compatibility Promise](/project/compatibility) says exactly what is
 covered, what a release may still change, and what is not covered.
 

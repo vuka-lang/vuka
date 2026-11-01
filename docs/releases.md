@@ -22,6 +22,20 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Breaking
+
+This release breaks the compatibility promise on purpose, for the changes listed
+here.
+
+- **A pushed handler method is an error**
+  ([#266](https://github.com/vuka-lang/vuka/issues/266)). A `Push` or `Options`
+  step naming a page's `Post`, `Put`, `Patch` or `Delete` also gave the page that
+  HTTP route, without the signed step a push carries. It's now
+  [E0709](/errors/E0709).
+
+  **What to do:** rename the method (`Remove`, `Save`, …) and its uses. There's
+  nothing for `vuka upgrade` to rewrite, because only you know whether the route
+  was meant. If it was, keep the method and push another method that calls it.
 ### Command line
 
 - **`vuka build -islands`** ([#271](https://github.com/vuka-lang/vuka/issues/271)).
@@ -106,8 +120,7 @@ the `github.com/vuka-lang/vuka` package your module requires.
   silently did nothing: layouts and guards have one, pages don't. It's now
   [W0704](/errors/W0704), unless your own code calls it. A `Push` or `Options`
   step naming a page's `Post`, `Put`, `Patch` or `Delete` added that HTTP route
-  without saying so. It no longer builds: [E0709](/errors/E0709) tells you to
-  rename the method. **Breaking**, so this goes in the next major.
+  without saying so. It no longer builds: see [Breaking](#breaking).
 
 - **Every command keeps `pages/route.go` current**
   ([#269](https://github.com/vuka-lang/vuka/issues/269)). Only `vuka run`
