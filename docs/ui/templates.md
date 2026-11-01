@@ -84,6 +84,9 @@ not make the shape live, and neither does a method named by a
 HTTP. The compiler supplies the appropriate rendering
 interface.
 
+Embed `ui.Live` in every live shape: a struct live any other way gets
+[W0115](/errors/W0115), which names the command that adds it.
+
 This counter is live, because it declares a mount hook and wires `Increment`
 to a click:
 

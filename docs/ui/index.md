@@ -50,13 +50,29 @@ The kind of each field decides what it does:
 | Unexported field | Tracked server state, or an injected dependency when its type is provided |
 | `ui.State[T]` | Browser state, read normally and written by assignment in event attributes |
 | `Children ui.Node` | Content between a component's tags |
+| Tagged `` `vuka:"-"` `` | Left out of change tracking: state the render doesn't read |
+
+A struct's methods work the same way:
+
+| Method | Meaning |
+|---|---|
+| Exported, sent from an event attribute | An event: the browser can call it, and the struct is live |
+| Exported, not sent from markup | An ordinary Go method, unless its name means something below |
+| Unexported | Not callable from the browser, except as a form's handler or a [`Push`](/ui/js#push) step, over HTTP on a page that isn't live |
+| Decorated, such as `@ui.Mount` | A hook, unexported, run by vuka; the struct is live |
+| `Title`, `Crumbs` | The page's title and breadcrumbs |
+| `Post`, `Put`, `Patch`, `Delete` | On a page, [answer those HTTP methods](/web/folder-routes#several-methods-on-one-page) on its path |
+| `Load` | On a layout or guard, runs before the page. On a page it never runs |
+
+A dependency is only injected into an unexported field. An exported field of a
+provided type is a prop, set by the parent or by the page's constructor.
 
 ## Static and Live Components
 
 A component is live when it embeds `ui.Live`, declares a decorated hook, or
 wires a server method to an event, other than as a [`Push`](/ui/js#push) step's
 handler, which a page that isn't live calls over HTTP. Browser-only commands keep a component
-static. See [Stateful Components](/ui/stateful) for live components.
+static. See [Live Components](/ui/stateful) for live components.
 
 ## Where to Go Next
 
@@ -65,4 +81,4 @@ Rendering, live sessions, client state, terminal rendering and testing live in
 the ui module and its subpackages.
 
 Start with [Templates](/ui/templates), [Components](/ui/components),
-[Stateful Components](/ui/stateful) and [Client State](/ui/state).
+[Live Components](/ui/stateful) and [Client State](/ui/state).

@@ -828,7 +828,7 @@ func (p *proxy) structAttrs(genPath, tag string) ([]compAttr, string) {
 		if out == nil {
 			out = []compAttr{}
 		}
-		return out, "stateful component"
+		return out, "live component"
 	}
 	kind := "component"
 	switch {

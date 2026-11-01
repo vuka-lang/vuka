@@ -16,7 +16,7 @@ func NewBoard() *Board             { return &Board{} }
 func (b *Board) Render() ui.Node   { return nil }
 func (b *Board) Mount(n int) error { return nil } // want `E0337: Board.Mount isn't a hook: a hook is declared with @ui.Mount, never found by its name`
 
-type NoRender struct{ ui.Live } // want `E0329: NoRender is not a stateful component`
+type NoRender struct{ ui.Live } // want `E0329: NoRender is not a live component`
 
 func NewNoRender() *NoRender { return &NoRender{} } // a struct without Render
 

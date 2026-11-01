@@ -5,18 +5,19 @@
 ## Introduction
 
 This page is for maintainers. The set — vuka, ui, web, cmd/vuka and
-cmd/vukavet — is released by one command, so every module of a release is
-checked, tagged and published together.
+cmd/vukavet — is released by one command, with the orm right after it, so every
+module of a release is checked, tagged and published together.
 
 ## Running a Release {#running}
 
-Run the command in a vuka checkout with the ui and web checkouts beside it:
+Run the command in a vuka checkout with the ui, web and orm checkouts beside it:
 
 ```text
 work/
   vuka/       github.com/vuka-lang/vuka/v2 (and cmd/vuka, cmd/vukavet)
   vuka-ui/    github.com/vuka-lang/ui/v2
   vuka-web/   github.com/vuka-lang/web/v2
+  vuka-orm/   github.com/vuka-lang/orm/v2
 ```
 
 A dry run prints the plan; `-yes` carries it out:
@@ -27,7 +28,7 @@ vuka release v2.1.0          # checks, then prints the plan; changes nothing
 vuka release -yes v2.1.0     # does it
 ```
 
-`-ui` and `-web` point at checkouts elsewhere.
+`-ui`, `-web` and `-orm` point at checkouts elsewhere.
 
 ## Before You Run It {#before-you-run-it}
 
@@ -96,9 +97,10 @@ In dependency order, so each module requires tags that exist:
    go.mod requires, build, commit, tag `cmd/vuka/vX.Y.Z`, push;
 5. cmd/vukavet: tag `cmd/vukavet/vX.Y.Z` on the same commit and push it
    (it requires none of the set);
-6. wait for proxy.golang.org to serve the five modules (`-proxy-wait`, 10m by
+6. orm: `go get` vuka and web at `vX.Y.Z`, build, commit, tag, push;
+7. wait for proxy.golang.org to serve the six modules (`-proxy-wait`, 10m by
    default; 0 skips it; a slow proxy is a warning, not a failure);
-7. install `github.com/vuka-lang/vuka/cmd/vuka/v2@vX.Y.Z` and
+8. install `github.com/vuka-lang/vuka/cmd/vuka/v2@vX.Y.Z` and
    `github.com/vuka-lang/vuka/cmd/vukavet/v2@vX.Y.Z` with `GOPROXY=direct` into
    a temporary directory and check that its `vuka version` reports the set.
 
@@ -131,22 +133,11 @@ on current versions within their ranges.
 
 ## Releasing the ORM {#the-orm}
 
-`github.com/vuka-lang/orm/v2` has versions of its own and isn't part of
-`vuka release`. It requires vuka and web, so a release of it that should
-require a new set comes after that set: in an orm checkout on main,
-
-```sh
-GOPROXY=direct GOSUMDB=off GOWORK=off go get github.com/vuka-lang/vuka/v2@vX.Y.Z github.com/vuka-lang/web/v2@vX.Y.Z
-go build ./... && go vet ./... && go test ./...
-git commit -am "orm vA.B.C: require vuka, web vX.Y.Z"
-git tag -a vA.B.C -m "orm vA.B.C"
-git push origin HEAD:refs/heads/main refs/tags/vA.B.C
-```
-
-`ormVersion` in `cmd/vuka/new.go` is the orm `vuka new` pins and `vuka
-upgrade` moves apps to; a release of the set whose scaffolds need a new orm
-sets it in the release's pull request and releases the orm right after the
-set.
+`github.com/vuka-lang/orm/v2` is released with the set under the same version.
+It requires vuka and web, so `vuka release` does it last: `go get` of those two,
+`go build`, a commit and the tag. `ormVersion` in `cmd/vuka/toolchain.go`, the
+orm `vuka new` pins and `vuka upgrade` moves apps to, is one of the constants
+the release writes.
 
 ## When a Step Fails {#when-a-step-fails}
 

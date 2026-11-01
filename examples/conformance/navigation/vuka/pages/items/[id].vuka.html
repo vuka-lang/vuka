@@ -12,6 +12,7 @@ import (
 // Item is an item's page: only item 1 exists, any other is a 404, an
 // error page the browser patches in place of the page it leaves.
 type Item struct {
+	ui.Live
 	ID int
 }
 
