@@ -363,7 +363,7 @@ func (e *engine) pushMethod(f *fileState, call *ast.CallExpr, options bool, h as
 	if method == nil {
 		return "", true
 	}
-	if !stateful {
+	if !stateful && !e.embeddedInLive(f, named) {
 		e.lostWrites(f, h, method)
 	}
 	if read && !options {
@@ -455,6 +455,44 @@ func (e *engine) statefulType(f *fileState, n *types.Named) bool {
 	return ok && types.Implements(types.NewPointer(n), it)
 }
 
+// embeddedInLive reports whether a live type of the package embeds n: state
+// shared by live pages, which a component reaches through a pointer. The
+// method runs on that page's state, over its socket.
+func (e *engine) embeddedInLive(f *fileState, n *types.Named) bool {
+	if n == nil || e.pkg == nil {
+		return false
+	}
+	scope := e.pkg.Scope()
+	for _, name := range scope.Names() {
+		tn, ok := scope.Lookup(name).(*types.TypeName)
+		if !ok {
+			continue
+		}
+		host, ok := types.Unalias(tn.Type()).(*types.Named)
+		if !ok || host == n {
+			continue
+		}
+		st, ok := host.Underlying().(*types.Struct)
+		if !ok {
+			continue
+		}
+		for i := range st.NumFields() {
+			fl := st.Field(i)
+			if !fl.Embedded() {
+				continue
+			}
+			t := types.Unalias(fl.Type())
+			if p, ok := t.(*types.Pointer); ok {
+				t = types.Unalias(p.Elem())
+			}
+			if t == types.Type(n) && e.statefulType(f, host) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // methodDecl is the declaration of m in the package, or nil.
 func (e *engine) methodDecl(m *types.Func) *ast.FuncDecl {
 	for _, f := range e.files {
@@ -523,7 +561,7 @@ func (e *engine) lostWrites(f *fileState, h ast.Expr, m *types.Func) {
 	if field == "" {
 		return
 	}
-	f.pushWarns.add("W0113", f.at(f.orig(h.Pos())), "%s assigns %s, but a page that isn't live pushes it over HTTP to a fresh copy of the page, which is thrown away: the change is lost", m.Name(), field).
+	f.pushWarns.add("W0113", f.at(f.orig(h.Pos())), "%s assigns %s, but on a page that isn't live a push runs over HTTP on a fresh copy of the page, which is thrown away: the change is lost", m.Name(), field).
 		help("return what changed (a ui.Node, a value) and put it Into its place, or keep the state where the next request finds it (the database, the session)")
 }
 

@@ -28,6 +28,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
   It replaces `vuka build-islands`, which still works and says it's deprecated.
   Change `//go:generate go tool vuka build-islands` when convenient.
 
+### Diagnostics
+
+- **W0113 no longer fires on state a live page embeds**
+  ([#262](https://github.com/vuka-lang/vuka/issues/262)). A component holding a
+  pointer to a type a live page embeds runs that type's methods on the page's
+  own state, over its socket, so nothing is lost. The compiler only recognised
+  methods promoted through embedding. The message now also says "on a page that
+  isn't live" as a condition, since the compiler can't see which page renders a
+  component.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
