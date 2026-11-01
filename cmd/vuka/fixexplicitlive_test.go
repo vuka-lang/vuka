@@ -49,3 +49,20 @@ func TestEmbedLive(t *testing.T) {
 		}
 	}
 }
+
+// TestEmbedLiveHelpers: ui.Live goes in the struct the file renders, never a
+// helper, and a helper's hook or methods alone change nothing.
+func TestEmbedLiveHelpers(t *testing.T) {
+	const live = "<script lang=\"go\">\npackage p\n\nimport \"github.com/vuka-lang/ui/v2\"\n\nvar _ ui.Node\n\ntype Row struct {\n\tn int\n}\n\ntype Orders struct {\n\tn int\n}\n\nfunc (o *Orders) Inc() { o.n++ }\n</script>\n\n<button onClick={Inc}>{n}</button>\n"
+	out, why := transpile.EmbedLiveFile("pages/orders.vuka.html", []byte(live))
+	if !strings.Contains(string(out), "type Orders struct {\n\tui.Live\n\tn int") || !strings.Contains(string(out), "type Row struct {\n\tn int") || why != "the markup sends the event Inc" {
+		t.Errorf("%q:\n%s", why, out)
+	}
+	if again, _ := transpile.EmbedLiveFile("orders.vuka.html", out); again != nil {
+		t.Errorf("not idempotent:\n%s", again)
+	}
+	const quiet = "<script lang=\"go\">\npackage p\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Row struct {\n\tn int\n}\n\n@ui.Mount\nfunc (r *Row) mount() error { return nil }\n\nfunc (r *Row) Inc() { r.n++ }\n\ntype Orders struct {\n\tRows []Row\n}\n</script>\n\n<button onClick={Rows[0].Inc}>x</button>\n"
+	if out, why := transpile.EmbedLiveFile("orders.vuka.html", []byte(quiet)); out != nil {
+		t.Errorf("a helper's hook and method made the page live (%q):\n%s", why, out)
+	}
+}

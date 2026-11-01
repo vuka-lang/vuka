@@ -79,10 +79,11 @@ type engine struct {
 	gqlWarns    map[*fileState]ErrorList
 	gqlArgs     map[*fileState][]GraphQLArg // the non-null arguments, by the file declaring their function (graphql.go)
 
-	forceCtx   map[string]bool // template files whose markup gets the render's ctx (implicit.go)
-	noImplicit bool            // markup gets no implicit ctx (Options.NoImplicitCtx)
-	recompile  bool            // one more does: the package compiles again
-	wrapErrors bool            // vet a bare ? on a call into another package (Options.WrapErrors)
+	brokenScripts map[string]bool // template files whose script form is reported broken
+	forceCtx      map[string]bool // template files whose markup gets the render's ctx (implicit.go)
+	noImplicit    bool            // markup gets no implicit ctx (Options.NoImplicitCtx)
+	recompile     bool            // one more does: the package compiles again
+	wrapErrors    bool            // vet a bare ? on a call into another package (Options.WrapErrors)
 }
 
 func (e *engine) run() {

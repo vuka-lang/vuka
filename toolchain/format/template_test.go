@@ -144,3 +144,59 @@ func TestHoleComment(t *testing.T) {
 		}
 	}
 }
+
+// TestTemplateScriptVuka: what .vuka allows, in a script, is formatted as a
+// .vuka file's Go is, and formatting the result changes nothing.
+func TestTemplateScriptVuka(t *testing.T) {
+	const src = `<script lang="go">
+package p
+
+import "strconv"
+
+enum Kind { Cat
+  Dog }
+
+decorator traced(c) {
+c.Next()
+}
+
+@traced
+func parse(s string) Result[int] {
+n := strconv.Atoi(s)?("parsing %s", s)
+match n {
+case 1:
+return Ok(1)
+case _:
+return Err(nil)
+}
+}
+
+type Pet struct {
+Name string @Char{Max: 2}
+static Table = "pets"
+}
+
+func Pet.New() *Pet { return &Pet{} }
+
+type P struct{}
+</script>
+
+<p>x</p>
+`
+	got, err := Template([]byte(src), "p")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, want := range []string{
+		"enum Kind {\n\tCat\n\tDog\n}", "decorator traced(c) {\n\tc.Next()\n}", "\tn := strconv.Atoi(s)?(\"parsing %s\", s)\n\tmatch n {\n\tcase 1:\n\t\treturn Ok(1)",
+		"string @Char{Max: 2}\n", "\tstatic Table = \"pets\"\n", "func Pet.New() *Pet { return &Pet{} }",
+	} {
+		if !strings.Contains(string(got), want) {
+			t.Errorf("no %q in:\n%s", want, got)
+		}
+	}
+	again, err := Template(got, "p")
+	if err != nil || string(again) != string(got) {
+		t.Errorf("not idempotent: %v\n%s", err, again)
+	}
+}

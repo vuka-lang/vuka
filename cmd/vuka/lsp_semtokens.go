@@ -48,7 +48,7 @@ func (p *proxy) semanticTokens(vf *vfile, result json.RawMessage) map[string]any
 	}
 	if strings.HasSuffix(vf.source, ".vuka.html") {
 		// The markup's names, classified from the text, over gopls's.
-		toks = mergeTokens(toks, p.markupTokens(vf.text()))
+		toks = mergeTokens(toks, p.markupTokens(vf.source, vf.text()))
 	}
 	toks = mergeTokens(toks, p.varTokens(vf))
 	return encodeTokens(toks)

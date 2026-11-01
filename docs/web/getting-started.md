@@ -42,7 +42,7 @@ As the app grows it gains:
 
 ## The Shape of a Page
 
-A page is a `<script lang="go">` with exactly one struct, followed by markup:
+A page is a `<script lang="go">` with the struct it renders, followed by markup:
 
 ```html
 <script lang="go">

@@ -1,0 +1,16 @@
+<script lang="go">
+package main
+
+// Note is data; E0169 is about Loud, the struct the file renders.
+type Note struct {
+	Text string
+}
+
+type Loud struct {
+	n int
+}
+
+func (p *Loud) Inc() { p.n++ }
+</script>
+
+<button onClick={Inc}>{n}</button>

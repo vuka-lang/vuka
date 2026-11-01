@@ -6,8 +6,8 @@ LIVE /
   {"type":"event","target":"c2:0","event":"click"}
   {"type":"event","target":"c2:0","event":"click"}
   {"type":"event","target":"c3:0","event":"click"}
-  {"type":"event","target":"c1:2","event":"click"}
+  {"type":"event","target":"c1:1:0","event":"click"}
   {"type":"event","target":"c1:0","event":"click"}
   {"type":"event","target":"c1:1","event":"click"}
   {"type":"event","target":"c3:0","event":"click"}
-  {"type":"event","target":"c1:2","event":"click"}
+  {"type":"event","target":"c1:2:0","event":"click"}

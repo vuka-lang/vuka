@@ -179,6 +179,149 @@ func TestShapeRules(t *testing.T) {
 	}
 }
 
+// TestShapeNamedAfterFile: a file declaring several structs renders the one
+// named after it, whatever the file's name, and the others are its helpers;
+// a file declaring one renders it, whatever it's called.
+func TestShapeNamedAfterFile(t *testing.T) {
+	src := func(names ...string) []byte {
+		var b strings.Builder
+		b.WriteString("<script lang=\"go\">\npackage p\n\n")
+		for _, n := range names {
+			fmt.Fprintf(&b, "type %s struct{}\n\n", n)
+		}
+		b.WriteString("</script>\n\n<p/>\n")
+		return []byte(b.String())
+	}
+	for _, c := range []struct {
+		file    string
+		structs []string
+		want    string
+	}{
+		{"orders.vuka.html", []string{"Orders", "Row"}, "Orders"},
+		{"orders.vuka.html", []string{"Row", "Orders"}, "Orders"},
+		{"pages/orders.vuka.html", []string{"Row", "Note", "Orders"}, "Orders"},
+		{"order-row.vuka.html", []string{"Cell", "OrderRow"}, "OrderRow"},
+		{"order_row.vuka.html", []string{"Cell", "OrderRow"}, "OrderRow"},
+		{"order_row.vuka.html", []string{"Cell", "orderRow"}, "orderRow"},
+		{"index.vuka.html", []string{"Row", "Index"}, "Index"},
+		{"[id].vuka.html", []string{"Row", "Id"}, "Id"},
+		{"[id].vuka.html", []string{"Row", "ID"}, "ID"},
+		{"[path...].vuka.html", []string{"Row", "Path"}, "Path"},
+		{"_layout.vuka.html", []string{"Link", "Layout"}, "Layout"},
+		{"index.vuka.html", []string{"Home"}, "Home"},
+		{"[id].vuka.html", []string{"Show"}, "Show"},
+	} {
+		s, err := transpile.ParseShapeFile(c.file, src(c.structs...))
+		if err != nil || s == nil || s.Type != c.want {
+			t.Errorf("%s with %v: %+v, %v; want %s", c.file, c.structs, s, err, c.want)
+			continue
+		}
+		if len(s.Helpers) != len(c.structs)-1 {
+			t.Errorf("%s with %v: helpers %v", c.file, c.structs, s.Helpers)
+		}
+	}
+	for _, c := range []struct {
+		file    string
+		structs []string
+		msg     string
+	}{
+		{"index.vuka.html", []string{"Home", "Row"}, "the template file declares Home and Row, and none is named after it: index.vuka.html renders the struct Index"},
+		{"order-row.vuka.html", []string{"A", "B", "C"}, "the template file declares A, B and C, and none is named after it: order-row.vuka.html renders the struct OrderRow"},
+		{"[id].vuka.html", []string{"Show", "Row"}, "renders the struct Id"},
+		{"[id].vuka.html", []string{"Id", "ID"}, "both are named after [id].vuka.html"},
+		{"404.vuka.html", []string{"A", "B"}, "no struct can be named after 404.vuka.html"},
+		{"", []string{"A", "B"}, "the template file declares A and B: a .vuka.html file renders one struct"},
+	} {
+		s, err := transpile.ParseShapeFile(c.file, src(c.structs...))
+		if s != nil || err == nil || err.Code != "E0147" || !strings.Contains(err.Msg, c.msg) || err.Help == "" {
+			t.Errorf("%s with %v: %+v, %+v; want E0147: %s", c.file, c.structs, s, err, c.msg)
+		}
+		if err != nil && err.Pos.Line < 4 {
+			t.Errorf("%s with %v: at line %d", c.file, c.structs, err.Pos.Line)
+		}
+	}
+}
+
+// TestShapeHelpers: what a helper declares isn't the rendered struct's: its
+// methods don't make the page live, its fields aren't the page's, its
+// receiver isn't the page's, and a form stays the exception it was.
+func TestShapeHelpers(t *testing.T) {
+	const pkg = "package p\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n"
+	t.Run("not live", func(t *testing.T) {
+		s, err := transpile.ParseShapeFile("orders.vuka.html", []byte(pkg+`type Row struct {
+	ui.Live
+	Name string
+}
+
+@ui.Mount
+func (r *Row) mount() error { return nil }
+
+func (r *Row) Add() {}
+
+type Orders struct {
+	Rows []Row
+}
+
+func (o Orders) Total() int { return 0 }
+<button onClick={Rows[0].Add}>{Total()}</button>
+`))
+		if err != nil || s == nil {
+			t.Fatalf("%+v, %v", s, err)
+		}
+		if s.Type != "Orders" || s.Live || s.EmbedsLive || s.Recv != "o" || s.Ptr || len(s.Fields) != 1 || s.Fields[0].Name != "Rows" {
+			t.Errorf("%+v", s)
+		}
+		if len(s.Helpers) != 1 || s.Helpers[0] != "Row" {
+			t.Errorf("helpers %v", s.Helpers)
+		}
+	})
+	t.Run("the rendered struct's hook", func(t *testing.T) {
+		s, err := transpile.ParseShapeFile("orders.vuka.html", []byte(pkg+`type Row struct{}
+
+type Orders struct{}
+
+@ui.Mount
+func (o *Orders) mount() error { return nil }
+<p/>
+`))
+		if err != nil || s == nil || !s.Live || s.LiveWhy != "it declares the hook @ui.Mount" {
+			t.Errorf("%+v, %v", s, err)
+		}
+	})
+	t.Run("a form beside one struct", func(t *testing.T) {
+		s, err := transpile.ParseShapeFile("anything.vuka.html", []byte(pkg+`type Signup struct {
+	ui.FormState
+	Email string
+}
+
+type Join struct {
+	Form Signup
+}
+<p/>
+`))
+		if err != nil || s == nil || s.Type != "Join" || len(s.Helpers) != 1 {
+			t.Errorf("%+v, %v", s, err)
+		}
+	})
+	t.Run("a form, a helper and the struct", func(t *testing.T) {
+		s, err := transpile.ParseShapeFile("join.vuka.html", []byte(pkg+`type Signup struct {
+	ui.FormState
+	Email string
+}
+
+type Row struct{}
+
+type Join struct {
+	Form Signup
+}
+<p/>
+`))
+		if err != nil || s == nil || s.Type != "Join" || len(s.Helpers) != 2 {
+			t.Errorf("%+v, %v", s, err)
+		}
+	})
+}
+
 // TestShapeTemplateHeaders: a header's methods aren't templates; a func line
 // after its markup is (a second template, E0153).
 func TestShapeTemplateHeaders(t *testing.T) {

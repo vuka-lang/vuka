@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"flag"
+	"fmt"
 	"go/parser"
 	"go/token"
 	"io"
@@ -454,6 +455,74 @@ func TestShapePages(t *testing.T) {
 	}
 	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
 		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
+	}
+}
+
+// TestHelperStructs: a file's helper structs are types of its package and
+// nothing more: only the struct named after the file is a page, whichever
+// way the file is named, and the module builds with them.
+func TestHelperStructs(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/shop/index.vuka.html":      "<script lang=\"go\">\npackage shop\n\ntype Row struct {\n\tName string\n}\n\nfunc (r *Row) Rename(s string) { r.Name = s }\n\ntype Index struct {\n\tRows []Row\n}\n</script>\n\n<p>{len(Rows)}</p>\n",
+		"pages/shop/order-row.vuka.html":  "<script lang=\"go\">\npackage shop\n\ntype cell struct{}\n\ntype OrderRow struct{}\n\nfunc (c cell) Inc() {}\n\nfunc (c cell) Load() error { return nil }\n</script>\n\n<p>row</p>\n",
+		"pages/shop/[item].vuka.html":     "<script lang=\"go\">\npackage shop\n\ntype Line struct {\n\tQty int\n}\n\ntype Item struct {\n\tItem int\n\tline Line\n}\n</script>\n\n<p>{Item}</p>\n",
+		"pages/shop/one_struct.vuka.html": "<script lang=\"go\">\npackage shop\n\ntype Anything struct{}\n</script>\n\n<p>one</p>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	for _, want := range []string{`GET +/shop +shop\.Index `, `GET +/shop/order-row +shop\.OrderRow `, `GET +/shop/\{item\} +shop\.Item `, `GET +/shop/one-struct +shop\.Anything `} {
+		if !regexp.MustCompile(want).MatchString(out.String()) {
+			t.Errorf("no route %s:\n%s", want, out.Bytes())
+		}
+	}
+	for _, helper := range []string{"shop.Row", "shop.Line", "shop.cell"} {
+		if strings.Contains(out.String(), helper) {
+			t.Errorf("the helper %s is a page:\n%s", helper, out.Bytes())
+		}
+	}
+	if regexp.MustCompile(`shop\.\w+ \(live\)`).MatchString(out.String()) {
+		t.Errorf("a helper's methods made a page live:\n%s", out.Bytes())
+	}
+	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
+	}
+}
+
+// TestHelperStructsNoMatch: several structs, none named after the file: the
+// error names the struct expected, where a page's would be declared nowhere.
+func TestHelperStructsNoMatch(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/shop/index.vuka.html": "<script lang=\"go\">\npackage shop\n\ntype Item struct {\n\tName string\n}\n\ntype Home struct {\n\titems []Item\n}\n</script>\n\n<p>home</p>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err == nil {
+		t.Fatalf("no error:\n%s", out.Bytes())
+	}
+	got := errOut.String()
+	if !strings.Contains(got, "E0147") || !strings.Contains(got, "index.vuka.html renders the struct Index") || strings.Contains(got, "E0719") || !strings.Contains(got, "pages/shop/index.vuka.html:8") {
+		t.Errorf("want E0147 naming Index:\n%s", got)
+	}
+}
+
+// TestScriptVukaVet: vuka vet reads a script's .vuka as it reads a .vuka
+// file's: its analyzers, go vet's among them, report at the place in the
+// .vuka.html file, and a page whose script uses ?, match and enums is checked
+// like any other.
+func TestScriptVukaVet(t *testing.T) {
+	const page = "<script lang=\"go\">\npackage shop\n\nimport (\n\t\"fmt\"\n\t\"strconv\"\n)\n\nenum Kind { Cat, Dog }\n\nfunc wait(c chan int) {\n\t<-c\n}\n\nfunc parse(s string) Result[int] {\n\tn := strconv.Atoi(s)?\n\tfmt.Printf(\"%d\", s)\n\treturn Ok(n)\n}\n\nfunc name(k Kind) string {\n\tmatch k {\n\tcase Kind.Cat:\n\t\treturn \"cat\"\n\tcase Kind.Dog:\n\t\treturn \"dog\"\n\t}\n}\n\ntype Index struct{}\n\nfunc (p Index) Label() string { return name(Kind.Dog) + strconv.Itoa(parse(\"1\").UnwrapOr(0)) }\n</script>\n\n<p>{Label()}</p>\n"
+	routesModule(t, map[string]string{"pages/shop/index.vuka.html": page})
+	var errOut bytes.Buffer
+	if err := runGo("vet", []string{"./pages/shop/"}, io.Discard, &errOut); err == nil {
+		t.Fatalf("vuka vet passed:\n%s", errOut.Bytes())
+	}
+	line := strings.Count(page[:strings.Index(page, "fmt.Printf")], "\n") + 1
+	if at := fmt.Sprintf("index.vuka.html:%d:", line); !strings.Contains(errOut.String(), at) || !strings.Contains(errOut.String(), "Printf") {
+		t.Errorf("want Printf's format at %s:\n%s", at, errOut.Bytes())
+	}
+	if strings.Contains(errOut.String(), "E0") {
+		t.Errorf("a compile error:\n%s", errOut.Bytes())
 	}
 }
 

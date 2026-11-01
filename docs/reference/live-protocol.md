@@ -63,13 +63,42 @@ The HTML a session renders carries these attributes:
 |---|---|
 | `data-vk-id="c2"` | an instance's root element (the page is `c0`, the container); a render that isn't one element is wrapped in `<vk-c data-vk-id="…" style="display:contents">` |
 | `data-vk-key="…"` | an element's or instance's `key`, for pairing siblings in a morph |
-| `data-vk-on-<event>="c2:0"` | a handler for the DOM event `<event>` (`click`, `keydown`, `submit`, …): the instance's id and the handler's index in its render |
+| `data-vk-on-<event>="c2:0"`, `"c2:row-42:0"` | a handler for the DOM event `<event>` (`click`, `keydown`, `submit`, …): the instance's id, then the [handler's id](#handler-ids) in its render |
 | `data-vk-link`, `data-vk-link="patch"` | on an `<a href>`: a link the runtime follows over the connection, or over HTTP on a page without one ([navigation](#navigation)) |
 | `data-vk-reload` | on such a link: the browser's to load, never followed in place |
 
 A runtime listens, delegated, for each event type a `data-vk-on-<event>`
 names, sends the nearest such element's handler id, and `preventDefault`s a
-submit. Ids are per render: after a patch, use the new HTML's.
+submit. A handler id is opaque to a runtime, which sends it back as it is: after
+a patch, use the new HTML's.
+
+### Handler Ids {#handler-ids}
+
+An id starts with its instance's id and a colon; a runtime or transport that
+wants the instance reads up to the first colon, and nothing after it means
+anything to it. The session gives out these forms:
+
+| | |
+|---|---|
+| `c2:7` | a handler outside any `key` in the instance's render: its number among those handlers, in render order |
+| `c2:row-42:0` | a handler inside a `key`: the path of the keys around it, outermost first, joined by `/`, then its number among the handlers its keyed element holds. An `int` is written `42`, an `int64` `~42`, a string as itself with `%XX` for any byte but letters, digits and `_.-` (and for a first digit or `-`); any other key, an empty string and a string writing longer than 48 bytes are `~~` and a 22-character hash, as is a `ui.Keyed` key, which the page doesn't otherwise show. |
+| `c2:^3/row-42:0` | the same in an instance that stayed mounted across navigations: `^` and how many. Another page's key names nothing of this one's. |
+| `c2:!3:0` | a handler inside a key two of the render's items share. Such items pair by position in a morph and so do their handlers: the number among such handlers, under a generation that moves when which handlers those are changes. |
+| `c2:0p` | a push in a command the server pushed ([below](#commands-pushed-by-the-server)) |
+| `c2:Inc` | a method of the component by name, sent by its scripts (`root.getAttribute("data-vk-id") + ":" + name`), which `AllowPush` must allow |
+
+A number and a method's name have no colon of their own, so a target with a
+second colon only ever names a keyed handler. These characters need no escaping
+in an attribute, in JSON or in a selector, whatever a key holds.
+
+An id inside a key survives the items before it coming and going, so inserting
+a row sends no later row's ids. And a click sent just before a patch arrives
+either reaches its item or fails like any unknown id
+(`{"type":"error","error":"live: no handler \"…\""}`): the id of a removed item
+names nothing, and another item never takes it. A duplicate key's item fails too when
+the patch changes which items share the key. What the id can't tell is an item's
+handlers changing while it stays (a button appearing before another renumbers the
+one after it), and items sharing a key that swap places, whose handlers go by position.
 
 ## Protocol v1
 
@@ -306,10 +335,10 @@ and whether it is `full`, and a `render` is always a reset. Loops have a move st
 `{"m":i}` for keyed items. Every block is a loop (`{"c":…}`), a branch being
 a loop of zero or one item. An entry may be plain `html`.
 
-Handler ids
-(`data-vk-on-click="c1:4"`) are dynamics like any attribute; they count a
-component's handlers in render order, so inserting a row with handlers
-changes the ids of the handlers after it, which then travel as changed
+[Handler ids](#handler-ids) (`data-vk-on-click="c1:row-42:0"`) are dynamics
+like any attribute. Those inside a `key` don't change when an item comes or
+goes; those outside count in render order, so inserting a row with handlers
+into a list without keys changes the ids after it, which then travel as changed
 dynamics.
 
 ## JS Commands {#js-commands}
@@ -437,7 +466,7 @@ event's key, `form` a submit's fields, and `value` — the push's `value` when
 it has one (a JSON string as is, anything else as its JSON text: `3`,
 `true`, `{"a":1}`), else *this*'s value.
 
-`h` is a handler id of the same
+`h` is a [handler id](#handler-ids) of the same
 render, counted with the `data-vk-on-…` ids of its instance. A push in a
 command the server pushed (a `js` entry, below) has an id of its own
 instead, `c3:0p`, `c3:1p`, …: its number among the instance's pushes,

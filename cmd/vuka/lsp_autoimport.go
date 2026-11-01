@@ -139,7 +139,7 @@ func dirComponents(dir string) []compEntry {
 		}
 		switch {
 		case strings.HasSuffix(n, ".vuka.html"):
-			if sh, _, _ := shapeBounds(src); sh != nil && isExported(sh.Type) {
+			if sh, _, _ := shapeBoundsFile(n, src); sh != nil && isExported(sh.Type) {
 				add(sh.Type)
 			}
 		case strings.HasSuffix(n, ".vuka"), strings.HasSuffix(n, ".go") && !isGenerated(src):

@@ -149,7 +149,7 @@ func propDeclAt(vf *vfile, off int) *lspPosition {
 		return nil
 	}
 	src := vf.text()
-	s := scanShape(src)
+	s := scanShape(vf.source, src)
 	r, ok := s.refAt(off)
 	if !ok || r.kind != refProp || s.fields[r.name] == nil {
 		return nil

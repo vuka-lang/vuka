@@ -641,6 +641,9 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 	e.detectSelfTarget(files)
 	e.declaredIslands = declaredIslands(files)
 	for _, file := range files {
+		if e.brokenScripts[file.Name] {
+			continue // reported: read any further, its other errors are that one's
+		}
 		f := &fileState{name: file.Name, path: file.Name, src: file.Src, vuka: file.IsVuka(),
 			lines: newLineIndex(file.Src), done: map[int]bool{}, bare: opts.Bare, eng: e}
 		if opts.Path != nil {
@@ -781,6 +784,10 @@ func (e *engine) headerViews(files []File, path func(string) string, n int) []Fi
 					err.Pos.Filename = path(file.Name)
 				}
 				*e.errs = append(*e.errs, err)
+				if e.brokenScripts == nil {
+					e.brokenScripts = map[string]bool{}
+				}
+				e.brokenScripts[file.Name] = true
 			}
 			continue
 		}

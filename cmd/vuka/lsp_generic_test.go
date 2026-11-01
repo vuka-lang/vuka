@@ -37,7 +37,7 @@ func (t *Table[T]) Next() { t.page++ }
 // attributes still get their tokens and hover, and @ui.URL its own hover.
 func TestGenericShapeEditor(t *testing.T) {
 	const base, decl = 30, 1
-	s := scanShape([]byte(genericShape))
+	s := scanShape("", []byte(genericShape))
 	toks := shapeTokens(s, base, decl)
 	typ := func(k refKind) uint32 { return base + uint32(k-refProp) }
 	for _, c := range []struct {
