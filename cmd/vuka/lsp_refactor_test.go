@@ -600,7 +600,10 @@ func TestLayoutFixes(t *testing.T) {
 const keyedCounter = `<script lang="go">
 package components
 
+import "github.com/vuka-lang/ui/v2"
+
 type Counter struct {
+	ui.Live
 	count int
 	names []string
 }

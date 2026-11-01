@@ -9,9 +9,14 @@ import (
 // genericShape is a generic live component with a hook and @ui.URL fields.
 const genericShape = `package components
 
-import "context"
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
 
 type Table[T any] struct {
+	ui.Live
 	Rows  []T
 	Sort  string @ui.URL("sort")
 	page  int    @ui.URL("page").Default(1)

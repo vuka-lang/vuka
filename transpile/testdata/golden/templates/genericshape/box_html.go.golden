@@ -4,31 +4,31 @@
 package main
 
 import (
+	"context"
+
 	"github.com/vuka-lang/ui/v2"
 	"github.com/vuka-lang/ui/v2/uigen"
 )
 
-import "context"
-
 // Box counts its items when it mounts: one hook, per instantiation.
 //
-//line box.vuka.html:8
+//line box.vuka.html:10
 type Box[T any] struct {
 	ui.Live
 	Items []T
 	n     uigen.Assign[int]
 }
 
-//line box.vuka.html:15
+//line box.vuka.html:17
 func (b *Box[T]) mount(ctx context.Context) error {
 	b.n.Set(len(b.Items))
 	return nil
 }
 
-//line box.vuka.html:19
+//line box.vuka.html:21
 func (b *Box[T]) Render() ui.Node { return ui.HTML(`<p>{b.n.Get()}</p>`, b.n.Get()) }
 
-//line box.vuka.html:8
+//line box.vuka.html:10
 func (b *Box[T]) LiveSchema(l *ui.LiveSchema) {
 	l.Mount(b.mount)
 }
