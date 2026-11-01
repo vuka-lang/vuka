@@ -59,6 +59,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ### Development
 
+- **`vuka build -h` is help, not a build**
+  ([#263](https://github.com/vuka-lang/vuka/issues/263)). `build`, `test`,
+  `vet` and `install` transpiled the module and built its islands before
+  printing the go command's usage, and failed outside a module. A help flag
+  is now answered first, as `run`'s already was.
+
 - **Any number of tabs of a development app works**
   ([#254](https://github.com/vuka-lang/vuka/issues/254)). Each tab held up to
   three event streams open (`/_vuka/c/events`, `/_vuka/app-css`,

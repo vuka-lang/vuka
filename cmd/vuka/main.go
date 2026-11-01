@@ -195,16 +195,30 @@ type exitStatus int
 
 func (s exitStatus) Error() string { return fmt.Sprintf("exit status %d", int(s)) }
 
+// goCmdUsage is what vuka <cmd> -h prints, before any work is done.
+func goCmdUsage(cmd string) string {
+	if cmd == "run" {
+		return runUsage
+	}
+	return fmt.Sprintf(`usage: vuka %[1]s [go flags] [packages]
+
+Transpiles the module's Vuka sources into an overlay and runs go %[1]s with
+it. The flags and packages are the go command's: go help %[1]s.
+
+vuka -h lists what vuka adds to it.
+`, cmd)
+}
+
 // runGo transpiles every Vuka package in the current module and runs
 // `go <cmd> -overlay=…` so the generated files exist only for the compiler.
 // vuka build also brings the build/ module up to date.
 func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	args = cutDiagFlag(args)
+	if len(args) > 0 && slices.Contains([]string{"-h", "-help", "--help"}, args[0]) {
+		fmt.Fprint(stdout, goCmdUsage(cmd))
+		return nil
+	}
 	if cmd == "run" {
-		if len(args) > 0 && slices.Contains([]string{"-h", "-help", "--help"}, args[0]) {
-			fmt.Fprint(stdout, runUsage)
-			return nil
-		}
 		if args, watch := cutWatch(args); watch {
 			return runWatch(args, stdout, stderr)
 		}

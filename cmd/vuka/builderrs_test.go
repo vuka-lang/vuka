@@ -668,3 +668,19 @@ func TestBuildReportParserGaveUp(t *testing.T) {
 		})
 	}
 }
+
+// A help flag is answered before anything looks for a module or builds.
+func TestGoCommandsHelp(t *testing.T) {
+	t.Chdir(t.TempDir())
+	for _, cmd := range []string{"build", "test", "vet", "install", "run"} {
+		for _, flag := range []string{"-h", "-help", "--help"} {
+			var out, errs strings.Builder
+			if err := runGo(cmd, []string{flag}, &out, &errs); err != nil {
+				t.Errorf("vuka %s %s: %v", cmd, flag, err)
+			}
+			if !strings.Contains(out.String(), "usage: vuka "+cmd) || errs.Len() > 0 {
+				t.Errorf("vuka %s %s:\n%s\n%s", cmd, flag, out.String(), errs.String())
+			}
+		}
+	}
+}
