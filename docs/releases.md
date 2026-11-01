@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.15.1 — unreleased
+## v2.16.0 — 2026-11-01
 
 ### Breaking
 
@@ -61,7 +61,8 @@ here.
   error when the row is gone, where it could reach another row. Handlers
   outside a key, and those of a list without keys, keep their numbers, which now
   don't count the keyed rows. Nothing changes in an app, unless a test of its
-  hard-codes such a row's id: read it from the page (`livetest`'s `Attr`).
+  hard-codes such a row's id or matches ids with a pattern like `c\d+:\d+`: read
+  it from the page (`livetest`'s `Attr`).
   [Known Limits](/ui/live#known-limits) says what duplicate keys do.
 ### Command line
 
@@ -240,7 +241,7 @@ here.
   to `MaxOpen` connections open per process until `MaxLifetime`, so with several
   replicas or a low `max_connections`, check that replicas × `pool_max` fits. At 10,000 sockets and
   2,000 events/s on one laptop shared with other work: p99 7-8 ms in the quieter
-  runs with 20 kept (up to 100 ms when the machine was busier), against 337 ms and
+  runs with 20 kept (one run reached 100 ms, unexplained so far), against 337 ms and
   1,025 ms with 5.
 - **`examples/loadtest` in web** is a repeatable load test of live pages, with
   profiles.
