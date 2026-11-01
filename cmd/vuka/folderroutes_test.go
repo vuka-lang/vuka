@@ -771,7 +771,7 @@ func bareURLParams(t *testing.T, has bool) {
 func TestPageLoadNeverRuns(t *testing.T) {
 	routesModule(t, map[string]string{
 		"pages/unused.vuka.html": "package pages\n\nimport \"context\"\n\ntype Unused struct{ msg string }\n\nfunc (p *Unused) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\n\n<p>{msg}</p>\n",
-		"pages/used.vuka.html":   "package pages\n\nimport \"context\"\n\ntype Used struct{ msg string }\n\nfunc (p *Used) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\nfunc (p *Used) Reset(ctx context.Context) error { return p.Load(ctx) }\n\n<button onClick={Reset}>{msg}</button>\n",
+		"pages/used.vuka.html":   "package pages\n\nimport (\n\t\"context\"\n\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype Used struct {\n\tui.Live\n\tmsg string\n}\n\nfunc (p *Used) Load(ctx context.Context) error { p.msg = \"x\"; return nil }\nfunc (p *Used) Reset(ctx context.Context) error { return p.Load(ctx) }\n\n<button onClick={Reset}>{msg}</button>\n",
 	})
 	var out, errOut bytes.Buffer
 	if err := routesCmd(nil, &out, &errOut); err != nil {
