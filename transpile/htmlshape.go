@@ -423,6 +423,58 @@ func shapeNameKey(name string) string {
 	return b.String()
 }
 
+// implicitLive is W0115 for a shape live by anything but embedding ui.Live.
+func (f *fileState) implicitLive() ErrorList {
+	h := f.html
+	if h == nil || h.shape == nil || !h.shape.Live || h.shape.EmbedsLive {
+		return nil
+	}
+	var l ErrorList
+	l.add("W0115", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s is live because %s, and nothing in the struct says so: a socket and server memory for each visitor", h.shape.Type, h.shape.LiveWhy).
+		help("embed ui.Live in %s (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP", h.shape.Type)
+	return l
+}
+
+// EmbedLive is EmbedLiveFile for a file whose name isn't known: one declaring
+// several structs doesn't say which it renders, so nothing is done.
+func EmbedLive(src []byte) (out []byte, why string) { return EmbedLiveFile("", src) }
+
+// EmbedLiveFile adds ui.Live to the struct the .vuka.html file renders,
+// when that struct is live by anything else, with the import it
+// needs; its helpers stay as they are. It returns the new source and why the
+// struct was live; nil when there is nothing to do.
+func EmbedLiveFile(file string, src []byte) (out []byte, why string) {
+	s, err := ParseShapeFile(file, src)
+	if err != nil || s == nil || !s.Live || s.EmbedsLive {
+		return nil, ""
+	}
+	name := "ui"
+	text := string(src)
+	var imp string
+	if m := uiImport.FindStringSubmatch(text); m != nil {
+		if m[1] != "" {
+			name = strings.TrimSpace(m[1])
+		}
+	} else if at := uiPackageClause.FindStringIndex(text); at != nil {
+		imp = "\n\nimport \"" + uiImportPath + "\""
+		out = append(append(out, src[:at[1]]...), imp...)
+		src = append(out[:len(out):len(out)], src[at[1]:]...)
+		out, s.open = nil, s.open+len(imp)
+	}
+	field := "\n\t" + name + ".Live"
+	if s.open < len(src) && src[s.open] != '\n' {
+		field += "\n"
+	}
+	return append(append(append(out, src[:s.open]...), field...), src[s.open:]...), s.LiveWhy
+}
+
+const uiImportPath = "github.com/vuka-lang/ui/v2"
+
+var (
+	uiImport        = regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+\s+)?"` + regexp.QuoteMeta(uiImportPath) + `"`)
+	uiPackageClause = regexp.MustCompile(`(?m)^package\s+\w+[ \t]*$`)
+)
+
 // shapeSyntax is the error of a header that doesn't parse.
 func shapeSyntax(err error) *Error {
 	e := &Error{Code: "E0003", Pos: token.Position{Line: 1, Column: 1}, Msg: "the template file's Go doesn't parse"}

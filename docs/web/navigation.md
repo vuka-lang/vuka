@@ -525,7 +525,7 @@ click does: over the connection on a live page, joined. The route and its
 gates run, a patch keeps the page mounted for its `Update` (else it mounts
 again), the address, scroll and focus follow and `vk:navigate` fires.
 
-Without a connection (a stateless page, one still joining or reconnecting)
+Without a connection (a page that isn't live, one still joining or reconnecting)
 or to another origin, it's a page load. `{ replace: true }` takes the
 current history entry's place instead of adding one.
 

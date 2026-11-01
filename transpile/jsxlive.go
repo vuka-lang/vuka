@@ -206,13 +206,13 @@ func (e *engine) inferStateful(f *fileState, c *jsxComp, n *types.Named, attrs [
 	return inst, 0, ""
 }
 
-// statefulProblem says why a type isn't a stateful component of the target,
+// statefulProblem says why a type isn't a live component of the target,
 // if it isn't: a struct whose pointer implements the target's Stateful.
 func (e *engine) statefulProblem(tg *jsxTarget, tag string, t types.Type) string {
 	what := "<" + tag + "> is a type, not a component: a component is a function returning " + tg.q + "Node"
 	iface, _ := e.targetObj(tg, "Stateful").(*types.TypeName)
 	if iface == nil || !tg.has("Key") {
-		return what + "; " + tg.path + " has no stateful components"
+		return what + "; " + tg.path + " has no live components"
 	}
 	if _, ok := t.Underlying().(*types.Struct); !ok {
 		return what + ", or a struct whose pointer implements " + tg.q + "Stateful"
@@ -236,7 +236,7 @@ func (e *engine) statefulProblem(tg *jsxTarget, tag string, t types.Type) string
 			why += "; embed " + h
 		}
 	}
-	return "<" + tag + "> isn't a stateful component: *" + e.display(t) + " doesn't implement " + tg.q + "Stateful (" + why + ")"
+	return "<" + tag + "> isn't a live component: *" + e.display(t) + " doesn't implement " + tg.q + "Stateful (" + why + ")"
 }
 
 func isContext(t types.Type) bool { return isNamed(t, "context", "Context") }

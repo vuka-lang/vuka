@@ -1,10 +1,10 @@
-# Stateful Components
+# Live Components
 
 [[toc]]
 
 ## Introduction
 
-A stateful component keeps server state between renders and answers browser
+A live component keeps server state between renders and answers browser
 events with Go methods. You reach for one when a part of a page has to change
 in response to the visitor, such as a counter, a form or a chat.
 
@@ -16,7 +16,7 @@ unexported fields are tracked server state (or provided dependencies), and
 `ui.State[T]` fields are browser state. The struct, hooks, methods and markup
 live together in one shape file.
 
-## Writing a Stateful Component
+## Writing a Live Component
 
 This counter takes a starting value as a prop and keeps its count as state:
 
@@ -57,7 +57,7 @@ interfaces; no render method needs to be authored.
 
 ## Static and Live Rendering {#static-and-live}
 
-Rendered by `ui.String`, `ui.Handler` or any templ code, a stateful
+Rendered by `ui.String`, `ui.Handler` or any templ code, a live
 component is plain HTML: a copy of the tag's value is mounted, rendered once,
 and its event attributes write nothing. That is the first, HTTP render of a
 page.
@@ -125,7 +125,7 @@ Inside a shape's markup root:
 ```
 
 Two tags in one place with the same key fail the render. Components nest
-freely: a stateful component renders others, each its own instance with its
+freely: a live component renders others, each its own instance with its
 own state, and a parent passes a child func props to hear from it.
 
 ## Handling Events {#events}
@@ -217,7 +217,7 @@ func (t *Todo) SetQuery(q string) { t.query = q }
 
 Under a session each handler renders as `data-vk-on-click="c2:0"`: the
 instance's id and the handler's index in that instance's render. The
-handlers of elements outside any stateful component belong to the page
+handlers of elements outside any live component belong to the page
 itself, `c0`. Without a session the attribute isn't written.
 
 After any event the session renders the page again — so a handler may change
@@ -376,6 +376,19 @@ last render, its handlers and the instances it rendered, and does not evaluate
 its markup — instances inside it still render when their own state changed.
 Props compare by value; a pointer, slice, map, func or interface prop
 (children included) counts as changed unless both are nil.
+
+A func prop set to a method value, `onCancel={p.Cancel}`, is the exception:
+the compiler records its receiver and method, and the same method on the same
+receiver counts as unchanged, so a list of rows passing it isn't rendered again
+with its parent. A pointer receiver is the same when it's the same pointer, a
+value receiver when its value is, a value holding a pointer never. An inline
+closure, `onCancel={func() { … }}`, may capture anything and counts as changed,
+as does a method value whose receiver isn't plain variables and fields
+(`load().Cancel`), one read through tracked state (`order.Cancel` where `order`
+is the component's tracked field), and any func set in plain Go. A child whose
+render called the func stays changed too, since what it showed came from the
+receiver's current state; the session notices the call itself, in a helper or
+further down included.
 
 In this row, `ID` and `Name` are props and `qty` is tracked state:
 

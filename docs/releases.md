@@ -53,6 +53,67 @@ the `github.com/vuka-lang/vuka` package your module requires.
   [E0151](/errors/E0151) at its tag, never the page "declared nowhere", and a
   script reported broken (E0151, E0156, E0157) no longer adds E0142.
 
+### Diagnostics
+
+- **W0113 no longer fires on state a live page embeds**
+  ([#262](https://github.com/vuka-lang/vuka/issues/262)). A component holding a
+  pointer to a type a live page embeds runs that type's methods on the page's
+  own state, over its socket, so nothing is lost. The compiler only recognised
+  methods promoted through embedding. The message now also says "on a page that
+  isn't live" as a condition, since the compiler can't see which page renders a
+  component.
+
+### Templates
+
+- **A markup local can be read in an event attribute**
+  ([#268](https://github.com/vuka-lang/vuka/issues/268)). `at := p.calc()`
+  followed by `onClick={jump(at-1)}` failed with `mismatched types func() int
+  and untyped int`, while `disabled={at == 1}` beside it compiled. Event
+  attributes read a lazy binding like any other attribute now.
+
+### Live pages
+
+- **A struct live without saying so gets a warning**
+  ([#264](https://github.com/vuka-lang/vuka/issues/264)). A hook or an exported
+  method sent as an event makes a struct live, so a rename can add a socket and
+  server memory per visitor with nothing in the file showing it.
+  [W0115](/errors/W0115) reports each one, and `vuka fix explicit-live` embeds
+  `ui.Live` in them; `vuka upgrade` runs it. Nothing changes at run time. A
+  future major will make `ui.Live` the only way to be live. The forms docs said
+  a page with an exported `onSubmit` handler made no connection; it does, and
+  they now show an unexported handler.
+
+### Documentation
+
+- **One table for what fields and methods mean**
+  ([#265](https://github.com/vuka-lang/vuka/issues/265)). `docs/ui/index.md`
+  now lists every kind of field and method and what decides it, including the
+  ones that make a struct live and the names vuka gives meaning to.
+
+- **"Live" everywhere**
+  ([#267](https://github.com/vuka-lang/vuka/issues/267)). The docs and messages
+  said live, stateful and stateless for the same two ideas. They now say live
+  and not live. Go API names such as `ui.Stateful` and the `/ui/stateful` page's
+  URL are unchanged.
+
+### Frontends
+
+- **Apps from `vuka new --islands` answer unknown paths with a 404**
+  ([#273](https://github.com/vuka-lang/vuka/issues/273)). The stub
+  `web/dist/index.html`, there so `go:embed` has a file, counted as a
+  single-page app's shell, so every unknown path was a 200 with a blank page.
+  `web.Frontend` now treats that exact stub as no page, with no change to the
+  app, and you can drop a `web.FrontendAt` added to work around it. A real
+  `index.html` keeps its fallback.
+
+### Maintainers
+
+- **The orm is released with the set**
+  ([#272](https://github.com/vuka-lang/vuka/issues/272)). `vuka release` tags
+  `github.com/vuka-lang/orm/v2` right after the set, under the same version,
+  and keeps `ormVersion` in step. An app on an older orm moves to it on its next
+  `vuka upgrade`, as it does when a new orm comes out today.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
@@ -72,6 +133,14 @@ the `github.com/vuka-lang/vuka` package your module requires.
   step naming a page's `Post`, `Put`, `Patch` or `Delete` added that HTTP route
   without saying so. It's now [W0705](/errors/W0705), and when the method's
   parameters don't fit a handler, [E0709](/errors/E0709) tells you to rename it.
+
+- **Every command keeps `pages/route.go` current**
+  ([#269](https://github.com/vuka-lang/vuka/issues/269)). Only `vuka run`
+  wrote it and `pages/urls/urls_gen.go`, so after `vuka build`, `test` or
+  `vet` an editor and plain Go tools saw old routes, or none on a fresh
+  checkout. All of them write the two files now, when their text changes,
+  unless git tracks them: a committed file stays for `vuka gen -inplace`, and
+  `vuka gen -inplace -check` still reports it as stale.
 
 - **An endpoint in a folder's `index.vuka` no longer breaks the package
   `urls`** ([#258](https://github.com/vuka-lang/vuka/issues/258)). Below
@@ -124,6 +193,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   up to five more times over about 8 seconds under a `?vk-retry=N` URL, since a
   browser keeps a failed import's answer. This applies in production too. A
   module that arrived and threw isn't tried again.
+
+### Live performance
+
+- **A method passed as a prop no longer re-renders its child**
+  ([#287](https://github.com/vuka-lang/vuka/issues/287)). `<OrderRow
+  onCancel={p.Cancel} />` used to count as changed on every render, so a list of
+  1,000 tracked rows rendered all 1,000 with its parent. The compiler now records
+  the method and its receiver, and the same one counts as unchanged. A child
+  whose render calls the func still renders with its parent, and a closure still
+  counts as changed. On 1,000 rows: 0 rows rendered per parent event instead of
+  1,000, 1.1 ms instead of 2.4 ms.
 
 ## v2.15.0 — 2026-10-31
 

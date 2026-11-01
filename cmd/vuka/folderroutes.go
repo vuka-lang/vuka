@@ -14,6 +14,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"regexp"
 	"slices"
@@ -109,8 +110,28 @@ func (ts routeTrees) files() []load.Generated {
 // they differ, so an editor and plain Go tools see the packages vuka run
 // serves; the overlay holds the same text. It returns the files written.
 func (ts routeTrees) writeFiles() ([]string, error) {
+	return ts.write(func(string) bool { return false })
+}
+
+// writeUntracked is writeFiles for a command that isn't serving the app: it
+// leaves a file git tracks, whose staleness vuka gen -inplace -check is there
+// to report.
+func (ts routeTrees) writeUntracked() ([]string, error) {
+	return ts.write(gitTracked)
+}
+
+func gitTracked(path string) bool {
+	c := exec.Command("git", "ls-files", "--error-unmatch", "--", filepath.Base(path))
+	c.Dir = filepath.Dir(path)
+	return c.Run() == nil
+}
+
+func (ts routeTrees) write(skip func(path string) bool) ([]string, error) {
 	var wrote []string
 	for _, g := range ts.files() {
+		if skip(g.Target) {
+			continue
+		}
 		if old, err := load.ReadSource(g.Target); err == nil && bytes.Equal(old, g.Src) {
 			continue
 		}

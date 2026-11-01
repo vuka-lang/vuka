@@ -22,7 +22,7 @@ error[E0106]: <Panel> has no attribute titel; did you mean Title?
    |
    = help: pass the attributes the component's parameters or fields declare
 
-error[E0106]: <Counter> isn't a stateful component: *Counter doesn't implement ui.Stateful (missing method Render)
+error[E0106]: <Counter> isn't a live component: *Counter doesn't implement ui.Stateful (missing method Render)
   --> err_jsx_components.vuka:39:3
    |
 39 |         <Counter />

@@ -4,12 +4,20 @@
 
 ## Introduction
 
-`github.com/vuka-lang/ui/v2/live` keeps a page's [stateful
+`github.com/vuka-lang/ui/v2/live` keeps a page's [live
 components](/ui/stateful) alive for one connected browser: a session holds
 their instances, calls their event handlers and `Update` methods, and
 answers each with what changed. It knows no transport — a WebSocket server
 drives it with the messages of the [live protocol](/reference/live-protocol);
 the [web framework](/web/live) is one such server.
+
+Several things are named `Live`:
+
+| Name | What it is |
+|---|---|
+| `ui.Live` | What a struct embeds to be live |
+| `App.Live(path, page)` | Routes a live page, as a call; `pages/route.go` uses it |
+| `ui/live` | This package, the sessions a transport drives |
 
 You work with a session directly only when you write a transport.
 Applications using web receive this transport automatically from their
@@ -176,7 +184,7 @@ page of about 25 instances hold 29 KB per session.
 
 ## Known Limits {#known-limits}
 
-- A stateful component re-renders with its whole page on every event,
+- A live component re-renders with its whole page on every event,
   unless its state is all tracked; the reply is still only what
   changed.
 - In v2, handler ids count a component's handlers in render order: inserting

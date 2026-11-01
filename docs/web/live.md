@@ -5,14 +5,14 @@
 ## Introduction
 
 A live page answers the visitor's clicks and typing without a reload. A
-[stateful shape](/ui/stateful) keeps its state on the server and answers its
+[live shape](/ui/stateful) keeps its state on the server and answers its
 elements' events over a WebSocket; the page changes in place, with no
 JavaScript to write.
 
 [ui](/ui/) gives the component model, the [session](/ui/live) and the
 [protocol](/reference/live-protocol); web gives the transport, the browser
 runtime and the routes. Props, state, events, messages and change tracking are
-on [Stateful Components](/ui/stateful).
+on [Live Components](/ui/stateful).
 
 ## Your First Live Page {#first}
 

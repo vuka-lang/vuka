@@ -34,7 +34,7 @@ It writes `components/ui/tabs.vuka.html` and `components/ui/tabs.go`, with what 
 </design.Tabs>
 ```
 
-A [stateful component](/ui/stateful): the tab shown is its own state on the
+A [live component](/ui/stateful): the tab shown is its own state on the
 server, so a click switches it over the live connection and the rest of the
 page keeps its state. Rendered on a page that isn't live, it shows its
 first tab. The markup is `role="tablist"`, `role="tab"` buttons with

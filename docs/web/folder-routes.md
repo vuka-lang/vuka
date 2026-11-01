@@ -222,8 +222,8 @@ A page is a `.vuka.html` shape in the page tree. It is one of two kinds:
 
 - a [live component](/web/live) (it embeds `ui.Live`, or its markup sends
   an event): a live page;
-- a static shape (a `.vuka.html` file's struct and markup): a stateless
-  page, built and rendered per request.
+- a static shape (a `.vuka.html` file's struct and markup): a page that
+  isn't live, built and rendered per request.
 
 A page declared in a `.vuka.html` file is named by its file, whatever its
 struct is called. `index` serves the folder's own path, and any other name
@@ -270,7 +270,7 @@ fields as a live page's are: props from the path segment of its name, else
 the query parameter, once the [guards](#guards) and [layouts](#layouts)
 above it have loaded.
 
-A stateless page has no hooks — a page that loads in a hook is a live page,
+A page that isn't live has no hooks — a page that loads in a hook is a live page,
 its `@ui.Mount` running then — so it reads what the parameters name where
 it uses it. This edit page, `pages/employers/[employer]/edit.vuka.html`,
 looks its employer up in a method its markup and `Title` call:
@@ -315,7 +315,7 @@ page with `Crumbs() []ui.Crumb` gives its breadcrumbs the same way, read
 with `ui.PageCrumbs(ctx)`; see [a header that follows the
 page](#page-headers).
 
-A stateless page's `Title` and `Crumbs` run once its fields are bound, after
+A page that isn't live's `Title` and `Crumbs` run once its fields are bound, after
 its mount hook. A live page's run once its fields are bound and before its
 mount hook, so a live page titles itself from its parameters (`"Permit 2"`)
 or what its constructor set.
@@ -688,7 +688,7 @@ heading and crumbs are the orders page's.
 > [!NOTE]
 > A live component of a layout that stays keeps its instance, and what its
 > mount hook read: a header showing the page's title is the layout's own
-> markup, or a stateless component it renders, not a live component.
+> markup, or a component that isn't live it renders, not a live component.
 
 ## Route Groups
 
@@ -1018,7 +1018,7 @@ Per request a guard is made fresh, its path parameters bound and its
 a `web.Redirect` 302 on `GET` and 303 otherwise) — an HTML error page for a
 page, JSON for an endpoint.
 
-It runs before anything of the request's own: before a stateless page is
+It runs before anything of the request's own: before a page that isn't live is
 built, before a live page renders (on the `GET` and again when its socket
 joins, a refused join answering a live error with the status), and before a
 handler's or endpoint's body is read. So `POST /api/employers` with the
@@ -1128,7 +1128,7 @@ limit in front of it is middleware.
 
 A folder route has no registration to hang an option on — options a page
 needs go on its type, with `vuka.RegisterType`, as a live page's do. They
-reach stateless pages, their method handlers and endpoint types too, so a
+reach pages that aren't live, their method handlers and endpoint types too, so a
 login page under `pages/` opts out of [auth](/web/auth)'s sign-in the usual
 way:
 
@@ -1139,7 +1139,7 @@ vuka.RegisterType[Login](auth.Public())
 
 An attribute only a `web.WrapRoutes` function gives a meaning to (a
 `web.RouteAttr`, what auth's gates are) reaches that function with the
-page's route, stateless or live.
+page's route, live or not.
 
 ## Typed URLs
 
@@ -1265,13 +1265,15 @@ GET     /files/{file...}                        file.Index                      
 
 ## Generated Files
 
-`vuka build`, `run`, `test`, `vet` and the editor see generated routes
-through an overlay. `vuka run` (and `vuka run -watch`, on every rebuild)
-also writes the two files hand-written code imports, `pages/route.go` and
-`pages/urls/urls_gen.go`, to disk whenever their text changes, so an editor
-and plain Go tools resolve `pages.Routes` and the typed URLs. They are
+`vuka build`, `run`, `test`, `vet`, `install` and the editor see generated
+routes through an overlay. The first five (and `vuka run -watch`, on every
+rebuild) also write the two files hand-written code imports, `pages/route.go`
+and `pages/urls/urls_gen.go`, to disk whenever their text changes, so an
+editor and plain Go tools resolve `pages.Routes` and the typed URLs. They are
 generated, so gitignore them, and the overlay holds the same text. Nothing
-else `vuka run` generates is written.
+else these commands generate is written. If you commit them instead, only
+`vuka run` and `vuka gen -inplace` rewrite them, so `vuka gen -inplace -check`
+in CI still reports them as stale.
 
 `vuka gen -inplace` writes each tree's `route.go`, `urls/urls_gen.go` and
 the Go for bracket folders under `param_name/`, route groups under

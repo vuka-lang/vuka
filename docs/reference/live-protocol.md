@@ -140,7 +140,7 @@ expressions rendered — `len(s) == len(d) + 1`, and the frame's HTML is
 | `{"t":id,"s":[…],"d":[…]}` | a nested frame: a shape node in an `{expr}`, a component tag's children. `t` is its statics' id; `s` the statics themselves, present the first time the connection meets that id and omitted after |
 | `{"c":[frame,…]}` | a block, `{for}`, `{if}` or `{match}`: one item frame per loop iteration; an `{if}`/`{match}` has zero items or one, whose statics id says which branch |
 | `{"r":id,"v":"…"}` | markup of 64 bytes or more, which the connection keeps under `id` (a space of its own, not the statics'); later the same markup is `{"r":id}` |
-| `{"id":"c3"}` | a stateful component instance: its HTML is that instance's tree's HTML |
+| `{"id":"c3"}` | a live component instance: its HTML is that instance's tree's HTML |
 
 ### templ Components {#templ-components}
 
@@ -237,7 +237,7 @@ This example follows a page rendering a table and a counter.
 The table and counter are separate `.vuka.html` shapes. The table loops over
 records with stable `key={row.ID}` values; the counter has an unexported `n`
 field and an Increment handler. Their parent shape contains the two component
-tags. See [Templates](/ui/templates) and [Stateful Components](/ui/stateful)
+tags. See [Templates](/ui/templates) and [Live Components](/ui/stateful)
 for the source form. The protocol below describes the resulting render trees.
 
 The join's reply, with two rows (whitespace added), holds the page's tree
