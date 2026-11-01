@@ -34,12 +34,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ### Folder routes
 
-- **Every command keeps `pages/route.go` current**
-  ([#269](https://github.com/vuka-lang/vuka/issues/269)). Only `vuka run`
-  wrote it and `pages/urls/urls_gen.go`, so after `vuka build`, `test` or
-  `vet` an editor and plain Go tools saw old routes, or none on a fresh
-  checkout. All of them write the two files now, when their text changes.
-
 - **An endpoint in a folder's `index.vuka` no longer breaks the package
   `urls`** ([#258](https://github.com/vuka-lang/vuka/issues/258)). Below
   `pages/`, it made the stub of `urls` the pages are transpiled with invalid
