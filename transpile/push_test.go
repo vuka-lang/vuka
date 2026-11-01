@@ -79,6 +79,36 @@ func main() {}
 	}
 }
 
+// A binding read in an event attribute is lazy there too.
+func TestLazyBindingInEvent(t *testing.T) {
+	const src = `package main
+
+import "github.com/vuka-lang/ui/v2"
+
+func jump(n int) ui.Commands { return ui.JS.Push(func(int) {}, n) }
+
+type Page struct{ n int }
+
+func (p *Page) calc() int { return p.n + 5 }
+
+<div>
+  at := p.calc()
+  <button disabled={at == 1} onClick={jump(at-1)}>x</button>
+</div>
+`
+	res, err := transpile.Package([]transpile.File{{Name: "page.vuka.html", Src: []byte(src)}},
+		transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: "testdata/golden"})
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, o := range res.Files {
+		if strings.Contains(string(o.Src), "jump(at()-1)") {
+			return
+		}
+	}
+	t.Errorf("the event attribute's binding isn't read as at():\n%s", res.Files[0].Src)
+}
+
 // A method of state a live type embeds runs on the live page's state, however
 // a component reaches it: no W0113. State nothing live embeds still warns.
 func TestPushEmbeddedState(t *testing.T) {
