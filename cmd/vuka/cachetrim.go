@@ -1,10 +1,12 @@
 package main
 
 import (
+	"fmt"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"time"
 
@@ -151,4 +153,98 @@ func cacheEntrySize(path string) int64 {
 		return nil
 	})
 	return n
+}
+
+// Go's build cache keeps every version of every package for five days, and an
+// edit to a widely imported package can write a gigabyte. So vuka holds it to
+// a size limit, removing what was used longest ago. Go refreshes an entry's
+// time only once it is an hour old, so anything younger may belong to a running
+// build and stays (cacheInUse): the cache can pass the limit by an hour's
+// writes. A removed entry costs a recompile.
+
+const (
+	goCacheMax       = 10 << 30
+	goCacheTrimEvery = 10 * time.Minute
+	goCacheTrimStamp = ".last-gocache-trim"
+)
+
+// goCacheLimit is VUKA_GOCACHE_MAX in bytes: 20GB, 500MB or a plain number.
+// 0 for off; one it can't read is the default.
+func goCacheLimit() int64 {
+	v := strings.ToUpper(strings.TrimSpace(os.Getenv("VUKA_GOCACHE_MAX")))
+	if v == "" {
+		return goCacheMax
+	}
+	if v == "OFF" {
+		return 0
+	}
+	unit := int64(1)
+	for suffix, n := range map[string]int64{"GB": 1 << 30, "MB": 1 << 20} {
+		if strings.HasSuffix(v, suffix) {
+			v, unit = strings.TrimSuffix(v, suffix), n
+		}
+	}
+	n, err := strconv.ParseInt(strings.TrimSpace(v), 10, 64)
+	if err != nil || n < 0 {
+		return goCacheMax
+	}
+	return n * unit
+}
+
+// trimGoBuildCache trims Go's build cache when goCacheTrimEvery has passed
+// since the last trim. With GOCACHEPROG set, Go's cache isn't that directory.
+func trimGoBuildCache(now time.Time) {
+	limit := goCacheLimit()
+	base, ok := load.CacheDir()
+	if !ok || limit == 0 {
+		return
+	}
+	stamp := filepath.Join(base, goCacheTrimStamp)
+	if fi, err := os.Stat(stamp); err == nil && now.Sub(fi.ModTime()) < goCacheTrimEvery {
+		return
+	}
+	if os.WriteFile(stamp, nil, 0o644) != nil {
+		return
+	}
+	os.Chtimes(stamp, now, now)
+	if dir := goEnv("GOCACHE"); dir != "" && goEnv("GOCACHEPROG") == "" {
+		trimGoCache(dir, limit, now)
+	}
+}
+
+// trimGoCache removes the entries of the Go build cache at dir used longest
+// ago until it fits limit. Only entries go: <xx>/<id>-a and <xx>/<id>-d.
+func trimGoCache(dir string, limit int64, now time.Time) {
+	type sized struct {
+		cacheEntry
+		size int64
+	}
+	var entries []sized
+	var total int64
+	for i := range 256 {
+		sub := filepath.Join(dir, fmt.Sprintf("%02x", i))
+		des, err := os.ReadDir(sub)
+		if err != nil {
+			continue
+		}
+		for _, de := range des {
+			if !strings.HasSuffix(de.Name(), "-a") && !strings.HasSuffix(de.Name(), "-d") {
+				continue
+			}
+			fi, err := de.Info()
+			if err != nil {
+				continue
+			}
+			e := sized{cacheEntry{filepath.Join(sub, de.Name()), fi.ModTime()}, fi.Size()}
+			if fi.IsDir() { // an executable Go keeps as a directory
+				e.size = cacheEntrySize(e.path)
+			}
+			entries = append(entries, e)
+			total += e.size
+		}
+	}
+	slices.SortFunc(entries, func(a, b sized) int { return a.used.Compare(b.used) })
+	for i := 0; total > limit && i < len(entries) && removeCacheEntry(entries[i].cacheEntry, now); i++ {
+		total -= entries[i].size
+	}
 }

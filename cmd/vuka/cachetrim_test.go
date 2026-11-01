@@ -4,6 +4,7 @@ import (
 	"archive/zip"
 	"errors"
 	"fmt"
+	"io/fs"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -343,4 +344,176 @@ func TestTrimCachesSize(t *testing.T) {
 	if got := strings.Join(cacheNames(t, dir), " "); got != "k3" {
 		t.Errorf("after 100 bytes: %s (the one in use must stay)", got)
 	}
+}
+
+// goCacheEntry writes an entry of a Go build cache at dir.
+func goCacheEntry(t *testing.T, dir, name string, size int, age time.Duration, now time.Time) string {
+	t.Helper()
+	p := filepath.Join(dir, name[:2], name)
+	cacheFile(t, p, size, age, now)
+	return p
+}
+
+// TestTrimGoCache: over the limit the entries used longest ago go, in any
+// subdirectory; what isn't an entry stays, and nothing used in the last hour
+// goes, whatever the limit.
+func TestTrimGoCache(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	oldest := goCacheEntry(t, dir, "aa11-d", 1000, 9*time.Hour, now)
+	older := goCacheEntry(t, dir, "bb11-a", 1000, 8*time.Hour, now)
+	kept := goCacheEntry(t, dir, "00ff-d", 1000, 3*time.Hour, now)
+	recent := goCacheEntry(t, dir, "ff00-d", 1000, 2*time.Minute, now)
+	other := filepath.Join(dir, "aa", "README")
+	cacheFile(t, other, 5000, 100*time.Hour, now)
+	exe := filepath.Join(dir, "cc", "cc11-d", "a.out")
+	cacheFile(t, exe, 1000, 7*time.Hour, now)
+	at := now.Add(-7 * time.Hour)
+	os.Chtimes(filepath.Dir(exe), at, at)
+
+	exists := func(p string) bool { _, err := os.Stat(p); return err == nil }
+
+	trimGoCache(dir, 2000, now)
+	for _, p := range []string{oldest, older, filepath.Dir(exe)} {
+		if exists(p) {
+			t.Errorf("%s stayed", p)
+		}
+	}
+	for _, p := range []string{kept, recent, other} {
+		if !exists(p) {
+			t.Errorf("%s went", p)
+		}
+	}
+
+	trimGoCache(dir, 1, now)
+	if exists(kept) {
+		t.Error("an entry past the limit stayed")
+	}
+	if !exists(recent) {
+		t.Error("an entry in use went")
+	}
+}
+
+// TestTrimGoCacheUnderLimit: a cache that fits is left alone.
+func TestTrimGoCacheUnderLimit(t *testing.T) {
+	dir := t.TempDir()
+	now := time.Now()
+	p := goCacheEntry(t, dir, "aa11-d", 1000, 100*time.Hour, now)
+	trimGoCache(dir, 1000, now)
+	if _, err := os.Stat(p); err != nil {
+		t.Error("an entry went from a cache within the limit")
+	}
+}
+
+func TestGoCacheLimit(t *testing.T) {
+	for v, want := range map[string]int64{
+		"":      goCacheMax,
+		"off":   0,
+		"OFF":   0,
+		"20GB":  20 << 30,
+		"500mb": 500 << 20,
+		"1 GB":  1 << 30,
+		"12345": 12345,
+		"0":     0,
+		"lots":  goCacheMax,
+		"-1":    goCacheMax,
+	} {
+		t.Setenv("VUKA_GOCACHE_MAX", v)
+		if got := goCacheLimit(); got != want {
+			t.Errorf("%q: %d, want %d", v, got, want)
+		}
+	}
+}
+
+// TestTrimGoBuildCache: the trim runs at most every ten minutes, not with
+// GOCACHEPROG set and not when it's off.
+func TestTrimGoBuildCache(t *testing.T) {
+	gocache := t.TempDir()
+	t.Setenv("GOCACHE", gocache)
+	t.Setenv("VUKA_CACHE", t.TempDir())
+	t.Setenv("VUKA_GOCACHE_MAX", "100")
+	now := time.Now()
+	entry := func(name string) string { return goCacheEntry(t, gocache, name, 1000, 5*time.Hour, now) }
+	gone := func(p string) bool { _, err := os.Stat(p); return err != nil }
+
+	t.Setenv("VUKA_GOCACHE_MAX", "off")
+	off := entry("aa11-d")
+	trimGoBuildCache(now)
+	if gone(off) {
+		t.Error("the trim ran while off")
+	}
+
+	t.Setenv("VUKA_GOCACHE_MAX", "100")
+	trimGoBuildCache(now)
+	if !gone(off) {
+		t.Error("the trim didn't run")
+	}
+
+	soon := entry("aa22-d")
+	trimGoBuildCache(now.Add(time.Minute))
+	if gone(soon) {
+		t.Error("a second trim within ten minutes ran")
+	}
+	trimGoBuildCache(now.Add(11 * time.Minute))
+	if !gone(soon) {
+		t.Error("the trim after ten minutes didn't run")
+	}
+}
+
+// TestTrimGoCacheThenBuild: the go command takes a trimmed cache as a miss. A
+// real build fills the cache, a trim leaves what was just used, and once
+// aged the entries all go and the same build compiles again and succeeds.
+func TestTrimGoCacheThenBuild(t *testing.T) {
+	gocache := t.TempDir()
+	t.Setenv("GOCACHE", gocache)
+	t.Setenv("GOFLAGS", "")
+	t.Setenv("GOWORK", "off")
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.21\n")
+	writeFile(t, filepath.Join(root, "main.go"), "package main\n\nimport \"fmt\"\n\nfunc main() { fmt.Println(\"ok\") }\n")
+	build := func() {
+		t.Helper()
+		c := exec.Command("go", "build", "-o", filepath.Join(root, "app"), ".")
+		c.Dir = root
+		if out, err := c.CombinedOutput(); err != nil {
+			t.Fatalf("build: %v\n%s", err, out)
+		}
+	}
+	build()
+
+	now := time.Now()
+	trimGoCache(gocache, 0, now)
+	if goCacheEntries(t, gocache) == 0 {
+		t.Fatal("a limit of 0 removed entries in use")
+	}
+
+	age := now.Add(-2 * time.Hour)
+	filepath.WalkDir(gocache, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() {
+			os.Chtimes(p, age, age)
+		}
+		return nil
+	})
+	trimGoCache(gocache, 0, now)
+	if n := goCacheEntries(t, gocache); n != 0 {
+		t.Errorf("%d entries stayed past a limit of 0", n)
+	}
+
+	os.Remove(filepath.Join(root, "app"))
+	build()
+	if out, err := exec.Command(filepath.Join(root, "app")).Output(); err != nil || strings.TrimSpace(string(out)) != "ok" {
+		t.Errorf("rebuilt binary: %q, %v", out, err)
+	}
+}
+
+func goCacheEntries(t *testing.T, dir string) int {
+	t.Helper()
+	n := 0
+	filepath.WalkDir(dir, func(p string, d fs.DirEntry, err error) error {
+		if err == nil && !d.IsDir() && (strings.HasSuffix(p, "-a") || strings.HasSuffix(p, "-d")) {
+			n++
+		}
+		return nil
+	})
+	return n
 }
