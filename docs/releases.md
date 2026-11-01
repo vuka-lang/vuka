@@ -58,6 +58,13 @@ the `github.com/vuka-lang/vuka` package your module requires.
   a page with an exported `onSubmit` handler made no connection; it does, and
   they now show an unexported handler.
 
+### Documentation
+
+- **One table for what fields and methods mean**
+  ([#265](https://github.com/vuka-lang/vuka/issues/265)). `docs/ui/index.md`
+  now lists every kind of field and method and what decides it, including the
+  ones that make a struct live and the names vuka gives meaning to.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
