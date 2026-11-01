@@ -7,9 +7,9 @@ GET /
 LIVE /
   {"type":"event","target":"c1:0","event":"click"}
   {"type":"event","target":"c1:0","event":"click"}
-  {"type":"event","target":"c2:1","event":"click"}
+  {"type":"event","target":"c2:yearly:0","event":"click"}
   {"type":"event","target":"c1:1","event":"click"}
   {"type":"event","target":"c1:2","event":"keydown","key":"Escape"}
-  {"type":"event","target":"c2:0","event":"click"}
+  {"type":"event","target":"c2:monthly:0","event":"click"}
   {"type":"event","target":"c1:1","event":"click"}
   {"type":"event","target":"c1:5","event":"click"}

@@ -22,6 +22,19 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Live pages
+
+- **A handler's id goes by its nearest `key`**
+  ([#291](https://github.com/vuka-lang/vuka/issues/291)): `c1:row-42:0`, not its
+  place among the render's handlers. Inserting a row at the top of 1,000 keyed
+  rows with two handlers each replied 79,084 bytes on protocol v2; it replies 197.
+  And a click sent just before a patch reaches its row, or fails as a no-handler
+  error when the row is gone, where it could reach another row. Handlers
+  outside a key, and those of a list without keys, keep their numbers, which now
+  don't count the keyed rows. Nothing changes in an app, unless a test of its
+  hard-codes such a row's id: read it from the page (`livetest`'s `Attr`).
+  [Known Limits](/ui/live#known-limits) says what duplicate keys do.
+
 ### Command line
 
 - **`vuka build -islands`** ([#271](https://github.com/vuka-lang/vuka/issues/271)).
