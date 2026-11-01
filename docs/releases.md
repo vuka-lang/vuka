@@ -65,6 +65,16 @@ the `github.com/vuka-lang/vuka` package your module requires.
   now lists every kind of field and method and what decides it, including the
   ones that make a struct live and the names vuka gives meaning to.
 
+### Frontends
+
+- **Apps from `vuka new --islands` answer unknown paths with a 404**
+  ([#273](https://github.com/vuka-lang/vuka/issues/273)). The stub
+  `web/dist/index.html`, there so `go:embed` has a file, counted as a
+  single-page app's shell, so every unknown path was a 200 with a blank page.
+  `web.Frontend` now treats that exact stub as no page, with no change to the
+  app, and you can drop a `web.FrontendAt` added to work around it. A real
+  `index.html` keeps its fallback.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
