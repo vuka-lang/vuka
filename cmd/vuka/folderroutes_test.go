@@ -697,7 +697,7 @@ func bareURLParams(t *testing.T, has bool) {
 func TestCommandsWriteRouteFiles(t *testing.T) {
 	for _, cmd := range [][]string{{"vet", "./..."}, {"test", "./..."}, {"build", "-o", os.DevNull, "."}} {
 		t.Run(cmd[0], func(t *testing.T) {
-			app := routesModule(t, map[string]string{"pages/index.vuka.html": "<p>home</p>\n"})
+			app := routesModule(t, map[string]string{"pages/about.vuka.html": "package pages\n\ntype About struct{}\n\n<p>about</p>\n"})
 			if err := runGo(cmd[0], cmd[1:], io.Discard, io.Discard); err != nil {
 				t.Logf("vuka %s: %v", cmd[0], err) // no main to build: the files come first
 			}
