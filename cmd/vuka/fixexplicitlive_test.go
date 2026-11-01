@@ -34,6 +34,8 @@ func TestEmbedLive(t *testing.T) {
 		})
 	}
 	for _, src := range []string{
+		"<p>markup and no struct</p>\n",
+		"package p\n\n<p>markup and no struct</p>\n",
 		"<script lang=\"go\">\npackage p\n\ntype C struct{}\n</script>\n\n<p>x</p>\n",
 		"<script lang=\"go\">\npackage p\n\ntype C struct{}\n\nfunc (c *C) inc() {}\n</script>\n\n<button onClick={inc}>x</button>\n",
 	} {
