@@ -20,6 +20,18 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.15.2 — unreleased
+
+### Diagnostics
+
+- **W0113 no longer fires on state a live page embeds**
+  ([#262](https://github.com/vuka-lang/vuka/issues/262)). A component holding a
+  pointer to a type a live page embeds runs that type's methods on the page's
+  own state, over its socket, so nothing is lost. The compiler only recognised
+  methods promoted through embedding. The message now also says "on a page that
+  isn't live" as a condition, since the compiler can't see which page renders a
+  component.
+
 ## v2.15.1 — unreleased
 
 ### Build reports
