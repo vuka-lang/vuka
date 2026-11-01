@@ -232,6 +232,28 @@ here.
   whose render calls the func still renders with its parent, and a closure still
   counts as changed. On 1,000 rows: 0 rows rendered per parent event instead of
   1,000, 1.1 ms instead of 2.4 ms.
+- **A burst of queries no longer waits on reopened connections**
+  ([#290](https://github.com/vuka-lang/vuka/issues/290)). The ORM's pool kept 5
+  idle connections of 20 open, so extras closed on release and reopened on the
+  next burst. That was the tail of live pages under load. `MaxIdle` now defaults
+  to `MaxOpen`, and a `pool_max_idle` you set stays. Quiet periods can now hold up
+  to `MaxOpen` connections open per process until `MaxLifetime`, so with several
+  replicas or a low `max_connections`, check that replicas × `pool_max` fits. At 10,000 sockets and
+  2,000 events/s on one laptop shared with other work: p99 7-8 ms in the quieter
+  runs with 20 kept (up to 100 ms when the machine was busier), against 337 ms and
+  1,025 ms with 5.
+- **`examples/loadtest` in web** is a repeatable load test of live pages, with
+  profiles.
+- **A connection's first `LiveCheck` comes at a random point of the period**, so
+  pages opened together don't check together. Each page is still checked once per
+  `LiveCheckEvery`. It has no measured benefit: with every check in step, 10,000
+  sockets showed no tail. It's a small change kept as protection, not a fix.
+- **An idle page can release part of its memory: `web.LiveTrimAfter(d)`, off by
+  default.** It releases a page's shadows after d without activity, until its next
+  event or broadcast, and replies don't change. It's opt-in because the gain is
+  modest (10,000 idle sockets, one run each: 148 KB per socket instead of 162 KB,
+  681 MB live heap instead of 796 MB), a mistake in it would be a silently wrong
+  update, and it hasn't yet run on a real page.
 
 ## v2.15.0 — 2026-10-31
 
