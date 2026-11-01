@@ -171,7 +171,31 @@ func headerView(src []byte) ([]byte, bool, *Error) {
 	out := []byte(string(src))
 	blankBytes(out, 0, sb.OpenEnd)
 	blankBytes(out, sb.Close, sb.CloseEnd)
+	if err := scriptMarkup(out, sb); err != nil {
+		return src, false, err
+	}
 	return out, true, nil
+}
+
+// scriptMarkup is E0151 for markup in a script, read from view, the header
+// form of the file: a line of its Go starting with < outside any brace, paren
+// or bracket is never Go, and read as the start of the markup it would put the
+// struct below it out of the file's Go.
+func scriptMarkup(view []byte, sb ScriptBlock) *Error {
+	head := parseTemplateHead(view)
+	at := 0
+	for i, l := range strings.SplitAfter(string(view), "\n") {
+		if i == head.Top {
+			break
+		}
+		at += len(l)
+	}
+	if _, _, markup := goHeader(view, at); markup >= 0 && markup < sb.Close {
+		return posError(view, markup, 1, "E0151",
+			"markup in a .vuka.html file's <script lang=\"go\">: the script is Go, and the file's markup follows </script>",
+			"write the markup below </script>, as the struct's markup, or in its own .vuka.html file used as a tag")
+	}
+	return nil
 }
 
 // blankBytes writes b[from:to] as spaces, its line breaks kept.
@@ -258,7 +282,9 @@ func ToScriptForm(src []byte) (out []byte, ok bool) {
 	if err != nil || p.IsScript() || p.Markup < 0 {
 		return src, false
 	}
-	if sh, err := ParseShape(src); sh == nil || err != nil && err.Code == "E0148" {
+	// Which of several structs it renders doesn't matter here (E0147 is for
+	// the compiler, which knows the file's name).
+	if sh, err := ParseShape(src); sh == nil && (err == nil || err.Code != "E0147") {
 		return src, false
 	}
 	nl := "\n"

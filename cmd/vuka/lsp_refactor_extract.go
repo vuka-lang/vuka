@@ -404,7 +404,7 @@ func extractComponent(path string, src []byte, start, end int, name string, read
 	// A shape live only because its markup sends an event stays live when
 	// the sends move: it embeds ui.Live, as the compiler would have.
 	if f.shape.Live && !f.shape.EmbedsLive {
-		if sh, _ := transpile.ParseShape(after); sh == nil || !sh.Live {
+		if sh, _ := transpile.ParseShapeFile(f.path, after); sh == nil || !sh.Live {
 			uiName := "ui"
 			if sp, ok := header[uiPath]; ok {
 				uiName = sp.localName(pkgName)

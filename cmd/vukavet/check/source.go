@@ -42,7 +42,7 @@ func htmlSources(pass *analysis.Pass) []*htmlSource {
 		f.SetLinesForContent(b)
 		h := &htmlSource{path: p, src: string(b), file: f, markup: -1}
 		h.src, h.script = scriptView(h.src)
-		if typ, at, ok := shapeOf(h.src); ok {
+		if typ, at, ok := shapeOf(p, h.src); ok {
 			h.typ, h.markup = typ, at
 		}
 		out = append(out, h)

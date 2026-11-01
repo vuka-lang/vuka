@@ -20,7 +20,7 @@ func fixExplicitLive(m *fixModule) ([]fixChange, error) {
 		if err != nil {
 			return err
 		}
-		out, why := transpile.EmbedLive(src)
+		out, why := transpile.EmbedLiveFile(path, src)
 		if out == nil {
 			return nil
 		}

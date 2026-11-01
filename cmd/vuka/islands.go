@@ -659,11 +659,11 @@ func islandPageOf(file string) (page, tag string, full []wtok, live bool) {
 	if err != nil {
 		return "", "", nil, false
 	}
-	src = transpile.HeaderView(src)
-	sh, _ := transpile.ParseShape(src)
+	sh, _ := transpile.ParseShapeFile(file, src)
 	if sh == nil || sh.Live && !sh.EmbedsLive {
 		return "", "", nil, false
 	}
+	src = transpile.HeaderView(src)
 	lines := strings.SplitAfter(string(src), "\n")
 	if sh.Markup < 0 || sh.Markup >= len(lines) {
 		return "", "", nil, false

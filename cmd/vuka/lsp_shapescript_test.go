@@ -1,6 +1,7 @@
 package main
 
 import (
+	"os"
 	"strings"
 	"testing"
 )
@@ -31,6 +32,38 @@ func TestShapeBoundsForms(t *testing.T) {
 	}
 	if start, end, ok := headerFold([]byte(scriptShape)); !ok || start != 1 || end != 8 {
 		t.Errorf("fold %d-%d", start, end)
+	}
+}
+
+// TestShapeHelperStructs: the editor reads a file of several structs as the
+// compiler does: the struct named after the file is the one its markup's
+// names belong to; the others are no components.
+func TestShapeHelperStructs(t *testing.T) {
+	dir := t.TempDir()
+	const src = "<script lang=\"go\">\npackage pages\n\ntype Row struct {\n\tName string\n}\n\nfunc (r Row) Label() string { return r.Name }\n\ntype Orders struct {\n\tTitle string\n}\n\nfunc (o Orders) Count() int { return 1 }\n</script>\n\n<h1>{Title} {Count()}</h1>\n"
+	file := dir + "/orders.vuka.html"
+	if err := os.WriteFile(file, []byte(src), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s := scanShape(file, []byte(src))
+	if s.shape == nil || s.shape.Type != "Orders" || s.fields["Title"] == nil || s.fields["Name"] != nil || s.methods["Count"] == nil || s.methods["Label"] != nil {
+		t.Errorf("scan: %+v", s)
+	}
+	if r, ok := s.refAt(strings.Index(src, "Title}")); !ok || r.kind != refProp {
+		t.Errorf("{Title}: %+v %v", r, ok)
+	}
+	if shapeMarkup([]byte(src)) != strings.Index(src, "<h1>") {
+		t.Errorf("shapeMarkup: %d", shapeMarkup([]byte(src)))
+	}
+	if info := tagComponentIn(dir, "Orders"); info == nil {
+		t.Error("Orders is no component")
+	}
+	if info := tagComponentIn(dir, "Row"); info != nil {
+		t.Errorf("the helper is a component: %+v", info)
+	}
+	comps := dirComponents(dir)
+	if len(comps) != 1 || comps[0].name != "Orders" {
+		t.Errorf("components: %+v", comps)
 	}
 }
 

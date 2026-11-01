@@ -1,0 +1,22 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Line's hook and event method are its own: Quiet is no more live for them.
+type Line struct {
+	ui.Live
+	n int
+}
+
+@ui.Mount
+func (l *Line) mount() error { return nil }
+
+func (l *Line) Inc() { l.n++ }
+
+type Quiet struct {
+	Lines []Line
+}
+</script>
+
+<p>{len(Lines)}</p>

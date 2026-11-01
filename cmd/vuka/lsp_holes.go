@@ -45,7 +45,7 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 		if !html {
 			return false, p.routeNote(path, src, off)
 		}
-		s := scanShape(src)
+		s := scanShape(path, src)
 		if e, ok := s.eventAt(off); ok && off <= e.attr.end {
 			// gopls has nothing on an attribute's name; an element's
 			// event gets its MDN description too.

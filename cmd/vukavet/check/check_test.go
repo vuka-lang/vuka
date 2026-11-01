@@ -125,3 +125,30 @@ func TestFormAttrs(t *testing.T) {
 	defer func() { formAttrs = false }()
 	analysistest.Run(t, analysistest.TestData(), Forms, "formattrs")
 }
+
+// TestShapeOf: the struct a file renders and where its markup starts, read as
+// the compiler reads them: helpers named or not, and Go starting a line with <
+// above the struct.
+func TestShapeOf(t *testing.T) {
+	const pkg = "package p\n\n"
+	for _, c := range []struct{ name, file, src, typ string }{
+		{"one struct", "index.vuka.html", pkg + "type Home struct{}\n<p/>\n", "Home"},
+		{"named after the file", "order-row.vuka.html", pkg + "type Cell struct{}\n\ntype OrderRow struct{}\n<p/>\n", "OrderRow"},
+		{"a bracket", "[id].vuka.html", pkg + "type Row struct{}\n\ntype ID struct{}\n<p/>\n", "ID"},
+		{"a form first", "any.vuka.html", pkg + "type Signup struct {\n\tui.FormState\n}\n\ntype Join struct{}\n<p/>\n", "Join"},
+		{"a receive above it", "page.vuka.html", pkg + "func wait(c chan int) {\n\t<-c\n}\n\ntype Page struct{}\n<p/>\n", "Page"},
+		{"a raw string above it", "page.vuka.html", pkg + "func s() string {\n\treturn `\n<div>\n`\n}\n\ntype Page struct{}\n<p/>\n", "Page"},
+		{"no struct", "page.vuka.html", pkg + "<p/>\n", ""},
+		{"a func template", "page.vuka.html", pkg + "func Page(title string)\n<p/>\n", ""},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			typ, at, ok := shapeOf(c.file, c.src)
+			if typ != c.typ || ok != (c.typ != "") {
+				t.Fatalf("%q, %v; want %q", typ, ok, c.typ)
+			}
+			if ok && !strings.HasPrefix(c.src[at:], "<p/>") {
+				t.Errorf("markup at %d: %q", at, c.src[at:])
+			}
+		})
+	}
+}

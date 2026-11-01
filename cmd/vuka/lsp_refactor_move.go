@@ -212,7 +212,7 @@ func readShape(path string, src []byte) *shapeFile {
 	if perr != nil || parts.Markup < 0 {
 		return nil
 	}
-	sh, err := transpile.ParseShape(src)
+	sh, err := transpile.ParseShapeFile(path, src)
 	if sh == nil || err != nil {
 		return nil
 	}

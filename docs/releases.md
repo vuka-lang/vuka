@@ -36,11 +36,49 @@ here.
   **What to do:** rename the method (`Remove`, `Save`, …) and its uses. There's
   nothing for `vuka upgrade` to rewrite, because only you know whether the route
   was meant. If it was, keep the method and push another method that calls it.
+
+### Live pages
+
+- **A handler's id goes by its nearest `key`**
+  ([#291](https://github.com/vuka-lang/vuka/issues/291)): `c1:row-42:0`, not its
+  place among the render's handlers. Inserting a row at the top of 1,000 keyed
+  rows with two handlers each replied 79,084 bytes on protocol v2; it replies 197.
+  And a click sent just before a patch reaches its row, or fails as a no-handler
+  error when the row is gone, where it could reach another row. Handlers
+  outside a key, and those of a list without keys, keep their numbers, which now
+  don't count the keyed rows. Nothing changes in an app, unless a test of its
+  hard-codes such a row's id: read it from the page (`livetest`'s `Attr`).
+  [Known Limits](/ui/live#known-limits) says what duplicate keys do.
 ### Command line
 
 - **`vuka build -islands`** ([#271](https://github.com/vuka-lang/vuka/issues/271)).
   It replaces `vuka build-islands`, which still works and says it's deprecated.
   Change `//go:generate go tool vuka build-islands` when convenient.
+
+### Source files
+
+- **A `.vuka.html` file can declare helper structs**
+  ([#270](https://github.com/vuka-lang/vuka/issues/270)). A file declaring several
+  structs renders the one named after it: `orders.vuka.html` renders `Orders`,
+  `order-row.vuka.html` and `order_row.vuka.html` `OrderRow`, `[id].vuka.html`
+  `Id` or `ID` (case and separators don't count). The others are types of the
+  package and nothing more, so a struct no longer needs a `.go` file beside the
+  page just because it has no markup. A file declaring one struct behaves as it
+  did: `pages/index.vuka.html` can keep rendering `Home`. Several structs and none
+  so named is still [E0147](/errors/E0147), which now names the struct expected,
+  never "declared nowhere" ([#132](https://github.com/vuka-lang/vuka/issues/132)).
+  `transpile.ParseShapeFile` takes the file's name; `ParseShape`, which has none,
+  reports E0147 for several structs.
+- **Everything `.vuka` allows works in `<script lang="go">`**
+  ([#270](https://github.com/vuka-lang/vuka/issues/270)). The script already
+  compiled as `.vuka`, for `?`, match, Result and Option. What read it for its
+  struct stopped short on some of the rest. These now work above or beside the
+  struct: payload enums, decorator declarations and aliases, static fields,
+  `func T.New`, a line of Go starting with `<` (a receive, a raw string), and a
+  `type (…)` group after a func. Errors, `vuka vet`, `vuka fmt` and the language
+  server report at the place in the `.vuka.html` file. Markup in a script is
+  [E0151](/errors/E0151) at its tag, never the page "declared nowhere", and a
+  script reported broken (E0151, E0156, E0157) no longer adds E0142.
 
 ### Diagnostics
 

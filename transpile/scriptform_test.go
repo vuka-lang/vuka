@@ -1,6 +1,7 @@
 package transpile_test
 
 import (
+	"fmt"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -164,5 +165,56 @@ func TestScriptFormPositions(t *testing.T) {
 		if len(errs) == 0 || errs[0].Pos.Line != c.line || errs[0].Pos.Column != c.col {
 			t.Errorf("%q: %v, want %d:%d", c.src, errs, c.line, c.col)
 		}
+	}
+}
+
+// TestScriptVukaSkeleton: everything .vuka allows, in a script, leaves the
+// struct and its fields as they are, and declares no struct of its own.
+func TestScriptVukaSkeleton(t *testing.T) {
+	var enums strings.Builder
+	for i := range 20 {
+		fmt.Fprintf(&enums, "enum E%d { A, B }\n\n", i)
+	}
+	for _, c := range []struct{ name, goSrc, typ string }{
+		{"enums past the parser's limit", enums.String() + "type Page struct{ N int }\n", "Page"},
+		{"enum with payloads", "enum Shape {\n\tCircle{R float64}\n\tRect{W, H float64}\n}\n\ntype Page struct{ N int }\n", "Page"},
+		{"decorator holding a struct", "decorator d(c) {\n\ttype inner struct{}\n\tc.Next()\n}\n\ntype Page struct{ N int }\n", "Page"},
+		{"decorator with parameters and an alias", "decorator d(n int)(c) {\n\tc.Next()\n}\n\ndecorator D = @d(1) @other\n\ntype Page struct{ N int }\n", "Page"},
+		{"a receive above the struct", "func wait(c chan int) {\n\t<-c\n}\n\ntype Page struct{ N int }\n", "Page"},
+		{"a raw string above the struct", "func s() string {\n\treturn `\n<div>\n`\n}\n\ntype Page struct{ N int }\n", "Page"},
+		{"a static method above the struct", "func Page.New() *Page {\n\treturn &Page{}\n}\n\nfunc Store[T].Make() {}\n\ntype Page struct{ N int }\n", "Page"},
+		{"try, match and Result in bodies", "func f() Result[int] {\n\tn := g()?\n\tmatch n {\n\tcase 1:\n\t}\n\treturn Ok(n)\n}\n\ntype Page struct{ N int }\n", "Page"},
+		{"a group after a func", "func f() {}\n\ntype (\n\tPage struct{ N int }\n)\n", "Page"},
+		{"static fields", "type Page struct {\n\tstatic Table = \"pages\"\n\tN int\n\tstatic const Max = 1\n\tstatic Limits = []int{\n\t\t1,\n\t}\n\tstatic count int\n}\n", "Page"},
+		{"a static on the struct's line", "type Page struct{ N int; static X = 1 }\n", "Page"},
+		{"attributes on params and fields", "func f(@Path(\"id\") id int) {}\n\ntype Page struct {\n\tN int @PK @Char{Max: 2}\n}\n", "Page"},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			src := "<script lang=\"go\">\npackage p\n\n" + c.goSrc + "</script>\n\n<p>{N}</p>\n"
+			s, err := transpile.ParseShapeFile("page.vuka.html", []byte(src))
+			if err != nil || s == nil || s.Type != c.typ || len(s.Helpers) != 0 {
+				t.Fatalf("%+v, %+v", s, err)
+			}
+			if len(s.Fields) != 1 || s.Fields[0].Name != "N" {
+				t.Errorf("fields: %+v", s.Fields)
+			}
+			if wantLine := strings.Count(src[:strings.Index(src, "<p>")], "\n"); s.Markup != wantLine {
+				t.Errorf("markup at line %d, want %d", s.Markup, wantLine)
+			}
+		})
+	}
+}
+
+// TestScriptMarkup: markup in a script is E0151 at its tag, whatever comes
+// after it: never the struct below it declared nowhere.
+func TestScriptMarkup(t *testing.T) {
+	src := "<script lang=\"go\">\npackage p\n\nvar tag =\n\t<b>x</b>\n\ntype Page struct{}\n</script>\n\n<p/>\n"
+	s, err := transpile.ParseShapeFile("page.vuka.html", []byte(src))
+	if s != nil || err == nil || err.Code != "E0151" || err.Pos.Line != 5 || err.Pos.Column != 2 {
+		t.Fatalf("%+v, %+v", s, err)
+	}
+	_, gerr := transpile.Package([]transpile.File{{Name: "page.vuka.html", Src: []byte(src)}}, transpile.Options{Importer: load.NewImporter("testdata/golden", ""), Dir: "testdata/golden"})
+	if gerr == nil || !strings.Contains(gerr.Error(), "page.vuka.html:5:2") || strings.Count(gerr.Error(), "\n") != 0 {
+		t.Errorf("compiled: %v", gerr)
 	}
 }

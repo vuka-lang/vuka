@@ -1,0 +1,13 @@
+<script lang="go">
+package main
+
+type cell struct{ Text string }
+
+type OrderRow struct {
+	Label string
+}
+
+func (r OrderRow) first() cell { return cell{Text: r.Label} }
+</script>
+
+<b>{first().Text}</b>

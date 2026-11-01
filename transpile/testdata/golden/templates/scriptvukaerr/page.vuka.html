@@ -1,0 +1,35 @@
+<!-- errors in a script are at their place in the file -->
+
+<script lang="go">
+package main
+
+import "strconv"
+
+enum Kind { Cat, Dog }
+
+func noResult(s string) int {
+	n := strconv.Atoi(s)?
+	return n
+}
+
+func kinds(k Kind) string {
+	match k {
+	case Kind.Cat:
+		return "cat"
+	}
+}
+
+func notResult() Result[int] {
+	y := 1
+	x := y?
+	return Ok(x)
+}
+
+func unknown() Option[string] {
+	return Sum("x")
+}
+
+type Page struct{}
+</script>
+
+<p>page</p>

@@ -579,11 +579,11 @@ func goSource(file string) ([]byte, bool) {
 	if !strings.HasSuffix(file, ".vuka.html") {
 		return src, true
 	}
-	src = transpile.HeaderView(src)
-	sh, _ := transpile.ParseShape(src)
+	sh, _ := transpile.ParseShapeFile(file, src)
 	if sh == nil {
 		return nil, false
 	}
+	src = transpile.HeaderView(src)
 	lines := strings.SplitAfter(string(src), "\n")
 	return []byte(strings.Join(lines[:min(sh.Markup, len(lines))], "")), true
 }

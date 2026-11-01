@@ -405,6 +405,7 @@ func (pa *pageAssets) comp(dir, importPath, name, templ string) *assetComp {
 // readTemplates reads the scripts and stylesheets of a template file's
 // templates: each its template's, a stylesheet without scoped the app's.
 func (pa *pageAssets) readTemplates(file string, src []byte) {
+	shape, _ := transpile.ParseShapeFile(file, src)
 	src = transpile.HeaderView(src)
 	dir := filepath.Dir(file)
 	rel, _ := filepath.Rel(pa.root, file)
@@ -415,7 +416,6 @@ func (pa *pageAssets) readTemplates(file string, src []byte) {
 	}
 	full, line := scanFile(file, append(src[:top:top], "\nfunc"...)) // the imports end at a declaration
 	pa.readIslandImports(file, filepath.ToSlash(rel), line, dropNewlineSemis(full))
-	shape, _ := transpile.ParseShape(src)
 	for _, a := range transpile.TemplateAssets(filepath.Base(file), src) {
 		s := assetSrc{inline: a.Text, label: fmt.Sprintf("%s:%d", rel, a.Line), line: a.Line - 1, dir: dir}
 		switch {

@@ -302,7 +302,7 @@ func mainTemplate(src []byte, off int) bool {
 // header, or -1 when it has no header.
 func shapeMarkup(src []byte) int {
 	sh, _, markup := shapeBounds(src)
-	if sh == nil {
+	if _, err := transpile.ParseShape(src); sh == nil && (err == nil || err.Code != "E0147") {
 		return -1
 	}
 	return markup

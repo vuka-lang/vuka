@@ -75,11 +75,11 @@ func (p *proxy) extendCaps(caps map[string]any) {
 }
 
 // markupTokens are the tokens of a .vuka.html file's classified names.
-func (p *proxy) markupTokens(src []byte) []semToken {
+func (p *proxy) markupTokens(file string, src []byte) []semToken {
 	p.sem.mu.Lock()
 	base, decl := p.sem.base, p.sem.decl
 	p.sem.mu.Unlock()
-	return shapeTokens(scanShape(src), base, decl)
+	return shapeTokens(scanShape(file, src), base, decl)
 }
 
 func shapeTokens(s *shapeScan, base, decl uint32) []semToken {
@@ -156,5 +156,5 @@ func (p *proxy) markupOnlyTokens(vf *vfile) map[string]any {
 	if vf == nil || !strings.HasSuffix(vf.source, ".vuka.html") {
 		return emptySemanticTokens()
 	}
-	return encodeTokens(p.markupTokens(vf.text()))
+	return encodeTokens(p.markupTokens(vf.source, vf.text()))
 }

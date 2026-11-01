@@ -187,9 +187,21 @@ page of about 25 instances hold 29 KB per session.
 - A live component re-renders with its whole page on every event,
   unless its state is all tracked; the reply is still only what
   changed.
-- In v2, handler ids count a component's handlers in render order: inserting
-  an item with handlers changes the ids after it, which travel as changed
-  dynamics. Token patches keep the common start and end of long markup and
-  replace the middle.
-- Next: spot-level skipping inside a component's render, handler ids that
-  don't shift when items are inserted, streams, presence and flash messages.
+- [Handler ids](/reference/live-protocol#handler-ids) go by the nearest `key`:
+  an item's insertion leaves the others' ids alone, and a click raced by a patch
+  reaches its item or fails as a no-handler error. A list without keys still
+  counts in render order: inserting an item changes the ids after it, which
+  travel as changed dynamics, and a click sent just before the patch can name
+  another item's handler. Give items with handlers a key.
+- Inside a key, handlers count in render order: a button appearing in a row
+  renumbers the ones after it in that row, so a raced click can reach another
+  handler of the same row.
+- Keys two items of a component's render share, as duplicates in a list or in
+  two lists, fall back to position, as the morph does. A raced click on such an
+  item fails when the patch changes which items share the key, and the page
+  renders twice when it does. Two such items swapping places can't be told
+  apart. A state's key and a library's random id still count in render order.
+- Token patches keep the common start and end of long markup and replace the
+  middle.
+- Next: spot-level skipping inside a component's render, streams, presence and
+  flash messages.

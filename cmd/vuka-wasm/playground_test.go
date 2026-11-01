@@ -176,7 +176,7 @@ func TestDiagnostics(t *testing.T) {
 
 	files = example(t, "props")
 	files["pages/pets.vuka"] += "\ntype Extra struct{}\n"
-	files["pages/index.vuka.html"] = strings.Replace(files["pages/index.vuka.html"], "type Index struct", "type Other struct{}\n\ntype Index struct", 1)
+	files["pages/index.vuka.html"] = strings.Replace(files["pages/index.vuka.html"], "type Index struct", "type Other struct{}\n\ntype Home struct", 1)
 	res = testPlayground(t).transpile(files)
 	var codes []string
 	for _, d := range res.Diagnostics {

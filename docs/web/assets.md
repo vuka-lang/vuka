@@ -6,7 +6,7 @@
 
 You keep a component's CSS and browser behavior in its `.vuka.html` shape,
 after the markup. The `<script lang="go">` still comes first and declares
-exactly one struct.
+the struct the file renders.
 
 Styles are scoped to the component, and scripts run once per instance. For
 utility classes across the app, see [Tailwind CSS](/web/styling); for

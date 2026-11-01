@@ -107,7 +107,7 @@ func TestSlotCompletion(t *testing.T) {
 func TestLetScope(t *testing.T) {
 	p, page := slotsProxy(t)
 	src := []byte(slotsPageSrc)
-	s := scanShape(src)
+	s := scanShape("", src)
 	decl, ok := s.refAt(strings.Index(slotsPageSrc, "t, i}"))
 	if !ok || decl.kind != refLocal || !decl.decl || decl.local.slot != "slot:row" || decl.local.comp != "components.Board" {
 		t.Fatalf("the let's t: %+v (%v)", decl, ok)
