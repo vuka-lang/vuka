@@ -725,6 +725,9 @@ form — the form makes no connection: the runtime posts it to its page
 over HTTP, at the same moments a live page sends it, and puts what the
 page answers in place.
 
+The submit handler must be unexported: an exported one, `onSubmit={Save}`,
+makes the page live ([W0115](/errors/W0115)).
+
 ```go
 // account/credentials.go
 package account
@@ -755,7 +758,7 @@ type SignIn struct {
     Form account.Credentials
 }
 
-func (p *SignIn) Save(ctx context.Context, f account.Credentials) error {
+func (p *SignIn) save(ctx context.Context, f account.Credentials) error {
     if _, err := auth.Login(ctx, f.Email, f.Password); err != nil {
         if errors.Is(err, auth.ErrInvalidLogin) {
             return p.Form.Fail("Wrong email or password")
@@ -768,7 +771,7 @@ func (p *SignIn) Save(ctx context.Context, f account.Credentials) error {
 
 <main>
   <h1>Sign in</h1>
-  <ui.Form for={Form} onSubmit={Save} submitLabel="Sign in"/>
+  <ui.Form for={Form} onSubmit={save} submitLabel="Sign in"/>
 </main>
 ```
 
@@ -776,16 +779,16 @@ func (p *SignIn) Save(ctx context.Context, f account.Credentials) error {
   that shows an error, or picking a choice sends the form's values with a
   check flag. The page runs the rules and `Clean` methods with
   `forms.Live(ctx)` true, as a live page does, and answers with the form's
-  errors — never `Save`.
+  errors — never `save`.
 - **Errors in place.** The runtime adds, changes or removes each field's
   error, its `aria-invalid` and `aria-describedby`, and the summary, in the
   summary's place (the form's top, or where a `<ui.Summary/>` is). The
   fields themselves are never re-rendered, so what was typed, the focused
   field and the caret stay as they are.
 - **Submit.** The form is sent as a plain post is. When it fails, its
-  errors and the summary show and the title starts "Error: "; when `Save`
+  errors and the summary show and the title starts "Error: "; when `save`
   succeeds the page moves to where it sent the visitor, as a link does.
-  The reply is a real HTTP response, so `Save` can set cookies:
+  The reply is a real HTTP response, so `save` can set cookies:
   `auth.Login` and `auth.SignIn` work from it.
 - **No state** is kept on the server between requests: each one carries
   the form's values, the fields the visitor used, the fields it rendered

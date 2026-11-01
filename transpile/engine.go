@@ -251,7 +251,7 @@ func (e *engine) run() {
 		e.warns = e.ctxWarnings()
 		for _, f := range e.vuka {
 			e.droppedHandlers(f)
-			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 && len(f.pushWarns) == 0 {
+			if len(f.susWarnings) == 0 && len(f.ambigWarns) == 0 && len(f.tryWarns) == 0 && len(f.attrWarns) == 0 && len(f.pushWarns) == 0 && f.implicitLive() == nil {
 				continue
 			}
 			if e.warns == nil {
@@ -262,6 +262,7 @@ func (e *engine) run() {
 			e.warns[f] = append(e.warns[f], f.tryWarns...)
 			e.warns[f] = append(e.warns[f], f.attrWarns...)
 			e.warns[f] = append(e.warns[f], f.pushWarns...)
+			e.warns[f] = append(e.warns[f], f.implicitLive()...)
 		}
 		for f, ws := range e.gqlWarns {
 			if e.warns == nil {
