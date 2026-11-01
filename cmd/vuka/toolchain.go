@@ -15,7 +15,7 @@ import (
 //
 // ormVersion is the orm a new app requires and vuka upgrade moves apps to. vuka
 // release tags the orm with the set from the release after v2.15.0; until then
-// it's the orm's own newest version. CI's cmd job points new apps at orm main
+// it's on the orm's own numbering. CI's cmd job points new apps at orm main
 // (VUKA_NEW_REPLACE), so a scaffold out of step with the orm fails there.
 const (
 	version     = "v2.15.0"
