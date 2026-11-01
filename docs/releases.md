@@ -38,7 +38,9 @@ the `github.com/vuka-lang/vuka` package your module requires.
   ([#269](https://github.com/vuka-lang/vuka/issues/269)). Only `vuka run`
   wrote it and `pages/urls/urls_gen.go`, so after `vuka build`, `test` or
   `vet` an editor and plain Go tools saw old routes, or none on a fresh
-  checkout. All of them write the two files now, when their text changes.
+  checkout. All of them write the two files now, when their text changes,
+  unless git tracks them: a committed file stays for `vuka gen -inplace`, and
+  `vuka gen -inplace -check` still reports it as stale.
 
 - **An endpoint in a folder's `index.vuka` no longer breaks the package
   `urls`** ([#258](https://github.com/vuka-lang/vuka/issues/258)). Below

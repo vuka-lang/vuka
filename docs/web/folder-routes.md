@@ -1271,7 +1271,9 @@ rebuild) also write the two files hand-written code imports, `pages/route.go`
 and `pages/urls/urls_gen.go`, to disk whenever their text changes, so an
 editor and plain Go tools resolve `pages.Routes` and the typed URLs. They are
 generated, so gitignore them, and the overlay holds the same text. Nothing
-else these commands generate is written.
+else these commands generate is written. If you commit them instead, only
+`vuka run` and `vuka gen -inplace` rewrite them, so `vuka gen -inplace -check`
+in CI still reports them as stale.
 
 `vuka gen -inplace` writes each tree's `route.go`, `urls/urls_gen.go` and
 the Go for bracket folders under `param_name/`, route groups under

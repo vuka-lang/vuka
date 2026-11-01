@@ -287,7 +287,11 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 	}
 	// Hand-written code imports them, so an editor and plain go tools need
 	// them current whichever command ran last.
-	if _, err := routes.writeFiles(); err != nil {
+	write := routes.writeUntracked
+	if cmd == "run" {
+		write = routes.writeFiles
+	}
+	if _, err := write(); err != nil {
 		return err
 	}
 	var linkMsg string
