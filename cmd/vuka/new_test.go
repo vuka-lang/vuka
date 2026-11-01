@@ -344,6 +344,11 @@ func TestRenderIslands(t *testing.T) {
 			t.Errorf("islands: no %s", f)
 		}
 	}
+	// web.Frontend knows this exact text as no page, so unknown paths get a 404
+	// (web's islandsStub): change the two together.
+	if stub := strings.TrimSpace(string(yes["web/dist/index.html"])); stub != "<!doctype html><div id=app></div>" {
+		t.Errorf("web/dist/index.html isn't the stub web.Frontend recognises: %q", stub)
+	}
 	if pkg := string(yes["web/package.json"]); !strings.Contains(pkg, "@nuxt/ui") || !strings.Contains(pkg, `"vite"`) || !strings.Contains(pkg, "vue-router") {
 		t.Errorf("web/package.json lacks the Vite island build deps:\n%s", pkg)
 	}
