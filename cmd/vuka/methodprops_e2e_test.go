@@ -329,14 +329,14 @@ func (l *Line) Close() { l.n++ }
 
 type Orders struct {
 	ui.Live
-	line Line
+	Line *Line
 }
 
 func (p *Orders) Cancel() {}
 </script>
 <div>
   <Row onCancel={Cancel}/>
-  <Row onCancel={line.Close}/>
+  <Row onCancel={Line.Close}/>
 </div>
 `,
 	})
@@ -351,7 +351,7 @@ func (p *Orders) Cancel() {}
 	if err != nil {
 		t.Fatal(err)
 	}
-	for _, want := range []string{`ui.Method("OnCancel", p, "Cancel")`, `ui.Method("OnCancel", &p.line, "Close")`} {
+	for _, want := range []string{`ui.Method("OnCancel", p, "Cancel")`, `ui.Method("OnCancel", p.Line, "Close")`} {
 		if !strings.Contains(string(src), want) {
 			t.Errorf("no %s in:\n%s", want, src)
 		}
