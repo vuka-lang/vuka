@@ -533,7 +533,7 @@ type Index struct{}
 		}
 	}
 	for _, c := range []struct{ name, file, src string }{
-		{"other", "components/card.vuka.html", "<script lang=\"go\">\npackage components\n\ntype Card struct {\n\tTitle string\n}\n\ntype Row struct {\n\tID int\n}\n</script>\n\n<div>{Title}</div>\n"},
+		{"other", "components/card.vuka.html", "<script lang=\"go\">\npackage components\n\ntype Tile struct {\n\tTitle string\n}\n\ntype Row struct {\n\tID int\n}\n</script>\n\n<div>{Title}</div>\n"},
 		{"models", "entities/broken.vuka", "package entities\n\nfunc broken( {\n}\n"},
 	} {
 		t.Run(c.name, func(t *testing.T) {

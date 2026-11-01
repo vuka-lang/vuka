@@ -28,6 +28,21 @@ the `github.com/vuka-lang/vuka` package your module requires.
   It replaces `vuka build-islands`, which still works and says it's deprecated.
   Change `//go:generate go tool vuka build-islands` when convenient.
 
+### Source files
+
+- **A `.vuka.html` file can declare helper structs**
+  ([#270](https://github.com/vuka-lang/vuka/issues/270)). A file declaring several
+  structs renders the one named after it: `orders.vuka.html` renders `Orders`,
+  `order-row.vuka.html` and `order_row.vuka.html` `OrderRow`, `[id].vuka.html`
+  `Id` or `ID` (case and separators don't count). The others are types of the
+  package and nothing more, so a struct no longer needs a `.go` file beside the
+  page just because it has no markup. A file declaring one struct behaves as it
+  did: `pages/index.vuka.html` can keep rendering `Home`. Several structs and none
+  so named is still [E0147](/errors/E0147), which now names the struct expected,
+  never "declared nowhere" ([#132](https://github.com/vuka-lang/vuka/issues/132)).
+  `transpile.ParseShapeFile` takes the file's name; `ParseShape`, which has none,
+  reports E0147 for several structs.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**

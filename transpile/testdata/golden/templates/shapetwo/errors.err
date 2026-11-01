@@ -1,1 +1,1 @@
-page.vuka.html:7:6: the template file declares Page and Row: a .vuka.html file renders one struct; move Row to its own .vuka.html file, or to a .go file beside this one when it has no markup (a form, a struct embedding ui.FormState, may stay)
+page.vuka.html:7:6: the template file declares List and Row, and none is named after it: page.vuka.html renders the struct Page; name the struct its markup renders Page; the others stay as helpers. A struct with markup of its own goes in its own .vuka.html file

@@ -14,7 +14,7 @@ The table below shows which file type does which job:
 
 | File | Job |
 |---|---|
-| `.vuka.html` | Pages, layouts, components and email markup; one struct in a `<script lang="go">`, then markup |
+| `.vuka.html` | Pages, layouts, components and email markup; the struct it renders, and any helper structs, in a `<script lang="go">`, then markup |
 | `.go` | Ordinary Go logic, services, models, API handlers and startup |
 | `.vuka` | Logic using Result, Option, match, enums, overloading or decorators |
 
@@ -26,6 +26,14 @@ markup follows it.
 In the script's struct, exported fields are props, unexported fields are
 server state or dependencies, and `ui.State[T]` is browser state written by
 assignment in event attributes. See [Templates](/ui/templates).
+
+A script can declare helper structs beside it. A file declaring several renders
+the one named after the file: `orders.vuka.html` renders `Orders`, and
+`order-row.vuka.html` `OrderRow`. Case and separators don't count, and
+`[id].vuka.html` renders `Id` or `ID`. If none has the name, it is
+[E0147](/errors/E0147), naming the struct expected. A file declaring one struct
+renders it, whatever it is called. Helpers and their methods are ordinary types of
+the package, not components, routes or live.
 
 ## Page Routes
 

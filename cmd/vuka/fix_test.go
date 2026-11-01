@@ -227,6 +227,7 @@ func TestFixShapeScript(t *testing.T) {
 		"main.go":                "package main\n\nfunc main() {}\n",
 		"pages/index.vuka.html":  "package pages\n\n// Index is the home page.\ntype Index struct {\n\tTitle string\n}\n<h1>{ Title }</h1>\n",
 		"pages/done.vuka.html":   script,
+		"pages/orders.vuka.html": "package pages\n\ntype Row struct{}\n\ntype Orders struct{}\n<p>orders</p>\n",
 		"pages/bare.vuka.html":   "package pages\n\n<p>bare</p>\n",
 		"pages/broken.vuka.html": "package pages\n\ntype Broken struct {\n<p></p>\n",
 	})
@@ -238,6 +239,7 @@ func TestFixShapeScript(t *testing.T) {
 	for path, want := range map[string]string{
 		"pages/index.vuka.html":  "<script lang=\"go\">\npackage pages\n\n// Index is the home page.\ntype Index struct {\n\tTitle string\n}\n</script>\n\n<h1>{ Title }</h1>\n",
 		"pages/done.vuka.html":   script,
+		"pages/orders.vuka.html": "<script lang=\"go\">\npackage pages\n\ntype Row struct{}\n\ntype Orders struct{}\n</script>\n\n<p>orders</p>\n",
 		"pages/bare.vuka.html":   "package pages\n\n<p>bare</p>\n",
 		"pages/broken.vuka.html": "package pages\n\ntype Broken struct {\n<p></p>\n",
 	} {

@@ -160,7 +160,11 @@ func tagComponentIn(dir, name string) *tagInfo {
 			if err != nil {
 				continue
 			}
-			if sh, _, _ := shapeBounds(src); sh != nil && sh.Type == name {
+			sh, _, _ := shapeBoundsFile(n, src)
+			if sh != nil && slices.Contains(sh.Helpers, name) {
+				return nil // data beside the struct the file renders, no tag
+			}
+			if sh != nil && sh.Type == name {
 				info := &tagInfo{name: name, kind: "component", file: file, line: sh.TypeLine}
 				if sh.Live {
 					info.kind = "live component"

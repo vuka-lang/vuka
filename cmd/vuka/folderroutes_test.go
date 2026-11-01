@@ -454,6 +454,54 @@ func TestShapePages(t *testing.T) {
 	}
 }
 
+// TestHelperStructs: a file's helper structs are types of its package and
+// nothing more: only the struct named after the file is a page, whichever
+// way the file is named, and the module builds with them.
+func TestHelperStructs(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/shop/index.vuka.html":      "<script lang=\"go\">\npackage shop\n\ntype Row struct {\n\tName string\n}\n\nfunc (r *Row) Rename(s string) { r.Name = s }\n\ntype Index struct {\n\tRows []Row\n}\n</script>\n\n<p>{len(Rows)}</p>\n",
+		"pages/shop/order-row.vuka.html":  "<script lang=\"go\">\npackage shop\n\ntype cell struct{}\n\ntype OrderRow struct{}\n\nfunc (c cell) Inc() {}\n\nfunc (c cell) Load() error { return nil }\n</script>\n\n<p>row</p>\n",
+		"pages/shop/[item].vuka.html":     "<script lang=\"go\">\npackage shop\n\ntype Line struct {\n\tQty int\n}\n\ntype Item struct {\n\tItem int\n\tline Line\n}\n</script>\n\n<p>{Item}</p>\n",
+		"pages/shop/one_struct.vuka.html": "<script lang=\"go\">\npackage shop\n\ntype Anything struct{}\n</script>\n\n<p>one</p>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err != nil {
+		t.Fatalf("vuka routes: %v\n%s", err, errOut.Bytes())
+	}
+	for _, want := range []string{`GET +/shop +shop\.Index `, `GET +/shop/order-row +shop\.OrderRow `, `GET +/shop/\{item\} +shop\.Item `, `GET +/shop/one-struct +shop\.Anything `} {
+		if !regexp.MustCompile(want).MatchString(out.String()) {
+			t.Errorf("no route %s:\n%s", want, out.Bytes())
+		}
+	}
+	for _, helper := range []string{"shop.Row", "shop.Line", "shop.cell"} {
+		if strings.Contains(out.String(), helper) {
+			t.Errorf("the helper %s is a page:\n%s", helper, out.Bytes())
+		}
+	}
+	if regexp.MustCompile(`shop\.\w+ \(live\)`).MatchString(out.String()) {
+		t.Errorf("a helper's methods made a page live:\n%s", out.Bytes())
+	}
+	if err := runGo("vet", []string{"./..."}, io.Discard, &errOut); err != nil {
+		t.Errorf("vuka vet: %v\n%s", err, errOut.Bytes())
+	}
+}
+
+// TestHelperStructsNoMatch: several structs, none named after the file: the
+// error names the struct expected, where a page's would be declared nowhere.
+func TestHelperStructsNoMatch(t *testing.T) {
+	routesModule(t, map[string]string{
+		"pages/shop/index.vuka.html": "<script lang=\"go\">\npackage shop\n\ntype Item struct {\n\tName string\n}\n\ntype Home struct {\n\titems []Item\n}\n</script>\n\n<p>home</p>\n",
+	})
+	var out, errOut bytes.Buffer
+	if err := routesCmd(nil, &out, &errOut); err == nil {
+		t.Fatalf("no error:\n%s", out.Bytes())
+	}
+	got := errOut.String()
+	if !strings.Contains(got, "E0147") || !strings.Contains(got, "index.vuka.html renders the struct Index") || strings.Contains(got, "E0719") || !strings.Contains(got, "pages/shop/index.vuka.html:8") {
+		t.Errorf("want E0147 naming Index:\n%s", got)
+	}
+}
+
 // TestGeneratedConstructors: a page or endpoint without New<T> is built in
 // route.go; one declared by hand is used, and a type registered another way
 // gets none.

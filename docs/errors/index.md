@@ -57,7 +57,7 @@ same page in the terminal.
 | [E0143](./E0143) | An unknown element or template |
 | [E0144](./E0144) | A tag leaves out a parameter |
 | [E0146](./E0146) | A template file's Go declares no struct |
-| [E0147](./E0147) | A template file declares more than one struct |
+| [E0147](./E0147) | A template file declares several structs, and none is named after it |
 | [E0148](./E0148) | A template file has Go and no markup |
 | [E0149](./E0149) | A state written where nothing sends it to the page |
 | [E0150](./E0150) | A write the browser can't run |

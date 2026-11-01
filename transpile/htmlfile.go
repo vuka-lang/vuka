@@ -334,7 +334,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	// read, for the language server.
 	var shape *Shape
 	if isShape(lines, top) {
-		sh, err := parseShape(src, lines, head)
+		sh, err := parseShape(name, src, lines, head)
 		if err != nil {
 			if assetsOnly {
 				return nil, nil, nil, nil

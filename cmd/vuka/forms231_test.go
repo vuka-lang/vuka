@@ -105,7 +105,7 @@ func TestForms231(t *testing.T) {
 
 // TestForms231Errors: what the compiler says of model on a component that
 // takes none, of a modifier given to one, and of a second struct that
-// isn't a form.
+// isn't a form, none named after the file.
 func TestForms231Errors(t *testing.T) {
 	if testing.Short() {
 		t.Skip("builds a program")
@@ -115,8 +115,8 @@ func TestForms231Errors(t *testing.T) {
 			"<ui.Badge> takes no model: a component takes model={Form.Email} when its props have a field Model ui.FieldRef"},
 		{"a modifier", "join.vuka.html", strings.Replace(forms231["join.vuka.html"], `<Input model={Form.Email}`, `<Input model.lazy={Form.Email}`, 1),
 			"model.lazy on a component"},
-		{"a second struct", "join.vuka.html", strings.Replace(forms231["join.vuka.html"], "type Signup struct {", "type Row struct{ ID int }\n\ntype Signup struct {", 1),
-			"the template file declares Join and Row: a .vuka.html file renders one struct"},
+		{"a second struct", "join.vuka.html", strings.NewReplacer("type Signup struct {", "type Row struct{ ID int }\n\ntype Signup struct {", "type Join struct", "type Joined struct").Replace(forms231["join.vuka.html"]),
+			"the template file declares Joined and Row, and none is named after it: join.vuka.html renders the struct Join"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			gomod, gosum := testModule(t, "example.com/forms")

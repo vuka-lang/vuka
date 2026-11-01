@@ -3,8 +3,10 @@ package check
 import (
 	"go/scanner"
 	"go/token"
+	"path/filepath"
 	"regexp"
 	"strings"
+	"unicode"
 
 	"golang.org/x/tools/go/analysis"
 )
@@ -22,12 +24,13 @@ import (
 var (
 	shapeFirst  = regexp.MustCompile(`^(?:type|var|const)\b|^@[A-Za-z_]`)
 	shapeStruct = regexp.MustCompile(`(?m)^type\s+(\w+)(?:\[[^\]]*\])?\s+struct\b`)
+	shapeForm   = regexp.MustCompile(`(?m)^\s*(?:\w+\.)?FormState\b`)
 )
 
-// shapeOf is the struct a file in the 2.0 shape renders and the offset its
+// shapeOf is the struct the 2.0-shape file name renders and the offset its
 // markup starts at; ok is false for a file of templates, or one whose
 // markup can't be found.
-func shapeOf(src string) (typ string, markup int, ok bool) {
+func shapeOf(name, src string) (typ string, markup int, ok bool) {
 	lines := strings.SplitAfter(src, "\n")
 	off, top := 0, -1
 	group := false
@@ -63,11 +66,11 @@ func shapeOf(src string) (typ string, markup int, ok bool) {
 		}
 		o := file.Offset(p)
 		if depth == 0 && (t == token.LSS || t == token.SHL || t == token.LEQ) && strings.TrimSpace(string(text[strings.LastIndexByte(string(text[:o]), '\n')+1:o])) == "" {
-			m := shapeStruct.FindStringSubmatch(string(text[:o]))
-			if m == nil {
+			typ := renderedOf(name, string(text[:o]))
+			if typ == "" {
 				return "", 0, false
 			}
-			return m[1], off + o, true
+			return typ, off + o, true
 		}
 		switch t {
 		case token.LBRACE, token.LPAREN, token.LBRACK:
@@ -76,6 +79,38 @@ func shapeOf(src string) (typ string, markup int, ok bool) {
 			depth--
 		}
 	}
+}
+
+// renderedOf is the struct a header renders: its only one, else the one named
+// after the file, as the compiler reads it, else the first that isn't a form
+// (a struct embedding ui.FormState).
+func renderedOf(name, header string) string {
+	ms := shapeStruct.FindAllStringSubmatchIndex(header, -1)
+	if len(ms) == 0 {
+		return ""
+	}
+	key := func(s string) string {
+		return strings.ToLower(strings.Map(func(r rune) rune {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				return r
+			}
+			return -1
+		}, s))
+	}
+	stem := key(strings.TrimSuffix(filepath.Base(name), ".vuka.html"))
+	typ := header[ms[0][2]:ms[0][3]]
+	for i := len(ms) - 1; i >= 0; i-- {
+		m := ms[i]
+		n := header[m[2]:m[3]]
+		if key(n) == stem {
+			return n
+		}
+		end := strings.Index(header[m[1]:], "\n}")
+		if end < 0 || !shapeForm.MatchString(header[m[1]:m[1]+end]) {
+			typ = n
+		}
+	}
+	return typ
 }
 
 func structBeforeMarkup(lines []string) bool {

@@ -100,7 +100,7 @@ type Message struct {
 <ui.Form for={Form}/>
 ```
 
-Any other second struct goes in a `.go` file beside the page
+Beside any other struct, the markup renders the struct named after the file
 ([E0147](/errors/E0147)).
 
 Each field's tags say how it is checked and shown:

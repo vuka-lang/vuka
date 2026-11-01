@@ -203,7 +203,7 @@ func (p *proxy) slotCompletion(path string, src []byte, off int) ([]any, bool) {
 	if from == 0 || src[from-1] != '<' || !strings.HasPrefix(typed, "slot") {
 		return nil, false
 	}
-	s := scanShape(src)
+	s := scanShape(path, src)
 	comp, ok := enclosingComponent(s, from-1)
 	if !ok {
 		return nil, false

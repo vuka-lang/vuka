@@ -258,7 +258,9 @@ func ToScriptForm(src []byte) (out []byte, ok bool) {
 	if err != nil || p.IsScript() || p.Markup < 0 {
 		return src, false
 	}
-	if sh, err := ParseShape(src); sh == nil || err != nil && err.Code == "E0148" {
+	// Which of several structs it renders doesn't matter here (E0147 is for
+	// the compiler, which knows the file's name).
+	if sh, err := ParseShape(src); sh == nil && (err == nil || err.Code != "E0147") {
 		return src, false
 	}
 	nl := "\n"

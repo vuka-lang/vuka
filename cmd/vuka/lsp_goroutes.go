@@ -118,7 +118,7 @@ func (p *proxy) methodNote(routes []*folderRoute, typ, name string) string {
 	if page == nil || !strings.HasSuffix(page.File, ".vuka.html") {
 		return ""
 	}
-	if !sendsEvent(scanShape(p.sourceText(page.File)), name) {
+	if !sendsEvent(scanShape(page.File, p.sourceText(page.File)), name) {
 		return ""
 	}
 	return "**event** `" + name + "` of the page `" + page.Page + "` · `GET " + page.Path + "` · runs on the server · patches the page"
