@@ -38,6 +38,7 @@ func TestEmbedLive(t *testing.T) {
 		"package p\n\n<p>markup and no struct</p>\n",
 		"<script lang=\"go\">\npackage p\n\ntype C struct{}\n</script>\n\n<p>x</p>\n",
 		"<script lang=\"go\">\npackage p\n\ntype C struct{}\n\nfunc (c *C) inc() {}\n</script>\n\n<button onClick={inc}>x</button>\n",
+		"<script lang=\"go\">\npackage p\n\ntype C struct{ Form F }\n\nfunc (c *C) Save() {}\n</script>\n\n<ui.Form for={Form} onSubmit={Save}/>\n",
 	} {
 		if out, _ := transpile.EmbedLive([]byte(src)); out != nil {
 			t.Errorf("changed a shape that isn't live:\n%s", out)

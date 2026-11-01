@@ -1,0 +1,21 @@
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Credentials struct {
+	ui.FormState
+	Email string `validate:"required,email"`
+}
+
+// SignIn has a struct form and nothing else live, so its exported handler
+// posts over HTTP.
+type SignIn struct {
+	Form Credentials
+}
+
+func (p *SignIn) Save(ctx context.Context, f Credentials) error { return nil }
+<ui.Form for={Form} onSubmit={Save}/>

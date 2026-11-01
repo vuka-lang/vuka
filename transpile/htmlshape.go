@@ -282,7 +282,7 @@ func parseShape(src []byte, lines []string, head TemplateHead) (*Shape, *Error) 
 	case len(hooks) > 0:
 		s.Live, s.LiveWhy = true, "it declares the hook "+hooks[0]
 	default:
-		if m := wiredEvent(string(src[markup:]), events); m != "" {
+		if m := wiredEvent(maskFormSubmits(string(src[markup:]), uiName(text)), events); m != "" {
 			s.Live, s.LiveWhy = true, "the markup sends the event "+m
 		}
 	}
@@ -300,7 +300,7 @@ func (e *engine) implicitLive(f *fileState) {
 		return
 	}
 	e.errs.add("E0169", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s needs a live connection because %s", h.shape.Type, h.shape.LiveWhy).
-		help("embed ui.Live in %s (vuka fix explicit-live). A handler that needn't be live can be unexported: on a form it posts over HTTP", h.shape.Type)
+		help("embed ui.Live in %s (vuka fix explicit-live)", h.shape.Type)
 }
 
 // EmbedLive adds ui.Live to the struct of src, a .vuka.html file live by
@@ -311,13 +311,10 @@ func EmbedLive(src []byte) (out []byte, why string) {
 	if err != nil || s == nil || !s.Live || s.EmbedsLive {
 		return nil, ""
 	}
-	name := "ui"
+	name := uiName(string(src))
 	text := string(src)
 	var imp string
-	if m := uiImport.FindStringSubmatch(text); m != nil {
-		if m[1] != "" {
-			name = strings.TrimSpace(m[1])
-		}
+	if uiImport.MatchString(text) {
 	} else if at := uiPackageClause.FindStringIndex(text); at != nil {
 		imp = "\n\nimport \"" + uiImportPath + "\""
 		out = append(append(out, src[:at[1]]...), imp...)
@@ -329,6 +326,14 @@ func EmbedLive(src []byte) (out []byte, why string) {
 		field += "\n"
 	}
 	return append(append(append(out, src[:s.open]...), field...), src[s.open:]...), s.LiveWhy
+}
+
+// uiName is what a file calls the ui package.
+func uiName(text string) string {
+	if m := uiImport.FindStringSubmatch(text); m != nil && m[1] != "" {
+		return strings.TrimSpace(m[1])
+	}
+	return "ui"
 }
 
 const uiImportPath = "github.com/vuka-lang/ui/v2"
@@ -439,6 +444,58 @@ func wiredEvent(markup string, events []string) string {
 		}
 	}
 	return ""
+}
+
+var (
+	formSubmit = regexp.MustCompile(`\bonSubmit=\{\s*(?:\w+\.)?\w+\s*\}`)
+	formFor    = regexp.MustCompile(`\bfor=\{`)
+)
+
+// maskFormSubmits is markup without the onSubmit naming a method on each
+// <ui.Form for={…}>: a struct form posts over HTTP on a page that isn't live,
+// whatever its handler's name, so its handler doesn't make the page live.
+func maskFormSubmits(markup, ui string) string {
+	open := "<" + ui + ".Form"
+	for from := 0; ; {
+		at := strings.Index(markup[from:], open)
+		if at < 0 {
+			return markup
+		}
+		start := from + at
+		from = start + len(open)
+		if from < len(markup) && (markup[from] == '_' || markup[from] >= '0' && markup[from] <= '9' || markup[from] >= 'a' && markup[from] <= 'z' || markup[from] >= 'A' && markup[from] <= 'Z') {
+			continue // <ui.FormField
+		}
+		end := openTagEnd(markup, from)
+		tag := markup[start:end]
+		if !formFor.MatchString(tag) {
+			continue
+		}
+		markup = markup[:start] + formSubmit.ReplaceAllStringFunc(tag, func(m string) string {
+			return strings.Repeat(" ", len(m))
+		}) + markup[end:]
+	}
+}
+
+// openTagEnd is where the open tag whose attributes start at i ends, holes and
+// quoted values skipped; len(s) when it doesn't.
+func openTagEnd(s string, i int) int {
+	for ; i < len(s); i++ {
+		switch c := s[i]; c {
+		case '"', '\'':
+			for i++; i < len(s) && s[i] != c; i++ {
+			}
+		case '{':
+			end := holeEnd(s, i+1)
+			if end < 0 {
+				return len(s)
+			}
+			i = end
+		case '>':
+			return i + 1
+		}
+	}
+	return len(s)
 }
 
 var pushStep = regexp.MustCompile(`\.(?:Push|Options)\(`)

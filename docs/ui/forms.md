@@ -725,8 +725,10 @@ form — the form makes no connection: the runtime posts it to its page
 over HTTP, at the same moments a live page sends it, and puts what the
 page answers in place.
 
-The submit handler must be unexported: an exported one, `onSubmit={Save}`,
-makes the page live ([E0169](/errors/E0169)).
+The handler's name doesn't matter here: `onSubmit={Save}` and `onSubmit={save}`
+both post over HTTP unless the page embeds `ui.Live`. A handler can't keep
+changes to the page's fields, because each request gets a fresh copy of the
+page. To keep them, embed `ui.Live`.
 
 ```go
 // account/credentials.go
