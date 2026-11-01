@@ -632,7 +632,7 @@ func TestPageHandlerDeps(t *testing.T) {
 	if err := routesCmd(nil, &out, &errOut); err != nil || !regexp.MustCompile(`POST +/pets +pets\.Index\.Post`).Match(out.Bytes()) {
 		t.Fatalf("vuka routes: %v\n%s%s", err, out.Bytes(), errOut.Bytes())
 	}
-	writeFile(t, "pages/pets/index.vuka.html", "package pets\n\n// Index lists the pets.\ntype Index struct {\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")
+	writeFile(t, "pages/pets/index.vuka.html", "package pets\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Index lists the pets.\ntype Index struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Index) Delete() { p.n-- }\n<button onClick={Delete}>-</button>\n")
 	out.Reset()
 	errOut.Reset()
 	if err := routesCmd(nil, &out, &errOut); err == nil || !strings.Contains(errOut.String(), "E0709") || !strings.Contains(errOut.String(), "Index.Delete is the page's DELETE handler, and its markup sends it as an event") {

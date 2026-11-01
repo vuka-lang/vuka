@@ -82,8 +82,11 @@ func (p *Orders) Load(ctx context.Context, ok bool) error {
 `,
 	"pair.vuka.html": `package main
 
+import "github.com/vuka-lang/ui/v2"
+
 // Pair swaps two pets.
 type Pair struct {
+	ui.Live
 	a, b string
 }
 

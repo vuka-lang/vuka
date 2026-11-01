@@ -24,15 +24,10 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ### Live pages
 
-- **A struct live without saying so gets a warning**
+- **`ui.Live` is the only way to be live**
   ([#264](https://github.com/vuka-lang/vuka/issues/264)). A hook or an exported
-  method sent as an event makes a struct live, so a rename can add a socket and
-  server memory per visitor with nothing in the file showing it.
-  [W0115](/errors/W0115) reports each one, and `vuka fix explicit-live` embeds
-  `ui.Live` in them; `vuka upgrade` runs it. Nothing changes at run time. A
-  future major will make `ui.Live` the only way to be live. The forms docs said
-  a page with an exported `onSubmit` handler made no connection; it does, and
-  they now show an unexported handler.
+  method sent as an event without it is [E0169](/errors/E0169). `vuka fix
+  explicit-live` embeds it, and `vuka upgrade` runs that.
 
 ### Build reports
 
