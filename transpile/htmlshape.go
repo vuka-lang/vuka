@@ -357,6 +357,23 @@ func SendsEvent(src []byte, name string) bool {
 	return markup >= 0 && wiredEvent(string(src[markup:]), []string{name}) != ""
 }
 
+// PushesMethod reports whether a Push or Options step in src's markup names
+// the method name: p.Name, or a bare Name.
+func PushesMethod(src []byte, name string) bool {
+	_, _, markup := goHeader(HeaderView(src), 0)
+	if markup < 0 {
+		return false
+	}
+	m := string(src[markup:])
+	step := regexp.MustCompile(`\.(?:Push|Options)\(\s*(?:\w+\.)?` + regexp.QuoteMeta(name) + `\b`)
+	for _, loc := range eventAttr.FindAllStringIndex(m, -1) {
+		if end := holeEnd(m, loc[1]); end >= 0 && step.MatchString(m[loc[1]:end]) {
+			return true
+		}
+	}
+	return false
+}
+
 func wiredEvent(markup string, events []string) string {
 	if len(events) == 0 {
 		return ""
