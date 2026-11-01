@@ -20,7 +20,7 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.15.2 — unreleased
+## v2.15.1 — unreleased
 
 ### Diagnostics
 
@@ -31,8 +31,6 @@ the `github.com/vuka-lang/vuka` package your module requires.
   methods promoted through embedding. The message now also says "on a page that
   isn't live" as a condition, since the compiler can't see which page renders a
   component.
-
-## v2.15.1 — unreleased
 
 ### Build reports
 
