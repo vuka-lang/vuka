@@ -80,6 +80,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   browser keeps a failed import's answer. This applies in production too. A
   module that arrived and threw isn't tried again.
 
+### Live performance
+
+- **A method passed as a prop no longer re-renders its child**
+  ([#287](https://github.com/vuka-lang/vuka/issues/287)). `<OrderRow
+  onCancel={p.Cancel} />` used to count as changed on every render, so a list of
+  1,000 tracked rows rendered all 1,000 with its parent. The compiler now records
+  the method and its receiver, and the same one counts as unchanged. A child
+  whose render calls the func still renders with its parent, and a closure still
+  counts as changed. On 1,000 rows: 0 rows rendered per parent event instead of
+  1,000, 1.1 ms instead of 2.4 ms.
+
 ## v2.15.0 — 2026-10-31
 
 ### JS commands

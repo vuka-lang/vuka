@@ -377,6 +377,19 @@ its markup — instances inside it still render when their own state changed.
 Props compare by value; a pointer, slice, map, func or interface prop
 (children included) counts as changed unless both are nil.
 
+A func prop set to a method value, `onCancel={p.Cancel}`, is the exception:
+the compiler records its receiver and method, and the same method on the same
+receiver counts as unchanged, so a list of rows passing it isn't rendered again
+with its parent. A pointer receiver is the same when it's the same pointer, a
+value receiver when its value is, a value holding a pointer never. An inline
+closure, `onCancel={func() { … }}`, may capture anything and counts as changed,
+as does a method value whose receiver isn't plain variables and fields
+(`load().Cancel`), one read through tracked state (`order.Cancel` where `order`
+is the component's tracked field), and any func set in plain Go. A child whose
+render called the func stays changed too, since what it showed came from the
+receiver's current state; the session notices the call itself, in a helper or
+further down included.
+
 In this row, `ID` and `Name` are props and `qty` is tracked state:
 
 ```html
