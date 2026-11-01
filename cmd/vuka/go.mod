@@ -8,7 +8,7 @@ require (
 	github.com/andybalholm/brotli v1.2.7
 	github.com/evanw/esbuild v0.28.2
 	github.com/vuka-lang/ui/v2 v2.15.0
-	github.com/vuka-lang/vuka/v2 v2.15.1-0.20261101045319-7a3e738327ab
+	github.com/vuka-lang/vuka/v2 v2.15.1-0.20261101055652-7e2ea0670461
 	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/tools v0.52.0
