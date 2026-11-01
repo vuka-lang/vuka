@@ -22,6 +22,13 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Documentation
+
+- **One table for what fields and methods mean**
+  ([#265](https://github.com/vuka-lang/vuka/issues/265)). `docs/ui/index.md`
+  now lists every kind of field and method and what decides it, including the
+  ones that make a struct live and the names vuka gives meaning to.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
