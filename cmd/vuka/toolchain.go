@@ -9,14 +9,20 @@ import (
 )
 
 // The toolchain set. From firstSetVersion on, vuka, ui, web and this command
-// are released together under one version, so all four constants are equal;
-// vuka release writes them. vuka new pins the set, and vuka version and vuka
+// are released together under one version, so these constants are equal; vuka
+// release writes them. vuka new pins the set, and vuka version and vuka
 // upgrade compare an app's go.mod with it.
+//
+// ormVersion is the orm a new app requires and vuka upgrade moves apps to. vuka
+// release tags the orm with the set from the release after v2.15.0; until then
+// it's the orm's own newest version. CI's cmd job points new apps at orm main
+// (VUKA_NEW_REPLACE), so a scaffold out of step with the orm fails there.
 const (
 	version     = "v2.15.0"
 	vukaVersion = "v2.15.0"
 	uiVersion   = "v2.15.0"
 	webVersion  = "v2.15.0"
+	ormVersion  = "v2.1.0"
 )
 
 const firstSetVersion = "v0.50.0"

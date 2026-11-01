@@ -22,6 +22,14 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.15.1 — unreleased
 
+### Maintainers
+
+- **The orm is released with the set**
+  ([#272](https://github.com/vuka-lang/vuka/issues/272)). `vuka release` tags
+  `github.com/vuka-lang/orm/v2` right after the set, under the same version,
+  and keeps `ormVersion` in step. An app on an older orm moves to it on its next
+  `vuka upgrade`, as it does when a new orm comes out today.
+
 ### Build reports
 
 - **A Go file the parser gave up on is reported, not a panic**
