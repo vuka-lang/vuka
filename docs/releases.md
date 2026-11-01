@@ -20,16 +20,6 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
-## v2.15.2 — unreleased
-
-### Development
-
-- **`vuka build -h` is help, not a build**
-  ([#263](https://github.com/vuka-lang/vuka/issues/263)). `build`, `test`,
-  `vet` and `install` transpiled the module and built its islands before
-  printing the go command's usage, and failed outside a module. A help flag
-  is now answered first, as `run`'s already was.
-
 ## v2.15.1 — unreleased
 
 ### Build reports
@@ -68,6 +58,12 @@ the `github.com/vuka-lang/vuka` package your module requires.
   the old keys go at the first trim.
 
 ### Development
+
+- **`vuka build -h` is help, not a build**
+  ([#263](https://github.com/vuka-lang/vuka/issues/263)). `build`, `test`,
+  `vet` and `install` transpiled the module and built its islands before
+  printing the go command's usage, and failed outside a module. A help flag
+  is now answered first, as `run`'s already was.
 
 - **Any number of tabs of a development app works**
   ([#254](https://github.com/vuka-lang/vuka/issues/254)). Each tab held up to
