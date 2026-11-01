@@ -414,7 +414,7 @@ func (o *Orders) Cancel(ctx context.Context, id int64) error { return o.db.Cance
 
 Register services with `app.Service(services.NewDB)` and start the app with
 `web.New(pages.Routes(), …)`. Use a guard for protected subtrees. The parent
-shape is live because of its hooks and handlers; an island with browser-only
+shape embeds `ui.Live` for its hooks and handlers; an island with browser-only
 behavior inside a static page does not by itself create a server session.
 
 ### The Live Bridge

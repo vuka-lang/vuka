@@ -12,7 +12,11 @@ func TestEmbedLive(t *testing.T) {
 		{"an event, the import there", "<script lang=\"go\">\npackage p\n\nimport \"github.com/vuka-lang/ui/v2\"\n\nvar _ ui.Node\n\ntype C struct {\n\tn int\n}\n\nfunc (c *C) Inc() { c.n++ }\n</script>\n\n<button onClick={Inc}>{n}</button>\n",
 			"type C struct {\n\tui.Live\n\tn int\n}"},
 		{"an event, no import", "<script lang=\"go\">\npackage p\n\ntype C struct{}\n\nfunc (c *C) Inc() {}\n</script>\n\n<button onClick={Inc}>x</button>\n",
-			"import \"github.com/vuka-lang/ui/v2\"\n\ntype C struct{\n\tui.Live\n}"},
+			"import \"github.com/vuka-lang/ui/v2\"\n\ntype C struct {\n\tui.Live\n}"},
+		{"one import becomes a block, a struct on one line", "<script lang=\"go\">\npackage p\n\nimport \"context\"\n\ntype C struct{ n int }\n\n@ui.Mount\nfunc (c *C) mount(ctx context.Context) error { return nil }\n</script>\n\n<p>{n}</p>\n",
+			"import (\n\t\"context\"\n\t\"github.com/vuka-lang/ui/v2\"\n)\n\ntype C struct {\n\tui.Live\n\tn int\n}\n\n@ui.Mount"},
+		{"an import block", "<script lang=\"go\">\npackage p\n\nimport (\n\t\"context\"\n\t\"fmt\"\n)\n\nvar _ = fmt.Sprint\n\ntype C struct {\n\tn int\n}\n\n@ui.Mount\nfunc (c *C) mount(ctx context.Context) error { return nil }\n</script>\n\n<p>{n}</p>\n",
+			"import (\n\t\"context\"\n\t\"fmt\"\n\t\"github.com/vuka-lang/ui/v2\"\n)"},
 		{"a named import", "<script lang=\"go\">\npackage p\n\nimport u \"github.com/vuka-lang/ui/v2\"\n\nvar _ u.Node\n\ntype C struct {\n\tn int\n}\n\nfunc (c *C) Inc() {}\n</script>\n\n<button onClick={Inc}>x</button>\n",
 			"\tu.Live\n"},
 	} {

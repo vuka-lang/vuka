@@ -77,15 +77,13 @@ methods, otherwise a value.
 Exported fields are props, unexported fields are tracked server state or
 provided dependencies, and ui.State[T] fields are browser state.
 
-A shape is live if it embeds ui.Live, declares a decorated hook or wires a
-server method to an event. A command-only event remains browser-side and does
-not make the shape live, and neither does a method named by a
-[`Push`](/ui/js#push) or `Options` step, which a page that isn't live calls over
-HTTP. The compiler supplies the appropriate rendering
-interface.
-
-Embed `ui.Live` in every live shape: a struct live any other way gets
-[E0169](/errors/E0169), which names the command that adds it.
+A shape is live if it embeds ui.Live, and only then. A decorated hook, or a
+server method wired to an event, needs that: without it the shape gets
+[E0169](/errors/E0169), which names the command that adds it. A command-only
+event remains browser-side, and a page that isn't live calls a method named by a
+[`Push`](/ui/js#push) or `Options` step over HTTP, as it posts a
+[struct form](/ui/forms#http) to its `onSubmit`, so none of these need it. The
+compiler supplies the appropriate rendering interface.
 
 This counter is live, because it declares a mount hook and wires `Increment`
 to a click:

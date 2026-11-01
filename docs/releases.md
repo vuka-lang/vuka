@@ -46,12 +46,24 @@ the `github.com/vuka-lang/vuka` package your module requires.
   and untyped int`, while `disabled={at == 1}` beside it compiled. Event
   attributes read a lazy binding like any other attribute now.
 
-### Live pages
+### Breaking
+
+This release breaks the compatibility promise on purpose, for the changes listed
+here. `vuka upgrade` takes an app across.
 
 - **`ui.Live` is the only way to be live**
-  ([#264](https://github.com/vuka-lang/vuka/issues/264)). A hook or an exported
-  method sent as an event without it is [E0169](/errors/E0169). `vuka fix
-  explicit-live` embeds it, and `vuka upgrade` runs that.
+  ([#264](https://github.com/vuka-lang/vuka/issues/264)). A rename could add a
+  socket and server memory per visitor with nothing in the file showing it. A
+  hook, or an exported method sent as an event, without `ui.Live` no longer
+  builds: it's [E0169](/errors/E0169).
+
+  **What to do:** run `vuka fix explicit-live`, which `vuka upgrade` runs too.
+  It embeds `ui.Live` in each such struct, and those pages behave as before.
+
+  **What changes at run time:** a page live only because of an exported
+  `onSubmit` on `<ui.Form for={…}>` now posts over HTTP like an unexported one,
+  so the fix leaves it alone and it opens no socket. Its handler can't keep
+  changes to the page's fields any more; if yours relies on that, embed `ui.Live`.
 
 ### Documentation
 

@@ -312,20 +312,42 @@ func EmbedLive(src []byte) (out []byte, why string) {
 		return nil, ""
 	}
 	name := uiName(string(src))
-	text := string(src)
-	var imp string
-	if uiImport.MatchString(text) {
-	} else if at := uiPackageClause.FindStringIndex(text); at != nil {
-		imp = "\n\nimport \"" + uiImportPath + "\""
-		out = append(append(out, src[:at[1]]...), imp...)
-		src = append(out[:len(out):len(out)], src[at[1]:]...)
-		out, s.open = nil, s.open+len(imp)
+	head, tail := string(src[:s.open]), string(src[s.open:])
+	if !uiImport.MatchString(string(src)) {
+		head = addUIImport(head)
+	}
+	if strings.HasSuffix(head, "struct{") {
+		head = strings.TrimSuffix(head, "{") + " {"
 	}
 	field := "\n\t" + name + ".Live"
-	if s.open < len(src) && src[s.open] != '\n' {
-		field += "\n"
+	if tail != "" && tail[0] != '\n' {
+		// All on one line: struct{} or struct{ n int }.
+		line, rest, _ := strings.Cut(tail, "\n")
+		fields := strings.TrimSpace(strings.TrimSuffix(strings.TrimSpace(line), "}"))
+		if fields != "" {
+			field += "\n\t" + fields
+		}
+		tail = "\n}\n" + rest
 	}
-	return append(append(append(out, src[:s.open]...), field...), src[s.open:]...), s.LiveWhy
+	return []byte(head + field + tail), s.LiveWhy
+}
+
+// addUIImport adds ui to the imports of head, a file's text up to its struct:
+// to its import block, or to its one import, making that a block.
+func addUIImport(head string) string {
+	spec := "\t\"" + uiImportPath + "\"\n"
+	if at := importBlock.FindStringIndex(head); at != nil {
+		if end := strings.Index(head[at[1]:], ")"); end >= 0 {
+			return head[:at[1]+end] + spec + head[at[1]+end:]
+		}
+	}
+	if at := loneImport.FindStringSubmatchIndex(head); at != nil {
+		return head[:at[0]] + "import (\n\t" + head[at[2]:at[3]] + "\n" + spec + ")" + head[at[1]:]
+	}
+	if at := uiPackageClause.FindStringIndex(head); at != nil {
+		return head[:at[1]] + "\n\nimport \"" + uiImportPath + "\"" + head[at[1]:]
+	}
+	return head
 }
 
 // uiName is what a file calls the ui package.
@@ -341,6 +363,8 @@ const uiImportPath = "github.com/vuka-lang/ui/v2"
 var (
 	uiImport        = regexp.MustCompile(`(?m)^\s*(?:import\s+)?(\w+\s+)?"` + regexp.QuoteMeta(uiImportPath) + `"`)
 	uiPackageClause = regexp.MustCompile(`(?m)^package\s+\w+[ \t]*$`)
+	importBlock     = regexp.MustCompile(`(?m)^import\s*\(`)
+	loneImport      = regexp.MustCompile(`(?m)^import\s+((?:\w+\s+)?"[^"]*")[ \t]*$`)
 )
 
 // shapeSyntax is the error of a header that doesn't parse.
