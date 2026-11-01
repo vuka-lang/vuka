@@ -336,6 +336,18 @@ project on the same orm and Go versions runs one binary, whatever its path
 (or built from the files themselves, when a `replace` or `go.work` points at
 a directory), and a build that finds it skips building it.
 
+**So does Go's build cache.** Go keeps every version of every package for five
+days, and an edit to a widely imported package can write a gigabyte. So `vuka
+build`, `run`, `test`, `vet`, `install` and `lsp` hold `GOCACHE` to 10 GB, at
+most every ten minutes and in the background, removing what was used longest
+ago. `VUKA_GOCACHE_MAX=20GB` (or `500MB`, or a byte count) sets the limit and
+`VUKA_GOCACHE_MAX=off` turns it off; `VUKA_CACHE=off` turns it off too, and
+with `GOCACHEPROG` set the directory isn't Go's cache, so it's left alone.
+
+The limit covers everything in `GOCACHE`, which all Go work on the machine
+shares. Nothing used in the last hour goes, so the cache can pass the limit by
+an hour's writes. A removed entry costs a recompile.
+
 A build reads each directory of the module once, however many of its steps
 look at it, and asks the go command for the export data of everything the
 module imports with one `go list`, not one per import. Under `vuka run

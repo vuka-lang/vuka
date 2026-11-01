@@ -139,6 +139,7 @@ func main() {
 			break
 		}
 		go trimCaches(time.Now())
+		go trimGoBuildCache(time.Now())
 		err = runGo(cmd, os.Args[2:], os.Stdout, os.Stderr)
 	case "new":
 		err = newProject(os.Args[2:], os.Stdin, os.Stdout)
@@ -159,6 +160,7 @@ func main() {
 		err = eject(os.Args[2:], os.Stdout)
 	case "lsp":
 		go trimCaches(time.Now())
+		go trimGoBuildCache(time.Now())
 		err = lsp(os.Args[2:])
 	case "mod":
 		err = mod(os.Args[2:])
