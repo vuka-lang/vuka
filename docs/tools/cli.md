@@ -22,7 +22,7 @@ vuka ui list [--registry r] [--offline] [library]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy|why|vendor|graph|… [args]
-vuka build-islands [-watch]
+vuka build -islands [-watch]
 vuka graphql schema [-check file] [-o file] [package]
 vuka routes [-json]
 vuka gen [-check] [-o build]
@@ -211,7 +211,7 @@ also refreshes [`build/`](/guide/how-it-works#the-build-module). Flags and
 packages are passed to go as they are. `vuka build` precompresses what the
 binary serves as it is: the stylesheet, the components' scripts and the
 island chunks are embedded with their brotli and gzip, and `vite build` and
-`vuka build-islands` write a `.br` and a `.gz` beside the files of a
+`vuka build -islands` write a `.br` and a `.gz` beside the files of a
 frontend's build ([Compression and Caching](/web/deployment#compression)).
 
 ### When a Build Fails {#build-errors}
