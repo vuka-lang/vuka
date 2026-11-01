@@ -1,9 +1,12 @@
 package main
 
+import "github.com/vuka-lang/ui/v2"
+
 import "context"
 
 // Counter counts clicks.
 type Counter struct {
+	ui.Live
 	Start int // a prop
 	n     int // state the server keeps
 }

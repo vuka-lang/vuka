@@ -428,7 +428,7 @@ func TestFolderRoutesRegistered(t *testing.T) {
 func TestShapePages(t *testing.T) {
 	app := routesModule(t, map[string]string{
 		"pages/about.vuka.html":   "package pages\n\n// Info is declared above its markup.\ntype Info struct {\n\tVersion string\n}\n\nfunc (p *Info) Title() string { return \"About\" }\n<article><h1>About {Version}</h1></article>\n",
-		"pages/counter.vuka.html": "package pages\n\n// Counter is live: its markup sends Inc.\ntype Counter struct {\n\tn int\n}\n\nfunc (p *Counter) Inc() { p.n++ }\n<button onClick={Inc}>{n}</button>\n",
+		"pages/counter.vuka.html": "package pages\n\nimport \"github.com/vuka-lang/ui/v2\"\n\n// Counter is live: its markup sends Inc.\ntype Counter struct {\n\tui.Live\n\tn int\n}\n\nfunc (p *Counter) Inc() { p.n++ }\n<button onClick={Inc}>{n}</button>\n",
 	})
 	var out, errOut bytes.Buffer
 	if err := routesCmd(nil, &out, &errOut); err != nil {

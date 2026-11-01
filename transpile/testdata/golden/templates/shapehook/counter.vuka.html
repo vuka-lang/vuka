@@ -8,6 +8,7 @@ import (
 
 // Counter declares a hook, so it is live: the compiler embeds ui.Live.
 type Counter struct {
+	ui.Live
 	Start int
 	n     int
 }
