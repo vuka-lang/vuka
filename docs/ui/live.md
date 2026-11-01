@@ -179,8 +179,31 @@ A v2 render builds a tree instead of a string, so a component that renders
 again costs about 1.5× the CPU of v1; skipping tracked components is what makes large
 pages cheap, and v2 makes the replies small.
 
-5,000 joined sessions of a
-page of about 25 instances hold 29 KB per session.
+The benchmark's 5,000 joined sessions of a page of about 25 instances hold 29 KB
+of heap per session: the session alone, with no socket, request or app data.
+
+A whole process costs more. A production build of `examples/loadtest` in web (a
+25-instance dashboard over Postgres, one event per user per 5 seconds, a Postgres
+query per tile and list; server, client and database on one 10-core M1 Pro shared
+with other work, server `GOMAXPROCS=4`):
+
+| Sockets | Events/s | p50 | p99 | Process memory per socket |
+|---|---|---|---|---|
+| 1,000 | 200 | 1.9 ms | 12 ms | 264 KB |
+| 5,000 | 1,000 | 1.3 ms | 43 ms | 239 KB |
+| 10,000 | 2,000 | 0.8 ms | 7 ms | 241 KB |
+
+p99 varied a lot between runs on this shared machine, up to 100 ms at 10,000
+sockets and 369 ms in one 1,000-socket run, with the time inside database calls;
+treat these as a rough guide.
+
+An idle socket holds about 162 KB, or 148 KB with `web.LiveTrimAfter` set, which
+releases an idle page's shadows until its next event (one run each). It's off by
+default: the gain is modest, a mistake in it would be a silently wrong update, and
+it hasn't yet run on a real page. On the active page, 91 KB per socket is live heap: about 45 KB the
+session, 7 KB the app's rows, 8 KB socket buffers, the rest the request and
+socket. Go's GC headroom and about 40 KB of goroutine stacks make up most of the
+rest. See `examples/loadtest`'s README for running it.
 
 ## Known Limits {#known-limits}
 

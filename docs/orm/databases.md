@@ -323,7 +323,7 @@ with URL parameters (taken off before the driver sees the URL):
 | `orm.Pool` field | URL parameter | Default | |
 |---|---|---|---|
 | `MaxOpen` | `pool_max` | 20 | connections at most; negative: no limit |
-| `MaxIdle` | `pool_max_idle` | 5 | idle connections kept (at most `MaxOpen`); negative: none |
+| `MaxIdle` | `pool_max_idle` | `MaxOpen` | idle connections kept (at most `MaxOpen`); negative: none. |
 | `MinIdle` | `pool_min_idle` | 0 | opened at start and kept open while up |
 | `MaxLifetime` | `pool_max_lifetime` | 1h | less up to 20% at random, so connections don't all reconnect at once; negative: never retired |
 | `MaxIdleTime` | `pool_max_idle_time` | none | |
@@ -336,6 +336,16 @@ with URL parameters (taken off before the driver sees the URL):
 > A zero field takes the default, so `pool_max=0` is 20 connections, not
 > unlimited: a burst of requests can't open more connections than the server
 > allows. Write `pool_max=-1` (`MaxOpen: -1`) for no cap.
+
+> [!IMPORTANT]
+> Idle connections follow `MaxOpen`, because closing what a burst opened and
+> reopening it for the next costs far more than keeping it. So a process that once
+> needed `pool_max` connections keeps them open while quiet, until `MaxLifetime`
+> (or `MaxIdleTime`, if you set one) retires them. Size for it: replicas ×
+> `pool_max` must fit the server's `max_connections`, leaving room for migrations
+> and tools. Four replicas at the default 20 can hold 80 of Postgres's default 100.
+> On a small server lower `pool_max`, which lowers idle with it, rather than
+> `pool_max_idle`.
 
 `orm.Connect` sets
 the same caps (`orm.DefaultMaxOpen`, `DefaultMaxIdle`,
