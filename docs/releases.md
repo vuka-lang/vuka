@@ -20,6 +20,50 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.16.1 — 2026-11-01
+
+### Breaking
+
+This patch release breaks the compatibility promise on purpose, for the one
+change listed here. It follows v2.16.0 within the week because the build cache
+was filling disks.
+
+- **`User{}.Objects()` is gone** ([orm#27](https://github.com/vuka-lang/orm/issues/27)).
+  The method's signature made every package reaching a model compile
+  `Manager[T]` and `QuerySet[T]` for it.
+
+  **What to do:** in plain Go, write `orm.Objects[User]()`, or
+  `orm.Objects[User](schema)` for `User{}.Objects(schema)`. `Post.Objects` in
+  `.vuka` files is unchanged.
+
+### Build Size
+
+- **The ORM costs importers far less.** `Model[T]` no longer reaches
+  `Manager[T]` or `QuerySet[T]`, whose APIs are unchanged, so a package that
+  only imports a models package doesn't compile generic ORM code for every model.
+  An app with 65 models needed no source edits:
+
+  | Go build cache growth | Before | After |
+  |---|---|---|
+  | Cold build | 1,655 MB | 1,201 MB |
+  | Editing the models package's API | 1,239 MB | 786 MB |
+  | Editing a function body in it | 862 MB | 557 MB |
+  | Editing one module's body | 67 MB | 36 MB |
+
+  `orm.M2M[T]` still reaches `QuerySet[T]`, so a model with one still costs
+  more.
+
+- **Go's build cache keeps under a size limit** ([#305](https://github.com/vuka-lang/vuka/issues/305)).
+  `vuka build`, `run`, `test`, `vet`, `install` and `lsp` hold `GOCACHE` to
+  10 GB, removing what was used longest ago. `VUKA_GOCACHE_MAX` sets the limit
+  or turns it off. See [the command line](/tools/cli).
+
+### Development Toolbar
+
+- **The handle stays on screen during a build.** It used to slide off the edge
+  until hovered, so a running or failed build couldn't be read at a glance. It
+  slides back once the build is ok.
+
 ## v2.16.0 — 2026-11-01
 
 ### Breaking
