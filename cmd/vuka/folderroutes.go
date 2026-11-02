@@ -951,13 +951,21 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 
 // checked is t's route table and generated files: the last ones when a
 // watch's sources have the same shape and they came without a diagnostic.
+// The check reads function bodies only in the page tree (what a Load reads,
+// what a Render links to), and the rest of the module through its types.
 func (t *routeTree) checked(ov map[string]string, overlay string) *routesResult {
-	shape := shapes.module(t.root, overlay, false)
+	shape := shapes.module(t.root, overlay, false, t.bodiesRead)
 	if shape != "" {
 		h := sha256.New()
 		fmt.Fprintf(h, "%s\n", shape)
 		for _, d := range t.dirs {
 			fmt.Fprintf(h, "%s %s\n", d.rel, d.importPath)
+		}
+		for _, r := range t.declared {
+			fmt.Fprintf(h, "%s %s\n", r.method, r.path)
+		}
+		for _, name := range slices.Sorted(maps.Keys(t.registered)) {
+			fmt.Fprintf(h, "%s\n", name)
 		}
 		shape = fmt.Sprintf("%x", h.Sum(nil))
 		if m := routeMemo[t.pages]; m != nil && m.shape == shape && len(t.clashes) == 0 {
@@ -974,6 +982,19 @@ func (t *routeTree) checked(ov map[string]string, overlay string) *routesResult 
 		routeMemo[t.pages] = &routeResultMemo{shape, r, t.info, t.urls}
 	}
 	return r
+}
+
+// bodiesRead reports whether the route check reads the function bodies of the
+// file at path. Routes declared in a body elsewhere are scanned on every build,
+// and checked add what they found to the shape.
+func (t *routeTree) bodiesRead(path string) bool {
+	dir := filepath.Dir(path)
+	for _, d := range t.dirs {
+		if dir == d.goDir || dir == d.dir {
+			return true
+		}
+	}
+	return false
 }
 
 // routeMemo is a watch's last route check of each page tree, by its pages

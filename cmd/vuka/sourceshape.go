@@ -20,17 +20,22 @@ import (
 // sourceShapes tells a watch build when the steps reading the whole module
 // (the orm's generated code, the route table) can keep their last result:
 // it hashes the module's Go as an overlay has it, without comments, line
-// directives or the fixed HTML of compiled templates. An edit to fixed HTML
-// leaves the hash as it was; any other edit to Go, go.mod or go.sum changes
-// it. File contents are hashed, never file events, and files seen before
-// aren't parsed again. nil outside a watch: every step then runs.
+// directives or the fixed HTML of compiled templates, and, in the files a
+// step reads only the declarations of, without function bodies. An edit to
+// anything else, go.mod or go.sum changes the hash. File contents are hashed,
+// never file events, and files seen before aren't parsed again. nil outside a
+// watch: every step then runs.
 type sourceShapes struct {
 	mu     sync.Mutex
-	byFile map[[sha256.Size]byte][sha256.Size]byte
+	byFile map[[sha256.Size]byte]fileShapes
 }
 
+// fileShapes are a file's two hashes: of everything, and without the function
+// bodies a step doesn't read.
+type fileShapes struct{ full, decls [sha256.Size]byte }
+
 func newSourceShapes() *sourceShapes {
-	return &sourceShapes{byFile: map[[sha256.Size]byte][sha256.Size]byte{}}
+	return &sourceShapes{byFile: map[[sha256.Size]byte]fileShapes{}}
 }
 
 // shapes is the running watch's.
@@ -41,8 +46,9 @@ var localReplace = regexp.MustCompile(`(?m)=>\s*"?(?:\.{1,2}/|/|[A-Za-z]:\\)`)
 
 // module is the hash of the Go of the module at root as overlay has it; ""
 // when the module can change unseen: a dependency in a directory or a
-// workspace, or a file that can't be read.
-func (s *sourceShapes) module(root, overlay string, tests bool) string {
+// workspace, or a file that can't be read. Function bodies count only in the
+// files bodies names; a nil bodies counts them in every file.
+func (s *sourceShapes) module(root, overlay string, tests bool, bodies func(path string) bool) string {
 	if s == nil {
 		return ""
 	}
@@ -98,18 +104,23 @@ func (s *sourceShapes) module(root, overlay string, tests bool) string {
 		if err != nil {
 			return ""
 		}
-		fmt.Fprintf(h, "%s %x\n", p, s.file(src))
+		shape := s.file(src)
+		if bodies == nil || bodies(p) {
+			fmt.Fprintf(h, "%s %x\n", p, shape.full)
+		} else {
+			fmt.Fprintf(h, "%s %x\n", p, shape.decls)
+		}
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
 }
 
-func (s *sourceShapes) file(src []byte) [sha256.Size]byte {
+func (s *sourceShapes) file(src []byte) fileShapes {
 	key := sha256.Sum256(src)
 	s.mu.Lock()
 	shape, ok := s.byFile[key]
 	s.mu.Unlock()
 	if !ok {
-		shape = fileShape(src)
+		shape = shapesOf(src)
 		s.mu.Lock()
 		s.byFile[key] = shape
 		s.mu.Unlock()
@@ -137,14 +148,28 @@ func inWorkspace(root string) bool {
 }
 
 // fileShape hashes src's tokens, leaving out comments and each template
-// frame's fixed HTML. A file that doesn't parse hashes as it is.
-func fileShape(src []byte) [sha256.Size]byte {
+// frame's fixed HTML.
+func fileShape(src []byte) [sha256.Size]byte { return shapesOf(src).full }
+
+// shapesOf hashes src both ways. A file that doesn't parse hashes as it is.
+func shapesOf(src []byte) fileShapes {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", src, parser.SkipObjectResolution)
 	if err != nil {
-		return sha256.Sum256(src)
+		sum := sha256.Sum256(src)
+		return fileShapes{sum, sum}
 	}
-	skip := frameStatics(fset, f)
+	statics := frameStatics(fset, f)
+	return fileShapes{
+		full:  hashTokens(src, statics),
+		decls: hashTokens(src, mergeRanges(append(statics, unreadBodies(fset, f)...))),
+	}
+}
+
+// hashTokens hashes src's tokens outside skip's byte ranges, which are in
+// order and don't overlap.
+func hashTokens(src []byte, skip [][2]int) [sha256.Size]byte {
+	fset := token.NewFileSet()
 	file := fset.AddFile("", -1, len(src))
 	var sc scanner.Scanner
 	sc.Init(file, src, nil, 0)
@@ -166,6 +191,40 @@ func fileShape(src []byte) [sha256.Size]byte {
 	}
 	w.Flush()
 	return [sha256.Size]byte(h.Sum(nil))
+}
+
+// unreadBodies are the byte ranges of f's function bodies no step reads outside
+// the files it names. The orm reads two kinds: a Schema method's, for the
+// columns it renames, and any with an orm.For[T](…), which makes T a model.
+func unreadBodies(fset *token.FileSet, f *ast.File) [][2]int {
+	var out [][2]int
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Body == nil || fn.Recv != nil && fn.Name.Name == "Schema" || callsFor(fn.Body) {
+			continue
+		}
+		out = append(out, [2]int{fset.Position(fn.Body.Pos()).Offset, fset.Position(fn.Body.End()).Offset})
+	}
+	return out
+}
+
+// callsFor reports whether n holds a call of a generic func named For.
+func callsFor(n ast.Node) bool {
+	found := false
+	ast.Inspect(n, func(n ast.Node) bool {
+		if call, ok := n.(*ast.CallExpr); ok {
+			if ix, ok := call.Fun.(*ast.IndexExpr); ok {
+				switch f := ix.X.(type) {
+				case *ast.SelectorExpr:
+					found = found || f.Sel.Name == "For"
+				case *ast.Ident:
+					found = found || f.Name == "For"
+				}
+			}
+		}
+		return !found
+	})
+	return found
 }
 
 // frameStatics are the byte ranges of f holding fixed HTML, in order: the
@@ -200,9 +259,14 @@ func frameStatics(fset *token.FileSet, f *ast.File) [][2]int {
 		}
 		return true
 	})
-	slices.SortFunc(out, func(a, b [2]int) int { return a[0] - b[0] })
-	merged := out[:0]
-	for _, r := range out {
+	return mergeRanges(out)
+}
+
+// mergeRanges puts byte ranges in order, joining those that overlap.
+func mergeRanges(ranges [][2]int) [][2]int {
+	slices.SortFunc(ranges, func(a, b [2]int) int { return a[0] - b[0] })
+	merged := ranges[:0]
+	for _, r := range ranges {
 		if n := len(merged); n > 0 && r[0] < merged[n-1][1] {
 			merged[n-1][1] = max(merged[n-1][1], r[1])
 			continue
