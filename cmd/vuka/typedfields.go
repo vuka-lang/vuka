@@ -71,7 +71,7 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 		return nil, nil
 	}
 	slot := fmt.Sprintf("%s %s %v %v", root, dir, tests, all)
-	shape := shapes.module(root, overlay, tests)
+	shape := shapes.module(root, overlay, tests, ormBodiesRead)
 	if m, ok := ormMemo.Load(slot); ok && shape != "" && m.(*ormResultMemo).shape == shape {
 		return m.(*ormResultMemo).missing, nil
 	}
@@ -111,6 +111,11 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	}
 	return missing, nil
 }
+
+// ormBodiesRead reports whether the orm tool's answer depends on the function
+// bodies of the file at path: a generated file's, which it compares with what
+// it would write. Elsewhere it reads declarations, and Schema methods' bodies.
+func ormBodiesRead(path string) bool { return strings.HasSuffix(path, "_gen.go") }
 
 // ormMemo is a watch's last answer from the orm tool, for each module,
 // directory and set of flags.

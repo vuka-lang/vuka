@@ -69,3 +69,7 @@ func processAlive(pid int) bool {
 	const stillActive = 259
 	return windows.GetExitCodeProcess(h, &code) == nil && code == stillActive
 }
+
+// stopOrphanVites has no way here to tell a Vite left behind: Windows keeps no
+// parent to find gone.
+func stopOrphanVites(string) {}

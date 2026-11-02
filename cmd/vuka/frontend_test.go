@@ -199,3 +199,13 @@ func TestPrepareFrontendInstallProgress(t *testing.T) {
 		t.Errorf("output: %q", got)
 	}
 }
+
+func TestPrefixedHidesVitesPassedOverPorts(t *testing.T) {
+	var out bytes.Buffer
+	w := &prefixed{w: &out, prefix: "vite: ", dev: true}
+	w.Write([]byte("Port 5173 is in use, trying another one...\n\x1b[32mPort 5174 is in use, trying another one...\x1b[0m\nVITE ready in 120 ms\nsomething else\n"))
+	got := out.String()
+	if strings.Contains(got, "Port 517") || !strings.Contains(got, "dev server ready") || !strings.Contains(got, "something else") {
+		t.Errorf("output: %s", got)
+	}
+}

@@ -27,3 +27,6 @@ func processAlive(pid int) bool {
 	p.Release()
 	return true
 }
+
+// stopOrphanVites has no way here to tell a Vite left behind.
+func stopOrphanVites(string) {}
