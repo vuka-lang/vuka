@@ -127,6 +127,12 @@ func TestSession(t *testing.T) {
 		t.Errorf("a body edit in lib: %+v", s.ran)
 	}
 
+	// An unexported func added to lib: no importer can name it.
+	edit(t, lib, "return 2 }", "return 2 }\nfunc unseen() int { return 3 }")
+	if main, _ := sessionRun(t, s, root); main != first || s.ran.transpiled != 1 || s.ran.reused != 1 {
+		t.Errorf("an unexported func in lib: %+v", s.ran)
+	}
+
 	// An exported signature main uses: (int, error) becomes a Result, and
 	// main's ? reads it differently.
 	edit(t, lib, "func Count() (int, error) { return dep.N(), nil }", "func Count() Result[int] { return Ok(dep.N()) }")

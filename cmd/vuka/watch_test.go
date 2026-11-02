@@ -897,6 +897,19 @@ func hasDWARF(bin string) (bool, error) {
 	return false, errors.New("neither Mach-O, ELF nor PE")
 }
 
+func TestQuickCompile(t *testing.T) {
+	for _, c := range []struct{ in, want []string }{
+		{nil, []string{"-gcflags=app/...=-l -dwarf=false"}},
+		{[]string{"-race"}, []string{"-race", "-gcflags=app/...=-l -dwarf=false"}},
+		{[]string{"-gcflags=-N"}, []string{"-gcflags=-N"}},
+		{[]string{"--gcflags", "-m"}, []string{"--gcflags", "-m"}},
+	} {
+		if got := quickCompile(c.in, "app"); !slices.Equal(got, c.want) {
+			t.Errorf("quickCompile(%q) = %q, want %q", c.in, got, c.want)
+		}
+	}
+}
+
 func TestNoDWARF(t *testing.T) {
 	for _, c := range []struct{ in, want []string }{
 		{nil, []string{"-ldflags=-w"}},

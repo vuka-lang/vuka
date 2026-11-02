@@ -55,8 +55,8 @@ CSS kept rebuilt while it runs (VUKA_TAILWIND=off for none).
 	the same: a build that comes out different is swapped in.
 
   -debug, --debug
-	with -watch, keep the debug information (DWARF) watch builds leave out
-	to link faster: for delve.
+	with -watch, keep the debug information (DWARF) and inlining watch builds
+	leave out to build faster: for delve.
   -fresh, --fresh
 	with -watch, build before the app starts, even when an earlier run's
 	build would do (VUKA_REUSE=off does the same)
@@ -161,10 +161,14 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if !debug {
 		flags = noDWARF(flags)
 	}
-	root, _, err := load.ModuleRoot(".")
+	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return err
 	}
+	if !debug {
+		flags = quickCompile(flags, modPath)
+	}
+	shapes = newSourceShapes()
 	dir, _ := os.Getwd()
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
 		dir = real
@@ -380,6 +384,11 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	}
 	ph := r.ph
 	ph.step("scanning the module")
+	tStep := time.Now()
+	stepDone := func(name string) {
+		traceStep("prepare %s %v", name, time.Since(tStep))
+		tStep = time.Now()
+	}
 	_, modPath, err := load.ModuleRoot(s.root)
 	if err != nil {
 		r.err = err
@@ -394,6 +403,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	stepDone("discover")
 	var gens []load.Generated
 	t0 := time.Now()
 	routes := scanRoutes(s.root, modPath, nil)
@@ -401,6 +411,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	stepDone("routes")
 	if len(pkgs) > 0 {
 		ph.step(fmt.Sprintf("transpiling %d %s", len(pkgs), map[bool]string{true: "package", false: "packages"}[len(pkgs) == 1]))
 		transpile := load.Transpile
@@ -412,6 +423,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 			return r
 		}
 	}
+	stepDone("transpile")
 	if gens, r.overlay, err = routes.apply(gens, r.overlay, dir); err != nil {
 		r.err = err
 		return r
@@ -420,13 +432,16 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	stepDone("apply routes")
 	ph.step("linking the module's packages")
 	var linkMsg string
 	if r.overlay, gens, linkMsg, err = autoLink(s.root, modPath, dir, r.overlay, pkgs, gens); err != nil {
 		r.err = err
 		return r
 	}
+	stepDone("auto-link")
 	r.overlay, gens = typedFields(s.root, dir, r.overlay, gens, false, s.stderr)
+	stepDone("typed fields")
 	if linkMsg != s.linked {
 		// Said once per change: a package created mid-session is linked by the
 		// next rebuild, a deleted one unlinked.
@@ -662,6 +677,20 @@ func cutDebug(flags []string) ([]string, bool) {
 		}
 	}
 	return out, debug
+}
+
+// quickCompile has the compiler neither inline nor write debug information
+// for the module's own packages, unless flags name compiler flags of their
+// own: a shared package's edit recompiles every package importing it, whose
+// optimised code a watch build doesn't need. Dependencies keep their cached
+// builds.
+func quickCompile(flags []string, modPath string) []string {
+	for _, f := range flags {
+		if name, _, _ := strings.Cut(strings.TrimLeft(f, "-"), "="); name == "gcflags" {
+			return flags
+		}
+	}
+	return append(slices.Clone(flags), "-gcflags="+modPath+"/...=-l -dwarf=false")
 }
 
 // noDWARF adds -w to the linker's flags: no debug information, which is

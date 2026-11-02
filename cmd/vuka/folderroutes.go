@@ -917,12 +917,8 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 		return nil, "", nil, err
 	}
 	for _, t := range ts {
-		r := &routesResult{}
+		r := t.checked(ov, overlay)
 		t.result = r
-		t.check(ov, overlay, r)
-		if r.err() == nil {
-			r.files = t.generate(r.routes)
-		}
 		res.routes = append(res.routes, r.routes...)
 		res.files = append(res.files, r.files...)
 		res.diags = append(res.diags, r.diags...)
@@ -951,6 +947,44 @@ func (ts routeTrees) finish(gens []load.Generated, overlay, tmp string) ([]load.
 		return nil, "", nil, err
 	}
 	return append(gens, res.files...), overlay, res, nil
+}
+
+// checked is t's route table and generated files: the last ones when a
+// watch's sources have the same shape and they came without a diagnostic.
+func (t *routeTree) checked(ov map[string]string, overlay string) *routesResult {
+	shape := shapes.module(t.root, overlay, false)
+	if shape != "" {
+		h := sha256.New()
+		fmt.Fprintf(h, "%s\n", shape)
+		for _, d := range t.dirs {
+			fmt.Fprintf(h, "%s %s\n", d.rel, d.importPath)
+		}
+		shape = fmt.Sprintf("%x", h.Sum(nil))
+		if m := routeMemo[t.pages]; m != nil && m.shape == shape && len(t.clashes) == 0 {
+			t.info, t.urls = m.info, m.urls
+			return m.result
+		}
+	}
+	r := &routesResult{}
+	t.check(ov, overlay, r)
+	if r.err() == nil {
+		r.files = t.generate(r.routes)
+	}
+	if shape != "" && len(r.diags) == 0 && len(t.clashes) == 0 {
+		routeMemo[t.pages] = &routeResultMemo{shape, r, t.info, t.urls}
+	}
+	return r
+}
+
+// routeMemo is a watch's last route check of each page tree, by its pages
+// directory.
+var routeMemo = map[string]*routeResultMemo{}
+
+type routeResultMemo struct {
+	shape  string // sourceShapes.module and the tree's directories
+	result *routesResult
+	info   map[*routeDir]*dirInfo
+	urls   *urlNode
 }
 
 // withoutStubs is gens without the stubs and placeholders' files.

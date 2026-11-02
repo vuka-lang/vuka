@@ -573,13 +573,18 @@ func fileStats(gens []Generated) string {
 // writeAPI writes what importers of pkg see of it: its package-level
 // declarations with their types, constants' values and named types'
 // methods. Positions are left out: a change that only moves code doesn't
-// reach importers.
+// reach importers. Nor do unexported funcs, vars and consts, which no
+// importer can name; unexported types are kept, as an exported declaration
+// can hand one out.
 func writeAPI(h hash.Hash, pkg *types.Package) {
 	q := func(p *types.Package) string { return p.Path() }
 	fmt.Fprintf(h, "package %s %s\n", pkg.Path(), pkg.Name())
 	scope := pkg.Scope()
 	for _, name := range scope.Names() {
 		obj := scope.Lookup(name)
+		if _, isType := obj.(*types.TypeName); !isType && !obj.Exported() {
+			continue
+		}
 		fmt.Fprintf(h, "%s\n", types.ObjectString(obj, q))
 		switch o := obj.(type) {
 		case *types.Const:
