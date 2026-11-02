@@ -70,6 +70,11 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	if !used {
 		return nil, nil
 	}
+	slot := fmt.Sprintf("%s %s %v %v", root, dir, tests, all)
+	shape := shapes.module(root, overlay, tests)
+	if m, ok := ormMemo.Load(slot); ok && shape != "" && m.(*ormResultMemo).shape == shape {
+		return m.(*ormResultMemo).missing, nil
+	}
 	name, args := ormCommand(root, mod)
 	args = append(args, "generate", "--missing")
 	if tests {
@@ -101,7 +106,19 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	for _, p := range paths {
 		missing = append(missing, load.Generated{Target: p, Src: []byte(files[p])})
 	}
+	if shape != "" {
+		ormMemo.Store(slot, &ormResultMemo{shape, missing})
+	}
 	return missing, nil
+}
+
+// ormMemo is a watch's last answer from the orm tool, for each module,
+// directory and set of flags.
+var ormMemo sync.Map // string → *ormResultMemo
+
+type ormResultMemo struct {
+	shape   string // sourceShapes.module when it was asked
+	missing []load.Generated
 }
 
 func init() {
