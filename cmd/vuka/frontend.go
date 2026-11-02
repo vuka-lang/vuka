@@ -239,6 +239,7 @@ func devFrontend(root string, stderr io.Writer) func() {
 		if stopped {
 			return
 		}
+		stopOrphanVites(viteBinary(dir))
 		c := exec.Command(viteBinary(dir))
 		c.Dir = dir
 		ownGroup(c) // a terminal's Ctrl-C reaches vuka, which stops Vite after the app
@@ -277,7 +278,8 @@ var ansi = regexp.MustCompile(`\x1b\[[0-9;?]*[A-Za-z]`)
 
 // prefixed passes on a tool's output line by line, each prefixed. For the
 // dev server (dev) it leaves out the banner with the dev server's own
-// address: the app's pages are opened at the app's address.
+// address, and the ports it passed over: the app's pages are opened at the
+// app's address.
 type prefixed struct {
 	w      io.Writer
 	prefix string
@@ -311,6 +313,8 @@ func (p *prefixed) line(s string) {
 	}
 	if p.dev {
 		switch {
+		case strings.HasPrefix(plain, "Port ") && strings.HasSuffix(plain, "is in use, trying another one..."):
+			return // pages find the port Vite settled on through its hot file
 		case strings.Contains(plain, "ready in"):
 			plain = "dev server ready: open the app's address; its pages load their modules from Vite"
 		case strings.HasPrefix(plain, "➜") || strings.HasPrefix(plain, "Local:") || strings.HasPrefix(plain, "Network:") || strings.Contains(plain, "press h"):
