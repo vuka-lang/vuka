@@ -360,3 +360,36 @@ func TestBuildTailwindOldWeb(t *testing.T) {
 		t.Errorf("a web with RegisterCSS, no Tailwind CLI: %v", err)
 	}
 }
+
+// TestGenCodeOnly: vuka gen -code-only builds the program's Go without its
+// stylesheet, so a tool that only runs it needs no Tailwind CLI.
+func TestGenCodeOnly(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := webModule(t, map[string]string{"main.go": twMain, "pages/index.vuka.html": twPage,
+		"styles/app.css": "@import \"tailwindcss\";\n"})
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Setenv(twEnv, "")
+	t.Chdir(root)
+	bin := t.TempDir()
+	goBin, _ := exec.LookPath("go")
+	os.Symlink(goBin, filepath.Join(bin, "go"))
+	t.Setenv("PATH", bin)
+
+	if err := gen([]string{"-o", "mirror", "-code-only"}, io.Discard); err != nil {
+		t.Fatalf("vuka gen -code-only without Tailwind: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(root, "mirror", twGoName)); err == nil {
+		t.Errorf("-code-only wrote %s", twGoName)
+	}
+	c := exec.Command("go", "build", "-o", filepath.Join(t.TempDir(), "app"), ".")
+	c.Dir = filepath.Join(root, "mirror")
+	if out, err := c.CombinedOutput(); err != nil {
+		t.Errorf("go build of the code-only module: %v\n%s", err, out)
+	}
+	if err := gen([]string{"-o", "mirror"}, io.Discard); err == nil || !strings.Contains(err.Error(), twInstall) {
+		t.Errorf("vuka gen without -code-only, without Tailwind: %v", err)
+	}
+}

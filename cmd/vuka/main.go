@@ -677,17 +677,20 @@ func sameFile(a, b string) bool {
 // gen writes the build/ module: the module with each .vuka file replaced by
 // its generated Go, which plain Go tools build. -inplace writes the generated
 // files beside the .vuka files instead. With -check it writes nothing and
-// fails if anything is out of date.
+// fails if anything is out of date. -code-only leaves out what only serving
+// pages needs (stylesheets, scripts, islands, static files), for tools that
+// build the program to run something else, such as the ORM's migrations.
 func gen(args []string, stdout io.Writer) error {
 	fs := flag.NewFlagSet("gen", flag.ContinueOnError)
 	check := fs.Bool("check", false, "report generated files that are missing or stale, write nothing")
 	inplace := fs.Bool("inplace", false, "write each generated file beside its .vuka file instead of the build module")
 	out := fs.String("o", "build", "the build module's directory, relative to the module root")
+	codeOnly := fs.Bool("code-only", false, "leave out stylesheets, scripts, islands and static files: for a tool that runs the program without serving pages")
 	if err := fs.Parse(args); err != nil {
 		return err
 	}
 	if !*inplace {
-		return genModule(*out, *check, stdout)
+		return genModule(*out, *check, *codeOnly, stdout)
 	}
 	patterns := fs.Args()
 	if len(patterns) == 0 {
@@ -879,7 +882,7 @@ func relativeLines(src []byte, dir, target string) []byte {
 	return bytes.ReplaceAll(src, []byte("/*line "+prefix), []byte("/*line "+to))
 }
 
-func genModule(out string, check bool, stdout io.Writer) error {
+func genModule(out string, check, codeOnly bool, stdout io.Writer) error {
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return err
@@ -913,11 +916,13 @@ func genModule(out string, check bool, stdout io.Writer) error {
 		return err
 	}
 	gens = append(gens, links...)
-	css, err := buildTailwind(root, overlay, pa, os.Stderr)
-	if err != nil {
-		return err
+	if !codeOnly {
+		css, err := buildTailwind(root, overlay, pa, os.Stderr)
+		if err != nil {
+			return err
+		}
+		gens = append(gens, css...)
 	}
-	gens = append(gens, css...)
 	if !filepath.IsAbs(out) {
 		out = filepath.Join(root, out)
 	}

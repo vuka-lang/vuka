@@ -25,7 +25,7 @@ vuka mod tidy|why|vendor|graph|… [args]
 vuka build -islands [-watch]
 vuka graphql schema [-check file] [-o file] [package]
 vuka routes [-json]
-vuka gen [-check] [-o build]
+vuka gen [-check] [-code-only] [-o build]
 vuka gen -inplace [-check] [dir | dir/...]
 vuka eject [-rm] [file.vuka… | dir | dir/...]
 vuka explain [-full] file.vuka | file.vuka.html
