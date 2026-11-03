@@ -64,6 +64,27 @@ These values and functions help:
 |---|---|
 | `orm.ErrNotFound`, `ErrMultipleFound`, `ErrConflict`, `ErrInvalid`, `ErrUnavailable` | the kinds as `error` values, for `errors.Is` |
 | `orm.KindOf(err)` | an error's kind; 0 for one the ORM gives no meaning (a driver's, a bad query) |
+| `orm.ErrUnfiltered` | an `Update` or `Delete` with no condition, which would reach every row; `Unfiltered()` says that is meant ([Updating](/orm/queries#updating)) |
+
+## Mistakes in a Model's Schema {#schema-errors}
+
+A mistake in a model's `Schema` method is an `*orm.SchemaError`, reported by
+every query of the model and by `orm.Check`, so run `Check` at start-up to
+find it there. It has the `Code`, the `Model` and a `Msg`:
+
+| Code | |
+|---|---|
+| E0501 | an argument of `s.Field` that isn't the address of one of the model's fields |
+| E0502 | a nil attribute |
+| E0503 | a `Schema` method that panicked |
+
+<!-- go:fragment -->
+```go
+var se *orm.SchemaError
+if err := orm.Check(); errors.As(err, &se) {
+	log.Fatalf("%s: %s %s", se.Code, se.Model, se.Msg)
+}
+```
 
 ## Errors in a Web App {#web}
 

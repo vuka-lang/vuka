@@ -97,6 +97,17 @@ whose empty value is NULL. `@orm.DBType("citext")` writes a type
 of your own, and a type with `Scan` and `Value` methods is a column too
 ([Custom Value Types](/orm/fields#value-types)).
 
+`orm.JSON[T]` and `orm.CSV[E]` hold their value in `V`, and marshal to JSON
+as that value alone. `orm.JSONOf(v)` and `orm.CSVOf(a, b, …)` make one:
+
+| | NULL | Otherwise |
+|---|---|---|
+| `orm.JSON[T]` | a nil `V` (slice, map or pointer) | `V` as JSON |
+| `orm.CSV[E]` | a nil `V` | `V` comma-separated: `"7,9,11"`; an empty non-nil `V` is `""` |
+
+A CSV list holds integers or strings; reading it trims the spaces around
+the commas.
+
 This model uses most of them:
 
 ::: code-group
@@ -368,6 +379,65 @@ needs `Posts []Post` on `Author`); without one, use the generated path,
 `AuthorColumns.Posts()`. See [Following a Relation
 Backward](/orm/queries#following-relationships-backward).
 
+### Keys Held in a Column {#elements}
+
+A table may keep a row's related keys in one column, a JSON array or a
+comma-separated list. `@orm.Elements{Column}` on a slice field makes that
+column a relation: queries go through it as through a many-to-many, and
+`PrefetchRelated` and `Load` fill the slice. `Ref` names the related field
+the keys hold, its primary key otherwise:
+
+::: code-group
+```vuka [Vuka]
+type Product struct {
+	orm.Base
+	ID   int64
+	Name string
+	SKU  string
+}
+
+type Bundle struct {
+	orm.Base
+	ID       int64
+	Name     string
+	ItemKeys orm.JSON[[]int64]
+	SKUList  orm.CSV[string]
+	Items    []Product @orm.Elements{Column: "item_keys"}
+	Parts    []Product @orm.Elements{Column: "sku_list", Ref: "sku"}
+}
+
+func bundlesWith(ctx context.Context, sku string) ([]Bundle, error) {
+	return Bundle.Objects.Filter(orm.Q{"parts__sku": sku}).PrefetchRelated("items").All(ctx)
+}
+
+func newBundle(ctx context.Context, name string, items ...int64) error {
+	b := Bundle{Name: name, ItemKeys: orm.JSONOf(items)}
+	return b.Save(ctx)
+}
+```
+```go [Generated Go]
+type Bundle struct {
+	orm.Model[Bundle]
+	ID       int64
+	Name     string
+	ItemKeys orm.JSON[[]int64]
+	SKUList  orm.CSV[string]
+	Items    []Product
+	Parts    []Product
+}
+
+// …
+
+func (b *Bundle) Schema(s *orm.Schema) {
+	s.Field(&b.Items, orm.Elements{Column: "item_keys"})
+	s.Field(&b.Parts, orm.Elements{Column: "sku_list", Ref: "sku"})
+}
+```
+:::
+
+The slice is what the column holds, read: to change the relation, write the
+column (`b.ItemKeys.V`) and save.
+
 ### Relation Options {#relation-options}
 
 `@orm.Rel{…}` describes a relation:
@@ -393,11 +463,12 @@ Backward](/orm/queries#following-relationships-backward).
 | `Indexes` | its [search and vector indexes](/orm/search) (`orm.FullTextIndex`, `orm.GinIndex`, …), as an `Indexes()` method returns them |
 | `DB` | the [database](/orm/databases#multiple-databases) it lives on; the default otherwise |
 | `Read`, `Write` | where its reads and its writes go, over `DB` |
-| `Mirror` | a database its writes are repeated on |
+| `Mirror` | a database its writes are repeated on ([mirrored writes](/orm/legacy-schemas#mirrored-writes)) |
 | `Unmanaged` | the database's own table: never created or migrated |
 
-A `Meta() orm.Meta` method works too, and wins. A one-column index is
-`@orm.Index` on the field, a unique pair `@orm.UniqueTogether`.
+A `Meta() orm.Meta` method still declares the model's `Meta`, over the
+attribute; it is deprecated for `s.Model(orm.Meta{…})`. A one-column index
+is `@orm.Index` on the field, a unique pair `@orm.UniqueTogether`.
 
 ## Model Methods {#orm-model}
 
@@ -698,6 +769,72 @@ type, the type of every path ending at a post, and the receiver for
 alias. Without generated fields every query takes the engine's strings,
 `orm.Q{"name__startswith": "a"}` and `OrderBy("-views")`, and an unknown
 lookup is a runtime error.
+
+### Manager Options {#for-options}
+
+`orm.For[T](opts…)` is a model's manager with options, which win over its
+`Meta`. Declare it once, package-level: the first `orm.For[T]` without
+`orm.Names` is the model's own manager, the one `orm.Objects[T]()` returns
+and its rows' writes use.
+
+```go
+var Entries = orm.For[Entry](orm.On("audit"), orm.Table("audit_log"), orm.Unmanaged())
+```
+
+| `orm.For` option | |
+|---|---|
+| `orm.On(name)` | the database added as `name`; the default otherwise |
+| `orm.Table(name)` | the table, over `Meta`'s and a `TableName` method |
+| `orm.Unmanaged()` | the database's own table: never created or migrated |
+| `orm.Names(set)` | the model read under a [names set](/orm/legacy-schemas) |
+| `orm.Mirror(name)` | every write repeated on that database ([mirrored writes](/orm/legacy-schemas#mirrored-writes)) |
+| `orm.MirrorUnder(set)` | the mirror written under a names set |
+| `orm.MirrorTable(name)` | the mirror's table |
+
+### Model Attributes of Your Own {#model-attrs}
+
+`s.Model` takes `orm.Meta` and any value implementing `orm.ModelAttr`, whose
+`ApplyModel(*orm.ModelConfig)` sets the model's routing and mirror. One
+attribute can then say what many models share:
+
+```go
+import "cmp"
+
+// Archived keeps a model on the archive database, its writes repeated on main.
+type Archived struct{}
+
+func (Archived) ApplyModel(c *orm.ModelConfig) {
+	c.DB = cmp.Or(c.DB, "archive")
+	c.Mirror = cmp.Or(c.Mirror, "main")
+}
+
+type Invoice struct {
+	orm.Model[Invoice]
+	ID    int64
+	Total int64
+}
+
+func (i *Invoice) Schema(s *orm.Schema) {
+	s.Model(orm.Meta{Table: "invoices"}, Archived{})
+}
+```
+
+`orm.ModelConfig` has `DB`, `Read`, `Write`, `Mirror`, `MirrorNames`,
+`MirrorTable`, `Names`, `Table` and `Unmanaged`, as `Meta` and the `For`
+options name them, and `Fields`, a function giving fields options only the
+running program knows. A `For` option wins over a `Meta` field, which wins
+over a model attribute; an empty value never undoes a set one.
+
+### Why orm.Objects[T]() {#objects}
+
+Go compiles a generic type again for each type argument, in every package
+that reaches it. A package holding models doesn't reach `orm.Manager[T]` or
+`orm.QuerySet[T]`: a row's `orm.Model[T]` and an `orm.FK[T]` work through
+the manager's non-generic core. Only a package that names a manager or a
+query compiles them, and only for the models it queries. That is why a
+model has no `User{}.Objects()` method — its signature would make every
+importer of `User` compile `orm.Manager[User]` — and why the manager is
+`orm.Objects[User]()`, which costs only the package calling it.
 
 ### Mixing Go and Vuka Models
 

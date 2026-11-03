@@ -54,6 +54,40 @@ transaction's, so the queries made with it take part.
 
 If the commit itself fails, `orm.Transaction` returns that error.
 
+### As a Decorator {#decorator}
+
+In a `.vuka` file `@orm.Transaction` runs a function's body in a
+transaction. The function takes a named `context.Context` and returns an
+error (`error`, `(T, error)` or `Result[T]`); the body gets the
+transaction's context under the same name:
+
+<!-- vuka:context
+type Event struct {
+	orm.Model[Event]
+	ID   int64
+	Kind string
+}
+-->
+
+::: code-group
+```vuka [Vuka]
+@orm.Transaction
+func record(ctx context.Context, e Event) error {
+	return e.Save(ctx)
+}
+```
+```go [Generated Go]
+func record(ctx context.Context, e Event) error {
+	return orm.Transaction(ctx, func(ctx context.Context) error {
+		return e.Save(ctx)
+	})
+}
+```
+:::
+
+A transaction that needs options, `orm.TxOn` or `orm.Retry`, calls
+`orm.Transaction` with them, as in Go.
+
 ### Nested Transactions
 
 Nested — a transaction calling another — the inner one is a savepoint: its
@@ -111,6 +145,7 @@ The calls and options are:
 | `orm.Transaction(ctx, fn, opts…)` | `fn` in a transaction; nested, a savepoint (`orm.Atomic` is the same) |
 | `orm.AtomicOn(ctx, db, fn, opts…)` | on a given `*orm.DB` |
 | `orm.TxOn("db")`, `orm.Retry(n)` | the options, as values |
+| `@orm.Transaction` | in a `.vuka` file: the function's body in a transaction ([decorator](#decorator)) |
 
 Options follow the function:
 

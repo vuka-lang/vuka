@@ -196,15 +196,19 @@ The rest of the database guide covers each part in turn:
 | [Fields](/orm/fields) | column attributes (`PK`, `Char`, `Int`, `Datetime`, …), defaults, write checks, custom value types and attributes |
 | [Queries](/orm/queries) | creating, reading, filtering through relations either way, aggregating, updating and deleting |
 | [Common Queries](/orm/cookbook) | short recipes: a row or 404, latest N, pages, counts per group, rows with no related rows, upserts, soft deletes |
-| [Expressions & Functions](/orm/expressions) | `orm/fn`, `Case`/`When`, subqueries, custom functions and lookups |
+| [Expressions & Functions](/orm/expressions) | functions, casts, `Case`/`When`, subqueries, custom functions and lookups, extending the ORM |
 | [Search](/orm/search) | text, trigram, vector and hybrid search on each database |
 | [Transactions](/orm/transactions) | `orm.Transaction`, retries, `OnCommit` |
 | [Migrations](/orm/migrations) | the `orm` command and Go migration files |
 | [Databases](/orm/databases) | dialects, several databases, routing, raw SQL, the connection pool |
+| [Legacy Schemas](/orm/legacy-schemas) | one set of models over tables named apart, value codecs, mirrored writes and cutovers |
 | [Observability](/orm/observability) | observers, N+1 warnings, slow queries, pool statistics |
 | [Errors](/orm/errors) | the error kinds |
 | [Database Testing](/orm/testing) | `ormtest` |
 
 The repository's
 [`examples/blog`](https://github.com/vuka-lang/orm/tree/main/examples/blog)
-is the Vuka layer at work.
+is a blog written as Vuka models: users, tags and posts declared with field
+attributes, queried through their typed fields (`Post.Title.Contains("Go")`),
+with migrations written by `makemigrations`, text and vector search, and an
+`@orm.Transaction` function.

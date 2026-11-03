@@ -967,6 +967,8 @@ ORDER BY (COUNT(DISTINCT posts.id)) DESC
 A filter on an aggregate becomes `HAVING`; a filter on a plain column stays
 in `WHERE`. To read the value, select it with [`Values`](#values);
 `orm.Ref[int64]("posts")` refers to an annotation added earlier by name.
+`AnnotateAs` names typed expressions by their `As`:
+`Post.Objects.AnnotateAs(orm.Length(Post.Title).As("title_len")).Filter(orm.Q{"title_len__gt": 40})`.
 
 ### Aggregating Related Rows {#related-counts-and-model-conditions}
 
@@ -1113,6 +1115,45 @@ FROM posts LEFT JOIN authors AS author ON author.id = posts.author_id
 GROUP BY 1
 ```
 :::
+
+### Filtering a Relation's Rows {#filtered-relation}
+
+`orm.FilteredRelation(relation, cond)` is a relation whose related rows are
+only those where `cond` holds. Annotate it under a name, then name fields
+through it — here, each author's number of published posts, authors with
+none counted 0:
+
+::: code-group
+```vuka [Vuka]
+type LivePosts struct {
+	Name  string
+	Posts int64
+}
+
+func livePosts(ctx context.Context) ([]LivePosts, error) {
+	return Author.Objects.Annotate("live", orm.FilteredRelation("posts", Post.Status.Eq("published"))).
+		Annotate("posts", orm.Count("live__id")).
+		OrderBy("name").Values[LivePosts]("name", "posts").All(ctx)
+}
+```
+```go [Generated Go]
+type LivePosts struct {
+	Name  string
+	Posts int64
+}
+
+func livePosts(ctx context.Context) ([]LivePosts, error) {
+	return orm.Objects[Author]().Annotate("live", orm.FilteredRelation("posts", PostColumns.Status.Eq("published"))).
+		Annotate("posts", orm.Count("live__id")).
+		OrderBy("name").Values[LivePosts]("name", "posts").All(ctx)
+}
+```
+:::
+
+`cond` names the related model's own fields. Reading through the relation
+joins with `cond` in the `ON`, so an author with no match keeps a row of
+NULLs, where a filter on `posts__status` would drop them; filtering through
+it asks `EXISTS` one matching row.
 
 ## Combining Tables: Join {#joins}
 
@@ -1360,8 +1401,9 @@ func archiveQuietDrafts(ctx context.Context) (int64, error) {
 UPDATE posts SET status = ? WHERE status = ? AND views < ?
 ```
 
-A query with no condition refuses to update or delete, so a forgotten
-`Filter` can't reach every row: `Unfiltered()` says you mean all of them,
+A query with no condition refuses to update or delete, failing with
+`orm.ErrUnfiltered`, so a forgotten `Filter` can't reach every row:
+`Unfiltered()` says you mean all of them,
 `Post.Objects.Unfiltered().Update(ctx, orm.Set{"views": 0})`. `Update`
 doesn't call the rows' `Save` hooks.
 
@@ -1433,7 +1475,55 @@ posts' comments, under `orm.Cascade`. SQLite enforces foreign keys only with
 ### Watching Writes {#watching-writes}
 
 `Post.Objects.OnChange(fn)` calls `fn` after each write to the model's
-rows, and returns the function that stops it.
+rows, once its transaction commits (at once outside one, never for one
+rolled back), and returns the function that stops it. Each write is an
+`orm.Change[Post]`:
+
+::: code-group
+```vuka [Vuka]
+func watchPosts() (stop func()) {
+	return Post.Objects.OnChange(func(ctx context.Context, c orm.Change[Post]) {
+		switch c.Kind {
+		case orm.Created, orm.Updated:
+			fmt.Println("saved", c.Row.Slug)
+		case orm.Deleted:
+			fmt.Println("deleted", c.Row.Slug)
+		case orm.BulkUpdated:
+			fmt.Println(c.Count, "posts updated:", c.Keys)
+		case orm.BulkDeleted:
+			fmt.Println(c.Count, "posts deleted")
+		}
+	})
+}
+```
+```go [Generated Go]
+func watchPosts() (stop func()) {
+	return orm.Objects[Post]().OnChange(func(ctx context.Context, c orm.Change[Post]) {
+		switch c.Kind {
+		case orm.Created, orm.Updated:
+			fmt.Println("saved", c.Row.Slug)
+		case orm.Deleted:
+			fmt.Println("deleted", c.Row.Slug)
+		case orm.BulkUpdated:
+			fmt.Println(c.Count, "posts updated:", c.Keys)
+		case orm.BulkDeleted:
+			fmt.Println(c.Count, "posts deleted")
+		}
+	})
+}
+```
+:::
+
+| `c.Kind` | Made by | `Change` holds |
+|---|---|---|
+| `orm.Created` | `Create`, `BulkCreate`, a new row's `Save` | `Row` |
+| `orm.Updated` | a saved row's `Save` or `SaveFields` | `Row` |
+| `orm.Deleted` | a row's `Delete`, the manager's `Remove` | `Row` |
+| `orm.BulkUpdated` | a query's `Update` | `Count`, and `Keys`: the keys of the rows it matched |
+| `orm.BulkDeleted` | a query's `Delete` | `Count`, and `Rows`: the rows it removed, as found just before |
+
+Raw SQL (`orm.Exec`) is the database's alone: `OnChange` hears nothing of
+it.
 
 ## Related Rows {#relations}
 
@@ -1507,6 +1597,23 @@ func withPosts(ctx context.Context, a *Author) error {
 A reverse relation with no field to hold it is still a path for conditions
 and aggregates; `Load` and `PrefetchRelated` on it say which field to
 declare.
+
+`orm.Related[R](row, relation)` is a query of the rows related to a row by
+a relation's name — the row a foreign key holds, the rows holding its key,
+or those linked many-to-many — on the row's schema, for filtering further:
+
+::: code-group
+```vuka [Vuka]
+func publishedBy(ctx context.Context, a *Author) ([]Post, error) {
+	return orm.Related[Post](a, "posts").Filter(Post.Status.Eq("published")).All(ctx)
+}
+```
+```go [Generated Go]
+func publishedBy(ctx context.Context, a *Author) ([]Post, error) {
+	return orm.Related[Post](a, "posts").Filter(PostColumns.Status.Eq("published")).All(ctx)
+}
+```
+:::
 
 A many-to-many's rows are on its field, `p.Tags.All(ctx)`, which reads them
 unless they were loaded. From the other side, filter the posts:
@@ -1640,7 +1747,8 @@ func authorsWithLivePosts(ctx context.Context) ([]Author, error) {
 :::
 
 `orm.LoadRelated(ctx, rows, "author", "tags")` does the same for rows read
-already (a slice of pointers to them). [`orm.WatchRepeats`](/orm/observability#n-1-queries)
+already (a slice of pointers to them), and `orm.LoadRelation(ctx, rows,
+"tags")` for one relation, by its Go field's name or its lookup name. [`orm.WatchRepeats`](/orm/observability#n-1-queries)
 reports the N+1s left.
 
 ## Subqueries {#subqueries}
@@ -2011,7 +2119,10 @@ func resetArchived(ctx context.Context) error {
 ```
 :::
 
-Write `?` for arguments on every database. See
+Write `?` for arguments on every database. `Post.Objects.Raw(…)` is an
+`orm.RawQuerySet[Post]`: `All`, `First` (`orm.ErrNotFound` when the SQL
+reads no row) and `Iter` run it, and `PrefetchRelated` loads relations into
+its rows after them, as a query's does (not into `Iter`'s). See
 [Raw SQL](/orm/databases#raw-sql) for `RawRow`, timeouts and choosing the
 database.
 

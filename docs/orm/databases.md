@@ -64,6 +64,18 @@ missing: `sqlite://data/app.db` opens on a fresh checkout.
   or runs migrations, to pick the column types; `orm sqlmigrate --dialect
   mysql/9.3.0` writes a given server's.
 
+### Drivers {#drivers}
+
+The driver packages register what the ORM needs of their driver; a program
+blank-imports the ones it opens. A driver of your own for one of the three
+dialects registers the same way, from an `init`:
+
+| | |
+|---|---|
+| `orm.RegisterDriver(dialect, sqlDriver)` | the `database/sql` driver `Connect` opens for a dialect |
+| `orm.RegisterDriverHooks(dialect, orm.DriverHooks{…})` | `Credentials`, which puts a user and password into a DSN (for `orm.Credentials`), and `Classify`, which reads the driver's errors |
+| `orm.Classify(err)` | what an error says about its connection: `orm.ConnError` (refused, reset, timed out, dropped: the breaker counts it, a read retries once), `orm.RetryableError` (a deadlock or serialization failure: `orm.Retry` runs the transaction again), else `orm.OtherError` |
+
 ## Connecting
 
 Open a database with one of these calls:
@@ -78,6 +90,21 @@ Open a database with one of these calls:
 A database added this way is used as it is: the program opened it, and
 closes it. To have the ORM open, supervise and close them — with replicas, a
 pool, health checks and a circuit breaker — declare them.
+
+A `*orm.DB` is a `*sql.DB` and its dialect. `db.Name()` is the name it was
+added under, `db.SQL()` the `*sql.DB`, `db.Dialect()` how it writes SQL, and
+`db.State()` its [pool state](#how-the-pool-behaves) (`Up` for one the ORM
+doesn't supervise).
+
+### Reading URLs
+
+These read database URLs as `ConnectURL` does:
+
+| | |
+|---|---|
+| `orm.ParseURL(url)` | the URL's dialect and the DSN its driver takes |
+| `orm.SplitPoolParams(url)` | the URL without its [pool parameters](#connection-pool), and the `orm.Pool` they say |
+| `orm.FromEnv()` | the databases `DATABASE_URL` (the default) and `DATABASE_URL_<NAME>` name, as `orm.Declare` options for `NewDatabases` or `OpenDatabases` |
 
 ### Declaring Databases
 
@@ -126,8 +153,26 @@ Other options of the set: `orm.Routers(…)`,
 once the databases are open (migrations, a seed).
 
 `orm.WithDatabases(ctx, set)` puts a set on a context; a process serving
-several apps gives each its own. In a web app, [`ormweb`](#web-integration)
-does all of this.
+several apps gives each its own. `orm.DatabasesOf(ctx)` is the context's
+set, `orm.Default` when it has none; `orm.DBFrom(ctx)` is the database
+`orm.WithDB` put there. In a web app, [`ormweb`](#web-integration) does all
+of this.
+
+A set's methods:
+
+| `*orm.Databases` method | |
+|---|---|
+| `Add(name, db, opts…)` | adds a database the program opened, replacing one of that name |
+| `Remove(name)` | removes it, without closing it |
+| `Lookup(name)` | the database; `""` the default (the one `AsDefault` marked, else the only one) |
+| `Names()` | the databases' names, sorted |
+| `Conn(name)` | a [connection handle](#connection-handles) on it |
+| `Start(ctx)`, `Stop(ctx)` | opens the declared databases (after `Check`), closes them: what a framework calls on start and stop |
+| `Close(ctx)` | `Stop`, for a program |
+| `Check()` | what keeps the set from serving the program's models |
+| `AddRouter(r)`, `Apply(opts…)` | adds a router, applies open options |
+| `Route(table, r)`, `Unroute(table)`, `RouteFor(table)` | a table's [route](/orm/legacy-schemas#routes) |
+| `Stats()`, `StatsOf(name)` | [pool statistics](/orm/observability#stats) |
 
 ## Multiple Databases {#multiple-databases}
 
@@ -239,8 +284,9 @@ A transaction spans one database: the one of its first write, or the one
 ### Mirrors
 
 `Meta.Mirror` (or a route's `Mirror`) repeats a model's writes on a second
-database — the way to move a table: write both while reading one, then
-switch.
+database, after they commit on the first — the way to move a table: write
+both while reading one, then switch. A mirror may be written in another
+shape, under a names set. See [Mirrored Writes](/orm/legacy-schemas#mirrored-writes).
 
 ## Raw SQL
 
@@ -279,6 +325,7 @@ The raw calls are:
 |---|---|
 | `orm.Raw[R](ctx, sql, args…)` | rows into structs (or scalars) |
 | `orm.RawRow[R](ctx, sql, args…)` | one row; `orm.NotFound` when there is none |
+| `orm.RawIter[R](ctx, sql, args…)` | `Raw` one row at a time, an `iter.Seq2[R, error]` |
 | `orm.Exec(ctx, sql, args…)` | a statement; the rows affected |
 | `orm.Objects[Post]().Raw(sql, args…).All(ctx)` | a model's rows |
 
@@ -307,6 +354,19 @@ func init() {
 	orm.Database("analytics")(vuka.TypeFor[Analytics](nil))
 }
 ```
+
+In a `.vuka` file the handle is declared with the `@orm.Database`
+decorator:
+
+::: code-group
+```vuka [Vuka]
+@orm.Database("analytics")
+type Analytics struct{ orm.Conn }
+```
+```go [Generated Go]
+type Analytics struct{ orm.Conn }
+```
+:::
 
 A `Conn` is a `context.Context` too (background, carrying its database), so
 `orm.Raw[R](a, …)` works; `a.With(ctx)` keeps the request's cancellation,
@@ -441,6 +501,11 @@ Its options and the parts it is made of:
 | `ormweb.Set(s, opts…)` | serves a set made elsewhere |
 | `ormweb.UsingFrom(fn)` | middleware sending a request's queries to the database `fn` names (a tenant's); `""` leaves them |
 | `ormweb.Middleware(s)`, `ormweb.HealthHandler(s)` (states), `ormweb.DetailedHealthHandler(s)` (the whole report) | the parts, for another router |
+| `ormweb.Check(s)` | the set's health now, an `ormweb.Report`: `Status` (`ok`, `degraded`, `down`) and each database's statistics |
+| `ormweb.Summarize(rep)` | the report without its details: the status and each database's state, an `ormweb.Summary` |
+
+In development the app's [Development Toolbar](/web/toolbar#sql) lists each request's
+statements in its SQL panel, from what `ormweb` observes.
 
 ### Development and Production
 

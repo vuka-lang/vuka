@@ -279,6 +279,47 @@ Each `orm.FieldInfo` has the field's `Name`, `Column`, `Type`, `PK`, `Null`,
 `Pattern`, `Default`, `Initial`, `Label`, `Help`, `Comment`, `AutoNow` and
 `AutoNowAdd`.
 
+A manager says more about its model:
+
+| | |
+|---|---|
+| `Columns()` | the model's columns, in field order |
+| `TableName()` | its table |
+| `PKColumn()` | its primary key's column, `""` for none |
+| `Info()` | the model as routers see it: an `orm.ModelInfo` of its name, table, Go type and `Meta` |
+| `Err()` | what keeps the ORM from mapping the model; nil when it can |
+| `ColumnValues(&row)` | a row's columns and the values the database is sent, for code that speaks columns (a change feed to another system) |
+
+<!-- go:fragment -->
+```go
+orders := orm.Objects[Order]()
+if err := orders.Err(); err != nil {
+	return err
+}
+o := Order{Ref: "A-1", Status: "paid"}
+fmt.Println(orders.TableName(), orders.PKColumn(), orders.Columns(), orders.ColumnValues(&o))
+```
+
+`orm.SchemaOf(t)` is what a struct type declares: its attributes, Vuka's
+and its `Schema` method's. `FieldAttrs(name)` lists a field's attributes
+in order, and `ModelAttrs()` the model's; a `Schema` method that is wrong
+gives an [`*orm.SchemaError`](/orm/errors#schema-errors):
+
+<!-- go:context
+import "reflect"
+
+var _ = reflect.TypeOf
+-->
+
+<!-- go:fragment -->
+```go
+schema, err := orm.SchemaOf(reflect.TypeFor[Order]())
+if err != nil {
+	return err
+}
+fmt.Println(schema.FieldAttrs("Status"), schema.ModelAttrs())
+```
+
 ## Fields in Migrations {#in-migrations}
 
 <!-- go:context
