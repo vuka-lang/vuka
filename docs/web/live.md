@@ -402,10 +402,15 @@ thread-safe.
 
 ## Uploading Files {#uploads}
 
-Upload files through an HTTP multipart action, not by assuming a live event's
-JSON/form-value payload contains file bytes. Keep file handling in a typed
-HTTP handler (a page's Post method or an endpoint under pages/api) and receive
-`*http.Request` by type. For example, `pages/upload.vuka.html`:
+A struct form takes a file with a `ui.File` field: the runtime sends the file
+over HTTP as soon as it is chosen, and the form, live or not, carries a
+reference to it. See [Files](/ui/forms#files).
+
+Outside a struct form, upload files through an HTTP multipart action, not by
+assuming a live event's JSON/form-value payload contains file bytes. Keep file
+handling in a typed HTTP handler (a page's Post method or an endpoint under
+pages/api) and receive `*http.Request` by type. For example,
+`pages/upload.vuka.html`:
 
 ```html
 <script lang="go">

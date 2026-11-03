@@ -7,6 +7,13 @@ go 1.27
 replace github.com/vuka-lang/vuka/v2 => ../../..
 
 require (
+	github.com/vuka-lang/orm/v2 v2.16.2-0.20261103060702-2d676bdb121b
+	github.com/vuka-lang/ui/v2 v2.16.2-0.20261103061142-097d69efeb6b
+	github.com/vuka-lang/vuka/v2 v2.16.1
+	github.com/vuka-lang/web/v2 v2.16.2-0.20261103061711-473cae6b5bff
+)
+
+require (
 	filippo.io/edwards25519 v1.2.0 // indirect
 	github.com/a-h/templ v0.3.1020 // indirect
 	github.com/andybalholm/brotli v1.2.7 // indirect
@@ -21,10 +28,6 @@ require (
 	github.com/jackc/puddle/v2 v2.2.2 // indirect
 	github.com/mattn/go-isatty v0.0.20 // indirect
 	github.com/remyoudompheng/bigfft v0.0.0-20230129092748-24d4a6f8daec // indirect
-	github.com/vuka-lang/orm/v2 v2.2.1-0.20261029231446-6027ea66b367 // indirect
-	github.com/vuka-lang/ui/v2 v2.14.1-0.20261031051518-8f21427677b4 // indirect
-	github.com/vuka-lang/vuka/v2 v2.14.0 // indirect
-	github.com/vuka-lang/web/v2 v2.14.1-0.20261031054009-cdf52bc13243 // indirect
 	golang.org/x/crypto v0.55.0 // indirect
 	golang.org/x/mod v0.42.0 // indirect
 	golang.org/x/sync v0.24.0 // indirect

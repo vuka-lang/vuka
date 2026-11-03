@@ -553,6 +553,70 @@ func (f *Address) CityChoices(ctx context.Context, geo *Geo) ([]ui.Option, error
   render reads it. `vuka vet` warns about a `depends:` naming no field
   ([W0313](/errors/W0313)).
 
+## Files {#files}
+
+A `ui.File` field takes a file. Its tags say what it accepts and how large
+it may be:
+
+```go
+package profiles
+
+import (
+    "context"
+    "io"
+
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Photo struct {
+    ui.FormState
+    Caption string
+    Avatar  ui.File `accept:"image/*" max:"5MB" validate:"required"`
+}
+
+type Avatars interface {
+    Put(ctx context.Context, name, contentType string, r io.Reader) error
+}
+
+func SavePhoto(ctx context.Context, f Photo, avatars Avatars) error {
+    r, err := f.Avatar.Open()
+    if err != nil {
+        return err
+    }
+    defer r.Close()
+    return avatars.Put(ctx, f.Avatar.Name(), f.Avatar.ContentType(), r)
+}
+```
+
+- **The file goes up as soon as it is chosen,** over HTTP with a progress
+  bar, before the form is submitted. Its size is checked as it streams: a
+  file larger than `max:` stops at the limit and the field shows "Avatar
+  must be smaller than 5 MB". A file `accept:` doesn't list shows "Avatar
+  must be an image".
+- **The form carries a reference, not the file.** Checks as the visitor
+  types never send it again, and a submit that fails on another field keeps
+  it: the field shows "photo.jpg ✓ Change". A submit sent while a file is
+  still going up waits for it.
+- **The submit handler reads the file** (`<ui.Form for={Photo}
+  onSubmit={SavePhoto}/>`) with `Open`, and `Name`, `Size`,
+  `ContentType` and `Empty` describe it. `Name` is what the visitor's device
+  called it: show it, never use it as a path. `ContentType` is the type the
+  file's first bytes show, else the one the browser declared.
+- **`accept:`** takes what the HTML attribute does (`image/*`, `.pdf`,
+  `application/pdf`), matched against the name, the declared type and the
+  sniffed one. It guides the visitor; check what the handler stores. A field
+  without `max:` takes up to `ui.DefaultFileMax` (10 MB).
+- **Without script** the form posts as multipart: the first post stores the
+  file, and a failed one renders it kept by reference, as above.
+
+Files wait in the app's file store until the form is submitted, for
+`ui.FileTTL` (24 hours): by default a directory of the machine. An app with
+several replicas gives them one they share, `web.FileStore(s)`, else a
+submit reaching another replica than the upload did asks the visitor to
+choose the file again ("Select avatar again: the file sent before is no
+longer kept"). `ui.DirFileStore(dir)` keeps them in `dir`; a `ui.FileStore`
+is three methods, `Put`, `Open` and `Delete`, for any other storage.
+
 ## Browser Checks {#browser-checks}
 
 Forms are `novalidate`: the server's messages are the ones a visitor reads.
