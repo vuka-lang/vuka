@@ -83,6 +83,31 @@ The `orm` package provides these:
 | `SQL(template, args…)` | your own SQL: `orm.SQL("{0} * {1}", PostColumns.Likes.Expr(), PostColumns.Views.Expr())` |
 | `Where(e, lookup, v)` | a condition on any expression: `orm.Where(orm.SQL("{0} - {1}", views, likes), "gte", 49)` |
 
+### Casts
+
+`orm.Cast(e, t)` converts a field, an expression or a value to type `t`,
+spelled for each database:
+
+| Cast type | Postgres | MySQL | SQLite |
+|---|---|---|---|
+| `orm.AsInt` | `BIGINT` | `SIGNED` | `INTEGER` |
+| `orm.AsFloat` | `DOUBLE PRECISION` | `DOUBLE` | `REAL` |
+| `orm.AsText` | `TEXT` | `CHAR` | `TEXT` |
+| `orm.AsDate` | `DATE` | `DATE` | `date(…)` |
+| `orm.AsDateTime` | `TIMESTAMP` | `DATETIME(6)` | `datetime(…)` |
+| `orm.AsDecimal(p, s)` | `NUMERIC(p, s)` | `DECIMAL(p, s)` | `NUMERIC` (no scale kept) |
+| `orm.AsType(sql)` | the type as written, the same everywhere: `orm.AsType("CHAR(20)")` | | |
+
+`AsType` takes a type name and its size only. MySQL's `CAST` knows few
+types — `CHAR`, `SIGNED`, `UNSIGNED`, `DECIMAL`, `DOUBLE`, `DATE`,
+`DATETIME`, `TIME`, `JSON`, `BINARY` — so no `VARCHAR` or `INT` there:
+
+<!-- go:fragment -->
+```go
+byText := orm.Objects[Post]().Annotate("views_text", orm.Cast(PostColumns.Views, orm.AsText)).
+	Filter(orm.Q{"views_text__startswith": "1"})
+```
+
 ### Typed Calls
 
 A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,
@@ -90,6 +115,22 @@ A typed call is a `TypedExpr[R]` (`Eq`, `Ne`, `In`, `IsNull`, `NotNull`,
 `Between`) or a `TextExpr` (and `Contains`, `IContains`, `StartsWith`,
 `EndsWith`, `Like`). `Asc` and `Desc` go in `Order`; `orm.Asc(e)` and
 `orm.Desc(e)` make any expression a term.
+
+An untyped expression — `orm.F`, `orm.SQL`, a `Function`'s call — gets a
+type the same way: `orm.Typed[R](e)` is a `TypedExpr[R]`,
+`orm.Ordered[R](e)` an `OrderedExpr[R]` and `orm.Text(e)` a `TextExpr`:
+
+<!-- go:fragment -->
+```go
+pinned := orm.Typed[bool](orm.F("pinned")).Eq(true)
+gap := orm.Ordered[int](orm.SQL("{0} - {1}", PostColumns.Views, PostColumns.Likes)).Gt(10)
+goTitles := orm.Text(orm.F("title")).IContains("go")
+found, err := orm.Objects[Post]().Filter(gap, goTitles).All(ctx)
+```
+
+The comparisons come with the type because Go can't give a generic type's
+methods to some of its type arguments only: `Contains` on a number doesn't
+compile.
 
 ## Aggregates
 
@@ -112,6 +153,25 @@ func likedStats(ctx context.Context) ([]Stats, error) {
 ```
 
 See [Values and Aggregates](/orm/queries#values-and-aggregates).
+
+`orm.AggOf(key, e)` is any aggregate expression under a key of your own,
+for the aggregates a database has beyond the five. This one joins every
+user's name:
+
+```go
+var names = orm.Function("names",
+	orm.Template("postgres", "string_agg({0}, ', ')"),
+	orm.Template("mysql", "GROUP_CONCAT({0} SEPARATOR ', ')"),
+	orm.Template("", "GROUP_CONCAT({0}, ', ')")) // SQLite
+
+func everyName(ctx context.Context) (string, error) {
+	r, err := orm.Objects[User]().Aggregate(ctx, orm.AggOf("names", names.Of(orm.F("name"))))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprint(r["names"]), nil
+}
+```
 
 ## Conditional Expressions {#case-and-switch}
 
@@ -192,6 +252,7 @@ like a Go function. The constructor picks the result type's comparisons:
 | `orm.OrderedFunc[R](name, opts…)` | `OrderedExpr[R]` | those, and `Lt`, `Le`, `Gt`, `Ge`, `Between` |
 | `orm.TextFunc(name, opts…)` | `TextExpr` | those, and `Contains`, `IContains`, `StartsWith`, `EndsWith`, `Like` |
 | `orm.Aggregate[R](name, opts…)` | an aggregate's | as `Func` |
+| `orm.Function(name, opts…)` | an untyped `Expr`, called with `.Of(args…)` | none: give it a type with `Typed`, `Ordered` or `Text` |
 
 Each constructor takes these options:
 
@@ -333,3 +394,59 @@ fields and on `Date(f)`. Durations retain fractional seconds.
 `YYYY-MM-DD` value, independently of the connection's timezone. A nil
 location uses UTC. `Date.Of`, `Date.Def`, and the date lookup transform
 remain available.
+
+## Extending the ORM {#extending}
+
+A layer above the ORM — a language runtime, a schema file, a filter decoded
+from a request — can drive it without struct tags or `orm.Q` strings.
+
+### Conditions and Orderings as Data
+
+An `orm.Pred` is a condition as plain data: a field `Path` (each part a Go
+field name or a column, through relations), an `Op` and a `Value`, or
+`orm.OpAnd`, `orm.OpOr` or `orm.OpNot` of the predicates in `Args`. It is a
+condition `Filter`, `Exclude` and `Get` take; `orm.Ordering{Path, Desc}` is
+an ordering's counterpart, and `orm.Orderings(…)` the terms as `OrderBy`
+takes them:
+
+<!-- go:fragment -->
+```go
+filter := orm.Pred{Op: orm.OpAnd, Args: []orm.Pred{
+	{Path: []string{"author", "name"}, Op: orm.OpEq, Value: "ada"},
+	{Op: orm.OpNot, Args: []orm.Pred{{Path: []string{"views"}, Op: orm.OpLt, Value: 10}}},
+}}
+posts, err := orm.Objects[Post]().Filter(filter).
+	OrderBy(orm.Orderings(orm.Ordering{Path: []string{"views"}, Desc: true})...).All(ctx)
+```
+
+The operators are `OpEq` and `OpNe` (a nil value: `IS NULL`, `IS NOT
+NULL`), `OpLt`, `OpLte`, `OpGt`, `OpGte`, `OpIn` (a slice), `OpRange` (a
+two-element slice), `OpIsNull`, `OpContains`, `OpIContains`, `OpIExact`,
+`OpStartsWith`, `OpIStartsWith`, `OpEndsWith`, `OpIEndsWith` and
+`OpSearch`. A type of your own that converts to a predicate implements
+`orm.Predicate` (`Pred() orm.Pred`), and `orm.PredCond(p)` makes it a
+condition.
+
+### Field Metadata From Outside the Struct
+
+A model's `Schema` method takes any value implementing `orm.FieldAttr`
+([custom attributes](/orm/fields#your-own-attributes)) or `orm.ModelAttr`
+([model attributes](/orm/models#model-attrs)), so another package declares
+fields and models the way the ORM's own attributes do.
+
+### Generated Scanners
+
+`orm generate` writes, per model, a scanner that reads rows without
+reflection and a writer that gives a row's column values for an `INSERT`.
+They are its output, never written by hand:
+
+| | |
+|---|---|
+| `orm.RegisterScanner[T](cols, make)` | installs a model's scanner, reading `cols` in order; one whose columns aren't the model's (the model changed after it was generated) is ignored |
+| `orm.RowScanner[T]`, `orm.RowWriter[T]` | the scanner (`Dest`, `Bind`) and the writer (`Values`) |
+| `orm.Cell[V]`, `orm.OptCell[V]`, `orm.PtrCell[V]` | the scan destinations a scanner uses: a value (NULL the zero value), an `Option`, a pointer |
+| `orm.Generated[T]()` | whether `T`'s rows are read by a generated scanner |
+
+A model without one is read and written by reflection, and behaves the
+same. `ORM_REFLECT=1 go test` runs the ORM's own test suite with the
+generated scanners ignored.

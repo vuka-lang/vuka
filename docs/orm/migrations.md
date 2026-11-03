@@ -39,6 +39,11 @@ func init() {
 }
 ```
 
+`Dependencies` lists the migrations applied before it: names of the same
+database's, or `"<db>:<name>"` of another database's (`":<name>"` the
+default's), so a migration of `analytics` can wait for one of `main`.
+`makemigrations` fills it with the database's latest migrations.
+
 The program imports the package, so `orm.Migrate` (and the commands) see
 the migrations:
 
@@ -79,7 +84,7 @@ The commands are:
 | `orm migrate [target\|zero]` | apply every database's pending migrations, or take one database to `target`, unapplying later ones (`zero`: all) |
 | `orm showmigrations` | `[X]`/`[ ]` per migration, per database |
 | `orm sqlmigrate <name>` | a migration's SQL for the database's dialect |
-| `orm generate [dir]` | write `orm_scanners_gen.go`: the models' registrations and reflection-free row scanners |
+| `orm generate [dir]` | write `orm_scanners_gen.go` per package — an `orm.Register[T]()` for each model and its reflection-free row scanner and writer — and each model's typed fields in `<file>_gen.go` beside the file declaring it |
 
 They take these flags:
 
@@ -87,14 +92,22 @@ They take these flags:
 |---|---|
 | `--db name` | the database (makemigrations, migrate, sqlmigrate); the default otherwise |
 | `--check` | fail when a migration (or a generated file) is missing, writing nothing: for CI |
+| `--tests` | generate: the models of `_test.go` files too |
+| `--missing` | generate: print the files out of date as a JSON object of path → content, writing nothing (what a build tool overlays) |
+| `--overlay file` | generate: a `go build -overlay` file holding source the tree lacks, such as the Go of `.vuka` files |
 | `--dry-run` | print the migration instead of writing it |
 | `--empty` | a migration with an empty `RunGo`, for a data migration |
 | `--noinput` | ask nothing: makemigrations writes a rename as a removal and an addition; migrate unapplies without confirming |
 | `--backwards` | sqlmigrate: the SQL unapplying it |
-| `--dialect` | `postgres`, `mysql` (`mysql/9.3.0` for a server version), `sqlite`: the SQL of another dialect |
+| `--dialect` | makemigrations, sqlmigrate: `postgres`, `mysql` (`mysql/9.3.0` for a server version), `sqlite`: the SQL of another dialect |
+| `--dir dir` | makemigrations: the migrations directory; `migrations`, or `migrations/<db>` for a database that isn't the default, otherwise |
 | `--database name=URL` | a database's URL (repeatable; `default=` for the default); else `DATABASE_URL` and `DATABASE_URL_<NAME>` from the environment, else from the module's `.env` |
-| `--default name` | the default database's name, as the models name it |
+| `--default name` | the default database's name, as the models name it; `ORM_DEFAULT_DB` otherwise |
+| `--root dir` | the program's module (a directory in it); `.` otherwise |
 | `--main dir` | the program's main package, when the module has several |
+
+`--database`, `--default`, `--root` and `--main` are the migration commands'
+(makemigrations, migrate, showmigrations, sqlmigrate).
 
 ### Prompts
 
@@ -108,11 +121,30 @@ users.mail to users.email? [y/N]".
 > Any other answer changes nothing. `--noinput` doesn't ask, for CI; neither
 does a `migrate` whose input isn't a terminal.
 
+### Generating Code {#generating-code}
+
+`orm generate` and `ormgen` write the same files. `ormgen` is the one for
+`go:generate`, which runs it in the package's directory:
+
+```go
+//go:generate go run github.com/vuka-lang/orm/v2/cmd/ormgen
+package shop
+```
+
+It takes package patterns (without any, the packages under the directory
+that declare or use models), `-tests` for
+the models of `_test.go` files, and `-check`, which writes nothing and fails
+when a file is out of date. Without the generated files the ORM reads and
+writes rows by reflection and the program behaves the same.
+
 ### How the Commands Run
 
 The commands build the program's main package with an init overlaid that
 answers them before `main` runs; nothing is written to the tree but the
-migration file. The program links the drivers it opens.
+migration file. The program links the drivers it opens. The command runs
+that build with its request, JSON, in the `ORM_CLI_REQUEST` environment
+variable (`orm.CLIEnv`), which `orm.ServeCLI` reads; programs never call it
+themselves.
 
 ## Migrating Vuka Models {#vuka-models}
 
@@ -136,20 +168,118 @@ A migration is a list of operations:
 | `m.AddIndex`, `m.RemoveIndex`, `m.AddConstraint`, `m.RemoveConstraint` | indexes, constraints |
 | `m.CreateExtension{Name}` | a Postgres extension (`vector`, `pg_trgm`) |
 | `m.CreateFunction{…}` | an SQL [function](/orm/expressions#sql-functions-in-a-migration) |
-| `m.RunSQL`, `m.RunGo` | anything else; a data migration |
+| `m.RunSQL{SQL, ReverseSQL, Dialect}`, `m.RunGo{Forward, Backward}` | anything else; a data migration |
+
+### Data Migrations and SQL of Your Own {#run-go}
+
+This migration adds a column, fills it from Go, makes it unique and adds a
+Postgres-only index:
+
+```go
+package migrations
+
+import (
+	"context"
+
+	m "github.com/vuka-lang/orm/v2/migration"
+)
+
+func init() {
+	m.Register(m.Migration{
+		Name:         "0002_users_slug",
+		Dependencies: []string{"0001_initial"},
+		Operations: []m.Operation{
+			m.AddField{Table: "users", Name: "slug", Field: m.Varchar(100).Default("")},
+			m.RunGo{Forward: fillSlugs, Backward: func(context.Context, m.Tx) error { return nil }},
+			m.AddConstraint{Table: "users", Constraint: m.Unique("uniq_users_slug", "slug")},
+			m.RunSQL{
+				SQL:        "CREATE INDEX users_lower_email ON users (lower(email));",
+				ReverseSQL: "DROP INDEX users_lower_email;",
+				Dialect:    "postgres",
+			},
+		},
+	})
+}
+
+func fillSlugs(ctx context.Context, tx m.Tx) error {
+	_, err := tx.ExecContext(ctx, "UPDATE users SET slug = lower(name)")
+	return err
+}
+```
+
+`RunGo` runs in the migration's transaction (on MySQL, which can't roll DDL
+back, its connection): `tx` is an `m.Tx` with `ExecContext`, `QueryContext`
+and `QueryRowContext`, and the ORM's queries on `ctx` take part too. It sees
+the database as the operations before it leave it, so query it in SQL, or
+with models that match that schema. A nil `Backward` means the migration
+can't be unapplied.
+
+`RunSQL` runs statements ending with semicolons, on every dialect or on
+`Dialect`'s alone. An empty `ReverseSQL` means it can't be unapplied;
+`m.Noop` means there is nothing to undo.
+
+`m.Unique(name, columns…)` is a unique constraint over columns and
+`m.Check(name, expr)` a check constraint, both for `m.AddConstraint` and
+`CreateModel`'s `Constraints`.
 
 ### Field Builders
 
-Fields are written with builders — `m.BigAuto()`, `m.Varchar(n)`, `m.Text()`,
-`m.BigInt().FK("users", "id").OnDelete(m.Cascade)`, `m.Time().Null().Index()`,
-`m.Vector(3)`, `m.SmallInt()`, `m.Date()`, `m.UUID()`, and
-`.Default(v)`, `.DefaultSQL(sql)`, `.Comment(s)`, `.Collation(name)`,
-`.Precision(n)`, `.Unsigned()`, `.Types(m.Dialects{…})` for what the
-[column attributes](/orm/fields#in-migrations) set — and per-dialect SQL with
-`m.Dialects{Postgres, MySQL, SQLite}`.
+Fields are written with builders. Each kind is a function:
 
-`orm.CreateExtension("vector")` declares an extension for the next migration
-from the program.
+| Kind | |
+|---|---|
+| `m.Auto()`, `m.BigAuto()` | an integer key the database counts |
+| `m.Int()`, `m.SmallInt()`, `m.BigInt()` | integers |
+| `m.Float()`, `m.Float32()` | floating point |
+| `m.Bool()` | a boolean |
+| `m.Varchar(n)`, `m.Text()` | text |
+| `m.Bytes()` | bytes |
+| `m.Time()`, `m.Date()` | a timestamp, a date |
+| `m.UUID()` | a UUID |
+| `m.JSON()` | JSON |
+| `m.Vector(dims)`, `m.TSVector()` | a pgvector column (0 dimensions: any), a text search document |
+| `m.Custom()` | a type of your own, named by `.Type` or `.Types` |
+
+Methods add to it:
+
+| Method | |
+|---|---|
+| `.PK()`, `.Auto()` | (one of) the primary key; an integer key the database counts |
+| `.Null()`, `.Unique()`, `.Index()` | NULL allowed, unique, indexed |
+| `.FK(table, column)`, `.OnDelete(m.Cascade)` | a foreign key, and what deleting the row it refers to does (`m.Cascade`, `m.SetNull`, `m.Restrict`) |
+| `.Default(v)`, `.DefaultSQL(sql)` | the column default, a value or SQL |
+| `.Type(sql)`, `.Types(m.Dialects{…})` | the database type over the kind's, on every dialect or per dialect |
+| `.Generated(m.Dialects{…})` | a stored generated column, computed by each dialect's expression |
+| `.Comment(s)`, `.Collation(name)`, `.Precision(n)`, `.Unsigned()` | what the [column attributes](/orm/fields#in-migrations) set |
+
+`m.Dialects{Postgres, MySQL, SQLite}` is SQL written for each dialect, `""`
+where a dialect has none:
+
+```go
+var searchFields = []m.NamedField{
+	m.F("id", m.BigAuto()),
+	m.F("title", m.Varchar(200)),
+	m.F("citext_name", m.Custom().Type("citext")),
+	m.F("doc", m.TSVector().Null().Generated(m.Dialects{
+		Postgres: "to_tsvector('english', coalesce(title, ''))",
+	})),
+}
+```
+
+### Extensions
+
+`orm.CreateExtension(name, opts…)` declares a Postgres extension the
+database needs — `vector` for vector columns and indexes, `pg_trgm` for
+trigram indexes. Declare it package-level, beside the models, and
+`makemigrations` writes it into the next migration; `orm.On(name)` names a
+database other than the default. Its `Verify` fails while the database
+lacks it, and passes on databases with no extensions:
+
+```go
+var Vectors = orm.CreateExtension("vector")
+
+func checkVectors(ctx context.Context) error { return Vectors.Verify(ctx) }
+```
 
 ## Migrating at Run Time {#at-run-time}
 
@@ -162,7 +292,8 @@ advisory lock, MySQL's `GET_LOCK`), recording them in `orm_migrations`
 | `orm.MigrateOn("main")` | one database |
 | `orm.MigrateLogger(l)` | log what is applied |
 | `orm.ApplyMigrations(ctx, db, target, migs…)` | a given list (tools, tests) |
-| `orm.Schema{}.Verify(ctx, models…)` | check the models against a database (a schema of it) at start-up |
+| `orm.DBSchema{}.Verify(ctx, models…)` | check the models against a database (a [schema](/orm/legacy-schemas#verifying) of it) at start-up |
+| `orm.MigrateWait` | how long `Migrate` and `Verify` wait for a database to answer; 30s |
 
 In a web app, [`ormweb`](/orm/databases#web-integration)'s
 `.MigrateOnStart(true)` runs them as the databases open (by default it does
@@ -182,5 +313,7 @@ orm migrate --db analytics 0003_sales
 ```
 
 Routers registered at init (for the command, which runs before `main`) route
-the tables, and every router's `AllowMigrate` must allow it. See
+the tables, and every router's `AllowMigrate` must allow it. A migration
+that needs another database's applied first names it in `Dependencies` as
+`"<db>:<name>"`. See
 [Multiple Databases](/orm/databases#multiple-databases).

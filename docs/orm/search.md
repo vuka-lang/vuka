@@ -76,10 +76,47 @@ A model with no document is searched by `LIKE` on SQLite, unindexed.
 
 ### Indexes as Methods
 
-The same indexes can be written as an `Indexes()` method (`orm.GinIndex("search")`,
-`orm.FullTextIndex(…)`, `orm.HnswIndex("embedding").Ops(orm.Cosine)`,
-`orm.GinIndex("title").Trigram()`) and a `Generated()` method for the
-`TSVector` column.
+The same indexes can be written as an `Indexes()` method, and a
+`Generated()` method for the `TSVector` column. Migrations make and drop
+them:
+
+```go
+type Doc struct {
+	orm.Model[Doc]
+	ID        int64
+	Title     string
+	Body      string
+	Embedding orm.Vector
+}
+
+func (Doc) Indexes() []orm.Index {
+	return []orm.Index{
+		orm.GinIndex(orm.SearchVector("title", "body").Config("english")).Name("docs_search"),
+		orm.GinIndex("title").Trigram(),
+		orm.HnswIndex("embedding").Ops(orm.Cosine).M(16).EfConstruction(64),
+		orm.FullTextIndex("title", "body"),
+	}
+}
+```
+
+| Index | |
+|---|---|
+| `orm.FullTextIndex(fields…)` | MySQL's `FULLTEXT`, which `MATCH` needs; on Postgres a GIN index of the fields' `tsvector` |
+| `orm.GinIndex(on…)`, `orm.GistIndex(on…)` | a Postgres GIN or GiST index of fields or expressions: a `SearchVector`, or text fields with `.Trigram()` |
+| `orm.HnswIndex(field)`, `orm.IvfflatIndex(field)` | pgvector's HNSW or IVFFlat index of a vector field |
+
+| Method | |
+|---|---|
+| `.Name(s)` | the index's name; `<table>_<fields>_<kind>` otherwise |
+| `.Config(c)` | a `FullTextIndex`'s text search configuration on Postgres |
+| `.Trigram()` | the text fields by `pg_trgm`'s trigrams (`gin_trgm_ops`, `gist_trgm_ops`) |
+| `.Ops(metric)` | the metric a vector index serves, `orm.L2` otherwise: only queries by that metric's distance use it |
+| `.M(n)`, `.EfConstruction(n)` | an HNSW index's connections per layer, and its candidate list while building |
+| `.Lists(n)` | an IVFFlat index's lists |
+
+MySQL makes a `FullTextIndex` and no trigram or vector index; a model
+declaring one of those can't map onto it. SQLite makes none of them: a
+model declaring a document has its FTS5 table instead.
 
 ## Full-Text Search {#text}
 
@@ -106,7 +143,7 @@ The functions are:
 | | |
 |---|---|
 | `orm.SearchVector(fields…)`, `.Weight("A")`, `.Config("english")`, `.Add(doc)` | a document |
-| `orm.SearchQuery(text)` | the query |
+| `orm.SearchQuery(text)`, `.Config("english")` | the query; `Config` stems its words by that configuration, the document's otherwise |
 | `orm.Match(doc, q)` | the condition |
 | `orm.SearchRank(doc, q)` | the rank, an `OrderedExpr[float64]` |
 | `orm.Headline(field, q)` | an excerpt with the words marked |
@@ -192,5 +229,6 @@ best, err := orm.Objects[Article]().Hybrid(doc, orm.SearchQuery("web server"), e
 ```
 
 `Candidates(n)` narrows the vector side to the `n` nearest (found by the
-index) plus the text's matches. `orm.Fuse("-rank", "distance")` is the
+index) plus the text's matches. `orm.RankAs(name)`, `orm.DistanceAs(name)`
+and `orm.ScoreAs(name)` rename the three annotations. `orm.Fuse("-rank", "distance")` is the
 fusion on its own, over any two orderings by name.

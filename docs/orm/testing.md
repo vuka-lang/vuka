@@ -70,11 +70,20 @@ The helpers are:
 ## Testing on a Real Server {#on-a-real-server}
 
 `ORMTEST_DRIVER=postgres` or `mysql` with `ORMTEST_DSN` runs the same tests
-on a server, each in a schema or database of its own:
+on a server. Each test gets a schema (Postgres) or a database (MySQL) of its
+own, dropped when it ends, so tests never see each other's rows nor the
+server's other data. The test package imports the server's driver
+(`_ "github.com/vuka-lang/orm/v2/postgres"`); SQLite is linked by
+`ormtest`:
 
 ```sh
 ORMTEST_DRIVER=postgres ORMTEST_DSN=postgres://localhost:5432/test?sslmode=disable go test ./...   # vuka test ./... for .vuka packages
 ```
+
+`ORMTEST_MIRROR_DRIVER` and `ORMTEST_MIRROR_DSN` do the same for the
+database `ormtest.Mirror` opens: MySQL as the primary and Postgres as the
+mirror tests a table moving between the two ([Testing
+Mirrors](/orm/legacy-schemas#testing)).
 
 ### Skipping by Database
 

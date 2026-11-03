@@ -153,6 +153,7 @@ export default defineConfig({
           { text: 'Transactions', link: '/orm/transactions' },
           { text: 'Migrations', link: '/orm/migrations' },
           { text: 'Databases', link: '/orm/databases' },
+          { text: 'Legacy Schemas', link: '/orm/legacy-schemas' },
           { text: 'Observability', link: '/orm/observability' },
           { text: 'Errors', link: '/orm/errors' },
         ],
