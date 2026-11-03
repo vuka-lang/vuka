@@ -1,0 +1,17 @@
+<script lang="go">
+package jobs
+
+import "github.com/vuka-lang/ui/v2"
+
+// NewApplication is the email an employer gets for each application.
+type NewApplication struct {
+	Employer  string
+	Job       string
+	Applicant string
+}
+</script>
+
+<div style={ui.Style{"font-family": "system-ui, sans-serif", "line-height": "1.5"}}>
+  <p>Hi {Employer},</p>
+  <p>{Applicant} applied to {Job}. Their letter and CV are on your dashboard.</p>
+</div>

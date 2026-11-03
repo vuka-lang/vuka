@@ -1,0 +1,61 @@
+<script lang="go">
+package site
+
+import (
+	"github.com/vuka-lang/ui/v2"
+
+	"example.com/jobboard/components"
+	"example.com/jobboard/layouts"
+	"example.com/jobboard/pages/urls"
+)
+
+// Layout is the site's header around every page but the sign-in pages:
+// the links a visitor may use, and their account.
+type Layout struct {
+	Children ui.Node
+}
+
+const navLink = "rounded-lg px-3 py-2 text-sm font-medium text-slate-600 hover:bg-slate-900/5 hover:text-slate-900 aria-[current=page]:bg-slate-900/5 aria-[current=page]:text-slate-900 dark:text-slate-400 dark:hover:bg-white/5 dark:hover:text-white dark:aria-[current=page]:bg-white/10 dark:aria-[current=page]:text-white"
+</script>
+
+<div class="min-h-full">
+  <header class="sticky top-0 z-30 border-b border-slate-900/10 bg-white/80 backdrop-blur dark:border-white/10 dark:bg-slate-950/80">
+    <div class="mx-auto flex h-16 max-w-6xl items-center gap-6 px-4 sm:px-6 lg:px-8">
+      <ui.Link
+        href={urls.Root.Path()}
+        class="rounded-lg focus-visible:outline-2 focus-visible:outline-brand-500"
+      >
+        <components.Logo name={layouts.AppName()} />
+      </ui.Link>
+      <nav class="flex items-center gap-1" aria-label="Main">
+        <ui.Link href={urls.Root.Path()} active="exact" class={navLink}>Jobs</ui.Link>
+        if perms.Has("jobs.apply") {
+          <ui.Link href={urls.Applications.Path()} active="prefix" class={navLink}>My applications</ui.Link>
+        }
+        if perms.Has("jobs.post") {
+          <ui.Link href={urls.Employer.Path()} active="prefix" class={navLink}>Employer</ui.Link>
+        }
+        if perms.Has("jobs.moderate") {
+          <ui.Link href={urls.Admin.Path()} active="prefix" class={navLink}>Admin</ui.Link>
+        }
+      </nav>
+      <div class="ml-auto flex items-center gap-2">
+        if user != nil {
+          <layouts.UserMenu me={user} />
+        } else {
+          <ui.Link href={urls.Login.Path()} class={navLink}>Sign in</ui.Link>
+          <ui.Link
+            href={urls.Signup.Path()}
+            class="rounded-lg bg-brand-600 px-3 py-2 text-sm font-semibold text-white hover:bg-brand-700"
+          >Sign up</ui.Link>
+        }
+      </div>
+    </div>
+  </header>
+  <main id="main" class="mx-auto max-w-6xl px-4 py-8 outline-none sm:px-6 lg:px-8">
+    for _, m := range messages {
+      <components.Flash tone={m.Level} message={m.Text} class="mb-6" />
+    }
+    {Children}
+  </main>
+</div>

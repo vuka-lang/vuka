@@ -1,0 +1,16 @@
+# Secrets and this machine's settings: .env.example is the committed template.
+.env
+.env.*
+!.env.example
+
+# The SQLite database and other local data.
+/data/
+
+# Build output (vuka build -o jobboard), and vuka's working files.
+/jobboard
+/build/
+/.vuka/
+
+# What vuka writes from pages/ on every build.
+/pages/route.go
+/pages/urls/

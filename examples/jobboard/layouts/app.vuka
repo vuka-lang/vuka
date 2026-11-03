@@ -1,0 +1,57 @@
+package layouts
+
+import (
+	"strings"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// Account is what the user menu shows of the signed-in user; the users
+// module's User has it.
+type Account interface {
+	DisplayName() string
+	EmailAddress() string
+}
+
+func accountName(me *auth.Identity) string {
+	if me == nil {
+		return ""
+	}
+	if a, ok := me.User.(Account); ok {
+		return a.DisplayName()
+	}
+	return me.ID
+}
+
+func accountEmail(me *auth.Identity) string {
+	if me == nil {
+		return ""
+	}
+	if a, ok := me.User.(Account); ok {
+		return a.EmailAddress()
+	}
+	return ""
+}
+
+func initials(name string) string {
+	var out []rune
+	for _, w := range strings.Fields(name) {
+		out = append(out, []rune(strings.ToUpper(w))[0])
+		if len(out) == 2 {
+			break
+		}
+	}
+	if len(out) == 0 {
+		return "?"
+	}
+	return string(out)
+}
+
+// The user menu opens and closes in the browser (JS commands): no server
+// round trip.
+var (
+	toggleUserMenu = ui.JS.Toggle(ui.Ref("user-menu"), ui.Transition("transition ease-out duration-100", "opacity-0 scale-95", "opacity-100 scale-100")).
+			ToggleAttr(ui.Ref("user-button"), "aria-expanded", "true", "false")
+	closeUserMenu = ui.JS.Key("Escape").Hide(ui.Ref("user-menu")).SetAttr(ui.Ref("user-button"), "aria-expanded", "false").Focus(ui.Ref("user-button"))
+)

@@ -63,6 +63,7 @@ export default defineConfig({
         items: [
           { text: 'Installation', link: '/guide/getting-started' },
           { text: 'Your First Web App', link: '/web/' },
+          { text: 'Example Project', link: '/guide/example-project' },
           { text: 'Directory Structure', link: '/web/getting-started' },
           { text: 'Configuration', link: '/web/configuration' },
           { text: 'Project Settings (vuka.toml)', link: '/reference/vuka-toml' },

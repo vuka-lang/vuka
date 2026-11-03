@@ -1,0 +1,352 @@
+package main
+
+import (
+	"bytes"
+	"context"
+	"encoding/json"
+	"html"
+	"io"
+	"mime/multipart"
+	"net/http"
+	"net/http/cookiejar"
+	"net/http/httptest"
+	"net/url"
+	"regexp"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/coder/websocket"
+	"github.com/vuka-lang/orm/v2"
+	_ "github.com/vuka-lang/orm/v2/sqlite" // the tests run on SQLite
+	"github.com/vuka-lang/ui/v2/live"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+	"github.com/vuka-lang/web/v2/auth/authtest"
+	"github.com/vuka-lang/web/v2/crontest"
+	"github.com/vuka-lang/web/v2/mail"
+	"github.com/vuka-lang/web/v2/mail/mailtest"
+	"github.com/vuka-lang/web/v2/viewtest"
+
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/modules/users"
+	account "example.com/jobboard/pages/group_account"
+	"example.com/jobboard/pages/group_site/employer"
+)
+
+const (
+	adminEmail    = "admin@example.com"
+	adminPassword = "a-test-password-1234"
+	password      = "correct horse battery"
+)
+
+// testApp is a fresh app on a database of its own, started: migrations
+// applied, the admin made. Its mail is logged and kept, for mailtest.
+func testApp(t *testing.T, opts ...web.Option) (*web.App, *mail.Mailer) {
+	t.Helper()
+	t.Setenv("DATABASE_URL", "sqlite://"+t.TempDir()+"/test.db?_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	t.Setenv("ADMIN_EMAIL", adminEmail)
+	t.Setenv("ADMIN_PASSWORD", adminPassword)
+	t.Setenv("MAIL_DRIVER", "log")
+	app := web.New(append(options(), opts...)...)
+	if err := app.Start(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { app.Stop(context.Background()) })
+	m, err := web.Resolve[*mail.Mailer](app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return app, m
+}
+
+func serve(t *testing.T, app *web.App) *httptest.Server {
+	srv := httptest.NewServer(app.Handler())
+	t.Cleanup(srv.Close)
+	return srv
+}
+
+// dbCtx is a context on the app's databases, to seed and check them.
+func dbCtx(t *testing.T, app *web.App) context.Context {
+	db, err := web.Resolve[*orm.Databases](app)
+	if err != nil {
+		t.Fatal(err)
+	}
+	return orm.WithDatabases(context.Background(), db)
+}
+
+func addUser(t *testing.T, app *web.App, name, email string, role users.Role) *users.User {
+	t.Helper()
+	u, _ := web.Resolve[*users.Users](app)
+	row, err := u.Create(dbCtx(t, app), users.NewUser{Name: name, Email: email, Password: password, Role: role}).Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return &row
+}
+
+func addJob(t *testing.T, app *web.App, employer *users.User, title string) jobs.Job {
+	t.Helper()
+	board, _ := web.Resolve[*jobs.Board](app)
+	ctx := dbCtx(t, app)
+	eng, err := jobs.Category.Objects.Get(ctx, jobs.Category.Name.Eq("Engineering"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	in := jobs.PostJob{Title: title, Description: "Build Go services.", Category: strconv.FormatInt(eng.ID, 10), Kind: string(jobs.Kind.FullTime), Location: "Remote"}
+	job, err := board.Post(ctx, employer.ID, in).Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return job
+}
+
+// client is a browser, cookies kept, that shows redirects rather than
+// following them.
+type client struct {
+	t   *testing.T
+	srv *httptest.Server
+	c   *http.Client
+}
+
+func newClient(t *testing.T, srv *httptest.Server) *client {
+	jar, _ := cookiejar.New(nil)
+	return &client{t, srv, &http.Client{Jar: jar, CheckRedirect: func(*http.Request, []*http.Request) error { return http.ErrUseLastResponse }}}
+}
+
+// do sends a request; header holds name, value pairs.
+func (c *client) do(method, path string, body io.Reader, header ...string) (int, string, http.Header) {
+	c.t.Helper()
+	req, _ := http.NewRequest(method, c.srv.URL+path, body)
+	req.Header.Set("Origin", c.srv.URL)
+	for i := 0; i+1 < len(header); i += 2 {
+		req.Header.Set(header[i], header[i+1])
+	}
+	res, err := c.c.Do(req)
+	if err != nil {
+		c.t.Fatal(err)
+	}
+	defer res.Body.Close()
+	b, _ := io.ReadAll(res.Body)
+	return res.StatusCode, string(b), res.Header
+}
+
+func (c *client) page(path string) (int, string, http.Header) {
+	c.t.Helper()
+	return c.do("GET", path, nil, "Accept", "text/html")
+}
+
+func (c *client) login(email string) {
+	c.t.Helper()
+	form := url.Values{"login": {email}, "password": {password}}
+	if code, _, _ := c.do("POST", "/auth/login", strings.NewReader(form.Encode()), "Content-Type", "application/x-www-form-urlencoded", "Accept", "text/html"); code != 303 {
+		c.t.Fatalf("signing in %s: %d", email, code)
+	}
+}
+
+var hidden = regexp.MustCompile(`<input type="hidden" name="([^"]+)" value="([^"]*)"`)
+
+// apply posts the application form as a browser without script does:
+// multipart, the CV in it.
+func (c *client) apply(path, letter, cvName, cv string) (int, http.Header) {
+	c.t.Helper()
+	_, page, _ := c.page(path)
+	var body bytes.Buffer
+	w := multipart.NewWriter(&body)
+	for _, m := range hidden.FindAllStringSubmatch(page, -1) {
+		w.WriteField(m[1], html.UnescapeString(m[2]))
+	}
+	w.WriteField("letter", letter)
+	f, _ := w.CreateFormFile("_vk_file.cv", cvName)
+	f.Write([]byte(cv))
+	w.Close()
+	code, _, h := c.do("POST", path, &body, "Content-Type", w.FormDataContentType(), "Accept", "text/html")
+	return code, h
+}
+
+func TestPublicPages(t *testing.T) {
+	app, _ := testApp(t)
+	c := newClient(t, serve(t, app))
+	job := addJob(t, app, addUser(t, app, "Ada", "ada@example.com", users.Role.Employer), "Backend engineer")
+
+	if code, body, _ := c.page("/"); code != 200 || !strings.Contains(body, "Backend engineer") || !strings.Contains(body, "1 open jobs") {
+		t.Errorf("GET /: %d", code)
+	}
+	if code, body, _ := c.page("/jobs/" + strconv.FormatInt(job.ID, 10)); code != 200 || !strings.Contains(body, "Build Go services.") {
+		t.Errorf("the job's page: %d", code)
+	}
+	if code, _, _ := c.page("/jobs/999"); code != 404 {
+		t.Errorf("an unknown job: %d", code)
+	}
+	if code, _, h := c.page("/employer"); code != 302 || h.Get("Location") != "/login?next=%2Femployer" {
+		t.Errorf("/employer signed out: %d %s", code, h.Get("Location"))
+	}
+
+	q := `{"query": "{ jobs(first: 5) { totalCount edges { node { title category { name } } } } }"}`
+	_, body, _ := c.do("POST", "/graphql", strings.NewReader(q), "Content-Type", "application/json")
+	if !strings.Contains(body, `"totalCount":1`) || !strings.Contains(body, `"title":"Backend engineer","category":{"name":"Engineering"}`) {
+		t.Errorf("the jobs query: %s", body)
+	}
+}
+
+func TestSignup(t *testing.T) {
+	app, _ := testApp(t)
+	p := viewtest.Mount[*account.Signup](t, app, "/signup", viewtest.Plain())
+	p.Fill(&p.Page.Form.Name, "Grace Hopper").Fill(&p.Page.Form.Email, "grace@example.com").
+		Fill(&p.Page.Form.Password, "short").Fill(&p.Page.Form.Role, "employer").Submit()
+	p.Expect(&p.Page.Form.Password).Error("validate.min.string")
+	if p.Status() != 422 {
+		t.Errorf("a short password: %d", p.Status())
+	}
+	p.Fill(&p.Page.Form.Password, password).Submit()
+	p.ExpectRedirect("/employer")
+
+	again := viewtest.Mount[*account.Signup](t, app, "/signup", viewtest.Plain())
+	again.Fill(&again.Page.Form.Name, "Grace").Fill(&again.Page.Form.Email, "grace@example.com").
+		Fill(&again.Page.Form.Password, password).Fill(&again.Page.Form.Role, "seeker").Submit()
+	again.Expect(&again.Page.Form.Email).Error("Someone already has an account with this email")
+}
+
+func TestAreas(t *testing.T) {
+	app, _ := testApp(t)
+	addUser(t, app, "Grace", "grace@example.com", users.Role.Seeker)
+	c := newClient(t, serve(t, app))
+	c.login("grace@example.com")
+	for path, want := range map[string]int{"/applications": 200, "/employer": 403, "/employer/new": 403, "/admin": 403} {
+		if code, _, _ := c.page(path); code != want {
+			t.Errorf("a job seeker's GET %s: %d, want %d", path, code, want)
+		}
+	}
+}
+
+func TestPostJob(t *testing.T) {
+	me := &auth.Identity{Roles: []string{"employer"}}
+	app, _ := testApp(t, authtest.As(me))
+	ada := addUser(t, app, "Ada", "ada@example.com", users.Role.Employer)
+	me.ID, me.User = strconv.FormatInt(ada.ID, 10), ada
+	ctx := dbCtx(t, app)
+	eng, _ := jobs.Category.Objects.Get(ctx, jobs.Category.Name.Eq("Engineering"))
+	golang, _ := jobs.Skill.Objects.Get(ctx, jobs.Skill.Name.Eq("Go"))
+
+	p := viewtest.Mount[*employer.New](t, app, "/employer/new")
+	p.Fill(&p.Page.Form.Title, "Backend engineer").Fill(&p.Page.Form.Category, strconv.FormatInt(eng.ID, 10))
+	if !strings.Contains(p.HTML(), ">Go</label>") {
+		t.Fatal("choosing Engineering doesn't offer its skills")
+	}
+	p.Fill(&p.Page.Form.Skills, strconv.FormatInt(golang.ID, 10)).Fill(&p.Page.Form.Kind, "full-time").
+		Fill(&p.Page.Form.Location, "Remote").Fill(&p.Page.Form.Salary, "90000").Submit()
+	p.Expect(&p.Page.Form.Description).Error("validate.required")
+	p.Fill(&p.Page.Form.Description, "Build Go services.").Submit()
+	p.ExpectRedirect("/employer")
+
+	job, err := jobs.Job.Objects.Get(ctx, jobs.Job.Title.Eq("Backend engineer"))
+	if err != nil || job.Salary != Some(int64(90000)) || job.Employer.ID() != ada.ID {
+		t.Fatalf("the job posted: %+v %v", job, err)
+	}
+	job.Load(ctx, jobs.Job.Skills)
+	if len(job.Skills.Rows()) != 1 {
+		t.Errorf("its skills: %v", job.Skills.Rows())
+	}
+}
+
+func TestApplication(t *testing.T) {
+	app, m := testApp(t)
+	srv := serve(t, app)
+	ada := addUser(t, app, "Ada", "ada@example.com", users.Role.Employer)
+	addUser(t, app, "Grace", "grace@example.com", users.Role.Seeker)
+	job := addJob(t, app, ada, "Backend engineer")
+	apply := "/jobs/" + strconv.FormatInt(job.ID, 10) + "/apply"
+	applications := "/employer/" + strconv.FormatInt(job.ID, 10)
+
+	employerTab := newClient(t, srv)
+	employerTab.login("ada@example.com")
+	dashboard := joinLive(t, employerTab, "/employer")
+
+	seeker := newClient(t, srv)
+	seeker.login("grace@example.com")
+	if code, h := seeker.apply(apply, "I'd like to.", "cv.txt", "Grace's CV"); code != 303 || h.Get("Location") != "/applications" {
+		t.Fatalf("applying: %d %s", code, h.Get("Location"))
+	}
+	if !strings.Contains(dashboard.next(t), "Grace applied to Backend engineer.") {
+		t.Error("the dashboard didn't hear of the application")
+	}
+	if msg := mailtest.Last(t, m); msg.Recipients[0] != "ada@example.com" || msg.Subject != "New application: Backend engineer" {
+		t.Errorf("the employer's mail: %v %s", msg.Recipients, msg.Subject)
+	}
+	if _, body, _ := seeker.page("/applications"); !strings.Contains(body, "with cv.txt") || !strings.Contains(body, "is on its way") {
+		t.Error("the applications page doesn't list it")
+	}
+	if _, body, _ := employerTab.page(applications); !strings.Contains(body, "CV: cv.txt, 10 bytes") {
+		t.Error("the employer doesn't see the CV")
+	}
+	if code, _ := seeker.apply(apply, "Again.", "cv.txt", "Grace's CV"); code != 422 {
+		t.Errorf("applying twice: %d", code)
+	}
+	if code, _, _ := seeker.page(applications); code != 403 {
+		t.Errorf("a job seeker reading the applications: %d", code)
+	}
+}
+
+func TestCloseExpired(t *testing.T) {
+	app, _ := testApp(t)
+	job := addJob(t, app, addUser(t, app, "Ada", "ada@example.com", users.Role.Employer), "Backend engineer")
+	ctx := dbCtx(t, app)
+	jobs.Job.Objects.Filter(jobs.Job.ID.Eq(job.ID)).Update(ctx, orm.Set{"closes": time.Now().AddDate(0, 0, -1)})
+	if err := crontest.Run(app, "jobs.closeExpired"); err != nil {
+		t.Fatal(err)
+	}
+	if job, _ := jobs.Job.Objects.Get(ctx, jobs.Job.ID.Eq(job.ID)); job.Status != jobs.Status.Closed {
+		t.Errorf("an expired job is %s", job.Status)
+	}
+}
+
+// livePage is a live page's connection, as its browser holds it.
+type livePage struct{ c *websocket.Conn }
+
+var token = regexp.MustCompile(`data-vk-token="([^"]+)"`)
+
+func joinLive(t *testing.T, c *client, path string) *livePage {
+	t.Helper()
+	_, page, _ := c.page(path)
+	m := token.FindStringSubmatch(page)
+	if m == nil {
+		t.Fatalf("%s isn't live", path)
+	}
+	u, _ := url.Parse(c.srv.URL)
+	h := http.Header{"Origin": {c.srv.URL}}
+	for _, k := range c.c.Jar.Cookies(u) {
+		h.Add("Cookie", k.Name+"="+k.Value)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	conn, _, err := websocket.Dial(ctx, "ws"+strings.TrimPrefix(c.srv.URL, "http")+"/_vuka/live?t="+url.QueryEscape(html.UnescapeString(m[1])), &websocket.DialOptions{HTTPHeader: h})
+	if err != nil {
+		t.Fatal(err)
+	}
+	conn.SetReadLimit(-1)
+	t.Cleanup(func() { conn.CloseNow() })
+	b, _ := json.Marshal(live.ClientMessage{Type: live.Join, Ref: 1})
+	conn.Write(ctx, websocket.MessageText, b)
+	p := &livePage{conn}
+	p.next(t)
+	return p
+}
+
+// next is the markup of the next message the server sends the page.
+func (p *livePage) next(t *testing.T) string {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, data, err := p.c.Read(ctx)
+	if err != nil {
+		t.Fatal(err)
+	}
+	var m live.ServerMessage
+	json.Unmarshal(data, &m)
+	out := m.HTML
+	for _, u := range m.Updates {
+		out += u.HTML
+	}
+	return out
+}

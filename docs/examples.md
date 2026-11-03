@@ -10,7 +10,13 @@ the app. The small ones below show the shape; the repository holds whole apps.
 
 ## Whole Apps {#apps}
 
-Whole apps written this way are in the repository:
+[`examples/jobboard`](https://github.com/vuka-lang/vuka/tree/main/examples/jobboard)
+is a job board using most of Vuka together — folder routes, the ORM with
+search and migrations, sign-in, struct forms with a file upload, a live
+page, URL state, a cron, mail and GraphQL; the
+[Example Project](/guide/example-project) guide walks through it.
+
+Other whole apps written this way are in the repository:
 [`examples/folder-routes`](https://github.com/vuka-lang/vuka/tree/main/examples/folder-routes)
 (pages, layouts, guards and a JSON API as folders, with a `main.go` passing
 `pages.Routes()` to `web.New`),

@@ -1,0 +1,44 @@
+<script lang="go">
+package job
+
+import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/modules/users"
+	"example.com/jobboard/pages/urls"
+)
+
+// Apply is /jobs/{job}/apply: a letter and a CV. The CV uploads as soon
+// as it is chosen; save reads it from the checked form.
+@auth.Requires("jobs.apply")
+type Apply struct {
+	Job   int64
+	Form  jobs.ApplyForm
+	board *jobs.Board
+}
+
+func (p *Apply) Title() string { return "Apply" }
+
+func (p *Apply) save(ctx context.Context, f jobs.ApplyForm) error {
+	job := p.board.Job(ctx, p.Job)?
+	cv := f.CV.Open()?
+	defer cv.Close()
+	match p.board.Apply(ctx, job, users.Of(user), f.Letter, f.CV.Name(), cv) {
+	case Ok(_):
+		web.Flash(ctx, "success", "Your application to "+job.Title+" is on its way.")?
+		return web.Redirect(urls.Applications.Path())
+	case Err(e) if errors.Is(e, jobs.ErrApplied) || errors.Is(e, jobs.ErrClosed):
+		return p.Form.Fail(e.Error())
+	case Err(e):
+		return e
+	}
+}
+</script>
+
+<ui.Form for={Form} onSubmit={save} submitLabel="Send application" />

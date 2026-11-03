@@ -1,0 +1,134 @@
+package jobs
+
+import (
+	"context"
+	"errors"
+	"strconv"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/orm/v2/ormtest"
+	"github.com/vuka-lang/web/v2/mail/mailtest"
+
+	"example.com/jobboard/modules/users"
+)
+
+type world struct {
+	ctx               context.Context
+	board             *Board
+	employer, seeker  *users.User
+	engineering, sale Category
+	golang, crm       Skill
+}
+
+// open gives a test a fresh database with an employer, a job seeker, two
+// categories and a skill in each.
+func open(t *testing.T) *world {
+	ctx := ormtest.Open(t, orm.Objects[users.User](), orm.Objects[Category](), orm.Objects[Skill](), orm.Objects[Job](), orm.Objects[Application]())
+	w := &world{ctx: ctx, board: NewBoard(mailtest.New()),
+		employer:    &users.User{Name: "Ada", Email: "ada@example.com", Role: users.Role.Employer},
+		seeker:      &users.User{Name: "Grace", Email: "grace@example.com", Role: users.Role.Seeker},
+		engineering: Category{Name: "Engineering"}, sale: Category{Name: "Sales"}}
+	ormtest.Seed(t, ctx, orm.Objects[users.User](), w.employer, w.seeker)
+	ormtest.Seed(t, ctx, orm.Objects[Category](), &w.engineering, &w.sale)
+	w.golang = Skill{Name: "Go", Category: orm.FKOf(&w.engineering)}
+	w.crm = Skill{Name: "CRM", Category: orm.FKOf(&w.sale)}
+	ormtest.Seed(t, ctx, orm.Objects[Skill](), &w.golang, &w.crm)
+	return w
+}
+
+func (w *world) post(t *testing.T, title, description string, category Category, skills ...Skill) Job {
+	t.Helper()
+	in := PostJob{Title: title, Description: description, Category: strconv.FormatInt(category.ID, 10), Kind: string(Kind.FullTime), Location: "Remote"}
+	for _, s := range skills {
+		in.Skills = append(in.Skills, strconv.FormatInt(s.ID, 10))
+	}
+	job, err := w.board.Post(w.ctx, w.employer.ID, in).Get()
+	if err != nil {
+		t.Fatal(err)
+	}
+	return job
+}
+
+func TestPost(t *testing.T) {
+	w := open(t)
+	job := w.post(t, "Backend engineer", "Go services.", w.engineering, w.golang)
+	got, err := w.board.Job(w.ctx, job.ID)
+	if err != nil || got.Category.Related().Name != "Engineering" || len(got.Skills.Rows()) != 1 || got.Status != Status.Open {
+		t.Fatalf("Job: %+v %v", got, err)
+	}
+
+	// A skill that doesn't parse fails after the job is saved: the
+	// transaction takes the job back.
+	in := PostJob{Title: "Half posted", Category: strconv.FormatInt(w.engineering.ID, 10), Skills: []string{"x"}, Kind: string(Kind.Contract)}
+	if _, err := w.board.Post(w.ctx, w.employer.ID, in).Get(); err == nil {
+		t.Fatal("a bad skill posted")
+	}
+	if n, _ := Job.Objects.Count(w.ctx); n != 1 {
+		t.Errorf("%d jobs after a failed post, want 1", n)
+	}
+}
+
+func TestSearch(t *testing.T) {
+	w := open(t)
+	w.post(t, "Backend engineer", "Build Go services on PostgreSQL.", w.engineering, w.golang)
+	w.post(t, "Account executive", "Sell to schools.", w.sale, w.crm)
+	for i := range 11 {
+		w.post(t, "Support engineer "+strconv.Itoa(i), "Help customers.", w.engineering)
+	}
+
+	found, err := w.board.Search(w.ctx, "postgresql", 0, 1)
+	if err != nil || found.Total != 1 || found.Items[0].Title != "Backend engineer" {
+		t.Fatalf("search postgresql: %+v %v", found, err)
+	}
+	if found, _ := w.board.Search(w.ctx, "", w.sale.ID, 1); found.Total != 1 {
+		t.Errorf("sales: %d jobs", found.Total)
+	}
+	second, _ := w.board.Search(w.ctx, "engineer", 0, 2)
+	if second.Total != 12 || second.Pages != 2 || len(second.Items) != 2 {
+		t.Errorf("page 2 of engineers: %d of %d, %d pages", len(second.Items), second.Total, second.Pages)
+	}
+
+	counts, err := w.board.Categories(w.ctx)
+	if err != nil || len(counts) != 2 || counts[0].Name != "Engineering" || counts[0].Open != 12 || counts[1].Open != 1 {
+		t.Fatalf("Categories: %+v %v", counts, err)
+	}
+}
+
+func TestApply(t *testing.T) {
+	w := open(t)
+	job := w.post(t, "Backend engineer", "Go services.", w.engineering)
+
+	app, err := w.board.Apply(w.ctx, job, w.seeker, "I'd like to.", "cv.txt", strings.NewReader("Grace's CV")).Get()
+	if err != nil || string(app.CV) != "Grace's CV" {
+		t.Fatalf("Apply: %+v %v", app, err)
+	}
+	if msg := mailtest.Last(t, w.board.Mail); msg.Recipients[0] != "ada@example.com" || !strings.Contains(msg.Text, "Grace applied to Backend engineer") {
+		t.Errorf("the employer's mail: %v %q", msg.Recipients, msg.Text)
+	}
+	if _, err := w.board.Apply(w.ctx, job, w.seeker, "Again.", "cv.txt", strings.NewReader("")).Get(); !errors.Is(err, ErrApplied) {
+		t.Errorf("a second application: %v", err)
+	}
+
+	postings, _ := w.board.Postings(w.ctx, w.employer.ID)
+	if len(postings) != 1 || postings[0].Applications != 1 {
+		t.Errorf("Postings: %+v", postings)
+	}
+}
+
+func TestCloseExpired(t *testing.T) {
+	w := open(t)
+	job := w.post(t, "Backend engineer", "Go services.", w.engineering)
+	if n, err := w.board.CloseExpired(w.ctx, time.Now()); err != nil || n != 0 {
+		t.Fatalf("before it closes: %d %v", n, err)
+	}
+	if n, _ := w.board.CloseExpired(w.ctx, job.Closes.AddDate(0, 0, 1)); n != 1 {
+		t.Fatalf("after it closes: %d", n)
+	}
+	job, _ = w.board.Job(w.ctx, job.ID)
+	if _, err := w.board.Apply(w.ctx, job, w.seeker, "Late.", "cv.txt", strings.NewReader("")).Get(); !errors.Is(err, ErrClosed) {
+		t.Errorf("applying to a closed job: %v", err)
+	}
+}

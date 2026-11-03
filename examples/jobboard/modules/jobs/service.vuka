@@ -1,0 +1,168 @@
+package jobs
+
+import (
+	"context"
+	"errors"
+	"io"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/mail"
+
+	"example.com/jobboard/modules/users"
+)
+
+// ErrApplied is Apply's error for a second application to one job.
+var ErrApplied = errors.New("you have applied to this job already")
+
+// ErrClosed is Apply's error for a job that takes no more applications.
+var ErrClosed = errors.New("this job takes no more applications")
+
+// Board is where jobs and applications are read and written; main
+// registers it with app.Service.
+type Board struct {
+	Mail *mail.Mailer
+}
+
+// NewBoard builds the Board.
+func NewBoard(m *mail.Mailer) *Board { return &Board{Mail: m} }
+
+// Applied is what a new application broadcasts to its employer's pages.
+type Applied struct {
+	Job       int64
+	Title     string
+	Applicant string
+}
+
+// EmployerTopic is the topic an employer's pages hear of applications on.
+func EmployerTopic(employer int64) string { return "employer:" + strconv.FormatInt(employer, 10) }
+
+// Search is a page of the open jobs matching q, in category (0 for any).
+func (b *Board) Search(ctx context.Context, q string, category int64, page int) (orm.PageResult[Job], error) {
+	jobs := Job.Objects.Filter(Job.Status.Eq(Status.Open)).SelectRelated(Job.Category.String())
+	if category != 0 {
+		jobs = jobs.Filter(Job.Category.ID.Eq(category))
+	}
+	if q = strings.TrimSpace(q); q != "" {
+		doc, query := orm.SearchVector(Job.Title.Name(), Job.Description.Name()), orm.SearchQuery(q)
+		jobs = jobs.Filter(orm.Match(doc, query)).Order(orm.SearchRank(doc, query).Desc())
+	}
+	return orm.Paginate(ctx, jobs, orm.PageRequest{Page: page, Size: 10})
+}
+
+// CategoryCount is a category with its number of open jobs.
+type CategoryCount struct {
+	ID   int64
+	Name string
+	Open int64
+}
+
+// Categories are every category with its open jobs counted.
+func (b *Board) Categories(ctx context.Context) ([]CategoryCount, error) {
+	open := Category.Jobs.Where(Category.Jobs.Status.Eq(Status.Open)).Count()
+	return Category.Objects.Annotate("open", open).Values[CategoryCount]("id", "name", "open").All(ctx)
+}
+
+// Job is the job whose id is id, its category and skills loaded.
+func (b *Board) Job(ctx context.Context, id int64) (Job, error) {
+	job := Job.Objects.SelectRelated(Job.Category.String()).Get(ctx, Job.ID.Eq(id))?
+	job.Load(ctx, Job.Skills)?
+	return job, nil
+}
+
+// Post saves a new job of employer's from the form, with its skills.
+@orm.Transaction
+func (b *Board) Post(ctx context.Context, employer int64, in PostJob) Result[Job] {
+	category := strconv.ParseInt(in.Category, 10, 64)?
+	job := Job{
+		Title:       in.Title,
+		Description: in.Description,
+		Location:    in.Location,
+		Kind:        Kind(in.Kind),
+		Category:    orm.FKID[Category](category),
+		Employer:    orm.FKID[users.User](employer),
+		Status:      Status.Open,
+		Closes:      in.Closes,
+	}
+	if in.Salary > 0 {
+		job.Salary = Some(in.Salary)
+	}
+	if job.Closes.IsZero() {
+		job.Closes = time.Now().AddDate(0, 1, 0)
+	}
+	job.Save(ctx)?
+	skills := make([]any, len(in.Skills))
+	for i, s := range in.Skills {
+		id := strconv.ParseInt(s, 10, 64)?
+		skills[i] = id
+	}
+	job.Skills.Set(ctx, skills...)?
+	return Ok(job)
+}
+
+// Apply saves applicant's application to job, with their letter and the
+// CV cv reads. Once it is committed the employer gets an email, and their
+// open pages hear of it.
+@orm.Transaction
+func (b *Board) Apply(ctx context.Context, job Job, applicant *users.User, letter, cvName string, cv io.Reader) Result[Application] {
+	if job.Status != Status.Open {
+		return Err(ErrClosed)
+	}
+	applied := Application.Objects.Filter(Application.Job.ID.Eq(job.ID), orm.Q{"applicant": applicant.ID}).Exists(ctx)?
+	if applied {
+		return Err(ErrApplied)
+	}
+	data := io.ReadAll(cv)?
+	app := Application{Job: orm.FKOf(&job), Applicant: orm.FKOf(applicant), Letter: letter, CVName: cvName, CV: data}
+	app.Save(ctx)?
+	employer := job.Employer.Get(ctx)?
+	orm.OnCommit(ctx, func(ctx context.Context) {
+		b.Mail.SendLater(ctx, mail.Message{
+			To:      []string{employer.Email},
+			Subject: "New application: " + job.Title,
+			HTML:    NewApplication{Employer: employer.Name, Job: job.Title, Applicant: applicant.Name},
+		})
+		web.Broadcast(ctx, EmployerTopic(employer.ID), Applied{Job: job.ID, Title: job.Title, Applicant: applicant.Name})
+	})?
+	return Ok(app)
+}
+
+// Posting is one of an employer's jobs, with its applications counted.
+type Posting struct {
+	ID           int64
+	Title        string
+	Status       Status
+	Closes       time.Time
+	Applications int64
+}
+
+// Postings are employer's jobs, the newest first.
+func (b *Board) Postings(ctx context.Context, employer int64) ([]Posting, error) {
+	return Job.Objects.Filter(orm.Q{"employer": employer}).
+		Annotate("applications", Job.Applications.Count()).
+		Values[Posting]("id", "title", "status", "closes", "applications").All(ctx)
+}
+
+// Applications are the applications to job, the newest first.
+func (b *Board) Applications(ctx context.Context, job int64) ([]Application, error) {
+	return Application.Objects.Filter(Application.Job.ID.Eq(job)).SelectRelated("applicant").All(ctx)
+}
+
+// Sent are applicant's applications, with their jobs.
+func (b *Board) Sent(ctx context.Context, applicant int64) ([]Application, error) {
+	return Application.Objects.Filter(orm.Q{"applicant": applicant}).SelectRelated(Application.Job.String()).All(ctx)
+}
+
+// Close stops job taking applications.
+func (b *Board) Close(ctx context.Context, job int64) error {
+	Job.Objects.Filter(Job.ID.Eq(job)).Update(ctx, orm.Set{"status": Status.Closed})?
+	return nil
+}
+
+// CloseExpired closes the open jobs whose closing date has passed.
+func (b *Board) CloseExpired(ctx context.Context, now time.Time) (int64, error) {
+	return Job.Objects.Filter(Job.Status.Eq(Status.Open), Job.Closes.Lt(now)).Update(ctx, orm.Set{"status": Status.Closed})
+}

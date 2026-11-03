@@ -1,0 +1,106 @@
+<script lang="go">
+package employer
+
+import (
+	"context"
+	"slices"
+	"strconv"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+
+	"example.com/jobboard/components"
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/modules/users"
+	"example.com/jobboard/pages/urls"
+)
+
+// Index is the employer's dashboard, /employer: their jobs with the
+// applications counted, and the applications as they arrive.
+type Index struct {
+	ui.Live
+	board    *jobs.Board
+	me       int64
+	postings []jobs.Posting
+	arrived  []jobs.Applied
+}
+
+@ui.Mount
+func (p *Index) mount(ctx context.Context) error {
+	p.me = users.Of(user).ID
+	p.Subscribe(jobs.EmployerTopic(p.me))
+	return p.load(ctx)
+}
+
+func (p *Index) load(ctx context.Context) error {
+	postings := p.board.Postings(ctx, p.me)?
+	p.postings = postings
+	return nil
+}
+
+func (p *Index) Title() string { return "Your jobs" }
+
+func (p *Index) Update(ctx context.Context, a jobs.Applied) error {
+	p.arrived = append([]jobs.Applied{a}, p.arrived...)
+	return p.load(ctx)
+}
+
+@auth.Requires("jobs.post")
+func (p *Index) Close(ctx context.Context, id int64) error {
+	if !slices.ContainsFunc(p.postings, func(j jobs.Posting) bool { return j.ID == id }) {
+		return web.NotFound
+	}
+	p.board.Close(ctx, id)?
+	return p.load(ctx)
+}
+</script>
+
+<components.Header title="Your jobs" description="Applications appear here as they arrive.">
+  <ui.Link
+    href={urls.Employer.New.Path()}
+    class="rounded-lg bg-brand-600 px-3.5 py-2.5 text-sm font-semibold text-white hover:bg-brand-700"
+  >Post a job</ui.Link>
+</components.Header>
+if len(arrived) > 0 {
+  <ul class="mb-6 space-y-2" id="arrived" aria-live="polite">
+    for i, a := range arrived {
+      <li key={i}><components.Flash
+        tone="success"
+        message={a.Applicant + " applied to " + a.Title + "."}
+      /></li>
+    }
+  </ul>
+}
+<div class="overflow-hidden rounded-2xl bg-white shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10">
+  <table class="min-w-full divide-y divide-slate-900/5 text-sm dark:divide-white/10">
+    <thead class="bg-slate-50 text-left text-xs font-medium tracking-wide text-slate-500 uppercase dark:bg-white/5">
+      <tr><th class="px-5 py-3">Job</th><th class="px-5 py-3">Closes</th><th class="px-5 py-3">Applications</th><th class="px-5 py-3"></th></tr>
+    </thead>
+    <tbody class="divide-y divide-slate-900/5 dark:divide-white/5" id="postings">
+      for _, j := range postings {
+        <tr key={j.ID} id={"posting-" + strconv.FormatInt(j.ID, 10)}>
+          <td class="px-5 py-3.5"><ui.Link
+            href={urls.Employer.Job(j.ID).Path()}
+            class="font-medium hover:underline"
+          >{j.Title}</ui.Link></td>
+          <td class="px-5 py-3.5 text-slate-500">{j.Closes.Format("2 Jan 2006")}</td>
+          <td class="px-5 py-3.5" data-count>{j.Applications}</td>
+          <td class="px-5 py-3.5 text-right">
+            if j.Status == jobs.Status.Open {
+              <components.Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                attrs={[]ui.Attr{{Name: "value", Value: j.ID}}}
+                onClick={ui.JS.Confirm("Close " + j.Title + "?").Push(Close)}
+              >Close</components.Button>
+            } else {
+              <span class="text-slate-400">Closed</span>
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+</div>

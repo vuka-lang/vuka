@@ -1,0 +1,20 @@
+<script lang="go">
+package site
+
+import (
+	"github.com/vuka-lang/web/v2/auth"
+
+	"example.com/jobboard/components"
+	"example.com/jobboard/pages/private_parts"
+)
+
+// Index is the job board, /: a page that isn't live around the live
+// search, which keeps its state in the address.
+@auth.Public
+type Index struct{}
+
+func (p Index) Title() string { return "Jobs" }
+</script>
+
+<components.Header title="Find your next job" description="Every open job, newest first." />
+<parts.JobSearch />

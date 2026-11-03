@@ -1,0 +1,18 @@
+package account
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// Guard sends a visitor signed in already on, to next or home.
+type Guard struct{}
+
+func (g *Guard) Load(ctx context.Context) error {
+	if auth.Current(ctx) != nil {
+		return web.Redirect(auth.Next(web.Request(ctx), "/"))
+	}
+	return nil
+}

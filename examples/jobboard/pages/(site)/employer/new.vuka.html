@@ -1,0 +1,37 @@
+<script lang="go">
+package employer
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+
+	"example.com/jobboard/components"
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/modules/users"
+	"example.com/jobboard/pages/urls"
+)
+
+// New is /employer/new: the form a job is posted with.
+type New struct {
+	ui.Live
+	Form  jobs.PostJob
+	board *jobs.Board
+}
+
+func (p *New) Title() string { return "Post a job" }
+
+@auth.Requires("jobs.post")
+func (p *New) Save(ctx context.Context, f jobs.PostJob) error {
+	job := p.board.Post(ctx, users.Of(user).ID, f).Get()?
+	web.Flash(ctx, "success", job.Title+" is open for applications.")?
+	return web.Redirect(urls.Employer.Path())
+}
+</script>
+
+<div class="mx-auto max-w-2xl">
+  <components.Header title="Post a job" />
+  <ui.Form for={Form} onSubmit={Save} submitLabel="Post the job" />
+</div>

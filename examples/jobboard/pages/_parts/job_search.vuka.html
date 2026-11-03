@@ -1,0 +1,112 @@
+<script lang="go">
+package parts
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2/auth"
+
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/pages/urls"
+)
+
+// JobSearch is the job list: a search, the categories with their open
+// jobs counted, and a page of results. Its search, category and page are
+// the address's, so a search can be bookmarked and shared.
+// Its events are anyone's, signed in or not.
+@auth.Public
+type JobSearch struct {
+	ui.Live
+	q        string @ui.URL("q")
+	category int64  @ui.URL("category")
+	at       int    @ui.URL("page").Default(1)
+	board    *jobs.Board
+}
+
+func (s *JobSearch) Results(ctx context.Context) (orm.PageResult[jobs.Job], error) {
+	return s.board.Search(ctx, s.q, s.category, s.at)
+}
+
+func (s *JobSearch) Categories(ctx context.Context) ([]jobs.CategoryCount, error) {
+	return s.board.Categories(ctx)
+}
+
+func (s *JobSearch) Search(q string) { s.q, s.at = q, 1 }
+
+func (s *JobSearch) Pick(category int64) { s.category, s.at = category, 1 }
+
+func (s *JobSearch) Go(page int) { s.at = page }
+
+func chip(on bool) string {
+	if on {
+		return "flex w-full justify-between rounded-lg bg-brand-50 px-3 py-2 text-left text-sm font-medium text-brand-800 dark:bg-brand-500/10 dark:text-brand-300"
+	}
+	return "flex w-full justify-between rounded-lg px-3 py-2 text-left text-sm text-slate-600 hover:bg-slate-900/5 dark:text-slate-400 dark:hover:bg-white/5"
+}
+</script>
+
+<div class="grid gap-8 lg:grid-cols-4">
+  results := Results()
+  <aside class="space-y-1">
+    <h2 class="px-3 pb-2 text-xs font-semibold tracking-wide text-slate-500 uppercase">Categories</h2>
+    <button type="button" class={chip(category == 0)} onClick={func() { Pick(0) }}>All</button>
+    for _, c := range Categories() {
+      <button
+        type="button"
+        key={c.ID}
+        class={chip(category == c.ID)}
+        onClick={func() { Pick(c.ID) }}
+      >
+        {c.Name}<span class="text-slate-400">{c.Open}</span>
+      </button>
+    }
+  </aside>
+  <section class="space-y-4 lg:col-span-3">
+    <input
+      type="search"
+      name="q"
+      value={q}
+      onInput={Search}
+      data-vk-debounce="250"
+      placeholder="Search jobs: go -java, &quot;remote first&quot;"
+      aria-label="Search jobs"
+      class="block w-full rounded-lg border-0 bg-white px-3 py-2.5 text-sm shadow-sm ring-1 ring-slate-300 ring-inset focus:ring-2 focus:ring-brand-600 dark:bg-white/5 dark:ring-white/15"
+    />
+    <p class="text-sm text-slate-500" id="found">{results.Total} open jobs</p>
+    <ul class="space-y-3" id="jobs">
+      for _, j := range results.Items {
+        <li
+          key={j.ID}
+          id={"job-" + strconv.FormatInt(j.ID, 10)}
+          class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10"
+        >
+          <ui.Link
+            href={urls.Jobs.Job(j.ID).Path()}
+            class="font-semibold text-slate-900 hover:underline dark:text-white"
+          >{j.Title}</ui.Link>
+          <p class="mt-1 text-sm text-slate-500">{j.Category.Related().Name} · {j.Kind.Label()} · {j.Location}</p>
+        </li>
+      }
+    </ul>
+    if results.Pages > 1 {
+      <nav class="flex items-center justify-between text-sm" aria-label="Pages">
+        <button
+          type="button"
+          disabled={results.Page <= 1}
+          onClick={func() { Go(results.Page - 1) }}
+          class="rounded-lg px-3 py-2 hover:bg-slate-900/5 disabled:opacity-40"
+        >Previous</button>
+        <span>Page {results.Page} of {results.Pages}</span>
+        <button
+          type="button"
+          disabled={results.Page >= results.Pages}
+          onClick={func() { Go(results.Page + 1) }}
+          class="rounded-lg px-3 py-2 hover:bg-slate-900/5 disabled:opacity-40"
+        >Next</button>
+      </nav>
+    }
+  </section>
+</div>

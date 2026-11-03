@@ -1,0 +1,16 @@
+package job
+
+import (
+	"strconv"
+
+	"example.com/jobboard/modules/jobs"
+)
+
+func salary(j jobs.Job) string {
+	match j.Salary {
+	case Some(n):
+		return strconv.FormatInt(n, 10) + " a year"
+	case None:
+		return "Not given"
+	}
+}
