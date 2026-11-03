@@ -1,0 +1,75 @@
+// Command example.com/jobboard is Job Board, a web app built with Vuka. main is
+// wiring only: the app is in pages/, layouts/, components/ and modules/.
+// A .vuka.html file under pages/ is a page, its path its URL:
+// pages.Routes(), which vuka writes, registers them.
+//
+//	vuka run -watch .     then open http://localhost:8080
+package main
+
+import (
+	"embed"
+	"io/fs"
+	"log"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/orm/v2/ormweb"
+	_ "github.com/vuka-lang/orm/v2/sqlite" // the database's driver
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+	"github.com/vuka-lang/web/v2/mail"
+
+	_ "example.com/jobboard/migrations"
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/modules/users"
+	"example.com/jobboard/pages"
+)
+
+//go:embed static
+var static embed.FS
+
+// options are the app's, shared by main and the tests.
+func options() []web.Option {
+	db := orm.NewDatabases() // DATABASE_URL, read as the app starts
+	return []web.Option{
+		ormweb.Set(db).MigrateOnStart(true), // pending migrations run as the app starts
+		mail.Provide(),                      // MAIL_*: logged in development, SMTP in production
+		auth.Module(auth.Config{
+			Endpoints:  "/auth", // POST /auth/login, /auth/logout, /auth/token; GET /auth/me
+			Roles:      users.Roles,
+			Sessions:   users.Sessions(db), // in the database: sign-ins survive restarts
+			Tokens:     users.Tokens(db),
+			RememberMe: true,
+		}),
+		users.Admin(),           // ADMIN_EMAIL and ADMIN_PASSWORD: the first admin
+		pages.Routes(),          // the pages under pages/
+		web.GraphQL("/graphql"), // the @graphql.Query operations: jobs
+		// What every template reads by name: request, user, perms, messages,
+		// csrfToken, page. Add the app's own processors to the list.
+		web.ContextProcessors(
+			web.RequestContext,
+			auth.Context,
+			web.MessagesContext,
+			web.CSRFContext,
+			ui.PageContext,
+		),
+		web.OptionFunc(func(app *web.App) {
+			files, _ := fs.Sub(static, "static")
+			app.Static("/static", files) // the logo, also the favicon
+		}),
+		web.OptionFunc(services),
+	}
+}
+
+// services are the app's: pages, handlers and hooks take each as a
+// parameter. vuka add service and vuka add module register theirs here.
+func services(app *web.App) {
+	app.Service(users.NewUsers)
+	app.Service(jobs.NewBoard)
+}
+
+func main() {
+	if err := web.New(options()...).Run(""); err != nil { // :$PORT, else :8080
+		log.Fatal(err)
+	}
+}

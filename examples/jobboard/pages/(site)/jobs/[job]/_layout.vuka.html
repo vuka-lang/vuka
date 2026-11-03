@@ -1,0 +1,40 @@
+<script lang="go">
+package job
+
+import (
+	"context"
+	"errors"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+
+	"example.com/jobboard/components"
+	"example.com/jobboard/modules/jobs"
+)
+
+// Layout loads the job of every page under /jobs/{job}, and heads them
+// with its title: an unknown job is not found here, for all of them.
+type Layout struct {
+	Job      int64
+	Children ui.Node
+	job      jobs.Job
+}
+
+func (l *Layout) Load(ctx context.Context, board *jobs.Board) error {
+	job, err := board.Job(ctx, l.Job)
+	if errors.Is(err, orm.ErrNotFound) {
+		return web.NotFound
+	}
+	l.job = job
+	return err
+}
+</script>
+
+<article class="mx-auto max-w-3xl">
+  <components.Header
+    title={job.Title}
+    description={job.Category.Related().Name + " · " + job.Kind.Label() + " · " + job.Location}
+  />
+  {Children}
+</article>

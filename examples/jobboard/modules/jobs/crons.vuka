@@ -1,0 +1,20 @@
+package jobs
+
+import (
+	"context"
+	"log/slog"
+	"time"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/web/v2"
+)
+
+// closeExpired closes, each night, the jobs whose closing date has passed.
+@web.Cron("0 1 * * *")
+func closeExpired(ctx context.Context, db *orm.Databases, b *Board) error {
+	n := b.CloseExpired(orm.WithDatabases(ctx, db), time.Now())?
+	if n > 0 {
+		slog.InfoContext(ctx, "closed expired jobs", "n", n)
+	}
+	return nil
+}

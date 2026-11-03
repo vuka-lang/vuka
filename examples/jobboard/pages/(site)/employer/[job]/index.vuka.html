@@ -1,0 +1,39 @@
+<script lang="go">
+package job
+
+import (
+	"context"
+	"strconv"
+
+	"example.com/jobboard/components"
+	"example.com/jobboard/modules/jobs"
+)
+
+// Index is /employer/{job}: the applications to one of the employer's
+// jobs. Its guard has checked the job is theirs.
+type Index struct {
+	Job   int64
+	board *jobs.Board
+}
+
+func (p *Index) Title() string { return "Applications" }
+
+func (p *Index) Applications(ctx context.Context) ([]jobs.Application, error) {
+	return p.board.Applications(ctx, p.Job)
+}
+</script>
+
+<components.Header title="Applications" />
+<ul class="space-y-3" id="applications">
+  for _, a := range Applications() {
+    <li
+      key={a.ID}
+      id={"application-" + strconv.FormatInt(a.ID, 10)}
+      class="rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10"
+    >
+      <p class="font-semibold">{a.Applicant.Related().Name}</p>
+      <p class="mt-2 whitespace-pre-line text-sm text-slate-700 dark:text-slate-300">{a.Letter}</p>
+      <p class="mt-2 text-xs text-slate-500">CV: {a.CVName}, {len(a.CV)} bytes</p>
+    </li>
+  }
+</ul>

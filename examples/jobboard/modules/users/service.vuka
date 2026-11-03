@@ -1,0 +1,152 @@
+package users
+
+import (
+	"context"
+	"errors"
+	"log/slog"
+	"strconv"
+	"strings"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+)
+
+// Roles are the perms each role grants (auth.Config.Roles).
+var Roles = map[string][]string{
+	string(Role.Admin):    {"*"},
+	string(Role.Employer): {"jobs.post"},
+	string(Role.Seeker):   {"jobs.apply"},
+}
+
+// ErrEmailTaken is Create's error for an email another user has.
+var ErrEmailTaken = errors.New("a user with this email already exists")
+
+// Users is where accounts live: auth signs people in through it (it
+// implements auth.Users), and pages list and add accounts with it. main
+// registers it with app.Service.
+type Users struct {
+	DB *orm.Databases
+}
+
+// NewUsers builds the Users over the app's databases.
+func NewUsers(db *orm.Databases) *Users { return &Users{DB: db} }
+
+// ctx is c with the app's databases, for calls made outside a request (at
+// start-up, by auth's stores); a request's context has them already.
+func (u *Users) ctx(c context.Context) context.Context {
+	if u.DB == nil {
+		return c
+	}
+	return orm.WithDatabases(c, u.DB)
+}
+
+func identity(row *User) *auth.Identity {
+	return &auth.Identity{ID: strconv.FormatInt(row.ID, 10), Roles: []string{string(row.Role)}, User: row}
+}
+
+// Of is the user id signed in as; nil for an anonymous visitor.
+func Of(id *auth.Identity) *User {
+	if id == nil {
+		return nil
+	}
+	u, _ := id.User.(*User)
+	return u
+}
+
+// FindLogin is the user whose email is login, with their encoded password.
+func (u *Users) FindLogin(ctx context.Context, login string) (*auth.Identity, string, error) {
+	email := strings.ToLower(strings.TrimSpace(login))
+	row, err := User.Objects.Filter(User.Email.Eq(email)).First(u.ctx(ctx))
+	if errors.Is(err, orm.ErrNotFound) {
+		return nil, "", nil
+	}
+	if err != nil {
+		return nil, "", err
+	}
+	return identity(&row), row.Password, nil
+}
+
+// Load is the user a session or token names; nil once they are gone.
+func (u *Users) Load(ctx context.Context, id string) (*auth.Identity, error) {
+	n, err := strconv.ParseInt(id, 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	row, err := User.Objects.Filter(User.ID.Eq(n)).First(u.ctx(ctx))
+	if errors.Is(err, orm.ErrNotFound) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return identity(&row), nil
+}
+
+// SetPassword stores a password auth hashed again.
+func (u *Users) SetPassword(ctx context.Context, id, encoded string) error {
+	n := strconv.ParseInt(id, 10, 64)?
+	User.Objects.Filter(User.ID.Eq(n)).Update(u.ctx(ctx), orm.Set{User.Password.Name(): encoded})?
+	return nil
+}
+
+// Public is what GET /auth/me shows of a user.
+func (u *Users) Public(id *auth.Identity) any { return id.User }
+
+// NewUser is what Create takes.
+type NewUser struct {
+	Name     string
+	Email    string
+	Password string
+	Role     Role
+}
+
+// Create adds a user, their password hashed.
+func (u *Users) Create(ctx context.Context, in NewUser) Result[User] {
+	ctx = u.ctx(ctx)
+	email := strings.ToLower(strings.TrimSpace(in.Email))
+	taken := User.Objects.Filter(User.Email.Eq(email)).Exists(ctx)?
+	if taken {
+		return Err(ErrEmailTaken)
+	}
+	role := in.Role
+	if !role.Valid() {
+		role = Role.Seeker
+	}
+	row := User{Name: strings.TrimSpace(in.Name), Email: email, Role: role}
+	row.Password = auth.HashPassword(in.Password)?
+	User.Objects.Create(ctx, &row)?
+	return Ok(row)
+}
+
+// Admin makes sure the first admin exists when the app starts: the user
+// ADMIN_EMAIL names, with ADMIN_PASSWORD, unless they exist already. An
+// existing user's password is never changed. Without ADMIN_EMAIL it does
+// nothing.
+func Admin() web.Option {
+	return web.OptionFunc(func(app *web.App) {
+		app.OnStart(func(ctx context.Context) error {
+			email := web.Env[string]("ADMIN_EMAIL")
+			if email == "" {
+				return nil
+			}
+			u := web.Resolve[*Users](app)?
+			exists := User.Objects.Filter(User.Email.Eq(strings.ToLower(email))).Exists(u.ctx(ctx))?
+			if exists {
+				return nil
+			}
+			password := web.Env[string]("ADMIN_PASSWORD")
+			if len(password) < 12 {
+				return errors.New("ADMIN_PASSWORD: set one of 12 characters or more to create the admin " + email)
+			}
+			name := web.Env("ADMIN_NAME", "Admin")
+			match u.Create(ctx, NewUser{Name: name, Email: email, Password: password, Role: Role.Admin}) {
+			case Ok(row):
+				slog.Info("created the admin user", "email", row.Email)
+				return nil
+			case Err(e):
+				return e
+			}
+		})
+	})
+}

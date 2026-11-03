@@ -1,0 +1,71 @@
+package jobs
+
+import (
+	"context"
+	"strconv"
+	"time"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/ui/v2/forms"
+)
+
+// PostJob is the form an employer posts a job with. The skills offered
+// follow the category chosen.
+type PostJob struct {
+	ui.FormState
+	Title       string    `validate:"required,max=120"`
+	Category    string    `validate:"required"`
+	Skills      []string  `depends:"Category" help:"Choose a category first"`
+	Kind        string    `label:"Type" input:"radio" validate:"required"`
+	Location    string    `label:"Location" validate:"required,max=80" placeholder:"Remote, or a city"`
+	Salary      int64     `label:"Yearly salary" help:"Leave it empty to not show one"`
+	Closes      time.Time `label:"Applications close"`
+	Description string    `input:"textarea" validate:"required,max=5000"`
+}
+
+func (f *PostJob) CategoryChoices(ctx context.Context) ([]ui.Option, error) {
+	rows := Category.Objects.All(ctx)?
+	out := make([]ui.Option, len(rows))
+	for i, c := range rows {
+		out[i] = ui.Option{Value: strconv.FormatInt(c.ID, 10), Label: c.Name}
+	}
+	return out, nil
+}
+
+func (f *PostJob) SkillsChoices(ctx context.Context) ([]ui.Option, error) {
+	id, err := strconv.ParseInt(f.Category, 10, 64)
+	if err != nil {
+		return nil, nil
+	}
+	rows := Skill.Objects.Filter(Skill.Category.ID.Eq(id)).All(ctx)?
+	out := make([]ui.Option, len(rows))
+	for i, s := range rows {
+		out[i] = ui.Option{Value: strconv.FormatInt(s.ID, 10), Label: s.Name}
+	}
+	return out, nil
+}
+
+func (f *PostJob) KindChoices() []ui.Option {
+	var out []ui.Option
+	for _, k := range []Kind{Kind.FullTime, Kind.PartTime, Kind.Contract} {
+		out = append(out, ui.Option{Value: string(k), Label: k.Label()})
+	}
+	return out
+}
+
+func (f *PostJob) Clean(ctx context.Context) error {
+	if f.Salary < 0 {
+		return forms.Errorf("A salary can't be negative")
+	}
+	if !f.Closes.IsZero() && !f.Closes.After(time.Now()) {
+		return forms.Errorf("Applications must close after today")
+	}
+	return nil
+}
+
+// ApplyForm is a job seeker's application: a letter and a CV.
+type ApplyForm struct {
+	ui.FormState
+	Letter string  `label:"Cover letter" input:"textarea" validate:"required,max=4000"`
+	CV     ui.File `label:"CV" accept:".pdf,.doc,.docx,.txt" max:"2MB" validate:"required"`
+}

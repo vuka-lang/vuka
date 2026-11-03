@@ -1,0 +1,21 @@
+package components
+
+var flashTones = map[string]string{
+	"error":   "bg-red-50 text-red-800 ring-red-600/15 dark:bg-red-500/10 dark:text-red-300 dark:ring-red-400/20",
+	"success": "bg-emerald-50 text-emerald-800 ring-emerald-600/15 dark:bg-emerald-500/10 dark:text-emerald-300 dark:ring-emerald-400/20",
+	"info":    "bg-slate-50 text-slate-700 ring-slate-600/10 dark:bg-white/5 dark:text-slate-300 dark:ring-white/10",
+}
+
+func flashColours(tone string) string {
+	if c, ok := flashTones[tone]; ok {
+		return c
+	}
+	return flashTones["info"]
+}
+
+func flashRole(tone string) string {
+	if tone == "error" {
+		return "alert"
+	}
+	return "status"
+}

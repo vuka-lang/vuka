@@ -1,0 +1,49 @@
+<script lang="go">
+package account
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2"
+	"github.com/vuka-lang/web/v2/auth"
+
+	"example.com/jobboard/layouts"
+	"example.com/jobboard/modules/users"
+	"example.com/jobboard/pages/urls"
+)
+
+// Signup is /signup: a new account, signed in once it is made. The page
+// isn't live, so its form posts over HTTP and save can set the session
+// cookie.
+@auth.Public
+type Signup struct {
+	Form  users.Signup
+	Users *users.Users
+}
+
+func (p *Signup) Title() string { return "Create an account" }
+
+func (p *Signup) save(ctx context.Context, f users.Signup) error {
+	u := p.Users.Create(ctx, users.NewUser{Name: f.Name, Email: f.Email, Password: f.Password, Role: users.Role(f.Role)}).Get()?
+	auth.SignIn(ctx, strconv.FormatInt(u.ID, 10))?
+	if u.Role == users.Role.Employer {
+		return web.Redirect(urls.Employer.Path())
+	}
+	return web.Redirect(urls.Root.Path())
+}
+</script>
+
+<layouts.Auth
+  title="Create an account"
+  subtitle={"Post jobs or apply to them on " + layouts.AppName() + "."}
+>
+  <ui.Form for={Form} onSubmit={save} submitLabel="Create account" />
+  <p class="mt-6 text-center text-sm text-slate-500 dark:text-slate-400">
+    Have an account? <ui.Link
+      href={urls.Login.Path()}
+      class="font-medium text-brand-700 hover:underline dark:text-brand-400"
+    >Sign in</ui.Link>
+  </p>
+</layouts.Auth>

@@ -1,0 +1,30 @@
+@import "tailwindcss";
+
+/* The theme: the brand colour is the logo's orange; neutrals are slate.
+   Change these tokens and every page follows. */
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+
+  --color-brand-50: #fff5ed;
+  --color-brand-100: #ffe8d6;
+  --color-brand-200: #fecdab;
+  --color-brand-300: #fdab76;
+  --color-brand-400: #f6793f;
+  --color-brand-500: #e8662c;
+  --color-brand-600: #c94c1a;
+  --color-brand-700: #a83c15;
+  --color-brand-800: #873217;
+  --color-brand-900: #6e2b16;
+  --color-brand-950: #3b1309;
+}
+
+/* While a live page reconnects, say so. */
+html[data-vk-state="disconnected"] body::after {
+  content: "Reconnecting…";
+  @apply fixed right-4 bottom-4 rounded-lg bg-slate-900 px-3 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-slate-900;
+}
+
+/* A live page moving to another dims a little. */
+html[data-vk-navigating] main {
+  @apply opacity-70 transition-opacity;
+}

@@ -1,0 +1,10 @@
+// Package layouts is the app's page frames: the centred card of the
+// sign-in pages (Auth) and the user menu of the site's header. The
+// document around every page is pages/_layout.vuka.html, the header
+// pages/(site)/_layout.vuka.html.
+package layouts
+
+import "github.com/vuka-lang/web/v2"
+
+// AppName is the app's name, as pages and the shell show it (APP_NAME).
+func AppName() string { return web.Env("APP_NAME", "Job Board") }

@@ -1,0 +1,73 @@
+package jobs
+
+import (
+	"time"
+
+	"github.com/vuka-lang/orm/v2"
+
+	"example.com/jobboard/modules/users"
+)
+
+// Kind is how a job is worked.
+enum Kind string {
+	FullTime = "full-time"
+	PartTime = "part-time"
+	Contract = "contract"
+}
+
+func (Kind.FullTime) Label() string { return "Full time" }
+func (Kind.PartTime) Label() string { return "Part time" }
+func (Kind.Contract) Label() string { return "Contract" }
+
+// Status is whether a job takes applications.
+enum Status string {
+	Open   = "open"
+	Closed = "closed"
+}
+
+// Category groups jobs: engineering, design, sales.
+type Category struct {
+	orm.Base @orm.Meta{Ordering: []string{"name"}}
+	ID       int64
+	Name     string @orm.Char{Max: 60, Unique: true}
+	Jobs     []Job  `graphql:"-"`
+}
+
+// Skill is something a job asks for, within its category.
+type Skill struct {
+	orm.Base @orm.Meta{Ordering: []string{"name"}}
+	ID       int64
+	Name     string           @orm.Char{Max: 60}
+	Category orm.FK[Category] @orm.Rel{OnDelete: orm.Cascade}
+}
+
+// Job is an opening an employer posted.
+type Job struct {
+	orm.Base     @orm.Meta{Ordering: []string{"-posted", "id"}}
+	ID           int64
+	Title        string @orm.Char{Max: 120}
+	Description  string @orm.LongText
+	Location     string @orm.Char{Max: 80}
+	Kind         Kind
+	Salary       Option[int64]
+	Category     orm.FK[Category] @orm.Rel{OnDelete: orm.Restrict, Related: "jobs"}
+	Skills       orm.M2M[Skill]
+	Employer     orm.FK[users.User] `graphql:"-"` @orm.Rel{OnDelete: orm.Cascade}
+	Status       Status             @orm.Index
+	Closes       time.Time          @orm.DateField
+	Posted       time.Time          @orm.Datetime{AutoNowAdd: true}
+	Search       orm.TSVector       `graphql:"-"` @orm.SearchOf{Fields: []string{"title:A", "description:B"}, Config: "english"} @orm.FullText{Config: "english"}
+	Applications []Application      `graphql:"-"`
+}
+
+// Application is a job seeker's answer to a job, with their CV.
+type Application struct {
+	orm.Base  @orm.Meta{Ordering: []string{"-sent"}}
+	ID        int64
+	Job       orm.FK[Job]        @orm.Rel{OnDelete: orm.Cascade, Related: "applications"} @orm.UniqueTogether("job_applicant")
+	Applicant orm.FK[users.User] @orm.Rel{OnDelete: orm.Cascade} @orm.UniqueTogether("job_applicant")
+	Letter    string             @orm.LongText
+	CVName    string             @orm.Char{Max: 200}
+	CV        []byte
+	Sent      time.Time @orm.Datetime{AutoNowAdd: true}
+}

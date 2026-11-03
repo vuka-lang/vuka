@@ -1,0 +1,24 @@
+package job
+
+import (
+	"context"
+
+	"github.com/vuka-lang/orm/v2"
+	"github.com/vuka-lang/web/v2"
+
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/modules/users"
+)
+
+// Guard answers not found for a job that isn't the signed-in employer's.
+type Guard struct {
+	Job int64
+}
+
+func (g *Guard) Load(ctx context.Context) error {
+	mine := jobs.Job.Objects.Filter(jobs.Job.ID.Eq(g.Job), orm.Q{"employer": users.Of(user).ID}).Exists(ctx)?
+	if !mine {
+		return web.NotFound
+	}
+	return nil
+}

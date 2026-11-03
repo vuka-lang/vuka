@@ -1,0 +1,62 @@
+<script lang="go">
+package admin
+
+import (
+	"context"
+	"strconv"
+
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/web/v2/auth"
+
+	"example.com/jobboard/components"
+	"example.com/jobboard/modules/jobs"
+	"example.com/jobboard/pages/urls"
+)
+
+// Index is /admin: every open job, for a moderator to close.
+type Index struct {
+	ui.Live
+	board *jobs.Board
+	open  []jobs.Job
+}
+
+@ui.Mount
+func (p *Index) mount(ctx context.Context) error { return p.load(ctx) }
+
+func (p *Index) load(ctx context.Context) error {
+	found := p.board.Search(ctx, "", 0, 1)?
+	p.open = found.Items
+	return nil
+}
+
+func (p *Index) Title() string { return "Moderation" }
+
+@auth.Requires("jobs.moderate")
+func (p *Index) Close(ctx context.Context, id int64) error {
+	p.board.Close(ctx, id)?
+	return p.load(ctx)
+}
+</script>
+
+<components.Header
+  title="Moderation"
+  description="The newest open jobs. Closing one stops its applications."
+/>
+<ul class="space-y-3" id="open">
+  for _, j := range open {
+    <li
+      key={j.ID}
+      id={"open-" + strconv.FormatInt(j.ID, 10)}
+      class="flex items-center justify-between rounded-2xl bg-white p-5 shadow-sm ring-1 ring-slate-900/5 dark:bg-slate-900 dark:ring-white/10"
+    >
+      <ui.Link href={urls.Jobs.Job(j.ID).Path()} class="font-medium hover:underline">{j.Title}</ui.Link>
+      <components.Button
+        type="button"
+        variant="danger"
+        size="sm"
+        attrs={[]ui.Attr{{Name: "value", Value: j.ID}}}
+        onClick={ui.JS.Confirm("Close " + j.Title + "?").Push(Close)}
+      >Close</components.Button>
+    </li>
+  }
+</ul>

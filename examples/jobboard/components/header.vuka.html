@@ -1,0 +1,25 @@
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Header is a page's title, its description, and its actions (the
+// children) on the right.
+type Header struct {
+	Title       string
+	Description string
+	Children    ui.Node
+}
+</script>
+
+<div class="mb-8 flex flex-wrap items-end justify-between gap-4">
+  <div>
+    <h1 class="text-2xl font-semibold tracking-tight text-slate-900 dark:text-white">{Title}</h1>
+    if Description != "" {
+      <p class="mt-1 text-sm text-slate-500 dark:text-slate-400">{Description}</p>
+    }
+  </div>
+  if ui.Has(Children) {
+    <div class="flex items-center gap-3">{Children}</div>
+  }
+</div>

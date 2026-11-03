@@ -1,0 +1,15 @@
+package jobs
+
+import (
+	"context"
+
+	"github.com/vuka-lang/web/v2/auth"
+	"github.com/vuka-lang/web/v2/graphql"
+)
+
+// Jobs pages the open jobs, the newest first.
+@graphql.Query
+@auth.Public
+func Jobs(ctx context.Context, page graphql.Page) (graphql.Connection[Job], error) {
+	return graphql.Paginate(ctx, Job.Objects.Filter(Job.Status.Eq(Status.Open)), page)
+}
