@@ -58,9 +58,9 @@ interfaces; no render method needs to be authored.
 ## Static and Live Rendering {#static-and-live}
 
 Rendered by `ui.String`, `ui.Handler` or any templ code, a live
-component is plain HTML: a copy of the tag's value is mounted, rendered once,
-and its event attributes write nothing. That is the first, HTTP render of a
-page.
+component is plain HTML: a copy of the tag's value is mounted, its
+[deferred fields](#deferred-fields) loaded, rendered once, and its event
+attributes write nothing.
 
 Under a [live session](/ui/live) it is an **instance**: created the first
 time its tag renders, mounted once, then kept between renders with its
@@ -233,7 +233,7 @@ with an attribute on the method:
 |---|---|---|
 | `@ui.Mount` | once per instance, before its first render | `func(ctx context.Context) error` |
 | `@ui.OnChange` | after the component sets bound fields; `c` says which | `func(ctx context.Context, c ui.Changed) error` |
-| `@ui.Loads("group")` | after the first render, loading a group of [deferred fields](/web/islands#deferred-fields) | `func(ctx context.Context) error` |
+| `@ui.Loads("group")` | after the first render, loading a group of [deferred fields](#deferred-fields) | `func(ctx context.Context) error` |
 
 Fields take attributes too: `@ui.Bind` (the component may set it),
 `@ui.URL("q")` (the page's address keeps it: [URL State](/web/url-state)), `@ui.Defer("group")` (loaded
@@ -319,6 +319,158 @@ An unfillable parameter is a startup error at the method's source location.
 A deferred group without a loader ([E0324](/errors/E0324)) or a malformed hook
 ([E0336](/errors/E0336)) also stops startup. Field attributes remain in the
 shape header; the generated hook metadata is compiler output.
+
+## Deferred Fields {#deferred-fields}
+
+A field marked `@ui.Defer("group")` isn't loaded for the first render: the
+page goes out without waiting for it, and the group's loader, the method
+marked `@ui.Loads("group")`, fills it after. Use it for what is slow to
+compute and not needed to show the page — a report's totals, a feed, a
+count from another service. Exported or unexported, a deferred field is the
+component's own: a tag never sets it.
+
+The markup reads a group's state with two methods `ui.Live` gives the
+component:
+
+| Method | |
+|---|---|
+| `Loading("group")` | true from the first render until the group's loader returns |
+| `LoadErr("group")` | the loader's error once it failed, else nil: a `*ui.DeferError` whose `Error()` the visitor may read — a `web.Error`'s message, else `"error"`; under `vuka run`, the cause's text — and which unwraps to the loader's error |
+
+Once the loader has returned without an error, `Loading` is false, `LoadErr`
+is nil and the fields hold what it set. A group no field defers fails the
+render ([E0325](/errors/E0325)). In `pages/overview.vuka.html`, with
+`Orders` a service the app provides:
+
+<!-- vuka:context
+type OrderStats struct{ Open, Shipped int }
+
+type Order struct {
+	ID     int64
+	Number string
+}
+
+type Orders struct{}
+
+func (*Orders) Stats(ctx context.Context) (OrderStats, error)           { return OrderStats{}, nil }
+func (*Orders) Recent(ctx context.Context, n int) ([]Order, error) { return nil, nil }
+-->
+
+::: code-group
+
+```html [Vuka]
+<script lang="go">
+package pages
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Overview struct {
+	ui.Live
+	stats  OrderStats @ui.Defer("stats")
+	recent []Order    @ui.Defer("recent")
+	orders *Orders
+}
+
+@ui.Loads("stats")
+func (o *Overview) loadStats(ctx context.Context) error {
+	stats, err := o.orders.Stats(ctx)
+	o.stats = stats
+	return err
+}
+
+@ui.Loads("recent")
+func (o *Overview) loadRecent(ctx context.Context) error {
+	recent, err := o.orders.Recent(ctx, 10)
+	o.recent = recent
+	return err
+}
+</script>
+
+<main>
+  <section>
+    if Loading("stats") {
+      <ui.Skeleton lines={2} />
+    } else if err := LoadErr("stats"); err != nil {
+      <p role="alert">Stats are unavailable: {err.Error()}</p>
+    } else {
+      <p>{stats.Open} open, {stats.Shipped} shipped today</p>
+    }
+  </section>
+  <section>
+    if Loading("recent") {
+      <ui.Skeleton lines={5} />
+    } else if LoadErr("recent") != nil {
+      <p role="alert">The recent orders couldn't be loaded.</p>
+    } else {
+      <ul>
+        for _, o := range recent {
+          <li key={o.ID}>{o.Number}</li>
+        }
+      </ul>
+    }
+  </section>
+</main>
+```
+
+```go [Generated Go]
+func (o *Overview) Render() ui.Node {
+	…
+	if o.Loading("stats") {
+		…
+	} else if err := o.LoadErr("stats"); err != nil {
+	…
+}
+
+func (o *Overview) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&o.stats, ui.Defer("stats"))
+	l.Field(&o.recent, ui.Defer("recent"))
+	l.Loads("stats", o.loadStats)
+	l.Loads("recent", o.loadRecent)
+}
+```
+
+:::
+
+The first render shows both skeletons. Once the page's socket has joined,
+`loadStats` and `loadRecent` run, each on its own goroutine, and each
+group's section is patched in when its loader returns: the fast one
+doesn't wait for the slow one. If `orders.Stats` fails, the stats section
+shows its error, and the rest of the page goes on loading and taking
+events.
+
+- **A copy.** A loader runs on a copy of the component taken when it
+  starts, so events keep running beside it. Only its group's fields are
+  taken from the copy: set those; anything else it changes is dropped. Read
+  what the mount hook set and what the URL bound freely.
+- **When.** A routed page's loaders start once its socket joins; an
+  embedded component's, once the render that mounted it has been sent — on
+  the join, or after the event that showed it. A loader starts once per
+  instance. Its context ends when the visitor leaves the page or the
+  connection closes; a [patch](/web/navigation) keeps the page mounted and
+  its loads running. A load whose component is gone by the time it returns
+  is dropped.
+- **Without a connection.** Rendered without a live session — by
+  `ui.String`, `ui.Handler`, a test — a component runs its loaders before
+  its only render, so it is never loading. So does a page answering a form
+  posted without script: it has no socket to receive them over. A browser
+  without JavaScript on a live page sees the placeholders, as it sees a
+  [part's](/web/parts) fallback: don't defer what every visitor must see.
+- **Mistakes.** A deferred field marked `@ui.Bind` or `@ui.URL`
+  ([E0323](/errors/E0323)) and a group without a loader
+  ([E0324](/errors/E0324)) are reported by `vuka vet` and the editor, and
+  fail the component's mount.
+
+In the generated Go, `Loading` and `LoadErr` are the page's methods, and
+`@ui.Defer` and `@ui.Loads` are the field and hook declarations the runtime
+reads, as for every attribute.
+
+A page backed by its [island](/web/islands#deferred-fields) defers fields
+the same way; its component reads `live.stats.pending` and
+`live.stats.error` instead.
 
 ## Receiving Messages {#messages}
 

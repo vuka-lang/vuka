@@ -136,6 +136,7 @@ same page in the terminal.
 | [E0322](./E0322) | Bad bind: tag |
 | [E0323](./E0323) | Bad defer: tag |
 | [E0324](./E0324) | A deferred field has no loader |
+| [E0325](./E0325) | Loading names a group the component doesn't defer |
 | [E0326](./E0326) | Two handles share a name |
 | [E0328](./E0328) | Bad validate: tag |
 | [E0329](./E0329) | Bad ui.Live embedding |

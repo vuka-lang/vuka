@@ -20,6 +20,29 @@ Releases before v0.50.0 were tagged module by module; their headings name each
 module's version, and each states the **runtime** its generated code needs —
 the `github.com/vuka-lang/vuka` package your module requires.
 
+## v2.17.0 — unreleased
+
+### Live pages
+
+- **Deferred fields on pages and components rendered by their own markup.**
+  `@ui.Defer("group")` on a field and `@ui.Loads("group")` on its loader,
+  which only a page backed by its island honoured, work on any live page or
+  component: the first render goes out without the group, its loader runs
+  once the socket has joined (on a copy, each group on its own goroutine),
+  and the page is patched when it returns. The markup shows a placeholder
+  while `Loading("stats")` is true, and the error `LoadErr("stats")` gives
+  if the loader failed; a group the component doesn't defer fails the render
+  ([E0325](/errors/E0325)). An embedded component's groups load too, when
+  the render that mounts it is sent, and its deferred fields are its own: its
+  tag never sets them. A navigation away ends unfinished loads, a patch keeps
+  them. Rendered without a live session (`ui.String`, a test) or for a form
+  posted without script, a component loads its groups before it renders. See
+  [Deferred Fields](/ui/stateful#deferred-fields).
+- **`vuka vet`, the editor and vukavet check them.** A deferred field marked
+  `@ui.Bind` or `@ui.URL` ([E0323](/errors/E0323)) and a group without a
+  loader ([E0324](/errors/E0324)) are reported for these components as for
+  islands, and fail the component's mount.
+
 ## v2.16.1 — 2026-11-01
 
 ### Breaking
