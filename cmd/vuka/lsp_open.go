@@ -23,7 +23,8 @@ import (
 // of its files, which takes that load and nothing more). Each package is
 // then loaded with the files of the packages before it known, and nothing
 // is loaded twice. The packages the editor asks about go first, after the
-// packages they import. A few files are sent at once, as before.
+// packages they import. A few files are sent at once, as before, and so are
+// the first build's, which gopls loads all together (lsp_staging.go).
 //
 // Files gopls has open get a didChange only when their Go changed, and a
 // didClose when no source generates them any more; a file not yet sent
@@ -98,9 +99,10 @@ func (p *proxy) recordDeps(pkgs []*load.Package) {
 	}
 }
 
-// sendOpens sends gopls the queued files: at once when there are few, else
-// a package at a time from openPackages. p.mu is held, and p.view by the
-// caller, who sends nothing to gopls for these files before.
+// sendOpens sends gopls the queued files: at once when there are few or
+// gopls is staged, else a package at a time from openPackages. p.mu is held,
+// and p.view by the caller, who sends nothing to gopls for these files
+// before.
 func (p *proxy) sendOpens() {
 	o := &p.opening
 	n := 0
@@ -111,7 +113,7 @@ func (p *proxy) sendOpens() {
 		return
 	}
 	o.started, o.count, o.pkgs = time.Now(), 0, 0
-	if n <= openAtOnce {
+	if n <= openAtOnce || p.staged != nil {
 		for len(o.queue) > 0 {
 			p.sendPackageLocked()
 		}

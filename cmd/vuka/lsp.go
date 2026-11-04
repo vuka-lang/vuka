@@ -295,6 +295,29 @@ func (f *vfile) changedAt(off int) bool {
 	return false
 }
 
+// editedAround reports whether the editor's text was edited, since the Go
+// was generated, at off or next to it, or in the name off is in: the code
+// there may read differently now.
+func (f *vfile) editedAround(off int) bool {
+	if !f.stale {
+		return false
+	}
+	text := f.text()
+	start, end := off, off
+	for start > 0 && isIdentByte(text[start-1]) {
+		start--
+	}
+	for end < len(text) && isIdentByte(text[end]) {
+		end++
+	}
+	for _, h := range f.hunks {
+		if h.cur <= end && h.curEnd >= start {
+			return true
+		}
+	}
+	return false
+}
+
 // goneAt reports whether off in the text the Go came from is inside a stretch
 // edited since, so it has no place in the editor's text.
 func (f *vfile) goneAt(off int) bool {
@@ -526,7 +549,11 @@ type proxy struct {
 	staticsPkgs      map[string][]*staticsFile // dependency dir → its parsed Go, for statics
 	importDirs       map[string]string         // import path → package directory
 	opening          opening                   // generated files gopls hasn't been sent (lsp_open.go)
+	resume           chan func()               // requests done waiting, handed back to the main loop (vukaRequest)
+	loopDone         chan struct{}             // closed when the main loop ends
 	started          bool
+	staged           *staging // gopls's staging folder, until the first build is sent (lsp_staging.go)
+	stagingDir       string   // and its directory
 	timer            *time.Timer
 	stopped          bool
 
@@ -563,6 +590,7 @@ func newProxy(editor, gopls *rpcConn, log io.Writer, tmp string) *proxy {
 		shown:       map[string]string{},
 		staticsPkgs: map[string][]*staticsFile{}, importDirs: map[string]string{},
 		changed: map[string]int{}, done: map[string]int{},
+		resume: make(chan func()), loopDone: make(chan struct{}),
 	}
 	p.built = sync.NewCond(&p.mu)
 	editor.dropping(p.dropReply)
@@ -692,9 +720,21 @@ func (p *proxy) display(real string) string {
 }
 
 func (p *proxy) fromEditor() {
+	defer close(p.loopDone)
 	msgs := make(chan editorMsg, 256)
 	go p.readEditor(msgs)
-	for em := range msgs {
+	for {
+		var em editorMsg
+		select {
+		case f := <-p.resume:
+			f()
+			continue
+		case next, ok := <-msgs:
+			if !ok {
+				return
+			}
+			em = next
+		}
 		body, m := em.body, em.m
 		if m.isRequest() && !p.reach(m.ID) {
 			continue // answered while it waited
@@ -716,7 +756,8 @@ func (p *proxy) fromEditor() {
 			p.mu.Unlock()
 			// gopls sees the generated files at their real paths; give it the
 			// workspace by the same paths, or it thinks they're outside it.
-			m.Params = realRoots(m.Params)
+			// It starts in a staging folder (lsp_staging.go).
+			m.Params = p.stage(realRoots(m.Params))
 			_ = p.gopls.send(&m)
 			continue
 		case "workspace/executeCommand":
@@ -743,6 +784,7 @@ func (p *proxy) fromEditor() {
 			p.started, p.building = true, true
 			p.mu.Unlock()
 			p.builds() // the first, before anything else reaches gopls
+			p.unstage()
 			continue
 		case "$/cancelRequest":
 			if p.cancelVuka(m.Params) {
@@ -1210,7 +1252,11 @@ func namesURI(uris map[string]bool, s []byte) bool {
 }
 
 // vukaRequest asks gopls the editor's question at the matching place in the
-// generated Go.
+// generated Go. A request that has to wait first, for the build of the text
+// it asks about or for gopls to have its generated file, waits off the main
+// loop, which goes on with the editor's other messages meanwhile, and is
+// handed back to the loop when done (resume): it is answered there, on the
+// text the editor had when it asked.
 func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 	reply := func(result any) {
 		if pendingRefactors(m.ID) {
@@ -1232,15 +1278,103 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		reply(nil)
 		return
 	}
-	p.await(path)
 	p.mu.Lock()
-	gen := p.bySource[path]
+	at := asked{edit: p.changed[path]}
+	at.buf, at.open = p.bufs[path]
+	build := p.unbuilt(path, at.edit) && !p.untouched(m, path, at)
+	ready := !build && p.sentToGopls(m.Method, path)
 	p.mu.Unlock()
-	if spanning[m.Method] {
-		p.awaitAllOpen(awaitLimit)
-	} else if gen != "" {
-		p.awaitOpen(gen, awaitLimit)
+	if ready {
+		p.askGopls(m, path, at, shapeNote, reply)
+		return
 	}
+	go func() {
+		if build {
+			p.await(path, at.edit)
+		}
+		p.mu.Lock()
+		gen := p.bySource[path]
+		p.mu.Unlock()
+		if spanning[m.Method] {
+			p.awaitAllOpen(awaitLimit)
+		} else if gen != "" {
+			p.awaitOpen(gen, awaitLimit)
+		}
+		p.onLoop(func() {
+			if p.reach(m.ID) { // not answered (cancelled) while it waited
+				p.askGopls(m, path, at, shapeNote, reply)
+			}
+		})
+	}()
+}
+
+// asked is the editor's buffer of a .vuka file as a request on it found it,
+// and the edits count then.
+type asked struct {
+	buf  []byte
+	open bool
+	edit int
+}
+
+// untouchedMethods are the requests that read the code at a place. Asked
+// where the edits since the last build have left the text as it was, they
+// are answered from the last generation, mapped onto the text, without
+// waiting for the next: the code there is the same. Completion waits; it
+// needs the Go of what was typed.
+var untouchedMethods = map[string]bool{
+	"textDocument/hover":             true,
+	"textDocument/signatureHelp":     true,
+	"textDocument/definition":        true,
+	"textDocument/declaration":       true,
+	"textDocument/typeDefinition":    true,
+	"textDocument/implementation":    true,
+	"textDocument/references":        true,
+	"textDocument/documentHighlight": true,
+}
+
+// untouched reports whether the request m on the .vuka file at path is one
+// of untouchedMethods, asked at a place in at's text the edits since the
+// last generation haven't touched. p.mu is held.
+func (p *proxy) untouched(m *rpcMsg, path string, at asked) bool {
+	vf := p.virtual[p.bySource[path]]
+	if !untouchedMethods[m.Method] || !at.open || vf == nil || vf.isTempl() {
+		return false
+	}
+	var params struct {
+		Position *lspPosition `json:"position"`
+	}
+	if json.Unmarshal(m.Params, &params) != nil || params.Position == nil {
+		return false
+	}
+	cur := *vf
+	cur.withText(at.buf, nil)
+	return !cur.editedAround(offsetOf(at.buf, *params.Position))
+}
+
+// sentToGopls reports whether gopls has the generated Go a request of method
+// on the .vuka file at path asks about, or has stopped waiting for it
+// (awaitOpen, awaitAllOpen). p.mu is held.
+func (p *proxy) sentToGopls(method, path string) bool {
+	if spanning[method] {
+		return len(p.opening.queue) == 0
+	}
+	vf := p.virtual[p.bySource[path]]
+	return vf == nil || !vf.pending || p.opening.gaveUp == vf
+}
+
+// onLoop hands f to the main loop, which runs it between two of the
+// editor's messages; once the loop has ended, f is dropped.
+func (p *proxy) onLoop(f func()) {
+	select {
+	case p.resume <- f:
+	case <-p.loopDone:
+	}
+}
+
+// askGopls is vukaRequest once nothing is to be waited for: the request m,
+// asked on at's text of the .vuka file at path, sent to gopls on the
+// generated Go, or answered without it.
+func (p *proxy) askGopls(m *rpcMsg, path string, at asked, shapeNote string, reply func(any)) {
 	p.view.RLock()
 	defer p.view.RUnlock()
 	p.mu.Lock()
@@ -1250,11 +1384,12 @@ func (p *proxy) vukaRequest(m *rpcMsg, path string) {
 		reply(nil)
 		return
 	}
-	if buf, ok := p.bufs[path]; ok && !vf.isTempl() && !bytes.Equal(vf.text(), buf) {
-		// Edited since its last build (which took too long to wait for):
-		// the last generation, mapped onto the text as it is now.
+	if at.open && !vf.isTempl() && !bytes.Equal(vf.text(), at.buf) {
+		// Edited since its last build (which took too long to wait for, or
+		// didn't touch where it asks): the last generation, mapped onto the
+		// text.
 		cur := *vf
-		cur.withText(buf, nil)
+		cur.withText(at.buf, nil)
 		vf = &cur
 	}
 	if semanticTokensMethods[m.Method] && (vf.isTempl() || vf.stale) {
