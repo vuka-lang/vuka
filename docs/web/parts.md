@@ -274,8 +274,10 @@ refuses inline scripts gets them as any page does.
 
 A page that holds a live component, and a page rendered for a form posted
 without script, render their parts in place: the methods run before the
-page is sent. `@ui.Defer` is for pages that aren't live; a live page loads
-its data in `@ui.Mount` and pushes changes with `Update`.
+page is sent. A part (`@ui.Defer` on a method) is for pages that aren't
+live; a live page defers its slow fields instead, `@ui.Defer` on a field
+([deferred fields](/ui/stateful#deferred-fields)), and pushes changes with
+`Update`.
 
 ## Boundaries: `<ui.Suspense>` {#suspense}
 

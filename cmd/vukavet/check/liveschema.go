@@ -21,6 +21,7 @@ type schemaField struct {
 	at         analysis.Range // its l.Field call
 	bind       bool
 	url, group string
+	urled      bool // @ui.URL, its parameter named or not
 	deferred   bool
 }
 
@@ -125,6 +126,7 @@ func (l *liveCheck) schemaField(s *liveSchema, page string, recv types.Object, c
 			o.bind = true
 		case is(t, uiPath, "URL"):
 			o.url, _ = str(info, a)
+			o.urled = true
 		case is(t, uiPath, "Defer"):
 			o.group, _ = str(info, a)
 			o.deferred = true

@@ -121,3 +121,44 @@ func init() {
 
 func NewPtrLive() *PtrLive { return &PtrLive{} }
 func NewPlain() *Plain     { return &Plain{} }
+
+// Stats is a live page rendered by its own markup: its deferred fields are
+// checked as an island's are.
+type Stats struct {
+	ui.Live
+	open  int
+	Users []string
+	q     string
+	n     int
+	sel   string
+}
+
+func NewStats() *Stats           { return &Stats{} }
+func (s *Stats) Render() ui.Node { return nil }
+
+func (s *Stats) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&s.open, ui.Defer("stats"))
+	l.Field(&s.Users, ui.Defer("users"))        // want `E0324: Stats.Users is deferred, and the group Users has no loader`
+	l.Field(&s.q, ui.URL(""), ui.Defer("q"))    // want `E0323: Stats.q: a deferred field is the server's to load`
+	l.Field(&s.n, ui.Defer("two-words"))        // want `E0323: Stats.n: ui.Defer\("two-words"\): a group is a name`
+	l.Field(&s.sel, ui.Bind{}, ui.Defer("sel")) // want `E0323: Stats.sel: a deferred field is the server's to load`
+	l.Loads("stats", s.loadStats)
+}
+
+func (s *Stats) loadStats(ctx context.Context) error { return nil }
+
+// UsersCard is a live component no route serves: a tag places it.
+type UsersCard struct {
+	ui.Live
+	rows []string
+}
+
+func (c *UsersCard) Render() ui.Node { return nil }
+
+func (c *UsersCard) LiveSchema(l *ui.LiveSchema) {
+	l.Field(&c.rows, ui.Defer("rows")) // want `E0324: UsersCard.rows is deferred, and the group Rows has no loader`
+}
+
+func (c *UsersCard) LoadRows(ctx context.Context) error { return nil } // named as a loader, not marked one
+
+func init() { web.Routes.Live("/stats", NewStats) }

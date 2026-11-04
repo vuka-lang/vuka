@@ -125,3 +125,63 @@ func TestIsUpdateMethod(t *testing.T) {
 		}
 	}
 }
+
+// deferPage is a live page rendered by its own markup whose deferred
+// fields, in two files, ui would refuse.
+const deferPage = `<script lang="go">
+package app
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Dashboard struct {
+	ui.Live
+	stats map[string]int @ui.Defer("stats")
+	Users []string @ui.Defer("users")
+	rows  []string @ui.Defer("rows")
+	q     string @ui.URL("q") @ui.Defer("q")
+	sel   string @ui.Bind @ui.Defer("sel")
+	bad   int @ui.Defer("two words")
+}
+
+@ui.Loads("stats")
+func (d *Dashboard) loadStats(ctx context.Context) error { return nil }
+</script>
+
+<p>{len(stats)}</p>
+`
+
+const deferLogic = `package app
+
+import "context"
+
+@ui.Loads("rows")
+func (d *Dashboard) loadRows(ctx context.Context) error { return nil }
+`
+
+func TestDeferDiags(t *testing.T) {
+	dir := t.TempDir()
+	os.WriteFile(filepath.Join(dir, "dashboard.vuka"), []byte(deferLogic), 0o644)
+	var got []string
+	for _, d := range deferDiags("dashboard.vuka.html", []byte(deferPage), loadersOf([][]byte{[]byte(deferPage), []byte(deferLogic)})) {
+		got = append(got, string(d.Code)+" "+d.Message+" ("+d.Help+")")
+	}
+	want := []string{
+		`E0324 Dashboard.Users is deferred, and the group Users has no loader (mark its loader @ui.Loads("users"))`,
+		"E0323 Dashboard.q: a deferred field is the server's to load (drop @ui.URL or @ui.Defer)",
+		"E0323 Dashboard.sel: a deferred field is the server's to load (drop @ui.Bind or @ui.Defer)",
+		`E0323 Dashboard.bad: @ui.Defer("two words"): a group is a name (name the group: @ui.Defer("stats"), loaded by @ui.Loads("stats"))`,
+	}
+	if strings.Join(got, "\n") != strings.Join(want, "\n") {
+		t.Errorf("got\n%s\nwant\n%s", strings.Join(got, "\n"), strings.Join(want, "\n"))
+	}
+
+	// The editor reports the file's own, with the loaders of the
+	// package's other files as on disk.
+	if ds := islandDiags(dir, filepath.Join(dir, "dashboard.vuka.html"), []byte(deferPage)); len(ds) != len(want) {
+		t.Errorf("the editor: %d diagnostics, want %d: %v", len(ds), len(want), ds)
+	}
+}

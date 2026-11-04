@@ -78,6 +78,11 @@ A join the route answers with a redirect sends `redirect`, and the
 browser follows it; any other non-page answer (a 404, JSON) is an `error`,
 and the connection closes.
 
+What is slow to load needn't hold up that first render: a field marked
+`@ui.Defer("group")` renders as its placeholder, and its group's loader
+runs once the socket has joined, patching the page when it returns
+([Deferred Fields](/ui/stateful#deferred-fields)).
+
 ### The Mount Hook Runs Once per View
 
 The GET mounted the page's components already, so the join adopts that session — the mounted instances, their

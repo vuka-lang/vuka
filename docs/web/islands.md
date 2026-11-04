@@ -689,6 +689,10 @@ func (o *Overview) loadLists(ctx context.Context) error {
 `value` and `get()` are `OrderStats | undefined`, with `pending` and
 `error`.
 
+A live page or component rendered by its own markup defers fields the
+same way, its markup reading a group's state with `Loading("stats")` and
+`LoadErr("stats")`: see [Deferred Fields](/ui/stateful#deferred-fields).
+
 ## Building Islands {#build}
 
 Island components live under the **frontend root** — the directory

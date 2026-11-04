@@ -90,7 +90,7 @@ runs go vet's own analyzers. `-vettool=…` replaces the choice:
 
 gopls runs only its own analyzers, so `vukavet`'s reports come from
 `go vet`: run it on save or in CI. In `.vuka` files [the editor](/tools/editors)
-reports the island checks itself, as `vuka vet` does.
+reports the island checks and the deferred fields' checks itself, as `vuka vet` does.
 
 For a linter that takes `go/analysis` analyzers, they are
 `check.Analyzers` of `github.com/vuka-lang/vuka/cmd/vukavet/v2/check`.
