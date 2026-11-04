@@ -277,6 +277,11 @@ func (p *proxy) build() {
 	if pkgs, err = routes.stub(pkgs); err != nil {
 		p.logf("folder routes: %v", err)
 	}
+	// The context processors each package reads, as the whole module has
+	// them: main reaches a folder page's package through pages/route.go,
+	// which only the module's packages link in, so the first stage alone
+	// would find none for it.
+	contexts := load.Contexts(modRoot, modPath, pkgs, read)
 	decos := findDecorators(modRoot, modPath, read)
 	p.mu.Lock()
 	p.decos = decos
@@ -344,7 +349,7 @@ func (p *proxy) build() {
 	}
 	first := load.Closure(pkgs, roots)
 	if len(first) > 0 && len(first) < len(pkgs) {
-		gens, list, err := run(first, load.Options{Bare: true, Tolerant: true}, false)
+		gens, list, err := run(first, load.Options{Bare: true, Tolerant: true, Contexts: contexts}, false)
 		if err != nil {
 			return
 		}
@@ -356,7 +361,7 @@ func (p *proxy) build() {
 
 	// Then the module. Once the edited packages are done, it gives way to
 	// newer edits.
-	opts := load.Options{Bare: true, Tolerant: true}
+	opts := load.Options{Bare: true, Tolerant: true, Contexts: contexts}
 	if first != nil || len(edited) == 0 {
 		opts.Stop = p.preempt.Load
 	}
