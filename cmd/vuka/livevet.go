@@ -40,6 +40,7 @@ type liveType struct {
 type liveField struct {
 	names            []string
 	off              int // the first name
+	attrs            fieldAttrs
 	tag              string
 	tagStart, tagEnd int // the tag literal; -1 without one
 	typeEnd          int // where the field's type ends
@@ -96,6 +97,7 @@ func structTypes(src []byte) []liveType {
 }
 
 func (lt *liveType) field(toks []wtok) {
+	_, attrs := cutAttrs(toks)
 	for i, t := range toks {
 		if t.tok == token.COMMENT || t.tok == token.ILLEGAL && t.lit == "@" {
 			toks = toks[:i]
@@ -105,7 +107,7 @@ func (lt *liveType) field(toks []wtok) {
 	if len(toks) == 0 {
 		return
 	}
-	f := liveField{tagStart: -1, tagEnd: -1}
+	f := liveField{attrs: readFieldAttrs(attrs), tagStart: -1, tagEnd: -1}
 	if n := len(toks); toks[n-1].tok == token.STRING {
 		f.tag, _ = strconv.Unquote(toks[n-1].lit)
 		f.tagStart, f.tagEnd = toks[n-1].off, toks[n-1].off+len(toks[n-1].lit)
@@ -164,6 +166,19 @@ func namedHooks(src []byte) []namedHook {
 // attrsAbove are the names of the attributes on the lines right above off.
 func attrsAbove(src []byte, off int) []string {
 	var out []string
+	for _, line := range attrLinesAbove(src, off) {
+		name := strings.FieldsFunc(line[1:], func(r rune) bool { return r == '(' || r == '{' || r == ' ' })
+		if len(name) > 0 {
+			out = append(out, name[0])
+		}
+	}
+	return out
+}
+
+// attrLinesAbove are the attributes on the lines right above off, each
+// line as written, the nearest first.
+func attrLinesAbove(src []byte, off int) []string {
+	var out []string
 	end := off
 	for end > 0 {
 		start := bytes.LastIndexByte(src[:end-1], '\n') + 1
@@ -171,11 +186,66 @@ func attrsAbove(src []byte, off int) []string {
 		if !strings.HasPrefix(line, "@") {
 			break
 		}
-		name := strings.FieldsFunc(line[1:], func(r rune) bool { return r == '(' || r == '{' || r == ' ' })
-		if len(name) > 0 {
-			out = append(out, name[0])
-		}
+		out = append(out, line)
 		end = start
+	}
+	return out
+}
+
+// receiverDecl matches a method declaration: its receiver's type.
+var receiverDecl = regexp.MustCompile(`(?m)^func\s*\(\s*\w*\s*\*?\s*(\w+)\s*(?:\[[^\]]*\])?\s*\)\s*\w+\s*[\[(]`)
+
+// loadersOf are the groups each type's methods load, by type and as
+// loaders name them (Lists): the methods marked @ui.Loads("lists").
+func loadersOf(srcs [][]byte) map[string]map[string]bool {
+	out := map[string]map[string]bool{}
+	for _, src := range srcs {
+		for _, m := range receiverDecl.FindAllSubmatchIndex(src, -1) {
+			typ := string(src[m[2]:m[3]])
+			for _, line := range attrLinesAbove(src, m[0]) {
+				for _, g := range loadsAttr.FindAllStringSubmatch(line, -1) {
+					if out[typ] == nil {
+						out[typ] = map[string]bool{}
+					}
+					out[typ][groupOf(g[1], "")] = true
+				}
+			}
+		}
+	}
+	return out
+}
+
+// deferDiags are what ui refuses of the deferred fields src's live types
+// declare with @ui.Defer when one mounts: a group that isn't a name, a
+// field the component binds or the URL keeps (E0323), a group no method
+// marked @ui.Loads loads (E0324). loaders are the package's (loadersOf).
+// The editor reports them from the text; vuka vet has them from vukavet,
+// which reads the LiveSchema the compiler writes.
+func deferDiags(file string, src []byte, loaders map[string]map[string]bool) []diag.Diagnostic {
+	var out []diag.Diagnostic
+	_, line := scanFile(file, src)
+	for _, lt := range liveTypes(src) {
+		seen := map[string]bool{}
+		for _, lf := range lt.fields {
+			d := lf.attrs.group
+			if d == "" {
+				continue
+			}
+			name, at := lf.names[0], span(file, src, line, lf.off, len(lf.names[0]))
+			switch g := groupOf(d, name); {
+			case !isGoIdent(d):
+				out = append(out, *diag.New("E0323", "%s.%s: @%s.Defer(%q): a group is a name", lt.name, name, lt.ui, d).At(at).
+					WithHelp(`name the group: @%s.Defer("stats"), loaded by @%s.Loads("stats")`, lt.ui, lt.ui))
+			case lf.attrs.bind:
+				out = append(out, *diag.New("E0323", "%s.%s: a deferred field is the server's to load", lt.name, name).At(at).WithHelp("drop @%s.Bind or @%s.Defer", lt.ui, lt.ui))
+			case lf.attrs.url:
+				out = append(out, *diag.New("E0323", "%s.%s: a deferred field is the server's to load", lt.name, name).At(at).WithHelp("drop @%s.URL or @%s.Defer", lt.ui, lt.ui))
+			case !loaders[lt.name][g] && !seen[g]:
+				seen[g] = true
+				out = append(out, *diag.New("E0324", "%s.%s is deferred, and the group %s has no loader", lt.name, name, g).At(at).
+					WithHelp("mark its loader @%s.Loads(%q)", lt.ui, d))
+			}
+		}
 	}
 	return out
 }

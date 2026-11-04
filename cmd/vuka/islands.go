@@ -723,15 +723,16 @@ func structFields(full []wtok, name string) []islandProp {
 	return nil
 }
 
-// fieldAttrs is what a live page says of a field: bound, deferred to a
-// group.
+// fieldAttrs is what a live page says of a field: bound, kept in the URL,
+// deferred to a group.
 type fieldAttrs struct {
-	bind  bool
-	group string
+	bind, url bool
+	group     string
 }
 
-// readFieldAttrs reads ui.Bind and ui.Defer("group") among a field's
-// attributes (their tokens, each an @ attribute or an l.Field argument).
+// readFieldAttrs reads ui.Bind, ui.URL and ui.Defer("group") among a
+// field's attributes (their tokens, each an @ attribute or an l.Field
+// argument).
 func readFieldAttrs(attrs [][]wtok) fieldAttrs {
 	var f fieldAttrs
 	for _, a := range attrs {
@@ -742,6 +743,8 @@ func readFieldAttrs(attrs [][]wtok) fieldAttrs {
 			switch {
 			case w.lit == "Bind":
 				f.bind = true
+			case w.lit == "URL":
+				f.url = true
 			case w.lit == "Defer" && i+2 < len(a) && a[i+1].tok == token.LPAREN && a[i+2].tok == token.STRING:
 				f.group, _ = strconv.Unquote(a[i+2].lit)
 			}

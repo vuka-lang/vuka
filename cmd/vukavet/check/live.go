@@ -31,17 +31,24 @@ var Live = &analysis.Analyzer{
 func runLive(pass *analysis.Pass) (any, error) {
 	l := &liveCheck{pass: pass, done: map[string]bool{}}
 	handWrittenSchema(pass)
+	islands := map[*types.Named]bool{} // checked as pages backed by their island
 	for _, r := range registrations(pass) {
-		if r.verb == "Live" {
+		island := r.island(pass.TypesInfo)
+		switch {
+		case r.verb == "Live":
 			l.livePage(r)
-			continue
-		}
-		if r.method != "" && r.island(pass.TypesInfo) {
+		case r.method != "" && island:
 			if n := r.pageType(pass.TypesInfo); n != nil {
 				l.page(n, r, true, false)
 			}
+		default:
+			continue
+		}
+		if n := r.pageType(pass.TypesInfo); n != nil && island {
+			islands[n] = true
 		}
 	}
+	l.components(islands)
 	return nil, nil
 }
 
@@ -122,6 +129,102 @@ func (l *liveCheck) page(n *types.Named, r registration, island, live bool) {
 	}
 }
 
+// deferredGroup is a group a page's or component's fields defer to, as
+// its loader names it (Lists), and its first field.
+type deferredGroup struct {
+	name  string
+	field *types.Var
+	at    analysis.Range
+}
+
+// deferField checks the field f of the page or component name when its
+// LiveSchema (so) or its tag defers it: to a group that is a name, and
+// neither bound nor in the URL (E0323). It returns the field's group, as
+// its loader names it, when f is deferred and nothing is wrong.
+func (l *liveCheck) deferField(name string, f *types.Var, tag reflect.StructTag, so schemaField, sat analysis.Range, hasBind bool) (string, bool) {
+	d, hasDefer := tag.Lookup("defer")
+	form := fmt.Sprintf("defer:%q", d)
+	if so.deferred {
+		d, hasDefer, form = so.group, true, fmt.Sprintf("ui.Defer(%q)", so.group)
+	}
+	if !hasDefer || d == "-" {
+		return "", false
+	}
+	if d == "" {
+		d = f.Name()
+	}
+	q, _, _ := strings.Cut(tag.Get("url"), ",")
+	switch {
+	case !isIdent(d):
+		l.report(sat, "E0323", `name the group: @ui.Defer("stats"), loaded by @ui.Loads("stats")`, "%s.%s: %s: a group is a name", name, f.Name(), form)
+	case hasBind || so.bind:
+		l.report(sat, "E0323", "drop Bind or Defer", "%s.%s: a deferred field is the server's to load", name, f.Name())
+	case so.urled || q != "" && q != "-":
+		l.report(sat, "E0323", "drop URL or Defer", "%s.%s: a deferred field is the server's to load", name, f.Name())
+	default:
+		return strings.ToUpper(d[:1]) + d[1:], true
+	}
+	return "", false
+}
+
+// loaders reports each group without a loader (E0324).
+func (l *liveCheck) loaders(name string, groups []deferredGroup, schema *liveSchema, ms *types.MethodSet) {
+	for _, g := range groups {
+		if schema.loads[g.name] {
+			continue
+		}
+		help := fmt.Sprintf("mark its loader @ui.Loads(%q)", lowerFirst(g.name))
+		if ms.Lookup(nil, "Load"+g.name) != nil {
+			help = fmt.Sprintf("mark Load%s @ui.Loads(%q): a loader isn't found by its name", g.name, lowerFirst(g.name))
+		}
+		l.report(g.at, "E0324", help, "%s.%s is deferred, and the group %s has no loader", name, g.field.Name(), g.name)
+	}
+}
+
+// components checks the deferred fields of the package's live components
+// that aren't pages backed by their island (islands): what their markup
+// renders, whether a route serves them or a tag places them.
+func (l *liveCheck) components(islands map[*types.Named]bool) {
+	pass := l.pass
+	scope := pass.Pkg.Scope()
+	for _, nm := range scope.Names() {
+		tn, ok := scope.Lookup(nm).(*types.TypeName)
+		if !ok || tn.IsAlias() {
+			continue
+		}
+		n, ok := tn.Type().(*types.Named)
+		if !ok || islands[n] {
+			continue
+		}
+		st, ok := n.Underlying().(*types.Struct)
+		if !ok || !embedsLive(n) {
+			continue
+		}
+		l.r = registration{}
+		schema := l.schema(n)
+		if schema == nil {
+			schema = &liveSchema{fields: map[*types.Var]schemaField{}, loads: map[string]bool{}, hooks: map[string]bool{}}
+		}
+		var groups []deferredGroup
+		seen := map[string]bool{}
+		for i := range st.NumFields() {
+			f := st.Field(i)
+			tag := reflect.StructTag(st.Tag(i))
+			so := schema.fields[f]
+			sat := at(pass, f, l.r.at)
+			if so.at != nil {
+				sat = so.at
+			}
+			bind, hasBind := tag.Lookup("bind")
+			if g, ok := l.deferField(n.Obj().Name(), f, tag, so, sat, hasBind && bind != "-"); ok && !seen[g] {
+				seen[g] = true
+				groups = append(groups, deferredGroup{g, f, sat})
+			}
+		}
+		l.loaders(n.Obj().Name(), groups, schema, types.NewMethodSet(types.NewPointer(n)))
+	}
+}
+
 // reserved are live's own members on the browser's live object.
 var reserved = map[string]bool{"pending": true, "error": true, "subscribe": true}
 
@@ -141,12 +244,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 	jsChain := iface(pass, uiPath, "JSChain")
 	anyState := iface(pass, uiPath, "AnyState")
 	handles := map[string]string{}
-	type group struct {
-		name  string
-		field *types.Var
-		at    analysis.Range
-	}
-	var groups []group
+	var groups []deferredGroup
 	seenGroup := map[string]bool{}
 	for i := range st.NumFields() {
 		f := st.Field(i)
@@ -190,30 +288,9 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 		} else {
 			handles[handle] = f.Name()
 		}
-		d, hasDefer := tag.Lookup("defer")
-		form := fmt.Sprintf("defer:%q", d)
-		if so.deferred {
-			d, hasDefer, form = so.group, true, fmt.Sprintf("ui.Defer(%q)", so.group)
-		}
-		if hasDefer && d != "-" {
-			if d == "" {
-				d = f.Name()
-			}
-			q, _, _ := strings.Cut(tag.Get("url"), ",")
-			switch {
-			case !isIdent(d):
-				l.report(sat, "E0323", `name the group: @ui.Defer("stats"), loaded by @ui.Loads("stats")`, "%s.%s: %s: a group is a name", name, f.Name(), form)
-			case hasBind || so.bind:
-				l.report(sat, "E0323", "drop Bind or Defer", "%s.%s: a deferred field is the server's to load", name, f.Name())
-			case so.url != "" || q != "" && q != "-":
-				l.report(sat, "E0323", "drop URL or Defer", "%s.%s: a deferred field is the server's to load", name, f.Name())
-			default:
-				g := strings.ToUpper(d[:1]) + d[1:]
-				if !seenGroup[g] {
-					seenGroup[g] = true
-					groups = append(groups, group{g, f, sat})
-				}
-			}
+		if g, ok := l.deferField(name, f, tag, so, sat, hasBind); ok && !seenGroup[g] {
+			seenGroup[g] = true
+			groups = append(groups, deferredGroup{g, f, sat})
 		}
 		switch {
 		case so.bind && reserved[handle]:
@@ -222,16 +299,7 @@ func (l *liveCheck) island(n *types.Named, st *types.Struct, ms *types.MethodSet
 			l.bind(name, f, fat, bind, handle, wire)
 		}
 	}
-	for _, g := range groups {
-		if schema.loads[g.name] {
-			continue
-		}
-		help := fmt.Sprintf("mark its loader @ui.Loads(%q)", lowerFirst(g.name))
-		if ms.Lookup(nil, "Load"+g.name) != nil {
-			help = fmt.Sprintf("mark Load%s @ui.Loads(%q): a loader isn't found by its name", g.name, lowerFirst(g.name))
-		}
-		l.report(g.at, "E0324", help, "%s.%s is deferred, and the group %s has no loader", name, g.field.Name(), g.name)
-	}
+	l.loaders(name, groups, schema, ms)
 	own := map[string]bool{}
 	if live := lookup(pass.Pkg, uiPath, "Live"); live != nil {
 		lms := types.NewMethodSet(types.NewPointer(live.Type()))

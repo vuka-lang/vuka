@@ -3,11 +3,13 @@ package main
 import (
 	"bytes"
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strconv"
 	"strings"
 
 	"github.com/vuka-lang/vuka/v2/diag"
+	"github.com/vuka-lang/vuka/v2/toolchain/load"
 	"sync"
 	"time"
 )
@@ -98,7 +100,32 @@ func islandDiags(root, path string, text []byte) []any {
 			}
 		}
 	}
+	if isVuka(path) {
+		for _, d := range deferDiags(path, text, loadersOf(packageVuka(path, text))) {
+			s := offsetAt(text, d.Span.Line, d.Span.Col)
+			e := offsetAt(text, d.Span.Line, max(d.Span.EndCol, d.Span.Col))
+			out = append(out, lspFrom(lspRange{positionOf(text, s), positionOf(text, e)}, d))
+		}
+	}
 	return out
+}
+
+// packageVuka are the sources of the .vuka files of path's package: text
+// for path, the others as on disk.
+func packageVuka(path string, text []byte) [][]byte {
+	srcs := [][]byte{text}
+	for _, pat := range []string{"*.vuka", "*.vuka.html"} {
+		files, _ := filepath.Glob(filepath.Join(filepath.Dir(path), pat))
+		for _, f := range files {
+			if f == path {
+				continue
+			}
+			if src, err := load.ReadSource(f); err == nil {
+				srcs = append(srcs, src)
+			}
+		}
+	}
+	return srcs
 }
 
 // islandRequest answers hover and definition on an @ui.Island decorator;
