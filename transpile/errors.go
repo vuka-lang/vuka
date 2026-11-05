@@ -101,9 +101,15 @@ func (l ErrorList) Error() string {
 	return b.String()
 }
 
+// add reports an error, unless it is about the member the language server
+// writes where a selector is being completed (completionPlaceholder): that
+// is the editor mid-edit, and the package's Go must still build for the
+// completion.
 func (l *ErrorList) add(code diag.Code, pos token.Position, format string, args ...any) *Error {
 	e := &Error{Pos: pos, Msg: fmt.Sprintf(format, args...), Code: code}
-	*l = append(*l, e)
+	if !strings.Contains(e.Msg, completionPlaceholder) {
+		*l = append(*l, e)
+	}
 	return e
 }
 

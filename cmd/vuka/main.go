@@ -317,15 +317,8 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	var linkMsg string
-	if overlay, gens, linkMsg, err = autoLink(root, modPath, tmp, overlay, pkgs, gens); err != nil {
+	if overlay, gens, linkMsg, err = moduleOverlay(root, modPath, tmp, overlay, pkgs, gens, cmd == "test" || cmd == "vet", stderr); err != nil {
 		return err
-	}
-	overlay, gens = typedFields(root, tmp, overlay, gens, cmd == "test" || cmd == "vet", stderr)
-	if calls := newGens(gens, goCallAdapters(root)); len(calls) > 0 {
-		if overlay, err = addToOverlay(overlay, tmp, calls); err != nil {
-			return err
-		}
-		gens = append(gens, calls...)
 	}
 	if linkMsg != "" && (cmd == "run" || cmd == "build" || cmd == "install") {
 		fmt.Fprintln(stderr, linkMsg)

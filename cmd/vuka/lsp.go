@@ -173,6 +173,11 @@ func fileExists(p string) bool {
 }
 
 func runLSP(ctx context.Context, in io.Reader, out io.Writer, logw io.Writer, gopls string, opts lspOptions) error {
+	if shapes == nil {
+		// The steps reading the whole module keep their last result while
+		// what they read is unchanged, as in a watch: an edit is a build.
+		shapes = newSourceShapes()
+	}
 	child := exec.Command(gopls, append(append([]string{}, opts.goplsArgs...), "serve")...)
 	child.Stderr = logw
 	cin, err := child.StdinPipe()
@@ -490,6 +495,7 @@ type vukaRequest struct {
 	method    string
 	file      *vfile
 	attr      bool         // completion after @, on an attribute or decorator
+	hook      *hookSpot    // completion of a method's name: the hooks its type's bases declare
 	field     bool         // and the attribute is a struct field's
 	typed     lspRange     // there: what was typed after the last dot
 	full      lspRange     // and after the @
@@ -1506,6 +1512,9 @@ func (p *proxy) askGopls(m *rpcMsg, path string, at asked, shapeNote string, rep
 		vr.scripts = p.scriptCallsAt(vf, offsetOf(vf.text(), srcPos))
 		vr.prop, vr.propURI = propDeclAt(vf, offsetOf(vf.text(), srcPos)), pathToURI(genPath)
 	}
+	if m.Method == "textDocument/completion" && hasPos {
+		vr.hook = hookSpotAt(vf.text(), offsetOf(vf.text(), srcPos))
+	}
 	if m.Method == "textDocument/completion" && !strings.HasSuffix(vf.source, ".vuka.html") {
 		if s, ok := blockSpot(vf.text(), offsetOf(vf.text(), srcPos)); ok {
 			vr.blocks = &lspRange{positionOf(vf.text(), s), srcPos}
@@ -1682,6 +1691,16 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			return
 		case vr.blocks != nil:
 			reply["result"] = map[string]any{"isIncomplete": false, "items": blockItems(*vr.blocks)}
+		case vr.hook != nil:
+			go func() {
+				items := p.hookItems(vr.file, vr.hook)
+				if items == nil {
+					items = []any{}
+				}
+				reply["result"] = map[string]any{"isIncomplete": false, "items": items}
+				_ = p.editor.send(reply)
+			}()
+			return
 		case vr.field:
 			go func() {
 				if items, ok := p.fieldAttrItems(vr.file, vr.qualifier, vr.typed); ok {
@@ -1692,7 +1711,7 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			return
 		case vr.spot != nil && vr.method == "textDocument/completion":
 			go func() {
-				if items := p.staticCompletionItems(vr.file, vr.spot); items != nil {
+				if items, _ := p.staticCompletionItems(vr.file, vr.spot); items != nil {
 					reply["result"] = map[string]any{"isIncomplete": false, "items": items}
 				}
 				_ = p.editor.send(reply)
@@ -1738,6 +1757,14 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		if vr.blocks != nil {
 			v = withBlockItems(v, *vr.blocks)
 		}
+		if vr.hook != nil {
+			got := v
+			go func() {
+				reply["result"] = withItems(got, p.hookItems(vr.file, vr.hook))
+				_ = p.editor.send(reply)
+			}()
+			return
+		}
 		if vr.field {
 			got := v
 			go func() {
@@ -1760,7 +1787,8 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		if vr.spot != nil {
 			merged := v
 			go func() {
-				merged = withItems(merged, newItems(merged, p.staticCompletionItems(vr.file, vr.spot)))
+				items, typed := p.staticCompletionItems(vr.file, vr.spot)
+				merged = withStatics(merged, items, typed)
 				if vr.tmpl != nil {
 					vr.tmpl.members = false
 					merged = p.templateCompletion(vr.file, vr.tmpl, merged)

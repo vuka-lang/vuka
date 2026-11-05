@@ -325,14 +325,21 @@ func (p *proxy) build() {
 			// gopls keeps the route files of the last build of the module.
 			return withoutStubs(gens), list, nil
 		}
-		if g, _, res, err := routes.finish(gens, overlay, p.tmp); err != nil {
+		if g, ov, res, err := routes.finish(gens, overlay, p.tmp); err != nil {
 			p.logf("folder routes: %v", err)
 		} else {
-			gens = g
+			gens, overlay = g, ov
 			p.setRoutes(modRoot, res, g)
 			if err := res.err(); err != nil {
 				p.logf("folder routes: %v", err)
 			}
+		}
+		// The rest of the build's Go, from the build's own code (the
+		// editor shows test files: the models of tests get typed fields).
+		if _, g, _, err := moduleOverlay(modRoot, modPath, p.tmp, overlay, pkgs, gens, true, logWriter{p}); err != nil {
+			p.logf("module overlay: %v", err)
+		} else {
+			gens = withoutGoSources(g)
 		}
 		return gens, list, nil
 	}
@@ -378,6 +385,26 @@ func (p *proxy) build() {
 	}
 	p.apply(pkgs, gens, list, bufs, hunks, all, seq, true)
 	p.logf("built the module (%d packages%s) in %v", len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
+}
+
+// withoutGoSources is gens with the call adapters the build generates for
+// packages written in Go named by no source: the editor's requests on the
+// .go file they name are gopls's, never redirected to them.
+func withoutGoSources(gens []load.Generated) []load.Generated {
+	for i, g := range gens {
+		if strings.HasSuffix(g.Source, ".go") && filepath.Base(g.Target) == transpile.CallsGoName {
+			gens[i].Source = ""
+		}
+	}
+	return gens
+}
+
+// logWriter is the proxy's log as a writer, for what a build step says.
+type logWriter struct{ p *proxy }
+
+func (w logWriter) Write(b []byte) (int, error) {
+	w.p.logf("%s", strings.TrimRight(string(b), "\n"))
+	return len(b), nil
 }
 
 // buildReader is how a build reads the module's files: the editor's
