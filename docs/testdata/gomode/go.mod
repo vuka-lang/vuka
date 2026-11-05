@@ -8,9 +8,9 @@ replace github.com/vuka-lang/vuka/v2 => ../../..
 
 require (
 	github.com/vuka-lang/orm/v2 v2.16.2-0.20261103060702-2d676bdb121b
-	github.com/vuka-lang/ui/v2 v2.16.2-0.20261104152111-c6432de461f8
+	github.com/vuka-lang/ui/v2 v2.16.2-0.20261105094343-4fdf9733b40f
 	github.com/vuka-lang/vuka/v2 v2.16.1
-	github.com/vuka-lang/web/v2 v2.16.2-0.20261104153020-2b0d83414a8d
+	github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55
 )
 
 require (
