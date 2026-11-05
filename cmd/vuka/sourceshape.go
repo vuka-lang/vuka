@@ -187,23 +187,34 @@ func shapesOf(src []byte) fileShapes {
 	}
 }
 
-// ormUnread are the byte ranges of the functions of f the orm's step doesn't
-// read, whole: it reads types, methods (a Schema method, a field type's
-// Scan and Value), the bodies with an orm.For[T](…), and of the package's
-// functions only whether one is named as its generated code would be
-// (UserFields, UserColumns). A function whose source names For[, Model[
-// or Base[ counts in full: that makes a package one the orm looks at.
+// ormUnread are the byte ranges of the declarations of f the orm's step
+// doesn't read, whole: it reads types, methods (a Schema method, a field
+// type's Scan and Value), variables, the bodies with an orm.For[T](…), and
+// of the package's functions and constants only whether one is named as its
+// generated code would be (UserFields, UserColumns). A function whose
+// source names For[, Model[ or Base[ counts in full: that makes a package
+// one the orm looks at.
 func ormUnread(fset *token.FileSet, f *ast.File, src []byte) [][2]int {
+	generatedName := func(name string) bool {
+		return strings.HasSuffix(name, "Fields") || strings.HasSuffix(name, "Columns")
+	}
 	var out [][2]int
 	for _, decl := range f.Decls {
-		fn, ok := decl.(*ast.FuncDecl)
-		if !ok || fn.Recv != nil || strings.HasSuffix(fn.Name.Name, "Fields") || strings.HasSuffix(fn.Name.Name, "Columns") {
+		switch d := decl.(type) {
+		case *ast.FuncDecl:
+			if d.Recv != nil || generatedName(d.Name.Name) {
+				continue
+			}
+		case *ast.GenDecl:
+			if d.Tok != token.CONST || slices.ContainsFunc(d.Specs, func(s ast.Spec) bool {
+				return slices.ContainsFunc(s.(*ast.ValueSpec).Names, func(n *ast.Ident) bool { return generatedName(n.Name) })
+			}) {
+				continue
+			}
+		default:
 			continue
 		}
-		from, to := fset.Position(fn.Pos()).Offset, fset.Position(fn.End()).Offset
-		if fn.Doc != nil {
-			from = fset.Position(fn.Doc.Pos()).Offset
-		}
+		from, to := fset.Position(decl.Pos()).Offset, fset.Position(decl.End()).Offset
 		if text := src[from:to]; bytes.Contains(text, []byte("For[")) || bytes.Contains(text, []byte("Model[")) || bytes.Contains(text, []byte("Base[")) {
 			continue
 		}

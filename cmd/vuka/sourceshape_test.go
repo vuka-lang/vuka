@@ -158,6 +158,9 @@ func TestModelShape(t *testing.T) {
 		{"a Schema method's body", "return 1 }\n\nfunc (T) Label", "return 2 }\n\nfunc (T) Label", false},
 		{"a struct field", "Name string", "Name, Title string", false},
 		{"a new type", "func F(", "type U struct{}\n\nfunc F(", false},
+		{"a new constant", "func F(", "const Limit = 3\n\nfunc F(", true},
+		{"a constant named as columns are", "func F(", "const TColumns = 3\n\nfunc F(", false},
+		{"a new variable", "func F(", "var Limit = 3\n\nfunc F(", false},
 	} {
 		src := strings.Replace(base, c.old, c.new, 1)
 		if src == base {
