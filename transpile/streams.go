@@ -1,6 +1,7 @@
 package transpile
 
 import (
+	"fmt"
 	"go/ast"
 	"go/constant"
 	"go/token"
@@ -142,8 +143,10 @@ func (w *jsxWriter) streamElement(tp *tmpl, el *jsxElem, loop *jsxBlock, indent 
 	use := &streamUse{head: loop.heads[0]}
 	f.streams[field] = use
 	w.checkRow(loop, field, use)
+	w.checkViewport(el, field, use)
 	cp := *el
 	cp.kids = nil
+	w.container = true
 	w.element(tp, &cp, indent, inline)
 	start := strings.TrimSuffix(tp.b.String(), "/>")
 	tp.b.Reset()
@@ -247,6 +250,80 @@ func (w *jsxWriter) checkRowAttr(el *jsxElem, a *jsxAttr, field string) {
 	if bad {
 		e.errs.add("E0358", f.at(a.off), "%s in a row of %s is a handler the server would have to keep for the row", a.name, field).
 			help("push a method of the stream's owner with the row's key: %s={ui.JS.Push(Remove, m.ID)}", a.name)
+	}
+}
+
+// isViewport reports whether an attribute is a viewport event: a stream
+// container's onViewportTop or onViewportBottom.
+func isViewport(name string) bool {
+	return strings.EqualFold(name, "onViewportTop") || strings.EqualFold(name, "onViewportBottom")
+}
+
+// checkViewportAttrs reports a viewport event on an element that isn't a
+// stream's container (E0360): only a container has edge rows whose keys
+// the event sends.
+func (w *jsxWriter) checkViewportAttrs(el *jsxElem) {
+	if el.comp != nil || !w.final {
+		return
+	}
+	for _, a := range el.attrs {
+		if a.event && isViewport(a.name) {
+			w.f.eng.errs.add("E0360", w.f.at(a.off), "%s is on <%s>, which isn't a stream's container: the event sends the key of a container's edge row", a.name, el.tag).
+				help("put it on the element whose only content is the loop over a stream's Rows(): <ul %s={More}>for _, m := range messages.Rows() {…}</ul>", a.name)
+		}
+	}
+}
+
+// checkViewport reports a container's viewport handler that can't take
+// what the event sends (E0361): its value is the edge row's key, so the
+// handler takes the key's type (or its text, a string) once, or nothing,
+// beside a context and what the app injects, and returns nothing or an
+// error.
+func (w *jsxWriter) checkViewport(el *jsxElem, field string, use *streamUse) {
+	e, f := w.f.eng, w.f
+	for _, a := range el.attrs {
+		if !a.event || !isViewport(a.name) || a.kind != 'e' || a.stmts {
+			continue
+		}
+		t := e.typeAt(f, f.cur.fromOrig(a.expr.start), f.cur.fromOrigEnd(a.expr.end))
+		sig, _ := types.Unalias(typeOrNil(t)).Underlying().(*types.Signature)
+		if sig == nil {
+			continue // JS commands, or not known
+		}
+		key := "string" // the key's text, when its type isn't known
+		if use.key != nil {
+			key = types.TypeString(use.key, types.RelativeTo(e.pkg))
+		}
+		bad := ""
+		values := 0
+		for i := 0; i < sig.Params().Len(); i++ {
+			pt := sig.Params().At(i).Type()
+			switch pt.Underlying().(type) {
+			case *types.Pointer, *types.Interface:
+				continue // a context, or what the app injects
+			case *types.Struct:
+				if n, ok := types.Unalias(pt).(*types.Named); ok && n.Obj().Name() == "Event" {
+					values++
+					continue
+				}
+				bad = fmt.Sprintf("takes %s, a form, and the event has none", types.TypeString(pt, types.RelativeTo(e.pkg)))
+			default:
+				values++
+				if use.key != nil && !types.Identical(pt, use.key) && !isString(pt) {
+					bad = fmt.Sprintf("takes %s, and the edge row's key is %s", types.TypeString(pt, types.RelativeTo(e.pkg)), key)
+				}
+			}
+		}
+		if bad == "" && values > 1 {
+			bad = "takes more than one value, and the event sends one: the edge row's key"
+		}
+		if r := sig.Results(); bad == "" && (r.Len() > 1 || r.Len() == 1 && !types.Identical(r.At(0).Type(), errorType)) {
+			bad = "returns " + r.String() + ": a handler returns nothing or an error"
+		}
+		if bad != "" {
+			e.errs.add("E0361", f.at(a.off), "the %s handler of the container of %s %s", a.name, field, bad).
+				help("take the edge row's key: func (c *Page) More(ctx context.Context, last %s) error", key)
+		}
 	}
 }
 

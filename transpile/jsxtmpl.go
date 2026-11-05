@@ -558,6 +558,11 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 		w.streamElement(tp, el, loop, indent, inline)
 		return
 	}
+	if w.container {
+		w.container = false
+	} else {
+		w.checkViewportAttrs(el)
+	}
 	tp.b.WriteString("<" + el.tag)
 	if props, states := w.rootProps(el); props != "" {
 		tp.b.WriteString(" data-vk-p=")

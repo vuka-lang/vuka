@@ -29,7 +29,7 @@ Measured with ui's `BenchmarkStreamMemory` (v2 join, then one row inserted).
 |---|---|
 | A keyed slice field | Lists up to a few hundred rows that the server sorts, filters or counts, whose rows hold live component state, or whose every render must reflect the whole list. The default. |
 | Paging (`?page=` with a patch, [navigation](/web/navigation)) | Lists people address: a page number in the URL, the back button, "page 3 of 40". The server holds one page. |
-| A stream | Lists that grow while the page is open or that the browser accumulates: a chat, a log tail, a notification feed, a table of thousands of rows loaded in chunks. The server holds nothing between replies. |
+| A stream | Lists that grow while the page is open or that the browser accumulates: a chat, a log tail, a notification feed, [infinite scroll](#infinite-scroll), a table of thousands of rows loaded in chunks. The server holds nothing between replies. |
 
 What a stream gives up follows from the server not holding the rows: it
 can't count them, sort them, filter them in place, read them in a handler,
@@ -109,6 +109,7 @@ pages is held a thousand times only until each page's reply is written.
 |---|---|
 | `Insert(rows ...T)` | each row at the end — or, when the browser already holds its key, in place |
 | `Prepend(rows ...T)` | the rows at the start, in the order given |
+| `InsertAt(i int, rows ...T)` | the rows before the browser's row `i` (from 0), in the order given; past the last row, at the end |
 | `Delete(keys ...any)` | remove the rows with these keys; a key the browser doesn't hold is ignored |
 | `Reset(rows ...T)` | replace every row with these, in order |
 | `Limit(n int)` | the browser keeps at most `n` rows (0: no limit, the default) |
@@ -123,8 +124,8 @@ the row and where it would go, and the browser decides:
 
 - a row with the key is morphed in place — focus, a field being typed in
   and what JS commands changed survive — and **stays where it is**;
-- else the row goes where the operation says: the end (`Insert`) or the
-  start (`Prepend`).
+- else the row goes where the operation says: the end (`Insert`), the
+  start (`Prepend`) or before row `i` (`InsertAt`).
 
 So "update a row" is `Insert(row)`, whether or not the browser still holds
 it (a trimmed row comes back at the end). To move a row, `Delete` it and
@@ -139,7 +140,7 @@ its order, so rows a page keeps across a reconnect keep their focus.
 
 `Limit(n)` is the most rows the browser keeps. A batch that adds rows trims
 from **the end away from where they went in**: `Insert` trims from the
-start, `Prepend` from the end. A row replaced in place trims nothing. A
+start, `Prepend` and `InsertAt` from the end. A row replaced in place trims nothing. A
 `Reset` with more than `n` rows keeps the first `n`.
 
 So `Limit(200)` with `Insert` is a chat or a log — newest at the bottom,
@@ -148,8 +149,164 @@ newest-first feed of the last 50, the oldest dropping off the bottom.
 
 The limit goes with each batch, so changing it takes effect at the next
 one. With a limit, the queue of a stream whose container isn't rendered
-keeps at most `n` inserts at each end; without one, past 10,000 queued
-operations the session logs a warning in development and tests.
+keeps at most `n` inserts at each end; without one, or holding
+`InsertAt`'s rows (which land where the browser's rows say), past 10,000
+queued operations the session logs a warning in development and tests.
+
+`InsertAt(i, rows...)` counts the rows the browser holds, which the server
+doesn't know: it suits a position the page knows from what it shows — a
+row the visitor dropped between two others, its index sent with the drop.
+A negative `i` is 0, so `InsertAt(0, rows...)` is `Prepend(rows...)`.
+
+## Infinite Scroll {#infinite-scroll}
+
+A container's `onViewportBottom` fires when its last row comes into view,
+and `onViewportTop` when its first does. The event's value is that row's
+key, so the handler loads what comes after it — or before it — and the
+server keeps no cursor:
+
+```html
+<script lang="go">
+package orders
+
+import (
+    "context"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Orders struct {
+    ui.Live
+    orders ui.Stream[models.Order]
+    store  *services.Orders
+}
+
+@ui.Mount
+func (o *Orders) mount(ctx context.Context) error {
+    page, err := o.store.After(ctx, 0, 50)
+    o.orders.Reset(page...)
+    return err
+}
+
+func (o *Orders) More(ctx context.Context, last int64) error {
+    page, err := o.store.After(ctx, last, 50)
+    o.orders.Insert(page...)
+    return err
+}
+</script>
+
+<table>
+  <tbody onViewportBottom={More}>
+    for _, ord := range orders.Rows() {
+      <tr key={ord.ID}><td>{ord.Number}</td><td>{ord.Total}</td></tr>
+    }
+  </tbody>
+</table>
+```
+
+The handler takes the key as the type the rows' `key` renders — parsed, as
+any event's value is — or as a `string`; the compiler checks it
+([E0361](/errors/E0361)), and that the events are on a stream's container
+([E0360](/errors/E0360)).
+
+### When the Events Fire {#viewport-events}
+
+- An edge fires when its row comes within 400px of its scroller's edge —
+  the nearest ancestor that scrolls, or the container itself when it has
+  `overflow: auto`, else the page. `data-vk-viewport-margin="800px"` on the
+  container sets the distance.
+- It fires once, then waits for its reply: the container is `aria-busy`
+  meanwhile, and scrolling sends nothing more. Checks are throttled, so
+  however fast the visitor scrolls, an edge sends at most one event at a
+  time.
+- After the reply it fires again only if another row is at that edge and in
+  view. A reply that adds no rows at that end is the end of the list:
+  nothing fires there again until the rows change — a reset, say.
+- A page that opens with a short first page fires at once, and keeps
+  loading until the edge row is out of reach, so the list fills the
+  scroller.
+- A container with no rows fires nothing: there is no key to send. Load
+  the first page in the mount hook.
+
+### Both Directions {#both-directions}
+
+A window over a long history opens somewhere in it, loads older rows at the
+top and newer ones at the bottom, and keeps about 150 rows, the limit
+trimming the end away from each load:
+
+```html
+<script lang="go">
+package threads
+
+import (
+    "context"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Thread struct {
+    ui.Live
+    ID       int64
+    At       int64 // ?at=, a message to open at
+    messages ui.Stream[models.Message]
+    store    *services.Messages
+}
+
+@ui.Mount
+func (t *Thread) mount(ctx context.Context) error {
+    t.messages.Limit(150)
+    msgs, err := t.store.Around(ctx, t.ID, t.At, 50)
+    t.messages.Reset(msgs...)
+    return err
+}
+
+func (t *Thread) Older(ctx context.Context, first int64) error {
+    msgs, err := t.store.Before(ctx, t.ID, first, 50)
+    t.messages.Prepend(msgs...) // trims the newest, at the bottom, past 150
+    return err
+}
+
+func (t *Thread) Newer(ctx context.Context, last int64) error {
+    msgs, err := t.store.After(ctx, t.ID, last, 50)
+    t.messages.Insert(msgs...) // trims the oldest, at the top, past 150
+    return err
+}
+</script>
+
+<ol class="thread" style="height: 32rem; overflow: auto"
+    data-vk-viewport-margin="600px" onViewportTop={Older} onViewportBottom={Newer}>
+  for _, m := range messages.Rows() {
+    <li key={m.ID}><b>{m.Who}</b> {m.Text}</li>
+  }
+</ol>
+```
+
+The server doesn't keep the edges: the browser's trimming moves them
+without telling it, so they would go stale after the first trim. The
+event's value is always the edge the browser has. What the server may keep
+is what only it knows — `atNewest`, set when `After` returns nothing, to
+stop inserting live messages at the bottom while the window shows older
+ones.
+
+### Scroll Position and Focus {#anchoring}
+
+Rows added, changed or trimmed above what the visitor is reading would push
+it down the page. The runtime keeps it where it is: before a batch it notes
+where the first rows fully in view are, and after it scrolls by however far
+the first of them still there moved — nothing, where the browser's own
+scroll anchoring already kept it. So `Older` above loads 50 rows above the
+reader and the row they were reading doesn't move, and `Newer`'s trim of
+the top doesn't make the page jump. A scroller at its very top isn't
+anchored, so a newest-first feed's new rows show; one answering the
+container's `onViewportTop` is, as its rows go above the reader.
+
+A row that holds focus — its button, a field in it — keeps it when the row
+is updated in place. One that a batch removes (deleted, trimmed, left out
+of a reset) hands focus to the nearest row still there, the next, else the
+previous, else the container; the runtime gives the row or the container
+`tabindex="-1"` so it can take it. Focus anywhere else is left alone.
 
 ## Events in Rows {#events}
 
@@ -351,6 +508,8 @@ func (c *Chat) Render() ui.Node {
 
 The compiler lowers a container to `Block`, which `List` is built on: the
 stream's rows block for the render, whose `Attrs` go on the container.
+A container's viewport handlers are among `List`'s attributes, as any
+element's handler is: `{Name: "onViewportBottom", Value: ui.On(c.More)}`.
 
 ## Testing {#testing}
 
@@ -388,7 +547,10 @@ func TestChat(t *testing.T) {
 ```
 
 `Stream` is the only way to see rows, as in the browser: the component's
-`Rows()` in a test is what is queued. A click in a row, `` c.Click(`li[data-vk-row="9031"] button`) ``, sends its
+`Rows()` in a test is what is queued. `c.Viewport("ul.log", "bottom")`
+fires the container's viewport event with its edge row's key, as a browser
+does when the row comes into view (scrolling, anchoring and focus are a
+browser's: test them in Chrome, [Testing](/web/testing)). A click in a row, `` c.Click(`li[data-vk-row="9031"] button`) ``, sends its
 push with the key. `c.Reconnect(s2)` joins a new session as a
 browser does after a dropped connection, keeping the rows the page holds.
 
@@ -413,9 +575,11 @@ an HTTP render, a v1 patch and a v2 tree.
 | `data-vk-stream` | the stream's name in its instance: the field's |
 | `data-vk-batch` | `<generation>.<n>`: a generation is random per stream per mount; `n` counts its batches from 1 |
 | `data-vk-limit` | the limit, absent for none |
-| `data-vk-ops` | the batch's operations in order: `["reset"]`, `["delete", key]`, `["insert", key, "end" \| "start"]`; absent when the render has none |
+| `data-vk-ops` | the batch's operations in order: `["reset"]`, `["delete", key]`, `["insert", key, "end" \| "start" \| i]`; absent when the render has none |
 | `data-vk-rows`, `data-vk-empty` | how many rows the container holds, and whether none: the server's for a batch starting with a reset, the runtime's after it applies one |
 | children | the batch's inserted rows, each with `data-vk-row`, the key as `fmt.Sprint` writes it |
+| `data-vk-on-viewporttop`, `-bottom` | the container's viewport handlers, as any element's handler renders; the event's value is the edge row's `data-vk-row` |
+| `data-vk-viewport-margin` | the app's: how near the edge row must come, 400px if absent |
 
 The browser keeps, per container, the batch it applied, and applies a
 batch only when it is the next one: one it applied (the container morphed
@@ -441,3 +605,5 @@ inline, never kept by reference on the connection: no row is sent twice.
 | [E0357](/errors/E0357) | an exported stream, or one bound with `@ui.Bind` or `@ui.URL` |
 | [E0358](/errors/E0358) | a handler in a row that isn't a `Push` of the owner's method |
 | [E0359](/errors/E0359) | a live component in a row |
+| [E0360](/errors/E0360) | `onViewportTop` or `onViewportBottom` on an element that isn't a stream's container |
+| [E0361](/errors/E0361) | a viewport handler that doesn't take the edge row's key |

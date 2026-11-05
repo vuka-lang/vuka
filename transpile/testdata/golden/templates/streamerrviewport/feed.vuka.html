@@ -1,0 +1,55 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+	"vukatest.local/streamui"
+)
+
+type Item struct {
+	ID   int64
+	Text string
+}
+
+type Filter struct {
+	Q string `form:"q"`
+}
+
+// Feed's viewport events are where no edge row is, or take what the
+// event doesn't send.
+type Feed struct {
+	ui.Live
+	items  streamui.Stream[Item]
+	others streamui.Stream[Item]
+	more   streamui.Stream[Item]
+}
+
+func (f *Feed) Older(first string) {}
+
+func (f *Feed) ByName(ctx context.Context, name int) error { return nil }
+
+func (f *Feed) Search(ctx context.Context, q Filter) error { return nil }
+
+func (f *Feed) Count(last int64) int { return 0 }
+</script>
+
+<div>
+  <p onViewportBottom={Older}>not a container</p>
+  <ul onViewportTop={Older} onViewportBottom={ByName}>
+    for _, it := range items.Rows() {
+      <li key={it.ID}>{it.Text}</li>
+    }
+  </ul>
+  <ul onViewportBottom={Search}>
+    for _, it := range others.Rows() {
+      <li key={it.ID}>{it.Text}</li>
+    }
+  </ul>
+  <ol onViewportBottom={Count}>
+    for _, it := range more.Rows() {
+      <li key={it.ID}>{it.Text}</li>
+    }
+  </ol>
+</div>

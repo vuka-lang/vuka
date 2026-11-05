@@ -1,0 +1,4 @@
+feed.vuka.html:39:6: onViewportBottom is on <p>, which isn't a stream's container: the event sends the key of a container's edge row; put it on the element whose only content is the loop over a stream's Rows(): <ul onViewportBottom={More}>for _, m := range messages.Rows() {…}</ul>
+feed.vuka.html:40:29: the onViewportBottom handler of the container of items takes int, and the edge row's key is int64; take the edge row's key: func (c *Page) More(ctx context.Context, last int64) error
+feed.vuka.html:45:7: the onViewportBottom handler of the container of others takes Filter, a form, and the event has none; take the edge row's key: func (c *Page) More(ctx context.Context, last int64) error
+feed.vuka.html:50:7: the onViewportBottom handler of the container of more returns (int): a handler returns nothing or an error; take the edge row's key: func (c *Page) More(ctx context.Context, last int64) error

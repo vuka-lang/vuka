@@ -10,6 +10,7 @@ type Stream[T any] struct{ rows []T }
 func (s *Stream[T]) AssignDirty() *bool          { return new(bool) }
 func (s *Stream[T]) Insert(rows ...T)            { s.rows = append(s.rows, rows...) }
 func (s *Stream[T]) Prepend(rows ...T)           { s.rows = append(rows, s.rows...) }
+func (s *Stream[T]) InsertAt(i int, rows ...T)   {}
 func (s *Stream[T]) Delete(keys ...any)          {}
 func (s *Stream[T]) Reset(rows ...T)             { s.rows = rows }
 func (s *Stream[T]) Limit(n int)                 {}
