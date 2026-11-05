@@ -42,6 +42,18 @@ func Wrap[F any](fn F, info FuncInfo, chain ...Decorator) F {
 		return fn
 	}
 	ft := reflect.TypeFor[F]()
+	call, adapter := wrapping(ft, info, chain)
+	if adapter != nil {
+		return adapter.(func(F, Caller) F)(fn, call)
+	}
+	return reflect.MakeFunc(ft, reflectCall(ft, reflect.ValueOf(fn), call)).Interface().(F)
+}
+
+// wrapping is what Wrap of a function of type ft needs but F: the call
+// through chain, and the adapter registered for ft (nil for none). Wrap
+// is instantiated for each signature decorated; what it does is here,
+// compiled once.
+func wrapping(ft reflect.Type, info FuncInfo, chain []Decorator) (Caller, any) {
 	if ft.Kind() != reflect.Func {
 		panic(fmt.Sprintf("vuka: Wrap of a %s, not a function", ft))
 	}
@@ -52,13 +64,15 @@ func Wrap[F any](fn F, info FuncInfo, chain ...Decorator) F {
 		}
 		skip = 1
 	}
-	d := describe(ft, skip, info)
-	call := caller(d, chain, info.Method)
-	if a, ok := adapters.Load(ft); ok {
-		return a.(func(F, Caller) F)(fn, call)
-	}
-	fv := reflect.ValueOf(fn)
-	return reflect.MakeFunc(ft, func(in []reflect.Value) []reflect.Value {
+	call := caller(describe(ft, skip, info), chain, info.Method)
+	a, _ := adapters.Load(ft)
+	return call, a
+}
+
+// reflectCall is the body of a reflect.MakeFunc calling fv, of type ft,
+// through call.
+func reflectCall(ft reflect.Type, fv reflect.Value, call Caller) func([]reflect.Value) []reflect.Value {
+	return func(in []reflect.Value) []reflect.Value {
 		args := make([]any, len(in))
 		for i, v := range in {
 			args[i] = v.Interface()
@@ -85,7 +99,7 @@ func Wrap[F any](fn F, info FuncInfo, chain ...Decorator) F {
 			out[i] = valueAs(r, ft.Out(i))
 		}
 		return out
-	}).Interface().(F)
+	}
 }
 
 // Caller runs a call through its decorators: args are the call's, the
