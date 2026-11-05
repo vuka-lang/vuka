@@ -435,13 +435,11 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 	stepDone("apply routes")
 	ph.step("linking the module's packages")
 	var linkMsg string
-	if r.overlay, gens, linkMsg, err = autoLink(s.root, modPath, dir, r.overlay, pkgs, gens); err != nil {
+	if r.overlay, gens, linkMsg, err = moduleOverlay(s.root, modPath, dir, r.overlay, pkgs, gens, false, s.stderr); err != nil {
 		r.err = err
 		return r
 	}
-	stepDone("auto-link")
-	r.overlay, gens = typedFields(s.root, dir, r.overlay, gens, false, s.stderr)
-	stepDone("typed fields")
+	stepDone("module overlay")
 	if linkMsg != s.linked {
 		// Said once per change: a package created mid-session is linked by the
 		// next rebuild, a deleted one unlinked.

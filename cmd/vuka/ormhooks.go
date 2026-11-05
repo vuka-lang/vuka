@@ -103,6 +103,7 @@ type hookSig struct {
 	text    string
 	imports map[string]string
 	canon   string
+	doc     string // the interface's doc, else its declaration group's
 }
 
 // ormHookSigs are the hooks' methods by name, read from the source of the
@@ -151,7 +152,7 @@ func readHookSigs(root string) map[string]hookSig {
 		if strings.HasSuffix(path, "_test.go") || err != nil || !bytes.Contains(src, []byte("interface")) {
 			continue
 		}
-		f, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution)
+		f, err := parser.ParseFile(fset, path, src, parser.SkipObjectResolution|parser.ParseComments)
 		if err != nil {
 			continue
 		}
@@ -164,6 +165,16 @@ func readHookSigs(root string) map[string]hookSig {
 			}
 			imports[name] = p
 		}
+		groupDoc := map[*ast.TypeSpec]*ast.CommentGroup{}
+		for _, d := range f.Decls {
+			if g, ok := d.(*ast.GenDecl); ok {
+				for _, sp := range g.Specs {
+					if ts, ok := sp.(*ast.TypeSpec); ok {
+						groupDoc[ts] = g.Doc
+					}
+				}
+			}
+		}
 		ast.Inspect(f, func(n ast.Node) bool {
 			ts, ok := n.(*ast.TypeSpec)
 			if !ok || !wanted[ts.Name.Name] {
@@ -172,6 +183,10 @@ func readHookSigs(root string) map[string]hookSig {
 			it, ok := ts.Type.(*ast.InterfaceType)
 			if !ok || len(it.Methods.List) != 1 || len(it.Methods.List[0].Names) != 1 {
 				return false
+			}
+			doc := ts.Doc
+			if doc == nil {
+				doc = groupDoc[ts]
 			}
 			m := it.Methods.List[0]
 			ft := m.Type.(*ast.FuncType)
@@ -183,7 +198,7 @@ func readHookSigs(root string) map[string]hookSig {
 				return imports[q]
 			})
 			if ok {
-				sigs[m.Names[0].Name] = hookSig{text, imports, canon}
+				sigs[m.Names[0].Name] = hookSig{text, imports, canon, docText(doc)}
 			}
 			return false
 		})
