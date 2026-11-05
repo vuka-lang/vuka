@@ -185,11 +185,15 @@ own.
 
 ### The vuka mod tidy Command
 
-Plain `go mod tidy` reads only `.go` files, so it drops
-requirements that only `.vuka` files use. Use **`vuka mod tidy`** instead: it
-shows the go command the imports of your `.vuka` files (and the Vuka runtime,
-when your code uses it), then runs `go mod tidy`. Every `go mod` subcommand
-works the same way — `vuka mod why`, `vuka mod vendor`, …
+Don't run plain `go mod tidy` in a Vuka module: it reads only `.go` files, so
+it drops requirements that only `.vuka` files use, or that only the Go vuka
+generates needs (the runtime behind `Result` and `Option`, the orm's typed
+fields, route tables). Run **`vuka mod tidy`** instead: it tidies a copy of
+the module that holds the generated Go as files, then writes back `go.mod`
+and `go.sum` alone, printing what it added and removed. `vuka mod tidy
+-check` fails when they aren't tidy, for CI. The other `go mod` subcommands
+see `.vuka` imports too — `vuka mod why`, `vuka mod vendor`, … See
+[the vuka command](/tools/cli#mod-tidy).
 
 ## Converting Between Result and (T, error)
 

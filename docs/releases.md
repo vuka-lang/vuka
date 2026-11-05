@@ -56,6 +56,17 @@ the `github.com/vuka-lang/vuka` package your module requires.
   ([W0503](/errors/W0503)), with the signature the orm the app requires
   declares.
 
+### The vuka command
+
+- **`vuka mod tidy` sees the Go vuka generates** ([#330](https://github.com/vuka-lang/vuka/issues/330)).
+  It transpiles the module as `vuka build` does and runs `go mod tidy` in a
+  temporary copy holding that Go as files, so requirements only the
+  runtime, the orm's typed fields, route tables, URL helpers or call
+  adapters need are kept; only `go.mod` and `go.sum` are written back, and
+  the requirements added and removed are printed. `-check` fails when they
+  aren't tidy, writing nothing; `-e`, `-v`, `-go` and `-compat` pass through
+  ([Tidying go.mod](/tools/cli#mod-tidy)).
+
 ## v2.16.1 — 2026-11-01
 
 ### Breaking

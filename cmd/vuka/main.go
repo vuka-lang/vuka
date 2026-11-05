@@ -77,9 +77,13 @@ Usage:
 	vuka doctor [dir]
 	        what the module's islands build with (the in-process esbuild,
 	        Vite or Node) and what is missing for one to build
-	vuka mod tidy|why|vendor|graph|… [args]
-	        go mod, seeing the imports of .vuka files too (plain go mod tidy
-	        drops requirements only Vuka code uses)
+	vuka mod tidy [-check] [-e] [-v] [-go=…] [-compat=…]
+	        go mod tidy that sees the .vuka sources and the Go vuka generates
+	        (plain go mod tidy drops requirements only they use): it tidies a
+	        copy of the module and writes back go.mod and go.sum alone;
+	        -check fails when they aren't tidy, writing nothing (vuka help mod)
+	vuka mod why|vendor|graph|… [args]
+	        go mod, seeing the imports of .vuka files too
 	vuka explain [-full] file.vuka | file.vuka.html
 	        show each Vuka construct in file beside the Go it becomes; a
 	        .vuka.html file's Go whole, after the calls of its markup given
@@ -179,6 +183,10 @@ func main() {
 	case "release":
 		err = release(os.Args[2:], os.Stdout, os.Stderr)
 	case "help", "-h", "-help", "--help":
+		if len(os.Args) > 2 && os.Args[2] == "mod" {
+			fmt.Print(modUsage)
+			break
+		}
 		fmt.Print(usage)
 	default:
 		fmt.Fprintf(os.Stderr, "vuka: unknown command %q\n\n%s", cmd, usage)
