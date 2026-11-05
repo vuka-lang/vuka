@@ -532,6 +532,12 @@ func (p *Post) BeforeSave(ctx context.Context) error {
 A query's `Update` and `Delete` write many rows in one statement and run no
 hooks.
 
+`Indexes`, `Checks` and `Generated` declare the model's indexes, checks and
+generated columns. `orm.Base` has them, declaring nothing, so they show in
+completion: the model's own, with either receiver, overrides them. A
+method with a hook's name and another signature is no hook, and the ORM
+ignores it: vukavet and the editor report it ([W0503](/errors/W0503)).
+
 ## Shared Fields: Embedding {#embedding}
 
 Fields several models share go in a struct of their own, embedded in each.
@@ -580,8 +586,10 @@ func init() {
 :::
 
 `pages` has `created` and `updated` columns, and `PageColumns.Created`
-filters on them. The embedded struct is no model and has no table. The
-model base itself, `orm.Base`, is a generic type whose `Self` is the model
+filters on them. The embedded struct is no model and has no table. Its
+`Indexes` (or `Checks`, `Generated`) declares the model's too, unless the
+model declares its own; Go code calling `page.Indexes()` finds it ambiguous
+beside `orm.Base`'s, the ORM doesn't. The model base itself, `orm.Base`, is a generic type whose `Self` is the model
 embedding it: that is how each model gets its own `Post.Objects`
 ([Statics](/features/statics#through-embedding-with-self)).
 

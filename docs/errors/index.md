@@ -225,6 +225,7 @@ same page in the terminal.
 | [E0506](./E0506) | A SQL fragment's template or arguments |
 | [W0501](./W0501) | A Count a later join can repeat |
 | [W0502](./W0502) | A join read as the model's rows |
+| [W0503](./W0503) | A method named like an ORM hook with another signature |
 
 ## Frontend and toolchain
 
