@@ -196,6 +196,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	}
 	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
 		s.sess.UseCache("")
+		s.sess.KeepUnnamed = true
 	}
 
 	sig := make(chan os.Signal, 1)
