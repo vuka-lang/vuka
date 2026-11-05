@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"bytes"
 	"crypto/sha256"
 	"fmt"
 	"go/ast"
@@ -30,9 +31,19 @@ type sourceShapes struct {
 	byFile map[[sha256.Size]byte]fileShapes
 }
 
-// fileShapes are a file's two hashes: of everything, and without the function
-// bodies a step doesn't read.
-type fileShapes struct{ full, decls [sha256.Size]byte }
+// fileShapes are a file's hashes: of everything; without the function
+// bodies a step doesn't read; and, for the orm's step, without the functions
+// it doesn't read either.
+type fileShapes struct{ full, decls, models [sha256.Size]byte }
+
+// shapeKind is what of a file a step reads.
+type shapeKind int
+
+const (
+	shapeFull   shapeKind = iota // everything
+	shapeDecls                   // the declarations, and the bodies unreadBodies keeps
+	shapeModels                  // shapeDecls without the functions ormUnread names
+)
 
 func newSourceShapes() *sourceShapes {
 	return &sourceShapes{byFile: map[[sha256.Size]byte]fileShapes{}}
@@ -46,9 +57,9 @@ var localReplace = regexp.MustCompile(`(?m)=>\s*"?(?:\.{1,2}/|/|[A-Za-z]:\\)`)
 
 // module is the hash of the Go of the module at root as overlay has it; ""
 // when the module can change unseen: a dependency in a directory or a
-// workspace, or a file that can't be read. Function bodies count only in the
-// files bodies names; a nil bodies counts them in every file.
-func (s *sourceShapes) module(root, overlay string, tests bool, bodies func(path string) bool) string {
+// workspace, or a file that can't be read. kind says what of each file
+// counts; a nil kind counts everything.
+func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path string) shapeKind) string {
 	if s == nil {
 		return ""
 	}
@@ -105,10 +116,17 @@ func (s *sourceShapes) module(root, overlay string, tests bool, bodies func(path
 			return ""
 		}
 		shape := s.file(src)
-		if bodies == nil || bodies(p) {
+		k := shapeFull
+		if kind != nil {
+			k = kind(p)
+		}
+		switch k {
+		case shapeFull:
 			fmt.Fprintf(h, "%s %x\n", p, shape.full)
-		} else {
+		case shapeDecls:
 			fmt.Fprintf(h, "%s %x\n", p, shape.decls)
+		default:
+			fmt.Fprintf(h, "%s %x\n", p, shape.models)
 		}
 	}
 	return fmt.Sprintf("%x", h.Sum(nil))
@@ -151,19 +169,53 @@ func inWorkspace(root string) bool {
 // frame's fixed HTML.
 func fileShape(src []byte) [sha256.Size]byte { return shapesOf(src).full }
 
-// shapesOf hashes src both ways. A file that doesn't parse hashes as it is.
+// shapesOf hashes src every way. A file that doesn't parse hashes as it is.
 func shapesOf(src []byte) fileShapes {
 	fset := token.NewFileSet()
 	f, err := parser.ParseFile(fset, "", src, parser.SkipObjectResolution)
 	if err != nil {
 		sum := sha256.Sum256(src)
-		return fileShapes{sum, sum}
+		return fileShapes{sum, sum, sum}
 	}
 	statics := frameStatics(fset, f)
+	unread := unreadBodies(fset, f)
+	decls := mergeRanges(append(slices.Clone(statics), unread...))
 	return fileShapes{
-		full:  hashTokens(src, statics),
-		decls: hashTokens(src, mergeRanges(append(statics, unreadBodies(fset, f)...))),
+		full:   hashTokens(src, statics),
+		decls:  hashTokens(src, decls),
+		models: hashTokens(src, mergeRanges(append(decls, ormUnread(fset, f, src)...))),
 	}
+}
+
+// ormUnread are the byte ranges of the functions of f the orm's step doesn't
+// read, whole: it reads types, methods (a Schema method, a field type's
+// Scan and Value), the bodies with an orm.For[T](…), and of the package's
+// functions only whether one is named as its generated code would be
+// (UserFields, UserColumns). A function whose source names For[, Model[
+// or Base[ counts in full: that makes a package one the orm looks at.
+func ormUnread(fset *token.FileSet, f *ast.File, src []byte) [][2]int {
+	var out [][2]int
+	for _, decl := range f.Decls {
+		fn, ok := decl.(*ast.FuncDecl)
+		if !ok || fn.Recv != nil || strings.HasSuffix(fn.Name.Name, "Fields") || strings.HasSuffix(fn.Name.Name, "Columns") {
+			continue
+		}
+		from, to := fset.Position(fn.Pos()).Offset, fset.Position(fn.End()).Offset
+		if fn.Doc != nil {
+			from = fset.Position(fn.Doc.Pos()).Offset
+		}
+		if text := src[from:to]; bytes.Contains(text, []byte("For[")) || bytes.Contains(text, []byte("Model[")) || bytes.Contains(text, []byte("Base[")) {
+			continue
+		}
+		for to < len(src) && (src[to] == ' ' || src[to] == '\t' || src[to] == '\r') {
+			to++
+		}
+		if to < len(src) && src[to] == '\n' {
+			to++ // the semicolon the scanner adds after the closing brace
+		}
+		out = append(out, [2]int{from, to})
+	}
+	return out
 }
 
 // hashTokens hashes src's tokens outside skip's byte ranges, which are in
