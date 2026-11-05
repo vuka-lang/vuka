@@ -130,8 +130,45 @@ func TestDeclarationShape(t *testing.T) {
 			t.Errorf("%s: the full shape didn't change", c.name)
 		}
 	}
-	if a, b := shapesOf([]byte("package p\nfunc (")), shapesOf([]byte("package p\nfunc ((")); a.decls == b.decls || a.full != a.decls {
+	if a, b := shapesOf([]byte("package p\nfunc (")), shapesOf([]byte("package p\nfunc ((")); a.decls == b.decls || a.full != a.decls || a.models != a.decls {
 		t.Error("a file that doesn't parse should hash as it is")
+	}
+}
+
+// TestModelShape: the orm's shape leaves out the package's functions but
+// those it reads: one named as its generated code would be, one naming
+// orm.For, Model or Base. A method, a type or a Schema body still counts.
+func TestModelShape(t *testing.T) {
+	const base = "package p\n\ntype T struct{ Name string }\n\nfunc F(x int) int { return x + 1 }\n\nfunc (T) Schema() int { return 1 }\n\nfunc (T) Label() string { return \"\" }\n\nfunc M(db any) any { return orm.For[T](db) }\n"
+	for _, c := range []struct {
+		name, old, new string
+		same           bool
+	}{
+		{"a function's body", "return x + 1", "return x + 2", true},
+		{"a function's signature", "F(x int) int", "F(x int) string", true},
+		{"a new function", "func F(", "func G() {}\n\nfunc F(", true},
+		{"a new exported function", "func F(", "func Helper(n int) string { return \"\" }\n\nfunc F(", true},
+		{"a function named as typed fields are", "func F(", "func TFields() {}\n\nfunc F(", false},
+		{"a function named as columns are", "func F(", "func TColumns() {}\n\nfunc F(", false},
+		{"a new function naming orm.Model", "func F(", "func G(m orm.Model[T]) {}\n\nfunc F(", false},
+		{"a new orm.For in a body", "return x + 1", "orm.For[U](nil); return x + 1", false},
+		{"a body's orm.For", "orm.For[T](db)", "orm.For[U](db)", false},
+		{"a method's signature", "Label() string", "Label() int", false},
+		{"a new method", "func (T) Label", "func (T) Value() (any, error) { return nil, nil }\n\nfunc (T) Label", false},
+		{"a Schema method's body", "return 1 }\n\nfunc (T) Label", "return 2 }\n\nfunc (T) Label", false},
+		{"a struct field", "Name string", "Name, Title string", false},
+		{"a new type", "func F(", "type U struct{}\n\nfunc F(", false},
+		{"a new constant", "func F(", "const Limit = 3\n\nfunc F(", true},
+		{"a constant named as columns are", "func F(", "const TColumns = 3\n\nfunc F(", false},
+		{"a new variable", "func F(", "var Limit = 3\n\nfunc F(", false},
+	} {
+		src := strings.Replace(base, c.old, c.new, 1)
+		if src == base {
+			t.Fatalf("%s: nothing replaced", c.name)
+		}
+		if got := shapesOf([]byte(src)).models == shapesOf([]byte(base)).models; got != c.same {
+			t.Errorf("%s: same model shape = %v, want %v", c.name, got, c.same)
+		}
 	}
 }
 
@@ -168,14 +205,14 @@ func TestSourceShapesBodies(t *testing.T) {
 		t.Error("a body in the pages left the route check's shape")
 	}
 
-	orm := s.module(root, "", false, ormBodiesRead)
+	orm := s.module(root, "", false, ormReads)
 	write("lib/x_gen.go", "package lib\n\nfunc H() int { return 1 }\n")
-	gen := s.module(root, "", false, ormBodiesRead)
+	gen := s.module(root, "", false, ormReads)
 	if gen == orm {
 		t.Error("a new generated file left the orm's shape")
 	}
 	write("lib/x_gen.go", "package lib\n\nfunc H() int { return 2 }\n")
-	if s.module(root, "", false, ormBodiesRead) == gen {
+	if s.module(root, "", false, ormReads) == gen {
 		t.Error("a generated file's body left the orm's shape")
 	}
 }

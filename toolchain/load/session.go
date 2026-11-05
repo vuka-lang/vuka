@@ -14,6 +14,7 @@ import (
 	"hash"
 	"io"
 	"io/fs"
+	"maps"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -69,6 +70,15 @@ type Session struct {
 
 	cacheBase string // the disk cache's directory (UseCache); "" for none
 	pruned    bool
+
+	// KeepUnnamed keeps a package's last output, in a build's run (not
+	// Bare, not Tolerant), when the module's packages it imports changed
+	// only by functions and constants it can't have used: exported, of a
+	// kind the transpiler finds only by a name the source writes, and
+	// named by none of its words (unnamedAPI). vuka run -watch sets it: a
+	// new function in a widely imported package then transpiles that
+	// package alone. Its keys are never a run's without it.
+	KeepUnnamed bool
 }
 
 // runStats counts what a run did, for tests.
@@ -82,6 +92,13 @@ type checkedPkg struct {
 	key string // its files' names and contents, and its module imports' keys
 	pkg *types.Package
 	api string // its API, and its module imports' APIs
+
+	// For KeepUnnamed: its API but the unnamed declarations, and its module
+	// imports' (core); those declarations, each name's own hash (unnamed);
+	// and the module packages it imports.
+	core    string
+	unnamed map[string]string
+	imports []string
 
 	// What type-checking it needs, when its API came from the disk cache
 	// and pkg is made only once something imports it.
@@ -305,8 +322,11 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		return c, nil
 	}
 	c := &checkedPkg{key: key, path: path, dir: dir, names: bp.GoFiles, srcs: srcs}
-	if api := s.loadAPI(path, key); api != "" {
-		c.api = api // its pkg once something imports it
+	for _, imp := range imports {
+		c.imports = append(c.imports, imp.path)
+	}
+	if d := s.loadAPI(path, key); d != nil {
+		c.api, c.core, c.unnamed = d.api, d.core, d.unnamed // its pkg once something imports it
 		s.checked[path], s.now[path] = c, c
 		return c, nil
 	}
@@ -321,13 +341,17 @@ func (s *Session) check(path string) (*checkedPkg, error) {
 		s.now[path] = c
 		return c, nil
 	}
-	api := sha256.New()
+	api, core := sha256.New(), sha256.New()
 	writeAPI(api, c.pkg)
+	c.unnamed = map[string]string{}
+	writeAPIParts(core, c.unnamed, c.pkg)
 	for _, c := range imports {
 		api.Write([]byte(c.api))
+		core.Write([]byte(c.core))
 	}
 	c.api = hex.EncodeToString(api.Sum(nil))
-	s.saveAPI(path, key, c.api)
+	c.core = hex.EncodeToString(core.Sum(nil))
+	s.saveAPI(path, key, c)
 	s.checked[path], s.now[path] = c, c
 	return c, nil
 }
@@ -472,8 +496,13 @@ func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Op
 		fmt.Fprintf(h, "processor package %s %s\n", path, c.api)
 	}
 	writePackage(h, p)
+	keep := s.KeepUnnamed && !opts.Bare && !opts.Tolerant
+	if keep {
+		fmt.Fprintf(h, "keep unnamed\n")
+	}
 	imports := slices.Clone(p.Imports)
 	slices.Sort(imports)
+	var checked []*checkedPkg
 	for _, imp := range slices.Compact(imports) {
 		if imp == p.ImportPath || !s.inModule(imp) {
 			continue
@@ -487,7 +516,15 @@ func (s *Session) inputKey(p *Package, pkgs []*Package, registry string, opts Op
 			s.fail(err)
 			return ""
 		}
-		fmt.Fprintf(h, "import %s %s\n", imp, c.api)
+		if keep {
+			fmt.Fprintf(h, "import %s %s\n", imp, c.core)
+			checked = append(checked, c)
+		} else {
+			fmt.Fprintf(h, "import %s %s\n", imp, c.api)
+		}
+	}
+	if keep {
+		s.writeNamed(h, p, pkgs, checked)
 	}
 	for _, d := range p.Embeds {
 		for _, q := range pkgs {
@@ -576,20 +613,33 @@ func fileStats(gens []Generated) string {
 // reach importers. Nor do unexported funcs, vars and consts, which no
 // importer can name; unexported types are kept, as an exported declaration
 // can hand one out.
-func writeAPI(h hash.Hash, pkg *types.Package) {
+func writeAPI(h hash.Hash, pkg *types.Package) { writeAPIParts(h, nil, pkg) }
+
+// writeAPIParts is writeAPI, but with unnamed not nil it writes the
+// declarations unnamedAPI picks there, each name's own hash, instead.
+func writeAPIParts(h hash.Hash, unnamed map[string]string, pkg *types.Package) {
 	q := func(p *types.Package) string { return p.Path() }
 	fmt.Fprintf(h, "package %s %s\n", pkg.Path(), pkg.Name())
 	scope := pkg.Scope()
+	if unnamed != nil && (scope.Lookup("VukaJSX") != nil || scope.Lookup("VukaState") != nil) {
+		unnamed = nil // a JSX target, or a state package: the transpiler looks names up in it
+	}
 	for _, name := range scope.Names() {
 		obj := scope.Lookup(name)
 		if _, isType := obj.(*types.TypeName); !isType && !obj.Exported() {
 			continue
 		}
-		fmt.Fprintf(h, "%s\n", types.ObjectString(obj, q))
-		switch o := obj.(type) {
-		case *types.Const:
-			fmt.Fprintf(h, "= %s\n", o.Val().ExactString())
-		case *types.TypeName:
+		line := types.ObjectString(obj, q)
+		if c, ok := obj.(*types.Const); ok {
+			line += "\n= " + c.Val().ExactString()
+		}
+		if unnamed != nil && unnamedAPI(obj) {
+			sum := sha256.Sum256([]byte(line))
+			unnamed[name] = hex.EncodeToString(sum[:])
+			continue
+		}
+		fmt.Fprintf(h, "%s\n", line)
+		if o, ok := obj.(*types.TypeName); ok {
 			fmt.Fprintf(h, "underlying %s\n", types.TypeString(o.Type().Underlying(), q))
 			if n, ok := o.Type().(*types.Named); ok {
 				for i := 0; i < n.NumMethods(); i++ {
@@ -598,6 +648,163 @@ func writeAPI(h hash.Hash, pkg *types.Package) {
 			}
 		}
 	}
+}
+
+// unnamedAPI reports whether obj, an exported package-level declaration, is
+// one the transpiler finds in an imported package only by a name the
+// source writes, or one made of a word it writes (TypeMember for
+// Type.Member, NewType for Type.New): a function, or a constant of a basic
+// type, which no enum is made of. Names it looks for itself (probed) never
+// are. A package importing one that gains or changes such a declaration
+// is transpiled again only when one of its words makes the name.
+func unnamedAPI(obj types.Object) bool {
+	switch o := obj.(type) {
+	case *types.Func:
+	case *types.Const:
+		if _, basic := o.Type().(*types.Basic); !basic {
+			return false
+		}
+	default:
+		return false
+	}
+	return !probed(obj.Name())
+}
+
+// probed reports whether the transpiler may look name up in an imported
+// package without the source writing it: the names it asks for (Ctx, Part,
+// VukaJSX), and those it makes from a type's (TypeValues, ParseType,
+// RegisterFunc). TestProbedNames keeps the list whole.
+func probed(name string) bool {
+	if probedNames[name] {
+		return true
+	}
+	for _, p := range probedPrefixes {
+		if strings.HasPrefix(name, p) {
+			return true
+		}
+	}
+	for _, sfx := range probedSuffixes {
+		if strings.HasSuffix(name, sfx) {
+			return true
+		}
+	}
+	return false
+}
+
+var (
+	probedNames    = map[string]bool{"Base": true, "Commands": true, "Ctx": true, "ModelAnnotation": true, "Part": true, "Result": true, "VukaJSX": true, "VukaState": true}
+	probedPrefixes = []string{"Parse", "parse", "Register"}
+	probedSuffixes = []string{"Values", "Columns", "Fields"}
+)
+
+// writeNamed writes, for KeepUnnamed, the unnamed declarations p may have
+// used of the module's packages it imports, directly or not: those whose
+// names one of p's words makes, as the whole name, its start or its end
+// (namedBy). The rest p can't have used.
+func (s *Session) writeNamed(h hash.Hash, p *Package, pkgs []*Package, imports []*checkedPkg) {
+	words := sourceWords(p)
+	for _, d := range p.Embeds {
+		for _, q := range pkgs {
+			if q.Dir == d && q != p {
+				for w := range sourceWords(q) {
+					words[w] = true
+				}
+			}
+		}
+	}
+	seen := map[string]bool{}
+	var walk func(c *checkedPkg)
+	var all []*checkedPkg
+	walk = func(c *checkedPkg) {
+		if seen[c.path] {
+			return
+		}
+		seen[c.path] = true
+		all = append(all, c)
+		for _, imp := range c.imports {
+			if d := s.now[imp]; d != nil {
+				walk(d)
+			}
+		}
+	}
+	for _, c := range imports {
+		walk(c)
+	}
+	slices.SortFunc(all, func(a, b *checkedPkg) int { return strings.Compare(a.path, b.path) })
+	for _, c := range all {
+		for _, name := range slices.Sorted(maps.Keys(c.unnamed)) {
+			if namedBy(words, name) {
+				fmt.Fprintf(h, "named %s %s %s\n", c.path, name, c.unnamed[name])
+			}
+		}
+	}
+}
+
+// namedBy reports whether one of words (lower-cased) makes name, in any
+// case: is it, or is how it ends from a word's edge inside it (Member in
+// TypeMember, Type in NewType, ID in UserByID). The names the transpiler
+// makes of the source's end so: TypeMember for Type.Member (BaseMember when
+// Type embeds Base), NewType for Type.New, Type_Member, RegisterFunc.
+func namedBy(words map[string]bool, name string) bool {
+	low := strings.ToLower(name)
+	if words[low] {
+		return true
+	}
+	for i := 1; i < len(name); i++ {
+		if nameEdge(name, i) && words[low[i:]] {
+			return true
+		}
+	}
+	return false
+}
+
+// nameEdge reports whether a word of name starts at i: an upper-case
+// letter after a lower-case one or a digit (typeMember), the last of a run
+// of upper-case letters before a lower-case one (IDValue), or a letter
+// after an underscore.
+func nameEdge(name string, i int) bool {
+	upper := func(c byte) bool { return c >= 'A' && c <= 'Z' }
+	lower := func(c byte) bool { return c >= 'a' && c <= 'z' || c >= '0' && c <= '9' }
+	switch a, b := name[i-1], name[i]; {
+	case a == '_':
+		return upper(b) || b >= 'a' && b <= 'z'
+	case upper(b) && lower(a):
+		return true
+	case upper(b) && upper(a):
+		return i+1 < len(name) && name[i+1] >= 'a' && name[i+1] <= 'z'
+	}
+	return false
+}
+
+// sourceWords are the words of p's sources, lower-cased: every run of
+// letters, digits and underscores, in Go, markup and text alike.
+func sourceWords(p *Package) map[string]bool {
+	words := map[string]bool{}
+	add := func(src []byte) {
+		start := -1
+		for i := 0; i <= len(src); i++ {
+			word := false
+			if i < len(src) {
+				c := src[i]
+				word = c == '_' || c >= '0' && c <= '9' || c >= 'a' && c <= 'z' || c >= 'A' && c <= 'Z' || c >= 0x80
+			}
+			switch {
+			case word && start < 0:
+				start = i
+			case !word && start >= 0:
+				words[strings.ToLower(string(src[start:i]))] = true
+				start = -1
+			}
+		}
+	}
+	for _, f := range p.Files {
+		add(f.Src)
+	}
+	for _, t := range p.Templ {
+		add(t.Src)
+		add(t.Live)
+	}
+	return words
 }
 
 // goDirective is the go version the go.mod at root declares, as go/types

@@ -109,6 +109,7 @@ func (t *routeTree) check(ov map[string]string, overlay string, res *routesResul
 	r := &routeImporter{t: t, ctx: overlayContext(ov), fset: token.NewFileSet(), im: load.NewModuleImporter(t.root),
 		done: map[string]*types.Package{}, walking: map[string]bool{}, byPath: map[string]*routeDir{}, goVersion: goVersionOf(t.root)}
 	r.im.Overlay = overlay
+	r.im.BuildFlags = compileFlags
 	var imports []string
 	for _, d := range t.dirs {
 		r.byPath[d.importPath] = d

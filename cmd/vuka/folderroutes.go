@@ -987,14 +987,14 @@ func (t *routeTree) checked(ov map[string]string, overlay string) *routesResult 
 // bodiesRead reports whether the route check reads the function bodies of the
 // file at path. Routes declared in a body elsewhere are scanned on every build,
 // and checked add what they found to the shape.
-func (t *routeTree) bodiesRead(path string) bool {
+func (t *routeTree) bodiesRead(path string) shapeKind {
 	dir := filepath.Dir(path)
 	for _, d := range t.dirs {
 		if dir == d.goDir || dir == d.dir {
-			return true
+			return shapeFull
 		}
 	}
-	return false
+	return shapeDecls
 }
 
 // routeMemo is a watch's last route check of each page tree, by its pages

@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -168,6 +169,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if !debug {
 		flags = quickCompile(flags, modPath)
 	}
+	compileFlags = compilerFlags(flags)
 	shapes = newSourceShapes()
 	dir, _ := os.Getwd()
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
@@ -193,8 +195,10 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if f, ok := stderr.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
 		s.tty = true
 	}
+	s.staticsMain = devStaticsMain(root, dir, pkg, env)
 	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
 		s.sess.UseCache("")
+		s.sess.KeepUnnamed = true
 	}
 
 	sig := make(chan os.Signal, 1)
@@ -327,6 +331,7 @@ type supervisor struct {
 	w              *watcher
 	sess           *load.Session // what the last builds transpiled; nil for none
 	stub           bool          // the frontend's build is left out of the binary (stubEmbeds)
+	staticsMain    string        // the main package's directory, when templates' fixed HTML is kept out of their packages (devStatics)
 	app            *app          // the running build; nil when none runs
 	exits          chan *app     // each app, once it has exited
 	assets         *devAssets
@@ -382,6 +387,14 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		}
 		r.key, _, _ = s.reuse.key(s, r.keyRoots)
 	}
+	if dir := os.Getenv(profileEnv); dir != "" {
+		// Where a rebuild's time before go build goes, to look at with go tool pprof.
+		if f, err := os.Create(filepath.Join(dir, fmt.Sprintf("prepare-%d.pprof", n))); err == nil {
+			if pprof.StartCPUProfile(f) == nil {
+				defer func() { pprof.StopCPUProfile(); f.Close() }()
+			}
+		}
+	}
 	ph := r.ph
 	ph.step("scanning the module")
 	tStep := time.Now()
@@ -418,9 +431,14 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		if s.sess != nil {
 			transpile = s.sess.Transpile
 		}
-		if gens, r.overlay, err = transpile(pkgs, dir, loadOptions(r.pa)); err != nil {
+		opts := loadOptions(r.pa)
+		opts.Files = filepath.Join(s.tmp, "gen") // kept across builds: an unchanged file isn't written again
+		if gens, r.overlay, err = transpile(pkgs, dir, opts); err != nil {
 			r.err, r.gens = err, gens // the report checks the packages that transpiled
 			return r
+		}
+		if s.sess != nil {
+			traceStep("transpiled %d of %d packages", s.sess.Transpiled(), len(pkgs))
 		}
 	}
 	stepDone("transpile")
@@ -453,6 +471,13 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 			r.err = err
 			return r
 		}
+	}
+	if s.staticsMain != "" {
+		if r.overlay, err = devStatics(s.root, modPath, dir, filepath.Join(s.tmp, "gen"), r.overlay, s.staticsMain, gens); err != nil {
+			r.err = err
+			return r
+		}
+		stepDone("statics")
 	}
 	r.err = ctx.Err()
 	r.tTranspile = time.Since(t0)
@@ -689,6 +714,33 @@ func quickCompile(flags []string, modPath string) []string {
 		}
 	}
 	return append(slices.Clone(flags), "-gcflags="+modPath+"/...=-l -dwarf=false")
+}
+
+// compileFlags are, under a watch, the flags of its builds that decide how
+// go compiles a package: the go list a step runs before the build (the
+// route check's, for export data) takes them too, so that what it compiles
+// is what the build then finds in Go's cache, not a second compile of the
+// module's changed packages.
+var compileFlags []string
+
+// compilerFlags are those of flags, go build's, that change how a package
+// compiles. A flag's value may be the next argument.
+func compilerFlags(flags []string) []string {
+	var out []string
+	for i := 0; i < len(flags); i++ {
+		name, _, hasValue := strings.Cut(strings.TrimLeft(flags[i], "-"), "=")
+		switch name {
+		case "gcflags", "asmflags", "tags", "trimpath", "race", "msan", "asan", "cover", "covermode", "coverpkg", "mod", "modfile":
+		default:
+			continue
+		}
+		out = append(out, flags[i])
+		if !hasValue && name != "trimpath" && name != "race" && name != "msan" && name != "asan" && name != "cover" && i+1 < len(flags) {
+			i++
+			out = append(out, flags[i])
+		}
+	}
+	return out
 }
 
 // noDWARF adds -w to the linker's flags: no debug information, which is
@@ -1219,3 +1271,7 @@ func traceStep(format string, args ...any) {
 }
 
 const traceEnv = "VUKA_WATCH_TRACE"
+
+// profileEnv names a directory each rebuild writes a CPU profile of its
+// transpile into, prepare-<n>.pprof.
+const profileEnv = "VUKA_WATCH_PROFILE"

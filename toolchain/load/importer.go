@@ -31,6 +31,10 @@ import (
 type Importer struct {
 	Dir     string // where go list runs
 	Overlay string // overlay JSON file; "" for none
+	// BuildFlags are go build's flags go list is given too: those of the
+	// build that follows, so that the export data go list compiles for the
+	// module's packages is what the build compiles, not a second build.
+	BuildFlags []string
 
 	exports map[string]string
 	errs    map[string]string
@@ -255,6 +259,7 @@ func (im *Importer) list(paths ...string) error {
 	if im.Overlay != "" {
 		args = append(args, "-overlay="+im.Overlay)
 	}
+	args = append(args, im.BuildFlags...)
 	cmd := exec.Command("go", append(args, paths...)...)
 	cmd.Dir = im.Dir
 	var stderr bytes.Buffer

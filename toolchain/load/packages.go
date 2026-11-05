@@ -3,6 +3,8 @@ package load
 import (
 	"bufio"
 	"bytes"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -735,6 +737,10 @@ type Options struct {
 	// import path (transpile.Options.Contexts); nil finds them in the
 	// module's package mains (Contexts).
 	Contexts map[string][]transpile.Context
+	// Files, when set, is a directory kept across runs that the overlay's
+	// generated files are written in, each named by its content: a file a
+	// run generates as an earlier run did is not written again.
+	Files string
 }
 
 // AfterPackage, when set, is asked after each Vuka package transpiles, with
@@ -870,7 +876,10 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		add := func(goName string, src []byte) error {
 			target := filepath.Join(p.BuildDir(), goName)
 			file := filepath.Join(tmp, strconv.Itoa(i)+"_"+goName)
-			if err := os.WriteFile(file, src, 0o644); err != nil {
+			if opts.Files != "" {
+				file = contentFile(opts.Files, goName, src)
+			}
+			if err := writeOnce(file, src, opts.Files != ""); err != nil {
 				return err
 			}
 			replace[target] = file
@@ -1045,6 +1054,44 @@ func transpileRun(pkgs []*Package, tmp string, opts Options, sess *Session) ([]G
 		return out, overlay, onceEach(errs)
 	}
 	return out, overlay, nil
+}
+
+// contentFile is where in dir the generated file goName holding src goes:
+// named by its content, with goName for its errors' sake.
+func contentFile(dir, goName string, src []byte) string {
+	sum := sha256.Sum256(src)
+	return filepath.Join(dir, hex.EncodeToString(sum[:12])+"_"+goName)
+}
+
+// writeOnce writes src to file, unless kept, the file named by its content,
+// is there already.
+func writeOnce(file string, src []byte, kept bool) error {
+	if kept {
+		if _, err := os.Stat(file); err == nil {
+			return nil
+		}
+		if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+			return err
+		}
+		// Whole or not at all: a run stopped mid-write leaves no file a later
+		// one would take as written.
+		tmp, err := os.CreateTemp(filepath.Dir(file), ".tmp-")
+		if err != nil {
+			return err
+		}
+		_, err = tmp.Write(src)
+		if cerr := tmp.Close(); err == nil {
+			err = cerr
+		}
+		if err == nil {
+			err = os.Rename(tmp.Name(), file)
+		}
+		if err != nil {
+			os.Remove(tmp.Name())
+		}
+		return err
+	}
+	return os.WriteFile(file, src, 0o644)
 }
 
 // unreadable is the export data imp couldn't read because the module's Go

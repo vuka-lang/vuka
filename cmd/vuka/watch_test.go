@@ -544,7 +544,7 @@ func buildVuka(t *testing.T) string {
 	vuka := exe(filepath.Join(t.TempDir(), "vuka"))
 	c := exec.Command("go", "build", "-o", vuka, ".")
 	if w := os.Getenv("VUKA_TEST_GOWORK"); w != "" {
-		c.Env = append(os.Environ(), "GOWORK="+w) // a vuka the released modules can't build yet
+		c.Env = append(os.Environ(), "GOWORK="+w, "GOFLAGS=") // a vuka the released modules can't build yet; a test's -mod=mod is for its app
 	}
 	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("building vuka: %v\n%s", err, out)
@@ -963,5 +963,13 @@ func TestBinaryID(t *testing.T) {
 		if ids["a"] != ids["b"] || ids["a"] == ids["c"] {
 			t.Errorf("%s: a comment %q→%q, a change →%q", goos, ids["a"], ids["b"], ids["c"])
 		}
+	}
+}
+
+func TestCompilerFlags(t *testing.T) {
+	in := []string{"-p=2", "-gcflags=m/...=-l -dwarf=false", "-ldflags=-w", "-tags", "dev", "-trimpath", "-buildvcs=false", "-race", "-mod=mod"}
+	want := []string{"-gcflags=m/...=-l -dwarf=false", "-tags", "dev", "-trimpath", "-race", "-mod=mod"}
+	if got := compilerFlags(in); !slices.Equal(got, want) {
+		t.Errorf("compilerFlags: %q, want %q", got, want)
 	}
 }
