@@ -55,14 +55,11 @@ func message(err error) string {
 	}(); ok {
 //line enum_variant_methods.vuka:42
 		return fmt.Sprintf("wrong password, %d tries left", n)
-	} else if true {
-		return err.Error()
 	} else {
-		panic("vuka: no case matched")
+		return err.Error()
 	}
 }
 
-//line enum_variant_methods.vuka:48
 func main() {
 	fmt.Println(message(change("")))
 	fmt.Println(message(change("bad")))

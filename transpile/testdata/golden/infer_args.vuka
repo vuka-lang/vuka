@@ -1,0 +1,115 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+type Level struct{ ID int64 }
+
+type Row struct {
+	Level    Option[int64]
+	Cert     Option[int64]
+	Count    Option[int64]
+	Name     Option[string]
+	Applicant Option[int64]
+}
+
+type Named int64
+
+var errMissing = errors.New("missing")
+
+func attach(name string) (int64, error) {
+	if name == "" {
+		return 0, errMissing
+	}
+	return int64(len(name)), nil
+}
+
+func level(id int64) (Level, error) { return Level{ID: id}, nil }
+
+func fill(id int64, cert string) (Row, error) {
+	var r Row
+	certificate := None[int64]()
+	if cert != "" {
+		certificate = Some(attach(cert)?)
+	}
+	l := level(id)?
+	r.Level = Some(l.ID)
+	r.Cert = certificate
+	r.Count = Some(5)
+	r.Applicant = Some(id)
+	r.Name = None
+	return r, nil
+}
+
+func count(o Option[int64]) Option[int64] {
+	return Some(o? + 1)
+}
+
+func size(cert string) Result[int64] {
+	return Ok(attach(cert)?)
+}
+
+func found(id int64) Result[Level] {
+	l := level(id)?
+	return Ok(l)
+}
+
+func again(r Result[Level]) Result[int64] {
+	l := r?
+	return Ok(l.ID)
+}
+
+func plain(cert string) Result[int64] {
+	return attach(cert)?
+}
+
+func constant() Result[int64] {
+	return Ok(7)
+}
+
+func failed() Result[int64] {
+	return Err(errMissing)
+}
+
+func named(n Named) Option[int64] {
+	return Some(int64(n))
+}
+
+func iface(e error) Option[error] {
+	return Some(e)
+}
+
+type codeErr struct{ code int }
+
+func (c codeErr) Error() string { return fmt.Sprint("code ", c.code) }
+
+func wider() Option[error] {
+	return Some(codeErr{2})
+}
+
+func code(n int) (codeErr, error) { return codeErr{n}, nil }
+
+func widerTry(n int) Result[error] {
+	return code(n)?
+}
+
+func main() {
+	r, err := fill(3, "cv.pdf")
+	fmt.Println(r.Level.Get())
+	fmt.Println(r.Cert.Get())
+	fmt.Println(r.Count.Get())
+	fmt.Println(err)
+	fmt.Println(count(Some[int64](2)).Get())
+	fmt.Println(size("").Get())
+	fmt.Println(plain("ab").Get())
+	fmt.Println(found(2).Get())
+	fmt.Println(again(found(9)).Get())
+	fmt.Println(constant().Get())
+	fmt.Println(failed().Get())
+	fmt.Println(named(4).Get())
+	fmt.Println(iface(errMissing).Get())
+	fmt.Println(wider().Get())
+	fmt.Println(widerTry(3).Get())
+}

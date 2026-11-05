@@ -89,11 +89,9 @@ func postByID(ctx context.Context, id int64) (Post, error) {
 		return p, nil
 	case errors.Is(err, orm.ErrNotFound):
 		return Post{}, web.NotFound
-	case err != nil:
+	default:
 		e := err
 		return Post{}, e
-	default:
-		panic("vuka: no case matched")
 	}
 }
 ```

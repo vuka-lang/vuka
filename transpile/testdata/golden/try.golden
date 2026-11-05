@@ -46,7 +46,7 @@ func load(s string) vuka.Result[User] {
 		return vuka.Err[User](err)
 	}
 //line try.vuka:31
-	return vuka.Ok[User](u)
+	return vuka.Ok(u)
 }
 
 func name(s string) (string, error) {
@@ -71,7 +71,7 @@ func firstPlusOne(xs []int) vuka.Option[int] {
 		return vuka.None[int]()
 	}
 //line try.vuka:48
-	return vuka.Some[int](x + 1)
+	return vuka.Some(x + 1)
 }
 
 func both(a, b string) (int, error) {

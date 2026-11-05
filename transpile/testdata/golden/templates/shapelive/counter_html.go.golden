@@ -30,7 +30,7 @@ func (c *Counter) Parse(s string) vuka.Result[int] {
 		return vuka.Err[int](err)
 	}
 //line counter.vuka.html:22
-	return vuka.Ok[int](n)
+	return vuka.Ok(n)
 }
 
 //line counter.vuka.html:24

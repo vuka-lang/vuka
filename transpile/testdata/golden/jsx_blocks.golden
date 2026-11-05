@@ -25,7 +25,7 @@ func lookup(s string) vuka.Result[int] {
 		return vuka.Err[int](err)
 	}
 //line jsx_blocks.vuka:19
-	return vuka.Ok[int](n)
+	return vuka.Ok(n)
 }
 
 func list(users []User, admin bool, s string) ui.Node {
@@ -48,12 +48,10 @@ func list(users []User, admin bool, s string) ui.Node {
 		n := m1.Value()
 //line jsx_blocks.vuka:37
 		p = ui.HTML(`<p>{n}</p>`, n)
-	case m1.IsErr():
+	default:
 		e := m1.Err()
 //line jsx_blocks.vuka:37
 		p = ui.HTML(`<p class="error">{e.Error()}</p>`, e.Error())
-	default:
-		panic("vuka: no case matched")
 	}
 	var as []ui.Node
 //line jsx_blocks.vuka:38

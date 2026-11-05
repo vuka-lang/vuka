@@ -194,7 +194,7 @@ func lookup(m map[int]vuka.Option[string], id int) vuka.Option[string] {
 		return vuka.None[string]()
 	}
 //line try_shapes.vuka:123
-	return vuka.Some[string]("user " + v + "!")
+	return vuka.Some("user " + v + "!")
 }
 
 func parsed(r vuka.Result[int]) vuka.Result[int] {
@@ -209,7 +209,7 @@ func parsed(r vuka.Result[int]) vuka.Result[int] {
 			return vuka.Err[int](err)
 		}
 //line try_shapes.vuka:128
-		return vuka.Ok[int](v * 2)
+		return vuka.Ok(v * 2)
 	}
 	return vuka.Ok(0)
 }
@@ -234,14 +234,11 @@ func matched(s string) (string, error) {
 		w := m1.Value()
 //line try_shapes.vuka:146
 		return "word " + w, nil
-	case m1.IsNone():
-		return "empty", nil
 	default:
-		panic("vuka: no case matched")
+		return "empty", nil
 	}
 }
 
-//line try_shapes.vuka:152
 func run(name string, f func() (any, error)) {
 	calls = nil
 	v, err := f()
