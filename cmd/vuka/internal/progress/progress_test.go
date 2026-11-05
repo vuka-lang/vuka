@@ -47,7 +47,9 @@ func TestNotATerminal(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := w.String()
-	if !regexp.MustCompile(`^installing npm packages in web/ …\n(… still installing \(0s\)\n){2,4}✓ npm packages installed in web/ \(0s\)\n$`).MatchString(got) {
+	// A busy machine can stretch the sleep past a second: the format is what's
+	// checked, not the timing.
+	if !regexp.MustCompile(`^installing npm packages in web/ …\n(… still installing \(\d+s\)\n)+✓ npm packages installed in web/ \(\d+s\)\n$`).MatchString(got) {
 		t.Errorf("got %q", got)
 	}
 	if strings.Contains(got, "noisy") || strings.Contains(got, "\r") || strings.Contains(got, "\x1b") {
