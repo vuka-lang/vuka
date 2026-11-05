@@ -195,6 +195,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if f, ok := stderr.(*os.File); ok && isTerminal(f) && os.Getenv("TERM") != "dumb" {
 		s.tty = true
 	}
+	s.staticsMain = devStaticsMain(root, dir, pkg, env)
 	if s.sess, _ = load.NewSession(root); s.sess != nil { // nil: each build transpiles from scratch
 		s.sess.UseCache("")
 		s.sess.KeepUnnamed = true
@@ -330,6 +331,7 @@ type supervisor struct {
 	w              *watcher
 	sess           *load.Session // what the last builds transpiled; nil for none
 	stub           bool          // the frontend's build is left out of the binary (stubEmbeds)
+	staticsMain    string        // the main package's directory, when templates' fixed HTML is kept out of their packages (devStatics)
 	app            *app          // the running build; nil when none runs
 	exits          chan *app     // each app, once it has exited
 	assets         *devAssets
@@ -467,6 +469,13 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 			r.err = err
 			return r
 		}
+	}
+	if s.staticsMain != "" {
+		if r.overlay, err = devStatics(s.root, modPath, dir, r.overlay, s.staticsMain, gens); err != nil {
+			r.err = err
+			return r
+		}
+		stepDone("statics")
 	}
 	r.err = ctx.Err()
 	r.tTranspile = time.Since(t0)
