@@ -1,0 +1,65 @@
+<script lang="go">
+package main
+
+import (
+	"github.com/vuka-lang/ui/v2"
+	"vukatest.local/streamui"
+)
+
+type Item struct {
+	ID   int
+	Text string
+}
+
+type Row struct {
+	ui.Live
+	Item Item
+}
+
+func (r *Row) Render() ui.Node { return ui.Text(r.Item.Text) }
+
+// Feed's streams break each rule of a stream's markup.
+type Feed struct {
+	ui.Live
+	beside  streamui.Stream[Item]
+	unkeyed streamui.Stream[Item]
+	closure streamui.Stream[Item]
+	live    streamui.Stream[Item]
+	nested  streamui.Stream[Item]
+	groups  []int
+}
+
+func (f *Feed) Remove(id int) {}
+</script>
+
+<main>
+  <ul>
+    <li>first</li>
+    for _, it := range beside.Rows() {
+      <li key={it.ID}>{it.Text}</li>
+    }
+  </ul>
+  <ul>
+    for _, it := range unkeyed.Rows() {
+      <li>{it.Text}</li>
+    }
+  </ul>
+  <ul>
+    for _, it := range closure.Rows() {
+      <li key={it.ID}><button onClick={func() { Remove(it.ID) }}>x</button></li>
+    }
+  </ul>
+  <ul>
+    for _, it := range live.Rows() {
+      <li key={it.ID}><Row Item={it} /></li>
+    }
+  </ul>
+  for range groups {
+    <ol>
+      for _, it := range nested.Rows() {
+        <li key={it.ID}>{it.Text}</li>
+      }
+    </ol>
+  }
+  <p>{len(beside.Rows())} shown</p>
+</main>

@@ -101,6 +101,7 @@ export default defineConfig({
           { text: 'Vendored Components', link: '/ui/components/', collapsed: true, items: uiComponents },
           { text: 'Stateful Components', link: '/ui/stateful' },
           { text: 'Live Pages', link: '/web/live' },
+          { text: 'Streams', link: '/web/streams' },
           { text: 'Forms', link: '/ui/forms' },
           { text: 'GraphQL', link: '/web/graphql' },
           { text: 'Client State', link: '/ui/state' },

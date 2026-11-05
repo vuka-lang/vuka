@@ -163,7 +163,7 @@ func trackable(t types.Type) bool {
 			return false
 		}
 	}
-	return true
+	return !isStream(t) // tracked already: a ui.Stream marks itself changed
 }
 
 // trackUses writes the tracked fields' uses: reads first, then — in a later

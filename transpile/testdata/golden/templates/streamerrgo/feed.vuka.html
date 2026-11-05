@@ -1,0 +1,36 @@
+<script lang="go">
+package main
+
+import (
+	"github.com/vuka-lang/ui/v2"
+	"vukatest.local/streamui"
+)
+
+type Item struct {
+	ID   int64
+	Text string
+}
+
+// Feed reads its stream's rows outside its loop, deletes by another type
+// than its rows' key, and exports a stream.
+type Feed struct {
+	ui.Live
+	Shared streamui.Stream[Item]
+	items  streamui.Stream[Item]
+}
+
+func (f *Feed) Count() int { return len(f.items.Rows()) }
+
+func (f *Feed) Remove(text string) { f.items.Delete(text) }
+
+func (f *Feed) Drop(id int64) { f.items.Delete(id, 7) }
+</script>
+
+<div>
+  <ul>
+    for _, it := range items.Rows() {
+      <li key={it.ID}>{it.Text}</li>
+    }
+  </ul>
+  <p>{len(items.Rows())} new</p>
+</div>

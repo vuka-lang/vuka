@@ -13,6 +13,7 @@ require (
 	vukatest.local/opttarget v0.0.0
 	vukatest.local/orm v0.0.0
 	vukatest.local/stateui v0.0.0
+	vukatest.local/streamui v0.0.0
 	vukatest.local/ui v0.0.0
 	vukatest.local/webstub v0.0.0
 )
@@ -24,6 +25,8 @@ replace github.com/vuka-lang/web/v2 => ./webretired
 replace vukatest.local/islandui => ./islandui
 
 replace vukatest.local/stateui => ./stateui
+
+replace vukatest.local/streamui => ./streamui
 
 replace vukatest.local/webstub => ./webstub
 

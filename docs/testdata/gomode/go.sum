@@ -47,10 +47,14 @@ github.com/vuka-lang/ui/v2 v2.16.2-0.20261103061142-097d69efeb6b h1:zU9NxxyWBRmn
 github.com/vuka-lang/ui/v2 v2.16.2-0.20261103061142-097d69efeb6b/go.mod h1:nPG/DLI2hN0NoFDeqj0rGK9qkOkmBRhXfpkNu6HkS4A=
 github.com/vuka-lang/ui/v2 v2.16.2-0.20261104152111-c6432de461f8 h1:Y5qsOWSPrnnvN1mqen2hdjf36EunYER7pOYHzJj4neI=
 github.com/vuka-lang/ui/v2 v2.16.2-0.20261104152111-c6432de461f8/go.mod h1:nPG/DLI2hN0NoFDeqj0rGK9qkOkmBRhXfpkNu6HkS4A=
+github.com/vuka-lang/ui/v2 v2.16.2-0.20261105094343-4fdf9733b40f h1:Is6+/wNN73q1VaENJ61+pkcfVsMxv+SIVX2ppuNAs4M=
+github.com/vuka-lang/ui/v2 v2.16.2-0.20261105094343-4fdf9733b40f/go.mod h1:nPG/DLI2hN0NoFDeqj0rGK9qkOkmBRhXfpkNu6HkS4A=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261103061711-473cae6b5bff h1:MZzfkocWyZI73usC2BlxwH5h3BaZNsbOnv2De6PLnmo=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261103061711-473cae6b5bff/go.mod h1:H+mRa6AUtjzaj/juiJ+cBt9u+bBpE3fcN+94QNHiv8E=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261104153020-2b0d83414a8d h1:8t/fI9CRnL0dNCzduxaaU5jiaTSeEVoAw0Tcku+dIrg=
 github.com/vuka-lang/web/v2 v2.16.2-0.20261104153020-2b0d83414a8d/go.mod h1:owktz7Dp3M9s+VTFrfYRnbIetlQ051Lm8KRtsn1m2LI=
+github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55 h1:tL10drZNfzP/oE8Ee8cDBJ99aq8QP9ef4pvsMbwQqg0=
+github.com/vuka-lang/web/v2 v2.16.2-0.20261105094351-5d0ff1d04e55/go.mod h1:owktz7Dp3M9s+VTFrfYRnbIetlQ051Lm8KRtsn1m2LI=
 github.com/xyproto/randomstring v1.0.5 h1:YtlWPoRdgMu3NZtP45drfy1GKoojuR7hmRcnhZqKjWU=
 github.com/xyproto/randomstring v1.0.5/go.mod h1:rgmS5DeNXLivK7YprL0pY+lTuhNQW3iGxZ18UQApw/E=
 golang.org/x/crypto v0.55.0 h1:+KWHjbgOaAQ66dh/YlkZKHlz9ZUlq61AFirAR9ntP8M=

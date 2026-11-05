@@ -246,6 +246,7 @@ func (e *engine) run() {
 		e.checkRefs()
 		e.checkGoTracked()
 		e.checkFormOf()
+		e.checkStreams()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
 		e.undefinedVars()

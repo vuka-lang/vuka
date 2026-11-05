@@ -230,7 +230,8 @@ type fileState struct {
 	tryVetDone  bool
 	matches     []*matchStmt
 	jsx         []*jsxTree
-	jsxReported bool // E0151 is reported: markup outside a .vuka.html file's markup
+	jsxReported bool                  // E0151 is reported: markup outside a .vuka.html file's markup
+	streams     map[string]*streamUse // the stream containers its markup lowered, by field (streams.go)
 
 	fixed    edits          // decided rewrites, in src offsets
 	cur      edits          // this round's: fixed plus placeholders

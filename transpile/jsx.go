@@ -964,17 +964,19 @@ type jsxPiece struct {
 }
 
 type jsxWriter struct {
-	q       string // the target's qualifier
-	f       *fileState
-	t       *jsxTree
-	final   bool     // the tree's last lowering: its names are for good
-	out     *stream  // where pieces are written
-	sink    *stream  // the statements before the tree's expression
-	inBlock bool     // writing a block's body
-	ran     []string // the template's statements written so far
-	names   map[string]bool
-	sel     *jsxAttr // the model of the <select> whose options are being written
-	inCtx   int      // writing children in ui.Ctx: a hole reading ctx is read there, not captured
+	streaming bool   // the block being written is a stream container's loop (streams.go)
+	inLoop    bool   // writing a loop's body
+	q         string // the target's qualifier
+	f         *fileState
+	t         *jsxTree
+	final     bool     // the tree's last lowering: its names are for good
+	out       *stream  // where pieces are written
+	sink      *stream  // the statements before the tree's expression
+	inBlock   bool     // writing a block's body
+	ran       []string // the template's statements written so far
+	names     map[string]bool
+	sel       *jsxAttr // the model of the <select> whose options are being written
+	inCtx     int      // writing children in ui.Ctx: a hole reading ctx is read there, not captured
 }
 
 func (w *jsxWriter) gen(s string) { w.out.p = append(w.out.p, jsxPiece{text: s, keep: span{-1, -1}}) }

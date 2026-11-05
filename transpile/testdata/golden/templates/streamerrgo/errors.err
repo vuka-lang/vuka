@@ -1,0 +1,4 @@
+feed.vuka.html:18:2: Shared is an exported ui.Stream: a parent can't own rows the server forgets; make it unexported: shared
+feed.vuka.html:22:41: items.Rows() is read outside its container's loop: it is what is queued, not what the browser shows; keep counts in fields beside the stream, changed where the records change; Rows() is only a container's loop
+feed.vuka.html:24:53: items.Delete takes the rows' key, of type int64, not string; pass the key the row's key attribute renders: the browser matches rows by its text
+feed.vuka.html:35:11: items.Rows() is read outside its container's loop: it is what is queued, not what the browser shows; keep counts in fields beside the stream, changed where the records change; Rows() is only a container's loop

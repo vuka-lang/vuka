@@ -554,6 +554,10 @@ func (w *jsxWriter) element(tp *tmpl, el *jsxElem, indent string, inline bool) {
 		w.holeIn(tp, el.tag, func() { w.rawElement(el, kids) })
 		return
 	}
+	if loop := w.streamContainer(el, kids); loop != nil {
+		w.streamElement(tp, el, loop, indent, inline)
+		return
+	}
 	tp.b.WriteString("<" + el.tag)
 	if props, states := w.rootProps(el); props != "" {
 		tp.b.WriteString(" data-vk-p=")
@@ -793,6 +797,13 @@ func (w *jsxWriter) block(n *jsxBlock) string {
 		return ""
 	}
 	if w.isLoop(n) {
+		if _, field, _, ok := w.streamLoop(n); ok && w.final && !w.streaming {
+			w.f.eng.errs.add("E0353", w.f.at(n.heads[0].start), "the loop over %s.Rows() isn't the only content of an element", field).
+				help("put the loop alone in an element, the container, whose children the browser keeps: <ul>for _, m := range %s.Rows() {…}</ul>", field)
+		}
+		streaming, inLoop := w.streaming, w.inLoop
+		w.streaming, w.inLoop = false, true
+		defer func() { w.streaming, w.inLoop = streaming, inLoop }()
 		name := w.varName(lowerFirst(w.nodesName(firstBody(n))) + "s")
 		w.stmts(func() {
 			w.gen("var " + name + " []" + q + "Node\n")
