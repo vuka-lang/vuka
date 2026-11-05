@@ -132,16 +132,26 @@ func init() {
 	}
 }
 
+// ownTypedFieldsUse matches generated code reading typed fields of its own
+// package: PostFields.Title, never models.PostFields.Title.
+var ownTypedFieldsUse = regexp.MustCompile(`(?:^|[^\w.])[A-Za-z_]\w*(?:Fields|Columns)\.[A-Z]`)
+
 // packageTypedFields is what orm generate would write for a Vuka package
-// just transpiled whose Go reads typed fields (User.Email is
-// UserFields.Email) or declares models: the packages importing it are
-// type-checked with them, whether or not a package after it fails.
+// just transpiled whose Go reads its own models' typed fields (User.Email
+// is UserFields.Email) or declares models: the packages importing it are
+// type-checked with them, whether or not a package after it fails. The
+// typed fields of another package's models are that package's to generate,
+// so reading only those runs no orm tool.
 func packageTypedFields(dir, overlay string, gens []load.Generated) []load.Generated {
+	models := declaresModels(gens)
+	if !models && !slices.ContainsFunc(gens, func(g load.Generated) bool { return ownTypedFieldsUse.Match(g.Src) }) {
+		return nil
+	}
 	root, _, err := load.ModuleRoot(dir)
 	if err != nil {
 		return nil
 	}
-	missing, err := ormMissingIn(root, dir, overlay, gens, false, declaresModels(gens))
+	missing, err := ormMissingIn(root, dir, overlay, gens, false, models)
 	if err != nil {
 		return nil // the build's own pass says so
 	}
