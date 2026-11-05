@@ -864,7 +864,7 @@ func TestBuildDWARF(t *testing.T) {
 			flags = noDWARF(flags)
 		}
 		s := &supervisor{root: root, dir: root, tmp: t.TempDir(), flags: flags, pkg: []string{"."}, env: os.Environ()}
-		r := s.build(context.Background(), 1)
+		r := s.build(context.Background(), 1, &app{})
 		if r.err != nil {
 			t.Fatalf("build: %v\n%s", r.err, r.out)
 		}
