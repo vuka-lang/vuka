@@ -119,8 +119,9 @@ import "example.com/app/components"
 type Index struct{}
 </script>
 
-<main><components.Card Title="Hello" /></main>
+<main><components.Card Title="Hello" /><span id="label">{components.Label()}</span></main>
 `,
+		"components/label.vuka": "package components\n\nfunc Label() string { return \"label one\" }\n",
 		"components/card.vuka.html": `<script lang="go">
 package components
 
@@ -168,6 +169,16 @@ type Card struct {
 	edit(card, "says one", "says two")
 	page("The card says two.")
 	r.waitLog("● rebuilt in ", 1)
+
+	label := filepath.Join(root, "components", "label.vuka")
+	edit(label, "func Label()", "func Extra() int { return 1 }\n\nfunc Label()")
+	r.waitLog("transpiled 1 of 3 packages", 1) // components alone: the page names no Extra
+	r.waitLog("● rebuilt in ", 2)
+	page("label one")
+	edit(label, "label one", "label two")
+	page("label two")
+	edit(label, "func Label() string { return \"label two\" }", "func Label(_ ...int) string { return \"label three\" }")
+	page("label three")
 
 	edit(card, "Title string", "Title string\n\tNote  string")
 	edit(card, "<p>The card", "<p>{Note}</p>\n  <p>The card")

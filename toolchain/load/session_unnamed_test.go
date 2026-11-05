@@ -1,6 +1,7 @@
 package load
 
 import (
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -200,3 +201,116 @@ tracked.go f.html.shape.Type
 tracked.go g.html.shape.Type
 tryexpr.go n
 `
+
+// TestSessionKeepUnnamedReach: the ways a package reaches another's
+// function without naming it all transpile it again when the function
+// changes: through a package re-exporting it (a variable, whose type is
+// API), a dot import (the source names it bare), a generic function
+// instantiated, a function value, an alias of a type and a method of an
+// embedded type (types and methods always count). Every run matches a
+// transpile from scratch.
+func TestSessionKeepUnnamedReach(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	t.Setenv("GOFLAGS", "-mod=mod")
+	t.Setenv("GOWORK", "off")
+	repo, _ := filepath.Abs("../..")
+	root := t.TempDir()
+	write(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.23\n\nrequire github.com/vuka-lang/vuka/v2 v2.0.0\n\nreplace github.com/vuka-lang/vuka/v2 => "+repo+"\n")
+	write(t, filepath.Join(root, "lib", "lib.vuka"), `package lib
+
+func Count() int { return 1 }
+
+func Gen[T any](v T) T { return v }
+
+type Base struct{ N int }
+
+func (b Base) Size() int { return b.N }
+`)
+	write(t, filepath.Join(root, "mid", "mid.vuka"), `package mid
+
+import "example.com/app/lib"
+
+// Get hands lib's function on.
+var Get = lib.Count
+
+type Shape = lib.Base
+`)
+	write(t, filepath.Join(root, "dot", "dot.vuka"), `package dot
+
+import . "example.com/app/lib"
+
+func Twice() int { return Count() * 2 }
+`)
+	write(t, filepath.Join(root, "gen", "gen.vuka"), `package gen
+
+import "example.com/app/lib"
+
+func One() int { return lib.Gen(1) }
+`)
+	write(t, filepath.Join(root, "emb", "emb.vuka"), `package emb
+
+import "example.com/app/lib"
+
+type Box struct{ lib.Base }
+
+func Of() int { return Box{}.Size() }
+`)
+	write(t, filepath.Join(root, "main.vuka"), `package main
+
+import (
+	"fmt"
+
+	"example.com/app/dot"
+	"example.com/app/emb"
+	"example.com/app/gen"
+	"example.com/app/mid"
+)
+
+func main() { fmt.Println(mid.Get(), dot.Twice(), gen.One(), emb.Of(), mid.Shape{}) }
+`)
+	s, err := NewSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.KeepUnnamed = true
+	run := func() map[string]bool {
+		t.Helper()
+		pkgs, err := Discover(root, "example.com/app", root, true, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		got, _, gotErr := s.Transpile(pkgs, t.TempDir(), Options{})
+		want, _, wantErr := Transpile(pkgs, t.TempDir(), Options{})
+		if fmt.Sprint(gotErr) != fmt.Sprint(wantErr) || len(got) != len(want) {
+			t.Fatalf("session %v (%d files), Transpile %v (%d)", gotErr, len(got), wantErr, len(want))
+		}
+		for i := range got {
+			if got[i].Target != want[i].Target || string(got[i].Src) != string(want[i].Src) {
+				t.Fatalf("%s: the session's Go is stale:\n%s\n---\n%s", got[i].Target, got[i].Src, want[i].Src)
+			}
+		}
+		return nil
+	}
+	run()
+	if s.ran.fellBack {
+		t.Fatalf("the first run fell back: %v", s.failed)
+	}
+	lib := filepath.Join(root, "lib", "lib.vuka")
+	for _, c := range []struct {
+		name, old, new string
+		transpiled     int
+	}{
+		{"a re-exported function's signature", "func Count() int", "func Count(_ ...int) int", 4},           // lib, mid (Get's type), dot (names it), main (mid's API)
+		{"a generic function's signature", "func Gen[T any](v T) T", "func Gen[T any](v T, _ ...int) T", 3}, // lib, gen, main (a word: gen)
+		{"a method of an embedded type", "func (b Base) Size() int", "func (b Base) Size(_ ...int) int", 6}, // a method: every importer
+		{"a function no one names", "type Base", "func Unrelated() {}\n\ntype Base", 1},
+	} {
+		edit(t, lib, c.old, c.new)
+		run()
+		if s.ran.fellBack || s.ran.transpiled != c.transpiled {
+			t.Errorf("%s: %+v, want %d transpiled", c.name, s.ran, c.transpiled)
+		}
+	}
+}
