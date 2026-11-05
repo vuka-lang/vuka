@@ -170,6 +170,7 @@ expressions rendered — `len(s) == len(d) + 1`, and the frame's HTML is
 | `{"c":[frame,…]}` | a block, `{for}`, `{if}` or `{match}`: one item frame per loop iteration; an `{if}`/`{match}` has zero items or one, whose statics id says which branch |
 | `{"r":id,"v":"…"}` | markup of 64 bytes or more, which the connection keeps under `id` (a space of its own, not the statics'); later the same markup is `{"r":id}` |
 | `{"id":"c3"}` | a live component instance: its HTML is that instance's tree's HTML |
+| `{"st":{…}}` | a [stream](/web/streams) container's attributes, compact, to a client that joined with the `stream` extension (below): its markup is the attributes they stand for |
 
 ### templ Components {#templ-components}
 
@@ -213,6 +214,23 @@ has none. An entry is one of:
 | `{"id":…,"full":true,"tree":FRAME}` | the instance's whole tree (its first render on this connection, or a fresh mount) |
 | `{"id":…,"tree":{"u":…}}` | the change to the tree the client holds for it |
 | `{"id":…,"html":"…"}` | the instance's whole HTML, sent when it is smaller than the change; only for an instance rendering no other instance. The client holds that HTML for it until a later `full` entry |
+
+A join may name extensions of v2 the client speaks, `{"type":"join","v":2,
+"ext":["stream"]}`; a server ignores those it doesn't know, and a client
+gets what it didn't ask for in the plain form. With `stream`, the attributes
+a stream container renders as one dynamic — `data-vk-stream`,
+`data-vk-batch`, `data-vk-limit`, `data-vk-trim`, `data-vk-ops` and, for a
+batch starting with a reset, `data-vk-rows` and `data-vk-empty` — come as
+`{"st":{"n":name,"b":batch,"l":limit,"tr":"s"|"e","o":[op,…]}}` (`l`, `tr`
+and `o` absent when there are none), each operation `["r"]` (reset),
+`["d",key]` (delete), `["e",key]` or `["s",key]` (insert at the end or the
+start) or `[i,key]` (insert before row `i`). The client writes them back as
+the server renders them: ` data-vk-stream="…" data-vk-batch="…"`, then the
+limit and the end it trims, then `data-vk-ops` holding the operations'
+long form as JSON (`["reset"]`, `["delete",key]`, `["insert",key,"end"|"start"|i]`),
+and after a leading reset `data-vk-rows` (its inserts, at most the limit)
+and, for none, `data-vk-empty`. See [The Wire](/web/streams#the-wire) for
+what they mean.
 
 `render` lists every instance, the page `c0` first; its HTML (with each
 `{"id"}` replaced by that instance's HTML) replaces the container's content.
@@ -483,7 +501,11 @@ parameter. A step whose handler returns a result has `result: true`, and
 may have `into` (a target) and `mode` (`append`, `prepend`); the event's
 reply carries it as `result`, one of `{"options":[…]}`, `{"html":"…"}`,
 `{"value":"…"}`, `{"fields":{…}}`, `{"js":[…]}`, applied to the targets after
-the patch, unless a later push has claimed them.
+the patch, unless a later push has claimed them. The push of a stream
+row's struct form (`data-vk-row-form`) gets `{"report":{…}}`: the form's
+report (its identity, each field's error with its control's id, the
+summary, the words), which the client puts in place on the form it names,
+as it does a form's answer over HTTP.
 
 `["push",{"m":"<id>.<signature>",…}]` is a call over HTTP, of a page that
 isn't live or of a read (`read: true`): the page's own URL with the header

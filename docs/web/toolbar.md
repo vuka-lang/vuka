@@ -65,7 +65,10 @@ the latest first: the join, each event named by its handler
 Each shows its time, statements and reply size; open one for what it sent
 (below), its SQL, timeline and logs. A message that failed is red, and so
 are failures only the browser saw: a push that got no reply in time, a
-connection that dropped under it.
+connection that dropped under it. A message carrying a
+[stream](/web/streams)'s batch has a line for it
+(`c1 Chat messages q7.12: +1 −1, limit 200, 312 B`), red when the browser
+ignored the batch or found it out of step.
 
 ![A live page's messages](/toolbar-live.png)
 

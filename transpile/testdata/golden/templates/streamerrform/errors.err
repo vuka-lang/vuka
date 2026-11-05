@@ -1,0 +1,4 @@
+tasks.vuka.html:45:22: the <ui.Form> in a row of plain has no onSubmit; push a method of the stream's owner taking the form, with the row's key: onSubmit={ui.JS.Push(Rename, t.ID)}
+tasks.vuka.html:50:49: the onSubmit of the <ui.Form> in a row of other pushes Annotate, which doesn't take Rename; push a method whose last parameter is the form: func (p *Page) Rename(ctx context.Context, id int64, f Rename) error
+tasks.vuka.html:55:49: the onSubmit of the <ui.Form> in a row of none pushes no method; push a method of the stream's owner taking the form: onSubmit={ui.JS.Push(Rename, t.ID)}
+tasks.vuka.html:60:85: the <ui.Form> in a row of live has onChange: a row's form checks as it is submitted; leave onChange out: the submit runs the form's checks and puts its errors in place

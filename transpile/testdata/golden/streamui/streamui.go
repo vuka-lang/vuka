@@ -13,7 +13,7 @@ func (s *Stream[T]) Prepend(rows ...T)           { s.rows = append(rows, s.rows.
 func (s *Stream[T]) InsertAt(i int, rows ...T)   {}
 func (s *Stream[T]) Delete(keys ...any)          {}
 func (s *Stream[T]) Reset(rows ...T)             { s.rows = rows }
-func (s *Stream[T]) Limit(n int)                 {}
+func (s *Stream[T]) Limit(n int) StreamLimit     { return StreamLimit{} }
 func (s *Stream[T]) Rows() []T                   { return s.rows }
 func (s *Stream[T]) Block(rows []ui.Node) *Block { return &Block{ui.Fragment(rows...)} }
 
@@ -21,3 +21,9 @@ func (s *Stream[T]) Block(rows []ui.Node) *Block { return &Block{ui.Fragment(row
 type Block struct{ ui.Node }
 
 func (b *Block) Attrs() []ui.Attr { return nil }
+
+// StreamLimit is a stream's limit, to fix the end it trims.
+type StreamLimit struct{}
+
+func (StreamLimit) TrimStart() {}
+func (StreamLimit) TrimEnd()   {}

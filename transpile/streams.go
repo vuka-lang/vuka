@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"go/ast"
 	"go/constant"
+	"go/parser"
 	"go/token"
 	"go/types"
 	"regexp"
@@ -217,6 +218,9 @@ func (w *jsxWriter) checkRow(loop *jsxBlock, field string, use *streamUse) {
 				for _, a := range n.attrs {
 					w.checkRowAttr(n, a, field)
 				}
+				if isUIForm(n) {
+					w.checkRowForm(n, field)
+				}
 				walk(n.kids)
 			case *jsxBlock:
 				for _, b := range n.bodies {
@@ -250,6 +254,82 @@ func (w *jsxWriter) checkRowAttr(el *jsxElem, a *jsxAttr, field string) {
 	if bad {
 		e.errs.add("E0358", f.at(a.off), "%s in a row of %s is a handler the server would have to keep for the row", a.name, field).
 			help("push a method of the stream's owner with the row's key: %s={ui.JS.Push(Remove, m.ID)}", a.name)
+	}
+}
+
+// isUIForm reports whether an element is a <ui.Form> tag: a component
+// named Form of the JSX target's package.
+func isUIForm(el *jsxElem) bool {
+	if el.comp == nil || !strings.HasSuffix(el.tag, ".Form") {
+		return false
+	}
+	n, ok := types.Unalias(typeOrNil(el.comp.propsTyp)).(*types.Named)
+	return !ok || n.Obj().Name() == "Form"
+}
+
+// checkRowForm reports a <ui.Form> in a stream row that can't submit
+// there: one with no onSubmit, one whose onSubmit pushes no method or a
+// method that doesn't take the form (E0362), and one with onChange (E0363)
+// — a row's form keeps no state, so it checks as it is submitted.
+func (w *jsxWriter) checkRowForm(el *jsxElem, field string) {
+	e, f := w.f.eng, w.f
+	submit, change, forA := attrNamed(el, "onSubmit"), attrNamed(el, "onChange"), attrNamed(el, "for")
+	if change != nil {
+		e.errs.add("E0363", f.at(change.off), "the <ui.Form> in a row of %s has onChange: a row's form checks as it is submitted", field).
+			help("leave onChange out: the submit runs the form's checks and puts its errors in place")
+	}
+	if submit == nil {
+		e.errs.add("E0362", f.at(el.start), "the <ui.Form> in a row of %s has no onSubmit", field).
+			help("push a method of the stream's owner taking the form, with the row's key: onSubmit={ui.JS.Push(Rename, t.ID)}")
+		return
+	}
+	if submit.kind != 'e' || submit.stmts {
+		return
+	}
+	t := e.typeAt(f, f.cur.fromOrig(submit.expr.start), f.cur.fromOrigEnd(submit.expr.end))
+	if _, fn := types.Unalias(typeOrNil(t)).Underlying().(*types.Signature); fn {
+		return // a handler the server would keep: E0358
+	}
+	text := string(f.src[submit.expr.start:submit.expr.end])
+	x, err := parser.ParseExpr(text)
+	if err != nil {
+		return
+	}
+	var pushed ast.Expr
+	ast.Inspect(x, func(n ast.Node) bool {
+		if c, ok := n.(*ast.CallExpr); ok && pushed == nil && len(c.Args) > 0 {
+			if sel, ok := c.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name == "Push" {
+				pushed = c.Args[0]
+			}
+		}
+		return pushed == nil
+	})
+	if pushed == nil {
+		e.errs.add("E0362", f.at(submit.off), "the onSubmit of the <ui.Form> in a row of %s pushes no method", field).
+			help("push a method of the stream's owner taking the form: onSubmit={ui.JS.Push(Rename, t.ID)}")
+		return
+	}
+	start := submit.expr.start + int(pushed.Pos()) - 1
+	sig, _ := types.Unalias(typeOrNil(e.typeAt(f, f.cur.fromOrig(start), f.cur.fromOrigEnd(start+int(pushed.End()-pushed.Pos()))))).Underlying().(*types.Signature)
+	if sig == nil || forA == nil || forA.kind != 'e' {
+		return // not known
+	}
+	form := e.typeAt(f, f.cur.fromOrig(forA.expr.start), f.cur.fromOrigEnd(forA.expr.end))
+	if form == nil {
+		return
+	}
+	deref := func(t types.Type) types.Type {
+		if p, ok := t.Underlying().(*types.Pointer); ok {
+			return p.Elem()
+		}
+		return t
+	}
+	form = deref(form)
+	takes := sig.Params().Len() > 0 && types.Identical(deref(sig.Params().At(sig.Params().Len()-1).Type()), form)
+	if !takes {
+		name := types.TypeString(form, types.RelativeTo(e.pkg))
+		e.errs.add("E0362", f.at(submit.off), "the onSubmit of the <ui.Form> in a row of %s pushes %s, which doesn't take %s", field, strings.TrimSpace(string(f.src[submit.expr.start+int(pushed.Pos())-1:submit.expr.start+int(pushed.End())-1])), name).
+			help("push a method whose last parameter is the form: func (p *Page) Rename(ctx context.Context, id int64, f %s) error", name)
 	}
 }
 

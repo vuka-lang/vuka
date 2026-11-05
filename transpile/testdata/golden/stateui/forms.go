@@ -96,11 +96,14 @@ func (f Field) View() Node {
 
 func (f Field) Render(ctx context.Context, w io.Writer) error { return f.View().Render(ctx, w) }
 
-// Form takes a key, as a form's identity.
+// Form takes a key, as a form's identity, and its handlers.
 type Form struct {
-	For      any
-	Key      any
-	Children Node
+	For       any
+	Key       any
+	OnSubmit  any
+	OnChange  any
+	NoSummary bool
+	Children  Node
 }
 
 func (f Form) View() Node {

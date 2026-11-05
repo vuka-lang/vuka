@@ -1,0 +1,63 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+	"vukatest.local/streamui"
+)
+
+type Task struct {
+	ID   int64
+	Name string
+}
+
+type Rename struct {
+	ui.FormState
+	Name string `validate:"required"`
+}
+
+type Note struct {
+	ui.FormState
+	Text string
+}
+
+func renameOf(t Task) *Rename { return &Rename{Name: t.Name} }
+
+// Tasks' rows hold forms that can't submit there: none of the submits
+// pushes a method taking the row's form, and one checks as it changes.
+type Tasks struct {
+	ui.Live
+	plain, other, none, live streamui.Stream[Task]
+}
+
+func (p *Tasks) Rename(ctx context.Context, id int64, f Rename) error { return nil }
+
+func (p *Tasks) Annotate(ctx context.Context, id int64, f Note) error { return nil }
+
+func (p *Tasks) Check(ctx context.Context, id int64, f Rename) error { return nil }
+</script>
+
+<div>
+  <ul>
+    for _, t := range plain.Rows() {
+      <li key={t.ID}><ui.Form for={renameOf(t)}/></li>
+    }
+  </ul>
+  <ul>
+    for _, t := range other.Rows() {
+      <li key={t.ID}><ui.Form for={renameOf(t)} onSubmit={ui.JS.Push(Annotate, t.ID)}/></li>
+    }
+  </ul>
+  <ul>
+    for _, t := range none.Rows() {
+      <li key={t.ID}><ui.Form for={renameOf(t)} onSubmit={ui.JS}/></li>
+    }
+  </ul>
+  <ul>
+    for _, t := range live.Rows() {
+      <li key={t.ID}><ui.Form for={renameOf(t)} onSubmit={ui.JS.Push(Rename, t.ID)} onChange={ui.JS.Push(Check, t.ID)}/></li>
+    }
+  </ul>
+</div>

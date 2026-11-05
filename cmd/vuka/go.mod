@@ -7,8 +7,8 @@ require (
 	github.com/a-h/templ v0.3.1020
 	github.com/andybalholm/brotli v1.2.7
 	github.com/evanw/esbuild v0.28.2
-	github.com/vuka-lang/ui/v2 v2.16.2-0.20261105111939-0ab0b2b408ed
-	github.com/vuka-lang/vuka/v2 v2.16.2-0.20261105110058-da98e17f1dcf
+	github.com/vuka-lang/ui/v2 v2.16.2-0.20261105134038-adc37d03920d
+	github.com/vuka-lang/vuka/v2 v2.16.2-0.20261105134601-e3a12636a230
 	golang.org/x/mod v0.42.0
 	golang.org/x/sys v0.49.0
 	golang.org/x/tools v0.52.0
@@ -17,6 +17,6 @@ require (
 require (
 	github.com/coder/websocket v1.8.15 // indirect
 	github.com/google/go-cmp v0.7.0 // indirect
-	github.com/vuka-lang/web/v2 v2.16.2-0.20261105112256-a7ee386c7090 // indirect
+	github.com/vuka-lang/web/v2 v2.16.2-0.20261105134554-b3db7a32b3f4 // indirect
 	golang.org/x/sync v0.24.0 // indirect
 )
