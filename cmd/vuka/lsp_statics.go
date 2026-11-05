@@ -164,6 +164,8 @@ type staticMember struct {
 type staticsFile struct {
 	path string
 	ast  *ast.File
+	fset *token.FileSet
+	src  []byte
 	// generator: another generator's output than Vuka's from a source —
 	// the orm's typed fields, link files, call adapters — whose names
 	// (UserColumns, UserFieldsAt) are no statics.
@@ -744,7 +746,7 @@ func (p *proxy) packageFiles(dir string) []*staticsFile {
 	add := func(path string, src []byte) {
 		f, _ := parser.ParseFile(fset, path, src, parser.ParseComments|parser.SkipObjectResolution)
 		if f != nil {
-			out = append(out, &staticsFile{path: path, ast: f, generator: ast.IsGenerated(f) && !bytes.HasPrefix(src, vukaOutput)})
+			out = append(out, &staticsFile{path: path, ast: f, fset: fset, src: src, generator: ast.IsGenerated(f) && !bytes.HasPrefix(src, vukaOutput)})
 		}
 	}
 	virtual := map[string]bool{}

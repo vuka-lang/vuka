@@ -494,24 +494,26 @@ type vukaRequest struct {
 	editorID  json.RawMessage
 	method    string
 	file      *vfile
-	attr      bool         // completion after @, on an attribute or decorator
-	hook      *hookSpot    // completion of a method's name: the hooks its type's bases declare
-	field     bool         // and the attribute is a struct field's
-	typed     lspRange     // there: what was typed after the last dot
-	full      lspRange     // and after the @
-	qualifier string       // the package typed before the dot, if any
-	closeTag  *lspRange    // asked on a closing tag's name, sent to its opening tag's
-	blocks    *lspRange    // completion after a markup child's {: the word typed, for block snippets
-	note      string       // hover: what to add to gopls's answer (an island page's lifecycle hook)
-	spot      *staticSpot  // a possible Type.member use at the cursor (statics, field references)
-	tmpl      *tmplSpot    // completion in a template file's Go
-	varTyped  string       // completion of a bare name: what is typed of it
-	varRange  *lspRange    // and where
-	timer     *time.Timer  // answers it without gopls at goplsDeadline
-	scripts   []any        // references: the scripts' calls of the method at the cursor (live.reorder)
-	prop      *lspPosition // references on a shape's prop: its declaration in the generated Go
-	off       int          // definition: the offset asked at, in file's text
-	propURI   string       // and the generated file's uri
+	attr      bool           // completion after @, on an attribute or decorator
+	hook      *hookSpot      // completion of a method's name: the hooks its type's bases declare
+	field     bool           // and the attribute is a struct field's
+	typed     lspRange       // there: what was typed after the last dot
+	full      lspRange       // and after the @
+	qualifier string         // the package typed before the dot, if any
+	closeTag  *lspRange      // asked on a closing tag's name, sent to its opening tag's
+	blocks    *lspRange      // completion after a markup child's {: the word typed, for block snippets
+	note      string         // hover: what to add to gopls's answer (an island page's lifecycle hook)
+	spot      *staticSpot    // a possible Type.member use at the cursor (statics, field references)
+	tmpl      *tmplSpot      // completion in a template file's Go
+	varTyped  string         // completion of a bare name: what is typed of it
+	varRange  *lspRange      // and where
+	timer     *time.Timer    // answers it without gopls at goplsDeadline
+	scripts   []any          // references: the scripts' calls of the method at the cursor (live.reorder)
+	prop      *lspPosition   // references on a shape's prop: its declaration in the generated Go
+	off       int            // definition: the offset asked at, in file's text
+	propURI   string         // and the generated file's uri
+	at        map[string]any // hover, references: the document and position asked at, in the generated Go
+	context   any            // references: the request's context
 }
 
 type proxy struct {
@@ -1565,6 +1567,14 @@ func (p *proxy) askGopls(m *rpcMsg, path string, at asked, shapeNote string, rep
 	if hasPos && m.Method == "textDocument/completion" && !vr.attr && vr.blocks == nil && closeTag == nil {
 		vr.tmpl = templateSpot(vf, genPath, offsetOf(vf.text(), srcPos))
 	}
+	if hasPos && locationMethods[m.Method] && m.Method != "textDocument/references" {
+		if gp, ok := toPosition(params["position"]); ok {
+			params["position"] = sameWord(vf.text(), offsetOf(vf.text(), srcPos), vf.gen, gp)
+		}
+	}
+	if hasPos && (m.Method == "textDocument/hover" || m.Method == "textDocument/references") {
+		vr.at, vr.context = genAt(params), params["context"]
+	}
 	vr.timer = time.AfterFunc(goplsDeadline, func() { p.expire(id) })
 	p.vukaReqs[id] = vr
 	p.mu.Unlock()
@@ -1746,6 +1756,9 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	}
 	var v any
 	_ = json.Unmarshal(m.Result, &v)
+	if locationMethods[vr.method] {
+		v = p.withModelSources(v)
+	}
 	if vr.method != "textDocument/foldingRange" {
 		v = p.rewrite(v, vr.file, vr.file)
 	}
@@ -1815,12 +1828,20 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 		if h, ok := v.(map[string]any); ok && vr.closeTag != nil {
 			h["range"] = *vr.closeTag
 		}
-		if vr.spot != nil {
+		typed := vr.at != nil && typedFieldsHover(m.Result)
+		if vr.spot != nil || typed {
 			usual := v
 			go func() {
-				if h := p.staticHoverItem(vr.file, vr.spot); h != nil {
+				var h map[string]any
+				if vr.spot != nil {
+					h = p.staticHoverItem(vr.file, vr.spot)
+				}
+				switch {
+				case h != nil:
 					reply["result"] = h
-				} else {
+				case typed:
+					reply["result"] = p.modelHover(vr.at, usual)
+				default:
 					reply["result"] = usual
 				}
 				_ = p.editor.send(reply)
@@ -1846,10 +1867,16 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 			list, _ := v.([]any)
 			v = append(list, vr.scripts...)
 		}
-		if vr.prop != nil {
+		if vr.prop != nil || vr.at != nil && vr.method == "textDocument/references" {
 			list, _ := v.([]any)
 			go func() {
-				reply["result"] = withLocations(list, p.fieldTagRefs(vr.propURI, *vr.prop, vr.file)...)
+				if vr.prop != nil {
+					list = withLocations(list, p.fieldTagRefs(vr.propURI, *vr.prop, vr.file)...)
+				}
+				if vr.at != nil {
+					list = withLocations(list, p.modelRefs(vr.at, vr.context, vr.file)...)
+				}
+				reply["result"] = list
 				_ = p.editor.send(reply)
 			}()
 			return
@@ -1879,6 +1906,13 @@ func (p *proxy) answer(vr *vukaRequest, m *rpcMsg) {
 	}
 	reply["result"] = v
 	_ = p.editor.send(reply)
+}
+
+// locationMethods answer with locations, which may be in the orm's
+// generated Go (lsp_modeldefs.go).
+var locationMethods = map[string]bool{
+	"textDocument/definition": true, "textDocument/declaration": true, "textDocument/typeDefinition": true,
+	"textDocument/implementation": true, "textDocument/references": true,
 }
 
 // ask sends gopls a request of the proxy's own and waits for the answer.
@@ -2089,12 +2123,17 @@ func mapRange(f *vfile, v any) (lspRange, bool) {
 // never show.
 var mangled = regexp.MustCompile(`\b([A-Za-z][A-Za-z0-9_]*?)__[A-Za-z0-9_]+\b`)
 
+// hiddenImport matches a package as Vuka's Go imports it under a name of
+// its own (__orm.TextField), which the source spells orm.
+var hiddenImport = regexp.MustCompile(`\b__([a-z][a-z0-9]*)\.`)
+
 var ident = regexp.MustCompile(`\b[A-Za-z_][A-Za-z0-9_]*\b`)
 
 // demangle is s with each overload's Go name (names: areaCircle) spelled
 // as the source writes it (area).
 func demangle(s string, names map[string]string) string {
 	s = mangled.ReplaceAllString(s, "$1")
+	s = hiddenImport.ReplaceAllString(s, "$1.")
 	if len(names) == 0 {
 		return s
 	}
