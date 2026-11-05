@@ -10,6 +10,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -18,12 +19,18 @@ import (
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
-// mod runs `go mod <args>` so the go command sees the imports of .vuka files:
-// plain go mod tidy reads only .go files and drops requirements only Vuka code
-// uses. For the command's duration each package gets a file of blank imports
+// mod runs `go mod <args>` so the go command sees the imports of .vuka files;
+// vuka mod tidy is modTidy. For the command's duration each package gets a file of blank imports
 // standing for its .vuka files' imports (and the runtime, when the code uses
 // it); the files are removed afterwards.
 func mod(args []string) error {
+	if len(args) == 0 || slices.Contains([]string{"-h", "-help", "--help", "help"}, args[0]) {
+		fmt.Print(modUsage)
+		return nil
+	}
+	if args[0] == "tidy" {
+		return modTidy(args[1:], os.Stdout, os.Stderr)
+	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil {
 		return err
