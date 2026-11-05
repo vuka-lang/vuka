@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"regexp"
 	"strings"
+	"time"
 )
 
 // Completion while writing markup, beyond the elements and attributes of
@@ -349,21 +350,42 @@ func (p *proxy) loopKey(vf *vfile, genPath string, loop loopAt) string {
 // probeAt asks gopls to complete code typed into the generated Go at gp; the
 // file is put back after.
 func (p *proxy) probeAt(genPath string, gp lspPosition, insert string) []map[string]any {
-	yield, ok := p.genMu.lockProbe(probeLockWait)
+	return p.probeGen(genPath, func(gen []byte) (string, lspPosition) {
+		at := offsetOf(gen, gp)
+		text := string(gen[:at]) + insert
+		pos := positionOf([]byte(text), len(text))
+		return text + string(gen[at:]), pos
+	})
+}
+
+// probeGen asks gopls to complete at pos in text, which probe makes of the
+// generated Go of genPath; the file is put back after. A probe gives way
+// to a build that needs the generated Go (genLock): it then asks again
+// once that build is done, waiting at most probeLockWait, so that a
+// completion asked while a build applies isn't left empty.
+func (p *proxy) probeGen(genPath string, probe func(gen []byte) (string, lspPosition)) []map[string]any {
+	items, yielded := p.probeOnce(genPath, probe, p.genMu.lockProbe)
+	if yielded {
+		items, _ = p.probeOnce(genPath, probe, p.genMu.relockProbe)
+	}
+	return items
+}
+
+// probeOnce is one probe, the lock taken with lock; yielded reports that
+// it gave way to a build.
+func (p *proxy) probeOnce(genPath string, probe func(gen []byte) (string, lspPosition), lock func(time.Duration) (<-chan struct{}, bool)) (items []map[string]any, yielded bool) {
+	yield, ok := lock(probeLockWait)
 	if !ok {
-		return nil // a build or another probe has the generated Go
+		return nil, p.genMu.building() // a build or another probe has the generated Go
 	}
 	defer p.genMu.Unlock()
 	p.mu.Lock()
-	vf := p.vfileOf(genPath)
+	vf := p.vfileOf(genPath) // never an editor-owned buffer
 	if vf == nil || vf.pending {
 		p.mu.Unlock()
-		return nil
+		return nil, false
 	}
-	at := offsetOf(vf.gen, gp)
-	text := string(vf.gen[:at]) + insert
-	pos := positionOf([]byte(text), len(text))
-	text += string(vf.gen[at:])
+	text, pos := probe(vf.gen)
 	vf.version += 2
 	vf.probed = vf.version - 1
 	v, gen := vf.version, string(vf.gen)
@@ -377,7 +399,12 @@ func (p *proxy) probeAt(genPath string, gp lspPosition, insert string) []map[str
 	res, ok := p.askUntil(probeAskLimit, yield, "textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos})
 	change(v, gen)
 	if !ok {
-		return nil
+		select {
+		case <-yield:
+			return nil, true
+		default:
+			return nil, false
+		}
 	}
 	var list struct {
 		Items []map[string]any `json:"items"`
@@ -385,7 +412,7 @@ func (p *proxy) probeAt(genPath string, gp lspPosition, insert string) []map[str
 	if json.Unmarshal(res, &list) != nil {
 		_ = json.Unmarshal(res, &list.Items)
 	}
-	return list.Items
+	return list.Items, false
 }
 
 // withLoopKey makes each element and component a tag completion offers open

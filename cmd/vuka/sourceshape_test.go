@@ -95,9 +95,29 @@ func TestSourceShapesModule(t *testing.T) {
 		t.Error("the overlay's content left the shape")
 	}
 
-	write(filepath.Join(root, "go.mod"), "module m\n\ngo 1.25\n\nreplace x => ../x\n")
-	if got := s.module(root, "", false, nil); got != "" {
-		t.Error("a dependency in a directory can change unseen:", got)
+	// A dependency in a directory: its sources are in the shape.
+	dep := filepath.Join(filepath.Dir(root), filepath.Base(root)+"-x")
+	write(filepath.Join(dep, "go.mod"), "module x\n\ngo 1.25\n")
+	x := write(filepath.Join(dep, "x.go"), "package x\n\nfunc G() int { return 1 }\n")
+	write(filepath.Join(dep, "x_test.go"), "package x\n")
+	write(filepath.Join(root, "go.mod"), "module m\n\ngo 1.25\n\nreplace x => ../"+filepath.Base(dep)+"\n")
+	replaced := s.module(root, "", false, nil)
+	if replaced == "" {
+		t.Fatal("no shape with a dependency in a directory")
+	}
+	if s.module(root, "", false, nil) != replaced {
+		t.Error("nothing changed, the shape with a dependency in a directory did")
+	}
+	write(filepath.Join(dep, "x_test.go"), "package x\n\nvar T int\n")
+	if s.module(root, "", false, nil) != replaced {
+		t.Error("the dependency's test changed the shape")
+	}
+	write(x, "package x\n\nfunc G() int { return 2 }\n")
+	if s.module(root, "", false, nil) == replaced {
+		t.Error("an edit in the dependency left the shape")
+	}
+	if pinned := s.pin(root); pinned == "" || s.module(root, "", false, nil) == replaced {
+		t.Error("pinned:", pinned)
 	}
 	if got := (*sourceShapes)(nil).module(root, "", false, nil); got != "" {
 		t.Error("outside a watch:", got)

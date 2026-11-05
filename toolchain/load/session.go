@@ -42,8 +42,8 @@ import (
 // go.work, the go command and the build environment key the whole session;
 // a change to any starts it over. Dependencies the module cache doesn't hold
 // (directory replacements, workspace modules) can change unseen, so they are
-// listed again on every run, and a change in their export data starts the
-// session over too.
+// listed again on every run that LocalSources doesn't say they are as they
+// were, and a change in their export data starts the session over too.
 //
 // Errors in Vuka source, and imports the go command can't resolve, are
 // reported as Transpile reports them. A run that fails in any other way (a
@@ -79,6 +79,13 @@ type Session struct {
 	// new function in a widely imported package then transpiles that
 	// package alone. Its keys are never a run's without it.
 	KeepUnnamed bool
+
+	// LocalSources, set before a run, hashes the sources of the modules the
+	// module builds from directories (replace directives, a workspace).
+	// When it is the last run's, those modules' export data isn't listed
+	// again: it is as it was. "" lists it on every run.
+	LocalSources string
+	listedLocal  string // LocalSources when the export data was last listed
 }
 
 // runStats counts what a run did, for tests.
@@ -158,9 +165,11 @@ func (s *Session) reset() {
 // Transpile is Transpile, for the session's module: pkgs as Discover found
 // them this time.
 func (s *Session) Transpile(pkgs []*Package, tmp string, opts Options) ([]Generated, string, error) {
-	if s.imp == nil || s.imp.unreadable != nil || cacheKey(s.root) != s.key || !s.imp.refresh() {
+	if s.imp == nil || s.imp.unreadable != nil || cacheKey(s.root) != s.key ||
+		(s.LocalSources == "" || s.LocalSources != s.listedLocal) && !s.imp.refresh() {
 		s.reset()
 	}
+	s.listedLocal = s.LocalSources
 	defer s.imp.cache.save()
 	s.pruneCache()
 	s.gen, s.now, s.broken, s.failed, s.walking = map[string][]byte{}, map[string]*checkedPkg{}, map[string]bool{}, nil, map[string]bool{}
