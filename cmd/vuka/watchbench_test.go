@@ -33,8 +33,9 @@ import (
 // exported one), const (an exported constant) and replace (anchor is
 // old=>new, {id} in new making each run's different). The app is edited and
 // put back. VUKA_WATCH_BENCH_RUNS is how many times each save runs (2), and
-// VUKA_WATCH_BENCH_FLAGS the flags vuka run gets ("-p=2"); the build runs
-// with GOMAXPROCS=4 unless it is set. VUKA_WATCH_BENCH_OUT=dir only writes
+// VUKA_WATCH_BENCH_FLAGS the flags vuka run gets ("-p=2") and
+// VUKA_WATCH_BENCH_ENV more of its environment; the build runs with
+// GOMAXPROCS=4 unless it is set. VUKA_WATCH_BENCH_OUT=dir only writes
 // the generated app there.
 func TestWatchBench(t *testing.T) {
 	if testing.Short() || os.Getenv("VUKA_WATCH_BENCH") == "" {
@@ -76,7 +77,10 @@ func TestWatchBench(t *testing.T) {
 	if os.Getenv("VUKA_WATCH_BENCH_FLAGS") == "" {
 		flags = []string{"-p=2"}
 	}
-	env := []string{"VUKA_WATCH_TRACE=1"}
+	env := append([]string{"VUKA_WATCH_TRACE=1"}, strings.Fields(os.Getenv("VUKA_WATCH_BENCH_ENV"))...)
+	if os.Getenv("VUKA_WATCH_BENCH_APP") == "" {
+		env = append(env, "GOFLAGS=-mod=mod") // the generated app's go.sum is the checkouts'
+	}
 	if os.Getenv("GOMAXPROCS") == "" {
 		env = append(env, "GOMAXPROCS=4")
 	}
