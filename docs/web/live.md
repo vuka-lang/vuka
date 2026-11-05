@@ -226,7 +226,8 @@ plain `<form onSubmit>` handlers.
 
 Submits are `preventDefault`ed; so are clicks on links and on buttons of a
 form without a submit handler. A form whose submit handler succeeds is reset
-to what the server rendered; one whose handler returns an error keeps what
+to what the server rendered, except the fields the user changed while the
+submit was on its way; one whose handler returns an error keeps what
 the user typed, and the error reaches the page as `vk:error`. The element of
 a click or submit carries `aria-busy="true"` until the reply.
 
@@ -260,15 +261,23 @@ type name never reaches the visitor.
 
 The reply carries the HTML of each component whose output changed (the page
 itself is `c0`). The runtime morphs the element in place: elements are matched
-by `id`, else `data-vk-id`, else position and tag. A whole-document `c0` patch
-morphs the `<body>` and sets the title.
+by `id`, else `data-vk-id`, else a loop's `key`, else position and tag. An
+element holding the focus stays where it is while the elements around it come,
+go and move, so it keeps the focus. A whole-document `c0` patch morphs the
+`<body>` and sets the title.
 
 A field takes the server's value when it changed; a focused one only while it
-shows what it showed when the page last sent an event (a form the server
-clears once sent), else it keeps what the user typed since, and its caret.
+shows what it showed when the page last sent an event and the server has
+answered that event (a form the server clears once sent), else it keeps what
+the user typed since, and its caret. So the reply to one keystroke, arriving
+after the next was typed, never takes the field back. A field an input method
+is composing text in is left alone until the composition ends, and text the
+user edits in a `contenteditable` element is kept while the server renders
+what it rendered before.
 
 > [!NOTE]
-> Give list rows an `id` for stable identity across inserts and removals.
+> Give list rows an `id` or a `key` for stable identity across inserts and
+> removals.
 
 ## Browser Attributes and Events {#browser-attributes-and-events}
 

@@ -80,8 +80,8 @@ belong to whoever sets them:
 
 In the browser a field shows the server's value when that changes: a field
 with focus too, when it still shows what it showed when the page last sent
-an event (a form cleared once sent); one the user has typed into since keeps
-what is typed.
+an event and the server answered it (a form cleared once sent); one the user
+has typed into since keeps what is typed.
 
 ### Instance Methods
 
