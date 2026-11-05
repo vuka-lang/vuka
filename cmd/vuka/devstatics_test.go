@@ -9,6 +9,7 @@ import (
 	"net/http"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -186,5 +187,139 @@ type Card struct {
 	page("<p>three</p>")
 	if strings.Contains(r.log.String(), "devstatic: no fixed HTML") {
 		t.Errorf("a text wasn't registered:\n%s", r.log.String())
+	}
+}
+
+// TestDevStaticsText: an edit that changes only templates' fixed HTML —
+// text, a class, a plain tag — starts the running binary again with the new
+// texts, without go build, from the first edit after a start; the page
+// served has them, and go build then runs behind it and finds the same
+// binary. An edit of Go, of a template's expressions or of its structure
+// builds as ever, before and after text edits. A start that reuses the
+// kept build reads the texts kept with it.
+func TestDevStaticsText(t *testing.T) {
+	if testing.Short() {
+		t.Skip("builds the vuka command and an app")
+	}
+	t.Setenv("GOWORK", "off")
+	vuka := buildVuka(t)
+	root := localModule(t, webCheckout(t), map[string]string{
+		"main.go": e2eMain,
+		"pages/index.vuka.html": `<script lang="go">
+package pages
+
+import "example.com/app/components"
+
+type Index struct{}
+</script>
+
+<main><components.Card Title="Hello" /><span id="label">{components.Label()}</span></main>
+`,
+		"components/label.vuka": "package components\n\nfunc Label() string { return \"label one\" }\n",
+		"components/card.vuka.html": `<script lang="go">
+package components
+
+type Card struct {
+	Title string
+}
+</script>
+
+<section class="card">
+  <h2>{Title}</h2>
+  <p>The card says one.</p>
+</section>
+`,
+	})
+	cache := t.TempDir()
+	env := []string{"GOFLAGS=-mod=mod", "VUKA_WATCH_TRACE=1", "VUKA_CACHE=" + cache, reuseEnv + "=on"}
+	var r *watchRun
+	page := func(want ...string) {
+		t.Helper()
+		var body string
+		for end := time.Now().Add(3 * time.Minute); time.Now().Before(end); time.Sleep(50 * time.Millisecond) {
+			res, err := http.Get(fmt.Sprintf("http://127.0.0.1:%d/", r.port))
+			if err != nil {
+				continue
+			}
+			b, _ := io.ReadAll(res.Body)
+			res.Body.Close()
+			body = string(b)
+			if !slices.ContainsFunc(want, func(w string) bool { return !strings.Contains(body, w) }) {
+				return
+			}
+		}
+		t.Fatalf("no %q in the page %q; output:\n%s", want, body, r.log.String())
+	}
+	edit := func(path, old, new string) {
+		t.Helper()
+		src, _ := os.ReadFile(path)
+		if !strings.Contains(string(src), old) {
+			t.Fatalf("%s has no %q", path, old)
+		}
+		writeFile(t, path, strings.Replace(string(src), old, new, 1))
+	}
+	count := func(s string) int { return strings.Count(r.log.String(), s) }
+	card := filepath.Join(root, "components", "card.vuka.html")
+	label := filepath.Join(root, "components", "label.vuka")
+
+	// The first run's go build tidies go.mod (-mod=mod), an input of the
+	// builds after it; a run after it has nothing to tidy.
+	r = startWatch(t, vuka, root, env)
+	page("The card says one.", "label one")
+	r.stop()
+	edit(label, "label one", "label zero") // no kept build for the next start
+	r = startWatch(t, vuka, root, env)
+	page("The card says one.", "label zero")
+
+	// Text, a class and a tag: the same binary, from the first edit.
+	for i, e := range [][2]string{
+		{"says one", "says two"},
+		{`class="card"`, `class="card wide"`},
+		{"<p>The card", "<p><em>new</em> The card"},
+		{"says two", "says one"}, // back to texts an earlier app read
+	} {
+		edit(card, e[0], e[1])
+		page(e[1], "label zero")
+		r.waitLog("● rebuilt in ", i+1)
+		if n := count("go build skipped"); n != i+1 {
+			t.Fatalf("edit %d: go build skipped %d times, want %d:\n%s", i+1, n, i+1, r.log.String())
+		}
+		r.waitLog("the skipped go build verified", i+1)
+	}
+
+	// Go after text, an expression, and the structure of a template: go
+	// build runs. Text after Go skips it again.
+	edit(label, "label zero", "label two")
+	page("label two", "The card says one.")
+	edit(card, "<h2>{Title}</h2>", "<h2>{Title + \"!\"}</h2>")
+	page("Hello!", "label two")
+	edit(card, "<p><em>new</em> The card", "<p><em>new</em> <i>{len(Title)}</i> The card")
+	page("<i>5</i>", "Hello!")
+	if n := count("go build skipped"); n != 4 {
+		t.Fatalf("go build skipped for edits of Go or of a template's structure (%d skips):\n%s", n, r.log.String())
+	}
+	edit(card, "says one", "says three")
+	page("The card says three.", "<i>5</i>", "Hello!", "label two")
+	r.waitLog("go build skipped", 5)
+	r.waitLog("the skipped go build verified", 5)
+	edit(label, "label two", "label three") // Go right after text
+	page("label three", "The card says three.")
+	if n := count("go build skipped"); n != 5 {
+		t.Fatalf("go build skipped for a Go edit after a text edit:\n%s", r.log.String())
+	}
+	if strings.Contains(r.log.String(), "warning: go build was skipped") {
+		t.Fatalf("a skipped go build came out different:\n%s", r.log.String())
+	}
+	r.stop()
+
+	// The kept build starts with the texts it was built for.
+	r = startWatch(t, vuka, root, env)
+	page("The card says three.", "label three")
+	r.waitLog("● reusing the last build (no changes)", 1)
+	edit(card, "says three", "says four")
+	page("The card says four.", "label three")
+	r.waitLog("go build skipped", 1)
+	if strings.Contains(r.log.String(), "devstatic:") {
+		t.Errorf("the app didn't read its texts:\n%s", r.log.String())
 	}
 }

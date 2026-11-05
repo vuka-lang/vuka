@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"io/fs"
@@ -61,8 +62,14 @@ type keptBuild struct {
 	// of date says whether the transpiler's inputs or go build's were
 	// missed.
 	Overlay string `json:"overlay"`
-	dir     string
-	used    time.Time
+	// Statics is the file in the entry the binary reads its templates'
+	// fixed HTML from (devstatic.FileEnv); "" when it holds them.
+	Statics string `json:"statics,omitempty"`
+	// GoKey is the build's goKey: an edit of only the templates' texts
+	// after the kept build starts doesn't run go build.
+	GoKey string `json:"goKey,omitempty"`
+	dir   string
+	used  time.Time
 }
 
 // newReuseCache is the cache of the module at root; nil when reuse is off
@@ -234,7 +241,7 @@ func (c *reuseCache) store(s *supervisor, r *buildResult) {
 	final := filepath.Join(c.dir, name)
 	if e, err := os.ReadFile(filepath.Join(final, reuseEntry)); err == nil {
 		var old keptBuild
-		if json.Unmarshal(e, &old) == nil && old.Key == key && old.Sum == r.sum {
+		if json.Unmarshal(e, &old) == nil && old.Key == key && old.Sum == r.sum && (old.Statics != "") == (r.statics != "") {
 			now := time.Now()
 			os.Chtimes(filepath.Join(final, reuseEntry), now, now)
 			return
@@ -251,7 +258,14 @@ func (c *reuseCache) store(s *supervisor, r *buildResult) {
 	if linkOrCopy(r.bin, exe(filepath.Join(tmp, "app"))) != nil {
 		return
 	}
-	data, _ := json.Marshal(keptBuild{Key: key, Sum: r.sum, Roots: roots, Size: fi.Size(), Overlay: overlayHash(r.overlay)})
+	kb := keptBuild{Key: key, Sum: r.sum, Roots: roots, Size: fi.Size(), Overlay: overlayHash(r.overlay), GoKey: r.goKey}
+	if r.statics != "" {
+		kb.Statics = keptStaticsName
+		if linkOrCopy(r.statics, filepath.Join(tmp, keptStaticsName)) != nil {
+			return
+		}
+	}
+	data, _ := json.Marshal(kb)
 	if os.WriteFile(filepath.Join(tmp, reuseEntry), data, 0o644) != nil {
 		return
 	}
@@ -307,7 +321,59 @@ var goBuildExt = map[string]bool{
 // made from, so a start computes it without transpiling. "" when a file
 // can't be read.
 func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time.Time, err error) {
+	key, newest, _, err = c.keyOf(s, roots, "")
+	return key, newest, err
+}
+
+// keptStaticsName is the texts file a kept build's entry holds.
+const keptStaticsName = "statics.json"
+
+// keptStatics copies the texts file of the kept build e into dir, named by
+// its content as devStatics names them, and returns the copy.
+func keptStatics(e *keptBuild, dir string) (string, error) {
+	data, err := os.ReadFile(filepath.Join(e.dir, e.Statics))
+	if err != nil {
+		return "", err
+	}
+	sum := sha256.Sum256(data)
+	file := filepath.Join(dir, fmt.Sprintf("%x.json", sum[:16]))
+	return file, writeWhole(file, data)
+}
+
+// newKeyHasher hashes builds' inputs (goKey) when no builds are kept.
+func newKeyHasher() *reuseCache {
+	c := &reuseCache{}
+	if v := os.Getenv("GOENV"); v != "" {
+		c.envFile = v
+	} else if d, err := os.UserConfigDir(); err == nil {
+		c.envFile = filepath.Join(d, "go", "env")
+	}
+	return c
+}
+
+// goKey hashes what go build reads, the files under roots being what it
+// embeds: key's inputs, but for the module's .vuka sources, the Go
+// transpiled from them, overlay, instead. Two builds of one key make the
+// same binary: an edit that changed only the templates' fixed HTML, which a
+// watch build's app reads from a file (devstatic.Load), leaves it as it
+// was; newestEmbed is the latest modification time of the embedded files.
+// "" when a file can't be read.
+func (c *reuseCache) goKey(s *supervisor, roots []string, overlay string) (key string, newestEmbed time.Time, err error) {
+	ov := overlayHash(overlay)
+	if overlay == "" || ov == "" {
+		return "", newestEmbed, errors.New("no overlay")
+	}
+	key, _, newestEmbed, err = c.keyOf(s, roots, ov)
+	return key, newestEmbed, err
+}
+
+// keyOf is key, or goKey with ov, the overlay's hash; newestEmbed is the
+// latest modification time of the embedded files.
+func (c *reuseCache) keyOf(s *supervisor, roots []string, ov string) (key string, newest, newestEmbed time.Time, err error) {
 	h := sha256.New()
+	if ov != "" {
+		fmt.Fprintf(h, "go build of overlay %s\n", ov)
+	}
 	fmt.Fprintf(h, "vuka run -watch %s\n%s\n%s/%s\n", reuseFormat, load.CompilerVersion, runtime.GOOS, runtime.GOARCH)
 	// The go command, and the Go it runs for the module.
 	if goBin, err := exec.LookPath("go"); err == nil {
@@ -317,7 +383,7 @@ func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time
 	}
 	goVersion, err := moduleGoVersion(s.root)
 	if err != nil {
-		return "", newest, err
+		return "", newest, newestEmbed, err
 	}
 	fmt.Fprintf(h, "goversion %s\n", goVersion)
 	// The build's environment and flags.
@@ -357,6 +423,9 @@ func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time
 		if fi.ModTime().After(newest) {
 			newest = fi.ModTime()
 		}
+		if kind == "embed" && fi.ModTime().After(newestEmbed) {
+			newestEmbed = fi.ModTime()
+		}
 		fmt.Fprintf(h, "%s %q %s\n", kind, c.rel(s.root, path), sum)
 		return nil
 	}
@@ -364,8 +433,18 @@ func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time
 	// directories.
 	trees, files := c.moduleTrees(s)
 	for _, tree := range trees {
-		if err := c.hashTree(tree, hashFile); err != nil {
-			return "", newest, err
+		hash := hashFile
+		if ov != "" && tree == s.root {
+			// The module's own .vuka sources: their Go is the overlay's.
+			hash = func(kind, path string, fi fs.FileInfo) error {
+				if strings.HasSuffix(path, ".vuka") || strings.HasSuffix(path, ".vuka.html") {
+					return nil
+				}
+				return hashFile(kind, path, fi)
+			}
+		}
+		if err := c.hashTree(tree, hash); err != nil {
+			return "", newest, newestEmbed, err
 		}
 	}
 	for _, f := range files {
@@ -375,7 +454,7 @@ func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time
 			continue
 		}
 		if err := hashFile("file", f, fi); err != nil {
-			return "", newest, err
+			return "", newest, newestEmbed, err
 		}
 	}
 	// The embedded files.
@@ -387,7 +466,7 @@ func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time
 		}
 		if !fi.IsDir() {
 			if err := hashFile("embed", root, fi); err != nil {
-				return "", newest, err
+				return "", newest, newestEmbed, err
 			}
 			continue
 		}
@@ -409,10 +488,10 @@ func (c *reuseCache) key(s *supervisor, roots []string) (key string, newest time
 			return hashFile("embed", path, fi)
 		})
 		if err != nil {
-			return "", newest, err
+			return "", newest, newestEmbed, err
 		}
 	}
-	return hex.EncodeToString(h.Sum(nil)), newest, nil
+	return hex.EncodeToString(h.Sum(nil)), newest, newestEmbed, nil
 }
 
 func (c *reuseCache) rel(root, path string) string {

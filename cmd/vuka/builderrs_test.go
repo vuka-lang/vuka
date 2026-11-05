@@ -167,7 +167,7 @@ func TestBuildReport(t *testing.T) {
 	defer func() { slowPhase = slow }()
 	s := &supervisor{root: root, dir: root, tmp: t.TempDir(), pkg: []string{"."}, flags: []string{"-buildvcs=false"}, env: os.Environ(), stderr: &stderr}
 	stderr.Reset()
-	r := s.build(context.Background(), 1)
+	r := s.build(context.Background(), 1, &app{})
 	s.finish(r, time.Time{})
 	if want := out + "● build failed; waiting for a change\n"; !strings.HasSuffix(stderr.String(), want) {
 		t.Errorf("run -watch says:\n%s\nwant:\n%s", stderr.String(), want)
@@ -284,7 +284,7 @@ func status(r Result[int]) int {
 	}
 	s := &supervisor{root: root, dir: root, tmp: t.TempDir(), pkg: []string{"."}, flags: []string{"-buildvcs=false"}, env: os.Environ(), stderr: &stderr}
 	stderr.Reset()
-	s.finish(s.build(context.Background(), 1), time.Time{})
+	s.finish(s.build(context.Background(), 1, &app{}), time.Time{})
 	if want := out + "● build failed; waiting for a change\n"; !strings.HasSuffix(stderr.String(), want) {
 		t.Errorf("run -watch says:\n%s\nwant:\n%s", stderr.String(), want)
 	}
