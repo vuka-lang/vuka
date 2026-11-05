@@ -194,7 +194,7 @@ func lookup(m map[int]vuka.Option[string], id int) vuka.Option[string] {
 		return vuka.None[string]()
 	}
 //line try_shapes.vuka:123
-	return vuka.Some[string]("user " + v + "!")
+	return vuka.Some("user " + v + "!")
 }
 
 func parsed(r vuka.Result[int]) vuka.Result[int] {
@@ -209,7 +209,7 @@ func parsed(r vuka.Result[int]) vuka.Result[int] {
 			return vuka.Err[int](err)
 		}
 //line try_shapes.vuka:128
-		return vuka.Ok[int](v * 2)
+		return vuka.Ok(v * 2)
 	}
 	return vuka.Ok(0)
 }

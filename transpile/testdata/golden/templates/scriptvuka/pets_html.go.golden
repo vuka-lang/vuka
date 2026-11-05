@@ -84,7 +84,7 @@ func parseImpl(s string) vuka.Result[int] {
 	if n < 0 {
 		return vuka.Err[int](errors.New("negative"))
 	}
-	return vuka.Ok[int](n)
+	return vuka.Ok(n)
 }
 
 //line pets.vuka.html:64
@@ -94,7 +94,7 @@ func twiceImpl(s string) vuka.Result[int] {
 		return vuka.Err[int](err)
 	}
 //line pets.vuka.html:65
-	return vuka.Ok[int](parse * 2)
+	return vuka.Ok(parse * 2)
 }
 
 func first(xs []string) vuka.Option[string] {

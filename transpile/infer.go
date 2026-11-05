@@ -47,6 +47,12 @@ func (e *engine) infer(f *fileState) {
 		if tv := e.info.Types[expr]; !isInvalid(tv.Type) && types.Identical(tv.Type, want) {
 			return true
 		}
+		if isCall && (!e.argsTyped(call) || e.pendingTry(f, call) != nil) && (e.progress || e.pendingLowering(f)) {
+			// Go may infer it once the arguments have their types: a ? in
+			// them, or one before it in the function (whose names still have
+			// the operand's type), is lowered first.
+			return true
+		}
 		s, msg := e.typeText(f, arg)
 		if msg != "" {
 			e.errs.add("E0122", f.nodePos(sel.Pos()), "%s", msg)
@@ -62,6 +68,20 @@ func (e *engine) infer(f *fileState) {
 		e.progress = true
 		return true
 	})
+}
+
+// argsTyped reports whether each of call's arguments has a known single type.
+func (e *engine) argsTyped(call *ast.CallExpr) bool {
+	for _, a := range call.Args {
+		tv, ok := e.info.Types[a]
+		if !ok || isInvalid(tv.Type) || e.unknownTypes(a) {
+			return false
+		}
+		if _, tuple := tv.Type.(*types.Tuple); tuple {
+			return false
+		}
+	}
+	return true
 }
 
 func (e *engine) isRuntimeFunc(sel *ast.SelectorExpr) bool {

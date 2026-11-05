@@ -107,7 +107,7 @@ func lookup(arg string) vuka.Result[User] {
 	if err != nil {
 		return vuka.Err[User](err)
 	}
-	return vuka.Ok[User](u)
+	return vuka.Ok(u)
 }
 ```
 

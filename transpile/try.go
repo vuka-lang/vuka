@@ -157,7 +157,7 @@ func (e *engine) lowerTry(f *fileState, t *try) {
 		for i := range vars {
 			vars[i] = "__v" + n + "_" + itoa(i+1)
 		}
-		ok, msg := e.successReturn(f, sig, k.option, vars)
+		ok, msg := e.successReturn(f, sig, k, vars)
 		if msg != "" {
 			fail(msg)
 			return
@@ -405,7 +405,8 @@ func (e *engine) failReturn(f *fileState, sig *types.Signature, fe *gtext) (*gte
 }
 
 // successReturn is what `return x?` returns when x succeeded.
-func (e *engine) successReturn(f *fileState, sig *types.Signature, option bool, vars []string) (string, string) {
+func (e *engine) successReturn(f *fileState, sig *types.Signature, k tryKind, vars []string) (string, string) {
+	option := k.option
 	res := sig.Results()
 	n := res.Len()
 	if n == len(vars)+1 && types.Identical(res.At(n-1).Type(), errorType) {
@@ -415,12 +416,15 @@ func (e *engine) successReturn(f *fileState, sig *types.Signature, option bool, 
 		return "return " + strings.Join(vars, ", "), "" // a test helper: failing fails the test
 	}
 	if kind, arg := runtimeType(single(res)); kind != "" && len(vars) == 1 && (kind == "Option") == option {
-		s, msg := e.typeText(f, arg)
-		ctor := ".Ok["
+		ctor := ".Ok"
 		if option {
-			ctor = ".Some["
+			ctor = ".Some"
 		}
-		return "return " + f.runtime() + ctor + s + "](" + vars[0] + ")", msg
+		if len(k.values) == 1 && types.Identical(k.values[0], arg) {
+			return "return " + f.runtime() + ctor + "(" + vars[0] + ")", "" // Go infers it
+		}
+		s, msg := e.typeText(f, arg)
+		return "return " + f.runtime() + ctor + "[" + s + "](" + vars[0] + ")", msg
 	}
 	return "", "return f()? needs the function's results to match what ? yields"
 }

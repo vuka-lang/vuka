@@ -82,7 +82,7 @@ func count(ctx context.Context) vuka.Result[int] {
 	err := orm.Transaction(ctx, func(ctx context.Context) error {
 		r = func() vuka.Result[int] {
 //line schema.vuka:60
-			return vuka.Ok[int](orm.Objects[Post]().Count())
+			return vuka.Ok(orm.Objects[Post]().Count())
 		}()
 		return r.Err()
 	})

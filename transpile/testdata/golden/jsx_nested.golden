@@ -18,7 +18,7 @@ func lookup(s string) vuka.Result[int] {
 		return vuka.Err[int](err)
 	}
 //line jsx_nested.vuka:12
-	return vuka.Ok[int](n)
+	return vuka.Ok(n)
 }
 
 // ? and match inside function literals within {…}, at any depth.

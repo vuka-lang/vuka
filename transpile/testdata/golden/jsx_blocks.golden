@@ -25,7 +25,7 @@ func lookup(s string) vuka.Result[int] {
 		return vuka.Err[int](err)
 	}
 //line jsx_blocks.vuka:19
-	return vuka.Ok[int](n)
+	return vuka.Ok(n)
 }
 
 func list(users []User, admin bool, s string) ui.Node {
