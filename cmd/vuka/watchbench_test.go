@@ -98,6 +98,7 @@ func TestWatchBench(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
+		t.Cleanup(func() { os.WriteFile(path, orig, 0o644) }) // put back however the run ends
 		for i := 1; i <= runs; i++ {
 			src, err := e.apply(string(orig), nonce, i)
 			if err != nil {
@@ -126,6 +127,7 @@ type benchEdit struct {
 // benchEdits are the saves on the generated app.
 var benchEdits = []benchEdit{
 	{"text in one page", "text", "pages/s7/detail.vuka.html", "Detail of section 7"},
+	{"Go in one page", "text", "pages/s7/detail.vuka.html", `return "Detail 7`},
 	{"text in a shared component", "text", "components/c3.vuka.html", "Component 3 says"},
 	{"new unused func, widely imported package", "func", "models/model3.vuka", ""},
 	{"new exported func, widely imported package", "export", "models/model3.vuka", ""},

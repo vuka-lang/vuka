@@ -544,7 +544,7 @@ func buildVuka(t *testing.T) string {
 	vuka := exe(filepath.Join(t.TempDir(), "vuka"))
 	c := exec.Command("go", "build", "-o", vuka, ".")
 	if w := os.Getenv("VUKA_TEST_GOWORK"); w != "" {
-		c.Env = append(os.Environ(), "GOWORK="+w) // a vuka the released modules can't build yet
+		c.Env = append(os.Environ(), "GOWORK="+w, "GOFLAGS=") // a vuka the released modules can't build yet; a test's -mod=mod is for its app
 	}
 	if out, err := c.CombinedOutput(); err != nil {
 		t.Fatalf("building vuka: %v\n%s", err, out)
