@@ -32,7 +32,7 @@ import (
 var CompilerVersion = "dev"
 
 // cacheVersion is the format of the entries.
-const cacheVersion = "2"
+const cacheVersion = "3"
 
 // CacheDir is the directory vuka keeps its caches in: VUKA_CACHE when it
 // names a directory, else vuka in the user's cache directory. ok is false
@@ -145,27 +145,39 @@ func (s *Session) saveOut(path string, o *pkgOut) {
 	writeEntry(filepath.Join(dir, entryName("out", path)), buf.Bytes())
 }
 
+// diskAPI is a package's API as the cache keeps it: checkedPkg's api, core
+// and unnamed.
+type diskAPI struct {
+	Path, Key, API, Core string
+	Unnamed              map[string]string
+}
+
 // loadAPI is the API a package whose files and imports make key has, as a
-// run checked it before; "" when the cache has none.
-func (s *Session) loadAPI(path, key string) string {
+// run checked it before; nil when the cache has none.
+func (s *Session) loadAPI(path, key string) *checkedPkg {
 	dir := s.diskDir()
 	if dir == "" {
-		return ""
+		return nil
 	}
 	data, err := os.ReadFile(filepath.Join(dir, entryName("api", path)))
 	if err != nil {
-		return ""
+		return nil
 	}
-	f := strings.Fields(string(data))
-	if len(f) != 3 || f[0] != path || f[1] != key {
-		return ""
+	var d diskAPI
+	if gob.NewDecoder(bytes.NewReader(data)).Decode(&d) != nil || d.Path != path || d.Key != key || d.API == "" {
+		return nil
 	}
-	return f[2]
+	return &checkedPkg{api: d.API, core: d.Core, unnamed: d.Unnamed}
 }
 
-func (s *Session) saveAPI(path, key, api string) {
-	if dir := s.diskDir(); dir != "" && !strings.ContainsAny(path, " \n") {
-		writeEntry(filepath.Join(dir, entryName("api", path)), []byte(path+" "+key+" "+api+"\n"))
+func (s *Session) saveAPI(path, key string, c *checkedPkg) {
+	dir := s.diskDir()
+	if dir == "" {
+		return
+	}
+	var buf bytes.Buffer
+	if gob.NewEncoder(&buf).Encode(diskAPI{path, key, c.api, c.core, c.unnamed}) == nil {
+		writeEntry(filepath.Join(dir, entryName("api", path)), buf.Bytes())
 	}
 }
 
