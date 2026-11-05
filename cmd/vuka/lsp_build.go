@@ -36,17 +36,20 @@ import (
 //     edited since, stops that second stage between two packages; the next
 //     build does it.
 //   - A request on a .vuka file waits for the first stage of the build of
-//     its last edit, never for the rest of the module. A request on a file
-//     not edited since its last build is answered at once.
+//     the text it asks about, never for the rest of the module, and waits
+//     off the main loop, which goes on with the editor's other messages
+//     (vukaRequest). A request on a file not edited since its last build is
+//     answered at once, and so is one that reads the code at a place the
+//     edits since haven't touched (untouchedMethods): from the last
+//     generation, mapped onto the text.
 
 // buildDelay is the quiet period after an edit before a build starts.
 const buildDelay = 50 * time.Millisecond
 
 // awaitLimit bounds how long a request waits for its file's build; past it,
 // the request is answered from the last generation, and so are the requests
-// after it until the file changes again: they run on the main loop, one
-// after another, and each waiting its own awaitLimit for the same build
-// held up everything behind them.
+// after it on the same text: a build that slow would keep each of them
+// waiting its own awaitLimit.
 var awaitLimit = 3 * time.Second
 
 // schedule builds after a short quiet period.
@@ -103,20 +106,24 @@ func (p *proxy) builds() {
 	}
 }
 
-// await waits until the build of the editor's last change to the .vuka file
-// at path has transpiled it, starting that build now when it waits for the
-// quiet period. It waits at most awaitLimit, once per change: not at all
-// when a request waited that long for the same change.
-func (p *proxy) await(path string) {
+// unbuilt reports whether the .vuka buffer at path, as of the edits count
+// edit, is still to be transpiled: its build hasn't run, and no request has
+// stopped waiting for it (await). p.mu is held.
+func (p *proxy) unbuilt(path string, edit int) bool {
+	return p.started && edit <= p.changed[path] && edit > p.done[path] && edit > p.gaveUp[path]
+}
+
+// await waits until a build has transpiled the .vuka buffer at path as of
+// the edits count edit, starting that build now when it waits for the quiet
+// period. It waits at most awaitLimit, once per text: not at all when a
+// request waited that long for the same one.
+func (p *proxy) await(path string, edit int) {
 	p.mu.Lock()
 	defer p.mu.Unlock()
-	if p.changed[path] <= p.done[path] || !p.started {
+	if !p.unbuilt(path, edit) {
 		return
 	}
 	p.kickLocked()
-	if p.gaveUp[path] == p.changed[path] {
-		return
-	}
 	expired := false
 	t := time.AfterFunc(awaitLimit, func() {
 		p.mu.Lock()
@@ -125,14 +132,14 @@ func (p *proxy) await(path string) {
 		p.mu.Unlock()
 	})
 	defer t.Stop()
-	for p.changed[path] > p.done[path] && !p.stopped && !expired {
+	for p.unbuilt(path, edit) && !p.stopped && !expired {
 		p.built.Wait()
 	}
-	if expired && p.changed[path] > p.done[path] {
+	if expired && p.unbuilt(path, edit) {
 		if p.gaveUp == nil {
 			p.gaveUp = map[string]int{}
 		}
-		p.gaveUp[path] = p.changed[path]
+		p.gaveUp[path] = edit
 	}
 }
 
@@ -270,6 +277,11 @@ func (p *proxy) build() {
 	if pkgs, err = routes.stub(pkgs); err != nil {
 		p.logf("folder routes: %v", err)
 	}
+	// The context processors each package reads, as the whole module has
+	// them: main reaches a folder page's package through pages/route.go,
+	// which only the module's packages link in, so the first stage alone
+	// would find none for it.
+	contexts := load.Contexts(modRoot, modPath, pkgs, read)
 	decos := findDecorators(modRoot, modPath, read)
 	p.mu.Lock()
 	p.decos = decos
@@ -337,7 +349,7 @@ func (p *proxy) build() {
 	}
 	first := load.Closure(pkgs, roots)
 	if len(first) > 0 && len(first) < len(pkgs) {
-		gens, list, err := run(first, load.Options{Bare: true, Tolerant: true}, false)
+		gens, list, err := run(first, load.Options{Bare: true, Tolerant: true, Contexts: contexts}, false)
 		if err != nil {
 			return
 		}
@@ -349,7 +361,7 @@ func (p *proxy) build() {
 
 	// Then the module. Once the edited packages are done, it gives way to
 	// newer edits.
-	opts := load.Options{Bare: true, Tolerant: true}
+	opts := load.Options{Bare: true, Tolerant: true, Contexts: contexts}
 	if first != nil || len(edited) == 0 {
 		opts.Stop = p.preempt.Load
 	}
@@ -864,7 +876,11 @@ func (p *proxy) goplsDiagnostics(params json.RawMessage) {
 	p.mu.Lock()
 	vf := p.vfileOf(uriToPath(dp.URI))
 	if vf == nil {
+		staging := p.stagingDir
 		p.mu.Unlock()
+		if staging != "" && strings.HasPrefix(uriToPath(dp.URI), staging+string(filepath.Separator)) {
+			return // the staging folder's, never the editor's (lsp_staging.go)
+		}
 		if kept, ok := withoutRouteFolderPaths(dp.Diagnostics); ok {
 			// go.mod's: gopls's tidy check reads route folders' names
 			// ((group), [id]) as import paths; vuka maps those packages.
@@ -922,7 +938,7 @@ func (p *proxy) takeGoDiags(vf *vfile, diagnostics []any) {
 	var mapped []any
 	for _, d := range diagnostics {
 		obj, ok := d.(map[string]any)
-		if !ok {
+		if !ok || outsideFolders(obj) {
 			continue
 		}
 		r, ok := toRange(obj["range"])

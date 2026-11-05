@@ -136,6 +136,11 @@ func TestLSPContextVarsFolderPage(t *testing.T) {
 		return map[string]any{"textDocument": map[string]any{"uri": uri},
 			"position": positionOf([]byte(ctxPagesHome), strings.Index(ctxPagesHome, needle)+delta)}
 	}
+	// Asked at once, the completion is answered from the build of the
+	// opened file's package alone, which knows main's processors too.
+	if got, _ := json.Marshal(c.call("textDocument/completion", at("{request.Path}", 4))); !strings.Contains(string(got), `"label":"request"`) {
+		t.Errorf("completion of req… on opening: %s", got)
+	}
 	// The first build of the module may still be running.
 	var hover []byte
 	for deadline := time.Now().Add(60 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
