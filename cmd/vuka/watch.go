@@ -872,7 +872,7 @@ func compilerFlags(flags []string) []string {
 			continue
 		}
 		out = append(out, flags[i])
-		if !hasValue && name != "trimpath" && name != "race" && name != "msan" && name != "asan" && name != "cover" && i+1 < len(flags) {
+		if !hasValue && !boolBuildFlag[name] && i+1 < len(flags) {
 			i++
 			out = append(out, flags[i])
 		}
