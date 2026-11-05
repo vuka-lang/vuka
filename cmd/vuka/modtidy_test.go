@@ -322,3 +322,36 @@ func TestModTidyTestDepsHint(t *testing.T) {
 		t.Errorf("a failed tidy wrote go.mod:\n%s", got)
 	}
 }
+
+// TestDeclaresTool: a tool directive counts on its own line or in a block.
+func TestDeclaresTool(t *testing.T) {
+	const tool = "github.com/vuka-lang/orm/v2/cmd/orm"
+	for name, mod := range map[string]string{
+		"line":  "module example.com/app\n\ngo 1.24\n\ntool " + tool + "\n",
+		"block": "module example.com/app\n\ngo 1.24\n\ntool (\n\t" + tool + "\n\tgithub.com/vuka-lang/vuka/cmd/vuka/v2\n)\n",
+	} {
+		if !declaresTool([]byte(mod), tool) {
+			t.Errorf("%s: the tool isn't seen", name)
+		}
+	}
+	if declaresTool([]byte("module example.com/app\n\ngo 1.24\n"), tool) {
+		t.Error("a go.mod with no tool declares one")
+	}
+}
+
+// TestModTidyChangesReport: requirements moving to or from // indirect, and
+// go.sum's lines, are reported, so -check says why a module isn't tidy.
+func TestModTidyChangesReport(t *testing.T) {
+	r := tidyResult{
+		origMod: []byte("module example.com/app\n\ngo 1.24\n\nrequire (\n\texample.com/a v1.0.0 // indirect\n\texample.com/b v1.0.0\n)\n"),
+		newMod:  []byte("module example.com/app\n\ngo 1.24\n\nrequire (\n\texample.com/a v1.0.0\n\texample.com/b v1.0.0 // indirect\n)\n"),
+		origSum: []byte("example.com/a v1.0.0 h1:x=\nexample.com/old v1.0.0 h1:y=\nexample.com/old v1.0.0/go.mod h1:z=\n"),
+		newSum:  []byte("example.com/a v1.0.0 h1:x=\nexample.com/b v1.0.0 h1:w=\n"),
+	}
+	got := strings.Join(r.changes(), "\n")
+	for _, want := range []string{"direct  example.com/a", "indirect example.com/b", "go.sum  1 lines added, 2 removed"} {
+		if !strings.Contains(got, want) {
+			t.Errorf("no %q in:\n%s", want, got)
+		}
+	}
+}
