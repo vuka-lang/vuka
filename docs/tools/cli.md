@@ -415,6 +415,13 @@ directives keep their requirements, nested modules are left out as the go
 command leaves them, and `go.work` doesn't change what tidy does. `-e`,
 `-v`, `-go` and `-compat` are `go mod tidy`'s own flags.
 
+Like plain `go mod tidy`, it reads more than a build does: the `go.mod` of
+every module in the requirement graph, and what the tests of the packages
+you import import (an orm app's tidy needs the orm's database drivers).
+Offline, or with `GOPROXY=off`, those modules must already be in the module
+cache; when one isn't, `vuka mod tidy` says so after tidy's error
+(`go mod download all` fetches them ahead).
+
 If a package doesn't transpile, its `.vuka` files' imports are still read,
 and a warning names what failed. An app whose build runs the orm's tool
 with `go run` (no `tool github.com/vuka-lang/orm/v2/cmd/orm` in `go.mod`;

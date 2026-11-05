@@ -185,7 +185,8 @@ func TestModTidyCheck(t *testing.T) {
 
 // TestModTidyORM: the orm stays required in a module whose models and
 // their readers are .vuka files, and whose generated typed fields the
-// build needs: after vuka mod tidy, vuka build passes.
+// build needs: after vuka mod tidy, vuka build passes. It fetches through
+// GOPROXY what tidy reads and no build does.
 func TestModTidyORM(t *testing.T) {
 	if testing.Short() {
 		t.Skip("runs the go command")
@@ -212,7 +213,11 @@ func Field() string { return entities.UserFields.Email.Name() }
 	})
 	root := localModule(t, webCheckout(t), fs)
 	withModule(t, root, ormModule, orm)
-	tidyEnv(t, root)
+	// tidy resolves the imports of the orm's tests too, its database
+	// drivers, which no build here fetches: the job's GOPROXY is kept.
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-mod=mod")
+	chdir(t, root)
 	before := treeFiles(t, root)
 	var copied []string // the copy's Go files under entities/
 	tidyCopyHook = func(dir string) {
@@ -226,6 +231,9 @@ func Field() string { return entities.UserFields.Email.Name() }
 
 	var stdout, stderr bytes.Buffer
 	if err := modTidy(nil, &stdout, &stderr); err != nil {
+		if strings.Contains(err.Error(), offlineHint) {
+			needs(t, "the orm's modules can't all be fetched: %v\n%s", err, stderr.String())
+		}
 		t.Fatalf("%v\n%s", err, stderr.String())
 	}
 	if len(copied) == 0 {
@@ -290,4 +298,27 @@ func TestModTidyBroken(t *testing.T) {
 		t.Errorf("no warning naming main.vuka:\n%s", stderr.String())
 	}
 	sameTree(t, dir, before)
+}
+
+// TestModTidyTestDepsHint: tidy failing on a module it can't fetch, here
+// one only a dependency's tests import, says how to get it.
+func TestModTidyTestDepsHint(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	dir := module(t, map[string]string{"main.vuka": "package main\n\nimport \"example.com/dep\"\n\nfunc main() { dep.F() }\n"})
+	dep := localLib(t, dir, "dep", "package dep\n\nfunc F() {}\n")
+	writeFile(t, filepath.Join(dep, "dep_test.go"), "package dep\n\nimport _ \"example.com/nowhere/pkg\"\n")
+	writeFile(t, filepath.Join(dep, "go.mod"), "module example.com/dep\n\ngo 1.24\n\nrequire example.com/nowhere v1.0.0\n")
+	appendMod(t, dir, "\nrequire example.com/dep v0.0.0\n\nreplace example.com/dep => ../dep\n")
+	tidyEnv(t, dir)
+	mod := readMod(t, dir)
+	var stdout, stderr bytes.Buffer
+	err := modTidy(nil, &stdout, &stderr)
+	if err == nil || !strings.Contains(err.Error(), "go mod download all") {
+		t.Fatalf("want the hint, got %v\n%s", err, stderr.String())
+	}
+	if got := readMod(t, dir); got != mod {
+		t.Errorf("a failed tidy wrote go.mod:\n%s", got)
+	}
 }

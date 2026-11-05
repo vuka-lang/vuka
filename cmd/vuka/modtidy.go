@@ -354,11 +354,15 @@ func tidyPass(root, modPath string, tidyArgs []string, stderr io.Writer) (*tidyR
 	if os.Getenv("GOWORK") == "" {
 		c.Env = append(c.Env, "GOWORK=off")
 	}
-	out := &pathRewriter{w: stderr, from: copyDir, to: root}
+	var said bytes.Buffer
+	out := &pathRewriter{w: io.MultiWriter(stderr, &said), from: copyDir, to: root}
 	c.Stdout, c.Stderr = out, out
 	err = c.Run()
 	out.flush()
 	if err != nil {
+		if bytes.Contains(said.Bytes(), []byte(" tested by")) || bytes.Contains(said.Bytes(), []byte("module lookup disabled")) {
+			return nil, fmt.Errorf("go mod tidy: %v\n%s", err, offlineHint)
+		}
 		return nil, fmt.Errorf("go mod tidy: %v", err)
 	}
 	if res.newMod, err = os.ReadFile(filepath.Join(copyDir, "go.mod")); err != nil {
@@ -371,6 +375,15 @@ func tidyPass(root, modPath string, tidyArgs []string, stderr io.Writer) (*tidyR
 	}
 	return res, nil
 }
+
+// offlineHint explains tidy failing for a module it can't fetch, which
+// plain go mod tidy does alike.
+const offlineHint = `go mod tidy reads more than a build does, as plain go mod tidy does: the
+go.mod of each module in the requirement graph, and the packages imported
+by the tests of the packages the module imports (the "tested by" lines).
+Those modules must be in the module cache or reachable through GOPROXY:
+go mod download all fetches them ahead, while online; -e tidies without
+them.`
 
 // tidyCopyHook, for tests, sees the copy before go mod tidy runs in it.
 var tidyCopyHook func(dir string)
