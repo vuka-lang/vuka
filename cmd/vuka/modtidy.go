@@ -214,7 +214,46 @@ func (r *tidyResult) changes() []string {
 			out = append(out, "removed "+p+" "+before[p])
 		}
 	}
+	wasIndirect, isIndirect := indirect(r.origMod), indirect(r.newMod)
+	for _, p := range slices.Sorted(maps.Keys(after)) {
+		if _, ok := before[p]; !ok || wasIndirect[p] == isIndirect[p] {
+			continue
+		}
+		if isIndirect[p] {
+			out = append(out, "indirect "+p)
+		} else {
+			out = append(out, "direct  "+p)
+		}
+	}
+	if added, removed := sumLines(r.origSum, r.newSum); added+removed > 0 {
+		out = append(out, fmt.Sprintf("go.sum  %d lines added, %d removed", added, removed))
+	}
 	return out
+}
+
+// sumLines counts the lines go.sum gains and loses.
+func sumLines(before, after []byte) (added, removed int) {
+	was := map[string]bool{}
+	for _, l := range strings.Split(string(before), "\n") {
+		if l != "" {
+			was[l] = true
+		}
+	}
+	is := map[string]bool{}
+	for _, l := range strings.Split(string(after), "\n") {
+		if l != "" {
+			is[l] = true
+			if !was[l] {
+				added++
+			}
+		}
+	}
+	for l := range was {
+		if !is[l] {
+			removed++
+		}
+	}
+	return added, removed
 }
 
 // requirements are go.mod's require directives: module path → version.
@@ -230,10 +269,35 @@ func requirements(mod []byte) map[string]string {
 	return out
 }
 
+// indirect is go.mod's requirements marked // indirect.
+func indirect(mod []byte) map[string]bool {
+	out := map[string]bool{}
+	f, err := modfile.Parse("go.mod", mod, nil)
+	if err != nil {
+		return out
+	}
+	for _, r := range f.Require {
+		if r.Indirect {
+			out[r.Mod.Path] = true
+		}
+	}
+	return out
+}
+
+// declaresTool reports whether go.mod has a tool directive for path, on its
+// own line or in a tool block.
+func declaresTool(mod []byte, path string) bool {
+	f, err := modfile.Parse("go.mod", mod, nil)
+	if err != nil {
+		return false
+	}
+	return slices.ContainsFunc(f.Tool, func(t *modfile.Tool) bool { return t.Path == path })
+}
+
 // ormByGoRun reports whether the build reads the orm's typed fields, which
 // it generates with go run of the orm's tool, go.mod declaring no tool.
 func (r *tidyResult) ormByGoRun() bool {
-	if requirements(r.newMod)[ormModule] == "" || bytes.Contains(r.newMod, []byte("tool "+ormModule+"/cmd/orm")) {
+	if requirements(r.newMod)[ormModule] == "" || declaresTool(r.newMod, ormModule+"/cmd/orm") {
 		return false
 	}
 	return slices.ContainsFunc(r.gens, func(g load.Generated) bool { return typedFieldsUse.Match(g.Src) })
