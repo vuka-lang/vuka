@@ -1,6 +1,7 @@
 package main
 
 import (
+	"crypto/sha256"
 	"errors"
 	"fmt"
 	"go/ast"
@@ -12,6 +13,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+	"sync"
+	"time"
 	"unicode"
 
 	"github.com/vuka-lang/vuka/v2/diag"
@@ -106,10 +109,29 @@ type carrier struct {
 // check type-checks the page packages through the overlay and builds the
 // route table into res.
 func (t *routeTree) check(ov map[string]string, overlay string, res *routesResult) {
-	r := &routeImporter{t: t, ctx: overlayContext(ov), fset: token.NewFileSet(), im: load.NewModuleImporter(t.root),
-		done: map[string]*types.Package{}, walking: map[string]bool{}, byPath: map[string]*routeDir{}, goVersion: goVersionOf(t.root)}
+	r := &routeImporter{t: t, ctx: overlayContext(ov), done: map[string]*types.Package{}, walking: map[string]bool{},
+		byPath: map[string]*routeDir{}, goVersion: goVersionOf(t.root), typed: map[string]*typedDir{}}
+	shape := shapes.module(t.root, overlay, false, func(string) shapeKind { return shapeDecls })
+	if shape != "" {
+		shape = fmt.Sprintf("%s %s %q", shape, r.goVersion, compileFlags)
+	}
+	if m := takeRouteTypes(t.pages); m != nil && shape != "" && m.shape == shape {
+		// The module's declarations are as they were: what the importer
+		// read stays true, and a page package whose files are too is typed.
+		r.im, r.fset, r.prev = m.im, m.fset, m.typed
+		r.im.OverlayChanged() // a package of the module that failed may compile now: a body changed
+	} else {
+		r.im, r.fset = load.NewModuleImporter(t.root), token.NewFileSet()
+	}
 	r.im.Overlay = overlay
 	r.im.BuildFlags = compileFlags
+	t0 := time.Now()
+	defer func() {
+		traceStep("route check: %d of %d page packages typed %v", r.checked, len(t.dirs), time.Since(t0))
+		if shape != "" {
+			putRouteTypes(t.pages, &routeTypes{shape: shape, im: r.im, fset: r.fset, typed: r.typed})
+		}
+	}()
 	var imports []string
 	for _, d := range t.dirs {
 		r.byPath[d.importPath] = d
@@ -157,7 +179,51 @@ type routeImporter struct {
 	walking   map[string]bool
 	byPath    map[string]*routeDir
 	goVersion string
-	syntax    map[string]checked // a page package's files and uses, by import path
+	syntax    map[string]checked   // a page package's files and uses, by import path
+	typed     map[string]*typedDir // each page package typed, by import path
+	prev      map[string]*typedDir // the last check's, when what it imported is as it was
+	checked   int                  // page packages type-checked, not taken from prev
+}
+
+// typedDir is a page package as the route check typed it: from files of
+// sum, importing the page packages deps.
+type typedDir struct {
+	sum  [sha256.Size]byte
+	deps []string
+	pkg  *types.Package
+	syn  checked
+}
+
+// routeTypes is what a watch's last route check of a page tree typed, its
+// importer and file set, for the next check while the module's
+// declarations keep their shape: only the page packages whose files
+// changed, and those importing them, are typed again.
+type routeTypes struct {
+	shape string
+	im    *load.Importer
+	fset  *token.FileSet
+	typed map[string]*typedDir
+}
+
+var (
+	routeTypesMu sync.Mutex
+	routeTypesOf = map[string]*routeTypes{} // by the tree's pages directory
+)
+
+// takeRouteTypes takes the tree's last route types out: a check running
+// beside it starts afresh.
+func takeRouteTypes(pages string) *routeTypes {
+	routeTypesMu.Lock()
+	defer routeTypesMu.Unlock()
+	m := routeTypesOf[pages]
+	delete(routeTypesOf, pages)
+	return m
+}
+
+func putRouteTypes(pages string, m *routeTypes) {
+	routeTypesMu.Lock()
+	defer routeTypesMu.Unlock()
+	routeTypesOf[pages] = m
 }
 
 // checked is a page package's syntax as type-checked.
@@ -194,7 +260,15 @@ func (r *routeImporter) checkDir(d *routeDir) (*types.Package, error) {
 	if bp == nil || len(bp.GoFiles) == 0 {
 		return nil, fmt.Errorf("%s: %v", d.importPath, err)
 	}
-	var files []*ast.File
+	if r.syntax == nil {
+		r.syntax = map[string]checked{}
+	}
+	type source struct {
+		path string
+		src  []byte
+	}
+	var srcs []source
+	h := sha256.New()
 	for _, name := range bp.GoFiles {
 		if d.rel == "" && name == routeGoName {
 			continue
@@ -209,7 +283,30 @@ func (r *routeImporter) checkDir(d *routeDir) (*types.Package, error) {
 		if err != nil {
 			continue
 		}
-		f, _ := parser.ParseFile(r.fset, path, src, parser.SkipObjectResolution)
+		srcs = append(srcs, source{path, src})
+		fmt.Fprintf(h, "%s %d\n", path, len(src))
+		h.Write(src)
+	}
+	var sum [sha256.Size]byte
+	h.Sum(sum[:0])
+	// The page packages it imports first: it is typed again when one is.
+	var deps []string
+	same := true
+	for _, p := range bp.Imports {
+		if dep := r.byPath[p]; dep != nil {
+			deps = append(deps, p)
+			r.checkDir(dep)
+			same = same && r.typed[p] != nil && r.prev[p] == r.typed[p]
+		}
+	}
+	if prev := r.prev[d.importPath]; prev != nil && same && prev.sum == sum && slices.Equal(prev.deps, deps) {
+		r.done[d.importPath], r.syntax[d.importPath], r.typed[d.importPath] = prev.pkg, prev.syn, prev
+		return prev.pkg, nil
+	}
+	r.checked++
+	var files []*ast.File
+	for _, s := range srcs {
+		f, _ := parser.ParseFile(r.fset, s.path, s.src, parser.SkipObjectResolution)
 		if f != nil {
 			files = append(files, f)
 		}
@@ -218,10 +315,8 @@ func (r *routeImporter) checkDir(d *routeDir) (*types.Package, error) {
 	info := &types.Info{Uses: map[*ast.Ident]types.Object{}}
 	pkg, _ := conf.Check(d.importPath, r.fset, files, info)
 	r.done[d.importPath] = pkg
-	if r.syntax == nil {
-		r.syntax = map[string]checked{}
-	}
 	r.syntax[d.importPath] = checked{files, info.Uses}
+	r.typed[d.importPath] = &typedDir{sum: sum, deps: deps, pkg: pkg, syn: r.syntax[d.importPath]}
 	return pkg, nil
 }
 
