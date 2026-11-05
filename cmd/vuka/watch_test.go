@@ -965,3 +965,11 @@ func TestBinaryID(t *testing.T) {
 		}
 	}
 }
+
+func TestCompilerFlags(t *testing.T) {
+	in := []string{"-p=2", "-gcflags=m/...=-l -dwarf=false", "-ldflags=-w", "-tags", "dev", "-trimpath", "-buildvcs=false", "-race", "-mod=mod"}
+	want := []string{"-gcflags=m/...=-l -dwarf=false", "-tags", "dev", "-trimpath", "-race", "-mod=mod"}
+	if got := compilerFlags(in); !slices.Equal(got, want) {
+		t.Errorf("compilerFlags: %q, want %q", got, want)
+	}
+}

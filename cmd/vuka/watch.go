@@ -169,6 +169,7 @@ func runWatch(args []string, stdout, stderr io.Writer) error {
 	if !debug {
 		flags = quickCompile(flags, modPath)
 	}
+	compileFlags = compilerFlags(flags)
 	shapes = newSourceShapes()
 	dir, _ := os.Getwd()
 	if real, err := filepath.EvalSymlinks(dir); err == nil {
@@ -702,6 +703,33 @@ func quickCompile(flags []string, modPath string) []string {
 		}
 	}
 	return append(slices.Clone(flags), "-gcflags="+modPath+"/...=-l -dwarf=false")
+}
+
+// compileFlags are, under a watch, the flags of its builds that decide how
+// go compiles a package: the go list a step runs before the build (the
+// route check's, for export data) takes them too, so that what it compiles
+// is what the build then finds in Go's cache, not a second compile of the
+// module's changed packages.
+var compileFlags []string
+
+// compilerFlags are those of flags, go build's, that change how a package
+// compiles. A flag's value may be the next argument.
+func compilerFlags(flags []string) []string {
+	var out []string
+	for i := 0; i < len(flags); i++ {
+		name, _, hasValue := strings.Cut(strings.TrimLeft(flags[i], "-"), "=")
+		switch name {
+		case "gcflags", "asmflags", "tags", "trimpath", "race", "msan", "asan", "cover", "covermode", "coverpkg", "mod", "modfile":
+		default:
+			continue
+		}
+		out = append(out, flags[i])
+		if !hasValue && name != "trimpath" && name != "race" && name != "msan" && name != "asan" && name != "cover" && i+1 < len(flags) {
+			i++
+			out = append(out, flags[i])
+		}
+	}
+	return out
 }
 
 // noDWARF adds -w to the linker's flags: no debug information, which is
