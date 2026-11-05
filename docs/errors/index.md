@@ -168,6 +168,8 @@ same page in the terminal.
 | [E0357](./E0357) | An exported or bound stream |
 | [E0358](./E0358) | A handler in a stream row isn't a push of a method |
 | [E0359](./E0359) | A live component in a stream row |
+| [E0360](./E0360) | A viewport event on an element that isn't a stream's container |
+| [E0361](./E0361) | A viewport handler that doesn't take the edge row's key |
 | [W0301](./W0301) | A live page routed as one that isn't live |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |

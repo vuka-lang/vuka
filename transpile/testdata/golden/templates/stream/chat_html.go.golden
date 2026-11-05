@@ -4,12 +4,14 @@
 package main
 
 import (
+	"context"
+
 	"github.com/vuka-lang/ui/v2"
 	"github.com/vuka-lang/ui/v2/uigen"
 	"vukatest.local/streamui"
 )
 
-//line chat.vuka.html:9
+//line chat.vuka.html:11
 type Message struct {
 	ID   int64
 	Text string
@@ -26,10 +28,16 @@ type Chat struct {
 
 func (c *Chat) Remove(id int64) { c.messages.Delete(id) }
 
-//line chat.vuka.html:26
+// Older and Newer load at the container's edges: each takes the key of the
+// edge row the browser holds.
+func (c *Chat) Older(first int64) { c.messages.InsertAt(0, Message{ID: first - 1}) }
+
+func (c *Chat) Newer(ctx context.Context, last string) error { return nil }
+
+//line chat.vuka.html:34
 func (c *Chat) Render() ui.Node {
 	var lis []ui.Node
-//line chat.vuka.html:29
+//line chat.vuka.html:37
 	for _, m := range c.messages.Rows() {
 		lis = append(lis, ui.HTML(`
 <li key={m.ID}>
@@ -39,15 +47,22 @@ func (c *Chat) Render() ui.Node {
 	}
 	messages2 := c.messages.Block(lis)
 	var p ui.Node
-//line chat.vuka.html:36
+//line chat.vuka.html:44
 	if c.typing.Get() {
 		p = ui.HTML(`<p>typing…</p>`)
 	}
-//line chat.vuka.html:26
+//line chat.vuka.html:34
 	return ui.HTML(`
 <section>
   <h2>#{c.Room}</h2>
-  <ul class="log" id="log" {messages2.Attrs()...}>{messages2}</ul>
+  <ul class="log" id="log" onViewportTop={c.Older} onViewportBottom={c.Newer} {messages2.Attrs()...}>{messages2}</ul>
   {p}
-</section>`, c.Room, messages2.Attrs(), messages2, p)
+</section>`,
+		c.Room,
+		c.Older,
+		c.Newer,
+		messages2.Attrs(),
+		messages2,
+		p,
+	)
 }

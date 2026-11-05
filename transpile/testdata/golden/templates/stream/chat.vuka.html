@@ -2,6 +2,8 @@
 package main
 
 import (
+	"context"
+
 	"github.com/vuka-lang/ui/v2"
 	"vukatest.local/streamui"
 )
@@ -21,11 +23,17 @@ type Chat struct {
 }
 
 func (c *Chat) Remove(id int64) { c.messages.Delete(id) }
+
+// Older and Newer load at the container's edges: each takes the key of the
+// edge row the browser holds.
+func (c *Chat) Older(first int64) { c.messages.InsertAt(0, Message{ID: first - 1}) }
+
+func (c *Chat) Newer(ctx context.Context, last string) error { return nil }
 </script>
 
 <section>
   <h2>#{Room}</h2>
-  <ul class="log" id="log">
+  <ul class="log" id="log" onViewportTop={Older} onViewportBottom={Newer}>
     for _, m := range messages.Rows() {
       <li key={m.ID}>
         <b>{m.Text}</b>

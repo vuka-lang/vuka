@@ -965,6 +965,7 @@ type jsxPiece struct {
 
 type jsxWriter struct {
 	streaming bool   // the block being written is a stream container's loop (streams.go)
+	container bool   // the element being written is a stream's container (streams.go)
 	inLoop    bool   // writing a loop's body
 	q         string // the target's qualifier
 	f         *fileState

@@ -1,8 +1,9 @@
 # Streams: `ui.Stream[T]`
 
-Status: phase 1 is implemented (ui, web and vuka, branch `feat/streams`);
-phases 2 and 3 are not. Where phase 1 differs from the draft, the text says
-so, and "Phase 1 as built" at the end lists each change.
+Status: phases 1 and 2 are implemented (ui, web and vuka; branches
+`feat/streams` and `feat/streams-2`); phase 3 is not. Where a phase differs
+from the draft, "Phase 1 as built" and "Phase 2 as built" at the end list
+each change.
 
 ## Principle
 
@@ -748,7 +749,7 @@ At run time, under `vuka run` and in tests:
    `data-vk-empty`; the compile errors; livetest's `Stream`; the toolbar
    line; a chat in web's `examples/live` and a memory benchmark beside
    `BenchmarkLoad`. Enough for a chat, a log tail and a capped feed.
-2. **Phase 2 — scrolling.** `InsertAt`, `onViewportTop` and
+2. **Phase 2 — scrolling** (implemented). `InsertAt`, `onViewportTop` and
    `onViewportBottom`, scroll anchoring, focus hand-off, a two-way window
    example and its Chrome test.
 3. **Phase 3 — rows that do more.** Struct forms in rows answering with
@@ -816,3 +817,69 @@ implementation or chosen as its simplest consistent form:
 - **Tests**: `livetest.Client.Stream` reads a container's rows, and
   `Client.Reconnect` joins a new session keeping them, as a browser does
   after a dropped connection.
+
+## Phase 2 as built
+
+What phase 2 changed of the draft above, or decided where it was open:
+
+- **`InsertAt(i, rows...)`** puts each row at `i`, last first, as `Prepend`
+  does at 0, so the rows stay together when one of them is held already
+  (morphed in place); `InsertAt(0, rows...)` is `Prepend(rows...)`.
+  `Rows()` lists them last first. A negative `i` is 0 on the server; one
+  past the browser's rows is sent as is and the browser puts the row at the
+  end. On the wire the position is a number: `["insert", key, i]`. The
+  phase-1 attribute contract is otherwise unchanged.
+- **The queue bound** of a stream with a limit leaves `InsertAt`'s rows
+  alone: where they end up depends on the rows the browser holds, so
+  dropping the oldest could drop one that survives. The queue warning
+  (§4) therefore covers a stream holding them, limit or not.
+- **Viewport events** observe the edge rows themselves (no sentinel
+  elements: the container's children are the rows). The observer's root is
+  the nearest ancestor whose computed `overflow-y` is `auto`, `scroll` or
+  `overlay` — the container itself included — else the viewport; the
+  margin is `data-vk-viewport-margin` (400px), given to the observer as its
+  `rootMargin`. The runtime dispatches `viewporttop`/`viewportbottom` as
+  non-bubbling DOM events on the container, so a JS command chain
+  (`data-vk-js-viewportbottom`) works too, the key in `event.detail.key`.
+- **Firing.** An edge fires when its row is in view, isn't the row it last
+  fired for, and no reply to it is pending; checks are coalesced to one per
+  container per 100ms. The pending wait is the runtime's usual one (the
+  container `aria-busy`), released by the reply, a closed socket, or a
+  reply that is an error; the edge is checked again after it. A reset batch
+  clears what each edge fired, so the same edge row after a reset (a filter
+  that changed) fires again. A container with no rows fires nothing: there
+  is no key. The server serializes a session's events, so both edges firing
+  at once (a short first page) are answered one after the other.
+- **Handler types** are checked by the compiler: E0360 for a viewport event
+  on an element that isn't a stream's container (a component's prop of that
+  name is a prop, not checked), E0361 for a handler whose value parameter
+  isn't the rows' key type or a `string`, that takes a form struct or two
+  values, or returns more than an error. A handler taking no value, or
+  a `ui.Event`, is accepted; JS commands aren't checked.
+- **Anchoring** is manual and measured after the browser's own: before a
+  batch the runtime records the first rows fully in the scroller's view
+  (and the one across its top, for rows taller than the view); after it,
+  the first of them still in the container is put back where it was by
+  scrolling the scroller by the difference, which is zero where the
+  browser's `overflow-anchor` already corrected. The container's
+  `overflow-anchor` is left as the page sets it (the draft set `none`): the
+  runtime corrects only what is left, so the two never correct twice. A
+  scroller at its top isn't anchored, so a newest-first feed's new rows
+  show at the top — unless the batch answers the container's
+  `onViewportTop`, whose rows go above the reader.
+- **Focus** hands off to the nearest remaining row of those the container
+  held before the batch — the next, else the previous — else the container,
+  and only when the focused element went with its row (focus that moved on
+  meanwhile is left alone). The row or container gets `tabindex="-1"` when
+  it has none, held by the runtime while the server renders none, and is
+  focused with `preventScroll`, so the anchoring above isn't undone. A
+  kept row that a reset moved into its order (which takes focus from the
+  element in it as it moves) gives focus back to that element.
+- **Tests**: `livetest.Client.Viewport(sel, edge)` fires a container's
+  viewport event with its edge row's key, as a browser does; web's Chrome
+  tests cover loading to the end, loading at the top with the reader's row
+  staying put, a limited two-way window in a scrolling container, no
+  second event while a reply is pending, `InsertAt`, and focus hand-off.
+  The example is web's `examples/live` `/history`.
+- **Not done**: viewport events on pages that aren't live (open question
+  6) and the toolbar's red line for a batch the browser ignored stay open.
