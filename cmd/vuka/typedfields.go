@@ -86,6 +86,7 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 	var out, errOut bytes.Buffer
 	c := exec.Command(name, append(args, dir)...)
 	c.Dir, c.Stdout, c.Stderr = root, &out, &errOut
+	c.Env = ormEnv(root)
 	if err := c.Run(); err != nil {
 		what := "orm"
 		if name == "go" {
@@ -110,6 +111,103 @@ func ormMissingIn(root, dir, overlay string, gens []load.Generated, tests, all b
 		ormMemo.Store(slot, &ormResultMemo{shape, missing})
 	}
 	return missing, nil
+}
+
+// ormEnv is the orm tool's environment: under a watch, GOFLAGS carries the
+// flags of its builds that decide how go compiles a package
+// (compileFlags), so that the packages the tool's go list compiles for
+// their types are the ones go build then finds in Go's cache, not a second
+// compile of the module's changed packages. Nil (vuka's own) otherwise.
+func ormEnv(root string) []string {
+	if len(compileFlags) == 0 {
+		return nil
+	}
+	goflags, ok := goFlagsWith(root, compileFlags)
+	if !ok {
+		return nil
+	}
+	return append(os.Environ(), "GOFLAGS="+goflags)
+}
+
+// goFlagsWith is the GOFLAGS of the go command in root (the environment's,
+// else go env -w's) with flags after its own, each -name=value and quoted
+// as GOFLAGS reads it; not ok when a value can't be quoted.
+func goFlagsWith(root string, flags []string) (string, bool) {
+	var words []string
+	if v, ok := goFlagsEnv.Load(root); ok {
+		words = v.([]string)
+	} else {
+		c := exec.Command("go", "env", "GOFLAGS")
+		c.Dir = root
+		out, err := c.Output()
+		if err != nil {
+			return "", false
+		}
+		if words, ok = splitGoFlags(strings.TrimSpace(string(out))); !ok {
+			return "", false
+		}
+		goFlagsEnv.Store(root, words)
+	}
+	words = slices.Clone(words)
+	for i := 0; i < len(flags); i++ {
+		f := flags[i]
+		name, _, hasValue := strings.Cut(strings.TrimLeft(f, "-"), "=")
+		if !hasValue && !boolBuildFlag[name] && i+1 < len(flags) {
+			f += "=" + flags[i+1] // -tags x: GOFLAGS takes -tags=x only
+			i++
+		}
+		words = append(words, f)
+	}
+	var b strings.Builder
+	for _, w := range words {
+		if b.Len() > 0 {
+			b.WriteByte(' ')
+		}
+		switch {
+		case !strings.ContainsAny(w, " \t\n'\""):
+			b.WriteString(w)
+		case !strings.Contains(w, "'"):
+			b.WriteString("'" + w + "'")
+		case !strings.Contains(w, `"`):
+			b.WriteString(`"` + w + `"`)
+		default:
+			return "", false
+		}
+	}
+	return b.String(), true
+}
+
+// boolBuildFlag are the flags of compilerFlags that take no value.
+var boolBuildFlag = map[string]bool{"trimpath": true, "race": true, "msan": true, "asan": true, "cover": true}
+
+// goFlagsEnv is each module root's GOFLAGS, as words.
+var goFlagsEnv sync.Map // root → []string
+
+// splitGoFlags splits GOFLAGS as the go command does: on spaces, but in
+// single or double quotes.
+func splitGoFlags(s string) ([]string, bool) {
+	var words []string
+	for {
+		s = strings.TrimLeft(s, " \t\n\r")
+		if s == "" {
+			return words, true
+		}
+		if q := s[0]; q == '\'' || q == '"' {
+			end := strings.IndexByte(s[1:], q)
+			if end < 0 {
+				return nil, false
+			}
+			words = append(words, s[1:1+end])
+			s = s[2+end:]
+			continue
+		}
+		end := strings.IndexAny(s, " \t\n\r")
+		if end < 0 {
+			end = len(s)
+		}
+		words = append(words, s[:end])
+		s = s[end:]
+	}
 }
 
 // ormReads is what of the file at path the orm tool's answer depends on: all
