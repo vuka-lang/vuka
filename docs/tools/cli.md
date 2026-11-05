@@ -21,7 +21,8 @@ vuka ui diff [--registry r] [--offline] [component… | library/component…]
 vuka ui list [--registry r] [--offline] [library]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
-vuka mod tidy|why|vendor|graph|… [args]
+vuka mod tidy [-check] [-e] [-v] [-go=version] [-compat=version]
+vuka mod why|vendor|graph|… [args]
 vuka build -islands [-watch]
 vuka graphql schema [-check file] [-o file] [package]
 vuka routes [-json]
@@ -383,6 +384,47 @@ Another package's errors don't fail it; one line counts them (`(1 error in
 packages not asked about, nor imported by them: vuka vet ./... lists it)`).
 `vuka vet ./...`, no packages, or packages named by import path report the
 whole module.
+
+## Tidying go.mod {#mod-tidy}
+
+Plain `go mod tidy` reads only `.go` files. In an app, imports used only in
+`.vuka` and `.vuka.html` files, or only by the Go vuka generates without
+writing it — the runtime behind `Result` and `Option`, the orm's typed
+fields, the route tables and URL helpers, call adapters — are invisible to
+it: it drops those requirements and the next build fails. Run
+**`vuka mod tidy`** instead:
+
+```sh
+vuka mod tidy            # tidy go.mod and go.sum, printing what changed
+vuka mod tidy -check     # in CI: exit 1 when they aren't tidy, writing nothing
+```
+
+It transpiles the module as `vuka build` does, copies what `go mod tidy`
+reads of it — `go.mod`, `go.sum` and the `.go` files, with the generated Go
+as files beside them — into a temporary directory, runs `go mod tidy` there
+and copies back `go.mod` and `go.sum` alone. Nothing generated is written
+to the app. It then prints each requirement it added, removed or changed:
+
+```text
+added   github.com/google/uuid v1.6.0
+removed github.com/pkg/errors v0.9.1
+```
+
+Local `replace` directives (`=> ../lib`) keep working in the copy, `tool`
+directives keep their requirements, nested modules are left out as the go
+command leaves them, and `go.work` doesn't change what tidy does. `-e`,
+`-v`, `-go` and `-compat` are `go mod tidy`'s own flags.
+
+If a package doesn't transpile, its `.vuka` files' imports are still read,
+and a warning names what failed. An app whose build runs the orm's tool
+with `go run` (no `tool github.com/vuka-lang/orm/v2/cmd/orm` in `go.mod`;
+`vuka new` writes one) is told to declare it, as tidy keeps a tool's
+`go.sum` entries only then.
+
+The other `go mod` commands — `vuka mod why`, `vuka mod vendor`,
+`vuka mod graph` — run `go mod` in the module, with a file of blank
+imports standing for each package's `.vuka` imports while they run.
+`vuka help mod` prints this in short.
 
 ## Ejecting to Go {#eject}
 

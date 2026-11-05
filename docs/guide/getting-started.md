@@ -132,7 +132,7 @@ These are the commands you use most; each mirrors a go command:
 | `vuka run .` | run, like `go run` |
 | `vuka build` | build, like `go build`, and refresh [`build/`](/guide/how-it-works#the-build-module) |
 | `vuka test ./...` | test, like `go test` |
-| `vuka mod tidy` | `go mod tidy`, seeing `.vuka` imports too |
+| `vuka mod tidy` | `go mod tidy` that sees `.vuka` files and the Go vuka generates — use it, never plain `go mod tidy` |
 | `vuka explain main.vuka` | show what each line becomes in Go |
 
 `.vuka` and `.go` files live side by side in the same packages and call each
