@@ -93,18 +93,23 @@ func modTidy(args []string, stdout, stderr io.Writer) error {
 	// Sources that don't transpile for want of their dependencies (a new
 	// app, before its first tidy): once their imports are required, the
 	// whole module is transpiled again.
+	restore := func() error { return nil }
 	if res.transpileErr != nil && !*check && res.changed() {
+		first := *res
+		restore = func() error {
+			back := tidyResult{root: root, newMod: first.origMod, newSum: first.origSum, hasSum: first.hadOrigSum, hadSum: !first.hadOrigSum}
+			return back.write()
+		}
 		if err := res.write(); err != nil {
 			return err
 		}
-		orig := res.origMod
 		if res, err = tidyPass(root, modPath, tidyArgs, stderr); err != nil {
-			return err
+			return errors.Join(err, restore())
 		}
-		res.origMod = orig
+		res.origMod, res.origSum, res.hadOrigSum = first.origMod, first.origSum, first.hadOrigSum
 	}
 	if res.transpileErr != nil {
-		fmt.Fprintln(stderr, "vuka mod tidy: warning: the module doesn't all transpile, so of what doesn't only the imports were read:")
+		fmt.Fprintln(stderr, "vuka mod tidy: warning: some Vuka sources don't transpile; of those, only the imports were read:")
 		ds, rest := diag.From(res.transpileErr)
 		writeDiags(stderr, ds, colorFor(stderr))
 		for _, e := range rest {
@@ -112,7 +117,7 @@ func modTidy(args []string, stdout, stderr io.Writer) error {
 		}
 	}
 	if err := res.needed(); err != nil {
-		return err
+		return errors.Join(err, restore())
 	}
 	changes := res.changes()
 	if res.ormByGoRun() {
@@ -148,6 +153,8 @@ func modTidy(args []string, stdout, stderr io.Writer) error {
 type tidyResult struct {
 	root           string
 	origMod        []byte // go.mod before the first pass: what changes and needed compare with
+	origSum        []byte // go.sum before the first pass
+	hadOrigSum     bool
 	oldMod, newMod []byte
 	oldSum, newSum []byte
 	hadSum, hasSum bool
@@ -296,6 +303,7 @@ func tidyPass(root, modPath string, tidyArgs []string, stderr io.Writer) (*tidyR
 	} else if !errors.Is(err, fs.ErrNotExist) {
 		return nil, err
 	}
+	res.origSum, res.hadOrigSum = res.oldSum, res.hadSum
 	tmp, err := os.MkdirTemp("", "vuka-tidy-")
 	if err != nil {
 		return nil, err

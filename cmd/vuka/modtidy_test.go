@@ -265,3 +265,29 @@ func TestModTidyNeeded(t *testing.T) {
 		t.Errorf("needed, a tool's module dropped: %v", err)
 	}
 }
+
+// TestModTidyBroken: a .vuka file that doesn't transpile still has its
+// imports required, with a warning naming it.
+func TestModTidyBroken(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	dir := module(t, map[string]string{
+		"main.vuka": "package main\n\nimport \"example.com/greet\"\n\nfunc main() { greet.Hello( }\n",
+	})
+	localLib(t, dir, "greet", "package greet\n\nfunc Hello() string { return \"hi\" }\n")
+	appendMod(t, dir, "\nreplace example.com/greet => ../greet\n")
+	tidyEnv(t, dir)
+	before := treeFiles(t, dir)
+	var stdout, stderr bytes.Buffer
+	if err := modTidy(nil, &stdout, &stderr); err != nil {
+		t.Fatalf("%v\n%s", err, stderr.String())
+	}
+	if got := readMod(t, dir); !requires(got, "example.com/greet") {
+		t.Errorf("go.mod doesn't require example.com/greet:\n%s", got)
+	}
+	if !strings.Contains(stderr.String(), "don't transpile") || !strings.Contains(stderr.String(), "main.vuka") {
+		t.Errorf("no warning naming main.vuka:\n%s", stderr.String())
+	}
+	sameTree(t, dir, before)
+}
