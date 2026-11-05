@@ -101,7 +101,8 @@ func islandDiags(root, path string, text []byte) []any {
 		}
 	}
 	if isVuka(path) {
-		for _, d := range deferDiags(path, text, loadersOf(packageVuka(path, text))) {
+		srcs := packageVuka(path, text)
+		for _, d := range append(deferDiags(path, text, loadersOf(srcs)), ormHookDiags(root, path, srcs)...) {
 			s := offsetAt(text, d.Span.Line, d.Span.Col)
 			e := offsetAt(text, d.Span.Line, max(d.Span.EndCol, d.Span.Col))
 			out = append(out, lspFrom(lspRange{positionOf(text, s), positionOf(text, e)}, d))

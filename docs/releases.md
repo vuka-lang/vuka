@@ -43,6 +43,19 @@ the `github.com/vuka-lang/vuka` package your module requires.
   loader ([E0324](/errors/E0324)) are reported for these components as for
   islands, and fail the component's mount.
 
+### The ORM
+
+- **`Indexes`, `Checks` and `Generated` on `orm.Base`.** The base declares
+  none, so the methods show in completion and its docs; a model's own, with
+  either receiver, overrides them as before, and a struct the model embeds
+  still declares them by its own ([Embedding](/orm/models#embedding)).
+  Needs orm at the release's version.
+- **A method named like an ORM hook with another signature** —
+  `Indexes() []orm.IndexKey`, `BeforeSave()` without its context and error —
+  is ignored by the ORM. vukavet's `ormhooks` check and the editor report it
+  ([W0503](/errors/W0503)), with the signature the orm the app requires
+  declares.
+
 ## v2.16.1 — 2026-11-01
 
 ### Breaking
