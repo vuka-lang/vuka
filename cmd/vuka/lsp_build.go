@@ -297,7 +297,10 @@ func (p *proxy) build() {
 	if p.sess != nil {
 		transpileAll = p.sess.Transpile
 	}
-	run := func(pkgs []*load.Package, opts load.Options, module bool) (gens []load.Generated, list transpile.ErrorList, err error) {
+	// run transpiles pkgs; for the module, transpiled is then handed what
+	// the requests on the edited buffers read, before the steps reading the
+	// whole module add the rest of the build's Go.
+	run := func(pkgs []*load.Package, opts load.Options, module bool, transpiled func([]load.Generated, transpile.ErrorList)) (gens []load.Generated, list transpile.ErrorList, err error) {
 		// A compiler panic is a diagnostic on the package's first file.
 		defer func() {
 			if r := recover(); r != nil {
@@ -334,12 +337,17 @@ func (p *proxy) build() {
 				p.logf("folder routes: %v", err)
 			}
 		}
+		if transpiled != nil {
+			transpiled(gens, list)
+		}
 		// The rest of the build's Go, from the build's own code (the
 		// editor shows test files: the models of tests get typed fields).
 		if _, g, _, err := moduleOverlay(modRoot, modPath, p.tmp, overlay, pkgs, gens, true, logWriter{p}); err != nil {
 			p.logf("module overlay: %v", err)
 		} else {
-			gens = withoutGoSources(g)
+			g = withoutGoSources(g)
+			p.wide = slices.Clone(g[len(gens):])
+			gens = g
 		}
 		return gens, list, nil
 	}
@@ -356,7 +364,7 @@ func (p *proxy) build() {
 	}
 	first := load.Closure(pkgs, roots)
 	if len(first) > 0 && len(first) < len(pkgs) {
-		gens, list, err := run(first, load.Options{Bare: true, Tolerant: true, Contexts: contexts}, false)
+		gens, list, err := run(first, load.Options{Bare: true, Tolerant: true, Contexts: contexts}, false, nil)
 		if err != nil {
 			return
 		}
@@ -369,10 +377,23 @@ func (p *proxy) build() {
 	// Then the module. Once the edited packages are done, it gives way to
 	// newer edits.
 	opts := load.Options{Bare: true, Tolerant: true, Contexts: contexts}
+	var transpiled func([]load.Generated, transpile.ErrorList)
+	var early []load.Generated // what transpiled gave gopls
 	if first != nil || len(edited) == 0 {
 		opts.Stop = p.preempt.Load
+	} else {
+		// The edited packages are the module: its transpiled Go is their
+		// first stage, and the requests on them wait for no more, while
+		// gopls keeps the last build's module-wide Go (link files, the
+		// orm's typed fields, call adapters) until the steps reading the
+		// whole module have run — each can run a tool, seconds on a busy
+		// machine.
+		transpiled = func(gens []load.Generated, list transpile.ErrorList) {
+			early = withWide(gens, p.wide)
+			p.apply(pkgs, slices.Clone(early), list, bufs, hunks, edited, seq, false)
+		}
 	}
-	gens, list, err := run(pkgs, opts, true)
+	gens, list, err := run(pkgs, opts, true, transpiled)
 	if err != nil {
 		if errors.Is(err, load.ErrStopped) {
 			p.logf("stopped for a newer edit")
@@ -383,8 +404,44 @@ func (p *proxy) build() {
 	for path := range bufs {
 		all[path] = true
 	}
-	p.apply(pkgs, gens, list, bufs, hunks, all, seq, true)
+	// Applied again only when the module-wide steps changed the Go: an
+	// apply takes the generated Go from the requests probing it, and those
+	// on the edited buffers are answered by now.
+	if early == nil || !sameGens(early, gens) {
+		p.apply(pkgs, gens, list, bufs, hunks, all, seq, true)
+	}
 	p.logf("built the module (%d packages%s) in %v", len(pkgs), p.transpiled(), time.Since(t0).Round(time.Millisecond))
+}
+
+// withWide is gens, a module's transpiled Go, with wide, the Go the last
+// build's module-wide steps added, for the files gens doesn't generate.
+func withWide(gens, wide []load.Generated) []load.Generated {
+	out := slices.Clone(gens)
+	for _, w := range wide {
+		if !slices.ContainsFunc(gens, func(g load.Generated) bool { return g.Target == w.Target }) {
+			out = append(out, w)
+		}
+	}
+	return out
+}
+
+// sameGens reports whether a and b generate the same files from the same
+// sources, in any order.
+func sameGens(a, b []load.Generated) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	byTarget := make(map[string]load.Generated, len(a))
+	for _, g := range a {
+		byTarget[g.Target] = g
+	}
+	for _, g := range b {
+		o, ok := byTarget[g.Target]
+		if !ok || o.Source != g.Source || !bytes.Equal(o.Src, g.Src) {
+			return false
+		}
+	}
+	return true
 }
 
 // withoutGoSources is gens with the call adapters the build generates for

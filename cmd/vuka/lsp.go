@@ -569,6 +569,7 @@ type proxy struct {
 	sent     map[string]sentDiags // URI → the diagnostics last published for it (pubMu)
 	synMu    sync.Mutex           // held while a buffer's syntax is checked
 	sess     *load.Session        // what the module's last builds transpiled; nil before the first
+	wide     []load.Generated     // the Go the last build's module-wide steps added (buildMu)
 	building bool                 // a build runs
 	again    bool                 // and another is wanted once it ends
 	preempt  atomic.Bool          // the build that runs should leave the rest of the module for later
