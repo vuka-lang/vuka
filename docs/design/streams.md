@@ -1,9 +1,9 @@
 # Streams: `ui.Stream[T]`
 
-Status: phases 1 and 2 are implemented (ui, web and vuka; branches
-`feat/streams` and `feat/streams-2`); phase 3 is not. Where a phase differs
-from the draft, "Phase 1 as built" and "Phase 2 as built" at the end list
-each change.
+Status: phases 1, 2 and 3 are implemented (ui, web and vuka; branches
+`feat/streams`, `feat/streams-2` and `feat/streams-3`). Where a phase
+differs from the draft, "Phase 1 as built", "Phase 2 as built" and "Phase 3
+as built" at the end list each change.
 
 ## Principle
 
@@ -374,8 +374,7 @@ tags, or a handler returning a `forms` error, answers with the report as
 the Push's `result` (`{"report": …}`), addressed to that row's form, and
 nothing else changes. A success re-inserts the row, which morphs in place;
 its fields take the server's values where those changed, as everywhere.
-Report results are phase 3; until then a row form validates in its handler
-and returns an error the page shows.
+(Phase 3; see "Phase 3 as built" for the form's shape in a row.)
 
 ### Counting and empty states
 
@@ -752,9 +751,10 @@ At run time, under `vuka run` and in tests:
 2. **Phase 2 — scrolling** (implemented). `InsertAt`, `onViewportTop` and
    `onViewportBottom`, scroll anchoring, focus hand-off, a two-way window
    example and its Chrome test.
-3. **Phase 3 — rows that do more.** Struct forms in rows answering with
-   reports; a v2 dynamic of its own for a stream block if the attribute
-   form proves costly; the sugar of open question 2.
+3. **Phase 3 — rows that do more** (implemented). Struct forms in rows
+   answering with reports; a v2 dynamic of its own for a stream block's
+   attributes; which end a limit trims (open question 3); the toolbar's
+   red line. The sugar of open question 2 is left out.
 
 ## Open questions
 
@@ -767,7 +767,9 @@ At run time, under `vuka run` and in tests:
    value means something else.
 3. **Limit's end.** "The end away from where rows went in" covers chats,
    feeds and windows. Is there a case for a per-call override
-   (`Insert(rows, ui.TrimEnd)`)?
+   (`Insert(rows, ui.TrimEnd)`)? *Resolved in phase 3*: yes — a
+   newest-first feed that loads older rows at the bottom — but as the
+   stream's setting, `Limit(n).TrimEnd()` / `.TrimStart()`, not per call.
 4. **Browser state in rows.** A `ui.State` declared in a row needs a key
    that includes the row's key (`StateKey` and `KeyStates`); rows of two
    batches must never share one. To check against `scope.StateKey` before
@@ -883,3 +885,74 @@ What phase 2 changed of the draft above, or decided where it was open:
   The example is web's `examples/live` `/history`.
 - **Not done**: viewport events on pages that aren't live (open question
   6) and the toolbar's red line for a batch the browser ignored stay open.
+
+## Phase 3 as built
+
+What phase 3 changed of the draft above, or decided where it was open:
+
+- **A row's form.** `<ui.Form for>` in a row takes a form built from the
+  row's record each render (`for={renameOf(t)}`, a value the compiler
+  doesn't take the address of), and its `onSubmit` is a `Push` of a method
+  of the owner whose last parameter is the form, the row's key a push
+  argument rather than a hidden field of the payload (the draft's
+  `form:"id"`): `onSubmit={ui.JS.Push(Rename, t.ID)}` with
+  `Rename(ctx, id int64, f RenameForm) error`. It is the same row-handler
+  rule as every other (§2, Events in rows), and keeps the record's key out
+  of the form's struct. The form renders `data-vk-row-form` and a hidden
+  `_vk_row` (the row's key); it registers no submit handler with the
+  session, holds no change handlers and no idempotency key, and the row's
+  key is its key by default, so each row's ids are its own.
+- **The submit.** The session sees `_vk_row` among a push's form values
+  and binds them into a fresh form of the method's parameter type, running
+  its rules and `Clean` methods as `formCtl.submit` does (its error mapping
+  is shared: `formState.takeError`). Failing them, the method isn't called;
+  failing them or answering a form error (`Fail`, a `forms.Error`, a public
+  error), the push's result is `{"report":{…}}`, a `FormReport` built from
+  the form's errors without a render (`rowSubmit.report`), and no patch
+  error. A success answers a report with no errors, so the browser clears
+  what it showed; a method returning a result of its own answers it
+  instead. The browser's `applyResult` hands the report to `applyReport`,
+  the HTTP form path, on the form the report names.
+- **Checks only on submit.** A row's form has no state to check a field
+  against as the visitor types: `onChange` on it is E0363. No `onSubmit`, or
+  one pushing nothing or a method not taking the form, is E0362. Both are
+  the compiler's and the render's (for Go).
+- **Focus.** A failed row form's report moves focus to its summary (or its
+  first field in error) only from inside the form or from nowhere, so a
+  visitor typing in another row keeps typing; a second submit of a struct
+  form while one is in flight is dropped for a push as for a handler. No
+  `ui.Errors`-style accessor: the design names none, and the report is the
+  browser's.
+- **The compact dynamic** covers the container's attributes, not its rows:
+  the rows were already a block of frames whose statics go once per
+  connection. On a v2 join with the `stream` extension
+  (`{"ext":["stream"]}`), the attribute set goes as
+  `{"st":{"n","b","l","tr","o"}}`, its operations plain JSON with one-letter
+  names, which the client writes back as the attributes — the batch rule,
+  the morph and the toolbar read the attribute form unchanged. Negotiated,
+  so a runtime from before keeps the attributes; the HTTP render and v1
+  never change. `live.StreamAttrs` writes the attributes back in Go
+  (livetest, the toolbar's mirror). Markup holding a container is never
+  kept by reference either (a Go component's whole HTML).
+- **Which end a limit trims** (open question 3): `Limit` returns a
+  `StreamLimit` whose `TrimStart()` and `TrimEnd()` fix the end, rendered as
+  `data-vk-trim`. A `Reset` past the limit keeps the rows at the other end
+  (the last `n` trimming the start), and the queue bound drops the inserts
+  the browser wouldn't show — the newest at the end it trims. `Limit` again
+  goes back to the end away from the rows.
+- **The toolbar's red line.** The runtime dispatches `vk:stream` on the
+  document — `{id, stream, batch, applied, problem, ref}` — for a batch it
+  ignored (one the reply carried, no later than the one applied: a reply
+  delivered twice, or the server's mistake; a container morphed again
+  carries none), one out of step, and one inserting a row it doesn't carry.
+  The toolbar draws each red under the message whose stream line names the
+  batch, else under the reply to `ref`, else on its own.
+- **Tests**: ui's `TestStreamRowForm`, `TestStreamCompactWire` (the compact
+  form building the attribute form's HTML, operation by operation, in fewer
+  bytes), `TestStreamLimitTrim`; web's Chrome tests for a row form's errors
+  placed while another row is typed in, a success re-inserting the row in
+  place keeping what was typed since, the trim end in both directions, the
+  compact form's equivalence and the toolbar's lines.
+- **Not done**: the sugar of open question 2, viewport events on pages that
+  aren't live (open question 6), and live checks of a row's form as the
+  visitor types.

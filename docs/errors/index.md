@@ -170,6 +170,8 @@ same page in the terminal.
 | [E0359](./E0359) | A live component in a stream row |
 | [E0360](./E0360) | A viewport event on an element that isn't a stream's container |
 | [E0361](./E0361) | A viewport handler that doesn't take the edge row's key |
+| [E0362](./E0362) | A form in a stream row that doesn't submit to a method taking it |
+| [E0363](./E0363) | A form in a stream row that checks as the visitor types |
 | [W0301](./W0301) | A live page routed as one that isn't live |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |

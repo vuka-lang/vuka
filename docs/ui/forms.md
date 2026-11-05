@@ -873,6 +873,17 @@ func (p *SignIn) save(ctx context.Context, f account.Credentials) error {
 A page with anything else live — a live component, an `onClick`
 handler — is live as a whole, and its form goes over its connection.
 
+## Forms in Stream Rows {#stream-rows}
+
+A [stream](/web/streams)'s rows are forgotten by the server once sent, and
+so is a form in one: `<ui.Form for={renameOf(t)} onSubmit={ui.JS.Push(Rename,
+t.ID)}/>` builds the form from the row's record each render, and its submit
+pushes a method of the stream's owner whose last parameter is the form. The
+submit runs the form's checks on what was sent; its errors come back as the
+same report a form on a page that isn't live gets, put in place on that
+row's form without rendering the row. A row's form checks only as it is
+submitted. See [Forms in Rows](/web/streams#forms).
+
 ## Without JavaScript {#no-js}
 
 A page with a form works without script. The form posts to the page

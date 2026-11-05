@@ -112,7 +112,7 @@ pages is held a thousand times only until each page's reply is written.
 | `InsertAt(i int, rows ...T)` | the rows before the browser's row `i` (from 0), in the order given; past the last row, at the end |
 | `Delete(keys ...any)` | remove the rows with these keys; a key the browser doesn't hold is ignored |
 | `Reset(rows ...T)` | replace every row with these, in order |
-| `Limit(n int)` | the browser keeps at most `n` rows (0: no limit, the default) |
+| `Limit(n int)` | the browser keeps at most `n` rows (0: no limit, the default); `.TrimStart()` or `.TrimEnd()` on what it returns fixes the end it trims |
 
 There is no accessor for handlers and no `Len`: the server doesn't know
 what the browser holds.
@@ -157,6 +157,66 @@ queued operations the session logs a warning in development and tests.
 doesn't know: it suits a position the page knows from what it shows — a
 row the visitor dropped between two others, its index sent with the drop.
 A negative `i` is 0, so `InsertAt(0, rows...)` is `Prepend(rows...)`.
+
+### Which End a Limit Trims {#trim}
+
+The end away from where rows went in suits a stream that grows at one end.
+A newest-first feed that also loads older rows at the bottom ("show older")
+grows at both: there, `Insert` would trim the newest rows off the top. Fix
+the end the limit trims instead, whichever end a batch goes in at:
+
+```html
+<script lang="go">
+package feed
+
+import (
+    "context"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Feed struct {
+    ui.Live
+    events ui.Stream[models.Event]
+    store  *services.Events
+}
+
+@ui.Mount
+func (f *Feed) mount(ctx context.Context) error {
+    f.events.Limit(100).TrimEnd() // the newest 100, at the top
+    evs, err := f.store.Latest(ctx, 50)
+    f.events.Reset(evs...)
+    f.Subscribe("events")
+    return err
+}
+
+func (f *Feed) Update(e models.Happened) { f.events.Prepend(e.Event) } // the bottom trimmed
+
+func (f *Feed) Older(ctx context.Context, last int64) error {
+    evs, err := f.store.Before(ctx, last, 50)
+    f.events.Insert(evs...) // goes in at the bottom, and is trimmed there once 100 are shown
+    return err
+}
+</script>
+
+<ul onViewportBottom={Older}>
+  for _, e := range events.Rows() {
+    <li key={e.ID}>{e.Text}</li>
+  }
+</ul>
+```
+
+| | A batch's rows at the end (`Insert`) | at the start (`Prepend`, `InsertAt`) | A `Reset` past the limit keeps |
+|---|---|---|---|
+| `Limit(n)` | trim the start | trim the end | the first `n` |
+| `Limit(n).TrimEnd()` | trim the end: past `n`, they don't show | trim the end | the first `n` |
+| `Limit(n).TrimStart()` | trim the start | trim the start: past `n`, they don't show | the last `n` |
+
+A row the browser holds is still morphed in place and trims nothing. Calling
+`Limit` again goes back to the end away from the rows until `TrimStart` or
+`TrimEnd` follows it. The queue of a container that isn't rendered is
+bounded the same way: it keeps the inserts the browser would show.
 
 ## Infinite Scroll {#infinite-scroll}
 
@@ -335,9 +395,84 @@ ever shown, which is what a stream exists to avoid. Per-row state belongs in
 the record or in the browser (`ui.State`); per-row server work belongs to
 the owner's methods, which reload the record and insert the row again.
 
-A form in a row submits as a push too, the record's key a hidden field of
-its payload; a handler validates and returns an error the page shows. A
-success inserts the row again, which morphs in place.
+## Forms in Rows {#forms}
+
+A row may hold a [struct form](/ui/forms). Its submit is a push of a
+method of the owner, the row's key among its arguments and the form's
+fields filling the method's last parameter, the form:
+
+```html
+<script lang="go">
+package tasks
+
+import (
+    "context"
+    "example.com/app/models"
+    "example.com/app/services"
+    "github.com/vuka-lang/ui/v2"
+)
+
+type Rename struct {
+    ui.FormState
+    Name string `validate:"required,max=80"`
+}
+
+func renameOf(t models.Task) *Rename { return &Rename{Name: t.Name} }
+
+type Tasks struct {
+    ui.Live
+    tasks ui.Stream[models.Task]
+    store *services.Tasks
+}
+
+func (p *Tasks) Rename(ctx context.Context, id int64, f Rename) error {
+    if p.store.Taken(ctx, f.Name) {
+        return f.Fail("Another task has that name")
+    }
+    task, err := p.store.Rename(ctx, id, f.Name)
+    if err != nil {
+        return err
+    }
+    p.tasks.Insert(task)
+    return nil
+}
+</script>
+
+<ul>
+  for _, t := range tasks.Rows() {
+    <li key={t.ID}>
+      <ui.Form for={renameOf(t)} onSubmit={ui.JS.Push(Rename, t.ID)} submitLabel="Rename" noSummary/>
+    </li>
+  }
+</ul>
+```
+
+The server forgets the row, so the form keeps nothing on the server
+either: each render builds it from the record (`renameOf`), and a submit
+binds what the browser sent into a fresh `Rename` and runs its rules and
+`Clean` methods, as any struct form's submit does. Then:
+
+- **It fails its checks** — the method isn't called — or the method returns
+  a form error (`f.Fail`, a `forms.Error`, a public error): nothing
+  renders. The reply carries the form's report, and the
+  browser puts each error at its field and the summary in place on that
+  row's form, as for a [form on a page that isn't live](/ui/forms#http):
+  the fields aren't rendered again, so what was typed, the caret and the
+  focus stay. Focus moves to the summary (or the first field in error)
+  only when it was in that form: a visitor typing in another row keeps
+  typing.
+- **It succeeds**: the method inserts the row again, which morphs in place,
+  and the form's errors clear. A field the visitor typed in since the
+  submit keeps what they typed; the others take the server's values where
+  those changed.
+
+A row's form is keyed by its row (`rename-42`, its controls `rename-42-name`)
+unless it has a `key` of its own, so each row's ids are its own. It checks
+as it is submitted: there is no form on the server to check against as the
+visitor types, so `onChange` in a row is an error ([E0363](/errors/E0363)),
+and so is a row's form with no `onSubmit` or one pushing a method that
+doesn't take the form ([E0362](/errors/E0362)). With `noSummary` the
+report shows no summary, focus going to the first field in error.
 
 ## Counting and Empty States {#counting}
 
@@ -556,7 +691,13 @@ browser does after a dropped connection, keeping the rows the page holds.
 
 The [development toolbar](/web/toolbar)'s Live panel shows a line per stream
 batch under the message that carried it:
-`c1 Chat messages q7.12: +1 −1, limit 200, 312 B`.
+`c1 Chat messages q7.12: +1 −1, limit 200, 312 B`. A batch the browser
+ignored — one it had applied already, delivered again — or found out of step
+(a reply lost on the way, after which the page joins again) is a red line
+under the message that carried it, from what the runtime reports:
+`c1 messages q7.14: out of step, the browser applied q7.12`. The runtime
+dispatches each as a `vk:stream` event on the document, `{id, stream,
+batch, applied, problem, ref}`.
 
 ## The Wire {#the-wire}
 
@@ -575,6 +716,7 @@ an HTTP render, a v1 patch and a v2 tree.
 | `data-vk-stream` | the stream's name in its instance: the field's |
 | `data-vk-batch` | `<generation>.<n>`: a generation is random per stream per mount; `n` counts its batches from 1 |
 | `data-vk-limit` | the limit, absent for none |
+| `data-vk-trim` | `start` or `end`: the end the limit trims, when `TrimStart` or `TrimEnd` fixed it |
 | `data-vk-ops` | the batch's operations in order: `["reset"]`, `["delete", key]`, `["insert", key, "end" \| "start" \| i]`; absent when the render has none |
 | `data-vk-rows`, `data-vk-empty` | how many rows the container holds, and whether none: the server's for a batch starting with a reset, the runtime's after it applies one |
 | children | the batch's inserted rows, each with `data-vk-row`, the key as `fmt.Sprint` writes it |
@@ -588,6 +730,31 @@ alone; another generation's starts with a reset; one further ahead is out of
 step, and the runtime joins again. There are no acknowledgements: replies
 travel in order on one socket, a batch counts as delivered once its reply
 is written, and a lost reply is rebuilt by the next join.
+
+### The Compact Form {#compact}
+
+On a v2 connection the runtime joins with the `stream` extension
+(`{"type":"join","v":2,"ext":["stream"]}`), and the container's stream
+attributes — one dynamic of its frame — go as a dynamic of their own,
+their operations plain JSON with one-letter names, rather than JSON inside
+an HTML attribute inside a JSON string:
+
+```json
+{"st":{"n":"messages","b":"q7.12","l":200,"o":[["d","9030"],["e","9031"]]}}
+```
+
+| | |
+|---|---|
+| `n`, `b`, `l` | the stream's name, its batch and its limit |
+| `tr` | `"s"` or `"e"`: the end the limit trims |
+| `o` | the operations: `["r"]` a reset, `["d", key]` a delete, `["e", key]` and `["s", key]` an insert at the end or the start, `[i, key]` one before row `i` |
+
+The runtime writes the attributes back from it — `data-vk-rows` and
+`data-vk-empty` counted from a reset's inserts, as the server counts them —
+so the container's HTML, and the batch rule above, are the attribute
+form's. The rows are a block's frames as before, their statics sent once
+per connection. The page's HTTP render, v1 and a client joining without the
+extension get the attributes as they are.
 
 Once a reply is written the session empties the stream's rows from the
 render it keeps and drops what the batch added to the container's
@@ -607,3 +774,5 @@ inline, never kept by reference on the connection: no row is sent twice.
 | [E0359](/errors/E0359) | a live component in a row |
 | [E0360](/errors/E0360) | `onViewportTop` or `onViewportBottom` on an element that isn't a stream's container |
 | [E0361](/errors/E0361) | a viewport handler that doesn't take the edge row's key |
+| [E0362](/errors/E0362) | a form in a row that doesn't submit to a method taking it |
+| [E0363](/errors/E0363) | a form in a row with `onChange` |

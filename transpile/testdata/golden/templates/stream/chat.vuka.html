@@ -24,6 +24,9 @@ type Chat struct {
 
 func (c *Chat) Remove(id int64) { c.messages.Delete(id) }
 
+// Keep keeps the last 200 messages, whichever end a batch inserts at.
+func (c *Chat) Keep() { c.messages.Limit(200).TrimStart() }
+
 // Older and Newer load at the container's edges: each takes the key of the
 // edge row the browser holds.
 func (c *Chat) Older(first int64) { c.messages.InsertAt(0, Message{ID: first - 1}) }

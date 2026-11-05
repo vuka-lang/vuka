@@ -1,0 +1,49 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+	"vukatest.local/streamui"
+)
+
+type Task struct {
+	ID   int64
+	Name string
+}
+
+// Rename is the form of a task's row.
+type Rename struct {
+	ui.FormState
+	Name string `validate:"required,max=80"`
+}
+
+func renameOf(t Task) *Rename { return &Rename{Name: t.Name} }
+
+// Tasks' rows each hold a form: it submits as a push of Rename with the
+// row's key, the form's fields filling its last parameter. A newest-first
+// list keeps its first 50 rows, whichever end a batch inserts at.
+type Tasks struct {
+	ui.Live
+	tasks streamui.Stream[Task]
+}
+
+func (p *Tasks) Keep() { p.tasks.Limit(50).TrimEnd() }
+
+func (p *Tasks) Rename(ctx context.Context, id int64, f Rename) error {
+	p.tasks.Insert(Task{ID: id, Name: f.Name})
+	return nil
+}
+
+func (p *Tasks) Remove(id int64) { p.tasks.Delete(id) }
+</script>
+
+<ul class="tasks">
+  for _, t := range tasks.Rows() {
+    <li key={t.ID}>
+      <ui.Form for={renameOf(t)} onSubmit={ui.JS.Push(Rename, t.ID)} noSummary/>
+      <button onClick={ui.JS.Push(Remove, t.ID)}>Delete</button>
+    </li>
+  }
+</ul>

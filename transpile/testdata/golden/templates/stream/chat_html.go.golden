@@ -28,16 +28,19 @@ type Chat struct {
 
 func (c *Chat) Remove(id int64) { c.messages.Delete(id) }
 
+// Keep keeps the last 200 messages, whichever end a batch inserts at.
+func (c *Chat) Keep() { c.messages.Limit(200).TrimStart() }
+
 // Older and Newer load at the container's edges: each takes the key of the
 // edge row the browser holds.
 func (c *Chat) Older(first int64) { c.messages.InsertAt(0, Message{ID: first - 1}) }
 
 func (c *Chat) Newer(ctx context.Context, last string) error { return nil }
 
-//line chat.vuka.html:34
+//line chat.vuka.html:37
 func (c *Chat) Render() ui.Node {
 	var lis []ui.Node
-//line chat.vuka.html:37
+//line chat.vuka.html:40
 	for _, m := range c.messages.Rows() {
 		lis = append(lis, ui.HTML(`
 <li key={m.ID}>
@@ -47,11 +50,11 @@ func (c *Chat) Render() ui.Node {
 	}
 	messages2 := c.messages.Block(lis)
 	var p ui.Node
-//line chat.vuka.html:44
+//line chat.vuka.html:47
 	if c.typing.Get() {
 		p = ui.HTML(`<p>typing…</p>`)
 	}
-//line chat.vuka.html:34
+//line chat.vuka.html:37
 	return ui.HTML(`
 <section>
   <h2>#{c.Room}</h2>

@@ -354,8 +354,8 @@ func (c Commands) add(op string) Commands { return Commands{append(c.ops[:len(c.
 func (c Commands) Set(s AnyState, v any) Commands {
 	return c.add("set " + s.anyState() + " " + fmt.Sprint(v))
 }
-func (c Commands) Push(h any) Commands { return c.add("push") }
-func (c Commands) String() string      { return strings.Join(c.ops, "; ") }
+func (c Commands) Push(h any, args ...any) Commands { return c.add("push") }
+func (c Commands) String() string                   { return strings.Join(c.ops, "; ") }
 
 type Binding struct {
 	Init any
