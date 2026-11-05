@@ -445,6 +445,10 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		r.err = err
 		return r
 	}
+	if local := shapes.pin(s.root); s.sess != nil {
+		s.sess.LocalSources = local
+	}
+	stepDone("local modules")
 	pkgs, err := load.Discover(s.root, modPath, s.root, true, nil)
 	if err != nil {
 		r.err = err

@@ -579,9 +579,17 @@ func (c *reuseCache) fileHash(path string, fi fs.FileInfo) (string, error) {
 // go.work in effect points at, and the go.work's; and the go.work with its
 // go.work.sum.
 func (c *reuseCache) moduleTrees(s *supervisor) (trees, files []string) {
-	trees = []string{s.root}
-	mods := []string{filepath.Join(s.root, "go.mod")}
-	if work := goWorkFile(s.dir, s.env); work != "" {
+	return moduleTrees(s.root, s.dir, s.env)
+}
+
+// moduleTrees are the directories of the modules a build in dir of the
+// module at root, with env, reads from disk: the module, those a replace
+// directive of its go.mod or of the go.work in effect points at, and the
+// go.work's; and the go.work with its go.work.sum.
+func moduleTrees(root, dir string, env []string) (trees, files []string) {
+	trees = []string{root}
+	mods := []string{filepath.Join(root, "go.mod")}
+	if work := goWorkFile(dir, env); work != "" {
 		files = []string{work, work + ".sum"}
 		uses, reps := parseModFile(work)
 		for _, u := range uses {

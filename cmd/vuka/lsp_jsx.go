@@ -883,42 +883,11 @@ func (p *proxy) isIsland(genPath, tag string) bool {
 // a generated file, where it sees the file's imports and its package; the file
 // is put back after.
 func (p *proxy) probe(genPath, before, after string) []map[string]any {
-	yield, ok := p.genMu.lockProbe(probeLockWait)
-	if !ok {
-		return nil // a build or another probe has the generated Go
-	}
-	defer p.genMu.Unlock()
-	p.mu.Lock()
-	vf := p.vfileOf(genPath) // never an editor-owned buffer
-	if vf == nil || vf.pending {
-		p.mu.Unlock()
-		return nil
-	}
-	text := string(vf.gen) + "\nfunc _() {\n\t_ = " + before
-	pos := positionOf([]byte(text), len(text))
-	text += after + "\n}\n"
-	vf.version += 2
-	vf.probed = vf.version - 1
-	v, gen := vf.version, string(vf.gen)
-	p.mu.Unlock()
-	uri := pathToURI(genPath)
-	change := func(version int, s string) {
-		_ = p.gopls.send(map[string]any{"jsonrpc": "2.0", "method": "textDocument/didChange", "params": map[string]any{
-			"textDocument": map[string]any{"uri": uri, "version": version}, "contentChanges": []any{map[string]any{"text": s}}}})
-	}
-	change(v-1, text)
-	res, ok := p.askUntil(probeAskLimit, yield, "textDocument/completion", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos})
-	change(v, gen)
-	if !ok {
-		return nil
-	}
-	var list struct {
-		Items []map[string]any `json:"items"`
-	}
-	if json.Unmarshal(res, &list) != nil {
-		_ = json.Unmarshal(res, &list.Items)
-	}
-	return list.Items
+	return p.probeGen(genPath, func(gen []byte) (string, lspPosition) {
+		text := string(gen) + "\nfunc _() {\n\t_ = " + before
+		pos := positionOf([]byte(text), len(text))
+		return text + after + "\n}\n", pos
+	})
 }
 
 // location reads an LSP Location or LocationLink.

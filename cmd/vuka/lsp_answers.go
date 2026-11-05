@@ -269,6 +269,30 @@ func (l *genLock) lockProbe(d time.Duration) (<-chan struct{}, bool) {
 	return l.yield, true
 }
 
+// building reports whether a build waits for l.
+func (l *genLock) building() bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.urgent > 0
+}
+
+// relockProbe is lockProbe for a probe that gave way to a build: it waits,
+// at most d, for the builds waiting for l and holding it to be done.
+func (l *genLock) relockProbe(d time.Duration) (<-chan struct{}, bool) {
+	end := time.Now().Add(d)
+	for {
+		if !l.building() {
+			if yield, ok := l.lockProbe(time.Until(end)); ok {
+				return yield, true
+			}
+		}
+		if !time.Now().Before(end) {
+			return nil, false
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+}
+
 // probeLockWait bounds how long a probe waits for another to finish; past
 // it, the completion goes without it. probeAskLimit bounds the probe's
 // question to gopls.

@@ -16,6 +16,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 )
 
 // sourceShapes tells a watch build when the steps reading the whole module
@@ -23,12 +24,32 @@ import (
 // it hashes the module's Go as an overlay has it, without comments, line
 // directives or the fixed HTML of compiled templates, and, in the files a
 // step reads only the declarations of, without function bodies. An edit to
-// anything else, go.mod or go.sum changes the hash. File contents are hashed,
+// anything else, go.mod or go.sum, or to a module it builds from a
+// directory, changes the hash. File contents are hashed,
 // never file events, and files seen before aren't parsed again. nil outside a
 // watch: every step then runs.
 type sourceShapes struct {
 	mu     sync.Mutex
 	byFile map[[sha256.Size]byte]fileShapes
+	sums   map[string]sumOf  // the local modules' files (localSources), by path
+	pinned map[string]string // a build's localSources, by module root (pin)
+}
+
+// pin hashes the local modules of the module at root (localSources) for a
+// build: its steps' shapes take that hash rather than each walking them
+// again. It returns the hash, "" for none.
+func (s *sourceShapes) pin(root string) string {
+	if s == nil {
+		return ""
+	}
+	local := ""
+	if mod, err := os.ReadFile(filepath.Join(root, "go.mod")); err == nil && (localReplace.Match(mod) || inWorkspace(root)) {
+		local = s.localSources(root)
+	}
+	s.mu.Lock()
+	s.pinned[root] = local
+	s.mu.Unlock()
+	return local
 }
 
 // fileShapes are a file's hashes: of everything; without the function
@@ -46,7 +67,7 @@ const (
 )
 
 func newSourceShapes() *sourceShapes {
-	return &sourceShapes{byFile: map[[sha256.Size]byte]fileShapes{}}
+	return &sourceShapes{byFile: map[[sha256.Size]byte]fileShapes{}, sums: map[string]sumOf{}, pinned: map[string]string{}}
 }
 
 // shapes is the running watch's.
@@ -55,17 +76,30 @@ var shapes *sourceShapes
 // localReplace matches a go.mod replacing a module with a directory.
 var localReplace = regexp.MustCompile(`(?m)=>\s*"?(?:\.{1,2}/|/|[A-Za-z]:\\)`)
 
-// module is the hash of the Go of the module at root as overlay has it; ""
-// when the module can change unseen: a dependency in a directory or a
-// workspace, or a file that can't be read. kind says what of each file
-// counts; a nil kind counts everything.
+// module is the hash of the Go of the module at root as overlay has it,
+// with the sources of the modules it builds from directories (a replace
+// directive's, a workspace's: localSources); "" when a file can't be read.
+// kind says what of each of the module's files counts; a nil kind counts
+// everything.
 func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path string) shapeKind) string {
 	if s == nil {
 		return ""
 	}
 	mod, err := os.ReadFile(filepath.Join(root, "go.mod"))
-	if err != nil || localReplace.Match(mod) || inWorkspace(root) {
+	if err != nil {
 		return ""
+	}
+	local := ""
+	if localReplace.Match(mod) || inWorkspace(root) {
+		s.mu.Lock()
+		local = s.pinned[root]
+		s.mu.Unlock()
+		if local == "" {
+			local = s.localSources(root)
+		}
+		if local == "" {
+			return ""
+		}
 	}
 	sum, _ := os.ReadFile(filepath.Join(root, "go.sum"))
 	ov, err := readOverlay(overlay)
@@ -109,7 +143,7 @@ func (s *sourceShapes) module(root, overlay string, tests bool, kind func(path s
 	}
 	slices.Sort(paths)
 	h := sha256.New()
-	fmt.Fprintf(h, "go.mod %x\ngo.sum %x\n", sha256.Sum256(mod), sha256.Sum256(sum))
+	fmt.Fprintf(h, "go.mod %x\ngo.sum %x\nlocal %s\n", sha256.Sum256(mod), sha256.Sum256(sum), local)
 	for _, p := range paths {
 		src, err := os.ReadFile(files[p])
 		if err != nil {
@@ -144,6 +178,106 @@ func (s *sourceShapes) file(src []byte) fileShapes {
 		s.mu.Unlock()
 	}
 	return shape
+}
+
+// localSources hashes the sources of the modules the module at root builds
+// from directories, which change without its go.mod changing: each file of
+// a type go build or vuka reads (but tests) of the directories a replace
+// directive or the go.work points at, and the go.work with its go.work.sum.
+// A file's hash is kept while its size, modification time and identity
+// stay. "" when a file can't be read.
+func (s *sourceShapes) localSources(root string) string {
+	trees, files := moduleTrees(root, root, os.Environ())
+	h := sha256.New()
+	hashFile := func(path string, fi fs.FileInfo) error {
+		sum, err := s.fileSum(path, fi)
+		if err != nil {
+			return err
+		}
+		fmt.Fprintf(h, "%s %x\n", path, sum)
+		return nil
+	}
+	for _, f := range files {
+		fi, err := os.Stat(f)
+		if err != nil {
+			fmt.Fprintf(h, "%s none\n", f)
+			continue
+		}
+		if err := hashFile(f, fi); err != nil {
+			return ""
+		}
+	}
+	for _, tree := range trees {
+		if tree == root {
+			continue // the module: module hashes it as the overlay has it
+		}
+		fmt.Fprintf(h, "tree %s\n", tree)
+		err := filepath.WalkDir(tree, func(path string, d fs.DirEntry, err error) error {
+			if err != nil {
+				if path == tree {
+					return nil // gone: go.mod's directive fails the build
+				}
+				return err
+			}
+			name := d.Name()
+			if d.IsDir() {
+				if path != tree && (strings.HasPrefix(name, ".") || strings.HasPrefix(name, "_") || name == "node_modules" || name == "testdata" ||
+					fileExists(filepath.Join(path, "go.mod"))) {
+					return filepath.SkipDir
+				}
+				return nil
+			}
+			ext := filepath.Ext(name)
+			switch {
+			case path == filepath.Join(tree, "go.mod") || path == filepath.Join(tree, "go.sum"):
+			case !goBuildExt[ext] && !strings.HasSuffix(name, ".vuka.html") || strings.HasPrefix(name, ".") || strings.HasSuffix(name, "_test"+ext):
+				return nil
+			}
+			fi, err := d.Info()
+			if err != nil {
+				return err
+			}
+			if !fi.Mode().IsRegular() {
+				return nil
+			}
+			return hashFile(path, fi)
+		})
+		if err != nil {
+			return ""
+		}
+	}
+	return fmt.Sprintf("%x", h.Sum(nil))
+}
+
+// sumOf is a file's hash, kept while its size, modification time and
+// identity stay.
+type sumOf struct {
+	mod  time.Time
+	size int64
+	id   uint64
+	sum  [sha256.Size]byte
+}
+
+// fileSum is the hash of the file at path, as fileHash keeps it: one
+// changed within a second of being read is read again next time.
+func (s *sourceShapes) fileSum(path string, fi fs.FileInfo) ([sha256.Size]byte, error) {
+	s.mu.Lock()
+	v, ok := s.sums[path]
+	s.mu.Unlock()
+	if ok && v.mod.Equal(fi.ModTime()) && v.size == fi.Size() && v.id == fileID(fi) {
+		return v.sum, nil
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return [sha256.Size]byte{}, err
+	}
+	sum := sha256.Sum256(data)
+	if int64(len(data)) == fi.Size() && time.Since(fi.ModTime()) > time.Second {
+		s.mu.Lock()
+		s.sums[path] = sumOf{fi.ModTime(), fi.Size(), fileID(fi), sum}
+		s.mu.Unlock()
+	}
+	return sum, nil
 }
 
 // inWorkspace reports whether a go.work applies to the module at root.
