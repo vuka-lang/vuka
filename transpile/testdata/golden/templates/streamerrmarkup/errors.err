@@ -1,0 +1,5 @@
+feed.vuka.html:38:5: the loop over beside.Rows() isn't the only content of an element; put the loop alone in an element, the container, whose children the browser keeps: <ul>for _, m := range beside.Rows() {…}</ul>
+feed.vuka.html:44:7: a row of unkeyed has no key; key the row's element by its record: <li key={m.ID}>
+feed.vuka.html:49:31: onClick in a row of closure is a handler the server would have to keep for the row; push a method of the stream's owner with the row's key: onClick={ui.JS.Push(Remove, m.ID)}
+feed.vuka.html:54:23: a row of live renders the live component <Row>; render a stateless shape in the row, and push to the owner's methods: ui.JS.Push(Remove, m.ID)
+feed.vuka.html:59:7: the loop over nested.Rows() is inside another loop; render the stream's container once, outside any loop: the browser keeps one container's rows

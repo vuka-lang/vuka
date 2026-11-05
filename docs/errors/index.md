@@ -161,6 +161,13 @@ same page in the terminal.
 | [E0350](./E0350) | A deferred call in no element |
 | [E0351](./E0351) | A boundary's markup is misplaced |
 | [E0352](./E0352) | A Suspense wait list names an unavailable binding |
+| [E0353](./E0353) | A stream's loop isn't its container's only content |
+| [E0354](./E0354) | A stream's Rows read outside its loop |
+| [E0355](./E0355) | A stream row isn't one keyed element |
+| [E0356](./E0356) | A stream's Delete given another type than its key |
+| [E0357](./E0357) | An exported or bound stream |
+| [E0358](./E0358) | A handler in a stream row isn't a push of a method |
+| [E0359](./E0359) | A live component in a stream row |
 | [W0301](./W0301) | A live page routed as one that isn't live |
 | [W0302](./W0302) | A live page configured by struct tags |
 | [W0306](./W0306) | A hand-written LiveSchema |

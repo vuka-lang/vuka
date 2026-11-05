@@ -1,0 +1,39 @@
+<script lang="go">
+package main
+
+import (
+	"github.com/vuka-lang/ui/v2"
+	"vukatest.local/streamui"
+)
+
+type Message struct {
+	ID   int64
+	Text string
+}
+
+// Chat's messages are a stream: its container's loop lowers to the
+// stream's block of rows, its attributes on the container.
+type Chat struct {
+	ui.Live
+	Room     string
+	messages streamui.Stream[Message]
+	typing   bool
+}
+
+func (c *Chat) Remove(id int64) { c.messages.Delete(id) }
+</script>
+
+<section>
+  <h2>#{Room}</h2>
+  <ul class="log" id="log">
+    for _, m := range messages.Rows() {
+      <li key={m.ID}>
+        <b>{m.Text}</b>
+        <button onClick={ui.JS.Push(Remove, m.ID)}>Delete</button>
+      </li>
+    }
+  </ul>
+  if typing {
+    <p>typing…</p>
+  }
+</section>

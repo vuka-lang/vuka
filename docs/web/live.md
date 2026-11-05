@@ -377,6 +377,11 @@ the key in its markup loop so inserts, deletes and reordering retain the
 corresponding browser/component instances. Replacing the whole slice does
 not require replacing every keyed row's DOM.
 
+A list that grows while the page is open — a chat, a log tail, a feed —
+is a [stream](/web/streams) instead: the server sends its rows and forgets
+them, the browser keeping them, so the page costs the server the same with
+ten rows or ten thousand.
+
 ### Loading and Applying Messages
 
 Load the initial snapshot in a decorated mount hook, then apply incoming
