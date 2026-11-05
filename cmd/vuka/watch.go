@@ -431,7 +431,9 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		if s.sess != nil {
 			transpile = s.sess.Transpile
 		}
-		if gens, r.overlay, err = transpile(pkgs, dir, loadOptions(r.pa)); err != nil {
+		opts := loadOptions(r.pa)
+		opts.Files = filepath.Join(s.tmp, "gen") // kept across builds: an unchanged file isn't written again
+		if gens, r.overlay, err = transpile(pkgs, dir, opts); err != nil {
 			r.err, r.gens = err, gens // the report checks the packages that transpiled
 			return r
 		}
@@ -471,7 +473,7 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		}
 	}
 	if s.staticsMain != "" {
-		if r.overlay, err = devStatics(s.root, modPath, dir, r.overlay, s.staticsMain, gens); err != nil {
+		if r.overlay, err = devStatics(s.root, modPath, dir, filepath.Join(s.tmp, "gen"), r.overlay, s.staticsMain, gens); err != nil {
 			r.err = err
 			return r
 		}

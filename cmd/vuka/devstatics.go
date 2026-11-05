@@ -2,6 +2,7 @@ package main
 
 import (
 	"bytes"
+	"crypto/sha256"
 	"encoding/json"
 	"fmt"
 	"go/ast"
@@ -73,16 +74,18 @@ func devStaticsMain(root, dir string, pkg, env []string) string {
 
 // devStatics rewrites, through overlay, the generated Go of gens so that the
 // fixed HTML its templates pass ui.HTML is read from the package
-// devStaticsDir, which it adds, linked by the main package in mainDir. It
-// returns the new overlay.
-func devStatics(root, modPath, tmp, overlay, mainDir string, gens []load.Generated) (string, error) {
+// devStaticsDir, which it adds, linked by the main package in mainDir. The
+// rewritten files go in files, named by their content and kept across
+// builds; the texts' package in tmp. It returns the new overlay.
+func devStatics(root, modPath, tmp, files, overlay, mainDir string, gens []load.Generated) (string, error) {
 	ov, err := readOverlay(overlay)
 	if err != nil {
 		return overlay, err
 	}
 	var pairs []string
 	ids := map[string]string{} // file ID → its target
-	n := 0
+	memo := map[[sha256.Size]byte]staticsResult{}
+	defer func() { staticsMemo = memo }()
 	for _, g := range gens {
 		dir := filepath.Dir(g.Target)
 		if !strings.HasSuffix(g.Target, ".go") || strings.HasSuffix(g.Target, "_test.go") || dir == root && dir != mainDir ||
@@ -97,15 +100,23 @@ func devStatics(root, modPath, tmp, overlay, mainDir string, gens []load.Generat
 		if other, ok := ids[id]; ok && other != g.Target {
 			continue // two files' IDs collide: this one keeps its texts
 		}
-		src, texts, ok := devStaticSrc(g.Src, id)
+		memoKey := sha256.Sum256(append([]byte(id+"\n"), g.Src...))
+		m, hit := staticsMemo[memoKey]
+		if !hit {
+			m.src, m.texts, m.ok = devStaticSrc(g.Src, id)
+		}
+		memo[memoKey] = m
+		src, texts, ok := m.src, m.texts, m.ok
 		if !ok {
 			continue
 		}
 		ids[id] = g.Target
-		file := filepath.Join(tmp, fmt.Sprintf("ds%d_%s", n, filepath.Base(g.Target)))
-		n++
-		if err := os.WriteFile(file, src, 0o644); err != nil {
-			return overlay, err
+		sum := sha256.Sum256(src)
+		file := filepath.Join(files, fmt.Sprintf("ds%x_%s", sum[:12], filepath.Base(g.Target)))
+		if _, err := os.Stat(file); err != nil {
+			if err := writeWhole(file, src); err != nil {
+				return overlay, err
+			}
 		}
 		ov[g.Target] = file
 		pairs = append(pairs, texts...)
@@ -137,6 +148,39 @@ func devStatics(root, modPath, tmp, overlay, mainDir string, gens []load.Generat
 		overlay = filepath.Join(tmp, "overlay.json")
 	}
 	return overlay, os.WriteFile(overlay, data, 0o644)
+}
+
+// writeWhole writes data to file through a temporary file in its directory:
+// a reader sees all of it or none.
+func writeWhole(file string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(file), 0o755); err != nil {
+		return err
+	}
+	tmp, err := os.CreateTemp(filepath.Dir(file), ".tmp-")
+	if err != nil {
+		return err
+	}
+	_, err = tmp.Write(data)
+	if cerr := tmp.Close(); err == nil {
+		err = cerr
+	}
+	if err == nil {
+		err = os.Rename(tmp.Name(), file)
+	}
+	if err != nil {
+		os.Remove(tmp.Name())
+	}
+	return err
+}
+
+// staticsMemo is the last build's devStaticSrc of each generated file, by its
+// ID and content.
+var staticsMemo map[[sha256.Size]byte]staticsResult
+
+type staticsResult struct {
+	src   []byte
+	texts []string
+	ok    bool
 }
 
 // staticsFileID names a generated file in its texts' keys: short, as a key must
