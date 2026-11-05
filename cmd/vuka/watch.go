@@ -16,6 +16,7 @@ import (
 	"os/exec"
 	"os/signal"
 	"path/filepath"
+	"runtime/pprof"
 	"slices"
 	"strings"
 	"sync"
@@ -382,6 +383,14 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		}
 		r.key, _, _ = s.reuse.key(s, r.keyRoots)
 	}
+	if dir := os.Getenv(profileEnv); dir != "" {
+		// Where a rebuild's time before go build goes, to look at with go tool pprof.
+		if f, err := os.Create(filepath.Join(dir, fmt.Sprintf("prepare-%d.pprof", n))); err == nil {
+			if pprof.StartCPUProfile(f) == nil {
+				defer func() { pprof.StopCPUProfile(); f.Close() }()
+			}
+		}
+	}
 	ph := r.ph
 	ph.step("scanning the module")
 	tStep := time.Now()
@@ -421,6 +430,9 @@ func (s *supervisor) prepare(ctx context.Context, n int) *buildResult {
 		if gens, r.overlay, err = transpile(pkgs, dir, loadOptions(r.pa)); err != nil {
 			r.err, r.gens = err, gens // the report checks the packages that transpiled
 			return r
+		}
+		if s.sess != nil {
+			traceStep("transpiled %d of %d packages", s.sess.Transpiled(), len(pkgs))
 		}
 	}
 	stepDone("transpile")
@@ -1219,3 +1231,7 @@ func traceStep(format string, args ...any) {
 }
 
 const traceEnv = "VUKA_WATCH_TRACE"
+
+// profileEnv names a directory each rebuild writes a CPU profile of its
+// transpile into, prepare-<n>.pprof.
+const profileEnv = "VUKA_WATCH_PROFILE"
