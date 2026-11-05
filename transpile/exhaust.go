@@ -282,7 +282,7 @@ func (pc *patCtx) missing(rows [][]*space, ts []types.Type) [][]string {
 		return nil
 	}
 	set := ctors(ts[0])
-	if !anyCtor(rows) {
+	if !anyCtor(rows) || pc.closed && enumOf(ts[0]) != nil {
 		set = nil // splitting on it would only multiply the work
 	}
 	var out [][]string
@@ -355,6 +355,14 @@ func (pc *patCtx) exhaustive(rows [][]*space, t types.Type) (string, []string) {
 		return "missing " + strings.Join(miss[:n-1], ", ") + " and " + miss[n-1], all
 	}
 	return "missing " + strings.Join(miss, " and "), all
+}
+
+// covers reports whether rows match every value a t can hold at run time,
+// counting no enum as covered by its variants.
+func (pc *patCtx) covers(rows [][]*space, t types.Type) bool {
+	pc.closed = true
+	defer func() { pc.closed = false }()
+	return len(pc.missing(rows, []types.Type{t})) == 0
 }
 
 // anyCtor reports whether a row's first column names a constructor.

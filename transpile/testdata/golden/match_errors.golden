@@ -65,16 +65,14 @@ func login(email string) string {
 		return "invalid " + f
 	} else if errors.As(err, new(*RateLimited)) {
 		return "slow down"
-	} else if e := err; err != nil {
-		return "error: " + e.Error()
 	} else {
-		panic("vuka: no case matched")
+		e := err
+//line match_errors.vuka:54
+		return "error: " + e.Error()
 	}
 }
 
 // greet tests two sentinels in one case.
-//
-//line match_errors.vuka:59
 func greet(email string) string {
 	if user, err := findUser(email); err == nil {
 //line match_errors.vuka:62
@@ -83,32 +81,24 @@ func greet(email string) string {
 		return "nobody"
 	} else if errors.As(err, new(*RateLimited)) {
 		return "later"
-	} else if err != nil {
-		return err.Error()
 	} else {
-		panic("vuka: no case matched")
+		return err.Error()
 	}
 }
 
 // kind has no guards or nested bindings: a switch.
-//
-//line match_errors.vuka:73
 func kind(email string) string {
 	switch user, err := findUser(email); {
 	case err == nil:
 		return user.Name
 	case errors.Is(err, ErrNotFound):
 		return "missing"
-	case err != nil:
-		return err.Error()
 	default:
-		panic("vuka: no case matched")
+		return err.Error()
 	}
 }
 
 // reason matches an error value: a sentinel through its wraps.
-//
-//line match_errors.vuka:85
 func reason(err error) string {
 	if m4 := err; false {
 		panic(m4)
@@ -131,48 +121,36 @@ func reason(err error) string {
 	}(); ok {
 //line match_errors.vuka:92
 		return "field " + f
-	} else if true {
-		return "other"
 	} else {
-		panic("vuka: no case matched")
+		return "other"
 	}
 }
 
 // exists names the value after its type: no case binds it.
-//
-//line match_errors.vuka:99
 func exists(email string) bool {
 	switch _, err := findUser(email); {
 	case err == nil:
 		return true
-	case err != nil:
-		return false
 	default:
-		panic("vuka: no case matched")
+		return false
 	}
 }
 
 // count uses a guard and a name another case uses for something else.
-//
-//line match_errors.vuka:109
 func count(email string, user int) string {
 	if u, err := findUser(email); err == nil && (u.Name == "admin") {
 //line match_errors.vuka:112
 		return "admin"
 	} else if err == nil {
 		return fmt.Sprint("user ", user)
-	} else if err != nil && (errors.Is(err, ErrNotFound)) {
+	} else if errors.Is(err, ErrNotFound) {
 		return "none"
-	} else if err != nil {
-		return "error"
 	} else {
-		panic("vuka: no case matched")
+		return "error"
 	}
 }
 
 // label's Ok case reads a user of its own: the value takes the next name.
-//
-//line match_errors.vuka:123
 func label(email string, user string) string {
 	if v, err := findUser(email); func() (ok bool) {
 		if !(err == nil) {
@@ -191,14 +169,11 @@ func label(email string, user string) string {
 		return "ann for " + user
 	} else if err == nil {
 		return "found for " + user
-	} else if err != nil {
-		return "none for " + user
 	} else {
-		panic("vuka: no case matched")
+		return "none for " + user
 	}
 }
 
-//line match_errors.vuka:134
 func main() {
 	for _, email := range []string{"ann", "missing", "bad", "slow", "gone", "other"} {
 		fmt.Println(login(email), "|", greet(email), "|", exists(email), "|", count(email, 7))

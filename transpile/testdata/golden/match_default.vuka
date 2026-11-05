@@ -1,0 +1,170 @@
+package main
+
+import (
+	"errors"
+	"fmt"
+)
+
+enum Status { Draft, Sent }
+
+enum Shape {
+	Circle{R int}
+	Empty
+}
+
+var errMissing = errors.New("missing")
+
+func attach(name string) (int64, error) {
+	if name == "" {
+		return 0, errMissing
+	}
+	return int64(len(name)), nil
+}
+
+func describe(r Result[int64]) string {
+	match r {
+	case Ok(n):
+		return fmt.Sprint("ok ", n)
+	case Err(e):
+		return "err " + e.Error()
+	}
+}
+
+func describeRev(r Result[int64]) string {
+	match r {
+	case Err(e):
+		return "err " + e.Error()
+	case Ok(n):
+		return fmt.Sprint("ok ", n)
+	}
+}
+
+func opt(o Option[int64]) string {
+	match o {
+	case Some(n):
+		return fmt.Sprint("some ", n)
+	case None:
+		return "none"
+	}
+}
+
+func optRev(o Option[int64]) string {
+	match o {
+	case None:
+		return "none"
+	case Some(n):
+		return fmt.Sprint("some ", n)
+	}
+}
+
+func call(cert string) string {
+	match attach(cert) {
+	case Ok(n):
+		return fmt.Sprint("ok ", n)
+	case Err(e):
+		return "err " + e.Error()
+	}
+}
+
+func callRev(cert string) string {
+	match attach(cert) {
+	case Err(e):
+		return "err " + e.Error()
+	case Ok(n):
+		return fmt.Sprint("ok ", n)
+	}
+}
+
+func guarded(cert string) string {
+	match attach(cert) {
+	case Ok(n) if n > 3:
+		return fmt.Sprint("big ", n)
+	case Ok(n):
+		return fmt.Sprint("ok ", n)
+	case Err(e):
+		return "err " + e.Error()
+	}
+}
+
+func guardedLast(r Result[int64]) string {
+	match r {
+	case Ok(n):
+		return fmt.Sprint("ok ", n)
+	case Err(e) if errors.Is(e, errMissing):
+		return "missing"
+	case Err(e):
+		return "err " + e.Error()
+	}
+}
+
+func flag(b bool) string {
+	match b {
+	case true:
+		return "yes"
+	case false:
+		return "no"
+	}
+}
+
+func nested(r Result[Option[int64]]) string {
+	match r {
+	case Ok(Some(n)):
+		return fmt.Sprint("some ", n)
+	case Ok(None):
+		return "none"
+	case Err(_):
+		return "err"
+	}
+}
+
+func status(s Status) string {
+	match s {
+	case Status.Draft:
+		return "draft"
+	case Status.Sent:
+		return "sent"
+	}
+}
+
+func shape(s Shape) int {
+	match s {
+	case Shape.Circle{R: r}:
+		return r
+	case Shape.Empty:
+		return 0
+	}
+}
+
+func wrapped(r Result[Status]) string {
+	match r {
+	case Ok(Status.Draft):
+		return "draft"
+	case Ok(Status.Sent):
+		return "sent"
+	case Err(_):
+		return "err"
+	}
+}
+
+func rest(r Result[int64]) string {
+	match r {
+	case Ok(1):
+		return "one"
+	case _:
+		return "other"
+	}
+}
+
+func main() {
+	fmt.Println(describe(Ok[int64](1)), describe(Err[int64](errMissing)))
+	fmt.Println(describeRev(Ok[int64](1)), describeRev(Err[int64](errMissing)))
+	fmt.Println(opt(Some[int64](2)), opt(None[int64]()))
+	fmt.Println(optRev(Some[int64](2)), optRev(None[int64]()))
+	fmt.Println(call("x"), call(""), callRev("x"), callRev(""))
+	fmt.Println(guarded("abcde"), guarded("x"), guarded(""))
+	fmt.Println(guardedLast(Ok[int64](1)), guardedLast(Err[int64](errMissing)), guardedLast(Err[int64](errors.New("other"))))
+	fmt.Println(flag(true), flag(false))
+	fmt.Println(nested(Ok(Some[int64](4))), nested(Ok(None[int64]())), nested(Err[Option[int64]](errMissing)))
+	fmt.Println(status(Status.Draft), status(Status.Sent), shape(Shape.Circle{R: 3}), shape(Shape.Empty{}))
+	fmt.Println(wrapped(Ok(Status.Sent)), wrapped(Err[Status](errMissing)), rest(Ok[int64](1)), rest(Ok[int64](2)))
+}

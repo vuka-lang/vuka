@@ -61,12 +61,10 @@ func status(s string) ui.Node {
 			v := m2.Value()
 //line jsx_nested.vuka:39
 			return ui.HTML(`<b>{v}</b>`, v)
-		case m2.IsErr():
+		default:
 			e := m2.Err()
 //line jsx_nested.vuka:41
 			return ui.HTML(`<i>{e}</i>`, e)
-		default:
-			panic("vuka: no case matched")
 		}
 	}()
 //line jsx_nested.vuka:35

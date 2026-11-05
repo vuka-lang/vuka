@@ -32,12 +32,9 @@ func run(n int) error {
 		v := x.Value()
 //line try_match.vuka:23
 		fmt.Println("some", v)
-	case x.IsNone():
-		fmt.Println("none")
 	default:
-		panic("vuka: no case matched")
+		fmt.Println("none")
 	}
-//line try_match.vuka:27
 	return nil
 }
 
@@ -52,16 +49,13 @@ func show(r vuka.Result[vuka.Option[int]]) string {
 		return fmt.Sprint("some ", p)
 	case r.IsOk() && r.Value().IsNone():
 		return "none"
-	case r.IsErr():
+	default:
 		e := r.Err()
 //line try_match.vuka:40
 		return "error " + e.Error()
-	default:
-		panic("vuka: no case matched")
 	}
 }
 
-//line try_match.vuka:44
 type Flags struct {
 	Admin, Active bool
 	Name          string

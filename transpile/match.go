@@ -100,6 +100,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 	type header struct {
 		pre, post string // around the guard; post alone when there is none
 		bare      bool   // no init: the condition alone
+		last      string // as the final else, when its condition can go
 	}
 	var heads []header
 	// A match whose cases have no guards and simple patterns is a switch:
@@ -157,10 +158,16 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 			}
 			return
 		}
+		// A value reaching this case is one it matches when the earlier
+		// unguarded cases and it cover every value t can hold at run time:
+		// its patterns' test is then left out (`err != nil` after `err == nil`).
+		within := slices.Clone(rows)
+		for _, s := range spaces {
+			within = append(within, []*space{s})
+		}
+		implied := len(rows) > 0 && (len(alts) > 1 || !alts[0].complex) && pc.covers(within, t)
 		if c.guard.start < 0 {
-			for _, s := range spaces {
-				rows = append(rows, []*space{s})
-			}
+			rows = within
 		}
 
 		var init, cond string
@@ -230,16 +237,25 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		if len(uses) > 0 {
 			post += " " + strings.Join(uses, " ")
 		}
-		if c.guard.start >= 0 {
+		switch {
+		case c.guard.start >= 0 && implied:
+			heads = append(heads, header{pre: "} else if " + init + "(", post: ")" + post, bare: init == ""})
+		case c.guard.start >= 0:
 			heads = append(heads, header{pre: pre + " && (", post: ")" + post, bare: init == ""})
-		} else {
-			heads = append(heads, header{post: pre + post, bare: init == ""})
+		default:
+			h := header{post: pre + post, bare: init == ""}
+			if implied {
+				h.last = "} else { " + init + strings.Join(uses, " ")
+			}
+			heads = append(heads, h)
 		}
 	}
 	if missing, cases := pc.exhaustive(rows, t); missing != "" {
 		e.notExhaustive(f, m, pc, head, t, missing, cases)
 		return
 	}
+	// An implied last case is the default: nothing is left over to panic on.
+	implied := heads[len(heads)-1].last != ""
 
 	if tuple != nil {
 		var texts []string
@@ -300,7 +316,7 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 		for i, c := range m.cases {
 			a := arms[i]
 			line := "case " + a.cond + ":"
-			if a.cond == "true" && !values || a.cond == "" {
+			if a.cond == "true" && !values || a.cond == "" || implied && i == len(m.cases)-1 {
 				line, catchAll = "default:", true
 			}
 			f.add(c.start, c.colon+1, line+" "+strings.TrimSuffix(strings.TrimSpace(a.binds), ";"))
@@ -319,14 +335,21 @@ func (e *engine) lowerMatch(f *fileState, m *matchStmt) {
 	}
 	for i, c := range m.cases {
 		h := heads[i]
-		if c.guard.start >= 0 {
+		switch {
+		case c.guard.start >= 0:
 			f.add(c.start, c.guard.start, h.pre)
 			f.add(c.guard.end, c.colon+1, h.post)
-		} else {
+		case implied && i == len(m.cases)-1:
+			f.add(c.start, c.colon+1, h.last)
+		default:
 			f.add(c.start, c.colon+1, h.post)
 		}
 	}
-	f.add(m.rbrace, m.rbrace+1, `} else { panic("vuka: no case matched") }`)
+	if implied {
+		f.add(m.rbrace, m.rbrace+1, "}")
+	} else {
+		f.add(m.rbrace, m.rbrace+1, `} else { panic("vuka: no case matched") }`)
+	}
 	m.done = true
 	e.progress = true
 }
@@ -411,6 +434,9 @@ type patCtx struct {
 	base  int    // the source offset of the pattern being compiled
 	top   string // the match's own value
 	of    string // the subject's type as the source has it: (T, error) for a call returning one
+	// closed leaves enums out of missing: a value of one may be none of its
+	// variants at run time (a nil sum, an integer out of range).
+	closed bool
 
 	ctorsSeen []MatchCtor
 }

@@ -234,14 +234,11 @@ func matched(s string) (string, error) {
 		w := m1.Value()
 //line try_shapes.vuka:146
 		return "word " + w, nil
-	case m1.IsNone():
-		return "empty", nil
 	default:
-		panic("vuka: no case matched")
+		return "empty", nil
 	}
 }
 
-//line try_shapes.vuka:152
 func run(name string, f func() (any, error)) {
 	calls = nil
 	v, err := f()

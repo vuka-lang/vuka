@@ -75,13 +75,12 @@ func show(arg string) {
 		return
 	}(); ok {
 		fmt.Println("missing user", id)
-	} else if e := m1.Err(); m1.IsErr() && (errors.Is(e, strconv.ErrSyntax)) {
+	} else if e := m1.Err(); errors.Is(e, strconv.ErrSyntax) {
 		_ = e
 		fmt.Println("not a number:", arg)
-	} else if e := m1.Err(); m1.IsErr() {
-		fmt.Println("error:", e)
 	} else {
-		panic("vuka: no case matched")
+		e := m1.Err()
+		fmt.Println("error:", e)
 	}
 }
 ```
@@ -145,10 +144,9 @@ func login(email string) string {
 		return
 	}(); ok {
 		return "invalid " + f
-	} else if e := err; err != nil {
-		return e.Error()
 	} else {
-		panic("vuka: no case matched")
+		e := err
+		return e.Error()
 	}
 }
 ```
@@ -242,8 +240,11 @@ value of their own, so `Some(1)` leaves `Some(_)` missing.
 
 An `if`/`else if` chain that tests each pattern in turn with the Result's and
 Option's own methods (`IsOk`, `Value`, `Err`, `IsSome`), bodies where you
-wrote them, ending in `panic("vuka: no case matched")` — which exhaustiveness
-makes unreachable. A match whose cases have no guards and simple patterns is
+wrote them. When the cases cover every value the subject can hold at run time,
+the last one is the final `else`, and a case whose pattern the earlier ones
+leave implied tests only its guard; otherwise — a match on an enum, whose
+value may be none of its variants at run time — the chain ends in
+`panic("vuka: no case matched")`. A match whose cases have no guards and simple patterns is
 a `switch`. On a `(T, error)` call the tests are `err == nil`, `errors.Is`
 and `errors.As` on the call's own variables (see
 [Matching Errors](#matching-errors)).

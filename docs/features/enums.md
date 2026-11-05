@@ -334,10 +334,8 @@ func message(err error) string {
 			return
 		}(); ok {
 			return "weak: " + r
-		} else if true {
-			return e.Error()
 		} else {
-			panic("vuka: no case matched")
+			return e.Error()
 		}
 	}
 	return "try again later"

@@ -395,11 +395,9 @@ func postTitle(ctx context.Context, slug string) string {
 		return "no such post"
 	case errors.Is(err, orm.ErrMultipleFound):
 		return "slug is not unique"
-	case err != nil:
+	default:
 		e := err
 		return "error: " + e.Error()
-	default:
-		panic("vuka: no case matched")
 	}
 }
 

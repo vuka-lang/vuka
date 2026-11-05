@@ -186,29 +186,25 @@ func (p Pets) Lines() []string {
 		v := m3.Value()
 //line pets.vuka.html:127
 		out = append(out, strconv.Itoa(v))
-	case m3.IsErr():
+	default:
 		e := m3.Err()
 //line pets.vuka.html:129
 		out = append(out, e.Error())
-	default:
-		panic("vuka: no case matched")
 	}
-//line pets.vuka.html:131
 	if m4 := parse("x"); false {
 		panic(m4)
 	} else if v := m4.Value(); m4.IsOk() {
 //line pets.vuka.html:133
 		out = append(out, strconv.Itoa(v))
-	} else if e := m4.Err(); m4.IsErr() && (errors.Is(e, strconv.ErrSyntax)) {
+	} else if e := m4.Err(); errors.Is(e, strconv.ErrSyntax) {
 		_ = e
 //line pets.vuka.html:135
 		out = append(out, "syntax")
-	} else if e := m4.Err(); m4.IsErr() {
-		out = append(out, e.Error())
 	} else {
-		panic("vuka: no case matched")
+		e := m4.Err()
+//line pets.vuka.html:137
+		out = append(out, e.Error())
 	}
-//line pets.vuka.html:139
 	out = append(out, strconv.Itoa(twice("4").UnwrapOr(0)))
 	out = append(out, first(p.Names).UnwrapOr("none"), first(nil).UnwrapOr("none"))
 	out = append(out, describe(KindDog), fmt.Sprint(KindValues()), RoleAdmin.String())

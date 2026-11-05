@@ -52,14 +52,13 @@ func describe(r vuka.Result[int]) string {
 	}(); ok {
 //line match.vuka:31
 		return fmt.Sprint("missing ", c)
-	} else if e := m1.Err(); m1.IsErr() {
-		return "error: " + e.Error()
 	} else {
-		panic("vuka: no case matched")
+		e := m1.Err()
+//line match.vuka:33
+		return "error: " + e.Error()
 	}
 }
 
-//line match.vuka:37
 func shape(s Shape) string {
 	if m2 := s; false {
 		panic(m2)
@@ -103,14 +102,11 @@ func shape(s Shape) string {
 		_ = h
 //line match.vuka:44
 		return fmt.Sprint("square ", w)
-	} else if true {
-		return "other"
 	} else {
-		panic("vuka: no case matched")
+		return "other"
 	}
 }
 
-//line match.vuka:50
 func opt(o vuka.Option[string], want string) string {
 	switch {
 	case o.IsSome() && o.Value() == want:
@@ -119,14 +115,11 @@ func opt(o vuka.Option[string], want string) string {
 		s := o.Value()
 //line match.vuka:55
 		return "got " + s
-	case o.IsNone():
-		return "none"
 	default:
-		panic("vuka: no case matched")
+		return "none"
 	}
 }
 
-//line match.vuka:61
 func grade(n int) string {
 	if m4 := n; false {
 		panic(m4)
@@ -135,32 +128,26 @@ func grade(n int) string {
 		return "low"
 	} else if m4 == Max {
 		return "max"
-	} else if x := m4; true && (x < 0) {
+	} else if x := m4; x < 0 {
 		_ = x
 //line match.vuka:68
 		return "negative"
-	} else if true {
-		return "other"
 	} else {
-		panic("vuka: no case matched")
+		return "other"
 	}
 }
 
-//line match.vuka:74
 func flag(b bool) string {
 	switch b {
 	case true:
 //line match.vuka:76
 		return "yes"
-	case false:
+	default:
 //line match.vuka:77
 		return "no"
-	default:
-		panic("vuka: no case matched")
 	}
 }
 
-//line match.vuka:81
 func main() {
 	fmt.Println(describe(vuka.Ok(0)), "|", describe(vuka.Ok(50)), "|", describe(vuka.Ok(5)))
 	fmt.Println(describe(vuka.Err[int](&NotFound{Code: 4})), "|", describe(vuka.Err[int](errors.New("boom"))))
@@ -178,8 +165,6 @@ func main() {
 			fmt.Println("nested three")
 		default:
 		}
-	case r.IsErr():
 	default:
-		panic("vuka: no case matched")
 	}
 }
