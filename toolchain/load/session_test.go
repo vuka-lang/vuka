@@ -407,3 +407,36 @@ func hasTarget(gens []Generated, base string) bool {
 	}
 	return false
 }
+
+// TestSessionLocalSources: a run whose LocalSources is the last one's lists
+// the directory-replaced dependency's export data no more; a new one lists
+// it again, and an edit there reaches the packages importing it.
+func TestSessionLocalSources(t *testing.T) {
+	if testing.Short() {
+		t.Skip("runs the go command")
+	}
+	root := sessionModule(t)
+	s, err := NewSession(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	s.LocalSources = "one"
+	sessionRun(t, s, root)
+	lists := goLists.Load()
+	pkgs, err := Discover(root, "example.com/app", root, true, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, _, err := s.Transpile(pkgs, t.TempDir(), Options{}); err != nil {
+		t.Fatal(err)
+	}
+	if got := goLists.Load() - lists; got != 0 {
+		t.Errorf("the same local sources: %d go list commands, want none", got)
+	}
+	edit(t, filepath.Join(filepath.Dir(root), "dep", "dep.go"), "func N() int", "func M() int { return 2 }\n\nfunc N() int")
+	edit(t, filepath.Join(root, "lib", "lib.vuka"), "dep.N()", "dep.M()")
+	s.LocalSources = "two"
+	if _, errs := sessionRun(t, s, root); len(errs) > 0 {
+		t.Errorf("dep.M, after the dependency gained it: %v", errs)
+	}
+}
