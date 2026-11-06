@@ -89,6 +89,7 @@ same page in the terminal.
 | [E0177](./E0177) | A write to a ui.Derived |
 | [E0178](./E0178) | A @ui.Notify that can't call its handler |
 | [E0179](./E0179) | A @ui.Keep or @ui.Shared the browser can't keep |
+| [E0180](./E0180) | A show or transition attribute that doesn't fit |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A live component in a loop has no key |

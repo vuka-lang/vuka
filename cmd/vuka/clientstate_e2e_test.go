@@ -315,3 +315,61 @@ func TestOptimisticE2E(t *testing.T) {
 	p.wait(`document.querySelector("#tries").textContent === "2" && document.querySelector("#state").textContent === "true 1"`)
 	p.eval(`window.__errs = []`)
 }
+
+const showPage = `<script lang="go">
+package pages
+
+import (
+	"time"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Index fades its panel in and out, and renders again on Save.
+type Index struct {
+	ui.Live
+	open  ui.State[bool]
+	saved int
+}
+
+// Save renders the page again.
+func (p *Index) Save() { p.saved++ }
+</script>
+
+<main>
+  <button id="toggle" onClick={open = !open}>toggle</button>
+  <button id="save" onClick={Save}>save {saved}</button>
+  <section id="panel" show={open} transition={ui.Fade(300 * time.Millisecond)}>panel</section>
+</main>
+`
+
+// TestShowE2E: show={…} hides an element while its state doesn't hold,
+// fading it in and out; the leave is waited for, a change mid-way settles
+// to the newest, and a server render keeps the browser's value.
+func TestShowE2E(t *testing.T) {
+	p, _, done := clientStateApp(t, map[string]string{"pages/index.vuka.html": showPage}, "/")
+	defer done()
+	panel := `document.querySelector("#panel")`
+	if !p.eval(panel + `.hidden`).(bool) {
+		t.Fatal("the panel shows before it is opened")
+	}
+	p.click("#toggle")
+	p.wait(`!` + panel + `.hidden && getComputedStyle(` + panel + `).opacity !== "1"`)
+	p.wait(`getComputedStyle(` + panel + `).opacity === "1" && ` + panel + `.style.length === 0`)
+	p.click("#toggle")
+	if p.eval(panel + `.hidden`).(bool) {
+		t.Error("hidden before its leave ran")
+	}
+	p.click("#toggle")
+	p.wait(`!` + panel + `.hidden && ` + panel + `.style.length === 0`)
+	p.click("#save")
+	p.wait(`document.querySelector("#save").textContent === "save 1"`)
+	if p.eval(panel + `.hidden`).(bool) {
+		t.Error("a server render hid the open panel")
+	}
+	p.click("#toggle")
+	p.wait(panel + `.hidden`)
+	if errs, _ := p.eval(`window.__errs`).([]any); len(errs) > 0 {
+		t.Errorf("console: %v", errs)
+	}
+}

@@ -1,0 +1,14 @@
+package main
+
+import "time"
+
+// Menu shows its list with a fade while it is open.
+type Menu struct {
+	open ui.State[bool]
+}
+<nav>
+  <button onClick={open = !open}>Menu</button>
+  <ul show={open} transition={ui.Fade(150 * time.Millisecond)}>
+    <li>item</li>
+  </ul>
+</nav>

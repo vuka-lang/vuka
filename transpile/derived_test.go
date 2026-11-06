@@ -84,3 +84,30 @@ func TestOptimisticModifier(t *testing.T) {
 		}
 	}
 }
+
+// TestShowErrors: show takes a bool and a transition goes with a show:
+// E0180.
+func TestShowErrors(t *testing.T) {
+	src := func(markup string) []transpile.File {
+		return []transpile.File{{Name: "menu.vuka.html", Src: []byte("package main\n\nimport (\n\t\"time\"\n\n\tui \"vukatest.local/stateui\"\n)\n\ntype Menu struct {\n\topen ui.State[bool]\n\ttab  ui.State[string]\n}\n" + markup + "\n")},
+			{Name: "main.go", Src: []byte("package main\n\nfunc main() {}\n")}}
+	}
+	opts := transpile.Options{Bare: true, Importer: load.NewImporter("testdata/golden", "")}
+	if _, err := transpile.Package(src(`<div show={open && tab == "a"} transition={ui.Fade(time.Second)}>{tab}</div>`), opts); err != nil {
+		t.Fatal(err)
+	}
+	for _, c := range []struct{ markup, want string }{
+		{`<div show={tab}>{open}</div>`, "E0180 menu.vuka.html:13:6: <div show={tab}>: show takes a bool, and tab is a stateui.State[string]; compare it: show={tab != \"\"}"},
+		{`<div transition={ui.Fade(time.Second)}>{open}</div>`, "E0180 menu.vuka.html:13:6: <div>'s transition animates its show, and it has none"},
+	} {
+		_, err := transpile.Package(src(c.markup), opts)
+		list, _ := err.(transpile.ErrorList)
+		var got []string
+		for _, e := range list {
+			got = append(got, string(e.Code)+" "+e.Error())
+		}
+		if s := strings.Join(got, "\n"); !strings.Contains(s, c.want) {
+			t.Errorf("%s: errors\n%s\nwant %s", c.markup, s, c.want)
+		}
+	}
+}

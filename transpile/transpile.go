@@ -308,6 +308,7 @@ type fileState struct {
 	froms          *[]*fromAttr        // its @ui.From attributes, once found (derived.go)
 	deriveOrder    map[string][]*fromAttr
 	underivedDone  bool
+	showsChecked   bool // its show={…} and transition={…} are checked (showattr.go)
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.
