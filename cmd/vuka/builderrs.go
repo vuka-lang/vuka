@@ -968,12 +968,19 @@ func (c *checker) diagnostic(fset *token.FileSet, files []*checkedFile, cf *chec
 	return d
 }
 
-// generatedImport reports whether pos is in an import of cf that vuka
-// wrote: its path has no source text.
+// generatedImport reports whether pos is in an import of cf that only the
+// generated Go has: the source imports no such path, and the import's text
+// isn't the source's.
 func generatedImport(fset *token.FileSet, cf *checkedFile, pos token.Pos) bool {
 	for _, imp := range cf.ast.Imports {
 		if pos < imp.Pos() || pos > imp.End() {
 			continue
+		}
+		path, _ := strconv.Unquote(imp.Path.Value)
+		for _, si := range sourceImports(cf.gen.Source, cf.gen.From) {
+			if si.Path == path {
+				return false
+			}
 		}
 		_, exact, ok := cf.gen.Map.ToSource(fset.PositionFor(imp.Path.Pos(), false).Offset + 1)
 		return !ok || !exact

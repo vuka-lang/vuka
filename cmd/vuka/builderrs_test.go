@@ -15,6 +15,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/vuka-lang/vuka/v2/diag"
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
@@ -687,50 +688,68 @@ func TestGoCommandsHelp(t *testing.T) {
 	}
 }
 
-// TestGeneratedImportPosition: an error about an import only the generated
-// Go has is at the source's package clause, saying it is vuka's — never at
-// one of the source's own imports.
-func TestGeneratedImportPosition(t *testing.T) {
+// TestUnusedImportPosition: an unused import only the generated Go has is
+// at the source's package clause, saying it is vuka's; one the source
+// declares stays on its own import line with the usual help.
+func TestUnusedImportPosition(t *testing.T) {
 	const pkg = "example.com/app/links"
-	from := "package links\n\nimport \"fmt\"\n\nvar _ = fmt.Sprint\n"
-	ins := "; import \"strings\""
+	from := "package links\n\nimport (\n\t\"fmt\"\n\t\"os\"\n)\n\nvar _ = fmt.Sprint\n"
 	clause := len("package links")
-	gen := from[:clause] + ins + from[clause:]
-	var enc []byte
-	w := func(vs ...int) {
-		for _, v := range vs {
-			enc = binary.AppendVarint(enc, int64(v))
-		}
-	}
-	w(3)
-	w(0, 0, clause, clause, 1)
-	w(clause, clause, len(ins), 0, 0)
-	w(clause+len(ins), clause, len(from)-clause, len(from)-clause, 1)
-	w(0)
-	m := new(transpile.SourceMap)
-	if err := m.GobDecode(enc); err != nil {
-		t.Fatal(err)
-	}
-	root, _ := filepath.EvalSymlinks(t.TempDir())
-	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.24\n")
-	writeFile(t, filepath.Join(root, "links", "doc.go"), "package links\n")
-	tmp := filepath.Join(t.TempDir(), "links_gen.go")
-	writeFile(t, tmp, gen)
-	target := filepath.Join(root, "links", "links_gen.go")
-	data, _ := json.Marshal(struct{ Replace map[string]string }{map[string]string{target: tmp}})
-	in := buildInput{root: root, modPath: "example.com/app", overlay: filepath.Join(t.TempDir(), "overlay.json")}
-	writeFile(t, in.overlay, string(data))
-	source := filepath.Join(root, "links", "links.vuka")
-	in.gens = []load.Generated{{Target: target, Src: []byte(gen), Source: source, From: []byte(from), Map: m}}
-	own, _ := in.check([]string{pkg}, nil)
-	if len(own[pkg]) != 1 {
-		t.Fatalf("want one error, got %+v", own[pkg])
-	}
-	d := own[pkg][0]
-	if !strings.Contains(d.Message, `"strings" imported and not used`) || !strings.Contains(d.Help, "vuka's") {
-		t.Errorf("the error: %+v", d)
-	}
-	if d.Span.File != source || d.Span.Line != 1 || d.Span.Col != 1 || d.Span.EndCol != 0 {
-		t.Errorf("at %+v, want %s:1:1 with no span", d.Span, source)
+	// vuka rewrites the source's import block: its text maps to the block,
+	// not exactly.
+	ib, ie := strings.Index(from, "import ("), strings.Index(from, ")\n")+1
+	for _, c := range []struct {
+		name, gen string
+		segs      [][5]int
+		msg, help string
+		line, col int
+	}{
+		{name: "generated only", gen: from[:clause] + "; import \"strings\"" + from[clause:],
+			segs: [][5]int{{0, 0, clause, clause, 1}, {clause, clause, 18, 0, 0}, {clause + 18, clause, len(from) - clause, len(from) - clause, 1}},
+			msg:  `"strings" imported and not used`, help: "vuka's", line: 1, col: 1},
+		{name: "the source's", gen: from, segs: [][5]int{{0, 0, ib, ib, 1}, {ib, ib, ie - ib, ie - ib, 0}, {ie, ie, len(from) - ie, len(from) - ie, 1}},
+			msg: `"os" imported and not used`, help: "delete the import", line: 3, col: 1},
+	} {
+		t.Run(c.name, func(t *testing.T) {
+			var enc []byte
+			w := func(vs ...int) {
+				for _, v := range vs {
+					enc = binary.AppendVarint(enc, int64(v))
+				}
+			}
+			w(len(c.segs))
+			for _, sg := range c.segs {
+				w(sg[:]...)
+			}
+			w(0)
+			m := new(transpile.SourceMap)
+			if err := m.GobDecode(enc); err != nil {
+				t.Fatal(err)
+			}
+			root, _ := filepath.EvalSymlinks(t.TempDir())
+			writeFile(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.24\n")
+			writeFile(t, filepath.Join(root, "links", "doc.go"), "package links\n")
+			tmp := filepath.Join(t.TempDir(), "links_gen.go")
+			writeFile(t, tmp, c.gen)
+			target := filepath.Join(root, "links", "links_gen.go")
+			data, _ := json.Marshal(struct{ Replace map[string]string }{map[string]string{target: tmp}})
+			in := buildInput{root: root, modPath: "example.com/app", overlay: filepath.Join(t.TempDir(), "overlay.json")}
+			writeFile(t, in.overlay, string(data))
+			source := filepath.Join(root, "links", "links.vuka")
+			in.gens = []load.Generated{{Target: target, Src: []byte(c.gen), Source: source, From: []byte(from), Map: m}}
+			own, _ := in.check([]string{pkg}, nil)
+			var d *diag.Diagnostic
+			for i := range own[pkg] {
+				if strings.Contains(own[pkg][i].Message, c.msg) {
+					d = &own[pkg][i]
+				}
+			}
+			if d == nil {
+				t.Fatalf("no %s: %+v", c.msg, own[pkg])
+			}
+			if !strings.Contains(d.Help, c.help) || d.Span.File != source || d.Span.Line != c.line || d.Span.Col != c.col {
+				t.Errorf("got %+v, want %s:%d:%d with help %q", d, source, c.line, c.col, c.help)
+			}
+		})
 	}
 }
