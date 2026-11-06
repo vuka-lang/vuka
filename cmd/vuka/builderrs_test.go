@@ -3,6 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -15,6 +16,7 @@ import (
 	"time"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
 // webCheckout is the web checkout the tests build against ($VUKA_WEB, else
@@ -682,5 +684,53 @@ func TestGoCommandsHelp(t *testing.T) {
 				t.Errorf("vuka %s %s:\n%s\n%s", cmd, flag, out.String(), errs.String())
 			}
 		}
+	}
+}
+
+// TestGeneratedImportPosition: an error about an import only the generated
+// Go has is at the source's package clause, saying it is vuka's — never at
+// one of the source's own imports.
+func TestGeneratedImportPosition(t *testing.T) {
+	const pkg = "example.com/app/links"
+	from := "package links\n\nimport \"fmt\"\n\nvar _ = fmt.Sprint\n"
+	ins := "; import \"strings\""
+	clause := len("package links")
+	gen := from[:clause] + ins + from[clause:]
+	var enc []byte
+	w := func(vs ...int) {
+		for _, v := range vs {
+			enc = binary.AppendVarint(enc, int64(v))
+		}
+	}
+	w(3)
+	w(0, 0, clause, clause, 1)
+	w(clause, clause, len(ins), 0, 0)
+	w(clause+len(ins), clause, len(from)-clause, len(from)-clause, 1)
+	w(0)
+	m := new(transpile.SourceMap)
+	if err := m.GobDecode(enc); err != nil {
+		t.Fatal(err)
+	}
+	root, _ := filepath.EvalSymlinks(t.TempDir())
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/app\n\ngo 1.24\n")
+	writeFile(t, filepath.Join(root, "links", "doc.go"), "package links\n")
+	tmp := filepath.Join(t.TempDir(), "links_gen.go")
+	writeFile(t, tmp, gen)
+	target := filepath.Join(root, "links", "links_gen.go")
+	data, _ := json.Marshal(struct{ Replace map[string]string }{map[string]string{target: tmp}})
+	in := buildInput{root: root, modPath: "example.com/app", overlay: filepath.Join(t.TempDir(), "overlay.json")}
+	writeFile(t, in.overlay, string(data))
+	source := filepath.Join(root, "links", "links.vuka")
+	in.gens = []load.Generated{{Target: target, Src: []byte(gen), Source: source, From: []byte(from), Map: m}}
+	own, _ := in.check([]string{pkg}, nil)
+	if len(own[pkg]) != 1 {
+		t.Fatalf("want one error, got %+v", own[pkg])
+	}
+	d := own[pkg][0]
+	if !strings.Contains(d.Message, `"strings" imported and not used`) || !strings.Contains(d.Help, "vuka's") {
+		t.Errorf("the error: %+v", d)
+	}
+	if d.Span.File != source || d.Span.Line != 1 || d.Span.Col != 1 || d.Span.EndCol != 0 {
+		t.Errorf("at %+v, want %s:1:1 with no span", d.Span, source)
 	}
 }
