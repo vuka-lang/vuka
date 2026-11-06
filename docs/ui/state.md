@@ -58,6 +58,32 @@ comparisons, `+`, `-`, `*` and `len`; any other operator or a call is
 [E0124](/errors/E0124). A value read in several places is a
 [Derived](#derived).
 
+## Showing and Hiding {#show}
+
+`show={…}` on an element hides it (the `hidden` attribute) while its value
+doesn't hold, and `transition={…}` animates the change: the enter phase as
+it shows, the leave phase — waited for before it is hidden — as it hides.
+
+```html
+<button onClick={open = !open}>Menu</button>
+<ul show={open} transition={ui.Fade(150 * time.Millisecond)}>…</ul>
+```
+
+| Transition | |
+|---|---|
+| `ui.Fade(d)` | fades in and out |
+| `ui.Scale(d)` | fades, growing from 95% |
+| `ui.Slide(ui.Top, d)` | fades, sliding in from a side: `ui.Top`, `ui.Bottom`, `ui.Left`, `ui.Right` |
+| `ui.Animate(d, ui.Enter(during, from, to), ui.Leave(during, from, to))` | your classes, as `ui.JS.Transition` takes them: Tailwind's `transition duration-200`, `opacity-0`, `opacity-100` |
+
+A change while a transition runs settles it at once and starts the
+newest, so nothing is left half-shown. The first render, a server render
+of the page and a browser preferring reduced motion show the value at
+once; an element a server render removes is simply gone, with no leave.
+`ui.Show` does the same for children with CSS of their own, through
+`data-enter` and `data-leave`. A `show` that isn't a bool, or a
+`transition` without one, is [E0180](/errors/E0180).
+
 ## Derived Values {#derived}
 
 A `ui.Derived[T]` field is a value the browser computes from states and

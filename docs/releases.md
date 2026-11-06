@@ -164,6 +164,17 @@ parameter keeps the call a handler.
   `ui.JS.Optimistic()` is the Go form. Needs ui and web at the release's
   version. See [Optimistic Writes](/ui/state#optimistic).
 
+- **`show={…}` with transitions** ([#371](https://github.com/vuka-lang/vuka/issues/371)).
+  `<div show={open} transition={ui.Fade(150*time.Millisecond)}>` hides
+  the element while the value doesn't hold, animating the change: enter
+  classes or styles as it shows, the leave waited for before it is hidden.
+  `ui.Fade`, `ui.Scale`, `ui.Slide(side, d)` and `ui.Animate(d,
+  ui.Enter(…), ui.Leave(…))` for your classes; a change mid-way settles to
+  the newest; the first render, server renders and reduced motion apply
+  it at once. A `show` that isn't a bool, or a `transition` without one,
+  is [E0180](/errors/E0180). Needs ui and web at the release's version.
+  See [Showing and Hiding](/ui/state#show).
+
 ### Component Classes
 
 - **`ui.Variants`, a component's classes by its props**

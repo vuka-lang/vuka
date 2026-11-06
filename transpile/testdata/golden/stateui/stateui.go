@@ -371,6 +371,11 @@ func Keep(key string) Kept { return Kept{key} }
 
 type Kept struct{ key string }
 
+// ShowTransition animates a show attribute.
+type ShowTransition struct{ ms int64 }
+
+func Fade(d time.Duration) ShowTransition { return ShowTransition{d.Milliseconds()} }
+
 // Shared shares a state's writes across tabs.
 type Shared struct{}
 

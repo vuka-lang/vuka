@@ -86,6 +86,7 @@ public github.com/vuka-lang/ui/v2.El
 public github.com/vuka-lang/ui/v2.Emit
 public github.com/vuka-lang/ui/v2.ErrorBoundary
 public github.com/vuka-lang/ui/v2.Event
+public github.com/vuka-lang/ui/v2.Fade
 public github.com/vuka-lang/ui/v2.Fallback
 public github.com/vuka-lang/ui/v2.Field
 public github.com/vuka-lang/ui/v2.For
