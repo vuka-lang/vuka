@@ -21,9 +21,19 @@ func main() { web.New(pages.Routes()).Run("") }
 
 const uigenOrders = `package orders
 
+import (
+	"context"
+
+	"github.com/vuka-lang/vuka/v2"
+)
+
 type Order struct {
 	ID     int64
 	Number string
+}
+
+func List(ctx context.Context) vuka.Result[[]Order] {
+	return vuka.Ok([]Order{{ID: 1, Number: "A-1"}})
 }
 `
 
@@ -170,6 +180,114 @@ func (p *Index) mount(ctx context.Context) error {
       <li key={o.ID} class:on={open}>{o.Number} {name}</li>
     }
   </ul>
+</main>
+`,
+	"components/design/modal.vuka.html": `<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// Modal shows its content while Show holds.
+type Modal struct {
+	Show     ui.State[bool]
+	Children ui.Node
+}
+</script>
+
+<dialog hidden={!Show}>{Children}</dialog>
+`,
+	"components/design/grid.vuka.html": `<script lang="go">
+package design
+
+import "github.com/vuka-lang/ui/v2"
+
+// Grid renders its rows through the caller's Row, with each row's index.
+type Grid[T any] struct {
+	Rows []T
+	Row  func(T, int) ui.Node
+}
+</script>
+
+<ul>
+  for i, r := range Rows {
+    <li>{Row(r, i)}</li>
+  }
+</ul>
+`,
+	"pages/modal/index.vuka.html": `<script lang="go">
+package modal
+
+import (
+	"context"
+
+	"example.com/app/components/design"
+	"example.com/app/orders"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/vuka/v2"
+)
+
+// Index is live; its one state goes to a child's State field and is
+// written by events, never read in its own markup.
+type Index struct {
+	ui.Live
+	open ui.State[bool]
+}
+
+func rows(ctx context.Context) vuka.Result[[]orders.Order] { return orders.List(ctx) }
+</script>
+
+<main>
+  <button onClick={open = true}>Open</button>
+  <design.Modal show={open}>
+    <design.Grid rows={rows(ctx)}>
+      <slot:row let={o, i}><b>{i}</b> {o.Number}</slot:row>
+    </design.Grid>
+    <button onClick={open = false}>Close</button>
+  </design.Modal>
+</main>
+`,
+	"pages/sheet/sheet.vuka.html": `<script lang="go">
+package sheet
+
+import "github.com/vuka-lang/ui/v2"
+
+// Sheet is the Modal of the page's own package.
+type Sheet struct {
+	Show     ui.State[bool]
+	Children ui.Node
+}
+</script>
+
+<aside hidden={!Show}>{Children}</aside>
+`,
+	"pages/sheet/index.vuka.html": `<script lang="go">
+package sheet
+
+import (
+	"context"
+
+	"example.com/app/orders"
+	"github.com/vuka-lang/ui/v2"
+	"github.com/vuka-lang/vuka/v2"
+)
+
+// Index is the modal page with its child in its own package.
+type Index struct {
+	ui.Live
+	open ui.State[bool]
+}
+
+func rows(ctx context.Context) vuka.Result[[]orders.Order] { return orders.List(ctx) }
+</script>
+
+<main>
+  <button onClick={open = true}>Open</button>
+  <Sheet show={open}>
+    for i, o := range rows(ctx) {
+      <p>{i} {o.Number}</p>
+    }
+    <button onClick={open = false}>Close</button>
+  </Sheet>
 </main>
 `,
 	"components/menu.vuka.html": `<script lang="go">
