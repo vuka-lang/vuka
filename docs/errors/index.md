@@ -261,6 +261,7 @@ same page in the terminal.
 | [E0609](./E0609) | The islands have no frontend build to go into |
 | [E0610](./E0610) | npm is older than 11 |
 | [W0601](./W0601) | A component uses a design token no stylesheet defines |
+| [W0602](./W0602) | A component drops its caller's attributes or classes |
 
 ## Folder routes
 

@@ -40,7 +40,7 @@ type Button struct {
 	// Type is "button" (the default), "submit" or "reset".
 	Type     string
 	Disabled bool
-	// Class is added to the button's classes, winning over them (see cn).
+	// Class is added to the button's classes, winning over them (ui.MergeClasses).
 	Class string
 	// Attrs are any other attributes: id, name, value, aria-*, data-*.
 	Attrs    []ui.Attr
@@ -51,34 +51,25 @@ const buttonBase = "inline-flex shrink-0 items-center justify-center gap-2 white
 	"disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
 	"aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
-var buttonVariant = map[ButtonVariant]string{
-	ButtonDefault:     "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-	ButtonDestructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
-	ButtonOutline:     "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-	ButtonSecondary:   "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-	ButtonGhost:       "hover:bg-accent hover:text-accent-foreground",
-	ButtonLink:        "text-primary underline-offset-4 hover:underline",
-}
-
-var buttonSize = map[ButtonSize]string{
-	SizeDefault: "h-9 px-4 py-2 has-[>svg]:px-3",
-	SizeSm:      "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-	SizeLg:      "h-10 rounded-md px-6 has-[>svg]:px-4",
-	SizeIcon:    "size-9",
-}
-
-// buttonVariants are the classes of a button of variant v and size s; an
-// unknown one is the default.
-func buttonVariants(v ButtonVariant, s ButtonSize) string {
-	variant, ok := buttonVariant[v]
-	if !ok {
-		variant = buttonVariant[ButtonDefault]
-	}
-	size, ok := buttonSize[s]
-	if !ok {
-		size = buttonSize[SizeDefault]
-	}
-	return cn(buttonBase, variant, size)
+var buttonVariants = ui.Variants{
+	Base: buttonBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+			"destructive": "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
+			"outline":     "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+			"secondary":   "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+			"ghost":       "hover:bg-accent hover:text-accent-foreground",
+			"link":        "text-primary underline-offset-4 hover:underline",
+		},
+		"size": {
+			"default": "h-9 px-4 py-2 has-[>svg]:px-3",
+			"sm":      "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
+			"lg":      "h-10 rounded-md px-6 has-[>svg]:px-4",
+			"icon":    "size-9",
+		},
+	},
+	Defaults: map[string]string{"variant": "default", "size": "default"},
 }
 
 func (b Button) id() any {
@@ -107,7 +98,7 @@ func (b Button) on() []ui.Attr {
 <button
   id={b.id()}
   type={b.typ()}
-  class={cn(buttonVariants(b.Variant, b.Size), b.Class)}
+  class={buttonVariants.Class("variant", string(b.Variant), "size", string(b.Size), "class", b.Class)}
   disabled={b.Disabled}
   {b.on()...}
   {b.Attrs...}

@@ -22,7 +22,7 @@ A callout with an icon, a title and a message.
 vuka ui add alert
 ```
 
-It writes `components/ui/alert.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.10.0 or newer.
+It writes `components/ui/alert.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
 
 ## Using It
 
@@ -43,7 +43,7 @@ An optional `icon` (an `<svg>`) goes before the title. It renders
 | `variant` | `AlertVariant` | One of `AlertDefault`, `AlertDestructive`. |
 | `title` | `string` |  |
 | `<slot:icon>` | `ui.Node` | Icon is an optional icon before the title, such as an &lt;svg&gt;. |
-| `class` | `string` | Class is added to the alert's classes, winning over them (see cn). |
+| `class` | `string` | Class is added to the alert's classes, winning over them (ui.MergeClasses). |
 | `attrs` | `[]ui.Attr` |  |
 | the content | `ui.Node` |  |
 
@@ -79,7 +79,7 @@ type Alert struct {
 	Title   string
 	// Icon is an optional icon before the title, such as an <svg>.
 	Icon ui.Node
-	// Class is added to the alert's classes, winning over them (see cn).
+	// Class is added to the alert's classes, winning over them (ui.MergeClasses).
 	Class    string
 	Attrs    []ui.Attr
 	Children ui.Node
@@ -88,23 +88,19 @@ type Alert struct {
 const alertBase = "relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm " +
 	"has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current"
 
-var alertVariant = map[AlertVariant]string{
-	AlertDefault:     "bg-card text-card-foreground",
-	AlertDestructive: "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90",
-}
-
-// alertVariants are the classes of an alert of variant v; an unknown one is
-// the default.
-func alertVariants(v AlertVariant) string {
-	variant, ok := alertVariant[v]
-	if !ok {
-		variant = alertVariant[AlertDefault]
-	}
-	return cn(alertBase, variant)
+var alertVariants = ui.Variants{
+	Base: alertBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "bg-card text-card-foreground",
+			"destructive": "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90",
+		},
+	},
+	Defaults: map[string]string{"variant": "default"},
 }
 </script>
 
-<div role="alert" class={cn(alertVariants(Variant), Class)} {Attrs...}>
+<div role="alert" class={alertVariants.Class("variant", string(Variant), "class", Class)} {Attrs...}>
   {Icon}
   if Title != "" {
     <div class="col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight">{Title}</div>
@@ -146,7 +142,7 @@ type Alert struct {
 	Title   string
 	// Icon is an optional icon before the title, such as an <svg>.
 	Icon ui.Node
-	// Class is added to the alert's classes, winning over them (see cn).
+	// Class is added to the alert's classes, winning over them (ui.MergeClasses).
 	Class    string
 	Attrs    []ui.Attr
 	Children ui.Node
@@ -155,19 +151,15 @@ type Alert struct {
 const alertBase = "relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm " +
 	"has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current"
 
-var alertVariant = map[AlertVariant]string{
-	AlertDefault:     "bg-card text-card-foreground",
-	AlertDestructive: "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90",
-}
-
-// alertVariants are the classes of an alert of variant v; an unknown one is
-// the default.
-func alertVariants(v AlertVariant) string {
-	variant, ok := alertVariant[v]
-	if !ok {
-		variant = alertVariant[AlertDefault]
-	}
-	return cn(alertBase, variant)
+var alertVariants = ui.Variants{
+	Base: alertBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "bg-card text-card-foreground",
+			"destructive": "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90",
+		},
+	},
+	Defaults: map[string]string{"variant": "default"},
 }
 
 func (a Alert) View() ui.Node {
@@ -180,11 +172,11 @@ func (a Alert) View() ui.Node {
 		div2 = ui.HTML(`<div data-slot="alert-description" class="col-start-2 grid justify-items-start gap-1 text-sm text-muted-foreground [&amp;_p]:leading-relaxed">{a.Children}</div>`, a.Children)
 	}
 	return ui.HTML(`
-<div role="alert" class={cn(alertVariants(a.Variant), a.Class)} {a.Attrs...}>
+<div role="alert" class={alertVariants.Class("variant", string(a.Variant), "class", a.Class)} {a.Attrs...}>
   {a.Icon}
   {div}
   {div2}
-</div>`, cn(alertVariants(a.Variant), a.Class), a.Attrs, a.Icon, div, div2)
+</div>`, alertVariants.Class("variant", string(a.Variant), "class", a.Class), a.Attrs, a.Icon, div, div2)
 }
 
 func (a Alert) Render(ctx context.Context, w io.Writer) error { return a.View().Render(ctx, w) }

@@ -22,7 +22,7 @@ A button: six variants, four sizes, a ui.JS chain or a live handler on click.
 vuka ui add button
 ```
 
-It writes `components/ui/button.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.10.0 or newer.
+It writes `components/ui/button.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
 
 ## Using It
 
@@ -37,9 +37,11 @@ It writes `components/ui/button.vuka.html`, with what it uses: [cn](/ui/vendored
 `on` takes a live handler or a `ui.JS` chain. The variant can be written as
 its string too: `variant="outline"`.
 
-The classes live in two Go maps in the file, `buttonVariant` and
-`buttonSize`, joined by `buttonVariants(v, s)`: a new variant is a constant
-and a map entry.
+The classes are data: `buttonVariants`, a [`ui.Variants`](/ui/classes),
+holds each variant's and size's classes, and
+`buttonVariants.Class("variant", …, "size", …, "class", Class)` merges them
+with yours last, so your `class` wins. A new variant is a constant and an
+entry under `"variant"`; the editor completes `variant="…"` from them.
 
 ## Props
 
@@ -51,7 +53,7 @@ and a map entry.
 | `on` | `any` | On is what a click does: a ui.JS chain, or a live handler. |
 | `type` | `string` | Type is "button" (the default), "submit" or "reset". |
 | `disabled` | `bool` |  |
-| `class` | `string` | Class is added to the button's classes, winning over them (see cn). |
+| `class` | `string` | Class is added to the button's classes, winning over them (ui.MergeClasses). |
 | `attrs` | `[]ui.Attr` | Attrs are any other attributes: id, name, value, aria-*, data-*. |
 | the content | `ui.Node` |  |
 
@@ -106,7 +108,7 @@ type Button struct {
 	// Type is "button" (the default), "submit" or "reset".
 	Type     string
 	Disabled bool
-	// Class is added to the button's classes, winning over them (see cn).
+	// Class is added to the button's classes, winning over them (ui.MergeClasses).
 	Class string
 	// Attrs are any other attributes: id, name, value, aria-*, data-*.
 	Attrs    []ui.Attr
@@ -117,34 +119,25 @@ const buttonBase = "inline-flex shrink-0 items-center justify-center gap-2 white
 	"disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
 	"aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
-var buttonVariant = map[ButtonVariant]string{
-	ButtonDefault:     "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-	ButtonDestructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
-	ButtonOutline:     "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-	ButtonSecondary:   "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-	ButtonGhost:       "hover:bg-accent hover:text-accent-foreground",
-	ButtonLink:        "text-primary underline-offset-4 hover:underline",
-}
-
-var buttonSize = map[ButtonSize]string{
-	SizeDefault: "h-9 px-4 py-2 has-[>svg]:px-3",
-	SizeSm:      "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-	SizeLg:      "h-10 rounded-md px-6 has-[>svg]:px-4",
-	SizeIcon:    "size-9",
-}
-
-// buttonVariants are the classes of a button of variant v and size s; an
-// unknown one is the default.
-func buttonVariants(v ButtonVariant, s ButtonSize) string {
-	variant, ok := buttonVariant[v]
-	if !ok {
-		variant = buttonVariant[ButtonDefault]
-	}
-	size, ok := buttonSize[s]
-	if !ok {
-		size = buttonSize[SizeDefault]
-	}
-	return cn(buttonBase, variant, size)
+var buttonVariants = ui.Variants{
+	Base: buttonBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+			"destructive": "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
+			"outline":     "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+			"secondary":   "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+			"ghost":       "hover:bg-accent hover:text-accent-foreground",
+			"link":        "text-primary underline-offset-4 hover:underline",
+		},
+		"size": {
+			"default": "h-9 px-4 py-2 has-[>svg]:px-3",
+			"sm":      "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
+			"lg":      "h-10 rounded-md px-6 has-[>svg]:px-4",
+			"icon":    "size-9",
+		},
+	},
+	Defaults: map[string]string{"variant": "default", "size": "default"},
 }
 
 func (b Button) id() any {
@@ -173,7 +166,7 @@ func (b Button) on() []ui.Attr {
 <button
   id={b.id()}
   type={b.typ()}
-  class={cn(buttonVariants(b.Variant, b.Size), b.Class)}
+  class={buttonVariants.Class("variant", string(b.Variant), "size", string(b.Size), "class", b.Class)}
   disabled={b.Disabled}
   {b.on()...}
   {b.Attrs...}
@@ -227,7 +220,7 @@ type Button struct {
 	// Type is "button" (the default), "submit" or "reset".
 	Type     string
 	Disabled bool
-	// Class is added to the button's classes, winning over them (see cn).
+	// Class is added to the button's classes, winning over them (ui.MergeClasses).
 	Class string
 	// Attrs are any other attributes: id, name, value, aria-*, data-*.
 	Attrs    []ui.Attr
@@ -238,34 +231,25 @@ const buttonBase = "inline-flex shrink-0 items-center justify-center gap-2 white
 	"disabled:pointer-events-none disabled:opacity-50 focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
 	"aria-invalid:border-destructive aria-invalid:ring-destructive/20 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
 
-var buttonVariant = map[ButtonVariant]string{
-	ButtonDefault:     "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
-	ButtonDestructive: "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
-	ButtonOutline:     "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
-	ButtonSecondary:   "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
-	ButtonGhost:       "hover:bg-accent hover:text-accent-foreground",
-	ButtonLink:        "text-primary underline-offset-4 hover:underline",
-}
-
-var buttonSize = map[ButtonSize]string{
-	SizeDefault: "h-9 px-4 py-2 has-[>svg]:px-3",
-	SizeSm:      "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
-	SizeLg:      "h-10 rounded-md px-6 has-[>svg]:px-4",
-	SizeIcon:    "size-9",
-}
-
-// buttonVariants are the classes of a button of variant v and size s; an
-// unknown one is the default.
-func buttonVariants(v ButtonVariant, s ButtonSize) string {
-	variant, ok := buttonVariant[v]
-	if !ok {
-		variant = buttonVariant[ButtonDefault]
-	}
-	size, ok := buttonSize[s]
-	if !ok {
-		size = buttonSize[SizeDefault]
-	}
-	return cn(buttonBase, variant, size)
+var buttonVariants = ui.Variants{
+	Base: buttonBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "bg-primary text-primary-foreground shadow-xs hover:bg-primary/90",
+			"destructive": "bg-destructive text-white shadow-xs hover:bg-destructive/90 focus-visible:ring-destructive/20",
+			"outline":     "border bg-background shadow-xs hover:bg-accent hover:text-accent-foreground",
+			"secondary":   "bg-secondary text-secondary-foreground shadow-xs hover:bg-secondary/80",
+			"ghost":       "hover:bg-accent hover:text-accent-foreground",
+			"link":        "text-primary underline-offset-4 hover:underline",
+		},
+		"size": {
+			"default": "h-9 px-4 py-2 has-[>svg]:px-3",
+			"sm":      "h-8 gap-1.5 rounded-md px-3 has-[>svg]:px-2.5",
+			"lg":      "h-10 rounded-md px-6 has-[>svg]:px-4",
+			"icon":    "size-9",
+		},
+	},
+	Defaults: map[string]string{"variant": "default", "size": "default"},
 }
 
 func (b Button) id() any {
@@ -291,10 +275,10 @@ func (b Button) on() []ui.Attr {
 }
 
 func (b Button) View() ui.Node {
-	return ui.HTML(`<button id={b.id()} type={b.typ()} class={cn(buttonVariants(b.Variant, b.Size), b.Class)} disabled={b.Disabled} {b.on()...} {b.Attrs...}>{b.Children}</button>`,
+	return ui.HTML(`<button id={b.id()} type={b.typ()} class={buttonVariants.Class("variant", string(b.Variant), "size", string(b.Size), "class", b.Class)} disabled={b.Disabled} {b.on()...} {b.Attrs...}>{b.Children}</button>`,
 		b.id(),
 		b.typ(),
-		cn(buttonVariants(b.Variant, b.Size), b.Class),
+		buttonVariants.Class("variant", string(b.Variant), "size", string(b.Size), "class", b.Class),
 		b.Disabled,
 		b.on(),
 		b.Attrs,

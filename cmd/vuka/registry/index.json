@@ -59,14 +59,14 @@
       "files": [
         {
           "path": "ui/button.vuka.html",
-          "sha256": "8aca0ced2bf365d4c25c0039389dd70f0d892a9626a4c51c562d9f2f8c658346"
+          "sha256": "2fa195d80e3c86abdaa50d6819fab9958203d8a2e0ad42432d023cd1efe9a798"
         }
       ],
       "deps": [
         "cn"
       ],
       "requires": {
-        "ui": "v2.10.0"
+        "ui": "v2.17.0"
       }
     },
     {
@@ -77,14 +77,14 @@
       "files": [
         {
           "path": "ui/badge.vuka.html",
-          "sha256": "790ae45138bcbfc2dea61d5966e5cc4e33d994d2258188376fb2aec9bfd3c4bd"
+          "sha256": "943c2b72e3b96c904cb8abf0c59fde96b2c7936021798e62d9d49fb847465247"
         }
       ],
       "deps": [
         "cn"
       ],
       "requires": {
-        "ui": "v2.10.0"
+        "ui": "v2.17.0"
       }
     },
     {
@@ -113,14 +113,14 @@
       "files": [
         {
           "path": "ui/alert.vuka.html",
-          "sha256": "56fbf6cbf931428f90d3533dae421ccf646878b48076a49f889dca5484692753"
+          "sha256": "3c4df87a77f5c02d660fce660d492e251c0a8cdbaab5bd47fb61513ec61b3327"
         }
       ],
       "deps": [
         "cn"
       ],
       "requires": {
-        "ui": "v2.10.0"
+        "ui": "v2.17.0"
       }
     },
     {

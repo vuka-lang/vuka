@@ -218,6 +218,15 @@ parameter keeps the call a handler.
   `vuka ui upgrade` compare against the files as written with the set, so
   swapped icons are no local edit ([Icons](/ui/vendored#icons)).
 
+- **The registry's Button, Badge and Alert are drawn with `ui.Variants`** ([#364](https://github.com/vuka-lang/vuka/issues/364)):
+  each variant's classes are data, merged with the caller's `class` last, so
+  `class` always wins and the editor completes `variant="…"`. They need ui
+  at the release's version. **`vuka vet` warns of a component that drops
+  its caller's attributes or classes** ([W0602](/errors/W0602)): `Attrs`
+  spread on no element or on another than the one its events are on, or
+  `Class` not merged last; the registry is checked for it as it is built
+  ([Components That Pass On](/ui/vendored#forwarding)).
+
 ## v2.16.1 — 2026-11-01
 
 ### Breaking

@@ -21,7 +21,7 @@ type Alert struct {
 	Title   string
 	// Icon is an optional icon before the title, such as an <svg>.
 	Icon ui.Node
-	// Class is added to the alert's classes, winning over them (see cn).
+	// Class is added to the alert's classes, winning over them (ui.MergeClasses).
 	Class    string
 	Attrs    []ui.Attr
 	Children ui.Node
@@ -30,23 +30,19 @@ type Alert struct {
 const alertBase = "relative grid w-full grid-cols-[0_1fr] items-start gap-y-0.5 rounded-lg border px-4 py-3 text-sm " +
 	"has-[>svg]:grid-cols-[calc(var(--spacing)*4)_1fr] has-[>svg]:gap-x-3 [&>svg]:size-4 [&>svg]:translate-y-0.5 [&>svg]:text-current"
 
-var alertVariant = map[AlertVariant]string{
-	AlertDefault:     "bg-card text-card-foreground",
-	AlertDestructive: "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90",
-}
-
-// alertVariants are the classes of an alert of variant v; an unknown one is
-// the default.
-func alertVariants(v AlertVariant) string {
-	variant, ok := alertVariant[v]
-	if !ok {
-		variant = alertVariant[AlertDefault]
-	}
-	return cn(alertBase, variant)
+var alertVariants = ui.Variants{
+	Base: alertBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "bg-card text-card-foreground",
+			"destructive": "bg-card text-destructive *:data-[slot=alert-description]:text-destructive/90",
+		},
+	},
+	Defaults: map[string]string{"variant": "default"},
 }
 </script>
 
-<div role="alert" class={cn(alertVariants(Variant), Class)} {Attrs...}>
+<div role="alert" class={alertVariants.Class("variant", string(Variant), "class", Class)} {Attrs...}>
   {Icon}
   if Title != "" {
     <div class="col-start-2 line-clamp-1 min-h-4 font-medium tracking-tight">{Title}</div>
