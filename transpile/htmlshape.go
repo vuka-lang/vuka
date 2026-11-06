@@ -99,7 +99,7 @@ var (
 	shapeStart = regexp.MustCompile(`^(?:type|var|const)\b|^@[A-Za-z_]`)
 	shapeType  = regexp.MustCompile(`^type\s+\w+(?:\[[^\]]*\])?\s+struct\b|^type\s*\(`)
 	hookName   = regexp.MustCompile(`^@\s*\w+\s*\.\s*(Mount|OnChange|Loads)\b`)
-	eventAttr  = regexp.MustCompile(`\bon[A-Z]\w*=\{`)
+	eventAttr  = regexp.MustCompile(`\bon[A-Z]\w*(?:\.\w+)*=\{`)
 )
 
 // isShape reports whether the template file's lines, its head ending at top,

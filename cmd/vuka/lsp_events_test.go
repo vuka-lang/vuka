@@ -78,3 +78,19 @@ func TestLSPEventCalls(t *testing.T) {
 		}
 	}
 }
+
+// TestLSPEventModifiers: completion after an event attribute's name and a
+// dot offers the modifiers; after bind:value the paces (vuka#354).
+func TestLSPEventModifiers(t *testing.T) {
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "orders.vuka.html": eventsPage})
+	uri := pathToURI(filepath.Join(dir, "orders.vuka.html"))
+	typing := strings.Replace(eventsPage, "onChange={Choose(this.value)}", "onChange.de={Choose(this.value)}", 1)
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": typing}})
+	pos := map[string]any{"textDocument": map[string]any{"uri": uri}, "position": positionOf([]byte(typing), strings.Index(typing, "onChange.de")+len("onChange.de"))}
+	items := completionLabels(t, c.call("textDocument/completion", pos))
+	for _, want := range []string{"debounce", "prevent", "once", "enter", "ctrl"} {
+		if items[want] == nil {
+			t.Errorf("no %s among %v", want, items)
+		}
+	}
+}

@@ -26,6 +26,13 @@ func (p *proxy) eventRequest(method string, vf *vfile, off int) func() any {
 		return nil
 	}
 	src := vf.text()
+	if method == "textDocument/completion" {
+		if spot, ok := completionSpot(src, off); ok && spot.kind == "attr" {
+			if base, _, ok := strings.Cut(string(src[spot.from:off]), "."); ok && (isEventName(base) || base == "bind:value") {
+				return func() any { return modifierItems(base, src, off) }
+			}
+		}
+	}
 	t, ok := eventHoleAt(src, off)
 	if !ok {
 		return nil
@@ -142,4 +149,37 @@ func thisAttrName(name string) string {
 		b.WriteRune(r)
 	}
 	return b.String()
+}
+
+// eventModifiers are the modifiers an on… attribute takes, with what each
+// does; bind:value takes the paces only.
+var eventModifiers = []struct{ name, doc string }{
+	{"debounce", "Waits until the events stop for a while (300ms, or `.debounce.500ms`), then runs the handler."},
+	{"throttle", "Runs the handler at most once a while (300ms, or `.throttle.1s`); a field's last input still runs."},
+	{"prevent", "Keeps the browser from doing what the event would: following a link, submitting a form."},
+	{"stop", "Keeps the event from the elements around this one once its own listeners have run."},
+	{"once", "Runs the handler the first time the event fires only."},
+	{"enter", "Only the Enter key."}, {"esc", "Only the Escape key."}, {"tab", "Only the Tab key."}, {"space", "Only the space bar."},
+	{"up", "Only the up arrow."}, {"down", "Only the down arrow."}, {"left", "Only the left arrow."}, {"right", "Only the right arrow."},
+	{"ctrl", "With Control held: name the key after it, `.ctrl.enter`."}, {"shift", "With Shift held: `.shift.tab`."},
+	{"alt", "With Alt held: `.alt.enter`."}, {"meta", "With the meta key (⌘) held: `.meta.enter`."},
+}
+
+// modifierItems are the modifiers to complete after an attribute's name
+// and a dot.
+func modifierItems(base string, src []byte, off int) any {
+	s := off
+	for s > 0 && isIdentByte(src[s-1]) {
+		s--
+	}
+	typed := lspRange{positionOf(src, s), positionOf(src, off)}
+	items := []any{}
+	for i, m := range eventModifiers {
+		if base == "bind:value" && m.name != "debounce" && m.name != "throttle" {
+			continue
+		}
+		items = append(items, map[string]any{"label": m.name, "kind": 14, "detail": base + "." + m.name, "sortText": fmt.Sprintf("%03d", i),
+			"textEdit": map[string]any{"range": typed, "newText": m.name}, "documentation": map[string]any{"kind": "markdown", "value": m.doc}})
+	}
+	return map[string]any{"isIncomplete": false, "items": items}
 }

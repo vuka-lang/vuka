@@ -52,7 +52,9 @@ The commands are:
 | `Push(handler, args...)` | call a handler on the server — on a live page's instance over its socket, else on a fresh copy of the page over HTTP — with its arguments in order (Go values, element reads); options `ui.Read()`, `ui.Cache(d)`, `ui.Value(v)`, `ui.Timeout(d)`, `ui.KeepOnError()` ([below](#push)) |
 | `Into(t, opts...)` | put the last `Push`'s result into `t` instead of the element itself; `ui.Append()`, `ui.Prepend()` add markup instead of replacing it ([below](#results)) |
 | `Debounce(d)`, `Throttle(d)` | the steps after it run debounced or throttled |
-| `Key(keys...)` | stop unless a key press is one of `keys` (`"Enter"`, `"Escape"`) |
+| `Key(keys...)` | stop unless a key press is one of `keys` (`"Enter"`, `"Escape"`, `"ctrl+Enter"` with a modifier held) |
+| `Prevent()`, `Stop()`, `Once()` | the event's default action prevented; the event kept from the elements around; the steps after it run the first time only. [Modifiers](/ui/events#modifiers) write them: `onClick.once={…}` |
+| `Then(chain)` | another chain's steps after these |
 | `Confirm(msg)` | stop unless the user confirms |
 | `If(cond)`, `ElseIf(cond)`, `Else()`, `End()` | branches |
 | `When(cond, chain)`, `Else(chain)` | a branch as a block: no `End` ([conditions](#conditions)) |

@@ -94,6 +94,22 @@ func (c Commands) Into(t Target, opts ...IntoOption) Commands {
 
 func (c Commands) OnError(ch Commands) Commands { return c }
 
+// JSChain is a chain of commands.
+type JSChain interface{ jsChain() Commands }
+
+func (c Commands) jsChain() Commands { return c }
+
+func (c Commands) step(s string) Commands { return Commands{append(c.steps, s)} }
+
+func (c Commands) Key(keys ...string) Commands       { return c.step("key " + strings.Join(keys, " ")) }
+func (c Commands) Prevent() Commands                 { return c.step("prevent") }
+func (c Commands) Stop() Commands                    { return c.step("stop") }
+func (c Commands) Once() Commands                    { return c.step("once") }
+func (c Commands) Debounce(d time.Duration) Commands { return c.step("debounce " + d.String()) }
+func (c Commands) Throttle(d time.Duration) Commands { return c.step("throttle " + d.String()) }
+func (c Commands) Then(ch JSChain) Commands          { return Commands{append(c.steps, ch.jsChain().steps...)} }
+func (c Commands) Show(t Target) Commands            { return c.step("show " + string(t)) }
+
 // Stateful is what a live page's pointer implements.
 type Stateful interface{ live() }
 

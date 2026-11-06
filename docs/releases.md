@@ -49,6 +49,19 @@ the `github.com/vuka-lang/vuka` package your module requires.
   editor, hover and go to definition on the method open its Go, and
   completion after `this.` offers the element's reads and attributes.
 
+- **Event and binding modifiers** ([#354](https://github.com/vuka-lang/vuka/issues/354)).
+  `onInput.debounce.300ms={Search(this.value)}`, `onInput.throttle.1s`,
+  `onSubmit.prevent`, `onClick.stop`, `onClick.once`, and key filters —
+  `onKeydown.enter`, `.esc`, `.tab`, `.space`, the arrows, with `.ctrl`,
+  `.shift`, `.alt` or `.meta` held (`onKeydown.ctrl.enter`). They compile to
+  the JS command chain before the handler, whatever it is; on `bind:value`
+  a pace times when the value is sent (`bind:value.debounce.500ms={Q}`).
+  An unknown modifier or a malformed duration is [E0173](/errors/E0173),
+  with did-you-mean, and the editor completes modifiers after a dot. ui
+  adds `JS.Prevent()`, `JS.Stop()`, `JS.Once()` and `JS.Then(chain)`, and
+  `Key` takes a held modifier (`"ctrl+Enter"`); see
+  [Modifiers](/ui/events#modifiers).
+
 **Upgrading:** a call of an exported method returning nothing or an error
 was a handler of the live instance; it is a push of the method, which runs
 it there too. Its Go arguments are now checked against the method's

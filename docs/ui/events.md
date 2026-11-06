@@ -141,6 +141,57 @@ the Go value it is:
 To push a method returning `ui.Commands`, read the element in the call or
 write the push: `onInput={ui.JS.Push(CheckName, ui.This.Value())}`.
 
+## Modifiers {#modifiers}
+
+Modifiers after an `on…` attribute's name say when and how the handler
+runs, in the browser, before anything is sent:
+
+```html
+<input onInput.debounce.300ms={Search(this.value)} />
+<input type="range" onInput.throttle.1s={Track(this.value)} />
+<form onSubmit.prevent={Save()}>…</form>
+<li onClick={Open(o.ID)}><button onClick.stop={Select(o.ID)}>Select</button></li>
+<input onKeydown.enter={Add(this.value)} />
+<textarea onKeydown.ctrl.enter={Send(this.value)}></textarea>
+<button onClick.once={Start()}>Start</button>
+```
+
+| Modifier | |
+|---|---|
+| `.debounce`, `.debounce.500ms` | waits until the events stop for the duration (300ms when none is written), then runs the handler |
+| `.throttle`, `.throttle.1s` | runs the handler at most once per duration (300ms); a field's last input still runs |
+| `.prevent` | keeps the browser from doing what the event would: following a link, submitting a form, ticking a box |
+| `.stop` | keeps the event from the elements around this one, once the element's own listeners have run |
+| `.once` | runs the handler the first time the event fires on the element only |
+| `.enter`, `.esc`, `.tab`, `.space`, `.up`, `.down`, `.left`, `.right` | on a key event, only that key; several are any of them |
+| `.ctrl`, `.shift`, `.alt`, `.meta` before a key | that key with the modifier held: `.ctrl.enter`, `.shift.alt.tab` |
+
+A duration is written as Go writes one: `300ms`, `1s`, `1m30s`.
+
+The modifiers are steps of the [JS command chain](/ui/js) before the
+handler, in one order whatever order they are written in: the key filter,
+`prevent`, `stop`, `once`, then the pace. `onKeydown.enter.prevent={Add(this.value)}`
+is `ui.JS.Key("Enter").Prevent().Push(Add, ui.This.Value())`: other keys
+type as usual. They work with any handler — a method call, a method value,
+browser state (`onClick.stop={open = !open}`), commands — and on a
+component's tag for an event it passes on to its element or a prop taking
+browser commands.
+
+### On bind:value {#bind-modifiers}
+
+On `bind:value`, `.debounce` and `.throttle` time when the typed value is
+sent, in place of the field's `@ui.Bind` debounce:
+
+```html
+<input bind:value.debounce.500ms={Q} />
+<input type="range" bind:value.throttle.100ms={Volume} />
+```
+
+A modifier the attribute can't take, a duration Go doesn't read or a key
+filter on an event that isn't a key's is [E0173](/errors/E0173), with the
+closest modifier's name. In the editor, completion after the attribute's
+name and a dot offers the modifiers.
+
 ## Checking Calls {#checking}
 
 The compiler checks each call against its method, as it checks a push

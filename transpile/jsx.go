@@ -11,6 +11,8 @@ import (
 	"html"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // JSX is an expression in a function body: `<div className="card">{u.Name}</div>`.
@@ -119,6 +121,7 @@ type jsxAttr struct {
 	stmts bool       // an event's statements, not an expression: onClick={open = !open; Save()}
 	write *stateBind // those statements as a chain of commands, lowered (writes.go)
 	push  *stateBind // an event's call of a method of the markup's receiver, as a push (eventcalls.go)
+	emods *eventMods // an event's or bind:value's modifiers: onInput.debounce.300ms (modifiers.go)
 	parts []attrPart // kind 'p': a template's text with holes, href="/o/{o.ID}"
 	model bool       // model={Form.Email} on a field (forms.go), its modifiers in mods
 	mods  string
@@ -156,8 +159,9 @@ type jsxBlock struct {
 }
 
 type jsxError struct {
-	off int
-	msg string
+	off  int
+	msg  string
+	code diag.Code // E0101 when empty
 }
 
 type jsxParser struct {
@@ -172,7 +176,12 @@ type jsxParser struct {
 }
 
 func (p *jsxParser) fail(off int, format string, args ...any) {
-	panic(jsxError{off, fmt.Sprintf(format, args...)})
+	panic(jsxError{off: off, msg: fmt.Sprintf(format, args...)})
+}
+
+// failCode is fail with a code of its own.
+func (p *jsxParser) failCode(code diag.Code, off int, format string, args ...any) {
+	panic(jsxError{off: off, msg: fmt.Sprintf(format, args...), code: code})
 }
 
 // parseJSX reads the JSX expression at off and every one nested in it, and
@@ -186,7 +195,11 @@ func (f *fileState) parseJSX(off int, errs *ErrorList) (end int, goToks [][]tok,
 			if !isJSX {
 				panic(r)
 			}
-			errs.add("E0101", f.at(je.off), "%s", je.msg)
+			code := je.code
+			if code == "" {
+				code = "E0101"
+			}
+			errs.add(code, f.at(je.off), "%s", je.msg)
 			end, goToks, ok = 0, nil, false
 		}
 	}()
@@ -363,6 +376,10 @@ func (p *jsxParser) element(off int) *jsxElem {
 		case isLetter(c) || c == '_':
 			a := &jsxAttr{off: i}
 			a.name, i = p.name(i)
+			if base, mods, ok := strings.Cut(a.name, "."); ok && (isEvent(base) || base == "bind:value") {
+				a.emods = p.eventMods(a, base, mods)
+				a.name = base
+			}
 			i = p.space(i)
 			if p.at(i) != '=' {
 				a.kind = 'b'
@@ -1071,6 +1088,14 @@ func rawString(s string) string { return "`" + s + "`" }
 // it is (a template's on… hole takes a func or commands), a read of states
 // lowered.
 func (w *jsxWriter) attrValue(a *jsxAttr) {
+	if a.emods != nil && a.kind == 'e' && isEvent(a.name) {
+		w.modded(a, func() { w.attrValueOf(a) })
+		return
+	}
+	w.attrValueOf(a)
+}
+
+func (w *jsxWriter) attrValueOf(a *jsxAttr) {
 	switch a.kind {
 	case 's':
 		w.gen(strconv.Quote(a.val))
