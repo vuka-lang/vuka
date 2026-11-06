@@ -496,9 +496,6 @@ func completionSpot(src []byte, off int) (jsxSpot, bool) {
 		return jsxSpot{}, false
 	}
 	valueSpot := func(attr string) (jsxSpot, bool) {
-		if isComponentTag(t.name) {
-			return jsxSpot{}, false
-		}
 		w := off
 		for w > 0 && !isSpace(src[w-1]) && src[w-1] != '"' && src[w-1] != '\'' {
 			w--
@@ -688,6 +685,12 @@ func (p *proxy) completeJSX(vf *vfile, genPath string, spot jsxSpot, off int) an
 			item("data-", 5, "custom data attribute", `data-${1:name}="$2"`, 2, "4")
 		}
 	case "value":
+		if isComponentTag(spot.tag.name) {
+			for i, v := range p.tagVariantValues(vf.source, src, spot.tag.name, spot.attr) {
+				item(v, 12, "variant "+spot.attr, v, 1, fmt.Sprintf("%03d", i))
+			}
+			break
+		}
 		for i, v := range attrValues(spot.tag.name, spot.attr) {
 			item(v, 12, spot.attr, v, 1, fmt.Sprintf("%03d", i))
 		}

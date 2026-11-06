@@ -160,7 +160,7 @@ func TestCompletionSpotValue(t *testing.T) {
 		{`	return <input type="`, "value", "type"},
 		{`	return <a target="_b`, "value", "target"},
 		{`	return <a href={x} rel="noopener n">`, "value", "rel"},
-		{`	return <Card variant="pr" />`, "", ""},
+		{`	return <Card variant="pr" />`, "value", "variant"},
 		{`	return <a href={"x`, "", ""},
 	} {
 		off := strings.LastIndexByte(tc.src, '"') + 1
