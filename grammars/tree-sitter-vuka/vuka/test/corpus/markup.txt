@@ -1,0 +1,255 @@
+==================
+Markup elements
+==================
+
+package p
+
+func Card(user User, admin bool, children ui.Node) ui.Node {
+	return <div className="card" data-id={user.ID}>
+		<h3>{user.Name}</h3>
+		{children}
+		{if admin { <button disabled={!user.Active}>Edit</button> } else { read only }}
+	</div>
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier))
+      (parameter_declaration
+        (identifier)
+        (type_identifier))
+      (parameter_declaration
+        (identifier)
+        (qualified_type
+          (package_identifier)
+          (type_identifier))))
+    (qualified_type
+      (package_identifier)
+      (type_identifier))
+    (block
+      (statement_list
+        (return_statement
+          (expression_list
+            (markup_element
+              (markup_start_tag
+                (tag_name)
+                (markup_attribute
+                  (markup_attribute_name)
+                  (markup_string))
+                (markup_attribute
+                  (markup_attribute_name)
+                  (markup_expression
+                    (selector_expression
+                      (identifier)
+                      (field_identifier)))))
+              (markup_element
+                (markup_start_tag
+                  (tag_name))
+                (markup_expression
+                  (selector_expression
+                    (identifier)
+                    (field_identifier)))
+                (markup_end_tag
+                  (tag_name)))
+              (markup_expression
+                (identifier))
+              (markup_expression
+                (markup_if
+                  (identifier)
+                  (markup_block
+                    (markup_element
+                      (markup_start_tag
+                        (tag_name)
+                        (markup_attribute
+                          (markup_attribute_name)
+                          (markup_expression
+                            (unary_expression
+                              (selector_expression
+                                (identifier)
+                                (field_identifier))))))
+                      (markup_text)
+                      (markup_end_tag
+                        (tag_name))))
+                  (markup_block
+                    (markup_text))))
+              (markup_end_tag
+                (tag_name)))))))))
+
+==================
+Markup loops, fragments and components
+==================
+
+package p
+
+func List(users []User) ui.Node {
+	return <>
+		<ul>
+			{for _, u := range users {
+				<li key={u.ID}><UserCard user={u}>since {u.Year}</UserCard></li>
+			}}
+		</ul>
+		<theme.Card heading="Hi" {attrs...} />
+		<List[User] items={users} />
+	</>
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (slice_type
+          (type_identifier))))
+    (qualified_type
+      (package_identifier)
+      (type_identifier))
+    (block
+      (statement_list
+        (return_statement
+          (expression_list
+            (markup_element
+              (markup_start_tag)
+              (markup_element
+                (markup_start_tag
+                  (tag_name))
+                (markup_expression
+                  (markup_for
+                    (range_clause
+                      (expression_list
+                        (identifier)
+                        (identifier))
+                      (identifier))
+                    (markup_block
+                      (markup_element
+                        (markup_start_tag
+                          (tag_name)
+                          (markup_attribute
+                            (markup_attribute_name)
+                            (markup_expression
+                              (selector_expression
+                                (identifier)
+                                (field_identifier)))))
+                        (markup_element
+                          (markup_start_tag
+                            (tag_name)
+                            (markup_attribute
+                              (markup_attribute_name)
+                              (markup_expression
+                                (identifier))))
+                          (markup_text)
+                          (markup_expression
+                            (selector_expression
+                              (identifier)
+                              (field_identifier)))
+                          (markup_end_tag
+                            (tag_name)))
+                        (markup_end_tag
+                          (tag_name))))))
+                (markup_end_tag
+                  (tag_name)))
+              (markup_element
+                (markup_self_closing_tag
+                  (tag_name)
+                  (markup_attribute
+                    (markup_attribute_name)
+                    (markup_string))
+                  (markup_expression
+                    (variadic_argument
+                      (identifier)))))
+              (markup_element
+                (markup_self_closing_tag
+                  (tag_name)
+                  (type_arguments
+                    (type_elem
+                      (type_identifier)))
+                  (markup_attribute
+                    (markup_attribute_name)
+                    (markup_expression
+                      (identifier)))))
+              (markup_end_tag))))))))
+
+==================
+Markup holes with statements and raw elements
+==================
+
+package p
+
+func Menu(open bool) ui.Node {
+	return <div>
+		<button onClick={open = !open; n++}>{label}</button>
+		<script lang="ts">
+			if (a < b) { el.dataset.n = "{x}" }
+		</script>
+		<style scoped>p { color: red }</style>
+	</div>
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier)))
+    (qualified_type
+      (package_identifier)
+      (type_identifier))
+    (block
+      (statement_list
+        (return_statement
+          (expression_list
+            (markup_element
+              (markup_start_tag
+                (tag_name))
+              (markup_element
+                (markup_start_tag
+                  (tag_name)
+                  (markup_attribute
+                    (markup_attribute_name)
+                    (markup_expression
+                      (assignment_statement
+                        (expression_list
+                          (identifier))
+                        (expression_list
+                          (unary_expression
+                            (identifier))))
+                      (inc_statement
+                        (identifier)))))
+                (markup_expression
+                  (identifier))
+                (markup_end_tag
+                  (tag_name)))
+              (markup_element
+                (markup_raw_element
+                  (tag_name)
+                  (markup_attribute
+                    (markup_attribute_name)
+                    (markup_string))
+                  (raw_text)
+                  (tag_name)))
+              (markup_element
+                (markup_raw_element
+                  (tag_name)
+                  (markup_attribute
+                    (markup_attribute_name))
+                  (raw_text)
+                  (tag_name)))
+              (markup_end_tag
+                (tag_name)))))))))

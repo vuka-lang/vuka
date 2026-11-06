@@ -332,6 +332,29 @@ parameter keeps the call a handler.
   `Class` not merged last; the registry is checked for it as it is built
   ([Components That Pass On](/ui/vendored#forwarding)).
 
+### Editors
+
+- **Zed reads Vuka with Vuka's own grammars.** `grammars/tree-sitter-vuka`
+  holds two tree-sitter grammars: `vuka`, tree-sitter-go with `?`,
+  `match`/`case` and guards, `enum`, `decorator`, attributes (on
+  declarations, fields and parameters), statics and markup with its holes and
+  blocks; and `vuka_html`, a shape's Go header or `<script lang="go">`, its
+  markup, holes, statement lines and scripts. The Zed extension highlights
+  `.vuka` and `.vuka.html` files with them in place of Go's and HTML's, and
+  injects TypeScript and CSS into scripts and styles
+  ([Zed](/tools/editors#zed)).
+- **The Zed extension does what the VS Code extension does, where Zed lets
+  it.** `vuka lsp` serves both languages; markup tags close as you type;
+  brackets, comments (`{/* */}` in markup), indentation, outline and text
+  objects follow each language; the VS Code extension's snippets; run buttons
+  on tests and `vuka run -watch`, `vuka test` and `vuka routes` tasks;
+  semantic token rules for a shape's props, state, events and components; the
+  TypeScript server for `<script lang="ts">`, installed with Zed's Node. It
+  finds `vuka` as GoLand does: the setting, `go tool vuka` when `go.mod`
+  declares it, `PATH`, `$GOBIN`, `$GOPATH/bin`, `~/go/bin`, and says where it
+  looked when it can't. **Extract Component** and the version in the status
+  bar stay VS Code's: Zed has no prompt or status item for an extension.
+
 ## v2.16.1 — 2026-11-01
 
 ### Breaking

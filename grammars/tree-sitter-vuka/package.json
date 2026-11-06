@@ -1,0 +1,20 @@
+{
+  "name": "tree-sitter-vuka",
+  "version": "0.1.0",
+  "description": "Vuka grammars for tree-sitter: .vuka and .vuka.html",
+  "private": true,
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vuka-lang/vuka",
+    "directory": "grammars/tree-sitter-vuka"
+  },
+  "scripts": {
+    "generate": "cd vuka && tree-sitter generate && cd ../vuka_html && tree-sitter generate",
+    "test": "cd vuka && tree-sitter test && cd ../vuka_html && tree-sitter test"
+  },
+  "devDependencies": {
+    "tree-sitter-cli": "0.25.10",
+    "tree-sitter-go": "0.25.0"
+  }
+}

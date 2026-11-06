@@ -1,0 +1,168 @@
+==================
+Match statement
+==================
+
+package p
+
+func show(arg string) {
+	match lookup(arg) {
+	case Ok(Some(u)):
+		fmt.Println(u.Name)
+	case Err(&NotFound{ID: id}):
+		fmt.Println(id)
+	case Err(e) if errors.Is(e, strconv.ErrSyntax):
+		fmt.Println(e)
+	default:
+	}
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier)))
+    (block
+      (statement_list
+        (match_statement
+          (call_expression
+            (identifier)
+            (argument_list
+              (identifier)))
+          (match_case
+            (expression_list
+              (call_expression
+                (identifier)
+                (argument_list
+                  (call_expression
+                    (identifier)
+                    (argument_list
+                      (identifier))))))
+            (statement_list
+              (expression_statement
+                (call_expression
+                  (selector_expression
+                    (identifier)
+                    (field_identifier))
+                  (argument_list
+                    (selector_expression
+                      (identifier)
+                      (field_identifier)))))))
+          (match_case
+            (expression_list
+              (call_expression
+                (identifier)
+                (argument_list
+                  (unary_expression
+                    (composite_literal
+                      (type_identifier)
+                      (literal_value
+                        (keyed_element
+                          (literal_element
+                            (identifier))
+                          (literal_element
+                            (identifier)))))))))
+            (statement_list
+              (expression_statement
+                (call_expression
+                  (selector_expression
+                    (identifier)
+                    (field_identifier))
+                  (argument_list
+                    (identifier))))))
+          (match_case
+            (expression_list
+              (call_expression
+                (identifier)
+                (argument_list
+                  (identifier))))
+            (call_expression
+              (selector_expression
+                (identifier)
+                (field_identifier))
+              (argument_list
+                (identifier)
+                (selector_expression
+                  (identifier)
+                  (field_identifier))))
+            (statement_list
+              (expression_statement
+                (call_expression
+                  (selector_expression
+                    (identifier)
+                    (field_identifier))
+                  (argument_list
+                    (identifier))))))
+          (default_case))))))
+
+==================
+Contextual keywords as identifiers
+==================
+
+package p
+
+type state struct {
+	static bool
+}
+
+func f() {
+	match := re.FindString(s)
+	enum, decorator := 1, 2
+	if match != "" {
+		g(match, enum, decorator)
+	}
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (type_declaration
+    (type_spec
+      (type_identifier)
+      (struct_type
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (type_identifier))))))
+  (function_declaration
+    (identifier)
+    (parameter_list)
+    (block
+      (statement_list
+        (short_var_declaration
+          (expression_list
+            (identifier))
+          (expression_list
+            (call_expression
+              (selector_expression
+                (identifier)
+                (field_identifier))
+              (argument_list
+                (identifier)))))
+        (short_var_declaration
+          (expression_list
+            (identifier)
+            (identifier))
+          (expression_list
+            (int_literal)
+            (int_literal)))
+        (if_statement
+          (binary_expression
+            (identifier)
+            (interpreted_string_literal))
+          (block
+            (statement_list
+              (expression_statement
+                (call_expression
+                  (identifier)
+                  (argument_list
+                    (identifier)
+                    (identifier)
+                    (identifier)))))))))))

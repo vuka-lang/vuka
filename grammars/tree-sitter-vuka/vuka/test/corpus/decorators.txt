@@ -1,0 +1,75 @@
+==================
+Decorator declarations
+==================
+
+package p
+
+decorator logged(c) {
+	c.Next()
+}
+
+decorator retry(times int)(c) {
+	c.Next()
+}
+
+decorator Audited = @logged @Doc("audited")
+
+decorator Service = (
+	@register
+	@logged
+)
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (decorator_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (type_identifier)))
+    (block
+      (statement_list
+        (expression_statement
+          (call_expression
+            (selector_expression
+              (identifier)
+              (field_identifier))
+            (argument_list))))))
+  (decorator_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier)))
+    (parameter_list
+      (parameter_declaration
+        (type_identifier)))
+    (block
+      (statement_list
+        (expression_statement
+          (call_expression
+            (selector_expression
+              (identifier)
+              (field_identifier))
+            (argument_list))))))
+  (decorator_declaration
+    (identifier)
+    (attribute
+      (attribute_name
+        (identifier)))
+    (attribute
+      (attribute_name
+        (identifier))
+      (argument_list
+        (interpreted_string_literal
+          (interpreted_string_literal_content)))))
+  (decorator_declaration
+    (identifier)
+    (attribute
+      (attribute_name
+        (identifier)))
+    (attribute
+      (attribute_name
+        (identifier)))))

@@ -1,0 +1,127 @@
+==================
+Attributes on declarations
+==================
+
+package p
+
+@doc("Lists the users")
+@Route{Method: "GET", Path: "/users"}
+func listUsers() []User { return nil }
+
+@web.Live("/counter")
+type Counter struct {
+	n int
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (attribute
+    (attribute_name
+      (identifier))
+    (argument_list
+      (interpreted_string_literal
+        (interpreted_string_literal_content))))
+  (attribute
+    (attribute_name
+      (identifier))
+    (literal_value
+      (keyed_element
+        (literal_element
+          (identifier))
+        (literal_element
+          (interpreted_string_literal
+            (interpreted_string_literal_content))))
+      (keyed_element
+        (literal_element
+          (identifier))
+        (literal_element
+          (interpreted_string_literal
+            (interpreted_string_literal_content))))))
+  (function_declaration
+    (identifier)
+    (parameter_list)
+    (slice_type
+      (type_identifier))
+    (block
+      (statement_list
+        (return_statement
+          (expression_list
+            (nil))))))
+  (attribute
+    (attribute_name
+      (package_identifier)
+      (identifier))
+    (argument_list
+      (interpreted_string_literal
+        (interpreted_string_literal_content))))
+  (type_declaration
+    (type_spec
+      (type_identifier)
+      (struct_type
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (type_identifier)))))))
+
+==================
+Field and parameter attributes
+==================
+
+package p
+
+type Post struct {
+	ID    int64  @PK
+	Title string `json:"title"` @Char{Max: 200} @Index
+}
+
+func show(@Path("id") id int) {}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (type_declaration
+    (type_spec
+      (type_identifier)
+      (struct_type
+        (field_declaration_list
+          (field_declaration
+            (field_identifier)
+            (type_identifier)
+            (attribute
+              (attribute_name
+                (identifier))))
+          (field_declaration
+            (field_identifier)
+            (type_identifier)
+            (raw_string_literal
+              (raw_string_literal_content))
+            (attribute
+              (attribute_name
+                (identifier))
+              (literal_value
+                (keyed_element
+                  (literal_element
+                    (identifier))
+                  (literal_element
+                    (int_literal)))))
+            (attribute
+              (attribute_name
+                (identifier))))))))
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (attribute
+          (attribute_name
+            (identifier))
+          (argument_list
+            (interpreted_string_literal
+              (interpreted_string_literal_content))))
+        (identifier)
+        (type_identifier)))
+    (block)))

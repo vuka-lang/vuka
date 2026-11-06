@@ -1,0 +1,196 @@
+{
+  "Live page shape": {
+    "prefix": [
+      "livepage",
+      "live"
+    ],
+    "description": "One live .vuka.html shape in pages/",
+    "body": [
+      "<script lang=\"go\">",
+      "package ${1:pages}",
+      "",
+      "import (",
+      "\t\"context\"",
+      "\t\"github.com/vuka-lang/ui/v2\"",
+      ")",
+      "",
+      "type ${2:Index} struct {",
+      "\tui.Live",
+      "\tcount int",
+      "\topen ui.State[bool]",
+      "}",
+      "",
+      "@ui.Mount",
+      "func (p *$2) mount(ctx context.Context) error {",
+      "\t$0",
+      "\treturn nil",
+      "}",
+      "",
+      "func (p *$2) Inc() { p.count++ }",
+      "</script>",
+      "",
+      "<main>",
+      "  <output>{count}</output>",
+      "  <button onClick={Inc}>+</button>",
+      "  <button onClick={open = !open}>Toggle</button>",
+      "</main>"
+    ]
+  },
+  "Static component shape": {
+    "prefix": [
+      "component",
+      "comp"
+    ],
+    "description": "One static .vuka.html component with props and children",
+    "body": [
+      "<script lang=\"go\">",
+      "package ${1:components}",
+      "",
+      "import \"github.com/vuka-lang/ui/v2\"",
+      "",
+      "type ${2:Card} struct {",
+      "\tTitle string",
+      "\tChildren ui.Node",
+      "}",
+      "</script>",
+      "",
+      "<section>",
+      "  <h2>{Title}</h2>",
+      "  {Children}",
+      "  $0",
+      "</section>"
+    ]
+  },
+  "Folder layout shape": {
+    "prefix": [
+      "layout"
+    ],
+    "description": "Save as _layout.vuka.html to wrap this pages/ subtree",
+    "body": [
+      "<script lang=\"go\">",
+      "package ${1:pages}",
+      "",
+      "import \"github.com/vuka-lang/ui/v2\"",
+      "",
+      "type Layout struct {",
+      "\tChildren ui.Node",
+      "}",
+      "</script>",
+      "",
+      "<html lang=\"${2:en}\">",
+      "  <head><title>{ui.PageTitle(ctx)}</title></head>",
+      "  <body>",
+      "    {Children}",
+      "    $0",
+      "  </body>",
+      "</html>"
+    ]
+  },
+  "Island-only page shape": {
+    "prefix": [
+      "islandpage"
+    ],
+    "description": "A .vuka.html page whose markup is just an imported island",
+    "body": [
+      "<script lang=\"go\">",
+      "package ${1:pages}",
+      "",
+      "import ${2:Week} \"${3:./islands/Week.vue}\"",
+      "",
+      "type ${4:Index} struct {",
+      "\tDays []string",
+      "}",
+      "</script>",
+      "",
+      "<$2 days={Days} client:${5|load,idle,visible,only|} />",
+      "$0"
+    ]
+  },
+  "Mount hook": {
+    "prefix": [
+      "mount"
+    ],
+    "description": "Decorator hook in a .vuka.html Go header (requires context import)",
+    "body": [
+      "@ui.Mount",
+      "func (${1:p} *${2:Index}) mount(ctx context.Context) error {",
+      "\t$0",
+      "\treturn nil",
+      "}"
+    ]
+  },
+  "For rows": {
+    "prefix": [
+      "forrows"
+    ],
+    "description": "A keyed Go loop in markup",
+    "body": [
+      "for _, ${1:item} := range ${2:items} {",
+      "\t<${3:li} key={$1.${4:ID}}>$0</$3>",
+      "}"
+    ]
+  },
+  "Page script": {
+    "prefix": [
+      "pagescript",
+      "script"
+    ],
+    "description": "A page's <script lang=\"ts\"> after its markup: component<T> with ctx.live, ctx.state, ctx.ref, ctx.on and patch",
+    "body": [
+      "<script lang=\"ts\">",
+      "import { component } from 'vuka:component'",
+      "",
+      "export default component<${1:Index}>((el, props, ctx) => {",
+      "\t$0",
+      "\treturn {",
+      "\t\tupdate(next) {},",
+      "\t\tdestroy() {},",
+      "\t}",
+      "})",
+      "</script>"
+    ]
+  },
+  "Component script": {
+    "prefix": [
+      "componentscript",
+      "script"
+    ],
+    "description": "A component's <script lang=\"ts\"> after its markup: runs once per instance, update on new props, destroy when it leaves",
+    "body": [
+      "<script lang=\"ts\">",
+      "import { component } from 'vuka:component'",
+      "",
+      "export default component<${1:Chart}>((el, props, ctx) => {",
+      "\t$0",
+      "\treturn {",
+      "\t\tupdate(next) {",
+      "\t\t\t",
+      "\t\t},",
+      "\t\tdestroy() {",
+      "\t\t\t",
+      "\t\t},",
+      "\t}",
+      "})",
+      "</script>"
+    ]
+  },
+  "Event listener with cleanup": {
+    "prefix": [
+      "listenscript"
+    ],
+    "description": "A <script lang=\"ts\"> listening for an event while the instance is on the page (inside a script, vuka lsp completes listen)",
+    "body": [
+      "<script lang=\"ts\">",
+      "import { component } from 'vuka:component'",
+      "",
+      "export default component<${1:Index}>((el, props, ctx) => {",
+      "\tconst ${2:onKey} = (e: ${3:KeyboardEvent}) => {",
+      "\t\t$0",
+      "\t}",
+      "\t${4:window}.addEventListener('${5:keydown}', $2)",
+      "\treturn { destroy() { $4.removeEventListener('$5', $2) } }",
+      "})",
+      "</script>"
+    ]
+  }
+}

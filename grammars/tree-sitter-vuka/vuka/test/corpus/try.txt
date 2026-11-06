@@ -1,0 +1,128 @@
+==================
+Try operator
+==================
+
+package p
+
+func lookup(arg string) Result[User] {
+	id := strconv.Atoi(arg)?
+	total := price(ctx, item)? * qty(ctx, cart)?
+	return Ok(find(id)?)
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (type_identifier)))
+    (generic_type
+      (type_identifier)
+      (type_arguments
+        (type_elem
+          (type_identifier))))
+    (block
+      (statement_list
+        (short_var_declaration
+          (expression_list
+            (identifier))
+          (expression_list
+            (try_expression
+              (call_expression
+                (selector_expression
+                  (identifier)
+                  (field_identifier))
+                (argument_list
+                  (identifier))))))
+        (short_var_declaration
+          (expression_list
+            (identifier))
+          (expression_list
+            (binary_expression
+              (try_expression
+                (call_expression
+                  (identifier)
+                  (argument_list
+                    (identifier)
+                    (identifier))))
+              (try_expression
+                (call_expression
+                  (identifier)
+                  (argument_list
+                    (identifier)
+                    (identifier)))))))
+        (return_statement
+          (expression_list
+            (call_expression
+              (identifier)
+              (argument_list
+                (try_expression
+                  (call_expression
+                    (identifier)
+                    (argument_list
+                      (identifier))))))))))))
+
+==================
+Try with a message
+==================
+
+package p
+
+func signUp(ctx context.Context, email string) error {
+	create(ctx, email)?("creating %s", email)
+	if exists(ctx, email)? {
+		return ErrEmailTaken
+	}
+	return nil
+}
+
+---
+
+(source_file
+  (package_clause
+    (package_identifier))
+  (function_declaration
+    (identifier)
+    (parameter_list
+      (parameter_declaration
+        (identifier)
+        (qualified_type
+          (package_identifier)
+          (type_identifier)))
+      (parameter_declaration
+        (identifier)
+        (type_identifier)))
+    (type_identifier)
+    (block
+      (statement_list
+        (expression_statement
+          (try_expression
+            (call_expression
+              (identifier)
+              (argument_list
+                (identifier)
+                (identifier)))
+            (argument_list
+              (interpreted_string_literal
+                (interpreted_string_literal_content))
+              (identifier))))
+        (if_statement
+          (try_expression
+            (call_expression
+              (identifier)
+              (argument_list
+                (identifier)
+                (identifier))))
+          (block
+            (statement_list
+              (return_statement
+                (expression_list
+                  (identifier))))))
+        (return_statement
+          (expression_list
+            (nil)))))))
