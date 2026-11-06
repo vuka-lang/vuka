@@ -167,6 +167,7 @@ writes the table; `vuka ui add` and `vuka ui diff` refuse to run without it
 | `package` | (required) | their Go package's name: `design`, so `<design.Button>` sits beside `<ui.Link>` |
 | `css` | the app's stylesheet | the stylesheet holding the design tokens: `styles/app.css` |
 | `style` | `"default"` | the registry's style the tokens and components come in |
+| `icons` | the library's own | the set of icons a library's components are written with: a `[ui.icons.<name>]` table ([Icons](/ui/vendored#icons)) |
 | `theme` | the style's own colours | the registry's theme whose colours the tokens have, written by `vuka ui theme` and `vuka ui init --theme` ([Themes](/ui/vendored#themes)) |
 | `registry` | vuka's | another registry: an `https://` URL or a directory relative to the module, holding an `index.json` |
 
@@ -196,6 +197,26 @@ left with conflicts and the version each is being taken to; the next
 `vuka ui upgrade` records that version in `[ui.sources]` once the conflict
 markers are gone. See [Upgrading a Library](/ui/vendored#upgrade).
 
+## [ui.icons.&lt;name&gt;] {#ui-icons}
+
+A set of the app's icons, which `[ui] icons = "<name>"` makes a library's
+components drawn with: `package` is the import path of the app's icon
+package (relative to the module, or a full path), and each other key a
+role and the exported function of that package drawing it. The functions
+take the library's icon props (`...icon.Props`). See
+[Icons](/ui/vendored#icons).
+
+```toml
+[ui]
+icons = "app"
+
+[ui.icons.app]
+package = "components/icons"
+close = "Close"
+check = "Check"
+chevron-down = "ChevronDown"
+```
+
 ## [ui.libraries.&lt;name&gt;] {#ui-libraries}
 
 A templ component library `vuka ui add <name>/<component>` reads, or a
@@ -212,3 +233,4 @@ module. See [Other Libraries](/ui/vendored#other-libraries).
 | `theme` | | a stylesheet whose `:root`, `.dark` and `@theme inline` tokens the app gets the ones it lacks of |
 | `css` | | stylesheets the components' classes need, copied beside the app's and imported: `["assets/css/animations.css"]` |
 | `style` | | a stylesheet styling the components' own classes; the app gets the rules for the classes its components use |
+| `icons` | `"icon"` for shadcn-templ | the directory of `components` holding the library's icons (`var X = Icon("x")`), which `[ui] icons` maps to the app's |

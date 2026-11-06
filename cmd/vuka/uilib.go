@@ -57,6 +57,10 @@ type libSpec struct {
 	// Style is a stylesheet of the module styling the components' own
 	// classes; the app gets the rules for the classes its components use.
 	Style string
+	// Icons is the directory of Components holding the library's icons
+	// (var Name = Icon("name")), which [ui] icons maps to the app's;
+	// IconSet is the name of the library's own set.
+	Icons, IconSet string
 }
 
 // builtinLibraries are the libraries vuka ui knows. vuka.toml's
@@ -70,6 +74,8 @@ var builtinLibraries = map[string]libSpec{
 		Theme:      "assets/css/globals.css",
 		CSS:        []string{"assets/css/tw-animate.css", "assets/css/shadcn-tailwind.css"},
 		Style:      "assets/css/styles/style-nova.css",
+		Icons:      "icon",
+		IconSet:    "lucide",
 	},
 }
 
@@ -83,14 +89,15 @@ type uiLibConfig struct {
 	sources   map[string]string
 	libs      map[string]libSpec
 	upgrading map[string]string
+	iconSets  map[string]*iconSet // [ui.icons.<name>]
 }
 
-var libKeys = []string{"module", "version", "dir", "components", "scripts", "theme", "css", "style"}
+var libKeys = []string{"module", "version", "dir", "components", "scripts", "theme", "css", "style", "icons"}
 
 // readUILib reads [ui.sources] and [ui.libraries.<name>] of the vuka.toml
 // at root.
 func readUILib(root string) (*uiLibConfig, error) {
-	lc := &uiLibConfig{sources: map[string]string{}, libs: map[string]libSpec{}, upgrading: map[string]string{}}
+	lc := &uiLibConfig{sources: map[string]string{}, libs: map[string]libSpec{}, upgrading: map[string]string{}, iconSets: map[string]*iconSet{}}
 	src, err := os.ReadFile(filepath.Join(root, "vuka.toml"))
 	if errors.Is(err, os.ErrNotExist) {
 		return lc, nil
@@ -113,6 +120,14 @@ func readUILib(root string) (*uiLibConfig, error) {
 					lc.libs[name] = libSpec{Name: name}
 				}
 			}
+			if name, ok := strings.CutPrefix(table, "ui.icons."); ok {
+				if !itemName.MatchString(name) {
+					return nil, fmt.Errorf("vuka.toml:%d: [%s]: an icon set's name is in lower case", n+1, table)
+				}
+				if lc.iconSets[name] == nil {
+					lc.iconSets[name] = &iconSet{name: name, funcs: map[string]string{}}
+				}
+			}
 			continue
 		}
 		at := fmt.Sprintf("vuka.toml:%d", n+1)
@@ -128,6 +143,19 @@ func readUILib(root string) (*uiLibConfig, error) {
 				lc.sources[key] = s
 			} else {
 				lc.upgrading[key] = s
+			}
+		case strings.HasPrefix(table, "ui.icons."):
+			set := lc.iconSets[strings.TrimPrefix(table, "ui.icons.")]
+			v, err := strconv.Unquote(value)
+			switch {
+			case !found || err != nil:
+				return nil, fmt.Errorf("%s: [%s] has role = \"Function\" lines, and package = \"its import path\"", at, table)
+			case key == "package":
+				set.pkg = v
+			case !token.IsIdentifier(v) || !token.IsExported(v):
+				return nil, fmt.Errorf("%s: [%s] %s = %q: the name of an exported function of the set's package (Close)", at, table, key, v)
+			default:
+				set.funcs[key] = v
 			}
 		case strings.HasPrefix(table, "ui.libraries."):
 			name := strings.TrimPrefix(table, "ui.libraries.")
@@ -153,6 +181,8 @@ func readUILib(root string) (*uiLibConfig, error) {
 				spec.Theme, err = s, qerr
 			case "style":
 				spec.Style, err = s, qerr
+			case "icons":
+				spec.Icons, err = s, qerr
 			case "scripts":
 				spec.Scripts, err = list()
 			case "css":
@@ -203,7 +233,7 @@ func (lc *uiLibConfig) library(name string) (libSpec, error) {
 		return spec, fmt.Errorf("vuka ui: no library %q%s; the libraries are %s (vuka.toml's [ui.libraries.<name>] adds one)", name, suggest(name, names, ""), strings.Join(names, ", "))
 	}
 	spec.Name = name
-	for _, f := range []struct{ to, from *string }{{&spec.Module, &conf.Module}, {&spec.Version, &conf.Version}, {&spec.Dir, &conf.Dir}, {&spec.Components, &conf.Components}, {&spec.Theme, &conf.Theme}, {&spec.Style, &conf.Style}} {
+	for _, f := range []struct{ to, from *string }{{&spec.Module, &conf.Module}, {&spec.Version, &conf.Version}, {&spec.Dir, &conf.Dir}, {&spec.Components, &conf.Components}, {&spec.Theme, &conf.Theme}, {&spec.Style, &conf.Style}, {&spec.Icons, &conf.Icons}} {
 		if *f.from != "" {
 			*f.to = *f.from
 		}
@@ -237,6 +267,10 @@ type libSource struct {
 	version string // "" for a library read from a directory
 	dir     string
 	mod     *modfile.File
+
+	icons     *iconSet          // the app's icons its components get, [ui] icons
+	iconRoles map[string]string // its icons' roles, by name (libIcons)
+	notes     []string          // what writing its files noted
 }
 
 // label is the source's record in [ui.sources]: name@version.
@@ -293,6 +327,13 @@ func openLibrary(root string, spec libSpec, version string) (*libSource, error) 
 		s.spec.Module = s.mod.Module.Mod.Path
 	} else if s.spec.Module != s.mod.Module.Mod.Path {
 		return nil, fmt.Errorf("vuka ui: the library %s is module %s, but %s says module %s", spec.Name, s.spec.Module, gomod, s.mod.Module.Mod.Path)
+	}
+	lc, err := readUILib(root)
+	if err != nil {
+		return nil, err
+	}
+	if s.icons, err = readIconSet(root, lc, spec); err != nil {
+		return nil, err
 	}
 	return s, nil
 }
@@ -486,12 +527,16 @@ func (s *libSource) appFileOf(dir, name, appImport string) ([]byte, error) {
 	if ext := filepath.Ext(name); ext != ".go" && ext != ".templ" {
 		return b, nil
 	}
-	return importPathRe.ReplaceAllFunc(b, func(m []byte) []byte {
+	b = importPathRe.ReplaceAllFunc(b, func(m []byte) []byte {
 		if n, ok := s.destName(string(m[1 : len(m)-1])); ok {
 			return []byte(strconv.Quote(appImport + "/" + n))
 		}
 		return m
-	}), nil
+	})
+	if s.spec.Icons != "" && filepath.Base(dir) != path.Base(s.spec.Icons) {
+		b = s.withIcons(b, appImport+"/"+path.Base(s.spec.Icons))
+	}
+	return b, nil
 }
 
 // libArg is a vuka ui argument naming a library's component:
@@ -578,6 +623,9 @@ func libAdd(out *uiWriter, cfg uiConfig, modPath string, args []libArg, force bo
 				}
 			}
 			lc.sources[p.name] = src.label()
+		}
+		for _, n := range src.notes {
+			out.note("%s", n)
 		}
 		if err := libTheme(out, cfg, src, lc, force); err != nil {
 			return nil, err
