@@ -83,6 +83,7 @@ same page in the terminal.
 | [E0170](./E0170) | An element read outside a method call |
 | [E0172](./E0172) | An event calling a method the shape lacks |
 | [E0173](./E0173) | A modifier an attribute cannot take |
+| [E0174](./E0174) | A struct declared in a template and in its script file |
 | [E0175](./E0175) | An enum variant with two causes |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |

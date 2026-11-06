@@ -324,7 +324,11 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	head := ParseTemplateHead(src)
 	top := head.Top
-	if !assetsOnly {
+	// A file of markup alone has its script beside it, <stem>.go or
+	// <stem>.vuka: its package, struct and methods.
+	script := scriptFile(name, src, head, others)
+	markupOnly := head.Package == "" && !isShape(lines, top)
+	if !assetsOnly && script == nil && !markupOnly {
 		if err := head.check(packageNameOf(others)); err != nil {
 			return nil, nil, nil, err
 		}
@@ -342,6 +346,18 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 			return nil, nil, nil, err
 		}
 		shape, top = sh, sh.Markup
+		if err := declaredTwice(name, sh, others); err != nil && !assetsOnly {
+			return nil, nil, nil, err
+		}
+	} else if script != nil {
+		sh, err := scriptShape(name, src, *script)
+		if err != nil {
+			if assetsOnly {
+				return nil, nil, nil, nil
+			}
+			return nil, nil, nil, err
+		}
+		shape = sh
 	}
 	own := map[string]bool{}
 	for _, imp := range head.Imports {
@@ -430,7 +446,9 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	}
 	// An island page's markup is its component: the struct is the island,
 	// and the compiler writes its Render.
-	if isl, err := islandOnly(shape, head, lines, first, firstEnd); err != nil {
+	if shape != nil && shape.File != "" {
+		// the struct is the script file's
+	} else if isl, err := islandOnly(shape, head, lines, first, firstEnd); err != nil {
 		return nil, nil, nil, err
 	} else if isl != nil {
 		h.island = isl
@@ -457,7 +475,7 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 		}
 		targs := shape.TypeArgs
 		// A struct live by its hooks or events is a live component.
-		if shape.Live && !shape.EmbedsLive {
+		if shape.Live && !shape.EmbedsLive && shape.File == "" {
 			add(shape.open, ui+"Live; ")
 		}
 		// A stateful component's markup is its Render, a struct
@@ -562,7 +580,12 @@ func htmlParts(name string, src []byte, others []File, ui string, assetsOnly boo
 	for _, imp := range imps {
 		prefix += "; import " + imp
 	}
-	ins = append([]insertion{{off[head.Line] + head.Col - 1 + len(head.Package), prefix}}, ins...)
+	if head.Package == "" && script != nil {
+		// The script file's package, on the markup's first line.
+		ins = append([]insertion{{0, "package " + packageNameOf([]File{*script}) + prefix + ";"}}, ins...)
+	} else {
+		ins = append([]insertion{{off[head.Line] + head.Col - 1 + len(head.Package), prefix}}, ins...)
+	}
 	sort.SliceStable(ins, func(i, j int) bool { return ins[i].at < ins[j].at })
 	h.ins, h.src, h.lines = ins, src, newLineIndex(src)
 	if h.recv != "" {
@@ -1085,11 +1108,15 @@ func oneTemplate(name string, src []byte, lines []string, heads []int, shape *Sh
 		first++
 	}
 	e := &Error{Code: "E0152", Pos: token.Position{Line: first + 1, Column: 1},
-		Msg: "this markup has no struct above it: a .vuka.html file declares the struct it renders in its Go header"}
+		Msg: "this markup has no struct above it: a .vuka.html file declares the struct it renders in its script, or in a script file beside it"}
+	stem := strings.TrimSuffix(fileBase(name), ".vuka.html")
 	if where := typeFile(typ, others); where != "" {
-		return e.help("move type %s struct {…} and its methods from %s into this file, between its imports and its markup", typ, where)
+		if b := fileBase(where); b == stem+".go" || b == stem+".vuka" {
+			return e.help("%s beside it is its script: leave this file its markup alone, without a package clause, or move type %s struct {…} and its methods into a <script lang=\"go\"> above its markup", b, typ)
+		}
+		return e.help("move type %s struct {…} and its methods from %s into %s.go beside it, or into a <script lang=\"go\"> above its markup", typ, where, stem)
 	}
-	return e.help("declare the struct it renders between the imports and the markup: type %s struct {…}", typ)
+	return e.help("declare the struct it renders in %s.go beside it, or in a <script lang=\"go\"> above its markup: type %s struct {…}", stem, typ)
 }
 
 // typeFile is the file of others declaring the struct typ, "" when none does.

@@ -56,6 +56,11 @@ type Shape struct {
 	LiveWhy    string
 	EmbedsLive bool
 
+	// File is the script file declaring the struct, beside a template of
+	// markup alone; "" when the template's own script does. TypeLine and
+	// the fields' lines are its.
+	File string
+
 	open int // the offset just past the struct's {
 }
 
@@ -430,7 +435,13 @@ func (e *engine) implicitLive(f *fileState) {
 	if h == nil || h.shape == nil || !h.shape.Live || h.shape.EmbedsLive {
 		return
 	}
-	e.errs.add("E0169", token.Position{Filename: f.path, Line: h.shape.TypeLine, Column: 1}, "%s needs a live connection because %s", h.shape.Type, h.shape.LiveWhy).
+	file := f.path
+	for _, g := range e.files {
+		if h.shape.File != "" && g.name == h.shape.File {
+			file = g.path
+		}
+	}
+	e.errs.add("E0169", token.Position{Filename: file, Line: h.shape.TypeLine, Column: 1}, "%s needs a live connection because %s", h.shape.Type, h.shape.LiveWhy).
 		help("embed ui.Live in %s (vuka fix explicit-live)", h.shape.Type)
 }
 

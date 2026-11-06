@@ -409,6 +409,15 @@ func readRouteDir(t *routeTree, dir string, read load.ReadFunc) *routeDir {
 			// A file in the 2.0 shape declares the struct it renders: a
 			// page as a .go file's would be.
 			sh, serr := transpile.ParseShapeFile(n, src)
+			if sh == nil && serr == nil {
+				// markup alone: the struct is its script file's
+				for _, sn := range transpile.ScriptFileNames(n) {
+					if ssrc, err := read(filepath.Join(dir, sn)); err == nil {
+						sh, serr = transpile.ParseShapeScript(n, src, transpile.File{Name: sn, Src: ssrc})
+						break
+					}
+				}
+			}
 			if serr != nil {
 				// two structs, or Go that doesn't parse: the compiler's error
 				// says which and where, not that the page's is declared nowhere

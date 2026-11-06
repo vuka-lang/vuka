@@ -40,6 +40,8 @@ TestPageScriptE2E
 TestDoctor
 TestReactIslandNoNode
 TestScriptIsland
+# scriptfile_e2e_test.go
+TestScriptFileE2E
 # slots_e2e_test.go
 TestSlotsE2E
 # templlib_e2e_test.go
@@ -126,6 +128,8 @@ TestLSPEventCalls
 TestLSPEventModifiers
 # lsp_forms_test.go
 TestLSPModel
+# lsp_scriptfile_test.go
+TestLSPScriptFile
 # lsp_generic_test.go
 TestGenericShapeEditor
 TestLSPGenericShape

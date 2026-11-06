@@ -48,7 +48,7 @@ func (e *engine) lowerTracked(f *fileState, attrs []span) {
 			}
 		}
 		if gen != "" {
-			e.trackFields(f, h.shape.Type, gen)
+			e.trackFields(f, e.shapeDecl(f), h.shape.Type, gen)
 			return
 		}
 	}
@@ -85,10 +85,30 @@ func (e *engine) trackedFields() map[*types.Var]*fileState {
 	return fields
 }
 
-// trackFields writes the struct's trackable fields' types as Assigns.
-func (e *engine) trackFields(f *fileState, name, gen string) {
+// shapeDecl is the file declaring the struct f's markup renders: f, the
+// .vuka script file beside it, or nil for a .go one, which the compiler
+// doesn't rewrite: its fields aren't tracked.
+func (e *engine) shapeDecl(f *fileState) *fileState {
+	if f.html.shape.File == "" {
+		return f
+	}
+	for _, g := range e.vuka {
+		if g.html == nil && g.name == f.html.shape.File {
+			return g
+		}
+	}
+	return nil
+}
+
+// trackFields writes the trackable fields' types of the struct f's markup
+// renders, declared in decl, as Assigns.
+func (e *engine) trackFields(f, decl *fileState, name, gen string) {
+	if decl == nil {
+		f.trackedTypes, f.tracked = true, map[string]bool{}
+		return
+	}
 	var st *ast.StructType
-	for _, d := range f.ast.Decls {
+	for _, d := range decl.ast.Decls {
 		if g, ok := d.(*ast.GenDecl); ok && g.Tok == token.TYPE {
 			for _, sp := range g.Specs {
 				if ts, ok := sp.(*ast.TypeSpec); ok && ts.Name.Name == name {
@@ -111,7 +131,7 @@ func (e *engine) trackFields(f *fileState, name, gen string) {
 		}
 		t := e.info.TypeOf(fl.Type)
 		if t == nil || isInvalid(t) {
-			if e.progress || e.pendingLowering(f) {
+			if e.progress || e.pendingLowering(decl) {
 				return // wait for the type
 			}
 			continue
@@ -130,8 +150,8 @@ func (e *engine) trackFields(f *fileState, name, gen string) {
 	}
 	f.trackedTypes, f.tracked = true, map[string]bool{}
 	for _, c := range changes {
-		text := string(f.src[f.orig(c.fl.Type.Pos()):f.orig(c.fl.Type.End())])
-		f.add(f.orig(c.fl.Type.Pos()), f.orig(c.fl.Type.End()), f.genQual(gen)+"Assign["+text+"]")
+		text := string(decl.src[decl.orig(c.fl.Type.Pos()):decl.orig(c.fl.Type.End())])
+		decl.add(decl.orig(c.fl.Type.Pos()), decl.orig(c.fl.Type.End()), decl.genQual(gen)+"Assign["+text+"]")
 		for _, n := range c.fl.Names {
 			f.tracked[n.Name] = true
 		}

@@ -68,6 +68,21 @@ it there too. Its Go arguments are now checked against the method's
 parameters as a push's are, so an argument for a pointer or interface
 parameter keeps the call a handler.
 
+### Templates
+
+- **A template's script can be a file beside it** ([#356](https://github.com/vuka-lang/vuka/issues/356)).
+  `orders.vuka.html` can be markup alone, with the imports only its markup
+  uses above it, and `orders.go` or `orders.vuka` beside it declares the
+  package, the struct, its hooks and methods. The markup reads the struct's
+  fields, methods and the script file's imports as it reads an inline
+  script's. A `.go` script file is plain Go — gopls reads it as it is — so it
+  has no decorators and its server state isn't tracked; a `.vuka` one keeps
+  the decorators (`@ui.Mount`, `@ui.Bind`) and change tracking. A struct
+  declared in both is [E0174](/errors/E0174); the editor moves a script out
+  and back. `vuka fmt` leaves a file of markup alone without a package
+  clause. See [Keeping the Script in a File Beside the
+  Markup](/ui/templates#script-file).
+
 ### Live pages
 
 - **Deferred fields on pages and components rendered by their own markup.**

@@ -414,6 +414,7 @@ func codeActions(r actionRequest) []any {
 		}
 		if r.wants("refactor.move") {
 			add(moveActions(r)...)
+			add(scriptMoveActions(r)...)
 		}
 		if r.wants("quickfix") {
 			add(templateFixes(r)...)

@@ -42,6 +42,13 @@ func TestTemplateHeaderForm(t *testing.T) {
 	check(t, src, "", want, Options{})
 }
 
+// TestTemplateScriptFile: a file of markup alone, its script a file beside
+// it, formatted with no package: its imports and comments above the markup.
+func TestTemplateScriptFile(t *testing.T) {
+	check(t, "import (\n\"strings\"\n)\n<p>{strings.ToUpper(\"x\")}</p>\n", "", "import (\n\t\"strings\"\n)\n\n<p>{strings.ToUpper(\"x\")}</p>\n", Options{})
+	check(t, "// Orders.\n\n<p/>\n", "", "// Orders.\n\n<p />\n", Options{})
+}
+
 func TestTemplatePackage(t *testing.T) {
 	for _, c := range []struct{ src, want string }{
 		{"<p/>\n", "package pages\n\n<p />\n"},
