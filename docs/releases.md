@@ -124,6 +124,18 @@ parameter keeps the call a handler.
   the requirements added and removed are printed. `-check` fails when they
   aren't tidy, writing nothing; `-e`, `-v`, `-go` and `-compat` pass through
   ([Tidying go.mod](/tools/cli#mod-tidy)).
+- **`vuka ui upgrade` takes a library's components to a new version,
+  keeping your edits** ([#362](https://github.com/vuka-lang/vuka/issues/362)).
+  Each file is merged three ways — the library's at the version
+  `[ui.sources]` records, at the version `vuka ui add` takes now, and
+  yours — so a change only the library made is taken, yours stay, and
+  changes both made to the same lines are conflicts marked `<<<<<<<
+  yours` / `=======` / `>>>>>>>` in the file. A component with conflicts
+  keeps its old version in `[ui.sources]` (and is noted in
+  `[ui.upgrading]`) until they are resolved and `vuka ui upgrade` runs
+  again. `--check` lists the components with changes upstream and the
+  files you edited, changing nothing, and fails when there are changes to
+  take ([Keeping Up](/ui/vendored#upgrade)).
 
 ## v2.16.1 — 2026-11-01
 

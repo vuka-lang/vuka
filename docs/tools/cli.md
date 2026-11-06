@@ -18,6 +18,7 @@ vuka add module|service|component|island|page|entity … [--dry-run] [--force]
 vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name] [--registry r] [--offline]
 vuka ui add [-f] [--dry-run] [--registry r] [--offline] <component… | library/component…>
 vuka ui diff [--registry r] [--offline] [component… | library/component…]
+vuka ui upgrade [--check] [--dry-run] [library/component…]
 vuka ui list [--registry r] [--offline] [library]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
@@ -202,7 +203,10 @@ writes a templ component library's component the same way, from the
 library's Go module: its package under `components/ui/`, the packages it
 imports, its scripts (bundled by `vuka build` and `vuka run -watch`) and the
 library's theme, with its source recorded in `[ui.sources]`
-([From a templ Component Library](/ui/vendored#libraries)).
+([From a templ Component Library](/ui/vendored#libraries)). `vuka ui upgrade` takes those
+components to the library's new version, merging its changes with yours
+(`--check` reports, changing nothing; see
+[Upgrading a Library](/ui/vendored#upgrade)).
 
 ## Building, Running and Testing {#build-run-test-vet-install}
 
