@@ -272,6 +272,67 @@ A child can accept a `ui.State[T]` field so both shapes observe the same
 browser value. Ordinary exported fields pass props instead. For state and
 function props crossing a frontend boundary, see [Islands](/web/islands).
 
+An exported `ui.State[T]` field is a state prop. The parent passes its own
+state, and the child's field is that state, not a copy of its value:
+
+```html
+<script lang="go">
+// modal.vuka.html
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Modal shows its content while Show holds.
+type Modal struct {
+	Show     ui.State[bool]
+	Children ui.Node
+}
+</script>
+
+<dialog show={Show}>
+  {Children}
+  <button onClick={Show = false}>Close</button>
+</dialog>
+```
+
+```html
+<script lang="go">
+// orders.vuka.html
+package pages
+
+import (
+	"example.com/app/components"
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Orders struct {
+	ui.Live
+	open ui.State[bool]
+}
+
+func (p *Orders) Archive() { p.open = false }
+</script>
+
+<main>
+  <button onClick={open = true}>Archive…</button>
+  <components.Modal show={open}>
+    <p>Archive every shipped order?</p>
+    <button onClick={Archive()}>Archive</button>
+  </components.Modal>
+</main>
+```
+
+The page's button writes `open` and the dialog shows; the dialog's Close
+writes `Show` and the page's `open` is `false` with it; the live method's
+`p.open = false` hides it from the server. Every write of the one state
+reaches every element that reads it, whichever shape wrote it. A page need
+not read its state itself to hand it on: a state only passed to a child and
+set by events is enough.
+
+The registry's [Dialog](/ui/components/dialog), [Dropdown
+Menu](/ui/components/dropdown-menu) and [Tabs](/ui/components/tabs) take
+the page's state this way (`show={open}`, `value={tab}`).
+
 ## Handing a Click to a Child {#click-to-a-child}
 
 An element's `onClick={open = !open}` is a chain of browser commands, a
