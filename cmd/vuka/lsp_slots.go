@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -13,10 +14,12 @@ import (
 // Slots in the editor: inside a component's tag, <slot: completes the
 // slots its source declares — a Node field, a func returning one (its let
 // names that function's values), a slice of structs (one <slot:x> per
-// element) — with their types; hover on a name a slot's let declares shows
-// the value it takes. A slot the component has no field for, or a let on a
-// slot taking no values, is the compiler's error, published as the file is
-// typed.
+// element) — with their types and docs, but those the tag already fills;
+// hover on a slot's tag shows its field, its doc and its let's types, and
+// definition goes to the field; hover on a name a slot's let declares shows
+// the value it takes. A slot the component has no field for (E0106, with
+// the nearest one's name), or a let on a slot taking no values, is the
+// compiler's error, published as the file is typed.
 
 // Slot kinds of a prop, as the compiler takes them.
 const (
@@ -212,10 +215,11 @@ func (p *proxy) slotCompletion(path string, src []byte, off int) ([]any, bool) {
 	if info == nil {
 		return nil, false
 	}
+	used := usedSlots(src, s, comp, from-1)
 	typedRange := lspRange{positionOf(src, from), positionOf(src, off)}
 	items := []any{}
 	for i, pr := range info.props {
-		if pr.kind == 0 {
+		if pr.kind == 0 || pr.kind != slotManyKind && used[slotName(pr)] {
 			continue
 		}
 		name := slotName(pr)
@@ -223,10 +227,7 @@ func (p *proxy) slotCompletion(path string, src []byte, off int) ([]any, bool) {
 		if len(pr.params) > 0 {
 			open += " let={${1:" + letGuess(pr.params) + "}}"
 		}
-		what := map[byte]string{slotNodeKind: "slot", slotFuncKind: "scoped slot", slotManyKind: "repeated slot"}[pr.kind]
-		if pr.required {
-			what = "required " + what
-		}
+		what := slotWhat(pr)
 		it := map[string]any{"label": "slot:" + name, "kind": 5, "detail": pr.typ, "sortText": fmt.Sprintf("%02d", i), "filterText": "slot:" + name,
 			"labelDetails":     map[string]any{"detail": " " + pr.typ, "description": what},
 			"textEdit":         map[string]any{"range": typedRange, "newText": open + ">$0</slot:" + name + ">"},
@@ -237,6 +238,184 @@ func (p *proxy) slotCompletion(path string, src []byte, off int) ([]any, bool) {
 		items = append(items, it)
 	}
 	return items, true
+}
+
+// slotWhat is the kind of slot pr is, as completion and hover say it.
+func slotWhat(pr tagProp) string {
+	what := map[byte]string{slotNodeKind: "slot", slotFuncKind: "scoped slot", slotManyKind: "repeated slot"}[pr.kind]
+	if pr.required {
+		what = "required " + what
+	}
+	return what
+}
+
+// usedSlots are the slots comp's content fills, but the one whose tag is at
+// skip: its own <slot:x> tags, not those inside them or another component.
+func usedSlots(src []byte, s *shapeScan, comp jsxTag, skip int) map[string]bool {
+	used := map[string]bool{}
+	depth := 0
+	for i := comp.end; i < len(src); i++ {
+		if src[i] != '<' || i == skip || !bytes.HasPrefix(src[i:], []byte("<slot:")) && !bytes.HasPrefix(src[i:], []byte("</slot:")) {
+			continue
+		}
+		in, ok := enclosingComponent(s, i)
+		if !ok || in.start < comp.start {
+			break
+		}
+		t, ok := readTag(src, i)
+		if !ok || in.start != comp.start {
+			continue
+		}
+		if t.close {
+			depth--
+			continue
+		}
+		if depth == 0 {
+			used[strings.TrimPrefix(t.name, "slot:")] = true
+		}
+		if !t.self {
+			depth++
+		}
+	}
+	return used
+}
+
+// slotProp is the prop a <slot:name> fills.
+func (info *tagInfo) slotProp(name string) (tagProp, bool) {
+	for _, pr := range info.props {
+		if pr.kind != 0 && (slotName(pr) == name || lowerCamel(pr.attr) == name) {
+			return pr, true
+		}
+	}
+	return tagProp{}, false
+}
+
+// slotAt is the slot tag whose name holds off, opening or closing, the
+// component whose slot it is and the prop it fills.
+func (p *proxy) slotAt(path string, src []byte, s *shapeScan, off int) (jsxTag, jsxTag, tagProp, bool) {
+	i := bytes.LastIndexByte(src[:min(off+1, len(src))], '<')
+	if i < 0 {
+		return jsxTag{}, jsxTag{}, tagProp{}, false
+	}
+	t, ok := readTag(src, i)
+	if !ok || !strings.HasPrefix(t.name, "slot:") || off < t.nameStart || off > t.nameEnd {
+		return jsxTag{}, jsxTag{}, tagProp{}, false
+	}
+	comp, ok := enclosingComponent(s, i)
+	if !ok {
+		return jsxTag{}, jsxTag{}, tagProp{}, false
+	}
+	info := p.resolveComponent(path, src, baseName(comp.name))
+	if info == nil {
+		return jsxTag{}, jsxTag{}, tagProp{}, false
+	}
+	pr, ok := info.slotProp(strings.TrimPrefix(t.name, "slot:"))
+	return t, comp, pr, ok
+}
+
+// slotHover is the hover on a slot tag's name: the field it fills, its doc,
+// and the types of the values its let names, inferred type arguments
+// substituted.
+func (p *proxy) slotHover(path string, src []byte, s *shapeScan, off int) any {
+	t, comp, pr, ok := p.slotAt(path, src, s, off)
+	if !ok {
+		return nil
+	}
+	var b strings.Builder
+	field := pr.name
+	if field == "" {
+		field = pr.attr
+	}
+	fmt.Fprintf(&b, "**%s** `<%s>` · `%s %s` of `<%s>`", slotWhat(pr), t.name, field, pr.typ, comp.name)
+	if pr.file != "" {
+		fmt.Fprintf(&b, " · [%s](%s#L%d)", filepath.Base(pr.file), pathToURI(pr.file), pr.line)
+	}
+	if pr.kind == slotManyKind {
+		b.WriteString("\n\nEach `<" + t.name + ">` is one element.")
+	}
+	if pr.doc != "" {
+		b.WriteString("\n\n" + pr.doc)
+	}
+	if len(pr.params) > 0 {
+		names, offs := letNames(src, t)
+		if len(names) == 0 {
+			names = strings.Split(letGuess(pr.params), ", ")
+		}
+		var vals []string
+		for i, typ := range pr.params {
+			n := "_"
+			if i < len(names) {
+				n = names[i]
+			}
+			if i < len(offs) {
+				if inferred := p.letType(path, offs[i]); inferred != "" {
+					typ = inferred
+				}
+			}
+			vals = append(vals, "`"+n+" "+typ+"`")
+		}
+		b.WriteString("\n\n`let={" + strings.Join(names, ", ") + "}` names " + strings.Join(vals, ", "))
+	}
+	return markdownHover(b.String(), src, t.nameStart, t.nameEnd)
+}
+
+// letNames are the names a slot tag's let={…} declares, and where.
+func letNames(src []byte, t jsxTag) ([]string, []int) {
+	for _, a := range t.attrs {
+		if a.name != "let" || a.valStart == 0 {
+			continue
+		}
+		var names []string
+		var offs []int
+		for i := a.valStart; i < a.valEnd; {
+			if !isNameByte(src[i]) {
+				i++
+				continue
+			}
+			j := i
+			for j < a.valEnd && isNameByte(src[j]) {
+				j++
+			}
+			names, offs = append(names, string(src[i:j])), append(offs, i)
+			i = j
+		}
+		return names, offs
+	}
+	return nil, nil
+}
+
+// slotDefinition is where the field a slot tag fills is declared.
+func (p *proxy) slotDefinition(path string, src []byte, s *shapeScan, off int) (map[string]any, bool) {
+	_, _, pr, ok := p.slotAt(path, src, s, off)
+	if !ok || pr.file == "" || pr.line < 1 {
+		return nil, false
+	}
+	lines := strings.Split(string(p.sourceText(pr.file)), "\n")
+	at := lspPosition{Line: uint32(pr.line - 1)}
+	end := at
+	if pr.line <= len(lines) {
+		if c := identIndex(lines[pr.line-1], pr.name); c >= 0 {
+			at.Character, end.Character = uint32(c), uint32(c+len(pr.name))
+		}
+	}
+	return map[string]any{"uri": pathToURI(p.display(pr.file)), "range": lspRange{at, end}}, true
+}
+
+// identIndex is where name stands as a whole identifier in line, -1 when
+// it doesn't.
+func identIndex(line, name string) int {
+	for from := 0; name != ""; {
+		i := strings.Index(line[from:], name)
+		if i < 0 {
+			return -1
+		}
+		i += from
+		if (i == 0 || !isNameByte(line[i-1])) && (i+len(name) == len(line) || !isNameByte(line[i+len(name)])) {
+			return i
+		}
+		from = i + 1
+	}
+	return -1
 }
 
 // letGuess is a let's names for values of types params: the first type's
@@ -270,18 +449,12 @@ func (p *proxy) letNote(path string, src []byte, r shapeRef) string {
 	if info == nil {
 		return "**slot value** `" + r.name + "` · " + where
 	}
-	name := strings.TrimPrefix(l.slot, "slot:")
-	for _, pr := range info.props {
-		if pr.kind == 0 || slotName(pr) != name && lowerCamel(pr.attr) != name {
-			continue
+	if pr, ok := info.slotProp(strings.TrimPrefix(l.slot, "slot:")); ok && l.index < len(pr.params) {
+		typ := pr.params[l.index]
+		if t := p.letType(path, l.off); t != "" {
+			typ = t
 		}
-		if l.index < len(pr.params) {
-			typ := pr.params[l.index]
-			if t := p.letType(path, l.off); t != "" {
-				typ = t
-			}
-			return "**slot value** `" + r.name + " " + typ + "` · " + where + ": value " + fmt.Sprint(l.index+1) + " of `" + pr.typ + "`, what `<" + l.comp + ">` passes"
-		}
+		return "**slot value** `" + r.name + " " + typ + "` · " + where + ": value " + fmt.Sprint(l.index+1) + " of `" + pr.typ + "`, what `<" + l.comp + ">` passes"
 	}
 	return "**slot value** `" + r.name + "` · " + where
 }

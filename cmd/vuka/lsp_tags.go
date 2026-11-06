@@ -30,6 +30,9 @@ import (
 // tagProp is an attribute a component takes.
 type tagProp struct {
 	attr, typ string
+	name      string // the field or parameter, as declared
+	file      string // where it is declared, at line (from 1)
+	line      int
 	required  bool
 	slot      bool // a Node: written as <slot:name>, not an attribute
 	doc       string
@@ -175,11 +178,11 @@ func tagComponentIn(dir, name string) *tagInfo {
 				if sh.Live {
 					info.kind = "live component"
 				}
-				docs := map[string]string{}
+				docs := map[string]tagField{}
 				if m := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `(?:\[[^\]\n]*\])?\s+struct\s*\{`).FindIndex(src); m != nil {
 					if e := skipGo(src, m[1]-1); e > 0 {
-						for _, f := range tagStructFields(string(src[m[1]-1 : e])) {
-							docs[f.name] = f.doc
+						for _, f := range tagStructFields(string(src[m[1]-1:e]), tagLineOf(src, m[1]-1)) {
+							docs[f.name] = f
 						}
 					}
 				}
@@ -189,7 +192,8 @@ func tagComponentIn(dir, name string) *tagInfo {
 					case f.Name == "Children":
 						info.children = true
 					default:
-						info.props = append(info.props, tagProp{attr: info.attrName(f.Name), typ: f.Type, slot: isNodeTypeName(f.Type), doc: docs[f.Name], required: requiredTag(f.Tag)})
+						info.props = append(info.props, tagProp{attr: info.attrName(f.Name), typ: f.Type, name: f.Name, file: file, line: max(f.Line, docs[f.Name].line),
+							slot: isNodeTypeName(f.Type), doc: docs[f.Name].doc, required: requiredTag(f.Tag)})
 					}
 				}
 				return info
@@ -212,7 +216,7 @@ func tagComponentIn(dir, name string) *tagInfo {
 				continue
 			}
 			body := string(src[m[1]-1 : e])
-			fields := tagStructFields(body)
+			fields := tagStructFields(body, tagLineOf(src, m[1]-1))
 			info := &tagInfo{name: name, kind: "component", file: file, line: tagLineOf(src, m[0])}
 			if embedsLive.MatchString(body) {
 				info.kind = "live component"
@@ -220,7 +224,7 @@ func tagComponentIn(dir, name string) *tagInfo {
 			for _, f := range fields {
 				info.children = info.children || f.name == "Children"
 				if f.name != "Children" && token.IsExported(f.name) {
-					info.props = append(info.props, tagProp{attr: info.attrName(f.name), typ: f.typ, slot: isNodeTypeName(f.typ), doc: f.doc, required: requiredTag(f.tag)})
+					info.props = append(info.props, tagProp{attr: info.attrName(f.name), typ: f.typ, name: f.name, file: file, line: f.line, slot: isNodeTypeName(f.typ), doc: f.doc, required: requiredTag(f.tag)})
 				}
 			}
 			return info
@@ -252,11 +256,15 @@ func (info *tagInfo) attrName(field string) string {
 
 func tagLineOf(src []byte, off int) int { return strings.Count(string(src[:off]), "\n") + 1 }
 
-type tagField struct{ name, typ, doc, tag string }
+type tagField struct {
+	name, typ, doc, tag string
+	file                string
+	line                int // from 1
+}
 
-// tagStructFields reads the fields of a struct's {…}, field attributes (.vuka's
-// @…) left out.
-func tagStructFields(body string) []tagField {
+// tagStructFields reads the fields of a struct's {…}, which starts on line,
+// field attributes (.vuka's @…) left out.
+func tagStructFields(body string, line int) []tagField {
 	lines := strings.Split(body, "\n")
 	for i, l := range lines {
 		if loc := tagAttrStart.FindStringIndex(l); loc != nil && !strings.Contains(l[:loc[0]], "`") {
@@ -286,7 +294,7 @@ func tagStructFields(body string) []tagField {
 			tag, _ = strconv.Unquote(fl.Tag.Value)
 		}
 		for _, n := range fl.Names {
-			out = append(out, tagField{n.Name, typ, doc, tag})
+			out = append(out, tagField{name: n.Name, typ: typ, doc: doc, tag: tag, line: line + fset.Position(n.Pos()).Line - 2})
 		}
 	}
 	return out
@@ -314,13 +322,14 @@ func tagFuncComponent(dir, name, file string, src []byte, start, open int) *tagI
 	type param struct {
 		name, typ string
 		variadic  bool
+		line      int
 	}
 	var params []param
 	for _, fl := range fd.Type.Params.List {
 		typ := text[fset.Position(fl.Type.Pos()).Offset:fset.Position(fl.Type.End()).Offset]
 		_, variadic := fl.Type.(*ast.Ellipsis)
 		for _, n := range fl.Names {
-			params = append(params, param{n.Name, typ, variadic})
+			params = append(params, param{n.Name, typ, variadic, tagLineOf(src, open) + fset.Position(n.Pos()).Line - 2})
 		}
 	}
 	if len(params) > 0 && params[0].typ == "context.Context" {
@@ -331,7 +340,7 @@ func tagFuncComponent(dir, name, file string, src []byte, start, open int) *tagI
 		if c := tagPropsStruct(dir, t); c != nil {
 			for _, fl := range c {
 				if token.IsExported(fl.name) && fl.name != "Children" {
-					info.props = append(info.props, tagProp{attr: lowerCamel(fl.name), typ: fl.typ, slot: isNodeTypeName(fl.typ), doc: fl.doc, required: requiredTag(fl.tag)})
+					info.props = append(info.props, tagProp{attr: lowerCamel(fl.name), typ: fl.typ, name: fl.name, file: fl.file, line: fl.line, slot: isNodeTypeName(fl.typ), doc: fl.doc, required: requiredTag(fl.tag)})
 				}
 			}
 			if !params[0].variadic {
@@ -346,7 +355,7 @@ func tagFuncComponent(dir, name, file string, src []byte, start, open int) *tagI
 			continue
 		}
 		node := isNodeTypeName(pr.typ)
-		info.props = append(info.props, tagProp{attr: pr.name, typ: pr.typ, slot: node,
+		info.props = append(info.props, tagProp{attr: pr.name, typ: pr.typ, name: pr.name, file: file, line: pr.line, slot: node,
 			required: !node && !(pr.variadic && i == len(params)-1)})
 	}
 	return info
@@ -371,7 +380,11 @@ func tagPropsStruct(dir, name string) []tagField {
 		}
 		if m := re.FindIndex(src); m != nil {
 			if e := skipGo(src, m[1]-1); e > 0 {
-				return tagStructFields(string(src[m[1]-1 : e]))
+				fields := tagStructFields(string(src[m[1]-1:e]), tagLineOf(src, m[1]-1))
+				for i := range fields {
+					fields[i].file = filepath.Join(dir, n)
+				}
+				return fields
 			}
 		}
 	}
