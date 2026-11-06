@@ -1,0 +1,9 @@
+[
+  { "token_type": "vukaProp", "style": ["constant", "property"] },
+  { "token_type": "vukaState", "style": ["property"] },
+  { "token_type": "vukaBrowserState", "style": ["variable.special", "variable"] },
+  { "token_type": "vukaEvent", "style": ["function.method", "function"] },
+  { "token_type": "vukaComponent", "style": ["type"] },
+  { "token_type": "vukaLocal", "style": ["variable"] },
+  { "token_type": "vukaContextVar", "style": ["variable.special", "variable"] }
+]

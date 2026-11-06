@@ -1,0 +1,16 @@
+[
+  {
+    "label": "vuka run -watch",
+    "command": "vuka",
+    "args": ["run", "-watch", "."],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "allow_concurrent_runs": false,
+    "use_new_terminal": false
+  },
+  {
+    "label": "vuka routes",
+    "command": "vuka",
+    "args": ["routes"],
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]

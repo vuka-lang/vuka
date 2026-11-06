@@ -1,136 +1,213 @@
 # Vuka for Zed
 
-A [Zed](https://zed.dev) extension for the [Vuka](https://vuka-lang.github.io/)
-language — `.vuka` files.
+A [Zed](https://zed.dev) extension for [Vuka](https://vuka-lang.github.io/):
+`.vuka` files and `.vuka.html` shapes, highlighted by Vuka's own grammars and
+served by `vuka lsp`, the language server the VS Code extension runs.
 
-Vuka is a **Go superset**: every `.vuka` file is Go plus a few additions —
-`Result`/`Option`, the `?` operator, `match`/`case` pattern matching,
-`@decorator` and typed `@T{…}` attributes (including field attributes after
-struct fields), statics (`Type.X`), `enum` declarations, and JSX component
-markup (`<div>…</div>`, `{expr}`).
+## Installing
 
-This extension gives you:
-
-- **Syntax highlighting** for `.vuka` files, via the **tree-sitter-go** grammar
-  (see [the grammar limitation](#grammar-limitation) below).
-- **Full language intelligence** through the **`vuka lsp`** language server:
-  completion, hover, signature help, go-to-definition, references, rename,
-  document/workspace symbols, code actions, inlay hints and diagnostics — the
-  same features the VS Code extension provides. `vuka lsp` is
-  [gopls](https://go.dev/gopls) behind a proxy that keeps the Go generated from
-  each `.vuka` file open in gopls as an unsaved buffer and maps every request
-  and response back onto your `.vuka` source. Overloads and statics show the way
-  you wrote them (`area`, `User.New`), and Vuka's own errors plus Go's type
-  errors land on the right `.vuka` lines.
-
-## Prerequisites
-
-The extension does **not** bundle a binary. Install the Vuka toolchain (which
-provides `vuka lsp`) and gopls:
+The extension bundles no `vuka`. Install it, and gopls:
 
 ```sh
 go install github.com/vuka-lang/vuka/cmd/vuka/v2@latest
 go install golang.org/x/tools/gopls@latest
 ```
 
-Make sure `"$(go env GOPATH)/bin"` is on your `PATH` so Zed can find `vuka`.
+or add it to your module, where the extension runs it with `go tool vuka`:
 
-## Install as a dev extension
+```sh
+go get -tool github.com/vuka-lang/vuka/cmd/vuka/v2
+```
 
-This extension lives inside the Vuka repository at `editors/zed`. To run it:
+Then, until the extension is in Zed's registry, install it from a checkout of
+this repository: **zed: install dev extension** in the command palette, and
+pick `editors/zed`. Zed builds the extension and fetches the grammars from the
+revision `extension.toml` names. Once it is published, **zed: extensions**,
+search for Vuka, **Install**.
 
-1. Open Zed.
-2. Open the command palette and run **`zed: install dev extension`** (or:
-   Extensions view → **Install Dev Extension**).
-3. Pick this folder: `editors/zed`.
+## What It Does
 
-Zed compiles the Rust to WebAssembly and downloads/builds the tree-sitter-go
-grammar for you — no Rust toolchain setup is required just to install it. Then
-open a `.vuka` file: highlighting appears immediately, and the language server
-starts once `vuka` is resolved.
+| | VS Code | Zed |
+|---|---|---|
+| `.vuka` highlighting | TextMate grammar | tree-sitter grammar: `?`, `match`/`case` with guards, `enum`, `decorator`, `@attributes` (and `@T{…}`, field and parameter attributes), statics, markup with its holes, `{if}`/`{for}`/`{match}` blocks and `<script>`/`<style>` |
+| `.vuka.html` highlighting | TextMate grammar | tree-sitter grammar: the Go header or `<script lang="go">`, markup, holes in text, attributes and strings, statement lines, `<script lang="ts">` as TypeScript, `<style>` as CSS |
+| Shape names coloured by the server (props, state, events, components) | semantic tokens | semantic tokens, with `"semantic_tokens": "combined"` (see [Settings](#settings)) |
+| Completion, hover, signature help, definition, references, rename, symbols, diagnostics, inlay hints, quick fixes | `vuka lsp` | `vuka lsp` |
+| TypeScript in `<script lang="ts">` | bundled server | installed by the extension with Zed's Node, unless one is on `PATH` |
+| Format on save | `vuka fmt`, through the server | `vuka fmt`, through the server (Zed's default formatter) |
+| Organize imports on save | on by default | one setting (see [Settings](#settings)) |
+| Closing tags as you type | `>` and `</` | `>` adds the closing tag |
+| Linked editing of a tag's name | yes | yes |
+| Brackets, quotes, comments, indentation | `language-configuration.json` | `config.toml`, `brackets.scm`, `indents.scm`; `{/* */}` comments in markup |
+| Outline, text objects, rainbow brackets | outline | outline, function and class text objects, brackets |
+| Snippets | yes | the same snippets |
+| Tests and tasks | — | run buttons on `Test…` functions and packages; `vuka run -watch`, `vuka test`, `vuka routes` tasks |
+| Finding `vuka` | setting, login shell `PATH`, `$GOBIN`, `$GOPATH/bin`, `~/go/bin` | setting, `go tool vuka`, `PATH`, `$GOBIN`, `$GOPATH/bin`, `~/go/bin` |
+| Restart the server | **Vuka: Restart Language Server** | **editor: restart language server** |
+| `vuka version` in the status bar | yes | no: Zed has no place for it |
+| **Vuka: Show Routes** | yes | the `vuka routes` task |
+| **Vuka: Extract Component** | asks the new component's name | no: Zed can't ask for the name the server needs |
+| Serving `.go` and `.templ` files through Vuka | offered, set up for you | by hand (see [Go and templ files](#go-and-templ-files)) |
+| Tailwind CSS | set up for you | by hand (see [Settings](#settings)) |
+| Emmet | in `.vuka.html` | no: the Emmet extension's server serves the languages it lists |
 
-## How the language server is wired
+## Settings
 
-The extension's WASM shell (`src/lib.rs`) resolves and launches `vuka lsp` over
-stdio. The `vuka` binary is resolved, in order:
-
-1. an explicit path from your Zed settings
-   (`lsp.vuka.binary.path`), otherwise
-2. `vuka` on the worktree `PATH`.
-
-Arguments default to `["lsp"]`. Both can be overridden in `settings.json`:
+In Zed's `settings.json`:
 
 ```jsonc
 {
+  "languages": {
+    "Vuka": {
+      "semantic_tokens": "combined",
+      "code_actions_on_format": { "source.organizeImports": true }
+    },
+    "Vuka HTML": {
+      "semantic_tokens": "combined",
+      "code_actions_on_format": { "source.organizeImports": true }
+    }
+  },
   "lsp": {
     "vuka": {
       "binary": {
         "path": "/absolute/path/to/vuka",
-        "arguments": ["lsp", "--log", "/tmp/vuka-lsp.log"]
+        "arguments": ["lsp", "-log", "/tmp/vuka-lsp.log"]
+      },
+      "settings": {
+        "goplsPath": "/absolute/path/to/gopls",
+        "sharedGopls": true
+      },
+      "initialization_options": {
+        "vuka": { "implicitContextHints": true }
       }
     }
   }
 }
 ```
 
-If `vuka` can't be found, the server shows an error telling you to install it or
-set `lsp.vuka.binary.path`.
+- `semantic_tokens`: `"combined"` lays the server's colours over the
+  grammar's: a shape's props, state, browser state, events and components
+  get their own (`languages/*/semantic_token_rules.json` maps them to your
+  theme). Zed leaves it off by default.
+- `code_actions_on_format`: organizes imports before each format, as VS
+  Code does on save — removes the unused ones, adds the missing ones, groups
+  them.
+- `lsp.vuka.binary.path`: the `vuka` to run; `arguments` replaces `["lsp"]`.
+- `lsp.vuka.settings`: `goplsPath` is the gopls vuka runs (default: gopls on
+  `PATH`, `$GOBIN`, `$GOPATH/bin`); `sharedGopls: false` gives this server a
+  gopls of its own instead of the shared daemon.
+- `initialization_options`: `implicitContextHints: false` hides the `ctx`
+  inlay hints in markup.
 
-### Go files and templ files
+**Tailwind CSS.** Add the server to the languages and tell it they are HTML.
+Zed names them `vuka html` and `vuka` to that server, and an
+`includeLanguages` of your own replaces Zed's, so keep the languages you use
+it for:
 
-`vuka lsp` is a drop-in gopls, so Go files in a package that also has `.vuka`
-files can be served through Vuka too (point the Go extension's gopls at a link
-named `gopls` → `vuka`), and `.templ` files can use the same gopls. Zed wires
-gopls through its built-in Go support rather than this extension; see the
-[Vuka editors guide](https://vuka-lang.github.io/tools/editors) for the
-cross-server setup. This extension focuses on `.vuka` files.
+```jsonc
+{
+  "languages": {
+    "Vuka": { "language_servers": ["vuka", "tailwindcss-language-server", "..."] },
+    "Vuka HTML": { "language_servers": ["vuka", "tailwindcss-language-server", "..."] }
+  },
+  "lsp": {
+    "tailwindcss-language-server": {
+      "settings": {
+        "includeLanguages": { "vuka html": "html", "vuka": "html", "html": "html", "css": "css" }
+      }
+    }
+  }
+}
+```
 
-## Templates
+Class completion then works in strings (`class="…"`, and the strings of
+`class={…}`).
 
-`.vuka.html` files are the "Vuka HTML" language: Zed's HTML grammar
-highlights them and `vuka lsp` serves their Go (hover, go to definition,
-completion, rename, diagnostics).
+**Tasks.** Run **task: spawn** for `vuka run -watch`, `vuka test` and
+`vuka routes`; the run button beside a `Test…` function runs that test. To
+bind one to a key, or to run the watcher in a module below the worktree root,
+add it to `.zed/tasks.json`:
 
-## Grammar limitation
+```json
+[
+  {
+    "label": "vuka run -watch",
+    "command": "vuka",
+    "args": ["run", "-watch", "."],
+    "cwd": "$ZED_WORKTREE_ROOT/app"
+  }
+]
+```
 
-Vuka has **no tree-sitter grammar of its own yet**, so this extension references
-**tree-sitter-go** for the Go majority of each file. tree-sitter's error
-recovery keeps Go highlighting working across the Vuka-only constructs, and the
-queries in `languages/vuka/highlights.scm` add best-effort coloring for Vuka
-keywords (`match`, `enum`, `static`, `decorator`), the `Result`/`Option` types
-and `Ok`/`Err`/`Some`/`None`.
+## Go and templ Files
 
-What the Go grammar can't model — and therefore isn't reliably highlighted
-statically — is the genuinely non-Go syntax:
+Run under the name `gopls`, `vuka` is a drop-in gopls, so Go files in a
+package with `.vuka` files see the code those define. Link it and give Zed's
+Go support the link:
 
-- JSX markup (`<div>…</div>`, `{expr}`, components, blocks),
-- the `@decorator` / `@T{…}` sigil and field attributes,
-- `match`-arm patterns and `enum` variant bodies.
+```sh
+mkdir -p ~/.vuka/bin && ln -sf "$(command -v vuka)" ~/.vuka/bin/gopls
+```
 
-These regions may highlight imperfectly (tree-sitter sees them as parse errors).
-**The `vuka lsp` server provides the accurate intelligence** for all of them
-regardless — completion, hover, navigation, rename and diagnostics are correct
-even where the static coloring is not.
+```json
+{ "lsp": { "gopls": { "binary": { "path": "/Users/you/.vuka/bin/gopls" } } } }
+```
 
-A dedicated **`tree-sitter-vuka`** grammar (covering JSX, decorators, match arms,
-enums and field attributes) is the future enhancement; `extension.toml` and the
-`languages/vuka/*.scm` queries would then point at it instead of tree-sitter-go,
-and `injections.scm` could embed Go inside JSX braces. The VS Code extension's
-TextMate grammar (`editors/vscode/syntaxes/vuka.tmLanguage.json`) is the
-reference for what such a grammar should cover.
+For `.templ` files, run templ with that directory first on `PATH`: a script
+such as `~/.vuka/bin/templ`
 
-## Layout
+```sh
+#!/bin/sh
+PATH="$HOME/.vuka/bin:$PATH" exec "$(go env GOPATH)/bin/templ" "$@"
+```
+
+and `{ "lsp": { "templ": { "binary": { "path": "/Users/you/.vuka/bin/templ" } } } }`.
+
+## Troubleshooting
+
+- **Stale answers after upgrading vuka.** The running server is the old
+  binary: run **editor: restart language server** (or reopen the project).
+  The same after `go get -tool` moves the module's vuka.
+- **"vuka not found".** The message lists where the extension looked. Zed
+  reads `PATH` from your login shell; put `$(go env GOPATH)/bin` on it, or set
+  `lsp.vuka.binary.path`.
+- **No colours from the server in shapes.** Set `semantic_tokens` (above),
+  then restart the server.
+- **What the server is doing.** Add `"-log", "/tmp/vuka-lsp.log"` to
+  `lsp.vuka.binary.arguments`, or open **dev: open language server logs**.
+- **Highlighting looks wrong after editing the grammar.** Zed builds the
+  grammars from the revision in `extension.toml`, not the working tree; see
+  below.
+
+## Developing
 
 ```
 editors/zed/
-  extension.toml                 # Zed manifest: language server + grammar reference
-  Cargo.toml, src/lib.rs         # WASM shell: locates & launches `vuka lsp`
-  languages/vuka/
-    config.toml                  # language config (suffix .vuka, comments, brackets)
-    highlights.scm               # syntax highlighting (tree-sitter-go node names)
-    outline.scm                  # document outline for Go declarations
-    injections.scm               # (placeholder; needs tree-sitter-vuka)
+  extension.toml        manifest: the grammars, the server, capabilities
+  src/lib.rs            finds vuka and starts vuka lsp
+  languages/vuka/       config.toml and the queries for .vuka files
+  languages/vuka-html/  the same for .vuka.html files
+  snippets/             the VS Code extension's snippets
+grammars/tree-sitter-vuka/
+  vuka/                 grammar.js over tree-sitter-go, test/corpus
+  vuka_html/            grammar.js over vuka, test/corpus
+  common/scanner.h      the scanner both share
 ```
+
+The grammars live in this repository and Zed fetches them by commit. After
+changing one:
+
+```sh
+cd grammars/tree-sitter-vuka
+npm ci
+npm run generate   # writes vuka/src and vuka_html/src, committed
+npm test           # the corpus tests
+```
+
+then commit, and set `rev` of both grammars in `extension.toml` to that
+commit. CI checks the generated parsers are current, the corpus passes, every
+query compiles against its grammar, the Go part of the two highlights files
+agrees, and the snippets match the VS Code extension's.
 
 ## License
 

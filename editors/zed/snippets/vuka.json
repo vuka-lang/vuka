@@ -1,0 +1,147 @@
+{
+  "match Result": {
+    "prefix": [
+      "matchr",
+      "match"
+    ],
+    "description": "match on a Result",
+    "body": [
+      "match ${1:expr} {",
+      "case Ok(${2:v}):",
+      "\t$0",
+      "case Err(${3:err}):",
+      "\treturn $3",
+      "}"
+    ]
+  },
+  "match Option": {
+    "prefix": [
+      "matcho",
+      "match"
+    ],
+    "description": "match on an Option",
+    "body": [
+      "match ${1:expr} {",
+      "case Some(${2:v}):",
+      "\t$0",
+      "case None:",
+      "\t",
+      "}"
+    ]
+  },
+  "Web app main": {
+    "prefix": [
+      "webmain",
+      "app"
+    ],
+    "description": "main for a github.com/vuka-lang/web/v2 app",
+    "body": [
+      "func main() {",
+      "\tapp := web.New(pages.Routes())",
+      "\tapp.Service(${1:services.NewStore})",
+      "\tapp.Run(\"\")",
+      "}"
+    ]
+  },
+  "ORM model": {
+    "prefix": [
+      "model",
+      "orm"
+    ],
+    "description": "A model of github.com/vuka-lang/orm/v2: orm.Base with @orm.Meta, fields with attributes",
+    "body": [
+      "type ${1:Post} struct {",
+      "\torm.Base              @orm.Meta{Table: \"${2:posts}\"}",
+      "\tID       int64        @orm.PK",
+      "\t${3:Title}    string       @orm.Char{Max: ${4:200}}",
+      "\t${5:Author}   orm.FK[${6:User}] @orm.Rel{OnDelete: orm.Cascade}",
+      "\t$0",
+      "}"
+    ]
+  },
+  "Decorator": {
+    "prefix": [
+      "decorator",
+      "deco"
+    ],
+    "description": "A decorator: runs around every call of the functions it decorates",
+    "body": [
+      "decorator ${1:logged}(c) {",
+      "\t$0",
+      "\tc.Next()",
+      "}"
+    ]
+  },
+  "Decorator with parameters": {
+    "prefix": [
+      "decoratorp",
+      "decop"
+    ],
+    "description": "A decorator taking parameters",
+    "body": [
+      "decorator ${1:retry}(${2:times int})(c) {",
+      "\tfor i := 0; i < ${3:times}; i++ {",
+      "\t\tif c.Next(); c.Err() == nil {",
+      "\t\t\treturn",
+      "\t\t}",
+      "\t}",
+      "}"
+    ]
+  },
+  "Transaction": {
+    "prefix": [
+      "tx",
+      "transaction"
+    ],
+    "description": "A function run in a transaction with @orm.Transaction: an error or an Err rolls back",
+    "body": [
+      "@orm.Transaction",
+      "func ${1:publish}(ctx context.Context, ${2:slug string}) error {",
+      "\t$0",
+      "\treturn nil",
+      "}"
+    ]
+  },
+  "Static": {
+    "prefix": [
+      "static"
+    ],
+    "description": "A static on a type",
+    "body": [
+      "static ${1:Name} = ${0:value}"
+    ]
+  },
+  "Static method": {
+    "prefix": [
+      "sfunc",
+      "staticfunc"
+    ],
+    "description": "A static method: func Type.Name(…)",
+    "body": [
+      "func ${1:User}.${2:New}(${3:name string}) *$1 {",
+      "\treturn &$1{$0}",
+      "}"
+    ]
+  },
+  "API endpoint": {
+    "prefix": [
+      "api",
+      "endpoint"
+    ],
+    "description": "GET/POST endpoint functions in pages/api/*.vuka (typed parameters)",
+    "body": [
+      "package ${1:api}",
+      "",
+      "import \"context\"",
+      "",
+      "func GET(ctx context.Context) (${2:Response}, error) {",
+      "\t$0",
+      "\treturn $2{}, nil",
+      "}",
+      "",
+      "func POST(ctx context.Context, input ${3:Input}) ($2, error) {",
+      "\treturn $2{}, nil",
+      "}"
+    ]
+  }
+}

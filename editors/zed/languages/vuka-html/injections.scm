@@ -1,26 +1,37 @@
-; The shape's Go is its <script lang="go">: highlighted as Go. A component's
-; <script lang="ts"> is TypeScript, any other script JavaScript, and a
-; <style> CSS, as the HTML grammar has them.
-(script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_name
-      (quoted_attribute_value (attribute_value) @_lang)))
+((comment) @injection.content
+  (#set! injection.language "comment"))
+
+(raw_element
+  (tag_name) @_tag
+  (html_attribute
+    name: (attribute_name) @_name
+    value: (quoted_value (value_text) @_lang))
   (raw_text) @injection.content
+  (#eq? @_tag "script")
   (#eq? @_name "lang")
   (#eq? @_lang "go")
-  (#set! injection.language "go"))
+  (#set! injection.language "vuka"))
 
-(script_element
-  (start_tag
-    (attribute
-      (attribute_name) @_name
-      (quoted_attribute_value (attribute_value) @_lang)))
+(raw_element
+  (tag_name) @_tag
+  (html_attribute
+    name: (attribute_name) @_name
+    value: (quoted_value (value_text) @_lang))
   (raw_text) @injection.content
+  (#eq? @_tag "script")
   (#eq? @_name "lang")
   (#eq? @_lang "ts")
   (#set! injection.language "typescript"))
 
-(style_element
+(raw_element
+  (tag_name) @_tag
+  .
   (raw_text) @injection.content
+  (#eq? @_tag "script")
+  (#set! injection.language "javascript"))
+
+(raw_element
+  (tag_name) @_tag
+  (raw_text) @injection.content
+  (#eq? @_tag "style")
   (#set! injection.language "css"))

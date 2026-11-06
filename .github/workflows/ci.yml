@@ -303,6 +303,38 @@ jobs:
           grep -qx 'node_modules/typescript-language-server/lib/cli.mjs' files.txt
           ! grep -q 'cli.mjs.map' files.txt
 
+  zed:
+    name: editors/zed (grammars, queries, extension)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0 # check.sh reads the grammar revision extension.toml names
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: grammars/tree-sitter-vuka/package-lock.json
+      - run: npm ci
+        working-directory: grammars/tree-sitter-vuka
+      - name: The generated parsers are current
+        working-directory: grammars/tree-sitter-vuka
+        run: |
+          npm run generate
+          git diff --exit-code -- . || { echo "::error::run npm run generate in grammars/tree-sitter-vuka and commit"; exit 1; }
+      - name: Corpus tests
+        run: npm test
+        working-directory: grammars/tree-sitter-vuka
+      - name: Queries, snippets and the grammar revision
+        run: editors/zed/check.sh
+      - name: The extension builds
+        working-directory: editors/zed
+        run: |
+          rustup target add wasm32-wasip2
+          cargo fmt --check
+          cargo clippy --locked --target wasm32-wasip2 -- -D warnings
+
   fuzz:
     name: fuzz ${{ matrix.fuzz }}
     runs-on: ubuntu-24.04

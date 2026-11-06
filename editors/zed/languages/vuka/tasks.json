@@ -1,0 +1,30 @@
+[
+  {
+    "label": "vuka run -watch",
+    "command": "vuka",
+    "args": ["run", "-watch", "."],
+    "cwd": "$ZED_WORKTREE_ROOT",
+    "allow_concurrent_runs": false,
+    "use_new_terminal": false
+  },
+  {
+    "label": "vuka test $ZED_RELATIVE_DIR",
+    "command": "vuka",
+    "args": ["test", "."],
+    "cwd": "$ZED_DIRNAME",
+    "tags": ["vuka-package-test"]
+  },
+  {
+    "label": "vuka test -run $ZED_CUSTOM_test",
+    "command": "vuka",
+    "args": ["test", "-run", "'^$ZED_CUSTOM_test$'", "."],
+    "cwd": "$ZED_DIRNAME",
+    "tags": ["vuka-test"]
+  },
+  {
+    "label": "vuka routes",
+    "command": "vuka",
+    "args": ["routes"],
+    "cwd": "$ZED_WORKTREE_ROOT"
+  }
+]
