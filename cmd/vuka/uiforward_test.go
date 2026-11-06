@@ -21,11 +21,11 @@ func TestUIForwarding(t *testing.T) {
 	}
 	const head = "<script lang=\"go\">\npackage design\n\nimport \"github.com/vuka-lang/ui/v2\"\n\ntype Chip struct {\n\tClass    string\n\tAttrs    []ui.Attr\n\tOn       any\n\tChildren ui.Node\n}\n</script>\n\n"
 	for markup, want := range map[string]string{
-		`<span class={cn("chip", Class)} {Attrs...}>{Children}</span>`: "",
-		`<span class={cn("chip", Class)}>{Children}</span>`:             "Chip declares Attrs and spreads them on no element",
+		`<span class={cn("chip", Class)} {Attrs...}>{Children}</span>`:                                      "",
+		`<span class={cn("chip", Class)}>{Children}</span>`:                                                 "Chip declares Attrs and spreads them on no element",
 		`<span class={cn("chip", Class)} {Attrs...}><button onClick={ui.On(On)}>{Children}</button></span>`: "Chip spreads Attrs on <span>, not on <button>, the element its events (onClick) are on",
-		`<span class={cn(Class, "chip")} {Attrs...}>{Children}</span>`:                                       "Chip declares Class and doesn't merge it last",
-		`<span class={chip.Class("tone", "a", "class", Class)} {Attrs...}>{Children}</span>`:                 "",
+		`<span class={cn(Class, "chip")} {Attrs...}>{Children}</span>`:                                      "Chip declares Class and doesn't merge it last",
+		`<span class={chip.Class("tone", "a", "class", Class)} {Attrs...}>{Children}</span>`:                "",
 	} {
 		ds := forwardingDiags("components/ui/chip.vuka.html", []byte(head+markup+"\n"))
 		switch {
