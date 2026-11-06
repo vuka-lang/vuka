@@ -20,8 +20,8 @@ import (
 // it, and the editor's hover on the component's tag shows it.
 
 // propValues fills in the values of info's props that list them: the
-// constants of a prop's type declared in the package at dir, or the values
-// of the ui.Variants variant its attribute names.
+// constants of a prop's type declared in the package at dir, else the
+// values of the ui.Variants variant its attribute names.
 func propValues(dir string, info *tagInfo) {
 	var srcs [][]byte
 	entries, _ := os.ReadDir(dir)
@@ -44,16 +44,13 @@ func propValues(dir string, info *tagInfo) {
 	}
 	for i := range info.props {
 		pr := &info.props[i]
-		if vs, ok := variants[strings.ToLower(pr.attr)]; ok {
+		if typ := strings.TrimPrefix(pr.typ, "*"); token.IsIdentifier(typ) && !builtinTypes[typ] {
+			for _, src := range srcs {
+				pr.values = append(pr.values, constValues(src, typ)...)
+			}
+		}
+		if vs, ok := variants[strings.ToLower(pr.attr)]; ok && len(pr.values) == 0 {
 			pr.values = vs
-			continue
-		}
-		typ := strings.TrimPrefix(pr.typ, "*")
-		if !token.IsIdentifier(typ) || builtinTypes[typ] {
-			continue
-		}
-		for _, src := range srcs {
-			pr.values = append(pr.values, constValues(src, typ)...)
 		}
 	}
 }

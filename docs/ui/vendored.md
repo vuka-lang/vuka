@@ -140,6 +140,18 @@ Every component takes `class`, added after its own classes and winning
 over them: `class="px-0"` on a button replaces its padding instead of
 fighting it. `attrs` passes any other attribute (`aria-*`, `data-*`, `name`).
 
+### Components That Pass On {#forwarding}
+
+An attribute a component's tag has that the component doesn't declare
+(`onClick`, `id`, `aria-label`) falls through to its `Attrs`, and `class`
+to its `Class`. Each of the registry's components spreads `{Attrs...}` on
+the element its events are on — its root when it has none — and passes
+`Class` last to the class merge, so neither is ever dropped. Keep that as
+you edit them: `vuka vet` warns of a vendored component that spreads `Attrs`
+on no element, or on another than its events', or merges `Class` before
+its own classes ([W0602](/errors/W0602)). The registry is checked for the
+same as it is built.
+
 ## Theming {#theming}
 
 The tokens are CSS variables; the components only name them through

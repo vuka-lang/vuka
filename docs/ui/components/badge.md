@@ -22,7 +22,7 @@ A small label: a status or a count.
 vuka ui add badge
 ```
 
-It writes `components/ui/badge.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.10.0 or newer.
+It writes `components/ui/badge.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
 
 ## Using It
 
@@ -38,7 +38,7 @@ It writes `components/ui/badge.vuka.html`, with what it uses: [cn](/ui/vendored#
 | Prop | Type | |
 |---|---|---|
 | `variant` | `BadgeVariant` | One of `BadgeDefault`, `BadgeSecondary`, `BadgeDestructive`, `BadgeOutline`. |
-| `class` | `string` | Class is added to the badge's classes, winning over them (see cn). |
+| `class` | `string` | Class is added to the badge's classes, winning over them (ui.MergeClasses). |
 | `attrs` | `[]ui.Attr` |  |
 | the content | `ui.Node` |  |
 
@@ -71,7 +71,7 @@ const (
 //	<design.Badge variant={design.BadgeSecondary}>Draft</design.Badge>
 type Badge struct {
 	Variant BadgeVariant
-	// Class is added to the badge's classes, winning over them (see cn).
+	// Class is added to the badge's classes, winning over them (ui.MergeClasses).
 	Class    string
 	Attrs    []ui.Attr
 	Children ui.Node
@@ -81,25 +81,21 @@ const badgeBase = "inline-flex w-fit shrink-0 items-center justify-center gap-1 
 	"text-xs font-medium transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
 	"[&>svg]:pointer-events-none [&>svg]:size-3"
 
-var badgeVariant = map[BadgeVariant]string{
-	BadgeDefault:     "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
-	BadgeSecondary:   "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
-	BadgeDestructive: "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90",
-	BadgeOutline:     "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-}
-
-// badgeVariants are the classes of a badge of variant v; an unknown one is
-// the default.
-func badgeVariants(v BadgeVariant) string {
-	variant, ok := badgeVariant[v]
-	if !ok {
-		variant = badgeVariant[BadgeDefault]
-	}
-	return cn(badgeBase, variant)
+var badgeVariants = ui.Variants{
+	Base: badgeBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+			"secondary":   "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+			"destructive": "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90",
+			"outline":     "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+		},
+	},
+	Defaults: map[string]string{"variant": "default"},
 }
 </script>
 
-<span class={cn(badgeVariants(Variant), Class)} {Attrs...}>{Children}</span>
+<span class={badgeVariants.Class("variant", string(Variant), "class", Class)} {Attrs...}>{Children}</span>
 ```
 
 ```go [badge_html.go]
@@ -127,7 +123,7 @@ const (
 //	<design.Badge variant={design.BadgeSecondary}>Draft</design.Badge>
 type Badge struct {
 	Variant BadgeVariant
-	// Class is added to the badge's classes, winning over them (see cn).
+	// Class is added to the badge's classes, winning over them (ui.MergeClasses).
 	Class    string
 	Attrs    []ui.Attr
 	Children ui.Node
@@ -137,25 +133,21 @@ const badgeBase = "inline-flex w-fit shrink-0 items-center justify-center gap-1 
 	"text-xs font-medium transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 " +
 	"[&>svg]:pointer-events-none [&>svg]:size-3"
 
-var badgeVariant = map[BadgeVariant]string{
-	BadgeDefault:     "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
-	BadgeSecondary:   "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
-	BadgeDestructive: "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90",
-	BadgeOutline:     "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
-}
-
-// badgeVariants are the classes of a badge of variant v; an unknown one is
-// the default.
-func badgeVariants(v BadgeVariant) string {
-	variant, ok := badgeVariant[v]
-	if !ok {
-		variant = badgeVariant[BadgeDefault]
-	}
-	return cn(badgeBase, variant)
+var badgeVariants = ui.Variants{
+	Base: badgeBase,
+	Variants: map[string]map[string]string{
+		"variant": {
+			"default":     "border-transparent bg-primary text-primary-foreground [a&]:hover:bg-primary/90",
+			"secondary":   "border-transparent bg-secondary text-secondary-foreground [a&]:hover:bg-secondary/90",
+			"destructive": "border-transparent bg-destructive text-white [a&]:hover:bg-destructive/90",
+			"outline":     "text-foreground [a&]:hover:bg-accent [a&]:hover:text-accent-foreground",
+		},
+	},
+	Defaults: map[string]string{"variant": "default"},
 }
 
 func (b Badge) View() ui.Node {
-	return ui.HTML(`<span class={cn(badgeVariants(b.Variant), b.Class)} {b.Attrs...}>{b.Children}</span>`, cn(badgeVariants(b.Variant), b.Class), b.Attrs, b.Children)
+	return ui.HTML(`<span class={badgeVariants.Class("variant", string(b.Variant), "class", b.Class)} {b.Attrs...}>{b.Children}</span>`, badgeVariants.Class("variant", string(b.Variant), "class", b.Class), b.Attrs, b.Children)
 }
 
 func (b Badge) Render(ctx context.Context, w io.Writer) error { return b.View().Render(ctx, w) }

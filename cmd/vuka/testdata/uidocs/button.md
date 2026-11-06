@@ -9,6 +9,8 @@
 `on` takes a live handler or a `ui.JS` chain. The variant can be written as
 its string too: `variant="outline"`.
 
-The classes live in two Go maps in the file, `buttonVariant` and
-`buttonSize`, joined by `buttonVariants(v, s)`: a new variant is a constant
-and a map entry.
+The classes are data: `buttonVariants`, a [`ui.Variants`](/ui/classes),
+holds each variant's and size's classes, and
+`buttonVariants.Class("variant", …, "size", …, "class", Class)` merges them
+with yours last, so your `class` wins. A new variant is a constant and an
+entry under `"variant"`; the editor completes `variant="…"` from them.
