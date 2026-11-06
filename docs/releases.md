@@ -133,6 +133,28 @@ parameter keeps the call a handler.
   `state('total')`, typed read only. Needs ui and web at the release's
   version. See [Derived Values](/ui/state#derived).
 
+### Component Classes
+
+- **`ui.Variants`, a component's classes by its props**
+  ([#357](https://github.com/vuka-lang/vuka/issues/357)), as cva writes
+  them: `Base`, the classes each value of each variant adds and the
+  `Defaults`; `alert.Class("tone", Tone, "class", Class)` is the classes for
+  a tag's props, so `<Alert tone="error">` needs no class string. A name
+  that isn't a variant or a value it doesn't have fails the render
+  ([E0371](/errors/E0371)) with the nearest one; vukavet's `variants` check
+  reports it in the source, a tag's attribute included, and the editor
+  completes a tag's attribute with the variant's values.
+- **`ui.MergeClasses` merges Tailwind utilities, a later one winning in its
+  group**: padding, margin, sizing, colours, display, position, typography,
+  borders and radius, flex and grid, effects; only under the same variants,
+  a side refining its whole. Cached by its input. See
+  [Component Classes](/ui/classes).
+- **A caller's `class` wins over a kit component's own utilities**
+  (behaviour change). `<ui.Skeleton class="rounded-full">` replaces the
+  bone's `rounded-md` instead of adding to it; classes that aren't
+  Tailwind's, the kit's `vk-` ones, are kept as before. Needs ui at the
+  release's version.
+
 ### The ORM
 
 - **`Indexes`, `Checks` and `Generated` on `orm.Base`.** The base declares
