@@ -69,8 +69,8 @@ through the Go they compile to (a bare `{Title}` is the receiver's field, so
 go to definition lands on it in the shape's script), and their errors show at
 their lines.
 
-VS Code highlights them as HTML with Go in braces and at line
-starts, TypeScript in `<script lang="ts">` and CSS in `<style>`, Zed reads the markup as HTML.
+VS Code and Zed highlight them as HTML with Go in braces and at line
+starts, TypeScript in `<script lang="ts">` and CSS in `<style>`.
 
 ### Scripts {#scripts}
 
@@ -606,6 +606,37 @@ the language server for `.vuka` and `.vuka.html` files, highlighting of
 
 `.vuka.html` files open as HTML. GoLand serves `.go` files itself, not through gopls, so
 `.go` files don't see code declared in `.vuka` files.
+
+## Zed {#zed}
+
+The extension lives in
+[`editors/zed`](https://github.com/vuka-lang/vuka/tree/main/editors/zed): the
+language server for `.vuka` and `.vuka.html` files, highlighting by Vuka's own
+tree-sitter grammars (in
+[`grammars/tree-sitter-vuka`](https://github.com/vuka-lang/vuka/tree/main/grammars/tree-sitter-vuka)),
+closing markup tags as you type, the VS Code extension's snippets, run buttons
+on tests, and `vuka run -watch`, `vuka test` and `vuka routes` tasks. It runs
+`go tool vuka lsp` when `go.mod` declares vuka as a tool, else `vuka lsp`, and
+installs the TypeScript server for `<script lang="ts">` with Zed's Node.
+
+Two settings complete it — the server's colours for shape names, and organized
+imports on save:
+
+```json
+{
+  "languages": {
+    "Vuka HTML": {
+      "semantic_tokens": "combined",
+      "code_actions_on_format": { "source.organizeImports": true }
+    }
+  }
+}
+```
+
+The same under `"Vuka"` for `.vuka` files. The extension's
+[README](https://github.com/vuka-lang/vuka/tree/main/editors/zed#readme) has
+the rest: the other settings, Tailwind CSS, serving `.go` and `.templ` files
+through Vuka, and what differs from VS Code.
 
 ## Other Editors {#other-editors}
 
