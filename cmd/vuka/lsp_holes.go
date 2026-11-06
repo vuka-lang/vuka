@@ -46,6 +46,10 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 			return false, p.routeNote(path, src, off)
 		}
 		s := scanShape(path, src)
+		if h := p.slotHover(path, src, s, off); h != nil {
+			reply(h)
+			return true, ""
+		}
 		if e, ok := s.eventAt(off); ok && off <= e.attr.end {
 			// gopls has nothing on an attribute's name; an element's
 			// event gets its MDN description too.
@@ -81,6 +85,12 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 			return true, ""
 		}
 	case "textDocument/definition":
+		if html {
+			if loc, ok := p.slotDefinition(path, src, scanShape(path, src), off); ok {
+				reply([]any{loc})
+				return true, ""
+			}
+		}
 		if loc, ok := p.routeTargetAt(path, src, off); ok {
 			reply([]any{loc})
 			return true, ""

@@ -1,0 +1,15 @@
+<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Page misspells its components' slots.
+type Page struct{}
+</script>
+
+<main>
+  <ui.Card><slot:headr>x</slot:headr>body</ui.Card>
+  <Box title="t"><slot:foter>x</slot:foter></Box>
+  <Panel><slot:actoins>x</slot:actoins>body</Panel>
+  <Panel><slot:menu>x</slot:menu>body</Panel>
+</main>

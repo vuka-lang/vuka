@@ -109,6 +109,17 @@ parameter keeps the call a handler.
   clause. See [Keeping the Script in a File Beside the
   Markup](/ui/templates#script-file).
 
+- **Slots in the editor** ([#390](https://github.com/vuka-lang/vuka/issues/390)).
+  `<slot:` completes the component's slots with their doc comments, but
+  those its tag already fills; hover on `<slot:footer>` shows the field, its
+  doc and a scoped slot's `let` types; go to definition opens the field.
+  It works alike for the app's components, a library's and a templ
+  component's. A slot a component doesn't have is now
+  [E0106](/errors/E0106) with did-you-mean for every component,
+  `<ui.Await>` and `<ui.Suspense>` included (they reported it as
+  [E0370](/errors/E0370) and [E0351](/errors/E0351)). See
+  [Editors](/tools/editors).
+
 ### Live pages
 
 - **Deferred fields on pages and components rendered by their own markup.**

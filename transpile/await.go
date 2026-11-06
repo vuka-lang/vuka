@@ -91,8 +91,8 @@ func (w *jsxWriter) content(ns []jsxNode) {
 }
 
 // checkAwait reports f's sections outside a live component's markup, their
-// misplaced attributes and slots (E0370), and a key naming no group the
-// component defers (E0325).
+// misplaced attributes and slots (E0370; a slot it doesn't have, E0106),
+// and a key naming no group the component defers (E0325).
 func (e *engine) checkAwait(f *fileState) {
 	var walk func(ns []jsxNode)
 	walk = func(ns []jsxNode) {
@@ -170,12 +170,7 @@ func (e *engine) awaitErrors(f *fileState, el *jsxElem) {
 		name := strings.TrimPrefix(s.tag, "slot:")
 		switch {
 		case name != "pending" && name != "error":
-			err := e.errs.add("E0370", f.at(s.start), "<%s> has a <slot:pending> and a <slot:error>, not <%s>", el.tag, s.tag)
-			if c := closestName(name, []string{"pending", "error"}); c != "" {
-				err.suggest("<slot:" + c + ">")
-			} else {
-				err.help("write <slot:pending>…</slot:pending> for what shows while the group loads, <slot:error>…</slot:error> for a failure")
-			}
+			e.errs.add("E0106", f.at(s.start), "%s", unknownSlot(el.tag, name, []string{"pending", "error"}))
 		case seen[name]:
 			e.errs.add("E0370", f.at(s.start), "<%s> has a second <%s>", el.tag, s.tag).help("keep one")
 		case name == "pending" && len(s.lets) > 0:

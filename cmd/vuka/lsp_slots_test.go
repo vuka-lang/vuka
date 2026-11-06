@@ -14,7 +14,8 @@ import "github.com/vuka-lang/ui/v2"
 
 // Board lists tasks through its caller's slots.
 type Board[T any] struct {
-	Items   []T
+	Items []T
+	// Row renders one task.
 	Row     func(T, int) ui.Node ` + "`vuka:\"required\"`" + `
 	Columns []Column[T]
 	Actions ui.Node
@@ -63,14 +64,11 @@ func slotsProxy(t *testing.T) (*proxy, string) {
 	return p, filepath.Join(root, "pages", "index.vuka.html")
 }
 
-// TestSlotCompletion: <slot: inside a component's tag offers its slots —
-// a Node, a func returning one (with a let for its values) and a slice of
-// structs (in the singular) — and nothing outside one.
-func TestSlotCompletion(t *testing.T) {
-	p, page := slotsProxy(t)
-	src := []byte(slotsPageSrc)
-	at := strings.Index(slotsPageSrc, "<slot:\n") + len("<slot:")
-	items, ok := p.slotCompletion(page, src, at)
+// slotItems completes <slot: at the first "<slot:\n" of page.
+func slotItems(t *testing.T, p *proxy, path, page string) map[string]map[string]any {
+	t.Helper()
+	at := strings.Index(page, "<slot:\n") + len("<slot:")
+	items, ok := p.slotCompletion(path, []byte(page), at)
 	if !ok {
 		t.Fatal("no completion after <slot:")
 	}
@@ -79,12 +77,30 @@ func TestSlotCompletion(t *testing.T) {
 		m := it.(map[string]any)
 		got[m["label"].(string)] = m
 	}
+	return got
+}
+
+// TestSlotCompletion: <slot: inside a component's tag offers its slots —
+// a Node, a func returning one (with a let for its values) and a slice of
+// structs (in the singular) — with their docs, but those the tag already
+// fills, and nothing outside one.
+func TestSlotCompletion(t *testing.T) {
+	p, page := slotsProxy(t)
+	got := slotItems(t, p, page, slotsPageSrc)
+	if len(got) != 2 || got["slot:row"] != nil || got["slot:column"] == nil || got["slot:actions"] == nil {
+		t.Fatalf("Board's slots but row, which the tag fills: %v", keys(got))
+	}
+	unfilled := strings.Replace(slotsPageSrc, "    <slot:row let={t, i}>{i}: {t.Title}</slot:row>\n", "    <slot:column header=\"a\" let={t}>{t}</slot:column>\n", 1)
+	got = slotItems(t, p, page, unfilled)
 	if len(got) != 3 || got["slot:title"] != nil || got["slot:items"] != nil {
 		t.Fatalf("Board's slots: %v", got)
 	}
 	row := got["slot:row"]
 	if row["detail"] != "func(T, int) ui.Node" || row["labelDetails"].(map[string]any)["description"] != "required scoped slot" {
 		t.Errorf("the row slot: %v", row)
+	}
+	if doc, _ := row["documentation"].(map[string]any); doc["value"] != "Row renders one task." {
+		t.Errorf("the row slot's doc: %v", row["documentation"])
 	}
 	if text := row["textEdit"].(map[string]any)["newText"]; text != "slot:row let={${1:t, i}}>$0</slot:row>" {
 		t.Errorf("the row slot's text: %v", text)
@@ -96,7 +112,7 @@ func TestSlotCompletion(t *testing.T) {
 	if a := got["slot:actions"]; a == nil || a["textEdit"].(map[string]any)["newText"] != "slot:actions>$0</slot:actions>" {
 		t.Errorf("the actions slot: %v", a)
 	}
-	outside := strings.Replace(slotsPageSrc, "<p>{t}</p>", "<slot:", 1)
+	outside := strings.Replace(unfilled, "<p>{t}</p>", "<slot:", 1)
 	if _, ok := p.slotCompletion(page, []byte(outside), strings.LastIndex(outside, "<slot:")+len("<slot:")); ok {
 		t.Error("a slot offered outside a component's tag")
 	}
@@ -258,6 +274,177 @@ func TestLSPLetHover(t *testing.T) {
 	}
 }
 
+// TestSlotHover: hover on a slot's tag, opening or closing, shows the field
+// it fills, its doc and the types of the values its let names.
+func TestSlotHover(t *testing.T) {
+	p, page := slotsProxy(t)
+	src := []byte(slotsPageSrc)
+	s := scanShape(page, src)
+	for _, at := range []int{strings.Index(slotsPageSrc, "slot:row let") + 2, strings.Index(slotsPageSrc, "</slot:row>") + 4} {
+		h, _ := p.slotHover(page, src, s, at).(map[string]any)
+		if h == nil {
+			t.Fatalf("no hover at %d", at)
+		}
+		md := h["contents"].(map[string]any)["value"].(string)
+		for _, want := range []string{"**required scoped slot** `<slot:row>` · `Row func(T, int) ui.Node` of `<components.Board>`", "[board.vuka.html](", "#L10)", "Row renders one task.", "`let={t, i}` names `t T`, `i int`"} {
+			if !strings.Contains(md, want) {
+				t.Errorf("hover at %d lacks %q: %s", at, want, md)
+			}
+		}
+	}
+	if h := p.slotHover(page, src, s, strings.Index(slotsPageSrc, "{t.Title}")+2); h != nil {
+		t.Errorf("hover on a slot's content: %v", h)
+	}
+}
+
+// TestSlotDefinition: definition on a slot's name goes to the field it
+// fills, a repeated slot's to its slice.
+func TestSlotDefinition(t *testing.T) {
+	p, page := slotsProxy(t)
+	board := filepath.Join(p.modRoot, "components", "board.vuka.html")
+	for slot, want := range map[string]lspRange{
+		"<slot:row let={t, i}>{i}: {t.Title}</slot:row>": {lspPosition{9, 1}, lspPosition{9, 4}},
+		"<slot:column header=\"a\">x</slot:column>":      {lspPosition{10, 1}, lspPosition{10, 8}},
+		"<slot:actions>x</slot:actions>":                 {lspPosition{11, 1}, lspPosition{11, 8}},
+	} {
+		page2 := strings.Replace(slotsPageSrc, "<slot:row let={t, i}>{i}: {t.Title}</slot:row>", slot, 1)
+		loc, ok := p.slotDefinition(page, []byte(page2), scanShape(page, []byte(page2)), strings.Index(page2, slot)+3)
+		if !ok || loc["uri"] != pathToURI(board) || loc["range"] != want {
+			t.Errorf("definition of %s: %v, want %v", slot, loc, want)
+		}
+	}
+}
+
+const slotsPanelTempl = `package panel
+
+type PanelProps struct {
+	Title string
+	// Header is the panel's top bar.
+	Header templ.Component
+	// Footer sits under the body.
+	Footer templ.Component
+}
+
+templ Panel(p PanelProps) {
+	<section>
+		if p.Header != nil {
+			@p.Header
+		}
+		{ children... }
+		if p.Footer != nil {
+			@p.Footer
+		}
+	</section>
+}
+`
+
+const slotsLibList = `<script lang="go">
+package lists
+
+import "github.com/vuka-lang/ui/v2"
+
+// List renders names through its caller's Row.
+type List struct {
+	Names []string
+	// Row is one name's line.
+	Row func(string, int) ui.Node
+}
+</script>
+
+<ul>
+  for i, n := range Names {
+    <li>{Row(n, i)}</li>
+  }
+</ul>
+`
+
+const slotsLibPage = `<script lang="go">
+package pages
+
+import (
+	"lsptest/components/lists"
+	"lsptest/components/panel"
+)
+
+type Index struct{ Names []string }
+</script>
+
+<main>
+  <panel.Panel title="Orders">
+    <slot:header><b>Orders</b></slot:header>
+    <slot:footr>more</slot:footr>
+  </panel.Panel>
+  <lists.List names={Names}>
+    <slot:row let={name, i}><b>{name}</b>{i}</slot:row>
+  </lists.List>
+</main>
+`
+
+// TestLSPSlotsLibrary: a templ library's component and another package's
+// component take the same slot support as the page's own: an unknown slot
+// is E0106 with the nearest name, <slot: completes the slots not filled
+// yet with their docs, hover on a slot's tag shows its field, definition
+// goes to it, and a let's names complete in the slot's content.
+func TestLSPSlotsLibrary(t *testing.T) {
+	files := map[string]string{"main.go": "package main\n\nimport _ \"lsptest/pages\"\n\nfunc main() {}\n",
+		"components/panel/panel.templ": slotsPanelTempl, "components/lists/list.vuka.html": slotsLibList, "pages/index.vuka.html": slotsLibPage}
+	c, dir, _ := startLSPWith(t, templFiles(t, files))
+	uri := pathToURI(filepath.Join(dir, "pages", "index.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": slotsLibPage}})
+	var got string
+	c.waitDiags(uri, func(ds []any) bool {
+		got = strings.NewReplacer(`\u003c`, "<", `\u003e`, ">").Replace(jsonOf(ds))
+		return strings.Contains(got, "E0106")
+	})
+	if !strings.Contains(got, `has no slot footr; did you mean <slot:footer>?`) {
+		t.Errorf("the unknown slot's diagnostic: %s", got)
+	}
+
+	typing := strings.Replace(slotsLibPage, "<slot:footr>more</slot:footr>", "<slot:", 1)
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 2}, "contentChanges": []any{map[string]any{"text": typing}}})
+	items := completionItems(c, uri, typing, "</slot:header>\n    <slot:")
+	if _, ok := items["slot:header"]; ok || items["slot:footer"] == nil {
+		t.Fatalf("Panel's slots but header: %v", keys(items))
+	}
+	if doc := itemDoc(items["slot:footer"]); doc != "Footer sits under the body." {
+		t.Errorf("footer's doc: %q", doc)
+	}
+	valid := strings.Replace(slotsLibPage, "<slot:footr>more</slot:footr>", "<slot:footer>more</slot:footer>", 1)
+	c.notify("textDocument/didChange", map[string]any{"textDocument": map[string]any{"uri": uri, "version": 3}, "contentChanges": []any{map[string]any{"text": valid}}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+
+	pos := positionOf([]byte(valid), strings.Index(valid, "slot:header")+6)
+	h, _ := c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}).(map[string]any)
+	if md := slotHoverText(h); !strings.Contains(md, "`Header templ.Component` of `<panel.Panel>`") || !strings.Contains(md, "the panel's top bar") {
+		t.Errorf("hover on the header slot: %s", md)
+	}
+	defs, _ := c.call("textDocument/definition", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}).([]any)
+	if len(defs) != 1 || !strings.HasSuffix(defs[0].(map[string]any)["uri"].(string), "panel.templ") || jsonOf(defs[0].(map[string]any)["range"]) != `{"end":{"character":7,"line":5},"start":{"character":1,"line":5}}` {
+		t.Errorf("definition of the header slot: %v", defs)
+	}
+	pos = positionOf([]byte(valid), strings.Index(valid, "slot:row")+6)
+	h, _ = c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}).(map[string]any)
+	if md := slotHoverText(h); !strings.Contains(md, "`let={name, i}` names `name string`, `i int`") || !strings.Contains(md, "one name's line") {
+		t.Errorf("hover on the row slot: %s", md)
+	}
+
+	var names map[string]map[string]any
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		if names = completionItems(c, uri, valid, "<b>{na"); names["name"] != nil {
+			break
+		}
+	}
+	if names["name"] == nil || !strings.Contains(jsonOf(names["name"]), "string") {
+		t.Errorf("the let's name doesn't complete in the slot: %v", keys(names))
+	}
+}
+
+func slotHoverText(h map[string]any) string {
+	c, _ := h["contents"].(map[string]any)
+	v, _ := c["value"].(string)
+	return v
+}
+
 const slotsGenericList = `<script lang="go">
 package main
 
@@ -314,5 +501,10 @@ func TestLSPInferredLetHover(t *testing.T) {
 		if !strings.Contains(md, want) {
 			t.Errorf("hover on o lacks %q: %s", want, md)
 		}
+	}
+	pos := positionOf([]byte(slotsGenericPage), strings.Index(slotsGenericPage, "slot:row")+6)
+	h, _ := c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}).(map[string]any)
+	if md := slotHoverText(h); !strings.Contains(md, "`let={o, i}` names `o Order`, `i int`") {
+		t.Errorf("hover on the row slot lacks the inferred type: %s", md)
 	}
 }
