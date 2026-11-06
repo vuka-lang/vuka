@@ -1,1 +1,1 @@
-page.vuka.html:3:1: this markup has no struct above it: a .vuka.html file declares the struct it renders in its Go header; declare the struct it renders between the imports and the markup: type Page struct {…}
+page.vuka.html:3:1: this markup has no struct above it: a .vuka.html file declares the struct it renders in its script, or in a script file beside it; declare the struct it renders in page.go beside it, or in a <script lang="go"> above its markup: type Page struct {…}

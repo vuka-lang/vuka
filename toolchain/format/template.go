@@ -74,7 +74,16 @@ func TemplateWith(src []byte, pkg string, o Options) ([]byte, error) {
 		if end < 0 {
 			end = len(text)
 		}
-		f, err := formatGo(text[:end], 0)
+		var f string
+		var err error
+		if transpile.ParseTemplateHead([]byte(text[:end])).Package == "" {
+			// markup alone: the imports and comments above it, its script a
+			// file beside it
+			f, err = formatGo("package p\n"+text[:end], -1)
+			f = strings.TrimLeft(strings.TrimPrefix(f, "package p\n"), "\n")
+		} else {
+			f, err = formatGo(text[:end], 0)
+		}
 		if err != nil {
 			return nil, err
 		}
@@ -149,9 +158,11 @@ var packageLine = regexp.MustCompile(`^package\s+\w+`)
 
 // TemplatePackage is a template file starting with the package clause of
 // pkg when it has none: above its leading comment, unless a blank line ends
-// that comment (a file comment rather than a template's doc comment).
+// that comment (a file comment rather than a template's doc comment). A
+// file of markup alone whose script is a file beside it has none: pass ""
+// for pkg.
 func TemplatePackage(src []byte, pkg string) []byte {
-	if transpile.ParseTemplateHead(src).Package != "" {
+	if transpile.ParseTemplateHead(src).Package != "" || pkg == "" {
 		return src
 	}
 	if p, err := transpile.SplitTemplate(src); err == nil && p.IsScript() {

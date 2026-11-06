@@ -127,6 +127,90 @@ tracked fields read and write there as in the script. A method in a `.go`
 file can't use them ([E0155](/errors/E0155)); see [where its methods
 live](/ui/stateful#where-its-methods-live).
 
+## Keeping the Script in a File Beside the Markup {#script-file}
+
+A page that does real work has a long script, and the file reads as Go with
+a template at the bottom. Its script can live in a file beside the
+template, named as it is, and the template keeps its markup alone:
+
+```text
+pages/orders/index.vuka.html   ← the markup
+pages/orders/index.go          ← package, type Orders, its hooks, methods and helpers
+```
+
+<!-- go:context
+type Order struct{ ID int64 }
+
+type Shop struct{}
+
+func (*Shop) Orders(ctx context.Context) ([]Order, error) { return nil, nil }
+func (*Shop) Cancel(ctx context.Context, id int64) error   { return nil }
+-->
+
+```go
+// pages/orders/index.go
+package orders
+
+import (
+	"context"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Orders lists the visitor's orders.
+type Orders struct {
+	ui.Live
+	orders []Order
+	shop   *Shop
+}
+
+// Load reads the visitor's orders.
+func (p *Orders) Load(ctx context.Context) error {
+	var err error
+	p.orders, err = p.shop.Orders(ctx)
+	return err
+}
+
+// Cancel cancels an order.
+func (p *Orders) Cancel(ctx context.Context, id int64) error {
+	return p.shop.Cancel(ctx, id)
+}
+```
+
+```html
+<!-- pages/orders/index.vuka.html -->
+import "example.com/shop/components"
+
+<main>
+  <button onClick={Load}>Show my orders</button>
+  for _, o := range orders {
+    <components.OrderRow order={o} onCancel={Cancel} />
+  }
+</main>
+```
+
+The markup sees the struct's fields and methods by their bare names, and the
+script file's imports, as it sees an inline script's; the imports only the
+markup uses go at the top of the template, before it. The file renders the
+struct named after the template, else the script file's only struct, as an
+inline script does ([E0147](/errors/E0147)). The two forms are the same
+component: declaring the struct in both is [E0174](/errors/E0174).
+
+The script file is `.go` or `.vuka`:
+
+| | `index.go` | `index.vuka` |
+|---|---|---|
+| Is | plain Go: gopls, linters and `go vet` read it as it is | vuka source, compiled as the inline script is |
+| Hooks and field attributes | none: Go has no decorators, so a struct with `@ui.Mount` or `@ui.Bind` takes a `.vuka` script file | the decorators, as in an inline script: `@ui.Mount`, `Q string @ui.Bind @ui.URL("q")` |
+| Server state | plain fields: the component renders again after each of its events | [tracked](/ui/stateful#change-tracking), as an inline script's |
+| vuka syntax (`?`, `match`, enums) | no | yes |
+
+Move a script out once it is longer than the markup. In the editor, the
+*Move the script to index.go* action (in the script; `index.vuka` when it
+uses vuka syntax) writes the script file and leaves the template its markup
+and the imports only the markup uses; *Move the script from index.go into
+this file* moves it back.
+
 ## Laying Out the File {#the-file}
 
 The `<script lang="go">` comes first: only blank lines and `<!-- comments -->`
