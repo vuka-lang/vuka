@@ -1,0 +1,10 @@
+package main
+
+// Prefs keeps its theme in the browser and shares its sidebar across tabs.
+type Prefs struct {
+	theme   ui.State[string] @ui.Keep("theme")
+	sidebar ui.State[bool]   @ui.Keep("sidebar") @ui.Shared
+}
+<nav data-theme={theme} hidden={!sidebar}>
+  <button onClick={sidebar = !sidebar}>Menu</button>
+</nav>

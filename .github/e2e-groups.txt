@@ -12,6 +12,7 @@
 # clientstate_e2e_test.go
 TestDerivedE2E
 TestWatchesE2E
+TestKeepSharedE2E
 # contextvars_e2e_test.go
 TestContextProcessorsE2E
 TestContextProcessorsFolderPagesE2E

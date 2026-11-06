@@ -97,6 +97,7 @@ public github.com/vuka-lang/ui/v2.Island
 public github.com/vuka-lang/ui/v2.JS
 public github.com/vuka-lang/ui/v2.JSChain
 public github.com/vuka-lang/ui/v2.JSON
+public github.com/vuka-lang/ui/v2.Keep
 public github.com/vuka-lang/ui/v2.Key
 public github.com/vuka-lang/ui/v2.Layout
 public github.com/vuka-lang/ui/v2.Live
@@ -121,6 +122,7 @@ public github.com/vuka-lang/ui/v2.Props
 public github.com/vuka-lang/ui/v2.Ptr
 public github.com/vuka-lang/ui/v2.RegisterIsland
 public github.com/vuka-lang/ui/v2.Safe
+public github.com/vuka-lang/ui/v2.Shared
 public github.com/vuka-lang/ui/v2.Show
 public github.com/vuka-lang/ui/v2.ShowProps
 public github.com/vuka-lang/ui/v2.Slot

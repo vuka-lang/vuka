@@ -25,6 +25,10 @@ func TestDerivedErrors(t *testing.T) {
 		{"Notify on a Derived", "\ttotal ui.Derived[int] @ui.From(count * price) @ui.Notify(Seen)\n", "func (c *Cart) Seen(n int) {}\n<p>{total}</p>\n", "E0178 cart.vuka.html:9:48: @ui.Notify goes on a ui.State field; total is a stateui.Derived[int]"},
 		{"Notify naming no method", "\ttab ui.State[string] @ui.Notify(OnTba)\n", "func (c *Cart) OnTab(tab string) {}\n<p>{tab}</p>\n", "E0178 cart.vuka.html:9:34: @ui.Notify names OnTba, which isn't a method of Cart; did you mean OnTab?"},
 		{"Notify's handler of another type", "\ttab ui.State[string] @ui.Notify(OnTab)\n", "func (c *Cart) OnTab(n int) {}\n<p>{tab}</p>\n", "E0178 cart.vuka.html:9:34: OnTab takes (n int); @ui.Notify on tab calls it with one string; declare it func (…) OnTab(tab string)"},
+		{"Keep on a Derived", "\ttotal ui.Derived[int] @ui.From(count * price) @ui.Keep(\"total\")\n", "<p>{total}</p>\n", "E0179 cart.vuka.html:9:48: @ui.Keep goes on a ui.State field; total is a stateui.Derived[int]"},
+		{"Keep's key not a constant", "\ttheme ui.State[string] @ui.Keep(Prefix)\n\tPrefix string\n", "<p>{theme}</p>\n", "E0179 cart.vuka.html:9:34: @ui.Keep takes a constant name"},
+		{"two fields under one key", "\ttheme ui.State[string] @ui.Keep(\"theme\")\n\tmode ui.State[string] @ui.Keep(\"theme\")\n", "<p>{theme}{mode}</p>\n", "E0179 cart.vuka.html:10:33: Cart.theme and Cart.mode are both kept as \"theme\""},
+		{"Shared on a func", "\tdone ui.State[func()] @ui.Shared\n", "<p>{count}</p>\n", "E0179 cart.vuka.html:9:24: @ui.Shared sends done as JSON, and a func() holds a func"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rest := c.rest

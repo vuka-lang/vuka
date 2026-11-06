@@ -144,6 +144,17 @@ parameter keeps the call a handler.
   [E0178](/errors/E0178). Needs ui and web at the release's version. See
   [Watching State](/ui/state#watching).
 
+- **Kept and shared state** ([#370](https://github.com/vuka-lang/vuka/issues/370)).
+  `theme ui.State[string] @ui.Keep("theme")` keeps a state in
+  localStorage: the stored value wins over the rendered one at load, every
+  write is stored, and a browser refusing storage leaves a plain state.
+  `@ui.Shared` sends a state's writes to the page's other tabs over a
+  BroadcastChannel, applied there as their own writes (their watches run).
+  A key that isn't a constant or names two fields, or a value JSON can't
+  hold, is [E0179](/errors/E0179). Kept values are client data: never trust
+  them on the server. Needs ui and web at the release's version. See
+  [Keeping State](/ui/state#keep).
+
 ### Component Classes
 
 - **`ui.Variants`, a component's classes by its props**

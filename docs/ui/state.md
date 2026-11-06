@@ -113,6 +113,45 @@ component method, `p.open = false` sends the browser update.
 > [!WARNING]
 > Browser state is not durable storage or trusted authorization data.
 
+## Keeping State {#keep}
+
+Browser state ends with the tab. `@ui.Keep("key")` keeps a state in the
+browser's localStorage instead: the value stored wins over the rendered
+one when the page loads, and every write is stored. `@ui.Shared` sends a
+state's writes to the page's other tabs, which apply them as their own
+writes, so their watches run:
+
+```html
+<script lang="go">
+package layouts
+
+import "github.com/vuka-lang/ui/v2"
+
+type Shell struct {
+	theme   ui.State[string] @ui.Keep("theme")
+	sidebar ui.State[bool]   @ui.Keep("sidebar") @ui.Shared
+}
+</script>
+
+<div data-theme={theme}>
+  <button onClick={sidebar = !sidebar}>Menu</button>
+  <aside hidden={!sidebar}>…</aside>
+</div>
+```
+
+- The value is stored as JSON, under the key prefixed `vuka:`, one per
+  origin: each key names one field ([E0179](/errors/E0179)).
+- A private window or storage the browser refuses leaves it an ordinary
+  state, and a browser without `BroadcastChannel` keeps its writes to its
+  own tab.
+- The server renders the state's initial value; the browser shows the kept
+  one as the page starts. A layout that must render with the visitor's
+  choice keeps it in a cookie or the server's session instead.
+
+> [!WARNING]
+> A kept value is the visitor's data, written in their browser: never
+> trust it on the server.
+
 ## Watching State {#watching}
 
 Something can run when a state changes: a script's code, or a method of a
