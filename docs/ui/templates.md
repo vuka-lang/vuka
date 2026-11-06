@@ -278,16 +278,29 @@ Holes accept Go expressions; their required type depends on their place:
 
 <span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment.
 
-### Fallible Values {#calls-returning-an-error}
+### Fallible and Optional Values {#calls-returning-an-error}
 
 Wherever markup takes one value — a hole, an attribute, a component's
 prop, a `for`'s range, an `if`'s or a `switch`'s condition — it takes a
-fallible value as the value it holds:
+fallible or optional value as the value it holds:
 
-| In markup | Is | When it fails |
+| In markup | Is | Without a value |
 |---|---|---|
 | a call returning `(T, error)` | its `T`: `ui.Must(call)` | the error fails the render |
 | a `vuka.Result[T]` | its `T`: `ui.Must(r.Get())` | an `Err` fails the render |
+| a `vuka.Option[T]` | its `T`: `o.Value()` | `None` is `T`'s zero value, never an error |
+
+An `Option` is absence, not failure: `None` shows as nothing in text, is
+`""` in a string prop and `false` in a condition, and an attribute follows
+its own rule for an empty value.
+
+```html
+<td>{e.Name}</td>                      <!-- Some: the name; None: nothing -->
+<components.Badge label={e.Status} />  <!-- None: "" -->
+if e.Verified {                        <!-- None: false -->
+  <i>verified</i>
+}
+```
 
 ```html
 <ul class={Store.ListClass()}>
@@ -309,12 +322,14 @@ it twice.
 A value keeps its type where it is used as it is, as in Go:
 
 - a call passing its results on, `{fmt.Sprint(Store.Users())}`, and an
-  argument whose parameter takes a `Result`, `{fmt.Sprint(r)}`;
-- a `Result`'s own methods, `r.IsErr()`, `r.UnwrapOr(nil)`;
-- a prop whose field is a `Result`, `any` or a type parameter;
+  argument whose parameter takes a `Result` or an `Option`,
+  `{fmt.Sprint(r)}`;
+- their own methods, `r.IsErr()`, `r.UnwrapOr(nil)`, `o.IsSome()`;
+- a prop whose field is the same `Result` or `Option`, `any` or a type
+  parameter;
 - a statement binding both results, `users, err := Store.Users()`, or a
-  name to a `Result`, `r := orders.List(ctx)`: its reads are coerced
-  where they are shown.
+  name to a `Result` or `Option`, `r := orders.List(ctx)`: its reads are
+  coerced where they are shown.
 
 A statement binding one name to a `(T, error)` call unwraps it:
 `users := Store.Users()` is a `[]User`, an error failing the render where
@@ -326,7 +341,10 @@ Reach for the explicit forms when the page shows the failure itself
 instead of failing: `if r.IsErr() { … }` for a message in place,
 `r.UnwrapOr(fallback)` for a default, and a `Result` prop for a component
 that styles it. `ui.Must` written out is the coercion, so it is never
-needed in markup.
+needed in markup. For an `Option`, the explicit reads tell absent from
+empty: `o.UnwrapOr("anonymous")` for a placeholder, `if o.IsNone() { … }`
+or a `match` for other markup, an `Option` prop for a component that
+shows the difference.
 
 > [!WARNING]
 > A call in markup runs on every render, each re-render of a live page

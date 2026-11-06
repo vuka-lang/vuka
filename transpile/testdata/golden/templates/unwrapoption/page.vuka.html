@@ -1,0 +1,20 @@
+package main
+
+import "fmt"
+
+// Page reads an employee's Options as their values: None is empty.
+type Page struct {
+	E Employee
+}
+<section title={E.Status} data-age={E.Age}>
+  <td>{E.Name}</td>
+  <Badge label={E.Status}/>
+  <Maybe of={E.Status}/>
+  if E.Verified {
+    <p>verified</p>
+  }
+  <p>{E.Name.UnwrapOr("anonymous")} {fmt.Sprint(E.Age)} {E.Age.IsSome()}</p>
+  for _, t := range E.Tags {
+    <a>{t}</a>
+  }
+</section>

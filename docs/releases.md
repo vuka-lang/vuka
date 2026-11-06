@@ -70,6 +70,14 @@ parameter keeps the call a handler.
 
 ### Templates
 
+- **Markup takes a `vuka.Option[T]` as its `T`** ([#389](https://github.com/vuka-lang/vuka/issues/389)).
+  In the same places as a `Result`, `Some` is the value and `None` is
+  `T`'s zero value — nothing in text, `""` in a string prop, `false` in a
+  condition — never an error: `<td>{e.Name}</td>`,
+  `<components.Badge label={e.Status} />`, `if e.Verified { … }`. The
+  explicit reads (`UnwrapOr`, `IsSome`, `match`) keep telling absent from
+  empty. See
+  [Fallible and Optional Values](/ui/templates#calls-returning-an-error).
 - **Markup takes a `vuka.Result[T]` as its `T`** ([#388](https://github.com/vuka-lang/vuka/issues/388)).
   Where markup takes one value — a hole, an attribute, a prop, a `for`'s
   range, a condition — a `Result` is its value, as a `(T, error)` call
@@ -77,7 +85,7 @@ parameter keeps the call a handler.
   failing the render through the page's error path. A `Result`'s methods,
   an argument or a prop taking a `Result`, and a name a statement binds
   keep it. The editor's hover names the type it is there. See
-  [Fallible Values](/ui/templates#calls-returning-an-error).
+  [Fallible and Optional Values](/ui/templates#calls-returning-an-error).
 - **A generic component's tag infers its type arguments** ([#387](https://github.com/vuka-lang/vuka/issues/387)).
   `<components.DataTable data={orders()}>` is a
   `DataTable[entities.Order]` when its `Data TableData[T]` is set to a

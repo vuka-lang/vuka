@@ -274,7 +274,7 @@ type Unwrap struct {
 	Off, Lparen, End int
 	Type             string
 	// Kind is what was unwrapped: "" a call's (T, error), "result" a
-	// vuka.Result.
+	// vuka.Result, "option" a vuka.Option.
 	Kind string
 }
 

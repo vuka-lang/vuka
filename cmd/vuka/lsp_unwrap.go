@@ -6,7 +6,7 @@ import (
 	"github.com/vuka-lang/vuka/v2/transpile"
 )
 
-// A call in markup returning (T, error), or a vuka.Result, is its T there
+// A call in markup returning (T, error), a vuka.Result or Option, is its T there
 // (transpile's unwrap.go, coerce.go): hover on it says so under gopls's.
 
 // unwrapAt is the unwrapped call whose name, up to its (, holds off in f's
@@ -25,6 +25,9 @@ func (f *vfile) unwrapAt(off int) (transpile.Unwrap, bool) {
 
 // unwrapNote is an unwrapped call's hover note.
 func unwrapNote(u transpile.Unwrap) string {
+	if u.Kind == "option" {
+		return "In markup this `Option` is its `" + u.Type + "`: `None` is its zero value, shown as nothing, never an error. Read it as it is with its methods (`IsSome`, `UnwrapOr`) to tell absent from empty."
+	}
 	if u.Kind == "result" {
 		return "In markup this `Result` is its `" + u.Type + "`: an `Err` fails the render, as a `Load` or `Mount` error does. Read it as it is with its methods (`IsErr`, `UnwrapOr`)."
 	}

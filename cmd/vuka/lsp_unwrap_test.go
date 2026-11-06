@@ -124,3 +124,44 @@ func TestLSPUnwrapResultHover(t *testing.T) {
 		}
 	}
 }
+
+const unwrapOptionStore = `package main
+
+import "github.com/vuka-lang/vuka/v2"
+
+type User struct{ Nick vuka.Option[string] }
+
+func main() {}
+`
+
+const unwrapOptionPage = `package main
+
+// Page shows a user's nick.
+type Page struct{ U User }
+<p>{U.Nick}</p>
+`
+
+// TestLSPUnwrapOptionHover: hover on an Option in markup names the value
+// type it is there.
+func TestLSPUnwrapOptionHover(t *testing.T) {
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": unwrapOptionStore, "page.vuka.html": unwrapOptionPage})
+	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": unwrapOptionPage}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	var md string
+	pos := positionOf([]byte(unwrapOptionPage), strings.Index(unwrapOptionPage, "Nick}")+1)
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		h, _ := c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}).(map[string]any)
+		if h != nil {
+			md = h["contents"].(map[string]any)["value"].(string)
+			if strings.Contains(md, "Nick") && strings.Contains(md, "In markup") {
+				break
+			}
+		}
+	}
+	for _, want := range []string{"vuka.Option[string]", "In markup this `Option` is its `string`"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("hover on Nick lacks %q: %s", want, md)
+		}
+	}
+}
