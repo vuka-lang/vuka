@@ -619,7 +619,7 @@ func (p *proxy) apply(pkgs []*load.Package, gens []load.Generated, list transpil
 	want := map[string]*vfile{}
 	for _, g := range gens {
 		tm, _ := g.TemplMap.(*templparser.SourceMap)
-		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, matches: g.Matches, implicit: g.Implicit, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings), ambig: ambigFixes(g.Warnings)}
+		vf := &vfile{source: g.Source, from: g.From, gen: g.Src, m: g.Map, templ: tm, files: g.Files, names: g.Names, vars: g.Vars, avail: g.Available, unwraps: g.Unwrapped, matches: g.Matches, implicit: g.Implicit, lets: g.Lets, variants: g.VariantMethods, fixes: ctxVarFixes(g.Warnings), ambig: ambigFixes(g.Warnings)}
 		vf.index()
 		if b, ok := bufs[g.Source]; ok && !vf.isTempl() {
 			vf.withText(b, hunks[g.Source])

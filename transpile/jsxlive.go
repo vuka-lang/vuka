@@ -26,9 +26,9 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 		t = tv.Type
 	}
 	if n, ok := types.Unalias(t).(*types.Named); ok && n.TypeParams().Len() > 0 && n.TypeArgs().Len() == 0 {
-		inst, off, msg := e.inferStateful(f, c, n, attrs, node)
-		if msg != "" {
-			fail("E0106", off, "%s", msg)
+		inst, ie := e.inferStateful(f, c, n, attrs, node)
+		if ie != nil {
+			e.reportInfer(f, c, ie)
 			return
 		}
 		if inst == nil {
@@ -64,6 +64,17 @@ func (e *engine) resolveStateful(f *fileState, c *jsxComp, expr ast.Expr, tn *ty
 	if msg != "" {
 		fail("E0106", off, "%s", msg)
 		return
+	}
+	if n, ok := types.Unalias(t).(*types.Named); ok && isIndex(expr) && n.TypeArgs().Len() > 0 {
+		if gst, ok := n.Origin().Underlying().(*types.Struct); ok {
+			trial := &jsxComp{el: el, target: c.target}
+			if _, _, msg := e.bindFields(trial, gst, attrs, node, true); msg == "" {
+				if ie := e.explicitErr(f, el, n.Origin().TypeParams(), typeList(n.TypeArgs()), trial.args, c.args); ie != nil {
+					e.reportInfer(f, c, ie)
+					return
+				}
+			}
+		}
 	}
 	if len(el.kids) > 0 && !kids {
 		fail("E0106", el.start, "<%s> takes no children: add a Children %sNode field to %s", el.tag, c.target.q, e.display(t))
@@ -166,44 +177,6 @@ func (e *engine) renders(t types.Type, node types.Type) (ptr, ok bool) {
 	}
 	_, ptr = sig.Recv().Type().(*types.Pointer)
 	return ptr, true
-}
-
-// inferStateful infers a generic stateful component's type arguments from its
-// attributes, as inferProps does for a generic props struct: each attribute
-// binds to a field of n's struct whose declared type still mentions the type
-// parameters (Value T, []T, *T), and unifying that against the value's
-// concrete type pins them. It returns the instantiated named type and, as a
-// side effect, the text of its type arguments for the literal (c.targText);
-// (nil, "") while an attribute's type is unknown, to retry next round.
-func (e *engine) inferStateful(f *fileState, c *jsxComp, n *types.Named, attrs []*jsxAttr, node types.Type) (types.Type, int, string) {
-	el := c.el
-	st, ok := n.Underlying().(*types.Struct)
-	if !ok {
-		return nil, el.start, "<" + el.tag + "> is generic: write its type arguments, <" + el.tag + "[…]>"
-	}
-	trial := &jsxComp{el: el, target: c.target}
-	if _, off, msg := e.bindFields(trial, st, attrs, node, true); msg != "" {
-		return nil, off, msg
-	}
-	targs, u, status := e.solveTargs(f, trial.args, n.TypeParams())
-	switch status {
-	case inferRetry:
-		return nil, 0, ""
-	case inferConflict:
-		return nil, el.start, conflictMsg(el.tag, u, e)
-	case inferUnder:
-		return nil, el.start, underMsg(el.tag)
-	}
-	inst, err := types.Instantiate(nil, n, targs, true)
-	if err != nil {
-		return nil, el.start, "<" + el.tag + ">'s inferred type arguments don't fit its constraints: write <" + el.tag + "[…]> (" + err.Error() + ")"
-	}
-	texts := make([]string, len(targs))
-	for i, ta := range targs {
-		texts[i] = e.typeTextAuto(f, ta)
-	}
-	c.targText = "[" + strings.Join(texts, ", ") + "]"
-	return inst, 0, ""
 }
 
 // statefulProblem says why a type isn't a live component of the target,

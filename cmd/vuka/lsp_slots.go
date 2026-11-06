@@ -276,8 +276,31 @@ func (p *proxy) letNote(path string, src []byte, r shapeRef) string {
 			continue
 		}
 		if l.index < len(pr.params) {
-			return "**slot value** `" + r.name + " " + pr.params[l.index] + "` · " + where + ": value " + fmt.Sprint(l.index+1) + " of `" + pr.typ + "`, what `<" + l.comp + ">` passes"
+			typ := pr.params[l.index]
+			if t := p.letType(path, l.off); t != "" {
+				typ = t
+			}
+			return "**slot value** `" + r.name + " " + typ + "` · " + where + ": value " + fmt.Sprint(l.index+1) + " of `" + pr.typ + "`, what `<" + l.comp + ">` passes"
 		}
 	}
 	return "**slot value** `" + r.name + "` · " + where
+}
+
+// letType is the type the last build gave the let declared at off in
+// path's text: a generic component's type arguments substituted, inferred
+// or written. "" when there is no build of it.
+func (p *proxy) letType(path string, off int) string {
+	p.mu.Lock()
+	vf := p.virtual[p.bySource[path]]
+	p.mu.Unlock()
+	if vf == nil {
+		return ""
+	}
+	from := vf.fromOff(off)
+	for _, l := range vf.lets {
+		if l.Off == from && !vf.goneAt(l.Off) {
+			return l.Type
+		}
+	}
+	return ""
 }

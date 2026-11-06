@@ -1,26 +1,26 @@
-error[E0106]: <Table> is generic, and its attributes don't give its type arguments: write <Table[…]>
+error[E0181]: <Table> is generic, and its attributes don't give its type parameter T
   --> err_jsx_generic.vuka:24:3
    |
 24 |         <Table />
    |         ^^^^^^
    |
-   = help: pass the attributes the component's parameters or fields declare
+   = help: set rows={…}, whose type []T gives T, or write the type arguments in the tag
 
-error[E0106]: <Empty> is generic, and its attributes don't give its type arguments: write <Empty[…]>
+error[E0181]: <Empty> is generic, and its attributes don't give its type parameter T
   --> err_jsx_generic.vuka:25:3
    |
 25 |         <Empty />
    |         ^^^^^^
    |
-   = help: pass the attributes the component's parameters or fields declare
+   = help: write the type arguments in the tag: <Empty[…]>
 
-error[E0106]: <Box> is generic, and its attributes don't give its type arguments: write <Box[…]>
+error[E0181]: <Box> is generic, and its attributes don't give its type parameter T
   --> err_jsx_generic.vuka:26:3
    |
 26 |         <Box />
    |         ^^^^
    |
-   = help: pass the attributes the component's parameters or fields declare
+   = help: set value={…}, whose type T gives T, or write the type arguments in the tag
 
 error[E0106]: no overload of Price takes these attributes
   --> err_jsx_generic.vuka:27:3
@@ -54,5 +54,5 @@ error[E0121]: <Num> is ambiguous: its attributes fit
            (n int32) ui.Node at err_jsx_generic.vuka:20:6
    = help: convert an argument so exactly one overload fits
 
-Some errors have detailed explanations: E0106, E0121.
+Some errors have detailed explanations: E0106, E0121, E0181.
 For more information about an error, try `vuka explain E0106`.

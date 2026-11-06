@@ -238,6 +238,7 @@ type vfile struct {
 	unwraps  []transpile.Unwrap        // the calls in its markup returning (T, error)
 	matches  []transpile.Match         // its match statements
 	implicit []transpile.ImplicitCtx   // the calls in its markup given the render's ctx
+	lets     []transpile.SlotLet       // its scoped slots' lets, typed
 	fixes    []edit                    // the W0402 rewrites on from (ctxVarFixes)
 	ambig    []edit                    // the W0108 calls on from, each with its ctx written (ambigFixes)
 	variants []transpile.VariantMethod // its methods on value-enum variants, in from

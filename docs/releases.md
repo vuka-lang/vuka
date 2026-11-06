@@ -70,6 +70,16 @@ parameter keeps the call a handler.
 
 ### Templates
 
+- **A generic component's tag infers its type arguments** ([#387](https://github.com/vuka-lang/vuka/issues/387)).
+  `<components.DataTable data={orders()}>` is a
+  `DataTable[entities.Order]` when its `Data TableData[T]` is set to a
+  `TableData[entities.Order]`, as Go infers a call's: through slices,
+  pointers, maps, funcs and nested generic types, untyped constants
+  taking their default type. A scoped slot's `let` is the inferred type,
+  and the editor's hover says so. Type arguments the tag writes win; an
+  attribute contradicting them, two attributes disagreeing, or a type
+  parameter nothing gives is [E0181](/errors/E0181), which names the
+  parameter, the prop that would give it and the explicit tag.
 - **A template's script can be a file beside it** ([#356](https://github.com/vuka-lang/vuka/issues/356)).
   `orders.vuka.html` can be markup alone, with the imports only its markup
   uses above it, and `orders.go` or `orders.vuka` beside it declares the

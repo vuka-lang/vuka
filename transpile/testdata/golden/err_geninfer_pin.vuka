@@ -1,0 +1,33 @@
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+type User struct{ Name string }
+
+// Grid's T comes from its rows; V only from its format, left out.
+type Grid[T, V any] struct {
+	Rows   []T
+	Value  func(T) V
+	Format func(V) string
+}
+
+func (g Grid[T, V]) Render() ui.Node { return <p>{len(g.Rows)}</p> }
+
+type ListProps[T any] struct{ Items []T }
+
+func List[T any](p ListProps[T]) ui.Node { return <ul>{len(p.Items)}</ul> }
+
+type Box[T any] struct{ Value T }
+
+func (b Box[T]) Render() ui.Node { return <p/> }
+
+func page(users []User) ui.Node {
+	return <>
+		<Grid rows={users} />
+		<List[string] items={users} />
+		<Box[int] value={users[0]} />
+		<List items={nil} />
+	</>
+}
+
+func main() {}
