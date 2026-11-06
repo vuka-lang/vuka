@@ -18,6 +18,9 @@ func TestSchema(t *testing.T)  { analysistest.Run(t, analysistest.TestData(), Sc
 func TestHooks(t *testing.T)   { analysistest.Run(t, analysistest.TestData(), Hooks, "hooks") }
 func TestQueries(t *testing.T) { analysistest.Run(t, analysistest.TestData(), Queries, "queries") }
 func TestParts(t *testing.T)   { analysistest.Run(t, analysistest.TestData(), Parts, "parts") }
+func TestVariants(t *testing.T) {
+	analysistest.Run(t, analysistest.TestData(), Variants, "variants", "variants/pages")
+}
 func TestURLState(t *testing.T) {
 	analysistest.Run(t, analysistest.TestData(), URLState, "urlstate", "urlstate/table")
 }
