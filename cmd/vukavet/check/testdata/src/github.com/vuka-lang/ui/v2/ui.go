@@ -114,3 +114,11 @@ func LazyValue[T any](ctx context.Context, run func(context.Context) (T, error))
 	return v
 }
 func LazyPart(fallback, failed Node, body func(context.Context) Node) Node { return nil }
+
+type Variants struct {
+	Base     string
+	Variants map[string]map[string]string
+	Defaults map[string]string
+}
+
+func (v Variants) Class(pairs ...string) string { return "" }
