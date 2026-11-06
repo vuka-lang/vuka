@@ -714,6 +714,9 @@ func (w *jsxWriter) bindValue(a *jsxAttr) {
 	}
 	w.gen(", &")
 	w.keep(a.expr)
+	if a.emods != nil {
+		w.gen(", " + a.emods.steps(w.q))
+	}
 	w.gen(")")
 }
 

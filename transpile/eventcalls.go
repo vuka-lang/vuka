@@ -295,6 +295,11 @@ func (e *engine) checkEventCalls() {
 					return
 				}
 				for _, a := range el.attrs {
+					if a.emods != nil && el.comp != nil && el.comp.resolved && a.kind == 'e' && !a.stmts && !e.eventCallAttr(f, el, a) {
+						e.errs.add("E0173", f.at(a.off), "<%s>'s %s takes no modifiers: they make browser commands, and it takes a handler", el.tag, a.name).
+							help("declare the prop as ui.JSChain, or put the modifiers on the element the component renders")
+						continue
+					}
 					if a.push != nil || a.kind != 'e' || a.stmts || !isEvent(a.name) {
 						continue
 					}

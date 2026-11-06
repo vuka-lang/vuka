@@ -16,6 +16,8 @@ TestContextProcessorsFolderPagesE2E
 TestEventCallsE2E
 # graphql_e2e_test.go
 TestGraphQLSchema
+# modifiers_e2e_test.go
+TestEventModifiersE2E
 # islandlive_test.go
 TestLiveDTSDeferred
 TestLiveDTSForms
@@ -121,6 +123,7 @@ TestLSPFieldAttrs
 TestLSPFileLinks
 # lsp_events_test.go
 TestLSPEventCalls
+TestLSPEventModifiers
 # lsp_forms_test.go
 TestLSPModel
 # lsp_generic_test.go
