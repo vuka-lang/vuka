@@ -340,15 +340,3 @@ func firstParagraph(doc string) string {
 	p, _, _ := strings.Cut(strings.TrimSpace(doc), "\n\n")
 	return strings.Join(strings.Fields(p), " ")
 }
-
-// sentence is a description as a sentence: a capital and a full stop.
-func sentence(s string) string {
-	if s == "" {
-		return s
-	}
-	s = strings.ToUpper(s[:1]) + s[1:]
-	if !strings.HasSuffix(s, ".") {
-		s += "."
-	}
-	return s
-}

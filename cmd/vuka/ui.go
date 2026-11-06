@@ -27,7 +27,7 @@ const uiUsage = `Usage:
 	vuka ui diff [component…] [<library>/<component…>]
 	vuka ui upgrade [--check] [--dry-run] [<library>/<component…>]
 	vuka ui theme [--dry-run] [name]
-	vuka ui list [library]
+	vuka ui list [library | component | library/component]
 
 Components that are the app's own source: vuka ui add writes each one into
 the app, a .vuka.html file you change as you like, drawn with Tailwind
@@ -64,7 +64,10 @@ utilities over design tokens in the app's stylesheet.
          name, lists the themes. Only the tokens between vuka ui's
          markers change, and a token the app gave a value of its own
          keeps it.
-  list   lists the components; with a library's name, that library's.
+  list   lists the components; with a library's name, that library's;
+         with a component's (button, shadcn-templ/dialog), what it takes:
+         its attributes and their types, the values a variant takes, its
+         slots and events, read from its source.
 
 The registry is vuka's own, fetched at the version of this vuka, or the
 copy built into it with --offline or when the fetch fails. --registry
@@ -111,10 +114,21 @@ func uiCmd(args []string, stdout io.Writer) error {
 	switch sub {
 	case "list":
 		if len(f.pos) > 1 {
-			return errors.New("usage: vuka ui list [library]")
+			return errors.New("usage: vuka ui list [library | component | library/component]")
 		}
 		if len(f.pos) == 1 {
-			return libList(root, strings.ToLower(f.pos[0]), stdout)
+			a := strings.ToLower(f.pos[0])
+			if strings.Contains(a, "/") {
+				return uiDoc(root, f, cfg, a, stdout)
+			}
+			lc, err := readUILib(root)
+			if err != nil {
+				return err
+			}
+			if _, err := lc.library(a); err == nil {
+				return libList(root, a, stdout)
+			}
+			return uiDoc(root, f, cfg, a, stdout)
 		}
 		reg, err := openRegistry(f, cfg, root)
 		if err != nil {

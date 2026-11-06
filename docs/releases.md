@@ -163,6 +163,14 @@ parameter keeps the call a handler.
   (`bg-background`) or `bg-(--name)` the build's stylesheets don't declare
   renders unstyled; the warning names the stylesheet expected to define it
   and the nearest token defined ([Undefined Tokens](/ui/vendored#undefined-tokens)).
+- **`vuka ui list <component>` prints what a component takes** ([#366](https://github.com/vuka-lang/vuka/issues/366)):
+  its attributes and types, the values each variant takes (its type's
+  constants, or its `ui.Variants` values), the attributes' docs, its
+  children, slots and events, from the registry's source, or a library's
+  (`vuka ui list shadcn-templ/dialog`) at the version the app has it
+  ([What a Component Takes](/ui/vendored#component-doc)). Hover on a
+  component's tag shows the values and events too, and works on a templ
+  library's components, read from their `.templ` files.
 
 ## v2.16.1 — 2026-11-01
 

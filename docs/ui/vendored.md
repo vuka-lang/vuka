@@ -282,6 +282,36 @@ name it with `--registry`, or once for the app in `vuka.toml`:
 registry = "https://design.example.com/registry"   # or a directory, relative to the module
 ```
 
+## What a Component Takes {#component-doc}
+
+`vuka ui list` with a component's name prints what it takes, read from its
+source: its attributes and their types, the values a variant takes, each
+attribute's doc, its slots and its events. A library's component is
+`library/name`, read at the version the app has it at:
+
+```text
+$ vuka ui list button
+Button: A button: six variants, four sizes, a ui.JS chain or a live handler on click.
+
+<design.Button>  component, button.vuka.html:33
+  id        string
+  variant   ButtonVariant  design.ButtonDefault (""), design.ButtonDestructive ("destructive"), design.ButtonOutline ("outline"), …
+  size      ButtonSize     design.SizeDefault (""), design.SizeSm ("sm"), design.SizeLg ("lg"), design.SizeIcon ("icon")
+  on        any            event
+  type      string
+  disabled  bool
+  class     string
+  attrs     []ui.Attr
+  on: On is what a click does: a ui.JS chain, or a live handler.
+  …
+  slots: children
+  events: on
+```
+
+A variant's values are the constants of its type, or the values of the
+`ui.Variants` variant named like the attribute. The editor's hover on the
+component's tag shows the same ([Writing Component Tags](/tools/editors#component-tags)).
+
 ## Keeping Up {#diff}
 
 The components are yours, so nothing updates them. `vuka ui diff` shows

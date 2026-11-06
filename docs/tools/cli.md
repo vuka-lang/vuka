@@ -20,7 +20,7 @@ vuka ui add [-f] [--dry-run] [--registry r] [--offline] <component… | library/
 vuka ui diff [--registry r] [--offline] [component… | library/component…]
 vuka ui upgrade [--check] [--dry-run] [library/component…]
 vuka ui theme [--dry-run] [--registry r] [--offline] [name]
-vuka ui list [--registry r] [--offline] [library]
+vuka ui list [--registry r] [--offline] [library | component | library/component]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
 vuka mod tidy [-check] [-e] [-v] [-go=version] [-compat=version]
@@ -196,8 +196,9 @@ button card dialog` writes those components (and what they use) into
 `components/ui/` as the app's own `.vuka.html` files. Neither overwrites a
 file of the app's without `-f`: `vuka ui add` prints the difference instead.
 `vuka ui diff` shows how the app's copies differ from the registry's, and
-`vuka ui list` lists the components; `vuka ui theme slate` writes a theme's
-colours into the tokens ([Themes](/ui/vendored#themes)). They read vuka's registry at the
+`vuka ui list` lists the components (`vuka ui list button`, or
+`shadcn-templ/dialog`: what one takes); `vuka ui theme slate` writes a
+theme's colours into the tokens ([Themes](/ui/vendored#themes)). They read vuka's registry at the
 version of the command (`--offline`: the copy built into it), or the one
 `--registry` or `[ui] registry` names. See
 [UI Components (Vendored)](/ui/vendored). `vuka ui add shadcn-templ/dialog`
