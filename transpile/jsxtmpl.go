@@ -354,7 +354,7 @@ func (w *jsxWriter) labelText(ps []jsxPiece) (string, bool) {
 		}
 		var inner edits
 		for _, e := range w.f.fixed {
-			if e.own == nil && p.keep.start <= e.start && e.end <= p.keep.end && e.start < p.keep.end {
+			if e.own == nil && e.in(p.keep.start, p.keep.end) {
 				inner = append(inner, e)
 			}
 		}

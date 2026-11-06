@@ -70,6 +70,14 @@ parameter keeps the call a handler.
 
 ### Templates
 
+- **Markup takes a `vuka.Result[T]` as its `T`** ([#388](https://github.com/vuka-lang/vuka/issues/388)).
+  Where markup takes one value — a hole, an attribute, a prop, a `for`'s
+  range, a condition — a `Result` is its value, as a `(T, error)` call
+  already was: `<components.DataTable rows={orders.List(ctx)}>`, an `Err`
+  failing the render through the page's error path. A `Result`'s methods,
+  an argument or a prop taking a `Result`, and a name a statement binds
+  keep it. The editor's hover names the type it is there. See
+  [Fallible Values](/ui/templates#calls-returning-an-error).
 - **A generic component's tag infers its type arguments** ([#387](https://github.com/vuka-lang/vuka/issues/387)).
   `<components.DataTable data={orders()}>` is a
   `DataTable[entities.Order]` when its `Data TableData[T]` is set to a

@@ -1029,13 +1029,21 @@ func (e *engine) readsCtx(x ast.Expr) bool {
 // attrExpr is an attribute's expression in this round's syntax tree.
 func (e *engine) attrExpr(f *fileState, a *jsxAttr) ast.Expr {
 	at, end := f.cur.fromOrig(a.expr.start), f.cur.fromOrigEnd(a.expr.end)
-	var expr ast.Expr
+	var expr, around ast.Expr
 	ast.Inspect(f.ast, func(n ast.Node) bool {
-		if x, ok := n.(ast.Expr); ok && expr == nil && f.off(x.Pos()) == at && f.off(x.End()) == end {
+		x, ok := n.(ast.Expr)
+		switch {
+		case !ok || expr != nil:
+		case f.off(x.Pos()) == at && f.off(x.End()) == end:
 			expr = x
+		case f.off(x.Pos()) <= at && f.off(x.End()) >= end && f.off(x.End()) > at:
+			around = x // the value coerced (coerce.go): its wrapping, innermost last
 		}
 		return expr == nil && (n == nil || f.off(n.Pos()) <= at)
 	})
+	if expr == nil && around != nil && f.unwrapped[a.expr] {
+		return around
+	}
 	return expr
 }
 

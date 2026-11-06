@@ -1,0 +1,35 @@
+package main
+
+import (
+	"fmt"
+
+	"github.com/vuka-lang/vuka/v2"
+)
+
+// Page reads the store's Results as their values; an Err fails the render.
+type Page struct {
+	Store Store
+	Count vuka.Result[int]
+}
+<section title={Store.Title()} data-count={Count}>
+  <h1>{Store.Title()}: {Count}</h1>
+  <Badge label={Store.Title()}/>
+  <Status of={Store.Title()}/>
+  <Table rows={Store.Users()}>
+    <slot:row let={u}>{u.Name}</slot:row>
+  </Table>
+  <p>{len(Store.Users())} {fmt.Sprint(Count)} {Count.UnwrapOr(0)}</p>
+  if Store.Admin() {
+    <p>admin</p>
+  }
+  if Count.IsOk() {
+    <p>counted</p>
+  }
+  users := Store.Users()
+  if users.IsOk() {
+    <p>{len(users)} users</p>
+  }
+  for _, u := range Store.Users() {
+    <a href="/users/{u.ID}">{u.Name}</a>
+  }
+</section>

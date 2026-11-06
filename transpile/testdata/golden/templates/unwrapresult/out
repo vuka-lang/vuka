@@ -1,0 +1,2 @@
+<section title="Users" data-count="2"><h1>Users: 2</h1><b>Users</b><i>Users</i><ol><li>ann</li><li>bob</li></ol><p>2 Ok(2) 2</p><p>admin</p><p>counted</p><p>2 users</p><a href="/users/1">ann</a><a href="/users/2">bob</a></section> <nil>
+render failed: users: store down
