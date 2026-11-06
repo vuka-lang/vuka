@@ -479,7 +479,7 @@ func fixTemplatesPackage(m *fixModule) ([]fixChange, error) {
 		if err != nil {
 			return err
 		}
-		pkg := format.DirPackage(filepath.Dir(path))
+		pkg := templatePackage(path, src)
 		out := format.TemplatePackage(src, pkg)
 		if bytes.Equal(out, src) {
 			return nil
@@ -508,7 +508,7 @@ func fixShapeScript(m *fixModule) ([]fixChange, error) {
 		if err != nil {
 			return err
 		}
-		out, ok := transpile.ToScriptForm(format.TemplatePackage(src, format.DirPackage(filepath.Dir(path))))
+		out, ok := transpile.ToScriptForm(format.TemplatePackage(src, templatePackage(path, src)))
 		if !ok {
 			return nil
 		}

@@ -207,7 +207,7 @@ func formatTemplateFile(path string, src []byte, rewrite bool) ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-	pkg := format.DirPackage(filepath.Dir(path))
+	pkg := templatePackage(path, src)
 	if rewrite {
 		src, _ = transpile.ToScriptForm(format.TemplatePackage(src, pkg))
 	}

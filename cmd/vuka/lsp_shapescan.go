@@ -179,7 +179,7 @@ func shapeBoundsFile(file string, src []byte) (sh *transpile.Shape, header, mark
 	for i, l := range lines {
 		lineOff[i+1] = lineOff[i] + len(l)
 	}
-	if sh, _ := transpile.ParseShapeFile(file, src); sh != nil && parts.Markup >= 0 {
+	if sh, _ := parseShape(file, src); sh != nil && parts.Markup >= 0 {
 		return sh, lineOff[sh.Header], parts.Markup
 	}
 	if parts.IsScript() {

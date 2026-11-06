@@ -52,7 +52,7 @@ func markupOf(files []string, name string) (string, bool) {
 		if err != nil {
 			continue
 		}
-		sh, _ := transpile.ParseShapeFile(f, src)
+		sh, _ := parseShape(f, src)
 		if sh == nil || sh.Type != name {
 			continue
 		}
