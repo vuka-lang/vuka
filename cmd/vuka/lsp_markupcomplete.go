@@ -141,7 +141,7 @@ func eventOn(ev string, tag jsxTag) bool {
 }
 
 // eventForms is what an event item says of the handlers vuka takes.
-const eventForms = "\n\nThe handler: a method (`{Save}`), a call (`{Add(2)}`), browser state (`{open = !open}`), " +
+const eventForms = "\n\nThe handler: a method (`{Save}`), a call of one, pushed with the element's reads (`{Choose(this.value)}`), browser state (`{open = !open}`), " +
 	"a func (`{func() { … }}`) or a `ui.JS(…)` command. Any case names the event: `onKeyDown`, `onkeydown`."
 
 // authoringRequest answers a completion this file knows better than the rest:
