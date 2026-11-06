@@ -1,0 +1,14 @@
+package main
+
+// Page is live; its one state goes to a child's State field and is only
+// set by events, so nothing in its own lowering calls the gen package.
+type Page struct {
+	ui.Live
+	open ui.State[bool]
+}
+<main>
+  <button onClick={open = true}>Open</button>
+  <Sheet show={open}>
+    <button onClick={open = false}>Close</button>
+  </Sheet>
+</main>

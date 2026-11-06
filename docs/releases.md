@@ -366,9 +366,9 @@ parameter keeps the call a handler.
 ### Fixes
 
 - A live page or component whose only unexported fields are browser states
-  it just reads and streams no longer fails to build with ui's `uigen`
-  "imported and not used": the generated Go imports it only when it calls
-  it. A build error about an import only the generated Go has is placed at
+  it reads, passes to a child's state field or sets from events (and
+  streams) no longer fails to build with ui's `uigen` "imported and not
+  used": the generated Go imports it only when it calls it. A build error about an import only the generated Go has is placed at
   the file's package clause and says so, never at one of the file's own
   imports.
 

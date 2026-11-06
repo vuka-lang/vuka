@@ -1,0 +1,8 @@
+package main
+
+// Sheet shows its content while Show holds.
+type Sheet struct {
+	Show     ui.State[bool]
+	Children ui.Node
+}
+<aside hidden={!Show}>{Children}</aside>

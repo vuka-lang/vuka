@@ -152,8 +152,9 @@ func (e *engine) writeSteps(f *fileState, stmts []ast.Stmt, inAttr bool) ([]writ
 	return out, nil
 }
 
-// chain writes steps as one chain of commands, from start (the target's JS).
-func (e *engine) chain(f *fileState, q, g string, steps []writeStep) *stateBind {
+// chain writes steps as one chain of commands, from start (the target's JS),
+// naming the gen package at gp only for a step calling it.
+func (e *engine) chain(f *fileState, q, gp string, steps []writeStep) *stateBind {
 	b := &stateBind{}
 	bd := &binder{e: e, f: f, b: b}
 	pieces := []jsxPiece{{text: q + "JS", keep: span{-1, -1}}}
@@ -168,7 +169,7 @@ func (e *engine) chain(f *fileState, q, g string, steps []writeStep) *stateBind 
 		case "Set":
 			pieces = append(pieces, gen(".Set("), keep(s.lhs), gen(", "), keep(s.rhs), gen(")"))
 		case "Toggle", "Inc", "Dec":
-			wrap(g+s.op+"(", gen(", "), keep(s.lhs), gen(")"))
+			wrap(f.genQual(gp)+s.op+"(", gen(", "), keep(s.lhs), gen(")"))
 		case "Push":
 			pieces = append(pieces, gen(".Push("))
 			switch {
@@ -273,7 +274,7 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 						help("write the state first, then call the method: %s.optimistic={liked = !liked; Like(id)}", a.name)
 					continue
 				}
-				a.write = e.chain(f, e.statePkg(f, pkg), f.genQual(stateGenPath(pkg)), steps)
+				a.write = e.chain(f, e.statePkg(f, pkg), stateGenPath(pkg), steps)
 				a.write.start, a.write.end = a.expr.start, a.expr.end
 				f.dropEdits(a.expr, a.write.pieces)
 				e.progress = true
@@ -426,7 +427,7 @@ func (e *engine) lowerMethodWrites(f *fileState, attrs []span) {
 		if s := steps[0]; s.op == "Set" {
 			pieces = []jsxPiece{gen(recv + ".PushJS("), {keep: span{f.orig(s.lhs.Pos()), f.orig(s.lhs.End())}}, gen(".Set("), {keep: span{f.orig(s.rhs.Pos()), f.orig(s.rhs.End())}}, gen("))")}
 		} else {
-			pieces = append([]jsxPiece{gen(recv + ".PushJS(")}, e.chain(f, e.statePkg(f, pkg), f.genQual(stateGenPath(pkg)), steps).pieces...)
+			pieces = append([]jsxPiece{gen(recv + ".PushJS(")}, e.chain(f, e.statePkg(f, pkg), stateGenPath(pkg), steps).pieces...)
 			pieces = append(pieces, gen(")"))
 		}
 		f.dropEdits(span{off, f.orig(st.End())}, pieces)

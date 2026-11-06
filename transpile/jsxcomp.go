@@ -1,10 +1,13 @@
 package transpile
 
 import (
+	"bytes"
 	"go/ast"
 	"go/constant"
+	"go/parser"
 	"go/token"
 	"go/types"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1284,13 +1287,48 @@ func (e *engine) typeTextAuto(f *fileState, t types.Type) string {
 // importAs imports path into f as name, once.
 func (f *fileState) importAs(path, name string) string {
 	if f.autoImports == nil {
-		f.autoImports = map[string]bool{}
+		f.autoImports = map[string]string{}
 	}
-	if !f.autoImports[path] {
-		f.autoImports[path] = true
-		f.insert(f.pkgEnd, "; import "+name+" "+strconv.Quote(path), 0)
+	if _, ok := f.autoImports[path]; !ok {
+		f.autoImports[path] = name
+		f.insert(f.pkgEnd, autoImport(name, path), 0)
 	}
 	return name
+}
+
+func autoImport(name, path string) string { return "; import " + name + " " + strconv.Quote(path) }
+
+// dropUnusedImports blanks out, in src, each import f's generated Go adds
+// that nothing in it names: lowering may name a package and then write
+// nothing calling it. Spaces keep every offset, so the source map holds.
+func (f *fileState) dropUnusedImports(src []byte) []byte {
+	if len(f.autoImports) == 0 {
+		return src
+	}
+	file, err := parser.ParseFile(token.NewFileSet(), "", src, parser.SkipObjectResolution)
+	if err != nil {
+		return src
+	}
+	used := map[string]bool{}
+	ast.Inspect(file, func(n ast.Node) bool {
+		if sel, ok := n.(*ast.SelectorExpr); ok {
+			if id, ok := sel.X.(*ast.Ident); ok {
+				used[id.Name] = true
+			}
+		}
+		return true
+	})
+	for path, name := range f.autoImports {
+		if used[name] || name == "_" || name == "." {
+			continue
+		}
+		text := []byte(autoImport(name, path))
+		if i := bytes.Index(src, text); i >= 0 {
+			src = slices.Clone(src)
+			copy(src[i:], bytes.Repeat([]byte(" "), len(text)))
+		}
+	}
+	return src
 }
 
 // splitStmts is a tag's children but its slots without its statements, and
