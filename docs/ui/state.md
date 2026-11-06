@@ -113,6 +113,69 @@ component method, `p.open = false` sends the browser update.
 > [!WARNING]
 > Browser state is not durable storage or trusted authorization data.
 
+## Watching State {#watching}
+
+Something can run when a state changes: a script's code, or a method of a
+live component.
+
+### In a Script {#watch-in-a-script}
+
+A [component script](/ui/scripts)'s `state('tab').watch((now, was) => …)`
+runs after each write the page shows — the bindings reading the state are
+already updated — with the new value and the one before. It runs on a write
+in an `on…` attribute, a script's `set`, and a write the server pushes; a
+render or a patch of the page is no write. It returns a function that stops
+it.
+
+```ts
+const stop = state('tab').watch((now, was) => {
+  ref('panel').scrollTo({ top: 0 })
+})
+```
+
+A watch may write states; their watches run after it. Watches that keep
+writing each other's states are cut after ten rounds, with a console
+warning naming the states.
+
+### On the Server {#notify}
+
+On a live component, `@ui.Notify(OnTab)` on a state's field calls the
+method `OnTab` with each value the browser writes, on the event path a
+click takes. `Debounce` and `Throttle` pace the calls:
+
+```html
+<script lang="go">
+package pages
+
+import (
+	"time"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+type Index struct {
+	ui.Live
+	tab  ui.State[string] @ui.Notify(OnTab)
+	page ui.State[int]    @ui.Notify(OnPage).Debounce(300 * time.Millisecond)
+	seen string
+}
+
+func (p *Index) OnTab(tab string) { p.seen = tab }
+
+func (p *Index) OnPage(n int) {}
+</script>
+
+<nav>
+  <button onClick={tab = "all"}>All</button>
+  <button onClick={page++}>Next</button>
+</nav>
+```
+
+The method takes the state's value, after an optional `context.Context`,
+and may return an error. A write the server makes (`p.tab = "home"` in a
+method) calls nothing: the server knows it. A misplaced or mistyped
+`@ui.Notify` is [E0178](/errors/E0178).
+
 ## Passing State to a Child {#passing-to-a-child}
 
 A child can accept a `ui.State[T]` field so both shapes observe the same

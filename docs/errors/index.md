@@ -87,6 +87,7 @@ same page in the terminal.
 | [E0175](./E0175) | An enum variant with two causes |
 | [E0176](./E0176) | A ui.Derived declared wrong |
 | [E0177](./E0177) | A write to a ui.Derived |
+| [E0178](./E0178) | A @ui.Notify that can't call its handler |
 | [W0101](./W0101) | A bare name is a field and a name of the package |
 | [W0102](./W0102) | A live list's items have no key |
 | [W0103](./W0103) | A live component in a loop has no key |

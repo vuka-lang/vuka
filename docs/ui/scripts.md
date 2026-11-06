@@ -159,7 +159,7 @@ not `checks()` at setup, to read the elements after later patches.
 |---|---|
 | `ctx.live.reorder(ids)` | calls the Go method `Reorder` of the instance (exported, its first letter lowered); a `Promise` resolved once the server has run it and the page is patched, rejected with its error |
 | `ctx.live.q` | the field `Q`'s handle: `get()` and `value`; `set(v)` for a field marked `@ui.Bind`, validated on the server |
-| `ctx.state('open')` | the `ui.State` field `open`: `get()`, `set(v)` and `watch(fn)`, which returns a function that stops watching |
+| `ctx.state('open')` | the `ui.State` field `open`: `get()`, `set(v)` and `watch((now, was) => …)`, run after each write the page shows ([Watching State](/ui/state#watching)); it returns a function that stops watching |
 | `ctx.ref('box')` | the element of the instance's markup with `ref="box"`, typed by its tag (`HTMLInputElement` for an `<input>`), `null` while none renders |
 | `ctx.on('saved', fn)` | runs `fn(payload)` for each `PushEvent("saved", payload)` the instance's Go sends |
 | `ctx.emit('picked', v)` | components only: calls the handler the parent gave the root's `onPicked` attribute, with `v` |

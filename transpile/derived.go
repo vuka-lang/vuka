@@ -35,11 +35,12 @@ type fromAttr struct {
 	gen      string
 	lowered  bool
 	failed   bool
+	notify   bool // a @ui.Notify: the attribute's whole value, ui.Notify(OnTab)
 	recv     string
 	typeName string
 }
 
-// fromAttrs are f's @ui.From attributes, found once.
+// fromAttrs are f's @ui.From and @ui.Notify attributes, found once.
 func (f *fileState) fromAttrs() []*fromAttr {
 	if f.froms != nil {
 		return *f.froms
@@ -53,11 +54,15 @@ func (f *fileState) fromAttrs() []*fromAttr {
 			continue
 		}
 		pkg, name, ok := strings.Cut(a.Name, ".")
-		if !ok || name != "From" {
+		if !ok || name != "From" && name != "Notify" {
 			continue
 		}
 		gen := f.statePackageNamed(pkg)
 		if gen == "" {
+			continue
+		}
+		if name == "Notify" {
+			out = append(out, &fromAttr{a: a, arg: span{a.nameStart, a.end}, gen: gen, typeName: a.structOf, notify: true})
 			continue
 		}
 		args := strings.TrimSpace(a.Args)
@@ -124,12 +129,26 @@ func (f *fileState) renderDerived(w *genWriter) {
 		list := byType[typ]
 		if f.deriveOrder != nil && f.deriveOrder[typ] != nil {
 			list = f.deriveOrder[typ]
+			for _, fa := range byType[typ] {
+				if fa.notify {
+					list = append(list, fa)
+				}
+			}
 		}
 		first := list[0]
 		recv := f.deriveRecv(typ)
 		w.gen("\nfunc init() {\n\t"+f.genQual(first.gen)+"Derive(func("+recv+" *"+typ+") {\n", first.a.start)
 		for _, fa := range list {
 			fa.recv = recv
+			if fa.notify {
+				w.gen("\t\t"+f.genQual(fa.gen)+"With("+recv+"."+fa.a.fieldNames[0]+", ", fa.a.start)
+				if !f.bare {
+					w.gen(lineDirective(f.at(fa.arg.start)), fa.arg.start)
+				}
+				f.copyRewritten(w, fa.arg)
+				w.gen(")\n", fa.arg.end)
+				continue
+			}
 			w.gen("\t\t"+recv+"."+fa.a.fieldNames[0]+" = "+f.genQual(fa.gen)+"From(", fa.a.start)
 			if !f.bare {
 				w.gen(lineDirective(f.at(fa.arg.start)), fa.arg.start)
@@ -178,6 +197,14 @@ func (e *engine) lowerDerived(f *fileState) {
 			continue
 		}
 		field, _, _ := types.LookupFieldOrMethod(obj.Type(), true, e.pkg, fa.a.fieldNames[0])
+		if fa.notify {
+			if v, ok := field.(*types.Var); ok && !isInvalid(v.Type()) {
+				e.checkNotify(f, fa, x, v, obj)
+			} else {
+				pending = true
+			}
+			continue
+		}
 		if v, ok := field.(*types.Var); ok {
 			if isInvalid(v.Type()) {
 				pending = true
@@ -253,6 +280,95 @@ func (e *engine) trailerExpr(f *fileState, sp span) ast.Expr {
 		}
 		return true
 	})
+	return out
+}
+
+// checkNotify checks a @ui.Notify once its expression is typed: it goes
+// on a ui.State of a live component, and names a method of it taking the
+// state's value (after a context.Context), as its one argument.
+func (e *engine) checkNotify(f *fileState, fa *fromAttr, x ast.Expr, v *types.Var, obj *types.TypeName) {
+	if fa.lowered || fa.failed {
+		return
+	}
+	if id := e.undefinedIn(x); id != nil {
+		if e.pendingLowering(f) {
+			return
+		}
+		fa.failed = true
+		err := e.errs.add("E0178", f.at(f.orig(id.Pos())), "@%s names %s, which isn't a method of %s", fa.a.Name, id.Name, fa.typeName)
+		if near := closestName(id.Name, methodNames(obj.Type())); near != "" {
+			err.suggest(near)
+		}
+		e.progress = true
+		return
+	}
+	if t := e.info.TypeOf(x); t == nil || isInvalid(t) {
+		return
+	}
+	fa.lowered = true
+	elem, ok := stateOf(v.Type())
+	if !ok {
+		fa.failed = true
+		e.errs.add("E0178", f.at(fa.a.start), "@%s goes on a ui.State field; %s is a %s", fa.a.Name, fa.a.fieldNames[0], e.display(v.Type())).
+			help("a Derived follows its states: notify one of those")
+		e.progress = true
+		return
+	}
+	if h := f.html; h != nil && h.recvType == fa.typeName && h.shape != nil && !h.shape.Live {
+		fa.failed = true
+		e.errs.add("E0178", f.at(fa.a.start), "@%s calls a method over the page's live connection, and %s isn't live", fa.a.Name, fa.typeName).
+			help("embed ui.Live in %s", fa.typeName)
+		e.progress = true
+		return
+	}
+	call, _ := ast.Unparen(x).(*ast.CallExpr)
+	for call != nil {
+		if sel, ok := call.Fun.(*ast.SelectorExpr); ok && sel.Sel.Name != "Notify" {
+			call, _ = ast.Unparen(sel.X).(*ast.CallExpr)
+			continue
+		}
+		break
+	}
+	if call == nil || len(call.Args) != 1 {
+		return
+	}
+	sig, _ := e.info.TypeOf(call.Args[0]).(*types.Signature)
+	name := string(f.src[f.orig(call.Args[0].Pos()):f.orig(call.Args[0].End())])
+	if sig == nil {
+		fa.failed = true
+		e.errs.add("E0178", f.at(f.orig(call.Args[0].Pos())), "@%s takes a method of %s, not %s", fa.a.Name, fa.typeName, name).
+			help("name the method the value goes to: @%s(On%s)", fa.a.Name, exportName(fa.a.fieldNames[0]))
+		e.progress = true
+		return
+	}
+	params := sig.Params()
+	first := 0
+	if params.Len() > 0 && isContext(params.At(0).Type()) {
+		first = 1
+	}
+	if params.Len()-first != 1 || !types.AssignableTo(elem, params.At(first).Type()) {
+		fa.failed = true
+		e.errs.add("E0178", f.at(f.orig(call.Args[0].Pos())), "%s takes %s; @%s on %s calls it with one %s", name, types.TypeString(types.NewTuple(paramList(params)...), types.RelativeTo(e.pkg)), fa.a.Name, fa.a.fieldNames[0], e.display(elem)).
+			help("declare it func (…) %s(%s %s)", strings.TrimPrefix(name, fa.recv+"."), fa.a.fieldNames[0], e.display(elem))
+		e.progress = true
+	}
+}
+
+func paramList(t *types.Tuple) []*types.Var {
+	out := make([]*types.Var, t.Len())
+	for i := range out {
+		out[i] = t.At(i)
+	}
+	return out
+}
+
+// methodNames are the names of the methods of *t.
+func methodNames(t types.Type) []string {
+	ms := types.NewMethodSet(types.NewPointer(t))
+	out := make([]string, ms.Len())
+	for i := range out {
+		out[i] = ms.At(i).Obj().Name()
+	}
 	return out
 }
 
@@ -344,6 +460,9 @@ func (e *engine) underived(f *fileState, froms []*fromAttr) {
 	f.underivedDone = true
 	has := map[string]*fromAttr{}
 	for _, fa := range froms {
+		if fa.notify {
+			continue
+		}
 		k := fa.typeName + "." + fa.a.fieldNames[0]
 		if has[k] != nil {
 			fa.failed = true
@@ -401,7 +520,7 @@ func (e *engine) orderDerived(f *fileState, froms []*fromAttr) {
 	f.deriveOrder = map[string][]*fromAttr{}
 	byType := map[string][]*fromAttr{}
 	for _, fa := range froms {
-		if !fa.failed {
+		if !fa.failed && !fa.notify {
 			byType[fa.typeName] = append(byType[fa.typeName], fa)
 		}
 	}

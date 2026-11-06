@@ -69,6 +69,11 @@ func Mul[T any](s stateui.State[T], o any) stateui.State[T]    { return s.GenMul
 func From[T any](x stateui.State[T]) stateui.Derived[T]        { return stateui.GenFrom(x) }
 func Read[T any](d stateui.Derived[T]) stateui.State[T]        { return stateui.GenRead(d) }
 
+// Notified are the states whose writes notify a handler, by site.
+var Notified = map[string]bool{}
+
+func With[T any](s stateui.State[T], o any) { Notified[s.String()] = true }
+
 var derivers = map[reflect.Type]func(any){}
 
 // Derive registers fn, which sets the Derived fields of a *T: States runs

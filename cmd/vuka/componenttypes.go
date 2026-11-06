@@ -314,13 +314,14 @@ export function onDestroy(fn: () => void): void;
 export const ref: SetupRef<{}>;
 export function state(name: never): StateHandle<never>;
 /** A ui.Derived of the component: its value, computed by the browser from states; read only. */
-export interface DerivedHandle<V> { get(): V; watch(fn: (v: V) => void): () => void; }
+export interface DerivedHandle<V> { get(): V; watch(fn: (now: V, was: V) => void): () => void; }
 type HandleOf<V> = [V] extends [{ readonly __derived: infer D }] ? DerivedHandle<D> : StateHandle<V>;
 export function on(name: never, fn: (payload: never) => void): void;
 export function emit(name: never, payload?: unknown): Promise<unknown>;
 export const navigate: Navigation["navigate"];
 export const patch: Navigation["patch"];
-export interface StateHandle<V> { get(): V; set(v: V): void; watch(fn: (v: V) => void): () => void; }
+/** A ui.State of the component: get reads it, set writes it, and watch runs fn with the new value and the one before after each write the page shows, returning a function that stops it. */
+export interface StateHandle<V> { get(): V; set(v: V): void; watch(fn: (now: V, was: V) => void): () => void; }
 /** What a page's script and a component's share: its live connection, states, refs, the events its Go pushes, navigation. */
 export interface PageCtx<T> extends Navigation<T> {
 	/** The instance's exported Go methods (live.reorder(ids) calls Reorder) and its fields' handles. */

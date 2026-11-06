@@ -16,6 +16,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	ui "github.com/vuka-lang/ui/v2"
 )
@@ -359,6 +360,14 @@ func GenRead[T any](d Derived[T]) State[T] { return d.s }
 func From(expr any) FromExpr { return FromExpr{} }
 
 type FromExpr struct{}
+
+// Notify names the handler a state's browser writes call.
+func Notify(handler any) Notified { return Notified{} }
+
+type Notified struct{ ms int64 }
+
+func (n Notified) Debounce(d time.Duration) Notified { n.ms = d.Milliseconds(); return n }
+func (n Notified) Throttle(d time.Duration) Notified { n.ms = d.Milliseconds(); return n }
 
 type AnyState interface {
 	anyState() string

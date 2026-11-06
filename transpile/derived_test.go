@@ -22,6 +22,9 @@ func TestDerivedErrors(t *testing.T) {
 		{"a misspelt name", "\ttotal ui.Derived[int] @ui.From(cout * price)\n", "", "E0176 cart.vuka.html:9:33: @ui.From reads cout, which Cart has no field named and the package doesn't declare; did you mean count?"},
 		{"written in markup", "\ttotal ui.Derived[int] @ui.From(count * price)\n", "<button onClick={total++}>+</button>\n", "E0177 cart.vuka.html:11:18: total is a ui.Derived: the browser computes it"},
 		{"written in a method", "\ttotal ui.Derived[int] @ui.From(count * price)\n", "func (c *Cart) Clear() {\n\tc.total = 0\n}\n<p>{total}</p>\n", "E0177 cart.vuka.html:12:2: c.total is a ui.Derived"},
+		{"Notify on a Derived", "\ttotal ui.Derived[int] @ui.From(count * price) @ui.Notify(Seen)\n", "func (c *Cart) Seen(n int) {}\n<p>{total}</p>\n", "E0178 cart.vuka.html:9:48: @ui.Notify goes on a ui.State field; total is a stateui.Derived[int]"},
+		{"Notify naming no method", "\ttab ui.State[string] @ui.Notify(OnTba)\n", "func (c *Cart) OnTab(tab string) {}\n<p>{tab}</p>\n", "E0178 cart.vuka.html:9:34: @ui.Notify names OnTba, which isn't a method of Cart; did you mean OnTab?"},
+		{"Notify's handler of another type", "\ttab ui.State[string] @ui.Notify(OnTab)\n", "func (c *Cart) OnTab(n int) {}\n<p>{tab}</p>\n", "E0178 cart.vuka.html:9:34: OnTab takes (n int); @ui.Notify on tab calls it with one string; declare it func (…) OnTab(tab string)"},
 	} {
 		t.Run(c.name, func(t *testing.T) {
 			rest := c.rest
