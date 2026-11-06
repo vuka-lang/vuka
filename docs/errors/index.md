@@ -256,6 +256,7 @@ same page in the terminal.
 | [E0608](./E0608) | TypeScript 7 can't build Vue islands |
 | [E0609](./E0609) | The islands have no frontend build to go into |
 | [E0610](./E0610) | npm is older than 11 |
+| [W0601](./W0601) | A component uses a design token no stylesheet defines |
 
 ## Folder routes
 

@@ -157,6 +157,52 @@ the look, change the values in the block `vuka ui init` wrote:
 The token names are shadcn's, so a theme made for it pastes in: its `:root`
 values over these, and its `.dark` values into both dark blocks.
 
+### Themes {#themes}
+
+The registry has themes, base palettes as shadcn's: `neutral` (the tokens'
+own colours), `zinc`, `slate`, `stone`, `gray` and `blue`. `vuka ui theme`
+lists them, `vuka ui init --theme zinc` writes the tokens with one, and
+`vuka ui theme slate` switches an app to another later:
+
+```text
+$ vuka ui theme slate
+kept the app's --primary (its value isn't the theme's it replaces)
+wrote styles/app.css: the slate theme's colours
+wrote vuka.toml: [ui] theme
+```
+
+A theme writes the colours, light and dark, into the block `vuka ui init`
+wrote and nowhere else: the rest of the stylesheet, your own `:root` and
+`@theme` included, isn't touched. A token whose value in the block isn't the
+one the old theme gave it is yours, and keeps its value. `[ui] theme` in
+`vuka.toml` records the theme, which is how the next switch knows which
+values were the theme's. `--dry-run` says what it would write. A theme is a
+stylesheet in the registry of a `:root` and a `.dark` block, so a registry
+of your own can have its own.
+
+### Undefined Tokens {#undefined-tokens}
+
+A component naming a token no stylesheet defines renders unstyled, without
+an error: a token deleted from the block, a typo in a class you edited, a
+library's component using a colour its theme lacks. `vuka vet` warns of it
+([W0601](/errors/W0601)), for every component of the components directory:
+a `var(--name)`, a colour utility (`bg-background`, `ring-ring/50`, under
+any variant) and Tailwind's `bg-(--name)`, against the custom properties the
+build's stylesheets declare — the one holding the tokens, Tailwind's, and
+the local files they import. It names the stylesheet that was expected to
+define the token, and the nearest one defined:
+
+```text
+warning[W0601]: chip uses bg-rnig, which no stylesheet of the build defines: styles/app.css (the design tokens) was expected to define --color-rnig
+  --> components/ui/chip.vuka.html:8:26
+  = help: define --color-rnig in styles/app.css, or use a token it defines
+  = help: did you mean bg-ring?
+```
+
+Tailwind's own colours (`text-red-500`, `bg-white`) and variables
+(`--tw-…`, `--spacing`) are defined; so is a custom property the component
+sets itself (`style="--progress: 40%"`).
+
 The skeletons' tokens are there too: `--skeleton` (the `muted` token by
 default), `--skeleton-highlight` (the wave's highlight) and
 `--skeleton-duration`. A stylesheet `vuka ui init` wrote before the

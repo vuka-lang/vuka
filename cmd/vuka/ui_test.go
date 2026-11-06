@@ -6,6 +6,7 @@ import (
 	"io/fs"
 	"maps"
 	"os"
+	"path"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -297,6 +298,24 @@ func TestUIRegistry(t *testing.T) {
 	for name, s := range reg.Styles {
 		digest(&s)
 		reg.Styles[name] = s
+	}
+	themes, _ := fs.Glob(registryFS, "registry/themes/*.css")
+	for _, f := range themes {
+		name := strings.TrimSuffix(path.Base(f), ".css")
+		s, ok := reg.Themes[name]
+		if !ok {
+			if !*updateFiles {
+				t.Errorf("%s isn't in the index's themes: go test -run TestUIRegistry -update", f)
+			}
+			if reg.Themes == nil {
+				reg.Themes = map[string]registryFile{}
+			}
+			s, stale = registryFile{Path: strings.TrimPrefix(f, "registry/")}, true
+		}
+		if p := parsePalette(string(digest(&s))); len(p.light) == 0 || len(p.dark) == 0 {
+			t.Errorf("%s: a theme has :root and .dark values", f)
+		}
+		reg.Themes[name] = s
 	}
 	if stale && *updateFiles {
 		var b bytes.Buffer

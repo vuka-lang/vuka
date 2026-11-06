@@ -15,10 +15,11 @@ These are the subcommands and their flags:
 ```text
 vuka new <dir> [module path] [--ui=… --db=… --mail=… --auth=… --frontend=… --name=… --yes --force]
 vuka add module|service|component|island|page|entity … [--dry-run] [--force]
-vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name] [--registry r] [--offline]
+vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name] [--theme name] [--registry r] [--offline]
 vuka ui add [-f] [--dry-run] [--registry r] [--offline] <component… | library/component…>
 vuka ui diff [--registry r] [--offline] [component… | library/component…]
 vuka ui upgrade [--check] [--dry-run] [library/component…]
+vuka ui theme [--dry-run] [--registry r] [--offline] [name]
 vuka ui list [--registry r] [--offline] [library]
 vuka build|run|test|vet|install [go flags] [packages]
 vuka run -watch [-debug] [-fresh] [go flags] [package] [args]
@@ -195,7 +196,8 @@ button card dialog` writes those components (and what they use) into
 `components/ui/` as the app's own `.vuka.html` files. Neither overwrites a
 file of the app's without `-f`: `vuka ui add` prints the difference instead.
 `vuka ui diff` shows how the app's copies differ from the registry's, and
-`vuka ui list` lists the components. They read vuka's registry at the
+`vuka ui list` lists the components; `vuka ui theme slate` writes a theme's
+colours into the tokens ([Themes](/ui/vendored#themes)). They read vuka's registry at the
 version of the command (`--offline`: the copy built into it), or the one
 `--registry` or `[ui] registry` names. See
 [UI Components (Vendored)](/ui/vendored). `vuka ui add shadcn-templ/dialog`
@@ -371,7 +373,8 @@ disk in development), so they cost the linker nothing; `-embed` (with
 loaders and typed handler arguments as well as the generated Go. Missing
 loaders, unfillable parameters and invalid markup are reported at source locations,
 and so is a shape's script naming a ref, state or event the shape doesn't
-have ([W0308](/errors/W0308)).
+have ([W0308](/errors/W0308)). A vendored component drawn with a design token no stylesheet of
+the build defines is reported too ([W0601](/errors/W0601)).
 It runs [vukavet](/tools/vukavet)'s checks too, as go vet's `-vettool`: the
 app's `go tool vukavet` when its `go.mod` declares it, else a `vukavet`
 beside `vuka` or on `PATH`, else one it builds at its own version

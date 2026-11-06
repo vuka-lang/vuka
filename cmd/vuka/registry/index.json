@@ -8,6 +8,32 @@
       "sha256": "753aca583aea6c1c5f5079c510bc91c0fcbd837db34457ff5ba76a427eebc606"
     }
   },
+  "themes": {
+    "blue": {
+      "path": "themes/blue.css",
+      "sha256": "b740f8d53566125abe6b81b7a772067ac3c32d34b7fe6c941d97a22dec4dcf61"
+    },
+    "gray": {
+      "path": "themes/gray.css",
+      "sha256": "8d50864f7f4c8d9a26b5ff12fbd9f85c4c29cf9efdab287b85f07b9d29060604"
+    },
+    "neutral": {
+      "path": "themes/neutral.css",
+      "sha256": "ea3e20950201e19914ed81d27436a1aa448fbd6b98d01f2ff7c59049e3b1c01e"
+    },
+    "slate": {
+      "path": "themes/slate.css",
+      "sha256": "dc131dc00adbf760ae7f572e75d5d0ca24195147ff80ba2a503b2d68b5384c4d"
+    },
+    "stone": {
+      "path": "themes/stone.css",
+      "sha256": "e82d0a90d692e1b9d5117e0b5c7d38c0685264977c6c4cf7f202e10ca9738770"
+    },
+    "zinc": {
+      "path": "themes/zinc.css",
+      "sha256": "0d2af6ba0a01a112badd252598b49ef98cadd5430dcaae50469f4768332012fd"
+    }
+  },
   "items": [
     {
       "name": "cn",
