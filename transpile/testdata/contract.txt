@@ -80,6 +80,7 @@ public github.com/vuka-lang/ui/v2.Commands
 public github.com/vuka-lang/ui/v2.Component
 public github.com/vuka-lang/ui/v2.Ctx
 public github.com/vuka-lang/ui/v2.Defer
+public github.com/vuka-lang/ui/v2.Derived
 public github.com/vuka-lang/ui/v2.Each
 public github.com/vuka-lang/ui/v2.El
 public github.com/vuka-lang/ui/v2.Emit
@@ -216,8 +217,10 @@ generated github.com/vuka-lang/ui/v2/uigen.Assign
 generated github.com/vuka-lang/ui/v2/uigen.And
 generated github.com/vuka-lang/ui/v2/uigen.At
 generated github.com/vuka-lang/ui/v2/uigen.Dec
+generated github.com/vuka-lang/ui/v2/uigen.Derive
 generated github.com/vuka-lang/ui/v2/uigen.Derived
 generated github.com/vuka-lang/ui/v2/uigen.Eq
+generated github.com/vuka-lang/ui/v2/uigen.From
 generated github.com/vuka-lang/ui/v2/uigen.Ge
 generated github.com/vuka-lang/ui/v2/uigen.Gt
 generated github.com/vuka-lang/ui/v2/uigen.Inc
@@ -225,11 +228,13 @@ generated github.com/vuka-lang/ui/v2/uigen.Le
 generated github.com/vuka-lang/ui/v2/uigen.Len
 generated github.com/vuka-lang/ui/v2/uigen.Lt
 generated github.com/vuka-lang/ui/v2/uigen.Minus
+generated github.com/vuka-lang/ui/v2/uigen.Mul
 generated github.com/vuka-lang/ui/v2/uigen.Ne
 generated github.com/vuka-lang/ui/v2/uigen.Neg
 generated github.com/vuka-lang/ui/v2/uigen.Not
 generated github.com/vuka-lang/ui/v2/uigen.Or
 generated github.com/vuka-lang/ui/v2/uigen.Plus
+generated github.com/vuka-lang/ui/v2/uigen.Read
 generated github.com/vuka-lang/ui/v2/uigen.States
 generated github.com/vuka-lang/ui/v2/uigen.Toggle
 generated github.com/vuka-lang/ui/v2/uigen.UsePageState

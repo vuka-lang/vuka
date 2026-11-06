@@ -163,6 +163,7 @@ decorate.go s.(*ast.TypeSpec).Name.Name
 decorate.go sel
 decorate.go strings.TrimPrefix(d.rtype, "*")
 decorate.go x.Sel.Name
+derived.go fa.typeName
 engine.go model
 enum.go name + "Values"
 enum.go parseName(name)

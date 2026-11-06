@@ -1,0 +1,22 @@
+package main
+
+// Cart derives its total from its states, and a flag from the total: the
+// browser computes them again when what they read changes.
+type Cart struct {
+	ui.Live
+	count ui.State[int]
+	price ui.State[int]
+	over  ui.Derived[bool] @ui.From(total > limit)
+	total ui.Derived[int]  @ui.From(count * price)
+}
+
+const limit = 100
+
+func (c *Cart) Clear() {
+	c.count = 0
+}
+<section>
+  <p data-over={over}>{total} for {count}</p>
+  <p hidden={!over}>{total + 1}</p>
+  <button onClick={count++}>+</button>
+</section>

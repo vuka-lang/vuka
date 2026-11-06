@@ -44,6 +44,9 @@ func States(p any) {
 			f.Set(reflect.ValueOf(f.Interface().(interface{ Named(string) any }).Named(v.Type().Field(i).Name)))
 		}
 	}
+	if fn := derivers[v.Type()]; fn != nil {
+		fn(p)
+	}
 }
 
 func Derived[T any](v T) stateui.State[T] { return stateui.GenDerived(v) }
@@ -51,17 +54,27 @@ func At[T, S any](s stateui.State[S], path string) stateui.State[T] {
 	return stateui.GenAt[T](s, path)
 }
 
-func Not[T any](s stateui.State[T]) stateui.State[bool]                 { return s.GenNot() }
-func And[T any](s stateui.State[T], o any) stateui.State[bool]          { return s.GenAnd(o) }
-func Or[T any](s stateui.State[T], o any) stateui.State[bool]           { return s.GenOr(o) }
-func Eq[T any](s stateui.State[T], o any) stateui.State[bool]           { return s.GenEq(o) }
-func Ne[T any](s stateui.State[T], o any) stateui.State[bool]           { return s.GenNe(o) }
-func Lt[T any](s stateui.State[T], o any) stateui.State[bool]           { return s.GenLt(o) }
-func Le[T any](s stateui.State[T], o any) stateui.State[bool]           { return s.GenLe(o) }
-func Gt[T any](s stateui.State[T], o any) stateui.State[bool]           { return s.GenGt(o) }
-func Ge[T any](s stateui.State[T], o any) stateui.State[bool]           { return s.GenGe(o) }
-func Plus[T any](s stateui.State[T], o any) stateui.State[T]            { return s.GenPlus(o) }
-func Minus[T any](s stateui.State[T], o any) stateui.State[T]           { return s.GenMinus(o) }
+func Not[T any](s stateui.State[T]) stateui.State[bool]        { return s.GenNot() }
+func And[T any](s stateui.State[T], o any) stateui.State[bool] { return s.GenAnd(o) }
+func Or[T any](s stateui.State[T], o any) stateui.State[bool]  { return s.GenOr(o) }
+func Eq[T any](s stateui.State[T], o any) stateui.State[bool]  { return s.GenEq(o) }
+func Ne[T any](s stateui.State[T], o any) stateui.State[bool]  { return s.GenNe(o) }
+func Lt[T any](s stateui.State[T], o any) stateui.State[bool]  { return s.GenLt(o) }
+func Le[T any](s stateui.State[T], o any) stateui.State[bool]  { return s.GenLe(o) }
+func Gt[T any](s stateui.State[T], o any) stateui.State[bool]  { return s.GenGt(o) }
+func Ge[T any](s stateui.State[T], o any) stateui.State[bool]  { return s.GenGe(o) }
+func Plus[T any](s stateui.State[T], o any) stateui.State[T]   { return s.GenPlus(o) }
+func Minus[T any](s stateui.State[T], o any) stateui.State[T]  { return s.GenMinus(o) }
+func Mul[T any](s stateui.State[T], o any) stateui.State[T]    { return s.GenMul(o) }
+func From[T any](x stateui.State[T]) stateui.Derived[T]        { return stateui.GenFrom(x) }
+func Read[T any](d stateui.Derived[T]) stateui.State[T]        { return stateui.GenRead(d) }
+
+var derivers = map[reflect.Type]func(any){}
+
+// Derive registers fn, which sets the Derived fields of a *T: States runs
+// it.
+func Derive[T any](fn func(p *T)) { derivers[reflect.TypeFor[T]()] = func(p any) { fn(p.(*T)) } }
+
 func Neg[T any](s stateui.State[T]) stateui.State[T]                    { return s.GenNeg() }
 func Len[T any](s stateui.State[T]) stateui.State[int]                  { return s.GenLen() }
 func Toggle(c stateui.Commands, s stateui.State[bool]) stateui.Commands { return s.GenToggle(c) }

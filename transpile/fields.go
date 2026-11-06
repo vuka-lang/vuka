@@ -93,7 +93,7 @@ func (e *engine) renderFields(f *fileState) {
 	for _, a := range f.attrs {
 		if a.Field && len(a.fieldNames) > 0 {
 			f.fieldsOn = true
-			if e.schemas[a.structOf] == nil {
+			if e.schemas[a.structOf] == nil && !f.isFrom(a) {
 				f.runtime()
 			}
 		}
@@ -113,7 +113,7 @@ func (f *fileState) renderFieldAttrs() {
 	var order []string
 	byType := map[string][]*Attr{}
 	for _, a := range f.attrs {
-		if !a.Field || len(a.fieldNames) == 0 {
+		if !a.Field || len(a.fieldNames) == 0 || f.isFrom(a) {
 			continue
 		}
 		if byType[a.structOf] == nil {
@@ -156,6 +156,7 @@ func (f *fileState) renderFieldAttrs() {
 		}
 		w.gen("\t})\n}\n", attrs[len(attrs)-1].end)
 	}
+	f.renderDerived(w)
 }
 
 // writeFieldAttr writes a field attribute's value: T{…} or a call as
@@ -222,9 +223,20 @@ func (f *fileState) copyRewritten(w *genWriter, sp span) {
 			continue
 		}
 		w.copy(string(f.src[last:p.start]), last)
-		if p.file {
+		switch {
+		case p.file:
 			w.gen(p.text, p.start)
-		} else {
+		case len(p.segs) > 0 && !p.copy:
+			// a name qualified, s.Title: its segments map each byte back
+			for _, sg := range p.segs {
+				t := p.text[sg.gen : sg.gen+sg.genLen]
+				if sg.copy {
+					w.copy(t, sg.src)
+				} else {
+					w.replace(t, sg.src, sg.srcLen)
+				}
+			}
+		default:
 			w.replace(p.text, p.start, p.end-p.start)
 		}
 		last = p.end

@@ -1,5 +1,5 @@
 err_state.vuka:14:13: strings.ToUpper can't run in the browser; compute it on the server
-err_state.vuka:15:14: the * operator can't run in the browser; compute it on the server
+err_state.vuka:15:14: the / operator can't run in the browser; compute it on the server
 err_state.vuka:16:20: open++ needs a ui.State of a number; open is a stateui.State[bool]
 err_state.vuka:17:20: tab = !tab needs a ui.State[bool]; tab is a stateui.State[string]
 err_state.vuka:18:35: Set: tab is a stateui.State[string]; it takes a string, not int

@@ -116,6 +116,23 @@ parameter keeps the call a handler.
   loader ([E0324](/errors/E0324)) are reported for these components as for
   islands, and fail the component's mount.
 
+### Client state
+
+- **`ui.Derived`: browser values computed from states**
+  ([#367](https://github.com/vuka-lang/vuka/issues/367)). A field
+  `total ui.Derived[int] @ui.From(count * price)` is read in markup as a
+  state is, `{total}`, `class:over={total > 100}`. The browser computes it
+  again when a state it reads changes, once per batch of writes, and keeps
+  it by key: what reads it follows only when its value changed, and a
+  Derived may read another. The server renders it with the same expression
+  over the states' initial values. A Derived declared wrong — without a
+  `@ui.From`, reading no state or a prop, reading itself through others —
+  is [E0176](/errors/E0176), with the cycle's path and the nearest field
+  for a misspelt name; writing one is [E0177](/errors/E0177). `*` joins the
+  operators the browser runs. A component script reads one with
+  `state('total')`, typed read only. Needs ui and web at the release's
+  version. See [Derived Values](/ui/state#derived).
+
 ### The ORM
 
 - **`Indexes`, `Checks` and `Generated` on `orm.Base`.** The base declares

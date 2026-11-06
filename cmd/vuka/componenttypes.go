@@ -23,9 +23,9 @@ import (
 
 const componentDTSName = "vuka-component.d.ts"
 
-// stateField finds a struct body's ui.State fields: names, and the type
-// argument.
-var stateField = regexp.MustCompile(`(?m)^\s*(\w+(?:\s*,\s*\w+)*)\s+(?:\w+\.)?State\[(.+)\]\s*(` + "`" + `[^` + "`" + `]*` + "`" + `)?\s*(?://.*)?$`)
+// stateField finds a struct body's ui.State and ui.Derived fields: names,
+// the type argument, the tag, and Derived when it is one.
+var stateField = regexp.MustCompile(`(?m)^\s*(\w+(?:\s*,\s*\w+)*)\s+(?:\w+\.)?(?:State|(Derived))\[(.+?)\]\s*(` + "`" + `[^` + "`" + `]*` + "`" + `)?\s*(?:@\S.*?)?\s*(?://.*)?$`)
 
 // componentDTS is vuka-component.d.ts for the components comps whose
 // templates have a script, nil when none has.
@@ -67,7 +67,7 @@ func componentDTSLocs(root, modPath string, comps []*assetComp) ([]byte, []dtsLo
 	type comp struct {
 		c      *assetComp
 		props  []islandProp
-		states [][2]string
+		states [][3]string
 		scope  *tsScope
 		page   bool
 		names  scriptNames
@@ -136,7 +136,11 @@ func componentDTSLocs(root, modPath string, comps []*assetComp) ([]byte, []dtsLo
 			b.WriteString("\treadonly __states?: {\n")
 			for _, s := range x.states {
 				full, _ := scanFile("", []byte(s[1]))
-				fmt.Fprintf(&b, "\t\t%s: %s;\n", tsKey(s[0]), r.ts(dropNewlineSemis(full), x.scope))
+				t := r.ts(dropNewlineSemis(full), x.scope)
+				if s[2] != "" {
+					t = "{ readonly __derived: " + t + " }"
+				}
+				fmt.Fprintf(&b, "\t\t%s: %s;\n", tsKey(s[0]), t)
 			}
 			b.WriteString("\t};\n")
 		}
@@ -309,6 +313,9 @@ export function onDestroy(fn: () => void): void;
 /** Setup helpers are specialized to the shape in its template's script. */
 export const ref: SetupRef<{}>;
 export function state(name: never): StateHandle<never>;
+/** A ui.Derived of the component: its value, computed by the browser from states; read only. */
+export interface DerivedHandle<V> { get(): V; watch(fn: (v: V) => void): () => void; }
+type HandleOf<V> = [V] extends [{ readonly __derived: infer D }] ? DerivedHandle<D> : StateHandle<V>;
 export function on(name: never, fn: (payload: never) => void): void;
 export function emit(name: never, payload?: unknown): Promise<unknown>;
 export const navigate: Navigation["navigate"];
@@ -318,8 +325,8 @@ export interface StateHandle<V> { get(): V; set(v: V): void; watch(fn: (v: V) =>
 export interface PageCtx<T> extends Navigation<T> {
 	/** The instance's exported Go methods (live.reorder(ids) calls Reorder) and its fields' handles. */
 	live: Live<T>;
-	/** A ui.State field's handle, by its name with a lower-case first letter (or its json name). */
-	state<K extends keyof States<T>>(name: K): StateHandle<States<T>[K]>;
+	/** A ui.State or ui.Derived field's handle, by its name with a lower-case first letter (or its json name). */
+	state<K extends keyof States<T>>(name: K): HandleOf<States<T>[K]>;
 	push(method: string, payload?: unknown): Promise<unknown>;
 	/** Runs fn with the payload of each PushEvent(event, payload) the instance's Go code sends. */
 	on<K extends keyof Events<T> & string>(event: K, fn: (payload: Events<T>[K]) => void): void;
@@ -387,7 +394,7 @@ func stripPtr(t []wtok) []wtok {
 // componentFields are the fields of the struct name the package in dir
 // declares: its props, and its ui.State fields (name as ctx.state takes it,
 // the type argument).
-func componentFields(dir, name string) ([]islandProp, [][2]string) {
+func componentFields(dir, name string) ([]islandProp, [][3]string) {
 	entries, _ := load.ReadDir(dir)
 	decl := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `\s+struct\s*\{`)
 	for _, e := range entries {
@@ -405,18 +412,18 @@ func componentFields(dir, name string) ([]islandProp, [][2]string) {
 		}
 		full, _ := scanFile(n, src)
 		props := structFields(full, name)
-		var states [][2]string
+		var states [][3]string
 		if end := goEndBrace(string(src), loc[1]); end > 0 {
 			for _, m := range stateField.FindAllStringSubmatch(string(src[loc[1]:end]), -1) {
-				jname, skip := jsonTagName(strings.Trim(m[3], "`"))
+				jname, skip := jsonTagName(strings.Trim(m[4], "`"))
 				for _, fn := range strings.Split(m[1], ",") {
 					fn = strings.TrimSpace(fn)
 					switch {
 					case skip:
 					case jname != "":
-						states = append(states, [2]string{jname, m[2]})
+						states = append(states, [3]string{jname, m[3], m[2]})
 					default:
-						states = append(states, [2]string{strings.ToLower(fn[:1]) + fn[1:], m[2]})
+						states = append(states, [3]string{strings.ToLower(fn[:1]) + fn[1:], m[3], m[2]})
 					}
 				}
 			}

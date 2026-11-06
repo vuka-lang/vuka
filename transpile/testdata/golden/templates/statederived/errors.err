@@ -1,0 +1,2 @@
+cart.vuka.html:1:1: vuka produced Go that doesn't parse; please report this
+cart.vuka.html:10:48: expected statement, found ')'

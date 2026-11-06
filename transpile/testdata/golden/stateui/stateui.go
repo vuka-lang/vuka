@@ -244,14 +244,18 @@ func (s State[T]) GenAnd(o any) State[bool] {
 func (s State[T]) GenOr(o any) State[bool] {
 	return derive(s, any(s.v).(bool) || val(o).(bool), "||", o)
 }
-func (s State[T]) GenEq(o any) State[bool]       { return derive(s, cmp(s.v, val(o)) == 0, "==", o) }
-func (s State[T]) GenNe(o any) State[bool]       { return derive(s, cmp(s.v, val(o)) != 0, "!=", o) }
-func (s State[T]) GenLt(o any) State[bool]       { return derive(s, cmp(s.v, val(o)) < 0, "<", o) }
-func (s State[T]) GenLe(o any) State[bool]       { return derive(s, cmp(s.v, val(o)) <= 0, "<=", o) }
-func (s State[T]) GenGt(o any) State[bool]       { return derive(s, cmp(s.v, val(o)) > 0, ">", o) }
-func (s State[T]) GenGe(o any) State[bool]       { return derive(s, cmp(s.v, val(o)) >= 0, ">=", o) }
-func (s State[T]) GenPlus(o any) State[T]        { return derive(s, arith(s.v, val(o), 1).(T), "+", o) }
-func (s State[T]) GenMinus(o any) State[T]       { return derive(s, arith(s.v, val(o), -1).(T), "-", o) }
+func (s State[T]) GenEq(o any) State[bool] { return derive(s, cmp(s.v, val(o)) == 0, "==", o) }
+func (s State[T]) GenNe(o any) State[bool] { return derive(s, cmp(s.v, val(o)) != 0, "!=", o) }
+func (s State[T]) GenLt(o any) State[bool] { return derive(s, cmp(s.v, val(o)) < 0, "<", o) }
+func (s State[T]) GenLe(o any) State[bool] { return derive(s, cmp(s.v, val(o)) <= 0, "<=", o) }
+func (s State[T]) GenGt(o any) State[bool] { return derive(s, cmp(s.v, val(o)) > 0, ">", o) }
+func (s State[T]) GenGe(o any) State[bool] { return derive(s, cmp(s.v, val(o)) >= 0, ">=", o) }
+func (s State[T]) GenPlus(o any) State[T]  { return derive(s, arith(s.v, val(o), 1).(T), "+", o) }
+func (s State[T]) GenMinus(o any) State[T] { return derive(s, arith(s.v, val(o), -1).(T), "-", o) }
+func (s State[T]) GenMul(o any) State[T] {
+	r := reflect.ValueOf(num(reflect.ValueOf(s.v)) * num(reflect.ValueOf(val(o)))).Convert(reflect.TypeFor[T]())
+	return derive(s, r.Interface().(T), "*", o)
+}
 func (s State[T]) Get() T                        { return s.v }
 func (s State[T]) Set(v T) Commands              { return JS.Set(s, v) }
 func (s State[T]) GenToggle(c Commands) Commands { return c.add("toggle " + s.String()) }
@@ -335,6 +339,26 @@ func arith(a, b any, sign int) any {
 	}
 	return r.Interface()
 }
+
+// Derived is a value computed from states, its expression x.
+type Derived[T any] struct{ s State[T] }
+
+func (d Derived[T]) Get() T                         { return d.s.v }
+func (d Derived[T]) anyState() string               { return d.s.anyState() }
+func (d Derived[T]) value() any                     { return d.s.v }
+func (d Derived[T]) binding() Binding               { return d.s.binding() }
+func (d Derived[T]) node() (*expr, *cell, []string) { return d.s.node() }
+
+// GenFrom is a Derived computed from x.
+func GenFrom[T any](x State[T]) Derived[T] { return Derived[T]{x} }
+
+// GenRead is d as a state.
+func GenRead[T any](d Derived[T]) State[T] { return d.s }
+
+// From marks a Derived field with its expression.
+func From(expr any) FromExpr { return FromExpr{} }
+
+type FromExpr struct{}
 
 type AnyState interface {
 	anyState() string

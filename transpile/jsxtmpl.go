@@ -525,7 +525,7 @@ func (w *jsxWriter) rootProps(el *jsxElem) (props, states string) {
 		return "", ""
 	}
 	props = w.q + "Props(" + string(m[1]) + ")"
-	if strings.Contains(string(w.f.src[script.start:script.end]), ".state(") {
+	if readsStates(string(w.f.src[script.start:script.end])) {
 		states = w.q + "States(" + string(m[1]) + ")"
 	}
 	return props, states

@@ -12,7 +12,7 @@ func Bad() ui.Node {
 	n := ui.State(2)
 	return <div>
 		<p title={strings.ToUpper(tab)} />
-		<p data-n={n * 2} />
+		<p data-n={n / 2} />
 		<button onClick={open++} />
 		<button onClick={tab = !tab} />
 		<button onClick={ui.JS.Set(tab, 3)} />
