@@ -29,13 +29,15 @@ type Chart struct {
 	Zoom     func(int)
 	Children ui.Node
 	open     ui.State[bool]
+	count    ui.State[int]
+	total    ui.Derived[int] @ui.From(count * 2)
 }
 
 func (c *Chart) Reorder(ids []int) error { return nil }
 `), 0o644)
 	c := &assetComp{dir: dir, name: "Chart", scripts: []assetSrc{{inline: "x"}}}
 	dts := string(componentDTS(dir, "", []*assetComp{c}))
-	for _, want := range []string{"Title: string;", "points: Point[];", "reorder(ids: number[]): Promise<void>;", "q: LiveBound<string>;", "open: boolean;", "export interface Point {", `type Chart = import("vuka:component").Chart;`} {
+	for _, want := range []string{"Title: string;", "points: Point[];", "reorder(ids: number[]): Promise<void>;", "q: LiveBound<string>;", "open: boolean;", "total: { readonly __derived: number };", "export interface Point {", `type Chart = import("vuka:component").Chart;`} {
 		if !strings.Contains(dts, want) {
 			t.Errorf("no %q in\n%s", want, dts)
 		}
@@ -66,6 +68,8 @@ export default component<Chart>((el, props, ctx) => {
 	el.title = props.Title + props.points.map((p) => p.X).join()
 	ctx.live.reorder([1, 2])
 	ctx.state("open").set(!ctx.state("open").get())
+	const n: number = ctx.state("total").get()
+	ctx.state("total").watch((v) => { el.title = String(v + n) })
 	ctx.navigate("/x")
 	return { update(next) { el.title = next.Title } }
 })
@@ -77,9 +81,10 @@ export const p = page<Chart>((el, live) => { live.q.set(live.q.value + "!") })
 export default component<Chart>((el, props, ctx) => {
 	props.Zoom
 	ctx.state("shut")
+	ctx.state("total").set(3)
 	ctx.live.reorder("x")
 })
-`); !strings.Contains(out, "Zoom") || !strings.Contains(out, `"shut"`) || !strings.Contains(out, "reorder") && !strings.Contains(out, "number[]") {
+`); !strings.Contains(out, "Zoom") || !strings.Contains(out, `"shut"`) || !strings.Contains(out, "'set' does not exist") || !strings.Contains(out, "reorder") && !strings.Contains(out, "number[]") {
 		t.Errorf("a wrong script type-checks:\n%s", out)
 	}
 }

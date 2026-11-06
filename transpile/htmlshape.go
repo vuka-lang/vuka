@@ -73,7 +73,8 @@ const (
 	Prop FieldRole = iota
 	// ServerState is an unexported field: state the server keeps.
 	ServerState
-	// BrowserState is a ui.State[T] field: state the browser keeps.
+	// BrowserState is a ui.State[T] or ui.Derived[T] field: state the
+	// browser keeps.
 	BrowserState
 	// Embedded is an embedded field (ui.Live, a shared struct).
 	Embedded
@@ -539,7 +540,8 @@ func shapeEmbedded(x ast.Expr) string {
 	return ""
 }
 
-// isUIState reports whether x is State[T] of a package, ui.State[string].
+// isUIState reports whether x is State[T] or Derived[T] of a package,
+// ui.State[string].
 func isUIState(x ast.Expr) bool {
 	ix, ok := x.(*ast.IndexExpr)
 	if !ok {
@@ -547,9 +549,9 @@ func isUIState(x ast.Expr) bool {
 	}
 	switch t := ix.X.(type) {
 	case *ast.SelectorExpr:
-		return t.Sel.Name == "State"
+		return t.Sel.Name == "State" || t.Sel.Name == "Derived"
 	case *ast.Ident:
-		return t.Name == "State"
+		return t.Name == "State" || t.Name == "Derived"
 	}
 	return false
 }

@@ -9,6 +9,8 @@
 
 [browser]
 # Chrome and Vite: islands (Vue, React, Svelte, Go), live pages, templ and ui libraries, slots, page scripts, the GraphQL app
+# clientstate_e2e_test.go
+TestDerivedE2E
 # contextvars_e2e_test.go
 TestContextProcessorsE2E
 TestContextProcessorsFolderPagesE2E
@@ -89,6 +91,8 @@ TestLSPCompletionErrorsSameFile
 # lsp_chainjoin_test.go
 TestCompletableChainAfterArgs
 TestLSPChainAfterMultilineArgs
+# lsp_derived_test.go
+TestLSPDerived
 # lsp_componentnav_test.go
 TestJSXRequestUnlocked
 TestLSPComponentNavigation

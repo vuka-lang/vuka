@@ -305,6 +305,9 @@ type fileState struct {
 	stateDone      map[int]bool        // src offsets of state reads and writes lowered or checked (state.go)
 	exprIdx        map[[2]int]ast.Expr // this round's expressions by their spans (exprAt)
 	exprIdxOf      *ast.File           // the syntax tree exprIdx indexes
+	froms          *[]*fromAttr        // its @ui.From attributes, once found (derived.go)
+	deriveOrder    map[string][]*fromAttr
+	underivedDone  bool
 }
 
 // spell records that gen, as messages quote it, is src at src offset off.

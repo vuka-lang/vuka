@@ -7,6 +7,8 @@ import (
 	"go/types"
 	"strconv"
 	"strings"
+
+	"github.com/vuka-lang/vuka/v2/diag"
 )
 
 // Client state. A JSX target declaring VukaState (ui does) has states the
@@ -172,9 +174,24 @@ func (e *engine) inFunc(f *fileState, n ast.Node) bool {
 }
 
 // stateOf is the type argument of a ui.State, a state's value type.
-func stateOf(t types.Type) (types.Type, bool) {
+func stateOf(t types.Type) (types.Type, bool) { return genericOf(t, "State") }
+
+// derivedOf is the type argument of a ui.Derived, a value the browser
+// computes from states: read as a state is, never written.
+func derivedOf(t types.Type) (types.Type, bool) { return genericOf(t, "Derived") }
+
+// readOf is the value type of what an expression reads as a state: a
+// ui.State or a ui.Derived.
+func readOf(t types.Type) (types.Type, bool) {
+	if elem, ok := stateOf(t); ok {
+		return elem, true
+	}
+	return derivedOf(t)
+}
+
+func genericOf(t types.Type, name string) (types.Type, bool) {
 	n, ok := types.Unalias(t).(*types.Named)
-	if !ok || n.Obj().Name() != "State" || n.Obj().Pkg() == nil || n.TypeArgs().Len() != 1 {
+	if !ok || n.Obj().Name() != name || n.Obj().Pkg() == nil || n.TypeArgs().Len() != 1 {
 		return nil, false
 	}
 	if !declaresState(n.Obj().Pkg()) {
@@ -192,8 +209,16 @@ type stateBind struct {
 
 // bindError is a read the browser can't run.
 type bindError struct {
-	off int
-	msg string
+	off  int
+	msg  string
+	code diag.Code // "" for the caller's
+}
+
+func (b *bindError) codeOr(code diag.Code) diag.Code {
+	if b.code != "" {
+		return b.code
+	}
+	return code
 }
 
 // binder lowers one expression.
@@ -228,7 +253,7 @@ func (e *engine) readsState(x ast.Node) bool {
 		}
 		if c, ok := n.(*ast.CallExpr); ok {
 			if s, ok := c.Fun.(*ast.SelectorExpr); ok && s.Sel.Name == "Get" && len(c.Args) == 0 {
-				if _, st := stateOf(e.info.TypeOf(s.X)); st {
+				if _, st := readOf(e.info.TypeOf(s.X)); st {
 					return false
 				}
 			}
@@ -237,7 +262,7 @@ func (e *engine) readsState(x ast.Node) bool {
 			return false
 		}
 		if x, ok := n.(ast.Expr); ok {
-			if _, st := stateOf(e.info.TypeOf(x)); st {
+			if _, st := readOf(e.info.TypeOf(x)); st {
 				found = true
 			}
 		}
@@ -267,7 +292,7 @@ func (e *engine) passesStates(x ast.Expr) bool {
 	if t == nil || isInvalid(t) {
 		return false
 	}
-	if _, st := stateOf(t); st {
+	if _, st := readOf(t); st {
 		return false
 	}
 	if _, ok := t.Underlying().(*types.Basic); ok {
@@ -312,7 +337,7 @@ func (e *engine) statePackage(x ast.Expr) *types.Package {
 	var pkg *types.Package
 	ast.Inspect(x, func(n ast.Node) bool {
 		if x, ok := n.(ast.Expr); ok && pkg == nil {
-			if _, st := stateOf(e.info.TypeOf(x)); st {
+			if _, st := readOf(e.info.TypeOf(x)); st {
 				pkg = types.Unalias(e.info.TypeOf(x)).(*types.Named).Obj().Pkg()
 			}
 		}
@@ -323,7 +348,7 @@ func (e *engine) statePackage(x ast.Expr) *types.Package {
 
 func (bd *binder) fail(n ast.Node, msg string) {
 	if bd.err == nil {
-		bd.err = &bindError{bd.f.orig(n.Pos()), msg}
+		bd.err = &bindError{bd.f.orig(n.Pos()), msg, ""}
 	}
 }
 
@@ -337,6 +362,9 @@ func (e *engine) stateField(x ast.Expr) (ast.Expr, []string, types.Type) {
 	var path []string
 	for {
 		x = ast.Unparen(x)
+		if elem, ok := derivedOf(e.info.TypeOf(x)); ok && len(path) == 0 {
+			return x, nil, elem
+		}
 		if elem, ok := stateOf(e.info.TypeOf(x)); ok {
 			for _, name := range path {
 				st, _ := elem.Underlying().(*types.Struct)
@@ -374,7 +402,7 @@ func (bd *binder) field(base ast.Expr, path []string, t types.Type) {
 
 var bindMethods = map[token.Token]string{
 	token.LAND: "And", token.LOR: "Or", token.EQL: "Eq", token.NEQ: "Ne", token.LSS: "Lt", token.LEQ: "Le",
-	token.GTR: "Gt", token.GEQ: "Ge", token.ADD: "Plus", token.SUB: "Minus",
+	token.GTR: "Gt", token.GEQ: "Ge", token.ADD: "Plus", token.SUB: "Minus", token.MUL: "Mul",
 }
 
 // lower writes x, which reads a state, as a state: one read as it is, an
@@ -383,7 +411,11 @@ var bindMethods = map[token.Token]string{
 func (bd *binder) lower(x ast.Expr) {
 	e := bd.e
 	if base, path, t := e.stateField(x); base != nil {
-		if len(path) == 0 {
+		if _, d := derivedOf(e.info.TypeOf(base)); d {
+			bd.gen(bd.g + "Read(")
+			bd.keep(x)
+			bd.gen(")")
+		} else if len(path) == 0 {
 			bd.keep(x)
 		} else {
 			bd.field(base, path, t)
@@ -572,7 +604,7 @@ func (e *engine) bindArg(f *fileState, c *jsxComp, a *compArg) bool {
 	if x == nil || !e.readsState(x) {
 		return x == nil || !e.unknownTypes(x)
 	}
-	if _, st := stateOf(e.info.TypeOf(x)); st {
+	if _, st := readOf(e.info.TypeOf(x)); st {
 		return true
 	}
 	if at.name == "key" {

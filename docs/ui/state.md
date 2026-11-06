@@ -53,6 +53,56 @@ expression remains reactive in the browser.
 It cannot select a Go branch that requires a server execution. Use a reactive
 attribute or `ui.Show` for visibility instead.
 
+The browser runs literals, state reads, `!`, unary `-`, `&&`, `||`,
+comparisons, `+`, `-`, `*` and `len`; any other operator or a call is
+[E0124](/errors/E0124). A value read in several places is a
+[Derived](#derived).
+
+## Derived Values {#derived}
+
+A `ui.Derived[T]` field is a value the browser computes from states and
+keeps: a cart's total from its count and price, whether it is over a limit.
+Its `@ui.From(…)` is the expression, written as markup writes one, the
+struct's fields by their bare names:
+
+```html
+<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type Cart struct {
+	count ui.State[int]
+	price ui.State[int]
+	total ui.Derived[int]  @ui.From(count * price)
+	over  ui.Derived[bool] @ui.From(total > 100)
+}
+</script>
+
+<section>
+  <button onClick={count++}>Add one</button>
+  <p class:over={over}>{total}</p>
+</section>
+```
+
+Markup reads a Derived exactly as it reads a state, in children,
+attributes, `class:x` and `ui.Show`. The browser computes it again when a
+state it reads changes, once per batch of writes however many places read
+it, and what reads it follows only when its value changed. A Derived may
+read another one; the compiler orders them, and Derived fields reading each
+other in a cycle are [E0176](/errors/E0176), naming the path.
+
+The server renders it with the same expression over the states' initial
+values, so the HTML is right before any script runs.
+
+- The expression reads states, other Derived fields and constants. A prop
+  or server state isn't the browser's: compare with it in the markup
+  (`class:over={total > Limit}`).
+- It is never written: an assignment to one is [E0177](/errors/E0177).
+  Write the states it reads.
+- A component script reads one with `state('total')`, whose handle has
+  `get` and `watch` and no `set`.
+
 ## Writing State {#writing}
 
 Assignments in one event run in order. You can combine browser changes with a

@@ -164,7 +164,7 @@ func (e *engine) trackFields(f, decl *fileState, name, gen string) {
 // trackable reports whether a field of type t is tracked server state, not
 // a state, a dependency or a value that mustn't be copied.
 func trackable(t types.Type) bool {
-	if _, ok := stateOf(t); ok {
+	if _, ok := readOf(t); ok {
 		return false
 	}
 	switch u := t.Underlying().(type) {

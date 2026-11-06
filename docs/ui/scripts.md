@@ -106,7 +106,7 @@ function runs:
 |---|---|
 | `ref('search')` | the element, typed from its tag; `null` only inside an `if`, `switch` branch or slot |
 | `ref.all('category')` | a function returning the current loop elements; `.watch(fn)` runs when the set changes after a patch |
-| `state('open')` | the state's `get`, `set` and `watch` handle |
+| `state('open')` | the state's `get`, `set` and `watch` handle; a [Derived](/ui/state#derived)'s has `get` and `watch` |
 | `listen(target, type, fn, options?)` | a listener removed on destruction; returns a function to remove it early |
 | `onDestroy(fn)` | cleanup when the instance leaves |
 | `on`, `emit`, `navigate`, `patch` | the corresponding `ctx` operation during setup |

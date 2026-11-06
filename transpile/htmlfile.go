@@ -692,11 +692,18 @@ func (h *htmlFile) toSrc(off int) int {
 // is its scope, which the component loader finds the instance by).
 func scriptAttrs(ui, v, script string) string {
 	out := " data-vk-p={" + ui + "Props(" + v + ")}"
-	if strings.Contains(script, ".state(") {
+	if readsStates(script) {
 		out += " data-vk-st={" + ui + "States(" + v + ")}"
 	}
 	return out
 }
+
+// scriptState matches a script's call reaching a state: ctx.state("open"),
+// or the setup helper state("open").
+var scriptState = regexp.MustCompile(`(^|[^\w$])state\s*\(`)
+
+// readsStates reports whether a component script reaches its states.
+func readsStates(script string) bool { return scriptState.MatchString(script) }
 
 // propsAt is where data-vk-p goes: after the first tag's name in
 // lines[from:to], and that name.

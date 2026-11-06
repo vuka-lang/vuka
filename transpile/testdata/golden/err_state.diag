@@ -6,10 +6,10 @@ error[E0124]: strings.ToUpper can't run in the browser; compute it on the server
    |
    = help: compute it on the server, or read only states and simple operators
 
-error[E0124]: the * operator can't run in the browser; compute it on the server
+error[E0124]: the / operator can't run in the browser; compute it on the server
   --> err_state.vuka:15:14
    |
-15 |         <p data-n={n * 2} />
+15 |         <p data-n={n / 2} />
    |                    ^
    |
    = help: compute it on the server, or read only states and simple operators

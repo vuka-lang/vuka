@@ -190,6 +190,7 @@ func (e *engine) run() {
 			}
 			f.qualified = false
 			e.resolveBare(f)
+			e.lowerDerived(f)
 			e.lowerContextVars(f)
 			e.resolveStatics(f)
 			e.resolveFieldRefs(f)

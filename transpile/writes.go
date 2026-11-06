@@ -71,7 +71,7 @@ type writeStep struct {
 func (e *engine) writeSteps(f *fileState, stmts []ast.Stmt, inAttr bool) ([]writeStep, *bindError) {
 	var out []writeStep
 	fail := func(n ast.Node, format string, args ...any) ([]writeStep, *bindError) {
-		return nil, &bindError{f.orig(n.Pos()), sprintf(format, args...)}
+		return nil, &bindError{f.orig(n.Pos()), sprintf(format, args...), ""}
 	}
 	text := func(n ast.Node) string { return string(f.src[f.orig(n.Pos()):f.orig(n.End())]) }
 	for _, st := range stmts {
@@ -81,6 +81,9 @@ func (e *engine) writeSteps(f *fileState, stmts []ast.Stmt, inAttr bool) ([]writ
 				return fail(st, "a write sets one state: %s", text(st))
 			}
 			lhs, rhs := st.Lhs[0], st.Rhs[0]
+			if _, d := derivedOf(e.info.TypeOf(lhs)); d {
+				return nil, &bindError{f.orig(lhs.Pos()), derivedWrite(text(lhs)), "E0177"}
+			}
 			elem, ok := stateOf(e.info.TypeOf(lhs))
 			if !ok {
 				if inAttr {
@@ -103,13 +106,16 @@ func (e *engine) writeSteps(f *fileState, stmts []ast.Stmt, inAttr bool) ([]writ
 			}
 			tv, known := e.exprType(rhs)
 			if !known {
-				return nil, &bindError{-1, ""}
+				return nil, &bindError{-1, "", ""}
 			}
 			if !valueFits(tv, elem) {
 				return fail(rhs, "%s is a %s; it takes a %s, not %s", text(lhs), e.display(e.info.TypeOf(lhs)), e.display(elem), e.display(tv.Type))
 			}
 			out = append(out, writeStep{op: "Set", lhs: lhs, rhs: rhs})
 		case *ast.IncDecStmt:
+			if _, d := derivedOf(e.info.TypeOf(st.X)); d {
+				return nil, &bindError{f.orig(st.X.Pos()), derivedWrite(text(st.X)), "E0177"}
+			}
 			elem, ok := stateOf(e.info.TypeOf(st.X))
 			if !ok {
 				if inAttr {
@@ -132,7 +138,7 @@ func (e *engine) writeSteps(f *fileState, stmts []ast.Stmt, inAttr bool) ([]writ
 			}
 			tv, known := e.info.Types[call]
 			if !known {
-				return nil, &bindError{-1, ""}
+				return nil, &bindError{-1, "", ""}
 			}
 			void := tv.IsVoid()
 			if !void && !types.Identical(tv.Type, types.Universe.Lookup("error").Type()) {
@@ -250,7 +256,7 @@ func (e *engine) lowerAttrWrites(f *fileState) []span {
 				if err != nil {
 					if err.off >= 0 {
 						f.writeDone[a.expr.start] = true
-						e.errs.add("E0150", f.at(err.off), "%s", err.msg)
+						e.errs.add(err.codeOr("E0150"), f.at(err.off), "%s", err.msg)
 					}
 					continue
 				}
@@ -359,10 +365,16 @@ func (e *engine) lowerMethodWrites(f *fileState, attrs []span) {
 		default:
 			return true
 		}
+		off := f.orig(st.Pos())
+		if _, d := derivedOf(e.info.TypeOf(lhs)); d && !inAttr(off) && !f.writeDone[off] {
+			f.writeDone[off] = true
+			e.errs.add("E0177", f.at(f.orig(lhs.Pos())), "%s", derivedWrite(string(f.src[f.orig(lhs.Pos()):f.orig(lhs.End())]))).
+				help("set the states it reads")
+			return false
+		}
 		if _, ok := stateOf(e.info.TypeOf(lhs)); !ok {
 			return true
 		}
-		off := f.orig(st.Pos())
 		if f.writeDone[off] || inAttr(off) {
 			return false
 		}
@@ -380,7 +392,7 @@ func (e *engine) lowerMethodWrites(f *fileState, attrs []span) {
 		steps, err := e.writeSteps(f, []ast.Stmt{st}, false)
 		if err != nil {
 			if err.off >= 0 {
-				e.errs.add("E0150", f.at(err.off), "%s", err.msg)
+				e.errs.add(err.codeOr("E0150"), f.at(err.off), "%s", err.msg)
 			} else {
 				f.writeDone[off] = false // types not known yet
 			}
