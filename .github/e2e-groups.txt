@@ -15,6 +15,7 @@ TestWatchesE2E
 TestKeepSharedE2E
 TestOptimisticE2E
 TestShowE2E
+TestStatesPanelE2E
 # contextvars_e2e_test.go
 TestContextProcessorsE2E
 TestContextProcessorsFolderPagesE2E

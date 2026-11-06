@@ -72,6 +72,18 @@ ignored the batch or found it out of step.
 
 ![A live page's messages](/toolbar-live.png)
 
+### States
+
+The page's [browser state](/ui/state): each component instance's
+`ui.State` and `ui.Derived` fields with their values, kept current as the
+page writes them. A write flashes its row and says what wrote it — the
+event and its element (`click #save`), the server, another tab, a script.
+A state's value is edited in place, as JSON, and written as an event's
+write would be, so a dialog can be forced open to style it; a Derived is
+read only, following the states it reads. Only the page's own record has
+the panel, and only fields' states are named: a state declared in a
+function's body (`ui.State(false)`) isn't listed.
+
 ### Assets
 
 The page's [styles and scripts](/web/assets): its scoped
