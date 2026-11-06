@@ -79,6 +79,9 @@ func (e *engine) noSlot(c *jsxComp, tag, name string, names []string, typs []typ
 	}
 	var slots []string
 	for j, n := range names {
+		if strings.EqualFold(n, "children") {
+			continue
+		}
 		switch e.slotKind(typs[j], node) {
 		case slotNode, slotFunc:
 			slots = append(slots, lowerFirst(n))
@@ -86,17 +89,24 @@ func (e *engine) noSlot(c *jsxComp, tag, name string, names []string, typs []typ
 			slots = append(slots, lowerFirst(strings.TrimSuffix(n, "s")))
 		}
 	}
+	if len(slots) == 0 {
+		return "<" + tag + "> has no slot " + name + ": it has no slots; a slot is a " + q + "Node " + what + ", or a func returning one"
+	}
+	return unknownSlot(tag, name, slots)
+}
+
+// unknownSlot is the error on a <slot:name> a tag declares no slot for, of
+// its slots: the nearest one, else all of them.
+func unknownSlot(tag, name string, slots []string) string {
 	msg := "<" + tag + "> has no slot " + name
 	if s := closestName(name, slots); s != "" {
 		return msg + "; did you mean <slot:" + s + ">?"
 	}
-	if len(slots) == 0 {
-		return msg + ": it has no slots; a slot is a " + q + "Node " + what + ", or a func returning one"
-	}
+	named := make([]string, len(slots))
 	for k, s := range slots {
-		slots[k] = "<slot:" + s + ">"
+		named[k] = "<slot:" + s + ">"
 	}
-	return msg + "; its slots are " + strings.Join(slots, ", ")
+	return msg + "; its slots are " + strings.Join(named, ", ")
 }
 
 // slotArg is what a <slot:x> sets a field or parameter of type t to, as kind

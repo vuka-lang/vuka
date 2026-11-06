@@ -254,12 +254,18 @@ events (`on`, `onClose`). A templ component's, a `.templ` file's `templ`
 taking a props struct, shows the same. `vuka ui list <component>` prints it
 in the terminal ([What a Component Takes](/ui/vendored#component-doc)).
 
-Typing `<slot:` inside a component's tag lists its slots with their types:
-a `ui.Node` field, a func field returning one (inserted with a `let` naming
-its values) and a slice of structs (in the singular, `<slot:column>` for
-`Columns`). Fields tagged `vuka:"required"` are marked. The names a `let`
-declares are template locals in the slot's content; hover on one shows the
-value it names and its type.
+Typing `<slot:` inside a component's tag lists its slots with their types
+and doc comments: a `ui.Node` field, a func field returning one (inserted
+with a `let` naming its values) and a slice of structs (in the singular,
+`<slot:column>` for `Columns`). Fields tagged `vuka:"required"` are marked,
+and a slot the tag already fills isn't offered again (a repeated one is).
+Hover on a slot's tag shows the field it fills, its doc and, for a scoped
+slot, the types of the values its `let` names; go to definition opens the
+field. The names a `let` declares are template locals in the slot's
+content: they complete, and hover on one shows the value it names and its
+type. A slot the component doesn't have is [E0106](/errors/E0106), with the
+nearest slot's name. All of it works the same for the app's components, a
+library's, a templ component's and `<ui.Await>`'s and `<ui.Suspense>`'s.
 
 An attribute the component doesn't take, and a function's parameter left
 out ([E0144](/errors/E0144)), are the compiler's errors, underlined as you

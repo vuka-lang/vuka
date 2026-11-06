@@ -52,7 +52,8 @@ func suspenseSlots(el *jsxElem) (fallback, failed *jsxElem, body []jsxNode) {
 	return fallback, failed, trimBody(body)
 }
 
-// suspenseErrors reports a boundary's other slots: E0351.
+// suspenseErrors reports a boundary's misplaced markup (E0351) and a slot
+// it doesn't have (E0106).
 func (e *engine) suspenseErrors(f *fileState, el *jsxElem) {
 	for _, a := range el.attrs {
 		if a.name == "for" && a.kind == 'e' {
@@ -70,8 +71,7 @@ func (e *engine) suspenseErrors(f *fileState, el *jsxElem) {
 		name := strings.TrimPrefix(s.tag, "slot:")
 		switch {
 		case name != "fallback" && name != "error":
-			e.errs.add("E0351", f.at(s.start), "<%s> has a <slot:fallback> and a <slot:error>, not <%s>", el.tag, s.tag).
-				help("write <slot:fallback>…</slot:fallback> for what shows while it loads, <slot:error>…</slot:error> for a failure")
+			e.errs.add("E0106", f.at(s.start), "%s", unknownSlot(el.tag, name, []string{"fallback", "error"}))
 		case seen[name]:
 			e.errs.add("E0351", f.at(s.start), "<%s> has a second <%s>", el.tag, s.tag).help("keep one")
 		}

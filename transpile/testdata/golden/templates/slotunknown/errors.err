@@ -1,0 +1,4 @@
+page.vuka.html:11:12: <ui.Card> has no slot headr; did you mean <slot:header>?
+page.vuka.html:12:18: <Box> has no slot foter; did you mean <slot:footer>?
+page.vuka.html:13:10: <Panel> has no slot actoins; did you mean <slot:actions>?
+page.vuka.html:14:10: <Panel> has no slot menu; its slots are <slot:actions>

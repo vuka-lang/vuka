@@ -1,8 +1,8 @@
 page.vuka.html:22:13: Overview defers no group "order"; did you mean "orders"?
 page.vuka.html:23:3: <ui.Await> needs a key: the deferred group it shows; did you mean <ui.Await key="orders">?
 page.vuka.html:24:26: <ui.Await> takes only key, the group it shows: its <slot:pending> and <slot:error> are what shows meanwhile; drop class
-page.vuka.html:26:5: <ui.Await> has a <slot:pending> and a <slot:error>, not <slot:pendng>; did you mean <slot:pending>?
-page.vuka.html:27:5: <ui.Await> has a <slot:pending> and a <slot:error>, not <slot:loading>; write <slot:pending>…</slot:pending> for what shows while the group loads, <slot:error>…</slot:error> for a failure
+page.vuka.html:26:5: <ui.Await> has no slot pendng; did you mean <slot:pending>?
+page.vuka.html:27:5: <ui.Await> has no slot loading; its slots are <slot:pending>, <slot:error>
 page.vuka.html:28:24: <slot:pending> takes no values: let goes on <slot:error>, which takes the error; drop the let
 page.vuka.html:29:27: <slot:error> passes one value, the error: let={err}; name only the error
 page.vuka.html:34:5: <ui.Await> has a second <slot:error>; keep one

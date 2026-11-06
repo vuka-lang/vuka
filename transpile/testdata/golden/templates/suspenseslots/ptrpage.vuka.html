@@ -1,0 +1,16 @@
+package main
+
+// PtrPage's deferred methods have pointer receivers, declared in
+// methods.vuka; its markup's own receiver is a value.
+type PtrPage struct{ Store Store }
+<main>
+  <p>{Count()}</p>
+  <section>
+    items := Items()
+    <b>{len(items)}</b>
+  </section>
+  <ui.Suspense>
+    more := Items()
+    <i>{len(more)} {Count()}</i>
+  </ui.Suspense>
+</main>
