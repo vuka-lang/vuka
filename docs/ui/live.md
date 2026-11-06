@@ -226,5 +226,11 @@ rest. See `examples/loadtest`'s README for running it.
   apart. A state's key and a library's random id still count in render order.
 - Token patches keep the common start and end of long markup and replace the
   middle.
-- Next: spot-level skipping inside a component's render, streams, presence and
-  flash messages.
+- A keyed list's rows stay in the session — in the field, the render it keeps
+  and the shadow of what the client holds, with each row's handlers: about
+  0.94 KB per row with two handlers, per connection. A list that grows while
+  the page is open (a chat, a log tail, infinite scroll) is a
+  [stream](/web/streams), whose rows the session drops once their reply is
+  written.
+- Next: spot-level skipping inside a component's render, presence and flash
+  messages.

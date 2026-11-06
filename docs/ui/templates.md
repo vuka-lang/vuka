@@ -531,6 +531,11 @@ The statements are `if`, `else if`, `else`, `for` (over a range or a
 condition), `switch` with `case` and `default`, `x := expr` and `x = expr`. Text that starts with a
 keyword is written as a string, `{"if you can"}`.
 
+A `for` over a live page's [stream](/web/streams) ranges its `Rows()` and is
+the only content of its element, each row one element with a `key`: the
+browser holds the rows and the server sends only what changed since the last
+reply.
+
 They run in the markup's order, as Go's: a hole shows the value at its
 place, not the value after the statements below it:
 
