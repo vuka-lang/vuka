@@ -104,6 +104,7 @@ export default defineConfig({
           { text: 'Streams', link: '/web/streams' },
           { text: 'Forms', link: '/ui/forms' },
           { text: 'GraphQL', link: '/web/graphql' },
+          { text: 'Events', link: '/ui/events' },
           { text: 'Client State', link: '/ui/state' },
           { text: 'JS Commands', link: '/ui/js' },
           { text: 'Component Scripts', link: '/ui/scripts' },

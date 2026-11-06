@@ -372,6 +372,9 @@ func (e *engine) bindFields(c *jsxComp, st *types.Struct, attrs []*jsxAttr, node
 			if attrsAt >= 0 {
 				return false, a.off, unknownAttr(el.tag, a.name, "fields", names) + ` (an HTML attribute of that name: attributes={templ.Attributes{"` + a.name + `": …}})`
 			}
+			if isEvent(a.name) && !c.elem && closestName(a.name, names) == "" {
+				return false, a.off, "<" + el.tag + "> takes no " + a.name + ": it has no " + exportName(a.name) + " field, and no Attrs []" + c.target.q + "Attr field passing it on to the element it spreads its attributes on (<input {Attrs...}/>)"
+			}
 			return false, a.off, unknownAttr(el.tag, a.name, "fields", names)
 		}
 		fl := fields[i]
@@ -640,8 +643,8 @@ func groupArgs(args []*compArg, d int) []*compArg {
 func (e *engine) checkEvents(f *fileState) {
 	for _, t := range f.jsx {
 		for _, ev := range t.events {
-			if ev.attr.stmts {
-				continue // writes.go checks them
+			if ev.attr.stmts || ev.attr.push != nil {
+				continue // writes.go and eventcalls.go check them
 			}
 			if ev.checked {
 				continue

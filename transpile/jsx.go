@@ -118,6 +118,7 @@ type jsxAttr struct {
 	bind  *stateBind // an expression reading states, lowered (state.go)
 	stmts bool       // an event's statements, not an expression: onClick={open = !open; Save()}
 	write *stateBind // those statements as a chain of commands, lowered (writes.go)
+	push  *stateBind // an event's call of a method of the markup's receiver, as a push (eventcalls.go)
 	parts []attrPart // kind 'p': a template's text with holes, href="/o/{o.ID}"
 	model bool       // model={Form.Email} on a field (forms.go), its modifiers in mods
 	mods  string
@@ -1082,6 +1083,10 @@ func (w *jsxWriter) attrValue(a *jsxAttr) {
 		}
 		if a.write != nil {
 			w.bind(a.write)
+			return
+		}
+		if a.push != nil {
+			w.bind(a.push)
 			return
 		}
 		if a.stmts {

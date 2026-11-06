@@ -188,7 +188,7 @@ Holes accept Go expressions; their required type depends on their place:
 | `href="/orders/{o.ID}"` | part of a value |
 | `class:late={o.Late}` | a toggled class: a bool or a `ui.State[bool]` |
 | `<input {attrs...}>` | an attribute set |
-| `onClick={c.Inc}`, `onClick={c.Add(2)}`, `onClick={c.Save(ctx, o.ID)}` | an event: a method value, or a call with no result or only an error, which runs on the event; a `ctx` it names is the event's |
+| `onClick={c.Inc}`, `onClick={c.Add(2)}`, `onChange={c.Choose(this.value)}` | an event: a method value, or a call of an exported method, pushed when the event fires with the element's reads ([Events](/ui/events)); a `ctx` it names is the event's |
 | `bind:value={Q}` | two-way: the field's value, and what is typed sets it — a field marked `@ui.Bind` on a live page (`@ui.Bind` on the field, its debounce and `validate:` rules), else an error |
 | `style:--accent={Color}` | a CSS variable (any property) beside the element's `style`, sanitized as a `ui.Style` |
 

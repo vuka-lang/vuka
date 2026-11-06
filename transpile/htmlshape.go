@@ -599,11 +599,28 @@ func wiredEvent(markup string, events []string) string {
 		if end < 0 {
 			continue
 		}
-		if m := name.FindStringSubmatch(maskPushSteps(markup[loc[1]:end])); m != nil {
+		hole := markup[loc[1]:end]
+		if methodCall(hole) {
+			continue // a push, reaching the method over HTTP on a page that isn't live
+		}
+		if m := name.FindStringSubmatch(maskPushSteps(hole)); m != nil {
 			return m[1]
 		}
 	}
 	return ""
+}
+
+var callHead = regexp.MustCompile(`^\s*(?:\w+\.)?[A-Z]\w*\s*\(`)
+
+// methodCall reports whether an on… attribute's expression is one call of
+// an exported name, Choose(this.value): a push of the method it names.
+func methodCall(hole string) bool {
+	m := callHead.FindStringIndex(hole)
+	if m == nil {
+		return false
+	}
+	args := closeParen(hole, m[1])
+	return m[1]+len(args) < len(hole) && strings.TrimSpace(hole[m[1]+len(args)+1:]) == ""
 }
 
 var (

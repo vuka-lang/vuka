@@ -22,6 +22,39 @@ the `github.com/vuka-lang/vuka` package your module requires.
 
 ## v2.17.0 — unreleased
 
+### Events
+
+- **An event calls a method as it reads** ([#353](https://github.com/vuka-lang/vuka/issues/353)).
+  A call of one of the page's or a live component's exported methods in an
+  `on…` attribute is a push made when the event fires, never a call made
+  while the markup renders: `onChange={Choose(this.value)}` is
+  `onChange={ui.JS.Push(Choose, ui.This.Value())}`. `this.value`,
+  `this.checked` and `this.<attr>` (`this.dataId` for `data-id`) are the
+  element's reads. On a page that isn't live the call goes over HTTP, so
+  `onClick={Remove(o.ID)}` no longer needs `ui.Live`. A call of anything
+  else keeps its meaning: an unexported method, a function, a method
+  returning browser commands or a func, or one passed its dependencies. See
+  [Events](/ui/events).
+- **The same call on a component's tag.** An `on…` attribute the
+  component doesn't declare goes on to the element it spreads its `Attrs`
+  on, `<components.Combobox onChange={Choose(this.value)}/>`, in place of
+  `attrs={[]ui.Attr{{Name: "onChange", Value: ui.JS.Push(…)}}}`; a prop
+  taking browser commands takes it too. A component with neither is
+  [E0106](/errors/E0106), naming it.
+- **Checked as a push is.** The arguments against the method's parameters
+  ([E0168](/errors/E0168)), a read outside a method call or misspelt
+  ([E0170](/errors/E0170)), a method the shape doesn't have, with the
+  closest name ([E0172](/errors/E0172)), and, on a page that isn't live, a
+  call passing its dependencies itself ([E0169](/errors/E0169)). In the
+  editor, hover and go to definition on the method open its Go, and
+  completion after `this.` offers the element's reads and attributes.
+
+**Upgrading:** a call of an exported method returning nothing or an error
+was a handler of the live instance; it is a push of the method, which runs
+it there too. Its Go arguments are now checked against the method's
+parameters as a push's are, so an argument for a pointer or interface
+parameter keeps the call a handler.
+
 ### Live pages
 
 - **Deferred fields on pages and components rendered by their own markup.**

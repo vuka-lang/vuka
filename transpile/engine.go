@@ -242,6 +242,9 @@ func (e *engine) run() {
 		e.staticCycles()
 	}
 	if len(*e.errs) == 0 && e.info != nil {
+		e.checkEventCalls()
+	}
+	if len(*e.errs) == 0 && e.info != nil {
 		e.checkTargets()
 		e.checkRefs()
 		e.checkGoTracked()

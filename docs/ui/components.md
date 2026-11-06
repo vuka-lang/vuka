@@ -82,6 +82,9 @@ instance for the connected page.
 Use `class:selected={Selected}`, `{attrs...}` and `style:color={Color}` for
 dynamic classes, attribute sets and sanitized styles. Event attributes accept
 server methods or browser commands. See [Templates](/ui/templates#holes).
+An `on…` attribute a component doesn't declare goes on to the element it
+spreads its `Attrs` on: `<Combobox onChange={Choose(this.value)}/>`
+([Events on Components](/ui/events#components)).
 
 ## Linking Between Pages {#links}
 

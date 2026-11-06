@@ -31,6 +31,12 @@ type OptionGroup struct {
 
 type Target string
 
+// Attr is an attribute a component passes on to an element.
+type Attr struct {
+	Name  string
+	Value any
+}
+
 func Sel(css string) Target { return Target(css) }
 
 const This Target = ""
@@ -41,6 +47,7 @@ type ValueCondition struct{}
 
 func (Target) Value() ValueCondition { return ValueCondition{} }
 func (Target) Checked() Condition    { return Condition{} }
+func (Target) Attr(string) Condition { return Condition{} }
 
 type Commands struct{ steps []string }
 
