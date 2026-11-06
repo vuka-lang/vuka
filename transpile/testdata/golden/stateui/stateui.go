@@ -366,6 +366,14 @@ func Notify(handler any) Notified { return Notified{} }
 
 type Notified struct{ ms int64 }
 
+// Keep keeps a state in the browser's storage.
+func Keep(key string) Kept { return Kept{key} }
+
+type Kept struct{ key string }
+
+// Shared shares a state's writes across tabs.
+type Shared struct{}
+
 func (n Notified) Debounce(d time.Duration) Notified { n.ms = d.Milliseconds(); return n }
 func (n Notified) Throttle(d time.Duration) Notified { n.ms = d.Milliseconds(); return n }
 

@@ -2,6 +2,7 @@ package transpile
 
 import (
 	"go/ast"
+	"go/constant"
 	"go/token"
 	"go/types"
 	"sort"
@@ -35,12 +36,13 @@ type fromAttr struct {
 	gen      string
 	lowered  bool
 	failed   bool
-	notify   bool // a @ui.Notify: the attribute's whole value, ui.Notify(OnTab)
+	option   string // a state option, "Notify", "Keep", "Shared": the attribute's whole value, ui.Notify(OnTab)
 	recv     string
 	typeName string
 }
 
-// fromAttrs are f's @ui.From and @ui.Notify attributes, found once.
+// fromAttrs are f's @ui.From attributes and state options (@ui.Notify,
+// @ui.Keep, @ui.Shared), found once.
 func (f *fileState) fromAttrs() []*fromAttr {
 	if f.froms != nil {
 		return *f.froms
@@ -54,15 +56,15 @@ func (f *fileState) fromAttrs() []*fromAttr {
 			continue
 		}
 		pkg, name, ok := strings.Cut(a.Name, ".")
-		if !ok || name != "From" && name != "Notify" {
+		if !ok || name != "From" && name != "Notify" && name != "Keep" && name != "Shared" {
 			continue
 		}
 		gen := f.statePackageNamed(pkg)
 		if gen == "" {
 			continue
 		}
-		if name == "Notify" {
-			out = append(out, &fromAttr{a: a, arg: span{a.nameStart, a.end}, gen: gen, typeName: a.structOf, notify: true})
+		if name != "From" {
+			out = append(out, &fromAttr{a: a, arg: span{a.nameStart, a.end}, gen: gen, typeName: a.structOf, option: name})
 			continue
 		}
 		args := strings.TrimSpace(a.Args)
@@ -130,7 +132,7 @@ func (f *fileState) renderDerived(w *genWriter) {
 		if f.deriveOrder != nil && f.deriveOrder[typ] != nil {
 			list = f.deriveOrder[typ]
 			for _, fa := range byType[typ] {
-				if fa.notify {
+				if fa.option != "" {
 					list = append(list, fa)
 				}
 			}
@@ -140,12 +142,15 @@ func (f *fileState) renderDerived(w *genWriter) {
 		w.gen("\nfunc init() {\n\t"+f.genQual(first.gen)+"Derive(func("+recv+" *"+typ+") {\n", first.a.start)
 		for _, fa := range list {
 			fa.recv = recv
-			if fa.notify {
+			if fa.option != "" {
 				w.gen("\t\t"+f.genQual(fa.gen)+"With("+recv+"."+fa.a.fieldNames[0]+", ", fa.a.start)
 				if !f.bare {
 					w.gen(lineDirective(f.at(fa.arg.start)), fa.arg.start)
 				}
 				f.copyRewritten(w, fa.arg)
+				if fa.a.Args == "" {
+					w.gen("{}", fa.arg.end) // @ui.Shared: a value of the type
+				}
 				w.gen(")\n", fa.arg.end)
 				continue
 			}
@@ -197,11 +202,13 @@ func (e *engine) lowerDerived(f *fileState) {
 			continue
 		}
 		field, _, _ := types.LookupFieldOrMethod(obj.Type(), true, e.pkg, fa.a.fieldNames[0])
-		if fa.notify {
-			if v, ok := field.(*types.Var); ok && !isInvalid(v.Type()) {
+		if fa.option != "" {
+			if v, ok := field.(*types.Var); !ok || isInvalid(v.Type()) {
+				pending = true
+			} else if fa.option == "Notify" {
 				e.checkNotify(f, fa, x, v, obj)
 			} else {
-				pending = true
+				e.checkKept(f, fa, x, v)
 			}
 			continue
 		}
@@ -281,6 +288,101 @@ func (e *engine) trailerExpr(f *fileState, sp span) ast.Expr {
 		return true
 	})
 	return out
+}
+
+// checkKept checks a @ui.Keep or @ui.Shared once its expression is typed:
+// it goes on a ui.State whose value round-trips JSON, and a key is a
+// constant name no other field of the package keeps under.
+func (e *engine) checkKept(f *fileState, fa *fromAttr, x ast.Expr, v *types.Var) {
+	if fa.lowered || fa.failed {
+		return
+	}
+	if t := e.info.TypeOf(x); t == nil || isInvalid(t) {
+		return
+	}
+	fa.lowered = true
+	fail := func(at int, format string, args ...any) *Error {
+		fa.failed = true
+		e.progress = true
+		return e.errs.add("E0179", f.at(at), format, args...)
+	}
+	elem, ok := stateOf(v.Type())
+	if !ok {
+		fail(fa.a.start, "@%s goes on a ui.State field; %s is a %s", fa.a.Name, fa.a.fieldNames[0], e.display(v.Type())).
+			help("keep the states a Derived reads; it follows them")
+		return
+	}
+	if bad := unjsonable(elem); bad != "" {
+		verb := map[string]string{"Keep": "stores", "Shared": "sends"}[fa.option]
+		fail(fa.a.start, "@%s %s %s as JSON, and a %s holds %s, which JSON can't", fa.a.Name, verb, fa.a.fieldNames[0], e.display(elem), bad).
+			help("keep a value of strings, numbers, bools and their structs, slices and maps")
+		return
+	}
+	if fa.option != "Keep" {
+		return
+	}
+	call, _ := ast.Unparen(x).(*ast.CallExpr)
+	if call == nil || len(call.Args) != 1 {
+		return
+	}
+	tv := e.info.Types[call.Args[0]]
+	if tv.Value == nil || tv.Value.Kind() != constant.String || constant.StringVal(tv.Value) == "" {
+		fail(f.orig(call.Args[0].Pos()), "@%s takes a constant name: the key the browser stores %s under", fa.a.Name, fa.a.fieldNames[0]).
+			help("@%s(%q)", fa.a.Name, fa.a.fieldNames[0])
+		return
+	}
+	key := constant.StringVal(tv.Value)
+	if e.keptKeys == nil {
+		e.keptKeys = map[string]string{}
+	}
+	at := fa.typeName + "." + fa.a.fieldNames[0]
+	if other, ok := e.keptKeys[key]; ok && other != at {
+		fail(f.orig(call.Args[0].Pos()), "%s and %s are both kept as %q: one value in the browser's storage", other, at, key).
+			help("give each its own key, or share one state: a package-level ui.State")
+		return
+	}
+	e.keptKeys[key] = at
+}
+
+// unjsonable is what in t JSON can't hold — a func, a chan, a complex
+// number —, "" when there is nothing.
+func unjsonable(t types.Type) string {
+	seen := map[types.Type]bool{}
+	var walk func(t types.Type) string
+	walk = func(t types.Type) string {
+		if seen[t] {
+			return ""
+		}
+		seen[t] = true
+		switch u := t.Underlying().(type) {
+		case *types.Signature:
+			return "a func"
+		case *types.Chan:
+			return "a chan"
+		case *types.Basic:
+			if u.Info()&types.IsComplex != 0 || u.Kind() == types.UnsafePointer {
+				return "a " + u.Name()
+			}
+		case *types.Pointer:
+			return walk(u.Elem())
+		case *types.Slice:
+			return walk(u.Elem())
+		case *types.Array:
+			return walk(u.Elem())
+		case *types.Map:
+			return walk(u.Elem())
+		case *types.Struct:
+			for i := 0; i < u.NumFields(); i++ {
+				if u.Field(i).Exported() {
+					if bad := walk(u.Field(i).Type()); bad != "" {
+						return bad
+					}
+				}
+			}
+		}
+		return ""
+	}
+	return walk(t)
 }
 
 // checkNotify checks a @ui.Notify once its expression is typed: it goes
@@ -460,7 +562,7 @@ func (e *engine) underived(f *fileState, froms []*fromAttr) {
 	f.underivedDone = true
 	has := map[string]*fromAttr{}
 	for _, fa := range froms {
-		if fa.notify {
+		if fa.option != "" {
 			continue
 		}
 		k := fa.typeName + "." + fa.a.fieldNames[0]
@@ -520,7 +622,7 @@ func (e *engine) orderDerived(f *fileState, froms []*fromAttr) {
 	f.deriveOrder = map[string][]*fromAttr{}
 	byType := map[string][]*fromAttr{}
 	for _, fa := range froms {
-		if !fa.failed && !fa.notify {
+		if !fa.failed && fa.option == "" {
 			byType[fa.typeName] = append(byType[fa.typeName], fa)
 		}
 	}

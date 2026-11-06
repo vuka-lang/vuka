@@ -223,3 +223,44 @@ func TestWatchesE2E(t *testing.T) {
 		t.Errorf("console: %v", errs)
 	}
 }
+
+const keepPage = `<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+// Index keeps its theme in the browser, and its sidebar in every tab.
+type Index struct {
+	ui.Live
+	theme   ui.State[string] @ui.Keep("theme")
+	sidebar ui.State[bool]   @ui.Keep("sidebar") @ui.Shared
+}
+</script>
+
+<main data-theme={theme}>
+  <button id="dark" onClick={theme = "dark"}>dark</button>
+  <button id="side" onClick={sidebar = !sidebar}>sidebar</button>
+  <aside id="aside" hidden={!sidebar}>menu</aside>
+</main>
+`
+
+// TestKeepSharedE2E: a kept state survives a reload, its stored value
+// winning over the rendered one; a shared one's writes show in the page's
+// other tab.
+func TestKeepSharedE2E(t *testing.T) {
+	p, base, done := clientStateApp(t, map[string]string{"pages/index.vuka.html": keepPage}, "/")
+	defer done()
+	p.click("#dark")
+	p.wait(`document.querySelector("main").dataset.theme === "dark"`)
+	p.goTo(base + "/")
+	p.wait(`document.documentElement.getAttribute("data-vk-state") === "connected" && document.querySelector("main").dataset.theme === "dark"`)
+	other := p.c.open(base+"/", 900, 700)
+	other.wait(`document.documentElement.getAttribute("data-vk-state") === "connected" && document.querySelector("main").dataset.theme === "dark"`)
+	p.click("#side")
+	other.wait(`!document.querySelector("#aside").hidden`)
+	other.click("#side")
+	p.wait(`document.querySelector("#aside").hidden`)
+	if errs, _ := p.eval(`window.__errs`).([]any); len(errs) > 0 {
+		t.Errorf("console: %v", errs)
+	}
+}

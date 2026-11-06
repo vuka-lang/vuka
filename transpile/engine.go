@@ -70,6 +70,7 @@ type engine struct {
 	pkg      *types.Package
 	info     *types.Info
 	typeErrs []types.Error
+	keptKeys map[string]string // @ui.Keep keys → the field kept under each (derived.go)
 	progress bool
 
 	graphqlDone bool         // the GraphQL registrations are written (graphql.go)
