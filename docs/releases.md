@@ -151,6 +151,18 @@ parameter keeps the call a handler.
   again. `--check` lists the components with changes upstream and the
   files you edited, changing nothing, and fails when there are changes to
   take ([Keeping Up](/ui/vendored#upgrade)).
+- **Themes for the vendored components** ([#363](https://github.com/vuka-lang/vuka/issues/363)).
+  `vuka ui theme <name>` writes a base palette — `neutral`, `zinc`, `slate`,
+  `stone`, `gray`, `blue`, as shadcn's — into the design tokens, light and
+  dark, and `vuka ui init --theme <name>` writes the tokens with one. Only
+  the block `vuka ui init` wrote changes, a token you gave a value of your
+  own keeps it, and `[ui] theme` records the choice
+  ([Themes](/ui/vendored#themes)).
+- **`vuka vet` warns of a vendored component drawn with a token no stylesheet
+  defines** ([W0601](/errors/W0601)): a `var(--name)`, a colour utility
+  (`bg-background`) or `bg-(--name)` the build's stylesheets don't declare
+  renders unstyled; the warning names the stylesheet expected to define it
+  and the nearest token defined ([Undefined Tokens](/ui/vendored#undefined-tokens)).
 
 ## v2.16.1 — 2026-11-01
 

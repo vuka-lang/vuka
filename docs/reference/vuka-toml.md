@@ -167,6 +167,7 @@ writes the table; `vuka ui add` and `vuka ui diff` refuse to run without it
 | `package` | (required) | their Go package's name: `design`, so `<design.Button>` sits beside `<ui.Link>` |
 | `css` | the app's stylesheet | the stylesheet holding the design tokens: `styles/app.css` |
 | `style` | `"default"` | the registry's style the tokens and components come in |
+| `theme` | the style's own colours | the registry's theme whose colours the tokens have, written by `vuka ui theme` and `vuka ui init --theme` ([Themes](/ui/vendored#themes)) |
 | `registry` | vuka's | another registry: an `https://` URL or a directory relative to the module, holding an `index.json` |
 
 `vuka ui init --dir`, `--package` and `--css` choose the first three and

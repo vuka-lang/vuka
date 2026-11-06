@@ -22,10 +22,11 @@ import (
 
 const uiUsage = `Usage:
 
-	vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name]
+	vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name] [--theme name]
 	vuka ui add [-f] [--dry-run] <component…> <library>/<component…>
 	vuka ui diff [component…] [<library>/<component…>]
 	vuka ui upgrade [--check] [--dry-run] [<library>/<component…>]
+	vuka ui theme [--dry-run] [name]
 	vuka ui list [library]
 
 Components that are the app's own source: vuka ui add writes each one into
@@ -37,7 +38,8 @@ utilities over design tokens in the app's stylesheet.
          components/ui/cn.go (--dir another directory; --package names
          its package, design by default), and a [ui] table in vuka.toml
          recording them. What it finds there already it leaves as it is:
-         -f writes the tokens again.
+         -f writes the tokens again. --theme writes them with a theme's
+         colours (vuka ui theme lists them).
   add    writes the components named, and those they use, into the
          components directory. A file the app has already is left as it
          is: when it differs, add prints the difference and stops, unless
@@ -57,6 +59,11 @@ utilities over design tokens in the app's stylesheet.
          they are resolved and upgrade runs again. --check says which
          components have changes upstream and which files the app
          edited, changing nothing, and fails when there are changes.
+  theme  writes a theme's colours (zinc, slate, blue…) into the design
+         tokens, light and dark, and records it in [ui] theme; with no
+         name, lists the themes. Only the tokens between vuka ui's
+         markers change, and a token the app gave a value of its own
+         keeps it.
   list   lists the components; with a library's name, that library's.
 
 The registry is vuka's own, fetched at the version of this vuka, or the
@@ -74,7 +81,7 @@ the library's Go module at the version vuka knows (or vuka.toml's
 and records where each came from in vuka.toml's [ui.sources]. Run in an
 app without [ui], it runs vuka ui init first.
 
---dry-run says what init, add or upgrade would write, writing nothing.
+--dry-run says what init, add, upgrade or theme would write, writing nothing.
 `
 
 // uiCmd is vuka ui.
@@ -88,8 +95,8 @@ func uiCmd(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if cmds := []string{"init", "add", "diff", "upgrade", "list"}; !slices.Contains(cmds, sub) {
-		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add, diff, upgrade and list", sub, suggest(sub, cmds, ""))
+	if cmds := []string{"init", "add", "diff", "upgrade", "theme", "list"}; !slices.Contains(cmds, sub) {
+		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add, diff, upgrade, theme and list", sub, suggest(sub, cmds, ""))
 	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil && sub != "list" {
@@ -127,6 +134,8 @@ func uiCmd(args []string, stdout io.Writer) error {
 		return uiDiff(root, f, stdout)
 	case "upgrade":
 		return uiUpgrade(root, modPath, f, stdout)
+	case "theme":
+		return uiThemeCmd(root, f, stdout)
 	}
 	if len(f.pos) == 0 {
 		return errors.New("usage: vuka ui add [-f] [--dry-run] <component…> (vuka ui list lists them)")
@@ -140,6 +149,7 @@ type uiFlags struct {
 	force, dryRun   bool
 	offline, check  bool
 	css, dir, pkg   string
+	theme           string
 	style, registry string
 	setDir, setPkg  bool
 	within          bool // init run by add, which says what to do next
@@ -151,8 +161,10 @@ func parseUIFlags(sub string, args []string) (*uiFlags, error) {
 	bools := map[string]*bool{"offline": &f.offline}
 	switch sub {
 	case "init":
-		values["css"], values["dir"], values["package"], values["style"] = &f.css, &f.dir, &f.pkg, &f.style
+		values["css"], values["dir"], values["package"], values["style"], values["theme"] = &f.css, &f.dir, &f.pkg, &f.style, &f.theme
 		bools["f"], bools["force"], bools["dry-run"] = &f.force, &f.force, &f.dryRun
+	case "theme":
+		bools["dry-run"] = &f.dryRun
 	case "add":
 		bools["f"], bools["force"], bools["dry-run"] = &f.force, &f.force, &f.dryRun
 	case "upgrade":
@@ -202,12 +214,13 @@ type uiConfig struct {
 	Dir     string // the components' directory, relative to the module
 	Package string // their package's name
 	CSS     string // the stylesheet holding the tokens, relative to the module
+	Theme   string // the theme whose colours the tokens have; the style's own when empty
 	// Registry is the registry vuka ui reads: an https:// URL, or a
 	// directory relative to the module; vuka's own when empty.
 	Registry string
 }
 
-var uiKeys = []string{"style", "components", "package", "css", "registry"}
+var uiKeys = []string{"style", "components", "package", "css", "theme", "registry"}
 
 // readUIConfig reads the [ui] table of the vuka.toml at root; ok is false
 // when there is none.
@@ -248,6 +261,8 @@ func readUIConfig(root string) (c uiConfig, ok bool, err error) {
 			c.Package = s
 		case "css":
 			c.CSS = s
+		case "theme":
+			c.Theme = s
 		case "registry":
 			c.Registry = s
 		default:
@@ -279,6 +294,9 @@ func stripComment(l string) string {
 // table is the [ui] table c is.
 func (c uiConfig) table() string {
 	t := fmt.Sprintf("[ui]\nstyle = %q\ncomponents = %q\npackage = %q\ncss = %q\n", c.Style, c.Dir, c.Package, c.CSS)
+	if c.Theme != "" {
+		t += fmt.Sprintf("theme = %q\n", c.Theme)
+	}
 	if c.Registry != "" {
 		t += fmt.Sprintf("registry = %q\n", c.Registry)
 	}
@@ -320,6 +338,7 @@ func uiInit(root, modPath string, f *uiFlags, w io.Writer) error {
 	if !had {
 		cfg = uiConfig{Style: "default", Dir: "components/ui", Package: reg.Package, Registry: cfg.Registry}
 	}
+	was := cfg
 	if f.style != "" {
 		cfg.Style = f.style
 	}
@@ -383,6 +402,16 @@ func uiInit(root, modPath string, f *uiFlags, w io.Writer) error {
 		}
 		at := len(cssImports.Find(css))
 		out.write(cfg.CSS, slices.Concat(css[:at], sep(css[:at]), tokens, sep2(css[at:]), css[at:]), "the design tokens")
+	}
+
+	if f.theme != "" {
+		if out.data[cfg.CSS] != nil {
+			was.Theme = "" // the tokens just written have the style's own colours
+		}
+		if err := themeOnto(out, reg, cfg, was, strings.ToLower(f.theme)); err != nil {
+			return err
+		}
+		cfg.Theme = strings.ToLower(f.theme)
 	}
 
 	// cn.go.

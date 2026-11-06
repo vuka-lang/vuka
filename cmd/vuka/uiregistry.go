@@ -37,7 +37,11 @@ type registry struct {
 	Name    string                  `json:"name"`
 	Package string                  `json:"package"` // the package clause the files are written with
 	Styles  map[string]registryFile `json:"styles"`  // a style's name → its tokens' stylesheet
-	Items   []registryItem          `json:"items"`
+	// Themes are the palettes vuka ui theme writes into the tokens: a
+	// name → a stylesheet of :root (light) and .dark values, as shadcn's
+	// themes are written.
+	Themes map[string]registryFile `json:"themes,omitempty"`
+	Items  []registryItem          `json:"items"`
 
 	src   regSource
 	note  string            // where it came from, said first
@@ -272,6 +276,14 @@ func (r *registry) check() error {
 	for name, s := range r.Styles {
 		if err := checkFile(s, false); err != nil {
 			return fmt.Errorf("style %s: %v", name, err)
+		}
+	}
+	for name, s := range r.Themes {
+		if !itemName.MatchString(name) {
+			return fmt.Errorf("theme %q: a name in lower case", name)
+		}
+		if err := checkFile(s, false); err != nil {
+			return fmt.Errorf("theme %s: %v", name, err)
 		}
 	}
 	seen := map[string]bool{}

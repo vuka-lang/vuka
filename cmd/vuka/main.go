@@ -262,6 +262,7 @@ func runGo(cmd string, args []string, stdout, stderr io.Writer) error {
 		}
 		ds = append(ds, routesUnserved(root, modPath, scanRoutes(root, modPath, nil))...)
 		ds = append(ds, staticDiags(root, true)...)
+		ds = append(ds, vetTokens(root)...)
 		if ds = scope.warnings(append(ds, vetLivePages(root, pkgs)...)); len(ds) > 0 {
 			writeDiags(stderr, ds, colorFor(stderr))
 			for _, d := range ds {
