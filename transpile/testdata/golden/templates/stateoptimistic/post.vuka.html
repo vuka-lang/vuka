@@ -1,0 +1,13 @@
+package main
+
+// Post's like shows at once; a failed Like puts it back.
+type Post struct {
+	ui.Live
+	liked ui.State[bool]
+	n     ui.State[int]
+}
+
+func (p *Post) Like() error { return nil }
+<section>
+  <button onClick.optimistic={liked = !liked; n++; Like()}>like {n}</button>
+</section>

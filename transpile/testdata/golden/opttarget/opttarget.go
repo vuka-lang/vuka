@@ -105,6 +105,7 @@ func (c Commands) Key(keys ...string) Commands       { return c.step("key " + st
 func (c Commands) Prevent() Commands                 { return c.step("prevent") }
 func (c Commands) Stop() Commands                    { return c.step("stop") }
 func (c Commands) Once() Commands                    { return c.step("once") }
+func (c Commands) Optimistic() Commands              { return c.step("optimistic") }
 func (c Commands) Debounce(d time.Duration) Commands { return c.step("debounce " + d.String()) }
 func (c Commands) Throttle(d time.Duration) Commands { return c.step("throttle " + d.String()) }
 func (c Commands) Then(ch JSChain) Commands          { return Commands{append(c.steps, ch.jsChain().steps...)} }

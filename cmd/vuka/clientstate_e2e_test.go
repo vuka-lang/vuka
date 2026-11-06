@@ -264,3 +264,54 @@ func TestKeepSharedE2E(t *testing.T) {
 		t.Errorf("console: %v", errs)
 	}
 }
+
+const optimisticPage = `<script lang="go">
+package pages
+
+import (
+	"errors"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Index likes a post at once; the server refuses every other like.
+type Index struct {
+	ui.Live
+	liked ui.State[bool]
+	n     ui.State[int]
+	tries int
+}
+
+// Like fails on its first call.
+func (p *Index) Like() error {
+	p.tries++
+	if p.tries == 1 {
+		return errors.New("try again")
+	}
+	return nil
+}
+</script>
+
+<main>
+  <button id="like" onClick.optimistic={liked = !liked; n++; Like()}>like</button>
+  <button id="plain" onClick={n++; Like()}>plain</button>
+  <p id="state">{liked} {n}</p>
+  <p id="tries">{tries}</p>
+</main>
+`
+
+// TestOptimisticE2E: an optimistic handler's writes show at once and are
+// put back when the server's reply is an error, kept when it isn't.
+func TestOptimisticE2E(t *testing.T) {
+	p, _, done := clientStateApp(t, map[string]string{"pages/index.vuka.html": optimisticPage}, "/")
+	defer done()
+	p.eval(`document.addEventListener("vk:error", () => { window.__seen = document.querySelector("#state").textContent })`)
+	p.click("#like")
+	p.wait(`document.querySelector("#tries").textContent === "1" && document.querySelector("#state").textContent === "false 0"`)
+	if got := p.eval(`window.__seen`); got != "false 0" {
+		t.Errorf("the page when the error showed: %v", got)
+	}
+	p.click("#like")
+	p.wait(`document.querySelector("#tries").textContent === "2" && document.querySelector("#state").textContent === "true 1"`)
+	p.eval(`window.__errs = []`)
+}

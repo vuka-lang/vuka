@@ -52,3 +52,35 @@ func TestDerivedErrors(t *testing.T) {
 		})
 	}
 }
+
+// TestOptimisticModifier: .optimistic is the chain's first step; a chain
+// writing no state before its push, or a handler alone, is E0173.
+func TestOptimisticModifier(t *testing.T) {
+	src := func(attr string) []transpile.File {
+		return []transpile.File{{Name: "post.vuka.html", Src: []byte("package main\n\nimport ui \"vukatest.local/stateui\"\n\ntype Post struct {\n\tui.Live\n\tliked ui.State[bool]\n\tn     ui.State[int]\n}\n\nfunc (p *Post) Like() error { return nil }\n<button " + attr + ">like {n}</button>\n")},
+			{Name: "main.go", Src: []byte("package main\n\nfunc main() {}\n")}}
+	}
+	opts := transpile.Options{Bare: true, Importer: load.NewImporter("testdata/golden", "")}
+	res, err := transpile.Package(src("onClick.optimistic={liked = !liked; n++; Like()}"), opts)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got, want := string(res.Files[0].Src), `ui.JS.Optimistic().Then(uigen.Inc(uigen.Toggle(ui.JS, p.liked), p.n).Push(p.Like))`; !strings.Contains(got, want) {
+		t.Errorf("no %s in\n%s", want, got)
+	}
+	for _, c := range []struct{ attr, want string }{
+		{`onClick.optimistic={Like}`, "onClick.optimistic predicts the states the chain writes before a push, and Like writes none"},
+		{`onClick.optimistic={Like(); liked = true}`, "and Like(); liked = true writes none before one"},
+		{`onClick.optimistic={liked = true}`, "writes none before one"},
+	} {
+		_, err := transpile.Package(src(c.attr), opts)
+		list, _ := err.(transpile.ErrorList)
+		var got []string
+		for _, e := range list {
+			got = append(got, string(e.Code)+" "+e.Error())
+		}
+		if s := strings.Join(got, "\n"); !strings.Contains(s, "E0173") || !strings.Contains(s, c.want) {
+			t.Errorf("%s: errors\n%s\nwant E0173 %s", c.attr, s, c.want)
+		}
+	}
+}
