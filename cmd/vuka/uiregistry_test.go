@@ -232,7 +232,7 @@ func TestUIRegistryOther(t *testing.T) {
 
 func TestUIRegistryRefuses(t *testing.T) {
 	dir := uiApp(t)
-	writeFile(t, filepath.Join(dir, "go.mod"), strings.Replace(uiGoMod, "v2.17.0", "v2.10.0", 1))
+	writeFile(t, filepath.Join(dir, "go.mod"), strings.Replace(uiGoMod, "v2.16.2-0.20261106081042-c2870b7828d7", "v2.10.0", 1))
 	mustUI(t, dir, "init")
 	try := func(edit func(r *registry), args ...string) error {
 		t.Helper()
@@ -279,11 +279,11 @@ func TestUIRegistryRefuses(t *testing.T) {
 
 	// A module the app replaces is taken as it is; one it requires at a
 	// newer version is enough.
-	writeFile(t, filepath.Join(dir, "go.mod"), strings.Replace(uiGoMod, "v2.17.0", "v2.10.0", 1)+"\nreplace github.com/vuka-lang/ui/v2 => ../ui\n")
+	writeFile(t, filepath.Join(dir, "go.mod"), strings.Replace(uiGoMod, "v2.16.2-0.20261106081042-c2870b7828d7", "v2.10.0", 1)+"\nreplace github.com/vuka-lang/ui/v2 => ../ui\n")
 	if err := try(func(r *registry) { r.Items[3].Requires = map[string]string{"ui": "v2.12.0"} }, "a"); err != nil {
 		t.Errorf("with ui replaced: %v", err)
 	}
-	writeFile(t, filepath.Join(dir, "go.mod"), strings.Replace(uiGoMod, "v2.17.0", "v2.12.1-0.20261101000000-abcdefabcdef", 1))
+	writeFile(t, filepath.Join(dir, "go.mod"), strings.Replace(uiGoMod, "v2.16.2-0.20261106081042-c2870b7828d7", "v2.12.1-0.20261101000000-abcdefabcdef", 1))
 	if err := try(func(r *registry) { r.Items[3].Requires = map[string]string{"ui": "v2.12.0"} }, "-f", "a"); err != nil {
 		t.Errorf("with a newer ui: %v", err)
 	}

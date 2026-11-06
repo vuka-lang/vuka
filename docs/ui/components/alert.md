@@ -22,7 +22,7 @@ A callout with an icon, a title and a message.
 vuka ui add alert
 ```
 
-It writes `components/ui/alert.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
+It writes `components/ui/alert.vuka.html`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` at commit `d0334320cb89` or newer.
 
 ## Using It
 

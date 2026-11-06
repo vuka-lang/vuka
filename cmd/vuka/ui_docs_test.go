@@ -16,6 +16,7 @@ import (
 	"testing"
 
 	"github.com/vuka-lang/vuka/v2/toolchain/load"
+	modmodule "golang.org/x/mod/module"
 )
 
 // uiDocs is where the components' pages go, beside the docs they link to.
@@ -173,7 +174,12 @@ func uiDocsPage(t *testing.T, reg *registry, it *registryItem, usage string, eje
 	if len(it.Requires) > 0 {
 		var reqs []string
 		for _, lib := range slices.Sorted(mapKeys(it.Requires)) {
-			reqs = append(reqs, fmt.Sprintf("`%s` %s", requireModules[lib], it.Requires[lib]))
+			v := it.Requires[lib]
+			if modmodule.IsPseudoVersion(v) {
+				rev, _ := modmodule.PseudoVersionRev(v)
+				v = "at commit `" + rev + "`"
+			}
+			reqs = append(reqs, fmt.Sprintf("`%s` %s", requireModules[lib], v))
 		}
 		fmt.Fprintf(&b, " and needs %s or newer", strings.Join(reqs, " and "))
 	}

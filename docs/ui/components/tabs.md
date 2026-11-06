@@ -22,7 +22,7 @@ Panels shown one at a time, the tab shown kept in browser state.
 vuka ui add tabs
 ```
 
-It writes `components/ui/tabs.vuka.html` and `components/ui/tabs.go`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` v2.17.0 or newer.
+It writes `components/ui/tabs.vuka.html` and `components/ui/tabs.go`, with what it uses: [cn](/ui/vendored#cn). It runs in the browser ([the tiers](/ui/vendored#tiers)) and needs `github.com/vuka-lang/ui/v2` at commit `c2870b7828d7` or newer.
 
 ## Using It
 

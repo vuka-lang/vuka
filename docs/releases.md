@@ -355,6 +355,14 @@ parameter keeps the call a handler.
   looked when it can't. **Extract Component** and the version in the status
   bar stay VS Code's: Zed has no prompt or status item for an extension.
 
+- **`vuka ui add` no longer refuses the registry's newer components in an
+  app tracking main.** Button, Badge, Alert, Tabs, Dialog and Dropdown Menu
+  required ui v2.17.0, a version not yet tagged, which every pseudo-version
+  of ui's main sorts below; they now require the pseudo-version of the ui
+  commit that added what they use, the `go get` vuka ui add suggests names
+  that exact version, versions compare as the go command orders them, and a
+  test checks each requirement resolves and is no newer than ui's main.
+
 ## v2.16.1 — 2026-11-01
 
 ### Breaking
