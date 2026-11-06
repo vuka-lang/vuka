@@ -248,7 +248,11 @@ first. The rule is the compiler's:
 
 Hover on the tag name shows what the component is (component, live
 component, function), a link to its file at its declaration, its attributes
-with their types, and its slots.
+with their types, the values a variant attribute takes (the constants of its
+type, or its `ui.Variants` variant's values), its children and slots, and its
+events (`on`, `onClose`). A templ component's, a `.templ` file's `templ`
+taking a props struct, shows the same. `vuka ui list <component>` prints it
+in the terminal ([What a Component Takes](/ui/vendored#component-doc)).
 
 Typing `<slot:` inside a component's tag lists its slots with their types:
 a `ui.Node` field, a func field returning one (inserted with a `let` naming

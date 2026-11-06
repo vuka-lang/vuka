@@ -1,6 +1,7 @@
 package main
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -34,6 +35,7 @@ type tagProp struct {
 	doc       string
 	kind      byte     // how a <slot:x> fills it (slotOf), 0 when none does
 	params    []string // the types of the values a slot's let names
+	values    []string // the values it takes, when its type or a ui.Variants lists them (propValues)
 }
 
 // tagInfo is a component, as its source declares it.
@@ -42,12 +44,15 @@ type tagInfo struct {
 	file       string
 	line       int // from 1
 	props      []tagProp
+	children   bool // it takes children
 }
 
 var (
 	embedsLive   = regexp.MustCompile(`(?m)^\s*(?:\w+\.)?Live\s*$`)
 	tagPathMajor = regexp.MustCompile(`/v[0-9]+$`)
 	tagAttrStart = regexp.MustCompile(`\s@[A-Za-z_]`)
+	// templChildren is a templ component's body rendering its children.
+	templChildren = regexp.MustCompile(`\{\s*children\.\.\.\s*\}`)
 )
 
 // resolveComponent finds the declaration of a component tag used in the
@@ -85,6 +90,7 @@ func (p *proxy) resolveComponent(srcPath string, src []byte, tag string) *tagInf
 	info := tagComponentIn(dir, name)
 	if info != nil {
 		p.fillSlots(info)
+		propValues(dir, info)
 	}
 	return info
 }
@@ -169,20 +175,32 @@ func tagComponentIn(dir, name string) *tagInfo {
 				if sh.Live {
 					info.kind = "live component"
 				}
+				docs := map[string]string{}
+				if m := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `(?:\[[^\]\n]*\])?\s+struct\s*\{`).FindIndex(src); m != nil {
+					if e := skipGo(src, m[1]-1); e > 0 {
+						for _, f := range tagStructFields(string(src[m[1]-1 : e])) {
+							docs[f.name] = f.doc
+						}
+					}
+				}
 				for _, f := range sh.Fields {
-					if f.Role == transpile.Prop && f.Name != "Children" {
-						info.props = append(info.props, tagProp{attr: info.attrName(f.Name), typ: f.Type, slot: isNodeTypeName(f.Type), required: requiredTag(f.Tag)})
+					switch {
+					case f.Role != transpile.Prop:
+					case f.Name == "Children":
+						info.children = true
+					default:
+						info.props = append(info.props, tagProp{attr: info.attrName(f.Name), typ: f.Type, slot: isNodeTypeName(f.Type), doc: docs[f.Name], required: requiredTag(f.Tag)})
 					}
 				}
 				return info
 			}
 			others = append(others, file)
-		case strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, "_test.go"):
+		case strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".templ") || strings.HasSuffix(n, ".go") && !strings.HasSuffix(n, "_test.go") && !strings.HasSuffix(n, "_templ.go"):
 			others = append(others, filepath.Join(dir, n))
 		}
 	}
 	structRe := regexp.MustCompile(`(?m)^type\s+` + regexp.QuoteMeta(name) + `(?:\[[^\]\n]*\])?\s+struct\s*\{`)
-	funcRe := regexp.MustCompile(`(?m)^func\s+` + regexp.QuoteMeta(name) + `\s*(?:\[[^\]\n]*\])?\s*\(`)
+	funcRe := regexp.MustCompile(`(?m)^(?:func|templ)\s+` + regexp.QuoteMeta(name) + `\s*(?:\[[^\]\n]*\])?\s*\(`)
 	for _, file := range others {
 		src, err := os.ReadFile(file)
 		if err != nil {
@@ -200,6 +218,7 @@ func tagComponentIn(dir, name string) *tagInfo {
 				info.kind = "live component"
 			}
 			for _, f := range fields {
+				info.children = info.children || f.name == "Children"
 				if f.name != "Children" && token.IsExported(f.name) {
 					info.props = append(info.props, tagProp{attr: info.attrName(f.name), typ: f.typ, slot: isNodeTypeName(f.typ), doc: f.doc, required: requiredTag(f.tag)})
 				}
@@ -207,7 +226,15 @@ func tagComponentIn(dir, name string) *tagInfo {
 			return info
 		}
 		if m := funcRe.FindIndex(src); m != nil {
-			return tagFuncComponent(dir, name, file, src, m[0], m[1]-1)
+			info := tagFuncComponent(dir, name, file, src, m[0], m[1]-1)
+			if info != nil && bytes.HasPrefix(src[m[0]:], []byte("templ")) {
+				if e := tagParenEnd(src, m[1]-1); e > 0 {
+					if b := skipGo(src, bytes.IndexByte(src[e:], '{')+e); b > 0 {
+						info.children = templChildren.Match(src[e:b])
+					}
+				}
+			}
+			return info
 		}
 	}
 	return nil
@@ -314,6 +341,7 @@ func tagFuncComponent(dir, name, file string, src []byte, start, open int) *tagI
 		}
 	}
 	for i, pr := range params {
+		info.children = info.children || pr.name == "children"
 		if pr.name == "children" || pr.name == "_" {
 			continue
 		}
@@ -334,7 +362,7 @@ func tagPropsStruct(dir, name string) []tagField {
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka")) {
+		if e.IsDir() || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".templ")) {
 			continue
 		}
 		src, err := os.ReadFile(filepath.Join(dir, n))
@@ -387,8 +415,8 @@ func (p *proxy) propCompletion(path string, src []byte, off int) ([]any, bool) {
 		return nil, false
 	}
 	info := p.resolveComponent(path, src, spot.tag.name)
-	if info == nil {
-		return nil, false
+	if info == nil || strings.HasSuffix(info.file, ".templ") {
+		return nil, false // a templ component's attributes are the generated Go's, gopls's
 	}
 	used := map[string]bool{}
 	for _, a := range spot.tag.attrs {
@@ -467,21 +495,18 @@ func (info *tagInfo) markdown(tag string) string {
 	} else {
 		b.WriteString("| attribute | type | |\n|---|---|---|\n")
 		for _, pr := range rows {
-			req := ""
-			if pr.required {
-				req = "required"
+			pkg, _, _ := strings.Cut(tag, ".")
+			if pkg == tag {
+				pkg = ""
 			}
-			fmt.Fprintf(&b, "| `%s` | `%s` | %s |\n", pr.attr, strings.ReplaceAll(pr.typ, "|", `\|`), req)
+			fmt.Fprintf(&b, "| `%s` | `%s` | %s |\n", pr.attr, strings.ReplaceAll(pr.typ, "|", `\|`), strings.ReplaceAll(qualifyValues(pr.note(), pkg), "|", `\|`))
 		}
 	}
-	var slots []string
-	for _, pr := range info.props {
-		if pr.kind != 0 {
-			slots = append(slots, "`<slot:"+slotName(pr)+">`")
-		}
+	if slots := info.slotNames(); len(slots) > 0 {
+		b.WriteString("\nSlots: " + strings.Join(slots, ", ") + ".")
 	}
-	if len(slots) > 0 {
-		b.WriteString("\nSlots: " + strings.Join(slices.Compact(slots), ", ") + ".")
+	if ev := info.events(); len(ev) > 0 {
+		b.WriteString("\nEvents: `" + strings.Join(ev, "`, `") + "`.")
 	}
 	if info.kind != "function" {
 		b.WriteString("\n\nAn attribute left out is the field's zero value.")

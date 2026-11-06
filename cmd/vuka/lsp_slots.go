@@ -103,7 +103,7 @@ func (p *proxy) elemFields(info *tagInfo, elem ast.Expr) []tagField {
 		name = x.Name
 	case *ast.SelectorExpr:
 		pkg, ok := x.X.(*ast.Ident)
-		if !ok {
+		if !ok || p == nil {
 			return nil
 		}
 		name, dir = x.Sel.Name, ""

@@ -155,3 +155,62 @@ func TestRootIslandTagBeforeBuildAndNestedModule(t *testing.T) {
 		}
 	}
 }
+
+// TestTagHoverValues: hover on a component's tag shows the values a prop
+// takes, the constants of its type or its ui.Variants variant's, its
+// children and slots, and its events; a templ component's from its .templ
+// file.
+func TestTagHoverValues(t *testing.T) {
+	p, root := tagsModule(t)
+	writeFile(t, filepath.Join(root, "components", "chip.vuka.html"), `<script lang="go">
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// ChipTone is a Chip's colour.
+type ChipTone string
+
+const (
+	ChipNeutral ChipTone = ""
+	ChipDanger  ChipTone = "danger"
+)
+
+var chip = ui.Variants{
+	Base:     "inline-flex",
+	Variants: map[string]map[string]string{"size": {"sm": "text-xs", "lg": "text-lg"}},
+}
+
+// Chip is a small label.
+type Chip struct {
+	// Tone is its colour.
+	Tone     ChipTone
+	Size     string
+	OnRemove any
+	Children ui.Node
+}
+</script>
+
+<span class={chip.Class("size", Size)}>{Children}</span>
+`)
+	writeFile(t, filepath.Join(root, "components", "pill.templ"), "package components\n\ntype PillProps struct {\n\tClass string\n}\n\ntempl Pill(props ...PillProps) {\n\t<span>{ children... }</span>\n}\n")
+	src := "package pages\n\nimport \"example.com/app/components\"\n\ntype Index struct{}\n<main><components.Chip /><components.Pill /></main>\n"
+	page := filepath.Join(root, "pages", "index.vuka.html")
+	s := scanShape("", []byte(src))
+	hover := func(name string) string {
+		h := p.tagHover(page, []byte(src), s, strings.Index(src, name))
+		if h == nil {
+			t.Fatalf("no hover on %s", name)
+		}
+		return h.(map[string]any)["contents"].(map[string]any)["value"].(string)
+	}
+	md := hover("Chip")
+	for _, w := range []string{"| `tone` | `ChipTone` | components.ChipNeutral (\"\"), components.ChipDanger (\"danger\") |", "| `size` | `string` | \"sm\", \"lg\" |",
+		"| `onRemove` | `any` | event |", "Slots: children.", "Events: `onRemove`."} {
+		if !strings.Contains(md, w) {
+			t.Errorf("Chip hover %q lacks %q", md, w)
+		}
+	}
+	if md := hover("Pill"); !strings.Contains(md, "**function** `<components.Pill>` · [pill.templ]") || !strings.Contains(md, "| `class` | `string` |") || !strings.Contains(md, "Slots: children.") {
+		t.Errorf("Pill hover %q", md)
+	}
+}
