@@ -175,6 +175,13 @@ parameter keeps the call a handler.
   is [E0180](/errors/E0180). Needs ui and web at the release's version.
   See [Showing and Hiding](/ui/state#show).
 
+- **The toolbar's States panel** ([#372](https://github.com/vuka-lang/vuka/issues/372)).
+  The development toolbar lists each component instance's `ui.State` and
+  `ui.Derived` fields with their values, live, flashing each write with
+  the event that made it; a state's value is edited in place, written as
+  an event's write is. In development only: production builds name no
+  states and serve no toolbar. See [States](/web/toolbar#states).
+
 ### Component Classes
 
 - **`ui.Variants`, a component's classes by its props**

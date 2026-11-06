@@ -373,3 +373,49 @@ func TestShowE2E(t *testing.T) {
 		t.Errorf("console: %v", errs)
 	}
 }
+
+const statesPanelPage = `<script lang="go">
+package pages
+
+import "github.com/vuka-lang/ui/v2"
+
+// Index has a tab, a dialog flag and a Derived reading the tab.
+type Index struct {
+	ui.Live
+	tab    ui.State[string]
+	dialog ui.State[bool]
+	logs   ui.Derived[bool] @ui.From(tab == "logs")
+}
+</script>
+
+<main>
+  <button id="logs" onClick={tab = "logs"}>logs</button>
+  <dialog id="d" open={dialog}>dialog</dialog>
+  <p id="on" hidden={!logs}>logs on</p>
+</main>
+`
+
+// TestStatesPanelE2E: in development the toolbar's States panel lists the
+// page's states and Derived values, follows a write with the event that
+// made it, and writes an edited value as an event would.
+func TestStatesPanelE2E(t *testing.T) {
+	t.Setenv("VUKA_ENV", "development")
+	p, _, done := clientStateApp(t, map[string]string{"pages/index.vuka.html": statesPanelPage}, "/")
+	defer done()
+	sr := `document.querySelector("vuka-toolbar").shadowRoot`
+	p.wait(`!!document.querySelector("vuka-toolbar")`)
+	p.eval(sr + `.querySelector(".handle").click()`)
+	p.wait(`!!` + sr + `.querySelector('[data-tab="States"]')`)
+	p.eval(sr + `.querySelector('[data-tab="States"]').click()`)
+	rows := `[...` + sr + `.querySelectorAll('[data-panel="States"] tr')].map((r) => r.querySelector("code").textContent + "=" + (r.querySelector("input") ? r.querySelector("input").value : r.querySelector(".sv").textContent)).join(" ")`
+	if got := p.eval(rows); got != `dialog=false logs=false tab=""` {
+		t.Errorf("the panel's states: %v", got)
+	}
+	p.click("#logs")
+	p.wait(rows + ` === 'dialog=false logs=true tab="logs"'`)
+	if by := p.eval(sr + `.querySelector('[data-panel="States"] tr:last-child .by').textContent`); by != "click #logs" {
+		t.Errorf("the write's source: %v", by)
+	}
+	p.eval(`(() => { const i = ` + sr + `.querySelector('input[aria-label="Index.dialog"]'); i.value = "true"; i.dispatchEvent(new Event("change", { bubbles: true })) })()`)
+	p.wait(`document.querySelector("#d").open`)
+}
