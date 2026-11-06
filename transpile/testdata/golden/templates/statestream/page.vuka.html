@@ -1,0 +1,20 @@
+package main
+
+import "vukatest.local/streamui"
+
+// Page is live: its only unexported fields are states it reads and a
+// stream, so nothing else calls the gen package.
+type Page struct {
+	ui.Live
+	open ui.State[bool]
+	name ui.State[string]
+	rows streamui.Stream[Order]
+}
+<main>
+  <p hidden={open}>{name}</p>
+  <ul>
+    for _, o := range rows.Rows() {
+      <li key={o.ID}>{o.Number}</li>
+    }
+  </ul>
+</main>
