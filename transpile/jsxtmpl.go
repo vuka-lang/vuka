@@ -124,6 +124,10 @@ func (w *jsxWriter) piece(ns []jsxNode) {
 				w.suspense(n)
 				return
 			}
+			if n.isAwait(w.f) {
+				w.await(n)
+				return
+			}
 			// A function component is its call; a keyed stateful one, in a
 			// block, ui.Key: a list's components take the list's place.
 			if c := n.comp; n.partFB == nil && c != nil && c.resolved && !c.island && (!c.stateful || c.key != nil && w.inBlock) {
@@ -488,6 +492,8 @@ func (w *jsxWriter) node(tp *tmpl, n jsxNode, indent string, inline bool) {
 			w.holeIn(tp, "part", func() { w.part(n, 0) })
 		case n.isSuspense(w.f):
 			w.holeIn(tp, "suspense", func() { w.suspense(n) })
+		case n.isAwait(w.f):
+			w.holeIn(tp, "await", func() { w.await(n) })
 		case n.fallback:
 			w.holeIn(tp, "slot", func() { w.fallbackValue(n) })
 		case n.comp != nil:

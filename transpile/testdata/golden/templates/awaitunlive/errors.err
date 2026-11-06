@@ -1,0 +1,1 @@
+card.vuka.html:9:3: <ui.Await> shows a deferred group of a live component, and Card isn't live; embed ui.Live in the component, defer the group's fields with @ui.Defer("group") and load them with @ui.Loads("group")

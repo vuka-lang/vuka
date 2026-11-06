@@ -271,6 +271,7 @@ type fileState struct {
 	attrWarns   ErrorList  // on… handlers in a templ.Attributes nothing binds (W0112, jsxlive.go)
 	pushWarns   ErrorList  // pushes losing their writes, reads that write (W0113, W0114, push.go)
 	susChecked  bool       // its <ui.Suspense>s are checked (suspense.go)
+	awaitDone   bool       // its <ui.Await>s are checked (await.go)
 	rt          string     // the name the runtime is imported as; "" until needed
 	target      *jsxTarget // what its JSX lowers to; nil until its first JSX
 	scope       string     // the scope id of the declaration being scanned (Options.Scopes)

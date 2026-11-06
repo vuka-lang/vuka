@@ -93,6 +93,10 @@ func (e *engine) timingAttr(f *fileState, a *Attr) string {
 // whether it changed the source.
 func (e *engine) findParts(f *fileState) bool {
 	h := f.html
+	if !f.awaitDone && e.info != nil && h != nil && f.target != nil {
+		f.awaitDone = true
+		e.checkAwait(f)
+	}
 	if f.partsDone || e.info == nil || h == nil || h.recvType == "" || h.shape == nil || f.target == nil || e.pkg == nil {
 		return false
 	}

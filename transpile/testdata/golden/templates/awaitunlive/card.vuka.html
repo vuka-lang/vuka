@@ -1,0 +1,10 @@
+<script lang="go">
+package main
+
+// Card isn't live: it has no deferred groups.
+type Card struct{ Title string }
+</script>
+
+<section>
+  <ui.Await key="orders"><h2>{Title}</h2></ui.Await>
+</section>
