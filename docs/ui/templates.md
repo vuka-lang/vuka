@@ -843,6 +843,74 @@ type Books struct { Shelf []models.Book }
 A `<slot:header>` inside a `<slot:column>` fills that element's `Header`
 with markup instead of text.
 
+Your own component declares a repeated slot the same way. The element's
+func field decides what `let` names: give it the row's index as well and a
+column takes two values. The element is a plain struct, in a `.go` file
+beside the component:
+
+```go
+// column.go
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Column is one of a Grid's columns.
+type Column[T any] struct {
+	Header ui.Node
+	Cell   func(T, int) ui.Node
+	Align  string
+}
+```
+
+```html
+<script lang="go">
+// grid.vuka.html
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+// Grid lists rows in columns, with a menu per row.
+type Grid[T any] struct {
+	Rows    []T
+	Columns []Column[T]
+	Actions func(T) ui.Node
+}
+</script>
+
+<table>
+  <tr>
+    for _, c := range Columns {
+      <th>{c.Header}</th>
+    }
+  </tr>
+  for i, r := range Rows {
+    <tr>
+      for _, c := range Columns {
+        <td>{c.Cell(r, i)}</td>
+      }
+      <td>{Actions(r)}</td>
+    </tr>
+  }
+</table>
+```
+
+```html
+<components.Grid rows={orders.List(ctx)}>
+  <slot:column header="#" let={o, n}>{n + 1}</slot:column>
+  <slot:column header="Number" let={o}><b>{o.Number}</b></slot:column>
+  <slot:actions let={o}>
+    <button onClick={Cancel(o.ID)}>Cancel</button>
+  </slot:actions>
+</components.Grid>
+```
+
+`Grid`'s `T` is inferred from `rows` — with `orders.List` returning a
+`vuka.Result[[]orders.Order]`, taken as its value ([Fallible and Optional Values](#calls-returning-an-error))
+— so `o` is an `orders.Order` and `n` an `int` in every column. A `let` may
+name fewer values than the element's func takes, as for any scoped slot. In
+the editor, completion in a `<slot:column>` tag offers the element's fields
+and `let`, and hover on a `let` value shows its inferred type.
+
 ### Giving a Slot Fallback Content {#fallback}
 
 Inside a component's own markup, the slot's tag stands for the slot, and its

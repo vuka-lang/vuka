@@ -90,6 +90,18 @@ argument, an input field or a list's item (see
 [Nullability](/web/graphql#nullability)) — so an ORM model's optional
 columns serve as they are, with no pointers to convert to.
 
+## In Markup {#in-markup}
+
+Markup takes a `Result` or an `Option` as the value it holds, wherever it
+takes one value — a hole, an attribute, a prop, a `for`'s range, a
+condition: `<td>{e.Name}</td>` with `Name vuka.Option[string]`,
+`for _, o := range orders.List(ctx) { … }` with a `vuka.Result[[]Order]`.
+An `Err` fails the render through the page's error path; `None` is the
+zero value, never an error. The methods (`UnwrapOr`, `IsSome`, `IsErr`) and
+`match` keep the value as it is, for markup that shows the absence or the
+failure itself. See [Fallible and Optional
+Values](/ui/templates#calls-returning-an-error).
+
 ## What It Becomes
 
 The `find` function above compiles to this Go:

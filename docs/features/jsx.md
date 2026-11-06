@@ -39,6 +39,14 @@ Capitalized or dotted tags name components. Props bind exported fields,
 children fill `Children ui.Node` and named slots fill node fields. Each
 rendering component lives in its own shape file.
 
+A generic component's tag infers its type arguments from its props, as Go
+infers a call's: `<components.DataTable rows={orders}>` is a
+`DataTable[Order]`, and its scoped slots' `let` values take the inferred
+types ([Using Component Tags](/ui/templates#using-component-tags),
+[E0181](/errors/E0181)). A `(T, error)` call, a `vuka.Result[T]` or a
+`vuka.Option[T]` fills a hole or a prop as its `T`
+([Fallible and Optional Values](/ui/templates#calls-returning-an-error)).
+
 ## What It Becomes {#what-it-becomes}
 
 The compiler emits ordinary Go rendering code and render-tree metadata.
