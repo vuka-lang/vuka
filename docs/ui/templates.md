@@ -278,11 +278,16 @@ Holes accept Go expressions; their required type depends on their place:
 
 <span v-pre>`{{`</span> is a literal brace and `{/* … */}` a comment.
 
-### Calls Returning an Error {#calls-returning-an-error}
+### Fallible Values {#calls-returning-an-error}
 
-A call returning `(T, error)` is its `T` wherever markup takes one value: a
-hole, an attribute, a component's prop, a `for`'s range, an `if`'s or a
-`switch`'s condition. The generated Go wraps it in `ui.Must`:
+Wherever markup takes one value — a hole, an attribute, a component's
+prop, a `for`'s range, an `if`'s or a `switch`'s condition — it takes a
+fallible value as the value it holds:
+
+| In markup | Is | When it fails |
+|---|---|---|
+| a call returning `(T, error)` | its `T`: `ui.Must(call)` | the error fails the render |
+| a `vuka.Result[T]` | its `T`: `ui.Must(r.Get())` | an `Err` fails the render |
 
 ```html
 <ul class={Store.ListClass()}>
@@ -290,6 +295,7 @@ hole, an attribute, a component's prop, a `for`'s range, an `if`'s or a
     <li>{u.Name}</li>
   }
 </ul>
+<components.DataTable rows={orders.List(ctx)} />
 ```
 
 When the error isn't nil the render fails as a `Load` or `Mount` error
@@ -300,13 +306,27 @@ gets the error message a failing event gets. Each call runs once each time
 its place is evaluated, as written: two holes calling `Store.Users()` call
 it twice.
 
-A statement binding one name to such a call unwraps it the same way:
+A value keeps its type where it is used as it is, as in Go:
+
+- a call passing its results on, `{fmt.Sprint(Store.Users())}`, and an
+  argument whose parameter takes a `Result`, `{fmt.Sprint(r)}`;
+- a `Result`'s own methods, `r.IsErr()`, `r.UnwrapOr(nil)`;
+- a prop whose field is a `Result`, `any` or a type parameter;
+- a statement binding both results, `users, err := Store.Users()`, or a
+  name to a `Result`, `r := orders.List(ctx)`: its reads are coerced
+  where they are shown.
+
+A statement binding one name to a `(T, error)` call unwraps it:
 `users := Store.Users()` is a `[]User`, an error failing the render where
-`users` is first shown. A call passing its results on keeps them, as in Go —
-`{fmt.Sprint(Store.Users())}` — and so does a statement binding both:
-`users, err := Store.Users()`, then `if err != nil { … }`. A call returning
-anything else where markup takes one value — `(User, bool)`, three results,
-or only an `error` shown as a value — is [E0160](/errors/E0160).
+`users` is first shown. A call returning anything else where markup takes
+one value — `(User, bool)`, three results, or only an `error` shown as a
+value — is [E0160](/errors/E0160).
+
+Reach for the explicit forms when the page shows the failure itself
+instead of failing: `if r.IsErr() { … }` for a message in place,
+`r.UnwrapOr(fallback)` for a default, and a `Result` prop for a component
+that styles it. `ui.Must` written out is the coercion, so it is never
+needed in markup.
 
 > [!WARNING]
 > A call in markup runs on every render, each re-render of a live page

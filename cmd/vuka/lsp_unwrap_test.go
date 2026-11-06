@@ -75,3 +75,52 @@ func TestLSPUnwrapDiagnostic(t *testing.T) {
 		t.Errorf("diagnostics %s, want E0160 at %s", got, want)
 	}
 }
+
+const unwrapResultStore = `package main
+
+import "github.com/vuka-lang/vuka/v2"
+
+type User struct{ Name string }
+
+type Store struct{}
+
+func (Store) Users() vuka.Result[[]User] { return vuka.Ok([]User(nil)) }
+
+func main() {}
+`
+
+const unwrapResultPage = `package main
+
+// Page lists the store's users.
+type Page struct{ Store Store }
+<ul>
+  for _, u := range Store.Users() {
+    <li>{u.Name}</li>
+  }
+</ul>
+`
+
+// TestLSPUnwrapResultHover: hover on a Result in markup names the value
+// type it is there.
+func TestLSPUnwrapResultHover(t *testing.T) {
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": unwrapResultStore, "page.vuka.html": unwrapResultPage})
+	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": unwrapResultPage}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	var md string
+	pos := positionOf([]byte(unwrapResultPage), strings.Index(unwrapResultPage, "Users()")+2)
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		h, _ := c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}).(map[string]any)
+		if h != nil {
+			md = h["contents"].(map[string]any)["value"].(string)
+			if strings.Contains(md, "func (Store) Users()") {
+				break
+			}
+		}
+	}
+	for _, want := range []string{"func (Store) Users() vuka.Result[[]User]", "In markup this `Result` is its `[]User`"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("hover on Users lacks %q: %s", want, md)
+		}
+	}
+}

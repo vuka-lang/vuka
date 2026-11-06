@@ -1,0 +1,14 @@
+package main
+
+import ui "vukatest.local/stateui"
+
+// Table renders its rows through the caller's Row: T inferred from rows.
+type Table[T any] struct {
+	Rows []T
+	Row  func(T) ui.Node
+}
+<ol>
+  for _, r := range Rows {
+    <li>{Row(r)}</li>
+  }
+</ol>

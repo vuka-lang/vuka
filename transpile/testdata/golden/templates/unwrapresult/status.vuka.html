@@ -1,0 +1,15 @@
+package main
+
+import "github.com/vuka-lang/vuka/v2"
+
+// Status takes a Result as it is, and styles its failure.
+type Status struct {
+	Of vuka.Result[string]
+}
+<i>
+  if Of.IsErr() {
+    failed
+  } else {
+    {Of.Value()}
+  }
+</i>

@@ -34,6 +34,7 @@ func (e *engine) unwrapCalls(f *fileState) bool {
 	changed := false
 	for _, x := range e.markupValues(f) {
 		e.unwrapIn(f, x.expr, x.shown, &changed)
+		e.coerceIn(f, x, &changed)
 	}
 	if changed {
 		e.progress = true
@@ -47,6 +48,9 @@ func (e *engine) unwrapCalls(f *fileState) bool {
 type markupValue struct {
 	expr  ast.Expr
 	shown bool
+	comp  *jsxComp // the component whose prop it is
+	attr  string   // and the prop
+	bind  bool     // a statement binds a name to it
 }
 
 // markupValues are the file's markup expressions taking one value, in this
@@ -58,7 +62,7 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 			return
 		}
 		if x := e.exprAt(f, s); x != nil {
-			out = append(out, markupValue{x, shown})
+			out = append(out, markupValue{expr: x, shown: shown})
 		}
 	}
 	var heads, stmts []span
@@ -71,7 +75,11 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 					switch {
 					case a.event || a.stmts || a.bind != nil || a.write != nil || strings.HasPrefix(a.name, "bind:"):
 					case a.kind == 'e':
+						before := len(out)
 						add(a.expr, n.comp == nil)
+						if n.comp != nil && len(out) > before {
+							out[before].comp, out[before].attr = n.comp, a.name
+						}
 					case a.kind == 'p':
 						for _, p := range a.parts {
 							add(p.expr, true)
@@ -125,7 +133,7 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 		case *ast.AssignStmt:
 			if n.Tok == token.DEFINE && len(n.Lhs) == len(n.Rhs) && within(n.Rhs[0], stmts) {
 				for _, x := range n.Rhs {
-					out = append(out, markupValue{x, false})
+					out = append(out, markupValue{expr: x, bind: true})
 				}
 			}
 			return true
@@ -145,7 +153,7 @@ func (e *engine) markupValues(f *fileState) []markupValue {
 		if in(n) {
 			for _, x := range xs {
 				if x != nil {
-					out = append(out, markupValue{x, false})
+					out = append(out, markupValue{expr: x})
 				}
 			}
 		}
@@ -265,6 +273,9 @@ func (e *engine) returnsErrorOnly(c *ast.CallExpr) bool {
 type Unwrap struct {
 	Off, Lparen, End int
 	Type             string
+	// Kind is what was unwrapped: "" a call's (T, error), "result" a
+	// vuka.Result.
+	Kind string
 }
 
 // unwrapsOf are f's unwrapped calls, at their offsets in the file as written.

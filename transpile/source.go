@@ -23,9 +23,16 @@ type edit struct {
 	drop       bool      // a copy left out: its text is nothing
 	stay       bool      // removes source moved elsewhere: never part of a copy
 	excl       bool      // a copy moved out of where a name now stands: an insertion at its start is before that name, not in the copy
+	tail       bool      // an insertion closing what ends at it: in a copy ending there
 }
 
 type edits []edit
+
+// in reports whether e rewrites src[a:b]: an insertion at b only when it
+// closes what ends there.
+func (e edit) in(a, b int) bool {
+	return a <= e.start && e.end <= b && (e.start < b || e.tail && e.start == b)
+}
 
 func (es edits) sorted() edits {
 	out := append(edits(nil), es...)
@@ -75,7 +82,7 @@ func (es edits) nest(src []byte) edits {
 			if e.stay || c.excl && e.start == a && e.end == a {
 				continue
 			}
-			if i != ci && (e.own == nil || e.own != c.own) && a <= e.start && e.end <= b && e.start < b && (!gone[i] || by[i] == c.own) {
+			if i != ci && (e.own == nil || e.own != c.own) && e.in(a, b) && (!gone[i] || by[i] == c.own) {
 				inner = append(inner, e)
 				gone[i], by[i] = true, c.own
 			}
@@ -97,7 +104,7 @@ func (es edits) nest(src []byte) edits {
 			continue
 		}
 		for j, e := range out {
-			if j != i && !gone[j] && s.start <= e.start && e.end <= s.end && e.start < s.end && !(e.start == e.end && e.start == s.start) {
+			if j != i && !gone[j] && e.in(s.start, s.end) && !(e.start == e.end && e.start == s.start) {
 				gone[j] = true
 			}
 		}
