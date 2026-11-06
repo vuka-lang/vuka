@@ -363,6 +363,15 @@ parameter keeps the call a handler.
   that exact version, versions compare as the go command orders them, and a
   test checks each requirement resolves and is no newer than ui's main.
 
+### Fixes
+
+- A live page or component whose only unexported fields are browser states
+  it just reads and streams no longer fails to build with ui's `uigen`
+  "imported and not used": the generated Go imports it only when it calls
+  it. A build error about an import only the generated Go has is placed at
+  the file's package clause and says so, never at one of the file's own
+  imports.
+
 ## v2.16.1 — 2026-11-01
 
 ### Breaking

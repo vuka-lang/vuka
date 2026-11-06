@@ -812,7 +812,8 @@ type srcPos struct {
 	src       []byte // the source's text; nil when unknown
 	off, end  int    // byte offsets in src, when src is known
 	line, col int
-	endCol    int // on the same line; 0 for none
+	endCol    int  // on the same line; 0 for none
+	generated bool // an import only the generated Go has: placed at the package clause
 }
 
 // toSource maps the span from pos to end (end may be NoPos) in a checked
@@ -822,6 +823,15 @@ func (c *checker) toSource(fset *token.FileSet, cf *checkedFile, pos, end token.
 	raw := fset.PositionFor(pos, false)
 	g := cf.gen
 	if g != nil && g.Map != nil && g.Source != "" && g.From != nil {
+		if generatedImport(fset, cf, pos) {
+			off := 0
+			if loc := packageClause.FindIndex(g.From); loc != nil {
+				off = loc[0]
+			}
+			sp := srcPos{file: g.Source, src: g.From, off: off, end: off, generated: true}
+			sp.line, sp.col = lineCol(g.From, off)
+			return sp
+		}
 		if s, _, ok := g.Map.ToSource(raw.Offset); ok {
 			sp := srcPos{file: g.Source, src: g.From, off: s, end: s}
 			if end.IsValid() {
@@ -947,12 +957,35 @@ func (c *checker) diagnostic(fset *token.FileSet, files []*checkedFile, cf *chec
 			sp.col, sp.endCol = c, c+to-from
 		}
 	}
+	if sp.generated {
+		hint.help, hint.label = "the import is vuka's, in the Go generated from this file, not the source's: please report this", ""
+	}
 	d := diag.Diagnostic{Code: "E0002", Message: hint.msg, Help: hint.help,
 		Span: diag.Span{File: sp.file, Line: sp.line, Col: sp.col, EndCol: sp.endCol, Label: hint.label}}
 	if hint.note != "" {
 		d.Message += "\n" + hint.note
 	}
 	return d
+}
+
+// generatedImport reports whether pos is in an import of cf that only the
+// generated Go has: the source imports no such path, and the import's text
+// isn't the source's.
+func generatedImport(fset *token.FileSet, cf *checkedFile, pos token.Pos) bool {
+	for _, imp := range cf.ast.Imports {
+		if pos < imp.Pos() || pos > imp.End() {
+			continue
+		}
+		path, _ := strconv.Unquote(imp.Path.Value)
+		for _, si := range sourceImports(cf.gen.Source, cf.gen.From) {
+			if si.Path == path {
+				return false
+			}
+		}
+		_, exact, ok := cf.gen.Map.ToSource(fset.PositionFor(imp.Path.Pos(), false).Offset + 1)
+		return !ok || !exact
+	}
+	return false
 }
 
 // nodesAt is the nodes of f enclosing pos, outermost first.

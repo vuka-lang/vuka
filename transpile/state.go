@@ -226,10 +226,14 @@ type binder struct {
 	e   *engine
 	f   *fileState
 	q   string // how the file names the target: "ui."
-	g   string // and the target's gen package: "uigen."
+	gp  string // the target's gen package's path, imported on first use
 	b   *stateBind
 	err *bindError
 }
+
+// g is how the file names the target's gen package, "uigen.": the import
+// is added only for lowering that calls it.
+func (bd *binder) g() string { return bd.f.genQual(bd.gp) }
 
 func (bd *binder) gen(s string) {
 	bd.b.pieces = append(bd.b.pieces, jsxPiece{text: s, keep: span{-1, -1}})
@@ -324,7 +328,7 @@ func (e *engine) unknownTypes(x ast.Node) bool {
 // lowerState lowers x, an expression reading states, to State's methods.
 func (e *engine) lowerState(f *fileState, x ast.Expr) (*stateBind, *bindError) {
 	pkg := e.statePackage(x)
-	bd := &binder{e: e, f: f, q: e.statePkg(f, pkg), g: f.genQual(stateGenPath(pkg)), b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End())}}
+	bd := &binder{e: e, f: f, q: e.statePkg(f, pkg), gp: stateGenPath(pkg), b: &stateBind{start: f.orig(x.Pos()), end: f.orig(x.End())}}
 	bd.lower(x)
 	if bd.err != nil {
 		return nil, bd.err
@@ -395,7 +399,7 @@ func (e *engine) stateField(x ast.Expr) (ast.Expr, []string, types.Type) {
 
 // field writes a struct state's field: uigen.At[T](f, "Range.Hi").
 func (bd *binder) field(base ast.Expr, path []string, t types.Type) {
-	bd.gen(bd.g + "At[" + bd.e.typeTextAuto(bd.f, t) + "](")
+	bd.gen(bd.g() + "At[" + bd.e.typeTextAuto(bd.f, t) + "](")
 	bd.keep(base)
 	bd.gen(", " + strconv.Quote(strings.Join(path, ".")) + ")")
 }
@@ -412,7 +416,7 @@ func (bd *binder) lower(x ast.Expr) {
 	e := bd.e
 	if base, path, t := e.stateField(x); base != nil {
 		if _, d := derivedOf(e.info.TypeOf(base)); d {
-			bd.gen(bd.g + "Read(")
+			bd.gen(bd.g() + "Read(")
 			bd.keep(x)
 			bd.gen(")")
 		} else if len(path) == 0 {
@@ -429,12 +433,12 @@ func (bd *binder) lower(x ast.Expr) {
 	case *ast.UnaryExpr:
 		switch x.Op {
 		case token.NOT:
-			bd.gen(bd.g + "Not(")
+			bd.gen(bd.g() + "Not(")
 			bd.lower(x.X)
 			bd.gen(")")
 			return
 		case token.SUB:
-			bd.gen(bd.g + "Neg(")
+			bd.gen(bd.g() + "Neg(")
 			bd.lower(x.X)
 			bd.gen(")")
 			return
@@ -450,11 +454,11 @@ func (bd *binder) lower(x ast.Expr) {
 			bd.fail(x, "the "+x.Op.String()+" operator can't run in the browser; compute it on the server")
 			return
 		}
-		bd.gen(bd.g + m + "(")
+		bd.gen(bd.g() + m + "(")
 		if e.readsState(x.X) {
 			bd.lower(x.X)
 		} else {
-			bd.gen(bd.g + "Derived(")
+			bd.gen(bd.g() + "Derived(")
 			bd.keep(x.X)
 			bd.gen(")")
 		}
@@ -465,7 +469,7 @@ func (bd *binder) lower(x ast.Expr) {
 	case *ast.CallExpr:
 		if id, ok := ast.Unparen(x.Fun).(*ast.Ident); ok && len(x.Args) == 1 {
 			if b, ok := e.info.Uses[id].(*types.Builtin); ok && b.Name() == "len" {
-				bd.gen(bd.g + "Len(")
+				bd.gen(bd.g() + "Len(")
 				bd.lower(x.Args[0])
 				bd.gen(")")
 				return
@@ -742,7 +746,7 @@ func (e *engine) lowerStates(f *fileState) {
 			}
 			f.stateDone[off] = true
 			pkg := e.statePackage(base)
-			bd := &binder{e: e, f: f, q: e.statePkg(f, pkg), g: f.genQual(stateGenPath(pkg)), b: &stateBind{}}
+			bd := &binder{e: e, f: f, q: e.statePkg(f, pkg), gp: stateGenPath(pkg), b: &stateBind{}}
 			bd.field(base, path, t)
 			f.fixed = append(f.fixed, pieceEdits(off, f.orig(n.End()), bd.b.pieces)...)
 			e.progress = true
