@@ -1,0 +1,4 @@
+err_geninfer_pin.vuka:26:3: <Grid> is generic, and its attributes don't give its type parameter V; set value={…}, whose type func(T) V gives V, or write the type arguments in the tag; did you mean <Grid[User, V]>?
+err_geninfer_pin.vuka:27:17: <List>'s items is []User, which makes T User, but the tag writes T as string; pass a value of type []string, or drop the tag's type arguments to infer them: <List>
+err_geninfer_pin.vuka:28:13: <Box>'s value is User, which makes T User, but the tag writes T as int; pass a value of type int, or drop the tag's type arguments to infer them: <Box>
+err_geninfer_pin.vuka:29:3: <List> is generic, and its attributes don't give its type parameter T; set items={…}, whose type []T gives T, or write the type arguments in the tag

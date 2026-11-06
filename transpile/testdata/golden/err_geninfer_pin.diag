@@ -1,0 +1,34 @@
+error[E0181]: <Grid> is generic, and its attributes don't give its type parameter V
+  --> err_geninfer_pin.vuka:26:3
+   |
+26 |         <Grid rows={users} />
+   |         ^^^^^
+   |
+   = help: set value={…}, whose type func(T) V gives V, or write the type arguments in the tag
+   = help: did you mean <Grid[User, V]>?
+
+error[E0181]: <List>'s items is []User, which makes T User, but the tag writes T as string
+  --> err_geninfer_pin.vuka:27:17
+   |
+27 |         <List[string] items={users} />
+   |                       ^^^^^
+   |
+   = help: pass a value of type []string, or drop the tag's type arguments to infer them: <List>
+
+error[E0181]: <Box>'s value is User, which makes T User, but the tag writes T as int
+  --> err_geninfer_pin.vuka:28:13
+   |
+28 |         <Box[int] value={users[0]} />
+   |                   ^^^^^
+   |
+   = help: pass a value of type int, or drop the tag's type arguments to infer them: <Box>
+
+error[E0181]: <List> is generic, and its attributes don't give its type parameter T
+  --> err_geninfer_pin.vuka:29:3
+   |
+29 |         <List items={nil} />
+   |         ^^^^^
+   |
+   = help: set items={…}, whose type []T gives T, or write the type arguments in the tag
+
+For more information about this error, try `vuka explain E0181`.

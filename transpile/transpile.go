@@ -136,6 +136,8 @@ type Output struct {
 	Unwrapped []Unwrap
 	// Implicit are the calls in its markup given the render's ctx.
 	Implicit []ImplicitCtx
+	// Lets are the names its scoped slots' let declares, typed.
+	Lets []SlotLet
 	// VariantMethods are its methods on value-enum variants, each lowered
 	// to a function the enum's one method of the name calls.
 	VariantMethods []VariantMethod
@@ -706,7 +708,7 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
-		res.Files = append(res.Files, Output{Implicit: f.implicitOf(), Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0 || f.graphqlGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf(), VariantMethods: f.variantMethodsOf(), Matches: f.matchesOf(), GraphQLArgs: e.gqlArgs[f]})
+		res.Files = append(res.Files, Output{Implicit: f.implicitOf(), Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0 || f.graphqlGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf(), Lets: f.letsOf(), VariantMethods: f.variantMethodsOf(), Matches: f.matchesOf(), GraphQLArgs: e.gqlArgs[f]})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
 		}

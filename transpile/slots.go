@@ -420,3 +420,37 @@ func (e *engine) checkFallbacks(f *fileState, t *jsxTree) bool {
 	}
 	return ok
 }
+
+// SlotLet is a name a scoped slot's let declares: Off its first byte in the
+// source, and its type as the file spells it, a generic component's type
+// arguments substituted (inferred ones too).
+type SlotLet struct {
+	Off  int
+	Name string
+	Type string
+}
+
+// letsOf are f's slots' lets, at their offsets in the file as written.
+func (f *fileState) letsOf() []SlotLet {
+	var out []SlotLet
+	for _, t := range f.jsx {
+		for _, c := range t.comps {
+			if c.dead {
+				continue
+			}
+			eachArg(c.args, func(a *compArg) {
+				for i, l := range a.lets {
+					if a.fn == nil || i >= len(a.params) {
+						continue
+					}
+					off := l.at.start
+					if f.html != nil {
+						off = f.html.toSrc(off)
+					}
+					out = append(out, SlotLet{Off: off, Name: l.name, Type: a.params[i]})
+				}
+			})
+		}
+	}
+	return out
+}

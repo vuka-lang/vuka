@@ -614,9 +614,39 @@ SVG and MathML names remain elements, including custom-element names with a
 hyphen. Component names and attributes are case-sensitive; an unknown tag is
 [E0143](/errors/E0143), with the nearest matching name when possible.
 
-A generic component takes its type arguments in the tag,
-`<components.List[Task]>`, or infers them from its attributes. Close it as
-`</components.List>` or `</components.List[Task]>`.
+A generic component infers its type arguments from its attributes, as Go
+infers a call's. Given
+
+```go
+package components
+
+import "github.com/vuka-lang/ui/v2"
+
+type TableData[T any] struct {
+    Rows  []T
+    Count int
+}
+
+type DataTable[T any] struct {
+    Data TableData[T]
+    Row  func(T) ui.Node
+}
+```
+
+`<components.DataTable data={orders()}>` with `orders()` returning a
+`components.TableData[entities.Order]` is a `DataTable[entities.Order]`:
+each attribute's value is matched against the type of the field it sets,
+through slices, pointers, maps, funcs and other generic types, and untyped
+constants take their default type (`a={x} b={1}` with `x` a `float64`
+makes `float64`). Its scoped slots' values are the inferred types too, in
+the editor as well.
+
+The tag may write them, `<components.DataTable[entities.Order]>`, and what
+it writes wins: an attribute that doesn't fit them is an error at the
+attribute. A type parameter no attribute gives is
+[E0181](/errors/E0181), naming the parameter, the prop that would give it
+and the tag with its type arguments written. Close the tag as
+`</components.DataTable>` or `</components.DataTable[entities.Order]>`.
 
 ### Setting Props
 

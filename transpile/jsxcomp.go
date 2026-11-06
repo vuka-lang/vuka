@@ -547,10 +547,9 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		}
 	}
 	if fn, ok := obj.(*types.Func); ok && fn.Signature().TypeParams().Len() > 0 && (sig == nil || sig.TypeParams().Len() > 0) {
-		var off int
-		var msg string
-		if sig, off, msg = e.instantiate(f, c, expr, fn.Signature(), attrs, node); msg != "" {
-			fail("E0106", off, "%s", msg)
+		var ie *inferErr
+		if sig, ie = e.instantiate(f, c, expr, fn.Signature(), attrs, node); ie != nil {
+			e.reportInfer(f, c, ie)
 			return
 		}
 		if sig == nil {
@@ -565,6 +564,17 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 	if off, msg := e.bindComp(c, sig, attrs, node, e.templChildren(obj)); msg != "" {
 		fail("E0106", off, "%s", msg)
 		return
+	}
+	if fn, ok := obj.(*types.Func); ok && fn.Signature().TypeParams().Len() > 0 {
+		if targs := e.writtenTargs(expr); targs != nil {
+			trial := &jsxComp{el: el, target: c.target}
+			if _, msg := e.bindComp(trial, fn.Signature(), attrs, node, e.templChildren(obj)); msg == "" {
+				if ie := e.explicitErr(f, el, fn.Signature().TypeParams(), targs, trial.args, c.args); ie != nil {
+					e.reportInfer(f, c, ie)
+					return
+				}
+			}
+		}
 	}
 	if len(c.missing) > 0 {
 		what := "attribute"
@@ -608,6 +618,36 @@ func (e *engine) unknownTag(f *fileState, c *jsxComp, id *ast.Ident) bool {
 		err.help("a lowercase tag is an HTML element, or a template or function of the package")
 	}
 	return true
+}
+
+// isIndex reports whether a tag writes type arguments: <List[T]>.
+func isIndex(x ast.Expr) bool {
+	switch x.(type) {
+	case *ast.IndexExpr, *ast.IndexListExpr:
+		return true
+	}
+	return false
+}
+
+// writtenTargs are the type arguments a tag writes, nil for none or while
+// one's type is unknown.
+func (e *engine) writtenTargs(x ast.Expr) []types.Type {
+	var idx []ast.Expr
+	switch x := x.(type) {
+	case *ast.IndexExpr:
+		idx = []ast.Expr{x.Index}
+	case *ast.IndexListExpr:
+		idx = x.Indices
+	}
+	var out []types.Type
+	for _, i := range idx {
+		tv, ok := e.info.Types[i]
+		if !ok || !tv.IsType() || isInvalid(tv.Type) {
+			return nil
+		}
+		out = append(out, tv.Type)
+	}
+	return out
 }
 
 // compIdent is the name a component's tag ends in: Card in <theme.Card> and <Card[T]>.
@@ -997,235 +1037,6 @@ func (e *engine) attrExpr(f *fileState, a *jsxAttr) ast.Expr {
 		return expr == nil && (n == nil || f.off(n.Pos()) <= at)
 	})
 	return expr
-}
-
-// instantiate infers a generic component's type arguments as Go infers a
-// call's, from the call its tag makes, where a parameter it leaves out takes
-// nil and so infers nothing. It returns nil while an attribute's type is unknown.
-func (e *engine) instantiate(f *fileState, c *jsxComp, fun ast.Expr, sig *types.Signature, attrs []*jsxAttr, node types.Type) (*types.Signature, int, string) {
-	el := c.el
-	if st, _ := propsStruct(sig, attrs); st != nil {
-		return e.inferProps(f, c, sig, st, attrs, node)
-	}
-	trial := &jsxComp{el: el, target: c.target}
-	if off, msg := e.bindComp(trial, sig, attrs, node, true); msg != "" {
-		return nil, off, msg
-	}
-	pos := fun.Pos()
-	call := &ast.CallExpr{Fun: fun, Lparen: fun.End(), Rparen: fun.End()}
-	for _, a := range trial.args {
-		var x ast.Expr = &ast.Ident{NamePos: pos, Name: "nil"}
-		switch {
-		case a.attr == nil:
-		case a.attr.kind == 's':
-			x = &ast.BasicLit{ValuePos: pos, Kind: token.STRING, Value: strconv.Quote(a.attr.val)}
-		case a.attr.kind == 'b':
-			x = &ast.Ident{NamePos: pos, Name: "true"}
-		default:
-			x = e.attrExpr(f, a.attr)
-			if tv, ok := e.info.Types[x]; x == nil || !ok || isInvalid(tv.Type) {
-				return nil, 0, ""
-			}
-		}
-		call.Args = append(call.Args, x)
-	}
-	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}, Instances: map[*ast.Ident]types.Instance{}}
-	_ = types.CheckExpr(e.fset, e.pkg, pos, call, info) // a mismatch is reported where the call is made
-	if inst, ok := info.Instances[compIdent(fun)]; ok {
-		if s, ok := inst.Type.(*types.Signature); ok && s.TypeParams().Len() == 0 {
-			return s, 0, ""
-		}
-	}
-	return nil, el.start, "<" + el.tag + "> is generic, and its attributes don't give its type arguments: write <" + el.tag + "[…]>"
-}
-
-// inferProps infers a generic component's type arguments when its single
-// parameter is a generic props struct, which Go's call inference can't reach
-// because the struct is written as a literal, not passed as arguments. Each
-// attribute binds to a field whose declared type mentions the type parameters
-// (Rows []T, Cell func(T) string); unifying that against the attribute value's
-// concrete type pins the parameters. It returns nil while an attribute's type
-// is still unknown, so the next round can retry.
-func (e *engine) inferProps(f *fileState, c *jsxComp, sig *types.Signature, st *types.Struct, attrs []*jsxAttr, node types.Type) (*types.Signature, int, string) {
-	el := c.el
-	trial := &jsxComp{el: el, target: c.target}
-	if off, msg := e.bindComp(trial, sig, attrs, node, true); msg != "" {
-		return nil, off, msg
-	}
-	targs, u, status := e.solveTargs(f, trial.args, sig.TypeParams())
-	switch status {
-	case inferRetry:
-		return nil, 0, "" // a type is still unknown; retry next round
-	case inferConflict:
-		return nil, el.start, conflictMsg(el.tag, u, e)
-	case inferUnder:
-		return nil, el.start, underMsg(el.tag)
-	}
-	inst, err := types.Instantiate(nil, sig, targs, true)
-	if err != nil {
-		return nil, el.start, "<" + el.tag + ">'s inferred type arguments don't fit its constraints: write <" + el.tag + "[…]> (" + err.Error() + ")"
-	}
-	if s, ok := inst.(*types.Signature); ok {
-		return s, 0, ""
-	}
-	return nil, el.start, underMsg(el.tag)
-}
-
-// inferStatus is how solveTargs ended: solved, waiting on an unknown type, a
-// parameter bound two ways, or a parameter left unbound.
-type inferStatus int
-
-const (
-	inferOK inferStatus = iota
-	inferRetry
-	inferConflict
-	inferUnder
-)
-
-// attrConc is an attribute value's concrete type for inference: string for a
-// string attribute, bool for a boolean one, else the attribute expression's
-// default type. ok is false while that expression's type isn't known yet, so
-// the caller returns the retry sentinel and the fixpoint loop tries again.
-func (e *engine) attrConc(f *fileState, a *jsxAttr) (conc types.Type, ok bool) {
-	switch a.kind {
-	case 's':
-		return types.Typ[types.String], true
-	case 'b':
-		return types.Typ[types.Bool], true
-	default:
-		x := e.attrExpr(f, a)
-		tv, found := e.info.Types[x]
-		if x == nil || !found || isInvalid(tv.Type) {
-			return nil, false
-		}
-		return types.Default(tv.Type), true
-	}
-}
-
-// solveTargs pins tps by unifying each bound attribute's declared type (which
-// still mentions the type parameters) against its value's concrete type, the
-// shared core of both inferProps (function components) and inferStateful
-// (struct components). args come from a trial bind; children and left-out
-// fields have no attr and infer nothing.
-func (e *engine) solveTargs(f *fileState, args []*compArg, tps *types.TypeParamList) ([]types.Type, *unifier, inferStatus) {
-	u := &unifier{tps: tps, subst: map[*types.TypeParam]types.Type{}}
-	for _, a := range args {
-		if a.attr == nil {
-			continue
-		}
-		conc, ok := e.attrConc(f, a.attr)
-		if !ok {
-			return nil, u, inferRetry
-		}
-		if !u.unify(a.typ, conc) {
-			return nil, u, inferConflict
-		}
-	}
-	targs := make([]types.Type, tps.Len())
-	for i := range targs {
-		t, ok := u.subst[tps.At(i)]
-		if !ok {
-			return nil, u, inferUnder
-		}
-		targs[i] = t
-	}
-	return targs, u, inferOK
-}
-
-func conflictMsg(tag string, u *unifier, e *engine) string {
-	return "<" + tag + "> is generic, and its attributes make " + u.bad.Obj().Name() +
-		" both " + e.display(u.was) + " and " + e.display(u.now) + ": write <" + tag + "[…]>"
-}
-
-func underMsg(tag string) string {
-	return "<" + tag + "> is generic, and its attributes don't give its type arguments: write <" + tag + "[…]>"
-}
-
-// unifier accumulates type-parameter bindings while matching props fields'
-// declared types against attribute values' concrete types. go/types has no
-// exported general unifier, so this one covers the field shapes props use.
-type unifier struct {
-	tps      *types.TypeParamList
-	subst    map[*types.TypeParam]types.Type
-	bad      *types.TypeParam // the first parameter bound two incompatible ways
-	was, now types.Type
-}
-
-// unify matches a field's declared type pat (which may mention the type
-// parameters) against an attribute value's concrete type conc, recording each
-// parameter's binding. A shape the two don't share contributes nothing — not
-// every field pins a parameter — so it returns false only on a genuine
-// conflict: a parameter already bound to an incompatible type.
-func (u *unifier) unify(pat, conc types.Type) bool {
-	if tp, ok := types.Unalias(pat).(*types.TypeParam); ok && u.has(tp) {
-		switch prev, ok := u.subst[tp]; {
-		case !ok:
-			u.subst[tp] = conc
-		case !types.Identical(prev, conc):
-			u.bad, u.was, u.now = tp, prev, conc
-			return false
-		}
-		return true
-	}
-	switch p := pat.Underlying().(type) {
-	case *types.Slice:
-		if c, ok := conc.Underlying().(*types.Slice); ok {
-			return u.unify(p.Elem(), c.Elem())
-		}
-	case *types.Array:
-		if c, ok := conc.Underlying().(*types.Array); ok {
-			return u.unify(p.Elem(), c.Elem())
-		}
-	case *types.Pointer:
-		if c, ok := conc.Underlying().(*types.Pointer); ok {
-			return u.unify(p.Elem(), c.Elem())
-		}
-	case *types.Map:
-		if c, ok := conc.Underlying().(*types.Map); ok {
-			return u.unify(p.Key(), c.Key()) && u.unify(p.Elem(), c.Elem())
-		}
-	case *types.Chan:
-		if c, ok := conc.Underlying().(*types.Chan); ok {
-			return u.unify(p.Elem(), c.Elem())
-		}
-	case *types.Signature:
-		if c, ok := conc.Underlying().(*types.Signature); ok {
-			return u.unifyTuple(p.Params(), c.Params()) && u.unifyTuple(p.Results(), c.Results())
-		}
-	}
-	// A named generic type N[X,…] (Column[T]): unify its arguments arg-wise.
-	if pn, ok := types.Unalias(pat).(*types.Named); ok && pn.TypeArgs().Len() > 0 {
-		if cn, ok := types.Unalias(conc).(*types.Named); ok &&
-			pn.TypeArgs().Len() == cn.TypeArgs().Len() && types.Identical(pn.Origin(), cn.Origin()) {
-			for i := 0; i < pn.TypeArgs().Len(); i++ {
-				if !u.unify(pn.TypeArgs().At(i), cn.TypeArgs().At(i)) {
-					return false
-				}
-			}
-		}
-	}
-	return true // an unsupported shape simply contributes no binding
-}
-
-func (u *unifier) unifyTuple(p, c *types.Tuple) bool {
-	if p.Len() != c.Len() {
-		return true // a shape mismatch contributes nothing rather than conflicting
-	}
-	for i := 0; i < p.Len(); i++ {
-		if !u.unify(p.At(i).Type(), c.At(i).Type()) {
-			return false
-		}
-	}
-	return true
-}
-
-func (u *unifier) has(tp *types.TypeParam) bool {
-	for i := 0; i < u.tps.Len(); i++ {
-		if u.tps.At(i) == tp {
-			return true
-		}
-	}
-	return false
 }
 
 // resolveOverload chooses the overload of a component whose parameters fit

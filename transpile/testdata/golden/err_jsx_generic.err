@@ -1,6 +1,6 @@
-err_jsx_generic.vuka:24:3: <Table> is generic, and its attributes don't give its type arguments: write <Table[…]>
-err_jsx_generic.vuka:25:3: <Empty> is generic, and its attributes don't give its type arguments: write <Empty[…]>
-err_jsx_generic.vuka:26:3: <Box> is generic, and its attributes don't give its type arguments: write <Box[…]>
+err_jsx_generic.vuka:24:3: <Table> is generic, and its attributes don't give its type parameter T; set rows={…}, whose type []T gives T, or write the type arguments in the tag
+err_jsx_generic.vuka:25:3: <Empty> is generic, and its attributes don't give its type parameter T; write the type arguments in the tag: <Empty[…]>
+err_jsx_generic.vuka:26:3: <Box> is generic, and its attributes don't give its type parameter T; set value={…}, whose type T gives T, or write the type arguments in the tag
 err_jsx_generic.vuka:27:3: no overload of Price takes these attributes
 	(amount int) ui.Node at err_jsx_generic.vuka:13:6
 	(amount float64) ui.Node at err_jsx_generic.vuka:14:6
