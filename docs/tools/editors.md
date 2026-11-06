@@ -259,9 +259,16 @@ and doc comments: a `ui.Node` field, a func field returning one (inserted
 with a `let` naming its values) and a slice of structs (in the singular,
 `<slot:column>` for `Columns`). Fields tagged `vuka:"required"` are marked,
 and a slot the tag already fills isn't offered again (a repeated one is).
-Hover on a slot's tag shows the field it fills, its doc and, for a scoped
-slot, the types of the values its `let` names; go to definition opens the
-field. The names a `let` declares are template locals in the slot's
+In a repeated slot's tag, `<slot:column |>`, completion offers its element
+struct's fields as attributes, and `let` when the element has a func field
+for the content; that func field isn't an attribute, since the content
+fills it. A `ui.Node` field is both: an attribute taking text
+(`header="Name"`) and a slot inside the tag (`<slot:header>`), offered
+there only while the tag doesn't set it. Hover on a slot's tag shows the
+field it fills, its doc and, for a scoped slot, the types of the values its
+`let` names (a generic component's inferred type arguments substituted);
+on one of its attributes, the element's field and its doc. Go to
+definition opens the field. The names a `let` declares are template locals in the slot's
 content: they complete, and hover on one shows the value it names and its
 type. A slot the component doesn't have is [E0106](/errors/E0106), with the
 nearest slot's name. All of it works the same for the app's components, a

@@ -50,6 +50,10 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 			reply(h)
 			return true, ""
 		}
+		if h := p.slotAttrHover(path, src, s, off); h != nil {
+			reply(h)
+			return true, ""
+		}
 		if e, ok := s.eventAt(off); ok && off <= e.attr.end {
 			// gopls has nothing on an attribute's name; an element's
 			// event gets its MDN description too.
@@ -75,6 +79,10 @@ func (p *proxy) shapeRequest(m *rpcMsg, path string) (bool, string) {
 	case "textDocument/completion":
 		if !html {
 			return false, ""
+		}
+		if items, ok := p.slotAttrCompletion(path, src, off); ok {
+			reply(map[string]any{"isIncomplete": false, "items": items})
+			return true, ""
 		}
 		if items, ok := p.slotCompletion(path, src, off); ok {
 			reply(map[string]any{"isIncomplete": false, "items": items})
