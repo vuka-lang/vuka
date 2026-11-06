@@ -182,13 +182,18 @@ components' package by its `package` name and imports it under that name
 Where each directory of the components directory came from, written by
 `vuka ui add library/name`: the directory's name, and the library and the
 version of its module it was read at. `vuka ui diff` compares each with
-that version.
+that version, and `vuka ui upgrade` merges from it.
 
 ```toml
 [ui.sources]
 button = "shadcn-templ@v2.0.0-beta.16"
 dialog = "shadcn-templ@v2.0.0-beta.16"
 ```
+
+`[ui.upgrading]`, written by `vuka ui upgrade`, names the directories it
+left with conflicts and the version each is being taken to; the next
+`vuka ui upgrade` records that version in `[ui.sources]` once the conflict
+markers are gone. See [Upgrading a Library](/ui/vendored#upgrade).
 
 ## [ui.libraries.&lt;name&gt;] {#ui-libraries}
 

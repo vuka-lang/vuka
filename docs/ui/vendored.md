@@ -337,6 +337,59 @@ shadcn-templ/dialog` takes the library's again. `vuka ui list` lists the
 app's sources with vuka's components, and `vuka ui list shadcn-templ` the
 library's components.
 
+### Upgrading a Library {#upgrade}
+
+When vuka knows a newer version of a library (or `[ui.libraries.<name>]`
+names one), `vuka ui upgrade` takes the app's components of it there
+without losing your edits (`vuka ui upgrade shadcn-templ/dialog` for one,
+every directory of `[ui.sources]` when none is named). Each file is merged
+three ways: the library's at the version `[ui.sources]` records, the
+library's at the new version, and yours. A change only the library made is
+taken, a change only you made stays, and the same change on both sides is
+made once:
+
+```text
+wrote components/ui/button/button.templ: shadcn-templ@v2.0.0, merged with the app's changes
+wrote components/ui/button/group.templ: new in shadcn-templ@v2.0.0
+wrote components/ui/dialog/dialog.templ: 1 conflict to resolve
+wrote vuka.toml: [ui.sources]
+vuka ui upgrade: shadcn-templ/dialog has conflicts (marked <<<<<<< ======= >>>>>>> in the files above): resolve them, then run vuka ui upgrade again, which records the new version
+```
+
+Where you and the library changed the same lines differently, the file
+gets both, between markers, as git writes them:
+
+```text
+<<<<<<< yours
+	ID    string
+	Title string
+=======
+	ID    string
+	Class string
+>>>>>>> shadcn-templ@v2.0.0
+```
+
+A component with a conflict keeps its old version in `[ui.sources]`, and
+`[ui.upgrading]` notes the version it is being taken to. Edit the markers
+away, then run `vuka ui upgrade` again: it keeps your resolution and
+records the new version. Packages the components need at the new version
+and the app hasn't are written, the library's theme stylesheet is written
+again, and the modules the components import are got as with `vuka ui add`.
+
+`vuka ui upgrade --check` changes nothing: it lists each component with its
+versions, the files changed upstream and the files you edited, and fails
+when there are changes to take, for CI:
+
+```text
+shadcn-templ/button: v2.0.0-beta.16 → v2.0.0, changed upstream: button.templ; edited in the app: button.templ
+shadcn-templ/utils: v2.0.0-beta.16 → v2.0.0, no changes upstream
+```
+
+A library read from a directory (`dir` in `[ui.libraries.<name>]`) has no
+version to merge from: `vuka ui diff` shows how yours differ. vuka's own
+components aren't versioned in `[ui.sources]`; `vuka ui diff` and `vuka ui
+add -f` keep them up to date.
+
 ### Other Libraries {#other-libraries}
 
 vuka reads a library from its Go module, at a version, the way `go get`

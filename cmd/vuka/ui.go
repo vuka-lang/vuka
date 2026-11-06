@@ -25,6 +25,7 @@ const uiUsage = `Usage:
 	vuka ui init [-f] [--dry-run] [--css file] [--dir dir] [--package name]
 	vuka ui add [-f] [--dry-run] <component…> <library>/<component…>
 	vuka ui diff [component…] [<library>/<component…>]
+	vuka ui upgrade [--check] [--dry-run] [<library>/<component…>]
 	vuka ui list [library]
 
 Components that are the app's own source: vuka ui add writes each one into
@@ -45,6 +46,17 @@ utilities over design tokens in the app's stylesheet.
   diff   prints how the app's copies of the components named (all it has
          when none are) differ from the registry's; vuka ui add -f takes
          the registry's.
+  upgrade
+         takes the app's components of libraries (all of [ui.sources]
+         when none are named) to the version vuka ui add takes now,
+         keeping the app's edits: each file is merged three ways, the
+         library's at the version [ui.sources] records, at the new one,
+         and the app's. Changes made on both sides differently are
+         conflicts, marked <<<<<<< ======= >>>>>>> in the file; a
+         component with one keeps its old version in [ui.sources] until
+         they are resolved and upgrade runs again. --check says which
+         components have changes upstream and which files the app
+         edited, changing nothing, and fails when there are changes.
   list   lists the components; with a library's name, that library's.
 
 The registry is vuka's own, fetched at the version of this vuka, or the
@@ -62,7 +74,7 @@ the library's Go module at the version vuka knows (or vuka.toml's
 and records where each came from in vuka.toml's [ui.sources]. Run in an
 app without [ui], it runs vuka ui init first.
 
---dry-run says what init or add would write, writing nothing.
+--dry-run says what init, add or upgrade would write, writing nothing.
 `
 
 // uiCmd is vuka ui.
@@ -76,8 +88,8 @@ func uiCmd(args []string, stdout io.Writer) error {
 	if err != nil {
 		return err
 	}
-	if !slices.Contains([]string{"init", "add", "diff", "list"}, sub) {
-		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add, diff and list", sub, suggest(sub, []string{"init", "add", "diff", "list"}, ""))
+	if cmds := []string{"init", "add", "diff", "upgrade", "list"}; !slices.Contains(cmds, sub) {
+		return fmt.Errorf("vuka ui: no command %q%s; the commands are init, add, diff, upgrade and list", sub, suggest(sub, cmds, ""))
 	}
 	root, modPath, err := load.ModuleRoot(".")
 	if err != nil && sub != "list" {
@@ -113,6 +125,8 @@ func uiCmd(args []string, stdout io.Writer) error {
 		return uiInit(root, modPath, f, stdout)
 	case "diff":
 		return uiDiff(root, f, stdout)
+	case "upgrade":
+		return uiUpgrade(root, modPath, f, stdout)
 	}
 	if len(f.pos) == 0 {
 		return errors.New("usage: vuka ui add [-f] [--dry-run] <component…> (vuka ui list lists them)")
@@ -124,7 +138,7 @@ func uiCmd(args []string, stdout io.Writer) error {
 type uiFlags struct {
 	pos             []string
 	force, dryRun   bool
-	offline         bool
+	offline, check  bool
 	css, dir, pkg   string
 	style, registry string
 	setDir, setPkg  bool
@@ -141,6 +155,8 @@ func parseUIFlags(sub string, args []string) (*uiFlags, error) {
 		bools["f"], bools["force"], bools["dry-run"] = &f.force, &f.force, &f.dryRun
 	case "add":
 		bools["f"], bools["force"], bools["dry-run"] = &f.force, &f.force, &f.dryRun
+	case "upgrade":
+		bools["check"], bools["dry-run"] = &f.check, &f.dryRun
 	}
 	for i := 0; i < len(args); i++ {
 		a := args[i]
@@ -770,14 +786,15 @@ func withPackage(src []byte, from, pkg string) []byte {
 
 // uiWriter collects what a vuka ui command writes, and says so.
 type uiWriter struct {
-	root   string
-	dryRun bool
-	files  []string
-	data   map[string][]byte
-	what   map[string]string
-	lines  []string // what it says, in order
-	diffs  []byte
-	differ []string
+	root    string
+	dryRun  bool
+	files   []string
+	data    map[string][]byte
+	what    map[string]string
+	lines   []string // what it says, in order
+	diffs   []byte
+	differ  []string
+	removes []string
 }
 
 func (u *uiWriter) write(rel string, b []byte, what string) {
@@ -799,6 +816,16 @@ func (u *uiWriter) write(rel string, b []byte, what string) {
 	}
 }
 
+// remove queues the removal of rel, saying why.
+func (u *uiWriter) remove(rel, why string) {
+	u.removes = append(u.removes, rel)
+	verb := "removed"
+	if u.dryRun {
+		verb = "would remove"
+	}
+	u.lines = append(u.lines, fmt.Sprintf("%s %s: %s", verb, rel, why))
+}
+
 func (u *uiWriter) note(format string, args ...any) {
 	u.lines = append(u.lines, fmt.Sprintf(format, args...))
 }
@@ -818,6 +845,11 @@ func (u *uiWriter) commit(w io.Writer) error {
 				return err
 			}
 			if err := os.WriteFile(p, u.data[rel], 0o644); err != nil {
+				return err
+			}
+		}
+		for _, rel := range u.removes {
+			if err := os.Remove(filepath.Join(u.root, filepath.FromSlash(rel))); err != nil && !errors.Is(err, os.ErrNotExist) {
 				return err
 			}
 		}

@@ -76,10 +76,13 @@ var builtinLibraries = map[string]libSpec{
 // uiLibConfig is what vuka.toml says of libraries: [ui.sources], where
 // each directory of the components directory came from (its name → the
 // library@version, or the library alone for one read from a directory),
-// and [ui.libraries.<name>].
+// [ui.libraries.<name>], and [ui.upgrading], the directories vuka ui
+// upgrade left with conflicts (its name → the library@version they are
+// being upgraded to).
 type uiLibConfig struct {
-	sources map[string]string
-	libs    map[string]libSpec
+	sources   map[string]string
+	libs      map[string]libSpec
+	upgrading map[string]string
 }
 
 var libKeys = []string{"module", "version", "dir", "components", "scripts", "theme", "css", "style"}
@@ -87,7 +90,7 @@ var libKeys = []string{"module", "version", "dir", "components", "scripts", "the
 // readUILib reads [ui.sources] and [ui.libraries.<name>] of the vuka.toml
 // at root.
 func readUILib(root string) (*uiLibConfig, error) {
-	lc := &uiLibConfig{sources: map[string]string{}, libs: map[string]libSpec{}}
+	lc := &uiLibConfig{sources: map[string]string{}, libs: map[string]libSpec{}, upgrading: map[string]string{}}
 	src, err := os.ReadFile(filepath.Join(root, "vuka.toml"))
 	if errors.Is(err, os.ErrNotExist) {
 		return lc, nil
@@ -116,12 +119,16 @@ func readUILib(root string) (*uiLibConfig, error) {
 		key, value, found := strings.Cut(l, "=")
 		key, value = strings.Trim(strings.TrimSpace(key), `"`), strings.TrimSpace(value)
 		switch {
-		case table == "ui.sources":
+		case table == "ui.sources" || table == "ui.upgrading":
 			s, err := strconv.Unquote(value)
 			if !found || err != nil {
-				return nil, fmt.Errorf("%s: [ui.sources] has name = \"library@version\" lines", at)
+				return nil, fmt.Errorf("%s: [%s] has name = \"library@version\" lines", at, table)
 			}
-			lc.sources[key] = s
+			if table == "ui.sources" {
+				lc.sources[key] = s
+			} else {
+				lc.upgrading[key] = s
+			}
 		case strings.HasPrefix(table, "ui.libraries."):
 			name := strings.TrimPrefix(table, "ui.libraries.")
 			spec := lc.libs[name]
@@ -627,10 +634,14 @@ func versionOf(source string) string {
 
 // sourcesTable is [ui.sources]'s text.
 func (lc *uiLibConfig) sourcesTable() []byte {
+	return sourcesText("ui.sources", lc.sources)
+}
+
+func sourcesText(table string, m map[string]string) []byte {
 	var b strings.Builder
-	b.WriteString("[ui.sources]\n")
-	for _, n := range slices.Sorted(mapKeys(lc.sources)) {
-		fmt.Fprintf(&b, "%s = %q\n", n, lc.sources[n])
+	b.WriteString("[" + table + "]\n")
+	for _, n := range slices.Sorted(mapKeys(m)) {
+		fmt.Fprintf(&b, "%s = %q\n", n, m[n])
 	}
 	return []byte(b.String())
 }
@@ -793,10 +804,7 @@ func libDiff(root, modPath string, cfg uiConfig, args []libArg, all bool, w io.W
 			opened[wt.source] = src
 		}
 		label := libOf(wt.source) + "/" + wt.dir
-		dir := filepath.Join(src.dir, filepath.FromSlash(src.spec.Components), wt.dir)
-		if _, err := os.Stat(dir); err != nil {
-			dir = findPkgDir(src, wt.dir)
-		}
+		dir := src.pkgDir(wt.dir)
 		files, err := pkgFiles(dir)
 		if err != nil {
 			return nil, nil, fmt.Errorf("vuka ui diff: %s hasn't %s", src.label(), wt.dir)
