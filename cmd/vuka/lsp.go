@@ -1453,6 +1453,11 @@ func (p *proxy) askGopls(m *rpcMsg, path string, at asked, shapeNote string, rep
 			reply(h())
 			return
 		}
+		if h := p.eventRequest(m.Method, vf, off); h != nil {
+			p.mu.Unlock()
+			reply(h())
+			return
+		}
 		if h := p.authoringRequest(m.Method, vf, genPath, off); h != nil {
 			p.mu.Unlock()
 			go func() { reply(h()) }()

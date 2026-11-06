@@ -250,14 +250,14 @@ const tabsTrigger = "inline-flex h-[calc(100%-1px)] flex-1 items-center justify-
 func (t *Tabs) Render() ui.Node {
 	var buttons []ui.Node
 	for _, tab := range t.Tabs {
-		buttons = append(buttons, ui.HTML(`<button key={tab.Value} type="button" role="tab" id={t.id(tab, "tab")} aria-controls={t.id(tab, "panel")} aria-selected={t.selected(tab)} disabled={tab.Disabled} class={tabsTrigger} onClick={func() { t.Select(tab.Value) }}>{tab.Label}</button>`,
+		buttons = append(buttons, ui.HTML(`<button key={tab.Value} type="button" role="tab" id={t.id(tab, "tab")} aria-controls={t.id(tab, "panel")} aria-selected={t.selected(tab)} disabled={tab.Disabled} class={tabsTrigger} onClick={ui.JS.Push(t.Select, tab.Value)}>{tab.Label}</button>`,
 			tab.Value,
 			t.id(tab, "tab"),
 			t.id(tab, "panel"),
 			t.selected(tab),
 			tab.Disabled,
 			tabsTrigger,
-			func() { t.Select(tab.Value) },
+			ui.JS.Push(t.Select, tab.Value),
 			tab.Label,
 		))
 	}

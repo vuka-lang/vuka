@@ -404,6 +404,9 @@ func (e *engine) lowerJSX(f *fileState) {
 			}
 			all = all && c.resolved
 		}
+		if all {
+			e.lowerEventCalls(f, t)
+		}
 		if all && e.bindTree(f, t) && e.bindComps(f, t) && !pendingWrites(f, t) && e.checkFallbacks(f, t) {
 			e.checkModels(f, t)
 			for _, c := range t.comps {

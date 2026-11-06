@@ -12,6 +12,8 @@
 # contextvars_e2e_test.go
 TestContextProcessorsE2E
 TestContextProcessorsFolderPagesE2E
+# eventcalls_e2e_test.go
+TestEventCallsE2E
 # graphql_e2e_test.go
 TestGraphQLSchema
 # islandlive_test.go
@@ -117,6 +119,8 @@ TestLSPValueEnumMethods
 TestLSPFieldAttrs
 # lsp_files_test.go
 TestLSPFileLinks
+# lsp_events_test.go
+TestLSPEventCalls
 # lsp_forms_test.go
 TestLSPModel
 # lsp_generic_test.go

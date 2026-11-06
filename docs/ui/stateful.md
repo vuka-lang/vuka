@@ -130,7 +130,9 @@ own state, and a parent passes a child func props to hear from it.
 
 ## Handling Events {#events}
 
-An `on…` attribute with an expression on an element is an event handler:
+A call of the component's exported method, `onChange={Choose(this.value)}`,
+is a push made when the event fires, with the element's reads ([Events](/ui/events)).
+Any other `on…` attribute with an expression on an element is an event handler:
 `onClick` handles `click`, `onKeyDown` `keydown` — any `onXxx`, lowercased
 after `on`. The expression is any function value: a method value, a closure
 (Go's per-iteration loop variables make `onClick={func() { t.Remove(it.ID) }}`

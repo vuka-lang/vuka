@@ -117,7 +117,9 @@ Conditions limit a chain to the relevant key, form state or confirmation.
 ## Pushing to the Server {#push}
 
 `Push(handler, args…)` calls a method of the page, or of a component on
-it, on the server. For ordinary browser state, use assignment:
+it, on the server. A call of the method in an `on…` attribute is the same
+push, written as a call: `onChange={Choose(this.value)}` is
+`onChange={ui.JS.Push(Choose, ui.This.Value())}` ([Events](/ui/events)). For ordinary browser state, use assignment:
 `onClick={open = false; Save()}` closes first and then calls Save. Where
 the handler runs follows from the page:
 
