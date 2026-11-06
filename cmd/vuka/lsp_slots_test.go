@@ -257,3 +257,62 @@ func TestLSPLetHover(t *testing.T) {
 		}
 	}
 }
+
+const slotsGenericList = `<script lang="go">
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+// Order is a row.
+type Order struct{ Number string }
+
+// List renders its items through its caller's Row.
+type List[T any] struct {
+	Items []T
+	Row   func(T, int) ui.Node
+}
+</script>
+
+<ul>
+  for i, it := range Items {
+    <li>{Row(it, i)}</li>
+  }
+</ul>
+`
+
+const slotsGenericPage = `<script lang="go">
+package main
+
+// Page fills List's Row; List's T is inferred from items.
+type Page struct{ Orders []Order }
+</script>
+
+<List items={Orders}>
+  <slot:row let={o, i}><b>{o.Number}</b>{i}</slot:row>
+</List>
+`
+
+// TestLSPInferredLetHover: hover on a slot's let of a generic component
+// whose type arguments are inferred names the inferred type, not T.
+func TestLSPInferredLetHover(t *testing.T) {
+	c, dir, _ := startLSPWith(t, map[string]string{"main.go": "package main\n\nfunc main() {}\n", "list.vuka.html": slotsGenericList, "page.vuka.html": slotsGenericPage})
+	uri := pathToURI(filepath.Join(dir, "page.vuka.html"))
+	c.notify("textDocument/didOpen", map[string]any{"textDocument": map[string]any{"uri": uri, "languageId": "vuka-html", "version": 1, "text": slotsGenericPage}})
+	c.waitDiags(uri, func(ds []any) bool { return len(ds) == 0 })
+	var md string
+	for deadline := time.Now().Add(30 * time.Second); time.Now().Before(deadline); time.Sleep(200 * time.Millisecond) {
+		pos := positionOf([]byte(slotsGenericPage), strings.Index(slotsGenericPage, "{o.Number}")+1)
+		h, _ := c.call("textDocument/hover", map[string]any{"textDocument": map[string]any{"uri": uri}, "position": pos}).(map[string]any)
+		if h != nil {
+			md = h["contents"].(map[string]any)["value"].(string)
+			if strings.Contains(md, "var o Order") {
+				break
+			}
+		}
+	}
+	for _, want := range []string{"**slot value** `o Order` · `let` of `<slot:row>`: value 1 of `func(T, int) ui.Node`", "var o Order"} {
+		if !strings.Contains(md, want) {
+			t.Errorf("hover on o lacks %q: %s", want, md)
+		}
+	}
+}
