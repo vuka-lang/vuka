@@ -125,6 +125,46 @@ takes the call too, and the component forwards it to its element:
 `<Chip label="Manage" onClick={Select(id)}/>`. See [Handing a Click to a
 Child](/ui/state#click-to-a-child).
 
+### A Component's `on` Prop and an Element's `on…` Attribute {#on-prop}
+
+Only an attribute named `on` and a letter — `onClick`, `onChange`,
+`onKeydown` — is an event on an element. A component may declare a prop
+that takes a handler under any name; the registry's
+[Button](/ui/components/button) calls its own `On any`, and forwards it to
+its `<button>` as an `onClick`:
+
+```html
+<design.Button on={ui.JS.Push(Save)}>Save</design.Button>
+<design.Button on={Save}>Save</design.Button>
+<design.Button onClick={open = false; Save()}>Save and close</design.Button>
+```
+
+`on` there is the component's field, not an event: it means what the
+component does with it. On a plain element it is an ordinary attribute
+named `on`, which takes no handler. Writing a chain or a func to it fails
+the render:
+
+```html
+<!-- wrong: <button> has no event named "on" -->
+<button on={ui.JS.Push(Save)}>Save</button>
+```
+
+```text
+ui: template pages/orders.vuka.html:12: {ui.JS.Push(Save)} is on on <button>; it got ui.Commands, an event handler: only an on… attribute takes one
+```
+
+Name the event on an element:
+
+```html
+<button onClick={ui.JS.Push(Save)}>Save</button>
+<button onClick={Save()}>Save</button>
+```
+
+The same holds the other way round: moving markup from a `<button>` into a
+`<design.Button>`, `onClick` keeps working, as the Button declares an
+`OnClick ui.JSChain` too; a component that declares neither takes the
+event through its `Attrs`, as above.
+
 ## Calls That Keep Their Meaning {#other-calls}
 
 Only a call of the shape's exported methods is a push. Everything else is
