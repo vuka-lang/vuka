@@ -17,7 +17,9 @@ import (
 // element) — with their types and docs, but those the tag already fills;
 // hover on a slot's tag shows its field, its doc and its let's types, and
 // definition goes to the field; hover on a name a slot's let declares shows
-// the value it takes. A slot the component has no field for (E0106, with
+// the value it takes. A repeated slot's tag completes its element's fields
+// and let, never an element's attributes, and its content completes the
+// element's slots. A slot the component has no field for (E0106, with
 // the nearest one's name), or a let on a slot taking no values, is the
 // compiler's error, published as the file is typed.
 
@@ -207,18 +209,17 @@ func (p *proxy) slotCompletion(path string, src []byte, off int) ([]any, bool) {
 		return nil, false
 	}
 	s := scanShape(path, src)
-	comp, ok := enclosingComponent(s, from-1)
+	sc, ok := p.slotScope(path, src, s, from-1, "")
 	if !ok {
 		return nil, false
 	}
-	info := p.resolveComponent(path, src, baseName(comp.name))
-	if info == nil {
-		return nil, false
+	used := usedSlots(src, s, sc.comp, sc.from, from-1)
+	for _, a := range sc.inTag.attrs {
+		used[lowerCamel(a.name)] = true // a field its element's tag sets
 	}
-	used := usedSlots(src, s, comp, from-1)
 	typedRange := lspRange{positionOf(src, from), positionOf(src, off)}
 	items := []any{}
-	for i, pr := range info.props {
+	for i, pr := range sc.props {
 		if pr.kind == 0 || pr.kind != slotManyKind && used[slotName(pr)] {
 			continue
 		}
@@ -249,13 +250,14 @@ func slotWhat(pr tagProp) string {
 	return what
 }
 
-// usedSlots are the slots comp's content fills, but the one whose tag is at
-// skip: its own <slot:x> tags, not those inside them or another component.
-func usedSlots(src []byte, s *shapeScan, comp jsxTag, skip int) map[string]bool {
+// usedSlots are the slots filled by the content starting at from, comp's
+// or one of its slot's, but the one whose tag is at skip: its own
+// <slot:x> tags, not those inside them or another component.
+func usedSlots(src []byte, s *shapeScan, comp jsxTag, from, skip int) map[string]bool {
 	used := map[string]bool{}
 	depth := 0
-	for i := comp.end; i < len(src); i++ {
-		if src[i] != '<' || i == skip || !bytes.HasPrefix(src[i:], []byte("<slot:")) && !bytes.HasPrefix(src[i:], []byte("</slot:")) {
+	for i := from; i < len(src); i++ {
+		if src[i] != '<' || i == skip || !slotTagAt(src, i) {
 			continue
 		}
 		in, ok := enclosingComponent(s, i)
@@ -267,6 +269,9 @@ func usedSlots(src []byte, s *shapeScan, comp jsxTag, skip int) map[string]bool 
 			continue
 		}
 		if t.close {
+			if depth == 0 {
+				break
+			}
 			depth--
 			continue
 		}
@@ -280,9 +285,225 @@ func usedSlots(src []byte, s *shapeScan, comp jsxTag, skip int) map[string]bool 
 	return used
 }
 
+// elemAttrs are the fields of a repeated slot's element its tag sets as
+// attributes: all but its func fields, which its content fills. A Node
+// field is both, header="Name" or <slot:header>.
+func elemAttrs(props []tagProp) []tagProp {
+	var out []tagProp
+	for _, ep := range props {
+		if ep.kind != slotFuncKind {
+			out = append(out, ep)
+		}
+	}
+	return out
+}
+
+// slotTagProp is the prop the slot tag t fills, the scope it is in, and the
+// element attributes its tag takes.
+func (p *proxy) slotTagProp(path string, src []byte, s *shapeScan, t jsxTag) (tagProp, slotOwner, []tagProp, bool) {
+	sc, ok := p.slotScope(path, src, s, t.start, "")
+	if !ok {
+		return tagProp{}, sc, nil, false
+	}
+	pr, ok := slotPropIn(sc.props, strings.TrimPrefix(t.name, "slot:"))
+	if !ok || pr.kind == 0 {
+		return tagProp{}, sc, nil, false
+	}
+	var attrs []tagProp
+	if pr.kind == slotManyKind {
+		attrs = elemAttrs(p.elemProps(sc.info, pr))
+	}
+	return pr, sc, attrs, true
+}
+
+// slotAttrCompletion completes the attributes in a slot's tag: a repeated
+// slot's element fields, and let for a slot passing values; never an
+// element's attributes. false when off is in no slot's tag.
+func (p *proxy) slotAttrCompletion(path string, src []byte, off int) ([]any, bool) {
+	spot, ok := completionSpot(src, off)
+	if !ok || spot.kind != "attr" || !strings.HasPrefix(spot.tag.name, "slot:") {
+		return nil, false
+	}
+	items := []any{}
+	pr, _, attrs, ok := p.slotTagProp(path, src, scanShape(path, src), spot.tag)
+	if !ok {
+		return items, true
+	}
+	used := map[string]bool{}
+	for _, a := range spot.tag.attrs {
+		if off < a.start || off > a.end {
+			used[strings.ToLower(a.name)] = true
+		}
+	}
+	typed := lspRange{positionOf(src, spot.from), positionOf(src, off)}
+	for i, ep := range attrs {
+		if used[strings.ToLower(ep.attr)] {
+			continue
+		}
+		text, format := ep.attr+"={$1}", 2
+		switch {
+		case ep.typ == "bool":
+			text, format = ep.attr, 1
+		case ep.typ == "string" || ep.kind == slotNodeKind:
+			text = ep.attr + `="$1"`
+		}
+		it := map[string]any{"label": ep.attr, "kind": 5, "detail": ep.typ, "sortText": fmt.Sprintf("1%02d", i), "filterText": ep.attr,
+			"labelDetails": map[string]any{"detail": " " + ep.typ},
+			"textEdit":     map[string]any{"range": typed, "newText": text}, "insertTextFormat": format}
+		if ep.doc != "" {
+			it["documentation"] = map[string]any{"kind": "markdown", "value": ep.doc}
+		}
+		items = append(items, it)
+	}
+	if len(pr.params) > 0 && !used["let"] {
+		items = append(items, map[string]any{"label": "let", "kind": 14, "detail": "names " + strings.Join(pr.params, ", "), "sortText": "000", "filterText": "let",
+			"labelDetails":     map[string]any{"detail": " " + strings.Join(pr.params, ", ")},
+			"documentation":    map[string]any{"kind": "markdown", "value": "Names the values the slot's content takes, in order: `" + strings.Join(pr.params, "`, `") + "`. Name fewer to leave the rest out."},
+			"textEdit":         map[string]any{"range": typed, "newText": "let={${1:" + letGuess(pr.params) + "}}"},
+			"insertTextFormat": 2})
+	}
+	return items, true
+}
+
+// slotAttrHover is the hover on an attribute's name in a slot's tag: the
+// element field it sets, or the values let names.
+func (p *proxy) slotAttrHover(path string, src []byte, s *shapeScan, off int) any {
+	t, ok := tagAround(src, off)
+	if !ok || !strings.HasPrefix(t.name, "slot:") {
+		return nil
+	}
+	for _, a := range t.attrs {
+		if off < a.start || off > a.end {
+			continue
+		}
+		pr, sc, attrs, ok := p.slotTagProp(path, src, s, t)
+		if !ok {
+			return nil
+		}
+		if a.name == "let" {
+			if len(pr.params) == 0 {
+				return nil
+			}
+			return markdownHover("**let** of `<"+t.name+">` · names the values its content takes, in order: `"+strings.Join(pr.params, "`, `")+"`, of `"+p.letFunc(sc.info, pr)+"`; name fewer to leave the rest out", src, a.start, a.end)
+		}
+		for _, ep := range attrs {
+			if strings.EqualFold(ep.attr, a.name) {
+				md := "**field** `" + ep.name + " " + ep.typ + "` of `<" + t.name + ">`'s element"
+				if ep.file != "" {
+					md += fmt.Sprintf(" · [%s](%s#L%d)", filepath.Base(ep.file), pathToURI(ep.file), ep.line)
+				}
+				if ep.doc != "" {
+					md += "\n\n" + ep.doc
+				}
+				return markdownHover(md, src, a.start, a.end)
+			}
+		}
+	}
+	return nil
+}
+
+// slotTagAt reports whether a slot's tag, opening or closing, starts at i.
+func slotTagAt(src []byte, i int) bool {
+	return bytes.HasPrefix(src[i:], []byte("<slot:")) || bytes.HasPrefix(src[i:], []byte("</slot:"))
+}
+
+// openSlots are comp's slot tags open at off, outermost first.
+func openSlots(src []byte, s *shapeScan, comp jsxTag, off int) []jsxTag {
+	var open []jsxTag
+	for i := comp.end; i < off && i < len(src); i++ {
+		if src[i] != '<' || !slotTagAt(src, i) {
+			continue
+		}
+		if in, ok := enclosingComponent(s, i); !ok || in.start != comp.start {
+			continue
+		}
+		t, ok := readTag(src, i)
+		switch {
+		case !ok:
+		case t.close && len(open) > 0:
+			open = open[:len(open)-1]
+		case !t.close && !t.self:
+			open = append(open, t)
+		}
+	}
+	return open
+}
+
+// slotOwner is what a slot written at off fills: the slots of a component,
+// or, inside one of its repeated slots, those of that slot's element.
+type slotOwner struct {
+	comp  jsxTag    // the component
+	info  *tagInfo  // its declaration
+	owner string    // the tag whose slots they are
+	in    *tagProp  // the repeated slot, inside one
+	inTag jsxTag    // its tag
+	props []tagProp // the slots, and an element's other fields
+	from  int       // where the owner's content starts
+}
+
+// slotScope finds what a slot written at off fills; close names the slot a
+// closing tag at off ends, "" when none does. false when off is in no
+// component's content, or in a slot's that takes no slots.
+func (p *proxy) slotScope(path string, src []byte, s *shapeScan, off int, close string) (slotOwner, bool) {
+	comp, ok := enclosingComponent(s, off)
+	if !ok {
+		return slotOwner{}, false
+	}
+	info := p.resolveComponent(path, src, baseName(comp.name))
+	if info == nil {
+		return slotOwner{}, false
+	}
+	open := openSlots(src, s, comp, off)
+	if n := len(open); close != "" && n > 0 && open[n-1].name == close {
+		open = open[:n-1]
+	}
+	sc := slotOwner{comp: comp, info: info, owner: comp.name, props: info.props, from: comp.end}
+	switch len(open) {
+	case 0:
+		return sc, true
+	case 1:
+		pr, ok := info.slotProp(strings.TrimPrefix(open[0].name, "slot:"))
+		if !ok || pr.kind != slotManyKind {
+			return slotOwner{}, false
+		}
+		sc.owner, sc.in, sc.inTag, sc.props, sc.from = open[0].name, &pr, open[0], p.elemProps(info, pr), open[0].end
+		return sc, true
+	}
+	return slotOwner{}, false
+}
+
+// elemProps are the exported fields of a repeated slot's element struct:
+// its Node and func fields slots, the others attributes.
+func (p *proxy) elemProps(info *tagInfo, pr tagProp) []tagProp {
+	x, err := parser.ParseExpr(pr.typ)
+	at, ok := x.(*ast.ArrayType)
+	if err != nil || !ok {
+		return nil
+	}
+	var out []tagProp
+	for _, fl := range p.elemFields(info, at.Elt) {
+		if !token.IsExported(fl.name) {
+			continue
+		}
+		ep := tagProp{attr: lowerCamel(fl.name), typ: fl.typ, name: fl.name, file: fl.file, line: fl.line, doc: fl.doc, required: requiredTag(fl.tag)}
+		if isNodeTypeName(fl.typ) {
+			ep.kind = slotNodeKind
+		} else if fx, err := parser.ParseExpr(fl.typ); err == nil {
+			if ft, ok := fx.(*ast.FuncType); ok {
+				ep.kind, ep.params = funcSlot(fl.typ, ft)
+			}
+		}
+		out = append(out, ep)
+	}
+	return out
+}
+
 // slotProp is the prop a <slot:name> fills.
-func (info *tagInfo) slotProp(name string) (tagProp, bool) {
-	for _, pr := range info.props {
+func (info *tagInfo) slotProp(name string) (tagProp, bool) { return slotPropIn(info.props, name) }
+
+// slotPropIn is the prop of props a <slot:name> fills.
+func slotPropIn(props []tagProp, name string) (tagProp, bool) {
+	for _, pr := range props {
 		if pr.kind != 0 && (slotName(pr) == name || lowerCamel(pr.attr) == name) {
 			return pr, true
 		}
@@ -290,34 +511,34 @@ func (info *tagInfo) slotProp(name string) (tagProp, bool) {
 	return tagProp{}, false
 }
 
-// slotAt is the slot tag whose name holds off, opening or closing, the
-// component whose slot it is and the prop it fills.
-func (p *proxy) slotAt(path string, src []byte, s *shapeScan, off int) (jsxTag, jsxTag, tagProp, bool) {
+// slotAt is the slot tag whose name holds off, opening or closing, what it
+// is a slot of and the prop it fills.
+func (p *proxy) slotAt(path string, src []byte, s *shapeScan, off int) (jsxTag, slotOwner, tagProp, bool) {
 	i := bytes.LastIndexByte(src[:min(off+1, len(src))], '<')
 	if i < 0 {
-		return jsxTag{}, jsxTag{}, tagProp{}, false
+		return jsxTag{}, slotOwner{}, tagProp{}, false
 	}
 	t, ok := readTag(src, i)
 	if !ok || !strings.HasPrefix(t.name, "slot:") || off < t.nameStart || off > t.nameEnd {
-		return jsxTag{}, jsxTag{}, tagProp{}, false
+		return jsxTag{}, slotOwner{}, tagProp{}, false
 	}
-	comp, ok := enclosingComponent(s, i)
+	closing := ""
+	if t.close {
+		closing = t.name
+	}
+	sc, ok := p.slotScope(path, src, s, i, closing)
 	if !ok {
-		return jsxTag{}, jsxTag{}, tagProp{}, false
+		return jsxTag{}, slotOwner{}, tagProp{}, false
 	}
-	info := p.resolveComponent(path, src, baseName(comp.name))
-	if info == nil {
-		return jsxTag{}, jsxTag{}, tagProp{}, false
-	}
-	pr, ok := info.slotProp(strings.TrimPrefix(t.name, "slot:"))
-	return t, comp, pr, ok
+	pr, ok := slotPropIn(sc.props, strings.TrimPrefix(t.name, "slot:"))
+	return t, sc, pr, ok && pr.kind != 0
 }
 
 // slotHover is the hover on a slot tag's name: the field it fills, its doc,
 // and the types of the values its let names, inferred type arguments
 // substituted.
 func (p *proxy) slotHover(path string, src []byte, s *shapeScan, off int) any {
-	t, comp, pr, ok := p.slotAt(path, src, s, off)
+	t, sc, pr, ok := p.slotAt(path, src, s, off)
 	if !ok {
 		return nil
 	}
@@ -326,12 +547,20 @@ func (p *proxy) slotHover(path string, src []byte, s *shapeScan, off int) any {
 	if field == "" {
 		field = pr.attr
 	}
-	fmt.Fprintf(&b, "**%s** `<%s>` · `%s %s` of `<%s>`", slotWhat(pr), t.name, field, pr.typ, comp.name)
+	fmt.Fprintf(&b, "**%s** `<%s>` · `%s %s` of `<%s>`", slotWhat(pr), t.name, field, pr.typ, sc.owner)
 	if pr.file != "" {
 		fmt.Fprintf(&b, " · [%s](%s#L%d)", filepath.Base(pr.file), pathToURI(pr.file), pr.line)
 	}
 	if pr.kind == slotManyKind {
-		b.WriteString("\n\nEach `<" + t.name + ">` is one element.")
+		b.WriteString("\n\nEach `<" + t.name + ">` is one element")
+		if attrs := elemAttrs(p.elemProps(sc.info, pr)); len(attrs) > 0 {
+			names := make([]string, len(attrs))
+			for i, a := range attrs {
+				names[i] = a.attr
+			}
+			b.WriteString(", its attributes `" + strings.Join(names, "`, `") + "`")
+		}
+		b.WriteString(".")
 	}
 	if pr.doc != "" {
 		b.WriteString("\n\n" + pr.doc)
@@ -454,9 +683,22 @@ func (p *proxy) letNote(path string, src []byte, r shapeRef) string {
 		if t := p.letType(path, l.off); t != "" {
 			typ = t
 		}
-		return "**slot value** `" + r.name + " " + typ + "` · " + where + ": value " + fmt.Sprint(l.index+1) + " of `" + pr.typ + "`, what `<" + l.comp + ">` passes"
+		return "**slot value** `" + r.name + " " + typ + "` · " + where + ": value " + fmt.Sprint(l.index+1) + " of `" + p.letFunc(info, pr) + "`, what `<" + l.comp + ">` passes"
 	}
 	return "**slot value** `" + r.name + "` · " + where
+}
+
+// letFunc is the function whose values a slot's let names: the field's
+// own type, a repeated slot's element's func field.
+func (p *proxy) letFunc(info *tagInfo, pr tagProp) string {
+	if pr.kind == slotManyKind {
+		for _, ep := range p.elemProps(info, pr) {
+			if ep.kind == slotFuncKind {
+				return ep.name + " " + ep.typ
+			}
+		}
+	}
+	return pr.typ
 }
 
 // letType is the type the last build gave the let declared at off in

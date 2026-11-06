@@ -371,7 +371,7 @@ func tagPropsStruct(dir, name string) []tagField {
 	entries, _ := os.ReadDir(dir)
 	for _, e := range entries {
 		n := e.Name()
-		if e.IsDir() || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".templ")) {
+		if e.IsDir() || !(strings.HasSuffix(n, ".go") || strings.HasSuffix(n, ".vuka") || strings.HasSuffix(n, ".vuka.html") || strings.HasSuffix(n, ".templ")) {
 			continue
 		}
 		src, err := os.ReadFile(filepath.Join(dir, n))

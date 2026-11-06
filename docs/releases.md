@@ -118,7 +118,11 @@ parameter keeps the call a handler.
   [E0106](/errors/E0106) with did-you-mean for every component,
   `<ui.Await>` and `<ui.Suspense>` included (they reported it as
   [E0370](/errors/E0370) and [E0351](/errors/E0351)). See
-  [Editors](/tools/editors).
+  [Editors](/tools/editors). In a repeated slot's tag (`<slot:column>`)
+  completion offers the element's fields and `let`, not an element's HTML
+  attributes, and hover on one shows the field; its `let` values hover
+  with the inferred type and the element's func named; inside it,
+  `<slot:` lists the element's slots.
 
 ### Live pages
 
