@@ -11,24 +11,29 @@ import (
 //
 //	(T, error) from a call    ui.Must(call)          an error fails the render (unwrap.go)
 //	vuka.Result[T]            ui.Must(r.Get())       Err fails the render
+//	vuka.Option[T]            o.Value()              None is T's zero value: never an error
 //
 // A value keeps its type where it is used as it is: the receiver of a
 // method or field (r.IsErr(), r.UnwrapOr(x)), an argument whose parameter
-// takes it (fmt.Sprint(r)), a prop whose field does (a Result, any, a type
-// parameter), and a name a template's statement binds to it (r := Find(),
+// takes it (fmt.Sprint(r)), a prop whose field does (the same Result or
+// Option, any, a type parameter), and a name a template's statement binds to it (r := Find(),
 // then if r.IsErr()) — its reads coerce.
 
 // coercion is a row of the table: the runtime's generic type it takes, and
 // the text it wraps a value of it in, given the target's qualifier.
 type coercion struct {
 	kind, name     string
+	needs          string // the target's function it calls, "" for none
 	prefix, suffix func(q string) string
 }
 
 var coercions = []coercion{
-	{kind: "result", name: "Result",
+	{kind: "result", name: "Result", needs: "Must",
 		prefix: func(q string) string { return q + "Must(" },
 		suffix: func(string) string { return ".Get())" }},
+	{kind: "option", name: "Option",
+		prefix: func(string) string { return "" },
+		suffix: func(string) string { return ".Value()" }},
 }
 
 // coercionOf is the row taking t, with its value type.
@@ -49,7 +54,7 @@ func coercionOf(t types.Type) (*coercion, types.Type) {
 // prop it sets takes it as it is, and those inside it that aren't used as
 // they are.
 func (e *engine) coerceIn(f *fileState, x markupValue, changed *bool) {
-	if f.target == nil || !f.target.has("Must") || x.bind {
+	if f.target == nil || x.bind {
 		return
 	}
 	var visit func(n ast.Expr, keep bool)
@@ -58,7 +63,7 @@ func (e *engine) coerceIn(f *fileState, x markupValue, changed *bool) {
 			return
 		}
 		if tv, ok := e.info.Types[n]; ok && !tv.IsType() && !keep {
-			if c, _ := coercionOf(tv.Type); c != nil {
+			if c, _ := coercionOf(tv.Type); c != nil && (c.needs == "" || f.target.has(c.needs)) {
 				if e.coerce(f, n, c, tv.Type) {
 					*changed = true
 				}
@@ -196,7 +201,9 @@ func (e *engine) coerce(f *fileState, x ast.Expr, c *coercion, t types.Type) boo
 	default:
 		pre, suf = pre+"(", ")"+suf
 	}
-	f.insert(start, pre, -1)
+	if pre != "" {
+		f.insert(start, pre, -1)
+	}
 	if last := f.src[end-1]; last == suf[len(suf)-1] {
 		// Inside the span, so a copy of it has it: the call's own ) is the
 		// suffix's last byte.

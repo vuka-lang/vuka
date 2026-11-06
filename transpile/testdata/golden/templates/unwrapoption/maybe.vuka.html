@@ -1,0 +1,15 @@
+package main
+
+import "github.com/vuka-lang/vuka/v2"
+
+// Maybe takes an Option as it is, telling absent from empty.
+type Maybe struct {
+	Of vuka.Option[string]
+}
+<i>
+  if Of.IsNone() {
+    absent
+  } else {
+    {Of.Value()}
+  }
+</i>
