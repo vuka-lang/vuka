@@ -1,0 +1,20 @@
+package main
+
+import "time"
+
+// Search calls its handlers when the browser writes its states.
+type Search struct {
+	ui.Live
+	q    ui.State[string] @ui.Notify(Find).Debounce(300 * time.Millisecond)
+	tab  ui.State[string] @ui.Notify(OnTab)
+	hits int
+}
+
+func (s *Search) Find(q string) { s.hits = len(q) }
+
+func (s *Search) OnTab(ctx context.Context, tab string) error { return nil }
+<section>
+  <p>{q}</p>
+  <button onClick={tab = "all"}>All</button>
+  <p>{hits}</p>
+</section>

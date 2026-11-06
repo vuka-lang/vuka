@@ -11,6 +11,7 @@
 # Chrome and Vite: islands (Vue, React, Svelte, Go), live pages, templ and ui libraries, slots, page scripts, the GraphQL app
 # clientstate_e2e_test.go
 TestDerivedE2E
+TestWatchesE2E
 # contextvars_e2e_test.go
 TestContextProcessorsE2E
 TestContextProcessorsFolderPagesE2E

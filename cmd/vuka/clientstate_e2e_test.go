@@ -145,3 +145,81 @@ func TestDerivedE2E(t *testing.T) {
 		t.Errorf("console: %v", errs)
 	}
 }
+
+const watchesPage = `<script lang="go">
+package pages
+
+import (
+	"time"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Index tells the server about its tab, and its page number once the
+// clicks stop; its script follows the tab.
+type Index struct {
+	ui.Live
+	tab   ui.State[string] @ui.Notify(OnTab)
+	page  ui.State[int]    @ui.Notify(OnPage).Debounce(150 * time.Millisecond)
+	shown string
+	calls int
+	last  int
+}
+
+// OnTab hears each tab the visitor picks.
+func (p *Index) OnTab(tab string) { p.shown = tab }
+
+// OnPage hears the page number once the clicks stop.
+func (p *Index) OnPage(n int) { p.calls++; p.last = n }
+
+// Reset is a server write of the tab: nothing is sent back.
+func (p *Index) Reset() { p.tab = "home" }
+</script>
+
+<main>
+  <button id="a" onClick={tab = "a"}>a</button>
+  <button id="b" onClick={tab = "b"}>b</button>
+  <button id="next" onClick={page++}>next</button>
+  <button id="reset" onClick={Reset}>reset</button>
+  <p id="tab">{tab}</p>
+  <p id="shown">{shown}</p>
+  <p id="pages">{calls} {last}</p>
+</main>
+
+<script lang="ts">
+import { page, state } from 'vuka:component'
+
+export default page<Index>((el) => {
+  const tab = state('tab')
+  tab.watch((now, was) => {
+    el.dataset.trail = (el.dataset.trail || '') + was + '>' + now + '=' + document.querySelector('#tab')!.textContent + ';'
+  })
+})
+</script>
+`
+
+// TestWatchesE2E: a state's browser writes call its @ui.Notify handler with
+// the value, debounced when declared, and a server write doesn't; a script
+// watch runs after the page shows the write, with the value before.
+func TestWatchesE2E(t *testing.T) {
+	p, _, done := clientStateApp(t, map[string]string{"pages/index.vuka.html": watchesPage}, "/")
+	defer done()
+	p.click("#a")
+	p.wait(`document.querySelector("#shown").textContent === "a"`)
+	p.click("#b")
+	p.wait(`document.querySelector("#shown").textContent === "b"`)
+	for range 3 {
+		p.click("#next")
+	}
+	p.wait(`document.querySelector("#pages").textContent === "1 3"`)
+	p.click("#reset")
+	p.wait(`document.querySelector("#tab").textContent === "home"`)
+	p.click("#a")
+	p.wait(`document.querySelector("#shown").textContent === "a"`)
+	if got := p.eval(`document.querySelector("main").dataset.trail`); got != ">a=a;a>b=b;b>home=home;home>a=a;" {
+		t.Errorf("the watch's calls: %v", got)
+	}
+	if errs, _ := p.eval(`window.__errs`).([]any); len(errs) > 0 {
+		t.Errorf("console: %v", errs)
+	}
+}

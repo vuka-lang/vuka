@@ -133,6 +133,17 @@ parameter keeps the call a handler.
   `state('total')`, typed read only. Needs ui and web at the release's
   version. See [Derived Values](/ui/state#derived).
 
+- **Watching state** ([#368](https://github.com/vuka-lang/vuka/issues/368)).
+  A script's `state('tab').watch((now, was) => …)` runs after the page
+  shows each write, with the value before, never on a render or a patch;
+  watches writing each other's states in a loop are cut after ten rounds
+  with a warning naming them. On a live component,
+  `tab ui.State[string] @ui.Notify(OnTab)` calls `OnTab` with each value
+  the browser writes (not the server's own writes), paced with
+  `.Debounce(d)` or `.Throttle(d)`; a misplaced or mistyped one is
+  [E0178](/errors/E0178). Needs ui and web at the release's version. See
+  [Watching State](/ui/state#watching).
+
 ### Component Classes
 
 - **`ui.Variants`, a component's classes by its props**

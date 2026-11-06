@@ -13,16 +13,22 @@ import "github.com/vuka-lang/ui/v2"
 
 // Cart derives its total.
 type Cart struct {
+	ui.Live
 	count ui.State[int]
 	price ui.State[int]
 	total ui.Derived[int] @ui.From(count * price)
+	tab   ui.State[string] @ui.Notify(OnTab)
 }
+
+// OnTab hears the tab.
+func (c *Cart) OnTab(tab string) {}
 <p>{total}</p>
 `
 
 // TestLSPDerived: a Derived's @ui.From reads the struct's fields by their
 // bare names, which hover and definition reach; the editor completes them
-// there, and a wrong one is the compiler's diagnostic at its place.
+// there, and a wrong one is the compiler's diagnostic at its place; a
+// @ui.Notify's handler is reached the same way.
 func TestLSPDerived(t *testing.T) {
 	c, dir, _ := startLSPWith(t, map[string]string{"main.go": lspHTMLGo, "cart.vuka.html": lspDerivedTemplate})
 	uri := pathToURI(filepath.Join(dir, "cart.vuka.html"))
@@ -42,8 +48,12 @@ func TestLSPDerived(t *testing.T) {
 		t.Errorf("hover on price in @ui.From: %s", hover)
 	}
 	def, _ := json.Marshal(c.call("textDocument/definition", at("count *", 0)))
-	if !strings.Contains(string(def), "cart.vuka.html") || !strings.Contains(string(def), `"line":6`) {
+	if !strings.Contains(string(def), "cart.vuka.html") || !strings.Contains(string(def), `"line":7`) {
 		t.Errorf("definition of count in @ui.From: %s", def)
+	}
+	def, _ = json.Marshal(c.call("textDocument/definition", at("OnTab)", 0)))
+	if !strings.Contains(string(def), "cart.vuka.html") || !strings.Contains(string(def), `"line":14`) {
+		t.Errorf("definition of OnTab in @ui.Notify: %s", def)
 	}
 
 	version := 1
