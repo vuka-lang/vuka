@@ -85,7 +85,7 @@ func mountIsland(props any, opts ...IslandOpt) Node {
 }
 
 // Live is the embedded field of a live component.
-type Live struct{}
+type Live struct{ errs map[string]error }
 
 var pushed []string
 

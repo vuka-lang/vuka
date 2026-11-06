@@ -1,0 +1,38 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+
+	ui "vukatest.local/stateui"
+)
+
+// Overview's sections are misspelt and misplaced.
+type Overview struct {
+	ui.Live
+	orders []string @ui.Defer("orders")
+	group  string
+}
+
+@ui.Loads("orders")
+func (o *Overview) loadOrders(ctx context.Context) error { return nil }
+</script>
+
+<main>
+  <ui.Await key="order">{len(orders)}</ui.Await>
+  <ui.Await>{len(orders)}</ui.Await>
+  <ui.Await key="orders" class="box">{len(orders)}</ui.Await>
+  <ui.Await key="orders">
+    <slot:pendng>…</slot:pendng>
+    <slot:loading>…</slot:loading>
+    <slot:pending let={x}>…</slot:pending>
+    <slot:error let={err, n}>{err}</slot:error>
+    {len(orders)}
+  </ui.Await>
+  <ui.Await key="orders">
+    <slot:error>a</slot:error>
+    <slot:error>b</slot:error>
+  </ui.Await>
+  <ui.Await key="my orders">{len(orders)}</ui.Await>
+  <ui.Await key={group}>{len(orders)}</ui.Await>
+</main>

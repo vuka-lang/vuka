@@ -38,6 +38,18 @@ the `github.com/vuka-lang/vuka` package your module requires.
   them. Rendered without a live session (`ui.String`, a test) or for a form
   posted without script, a component loads its groups before it renders. See
   [Deferred Fields](/ui/stateful#deferred-fields).
+- **`<ui.Await key="orders">` shows a deferred group**
+  ([#355](https://github.com/vuka-lang/vuka/issues/355)). Its
+  `<slot:pending>` shows while the group loads, its `<slot:error>` once the
+  loader failed — `let={err}` names the error — and its content once the
+  group's fields are set; the content runs only then. It stands for the
+  `if Loading(…) / else if LoadErr(…) != nil / else` branches and renders
+  and patches as they do. A slot left out shows the app's default,
+  `ui.SetAwaitDefaults`, else what a `<ui.Suspense>` shows. A key naming no
+  group of the component is a compile error ([E0325](/errors/E0325)) with
+  the nearest group, the editor completes keys, and a misplaced
+  `<ui.Await>` is [E0370](/errors/E0370). Needs ui at the release's
+  version. See [Showing a Group](/ui/stateful#await).
 - **`vuka vet`, the editor and vukavet check them.** A deferred field marked
   `@ui.Bind` or `@ui.URL` ([E0323](/errors/E0323)) and a group without a
   loader ([E0324](/errors/E0324)) are reported for these components as for

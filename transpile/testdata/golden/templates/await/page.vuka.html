@@ -1,0 +1,52 @@
+<script lang="go">
+package main
+
+import (
+	"context"
+	"errors"
+
+	ui "vukatest.local/stateui"
+)
+
+// Overview shows its deferred groups through <ui.Await>.
+type Overview struct {
+	ui.Live
+	orders []string @ui.Defer("orders")
+	stats  int      @ui.Defer("stats")
+	notes  string   @ui.Defer
+}
+
+@ui.Loads("orders")
+func (o *Overview) loadOrders(ctx context.Context) error {
+	o.orders = []string{"#1", "#2"}
+	return nil
+}
+
+@ui.Loads("stats")
+func (o *Overview) loadStats(ctx context.Context) error { return errors.New("stats are down") }
+
+@ui.Loads("notes")
+func (o *Overview) loadNotes(ctx context.Context) error {
+	o.notes = "none"
+	return nil
+}
+</script>
+
+<main>
+  <ui.Await key="orders">
+    <slot:pending><i>loading orders</i></slot:pending>
+    <slot:error>Couldn't load the orders.</slot:error>
+    n := len(orders)
+    <ul>
+      for _, x := range orders {
+        <li>{x}</li>
+      }
+    </ul>
+    <p>{n} orders</p>
+  </ui.Await>
+  <ui.Await key="stats">
+    <slot:error let={err}><b role="alert">{err.Error()}</b></slot:error>
+    <p>{stats} open</p>
+  </ui.Await>
+  <ui.Await key="notes"><p>{notes}</p></ui.Await>
+</main>

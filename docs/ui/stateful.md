@@ -339,8 +339,9 @@ component:
 
 Once the loader has returned without an error, `Loading` is false, `LoadErr`
 is nil and the fields hold what it set. A group no field defers fails the
-render ([E0325](/errors/E0325)). In `pages/overview.vuka.html`, with
-`Orders` a service the app provides:
+render ([E0325](/errors/E0325)). The markup shows a group through
+[`<ui.Await key="group">`](#await), which reads them. In
+`pages/overview.vuka.html`, with `Orders` a service the app provides:
 
 <!-- vuka:context
 type OrderStats struct{ Open, Shipped int }
@@ -392,36 +393,33 @@ func (o *Overview) loadRecent(ctx context.Context) error {
 
 <main>
   <section>
-    if Loading("stats") {
-      <ui.Skeleton lines={2} />
-    } else if err := LoadErr("stats"); err != nil {
-      <p role="alert">Stats are unavailable: {err.Error()}</p>
-    } else {
+    <ui.Await key="stats">
+      <slot:pending><ui.Skeleton lines={2} /></slot:pending>
+      <slot:error let={err}><p role="alert">Stats are unavailable: {err.Error()}</p></slot:error>
       <p>{stats.Open} open, {stats.Shipped} shipped today</p>
-    }
+    </ui.Await>
   </section>
   <section>
-    if Loading("recent") {
-      <ui.Skeleton lines={5} />
-    } else if LoadErr("recent") != nil {
-      <p role="alert">The recent orders couldn't be loaded.</p>
-    } else {
+    <ui.Await key="recent">
+      <slot:pending><ui.Skeleton lines={5} /></slot:pending>
+      <slot:error><p role="alert">The recent orders couldn't be loaded.</p></slot:error>
       <ul>
         for _, o := range recent {
           <li key={o.ID}>{o.Number}</li>
         }
       </ul>
-    }
+    </ui.Await>
   </section>
 </main>
 ```
 
 ```go [Generated Go]
 func (o *Overview) Render() ui.Node {
-	…
-	if o.Loading("stats") {
+	await := ui.Await{Of: o, Key: "stats", Pending: ui.Skeleton{Lines: 2}, Error: func(err error) ui.Node {
 		…
-	} else if err := o.LoadErr("stats"); err != nil {
+	}, Children: func() ui.Node {
+		…
+	}}
 	…
 }
 
@@ -459,14 +457,72 @@ events.
   posted without script: it has no socket to receive them over. A browser
   without JavaScript on a live page sees the placeholders, as it sees a
   [part's](/web/parts) fallback: don't defer what every visitor must see.
-- **Mistakes.** A deferred field marked `@ui.Bind` or `@ui.URL`
+- **Mistakes.** A `<ui.Await>` whose key names no group the component
+  defers ([E0325](/errors/E0325)), or one that is misplaced
+  ([E0370](/errors/E0370)), is a compile error. A deferred field marked `@ui.Bind` or `@ui.URL`
   ([E0323](/errors/E0323)) and a group without a loader
   ([E0324](/errors/E0324)) are reported by `vuka vet` and the editor, and
   fail the component's mount.
 
-In the generated Go, `Loading` and `LoadErr` are the page's methods, and
-`@ui.Defer` and `@ui.Loads` are the field and hook declarations the runtime
-reads, as for every attribute.
+In the generated Go, `ui.Await` reads the page's `Loading` and `LoadErr`
+methods, and `@ui.Defer` and `@ui.Loads` are the field and hook
+declarations the runtime reads, as for every attribute.
+
+### Showing a Group {#await}
+
+`<ui.Await key="group">` is the section of the markup a group fills: its
+`<slot:pending>` shows while the group loads, its `<slot:error>` once the
+loader failed, and its content once the group's fields are set. The
+content runs only then, so it reads the fields freely. The error slot
+names the error with `let={err}` when it shows it; a `*ui.DeferError`, as
+`LoadErr` gives it. The editor completes the key with the component's
+groups, and a key naming none is a compile error
+([E0325](/errors/E0325)).
+
+It is the three branches a component could write itself, and renders and
+patches as they do:
+
+```html
+if Loading("stats") {
+  <ui.Skeleton lines={2} />
+} else if err := LoadErr("stats"); err != nil {
+  <p role="alert">Stats are unavailable: {err.Error()}</p>
+} else {
+  <p>{stats.Open} open, {stats.Shipped} shipped today</p>
+}
+```
+
+Both slots are optional. One left out shows the app's default, set once
+at startup with `ui.SetAwaitDefaults`, so a page that doesn't care writes
+only the key and the content:
+
+```go
+package main
+
+import "github.com/vuka-lang/ui/v2"
+
+func init() {
+	ui.SetAwaitDefaults(ui.AwaitDefaults{
+		Pending: ui.Skeleton{Lines: 3},
+		Error: func(err error) ui.Node {
+			return ui.Alert{Variant: ui.AlertError, Children: ui.Text(err.Error())}
+		},
+	})
+}
+```
+
+```html
+<ui.Await key="recent">
+  <RecentOrders orders={recent} />
+</ui.Await>
+```
+
+Without a default, the pending slot is an empty `<span aria-busy="true">`
+and the error slot a short `role="alert"` message, as a
+[`<ui.Suspense>`](/web/parts#suspense) shows. `<ui.Await>` belongs to a
+live component's markup — the component whose groups it reads
+([E0370](/errors/E0370)); in Go, `ui.Await{Of: c, Key: "stats", …}` names
+the component.
 
 A page backed by its [island](/web/islands#deferred-fields) defers fields
 the same way; its component reads `live.stats.pending` and

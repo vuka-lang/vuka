@@ -476,7 +476,7 @@ func (e *engine) resolveComp(f *fileState, c *jsxComp) {
 		c.resolved = true
 		return
 	}
-	if c.el.isSuspense(f) { // a boundary (suspense.go)
+	if c.el.isSuspense(f) || c.el.isAwait(f) { // a boundary (suspense.go), a deferred group's section (await.go)
 		c.resolved = true
 		return
 	}
