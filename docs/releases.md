@@ -156,6 +156,22 @@ parameter keeps the call a handler.
   `@ui.Bind` or `@ui.URL` ([E0323](/errors/E0323)) and a group without a
   loader ([E0324](/errors/E0324)) are reported for these components as for
   islands, and fail the component's mount.
+- **Streams: `ui.Stream[T]`, a list a live page sends and forgets.** An
+  unexported field whose `Insert`, `Prepend`, `InsertAt`, `Delete`, `Reset`
+  and `Limit` queue operations the next reply carries; the browser applies
+  each batch once, by the rows' `key`, and the session drops the rows once
+  the reply is written — 4.2 KB per connection for a 1,000-row stream
+  against 940 KB for a keyed slice. The container is an element whose only
+  content is a loop over `Rows()` (`List` in Go); `Limit(n)` caps the rows
+  the browser keeps, `.TrimStart()`/`.TrimEnd()` fixing the end it trims.
+  The container's `onViewportTop` and `onViewportBottom` fire with the edge
+  row's key for infinite scroll in either direction, with scroll anchoring
+  and focus hand-off. A row's handlers are pushes of the owner's methods,
+  `ui.JS.Push(Remove, m.ID)`, and a `<ui.Form for>` in a row submits with
+  `ui.JS.Push(Rename, t.ID)`, its errors coming back as the form's report.
+  `livetest.Client.Stream`, `Viewport` and `Reconnect` drive one in tests;
+  [E0353](/errors/E0353)–[E0363](/errors/E0363) check the rules. Needs ui
+  at the release's version. See [Streams](/web/streams).
 
 ### Client state
 
