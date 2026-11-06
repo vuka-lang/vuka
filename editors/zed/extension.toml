@@ -1,6 +1,6 @@
 id = "vuka"
 name = "Vuka"
-version = "0.2.0"
+version = "0.2.1"
 schema_version = 1
 authors = ["Paul Manoni <01paulmanoni@gmail.com>"]
 description = "Vuka for Zed: .vuka and .vuka.html highlighting from Vuka's own grammars, and completion, hover, go-to-definition, rename, diagnostics and formatting from `vuka lsp`."

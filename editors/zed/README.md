@@ -139,6 +139,22 @@ add it to `.zed/tasks.json`:
 ]
 ```
 
+## File Icons
+
+The extension ships an icon theme, **Vuka Icons**, that gives `.vuka` and
+`.vuka.html` files a V icon in the project panel and tabs. Zed applies only
+the icon theme you select, so pick it: **icon theme selector: toggle** in the
+command palette, then **Vuka Icons**, or in `settings.json`:
+
+```json
+{ "icon_theme": "Vuka Icons" }
+```
+
+Every other file keeps its standard icon. Zed doesn't merge an icon theme's
+file associations with its default theme's, so this theme carries a copy of
+the default's (`gen_icon_theme.go` writes them from Zed's source), and uses
+Zed's own icons for them.
+
 ## Go and templ Files
 
 Run under the name `gopls`, `vuka` is a drop-in gopls, so Go files in a
@@ -188,6 +204,8 @@ editors/zed/
   languages/vuka/       config.toml and the queries for .vuka files
   languages/vuka-html/  the same for .vuka.html files
   snippets/             the VS Code extension's snippets
+  icon_themes/vuka.json the Vuka Icons theme, written by gen_icon_theme.go
+  icons/vuka.svg        the .vuka and .vuka.html icon
 grammars/tree-sitter-vuka/
   vuka/                 grammar.js over tree-sitter-go, test/corpus
   vuka_html/            grammar.js over vuka, test/corpus
@@ -208,6 +226,10 @@ then commit, and set `rev` of both grammars in `extension.toml` to that
 commit. CI checks the generated parsers are current, the corpus passes, every
 query compiles against its grammar, the Go part of the two highlights files
 agrees, and the snippets match the VS Code extension's.
+
+The icon theme's file associations are Zed's default theme's at the Zed
+commit `gen_icon_theme.go` names. To take newer ones, set `zedRev` there and
+run `go run gen_icon_theme.go` in `editors/zed`.
 
 ## License
 
