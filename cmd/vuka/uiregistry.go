@@ -426,9 +426,14 @@ func (r *registry) list(w io.Writer) {
 		fmt.Fprintln(w, r.note)
 	}
 	tiers := []string{"", "browser", "live", "island"}
-	for _, n := range r.components() {
+	names := r.components()
+	width := 8
+	for _, n := range names {
+		width = max(width, len(n))
+	}
+	for _, n := range names {
 		it := r.item(n)
-		fmt.Fprintf(w, "%-8s %-8s %s\n", it.Name, tiers[it.Tier], it.Description)
+		fmt.Fprintf(w, "%-*s %-8s %s\n", width, it.Name, tiers[it.Tier], it.Description)
 	}
 }
 

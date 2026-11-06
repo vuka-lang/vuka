@@ -181,6 +181,21 @@ parameter keeps the call a handler.
   the event that made it; a state's value is edited in place, written as
   an event's write is. In development only: production builds name no
   states and serve no toolbar. See [States](/web/toolbar#states).
+- **The registry's overlays follow browser state** ([#385](https://github.com/vuka-lang/vuka/issues/385)).
+  `<design.Dialog show={open}>` is shown while the page's `ui.State[bool]`
+  holds: anything writing it shows or hides the dialog, and Escape, the
+  backdrop and the close button write `false` back. Showing fades and
+  scales it in (none under reduced motion), focuses its first control and
+  gives the focus back when hidden, a watch that runs however the state
+  was written. `open={…}` (a server bool) and `OpenDialog`/`CloseDialog`
+  keep working; the commands now write the dialog's own state. Tabs take a
+  `ui.State[string]` as `value` and switch in the browser, on any page;
+  they no longer keep the tab on the server. A new Dropdown Menu
+  (`vuka ui add dropdown-menu`) takes `show` the same way, with arrow-key
+  navigation and a click outside closing it. Button's `onClick` takes
+  statements: `<design.Button onClick={open = true}>`. A vendored copy is
+  the app's; `vuka ui diff dialog` shows the change. See
+  [Dialog](/ui/components/dialog).
 
 ### Component Classes
 

@@ -78,7 +78,7 @@ wrote components/ui/dialog.vuka.html
 
 Use them as tags (import design "example.com/shop/components/ui"):
 
-	<design.Button on={design.OpenDialog("confirm")}>Open</design.Button> <design.Dialog id="confirm" title="Sure?">…</design.Dialog>
+	<design.Button onClick={open = true}>Open</design.Button> <design.Dialog show={open} title="Sure?">…</design.Dialog>
 ```
 
 A component brings what it uses: the dialog's close button is a `Button`,
@@ -234,11 +234,13 @@ How a component behaves decides where its code runs:
 
 | Tier | Where it runs | Components |
 |---|---|---|
-| 1. The browser | HTML and [JS commands](/ui/js), no round trip, no framework script | Button, Badge, Card, Alert, Input, Label, Dialog, Skeleton |
-| 2. The server | state on the server over the [live connection](/ui/live) | Tabs |
+| 1. The browser | HTML, [browser state](/ui/state) and [JS commands](/ui/js), no round trip | Button, Badge, Card, Alert, Input, Label, Dialog, Dropdown Menu, Skeleton, Tabs |
+| 2. The server | state on the server over the [live connection](/ui/live) | none yet |
 | 3. An island | a client component through the [islands](/web/islands) adapters | later: a combobox, a date picker |
 
-A tier-1 component works on any page, live or not. A tier-2 component keeps
+A tier-1 component works on any page, live or not. Its overlays and tabs
+take a page's `ui.State` (`show={open}`, `value={tab}`), so anything on the
+page can show or switch them by writing it. A tier-2 component keeps
 its state on a live page; rendered on a page that isn't live, it shows its
 first state.
 
@@ -253,11 +255,12 @@ themes, and its source beside the Go it ejects to:
 | [Badge](/ui/components/badge) | in the browser | a small label: a status or a count |
 | [Button](/ui/components/button) | in the browser | six variants, four sizes, a `ui.JS` chain or a live handler on click |
 | [Card](/ui/components/card) | in the browser | a panel with a title, a description, an action, its content and a footer |
-| [Dialog](/ui/components/dialog) | in the browser | a `<dialog>` over the page, opened and closed by JS commands |
+| [Dialog](/ui/components/dialog) | in the browser | a `<dialog>` over the page, shown while a browser state holds |
+| [Dropdown Menu](/ui/components/dropdown-menu) | in the browser | a menu under a button, shown while a browser state holds |
 | [Input](/ui/components/input) | in the browser | a text field |
 | [Label](/ui/components/label) | in the browser | a form field's label |
 | [Skeleton](/ui/components/skeleton) | in the browser | placeholder bones while content loads, or a component drawn as bones |
-| [Tabs](/ui/components/tabs) | on the server | panels shown one at a time, the tab shown kept on the server |
+| [Tabs](/ui/components/tabs) | in the browser | panels shown one at a time, the tab shown kept in browser state |
 
 ## The Registry {#registry}
 

@@ -20,6 +20,10 @@
     "text": "Dialog"
   },
   {
+    "link": "/ui/components/dropdown-menu",
+    "text": "Dropdown Menu"
+  },
+  {
     "link": "/ui/components/input",
     "text": "Input"
   },

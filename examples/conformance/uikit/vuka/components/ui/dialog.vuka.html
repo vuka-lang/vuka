@@ -1,34 +1,44 @@
 <script lang="go">
 package design
 
-import "github.com/vuka-lang/ui/v2"
+import (
+	"time"
 
-// Dialog is a window over the page, a <dialog> element: hidden until
-// OpenDialog opens it, from a button anywhere on the page.
+	"github.com/vuka-lang/ui/v2"
+)
+
+// Dialog is a window over the page, a <dialog> element shown while its
+// Show state holds:
 //
-//	<design.Button variant={design.ButtonDestructive} on={design.OpenDialog("delete")}>Delete…</design.Button>
-//	<design.Dialog id="delete" title="Delete the project?" description="This can't be undone.">
+//	open ui.State[bool]
+//
+//	<design.Button onClick={open = true}>Add scale</design.Button>
+//	<design.Dialog show={open} title="Add scale">
+//	  …
 //	  <slot:footer>
-//	    <design.Button variant={design.ButtonOutline} on={design.CloseDialog("delete")}>Cancel</design.Button>
-//	    <design.Button variant={design.ButtonDestructive} on={p.Delete}>Delete</design.Button>
+//	    <design.Button variant={design.ButtonOutline} onClick={open = false}>Cancel</design.Button>
 //	  </slot:footer>
 //	</design.Dialog>
 //
-// Opening remembers what had the focus and focuses the dialog's first
-// control (one marked autofocus first); Escape, a click on the backdrop and
-// the close button close it, and the focus goes back. That all happens in
-// the browser, JS commands with no round trip. A live page's handler opens
-// and closes it with the same commands, p.PushJS(design.OpenDialog("delete")),
-// and OnClose tells it when the visitor closed it.
+// Showing remembers what had the focus and focuses the dialog's first
+// control (one marked autofocus first); hiding gives the focus back.
+// Escape, a click on the backdrop and the close button write false into
+// Show, so anything reading the state follows. A live page's server bool
+// shows it with Open, and the commands OpenDialog and CloseDialog show and
+// hide a dialog by its ID; OnClose tells a live page when the visitor
+// closed it.
 type Dialog struct {
+	// Show is the browser state the dialog follows: pass the page's, or
+	// leave it to the dialog's own, which OpenDialog and CloseDialog set.
+	Show ui.State[bool]
 	// ID is the dialog element's id, what OpenDialog and CloseDialog name;
 	// unique on the page.
-	ID          string `vuka:"required"`
+	ID          string
 	Title       string
 	Description string
 	// Footer is a slot under the content, for the dialog's buttons.
 	Footer ui.Node
-	// Open renders the dialog open, as the page loads.
+	// Open shows the dialog while it holds: a live page's server state.
 	Open bool
 	// OnClose, when set, is called when the visitor closes the dialog
 	// (Escape, the backdrop, the close button): a live handler.
@@ -38,26 +48,22 @@ type Dialog struct {
 	Children ui.Node
 }
 
-// OpenDialog opens the dialog whose ID is id: it remembers the focused
-// element and focuses the dialog's first control.
+// OpenDialog shows the dialog whose ID is id, writing true into its Show.
 func OpenDialog(id string) ui.Commands {
-	d := ui.Sel("#" + id)
-	return ui.JS.PushFocus().SetAttr(d, "open", "").FocusFirst(d)
+	return ui.JS.Dispatch(ui.Sel("#"+id), "dialogopen", ui.NoBubble())
 }
 
-// CloseDialog closes the dialog whose ID is id, giving the focus back to
-// what had it before it opened.
+// CloseDialog hides the dialog whose ID is id, writing false into its
+// Show.
 func CloseDialog(id string) ui.Commands {
-	return ui.JS.RemoveAttr(ui.Sel("#"+id), "open").PopFocus()
+	return ui.JS.Dispatch(ui.Sel("#"+id), "dialogclose", ui.NoBubble())
 }
 
 // close is what the backdrop and the close button do.
-func (d Dialog) close() ui.Commands { return d.then(CloseDialog(d.ID)) }
+func (d Dialog) close() ui.Commands { return d.then(d.Show.Set(false)) }
 
 // escape is the dialog's keydown handler: Escape closes it.
-func (d Dialog) escape() ui.Commands {
-	return d.then(ui.JS.Key("Escape").RemoveAttr(ui.Sel("#"+d.ID), "open").PopFocus())
-}
+func (d Dialog) escape() ui.Commands { return d.then(ui.JS.Key("Escape").Set(d.Show, false)) }
 
 // then is c, then OnClose.
 func (d Dialog) then(c ui.Commands) ui.Commands {
@@ -67,30 +73,56 @@ func (d Dialog) then(c ui.Commands) ui.Commands {
 	return c
 }
 
+func (d Dialog) id() any {
+	if d.ID == "" {
+		return nil
+	}
+	return d.ID
+}
+
 // part is the id of the dialog's title or description, nil when it has
-// none.
+// none or the dialog has no ID.
 func (d Dialog) part(name, text string) any {
-	if text == "" {
+	if text == "" || d.ID == "" {
 		return nil
 	}
 	return d.ID + "-" + name
 }
 
+// label names a dialog without an ID by its title.
+func (d Dialog) label() any {
+	if d.ID != "" || d.Title == "" {
+		return nil
+	}
+	return d.Title
+}
+
 // closeLabel names the close button for assistive technology.
 var closeLabel = []ui.Attr{{Name: "aria-label", Value: "Close"}}
+
+const dialogTime = 150 * time.Millisecond
 </script>
 
 <dialog
-  id={d.ID}
-  open={d.Open}
+  id={d.id()}
+  open
+  show={Show || Open}
+  transition={ui.Fade(dialogTime)}
   aria-modal="true"
+  aria-label={d.label()}
   aria-labelledby={d.part("title", d.Title)}
   aria-describedby={d.part("description", d.Description)}
   class="fixed inset-0 z-50 m-0 size-full max-h-none max-w-none border-0 bg-transparent p-0 text-foreground"
+  onDialogOpen={Show = true}
+  onDialogClose={Show = false}
   onKeyDown={d.escape()}
 >
   <div aria-hidden="true" class="absolute inset-0 bg-black/50" onClick={d.close()}></div>
-  <div class={cn("absolute top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg sm:max-w-lg", d.Class)}>
+  <div
+    show={Show || Open}
+    transition={ui.Scale(dialogTime)}
+    class={cn("absolute top-1/2 left-1/2 grid w-full max-w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 rounded-lg border bg-background p-6 shadow-lg sm:max-w-lg", d.Class)}
+  >
     if d.Title != "" || d.Description != "" {
       <div class="flex flex-col gap-2 pr-6 text-center sm:text-left">
         if d.Title != "" {
@@ -125,3 +157,24 @@ var closeLabel = []ui.Attr{{Name: "aria-label", Value: "Close"}}
     </Button>
   </div>
 </dialog>
+
+<script lang="ts">
+import { component, state } from 'vuka:component'
+
+const focusable = 'a[href], button:not([disabled]), input:not([disabled]):not([type=hidden]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])'
+
+// Showing focuses the first control, hiding gives the focus back.
+export default component<Dialog>((el) => {
+  let back: HTMLElement | null = null
+  state('show').watch((shown) => {
+    if (shown) {
+      back = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      const first = el.querySelector<HTMLElement>('[autofocus]') ?? el.querySelector<HTMLElement>(focusable)
+      first?.focus()
+      return
+    }
+    if (back?.isConnected) back.focus()
+    back = null
+  })
+})
+</script>

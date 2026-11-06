@@ -59,7 +59,7 @@
       "files": [
         {
           "path": "ui/button.vuka.html",
-          "sha256": "2fa195d80e3c86abdaa50d6819fab9958203d8a2e0ad42432d023cd1efe9a798"
+          "sha256": "5fbc39cad6d852b99ee46407ab724cb620f37a486d7671c2c2e6a36b9a95f4f9"
         }
       ],
       "deps": [
@@ -162,12 +162,12 @@
     {
       "name": "tabs",
       "title": "Tabs",
-      "description": "panels shown one at a time, the tab shown kept on the server",
-      "tier": 2,
+      "description": "panels shown one at a time, the tab shown kept in browser state",
+      "tier": 1,
       "files": [
         {
           "path": "ui/tabs.vuka.html",
-          "sha256": "ebcae254172eee41479afb89e8844a21fd95aabf35c9524f0f7c6b50ef88a2d3"
+          "sha256": "dcfc83af7c6657768265c59a07f26e61f8d320e377e420fe1d61bae2871e39c9"
         },
         {
           "path": "ui/tabs.go",
@@ -178,18 +178,18 @@
         "cn"
       ],
       "requires": {
-        "ui": "v2.10.0"
+        "ui": "v2.17.0"
       }
     },
     {
       "name": "dialog",
       "title": "Dialog",
-      "description": "a <dialog> over the page, opened and closed by JS commands",
+      "description": "a <dialog> over the page, shown while a browser state holds",
       "tier": 1,
       "files": [
         {
           "path": "ui/dialog.vuka.html",
-          "sha256": "b52a5decc13d612ffc1cdc89ae813545a7bfa49f2d2dfbd66660c61d9ef5026f"
+          "sha256": "ad000c9c677b9c56147b100ead18999f317bd5292abc469b13e6daf6a9fbb66f"
         }
       ],
       "deps": [
@@ -197,7 +197,30 @@
         "cn"
       ],
       "requires": {
-        "ui": "v2.10.0"
+        "ui": "v2.17.0"
+      }
+    },
+    {
+      "name": "dropdown-menu",
+      "title": "Dropdown Menu",
+      "description": "a menu under a button, shown while a browser state holds",
+      "tier": 1,
+      "files": [
+        {
+          "path": "ui/dropdown_menu.vuka.html",
+          "sha256": "741e966c19f188577c348f5f18f3baf469490980f8ac5ab63c2c253fbb443947"
+        },
+        {
+          "path": "ui/dropdown_menu.go",
+          "sha256": "b5399fd19406d9b3a94ee72438502ded52e0664e3e6dc0039824cc330454d26c"
+        }
+      ],
+      "deps": [
+        "button",
+        "cn"
+      ],
+      "requires": {
+        "ui": "v2.17.0"
       }
     },
     {

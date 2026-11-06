@@ -29,7 +29,7 @@ const (
 //
 //	<design.Button on={p.Save}>Save</design.Button>
 //	<design.Button variant={design.ButtonOutline} size={design.SizeSm}>Cancel</design.Button>
-//	<design.Button on={ui.JS.Toggle(ui.Sel("#menu"))}>Menu</design.Button>
+//	<design.Button onClick={open = !open}>Menu</design.Button>
 type Button struct {
 	// ID is the button's id, e.g. for a JS command to target it.
 	ID      string
@@ -37,6 +37,10 @@ type Button struct {
 	Size    ButtonSize
 	// On is what a click does: a ui.JS chain, or a live handler.
 	On any
+	// OnClick is what a click does in the browser, written as an on…
+	// attribute is: onClick={open = true}, onClick={open = false; Save()}.
+	// It wins over On.
+	OnClick ui.JSChain
 	// Type is "button" (the default), "submit" or "reset".
 	Type     string
 	Disabled bool
@@ -88,10 +92,14 @@ func (b Button) typ() string {
 
 // on is the click handler's attribute, none without one.
 func (b Button) on() []ui.Attr {
-	if b.On == nil {
+	h := b.On
+	if b.OnClick != nil {
+		h = b.OnClick
+	}
+	if h == nil {
 		return nil
 	}
-	return []ui.Attr{{Name: "onClick", Value: ui.On(b.On)}}
+	return []ui.Attr{{Name: "onClick", Value: ui.On(h)}}
 }
 </script>
 

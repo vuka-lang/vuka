@@ -30,7 +30,7 @@ func TestUIComponentsE2E(t *testing.T) {
 	if !strings.Contains(out, "wrote styles/app.css: the design tokens") {
 		t.Fatalf("vuka ui init:\n%s", out)
 	}
-	e.run(dir, nil, "vuka", "ui", "add", "button", "badge", "card", "alert", "input", "label", "tabs", "dialog", "skeleton")
+	e.run(dir, nil, "vuka", "ui", "add", "button", "badge", "card", "alert", "input", "label", "tabs", "dialog", "dropdown-menu", "skeleton")
 	page, err := os.ReadFile("../../examples/conformance/uikit/vuka/pages/index.vuka.html")
 	if err != nil {
 		t.Fatal(err)
@@ -120,26 +120,51 @@ func TestUIComponentsE2E(t *testing.T) {
 	p.eval(`delete document.documentElement.dataset.theme`)
 	p.dark(false)
 
-	// The dialog: opened by its button's JS commands, focus inside; closed
-	// by Escape, the backdrop and the close button, focus back on the
-	// button each time.
-	open := func() {
+	key := func(k string) {
 		t.Helper()
-		p.eval(`document.querySelector("#open-share").focus()`)
-		p.click("#open-share")
-		p.wait(`document.querySelector("#share").open && getComputedStyle(document.querySelector("#share")).display !== "none"`)
-		if id := p.eval(`document.activeElement.id`); id != "link" {
-			t.Errorf("the focus in the open dialog: %q, want the first control, #link", id)
+		code := map[string]int{"Escape": 27, "ArrowDown": 40, "ArrowUp": 38}[k]
+		for _, typ := range []string{"keyDown", "keyUp"} {
+			p.do("Input.dispatchKeyEvent", map[string]any{"type": typ, "key": k, "code": k, "windowsVirtualKeyCode": code})
 		}
 	}
-	closed := func(how string) {
-		t.Helper()
-		p.wait(`!document.querySelector("#share").open && getComputedStyle(document.querySelector("#share")).display === "none"`)
-		if id := p.eval(`document.activeElement.id`); id != "open-share" {
-			t.Errorf("the focus after closing the dialog by %s: %q, want #open-share", how, id)
+	corner := func() { // a click on the page's top-left corner
+		for _, typ := range []string{"mousePressed", "mouseReleased"} {
+			p.do("Input.dispatchMouseEvent", map[string]any{"type": typ, "x": 12, "y": 12, "button": "left", "clickCount": 1})
 		}
 	}
-	open()
+	focused := func(want, after string) {
+		t.Helper()
+		if id := p.eval(`document.activeElement.id`); id != want {
+			t.Errorf("the focus after %s: %q, want #%s", after, id, want)
+		}
+	}
+	shown := func(sel string) string {
+		return `!document.querySelector("` + sel + `").hidden && getComputedStyle(document.querySelector("` + sel + `")).display !== "none"`
+	}
+	hidden := func(sel string) string {
+		return `document.querySelector("` + sel + `").hidden && getComputedStyle(document.querySelector("` + sel + `")).display === "none"`
+	}
+
+	// The dialog its page's browser state shows: from a button writing the
+	// state and from a live handler writing it, the focus inside; Escape,
+	// the backdrop, the close button and a button writing false hide it,
+	// write false back and give the focus to what had it.
+	open := func(by string) {
+		t.Helper()
+		p.eval(`document.querySelector("#` + by + `").focus()`)
+		p.click("#" + by)
+		p.wait(shown("#share") + ` && document.querySelector("#share-state").textContent === "true"`)
+		focused("link", "opening the dialog from #"+by)
+	}
+	closed := func(by, how string) {
+		t.Helper()
+		p.wait(hidden("#share") + ` && document.querySelector("#share-state").textContent === "false"`)
+		focused(by, "closing the dialog by "+how)
+	}
+	open("open-share")
+	if got := p.eval(`JSON.parse(document.querySelector("#share").dataset.vkTransition).ms`); got != float64(150) {
+		t.Errorf("the dialog's transition: %v ms", got)
+	}
 	shot(p, "ui-dialog")
 	panel := `document.querySelector("#share > div:last-child")`
 	if shots != "" {
@@ -151,65 +176,137 @@ func TestUIComponentsE2E(t *testing.T) {
 		p.screenshotOf(panel, filepath.Join(shots, "dialog-dark.png"), 24)
 	}
 	p.eval(`delete document.documentElement.dataset.theme`)
-	p.do("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27})
-	p.do("Input.dispatchKeyEvent", map[string]any{"type": "keyUp", "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27})
-	closed("Escape")
-	open()
-	for _, typ := range []string{"mousePressed", "mouseReleased"} { // a corner: the backdrop
-		p.do("Input.dispatchMouseEvent", map[string]any{"type": typ, "x": 12, "y": 12, "button": "left", "clickCount": 1})
-	}
-	closed("a click on the backdrop")
-	open()
+	key("Escape")
+	closed("open-share", "Escape")
+	open("share-from-server")
+	corner()
+	closed("share-from-server", "a click on the backdrop")
+	open("open-share")
 	p.click(`#share button[aria-label="Close"]`)
-	closed("its close button")
-	open()
+	closed("open-share", "its close button")
+	open("open-share")
 	p.click(`#share button:not([aria-label])`)
-	closed("its Done button")
+	closed("open-share", "its Done button")
 
 	// A live render while the dialog is open keeps it open.
-	open()
+	open("open-share")
 	p.click("#save")
 	p.wait(`document.querySelector("main").textContent.includes("1 saved")`)
-	if open := p.eval(`document.querySelector("#share").open`); open != true {
-		t.Errorf("a live render closed the open dialog")
+	if got := p.eval(shown("#share")); got != true {
+		t.Errorf("a live render hid the open dialog")
 	}
 	p.click(`#share button[aria-label="Close"]`)
-	closed("its close button")
+	closed("open-share", "its close button")
 
-	// The dialog the page's handlers open and close (PushJS): opened with
-	// the focus inside, closed by Escape, which reaches its OnClose, with
-	// the focus back; its Delete closes it from the server.
+	// The dialog the page's handlers show and hide with the commands
+	// (PushJS): shown with the focus inside, hidden by Escape, which
+	// reaches its OnClose, with the focus back; its Delete hides it from
+	// the server.
 	p.eval(`document.querySelector("#ask-delete").focus()`)
 	p.click("#ask-delete")
-	p.wait(`document.querySelector("#delete").open && document.querySelector("#delete").contains(document.activeElement)`)
+	p.wait(shown("#delete") + ` && document.querySelector("#delete").contains(document.activeElement)`)
 	p.wait(`document.querySelector("main").textContent.includes("asked 1")`)
 	shot(p, "ui-dialog-server")
-	p.do("Input.dispatchKeyEvent", map[string]any{"type": "keyDown", "key": "Escape", "code": "Escape", "windowsVirtualKeyCode": 27})
-	p.wait(`!document.querySelector("#delete").open && document.querySelector("main").textContent.includes("asked 0")`)
-	if id := p.eval(`document.activeElement.id`); id != "ask-delete" {
-		t.Errorf("the focus after Escape closed the server's dialog: %q", id)
-	}
-	p.click("#ask-delete")
-	p.wait(`document.querySelector("#delete").open`)
-	p.click("#confirm-delete")
-	p.wait(`!document.querySelector("#delete").open && document.querySelector("[role=alert]").textContent.includes("The project is deleted")`)
+	key("Escape")
+	p.wait(hidden("#delete") + ` && document.querySelector("main").textContent.includes("asked 0")`)
+	focused("ask-delete", "Escape hid the commands' dialog")
 
-	// The tabs: a click switches the panel over the live connection.
-	if got := p.text("[role=tabpanel]"); got != "Billed every month." {
+	// The dialog a server bool shows: Escape reaches its OnClose, which
+	// clears the bool.
+	p.click("#rename")
+	p.wait(shown("#rename-dialog"))
+	p.eval(`document.querySelector("#new-name").focus()`)
+	key("Escape")
+	p.wait(hidden("#rename-dialog") + ` && document.querySelector("main").textContent.includes("renamed 1")`)
+
+	p.click("#ask-delete")
+	p.wait(shown("#delete"))
+	p.click("#confirm-delete")
+	p.wait(hidden("#delete") + ` && document.querySelector("[role=alert]").textContent.includes("The project is deleted")`)
+
+	// The tabs: a click on a tab and a button writing the page's state
+	// switch the panel in the browser.
+	panelShown := `[...document.querySelectorAll("[role=tabpanel]")].filter((p) => !p.hidden).map((p) => p.textContent).join("|")`
+	if got := p.eval(panelShown); got != "Billed every month." {
 		t.Errorf("the first panel: %q", got)
 	}
 	p.click("#plan-tab-yearly")
 	p.wait(`document.querySelector("#plan-tab-yearly").getAttribute("aria-selected") === "true"`)
-	if got := p.text("[role=tabpanel]"); got != "Billed once a year, two months free." {
+	if got := p.eval(panelShown); got != "Billed once a year, two months free." {
 		t.Errorf("the panel after switching: %q", got)
 	}
 	if got := p.eval(`document.querySelector("#plan-tab-monthly").getAttribute("aria-selected")`); got != "false" {
 		t.Errorf("the first tab after switching: aria-selected %v", got)
 	}
-	if got := p.eval(`document.querySelector("[role=tabpanel]").getAttribute("aria-labelledby")`); got != "plan-tab-yearly" {
+	if got := p.eval(`document.querySelector("#plan-panel-yearly").getAttribute("aria-labelledby")`); got != "plan-tab-yearly" {
 		t.Errorf("the panel is labelled by %v", got)
 	}
+	p.click("#plan-tab-monthly")
+	p.wait(`document.querySelector("#plan-tab-monthly").getAttribute("aria-selected") === "true"`)
 	shot(p, "ui-tabs")
+	p.click("#pick-yearly")
+	p.wait(`document.querySelector("#plan-tab-yearly").getAttribute("aria-selected") === "true"`)
+	if got := p.eval(panelShown); got != "Billed once a year, two months free." {
+		t.Errorf("the panel after the page wrote the state: %q", got)
+	}
+	p.click("#plan-tab-monthly")
+
+	// The dropdown menu: its button and a button writing the page's state
+	// show it, the focus on its first item; the arrow keys move between
+	// the enabled items; Escape, a click outside and a click on an item
+	// hide it, the focus back where it was.
+	trigger := `#menu [aria-haspopup="menu"]`
+	p.eval(`document.querySelector('` + trigger + `').id = "menu-button"`)
+	menuShown := func() {
+		t.Helper()
+		p.wait(shown("#menu [role=menu]") + ` && document.activeElement.textContent === "Save"`)
+	}
+	menuHidden := func(by, how string) {
+		t.Helper()
+		p.wait(hidden("#menu [role=menu]") + ` && document.querySelector('` + trigger + `').getAttribute("aria-expanded") === "false"`)
+		focused(by, "hiding the menu by "+how)
+	}
+	p.eval(`document.querySelector('` + trigger + `').focus()`)
+	p.click(trigger)
+	menuShown()
+	if got := p.eval(`document.querySelector('` + trigger + `').getAttribute("aria-expanded")`); got != "true" {
+		t.Errorf("the menu's button: aria-expanded %v", got)
+	}
+	if shots != "" {
+		// The button and the menu under it, which overflows the root.
+		menu := `({ getBoundingClientRect: () => {
+			const a = document.querySelector("#menu").getBoundingClientRect(), b = document.querySelector("#menu [role=menu]").getBoundingClientRect()
+			const x = Math.min(a.x, b.x), y = Math.min(a.y, b.y)
+			return { x, y, width: Math.max(a.right, b.right) - x, height: Math.max(a.bottom, b.bottom) - y }
+		} })`
+		p.eval(`new Promise((r) => setTimeout(r, 250))`)
+		p.screenshotOf(menu, filepath.Join(shots, "dropdown-menu-light.png"), 16)
+		p.eval(`document.documentElement.dataset.theme = "dark"`)
+		p.screenshotOf(menu, filepath.Join(shots, "dropdown-menu-dark.png"), 16)
+		p.eval(`delete document.documentElement.dataset.theme`)
+	}
+	key("ArrowDown")
+	key("ArrowDown")
+	if got := p.eval(`document.activeElement.textContent`); got != "Delete…" {
+		t.Errorf("two ArrowDowns from Save: %q, want Delete… (Archive is disabled)", got)
+	}
+	key("ArrowDown")
+	if got := p.eval(`document.activeElement.textContent`); got != "Save" {
+		t.Errorf("ArrowDown from the last item: %q, want Save", got)
+	}
+	key("Escape")
+	menuHidden("menu-button", "Escape")
+	p.eval(`document.querySelector("#open-menu").focus()`)
+	p.click("#open-menu")
+	menuShown()
+	corner()
+	p.wait(hidden("#menu [role=menu]"))
+	p.eval(`document.querySelector('` + trigger + `').focus()`)
+	p.click(trigger)
+	menuShown()
+	p.click(`#menu [role=menuitem]:nth-child(2)`)
+	menuHidden("menu-button", "a click on an item")
+	p.wait(`document.querySelector("#plan-tab-yearly").getAttribute("aria-selected") === "true"`)
 
 	// SkeletonOf: its copy of the card has the card's boxes, every one;
 	// its text is bars, its badge (replace) a bone, its kept label as it
@@ -272,6 +369,15 @@ func TestUIComponentsE2E(t *testing.T) {
 	p.do("Emulation.setEmulatedMedia", map[string]any{"features": []map[string]string{{"name": "prefers-reduced-motion", "value": "reduce"}}})
 	if got := strings.Fields(p.eval(motion).(string)); len(got) == 0 || slices.ContainsFunc(got, func(a string) bool { return a != "none" }) {
 		t.Errorf("the skeletons' animations under prefers-reduced-motion: %q", got)
+	}
+	// Under prefers-reduced-motion the dialog shows and hides at once.
+	p.click("#open-share")
+	if got := p.eval(shown("#share") + ` && !document.querySelector("#share").style.opacity`); got != true {
+		t.Errorf("under prefers-reduced-motion the dialog isn't shown at once")
+	}
+	p.click(`#share button[aria-label="Close"]`)
+	if got := p.eval(hidden("#share")); got != true {
+		t.Errorf("under prefers-reduced-motion the dialog isn't hidden at once")
 	}
 	p.dark(false)
 

@@ -1,0 +1,122 @@
+<script lang="go">
+package design
+
+import (
+	"time"
+
+	"github.com/vuka-lang/ui/v2"
+)
+
+// DropdownMenu is a menu under a button, shown while its Show state holds:
+//
+//	<design.DropdownMenu>
+//	  <slot:trigger>Options</slot:trigger>
+//	  <slot:item onClick={p.Edit}>Edit</slot:item>
+//	  <slot:item onClick={p.Delete} destructive>Delete</slot:item>
+//	</design.DropdownMenu>
+//
+// Its button toggles it; showing focuses the first item, and the arrow
+// keys, Home and End move between them. Escape, a click outside and a
+// click on an item write false into Show, and the focus goes back to the
+// button.
+type DropdownMenu struct {
+	// Show is the browser state the menu follows: pass the page's to show
+	// it from elsewhere, or leave it to the menu's own.
+	Show ui.State[bool]
+	// Trigger is the button's content, a <slot:trigger>.
+	Trigger ui.Node
+	// Items are the menu's items, a <slot:item> each, in order.
+	Items []DropdownItem
+	// Class is added to the menu's classes, winning over them (see cn).
+	Class string
+	// Attrs are any other attributes of the root: id, aria-*, data-*.
+	Attrs []ui.Attr
+}
+
+// trigger is the button's attributes: it says the menu it opens and
+// whether it is shown.
+func (m *DropdownMenu) trigger() []ui.Attr {
+	return []ui.Attr{{Name: "aria-haspopup", Value: "menu"}, ui.BindAttr("aria-expanded", m.Show)}
+}
+
+// item is an item's click, none without one.
+func (m *DropdownMenu) item(it DropdownItem) []ui.Attr {
+	if it.OnClick == nil {
+		return nil
+	}
+	return []ui.Attr{{Name: "onClick", Value: ui.On(it.OnClick)}}
+}
+
+// itemClass is an item's classes.
+func (m *DropdownMenu) itemClass(it DropdownItem) string {
+	if it.Destructive {
+		return cn(menuItem, menuItemDestructive)
+	}
+	return menuItem
+}
+
+const menuItem = "relative flex w-full cursor-default items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm outline-none select-none " +
+	"hover:bg-accent hover:text-accent-foreground focus-visible:bg-accent focus-visible:text-accent-foreground " +
+	"disabled:pointer-events-none disabled:opacity-50 [&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg:not([class*='size-'])]:size-4"
+
+const menuItemDestructive = "text-destructive hover:bg-destructive/10 hover:text-destructive focus-visible:bg-destructive/10 focus-visible:text-destructive"
+</script>
+
+<div class="relative inline-block" onKeyDown={ui.JS.Key("Escape").Set(Show, false)} {m.Attrs...}>
+  if ui.Has(m.Trigger) {
+    <Button variant={ButtonOutline} onClick={Show = !Show} attrs={m.trigger()}>{m.Trigger}</Button>
+  }
+  <div
+    role="menu"
+    show={Show}
+    transition={ui.Scale(100 * time.Millisecond)}
+    class={cn("absolute top-full left-0 z-50 mt-1 min-w-36 overflow-hidden rounded-md border bg-popover p-1 text-popover-foreground shadow-md", m.Class)}
+  >
+    for i, it := range m.Items {
+      <button
+        key={i}
+        type="button"
+        role="menuitem"
+        tabindex="-1"
+        disabled={it.Disabled}
+        class={m.itemClass(it)}
+        {m.item(it)...}
+      >{it.Label}</button>
+    }
+  </div>
+</div>
+
+<script lang="ts">
+import { component, state, listen } from 'vuka:component'
+
+// Showing focuses the first item, hiding gives the focus back; a click
+// outside or on an item hides it, and the arrow keys move between items.
+export default component<DropdownMenu>((el) => {
+  const show = state('show')
+  const items = () => [...el.querySelectorAll<HTMLButtonElement>('[role=menuitem]:not([disabled])')]
+  let back: HTMLElement | null = null
+  show.watch((shown) => {
+    if (shown) {
+      back = document.activeElement instanceof HTMLElement ? document.activeElement : null
+      items()[0]?.focus()
+      return
+    }
+    const lost = !document.activeElement || document.activeElement === document.body || el.contains(document.activeElement)
+    if (lost && back?.isConnected) back.focus()
+    back = null
+  })
+  listen(document, 'pointerdown', (e) => {
+    if (show.get() && !el.contains(e.target as Node)) show.set(false)
+  })
+  listen(el, 'click', (e) => {
+    if ((e.target as Element).closest('[role=menuitem]')) show.set(false)
+  })
+  listen(el, 'keydown', (e) => {
+    const all = items(), at = all.indexOf(document.activeElement as HTMLButtonElement)
+    const to = { ArrowDown: at + 1, ArrowUp: at - 1, Home: 0, End: all.length - 1 }[e.key]
+    if (to === undefined || !show.get() || !all.length) return
+    e.preventDefault()
+    all[(to + all.length) % all.length].focus()
+  })
+})
+</script>

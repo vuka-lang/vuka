@@ -84,6 +84,11 @@ once; an element a server render removes is simply gone, with no leave.
 `data-enter` and `data-leave`. A `show` that isn't a bool, or a
 `transition` without one, is [E0180](/errors/E0180).
 
+The registry's [Dialog](/ui/components/dialog) and
+[Dropdown Menu](/ui/components/dropdown-menu) take a state this way, and
+[Tabs](/ui/components/tabs) a `ui.State[string]`: pass the page's, and any
+write of it shows, hides or switches them.
+
 ## Derived Values {#derived}
 
 A `ui.Derived[T]` field is a value the browser computes from states and

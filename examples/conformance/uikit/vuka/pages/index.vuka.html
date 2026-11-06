@@ -14,6 +14,25 @@ type Settings struct {
 	asked   int
 	deleted bool
 	loaded  bool
+	renamed int
+
+	share    ui.State[bool]
+	plan     ui.State[string]
+	menu     ui.State[bool]
+	renaming bool
+}
+
+// ShareFromServer shows the share dialog by writing its state from a
+// handler.
+func (s *Settings) ShareFromServer() { s.share = true }
+
+// Rename shows the rename dialog, a server bool.
+func (s *Settings) Rename() { s.renaming = true }
+
+// Renamed hides it again.
+func (s *Settings) Renamed() {
+	s.renaming = false
+	s.renamed++
 }
 
 // Save counts a save.
@@ -49,7 +68,7 @@ func (s *Settings) Title() string { return "Settings" }
     <design.Button id="ask-delete" variant={design.ButtonDestructive} on={AskDelete}>Delete…</design.Button>
     <design.Button variant="outline" size={design.SizeSm}>Outline</design.Button>
     <design.Button variant={design.ButtonSecondary} size={design.SizeLg}>Secondary</design.Button>
-    <design.Button variant={design.ButtonGhost}>Ghost</design.Button>
+    <design.Button id="share-from-server" variant={design.ButtonGhost} on={ShareFromServer}>Ghost</design.Button>
     <design.Button variant={design.ButtonLink} class="px-0">Link</design.Button>
     <design.Button disabled type="submit">Disabled</design.Button>
   </div>
@@ -60,6 +79,7 @@ func (s *Settings) Title() string { return "Settings" }
     <design.Badge variant={design.BadgeDestructive}>Failed</design.Badge>
     <design.Badge variant={design.BadgeOutline} class="rounded-full">Outline</design.Badge>
   </div>
+  <p class="sr-only"><span id="share-state">{share}</span> renamed {renamed}</p>
   if deleted {
     <design.Alert variant={design.AlertDestructive} title="The project is deleted">It is gone for good.</design.Alert>
   } else {
@@ -74,16 +94,29 @@ func (s *Settings) Title() string { return "Settings" }
       <design.Input id="email" name="email" type="email" value="ada@" invalid />
     </form>
     <slot:footer>
-      <design.Button id="open-share" variant="outline" on={design.OpenDialog("share")}>Share…</design.Button>
+      <design.Button id="open-share" variant="outline" onClick={share = true}>Share…</design.Button>
+      <design.Button id="rename" variant="outline" on={Rename}>Rename…</design.Button>
     </slot:footer>
   </design.Card>
-  <design.Tabs id="plan" default="monthly">
+  <design.Tabs id="plan" value={plan} default="monthly">
     <slot:tab value="monthly" label="Monthly"><p>Billed every month.</p></slot:tab>
     <slot:tab value="yearly" label="Yearly"><p>Billed once a year, two months free.</p></slot:tab>
     <slot:tab value="lifetime" label="Lifetime" disabled><p>Not offered.</p></slot:tab>
   </design.Tabs>
+  <div class="flex flex-wrap items-center gap-2">
+    <design.DropdownMenu id="menu" show={menu}>
+      <slot:trigger>Project</slot:trigger>
+      <slot:item onClick={Save}>Save</slot:item>
+      <slot:item onClick={plan = "yearly"}>Bill yearly</slot:item>
+      <slot:item disabled>Archive</slot:item>
+      <slot:item onClick={AskDelete} destructive>Delete…</slot:item>
+    </design.DropdownMenu>
+    <design.Button id="open-menu" variant={design.ButtonLink} onClick={menu = true}>Show the menu</design.Button>
+    <design.Button id="pick-yearly" variant={design.ButtonLink} onClick={plan = "yearly"}>Yearly billing</design.Button>
+  </div>
   <design.Dialog
     id="share"
+    show={share}
     title="Share the project"
     description="Anyone with the link can view it."
   >
@@ -93,7 +126,13 @@ func (s *Settings) Title() string { return "Settings" }
       attrs={[]ui.Attr{{Name: "readonly", Value: true}}}
     />
     <slot:footer>
-      <design.Button variant="outline" on={design.CloseDialog("share")}>Done</design.Button>
+      <design.Button variant="outline" onClick={share = false}>Done</design.Button>
+    </slot:footer>
+  </design.Dialog>
+  <design.Dialog id="rename-dialog" title="Rename the project" open={renaming} onClose={Renamed}>
+    <design.Input id="new-name" value="Shop" />
+    <slot:footer>
+      <design.Button id="confirm-rename" on={Renamed}>Rename</design.Button>
     </slot:footer>
   </design.Dialog>
   <design.Dialog
