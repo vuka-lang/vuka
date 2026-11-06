@@ -291,7 +291,7 @@ type fileState struct {
 	staticFuncs    []*staticFunc
 	static         genWriter // the statics' declarations
 	staticErrs     []*Error
-	autoImports    map[string]bool // packages imported for statics reached through other types
+	autoImports    map[string]string // packages the generated Go imports that the source doesn't, by path: their names
 	enums          []*enumDecl
 	variantMethods []VariantMethod     // its methods on value-enum variants (enummethods.go)
 	enumGen        genWriter           // the enums' generated methods
@@ -708,6 +708,7 @@ func compile(files []File, opts Options, force map[string]bool) (*Result, map[st
 	for _, f := range e.vuka {
 		extra, segs := f.exports(opts.Bare, &errs)
 		src, m, body := f.emit(opts.Bare, extra, segs)
+		src = f.dropUnusedImports(src)
 		res.Files = append(res.Files, Output{Implicit: f.implicitOf(), Name: f.name, GoName: GoName(f.name), Src: src, Map: m, Body: body, Files: e.fileRefs(f), Names: names, Declares: f.declares() || e.embedsDeclaring(f) || f.islandGen.len() > 0 || f.graphqlGen.len() > 0, Vars: f.readsOf(), Available: e.available(), Warnings: warns[f], Unwrapped: f.unwrapsOf(), Lets: f.letsOf(), VariantMethods: f.variantMethodsOf(), Matches: f.matchesOf(), GraphQLArgs: e.gqlArgs[f]})
 		for _, a := range f.attrs {
 			res.Attrs = append(res.Attrs, *a)
