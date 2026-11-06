@@ -490,13 +490,8 @@ Each icon of the library has a role: its name in the library (`check`,
 each role it maps — `@icon.X(icon.Props{Class: "size-4"})` becomes
 `@icons.Close(icon.Props{Class: "size-4"})` — and imports the set's
 package, dropping the library's icon import where nothing else uses it. The
-set's functions take the library's icon props:
-
-```go
-package icons
-
-func Close(props ...icon.Props) templ.Component { … }
-```
+set's functions have the library's icons' shape, `func(...icon.Props)
+templ.Component`, so the calls keep their arguments.
 
 A role the set doesn't map keeps the library's icon, and `vuka ui add`
 says so (`the icon set app has no chevron-down icon: kept shadcn-templ's
