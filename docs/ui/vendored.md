@@ -466,6 +466,46 @@ version to merge from: `vuka ui diff` shows how yours differ. vuka's own
 components aren't versioned in `[ui.sources]`; `vuka ui diff` and `vuka ui
 add -f` keep them up to date.
 
+### Icons {#icons}
+
+A library's components draw its own icons (shadcn-templ's are lucide's,
+from its `icon` package). To draw yours instead, name a set of the app's in
+`[ui] icons` and map its icons by role:
+
+```toml
+[ui]
+icons = "app"
+
+[ui.icons.app]
+package = "components/icons"   # the app's icon package
+close = "Close"
+chevron-down = "ChevronDown"
+```
+
+Each icon of the library has a role: its name in the library (`check`,
+`chevron-down`, `search`), or the role vuka gives it — `x` is `close`,
+`loader-circle` `spinner`, `triangle-alert` `warning`, `octagon-x`
+`error`, `circle-check` `success`, `panel-left` `sidebar`, `ellipsis`
+`more`. `vuka ui add` writes the components calling the set's function for
+each role it maps — `@icon.X(icon.Props{Class: "size-4"})` becomes
+`@icons.Close(icon.Props{Class: "size-4"})` — and imports the set's
+package, dropping the library's icon import where nothing else uses it. The
+set's functions take the library's icon props:
+
+```go
+package icons
+
+func Close(props ...icon.Props) templ.Component { … }
+```
+
+A role the set doesn't map keeps the library's icon, and `vuka ui add`
+says so (`the icon set app has no chevron-down icon: kept shadcn-templ's
+(icon.ChevronDown)`). `vuka ui diff` and `vuka ui upgrade` compare with the
+library's files as `vuka ui add` writes them, so the icons are never a
+difference of yours, nor a conflict on an upgrade. Without `[ui] icons` (or
+with the library's own set, `lucide` for shadcn-templ) the components keep
+the library's icons.
+
 ### Other Libraries {#other-libraries}
 
 vuka reads a library from its Go module, at a version, the way `go get`

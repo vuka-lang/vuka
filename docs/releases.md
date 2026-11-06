@@ -171,6 +171,13 @@ parameter keeps the call a handler.
   ([What a Component Takes](/ui/vendored#component-doc)). Hover on a
   component's tag shows the values and events too, and works on a templ
   library's components, read from their `.templ` files.
+- **`[ui] icons` draws a library's components with the app's icons** ([#365](https://github.com/vuka-lang/vuka/issues/365)).
+  A `[ui.icons.<set>]` table maps icon roles (`close`, `check`,
+  `chevron-down`…) to the app's icon functions, and `vuka ui add` writes the
+  library's components calling them in place of the library's icons; a role
+  the set doesn't map keeps the library's, with a note. `vuka ui diff` and
+  `vuka ui upgrade` compare against the files as written with the set, so
+  swapped icons are no local edit ([Icons](/ui/vendored#icons)).
 
 ## v2.16.1 — 2026-11-01
 

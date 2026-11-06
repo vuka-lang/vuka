@@ -54,8 +54,7 @@ utilities over design tokens in the app's stylesheet.
          keeping the app's edits: each file is merged three ways, the
          library's at the version [ui.sources] records, at the new one,
          and the app's. Changes made on both sides differently are
-         conflicts, marked <<<<<<< ======= >>>>>>> in the file; a
-         component with one keeps its old version in [ui.sources] until
+         conflicts, marked          component with one keeps its old version in [ui.sources] until
          they are resolved and upgrade runs again. --check says which
          components have changes upstream and which files the app
          edited, changing nothing, and fails when there are changes.
@@ -229,12 +228,15 @@ type uiConfig struct {
 	Package string // their package's name
 	CSS     string // the stylesheet holding the tokens, relative to the module
 	Theme   string // the theme whose colours the tokens have; the style's own when empty
+	// Icons is the set of icons a library's components are written with
+	// ([ui.icons.<name>]); the library's own when empty.
+	Icons string
 	// Registry is the registry vuka ui reads: an https:// URL, or a
 	// directory relative to the module; vuka's own when empty.
 	Registry string
 }
 
-var uiKeys = []string{"style", "components", "package", "css", "theme", "registry"}
+var uiKeys = []string{"style", "components", "package", "css", "theme", "icons", "registry"}
 
 // readUIConfig reads the [ui] table of the vuka.toml at root; ok is false
 // when there is none.
@@ -277,6 +279,8 @@ func readUIConfig(root string) (c uiConfig, ok bool, err error) {
 			c.CSS = s
 		case "theme":
 			c.Theme = s
+		case "icons":
+			c.Icons = s
 		case "registry":
 			c.Registry = s
 		default:
@@ -310,6 +314,9 @@ func (c uiConfig) table() string {
 	t := fmt.Sprintf("[ui]\nstyle = %q\ncomponents = %q\npackage = %q\ncss = %q\n", c.Style, c.Dir, c.Package, c.CSS)
 	if c.Theme != "" {
 		t += fmt.Sprintf("theme = %q\n", c.Theme)
+	}
+	if c.Icons != "" {
+		t += fmt.Sprintf("icons = %q\n", c.Icons)
 	}
 	if c.Registry != "" {
 		t += fmt.Sprintf("registry = %q\n", c.Registry)
